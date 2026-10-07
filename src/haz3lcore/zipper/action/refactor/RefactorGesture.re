@@ -148,7 +148,9 @@ let gesture =
         switch (arm_index_at(target, m)) {
         | Some(j) =>
           let i = delta < 0 ? j - 1 : j;
-          Option.is_some(swap_arms_rewrite(~fixup=false, ~target, i, m))
+          Option.is_some(
+            swap_arms_rewrite(~info_map, ~fixup=false, ~target, i, m),
+          )
             ? Some(Action.SwapArms(i)) : None;
         | None => None
         }

@@ -1174,6 +1174,13 @@ let rec find_path = (~hit: Exp.t => bool, e: Exp.t): option(list(Exp.t)) =>
     |> Option.map(rest => [e, ...rest]);
   };
 
+/* the deepest node matched by ~hit (children before parents) */
+let rec find_innermost = (~hit: Exp.t => bool, e: Exp.t): option(Exp.t) =>
+  switch (children_of(e) |> List.find_map(find_innermost(~hit))) {
+  | Some(x) => Some(x)
+  | None => hit(e) ? Some(e) : None
+  };
+
 let same_node = (a: Exp.t, b: Exp.t): bool =>
   Exp.rep_id(a) == Exp.rep_id(b);
 

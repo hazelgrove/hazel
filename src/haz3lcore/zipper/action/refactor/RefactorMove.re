@@ -207,6 +207,68 @@ let pat_needs_parens = (p: Pat.t): bool =>
   | _ => false
   };
 
+/* statics' coverage: the case a pattern fully covers — the case with
+   no payload, or with an irrefutable one */
+let covered_case = (~info_map: Statics.Map.t, p: Pat.t): option(string) =>
+  switch (Id.Map.find_opt(Pat.rep_id(p), info_map)) {
+  | Some(InfoPat({constraint_: Ap(c, None), _})) => Some(c)
+  | Some(InfoPat({constraint_: Ap(c, Some(arg)), _}))
+      when Coverage.Constraint.is_irrefutable(arg) =>
+    Some(c)
+  | _ => None
+  };
+
+/* a scrutinee type's cases in declaration order (sums, bools):
+   (name, takes a payload) */
+let scrutinee_cases =
+    (~info_map: Statics.Map.t, scrut: Exp.t): list((string, bool)) =>
+  switch (Id.Map.find_opt(Exp.rep_id(scrut), info_map)) {
+  | Some(InfoExp({ty, ctx, _})) =>
+    let rec cases_of = (t: Typ.t) =>
+      switch (IdTagged.term_of(t)) {
+      | Sum(variants) =>
+        variants
+        |> List.filter_map((v: ConstructorMap.variant(Typ.t)) =>
+             switch (v) {
+             | Variant(name, _, arg) => Some((name, arg != None))
+             | _ => None
+             }
+           )
+      | Rec(_, body) => cases_of(body)
+      | Atom(Bool) => [("true", false), ("false", false)]
+      | _ => []
+      };
+    cases_of(Typ.normalize(ctx, ty));
+  | _ => []
+  };
+
+let case_pat = ((name, has_arg): (string, bool)): Pat.t =>
+  switch (name) {
+  | "true" => fresh_pat(Atom(Bool(true)))
+  | "false" => fresh_pat(Atom(Bool(false)))
+  | _ =>
+    let c: Pat.t = fresh_pat(Constructor(name, None));
+    has_arg ? fresh_pat(Ap(c, fresh_pat(Wild))) : c;
+  };
+
+/* the arm Down-on-end adds: when statics says the case is
+   inexhaustive, the first case (declaration order) no arm fully
+   covers; otherwise statics' own witness, wildified */
+let next_arm = (~info_map: Statics.Map.t, e: Exp.t): option(Pat.t) =>
+  switch (IdTagged.term_of(e), match_witness(~info_map, e)) {
+  | (Match(scrut, rules), Some(w)) =>
+    let handled =
+      rules |> List.filter_map(((p, _)) => covered_case(~info_map, p));
+    switch (
+      scrutinee_cases(~info_map, scrut)
+      |> List.find_opt(((name, _)) => !List.mem(name, handled))
+    ) {
+    | Some(c) => Some(case_pat(c))
+    | None => Some(wildify(refresh_pat_ids(w)))
+    };
+  | _ => None
+  };
+
 let add_case_arm_impl: impl = {
   label: "Add arm",
   tooltip: "Append an arm for an unhandled pattern",
@@ -217,9 +279,8 @@ let add_case_arm_impl: impl = {
         e =>
           switch (IdTagged.term_of(e)) {
           | Match(scrut, rules) when rules != [] =>
-            switch (match_witness(~info_map, e)) {
+            switch (next_arm(~info_map, e)) {
             | Some(w) =>
-              let w = wildify(refresh_pat_ids(w));
               let w = pat_needs_parens(w) ? fresh_pat(Parens(w)) : w;
               let (_, last_body) = List.nth(rules, List.length(rules) - 1);
               /* the last body's trailing run stays put, becoming the
@@ -257,7 +318,20 @@ let is_var_named = (x: string, e: Exp.t): bool =>
 /* Patch every unshadowed application of x: f(a) -> f(a, ?). A bare
  * (non-applied) use sets ~bare_use — arity extension can't fix a
  * function passed as a value, so callers gate on it. */
-let patch_calls = (~bare_use: ref(bool), x: string, e: Exp.t): Exp.t =>
+/* how many arguments a parameter pattern takes: a tuple's width, unit
+   0, anything else 1 */
+let rec param_arity = (p: Pat.t): int =>
+  switch (IdTagged.term_of(p)) {
+  | Parens(inner)
+  | Asc(inner, _) => param_arity(inner)
+  | Tuple(items) => List.length(items)
+  | _ => 1
+  };
+
+/* ~bare_use is also raised for a call this can't repair: a
+   multi-param call not spelled as a matching tuple (`f(args)`) */
+let patch_calls =
+    (~arity: int, ~bare_use: ref(bool), x: string, e: Exp.t): Exp.t =>
   map_unshadowed(
     ~skip=x,
     ~f_var=
@@ -280,11 +354,23 @@ let patch_calls = (~bare_use: ref(bool), x: string, e: Exp.t): Exp.t =>
           };
           let arg': Exp.t =
             switch (IdTagged.term_of(arg)) {
-            | Tuple(items) => {
+            | Tuple(items) when arity > 1 && List.length(items) == arity => {
                 ...arg,
                 term: Tuple(List.map(go, items) @ [hole]),
               }
-            | _ => fresh(Tuple([go(arg), hole]))
+            | _ when arity == 1 =>
+              /* the whole argument is the one param's value: a bare
+                 tuple there needs its own parens, `f((1, 2), ?)` */
+              let a = go(arg);
+              let a =
+                switch (IdTagged.term_of(a)) {
+                | Tuple(_) => fresh(Parens(a))
+                | _ => a
+                };
+              fresh(Tuple([a, hole]));
+            | _ =>
+              bare_use := true;
+              arg;
             };
           Some({
             ...ap,
@@ -484,48 +570,64 @@ let add_param_rewrite = (~program: Exp.t, e: Exp.t): option((Exp.t, Id.t)) =>
   | Let(p, def, body) =>
     let name = fresh_name(program);
     let bare_use = ref(false);
-    let patched = (f, x) => patch_calls(~bare_use, f, x);
-    let pieces: option((string, Pat.t, Exp.t, Id.t)) =
-      switch (sugar_fn_name(p)) {
-      | Some(f) =>
-        extended_ap_pat(p, name)
-        |> Option.map(((p', focus)) => (f, p', patched(f, def), focus))
-      | None =>
-        switch (IdTagged.term_of(p), IdTagged.term_of(def)) {
-        | (Var(f), Fun(fp, fbody, fty, nm)) =>
-          let (fp', focus) = extended_pat(fp, name);
-          let fbody' = binds(f, fp) ? fbody : patched(f, fbody);
-          Some((
-            f,
-            p,
-            {
-              ...def,
-              term: Fun(fp', fbody', fty, nm),
-            },
-            focus,
-          ));
-        | (Asc(inner, ann), Fun(fp, fbody, fty, nm)) =>
-          switch (var_pat_name(inner), extended_arrow(ann)) {
-          | (Some(f), Some(ann')) =>
-            let (fp', focus) = extended_pat(fp, name);
-            let fbody' = binds(f, fp) ? fbody : patched(f, fbody);
-            Some((
-              f,
-              {
-                ...p,
-                term: Asc(inner, ann'),
-              },
-              {
-                ...def,
-                term: Fun(fp', fbody', fty, nm),
-              },
-              focus,
-            ));
-          | _ => None
-          }
-        | _ => None
-        }
+    let rec sugar_args = (p: Pat.t) =>
+      switch (IdTagged.term_of(p)) {
+      | Ap(_, arg) => Some(arg)
+      | Asc(inner, _) => sugar_args(inner)
+      | _ => None
       };
+    let arity =
+      switch (sugar_args(p), IdTagged.term_of(def)) {
+      | (Some(args), _) => param_arity(args)
+      | (None, Fun(fp, _, _, _)) => param_arity(fp)
+      | _ => 1
+      };
+    let patched = (f, x) => patch_calls(~arity, ~bare_use, f, x);
+    let pieces: option((string, Pat.t, Exp.t, Id.t)) =
+      arity == 0
+        ? None
+        : (
+          switch (sugar_fn_name(p)) {
+          | Some(f) =>
+            extended_ap_pat(p, name)
+            |> Option.map(((p', focus)) => (f, p', patched(f, def), focus))
+          | None =>
+            switch (IdTagged.term_of(p), IdTagged.term_of(def)) {
+            | (Var(f), Fun(fp, fbody, fty, nm)) =>
+              let (fp', focus) = extended_pat(fp, name);
+              let fbody' = binds(f, fp) ? fbody : patched(f, fbody);
+              Some((
+                f,
+                p,
+                {
+                  ...def,
+                  term: Fun(fp', fbody', fty, nm),
+                },
+                focus,
+              ));
+            | (Asc(inner, ann), Fun(fp, fbody, fty, nm)) =>
+              switch (var_pat_name(inner), extended_arrow(ann)) {
+              | (Some(f), Some(ann')) =>
+                let (fp', focus) = extended_pat(fp, name);
+                let fbody' = binds(f, fp) ? fbody : patched(f, fbody);
+                Some((
+                  f,
+                  {
+                    ...p,
+                    term: Asc(inner, ann'),
+                  },
+                  {
+                    ...def,
+                    term: Fun(fp', fbody', fty, nm),
+                  },
+                  focus,
+                ));
+              | _ => None
+              }
+            | _ => None
+            }
+          }
+        );
     switch (pieces) {
     | Some((f, p', def', focus)) =>
       let body' = patched(f, body);
@@ -1479,17 +1581,12 @@ let hoist_carry_impl: impl = {
  * arm's body — meaning-preserving by construction. Targeted at the
  * `_` token itself. */
 
-let handled_ctor = (p: Pat.t): option(string) => {
-  let rec go = (p: Pat.t) =>
-    switch (IdTagged.term_of(p)) {
-    | Constructor(name, _) => Some(name)
-    | Ap(f, _) => go(f)
-    | Parens(inner) => go(inner)
-    | _ => None
-    };
-  go(p);
-};
-
+/* the cases a `_` at arm i stands for: every case of the scrutinee's
+ * type that no EARLIER arm fully covers. Coverage is statics' answer
+ * (the arm's coverage constraint: the case with no payload, or an
+ * irrefutable one); a partly covered constructor (`Taken(0)`) still
+ * gets an arm — it receives the remainder. Arms after the `_` are
+ * shadowed by it and don't count. Bools expand to true/false. */
 let wildcard_expansion =
     (~info_map: Statics.Map.t, ~target: Id.t, e: Exp.t)
     : option((int, list((string, bool)))) =>
@@ -1507,28 +1604,14 @@ let wildcard_expansion =
     switch (wild_idx) {
     | None => None
     | Some((i, _)) =>
-      switch (Id.Map.find_opt(Exp.rep_id(scrut), info_map)) {
-      | Some(InfoExp({ty, ctx, _})) =>
-        switch (IdTagged.term_of(Typ.normalize(ctx, ty))) {
-        | Sum(variants) =>
-          let handled =
-            rules
-            |> List.filteri((j, _) => j != i)
-            |> List.filter_map(((p, _)) => handled_ctor(p));
-          let missing =
-            variants
-            |> List.filter_map((v: ConstructorMap.variant(Typ.t)) =>
-                 switch (v) {
-                 | Variant(name, _, arg) when !List.mem(name, handled) =>
-                   Some((name, arg != None))
-                 | _ => None
-                 }
-               );
-          missing == [] ? None : Some((i, missing));
-        | _ => None
-        }
-      | _ => None
-      }
+      let cases = scrutinee_cases(~info_map, scrut);
+      let handled =
+        rules
+        |> List.filteri((j, _) => j < i)
+        |> List.filter_map(((p, _)) => covered_case(~info_map, p));
+      let missing =
+        cases |> List.filter(((name, _)) => !List.mem(name, handled));
+      missing == [] ? None : Some((i, missing));
     };
   | _ => None
   };
@@ -1546,10 +1629,7 @@ let expand_wildcard_impl: impl = {
             switch (IdTagged.term_of(e)) {
             | Match(scrut, rules) =>
               let (wild_pat, wild_body) = List.nth(rules, i);
-              let ctor_pat = ((name, has_arg)) => {
-                let c: Pat.t = fresh_pat(Constructor(name, None));
-                has_arg ? fresh_pat(Ap(c, fresh_pat(Wild))) : c;
-              };
+              let ctor_pat = case_pat;
               let new_rules =
                 missing
                 |> List.mapi((k, m) => {
@@ -1960,6 +2040,8 @@ let param_items = (e: Exp.t): list(Pat.t) => {
  * patterns are provably disjoint: arm order is match priority, so
  * reordering overlapping arms changes meaning. */
 
+/* syntactic fallback for arms statics can't type (undeclared
+   constructors): distinct heads or literals never overlap */
 let rec pats_disjoint = (a: Pat.t, b: Pat.t): bool => {
   let rec strip = (p: Pat.t) =>
     switch (IdTagged.term_of(p)) {
@@ -1977,10 +2059,23 @@ let rec pats_disjoint = (a: Pat.t, b: Pat.t): bool => {
       }
     | _ => None
     };
+  let labeled = (xs: list(Pat.t)) =>
+    List.exists(
+      (x: Pat.t) =>
+        switch (IdTagged.term_of(x)) {
+        | TupLabel(_) => true
+        | _ => false
+        },
+      xs,
+    );
   switch (IdTagged.term_of(a), IdTagged.term_of(b)) {
   /* two distinct atoms (literals) can't match the same value */
   | (Atom(x), Atom(y)) => x != y
-  | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
+  /* positional only: labels may reorder (statics' constraints decide
+     those) */
+  | (Tuple(xs), Tuple(ys))
+      when
+        List.length(xs) == List.length(ys) && !labeled(xs) && !labeled(ys) =>
     List.exists2(pats_disjoint, xs, ys)
   | _ =>
     switch (ctor_head(a), ctor_head(b)) {
@@ -1990,6 +2085,44 @@ let rec pats_disjoint = (a: Pat.t, b: Pat.t): bool => {
     | _ => false
     }
   };
+};
+
+let rec constraints_disjoint =
+        (a: Coverage.Constraint.t, b: Coverage.Constraint.t): bool =>
+  switch (a, b) {
+  | (BigInt(x), BigInt(y)) => Bigint.to_string(x) != Bigint.to_string(y)
+  | (SInt(x), SInt(y)) => x != y
+  | (Float(x), Float(y)) => x != y
+  | (String(x), String(y)) => x != y
+  | (Ap(c, x), Ap(d, y)) =>
+    c != d
+    || (
+      switch (x, y) {
+      | (Some(x), Some(y)) => constraints_disjoint(x, y)
+      | _ => false
+      }
+    )
+  | (Tuple(xs), Tuple(ys)) when List.length(xs) == List.length(ys) =>
+    List.exists2(constraints_disjoint, xs, ys)
+  | _ => false
+  };
+
+/* no value matches both arms — decided on statics' coverage
+   constraints (lists as nil/cons, labeled tuples by label,
+   annotations transparent) */
+let arms_disjoint = (~info_map: Statics.Map.t, a: Pat.t, b: Pat.t): bool => {
+  let constraint_of = (p: Pat.t) =>
+    switch (Id.Map.find_opt(Pat.rep_id(p), info_map)) {
+    | Some(InfoPat({constraint_, _})) => Some(constraint_)
+    | _ => None
+    };
+  (
+    switch (constraint_of(a), constraint_of(b)) {
+    | (Some(x), Some(y)) => constraints_disjoint(x, y)
+    | _ => false
+    }
+  )
+  || pats_disjoint(a, b);
 };
 
 /* the arm's slot |/=> delimiter ids: Match.ids = [case/end tile id,
@@ -2005,12 +2138,13 @@ let arm_slot_ids = (e: Exp.t): list(Id.t) =>
    PRINT the bodies, and nothing in the gating path may print — this
    ran per render before the flag) */
 let swap_arms_rewrite =
-    (~fixup: bool, ~target: Id.t, i: int, e: Exp.t): option((Exp.t, Id.t)) =>
+    (~info_map, ~fixup: bool, ~target: Id.t, i: int, e: Exp.t)
+    : option((Exp.t, Id.t)) =>
   switch (IdTagged.term_of(e)) {
   | Match(scrut, rules) when i >= 0 && List.length(rules) > i + 1 =>
     let (pa, ba) = List.nth(rules, i);
     let (pb, bb) = List.nth(rules, i + 1);
-    if (pats_disjoint(pa, pb)) {
+    if (arms_disjoint(~info_map, pa, pb)) {
       /* boundary runs belong to SLOTS, and they may be stored
          node-level OR leaf-deep (mixed storage doubled a lead here
          once): exchange bodies via the textual Slot ops — each slot
@@ -2260,10 +2394,10 @@ let swap_tuple_pat_impl = (i: int): impl => {
 let swap_arms_impl = (i: int): impl => {
   label: "Move arm",
   tooltip: "Swap this arm with its neighbor (patterns must not overlap)",
-  prepare: (~info_map as _, ~target, program) =>
+  prepare: (~info_map, ~target, program) =>
     rewrite_node(
       ~hit=hit_arm(target),
-      ~rewrite=e => swap_arms_rewrite(~fixup=true, ~target, i, e),
+      ~rewrite=e => swap_arms_rewrite(~info_map, ~fixup=true, ~target, i, e),
       program,
     ),
 };
@@ -2313,7 +2447,8 @@ let swap_site =
           }
         | _ => false
         };
-      switch (find_hit(~hit=hit_call, program)) {
+      /* innermost: in f(g(¦1, 2), 3) the 1 is g's argument */
+      switch (find_innermost(~hit=hit_call, program)) {
       | Some(ap) =>
         switch (IdTagged.term_of(ap)) {
         | Ap(Forward, f, arg) =>

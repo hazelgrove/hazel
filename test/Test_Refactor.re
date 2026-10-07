@@ -5493,6 +5493,84 @@ let landing_block_tests = [
   ),
 ];
 
+/* === Cases, evaluation, call sites (review 2026-10-06) === */
+let review_fix_tests = {
+  let has = (marked, kind, needle) =>
+    test_case(Action.show_refactor(kind) ++ ": " ++ needle, `Quick, () =>
+      check(
+        bool,
+        needle,
+        true,
+        Util.StringUtil.plain_split(inline(~kind, marked) |> text_of, needle)
+        |> List.length > 1,
+      )
+    );
+  let w = "type W = Sun + Rain + Snow in\n";
+  [
+    /* the _ shadows later arms: Sun must stay 0 */
+    has(
+      w ++ "fun (w : W) -> case w | ¦_ => 0 | Sun => 1 end",
+      ExpandWildcard,
+      "| Sun => 0 | Rain => 0 | Snow => 0 | Sun => 1",
+    ),
+    /* a refutable payload covers only part of T: T(_) keeps the rest */
+    has(
+      "type S = V + T(Int) in\nfun (s : S) -> case s | T(0) => 1 | ¦_ => 2 end",
+      ExpandWildcard,
+      "| T(0) => 1 | V => 2 | T(_) => 2",
+    ),
+    has(
+      "fun (b : Bool) -> case b | true => 1 | ¦_ => 0 end",
+      ExpandWildcard,
+      "| true => 1 | false => 0",
+    ),
+    has(
+      w ++ "fun (w : W) -> case w | Sun => 1 ¦end",
+      AddCaseArm,
+      "| Sun => 1 | Rain => ?",
+    ),
+    test_case("list shapes are disjoint arms", `Quick, () =>
+      check(
+        bool,
+        "offered",
+        true,
+        offers(
+          SwapArms(0),
+          "fun (xs : [Int]) -> case xs | ¦[] => 0 | _ :: _ => 1 end",
+        ),
+      )
+    ),
+    has("1.0 ¦/. 3.0", EvaluateInPlace, "0.3333333333333333"),
+    has("string_length(\"hazel\") ¦+ 1", EvaluateInPlace, "6"),
+    test_case("evaluate isn't offered at a let", `Quick, () =>
+      check(
+        bool,
+        "not offered",
+        false,
+        offers(EvaluateInPlace, "¦let a = 1 in a + 1"),
+      )
+    ),
+    test_case("evaluate isn't offered on a test", `Quick, () =>
+      check(
+        bool,
+        "not offered",
+        false,
+        offers(EvaluateInPlace, "¦test 1 == 1 end"),
+      )
+    ),
+    has(
+      "let f = fun (a, b) -> a - b in\nlet g = fun (c, d) -> c * d in\nf(g(¦1, 2), 3)",
+      SwapParams(0),
+      "let g = fun (d, c) -> c * d in\nf(g(2, 1), 3)",
+    ),
+    has(
+      "let ¦first = fun p -> p in\nfirst(1, 2)",
+      AddParameter,
+      "first((1, 2), ?)",
+    ),
+  ];
+};
+
 /* === Splice parenthesization (review 2026-10-06) === */
 let splice_paren_tests = {
   let case = (name, kind, marked, want) =>
@@ -5626,11 +5704,6 @@ let scope_check_tests = {
       ExtractLet,
       "module G = {\n  type Point = (Int, Int);\n  let m =\n    ¦fun (x, y) : Point -> x + y\n} in\nG.m((3, 4))",
     ),
-    case(
-      "add param refuses a call it would mis-shape",
-      AddParameter,
-      "let ¦first = fun p -> p in\nfirst(1, 2)",
-    ),
     /* statics answers twin-ness up front (same shape AND same binders),
        so these never reach the check */
     test_case(
@@ -5674,6 +5747,7 @@ let tests = [
     refactor_tests
     @ scope_check_tests
     @ splice_paren_tests
+    @ review_fix_tests
     @ gating_tests
     @ case_tests
     @ annotation_tests

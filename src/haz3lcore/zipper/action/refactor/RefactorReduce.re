@@ -129,6 +129,12 @@ let rec is_value_literal = (e: Exp.t): bool =>
   switch (IdTagged.term_of(e)) {
   | Atom(_)
   | Constructor(_, _) => true
+  /* a negative number literal is spelled with a prefix minus */
+  | UnOp(Int(Minus) | Float(Minus) | SInt(Minus) | Nat(Minus), x) =>
+    switch (IdTagged.term_of(x)) {
+    | Atom(_) => true
+    | _ => false
+    }
   | ListLit(xs)
   | Tuple(xs) => xs |> List.for_all(is_value_literal)
   | TupLabel(_, x) => is_value_literal(x)
@@ -203,6 +209,65 @@ let reduce_prepare =
     );
   };
 
+/* an evaluated float splices back as a literal, so it must spell its
+   exact value (the canonical %f spelling rounds: 1/3 -> 0.333333);
+   non-finite floats have no literal at all */
+let exact_float_lexeme = (f: float): option(string) =>
+  if (!Float.is_finite(f)) {
+    None;
+  } else {
+    let exact = s => Token.is_float(s) && float_of_string_opt(s) == Some(f);
+    let canonical = Atom.to_literal(Float(f));
+    if (exact(canonical)) {
+      Some(canonical);
+    } else {
+      let rec go = p =>
+        if (p > 17) {
+          None;
+        } else {
+          let s =
+            Printf.sprintf("%.*g", p, f)
+            |> Util.StringUtil.replace(
+                 Util.StringUtil.regexp("e\\+"),
+                 _,
+                 "e",
+               );
+          let s =
+            String.contains(s, '.') || String.contains(s, 'e')
+              ? s : s ++ ".0";
+          exact(s) ? Some(s) : go(p + 1);
+        };
+      go(1);
+    };
+  };
+
+let with_exact_floats = (v: Exp.t): option(Exp.t) => {
+  let ok = ref(true);
+  let v =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) =>
+          switch (IdTagged.term_of(e)) {
+          | Atom(Float(f)) =>
+            switch (exact_float_lexeme(f)) {
+            | Some(l) => {
+                ...e,
+                annotation: {
+                  ...e.annotation,
+                  lexeme: Some(l),
+                },
+              }
+            | None =>
+              ok := false;
+              e;
+            }
+          | _ => cont(e)
+          },
+      v,
+    );
+  ok^ ? Some(v) : None;
+};
+
 let evaluate_in_place_impl: impl = {
   label: "Evaluate closed",
   tooltip: "Replace this self-contained expression with its value",
@@ -234,8 +299,8 @@ let evaluate_in_place_impl: impl = {
         )
       ) {
       | LimitedCompleted((v, _)) when is_value_literal(v) =>
-        let v = space_commas(v);
-        Some((v, Exp.rep_id(v)));
+        with_exact_floats(space_commas(v))
+        |> Option.map(v => (v, Exp.rep_id(v)))
       | _ => None
       };
     };

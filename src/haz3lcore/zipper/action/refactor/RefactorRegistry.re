@@ -219,7 +219,9 @@ let applies =
   | SwapArms(i) =>
     switch (find_hit(~hit=hit_arm(target), program)) {
     | Some(m) =>
-      Option.is_some(swap_arms_rewrite(~fixup=false, ~target, i, m))
+      Option.is_some(
+        swap_arms_rewrite(~info_map, ~fixup=false, ~target, i, m),
+      )
     | None => false
     }
   | SwapTuplePat(i) =>
@@ -288,14 +290,56 @@ let applies =
       let rec is_fun = (e: Exp.t) =>
         switch (IdTagged.term_of(e)) {
         | Parens(inner) => is_fun(inner)
-        | Fun(_) => true
+        | Fun(_)
+        | TypFun(_) => true
         | _ => false
         };
+      /* binding forms read as programs, not expressions: evaluating at
+         a let would replace everything below it; tests would vanish */
+      let is_form =
+        switch (IdTagged.term_of(e)) {
+        | Let(_)
+        | TyAlias(_)
+        | Module(_)
+        | Seq(_)
+        | Use(_) => true
+        | _ => false
+        };
+      let has_test =
+        e
+        |> collect_exp(e' =>
+             switch (IdTagged.term_of(e')) {
+             | Test(_)
+             | HintedTest(_) => [()]
+             | _ => []
+             }
+           )
+        != [];
+      /* closed up to builtins: every free name statics resolves to the
+         same entry it has at the program root (the builtin env the
+         evaluation runs in) */
+      let root_ctx =
+        Id.Map.find_opt(Exp.rep_id(program), info_map)
+        |> Option.map(Info.ctx_of);
+      let builtin_only = (ctx, co_ctx: CoCtx.t) =>
+        Util.VarMap.to_list(co_ctx)
+        |> List.for_all(((x, _)) =>
+             switch (Ctx.lookup_var(ctx, x), root_ctx) {
+             | (Some(here), Some(root)) =>
+               switch (Ctx.lookup_var(root, x)) {
+               | Some(top) => here.id == top.id
+               | None => false
+               }
+             | _ => false
+             }
+           );
       !is_fun(e)
+      && !is_form
+      && !has_test
       && !is_value_literal(e)
       && (
         switch (Id.Map.find_opt(Exp.rep_id(e), info_map)) {
-        | Some(InfoExp({co_ctx, _})) => co_ctx == []
+        | Some(InfoExp({co_ctx, ctx, _})) => builtin_only(ctx, co_ctx)
         | _ => false
         }
       );

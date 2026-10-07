@@ -45,16 +45,13 @@ let label_override =
   | AddCaseArm =>
     switch (find_hit(~hit=hit_node(target), term)) {
     | Some(e) =>
-      match_witness(~info_map, e)
+      next_arm(~info_map, e)
       |> Option.map(w => {
            let text =
              Printer.of_segment(
                ~holes="?",
                ~refractors=[],
-               ExpToSegment.pat_to_segment(
-                 ~settings=roundtrip_settings,
-                 wildify(w),
-               ),
+               ExpToSegment.pat_to_segment(~settings=roundtrip_settings, w),
              );
            "Add arm | " ++ text;
          })
@@ -172,7 +169,9 @@ let menu_items =
         switch (arm_index_at(target, m)) {
         | Some(j) =>
           let mk = (i, label) =>
-            Option.is_some(swap_arms_rewrite(~fixup=false, ~target, i, m))
+            Option.is_some(
+              swap_arms_rewrite(~info_map, ~fixup=false, ~target, i, m),
+            )
               ? [
                 (
                   Action.SwapArms(i),
