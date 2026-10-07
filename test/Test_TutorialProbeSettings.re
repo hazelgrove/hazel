@@ -117,6 +117,7 @@ let tests = (
           editors,
           explain_this: ExplainThisModel.init,
           selection: Editors.Selection.default_selection(editors),
+          action_explorer: ActionExplorer.Model.init,
         };
         let requested = ref([]);
         let _ =
