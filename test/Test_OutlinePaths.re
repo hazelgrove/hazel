@@ -226,4 +226,52 @@ let cases = [
   ),
 ];
 
-let tests = [("OutlinePaths", cases)];
+/* after a delete the cursor goes where the row was, not to another row
+   with the same name */
+let successors = () => {
+  let ids = ns => List.filter_map((n: OutlineTree.node) => n.o_id, ns);
+  let e = term_of_text("let x = 1 in\nlet y = 2 in\nlet x = 3 in\nx + y");
+  switch (ids(OutlineTree.of_term(e))) {
+  | [x0, y, _, ..._] =>
+    check(
+      bool,
+      "the first x: the row after it",
+      true,
+      OutlineTree.successor(x0, e) == Some(y),
+    )
+  | _ => fail("expected rows x, y, x")
+  };
+  let e = term_of_text("module M = {\n  let a = 1;\n  let b = 2\n} in\nM.a");
+  switch (OutlineTree.of_term(e)) {
+  | [{o_id: Some(_), o_children, _}, ..._] =>
+    switch (ids(o_children)) {
+    | [a, b] =>
+      check(
+        bool,
+        "the last member: the one before",
+        true,
+        OutlineTree.successor(b, e) == Some(a),
+      )
+    | _ => fail("expected members a, b")
+    };
+    let e = term_of_text("module M = {\n  let a = 1\n} in\nM.a");
+    switch (OutlineTree.of_term(e)) {
+    | [{o_id: Some(m'), o_children: [{o_id: Some(a), _}], _}, ..._] =>
+      check(
+        bool,
+        "an only member: its module",
+        true,
+        OutlineTree.successor(a, e) == Some(m'),
+      )
+    | _ => fail("expected M with one member")
+    };
+  | _ => fail("expected module M")
+  };
+};
+
+let tests = [
+  (
+    "OutlinePaths",
+    cases @ [test_case("a deleted row's successor", `Quick, successors)],
+  ),
+];

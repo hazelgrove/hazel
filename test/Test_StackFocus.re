@@ -338,6 +338,35 @@ let tests = (
         (),
       )
     ),
+    /* an open cell's live name keeps a non-ASCII name whole */
+    test_case(
+      "a non-ASCII header name",
+      `Quick,
+      () => {
+        let master = parse("let café = 1 in café");
+        let (term, info_map) = statics_of(master);
+        switch (Focus.mk_entry(~info_map, outline_id(term, "café"), master)) {
+        | Some(e) =>
+          check(
+            option(string),
+            "header name",
+            Some("café"),
+            Web.ScratchCell.header_name(e),
+          )
+        | None => fail("mk_entry")
+        };
+      },
+    ),
+    /* the body's first statement starts after the `fun x ->` head */
+    test_case("fn-body first statement", `Quick, () =>
+      check_headless(
+        ~src="let f = fun x ->\n  test x > 0 end;\n  x + 1\nin f(1)",
+        ~label="1",
+        ~sym={js|;|js},
+        ~body="test x > 0 end",
+        (),
+      )
+    ),
     test_case("fn-body trailing expression", `Quick, () =>
       check_headless(
         ~src="let f = fun x -> let y = x + 1 in y * 2 in f(1)",

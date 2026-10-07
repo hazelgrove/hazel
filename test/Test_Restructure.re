@@ -886,6 +886,24 @@ f(1)|js},
     mv(~up=true, x, "x"),
   );
   same(
+    "a test out of a module",
+    "let a = 1 in\ntest a == 1 end;\nmodule M = {\n  let y = 3\n} in\nlet b = 4 in\nb",
+    mv(
+      ~up=true,
+      "let a = 1 in\nmodule M = {\n  test a == 1 end;\n  let y = 3\n} in\nlet b = 4 in\nb",
+      "1",
+    ),
+  );
+  same(
+    "a test into a module",
+    "let a = 1 in\nmodule M = {\n  let y = 3;\n  test a == 1 end\n} in\nlet b = 4 in\nb",
+    mv(
+      ~up=true,
+      "let a = 1 in\nmodule M = {\n  let y = 3\n} in\ntest a == 1 end;\nlet b = 4 in\nb",
+      "1",
+    ),
+  );
+  same(
     "a function into a module",
     "module M = {\n  let f = fun x ->\n    x + 1;\n  let y = 3\n} in\nM.y",
     mv(

@@ -493,6 +493,41 @@ let node_of = (fid: Id.t, e: Exp.t): option(node) => {
   go(of_term(e));
 };
 
+/* the row that takes [fid]'s place once it's deleted: the next sibling,
+   else the one before, else its parent */
+let successor = (fid: Id.t, e: Exp.t): option(Id.t) => {
+  let first_id = List.find_map((n: node) => n.o_id);
+  let rec go = (parent, ns: list(node)): option(option(Id.t)) => {
+    let rec split = (before, xs: list(node)) =>
+      switch (xs) {
+      | [n, ...rest] when n.o_id == Some(fid) => Some((before, rest))
+      | [n, ...rest] => split([n, ...before], rest)
+      | [] => None
+      };
+    switch (split([], ns)) {
+    | Some((before, after)) =>
+      Some(
+        switch (first_id(after), first_id(before)) {
+        | (Some(id), _)
+        | (None, Some(id)) => Some(id)
+        | (None, None) => parent
+        },
+      )
+    | None =>
+      List.fold_left(
+        (acc, n: node) =>
+          switch (acc) {
+          | Some(_) => acc
+          | None => go(n.o_id == None ? parent : n.o_id, n.o_children)
+          },
+        None,
+        ns,
+      )
+    };
+  };
+  go(None, of_term(e)) |> Option.join;
+};
+
 /* every row id, memoized on the term like [of_term] */
 let row_ids_cache: Slot.t(Exp.t, Id.Map.t(unit)) = Slot.mk();
 let row_ids = (e: Exp.t): Id.Map.t(unit) =>

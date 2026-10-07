@@ -809,7 +809,10 @@ let menu_view =
 
 type visible_row = {
   r_path: OutlineTree.path,
+  /* its label may be an open cell's live header text */
   r_node: OutlineTree.node,
+  /* the row's name in the program */
+  r_name: string,
   r_parent: option(OutlineTree.path),
   r_expanded: bool,
 };
@@ -977,8 +980,8 @@ let keys =
             ed_row: r.r_node.o_id,
             ed_anchor: None,
             ed_inside: false,
-            ed_text: r.r_node.o_label,
-            ed_caret: String.length(r.r_node.o_label),
+            ed_text: r.r_name,
+            ed_caret: String.length(r.r_name),
             ed_error: None,
           }),
         )
@@ -1321,6 +1324,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
       List.concat_map(
         ((n: OutlineTree.node, seg)) => {
           let path = prefix @ [seg];
+          let name = n.o_label;
           let n = live_label(n);
           let branch = n.o_children != [];
           let expanded = branch && !is_collapsed(path);
@@ -1328,6 +1332,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
             {
               r_path: path,
               r_node: n,
+              r_name: name,
               r_parent: parent,
               r_expanded: expanded,
             },

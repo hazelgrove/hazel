@@ -286,16 +286,9 @@ module Selection = {
        ]);
   };
 
-  let jump_to_tile =
-      (~settings, tile, model: Model.t): option((Update.t, t)) => {
-    let scratchpad = List.nth(model.scratchpads, model.current);
-    switch (scratchpad.kind) {
-    | Code({program: Whole(editor), _}) =>
-      CellEditor.Selection.jump_to_tile(tile, editor)
-      |> Option.map(((x, y)) =>
-           (Update.Workspace(CellAction(x)), Cell(y))
-         )
-    | Code({program: Divided(d), _}) =>
+  /* the open cell holding [tile], and the caret's move there */
+  let jump_in_divided = (tile, d: Divided.t): option((Update.t, t)) => {
+    let find = tile => {
       let caret: CellEditor.Update.t =
         MainEditor(Perform(Move(Goal(TileId(tile)))));
       let in_cell = cell =>
@@ -316,6 +309,26 @@ module Selection = {
              None;
            }
          );
+    };
+    switch (find(tile)) {
+    | Some(_) as found => found
+    /* a run member's row is its `;`, outside the run's cell: go to its
+       `test` */
+    | None =>
+      Option.bind(Focus.test_before_semi(tile, Divided.document(d)), find)
+    };
+  };
+
+  let jump_to_tile =
+      (~settings, tile, model: Model.t): option((Update.t, t)) => {
+    let scratchpad = List.nth(model.scratchpads, model.current);
+    switch (scratchpad.kind) {
+    | Code({program: Whole(editor), _}) =>
+      CellEditor.Selection.jump_to_tile(tile, editor)
+      |> Option.map(((x, y)) =>
+           (Update.Workspace(CellAction(x)), Cell(y))
+         )
+    | Code({program: Divided(d), _}) => jump_in_divided(tile, d)
     | Drv(m) =>
       DerivationExerciseMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.DrvAction(x), Drv(y)))
@@ -950,6 +963,7 @@ module View = {
                 | _ => None
                 },
               ~locked=false,
+              ~result_kind=`StatusLine,
               Divided.result(d),
             );
           List.concat_map(((_, c)) => c.c_nodes, rendered)
@@ -988,6 +1002,7 @@ module View = {
                 },
               ~locked=false,
               ~lines=true,
+              ~result_kind=`StatusLine,
               editor,
             ),
           ]

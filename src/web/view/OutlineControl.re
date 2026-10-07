@@ -104,6 +104,11 @@ let update =
   | DefOp(op, fid) =>
     menu := None;
     let program = code.program;
+    /* a delete leaves the cursor where the row was: its old path names
+       another row when names repeat */
+    let successor =
+      op == Delete
+        ? OutlineTree.successor(fid, Program.statics(program).term) : None;
     switch (
       ItemEdit.edit(
         Workspace.item_ctx(
@@ -118,6 +123,12 @@ let update =
     | Error(_) => code |> Updated.return_quiet
     | Ok((new_seg, target)) =>
       let code = Workspace.with_segment(~settings, code, new_seg);
+      if (op == Delete) {
+        cursor :=
+          Option.bind(successor, id =>
+            OutlineTree.label_path(id, Program.statics(code.program).term)
+          );
+      };
       switch (op, target, code.program) {
       | (MoveUp | MoveDown, Some(id), _) =>
         cursor :=
@@ -226,6 +237,21 @@ let update =
     code |> Updated.return_quiet;
   };
 
+/* outside the scratch and documentation decks the outline only
+   navigates: its view state moves, and nothing reaches a program */
+let update_view = (a: Action.t): unit =>
+  switch (a) {
+  | Cursor(c) => cursor := c
+  | Focus => JsUtil.focus_outline()
+  | Collapse(_)
+  | Menu(_)
+  | MenuSel(_)
+  | DefOp(_)
+  | Edit(_)
+  | Commit(_)
+  | Focused => ()
+  };
+
 /* the row holding the editor's caret, or its nearest visible ancestor
    when collapsed away (OutlineFollow) */
 let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
@@ -261,9 +287,11 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
       | (None, Whole(_)) => None
       };
     let collapsed = collapsed(deck);
+    /* a folded ancestor shows the mark instead; with nothing folded the
+       row is its own, so skip the walks (this runs every render) */
     Option.map(
       r =>
-        switch (OutlineTree.trail_of(r, term)) {
+        switch (collapsed == [] ? None : OutlineTree.trail_of(r, term)) {
         | Some(trail) =>
           List.find_opt(
             id =>

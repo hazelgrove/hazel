@@ -251,7 +251,28 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
     } else {
       walk(i + 1, start, acc);
     };
-  walk(0, 0, []);
+  /* a function body shares its segment with its `fun x ->` head: its
+     items start after it */
+  let is_head = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      switch (Tile.label(t)) {
+      | ["fun", "->"]
+      | ["typfun", "->"] => true
+      | _ => false
+      }
+    | _ => false
+    };
+  let rec after_heads = i => {
+    let j = ws_end(i);
+    j < len && is_head(arr[j]) ? after_heads(j + 1) : i;
+  };
+  let first =
+    switch (after_heads(0)) {
+    | 0 => 0
+    | i => ws_end(i)
+    };
+  walk(first, first, []);
 };
 
 /* a member body opening with `…in` lies flat in the member's run: it
@@ -623,6 +644,30 @@ let splice_headless_deep =
       )
     };
   go(~top=true, seg);
+};
+
+/* the `test` before the statement `;` [semi]: a run member's row is its
+   `;`, which stays outside the run's cell */
+let rec test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) => {
+  let rec scan = (last, ps: Segment.t) =>
+    switch (ps) {
+    | [] => None
+    | [Piece.Tile(t), ..._] when t.id == semi => last
+    | [Piece.Tile(t), ...rest] =>
+      switch (List.find_map(test_before_semi(semi), t.children)) {
+      | Some(_) as found => found
+      | None =>
+        scan(
+          switch (Tile.label(t)) {
+          | ["test", ..._] => Some(t.id)
+          | _ => last
+          },
+          rest,
+        )
+      }
+    | [_, ...rest] => scan(last, rest)
+    };
+  scan(None, seg);
 };
 
 /* contiguous test runs: the outline's "tests" container opens one cell

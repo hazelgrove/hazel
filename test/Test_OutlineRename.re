@@ -114,6 +114,62 @@ let names = () => {
   refused("let foo = 1 in foo", "foo", "let");
   refused("let foo = 1 in foo", "foo", "two words");
   refused("type T = Int in 1", "T", "t");
+  /* the wildcard, literals, any form's keyword, qualified names */
+  List.iter(
+    name => refused("let foo = 1 in foo", "foo", name),
+    ["_", "true", "end", "rec", "theorem", "M.x", "$x"],
+  );
+  renamed("let foo = 1 in foo", "foo", "foo_2'", "let foo_2' = 1 in foo_2'");
+};
+
+/* a type member used qualified, in an annotation */
+let qualified_type = () =>
+  renamed(
+    "module U = {\n  type Meters = Int;\n  let x : Meters = 1\n} in\nlet d : U.Meters = 5 in\nd",
+    "Meters",
+    "Feet",
+    "module U = {\n  type Feet = Int;\n  let x : Feet = 1\n} in\nlet d : U.Feet = 5 in\nd",
+  );
+
+/* a use folded away by a projector is renamed with the rest */
+let folded = () => {
+  let seg = parse("let foo = 1 in\nlet bar = foo + 1 in\nbar");
+  let count = ref(0);
+  let rec fold = (seg: Segment.t): Segment.t =>
+    List.map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when Tile.label(t) == ["foo"] =>
+          incr(count);
+          count^ == 2 ? Piece.Projector(ProjectorCore.mk(Fold, p, "")) : p;
+        | Tile(t) =>
+          Piece.Tile({
+            ...t,
+            children: List.map(fold, t.children),
+          })
+        | p => p
+        },
+      seg,
+    );
+  let seg = fold(seg);
+  let term = term_of(~root=Exp, seg);
+  let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
+  let rec inside = (seg: Segment.t): list(string) =>
+    List.concat_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Projector({syntax: Tile(t), _}) => Tile.label(t)
+        | Tile(t) => List.concat_map(inside, t.children)
+        | _ => []
+        },
+      seg,
+    );
+  switch (
+    Web.OutlineRename.rename(~info_map, ~term, row(term, "foo"), "baz", seg)
+  ) {
+  | Ok(seg) => check(list(string), "the folded use", ["baz"], inside(seg))
+  | Error(why) => fail("refused: " ++ why)
+  };
 };
 
 let tests = (
@@ -126,5 +182,7 @@ let tests = (
     test_case("module-rooted program", `Quick, mod_root),
     test_case("capture is refused", `Quick, capture),
     test_case("names are checked", `Quick, names),
+    test_case("a qualified type use", `Quick, qualified_type),
+    test_case("a folded use", `Quick, folded),
   ],
 );

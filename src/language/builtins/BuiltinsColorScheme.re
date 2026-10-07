@@ -197,7 +197,7 @@ let role_groups: list((string, list(string))) = [
       "reused-glow",
     ],
   ),
-  ("inspector", ["badge", "text", "separator"]),
+  ("inspector", ["badge", "text", "separator", "dynamics"]),
   (
     "probe",
     [

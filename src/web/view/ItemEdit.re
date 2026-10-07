@@ -898,7 +898,23 @@ let in_form =
   | (true, true)
   | (false, false) => Some(ps)
   | (true, false) => member_core(drop_suffix("in", text_of(ps)))
-  | (false, true) => letin_core(text_of(ps) ++ " in")
+  | (false, true) =>
+    /* a definition takes `in`; a statement (a test) keeps its `;` */
+    let def =
+      switch (
+        List.find_map(
+          (p: Piece.t) =>
+            switch (p) {
+            | Tile(t) => Some(Tile.label(t))
+            | _ => None
+            },
+          ps,
+        )
+      ) {
+      | Some(["let", ..._] | ["type", ..._] | ["module", ..._]) => true
+      | _ => false
+      };
+    letin_core(text_of(ps) ++ (def ? " in" : ";"));
   };
 
 type spot = {

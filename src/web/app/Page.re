@@ -940,7 +940,27 @@ module View = {
         failwith("get_log_count is deprecated, use Log.get_count_sync"),
       export_all: Export.export_all,
     };
-    let bottom_bar = CursorInspector.view(~globals, cursor);
+    /* the slide program's dynamics, at the inspector's right end */
+    let dynamics =
+      switch (editors) {
+      | Scratch(m)
+      | Documentation(m) when globals.settings.core.dynamics =>
+        ScratchMode.Model.current_program(m)
+        |> Option.map(p =>
+             EvalResult.View.dynamics(
+               ~inject=
+                 a =>
+                   inject(
+                     Editors(
+                       Scratch(Workspace(CellAction(ResultAction(a)))),
+                     ),
+                   ),
+               Program.result(p),
+             )
+           )
+      | _ => None
+      };
+    let bottom_bar = CursorInspector.view(~globals, ~dynamics?, cursor);
     let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>

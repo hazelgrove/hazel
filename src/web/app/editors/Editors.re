@@ -303,6 +303,11 @@ module Update = {
           m,
         );
       Model.Exercises(m');
+    /* other modes' outlines only navigate (OutlineControl.view sends
+       its actions here whatever the mode) */
+    | (Scratch(Outline(a)), Exercises(_) | Tutorial(_) | Config(_)) =>
+      OutlineControl.update_view(a);
+      model |> return_quiet;
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Documentation(_))
