@@ -345,7 +345,15 @@ let tests = [
             )
           | None => Alcotest.fail("no cache entry after graft")
           };
-          let t' = DefStatics.calc_auto(~settings, whole);
+          /* the fake error is no analysis' result: the runner's parity
+             check against monolithic statics would reject it */
+          let check_hook = DefStatics.after_calc^;
+          DefStatics.after_calc := None;
+          let t' =
+            Fun.protect(
+              ~finally=() => DefStatics.after_calc := check_hook,
+              () => DefStatics.calc_auto(~settings, whole),
+            );
           check(int, "recalc is warm", 0, DefStatics.last_analyzed^);
           check(bool, "graft survives the warm recalc", true, has_fake(t'));
         },
