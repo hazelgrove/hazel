@@ -883,14 +883,16 @@
   display: flex;
   gap: 1ch;
   align-items: center;
-  height: calc(var(--line-height) * 1em);
+  height: var(--row-height-px);
   padding: 0;
   font-family: var(--ui-font);
   color: var(--text-muted);
 }
 
-.below-wrapper .proof-drawer .theorem-status.true {
-  color: var(--text-success, var(--text-muted));
+/* a step is its code's rows: the result view's fixed-height ≡ box would
+   add a pixel a step, and a long trace a row */
+.below-wrapper :is(.steps-drawer, .proof-drawer) .equiv {
+  height: var(--row-height-px);
 }
 
 .below-wrapper .proof-drawer .stepper {
