@@ -18,7 +18,7 @@ let exercise : Exercise.t =
                 4142fcba-10d7-46a5-aa4f-39e5e83fea37)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text = "";
            };
@@ -31,7 +31,7 @@ let exercise : Exercise.t =
                 54bc9a91-0c32-4fce-a146-23a705a914c1)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text = "";
            };
@@ -128,7 +128,7 @@ let exercise : Exercise.t =
                             cd5a80ac-17d5-42e9-9b2c-f8f1d756c470)(form(Tok \
                             1))(sort(Drv Exp)))))()))(ancestors())))(caret \
                             Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                            -1)(pinned_stack())(indicated_call())(time())(seq \
+                            -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                             0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                          backup_text =
                            "let isNat = fun a -> a > -1 in if isNat (5 - 3) \
