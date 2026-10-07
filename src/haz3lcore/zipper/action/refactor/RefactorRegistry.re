@@ -482,16 +482,25 @@ let go =
   | Some(target) =>
     id_origin := Id.Map.empty;
     binder_redirect := Id.Map.empty;
-    switch (impl(kind).prepare(~info_map, ~target, term)) {
+    let printed = term' =>
+      ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
+      |> SpaceNormalize.go;
+    /* judge what lands in the buffer: the spliced segment, read back
+       the way the editor reads it. A structure the print doesn't keep
+       (a let extending over a comma) is refused, then statics checks
+       the read-back program */
+    let lands = (term', seg) => {
+      let read = MakeTerm.go(seg).term;
+      Exp.fast_equal(read, term')
+      && RefactorCheck.preserves(~settings, ~info_map, ~before=term, read);
+    };
+    switch (
+      impl(kind).prepare(~info_map, ~target, term)
+      |> Option.map(((term', focus)) => (term', focus, printed(term')))
+    ) {
     | None => None
-    | Some((term', _))
-        when
-          !RefactorCheck.preserves(~settings, ~info_map, ~before=term, term') =>
-      None
-    | Some((term', focus)) =>
-      let seg =
-        ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
-        |> SpaceNormalize.go;
+    | Some((term', _, seg)) when !lands(term', seg) => None
+    | Some((_, focus, seg)) =>
       let mk = (zp: Zipper.t) => {
         ...zp,
         refractors: z.refractors,

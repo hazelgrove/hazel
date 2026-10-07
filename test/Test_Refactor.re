@@ -5726,6 +5726,11 @@ let scope_check_tests = {
     );
   [
     case(
+      "a splice whose print reads back differently is refused",
+      ExtractLet,
+      "let f = fun x -> x * 2 in\nlet (f, k) = (fun n -> ¦f(n) + 1, 3) in\nf(k)",
+    ),
+    case(
       "hoist out of a recursive fun would unbind its self-call",
       HoistLet,
       "let fact = fun n ->\n  ¦let one = 1 in\n  if n < 2 then one else n * fact(n - 1)\nin\nfact(3)",
