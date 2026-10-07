@@ -847,6 +847,19 @@
   gap: 0;
 }
 
+/* the result view's dotted rule between steps, drawn inside the row's
+   top edge so each step keeps its code's height */
+.below-wrapper :is(.steps-drawer, .proof-drawer) .step-border + .step-border {
+  background-image: linear-gradient(
+    to right,
+    var(--cell-result-border) 50%,
+    transparent 0
+  );
+  background-size: 4px 1px;
+  background-repeat: repeat-x;
+  background-position: top left;
+}
+
 /* the rule name follows its step */
 .below-wrapper .steps-drawer .step-output {
   flex-grow: 0;
