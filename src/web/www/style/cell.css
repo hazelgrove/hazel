@@ -39,10 +39,22 @@
   background-color: var(--cell-active);
 }
 
-/* room after the whole program's last line, so a drawer there (the ⇓
-   toggle's value) clears the bottom bar */
+/* room after the whole program's last line, so a drawer there clears
+   the bottom bar */
 :is(#main.Scratch, #main.Documentation) > .cell > .code-editor {
   padding-bottom: 6em;
+}
+
+/* with ⇓ on, the last line's drawer runs on to the end in its own color,
+   far enough that its value can scroll to the top */
+:is(#main.Scratch, #main.Documentation) > .cell:has(+ .tail-slack) > .code-editor {
+  padding-bottom: 0;
+}
+
+#main .tail-slack {
+  flex: 0 0 auto;
+  height: calc(100% - var(--row-height-px, 1.45em));
+  background-color: var(--surface-raised);
 }
 
 :is(#main.Scratch,

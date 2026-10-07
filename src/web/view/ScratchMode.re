@@ -1041,6 +1041,18 @@ module View = {
               editor,
             ),
           ]
+          /* with ⇓ on, the program's drawer runs on below it, far enough
+             that its value can scroll to the top */
+          @ (
+            globals.settings.tail_probe
+              ? [
+                Virtual_dom.Vdom.Node.div(
+                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["tail-slack"])],
+                  [],
+                ),
+              ]
+              : []
+          )
         };
       | Drv(m) =>
         DerivationExerciseMode.View.view(
