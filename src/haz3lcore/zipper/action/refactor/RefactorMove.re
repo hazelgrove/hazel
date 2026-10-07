@@ -141,6 +141,28 @@ let negate_if_impl: impl = {
                     },
                   };
                 };
+              /* an else-if chain flipped puts an if in the then slot,
+                 where it reads as a dangling else: parenthesize it
+                 there, and unwrap it on the way back (stays a toggle) */
+              let is_if = (x: Exp.t) =>
+                switch (IdTagged.term_of(x)) {
+                | If(_) => true
+                | _ => false
+                };
+              let alt =
+                if (is_if(alt)) {
+                  let s = Slot.of_exp(alt);
+                  Slot.give(s, fresh(Parens(Slot.drop(s, alt))));
+                } else {
+                  alt;
+                };
+              let t =
+                switch (IdTagged.term_of(t)) {
+                | Parens(inner) when is_if(inner) =>
+                  let s = Slot.of_exp(t);
+                  Slot.give(s, Slot.drop(s, inner));
+                | _ => t
+                };
               let boundary = Slot.trail_of(t);
               /* the then-arm's end-of-line comment goes where the arm
                  goes */

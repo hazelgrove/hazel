@@ -5665,6 +5665,11 @@ let review_fix_tests = {
       NegateIf,
       "then 2\n  else 1 # then note #",
     ),
+    has(
+      "fun (n : Int) -> if n < 0 ¦then \"A\" else if n == 0 then \"B\" else \"C\"",
+      NegateIf,
+      "then (if n == 0 then \"B\" else \"C\") else \"A\"",
+    ),
     /* nothing offered that then does nothing */
     test_case(
       "no dead offers",

@@ -30,7 +30,7 @@ let inline_matches = (p: Pat.t, def: Exp.t, body: Exp.t): bool => {
 
 let inline_let_impl: impl = {
   label: "Inline",
-  tooltip: "Replace this let by substituting its definition",
+  tooltip: "Replace this let by substituting its definition (it then runs wherever each use runs)",
   /* also offered at occurrences of the bound var */
   prepare: (~info_map, ~target, program) => {
     let attempt = target =>
@@ -758,7 +758,7 @@ let feed_alias_route =
 
 let feed_let_impl: impl = {
   label: "Inline next use",
-  tooltip: "Substitute the definition into its nearest use; the last use consumes the binding",
+  tooltip: "Substitute the definition into its nearest use (it then runs where that use runs); the last use consumes the binding",
   prepare: (~info_map, ~target, program) =>
     switch (feed_prepare(~info_map, ~target, program)) {
     | Some(_) as r => r
@@ -1933,7 +1933,7 @@ let implode_step = (~info_map, ~y_id: Id.t, program: Exp.t): option(Exp.t) =>
 
 let implode_impl: impl = {
   label: "Implode",
-  tooltip: "Fold the single-use bindings above back into this definition",
+  tooltip: "Fold the single-use bindings above back into this definition (each then runs where its use runs)",
   prepare: (~info_map, ~target, program) =>
     switch (find_hit(~hit=hit_let(target), program)) {
     | Some(y) =>
