@@ -99,13 +99,13 @@ let normalize = (~term, v: t): t => {
   };
 };
 
-let slot_of_cell = (e: ScratchCell.t): slot =>
-  e.e_inner
-    ? Members(e.e_id)
-    : Pin({
-        p_id: e.e_id,
-        p_run: e.e_run,
-      });
+/* an open cell shows [w]: a module row's pin shows as its members, so
+   one members cell serves the pin and the zoom alike */
+let satisfies = (e: ScratchCell.t, w: slot): bool =>
+  switch (w) {
+  | Pin(p) => e.e_id == p.p_id && e.e_run == p.p_run
+  | Members(m) => e.e_id == m && e.e_inner
+  };
 
 let slot_id =
   fun
@@ -153,37 +153,45 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
   let (v, p) = follow_headless(~term, v, p);
   let v = normalize(~term, v);
   let want = shown(~term, v);
-  let current =
+  let cells =
     switch (p) {
     | Whole(_) => []
-    | Divided(d) => List.map(slot_of_cell, Divided.cells(d))
+    | Divided(d) => Divided.cells(d)
     };
-  let to_open = List.filter(w => !List.mem(w, current), want);
-  let to_close = List.filter(c => !List.mem(c, want), current);
+  let to_open =
+    List.filter(w => !List.exists(e => satisfies(e, w), cells), want);
+  let to_close =
+    List.filter_map(
+      (e: ScratchCell.t) =>
+        List.exists(satisfies(e), want) ? None : Some(e.e_id),
+      cells,
+    );
   let open_one = (p: Program.t, w: slot): option(Program.t) => {
     let id = slot_id(w);
     let sym = sym_of(id, term);
-    let (run, inner) =
-      switch (w) {
-      | Pin(p) => (p.p_run, false)
-      | Members(_) => (false, true)
+    let open_cell = (~inner) =>
+      switch (p) {
+      | Whole(e) => Divided.split(~info_map, ~sym?, ~inner, e, id)
+      | Divided(d) => Divided.open_(~info_map, ~term, ~sym?, ~inner, id, d)
       };
-    switch (p) {
-    | Whole(e) =>
-      (
-        run
-          ? Divided.split_run(~info_map, e, id)
-          : Divided.split(~info_map, ~sym?, ~inner, e, id)
-      )
-      |> Option.map(d => Program.Divided(d))
-    | Divided(d) =>
-      (
-        run
-          ? Divided.open_run(~info_map, ~term, id, d)
-          : Divided.open_(~info_map, ~term, ~sym?, ~inner, id, d)
-      )
-      |> Option.map(d => Program.Divided(d))
-    };
+    (
+      switch (w, p) {
+      | (Pin({p_run: true, _}), Whole(e)) =>
+        Divided.split_run(~info_map, e, id)
+      | (Pin({p_run: true, _}), Divided(d)) =>
+        Divided.open_run(~info_map, ~term, id, d)
+      /* a module row opens as its members; `{}` has none to show */
+      | (Pin(_), _)
+          when OutlineTree.kind_of(id, term) == Some(OutlineTree.KModule) =>
+        switch (open_cell(~inner=true)) {
+        | Some(d) => Some(d)
+        | None => open_cell(~inner=false)
+        }
+      | (Pin(_), _) => open_cell(~inner=false)
+      | (Members(_), _) => open_cell(~inner=true)
+      }
+    )
+    |> Option.map(d => Program.Divided(d));
   };
   let open_all = (p, ws) =>
     List.fold_left(
@@ -207,7 +215,7 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
     | Divided(d) =>
       switch (Divided.active(d)) {
       | Some((a, _)) =>
-        let (last, rest) = List.partition(c => slot_id(c) == a, to_close);
+        let (last, rest) = List.partition(id => id == a, to_close);
         rest @ last;
       | None => to_close
       }
@@ -215,9 +223,9 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
     };
   let p =
     List.fold_left(
-      (p: Program.t, c: slot) =>
+      (p: Program.t, id) =>
         switch (p) {
-        | Divided(d) => Program.of_close(Divided.close(slot_id(c), d))
+        | Divided(d) => Program.of_close(Divided.close(id, d))
         | Whole(_) => p
         },
       p,

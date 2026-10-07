@@ -1211,7 +1211,11 @@ let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
           seg,
           body_text(e),
         );
-      splice_def(e.e_id, with_brace_child(def_seg, members), seg);
+      splice_def(e.e_id, with_brace_child(def_seg, members), seg)
+      |> splice_pat(
+           e.e_id,
+           rewrap_ws(find_pat, e.e_id, seg, header_text(e)),
+         );
     | None => seg
     }
   | Some(_) when e.e_run => splice_run_deep(e.e_id, body_text(e), seg)

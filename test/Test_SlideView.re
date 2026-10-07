@@ -373,6 +373,149 @@ let tail_follows = () => {
   check(bool, "f opens beside it", true, List.mem(f, open_ids(p)));
 };
 
+/* an opened module row shows its members, without braces, under its
+   name; zooming in and out keeps that cell */
+let module_row = () => {
+  let (m, x) = (row("M"), row("x"));
+  let of_text = (root, s) =>
+    switch (FastParse.of_text(~root, s)) {
+    | Some(seg) => seg
+    | None => fail("parse " ++ s)
+    };
+  let (v, p) = run([V.pin(~term, x), V.pin(~term, m)]);
+  check(bool, "one cell, the member folded in", true, open_ids(p) == [m]);
+  check(bool, "not the zoom cell", false, V.showing_zoom_cell(~term, v));
+  switch (p) {
+  | Whole(_) => fail("not divided")
+  | Divided(d) =>
+    let e = List.hd(Divided.cells(d));
+    check(bool, "a members cell", true, e.e_inner);
+    check(
+      string,
+      "the name above",
+      "M",
+      text_of(Focus.zip_of_cell(e.e_header)),
+    );
+    check(
+      string,
+      "the members below, without braces",
+      "let x = a + 1;\nlet y = x * 2",
+      text_of(Focus.zip_of_cell(e.e_body)),
+    );
+    let d =
+      Divided.update_cell(
+        m,
+        (c: Web.ScratchCell.t) =>
+          {
+            ...c,
+            /* a module name parses only in place: take N's */
+            e_header:
+              Focus.pat_cell_of_seg(
+                Focus.core_ws(
+                  Option.get(
+                    List.find_map(
+                      (p: Piece.t) =>
+                        switch (p) {
+                        | Tile(t) => List.nth_opt(t.children, 0)
+                        | _ => None
+                        },
+                      of_text(Exp, "module N = {} in 0"),
+                    ),
+                  ),
+                ),
+              ),
+            e_body:
+              Focus.cell_of_seg(
+                ~root=Sort.Mod,
+                of_text(Mod, "let x = a + 5;\nlet y = x * 2"),
+              ),
+          },
+        d,
+      );
+    check(
+      string,
+      "edits land inside the braces, at depth",
+      "let a = 1 in\nmodule N = {\n  let x = a + 5;\n  let y = x * 2\n} in\nlet b = M.y in\nb",
+      text_of(Divided.document(d)),
+    );
+  };
+  let body = (p: Web.Program.t) =>
+    switch (p) {
+    | Divided(d) => Some(List.hd(Divided.cells(d)).e_body)
+    | Whole(_) => None
+    };
+  let (v, p) = run([V.pin(~term, m)]);
+  let (v, p') = V.realize(~info_map, ~term, V.zoom_in(~term, m, v), p);
+  check(
+    bool,
+    "zoomed in: the zoom cell",
+    true,
+    V.showing_zoom_cell(~term, v),
+  );
+  check(
+    bool,
+    "and the same cell",
+    true,
+    switch (body(p), body(p')) {
+    | (Some(a), Some(b)) => a === b
+    | _ => false
+    },
+  );
+  let (v, p'') = V.realize(~info_map, ~term, V.zoom_out(v), p');
+  check(
+    bool,
+    "zoomed out: its name again",
+    false,
+    V.showing_zoom_cell(~term, v),
+  );
+  check(
+    bool,
+    "still the same cell",
+    true,
+    switch (body(p), body(p'')) {
+    | (Some(a), Some(b)) => a === b
+    | _ => false
+    },
+  );
+};
+
+/* `{}` has no members to show: it opens as its definition */
+let empty_module_row = () => {
+  let seg = parse("module E = {} in\n1");
+  let term = MakeTerm.Incr.term_of(seg);
+  let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
+  let e =
+    switch (
+      List.find_map(
+        (n: Web.OutlineTree.node) => n.o_label == "E" ? n.o_id : None,
+        Web.OutlineTree.of_term(term),
+      )
+    ) {
+    | Some(id) => id
+    | None => fail("no row E")
+    };
+  check(
+    bool,
+    "a module row",
+    true,
+    Web.OutlineTree.kind_of(e, term) == Some(Web.OutlineTree.KModule),
+  );
+  switch (
+    V.realize(
+      ~info_map,
+      ~term,
+      V.pin(~term, e, V.init),
+      Whole(Focus.cell_of_seg(seg)),
+    )
+  ) {
+  | (_, Whole(_)) => fail("didn't open")
+  | (_, Divided(d)) =>
+    let c = List.hd(Divided.cells(d));
+    check(bool, "a definition cell", false, c.e_inner);
+    check(string, "its braces", "{}", text_of(Focus.zip_of_cell(c.e_body)));
+  };
+};
+
 let tests = (
   "SlideView",
   [
@@ -391,5 +534,7 @@ let tests = (
       `Quick,
       tail_follows,
     ),
+    test_case("a module row opens as its members", `Quick, module_row),
+    test_case("an empty module opens whole", `Quick, empty_module_row),
   ],
 );
