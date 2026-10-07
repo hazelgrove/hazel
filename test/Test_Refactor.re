@@ -5568,6 +5568,25 @@ let review_fix_tests = {
       AddParameter,
       "first((1, 2), ?)",
     ),
+    /* labeled tuples bind by name, as Hazel matches them */
+    has(
+      "¦let (p=x, q=y) = (q=2, p=1) in x - y",
+      SplitLet,
+      "let x = 1 in\nlet y = 2 in",
+    ),
+    has("¦case (q=2, p=1) | (p=x, q=y) => x - y end", ReduceCase, "1 - 2"),
+    has("(¦fun (p=a, q=b) -> a - b)(q=2, p=1)", BetaReduce, "1 - 2"),
+    test_case("no extraction out of a short-circuit's right side", `Quick, () =>
+      check(
+        bool,
+        "not offered",
+        false,
+        offers(
+          ExtractLet,
+          "let spin = fun n -> n in\nlet d = 0 in\nd == 0 || spin(d) ¦> 1",
+        ),
+      )
+    ),
   ];
 };
 

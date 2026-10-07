@@ -976,7 +976,35 @@ let extract_path = (~target: Id.t, program: Exp.t): option(list(Exp.t)) =>
            | _ => false
            }
          );
-    extractable(t) && !blocked_ancestor && !whole_def ? Some(path) : None;
+    /* the right of && / || runs only sometimes: a binding landing
+       above it would run always (and may not terminate). A line slot
+       in between (fun body, let, branch, arm) keeps the landing
+       inside, which is fine. */
+    let short_circuit_exposed = {
+      let rec go = (exposed, path: list(Exp.t)) =>
+        switch (path) {
+        | [p, c, ...rest] =>
+          let exposed =
+            switch (IdTagged.term_of(p)) {
+            | BinOp(Bool(And | Or), _, r) when same_node(r, c) => true
+            | Fun(_, b, _, _) when same_node(b, c) => false
+            | Let(_, d, b) when same_node(d, c) || same_node(b, c) => false
+            | If(_, t, e) when same_node(t, c) || same_node(e, c) => false
+            | Match(_, rules)
+                when List.exists(((_, b)) => same_node(b, c), rules) =>
+              false
+            | _ => exposed
+            };
+          go(exposed, [c, ...rest]);
+        | _ => exposed
+        };
+      go(false, path);
+    };
+    extractable(t)
+    && !blocked_ancestor
+    && !whole_def
+    && !short_circuit_exposed
+      ? Some(path) : None;
   };
 
 let extract_let_impl: impl = {

@@ -512,8 +512,11 @@ let rec match_value = (p: Pat.t, v: Exp.t): pat_match => {
   switch (IdTagged.term_of(p), IdTagged.term_of(v)) {
   | (Parens(p'), _) => match_value(p', v)
   | (_, Parens(v')) => match_value(p, v')
-  /* labels are positional wrappers (PatternMatch unwraps without
-     comparing names) — recurse through either side */
+  /* tuples are aligned by label first (below), so a labeled pair here
+     must agree on the name; a label on one side only is the positional
+     element statics already gave that name */
+  | (TupLabel(_, p'), TupLabel(_, v')) =>
+    Pat.get_label(p) == Exp.get_label(v) ? match_value(p', v') : Unknown
   | (TupLabel(_, p'), _) => match_value(p', v)
   | (_, TupLabel(_, v')) => match_value(p, v')
   | (Wild, _) => Matched([])
@@ -528,6 +531,19 @@ let rec match_value = (p: Pat.t, v: Exp.t): pat_match => {
     | (Some(cp), Some(cv)) => cp == cv ? match_value(parg, varg) : NoMatch
     | _ => Unknown
     }
+  /* labeled tuples match by NAME, as statics and the evaluator line
+     them up (LabeledTuple.rearrange), not by position */
+  | (Tuple(ps), Tuple(vs))
+      when
+        List.exists(p => Pat.get_label(p) != None, ps)
+        || List.exists(v => Exp.get_label(v) != None, vs) =>
+    elementwise(
+      ps,
+      LabeledTuple.rearrange(
+        Pat.match_tup_label, Exp.match_tup_label, ps, vs, (l, b) =>
+        TupLabel(Label(l) |> Exp.fresh, b) |> Exp.fresh
+      ),
+    )
   | (Tuple(ps), Tuple(vs))
   | (ListLit(ps), ListLit(vs)) => elementwise(ps, vs)
   /* cons vs list literal: split head/tail. The tail REUSES the
