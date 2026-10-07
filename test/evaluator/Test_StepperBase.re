@@ -81,7 +81,7 @@ module InductionCaseHelpers = {
         ~root=Exp,
         Zipper.unzip(
           ExpToSegment.exp_to_segment(
-            ~settings=ExpToSegment.Settings.editable(~inline=true),
+            ~settings=ExpToSegment.Settings.editable(~inline=Inline),
             pattern_exp,
           ),
         ),

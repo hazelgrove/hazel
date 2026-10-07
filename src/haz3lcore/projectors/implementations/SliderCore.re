@@ -47,7 +47,6 @@ module Make = (P: PARAMS) : Projector => {
   let put = (info: info, v: string): Base.segment =>
     switch (
       info.utility.lift_syntax(
-        ~inline=true,
         fun
         | Exp(t) =>
           Exp({
@@ -55,6 +54,7 @@ module Make = (P: PARAMS) : Projector => {
             term: Atom(P.to_atom(v)),
           })
         | _ => failwith(P.name ++ ": Put: not " ++ P.literal ++ " literal"),
+        Inline.Block,
         info.syntax,
       )
     ) {
