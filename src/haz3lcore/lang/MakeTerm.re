@@ -2003,11 +2003,15 @@ let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
   let seg = semantic_source(z);
   let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
   let masks = CanonicalCompletion.masks_of_records(result.shard_records);
+  /* holes reach statics placed-fresh with deterministic ids on every
+     path (display shares this derivation, so the id join holds); the
+     snapshot keeps the PLACED segment, the one that supplied the ids */
+  let completed = GroutPlace.place(result.completed_seg);
   (
-    go_impl(~masks, result.completed_seg),
+    go_impl(~masks, completed),
     {
       source: seg,
-      completed: result.completed_seg,
+      completed,
     },
   );
 };

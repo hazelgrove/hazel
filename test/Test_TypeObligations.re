@@ -262,7 +262,9 @@ let probe_chips = [
     check(
       string_testable,
       "cmp",
-      "A: let f : (Int, String, Bool)->Int = fun x -> f(1  ~2)in? ||| B: let g : (Int, String, Bool) -> Int = fun x -> 1 in g(1  ~2)",
+      /* hole at the policy position (one space from anchor) — same
+         rule as the Test_GroutPlace pin table */
+      "A: let f : (Int, String, Bool)->Int = fun x -> f(1 ~ 2)in? ||| B: let g : (Int, String, Bool) -> Int = fun x -> 1 in g(1 ~ 2)",
       "A: "
       ++ completed_of("let f : (Int, String, Bool)->Int = fun x -> f(1  2¦")
       ++ " ||| B: "
@@ -318,7 +320,7 @@ let probe_chips = [
       check(
         string_testable,
         "chips",
-        "obs=[2/3] arg=MultiHole(2) existing=[)+in] all=[,+)+in | ,]",
+        "obs=[2/3] arg=MultiHole(2) existing=[)+in] all=[,+)+in]",
         Printf.sprintf(
           "obs=[%s] arg=%s existing=[%s] all=[%s]",
           obs
@@ -457,7 +459,10 @@ let ghost_tests = [
   ghost_case(
     ~name="ghost: annotated let",
     ~code="let _: (Int, Bool) ¦",
-    ~expected="<=?in?>",
+    /* the trailing body hole is ARTIFACT material now — the display
+       projects it (`⟪= ? in ?⟫` pins in Test_CompletionDisplay); the
+       fabricated ghost channel this probe reads no longer carries it */
+    ~expected="<=?in>",
   ),
   ghost_case(
     ~name="ghost: let a = 4",

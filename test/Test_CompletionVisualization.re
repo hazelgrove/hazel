@@ -233,9 +233,12 @@ let indent_tests = [
     ~name="let with indented body",
     ~input={|let x = 1
   y|},
-    /* The in junction-drops before y (def=1, body=y), no hole */
-    ~expected={|let x = 1
-  ·y    // in|},
+    /* the in junction anchors at its owner's line end (the placement
+       policy's line-wrapped-gap rule, same as the felt pin
+       "mid-segment linebreak: end of previous line") — the body line
+       stays untouched */
+    ~expected={|let x = 1·    // in
+  y|},
   ),
   /* Same-indent triggers partition. */
   test(

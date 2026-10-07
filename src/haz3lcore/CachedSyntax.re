@@ -60,6 +60,12 @@ type t = {
    * that has fresh assist data is the deferred refresh, not the edit
    * frame itself. Movement never arms: activation stays edit-only. */
   ghost_armed: bool,
+  /* persist-ratchet state carried across frames (Persist mode) */
+  persist_known: list(string),
+  persist_held: list(string),
+  /* the inline_persist flag this cache was built under — a flip
+     forces a re-fork so the toggle takes effect immediately */
+  persist_on: Language.CoreSettings.persist_mode,
   /* THE assist stream (A1 single source), assembled frame-fresh by
    * PromiseRender.mk from this frame's syntax + statics' type facts.
    * Cached here because it depends only on (erased segment,
@@ -69,6 +75,11 @@ type t = {
   /* insertions actually ghosted this frame (physical members of
    * assist) — chip suppression matches exactly these */
   ghosted: list(CanonicalCompletion.insertion),
+  /* a read-only editor showing a converted value (eval result,
+   * stepper): its holes own a cell (GroutCells.back_holes), as in
+   * probe values and inspector types. Display-only: the zipper never
+   * sees the backing spaces. */
+  back_holes: bool,
 };
 
 // should not be serializing
@@ -146,6 +157,10 @@ let mk =
       ~elaborated=None,
       ~obligations=None,
       ~armed=false,
+      ~inline_persist=Language.CoreSettings.Off,
+      ~persist_state=([], []),
+      ~persist_edit=false,
+      ~back_holes=false,
       z,
     )
     : t => {
@@ -156,7 +171,15 @@ let mk =
   let fork =
     switch (obligations) {
     | Some(obligations) =>
-      PromiseRender.mk(~info_map, ~obligations, ~armed, z)
+      PromiseRender.mk(
+        ~info_map,
+        ~obligations,
+        ~armed,
+        ~inline_persist,
+        ~persist_state,
+        ~persist_edit,
+        z,
+      )
     | None => DisplayFork.plain(z)
     };
   let DisplayFork.{
@@ -166,9 +189,12 @@ let mk =
     caret_witnesses,
     assist,
     ghosted,
+    persist_known: fork_known,
+    persist_held: fork_held,
     parsed,
   } = fork;
   let MakeTerm.{term: _, terms, projectors, projector_list, term_data} = parsed;
+  let segment = back_holes ? GroutCells.back_holes(segment) : segment;
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
@@ -203,13 +229,17 @@ let mk =
     typed_lens,
     caret_witnesses,
     ghost_armed: false,
+    persist_known: fork_known,
+    persist_held: fork_held,
+    persist_on: inline_persist,
     assist,
     ghosted,
+    back_holes,
   };
 };
 
-let init = (z: Zipper.t) =>
-  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
+let init = (~back_holes=false, z: Zipper.t) =>
+  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty, ~back_holes);
 
 let mark_old: t => t =
   old => {
@@ -290,13 +320,26 @@ let calculate =
       ~elaborated=None,
       ~obligations=None,
       ~armed=false,
+      ~inline_persist=Language.CoreSettings.Off,
+      ~persist_edit=false,
       old: t,
     ) => {
   let refractor_inputs_changed =
     z.refractors.manuals !== old.cached_manuals
     || z.refractors.multis.ephemerals !== old.cached_ephemerals;
   if (old.old) {
-    mk(z, ~info_map, ~dyn_map, ~elaborated, ~obligations, ~armed);
+    mk(
+      z,
+      ~info_map,
+      ~dyn_map,
+      ~elaborated,
+      ~obligations,
+      ~armed,
+      ~inline_persist,
+      ~persist_state=(old.persist_known, old.persist_held),
+      ~persist_edit,
+      ~back_holes=old.back_holes,
+    );
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)

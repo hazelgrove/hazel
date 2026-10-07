@@ -659,6 +659,15 @@ let remove_statics_at =
   );
 };
 
+/* The caret's probe target: the derived hole shown at the caret when
+   statics analyzed it (holes never live in the edit state, so the
+   indicated piece is a neighbour), else the indicated piece. */
+let caret_target = (z: Zipper.t, info_map: Statics.Map.t): option(Id.t) =>
+  switch (Indicated.virtual_hole_id(z)) {
+  | Some(id) when Id.Map.mem(id, info_map) => Some(id)
+  | _ => Indicated.index(z)
+  };
+
 let go =
     (
       ~statics as {info_map, _}: CachedStatics.t,
@@ -671,7 +680,7 @@ let go =
   | ToggleManual =>
     switch (z.selection.content) {
     | [] =>
-      switch (Indicated.index(z)) {
+      switch (caret_target(z, info_map)) {
       | None => z
       | Some(id) => toggle_probe(~syntax, id, ~info_map, z)
       }
@@ -690,12 +699,12 @@ let go =
       }
     }
   | ToggleAuto =>
-    switch (Indicated.index(z)) {
+    switch (caret_target(z, info_map)) {
     | Some(id) => toggle_multi(~syntax, id, info_map, z)
     | None => z
     }
   | ToggleStatics =>
-    switch (Indicated.index(z)) {
+    switch (caret_target(z, info_map)) {
     | Some(id) => toggle_statics(~syntax, id, info_map, z)
     | None => z
     }

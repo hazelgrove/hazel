@@ -37,14 +37,33 @@ let introduction_test = (before: string, expected: string) => {
       MakeTerm.from_zip_for_sem(zip, ~root=Exp);
     let* hole_id = find_hole_id(exp);
     let* zip = Move.jump_to_side_of_id(Left, zip, hole_id);
-    let* zip = Move.local(ByToken, Right, zip); // To get on the hole itself
-    let* zip =
-      Select.current_term(
-        term_data,
-        ~defs_exclude_bodies=false,
-        ~case_rules=false,
-        zip,
+    /* a USER-TYPED hole is a zipper piece: step onto it and select it
+       (introduce replaces the selection). A DERIVED hole has no piece
+       — the caret at its position with an EMPTY selection is the
+       gesture (empty parses as a hole; introduce inserts in place). */
+    let rec has_piece = (sg: Haz3lcore.Segment.t): bool =>
+      List.exists(
+        (pc: Haz3lcore.Piece.t) =>
+          switch (pc) {
+          | Tile(t) =>
+            Haz3lcore.Id.equal(t.id, hole_id)
+            || List.exists(has_piece, t.children)
+          | _ => false
+          },
+        sg,
       );
+    let* zip =
+      if (has_piece(Haz3lcore.Zipper.unselect_and_zip(zip))) {
+        let* zip = Move.local(ByToken, Right, zip);
+        Select.current_term(
+          term_data,
+          ~defs_exclude_bodies=false,
+          ~case_rules=false,
+          zip,
+        );
+      } else {
+        Some(zip);
+      };
     let (statics, _) =
       Statics.mk(
         CoreSettings.on,
@@ -246,7 +265,9 @@ let tests =
         test_case("Already parenthesized tuple", `Quick, () => {
           introduction_test(
             "let x : (Int, Int) = ( ) in x",
-            "let x : (Int, Int) = (?, ? ) in x",
+            /* the typed space stays where the user put it (after the paren);
+               the old form migrated it before the closer */
+            "let x : (Int, Int) = ( ?, ?) in x",
           )
         }),
         test_case("Nested tuple", `Quick, () => {
