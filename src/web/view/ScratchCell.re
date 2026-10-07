@@ -56,6 +56,7 @@ and header_name_of_cell = (e: t): option(string) => {
   let txt =
     Haz3lcore.MarkerParse.to_text(e.e_header.editor.editor.state.zipper);
   let txt = String.trim(txt);
+  /* any byte of a non-ASCII character counts: `café` stays whole */
   let ident = c =>
     c >= 'a'
     && c <= 'z'
@@ -64,7 +65,8 @@ and header_name_of_cell = (e: t): option(string) => {
     || c >= '0'
     && c <= '9'
     || c == '_'
-    || c == '\'';
+    || c == '\''
+    || Char.code(c) >= 0x80;
   let rec run = i =>
     i < String.length(txt) && ident(txt.[i]) ? run(i + 1) : i;
   /* `add(x: Int): Int` is add; a pattern header like `(p, q)` keeps its
