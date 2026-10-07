@@ -18,7 +18,11 @@ let syntax = (z: Zipper.t): CachedSyntax.t => {
 };
 
 let update = (~on, z: Zipper.t): Zipper.t =>
-  AutoProbePerform.update_proofs(~on, ~syntax=syntax(z), z);
+  AutoProbePerform.update_proofs(
+    ~proofs=on ? Theorems : NoProofs,
+    ~syntax=syntax(z),
+    z,
+  );
 
 let src = "theorem a = 1 + 1 == 2 in\nlet x = 5 in\ntheorem b = x == 5 in\nx";
 
@@ -60,7 +64,32 @@ let placed = () => {
   check(bool, "off", true, Id.Map.is_empty(off.refractors.proofs));
 };
 
+/* a theorem's cell holds only its statement: the drawer goes under it
+   and names the theorem it shows */
+let in_a_cell = () => {
+  let z = zipper("1 + 1 == 2");
+  let thm = Id.mk();
+  let placed =
+    AutoProbePerform.update_proofs(
+      ~proofs=ProofOf(thm),
+      ~syntax=syntax(z),
+      z,
+    );
+  check(
+    bool,
+    "one drawer, naming its theorem",
+    true,
+    switch (Id.Map.bindings(placed.refractors.proofs)) {
+    | [(_, e)] => e.model == ProofProj.model_string(~theorem=thm, ())
+    | _ => false
+    },
+  );
+};
+
 let tests = (
   "ProofDrawers",
-  [test_case("a drawer under each theorem", `Quick, placed)],
+  [
+    test_case("a drawer under each theorem", `Quick, placed),
+    test_case("a theorem's cell", `Quick, in_a_cell),
+  ],
 );

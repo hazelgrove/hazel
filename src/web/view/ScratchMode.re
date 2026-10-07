@@ -528,8 +528,9 @@ module View = {
     c_colors: option(ColorSteps.colorMap),
     /* the whole program's test results, drawn as the cells' markers */
     c_tests: option(Language.TestResults.t),
-    /* the program's probe stepper, for the cell whose drawer shows it */
-    c_steps: option(ProbeSteps.t),
+    /* the program's result, for a cell whose drawers show its probe
+       stepper or proofs */
+    c_drawers: option(EvalResult.Model.t),
     c_nodes: list(Virtual_dom.Vdom.Node.t),
   };
   let stack_cache: ref(list((Haz3lcore.Id.t, cached_cell))) = ref([]);
@@ -629,27 +630,30 @@ module View = {
                     i == 0 ? globals.Globals.Model.visible_rows : None,
                   k_zoom_cell: zoom_cell,
                 };
-                let steps =
-                  e.e_body.editor.editor.state.zipper.refractors.stepping
-                  != None
-                  || e.e_header.editor.editor.state.zipper.refractors.stepping
-                  != None
-                    ? Divided.result(d).probe_steps : None;
-                let same_steps =
+                let draws = (c: CellEditor.Model.t) =>
+                  c.editor.editor.state.zipper.refractors.stepping != None
+                  || !
+                       Haz3lcore.Id.Map.is_empty(
+                         c.editor.editor.state.zipper.refractors.proofs,
+                       );
+                let drawers =
+                  draws(e.e_body) || draws(e.e_header)
+                    ? Some(Divided.result(d)) : None;
+                let same_drawers =
                   switch (stack_cache_lookup(e.e_id)) {
-                  | Some({c_steps: Some(a), _}) =>
-                    switch (steps) {
+                  | Some({c_drawers: Some(a), _}) =>
+                    switch (drawers) {
                     | Some(b) => a === b
                     | None => false
                     }
-                  | Some({c_steps: None, _}) => Option.is_none(steps)
+                  | Some({c_drawers: None, _}) => Option.is_none(drawers)
                   | None => false
                   };
                 switch (stack_cache_lookup(e.e_id)) {
                 | Some(c)
                     when
                       c.c_key == key
-                      && same_steps
+                      && same_drawers
                       && c.c_header === e.e_header
                       && c.c_body === e.e_body
                       && c.c_settings === globals.Globals.Model.settings
@@ -946,7 +950,7 @@ module View = {
                       c_font_metrics: globals.Globals.Model.font_metrics,
                       c_colors: globals.Globals.Model.color_highlights,
                       c_tests: tests,
-                      c_steps: steps,
+                      c_drawers: drawers,
                       c_nodes: nodes,
                     },
                   );

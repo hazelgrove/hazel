@@ -564,7 +564,7 @@ let calculate =
           ~settings,
           ~autoprobe_mode,
           ~tail_probe,
-          ~proof_drawers=true,
+          ~proofs=Theorems,
           ~is_edited,
           ~statics_mode,
           ~compositional=true,
@@ -739,6 +739,11 @@ let calculate =
           Option.map(Haz3lcore.DefStatics.all_warning_ids, ds)
           |> Option.value(~default=[])
         );
+      /* a theorem's cell holds its statement: its proof goes under it */
+      let program_theorems =
+        lazy(
+          Haz3lcore.AutoProbePerform.theorems_of_exp(Divided.statics(d).term)
+        );
       let calc_entry = (e: ScratchCell.t): ScratchCell.t => {
         /* the stepping drawer's rows follow the program's stepper */
         let fit = (c: CellEditor.Model.t) =>
@@ -860,7 +865,9 @@ let calculate =
                 CellEditor.Update.calculate(
                   ~settings=body_settings,
                   ~tail_probe=is_tail_cell(e),
-                  ~proof_drawers=true,
+                  ~proofs=
+                    List.mem(e.e_id, Lazy.force(program_theorems))
+                      ? ProofOf(e.e_id) : Theorems,
                   ~is_edited,
                   ~statics_mode,
                   ~ctx=e.e_ctx,

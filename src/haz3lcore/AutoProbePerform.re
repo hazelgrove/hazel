@@ -387,8 +387,8 @@ let update_tail =
   };
 };
 
-/* the theorems along the program's top level, in order */
-let theorem_ids = (syntax: CachedSyntax.t): list(Id.t) => {
+/* the theorems along a program's top level, in order */
+let theorems_of_exp = (e: Exp.t): list(Id.t) => {
   let rec go = (acc, e: Exp.t) =>
     switch (e.term) {
     | Theorem(_, _, body) => go([Exp.rep_id(e), ...acc], body)
@@ -399,40 +399,59 @@ let theorem_ids = (syntax: CachedSyntax.t): list(Id.t) => {
     | Seq(_, body) => go(acc, body)
     | _ => acc
     };
+  List.rev(go([], e));
+};
+
+let theorem_ids = (syntax: CachedSyntax.t): list(Id.t) =>
   switch (
     Option.bind(program_root_id(syntax), id =>
       Id.Map.find_opt(id, syntax.terms)
     )
   ) {
-  | Some(Exp(e)) => List.rev(go([], e))
+  | Some(Exp(e)) => theorems_of_exp(e)
   | _ => []
   };
-};
 
-/* a proof drawer under each theorem; an entry stays while its theorem
-   does */
+/* where an editor shows proofs: none, under each of its theorems, or
+   (a theorem's cell, which holds its statement) under its root */
+type proofs =
+  | NoProofs
+  | Theorems
+  | ProofOf(Id.t);
+
+/* a proof drawer per theorem; an entry stays while its theorem does */
 let update_proofs =
-    (~on: bool, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t => {
-  let ids = on ? theorem_ids(syntax) : [];
+    (~proofs: proofs, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t => {
+  /* (anchor, model) */
+  let wanted =
+    switch (proofs) {
+    | NoProofs => []
+    | Theorems =>
+      List.map(id => (id, ProofProj.model_string()), theorem_ids(syntax))
+    | ProofOf(thm) =>
+      switch (program_root_id(syntax)) {
+      | Some(root) => [(root, ProofProj.model_string(~theorem=thm, ()))]
+      | None => []
+      }
+    };
   let current = z.refractors.proofs;
-  if (List.length(ids) == Id.Map.cardinal(current)
-      && List.for_all(id => Id.Map.mem(id, current), ids)) {
+  if (List.length(wanted) == Id.Map.cardinal(current)
+      && List.for_all(
+           ((id, model)) =>
+             switch (Id.Map.find_opt(id, current)) {
+             | Some(e) => e.model == model
+             | None => false
+             },
+           wanted,
+         )) {
     z;
   } else {
     let proofs =
       List.fold_left(
-        (m, id) =>
-          Id.Map.add(
-            id,
-            switch (Id.Map.find_opt(id, current)) {
-            | Some(e) => e
-            | None =>
-              Refractors.mk_entry(~model=ProofProj.model_string, Proof)
-            },
-            m,
-          ),
+        (m, (id, model)) =>
+          Id.Map.add(id, Refractors.mk_entry(~model, Proof), m),
         Id.Map.empty,
-        ids,
+        wanted,
       );
     Zipper.update_refractors(z, r =>
       {

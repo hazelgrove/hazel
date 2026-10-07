@@ -160,7 +160,7 @@ module Update = {
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
         ~tail_probe=false,
-        ~proof_drawers=false,
+        ~proofs=Haz3lcore.AutoProbePerform.NoProofs,
         ~is_edited,
         ~statics_mode=StaticsMode.Normal,
         ~compositional=false,
@@ -188,7 +188,7 @@ module Update = {
         ~settings,
         ~autoprobe_mode,
         ~tail_probe,
-        ~proof_drawers,
+        ~proofs,
         ~is_edited,
         ~statics_mode,
         ~compositional,
@@ -217,8 +217,7 @@ module Update = {
       );
     let (editor, steps_resized) = fit_steps(~settings, result, editor);
     let proofs_resized =
-      proof_drawers
-      && !Id.Map.is_empty(editor.editor.state.zipper.refractors.proofs)
+      !Id.Map.is_empty(editor.editor.state.zipper.refractors.proofs)
       && Theorems.fit(~settings, result.theorems);
     /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
      * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
@@ -250,7 +249,7 @@ module Update = {
           ~settings,
           ~autoprobe_mode,
           ~tail_probe,
-          ~proof_drawers,
+          ~proofs,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~compositional,
           ~ctx?,
