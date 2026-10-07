@@ -99,6 +99,10 @@ let applied = apply(inc, 41) in
 # Eta-Expand; then right-click the new fun, Eta-Reduce #
 let bump = inc in
 
+# E4 forwarding a pair reduces too: right-click fun, Eta-Reduce #
+let add = fun (a, b) -> a + b in
+let adder = fun (a, b) -> add(a, b) in
+
 (c1, c2, c3, diff, p8, mixed, g1, g2, scaled, h1, h2, paired,
  w - h, r + g + b, mass, low + high, x + y + z, wrap(41),
- applied, bump(1), speed)
+ applied, bump(1), adder(1, 2), speed)

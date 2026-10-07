@@ -24,10 +24,13 @@ let less = 3 < 5 in
 # on either + evaluates just that sum #
 let nest = (1 + 2) * (3 + 4) in
 
-# V5 caret on the @ #
+# V5 builtins count as closed: caret on the + #
+let len = string_length("hazel") + 1 in
+
+# V6 caret on the @ #
 let joined = [1, 2] @ [3] in
 
-# V6 a closed piece of an open expression: caret on the inner #
+# V7 a closed piece of an open expression: caret on the inner #
 # * (the outer + mentions secs, so it cannot evaluate yet) #
 let in_seconds = fun secs -> secs + 60 * 60 in
 
@@ -142,6 +145,6 @@ let sum = fun xs ->
 in
 let total = sum([5, 6]) in
 
-(warm, word, less, nest, joined, in_seconds(1), square, cube,
+(warm, word, less, nest, len, joined, in_seconds(1), square, cube,
  summed, applied, twelve, h, lunch, spelled, rest, shout, rank,
  pick, small, f3, total)

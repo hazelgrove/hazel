@@ -53,7 +53,15 @@ let grade = fun (s : String) ->
   end
 in
 
-# M5 overlapping tuples refuse: (0, _) and (_, 0) both match #
+# M5 list shapes never overlap either: caret on | [], Down #
+let count = fun (xs : [Int]) ->
+  case xs
+  | [] => 0
+  | _ :: _ => 1
+  end
+in
+
+# M6 overlapping tuples refuse: (0, _) and (_, 0) both match #
 # (0, 0). caret on | (_, 0), Up: dead (the press goes red) #
 let corner = fun (p : (Int, Int)) ->
   case p
@@ -135,6 +143,15 @@ let tone = fun (w : Weather) ->
   end
 in
 
+# X4 booleans expand into the missing literal: caret on the _, #
+# Right #
+let flag = fun (b : Bool) ->
+  case b
+  | true => "on"
+  | _ => "off"
+  end
+in
+
 # ===== FLIPPING IFS ===== #
 # Down on then (or Up on else) negates the condition and swaps #
 # the branches. Flipping twice unwraps the negation. #
@@ -179,7 +196,8 @@ let answer = fun (yes : Bool) ->
   end
 in
 
-(icon(Snow), name(2), pick((true, 5)), grade("b"), corner((0, 3)),
+(icon(Snow), name(2), pick((true, 5)), grade("b"), count([1]),
+ corner((0, 3)), flag(false),
  wear(Sun), bit(true), first_or_zero([]), held(Vacant), teen(13),
  wet(Rain), occupied(Taken(1)), tone(Snow), sign(0 - 1),
  status(true), cap(150), mood(true), parity(true), answer(false))
