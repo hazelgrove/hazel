@@ -577,15 +577,26 @@ let calculate =
       /* on statics frames, compositional statics of the assembled
          document, re-analyzing only dirty items: a rename in one cell
          errors its users in others; changed items' cells recapture ctx */
-      /* a ⇒ cell is keyed by its expression's root, which its tail probe
-         anchors: counted before the cell calculates, so this frame's run
-         samples it */
+      /* the ⇒ cell's tail probe anchors its expression's current root
+         (its key, e_id, follows only on view changes): counted before
+         the cell calculates, so this frame's run samples it */
       let is_tail_cell = (e: ScratchCell.t) =>
         tail_probe && e.e_sym == Some({js|⇒|js});
+      let tail_root = (e: ScratchCell.t) =>
+        switch (Focus.zip_of_cell(e.e_body)) {
+        | [] => None
+        | seg =>
+          try(Some(Segment.root_id(Segment.skel(seg), seg))) {
+          | _ => None
+          }
+        };
       let probe_ids =
         List.fold_left(
           (acc, e: ScratchCell.t) =>
-            is_tail_cell(e) ? Id.Map.add(e.e_id, (), acc) : acc,
+            switch (is_tail_cell(e) ? tail_root(e) : None) {
+            | Some(id) => Id.Map.add(id, (), acc)
+            | None => acc
+            },
           Program.probe_ids(Divided(d)),
           Divided.cells(d),
         );
