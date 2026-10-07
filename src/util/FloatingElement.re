@@ -147,6 +147,35 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
         | _ => true
         };
       let viewport_left = rect##.left +. local_left;
+      /* `flip`: open above the anchor when there's no room below in #main
+         and room above, and shift left rather than run off its right */
+      let (viewport_top, viewport_left) =
+        switch (
+          get_data_string(el, "flip"),
+          JsUtil.get_elem_by_id_opt("main"),
+        ) {
+        | (Some(_), Some(main)) =>
+          let m = main##getBoundingClientRect;
+          let h = float_of_int(el##.offsetHeight);
+          let w = float_of_int(el##.offsetWidth);
+          let up =
+            viewport_top +. h > m##.bottom && rect##.top -. h >= m##.top;
+          let _ =
+            Js.Unsafe.meth_call(
+              el##.classList,
+              "toggle",
+              [|
+                Js.Unsafe.inject(Js.string("float-up")),
+                Js.Unsafe.inject(Js.bool(up)),
+              |],
+            );
+          (
+            up ? rect##.top -. h : viewport_top,
+            viewport_left +. w > m##.right
+              ? Float.max(m##.left, m##.right -. w) : viewport_left,
+          );
+        | _ => (viewport_top, viewport_left)
+        };
       el##.style##.top := Js.string(Printf.sprintf("%fpx", viewport_top));
       el##.style##.left := Js.string(Printf.sprintf("%fpx", viewport_left));
       el##.style##.visibility := Js.string(visible ? "visible" : "hidden");

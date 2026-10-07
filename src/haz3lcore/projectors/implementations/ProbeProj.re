@@ -220,9 +220,10 @@ module Settings = {
   let steps_view: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
     ref(_ => None);
 
-  /* Bumped when drawers must re-lay out (their print width changed):
-   * CachedSyntax recomputes drawer rows when it moves. */
-  let layout = ref(0);
+  /* Bumped when drawers must re-lay out (their print width or a
+   * measured height changed): CachedSyntax recomputes drawer rows when
+   * it moves. */
+  let layout = DrawerFit.layout;
 
   /* drawers print values at the editor's visible width */
   let set_drawer_width = (width: int) =>
@@ -1349,17 +1350,19 @@ let sample_context_sections =
 };
 
 let sample_context_menu =
-    (~show_env, ~drawer, ctx: probe_ctx, view_seg, sample: Sample.t)
-    : list(Node.t) => {
+    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): list(Node.t) => {
   let (has_env, has_call, nodes) =
     sample_context_sections(ctx, view_seg, sample);
-  /* In drawer mode `.below-wrapper`'s overflow would clip the menu, so promote it to a FloatingElement (position:fixed, tracked to its anchor). */
-  let floating = drawer && show_env;
+  /* An open menu floats (FloatingElement: position:fixed, tracked to its
+     sample) so no container clips it, and flips above or left when
+     there's no room. */
+  let floating = show_env;
   let float_attrs =
     floating
       ? [
         Attr.create("data-float-anchor-class", "sample"),
         Attr.create("data-float-anchor-edge", "bottom"),
+        Attr.create("data-float-flip", ""),
         Attr.create("data-float-local-top", "0"),
         Attr.create("data-float-local-left", "3"),
         /* Start hidden; update_all() positions + reveals after measuring. */
@@ -1450,14 +1453,7 @@ let sample_view =
     @ pin_view(ctx, sample)
     @ (
       render_dropdown
-        ? sample_context_menu(
-            ~show_env,
-            ~drawer=display == Block,
-            ctx,
-            view_seg,
-            sample,
-          )
-        : []
+        ? sample_context_menu(~show_env, ctx, view_seg, sample) : []
     ),
   );
 };
@@ -2255,15 +2251,29 @@ let rich_drawer_view =
   );
 
 /* A stepping drawer: the stepper in place of the samples. */
+/* a drawer the web layer fills keeps every click: the editor below would
+   take the pointer, or the probe's wrapper move the caret */
+let keep_clicks = [
+  Attr.on_pointerdown(_ => Effect.Stop_propagation),
+  Attr.on_mousedown(_ => Effect.Stop_propagation),
+  Attr.on_pointerup(_ => Effect.Stop_propagation),
+  Attr.on_mouseup(_ => Effect.Stop_propagation),
+  Attr.on_click(_ => Effect.Stop_propagation),
+  Attr.on_contextmenu(_ =>
+    Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
+  ),
+];
+
 let steps_drawer_view = (~parent, ~overflowing: bool, info: info): Node.t =>
   div(
-    ~attrs=[
-      Attr.classes(["steps-drawer"] @ (overflowing ? ["overflowing"] : [])),
-      /* the stepper's own clicks: the editor below would take the
-         pointer (and the caret) before the stepper saw them */
-      Attr.on_pointerdown(_ => Effect.Stop_propagation),
-      Attr.on_mousedown(_ => Effect.Stop_propagation),
-    ],
+    ~attrs=
+      [
+        Attr.classes(
+          ["steps-drawer"] @ (overflowing ? ["overflowing"] : []),
+        ),
+        Attr.create("data-drawer-id", Id.to_string(info.id)),
+      ]
+      @ keep_clicks,
     [
       div(
         ~attrs=[
@@ -2396,7 +2406,13 @@ module M: Projector = {
     | Some(st) =>
       ProjectorCore.Shape.{
         horizontal: 0,
-        vertical: Tab(min(DrawerHeight.max_rows, max(1, st.rows))),
+        vertical:
+          Tab(
+            min(
+              DrawerHeight.max_rows,
+              max(1, DrawerFit.rows(info.id, st.rows)),
+            ),
+          ),
       }
     | None => placeholder_samples(model, info)
     };

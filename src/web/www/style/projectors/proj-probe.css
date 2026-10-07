@@ -724,8 +724,8 @@
   padding-right: 1em;
   border: 1px solid var(--probe-drawer-edge);
   border-width: 1px 0 0px 0;
-  /* cap at 15 lines (matches DrawerHeight.max_rows) */
-  max-height: calc(15 * var(--line-height) * 1em);
+  /* cap at 15 code rows (DrawerHeight.max_rows), the most it reserves */
+  max-height: calc(15 * var(--row-height-px, 1.45em));
   overflow: hidden auto;
 }
 
@@ -825,14 +825,17 @@
 
 /* --- A stepper replacing the drawer's sample view --- */
 
-/* as wide as its widest step, so the close sits just past it */
-.below-wrapper .steps-drawer {
+/* a stepper or proof drawer covers the whole stripe, gutter included,
+   so no click falls through to the editor (ProbeProj.keep_clicks) */
+.below-wrapper :is(.steps-drawer, .proof-drawer) {
   position: relative;
-  width: max-content;
+  margin: 0 -1em;
+  padding: 0 1em;
+  min-width: calc(100% + 2em);
 }
 
 /* each step is its code's rows and nothing more, so the drawer's
-   reserved rows (ProbeSteps.rows) fit the stepper exactly */
+   reserved rows (ProbeSteps.rows) fit the stepper */
 .below-wrapper .steps-drawer .stepper {
   background: none;
   padding: 0;
@@ -854,18 +857,25 @@
   color: var(--text-muted);
 }
 
+/* the close sits in the gutter beside the first step, taking no row */
+.below-wrapper .steps-drawer > .rich-drawer-close {
+  left: 0;
+  right: auto;
+  width: 1em;
+  height: var(--row-height-px);
+  line-height: var(--row-height-px);
+}
+
 .below-wrapper .steps-drawer .steps-pending {
+  height: var(--row-height-px);
+  line-height: var(--row-height-px);
   color: var(--text-muted);
+  font-style: italic;
 }
 
 /* --- A theorem's proof (ProofProj) --- */
 
-/* a header row, then one code block per step, so the reserved rows
-   (Theorems.rows) fit it */
-.below-wrapper .proof-drawer {
-  width: max-content;
-}
-
+/* a header row, then one code block per step (Theorems.rows) */
 /* the drawer is the proof's one surface: no card inside it */
 .below-wrapper .proof-drawer .theorem {
   padding: 0;
@@ -1057,6 +1067,13 @@
  * over the absolute rule above. Lift above the code it now floats over. */
 .live-offside .sample-context-menu.floating-fixed {
   z-index: var(--context-menu-z);
+}
+
+/* opened above its sample (FloatingElement flip): attached at the bottom */
+.live-offside .sample-context-menu.float-up {
+  border-radius: 0.2em 0.2em 0.2em 0;
+  border-bottom: none;
+  border-top: 1px solid var(--border-default);
 }
 
 /* Sticky ('/') mode: show the dropdown for the focal sample of the offside

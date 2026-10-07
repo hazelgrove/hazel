@@ -320,18 +320,17 @@ let start = default_model => {
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
         );
-        /* proofs the computed rows missed (induction cases): fit to
-           what rendered */
+        /* steppers and proofs reserve at least what they rendered, which
+           catches what a count misses: no drawer runs into the code */
         let resized =
           List.fold_left(
             (changed, (id, n)) =>
               switch (Haz3lcore.Id.of_string(id)) {
-              | Some(id) =>
-                Haz3lcore.ProofProj.Settings.set_measured(id, n) || changed
+              | Some(id) => Haz3lcore.DrawerFit.set_measured(id, n) || changed
               | None => changed
               },
             false,
-            JsUtil.proof_drawer_rows(~row_height=font_metrics.row_height),
+            JsUtil.drawer_rows(~row_height=font_metrics.row_height),
           );
         if (resized) {
           app_inject(Page.Update.Globals(RelayoutDrawers))

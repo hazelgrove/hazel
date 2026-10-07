@@ -752,6 +752,7 @@ let go =
          }
        )
   | ShowSteps(span) =>
+    DrawerFit.forget(span.probe_id);
     Zipper.update_refractors(z, r =>
       {
         ...r,
@@ -761,7 +762,7 @@ let go =
             rows: 1,
           }),
       }
-    )
+    );
   | HideSteps =>
     Zipper.update_refractors(z, r =>
       {

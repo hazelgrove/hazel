@@ -1044,21 +1044,21 @@ let observe_drawer_width = (~report: int => unit): unit =>
     };
   };
 
-/* proof drawers whose rendered height differs from the rows reserved for
-   them: (theorem id, rows needed). Read after display. */
-let proof_drawer_rows = (~row_height: float): list((string, int)) =>
+/* the rows each web-filled drawer (a stepper, a proof) takes as
+   rendered: (drawer id, rows). Read after display. */
+let drawer_rows = (~row_height: float): list((string, int)) =>
   if (row_height <= 0.) {
     [];
   } else {
     let nodes =
-      Dom_html.document##querySelectorAll(Js.string(".proof-drawer"));
+      Dom_html.document##querySelectorAll(Js.string("[data-drawer-id]"));
     List.filter_map(
       i =>
         switch (Js.Opt.to_option(nodes##item(i))) {
         | None => None
         | Some(el) =>
           switch (
-            Js.Opt.to_option(el##getAttribute(Js.string("data-proof-id")))
+            Js.Opt.to_option(el##getAttribute(Js.string("data-drawer-id")))
           ) {
           | None => None
           | Some(id) =>
