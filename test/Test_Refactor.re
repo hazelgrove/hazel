@@ -5618,6 +5618,32 @@ let review_fix_tests = {
         );
       },
     ),
+    /* prose survives, printing is spaced */
+    has(
+      "let f = fun x -> # doubles # x * 2 in\n¦f(1)",
+      UnfoldCall,
+      "let x = 1 in\n# doubles # x * 2",
+    ),
+    has(
+      "let ¦a # the a # = 3 in\nlet b = a + 1 in\nb",
+      InlineLet,
+      "# the a #\nlet b = 3 + 1 in",
+    ),
+    has(
+      "type Dir = North + South in\nfun (t : (Dir, Dir)) -> case t | (North, North) => 0 ¦end",
+      AddCaseArm,
+      "| (North, South) => ?",
+    ),
+    has(
+      "fun (l : [Int]) -> case l | [] => 0 ¦end",
+      AddCaseArm,
+      "| _ :: _ => ?",
+    ),
+    has(
+      "let tup = fun (a, b) -> a * b in\n¦tup(3, 4)",
+      UnfoldCall,
+      "let (a, b) = (3, 4) in",
+    ),
     /* nothing offered that then does nothing */
     test_case(
       "no dead offers",

@@ -203,6 +203,41 @@ let wildify = (p: Pat.t): Pat.t =>
     p,
   );
 
+/* statics witnesses carry no spacing: one space after each tuple
+   comma and around a cons, nothing else touched */
+let rec space_pat = (p: Pat.t): Pat.t => {
+  let before = x => with_secondary_pat((space(), []), x);
+  switch (IdTagged.term_of(p)) {
+  | Tuple(xs) => {
+      ...p,
+      term:
+        Tuple(
+          List.mapi(
+            (i, x) => i == 0 ? space_pat(x) : before(space_pat(x)),
+            xs,
+          ),
+        ),
+    }
+  | Cons(h, t) => {
+      ...p,
+      term:
+        Cons(
+          with_secondary_pat(([], space()), space_pat(h)),
+          before(space_pat(t)),
+        ),
+    }
+  | Parens(x) => {
+      ...p,
+      term: Parens(space_pat(x)),
+    }
+  | Ap(f, arg) => {
+      ...p,
+      term: Ap(f, space_pat(arg)),
+    }
+  | _ => p
+  };
+};
+
 let pat_needs_parens = (p: Pat.t): bool =>
   switch (IdTagged.term_of(p)) {
   | Tuple(_) => true
@@ -266,7 +301,7 @@ let next_arm = (~info_map: Statics.Map.t, e: Exp.t): option(Pat.t) =>
       |> List.find_opt(((name, _)) => !List.mem(name, handled))
     ) {
     | Some(c) => Some(case_pat(c))
-    | None => Some(wildify(refresh_pat_ids(w)))
+    | None => Some(space_pat(wildify(refresh_pat_ids(w))))
     };
   | _ => None
   };

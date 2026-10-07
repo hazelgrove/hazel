@@ -388,7 +388,14 @@ let ap_to_let_prepare = (~landing=true, ~info_map as _, ~target, program) => {
     beta_parts(e)
     |> Option.map(((p, arg, body)) => {
          let p = pad(p);
-         let def = pad(arg |> strip_leading |> strip_trailing);
+         let def = arg |> strip_leading |> strip_trailing;
+         /* a call's tuple argument becomes a tuple def: spell its parens */
+         let def =
+           switch (IdTagged.term_of(def)) {
+           | Tuple([_, _, ..._]) => fresh(Parens(def))
+           | _ => def
+           };
+         let def = pad(def);
          /* landing block: a multiline construct breaks after the
             in; a body with its own break keeps it; inline stays
             inline */
@@ -398,9 +405,15 @@ let ap_to_let_prepare = (~landing=true, ~info_map as _, ~target, program) => {
              landing ? Some(intro_sep(~program, ~at=Exp.rep_id(e))) : None
            ) {
            | Some(sep) when !has_newline(Slot.of_exp(body).lead) =>
+             /* the separator replaces the lead's spacing, not its prose
+                (`fun x -> # doubles # x * 2`) */
+             let prose =
+               Slot.lead_of(body).lead
+               |> List.filter(is_comment_piece)
+               |> List.concat_map(c => [c, ...space()]);
              let body = strip_leading(body);
              with_secondary(
-               (sep_copy(sep), snd(body.annotation.secondary)),
+               (sep_copy(sep) @ prose, snd(body.annotation.secondary)),
                body,
              );
            | _ => body

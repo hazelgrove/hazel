@@ -164,16 +164,35 @@ let inline_let_impl: impl = {
                (andrew: comments live where they live) — the copies
                are stripped of them (never duplicate prose), so
                re-home them above the surviving body */
+            /* (prose written inside the binder — `let a # the a # =` —
+               has nowhere else to live once the let dissolves) */
+            let pat_comments =
+              p
+              |> collect_pat((p': Pat.t) => {
+                   let (b, a) = p'.annotation.secondary;
+                   b @ a |> List.filter(is_comment_piece);
+                 });
             let body' =
-              switch (boundary_comments(def)) {
+              switch (pat_comments @ boundary_comments(def)) {
               | [] => body'
               | comments =>
                 let (b, a) = body'.annotation.secondary;
+                /* the lead's own break separates the prose from the
+                   body; add one only when it has none (else a blank
+                   line opens up) */
+                let starts_with_break =
+                  switch (b) {
+                  | [{content: Whitespace("\n"), _}, ..._] => true
+                  | _ => false
+                  };
                 {
                   ...body',
                   annotation: {
                     ...body'.annotation,
-                    secondary: (comments @ newline() @ b, a),
+                    secondary: (
+                      comments @ (starts_with_break ? b : newline() @ b),
+                      a,
+                    ),
                   },
                 };
               };
