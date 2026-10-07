@@ -20,6 +20,8 @@ module Model = {
     current_text_box_content: string,
     [@yojson.default None]
     slash_menu: option(slash_menu_state),
+    [@yojson.default None] [@sexp.default None]
+    demo_menu: Menu.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -87,6 +89,7 @@ module Utils = {
         active_screen: Chat,
         current_text_box_content: "",
         slash_menu: None,
+        demo_menu: None,
       },
     };
   };
@@ -127,6 +130,7 @@ module Update = {
       | DeleteChat(Id.t)
       | SwitchScreen(Model.active_screen)
       | SaveTextBoxContent(string)
+      | DemoMenu(Menu.action)
       | SlashMenuAdjustSelection(int)
       | ChatAction(Chat.Update.Action.t, Id.t);
   };
@@ -152,6 +156,7 @@ module Update = {
         ui: {
           ...m.ui,
           slash_menu: None,
+          demo_menu: None,
         },
       });
     | NewChat(system_prompt, dev_notes) =>
@@ -161,6 +166,7 @@ module Update = {
         ui: {
           ...m.ui,
           slash_menu: None,
+          demo_menu: None,
         },
       });
     | DeleteChat(chat_id) => Ok(Utils.delete_chat(chat_id, model))
@@ -170,6 +176,7 @@ module Update = {
         ui: {
           ...model.ui,
           active_screen,
+          demo_menu: None,
         },
       })
     | SaveTextBoxContent(content) =>
@@ -178,11 +185,20 @@ module Update = {
         ui: {
           ...model.ui,
           current_text_box_content: content,
+          demo_menu: None,
           slash_menu:
             Utils.derive_slash_menu_from_content(
               ~prev=model.ui.slash_menu,
               content,
             ),
+        },
+      })
+    | DemoMenu(action) =>
+      Ok({
+        ...model,
+        ui: {
+          ...model.ui,
+          demo_menu: Menu.update(action, model.ui.demo_menu),
         },
       })
     | SlashMenuAdjustSelection(delta) =>

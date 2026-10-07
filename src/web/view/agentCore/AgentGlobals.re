@@ -13,6 +13,15 @@ module Model = {
     | Edit
     | Plan;
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type local_key_status =
+    | BrowserOnly
+    | LocalReady
+    | LocalSaved
+    | LocalOtherKey
+    | LocalBusy
+    | LocalError;
+
   /* Persisted via yojson/sexp (see Settings). Later-added fields carry
      [@default] so older persisted blobs still deserialize; the four
      undefaulted fields are original. */
@@ -20,6 +29,10 @@ module Model = {
   type t = {
     active_screen: screen,
     api_key: option(string),
+    [@yojson.default BrowserOnly] [@sexp.default BrowserOnly]
+    local_key_status,
+    [@yojson.default false] [@sexp.default false]
+    remember_local_key: bool,
     active_llm: option(OpenRouter.AvailableLLMs.Model.llm_info),
     available_llms: OpenRouter.AvailableLLMs.Model.t,
     [@yojson.default ""] [@sexp.default ""]
@@ -54,6 +67,8 @@ let next_session_mode = (m: Model.session_mode): Model.session_mode =>
 let init = (): Model.t => {
   active_screen: MainMenu,
   api_key: None,
+  local_key_status: BrowserOnly,
+  remember_local_key: false,
   active_llm: None,
   available_llms: [],
   model_filter: "",
@@ -134,6 +149,16 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | SetApiKey(string)
+    | RefreshModels
+    | SetRememberLocalKey(bool)
+    | SaveLocalApiKey
+    | DeleteLocalApiKey
+    | LocalKeyMemoryRemoved(bool)
+    | LoadLocalApiKey
+    | RestoreLocalApiKey(option(option(string)))
+    | SetLocalKeyStatus(Model.local_key_status)
+    | ForgetLocalApiKey
+    | LocalKeyForgotten(bool)
     | SetActiveLlm(OpenRouter.AvailableLLMs.Model.llm_info)
     | SetAvailableLLMs(OpenRouter.AvailableLLMs.Model.t)
     | SetModelFilter(string)
@@ -148,27 +173,151 @@ module Update = {
       (action: action, model: Model.t, schedule_action: action => unit)
       : Model.t => {
     switch (action) {
-    | SetApiKey(api_key) =>
-      OpenRouter.AvailableLLMs.Utils.get_models(
-        ~key=api_key, ~handler=response => {
-        switch (response) {
-        | Some(json) =>
-          switch (
-            OpenRouter.AvailableLLMs.Utils.parse_available_models_response(
-              json,
-            )
-          ) {
-          | Some(available_llms) =>
-            schedule_action(SetAvailableLLMs(available_llms))
-          | None => ()
-          }
-        | None => ()
-        }
-      });
+    | LoadLocalApiKey =>
+      AgentLocalKey.load(result =>
+        schedule_action(RestoreLocalApiKey(result))
+      );
       {
         ...model,
-        api_key: Some(api_key),
+        local_key_status: BrowserOnly,
+        remember_local_key: false,
       };
+    | RestoreLocalApiKey(result) =>
+      /* Loading never writes a credential. The file itself records a prior
+         opt-in, including across ports; browser-only keys are not migrated. */
+      let saved_key = Option.join(result);
+      let api_key =
+        switch (model.api_key) {
+        | Some(_) as key => key
+        | None => saved_key
+        };
+      let remembered = Option.is_some(saved_key) && saved_key == api_key;
+      Option.iter(_ => schedule_action(RefreshModels), api_key);
+      {
+        ...model,
+        api_key,
+        remember_local_key: remembered,
+        local_key_status:
+          switch (result) {
+          | None => BrowserOnly
+          | Some(None) => LocalReady
+          | Some(Some(_)) => remembered ? LocalSaved : LocalOtherKey
+          },
+      };
+    | SetRememberLocalKey(remember) =>
+      if (model.local_key_status == BrowserOnly
+          || model.local_key_status == LocalBusy) {
+        model;
+      } else if (remember) {
+        let has_key = Option.is_some(model.api_key);
+        if (has_key) {
+          schedule_action(SaveLocalApiKey);
+        };
+        {
+          ...model,
+          remember_local_key: true,
+          local_key_status: has_key ? LocalBusy : LocalReady,
+        };
+      } else {
+        schedule_action(DeleteLocalApiKey);
+        {
+          ...model,
+          remember_local_key: false,
+          local_key_status: LocalBusy,
+        };
+      }
+    | SaveLocalApiKey =>
+      Option.iter(
+        key =>
+          AgentLocalKey.save(key, ok =>
+            schedule_action(SetLocalKeyStatus(ok ? LocalSaved : LocalError))
+          ),
+        model.api_key,
+      );
+      model;
+    | DeleteLocalApiKey =>
+      AgentLocalKey.forget(ok => schedule_action(LocalKeyMemoryRemoved(ok)));
+      model;
+    | LocalKeyMemoryRemoved(true) => {
+        ...model,
+        remember_local_key: false,
+        local_key_status: LocalReady,
+      }
+    | LocalKeyMemoryRemoved(false) => {
+        ...model,
+        remember_local_key: true,
+        local_key_status: LocalError,
+      }
+    | SetLocalKeyStatus(local_key_status) => {
+        ...model,
+        local_key_status,
+      }
+    | ForgetLocalApiKey =>
+      if (model.local_key_status == LocalBusy) {
+        model;
+      } else if (model.local_key_status == BrowserOnly) {
+        {
+          ...model,
+          api_key: None,
+          remember_local_key: false,
+        };
+      } else {
+        AgentLocalKey.forget(ok => schedule_action(LocalKeyForgotten(ok)));
+        {
+          ...model,
+          local_key_status: LocalBusy,
+        };
+      }
+    | LocalKeyForgotten(true) => {
+        ...model,
+        api_key: None,
+        remember_local_key: false,
+        local_key_status: LocalReady,
+      }
+    | LocalKeyForgotten(false) => {
+        ...model,
+        local_key_status: LocalError,
+      }
+    | SetApiKey(api_key) =>
+      let api_key = String.trim(api_key);
+      if (api_key == "" || model.local_key_status == LocalBusy) {
+        model;
+      } else {
+        let remember =
+          model.remember_local_key && model.local_key_status != BrowserOnly;
+        if (remember) {
+          schedule_action(SaveLocalApiKey);
+        };
+        schedule_action(RefreshModels);
+        {
+          ...model,
+          api_key: Some(api_key),
+          local_key_status: remember ? LocalBusy : model.local_key_status,
+        };
+      };
+    | RefreshModels =>
+      Option.iter(
+        api_key => {
+          OpenRouter.AvailableLLMs.Utils.get_models(
+            ~key=api_key, ~handler=response => {
+            switch (response) {
+            | Some(json) =>
+              switch (
+                OpenRouter.AvailableLLMs.Utils.parse_available_models_response(
+                  json,
+                )
+              ) {
+              | Some(available_llms) =>
+                schedule_action(SetAvailableLLMs(available_llms))
+              | None => ()
+              }
+            | None => ()
+            }
+          })
+        },
+        model.api_key,
+      );
+      model;
     | SetActiveLlm(active_llm) => {
         ...model,
         active_llm: Some(active_llm),

@@ -1493,6 +1493,40 @@
   gap: 6px;
 }
 
+.chat-input-bottom-bar-left {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.demo-prompt-picker {
+  position: relative;
+  display: inline-flex;
+}
+
+.demo-prompt-button {
+  appearance: none;
+  background: none;
+  border: none;
+}
+
+.demo-prompt-button:focus-visible {
+  outline: 0.6px solid var(--menu-outline);
+  outline-offset: 2px;
+}
+
+/* Use the shared context-menu surface, rows and opening animation. */
+.demo-prompt-menu {
+  top: -4px;
+  left: 0;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  font-family: var(--ui-font);
+}
+
+.demo-prompt-menu .named-menu-item {
+  white-space: normal;
+}
+
 /* Slash commands: palette above the composer (triggered by typing "/") */
 .chat-slash-menu {
   position: absolute;
@@ -3122,4 +3156,3 @@
 .top-bar-collapse-toggle:hover {
   opacity: 1;
 }
-

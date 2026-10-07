@@ -58,6 +58,34 @@ Alternatively, if you would live hot reloading, you can use `make hot` instead o
 Otherwise, run `make echo-html-dir` which will echo the directory that needs 
 to be served using some other server of your choice.
 
+### Agent Canvas demos
+
+Build with `dune build src/web/www --profile dev`, then run `npm run canvas`.
+This starts the local canvas server at `http://localhost:8687` and refuses to
+silently switch ports if that address is busy.
+
+The agent composer's **Demo prompts** menu fills the prompt field for editing;
+press Send when ready. It includes the original Constellation and ARIA prompts,
+quick starts, and follow-ups that assume an existing program. Edit the catalog in
+[`src/web/demo-prompts.json`](src/web/demo-prompts.json), then rebuild.
+
+On a local Vite server, **Remember on this computer** opts into storing your
+OpenRouter key in `~/.config/hazel/openrouter-api-key.json`, outside the checkout,
+with owner-only file permissions. This is a local plaintext credential file,
+resolved from the server user's home directory (no developer-specific path).
+The option starts off for new users. Enabling it remembers the current saved key;
+if no key has been entered yet, enter one and press **Save key**. Unchecking it
+immediately removes the local file while retaining the current browser's key.
+**Forget saved key** removes the file and clears the current browser's key.
+Other browsers may still have their own saved copies.
+
+Future local Vite servers with this feature can restore a remembered key even
+on a different port or browser. Existing browser keys take precedence; startup
+never writes them to the local store. An already-remembered matching key shows
+the option checked. Hosted/static builds keep using browser settings. The local
+endpoint only accepts same-origin requests from loopback connections, and
+credentials are never included in the build.
+
 ### Build Server
 Every branch that has been pushed to GitHub and successfully builds
 can also be accessed at the following URL (once the GitHub action is finished building and deploying it):

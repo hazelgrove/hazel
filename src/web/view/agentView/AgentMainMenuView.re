@@ -9,6 +9,7 @@ let view =
     (~globals: Globals.t, ~signal: Editors.View.signal => Effect.t(unit))
     : Node.t => {
   let agent_globals = globals.settings.agent_globals;
+  let key_busy = agent_globals.local_key_status == LocalBusy;
 
   let format_price_per_million = (price: string): string => {
     // OpenRouter provides price per 1K tokens; scale to per million for readability
@@ -35,7 +36,7 @@ let view =
           | input => Js.to_string(input##.value)
           },
       );
-    if (String.length(api_key_input) > 0) {
+    if (!key_busy && String.length(String.trim(api_key_input)) > 0) {
       let set_api_key_action =
         Globals.Action.SetAgentGlobals(
           AgentGlobals.Update.SetApiKey(api_key_input),
@@ -156,8 +157,16 @@ let view =
             ~attrs=[clss(["agent-api-key-container"])],
             [
               input(
+                /* Keep unsaved edits in the input: a controlled value
+                   would reset them on Command-key redraws. Remount when
+                   saving/forgetting changes whether a key is present. */
+                ~key=
+                  Option.is_some(agent_globals.api_key)
+                    ? "saved-key" : "unset-key",
                 ~attrs=[
                   Attr.id("agent-api-key-input"),
+                  Attr.create("aria-label", "OpenRouter API key"),
+                  key_busy ? Attr.disabled : Attr.empty,
                   clss(["agent-api-key-input"]),
                   Attr.placeholder("Enter your OpenRouter API key"),
                   Attr.type_("password"),
@@ -184,16 +193,99 @@ let view =
                 ],
                 (),
               ),
-              div(
+              Node.button(
                 ~attrs=[
-                  clss(["named-menu-item"]),
+                  clss(["agent-key-button"]),
+                  Attr.type_("button"),
+                  key_busy ? Attr.disabled : Attr.empty,
                   Attr.on_click(submit_api_key),
                   Attr.create("data-testid", "update-api-key-btn"),
                 ],
-                [button(None, _ => Effect.Ignore), div([text("Enter")])],
+                [text("Save key")],
               ),
             ],
           ),
+          agent_globals.local_key_status == BrowserOnly
+            ? Node.none
+            : label(
+                ~attrs=[clss(["agent-remember-key"])],
+                [
+                  input(
+                    ~attrs=[
+                      Attr.type_("checkbox"),
+                      Attr.id("agent-remember-key"),
+                      Attr.bool_property(
+                        "checked",
+                        agent_globals.remember_local_key,
+                      ),
+                      key_busy ? Attr.disabled : Attr.empty,
+                      Attr.on_input((_, _) =>
+                        Effect.Many([
+                          globals.inject_global(
+                            Globals.Action.SetAgentGlobals(
+                              AgentGlobals.Update.SetRememberLocalKey(
+                                !agent_globals.remember_local_key,
+                              ),
+                            ),
+                          ),
+                          Effect.Stop_propagation,
+                        ])
+                      ),
+                      Attr.on_click(_ => Effect.Stop_propagation),
+                    ],
+                    (),
+                  ),
+                  text("Remember on this computer"),
+                ],
+              ),
+          div(
+            ~attrs=[
+              clss(["agent-main-menu-info"]),
+              Attr.create("aria-live", "polite"),
+            ],
+            [
+              text(
+                switch (agent_globals.local_key_status) {
+                | BrowserOnly => "Keys are saved in this browser for this server address."
+                | LocalReady =>
+                  agent_globals.remember_local_key
+                    ? "Save your key to remember it across local Hazel servers on this computer."
+                    : "Saved in this browser only. Enable Remember to reuse your key across local Hazel servers."
+                | LocalSaved => "Remembered on this computer. Uncheck to remove the local copy and keep using this browser's key."
+                | LocalOtherKey => "A different key is remembered on this computer. Enable Remember to replace it with this browser's key."
+                | LocalBusy => "Updating local key storage…"
+                | LocalError => "Local key storage could not be updated. Your key is still available in this browser; retry Save key or uncheck Remember."
+                },
+              ),
+              agent_globals.remember_local_key
+                ? text(
+                    " The local copy is stored unencrypted in your user account.",
+                  )
+                : Node.none,
+            ],
+          ),
+          switch (agent_globals.local_key_status, agent_globals.api_key) {
+          | (_, None) => Node.none
+          | _ =>
+            Node.button(
+              ~attrs=[
+                clss(["agent-key-button"]),
+                key_busy ? Attr.disabled : Attr.empty,
+                Attr.type_("button"),
+                Attr.on_click(_ =>
+                  Effect.Many([
+                    globals.inject_global(
+                      Globals.Action.SetAgentGlobals(
+                        AgentGlobals.Update.ForgetLocalApiKey,
+                      ),
+                    ),
+                    Effect.Stop_propagation,
+                  ])
+                ),
+              ],
+              [text("Forget saved key")],
+            )
+          },
         ],
       ),
       // LLM Model Selection Section

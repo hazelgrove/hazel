@@ -93,6 +93,10 @@ module Persistent = {
       (f: Message.Model.t => Message.Model.t, cs: ChatSystem.Model.t)
       : ChatSystem.Model.t => {
     ...cs,
+    ui: {
+      ...cs.ui,
+      demo_menu: None,
+    },
     chat_map:
       Id.Map.map(
         (chat: Chat.Model.t) =>

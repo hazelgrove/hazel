@@ -2,6 +2,7 @@ import { defineConfig, Plugin } from "vite";
 import { viteStaticCopy } from "vite-plugin-static-copy";
 import fs from "fs";
 import path from "path";
+import { localAgentKeyPlugin } from "./scripts/dev/local-agent-key.mjs";
 
 function watchExternalPlugin(filePath: string): Plugin {
   return {
@@ -79,6 +80,7 @@ export default defineConfig({
     host: true,
   },
   plugins: [
+    localAgentKeyPlugin(),
     viteStaticCopy({
       targets: [
         { src: "../../../_build/default/src/web/www/worker.js", dest: "" },

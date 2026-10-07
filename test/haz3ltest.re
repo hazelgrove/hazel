@@ -22,6 +22,7 @@ let (suite, exit_with_test_status) =
     "HazelTests",
     [
       Test_AgentPersist.tests,
+      Test_AgentLocalKey.tests,
       Test_LazyHydration.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,

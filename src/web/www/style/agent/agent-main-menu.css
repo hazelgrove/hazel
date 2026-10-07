@@ -1,5 +1,48 @@
 /* Agent Main Menu Styles */
 
+.agent-key-button {
+  align-self: flex-start;
+  flex-shrink: 0;
+  font-family: var(--ui-font);
+  font-size: 0.8em;
+  color: var(--text-strong);
+  background: var(--surface-highlight);
+  border: 1px solid var(--border-soft);
+  border-radius: 4px;
+  padding: 4px 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.agent-key-button:hover:not(:disabled) {
+  background: var(--surface-highlight-strong);
+}
+
+.agent-key-button:focus-visible,
+.agent-remember-key input:focus-visible {
+  outline: 1px solid var(--border-strong);
+  outline-offset: 2px;
+}
+
+.agent-key-button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.agent-remember-key {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: 0.8em;
+  color: var(--text-default);
+  cursor: pointer;
+}
+
+.agent-remember-key input {
+  margin: 0;
+  accent-color: var(--text-accent);
+}
+
 /* Force text selection/copy everywhere inside the agent main menu, overriding
    any per-element `user-select: none` declarations. */
 .agent-main-menu,
@@ -82,6 +125,7 @@
 /* API Key Input */
 .agent-api-key-input {
   width: 100%;
+  min-width: 0;
   padding: 0.5em 0.75em;
   border-radius: 4px;
   border: 0.6px solid var(--border-default);
@@ -352,4 +396,3 @@
 .back-to-menu-button:active {
   color: var(--text-strong);
 }
-

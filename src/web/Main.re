@@ -315,6 +315,11 @@ let start = default_model => {
 
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
+    schedule_action(
+      Page.Update.Globals(
+        SetAgentGlobals(AgentGlobals.Update.LoadLocalApiKey),
+      ),
+    );
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
