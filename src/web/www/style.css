@@ -8,6 +8,7 @@
 @import "style/projectors/proj-base.css";
 @import "style/nut-menu.css";
 @import "style/action-sheet.css";
+@import "style/key-bar.css";
 @import "style/cursor-inspector.css";
 @import "style/type-display.css";
 @import "style/explainthis.css";
@@ -100,8 +101,9 @@ select {
   top: var(--visual-viewport-top, 0);
   width: 100vw;
   display: grid;
-  /* Row 1: top-bar, Row 2: focus-bar, Row 3: main, Row 4: bottom-bar */
-  grid-template: 2em auto minmax(0, 1fr) 2em / 1fr fit-content(18em);
+  /* Row 1: top-bar, Row 2: focus-bar, Row 3: main, Row 4: bottom-bar,
+     Row 5: key-bar (empty unless typing on a touch screen) */
+  grid-template: 2em auto minmax(0, 1fr) 2em auto / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--text-default);
   user-select: none;
