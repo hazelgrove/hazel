@@ -16,6 +16,22 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Cards", [%blob "cards.hz"]),
     ("Probes", [%blob "probes.hz"]),
     ("Livelits / Builtins", [%blob "livelits-builtins.hz"]),
+    /* Refactoring (hazel-programs/docs/refactoring): a Start Here hub,
+     * then one example-heavy slide per family */
+    ("Refactoring / Start Here", [%blob "refactoring-start-here.hz"]),
+    (
+      "Refactoring / Extract + Inline",
+      [%blob "refactoring-extract-inline.hz"],
+    ),
+    ("Refactoring / Moving Definitions", [%blob "refactoring-moving.hz"]),
+    ("Refactoring / Cases + Ifs", [%blob "refactoring-cases-ifs.hz"]),
+    (
+      "Refactoring / Functions + Tuples",
+      [%blob "refactoring-functions-tuples.hz"],
+    ),
+    ("Refactoring / Evaluation Steps", [%blob "refactoring-stepping.hz"]),
+    ("Refactoring / Types", [%blob "refactoring-types.hz"]),
+    ("Refactoring / Drag Tour", [%blob "refactoring-drag-tour.hz"]),
   ]
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))

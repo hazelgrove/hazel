@@ -1,0 +1,150 @@
+# REFACTORING: EVALUATION STEPS #
+# Evaluation steps, taken as edits right in the buffer. Put the #
+# caret on a token, then (ctrl+alt on PC): #
+#   cmd+ctrl+Enter  STEP: beta-reduce, take a case arm, take an #
+#                   if branch, or (for a closed expression with #
+#                   no such step) evaluate it outright #
+#   cmd+ctrl+=      BIND: the same step, but the binding becomes #
+#                   a let instead of being substituted #
+#   cmd+ctrl+Down   on a called function's name: unfold the call #
+# Right-click for the same steps by name. #
+
+# ===== EVALUATE: cmd+ctrl+Enter on a closed expression ===== #
+
+# V1 caret on the * #
+let warm = 6 * 7 in
+
+# V2 caret on the ++ #
+let word = "ha" ++ "zel" in
+
+# V3 caret on the < #
+let less = 3 < 5 in
+
+# V4 nested: caret on the * evaluates the whole product; caret #
+# on either + evaluates just that sum #
+let nest = (1 + 2) * (3 + 4) in
+
+# V5 builtins count as closed: caret on the + #
+let len = string_length("hazel") + 1 in
+
+# V6 caret on the @ #
+let joined = [1, 2] @ [3] in
+
+# V7 a closed piece of an open expression: caret on the inner #
+# * (the outer + mentions secs, so it cannot evaluate yet) #
+let in_seconds = fun secs -> secs + 60 * 60 in
+
+# ===== BETA: cmd+ctrl+Enter on fun (or cmd+ctrl+= to bind) ===== #
+
+# B1 caret on fun: Enter substitutes 12 for base #
+let square = (fun base -> base * base)(12) in
+
+# B2 the same with =: base becomes a let, nothing substituted #
+let cube = (fun side -> side * side * side)(3) in
+
+# B3 tuple parameters substitute component by component #
+let summed = (fun (a, b) -> a + b)(1, 2) in
+
+# B4 a function argument: Enter on the first fun, then on the #
+# fun that lands in front of (3) #
+let applied = (fun f -> f(3))(fun n -> n * n) in
+
+# ===== UNFOLD: cmd+ctrl+Down on the name being called ===== #
+# The function's body arrives at the call, its argument bound #
+# by a let. The definition stays for its other uses. #
+
+# U1 caret on triple in triple(4) #
+let triple = fun t -> t * 3 in
+let twelve = triple(4) in
+
+# U2 caret on hyp in the call: both parameters get lets #
+let hyp = fun (a, b) -> a * a + b * b in
+let h = hyp(3, 4) in
+
+# ===== TAKE ARM: cmd+ctrl+Enter on case (= to bind) ===== #
+# When the scrutinee is a value, the matching arm replaces the #
+# whole case. #
+
+type Box = Empty + Full(Int) in
+
+# C1 caret on case: Enter substitutes 77 for price; = binds it #
+let lunch =
+  case Full(77)
+  | Empty => 0
+  | Full(price) => price + price
+  end
+in
+
+# C2 literals: caret on case #
+let spelled =
+  case 2
+  | 1 => "one"
+  | 2 => "two"
+  | _ => "many"
+  end
+in
+
+# C3 lists: head binds 1 and tail binds [2, 3]; then Enter on #
+# the @ to finish #
+let rest =
+  case [1, 2, 3]
+  | [] => []
+  | head :: tail => tail @ [head]
+  end
+in
+
+# C4 tuples: caret on case #
+let shout =
+  case (3, "hey")
+  | (0, _) => ""
+  | (_, s) => s ++ "!"
+  end
+in
+
+# C5 strings: caret on case #
+let rank =
+  case "silver"
+  | "gold" => 1
+  | "silver" => 2
+  | _ => 3
+  end
+in
+
+# ===== TAKE BRANCH: cmd+ctrl+Enter on if ===== #
+
+# I1 a literal condition: caret on if #
+let pick = if false then 111 else 222 in
+
+# I2 two steps: caret on the <, Enter (the condition becomes #
+# false); then caret on if, Enter. (Enter on the if first #
+# evaluates the whole closed if in one go) #
+let small = if 2 < 2 then "tie" else "no tie" in
+
+# ===== WORKED EXAMPLES: chain the steps ===== #
+
+# W1 factorial by hand: caret on fact in fact(3), then Down, #
+# Down, Down, Down: the call unfolds, and the new let n feeds 3 #
+# into each use (sinking into the else branch on the way). Then #
+# Enter on the < and Enter on the if, and repeat on fact(3 - 1). #
+# The definition never disappears: recursive definitions are #
+# unfolded, never consumed #
+let fact = fun n ->
+  if n < 2 then 1 else n * fact(n - 1)
+in
+let f3 = fact(3) in
+
+# W2 summing a list: caret on sum in sum([5, 6]), Down to #
+# unfold, Down again to feed the list into the case, then Enter #
+# on case: the cons arm leaves 5 + sum([6]). Repeat on that #
+# call, and on the next, until only numbers remain #
+let sum = fun xs ->
+  case xs
+  | [] => 0
+  | x :: more => x + sum(more)
+  end
+in
+let total = sum([5, 6]) in
+
+(warm, word, less, nest, len, joined, in_seconds(1), square, cube,
+  summed, applied, twelve, h, lunch, spelled, rest, shout, rank,
+  pick, small, f3, total)

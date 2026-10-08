@@ -1,0 +1,146 @@
+# REFACTORING: MOVING DEFINITIONS #
+# Definitions climb and descend a ladder of scopes. Put the #
+# caret on a let (its let, name, = or in), then: #
+#   cmd+ctrl+Up     Hoist: up one rung (ctrl+alt+Up on PC) #
+#   cmd+ctrl+Down   Sink: down toward its uses; at the bottom #
+#                   rung it feeds the nearest use instead #
+#   Up, then Up     a refused hoist shakes; the same press again #
+#                   carries its dependencies or lifts a helper #
+# Red tokens on a refused press show what blocked it. Right- #
+# click lists Hoist, Sink, Merge and Lift to helper as well. #
+# Each example is its own block, so moves stay local. #
+
+# ===== HOIST AND SINK ===== #
+
+# H1 the ladder: nothing depends on anything, so every rung #
+# moves both ways. caret on let bravo: Up, Up, Down, Down #
+let ladder =
+  let alpha = 100 in
+  let bravo = 250 in
+  let charlie = 425 in
+  alpha + bravo + charlie
+in
+
+# H2 into a block: caret on let scale, Down. It seats inside #
+# big's definition (big has its own let); Down again rides on #
+let blocky =
+  let scale = 10 in
+  let big =
+    let base = 4 in
+    base * scale
+  in
+  big + 1
+in
+
+# H3 the long ride: caret on let bonus, Down repeatedly. It #
+# enters prize's definition, then the fun, then the one arm #
+# that uses it, and finally feeds that use. Before that last #
+# feed, Up retraces each step. #
+let ride =
+  let bonus = 100 in
+  let prize = fun won ->
+    case won
+    | true => bonus + 1
+    | false => 0
+    end
+  in
+  prize(true)
+in
+
+# H4 into a branch: caret on let label, Down. Only the then #
+# branch uses it, so that is where it goes. (Were that branch #
+# just label, Down would feed it instead: no rung is left.) #
+let branchy = fun temp ->
+  let label = "hot" in
+  if temp > 30 then label ++ "!" else "mild"
+in
+
+# H5 out of a function: caret on let factor, Up. factor does #
+# not mention r, so it can leave the fun; Up again leaves #
+# circle's definition too #
+let circle = fun r ->
+  let factor = 314 in
+  r * r * factor / 100
+in
+
+# H6 out of an arm: caret on let fallback, Up. It climbs out #
+# of the arm (the case does not need it to stay) #
+let lookup = fun key ->
+  case key
+  | 1 => "one"
+  | _ =>
+    let fallback = "unknown" in
+    fallback
+  end
+in
+
+# ===== REFUSALS AND REMEDIES ===== #
+
+# W1 dependency: caret on let total, Up. total needs sub, so #
+# it cannot cross it: the press shakes. Press Up AGAIN: total #
+# rides up together with sub, past the unrelated tip line. #
+let carrying =
+  let tip = 9 in
+  let sub = 40 in
+  let total = sub + 2 in
+  total + tip
+in
+
+# W2 a block crosses in one press: caret on let c, Up, Up. #
+# c needs b and b needs a, so all three travel together. #
+let convoy =
+  let x = 7 in
+  let a = 1 in
+  let b = a + 1 in
+  let c = b + a in
+  c * x
+in
+
+# W3 a shadow wall: caret on the second let n, Up. Crossing #
+# m would change which n m sees, so the press is refused and #
+# the culprit goes red. No remedy: this one stays put. #
+let walled =
+  let n = 1 in
+  let m = n + 1 in
+  let n = 10 in
+  m + n
+in
+
+# W4 lift to helper: caret on let square, Up. square needs the #
+# parameter r, so it cannot leave: shake. Up AGAIN lifts it out #
+# as a helper taking r (landing above this example) and the use #
+# becomes square(r). Also in the menu: Lift to helper #
+let area = fun r ->
+  let square = r * r in
+  square * 314 / 100
+in
+
+# W5 lifting takes every parameter it needs: caret on let #
+# perimeter, Up, Up #
+let rect = fun (w, h) ->
+  let perimeter = 2 * w + 2 * h in
+  perimeter * 10
+in
+
+# ===== MERGING TWINS ===== #
+# Two lets with identical definitions dissolve into one. #
+
+# M1 caret on let fee, Up: fee merges into its twin tax above #
+# (every fee becomes tax). Or Down on let tax: the reverse #
+let twins =
+  let price = 800 in
+  let tax = price / 10 in
+  let fee = price / 10 in
+  price + tax + fee
+in
+
+# M2 inside a function: caret on let again, Up #
+let doubled_twice = fun x ->
+  let once = x * 2 in
+  let again = x * 2 in
+  once + again
+in
+
+(ladder, blocky, ride, branchy(35), circle(10), lookup(2),
+  carrying, convoy, walled, area(10), rect(3, 4), twins,
+  doubled_twice(5))
