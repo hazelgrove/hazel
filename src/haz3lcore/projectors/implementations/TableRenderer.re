@@ -384,6 +384,26 @@ let render =
 
         let full_content =
           switch (h, model.menu_state) {
+          | (Some(name), Some((j, menu_t)))
+              when i == j && JsUtil.coarse_pointer() =>
+            let items =
+              items_for_column(info, exp, headers, local, parent, j);
+            content
+            @ [
+              ActionSheet.view(
+                ~menu_class="context-menu",
+                ~heading={
+                  label: Some("Column"),
+                  title: name,
+                  code: false,
+                },
+                ~on_close=() => local(CloseMenu),
+                ~inject_action=thunk => thunk(),
+                ~inject_menu=a => local(MenuAction(a)),
+                ~items,
+                menu_t,
+              ),
+            ];
           | (Some(_), Some((j, menu_t))) when i == j =>
             let items =
               items_for_column(info, exp, headers, local, parent, j);
