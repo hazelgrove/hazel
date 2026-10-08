@@ -45,6 +45,9 @@ module Model = {
        probed as an open drawer */
     [@sexp.default false]
     tail_probe: bool,
+    /* outline rows fold from a drawn arrow; off, from their sigil */
+    [@sexp.default false]
+    outline_arrows: bool,
   };
 
   let init = {
@@ -119,6 +122,7 @@ module Model = {
     shortcut_overrides: [],
     simple_indication: false,
     tail_probe: false,
+    outline_arrows: false,
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -188,7 +192,8 @@ module Update = {
     | ShowPendingEval
     | SetShortcutOverrides(list((string, option(string))))
     | SimpleIndication
-    | TailProbe;
+    | TailProbe
+    | OutlineArrows;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -535,6 +540,10 @@ module Update = {
       | TailProbe => {
           ...settings,
           tail_probe: !settings.tail_probe,
+        }
+      | OutlineArrows => {
+          ...settings,
+          outline_arrows: !settings.outline_arrows,
         }
       }
     )

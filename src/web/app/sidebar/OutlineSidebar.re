@@ -237,6 +237,7 @@ let take_focus =
 
 let rec node_view =
         (
+          ~arrows: bool,
           ~stack_controls: bool,
           ~can_open: Language.Id.t => bool,
           ~jump: Language.Id.t => Effect.t(unit),
@@ -398,7 +399,51 @@ let rec node_view =
         ),
       [
         span(
-          ~attrs=[clss(["outline-glyph"])],
+          ~attrs=
+            [clss(["outline-glyph"])]
+            /* without arrows a branch's sigil folds it */
+            @ (
+              !arrows && n.o_children != []
+                ? [
+                  Attr.on_click(evt =>
+                    Effect.Many([
+                      Effect.Prevent_default,
+                      Effect.Stop_propagation,
+                      stack_controls
+                        ? toggle_collapse(row_path)
+                        : Effect.of_sync_fun(
+                            () => {
+                              let details =
+                                Js_of_ocaml.Js.Unsafe.meth_call(
+                                  Js_of_ocaml.Js.Unsafe.coerce(evt)##.currentTarget,
+                                  "closest",
+                                  [|
+                                    Js_of_ocaml.Js.Unsafe.inject(
+                                      Js_of_ocaml.Js.string("details"),
+                                    ),
+                                  |],
+                                );
+                              Js_of_ocaml.Js.Unsafe.set(
+                                details,
+                                "open",
+                                Js_of_ocaml.Js.bool(
+                                  !
+                                    Js_of_ocaml.Js.to_bool(
+                                      Js_of_ocaml.Js.Unsafe.get(
+                                        details,
+                                        "open",
+                                      ),
+                                    ),
+                                ),
+                              );
+                            },
+                            (),
+                          ),
+                    ])
+                  ),
+                ]
+                : []
+            ),
           [
             text(
               switch (status) {
@@ -604,6 +649,7 @@ let rec node_view =
             ((kid: OutlineTree.node, kseg)) =>
               [
                 node_view(
+                  ~arrows,
                   ~stack_controls,
                   ~can_open,
                   ~jump,
@@ -1215,6 +1261,8 @@ let header_view =
 
 /* what the outline shows */
 type props = {
+  /* rows fold from an arrow; without, from their sigil */
+  arrows: bool,
   /* pins, zoom and item edits: only where a slide has cells */
   stack_controls: bool,
   can_open: Language.Id.t => bool,
@@ -1261,6 +1309,7 @@ type handlers = {
 
 let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
   let {
+    arrows,
     stack_controls,
     can_open,
     is_collapsed,
@@ -1371,7 +1420,9 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
     );
   create(
     "details",
-    ~attrs=[Attr.id("outline-sidebar"), Attr.create("open", "")],
+    ~attrs=
+      [Attr.id("outline-sidebar"), Attr.create("open", "")]
+      @ (arrows ? [] : [clss(["no-arrows"])]),
     [
       create(
         "summary",
@@ -1435,6 +1486,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
               ((root: OutlineTree.node, rseg)) =>
                 [
                   node_view(
+                    ~arrows,
                     ~stack_controls,
                     ~can_open,
                     ~jump,

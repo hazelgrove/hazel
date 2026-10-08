@@ -1044,6 +1044,7 @@ module View = {
       );
     let outline =
       OutlineControl.view(
+        ~arrows=globals.settings.outline_arrows,
         ~deck,
         ~statics=current_editor.statics,
         ~segment=current_editor.editor.syntax.segment,
