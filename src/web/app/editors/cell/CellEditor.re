@@ -406,7 +406,19 @@ module View = {
             locked
               ? _ => Ui_effect.Ignore
               : fun
-                | MakeActive => signal(MakeActive(MainEditor)),
+                | MakeActive =>
+                  Ui_effect.Many(
+                    [signal(MakeActive(MainEditor))]
+                    /* the program takes focus back from a drawer's step */
+                    @ (
+                      switch (steps_result.probe_steps) {
+                      | Some({focus: Some(_), _}) => [
+                          steps_inject(ProbeStepperFocus(None)),
+                        ]
+                      | _ => []
+                      }
+                    ),
+                  ),
           ~edit_mode=
             locked
               ? EditMode.ReadOnly
