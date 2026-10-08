@@ -122,9 +122,60 @@ let manual_wins = () => {
   );
 };
 
+/* the program's drawer is drawn after the program and reserves no rows,
+   so toggling ⇓ never moves the code */
+let reserves_nothing = () => {
+  let z = update(~on=true, zipper("let x = 1 in\nx + 1"));
+  let (info_map, _) = analysed(z);
+  let rows =
+    CachedSyntax.mk_refractor_rows(
+      z,
+      snd(analysed(z)).term_data,
+      info_map,
+      Language.Dynamics.Map.empty,
+      ~elaborated=None,
+    );
+  check(bool, "no rows", true, Id.Map.is_empty(rows));
+};
+
+/* a drawer's rows go under its term's last line, not under its operator:
+   `1 +` / `2` gets no blank line between */
+let rows_under_last_line = () => {
+  let z = zipper("1 +\n2");
+  let (_, syntax) = analysed(z);
+  let plus = Option.get(AutoProbePerform.tail_id(syntax));
+  let key = CachedSyntax.rows_key(plus, syntax.term_data);
+  check(bool, "not the operator", true, key != plus);
+  let seg = Zipper.unselect_and_zip(z);
+  let row_of_2 = rows => {
+    let m = Measured.of_segment(seg, Id.Map.empty, rows);
+    switch (Measured.find_by_id(key, m)) {
+    | Some(mm) => mm.origin.row
+    | None => Alcotest.fail("no 2")
+    };
+  };
+  check(int, "2 on the next line", 1, row_of_2(Id.Map.singleton(key, 1)));
+  check(
+    int,
+    "keyed by the operator, a blank line",
+    2,
+    row_of_2(Id.Map.singleton(plus, 1)),
+  );
+};
+
 let tests = (
   "TailProbe",
   [
+    test_case(
+      "the program's drawer reserves no rows",
+      `Quick,
+      reserves_nothing,
+    ),
+    test_case(
+      "drawer rows under the last line",
+      `Quick,
+      rows_under_last_line,
+    ),
     test_case("the last expression", `Quick, finds_tail),
     test_case("on and off", `Quick, toggles),
     test_case("steady", `Quick, steady),

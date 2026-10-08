@@ -59,6 +59,13 @@ let probe_model_of_sexp = sexp =>
   | exception _ => init_probe_model
   };
 
+/* the ⇓ probe's model, whatever local state it has picked up since */
+let is_bare = (model: string): bool =>
+  switch (Sexplib.Sexp.of_string(model)) {
+  | sexp => probe_model_of_sexp(sexp).bare
+  | exception _ => false
+  };
+
 /* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
    renderer <rid> (in its empty state) round-trips through text. */
 let model_string_for_renderer = (rid: string): option(string) =>
@@ -2091,7 +2098,8 @@ let live_offside_view =
   let base_classes =
     ["live-offside", settings.window |> Sample.Window.show_mode]
     @ (Settings.sticky^ ? ["sticky"] : [])
-    @ (scrollable ? ["drawer-overflow"] : []);
+    @ (scrollable ? ["drawer-overflow"] : [])
+    @ (ctx.bare ? ["program-value"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
     ~menu_open=Settings.open_dropdown^ != None,

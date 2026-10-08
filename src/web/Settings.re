@@ -41,9 +41,9 @@ module Model = {
        (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
     shortcut_overrides: list((string, option(string))),
     simple_indication: bool,
-    /* the ⇓ toggle: a Scratch or Documentation program's last expression
-       probed as an open drawer */
-    [@sexp.default false]
+    /* the ⇓ toggle: a Scratch or Documentation program's value in a
+       drawer after the program */
+    [@sexp.default true]
     tail_probe: bool,
     /* outline rows fold from a drawn arrow; off, from their sigil */
     [@sexp.default false]
@@ -121,7 +121,7 @@ module Model = {
     show_incremental_deco: false,
     shortcut_overrides: [],
     simple_indication: false,
-    tail_probe: false,
+    tail_probe: true,
     outline_arrows: false,
   };
 

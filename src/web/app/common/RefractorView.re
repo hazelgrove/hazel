@@ -44,22 +44,44 @@ let measurement_of_tile =
   | _ => None
   };
 
+/* the ⇓ probe's drawer: after the program's last line, trailing blank
+   lines included */
+let measurement_of_end = (measured: Measured.t): Measured.measurement => {
+  let last =
+    Util.Point.{
+      row: max(0, measured.total_rows - 1),
+      col: 0,
+    };
+  {
+    origin: last,
+    last,
+  };
+};
+
 /* Build refractor data from editor state.
  * This is analogous to ProjectorView.Model.mk but specialized for refractors.
  */
 /* visible rows of a refractor: anchor rows extended down by drawer height
- * (Tab(n) in refractor_rows), so a partially-visible drawer isn't culled early */
+ * (Tab(n) in refractor_rows, keyed by CachedSyntax.rows_key), so a
+ * partially-visible drawer isn't culled early. The program's drawer
+ * reserves no rows and may run on for screens: never culled once reached */
 let row_range =
     (
       ~refractor_rows: Id.Map.t(int),
+      ~term_data: TermData.t,
+      ~program_value: bool,
       id: Id.t,
       measurement: Measured.measurement,
     )
-    : (int, int) => {
-  let drawer_rows =
-    Id.Map.find_opt(id, refractor_rows) |> Option.value(~default=0);
-  (measurement.origin.row, measurement.last.row + drawer_rows);
-};
+    : (int, int) =>
+  if (program_value) {
+    (measurement.origin.row, max_int);
+  } else {
+    let drawer_rows =
+      Id.Map.find_opt(CachedSyntax.rows_key(id, term_data), refractor_rows)
+      |> Option.value(~default=0);
+    (measurement.origin.row, measurement.last.row + drawer_rows);
+  };
 
 let mk_data =
     (
@@ -73,23 +95,37 @@ let mk_data =
       ~editor_active: bool,
       ~visible: option(Globals.VisibleRows.t)=?,
       ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
+      ~tail: option(Id.t)=None,
       (),
     )
     : list(ProjectorView.Model.projector_data) => {
   let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
   /* measure + cull BEFORE building per-refractor data: in All mode there are
    * hundreds of refractors but few on screen, so building all then discarding dominated cost */
+  let program_value = (id, entry: Refractors.entry) =>
+    tail == Some(id) && entry.kind == Probe && ProbeProj.is_bare(entry.model);
   Id.Map.bindings(refractors)
   |> List.filter_map(((id, entry: Refractors.entry)) =>
        (
-         entry.kind == Proof
-           ? measurement_of_tile(id, measured)
-           : measurement_of_term(id, term_data, measured)
+         if (entry.kind == Proof) {
+           measurement_of_tile(id, measured);
+         } else if (program_value(id, entry)) {
+           Some(measurement_of_end(measured));
+         } else {
+           measurement_of_term(id, term_data, measured);
+         }
        )
        |> Option.map(measurement => (id, entry, measurement))
      )
-  |> ProjectorView.filter_by_visibility(visible, _, ((id, _, measurement)) =>
-       row_range(~refractor_rows, id, measurement)
+  |> ProjectorView.filter_by_visibility(
+       visible, _, ((id, entry, measurement)) =>
+       row_range(
+         ~refractor_rows,
+         ~term_data,
+         ~program_value=program_value(id, entry),
+         id,
+         measurement,
+       )
      )
   |> List.map(((id, entry, measurement)) => {
        let syntax_piece =
@@ -154,12 +190,23 @@ let all =
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(Globals.VisibleRows.t)=?,
       ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
+      ~term_data: TermData.t,
+      ~tail: option(Id.t)=None,
       refractor_data: list(ProjectorView.Model.projector_data),
       refractor_list: list(Id.t),
     ) => {
   /* usually a no-op (mk_data already culls); kept for callers without visibility info */
   let get_row_range = (d: ProjectorView.Model.projector_data) =>
-    row_range(~refractor_rows, d.p.id, d.measurement);
+    row_range(
+      ~refractor_rows,
+      ~term_data,
+      ~program_value=
+        tail == Some(d.p.id)
+        && d.p.kind == Probe
+        && ProbeProj.is_bare(d.p.model),
+      d.p.id,
+      d.measurement,
+    );
   let (base_views, overlay_views) =
     refractor_data
     |> ProjectorView.filter_by_visibility(visible, _, get_row_range)

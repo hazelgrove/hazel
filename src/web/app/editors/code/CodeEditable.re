@@ -706,6 +706,7 @@ module View = {
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
         ~stepping=zipper.refractors.stepping,
+        ~tail=zipper.refractors.tail_target,
         ~editor_active=selected,
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
@@ -719,6 +720,8 @@ module View = {
         ~core_settings=globals.settings.core,
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
+        ~term_data=model.editor.syntax.term_data,
+        ~tail=zipper.refractors.tail_target,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals))

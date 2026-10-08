@@ -48,8 +48,13 @@
   background-color: var(--cell-active);
 }
 
+/* the program's drawer starts half a row down (proj-probe.css): the
+   stripe's color starts there too */
 #main .tail-slack.drawer {
-  background-color: var(--surface-raised);
+  background: linear-gradient(
+    var(--cell-active) 0 calc(0.5 * var(--row-height-px, 1.45em)),
+    var(--surface-raised) 0
+  );
 }
 
 :is(#main.Scratch,

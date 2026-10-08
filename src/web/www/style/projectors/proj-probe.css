@@ -712,6 +712,11 @@
   background-color: var(--live-env-bkg);
 }
 
+/* the program's value (⇓) sits half a row below the program's end */
+.below-wrapper:has(.live-offside.program-value) {
+  margin-top: calc(0.5 * var(--row-height-px, 1.45em));
+}
+
 /* below-line drawer stripe; negative margin + padding align it flush to the cell edges */
 .below-wrapper {
   pointer-events: auto;
