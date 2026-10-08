@@ -412,3 +412,50 @@
 .context-inspector .context-entry .seperator {
   color: var(--context-inspector-colon);
 }
+/* Touch screens: a tap on the bar expands it upward, over the editor, to
+   the full type or error wrapped across lines (see CursorInspector.view).
+   Its grid row stays 2em; aligned to the row's end, the taller bar
+   overflows the row upward, so nothing else moves. */
+#bottom-bar.expandable::after {
+  content: "▴";
+  display: flex;
+  align-items: center;
+  padding: 0 0.6em;
+  margin-left: auto;
+  color: var(--text-muted);
+}
+#bottom-bar.expandable.expanded::after {
+  content: "▾";
+  align-items: flex-start;
+  padding-top: 0.3em;
+}
+#bottom-bar.expandable.expanded {
+  align-self: end;
+  min-height: 2em;
+  max-height: 40vh;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 0 -4px 16px var(--menu-shadow);
+}
+#bottom-bar.expandable.expanded #cursor-inspector {
+  height: auto;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  overflow: visible;
+  padding: 0.3em 0;
+  white-space: normal;
+}
+#bottom-bar.expandable.expanded #cursor-inspector .code {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+#bottom-bar.expandable.expanded #cursor-inspector .status {
+  padding-left: 0.5em;
+  flex-wrap: wrap;
+  white-space: normal;
+}
+@media (pointer: coarse) {
+  #cursor-inspector .gamma {
+    width: 2.75em;
+  }
+}
