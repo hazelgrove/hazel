@@ -348,7 +348,8 @@
 #page>.context-inspector {
   position: absolute;
   z-index: var(--context-inspector-z);
-  bottom: 2em;
+  /* Over the bottom bar, and the key bar when it shows. */
+  bottom: calc(2em + var(--key-bar-height, 0px));
   min-width: 10em;
   max-height: 11.15em;
   overflow: auto;

@@ -945,6 +945,7 @@ module View = {
       ),
       sidebar,
       bottom_bar,
+      KeyBar.view,
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),
     ];
