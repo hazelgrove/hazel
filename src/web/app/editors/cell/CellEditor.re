@@ -381,6 +381,24 @@ module View = {
               ~inject=a => steps_inject(ProbeStepperAction(a)),
               ~focus=f => steps_inject(ProbeStepperFocus(f)),
               ~close=inject(MainEditor(Perform(Probe(HideSteps)))),
+              ~stepped=
+                switch (
+                  Haz3lcore.TermData.segment(
+                    ps.span.probe_id,
+                    model.editor.editor.syntax.term_data,
+                  )
+                ) {
+                | Some(seg) =>
+                  ProbeSteps.one_line(
+                    Haz3lcore.Printer.of_segment(
+                      ~holes="?",
+                      ~indent="",
+                      ~is_single_line=true,
+                      seg,
+                    ),
+                  )
+                | None => ""
+                },
               ps,
             )
           | _ => None

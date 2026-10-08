@@ -895,17 +895,124 @@
   color: var(--text-muted);
 }
 
-/* the panel (undo, settings, history, stepper) follows its step's code
-   on the step's first row, held at the view's right edge when the code
-   runs past it */
-.below-wrapper .steps-drawer .stepper-controls {
+/* the stepper's own panel moves to the title bar */
+.below-wrapper :is(.steps-drawer, .proof-drawer) .step-display > .stepper-controls {
+  display: none;
+}
+
+/* --- the stepper's title bar: what's stepped, then its controls --- */
+
+.below-wrapper :is(.steps-drawer, .proof-drawer) .steps-bar {
+  display: flex;
+  align-items: center;
+  height: var(--row-height-px);
+  margin: 0 -1em;
+  padding-left: 1em;
+  background: linear-gradient(var(--probe-drawer-edge), var(--probe-drawer-edge))
+    left bottom / 100% 1px no-repeat;
+  font-family: var(--ui-font);
+  color: var(--text-muted);
+}
+
+/* the label and the code share a baseline */
+.below-wrapper .steps-bar .steps-bar-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  min-width: 0;
+}
+
+.below-wrapper .steps-bar .steps-bar-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* one line, cut with an ellipsis; the tooltip has the rest */
+.below-wrapper .steps-bar .steps-bar-expr {
+  font-family: var(--code-font);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 48ch;
+}
+
+/* held at the view's right edge when the drawer is wider than the view */
+.below-wrapper .steps-bar .steps-bar-controls {
   position: sticky;
   right: 0;
-  z-index: calc(var(--projector-z) + 10);
-  height: var(--row-height-px);
+  display: flex;
   align-items: center;
-  padding: 0 0.5em;
-  background-color: var(--surface-raised);
+  gap: 0.75em;
+  height: 100%;
+  margin-left: auto;
+  padding: 0 0.9em 0 1.5em;
+  background: linear-gradient(var(--probe-drawer-edge), var(--probe-drawer-edge))
+      left bottom / 100% 1px no-repeat,
+    var(--surface-raised);
+}
+
+.below-wrapper .steps-bar .icon {
+  display: flex;
+  cursor: pointer;
+}
+
+.below-wrapper .steps-bar .icon svg {
+  width: 17px;
+  height: 17px;
+  fill: var(--text-muted);
+}
+
+.below-wrapper .steps-bar .icon.disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.below-wrapper .steps-bar .steps-bar-sep {
+  width: 1px;
+  height: 13px;
+  background: var(--probe-drawer-edge);
+}
+
+.below-wrapper .steps-bar .steps-bar-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.below-wrapper .steps-bar .steps-bar-close {
+  width: 1.1em;
+  font-size: 17px;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+}
+
+.below-wrapper .steps-bar .steps-bar-close:hover {
+  color: var(--text-error);
+}
+
+/* a proof's bar: its name, its status, then undo */
+.below-wrapper .proof-drawer .theorem > .steps-bar {
+  gap: 0.9em;
+  padding-left: 1em;
+}
+
+.below-wrapper .steps-bar .theorem-status {
+  height: 16px;
+  padding: 0 7px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
+/* a stepper or proof drawer is closed off below too, like its top */
+.below-wrapper:has(.steps-drawer, .proof-drawer) {
+  box-shadow: inset 0 -1px 0 var(--probe-drawer-edge);
 }
 
 /* the close sits in the gutter beside the first step, taking no row */

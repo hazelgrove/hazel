@@ -182,8 +182,8 @@ let starts = () => {
   | Some(ps) =>
     check(
       int,
-      "one row before a step",
-      1,
+      "the title bar and the first step",
+      2,
       Web.ProbeSteps.rows(~settings=CoreSettings.on, ps),
     )
   | None => Alcotest.fail("no stepper")
@@ -202,8 +202,8 @@ let starts = () => {
   );
 };
 
-/* the drawer's rows are the steps it shows: with history off, just the
-   current one */
+/* the drawer's rows are its title bar and the steps it shows: with
+   history off, just the current one */
 let history_rows = () => {
   let z = parsed();
   let (info_map, s) = eval(~targets=targets(~full=true, z), z);
@@ -235,14 +235,80 @@ let history_rows = () => {
   check(
     int,
     "history off",
-    1,
+    2,
     Web.ProbeSteps.rows(~settings=history(false), ps),
   );
   check(
     int,
     "history on",
-    2,
+    3,
     Web.ProbeSteps.rows(~settings=history(true), ps),
+  );
+};
+
+/* the title bar's undo takes back the step: nothing to take back at the
+   start */
+let undo = () => {
+  let z = parsed();
+  let (info_map, s) = eval(~targets=targets(~full=true, z), z);
+  let dynamics = EvaluatorState.get_probes(s);
+  let calc = prev =>
+    Web.ProbeSteps.calculate(
+      ~settings=Util.Calc.NewValue(CoreSettings.on),
+      ~info_map,
+      ~dynamics,
+      ~stepping=Some(span(z)),
+      prev,
+    )
+    |> Option.get;
+  let start = calc(None);
+  check(
+    bool,
+    "nothing at the start",
+    true,
+    Web.StepperView.Update.undo(start.stepper) == None,
+  );
+  let step = (a, ps) =>
+    calc(
+      Some(
+        Web.ProbeSteps.update(~settings=Web.Settings.Model.init, a, ps).model,
+      ),
+    );
+  let stepped = step(StepForward(0), start);
+  let back =
+    switch (Web.StepperView.Update.undo(stepped.stepper)) {
+    | Some(a) => step(a, stepped)
+    | None => Alcotest.fail("no undo after a step")
+    };
+  let history: CoreSettings.t = {
+    ...CoreSettings.on,
+    evaluation: {
+      ...CoreSettings.on.evaluation,
+      stepper_history: true,
+    },
+  };
+  check(
+    int,
+    "back to one step",
+    Web.ProbeSteps.rows(~settings=history, start),
+    Web.ProbeSteps.rows(~settings=history, back),
+  );
+};
+
+/* the bar names the stepped expression on one line */
+let one_line = () => {
+  check(
+    string,
+    "lines and runs of space fold",
+    "case xs | [] => 0 | _ => 1 end",
+    Web.ProbeSteps.one_line("  case xs\n  | [] => 0\n  | _ =>   1\nend\n"),
+  );
+  let long = String.make(300, 'a');
+  check(
+    int,
+    "capped, with an ellipsis",
+    240 + String.length({js|…|js}),
+    String.length(Web.ProbeSteps.one_line(long)),
   );
 };
 
@@ -255,5 +321,7 @@ let tests = (
     test_case("incremental runs retake", `Quick, retakes),
     test_case("the stepper's start", `Quick, starts),
     test_case("rows follow history", `Quick, history_rows),
+    test_case("undo", `Quick, undo),
+    test_case("one line", `Quick, one_line),
   ],
 );

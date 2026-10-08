@@ -382,14 +382,28 @@ module View = {
     | (Some(idx), Some(thm)) =>
       let proven =
         StepperView.Model.get_validity(thm.stepper_view) == Some(true);
+      let undo = StepperView.Update.undo(thm.stepper_view);
       Some(
         div_c(
           "theorem",
           [
-            div_c(
-              "theorem-header",
+            /* the stepper drawer's title bar: what's proved, then undo */
+            Node.div(
+              ~attrs=[Attr.classes(["theorem-header", "steps-bar"])],
               [
-                Node.text("Proof of " ++ thm.name),
+                Node.div(
+                  ~attrs=[Attr.classes(["steps-bar-name"])],
+                  [
+                    Node.span(
+                      ~attrs=[Attr.classes(["steps-bar-label"])],
+                      [Node.text("Proof")],
+                    ),
+                    Node.span(
+                      ~attrs=[Attr.classes(["steps-bar-expr"])],
+                      [Node.text(thm.name)],
+                    ),
+                  ],
+                ),
                 Node.div(
                   ~attrs=[
                     Attr.classes([
@@ -398,6 +412,20 @@ module View = {
                     ]),
                   ],
                   [Node.text(proven ? "proven" : "incomplete")],
+                ),
+                Node.div(
+                  ~attrs=[Attr.classes(["steps-bar-controls"])],
+                  [
+                    Widgets.button_d(
+                      ~tooltip="Step back",
+                      Icons.undo,
+                      switch (undo) {
+                      | Some(a) => inject(Update.TheoremUpdate(idx, a))
+                      | None => Ui_effect.Ignore
+                      },
+                      ~disabled=undo == None,
+                    ),
+                  ],
                 ),
               ],
             ),

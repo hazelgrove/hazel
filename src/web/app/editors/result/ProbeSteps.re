@@ -198,40 +198,158 @@ let stepper_rows = (~settings: CoreSettings.t, s: StepperView.Model.t): int => {
   max(1, go(s.root));
 };
 
+/* the title bar's row, then the steps */
 let rows = (~settings: CoreSettings.t, ps: t): int =>
   switch (ps.exp) {
   | None => 1
-  | Some(_) => stepper_rows(~settings, ps.stepper)
+  | Some(_) => 1 + stepper_rows(~settings, ps.stepper)
   };
 
-/* the result view's stepper, panel included: undo, settings, history,
-   and its stepper toggle, which closes the drawer */
+/* what the title bar names: the stepped expression on one line, capped
+   (the bar cuts it shorter with an ellipsis; the tooltip has this much) */
+let one_line = (s: string): string => {
+  let b = Buffer.create(String.length(s));
+  let space = ref(false);
+  String.iter(
+    c =>
+      switch (c) {
+      | ' '
+      | '\n'
+      | '\t'
+      | '\r' => space := Buffer.length(b) > 0
+      | c =>
+        if (space^) {
+          Buffer.add_char(b, ' ');
+          space := false;
+        };
+        Buffer.add_char(b, c);
+      },
+    s,
+  );
+  let s = Buffer.contents(b);
+  let cap = 240;
+  if (String.length(s) <= cap) {
+    s;
+  } else {
+    /* back off to a UTF-8 character boundary */
+    let rec cut = i =>
+      i > 0 && Char.code(s.[i]) land 0xC0 == 0x80 ? cut(i - 1) : i;
+    String.sub(s, 0, cut(cap)) ++ {js|…|js};
+  };
+};
+
+/* a title bar (what's stepped; undo, settings, history, close) over the
+   stepper's trace */
 let view =
     (
       ~globals: Globals.t,
       ~inject: StepperView.Update.t => Ui_effect.t(unit),
       ~focus: option(StepperView.Focus.t) => Ui_effect.t(unit),
       ~close: Ui_effect.t(unit),
+      ~stepped: string,
       ps: t,
     )
     : option(Virtual_dom.Vdom.Node.t) =>
   switch (ps.exp) {
   | None => None
   | Some(_) =>
+    open Virtual_dom.Vdom;
+    open Node;
+    let evaluation = globals.settings.core.evaluation;
+    let set = s => globals.inject_global(Set(Evaluation(s)));
+    let undo = StepperView.Update.undo(ps.stepper);
+    let bar =
+      div(
+        ~attrs=[Attr.classes(["steps-bar"])],
+        [
+          div(
+            ~attrs=[Attr.classes(["steps-bar-name"])],
+            [
+              span(
+                ~attrs=[Attr.classes(["steps-bar-label"])],
+                [text("Stepper")],
+              ),
+              span(
+                ~attrs=[
+                  Attr.classes(["steps-bar-expr"]),
+                  Attr.title(stepped),
+                ],
+                [text(stepped)],
+              ),
+            ],
+          ),
+          div(
+            ~attrs=[Attr.classes(["steps-bar-controls"])],
+            [
+              Widgets.button_d(
+                ~tooltip="Step back",
+                Icons.undo,
+                switch (undo) {
+                | Some(a) => inject(a)
+                | None => Ui_effect.Ignore
+                },
+                ~disabled=undo == None,
+              ),
+              Widgets.button(~tooltip="Stepper settings", Icons.gear, _ =>
+                set(ShowSettings)
+              ),
+              span(~attrs=[Attr.classes(["steps-bar-sep"])], []),
+              div(
+                ~attrs=[
+                  Attr.classes(["steps-bar-history"]),
+                  Attr.title(
+                    "Keep every step (off: show only the current one)",
+                  ),
+                  Attr.on_mousedown(_ => set(ShowRecord)),
+                ],
+                [
+                  Widgets.toggle("", evaluation.stepper_history, _ =>
+                    Ui_effect.Ignore
+                  ),
+                  text("History"),
+                ],
+              ),
+              span(~attrs=[Attr.classes(["steps-bar-sep"])], []),
+              span(
+                ~attrs=[
+                  Attr.classes(["steps-bar-close"]),
+                  Attr.title("Close the stepper"),
+                  Attr.on_click(_ => close),
+                ],
+                [text("×")],
+              ),
+            ],
+          ),
+        ],
+      );
     Some(
-      WebUtil.div_c(
-        "probe-stepper",
-        StepperView.View.view(
-          ~globals,
-          ~signal=
-            fun
-            | HideStepper => close
-            | MakeActive(f) => focus(Some(f)),
-          ~inject,
-          ~selected=ps.focus,
-          ~is_toplevel=true,
-          ps.stepper,
-        ),
+      div(
+        ~attrs=[Attr.classes(["probe-stepper-frame"])],
+        [bar]
+        @ (
+          evaluation.show_settings
+            ? SettingsModal.view(
+                ~inject=u => globals.inject_global(Set(u)),
+                evaluation,
+              )
+            : []
+        )
+        @ [
+          WebUtil.div_c(
+            "probe-stepper",
+            StepperView.View.view(
+              ~globals,
+              ~signal=
+                fun
+                | HideStepper => close
+                | MakeActive(f) => focus(Some(f)),
+              ~inject,
+              ~selected=ps.focus,
+              ~is_toplevel=false,
+              ps.stepper,
+            ),
+          ),
+        ],
       ),
-    )
+    );
   };
