@@ -156,6 +156,12 @@ module Update = {
 module View = {
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
-    Page.View.view(~get_log_and, ~inject, model.current);
+    Page.View.view(
+      ~can_undo=model.undo_stack != [],
+      ~can_redo=model.redo_stack != [],
+      ~get_log_and,
+      ~inject,
+      model.current,
+    );
   };
 };

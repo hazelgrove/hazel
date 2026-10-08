@@ -1,5 +1,4 @@
-/* Key bar: arrows, Select, Tab, Undo and Redo above a phone keyboard (see
-   KeyBar.re). The last row of #page, so it sits on the keyboard as the
+/* Key bar: the keys a phone keyboard lacks, above it (see KeyBar.re). The last row of #page, so it sits on the keyboard as the
    visual viewport shrinks. */
 
 #key-bar {
@@ -8,7 +7,10 @@
   grid-column: 1 / span 2;
   gap: 0.25rem;
   height: var(--key-bar-height);
-  padding: 0.25rem 0.25rem calc(0.25rem + env(safe-area-inset-bottom));
+  box-sizing: border-box;
+  /* No safe-area padding: the bar only shows over the keyboard, which
+     covers the home indicator. */
+  padding: 0.25rem;
   background-color: var(--ui-bkg);
   border-top: 0.6px solid var(--border-default);
   touch-action: manipulation;
@@ -24,6 +26,8 @@
   }
 }
 
+/* Flat glyphs on the bottom bar's strip, like the inspector above it; the
+   menu key is a chip mirroring the inspector's Γ tab. */
 .key-bar-key {
   flex: 1;
   display: flex;
@@ -33,9 +37,10 @@
   padding: 0;
   border: none;
   border-radius: 0.4rem;
-  background-color: var(--surface-code);
-  color: var(--code-text);
-  font-size: 1.15rem;
+  background: none;
+  color: var(--text-strong);
+  font-family: var(--ui-font);
+  font-size: 1.2rem;
   user-select: none;
   -webkit-user-select: none;
   -webkit-tap-highlight-color: transparent;
@@ -51,11 +56,25 @@
 .key-bar-redo svg {
   transform: scaleX(-1);
 }
-.key-bar-select {
+.key-bar-word {
   flex: 1.6;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
+  font-weight: bolder;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
-.key-bar-select[aria-pressed="true"] {
-  background-color: var(--primary-accent);
-  color: var(--text-inverse);
+.key-bar-word[aria-pressed="true"] {
+  background-color: var(--ci-icon-bkg);
+  color: var(--light-page-color);
+}
+.key-bar-menu {
+  flex: 1.2;
+  margin: -0.25rem -0.25rem -0.25rem 0;
+  border-radius: 1.1em 0 0 0;
+  background-color: var(--ci-icon-bkg);
+  color: var(--light-page-color);
+  font-size: 1.5rem;
+}
+.key-bar-menu:active {
+  background-color: var(--surface-accent-strong);
 }
