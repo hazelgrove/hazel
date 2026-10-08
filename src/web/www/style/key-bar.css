@@ -1,0 +1,61 @@
+/* Key bar: arrows, Select, Tab, Undo and Redo above a phone keyboard (see
+   KeyBar.re). The last row of #page, so it sits on the keyboard as the
+   visual viewport shrinks. */
+
+#key-bar {
+  display: none;
+  grid-row: 5 / span 1;
+  grid-column: 1 / span 2;
+  gap: 0.25rem;
+  height: var(--key-bar-height);
+  padding: 0.25rem 0.25rem calc(0.25rem + env(safe-area-inset-bottom));
+  background-color: var(--ui-bkg);
+  border-top: 0.6px solid var(--border-default);
+  touch-action: manipulation;
+}
+
+/* Only while typing into an editor with a finger. */
+@media (pointer: coarse) {
+  #page:has(.code-editor-input:focus) {
+    --key-bar-height: 2.75rem;
+  }
+  #page:has(.code-editor-input:focus) #key-bar {
+    display: flex;
+  }
+}
+
+.key-bar-key {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  border-radius: 0.4rem;
+  background-color: var(--surface-code);
+  color: var(--code-text);
+  font-size: 1.15rem;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.key-bar-key:active {
+  background-color: var(--surface-deep);
+}
+.key-bar-key svg {
+  width: 1.1rem;
+  height: 1.1rem;
+  fill: currentColor;
+}
+.key-bar-redo svg {
+  transform: scaleX(-1);
+}
+.key-bar-select {
+  flex: 1.6;
+  font-size: 0.9rem;
+}
+.key-bar-select[aria-pressed="true"] {
+  background-color: var(--primary-accent);
+  color: var(--text-inverse);
+}
