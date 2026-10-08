@@ -266,6 +266,21 @@
   display: flex;
 }
 
+/* No hover on a touch screen: a tap focuses the label instead, and the
+   dropdown follows focus the way it follows the pointer above. */
+@media (hover: none) {
+  .deduction-label-wrapper:focus-within .dropdown {
+    display: flex;
+  }
+  .deduction-label-wrapper:focus-within .deduction-label {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+  }
+}
+.deduction-label-wrapper:focus {
+  outline: none;
+}
+
 .dropdown:hover::before {
   content: "";
   position: absolute;

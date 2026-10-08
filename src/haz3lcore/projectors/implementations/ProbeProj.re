@@ -724,6 +724,15 @@ let value_view =
         let button: int = Js.Unsafe.coerce(evt)##.button;
         let alt = Js.to_bool(Js.Unsafe.coerce(evt)##.altKey);
         let ctrl = Key.ctrl_held(evt);
+        if (LongPress.is_touch(evt)) {
+          /* A touch has no right button: holding it opens the dropdown,
+             in place of the editor's own long-press menu. */
+          LongPress.arm(evt, () =>
+            Ui_effect.Expert.handle(
+              Effect.Many([ctx.parent(FocusById(ctx.id)), alt_toggle()]),
+            )
+          );
+        };
         button == 2 && ctrl
           /* Ctrl + right-click defers to the native menu. */
           ? Effect.Ignore

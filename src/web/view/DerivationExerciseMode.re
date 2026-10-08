@@ -939,7 +939,9 @@ module View = {
 
     let label_view = (~pos, ~res, ~label, ~index) =>
       div(
-        ~attrs=[Attr.class_("deduction-label-wrapper")],
+        /* Focusable, so a tap opens the rule dropdown where there is no
+           hover (exercise-mode.css). */
+        ~attrs=[Attr.class_("deduction-label-wrapper"), Attr.tabindex(-1)],
         [label_view(~res, ~label), dropdown_view(~pos, ~res, ~index)],
       );
 
