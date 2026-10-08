@@ -1738,6 +1738,7 @@ let view_doc =
           statics: CachedStatics.empty,
           dynamics: Dynamics.Map.empty,
           context_menu: None,
+          expansions: [],
         },
       );
     let example_view =
