@@ -58,12 +58,7 @@ module M: Projector = {
   let placeholder = (m: model, info: info) =>
     ProjectorCore.Shape.{
       horizontal: 0,
-      vertical:
-        Tab(
-          Settings.rows(theorem_of(m, info))
-          |> max(1)
-          |> min(ProbeProj.DrawerHeight.max_rows),
-        ),
+      vertical: Tab(Settings.rows(theorem_of(m, info)) |> max(1)),
     };
   let update = (m, _, ()) => m;
   let error = (_, _): option(ProjectorBase.error) => None;

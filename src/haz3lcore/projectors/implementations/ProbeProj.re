@@ -2259,6 +2259,10 @@ let keep_clicks = [
   Attr.on_pointerup(_ => Effect.Stop_propagation),
   Attr.on_mouseup(_ => Effect.Stop_propagation),
   Attr.on_click(_ => Effect.Stop_propagation),
+  Attr.on_double_click(_ => Effect.Stop_propagation),
+  /* mouse state is global: a press on a step reads to the editor below as
+     its own drag, and the moves that follow would select there */
+  Attr.on_mousemove(_ => Effect.Stop_propagation),
   Attr.on_contextmenu(_ =>
     Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
   ),
@@ -2274,24 +2278,24 @@ let steps_drawer_view = (~parent, ~overflowing: bool, info: info): Node.t =>
         Attr.create("data-drawer-id", Id.to_string(info.id)),
       ]
       @ keep_clicks,
-    [
-      div(
-        ~attrs=[
-          Attr.classes(["rich-drawer-close"]),
-          Attr.title("Close steps (Esc)"),
-          Attr.on_click(_ => parent(Probe(HideSteps))),
-        ],
-        [text("×")],
-      ),
-      switch (Settings.steps_view^(info.id)) {
-      | Some(stepper) => stepper
-      | None =>
+    /* the stepper's own toggle closes it; until it's up, this does */
+    switch (Settings.steps_view^(info.id)) {
+    | Some(stepper) => [stepper]
+    | None => [
+        div(
+          ~attrs=[
+            Attr.classes(["rich-drawer-close"]),
+            Attr.title("Close steps (Esc)"),
+            Attr.on_click(_ => parent(Probe(HideSteps))),
+          ],
+          [text("×")],
+        ),
         div(
           ~attrs=[Attr.classes(["steps-pending"])],
           [text("Stepping…")],
-        )
-      },
-    ],
+        ),
+      ]
+    },
   );
 
 /* Rows the active rich renderer wants in the drawer, when it applies to
@@ -2404,15 +2408,11 @@ module M: Projector = {
   let placeholder = (model: model, info: info) =>
     switch (info.stepping) {
     | Some(st) =>
+      /* uncapped: steps are worked through, so the drawer opens to the
+         whole trace instead of scrolling inside itself */
       ProjectorCore.Shape.{
         horizontal: 0,
-        vertical:
-          Tab(
-            min(
-              DrawerHeight.max_rows,
-              max(1, DrawerFit.rows(info.id, st.rows)),
-            ),
-          ),
+        vertical: Tab(max(1, DrawerFit.rows(info.id, st.rows))),
       }
     | None => placeholder_samples(model, info)
     };
@@ -2592,7 +2592,7 @@ module M: Projector = {
      * wrapper's scroll-affordance fade and the rich view's overflow clip. */
     let drawer_overflow =
       switch (info.stepping) {
-      | Some(st) => st.rows > DrawerHeight.max_rows
+      | Some(_) => false
       | None =>
         drawer
         && (

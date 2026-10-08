@@ -825,6 +825,13 @@
 
 /* --- A stepper replacing the drawer's sample view --- */
 
+/* a stepper or proof opens to its whole length, with nothing to scroll,
+   and its popups (rule buttons, assumptions) can leave the stripe */
+.below-wrapper:has(.steps-drawer, .proof-drawer) {
+  max-height: none;
+  overflow: visible;
+}
+
 /* a stepper or proof drawer covers the whole stripe, gutter included,
    so no click falls through to the editor (ProbeProj.keep_clicks) */
 .below-wrapper :is(.steps-drawer, .proof-drawer) {
@@ -860,7 +867,16 @@
   background-position: top left;
 }
 
-/* the rule name follows its step */
+/* each step reads `≡ code`, ≡ at the program's first column and the code
+   two columns in; the rule name (or the panel) follows the code */
+.below-wrapper :is(.steps-drawer, .proof-drawer) .step-display {
+  gap: 1em;
+}
+
+#main .below-wrapper :is(.steps-drawer, .proof-drawer) .step-output .code-editor {
+  padding-left: 0;
+}
+
 .below-wrapper .steps-drawer .step-output {
   flex-grow: 0;
 }
@@ -868,6 +884,19 @@
 .below-wrapper .steps-drawer .stepper-justification {
   width: auto;
   color: var(--text-muted);
+}
+
+/* the panel (undo, settings, history, stepper) follows its step's code
+   on the step's first row, held at the view's right edge when the code
+   runs past it */
+.below-wrapper .steps-drawer .stepper-controls {
+  position: sticky;
+  right: 0;
+  z-index: calc(var(--projector-z) + 10);
+  height: var(--row-height-px);
+  align-items: center;
+  padding: 0 0.5em;
+  background-color: var(--surface-raised);
 }
 
 /* the close sits in the gutter beside the first step, taking no row */
@@ -916,6 +945,9 @@
    add a pixel a step, and a long trace a row */
 .below-wrapper :is(.steps-drawer, .proof-drawer) .equiv {
   height: var(--row-height-px);
+  width: 2ch;
+  margin-right: -1em;
+  color: var(--text-muted);
 }
 
 .below-wrapper .proof-drawer .stepper {

@@ -335,6 +335,10 @@ let start = default_model => {
         if (resized) {
           app_inject(Page.Update.Globals(RelayoutDrawers))
           |> Bonsai.Effect.Expert.handle;
+        } else if (ProbeSteps.reveal^) {
+          /* a step taken: once the drawer has its rows, show the new step */
+          ProbeSteps.reveal := false;
+          JsUtil.reveal_last(".probe-stepper .step-border");
         };
         JsUtil.observe_drawer_width(~report=cols =>
           if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {

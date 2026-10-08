@@ -13,6 +13,10 @@ type t = {
   stepper: StepperView.Model.t,
   /* the stepper took an action since it was last calculated */
   dirty: bool,
+  /* the step the pointer last went to: its editor draws its selection,
+     so a redex's first click shows before the second steps */
+  [@default None]
+  focus: option(StepperView.Focus.t),
 };
 
 let init = (span: Sample.span_ref): t => {
@@ -20,7 +24,21 @@ let init = (span: Sample.span_ref): t => {
   exp: None,
   stepper: StepperView.Model.init,
   dirty: false,
+  focus: None,
 };
+
+/* a step taken or undone: the drawer scrolls the newest step into view
+   after it renders */
+let reveal = ref(false);
+
+/* a selection or a panel toggle is not a step */
+let rec steps = (a: StepperView.Update.t): bool =>
+  switch (a) {
+  | NextStep(a) => steps(a)
+  | EditorAction(_)
+  | StepKindAction(_) => false
+  | _ => true
+  };
 
 let closed_exp =
     (
@@ -108,6 +126,7 @@ let calculate =
           | _ => e
           };
         Some({
+          ...ps,
           span,
           exp: Some(e),
           stepper:
@@ -126,6 +145,9 @@ let calculate =
 /* view state: not an edit to the program, not an undo step */
 let update = (~settings, a: StepperView.Update.t, ps: t): Updated.t(t) => {
   open Updated;
+  if (steps(a)) {
+    reveal := true;
+  };
   let updated = {
     let* stepper = StepperView.Update.update(~settings, a, ps.stepper);
     {
@@ -142,26 +164,22 @@ let update = (~settings, a: StepperView.Update.t, ps: t): Updated.t(t) => {
     is_edit: false,
     historic: false,
     recalculate: true,
+    /* the main editor's caret isn't what moved */
+    scroll_active: false,
   };
 };
 
-/* the drawer always shows the trace, whatever the stepper setting */
-let shown_settings = (s: CoreSettings.t): CoreSettings.t => {
-  ...s,
-  evaluation: {
-    ...s.evaluation,
-    stepper_history: true,
-    show_settings: false,
-  },
-};
-
-/* rows a stepper's trace takes: one code block per step shown */
+/* rows a stepper takes: one code block per step shown (just the current
+   one unless history is on) */
 let stepper_rows = (~settings: CoreSettings.t, s: StepperView.Model.t): int => {
   let rec go = (m: StepperBase.step_model) => {
     let shown =
       StepperBase.StepKind.is_missing_step(m.step_kind)
-      || m.hidden != Calc.Calculated(true)
-      || settings.evaluation.show_hidden_steps;
+      || settings.evaluation.stepper_history
+      && (
+        m.hidden != Calc.Calculated(true)
+        || settings.evaluation.show_hidden_steps
+      );
     let here =
       switch (m.editor) {
       | _ when !shown => 0
@@ -186,10 +204,13 @@ let rows = (~settings: CoreSettings.t, ps: t): int =>
   | Some(_) => stepper_rows(~settings, ps.stepper)
   };
 
+/* the result view's stepper, panel included: undo, settings, history,
+   and its stepper toggle, which closes the drawer */
 let view =
     (
       ~globals: Globals.t,
       ~inject: StepperView.Update.t => Ui_effect.t(unit),
+      ~focus: option(StepperView.Focus.t) => Ui_effect.t(unit),
       ~close: Ui_effect.t(unit),
       ps: t,
     )
@@ -197,13 +218,6 @@ let view =
   switch (ps.exp) {
   | None => None
   | Some(_) =>
-    let globals = {
-      ...globals,
-      settings: {
-        ...globals.settings,
-        core: shown_settings(globals.settings.core),
-      },
-    };
     Some(
       WebUtil.div_c(
         "probe-stepper",
@@ -212,12 +226,12 @@ let view =
           ~signal=
             fun
             | HideStepper => close
-            | MakeActive(_) => Ui_effect.Ignore,
+            | MakeActive(f) => focus(Some(f)),
           ~inject,
-          ~selected=None,
-          ~is_toplevel=false,
+          ~selected=ps.focus,
+          ~is_toplevel=true,
           ps.stepper,
         ),
       ),
-    );
+    )
   };

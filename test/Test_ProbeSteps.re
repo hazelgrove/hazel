@@ -202,6 +202,50 @@ let starts = () => {
   );
 };
 
+/* the drawer's rows are the steps it shows: with history off, just the
+   current one */
+let history_rows = () => {
+  let z = parsed();
+  let (info_map, s) = eval(~targets=targets(~full=true, z), z);
+  let dynamics = EvaluatorState.get_probes(s);
+  let calc = prev =>
+    Web.ProbeSteps.calculate(
+      ~settings=Util.Calc.NewValue(CoreSettings.on),
+      ~info_map,
+      ~dynamics,
+      ~stepping=Some(span(z)),
+      prev,
+    )
+    |> Option.get;
+  let stepped =
+    Web.ProbeSteps.update(
+      ~settings=Web.Settings.Model.init,
+      StepForward(0),
+      calc(None),
+    ).
+      model;
+  let ps = calc(Some(stepped));
+  let history = (on: bool): CoreSettings.t => {
+    ...CoreSettings.on,
+    evaluation: {
+      ...CoreSettings.on.evaluation,
+      stepper_history: on,
+    },
+  };
+  check(
+    int,
+    "history off",
+    1,
+    Web.ProbeSteps.rows(~settings=history(false), ps),
+  );
+  check(
+    int,
+    "history on",
+    2,
+    Web.ProbeSteps.rows(~settings=history(true), ps),
+  );
+};
+
 let tests = (
   "ProbeSteps",
   [
@@ -210,5 +254,6 @@ let tests = (
     test_case("the stepping probe keeps values", `Quick, full_targets),
     test_case("incremental runs retake", `Quick, retakes),
     test_case("the stepper's start", `Quick, starts),
+    test_case("rows follow history", `Quick, history_rows),
   ],
 );

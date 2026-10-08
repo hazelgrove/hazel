@@ -379,6 +379,7 @@ module View = {
             ProbeSteps.view(
               ~globals,
               ~inject=a => steps_inject(ProbeStepperAction(a)),
+              ~focus=f => steps_inject(ProbeStepperFocus(f)),
               ~close=inject(MainEditor(Perform(Probe(HideSteps)))),
               ps,
             )

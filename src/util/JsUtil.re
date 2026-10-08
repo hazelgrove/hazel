@@ -639,6 +639,28 @@ let set_main_scroll_top = (top: float) =>
   | Assert_failure(_) => ()
   };
 
+/* scroll #main the least that shows the last element matching sel, its
+   top first if it's taller than the view; vertical only */
+let reveal_last = (sel: string): unit =>
+  try({
+    let main = get_elem_by_id("main");
+    let nodes = Dom_html.document##querySelectorAll(Js.string(sel));
+    switch (Js.Opt.to_option(nodes##item(nodes##.length - 1))) {
+    | None => ()
+    | Some(el) =>
+      let r = el##getBoundingClientRect;
+      let m = main##getBoundingClientRect;
+      let below = r##.bottom -. m##.bottom;
+      let above = r##.top -. m##.top;
+      let by = below > 0. ? min(below, above) : min(above, 0.);
+      if (by != 0.) {
+        main##.scrollTop :=  main##.scrollTop + int_of_float(Float.ceil(by));
+      };
+    };
+  }) {
+  | Assert_failure(_) => ()
+  };
+
 module Fragment = {
   let get_current = () => {
     let fragment_of_url = (url: Url.url): string =>

@@ -197,6 +197,7 @@ module Update = {
     | ToggleStepper
     | StepperAction(StepperView.Update.t)
     | ProbeStepperAction(StepperView.Update.t)
+    | ProbeStepperFocus(option(StepperView.Focus.t))
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
     | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
@@ -232,6 +233,19 @@ module Update = {
         probe_steps: Some(ps),
       };
     | (ProbeStepperAction(_), _) => model |> Updated.raise_invalid_action
+    | (ProbeStepperFocus(focus), {probe_steps: Some(ps), _}) =>
+      Haz3lcore.ProbeProj.Settings.version :=
+        Haz3lcore.ProbeProj.Settings.version^ + 1;
+      {
+        ...model,
+        probe_steps:
+          Some({
+            ...ps,
+            focus,
+          }),
+      }
+      |> Updated.return_quiet;
+    | (ProbeStepperFocus(_), _) => model |> Updated.return_quiet
     | (
         EvalEditorAction(a),
         {display: Evaluation(Calculated(Some((exp, editor)))), _},
