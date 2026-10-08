@@ -1,0 +1,25 @@
+/* The bubble a long press shows for a `title` on a touch screen (see
+   TouchTooltip.re). A manual popover where supported, so the UA's
+   centered popover placement is undone; TouchTooltip places it. */
+#touch-tooltip {
+  display: none;
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  z-index: var(--context-menu-z);
+  max-width: min(20rem, calc(100vw - 16px));
+  padding: 0.4rem 0.6rem;
+  border: none;
+  border-radius: 0.5rem;
+  background-color: var(--surface-inverse);
+  color: var(--text-inverse);
+  box-shadow: 0 4px 12px var(--menu-shadow);
+  font-family: var(--ui-font);
+  font-size: 0.85rem;
+  line-height: 1.3;
+  white-space: pre-line;
+  pointer-events: none;
+}
+#touch-tooltip.shown {
+  display: block;
+}

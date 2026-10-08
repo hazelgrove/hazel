@@ -233,6 +233,7 @@ let start = default_model => {
     JsUtil.install_text_selection_guards();
     Haz3lcore.FocusEffect.install_press_tracking();
     JsUtil.follow_visual_viewport();
+    TouchTooltip.install();
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
      * but getBoundingClientRect returns different values due to
