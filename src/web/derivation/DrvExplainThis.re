@@ -40,6 +40,7 @@ let exp_show =
       statics,
       dynamics: Dynamics.Map.empty,
       context_menu: None,
+      expansions: [],
     },
   );
 };
@@ -74,6 +75,7 @@ let test_show =
         statics: CachedStatics.empty,
         dynamics: Dynamics.Map.empty,
         context_menu: None,
+        expansions: [],
       },
     );
   };
