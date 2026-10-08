@@ -462,6 +462,7 @@ module Update = {
               statics: cell.editor.statics,
               dynamics: EvalResult.Model.dynamics(cell.result),
               context_menu: cell.editor.context_menu,
+              expansions: cell.editor.expansions,
             },
             result: cell.result,
           }
@@ -838,6 +839,7 @@ module View = {
         statics: editor.editor.statics,
         dynamics: Language.Dynamics.Map.empty,
         context_menu: editor.editor.context_menu,
+        expansions: editor.editor.expansions,
       },
       result: editor.result,
     };
