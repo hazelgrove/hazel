@@ -965,6 +965,13 @@ module View = {
                };
              EvalResult.View.dynamics(
                ~tail,
+               ~stopped=
+                 tail
+                 && EvalResult.Model.stopped(
+                      ~tail=Program.tail_target(p),
+                      Program.result(p),
+                    )
+                 != None,
                ~toggle_tail=
                  Effect.Many(
                    [inject(Globals(Set(TailProbe)))] @ open_tail,

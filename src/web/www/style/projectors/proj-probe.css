@@ -713,8 +713,32 @@
 }
 
 /* the program's value (⇓) sits half a row below the program's end */
-.below-wrapper:has(.live-offside.program-value) {
+.below-wrapper:has(.program-value) {
   margin-top: calc(0.5 * var(--row-height-px, 1.45em));
+}
+
+/* the ⇓ drawer when the program stopped before its last line: marked,
+   then how far it got (EvalResult.View.stopped_view) */
+.below-wrapper .value-stopped {
+  display: flex;
+  align-items: baseline;
+  gap: 1em;
+}
+
+.below-wrapper .value-stopped-label {
+  flex: none;
+  font-family: var(--ui-font);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ci-status-warning-text, var(--text-muted));
+  cursor: default;
+}
+
+.below-wrapper .value-stopped-error {
+  font-family: var(--ui-font);
+  color: var(--eval-exception-stroke, var(--text-error));
 }
 
 /* below-line drawer stripe; negative margin + padding align it flush to the cell edges */

@@ -404,6 +404,16 @@ module View = {
           | _ => None
           }
       );
+    /* the ⇓ drawer, when the program stopped before its last line */
+    let tail = model.editor.editor.state.zipper.refractors.tail_target;
+    let stop = EvalResult.Model.stopped(~tail, steps_result);
+    Option.iter(id => EvalResult.Model.note_stop(id, stop), tail);
+    Haz3lcore.ProbeProj.Settings.value_fallback :=
+      (
+        id =>
+          tail == Some(id)
+            ? Option.map(EvalResult.View.stopped_view(~globals), stop) : None
+      );
     Haz3lcore.ProofProj.Settings.view :=
       (
         id =>

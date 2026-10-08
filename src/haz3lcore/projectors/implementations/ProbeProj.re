@@ -227,6 +227,12 @@ module Settings = {
   let steps_view: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
     ref(_ => None);
 
+  /* Set by the web layer each render: for the ⇓ probe, what its drawer
+   * shows when the program stopped before reaching it (no value of its
+   * own), or None. */
+  let value_fallback: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
+    ref(_ => None);
+
   /* Bumped when drawers must re-lay out (their print width or a
    * measured height changed): CachedSyntax recomputes drawer rows when
    * it moves. */
@@ -2662,6 +2668,10 @@ module M: Projector = {
       offside: Some(offside_node),
       below:
         switch (data_opt, drawer) {
+        /* the program stopped short of the ⇓ probe: how far it got */
+        | (_, true)
+            when model.bare && Settings.value_fallback^(info.id) != None =>
+          Settings.value_fallback^(info.id)
         | (Some(data), true) =>
           Some(
             live_offside_view(

@@ -182,6 +182,12 @@
   color: var(--test-pass);
 }
 
+/* the run ended before the program's last line */
+#dynamics.stuck .eq {
+  color: var(--ci-status-warning-text);
+  font-weight: 600;
+}
+
 #dynamics .dyn-msg {
   min-width: 0;
   overflow: hidden;
