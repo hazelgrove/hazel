@@ -24,6 +24,9 @@ let tests = (
     test_case("function sugar: single argument", `Quick, () =>
       parse_and_evaluate_test("42", {|let inc(x) = x + 1 in inc(41)|})
     ),
+    test_case("function sugar: curried arguments", `Quick, () =>
+      parse_and_evaluate_test("7", {|let add(x)(y) = x + y in add(3)(4)|})
+    ),
     test_case("function sugar: recursive factorial", `Quick, () =>
       parse_and_evaluate_test(
         "120",
