@@ -123,17 +123,21 @@
 /* the slide program's dynamics, at the bottom bar's right end
    (EvalResult.View.dynamics), across from the inspector's gamma */
 /* its own width, up to 45%: the caret's half gives way first */
+/* mirrors the left end: a tab whose corner and outline match .ci-header,
+   then ⇓ at the edge, under the sidebar column and as wide */
 #dynamics {
   display: flex;
   align-items: center;
   gap: 0.5em;
   flex-shrink: 0;
   max-width: 45%;
-  padding-right: 0.6em;
+  padding-left: 0.75em;
   font-family: var(--ui-font);
   font-size: 0.9rem;
   color: var(--cell-result-text);
   background-color: var(--cell-result);
+  outline: 0.6px solid var(--border-default);
+  border-radius: 1.1em 0 0 0;
 }
 
 #dynamics.fail {
@@ -142,18 +146,20 @@
 }
 
 #dynamics .dyn-glyph {
+  order: 1;
   display: flex;
   align-items: center;
   justify-content: center;
   align-self: stretch;
-  width: 2em;
+  /* #persistent's width */
+  width: 2rem;
+  margin-left: 0.15em;
   flex-shrink: 0;
   font-family: var(--ui-font);
   font-size: 1.35rem;
   background-color: var(--ci-dynamics-bkg);
   color: var(--ci-status-text);
   border-left: 0.6px solid var(--border-default);
-  border-right: 0.6px solid var(--border-default);
   cursor: pointer;
 }
 
