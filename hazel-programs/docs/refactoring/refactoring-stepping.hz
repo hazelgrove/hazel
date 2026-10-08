@@ -146,5 +146,5 @@ in
 let total = sum([5, 6]) in
 
 (warm, word, less, nest, len, joined, in_seconds(1), square, cube,
- summed, applied, twelve, h, lunch, spelled, rest, shout, rank,
- pick, small, f3, total)
+  summed, applied, twelve, h, lunch, spelled, rest, shout, rank,
+  pick, small, f3, total)

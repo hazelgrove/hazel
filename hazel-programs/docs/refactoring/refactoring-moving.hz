@@ -34,7 +34,8 @@ in
 
 # H3 the long ride: caret on let bonus, Down repeatedly. It #
 # enters prize's definition, then the fun, then the one arm #
-# that uses it, and finally feeds that use. Up retraces. #
+# that uses it, and finally feeds that use. Before that last #
+# feed, Up retraces each step. #
 let ride =
   let bonus = 100 in
   let prize = fun won ->
@@ -141,5 +142,5 @@ let doubled_twice = fun x ->
 in
 
 (ladder, blocky, ride, branchy(35), circle(10), lookup(2),
- carrying, convoy, walled, area(10), rect(3, 4), twins,
- doubled_twice(5))
+  carrying, convoy, walled, area(10), rect(3, 4), twins,
+  doubled_twice(5))

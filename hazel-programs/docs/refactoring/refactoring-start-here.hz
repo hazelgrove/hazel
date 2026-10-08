@@ -50,8 +50,9 @@ let ladder =
 in
 
 # 3 feeding: caret on let rate, Down: the nearest use becomes #
-# 365. The let stays while other uses remain; the last feed #
-# consumes it. Or caret on a use of rate, Down: just that one #
+# 365. Down again moves the let down to its next use, and #
+# once more feeds that one; the last feed consumes the let. #
+# Or caret on a use of rate, Down: just that one #
 let rate = 365 in
 let budget = rate * 24 in
 let spending = budget + rate in

@@ -91,9 +91,10 @@ let double = fun d -> d * 2 in
 let doubled = double(5) + double(6) in
 
 # ===== INLINE NEXT USE: cmd+ctrl+Down ===== #
-# One use at a time: on the let, the nearest use gets a copy; #
-# on a use, exactly that use does. The last feed consumes the #
-# binding. #
+# One use at a time: on the let, the nearest use gets a copy #
+# (when the next use is on a later line, the let first moves #
+# down to it); on a use, exactly that use does. The last feed #
+# consumes the binding. #
 
 # F1 caret on let hours, press Down three times #
 let hours = 24 in
@@ -103,7 +104,8 @@ let day_total = hours * 60 + hours + hours / 2 in
 let unit = 100 in
 let units = (unit, unit, unit) in
 
-# F3 feeding crosses lines: caret on let gap, Down twice #
+# F3 across lines: caret on let gap, Down three times: feed #
+# left, move down past it, feed right #
 let gap = 8 in
 let left = gap + 1 in
 let right = gap - 1 in
@@ -125,6 +127,6 @@ let cost = 40 in
 let budget = coast * 3 in
 
 (area, shout, verdict, tax, digits, sixteen, inset(10),
- describe(4), echo, recipe, nested, pad_total, big, fees,
- walked, doubled, day_total, units, left + right, bmi(70, 2),
- budget)
+  describe(4), echo, recipe, nested, pad_total, big, fees,
+  walked, doubled, day_total, units, left + right, bmi(70, 2),
+  budget)

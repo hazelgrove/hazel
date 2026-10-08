@@ -76,8 +76,9 @@ in
 # handled. Keep pressing until the case is exhaustive. (These #
 # start inexhaustive on purpose: the red is the fuel.) #
 
-# G1 caret on end, Down three times: the missing weathers #
-# arrive one per press #
+# G1 caret on end, Down: the first missing weather arrives and #
+# the caret moves into its hole. Put the caret back on end and #
+# press again for the next, until all are handled #
 let wear = fun (w : Weather) ->
   case w
   | Sun => "hat"
@@ -197,7 +198,7 @@ let answer = fun (yes : Bool) ->
 in
 
 (icon(Snow), name(2), pick((true, 5)), grade("b"), count([1]),
- corner((0, 3)), flag(false),
- wear(Sun), bit(true), first_or_zero([]), held(Vacant), teen(13),
- wet(Rain), occupied(Taken(1)), tone(Snow), sign(0 - 1),
- status(true), cap(150), mood(true), parity(true), answer(false))
+  corner((0, 3)), flag(false),
+  wear(Sun), bit(true), first_or_zero([]), held(Vacant), teen(13),
+  wet(Rain), occupied(Taken(1)), tone(Snow), sign(0 - 1),
+  status(true), cap(150), mood(true), parity(true), answer(false))

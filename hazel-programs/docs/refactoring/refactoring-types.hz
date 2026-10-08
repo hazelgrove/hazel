@@ -54,7 +54,8 @@ type Meters = Float in
 let run : Meters = 5.0 in
 let swim : Meters = 1.5 in
 
-# I2 feed one use at a time: caret on Grid, Down twice #
+# I2 feed one use at a time: caret on Grid, Down three times: #
+# feed blank, move down past it, feed board #
 type Grid = [[Int]] in
 let blank : Grid = [] in
 let board : Grid = [[1, 0], [0, 1]] in
@@ -78,4 +79,4 @@ type Color = Red + Green + Blue in
 let paint : Color = Red in
 
 (count, title, pair, primes, succ(1), half(4), origin, twice,
- roster, dist((1, 2)), run, swim, blank, board, corner, width, paint)
+  roster, dist((1, 2)), run, swim, blank, board, corner, width, paint)

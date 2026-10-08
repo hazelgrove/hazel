@@ -35,11 +35,13 @@ let scale = fun factor ->
 type Meal = Soup + Salad + Combo(Int) in
 let lunch : Meal = Combo(12) in
 let dinner : Meal = Salad in
-let price = case lunch
+let price =
+  case lunch
   | Soup => 400
   | Combo(size) => size * 100
   | _ => 700
-end in
+  end
+in
 
 # grab end and pull DOWN, repeatedly: the missing constructors #
 # arrive one by one; on the int case below it wildifies instead. #
@@ -79,4 +81,4 @@ let a = 1 in
 let b = a + a + a in
 
 (ladder, spending, volume, scale(2), price, stamp, ticket, cheap,
- mixture, hauled, span, award(1), b)
+  mixture, hauled, span, award(1), b)
