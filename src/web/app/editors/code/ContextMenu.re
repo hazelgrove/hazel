@@ -233,7 +233,7 @@ let introduce_data =
  * find out at click time. */
 let clipboard_data = (z: Zipper.t): list(Menu.item(command)) => {
   let has_selection = !Selection.is_empty(z.selection);
-  [
+  Menu.inline([
     action_item(
       ~shortcut=Shortcuts.cut(),
       ~enabled=has_selection,
@@ -247,7 +247,8 @@ let clipboard_data = (z: Zipper.t): list(Menu.item(command)) => {
       Action.Copy,
     ),
     command_item(~shortcut=Shortcuts.paste(), "Paste", PasteFromClipboard),
-  ];
+  ])
+  |> (row => [row]);
 };
 
 let select_current_term_data = (): list(Menu.item(command)) => [
@@ -559,6 +560,66 @@ let get_direction =
   };
 };
 
+/* ============================================================
+ * Action sheet (coarse pointers)
+ * ============================================================ */
+
+let sheet_excerpt_length = 60;
+
+/* What the sheet's header names: the selection if there is one, else the
+ * term the caret indicates, as a one-line excerpt of its text under its
+ * syntax class. A term with no text (a hole) is named by its class. */
+let sheet_heading =
+    (
+      ~syntax: Haz3lcore.CachedSyntax.t,
+      ~info_map: Language.Statics.Map.t,
+      z: Zipper.t,
+    )
+    : ActionSheet.heading => {
+  let excerpt = (z: Zipper.t): option(string) =>
+    switch (
+      Printer.selected_text(z)
+      |> String.split_on_char('\n')
+      |> List.map(String.trim)
+      |> List.filter(line => line != "")
+    ) {
+    | [] => None
+    | lines =>
+      Some(
+        String.concat(" ", lines)
+        |> StringUtil.abbreviate(sheet_excerpt_length),
+      )
+    };
+  let (kind, text) =
+    switch (z.selection.content) {
+    | [_, ..._] => ("Selection", excerpt(z))
+    | [] => (
+        Indicated.ci_of(z, info_map)
+        |> Option.map(Language.Info.cls_label)
+        |> Option.value(~default="Code"),
+        Select.current_term(
+          syntax.term_data,
+          ~defs_exclude_bodies=true,
+          ~case_rules=true,
+          z,
+        )
+        |> OptUtil.and_then(excerpt),
+      )
+    };
+  switch (text) {
+  | Some(title) => {
+      label: Some(kind),
+      title,
+      code: true,
+    }
+  | None => {
+      label: None,
+      title: kind,
+      code: false,
+    }
+  };
+};
+
 let view =
     (
       ~inject: command => Ui_effect.t(unit),
@@ -571,30 +632,46 @@ let view =
       z: Haz3lcore.Zipper.t,
     )
     : Node.t => {
-  let caret_point = Zipper.Caret.point(syntax.measured, z);
   let items = get_all_items(~info_map, ~elaborated, z);
-  let menu_items =
-    Menu.render(
+  if (items == []) {
+    div([]);
+  } else if (JsUtil.coarse_pointer()) {
+    ActionSheet.view(
+      ~menu_class="context-menu",
+      ~heading=sheet_heading(~syntax, ~info_map, z),
+      ~on_close=() => inject_menu(Close),
       ~inject_action=inject,
       ~inject_menu,
-      ~item_class="named-menu-item",
       ~items,
       model,
     );
-
-  if (menu_items == []) {
-    div([]);
   } else {
+    let caret_point = Zipper.Caret.point(syntax.measured, z);
     let direction = get_direction(caret_point, font_metrics);
     let dir_class = direction_class(direction);
     let style = pos_style(caret_point, font_metrics, direction);
-
     div(
       ~attrs=[
         Attr.classes(["context-menu", "nut-menu", dir_class]),
         Attr.create("style", style),
       ],
-      [div_c("group", [div_c("contents", menu_items)])],
+      [
+        div_c(
+          "group",
+          [
+            div_c(
+              "contents",
+              Menu.render(
+                ~inject_action=inject,
+                ~inject_menu,
+                ~item_class="named-menu-item",
+                ~items,
+                model,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   };
 };

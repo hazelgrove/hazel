@@ -1,0 +1,205 @@
+/* Action sheet: a Menu as a modal bottom sheet, for coarse pointers (see
+   ActionSheet.re). The dialog also carries its menu's own class (e.g.
+   .context-menu), whose popup styling the dialog.action-sheet rules
+   outrank. */
+
+dialog.action-sheet[open] {
+  display: flex;
+}
+dialog.action-sheet {
+  flex-direction: column;
+  position: fixed;
+  inset: auto 0 0 0;
+  margin: 0 auto;
+  width: 100%;
+  min-width: 0;
+  max-width: 34rem;
+  max-height: 85dvh;
+  padding: 0;
+  border: none;
+  outline: none;
+  border-radius: 1rem 1rem 0 0;
+  background-color: var(--menu-bkg);
+  color: var(--menu-item-text);
+  box-shadow: 0 -4px 24px var(--menu-shadow);
+  overflow: hidden;
+  /* The drag-to-dismiss spring and slide-out; ActionSheet.slide_out_ms
+     waits this long before closing. */
+  transition: transform 0.15s ease-out;
+  animation: action-sheet-up 0.2s ease-out;
+}
+dialog.action-sheet::backdrop {
+  background: color-mix(in oklch, var(--surface-black) 35%, transparent);
+  animation: action-sheet-scrim-in 0.2s ease-out;
+}
+@keyframes action-sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes action-sheet-scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The page behind the scrim stays put. */
+#main:has(dialog.action-sheet[open]) {
+  overflow: hidden;
+}
+
+/* The drag handle: the browser mustn't claim a drag here as a scroll. */
+.action-sheet-header {
+  flex: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 3rem;
+  padding: 1.25rem 1rem 0.75rem;
+  touch-action: none;
+  cursor: grab;
+}
+.action-sheet-grabber {
+  position: absolute;
+  top: 0.5rem;
+  left: 50%;
+  width: 2.25rem;
+  height: 0.3rem;
+  border-radius: 1rem;
+  transform: translateX(-50%);
+  background-color: var(--menu-outline);
+}
+.action-sheet-back {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  margin-left: -0.75rem;
+  border: none;
+  border-radius: 0.6rem;
+  background: none;
+  color: var(--code-text);
+  cursor: pointer;
+}
+/* A chevron at the title's weight. */
+.action-sheet-back::before {
+  content: "";
+  width: 0.6rem;
+  height: 0.6rem;
+  margin-left: 0.3rem;
+  border-left: 2.5px solid currentColor;
+  border-bottom: 2.5px solid currentColor;
+  transform: rotate(45deg);
+}
+.action-sheet-back:active {
+  background-color: var(--surface-deep);
+}
+.action-sheet-titles {
+  flex: 1;
+  min-width: 0;
+}
+.action-sheet-label {
+  margin-bottom: 0.15rem;
+  color: var(--text-strong);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.action-sheet-title {
+  color: var(--code-text);
+  font-size: 1.15rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.action-sheet-title.code-title {
+  font-family: var(--code-font);
+}
+
+.action-sheet-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0.75rem 0.75rem calc(0.75rem + env(safe-area-inset-bottom));
+}
+/* A drilled-into submenu slides in over its parent. */
+.action-sheet-rows.nested {
+  animation: action-sheet-drill-in 0.16s ease-out;
+}
+@keyframes action-sheet-drill-in {
+  from {
+    opacity: 0;
+    transform: translateX(1.5rem);
+  }
+}
+
+/* Each divider-separated section of the menu is a card. */
+.action-sheet .menu-group {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-radius: 0.8rem;
+  background-color: var(--surface-code);
+  overflow: hidden;
+}
+.action-sheet .menu-group > * + * {
+  border-top: 0.6px solid color-mix(in oklch, var(--menu-outline) 50%, transparent);
+}
+/* Cut/Copy/Paste and the like, side by side. */
+.action-sheet .menu-inline {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+}
+.action-sheet .menu-inline > * + * {
+  border-left: 0.6px solid color-mix(in oklch, var(--menu-outline) 50%, transparent);
+}
+.action-sheet .menu-inline > .action-sheet-row {
+  justify-content: center;
+}
+
+.action-sheet-row {
+  flex: none;
+  display: flex;
+  align-items: center;
+  min-height: 3rem;
+  padding: 0 1rem;
+  color: var(--menu-item-text);
+  font-size: 1rem;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.action-sheet-row:active {
+  background-color: var(--surface-deep);
+}
+/* Arrow keys move Menu's selection; it shows only when the sheet was
+   opened from the keyboard, since a finger has no use for it. */
+dialog.action-sheet:focus-visible {
+  outline: none;
+}
+dialog.action-sheet:focus-visible .action-sheet-row.selected {
+  background-color: var(--surface-deep);
+}
+.action-sheet-row.disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.action-sheet-row.disabled:active {
+  background: none;
+}
+/* The submenu chevron; rows carry no shortcut hints here. */
+.action-sheet-row .menu-shortcut {
+  margin-left: auto;
+  padding-left: 1em;
+  font-size: 1.25rem;
+  opacity: 0.6;
+}

@@ -652,19 +652,28 @@ let on_dpr_change = (callback: unit => unit): unit => {
   listen();
 };
 
-/* Whether the primary pointer can hover, as CSS `(hover: hover)` sees it:
-   false on a phone or tablet. True under node, which has no matchMedia. */
-let can_hover = (): bool =>
+/* Whether a CSS media query matches; `default` under node, which has no
+   matchMedia. */
+let media_matches = (~default: bool, query: string): bool =>
   switch (Js.Optdef.to_option(Js.Unsafe.get(Dom_html.window, "matchMedia"))) {
-  | None => true
+  | None => default
   | Some(_) =>
     Js.Unsafe.meth_call(
       Dom_html.window,
       "matchMedia",
-      [|Js.Unsafe.inject(Js.string("(hover: hover)"))|],
+      [|Js.Unsafe.inject(Js.string(query))|],
     )##.matches
     |> Js.to_bool
   };
+
+/* Whether the primary pointer can hover, as CSS `(hover: hover)` sees it:
+   false on a phone or tablet. True under node. */
+let can_hover = (): bool => media_matches(~default=true, "(hover: hover)");
+
+/* Whether the primary pointer is a finger, as CSS `(pointer: coarse)` sees
+   it. False under node. */
+let coarse_pointer = (): bool =>
+  media_matches(~default=false, "(pointer: coarse)");
 
 /* Follow the visual viewport, which is what an on-screen keyboard shrinks
    (iOS leaves the layout viewport alone): --visual-viewport-height and

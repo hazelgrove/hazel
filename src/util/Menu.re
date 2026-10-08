@@ -89,6 +89,9 @@ type item('a) =
       tooltip: option(string),
       children: list(item('a)),
     })
+  /* Short sibling actions (Cut/Copy/Paste) that a sheet lays out side by
+   * side; a popup lists them as ordinary rows. */
+  | Inline(list(item('a)))
   | Divider;
 
 let action_item =
@@ -108,6 +111,8 @@ let submenu_item = (~tooltip=?, label, children) =>
     tooltip,
     children,
   });
+
+let inline = (items: list(item('a))): item('a) => Inline(items);
 
 let divider = Divider;
 
@@ -150,9 +155,10 @@ type visible_item('a) =
       tooltip: option(string),
       submenu_name: string,
     })
+  | VInline(list(visible_item('a)))
   | VDivider;
 
-let to_visible = (it: item('a)): visible_item('a) =>
+let rec to_visible = (it: item('a)): visible_item('a) =>
   switch (it) {
   | Action({label, decoration, tooltip, on_hover, enabled, action}) =>
     VAction({
@@ -169,23 +175,52 @@ let to_visible = (it: item('a)): visible_item('a) =>
       tooltip,
       submenu_name: label,
     })
+  | Inline(items) => VInline(List.map(to_visible, items))
   | Divider => VDivider
   };
 
-/* The list of rows to render at the current path, with Back synthesised
- * when nested. */
-let visible_items =
+/* The rows to render at the current path, with Back synthesised when
+ * nested and inline groups kept whole. */
+let visible_layout =
     (~items: list(item('a)), model: t): list(visible_item('a)) => {
   let p = path(model);
   let here = items_at(p, items) |> List.map(to_visible);
   p == [] ? here : [VBack, ...here];
 };
 
+/* The same rows in selection order: inline groups spliced in, which is
+ * how keyboard selection walks them. */
+let visible_items =
+    (~items: list(item('a)), model: t): list(visible_item('a)) => {
+  let rec flatten = vs =>
+    List.concat_map(
+      fun
+      | VInline(vs) => flatten(vs)
+      | v => [v],
+      vs,
+    );
+  flatten(visible_layout(~items, model));
+};
+
+/* Split at dividers, dropping them. */
+let sections = (vs: list(visible_item('a))): list(list(visible_item('a))) =>
+  List.fold_right(
+    (v, acc) =>
+      switch (v, acc) {
+      | (VDivider, _) => [[], ...acc]
+      | (v, [section, ...rest]) => [[v, ...section], ...rest]
+      | (v, []) => [[v]]
+      },
+    vs,
+    [[]],
+  );
+
 let is_visible_selectable = (v: visible_item('a)): bool =>
   switch (v) {
   | VBack => true
   | VAction({enabled, _}) => enabled
   | VSubmenu(_) => true
+  | VInline(_)
   | VDivider => false
   };
 
@@ -284,6 +319,11 @@ let pointerdown_attr = (on_fire: unit => Ui_effect.t(unit)) =>
     Effect.Many([Effect.Stop_propagation, Effect.Prevent_default, on_fire()])
   );
 
+/* A sheet row fires on click, not pointerdown: a touch that starts on a
+ * row may be the start of a scroll through the sheet. */
+let click_attr = (on_fire: unit => Ui_effect.t(unit)) =>
+  Attr.on_click(_ => on_fire());
+
 let item_classes = (~item_class: string, ~is_selected: bool, ~enabled: bool) =>
   [item_class]
   @ (is_selected ? ["selected"] : [])
@@ -296,7 +336,8 @@ let row_view =
       ~enabled: bool,
       ~tooltip: option(string),
       ~decoration: option(string),
-      ~on_pointerdown: unit => Ui_effect.t(unit),
+      ~fire_attr: (unit => Ui_effect.t(unit)) => Attr.t,
+      ~on_fire: unit => Ui_effect.t(unit),
       ~on_hover: option(Ui_effect.t(unit)),
       label: string,
     ) => {
@@ -322,7 +363,7 @@ let row_view =
     ~attrs=
       [
         clss(item_classes(~item_class, ~is_selected, ~enabled)),
-        pointerdown_attr(on_pointerdown),
+        fire_attr(on_fire),
       ]
       @ title_attrs
       @ hover_attrs,
@@ -332,9 +373,17 @@ let row_view =
 
 /* Render rows visible at the model's path. The caller passes the entire
  * item tree; Menu walks the path, synthesises Back when nested, and
- * indexes selected_idx across only the selectable rows. */
+ * indexes selected_idx across only the selectable rows.
+ *
+ * `~sheet=true` renders for a touch action sheet (see ActionSheet): rows
+ * fire on click, shortcut decorations are dropped, the Back row is left
+ * out (still counted for keyboard indexing) because the sheet's header
+ * carries the back control, inline groups sit side by side, and each
+ * divider-separated section is wrapped in a `menu-group` instead of being
+ * divided. */
 let render =
     (
+      ~sheet=false,
       ~inject_action: 'a => Ui_effect.t(unit),
       ~inject_menu: action => Ui_effect.t(unit),
       ~item_class: string,
@@ -342,59 +391,85 @@ let render =
       model: t,
     )
     : list(Node.t) => {
-  let vs = visible_items(~items, model);
-  let selected_idx = clamp_visible(vs, selected(model));
-  let (_, rendered) =
-    List.fold_left_map(
-      (sel_idx, v) =>
-        switch (v) {
-        | VDivider => (sel_idx, divider_view())
-        | VBack => (
-            sel_idx + 1,
-            row_view(
-              ~item_class,
-              ~is_selected=sel_idx == selected_idx,
-              ~enabled=true,
-              ~tooltip=None,
-              ~decoration=None,
-              ~on_pointerdown=() => inject_menu(BackSubmenu),
-              ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
-              "← Back",
-            ),
-          )
-        | VAction({label, decoration, tooltip, on_hover, enabled, action}) => (
-            sel_idx + 1,
-            row_view(
-              ~item_class,
-              ~is_selected=enabled && sel_idx == selected_idx,
-              ~enabled,
-              ~tooltip,
-              ~decoration,
-              ~on_pointerdown=
-                () => enabled ? inject_action(action) : Effect.Ignore,
-              ~on_hover=
-                on_hover ? Some(inject_menu(SetSelected(sel_idx))) : None,
-              label,
-            ),
-          )
-        | VSubmenu({label, tooltip, submenu_name}) => (
-            sel_idx + 1,
-            row_view(
-              ~item_class,
-              ~is_selected=sel_idx == selected_idx,
-              ~enabled=true,
-              ~tooltip,
-              ~decoration=Some("→"),
-              ~on_pointerdown=() => inject_menu(EnterSubmenu(submenu_name)),
-              ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
-              label,
-            ),
-          )
-        },
-      0,
-      vs,
+  let selected_idx =
+    clamp_visible(visible_items(~items, model), selected(model));
+  let fire_attr = sheet ? click_attr : pointerdown_attr;
+  let rec view_all = (sel_idx, vs) => {
+    let (sel_idx, nodes) = List.fold_left_map(view_one, sel_idx, vs);
+    (sel_idx, List.concat(nodes));
+  }
+  and view_one = (sel_idx, v) =>
+    switch (v) {
+    | VDivider => (sel_idx, [divider_view()])
+    | VInline(vs) =>
+      let (sel_idx, nodes) = view_all(sel_idx, vs);
+      (
+        sel_idx,
+        sheet ? [Node.div(~attrs=[clss(["menu-inline"])], nodes)] : nodes,
+      );
+    | VBack when sheet => (sel_idx + 1, [])
+    | VBack => (
+        sel_idx + 1,
+        [
+          row_view(
+            ~fire_attr,
+            ~item_class,
+            ~is_selected=sel_idx == selected_idx,
+            ~enabled=true,
+            ~tooltip=None,
+            ~decoration=None,
+            ~on_fire=() => inject_menu(BackSubmenu),
+            ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
+            "← Back",
+          ),
+        ],
+      )
+    | VAction({label, decoration, tooltip, on_hover, enabled, action}) => (
+        sel_idx + 1,
+        [
+          row_view(
+            ~fire_attr,
+            ~item_class,
+            ~is_selected=enabled && sel_idx == selected_idx,
+            ~enabled,
+            ~tooltip,
+            ~decoration=sheet ? None : decoration,
+            ~on_fire=() => enabled ? inject_action(action) : Effect.Ignore,
+            ~on_hover=
+              on_hover ? Some(inject_menu(SetSelected(sel_idx))) : None,
+            label,
+          ),
+        ],
+      )
+    | VSubmenu({label, tooltip, submenu_name}) => (
+        sel_idx + 1,
+        [
+          row_view(
+            ~fire_attr,
+            ~item_class,
+            ~is_selected=sel_idx == selected_idx,
+            ~enabled=true,
+            ~tooltip,
+            ~decoration=Some(sheet ? "›" : "→"),
+            ~on_fire=() => inject_menu(EnterSubmenu(submenu_name)),
+            ~on_hover=Some(inject_menu(SetSelected(sel_idx))),
+            label,
+          ),
+        ],
+      )
+    };
+  let layout = visible_layout(~items, model);
+  if (sheet) {
+    let (_, groups) = List.fold_left_map(view_all, 0, sections(layout));
+    List.filter_map(
+      fun
+      | [] => None
+      | nodes => Some(Node.div(~attrs=[clss(["menu-group"])], nodes)),
+      groups,
     );
-  rendered;
+  } else {
+    snd(view_all(0, layout));
+  };
 };
 
 /* ============================================================
@@ -437,6 +512,7 @@ let handle_key =
         MenuUpdate(EnterSubmenu(submenu_name))
       | Some(VBack) => MenuUpdate(BackSubmenu)
       | Some(VAction({enabled: false, _}))
+      | Some(VInline(_))
       | Some(VDivider)
       | None => MenuUpdate(Close)
       }
