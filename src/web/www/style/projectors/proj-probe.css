@@ -871,6 +871,15 @@
    two columns in; the rule name (or the panel) follows the code */
 .below-wrapper :is(.steps-drawer, .proof-drawer) .step-display {
   gap: 1em;
+  /* a rule name is a bare text item: on the code's baseline, not its top */
+  align-items: baseline;
+}
+
+.below-wrapper
+  :is(.steps-drawer, .proof-drawer)
+  .step-display
+  > :is(.equiv, .stepper-controls) {
+  align-self: flex-start;
 }
 
 #main .below-wrapper :is(.steps-drawer, .proof-drawer) .step-output .code-editor {
