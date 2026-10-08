@@ -24,6 +24,7 @@ module JsUtil = JsUtil;
 module FloatingElement = FloatingElement;
 module SampleAnchor = SampleAnchor;
 module Menu = Menu;
+module ActionSheet = ActionSheet;
 module MenuListener = MenuListener;
 module ContextMenuListener = ContextMenuListener;
 module ColumnMenuListener = ColumnMenuListener;
