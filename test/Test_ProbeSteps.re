@@ -295,6 +295,45 @@ let undo = () => {
   );
 };
 
+/* a pass over the stepper (each click makes one) re-analyzes only what
+   changed: the first step's statics survive a second step and a
+   selection */
+let incremental = () => {
+  let z = parsed();
+  let (info_map, s) = eval(~targets=targets(~full=true, z), z);
+  let dynamics = EvaluatorState.get_probes(s);
+  let calc = prev =>
+    Web.ProbeSteps.calculate(
+      ~settings=Util.Calc.OldValue(CoreSettings.on),
+      ~info_map,
+      ~dynamics,
+      ~stepping=Some(span(z)),
+      prev,
+    )
+    |> Option.get;
+  let step = (a, ps) =>
+    calc(
+      Some(
+        Web.ProbeSteps.update(~settings=Web.Settings.Model.init, a, ps).model,
+      ),
+    );
+  /* the analysis itself: a pass rebuilds the record around it (targets) */
+  let first_statics = (ps: Web.ProbeSteps.t) =>
+    Util.Calc.get_saved_exc(~print="first step", ps.stepper.root.editor).
+      statics.
+      info_map;
+  let one = step(StepForward(0), calc(None));
+  let before = first_statics(one);
+  let again =
+    step(EditorAction(Select(All)), step(NextStep(StepForward(0)), one));
+  check(
+    bool,
+    "the first step's statics kept",
+    true,
+    before === first_statics(again),
+  );
+};
+
 /* the bar names the stepped expression on one line */
 let one_line = () => {
   check(
@@ -323,5 +362,6 @@ let tests = (
     test_case("rows follow history", `Quick, history_rows),
     test_case("undo", `Quick, undo),
     test_case("one line", `Quick, one_line),
+    test_case("passes are incremental", `Quick, incremental),
   ],
 );
