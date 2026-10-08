@@ -45,7 +45,12 @@ let cls_view = (ci: Info.t): Node.t => {
 let ctx_toggle = (~globals: Globals.t): Node.t =>
   div(
     ~attrs=[
-      Attr.on_click(_ => globals.inject_global(Set(ContextInspector))),
+      Attr.on_click(_ =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          globals.inject_global(Set(ContextInspector)),
+        ])
+      ),
       clss(
         ["gamma"] @ (globals.settings.context_inspector ? ["visible"] : []),
       ),
@@ -1122,12 +1127,35 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
+    /* On a touch screen a tap expands the bar to the full, wrapped type or
+       error, and another tap collapses it. */
+    let bar_view =
+      JsUtil.coarse_pointer()
+        ? {
+          let id = Info.id_of(ci);
+          let expanded = globals.inspector_expanded == Some(id);
+          div(
+            ~attrs=[
+              Attr.id("bottom-bar"),
+              clss(["expandable"] @ (expanded ? ["expanded"] : [])),
+              /* Keeps the editor's input focused, so the phone keyboard
+                 and the key bar don't drop away mid-tap. */
+              Attr.on_pointerdown(_ => Effect.Prevent_default),
+              Attr.on_click(_ =>
+                globals.inject_global(
+                  ExpandInspector(expanded ? None : Some(id)),
+                )
+              ),
+            ],
+          );
+        }
+        : bar_view;
     /* Show projector error instead of normal status,
      * unless there's a statics error (which takes priority) */
     switch (projector_err) {
     | Some((_, err)) when !Info.is_error(ci) =>
       bar_view([projector_error_inspector(~globals, ci, err)])
     | _ => bar_view([inspector_view(~globals, ci)])
-    }
+    };
   };
 };

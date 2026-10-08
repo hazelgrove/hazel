@@ -229,6 +229,15 @@ module Update = {
             },
           }
           |> return_quiet
+    | ExpandInspector(inspector_expanded) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          inspector_expanded,
+        },
+      }
+      |> return_quiet
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,

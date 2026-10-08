@@ -67,6 +67,7 @@ module Action = {
     | Redo // global actions so they can be accessed by the command palette
     | Log(log)
     | SetMetaDown(bool)
+    | ExpandInspector(option(Haz3lcore.Id.t))
     | UpdateVisibleRows(VisibleRows.t)
     | RethrowException
     | ClearException
@@ -81,6 +82,10 @@ module Model = {
     // State:
     font_metrics: FontMetrics.t,
     meta_down: bool,
+    /* The term whose cursor inspector a tap has expanded (touch screens,
+       where a long type or error doesn't fit the bar); collapsed whenever
+       the caret is on any other term. */
+    inspector_expanded: option(Haz3lcore.Id.t),
     visible_rows: option(VisibleRows.t),
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
@@ -106,6 +111,7 @@ module Model = {
     settings,
     font_metrics,
     meta_down: false,
+    inspector_expanded: None,
     visible_rows: None,
     color_highlights: None,
     inject_global: _ =>
