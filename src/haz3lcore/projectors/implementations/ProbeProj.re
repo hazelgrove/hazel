@@ -20,7 +20,7 @@ type probe_model = {
    * one automatically (canvas value wells). Off for editor probes. */
   [@default false]
   auto_rich: bool,
-  /* Text: no view draws the samples, whatever the global Rich Views
+  /* Text: no view draws the samples, whatever the global Rich Probes
      setting says. The "View as" list's Text sets it; dbl-click toggles it,
      so the chosen view (active_renderer, kept) comes back. */
   [@default false]

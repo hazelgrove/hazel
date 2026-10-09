@@ -157,7 +157,7 @@ let ^trace = {
 - **Display.** Views are read-only: their handlers dispatch nothing, and a
   view that takes a `ViewContext` is told `editable=false`, with room
   `Lines(2, columns)` in a sample chip on the line and `Free` in the
-  drawer. With Rich Views on (the probe sidebar toggle, on by default), a
+  drawer. With Rich Probes on (the probe sidebar toggle, on by default), a
   view is embedded in each sample on the line when it fits the line's room
   (it takes the context, or its `shape` is at most 2 lines tall; `Inline`
   is 1; a hand of cards takes 2), and is clipped to that room there;
@@ -171,7 +171,7 @@ let ^trace = {
   first, then HTML, Cards), then the livelits offered on request, then
   Table, which is never picked automatically. Choosing one
   sets it for every sample of the probe, in the drawer as on the line,
-  overriding the Rich Views setting for that probe only; it is probe
+  overriding the Rich Probes setting for that probe only; it is probe
   state, so it survives edits. A view too tall for the chip opens the
   drawer. In the keyboard menu (`/`), V opens the list, the arrows move,
   Enter chooses and Esc closes just the list. Double-clicking a sample
