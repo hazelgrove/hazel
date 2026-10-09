@@ -542,6 +542,172 @@ go(3)|},
   ),
 ];
 
+/* Every id in a term, in traversal order. */
+let ids_of_term = (e: Exp.t): list(Id.t) => {
+  let acc = ref([]);
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, t) => {
+      acc := List.rev_append(t.annotation.ids, acc^);
+      continue(t);
+    };
+  let _: Exp.t =
+    Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, e);
+  List.rev(acc^);
+};
+
+/* The term with every id replaced by a fresh Id.mk one, as another process
+ * building it would mint. */
+let with_fresh_ids = (e: Exp.t): Exp.t => {
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, t) =>
+      {
+        ...t,
+        annotation: {
+          ...t.annotation,
+          ids: List.map(_ => Id.mk(), t.annotation.ids),
+        },
+      }
+      |> continue;
+  Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, e);
+};
+
+let library_term = (name: string): Exp.t =>
+  switch (Environment.lookup(Builtins.env_init, name)) {
+  | Some(e) => e
+  | None => fail("no builtin " ++ name)
+  };
+
+/* The call stacks of every sample, evaluating with the given library. */
+let stacks_with =
+    (env: Environment.t(Exp.t), (elaborated, targets)): list(list(Id.t)) => {
+  let (_, state) =
+    Evaluator.evaluate(
+      ~eval_info=EvalInfo.of_targets(targets),
+      ~env,
+      elaborated,
+    );
+  EvaluatorState.get_probes(state)
+  |> Id.Map.bindings
+  |> List.concat_map(snd)
+  |> List.map((s: Sample.t) => CallStack.ids_of_stack(s.call_stack));
+};
+
+/* Calls made inside a library function (map calling its callback, or
+ * itself on the rest of the list) are frames with ids from the library's
+ * own terms. Iterations differ by depth, not by fresh ids. */
+let library_frames_test = (name: string, code: string) =>
+  test_case(
+    "Frames inside " ++ name ++ " are the same in every run, and its own ids",
+    `Quick,
+    () => {
+      let (_term, elaborated, info_map, targets) = parse_with_probes(code);
+      let first = stacks_with(Builtins.env_init, (elaborated, targets));
+      check(int, "three iterations", 3, List.length(first));
+      check(
+        bool,
+        "a second run gives the same frame ids",
+        true,
+        first == stacks_with(Builtins.env_init, (elaborated, targets)),
+      );
+      let library_frames =
+        List.concat(first)
+        |> List.sort_uniq(Id.compare)
+        |> List.filter(id => Statics.Map.lookup(id, info_map) == None);
+      let lib_ids = ids_of_term(library_term(name));
+      check(
+        bool,
+        "some frames are calls inside " ++ name,
+        true,
+        library_frames != [],
+      );
+      check(
+        bool,
+        "every such frame is an id of " ++ name ++ "'s term",
+        true,
+        List.for_all(id => List.mem(id, lib_ids), library_frames),
+      );
+    },
+  );
+
+let library_frame_tests = [
+  library_frames_test("map", {|map([1, 2, 3], fun x -> ^^probe(x + 1))|}),
+  library_frames_test(
+    "fold_left",
+    {|fold_left([10, 20, 30], fun (acc, x) -> ^^probe(acc + x), 0)|},
+  ),
+  test_case(
+    "Library ids do not depend on the process that built the library",
+    `Quick,
+    () => {
+      /* Each process builds the library once with its own random ids;
+         rebuilding map's term with fresh ids stands in for another one. */
+      let map = library_term("map");
+      let elsewhere = with_fresh_ids(map);
+      check(
+        bool,
+        "the stand-in has other ids",
+        false,
+        ids_of_term(elsewhere) == ids_of_term(map),
+      );
+      check(
+        bool,
+        "its stable ids are the same",
+        true,
+        ids_of_term(BuiltinsUtil.with_stable_ids("map", elsewhere))
+        == ids_of_term(map),
+      );
+      /* Id.mk mints version 4 UUIDs; stable ids are version 5 */
+      check(
+        bool,
+        "no session ids",
+        true,
+        List.for_all(id => Id.to_string(id).[14] == '5', ids_of_term(map)),
+      );
+    },
+  ),
+  test_case(
+    "Frames inside library calls match across evaluator processes",
+    `Quick,
+    () => {
+      /* A restarted evaluator worker builds the whole library again. */
+      let program = {
+        let (_term, elaborated, _info_map, targets) =
+          parse_with_probes(
+            {|map([[1, 2], [3]], fun row -> map(row, fun n -> ^^probe(n)))|},
+          );
+        (elaborated, targets);
+      };
+      let library = (~stable: bool) =>
+        Builtins.builtins
+        |> List.map(b => {
+             let (name, imp) = BuiltinsUtil.imp_of_builtin(b);
+             let imp = with_fresh_ids(imp);
+             (name, stable ? BuiltinsUtil.with_stable_ids(name, imp) : imp);
+           })
+        |> List.fold_left(Environment.extend, Environment.empty);
+      let here = stacks_with(Builtins.env_init, program);
+      check(
+        bool,
+        "same frames in the new process",
+        true,
+        here == stacks_with(library(~stable=true), program),
+      );
+      check(
+        bool,
+        "(with per-process ids they would all differ)",
+        false,
+        here == stacks_with(library(~stable=false), program),
+      );
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeCallStack",
   List.concat([
@@ -551,5 +717,6 @@ let tests = (
     module_function_tests,
     step_into_frame_tests,
     span_suppression_tests,
+    library_frame_tests,
   ]),
 );

@@ -257,6 +257,19 @@
   fill: var(--exp-indicated);
 }
 
+/* An open drawer keeps its chevron when the probe isn't indicated (see
+ * "Nav-bar" below), in a quieter brown: the muted color of the table
+ * drawer's close button. Hovered, it reddens as the indicated chevron
+ * does; :not(:hover) leaves that to the rule below, which this rule
+ * would otherwise outrank. */
+.projector.probe:not(.indicated)
+  .live-offside.drawer-mode
+  .nav-bar
+  .drawer-mode-toggle:not(:hover)
+  .visual {
+  fill: var(--text-muted);
+}
+
 /* target classes, not g:hover, so a wrapping <g> won't redden the whole control */
 .live-offside .nav-bar .nav-left:hover .visual,
 .live-offside .nav-bar .nav-right:hover .visual,
@@ -288,6 +301,19 @@
 .live-offside .ellipsis:hover {
   /* filter: brightness(1.2) saturate(2); */
   scale: 1.4;
+}
+
+/* In the inline row the ⋯ sits on the samples' baseline (.live-offside
+ * aligns its items' baselines, and the count badge leads the samples)
+ * but takes no height of its own. Its glyph isn't in Helvetica Neue,
+ * and the fallback (PingFang SC on macOS) has a tall ascent: at a normal
+ * line height the ⋯'s baseline lay 17px below its top, while beside a
+ * one-row chip the badge's lies 15.7px below the chip's top, so the ⋯
+ * set the row's baseline and pushed the chips 1.3px down whenever it
+ * showed (One mode, or Many past 30 samples). The drawer top-aligns its
+ * items, so there the ⋯ keeps its line box. */
+.offside-wrapper .live-offside .ellipsis {
+  line-height: 0;
 }
 
 .live-offside .sample-groups {
@@ -722,8 +748,13 @@
   margin-left: -1em;
   padding-left: 1em;
   padding-right: 1em;
-  border: 1px solid var(--probe-drawer-edge);
-  border-width: 1px 0 0px 0;
+  /* The probed term's hooked underline dips about a pixel below its line, so
+   * the stripe starts one pixel lower: a transparent top border keeps the
+   * hooks visible, and an inset shadow draws the edge just below them. */
+  border: 0 solid transparent;
+  border-top-width: 2px;
+  background-clip: padding-box;
+  box-shadow: inset 0 1px 0 var(--probe-drawer-edge);
   /* cap at 15 lines (matches DrawerHeight.max_rows) */
   max-height: calc(15 * var(--line-height) * 1em);
   overflow: hidden auto;
@@ -780,12 +811,129 @@
   position: relative;
 }
 
-/* Zebra rows alternate with the code background color; the inline modal's
- * drop shadow keeps a background-colored last row from blending into the
- * page, but the drawer has no shadow — close the table with a
- * zebra-colored bottom edge instead. */
+/* The table sits in the drawer as a card: its own fill (proj-table.css),
+ * edged in the drawer's color, rounded, barely lifted. Separate borders,
+ * because collapsed ones ignore border-radius. ProbeProj reserves one code
+ * line per table row (TableRenderer.drawer_rows), so body rows stay one
+ * line tall. The card's top edge lies on the drawer's edge, the inset line
+ * under the stripe's clear 2px top border, so it leaves the probed term's
+ * underline whole; the card then ends about 3px past its rows, within the
+ * next line's leading. */
 .below-wrapper .rich-drawer table.table {
-  border-bottom: 1px solid var(--df-zebra-bg);
+  border: 1px solid var(--probe-drawer-edge);
+  border-radius: 6px;
+  border-collapse: separate;
+  border-spacing: 0;
+  box-shadow: 0 1px 2px color-mix(in oklch, var(--SHADOW) 25%, transparent);
+}
+
+/* Header: small-caps labels in the UI font, a size down from the cells,
+ * over a light rule. The size is set on the <th> so its padding and line
+ * box follow the labels; the rest of the type sits on the label (weight
+ * and color from proj-table.css), the ⋮ and the "+", not on the <th>, so
+ * it does not leak into the column menu nested there, which takes the
+ * size back. */
+.below-wrapper .rich-drawer .table th {
+  font-size: 0.85em;
+  padding: 3px 1.6ch 1px;
+  background-color: var(--df-bg);
+  border-bottom: 1px solid var(--border-raised);
+  text-align: left;
+}
+
+.below-wrapper .rich-drawer .table th .column-label {
+  font-family: var(--ui-font), sans-serif;
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.06em;
+}
+
+.below-wrapper .rich-drawer .table th .column-menu {
+  font-size: 1rem;
+}
+
+/* Column ⋮: one step lighter than the labels, always shown. The padding
+ * keeps the button's hit area and hover fill; the negative margins give
+ * it the footprint of the bare glyph, 3px after its label. */
+.below-wrapper .rich-drawer .table th .closure-nav-button {
+  padding: 2px 4px;
+  margin: -2px -4px -2px -1px;
+  background-color: transparent;
+  color: var(--text-accent);
+  font-weight: 600;
+}
+
+.below-wrapper .rich-drawer .table th .closure-nav-button:hover {
+  background-color: var(--df-hover-bg);
+}
+
+/* "+" (add column): a one-line box, so `middle` centers it on the labels. */
+.below-wrapper .rich-drawer .table th.add-column-header {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 0 1.2ch;
+}
+
+.below-wrapper .rich-drawer .table th.add-column-header:hover {
+  background-color: var(--df-hover-bg);
+}
+
+/* Cells padded in code-font units; none vertically (rows stay one line). */
+.below-wrapper .rich-drawer .table td {
+  padding: 0 1.6ch;
+  font-family: var(--code-font);
+  text-align: left;
+}
+
+/* the filler cell under "+" */
+.below-wrapper .rich-drawer .table td:empty {
+  padding: 0;
+}
+
+/* Number columns, header included (TableCore tags them `numeric`). */
+.below-wrapper .rich-drawer .table .numeric {
+  text-align: right;
+}
+
+/* A very light zebra in the palette's lightest surface; hover stays on top. */
+.below-wrapper .rich-drawer .table tbody tr:nth-child(even) {
+  background-color: var(--surface-default);
+}
+
+.below-wrapper .rich-drawer .table tbody tr:hover {
+  background-color: var(--df-hover-bg);
+}
+
+/* Round the fills in the card's corners to its inner radius. The table
+ * does not clip them (overflow would trap the column menus, and would
+ * break the sticky header below). */
+.below-wrapper .rich-drawer .table th:first-child {
+  border-top-left-radius: 5px;
+}
+
+.below-wrapper .rich-drawer .table th:last-child {
+  border-top-right-radius: 5px;
+}
+
+.below-wrapper .rich-drawer .table tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 5px;
+}
+
+.below-wrapper .rich-drawer .table tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 5px;
+}
+
+/* High contrast (see proj-table.css): keep the header's heavier ink rule,
+ * and stroke rows on their cells, since separate borders drop the row
+ * borders proj-table.css draws. */
+@container style(--hazel-contrast: high) {
+  .below-wrapper .rich-drawer .table th {
+    border-bottom: 2px solid var(--border-inverse);
+  }
+
+  .below-wrapper .rich-drawer .table tbody tr:not(:last-child) td {
+    border-bottom: 1px solid var(--border-inverse);
+  }
 }
 
 /* Reserved rows match content exactly when the rich view fits, so nothing
@@ -979,13 +1127,17 @@
 }
 
 /* Nav-bar (the consolidated SVG control) is only visible when the
- * probe is indicated — matches the previous nav-arrow precedent.
+ * probe is indicated — matches the previous nav-arrow precedent —
+ * except that an open drawer keeps its toggle (not the step arrows),
+ * so it can be closed without first moving the caret to the probe.
  * The `.hit` rects must be included explicitly: they set
  * `pointer-events: all`, which re-enables them on the descendant even
  * when the parent `.nav-bar` is `pointer-events: none` (per spec). So
  * without this, the bar stays clickable while invisible. */
-.projector.probe:not(.indicated) .nav-bar,
-.projector.probe:not(.indicated) .nav-bar .hit {
+.projector.probe:not(.indicated) .live-offside:not(.drawer-mode) .nav-bar,
+.projector.probe:not(.indicated) .live-offside:not(.drawer-mode) .nav-bar .hit,
+.projector.probe:not(.indicated) .live-offside.drawer-mode :is(.nav-left, .nav-right),
+.projector.probe:not(.indicated) .live-offside.drawer-mode :is(.nav-left, .nav-right) .hit {
   pointer-events: none;
   opacity: 0% !important;
 }
@@ -1020,8 +1172,16 @@
 /* a chip holding rich content centers it as a flex box — as an inline
    box the content rode the text BASELINE, leaving the descender gap
    under the card (0-1px above, ~3px below) */
+/* The chip is a block box, as a text chip is, so .sample is exactly the
+   chip. As an inline-flex box it sat on a line whose strut reached ~3px
+   below the baseline: under a chip with its baseline at its bottom edge
+   (a view whose first box is an svg, a card sprite) .sample was ~3px
+   taller than the chip, and the sample menu, placed after that line,
+   hung that much lower than under text. fit-content keeps the width
+   the inline box had. */
 .value:has(.value-rich) {
-  display: inline-flex;
+  display: flex;
+  width: fit-content;
   align-items: center;
   justify-content: center;
 }
