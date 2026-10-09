@@ -118,10 +118,8 @@ let incomplete_tiles_to_missing_shards = seg =>
 let global_missing_shards = (seg: t) =>
   seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
 
-/* Per-top-level-piece memo for the above: the deep incomplete-tile
-   walk is O(program) and ran on every CachedSyntax.mk (so on every
-   in-token caret move at 4k). Keyed by piece identity; results for a
-   piece are context-free. Tick-swept. */
+/* per-top-level-piece memo for the above, whose deep walk is
+   O(program); a piece's result is context-free. tick-swept */
 module MissingShardsMemo = {
   type entry = {
     mutable m_piece: Obj.t,
@@ -250,9 +248,8 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   let remolded_mold = Tile.mold(remolded);
   let orig_mold = Tile.mold(t);
   if (remolded_mold == orig_mold) {
-    /* same mold ⟹ same in_ sorts ⟹ children untouched: return the
-       ORIGINAL tile (identity is load-bearing for every pointer-keyed
-       layer downstream — and for the sparse regrout's dirty set) */
+    /* same mold ⟹ children untouched: return the original tile, whose
+       identity pointer-keyed layers and sparse regrout rely on */
     t;
   } else {
     let children =
@@ -960,9 +957,8 @@ and regrout_affix =
           let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
-          /* a CLEAN tile (unchanged by this action, per the caller's
-             predicate) provably has unchanged innards: keep the piece,
-             skip the child descent */
+          /* a tile the caller deems clean has unchanged innards: skip
+             the child descent */
           let p =
             switch (skip_clean) {
             | Some(clean) when clean(p) => p
@@ -994,24 +990,19 @@ and regrout_affix =
   d == Left ? (Trim.rev(trim), s, rev(affix)) : (trim, s, affix);
 };
 
-/* PLAIN normal form for a trim run between solid shapes (l, r),
-   mirroring Trim.regrout: fitting shapes carry no grout; misfitting
-   shapes carry exactly one grout (kept as-is regardless of shape). */
+/* plain normal form of a trim run between shapes (l, r), mirroring
+   Trim.regrout: no grout if they fit, else exactly one (of any shape) */
 let run_normal = (l: Nib.Shape.t, r: Nib.Shape.t, n_grout: int): bool =>
   Nib.Shape.fits(l, r) ? n_grout == 0 : n_grout == 1;
 
-/* a tile's deep normal-form verdict is a pure function of the tile
-   RECORD (children identity included), and clean tiles keep their
-   records across actions (the identity-preservation discipline) — so
-   memoize by id, validated by physical identity. Id collisions across
-   editors/tests only cause misses (the === check fails), never wrong
-   hits. Capped to bound growth across long sessions. */
+/* a tile's deep staleness depends only on its record, which clean tiles
+   keep across actions: memo by id, validated by === (so id collisions
+   only miss). capped for long sessions */
 let stale_memo: Hashtbl.t(Id.t, (Tile.t, bool)) = Hashtbl.create(4096);
 let stale_memo_cap = 200_000;
 
-/* deep scan: any run in this closed (child) segment, or transitively
-   in its tiles' children, violating plain normal form? Child
-   segments are bounded concave on both sides (cf. inner_regrout). */
+/* does any run in this child segment, or below it, break plain normal
+   form? child segments are concave-bounded on both sides */
 let rec stale_in_seg = (seg: t): bool => {
   let conc = Nib.Shape.concave();
   let rec go = (bound, n_grout, ps: list(Piece.t)) =>
@@ -1040,19 +1031,12 @@ and tile_deep_stale = (t: Tile.t): bool =>
     v;
   };
 
-/* Read-only scan of a sibling affix for junction work that the
-   remold diff cannot see: trim runs violating plain normal form —
-   these arise at junctions the caret has LEFT (caret-adjacent
-   normalization is caret-relative) and at splice seams (put_down,
-   selection moves) — plus tiles whose descendants contain such runs.
-   Returns ids to seed the sparse-regrout dirty set: the run's grout,
-   the flanking solids when grout must be ADDED, the tile itself for
-   deep staleness. The caret-side run (trailing for Left/pre, leading
-   for Right/suf) is skipped by default — it is governed by the
-   caret-combination logic and always lies inside the regrout window;
-   ~caret_shape validates it instead against that bound (used for
-   ancestor-level siblings, whose inner runs face the ancestor's
-   nibs; cf. Ancestors.regrout). */
+/* ids seeding the sparse-regrout dirty set with junction work the
+   remold diff can't see: runs off plain normal form (where the caret
+   left, or at splice seams) flag their grout, or their flanking solids
+   if grout must be added; deep-stale tiles flag themselves. the
+   caret-side run is skipped (the regrout window covers it) unless
+   ~caret_shape bounds it, as for ancestor-level siblings */
 let stale_affix_ids =
     (~caret_shape: option(Nib.Shape.t)=?, d: Direction.t, affix: t): Id.Set.t => {
   let conc = Nib.Shape.concave();
@@ -1071,8 +1055,7 @@ let stale_affix_ids =
   let close = (acc, bound, checking, gs, prev, ~l, ~next) =>
     checking && !run_normal(bound, l, List.length(gs))
       ? flag(acc, ~gs, ~prev, ~next) : acc;
-  /* checking: whether the run being accumulated gets validated when
-     closed (false while inside suf's leading caret-side run) */
+  /* checking: validate the run on close (not suf's caret-side run) */
   let (checking0, bound0) =
     switch (d, caret_shape) {
     | (Direction.Left, _) => (true, conc)
@@ -1188,10 +1171,8 @@ let presplit_orphans = (seg: t): t =>
        | p => [p],
      );
 
-/* Also reports whether any token was converted into a shard: a
-   caller can skip the reassemble/remold/regrout that a conversion
-   requires (and the piece-identity loss it causes) when nothing
-   changed. */
+/* also reports whether any token became a shard; if none did, callers
+   can skip reassembly/remold/regrout and keep piece identity */
 let rescan_converting = (seg: t): (t, bool) => {
   let has_incomplete =
     List.exists(
@@ -1557,35 +1538,22 @@ module IDs = {
 
 let to_string = Base.segment_to_string;
 
-/* Secondary collection for outer secondary model.
-   Collects (before, after) secondary runs for each term based on skeleton structure. */
-/* Restore piece IDENTITY after a whole-segment rebuild: wherever the
-   rebuilt piece is structurally equal to the piece with the same id in
-   [old], substitute the old OBJECT. remold/regrout re-mint every piece
-   each action even when nothing changed, which silently degrades every
-   pointer-keyed incremental layer (Measured.Incr, chunked views,
-   MakeTerm.Incr) to O(program) per keystroke. Substituting equal
-   values is semantically invisible; the cost is one structural compare
-   per unchanged piece. */
-/* pointer-elementwise equality: caret/selection moves rebuild the
-   zipper (and thus the unzipped top-level piece list) but reuse every
-   PIECE, so this cheap scan distinguishes "moved" from "edited" */
-/* Top-level ITEM slices of a segment, in order: a slice ends with an
-   `…in` tile or a top-level `;`; the remainder is the tail. This is
-   the unit of the per-item incremental layers (MakeTerm.Incr,
-   CanonicalCompletion.complete_items, ItemPersist). */
+/* top-level item slices: each ends with an `…in` tile or top-level `;`
+   (the rest is the tail); the unit of the per-item incremental layers */
 let is_top_semi = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) => Tile.label(t) == [";"]
   | _ => false
   };
+/* only with its `in`: an unfinished `let x =` runs on into what follows */
 let is_in_tile = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
-    switch (List.rev(Tile.label(t))) {
-    | ["in", ..._] => true
+    let label = Tile.label(t);
+    switch (List.rev(label)) {
+    | ["in", ..._] => List.mem(List.length(label) - 1, t.shards)
     | _ => false
-    }
+    };
   | _ => false
   };
 let top_items = (seg: t): list(t) => {
@@ -1603,7 +1571,8 @@ let top_items = (seg: t): list(t) => {
   walk(0, 0, []);
 };
 
-/* Sharing check (also used by scoped structural cleanup). */
+/* pointer-elementwise equality: caret moves rebuild the top-level list
+   but reuse its pieces, so this cheaply tells moved from edited */
 let ptr_eq = (a: t, b: t): bool => {
   let rec go = (xs, ys) =>
     xs === ys
@@ -1617,8 +1586,11 @@ let ptr_eq = (a: t, b: t): bool => {
   go(a, b);
 };
 
-/* restore_identity + the ids it could NOT substitute (new or changed
-   pieces) — the dirty set that drives sparse regrout */
+/* restore piece identity after a whole-segment rebuild: a rebuilt piece
+   equal to [old]'s same-id piece becomes that old object. remold/regrout
+   re-mint every piece, which would make pointer-keyed incremental layers
+   O(program). also returns the unrestored (new or changed) ids: the
+   dirty set for sparse regrout */
 let restore_identity_dirty = (old: t, neu: t): (t, Id.Set.t) =>
   if (old === neu) {
     (neu, Id.Set.empty);
@@ -1656,6 +1628,8 @@ let restore_identity = (old: t, neu: t): t =>
     );
   };
 
+/* Secondary collection for outer secondary model.
+   Collects (before, after) secondary runs for each term based on skeleton structure. */
 module SecondaryCollection = {
   type secondary_runs = Language.IdTagged.IdTag.secondary_runs;
   type secondary_map = Id.Map.t(secondary_runs);

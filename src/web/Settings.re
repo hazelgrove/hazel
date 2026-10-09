@@ -31,8 +31,11 @@ module Model = {
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    /* unused; kept so saved settings parse */
     cap_undo_stack: bool,
     show_row_lines: bool,
+    /* grey re-evaluation-progress backings after edits ("Eval Progress") */
+    [@sexp.default false]
     show_incremental_deco: bool,
     /* Constellation canvas shown in a main-area split beside the editor
        (frees the sidebar for the agent chat, so the graph can be watched
@@ -83,13 +86,22 @@ module Model = {
        (a parse failure makes Store discard ALL settings) */
     [@sexp.default false] [@yojson.default false]
     simple_indication: bool,
-    /* grey re-evaluation-progress backings after edits */
+    /* unused (show_incremental_deco is the setting); kept so saved
+       settings parse */
+    [@sexp.default false]
     show_pending_eval: bool,
     /* Shortcut overrides derived from the Shortcuts config slide: a
        ContextualAction label to its resolved hotkey, or None for an action
        the config leaves Unbound. Applied when the command palette is built
        (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
     shortcut_overrides: list((string, option(string))),
+    /* the ⇓ toggle: a Scratch or Documentation program's value in a
+       drawer after the program */
+    [@sexp.default true]
+    tail_probe: bool,
+    /* outline rows fold from a drawn arrow; off, from their sigil */
+    [@sexp.default false]
+    outline_arrows: bool,
   };
 
   let init = {
@@ -190,6 +202,8 @@ module Model = {
     simple_indication: false,
     show_pending_eval: false,
     shortcut_overrides: [],
+    tail_probe: true,
+    outline_arrows: false,
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -269,12 +283,12 @@ module Update = {
     | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
-    | CapUndoStack
     | ShowRowLines
-    | ShowIncrementalDeco
     | SimpleIndication
     | ShowPendingEval
-    | SetShortcutOverrides(list((string, option(string))));
+    | SetShortcutOverrides(list((string, option(string))))
+    | TailProbe
+    | OutlineArrows;
 
   let is_canvas_geometry = (action: t): bool =>
     switch (action) {
@@ -861,24 +875,17 @@ module Update = {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
         }
-      | CapUndoStack => {
-          ...settings,
-          cap_undo_stack: !settings.cap_undo_stack,
-        }
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
         }
       | ShowPendingEval =>
-        Language.EvalWorklist.compute_enabled := !settings.show_pending_eval;
+        Language.EvalWorklist.compute_enabled :=
+          !settings.show_incremental_deco;
         {
           ...settings,
-          show_pending_eval: !settings.show_pending_eval,
-        };
-      | ShowIncrementalDeco => {
-          ...settings,
           show_incremental_deco: !settings.show_incremental_deco,
-        }
+        };
       | SetShortcutOverrides(overrides) => {
           ...settings,
           shortcut_overrides: overrides,
@@ -886,6 +893,14 @@ module Update = {
       | SimpleIndication => {
           ...settings,
           simple_indication: !settings.simple_indication,
+        }
+      | TailProbe => {
+          ...settings,
+          tail_probe: !settings.tail_probe,
+        }
+      | OutlineArrows => {
+          ...settings,
+          outline_arrows: !settings.outline_arrows,
         }
       }
     )

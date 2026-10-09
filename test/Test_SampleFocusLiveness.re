@@ -28,6 +28,7 @@ let tests = [
           ~settings,
           ~info_map,
           ~probe_ids=Id.Map.empty,
+          (),
         );
       let (_, state) =
         Evaluator.evaluate(

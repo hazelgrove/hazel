@@ -63,6 +63,20 @@ module Store = {
   };
 };
 
+/* undo and redo restore programs; what each slide shows stays */
+let carry_views = (~from: Model.t, m: Model.t): Model.t =>
+  switch (from.editors, m.editors) {
+  | (Scratch(a), Scratch(b)) => {
+      ...m,
+      editors: Scratch(ScratchMode.Model.with_views_of(~from=a, b)),
+    }
+  | (Documentation(a), Documentation(b)) => {
+      ...m,
+      editors: Documentation(ScratchMode.Model.with_views_of(~from=a, b)),
+    }
+  | _ => m
+  };
+
 module Update = {
   open Updated;
 
@@ -70,7 +84,9 @@ module Update = {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) => editor.editor
+      | Code({program: Whole(editor), _}) => editor.editor
+      /* divided: the cell with the caret */
+      | Code({program: Divided(d), _}) => Divided.active_editor(d).editor
       /* For Drv scratch slides, expose the Setup editor so the sidebar's
          problem panel reflects errors from Setup only and ignores problems
          inside the derivation trees themselves. */
@@ -95,72 +111,27 @@ module Update = {
         : list((option(string), list(CodeEditable.Model.t))) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
-      | Code({editor, _}) =>
-        /* open stack cells report their problems too (live, unlike the
-           master's frozen copy of the same definitions) */
+      | Code({program: Whole(editor), _}) => [(None, [editor.editor])]
+      | Code({program: Divided(d), _}) =>
+        /* open cells report their own problems */
+        let cells = Divided.cells(d);
         let stack: list((option(string), list(CodeEditable.Model.t))) =
-          switch (m.focus) {
-          | None => []
-          | Some(f) =>
-            List.map(
-              (e: ScratchMode.Model.stack_entry) =>
-                (
-                  Some(
-                    Option.value(
-                      ScratchMode.Model.header_name(e),
-                      ~default="cell",
-                    ),
-                  ),
-                  /* header too: binder/signature errors (TPatNotAVar,
-                     shadowed type names, …) live in the header editor */
-                  [e.e_header.editor, e.e_body.editor],
+          List.map(
+            (e: ScratchCell.t) =>
+              (
+                Some(
+                  Option.value(ScratchCell.header_name(e), ~default="cell"),
                 ),
-              f.f_entries,
-            )
-          };
-        /* dedup: the master's copy of an OPEN definition is frozen while
-           its cell is live — mask master errors/warnings covered by open
-           items so each problem is listed once (under the cell's name) */
-        let master_editor: CodeEditable.Model.t = editor.editor;
-        let master_editor =
-          switch (m.focus, Haz3lcore.DefStatics.current()) {
-          | (Some(f), Some(ds)) =>
-            let open_maps =
-              List.filter_map(
-                (e: ScratchMode.Model.stack_entry) =>
-                  List.find_opt(
-                    (it: Haz3lcore.DefStatics.item) =>
-                      it.d_id == e.e_id
-                      || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
-                    ds.items,
-                  )
-                  |> Option.map((it: Haz3lcore.DefStatics.item) => it.d_map),
-                f.f_entries,
-              );
-            let covered = id =>
-              List.exists(map => Haz3lcore.Id.Map.mem(id, map), open_maps);
-            {
-              ...master_editor,
-              statics: {
-                ...master_editor.statics,
-                error_ids:
-                  List.filter(
-                    id => !covered(id),
-                    master_editor.statics.error_ids,
-                  ),
-                warning_ids:
-                  List.filter(
-                    id => !covered(id),
-                    master_editor.statics.warning_ids,
-                  ),
-              },
-            };
-          | _ => master_editor
-          };
-        let master: list((option(string), list(CodeEditable.Model.t))) = [
-          (None, [master_editor]),
-        ];
-        master @ stack;
+                /* header too: binder and signature errors live there.
+                   a ⇒ or `;` cell shows none, and its empty one is a hole */
+                (Option.is_none(e.e_sym) ? [e.e_header.editor] : [])
+                @ [e.e_body.editor],
+              ),
+            cells,
+          );
+        /* cells first: the panel dedups by id, so a problem shows in its
+           cell and "elsewhere" gets the rest */
+        stack @ [(Some("elsewhere"), [Divided.outside_editor(d)])];
       | Drv(dm) =>
         /* Scratch/documentation Drv slides don't render the Prelude. */
         DerivationExerciseMode.Model.get_problem_editors(
@@ -248,6 +219,9 @@ module Update = {
         globals: {
           ...model.globals,
           settings,
+          visible_rows:
+            Globals.VisibleRows.tracked(settings)
+              ? model.globals.visible_rows : None,
         },
       };
     | SetAgentGlobals(agent_globals_action) =>
@@ -278,39 +252,65 @@ module Update = {
          );
     | JumpToTile(id)
     | SelectTile(id) =>
-      let jump =
-        Editors.Selection.jump_to_tile(
-          ~select=
-            switch (action) {
-            | SelectTile(_) => true
-            | _ => false
-            },
-          ~settings=model.globals.settings,
+      switch (
+        Editors.Selection.closed_jump(
+          ~single=model.globals.settings.canvas_main,
           id,
           model.editors,
-        );
-      switch (jump) {
-      | None => model |> Updated.raise_invalid_action
-      | Some((action, selection)) =>
+        )
+      ) {
+      | Some((ensure, selection, caret)) =>
+        /* outside every open cell: open its item, then move there */
+        schedule_action(Editors(caret));
+        Haz3lcore.FocusEffect.schedule_cell_top();
         let* editors =
           Editors.Update.update(
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~schedule_global=a => schedule_action(Globals(a)),
-            action,
+            ensure,
             model.editors,
           );
-        /* The jump moves the model selection to the target cell but not DOM
-           focus (which stays on the clicked sidebar row). Schedule a focus
-           of the now-active cell after render so the editor receives
-           keystrokes and the caret (gated on :focus) shows there. */
-        Haz3lcore.FocusEffect.schedule_cell();
         {
           ...model,
           editors,
           selection,
         };
-      };
+      | None =>
+        let jump =
+          Editors.Selection.jump_to_tile(
+            ~select=
+              switch (action) {
+              | SelectTile(_) => true
+              | _ => false
+              },
+            ~settings=model.globals.settings,
+            id,
+            model.editors,
+          );
+        switch (jump) {
+        | None => model |> Updated.raise_invalid_action
+        | Some((action, selection)) =>
+          let* editors =
+            Editors.Update.update(
+              ~globals,
+              ~schedule_action=a => schedule_action(Editors(a)),
+              ~schedule_global=a => schedule_action(Globals(a)),
+              action,
+              model.editors,
+            );
+          /* the jump moves the selection, not DOM focus: focus the cell
+             after render so it takes keys and shows the caret (gated on
+             :focus), unless the jump came from the outline; a target out
+             of view comes near the top */
+          Haz3lcore.FocusEffect.schedule_cell_caret_top();
+          {
+            ...model,
+            editors,
+            selection,
+          };
+        };
+      }
     | InitImportAll(file) =>
       JsUtil.read_file(file, data =>
         schedule_action(Globals(FinishImportAll(data)))
@@ -327,6 +327,10 @@ module Update = {
             },
           }
           |> return_quiet
+    | UpdateDrawerWidth(cols) =>
+      Haz3lcore.ProbeProj.Settings.set_drawer_width(cols);
+      model |> Updated.return_quiet(~recalculate=true);
+    | RelayoutDrawers => model |> Updated.return_quiet(~recalculate=true)
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -399,13 +403,13 @@ module Update = {
           let current = List.nth(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
-            | Code({editor, _}) =>
+            | Code({program, _}) =>
               /* Slides are text-backed: export the committed-.hz form
                  (marker-printed content + one final newline). */
               (
                 ".hz",
                 Haz3lcore.PersistentZipper.persist(
-                  editor.editor.editor.state.zipper,
+                  Program.whole(program).editor.editor.state.zipper,
                 ).
                   backup_text,
               )
@@ -489,22 +493,23 @@ module Update = {
     switch (action) {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
+    /* while the canvas replays edits, the program is read-only */
     | Editors(
         Scratch(
-          CellAction(MainEditor(_)) | StackHeader(_, MainEditor(_)) |
-          StackBody(_, MainEditor(_)) |
-          MasterPerform(_) |
-          OutlineDefOp(_, _) |
-          AgentAction(DirectEdit(_, _)),
+          Workspace(
+            CellAction(MainEditor(_)) | StackHeader(_, MainEditor(_)) |
+            StackBody(_, MainEditor(_)) |
+            MasterPerform(_) |
+            AgentAction(DirectEdit(_, _)),
+          ) |
+          Outline(DefOp(_, _) | Commit(_, _)),
         ),
       )
         when CanvasBuffer.presenting^ =>
       Updated.return_quiet(model)
     | Editors(action) =>
-      /* Cross-cell jump-to-definition: a stack cell's jump whose binder
-         lives in another definition is rewritten to (ensure the target
-         is stacked, select it, then a follow-up caret jump) — mirroring
-         the JumpToTile flow above. */
+      /* a stack cell's jump to a binder in another definition becomes:
+         stack the target, select it, then jump the caret (as JumpToTile) */
       let (action, selection, followup) =
         switch (
           Editors.Selection.stack_jump_override(
@@ -526,8 +531,8 @@ module Update = {
         Haz3lcore.FocusEffect.schedule_cell_top();
       | None => ()
       };
-      /* outline adds move the selection (and DOM focus, which also
-         scrolls the new cell into view) to the added cell */
+      /* an outline add selects and focuses the new cell (focus also
+         scrolls it into view) */
       let selection =
         switch (followup) {
         | Some(_) => selection
@@ -560,6 +565,16 @@ module Update = {
             visible_rows: None,
           }
           : model.globals;
+      /* an unchanged selection whose cell closed falls back to an open
+         one; a fresh one already names its target */
+      let selection =
+        selection === model.selection
+          ? Editors.Selection.follow(
+              ~before=model.editors,
+              selection,
+              editors,
+            )
+          : selection;
       {
         ...model,
         editors,
@@ -654,6 +669,7 @@ module Update = {
                 dynamics: false,
               },
           ~autoprobe_mode=model.globals.settings.autoprobe_mode,
+          ~tail_probe=model.globals.settings.tail_probe,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,
@@ -866,122 +882,71 @@ module MetaListener = {
     };
   };
 };
-/* A focused editor stores the whole program in the focus stack. Never feed
-   the timeline its frozen master zipper (that would replay a stale program). */
+
+/* The canvas reads the whole program. While it is divided into cells the
+   active editor [fallback] is one cell, so the joined document stands in
+   (joined once per content change) with the program's statics, its latest
+   samples and the active cell's sample focus (where the canvas wells put
+   it); the record is kept while those are, for identity-keyed caches
+   downstream. */
 let presentation_master:
   ref(
     option(
-      (Haz3lcore.Segment.t, Language.CoreSettings.t, CodeWithStatics.Model.t),
+      (
+        Haz3lcore.Editor.t,
+        Haz3lcore.CachedStatics.t,
+        Language.Dynamics.Map.t,
+        Language.Sample.Focus.t,
+        CodeWithStatics.Model.t,
+      ),
     ),
   ) =
   ref(Option.none);
 let live_presentation_editor =
-    (
-      ~settings: Settings.t,
-      editors: Editors.Model.t,
-      fallback: CodeWithStatics.Model.t,
-    ) =>
+    (editors: Editors.Model.t, fallback: CodeWithStatics.Model.t)
+    : CodeWithStatics.Model.t =>
   switch (editors) {
-  | Scratch({focus: Some(f), _})
-  | Documentation({focus: Some(f), _}) =>
-    let seg = ScratchFocus.splice_all(f);
-    switch (presentation_master^) {
-    | Some((old, st, ed)) when old === seg && st === settings.core =>
-      /* The source can be unchanged while sample focus moves or resets.
-         Reusing the cached zipper's refractors silently resurrected the
-         previous focus on the next render (notably after app clicks). */
-      let refractors = fallback.editor.state.zipper.refractors;
-      let editor =
-        ed.editor.state.zipper.refractors === refractors
-          ? ed.editor
-          : {
-            ...ed.editor,
+  | Scratch(m)
+  | Documentation(m) =>
+    switch (ScratchMode.Model.current_program(m)) {
+    | Some(Divided(_) as p) =>
+      let whole = Program.whole_memo(p).editor;
+      let dynamics = EvalResult.Model.dynamics(Program.result(p));
+      let focus = fallback.editor.state.zipper.refractors.sample_focus;
+      switch (presentation_master^) {
+      | Some((e, st, dyn, sf, ed))
+          when
+            e === whole.editor
+            && st === whole.statics
+            && dyn === dynamics
+            && sf === focus => ed
+      | _ =>
+        let z = whole.editor.state.zipper;
+        let ed = {
+          ...whole,
+          editor: {
+            ...whole.editor,
             state: {
-              ...ed.editor.state,
+              ...whole.editor.state,
               zipper: {
-                ...ed.editor.state.zipper,
-                refractors,
+                ...z,
+                refractors: {
+                  ...z.refractors,
+                  sample_focus: focus,
+                },
               },
             },
-          };
-      let ed =
-        ed.dynamics === fallback.dynamics && editor === ed.editor
-          ? ed
-          : {
-            ...ed,
-            editor,
-            dynamics: fallback.dynamics,
-          };
-      presentation_master := Some((seg, settings.core, ed));
-      ed;
-    | _ =>
-      let z = Haz3lcore.Zipper.unzip(seg);
-      let z = {
-        ...z,
-        refractors: fallback.editor.state.zipper.refractors,
+          },
+          dynamics,
+        };
+        presentation_master :=
+          Some((whole.editor, whole.statics, dynamics, focus, ed));
+        ed;
       };
-      let statics =
-        Haz3lcore.CachedStatics.init_compositional(
-          ~settings=settings.core,
-          ~stitch=x => x,
-          ~root=fallback.editor.root,
-          z,
-        );
-      let ed =
-        CodeWithStatics.Model.mk(
-          ~statics,
-          ~dynamics=fallback.dynamics,
-          Haz3lcore.Editor.Model.mk(~root=fallback.editor.root, z),
-        );
-      presentation_master := Some((seg, settings.core, ed));
-      ed;
-    };
+    | _ => fallback
+    }
   | _ => fallback
   };
-
-/* single-slot vdom memo for the outline sidebar: the roll-up walk,
-   row construction and diff are O(program) per render at 4k (ledger
-   §14); its inputs change on Force frames and outline interaction,
-   not per keystroke. Key parts compare physically where the value is
-   rebuilt-on-change (statics, the DefStatics slot, test results) and
-   structurally where small. */
-type outline_memo_key = {
-  ok_presenting: bool,
-  ok_statics: Haz3lcore.CachedStatics.t,
-  ok_slot: option(Haz3lcore.DefStatics.t),
-  ok_focused: list((Haz3lcore.Id.t, option(string))),
-  ok_is_scratch: bool,
-  ok_name: string,
-  ok_collapsed: list(OutlineTree.path),
-  ok_menu: option((Haz3lcore.Id.t, bool, float, float)),
-  ok_results: option(Language.TestResults.t),
-  ok_main: bool /* constellation main mode rewires the row clicks */
-};
-let outline_memo: ref(option((outline_memo_key, Virtual_dom.Vdom.Node.t))) =
-  ref(Option.none);
-let outline_key_same = (a: outline_memo_key, b: outline_memo_key): bool =>
-  a.ok_presenting == b.ok_presenting
-  && a.ok_statics === b.ok_statics
-  && (
-    switch (a.ok_slot, b.ok_slot) {
-    | (Some(x), Some(y)) => x === y
-    | (None, None) => true
-    | _ => false
-    }
-  )
-  && a.ok_focused == b.ok_focused
-  && a.ok_is_scratch == b.ok_is_scratch
-  && a.ok_name == b.ok_name
-  && a.ok_collapsed == b.ok_collapsed
-  && a.ok_menu == b.ok_menu
-  && a.ok_main == b.ok_main
-  && (
-    switch (a.ok_results, b.ok_results) {
-    | (Some(x), Some(y)) => x === y
-    | (None, None) => true
-    | _ => false
-    }
-  );
 
 module View = {
   let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
@@ -1242,15 +1207,10 @@ module View = {
     let live_editor =
       !CanvasSidebar.canvas_visible(globals.settings)
         ? Update.get_editor(model)
-        : live_presentation_editor(
-            ~settings=globals.settings,
-            editors,
-            Update.get_editor(model),
-          );
+        : live_presentation_editor(editors, Update.get_editor(model));
     let current_editor =
       CanvasSidebar.present_editor(~globals, ~editors, live_editor);
     let presenting = CanvasBuffer.presenting^;
-    let shared_program = CanvasSidebar.canvas_visible(globals.settings);
     Js.Unsafe.set(
       Js.Unsafe.global,
       "__presentedProgramText",
@@ -1277,9 +1237,9 @@ module View = {
     let inject_editors = action => {
       let inspected =
         switch ((action: Editors.Update.t)) {
-        | Scratch(FocusDef(id))
-        | Scratch(FocusEnsure(id))
-        | Scratch(FocusToggle(id)) => Some(id)
+        | Scratch(Workspace(FocusDef(id)))
+        | Scratch(Workspace(FocusEnsure(id)))
+        | Scratch(Workspace(FocusToggle(id))) => Some(id)
         | _ => None
         };
       switch (inspected) {
@@ -1293,7 +1253,41 @@ module View = {
       | _ => inject(Editors(action))
       };
     };
-    let bottom_bar = CursorInspector.view(~globals, cursor);
+    /* the slide program's dynamics, at the inspector's right end */
+    let dynamics =
+      switch (editors) {
+      | Scratch(m)
+      | Documentation(m) when globals.settings.core.dynamics =>
+        ScratchMode.Model.current_program(m)
+        |> Option.map(p => {
+             let tail = globals.settings.tail_probe;
+             /* in a stack, the value shows in the ⇒ cell: open it */
+             let open_tail =
+               switch (p, Program.tail_row(p)) {
+               | (Program.Divided(_), Some(id)) when !tail => [
+                   inject(Editors(Scratch(Workspace(FocusEnsure(id))))),
+                 ]
+               | _ => []
+               };
+             EvalResult.View.dynamics(
+               ~tail,
+               ~stopped=
+                 tail
+                 && EvalResult.Model.stopped(
+                      ~tail=Program.tail_target(p),
+                      Program.result(p),
+                    )
+                 != None,
+               ~toggle_tail=
+                 Effect.Many(
+                   [inject(Globals(Set(TailProbe)))] @ open_tail,
+                 ),
+               Program.result(p),
+             );
+           })
+      | _ => None
+      };
+    let bottom_bar = CursorInspector.view(~globals, ~dynamics?, cursor);
     let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>
@@ -1358,8 +1352,8 @@ module View = {
             model.editors,
           );
 
-    /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
-    /* every stacked definition's id (+ live header name) */
+    /* every open cell's id (+ live header name); during a canvas replay,
+       the definition selected there */
     let focused_entries =
       presenting
         ? switch (CanvasBuffer.selected^) {
@@ -1373,243 +1367,73 @@ module View = {
           | _ => []
           }
         );
-    /* module/definition outline (modular-editors phases 1-2) */
-    let outline = {
-      /* structural def ops only make sense in scratch-style modes */
-      let is_scratch =
-        !presenting
-        && (
+    /* the outline, the outline mark and the closure bar follow the
+       editor with the caret; during a replay, the replayed program */
+    let caret_editor = presenting ? current_editor : Update.get_editor(model);
+    /* Closure cursor bar - shows call stack breadcrumbs when probes are active */
+    let deck: option(OutlineControl.deck) =
+      presenting
+        ? None
+        : (
           switch (model.editors) {
-          | Scratch(_)
-          | Documentation(_) => true
-          | _ => false
+          | Scratch(m) => Some(("scratch", m))
+          | Documentation(m) => Some(("doc", m))
+          | _ => None
           }
         );
-      let (slide_prefix, slide_name) =
-        switch (model.editors) {
-        | Scratch(m) => (
-            "scratch",
-            switch (List.nth_opt(m.scratchpads, m.current)) {
-            | Some(sp) => sp.name
-            | None => ""
-            },
-          )
-        | Documentation(m) => (
-            "doc",
-            switch (List.nth_opt(m.scratchpads, m.current)) {
-            | Some(sp) => sp.name
-            | None => ""
-            },
-          )
-        | _ => ("", "")
-        };
-      let collapsed_paths =
-        ScratchMode.collapse_paths(slide_prefix, slide_name);
-      let menu = is_scratch ? ScratchMode.outline_menu^ : None;
-      let test_results =
-        presenting
-          ? Option.none
-          : (
-            switch (model.editors) {
-            | Scratch(m)
-            | Documentation(m) =>
-              switch (
-                List.nth_opt(m.scratchpads, m.current)
-                |> Option.map((sp: ScratchMode.Scratchpad.t) => sp.kind)
-              ) {
-              | Some(Code({editor, _})) =>
-                EvalResult.Model.test_results(editor.CellEditor.Model.result)
-              | _ => None
-              }
-            | _ => None
-            }
-          );
-      let memo_key = {
-        ok_presenting: presenting,
-        ok_statics: current_editor.statics,
-        ok_slot: shared_program ? Option.none : Haz3lcore.DefStatics.current(),
-        ok_focused: focused_entries,
-        ok_is_scratch: is_scratch,
-        ok_name: slide_name,
-        ok_collapsed: collapsed_paths,
-        ok_menu: menu,
-        ok_results: test_results,
-        ok_main: globals.settings.canvas_main,
-      };
-      switch (outline_memo^) {
-      | Some((k, node)) when outline_key_same(k, memo_key) => node
-      | _ =>
-        let node = {
-          /* error attribution at OUTLINE granularity: each error badges the
-             DEEPEST row containing it; ancestor rows get a roll-up badge
-             that CSS shows only while collapsed (andrew: error goes on the
-             deepest thing not hidden by a collapse) */
-          /* While a stack is open the master's statics are FROZEN (its
-             calculate is skipped) — only the DefStatics slot tracks the
-             live spliced program (every Force frame). Rows inside open
-             cells (nested defs, renames typed into a cell) update through
-             it; without this the outline only refreshed on restructure
-             ops. Unstacked, the master's own statics are live — but they
-             can be EMPTY right after an undo restores a compacted
-             snapshot, so fall back to the slot then too. */
-          let outline_term = {
-            let term = current_editor.statics.term;
-            let stacked = focused_entries != [];
-            let named = () =>
-              List.exists(
-                (n: OutlineTree.node) => n.o_label != "",
-                OutlineTree.of_term(term),
-              );
-            if (shared_program || !stacked && named()) {
-              term;
-            } else {
-              switch (
-                shared_program ? Option.none : Haz3lcore.DefStatics.current()
-              ) {
-              | Some(ds) => ds.Haz3lcore.DefStatics.term
-              | None => term
-              };
-            };
-          };
-          let (error_items, error_subtree) = {
-            let term = outline_term;
-            /* prefer the DefStatics slot: it stays live during stacked
-               editing (the master's own statics are frozen then) */
-            let (info_map, error_ids) =
-              switch (
-                shared_program ? Option.none : Haz3lcore.DefStatics.current()
-              ) {
-              | Some(ds) => (
-                  ds.merged,
-                  Haz3lcore.DefStatics.all_error_ids(ds),
-                )
-              | None => (
-                  current_editor.statics.info_map,
-                  current_editor.statics.error_ids,
-                )
-              };
-            let outline_ids = {
-              let rec go = (acc, ns: list(OutlineTree.node)) =>
-                List.fold_left(
-                  (acc, n: OutlineTree.node) =>
-                    go(
-                      switch (n.o_id) {
-                      | Some(id) => [id, ...acc]
-                      | None => acc
-                      },
-                      n.o_children,
-                    ),
-                  acc,
-                  ns,
-                );
-              go([], OutlineTree.of_term(term));
-            };
-            let in_outline = id => List.mem(id, outline_ids);
-            List.fold_left(
-              ((direct, roll), err_id) => {
-                let path =
-                  switch (Haz3lcore.Id.Map.find_opt(err_id, info_map)) {
-                  | Some(info) => [
-                      err_id,
-                      ...Language.Info.ancestors_of(info),
-                    ]
-                  | None => [err_id]
-                  };
-                switch (List.filter(in_outline, path)) {
-                | [] => (direct, roll)
-                | [deepest, ...above] => (
-                    [deepest, ...direct],
-                    above @ roll,
-                  )
-                };
-              },
-              ([], []),
-              error_ids,
-            );
-          };
-          /* constellation MAIN mode: one definition at a time — every
-             outline click SELECTS that definition (the info panel under
-             the constellation edits it); no stacking, no master jumps.
-             The canvas reveals the selection (source = outline). */
-          let select_one = id =>
-            Effect.Many([
-              inject_editors(Scratch(FocusDef(id))),
-              globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
-              Ui_effect.of_sync_fun(CanvasSidebar.request_reveal, id),
-            ]);
-          let main = globals.settings.canvas_main;
-          OutlineSidebar.view(
-            ~jump=
-              id =>
-                main || presenting
-                  ? select_one(id) : globals.inject_global(JumpToTile(id)),
-            /* plain click with a stack open ADDS (or moves to) that cell —
-               never replaces the stack (andrew: replacing was a footgun) */
-            ~focus=
-              id =>
-                main || presenting
-                  ? select_one(id)
-                  : inject_editors(Scratch(FocusEnsure(id))),
-            ~toggle=
-              id =>
-                main || presenting
-                  ? select_one(id)
-                  : inject_editors(Scratch(FocusToggle(id))),
-            ~toggle_run=id => inject(Editors(Scratch(FocusToggleRun(id)))),
-            ~is_collapsed=path => List.mem(path, collapsed_paths),
-            ~toggle_collapse=
-              path => inject(Editors(Scratch(OutlineCollapse(path)))),
-            ~error_items,
-            ~error_subtree,
-            ~unfocus=inject(Editors(Scratch(UnfocusDef))),
-            ~focused_entries,
-            ~menu,
-            ~menu_open=
-              (id, is_module, x, y) =>
-                is_scratch
-                  ? inject(
-                      Editors(
-                        Scratch(OutlineMenu(Some((id, is_module, x, y)))),
-                      ),
-                    )
-                  : Virtual_dom.Vdom.Effect.Ignore,
-            ~menu_close=inject(Editors(Scratch(OutlineMenu(None)))),
-            ~def_op=
-              (op, id) => inject(Editors(Scratch(OutlineDefOp(op, id)))),
-            /* live ✓/✗ for test rows, from the master's whole-program
-               result (stays live while a stack is open) */
-            ~test_status=
-              id =>
-                Option.bind(test_results, (tr: Language.TestResults.t) =>
-                  Language.TestMap.lookup(id, tr.test_map)
-                  |> Option.map(Language.TestMap.joint_status)
-                ),
-            /* the master's statics slot when warm; the DefStatics term
-               when the master was restored compacted (undo) */
-            outline_term,
-          );
-        };
-        outline_memo := Some((memo_key, node));
-        node;
-      };
-    };
+    let outline_mark =
+      OutlineControl.mark(~deck, ~zipper=caret_editor.editor.state.zipper);
+    OutlineFollow.mark := outline_mark;
+    let outline_marks =
+      create(
+        "style",
+        switch (outline_mark) {
+        | Some(id) => [text(OutlineFollow.css(id))]
+        | None => []
+        },
+      );
+    /* constellation MAIN mode: one definition at a time — every outline
+       click SELECTS that definition (the info panel under the
+       constellation edits it); no stacking, no jumps elsewhere. The canvas
+       reveals the selection (source = outline). */
+    let select_one = id =>
+      Effect.Many([
+        inject_editors(Scratch(Workspace(FocusDef(id)))),
+        globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
+        Ui_effect.of_sync_fun(CanvasSidebar.request_reveal, id),
+      ]);
+    let outline =
+      OutlineControl.view(
+        ~arrows=globals.settings.outline_arrows,
+        ~deck,
+        ~statics=caret_editor.statics,
+        ~segment=caret_editor.editor.syntax.segment,
+        ~inject=a => inject(Editors(Scratch(Outline(a)))),
+        ~inject_workspace=a => inject_editors(Scratch(Workspace(a))),
+        ~jump=id => globals.inject_global(JumpToTile(id)),
+        ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
+        ~select_one=?
+          globals.settings.canvas_main || presenting
+            ? Some(select_one) : None,
+        (),
+      );
     let indicated_id =
-      Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
+      Haz3lcore.Indicated.index(caret_editor.editor.state.zipper);
     let closure_cursor_bar =
       SampleFocusBar.view(
         ~globals,
-        ~refractors=current_editor.editor.state.zipper.refractors,
-        ~info_map=current_editor.statics.info_map,
+        ~refractors=caret_editor.editor.state.zipper.refractors,
+        ~info_map=caret_editor.statics.info_map,
         ~indicated_id,
       );
 
-    /* Cull only in auto-probe mode (hundreds of probe views) and only for
+    /* Track the range only while something culls by it and only for
      * single-code-editor modes. Measured against the editor's own container so
      * it's correct whether the editor fills #main or sits below prompt cells. */
     let on_scroll = (_evt: Js.t(Dom_html.event)) => {
       let culling_enabled =
         Editors.Model.supports_viewport_culling(editors)
-        && globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off;
+        && Globals.VisibleRows.tracked(globals.settings);
       if (!culling_enabled) {
         Effect.Ignore;
       } else {
@@ -1654,10 +1478,22 @@ module View = {
              under the constellation */
           ? {
             let selected_item =
-              switch (focused_entries) {
-              | [(id, _)] => Some(id)
-              | _ => None
-              };
+              presenting
+                ? switch (focused_entries) {
+                  | [(id, _)] => Some(id)
+                  | _ => None
+                  }
+                : (
+                  switch (model.editors) {
+                  | Scratch(m)
+                  | Documentation(m) =>
+                    switch (ScratchMode.current_cells(m)) {
+                    | [e] => Some(e.e_id)
+                    | _ => None
+                    }
+                  | _ => None
+                  }
+                );
             [
               div(
                 ~attrs=[
@@ -1849,6 +1685,7 @@ module View = {
       ),
       sidebar,
       outline,
+      outline_marks,
       bottom_bar,
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),

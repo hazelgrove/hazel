@@ -925,12 +925,15 @@ module View = {
             (_, _, b) => Some(b),
             zipper.refractors.manuals |> Id.Map.of_list,
             zipper.refractors.multis.ephemerals,
-          ),
+          )
+          |> Id.Map.union((_, a, _) => Some(a), _, zipper.refractors.proofs),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.for_decoration(zipper),
         ~statics=model.statics.info_map,
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
+        ~stepping=zipper.refractors.stepping,
+        ~tail=zipper.refractors.tail_target,
         ~editor_active=selected,
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
@@ -944,9 +947,12 @@ module View = {
         ~core_settings=globals.settings.core,
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
+        ~term_data=model.editor.syntax.term_data,
+        ~tail=zipper.refractors.tail_target,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
-        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
+        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals))
+        @ List.map(fst, Id.Map.to_list(zipper.refractors.proofs)),
       );
     /* Clicking a docked projector's chip reveals its card. SwitchPanel
      * expands a collapsed sidebar, but toggles the panel shut if it's
@@ -977,11 +983,7 @@ module View = {
       );
     ProjectorView.ViewCache.log_frame();
     let incr_eval_overlay =
-      if ((
-            globals.settings.show_pending_eval
-            || globals.settings.show_incremental_deco
-          )
-          && pending_eval_ids != []) {
+      if (globals.settings.show_incremental_deco && pending_eval_ids != []) {
         [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
@@ -989,7 +991,9 @@ module View = {
               Highlight.incr_eval(
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
-                ~visible?,
+                /* not gated on auto-probe: the range is tracked
+                   whenever this highlight shows */
+                ~visible=?cull ? globals.visible_rows : None,
                 ~pending_eval_ids,
                 ~show_active_eval,
                 (),
@@ -1182,9 +1186,8 @@ module View = {
         Attr.empty;
       } else {
         let z = model.editor.state.zipper;
-        /* row-edge detection for escape_vertical: hosts that stack
-           editors (see EditMode) get Up-on-first-row / Down-on-last-row
-           BEFORE the core move snaps the caret to line start/end */
+        /* escape_vertical fires on Up at the first row / Down at the last,
+           before the core move snaps the caret to line start/end */
         let caret_row_edge = (v: Haz3lcore.Action.vertical): option(int) =>
           switch (escape_vertical) {
           | None => None

@@ -2,11 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Landing-parity gate for the click teleport (Move.to_point): for a
-   grid of goals from both extremes of a corpus program, the teleport
-   path must land the caret exactly where the pure walk does, without
-   changing the program.
-     bash test/run_node.sh test 'ClickTeleport' */
+/* the click teleport (Move.to_point) lands where the pure walk does, from
+   either end of a corpus program, without changing it */
 
 let corpus_seg = CorpusUtil.corpus_seg(~root=Exp);
 

@@ -20,6 +20,7 @@ module ViewCache = {
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
+    stepping: option(ProjectorBase.stepping),
     elaborated: option(Language.Exp.t),
     core_settings: Language.CoreSettings.t,
     settings_version: int,
@@ -35,17 +36,14 @@ module ViewCache = {
     status: View.status,
     model: string,
     view: View.t,
-    last_used: int /* tick of last lookup hit or store (see sweep) */
+    last_used: int /* tick of the last hit or store */
   };
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
 
-  /* jsoo has no weak refs: an id that stops rendering (autoprobe
-     re-anchors mint fresh probe ids EVERY EDIT) would pin its entry
-     forever — and each entry pins a whole GENERATION of statics map,
-     dynamics map, elaboration, and vdom (closures capture the render
-     scope). Measured ~13MB leaked per edit on mega-1k. Sweep entries
-     not used for a couple of frames' worth of log_frame ticks
-     (log_frame fires once per editor per frame). */
+  /* jsoo has no weak refs: an id that stops rendering (autoprobe mints
+     fresh probe ids per edit) would pin its entry, and with it a whole
+     generation of statics, dynamics, elaboration and vdom closures.
+     log_frame ticks once per editor per frame and sweeps stale entries */
   let tick: ref(int) = ref(0);
 
   let lookup =
@@ -54,6 +52,7 @@ module ViewCache = {
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
+        ~stepping,
         ~elaborated,
         ~core_settings,
         ~status,
@@ -68,6 +67,7 @@ module ViewCache = {
           e.statics_map === statics_map
           && e.dynamics_map === dynamics_map
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
+          && e.stepping == stepping
           && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
@@ -95,6 +95,7 @@ module ViewCache = {
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
+        ~stepping,
         ~elaborated,
         ~core_settings,
         ~status,
@@ -110,6 +111,7 @@ module ViewCache = {
         statics_map,
         dynamics_map,
         sample_focus,
+        stepping,
         elaborated,
         core_settings,
         settings_version: ProbeProj.Settings.version^,
@@ -602,6 +604,7 @@ let mk_view =
       ~statics_map,
       ~dynamics_map,
       ~sample_focus,
+      ~stepping=info.stepping,
       ~elaborated,
       ~core_settings,
       ~status,
@@ -668,6 +671,7 @@ let mk_view =
       ~statics_map,
       ~dynamics_map,
       ~sample_focus,
+      ~stepping=info.stepping,
       ~elaborated,
       ~core_settings,
       ~status,

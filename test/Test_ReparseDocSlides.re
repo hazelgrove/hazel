@@ -1,8 +1,7 @@
 /* Load-path fidelity for every SHIPPED slide, through the real slide
- * registry (Init.documentation_slides — which also carries each slide's
- * ROOT sort; mod slides parse at Mod, everything else at Exp): the load
- * path reproduces the committed text byte-for-byte, and when the fast
- * path succeeds it reads the same term as the typing parse. */
+ * registry (Init.documentation_slides, at each slide's root sort): the
+ * load path reproduces the committed text byte-for-byte, and when the
+ * fast path succeeds it reads the same term as the typing parse. */
 
 open Web;
 open Alcotest;
@@ -10,10 +9,8 @@ open Haz3lcore;
 
 let doc_slides: list((string, Sort.t, PersistentZipper.t)) = Init.documentation_slides;
 
-/* Mega slides skip the typing-parse comparison (CorpusUtil.mega_scale:
- * the typing parser is quadratic — it alone timed out CI). The
- * text-fidelity check below still runs on them — that is the load-path
- * gate that catches wrong-root wedge regressions. */
+/* mega slides skip the quadratic typing-parse comparison; the text
+ * fidelity check (which catches wrong-root loads) still runs */
 
 let doc_slide_reparses = ((name, root, slide: PersistentZipper.t)) => {
   test_case(

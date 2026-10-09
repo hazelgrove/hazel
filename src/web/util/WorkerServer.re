@@ -5,25 +5,17 @@ module Js = Js_of_ocaml.Js;
 type key = string;
 
 module Request = {
-  /* The incremental cache is WORKER-RESIDENT (keyed per batch key):
-     shipping the whole previous cache with every request was a
-     historical artifact of the ephemeral-worker era (PR #2222) — it
-     dominated the request payload and once overflowed structured
-     clone (#2368). `UseResident` tells the worker to use its own
-     cache for this key; a stale or missing resident cache is
-     CORRECTNESS-SAFE (reuse_check re-verifies every entry) and only
-     costs a colder eval. `Seed` is for callers that own their cache
-     (the sync main-thread path, tests). */
+  /* the incremental cache lives in the worker, per batch key. a stale or
+     missing one is safe (reuse_check re-verifies every entry), just a
+     colder eval. `Seed` is for callers that own their cache (the sync
+     path, tests) */
   [@deriving (show, sexp, yojson)]
   type prev_source =
     | UseResident
     | Seed(Language.EvaluatorState.incr_eval);
-  /* What the client wants STREAMED during this evaluation. The stream's
-     only consumers are the pending-eval highlight (entry-key membership +
-     [current]), test badges, and probe samples — so when the highlight is
-     off, entries carrying none of those are pure decode/merge/render cost
-     on the main thread (one full cycle per posted chunk). [Effects] ships
-     only effect-bearing entries; the completion response is unaffected. */
+  /* what to stream during this evaluation. only the pending-eval
+     highlight reads effect-free entries, so with it off [Effects] ships
+     just the effect-bearing ones; the completion response is unaffected */
   [@deriving (show, sexp, yojson)]
   type stream_interest =
     | Full
@@ -395,8 +387,7 @@ let take_planned_reuse =
 
 let stream_min_interval_ms: ref(float) = ref(100.);
 
-/* interest of the CURRENTLY RUNNING batch item (items run one at a
-   time; flushes only ever concern the running item) */
+/* the running batch item's interest (items run one at a time) */
 let current_stream_interest: ref(Request.stream_interest) =
   ref(Request.Full);
 
@@ -417,9 +408,7 @@ let start_evaluation = (~key: key, req_value: Request.value): evaluation_start =
   let Request.{expr, eval_info_map, prev, stream} = req_value;
   current_stream_interest := stream;
   /* stream cadence scales with program size: each posted chunk costs
-     the client a stream-collection + recalc cycle that grows with the
-     program (mega-2k ≈ 0.6-1s per chunk), so a fixed 100ms interval
-     drowned the main thread. Clamped to [100ms, 1s]. */
+     the client a stream-collection + recalc cycle that grows with it */
   stream_min_interval_ms :=
     max(
       100.,
@@ -469,42 +458,42 @@ let post_batch_result = (model, request_id, completed) =>
     );
   };
 
-/* Stream chunks cross to the MAIN thread, whose consumers read only
-   entry KEYS (pending-eval worklist), [seq] (frontier ordering), and
-   each state's probes/tests/steps (stream collection). The
-   reuse-cache payload — prev_elab (the region's whole elaborated
-   subtree), prev_reuse_map, prev_probe_targets, the region's value,
-   and the state's own nested incr_eval — stays worker-side
-   (store_resident keeps the full response); shipping it decoded to
-   ~90MB live on mega programs, most of the per-edit heap churn. */
+/* main-thread consumers read only entry keys, [seq] and each state's
+   probes/tests/steps; the reuse-cache payload (prev_elab, reuse map,
+   probe targets, value, nested incr_eval) stays in the worker, as
+   decoding it would dominate main-thread heap churn */
 let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
 let slim_state = (state: Language.EvaluatorState.t) =>
   Language.EvaluatorState.{
     ...state,
     incr_eval: Language.IncrEval.empty,
   };
+let slim_entries =
+    (incr: Language.IncrEval.t(Language.EvaluatorState.t))
+    : Language.IncrEval.t(Language.EvaluatorState.t) =>
+  Language.IncrEval.{
+    entries:
+      Id.Map.map(
+        (e: Language.IncrEval.entry(Language.EvaluatorState.t)) =>
+          Language.IncrEval.{
+            prev_elab: Lazy.force(slim_hole),
+            prev_reuse_map: Language.IncrEval.empty_reuse_map,
+            prev_probe_targets:
+              Language.EvalInfo.ProbeTargets(
+                Language.SubexpProbeTargets.empty,
+              ),
+            value: Lazy.force(slim_hole),
+            state: slim_state(e.state),
+            seq: e.seq,
+          },
+        incr.entries,
+      ),
+  };
 let slim_stream_update =
     (u: Language.IncrEval.outbox(Language.EvaluatorState.t))
     : Language.IncrEval.outbox(Language.EvaluatorState.t) =>
   Language.IncrEval.{
-    completed: {
-      entries:
-        Id.Map.map(
-          (e: Language.IncrEval.entry(Language.EvaluatorState.t)) =>
-            Language.IncrEval.{
-              prev_elab: Lazy.force(slim_hole),
-              prev_reuse_map: Language.IncrEval.empty_reuse_map,
-              prev_probe_targets:
-                Language.EvalInfo.ProbeTargets(
-                  Language.SubexpProbeTargets.empty,
-                ),
-              value: Lazy.force(slim_hole),
-              state: slim_state(e.state),
-              seq: e.seq,
-            },
-          u.completed.entries,
-        ),
-    },
+    completed: slim_entries(u.completed),
     current:
       Option.map(
         (c: Language.IncrEval.current(Language.EvaluatorState.t)) =>
@@ -535,11 +524,9 @@ let post_stream_update =
     );
   };
 
-/* Stream posts are THROTTLED: every posted update costs the client a
-   full update/calculate/render cycle, and un-throttled per-slice posts
-   flooded mega programs with hundreds of chunks (each ~O(program) on
-   the main thread). Undrained entries keep accumulating in the
-   evaluation's outbox; completion flushes unconditionally. */
+/* stream posts are throttled: each costs the client a full
+   update/calculate/render cycle. undrained entries accumulate in the
+   outbox; completion flushes unconditionally */
 let last_stream_post: ref(float) = ref(0.);
 
 let entry_has_effects =
@@ -550,10 +537,8 @@ let entry_has_effects =
     || e.state.theorems != []
   );
 
-/* [Effects] interest: only effect-bearing entries ship; husks (ids +
-   step counts) exist for the pending-eval highlight, which the client
-   said is off. A filtered-to-empty chunk is not posted at all, so the
-   client pays no render cycle for it. */
+/* [Effects]: husks (ids + step counts) only feed the pending-eval
+   highlight, which is off; a chunk filtered to empty isn't posted */
 let filter_stream_interest =
     (u: Language.IncrEval.outbox(Language.EvaluatorState.t))
     : Language.IncrEval.outbox(Language.EvaluatorState.t) =>
@@ -593,7 +578,16 @@ let post_reuse_plan = (model, request: Request.t) =>
     post_message(
       ServerMessage.ReusePlan({
         request_id: request.request_id,
-        initial: List.map(predict_reuse_for_request, request.batch),
+        /* the evaluation keeps the full plan; the client gets what it
+           reads, as with streams */
+        initial:
+          List.map(
+            item => {
+              let (key, plan) = predict_reuse_for_request(item);
+              (key, slim_entries(plan));
+            },
+            request.batch,
+          ),
       }),
     );
   };
@@ -603,15 +597,9 @@ let post_reuse_plan = (model, request: Request.t) =>
 let schedule_async = callback =>
   ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), 0.));
 
-/* ... and cap the value's SIZE: the main thread only ever displays a
-   budget-pruned copy (EvalResult.prune_for_display), so anything past
-   the budget is marshal/decode dead weight — a Mod-rooted program's
-   value (the module exports tuple, full member ASTs) added a
-   ~300-400ms decode frame to EVERY edit's result arrival. Budget
-   matches the display side; over-budget subtrees become holes. */
-/* slightly ABOVE the display budget (EvalResult.display_budget), so
-   the main side can detect ship-side truncation: its own display
-   prune trips exactly when this one did */
+/* the main thread only displays a budget-pruned copy, so anything past
+   the budget is marshal/decode dead weight. its elisions are marked, so
+   the display still notes them when what's left fits its own budget */
 let value_ship_budget = 6_000;
 let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
   let (pruned, truncated) =
@@ -627,11 +615,9 @@ let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
   pruned;
 };
 
-/* The UI never consumes the incremental cache from ASYNC responses:
-   the next request's prev is WORKER-RESIDENT and reuse predictions
-   arrive via ReusePlan. Strip it AFTER store_resident so the
-   completion payload doesn't marshal the whole entry map back across
-   the boundary (it rivals the old request-side prev-cache in size). */
+/* async responses drop the incremental cache (the UI never reads it:
+   prev is worker-resident, predictions come via ReusePlan); must run
+   after store_resident */
 let slim_response = (response: Response.value): Response.value =>
   switch (response) {
   | Ok((exp, state)) =>

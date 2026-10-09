@@ -50,13 +50,29 @@ module Model = {
   /* Identity of the editor Page.Update.get_editor returns: stable across
      frames of the same editor, distinct across slides/exercises/modes. For
      after-display caches (RefractorShift) and culling-range resets. */
-  let editor_key: t => string =
-    fun
-    | Scratch(m) => "scratch:" ++ string_of_int(m.current)
-    | Documentation(m) => "documentation:" ++ string_of_int(m.current)
+  let editor_key = (model: t): string => {
+    /* a divided program's editor is its active cell */
+    let cell = (m: ScratchMode.Model.t) =>
+      switch (ScratchMode.Model.current_program(m)) {
+      | Some(Divided(d)) =>
+        switch (Divided.active(d)) {
+        | Some((id, side)) =>
+          ":"
+          ++ Haz3lcore.Id.to_string(id)
+          ++ (side == Divided.Header ? ":h" : ":b")
+        | None => ":cells"
+        }
+      | _ => ""
+      };
+    switch (model) {
+    | Scratch(m) => "scratch:" ++ string_of_int(m.current) ++ cell(m)
+    | Documentation(m) =>
+      "documentation:" ++ string_of_int(m.current) ++ cell(m)
     | Tutorial(m) => "tutorial:" ++ string_of_int(m.current)
     | Config(m) => "config:" ++ string_of_int(m.current)
-    | Exercises(m) => "exercises:" ++ string_of_int(m.current);
+    | Exercises(m) => "exercises:" ++ string_of_int(m.current)
+    };
+  };
 
   /* Auxiliary classes on the main div, so CSS can target derivation-kind
      scratchpads inside the unified Scratch/Documentation modes. */
@@ -142,7 +158,7 @@ module Store = {
       ~default_names,
       ~default_current,
     )
-    |> ScratchMode.integrate_share(~settings);
+    |> SlideDeck.integrate_share(~settings);
   };
 
   let load_documentation = (~settings) => {
@@ -288,6 +304,11 @@ module Update = {
           m,
         );
       Model.Exercises(m');
+    /* other modes' outlines only navigate (OutlineControl.view sends
+       its actions here whatever the mode) */
+    | (Scratch(Outline(a)), Exercises(_) | Tutorial(_) | Config(_)) =>
+      OutlineControl.update_view(a);
+      model |> return_quiet;
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Documentation(_))
@@ -354,7 +375,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~autoprobe_mode, ~is_edited, ~schedule_action, model) => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~tail_probe=false,
+        ~is_edited,
+        ~schedule_action,
+        model,
+      ) => {
     switch (model) {
     | Model.Scratch(m) =>
       Model.Scratch(
@@ -362,6 +390,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
           ~is_edited,
           ~is_documentation=false,
           m,
@@ -373,6 +402,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
           ~is_edited,
           ~is_documentation=true,
           m,
@@ -513,9 +543,8 @@ module Selection = {
       |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
     };
 
-  /* Cross-cell jump-to-definition in scratch/documentation stacks
-     (see ScratchMode.Selection.stack_jump_override): (ensure-entry
-     action, new selection, follow-up caret jump) */
+  /* cross-cell jump-to-definition in stacks: (ensure-entry action, new
+     selection, follow-up caret jump) */
   let stack_jump_override =
       (~single: bool=false, action: Update.t, model: Model.t)
       : option((Update.t, t, Update.t)) =>
@@ -529,8 +558,21 @@ module Selection = {
     | _ => None
     };
 
-  /* the selection an outline add/ensure should land on (see
-     ScratchMode.Selection.stack_add_selection) */
+  /* a jump to a tile in no open cell */
+  let closed_jump =
+      (~single=false, tile: Haz3lcore.Id.t, model: Model.t)
+      : option((Update.t, t, Update.t)) =>
+    switch (model) {
+    | Scratch(m)
+    | Documentation(m) =>
+      ScratchMode.Selection.closed_jump(~single, tile, m)
+      |> Option.map(((a, s, k)) =>
+           (Update.Scratch(a), Scratch(s), Update.Scratch(k))
+         )
+    | _ => None
+    };
+
+  /* the selection an outline add/ensure lands on */
   let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
     switch (action, model) {
     | (Scratch(sa), Scratch(m))
@@ -538,6 +580,15 @@ module Selection = {
       ScratchMode.Selection.stack_add_selection(sa, m)
       |> Option.map(s => Scratch(s))
     | _ => None
+    };
+
+  /* after an update, the selection names the same pane */
+  let follow = (~before: Model.t, selection: t, after: Model.t): t =>
+    switch (selection, before, after) {
+    | (Scratch(sel), Scratch(_), Scratch(a))
+    | (Scratch(sel), Documentation(_), Documentation(a)) =>
+      Scratch(ScratchMode.Selection.follow(sel, a))
+    | _ => selection
     };
 
   let default_selection =

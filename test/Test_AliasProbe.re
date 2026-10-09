@@ -2,16 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* CHARACTERIZATION: type-alias references in variable types resolve
-   LAZILY against the ctx at the normalization (use) site, so a
-   shadowing alias between a binder and a use wins over the alias in
-   scope at the binder:
-     type T = Int in let x : T = 1 in type T = Bool in x
-   reports x : Bool at the use (raw type is the unresolved Var "T").
-   Verified empirically 2026-08-28 (andrew's shadowing question ahead
-   of ctx-as-map). The ctx-as-map swap must preserve this exactly; if
-   the SEMANTICS is ever deliberately changed to def-site resolution,
-   flip this test. */
+/* characterization: aliases in variable types resolve at the use site, so
+   a shadowing alias between binder and use wins; flip if that changes */
 
 let case = () => {
   let src = "type T = Int in\nlet x : T = 1 in\ntype T = Bool in\nx";

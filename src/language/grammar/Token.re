@@ -380,7 +380,7 @@ let is_implicit_hole_marker = t => t == implicit_hole_marker;
 
 /* Concave-grout marker: `¿` stands in for CONVEX Grout (an operand
  * hole, grammatically expressible as `?`), but concave Grout is an
- * OPERATOR hole (`1 <grout> 2`) that no operand marker can spell —
+ * OPERATOR hole (`1 <grout> 2`) that no operand marker can spell --
  * printing both shapes as `¿` made persisted text ambiguous AND
  * unparseable by the fast path (`1 ¿ 2` lexes as three operands),
  * dropping every reload of such a document into the quadratic

@@ -856,7 +856,8 @@ let px_float = (s: string): float =>
 let test_results_of =
     (editors: Editors.Model.t): option(Language.TestResults.t) =>
   switch (current_code(editors)) {
-  | Some({editor: cell, _}) => EvalResult.Model.test_results(cell.result)
+  | Some({program, _}) =>
+    EvalResult.Model.test_results(Program.result(program))
   | None => None
   };
 
@@ -1081,8 +1082,8 @@ let view_impl =
      replay snapshots must keep their own historical dynamics. */
   let value_editor =
     switch (CanvasBuffer.presenting^, current_code(editors)) {
-    | (false, Some({editor: cell, _})) =>
-      let dynamics = EvalResult.Model.card_dynamics(cell.result);
+    | (false, Some({program, _})) =>
+      let dynamics = EvalResult.Model.card_dynamics(Program.result(program));
       dynamics === editor.dynamics
         ? editor
         : {
@@ -1137,7 +1138,8 @@ let view_impl =
           Haz3lcore.Printer.of_zipper(
             ~holes="?",
             switch (current_code(editors)) {
-            | Some(c) => c.editor.editor.editor.state.zipper
+            | Some(c) =>
+              Program.whole_memo(c.program).editor.editor.state.zipper
             | None => editor.editor.state.zipper
             },
           ),
@@ -1542,7 +1544,9 @@ let view_impl =
     Some(
       (a: Haz3lcore.Action.t) =>
         editors_inject(
-          Editors.Update.Scratch(ScratchMode.Update.MasterPerform(a)),
+          Editors.Update.Scratch(
+            ScratchMode.Update.Workspace(MasterPerform(a)),
+          ),
         ),
     );
   let show_panel =
@@ -1550,7 +1554,7 @@ let view_impl =
   let select_def = (~reveal=true, id: Id.t) =>
     Effect.Many([
       editors_inject(
-        Editors.Update.Scratch(ScratchMode.Update.FocusDef(id)),
+        Editors.Update.Scratch(ScratchMode.Update.Workspace(FocusDef(id))),
       ),
       globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
       reveal ? show_panel : Effect.Ignore,
@@ -1565,7 +1569,7 @@ let view_impl =
       : Effect.Many([
           editors_inject(
             Editors.Update.Scratch(
-              ScratchMode.Update.OutlineDefOp(OutlineSidebar.Delete, id),
+              ScratchMode.Update.Outline(DefOp(OutlineSidebar.Delete, id)),
             ),
           ),
           globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
@@ -1636,12 +1640,14 @@ let view_impl =
           [
             editors_inject(
               Editors.Update.Scratch(
-                ScratchMode.Update.MasterPerform(
-                  Project(
-                    SampleFocus(
-                      Capture(
-                        Language.Sample.capture_of_sample(first),
-                        None,
+                ScratchMode.Update.Workspace(
+                  MasterPerform(
+                    Project(
+                      SampleFocus(
+                        Capture(
+                          Language.Sample.capture_of_sample(first),
+                          None,
+                        ),
                       ),
                     ),
                   ),
@@ -1718,16 +1724,18 @@ let view_impl =
     Effect.Many([
       editors_inject(
         Editors.Update.Scratch(
-          ScratchMode.Update.AgentAction(
-            Agent.Update.Action.DirectEdit(
-              "insert_after",
-              `Assoc(
-                [("code", `String(code))]
-                @ (
-                  switch (insert_path) {
-                  | Some(p) => [("path", `String(p))]
-                  | None => []
-                  }
+          ScratchMode.Update.Workspace(
+            AgentAction(
+              Agent.Update.Action.DirectEdit(
+                "insert_after",
+                `Assoc(
+                  [("code", `String(code))]
+                  @ (
+                    switch (insert_path) {
+                    | Some(p) => [("path", `String(p))]
+                    | None => []
+                    }
+                  ),
                 ),
               ),
             ),
@@ -1739,9 +1747,11 @@ let view_impl =
          its own line */
       editors_inject(
         Editors.Update.Scratch(
-          ScratchMode.Update.CellAction(
-            CellEditor.Update.MainEditor(
-              CodeEditable.Update.Perform(Format(Pretty)),
+          ScratchMode.Update.Workspace(
+            CellAction(
+              CellEditor.Update.MainEditor(
+                CodeEditable.Update.Perform(Format(Pretty)),
+              ),
             ),
           ),
         ),
@@ -3148,10 +3158,12 @@ let view_impl =
           Effect.Many([
             editors_inject(
               Editors.Update.Scratch(
-                ScratchMode.Update.AgentAction(
-                  Agent.Update.Action.SendMessage(
-                    Message.Utils.mk_user_message(content),
-                    agent.chat_system.current,
+                ScratchMode.Update.Workspace(
+                  AgentAction(
+                    Agent.Update.Action.SendMessage(
+                      Message.Utils.mk_user_message(content),
+                      agent.chat_system.current,
+                    ),
                   ),
                 ),
               ),
@@ -3429,7 +3441,9 @@ let view_impl =
               on
                 ? [
                   editors_inject(
-                    Editors.Update.Scratch(ScratchMode.Update.UnfocusDef),
+                    Editors.Update.Scratch(
+                      ScratchMode.Update.Workspace(UnfocusDef),
+                    ),
                   ),
                 ]
                 : []
@@ -3591,7 +3605,9 @@ let view_impl =
           ~on_close=
             main_mode
               ? editors_inject(
-                  Editors.Update.Scratch(ScratchMode.Update.UnfocusDef),
+                  Editors.Update.Scratch(
+                    ScratchMode.Update.Workspace(UnfocusDef),
+                  ),
                 )
               : set_focus(None),
           ~ask_agent,
@@ -3781,11 +3797,9 @@ let view_impl =
         switch (editors) {
         | Scratch(m)
         | Documentation(m) =>
-          switch (List.nth_opt(m.scratchpads, m.current), m.focus) {
-          | (Some({kind: Code(_), _}), Some(f)) =>
-            Printer.of_segment(~holes="?", ScratchFocus.splice_all(f))
-          | (Some({kind: Code({editor, _}), _}), None) =>
-            Printer.of_segment(~holes="?", ScratchFocus.zip_of_cell(editor))
+          switch (List.nth_opt(m.scratchpads, m.current)) {
+          | Some({kind: Code({program, _}), _}) =>
+            Printer.of_segment(~holes="?", Program.document(program))
           | _ => ""
           }
         | _ => ""
@@ -4320,8 +4334,8 @@ let view_impl =
           Effect.Many([
             editors_inject(
               Editors.Update.Scratch(
-                ScratchMode.Update.AgentAction(
-                  Agent.Update.Action.CatchUpAgent,
+                ScratchMode.Update.Workspace(
+                  AgentAction(Agent.Update.Action.CatchUpAgent),
                 ),
               ),
             ),

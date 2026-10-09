@@ -1,17 +1,10 @@
-/* Budget-pruning of runtime VALUES for shipping and display: a
-   program's value can be a giant shared graph (a module's value
-   embeds every member AST), and every tree walk on the main thread —
-   marshal decode, display segment build, result statics — pays for
-   it. Values under the budget pass through UNTOUCHED (physically the
-   same term). Over-budget values prune STRUCTURE-AWARE: tuples and
-   lists keep complete leading elements while the budget lasts,
-   dropped tails are marked by ONE trailing hole, and an over-budget
-   non-structural subtree becomes a single hole. Holes are the
-   type-safe elision (the display statics run on this term; any other
-   marker would light up error decorations). */
+/* budget-pruning of runtime values for shipping and display: a value
+   can be a giant shared graph (a module value embeds every member AST).
+   within-budget values come back physically intact; elisions are holes
+   because display statics run on the result, and any other marker
+   would show as an error */
 
-/* node count if within [budget], None otherwise (bail early: stops
-   descending once the count is exceeded) */
+/* node count if within [budget], else None; stops descending once over */
 let size_within = (budget: int, e: Exp.t): option(int) => {
   let count = ref(0);
   let f = (cont, x: Exp.t) => {
@@ -24,7 +17,28 @@ let size_within = (budget: int, e: Exp.t): option(int) => {
   };
 };
 
-let hole = (): Exp.t => Exp.fresh(EmptyHole);
+/* elision holes carry this id after their own: they print and type as
+   plain holes, but a value can be checked for elisions after the fact
+   (the worker's prune can leave a value well under the display's) */
+let elided: Id.t = Id.mk_str("TermPrune.elided");
+
+let hole = (): Exp.t => {
+  term: EmptyHole,
+  annotation: IdTagged.IdTag.mk_internal([Id.mk(), elided]),
+};
+
+exception Elided;
+let has_elision = (e: Exp.t): bool => {
+  let f = (cont, x: Exp.t) =>
+    switch (x.term) {
+    | EmptyHole when List.mem(elided, IdTagged.ids(x)) => raise(Elided)
+    | _ => cont(x)
+    };
+  switch (Exp.map_term(~f_exp=f, e)) {
+  | _ => false
+  | exception Elided => true
+  };
+};
 
 /* returns (pruned, truncated) */
 let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {
@@ -74,8 +88,36 @@ let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {
           budget := budget^ - 1;
           re(Parens(go(x)));
         | _ =>
-          /* non-structural over-budget subtree: one clean hole */
-          hole()
+          /* any other form keeps its head and spends the rest inside,
+             smallest parts first (so the constructor survives its big
+             argument): `Left(([1, 2, ?], ?))`, not `?` */
+          budget := budget^ - 1;
+          let parts = ref([]);
+          let collect = (cont, x: Exp.t) =>
+            if (x === e) {
+              cont(x);
+            } else {
+              parts := [x, ...parts^];
+              x;
+            };
+          ignore(Exp.map_term(~f_exp=collect, e));
+          let size = x =>
+            Option.value(size_within(max(budget^, 0), x), ~default=max_int);
+          let pruned =
+            parts^
+            |> List.map(x => (x, size(x)))
+            |> List.stable_sort(((_, a), (_, b)) => compare(a, b))
+            |> List.map(((x, _)) => (x, go(x)));
+          let replace = (cont, x: Exp.t) =>
+            if (x === e) {
+              cont(x);
+            } else {
+              switch (List.find_opt(((y, _)) => y === x, pruned)) {
+              | Some((_, p)) => p
+              | None => x
+              };
+            };
+          Exp.map_term(~f_exp=replace, e);
         };
       };
     };
@@ -83,11 +125,9 @@ let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {
   (pruned, truncated^);
 };
 
-/* strip closure ENVIRONMENTS: they are display-opaque (never printed;
-   the stepper re-evaluates from the elab) but reference most of the
-   program's runtime state. The env is replaced BEFORE the recursive
-   descent, so the walk never enters the shared, program-sized
-   environment structures. */
+/* closure environments are never displayed (the stepper re-evaluates
+   from the elab) but reference most runtime state; replacing them
+   before descending keeps the walk out of them */
 let prune_closure_envs = (e: Exp.t): Exp.t =>
   Exp.map_term(
     ~f_exp=

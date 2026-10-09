@@ -1,10 +1,8 @@
 open Alcotest;
 open Haz3lcore;
 
-/* Pat-rooted editors (modular-editors header cells): text enters
-   through the REAL editing path (Parser.to_zipper inserts char by
-   char, molding at Pat root), then MakeTerm.from_zip_for_pat reads
-   the semantic pattern back out. */
+/* Pat-rooted editors: text typed char by char at Pat root reads back
+   through MakeTerm.from_zip_for_pat as the expected pattern */
 
 let parse_pat = (s: string): option(Language.Pat.t) =>
   Parser.to_zipper(~root=Sort.Pat, s)

@@ -25,12 +25,8 @@ let is_function = (info: Info.t): bool =>
 
 let ids_inside_functions = (info_map: StaticsBase.Map.t): Id.Set.t => {
   let memo = ref(Id.Map.empty);
-  /* ITERATIVE parent-chain walk. The recursive version overflowed the
-     stack (it memoized only after the full recursion, and some info
-     maps have parent chains that revisit an id — a cycle recursed
-     forever; crashed the Documentation mode switch). Walk up
-     collecting the chain, stop at memo/function/root/cycle, then
-     memoize the whole chain. */
+  /* tail-recursive walk up the parent chain, stopping at a memo hit,
+     function, root, or cycle (some info maps' chains revisit an id) */
   let resolve = (id0: Id.t): bool => {
     let rec walk = (chain: list(Id.t), seen: Id.Set.t, id: Id.t): bool =>
       switch (Id.Map.find_opt(id, memo^)) {
@@ -104,10 +100,8 @@ let is_top_level_leaf =
   | _ => false
   };
 
-/* Mirror of the web-layer "Eval Progress" setting (the pending-eval
-   highlight). When off, the UI never renders the highlight, so
-   callers skip the O(program) worklist walk entirely. Set on settings
-   load and from the settings toggle. */
+/* mirrors the web-layer "Eval Progress" setting: when off, nothing
+   renders the pending-eval highlight, so callers skip the worklist */
 let compute_enabled = ref(true);
 
 let pending_ids_uncached = (info_map: StaticsBase.Map.t): list(Id.t) => {
@@ -121,27 +115,14 @@ let pending_ids_uncached = (info_map: StaticsBase.Map.t): list(Id.t) => {
   );
 };
 
-/* pending_ids is a pure O(info_map) walk (~90ms on mega-4k), run on
-   the main thread per eval request. Single-slot memo keyed by map
-   identity: the slot pins one info_map generation, which the current
-   statics retains anyway. */
-let pending_memo: ref(option((StaticsBase.Map.t, list(Id.t)))) =
-  ref(None);
+/* single-slot memo keyed by map identity; the one info_map it pins is
+   retained by the current statics anyway */
+let pending_memo: Slot.t(StaticsBase.Map.t, list(Id.t)) = Slot.mk();
 let pending_ids = (info_map: StaticsBase.Map.t): list(Id.t) =>
-  switch (pending_memo^) {
-  | Some((m, ids)) when m === info_map => ids
-  | _ =>
-    let ids = pending_ids_uncached(info_map);
-    pending_memo := Some((info_map, ids));
-    ids;
-  };
+  Slot.get(pending_memo, info_map, () => pending_ids_uncached(info_map));
 
-/* Runs on the MAIN thread per streamed chunk. Pending ids are
-   top-level leaves, which are entry-recording sites themselves — a
-   pending id is settled exactly when its OWN entry streams, so key
-   membership suffices. (The previous visible_ids expansion walked
-   every completed entry's whole subtree per chunk — O(program) once
-   outer spine entries start arriving.) */
+/* pending ids are top-level leaves, which record their own entries: an
+   id settles exactly when its entry streams, so key membership suffices */
 let remove_streamed_ids =
     (stream: IncrEval.outbox(EvaluatorState.t), pending_ids) =>
   List.filter(id => !Id.Map.mem(id, stream.completed.entries), pending_ids);

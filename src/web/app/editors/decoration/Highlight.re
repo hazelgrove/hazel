@@ -726,11 +726,9 @@ let color =
   | None => []
   };
 
-/* per-id RANGE memo for the pending-eval highlight: incr_eval runs on
-   every streamed chunk and recomputed extreme_measures for every
-   pending leaf id (thousands of measured lookups per frame). Ranges
-   only change with the measured/term_data generation, so one table
-   serves a whole evaluation. Cleared on generation change. */
+/* per-id range memo for the pending-eval highlight: incr_eval runs on
+   every streamed chunk, but ranges change only with the measured/term_data
+   generation, so one table serves a whole evaluation */
 module RangeCache = {
   let key: ref(Obj.t) = ref(Obj.repr(0));
   let tbl: Hashtbl.t(Id.t, option((Measured.Point.t, Measured.Point.t))) =
@@ -755,8 +753,7 @@ module RangeCache = {
   };
 };
 
-/* per-id node cache for the pending-eval highlight (see incr_eval).
-   Eviction: tick sweep, view-side cache discipline. */
+/* per-id node cache for the pending-eval highlight */
 module IncrEvalCache = {
   type entry = {
     mutable e_meas: Obj.t,
@@ -810,73 +807,9 @@ module IncrEvalCache = {
     };
 };
 
-let bbox_of_range =
-    (~measured: Measured.t, (origin: Point.t, final: Point.t)): option(bbox) =>
-  if (final.row < origin.row) {
-    None;
-  } else {
-    List.init(final.row - origin.row + 1, i => origin.row + i)
-    |> List.fold_left(
-         (acc, row) =>
-           switch (acc, Measured.row_shape(row, measured)) {
-           | (None, _)
-           | (_, None) => None
-           | (Some(bb), Some(shape: Measured.Rows.shape)) =>
-             let left =
-               float_of_int(
-                 row == origin.row ? origin.col : shape.content_start,
-               );
-             let right =
-               float_of_int(row == final.row ? final.col : shape.max_col);
-             Some({
-               ...bb,
-               min_col: min(bb.min_col, left),
-               max_col: max(bb.max_col, right),
-             });
-           },
-         Some({
-           min_col: float_of_int(origin.col),
-           max_col: float_of_int(origin.col),
-           min_row: origin.row,
-           max_row: final.row,
-         }),
-       );
-  };
-
-let color_range =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~measured: Measured.t,
-      ~sweep: bool=false,
-      clss: list(string),
-      range: (Point.t, Point.t),
-    )
-    : list(Node.t) =>
-  switch (bbox_of_range(~measured, range)) {
-  | None => []
-  | Some(bb) =>
-    let width = bb.max_col -. bb.min_col;
-    let height = float_of_int(bb.max_row - bb.min_row + 1);
-    let path_cmds =
-      SvgUtil.Path.[
-        M({
-          x: 0.0,
-          y: 0.0,
-        }),
-        H({x: width}),
-        V({y: height}),
-        H({x: 0.0}),
-        Z,
-      ];
-    [svg_of_bbox(~font_metrics, ~clss, ~sweep, ~path_cmds, bb)];
-  };
-
-/* One text-hugging svg per contiguous row run of a range: per-row
-   extents from the measured row shapes, contoured by outline_path -
-   shard-shaped visuals at bounding-box node cost. (Rendering the
-   range's SEGMENT through the shard machinery emitted hundreds of
-   nodes per item-sized range - 23k+ overlays on a mega program.)
-   Blank rows split the contour, so the highlight skips empty lines. */
+/* one text-hugging svg per contiguous row run of a range, from measured
+   row shapes: shard-shaped at bounding-box node cost. blank rows split
+   the contour, so empty lines stay clear */
 let contour_of_range =
     (
       ~font_metrics: FontMetrics.t,
@@ -984,13 +917,11 @@ let incr_eval =
              active_ids,
            )
        );
-  /* None = the scroll handler has not fired yet (or the mode has no
-     culling), i.e. the view is at its initial scroll position: cull
-     to a generous top window rather than building every range - a
-     full mega-program pending set is tens of thousands of SVGs */
+  /* None: no range (this editor doesn't cull, or nothing tracks one):
+     draw every row */
   let visible_bounds =
     switch (visible) {
-    | None => (0, 300)
+    | None => (0, max_int)
     | Some({first, last}) => (first, last)
     };
   let visible_ranges = (ranges: list((Id.t, (Point.t, Point.t)))) => {
@@ -1001,17 +932,11 @@ let incr_eval =
       ranges,
     );
   };
-  /* The pending set shrinks on EVERY streamed chunk; caching nodes
-     per id keeps those frames cheap: within one evaluation the
-     measured/range/metrics are stable, so all but the popped head
-     are reference-equal and the vdom diff skips them. */
-  /* Shard-hugging contours, not bounding rectangles - but at REGION
-     granularity: the pending set is leaf-granular (thousands of ids on
-     a mega program), and per-leaf SVGs cost ~1s of path serialization
-     per edit even viewport-culled. Adjacent pending rows merge into a
-     few contiguous regions (the worklist completes roughly in program
-     order, so the remainder stays near-contiguous), clamped to the
-     visible window so path sizes stay bounded. */
+  /* the pending set shrinks on every streamed chunk: per-id node caching
+     keeps all but the popped head reference-equal, so the diff skips them.
+     pending ids are leaf-granular, so adjacent rows merge into a few
+     regions (the worklist finishes roughly in program order), clamped to
+     the visible window to bound path sizes */
   let merge_regions = (ranges: list((Id.t, (Point.t, Point.t)))) =>
     List.fold_left(
       (acc, (id, (o: Point.t, f: Point.t))) =>
@@ -1066,11 +991,9 @@ let incr_eval =
            )
          )
        );
-  /* The active range can span thousands of rows (head-by-origin of
-     the pending set): clamp it to the visible window like the
-     inactive regions, and cache its node — otherwise every render
-     during an evaluation pays ~50ms of path serialization. The sweep
-     animates via CSS, so an identical vdom node keeps animating. */
+  /* the active range can span thousands of rows: clamp and cache it like
+     the inactive regions (the sweep animates in CSS, so a reused node
+     keeps animating) */
   let active_nodes =
     visible_ranges(active_ids)
     |> List.map(clamp_region)

@@ -54,7 +54,6 @@ let format_hazel = (implicit_hole: string, width, path) => {
       Haz3lcore.Printer.of_segment(
         ~holes=implicit_hole,
         ~concave_holes=Haz3lcore.Token.concave_hole_marker,
-        ~indent=" ",
         ~refractors=zipper.refractors.manuals,
         pretty_seg,
       );
@@ -410,6 +409,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         ~settings=CoreSettings.on,
         ~info_map,
         ~probe_ids,
+        (),
       );
 
     /* Evaluate the elaboration from the same statics run (it may carry

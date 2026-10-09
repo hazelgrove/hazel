@@ -1117,8 +1117,15 @@ let info_for_view = (~quiver: bool, cursor: Cursor.cursor('action)) =>
   | None => cursor.info
   };
 
-let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
-  let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
+/* [dynamics]: the slide program's, at the bar's right end */
+let view =
+    (
+      ~globals: Globals.t,
+      ~dynamics: option(Node.t)=?,
+      cursor: Cursor.cursor(Editors.Update.t),
+    ) => {
+  let bar_view = kids =>
+    div(~attrs=[Attr.id("bottom-bar")], kids @ Option.to_list(dynamics));
   let err_view = err =>
     bar_view([
       div(
@@ -1137,7 +1144,8 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
     | _ => None
     };
   switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
-  | _ when !globals.settings.core.statics => div_empty
+  | _ when !globals.settings.core.statics =>
+    dynamics == None ? div_empty : bar_view([])
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     /* Show projector error instead of normal status,

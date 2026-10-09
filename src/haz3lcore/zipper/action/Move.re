@@ -394,12 +394,9 @@ let vertical =
   do_towards_point(~force_progress=true, ~measured, local(ByChar), goal, z);
 };
 
-/* Two phases (a ByChar-only walk is O(chars) — >100k steps for a
-   cross-file click at 4k lines): a coarse ByToken walk to the start
-   of a row NEXT TO the goal, then a ByChar walk. The coarse goal sits
-   on the SAME side of the final goal as the initial position, so the
-   char walk approaches the goal from the side it always did and
-   inaccessible-goal tie-breaks are unchanged. */
+/* a ByToken walk to a row beside the goal, then a ByChar walk (ByChar
+   alone is O(chars)). the coarse goal is on the start's side of the
+   goal, so the approach side and inaccessible-goal tie-breaks hold */
 let to_point_walk = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
   let init = Zipper.Caret.point(measured, z);
   let z =
@@ -422,22 +419,18 @@ let to_point_walk = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => 
   };
 };
 
-/* TELEPORT for long jumps: a zipper with empty selection and an Outer
-   caret at a top-level boundary is literally a split of the zipped
-   segment, so instead of stepping the whole distance we rebuild the
-   relatives at the boundary nearest the goal (on the SAME side as the
-   original position, preserving the walk's approach side) and only
-   walk from there. O(top-level pieces) list work, no zipper steps.
-   Landing parity with the pure walk is test-gated (Test_ClickTeleport). */
+/* long jumps teleport: an unselected zipper with an Outer caret at a
+   top-level boundary is just a split of the zipped segment, so rebuild
+   it at the boundary nearest the goal, on the start's side (keeping the
+   walk's approach side), and walk from there */
 let teleport_row_threshold = 50;
 
 let teleport_to_boundary =
     (~measured: Measured.t, ~goal: Point.t, ~from_above: bool, z: t): t => {
   let z = unselect(z);
   let seg = Zipper.unselect_and_zip(z);
-  /* from above: caret before the first piece that reaches goal.row
-     (walk proceeds rightward). From below: caret after the last piece
-     that starts by goal.row (walk proceeds leftward). */
+  /* from above: caret before the first piece reaching goal.row; from
+     below: after the last piece starting by goal.row */
   let k =
     List.fold_left(
       (k, p) =>

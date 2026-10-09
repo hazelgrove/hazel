@@ -10,13 +10,9 @@ let is_semi = (p: Piece.t): bool =>
   | Tile(t) => Tile.is_semi(t)
   | _ => false
   };
-/* Edge-whitespace handling: the raw pat/def slices carry the
-   master's padding (spaces around the pat, the linebreak+indent
-   before a def) — in an isolated cell that reads as stray
-   whitespace begging to be deleted. Cells hold the TRIMMED core;
-   the splice re-wraps with whatever edge whitespace the (stale)
-   master copy still carries, so padding round-trips without being
-   stored. Comments are content, not padding — they stay. */
+/* cells hold slices without edge whitespace (stray in an isolated
+   cell); splicing re-wraps them in the program's own padding, so it
+   round-trips unstored. Comments are content, not padding. */
 let is_edge_ws = (p: Piece.t): bool =>
   switch (p) {
   | Secondary({content: Whitespace(_), _}) => true
@@ -41,8 +37,8 @@ let core_ws = (seg: Segment.t): Segment.t => {
   core;
 };
 
-/* re-wrap [content] in the edge whitespace of the segment [find]
-   locates in [seg] (the master's copy, untouched while focused) */
+/* [content] in the edge whitespace of [find]'s slice of [seg], which
+   is untouched while the cell is open */
 let rewrap_ws =
     (find: (Id.t, Segment.t) => option(Segment.t), fid, seg, content)
     : Segment.t =>
@@ -53,7 +49,46 @@ let rewrap_ws =
   | None => content
   };
 
-/* does [seg] contain a piece with id [target] (recursively)? */
+exception Indent(int);
+
+/* the indentation of the line the piece [id] is on */
+let line_indent = (id: Id.t, seg: Segment.t): option(int) => {
+  let ind = ref(0);
+  let lead = ref(true);
+  let rec go = (ps: Segment.t) =>
+    List.iter(
+      (p: Piece.t) => {
+        if (Piece.id(p) == id) {
+          raise(Indent(ind^));
+        };
+        switch (p) {
+        | Secondary(w) when Secondary.is_linebreak(w) =>
+          ind := 0;
+          lead := true;
+        | Secondary(w) when Secondary.is_space(w) =>
+          if (lead^) {
+            ind := ind^ + 1;
+          }
+        | Tile(t) =>
+          lead := false;
+          List.iter(
+            ch => {
+              go(ch);
+              lead := false;
+            },
+            t.children,
+          );
+        | _ => lead := false
+        };
+      },
+      ps,
+    );
+  switch (go(seg)) {
+  | () => None
+  | exception (Indent(n)) => Some(n)
+  };
+};
+
 let rec seg_contains_id = (target: Id.t, seg: Segment.t): bool =>
   List.exists(
     (p: Piece.t) =>
@@ -92,20 +127,17 @@ let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
   go([], ps);
 };
 
-/* --- top-level item spans, BY PIECE STRUCTURE (no parse) ---
-   Boundaries are `…in`-tiles (def items: the tile + trailing ws)
-   and top-level `;`s (statement items: the run since the previous
-   boundary through the `;` + trailing ws); whatever remains is the
-   trailing expression. Spans partition the top-level piece list, so
-   restructure ops and headerless cells slice/splice without ever
-   parsing the program. */
+/* top-level item spans by piece structure, without parsing: an `…in`
+   tile (+ trailing ws) is a def item, the run through a top-level `;`
+   (+ ws) a statement, and what remains the trailing expression. A 2-shard
+   member's body is its sibling run, so an `…in` there stays in the member */
 type item_kind =
   | IDef /* let / type / module: header+body cells */
   | IStmt /* a `…;` statement: headerless cell */
   | ITail; /* the trailing expression: headerless cell */
 
 type item_span = {
-  sp_id: option(Id.t), /* the boundary tile's id; None for the tail */
+  sp_id: option(Id.t), /* the def head or `;` tile; None for the tail */
   sp_start: int,
   sp_stop: int, /* exclusive */
   sp_kind: item_kind,
@@ -120,9 +152,8 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
     | Tile(t) => ends_with_in(t)
     | _ => false
     };
-  /* MODULE BODIES have 2-shard member defs terminated by `;`: a
-     `;`-run whose first tile is a def head is a DEF item, not a
-     statement (its cell takes the header/body path) */
+  /* module bodies have 2-shard member defs ended by `;`: a `;`-run
+     starting with a def head is a def item, not a statement */
   let run_def_head = (start: int, stop: int): option(Id.t) => {
     let rec first_tile = i =>
       i >= stop
@@ -155,10 +186,9 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
       let tail_ok =
         switch (run_def_head(start, len)) {
         | Some(_) => true
-        /* a boundary-less segment is an EXPRESSION, not a block: its
-           content must not read as a trailing item (deep containment
-           would otherwise swallow arbitrary ids). The program's own
-           top level keeps unconditional tails (the ⇒ row). */
+        /* a nested segment without boundaries is an expression, not a
+           block, so no tail item (deep containment would swallow
+           arbitrary ids); the program's top level keeps its tail */
         | None => !divided_only_tail || acc != []
         };
       List.rev(
@@ -182,7 +212,7 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
           ]
           : acc,
       );
-    } else if (is_in_tile(arr[i])) {
+    } else if (is_in_tile(arr[i]) && run_def_head(start, i) == None) {
       let stop = ws_end(i + 1);
       walk(
         stop,
@@ -218,5 +248,26 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
     } else {
       walk(i + 1, start, acc);
     };
-  walk(0, 0, []);
+  /* a function body shares its segment with its `fun x ->` head: its
+     items start after it */
+  let is_head = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      switch (Tile.label(t)) {
+      | ["fun", "->"]
+      | ["typfun", "->"] => true
+      | _ => false
+      }
+    | _ => false
+    };
+  let rec after_heads = i => {
+    let j = ws_end(i);
+    j < len && is_head(arr[j]) ? after_heads(j + 1) : i;
+  };
+  let first =
+    switch (after_heads(0)) {
+    | 0 => 0
+    | i => ws_end(i)
+    };
+  walk(first, first, []);
 };

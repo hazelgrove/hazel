@@ -131,10 +131,8 @@ let update' = (x: t('a), f: 'a => 'b, y: t('b)): t('b) =>
 let set = (~eq: ('a, 'a) => bool=(==), x: 'a, y: saved('a)) =>
   switch (y) {
   | Pending => NewValue(x)
-  /* physical check first: callers pass whole-PROGRAM structures
-     (elaborations, target maps) with structural eq — on the frames
-     where nothing changed the value is pointer-stable, and the
-     structural walk was O(program) per keystroke/chunk */
+  /* physical check first: callers pass whole-program values with
+     structural eq, and unchanged values are usually pointer-stable */
   | Calculated(x') when x === x' || eq(x, x') => OldValue(x)
   | Calculated(_) => NewValue(x)
   };

@@ -140,9 +140,25 @@ let has_reuse = (ack_incr: EvaluatorState.incr_eval): bool =>
 let directly_reused = (id: Id.t, ack_incr: EvaluatorState.incr_eval): bool =>
   Id.Map.mem(id, ack_incr.entries);
 
+/* surface ids covered by cache entries: each entry short-circuits a
+   subtree, so expand via prev_elab rather than using only the map keys */
+let visible_ids = (incr: EvaluatorState.incr_eval): list(Id.t) => {
+  let acc = ref(Id.Set.empty);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    acc := Id.Set.add(Exp.rep_id(e), acc^);
+    continue(e);
+  };
+  Id.Map.iter(
+    (_, entry: IncrEval.entry(_)) =>
+      ignore(TermBase.Exp.map_term(~f_exp, entry.prev_elab)),
+    incr.entries,
+  );
+  Id.Set.elements(acc^);
+};
+
 let visible_ids_for =
     (~prev: EvaluatorState.incr_eval, exp: Exp.t): list(Id.t) =>
-  IncrEval.visible_ids(reuse_plan(~prev, exp));
+  visible_ids(reuse_plan(~prev, exp));
 
 /* Run eval_incr AND compute the reuse plan for the same (~prev, exp) pair in
  * one go, for tests that assert on both the result and the plan. */
@@ -904,9 +920,8 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
   );
 };
 
-/* Cross-module incremental reuse: when we edit a literal inside module `a`,
- * every surface tile inside the unrelated module `c` should remain covered
- * by the reuse plan's visible-id set.
+/* Cross-module incremental reuse: after an edit inside module `a`, every
+ * surface tile of the unrelated module `c` stays in the visible-id set.
  *
  * Background:
  *   `ModuleHelpers.lower` desugars `{ let bb = 12; let x = ... }` into
@@ -989,8 +1004,7 @@ let c = {
     List.length(c_inner_modlet_ids),
   );
   let (_, _, incr1) = eval_incr(exp1);
-  /* The reuse plan can contain an ancestor that short-circuits evaluation;
-   * visible ids
+  /* A reused ancestor can short-circuit evaluation; visible ids
    * expand that to the elab-descendant closure by walking cached prev_elab
    * (in `incr.entries`) and union all rep_ids. */
   let visible = visible_ids_for(~prev=incr1, exp2);

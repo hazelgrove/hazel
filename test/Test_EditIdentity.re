@@ -319,13 +319,7 @@ let tests = (
             Test_Restructure.statics_term(before),
             "b",
           );
-        switch (
-          Web.ScratchMode.Restructure.apply(
-            Web.OutlineSidebar.MoveUp,
-            id,
-            before,
-          )
-        ) {
+        switch (Web.ItemEdit.apply(Web.OutlineSidebar.MoveUp, id, before)) {
         | None => fail("outline move failed")
         | Some((after, _)) =>
           check_survivors(before, after);

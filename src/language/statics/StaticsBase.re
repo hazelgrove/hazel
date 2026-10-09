@@ -243,10 +243,8 @@ let set_dot_labels_exp =
   | _ => m
   };
 
-/* NOTE: these folds (and the sibling ones in Statics.re) accumulate
-   with cons + a final rev, NOT [acc @ [x]]: the append version is
-   quadratic in list length and was a top statics cost on n-ary forms
-   (module bodies, wide tuples) at mega scale. */
+/* these folds (and those in Statics.re) cons then rev: [acc @ [x]] is
+   quadratic, which bites on wide n-ary forms like module bodies */
 let map_m = (f, xs, m: Map.t) => {
   let (xs, m) =
     List.fold_left(

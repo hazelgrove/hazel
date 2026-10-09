@@ -222,8 +222,7 @@ let stagger_step = (per: int): int =>
 let stagger_span = (per: int): int =>
   min(stagger_span_cap, stagger_total^ * stagger_step(per));
 
-/* the caret glide is 125ms (Actions.move); a new request while the
-   previous glide is still in flight reads as decoration lag */
+/* a glide (125ms, Actions.move) restarted mid-glide reads as decoration lag */
 let last_caret_glide: ref(float) = ref(0.);
 let caret_glide_available = (): bool => {
   let now: float = Js_of_ocaml.Js.Unsafe.global##.Date##now();

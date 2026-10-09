@@ -19,3 +19,9 @@ let equal = (a: t, b: t): bool => MerkleSet.equal(a.probe_ids, b.probe_ids);
 let add_self = (~is_probed: bool, id: Id.t, t: t): t =>
   is_probed
     ? {probe_ids: MerkleSet.union(MerkleSet.singleton(id), t.probe_ids)} : t;
+
+/* a full-capture probe inside: the witness differs from the plain one,
+   so the evaluator retakes the samples instead of reusing them */
+let mark_full = (t: t): t => {
+  probe_ids: MerkleSet.union(t.probe_ids, MerkleSet.singleton(Id.invalid)),
+};

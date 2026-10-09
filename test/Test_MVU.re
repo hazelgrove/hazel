@@ -1332,6 +1332,7 @@ let projector_dynamics_records_a_sample =
           ~settings,
           ~info_map,
           ~probe_ids,
+          (),
         );
       let (_, state) =
         Evaluator.evaluate(

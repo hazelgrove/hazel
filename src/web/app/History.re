@@ -1,18 +1,13 @@
 open Util;
 
-/* 50: even compacted snapshots cost ~5MB each on mega-scale programs
-   (zippers, frozen ctxs, master segments); a deep stack still OOMs.
-   Proper fix = zipper-level undo entries (docketed). */
-let capped_undo_stack_size = 50;
+/* compacted snapshots still hold zippers, frozen ctxs and master
+   segments: a deep stack runs out of memory on large programs */
+let capped_undo_stack_size = 250;
 
-/* Undo snapshots are COMPACTED: a raw Page.Model.t pins its
-   generation's derived caches — CachedSyntax (measured/term_data,
-   MBs per keystroke on large programs), statics maps, and decoded
-   worker eval states. None of that is needed to undo: the zipper is
-   the source of truth and everything else recomputes on restore
-   (syntax via the mark_old dummy, statics on the next edited
-   calculate, results by re-evaluating). Without this, editing a
-   mega-scale program leaked hundreds of MB within a few edits. */
+/* snapshots drop derived caches (syntax, statics, eval states), which
+   would pin memory per edit; restore rebuilds them from the zipper:
+   syntax via the mark_old dummy, statics on the next edited calculate,
+   results by re-evaluating */
 let dummy_syntax =
   lazy(
     Haz3lcore.CachedSyntax.mark_old(
@@ -34,14 +29,28 @@ let compact_cell = (c: CellEditor.Model.t): CellEditor.Model.t => {
   editor: {
     editor: {
       ...c.editor.editor,
-      syntax: Lazy.force(dummy_syntax),
+      /* its own incremental caches: restored editors sharing the dummy's
+         would keep evicting each other's */
+      syntax: {
+        ...Lazy.force(dummy_syntax),
+        m_cache: Haz3lcore.Measured.Incr.mk_cache(),
+        t_cache: Haz3lcore.MakeTerm.Incr.mk_cache(),
+      },
     },
     statics: Haz3lcore.CachedStatics.empty,
     dynamics: Language.Dynamics.Map.empty,
     context_menu: c.editor.context_menu,
   },
-  result: EvalResult.Model.init,
+  /* what autosave keeps (stepper position, theorem progress) survives
+     undo; the value re-evaluates */
+  result: EvalResult.Model.unpersist(EvalResult.Model.persist(c.result)),
 };
+
+let compact_program = (p: Program.t): Program.t =>
+  switch (p) {
+  | Whole(e) => Whole(compact_cell(e))
+  | Divided(d) => Divided(Divided.compact(compact_cell, d))
+  };
 
 let compact_scratch = (m: ScratchMode.Model.t): ScratchMode.Model.t => {
   ...m,
@@ -49,35 +58,17 @@ let compact_scratch = (m: ScratchMode.Model.t): ScratchMode.Model.t => {
     List.map(
       (sp: ScratchMode.Scratchpad.t) =>
         switch (sp.kind) {
-        | Code({editor, agent}) => {
+        | Code({program, _} as code) => {
             ...sp,
             kind:
               Code({
-                editor: compact_cell(editor),
-                agent,
+                ...code,
+                program: compact_program(program),
               }),
           }
         | Drv(_) => sp
         },
       m.scratchpads,
-    ),
-  focus:
-    Option.map(
-      (f: ScratchMode.Model.focus_t) =>
-        ScratchMode.Model.{
-          ...f,
-          f_entries:
-            List.map(
-              (e: ScratchMode.Model.stack_entry) =>
-                ScratchMode.Model.{
-                  ...e,
-                  e_header: compact_cell(e.e_header),
-                  e_body: compact_cell(e.e_body),
-                },
-              f.f_entries,
-            ),
-        },
-      m.focus,
     ),
 };
 
@@ -149,6 +140,21 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Page.Update.t;
 
+  /* only slide decks have views to realize; a flag copied out of the
+     settings follows them back */
+  let realize_view = (~schedule_action: t => unit, m: Page.Model.t) => {
+    Language.EvalWorklist.compute_enabled :=
+      m.globals.settings.show_incremental_deco;
+    switch (m.editors) {
+    | Scratch(_)
+    | Documentation(_) =>
+      schedule_action(Editors(Scratch(Workspace(RealizeView))))
+    | Tutorial(_)
+    | Exercises(_)
+    | Config(_) => ()
+    };
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   let update =
       (
@@ -165,13 +171,19 @@ module Update = {
       | [] =>
         print_endline("Cannot undo");
         model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        realize_view(~schedule_action, x.model);
+        {
           ...x,
           /* Compaction drops derived caches even for view-only edits. */
           is_edit: true,
           recalculate: true,
           model: {
-            current: restore(~current=model.current, x.model),
+            current:
+              restore(
+                ~current=model.current,
+                Page.carry_views(~from=model.current, x.model),
+              ),
             undo_stack: rest,
             redo_stack: [
               {
@@ -181,19 +193,25 @@ module Update = {
               ...model.redo_stack,
             ],
           },
-        }
+        };
       }
     | Globals(Redo) =>
       switch (model.redo_stack) {
       | [] =>
         print_endline("Cannot redo");
         model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        realize_view(~schedule_action, x.model);
+        {
           ...x,
           is_edit: true,
           recalculate: true,
           model: {
-            current: restore(~current=model.current, x.model),
+            current:
+              restore(
+                ~current=model.current,
+                Page.carry_views(~from=model.current, x.model),
+              ),
             undo_stack: [
               {
                 ...x,
@@ -203,7 +221,7 @@ module Update = {
             ],
             redo_stack: rest,
           },
-        }
+        };
       }
     | action =>
       let current =
@@ -225,8 +243,7 @@ module Update = {
           },
           ...model.undo_stack,
         ];
-        /* ALWAYS capped: unbounded full-model history was the other
-           half of the mega-scale OOM (the setting used to gate this) */
+        /* capped even when cap_undo_stack is off */
         let undo_stack =
           List.filteri((i, _) => i < capped_undo_stack_size, new_stack);
         {

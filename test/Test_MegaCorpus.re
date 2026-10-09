@@ -2,11 +2,8 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* Mega-corpus gate (hazel-programs/mega): each variant must
-   fast-parse, typecheck with ZERO error ids, evaluate to a non-indet
-   result, and have every `test` pass. Also reports Statics.mk wall
-   time. Register in test/haz3ltest.re to run:
-     bash test/run_node.sh test 'MegaCorpus' */
+/* each mega program fast-parses, has no static errors, passes every test,
+   and evaluates to true */
 
 let check_variant = (name: string): unit => {
   let path = "hazel-programs/mega/" ++ name;
@@ -70,8 +67,7 @@ let check_variant = (name: string): unit => {
           ),
         failing,
       );
-      /* the corpus programs end in `final.ok == N`: the result must be
-         literally `true` — one uniform, decisive gate */
+      /* the corpus programs end in `final.ok == N` */
       let result_true =
         switch (result.term) {
         | Atom(Bool(b)) => b

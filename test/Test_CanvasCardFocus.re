@@ -169,36 +169,48 @@ let tests = [
     () => {
       let (z, statics, dynamics, _, graph) =
         evaluate("[At(4), At(0), At(8), At(2), At(1)]");
-      let seg = Zipper.unselect_and_zip(z);
       let edge =
         List.find(
           (e: Web.CanvasGraph.edge) => e.e_name == "advance",
           graph.edges,
         );
-      let editors: Web.Editors.Model.t =
-        Scratch({
-          current: 0,
-          scratchpads: [],
-          focus:
-            Some({
-              /* Reuse the identical source segment to exercise the cache hit;
-                 edits to open cells take the separate rebuild path. */
-              f_entries: [],
-              f_master_seg: seg,
-            }),
-        });
       let original =
         Web.CodeWithStatics.Model.mk(
           ~statics,
           ~dynamics,
           Editor.Model.mk(~root=Exp, z),
         );
+      /* the program divided into cells: the canvas reads the joined
+         document, so the cache's hits and the focus are what's tested */
+      let whole: Web.CellEditor.Model.t = {
+        ...Web.CellEditor.Model.mk(Editor.Model.mk(~root=Exp, z)),
+        editor: original,
+      };
+      let d =
+        Web.Divided.split(
+          ~info_map=statics.info_map,
+          whole,
+          Test_StackFocus.outline_id(statics.term, "advance"),
+        )
+        |> Option.get;
+      let editors: Web.Editors.Model.t =
+        Scratch({
+          current: 0,
+          scratchpads: [
+            {
+              name: "Focus test",
+              kind:
+                Code({
+                  program: Divided(d),
+                  view: Web.SlideView.init,
+                  agent: Web.Agent.Utils.init(),
+                }),
+              dormant: false,
+            },
+          ],
+        });
       let shown = fallback =>
-        Web.Page.live_presentation_editor(
-          ~settings=Web.Settings.Model.init,
-          editors,
-          fallback,
-        );
+        Web.Page.live_presentation_editor(editors, fallback);
       Web.Page.presentation_master := None;
       let initial = shown(original);
       let samples = Id.Map.find(List.hd(edge.e_arg_ids), dynamics);

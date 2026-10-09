@@ -63,6 +63,7 @@ let utility: ProjectorBase.utility = {
 
 let mk_info =
     (
+      ~stepping: option(ProjectorBase.stepping)=None,
       p: Piece.projector,
       ~sample_focus: Sample.Focus.t,
       ~statics: Statics.Map.t,
@@ -108,6 +109,11 @@ let mk_info =
       None;
     };
   },
+  stepping:
+    switch (stepping) {
+    | Some(st) when st.span.probe_id == p.id => stepping
+    | _ => None
+    },
   utility,
 };
 

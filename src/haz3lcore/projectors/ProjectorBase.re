@@ -76,6 +76,14 @@ module Focusable = {
   };
 };
 
+/* A probe drawer stepping one sample in place of the samples; rows is
+   the stepper's height, which the web layer measures */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type stepping = {
+  span: Sample.span_ref,
+  rows: int,
+};
+
 /* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = {
@@ -105,6 +113,8 @@ type info = {
    * Available when statics/elaboration is enabled. The elaborated
    * form has labels inserted/rearranged by the elaborator. */
   elaborated: option(Language.Exp.t),
+  /* Set when this probe's drawer is stepping a sample */
+  stepping: option(stepping),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,

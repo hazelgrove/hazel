@@ -5,59 +5,6 @@ open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 
-/* console: window.__incrCounters() — MakeTerm.Incr observability
-   (fell_back should stay 0; analyzed ~1 per stacked edit) */
-/* console: window.__normCounters() — sparse remold/regrout regime
-   observability (fallbacks fire on structure-entering edits; a hot
-   fallback rate is the "forgotten spike" signal, ledger §17) */
-let () =
-  Js_of_ocaml.Js.Unsafe.set(
-    Js_of_ocaml.Js.Unsafe.global,
-    "__normCounters",
-    Js_of_ocaml.Js.wrap_callback(() =>
-      Js_of_ocaml.Js.string(
-        Printf.sprintf(
-          "sparse_hits=%d sparse_fallbacks=%d",
-          Haz3lcore.Zipper.sparse_hits^,
-          Haz3lcore.Zipper.sparse_fallbacks^,
-        ),
-      )
-    ),
-  );
-let () =
-  Js_of_ocaml.Js.Unsafe.set(
-    Js_of_ocaml.Js.Unsafe.global,
-    "__incrCountersReset",
-    Js_of_ocaml.Js.wrap_callback(() => {
-      Haz3lcore.MakeTerm.Incr.fell_back := 0;
-      Haz3lcore.MakeTerm.Incr.full_analyzed := 0;
-      Haz3lcore.MakeTerm.Incr.analyzed := 0;
-      Haz3lcore.MakeTerm.Incr.incr_calls := 0;
-      Haz3lcore.MakeTerm.Incr.incr_hits := 0;
-      Haz3lcore.MakeTerm.Incr.incr_misses := 0;
-    }),
-  );
-let () =
-  Js_of_ocaml.Js.Unsafe.set(
-    Js_of_ocaml.Js.Unsafe.global,
-    "__incrCounters",
-    Js_of_ocaml.Js.wrap_callback(() =>
-      Js_of_ocaml.Js.string(
-        Printf.sprintf(
-          "fell_back=%d full_analyzed=%d analyzed=%d calls=%d hits=%d misses=%d neq=%d nokey=%d",
-          Haz3lcore.MakeTerm.Incr.fell_back^,
-          Haz3lcore.MakeTerm.Incr.full_analyzed^,
-          Haz3lcore.MakeTerm.Incr.analyzed^,
-          Haz3lcore.MakeTerm.Incr.incr_calls^,
-          Haz3lcore.MakeTerm.Incr.incr_hits^,
-          Haz3lcore.MakeTerm.Incr.incr_misses^,
-          Haz3lcore.MakeTerm.Incr.incr_miss_neq^,
-          Haz3lcore.MakeTerm.Incr.incr_miss_nokey^,
-        ),
-      )
-    ),
-  );
-
 /* Per-slide scroll memory for tutorial mode. Each slide remembers where the
    user last left it; revisiting a slide restores that scroll position, while
    a slide that's never been scrolled opens at the top. */
@@ -91,7 +38,7 @@ let seed_visible_rows =
   let page = model.model.current.current;
   let needed =
     Editors.Model.supports_viewport_culling(page.editors)
-    && page.globals.settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    && Globals.VisibleRows.tracked(page.globals.settings)
     && Option.is_none(page.globals.visible_rows);
   if (needed) {
     switch (JsUtil.code_viewport_geometry()) {
@@ -141,13 +88,19 @@ let apply =
     | Globals(AppViewMsg(_)) => "Globals/AppViewMsg"
     | Globals(Undo | Redo) => "Globals/Undo"
     | Globals(_) => "Globals/other"
-    | Editors(Scratch(CellAction(MainEditor(_)))) => "Editors/CellAction/MainEditor"
-    | Editors(Scratch(CellAction(ResultAction(_)))) => "Editors/CellAction/Result"
-    | Editors(Scratch(StackBody(_) | StackHeader(_))) => "Editors/Stack"
-    | Editors(Scratch(AgentAction(_))) => "Editors/AgentAction"
+    | Editors(Scratch(Workspace(CellAction(MainEditor(_))))) => "Editors/CellAction/MainEditor"
+    | Editors(Scratch(Workspace(CellAction(ResultAction(_))))) => "Editors/CellAction/Result"
+    | Editors(Scratch(Workspace(StackBody(_) | StackHeader(_)))) => "Editors/Stack"
+    | Editors(Scratch(Workspace(AgentAction(_)))) => "Editors/AgentAction"
+    | Editors(Scratch(Workspace(MasterPerform(_)))) => "Editors/MasterPerform"
     | Editors(
-        Scratch(FocusDef(_) | FocusToggle(_) | FocusEnsure(_) | UnfocusDef),
+        Scratch(
+          Workspace(
+            FocusDef(_) | FocusToggle(_) | FocusEnsure(_) | UnfocusDef,
+          ),
+        ),
       ) => "Editors/Focus"
+    | Editors(Scratch(Outline(_))) => "Editors/Outline"
     | Editors(Scratch(_)) => "Editors/Scratch/other"
     | Editors(_) => "Editors/other"
     | ExplainThis(_) => "ExplainThis"
@@ -334,16 +287,18 @@ let start = default_model => {
           schedule_action(
             Page.Update.Editors(
               Editors.Update.Scratch(
-                ScratchMode.Update.AgentAction(
-                  Agent.Update.Action.ReplayToolCalls(
-                    List.mapi(
-                      (i, (name, args)) =>
-                        OpenRouter.Reply.Model.{
-                          id: "replay-" ++ string_of_int(i),
-                          name,
-                          args,
-                        },
-                      calls,
+                ScratchMode.Update.Workspace(
+                  AgentAction(
+                    Agent.Update.Action.ReplayToolCalls(
+                      List.mapi(
+                        (i, (name, args)) =>
+                          OpenRouter.Reply.Model.{
+                            id: "replay-" ++ string_of_int(i),
+                            name,
+                            args,
+                          },
+                        calls,
+                      ),
                     ),
                   ),
                 ),
@@ -357,8 +312,8 @@ let start = default_model => {
           schedule_action(
             Page.Update.Editors(
               Editors.Update.Scratch(
-                ScratchMode.Update.AgentAction(
-                  Agent.Update.Action.ReplayBegin(label),
+                ScratchMode.Update.Workspace(
+                  AgentAction(Agent.Update.Action.ReplayBegin(label)),
                 ),
               ),
             ),
@@ -375,7 +330,7 @@ let start = default_model => {
           );
           schedule_action(
             Page.Update.Editors(
-              Editors.Update.Scratch(ScratchMode.Update.AddSlide),
+              Editors.Update.Scratch(ScratchMode.Update.Deck(AddSlide)),
             ),
           );
         }
@@ -386,10 +341,12 @@ let start = default_model => {
           schedule_action(
             Page.Update.Editors(
               Editors.Update.Scratch(
-                ScratchMode.Update.CellAction(
-                  CellEditor.Update.MainEditor(
-                    CodeEditable.Update.Perform(
-                      Haz3lcore.Action.Paste(text),
+                ScratchMode.Update.Workspace(
+                  CellAction(
+                    CellEditor.Update.MainEditor(
+                      CodeEditable.Update.Perform(
+                        Haz3lcore.Action.Paste(text),
+                      ),
                     ),
                   ),
                 ),
@@ -412,8 +369,8 @@ let start = default_model => {
           schedule_action(
             Page.Update.Editors(
               Editors.Update.Scratch(
-                ScratchMode.Update.AgentAction(
-                  Agent.Update.Action.ReplayStreamTick,
+                ScratchMode.Update.Workspace(
+                  AgentAction(Agent.Update.Action.ReplayStreamTick),
                 ),
               ),
             ),
@@ -510,9 +467,36 @@ let start = default_model => {
           ~font_metrics,
           ~visible_rows=model.model.current.current.globals.visible_rows,
         );
+        OutlineFollow.update();
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
+        );
+        /* steppers and proofs reserve at least what they rendered, which
+           catches what a count misses: no drawer runs into the code */
+        let resized =
+          List.fold_left(
+            (changed, (id, n)) =>
+              switch (Haz3lcore.Id.of_string(id)) {
+              | Some(id) => Haz3lcore.DrawerFit.set_measured(id, n) || changed
+              | None => changed
+              },
+            false,
+            JsUtil.drawer_rows(~row_height=font_metrics.row_height),
+          );
+        if (resized) {
+          app_inject(Page.Update.Globals(RelayoutDrawers))
+          |> Bonsai.Effect.Expert.handle;
+        } else if (ProbeSteps.reveal^) {
+          /* a step taken: once the drawer has its rows, show the new step */
+          ProbeSteps.reveal := false;
+          JsUtil.reveal_last(".probe-stepper .step-border");
+        };
+        JsUtil.observe_drawer_width(~report=cols =>
+          if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {
+            app_inject(Page.Update.Globals(UpdateDrawerWidth(cols)))
+            |> Bonsai.Effect.Expert.handle;
+          }
         );
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();

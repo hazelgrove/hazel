@@ -33,6 +33,9 @@ type probe_model = {
      the nav bar only while this site holds the focus anchor */
   [@default false]
   card_mode: bool,
+  /* the ⇓ toggle's probe: its drawer and nothing at the line's end */
+  [@default false]
+  bare: bool,
 };
 
 let init_probe_model: probe_model = {
@@ -43,7 +46,17 @@ let init_probe_model: probe_model = {
   rich_off: false,
   sample_lengths: [],
   card_mode: false,
+  bare: false,
 };
+
+let tail_model: string =
+  {
+    ...init_probe_model,
+    drawer_mode: true,
+    bare: true,
+  }
+  |> sexp_of_probe_model
+  |> Sexplib.Sexp.to_string;
 
 /* Any deserialization failure resets to defaults (transient UI state). */
 let probe_model_of_sexp = sexp =>
@@ -56,6 +69,13 @@ let probe_model_of_sexp = sexp =>
     print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
     init_probe_model;
   | exception _ => init_probe_model
+  };
+
+/* the ⇓ probe's model, whatever local state it has picked up since */
+let is_bare = (model: string): bool =>
+  switch (Sexplib.Sexp.of_string(model)) {
+  | sexp => probe_model_of_sexp(sexp).bare
+  | exception _ => false
   };
 
 /* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
@@ -236,6 +256,36 @@ module Settings = {
   let on_sticky_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
     ref(_ => Virtual_dom.Vdom.Effect.Ignore);
 
+  /* Set by the web layer each render: the stepper a stepping drawer
+   * shows for a probe id, once its sample is ready. */
+  let steps_view: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
+    ref(_ => None);
+
+  /* Set by the web layer each render: for the ⇓ probe, what its drawer
+   * shows when the program stopped before reaching it (no value of its
+   * own), or None. */
+  let value_fallback: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
+    ref(_ => None);
+
+  /* Bumped when drawers must re-lay out (their print width or a
+   * measured height changed): CachedSyntax recomputes drawer rows when
+   * it moves. */
+  let layout = DrawerFit.layout;
+
+  /* drawers print values at the editor's visible width */
+  let set_drawer_width = (width: int) =>
+    if (width != s^.drawer.width) {
+      s :=
+        {
+          ...s^,
+          drawer: {
+            width: width,
+          },
+        };
+      version := version^ + 1;
+      layout := layout^ + 1;
+    };
+
   let set_sticky = (b: bool) => {
     sticky := b;
     version := version^ + 1;
@@ -313,6 +363,8 @@ type probe_ctx = {
   /* canvas type card: the chip's own dbl-click toggles do not apply
      (the card's dbl-click collapses it) */
   card: bool,
+  /* the ⇓ toggle's probe: a drawer only */
+  bare: bool,
   p_info: info,
 };
 
@@ -1076,6 +1128,21 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
     ],
   );
 
+let show_steps_action = (ctx: probe_ctx, sample: Sample.t) =>
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "show-steps-action"]),
+      Attr.on_pointerdown(_ =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          ctx.local(SetDropdown(None)),
+          ctx.parent(Probe(ShowSteps(Sample.ref_of_sample(sample)))),
+        ])
+      ),
+    ],
+    [text("Show steps")],
+  );
+
 let rich_probe_action =
     (ctx: probe_ctx, sample: Sample.t, r: packed_renderer): Node.t => {
   let is_active = ctx.active_renderer_id == Some(r.id);
@@ -1124,6 +1191,15 @@ let sample_primary_actions =
     )
     : list(Node.t) => {
   let rich_items = include_rich ? rich_probe_items(ctx, sample) : [];
+  /* a variable's or pattern's steps are just its value */
+  let steps =
+    switch (ctx.statics) {
+    | InfoExp({user_term: {term: Var(_), _}, _}) => false
+    | InfoExp(_) => true
+    | _ => false
+    };
+  let rich_items =
+    steps ? rich_items @ [show_steps_action(ctx, sample)] : rich_items;
   switch (ctx.ap_id) {
   | Some(ap_id) =>
     [pin_action(ctx, sample)]
@@ -1352,17 +1428,19 @@ let sample_context_sections =
 };
 
 let sample_context_menu =
-    (~show_env, ~drawer, ctx: probe_ctx, view_seg, sample: Sample.t)
-    : list(Node.t) => {
+    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): list(Node.t) => {
   let (has_env, has_call, nodes) =
     sample_context_sections(ctx, view_seg, sample);
-  /* In drawer mode `.below-wrapper`'s overflow would clip the menu, so promote it to a FloatingElement (position:fixed, tracked to its anchor). */
-  let floating = drawer && show_env;
+  /* An open menu floats (FloatingElement: position:fixed, tracked to its
+     sample) so no container clips it, and flips above or left when
+     there's no room. */
+  let floating = show_env;
   let float_attrs =
     floating
       ? [
         Attr.create("data-float-anchor-class", "sample"),
         Attr.create("data-float-anchor-edge", "bottom"),
+        Attr.create("data-float-flip", ""),
         Attr.create("data-float-local-top", "0"),
         Attr.create("data-float-local-left", "3"),
         /* Start hidden; update_all() positions + reveals after measuring. */
@@ -1458,14 +1536,7 @@ let sample_view =
     @ pin_view(ctx, sample)
     @ (
       render_dropdown
-        ? sample_context_menu(
-            ~show_env,
-            ~drawer=display == Block,
-            ctx,
-            view_seg,
-            sample,
-          )
-        : []
+        ? sample_context_menu(~show_env, ctx, view_seg, sample) : []
     ),
   );
 };
@@ -1786,7 +1857,9 @@ let key_handler =
   | D("Escape") when key.shift == Down =>
     blur_to_editor();
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
-  | D("Escape") when drawer_mode_active =>
+  | D("Escape") when ctx.p_info.stepping != None =>
+    Many([parent(Probe(HideSteps)), Stop_propagation, Prevent_default])
+  | D("Escape") when drawer_mode_active && !ctx.bare =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
     blur_to_editor();
@@ -1974,6 +2047,7 @@ let prepare_offside =
       auto_unbounded: model.auto_rich,
       card: model.card_mode,
       lengths: model.sample_lengths,
+      bare: model.bare,
       p_info: info,
     };
     let filtered_samples =
@@ -2121,7 +2195,8 @@ let live_offside_view =
   let base_classes =
     ["live-offside", settings.window |> Sample.Window.show_mode]
     @ (Settings.sticky^ ? ["sticky"] : [])
-    @ (scrollable ? ["drawer-overflow"] : []);
+    @ (scrollable ? ["drawer-overflow"] : [])
+    @ (ctx.bare ? ["program-value"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
     ~menu_open=Settings.open_dropdown^ != None,
@@ -2569,6 +2644,54 @@ let rich_drawer_view =
     @ [content],
   );
 
+/* A stepping drawer: the stepper in place of the samples. */
+/* a drawer the web layer fills keeps every click: the editor below would
+   take the pointer, or the probe's wrapper move the caret */
+let keep_clicks = [
+  Attr.on_pointerdown(_ => Effect.Stop_propagation),
+  Attr.on_mousedown(_ => Effect.Stop_propagation),
+  Attr.on_pointerup(_ => Effect.Stop_propagation),
+  Attr.on_mouseup(_ => Effect.Stop_propagation),
+  Attr.on_click(_ => Effect.Stop_propagation),
+  Attr.on_double_click(_ => Effect.Stop_propagation),
+  /* mouse state is global: a press on a step reads to the editor below as
+     its own drag, and the moves that follow would select there */
+  Attr.on_mousemove(_ => Effect.Stop_propagation),
+  Attr.on_contextmenu(_ =>
+    Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
+  ),
+];
+
+let steps_drawer_view = (~parent, ~overflowing: bool, info: info): Node.t =>
+  div(
+    ~attrs=
+      [
+        Attr.classes(
+          ["steps-drawer"] @ (overflowing ? ["overflowing"] : []),
+        ),
+        Attr.create("data-drawer-id", Id.to_string(info.id)),
+      ]
+      @ keep_clicks,
+    /* the stepper's own toggle closes it; until it's up, this does */
+    switch (Settings.steps_view^(info.id)) {
+    | Some(stepper) => [stepper]
+    | None => [
+        div(
+          ~attrs=[
+            Attr.classes(["rich-drawer-close"]),
+            Attr.title("Close steps (Esc)"),
+            Attr.on_click(_ => parent(Probe(HideSteps))),
+          ],
+          [text("×")],
+        ),
+        div(
+          ~attrs=[Attr.classes(["steps-pending"])],
+          [text("Stepping…")],
+        ),
+      ]
+    },
+  );
+
 /* Rows the active rich renderer wants in the drawer, when it applies to
  * the indicated value. */
 let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
@@ -2667,7 +2790,7 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (model: model, info) =>
+  let placeholder_samples = (model: model, info) =>
     if (model.drawer_mode) {
       let rows =
         switch (rich_drawer_rows(model, info)) {
@@ -2680,6 +2803,18 @@ module M: Projector = {
       };
     } else {
       ProjectorCore.Shape.default;
+    };
+
+  let placeholder = (model: model, info: info) =>
+    switch (info.stepping) {
+    | Some(st) =>
+      /* uncapped: steps are worked through, so the drawer opens to the
+         whole trace instead of scrolling inside itself */
+      ProjectorCore.Shape.{
+        horizontal: 0,
+        vertical: Tab(max(1, DrawerFit.rows(info.id, st.rows))),
+      }
+    | None => placeholder_samples(model, info)
     };
 
   let update = (model: model, info: info, a: action): model => {
@@ -2839,9 +2974,11 @@ module M: Projector = {
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
       prepare_offside(info, local, parent, ~settings, ~sort, ~model);
-    let drawer = model.drawer_mode && !model.card_mode;
+    let stepping = info.stepping != None;
+    let drawer = model.drawer_mode && !model.card_mode || stepping;
     let offside_main =
       switch (data_opt, drawer) {
+      | (_, true) when model.bare => Node.div([])
       | (None, _) => empty_view(~id=info.id, ~settings)
       | (Some(data), _) when model.card_mode =>
         card_view(data, local, view_seg, ~settings)
@@ -2862,46 +2999,54 @@ module M: Projector = {
     /* Content taller than the drawer cap → the drawer scrolls; gates the
      * wrapper's scroll-affordance fade and the rich view's overflow clip. */
     let drawer_overflow =
-      drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > DrawerHeight.max_rows
-        | None =>
-          DrawerHeight.content_rows(~lengths=model.sample_lengths, info)
-          > DrawerHeight.max_rows
-        }
-      );
+      switch (info.stepping) {
+      | Some(_) => false
+      | None =>
+        drawer
+        && (
+          switch (rich_drawer_rows(model, info)) {
+          | Some(n) => n > DrawerHeight.max_rows
+          | None =>
+            DrawerHeight.content_rows(~lengths=model.sample_lengths, info)
+            > DrawerHeight.max_rows
+          }
+        )
+      };
     /* In drawer mode an active rich renderer replaces the sample view in
      * the drawer itself; the anchored modal overlay is inline-mode only
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
-      drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > inline_rows_cap
-        | None => false
-        }
-      )
-        ? rich_content(
-            ~settings,
-            model,
-            info,
-            ~local,
-            ~parent,
-            ~view_seg,
-            ~sort,
+      stepping
+        ? Some(
+            steps_drawer_view(~parent, ~overflowing=drawer_overflow, info),
           )
-          |> Option.map(content =>
-               rich_drawer_view(
-                 ~local,
-                 ~overflowing=drawer_overflow,
-                 /* auto-rich (no explicit renderer) has nothing to close:
-                    dismissal would just re-trigger */
-                 ~closable=model.active_renderer != None,
-                 content,
-               )
-             )
-        : None;
+        : drawer
+          && (
+            switch (rich_drawer_rows(model, info)) {
+            | Some(n) => n > inline_rows_cap
+            | None => false
+            }
+          )
+            ? rich_content(
+                ~settings,
+                model,
+                info,
+                ~local,
+                ~parent,
+                ~view_seg,
+                ~sort,
+              )
+              |> Option.map(content =>
+                   rich_drawer_view(
+                     ~local,
+                     ~overflowing=drawer_overflow,
+                     /* auto-rich (no explicit renderer) has nothing to close:
+                        dismissal would just re-trigger */
+                     ~closable=model.active_renderer != None,
+                     content,
+                   )
+                 )
+            : None;
     /* the anchored modal is retired: small rich views replace the
        offside row, big ones live in the drawer */
     let modal_nodes = [];
@@ -2919,6 +3064,10 @@ module M: Projector = {
       offside: Some(offside_node),
       below:
         switch (data_opt, drawer) {
+        /* the program stopped short of the ⇓ probe: how far it got */
+        | (_, true)
+            when model.bare && Settings.value_fallback^(info.id) != None =>
+          Settings.value_fallback^(info.id)
         | (Some(data), true) =>
           Some(
             live_offside_view(

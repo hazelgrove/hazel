@@ -409,7 +409,7 @@ let view =
                               globals.inject_global(Set(ToggleCanvasMain)),
                               editors_inject(
                                 Editors.Update.Scratch(
-                                  ScratchMode.Update.UnfocusDef,
+                                  ScratchMode.Update.Workspace(UnfocusDef),
                                 ),
                               ),
                             ])

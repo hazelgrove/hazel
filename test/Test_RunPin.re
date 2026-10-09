@@ -4,11 +4,8 @@ open Language;
 module OutlineTree = Web.OutlineTree;
 module Focus = Web.ScratchFocus;
 
-/* Tests-container pinning opens ONE run cell at every block depth
-   (andrew's report: module containers pinned each test individually
-   while top-level containers opened one cell). Gates: the run entry
-   spans all container members, top-level and module alike, and an
-   unedited run cell splices home exactly. */
+/* pinning a tests container, top-level or in a module, opens one run cell
+   over all its members; unedited, it splices home exactly */
 
 let settings = CoreSettings.on;
 
@@ -45,16 +42,13 @@ let check_run_pin =
   | None => fail(label ++ ": mk_run_entry returned None")
   | Some(e) =>
     check(bool, label ++ ": entry is a run cell", true, e.e_run);
-    /* members carry BOTH id domains (statement `;` reps and test tile
-       reps) — the outline's kid ids must all be covered */
+    /* members carry both statement `;` and test tile ids */
     check(
       bool,
       label ++ ": members cover the container's kids",
       true,
       List.for_all(id => List.mem(id, e.e_members), ids),
     );
-    /* unedited round trip: splicing the untouched cell home must
-       reproduce the master exactly */
     check(
       bool,
       label ++ ": unedited splice is exact",
@@ -120,4 +114,49 @@ let cases = [
   ),
 ];
 
-let tests = [("RunPin", cases)];
+/* with a run open, the outline reaches its last test too: that row is
+   the test's `;`, which stays outside the run's cell */
+let last_member_jump = () => {
+  let seg = seg_of_text("let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na");
+  let term = MakeTerm.go(seg).term;
+  let info_map = DefStatics.calc(~settings, term).merged;
+  let ids =
+    switch (containers(OutlineTree.of_term(term))) {
+    | [c, ..._] => kid_ids(c)
+    | [] => fail("no tests container")
+    };
+  let (first, last) =
+    switch (ids, List.rev(ids)) {
+    | ([first, ..._], [last, ..._]) => (first, last)
+    | _ => fail("no tests")
+    };
+  let editor = Focus.cell_of_seg(seg);
+  let d =
+    switch (Web.Divided.split_run(~info_map, editor, first)) {
+    | Some(d) => d
+    | None => fail("split_run")
+    };
+  let second_test =
+    switch (Focus.test_before_semi(last, seg)) {
+    | Some(id) => id
+    | None => fail("no test before the last ;")
+    };
+  switch (Web.ScratchMode.Selection.jump_in_divided(last, d)) {
+  | Some((
+      Workspace(
+        StackBody(_, MainEditor(Perform(Move(Goal(TileId(target)))))),
+      ),
+      _,
+    )) =>
+    check(bool, "to the last test", true, target == second_test)
+  | _ => fail("no jump to the last test")
+  };
+};
+
+let tests = [
+  (
+    "RunPin",
+    cases
+    @ [test_case("the last member is reachable", `Quick, last_member_jump)],
+  ),
+];

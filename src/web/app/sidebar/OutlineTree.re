@@ -1,29 +1,25 @@
 open Language;
 
-/* OutlineTree — the module/definition tree behind the outline sidebar
-   (plans/modular-editors.md §1). Walks the program term: top-level
-   definitions, module members (recursively), let-in / type-in
-   definitions inside function bodies, and — at TOP level only —
-   semicolon statements (tests grouped into a container) plus the
-   trailing expression (the symbolic ⇒ row). Every node carries a
-   jump id in the chain-item id domain (DefStatics/Restructure). */
+/* the module/definition tree behind the outline sidebar: definitions,
+   module members and nested lets, plus `…;` statements and trailing ⇒
+   rows. row ids are chain-item ids (as in DefStatics and ItemEdit) */
 
 type kind =
   | KModule
   | KFn
   | KConst
   | KType
-  | KTest /* one top-level `test … end;` statement */
+  | KTest /* one `test … end;` statement */
   | KTests /* container for a contiguous run of tests */
-  | KStmt /* any other top-level `…;` statement */
-  | KTrail; /* the program's trailing expression */
+  | KStmt /* any other `…;` statement */
+  | KTrail; /* a block's trailing expression */
 
 type node = {
   o_label: string,
   o_kind: kind,
   o_id: option(Id.t),
-  /* KTest: the Test term's own id — test-result lookup (o_id is the
-     enclosing Seq item, the open/jump/restructure handle) */
+  /* KTest: the Test term's own id, for result lookup (o_id is the
+     enclosing item, the open/jump/restructure handle) */
   o_test: option(Id.t),
   o_children: list(node),
 };
@@ -50,11 +46,9 @@ let rec pat_name = (p: Pat.t): option(string) =>
   | _ => None
   };
 
-/* every BLOCK — the top-level program, a named function's body — is
-   an item chain: defs, `…;` statements (tests get status rows), and
-   the trailing body. Nested blocks show their ⇒ row only when the
-   block actually has other items (a def-less body gets no lone ⇒);
-   the top level keeps ⇒ unconditionally (it anchors the result). */
+/* a block (the program, a function body) is an item chain: defs, `…;`
+   statements and the trailing body. a nested block shows its ⇒ row only
+   beside other items; the top level always does (it anchors the result) */
 let rec of_exp = (~top=false, e: Exp.t): list(node) => {
   let e = strip_exp(e);
   switch (e.term) {
@@ -112,8 +106,8 @@ let rec of_exp = (~top=false, e: Exp.t): list(node) => {
         ]
       };
     entry @ of_exp(~top, body);
-  /* a Module ROOT (mod-rooted editors, plans/mod-root.md): its items
-     ARE the program's top level — no wrapper row */
+  /* a Module root: its items are the program's top level, with no
+     wrapper row */
   | Module(items) when top => of_mod(items)
   | _ when top => [
       {
@@ -128,8 +122,7 @@ let rec of_exp = (~top=false, e: Exp.t): list(node) => {
   };
 }
 
-/* a nested block (function body): items plus — only if divided — its
-   trailing body as a ⇒ row */
+/* a function body's items, plus its trailing body as a ⇒ row if any */
 and of_block = (fbody: Exp.t): list(node) => {
   let items = of_exp(fbody);
   switch (items) {
@@ -245,9 +238,8 @@ and of_mod = (items: list(Language.Mod.t)): list(node) =>
     items,
   );
 
-/* group each contiguous run of ≥2 tests (at ANY block level) under a
-   container row (aggregate ✓/✗ in the view); singleton tests stay
-   flat */
+/* each run of ≥2 tests, at any level, goes under a container row; a lone
+   test stays flat */
 let rec group_tests = (ns: list(node)): list(node) =>
   switch (ns) {
   | [] => []
@@ -302,24 +294,17 @@ let number_tests = (ns: list(node)): list(node) => {
   go(ns);
 };
 
-/* memoized on the term's PHYSICAL identity: statics rebuilds the term
-   only when the program changes, so between edits (and on every
-   render while a focus stack is open) this is a pointer compare —
-   the unmemoized walk was O(program) per keystroke */
-let cache: ref(option((Exp.t, list(node)))) = ref(None);
+/* memoized on the term's physical identity, which statics keeps until
+   the program changes */
+let cache: Util.Slot.t(Exp.t, list(node)) = Util.Slot.mk();
 
 let of_term = (e: Exp.t): list(node) =>
-  switch (cache^) {
-  | Some((prev, tree)) when prev === e => tree
-  | _ =>
-    let tree = of_exp(~top=true, e) |> group_tests |> number_tests;
-    cache := Some((e, tree));
-    tree;
-  };
+  Util.Slot.get(cache, e, () =>
+    of_exp(~top=true, e) |> group_tests |> number_tests
+  );
 
-/* ancestor labels of the node with id [fid], outermost first — the
-   stacked header's qualifier chip (e.g. ["Geo"] for a member of
-   module Geo, ["Geo", "area"] for a let nested in a member fn) */
+/* ancestor labels of the node with id [fid], outermost first, for the
+   stacked header's qualifier chip (["Geo"] for a member of module Geo) */
 let path_of = (fid: Id.t, e: Exp.t): list(string) => {
   let rec go = (trail, ns: list(node)) =>
     List.fold_left(
@@ -337,12 +322,9 @@ let path_of = (fid: Id.t, e: Exp.t): list(string) => {
   go([], of_term(e)) |> Option.value(~default=[]);
 };
 
-/* durable NAME anchor for a row: outline labels root-to-node,
-   OCCURRENCE-qualified — labels alone are not unique (duplicate
-   definitions, two separated `tests` groups), and first-match
-   resolution crossed wires between them. Text-backed persistence
-   re-mints ids on every load, so pins save as these paths and
-   re-resolve against the loaded outline. */
+/* a durable name for a row: its labels root to node, each qualified by
+   occurrence (labels repeat). persistence re-mints ids on load, so pins
+   save as paths and re-resolve against the loaded outline */
 open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type path_seg = {
@@ -352,50 +334,58 @@ type path_seg = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type path = list(path_seg);
 
-/* pair each node with its occurrence index — the ONE counting
-   discipline shared by label_path, resolve_path, and the sidebar's
-   collapse paths (diverging counters would cross wires again) */
-let with_occurrences = (ns: list(node)): list((node, int)) => {
+/* each row's path segment: its label and its index among same-labeled
+   siblings; tests and test groups go by the named row before them
+   (`tests@b`), so adding a test elsewhere leaves them put. label_path,
+   resolve_path and the sidebar's collapse paths must all count here */
+let segs = (ns: list(node)): list((node, path_seg)) => {
   let seen: Hashtbl.t(string, int) = Hashtbl.create(8);
+  let prev = ref("");
   List.map(
     n => {
-      let k = Hashtbl.find_opt(seen, n.o_label) |> Option.value(~default=0);
-      Hashtbl.replace(seen, n.o_label, k + 1);
-      (n, k);
+      let l =
+        switch (n.o_kind) {
+        | KTest => "test@" ++ prev^
+        | KTests => "tests@" ++ prev^
+        | _ => n.o_label
+        };
+      let k = Hashtbl.find_opt(seen, l) |> Option.value(~default=0);
+      Hashtbl.replace(seen, l, k + 1);
+      if (n.o_label != "" && n.o_kind != KTest && n.o_kind != KTests) {
+        prev := n.o_label;
+      };
+      (
+        n,
+        {
+          s_label: l,
+          s_occ: k,
+        },
+      );
     },
     ns,
   );
 };
 
 let label_path = (fid: Id.t, e: Exp.t): option(path) => {
-  let rec go = (trail, ns: list((node, int))) =>
+  let rec go = (trail, ns: list((node, path_seg))) =>
     List.fold_left(
-      (acc, (n, occ)) => {
-        let seg = {
-          s_label: n.o_label,
-          s_occ: occ,
-        };
+      (acc, (n, seg)) =>
         switch (acc) {
         | Some(_) => acc
         | None =>
           n.o_id == Some(fid)
             ? Some(List.rev([seg, ...trail]))
-            : go([seg, ...trail], with_occurrences(n.o_children))
-        };
-      },
+            : go([seg, ...trail], segs(n.o_children))
+        },
       None,
       ns,
     );
-  go([], with_occurrences(of_term(e)));
+  go([], segs(of_term(e)));
 };
 
 let resolve_path = (path: path, e: Exp.t): option(Id.t) => {
   let find = (seg: path_seg, ns: list(node)): option(node) =>
-    with_occurrences(ns)
-    |> List.find_opt(((n, occ)) =>
-         n.o_label == seg.s_label && occ == seg.s_occ
-       )
-    |> Option.map(fst);
+    segs(ns) |> List.find_opt(((_, s)) => s == seg) |> Option.map(fst);
   let rec go = (path, ns: list(node)) =>
     switch (path) {
     | [] => None
@@ -409,7 +399,25 @@ let resolve_path = (path: path, e: Exp.t): option(Id.t) => {
   go(path, of_term(e));
 };
 
-/* the kind of the row with id [fid], if any */
+/* the headerless rows' ids (⇒ and `;`) */
+let headless_row_ids = (e: Exp.t): Id.Map.t(unit) => {
+  let rec go = (acc, ns: list(node)) =>
+    List.fold_left(
+      (acc, n) =>
+        go(
+          switch (n.o_id) {
+          | Some(id) when n.o_kind == KTrail || n.o_kind == KStmt =>
+            Id.Map.add(id, (), acc)
+          | _ => acc
+          },
+          n.o_children,
+        ),
+      acc,
+      ns,
+    );
+  go(Id.Map.empty, of_term(e));
+};
+
 let kind_of = (fid: Id.t, e: Exp.t): option(kind) => {
   let rec go = (ns: list(node)) =>
     List.fold_left(
@@ -424,8 +432,8 @@ let kind_of = (fid: Id.t, e: Exp.t): option(kind) => {
   go(of_term(e));
 };
 
-/* every id in the SUBTREE rooted at [fid] (excluding fid itself) —
-   pinning a parent unpins its pinned descendants */
+/* ids below [fid] (not fid itself): pinning a parent unpins its pinned
+   descendants */
 let descendant_ids = (fid: Id.t, e: Exp.t): list(Id.t) => {
   let rec collect = (ns: list(node)): list(Id.t) =>
     List.concat_map(
@@ -447,3 +455,99 @@ let descendant_ids = (fid: Id.t, e: Exp.t): list(Id.t) => {
   | None => []
   };
 };
+
+/* ids of the rows from the top level down to [fid], inclusive; rows
+   without ids (test containers) are skipped */
+let trail_of = (fid: Id.t, e: Exp.t): option(list(Id.t)) => {
+  let rec go = (trail, ns: list(node)) =>
+    List.fold_left(
+      (acc, n) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None =>
+          let trail =
+            switch (n.o_id) {
+            | Some(id) => [id, ...trail]
+            | None => trail
+            };
+          n.o_id == Some(fid)
+            ? Some(List.rev(trail)) : go(trail, n.o_children);
+        },
+      None,
+      ns,
+    );
+  go([], of_term(e));
+};
+
+let node_of = (fid: Id.t, e: Exp.t): option(node) => {
+  let rec go = (ns: list(node)) =>
+    List.fold_left(
+      (acc, n) =>
+        switch (acc) {
+        | Some(_) => acc
+        | None => n.o_id == Some(fid) ? Some(n) : go(n.o_children)
+        },
+      None,
+      ns,
+    );
+  go(of_term(e));
+};
+
+/* the row that takes [fid]'s place once it's deleted: the next sibling,
+   else the one before, else its parent */
+let successor = (fid: Id.t, e: Exp.t): option(Id.t) => {
+  let first_id = List.find_map((n: node) => n.o_id);
+  let rec go = (parent, ns: list(node)): option(option(Id.t)) => {
+    let rec split = (before, xs: list(node)) =>
+      switch (xs) {
+      | [n, ...rest] when n.o_id == Some(fid) => Some((before, rest))
+      | [n, ...rest] => split([n, ...before], rest)
+      | [] => None
+      };
+    switch (split([], ns)) {
+    | Some((before, after)) =>
+      Some(
+        switch (first_id(after), first_id(before)) {
+        | (Some(id), _)
+        | (None, Some(id)) => Some(id)
+        | (None, None) => parent
+        },
+      )
+    | None =>
+      List.fold_left(
+        (acc, n: node) =>
+          switch (acc) {
+          | Some(_) => acc
+          | None => go(n.o_id == None ? parent : n.o_id, n.o_children)
+          },
+        None,
+        ns,
+      )
+    };
+  };
+  go(None, of_term(e)) |> Option.join;
+};
+
+/* every row id, memoized on the term like [of_term] */
+let row_ids_cache: Slot.t(Exp.t, Id.Map.t(unit)) = Slot.mk();
+let row_ids = (e: Exp.t): Id.Map.t(unit) =>
+  Slot.get(
+    row_ids_cache,
+    e,
+    () => {
+      let rec go = (acc, ns: list(node)) =>
+        List.fold_left(
+          (acc, n) =>
+            go(
+              switch (n.o_id) {
+              | Some(id) => Id.Map.add(id, (), acc)
+              | None => acc
+              },
+              n.o_children,
+            ),
+          acc,
+          ns,
+        );
+      go(Id.Map.empty, of_term(e));
+    },
+  );

@@ -84,12 +84,12 @@ let canvas_fixture = (): History.Model.t => {
   let sp = List.nth(scratch.scratchpads, scratch.current);
   let sp =
     switch (sp.kind) {
-    | Code({agent, _}) => {
+    | Code(code) => {
         ...sp,
         kind:
           Code({
-            editor: ed,
-            agent,
+            ...code,
+            program: Whole(ed),
           }),
       }
     | _ => failwith("expected code")
@@ -101,12 +101,58 @@ let canvas_fixture = (): History.Model.t => {
       editors:
         Scratch({
           ...scratch,
-          focus: None,
           scratchpads:
             Util.ListUtil.put_nth(scratch.current, sp, scratch.scratchpads),
         }),
     },
   };
+};
+
+/* the slide's whole program, divided or not */
+let program_of = (model: History.Model.t): Program.t =>
+  switch (model.current.editors) {
+  | Scratch(sm) =>
+    switch (ScratchMode.Model.current_program(sm)) {
+    | Some(p) => p
+    | None => failwith("expected a code slide")
+    }
+  | _ => failwith("expected scratch")
+  };
+let whole_term = model => Program.statics(program_of(model)).term;
+let whole_text = model =>
+  Program.document(program_of(model))
+  |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
+
+/* the outline shows in every mode; outside the decks a click still
+   moves its cursor, where it used to be refused as an invalid action */
+let outline_click_outside_decks = () => {
+  let model = mk_model();
+  let globals = model.current.globals;
+  let editors: Editors.Model.t =
+    Config(Editors.Store.load_config(~settings=globals.settings.core));
+  let model = {
+    ...model,
+    current: {
+      ...model.current,
+      editors,
+      selection: Editors.Selection.default_selection(editors),
+    },
+  };
+  let path =
+    Some([
+      OutlineTree.{
+        s_label: "x",
+        s_occ: 0,
+      },
+    ]);
+  OutlineControl.cursor := None;
+  let _ = apply(model, Editors(Scratch(Outline(Cursor(path)))));
+  Alcotest.(check(bool))(
+    "the cursor moved",
+    true,
+    OutlineControl.cursor^ == path,
+  );
+  OutlineControl.cursor := None;
 };
 
 let tests = (
@@ -177,16 +223,12 @@ let tests = (
       `Quick,
       () => {
         let m0 = canvas_fixture();
-        let fid =
-          Test_StackFocus.outline_id(
-            Page.Update.get_editor(m0.current).statics.term,
-            "f",
-          );
-        let m1 = apply(m0, Editors(Scratch(FocusDef(fid))));
+        let fid = Test_StackFocus.outline_id(whole_term(m0), "f");
+        let m1 = apply(m0, Editors(Scratch(Workspace(FocusDef(fid)))));
         let m2 =
           apply(
             m1,
-            Editors(Scratch(OutlineDefOp(OutlineSidebar.Delete, fid))),
+            Editors(Scratch(Outline(DefOp(OutlineSidebar.Delete, fid)))),
           );
         let actions: list(Page.Update.t) = [
           Globals(Set(Sidebar(SetCanvasFocusTy(None)))),
@@ -209,12 +251,11 @@ let tests = (
             ~dynamics=false,
             restored,
           );
-        let term = Page.Update.get_editor(restored.current).statics.term;
         check(
           bool,
           "restored outline has the deleted definition",
           true,
-          Test_StackFocus.outline_id(term, "f") == fid,
+          Test_StackFocus.outline_id(whole_term(restored), "f") == fid,
         );
         let m4 = List.fold_left(apply, restored, actions);
         check(int, "display updates preserve redo", 1, redo_len(m4));
@@ -224,7 +265,11 @@ let tests = (
           "redo removes the definition",
           false,
           switch (
-            Str.search_forward(Str.regexp_string("let f"), text_of(m5), 0)
+            Str.search_forward(
+              Str.regexp_string("let f"),
+              whole_text(m5),
+              0,
+            )
           ) {
           | _ => true
           | exception Not_found => false
@@ -262,9 +307,7 @@ let tests = (
         check(int, "edit pushed one undo entry", 1, undo_len(m1));
         let m2 = apply(m1, undo);
         check(string, "undo restores original text", t0, text_of(m2));
-        /* snapshots are COMPACTED (derived caches dropped, recomputed
-           on restore), so physical identity no longer holds — source
-           state (the text, checked above) is the restoration contract */
+        /* compacted snapshots: text, not physical identity, is the contract */
         check(int, "undo stack is empty again", 0, undo_len(m2));
         check(int, "undone edit moved to redo stack", 1, redo_len(m2));
       },
@@ -320,7 +363,6 @@ let tests = (
         let m2 = apply(m1, undo);
         let m3 = apply(m2, redo);
         check(string, "redo restores the edited text", t1, text_of(m3));
-        /* compacted snapshots: text equality (above) is the contract */
         check(int, "redo moved the entry back to undo", 1, undo_len(m3));
         check(int, "redo stack is empty again", 0, redo_len(m3));
         switch (apply(m3, redo)) {
@@ -362,6 +404,11 @@ let tests = (
           text_of(m4),
         );
       },
+    ),
+    test_case(
+      "an outline click outside the decks moves its cursor",
+      `Quick,
+      outline_click_outside_decks,
     ),
   ],
 );

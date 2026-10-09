@@ -380,6 +380,7 @@ let probe_run = (text: string) => {
         ~settings=CoreSettings.on,
         ~info_map,
         ~probe_ids,
+        (),
       );
     let (_, state) =
       Evaluator.evaluate(
@@ -758,6 +759,7 @@ shift(p0)";
         ~settings,
         ~info_map,
         ~probe_ids,
+        (),
       );
     let (_, state) =
       Evaluator.evaluate(

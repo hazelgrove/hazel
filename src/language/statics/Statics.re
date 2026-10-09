@@ -4499,16 +4499,10 @@ let mk_impl = ((ana, ctx, e, probe_ids)) => {
   (m_ref^, elab);
 };
 
-/* Memo on the TERM'S PHYSICAL identity, small and bounded. The old
-   Core.Memo.general(~cache_size_bound=1000) with polymorphic hash+eq
-   was measured (Test_BenchStatics memo probe): every id-stable edit
-   version of a program collides into one hash bucket, and — worse —
-   up to 1000 entries each retain a whole (term, ctx) key plus a whole
-   (info_map, elaborated) result, a memory trap on large programs. All
-   hits that actually occur are physically-identical terms (MakeTerm's
-   own memo keeps terms pointer-stable between edits), so a K-entry
-   pointer-keyed LRU keeps every real hit. The small components (ana,
-   probe_ids) are rebuilt per call, so they compare structurally. */
+/* small LRU keyed on term and ctx identity: real hits are physically
+   identical terms (MakeTerm keeps them pointer-stable), and a large
+   structural memo would retain whole programs and their info maps.
+   ana and probe_ids are rebuilt per call, so compare structurally */
 let mk_cache:
   ref(list(((Typ.t, Ctx.t, Exp.t, Id.Map.t(unit)), (Map.t, Exp.t)))) =
   ref([]);
@@ -4541,8 +4535,8 @@ let mk = ((ana, ctx, e, probe_ids) as key) => {
   };
 };
 
-/* For callers that manage their own caching (DefStatics): skips the
-   memo so per-item calls don't churn its small LRU. */
+/* bypasses the memo, for callers that cache for themselves: per-item
+   calls would churn its small LRU */
 let mk_unmemoized =
     (
       ~ana=Typ.temp(Unknown(SynSwitch)),

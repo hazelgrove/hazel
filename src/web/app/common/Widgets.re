@@ -68,7 +68,12 @@ let toggle = (~tooltip="", label, active, action) =>
       Attr.on_pointerdown(action),
       Attr.title(tooltip),
     ],
-    [div(~attrs=[clss(["toggle-knob"])], [text(label)])],
+    [
+      div(
+        ~attrs=[clss(["toggle-knob"])],
+        [span(~attrs=[clss(["toggle-label"])], [text(label)])],
+      ),
+    ],
   );
 
 let toggle_named = (~name="", ~tooltip=?, icon, active, action) => {

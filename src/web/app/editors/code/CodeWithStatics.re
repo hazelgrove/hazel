@@ -173,14 +173,14 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
+        ~tail_probe=false,
+        ~proofs=Haz3lcore.AutoProbePerform.NoProofs,
         ~is_edited,
         ~statics_mode: StaticsMode.t=Normal,
         ~compositional=false,
         ~ctx=?,
-        /* PROJECTED statics (stack cells): the whole-program item
-           analysis scoped to this cell — replaces the private init_*
-           run on recompute frames (one statics run per item; cells
-           read it) */
+        /* stack cells: the whole-program item analysis scoped to this
+           cell, used instead of a private init on recompute frames */
         ~projected: option(CachedStatics.t)=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
@@ -199,34 +199,94 @@ module Update = {
     if (masked_now(settings)) {
       ();
     };
-    /* Throttle gate: decide whether to do a full statics recompute this
-     * frame. When we reuse, `statics` keeps its ref — CachedSyntax.calculate
-     * then skips the shape pass via phys-eq on info_map/elaborated.
-     * PROBE EXCEPTION: probe ids are an ANALYSIS input (per-node
-     * probe_targets witnesses) — deferring the recompute lets this
-     * frame's eval request go out with fresh targets but a stale map,
-     * and the worker's incremental cache then replays sampleless until
-     * the next edit. A probe change recomputes NOW (cheap: DefStatics
-     * probe-aware dirtying re-analyzes only the probed item). */
+    /* Throttle gate for a full statics recompute. Reuse keeps the `statics`
+     * ref, so CachedSyntax.calculate skips the shape pass (phys-eq).
+     * Probe ids are an analysis input: deferring would send this frame's
+     * eval a stale map and leave the probe sampleless, so a probe change
+     * recomputes now. */
+    let probes_differ = (z, statics: CachedStatics.t) =>
+      !
+        Language.Id.Map.equal(
+          (==),
+          CachedStatics.probe_ids_of_zipper(z),
+          statics.pins,
+        );
     /* dynamics-requesting projectors (livelit uses, HTML apps) count as
-       probes: statics folds a livelit use's VIEW into the evaluation
-       only for probed ids, and without that sample the projector falls
-       back to evaluating the raw model itself — which breaks as soon
-       as an interaction leaves the `^name.update(prev, a)` redex in
-       the syntax (^name is unbound in the builtin env) */
+       probes in the analysis: statics folds a livelit use's VIEW into the
+       evaluation only for probed ids, and without that sample the
+       projector falls back to evaluating the raw model itself — which
+       breaks as soon as an interaction leaves the `^name.update(prev, a)`
+       redex in the syntax (^name is unbound in the builtin env) */
     let zipper_probe_ids = (editor: Editor.t) =>
       CachedStatics.probe_ids_of_zipper(
         ~projectors=editor.syntax.projectors,
         editor.state.zipper,
       );
-    let probes_changed =
-      Id.Map.compare(compare, zipper_probe_ids(editor), statics.probe_ids)
-      != 0;
+    /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
+     * not a stale captured one. A recompute first takes the statics the agent
+     * tool path OFFERED for this very program (CachedStatics.offered_for),
+     * computed there for its error check — one statics pass per tool call
+     * instead of several. The offer is a monolithic init, so compositional
+     * (per-item) editors compute their own. */
+    let do_init = (editor: Editor.t) =>
+      switch (
+        ctx == None
+        && ana == None
+        && !is_dynamic_term
+        && !compositional
+        && editor.root == Sort.Exp
+          ? CachedStatics.offered_for(~settings, editor.state.zipper) : None
+      ) {
+      | Some(st) when stitch(st.term) === st.term => st
+      | Some(_)
+      | None =>
+        PerfMetrics.time_statics(() =>
+          Util.PerfTimer.time("editor-statics", () =>
+            editor.root == Sort.Typ
+              /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
+                 entries for the inspector) under the provided ctx */
+              ? CachedStatics.init_typ(~settings, ~ctx?, editor.state.zipper)
+              : editor.root == Sort.Pat
+                  ? CachedStatics.init_pat(
+                      ~settings,
+                      ~ctx?,
+                      editor.state.zipper,
+                    )
+                  : editor.root == Sort.TPat
+                      ? CachedStatics.init_tpat(
+                          ~settings,
+                          ~ctx?,
+                          editor.state.zipper,
+                        )
+                      : compositional
+                          /* whole-program editors: per-item statics re-analyze
+                             only dirty items and skip the monolithic recursion
+                             (a stack overflow on large programs) */
+                          ? CachedStatics.init_compositional(
+                              ~settings,
+                              ~stitch,
+                              ~root=editor.root,
+                              ~probe_ids=zipper_probe_ids(editor),
+                              editor.state.zipper,
+                            )
+                          : CachedStatics.init(
+                              ~settings,
+                              ~stitch,
+                              ~ctx?,
+                              ~ana?,
+                              ~is_dynamic_term,
+                              ~root=editor.root,
+                              editor.state.zipper,
+                            )
+          )
+        )
+      };
+    let probes_changed = probes_differ(editor.state.zipper, statics);
     let needs_refresh =
       statics_mode == StaticsMode.Force
+      || probes_changed
       || is_edited
-      && statics_mode != StaticsMode.Defer
-      || probes_changed;
+      && statics_mode != StaticsMode.Defer;
     /* which gate opened the recompute (perf journal); calls that do not
        recompute are counted under "skip" */
     Util.PerfTimer.record(
@@ -239,80 +299,14 @@ module Update = {
       ),
       0.,
     );
-    /* editor passed as a param so this reads the *new* (post-autoprobe) zipper,
-     * not a stale captured one. A recompute first takes the statics the agent
-     * tool path OFFERED for this very program (CachedStatics.offered_for),
-     * computed there for its error check — one statics pass per tool call
-     * instead of several. The offer is a monolithic init, so compositional
-     * (per-item) editors compute their own. */
-    let do_init = (editor: Editor.t) =>
-      switch (
-        Option.is_none(projected)
-        && ctx == None
-        && ana == None
-        && !is_dynamic_term
-        && !compositional
-        && editor.root == Sort.Exp
-          ? CachedStatics.offered_for(~settings, editor.state.zipper) : None
-      ) {
-      | Some(st) when stitch(st.term) === st.term => st
-      | Some(_)
-      | None =>
-        PerfMetrics.time_statics(() =>
-          Util.PerfTimer.time("editor-statics", () =>
-            switch (projected) {
-            | Some(p) => p
-            | None =>
-              editor.root == Sort.Typ
-                /* Typ-rooted cells: wrapped-alias statics (real InfoTyp
-                   entries for the inspector) under the provided ctx */
-                ? CachedStatics.init_typ(
-                    ~settings,
-                    ~ctx?,
-                    editor.state.zipper,
-                  )
-                : editor.root == Sort.Pat
-                    ? CachedStatics.init_pat(
-                        ~settings,
-                        ~ctx?,
-                        editor.state.zipper,
-                      )
-                    : editor.root == Sort.TPat
-                        ? CachedStatics.init_tpat(
-                            ~settings,
-                            ~ctx?,
-                            editor.state.zipper,
-                          )
-                        : compositional
-                            /* whole-program editors: per-item statics (DefStatics) —
-                               only the dirty items re-analyze, and no monolithic
-                               whole-program recursion runs (browser stack overflow on
-                               large programs) */
-                            ? CachedStatics.init_compositional(
-                                ~settings,
-                                ~stitch,
-                                ~root=editor.root,
-                                ~probe_ids=zipper_probe_ids(editor),
-                                editor.state.zipper,
-                              )
-                            : CachedStatics.init(
-                                ~settings,
-                                ~stitch,
-                                ~ctx?,
-                                ~ana?,
-                                ~is_dynamic_term,
-                                ~root=editor.root,
-                                editor.state.zipper,
-                              )
-            }
-          )
-        )
-      };
     /* A deferred edit can change external typing context even when this
        editor's source is unchanged. Implied-hole info must wait for refresh. */
     let statics =
       needs_refresh
-        ? do_init(editor)
+        ? switch (projected) {
+          | Some(p) => p
+          | None => do_init(editor)
+          }
         : is_edited
             ? {
               ...statics,
@@ -330,6 +324,8 @@ module Update = {
         Editor.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
+          ~proofs,
           ~is_edited,
           statics,
           dynamics,
@@ -342,8 +338,7 @@ module Update = {
      * probe_targets match. Compared against the statics computed above, so
      * this fires only when calculate itself changed the probe set. */
     let statics =
-      Id.Map.compare(compare, zipper_probe_ids(editor), statics.probe_ids)
-      != 0
+      probes_differ(editor.state.zipper, statics)
         ? do_init(editor) : statics;
 
     /* refresh only statics.targets against the new refractors (cheap; rest of
@@ -368,25 +363,22 @@ module View = {
   // There are no events for a read-only editor
   type event;
 
-  /* Memo for the code text + error/warning arms — by far the most
-     expensive vdom in the app (of_tile/shard walks over the whole
-     program). None of it depends on DYNAMICS, yet every streamed
-     result chunk re-renders the page and was rebuilding it (~1s per
-     chunk on mega-2k). Keyed on the physical identities of every
-     input (as Obj.t, compared with ===); identical nodes also
-     short-circuit the virtual-dom diff by reference equality. LRU so
-     a stack of cells + master all stay resident. */
+  /* memo for the code text + error/warning arms, the costliest vdom in the
+     app: none of it depends on dynamics, but every streamed result chunk
+     re-renders the page. keyed on the physical identity of each input; a
+     hit also lets the vdom diff skip by reference. LRU so a stack's cells
+     and master all stay resident */
   type memo_entry = {
     m_key: array(Obj.t),
+    /* piece count of the keyed segment, for same-editor eviction */
+    m_seg_len: int,
     m_nodes: list(Node.t),
   };
   let view_memo: ref(list(memo_entry)) = ref([]);
-  /* SMALL cap, and same-length entries evict each other: every key
-     pins a whole GENERATION of segment/measured/info_map — on mega
-     programs a deep LRU pinned hundreds of MB of superseded
-     generations (heap death after a few edits). Same piece-count is
-     a cheap same-editor-previous-generation proxy; a false hit just
-     costs a recompute. */
+  /* small cap, and same-length entries evict each other: each key pins a
+     whole generation of segment/measured/info_map. equal piece count is a
+     cheap "same editor, older generation" proxy; a misfire costs a
+     recompute */
   let view_memo_max = 4;
   let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool => {
     let n = Array.length(a);
@@ -443,7 +435,6 @@ module View = {
     let nodes =
       switch (List.find_opt(e => key_eq(e.m_key, key), view_memo^)) {
       | Some(entry) =>
-        /* refresh LRU position */
         view_memo := [entry, ...List.filter(e => !(e === entry), view_memo^)];
         entry.m_nodes;
       | None =>
@@ -494,20 +485,16 @@ module View = {
           | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
           };
         let seg_len = List.length(segment);
-        let same_len = (e: memo_entry) =>
-          switch ((Obj.magic(e.m_key[3]): Segment.t)) {
-          | s => List.length(s) == seg_len
-          | exception _ => false
-          };
         view_memo :=
           [
             {
               m_key: key,
+              m_seg_len: seg_len,
               m_nodes: nodes,
             },
             ...take(
                  view_memo_max - 1,
-                 List.filter(e => !same_len(e), view_memo^),
+                 List.filter(e => e.m_seg_len != seg_len, view_memo^),
                ),
           ];
         nodes;
