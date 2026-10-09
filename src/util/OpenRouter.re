@@ -119,7 +119,7 @@ module Message = {
        blank message is consistently blank so its shape never flips. Thinking
        blocks are never sent back upstream here, so there is nothing to skip. */
     let json_of_message = (message: Model.t): Json.t => {
-      let nonblank = String.trim(message.content) != "";
+      let nonblank = !String.equal(String.strip(message.content), "");
       let cache = message.cache_anchor && nonblank;
       /* Stable array shape for non-blank content; plain string only when blank. */
       let content_json: Json.t =
@@ -143,7 +143,7 @@ module Message = {
           `String(message.content);
         };
       switch (message.role) {
-      | Assistant when message.tool_calls != [] =>
+      | Assistant when !List.is_empty(message.tool_calls) =>
         /* Assistant-with-tool-calls is never the message before the snapshot (a
            tool result always follows it), so it never carries a breakpoint; keep
            the plain OpenAI shape, which is itself byte-stable across requests. */
@@ -152,7 +152,7 @@ module Message = {
           ("content", `String(message.content)),
           (
             "tool_calls",
-            `List(List.map(json_of_tool_call, message.tool_calls)),
+            `List(List.map(~f=json_of_tool_call, message.tool_calls)),
           ),
         ])
       | Tool(tool_call) =>
@@ -225,16 +225,17 @@ module CacheDiag = {
     ++ m.content
     ++ "|"
     ++ String.concat(
-         ",",
-         List.map((tc: Reply.Model.tool_call) => tc.id, m.tool_calls),
+         ~sep=",",
+         List.map(~f=(tc: Reply.Model.tool_call) => tc.id, m.tool_calls),
        );
 
-  let total_chars = List.fold_left((a, s) => a + String.length(s), 0);
+  let total_chars =
+    List.fold_left(~f=(a, s) => a + String.length(s), ~init=0);
 
   let common_prefix_chars = (a: list(string), b: list(string)): int => {
     let rec go = (a, b, acc) =>
       switch (a, b) {
-      | ([x, ...xs], [y, ...ys]) when x == y =>
+      | ([x, ...xs], [y, ...ys]) when String.equal(x, y) =>
         go(xs, ys, acc + String.length(x))
       | _ => acc
       };
@@ -250,16 +251,16 @@ module CacheDiag = {
       )
       : unit =>
     if (log^) {
-      let normed = List.map(norm, messages);
+      let normed = List.map(~f=norm, messages);
       let prefix = common_prefix_chars(prev_norm^, normed);
       let total = total_chars(normed);
       prev_norm := normed;
       pending :=
-        Printf.sprintf(
+        Stdlib.Printf.sprintf(
           "model=%s enabled=%b breakpoints=[%s] common_prefix=%dch payload=%dch",
           model_id,
           cache_enabled,
-          String.concat(",", breakpoints),
+          String.concat(~sep=",", breakpoints),
           prefix,
           total,
         );
@@ -273,7 +274,7 @@ module CacheDiag = {
         | Some(n) => string_of_int(n)
         | None => "null";
       print_endline(
-        Printf.sprintf(
+        Stdlib.Printf.sprintf(
           "CACHE_DIAG %s | cache_read=%s cache_creation=%s",
           pending^,
           show(cache_read),
@@ -361,11 +362,12 @@ module Payload = {
     let cache_control_provider_prefixes = ["anthropic/", "google/", "qwen/"];
     let supports_cache_control = (model_id: string): bool =>
       List.exists(
-        prefix => {
-          let len = String.length(prefix);
-          String.length(model_id) >= len
-          && String.sub(model_id, 0, len) == prefix;
-        },
+        ~f=
+          prefix => {
+            let len = String.length(prefix);
+            String.length(model_id) >= len
+            && String.equal(String.sub(model_id, ~pos=0, ~len), prefix);
+          },
         cache_control_provider_prefixes,
       );
 
@@ -380,16 +382,17 @@ module Payload = {
          400 on the multipart content shape. */
       let messages_json =
         List.map(
-          (m: Message.Model.t) => {
-            let m =
-              cache_enabled
-                ? m
-                : {
-                  ...m,
-                  cache_anchor: false,
-                };
-            Message.Utils.json_of_message(m);
-          },
+          ~f=
+            (m: Message.Model.t) => {
+              let m =
+                cache_enabled
+                  ? m
+                  : {
+                    ...m,
+                    cache_anchor: false,
+                  };
+              Message.Utils.json_of_message(m);
+            },
           payload.messages,
         );
       let base_fields = [
@@ -423,13 +426,15 @@ module Payload = {
         let hlen = String.length(s);
         let rec go = i =>
           i > hlen - nlen
-            ? false : String.sub(s, i, nlen) == needle ? true : go(i + 1);
+            ? false
+            : String.equal(String.sub(s, ~pos=i, ~len=nlen), needle)
+                ? true : go(i + 1);
         nlen <= hlen && go(0);
       };
       let breakpoints =
-        List.mapi((i, mj) => (i, has_cc(mj)), messages_json)
-        |> List.filter(((_, hit)) => hit)
-        |> List.map(((i, _)) => string_of_int(i));
+        List.mapi(~f=(i, mj) => (i, has_cc(mj)), messages_json)
+        |> List.filter(~f=((_, hit)) => hit)
+        |> List.map(~f=((i, _)) => string_of_int(i));
       CacheDiag.note_request(
         ~model_id=payload.model_id,
         ~cache_enabled,
@@ -551,26 +556,27 @@ module Utils = {
     | `List(parts) =>
       let texts =
         List.filter_map(
-          (part: Json.t) =>
-            switch (part) {
-            | `String(s) => Some(s)
-            | _ =>
-              switch (Json.dot("text", part)) {
-              | Some(t) =>
-                switch (Json.str(t)) {
-                | Some(s) => Some(s)
-                | None => message_content_string(t)
+          ~f=
+            (part: Json.t) =>
+              switch (part) {
+              | `String(s) => Some(s)
+              | _ =>
+                switch (Json.dot("text", part)) {
+                | Some(t) =>
+                  switch (Json.str(t)) {
+                  | Some(s) => Some(s)
+                  | None => message_content_string(t)
+                  }
+                | None =>
+                  switch (Json.dot("content", part)) {
+                  | Some(c) => message_content_string(c)
+                  | None => None
+                  }
                 }
-              | None =>
-                switch (Json.dot("content", part)) {
-                | Some(c) => message_content_string(c)
-                | None => None
-                }
-              }
-            },
+              },
           parts,
         );
-      Some(String.concat("", texts));
+      Some(String.concat(~sep="", texts));
     | `Assoc(_) as assoc =>
       switch (Json.dot("text", assoc)) {
       | Some(t) =>
@@ -608,18 +614,19 @@ module Utils = {
         | Some(c) => message_content_string(c)
         };
       let from_reasoning =
-        Option.bind(Json.dot("reasoning", delta), Json.str);
+        Option.bind(Json.dot("reasoning", delta), ~f=Json.str);
       let from_reasoning_content =
-        Option.bind(Json.dot("reasoning_content", delta), Json.str);
-      let from_thinking = Option.bind(Json.dot("thinking", delta), Json.str);
+        Option.bind(Json.dot("reasoning_content", delta), ~f=Json.str);
+      let from_thinking =
+        Option.bind(Json.dot("thinking", delta), ~f=Json.str);
       let nonempty = (o: option(string)): option(string) =>
         switch (o) {
-        | Some(s) when String.trim(s) != "" => Some(s)
+        | Some(s) when !String.equal(String.strip(s), "") => Some(s)
         | _ => None
         };
       let reasoning =
         List.find_map(
-          nonempty,
+          ~f=nonempty,
           [from_reasoning_content, from_reasoning, from_thinking],
         );
       Some((nonempty(from_content), reasoning));
@@ -680,7 +687,7 @@ module Utils = {
     };
 
     switch (tool_calls) {
-    | Some(tool_calls) => List.filter_map(parse_tool_call, tool_calls)
+    | Some(tool_calls) => List.filter_map(~f=parse_tool_call, tool_calls)
     | None => []
     };
   };
@@ -721,7 +728,7 @@ module Utils = {
       ) {
       | Some(m) => m
       | None when status == 0 => "Network error: no response received"
-      | None => Printf.sprintf("HTTP error %d", status)
+      | None => Stdlib.Printf.sprintf("HTTP error %d", status)
       };
     let code =
       switch (
@@ -756,7 +763,7 @@ module Utils = {
   let handle_chat =
       (~db: string => unit=ignore, response: option(Json.t))
       : option(Model.result) => {
-    Option.map(r => r |> Json.to_string |> db, response) |> ignore;
+    Option.map(~f=r => r |> Json.to_string |> db, response) |> ignore;
     let* json = response;
 
     switch (parse_errs(json)) {
@@ -809,7 +816,7 @@ module Utils = {
       content: Buffer.t,
       reasoning: Buffer.t,
       /* Keyed by the streaming [index] on each tool_call delta. */
-      tool_calls: Hashtbl.t(int, partial_tool_call),
+      tool_calls: Stdlib.Hashtbl.t(int, partial_tool_call),
       usage: ref(option(Reply.Model.usage)),
       error: ref(option(Model.error)),
     };
@@ -817,7 +824,7 @@ module Utils = {
     let create = (): t => {
       content: Buffer.create(256),
       reasoning: Buffer.create(256),
-      tool_calls: Hashtbl.create(4),
+      tool_calls: Stdlib.Hashtbl.create(4),
       usage: ref(None),
       error: ref(None),
     };
@@ -829,7 +836,7 @@ module Utils = {
         | _ => 0
         };
       let partial =
-        switch (Hashtbl.find_opt(t.tool_calls, idx)) {
+        switch (Stdlib.Hashtbl.find_opt(t.tool_calls, idx)) {
         | Some(p) => p
         | None =>
           let p = {
@@ -837,7 +844,7 @@ module Utils = {
             name: ref(None),
             args_buf: Buffer.create(64),
           };
-          Hashtbl.replace(t.tool_calls, idx, p);
+          Stdlib.Hashtbl.replace(t.tool_calls, idx, p);
           p;
         };
       switch (Json.dot("id", tc)) {
@@ -880,7 +887,7 @@ module Utils = {
               switch (Json.list(tcs)) {
               | None => ()
               | Some(tcs_list) =>
-                List.iter(tc => absorb_one_tool_call(t, tc), tcs_list)
+                List.iter(~f=tc => absorb_one_tool_call(t, tc), tcs_list)
               }
             }
           };
@@ -908,19 +915,19 @@ module Utils = {
           | Some(c) => message_content_string(c)
           };
         let from_reasoning =
-          Option.bind(Json.dot("reasoning", delta), Json.str);
+          Option.bind(Json.dot("reasoning", delta), ~f=Json.str);
         let from_reasoning_content =
-          Option.bind(Json.dot("reasoning_content", delta), Json.str);
+          Option.bind(Json.dot("reasoning_content", delta), ~f=Json.str);
         let from_thinking =
-          Option.bind(Json.dot("thinking", delta), Json.str);
+          Option.bind(Json.dot("thinking", delta), ~f=Json.str);
         let nonempty = (o: option(string)): option(string) =>
           switch (o) {
-          | Some(s) when s != "" => Some(s)
+          | Some(s) when !String.equal(s, "") => Some(s)
           | _ => None
           };
         let reasoning =
           List.find_map(
-            nonempty,
+            ~f=nonempty,
             [from_reasoning_content, from_reasoning, from_thinking],
           );
         Some((nonempty(from_content), reasoning));
@@ -951,10 +958,10 @@ module Utils = {
         };
       let content_delta = Option.value(~default="", c_opt);
       let reasoning_delta = Option.value(~default="", r_opt);
-      if (content_delta != "") {
+      if (!String.equal(content_delta, "")) {
         Buffer.add_string(t.content, content_delta);
       };
-      if (reasoning_delta != "") {
+      if (!String.equal(reasoning_delta, "")) {
         Buffer.add_string(t.reasoning, reasoning_delta);
       };
       absorb_tool_calls(t, chunk);
@@ -966,26 +973,28 @@ module Utils = {
 
     let finalize_tool_calls = (t: t): list(Reply.Model.tool_call) => {
       let entries =
-        Hashtbl.fold(
+        Stdlib.Hashtbl.fold(
           (idx, p, acc) => [(idx, p), ...acc],
           t.tool_calls,
           [],
         );
-      let sorted = List.sort(((a, _), (b, _)) => compare(a, b), entries);
+      let sorted =
+        List.sort(~compare=((a, _), (b, _)) => compare(a, b), entries);
       List.filter_map(
-        ((_, p: partial_tool_call)) => {
-          let* id = p.id^;
-          let* name = p.name^;
-          let args_str = Buffer.contents(p.args_buf);
-          let args = parse_tool_args(`String(args_str));
-          Some(
-            {
-              id,
-              name,
-              args,
-            }: Reply.Model.tool_call,
-          );
-        },
+        ~f=
+          ((_, p: partial_tool_call)) => {
+            let* id = p.id^;
+            let* name = p.name^;
+            let args_str = Buffer.contents(p.args_buf);
+            let args = parse_tool_args(`String(args_str));
+            Some(
+              {
+                id,
+                name,
+                args,
+              }: Reply.Model.tool_call,
+            );
+          },
         sorted,
       );
     };
@@ -1003,11 +1012,13 @@ module Utils = {
            see an empty reply. Reasoning stays available separately
            only when content was independently present. */
         let (content, reasoning) =
-          if (content_buf == "" && reasoning_buf != "" && tool_calls == []) {
+          if (String.equal(content_buf, "")
+              && !String.equal(reasoning_buf, "")
+              && List.is_empty(tool_calls)) {
             (reasoning_buf, None);
           } else {
             let reasoning =
-              if (reasoning_buf == "") {
+              if (String.equal(reasoning_buf, "")) {
                 None;
               } else {
                 Some(reasoning_buf);
@@ -1092,7 +1103,7 @@ module AvailableLLMs = {
   ];
 
   let recommended_tagline = (info: Model.llm_info): option(string) =>
-    List.assoc_opt(info.id, recommended_entries);
+    List.Assoc.find(recommended_entries, info.id, ~equal=String.equal);
 
   let is_free = (info: Model.llm_info): bool =>
     StringUtil.match(StringUtil.regexp("free"), info.name);
@@ -1116,14 +1127,15 @@ module AvailableLLMs = {
       | Some(`List(params)) =>
         let params_str =
           List.map(
-            param =>
-              switch (param) {
-              | `String(s) => s
-              | _ => ""
-              },
+            ~f=
+              param =>
+                switch (param) {
+                | `String(s) => s
+                | _ => ""
+                },
             params,
           );
-        List.mem("tools", params_str); /*&& List.mem("tool_choice", params_str)*/
+        List.mem(params_str, "tools", ~equal=String.equal); /*&& List.mem("tool_choice", params_str)*/
       | _ => false
       };
     };
@@ -1132,81 +1144,119 @@ module AvailableLLMs = {
       try(
         switch (json) {
         | `Assoc(fields) =>
-          switch (List.assoc_opt("data", fields)) {
+          switch (List.Assoc.find(fields, "data", ~equal=String.equal)) {
           | Some(`List(models)) =>
             let parsed_models =
               List.filter_map(
-                (model: Json.t) =>
-                  switch (model) {
-                  | `Assoc(model_fields) =>
-                    let id_opt = List.assoc_opt("id", model_fields);
-                    let name_opt = List.assoc_opt("name", model_fields);
-                    let pricing_opt = List.assoc_opt("pricing", model_fields);
-                    let params_opt =
-                      List.assoc_opt("supported_parameters", model_fields);
-                    let context_length =
-                      switch (List.assoc_opt("context_length", model_fields)) {
-                      | Some(`Int(n)) => Some(n)
-                      | Some(`Float(f)) => Some(int_of_float(f))
-                      | _ => None
-                      };
-
-                    if (!has_required_parameters(params_opt)) {
-                      None;
-                    } else {
-                      let supports_reasoning =
-                        switch (params_opt) {
-                        | Some(`List(params)) =>
-                          List.exists(
-                            fun
-                            | `String("reasoning") => true
-                            | _ => false,
-                            params,
+                ~f=
+                  (model: Json.t) =>
+                    switch (model) {
+                    | `Assoc(model_fields) =>
+                      let id_opt =
+                        List.Assoc.find(
+                          model_fields,
+                          "id",
+                          ~equal=String.equal,
+                        );
+                      let name_opt =
+                        List.Assoc.find(
+                          model_fields,
+                          "name",
+                          ~equal=String.equal,
+                        );
+                      let pricing_opt =
+                        List.Assoc.find(
+                          model_fields,
+                          "pricing",
+                          ~equal=String.equal,
+                        );
+                      let params_opt =
+                        List.Assoc.find(
+                          model_fields,
+                          "supported_parameters",
+                          ~equal=String.equal,
+                        );
+                      let context_length =
+                        switch (
+                          List.Assoc.find(
+                            model_fields,
+                            "context_length",
+                            ~equal=String.equal,
                           )
-                        | _ => false
-                        };
-                      switch (id_opt, name_opt, pricing_opt) {
-                      | (
-                          Some(`String(id)),
-                          Some(`String(name)),
-                          Some(`Assoc(pricing_fields)),
-                        ) =>
-                        let prompt = List.assoc_opt("prompt", pricing_fields);
-                        let completion =
-                          List.assoc_opt("completion", pricing_fields);
-                        switch (prompt, completion) {
-                        | (Some(`String(p)), Some(`String(c))) =>
-                          Some(
-                            {
-                              id,
-                              name,
-                              pricing: {
-                                prompt: p,
-                                completion: c,
-                              },
-                              context_length,
-                              supports_reasoning,
-                            }: Model.llm_info,
-                          )
+                        ) {
+                        | Some(`Int(n)) => Some(n)
+                        | Some(`Float(f)) => Some(int_of_float(f))
                         | _ => None
                         };
-                      | _ => None
+
+                      if (!has_required_parameters(params_opt)) {
+                        None;
+                      } else {
+                        let supports_reasoning =
+                          switch (params_opt) {
+                          | Some(`List(params)) =>
+                            List.exists(
+                              ~f=
+                                fun
+                                | `String("reasoning") => true
+                                | _ => false,
+                              params,
+                            )
+                          | _ => false
+                          };
+                        switch (id_opt, name_opt, pricing_opt) {
+                        | (
+                            Some(`String(id)),
+                            Some(`String(name)),
+                            Some(`Assoc(pricing_fields)),
+                          ) =>
+                          let prompt =
+                            List.Assoc.find(
+                              pricing_fields,
+                              "prompt",
+                              ~equal=String.equal,
+                            );
+                          let completion =
+                            List.Assoc.find(
+                              pricing_fields,
+                              "completion",
+                              ~equal=String.equal,
+                            );
+                          switch (prompt, completion) {
+                          | (Some(`String(p)), Some(`String(c))) =>
+                            Some(
+                              {
+                                id,
+                                name,
+                                pricing: {
+                                  prompt: p,
+                                  completion: c,
+                                },
+                                context_length,
+                                supports_reasoning,
+                              }: Model.llm_info,
+                            )
+                          | _ => None
+                          };
+                        | _ => None
+                        };
                       };
-                    };
-                  | _ => None
-                  },
+                    | _ => None
+                    },
                 models,
               );
             let sorted =
               List.sort(
-                (a: Model.llm_info, b: Model.llm_info) =>
-                  String.compare(a.name, b.name),
+                ~compare=
+                  (a: Model.llm_info, b: Model.llm_info) =>
+                    String.compare(a.name, b.name),
                 parsed_models,
               );
             let (free, paid) =
-              List.partition(
-                (model: Model.llm_info) =>
-                  StringUtil.match(StringUtil.regexp("free"), model.name),
+              List.partition_tf(
+                ~f=
+                  (model: Model.llm_info) =>
+                    StringUtil.match(StringUtil.regexp("free"), model.name),
                 sorted,
               );
             Some(free @ paid);
