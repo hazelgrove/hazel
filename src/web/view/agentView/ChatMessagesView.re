@@ -812,9 +812,22 @@ module ChatMessagesScrollHook = {
       start_follow(state, element);
     };
 
+    /* every render while pinned, not only when the stamp changes: streamed
+       reasoning grows the list between stamps, and the first stretch of a
+       run would not scroll until a message landed */
     let update =
-        (~old_input: Input.t, ~new_input: Input.t, state: State.t, element) => {
-      if (old_input != new_input && state.stick_to_bottom) {
+        (
+          ~old_input as _: Input.t,
+          ~new_input as _: Input.t,
+          state: State.t,
+          element,
+        ) => {
+      /* a sent prompt re-pins: the reader wants to see it land */
+      if (ChatScrollPin.request^) {
+        ChatScrollPin.request := false;
+        state.stick_to_bottom = true;
+      };
+      if (state.stick_to_bottom) {
         scroll_to_bottom(element);
         schedule_scroll_to_bottom(element);
       };
@@ -850,8 +863,9 @@ let view =
   // for stale-path detection and cmd/ctrl-click jump targets.
   let node_map: option(HighLevelNodeMap.t) = {
     let z = code_with_statics.editor.state.zipper;
-    let info_map = CompositionGo.Public.mk_statics(z);
-    HighLevelNodeMap.build(z, info_map);
+    Id.Map.is_empty(code_with_statics.statics.info_map)
+      ? CompositionGo.Public.node_map_of(z)
+      : HighLevelNodeMap.build_for(z, code_with_statics.statics);
   };
 
   // Auto-resize textarea helper
@@ -1742,10 +1756,10 @@ let view =
       div(
         ~attrs=[clss(["message-container", "agent-message-container"])],
         [
-          // Filbert identifier
+          // Trine identifier
           div(
             ~attrs=[clss(["message-identifier", "llm-identifier"])],
-            [Icons.filbert, text("Filbert")],
+            [CanvasAvatar.brand_icon(), text("Trine")],
           ),
           div(
             ~attrs=[clss(["agent-message-wrapper"])],
@@ -1921,7 +1935,7 @@ let view =
                       ~attrs=[
                         clss(["message-identifier", "llm-identifier"]),
                       ],
-                      [Icons.filbert, text("Filbert")],
+                      [CanvasAvatar.brand_icon(), text("Trine")],
                     ),
                     ...body_nodes,
                   ],

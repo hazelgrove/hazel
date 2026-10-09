@@ -32,6 +32,36 @@ let every_action_reachable = () => {
   );
 };
 
+/* A program-dependent palette entry (of_dynamic) is never rebindable: it has
+   no hotkey, and an override keyed by a coinciding label does not reach it. */
+let dynamic_entries_stay_unbound = () => {
+  let overrides = [(A.label(Undo), Some("ctrl+u"))];
+  let dynamic =
+    Web.ContextualAction.of_dynamic(
+      ~action=Virtual_dom.Vdom.Effect.Ignore,
+      ~section=Refactoring,
+      ~mdIcon="compress",
+      A.label(Undo),
+    );
+  check(option(string), "no hotkey of its own", None, dynamic.hotkey);
+  check(
+    option(string),
+    "an override does not bind it",
+    None,
+    Web.NinjaKeys.apply_override(~overrides, dynamic).hotkey,
+  );
+  check(
+    option(string),
+    "a registry entry still takes the override",
+    Some("ctrl+u"),
+    Web.NinjaKeys.apply_override(
+      ~overrides,
+      Web.ContextualAction.of_shortcut(Undo),
+    ).
+      hotkey,
+  );
+};
+
 let tests = [
   (
     "ShortcutAction",
@@ -41,6 +71,11 @@ let tests = [
         "all_sections reaches every action",
         `Quick,
         every_action_reachable,
+      ),
+      test_case(
+        "dynamic entries stay unbound",
+        `Quick,
+        dynamic_entries_stay_unbound,
       ),
     ],
   ),

@@ -92,7 +92,7 @@ let pad_variant_ann =
   | Variant(c, ann, payload) =>
     let needed = necessary_variant_ann_ids(v);
     let current = List.length(ann.ids);
-    let ids = ann.ids @ List.init(max(0, needed - current), _ => Id.mk());
+    let ids = pad_ids(max(needed, current), ann.ids);
     Variant(
       c,
       {
@@ -160,11 +160,11 @@ let pad_typ_ids = (ty: Typ.t): Typ.t => {
         (cont, ty) => {
           let current_ids = ty.annotation.ids;
           let needed_ids = necessary_ids(ty);
+          /* Derived, never minted: preparing a type for printing must be a
+             pure function of the type (see pad_ids above). Padding only
+             extends -- a node carrying more ids than it prints keeps them. */
           let ids =
-            current_ids
-            @ List.init(max(0, needed_ids - List.length(current_ids)), _ =>
-                Id.mk()
-              );
+            pad_ids(max(needed_ids, List.length(current_ids)), current_ids);
           cont({
             ...ty,
             annotation: {

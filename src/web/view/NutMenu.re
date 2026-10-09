@@ -329,22 +329,16 @@ let dev_group = (~globals: Globals.t) => {
         tooltip: Some("Enable probes on all top-level definitions"),
       },
       {
-        name: "Cap Undo Stack",
-        active: globals.settings.cap_undo_stack,
-        setting: CapUndoStack,
-        tooltip: Some("Cap the undo history stack size"),
-      },
-      {
         name: "Ruled Lines",
         active: globals.settings.show_row_lines,
         setting: ShowRowLines,
         tooltip: Some("Show horizontal lines between each row of code"),
       },
       {
-        name: "Incremental Reuse",
+        name: "Eval Progress",
         active: globals.settings.show_incremental_deco,
-        setting: ShowIncrementalDeco,
-        tooltip: Some("Show incremental evaluator cache hits"),
+        setting: ShowPendingEval,
+        tooltip: Some("Highlight code pending re-evaluation after edits"),
       },
       {
         name: "Debug Sidebar",
@@ -387,10 +381,31 @@ let code_display_group = (~globals: Globals.t) => {
         tooltip: Some("Enable flip animations for code changes"),
       },
       {
+        name: "Animate All Edits",
+        active: globals.settings.core.animate_all_edits,
+        setting: AnimateAllEdits,
+        tooltip:
+          Some("Experimental: ghost-animate code movement on every edit"),
+      },
+      {
+        name: "Drag Refactoring",
+        active: globals.settings.core.drag_refactor,
+        setting: DragRefactor,
+        tooltip:
+          Some("Modal: drag a token to pull it along refactoring tracks"),
+      },
+      {
         name: "Line Numbers",
         active: globals.settings.line_numbers,
         setting: ToggleLineNumbers,
         tooltip: None,
+      },
+      {
+        name: "Outline Arrows",
+        active: globals.settings.outline_arrows,
+        setting: OutlineArrows,
+        tooltip:
+          Some("Fold outline rows from an arrow; off, click a row's sigil"),
       },
       {
         name: "Simple Indication",

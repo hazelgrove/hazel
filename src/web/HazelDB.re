@@ -27,8 +27,7 @@ let log_store = (db: db): IDBStore.store =>
 let kv_store = (db: db): IDBStore.store =>
   IDBStore.store(~mode=READWRITE, db, kv_table);
 
-let with_db = (f): unit => {
-  let error = _: unit => print_endline("ERROR: HazelDB.open");
+let with_db = (~error=_ => print_endline("ERROR: HazelDB.open"), f): unit => {
   let upgrade = (db: db, e: db_upgrade): unit =>
     if (e.new_version >= 1 && e.old_version == 0) {
       ignore(IDBStore.create(db, log_table));
@@ -44,13 +43,96 @@ let cache: ref(Util.Maps.StringMap.t(string)) =
 
 /* === KV operations === */
 
+type write =
+  | Put(string, string)
+  | Delete(string);
+
+/* writes queued by kv_batch, newest first */
+let batched: ref(option(list(write))) = ref(None);
+let write_transactions = ref(0); /* observability for tests */
+
+/* one transaction for all of [writes]: it commits whole or not at all */
+let commit = (writes: list(write)): unit =>
+  if (writes != []) {
+    incr(write_transactions);
+    with_db(db => {
+      let store = kv_store(db);
+      List.iter(
+        fun
+        | Put(key, value) =>
+          IDBStore.put(~key, ~callback=_ => (), store, value)
+        | Delete(key) =>
+          IDBStore.delete(~callback=_ => (), store, IDBStore.K(key)),
+        writes,
+      );
+    });
+  };
+
+let write = (w: write): unit =>
+  switch (batched^) {
+  | Some(ws) => batched := Some([w, ...ws])
+  | None => commit([w])
+  };
+
+/* [f]'s writes land together, so an interrupted save can't leave half
+   of them (a rename's new definition beside its old use). nested calls
+   join the outer batch */
+let kv_batch = (f: unit => 'a): 'a =>
+  switch (batched^) {
+  | Some(_) => f()
+  | None =>
+    batched := Some([]);
+    Fun.protect(
+      ~finally=
+        () => {
+          let ws = Option.value(batched^, ~default=[]);
+          batched := None;
+          commit(List.rev(ws));
+        },
+      f,
+    );
+  };
+
 let kv_save = (key: string, value: string): unit => {
   cache := Util.Maps.StringMap.add(key, value, cache^);
-  with_db(db => IDBStore.put(~key, ~callback=_ => (), kv_store(db), value));
+  write(Put(key, value));
 };
 
 let kv_get = (key: string): option(string) =>
   Util.Maps.StringMap.find_opt(key, cache^);
+
+let kv_remove = (key: string): unit => {
+  cache := Util.Maps.StringMap.remove(key, cache^);
+  write(Delete(key));
+};
+let kv_delete = kv_remove;
+
+/* every stored key [owned] claims */
+let kv_remove_where = (owned: string => bool): unit =>
+  kv_batch(() =>
+    Util.Maps.StringMap.iter(
+      (k, _) =>
+        if (owned(k)) {
+          kv_remove(k);
+        },
+      cache^,
+    )
+  );
+
+/* every stored key [rekey] maps to a different key, saved there instead */
+let kv_rekey = (rekey: string => option(string)): unit =>
+  kv_batch(() =>
+    Util.Maps.StringMap.iter(
+      (k, v) =>
+        switch (rekey(k)) {
+        | Some(k') when k' != k =>
+          kv_save(k', v);
+          kv_remove(k);
+        | _ => ()
+        },
+      cache^,
+    )
+  );
 
 let kv_clear = (~callback=() => (), ()): unit => {
   cache := Util.Maps.StringMap.empty;
@@ -80,6 +162,37 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
     );
   });
 
+/* Complete a single transaction containing current editor data before leaving
+   the page for authorization. The cache includes the just-requested save. */
+let flush = (~callback: bool => unit, ()): unit => {
+  let finished = ref(false);
+  let finish = ok =>
+    if (! finished^) {
+      finished := true;
+      callback(ok);
+    };
+  with_db(
+    ~error=_ => finish(false),
+    db => {
+      let store = kv_store(db);
+      let transaction = store##.transaction;
+      transaction##.oncomplete :=
+        Ezjs_min.AOpt.option(
+          Some(Ezjs_min.wrap_callback(_ => finish(true))),
+        );
+      transaction##.onabort :=
+        Ezjs_min.AOpt.option(
+          Some(Ezjs_min.wrap_callback(_ => finish(false))),
+        );
+      Util.Maps.StringMap.iter(
+        (key, value) =>
+          IDBStore.put(~key, ~error=_ => finish(false), store, value),
+        cache^,
+      );
+    },
+  );
+};
+
 /* === Log operations === */
 
 let log_add = (key: string, value: string): unit =>
@@ -97,18 +210,10 @@ let log_clear = (~callback=() => (), ()): unit => {
 
 /* === Database-level operations === */
 
-/* Clear all data from all tables and legacy localStorage.
-   Used by "Reset Hazel". */
+/* Reset editor state while preserving the dedicated browser credential.
+   Credentials are removed only through the agent's settings. */
 let clear_all = (~callback=() => (), ()): unit => {
-  /* Clear legacy localStorage (safe to remove once all users upgraded) */
-  try({
-    let local_store =
-      Js_of_ocaml.Dom_html.window##.localStorage
-      |> Js_of_ocaml.Js.Optdef.get(_, () => assert(false));
-    local_store##clear;
-  }) {
-  | _ => ()
-  };
+  AgentAuth.clear_editor_storage();
   cache := Util.Maps.StringMap.empty;
   let remaining = ref(2);
   let on_done = () => {
@@ -117,6 +222,19 @@ let clear_all = (~callback=() => (), ()): unit => {
       callback();
     };
   };
-  kv_clear(~callback=on_done, ());
-  log_clear(~callback=on_done, ());
+  with_db(db =>
+    List.iter(
+      make_store => {
+        let store = make_store(db);
+        let transaction = store##.transaction;
+        transaction##.oncomplete :=
+          Ezjs_min.AOpt.option(Some(Ezjs_min.wrap_callback(_ => on_done())));
+        IDBStore.clear(
+          ~error=_ => print_endline("ERROR: HazelDB.clear_all"),
+          store,
+        );
+      },
+      [kv_store, log_store],
+    )
+  );
 };

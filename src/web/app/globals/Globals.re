@@ -14,13 +14,14 @@ module VisibleRows = {
   };
 
   /* Compute visible row range from scroll container properties.
-   * buffer: extra rows above/below to prevent popping */
+   * buffer: extra rows above/below to prevent popping. Wide, like the
+   * change threshold below: each visible-rows change re-renders the page. */
   let compute =
       (
         ~scroll_top: float,
         ~client_height: float,
         ~row_height: float,
-        ~buffer=5,
+        ~buffer=40,
         (),
       )
       : t => {
@@ -33,13 +34,20 @@ module VisibleRows = {
     };
   };
 
-  /* Check if visible_rows changed significantly (threshold of 2 rows) */
+  /* kept only while something culls by it (auto-probe's probes, the
+     eval-progress highlight): a range kept untracked goes stale */
+  let tracked = (settings: Settings.t): bool =>
+    settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    || settings.show_incremental_deco;
+
+  /* Re-render only once scrolled well into the buffer. [last] moves with
+     [first] (fixed span) except on resize, so both share the threshold. */
   let changed = (old: option(t), new_rows: t): bool =>
     switch (old) {
     | None => true
     | Some(old) =>
-      abs(old.first - new_rows.first) > 2
-      || abs(old.last - new_rows.last) > 2
+      abs(old.first - new_rows.first) > 16
+      || abs(old.last - new_rows.last) > 16
     };
 };
 
@@ -58,7 +66,8 @@ module Action = {
     | SetFontMetrics(FontMetrics.t)
     | Set(Settings.Update.t)
     | SetAgentGlobals(AgentGlobals.Update.action)
-    | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
+    | JumpToTile(Haz3lcore.Id.t) // caret to tile: Perform(Move(Goal(TileId)))
+    | SelectTile(Haz3lcore.Id.t) // select the tile's term, caret at front
     | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportAll(option(string))
     | ExportForInit
@@ -68,6 +77,20 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
+    | AppViewMsg(Haz3lcore.Id.t, Language.DHExp.t) // route msg through update_fn
+    // InitAppView takes (id, source_result, model, update_fn, view_fn, subs_fn)
+    | InitAppView(
+        Haz3lcore.Id.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+        Language.DHExp.t,
+      )
+    /* the editor's visible width in columns, which drawers print at */
+    | UpdateDrawerWidth(int)
+    /* a drawer's rendered height changed: lay the editors out again */
+    | RelayoutDrawers
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -82,6 +105,8 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
+    // MVU apps, keyed by app-projector syntax id; not persisted
+    apps: AppStore.t,
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -107,6 +132,7 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
+    apps: AppStore.empty,
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),
@@ -130,6 +156,7 @@ module Model = {
 
   let load = () => {
     let settings = Settings.Store.load();
+    Language.EvalWorklist.compute_enabled := settings.show_incremental_deco;
     init(~settings, ());
   };
 

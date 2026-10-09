@@ -23,6 +23,19 @@ type probe_model = {
   /* dbl-click toggles the auto rendering back to the text view */
   [@default false]
   rich_off: bool,
+  /* per-sample display-width overrides (drag/keyboard resize), keyed by
+     the content-hashed sample id so they survive re-evaluation. Model
+     state so resizes persist and serialize; ProbePill stays pure. */
+  [@default []]
+  sample_lengths: list((int, int)),
+  /* canvas type card: the view is the aligned sample alone — its rich
+     rendering when one applies, else the pretty-printed value — with
+     the nav bar only while this site holds the focus anchor */
+  [@default false]
+  card_mode: bool,
+  /* the ⇓ toggle's probe: its drawer and nothing at the line's end */
+  [@default false]
+  bare: bool,
 };
 
 let init_probe_model: probe_model = {
@@ -31,7 +44,19 @@ let init_probe_model: probe_model = {
   dropdown_redraw: 0,
   auto_rich: false,
   rich_off: false,
+  sample_lengths: [],
+  card_mode: false,
+  bare: false,
 };
+
+let tail_model: string =
+  {
+    ...init_probe_model,
+    drawer_mode: true,
+    bare: true,
+  }
+  |> sexp_of_probe_model
+  |> Sexplib.Sexp.to_string;
 
 /* Any deserialization failure resets to defaults (transient UI state). */
 let probe_model_of_sexp = sexp =>
@@ -44,6 +69,13 @@ let probe_model_of_sexp = sexp =>
     print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
     init_probe_model;
   | exception _ => init_probe_model
+  };
+
+/* the ⇓ probe's model, whatever local state it has picked up since */
+let is_bare = (model: string): bool =>
+  switch (Sexplib.Sexp.of_string(model)) {
+  | sexp => probe_model_of_sexp(sexp).bare
+  | exception _ => false
   };
 
 /* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
@@ -72,6 +104,28 @@ let model_string_auto_rich = (stored: option(string)): string => {
   {
     ...m,
     auto_rich: true,
+  }
+  |> sexp_of_probe_model
+  |> Sexplib.Sexp.to_string;
+};
+
+/* Canvas type cards: the stored model (or the default) in card mode. */
+let model_string_card = (stored: option(string)): string => {
+  let m =
+    switch (stored) {
+    | Some(s) =>
+      try(probe_model_of_sexp(Sexplib.Sexp.of_string(s))) {
+      | _ => init_probe_model
+      }
+    | None => init_probe_model
+    };
+  /* rich_off has no toggle in a card: the view is always the rich one
+     when it applies */
+  {
+    ...m,
+    auto_rich: true,
+    rich_off: false,
+    card_mode: true,
   }
   |> sexp_of_probe_model
   |> Sexplib.Sexp.to_string;
@@ -202,6 +256,36 @@ module Settings = {
   let on_sticky_toggle: ref(unit => Virtual_dom.Vdom.Effect.t(unit)) =
     ref(_ => Virtual_dom.Vdom.Effect.Ignore);
 
+  /* Set by the web layer each render: the stepper a stepping drawer
+   * shows for a probe id, once its sample is ready. */
+  let steps_view: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
+    ref(_ => None);
+
+  /* Set by the web layer each render: for the ⇓ probe, what its drawer
+   * shows when the program stopped before reaching it (no value of its
+   * own), or None. */
+  let value_fallback: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
+    ref(_ => None);
+
+  /* Bumped when drawers must re-lay out (their print width or a
+   * measured height changed): CachedSyntax recomputes drawer rows when
+   * it moves. */
+  let layout = DrawerFit.layout;
+
+  /* drawers print values at the editor's visible width */
+  let set_drawer_width = (width: int) =>
+    if (width != s^.drawer.width) {
+      s :=
+        {
+          ...s^,
+          drawer: {
+            width: width,
+          },
+        };
+      version := version^ + 1;
+      layout := layout^ + 1;
+    };
+
   let set_sticky = (b: bool) => {
     sticky := b;
     version := version^ + 1;
@@ -231,6 +315,28 @@ module Settings = {
 open Settings;
 open Node;
 
+/* Pure policy over the model's per-sample length overrides
+   (probe_model.sample_lengths): budget storage lives in the model,
+   budget geometry in ProbePill. */
+module SampleLength = {
+  type t = list((int, int));
+
+  let find = (lengths: t, id: int): option(int) =>
+    List.assoc_opt(id, lengths);
+
+  let is_explicit = (lengths: t, sample: Sample.t): bool =>
+    find(lengths, sample.id) != None;
+
+  let get = (lengths: t, window: Sample.Window.mode, sample: Sample.t): int =>
+    find(lengths, sample.id)
+    |> Option.value(~default=window == Single ? 150 : 12);
+
+  let set = (lengths: t, id: int, length: int): t => [
+    (id, length),
+    ...List.remove_assoc(id, lengths),
+  ];
+};
+
 type probe_ctx = {
   id: Id.t,
   ap_id: option(Id.t),
@@ -249,9 +355,16 @@ type probe_ctx = {
   rich_model: option(packed_model),
   /* auto-rich is on and not toggled off */
   auto_rich_on: bool,
+  /* the model's per-sample width overrides (see SampleLength) */
+  lengths: SampleLength.t,
   /* per-probe auto (canvas wells): embed regardless of size — the
      global default only auto-embeds content that fits inline_rows_cap */
   auto_unbounded: bool,
+  /* canvas type card: the chip's own dbl-click toggles do not apply
+     (the card's dbl-click collapses it) */
+  card: bool,
+  /* the ⇓ toggle's probe: a drawer only */
+  bare: bool,
   p_info: info,
 };
 
@@ -283,24 +396,6 @@ module WindowState = {
     set_offset(id, new_offset);
     (new_offset, max);
   };
-};
-
-module SampleLength = {
-  let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
-
-  let reset = () => {
-    Hashtbl.clear(lengths);
-  };
-
-  let is_explicit = (sample: Sample.t): bool =>
-    Hashtbl.mem(lengths, sample.id);
-
-  let get = (window: Sample.Window.mode, sample: Sample.t): int =>
-    Hashtbl.find_opt(lengths, sample.id)
-    |> Option.value(~default=window == Single ? 150 : 12);
-
-  let set = (id: int, length: int): unit =>
-    Hashtbl.replace(lengths, id, length);
 };
 
 let select_samples =
@@ -368,17 +463,18 @@ module DrawerHeight = {
    * because reassemble re-nests the formatter's flat output). */
   let row_count = (seg: Segment.t): int =>
     Measured.of_segment(seg, ProjectorCore.Shape.Map.empty, Id.Map.empty)
-    |> Measured.total_rows;
+    |> Measured.num_rows;
 
-  let sample_rows = (utility: utility, sample: Sample.t): int => {
+  let sample_rows =
+      (~lengths: SampleLength.t, utility: utility, sample: Sample.t): int => {
     let width =
-      Hashtbl.find_opt(SampleLength.lengths, sample.id)
+      SampleLength.find(lengths, sample.id)
       |> Option.value(~default=Settings.s^.drawer.width);
     row_count(pretty_seg_of_value(utility, ~width, sample.value));
   };
 
   /* Uncapped content height in rows. */
-  let content_rows = (info: info): int =>
+  let content_rows = (~lengths: SampleLength.t, info: info): int =>
     switch (info.dynamics, info.statics) {
     | (Some(dynamics), Some(statics)) =>
       let settings = Settings.s^;
@@ -387,13 +483,14 @@ module DrawerHeight = {
       switch (samples) {
       | [] => 1
       | _ =>
-        let heights = List.map(sample_rows(info.utility), samples);
+        let heights = List.map(sample_rows(~lengths, info.utility), samples);
         List.fold_left(max, 1, heights);
       };
     | _ => 1
     };
 
-  let compute = (info: info): int => min(max_rows, content_rows(info));
+  let compute = (~lengths: SampleLength.t, info: info): int =>
+    min(max_rows, content_rows(~lengths, info));
 };
 
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
@@ -418,14 +515,7 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   };
 };
 
-let length_cls = (length: int): string =>
-  if (length > 10) {
-    "extra";
-  } else if (length > 4) {
-    "s" ++ string_of_int(length - 4);
-  } else {
-    "s0";
-  };
+let length_cls = ProbePill.length_cls;
 
 /* Depth classes from call stack relation (structural effects: displacement, stacking) */
 let depth_clss =
@@ -594,27 +684,7 @@ let focus_call = (ctx: probe_ctx) =>
   | _ => Effect.Ignore
   };
 
-let find_best_budget = (width_at: int => int, target_width: int): int => {
-  let rec find_upper = (b: int): int =>
-    if (b > 500 || width_at(b) > target_width) {
-      b;
-    } else {
-      find_upper(b * 2 + 1);
-    };
-  let upper = find_upper(max(1, target_width));
-  let rec bisect = (lo: int, hi: int): int =>
-    if (lo >= hi) {
-      lo;
-    } else {
-      let mid = (lo + hi + 1) / 2;
-      if (width_at(mid) <= target_width) {
-        bisect(mid, hi);
-      } else {
-        bisect(lo, mid - 1);
-      };
-    };
-  bisect(target_width, upper);
-};
+let find_best_budget = ProbePill.best_budget;
 
 module ValueState = {
   let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
@@ -684,16 +754,16 @@ let value_view =
     switch (display) {
     | Inline =>
       let length =
-        if (!SampleLength.is_explicit(sample) && num_total == 1) {
+        if (!SampleLength.is_explicit(ctx.lengths, sample) && num_total == 1) {
           150;
         } else {
-          SampleLength.get(settings.window, sample);
+          SampleLength.get(ctx.lengths, settings.window, sample);
         };
       let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
       (seg, [length_cls(length)]);
     | Block =>
       let width =
-        Hashtbl.find_opt(SampleLength.lengths, sample.id)
+        SampleLength.find(ctx.lengths, sample.id)
         |> Option.value(~default=settings.drawer.width);
       (pretty_seg_of_value(utility, ~width, sample.value), []);
     };
@@ -712,7 +782,10 @@ let value_view =
         @ (!ValueChecker.is_value(sample.value) ? ["indet"] : []),
       ),
       Attr.on_double_click(_ =>
-        ctx.auto_rich_ready ? local(ToggleAutoRich) : local(ToggleWindowMode)
+        ctx.card
+          ? Effect.Ignore
+          : ctx.auto_rich_ready
+              ? local(ToggleAutoRich) : local(ToggleWindowMode)
       ),
       /* Suppress the native menu (Ctrl is the escape hatch to it). */
       Attr.on_contextmenu(evt =>
@@ -775,9 +848,19 @@ let value_view =
           switch (find(RichProbe.renderer_id_of_model(pm))) {
           | Some(r)
               when
-                r.can_handle(ctx.sort, sample.value)
+                r.can_handle(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  sample.value,
+                )
                 && (
-                  switch (r.drawer_rows(ctx.sort, sample.value)) {
+                  switch (
+                    r.drawer_rows(
+                      ~statics=Some(ctx.statics),
+                      ctx.sort,
+                      sample.value,
+                    )
+                  ) {
                   | Some(n) => n <= inline_rows_cap
                   | None => true
                   }
@@ -789,20 +872,39 @@ let value_view =
           switch (
             List.find_opt(
               (r: packed_renderer) =>
-                r.can_handle(ctx.sort, sample.value)
+                r.can_handle(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  sample.value,
+                )
                 /* a vacuous match (empty hand) still renders when a
                    SIBLING sample at this site is real evidence */
                 && (
-                  r.auto_applies(ctx.sort, sample.value)
+                  r.auto_applies(
+                    ~statics=Some(ctx.statics),
+                    ctx.sort,
+                    sample.value,
+                  )
                   || List.exists(
-                       (s: Sample.t) => r.auto_applies(ctx.sort, s.value),
+                       (s: Sample.t) =>
+                         r.auto_applies(
+                           ~statics=Some(ctx.statics),
+                           ctx.sort,
+                           s.value,
+                         ),
                        ctx.dynamics.samples,
                      )
                 )
                 && (
                   ctx.auto_unbounded
                   || (
-                    switch (r.drawer_rows(ctx.sort, sample.value)) {
+                    switch (
+                      r.drawer_rows(
+                        ~statics=Some(ctx.statics),
+                        ctx.sort,
+                        sample.value,
+                      )
+                    ) {
                     | Some(n) => n <= inline_rows_cap
                     | None => true
                     }
@@ -812,7 +914,13 @@ let value_view =
             )
           ) {
           | Some(r) =>
-            switch (r.init_model(ctx.sort, sample.value)) {
+            switch (
+              r.init_model(
+                ~statics=Some(ctx.statics),
+                ctx.sort,
+                sample.value,
+              )
+            ) {
             | Some(pm) => render_rich(r, pm)
             | None => None
             }
@@ -837,12 +945,13 @@ let standalone_rich =
     (~info: info, ~sort: Sort.t, ~view_seg, value: Exp.t): option(Node.t) => {
   let pick =
     List.find_opt(
-      (r: packed_renderer) => r.auto_applies(sort, value),
+      (r: packed_renderer) =>
+        r.auto_applies(~statics=info.statics, sort, value),
       renderers,
     );
   switch (pick) {
   | Some(r) =>
-    switch (r.init_model(sort, value)) {
+    switch (r.init_model(~statics=info.statics, sort, value)) {
     | Some(pm) =>
       r.render_model(
         pm,
@@ -1019,6 +1128,21 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
     ],
   );
 
+let show_steps_action = (ctx: probe_ctx, sample: Sample.t) =>
+  div(
+    ~attrs=[
+      Attr.classes(["action-item", "show-steps-action"]),
+      Attr.on_pointerdown(_ =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          ctx.local(SetDropdown(None)),
+          ctx.parent(Probe(ShowSteps(Sample.ref_of_sample(sample)))),
+        ])
+      ),
+    ],
+    [text("Show steps")],
+  );
+
 let rich_probe_action =
     (ctx: probe_ctx, sample: Sample.t, r: packed_renderer): Node.t => {
   let is_active = ctx.active_renderer_id == Some(r.id);
@@ -1031,7 +1155,15 @@ let rich_probe_action =
         =>
           Effect.Many([
             Effect.Stop_propagation,
-            ctx.local(ToggleModal(r.init_model(ctx.sort, sample.value))),
+            ctx.local(
+              ToggleModal(
+                r.init_model(
+                  ~statics=Some(ctx.statics),
+                  ctx.sort,
+                  sample.value,
+                ),
+              ),
+            ),
           ])
         ),
     ],
@@ -1045,7 +1177,7 @@ let rich_probe_items = (ctx: probe_ctx, _sample: Sample.t): list(Node.t) =>
   | Some(indicated) =>
     renderers
     |> List.filter_map(r =>
-         r.can_handle(ctx.sort, indicated.value)
+         r.can_handle(~statics=Some(ctx.statics), ctx.sort, indicated.value)
            ? Some(rich_probe_action(ctx, indicated, r)) : None
        )
   };
@@ -1059,6 +1191,15 @@ let sample_primary_actions =
     )
     : list(Node.t) => {
   let rich_items = include_rich ? rich_probe_items(ctx, sample) : [];
+  /* a variable's or pattern's steps are just its value */
+  let steps =
+    switch (ctx.statics) {
+    | InfoExp({user_term: {term: Var(_), _}, _}) => false
+    | InfoExp(_) => true
+    | _ => false
+    };
+  let rich_items =
+    steps ? rich_items @ [show_steps_action(ctx, sample)] : rich_items;
   switch (ctx.ap_id) {
   | Some(ap_id) =>
     [pin_action(ctx, sample)]
@@ -1287,17 +1428,19 @@ let sample_context_sections =
 };
 
 let sample_context_menu =
-    (~show_env, ~drawer, ctx: probe_ctx, view_seg, sample: Sample.t)
-    : list(Node.t) => {
+    (~show_env, ctx: probe_ctx, view_seg, sample: Sample.t): list(Node.t) => {
   let (has_env, has_call, nodes) =
     sample_context_sections(ctx, view_seg, sample);
-  /* In drawer mode `.below-wrapper`'s overflow would clip the menu, so promote it to a FloatingElement (position:fixed, tracked to its anchor). */
-  let floating = drawer && show_env;
+  /* An open menu floats (FloatingElement: position:fixed, tracked to its
+     sample) so no container clips it, and flips above or left when
+     there's no room. */
+  let floating = show_env;
   let float_attrs =
     floating
       ? [
         Attr.create("data-float-anchor-class", "sample"),
         Attr.create("data-float-anchor-edge", "bottom"),
+        Attr.create("data-float-flip", ""),
         Attr.create("data-float-local-top", "0"),
         Attr.create("data-float-local-left", "3"),
         /* Start hidden; update_all() positions + reveals after measuring. */
@@ -1353,7 +1496,12 @@ let sample_view =
         switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
         | Some(indicated) =>
           List.exists(
-            r => r.can_handle(ctx.sort, indicated.value),
+            r =>
+              r.can_handle(
+                ~statics=Some(ctx.statics),
+                ctx.sort,
+                indicated.value,
+              ),
             renderers,
           )
         | None => false
@@ -1388,14 +1536,7 @@ let sample_view =
     @ pin_view(ctx, sample)
     @ (
       render_dropdown
-        ? sample_context_menu(
-            ~show_env,
-            ~drawer=display == Block,
-            ctx,
-            view_seg,
-            sample,
-          )
-        : []
+        ? sample_context_menu(~show_env, ctx, view_seg, sample) : []
     ),
   );
 };
@@ -1493,8 +1634,26 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     );
   switch (cursor_idx) {
   | Some(idx) =>
-    let next_idx_maybe = idx - offset;
-    if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
+    let n = List.length(samples);
+    /* a CARD steps to the next DISTINCT value: a site referenced several
+       times per step, or replayed twice, holds runs of equal samples,
+       and walking them one by one reads as the key doing nothing */
+    let next_idx_maybe =
+      if (ctx.card) {
+        let cur = List.nth(samples, idx).value;
+        let rec find = i =>
+          if (i < 0 || i >= n) {
+            i;
+          } else if (Exp.fast_equal(List.nth(samples, i).value, cur)) {
+            find(i - offset);
+          } else {
+            i;
+          };
+        find(idx - offset);
+      } else {
+        idx - offset;
+      };
+    if (next_idx_maybe >= 0 && next_idx_maybe < n) {
       let sample = List.nth(samples, next_idx_maybe);
       /* Anchor scroll only when the indication actually moves (an arrow at
        * the ends is a no-op), scoped to this probe+sample. */
@@ -1639,7 +1798,7 @@ let round_up = (ctx: probe_ctx, sample): int => {
   let (_, cur) =
     abbreviated_seg_of(
       ctx.utility,
-      SampleLength.get(ctx.settings.window, sample),
+      SampleLength.get(ctx.lengths, ctx.settings.window, sample),
       sample.value,
     );
   let goal = cur + 1;
@@ -1661,7 +1820,7 @@ let round_down = (ctx: probe_ctx, sample: Sample.t): int => {
   let (_, cur) =
     abbreviated_seg_of(
       ctx.utility,
-      SampleLength.get(ctx.settings.window, sample),
+      SampleLength.get(ctx.lengths, ctx.settings.window, sample),
       sample.value,
     );
   let goal = max(1, cur - 1);
@@ -1698,7 +1857,9 @@ let key_handler =
   | D("Escape") when key.shift == Down =>
     blur_to_editor();
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
-  | D("Escape") when drawer_mode_active =>
+  | D("Escape") when ctx.p_info.stepping != None =>
+    Many([parent(Probe(HideSteps)), Stop_propagation, Prevent_default])
+  | D("Escape") when drawer_mode_active && !ctx.bare =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
     blur_to_editor();
@@ -1862,7 +2023,8 @@ let prepare_offside =
       && List.exists(
            (sample: Sample.t) =>
              List.exists(
-               (r: packed_renderer) => r.auto_applies(sort, sample.value),
+               (r: packed_renderer) =>
+                 r.auto_applies(~statics=Some(statics), sort, sample.value),
                renderers,
              ),
            dynamics.samples,
@@ -1883,6 +2045,9 @@ let prepare_offside =
       auto_rich_on:
         (model.auto_rich || settings.auto_rich_default) && !model.rich_off,
       auto_unbounded: model.auto_rich,
+      card: model.card_mode,
+      lengths: model.sample_lengths,
+      bare: model.bare,
       p_info: info,
     };
     let filtered_samples =
@@ -2030,7 +2195,8 @@ let live_offside_view =
   let base_classes =
     ["live-offside", settings.window |> Sample.Window.show_mode]
     @ (Settings.sticky^ ? ["sticky"] : [])
-    @ (scrollable ? ["drawer-overflow"] : []);
+    @ (scrollable ? ["drawer-overflow"] : [])
+    @ (ctx.bare ? ["program-value"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
     ~menu_open=Settings.open_dropdown^ != None,
@@ -2140,7 +2306,8 @@ let rich_content =
   switch (model.active_renderer, get_current(~settings, info)) {
   | (Some(pm), Some(exp)) =>
     switch (find(RichProbe.renderer_id_of_model(pm))) {
-    | Some(renderer) when renderer.can_handle(sort, exp) =>
+    | Some(renderer)
+        when renderer.can_handle(~statics=info.statics, sort, exp) =>
       renderer.render_model(
         pm,
         ~info,
@@ -2153,6 +2320,36 @@ let rich_content =
       )
     | _ => None
     }
+  /* no renderer chosen by hand: under auto-rich (the probe's own flag or
+     the global default) the first applicable renderer shows the value,
+     so a widget too tall for the inline chip still appears in the
+     drawer without a menu trip */
+  | (None, Some(exp))
+      when (model.auto_rich || settings.auto_rich_default) && !model.rich_off =>
+    switch (
+      List.find_opt(
+        (r: packed_renderer) =>
+          r.auto_applies(~statics=info.statics, sort, exp),
+        renderers,
+      )
+    ) {
+    | Some(r) =>
+      switch (r.init_model(~statics=info.statics, sort, exp)) {
+      | Some(pm) =>
+        r.render_model(
+          pm,
+          ~info,
+          ~exp,
+          ~view_seg,
+          ~local=pa => local(RendererAction(pa)),
+          ~parent,
+          ~sort,
+          (),
+        )
+      | None => None
+      }
+    | None => None
+    }
   | _ => None
   };
 
@@ -2160,6 +2357,264 @@ let rich_content =
  * `overflowing` marks content taller than the reserved rows, letting CSS
  * keep `.below-wrapper`'s overflow clip (for scrolling) only when needed —
  * otherwise the clip would cut off the table's column menus. */
+/* ---- card mode (canvas type cards) ---- */
+
+/* the sample a card shows: the one aligned with the global focus, else
+   the newest (last) of the pin-filtered samples */
+let card_sample = (ctx: probe_ctx): option(Sample.t) => {
+  /* an app site's stream mixes its VIEW samples (HTML) with its values;
+     a card of a non-HTML type shows the values */
+  let site_is_html =
+    switch (ctx.statics) {
+    | InfoExp(e) =>
+      switch (Typ.term_of(Info.exp_ty(e))) {
+      | Var("HTML") => true
+      | _ => false
+      }
+    | _ => false
+    };
+  let values =
+    site_is_html
+      ? ctx.dynamics.samples
+      : List.filter(
+          (s: Sample.t) => !MvuShape.is_html(s.value),
+          ctx.dynamics.samples,
+        );
+  let newest = () =>
+    Sample.Selection.filter_by_pin(
+      ~ap_id=ctx.ap_id,
+      ~pinned=ctx.dynamics.sample_focus.pinned_stack,
+      ~pinned_interval=ctx.dynamics.pinned_interval,
+      values,
+    )
+    |> List.fold_left(
+         (best, s: Sample.t) =>
+           switch (best) {
+           | Some(b: Sample.t) when b.seq >= s.seq => best
+           | _ => Some(s)
+           },
+         None,
+       );
+  let focus = ctx.dynamics.sample_focus;
+  let anchored_here =
+    switch (focus.anchor) {
+    | Some(a) => a.probe_id == ctx.id
+    | None => false
+    };
+  switch (focus.anchor) {
+  /* no sample selected anywhere: the latest value (a pin only filters
+     which samples are in play) */
+  | None => newest()
+  | Some(_) =>
+    switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
+    /* a real alignment: the selected sample itself, or one in the
+       same call as the selection (tandem); a mere tier fallback to
+       some sample is no reason to leave the latest value */
+    | Some(s)
+        when
+          anchored_here
+          || Sample.Focus.relation(~trimmed=true, ~ap_id=ctx.ap_id, focus, s).
+               is_call_cursor =>
+      Some(s)
+    | _ => newest()
+    }
+  };
+};
+
+/* First registered renderer that takes the value, rendered. A canvas card
+   is an explicit request for a view, so unlike the offside auto path it
+   also accepts the TABLE renderer (which opts out of auto-selection);
+   everything else goes through auto_applies, which is what now rejects
+   the vacuous matches (an empty list as an empty card hand). */
+let card_rich =
+    (ctx: probe_ctx, ~view_seg: View.seg, local, value: Exp.t)
+    : option(Node.t) =>
+  List.find_map(
+    (r: packed_renderer) =>
+      r.auto_applies(~statics=Some(ctx.statics), ctx.sort, value)
+      || r.id == "table"
+      && r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
+        ? Option.bind(
+            r.init_model(~statics=Some(ctx.statics), ctx.sort, value), pm =>
+            r.render_model(
+              pm,
+              ~info=ctx.p_info,
+              ~exp=value,
+              ~view_seg=(sort, seg) => view_seg(sort, seg),
+              ~local=pa => local(RendererAction(pa)),
+              ~parent=ctx.parent,
+              ~sort=ctx.sort,
+              (),
+            )
+          )
+        : None,
+    renderers,
+  );
+
+/* A card shows one occurrence, so expose its position rather than the
+   probe drawer toggle. Equal consecutive values still give feedback. */
+let card_navigation = (ctx: probe_ctx, sample: option(Sample.t)) => {
+  let samples =
+    Sample.Selection.filter_by_pin(
+      ~ap_id=ctx.ap_id,
+      ~pinned=ctx.dynamics.sample_focus.pinned_stack,
+      ~pinned_interval=ctx.dynamics.pinned_interval,
+      ctx.dynamics.samples,
+    );
+  let count = List.length(samples);
+  let index: option(int) =
+    switch (sample) {
+    | None => None
+    | Some(current: Sample.t) =>
+      List.mapi(
+        (i, s: Sample.t) =>
+          s.step_start == current.step_start ? Some(i) : None,
+        samples,
+      )
+      |> List.find_map(x => x)
+    };
+  let button = (~label, ~disabled, ~offset, glyph) =>
+    Node.button(
+      ~attrs=[
+        Attr.create("type", "button"),
+        Attr.create("aria-label", label),
+        Attr.title(label),
+        Attr.create("aria-disabled", disabled ? "true" : "false"),
+        Attr.on_pointerdown(_ => Effect.Stop_propagation),
+        Attr.on_click(_ =>
+          Effect.Many([
+            Effect.Stop_propagation,
+            disabled ? Effect.Ignore : move_cursor(ctx, offset),
+          ])
+        ),
+      ],
+      [text(glyph)],
+    );
+  count > 1
+    ? [
+      div(
+        ~attrs=[
+          Attr.classes(["probe-card-nav"]),
+          Attr.on_pointerdown(_ => Effect.Stop_propagation),
+        ],
+        [
+          button(
+            ~label="Previous sample (←)",
+            ~disabled=
+              Option.value(~default=true, Option.map(i => i <= 0, index)),
+            ~offset=1,
+            "‹",
+          ),
+          span(
+            ~attrs=[
+              Attr.classes(["probe-card-position"]),
+              Attr.create("aria-live", "polite"),
+            ],
+            [
+              text(
+                (
+                  switch (index) {
+                  | Some(i) => string_of_int(i + 1)
+                  | None => "–"
+                  }
+                )
+                ++ " / "
+                ++ string_of_int(count),
+              ),
+            ],
+          ),
+          button(
+            ~label="Next sample (→)",
+            ~disabled=
+              Option.value(
+                ~default=true,
+                Option.map(i => i >= count - 1, index),
+              ),
+            ~offset=-1,
+            "›",
+          ),
+        ],
+      ),
+    ]
+    : [];
+};
+
+let card_view =
+    (data: offside_data, local, view_seg: View.seg, ~settings as _: settings)
+    : Node.t => {
+  let {ctx, id, num_total, _} = data;
+  /* selected = this site's sample is the focus anchor */
+  let selected =
+    switch (ctx.dynamics.sample_focus.anchor) {
+    | Some(a) => a.probe_id == id
+    | None => false
+    };
+  let sample = card_sample(ctx);
+  let content =
+    switch (sample) {
+    | None => [
+        div(
+          ~attrs=[Attr.classes(["probe-card-empty"])],
+          [text("no sample")],
+        ),
+      ]
+    | Some(sample) =>
+      switch (card_rich(ctx, ~view_seg, local, sample.value)) {
+      | Some(n) => [div(~attrs=[Attr.classes(["probe-card-rich"])], [n])]
+      | None => [
+          div(
+            ~attrs=[Attr.classes(["probe-card-plain"])],
+            [
+              value_view(
+                ~display=Block,
+                ~alt_toggle=() => Effect.Ignore,
+                ctx,
+                ~num_total,
+                (~text_only, segment) =>
+                  view_seg(
+                    ~single_line=false,
+                    ~background=false,
+                    ~text_only,
+                    Sort.Exp,
+                    segment,
+                  ),
+                local,
+                sample,
+              ),
+            ],
+          ),
+        ]
+      }
+    };
+  let select =
+    switch (sample) {
+    | Some(sample) => (
+        _ =>
+          ctx.parent(
+            SampleFocus(
+              Capture(Sample.capture_of_sample(sample), ctx.ap_id),
+            ),
+          )
+      )
+    | None => (_ => Effect.Ignore)
+    };
+  Node.div(
+    ~attrs=[
+      Attr.id(Id.cls(id)),
+      Attr.create("data-probe-id", Id.to_string(id)),
+      Attr.tabindex(0),
+      Attr.on_keydown(
+        key_handler(ctx, ~id, ~drawer_mode_active=false, local),
+      ),
+      Attr.on_pointerdown(select),
+      Attr.classes(
+        ["live-offside", "probe-card"] @ (selected ? ["card-selected"] : []),
+      ),
+    ],
+    content @ (selected ? card_navigation(ctx, sample) : []),
+  );
+};
+
 let rich_drawer_view =
     (
       ~local: action => Ui_effect.t(unit),
@@ -2189,6 +2644,54 @@ let rich_drawer_view =
     @ [content],
   );
 
+/* A stepping drawer: the stepper in place of the samples. */
+/* a drawer the web layer fills keeps every click: the editor below would
+   take the pointer, or the probe's wrapper move the caret */
+let keep_clicks = [
+  Attr.on_pointerdown(_ => Effect.Stop_propagation),
+  Attr.on_mousedown(_ => Effect.Stop_propagation),
+  Attr.on_pointerup(_ => Effect.Stop_propagation),
+  Attr.on_mouseup(_ => Effect.Stop_propagation),
+  Attr.on_click(_ => Effect.Stop_propagation),
+  Attr.on_double_click(_ => Effect.Stop_propagation),
+  /* mouse state is global: a press on a step reads to the editor below as
+     its own drag, and the moves that follow would select there */
+  Attr.on_mousemove(_ => Effect.Stop_propagation),
+  Attr.on_contextmenu(_ =>
+    Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
+  ),
+];
+
+let steps_drawer_view = (~parent, ~overflowing: bool, info: info): Node.t =>
+  div(
+    ~attrs=
+      [
+        Attr.classes(
+          ["steps-drawer"] @ (overflowing ? ["overflowing"] : []),
+        ),
+        Attr.create("data-drawer-id", Id.to_string(info.id)),
+      ]
+      @ keep_clicks,
+    /* the stepper's own toggle closes it; until it's up, this does */
+    switch (Settings.steps_view^(info.id)) {
+    | Some(stepper) => [stepper]
+    | None => [
+        div(
+          ~attrs=[
+            Attr.classes(["rich-drawer-close"]),
+            Attr.title("Close steps (Esc)"),
+            Attr.on_click(_ => parent(Probe(HideSteps))),
+          ],
+          [text("×")],
+        ),
+        div(
+          ~attrs=[Attr.classes(["steps-pending"])],
+          [text("Stepping…")],
+        ),
+      ]
+    },
+  );
+
 /* Rows the active rich renderer wants in the drawer, when it applies to
  * the indicated value. */
 let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
@@ -2203,17 +2706,22 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
       find(RichProbe.renderer_id_of_model(pm)),
       get_current(~settings=Settings.s^, info),
     ) {
-    | (Some(r), Some(exp)) => r.drawer_rows(sort, exp)
+    | (Some(r), Some(exp)) => r.drawer_rows(~statics=info.statics, sort, exp)
     | _ => None
     }
-  | None when model.auto_rich =>
+  | None
+      when
+        (model.auto_rich || Settings.s^.auto_rich_default) && !model.rich_off =>
     switch (get_current(~settings=Settings.s^, info)) {
     | Some(exp) =>
       List.find_opt(
-        (r: packed_renderer) => r.auto_applies(sort, exp),
+        (r: packed_renderer) =>
+          r.auto_applies(~statics=info.statics, sort, exp),
         renderers,
       )
-      |> Option.map((r: packed_renderer) => r.drawer_rows(sort, exp))
+      |> Option.map((r: packed_renderer) =>
+           r.drawer_rows(~statics=info.statics, sort, exp)
+         )
       |> Option.join
     | None => None
     }
@@ -2264,6 +2772,7 @@ module M: Projector = {
     };
   };
 
+  let dynamics = true;
   let elaborate_syntax = false;
 
   let focusable =
@@ -2281,12 +2790,12 @@ module M: Projector = {
       keyboard: None,
     };
 
-  let placeholder = (model: model, info) =>
+  let placeholder_samples = (model: model, info) =>
     if (model.drawer_mode) {
       let rows =
         switch (rich_drawer_rows(model, info)) {
         | Some(n) => min(DrawerHeight.max_rows, n)
-        | None => DrawerHeight.compute(info)
+        | None => DrawerHeight.compute(~lengths=model.sample_lengths, info)
         };
       ProjectorCore.Shape.{
         horizontal: 0,
@@ -2296,12 +2805,28 @@ module M: Projector = {
       ProjectorCore.Shape.default;
     };
 
+  let placeholder = (model: model, info: info) =>
+    switch (info.stepping) {
+    | Some(st) =>
+      /* uncapped: steps are worked through, so the drawer opens to the
+         whole trace instead of scrolling inside itself */
+      ProjectorCore.Shape.{
+        horizontal: 0,
+        vertical: Tab(max(1, DrawerFit.rows(info.id, st.rows))),
+      }
+    | None => placeholder_samples(model, info)
+    };
+
   let update = (model: model, info: info, a: action): model => {
     switch (a) {
     | ChangeLength(id, len) =>
-      SampleLength.set(id, len);
+      /* version bump retained: ScrollWidth keys its re-measure on it,
+         and a resize changes rendered width */
       Settings.version := Settings.version^ + 1;
-      model;
+      {
+        ...model,
+        sample_lengths: SampleLength.set(model.sample_lengths, id, len),
+      };
     | ToggleWindowMode =>
       Settings.go(ToggleWindow);
       model;
@@ -2335,8 +2860,10 @@ module M: Projector = {
       };
     | ResetSettings =>
       Settings.reset_mode();
-      SampleLength.reset();
-      model;
+      {
+        ...model,
+        sample_lengths: [],
+      };
     | ToggleModal(pm) =>
       /* activation: content taller than the inline cap opens the
          drawer (chevron / Cmd+ArrowUp toggles back) */
@@ -2447,10 +2974,14 @@ module M: Projector = {
      * The focusable .live-offside always goes wherever the samples live. */
     let data_opt =
       prepare_offside(info, local, parent, ~settings, ~sort, ~model);
-    let drawer = model.drawer_mode;
+    let stepping = info.stepping != None;
+    let drawer = model.drawer_mode && !model.card_mode || stepping;
     let offside_main =
       switch (data_opt, drawer) {
+      | (_, true) when model.bare => Node.div([])
       | (None, _) => empty_view(~id=info.id, ~settings)
+      | (Some(data), _) when model.card_mode =>
+        card_view(data, local, view_seg, ~settings)
       | (Some(data), false) =>
         /* rich content embeds inside each sample chip (value_view);
            no whole-row replacement in inline mode */
@@ -2468,44 +2999,54 @@ module M: Projector = {
     /* Content taller than the drawer cap → the drawer scrolls; gates the
      * wrapper's scroll-affordance fade and the rich view's overflow clip. */
     let drawer_overflow =
-      drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > DrawerHeight.max_rows
-        | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
-        }
-      );
+      switch (info.stepping) {
+      | Some(_) => false
+      | None =>
+        drawer
+        && (
+          switch (rich_drawer_rows(model, info)) {
+          | Some(n) => n > DrawerHeight.max_rows
+          | None =>
+            DrawerHeight.content_rows(~lengths=model.sample_lengths, info)
+            > DrawerHeight.max_rows
+          }
+        )
+      };
     /* In drawer mode an active rich renderer replaces the sample view in
      * the drawer itself; the anchored modal overlay is inline-mode only
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
-      drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > inline_rows_cap
-        | None => false
-        }
-      )
-        ? rich_content(
-            ~settings,
-            model,
-            info,
-            ~local,
-            ~parent,
-            ~view_seg,
-            ~sort,
+      stepping
+        ? Some(
+            steps_drawer_view(~parent, ~overflowing=drawer_overflow, info),
           )
-          |> Option.map(content =>
-               rich_drawer_view(
-                 ~local,
-                 ~overflowing=drawer_overflow,
-                 /* auto-rich (no explicit renderer) has nothing to close:
-                    dismissal would just re-trigger */
-                 ~closable=model.active_renderer != None,
-                 content,
-               )
-             )
-        : None;
+        : drawer
+          && (
+            switch (rich_drawer_rows(model, info)) {
+            | Some(n) => n > inline_rows_cap
+            | None => false
+            }
+          )
+            ? rich_content(
+                ~settings,
+                model,
+                info,
+                ~local,
+                ~parent,
+                ~view_seg,
+                ~sort,
+              )
+              |> Option.map(content =>
+                   rich_drawer_view(
+                     ~local,
+                     ~overflowing=drawer_overflow,
+                     /* auto-rich (no explicit renderer) has nothing to close:
+                        dismissal would just re-trigger */
+                     ~closable=model.active_renderer != None,
+                     content,
+                   )
+                 )
+            : None;
     /* the anchored modal is retired: small rich views replace the
        offside row, big ones live in the drawer */
     let modal_nodes = [];
@@ -2523,6 +3064,10 @@ module M: Projector = {
       offside: Some(offside_node),
       below:
         switch (data_opt, drawer) {
+        /* the program stopped short of the ⇓ probe: how far it got */
+        | (_, true)
+            when model.bare && Settings.value_fallback^(info.id) != None =>
+          Settings.value_fallback^(info.id)
         | (Some(data), true) =>
           Some(
             live_offside_view(

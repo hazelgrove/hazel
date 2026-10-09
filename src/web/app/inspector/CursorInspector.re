@@ -122,6 +122,7 @@ let view_any = (~globals, any: Any.t) =>
 
 let view_type = (~globals, typ: Typ.t) =>
   typ
+  |> Typ.abstract_rec_types
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
@@ -263,6 +264,7 @@ let core_mark_err_view =
     | LabelNotFound(_)
     | BadOperator(_)
     | BadLivelitModel(_)
+    | InvalidLivelitDef(_)
     | BadTheorem(_)
     | Redundant
     | ExpectedConstructor
@@ -731,6 +733,22 @@ let exp_mark_err_view =
       ...List.map(label_view, labels),
     ])
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
+  | InvalidLivelitDef(DefNotTuple) =>
+    div_err([
+      text("Livelit definition should be a module with members "),
+      code("init, update, view, expand"),
+    ])
+  | InvalidLivelitDef(DefBadArity(n)) =>
+    div_err([
+      text("Livelit definition should have fields "),
+      code("(init, update, view, expand)"),
+      text(", got " ++ string_of_int(n)),
+    ])
+  | InvalidLivelitDef(DefMissingMembers(missing)) =>
+    div_err([
+      text("Livelit definition is missing members: "),
+      ...List.map(code, missing),
+    ])
   | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),
@@ -1099,8 +1117,15 @@ let info_for_view = (~quiver: bool, cursor: Cursor.cursor('action)) =>
   | None => cursor.info
   };
 
-let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
-  let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
+/* [dynamics]: the slide program's, at the bar's right end */
+let view =
+    (
+      ~globals: Globals.t,
+      ~dynamics: option(Node.t)=?,
+      cursor: Cursor.cursor(Editors.Update.t),
+    ) => {
+  let bar_view = kids =>
+    div(~attrs=[Attr.id("bottom-bar")], kids @ Option.to_list(dynamics));
   let err_view = err =>
     bar_view([
       div(
@@ -1119,7 +1144,8 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
     | _ => None
     };
   switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
-  | _ when !globals.settings.core.statics => div_empty
+  | _ when !globals.settings.core.statics =>
+    dynamics == None ? div_empty : bar_view([])
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     /* Show projector error instead of normal status,

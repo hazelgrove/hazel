@@ -1,6 +1,22 @@
 open Js_of_ocaml;
 open Haz3lcore;
 open Virtual_dom.Vdom;
+
+/* pending insist press: (indicated target, gesture) of the last dead
+   press that had a remedied move available, with its arm time — the
+   confirmation window expires (a press minutes later must re-shake,
+   not fire a forgotten convoy; also keeps demo cadence legible) */
+let insist_pending:
+  ref(option(((option(Haz3lcore.Id.t), Action.Gesture.t), float))) =
+  ref(None);
+let insist_window_ms = 1100.;
+let insist_now = (): float => Js.to_float(Js.Unsafe.js_expr("Date.now()"));
+let insist_armed = signature =>
+  switch (insist_pending^) {
+  | Some((s, t)) => s == signature && insist_now() -. t < insist_window_ms
+  | None => false
+  };
+type editor_id = string;
 open Util;
 
 /* A selectable editable code container component with statics and type-directed code completion. */
@@ -20,68 +36,234 @@ module Update = {
 
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
-    let perform = (action: Action.t, model: Model.t) =>
-      PerfMetrics.time_perform(~action, () =>
-        Editor.Update.update(
-          ~settings=settings.core,
-          action,
-          model.statics,
-          model.dynamics,
-          model.editor,
+    let perform = (action: Action.t, model: Model.t) => {
+      /* With probe_all on, a placed probe's samples already exist
+         (they show instantly), but ambient samples carry no env
+         (CachedStatics.compute_targets), so re-evaluate to give the
+         new probe its bindings. */
+      let is_edit = Action.is_edit(action);
+      switch (
+        PerfMetrics.time_perform(~action, () =>
+          Editor.Update.update(
+            ~settings=settings.core,
+            action,
+            model.statics,
+            model.dynamics,
+            model.editor,
+          )
         )
-      )
-      |> (
-        fun
-        | Ok(editor) =>
-          Model.{
-            editor,
-            statics: model.statics,
-            dynamics: model.dynamics,
-            context_menu: None,
-          }
-        | Error(err) => raise(Action.Failure.Exception(err))
-      )
-      |> Updated.return(
-           ~historic=Action.is_historic(action),
-           /* With probe_all on, a placed probe's samples already exist
-            * (they show instantly), but ambient samples carry no env
-            * (CachedStatics.compute_targets), so re-evaluate to give the
-            * new probe its bindings. */
-           ~is_edit=Action.is_edit(action),
-           ~recalculate=true,
-           ~scroll_active={
-             switch (action) {
-             | Move(Point(_)) => false
-             | Select(All) => false
-             | Select(Resize(Point(_))) => false
-             | Move(_)
-             | Select(_)
-             | Destruct(_)
-             | Insert(_)
-             | Put_down
-             | Buffer(Set(_) | Accept | Clear)
-             | Paste(_)
-             | Copy
-             | Cut
-             | Reparse
-             | Introduce
-             | Probe(StepInto(_))
-             | Format(_)
-             | AdjustIndent(_, _)
-             | ApplyCompletion(_)
-             | ToggleLineComment => true
-             | Project(_)
-             | Unselect(_)
-             | Structural(_)
-             | Probe(_) => false
-             };
-           },
-         );
+      ) {
+      | Error(Action.Failure.Cant_refactor) =>
+        /* dead press: gated-not-fall-through is the rule, but
+           silence read as breakage — make the refusal visible.
+           The model is UNCHANGED: quiet return, or every dead press
+           eats an undo frame (andrew) */
+        CodeFlip.shake_dead_press(
+          ~segment=model.editor.syntax.segment,
+          ~axis=
+            switch (action) {
+            | RefactorGesture(Up | Down) => `Y
+            | _ => `X
+            },
+          (),
+        );
+        Updated.return_quiet(model);
+      | Error(err) => raise(Action.Failure.Exception(err))
+      | Ok(editor) =>
+        Model.{
+          editor,
+          statics: model.statics,
+          dynamics: model.dynamics,
+          context_menu: None,
+        }
+        |> Updated.return(
+             ~historic=Action.is_historic(action),
+             /* Layout-level edits (projector SetModel) don't change program
+              * semantics: skip statics/elaboration/re-evaluation downstream
+              * by reporting is_edit=false, but still autosave — the model
+              * string lives in the zipper and must persist. */
+             ~is_edit=
+               is_edit
+               && (
+                 switch (Action.recompute_level(action)) {
+                 | Full => true
+                 | Layout => false
+                 }
+               ),
+             ~save=is_edit,
+             ~recalculate=true,
+             ~scroll_active={
+               switch (action) {
+               | Move(Point(_)) => false
+               | Select(All) => false
+               | Select(Resize(Point(_))) => false
+               | Move(_)
+               | Select(_)
+               | Destruct(_)
+               | Insert(_)
+               | Put_down
+               | Buffer(Set(_) | Accept | Clear)
+               | Paste(_)
+               | Copy
+               | Cut
+               | Reparse
+               | Introduce
+               | Refactor(_)
+               | RefactorGesture(_)
+               | Probe(StepInto(_))
+               | Format(_)
+               | AdjustIndent(_, _)
+               | ApplyCompletion(_)
+               | ToggleLineComment => true
+               | Project(_)
+               | Unselect(_)
+               | Structural(_)
+               | Probe(_) => false
+               };
+             },
+           )
+      };
+    };
     switch (action) {
     | Perform(action) =>
-      settings.core.flip_animations && Action.should_animate(action)
-        ? Animation.request([Animation.Actions.move("caret")]) : ();
-
+      /* INSIST: a dead gesture press with a remedied move available
+         (convoy hoist / lift-to-helper) shakes; the SAME press again
+         fires the remedy. Transient interaction state, deliberately
+         imperative (not model): it never affects the document and
+         must not survive undo/replay. */
+      let action =
+        switch (action) {
+        | RefactorGesture(g) =>
+          let z = model.editor.state.zipper;
+          let info_map = model.statics.info_map;
+          let term = model.statics.term;
+          let signature = (Haz3lcore.Indicated.index(z), g);
+          switch (Refactor.gesture(~info_map, ~term, g, z)) {
+          | Some(_) =>
+            /* a plain rung mid-journey keeps carrying mode armed
+               (and refreshes its window): one shake per (grab,
+               direction) journey, not one per convoy step */
+            if (insist_armed(signature)) {
+              insist_pending := Some((signature, insist_now()));
+            } else {
+              insist_pending := None;
+            };
+            action;
+          | None =>
+            switch (Refactor.gesture_insist(~info_map, ~term, g, z)) {
+            | Some(kind) =>
+              if (insist_armed(signature)) {
+                insist_pending := Some((signature, insist_now()));
+                Action.Refactor(kind);
+              } else {
+                insist_pending := Some((signature, insist_now()));
+                CodeFlip.shake_insist();
+                action;
+              }
+            | None =>
+              /* refused outright: the grabbed form's delimiters go
+                 red (press registered, no-go — distinguishes a wall
+                 from a mis-hit chord), plus the culprit tokens when
+                 the refusal has nameable ones (andrew). The insist
+                 prompt stays a PLAIN shake: red = refused, plain =
+                 press again, silence = only for non-gesture keys. */
+              let culprits = Refactor.gesture_blockers(~term, g, z);
+              let grab =
+                switch (Haz3lcore.Indicated.index(z)) {
+                | Some(t) => [t]
+                | None => []
+                };
+              switch (culprits @ grab) {
+              | [] => ()
+              | ids => CodeFlip.request_shake(ids)
+              };
+              insist_pending := None;
+              action;
+            }
+          };
+        | _ =>
+          /* any actual edit invalidates an armed insist (the program
+             the shake described no longer exists); caret motion and
+             selection keep it (andrew: come-back-and-continue is fine,
+             edits should reset) */
+          if (Action.is_edit(action)) {
+            insist_pending := None;
+          };
+          action;
+        };
+      if (settings.core.flip_animations && Action.should_animate(action)) {
+        /* the indication backing FLIPs by id like the caret; ids only
+           survive the action when the same construct stays indicated
+           (focus-follows-content), which is exactly when motion makes
+           sense — otherwise the request drops out harmlessly */
+        /* rapid input snaps instead of gliding (theirs): a fresh caret
+           glide per key-repeat left the caret perpetually trailing */
+        Animation.request(
+          (
+            Animation.caret_glide_available()
+              ? [Animation.Actions.move("caret")] : []
+          )
+          @ (
+            JsUtil.ids_with_prefix("indication-")
+            @ JsUtil.ids_with_prefix("varhl-")
+            @ JsUtil.ids_with_prefix("errdec-")
+            @ JsUtil.ids_with_prefix("warndec-")
+            |> List.map(Animation.Actions.move)
+          )
+          @ (
+            JsUtil.ids_with_prefix("cnode-")
+            @ JsUtil.ids_with_prefix("cedge-")
+            @ JsUtil.ids_with_prefix("cval-")
+            |> List.map(
+                 Animation.Actions.move(~scale=CanvasBuffer.canvas_zoom^),
+               )
+          )
+          @ (
+            JsUtil.ids_with_prefix("canvas-avatar")
+            |> List.map(
+                 Animation.Actions.move_slow(
+                   ~scale=CanvasBuffer.canvas_zoom^,
+                 ),
+               )
+          ),
+        );
+        switch (action) {
+        | Refactor(_)
+        | RefactorGesture(_) =>
+          /* feed's clone flies from the def it splits off (D2
+             emergeMode=clone) — stage the source ids for the flight
+             pairing; non-feed kinds stage [] (no-op) */
+          {
+            let z = model.editor.state.zipper;
+            let info_map = model.statics.info_map;
+            let term = model.statics.term;
+            CodeFlip.set_emerge_src(
+              switch (action) {
+              | RefactorGesture(g) =>
+                Refactor.gesture_emerge_source(~info_map, ~term, g, z)
+              | Refactor(kind) =>
+                Refactor.refactor_emerge_source(~info_map, ~term, kind, z)
+              | _ => []
+              },
+            );
+            CodeFlip.set_merge(
+              switch (action) {
+              | RefactorGesture(g) =>
+                Refactor.gesture_merge_target(~info_map, ~term, g, z)
+              | Refactor(kind) =>
+                Refactor.refactor_merge_target(~info_map, ~term, kind, z)
+              | _ => ([], [])
+              },
+            );
+          };
+          CodeFlip.request(model.editor.syntax);
+        | _ when settings.core.animate_all_edits && Action.is_edit(action) =>
+          /* movement only: grow-ins on every keystroke/completion
+             re-animate constantly and read as churn */
+          CodeFlip.request(~enters=false, model.editor.syntax)
+        | _ => ()
+        };
+      };
       perform(action, model);
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
@@ -165,6 +347,21 @@ module Selection = {
           )
         ),
     }
+    |> Cursor.with_lazy_actions(() =>
+         Haz3lcore.Refactor.menu_items(
+           ~info_map=model.statics.info_map,
+           ~term=model.statics.term,
+           model.editor.state.zipper,
+         )
+         |> List.map(((kind, label, _tooltip)) =>
+              ContextualAction.of_dynamic(
+                ~action=inject(Perform(Refactor(kind))),
+                ~section=Refactoring,
+                ~mdIcon="compress",
+                label,
+              )
+            )
+       )
     |> Cursor.with_actions([
          /* Navigation */
          of_shortcut(
@@ -357,9 +554,33 @@ module Selection = {
     | None => handle_key_event(~selection, model, key)
     };
 
-  let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
+  let jump_to_tile =
+      (~select=false, id: Id.t, model: Model.t): option(Update.t) => {
     switch (TermData.root_piece(id, model.editor.syntax.term_data)) {
-    | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
+    | Some(piece) =>
+      /* Which selection covers "the whole definition" depends on the
+         tile's shape. A top-level `let … = … in` TILE spans the clause
+         (its TERM would swallow the rest of the program), so Tile is
+         right there. A module member's `let … =` tile has no `in`: its
+         definition is the tile's OPERAND, so only Term includes it. */
+      let closes_with_in =
+        switch (piece) {
+        | Piece.Tile(t) =>
+          switch (List.rev(Tile.label(t))) {
+          | ["in", ..._] => true
+          | _ => false
+          }
+        | _ => false
+        };
+      select
+        ? Some(
+            Perform(
+              Select(
+                closes_with_in ? Tile(Id(id, Left)) : Term(Id(id, Left)),
+              ),
+            ),
+          )
+        : Some(Perform(Move(Goal(TileId(id)))));
     | None => None
     };
   };
@@ -523,7 +744,6 @@ module View = {
         ~lines: bool=false,
         ~cull: bool=false,
         ~dynamics: Language.Dynamics.Map.t,
-        ~predicted_reuse: option(Language.EvaluatorState.incr_eval)=?,
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
         ~expand_selection=?,
@@ -539,6 +759,11 @@ module View = {
       switch (edit_mode) {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
+      };
+    let escape_vertical =
+      switch (edit_mode) {
+      | ReadOnly => None
+      | Editable({escape_vertical, _}) => escape_vertical
       };
     /* Editor-level clipboard helpers. Bypass the page-level
        on_copy/on_paste path because Firefox refuses to dispatch
@@ -590,12 +815,9 @@ module View = {
           ),
         )
       );
-    /* Inject for context-menu rows. Clipboard rows need view-layer side
-       effects the core can't perform: Copy/Cut write the system clipboard
-       before dispatch, and PasteFromClipboard starts an async read whose
-       result is dispatched as the real Paste, closing the menu
-       immediately. Both are Effects, so the clipboard is touched when the
-       row fires rather than when its Effect is built. */
+    /* Inject for context-menu rows: Copy/Cut write the system clipboard
+       before dispatch; PasteFromClipboard starts the async read whose result
+       is dispatched as the real Paste, closing the menu immediately. */
     let perform_from_menu = (c: ContextMenu.command): Ui_effect.t(unit) =>
       switch (c) {
       | Perform(Copy) =>
@@ -619,6 +841,7 @@ module View = {
         key_str =>
           ContextMenu.WithContext.handle_listener_key(
             ~info_map=model.statics.info_map,
+            ~term=model.statics.term,
             ~elaborated=model.statics.elaborated,
             ~zipper=model.editor.state.zipper,
             ~dispatch_menu=a => inject(ContextMenu(a)),
@@ -628,6 +851,17 @@ module View = {
           ),
       (),
     );
+    if (selected) {
+      CodeDrag.sync(
+        ~info_map=model.statics.info_map,
+        ~term=model.statics.term,
+        ~measured=model.editor.syntax.measured,
+        ~segment=model.editor.syntax.segment,
+        ~shape_map=model.editor.syntax.shape_map,
+        ~font_metrics=globals.font_metrics,
+        model.editor.state.zipper,
+      );
+    };
     let edit_decos =
       selected
         ? deco(
@@ -666,6 +900,7 @@ module View = {
                   ~inject_menu=a => inject(ContextMenu(a)),
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
+                  ~term=model.statics.term,
                   ~elaborated=model.statics.elaborated,
                   ~font_metrics=globals.font_metrics,
                   ~model=model.context_menu,
@@ -690,12 +925,15 @@ module View = {
             (_, _, b) => Some(b),
             zipper.refractors.manuals |> Id.Map.of_list,
             zipper.refractors.multis.ephemerals,
-          ),
+          )
+          |> Id.Map.union((_, a, _) => Some(a), _, zipper.refractors.proofs),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.for_decoration(zipper),
         ~statics=model.statics.info_map,
         ~dynamics,
         ~sample_focus=zipper.refractors.sample_focus,
+        ~stepping=zipper.refractors.stepping,
+        ~tail=zipper.refractors.tail_target,
         ~editor_active=selected,
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
@@ -709,10 +947,21 @@ module View = {
         ~core_settings=globals.settings.core,
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
+        ~term_data=model.editor.syntax.term_data,
+        ~tail=zipper.refractors.tail_target,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
-        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals)),
+        @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals))
+        @ List.map(fst, Id.Map.to_list(zipper.refractors.proofs)),
       );
+    /* Clicking a docked projector's chip reveals its card. SwitchPanel
+     * expands a collapsed sidebar, but toggles the panel shut if it's
+     * already the one showing, so skip it in that case. */
+    let open_panel =
+      globals.settings.sidebar.show
+      && globals.settings.sidebar.panel == SidebarModel.Settings.Projectors
+        ? Effect.Ignore
+        : globals.inject_global(Set(Sidebar(SwitchPanel(Projectors))));
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),
@@ -720,6 +969,7 @@ module View = {
         globals.font_metrics,
         ~core_settings=globals.settings.core,
         ~visible?,
+        ~open_panel,
         ProjectorView.Model.mk(
           ~syntax=model.editor.syntax,
           ~indicated=Indicated.for_decoration(zipper),
@@ -732,31 +982,27 @@ module View = {
         model.editor.syntax.projector_list,
       );
     ProjectorView.ViewCache.log_frame();
-    /* The nut-menu setting paints ReusePass predictions (frozen tint). Pending
-     * evaluation highlights are transient progress feedback, so keep them on
-     * while the worker is running. */
     let incr_eval_overlay =
-      switch (
-        predicted_reuse,
-        globals.settings.show_incremental_deco || pending_eval_ids != [],
-      ) {
-      | (Some(predicted_reuse), true) => [
+      if (globals.settings.show_incremental_deco && pending_eval_ids != []) {
+        [
           Node.div(
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
             [
               Highlight.incr_eval(
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
+                /* not gated on auto-probe: the range is tracked
+                   whenever this highlight shows */
+                ~visible=?cull ? globals.visible_rows : None,
                 ~pending_eval_ids,
                 ~show_active_eval,
-                ~show_frozen=globals.settings.show_incremental_deco,
-                predicted_reuse,
+                (),
               ),
             ],
           ),
-        ]
-      | (None, _)
-      | (Some(_), false) => []
+        ];
+      } else {
+        [];
       };
     let overlays =
       incr_eval_overlay
@@ -789,34 +1035,6 @@ module View = {
         ? Some(Keyboard.mouse_modifier_chunk(globals.settings.core)) : None;
     };
 
-    /* True when a click location falls within the measured extent of
-       the current selection (approximated by its first/last pieces).
-       Right-click uses this to keep the selection alive so the context
-       menu's Cut/Copy can act on it. */
-    let click_in_selection = (click: Point.t): bool => {
-      let z = model.editor.state.zipper;
-      switch (z.selection.content) {
-      | [] => false
-      | [first, ..._] as content =>
-        let measured = model.editor.syntax.measured;
-        switch (
-          try(
-            Some((
-              Measured.find_p(first, measured),
-              Measured.find_p(ListUtil.last(content), measured),
-            ))
-          ) {
-          | _ => None
-          }
-        ) {
-        | None => false
-        | Some((head, tail)) =>
-          Point.compare(click, head.origin) >= 0
-          && Point.compare(click, tail.last) <= 0
-        };
-      };
-    };
-
     let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
       | {button: Left, shift: Down, _} =>
@@ -836,6 +1054,29 @@ module View = {
             ),
           ),
         ]);
+      | {button: Left, shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+          when globals.settings.core.drag_refactor =>
+        /* modal drag-to-refactor (Settings > Drag Refactoring): a
+           plain drag pulls the grabbed construct along candidate
+           tracks; candidates are enumerated by CodeDrag.sync once
+           the caret lands at the grab point */
+        CodeDrag.arm(
+          ~commit=
+            g =>
+              Bonsai.Effect.Expert.handle(
+                inject(Perform(RefactorGesture(g))),
+              ),
+          ~text_box=container_target(mouse.current_target),
+          ~client=(
+            float_of_int(mouse.loc.col),
+            float_of_int(mouse.loc.row),
+          ),
+          ~goal=loc(mouse),
+        );
+        Effect.Many([
+          signal(MakeActive),
+          inject(Perform(Move(Point(loc(mouse), None)))),
+        ]);
       | {button: Left, sys: PC, ctrl: Down, _}
       | {button: Left, sys: Mac, meta: Down, _} =>
         Effect.Many([
@@ -844,17 +1085,12 @@ module View = {
           inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
         ])
       | {button: Right, ctrl, _} when ctrl != Down =>
-        /* Right-click inside the selection keeps it (so the menu's
-           Cut/Copy apply to it); outside, move the caret to the click
-           location as a plain click would before opening the menu. */
-        Effect.Many(
-          [Effect.Prevent_default]
-          @ (
-            click_in_selection(loc(mouse))
-              ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
-          )
-          @ [inject(ContextMenu(ContextMenu.Model.Toggle))],
-        )
+        Effect.Many([
+          //Effect.Stop_propagation,
+          Effect.Prevent_default,
+          inject(Perform(Move(Point(loc(mouse), None)))),
+          inject(ContextMenu(ContextMenu.Model.Toggle)),
+        ])
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
         DragClass.add(mouse.current_target);
@@ -950,6 +1186,23 @@ module View = {
         Attr.empty;
       } else {
         let z = model.editor.state.zipper;
+        /* escape_vertical fires on Up at the first row / Down at the last,
+           before the core move snaps the caret to line start/end */
+        let caret_row_edge = (v: Haz3lcore.Action.vertical): option(int) =>
+          switch (escape_vertical) {
+          | None => None
+          | Some(_) when z.selection.content != [] => None
+          | Some(_) =>
+            let measured = model.editor.syntax.measured;
+            let Util.Point.{row, col} =
+              Haz3lcore.Zipper.Caret.point(measured, z);
+            let last_row = max(0, measured.total_rows - 1);
+            switch (v) {
+            | Up when row == 0 => Some(col)
+            | Down when row == last_row => Some(col)
+            | _ => None
+            };
+          };
         /* Key.listener (not Key.handler): handler adds its own tabindex(0),
            duplicating this div's tabindex — vdom warns every render */
         Key.listener(~f=key => {
@@ -957,6 +1210,30 @@ module View = {
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
           switch (key) {
+          | {key: D("ArrowUp"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                Option.is_some(escape_vertical)
+                && Option.is_some(caret_row_edge(Up)) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Option.get(
+                escape_vertical,
+                Up,
+                Option.get(caret_row_edge(Up)),
+              ),
+            ])
+          | {key: D("ArrowDown"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+              when
+                Option.is_some(escape_vertical)
+                && Option.is_some(caret_row_edge(Down)) =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Option.get(
+                escape_vertical,
+                Down,
+                Option.get(caret_row_edge(Down)),
+              ),
+            ])
           | {
               key: D("ArrowLeft" | "ArrowUp"),
               shift: Up,

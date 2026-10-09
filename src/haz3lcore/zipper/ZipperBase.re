@@ -56,6 +56,15 @@ let update_ephemerals = (f, z: t): t => {
   },
 };
 
+/* same text, selection, caret and manual probes. probe passes rebuild
+   the record on every calculate, so identity alone says little */
+let same_content = (a: t, b: t): bool =>
+  a === b
+  || a.relatives === b.relatives
+  && a.selection === b.selection
+  && a.caret == b.caret
+  && a.refractors.manuals === b.refractors.manuals;
+
 let update_suppressed = (f, z: t): t => {
   ...z,
   refractors: {
@@ -119,17 +128,22 @@ module MapPiece = {
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
-    | Tile(t) => Tile(of_tile(f, t))
+    | Tile(t) =>
+      let next = of_tile(f, t);
+      next === t ? piece : Tile(next);
     | Grout(_)
     | Projector(_)
     | Secondary(_) => piece
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {
-      ...t,
-      children: List.map(of_segment(f), t.children),
-    };
+    let children = List.map(of_segment(f), t.children);
+    List.for_all2((a, b) => Segment.ptr_eq(a, b), t.children, children)
+      ? t
+      : {
+        ...t,
+        children,
+      };
   };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
@@ -222,8 +236,30 @@ module MapPiece = {
 module MapSegment = {
   type updater = Segment.t => Segment.t;
 
-  let of_segment = (f: updater, seg: Segment.t): Segment.t =>
-    Segment.map_deep(f, seg);
+  let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
+    let seg = f(seg);
+    let next = List.map(of_piece(f), seg);
+    Segment.ptr_eq(seg, next) ? seg : next;
+  }
+  and of_piece = (f: updater, piece: Piece.t): Piece.t => {
+    switch (piece) {
+    | Tile(t) =>
+      let next = of_tile(f, t);
+      next === t ? piece : Tile(next);
+    | Grout(_)
+    | Projector(_)
+    | Secondary(_) => piece
+    };
+  }
+  and of_tile = (f: updater, t: Tile.t): Tile.t => {
+    let children = List.map(of_segment(f), t.children);
+    List.for_all2((a, b) => Segment.ptr_eq(a, b), t.children, children)
+      ? t
+      : {
+        ...t,
+        children,
+      };
+  };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
     of_segment(f, fst(sibs)),

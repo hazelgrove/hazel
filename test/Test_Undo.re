@@ -56,9 +56,246 @@ let text_of = (model: History.Model.t): string =>
 let undo_len = (model: History.Model.t) => List.length(model.undo_stack);
 let redo_len = (model: History.Model.t) => List.length(model.redo_stack);
 
+let canvas_fixture = (): History.Model.t => {
+  let m = mk_model();
+  let seg =
+    Test_StackFocus.parse(
+      "type A = Int in type B = Int in let f : A -> B = fun a -> a in f(3)",
+    );
+  let ed = ScratchMode.Focus.cell_of_seg(seg);
+  let statics =
+    Haz3lcore.CachedStatics.init_compositional_term(
+      ~settings=m.current.globals.settings.core,
+      ~probe_ids=Haz3lcore.Id.Map.empty,
+      Haz3lcore.MakeTerm.go(seg).term,
+    );
+  let ed: CellEditor.Model.t = {
+    ...ed,
+    editor: {
+      ...ed.editor,
+      statics,
+    },
+  };
+  let scratch =
+    switch (m.current.editors) {
+    | Scratch(sm) => sm
+    | _ => failwith("expected scratch")
+    };
+  let sp = List.nth(scratch.scratchpads, scratch.current);
+  let sp =
+    switch (sp.kind) {
+    | Code(code) => {
+        ...sp,
+        kind:
+          Code({
+            ...code,
+            program: Whole(ed),
+          }),
+      }
+    | _ => failwith("expected code")
+    };
+  {
+    ...m,
+    current: {
+      ...m.current,
+      editors:
+        Scratch({
+          ...scratch,
+          scratchpads:
+            Util.ListUtil.put_nth(scratch.current, sp, scratch.scratchpads),
+        }),
+    },
+  };
+};
+
+/* the slide's whole program, divided or not */
+let program_of = (model: History.Model.t): Program.t =>
+  switch (model.current.editors) {
+  | Scratch(sm) =>
+    switch (ScratchMode.Model.current_program(sm)) {
+    | Some(p) => p
+    | None => failwith("expected a code slide")
+    }
+  | _ => failwith("expected scratch")
+  };
+let whole_term = model => Program.statics(program_of(model)).term;
+let whole_text = model =>
+  Program.document(program_of(model))
+  |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
+
+/* the outline shows in every mode; outside the decks a click still
+   moves its cursor, where it used to be refused as an invalid action */
+let outline_click_outside_decks = () => {
+  let model = mk_model();
+  let globals = model.current.globals;
+  let editors: Editors.Model.t =
+    Config(Editors.Store.load_config(~settings=globals.settings.core));
+  let model = {
+    ...model,
+    current: {
+      ...model.current,
+      editors,
+      selection: Editors.Selection.default_selection(editors),
+    },
+  };
+  let path =
+    Some([
+      OutlineTree.{
+        s_label: "x",
+        s_occ: 0,
+      },
+    ]);
+  OutlineControl.cursor := None;
+  let _ = apply(model, Editors(Scratch(Outline(Cursor(path)))));
+  Alcotest.(check(bool))(
+    "the cursor moved",
+    true,
+    OutlineControl.cursor^ == path,
+  );
+  OutlineControl.cursor := None;
+};
+
 let tests = (
   "Undo",
   [
+    test_case(
+      "credentials stay outside undo and redo",
+      `Quick,
+      () => {
+        let event = action => Page.Update.Globals(SetAgentGlobals(action));
+        let m0 =
+          apply(
+            mk_model(),
+            event(
+              RestoreBrowserApiKey({
+                key: Some("test-key"),
+                remember: true,
+                error: false,
+              }),
+            ),
+          );
+        let m1 = apply(m0, insert("1"));
+        let snapshot =
+          List.hd(m1.undo_stack).model.globals.settings.agent_globals;
+        check(
+          option(string),
+          "snapshots contain no key",
+          None,
+          snapshot.api_key,
+        );
+        let m2 = apply(m1, event(LocalKeyForgotten(true)));
+        check(int, "forget adds no undo entry", undo_len(m1), undo_len(m2));
+        let m3 = apply(m2, undo);
+        check(
+          option(string),
+          "undo cannot resurrect a key",
+          None,
+          m3.current.globals.settings.agent_globals.api_key,
+        );
+        let m4 =
+          apply(
+            m3,
+            event(
+              RestoreBrowserApiKey({
+                key: Some("new-key"),
+                remember: true,
+                error: false,
+              }),
+            ),
+          );
+        let m5 = apply(m4, redo);
+        check(
+          option(string),
+          "redo preserves current key",
+          Some("new-key"),
+          m5.current.globals.settings.agent_globals.api_key,
+        );
+        check(
+          bool,
+          "redo preserves storage preference",
+          true,
+          m5.current.globals.settings.agent_globals.remember_browser_key,
+        );
+      },
+    ),
+    test_case(
+      "Canvas deletion undo survives selection and render ticks",
+      `Quick,
+      () => {
+        let m0 = canvas_fixture();
+        let fid = Test_StackFocus.outline_id(whole_term(m0), "f");
+        let m1 = apply(m0, Editors(Scratch(Workspace(FocusDef(fid)))));
+        let m2 =
+          apply(
+            m1,
+            Editors(Scratch(Outline(DefOp(OutlineSidebar.Delete, fid)))),
+          );
+        let actions: list(Page.Update.t) = [
+          Globals(Set(Sidebar(SetCanvasFocusTy(None)))),
+          Globals(Set(Sidebar(SetCanvasFocus(None)))),
+          Globals(Set(Sidebar(SetCanvasPanelHidden(false)))),
+          Globals(Set(CanvasTick)),
+        ];
+        let m3 = List.fold_left(apply, m2, actions);
+        check(
+          int,
+          "display updates do not push history",
+          undo_len(m2),
+          undo_len(m3),
+        );
+        let restored = apply(m3, undo);
+        let restored =
+          History.Update.calculate(
+            ~schedule_action=_ => (),
+            ~is_edited=true,
+            ~dynamics=false,
+            restored,
+          );
+        check(
+          bool,
+          "restored outline has the deleted definition",
+          true,
+          Test_StackFocus.outline_id(whole_term(restored), "f") == fid,
+        );
+        let m4 = List.fold_left(apply, restored, actions);
+        check(int, "display updates preserve redo", 1, redo_len(m4));
+        let m5 = apply(m4, redo);
+        check(
+          bool,
+          "redo removes the definition",
+          false,
+          switch (
+            Str.search_forward(
+              Str.regexp_string("let f"),
+              whole_text(m5),
+              0,
+            )
+          ) {
+          | _ => true
+          | exception Not_found => false
+          },
+        );
+      },
+    ),
+    test_case(
+      "undo and redo recalculate compacted view-only snapshots",
+      `Quick,
+      () => {
+        let m = apply(canvas_fixture(), Globals(Set(SetCanvasZoom(1.2))));
+        let restore = (action, m) =>
+          History.Update.update(
+            ~import_log=_ => (),
+            ~get_log_and=_ => (),
+            ~schedule_action=_ => (),
+            action,
+            m,
+          );
+        let u = restore(undo, m);
+        check(bool, "undo recalculates", true, u.recalculate && u.is_edit);
+        let r = restore(redo, u.model);
+        check(bool, "redo recalculates", true, r.recalculate && r.is_edit);
+      },
+    ),
     test_case(
       "edit then undo restores the original state",
       `Quick,
@@ -70,12 +307,7 @@ let tests = (
         check(int, "edit pushed one undo entry", 1, undo_len(m1));
         let m2 = apply(m1, undo);
         check(string, "undo restores original text", t0, text_of(m2));
-        check(
-          bool,
-          "undo restores the exact pre-edit model",
-          true,
-          m2.current === m0.current,
-        );
+        /* compacted snapshots: text, not physical identity, is the contract */
         check(int, "undo stack is empty again", 0, undo_len(m2));
         check(int, "undone edit moved to redo stack", 1, redo_len(m2));
       },
@@ -131,12 +363,6 @@ let tests = (
         let m2 = apply(m1, undo);
         let m3 = apply(m2, redo);
         check(string, "redo restores the edited text", t1, text_of(m3));
-        check(
-          bool,
-          "redo restores the exact post-edit model",
-          true,
-          m3.current === m1.current,
-        );
         check(int, "redo moved the entry back to undo", 1, undo_len(m3));
         check(int, "redo stack is empty again", 0, redo_len(m3));
         switch (apply(m3, redo)) {
@@ -178,6 +404,11 @@ let tests = (
           text_of(m4),
         );
       },
+    ),
+    test_case(
+      "an outline click outside the decks moves its cursor",
+      `Quick,
+      outline_click_outside_decks,
     ),
   ],
 );

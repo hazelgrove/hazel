@@ -9,10 +9,17 @@
     "url": "https://github.com/hazelgrove/hazel/issues"
   },
   "homepage": "https://hazel.org",
+  "scripts": {
+    "canvas": "vite --host localhost --port 8687 --strictPort",
+    "test:local-key": "node --test scripts/dev/local-agent-key.test.mjs",
+    "test:agent-auth": "node --test scripts/dev/agent-auth.test.mjs"
+  },
   "dependencies": {
     "algebrite": "^1.4.0",
+    "elkjs": "0.11.0",
     "hotkeys-js": "^3.8.7",
-    "ninja-keys": "^1.2.2"
+    "ninja-keys": "^1.2.2",
+    "webcola": "3.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

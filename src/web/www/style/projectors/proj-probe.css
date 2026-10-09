@@ -712,6 +712,35 @@
   background-color: var(--live-env-bkg);
 }
 
+/* the program's value (⇓) sits half a row below the program's end */
+.below-wrapper:has(.program-value) {
+  margin-top: calc(0.5 * var(--row-height-px, 1.45em));
+}
+
+/* the ⇓ drawer when the program stopped before its last line: marked,
+   then how far it got (EvalResult.View.stopped_view) */
+.below-wrapper .value-stopped {
+  display: flex;
+  align-items: baseline;
+  gap: 1em;
+}
+
+.below-wrapper .value-stopped-label {
+  flex: none;
+  font-family: var(--ui-font);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ci-status-warning-text, var(--text-muted));
+  cursor: default;
+}
+
+.below-wrapper .value-stopped-error {
+  font-family: var(--ui-font);
+  color: var(--eval-exception-stroke, var(--text-error));
+}
+
 /* below-line drawer stripe; negative margin + padding align it flush to the cell edges */
 .below-wrapper {
   pointer-events: auto;
@@ -724,8 +753,8 @@
   padding-right: 1em;
   border: 1px solid var(--probe-drawer-edge);
   border-width: 1px 0 0px 0;
-  /* cap at 15 lines (matches DrawerHeight.max_rows) */
-  max-height: calc(15 * var(--line-height) * 1em);
+  /* cap at 15 code rows (DrawerHeight.max_rows), the most it reserves */
+  max-height: calc(15 * var(--row-height-px, 1.45em));
   overflow: hidden auto;
 }
 
@@ -803,7 +832,7 @@
   top: 0;
 }
 
-.below-wrapper .rich-drawer .rich-drawer-close {
+.below-wrapper :is(.rich-drawer, .steps-drawer) .rich-drawer-close {
   position: absolute;
   top: 0;
   right: -18px;
@@ -819,8 +848,271 @@
   z-index: calc(var(--projector-z) + 10);
 }
 
-.below-wrapper .rich-drawer .rich-drawer-close:hover {
+.below-wrapper :is(.rich-drawer, .steps-drawer) .rich-drawer-close:hover {
   color: var(--text-error);
+}
+
+/* --- A stepper replacing the drawer's sample view --- */
+
+/* a stepper or proof opens to its whole length, with nothing to scroll,
+   and its popups (rule buttons, assumptions) can leave the stripe */
+.below-wrapper:has(.steps-drawer, .proof-drawer) {
+  max-height: none;
+  overflow: visible;
+}
+
+/* a stepper or proof drawer covers the whole stripe, gutter included,
+   so no click falls through to the editor (ProbeProj.keep_clicks) */
+.below-wrapper :is(.steps-drawer, .proof-drawer) {
+  position: relative;
+  margin: 0 -1em;
+  padding: 0 1em;
+  min-width: calc(100% + 2em);
+}
+
+/* each step is its code's rows and nothing more, so the drawer's
+   reserved rows (ProbeSteps.rows) fit the stepper */
+.below-wrapper .steps-drawer .stepper {
+  background: none;
+  padding: 0;
+}
+
+.below-wrapper .steps-drawer .step-border {
+  padding: 0;
+  border: none;
+  gap: 0;
+}
+
+/* the result view's dotted rule between steps, drawn inside the row's
+   top edge so each step keeps its code's height */
+.below-wrapper :is(.steps-drawer, .proof-drawer) .step-border + .step-border {
+  background-image: linear-gradient(
+    to right,
+    var(--cell-result-border) 50%,
+    transparent 0
+  );
+  background-size: 4px 1px;
+  background-repeat: repeat-x;
+  background-position: top left;
+}
+
+/* each step reads `≡ code`, ≡ at the program's first column and the code
+   two columns in; the rule name (or the panel) follows the code */
+.below-wrapper :is(.steps-drawer, .proof-drawer) .step-display {
+  gap: 1em;
+  /* a rule name is a bare text item: on the code's baseline, not its top */
+  align-items: baseline;
+}
+
+.below-wrapper
+  :is(.steps-drawer, .proof-drawer)
+  .step-display
+  > :is(.equiv, .stepper-controls) {
+  align-self: flex-start;
+}
+
+#main .below-wrapper :is(.steps-drawer, .proof-drawer) .step-output .code-editor {
+  padding-left: 0;
+}
+
+.below-wrapper .steps-drawer .step-output {
+  flex-grow: 0;
+}
+
+.below-wrapper .steps-drawer .stepper-justification {
+  width: auto;
+  color: var(--text-muted);
+}
+
+/* the stepper's own panel moves to the title bar */
+.below-wrapper :is(.steps-drawer, .proof-drawer) .step-display > .stepper-controls {
+  display: none;
+}
+
+/* --- the stepper's title bar: what's stepped, then its controls --- */
+
+.below-wrapper :is(.steps-drawer, .proof-drawer) .steps-bar {
+  display: flex;
+  align-items: center;
+  height: var(--row-height-px);
+  margin: 0 -1em;
+  padding-left: 1em;
+  background: linear-gradient(var(--probe-drawer-edge), var(--probe-drawer-edge))
+    left bottom / 100% 1px no-repeat;
+  font-family: var(--ui-font);
+  color: var(--text-muted);
+}
+
+/* the label and the code share a baseline */
+.below-wrapper .steps-bar .steps-bar-name {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75em;
+  min-width: 0;
+}
+
+.below-wrapper .steps-bar .steps-bar-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+/* one line, cut with an ellipsis; the tooltip has the rest */
+.below-wrapper .steps-bar .steps-bar-expr {
+  font-family: var(--code-font);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 48ch;
+}
+
+/* held at the view's right edge when the drawer is wider than the view */
+.below-wrapper .steps-bar .steps-bar-controls {
+  position: sticky;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
+  height: 100%;
+  margin-left: auto;
+  padding: 0 0.9em 0 1.5em;
+  background: linear-gradient(var(--probe-drawer-edge), var(--probe-drawer-edge))
+      left bottom / 100% 1px no-repeat,
+    var(--surface-raised);
+}
+
+.below-wrapper .steps-bar .icon {
+  display: flex;
+  cursor: pointer;
+}
+
+.below-wrapper .steps-bar .icon svg {
+  width: 17px;
+  height: 17px;
+  fill: var(--text-muted);
+}
+
+.below-wrapper .steps-bar .icon.disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.below-wrapper .steps-bar .steps-bar-sep {
+  width: 1px;
+  height: 13px;
+  background: var(--probe-drawer-edge);
+}
+
+.below-wrapper .steps-bar .steps-bar-history {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45em;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.below-wrapper .steps-bar .steps-bar-close {
+  width: 1.1em;
+  font-size: 17px;
+  line-height: 1;
+  text-align: center;
+  cursor: pointer;
+}
+
+.below-wrapper .steps-bar .steps-bar-close:hover {
+  color: var(--text-error);
+}
+
+/* a proof's bar: its name, its status, then undo */
+.below-wrapper .proof-drawer .theorem > .steps-bar {
+  gap: 0.9em;
+  padding-left: 1em;
+}
+
+.below-wrapper .steps-bar .theorem-status {
+  height: 16px;
+  padding: 0 7px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
+/* a stepper or proof drawer is closed off below too, like its top */
+.below-wrapper:has(.steps-drawer, .proof-drawer) {
+  box-shadow: inset 0 -1px 0 var(--probe-drawer-edge);
+}
+
+/* the close sits in the gutter beside the first step, taking no row */
+.below-wrapper .steps-drawer > .rich-drawer-close {
+  left: 0;
+  right: auto;
+  width: 1em;
+  height: var(--row-height-px);
+  line-height: var(--row-height-px);
+}
+
+.below-wrapper .steps-drawer .steps-pending {
+  height: var(--row-height-px);
+  line-height: var(--row-height-px);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* --- A theorem's proof (ProofProj) --- */
+
+/* a header row, then one code block per step (Theorems.rows) */
+/* the drawer is the proof's one surface: no card inside it */
+.below-wrapper .proof-drawer .theorem {
+  padding: 0;
+  gap: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+}
+
+.below-wrapper .proof-drawer .theorem > * {
+  padding: 0;
+}
+
+.below-wrapper .proof-drawer .theorem-header {
+  display: flex;
+  gap: 1ch;
+  align-items: center;
+  height: var(--row-height-px);
+  padding: 0;
+  font-family: var(--ui-font);
+  color: var(--text-muted);
+}
+
+/* a step is its code's rows: the result view's fixed-height ≡ box would
+   add a pixel a step, and a long trace a row */
+.below-wrapper :is(.steps-drawer, .proof-drawer) .equiv {
+  height: var(--row-height-px);
+  width: 2ch;
+  margin-right: -1em;
+  color: var(--text-muted);
+}
+
+.below-wrapper .proof-drawer .stepper {
+  background: none;
+  padding: 0;
+}
+
+.below-wrapper .proof-drawer .step-border {
+  padding: 0;
+  border: none;
+  gap: 0;
+}
+
+.below-wrapper .proof-drawer .step-output {
+  flex-grow: 0;
+}
+
+.below-wrapper .proof-drawer .stepper-justification {
+  width: auto;
+  color: var(--text-muted);
 }
 
 /* line-numbers zero .code-editor padding-left, so keep the stripe at col 0 */
@@ -967,6 +1259,13 @@
   z-index: var(--context-menu-z);
 }
 
+/* opened above its sample (FloatingElement flip): attached at the bottom */
+.live-offside .sample-context-menu.float-up {
+  border-radius: 0.2em 0.2em 0.2em 0;
+  border-bottom: none;
+  border-top: 1px solid var(--border-default);
+}
+
 /* Sticky ('/') mode: show the dropdown for the focal sample of the offside
  * you're keyboard-controlling. `.sticky` is set whenever sticky mode is on;
  * `:focus` narrows to the one offside that has keyboard focus, and
@@ -1013,6 +1312,17 @@
   to {
     transform: rotate(360deg);
   }
+}
+
+/* ---- rich html renderer: a sample value rendered as its actual DOM ---- */
+.rich-html-view {
+  /* inert display: handler attrs in the value never fire */
+  pointer-events: none;
+  overflow: auto;
+  max-height: 100%;
+  background: white;
+  border-radius: 3px;
+  padding: 4px 6px;
 }
 
 /* rich content embedded in a sample chip: inert, so the chip's own

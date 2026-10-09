@@ -115,6 +115,30 @@
   gap: 0.5em;
 }
 
+/* Keep explanations under their label instead of widening the whole menu. */
+#top-bar .submenu .group .contents .described-menu-item {
+  align-items: flex-start;
+  padding-top: 0.3em;
+  padding-bottom: 0.3em;
+}
+
+#top-bar .described-menu-item > .icon {
+  flex-shrink: 0;
+}
+
+#top-bar .menu-item-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+}
+
+#top-bar .menu-item-description {
+  max-width: 34ch;
+  font-size: 0.8em;
+  line-height: 1.35;
+  white-space: normal;
+}
+
 #top-bar .nut-menu .top-menu-item:hover > .submenu-icon > .icon > svg,
 #top-bar
   .nut-menu

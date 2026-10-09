@@ -9,8 +9,17 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
-let documentation_slides: list((string, PersistentZipper.t)) =
-  Docslides.Slides.all_slides @ B2t2.Slides.all_slides;
+/* each slide's root sort: mod_slides are module bodies, the rest Exp */
+let documentation_slides: list((string, Sort.t, PersistentZipper.t)) =
+  List.map(
+    ((n, z)) => (n, Sort.Exp, z),
+    Docslides.Slides.all_slides
+    @ Livelitdemos.Slides.all_slides
+    @ Mvu.Slides.all_slides
+    @ B2t2.Slides.all_slides
+    @ Constellation.Slides.all_slides,
+  )
+  @ List.map(((n, z)) => (n, Sort.Mod, z), Docslides.Slides.mod_slides);
 
 /* LAZY: the CLI links this module (--linkall) and must not pay the
    all-slides unpersist at module init; the browser forces it on first
@@ -24,11 +33,11 @@ let startup: Lazy.t(PersistentData.t) =
     documentation: (
       0,
       documentation_slides
-      |> List.map(((name, content: PersistentZipper.t)) =>
+      |> List.map(((name, root, content: PersistentZipper.t)) =>
            (
              name,
              {
-               editor: content |> Editor.Model.mk_persistent(~root=Exp),
+               editor: content |> Editor.Model.mk_persistent(~root),
                result: EvalResult.Model.init |> EvalResult.Model.persist,
              }: CellEditor.Model.persistent,
            )

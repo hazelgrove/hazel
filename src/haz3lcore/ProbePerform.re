@@ -49,6 +49,26 @@ let has_no_probes = (z: Zipper.t): bool =>
 let maybe_reset_cursor = (z: Zipper.t): Zipper.t =>
   has_no_probes(z) ? SampleFocusPerform.reset(z) : z;
 
+/* Per-calculate cursor liveness follows SAMPLES, not probe presence (cf.
+   pin liveness): the canvas focus strip captures sample focus at anchors
+   that carry samples but no refractor, and a no-probes reset here would
+   revert every such capture on the next calculate. The probe-removal
+   paths keep the stricter probe-presence reset. */
+let maybe_reset_cursor_live =
+    (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t => {
+  let anchor_live =
+    switch (z.refractors.sample_focus.anchor) {
+    | Some(a) =>
+      switch (Id.Map.find_opt(a.probe_id, dynamics)) {
+      | Some([_, ..._]) => true
+      | _ => false
+      }
+    | None => false
+    };
+
+  has_no_probes(z) && !anchor_live ? SampleFocusPerform.reset(z) : z;
+};
+
 let rm_multi =
     (
       ~drill: bool=true,
@@ -141,8 +161,11 @@ let remove_colliding_probes = (~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t =
       [],
     );
 
-  /* 3. Remove colliding probes */
-  rm_manual(ids_to_remove, z);
+  /* 3. Remove colliding probes. Empty removal must be a strict no-op:
+     rm_manual unconditionally applies its no-probes cursor reset, and this
+     runs every calculate — it was wiping sample-focus captures made at
+     un-refractored anchors (the canvas wells) on the next frame. */
+  ids_to_remove == [] ? z : rm_manual(ids_to_remove, z);
 };
 
 let add_manual_targets =
@@ -241,6 +264,13 @@ let add_ids_from_multi_term =
         && !Id.Map.mem(id, z.refractors.multis.suppressed),
       all_ids,
     );
+  /* the ⇓ toggle's probe outlives the rebuild; a manual probe on the
+     same term wins */
+  let tail =
+    switch (z.refractors.tail_target) {
+    | Some(id) when !List.mem(id, manual_ids) => [id]
+    | _ => []
+    };
   let manual_end_rows =
     List.filter_map(
       ((id, _)) =>
@@ -263,6 +293,7 @@ let add_ids_from_multi_term =
         },
       ids,
     );
+  let ids = ids @ List.filter(id => !List.mem(id, ids), tail);
   let old_ephemerals = z.refractors.multis.ephemerals;
   /* Preserve surviving ephemeral entries; a fresh mk_entry per id would wipe per-probe state (e.g. drawer_mode). */
   let new_ephemeral_map =
@@ -286,8 +317,13 @@ let add_ids_from_multi_term =
     } else {
       Zipper.update_ephemerals(_ => new_ephemeral_map, z);
     };
-  /* Gated on auto_focus: in manual focus mode, don't auto-capture new ephemerals. */
-  let new_ids = List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
+  /* Gated on auto_focus: in manual focus mode, don't auto-capture new
+     ephemerals; the tail probe never takes the focus. */
+  let new_ids =
+    List.filter(
+      id => !Id.Map.mem(id, old_ephemerals) && !List.mem(id, tail),
+      ids,
+    );
   switch (new_ids) {
   | [] => z
   | _ when !auto_focus(z) => z
@@ -732,6 +768,54 @@ let go =
          }
        )
     |> SampleFocusPerform.reset
+    |> Zipper.update_refractors(_, r =>
+         {
+           ...r,
+           stepping: None,
+         }
+       )
+  | ShowSteps(span) =>
+    DrawerFit.forget(span.probe_id);
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        stepping:
+          Some({
+            span,
+            rows: 1,
+          }),
+      }
+    );
+  | HideSteps =>
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        stepping: None,
+      }
+    )
+  };
+
+/* an edit to the program closes a stepping drawer, as does losing its
+   probe; probe actions on other probes leave it open */
+let settle_stepping = (a: Action.t, z: Zipper.t): Zipper.t =>
+  switch (z.refractors.stepping) {
+  | Some(st)
+      when
+        !has_probe(st.span.probe_id, z)
+        || Action.is_edit(a)
+        && (
+          switch (a) {
+          | Probe(_) => false
+          | _ => true
+          }
+        ) =>
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        stepping: None,
+      }
+    )
+  | _ => z
   };
 
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {

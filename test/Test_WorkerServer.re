@@ -149,6 +149,36 @@ let test_span_yojson = (): test_case(_) =>
     },
   );
 
+/* streams and the reuse plan ship only what the main thread reads: entry
+   keys, [seq] and states; the reuse payload stays in the worker */
+let test_slim_entries = (): test_case(_) =>
+  test_case(
+    "slimmed entries keep keys and order, drop the payload",
+    `Quick,
+    () => {
+      let id = Util.Id.mk();
+      let entry: IncrEval.entry(EvaluatorState.t) = {
+        prev_elab: parse("1 + 2"),
+        prev_reuse_map: IncrEval.empty_reuse_map,
+        prev_probe_targets: EvalInfo.ProbeTargets(SubexpProbeTargets.empty),
+        value: parse("3"),
+        state: EvaluatorState.empty,
+        seq: 7,
+      };
+      let slim =
+        WorkerServer.slim_entries(
+          IncrEval.add_entry(id, entry, IncrEval.empty),
+        );
+      switch (Util.Id.Map.find_opt(id, slim.entries)) {
+      | None => fail("entry dropped")
+      | Some(e) =>
+        check(int, "seq kept", 7, e.seq);
+        check(bool, "value dropped", true, e.value.term == EmptyHole);
+        check(bool, "elab dropped", true, e.prev_elab.term == EmptyHole);
+      };
+    },
+  );
+
 let tests = [
   (
     "WorkerServer encodings",
@@ -156,6 +186,7 @@ let tests = [
       test_marshal_depth_proof(),
       test_eval_time_round_trips(),
       test_span_yojson(),
+      test_slim_entries(),
       test_isomorphic(~name="Marshal", (module WorkerServer.MarshalEncoding)),
       test_isomorphic(~name="Direct", (module WorkerServer.DirectEncoding)),
       test_isomorphic(~name="Sexp", (module WorkerServer.SexpEncoding)),

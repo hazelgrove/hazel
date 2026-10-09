@@ -61,37 +61,22 @@ let add_tool_result_to_active_subtask =
 
 let mk_diff =
     (
-      ~settings: Language.CoreSettings.t,
+      ~settings: Settings.t,
       ~old_editor: Editor.t,
-      ~old_statics: CachedStatics.t,
       ~new_editor: Editor.t,
       action: CompositionActions.action,
     )
     : option(AgentToolResult.diff) => {
   switch (action) {
   | EditorAction(edit_action) =>
-    /* the diff of an Update/Delete resolves its path in both programs'
-       node maps, which want statics: the editor already has the old
-       program's, the tool path offered the new program's — a fresh pass
-       here was ~2 s of a 2.8 s update_definition */
-    let mk_statics = (z: Zipper.t) =>
-      switch (CachedStatics.offered_for(~settings, z)) {
-      | Some(st) => st.info_map
-      | None =>
-        switch (CachedStatics.for_zipper(~settings, z, old_statics)) {
-        | Some(st) when st.info_map != Id.Map.empty => st.info_map
-        | _ =>
-          Util.PerfTimer.time("diff-statics", () =>
-            CompositionGo.Public.mk_statics(z)
-          )
-        }
-      };
+    /* per-item statics: DefStatics memoizes per program, so the passes
+       the tool path already ran for both programs are reused here */
     switch (
-      CompositionGo.Local.get_diff(
+      CompositionGo.Public.get_diff(
+        ~settings=settings.core,
         old_editor.state.zipper,
         new_editor.state.zipper,
         edit_action,
-        mk_statics,
         ~old_syntax=old_editor.syntax,
         ~new_syntax=new_editor.syntax,
       )
@@ -105,7 +90,7 @@ let mk_diff =
         },
       )
     | None => None
-    };
+    }
   | SyntaxProjectorAction(_)
   | ProbeAction(_)
   | StaticsAction(_) =>
@@ -147,6 +132,69 @@ let mk_segment_snapshots =
   };
 };
 
+/** Run one edit tool outside the chat loop (canvas authoring). Same
+    action decoding and ToolCallHandler guardrails as chat-driven tools;
+    failures leave state untouched. */
+let execute_direct =
+    (
+      ~tool_name: string,
+      ~args: API.Json.t,
+      ~model: Model.t,
+      ~cell_editor: CellEditor.Model.t,
+      ~settings: Settings.t,
+      ~chat_id: Id.t,
+    )
+    : (Model.t, Updated.t(CellEditor.Model.t)) => {
+  CanvasBuffer.stage_beat(~lead=false, ());
+  /* a manual canvas gesture, not agent activity: don't trip pacing */
+  CanvasBuffer.suppress_stamp := true;
+  let result =
+    switch (CompositionUtils.Public.action_of(~tool_name, ~args)) {
+    | Action(action) =>
+      switch (
+        try(
+          ToolCallHandler.update(
+            ~settings,
+            action,
+            model,
+            cell_editor.editor,
+            chat_id,
+          )
+        ) {
+        | Failure(msg) as exn =>
+          report_tool_exn(tool_name, exn);
+          Error(Failure.Info(msg));
+        | exn =>
+          report_tool_exn(tool_name, exn);
+          Error(Failure.Info(Printexc.to_string(exn)));
+        }
+      ) {
+      | Ok((model, editor)) => (
+          model,
+          {
+            ...cell_editor,
+            editor,
+          }
+          |> Updated.return,
+        )
+      | Error(Failure.Info(msg)) =>
+        Js_of_ocaml.Firebug.console##warn(
+          Js_of_ocaml.Js.string("[canvas DirectEdit] tool failed: " ++ msg),
+        );
+        (model, cell_editor |> Updated.return_quiet);
+      }
+    | _ =>
+      Js_of_ocaml.Firebug.console##warn(
+        Js_of_ocaml.Js.string(
+          "[canvas DirectEdit] could not decode tool: " ++ tool_name,
+        ),
+      );
+      (model, cell_editor |> Updated.return_quiet);
+    };
+  CanvasBuffer.suppress_stamp := false;
+  result;
+};
+
 /** Run one tool; returns chat message to append (caller batches append + one LLM request). */
 let execute_one_tool_call =
     (
@@ -157,6 +205,9 @@ let execute_one_tool_call =
       ~chat_id: Id.t,
     )
     : (Model.t, Updated.t(CellEditor.Model.t), Message.Model.t) => {
+  /* Stage canvas FLIP: measure graph-element boxes before the edit lands
+     (agent edits bypass CodeEditable's staging site). */
+  CanvasBuffer.stage_beat(~lead=true, ());
   switch (
     CompositionUtils.Public.action_of(
       ~tool_name=tool_call.name,
@@ -187,9 +238,9 @@ let execute_one_tool_call =
     ) {
     | Ok((model, editor)) =>
       /* the context the agent reads is rebuilt right before each send
-         (AgentSend); rebuilding it after every tool as well was most of a
-         tool call's cost (statics + fold + print of the whole program) and
-         nothing read it in between */
+         (AgentSend); rebuilding it after every tool as well was most of
+         a tool call's cost (statics + fold + print of the whole program)
+         and nothing read it in between */
       let success_message =
         "The "
         ++ tool_call.name
@@ -207,9 +258,8 @@ let execute_one_tool_call =
           Ok(
             Util.PerfTimer.time("tool/diff", () =>
               mk_diff(
-                ~settings=settings.core,
+                ~settings,
                 ~old_editor=cell_editor.editor.editor,
-                ~old_statics=cell_editor.editor.statics,
                 ~new_editor=editor.editor,
                 action,
               )

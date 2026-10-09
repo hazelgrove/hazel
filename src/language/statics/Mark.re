@@ -29,6 +29,12 @@ type error_builtin =
   | Exactly2Arguments;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type livelit_def_error =
+  | DefNotTuple
+  | DefBadArity(int)
+  | DefMissingMembers(list(string));
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type tpat_shadow_src =
   | BaseTyp
   | TyAlias
@@ -62,6 +68,7 @@ type t =
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
+  | InvalidLivelitDef(livelit_def_error)
   | BadTheorem(Typ.t)
   | IsLivelitName({
       name: string,

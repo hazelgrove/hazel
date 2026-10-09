@@ -757,6 +757,10 @@ let test_eval_gate_gives_up_after_budget = () => {
 
 /* Settled evaluation: no wait, flag consumed on the first dispatch. */
 let test_eval_gate_settled_dispatches = () => {
+  /* the gate also waits on a pending statics refresh; an earlier test's
+     debounce timer never fires in this synchronous run */
+  CodeWithStatics.StaticsDebounce.timer_id := None;
+  CodeWithStatics.StaticsDebounce.force_on_next := false;
   Agent.Update.max_eval_wait_attempts := 3;
   let agent = with_pending_dispatch(Agent.Utils.init());
   let chat_id = agent.chat_system.current;
@@ -792,10 +796,60 @@ let test_eval_gate_settled_dispatches = () => {
   );
 };
 
+let test_catch_up_holds_queue = () => {
+  let agent =
+    with_chat_queue(
+      with_busy_main(~seq=7, Agent.Utils.init()),
+      ["Keep going"],
+    );
+  let id = agent.chat_system.current;
+  let scheduled = ref([]);
+  let stopped =
+    run_update(Agent.Update.Action.CatchUpAgent, agent, scheduled);
+  check(
+    bool,
+    "flight cancelled",
+    true,
+    stopped.awaiting_response == None
+    && stopped.pending_ignore_main_reply_seq == Some(7),
+  );
+  check(int, "no automatic queue restart", 0, List.length(scheduled^));
+  let stopped =
+    run_update(Agent.Update.Action.FlushPendingSend(id), stopped, scheduled);
+  check(
+    list(string),
+    "queued text preserved",
+    ["Keep going"],
+    ChatSystem.Utils.find_chat(id, stopped.chat_system).pending_send_queue,
+  );
+  check(int, "stale flush ignored", 0, List.length(scheduled^));
+  ignore(
+    run_update(
+      Agent.Update.Action.SendMessage(
+        Message.Utils.mk_user_message("Resume from here"),
+        id,
+      ),
+      stopped,
+      scheduled,
+    ),
+  );
+  check(
+    bool,
+    "explicit send resumes",
+    false,
+    List.mem(id, AgentSend.presentation_stopped^),
+  );
+};
+
 let tests = [
   (
     "AgentControlFlow",
     [
+      test_case(
+        "Catch up cancels the flight and preserves a held send queue",
+        `Quick,
+        test_catch_up_holds_queue,
+      ),
       test_case(
         "tool_allowed_in_mode: Edit allows edit/workbench/overlay tools",
         `Quick,

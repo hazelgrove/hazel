@@ -4,9 +4,19 @@ Printexc.register_printer(exn => {
   switch (exn) {
   | Language.EvaluatorError.Exception(msg) =>
     Some(Language.EvaluatorError.show(msg))
+  | DefStaticsCheck.Divergence(ds) =>
+    Some("DefStatics diverges: " ++ String.concat("; ", ds))
   | _ => None
   }
 });
+
+/* every edit checks sparse normalization against the global pass */
+NormalizeCheck.install();
+
+/* and statics against a monolithic analysis, except when benchmarking */
+if (!CorpusUtil.bench_enabled) {
+  DefStaticsCheck.install();
+};
 
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
    report, and hands the exit back as a function. ~and_exit=true makes that
@@ -17,6 +27,8 @@ let (suite, exit_with_test_status) =
     ~argv=Sys.argv,
     "HazelTests",
     [
+      Test_AgentPersist.tests,
+      Test_AgentLocalKey.tests,
       Test_LazyHydration.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
@@ -36,6 +48,41 @@ let (suite, exit_with_test_status) =
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
+      Test_PatRootEditor.tests,
+      Test_ProjectorEdits.tests,
+      Test_StackFocus.tests,
+      Test_CanvasTrajectory.tests,
+      Test_CanvasMotion.tests,
+      Test_DefinitionSteps.tests,
+      Test_EditIdentity.tests,
+      Test_CanvasPresentation.tests,
+      Test_Restructure.tests,
+      Test_BenchStatics.tests,
+      Test_MegaCorpus.tests,
+      Test_MeasuredChunks.tests,
+      Test_DrawerMeasurement.tests,
+      Test_MakeTermIncr.tests,
+      Test_EditLocality.tests,
+      Test_DefStaticsParity.tests,
+      Test_ClickTeleport.tests,
+      Test_AliasProbe.tests,
+      Test_LabelBench.tests,
+      Test_ModRoot.tests,
+      Test_ModuleEval.tests,
+      Test_ProbePersist.tests,
+      Test_DividedLaws.tests,
+      Test_TermPrune.tests,
+      Test_ResultLine.tests,
+      Test_ProbeSteps.tests,
+      Test_TailProbe.tests,
+      Test_ProofDrawers.tests,
+      Test_SlideView.tests,
+      Test_OutlineRename.tests,
+      Test_ClosedJump.tests,
+      Test_TypeDeps.tests,
+      Test_StaticsMemo.tests,
+      Test_CaretReveal.tests,
+      Test_Menhir.concave_marker_group,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
       Test_TutorialReferencePanel.tests,
@@ -46,7 +93,7 @@ let (suite, exit_with_test_status) =
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
-    @ [Test_AgentPersist.tests, Test_AgentHardening.tests]
+    @ [Test_AgentHardening.tests]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
@@ -58,9 +105,22 @@ let (suite, exit_with_test_status) =
     @ Test_Evaluator.tests
     @ Test_Editing.tests
     @ Test_TypToSegment.tests
+    @ Test_ItemPersist.tests
+    @ Test_OutlinePaths.tests
+    @ Test_RunPin.tests
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
+    @ [("Canvas anatomy", Test_CanvasAnatomy.tests)]
+    @ [Test_CanvasManual.tests, Test_CanvasLayoutExperiments.tests]
+    @ [("Canvas values", Test_CanvasValue.tests)]
+    @ [("Canvas card focus", Test_CanvasCardFocus.tests)]
+    @ [("Graph layout stability", Test_GraphLayoutStability.tests)]
+    @ [("Canvas graph fold", Test_CanvasGraphFold.tests)]
+    @ [("Node map (dungeon program)", Test_MergeProbe.tests)]
+    @ [("Snapshot text probe", Test_SnapProbe.tests)]
+    @ [("Canvas score", Test_CanvasScore.tests)]
+    @ [("Sample focus liveness", Test_SampleFocusLiveness.tests)]
     @ Test_Indentation.tests
     @ Test_DynamicTypInfer.tests
     @ Test_CanonicalCompletion.tests
@@ -76,17 +136,21 @@ let (suite, exit_with_test_status) =
     @ [Test_CtorShadowing.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
+    @ Test_StreamInterests.tests
     @ Test_TextRoundtrip.tests
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests
+    @ Test_Refactor.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
+      Test_MVU.tests,
       Test_TableCore.tests,
       Test_StepperPasses.tests,
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
+    @ Test_UserLivelits.tests
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_Move.tests]
@@ -114,7 +178,10 @@ let (suite, exit_with_test_status) =
     @ Test_ConfigurationMode.tests
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
-    @ [Test_ExplainThis.tests],
+    @ [Test_ExplainThis.tests]
+    @ [Test_CompletionItems.tests]
+    /* last: the keystroke benchmark leaves less stack for later tests */
+    @ (CorpusUtil.bench_enabled ? [Test_MegaBench.tests] : []),
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

@@ -52,7 +52,7 @@ let apply_overlay_action =
     : Result.t((Model.t, CodeWithStatics.Model.t)) => {
   let z = editor.editor.state.zipper;
   let info_map = CompositionGo.Public.mk_statics(z);
-  switch (HighLevelNodeMap.build(z, info_map)) {
+  switch (CompositionGo.Public.node_map_of(z)) {
   | None =>
     Error(
       Failure.Info(
@@ -89,7 +89,7 @@ let apply_overlay_action =
           tool_label
           ++ " tool did not update the program: no path produced a change."
           ++ unresolved_sfx
-          ++ " Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"outer/inner\" for nested lets, \"M/helper\" for module members, \"name#k\" for duplicates).",
+          ++ " Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"outer/inner\" for nested lets, \"M/helper\" or \"^graph/update\" for module/livelit members, \"name#k\" for duplicates).",
         ),
       );
     } else {
@@ -135,6 +135,9 @@ let update =
       chat_id: Id.t,
     )
     : Result.t((Model.t, CodeWithStatics.Model.t)) => {
+  /* stamp agent activity so the canvas paces the resulting updates
+     into distinct beats (CanvasBuffer) */
+  CanvasBuffer.note_agent_action();
   switch (action) {
   | EditorAction(agent_editor_action) =>
     let action = Action.Structural(agent_editor_action);
@@ -153,7 +156,12 @@ let update =
         agent,
         CodeWithStatics.Model.{
           editor: updated_editor,
-          statics: editor.statics,
+          /* the old statics describe the program BEFORE this edit: kept,
+             they made the tool's canvas snapshot blank (its beat showed
+             nothing) and the content landed later as an anonymous state
+             change. Empty = the snapshot computes this program's (a
+             DefStatics memo hit) and the editor's calculate refreshes. */
+          statics: CachedStatics.empty,
           dynamics: editor.dynamics,
           context_menu: editor.context_menu,
         },
@@ -182,23 +190,23 @@ let update =
     let z = editor.editor.state.zipper;
     /* the editor's statics for this program when it has them; the new
        program's statics computed once, the editor's way, and offered to it */
+    let eff_settings =
+      Language.CoreSettings.{
+        ...settings.core,
+        probe_all: settings.core.probe_all && !Util.AgentPulse.in_burst(),
+      };
     let full_statics = (z: Zipper.t): CachedStatics.t =>
       Util.PerfTimer.time("statics", () =>
-        CachedStatics.init(
-          ~settings=settings.core,
-          ~is_dynamic_term=false,
+        CachedStatics.init_compositional(
+          ~settings=eff_settings,
           ~stitch=x => x,
           ~root=Exp,
           z,
         )
       );
     let initial_info_map =
-      switch (
-        CachedStatics.for_zipper(~settings=settings.core, z, editor.statics)
-      ) {
-      | Some(st) when st.info_map != Id.Map.empty => st.info_map
-      | _ => full_statics(z).info_map
-      };
+      editor.statics.info_map != Id.Map.empty
+        ? editor.statics.info_map : full_statics(z).info_map;
     let z_at_boundary =
       switch ((direction: Action.Structural.insert_target)) {
       | Before => Move.to_start(z)
@@ -224,9 +232,7 @@ let update =
     | Error(_) =>
       Error(Failure.Info("Failed to insert code at program boundary"))
     | Ok(new_z) =>
-      let new_full = full_statics(new_z);
-      CachedStatics.offer(~settings=settings.core, new_z, new_full);
-      let new_statics = new_full.info_map;
+      let new_statics = full_statics(new_z).info_map;
       let old_errors = ErrorPrint.all(initial_info_map);
       let new_errors = ErrorPrint.all(new_statics);
       if (List.length(new_errors) > List.length(old_errors)) {
@@ -241,7 +247,8 @@ let update =
         let final_z =
           CompositionGo.Local.PerformUtils.normalize_top_level(
             ~before=z,
-            Materialize.all(new_z, ~root=Exp),
+            CompositionGo.Local.mentions_trigger(code)
+              ? Materialize.all(new_z, ~root=Exp) : new_z,
           )
           |> LocalReformat.go_region(~before_pieces);
         let new_editor_model = Editor.Model.mk(final_z, ~root=Exp);

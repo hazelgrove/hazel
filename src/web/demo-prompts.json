@@ -1,0 +1,92 @@
+[
+  {
+    "id": "turn-based-game",
+    "group": "Constellation",
+    "title": "Turn-based game",
+    "prompt": "task: Turn-based game: several feedback loops on one state hub.\n\nPls build a tiny turn-based game incrementally, testing each step. Start: type Pos = (Int, Int), type Player = (Pos, Int), type World = (Player, Int) where the Int is a turn counter, and tick : World -> World that increments the turn. Next: type Cmd = Move(Int, Int) + Rest, and step : (Cmd, World) -> World with tests. Next: add monsters — type Monster = (Pos, Int), extend World to (Player, [Monster], Int), fix everything, and add spawn : (Pos, World) -> World and combat inside step. Finally add describe : World -> String for display."
+  },
+  {
+    "id": "monster-abilities",
+    "group": "Follow-ups",
+    "title": "Monster types & abilities",
+    "prompt": "please add a variety of different monster types as different ADT cases and with different abilities. Flesh out some subsidiary games systems of your choosing. work incrementally, updating types and then functions"
+  },
+  {
+    "id": "crafting",
+    "group": "Constellation",
+    "title": "Crafting & inventory",
+    "prompt": "task: Crafting system: formers everywhere and a two-hub economy. Recipe = ([Item], Item) puts a list former inside a tuple former.\n\nCreate a crafting/inventory system step by step, testing as you go. Step 1: type Item = Wood + Stone + Plank + House, type Inventory = [Item], with count : (Inventory, Item) -> Int. Step 2: type Recipe = ([Item], Item) and can_craft : (Recipe, Inventory) -> Bool. Step 3: craft : (Recipe, Inventory) -> Inventory that consumes inputs and adds the output, with tests for success and failure. Step 4: refactor Item into type Resource = Wood + Stone and type Product = Plank + House, then type Item = R(Resource) + P(Product), repairing all functions and recipes."
+  },
+  {
+    "id": "vector-scene",
+    "group": "Constellation",
+    "title": "Vector scene",
+    "prompt": "Task: Vector scene: sum-of-tuples plus an orbit pile-up. Shape as a sum whose variants carry tuple payloads. Pls build a small vector-graphics scene model incrementally with tests throughout. First: type Point = (Int, Int), type Shape = Circle(Point, Int), type Scene = [Shape], and area : Shape -> Int. Then add Rect(Point, Point) and Line(Point, Point) to Shape, updating every function. Then add three scene transforms translate, flip_x, and scale, each Scene -> Scene. Then bbox : Scene -> (Point, Point) with tests. Finally refactor: introduce type Style = (Int, Bool) and change Shape so every variant carries a Style, fixing everything that breaks."
+  },
+  {
+    "id": "interpreter",
+    "group": "Constellation",
+    "title": "Interpreter in stages",
+    "prompt": "Build a small programming-language interpreter in this scratchpad, in stages.\n\n  Work incrementally: one definition per edit; finish each stage — with its tests\n  passing — before starting the next. Prefer adding a new small helper over\n  growing an existing function. Add a `test ... end` for every function as you\n  write it, and put a ^^probe on each stage's headline function.\n\n  Stage 1 — untyped lambda calculus:\n    type Term = + Var(String) + Lam(String, Term) + Ap(Term, Term) in\n    type Step = + Stepped(Term) + Stuck in\n    free_in   : (String, Term) -> Bool\n    subst     : (String, Term, Term) -> Term\n        (capture-avoiding: freshen bound names with an Int counter and\n         string_of_int; string equality is $==)\n    step      : Term -> Step        -- one leftmost-outermost beta reduction\n    normalize : (Int, Term) -> Term -- fuel-limited\n    tests: identity, const; (\\x.x)(\\y.y) normalizes to \\y.y.\n\n  Stage 2 — alpha-equivalence and Church numerals:\n    alpha_eq : (Term, Term) -> Bool\n    church   : Int -> Term          -- build the numeral as a Term\n    c_plus   : Term                 -- Church addition combinator\n    tests: alpha_eq(\\x.x, \\y.y); normalize of (c_plus 2 3) alpha_eq church(5).\n\n  Stage 3 — numbers in the object language:\n    extend Term with + Lit(Int) + Add(Term, Term) + Mul(Term, Term),\n    extend step with arithmetic rules,\n    tests: (\\x. Add(x, x)) applied to Lit(21) normalizes to Lit(42).\n\n  Stage 4 — booleans and conditionals:\n    extend Term with + BoolLit(Bool) + If(Term, Term, Term); step rules; tests.\n\n  Stage 5 — let as sugar:\n    extend Term with + Let(String, Term, Term)\n    desugar : Term -> Term          -- Let into Ap/Lam; run it before normalize\n    tests showing a let-bound program evaluating correctly.\n\n  Stage 6 — a small type checker:\n    type Ty = + TInt + TBool + TArrow(Ty, Ty) in\n    type Ctx = [(String, Ty)] in\n    type Checked = + Ok(Ty) + TypeError in\n    infer : (Ctx, Term) -> Checked\n    tests: a well-typed term, an ill-typed term, and that Lam needs an\n    annotation or a conservative rule (your choice — document it).\n\n  Stage 7 (stretch) — pretty printer:\n    term_str : Term -> String, tests on a couple of terms."
+  },
+  {
+    "id": "dungeon",
+    "group": "Constellation",
+    "title": "Dungeon simulator with modules",
+    "prompt": "task: Dungeon: rooms, creatures and a turn loop, organized as modules with nested modules, built on algebraic data types.\n\nPls build a small dungeon simulator incrementally, testing each step, and keep each concern in its own module with nested modules where it helps. Start with the world: a module for grid positions (a Pos type, neighbors, manhattan distance) and a module Dungeon with an ADT of tiles (floor, wall, door with an open/closed flag, stairs), a Room type built from tiles, and a nested module for carving (a function that places walls around a floor rectangle, one that cuts a door). Next: creatures as an ADT with distinct payloads (a player with hit points and an inventory, monsters of a few kinds with different stats, a trap that is not really a creature but sits in the same list), in a module Creatures with a nested module for combat (attack resolution, damage rules that depend on the creature kind) and a nested module for items (an Item ADT and an apply function). Next: the turn loop in a module Turn: a Command ADT (move in a direction, attack, use an item, wait), a State type tying a Room to its creatures and a turn counter, step : (Command, State) -> State that consults Dungeon for passability, Creatures.Combat for fights and Creatures.Items for item use, and a log of Event ADT values describing what happened. Then refactor: pull the damage rules out of Creatures.Combat into a new top-level module Rules with its own nested module for critical hits, and repair every caller; also change the door tile to carry a key requirement and fix everything that breaks. Finally a Render module with describe : State -> String that draws the room as text with creatures placed on it, and a short scripted game of five commands with tests on the final state and on the event log."
+  },
+  {
+    "id": "counter",
+    "group": "Quick starts",
+    "title": "Counter app",
+    "prompt": "can you create a basic counter MVU app and some tests please?"
+  },
+  {
+    "id": "todo",
+    "group": "Quick starts",
+    "title": "Todo app",
+    "prompt": "create an MVU Todo app with some tests please"
+  },
+  {
+    "id": "missing-view",
+    "group": "Follow-ups",
+    "title": "Implement a missing view",
+    "prompt": "Please implement the unwritten function `view : Model -> String` — its body is currently a hole. Intent: render: not yet implemented"
+  },
+  {
+    "id": "curve-smoothing",
+    "group": "ARIA demos",
+    "title": "Curve smoothing",
+    "prompt": "Build a small interactive program: a polyline editor livelit (drag points\nin an SVG, click empty space to add a point) whose value type is\n`Curve`, a `smooth : (Curve, Int) -> Curve` that applies Chaikin\nsubdivision `n` times, and an `input` curve edited with the livelit.\nPut the strength `n` behind a slider. Include `wrap` so curves render as\npictures in probes. End with the smoothed curve as the program's result."
+  },
+  {
+    "id": "task-plan",
+    "group": "ARIA demos",
+    "title": "Task plan → schedule",
+    "prompt": "Make a task-planning program. A livelit `^plan` lets me place tasks\n(boxes with a duration, click to cycle 1..5) and draw dependency edges\nbetween them; its value type is `Plan`. Write `schedule : Plan -> Lanes`\ngiving each task an earliest start by topological order, and\n`critical_path : Plan -> [Int]`. Give `Lanes` its own livelit-backed\nview (a Gantt strip) via `wrap`, so both the plan and its schedule show\nas pictures. Put a \"work hours per day\" factor behind a slider."
+  },
+  {
+    "id": "grid-dispatch",
+    "group": "ARIA demos",
+    "title": "Grid dispatch",
+    "prompt": "A merit-order dispatch model: a fleet of generators (name, capacity,\nmarginal cost) and a demand level. Demand is a slider; each generator's\navailability is a checkbox. `dispatch : (Fleet, Int) -> Dispatch`\nstacks available units by cost until demand is met and reports the\nmarginal price. Define a livelit-backed view for `Dispatch` (a bar\nstack with the marginal unit highlighted) via `wrap`, and a `safe :\nDispatch -> Bool` check that reserve margin is at least 10%."
+  },
+  {
+    "id": "reserve-repair",
+    "group": "Follow-ups",
+    "title": "Add reserve requirement",
+    "prompt": "Add a `Reserve` requirement: dispatch must keep 15% headroom. Update the\ntypes, fix every function the change breaks, and add a test that the\ndemo fleet at demand 80 still passes."
+  },
+  {
+    "id": "traffic-light",
+    "group": "Quick starts",
+    "title": "Traffic light state machine",
+    "prompt": "Build a small traffic-light state machine in this scratchpad. Start with a Light ADT (Red, Amber, Green), next : Light -> Light, and tests for a full cycle. Then add a pedestrian request and a State type, with step : (Bool, State) -> State. Work one definition at a time and test each stage. Put a probe on step so I can inspect transitions."
+  },
+  {
+    "id": "scoreboard",
+    "group": "Quick starts",
+    "title": "Scoreboard & refactor",
+    "prompt": "Build a small scoreboard incrementally. Define a Player type with a name and score, a Board list, award : (String, Int, Board) -> Board, and leader : Board -> String. Add tests for an empty board, a tie, and repeated awards. Then introduce an Event ADT for scoring and penalties and replay a short event list. Keep the helpers small and show the tests passing between stages."
+  }
+]

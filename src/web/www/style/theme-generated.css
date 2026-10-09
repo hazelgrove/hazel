@@ -48,6 +48,7 @@
   --cell-result-hidden: oklch(85% 0.07 90);
   --cell-result-text: oklch(50% 0.07 90);
   --cell-selected-accent: oklch(60% 0.3 30);
+  --ci-dynamics-bkg: oklch(91% 0.11 95);
   --ci-icon-bkg: oklch(60% 0.07 90);
   --ci-status-error-bkg: oklch(85% 0.1 30);
   --ci-status-error-text: oklch(40% 0.3 30);
@@ -152,7 +153,7 @@
   --shadow-typ: oklch(60% 0.2 300);
   --shard-any: oklch(94% 0.025 90);
   --shard-caret-exp: oklch(94% 0.025 90);
-  --shard-caret-mod: oklch(95.2% 0.05 180);
+  --shard-caret-mod: oklch(95.2% 0.0075 220);
   --shard-caret-mpat: oklch(95.2% 0.05 225);
   --shard-caret-pat: oklch(95% 0.05 225);
   --shard-caret-sig: oklch(95.2% 0.05 300);
@@ -162,7 +163,7 @@
   --shard-exp: oklch(94% 0.025 90);
   --shard-lines-exp: oklch(85% 0.07 90);
   --shard-lines-rul: oklch(85% 0.07 90);
-  --shard-mod: oklch(95.2% 0.05 180);
+  --shard-mod: oklch(95.2% 0.0075 220);
   --shard-mpat: oklch(95.2% 0.05 225);
   --shard-pat: oklch(95% 0.05 225);
   --shard-rul: oklch(94% 0.025 90);

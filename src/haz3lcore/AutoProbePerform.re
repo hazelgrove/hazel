@@ -308,3 +308,156 @@ let update_autoprobe =
     );
   };
 };
+
+/* the program's last expression: past its lets, type aliases, module
+   lets and `;` statements (the outline's ⇒ row) */
+let tail_id = (syntax: CachedSyntax.t): option(Id.t) => {
+  let rec tail_of = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Let(_, _, body)
+    | TyAlias(_, _, body)
+    | ModuleExp(_, _, body)
+    | Use(_, body)
+    | Theorem(_, _, body)
+    | Seq(_, body) => tail_of(body)
+    | _ => e
+    };
+  switch (
+    Option.bind(program_root_id(syntax), id =>
+      Id.Map.find_opt(id, syntax.terms)
+    )
+  ) {
+  | Some(Exp(e)) => Some(Exp.rep_id(tail_of(e)))
+  | _ => None
+  };
+};
+
+/* the ⇓ toggle: one probe on the last expression, an open drawer with no
+   marks on the code. it follows the expression as it changes; a previous
+   anchor the auto-probe still holds goes back to a plain probe */
+let update_tail =
+    (
+      ~on: bool,
+      ~syntax: CachedSyntax.t,
+      ~info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
+    : Zipper.t => {
+  let target = on ? tail_id(syntax) : None;
+  let prev = z.refractors.tail_target;
+  /* its entry keeps the drawer's own state (a menu, a rich view) */
+  let placed =
+    switch (target) {
+    | Some(id) =>
+      Id.Map.mem(id, z.refractors.multis.ephemerals)
+      || List.mem_assoc(id, z.refractors.manuals)
+    | None => true
+    };
+  if (target == prev && placed) {
+    z;
+  } else {
+    let z =
+      Zipper.update_refractors(z, r =>
+        {
+          ...r,
+          tail_target: target,
+        }
+      )
+      |> ProbePerform.add_ids_from_multi_term(~syntax, ~info_map);
+    Zipper.update_ephemerals(
+      eph => {
+        let eph =
+          switch (prev) {
+          | Some(old) when Some(old) != target && Id.Map.mem(old, eph) =>
+            Id.Map.add(old, Refractors.mk_entry(Probe), eph)
+          | _ => eph
+          };
+        switch (target) {
+        | Some(id) when Id.Map.mem(id, eph) =>
+          Id.Map.add(
+            id,
+            Refractors.mk_entry(~model=ProbeProj.tail_model, Probe),
+            eph,
+          )
+        | _ => eph
+        };
+      },
+      z,
+    );
+  };
+};
+
+/* the theorems along a program's top level, in order */
+let theorems_of_exp = (e: Exp.t): list(Id.t) => {
+  let rec go = (acc, e: Exp.t) =>
+    switch (e.term) {
+    | Theorem(_, _, body) => go([Exp.rep_id(e), ...acc], body)
+    | Let(_, _, body)
+    | TyAlias(_, _, body)
+    | ModuleExp(_, _, body)
+    | Use(_, body)
+    | Seq(_, body) => go(acc, body)
+    | _ => acc
+    };
+  List.rev(go([], e));
+};
+
+let theorem_ids = (syntax: CachedSyntax.t): list(Id.t) =>
+  switch (
+    Option.bind(program_root_id(syntax), id =>
+      Id.Map.find_opt(id, syntax.terms)
+    )
+  ) {
+  | Some(Exp(e)) => theorems_of_exp(e)
+  | _ => []
+  };
+
+/* where an editor shows proofs: none, under each of its theorems, or
+   (a theorem's cell, which holds its statement) under its root */
+type proofs =
+  | NoProofs
+  | Theorems
+  | ProofOf(Id.t);
+
+/* a proof drawer per theorem; an entry stays while its theorem does */
+let update_proofs =
+    (~proofs: proofs, ~syntax: CachedSyntax.t, z: Zipper.t): Zipper.t => {
+  /* (anchor, model) */
+  let wanted =
+    switch (proofs) {
+    | NoProofs => []
+    | Theorems =>
+      List.map(id => (id, ProofProj.model_string()), theorem_ids(syntax))
+    | ProofOf(thm) =>
+      switch (program_root_id(syntax)) {
+      | Some(root) => [(root, ProofProj.model_string(~theorem=thm, ()))]
+      | None => []
+      }
+    };
+  let current = z.refractors.proofs;
+  if (List.length(wanted) == Id.Map.cardinal(current)
+      && List.for_all(
+           ((id, model)) =>
+             switch (Id.Map.find_opt(id, current)) {
+             | Some(e) => e.model == model
+             | None => false
+             },
+           wanted,
+         )) {
+    z;
+  } else {
+    let proofs =
+      List.fold_left(
+        (m, (id, model)) =>
+          Id.Map.add(id, Refractors.mk_entry(~model, Proof), m),
+        Id.Map.empty,
+        wanted,
+      );
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        proofs,
+      }
+    );
+  };
+};

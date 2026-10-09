@@ -2630,20 +2630,270 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
   (result.completed_seg, result.shard_records);
 };
 
-let for_editor = (seg: Segment.t): completion_result => {
-  let result = complete_segment_deep(~sort=Sort.Exp, seg);
+/* per-item completion over Segment.top_items. a complete item comes back
+ * physically unchanged, so pointer-keyed layers downstream (MakeTerm.Incr,
+ * Measured.Incr) stay local to the edit. an item whose completion runs
+ * off its end may depend on what follows, so it is widened by its
+ * successor and redone; one after a tile left open on the right is
+ * re-molded (see [remolded]). parity with complete_segment_deep is
+ * test-gated */
+type item_entry = {
+  it_pieces: Segment.t,
+  it_result: completion_result,
+};
+/* a bounded table for per-item results: at the bound, entries no recent
+   pass touched go (superseded versions of edited items), and a table
+   still half full doubles its bound, so a live set past it (a huge
+   program, many editors) can't empty the table every pass */
+module Swept = {
+  type t('k, 'v) = {
+    tbl: Hashtbl.t('k, ('v, ref(int))),
+    mutable bound: int,
+    mutable pass: int,
+  };
+  let mk = (~bound=4096, ()): t(_) => {
+    tbl: Hashtbl.create(256),
+    bound,
+    pass: 0,
+  };
+  /* one pass over an editor's items; several editors take turns */
+  let recent = 64;
+  let next_pass = (t: t(_)): unit => t.pass = t.pass + 1;
+  let find_opt = (t: t('k, 'v), k: 'k): option('v) =>
+    switch (Hashtbl.find_opt(t.tbl, k)) {
+    | Some((v, seen)) =>
+      seen := t.pass;
+      Some(v);
+    | None => None
+    };
+  let replace = (t: t('k, 'v), k: 'k, v: 'v): unit => {
+    if (Hashtbl.length(t.tbl) >= t.bound) {
+      Hashtbl.filter_map_inplace(
+        (_, (_, seen) as e) => seen^ > t.pass - recent ? Some(e) : None,
+        t.tbl,
+      );
+      if (2 * Hashtbl.length(t.tbl) >= t.bound) {
+        t.bound = 2 * t.bound;
+      };
+    };
+    Hashtbl.replace(t.tbl, k, (v, ref(t.pass)));
+  };
+  let length = (t: t(_)): int => Hashtbl.length(t.tbl);
+};
+
+/* (sort, first piece id) -> last completion, validated by piece
+   identity. keyed by sort since items are read at Exp for decorations
+   and at the root for semantics; shared by all editors */
+let item_cache: Swept.t((Sort.t, Id.t), item_entry) = Swept.mk();
+let items_completed: ref(int) = ref(0); /* observability for tests */
+
+/* completing an item alone grouts an edge whose operand a neighbour
+   supplies (the body after a trailing `in`). that grout is cut debris
+   (the incremental parse adds its own hole), so drop edge grout the
+   item didn't already have */
+let strip_edge_grout =
+    (
+      ~leading: bool,
+      ~trailing: bool,
+      ~original: Segment.t,
+      completed: Segment.t,
+    )
+    : Segment.t => {
+  let had = p => List.exists(q => Piece.id(q) == Piece.id(p), original);
+  let rec drop = (sg: Segment.t) =>
+    switch (sg) {
+    | [Piece.Grout(_) as p, ...tl] when !had(p) => drop(tl)
+    | _ => sg
+    };
+  let completed = leading ? drop(completed) : completed;
+  trailing ? completed |> List.rev |> drop |> List.rev : completed;
+};
+
+let complete_item_uncached = (~sort, item: Segment.t): completion_result =>
+  switch (Segment.incomplete_tiles_deep(item)) {
+  | [] => {
+      completed_seg: item,
+      shard_records: [],
+      insertions: [],
+    }
+  | _ =>
+    incr(items_completed);
+    let result = complete_segment_deep(~sort, item);
+    {
+      ...result,
+      insertions:
+        derive_insertions(
+          ~original=item,
+          ~records=result.shard_records,
+          result.completed_seg,
+        ),
+    };
+  };
+
+let complete_item = (~sort, item: Segment.t): completion_result =>
+  switch (item) {
+  | [] => complete_item_uncached(~sort, item)
+  | [p, ..._] =>
+    let key = (sort, Piece.id(p));
+    switch (Swept.find_opt(item_cache, key)) {
+    | Some(e) when Segment.ptr_eq(e.it_pieces, item) => e.it_result
+    | _ =>
+      let r = complete_item_uncached(~sort, item);
+      Swept.replace(
+        item_cache,
+        key,
+        {
+          it_pieces: item,
+          it_result: r,
+        },
+      );
+      r;
+    };
+  };
+
+/* did completion append past [item]'s end (a new trailing shard or piece)? */
+let ran_off_end = (item: Segment.t, completed: Segment.t): bool =>
+  switch (ListUtil.last_opt(item), ListUtil.last_opt(completed)) {
+  | (Some(Piece.Tile(t0)), Some(Piece.Tile(t1))) when t0.id == t1.id =>
+    Tile.r_shard(t1) > Tile.r_shard(t0)
+  | (Some(p0), Some(p1)) => Piece.id(p0) != Piece.id(p1)
+  | _ => false
+  };
+
+let items_widened: ref(int) = ref(0); /* observability for tests */
+
+/* an open tile molds everything after it into its slot (`let foo` reads
+   the rest as patterns), and whole completion re-molds the lot at the
+   root sort. [item] so re-molded and regrouted, when that changes it */
+let remolded = (~sort: Sort.t, item: Segment.t): option(Segment.t) => {
+  let r = Segment.remold(item, sort);
+  /* remold keeps an unchanged tile's record */
+  let same = (p: Piece.t, q: Piece.t) =>
+    switch (p, q) {
+    | (Tile(t), Tile(u)) => t === u
+    | _ => true
+    };
+  List.length(r) == List.length(item) && List.for_all2(same, item, r)
+    ? None
+    : Some(Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), r));
+};
+
+/* [remolded], memoized like items (only items after an open tile ask) */
+let remold_cache: Swept.t((Sort.t, Id.t), (Segment.t, option(Segment.t))) =
+  Swept.mk();
+let remolded_item = (~sort: Sort.t, item: Segment.t): option(Segment.t) =>
+  switch (item) {
+  | [] => None
+  | [p, ..._] =>
+    let key = (sort, Piece.id(p));
+    switch (Swept.find_opt(remold_cache, key)) {
+    | Some((ps, r)) when Segment.ptr_eq(ps, item) => r
+    | _ =>
+      let r = remolded(~sort, item);
+      Swept.replace(remold_cache, key, (item, r));
+      r;
+    };
+  };
+
+let leaves_open = (block: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(t) => !Tile.has_end(Direction.Right, t)
+    | _ => false,
+    block,
+  );
+
+/* the cache entry at [item] may be a widened block: when the next items
+   match it piece for piece, take the block, so a stable one hits the memo */
+let cached_block =
+    (~sort: Sort.t, item: Segment.t, rest: list(Segment.t))
+    : (Segment.t, list(Segment.t)) =>
+  switch (item) {
+  | [] => (item, rest)
+  | [p, ..._] =>
+    switch (Swept.find_opt(item_cache, (sort, Piece.id(p)))) {
+    | Some(e) when List.length(e.it_pieces) > List.length(item) =>
+      let n = List.length(e.it_pieces);
+      let rec take = (acc, len, items) =>
+        if (len == n) {
+          Some((acc, items));
+        } else {
+          switch (items) {
+          | [it, ...tl] when len < n =>
+            take(acc @ it, len + List.length(it), tl)
+          | _ => None
+          };
+        };
+      switch (take(item, List.length(item), rest)) {
+      | Some((block, rest')) when Segment.ptr_eq(e.it_pieces, block) => (
+          block,
+          rest',
+        )
+      | _ => (item, rest)
+      };
+    | _ => (item, rest)
+    }
+  };
+
+let complete_items = (~sort, seg: Segment.t): completion_result => {
+  Swept.next_pass(item_cache);
+  Swept.next_pass(remold_cache);
+  /* edge grout is cut debris only at a cut: the segment's own ends
+     keep theirs (a missing body at the end of the program is real).
+     [opened]: an earlier block left a tile open on the right */
+  let rec go =
+          (~first: bool, ~opened: bool, items: list(Segment.t))
+          : list(completion_result) =>
+    switch (items) {
+    | [] => []
+    | [item, ...rest] =>
+      let (block, rest) = cached_block(~sort, item, rest);
+      let r = complete_item(~sort, block);
+      /* only a complete item comes back without records */
+      let r =
+        switch (
+          opened && r.shard_records == [] ? remolded_item(~sort, block) : None
+        ) {
+        | Some(completed_seg) => {
+            ...r,
+            completed_seg,
+          }
+        | None => r
+        };
+      let last = rest == [];
+      let completed_seg =
+        strip_edge_grout(
+          ~leading=!first,
+          ~trailing=!last,
+          ~original=block,
+          r.completed_seg,
+        );
+      let r = {
+        ...r,
+        completed_seg,
+      };
+      switch (rest) {
+      | [] => [r]
+      | [next, ...more] =>
+        if (ran_off_end(block, completed_seg)) {
+          incr(items_widened);
+          go(~first, ~opened, [block @ next, ...more]);
+        } else {
+          let opened = opened || r.shard_records != [] && leaves_open(block);
+          [r, ...go(~first=false, ~opened, rest)];
+        }
+      };
+    };
+  let results = go(~first=true, ~opened=false, Segment.top_items(seg));
   {
-    ...result,
-    insertions:
-      derive_insertions(
-        ~original=seg,
-        ~records=result.shard_records,
-        result.completed_seg,
-      ),
+    completed_seg: List.concat_map(r => r.completed_seg, results),
+    shard_records: List.concat_map(r => r.shard_records, results),
+    insertions: List.concat_map(r => r.insertions, results),
   };
 };
 
 /* Rendered per frame by every completion-aware decoration (quiver
-   chips, arm curtailing) and by tab dispatch — memoized on the
-   segment so one edit-state completes once. */
-let for_editor = Core.Memo.general(~cache_size_bound=64, for_editor);
+   chips, arm curtailing) and by tab dispatch: per item, so one edit
+   recompletes one item. */
+let for_editor = (seg: Segment.t): completion_result =>
+  complete_items(~sort=Sort.Exp, seg);

@@ -100,10 +100,9 @@ module Model = {
         let name = persistence_key(config_type);
         let current_zipper = m.editor.editor.state.zipper;
         /* Built-in sources are text-backed and mint fresh ids on every
-           parse, so id-sensitive segment equality can never match (same
-           reasoning as ScratchMode.Scratchpad.persist). Compare the text
-           projection instead, and store nothing for an untouched slide
-           so a later change to the default is picked up. */
+           parse, so id-sensitive segment equality can never match.
+           Compare the text projection instead, and store nothing for an
+           untouched slide so a later change to the default is picked up. */
         let default_text =
           default_source(config_type)
           |> snd
@@ -635,15 +634,18 @@ module View = {
         _ => {
           let confirmed =
             JsUtil.confirm(
-              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
+              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it! Saved API keys are kept; remove them in the agent settings.",
             );
           if (confirmed) {
-            HazelDB.clear_all();
-            Js_of_ocaml.Dom_html.window##.location##reload;
+            HazelDB.clear_all(
+              ~callback=() => Js_of_ocaml.Dom_html.window##.location##reload,
+              (),
+            );
           };
           Virtual_dom.Vdom.Effect.Ignore;
         },
-        ~tooltip="Reset Hazel (LOSE ALL DATA)",
+        ~tooltip="Reset Hazel",
+        ~description="Erases editor data; keeps API keys.",
       );
 
     let reset_group_scratch =

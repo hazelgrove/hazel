@@ -1,0 +1,177 @@
+# Tic-tac-toe: the game is a list of moves; every type has a view.       #
+# Play on the app; the board, the player to move and the outcome         #
+# are values in the program, and each step of the game is one call of   #
+# `advance`, so stepping the samples replays the game.                   #
+# (Value views are closed: they only use their own module.)             #
+
+type Player = + X + O in
+type Cell = + Empty + Mark(Player) in
+type Board = [Cell] in
+type Move = + At(Int) in
+type Outcome = + Won(Player) + Draw + Playing in
+type State = (Board, Player, Outcome) in
+# the game is its list of moves: the app's value, replayed below #
+type Game = [Move] in
+
+# ---- value views (no controls); defined first, so every site below can use them ---- #
+
+let ^board = {
+  type Model = Board;
+  type Action = + Nothing;
+  let glyph(p: Player): String = case p | X => "X" | O => "O" end;
+  let cell_svg(i: Int, c: Cell): HTML =
+    let x = 22 + int_mod(i, 3) * 40 in
+    let y = 22 + (i / 3) * 40 in
+    Node("g", [],
+      [Node("rect", [Create("x", string_of_int(x - 18)), Create("y", string_of_int(y - 18)),
+                     Create("width", "36"), Create("height", "36"), Create("fill", "transparent")], [])]
+      @ (case c
+         | Empty => [Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "1.6"), Create("fill", "#7f95a7")], [])]
+         | Mark(X) => [Node("path", [Create("d", "M" ++ string_of_int(x - 9) ++ " " ++ string_of_int(y - 9) ++ " l18 18 m0 -18 l-18 18"),
+                                    Create("stroke", "#b6dbee"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], [])]
+         | Mark(O) => [Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "11"),
+                                      Create("fill", "none"), Create("stroke", "#edc88b"), Create("stroke-width", "3")], [])]
+         end));
+  let init : Model = [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty];
+  let update(m: Model, _: Action): Model = m;
+  let view(b: Model): HTML =
+    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 124 124"), Width("116"), Height("116")],
+         [Node("path", [Create("d", "M37 42 h10 m-5 -5 v10 M77 42 h10 m-5 -5 v10 M37 82 h10 m-5 -5 v10 M77 82 h10 m-5 -5 v10"),
+                        Create("fill", "none"), Create("stroke", "#778fa3"), Create("stroke-width", "0.8")], [])]
+         @ mapi(b, fun (i: Int, c: Cell) -> cell_svg(i, c)));
+  let expand(b: Model): Board = b;
+  let wrap(b: Board): Model = b;
+  let shape : LivelitShape = Tab(12, 5)
+} in
+
+let ^player = {
+  type Model = Player;
+  type Action = + Nothing;
+  let init : Model = X;
+  let update(m: Model, _: Action): Model = m;
+  let view(p: Model): HTML =
+    Node("svg", [Class("blue-hour-view"), Create("viewBox", "0 0 44 44"), Width("44"), Height("44"), Style([("background", "#576e83")])],
+      case p
+      | X => [Node("path", [Create("d", "M12 12 L32 32 M32 12 L12 32"), Create("stroke", "#b6dbee"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], [])]
+      | O => [Node("circle", [Create("cx", "22"), Create("cy", "22"), Create("r", "13"), Create("fill", "none"), Create("stroke", "#edc88b"), Create("stroke-width", "3")], [])]
+      end);
+  let expand(p: Model): Player = p;
+  let wrap(p: Player): Model = p;
+  let shape : LivelitShape = Tab(4, 3)
+} in
+
+let ^outcome = {
+  type Model = Outcome;
+  type Action = + Nothing;
+  let init : Model = Playing;
+  let update(m: Model, _: Action): Model = m;
+  let view(o: Model): HTML =
+    let (label, color) =
+      case o
+      | Won(X) => ("X wins", "#a6d3ee")
+      | Won(O) => ("O wins", "#f2ab98")
+      | Draw => ("draw", "#b5c5cf")
+      | Playing => ("playing", "#b3d3b4")
+      end in
+    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 96 36"), Width("96"), Height("36")],
+      [Node("circle", [Create("cx", "10"), Create("cy", "18"), Create("r", "3"), Create("fill", color)], []),
+       Node("text", [Create("x", "48"), Create("y", "23"), Create("font-size", "14"),
+                     Create("text-anchor", "middle"), Create("font-family", "Inter, system-ui, sans-serif"),
+                     Create("fill", "#f2f4ef")], [Text(label)])]);
+  let expand(o: Model): Outcome = o;
+  let wrap(o: Outcome): Model = o;
+  let shape : LivelitShape = Tab(9, 2)
+} in
+
+let ^move = {
+  type Model = Move;
+  type Action = + Nothing;
+  let init : Model = At(4);
+  let update(m: Model, _: Action): Model = m;
+  let view(m: Model): HTML =
+    case m
+    | At(k) =>
+      Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 64 64"), Width("64"), Height("64")],
+        map(range(0, 8), fun i: Int ->
+          Node("circle", [Create("cx", string_of_int(11 + int_mod(i, 3) * 20)),
+                          Create("cy", string_of_int(11 + (i / 3) * 20)), Create("r", if i == k then "6" else "2"),
+                        Create("fill", if i == k then "#e9c182" else "#415a70")], [])))
+    end;
+  let expand(m: Model): Move = m;
+  let wrap(m: Move): Model = m;
+  let shape : LivelitShape = Tab(6, 4)
+} in
+
+let empty : Board = [Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty, Empty] in
+let other(p: Player): Player = case p | X => O | O => X end in
+let put(b: Board, i: Int, p: Player): Board =
+  mapi(b, fun (j: Int, c: Cell) -> if j == i then Mark(p) else c) in
+let winner(b: Board): Outcome =
+  let at(i: Int): Cell = nth(b, i) in
+  let line((i, j, k): (Int, Int, Int)): Outcome =
+    case (at(i), at(j), at(k))
+    | (Mark(p), Mark(q), Mark(r)) => if p == q && q == r then Won(p) else Playing
+    | _ => Playing
+    end in
+  let lines = [(0, 1, 2), (3, 4, 5), (6, 7, 8), (0, 3, 6), (1, 4, 7), (2, 5, 8), (0, 4, 8), (2, 4, 6)] in
+  let wins = filter_map(lines, fun l: (Int, Int, Int) ->
+    case line(l) | Won(p) => Some(Won(p)) | _ => None end) in
+  case wins
+  | w::_ => w
+  | [] => if exists(b, fun c: Cell -> c == Empty) then Playing else Draw
+  end in
+
+# one step of the game: the frame every card aligns on #
+let advance((b, p, o): State, m: Move): State =
+  case (o, m)
+  | (Playing, At(i)) =>
+    if nth(b, i) == Empty then
+      let next : Board = put(b, i, p) in
+      (next, other(p), winner(next))
+    else (b, p, o)
+  | _ => (b, p, o)
+  end in
+
+let replay(moves: Game): State =
+  fold_left(moves, advance, (empty, X, Playing)) in
+
+let open_cells(b: Board): [Move] =
+  filter_map(enumerate(b), fun (i: Int, c: Cell) ->
+    if c == Empty then Some(At(i)) else None) in
+
+# the app: its model is the move log; a click appends a move. Its view #
+# reads the program (replay), so it renders from the live evaluation.  #
+let ^game = {
+  type Model = Game;
+  type Action = + Play(Int);
+  let cell_svg(i: Int, c: Cell): HTML =
+    let x = 22 + int_mod(i, 3) * 40 in
+    let y = 22 + (i / 3) * 40 in
+    Node("g", [OnClick(Play(i)), Style([("cursor", "pointer")])],
+      [Node("rect", [Create("x", string_of_int(x - 18)), Create("y", string_of_int(y - 18)),
+                     Create("width", "36"), Create("height", "36"), Create("fill", "transparent")], [])]
+      @ (case c
+         | Empty => [Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "1.6"), Create("fill", "#7f95a7")], [])]
+         | Mark(X) => [Node("path", [Create("d", "M" ++ string_of_int(x - 9) ++ " " ++ string_of_int(y - 9) ++ " l18 18 m0 -18 l-18 18"),
+                                    Create("stroke", "#b6dbee"), Create("stroke-width", "3"), Create("stroke-linecap", "round")], [])]
+         | Mark(O) => [Node("circle", [Create("cx", string_of_int(x)), Create("cy", string_of_int(y)), Create("r", "11"),
+                                      Create("fill", "none"), Create("stroke", "#edc88b"), Create("stroke-width", "3")], [])]
+         end));
+  let init : Model = [];
+  let update(log: Model, a: Action): Model =
+    case a | Play(i) => append(log, [At(i)]) end;
+  let view(log: Model): HTML =
+    let (b, _, _) = replay(log) in
+    Node("svg", [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif")]), Create("viewBox", "0 0 124 124"), Width("116"), Height("116")],
+         [Node("path", [Create("d", "M37 42 h10 m-5 -5 v10 M77 42 h10 m-5 -5 v10 M37 82 h10 m-5 -5 v10 M77 82 h10 m-5 -5 v10"),
+                        Create("fill", "none"), Create("stroke", "#778fa3"), Create("stroke-width", "0.8")], [])]
+         @ mapi(b, fun (i: Int, c: Cell) -> cell_svg(i, c)));
+  let expand(log: Model): Game = log;
+  let shape : LivelitShape = Tab(12, 5)
+} in
+
+let game : Game = ^^livelit(^game([At(4), At(0), At(8), At(2), At(1)])) in
+let (board, to_move, outcome) : State = replay(game) in
+let options : [Move] = open_cells(board) in
+
+(board, to_move, outcome, length(options))

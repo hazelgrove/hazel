@@ -36,7 +36,7 @@ type value = v;
 type menu_data = list(Menu.item(unit => Ui_effect.t(unit)));
 
 /* Parse an expression into table structure */
-let parse = (_sort: Sort.t, exp: Exp.t) => parse_table(exp);
+let parse = (~statics as _, _sort: Sort.t, exp: Exp.t) => parse_table(exp);
 
 /* Initialize table model from parsed value */
 let empty = {menu_state: None};
