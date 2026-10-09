@@ -38,6 +38,11 @@ type menu_data = list(Menu.item(unit => Ui_effect.t(unit)));
 /* Parse an expression into table structure */
 let parse = (~statics as _, _sort: Sort.t, exp: Exp.t) => parse_table(exp);
 
+/* one view, found by `parse`; none offered only on request */
+let parse_chosen = (~statics, sort, exp, _: model) =>
+  parse(~statics, sort, exp);
+let on_request = (~statics as _, _: Sort.t, _: Exp.t): list(model) => [];
+
 /* Initialize table model from parsed value */
 let empty = {menu_state: None};
 let init = (_: v) => empty;

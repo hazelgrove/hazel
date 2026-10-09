@@ -34,6 +34,11 @@ let parse = (~statics as _, _sort: Sort.t, exp: Exp.t): option(value) =>
   | _ => None
   };
 
+/* one view, found by `parse`; none offered only on request */
+let parse_chosen = (~statics, sort, exp, _: model) =>
+  parse(~statics, sort, exp);
+let on_request = (~statics as _, _: Sort.t, _: Exp.t): list(model) => [];
+
 let init = (_: value) => {mode: Show};
 let empty = {mode: Show};
 

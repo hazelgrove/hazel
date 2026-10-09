@@ -14,10 +14,12 @@ open Language;
    whether it draws offside or in the drawer.
 
    Resolution: the livelits in the probed site's ctx, innermost binding
-   first; the first whose expansion type equals the site's type (up to
-   aliases) AND whose view renders the value wins, so a nearer definition
-   shadows an outer one. The others that render it are offered in the
-   sample menu's "View as" list; the model records the one chosen there. */
+   first; the first whose expansion type is the site's type by name (see
+   expands_to) AND whose view renders the value wins, so a nearer
+   definition shadows an outer one. The others that render it are offered
+   in the sample menu's "View as" list, and after them, on request only,
+   every livelit whose expansion type merely fits the site's (fits_for);
+   the model records the one chosen there. */
 
 /* the livelit chosen in the "View as" list; None: the first that renders */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -125,20 +127,49 @@ let expands_to = (ctx: Ctx.t, expansion_t: Typ.t, ty: Typ.t): bool =>
     }
   );
 
+/* The user-defined livelits in scope that declare their expansion type,
+   innermost binding first. A shadowed livelit cannot be named (views are
+   named `^name`, and drawing looks the name up), so only the innermost
+   binding of a name counts. */
+let in_scope = (ctx: Ctx.t): list(LivelitCtx.raw_livelit) =>
+  List.fold_left(
+    ((seen, acc), e: Ctx.entry) =>
+      switch (e) {
+      | LivelitEntry(ll) when !List.mem(ll.name, seen) => (
+          [ll.name, ...seen],
+          switch (ll.user_def) {
+          | Some(_) when !is_unknown(ll.expansion_t) => acc @ [ll]
+          | _ => acc
+          },
+        )
+      | _ => (seen, acc)
+      },
+    ([], []),
+    ctx.entries,
+  )
+  |> snd;
+
 let candidates_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
   is_unknown(ty)
     ? []
-    : List.filter_map(
-        (e: Ctx.entry) =>
-          switch (e) {
-          | LivelitEntry({user_def: Some(_), expansion_t, _} as ll)
-              when
-                !is_unknown(expansion_t) && expands_to(ctx, expansion_t, ty) =>
-            Some(ll)
-          | _ => None
-          },
-        ctx.entries,
+    : List.filter(
+        (ll: LivelitCtx.raw_livelit) => expands_to(ctx, ll.expansion_t, ty),
+        in_scope(ctx),
       );
+
+/* The livelits "View as" offers on request only, which an automatic pick
+   never shows: those whose expansion type fits the site's once aliases
+   are unfolded, but not by name (a plain [Int] can be shown as a
+   `Trace = [Int]`). Every type fits an unknown one, so at a site of
+   unknown type these are all of them; the list keeps only the ones whose
+   view draws the value (on_request). */
+let fits_for = (ctx: Ctx.t, ty: Typ.t): list(LivelitCtx.raw_livelit) =>
+  List.filter(
+    (ll: LivelitCtx.raw_livelit) =>
+      Typ.is_consistent(ctx, ll.expansion_t, ty)
+      && (is_unknown(ty) || !expands_to(ctx, ll.expansion_t, ty)),
+    in_scope(ctx),
+  );
 
 let candidates = (statics: option(Info.t)): list(LivelitCtx.raw_livelit) =>
   switch (site(statics)) {
@@ -280,17 +311,6 @@ let list_elems = (exp: Exp.t): option(list(Exp.t)) =>
   | _ => None
   };
 
-/* a shadowed livelit cannot be named, so only the innermost of a name */
-let innermost =
-    (lls: list(LivelitCtx.raw_livelit)): list(LivelitCtx.raw_livelit) =>
-  List.fold_left(
-    (acc, ll: LivelitCtx.raw_livelit) =>
-      List.exists((l: LivelitCtx.raw_livelit) => l.name == ll.name, acc)
-        ? acc : acc @ [ll],
-    [],
-    lls,
-  );
-
 let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
   switch (sort, site(statics)) {
   | (Sort.Exp | Sort.Pat, Some((ctx, ty))) =>
@@ -311,7 +331,7 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
       | [] => None
       };
     let direct =
-      innermost(candidates(statics))
+      candidates(statics)
       |> List.filter(ll => html_of(~ctx, ll, exp) != None);
     switch (direct) {
     | [_, ..._] => found(~as_list=false, direct)
@@ -322,7 +342,7 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
         list_elems(exp),
       ) {
       | (List(elem), Some(items)) =>
-        innermost(candidates_for(ctx, elem))
+        candidates_for(ctx, elem)
         |> List.filter(ll =>
              List.for_all(it => html_of(~ctx, ll, it) != None, items)
            )
@@ -356,6 +376,60 @@ let views = (v: value): list(model) => [
   Some(v.ll_name),
   ...List.map(((name, _)) => Some(name), v.alts),
 ];
+
+/* A livelit offered on request that draws the value, by name */
+let requested =
+    (~statics, sort: Sort.t, exp: Exp.t, name: string)
+    : option(LivelitCtx.raw_livelit) =>
+  switch (sort, site(statics)) {
+  | (Sort.Exp | Sort.Pat, Some((ctx, ty))) =>
+    List.find_opt(
+      (ll: LivelitCtx.raw_livelit) =>
+        ll.name == name && html_of(~ctx, ll, exp) != None,
+      fits_for(ctx, ty),
+    )
+  | _ => None
+  };
+
+/* The value as the livelit a model names draws it: as `parse` finds it,
+   or a livelit offered only on request, while its view draws the value
+   (otherwise, like a chosen livelit that no longer draws it, the first) */
+let parse_chosen = (~statics, sort: Sort.t, exp: Exp.t, m: model) => {
+  let found = parse(~statics, sort, exp);
+  switch (m, found) {
+  | (Some(_), Some(v)) when List.mem(m, views(v)) => found
+  | (Some(name), _) =>
+    switch (requested(~statics, sort, exp, name)) {
+    | Some(ll) =>
+      Some({
+        ll_name: name,
+        rows: rows_of(ll),
+        raw: exp,
+        as_list: false,
+        alts: [],
+      })
+    | None => found
+    }
+  | (None, _) => found
+  };
+};
+
+let on_request = (~statics, sort: Sort.t, exp: Exp.t): list(model) =>
+  switch (sort, site(statics)) {
+  | (Sort.Exp | Sort.Pat, Some((ctx, ty))) =>
+    let drawn =
+      switch (parse(~statics, sort, exp)) {
+      | Some(v) => views(v)
+      | None => []
+      };
+    List.filter_map(
+      (ll: LivelitCtx.raw_livelit) =>
+        !List.mem(Some(ll.name), drawn) && html_of(~ctx, ll, exp) != None
+          ? Some(Some(ll.name)) : None,
+      fits_for(ctx, ty),
+    );
+  | _ => []
+  };
 
 /* named as written, in the code font */
 let label = (m: model, v: value): RichProbe.view_label => {

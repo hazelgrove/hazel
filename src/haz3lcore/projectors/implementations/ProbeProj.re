@@ -725,7 +725,7 @@ let chip_view =
     switch (find(RichProbe.renderer_id_of_model(pm))) {
     | Some(r)
         when
-          r.can_handle(~statics=Some(ctx.statics), ctx.sort, value)
+          r.handles(pm, ~statics=Some(ctx.statics), ctx.sort, value)
           && view_fits_chip(ctx, ~display, ~model=Some(pm), value, r) =>
       Some((r, pm))
     | _ => None
@@ -1128,31 +1128,41 @@ type view_choice = {
   badge: Node.t,
 };
 
-/* The views that apply to a value, in the order the automatic pick ranks
-   them: the views it could show (registry order, a renderer's own views
-   in its order), then the views it never picks (tables). */
+/* The views that apply to a value: first the views the automatic pick
+   could show, in the order it ranks them (registry order, a renderer's
+   own views in its order: livelits by type name first, then the
+   built-in views that match the value's shape), then the views offered
+   only on request (livelits whose type merely fits), then the views it
+   never picks, the table last. */
 let view_choices = (ctx: probe_ctx, value: Exp.t): list(view_choice) => {
   let statics = Some(ctx.statics);
+  let choices = (r: packed_renderer, views) =>
+    List.map(
+      ((label, pm)) =>
+        {
+          rid: r.id,
+          label,
+          pm,
+          badge: r.badge,
+        },
+      views,
+    );
+  let views = (r: packed_renderer) =>
+    choices(r, r.views(~statics, ctx.sort, value));
   let applicable =
     List.filter(
       (r: packed_renderer) => r.can_handle(~statics, ctx.sort, value),
       renderers,
     );
   let (auto, never) = List.partition(auto_evidence(ctx, value), applicable);
-  List.concat_map(
-    (r: packed_renderer) =>
-      List.map(
-        ((label, pm)) =>
-          {
-            rid: r.id,
-            label,
-            pm,
-            badge: r.badge,
-          },
-        r.views(~statics, ctx.sort, value),
-      ),
-    auto @ never,
-  );
+  let (tables, never) = List.partition(fills_drawer, never);
+  List.concat_map(views, auto)
+  @ List.concat_map(
+      (r: packed_renderer) =>
+        choices(r, r.on_request(~statics, ctx.sort, value)),
+      renderers,
+    )
+  @ List.concat_map(views, never @ tables);
 };
 
 /* The view a sample shows a value with, as (renderer id, name); None is
@@ -1747,15 +1757,13 @@ let sample_view =
       let has_rich =
         switch (Dynamics.Info.most_aligned_sample(ctx.ap_id, ctx.dynamics)) {
         | Some(indicated) =>
+          let statics = Some(ctx.statics);
           List.exists(
             r =>
-              r.can_handle(
-                ~statics=Some(ctx.statics),
-                ctx.sort,
-                indicated.value,
-              ),
+              r.can_handle(~statics, ctx.sort, indicated.value)
+              || r.on_request(~statics, ctx.sort, indicated.value) != [],
             renderers,
-          )
+          );
         | None => false
         };
       !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
@@ -2268,7 +2276,7 @@ let prepare_offside =
         | Some(r) =>
           List.exists(
             (sample: Sample.t) =>
-              r.can_handle(~statics=Some(statics), sort, sample.value),
+              r.handles(pm, ~statics=Some(statics), sort, sample.value),
             dynamics.samples,
           )
         | None => false
@@ -2563,7 +2571,7 @@ let rich_content =
   | (Some(pm), Some(exp)) =>
     switch (find(RichProbe.renderer_id_of_model(pm))) {
     | Some(renderer)
-        when renderer.can_handle(~statics=info.statics, sort, exp) =>
+        when renderer.handles(pm, ~statics=info.statics, sort, exp) =>
       renderer.render_model(
         pm,
         ~info,

@@ -131,16 +131,23 @@ let ^trace = {
 ```
 
 - **By type name.** A livelit that expands to `Point` takes sites typed
-  `Point`, not every `(Int, Int)`. A structural site matches only when the
-  expansion type is an alias whose body itself names a type or
-  constructor (`Plan = (Mode, Temp)`). Pattern probes match through the
-  pattern's type.
+  `Point`, not every `(Int, Int)`, so an alias opts values in. Two
+  structural exceptions: an expansion type written structurally (`[Int]`)
+  takes sites of that structure, and an alias whose body itself names a
+  type or constructor (`Plan = (Mode, Temp)`) takes sites typed by that
+  body. Pattern probes match through the pattern's type.
 - **Innermost first.** The livelits in the probed site's context are tried
   innermost binding first, and the first whose `view` renders the value
   is the automatic view, so a nearer definition shadows an outer one. The
   others whose views render it are offered in the sample menu's "View as"
   list. `wrap` is not type-checked; if it (or `view`) fails on a value,
   that livelit passes.
+- **On request.** "View as" also offers every livelit whose expansion type
+  fits the site's once aliases are unfolded (is consistent with it), though
+  an automatic pick never shows it: with `type Trace = [Int]`, a plain
+  `[Int]` can be shown as a `^trace` on request. At a site of unknown type
+  every livelit fits, so the list offers the ones whose view renders the
+  sample. A livelit is offered only if it declares its expansion type.
 - **Lists.** A list of a viewed type (`[Point]`) renders as a row of
   element views.
 - **Display.** Views are inert: their handlers dispatch nothing, and a view
@@ -154,8 +161,9 @@ let ^trace = {
 - **View as.** The sample menu's action bar names the view the sample is
   drawn with (its badge and name; a livelit as written, `^name`) and opens
   a list of the views that apply: Text, then the views in the order Hazel
-  ranks them for its automatic pick (livelits innermost first, HTML,
-  Cards; then Table, which is never picked automatically). Choosing one
+  ranks them for its automatic pick (livelits by type name, innermost
+  first, then HTML, Cards), then the livelits offered on request, then
+  Table, which is never picked automatically. Choosing one
   sets it for every sample of the probe, in the drawer as on the line,
   overriding the Rich Views setting for that probe only; it is probe
   state, so it survives edits. A view too tall for the chip opens the

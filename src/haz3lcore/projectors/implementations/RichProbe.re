@@ -39,6 +39,13 @@ module type RichProbe = {
      ~statics is the probed expression's info (type + context), for
      renderers that apply by TYPE rather than by value shape. */
   let parse: (~statics: option(Info.t), Sort.t, Exp.t) => option(value);
+  /* `parse` for the view a model selects: also takes a view offered only
+     on request (`on_request`), which `parse` never finds */
+  let parse_chosen:
+    (~statics: option(Info.t), Sort.t, Exp.t, model) => option(value);
+  /* The views offered for a value only on request, in the "View as" list,
+     never by an automatic pick: the livelits whose type merely fits */
+  let on_request: (~statics: option(Info.t), Sort.t, Exp.t) => list(model);
   /* Whether a parsed value is positive evidence that this renderer should
      be picked AUTOMATICALLY (auto-rich embeds, wells). Explicit picks ignore
      it. Lets a renderer decline vacuous matches (an empty list parses as an
@@ -107,6 +114,9 @@ type packed_renderer = {
     (~statics: option(Info.t), Sort.t, Exp.t) => option(packed_model),
   empty_model: packed_model,
   update_model: (packed_model, packed_action) => packed_model,
+  /* whether the view a model selects draws a value: can_handle, for a
+     chosen view (which may be one offered only on request) */
+  handles: (packed_model, ~statics: option(Info.t), Sort.t, Exp.t) => bool,
   /* ~model: the view chosen for the probe; None for an automatic pick */
   drawer_rows:
     (
@@ -118,6 +128,10 @@ type packed_renderer = {
     option(int),
   /* the views offered for a value, each named and with its model */
   views:
+    (~statics: option(Info.t), Sort.t, Exp.t) =>
+    list((view_label, packed_model)),
+  /* ...and those offered only on request */
+  on_request:
     (~statics: option(Info.t), Sort.t, Exp.t) =>
     list((view_label, packed_model)),
   /* the name of the view a model selects for a value */
@@ -201,17 +215,20 @@ let pack_renderer =
       R.parse(~statics, sort, exp)
       |> Option.map(v => PModel(id, model_id, R.init(v))),
     empty_model: PModel(id, model_id, R.empty),
+    handles: (pm, ~statics, sort, exp) =>
+      switch (cast_model(pm)) {
+      | Some(m) => Option.is_some(R.parse_chosen(~statics, sort, exp, m))
+      | None => false
+      },
     drawer_rows: (~statics, ~model, sort, exp) =>
-      R.parse(~statics, sort, exp)
-      |> Option.map(v =>
-           R.drawer_rows(
-             switch (Option.bind(model, cast_model)) {
-             | Some(m) => m
-             | None => R.init(v)
-             },
-             v,
-           )
-         ),
+      switch (Option.bind(model, cast_model)) {
+      | Some(m) =>
+        R.parse_chosen(~statics, sort, exp, m)
+        |> Option.map(v => R.drawer_rows(m, v))
+      | None =>
+        R.parse(~statics, sort, exp)
+        |> Option.map(v => R.drawer_rows(R.init(v), v))
+      },
     views: (~statics, sort, exp) =>
       switch (R.parse(~statics, sort, exp)) {
       | Some(v) =>
@@ -221,10 +238,19 @@ let pack_renderer =
         )
       | None => []
       },
+    on_request: (~statics, sort, exp) =>
+      List.filter_map(
+        m =>
+          R.parse_chosen(~statics, sort, exp, m)
+          |> Option.map(v => (R.label(m, v), PModel(id, model_id, m))),
+        R.on_request(~statics, sort, exp),
+      ),
     label: (pm, ~statics, sort, exp) =>
-      switch (cast_model(pm), R.parse(~statics, sort, exp)) {
-      | (Some(m), Some(v)) => Some(R.label(m, v))
-      | _ => None
+      switch (cast_model(pm)) {
+      | Some(m) =>
+        R.parse_chosen(~statics, sort, exp, m)
+        |> Option.map(v => R.label(m, v))
+      | None => None
       },
     update_model: (pm, pa) =>
       switch (cast_model(pm), cast_action(pa)) {
@@ -233,8 +259,13 @@ let pack_renderer =
       },
     render_model:
       (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ~place, ()) =>
-      switch (cast_model(pm), R.parse(~statics=info.statics, sort, exp)) {
-      | (Some(m), Some(value)) =>
+      switch (
+        Option.bind(cast_model(pm), m =>
+          R.parse_chosen(~statics=info.statics, sort, exp, m)
+          |> Option.map(v => (m, v))
+        )
+      ) {
+      | Some((m, value)) =>
         Some(
           R.render(
             ~info,
@@ -249,7 +280,7 @@ let pack_renderer =
             (),
           ),
         )
-      | _ => None
+      | None => None
       },
     sexp_of_model_payload: pm =>
       switch (cast_model(pm)) {

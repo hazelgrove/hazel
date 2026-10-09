@@ -991,6 +991,132 @@ let one_arg_view_everywhere = () => {
   );
 };
 
+/* The info and first sample of the site that is the variable `var`, in a
+   probe_all run of `text` */
+let var_sample = (text: string, var: string): (Info.t, Exp.t) =>
+  switch (Haz3lcore.Parser.to_zipper(~root=Exp, text)) {
+  | None => fail("parse")
+  | Some(z) =>
+    let mtr = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let settings = {
+      ...CoreSettings.on,
+      probe_all: true,
+    };
+    let (info_map, elaborated) =
+      Statics.mk(settings, Builtins.ctx_init(Some(Int)), mtr.term);
+    let probe_ids = Haz3lcore.CachedStatics.all_probeable_ids(info_map);
+    let targets =
+      Haz3lcore.CachedStatics.compute_targets(
+        ~settings,
+        ~info_map,
+        ~probe_ids,
+      );
+    let (_, state) =
+      Evaluator.evaluate(
+        ~eval_info=EvalInfo.of_targets(targets),
+        ~env=Builtins.env_init,
+        elaborated,
+      );
+    let site =
+      Id.Map.fold(
+        (id, samples, acc) =>
+          switch (acc, Id.Map.find_opt(id, info_map), samples) {
+          | (
+              None,
+              Some(Info.InfoExp({user_term: {term: Var(x), _}, _}) as info),
+              [s, ..._],
+            )
+              when x == var =>
+            let s: Sample.t = s;
+            Some((info, s.value));
+          | _ => acc
+          },
+        EvaluatorState.get_probes(state),
+        None,
+      );
+    switch (site) {
+    | Some(found) => found
+    | None => fail("no sample of " ++ var)
+    };
+  };
+
+/* The views of a probe are chosen by the name of its type, so an alias
+   opts values in; "View as" also offers, on request, every livelit whose
+   type fits once aliases are unfolded, and at a site of unknown type the
+   ones whose view draws the sample (^trace's view is stuck on an Int). */
+let trace_program = "type Trace = [Int] in
+let ^trace = {
+  type Model = Trace;
+  type Action = + Nothing;
+  let init : Model = [1, 2];
+  let update(m: Model, _: Action): Model = m;
+  let view(t: Model): HTML =
+    case t
+    | [] => Text(\"0\")
+    | _ :: _ => Text(string_of_int(length(t)))
+    end;
+  let expand(m: Model): Trace = m;
+  let wrap(v: Trace): Model = v;
+  let shape : LivelitShape = Inline(6)
+} in
+let named : Trace = [1, 2, 3] in
+let plain : [Int] = [4, 5, 6, 7] in
+let g = fun a -> a in
+let h = fun b -> b in
+(named, plain, g([8, 9]), h(10))";
+
+let view_as_offers_what_fits = () => {
+  module R = Haz3lcore.LivelitRenderer;
+  let at = var => {
+    let (info, value) = var_sample(trace_program, var);
+    let statics = Some(info);
+    (
+      R.parse(~statics, Sort.Exp, value) |> Option.is_some,
+      R.on_request(~statics, Sort.Exp, value),
+      statics,
+      value,
+    );
+  };
+  let (auto, more, _, _) = at("named");
+  check(bool, "Trace: drawn automatically", true, auto);
+  check(list(option(string)), "Trace: nothing more", [], more);
+  let (auto, more, statics, value) = at("plain");
+  check(bool, "[Int]: not drawn automatically", false, auto);
+  check(
+    list(option(string)),
+    "[Int]: ^trace on request",
+    [Some("trace")],
+    more,
+  );
+  let drawn =
+    switch (
+      R.parse_chosen(~statics, Sort.Exp, value, Some("trace")),
+      R.site(statics),
+    ) {
+    | (Some(v), Some((ctx, _))) =>
+      Option.bind(Ctx.lookup_livelit(ctx, v.ll_name), ll =>
+        Option.bind(R.html_of(~ctx, ll, value), text_of_html)
+      )
+    | _ => None
+    };
+  check(
+    option(string),
+    "[Int]: drawn as ^trace once chosen",
+    Some("4"),
+    drawn,
+  );
+  let (auto, more, _, _) = at("a");
+  check(bool, "unknown type: not automatic", false, auto);
+  check(
+    list(option(string)),
+    "unknown type, a list: drawn",
+    [Some("trace")],
+    more,
+  );
+  let (_, more, _, _) = at("b");
+  check(list(option(string)), "unknown type, an Int: not drawn", [], more);
+};
+
 /* A literal's projector requests dynamics, so its id and its model
    argument's id land in statics.targets. The statics gate compared the
    zipper's probe pins against targets' keys, saw a probe change on
@@ -1099,6 +1225,11 @@ let tests = [
         "one-argument view at every place",
         `Quick,
         one_arg_view_everywhere,
+      ),
+      test_case(
+        "View as offers the views whose type fits",
+        `Quick,
+        view_as_offers_what_fits,
       ),
       test_case(
         "untyped constructor takes its sum type under ascription",
