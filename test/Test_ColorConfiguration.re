@@ -50,35 +50,44 @@ let declared_names = CC.all_targets;
    default; a name the slide produces that the contract does not declare is a
    variable nothing analyzes. */
 let slide_matches_contract = () => {
-  let produced = List.map(fst, evaluated_vars());
+  let produced = List.map(~f=fst, evaluated_vars());
   check(
     list(string),
     "every declared color is produced by the slide",
     [],
-    List.filter(n => !List.mem(n, produced), declared_names),
+    List.filter(
+      ~f=n => !List.mem(produced, n, ~equal=String.equal),
+      declared_names,
+    ),
   );
   check(
     list(string),
     "the slide produces nothing the contract does not declare",
     [],
-    List.filter(n => !List.mem(n, declared_names), produced),
+    List.filter(
+      ~f=n => !List.mem(declared_names, n, ~equal=String.equal),
+      produced,
+    ),
   );
   check(
     int,
     "no variable is emitted twice",
     0,
-    List.length(produced) - List.length(List.sort_uniq(compare, produced)),
+    List.length(produced)
+    - List.length(List.dedup_and_sort(~compare=String.compare, produced)),
   );
 };
 
 let starts_with = (p, s) =>
   String.length(s) >= String.length(p)
-  && String.sub(s, 0, String.length(p)) == p;
+  && String.equal(String.sub(s, ~pos=0, ~len=String.length(p)), p);
 
 let contains = (needle, s) => {
   let (n, h) = (String.length(needle), String.length(s));
   let rec go = i =>
-    i + n <= h && (String.sub(s, i, n) == needle || go(i + 1));
+    i
+    + n <= h
+    && (String.equal(String.sub(s, ~pos=i, ~len=n), needle) || go(i + 1));
   go(0);
 };
 
@@ -93,7 +102,7 @@ let plausible = s =>
     || starts_with("rgb(", s)
     || starts_with("#", s)
   )
-  && !List.exists(bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);
+  && !List.exists(~f=bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);
 
 /* Two emitted properties carry flags rather than colors, and are the only
    ones this check does not apply to. */
@@ -101,8 +110,10 @@ let flags = [CC.polarity_target, CC.contrast_target];
 
 let unparseable = vars =>
   vars
-  |> List.filter(((n, v)) => !List.mem(n, flags) && !plausible(v))
-  |> List.map(((n, v)) => n ++ " = " ++ v);
+  |> List.filter(~f=((n, v)) =>
+       !List.mem(flags, n, ~equal=String.equal) && !plausible(v)
+     )
+  |> List.map(~f=((n, v)) => n ++ " = " ++ v);
 
 /* The applier writes these straight into a CSS custom property, where an
    unparseable value is silently ignored by the browser. */
@@ -125,14 +136,12 @@ let every_value_is_css = () => {
 let strip_comments = (text: string) => {
   let buf = Buffer.create(String.length(text));
   let inside = ref(false);
-  String.iter(
-    c =>
-      if (c == '#') {
-        inside := ! inside^;
-      } else if (! inside^) {
-        Buffer.add_char(buf, c);
-      },
-    text,
+  String.iter(text, ~f=c =>
+    if (Char.equal(c, '#')) {
+      inside := ! inside^;
+    } else if (! inside^) {
+      Buffer.add_char(buf, c);
+    }
   );
   Buffer.contents(buf);
 };
@@ -141,23 +150,22 @@ let strip_comments = (text: string) => {
    flags are read inside a tuple scrutinee — `case (dark_mode, ...` — so
    splitting on spaces alone would miss them. */
 let words = text =>
-  String.to_seq(text)
-  |> Seq.map(c =>
-       switch (c) {
-       | 'a' .. 'z'
-       | 'A' .. 'Z'
-       | '0' .. '9'
-       | '_' => c
-       | _ => ' '
-       }
-     )
-  |> String.of_seq
-  |> String.split_on_char(' ')
-  |> List.filter(w => w != "");
+  String.map(text, ~f=c =>
+    switch (c) {
+    | 'a' .. 'z'
+    | 'A' .. 'Z'
+    | '0' .. '9'
+    | '_' => c
+    | _ => ' '
+    }
+  )
+  |> String.split(~on=' ')
+  |> List.filter(~f=w => !String.equal(w, ""));
 
 let flags_are_read_once = () => {
   let ws = words(strip_comments(CC.source.backup_text));
-  let occurrences = w => List.length(List.filter(x => x == w, ws));
+  let occurrences = w =>
+    List.length(List.filter(~f=x => String.equal(x, w), ws));
   /* one binding plus one use */
   check(
     int,
@@ -216,9 +224,9 @@ let split_on_string = (~needle, s) => {
   let (n, h) = (String.length(needle), String.length(s));
   let rec go = (start, i, acc) =>
     if (i + n > h) {
-      List.rev([String.sub(s, start, h - start), ...acc]);
-    } else if (String.sub(s, i, n) == needle) {
-      go(i + n, i + n, [String.sub(s, start, i - start), ...acc]);
+      List.rev([String.sub(s, ~pos=start, ~len=h - start), ...acc]);
+    } else if (String.equal(String.sub(s, ~pos=i, ~len=n), needle)) {
+      go(i + n, i + n, [String.sub(s, ~pos=start, ~len=i - start), ...acc]);
     } else {
       go(start, i + 1, acc);
     };
@@ -256,28 +264,33 @@ let schemes = [
 let scheme_vars = ((_, dark_mode, high_contrast)) =>
   CC.vars_of_source(source_with_flags(~dark_mode, ~high_contrast));
 
-let evaluated_schemes = lazy(List.map(s => (s, scheme_vars(s)), schemes));
+let evaluated_schemes =
+  lazy(List.map(~f=s => (s, scheme_vars(s)), schemes));
 
 /* Each scheme must define the whole contract and render to real CSS — a
    scheme nothing evaluates can go bad silently, and only `light` is on the
    default path. */
 let every_scheme_is_complete_and_css = () =>
   List.iter(
-    (((label, _, _), vars)) => {
-      let produced = List.map(fst, vars);
-      check(
-        list(string),
-        label ++ ": every declared color is produced",
-        [],
-        List.filter(n => !List.mem(n, produced), declared_names),
-      );
-      check(
-        list(string),
-        label ++ ": no color renders to something CSS cannot parse",
-        [],
-        unparseable(vars),
-      );
-    },
+    ~f=
+      (((label, _, _), vars)) => {
+        let produced = List.map(~f=fst, vars);
+        check(
+          list(string),
+          label ++ ": every declared color is produced",
+          [],
+          List.filter(
+            ~f=n => !List.mem(produced, n, ~equal=String.equal),
+            declared_names,
+          ),
+        );
+        check(
+          list(string),
+          label ++ ": no color renders to something CSS cannot parse",
+          [],
+          unparseable(vars),
+        );
+      },
     Lazy.force(evaluated_schemes),
   );
 
@@ -289,12 +302,15 @@ let schemes_are_pairwise_distinct = () => {
   let evaluated = Lazy.force(evaluated_schemes);
   let collisions =
     List.concat_map(
-      (((a, _, _), va)) =>
-        List.filter_map(
-          (((b, _, _), vb)) =>
-            a < b && va == vb ? Some(a ++ " == " ++ b) : None,
-          evaluated,
-        ),
+      ~f=
+        (((a, _, _), va)) =>
+          List.filter_map(
+            ~f=
+              (((b, _, _), vb)) =>
+                String.(a < b) && Poly.equal(va, vb)
+                  ? Some(a ++ " == " ++ b) : None,
+            evaluated,
+          ),
       evaluated,
     );
   check(list(string), "no two schemes render identically", [], collisions);
@@ -308,13 +324,14 @@ let schemes_are_pairwise_distinct = () => {
    starts. */
 let a_non_theme_yields_no_colors = () =>
   List.iter(
-    ((label, text)) =>
-      check(
-        list(pair(string, string)),
-        label ++ ": produces no colors",
-        [],
-        CC.vars_of_source(Haz3lcore.PersistentZipper.of_slide_text(text)),
-      ),
+    ~f=
+      ((label, text)) =>
+        check(
+          list(pair(string, string)),
+          label ++ ": produces no colors",
+          [],
+          CC.vars_of_source(Haz3lcore.PersistentZipper.of_slide_text(text)),
+        ),
     [
       ("an int", "1 + 1"),
       ("a string", "\"not a theme\""),
@@ -347,13 +364,13 @@ let golden_candidates = [
 ];
 
 let golden_path = () =>
-  switch (List.find_opt(Sys.file_exists, golden_candidates)) {
+  switch (List.find(golden_candidates, ~f=Stdlib.Sys.file_exists)) {
   | Some(p) => p
   | None =>
     /* First run, or the file was deleted: write where the tree root is. */
     switch (
-      List.find_opt(
-        d => Sys.file_exists(d),
+      List.find(
+        ~f=d => Stdlib.Sys.file_exists(d),
         [
           "test/goldens",
           "../test/goldens",
@@ -371,41 +388,47 @@ let golden_path = () =>
 let render_golden = (): string => {
   let buf = Buffer.create(64 * 1024);
   List.iter(
-    (((label, _, _), vars)) =>
-      List.iter(
-        ((n, v)) =>
-          Buffer.add_string(
-            buf,
-            Printf.sprintf("%s\t%s\t%s\n", label, n, v),
+    ~f=
+      (((label, _, _), vars)) =>
+        List.iter(
+          ~f=
+            ((n, v)) =>
+              Buffer.add_string(
+                buf,
+                Printf.sprintf("%s\t%s\t%s\n", label, n, v),
+              ),
+          List.sort(
+            ~compare=
+              Tuple2.compare(~cmp1=String.compare, ~cmp2=String.compare),
+            vars,
           ),
-        List.sort(compare, vars),
-      ),
+        ),
     Lazy.force(evaluated_schemes),
   );
   Buffer.contents(buf);
 };
 
 let read_file = (path: string): string => {
-  let ic = open_in_bin(path);
-  let n = in_channel_length(ic);
-  let s = really_input_string(ic, n);
-  close_in(ic);
+  let ic = Stdlib.open_in_bin(path);
+  let n = Stdlib.in_channel_length(ic);
+  let s = Stdlib.really_input_string(ic, n);
+  Stdlib.close_in(ic);
   s;
 };
 
 let write_file = (path: string, s: string): unit => {
-  let oc = open_out_bin(path);
-  output_string(oc, s);
-  close_out(oc);
+  let oc = Stdlib.open_out_bin(path);
+  Stdlib.output_string(oc, s);
+  Stdlib.close_out(oc);
 };
 
 let colors_match_golden = () => {
   let path = golden_path();
   let actual = render_golden();
-  if (Sys.getenv_opt("UPDATE_COLOR_GOLDEN") != None) {
+  if (Option.is_some(Stdlib.Sys.getenv_opt("UPDATE_COLOR_GOLDEN"))) {
     write_file(path, actual);
     check(bool, "golden rewritten (" ++ path ++ ")", true, true);
-  } else if (!Sys.file_exists(path)) {
+  } else if (!Stdlib.Sys.file_exists(path)) {
     failwith(
       "Colors golden missing at "
       ++ path
@@ -416,10 +439,11 @@ let colors_match_golden = () => {
     /* Report the differing LINES, not a 40KB blob: alcotest would print both
        whole files and the actual change would be unfindable. */
     let split = t =>
-      String.split_on_char('\n', t) |> List.filter(l => l != "");
+      String.split(t, ~on='\n') |> List.filter(~f=l => !String.equal(l, ""));
     let (e, a) = (split(expected), split(actual));
-    let missing = List.filter(l => !List.mem(l, a), e);
-    let extra = List.filter(l => !List.mem(l, e), a);
+    let missing =
+      List.filter(~f=l => !List.mem(a, l, ~equal=String.equal), e);
+    let extra = List.filter(~f=l => !List.mem(e, l, ~equal=String.equal), a);
     check(
       list(string),
       "no color changed value (was, per the golden)",
@@ -442,8 +466,9 @@ let table_is_well_formed = () => {
     "no field expands to an empty target list",
     [],
     List.filter_map(
-      (((group, name), targets)) =>
-        targets == [] ? Some(group ++ "." ++ name) : None,
+      ~f=
+        (((group, name), targets)) =>
+          List.is_empty(targets) ? Some(group ++ "." ++ name) : None,
       CC.aliases,
     ),
   );
@@ -451,8 +476,8 @@ let table_is_well_formed = () => {
      wins, which is a coin toss dressed up as a theme. */
   let dupes =
     List.filter(
-      t => List.length(List.filter((==)(t), CC.all_targets)) > 1,
-      List.sort_uniq(compare, CC.all_targets),
+      ~f=t => List.count(CC.all_targets, ~f=String.equal(t)) > 1,
+      List.dedup_and_sort(~compare=String.compare, CC.all_targets),
     );
   check(list(string), "no property is written by two fields", [], dupes);
   /* An alias for a field the slide does not have is a silent no-op. */
@@ -460,8 +485,18 @@ let table_is_well_formed = () => {
     list(string),
     "every aliased field exists",
     [],
-    List.filter(((key, _)) => !List.mem(key, CC.field_names), CC.aliases)
-    |> List.map((((group, name), _)) => group ++ "." ++ name),
+    List.filter(
+      ~f=
+        ((key, _)) =>
+          !
+            List.mem(
+              CC.field_names,
+              key,
+              ~equal=Tuple2.equal(~eq1=String.equal, ~eq2=String.equal),
+            ),
+      CC.aliases,
+    )
+    |> List.map(~f=(((group, name), _)) => group ++ "." ++ name),
   );
 };
 
@@ -475,7 +510,7 @@ let a_partial_theme_yields_nothing = () => {
        not on a field name, so a rename does not silently turn this test into
        a no-op that always passes. */
     Str.replace_first(Str.regexp_string("= Transparent,"), "= 1,", text);
-  check(bool, "the edit applied", true, broken != text);
+  check(bool, "the edit applied", true, !String.equal(broken, text));
   check(
     list(pair(string, string)),
     "one undecodable color yields no theme at all",
@@ -506,10 +541,10 @@ let theme_css_rel = "src/web/www/style/theme-generated.css";
 
 let theme_css_path = () =>
   switch (
-    List.find_opt(
-      Sys.file_exists,
+    List.find(
+      ~f=Stdlib.Sys.file_exists,
       List.map(
-        p => p ++ theme_css_rel,
+        ~f=p => p ++ theme_css_rel,
         ["", "../", "../../", "../../../", "../../../../"],
       ),
     )
@@ -519,11 +554,19 @@ let theme_css_path = () =>
   };
 
 let render_theme_css = (): string => {
-  let light = List.assoc(List.hd(schemes), Lazy.force(evaluated_schemes));
+  let light =
+    List.Assoc.find_exn(
+      Lazy.force(evaluated_schemes),
+      List.hd_exn(schemes),
+      ~equal=Poly.equal,
+    );
   let decls =
-    List.sort(compare, light)
-    |> List.map(((n, v)) => Printf.sprintf("  --%s: %s;\n", n, v))
-    |> String.concat("");
+    List.sort(
+      ~compare=Tuple2.compare(~cmp1=String.compare, ~cmp2=String.compare),
+      light,
+    )
+    |> List.map(~f=((n, v)) => Printf.sprintf("  --%s: %s;\n", n, v))
+    |> String.concat(~sep="");
   {|/* GENERATED FILE -- DO NOT EDIT.
 
    Emitted from the Colors configuration slide (hazel-programs/config/colors.hz)
@@ -549,23 +592,23 @@ let render_theme_css = (): string => {
 let theme_css_is_current = () => {
   let path = theme_css_path();
   let wanted = render_theme_css();
-  if (Sys.getenv_opt("UPDATE_CSS_DEFAULTS") != None) {
+  if (Option.is_some(Stdlib.Sys.getenv_opt("UPDATE_CSS_DEFAULTS"))) {
     write_file(path, wanted);
     check(bool, "theme stylesheet rewritten (" ++ path ++ ")", true, true);
   } else {
-    let split = t => String.split_on_char('\n', t);
+    let split = t => String.split(t, ~on='\n');
     let (e, a) = (split(wanted), split(read_file(path)));
     check(
       list(string),
       theme_css_rel ++ " is stale (missing; run `make update-css-defaults`)",
       [],
-      List.filter(l => !List.mem(l, a), e),
+      List.filter(~f=l => !List.mem(a, l, ~equal=String.equal), e),
     );
     check(
       list(string),
       theme_css_rel ++ " is stale (extra)",
       [],
-      List.filter(l => !List.mem(l, e), a),
+      List.filter(~f=l => !List.mem(e, l, ~equal=String.equal), a),
     );
   };
 };
