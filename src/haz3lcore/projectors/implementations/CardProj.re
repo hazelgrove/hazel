@@ -149,9 +149,9 @@ module Singleton = {
       ],
       [
         switch (mode) {
-        | Show => CardView.Card.view(sort, card)
+        | Show => CardView.Card.view((sort, card))
         | Choose(_) => Chooser.view(info, parent, sort, card, None)
-        | Flipped => CardView.Card.view(sort, card)
+        | Flipped => CardView.Card.view((sort, card))
         },
       ],
     );
@@ -201,12 +201,12 @@ module CardInHand = {
       ],
       [
         switch (mode) {
-        | Show => CardView.Card.view(sort, card)
+        | Show => CardView.Card.view((sort, card))
         | Choose(cidx) =>
           cidx == index
             ? Chooser.view(info, parent, sort, card, Some(index))
-            : CardView.Card.view(sort, card)
-        | Flipped => CardView.Card.view(sort, card)
+            : CardView.Card.view((sort, card))
+        | Flipped => CardView.Card.view((sort, card))
         },
       ],
     );
