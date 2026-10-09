@@ -10,6 +10,17 @@ module Request = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
     prev: Language.EvaluatorState.incr_eval,
+    /* Evaluate against the cache the worker kept from this key's last
+       run, in place of `prev` (see Held). The client of a worker sets it
+       and sends `prev` empty; the main-thread path passes `prev` itself. */
+    use_held_prev: bool,
+    /* Which document the request is for: a slide, a tutorial or an
+       exercise. Held keeps a cache per document and key, since keys are
+       positions within a document (Scratch mode's is always ""), and one
+       document's cache would otherwise be replaced by the next one's.
+       Empty for a caller that has only one document. */
+    [@sexp.default ""] [@yojson.default ""]
+    doc: string,
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -227,7 +238,7 @@ let error_response = exn =>
   };
 
 let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   switch (
     Language.Evaluator.evaluate(
       ~prev,
@@ -244,6 +255,54 @@ let evaluate_sync = (req_value: Request.value): Response.value => {
   };
 };
 
+/* The incremental cache stays in the worker. It is almost all of a result
+   (330 KB of Kids' Choice's 332 KB), and the client only ever sent it back
+   as the next request's `prev`; now the worker keeps each key's last
+   finished cache, answers with the state's cache emptied, and a request
+   with `use_held_prev` evaluates against what is kept. A restarted worker
+   keeps nothing, so its first run is a full one, which is correct. */
+module Held = {
+  let max_keys = 32;
+  let table: Hashtbl.t((string, key), Language.EvaluatorState.incr_eval) =
+    Hashtbl.create(8);
+
+  let clear = () => Hashtbl.reset(table);
+
+  let resolve = (key: key, v: Request.value): Request.value =>
+    v.use_held_prev
+      ? {
+        ...v,
+        prev:
+          Hashtbl.find_opt(table, (v.doc, key))
+          |> Option.value(~default=Language.IncrEval.empty),
+        use_held_prev: false,
+      }
+      : v;
+
+  /* Keep a finished run's cache and answer without it; a failed run keeps
+     nothing, as the client did (its next `prev` was empty). */
+  let keep =
+      (~doc: string="", key: key, response: Response.value): Response.value =>
+    switch (response) {
+    | Ok((result, state)) =>
+      if (Hashtbl.length(table) >= max_keys
+          && !Hashtbl.mem(table, (doc, key))) {
+        Hashtbl.reset(table);
+      };
+      Hashtbl.replace(table, (doc, key), state.incr_eval);
+      Ok((
+        result,
+        {
+          ...state,
+          incr_eval: Language.IncrEval.empty,
+        },
+      ));
+    | Error(_) =>
+      Hashtbl.remove(table, (doc, key));
+      response;
+    };
+};
+
 type evaluation_start =
   | Yielding(Language.Evaluator.yielding_evaluation)
   | CompletedImmediately(Response.value);
@@ -251,6 +310,8 @@ type evaluation_start =
 type running = {
   request_id: int,
   key,
+  /* The item's document, for Held.keep when it finishes. */
+  doc: string,
   remaining: Request.batch,
   completed: Response.t,
   evaluation: Language.Evaluator.yielding_evaluation,
@@ -313,7 +374,7 @@ let planned_reuse:
   ref([]);
 
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   let stream =
     if (!wants_incremental(req_value)) {
       Language.IncrEval.empty;
@@ -359,7 +420,7 @@ let timed_eval: 'a. (unit => 'a) => 'a =
   };
 
 let start_evaluation = (req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev} = req_value;
+  let Request.{expr, eval_info_map, prev, _} = req_value;
   let planned = take_planned_reuse(expr);
   switch (
     Language.Evaluator.start_yielding_evaluation(
@@ -458,7 +519,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
       evaluate_next_batch_item(
         model,
         request_id,
-        [(key, response), ...completed],
+        [(key, Held.keep(~doc=req_value.doc, key, response)), ...completed],
         remaining,
       )
     | Yielding(evaluation) =>
@@ -468,6 +529,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
           Running({
             request_id,
             key,
+            doc: req_value.doc,
             remaining,
             completed,
             evaluation,
@@ -489,7 +551,10 @@ and finish_current_item = (model, running, response) =>
   evaluate_next_batch_item(
     model,
     running.request_id,
-    [(running.key, response), ...running.completed],
+    [
+      (running.key, Held.keep(~doc=running.doc, running.key, response)),
+      ...running.completed,
+    ],
     running.remaining,
   )
 and plan_latest_batch = model =>
@@ -584,6 +649,14 @@ let install_message_handler = () => {
 
   let on_request = (req: Active.request): unit => {
     let ClientMessage.Evaluate(request) = Active.decode_request(req);
+    let request = {
+      ...request,
+      batch:
+        List.map(
+          ((key, v)) => (key, Held.resolve(key, v)),
+          request.batch,
+        ),
+    };
     post_ack(request);
     eval_total := Core.Time_ns.Span.zero;
     commit({
