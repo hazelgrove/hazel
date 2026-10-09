@@ -555,14 +555,24 @@ let with_pat_provenance =
     remove_pat_bindings(pat, reuse_map),
   );
 
-/* The components of the tuple cached at `id`, when the previous run really
+/* These read the node the previous run cached at (callstack, id) -- the
+ * formalism's kappa(c, i) -- so each guard below holds at the callstack the
+ * node is running at, not only at the top level.
+ *
+ * The components of the tuple cached at `id`, when the previous run really
  * did cache a tuple of this arity there. `None` means no position of this
  * tuple can claim anything: there is nothing cached at this id, or what is
  * cached is not a tuple, or its arity differs -- and position j only names
  * the same slot in the two runs when the arities agree. */
 let prev_tuple_components =
-    (~prev: t('state), ~id: Id.t, es: list(Exp.t)): option(list(Exp.t)) =>
-  switch (Id.Map.find_opt(id, prev.entries)) {
+    (
+      ~prev: t('state),
+      ~call_stack_ids: list(Id.t),
+      ~id: Id.t,
+      es: list(Exp.t),
+    )
+    : option(list(Exp.t)) =>
+  switch (find_at(~call_stack_ids, ~id, prev)) {
   | Some(entry) =>
     switch (entry.prev_elab.term) {
     | Tuple(prev_es) when List.length(prev_es) == List.length(es) =>
@@ -576,8 +586,10 @@ let prev_tuple_components =
  * really did cache a `Parens` there. `None` means this node can claim
  * nothing: nothing is cached at this id, or what is cached is some other
  * expression. */
-let prev_parens_child = (~prev: t('state), ~id: Id.t): option(Exp.t) =>
-  switch (Id.Map.find_opt(id, prev.entries)) {
+let prev_parens_child =
+    (~prev: t('state), ~call_stack_ids: list(Id.t), ~id: Id.t)
+    : option(Exp.t) =>
+  switch (find_at(~call_stack_ids, ~id, prev)) {
   | Some(entry) =>
     switch (entry.prev_elab.term) {
     | Parens(prev_e) => Some(prev_e)
@@ -593,8 +605,9 @@ let prev_parens_child = (~prev: t('state), ~id: Id.t): option(Exp.t) =>
  * one character of an occurrence produces while the token, and so the id,
  * survives. */
 let prev_var_entry =
-    (~prev: t('state), ~id: Id.t, name: string): option(entry('state)) =>
-  switch (Id.Map.find_opt(id, prev.entries)) {
+    (~prev: t('state), ~call_stack_ids: list(Id.t), ~id: Id.t, name: string)
+    : option(entry('state)) =>
+  switch (find_at(~call_stack_ids, ~id, prev)) {
   | Some(entry) =>
     switch (entry.prev_elab.term) {
     | Var(prev_name) when prev_name == name => Some(entry)
@@ -633,8 +646,9 @@ let is_tag_constructor = (name: string): bool =>
  * constructor, which is what retyping the constructor's name produces while
  * the application's id survives. */
 let prev_ctr_payload =
-    (~prev: t('state), ~id: Id.t, name: string): option(Exp.t) =>
-  switch (Id.Map.find_opt(id, prev.entries)) {
+    (~prev: t('state), ~call_stack_ids: list(Id.t), ~id: Id.t, name: string)
+    : option(Exp.t) =>
+  switch (find_at(~call_stack_ids, ~id, prev)) {
   | Some(entry) =>
     switch (entry.prev_elab.term) {
     | Ap(_, {term: Constructor(prev_name, _), _}, prev_arg)
@@ -648,11 +662,27 @@ let prev_ctr_payload =
 /* The scrutinee and rules of the `match` cached at `id`, when the previous
  * run really did cache a `match` there. */
 let prev_match =
-    (~prev: t('state), ~id: Id.t): option((Exp.t, list((Pat.t, Exp.t)))) =>
-  switch (Id.Map.find_opt(id, prev.entries)) {
+    (~prev: t('state), ~call_stack_ids: list(Id.t), ~id: Id.t)
+    : option((Exp.t, list((Pat.t, Exp.t)))) =>
+  switch (find_at(~call_stack_ids, ~id, prev)) {
   | Some(entry) =>
     switch (entry.prev_elab.term) {
     | Match(prev_scrut, prev_rules) => Some((prev_scrut, prev_rules))
+    | _ => None
+    }
+  | None => None
+  };
+
+/* The condition and branches of the `if` cached at `id`, when the previous
+ * run really did cache an `if` there. */
+let prev_if =
+    (~prev: t('state), ~call_stack_ids: list(Id.t), ~id: Id.t)
+    : option((Exp.t, Exp.t, Exp.t)) =>
+  switch (find_at(~call_stack_ids, ~id, prev)) {
+  | Some(entry) =>
+    switch (entry.prev_elab.term) {
+    | If(prev_cond, prev_then, prev_else) =>
+      Some((prev_cond, prev_then, prev_else))
     | _ => None
     }
   | None => None
@@ -693,245 +723,295 @@ let rec arm_verdict_on_tag = (~name: string, p: Pat.t): option(arm_verdict) =>
   | _ => None
   };
 
-/* SEAM: which arm of a `match` was taken, decided without evaluating it.
+/* Whether arm `k`, the arm this run's `match` took, is also the arm the
+ * cached run took. Binary inl/inr give the formalism this for free -- a
+ * non-dirty scrutinee flag fixes the side -- but Hazel picks the first
+ * matching arm over arbitrary patterns, so it is read off the scrutinee's
+ * flag:
  *
- * The formalism's case rule takes the flag of the branch actually taken and
- * anchors it at the cached node's branch on the same side; with binary
- * inl/inr a non-dirty scrutinee flag fixes the side for both runs. Hazel's
- * `exp_flag` is a static prediction -- the pre-pass runs it before anything
- * is evaluated -- and arms are chosen by first match over arbitrary
- * patterns, so this returns the arms ONE of which is provably taken in this
- * run and was taken, as the same arm, in the run that filled the cache. The
- * caller claims a flag only if every one of them yields the same flag.
- *
- *  - An injection flag Ctr(name, _) says both values carry tag `name`. If
- *    every arm before k rejects that tag outright and arm k accepts any
- *    payload under it, arm k is taken in both runs -- provided the two runs'
- *    patterns agree up to k. A single candidate.
- *  - Clean says the two values are the same, and matching is deterministic,
- *    so the same arm is taken in both runs if all the patterns agree --
- *    but which one is unknown. Every arm is a candidate. In practice this
- *    only claims anything for a single-arm match: an arm the cached run did
- *    not take has no entry, so its flag is Dirty and the arms disagree.
- *    (`ctr` normalises Ctr(name, Clean) to Clean, which is what loses the
- *    tag here.)
- *  - Anything else (Dirty, a tuple-shaped flag) fixes nothing.
- *
- * Recording the taken arm in the match's cache entry would make the Clean
- * case useful, but needs a new entry field and plumbing from the step that
- * picks the arm to the place the entry is written; this needs neither. */
-let match_arms_in_both_runs =
+ *  - Clean: the two scrutinees are the same value and matching is
+ *    deterministic, so the same arm is chosen if the patterns up to and
+ *    including k are unchanged.
+ *  - Ctr(name, _): the two carry tag `name` but their payloads may differ,
+ *    so in addition every arm before k must reject `name` outright and arm k
+ *    must accept any payload under it -- or a payload this run did not see
+ *    could have chosen differently.
+ *  - Anything else fixes nothing. */
+let same_arm_in_both_runs =
     (
       ~scrut_flag: flag,
       ~prev_rules: list((Pat.t, Exp.t)),
-      rules: list((Pat.t, Exp.t)),
+      ~rules: list((Pat.t, Exp.t)),
+      k: int,
     )
-    : option(list(int)) =>
-  switch (scrut_flag) {
-  | Ctr(name, _) =>
-    let rec first_accepting = (k, rules, prev_rules) =>
-      switch (rules, prev_rules) {
-      | ([(p, _), ...rules], [(prev_p, _), ...prev_rules])
-          when Pat.fast_equal(p, prev_p) =>
-        switch (arm_verdict_on_tag(~name, p)) {
-        | Some(Accepts) => Some([k])
-        | Some(Rejects) => first_accepting(k + 1, rules, prev_rules)
-        | None => None
-        }
-      | _ => None
-      };
-    first_accepting(0, rules, prev_rules);
-  | Clean =>
-    List.length(rules) == List.length(prev_rules)
-    && List.for_all2(
-         ((p, _), (prev_p, _)) => Pat.fast_equal(p, prev_p),
-         rules,
-         prev_rules,
-       )
-      ? Some(List.mapi((k, _) => k, rules)) : None
-  | Dirty
-  | Parts(_) => None
+    : bool => {
+  let rec go = (i, rules, prev_rules) =>
+    switch (rules, prev_rules) {
+    | ([(p, _), ...rules], [(prev_p, _), ...prev_rules])
+        when Pat.fast_equal(p, prev_p) =>
+      let decided =
+        switch (scrut_flag) {
+        | Clean => true
+        | Ctr(name, _) =>
+          arm_verdict_on_tag(~name, p) == Some(i == k ? Accepts : Rejects)
+        | Dirty
+        | Parts(_) => false
+        };
+      decided && (i == k || go(i + 1, rules, prev_rules));
+    | _ => false
+    };
+  go(0, rules, prev_rules);
+};
+
+/* Section 8's caseFlagL/caseFlagR, decided as the arm is chosen. A `match`'s
+ * value is its taken arm's, so its flag is the arm body's: this returns the
+ * body's id, and the flag is read from it once it has finished (see
+ * `node_flag`). The claim is anchored at the node cached at THIS callstack:
+ * a `match` over the same scrutinee node, which took the same arm
+ * (`same_arm_in_both_runs`), whose body in that position has the same id
+ * (atNode). The scrutinee's flag must not be dirty. `None` makes the match
+ * Dirty. */
+let case_continuation =
+    (
+      ~prev: t('state),
+      ~call_stack_ids: list(Id.t),
+      ~scrut_flag: flag,
+      ~arm: int,
+      e: Exp.t,
+    )
+    : option(Id.t) =>
+  switch (e.term) {
+  | Match(scrut, rules) when scrut_flag != Dirty =>
+    switch (prev_match(~prev, ~call_stack_ids, ~id=Exp.rep_id(e))) {
+    | Some((prev_scrut, prev_rules))
+        when
+          Id.equal(Exp.rep_id(prev_scrut), Exp.rep_id(scrut))
+          && same_arm_in_both_runs(~scrut_flag, ~prev_rules, ~rules, arm) =>
+      let (_, body) = List.nth(rules, arm);
+      let (_, prev_body) = List.nth(prev_rules, arm);
+      Id.equal(Exp.rep_id(prev_body), Exp.rep_id(body))
+        ? Some(Exp.rep_id(body)) : None;
+    | Some(_)
+    | None => None
+    }
+  | _ => None
   };
 
-/* The flag every candidate branch agrees on, or Dirty if they disagree:
- * whichever one is taken, the claim is then that branch's own. */
-let agreed_flag = (fs: list(flag)): flag =>
-  switch (fs) {
-  | [f, ...rest] when List.for_all(g => g == f, rest) => f
-  | _ => Dirty
+/* Off by default: the formalism has no `if`. With it on, an `if` is the case
+ * rule's Clean reading -- a clean condition is the same boolean in both
+ * runs, so the same branch was taken -- anchored like a `match`: the cached
+ * node at this callstack is an `if` over the same condition node whose
+ * taken branch has the same id. Nothing in the Lean development proves it. */
+let if_flags = false;
+
+/* `case_continuation` for an `if` that took its `then` branch when
+ * `took_then`. `None` makes the `if` Dirty. */
+let if_continuation =
+    (
+      ~prev: t('state),
+      ~call_stack_ids: list(Id.t),
+      ~cond_flag: flag,
+      ~took_then: bool,
+      e: Exp.t,
+    )
+    : option(Id.t) =>
+  switch (e.term) {
+  | If(cond, then_, else_) when if_flags && cond_flag == Clean =>
+    switch (prev_if(~prev, ~call_stack_ids, ~id=Exp.rep_id(e))) {
+    | Some((prev_cond, prev_then, prev_else))
+        when Id.equal(Exp.rep_id(prev_cond), Exp.rep_id(cond)) =>
+      let (prev_branch, branch) =
+        took_then ? (prev_then, then_) : (prev_else, else_);
+      Id.equal(Exp.rep_id(prev_branch), Exp.rep_id(branch))
+        ? Some(Exp.rep_id(branch)) : None;
+    | Some(_)
+    | None => None
+    }
+  | _ => None
   };
 
-/* Which parts of `e`'s value come from the cache.
+/* SEAM: how a node's flag travels from where it is computed to where it is
+ * read. The formalism's Eval1 RETURNS the flag beside the value, computed at
+ * the callstack the node runs at. Here the evaluator records it, as each
+ * node finishes at a cacheable callstack, in a table for the run keyed like
+ * the cache, by (callstack, id), and readers look it up. That is the same
+ * flow as long as every read comes after the evaluation it is about and
+ * nothing re-evaluates that key in between, and the only readers are:
  *
- * Without tuple flags this is the clean/dirty bit Hazel already used: the
- * whole value is clean exactly when the expression itself was re-used. With
- * them, section 8's Pair rule applies — a tuple is clean componentwise, so
- * editing one component leaves bindings projected from the others re-usable
- * — and so do its injection and case rules: a constructor application keeps
- * its payload's flag under its tag, and a `match` known to take the same
- * arm in both runs reports that arm's flag.
+ *  - a node as it finishes, reading the children it evaluated inside its
+ *    own step, or the arm it continued into (`node_flag`);
+ *  - a binding, reading the right-hand side, argument or scrutinee the
+ *    step that makes the binding has just evaluated (see
+ *    Evaluator.binding_flag).
+ *
+ * One run CAN evaluate a key twice: a delegating administrative step
+ * re-evaluates its redex under its own id, nested inside the first
+ * evaluation, and a fixpoint reached through a variable is unwrapped afresh
+ * at each use, re-evaluating its body's ids. In both the later write is the
+ * evaluation the reader just waited on, and each write is a sound claim
+ * about the value it was computed with. Dirty is the absence of an entry and
+ * recording Dirty REMOVES one, so a stale clean flag from an earlier
+ * evaluation of the key cannot outlive a dirty re-evaluation of it. */
+type flags = Hashtbl.t((list(Id.t), Id.t), flag);
+
+let new_flags = (): flags => Hashtbl.create(256);
+
+let record_flag =
+    (flags: flags, ~call_stack_ids: list(Id.t), ~id: Id.t, flag: flag): unit =>
+  switch (flag) {
+  | Dirty => Hashtbl.remove(flags, (call_stack_ids, id))
+  | flag => Hashtbl.replace(flags, (call_stack_ids, id), flag)
+  };
+
+let flag_at = (flags: flags, ~call_stack_ids: list(Id.t), ~id: Id.t): flag =>
+  switch (Hashtbl.find_opt(flags, (call_stack_ids, id))) {
+  | Some(flag) => flag
+  | None => Dirty
+  };
+
+/* Which parts of `e`'s value come from the cache, once `e` has finished at
+ * `call_stack_ids` WITHOUT a cache hit there (a hit is Clean, the
+ * formalism's reuse rule). Every guard reads the node the previous run
+ * cached at this same callstack, kappa(c, uid(e)), and every child's flag is
+ * the one that child actually finished with at this callstack.
+ *
+ * With tuple flags off this is never called and a miss is Dirty: the
+ * clean/dirty bit Hazel already used. With them, section 8's Pair rule
+ * applies -- a tuple is clean componentwise, so editing one component leaves
+ * bindings projected from the others re-usable -- and so do its injection
+ * and case rules: a constructor application keeps its payload's flag under
+ * its tag, and a `match` that took the same arm as the cached run reports
+ * that arm's flag.
  *
  * A variable reports the flag of its binding, which is how partial
- * cleanliness reaches a `let (p, q) = z`: the flag was computed when `z` was
- * bound and is read back here rather than re-derived from the occurrence --
- * but only once the occurrence's own cache entry says the flag is about the
- * same occurrence of the same binding (see the `Var` case). */
-let rec exp_flag =
-        (
-          ~tuple_flags: bool,
-          ~prev: t('state),
-          ~reused: Id.t => bool,
-          ~reuse_map: reuse_map,
-          e: Exp.t,
-        )
-        : flag =>
-  if (reused(Exp.rep_id(e))) {
-    Clean;
-  } else if (!tuple_flags) {
-    Dirty;
-  } else {
-    let recur = exp_flag(~tuple_flags, ~prev, ~reused, ~reuse_map);
-    switch (e.term) {
-    /* A tuple flag is anchored at the tuple's OWN id: each part of it claims
-     * that that part of this value matches the corresponding part of the
-     * value cached at uid(e). Position j of that cached value is the value
-     * the cached component j evaluated to, so a clean component flag —
-     * value_new(e_j) = value_prev(uid(e_j)) — is a statement about it
-     * exactly when this run's component j still carries that same id. Where
-     * the ids differ the position claims nothing, so an id-preserving edit
-     * that drops, adds or permutes components never reports a part clean
-     * against a cached value of a different shape. Deciding this per
-     * component rather than for the tuple as a whole is what keeps the
-     * motivating edit — one component of a tuple changed, minting a fresh id
-     * for just that component — re-usable in the other components. Arity
-     * must still match outright, or "position j" does not name the same slot
-     * in the two runs. Component contents may of course differ. */
-    | Tuple(es) =>
-      switch (prev_tuple_components(~prev, ~id=Exp.rep_id(e), es)) {
-      | None => Dirty
-      | Some(prev_es) =>
-        norm(
-          List.map2(
-            (prev_e, e) =>
-              Id.equal(Exp.rep_id(prev_e), Exp.rep_id(e))
-                ? recur(e) : Dirty,
-            prev_es,
-            es,
-          ),
-        )
-      }
-    /* `Parens` is `Tuple` with one component: the inner flag is a claim about
-     * uid(e_inner), and passing it up unchanged restates it about uid(e).
-     * That transports only while the cache's node at uid(e) is a `Parens`
-     * over THAT SAME child -- its recorded value is then the recorded value
-     * of the child. An id-preserving edit that swaps the child (deleting the
-     * `-` of `(-k)` leaves the parens' id, and k's, in place while the node
-     * between them goes away) otherwise reports the old child's value clean
-     * against the new one. */
-    | Parens(inner) =>
-      switch (prev_parens_child(~prev, ~id=Exp.rep_id(e))) {
-      | Some(prev_inner)
-          when Id.equal(Exp.rep_id(prev_inner), Exp.rep_id(inner)) =>
-        recur(inner)
-      | Some(_)
-      | None => Dirty
-      }
-    /* A variable's flag is its BINDING's flag, but that is a claim about the
-     * binding's node; reporting it here turns it into a claim about this
-     * OCCURRENCE's node. Section 5's varFlag rule therefore asks for two
-     * further things before the flag may be carried, and both are load
-     * bearing:
-     *
-     *  - kappa(uid(e)) = <var uid(e) x, rho0, w>: the cache holds an entry at
-     *    THIS occurrence's id, and the expression recorded there was the same
-     *    variable. This is the `Tuple` guard again. Retyping one character of
-     *    a name repoints the occurrence at a different binding while the
-     *    token, and so the id, survives; without this the newly denoted
-     *    binding's (clean) flag licenses serving the OLD variable's cached
-     *    value.
-     *  - CleanAgree [x] rho rho0: the entry was recorded for the same
-     *    binding. The name and the id together still do not pin one down --
-     *    inserting a `let x = ...` between binder and occurrence reshadows
-     *    the name without touching either.
-     *
-     * With neither premise available the plain `var` rule applies and the
-     * occurrence is dirty. */
-    | Var(name) =>
-      switch (
-        Maps.StringMap.find_opt(name, reuse_map),
-        prev_var_entry(~prev, ~id=Exp.rep_id(e), name),
-      ) {
-      | (Some(prov), Some(entry))
-          when clean_agree_on(name, reuse_map, entry.prev_reuse_map) =>
-        prov.flag
-      | (Some(_) | None, Some(_) | None) => Dirty
-      }
-    /* Section 8's inlFlag/inrFlag, for named constructors: the payload's
-     * flag survives, under the tag. Both guards are the `Tuple` ones again.
-     * The cached node at uid(e) must apply the SAME constructor, or its
-     * value carries another tag -- retyping the name keeps the id -- and the
-     * claim that both runs share a tag, which `match` arms are chosen by, is
-     * false. And the payload's flag is a claim about uid(arg), so it is
-     * carried only while the cached node's payload has that id (atNode);
-     * otherwise just the tag is. */
-    | Ap(_, {term: Constructor(name, _), _}, arg)
-        when is_tag_constructor(name) =>
-      switch (prev_ctr_payload(~prev, ~id=Exp.rep_id(e), name)) {
-      | Some(prev_arg) =>
-        ctr(
-          name,
-          Id.equal(Exp.rep_id(prev_arg), Exp.rep_id(arg))
-            ? recur(arg) : Dirty,
-        )
-      | None => Dirty
-      }
-    /* Section 8's caseFlagL/caseFlagR: the value of a `match` is its taken
-     * arm's, so the taken arm's flag is the match's -- anchored, as ever, at
-     * the cached node: it must be a `match` over the same scrutinee node,
-     * and the arm's flag is carried only while the cached match's arm in the
-     * same position has the same body id (atNode). Which arm that is is the
-     * seam `match_arms_in_both_runs`. The arm's body is flagged under the map
-     * the evaluator binds it under -- its pattern's names provenanced at the
-     * scrutinee with the scrutinee's flag -- or its own variables would be
-     * read off whatever they shadow. */
-    | Match(scrut, rules) =>
-      let scrut_flag = recur(scrut);
-      switch (prev_match(~prev, ~id=Exp.rep_id(e))) {
-      | Some((prev_scrut, prev_rules))
-          when
-            scrut_flag != Dirty
-            && Id.equal(Exp.rep_id(prev_scrut), Exp.rep_id(scrut)) =>
-        switch (match_arms_in_both_runs(~scrut_flag, ~prev_rules, rules)) {
-        | Some(arms) =>
-          arms
-          |> List.map(k => {
-               let (pat, body) = List.nth(rules, k);
-               let (_, prev_body) = List.nth(prev_rules, k);
-               Id.equal(Exp.rep_id(prev_body), Exp.rep_id(body))
-                 ? exp_flag(
-                     ~tuple_flags,
-                     ~prev,
-                     ~reused,
-                     ~reuse_map=
-                       with_pat_provenance(
-                         ~source_id=Exp.rep_id(scrut),
-                         ~flag=scrut_flag,
-                         pat,
-                         reuse_map,
-                       ),
-                     body,
-                   )
-                 : Dirty;
-             })
-          |> agreed_flag
-        | None => Dirty
-        }
-      | Some(_)
-      | None => Dirty
-      };
-    | _ => Dirty
-    };
+ * cleanliness reaches a `let (p, q) = z`: the flag was recorded when `z` was
+ * bound and is read back here -- but only once the occurrence's own cache
+ * entry says the flag is about the same occurrence of the same binding (see
+ * the `Var` case). */
+let node_flag =
+    (
+      ~prev: t('state),
+      ~flags: flags,
+      ~call_stack_ids: list(Id.t),
+      ~reuse_map: reuse_map,
+      ~continued_into: option(Id.t),
+      e: Exp.t,
+    )
+    : flag => {
+  let child = (c: Exp.t) =>
+    flag_at(flags, ~call_stack_ids, ~id=Exp.rep_id(c));
+  let id = Exp.rep_id(e);
+  switch (e.term) {
+  /* A tuple flag is anchored at the tuple's OWN id: each part of it claims
+   * that that part of this value matches the corresponding part of the
+   * value cached at uid(e). Position j of that cached value is the value
+   * the cached component j evaluated to, so a clean component flag —
+   * value_new(e_j) = value_prev(c, uid(e_j)) — is a statement about it
+   * exactly when this run's component j still carries that same id. Where
+   * the ids differ the position claims nothing, so an id-preserving edit
+   * that drops, adds or permutes components never reports a part clean
+   * against a cached value of a different shape. Deciding this per
+   * component rather than for the tuple as a whole is what keeps the
+   * motivating edit — one component of a tuple changed, minting a fresh id
+   * for just that component — re-usable in the other components. Arity
+   * must still match outright, or "position j" does not name the same slot
+   * in the two runs. Component contents may of course differ. */
+  | Tuple(es) =>
+    switch (prev_tuple_components(~prev, ~call_stack_ids, ~id, es)) {
+    | None => Dirty
+    | Some(prev_es) =>
+      norm(
+        List.map2(
+          (prev_e, e) =>
+            Id.equal(Exp.rep_id(prev_e), Exp.rep_id(e)) ? child(e) : Dirty,
+          prev_es,
+          es,
+        ),
+      )
+    }
+  /* `Parens` is `Tuple` with one component: the inner flag is a claim about
+   * uid(e_inner), and passing it up unchanged restates it about uid(e).
+   * That transports only while the cache's node at uid(e) is a `Parens`
+   * over THAT SAME child -- its recorded value is then the recorded value
+   * of the child. An id-preserving edit that swaps the child (deleting the
+   * `-` of `(-k)` leaves the parens' id, and k's, in place while the node
+   * between them goes away) otherwise reports the old child's value clean
+   * against the new one. */
+  | Parens(inner) =>
+    switch (prev_parens_child(~prev, ~call_stack_ids, ~id)) {
+    | Some(prev_inner)
+        when Id.equal(Exp.rep_id(prev_inner), Exp.rep_id(inner)) =>
+      child(inner)
+    | Some(_)
+    | None => Dirty
+    }
+  /* A variable's flag is its BINDING's flag, but that is a claim about the
+   * binding's node; reporting it here turns it into a claim about this
+   * OCCURRENCE's node. Section 5's varFlag rule therefore asks for two
+   * further things before the flag may be carried, and both are load
+   * bearing:
+   *
+   *  - kappa(c, uid(e)) = <var uid(e) x, rho0, w>: the cache holds an entry at
+   *    THIS occurrence's id, and the expression recorded there was the same
+   *    variable. This is the `Tuple` guard again. Retyping one character of
+   *    a name repoints the occurrence at a different binding while the
+   *    token, and so the id, survives; without this the newly denoted
+   *    binding's (clean) flag licenses serving the OLD variable's cached
+   *    value.
+   *  - CleanAgree [x] rho rho0: the entry was recorded for the same
+   *    binding. The name and the id together still do not pin one down --
+   *    inserting a `let x = ...` between binder and occurrence reshadows
+   *    the name without touching either.
+   *
+   * With neither premise available the plain `var` rule applies and the
+   * occurrence is dirty. */
+  | Var(name) =>
+    switch (
+      Maps.StringMap.find_opt(name, reuse_map),
+      prev_var_entry(~prev, ~call_stack_ids, ~id, name),
+    ) {
+    | (Some(prov), Some(entry))
+        when clean_agree_on(name, reuse_map, entry.prev_reuse_map) =>
+      prov.flag
+    | (Some(_) | None, Some(_) | None) => Dirty
+    }
+  /* Section 8's inlFlag/inrFlag, for named constructors: the payload's
+   * flag survives, under the tag. Both guards are the `Tuple` ones again.
+   * The cached node at uid(e) must apply the SAME constructor, or its
+   * value carries another tag -- retyping the name keeps the id -- and the
+   * claim that both runs share a tag, which `match` arms are chosen by, is
+   * false. And the payload's flag is a claim about uid(arg), so it is
+   * carried only while the cached node's payload has that id (atNode);
+   * otherwise just the tag is. */
+  | Ap(_, {term: Constructor(name, _), _}, arg)
+      when is_tag_constructor(name) =>
+    switch (prev_ctr_payload(~prev, ~call_stack_ids, ~id, name)) {
+    | Some(prev_arg) =>
+      ctr(
+        name,
+        Id.equal(Exp.rep_id(prev_arg), Exp.rep_id(arg))
+          ? child(arg) : Dirty,
+      )
+    | None => Dirty
+    }
+  /* The arm (or branch) this node continued into, chosen and anchored as
+   * its step was taken (`case_continuation`, `if_continuation`). */
+  | Match(_)
+  | If(_) =>
+    switch (continued_into) {
+    | Some(id) => flag_at(flags, ~call_stack_ids, ~id)
+    | None => Dirty
+    }
+  | _ => Dirty
   };
+};
+
+/* The pre-pass's guess at a binding's flag, made before anything has run --
+ * clean exactly when the expression is predicted to be re-used. Only the
+ * UI's re-use plan still runs that pass; the evaluator reads the flag each
+ * node actually finished with instead (`node_flag`). */
+let exp_flag = (~reused: Id.t => bool, e: Exp.t): flag =>
+  reused(Exp.rep_id(e)) ? Clean : Dirty;
 
 let update_maps_after_binding =
     (~flag: flag, ~source_id: Id.t, pat: Pat.t, ~reuse_map: reuse_map)

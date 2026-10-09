@@ -89,6 +89,29 @@ let continues_delegation =
     delegations,
   );
 
+/* The flag a binding made by a step of kind `kind` carries: the flag its
+ * right-hand side actually finished with, at the callstack it ran at -- the
+ * formalism's letP, App and case premises, where the bound entry's flag is
+ * the one Eval1 returned for e1, e2 or the scrutinee. Those three steps
+ * evaluate that expression themselves, just before binding, so its flag in
+ * `flags` is the one from this very evaluation (see IncrEval's `flags`).
+ * A fixpoint's self-binding and a theorem's are made before their
+ * right-hand side runs at all; the formalism's fix rule is Dirty, and so are
+ * they. */
+let binding_flag =
+    (
+      ~flags: IncrEval.flags,
+      ~call_stack_ids: list(Id.t),
+      ~kind: option(step_kind),
+      rhs: DHExp.t,
+    )
+    : IncrEval.flag =>
+  switch (kind) {
+  | Some(LetBind(_) | FunAp | CaseApply) =>
+    IncrEval.flag_at(flags, ~call_stack_ids, ~id=DHExp.rep_id(rhs))
+  | _ => Dirty
+  };
+
 let rec evaluate =
         // Constants
         (
@@ -99,7 +122,9 @@ let rec evaluate =
            * aPL — only the empty callstack — and is what every mode without
            * the callstack_keys capability passes. */
           ~depth_limit: int,
-          ~reused_ids: Id.Map.t(unit),
+          /* Each node's flag, as it finished, for the whole evaluation.
+           * Shared like `closure_reuse`. */
+          ~flags: IncrEval.flags,
           ~eval_info: EvalInfo.t,
           // Call Stack
           ~in_closure=?,
@@ -129,12 +154,22 @@ let rec evaluate =
       ~track_reuse,
       ~tuple_flags,
       ~depth_limit,
-      ~reused_ids,
+      ~flags,
       ~eval_info,
       ~outbox,
       ~closure_reuse,
     );
   let expr_id = DHExp.rep_id(exp);
+  /* A `match` or `if` takes its flag from the arm it continues into, which
+   * its one step chooses (see IncrEval.case_continuation); the step leaves
+   * the arm's id here for the node to read as it finishes. Only those two
+   * forms allocate it. */
+  let continued_into =
+    switch (DHExp.term_of(exp)) {
+    | Match(_)
+    | If(_) when track_reuse && tuple_flags => Some(ref(None))
+    | _ => None
+    };
   /* A node evaluated as the DIRECT CHILD of a Closure reports back, through
    * `in_closure`, that its result still depends on that closure's
    * environment: Transition.wrap_closure_when_done takes the
@@ -269,6 +304,9 @@ let rec evaluate =
         exp,
       );
 
+    /* The step's children, a binding's right-hand side among them, ran at
+     * the callstack the step was taken at, not the one a call pushes. */
+    let step_call_stack = call_stack;
     let (call_stack, new_state) =
       EvaluatorState.update(eval_info, state^, call_stack, env, exp, effects);
 
@@ -342,17 +380,74 @@ let rec evaluate =
             }
           | None => reuse_map
           };
-        ReusePass.update_reuse_map_after_effects(
-          ~tuple_flags,
-          ~prev,
-          ~reused=id => Id.Map.mem(id, reused_ids),
-          /* The argument was evaluated out here, so its flag is the caller's
-           * to report even when the binding lands in the body's map. */
-          ~flags_from=reuse_map,
-          ~reuse_map=base,
+        /* The argument was evaluated out here, so its flag is read at the
+         * caller's callstack even when the binding lands in the body's map. */
+        let call_stack_ids = CallStack.ids_of_stack(step_call_stack);
+        List.fold_left(
+          (reuse_map, effect) =>
+            switch (effect) {
+            | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
+              IncrEval.update_maps_after_binding(
+                ~flag=binding_flag(~flags, ~call_stack_ids, ~kind, rhs),
+                ~source_id=DHExp.rep_id(rhs),
+                pat,
+                ~reuse_map,
+              )
+            | _ => reuse_map
+            },
+          base,
           effects,
         );
       };
+
+    /* The arm a `match` or `if` continues into, if its flag may be carried
+     * up through it; read back in eval_4_reuse once the arm has finished. */
+    switch (continued_into, kind, DHExp.term_of(exp)) {
+    | (Some(cell), Some(CaseApply), Match(scrut, rules))
+        when cacheable(step_call_stack) =>
+      let call_stack_ids = CallStack.ids_of_stack(step_call_stack);
+      let taken =
+        List.find_map(
+          fun
+          | EvaluatorState.RecordPatMatch({pat, _}) => Some(pat)
+          | _ => None,
+          effects,
+        );
+      let rec index_of = (i, rules: list((Pat.t, DHExp.t))) =>
+        switch (rules, taken) {
+        | ([(p, _), ..._], Some(pat)) when p === pat => Some(i)
+        | ([_, ...rules], _) => index_of(i + 1, rules)
+        | ([], _) => None
+        };
+      cell :=
+        Option.bind(index_of(0, rules), arm =>
+          IncrEval.case_continuation(
+            ~prev,
+            ~call_stack_ids,
+            ~scrut_flag=
+              IncrEval.flag_at(
+                flags,
+                ~call_stack_ids,
+                ~id=DHExp.rep_id(scrut),
+              ),
+            ~arm,
+            exp,
+          )
+        );
+    | (Some(cell), Some(Conditional(took_then)), If(cond, _, _))
+        when cacheable(step_call_stack) =>
+      let call_stack_ids = CallStack.ids_of_stack(step_call_stack);
+      cell :=
+        IncrEval.if_continuation(
+          ~prev,
+          ~call_stack_ids,
+          ~cond_flag=
+            IncrEval.flag_at(flags, ~call_stack_ids, ~id=DHExp.rep_id(cond)),
+          ~took_then,
+          exp,
+        );
+    | _ => ()
+    };
 
     /* Record the environment this step produced together with the map that
      * describes it. A binding step extends the environment and extends the
@@ -589,6 +684,7 @@ let rec evaluate =
     ) {
     | (Some(call_stack_ids), Some(entry)) =>
       // Evaluation cache hit: reuse previous result
+      IncrEval.record_flag(flags, ~call_stack_ids, ~id=expr_id, Clean);
       state := EvaluatorState.append(state^, entry.state);
       update_outbox_current(state^);
       // Add the entry to the next incremental evaluation cache
@@ -619,6 +715,30 @@ let rec evaluate =
           env,
           exp,
         );
+
+      /* Record the flag this node finished with before anything reads it:
+       * its parent as the parent finishes, or the binding its value lands
+       * in. */
+      switch (key) {
+      | Some(call_stack_ids) when track_reuse =>
+        IncrEval.record_flag(
+          flags,
+          ~call_stack_ids,
+          ~id=expr_id,
+          tuple_flags
+            ? IncrEval.node_flag(
+                ~prev,
+                ~flags,
+                ~call_stack_ids,
+                ~reuse_map,
+                ~continued_into=Option.bind(continued_into, cell => cell^),
+                exp,
+              )
+            : Dirty,
+        )
+      | Some(_)
+      | None => ()
+      };
 
       // Record incremental entry if required
       let info_snapshot =
@@ -711,8 +831,9 @@ type limited_result =
 let finish = (~env, e: DHExp.t): Exp.t =>
   e |> Substitution.in_exp(env) |> Exp.replace_all_ids;
 
-/* Shared setup for all evaluation entry points: run the reuse pass to find
- * reusable cache entries, then build the (unstarted) evaluation trampoline. */
+/* Shared setup for all evaluation entry points: build the (unstarted)
+ * evaluation trampoline. No re-use pass runs first: every flag the
+ * evaluator reads is one a node actually finished with (`binding_flag`). */
 let prepare_evaluation =
     (
       ~calculus: Calculus.t,
@@ -751,26 +872,6 @@ let prepare_evaluation =
         ? IncrEval.clean_reuse_map_of_env(env) : IncrEval.empty_reuse_map
     };
   let state = ref(EvaluatorState.empty);
-  /* The pre-pass only yields entries via reuse_check, which needs both a
-   * non-empty prev and statics; otherwise it is a full walk of the program
-   * for a guaranteed-empty result. */
-  let reused_ids =
-    !track_reuse
-    || IncrEval.is_empty(prev)
-    || !EvalInfo.has_statics(eval_info)
-      ? Id.Map.empty
-      : Id.Map.map(
-          _ => (),
-          ReusePass.reuse_pass(
-            ~tuple_flags,
-            ~prev,
-            ~eval_info,
-            ~env,
-            ~reuse_map,
-            d,
-          ).
-            entries,
-        );
   let result =
     evaluate(
       ~prev,
@@ -781,7 +882,7 @@ let prepare_evaluation =
       ~call_stack=CallStack.empty,
       ~delegations=[],
       ~reuse_map,
-      ~reused_ids,
+      ~flags=IncrEval.new_flags(),
       ~parent_state=state,
       ~outbox,
       ~closure_reuse=ref(IncrEval.no_closure_reuse),

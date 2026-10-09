@@ -2918,6 +2918,188 @@ k * 100 + b",
   );
 };
 
+/* ---- flags from evaluation, at every callstack ----------------------
+ *
+ * A binding's flag is the flag its right-hand side actually finished with,
+ * at the callstack it ran at, as the formalism's Eval1 returns it. These
+ * pin the re-use that gives inside calls, where a flag predicted before
+ * the run -- reading the cache's top level only -- found nothing. */
+
+/* Probe soundness against a0 for every calculus, and exactly `expect(c)`
+ * replayed under calculus c. */
+let check_replays =
+    (
+      ~name: string,
+      ~src: string,
+      ~edit: Exp.t => Exp.t,
+      ~expect: Calculus.t => list(string),
+    ) =>
+  with_probes(
+    ~src,
+    ~edit,
+    (~term, ~targets1, ~after, ~targets2, ~labels) => {
+      check_sound(name, term, after);
+      let (_, ref_state) =
+        eval_under(~calculus=Calculus.A0, ~targets=targets2, after);
+      let want = probe_report(targets2, ref_state);
+      List.iter(
+        (calculus: Calculus.t) => {
+          let r =
+            run_probes(
+              ~calculus,
+              ~term,
+              ~targets1,
+              ~after,
+              ~targets2,
+              ~labels,
+            );
+          Printf.printf(
+            "ACTUAL %-44s %-5s replayed=[%s] fresh=[%s]\n",
+            name,
+            Calculus.name(calculus),
+            String.concat(",", r.replayed),
+            String.concat(",", r.fresh),
+          );
+          check(
+            string,
+            name ++ ": " ++ Calculus.name(calculus) ++ " probe samples",
+            show_report(want),
+            show_report(r.report),
+          );
+          check(
+            list(string),
+            name ++ ": " ++ Calculus.name(calculus) ++ " replays",
+            expect(calculus),
+            r.replayed,
+          );
+        },
+        Calculus.available,
+      );
+    },
+  );
+
+let two_deep_src = (~n: int, ~probe: bool) =>
+  Printf.sprintf(
+    "let slow = fun n -> if n < 1 then 0 else 1 + slow(n - 1) in
+let helper = fun y -> %s + 7 in
+let process = fun xs -> helper(xs) + 1 in
+process(%d)",
+    probe ? "^^probe(slow(y))" : "slow(y)",
+    n,
+  );
+
+let with_callstack_keys = (replayed, calculus: Calculus.t) =>
+  Calculus.capabilities(calculus).callstack_keys ? replayed : [];
+
+/* Two calls deep. Editing helper's 7 means neither helper nor process is
+ * re-used, but y is bound to xs, which is bound to an unchanged literal:
+ * slow(y) is the same call at the same callstack and is re-used under
+ * every calculus that caches inside calls. Reading the binding's flag off
+ * the cache's top level instead missed xs's occurrence, which lives under
+ * process's call, and slow(y) was recomputed. */
+let test_two_calls_deep = () =>
+  check_replays(
+    ~name="two calls deep, edit outside the call",
+    ~src=two_deep_src(~n=20, ~probe=true),
+    ~edit=replace_int_lit(~from=7, ~to_=8),
+    ~expect=with_callstack_keys(["slow(y)"]),
+  );
+
+/* Soundness of the same program when the argument does change. */
+let test_two_calls_deep_argument_edited = () =>
+  check_replays(
+    ~name="two calls deep, argument edited",
+    ~src=two_deep_src(~n=20, ~probe=true),
+    ~edit=replace_int_lit(~from=20, ~to_=21),
+    ~expect=_ =>
+    []
+  );
+
+/* A structured flag crossing a call: only the second component of the
+ * argument changes, so inside process `a` is clean and helper(a) is
+ * re-used at process's callstack -- which needs both tuple flags and
+ * callstack keys, so aStar alone. */
+let test_tuple_flag_across_a_call = () =>
+  check_replays(
+    ~name="tuple flag crosses a call",
+    ~src=
+      "let slow = fun n -> if n < 1 then 0 else 1 + slow(n - 1) in
+let helper = fun y -> ^^probe(slow(y)) + 7 in
+let process = fun (p : (Int, Int)) -> let (a, b) = p in helper(a) + b in
+process((30, 5))",
+    ~edit=replace_int_lit(~from=5, ~to_=9),
+    ~expect=calculus =>
+    Calculus.capabilities(calculus).callstack_keys
+    && Calculus.capabilities(calculus).tuple_flags
+      ? ["slow(y)"] : []
+  );
+
+/* A multi-arm `match` on an unchanged scrutinee: the arm it takes is the
+ * one the cached run took, so the arm's flag is the match's even though the
+ * match itself is not re-used (`d` changed). Predicted flags could not know
+ * the arm and claimed nothing. */
+let test_case_flag_clean_scrutinee = () =>
+  check_replays(
+    ~name="case: clean scrutinee, several arms",
+    ~src=
+      "type T = A((Int, Int)) + B(Int) in
+let f : Int -> Int = fun n -> n * 2 in
+let z = A((3, 4)) in
+let d = 5 in
+let r = case z | B(c) => (c, d) | A((x, y)) => (x, d) end in
+let (a, b) = r in
+let q = ^^probe(f(a)) in
+q + b",
+    ~edit=replace_int_lit(~from=5, ~to_=9),
+    ~expect=calculus =>
+    Calculus.capabilities(calculus).tuple_flags ? ["f(a)"] : []
+  );
+
+/* Soundness: the scrutinee is unchanged but the arms' patterns are
+ * exchanged in place, so another arm is taken. */
+let test_case_flag_clean_scrutinee_patterns_swapped = () =>
+  check_replays(
+    ~name="case: clean scrutinee, patterns exchanged",
+    ~src=
+      "type T = A((Int, Int)) + B((Int, Int)) in
+let f : Int -> Int = fun n -> n * 2 in
+let z = A((3, 4)) in
+let r = case z | A(p) => p | B(p) => let (x, y) = p in (y, x) end in
+let (a, b) = r in
+let q = ^^probe(f(a)) in
+q + b",
+    ~edit=swap_first_two_rules(~what=`Patterns),
+    ~expect=_ =>
+    []
+  );
+
+/* Not an assertion: wall time of the second run of the two-deep program
+ * under each calculus, against a fresh a0 run of the same program. */
+let test_two_calls_deep_timing = () => {
+  let before = parse_exp(two_deep_src(~n=2000, ~probe=false));
+  let after = replace_int_lit(~from=7, ~to_=8, before);
+  let time = f => {
+    let t0 = Sys.time();
+    let r = f();
+    (r, (Sys.time() -. t0) *. 1000.);
+  };
+  let (_, fresh_ms) = time(() => eval_under(~calculus=Calculus.A0, after));
+  List.iter(
+    (calculus: Calculus.t) => {
+      let (_, state) = eval_under(~calculus, before);
+      let (_, ms) =
+        time(() => eval_under(~calculus, ~prev=state.incr_eval, after));
+      Printf.printf(
+        "TIMING two-deep %-5s second run %.1f ms (fresh a0 %.1f ms)\n",
+        Calculus.name(calculus),
+        ms,
+        fresh_ms,
+      );
+    },
+    Calculus.available,
+  );
+};
+
 let tests = (
   "IncrEval",
   [
@@ -2989,6 +3171,28 @@ let tests = (
       test_case_scrutinees_swapped_refused,
     ),
     test_case("injection/case edit sequences", `Quick, test_ctr_sequences),
+    test_case("two calls deep", `Quick, test_two_calls_deep),
+    test_case(
+      "two calls deep, argument edited",
+      `Quick,
+      test_two_calls_deep_argument_edited,
+    ),
+    test_case(
+      "tuple flag crosses a call",
+      `Quick,
+      test_tuple_flag_across_a_call,
+    ),
+    test_case(
+      "case: clean scrutinee, several arms",
+      `Quick,
+      test_case_flag_clean_scrutinee,
+    ),
+    test_case(
+      "case: clean scrutinee, patterns exchanged",
+      `Quick,
+      test_case_flag_clean_scrutinee_patterns_swapped,
+    ),
+    test_case("two calls deep, timing", `Quick, test_two_calls_deep_timing),
     test_case(
       "probe under partly-clean tuple",
       `Quick,

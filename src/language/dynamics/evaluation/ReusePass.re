@@ -27,16 +27,11 @@ module ReusePassEVMode =
 
 module ReusePassTransition = Transition(ReusePassEVMode);
 
-/* `flags_from` is the map a binding's flag is read off, which is normally the
- * map being extended. They come apart at a2's call boundary: the argument was
- * evaluated in the caller's environment, so its flag belongs to the caller's
- * map, while the binding lands in the body's. */
+/* The pre-pass binds each name with a PREDICTED flag: clean exactly when its
+ * right-hand side is predicted to be re-used. */
 let update_reuse_map_after_effects =
     (
-      ~tuple_flags: bool,
-      ~prev: EvaluatorState.incr_eval,
       ~reused: Id.t => bool,
-      ~flags_from: option(IncrEval.reuse_map)=?,
       ~reuse_map: IncrEval.reuse_map,
       effects: list(EvaluatorState.effect),
     )
@@ -45,25 +40,8 @@ let update_reuse_map_after_effects =
     (reuse_map, effect) =>
       switch (effect) {
       | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
-        /* rhs is the binding's right-hand side before evaluation, so its flag
-         * is read off the re-use map rather than off a value. */
         IncrEval.update_maps_after_binding(
-          /* `prev` is aM's: the tuple shape guard reads the cached
-           * elaboration at the tuple's own id. `flags_from` is a2's: across a
-           * call boundary the parameter's flag comes from the caller's map,
-           * not the callee's. Independent concerns on the same call. */
-          ~flag=
-            IncrEval.exp_flag(
-              ~tuple_flags,
-              ~prev,
-              ~reused,
-              ~reuse_map=
-                switch (flags_from) {
-                | Some(flags_from) => flags_from
-                | None => reuse_map
-                },
-              rhs,
-            ),
+          ~flag=IncrEval.exp_flag(~reused, rhs),
           ~source_id=DHExp.rep_id(rhs),
           pat,
           ~reuse_map,
@@ -76,7 +54,6 @@ let update_reuse_map_after_effects =
 
 let rec reuse_pass_for =
         (
-          ~tuple_flags: bool,
           ~prev: EvaluatorState.incr_eval,
           ~eval_info: EvalInfo.t,
           ~reuse_map: IncrEval.reuse_map,
@@ -91,10 +68,7 @@ let rec reuse_pass_for =
       ReusePassTransition.transition(
         (~in_closure=?, _env, child) => {
           ignore(in_closure);
-          (
-            reuse_pass_for(~tuple_flags, ~prev, ~eval_info, ~reuse_map, child),
-            Indet,
-          );
+          (reuse_pass_for(~prev, ~eval_info, ~reuse_map, child), Indet);
         },
         ~mode=`Environment,
         ~targets=eval_info.targets,
@@ -105,15 +79,13 @@ let rec reuse_pass_for =
     | Step({expr, side_effects, is_value: false, _}) =>
       let reuse_map =
         update_reuse_map_after_effects(
-          ~tuple_flags,
-          ~prev,
           ~reused=id => Id.Map.mem(id, req_stream.entries),
           ~reuse_map,
           side_effects,
         );
       IncrEval.add_stream(
         req_stream,
-        reuse_pass_for(~tuple_flags, ~prev, ~eval_info, ~reuse_map, expr),
+        reuse_pass_for(~prev, ~eval_info, ~reuse_map, expr),
       );
     | Step({is_value: true, _})
     | Constructor
@@ -124,16 +96,15 @@ let rec reuse_pass_for =
        * sub-expression -- so a tuple pattern against a bare `Var`
        * (`let (a, b) = z`, section 8's own program shape) gives IndetMatch
        * even though the real evaluator matches it fine. Everything written
-       * after such a binder would then be missing from `reused_ids` and be
-       * reported Dirty, blocking downstream re-use.
+       * after such a binder would then be missing from the plan.
        *
        * So walk the body anyway, with the pattern's names DROPPED rather than
        * guessed: reuse_map_for_co_ctx fails for any body expression that
        * depends on them, leaving those conservatively un-re-used, while the
        * ones that do not depend on them -- the helper definitions this is here
        * for -- become visible again. Dropping rather than inventing provenance
-       * is what keeps `reused_ids` an under-approximation of what the
-       * evaluator will actually re-use, which is what exp_flag relies on.
+       * is what keeps the plan an under-approximation of what the
+       * evaluator will actually re-use.
        *
        * A `Let` reaches here only when its match was indeterminate: a match
        * that succeeds yields Step(is_value: false) above. (It arrives as a
@@ -144,7 +115,6 @@ let rec reuse_pass_for =
         IncrEval.add_stream(
           req_stream,
           reuse_pass_for(
-            ~tuple_flags,
             ~prev,
             ~eval_info,
             ~reuse_map=IncrEval.remove_pat_bindings(dp, reuse_map),
@@ -159,7 +129,6 @@ let rec reuse_pass_for =
 
 let reuse_pass =
     (
-      ~tuple_flags: bool=false,
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,
       ~eval_info: EvalInfo.t=EvalInfo.empty,
       ~env,
@@ -167,4 +136,4 @@ let reuse_pass =
       d: DHExp.t,
     )
     : IncrEval.t(EvaluatorState.t) =>
-  reuse_pass_for(~tuple_flags, ~prev, ~eval_info, ~reuse_map, d);
+  reuse_pass_for(~prev, ~eval_info, ~reuse_map, d);
