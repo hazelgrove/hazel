@@ -24,10 +24,13 @@ let view =
     | Documentation(m) =>
       let scratchpad = List.nth(m.scratchpads, m.current);
       switch (scratchpad.kind) {
-      | ScratchMode.Scratchpad.Code({editor, agent}) =>
+      | ScratchMode.Scratchpad.Code({program, agent, _}) =>
+        let editor = Program.whole_memo(program);
         let agent_inject = (action: Agent.Update.Action.t) =>
           editors_inject(
-            Editors.Update.Scratch(ScratchMode.Update.AgentAction(action)),
+            Editors.Update.Scratch(
+              ScratchMode.Update.Workspace(AgentAction(action)),
+            ),
           );
         ChatView.view(
           ~globals,

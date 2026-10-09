@@ -359,7 +359,12 @@ let rec go =
     /* accepting a TyDi suggestion inserts delimiter text like typing
        it, but via a separate path from the Insert arm */
     LocalReformat.around_res(~enabled=settings.auto_reindent, z, z =>
-      Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
+      Buffer.go(
+        ~root,
+        ~ci=Indicated.ci_for_completion(z, statics.info_map),
+        a,
+        z,
+      )
     )
   | Project(a) =>
     let refractor_list =

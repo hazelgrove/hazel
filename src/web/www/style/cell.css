@@ -39,6 +39,24 @@
   background-color: var(--cell-active);
 }
 
+/* past the whole program's end, room for its last line to scroll to the
+   top (and for a drawer there to clear the bottom bar); with ⇓ on, the
+   last line's drawer runs on into it in its own color */
+#main .tail-slack {
+  flex: 0 0 auto;
+  height: calc(100% - var(--row-height-px, 1.45em));
+  background-color: var(--cell-active);
+}
+
+/* the program's drawer starts half a row down (proj-probe.css): the
+   stripe's color starts there too */
+#main .tail-slack.drawer {
+  background: linear-gradient(
+    var(--cell-active) 0 calc(0.5 * var(--row-height-px, 1.45em)),
+    var(--surface-raised) 0
+  );
+}
+
 :is(#main.Scratch,
 #main.Documentation,
 #main.Configuration):not(.Derivations) .cell {
@@ -444,4 +462,13 @@
 .point-num-input {
   width: 50px;
   font-size: 12px;
+}
+/* note shown under a result whose value was truncated for display
+   (over the display budget; elided subtrees render as holes) */
+.cell-result .result-truncated-note {
+  font-size: 11px;
+  opacity: 0.65;
+  padding: 2px 16px 4px;
+  font-family: var(--code-font, monospace);
+  color: var(--text-muted, #8a7a4d);
 }

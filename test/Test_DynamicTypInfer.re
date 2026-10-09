@@ -27,7 +27,14 @@ let evaluate_probes = (code: string): (Sample.Map.t, Statics.Map.t) => {
             | Some(InfoPat(_)) => Statics.Map.bound_in(info_map, id)
             | _ => []
             };
-          Id.Map.add(id, Sample.{refs: refs}, acc);
+          Id.Map.add(
+            id,
+            Sample.{
+              refs,
+              full: false,
+            },
+            acc,
+          );
         },
         probe_ids,
         Id.Map.empty,

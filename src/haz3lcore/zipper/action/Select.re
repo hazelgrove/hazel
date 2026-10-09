@@ -553,6 +553,14 @@ let current_term =
   | Tile({form: Form.Compound(Let | TypeAlias | ModuleExp), _})
       when defs_exclude_bodies =>
     current_tile(z)
+  /* Mod analog: a `;`'s term is the whole module body (a whole-program
+     shard walk); `in`-less defs are item-local, so need no guard */
+  | Tile(t)
+      when
+        defs_exclude_bodies
+        && Tile.label(t) == [";"]
+        && Tile.mold(t).out == Sort.Mod =>
+    current_tile(z)
   | Tile({form: Form.Compound(Rule), _}) when case_rules =>
     containing_rule(z)
   | _ =>

@@ -29,8 +29,11 @@ module Model = {
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    /* unused; kept so saved settings parse */
     cap_undo_stack: bool,
     show_row_lines: bool,
+    /* grey re-evaluation-progress backings after edits ("Eval Progress") */
+    [@sexp.default false]
     show_incremental_deco: bool,
     /* Shortcut overrides derived from the Shortcuts config slide: a
        ContextualAction label to its resolved hotkey, or None for an action
@@ -38,6 +41,13 @@ module Model = {
        (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
     shortcut_overrides: list((string, option(string))),
     simple_indication: bool,
+    /* the ⇓ toggle: a Scratch or Documentation program's value in a
+       drawer after the program */
+    [@sexp.default true]
+    tail_probe: bool,
+    /* outline rows fold from a drawn arrow; off, from their sigil */
+    [@sexp.default false]
+    outline_arrows: bool,
   };
 
   let init = {
@@ -111,6 +121,8 @@ module Model = {
     show_incremental_deco: false,
     shortcut_overrides: [],
     simple_indication: false,
+    tail_probe: true,
+    outline_arrows: false,
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -176,11 +188,12 @@ module Update = {
     | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
-    | CapUndoStack
     | ShowRowLines
-    | ShowIncrementalDeco
+    | ShowPendingEval
     | SetShortcutOverrides(list((string, option(string))))
-    | SimpleIndication;
+    | SimpleIndication
+    | TailProbe
+    | OutlineArrows;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -505,18 +518,17 @@ module Update = {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
         }
-      | CapUndoStack => {
-          ...settings,
-          cap_undo_stack: !settings.cap_undo_stack,
-        }
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
         }
-      | ShowIncrementalDeco => {
+      | ShowPendingEval =>
+        Language.EvalWorklist.compute_enabled :=
+          !settings.show_incremental_deco;
+        {
           ...settings,
           show_incremental_deco: !settings.show_incremental_deco,
-        }
+        };
       | SetShortcutOverrides(overrides) => {
           ...settings,
           shortcut_overrides: overrides,
@@ -524,6 +536,14 @@ module Update = {
       | SimpleIndication => {
           ...settings,
           simple_indication: !settings.simple_indication,
+        }
+      | TailProbe => {
+          ...settings,
+          tail_probe: !settings.tail_probe,
+        }
+      | OutlineArrows => {
+          ...settings,
+          outline_arrows: !settings.outline_arrows,
         }
       }
     )

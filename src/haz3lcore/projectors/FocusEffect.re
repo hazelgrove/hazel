@@ -6,6 +6,8 @@ open Util;
 type target =
   | Editor
   | Cell
+  | CellTop /* Cell + align its stack entry to the viewport top */
+  | CellCaretTop /* Cell + bring a caret out of view near the top */
   | Probe(Id.t);
 
 let scheduled: ref(option(target)) = ref(None);
@@ -20,8 +22,24 @@ let schedule_editor = (): unit => {
 
 /* a sidebar jump moves the model selection but not DOM focus; this restores it */
 let schedule_cell = (): unit => {
-  scheduled := Some(Cell);
+  /* don't downgrade a pending CellTop: several actions in one frame
+     may each request focus */
+  switch (scheduled^) {
+  | Some(CellTop) => ()
+  | _ => scheduled := Some(Cell)
+  };
 };
+
+let schedule_cell_top = (): unit => {
+  scheduled := Some(CellTop);
+};
+
+/* a jump: as schedule_cell, and a caret out of view comes near the top */
+let schedule_cell_caret_top = (): unit =>
+  switch (scheduled^) {
+  | Some(CellTop) => ()
+  | _ => scheduled := Some(CellCaretTop)
+  };
 
 let execute = (): bool =>
   switch (scheduled^) {
@@ -33,7 +51,20 @@ let execute = (): bool =>
     true;
   | Some(Cell) =>
     scheduled := None;
-    JsUtil.focus_active_cell();
+    /* a jump from the outline keeps the keys there */
+    JsUtil.outline_has_focus() ? true : JsUtil.focus_active_cell();
+  | Some(CellCaretTop) =>
+    scheduled := None;
+    let focused =
+      JsUtil.outline_has_focus() ? true : JsUtil.focus_active_cell();
+    JsUtil.align_caret_near_top();
+    focused;
+  | Some(CellTop) =>
+    scheduled := None;
+    let focused =
+      JsUtil.outline_has_focus() ? true : JsUtil.focus_active_cell();
+    JsUtil.align_active_cell_top();
+    focused;
   | Some(Probe(probe_id)) =>
     scheduled := None;
     let elem_id = Id.cls(probe_id);

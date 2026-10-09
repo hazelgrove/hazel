@@ -147,6 +147,7 @@ test 2 + 2 == 4 end;
 test 3 + 3 == 6 end;
 test 2 + 2 == 5 end;
 
-# The value of the program is shown at the bottom #  
+# The program's value is its last expression's value. #
+# To see it, probe that expression: caret on it, Cmd/Ctrl+E. #
 ¿
 

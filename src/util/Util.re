@@ -44,7 +44,9 @@ module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
 module SafeTriangle = SafeTriangle;
+module CaretReveal = CaretReveal;
 module SvgUtil = SvgUtil;
+module Slot = Slot;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

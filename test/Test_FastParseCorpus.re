@@ -36,9 +36,31 @@ let read_file = (path: string): string => {
    deliberately-invalid or delimiter-incomplete exhibit. */
 let known_gaps: list(string) = [];
 
+/* a slide's source indentation reaches the editor as spaces */
+let slide_keeps_indentation = () => {
+  let z =
+    PersistentZipper.unpersist(
+      PersistentZipper.of_slide_text(
+        "module M = {\n  let x = 1\n} in\nM.x\n",
+      ),
+      ~root=Sort.Exp,
+    );
+  check(
+    string,
+    "indented as written",
+    "module M = {\n  let x = 1\n} in\nM.x",
+    MarkerParse.to_text(Zipper.unzip(Zipper.unselect_and_zip(z))),
+  );
+};
+
 let tests = (
   "FastParseCorpus",
   [
+    test_case(
+      "a slide keeps its indentation",
+      `Quick,
+      slide_keeps_indentation,
+    ),
     test_case(
       "every corpus program fast-paths",
       `Quick,
@@ -51,22 +73,26 @@ let tests = (
         let (ok, bail, worst) =
           List.fold_left(
             ((ok, bail, worst), path) => {
-              /* mirror the production load path (of_slide_text flattens
+              /* mirror the production load path (of_slide_text keeps
                  committed indentation; the reader strips only the file's
                  final newline — other edge whitespace is content) */
               let src =
-                read_file(path)
-                |> Util.StringUtil.trim_leading
-                |> Util.StringUtil.strip_final_newline;
+                read_file(path) |> Util.StringUtil.strip_final_newline;
               let f0 = Sys.time();
               let known_gap = List.mem(Filename.basename(path), known_gaps);
+              let root =
+                String.starts_with(
+                  ~prefix="mega-mod",
+                  Filename.basename(path),
+                )
+                  ? Sort.Mod : Sort.Exp;
               let r =
                 known_gap
                   ? None
                   : FastParse.of_text(
                       ~materialize=Triggers.invoked_projector,
                       ~collect_refractors=true,
-                      ~root=Exp,
+                      ~root,
                       src,
                     );
               let ms = (Sys.time() -. f0) *. 1000.;
