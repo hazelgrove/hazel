@@ -31,6 +31,10 @@ type t = {
    * compared by physical eq in `calculate` to skip the rebuild. */
   cached_manuals: Refractors.RefractorList.t,
   cached_ephemerals: Refractors.Map.t,
+  cached_stepping: option(ProjectorBase.stepping),
+  /* ProbeProj.Settings.layout when the rows were computed */
+  cached_layout: int,
+  cached_proofs: Refractors.Map.t,
   /* Errors reported by projectors (e.g. "can't render as table") */
   projector_errors: Id.Map.t(ProjectorBase.error),
   missing_shards: list(Tile.t),
@@ -68,6 +72,31 @@ let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
       }),
   );
 
+/* a probe's drawer rows go under its term's last line. Measured and the
+   code view add a tile's rows at the linebreak after it, so they're keyed
+   by the term's last top-level tile: the anchor (an infix operator, say)
+   can sit lines above the term's end, where the drawer is drawn */
+let rows_key = (id: Id.t, term_data: TermData.t): Id.t =>
+  switch (TermData.segment(id, term_data)) {
+  | Some(seg) =>
+    List.fold_left(
+      (key, p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => t.id
+        | _ => key
+        },
+      id,
+      seg,
+    )
+  | None => id
+  };
+
+/* the ⇓ probe's drawer reserves no rows: it's drawn after the program's
+   last line (RefractorView), past any trailing blank lines */
+let is_program_value = (z: Zipper.t, id: Id.t): bool =>
+  z.refractors.tail_target == Some(id)
+  && Id.Map.mem(id, z.refractors.multis.ephemerals);
+
 let mk_refractor_rows =
     (
       z: Zipper.t,
@@ -82,7 +111,27 @@ let mk_refractor_rows =
       (_, _, b) => Some(b),
       z.refractors.manuals |> Id.Map.of_list,
       z.refractors.multis.ephemerals,
+    )
+    |> Id.Map.filter((id, _) => !is_program_value(z, id))
+    |> Id.Map.union((_, a, _) => Some(a), _, z.refractors.proofs);
+  /* proofs keep their theorem tile: their rows go under its own line */
+  let rekey = rows =>
+    Id.Map.fold(
+      (id, n, acc) => {
+        let key =
+          Id.Map.mem(id, z.refractors.proofs) ? id : rows_key(id, term_data);
+        Id.Map.update(
+          key,
+          fun
+          | Some(m) => Some(max(m, n))
+          | None => Some(n),
+          acc,
+        );
+      },
+      rows,
+      Id.Map.empty,
     );
+  rekey @@
   Id.Map.filter_map(
     (id, entry: Refractors.entry) => {
       let syntax_piece = refractor_syntax_piece(id, term_data);
@@ -94,6 +143,7 @@ let mk_refractor_rows =
           ~statics=info_map,
           ~dynamics=dyn_map,
           ~elaborated,
+          ~stepping=z.refractors.stepping,
         );
       let (module P) = ProjectorInit.to_module(entry.kind);
       let shape = P.placeholder(entry.model, info);
@@ -171,6 +221,9 @@ let mk =
     refractor_rows,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
+    cached_stepping: z.refractors.stepping,
+    cached_layout: ProbeProj.Settings.layout^,
+    cached_proofs: z.refractors.proofs,
     projector_errors,
     missing_shards: Segment.global_missing_shards_incr(segment),
     shape_info_map: info_map,
@@ -227,6 +280,9 @@ let refresh_shapes =
     measured,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
+    cached_stepping: z.refractors.stepping,
+    cached_layout: ProbeProj.Settings.layout^,
+    cached_proofs: z.refractors.proofs,
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
@@ -249,7 +305,10 @@ let calculate =
     (~root=Sort.Exp, z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let refractor_inputs_changed =
     z.refractors.manuals !== old.cached_manuals
-    || z.refractors.multis.ephemerals !== old.cached_ephemerals;
+    || z.refractors.multis.ephemerals !== old.cached_ephemerals
+    || z.refractors.stepping != old.cached_stepping
+    || ProbeProj.Settings.layout^ != old.cached_layout
+    || z.refractors.proofs !== old.cached_proofs;
   if (old.old) {
     /* [old] marks caret moves too; an unchanged segment keeps its
        measured/terms/term_data */

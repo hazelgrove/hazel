@@ -82,4 +82,8 @@ let follow_headless:
 let update_cell: (Id.t, ScratchCell.t => ScratchCell.t, t) => t;
 let set_active: (Id.t, side, t) => t;
 let map_editors: (CellEditor.Model.t => CellEditor.Model.t, t) => t;
+/* the probe drawer stepping a sample, in whichever editor holds it */
+let stepping: t => option(ProjectorBase.stepping);
+/* one stepping drawer per program: opening one closes the others */
+let keep_stepping: (Language.Sample.span_ref, t) => t;
 let compact: (CellEditor.Model.t => CellEditor.Model.t, t) => t;

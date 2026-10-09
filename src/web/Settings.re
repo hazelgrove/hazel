@@ -41,6 +41,13 @@ module Model = {
        (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
     shortcut_overrides: list((string, option(string))),
     simple_indication: bool,
+    /* the ⇓ toggle: a Scratch or Documentation program's value in a
+       drawer after the program */
+    [@sexp.default true]
+    tail_probe: bool,
+    /* outline rows fold from a drawn arrow; off, from their sigil */
+    [@sexp.default false]
+    outline_arrows: bool,
   };
 
   let init = {
@@ -114,6 +121,8 @@ module Model = {
     show_incremental_deco: false,
     shortcut_overrides: [],
     simple_indication: false,
+    tail_probe: true,
+    outline_arrows: false,
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -182,7 +191,9 @@ module Update = {
     | ShowRowLines
     | ShowPendingEval
     | SetShortcutOverrides(list((string, option(string))))
-    | SimpleIndication;
+    | SimpleIndication
+    | TailProbe
+    | OutlineArrows;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -525,6 +536,14 @@ module Update = {
       | SimpleIndication => {
           ...settings,
           simple_indication: !settings.simple_indication,
+        }
+      | TailProbe => {
+          ...settings,
+          tail_probe: !settings.tail_probe,
+        }
+      | OutlineArrows => {
+          ...settings,
+          outline_arrows: !settings.outline_arrows,
         }
       }
     )

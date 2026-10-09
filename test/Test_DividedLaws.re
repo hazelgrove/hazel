@@ -822,6 +822,43 @@ let mega = () =>
     check(int, "rows opened", List.length(rows(term_of(seg))), opened);
   };
 
+/* a ⇒ cell whose expression gets a new root follows it, and the program
+   keeps taking its edits: before, the program's text still held the old
+   root, every later splice missed, and the cell's edits were dropped */
+let headless_follows = () => {
+  let contains = (sub, s) =>
+    switch (Str.search_forward(Str.regexp_string(sub), s, 0)) {
+    | _ => true
+    | exception Not_found => false
+    };
+  let seg = parse("let a = 1 in\n0");
+  let tail = List.nth(rows(term_of(seg)), 1);
+  let d = split(seg, tail);
+  let d = set_body(editor_of(parse("a + 2")), d);
+  let doc = Divided.document(d);
+  check(
+    bool,
+    "an edit reaches the program",
+    true,
+    contains("a + 2", text_of(doc)),
+  );
+  let term = term_of(doc);
+  let (d, moves) =
+    Divided.follow_headless(
+      ~rows=Web.OutlineTree.row_ids(term),
+      ~headless=Web.OutlineTree.headless_row_ids(term),
+      d,
+    );
+  check(bool, "the cell follows its new root", true, moves != []);
+  let d = set_body(editor_of(parse("a + 3")), d);
+  check(
+    bool,
+    "a later edit still reaches the program",
+    true,
+    contains("a + 3", text_of(Divided.document(d))),
+  );
+};
+
 let tests = (
   "DividedLaws",
   [
@@ -852,6 +889,7 @@ let tests = (
       `Quick,
       own_pieces,
     ),
+    test_case("a ⇒ cell follows its expression", `Quick, headless_follows),
     test_case("mega-1k rows", `Slow, mega),
   ],
 );

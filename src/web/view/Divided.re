@@ -638,6 +638,7 @@ let follow_headless =
     (~rows: Id.Map.t(unit), ~headless: Id.Map.t(unit), d: t)
     : (t, list((Id.t, Id.t))) => {
   let moves = ref([]);
+  let base = ref(d.base);
   let cells =
     List.map(
       (e: Cell.t) =>
@@ -661,6 +662,10 @@ let follow_headless =
           ) {
           | Some(id) =>
             moves := [(e.e_id, id), ...moves^];
+            /* the base takes the cell's text first, so its slot holds
+               the new root: splices by that id must find it, or the
+               cell's later edits never reach the program */
+            base := Focus.splice_entry(e, base^);
             {
               ...e,
               e_id: id,
@@ -675,6 +680,7 @@ let follow_headless =
   (
     {
       ...d,
+      base: base^,
       cells,
       active: Option.map(((id, side)) => (moved(id), side), d.active),
     },
@@ -709,6 +715,47 @@ let map_editors = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
       d.cells,
     ),
 };
+
+let editors = (d: t): list(CellEditor.Model.t) => [
+  d.shell,
+  ...List.concat_map((e: Cell.t) => [e.e_header, e.e_body], d.cells),
+];
+
+let stepping = (d: t): option(ProjectorBase.stepping) =>
+  List.find_map(
+    (c: CellEditor.Model.t) =>
+      c.editor.editor.state.zipper.refractors.stepping,
+    editors(d),
+  );
+
+let keep_stepping = (span: Language.Sample.span_ref, d: t): t =>
+  List.exists(
+    (c: CellEditor.Model.t) =>
+      switch (c.editor.editor.state.zipper.refractors.stepping) {
+      | Some(st) => st.span != span
+      | None => false
+      },
+    editors(d),
+  )
+    ? map_editors(
+        (c: CellEditor.Model.t) =>
+          switch (c.editor.editor.state.zipper.refractors.stepping) {
+          | Some(st) when st.span != span =>
+            CellEditor.Model.map_zipper(
+              z =>
+                Zipper.update_refractors(z, r =>
+                  {
+                    ...r,
+                    stepping: None,
+                  }
+                ),
+              c,
+            )
+          | _ => c
+          },
+        d,
+      )
+    : d;
 
 /* an undo snapshot: the whole-program statics recompute on restore */
 let compact = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {

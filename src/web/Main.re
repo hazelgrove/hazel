@@ -344,6 +344,32 @@ let start = default_model => {
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
         );
+        /* steppers and proofs reserve at least what they rendered, which
+           catches what a count misses: no drawer runs into the code */
+        let resized =
+          List.fold_left(
+            (changed, (id, n)) =>
+              switch (Haz3lcore.Id.of_string(id)) {
+              | Some(id) => Haz3lcore.DrawerFit.set_measured(id, n) || changed
+              | None => changed
+              },
+            false,
+            JsUtil.drawer_rows(~row_height=font_metrics.row_height),
+          );
+        if (resized) {
+          app_inject(Page.Update.Globals(RelayoutDrawers))
+          |> Bonsai.Effect.Expert.handle;
+        } else if (ProbeSteps.reveal^) {
+          /* a step taken: once the drawer has its rows, show the new step */
+          ProbeSteps.reveal := false;
+          JsUtil.reveal_last(".probe-stepper .step-border");
+        };
+        JsUtil.observe_drawer_width(~report=cols =>
+          if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {
+            app_inject(Page.Update.Globals(UpdateDrawerWidth(cols)))
+            |> Bonsai.Effect.Expert.handle;
+          }
+        );
         model.model.current.current.globals.settings.core.statics
           ? Animation.go() : ();
       },

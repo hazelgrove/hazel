@@ -405,6 +405,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         ~settings=CoreSettings.on,
         ~info_map,
         ~probe_ids,
+        (),
       );
 
     /* Evaluate the elaboration from the same statics run (it may carry

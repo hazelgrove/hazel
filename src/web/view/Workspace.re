@@ -72,6 +72,7 @@ let project_cell_statics =
           Haz3lcore.CachedStatics.probe_ids_of_zipper(
             cell.editor.editor.state.zipper,
           ),
+        (),
       ),
     completion: None,
     pins:
@@ -274,6 +275,11 @@ let update =
                  }
              )
           |> Divided.set_active(id, side);
+        let d =
+          switch (ed.editor.editor.state.zipper.refractors.stepping) {
+          | Some(st) => Divided.keep_stepping(st.span, d)
+          | None => d
+          };
         {
           ...code,
           program: Divided(d),
@@ -493,7 +499,12 @@ let update =
 let calc_entry_memo:
   Hashtbl.t(
     Haz3lcore.Id.t,
-    (Language.CoreSettings.t, Language.Dynamics.Map.t, ScratchCell.t),
+    (
+      Language.CoreSettings.t,
+      Language.Dynamics.Map.t,
+      (bool, int),
+      ScratchCell.t,
+    ),
   ) =
   Hashtbl.create(8);
 
@@ -501,6 +512,9 @@ let calculate =
     (
       ~settings,
       ~autoprobe_mode,
+      /* the ⇓ toggle: the whole program's last expression, or the ⇒
+         cell's, probed as an open drawer */
+      ~tail_probe=false,
       ~schedule_action: Action.t => unit,
       ~is_edited,
       ~statics_mode,
@@ -549,6 +563,8 @@ let calculate =
         CellEditor.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
+          ~proofs=Theorems,
           ~is_edited,
           ~statics_mode,
           ~compositional=true,
@@ -561,8 +577,33 @@ let calculate =
       /* on statics frames, compositional statics of the assembled
          document, re-analyzing only dirty items: a rename in one cell
          errors its users in others; changed items' cells recapture ctx */
+      /* the ⇒ cell's tail probe anchors its expression's current root
+         (its key, e_id, follows only on view changes): counted before
+         the cell calculates, so this frame's run samples it */
+      let is_tail_cell = (e: ScratchCell.t) =>
+        tail_probe && e.e_sym == Some({js|⇒|js});
+      let tail_root = (e: ScratchCell.t) =>
+        switch (Focus.zip_of_cell(e.e_body)) {
+        | [] => None
+        | seg =>
+          try(Some(Segment.root_id(Segment.skel(seg), seg))) {
+          | _ => None
+          }
+        };
+      let probe_ids =
+        List.fold_left(
+          (acc, e: ScratchCell.t) =>
+            switch (is_tail_cell(e) ? tail_root(e) : None) {
+            | Some(id) => Id.Map.add(id, (), acc)
+            | None => acc
+            },
+          Program.probe_ids(Divided(d)),
+          Divided.cells(d),
+        );
       let (d, ds) =
-        if (statics_mode == StaticsMode.Force || !Divided.has_fresh_statics(d)) {
+        if (statics_mode == StaticsMode.Force
+            || !Divided.has_fresh_statics(d)
+            || !Id.Map.equal((==), probe_ids, Divided.statics(d).pins)) {
           let spliced = Divided.document(d);
           let term =
             Haz3lcore.MakeTerm.Incr.go_incr(
@@ -576,7 +617,6 @@ let calculate =
             | Some(p) => p.items
             | None => []
             };
-          let probe_ids = Program.probe_ids(Divided(d));
           let clamped = Haz3lcore.DefStatics.clamp^;
           let ds =
             Haz3lcore.DefStatics.calc_auto(
@@ -628,10 +668,11 @@ let calculate =
                   ~settings,
                   ~info_map=ds.merged,
                   ~probe_ids,
+                  (),
                 ),
               completion: None,
               /* the cells' own pins (probe_ids adds the projectors') */
-              pins: Program.probe_ids(Divided(d)),
+              pins: probe_ids,
             };
           let fresh = it => !List.exists(p => p === it, prev_items);
           (
@@ -669,6 +710,37 @@ let calculate =
         } else {
           (d, None);
         };
+      /* a stepping drawer's probe keeps its function values, in the
+         program's run as in a whole editor's */
+      let stepping = Divided.stepping(d);
+      let d = {
+        let st = Divided.statics(d);
+        let full = id =>
+          switch (stepping) {
+          | Some(s) => s.span.probe_id == id
+          | None => false
+          };
+        Id.Map.exists(
+          (id, spec: Language.Sample.capture_spec) => spec.full != full(id),
+          st.targets,
+        )
+          ? Divided.with_statics(
+              {
+                ...st,
+                targets:
+                  Id.Map.mapi(
+                    (id, spec: Language.Sample.capture_spec) =>
+                      {
+                        ...spec,
+                        full: full(id),
+                      },
+                    st.targets,
+                  ),
+              },
+              d,
+            )
+          : d;
+      };
       /* the whole program's result keeps evaluating the assembled
          document; requests fire only when its elaboration changed */
       let d =
@@ -681,10 +753,22 @@ let calculate =
             ~queue_worker,
             ~compute_pending=false,
             ~is_edited,
+            ~stepping=
+              Option.map(
+                (st: Haz3lcore.ProjectorBase.stepping) => st.span,
+                stepping,
+              ),
             Divided.statics(d),
             Divided.result(d),
           ),
           d,
+        );
+      /* the proofs' drawers take the rows their steppers need; a change
+         re-lays out the cells (the memo keys on the layout) */
+      let _: bool =
+        Theorems.fit(
+          ~settings,
+          (Divided.result(d): EvalResult.Model.t).theorems,
         );
       /* whole-program samples flow into every cell (probes with
          out-of-cell call sites); the memo gates on the dynamics
@@ -696,12 +780,46 @@ let calculate =
           Option.map(Haz3lcore.DefStatics.all_warning_ids, ds)
           |> Option.value(~default=[])
         );
+      /* a theorem's cell holds its statement: its proof goes under it */
+      let program_theorems =
+        lazy(
+          Haz3lcore.AutoProbePerform.theorems_of_exp(Divided.statics(d).term)
+        );
       let calc_entry = (e: ScratchCell.t): ScratchCell.t => {
+        /* the stepping drawer's rows follow the program's stepper */
+        let fit = (c: CellEditor.Model.t) =>
+          switch (
+            CellEditor.Update.fit_steps(
+              ~settings,
+              Divided.result(d),
+              c.editor,
+            )
+          ) {
+          | (editor, true) => {
+              ...c,
+              editor,
+            }
+          | (_, false) => c
+          };
+        let (h, b) = (fit(e.e_header), fit(e.e_body));
+        /* identity kept when nothing moved: the memo below keys on it */
+        let e =
+          h === e.e_header && b === e.e_body
+            ? e
+            : {
+              ...e,
+              e_header: h,
+              e_body: b,
+            };
         let reuse =
           statics_mode != StaticsMode.Force
             ? switch (Hashtbl.find_opt(calc_entry_memo, e.e_id)) {
-              | Some((s', d', prev))
-                  when prev === e && s' === settings && d' === extra_dyn =>
+              | Some((s', d', t', prev))
+                  when
+                    prev === e
+                    && s' === settings
+                    && d' === extra_dyn
+                    && t' == (is_tail_cell(e), ProbeProj.Settings.layout^) =>
                 Some(prev)
               | _ => None
               }
@@ -787,6 +905,10 @@ let calculate =
               e_body:
                 CellEditor.Update.calculate(
                   ~settings=body_settings,
+                  ~tail_probe=is_tail_cell(e),
+                  ~proofs=
+                    List.mem(e.e_id, Lazy.force(program_theorems))
+                      ? ProofOf(e.e_id) : Theorems,
                   ~is_edited,
                   ~statics_mode,
                   ~ctx=e.e_ctx,
@@ -800,7 +922,12 @@ let calculate =
           Hashtbl.replace(
             calc_entry_memo,
             e.e_id,
-            (settings, extra_dyn, e'),
+            (
+              settings,
+              extra_dyn,
+              (is_tail_cell(e), ProbeProj.Settings.layout^),
+              e',
+            ),
           );
           e';
         };

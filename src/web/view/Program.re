@@ -109,3 +109,24 @@ let probe_ids = (p: t): Id.Map.t(unit) =>
       Divided.probes(d),
     )
   };
+
+/* the program's ⇒ row: its last expression, which the ⇓ toggle probes */
+/* the ⇓ probe's term, once placed: the program's last expression, in a
+   stack the ⇒ cell's */
+let tail_target = (p: t): option(Id.t) =>
+  switch (p) {
+  | Whole(e) => e.editor.editor.state.zipper.refractors.tail_target
+  | Divided(d) =>
+    Divided.cells(d)
+    |> List.find_opt((e: ScratchCell.t) => e.e_sym == Some({js|⇒|js}))
+    |> Option.map((e: ScratchCell.t) =>
+         e.e_body.editor.editor.state.zipper.refractors.tail_target
+       )
+    |> Option.join
+  };
+
+let tail_row = (p: t): option(Id.t) =>
+  OutlineTree.of_term(statics(p).term)
+  |> List.find_opt((n: OutlineTree.node) => n.o_kind == KTrail)
+  |> Option.map((n: OutlineTree.node) => n.o_id)
+  |> Option.join;

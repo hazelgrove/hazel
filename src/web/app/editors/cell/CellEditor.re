@@ -51,6 +51,20 @@ module Model = {
   };
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
+
+  let map_zipper = (f: Zipper.t => Zipper.t, model: t): t => {
+    ...model,
+    editor: {
+      ...model.editor,
+      editor: {
+        ...model.editor.editor,
+        state: {
+          ...model.editor.editor.state,
+          zipper: f(model.editor.editor.state.zipper),
+        },
+      },
+    },
+  };
 };
 
 module Update = {
@@ -99,10 +113,54 @@ module Update = {
     };
   };
 
+  let stepping = (editor: CodeEditable.Model.t) =>
+    editor.editor.state.zipper.refractors.stepping
+    |> Option.map((st: Haz3lcore.ProjectorBase.stepping) => st.span);
+
+  /* a stepping drawer takes the rows its stepper needs; true when they
+     changed, which the layout must pick up */
+  let fit_steps =
+      (~settings, result: EvalResult.Model.t, editor: CodeEditable.Model.t)
+      : (CodeEditable.Model.t, bool) => {
+    let z = editor.editor.state.zipper;
+    switch (z.refractors.stepping, result.probe_steps) {
+    | (Some(st), Some(ps)) when ps.span == st.span =>
+      let rows = ProbeSteps.rows(~settings, ps);
+      rows == st.rows
+        ? (editor, false)
+        : (
+          {
+            ...editor,
+            editor: {
+              ...editor.editor,
+              state: {
+                ...editor.editor.state,
+                zipper:
+                  Zipper.update_refractors(z, r =>
+                    {
+                      ...r,
+                      stepping:
+                        Some({
+                          ...st,
+                          rows,
+                        }),
+                    }
+                  ),
+              },
+            },
+          },
+          true,
+        );
+    | _ => (editor, false)
+    };
+  };
+
   let calculate =
       (
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
+        ~tail_probe=false,
+        ~proofs=Haz3lcore.AutoProbePerform.NoProofs,
         ~is_edited,
         ~statics_mode=StaticsMode.Normal,
         ~compositional=false,
@@ -129,6 +187,8 @@ module Update = {
       CodeEditable.Update.calculate(
         ~settings,
         ~autoprobe_mode,
+        ~tail_probe,
+        ~proofs,
         ~is_edited,
         ~statics_mode,
         ~compositional,
@@ -151,9 +211,14 @@ module Update = {
         },
         ~queue_worker,
         ~is_edited,
+        ~stepping=stepping(editor),
         editor |> CodeEditable.Model.get_statics,
         result,
       );
+    let (editor, steps_resized) = fit_steps(~settings, result, editor);
+    let proofs_resized =
+      !Id.Map.is_empty(editor.editor.state.zipper.refractors.proofs)
+      && Theorems.fit(~settings, result.theorems);
     /* Detect if dynamics changed (ensures cursor aligns with render-time dynamics).
      * Compare inner maps, not Option wrappers (Option.map creates new Some each call) */
     let probes_after = EvalResult.Model.probe_results(result);
@@ -170,7 +235,11 @@ module Update = {
     let has_pending_cursor =
       editor.editor.state.zipper.refractors.pending_probe_cursor != None;
     let needs_second_pass =
-      has_pending_focus || has_pending_cursor || dynamics_changed;
+      has_pending_focus
+      || has_pending_cursor
+      || dynamics_changed
+      || steps_resized
+      || proofs_resized;
     let editor =
       if (needs_second_pass) {
         /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
@@ -179,6 +248,8 @@ module Update = {
         CodeEditable.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
+          ~proofs,
           ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
           ~compositional,
           ~ctx?,
@@ -252,6 +323,8 @@ module View = {
         /* stack cells: the master's whole-program result supplies this
            cell's samples (its own result never evaluates while stacked) */
         ~master_result: option(EvalResult.Model.t)=?,
+        /* where the master's result takes actions (its probe stepper's) */
+        ~master_inject: option(EvalResult.Update.t => Ui_effect.t(unit))=?,
         /* arrow-key at the buffer's edge: hosts (e.g. the editor
            stack) route the caret to a neighboring pane */
         ~escape: Util.Direction.t => Ui_effect.t(unit)=_ => Ui_effect.Ignore,
@@ -292,6 +365,65 @@ module View = {
         ~locked,
         model.result,
       );
+    /* a stepping drawer in this editor renders its result's stepper */
+    let (steps_result, steps_inject) =
+      switch (master_result, master_inject) {
+      | (Some(r), Some(mi)) => (r, mi)
+      | _ => (model.result, (a => inject(ResultAction(a))))
+      };
+    Haz3lcore.ProbeProj.Settings.steps_view :=
+      (
+        id =>
+          switch (steps_result.probe_steps) {
+          | Some(ps) when ps.span.probe_id == id =>
+            ProbeSteps.view(
+              ~globals,
+              ~inject=a => steps_inject(ProbeStepperAction(a)),
+              ~focus=f => steps_inject(ProbeStepperFocus(f)),
+              ~close=inject(MainEditor(Perform(Probe(HideSteps)))),
+              ~stepped=
+                switch (
+                  Haz3lcore.TermData.segment(
+                    ps.span.probe_id,
+                    model.editor.editor.syntax.term_data,
+                  )
+                ) {
+                | Some(seg) =>
+                  ProbeSteps.one_line(
+                    Haz3lcore.Printer.of_segment(
+                      ~holes="?",
+                      ~indent="",
+                      ~is_single_line=true,
+                      seg,
+                    ),
+                  )
+                | None => ""
+                },
+              ps,
+            )
+          | _ => None
+          }
+      );
+    /* the ⇓ drawer, when the program stopped before its last line */
+    let tail = model.editor.editor.state.zipper.refractors.tail_target;
+    let stop = EvalResult.Model.stopped(~tail, steps_result);
+    Option.iter(id => EvalResult.Model.note_stop(id, stop), tail);
+    Haz3lcore.ProbeProj.Settings.value_fallback :=
+      (
+        id =>
+          tail == Some(id)
+            ? Option.map(EvalResult.View.stopped_view(~globals), stop) : None
+      );
+    Haz3lcore.ProofProj.Settings.view :=
+      (
+        id =>
+          Theorems.View.view_one(
+            ~globals,
+            ~inject=a => steps_inject(TheoremsAction(a)),
+            steps_result.theorems,
+            id,
+          )
+      );
     div(
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
@@ -302,7 +434,19 @@ module View = {
             locked
               ? _ => Ui_effect.Ignore
               : fun
-                | MakeActive => signal(MakeActive(MainEditor)),
+                | MakeActive =>
+                  Ui_effect.Many(
+                    [signal(MakeActive(MainEditor))]
+                    /* the program takes focus back from a drawer's step */
+                    @ (
+                      switch (steps_result.probe_steps) {
+                      | Some({focus: Some(_), _}) => [
+                          steps_inject(ProbeStepperFocus(None)),
+                        ]
+                      | _ => []
+                      }
+                    ),
+                  ),
           ~edit_mode=
             locked
               ? EditMode.ReadOnly

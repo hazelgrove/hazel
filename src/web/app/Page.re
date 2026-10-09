@@ -122,8 +122,10 @@ module Update = {
                 Some(
                   Option.value(ScratchCell.header_name(e), ~default="cell"),
                 ),
-                /* header too: binder and signature errors live there */
-                [e.e_header.editor, e.e_body.editor],
+                /* header too: binder and signature errors live there.
+                   a ⇒ or `;` cell shows none, and its empty one is a hole */
+                (Option.is_none(e.e_sym) ? [e.e_header.editor] : [])
+                @ [e.e_body.editor],
               ),
             cells,
           );
@@ -286,6 +288,10 @@ module Update = {
             },
           }
           |> return_quiet
+    | UpdateDrawerWidth(cols) =>
+      Haz3lcore.ProbeProj.Settings.set_drawer_width(cols);
+      model |> Updated.return_quiet(~recalculate=true);
+    | RelayoutDrawers => model |> Updated.return_quiet(~recalculate=true)
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -569,6 +575,7 @@ module Update = {
                 dynamics: false,
               },
           ~autoprobe_mode=model.globals.settings.autoprobe_mode,
+          ~tail_probe=model.globals.settings.tail_probe,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,
@@ -946,18 +953,32 @@ module View = {
       | Scratch(m)
       | Documentation(m) when globals.settings.core.dynamics =>
         ScratchMode.Model.current_program(m)
-        |> Option.map(p =>
+        |> Option.map(p => {
+             let tail = globals.settings.tail_probe;
+             /* in a stack, the value shows in the ⇒ cell: open it */
+             let open_tail =
+               switch (p, Program.tail_row(p)) {
+               | (Program.Divided(_), Some(id)) when !tail => [
+                   inject(Editors(Scratch(Workspace(FocusEnsure(id))))),
+                 ]
+               | _ => []
+               };
              EvalResult.View.dynamics(
-               ~inject=
-                 a =>
-                   inject(
-                     Editors(
-                       Scratch(Workspace(CellAction(ResultAction(a)))),
-                     ),
-                   ),
+               ~tail,
+               ~stopped=
+                 tail
+                 && EvalResult.Model.stopped(
+                      ~tail=Program.tail_target(p),
+                      Program.result(p),
+                    )
+                 != None,
+               ~toggle_tail=
+                 Effect.Many(
+                   [inject(Globals(Set(TailProbe)))] @ open_tail,
+                 ),
                Program.result(p),
-             )
-           )
+             );
+           })
       | _ => None
       };
     let bottom_bar = CursorInspector.view(~globals, ~dynamics?, cursor);
@@ -1030,6 +1051,7 @@ module View = {
       );
     let outline =
       OutlineControl.view(
+        ~arrows=globals.settings.outline_arrows,
         ~deck,
         ~statics=current_editor.statics,
         ~segment=current_editor.editor.syntax.segment,

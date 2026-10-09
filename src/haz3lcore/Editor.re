@@ -175,6 +175,7 @@ module Update = {
     /* 3. Update the zipper */
     let+ zipper =
       Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
+    let zipper = ProbePerform.settle_stepping(a, zipper);
 
     Model.{
       root,
@@ -190,6 +191,10 @@ module Update = {
       (
         ~settings: Language.CoreSettings.t,
         ~autoprobe_mode: AutoProbe.t,
+        /* the ⇓ toggle's probe on the program's last expression */
+        ~tail_probe=false,
+        /* drawers holding theorems' proofs */
+        ~proofs=AutoProbePerform.NoProofs,
         ~is_edited,
         statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
@@ -267,6 +272,14 @@ module Update = {
           z,
         );
       };
+    let zipper =
+      AutoProbePerform.update_tail(
+        ~on=tail_probe,
+        ~syntax,
+        ~info_map=statics.info_map,
+        zipper,
+      )
+      |> AutoProbePerform.update_proofs(~proofs, ~syntax);
 
     Model.{
       root,

@@ -354,6 +354,7 @@ let same = (a: memo_key, b: memo_key): bool =>
    else of the current editor's [statics] and [segment] */
 let view =
     (
+      ~arrows: bool,
       ~deck: option(deck),
       ~statics: CachedStatics.t,
       ~segment: Segment.t,
@@ -482,6 +483,7 @@ let view =
       | None => (0, 0)
       };
     let props: OutlineSidebar.props = {
+      arrows,
       stack_controls: is_deck,
       can_open: {
         let incomplete =

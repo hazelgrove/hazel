@@ -68,3 +68,10 @@ let rec equal = (a: t('a), b: t('a)): bool =>
     | (Empty | Leaf(_) | Branch(_), _) => false
     }
   );
+
+let rec mem = (x: 'a, t: t('a)): bool =>
+  switch (t.node) {
+  | Empty => false
+  | Leaf(y) => x == y
+  | Branch(a, b) => mem(x, a) || mem(x, b)
+  };

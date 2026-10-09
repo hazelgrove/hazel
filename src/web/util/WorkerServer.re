@@ -438,6 +438,7 @@ let resolve_payload =
             ~settings,
             ~info_map,
             ~probe_ids=rp.probe_ids,
+            (),
           );
         Ok((
           expr,

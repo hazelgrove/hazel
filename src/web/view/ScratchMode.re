@@ -137,6 +137,7 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode,
+        ~tail_probe=false,
         ~schedule_action,
         ~is_edited,
         ~is_documentation: bool,
@@ -156,6 +157,7 @@ module Update = {
         Workspace.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
           ~schedule_action=a => schedule_action(Workspace(a)),
           ~is_edited,
           ~statics_mode,
@@ -516,6 +518,8 @@ module View = {
     k_meta_down: bool,
     k_visible_rows: option(Globals.VisibleRows.t),
     k_zoom_cell: bool,
+    /* the ⇒ header names the program */
+    k_program: string,
   };
   type cached_cell = {
     c_key: stack_cache_key,
@@ -526,6 +530,9 @@ module View = {
     c_colors: option(ColorSteps.colorMap),
     /* the whole program's test results, drawn as the cells' markers */
     c_tests: option(Language.TestResults.t),
+    /* the program's result, for a cell whose drawers show its probe
+       stepper or proofs */
+    c_drawers: option(EvalResult.Model.t),
     c_nodes: list(Virtual_dom.Vdom.Node.t),
   };
   let stack_cache: ref(list((Haz3lcore.Id.t, cached_cell))) = ref([]);
@@ -624,11 +631,32 @@ module View = {
                   k_visible_rows:
                     i == 0 ? globals.Globals.Model.visible_rows : None,
                   k_zoom_cell: zoom_cell,
+                  k_program: current.name,
                 };
+                let draws = (c: CellEditor.Model.t) =>
+                  c.editor.editor.state.zipper.refractors.stepping != None
+                  || !
+                       Haz3lcore.Id.Map.is_empty(
+                         c.editor.editor.state.zipper.refractors.proofs,
+                       );
+                let drawers =
+                  draws(e.e_body) || draws(e.e_header)
+                    ? Some(Divided.result(d)) : None;
+                let same_drawers =
+                  switch (stack_cache_lookup(e.e_id)) {
+                  | Some({c_drawers: Some(a), _}) =>
+                    switch (drawers) {
+                    | Some(b) => a === b
+                    | None => false
+                    }
+                  | Some({c_drawers: None, _}) => Option.is_none(drawers)
+                  | None => false
+                  };
                 switch (stack_cache_lookup(e.e_id)) {
                 | Some(c)
                     when
                       c.c_key == key
+                      && same_drawers
                       && c.c_header === e.e_header
                       && c.c_body === e.e_body
                       && c.c_settings === globals.Globals.Model.settings
@@ -822,13 +850,40 @@ module View = {
                             "focus-header-sym",
                           ]),
                         ],
-                        /* no qualifier chip: the symbol is the label */
+                        /* no qualifier chip: the symbol is the label; the
+                           trailing ⇒ names what it's the result of, the
+                           program (not editable) */
                         [
                           Virtual_dom.Vdom.Node.span(
                             ~attrs=[
                               Virtual_dom.Vdom.Attr.classes(["focus-sym"]),
                             ],
-                            [Virtual_dom.Vdom.Node.text(sym)]
+                            (
+                              sym == {js|⇒|js}
+                                ? [
+                                  Virtual_dom.Vdom.Node.span(
+                                    ~attrs=[
+                                      Virtual_dom.Vdom.Attr.classes([
+                                        "focus-sym-name",
+                                      ]),
+                                    ],
+                                    [
+                                      Virtual_dom.Vdom.Node.text(current.name),
+                                    ],
+                                  ),
+                                ]
+                                : []
+                            )
+                            @ [
+                              Virtual_dom.Vdom.Node.span(
+                                ~attrs=[
+                                  Virtual_dom.Vdom.Attr.classes([
+                                    "focus-sym-mark",
+                                  ]),
+                                ],
+                                [Virtual_dom.Vdom.Node.text(sym)],
+                              ),
+                            ]
                             @ (
                               sym == {js|⇒|js}
                                 ? [
@@ -897,6 +952,11 @@ module View = {
                             ~locked=false,
                             ~lines=true,
                             ~master_result=Divided.result(d),
+                            ~master_inject=
+                              a =>
+                                inject(
+                                  Workspace(CellAction(ResultAction(a))),
+                                ),
                             ~escape=body_escape,
                             ~escape_vertical=Some(body_escape_vertical),
                             /* culling measures one `.cull-scope`: only
@@ -920,6 +980,7 @@ module View = {
                       c_font_metrics: globals.Globals.Model.font_metrics,
                       c_colors: globals.Globals.Model.color_highlights,
                       c_tests: tests,
+                      c_drawers: drawers,
                       c_nodes: nodes,
                     },
                   );
@@ -967,12 +1028,16 @@ module View = {
               Divided.result(d),
             );
           List.concat_map(((_, c)) => c.c_nodes, rendered)
-          @ [
-            Virtual_dom.Vdom.Node.div(
-              ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-result"])],
-              result_footer,
-            ),
-          ]
+          @ (
+            List.is_empty(result_footer)
+              ? []
+              : [
+                Virtual_dom.Vdom.Node.div(
+                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-result"])],
+                  result_footer,
+                ),
+              ]
+          )
           @ [
             /* slack, so even the last cell can scroll to the viewport top */
             Virtual_dom.Vdom.Node.div(
@@ -1004,6 +1069,20 @@ module View = {
               ~lines=true,
               ~result_kind=`StatusLine,
               editor,
+            ),
+          ]
+          /* room past the end, so the last line can scroll to the top;
+             with ⇓ on, the program's drawer runs on into it. The same
+             height either way, so toggling ⇓ leaves the view in place */
+          @ [
+            Virtual_dom.Vdom.Node.div(
+              ~attrs=[
+                Virtual_dom.Vdom.Attr.classes(
+                  ["tail-slack"]
+                  @ (globals.settings.tail_probe ? ["drawer"] : []),
+                ),
+              ],
+              [],
             ),
           ]
         };
