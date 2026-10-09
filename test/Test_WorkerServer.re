@@ -149,7 +149,208 @@ let test_span_yojson = (): test_case(_) =>
     },
   );
 
+/* The cost gate: a request takes the incremental path when its program is
+ * large or its previous evaluation was expensive. Driven through the worker's
+ * own per-item pipeline (`run_item_sync`: reuse plan, then sliced evaluation),
+ * with id-preserving edits — re-parsing would mint fresh ids and nothing could
+ * be reused regardless of the gate. */
+let request =
+    (~prev=IncrEval.empty, exp: Exp.t)
+    : (WorkerServer.key, WorkerServer.Request.value) => {
+  let (info_map, elab) = Test_Evaluator_Incremental.statics_and_elab(exp);
+  (
+    "cell",
+    {
+      expr: elab,
+      eval_info_map:
+        Test_Evaluator_Incremental.eval_info_of_statics(info_map),
+      prev,
+    },
+  );
+};
+
+/* Run a request and return its plan, the cache it leaves, and its slices. */
+let run = (~prev=?, exp: Exp.t) => {
+  let (plan, response, slices) =
+    WorkerServer.run_item_sync(request(~prev?, exp));
+  switch (response) {
+  | Ok((_, state)) => (plan, state.incr_eval, slices)
+  | Error(_) => fail("evaluation failed")
+  };
+};
+
+/* Id-preserving edit of the program's top-level `_ + n`: only the addend
+ * literal's payload changes, every id stays (the zipper keeps the ids of
+ * untouched tokens; this keeps even the edited one). */
+let set_addend = (n: int, exp: Exp.t): Exp.t => {
+  let rec go = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Let(p, def, body) => {
+        ...e,
+        term: Let(p, def, go(body)),
+      }
+    | BinOp(op, lhs, {term: Atom(Int(_)), _} as rhs) => {
+        ...e,
+        term:
+          BinOp(
+            op,
+            lhs,
+            {
+              ...rhs,
+              term: Atom(Int(Bigint.of_int(n))),
+            },
+          ),
+      }
+    | _ => fail("expected `let ... in _ + n`")
+    };
+  go(exp);
+};
+
+/* Id of the `fib(19)` application in the elaboration. */
+let fib_19_id = (elab: Exp.t): Id.t => {
+  let found = ref(None);
+  let rec strip = (e: Exp.t) =>
+    switch (e.term) {
+    | Parens(e) => strip(e)
+    | _ => e
+    };
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    switch (e.term) {
+    | Ap(_, _, arg) =>
+      switch (strip(arg).term) {
+      | Atom(Int(n)) when Bigint.to_string(n) == "19" =>
+        found := Some(Exp.rep_id(e))
+      | _ => ()
+      }
+    | _ => ()
+    };
+    continue(e);
+  };
+  ignore(TermBase.Exp.map_term(~f_exp, elab));
+  switch (found^) {
+  | Some(id) => id
+  | None => fail("no fib(19) application in the elaboration")
+  };
+};
+
+/* the bug report's program, verbatim */
+let fib_src = "let fib = fun x -> if x < 1 then 1 else fib(x-1) + fib(x-2) in\nfib(19) + 1";
+
+let test_expensive_small_program_reuses = (): test_case(_) =>
+  test_case(
+    "an expensive small program reuses its last evaluation",
+    `Quick,
+    () => {
+      let exp1 = Test_Evaluator_Prelude.parse_exp(fib_src);
+      let (_, req1) = request(exp1);
+      check(
+        bool,
+        "small enough that the size gate alone would skip incremental",
+        true,
+        Id.Map.cardinal(req1.eval_info_map.statics)
+        < WorkerServer.incremental_min_statics,
+      );
+      let (plan1, incr1, cold_slices) = run(exp1);
+      check(
+        bool,
+        "cold run has nothing to reuse",
+        true,
+        IncrEval.is_empty(plan1),
+      );
+      /* the cold run went from scratch (no prev) and still recorded entries */
+      let cold_steps = WorkerServer.prev_steps(incr1);
+      check(
+        bool,
+        Printf.sprintf(
+          "cold run is over the cost threshold (%d steps)",
+          cold_steps,
+        ),
+        true,
+        cold_steps >= WorkerServer.incremental_min_prev_steps,
+      );
+
+      let exp2 = set_addend(2, exp1);
+      let (_, req2) = request(~prev=incr1, exp2);
+      let fib_id = fib_19_id(req2.expr);
+      let (plan2, incr2, warm_slices) = run(~prev=incr1, exp2);
+      check(
+        bool,
+        "the reuse plan includes fib(19)",
+        true,
+        Id.Map.mem(fib_id, plan2.entries),
+      );
+      check(
+        bool,
+        Printf.sprintf(
+          "warm run is far cheaper (%d slices vs %d cold)",
+          warm_slices,
+          cold_slices,
+        ),
+        true,
+        warm_slices * 20 <= cold_slices,
+      );
+      /* replayed entries carry their steps, so the gate stays on */
+      check(
+        int,
+        "cost survives reuse",
+        cold_steps,
+        WorkerServer.prev_steps(incr2),
+      );
+
+      let exp3 = set_addend(3, exp2);
+      let (plan3, _, _) = run(~prev=incr2, exp3);
+      check(
+        bool,
+        "and the next edit reuses fib(19) again",
+        true,
+        Id.Map.mem(fib_id, plan3.entries),
+      );
+    },
+  );
+
+let test_cheap_small_program_skips_prepass = (): test_case(_) =>
+  test_case(
+    "a cheap small program still evaluates from scratch",
+    `Quick,
+    () => {
+      let exp1 =
+        Test_Evaluator_Prelude.parse_exp(
+          "let x = 1 + 2 in let y = x + 10 in y + 7",
+        );
+      let (_, incr1, _) = run(exp1);
+      check(
+        bool,
+        "the cold run left a cache",
+        false,
+        IncrEval.is_empty(incr1),
+      );
+      let exp2 = set_addend(2, exp1);
+      check(
+        bool,
+        "the cache has something reusable for the edit",
+        true,
+        Test_Evaluator_Incremental.has_reuse(
+          Test_Evaluator_Incremental.reuse_plan(~prev=incr1, exp2),
+        ),
+      );
+      let (plan2, _, _) = run(~prev=incr1, exp2);
+      check(
+        bool,
+        "the worker skips the pre-pass anyway",
+        true,
+        IncrEval.is_empty(plan2),
+      );
+    },
+  );
+
 let tests = [
+  (
+    "WorkerServer cost gate",
+    [
+      test_expensive_small_program_reuses(),
+      test_cheap_small_program_skips_prepass(),
+    ],
+  ),
   (
     "WorkerServer encodings",
     [
