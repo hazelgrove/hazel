@@ -127,6 +127,10 @@ let view =
       | (_, Any) => true
       | (Rul, Exp) => true
       | (Exp, Rul) => true
+      /* a module's name in its stack header: the header editor parses it
+         as a pattern, statics knows the module binder */
+      | (MPat, Pat)
+      | (Pat, MPat) => true
       /* All Drv(_) sub-sorts (Jdmt/Ctx/Prop/Exp) are treated as mutually
          consistent for highlighting purposes. term_data carries the sort
          the parser assigned (always the collapsed Drv(Exp) for these), so

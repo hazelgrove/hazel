@@ -518,6 +518,8 @@ module View = {
     k_meta_down: bool,
     k_visible_rows: option(Globals.VisibleRows.t),
     k_zoom_cell: bool,
+    /* the ⇒ header names the program */
+    k_program: string,
   };
   type cached_cell = {
     c_key: stack_cache_key,
@@ -629,6 +631,7 @@ module View = {
                   k_visible_rows:
                     i == 0 ? globals.Globals.Model.visible_rows : None,
                   k_zoom_cell: zoom_cell,
+                  k_program: current.name,
                 };
                 let draws = (c: CellEditor.Model.t) =>
                   c.editor.editor.state.zipper.refractors.stepping != None
@@ -847,13 +850,40 @@ module View = {
                             "focus-header-sym",
                           ]),
                         ],
-                        /* no qualifier chip: the symbol is the label */
+                        /* no qualifier chip: the symbol is the label; the
+                           trailing ⇒ names what it's the result of, the
+                           program (not editable) */
                         [
                           Virtual_dom.Vdom.Node.span(
                             ~attrs=[
                               Virtual_dom.Vdom.Attr.classes(["focus-sym"]),
                             ],
-                            [Virtual_dom.Vdom.Node.text(sym)]
+                            (
+                              sym == {js|⇒|js}
+                                ? [
+                                  Virtual_dom.Vdom.Node.span(
+                                    ~attrs=[
+                                      Virtual_dom.Vdom.Attr.classes([
+                                        "focus-sym-name",
+                                      ]),
+                                    ],
+                                    [
+                                      Virtual_dom.Vdom.Node.text(current.name),
+                                    ],
+                                  ),
+                                ]
+                                : []
+                            )
+                            @ [
+                              Virtual_dom.Vdom.Node.span(
+                                ~attrs=[
+                                  Virtual_dom.Vdom.Attr.classes([
+                                    "focus-sym-mark",
+                                  ]),
+                                ],
+                                [Virtual_dom.Vdom.Node.text(sym)],
+                              ),
+                            ]
                             @ (
                               sym == {js|⇒|js}
                                 ? [
