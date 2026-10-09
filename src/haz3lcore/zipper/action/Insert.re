@@ -46,34 +46,43 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   };
 };
 
-/* Determine the effective sort for insertion, considering both local and parent sorts.
-   Default: local-first (try local sort, fall back to parent).
-   Special cases:
-   - Semicolon with Mod parent prefers Mod (for ModSeq over CellJoin)
-   - Mod context falls back to Exp since bare expressions are valid module items */
+/* The sort a new token is first molded in. The local sort is what the
+   left neighbor's right nib asks for; the parent sort is the enclosing
+   form's child sort.
+   - Semicolon under Mod/Sig is ModSeq/SigSeq, never CellJoin.
+   - A delimiter is expanded in the first of local/parent that knows it:
+     `let` typed after an ascription (local Typ) is still Exp's let-in.
+   - Mod has no operand forms (bare expressions are module items), so a
+     delimiter unknown there is tried in Exp, mirroring remold_mod.
+   - Anything else (variables, literals, operators) takes the local sort,
+     which is what remold will pick anyway. Taking the parent sort instead
+     gave interim Any molds inside module bodies, and a `(` split into
+     a token against such a neighbor looked up its expansion in Mod,
+     i.e. never expanded (#2575).
+   - Exception: outside Mod/Sig, where the local sort has no operand forms
+     by design, a token with no mold at the local sort takes the parent's
+     rather than classifying as Any (`*` typed at a Typ local sort). */
 let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   let local_sort = Relatives.sort(~root, z.relatives);
   let parent_sort = Ancestors.sort(root, z.relatives.ancestors);
-
-  /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
+  let expands_in = (s: Sort.t) => Form.Expansion.try_get(s, t) != None;
+  let molds_in = (s: Sort.t) => Form.remold_candidates([t], s) != [];
   if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
     parent_sort;
+  } else if (expands_in(local_sort)) {
+    local_sort;
+  } else if (expands_in(parent_sort)) {
+    parent_sort;
+  } else if ((local_sort == Mod || parent_sort == Mod) && expands_in(Exp)) {
+    Exp;
+  } else if (local_sort == Any) {
+    parent_sort;
+  } else if (local_sort == Mod || local_sort == Sig) {
+    local_sort;
+  } else if (molds_in(local_sort) || !molds_in(parent_sort)) {
+    local_sort;
   } else {
-    /* Default: local-first with parent fallback */
-    switch (Form.Expansion.try_get(local_sort, t)) {
-    | Some(_) => local_sort
-    | None =>
-      /* In Mod context, try Exp since bare expressions are valid module items.
-         This mirrors remold_mod which also falls back to Exp. */
-      if (local_sort == Sort.Mod) {
-        switch (Form.Expansion.try_get(Exp, t)) {
-        | Some(_) => Exp
-        | None => parent_sort
-        };
-      } else {
-        parent_sort;
-      }
-    };
+    parent_sort;
   };
 };
 

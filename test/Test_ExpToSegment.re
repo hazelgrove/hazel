@@ -469,6 +469,39 @@ let tests = (
         };
       },
     ),
+    test_case(
+      "Float negation inside module forms (#2554)",
+      `Quick,
+      () => {
+        /* parenthesize used to stop at Module/ModuleExp, so the
+           Float(Minus) rewrite never reached a member and printing
+           raised instead. */
+        open IdTagged.FreshGrammar;
+        let neg =
+          Exp.(
+            bin_op(
+              Float(Plus),
+              var("x"),
+              un_op(Float(Minus), float(1.0)),
+            )
+          );
+        let m =
+          Exp.module_([Mod.mod_let(Pat.var("f"), neg), Mod.mod_exp(neg)]);
+        check(
+          string,
+          "Module member float negation text",
+          "{ let f = x +. (0.000000 -. 1.000000); x +. (0.000000 -. 1.000000) }",
+          print_seg(exp_to_segment(m)),
+        );
+        let me = Exp.module_exp(MPat.var("M"), neg, neg);
+        check(
+          string,
+          "ModuleExp float negation text",
+          "module M = x +. (0.000000 -. 1.000000) in x +. (0.000000 -. 1.000000)",
+          print_seg(exp_to_segment(me)),
+        );
+      },
+    ),
     test_case("Dot operator on float", `Quick, () => {
       check(
         string,
