@@ -2400,6 +2400,524 @@ f(a) * 1000 + f(b)",
     Calculus.available,
   );
 
+/* ---- injection and case flags (section 8's inl/inr/case rules) -------
+ *
+ * Hazel's constructors are named and n-ary where the formalism's are inl/inr,
+ * so the injection flag is Ctr(name, payload_flag). These tests drive the
+ * three rules end to end -- the injection rule at a constructor application,
+ * the pattern rule binding a constructor pattern's payload, the case rule at
+ * a `match` -- with re-use witnessed by replayed probe samples, never by step
+ * counts (those include replayed slices, so they do not drop on re-use). */
+
+let test_ctr_flag_primitives = () => {
+  check(
+    flag,
+    "a clean payload under an agreed tag is Clean",
+    IncrEval.Clean,
+    IncrEval.ctr("A", Clean),
+  );
+  check(
+    flag,
+    "a dirty payload still claims the tag",
+    IncrEval.Ctr("A", Dirty),
+    IncrEval.ctr("A", Dirty),
+  );
+  check(
+    flag,
+    "a tuple pattern cannot split an injection flag",
+    IncrEval.Dirty,
+    IncrEval.split(~arity=2, ~index=0, Ctr("A", Parts([Clean, Dirty]))),
+  );
+  check(
+    flag,
+    "opaque forms drop an injection flag",
+    IncrEval.Dirty,
+    IncrEval.opaque(Ctr("A", Parts([Clean, Dirty]))),
+  );
+};
+
+let test_pat_provenance_ctr = () => {
+  let f = IncrEval.Ctr("A", Parts([Clean, Dirty]));
+  check(
+    flags_list,
+    "constructor pattern reads the payload flag",
+    [("a", "Clean"), ("b", "Dirty")],
+    prov_flags(~flag=f, "A((a, b))"),
+  );
+  check(
+    flags_list,
+    "constructor pattern binds the whole payload flag",
+    [("p", "(Parts [Clean; Dirty])")],
+    prov_flags(~flag=f, "A(p)"),
+  );
+  check(
+    flags_list,
+    "a different constructor's flag says nothing",
+    [("p", "Dirty")],
+    prov_flags(~flag=f, "B(p)"),
+  );
+  check(
+    flags_list,
+    "a tag-only flag leaves the payload dirty",
+    [("p", "Dirty")],
+    prov_flags(~flag=Ctr("A", Dirty), "A(p)"),
+  );
+  check(
+    flags_list,
+    "a variable takes the whole injection flag",
+    [("v", "(Ctr (\"A\", (Parts [Clean; Dirty])))")],
+    prov_flags(~flag=f, "v"),
+  );
+  check(
+    flags_list,
+    "a clean value is clean under its constructor",
+    [("p", "Clean")],
+    prov_flags(~flag=Clean, "A(p)"),
+  );
+};
+
+/* Every calculus agrees with a0 on the probe report and on the value; the
+ * calculi with structured flags (aM, aStar) replay exactly `replayed`, and
+ * the ones without replay none of it -- so the replay is the flag rules'
+ * doing, not something aPL already re-used. */
+let check_flag_rule_reuse =
+    (
+      ~name: string,
+      ~src: string,
+      ~edit: Exp.t => Exp.t,
+      ~replayed: list(string),
+    ) =>
+  with_probes(
+    ~src,
+    ~edit,
+    (~term, ~targets1, ~after, ~targets2, ~labels) => {
+      check_sound(name, term, after);
+      let (_, ref_state) =
+        eval_under(~calculus=Calculus.A0, ~targets=targets2, after);
+      let want = probe_report(targets2, ref_state);
+      List.iter(
+        (calculus: Calculus.t) => {
+          let r =
+            run_probes(
+              ~calculus,
+              ~term,
+              ~targets1,
+              ~after,
+              ~targets2,
+              ~labels,
+            );
+          Printf.printf(
+            "FLAGRULE %-44s %-5s replayed=[%s] fresh=[%s]\n",
+            name,
+            Calculus.name(calculus),
+            String.concat(",", r.replayed),
+            String.concat(",", r.fresh),
+          );
+          check(
+            string,
+            name ++ ": " ++ Calculus.name(calculus) ++ " probe samples",
+            show_report(want),
+            show_report(r.report),
+          );
+          if (Calculus.capabilities(calculus).tuple_flags) {
+            check(
+              list(string),
+              name ++ ": " ++ Calculus.name(calculus) ++ " replays",
+              replayed,
+              r.replayed,
+            );
+          } else {
+            check(
+              list(string),
+              name ++ ": " ++ Calculus.name(calculus) ++ " replays none of it",
+              [],
+              List.filter(l => List.mem(l, replayed), r.replayed),
+            );
+          };
+        },
+        Calculus.available,
+      );
+    },
+  );
+
+/* Every calculus agrees with a0, and no calculus replays any of `fresh`:
+ * the edit invalidates what the flags would otherwise have carried. */
+let check_flag_rule_refuses =
+    (
+      ~name: string,
+      ~src: string,
+      ~edit: Exp.t => Exp.t,
+      ~fresh: list(string),
+    ) =>
+  with_probes(
+    ~src,
+    ~edit,
+    (~term, ~targets1, ~after, ~targets2, ~labels) => {
+      check_sound(name, term, after);
+      let (_, ref_state) =
+        eval_under(~calculus=Calculus.A0, ~targets=targets2, after);
+      let want = probe_report(targets2, ref_state);
+      List.iter(
+        (calculus: Calculus.t) => {
+          let r =
+            run_probes(
+              ~calculus,
+              ~term,
+              ~targets1,
+              ~after,
+              ~targets2,
+              ~labels,
+            );
+          Printf.printf(
+            "FLAGRULE %-44s %-5s replayed=[%s] fresh=[%s]\n",
+            name,
+            Calculus.name(calculus),
+            String.concat(",", r.replayed),
+            String.concat(",", r.fresh),
+          );
+          check(
+            string,
+            name ++ ": " ++ Calculus.name(calculus) ++ " probe samples",
+            show_report(want),
+            show_report(r.report),
+          );
+          check(
+            list(string),
+            name ++ ": " ++ Calculus.name(calculus) ++ " replays none of it",
+            [],
+            List.filter(l => List.mem(l, fresh), r.replayed),
+          );
+        },
+        Calculus.available,
+      );
+    },
+  );
+
+/* Retype a constructor's name at every APPLICATION of it (patterns are left
+ * alone), keeping every id: the token survives the edit. */
+let rename_ctr_exp = (~from: string, ~to_: string, exp: Exp.t): Exp.t => {
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Constructor(name, ann) when name == from => {
+        annotation: e.annotation,
+        term: Constructor(to_, ann),
+      }
+    | _ => continue(e)
+    };
+  TermBase.Exp.map_term(~f_exp, exp);
+};
+
+/* Exchange the first two rules' patterns (or bodies) of every `match`,
+ * keeping every id: the arms' ids stay where they were while what they
+ * select (or produce) moves. */
+let swap_first_two_rules =
+    (
+      ~what: [
+         | `Patterns
+         | `Bodies
+       ],
+      exp: Exp.t,
+    )
+    : Exp.t => {
+  let f_exp = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Match(scrut, [(p0, b0), (p1, b1), ...rest]) =>
+      let (r0, r1) =
+        switch (what) {
+        | `Patterns => ((p1, b0), (p0, b1))
+        | `Bodies => ((p0, b1), (p1, b0))
+        };
+      {
+        annotation: e.annotation,
+        term:
+          Match(
+            continue(scrut),
+            List.map(((p, b)) => (p, continue(b)), [r0, r1, ...rest]),
+          ),
+      };
+    | _ => continue(e)
+    };
+  TermBase.Exp.map_term(~f_exp, exp);
+};
+
+/* Exchange the children of the first two nodes `child_of` finds one in,
+ * keeping every id: each parent keeps its id while its child is now the
+ * other parent's. */
+let swap_children =
+    (
+      ~child_of: Exp.t => option(Exp.t),
+      ~rebuild: (Exp.t, Exp.t) => Exp.term,
+      exp: Exp.t,
+    )
+    : Exp.t => {
+  let found = ref([]);
+  let collect = (continue, e: Exp.t): Exp.t => {
+    switch (child_of(e)) {
+    | Some(c) => found := found^ @ [(Exp.rep_id(e), c)]
+    | None => ()
+    };
+    continue(e);
+  };
+  ignore(TermBase.Exp.map_term(~f_exp=collect, exp));
+  switch (found^) {
+  | [(id_a, a), (id_b, b), ..._] =>
+    let f_exp = (continue, e: Exp.t): Exp.t =>
+      if (Id.equal(Exp.rep_id(e), id_a)) {
+        {
+          annotation: e.annotation,
+          term: rebuild(e, b),
+        };
+      } else if (Id.equal(Exp.rep_id(e), id_b)) {
+        {
+          annotation: e.annotation,
+          term: rebuild(e, a),
+        };
+      } else {
+        continue(e);
+      };
+    TermBase.Exp.map_term(~f_exp, exp);
+  | _ => Alcotest.fail("swap_children: fewer than two candidates")
+  };
+};
+
+let swap_ctr_payloads =
+  swap_children(
+    ~child_of=
+      (e: Exp.t) =>
+        switch (e.term) {
+        | Ap(_, {term: Constructor(_), _}, arg) => Some(arg)
+        | _ => None
+        },
+    ~rebuild=
+      (e: Exp.t, arg) =>
+        switch (e.term) {
+        | Ap(dir, c, _) => Ap(dir, c, arg)
+        | t => t
+        },
+  );
+
+let swap_match_scrutinees =
+  swap_children(
+    ~child_of=
+      (e: Exp.t) =>
+        switch (e.term) {
+        | Match(scrut, _) => Some(scrut)
+        | _ => None
+        },
+    ~rebuild=
+      (e: Exp.t, scrut) =>
+        switch (e.term) {
+        | Match(_, rules) => Match(scrut, rules)
+        | t => t
+        },
+  );
+
+/* Injection + pattern rules: the payload's flag reaches the arm's bindings.
+ * Editing the first component of A's payload leaves `b` clean, so the
+ * probe on f(b) inside the arm is replayed. Without the injection rule `z`
+ * is Dirty; without the pattern rule A((a, b)) drops its flag to Dirty. */
+let test_injection_payload_reaches_arm = () =>
+  check_flag_rule_reuse(
+    ~name="injection: payload reaches the arm",
+    ~src=
+      "type T = A((Int, Int)) + B(Int) in
+let f : Int -> Int = fun n -> n * 2 in
+let z = A((3, 4)) in
+case z
+  | A((a, b)) => ^^probe(f(b)) + a
+  | B(c) => c
+end",
+    ~edit=replace_int_lit(~from=3, ~to_=7),
+    ~replayed=["f(b)"],
+  );
+
+/* Case rule: the match's value is its taken arm's, so the arm's flag is the
+ * match's. `r` is projected out of an unchanged payload component through
+ * the match, and the probe on f(b) downstream of it is replayed. Without
+ * the case rule `r` is Dirty. */
+let test_case_flag_first_arm = () =>
+  check_flag_rule_reuse(
+    ~name="case: taken arm's flag is the match's",
+    ~src=
+      "type T = A((Int, Int)) + B(Int) in
+let f : Int -> Int = fun n -> n * 2 in
+let z = A((3, 4)) in
+let r = case z | A(p) => p | B(c) => (c, c) end in
+let (a, b) = r in
+let q = ^^probe(f(b)) in
+a * 100 + q",
+    ~edit=replace_int_lit(~from=3, ~to_=7),
+    ~replayed=["f(b)"],
+  );
+
+/* The taken arm need not be the first: arms for other constructors (with
+ * and without a payload) reject the tag outright, so the A arm is still
+ * known to be taken in both runs. */
+let test_case_flag_later_arm = () =>
+  check_flag_rule_reuse(
+    ~name="case: arm after rejecting arms",
+    ~src=
+      "type T = A((Int, Int)) + B(Int) + C in
+let f : Int -> Int = fun n -> n * 2 in
+let z = A((3, 4)) in
+let r = case z | C => (0, 0) | B(c) => (c, c) | A(p) => p end in
+let (a, b) = r in
+let q = ^^probe(f(b)) in
+a * 100 + q",
+    ~edit=replace_int_lit(~from=3, ~to_=7),
+    ~replayed=["f(b)"],
+  );
+
+/* A payload pattern that inspects the payload selects a different arm once
+ * the payload changes: the cached run took the first arm, this one takes the
+ * second, though the tag and the clean component are the same. So the case
+ * rule makes no claim when an arm before the accepting one looks inside. */
+let test_case_flag_refuses_inspecting_arm = () =>
+  check_flag_rule_refuses(
+    ~name="case: an arm that inspects the payload",
+    ~src=
+      "type T = A((Int, Int)) + B(Int) in
+let f : Int -> Int = fun n -> n * 2 in
+let z = A((0, 4)) in
+let r = case z | A((0, y)) => (y, y) | A(p) => p | B(c) => (c, c) end in
+let (a, b) = r in
+let q = ^^probe(f(b)) in
+a * 100 + q",
+    ~edit=replace_int_lit(~from=0, ~to_=7),
+    ~fresh=["f(b)"],
+  );
+
+let swap_src = "type T = A((Int, Int)) + B((Int, Int)) in
+let f : Int -> Int = fun n -> n * 2 in
+let z = A((3, 4)) in
+let r = case z | A(p) => p | B(p) => let (x, y) = p in (y, x) end in
+let (a, b) = r in
+let q = ^^probe(f(b)) in
+a * 100 + q";
+
+/* Soundness: retyping the constructor's name keeps the application's id,
+ * so the cached node there carries another tag. The injection rule must not
+ * claim the tag (or, the payload being unchanged, the value) and the other
+ * arm must be taken. */
+let test_ctr_tag_change_refused = () =>
+  check_flag_rule_refuses(
+    ~name="injection: constructor renamed in place",
+    ~src=swap_src,
+    ~edit=rename_ctr_exp(~from="A", ~to_="B"),
+    ~fresh=["f(b)"],
+  );
+
+/* Soundness: exchanging the arms' patterns in place changes the taken arm
+ * while every arm keeps its ids. */
+let test_case_patterns_swapped_refused = () =>
+  check_flag_rule_refuses(
+    ~name="case: arms' patterns exchanged in place",
+    ~src=swap_src,
+    ~edit=
+      e =>
+        swap_first_two_rules(
+          ~what=`Patterns,
+          replace_int_lit(~from=3, ~to_=7, e),
+        ),
+    ~fresh=["f(b)"],
+  );
+
+/* Soundness: exchanging the arms' bodies in place puts another body in the
+ * taken position. */
+let test_case_bodies_swapped_refused = () =>
+  check_flag_rule_refuses(
+    ~name="case: arms' bodies exchanged in place",
+    ~src=swap_src,
+    ~edit=
+      e =>
+        swap_first_two_rules(
+          ~what=`Bodies,
+          replace_int_lit(~from=3, ~to_=7, e),
+        ),
+    ~fresh=["f(b)"],
+  );
+
+/* Soundness: two applications of the same constructor exchange payloads,
+ * each keeping its own id. The cached node at z's application has a
+ * payload with another id, so only the tag may be claimed. */
+let test_ctr_payload_swapped_refused = () =>
+  check_flag_rule_refuses(
+    ~name="injection: payloads exchanged in place",
+    ~src=
+      "type T = A((Int, Int)) + B(Int) in
+let f : Int -> Int = fun n -> n * 2 in
+let z = A((3, 4)) in
+let w = A((5, 6)) in
+let r = case z | A(p) => p | B(c) => (c, c) end in
+let (a, b) = r in
+let q = ^^probe(f(b)) in
+a * 100 + q + w",
+    ~edit=swap_ctr_payloads,
+    ~fresh=["f(b)"],
+  );
+
+/* Soundness: two matches exchange scrutinees, each keeping its own id. */
+let test_case_scrutinees_swapped_refused = () =>
+  check_flag_rule_refuses(
+    ~name="case: scrutinees exchanged in place",
+    ~src=
+      "type T = A((Int, Int)) + B(Int) in
+let f : Int -> Int = fun n -> n * 2 in
+let z = A((3, 4)) in
+let w = A((5, 6)) in
+let r = case z | A(p) => p | B(c) => (c, c) end in
+let s = case w | A(p) => p | B(c) => (c, c) end in
+let (a, b) = r in
+let q = ^^probe(f(b)) in
+let (c, d) = s in
+a * 100 + q + c + d",
+    ~edit=swap_match_scrutinees,
+    ~fresh=["f(b)"],
+  );
+
+/* Copy-coherence only bites from the third run on, so walk edit sequences
+ * through injections and cases, tag renames included. */
+let test_ctr_sequences = () => {
+  check_sequence(
+    ~name="injection payload edited in turn",
+    ~src=
+      "type T = A((Int, Int)) + B(Int) in
+let z = A((1, 2)) in
+let r = case z | A(p) => p | B(c) => (c, c) end in
+let (a, b) = r in
+a * 100 + b",
+    ~edits=[lit(2, 7), lit(1, 9), lit(7, 2), lit(9, 1)],
+  );
+  check_sequence(
+    ~name="constructor renamed back and forth",
+    ~src=
+      "type T = A((Int, Int)) + B((Int, Int)) in
+let z = A((1, 2)) in
+let r = case z | A(p) => p | B(p) => let (x, y) = p in (y, x) end in
+let (a, b) = r in
+a * 100 + b",
+    ~edits=[
+      lit(1, 5),
+      rename_ctr_exp(~from="A", ~to_="B"),
+      lit(2, 8),
+      rename_ctr_exp(~from="B", ~to_="A"),
+      lit(5, 1),
+    ],
+  );
+  check_sequence(
+    ~name="nested injections",
+    ~src=
+      "type U = W(Int) + V in
+type T = A((U, Int)) + B(Int) in
+let z = A((W(1), 2)) in
+let r = case z | A(p) => p | B(c) => (V, c) end in
+let (u, b) = r in
+let k = case u | W(n) => n | V => 0 end in
+k * 100 + b",
+    ~edits=[lit(2, 7), lit(1, 9), lit(7, 3), lit(9, 4)],
+  );
+};
+
 let tests = (
   "IncrEval",
   [
@@ -2419,6 +2937,58 @@ let tests = (
     test_case("norm normalizes", `Quick, test_norm_normalizes),
     test_case("split", `Quick, test_split),
     test_case("pat_provenance opacity", `Quick, test_pat_provenance_opaque),
+    test_case("injection flag primitives", `Quick, test_ctr_flag_primitives),
+    test_case(
+      "pat_provenance under a constructor",
+      `Quick,
+      test_pat_provenance_ctr,
+    ),
+    test_case(
+      "injection: payload reaches the arm",
+      `Quick,
+      test_injection_payload_reaches_arm,
+    ),
+    test_case(
+      "case: taken arm's flag is the match's",
+      `Quick,
+      test_case_flag_first_arm,
+    ),
+    test_case(
+      "case: arm after rejecting arms",
+      `Quick,
+      test_case_flag_later_arm,
+    ),
+    test_case(
+      "case: an arm that inspects the payload",
+      `Quick,
+      test_case_flag_refuses_inspecting_arm,
+    ),
+    test_case(
+      "injection: constructor renamed in place",
+      `Quick,
+      test_ctr_tag_change_refused,
+    ),
+    test_case(
+      "case: arms' patterns exchanged in place",
+      `Quick,
+      test_case_patterns_swapped_refused,
+    ),
+    test_case(
+      "case: arms' bodies exchanged in place",
+      `Quick,
+      test_case_bodies_swapped_refused,
+    ),
+    test_case(
+      "injection: payloads exchanged in place",
+      `Quick,
+      test_ctr_payload_swapped_refused,
+    ),
+    test_case(
+      "case: scrutinees exchanged in place",
+      `Quick,
+      test_case_scrutinees_swapped_refused,
+    ),
+    test_case("injection/case edit sequences", `Quick, test_ctr_sequences),
     test_case(
       "probe under partly-clean tuple",
       `Quick,

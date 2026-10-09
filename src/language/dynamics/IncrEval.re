@@ -23,7 +23,18 @@ type flag =
    * some components and dirty in others. Kept normalized — `norm` collapses
    * an all-clean or all-dirty list — which is what lets the re-use check stay
    * a structural comparison of flags. */
-  | Parts(list(flag));
+  | Parts(list(flag))
+  /* The formalism's injection flags, tup(f, dirty) for inl and tup(dirty, f)
+   * for inr: the value is constructor `name` applied to a payload, in this
+   * run AND in the cached one, and the inner flag says which parts of the
+   * payload are clean. Hazel's constructors are named rather than left/right,
+   * so the tag is the name rather than a side.
+   *
+   * Ctr(name, Dirty) is deliberately not Dirty: it still claims the tag,
+   * which is what lets a `match` know which arm both runs took (the
+   * formalism keeps tup(dirty, dirty) apart from dirty for the same reason).
+   * Build it with `ctr`, never directly. */
+  | Ctr(string, flag);
 
 /* Build a tuple flag from its components, collapsing the uniform cases so
  * that flags stay normalized. */
@@ -36,6 +47,15 @@ let norm = (fs: list(flag)): flag =>
     Parts(fs);
   };
 
+/* Build an injection flag, keeping flags normalized: a clean payload under a
+ * tag that also agrees is a clean value, and has to be spelled Clean or the
+ * re-use check's structural comparison against an all-clean map refuses it. */
+let ctr = (name: string, payload: flag): flag =>
+  switch (payload) {
+  | Clean => Clean
+  | payload => Ctr(name, payload)
+  };
+
 /* The flag of one component of a value the flag `f` describes. A bare
  * clean/dirty flag applies to every component alike. */
 let split = (~arity: int, ~index: int, f: flag): flag =>
@@ -45,6 +65,20 @@ let split = (~arity: int, ~index: int, f: flag): flag =>
   | Parts(fs) when List.length(fs) == arity => List.nth(fs, index)
   /* The flag describes a differently shaped value than the pattern is
    * destructuring. Stay conservative rather than guess a correspondence. */
+  | Parts(_)
+  | Ctr(_) => Dirty
+  };
+
+/* The flag of the payload of a value the flag `f` describes, as seen through
+ * a pattern `name(p)` -- the formalism's fs.split.1 under caseL. An injection
+ * flag for a DIFFERENT constructor describes a value this pattern cannot
+ * have matched, so it says nothing about what the pattern bound. */
+let split_ctr = (~name: string, f: flag): flag =>
+  switch (f) {
+  | Clean => Clean
+  | Dirty => Dirty
+  | Ctr(name', payload) when name' == name => payload
+  | Ctr(_)
   | Parts(_) => Dirty
   };
 
@@ -53,7 +87,8 @@ let split = (~arity: int, ~index: int, f: flag): flag =>
  * sub-values sit, so it degrades to dirty. */
 let opaque = (f: flag): flag =>
   switch (f) {
-  | Parts(_) => Dirty
+  | Parts(_)
+  | Ctr(_) => Dirty
   | f => f
   };
 
@@ -473,9 +508,13 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Asc(p, _) => go([Ascribed, ...path], flag, p)
     | TupLabel(label, p) =>
       go([TupleLabel(pat_label(label)), ...path], flag, p)
+    /* The formalism's case rules bind x to fs.split.1 with path [L]: the
+     * payload's part of an injection flag, with a step recording that the
+     * binding sits under the constructor. */
     | Ap(ctr, p) =>
       switch (Pat.ctr_name(ctr)) {
-      | Some(name) => go([ConstructorArg(name), ...path], opaque(flag), p)
+      | Some(name) =>
+        go([ConstructorArg(name), ...path], split_ctr(~name, flag), p)
       | None => go(path, opaque(flag), p)
       }
     | Tuple(ps) =>
@@ -489,8 +528,8 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
            )
          )
       |> List.flatten;
-    /* Only tuples carry componentwise flags (see `exp_flag`), so list and
-     * cons patterns take the conservative reading of a component flag. */
+    /* Only tuples and constructors carry structured flags (see `exp_flag`),
+     * so list and cons patterns take the conservative reading of one. */
     | ListLit(ps) =>
       let arity = List.length(ps);
       ps
@@ -581,12 +620,156 @@ let clean_agree_on = (name: string, a: reuse_map, b: reuse_map): bool =>
   | (None, Some(_)) => false
   };
 
+/* `$`-named constructors stand for indeterminate values (Unboxing never
+ * matches them against a pattern), so no tag claim may be made for one. */
+let is_tag_constructor = (name: string): bool =>
+  !String.starts_with(~prefix="$", name);
+
+/* The payload of the constructor application cached at `id`, when the
+ * previous run really did cache an application of the SAME constructor
+ * there -- the formalism's kappa(c, i) = <inl i ec, ...>, where the node's
+ * kind is the tag. `None` means no tag claim can be made: nothing is cached
+ * there, or what is cached is some other expression, in particular another
+ * constructor, which is what retyping the constructor's name produces while
+ * the application's id survives. */
+let prev_ctr_payload =
+    (~prev: t('state), ~id: Id.t, name: string): option(Exp.t) =>
+  switch (Id.Map.find_opt(id, prev.entries)) {
+  | Some(entry) =>
+    switch (entry.prev_elab.term) {
+    | Ap(_, {term: Constructor(prev_name, _), _}, prev_arg)
+        when prev_name == name =>
+      Some(prev_arg)
+    | _ => None
+    }
+  | None => None
+  };
+
+/* The scrutinee and rules of the `match` cached at `id`, when the previous
+ * run really did cache a `match` there. */
+let prev_match =
+    (~prev: t('state), ~id: Id.t): option((Exp.t, list((Pat.t, Exp.t)))) =>
+  switch (Id.Map.find_opt(id, prev.entries)) {
+  | Some(entry) =>
+    switch (entry.prev_elab.term) {
+    | Match(prev_scrut, prev_rules) => Some((prev_scrut, prev_rules))
+    | _ => None
+    }
+  | None => None
+  };
+
+/* A pattern that matches every value, indeterminate ones included. */
+let rec matches_anything = (p: Pat.t): bool =>
+  switch (p.term) {
+  | Parens(p)
+  | Projector(_, p) => matches_anything(p)
+  | Var(_)
+  | Wild => true
+  | _ => false
+  };
+
+type arm_verdict =
+  | Accepts
+  | Rejects;
+
+/* What an arm's pattern does with a value whose tag is `name`, read off the
+ * pattern alone, the way PatternMatch.match_pattern would decide it. Only
+ * forms whose verdict does not depend on the payload get one: a pattern that
+ * looks inside the payload (`A(0)`, `A((a, b))`) can go either way -- or be
+ * indeterminate -- for a payload the tag flag says nothing about. */
+let rec arm_verdict_on_tag = (~name: string, p: Pat.t): option(arm_verdict) =>
+  switch (p.term) {
+  | Parens(p)
+  | Projector(_, p) => arm_verdict_on_tag(~name, p)
+  | _ when matches_anything(p) => Some(Accepts)
+  | Constructor(name', _) when name' != name => Some(Rejects)
+  | Ap(ctr, payload) =>
+    switch (Pat.ctr_name(ctr)) {
+    | Some(name') when name' != name => Some(Rejects)
+    | Some(_) when matches_anything(payload) => Some(Accepts)
+    | Some(_)
+    | None => None
+    }
+  | _ => None
+  };
+
+/* SEAM: which arm of a `match` was taken, decided without evaluating it.
+ *
+ * The formalism's case rule takes the flag of the branch actually taken and
+ * anchors it at the cached node's branch on the same side; with binary
+ * inl/inr a non-dirty scrutinee flag fixes the side for both runs. Hazel's
+ * `exp_flag` is a static prediction -- the pre-pass runs it before anything
+ * is evaluated -- and arms are chosen by first match over arbitrary
+ * patterns, so this returns the arms ONE of which is provably taken in this
+ * run and was taken, as the same arm, in the run that filled the cache. The
+ * caller claims a flag only if every one of them yields the same flag.
+ *
+ *  - An injection flag Ctr(name, _) says both values carry tag `name`. If
+ *    every arm before k rejects that tag outright and arm k accepts any
+ *    payload under it, arm k is taken in both runs -- provided the two runs'
+ *    patterns agree up to k. A single candidate.
+ *  - Clean says the two values are the same, and matching is deterministic,
+ *    so the same arm is taken in both runs if all the patterns agree --
+ *    but which one is unknown. Every arm is a candidate. In practice this
+ *    only claims anything for a single-arm match: an arm the cached run did
+ *    not take has no entry, so its flag is Dirty and the arms disagree.
+ *    (`ctr` normalises Ctr(name, Clean) to Clean, which is what loses the
+ *    tag here.)
+ *  - Anything else (Dirty, a tuple-shaped flag) fixes nothing.
+ *
+ * Recording the taken arm in the match's cache entry would make the Clean
+ * case useful, but needs a new entry field and plumbing from the step that
+ * picks the arm to the place the entry is written; this needs neither. */
+let match_arms_in_both_runs =
+    (
+      ~scrut_flag: flag,
+      ~prev_rules: list((Pat.t, Exp.t)),
+      rules: list((Pat.t, Exp.t)),
+    )
+    : option(list(int)) =>
+  switch (scrut_flag) {
+  | Ctr(name, _) =>
+    let rec first_accepting = (k, rules, prev_rules) =>
+      switch (rules, prev_rules) {
+      | ([(p, _), ...rules], [(prev_p, _), ...prev_rules])
+          when Pat.fast_equal(p, prev_p) =>
+        switch (arm_verdict_on_tag(~name, p)) {
+        | Some(Accepts) => Some([k])
+        | Some(Rejects) => first_accepting(k + 1, rules, prev_rules)
+        | None => None
+        }
+      | _ => None
+      };
+    first_accepting(0, rules, prev_rules);
+  | Clean =>
+    List.length(rules) == List.length(prev_rules)
+    && List.for_all2(
+         ((p, _), (prev_p, _)) => Pat.fast_equal(p, prev_p),
+         rules,
+         prev_rules,
+       )
+      ? Some(List.mapi((k, _) => k, rules)) : None
+  | Dirty
+  | Parts(_) => None
+  };
+
+/* The flag every candidate branch agrees on, or Dirty if they disagree:
+ * whichever one is taken, the claim is then that branch's own. */
+let agreed_flag = (fs: list(flag)): flag =>
+  switch (fs) {
+  | [f, ...rest] when List.for_all(g => g == f, rest) => f
+  | _ => Dirty
+  };
+
 /* Which parts of `e`'s value come from the cache.
  *
  * Without tuple flags this is the clean/dirty bit Hazel already used: the
  * whole value is clean exactly when the expression itself was re-used. With
  * them, section 8's Pair rule applies — a tuple is clean componentwise, so
- * editing one component leaves bindings projected from the others re-usable.
+ * editing one component leaves bindings projected from the others re-usable
+ * — and so do its injection and case rules: a constructor application keeps
+ * its payload's flag under its tag, and a `match` known to take the same
+ * arm in both runs reports that arm's flag.
  *
  * A variable reports the flag of its binding, which is how partial
  * cleanliness reaches a `let (p, q) = z`: the flag was computed when `z` was
@@ -683,6 +866,69 @@ let rec exp_flag =
         prov.flag
       | (Some(_) | None, Some(_) | None) => Dirty
       }
+    /* Section 8's inlFlag/inrFlag, for named constructors: the payload's
+     * flag survives, under the tag. Both guards are the `Tuple` ones again.
+     * The cached node at uid(e) must apply the SAME constructor, or its
+     * value carries another tag -- retyping the name keeps the id -- and the
+     * claim that both runs share a tag, which `match` arms are chosen by, is
+     * false. And the payload's flag is a claim about uid(arg), so it is
+     * carried only while the cached node's payload has that id (atNode);
+     * otherwise just the tag is. */
+    | Ap(_, {term: Constructor(name, _), _}, arg)
+        when is_tag_constructor(name) =>
+      switch (prev_ctr_payload(~prev, ~id=Exp.rep_id(e), name)) {
+      | Some(prev_arg) =>
+        ctr(
+          name,
+          Id.equal(Exp.rep_id(prev_arg), Exp.rep_id(arg))
+            ? recur(arg) : Dirty,
+        )
+      | None => Dirty
+      }
+    /* Section 8's caseFlagL/caseFlagR: the value of a `match` is its taken
+     * arm's, so the taken arm's flag is the match's -- anchored, as ever, at
+     * the cached node: it must be a `match` over the same scrutinee node,
+     * and the arm's flag is carried only while the cached match's arm in the
+     * same position has the same body id (atNode). Which arm that is is the
+     * seam `match_arms_in_both_runs`. The arm's body is flagged under the map
+     * the evaluator binds it under -- its pattern's names provenanced at the
+     * scrutinee with the scrutinee's flag -- or its own variables would be
+     * read off whatever they shadow. */
+    | Match(scrut, rules) =>
+      let scrut_flag = recur(scrut);
+      switch (prev_match(~prev, ~id=Exp.rep_id(e))) {
+      | Some((prev_scrut, prev_rules))
+          when
+            scrut_flag != Dirty
+            && Id.equal(Exp.rep_id(prev_scrut), Exp.rep_id(scrut)) =>
+        switch (match_arms_in_both_runs(~scrut_flag, ~prev_rules, rules)) {
+        | Some(arms) =>
+          arms
+          |> List.map(k => {
+               let (pat, body) = List.nth(rules, k);
+               let (_, prev_body) = List.nth(prev_rules, k);
+               Id.equal(Exp.rep_id(prev_body), Exp.rep_id(body))
+                 ? exp_flag(
+                     ~tuple_flags,
+                     ~prev,
+                     ~reused,
+                     ~reuse_map=
+                       with_pat_provenance(
+                         ~source_id=Exp.rep_id(scrut),
+                         ~flag=scrut_flag,
+                         pat,
+                         reuse_map,
+                       ),
+                     body,
+                   )
+                 : Dirty;
+             })
+          |> agreed_flag
+        | None => Dirty
+        }
+      | Some(_)
+      | None => Dirty
+      };
     | _ => Dirty
     };
   };
