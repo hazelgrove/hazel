@@ -617,19 +617,49 @@ let calculate =
             | Some(p) => p.items
             | None => []
             };
+          let clamped = Haz3lcore.DefStatics.clamp^;
           let ds =
-            Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
+            Haz3lcore.DefStatics.calc_auto(
+              ~settings,
+              ~propagate=!clamped,
+              ~probe_ids,
+              term,
+            );
+          /* W2 divided-mode sync: ship the assembled document (this is
+             the coherent segment/statics moment while divided; the
+             whole-program case ships before the eval batch below) */
+          switch (Divided.root(d)) {
+          | Exp
+          | Mod =>
+            ShadowResidency.on_master_statics(
+              ~key=ShadowResidency.master_key,
+              ~root=Divided.root(d),
+              ~settings,
+              spliced,
+              ds,
+            )
+          | _ => ()
+          };
           let statics =
             Haz3lcore.CachedStatics.{
               term,
               elaborated:
-                switch (Haz3lcore.DefStatics.whole_elab(ds)) {
-                | Some(elab) => elab
-                | None =>
-                  Haz3lcore.CachedStatics.dh_err(
-                    "Compositional elaboration gap",
-                  )
-                },
+                clamped
+                  /* worker-resident dynamics: sentinel keeps the
+                     eval-request cadence (see CachedStatics) */
+                  ? Haz3lcore.CachedStatics.dh_err(
+                      "w2-resident:"
+                      ++ string_of_int(Haz3lcore.DefStatics.semantic_gen^),
+                    )
+                  : (
+                    switch (Haz3lcore.DefStatics.whole_elab(ds)) {
+                    | Some(elab) => elab
+                    | None =>
+                      Haz3lcore.CachedStatics.dh_err(
+                        "Compositional elaboration gap",
+                      )
+                    }
+                  ),
               info_map: ds.merged,
               error_ids: Haz3lcore.DefStatics.all_error_ids(ds),
               warning_ids: Haz3lcore.DefStatics.all_warning_ids(ds),
@@ -912,6 +942,30 @@ let calculate =
       );
       Program.Divided(d);
     };
+  /* W2 whole-program sync: MUST ship before the eval batch posts — a
+     Resident eval references the worker's resident program, and
+     postMessage order is the only thing keeping it current (the divided
+     case ships at its statics site above) */
+  switch (program) {
+  | Whole(editor) =>
+    switch (editor.editor.editor.root) {
+    | Exp
+    | Mod =>
+      switch (Haz3lcore.DefStatics.cached(editor.editor.statics.term)) {
+      | Some(ds) =>
+        ShadowResidency.on_master_statics(
+          ~key=ShadowResidency.master_key,
+          ~root=editor.editor.editor.root,
+          ~settings,
+          editor.editor.editor.syntax.segment,
+          ds,
+        )
+      | None => ()
+      }
+    | _ => ()
+    }
+  | Divided(_) => ()
+  };
   let dispatch = (_key, action) =>
     schedule_action(CellAction(ResultAction(action)));
   EvalRequest.request(

@@ -113,6 +113,14 @@ let is_typ_bsum = is_nary(Any.is_typ, is_plus_form);
 let is_mod_seq = is_nary(Any.is_mod, is_semi_form);
 let is_sig_seq = is_nary(Any.is_sig, is_semi_form);
 
+/* Nodes SYNTHESIZED during derivation (wrappers with no tile of their
+   own) take ids DERIVED from their content, never Id.mk(): term
+   derivation must be a pure function of the segment — W2 residency
+   derives statics on both sides of the worker boundary, and random
+   minting forks them (gated by Test_DeriveDeterminism). */
+let derived = (tag: string, anchor: Id.t, tagged) =>
+  IdTagged.fast_copy(Id.mk_str(tag ++ Id.to_string(anchor)), tagged);
+
 /* Flatten a module term into a list of module items.
    Module sequences (from semicolons) are stored as MultiHole([Mod(m1), Mod(m2)])
    during parsing and need to be flattened into a proper list for Module(items).
@@ -125,8 +133,27 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
     |> List.map(
          fun
          | Grammar.Mod(m) => flatten_mod(m)
-         | Grammar.Exp(e) => [Mod.fresh(ModExp(e))]
-         | other => [Mod.fresh(ModExp(Exp.fresh(MultiHole([other]))))],
+         | Grammar.Exp(e) => [
+             derived("modexp-wrap", Exp.rep_id(e), Mod.fresh(ModExp(e))),
+           ]
+         | other => {
+             let anchor = Language.Any.rep_id(other);
+             [
+               derived(
+                 "modexp-multihole-wrap",
+                 anchor,
+                 Mod.fresh(
+                   ModExp(
+                     derived(
+                       "exp-multihole-wrap",
+                       anchor,
+                       Exp.fresh(MultiHole([other])),
+                     ),
+                   ),
+                 ),
+               ),
+             ];
+           },
        )
     |> List.flatten
   | ModLet(_, _)
@@ -148,7 +175,13 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
     |> List.map(
          fun
          | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
-         | other => [Sig.fresh(MultiHole([other]))],
+         | other => [
+             derived(
+               "sig-multihole-wrap",
+               Language.Any.rep_id(other),
+               Sig.fresh(MultiHole([other])),
+             ),
+           ],
        )
     |> List.flatten
   | SigLet(_)
@@ -755,8 +788,11 @@ and exp = unsorted => {
     switch (term) {
     | TupLabel(_) =>
       // The tile id is the id of the tuple not the tuplabel
+      let anchor = Exp.rep_id(e);
       let (e_term, rewrap) = IdTagged.unwrap(e);
-      rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
+      rewrap(
+        Tuple([derived("tuplabel-wrap", anchor, Exp.fresh(e_term))]): Exp.term,
+      );
     | _ => e
     };
   };
@@ -1156,7 +1192,8 @@ and pat = unsorted => {
 
   let p = return(p => Pat(p), ~lexeme, ids, term);
   switch (term) {
-  | TupLabel(_) => Tuple([p]) |> Pat.fresh
+  | TupLabel(_) =>
+    derived("pat-tuplabel-wrap", Pat.rep_id(p), Pat.fresh(Tuple([p])))
   | _ => p
   };
 }
@@ -1295,10 +1332,21 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | Label(_) => ret(TupLabel(l, r))
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
+          let anchor = Pat.rep_id(l);
           let (e_term, rewrap) = IdTagged.unwrap(l);
           ret(
             TupLabel(
-              rewrap(MultiHole([Pat(e_term |> Pat.fresh)]): Pat.term),
+              rewrap(
+                MultiHole([
+                  Pat(
+                    derived(
+                      "pat-label-multihole",
+                      anchor,
+                      Pat.fresh(e_term),
+                    ),
+                  ),
+                ]): Pat.term,
+              ),
               r,
             ),
           );
@@ -1946,7 +1994,9 @@ let go =
 /* a Mod-rooted editor's Module wrapper: statics/elab reuse and DefStatics'
    per-document slot key on its id, so it is derived from the first item's
    (stable per document, distinct across documents) */
-let empty_mod_wrap_id: Id.t = Id.mk();
+/* name-derived, never Id.mk(): DefStatics derives ids from this one, and
+   the worker's ResidentProgram must derive the same ids in its own bundle */
+let empty_mod_wrap_id: Id.t = Id.mk_str("mod-root-wrap");
 let wrap_module = (items: list(Mod.t)): Exp.t => {
   let id =
     switch (items) {

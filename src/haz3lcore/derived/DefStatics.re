@@ -1080,10 +1080,41 @@ let chain_root = (e: Exp.t): list(Exp.t) => {
    dirty names. a clean item (same head, d_free/d_tfree avoid the dirty
    sets) is reused; its map may keep stale ctx entries for dirty names it
    doesn't use, sound for typing though its Γ display can lag */
+/* [propagate=false] clamps downstream dirtying: items whose CONTENT
+   changed still re-analyze, but their export/type deltas seed no
+   dirty names — downstream items keep their previous (now stale)
+   results, with exports re-chained onto the new ctx so a later
+   analysis of any downstream item sees fresh upstream bindings. This
+   is the W2b main-thread mode: rename/type-edit cascades cost one
+   item here; the full propagation runs worker-side and lands async
+   (plans/w2-worker-residency.md §10-11). */
+/* TEMP instrumentation (paired with CachedStatics.prof) */
+let prof: ref(bool) = ref(false);
+let ptime = (label: string, f: unit => 'a): 'a =>
+  if (prof^) {
+    let t0 = Sys.time();
+    let x = f();
+    Printf.printf(
+      "[staticsProf]   calc.%-18s %6.1fms\n",
+      label,
+      (Sys.time() -. t0) *. 1000.,
+    );
+    x;
+  } else {
+    f();
+  };
+
 let calc =
-    (~settings, ~prev: option(t)=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+    (
+      ~settings,
+      ~propagate=true,
+      ~prev: option(t)=?,
+      ~probe_ids=Id.Map.empty,
+      whole: Exp.t,
+    )
+    : t => {
   last_analyzed := 0;
-  let nodes = chain_root(whole);
+  let nodes = ptime("chain_root", () => chain_root(whole));
   /* probe ids are an analysis input (witness stamping): only items whose
      maps contain a toggled probe id re-analyze */
   let probe_delta =
@@ -1105,213 +1136,261 @@ let calc =
     !Id.Map.is_empty(probe_delta)
     && Id.Map.exists((pid, ()) => Id.Map.mem(pid, p.d_map), probe_delta);
   let (items, merged) =
-    switch (prev) {
-    | None =>
-      /* cold: compute every item in chain order */
-      let (items_rev, _) =
-        List.fold_left(
-          ((acc, ctx), node) => {
-            let it = calc_item(~settings, ~probe_ids, ~ctx_in=ctx, node);
-            ([it, ...acc], it.d_ctx_out);
-          },
-          ([], ctx0),
-          nodes,
-        );
-      let items = List.rev(items_rev);
-      (
-        items,
-        List.fold_left(
-          (m, it) => map_union(m, it.d_map),
-          Id.Map.empty,
+    ptime("items+merged", () =>
+      switch (prev) {
+      | None =>
+        /* cold: compute every item in chain order */
+        let (items_rev, _) =
+          List.fold_left(
+            ((acc, ctx), node) => {
+              let it = calc_item(~settings, ~probe_ids, ~ctx_in=ctx, node);
+              ([it, ...acc], it.d_ctx_out);
+            },
+            ([], ctx0),
+            nodes,
+          );
+        let items = List.rev(items_rev);
+        (
           items,
-        ),
-      );
-    | Some(p) =>
-      /* align old and new items BY ID, so a restructure costs the changed
-         item plus downstream users of its exports. a moved item is popped
-         aside where it was and recomputed where it lands */
-      let prev_items = p.items;
-      let prev_merged = p.merged;
-      let node_ids =
-        List.fold_left(
-          (s, n) => Id.Set.add(Exp.rep_id(n), s),
-          Id.Set.empty,
-          nodes,
+          List.fold_left(
+            (m, it) => map_union(m, it.d_map),
+            Id.Map.empty,
+            items,
+          ),
         );
-      let prev_ids =
-        List.fold_left(
-          (s, q: item) => Id.Set.add(q.d_id, s),
-          Id.Set.empty,
-          prev_items,
-        );
-      let moved: ref(Id.Map.t(item)) = ref(Id.Map.empty);
-      /* keys written by items analyzed so far in this pass: a member moved
-         out of a module ahead of it keeps its ids, and removing the
-         module's old keys must not drop them */
-      let claimed: ref(Statics.Map.t) = ref(Id.Map.empty);
-      let remove_stale = (old: Statics.Map.t, m: Statics.Map.t) =>
-        Id.Map.fold(
-          (k, _, m) => Id.Map.mem(k, claimed^) ? m : Id.Map.remove(k, m),
-          old,
-          m,
-        );
-      /* (re)compute one node; [prev_it] is its previous version if any */
-      let run_dirty =
-          (
-            ~moved_in=false,
-            prev_it,
-            node,
-            ctx,
-            dirty_vars,
-            dirty_tnames,
-            merged,
-          ) => {
-        let it =
-          calc_item(
-            ~settings,
-            ~probe_ids,
-            ~probe_dirty,
-            ~prev=?prev_it,
-            ~dirty_vars,
-            ~dirty_tnames,
-            ~ctx_in=ctx,
-            node,
+      | Some(p) =>
+        /* align old and new items BY ID, so a restructure costs the changed
+           item plus downstream users of its exports. a moved item is popped
+           aside where it was and recomputed where it lands */
+        let prev_items = p.items;
+        let prev_merged = p.merged;
+        let node_ids =
+          List.fold_left(
+            (s, n) => Id.Set.add(Exp.rep_id(n), s),
+            Id.Set.empty,
+            nodes,
           );
-        let (p_exports, p_map) =
-          switch (prev_it) {
-          | Some(q) => (q.d_exports, q.d_map)
-          | None => ([], Id.Map.empty)
-          };
-        let delta = export_delta(p_exports, it.d_exports);
-        let (it, ctx_out) =
-          switch (prev_it, delta) {
-          | (Some(q), Unchanged) when ctx === q.d_ctx_in => (
-              {
-                ...it,
-                d_ctx_out: q.d_ctx_out,
-              },
-              q.d_ctx_out,
-            )
-          | _ => (it, it.d_ctx_out)
-          };
-        /* this item's exports shadow INCOMING dirty names; its own
-           delta is added after (it must not filter itself) */
-        let incoming = shadow_filter(it.d_exports, dirty_vars);
-        let incoming_t = tshadow(it.d_exports, dirty_tnames);
-        let (dirty_vars, dirty_tnames) =
-          seed_delta(delta, incoming, incoming_t);
-        /* a move changes shadowing order, so its names may resolve to a
-           different binder downstream: all its exports go dirty */
-        let (dirty_vars, dirty_tnames) =
-          if (moved_in) {
+        let prev_ids =
+          List.fold_left(
+            (s, q: item) => Id.Set.add(q.d_id, s),
+            Id.Set.empty,
+            prev_items,
+          );
+        let moved: ref(Id.Map.t(item)) = ref(Id.Map.empty);
+        /* keys written by items analyzed so far in this pass: a member moved
+           out of a module ahead of it keeps its ids, and removing the
+           module's old keys must not drop them */
+        let claimed: ref(Statics.Map.t) = ref(Id.Map.empty);
+        let remove_stale = (old: Statics.Map.t, m: Statics.Map.t) =>
+          Id.Map.fold(
+            (k, _, m) => Id.Map.mem(k, claimed^) ? m : Id.Map.remove(k, m),
+            old,
+            m,
+          );
+        /* (re)compute one node; [prev_it] is its previous version if any */
+        let run_dirty =
             (
-              List.sort_uniq(compare, names_of(it.d_exports) @ dirty_vars),
-              List.sort_uniq(
-                compare,
-                List.concat_map(tnames_of_entry, it.d_exports) @ dirty_tnames,
-              ),
-            );
-          } else {
-            (dirty_vars, dirty_tnames);
-          };
-        let dirty_tnames =
-          List.sort_uniq(
-            compare,
-            ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
-          );
-        let merged = remove_stale(p_map, merged);
-        claimed := map_union(claimed^, it.d_map);
-        (it, ctx_out, dirty_vars, dirty_tnames, map_union(merged, it.d_map));
-      };
-      let rec go = (ps, ns, acc, ctx, dirty_vars, dirty_tnames, merged) =>
-        switch (ps, ns) {
-        | (ps, []) =>
-          /* remaining prev items were deleted */
-          let merged =
-            List.fold_left(
-              (m, q: item) =>
-                Id.Set.mem(q.d_id, node_ids) ? m : remove_stale(q.d_map, m),
+              ~moved_in=false,
+              prev_it,
+              node,
+              ctx,
+              dirty_vars,
+              dirty_tnames,
               merged,
-              ps,
+            ) => {
+          let it =
+            calc_item(
+              ~settings,
+              ~probe_ids,
+              ~probe_dirty,
+              ~prev=?prev_it,
+              ~dirty_vars,
+              ~dirty_tnames,
+              ~ctx_in=ctx,
+              node,
             );
-          (List.rev(acc), merged);
-        | ([q, ...pt], _) when !Id.Set.mem(q.d_id, node_ids) =>
-          /* deleted: downstream loses its exports */
+          let (p_exports, p_map) =
+            switch (prev_it) {
+            | Some(q) => (q.d_exports, q.d_map)
+            | None => ([], Id.Map.empty)
+            };
+          let delta = export_delta(p_exports, it.d_exports);
+          let (it, ctx_out) =
+            switch (prev_it, delta) {
+            | (Some(q), Unchanged) when ctx === q.d_ctx_in => (
+                {
+                  ...it,
+                  d_ctx_out: q.d_ctx_out,
+                },
+                q.d_ctx_out,
+              )
+            | _ => (it, it.d_ctx_out)
+            };
+          /* this item's exports shadow INCOMING dirty names; its own
+             delta is added after (it must not filter itself) */
+          let incoming = shadow_filter(it.d_exports, dirty_vars);
+          let incoming_t = tshadow(it.d_exports, dirty_tnames);
           let (dirty_vars, dirty_tnames) =
-            seed_delta(
-              export_delta(q.d_exports, []),
-              dirty_vars,
-              dirty_tnames,
-            );
-          go(
-            pt,
-            ns,
-            acc,
-            ctx,
-            dirty_vars,
-            dirty_tnames,
-            remove_stale(q.d_map, merged),
-          );
-        | ([q, ...pt], [n, ..._])
-            when
-              q.d_id != Exp.rep_id(n)
-              && Id.Set.mem(Exp.rep_id(n), prev_ids)
-              && !Id.Map.mem(Exp.rep_id(n), moved^) =>
-          /* the node sits deeper in prev, so q moved later: pop it aside.
-             its exports go dirty for the span it crosses; its old map
-             stays in merged until the move-in replaces it */
-          moved := Id.Map.add(q.d_id, q, moved^);
+            propagate ? seed_delta(delta, incoming, incoming_t) : ([], []);
+          /* a move changes shadowing order, so its names may resolve to a
+             different binder downstream: all its exports go dirty */
           let (dirty_vars, dirty_tnames) =
-            seed_delta(
-              export_delta(q.d_exports, []),
-              dirty_vars,
-              dirty_tnames,
-            );
-          go(pt, ns, acc, ctx, dirty_vars, dirty_tnames, merged);
-        | (ps, [n, ...nt]) =>
-          let nid = Exp.rep_id(n);
-          switch (ps) {
-          | [q, ...pt] when q.d_id == nid =>
-            /* aligned head */
-            let clean =
-              head_equal(q.d_node, n)
-              && !stale(q, dirty_vars, dirty_tnames)
-              && !probe_dirty(q);
-            if (clean) {
-              let (it, ctx_out) =
-                ctx === q.d_ctx_in
-                  ? (q, q.d_ctx_out)
-                  /* upstream changed only names this item doesn't use:
-                     re-chain its exports without re-running statics */
-                  : {
-                    let ctx_out = Ctx.prepend_entries(ctx, q.d_exports);
-                    (
-                      {
-                        ...q,
-                        d_ctx_in: ctx,
-                        d_ctx_out: ctx_out,
-                      },
-                      ctx_out,
-                    );
-                  };
-              let incoming_t = tshadow(it.d_exports, dirty_tnames);
-              go(
-                pt,
-                nt,
-                [it, ...acc],
-                ctx_out,
-                shadow_filter(it.d_exports, dirty_vars),
+            if (moved_in && propagate) {
+              (
+                List.sort_uniq(compare, names_of(it.d_exports) @ dirty_vars),
                 List.sort_uniq(
                   compare,
-                  ttransit(it.d_exports, incoming_t) @ incoming_t,
+                  List.concat_map(tnames_of_entry, it.d_exports)
+                  @ dirty_tnames,
                 ),
-                merged,
               );
             } else {
+              (dirty_vars, dirty_tnames);
+            };
+          let dirty_tnames =
+            propagate
+              ? List.sort_uniq(
+                  compare,
+                  ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
+                )
+              : dirty_tnames;
+          let merged = remove_stale(p_map, merged);
+          claimed := map_union(claimed^, it.d_map);
+          (
+            it,
+            ctx_out,
+            dirty_vars,
+            dirty_tnames,
+            map_union(merged, it.d_map),
+          );
+        };
+        let rec go = (ps, ns, acc, ctx, dirty_vars, dirty_tnames, merged) =>
+          switch (ps, ns) {
+          | (ps, []) =>
+            /* remaining prev items were deleted */
+            let merged =
+              List.fold_left(
+                (m, q: item) =>
+                  Id.Set.mem(q.d_id, node_ids)
+                    ? m : remove_stale(q.d_map, m),
+                merged,
+                ps,
+              );
+            (List.rev(acc), merged);
+          | ([q, ...pt], _) when !Id.Set.mem(q.d_id, node_ids) =>
+            /* deleted: downstream loses its exports */
+            let (dirty_vars, dirty_tnames) =
+              propagate
+                ? seed_delta(
+                    export_delta(q.d_exports, []),
+                    dirty_vars,
+                    dirty_tnames,
+                  )
+                : (dirty_vars, dirty_tnames);
+            go(
+              pt,
+              ns,
+              acc,
+              ctx,
+              dirty_vars,
+              dirty_tnames,
+              remove_stale(q.d_map, merged),
+            );
+          | ([q, ...pt], [n, ..._])
+              when
+                q.d_id != Exp.rep_id(n)
+                && Id.Set.mem(Exp.rep_id(n), prev_ids)
+                && !Id.Map.mem(Exp.rep_id(n), moved^) =>
+            /* the node sits deeper in prev, so q moved later: pop it aside.
+               its exports go dirty for the span it crosses; its old map
+               stays in merged until the move-in replaces it */
+            moved := Id.Map.add(q.d_id, q, moved^);
+            let (dirty_vars, dirty_tnames) =
+              propagate
+                ? seed_delta(
+                    export_delta(q.d_exports, []),
+                    dirty_vars,
+                    dirty_tnames,
+                  )
+                : (dirty_vars, dirty_tnames);
+            go(pt, ns, acc, ctx, dirty_vars, dirty_tnames, merged);
+          | (ps, [n, ...nt]) =>
+            let nid = Exp.rep_id(n);
+            switch (ps) {
+            | [q, ...pt] when q.d_id == nid =>
+              /* aligned head */
+              let clean =
+                head_equal(q.d_node, n)
+                && !stale(q, dirty_vars, dirty_tnames)
+                && !probe_dirty(q);
+              if (clean) {
+                let (it, ctx_out) =
+                  ctx === q.d_ctx_in
+                    ? (q, q.d_ctx_out)
+                    /* upstream changed only names this item doesn't use:
+                       re-chain its exports without re-running statics */
+                    : {
+                      let ctx_out = Ctx.prepend_entries(ctx, q.d_exports);
+                      (
+                        {
+                          ...q,
+                          d_ctx_in: ctx,
+                          d_ctx_out: ctx_out,
+                        },
+                        ctx_out,
+                      );
+                    };
+                let incoming_t = tshadow(it.d_exports, dirty_tnames);
+                go(
+                  pt,
+                  nt,
+                  [it, ...acc],
+                  ctx_out,
+                  shadow_filter(it.d_exports, dirty_vars),
+                  List.sort_uniq(
+                    compare,
+                    ttransit(it.d_exports, incoming_t) @ incoming_t,
+                  ),
+                  merged,
+                );
+              } else {
+                let (it, ctx_out, dirty_vars, dirty_tnames, merged) =
+                  run_dirty(
+                    Some(q),
+                    n,
+                    ctx,
+                    dirty_vars,
+                    dirty_tnames,
+                    merged,
+                  );
+                go(
+                  pt,
+                  nt,
+                  [it, ...acc],
+                  ctx_out,
+                  dirty_vars,
+                  dirty_tnames,
+                  merged,
+                );
+              };
+            | _ =>
+              let (prev_it, moved_in) =
+                switch (Id.Map.find_opt(nid, moved^)) {
+                | Some(q) => (Some(q), true)
+                | None => (None, false) /* inserted */
+                };
               let (it, ctx_out, dirty_vars, dirty_tnames, merged) =
-                run_dirty(Some(q), n, ctx, dirty_vars, dirty_tnames, merged);
+                run_dirty(
+                  ~moved_in,
+                  prev_it,
+                  n,
+                  ctx,
+                  dirty_vars,
+                  dirty_tnames,
+                  merged,
+                );
               go(
-                pt,
+                ps,
                 nt,
                 [it, ...acc],
                 ctx_out,
@@ -1320,36 +1399,21 @@ let calc =
                 merged,
               );
             };
-          | _ =>
-            let (prev_it, moved_in) =
-              switch (Id.Map.find_opt(nid, moved^)) {
-              | Some(q) => (Some(q), true)
-              | None => (None, false) /* inserted */
-              };
-            let (it, ctx_out, dirty_vars, dirty_tnames, merged) =
-              run_dirty(
-                ~moved_in,
-                prev_it,
-                n,
-                ctx,
-                dirty_vars,
-                dirty_tnames,
-                merged,
-              );
-            go(
-              ps,
-              nt,
-              [it, ...acc],
-              ctx_out,
-              dirty_vars,
-              dirty_tnames,
-              merged,
-            );
           };
-        };
-      go(prev_items, nodes, [], ctx0, [], [], prev_merged);
-    };
-  let merged = fix_spine_infos(~probe_ids, items, merged);
+        go(prev_items, nodes, [], ctx0, [], [], prev_merged);
+      }
+    );
+  if (prof^) {
+    Printf.printf(
+      "[staticsProf]   calc.analyzed=%d items=%d\n",
+      last_analyzed^,
+      List.length(items),
+    );
+  };
+  let merged =
+    ptime("fix_spine_infos", () =>
+      fix_spine_infos(~probe_ids, items, merged)
+    );
   /* a Module root's items read as module items, as monolithically */
   let merged =
     switch (strip(whole).term) {
@@ -1411,6 +1475,18 @@ let all_warning_ids = (t: t): list(Id.t) => {
 /* set by the test runner to check each calc_auto result */
 let after_calc: ref(option((CoreSettings.t, t) => unit)) = ref(None);
 
+/* W2b main-thread mode: clamp downstream propagation (set by the web
+   layer's flip toggle; see CachedStatics.init_compositional_term).
+   TOGGLE-OFF MUST BUST THE CACHE — a clamped chain records fresh
+   exports without having propagated them, so a later incremental calc
+   cannot recover the missed dirt (Test_PropagateClamp). */
+let clamp: ref(bool) = ref(false);
+
+/* increments only when a calc actually re-analyzed something (caret
+   motion and identical reparses stay clean): the clamped mode's
+   eval-request trigger */
+let semantic_gen: ref(int) = ref(0);
+
 /* the last calc per document (LRU), so switching documents doesn't force
    a cold pass; keyed by the term's rep id, stable unless the first item
    is replaced */
@@ -1418,11 +1494,28 @@ let slots: Hashtbl.t(Id.t, t) = Hashtbl.create(8);
 let slots_mru: ref(list(Id.t)) = ref([]);
 let slots_cap = 8;
 
-let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+/* bust every cache calc_auto can read from — flip toggles must not
+   leave clamped chains reusable (Test_PropagateClamp: a clamped chain
+   cannot be caught up incrementally) */
+let reset_caches = (): unit => {
+  Hashtbl.reset(slots);
+  slots_mru := [];
+};
+
+/* update the keyed entry a graft rewrote: the next calc_auto takes its
+   prev from [slots], so the graft survives an ordinary recalculation */
+let replace_slot_entry = (t: t): unit =>
+  Hashtbl.replace(slots, Exp.rep_id(t.term), t);
+
+let calc_auto =
+    (~settings, ~propagate=true, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   /* a probe change keeps the slot: calc re-analyzes just the affected items */
   let key = Exp.rep_id(whole);
   let prev = Hashtbl.find_opt(slots, key);
-  let t = calc(~settings, ~prev?, ~probe_ids, whole);
+  let t = calc(~settings, ~propagate, ~prev?, ~probe_ids, whole);
+  if (last_analyzed^ > 0 || prev == None) {
+    incr(semantic_gen);
+  };
   Hashtbl.replace(slots, key, t);
   slots_mru := [key, ...List.filter(k => k != key, slots_mru^)];
   switch (Util.ListUtil.split_n_opt(slots_cap, slots_mru^)) {
@@ -1431,7 +1524,10 @@ let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
     slots_mru := keep;
   | _ => ()
   };
-  Option.iter(check => check(settings, t), after_calc^);
+  /* a clamped result is stale downstream by design: nothing to check */
+  if (propagate) {
+    Option.iter(check => check(settings, t), after_calc^);
+  };
   t;
 };
 
