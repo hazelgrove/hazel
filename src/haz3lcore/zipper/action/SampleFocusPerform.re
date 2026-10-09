@@ -44,7 +44,7 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
           opened: Some(data.step_start),
         }),
       indicated_call:
-        id != None ? id : z.refractors.sample_focus.indicated_call,
+        Option.is_some(id) ? id : z.refractors.sample_focus.indicated_call,
       call_stack:
         switch (id) {
         | Some(ap_id) =>
@@ -142,8 +142,8 @@ let resolve_pending_focus =
     (z: Zipper.t, samples: list(Sample.t), target_stack: CallStack.t)
     : Zipper.t => {
   let matching_sample =
-    List.find_opt(
-      (s: Sample.t) => CallStack.equal(s.call_stack, target_stack),
+    List.find(
+      ~f=(s: Sample.t) => CallStack.equal(s.call_stack, target_stack),
       samples,
     );
   switch (matching_sample) {
