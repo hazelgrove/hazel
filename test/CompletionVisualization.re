@@ -80,7 +80,7 @@ let mockup = (seg: Segment.t): string => {
   let result = CanonicalCompletion.for_editor(seg);
   let insertions = result.insertions;
 
-  if (List.length(insertions) == 0) {
+  if (List.is_empty(insertions)) {
     /* No completions needed - return original */
     original_text;
   } else {
