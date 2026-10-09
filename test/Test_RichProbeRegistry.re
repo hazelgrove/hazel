@@ -194,15 +194,15 @@ let registry_tests = [
         };
       check(
         bool,
-        "4 rows on the line",
+        "2 rows on the line",
         true,
-        ProbeProj.fits_chip(~display=Inline, livelit, 4),
+        ProbeProj.fits_chip(~display=Inline, livelit, 2),
       );
       check(
         bool,
-        "5 rows on the line",
+        "3 rows on the line",
         false,
-        ProbeProj.fits_chip(~display=Inline, livelit, 5),
+        ProbeProj.fits_chip(~display=Inline, livelit, 3),
       );
       check(
         bool,
@@ -225,9 +225,9 @@ let registry_tests = [
       );
       check(
         bool,
-        "3 rows on the line",
+        "2 rows on the line",
         true,
-        ProbeProj.fits_chip(~display=Inline, live_renderer, 3),
+        ProbeProj.fits_chip(~display=Inline, live_renderer, 2),
       );
     },
   ),

@@ -19,8 +19,8 @@ type view_label = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type room = UserLivelit.room;
 
-/* The lines a view has on the line */
-let lines_on_line = 4;
+/* The lines a view has on the line: two, as a hand of cards needs */
+let lines_on_line = 2;
 
 /* A rich probe renderer: a domain-specific view of probed values.
    - value: the parsed representation; `parse` succeeding means the

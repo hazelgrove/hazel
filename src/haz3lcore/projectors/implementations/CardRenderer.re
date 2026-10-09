@@ -52,10 +52,11 @@ let auto_applies = (v: value): bool =>
   | Card(_) => true
   };
 
-/* Card sprites are 47px tall (~3 editor rows); a hand fans in one row
-   of cards regardless of count. */
+/* Card sprites are 47px tall: two editor rows on the line, which a hand
+   fans along in one row of cards regardless of count; the drawer gives
+   them four. */
 let drawer_rows = (_: model, _: value): int => 4;
-let line_rows = drawer_rows;
+let line_rows = (_: model, _: value): int => 2;
 
 let views = (v: value): list(model) => [init(v)];
 let label = (_: model, _: value): RichProbe.view_label => {

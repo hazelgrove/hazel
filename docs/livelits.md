@@ -93,8 +93,8 @@ let view(m: Model, ctx: ViewContext): HTML =
   later.
 - `Free`: the view sizes itself, by its `shape`: at its literal, and in a
   probe's drawer, which reserves the shape's lines.
-- `Lines(lines, columns)`: a probe sample on the line, which has the
-  line's 4 lines and the sample's width: the budget its text is
+- `Lines(lines, columns)`: a probe sample on the line, which has two
+  lines (`Lines(2, columns)`) and the sample's width: the budget its text is
   abbreviated to (12 columns a sample in Many mode, 150 in One), so
   resizing the sample (Shift+drag, Shift+arrows) resizes the room. The
   view is clipped to this room, fading out at an edge it overflows. A view
@@ -156,14 +156,14 @@ let ^trace = {
   element views.
 - **Display.** Views are read-only: their handlers dispatch nothing, and a
   view that takes a `ViewContext` is told `editable=false`, with room
-  `Lines(4, columns)` in a sample chip on the line and `Free` in the
+  `Lines(2, columns)` in a sample chip on the line and `Free` in the
   drawer. With Rich Views on (the probe sidebar toggle, on by default), a
   view is embedded in each sample on the line when it fits the line's room
-  (it takes the context, or its `shape` is at most 4 lines tall; `Inline`
-  is 1), and is clipped to that room there; otherwise it is drawn in each
-  sample the probe's drawer shows when it is open (the drawer keeps its
-  layout: the count badge, then one sample or all of them, by the samples
-  toggle).
+  (it takes the context, or its `shape` is at most 2 lines tall; `Inline`
+  is 1; a hand of cards takes 2), and is clipped to that room there;
+  otherwise it is drawn in each sample the probe's drawer shows when it is
+  open (the drawer keeps its layout: the count badge, then one sample or
+  all of them, by the samples toggle).
 - **View as.** The sample menu's action bar names the view the sample is
   drawn with (its badge and name; a livelit as written, `^name`) and opens
   a list of the views that apply: Text, then the views in the order Hazel
