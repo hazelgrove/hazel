@@ -10,8 +10,9 @@ open Language;
    use site. The livelit rebuilds a display model from the value through
    its `wrap : Expansion -> Model` member (or, when Model IS the expansion
    type, the value itself). Inert: handlers in the view dispatch nothing,
-   and a view that takes a ViewContext is told it is not editable and
-   whether it draws offside or in the drawer.
+   and a view that takes a ViewContext is told it is not editable, and its
+   room (UserLivelit.room): the line's lines and the sample's width in a
+   chip on the line, Free in the drawer.
 
    Resolution: the livelits in the probed site's ctx, innermost binding
    first; the first whose expansion type is the site's type by name (see
@@ -26,19 +27,27 @@ open Language;
 type model = option(string);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action = unit;
+/* A livelit that draws the value, and the lines it takes: where its room is
+   Free (its shape's, in the drawer) and in a chip on the line, where a
+   view told its room fits itself into the line's (line_rows_of) */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type drawn = {
+  name: string,
+  rows: int,
+  line_rows: int,
+};
 [@deriving (show({with_path: false}), sexp, yojson)]
 type value = {
-  ll_name: string,
-  rows: int, /* the livelit's own block height, for the drawer */
+  first: drawn,
   raw: Exp.t, /* the raw sample term: the render memo's key */
   /* a LIST of the livelit's type: each element renders through the
      livelit, in a row (Garden = [Plant] shows a row of plants) */
   [@default false]
   as_list: bool,
   /* the other livelits whose views render the value, in the same order
-     (innermost first), with their rows */
+     (innermost first) */
   [@default []]
-  alts: list((string, int)),
+  alts: list(drawn),
 };
 
 let update = (m: model, _: action) => m;
@@ -194,19 +203,20 @@ let model_of =
     Typ.equal_up_to_aliases(ctx, ll.model_t, ll.expansion_t) ? Some(v) : None
   };
 
-/* (sample, livelit definition, place) -> rendered html. Keyed on the RAW
+/* (sample, livelit definition, room) -> rendered html. Keyed on the RAW
    sample term (a stable object across renders); parse and render both go
    through here, so a value is admitted only if its view really renders
-   (offside, the place parse checks). The definition is in the key, so an
-   edit to the livelit redraws its samples. A livelit use's own stream
-   mixes its HTML view samples with its values — HTML is never wrapped,
-   and a view that comes back stuck (a wrap on the wrong shape) is
-   rejected. */
+   (in Free room, the one parse checks). The definition is in the key, so
+   an edit to the livelit redraws its samples, and so is the room of a view
+   told its room (a one-argument view draws the same in every room). A
+   livelit use's own stream mixes its HTML view samples with its values —
+   HTML is never wrapped, and a view that comes back stuck (a wrap on the
+   wrong shape) is rejected. */
 type html_key = {
   raw: Exp.t,
   def: Exp.t,
   name: string,
-  place: UserLivelit.place,
+  room: UserLivelit.room,
 };
 let html_memo: ref(list((html_key, option(Exp.t)))) = ref([]);
 /* by identity, else by value: a re-evaluation hands out fresh sample
@@ -217,7 +227,7 @@ let same = (a: Exp.t, b: Exp.t): bool => a === b || Exp.fast_equal(a, b);
 let html_of =
     (
       ~ctx,
-      ~place: UserLivelit.place=Offside,
+      ~room: UserLivelit.room=UserLivelit.Free,
       ll: LivelitCtx.raw_livelit,
       raw: Exp.t,
     )
@@ -225,11 +235,12 @@ let html_of =
   switch (ll.user_def) {
   | None => None
   | Some(def_elab) =>
+    let room: UserLivelit.room = ll.view_takes_ctx ? room : UserLivelit.Free;
     switch (
       List.find_opt(
         ((k, _)) =>
           k.name == ll.name
-          && k.place == place
+          && k.room == room
           && same(k.raw, raw)
           && same(k.def, def_elab),
         html_memo^,
@@ -260,7 +271,8 @@ let html_of =
                     view,
                     UserLivelit.view_arg(
                       ~takes_ctx=ll.view_takes_ctx,
-                      ~place,
+                      ~editable=false,
+                      ~room,
                       m,
                     ),
                   ),
@@ -287,14 +299,14 @@ let html_of =
               raw,
               def: def_elab,
               name: ll.name,
-              place,
+              room,
             },
             h,
           ),
           ...ListUtil.take(95, html_memo^),
         ];
       h;
-    }
+    };
   };
 
 let rows_of = (ll: LivelitCtx.raw_livelit): int =>
@@ -303,6 +315,20 @@ let rows_of = (ll: LivelitCtx.raw_livelit): int =>
   | Tab(n)
   | Block(n) => n + 1
   };
+
+/* On the line a view told its room fits itself into the line's lines, so
+   it is drawn there whatever its shape; a one-argument view is as tall as
+   its shape, and waits for the drawer if that is taller than the line's
+   room. */
+let line_rows_of = (ll: LivelitCtx.raw_livelit): int =>
+  ll.view_takes_ctx
+    ? min(rows_of(ll), RichProbe.lines_on_line) : rows_of(ll);
+
+let drawn = (ll: LivelitCtx.raw_livelit): drawn => {
+  name: ll.name,
+  rows: rows_of(ll),
+  line_rows: line_rows_of(ll),
+};
 
 /* the elements of a list value (closed), if it is one */
 let list_elems = (exp: Exp.t): option(list(Exp.t)) =>
@@ -318,15 +344,10 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
       switch (lls) {
       | [ll, ...others] =>
         Some({
-          ll_name: ll.name,
-          rows: rows_of(ll),
+          first: drawn(ll),
           raw: exp,
           as_list,
-          alts:
-            List.map(
-              (ll: LivelitCtx.raw_livelit) => (ll.name, rows_of(ll)),
-              others,
-            ),
+          alts: List.map(drawn, others),
         })
       | [] => None
       };
@@ -358,24 +379,23 @@ let parse = (~statics, sort: Sort.t, exp: Exp.t): option(value) =>
    one), so a match is always real evidence for an automatic pick. */
 let auto_applies = (_: value): bool => true;
 
-/* The livelit a model draws a value with, and its rows: the chosen one
-   while it still renders the value, else the first */
-let chosen = (m: model, v: value): (string, int) =>
+/* The livelit a model draws a value with: the chosen one while it still
+   renders the value, else the first */
+let chosen = (m: model, v: value): drawn =>
   switch (m) {
-  | Some(name) when name != v.ll_name =>
-    switch (List.assoc_opt(name, v.alts)) {
-    | Some(rows) => (name, rows)
-    | None => (v.ll_name, v.rows)
+  | Some(name) =>
+    switch (List.find_opt((d: drawn) => d.name == name, v.alts)) {
+    | Some(d) => d
+    | None => v.first
     }
-  | _ => (v.ll_name, v.rows)
+  | None => v.first
   };
 
-let drawer_rows = (m: model, v: value): int => snd(chosen(m, v));
+let drawer_rows = (m: model, v: value): int => chosen(m, v).rows;
+let line_rows = (m: model, v: value): int => chosen(m, v).line_rows;
 
-let views = (v: value): list(model) => [
-  Some(v.ll_name),
-  ...List.map(((name, _)) => Some(name), v.alts),
-];
+let views = (v: value): list(model) =>
+  List.map((d: drawn) => Some(d.name), [v.first, ...v.alts]);
 
 /* A livelit offered on request that draws the value, by name */
 let requested =
@@ -402,8 +422,7 @@ let parse_chosen = (~statics, sort: Sort.t, exp: Exp.t, m: model) => {
     switch (requested(~statics, sort, exp, name)) {
     | Some(ll) =>
       Some({
-        ll_name: name,
-        rows: rows_of(ll),
+        first: drawn(ll),
         raw: exp,
         as_list: false,
         alts: [],
@@ -433,7 +452,7 @@ let on_request = (~statics, sort: Sort.t, exp: Exp.t): list(model) =>
 
 /* named as written, in the code font */
 let label = (m: model, v: value): RichProbe.view_label => {
-  name: "^" ++ fst(chosen(m, v)),
+  name: "^" ++ chosen(m, v).name,
   code: true,
 };
 
@@ -447,11 +466,11 @@ let render =
       ~local as _: action => Ui_effect.t(unit),
       ~parent as _: external_action => Ui_effect.t(unit),
       ~sort as _: Sort.t,
-      ~place: RichProbe.place,
+      ~room: RichProbe.room,
       _: unit,
     )
     : Node.t => {
-  let (ll_name, _) = chosen(model, value);
+  let ll_name = chosen(model, value).name;
   let view_term = term =>
     Exp(term) |> info.utility.term_to_seg(~inline=true) |> view_seg(Exp);
   let seed: HazelDOM.t = {
@@ -464,19 +483,29 @@ let render =
     | Some((ctx, _)) =>
       switch (Ctx.lookup_livelit(ctx, ll_name)) {
       | Some(ll) when value.as_list =>
-        Option.bind(list_elems(value.raw), items =>
-          List.fold_right(
-            (it, acc) =>
-              switch (acc, html_of(~ctx, ~place, ll, it)) {
-              | (Some(hs), Some(h)) => Some([h, ...hs])
-              | _ => None
-              },
-            items,
-            Some([]),
-          )
+        Option.bind(
+          list_elems(value.raw),
+          items => {
+            /* the row's elements share the sample's width */
+            let room: RichProbe.room =
+              switch (room) {
+              | UserLivelit.Lines(lines, cols) =>
+                UserLivelit.Lines(lines, max(1, cols / List.length(items)))
+              | UserLivelit.Free => UserLivelit.Free
+              };
+            List.fold_right(
+              (it, acc) =>
+                switch (acc, html_of(~ctx, ~room, ll, it)) {
+                | (Some(hs), Some(h)) => Some([h, ...hs])
+                | _ => None
+                },
+              items,
+              Some([]),
+            );
+          },
         )
       | Some(ll) =>
-        Option.map(h => [h], html_of(~ctx, ~place, ll, value.raw))
+        Option.map(h => [h], html_of(~ctx, ~room, ll, value.raw))
       | None => None
       }
     | _ => None

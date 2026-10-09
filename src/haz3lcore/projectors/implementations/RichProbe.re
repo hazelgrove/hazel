@@ -12,11 +12,15 @@ type view_label = {
   code: bool,
 };
 
-/* Where a rendering is drawn: offside (a sample chip at the end of the
-   line) or in the probe's drawer. Livelit views are told (see
-   UserLivelit.place). */
+/* How much room a rendering has: Free in the probe's drawer, where it
+   sizes itself, and Lines(lines, columns) in a sample chip on the line
+   (lines_on_line, and the sample's width), where it is clipped to that
+   room. Livelit views are told (see UserLivelit.room). */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type place = UserLivelit.place;
+type room = UserLivelit.room;
+
+/* The lines a view has on the line */
+let lines_on_line = 4;
 
 /* A rich probe renderer: a domain-specific view of probed values.
    - value: the parsed representation; `parse` succeeding means the
@@ -60,6 +64,9 @@ module type RichProbe = {
   /* Height in editor rows when the rendering replaces the sample view in
      the drawer, so the framework can reserve the right number of lines. */
   let drawer_rows: (model, value) => int;
+  /* Height in editor rows in a sample chip on the line: the view goes
+     there if this is at most lines_on_line, else it waits for the drawer */
+  let line_rows: (model, value) => int;
 
   /* The views this renderer offers for a value, as the models that select
      them, in the order an automatic pick prefers them (its pick is the
@@ -81,7 +88,7 @@ module type RichProbe = {
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort: Sort.t,
-      ~place: place,
+      ~room: room,
       unit
     ) =>
     Node.t;
@@ -126,6 +133,14 @@ type packed_renderer = {
       Exp.t
     ) =>
     option(int),
+  line_rows:
+    (
+      ~statics: option(Info.t),
+      ~model: option(packed_model),
+      Sort.t,
+      Exp.t
+    ) =>
+    option(int),
   /* the views offered for a value, each named and with its model */
   views:
     (~statics: option(Info.t), Sort.t, Exp.t) =>
@@ -147,7 +162,7 @@ type packed_renderer = {
       ~local: packed_action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort: Sort.t,
-      ~place: place,
+      ~room: room,
       unit
     ) =>
     option(Node.t),
@@ -229,6 +244,15 @@ let pack_renderer =
         R.parse(~statics, sort, exp)
         |> Option.map(v => R.drawer_rows(R.init(v), v))
       },
+    line_rows: (~statics, ~model, sort, exp) =>
+      switch (Option.bind(model, cast_model)) {
+      | Some(m) =>
+        R.parse_chosen(~statics, sort, exp, m)
+        |> Option.map(v => R.line_rows(m, v))
+      | None =>
+        R.parse(~statics, sort, exp)
+        |> Option.map(v => R.line_rows(R.init(v), v))
+      },
     views: (~statics, sort, exp) =>
       switch (R.parse(~statics, sort, exp)) {
       | Some(v) =>
@@ -258,7 +282,7 @@ let pack_renderer =
       | _ => pm
       },
     render_model:
-      (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ~place, ()) =>
+      (pm, ~info, ~exp, ~view_seg, ~local, ~parent, ~sort, ~room, ()) =>
       switch (
         Option.bind(cast_model(pm), m =>
           R.parse_chosen(~statics=info.statics, sort, exp, m)
@@ -276,7 +300,7 @@ let pack_renderer =
             ~local=a => local(PAction(id, action_id, a)),
             ~parent,
             ~sort,
-            ~place,
+            ~room,
             (),
           ),
         )

@@ -393,8 +393,8 @@ let pretty_seg_of_value =
 
 /* rich content at most this many rows renders IN the offside row;
    taller content lives in the drawer instead (an explicit activation
-   auto-opens it) */
-let inline_rows_cap = 4;
+   auto-opens it). It is the room a view has on the line. */
+let inline_rows_cap = RichProbe.lines_on_line;
 
 /* The table replaces the drawer's samples with one table, the indicated
    sample's: its column menus act on that one value. Every other view
@@ -404,8 +404,9 @@ let inline_rows_cap = 4;
 let fills_drawer = (r: packed_renderer): bool => r.id == "table";
 
 /* Whether a view `rows` rows tall goes in a sample chip: on the line, if
-   it fits inline_rows_cap; in the drawer, which reserves the view's rows,
-   at any height, unless the view fills the drawer instead. */
+   it fits inline_rows_cap (rows on the line: a view told its room fits
+   itself into it); in the drawer, which reserves the view's rows, at any
+   height, unless the view fills the drawer instead. */
 let fits_chip =
     (~display: sample_display, r: packed_renderer, rows: int): bool =>
   rows <= inline_rows_cap || display == Block && !fills_drawer(r);
@@ -695,9 +696,9 @@ let auto_renderer =
   );
 
 /* Whether a renderer's view of a value goes in a sample chip shown on
-   the line or in the drawer (fits_chip), by the rows the view takes:
-   under `model`, the chosen view (a livelit renderer's choice among its
-   livelits), or None for an automatic pick */
+   the line or in the drawer (fits_chip), by the rows the view takes
+   there: under `model`, the chosen view (a livelit renderer's choice
+   among its livelits), or None for an automatic pick */
 let view_fits_chip =
     (
       ctx: probe_ctx,
@@ -706,11 +707,17 @@ let view_fits_chip =
       value: Exp.t,
       r: packed_renderer,
     )
-    : bool =>
-  switch (r.drawer_rows(~statics=Some(ctx.statics), ~model, ctx.sort, value)) {
+    : bool => {
+  let rows =
+    switch (display) {
+    | Inline => r.line_rows
+    | Block => r.drawer_rows
+    };
+  switch (rows(~statics=Some(ctx.statics), ~model, ctx.sort, value)) {
   | Some(n) => fits_chip(~display, r, n)
   | None => true
   };
+};
 
 /* What a sample chip draws a value with (None: text): the chosen view
    when it handles the value and fits the chip, or under auto-rich the
@@ -811,16 +818,18 @@ let value_view =
     };
   };
 
+  /* The sample's width on the line: its text is abbreviated to it, and a
+     view drawn there is told it (its room's columns) */
+  let budget =
+    if (!SampleLength.is_explicit(sample) && num_total == 1) {
+      150;
+    } else {
+      SampleLength.get(settings.window, sample);
+    };
   let (seg, length_class) =
     switch (display) {
     | Inline =>
-      let length =
-        if (!SampleLength.is_explicit(sample) && num_total == 1) {
-          150;
-        } else {
-          SampleLength.get(settings.window, sample);
-        };
-      let (seg, length) = abbreviated_seg_of(utility, length, sample.value);
+      let (seg, length) = abbreviated_seg_of(utility, budget, sample.value);
       (seg, [length_cls(length)]);
     | Block =>
       let width =
@@ -889,11 +898,16 @@ let value_view =
          capture, dbl-click toggles. Explicit renderers embed when they
          fit the chip (fits_chip: taller views wait for the drawer, whose
          chips hold them); auto-rich (wells) embeds unconditionally. */
-      /* a view is told whether it draws offside or in the drawer */
-      let place: RichProbe.place =
+      /* A view is told its room. On the line: the line's lines and the
+         sample's width, so resizing the sample resizes it, and the view is
+         clipped to it (the in-room fade, proj-probe.css). In the drawer,
+         and in canvas wells, which embed any size: Free, where the view
+         sizes itself. */
+      let room: RichProbe.room =
         switch (display) {
-        | Inline => Offside
-        | Block => Drawer
+        | Inline when !ctx.auto_unbounded =>
+          UserLivelit.Lines(inline_rows_cap, budget)
+        | _ => UserLivelit.Free
         };
       let render_rich = (r: packed_renderer, pm: packed_model) =>
         r.render_model(
@@ -904,7 +918,7 @@ let value_view =
           ~local=pa => local(RendererAction(pa)),
           ~parent=ctx.parent,
           ~sort=ctx.sort,
-          ~place,
+          ~room,
           (),
         );
       let rich_node =
@@ -912,8 +926,23 @@ let value_view =
         | Some((r, pm)) => render_rich(r, pm)
         | None => None
         };
+      let room_attrs =
+        switch (room) {
+        | UserLivelit.Lines(lines, cols) => [
+            Attr.classes(["value-rich", "in-room"]),
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "--room-lines: %d; --room-cols: %d",
+                lines,
+                cols,
+              ),
+            ),
+          ]
+        | UserLivelit.Free => [Attr.classes(["value-rich"])]
+        };
       switch (rich_node) {
-      | Some(n) => [div(~attrs=[Attr.classes(["value-rich"])], [n])]
+      | Some(n) => [div(~attrs=room_attrs, [n])]
       | None => [view_seg(~text_only=false, seg)]
       };
     },
@@ -945,7 +974,7 @@ let standalone_rich =
         ~local=_ => Ui_effect.Ignore,
         ~parent=_ => Ui_effect.Ignore,
         ~sort,
-        ~place=Offside,
+        ~room=UserLivelit.Free,
         (),
       )
     | None => None
@@ -2580,7 +2609,7 @@ let rich_content =
         ~local=pa => local(RendererAction(pa)),
         ~parent,
         ~sort,
-        ~place=Drawer,
+        ~room=UserLivelit.Free,
         (),
       )
     | _ => None
@@ -2621,14 +2650,16 @@ let rich_drawer_view =
     @ [content],
   );
 
-/* Rows the active rich renderer wants in the drawer, when it applies to
- * the indicated value. */
-let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
+/* Rows the active rich renderer wants in the drawer (or, ~line, takes on
+ * the line), when it applies to the indicated value. */
+let rich_rows =
+    (~line: bool=false, model: probe_model, info: info): option(int) => {
   let sort =
     switch (info.statics) {
     | Some(statics) => Language.Statics.Info.sort_of(statics)
     | None => Sort.Exp
     };
+  let rows = (r: packed_renderer) => line ? r.line_rows : r.drawer_rows;
   switch (chosen_renderer(model)) {
   | Some(pm) =>
     switch (
@@ -2636,7 +2667,7 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
       get_current(~settings=Settings.s^, info),
     ) {
     | (Some(r), Some(exp)) =>
-      r.drawer_rows(~statics=info.statics, ~model=Some(pm), sort, exp)
+      rows(r, ~statics=info.statics, ~model=Some(pm), sort, exp)
     | _ => None
     }
   | None
@@ -2650,7 +2681,7 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
         renderers,
       )
       |> Option.map((r: packed_renderer) =>
-           r.drawer_rows(~statics=info.statics, ~model=None, sort, exp)
+           rows(r, ~statics=info.statics, ~model=None, sort, exp)
          )
       |> Option.join
     | None => None
@@ -2658,6 +2689,13 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
   | None => None
   };
 };
+let rich_drawer_rows = rich_rows(~line=false);
+/* ...too many for the line: the view waits for the drawer */
+let needs_drawer = (model: probe_model, info: info): bool =>
+  switch (rich_rows(~line=true, model, info)) {
+  | Some(n) => n > inline_rows_cap
+  | None => false
+  };
 
 /* Leaving the drawer hides a rich view that only fits there, so drop the
    renderer with it: the menu then offers `View as` again and choosing it
@@ -2665,16 +2703,13 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
    embedding in the chip. */
 let set_drawer_mode =
     (model: probe_model, info: info, drawer_mode: bool): probe_model => {
-  let needs_drawer =
-    switch (model.active_renderer, rich_drawer_rows(model, info)) {
-    | (Some(_), Some(n)) => n > inline_rows_cap
-    | _ => false
-    };
+  let drawer_only =
+    model.active_renderer != None && needs_drawer(model, info);
   {
     ...model,
     drawer_mode,
     active_renderer:
-      !drawer_mode && needs_drawer ? None : model.active_renderer,
+      !drawer_mode && drawer_only ? None : model.active_renderer,
   };
 };
 
@@ -2798,11 +2833,7 @@ module M: Projector = {
         dropdown_redraw: model.dropdown_redraw + 1,
       };
       /* content taller than the inline cap shows in the drawer */
-      let wants_drawer =
-        switch (rich_drawer_rows(chosen, info)) {
-        | Some(n) => n > inline_rows_cap
-        | None => false
-        };
+      let wants_drawer = needs_drawer(chosen, info);
       if (wants_drawer && !model.drawer_mode) {
         /* the focusable .live-offside moves to the drawer slot */
         FocusEffect.schedule(
@@ -2818,18 +2849,13 @@ module M: Projector = {
          drawer (chevron / Cmd+ArrowUp toggles back) */
       let activate = () => {
         let wants_drawer =
-          switch (
-            rich_drawer_rows(
-              {
-                ...model,
-                active_renderer: pm,
-              },
-              info,
-            )
-          ) {
-          | Some(n) => n > inline_rows_cap
-          | None => false
-          };
+          needs_drawer(
+            {
+              ...model,
+              active_renderer: pm,
+            },
+            info,
+          );
         {
           ...model,
           active_renderer: pm,

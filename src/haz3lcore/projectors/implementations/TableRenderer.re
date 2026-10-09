@@ -54,6 +54,7 @@ let auto_applies = (_: value): bool => false;
 /* Header + data rows; each table row is one line-height tall (proj-table.css
  * zeroes cell padding and cells hold single-line abbreviated values). */
 let drawer_rows = (_: model, (_, rows): v): int => List.length(rows) + 1;
+let line_rows = drawer_rows;
 
 let views = (v: value): list(model) => [init(v)];
 let label = (_: model, _: value): RichProbe.view_label => {
@@ -353,7 +354,7 @@ let render =
       ~local: action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort: Sort.t,
-      ~place as _: RichProbe.place,
+      ~room as _: RichProbe.room,
       _: unit,
     )
     : Node.t => {

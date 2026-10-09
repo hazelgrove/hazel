@@ -298,9 +298,14 @@ module M: Projector = {
     |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
     |> String.of_seq;
 
-  /* A literal's view draws at its literal and is editable */
+  /* A literal's view is editable, with Free room: its shape's size */
   let view_arg = (~takes_ctx, model) =>
-    UserLivelit.view_arg(~takes_ctx, ~place=Literal, model);
+    UserLivelit.view_arg(
+      ~takes_ctx,
+      ~editable=true,
+      ~room=UserLivelit.Free,
+      model,
+    );
 
   let event_inject =
       (

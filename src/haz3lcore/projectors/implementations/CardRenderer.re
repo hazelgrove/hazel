@@ -55,6 +55,7 @@ let auto_applies = (v: value): bool =>
 /* Card sprites are 47px tall (~3 editor rows); a hand fans in one row
    of cards regardless of count. */
 let drawer_rows = (_: model, _: value): int => 4;
+let line_rows = drawer_rows;
 
 let views = (v: value): list(model) => [init(v)];
 let label = (_: model, _: value): RichProbe.view_label => {
@@ -210,7 +211,7 @@ let render =
       ~local: a => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort as _: Sort.t,
-      ~place as _: RichProbe.place,
+      ~room as _: RichProbe.room,
       (),
     )
     : Node.t =>

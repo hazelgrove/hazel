@@ -1082,11 +1082,80 @@
   display: inline-block;
 }
 
+/* On the line a view has the room it is told (ProbeProj.value_view): the
+   line's lines, and the sample's width in columns of the code font (a
+   column is the code font's advance, 0.6em; the chip's own font is the
+   UI's, so `ch` here would be narrower). It is
+   clipped to that room instead of spilling over, and fades out at an edge
+   it overflows. Only there: each axis's fade runs on that axis's scroll
+   timeline, which is inactive (no fade) while the view fits. Safe
+   alignment keeps an overflowing view's start inside the room. */
+@property --room-fade-x {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --room-fade-y {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@keyframes room-fade-x {
+  from,
+  to {
+    --room-fade-x: 1.5ch;
+  }
+}
+@keyframes room-fade-y {
+  from,
+  to {
+    --room-fade-y: 0.6em;
+  }
+}
+.live-offside .value .value-rich.in-room {
+  max-width: calc(var(--room-cols) * 0.6 * var(--base-font-size));
+  max-height: calc(
+    var(--room-lines) * var(--base-font-size) * var(--line-height)
+  );
+  overflow: hidden;
+  justify-content: safe center;
+  align-items: safe center;
+  animation:
+    room-fade-x linear both,
+    room-fade-y linear both;
+  animation-timeline: scroll(self x), scroll(self y);
+  -webkit-mask-image:
+    linear-gradient(
+      to right,
+      #000 calc(100% - var(--room-fade-x)),
+      transparent
+    ),
+    linear-gradient(
+      to bottom,
+      #000 calc(100% - var(--room-fade-y)),
+      transparent
+    );
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(
+      to right,
+      #000 calc(100% - var(--room-fade-x)),
+      transparent
+    ),
+    linear-gradient(
+      to bottom,
+      #000 calc(100% - var(--room-fade-y)),
+      transparent
+    );
+  mask-composite: intersect;
+}
+
 /* A livelit view in a chip draws straight onto the chip: no backdrop of its
-   own and nothing clipped, and the chip keeps a text chip's height (the
-   sample code's 1.41 line), so a one-line view centers where text would sit
-   and a view drawn to that height fills the chip. Its ink is set with the
-   token colors above. The drawer keeps the neutral .rich-html-view surface. */
+   own and nothing clipped but its room (.in-room above), and the chip keeps
+   a text chip's height (the sample code's 1.41 line), so a one-line view
+   centers where text would sit and a view drawn to that height fills the
+   chip. Its ink is set with the token colors above. The drawer keeps the
+   neutral .rich-html-view surface. */
 .live-offside .value .value-rich:has(> .rich-livelit-view) {
   padding: 0;
   min-height: calc(var(--base-font-size) * 1.41);

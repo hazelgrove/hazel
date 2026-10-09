@@ -742,7 +742,7 @@ shift(p0)";
 
 /* Probe samples drawn through a livelit: a Point livelit with a given
    view, and a Point-typed site outside it with a P(..) sample */
-let point_def = (view: string) =>
+let point_def = (~shape="Inline(6)", view: string) =>
   "type Point = + P(Int, Int) in
 let ^point = {
   type Model = Point;
@@ -754,12 +754,14 @@ let ^point = {
   ++ ";
   let expand(p: Model): Point = p;
   let wrap(p: Point): Model = p;
-  let shape : LivelitShape = Inline(6)
+  let shape : LivelitShape = "
+  ++ shape
+  ++ "
 } in
 ";
 
-let point_program = view =>
-  point_def(view)
+let point_program = (~shape=?, view) =>
+  point_def(~shape?, view)
   ++ "let shift(p: Point): Point = case p | P(x, y) => P(x + 10, y + 10) end in
 let p0 : Point = P(30, 40) in
 shift(p0)";
@@ -854,19 +856,22 @@ let edited_view_redraws = () => {
   );
 };
 
-/* A view may take a second argument, a ViewContext: where it is drawn
-   (at its Literal, Offside as a probe sample, in a probe's Drawer) and
-   whether it is editable. Hazel tells the two forms apart by the view's
-   type. The two-argument view below prints the context it is given, so
-   each place's context shows in its HTML. */
+/* A view may take a second argument, a ViewContext: whether it is
+   editable, and its room (Free, or Lines(lines, columns) on the line).
+   Hazel tells the two forms apart by the view's type. The two-argument
+   view below prints the context it is given, so each one shows in its
+   HTML. */
 let ctx_view = "let view(p: Model, ctx: ViewContext): HTML =
-    Text((case ctx.at | Literal => \"L\" | Offside => \"O\" | Drawer => \"D\" end)
+    Text((case ctx.room
+          | Free => \"F\"
+          | Lines(n, w) => \"L\" ++ string_of_int(n) ++ \"x\" ++ string_of_int(w)
+          end)
          ++ (if ctx.editable then \"+\" else \"-\"))";
 
 let plain_view = "let view(p: Model): HTML = Text(\"plain\")";
 
 /* the written-out context type selects the two-argument form too */
-let structural_ctx_view = "let view = fun (p, ctx) : (Model, (at=Place, editable=Bool)) ->
+let structural_ctx_view = "let view = fun (p, ctx) : (Model, (editable=Bool, room=Room)) ->
     Text(if ctx.editable then \"+\" else \"-\")";
 
 /* The livelit bound by a program's ^point, from the context at its use */
@@ -900,7 +905,7 @@ let view_form_by_type = () => {
   check(bool, "Model -> HTML does not", false, takes(plain_view));
   check(
     bool,
-    "(Model, (at=Place, editable=Bool)) -> HTML takes it",
+    "(Model, (editable=Bool, room=Room)) -> HTML takes it",
     true,
     takes(structural_ctx_view),
   );
@@ -921,19 +926,41 @@ let view_form_by_type = () => {
   );
 };
 
-/* Offside and Drawer: a probe sample's view is told where it is drawn,
-   and that it is not editable (no literal to rewrite) */
+/* A probe sample's view is told its room, the line's lines and the
+   sample's width on the line and Free in the drawer, and that it is not
+   editable (no literal to rewrite) */
 let view_context_in_probes = () => {
   let (ctx, ll, value, _) = point_sample(point_program(ctx_view));
-  let at = place =>
+  let in_room = room =>
     Option.bind(
-      Haz3lcore.LivelitRenderer.html_of(~ctx, ~place, ll, value),
+      Haz3lcore.LivelitRenderer.html_of(~ctx, ~room, ll, value),
       text_of_html,
     );
-  check(option(string), "offside sample", Some("O-"), at(Offside));
-  check(option(string), "drawer sample", Some("D-"), at(Drawer));
-  /* the render memo keeps the places apart */
-  check(option(string), "offside again", Some("O-"), at(Offside));
+  check(
+    option(string),
+    "on the line",
+    Some("L2x12-"),
+    in_room(UserLivelit.Lines(2, 12)),
+  );
+  check(
+    option(string),
+    "a wider sample",
+    Some("L2x30-"),
+    in_room(UserLivelit.Lines(2, 30)),
+  );
+  check(
+    option(string),
+    "in the drawer",
+    Some("F-"),
+    in_room(UserLivelit.Free),
+  );
+  /* the render memo keeps the rooms apart */
+  check(
+    option(string),
+    "on the line again",
+    Some("L2x12-"),
+    in_room(UserLivelit.Lines(2, 12)),
+  );
 };
 
 /* the HTML texts the projectors' sample streams carry */
@@ -958,29 +985,57 @@ let projector_texts = (projectors: Id.Map.t(_), probes): list(string) =>
     [],
   );
 
-/* Literal: a projected use's view (run in the main evaluation) is told it
-   draws at its literal, which is editable */
+/* At its literal, a projected use's view (run in the main evaluation) is
+   told it is editable, with Free room */
 let view_context_at_literal = () => {
   let (mtr, _, probes) =
     probe_run(point_def(ctx_view) ++ "^^livelit(^point(P(1, 2)))");
   check(
     list(string),
     "literal",
-    ["L+"],
+    ["F+"],
     projector_texts(mtr.projectors, probes),
   );
 };
 
-/* A one-argument view keeps working at every place */
+/* On the line a view told its room fits itself into it, so it is drawn
+   there whatever its shape; a one-argument view as tall as its shape waits
+   for the drawer if that is taller than the line's room */
+let told_its_room_fits_the_line = () => {
+  let line_rows = view => {
+    let (_, ll, _, _) =
+      point_sample(point_program(~shape="Block(6, 6)", view));
+    Haz3lcore.LivelitRenderer.line_rows_of(ll);
+  };
+  check(
+    int,
+    "a view told its room",
+    Haz3lcore.RichProbe.lines_on_line,
+    line_rows(ctx_view),
+  );
+  check(int, "a one-argument view", 6, line_rows(plain_view));
+};
+
+/* A one-argument view keeps working in every room */
 let one_arg_view_everywhere = () => {
   let (ctx, ll, value, _) = point_sample(point_program(plain_view));
-  let at = place =>
+  let in_room = room =>
     Option.bind(
-      Haz3lcore.LivelitRenderer.html_of(~ctx, ~place, ll, value),
+      Haz3lcore.LivelitRenderer.html_of(~ctx, ~room, ll, value),
       text_of_html,
     );
-  check(option(string), "offside", Some("plain"), at(Offside));
-  check(option(string), "drawer", Some("plain"), at(Drawer));
+  check(
+    option(string),
+    "on the line",
+    Some("plain"),
+    in_room(UserLivelit.Lines(2, 12)),
+  );
+  check(
+    option(string),
+    "in the drawer",
+    Some("plain"),
+    in_room(UserLivelit.Free),
+  );
   let (mtr, _, probes) =
     probe_run(point_def(plain_view) ++ "^^livelit(^point(P(1, 2)))");
   check(
@@ -1094,7 +1149,7 @@ let view_as_offers_what_fits = () => {
       R.site(statics),
     ) {
     | (Some(v), Some((ctx, _))) =>
-      Option.bind(Ctx.lookup_livelit(ctx, v.ll_name), ll =>
+      Option.bind(Ctx.lookup_livelit(ctx, v.first.name), ll =>
         Option.bind(R.html_of(~ctx, ll, value), text_of_html)
       )
     | _ => None
@@ -1212,7 +1267,7 @@ let tests = [
       ),
       test_case("view form told apart by type", `Quick, view_form_by_type),
       test_case(
-        "view context offside and in the drawer",
+        "view context on the line and in the drawer",
         `Quick,
         view_context_in_probes,
       ),
@@ -1222,9 +1277,14 @@ let tests = [
         view_context_at_literal,
       ),
       test_case(
-        "one-argument view at every place",
+        "one-argument view in every room",
         `Quick,
         one_arg_view_everywhere,
+      ),
+      test_case(
+        "a view told its room fits the line",
+        `Quick,
+        told_its_room_fits_the_line,
       ),
       test_case(
         "View as offers the views whose type fits",
