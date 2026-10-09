@@ -250,9 +250,9 @@
 }
 
 .problem-line-num {
-  font-family: var(--mono-font);
+  font-family: var(--code-font);
   font-size: 0.85em;
-  color: var(--TXT2);
+  color: var(--text-muted);
   min-width: 2.5em;
   flex-shrink: 0;
 }
@@ -394,7 +394,7 @@
 
 .problem-nav-btn:hover {
   background: color-mix(in oklch, var(--text-default) 12%, transparent);
-  color: var(--main-text-color);
+  color: var(--text-default);
 }
 
 .problem-view-toggle {

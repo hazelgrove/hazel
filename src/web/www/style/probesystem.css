@@ -682,7 +682,7 @@ body:not(:has(.live-offside:focus))
   background-color: var(--surface-raised);
   border: 1px solid var(--border-soft);
   border-radius: 0.3em;
-  color: var(--text-primary);
+  color: var(--text-default);
   cursor: pointer;
   font-size: 0.9em;
   transition: background-color 0.2s ease;
@@ -699,7 +699,7 @@ body:not(:has(.live-offside:focus))
 
 .log-button[disabled] {
   background-color: var(--surface-raised);
-  color: var(--text-disabled);
+  color: var(--text-faint);
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -729,7 +729,7 @@ body:not(:has(.live-offside:focus))
   align-items: center;
   justify-content: center;
   font-size: 0.8em;
-  color: var(--text-primary);
+  color: var(--text-default);
   font-weight: bold;
 }
 
@@ -753,7 +753,7 @@ body:not(:has(.live-offside:focus))
   background-color: var(--surface-raised);
   border: 1px solid var(--border-soft);
   border-radius: 0.2em;
-  color: var(--text-primary);
+  color: var(--text-default);
   cursor: pointer;
   font-size: 0.8em;
   transition: background-color 0.2s ease;
@@ -793,12 +793,12 @@ body:not(:has(.live-offside:focus))
 }
 
 .log-content {
-  color: var(--text-primary);
+  color: var(--text-default);
   word-break: break-word;
 }
 
 .log-empty {
-  color: var(--text-disabled);
+  color: var(--text-faint);
   font-style: italic;
   text-align: center;
   padding: 1em;
@@ -826,7 +826,7 @@ body:not(:has(.live-offside:focus))
 
 .log-debug-info {
   font-size: 0.85em;
-  color: var(--text-primary);
+  color: var(--text-default);
   font-family: monospace;
 }
 

@@ -137,7 +137,7 @@
 .title-cell .title-edit {
   font-size: 1.5rem;
   font-weight: bold;
-  color: var(--light-text-color);
+  color: var(--text-default);
   flex-grow: 1;
   display: flex;
   align-items: center;
@@ -255,7 +255,7 @@
 .cell-prompt .prompt-edit {
   font-size: 1rem;
   width: 80%;
-  color: var(--light-text-color);
+  color: var(--text-default);
   flex-grow: 1;
   display: flex;
   align-items: center;
