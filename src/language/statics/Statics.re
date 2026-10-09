@@ -200,7 +200,8 @@ and uexp_to_info_map =
     )
     : (Info.exp, Exp.t, Map.t) => {
   let ids = IdTagged.ids(uexp);
-  let (term, rewrap) = Exp.unwrap(uexp);
+  let (term, rewrap): (Exp.term, Exp.term => Exp.t) =
+    IdTagged.unwrap_elab(uexp);
   let add =
       (
         ~user_term=uexp,
@@ -2806,12 +2807,13 @@ and upat_to_info_map =
     )
     : (Info.pat, Pat.t, Map.t) => {
   let ids = IdTagged.ids(upat);
-  let (term, rewrap) = Pat.unwrap(upat);
+  let (term, rewrap): (Pat.term, Pat.term => Pat.t) =
+    IdTagged.unwrap_elab(upat);
   let ancestors_inclusive = [Pat.rep_id(upat)] @ ancestors;
   let add =
       (
         ~user_term: Pat.t=upat,
-        ~elab_term: Pat.t=user_term,
+        ~elab_term: Pat.t=IdTagged.strip_secondary(user_term),
         ~ctx=ctx,
         ~co_ctx=co_ctx,
         ~ana=ana,
