@@ -111,6 +111,33 @@ let gradebook : [GradebookEntry] =
 in
 midterm_mean(gradebook)
 
+@solution
+type Semester = +Spring +Fall in
+type GradebookEntry =
+  (
+    student_id=Int,
+    year=Int,
+    semester=Semester,
+    quiz1=Float,
+    quiz2=Float,
+    midterm=Float,
+    final=Float
+  )
+in
+
+let midterm_mean : [GradebookEntry] -> Float = fun (gradebook) ->
+  fold_left(gradebook.midterm, fun (acc, x) -> acc +. x, 0.) /. float_of_int(length(gradebook))
+in
+
+let gradebook : [GradebookEntry] =
+  ^^table([(student_id=1, year=2025, semester=Spring, quiz1=7.0, quiz2=5.0, midterm=85.0, final=88.0),
+    (student_id=2, year=2025, semester=Fall, quiz1=5.0, quiz2=8.0, midterm=90.0,  final=82.0),
+    (student_id=3, year=2024, semester=Fall, quiz1=8.0, quiz2=7.0, midterm=78.0, final=80.0),
+    (student_id=4, year=2025, semester=Spring, quiz1=9.0, quiz2=10.0, midterm=95.0, final=98.0),
+    (student_id=5, year=2024, semester=Fall, quiz1=4.0, quiz2=3.0, midterm=60.0,  final=65.0)])
+in
+midterm_mean(gradebook)
+
 @test
 test midterm_mean(gradebook) == 81.6 end;
 test midterm_mean([

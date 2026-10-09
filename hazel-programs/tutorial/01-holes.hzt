@@ -34,5 +34,10 @@ let target = 42 in
 let partial = 20 + ¿ in
 target == partial
 
+@solution
+let target = 42 in
+let partial = 20 + 22 in
+target == partial
+
 @test
 test answer end
