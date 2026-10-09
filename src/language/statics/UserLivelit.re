@@ -797,23 +797,20 @@ let run_macro_expand =
     | (v, _) => Some(v)
     | exception _ => None
     };
-  let field = (record: TermBase.Exp.t, label: string) =>
-    switch (strip_value(record).term) {
-    | Module(items) =>
-      List.fold_left(
-        (acc, item: TermBase.Mod.t) =>
-          switch (item.term) {
-          | ModVal(x, v) when x == label => Some(v)
-          | _ => acc
-          },
-        None,
-        items,
-      )
-    | _ => None
-    };
   open Util.OptUtil.Syntax;
-  let* def = eval(def_elab);
-  let* expand = field(def, "expand");
+  /* Only `def.expand` is evaluated, not the whole definition: evaluate's
+     result has every variable's value substituted in, so a definition came
+     back as a module of closures, each with the code of every helper it
+     names copied into it, recursively. On Polygons that was ~370 ms of a
+     1.1 s statics run, paid at every use -- only to learn that its expand
+     is Functional and there was nothing to do. */
+  let* expand =
+    eval(
+      IdTagged.FreshGrammar.Exp.dot(
+        def_elab,
+        IdTagged.FreshGrammar.Exp.label("expand"),
+      ),
+    );
   let* g =
     switch (of_ctr(expand)) {
     | Some(("Macro", g)) => Some(g)
