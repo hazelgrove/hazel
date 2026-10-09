@@ -801,12 +801,20 @@ and Stepper: {
         };
       };
 
-    // TODO: Make editor calculation more incremental
+    /* re-analyze a step's editor only when it, or what it shows, changed:
+       every step re-analyzed on every pass made each click cost the whole
+       trace's statics, several times over */
+    let is_edited =
+      Calc.is_new(editor)
+      || Calc.is_new(expr)
+      || Calc.is_new(settings)
+      || Calc.is_new(ctx)
+      || Calc.is_new(ana);
     let editor =
       CodeSelectable.Update.calculate(
         ~is_dynamic_term=true,
         ~settings=Calc.get_value(settings),
-        ~is_edited=true,
+        ~is_edited,
         ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
         ~dynamics=Dynamics.Map.empty,
         ~ana=Calc.get_value(ana),

@@ -83,6 +83,7 @@ let (suite, exit_with_test_status) =
     @ Test_RefractorSerialization.tests
     @ [
       Test_TableCore.tests,
+      Test_StepperPasses.tests,
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
