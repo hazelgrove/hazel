@@ -55,14 +55,14 @@ let view =
 };
 
 let indicator_n = (cur_slide, num_slides) => [
-  text(Printf.sprintf("%d / %d", cur_slide + 1, num_slides)),
+  text(Stdlib.Printf.sprintf("%d / %d", cur_slide + 1, num_slides)),
 ];
 
 let indicator_select =
     (~signal: int => Effect.t(unit), cur_slide, paths: list(SlidePath.t))
     : list(t) => {
   SlidePath.breadcrumb(~current=cur_slide, paths)
-  |> List.map(({selected, options}: SlidePath.crumb) =>
+  |> List.map(~f=({selected, options}: SlidePath.crumb) =>
        select(
          ~attrs=[
            // drive the <select> from the model via the `value` property: the
@@ -71,14 +71,18 @@ let indicator_select =
            Attr.string_property("value", selected),
            // Signal the selected slide index when the dropdown value changes
            Attr.on_change((_, name) =>
-             switch (List.find_opt(((_, n)) => n == name, options)) {
+             switch (
+               List.find(~f=((_, n)) => String.equal(n, name), options)
+             ) {
              | Some((i, _)) => signal(i)
              | None => Effect.Ignore
              }
            ),
          ],
          List.map(
-           ((_, name: string)) => option_view(name == selected, name),
+           ~f=
+             ((_, name: string)) =>
+               option_view(String.equal(name, selected), name),
            options,
          ),
        )

@@ -72,8 +72,8 @@ module Utils = {
     // Converts the map of chats to a list of chats
     // ordered by the created_at timestamp
     Id.Map.bindings(model.chat_map)
-    |> List.map(((_, chat: Chat.Model.t)) => chat)
-    |> List.sort((a: Chat.Model.t, b: Chat.Model.t) =>
+    |> List.map(~f=((_, chat: Chat.Model.t)) => chat)
+    |> List.sort(~compare=(a: Chat.Model.t, b: Chat.Model.t) =>
          Float.compare(a.created_at, b.created_at)
        );
   };
@@ -94,19 +94,23 @@ module Utils = {
   let derive_slash_menu_from_content =
       (~prev: option(Model.slash_menu_state), content: string)
       : option(Model.slash_menu_state) =>
-    if (String.length(content) < 1 || content.[0] != '/') {
+    if (String.length(content) < 1 || !Char.equal(content.[0], '/')) {
       None;
     } else {
-      let after_slash = String.sub(content, 1, String.length(content) - 1);
+      let after_slash =
+        String.sub(content, ~pos=1, ~len=String.length(content) - 1);
       if (String.contains(after_slash, ' ')) {
         None;
       } else {
         let prev_filter =
-          Option.map((s: Model.slash_menu_state) => s.filter, prev);
+          Option.map(~f=(s: Model.slash_menu_state) => s.filter, prev);
         let selected_index =
           switch (prev_filter) {
-          | Some(f) when f == after_slash =>
-            Option.map((s: Model.slash_menu_state) => s.selected_index, prev)
+          | Some(f) when String.equal(f, after_slash) =>
+            Option.map(
+              ~f=(s: Model.slash_menu_state) => s.selected_index,
+              prev,
+            )
             |> Option.value(~default=0)
           | _ => 0
           };

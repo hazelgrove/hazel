@@ -3,6 +3,7 @@ open Language;
 open StepInterface;
 open Calc.Syntax;
 open OptUtil.Syntax;
+open Poly;
 
 /* Note[Matt]: I've defined the types outside the modules here,
    this is in case we ever want to parameterize the types in
@@ -591,7 +592,7 @@ and Stepper: {
   let rec persist = (model: model): persistent => {
     {
       step_kind: StepKind.persist(model.step_kind),
-      next_step: model.next_step |> Option.map(persist),
+      next_step: model.next_step |> Option.map(~f=persist),
     };
   };
 
@@ -600,7 +601,7 @@ and Stepper: {
       expr: Calc.Pending,
       editor: Calc.Pending,
       step_kind: StepKind.unpersist(p.step_kind),
-      next_step: p.next_step |> Option.map(unpersist),
+      next_step: p.next_step |> Option.map(~f=unpersist),
       hidden: Calc.Pending,
       proof_validity: Calc.Pending,
       editor_info_map: Calc.Pending,
@@ -651,7 +652,7 @@ and Stepper: {
             | AutoStep(_) => []
             | AvailableSteps(msns) => msns
           );
-        switch (List.nth_opt(msns, idx)) {
+        switch (List.nth(msns, idx)) {
         | Some(evalobj) =>
           {
             ...model,
@@ -777,7 +778,7 @@ and Stepper: {
                 ~info_map,
                 ~ana,
               )
-           |> Option.get
+           |> Option.value_exn
          );
     let (next_step, last_expr, next_validity) =
       switch (next_expr) {
@@ -908,7 +909,7 @@ and Stepper: {
               | AutoStep(_) => []
               | AvailableSteps(steps) => steps
             )
-            |> List.map(step => step |> EvaluatorStep.get_step_id)
+            |> List.map(~f=step => step |> EvaluatorStep.get_step_id)
           | _ => []
           };
         let selected_exp =
@@ -922,7 +923,7 @@ and Stepper: {
           | MissingStep(m) when globals.settings.core.evaluation.enable_proof =>
             m.refls
             |> Calc.get_saved_exc(~print="refls")
-            |> List.map(Exp.rep_id)
+            |> List.map(~f=Exp.rep_id)
           | _ => []
           };
         let editor =
@@ -939,7 +940,7 @@ and Stepper: {
                       m.refls |> Calc.get_saved_exc(~print="refls")
                     | _ => []
                     };
-                  let from_exp = List.nth(refl_exps, int);
+                  let from_exp = List.nth_exn(refl_exps, int);
                   inject(
                     AddAxiomStep(
                       "reflexivity",
@@ -959,7 +960,7 @@ and Stepper: {
               | Some(Here(_)) => true
               | _ => false
               },
-            ~selected_id=selected_exp |> Option.map(Exp.rep_id),
+            ~selected_id=selected_exp |> Option.map(~f=Exp.rep_id),
             ~overlays=
               switch (model.step_kind) {
               | MissingStep(m)
@@ -994,7 +995,7 @@ and Stepper: {
                             m.refls |> Calc.get_saved_exc(~print="refls")
                           | _ => []
                           };
-                        let from_exp = List.nth(refl_exps, i);
+                        let from_exp = List.nth_exn(refl_exps, i);
                         inject(
                           AddAxiomStep(
                             "reflexivity",
@@ -1071,24 +1072,25 @@ and Stepper: {
       };
     let next_step =
       Option.map(
-        view_step(
-          ~globals,
-          ~is_toplevel,
-          ~take_focus=f => take_focus(Next(f)),
-          ~hide_stepper,
-          ~inject=x => inject(NextStep(x)),
-          ~focus=
-            switch (focus) {
-            | Some(Next(s)) => Some(s)
-            | _ => None
-            },
-          ~undo=
-            if (model.hidden |> Calc.get_saved_exc(~print="hidden")) {
-              undo;
-            } else {
-              Some(inject(RemoveStep));
-            },
-        ),
+        ~f=
+          view_step(
+            ~globals,
+            ~is_toplevel,
+            ~take_focus=f => take_focus(Next(f)),
+            ~hide_stepper,
+            ~inject=x => inject(NextStep(x)),
+            ~focus=
+              switch (focus) {
+              | Some(Next(s)) => Some(s)
+              | _ => None
+              },
+            ~undo=
+              if (model.hidden |> Calc.get_saved_exc(~print="hidden")) {
+                undo;
+              } else {
+                Some(inject(RemoveStep));
+              },
+          ),
         model.next_step,
       )
       |> Option.value(~default=[]);

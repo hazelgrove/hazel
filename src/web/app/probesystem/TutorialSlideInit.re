@@ -5,7 +5,7 @@ open Haz3lcore;
 let apply =
     (~set_autoprobe: AutoProbe.t => unit, init: TutorialProbeConfig.initial)
     : unit => {
-  Option.iter(set_autoprobe, init.autoprobe);
+  Option.iter(init.autoprobe, ~f=set_autoprobe);
   ProbeProj.Settings.go(SetWindow(init.samples));
   ProbeProj.Settings.go(SetSampleBase(init.colors));
 };
@@ -28,11 +28,11 @@ let maybe_apply_on_change =
       Some(lesson.module_name)
     | _ => None
     };
-  if (module_name != last_applied^) {
+  if (!Option.equal(String.equal, module_name, last_applied^)) {
     last_applied := module_name;
     switch (module_name) {
     | Some(name) =>
-      if (previous^ == None) {
+      if (Option.is_none(previous^)) {
         previous :=
           Some({
             autoprobe: Some(autoprobe),
@@ -42,7 +42,7 @@ let maybe_apply_on_change =
       };
       apply(~set_autoprobe, TutorialProbeConfig.of_slide(name).initial);
     | None =>
-      Option.iter(apply(~set_autoprobe), previous^);
+      Option.iter(previous^, ~f=apply(~set_autoprobe));
       previous := None;
     };
   };

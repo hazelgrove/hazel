@@ -460,11 +460,11 @@ let md_icon = (a: t): string => meta(a).mdIcon;
 let default_binding = (a: t): binding => meta(a).default_binding;
 
 let in_section = (s: section): list(t) =>
-  List.filter(a => section_of(a) == s, all);
+  List.filter(~f=a => Poly.equal(section_of(a), s), all);
 
 /* Sections carrying no actions are omitted from the config slide. */
 let populated_sections: list(section) =
-  List.filter(s => in_section(s) != [], all_sections);
+  List.filter(~f=s => !List.is_empty(in_section(s)), all_sections);
 
 /* The palette groups by an optional string; General is the ungrouped bucket. */
 let section_string = (a: t): option(string) =>
