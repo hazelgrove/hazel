@@ -21,6 +21,13 @@ let quote_depth = ref(0);
    abbreviation, and anywhere else it is a use missing them. */
 let livelit_abbrev_site: ref(option(Id.t)) = ref(None);
 
+/* How many times each expression is analyzed, by its id, with the
+   expression itself. Off (None) except under `hazel analyze
+   --count-passes`. In a one-pass checker every count is 1; a count above 1
+   is a re-analysis, and re-analyses nested in one another multiply, which
+   is how a program's checking time stops being linear in its size. */
+let pass_counts: ref(option(Hashtbl.t(Id.t, (int, Exp.t)))) = ref(None);
+
 /* The livelits a module body binds, by the module expression's id: its
    `let ^f`s, and its sub-modules' members already qualified (`Inner.f`).
    The Module case fills it from the context at the end of the body's
@@ -219,6 +226,17 @@ and uexp_to_info_map =
       m: Map.t,
     )
     : (Info.exp, Exp.t, Map.t) => {
+  switch (pass_counts^) {
+  | Some(counts) =>
+    let id = Exp.rep_id(uexp);
+    let n =
+      switch (Hashtbl.find_opt(counts, id)) {
+      | Some((n, _)) => n
+      | None => 0
+      };
+    Hashtbl.replace(counts, id, (n + 1, uexp));
+  | None => ()
+  };
   let ids = IdTagged.ids(uexp);
   let (term, rewrap): (Exp.term, Exp.term => Exp.t) =
     IdTagged.unwrap_elab(uexp);
