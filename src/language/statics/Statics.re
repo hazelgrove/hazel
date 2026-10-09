@@ -221,8 +221,16 @@ and uexp_to_info_map =
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
+    /* The mark, the message and the fixed type all ask meet the same
+       question when neither type has an ExplicitNonlabel wrapper to strip
+       (it strips by returning its argument), so it is asked once. */
+    let plain =
+      ana_skip_explicit_nonlabel(ana) === ana
+      && ana_skip_explicit_nonlabel(elab_syn_ty) === elab_syn_ty;
+    let met = lazy(Typ.meet(ctx, ana, elab_syn_ty));
+    let shared = plain ? Some(met) : None;
     let marks =
-      switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
+      switch (expectation_mismatch_mark(~met=?shared, ctx, ana, elab_syn_ty)) {
       | None => marks
       | Some(m) when marks == [] => [m] // TODO: we should probably eventually add this on top of existing marks
       | Some(_) => marks
@@ -233,12 +241,17 @@ and uexp_to_info_map =
           switch (ana) {
           | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
           | _ =>
-            Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
+            Message.Exp(
+              Common(syn_ana_ok_common(~met=?shared, ctx, ana, elab_syn_ty)),
+            )
           },
         message,
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-    let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let ty =
+      plain
+        ? fixed_typ_of(ana, elab_syn_ty, Lazy.force(met))
+        : fixed_typ(ctx, ana, elab_syn_ty);
     let self_id = Exp.rep_id(user_term);
     let probe_targets =
       SubexpProbeTargets.add_self(
@@ -2067,16 +2080,60 @@ and uexp_to_info_map =
           |> def_rewrap
         | (_, _) => def
         };
-      let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
-      let rec_check_ty =
-        switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
-        | Unknown(SynSwitch) => def_rec_probe.ty
-        | _ => p_syn.ty
+      /* Passes MULTIPLY with let nesting, since each re-analyzes the whole
+         definition: every let-bound function took the recursive path's four
+         passes (is_recursive is structural -- any function counts), and any
+         other let two (the probe, then the real pass), which is up to
+         4^depth. So:
+
+         - A definition that is not function-shaped cannot be recursive
+           (is_recursive's own precondition), so it gets the single ordinary
+           pass in ctx and no probe at all. Exact.
+         - A function-shaped one gets the recursion probe, in the pattern's
+           context. When the definition does not mention its own binders,
+           and they shadow nothing in ctx, having them in scope changed
+           nothing the definition can see, so the probe IS the analysis the
+           later passes would repeat, and it is kept. One difference is
+           left, in what editor features see inside the body: the binder is
+           in scope there at its synthesized type (? when unannotated).
+         - Otherwise the old passes run, reusing the probe only where a pass
+           had exactly its inputs.
+
+         is_rec, and so the elaboration (requires_fixf below), is unchanged. */
+      let fn_shaped =
+        switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
+        | (Some(num_vars), Some(num_fns)) =>
+          num_vars != 0 && num_vars == num_fns
+        | _ => false
         };
-      let is_rec = is_recursive(ctx, p, def, rec_check_ty);
+      let probe = lazy(go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m));
+      let is_rec =
+        fn_shaped
+        && {
+          let (def_rec_probe, _, _) = Lazy.force(probe);
+          let rec_check_ty =
+            switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
+            | Unknown(SynSwitch) => def_rec_probe.ty
+            | _ => p_syn.ty
+            };
+          is_recursive(ctx, p, def, rec_check_ty);
+        };
+      let shadows =
+        List.exists(
+          x => Option.is_some(Ctx.lookup_var(ctx, x)),
+          Pat.bound_vars(p),
+        );
+      let reuse_probe =
+        fn_shaped
+        && !shadows
+        && {
+          let (def_rec_probe, _, _) = Lazy.force(probe);
+          !CoCtx.has_any(def_rec_probe.co_ctx, Pat.bound_vars(p));
+        };
       let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
         if (!is_rec) {
-          let (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
+          let (def, def_elab, m) =
+            reuse_probe ? Lazy.force(probe) : go(~ana=p_syn.ty, def, m);
           let ty_p_ana = def.ty;
           let (p_ana', _, _) =
             go_pat(
@@ -2088,7 +2145,11 @@ and uexp_to_info_map =
             );
           (def, def_elab, p_ana'.ctx, m, ty_p_ana);
         } else {
-          let (def_base, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
+          /* The recursive path's first pass had exactly the probe's inputs,
+             so it IS the probe. */
+          let (def_rec_probe, def_rec_probe_elab, m_probe) =
+            Lazy.force(probe);
+          let def_base = def_rec_probe;
           let ty_p_ana = def_base.ty;
           /* Analyze pattern to incorporate def type into ctx */
           let (p_ana', _, _) =
@@ -2100,26 +2161,44 @@ and uexp_to_info_map =
               m,
             );
           let def_ctx = p_ana'.ctx;
-          let (def_base2, _, _) = go(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
-          let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            Typ.term_of(ty_p) == Unknown(SynSwitch)
-            && !Typ.equal(ty_fn1, ty_fn2)
-              ? ty_fn1 : ty_p;
-          };
-          let ana =
-            switch (
-              (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
-              p_syn.ty |> Typ.term_of,
-            ) {
-            | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
-              let tys =
-                List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
-              Prod(tys) |> Typ.temp;
-            | ((_, _), _) =>
-              ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
+          if (reuse_probe) {
+            (
+              /* A function that never calls itself: the two passes below
+                 would re-derive the probe's type and then re-run it (with
+                 def_base.ty == def_base2.ty, ana_ty_fn picks p_syn.ty), so
+                 the probe is the final analysis. */
+              def_rec_probe,
+              def_rec_probe_elab,
+              def_ctx,
+              m_probe,
+              ty_p_ana,
+            );
+          } else {
+            let (def_base2, _, _) = go(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
+            let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+              Typ.term_of(ty_p) == Unknown(SynSwitch)
+              && !Typ.equal(ty_fn1, ty_fn2)
+                ? ty_fn1 : ty_p;
             };
-          let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
-          (def, def_elab, def_ctx, m, ty_p_ana);
+            let ana =
+              switch (
+                (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
+                p_syn.ty |> Typ.term_of,
+              ) {
+              | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
+                let tys =
+                  List.map2(
+                    ana_ty_fn,
+                    List.combine(ty_fns1, ty_fns2),
+                    ty_ps,
+                  );
+                Prod(tys) |> Typ.temp;
+              | ((_, _), _) =>
+                ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
+              };
+            let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
+            (def, def_elab, def_ctx, m, ty_p_ana);
+          };
         };
       /* Inject module type exports into body context */
       let p_ana_ctx =
