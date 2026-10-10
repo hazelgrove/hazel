@@ -2024,10 +2024,10 @@ let prepare_offside =
     let is_cursor_aligned =
       switch (dynamics.sample_focus.pinned_stack) {
       | None =>
-        /* Unpinned: legacy alignment (looser, has fallback tiers). */
+        /* Unpinned: legacy alignment (looser, has fallback tiers), so
+           ↑/↓ also reaches a line showing ⊖, where Cmd+Enter aligns it. */
         Sample.Selection.most_aligned_index(
           ~ap_id,
-          ~below=dynamics.below,
           dynamics.sample_focus,
           filtered_samples,
         )
