@@ -42,12 +42,93 @@ let with_db = (f): unit => {
 let cache: ref(Util.Maps.StringMap.t(string)) =
   ref(Util.Maps.StringMap.empty);
 
+/* Set by clear_all, which every caller follows with a reload: a later
+   save (the autosave alarm, the page-leave flush) would undo the reset. */
+let saves_suspended = ref(false);
+
+/* === Unload journal ===
+   Chrome drops IndexedDB writes made while the page unloads, so the
+   page-leave flush (kv_journal) writes the entries that changed since the
+   last save to localStorage, which is synchronous; the next load moves
+   them into the database. A normal save of a key drops its entry. */
+
+let journal_prefix = "hazel-unsaved:";
+let journaling = ref(false);
+let journaled: ref(Util.Maps.StringMap.t(unit)) =
+  ref(Util.Maps.StringMap.empty);
+
+let local_storage = () =>
+  Js_of_ocaml.Js.Optdef.to_option(Js_of_ocaml.Dom_html.window##.localStorage);
+
+let journal_set = (key: string, value: string): unit =>
+  switch (local_storage()) {
+  | Some(ls) =>
+    try(
+      {
+        ls##setItem(
+          Js_of_ocaml.Js.string(journal_prefix ++ key),
+          Js_of_ocaml.Js.string(value),
+        );
+        journaled := Util.Maps.StringMap.add(key, (), journaled^);
+      }
+    ) {
+    | _ => () /* over quota: best effort */
+    }
+  | None => ()
+  };
+
+let journal_drop = (key: string): unit =>
+  if (Util.Maps.StringMap.mem(key, journaled^)) {
+    journaled := Util.Maps.StringMap.remove(key, journaled^);
+    Option.iter(
+      ls => ls##removeItem(Js_of_ocaml.Js.string(journal_prefix ++ key)),
+      local_storage(),
+    );
+  };
+
 /* === KV operations === */
 
-let kv_save = (key: string, value: string): unit => {
-  cache := Util.Maps.StringMap.add(key, value, cache^);
-  with_db(db => IDBStore.put(~key, ~callback=_ => (), kv_store(db), value));
+let kv_save = (key: string, value: string): unit =>
+  if (saves_suspended^) {
+    ();
+  } else if (journaling^) {
+    if (Util.Maps.StringMap.find_opt(key, cache^) != Some(value)) {
+      journal_set(key, value);
+    };
+  } else {
+    cache := Util.Maps.StringMap.add(key, value, cache^);
+    journal_drop(key);
+    with_db(db =>
+      IDBStore.put(~key, ~callback=_ => (), kv_store(db), value)
+    );
+  };
+
+/* Runs `save` (which calls kv_save) with its writes going to the journal */
+let kv_journal = (save: unit => unit): unit => {
+  journaling := true;
+  Fun.protect(save, ~finally=() => journaling := false);
 };
+
+/* Moves a previous page's journal into the cache and the database */
+let recover_journal = (): unit =>
+  switch (local_storage()) {
+  | None => ()
+  | Some(ls) =>
+    let n = String.length(journal_prefix);
+    List.init(ls##.length, i => Js_of_ocaml.Js.Opt.to_option(ls##key(i)))
+    |> List.filter_map(Option.map(Js_of_ocaml.Js.to_string))
+    |> List.filter(String.starts_with(~prefix=journal_prefix))
+    |> List.iter(k => {
+         let jk = Js_of_ocaml.Js.string(k);
+         Js_of_ocaml.Js.Opt.iter(ls##getItem(jk), v =>
+           kv_save(
+             String.sub(k, n, String.length(k) - n),
+             Js_of_ocaml.Js.to_string(v),
+           )
+         );
+         ls##removeItem(jk);
+       });
+  };
 
 let kv_get = (key: string): option(string) =>
   Util.Maps.StringMap.find_opt(key, cache^);
@@ -75,6 +156,7 @@ let kv_load_all = (callback: list((string, string)) => unit): unit =>
             Util.Maps.StringMap.empty,
             pairs,
           );
+        recover_journal();
         callback(pairs);
       },
     );
@@ -109,6 +191,7 @@ let clear_all = (~callback=() => (), ()): unit => {
   }) {
   | _ => ()
   };
+  saves_suspended := true;
   cache := Util.Maps.StringMap.empty;
   let remaining = ref(2);
   let on_done = () => {
