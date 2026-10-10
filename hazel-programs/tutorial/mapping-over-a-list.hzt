@@ -14,7 +14,7 @@ map([1, 2, 3], fun n -> n * 2)
 
 1. Complete `garden` as a list of the four base water amounts: `250`, `180`, `50`, `200`. Once it is filled in, note how the values now appear in the rest of the program.
 2. As you finish this next part, pause to watch the values update: give every plant its 50 ml new-moon top-up by mapping over `garden`, adding 50 to each.
-3. Click the sample at the end of the `map` line, then press **Space**: you get one sample per element, one for each run of your anonymous function.
+3. Click the sample at the end of the `fun` line, then press **Space**: you get one sample per element, one for each run of your anonymous function.
 
 @hint
 A list is `[a, b, c, d]`. Then an anonymous function `fun w -> ...` that adds 50.
@@ -50,8 +50,8 @@ Each watering can gains 50: [300, 230, 100, 250]
 @code
 let garden: [Int] = ¿ in
 let topped = map(
-garden, 
-¿
+  garden, 
+  ¿
 ) in
 topped
 

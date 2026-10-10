@@ -11,7 +11,7 @@ There is a 🐛 (bug) in the garden data. A `make_label` unit test is failing be
 
 # Tasks
 
-1. Find the failing test near the end (look for the red ✗). Probe its `make_label` call, right-click the sample, and choose **Pin this call** (or press **P**; now in the Quick Reference). Pinning works on *function applications*, so the probe must be on a call, as it is here.
+1. Find the failing test near the end (look for the red ✗). Its `make_label` call is already probed: right-click that sample and choose **Pin this call** (or press **P**; now in the Quick Reference). Pinning works on *function applications*, so the probe must be on a call, as it is here.
 2. Back inside `make_label`, every probe now shows just that call's run. Read the `header` sample. Pinned samples wear a small red pin icon in the corner, a reminder that a pin is filtering your view.
 3. Fix the plant data so the test passes.
 4. Finally, note the **⍟** symbol on some of the other probes. This is used to show that samples are collected by that probe, but are hidden by your pin. Clicking it removes the pin. This is handy if you've forgotten there's a pin somewhere. Try this now. (If you remove a pin by accident, **Cmd/Ctrl+Z** brings it back. Probe state is part of the undo stack, though it may take a couple of presses in some cases.)

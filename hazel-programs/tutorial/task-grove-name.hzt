@@ -17,7 +17,7 @@ Some standard library functions that may be useful (you may have to work out the
  - `length : [String] -> Int`
 
 @hint
-Try `string_split(path, "/")` in a probe and look at what comes back. Mind the empty pieces.
+Try `string_split` on `path` and `"/"` in a probe, in both argument orders, and look at what comes back. Mind the empty pieces.
 
 @reference
 ### Approach (writing tasks)
