@@ -105,6 +105,36 @@ let get_data_string =
   |> Option.map(Js.to_string);
 };
 
+/* The bottom of an anchor's visible part, within its nearest scrolling
+   ancestor and the viewport: a drawer sample taller than the drawer ends
+   out of sight, and so would a menu opened below it */
+let visible_bottom = (anchor: Js.t(Dom_html.element)): float => {
+  let rec scroller = (node: Js.t(Dom.node)) =>
+    switch (Js.Opt.to_option(node##.parentNode)) {
+    | None => None
+    | Some(p) =>
+      switch (Dom_html.CoerceTo.element(p) |> Js.Opt.to_option) {
+      | None => None
+      | Some(el) =>
+        let style = Dom_html.window##getComputedStyle(el);
+        switch (Js.to_string(Js.Unsafe.coerce(style)##.overflowY)) {
+        | "auto"
+        | "scroll" => Some(el)
+        | _ => scroller(p)
+        };
+      }
+    };
+  let bottom =
+    min(
+      anchor##getBoundingClientRect##.bottom,
+      float_of_int(Dom_html.window##.innerHeight),
+    );
+  switch (scroller(JsUtil.element_to_node(anchor))) {
+  | Some(s) => min(bottom, s##getBoundingClientRect##.bottom)
+  | None => bottom
+  };
+};
+
 /* Update position of a single floating element */
 let update_one = (el: Js.t(Dom_html.element)): unit => {
   switch (get_data_string(el, "anchor-class")) {
@@ -117,10 +147,11 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
       let local_top = get_data_float(el, "local-top");
       let local_left = get_data_float(el, "local-left");
       /* `anchor-edge: bottom`: open below a variable-height anchor (e.g. a
-       * multi-line drawer sample) without knowing its height at build time. */
+       * multi-line drawer sample) without knowing its height at build time;
+       * below its visible part, when it runs out of sight. */
       let base_top =
         switch (get_data_string(el, "anchor-edge")) {
-        | Some("bottom") => rect##.bottom
+        | Some("bottom") => visible_bottom(anchor)
         | _ => rect##.top
         };
       let raw_top = base_top +. local_top;
