@@ -238,11 +238,16 @@ let start = default_model => {
     JsUtil.focus_page();
     JsUtil.install_text_selection_guards();
     Haz3lcore.FocusEffect.install_press_tracking();
+    /* Not while the crash screen is up: that would save the state that
+       crashed, and every reload would crash again. Autosave already skips
+       saving then (CrashHandling drops actions during an exception). */
     JsUtil.on_page_leave(() =>
-      Option.iter(
-        page => HazelDB.kv_journal(() => Page.Store.save(page)),
-        latest_page^,
-      )
+      if (CrashHandling.current_exception^ == None) {
+        Option.iter(
+          page => HazelDB.kv_journal(() => Page.Store.save(page)),
+          latest_page^,
+        );
+      }
     );
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
