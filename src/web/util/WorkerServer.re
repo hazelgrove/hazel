@@ -94,6 +94,10 @@ module ServerMessage = {
      * A TimeUtil.span rather than a Core one so the derived converters resolve;
      * see TimeUtil. */
     eval_time: TimeUtil.span,
+    /* The last item's final stream, applied just before the result. Posted
+       on its own, it reached the client as a separate message, and the
+       client drew it and the result in two frames. */
+    final_streams: list(stream),
   };
 
   [@deriving (show, sexp, yojson)]
@@ -447,16 +451,28 @@ let is_latest = (model, request_id) =>
 let post_message = (msg: ServerMessage.t): unit =>
   Js_of_ocaml.Worker.post_message(Active.encode_response(msg));
 
-let post_batch_result = (model, request_id, completed) =>
+/* A completed item's last stream, held for the result message when no item
+   follows it (see ServerMessage.result.final_streams). */
+let held_final_streams: ref(list(ServerMessage.stream)) = ref([]);
+
+let post_batch_result = (model, request_id, completed) => {
+  let final_streams =
+    List.filter(
+      (s: ServerMessage.stream) => s.request_id == request_id,
+      List.rev(held_final_streams^),
+    );
+  held_final_streams := [];
   if (is_latest(model, request_id)) {
     post_message(
       ServerMessage.Result({
         request_id,
         response: List.rev(completed),
         eval_time: eval_total^,
+        final_streams,
       }),
     );
   };
+};
 
 /* main-thread consumers read only entry keys, [seq] and each state's
    probes/tests/steps; the reuse-cache payload (prev_elab, reuse map,
@@ -526,7 +542,7 @@ let post_stream_update =
 
 /* stream posts are throttled: each costs the client a full
    update/calculate/render cycle. undrained entries accumulate in the
-   outbox; completion flushes unconditionally */
+   outbox; at completion they ride with the result (hold_final_stream) */
 let last_stream_post: ref(float) = ref(0.);
 
 let entry_has_effects =
@@ -557,14 +573,34 @@ let filter_stream_interest =
     }
   };
 
-let flush_stream_update = (~force=false, model, request_id, key, evaluation) => {
+let flush_stream_update = (model, request_id, key, evaluation) => {
   let now: float = Js.Unsafe.global##.Date##now();
-  if (force || now -. last_stream_post^ >= stream_min_interval_ms^) {
+  if (now -. last_stream_post^ >= stream_min_interval_ms^) {
     last_stream_post := now;
     let update =
       Language.Evaluator.drain_streaming_outbox(evaluation)
       |> filter_stream_interest;
     post_stream_update(model, request_id, key, update);
+  };
+};
+
+/* At completion: what is left of the outbox, slimmed as a stream post is,
+   held for the result message (or for the next item's start). */
+let hold_final_stream = (model, request_id, key, evaluation) => {
+  let update =
+    Language.Evaluator.drain_streaming_outbox(evaluation)
+    |> filter_stream_interest;
+  if (is_latest(model, request_id)
+      && !Language.IncrEval.outbox_is_empty(update)) {
+    held_final_streams :=
+      [
+        ServerMessage.{
+          request_id,
+          key,
+          update: slim_stream_update(update),
+        },
+        ...held_final_streams^,
+      ];
   };
 };
 
@@ -641,6 +677,14 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
     post_batch_result(model, request_id, completed);
     model;
   | [(key, req_value), ...remaining] =>
+    List.iter(
+      (st: ServerMessage.stream) =>
+        if (is_latest(model, st.request_id)) {
+          post_message(ServerMessage.Stream(st));
+        },
+      List.rev(held_final_streams^),
+    );
+    held_final_streams := [];
     switch (timed_eval(() => start_evaluation(~key, req_value))) {
     | CompletedImmediately(response) =>
       store_resident(key, response);
@@ -663,7 +707,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
           }),
       };
       model;
-    }
+    };
   }
 and begin_latest_batch = model =>
   switch (model.latest_request) {
@@ -719,8 +763,7 @@ and run_scheduled_slice = model => {
     | exception exn =>
       finish_current_item(model, running, error_response(exn))
     | EvaluationCompleted(value) =>
-      flush_stream_update(
-        ~force=true,
+      hold_final_stream(
         model,
         running.request_id,
         running.key,
