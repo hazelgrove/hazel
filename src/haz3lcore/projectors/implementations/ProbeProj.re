@@ -360,6 +360,12 @@ let pretty_seg_of_value =
    auto-opens it) */
 let inline_rows_cap = 4;
 
+/* Whether rich content `rows` tall, from renderer `id`, lives in the
+   drawer rather than in a sample chip. The table does at any height: its
+   column menus and + act on the value, and content in a chip is inert. */
+let in_drawer = (~id: string, rows: int): bool =>
+  rows > inline_rows_cap || id == "table";
+
 module DrawerHeight = {
   /* Cap; taller content scrolls inside `.below-wrapper`. */
   let max_rows = 15;
@@ -755,9 +761,9 @@ let value_view =
       /* rich content renders INSIDE the sample chip, inert
          (pointer-events: none), so the chip keeps every sample
          interaction: right/alt-click dropdown (with Hide), click to
-         capture, dbl-click toggles. Explicit renderers embed when they
-         fit inline_rows_cap (taller ones live in the drawer); auto-rich
-         (wells) embeds unconditionally. */
+         capture, dbl-click toggles. Explicit renderers embed unless
+         they live in the drawer (in_drawer); auto-rich (wells) embeds
+         unconditionally. */
       let render_rich = (r: packed_renderer, pm: packed_model) =>
         r.render_model(
           pm,
@@ -778,7 +784,7 @@ let value_view =
                 r.can_handle(ctx.sort, sample.value)
                 && (
                   switch (r.drawer_rows(ctx.sort, sample.value)) {
-                  | Some(n) => n <= inline_rows_cap
+                  | Some(n) => !in_drawer(~id=r.id, n)
                   | None => true
                   }
                 ) =>
@@ -2221,6 +2227,16 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
   };
 };
 
+/* Whether the probe's rich view lives in the drawer (see in_drawer; an
+   automatic pick is never the table, which does not auto-apply) */
+let rich_in_drawer = (model: probe_model, info: info): bool =>
+  switch (model.active_renderer, rich_drawer_rows(model, info)) {
+  | (Some(pm), Some(n)) =>
+    in_drawer(~id=RichProbe.renderer_id_of_model(pm), n)
+  | (None, Some(n)) => n > inline_rows_cap
+  | (_, None) => false
+  };
+
 /* Leaving the drawer hides a rich view that only fits there, so drop the
    renderer with it: the menu then offers `View as` again and choosing it
    reopens the drawer (#2519). Views that fit inline stay active and keep
@@ -2228,10 +2244,7 @@ let rich_drawer_rows = (model: probe_model, info: info): option(int) => {
 let set_drawer_mode =
     (model: probe_model, info: info, drawer_mode: bool): probe_model => {
   let needs_drawer =
-    switch (model.active_renderer, rich_drawer_rows(model, info)) {
-    | (Some(_), Some(n)) => n > inline_rows_cap
-    | _ => false
-    };
+    Option.is_some(model.active_renderer) && rich_in_drawer(model, info);
   {
     ...model,
     drawer_mode,
@@ -2338,22 +2351,17 @@ module M: Projector = {
       SampleLength.reset();
       model;
     | ToggleModal(pm) =>
-      /* activation: content taller than the inline cap opens the
-         drawer (chevron / Cmd+ArrowUp toggles back) */
+      /* activation: a view that lives in the drawer opens it (chevron /
+         Cmd+ArrowUp toggles back) */
       let activate = () => {
         let wants_drawer =
-          switch (
-            rich_drawer_rows(
-              {
-                ...model,
-                active_renderer: pm,
-              },
-              info,
-            )
-          ) {
-          | Some(n) => n > inline_rows_cap
-          | None => false
-          };
+          rich_in_drawer(
+            {
+              ...model,
+              active_renderer: pm,
+            },
+            info,
+          );
         {
           ...model,
           active_renderer: pm,
@@ -2479,13 +2487,7 @@ module M: Projector = {
      * the drawer itself; the anchored modal overlay is inline-mode only
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
-      drawer
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > inline_rows_cap
-        | None => false
-        }
-      )
+      drawer && rich_in_drawer(model, info)
         ? rich_content(
             ~settings,
             model,
