@@ -672,6 +672,14 @@ let remove_statics_at =
   );
 };
 
+let hide_steps = (z: Zipper.t): Zipper.t =>
+  Zipper.update_refractors(z, r =>
+    {
+      ...r,
+      stepping: None,
+    }
+  );
+
 let go =
     (
       ~statics as {info_map, _}: CachedStatics.t,
@@ -745,12 +753,7 @@ let go =
          }
        )
     |> SampleFocusPerform.reset
-    |> Zipper.update_refractors(_, r =>
-         {
-           ...r,
-           stepping: None,
-         }
-       )
+    |> hide_steps
   | ShowSteps(span) =>
     DrawerFit.forget(span.probe_id);
     Zipper.update_refractors(z, r =>
@@ -763,13 +766,7 @@ let go =
           }),
       }
     );
-  | HideSteps =>
-    Zipper.update_refractors(z, r =>
-      {
-        ...r,
-        stepping: None,
-      }
-    )
+  | HideSteps => hide_steps(z)
   };
 
 /* an edit to the program closes a stepping drawer, as does losing its
@@ -786,12 +783,7 @@ let settle_stepping = (a: Action.t, z: Zipper.t): Zipper.t =>
           | _ => true
           }
         ) =>
-    Zipper.update_refractors(z, r =>
-      {
-        ...r,
-        stepping: None,
-      }
-    )
+    hide_steps(z)
   | _ => z
   };
 
