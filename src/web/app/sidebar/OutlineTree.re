@@ -46,6 +46,30 @@ let rec pat_name = (p: Pat.t): option(string) =>
   | _ => None
   };
 
+let row = (~id=?, ~label="", ~test=?, ~kids=[], kind: kind): node => {
+  o_label: label,
+  o_kind: kind,
+  o_id: id,
+  o_test: test,
+  o_children: kids,
+};
+
+let type_row = (id: Id.t, tp: TPat.t): list(node) =>
+  switch (tp.term) {
+  | Var(name) => [row(~id, ~label=name, KType)]
+  | _ => []
+  };
+
+/* a `…;` statement: a test, or any other */
+let stmt_row = (id: Id.t, e: Exp.t): list(node) => {
+  let h = strip_exp(e);
+  switch (h.term) {
+  | Test(_)
+  | HintedTest(_) => [row(~id, ~test=Exp.rep_id(h), KTest)]
+  | _ => [row(~id, KStmt)]
+  };
+};
+
 /* a block (the program, a function body) is an item chain: defs, `…;`
    statements and the trailing body. a nested block shows its ⇒ row only
    beside other items; the top level always does (it anchors the result) */
@@ -53,71 +77,16 @@ let rec of_exp = (~top=false, e: Exp.t): list(node) => {
   let e = strip_exp(e);
   switch (e.term) {
   | Let(pat, def, body) =>
-    let entry =
-      switch (pat_name(pat)) {
-      | Some(name) => [mk_def(~id=Exp.rep_id(e), name, def)]
-      | None => []
-      };
-    entry @ of_exp(~top, body);
+    let_row(Exp.rep_id(e), pat, def) @ of_exp(~top, body)
   | TyAlias(tpat, _, body) =>
-    let entry =
-      switch (tpat.term) {
-      | Var(name) => [
-          {
-            o_label: name,
-            o_kind: KType,
-            o_id: Some(Exp.rep_id(e)),
-            o_test: None,
-            o_children: [],
-          },
-        ]
-      | _ => []
-      };
-    entry @ of_exp(~top, body);
+    type_row(Exp.rep_id(e), tpat) @ of_exp(~top, body)
   | ModuleExp(mpat, def, body) =>
-    let entry =
-      switch (mpat.term) {
-      | Var(name) => [mk_def(~id=Exp.rep_id(e), name, def)]
-      | _ => []
-      };
-    entry @ of_exp(~top, body);
-  | Seq(e1, body) =>
-    let h = strip_exp(e1);
-    let entry =
-      switch (h.term) {
-      | Test(_)
-      | HintedTest(_) => [
-          {
-            o_label: "",
-            o_kind: KTest,
-            o_id: Some(Exp.rep_id(e)),
-            o_test: Some(Exp.rep_id(h)),
-            o_children: [],
-          },
-        ]
-      | _ => [
-          {
-            o_label: "",
-            o_kind: KStmt,
-            o_id: Some(Exp.rep_id(e)),
-            o_test: None,
-            o_children: [],
-          },
-        ]
-      };
-    entry @ of_exp(~top, body);
+    module_row(Exp.rep_id(e), mpat, def) @ of_exp(~top, body)
+  | Seq(e1, body) => stmt_row(Exp.rep_id(e), e1) @ of_exp(~top, body)
   /* a Module root: its items are the program's top level, with no
      wrapper row */
   | Module(items) when top => of_mod(items)
-  | _ when top => [
-      {
-        o_label: "",
-        o_kind: KTrail,
-        o_id: Some(Exp.rep_id(e)),
-        o_test: None,
-        o_children: [],
-      },
-    ]
+  | _ when top => [row(~id=Exp.rep_id(e), KTrail)]
   | _ => []
   };
 }
@@ -138,99 +107,49 @@ and of_block = (fbody: Exp.t): list(node) => {
       | _ => e
       };
     };
-    let tail = tail_of(fbody);
-    items
-    @ [
-      {
-        o_label: "",
-        o_kind: KTrail,
-        o_id: Some(Exp.rep_id(tail)),
-        o_test: None,
-        o_children: [],
-      },
-    ];
+    items @ [row(~id=Exp.rep_id(tail_of(fbody)), KTrail)];
   };
 }
 
 and mk_def = (~id: Id.t, name: string, def: Exp.t): node => {
   let def = strip_exp(def);
-  switch (def.term) {
-  | Module(items) => {
-      o_label: name,
-      o_kind: KModule,
-      o_id: Some(id),
-      o_test: None,
-      o_children: of_mod(items),
-    }
-  | Fun(_, fbody, _, _)
-  | TypFun(_, {term: Fun(_, fbody, _, _), _}, _) => {
-      o_label: name,
-      o_kind: KFn,
-      o_id: Some(id),
-      o_test: None,
-      o_children: of_block(fbody),
-    }
-  | _ => {
-      o_label: name,
-      o_kind: KConst,
-      o_id: Some(id),
-      o_test: None,
-      o_children: of_exp(def),
-    }
-  };
+  let (kind, kids) =
+    switch (def.term) {
+    | Module(items) => (KModule, of_mod(items))
+    | Fun(_, fbody, _, _)
+    | TypFun(_, {term: Fun(_, fbody, _, _), _}, _) => (
+        KFn,
+        of_block(fbody),
+      )
+    | _ => (KConst, of_exp(def))
+    };
+  row(~id, ~label=name, ~kids, kind);
 }
 
-and of_mod = (items: list(Language.Mod.t)): list(node) =>
+and let_row = (id: Id.t, pat: Pat.t, def: Exp.t): list(node) =>
+  switch (pat_name(pat)) {
+  | Some(name) => [mk_def(~id, name, def)]
+  | None => []
+  }
+
+and module_row = (id: Id.t, mpat: MPat.t, def: Exp.t): list(node) =>
+  switch (mpat.term) {
+  | Var(name) => [mk_def(~id, name, def)]
+  | _ => []
+  }
+
+and of_mod = (items: list(Mod.t)): list(node) =>
   List.concat_map(
-    (m: Language.Mod.t) =>
+    (m: Mod.t) =>
       switch (m.term) {
-      | ModLet(pat, def) =>
-        switch (pat_name(pat)) {
-        | Some(name) => [mk_def(~id=Language.Mod.rep_id(m), name, def)]
-        | None => []
-        }
-      | ModType(tpat, _) =>
-        switch (tpat.term) {
-        | Var(name) => [
-            {
-              o_label: name,
-              o_kind: KType,
-              o_id: Some(Language.Mod.rep_id(m)),
-              o_test: None,
-              o_children: [],
-            },
-          ]
-        | _ => []
-        }
-      | ModuleMod(mpat, def) =>
-        switch (mpat.term) {
-        | Var(name) => [mk_def(~id=Language.Mod.rep_id(m), name, def)]
-        | _ => []
-        }
+      | ModLet(pat, def) => let_row(Mod.rep_id(m), pat, def)
+      | ModType(tpat, _) => type_row(Mod.rep_id(m), tpat)
+      | ModuleMod(mpat, def) => module_row(Mod.rep_id(m), mpat, def)
       | ModExp(e) =>
-        let h = strip_exp(e);
-        switch (h.term) {
-        | Test(_)
-        | HintedTest(_) => [
-            {
-              o_label: "",
-              o_kind: KTest,
-              o_id: Some(Language.Mod.rep_id(m)),
-              o_test: Some(Exp.rep_id(h)),
-              o_children: [],
-            },
-          ]
+        switch (strip_exp(e).term) {
         | EmptyHole => []
-        | _ => [
-            {
-              o_label: "",
-              o_kind: KStmt,
-              o_id: Some(Language.Mod.rep_id(m)),
-              o_test: None,
-              o_children: [],
-            },
-          ]
-        };
+        | _ => stmt_row(Mod.rep_id(m), e)
+        }
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) => []
@@ -246,13 +165,7 @@ let rec group_tests = (ns: list(node)): list(node) =>
   | [{o_kind: KTest, _} as t1, {o_kind: KTest, _} as t2, ...rest] =>
     let (run, rest) = take_tests([t2, ...rest], [t1]);
     [
-      {
-        o_label: "tests",
-        o_kind: KTests,
-        o_id: None,
-        o_test: None,
-        o_children: List.rev(run),
-      },
+      row(~label="tests", ~kids=List.rev(run), KTests),
       ...group_tests(rest),
     ];
   | [n, ...rest] => [
