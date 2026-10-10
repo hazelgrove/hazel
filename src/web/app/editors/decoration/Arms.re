@@ -526,23 +526,26 @@ module Errors = {
          * error/warning color, over a strokeless term-shaped backing (the
          * red/orange analog of the probe refractor backing). */
         | Some(t) when simple_indication =>
-          let backing =
-            switch (TermData.segment(id, syntax.term_data)) {
-            | Some(seg) =>
-              Highlight.of_segment(
-                ~measured=syntax.measured,
-                ~shape_map=syntax.shape_map,
-                ~font_metrics,
-                ~shape_init=Some(Convex),
-                ~clss=["simple-backing", is_warning ? "warning" : "error"],
-                seg,
-              )
-            | None => []
-            };
-          let arm =
-            switch (term_range(~syntax, Piece.Tile(t))) {
-            | Some(range) =>
-              simple_arm(
+          switch (term_range(~syntax, Piece.Tile(t))) {
+          /* not measured (e.g. inside a fold): draw nothing, like the
+             regular arm */
+          | None => []
+          | Some(range) =>
+            let backing =
+              switch (TermData.segment(id, syntax.term_data)) {
+              | Some(seg) =>
+                Highlight.of_segment(
+                  ~measured=syntax.measured,
+                  ~shape_map=syntax.shape_map,
+                  ~font_metrics,
+                  ~shape_init=Some(Convex),
+                  ~clss=["simple-backing", is_warning ? "warning" : "error"],
+                  seg,
+                )
+              | None => []
+              };
+            backing
+            @ simple_arm(
                 ~font_metrics,
                 ~rows=syntax.measured.rows,
                 ~path_cls=[
@@ -551,10 +554,8 @@ module Errors = {
                   is_warning ? "warning" : "error",
                 ],
                 range,
-              )
-            | None => []
-            };
-          backing @ arm;
+              );
+          }
         | Some(t) =>
           let clip_right = completion_clip(~syntax, ~completion, t);
           term(~refine_sort, ~syntax, ~font_metrics, ~clip_right, t);

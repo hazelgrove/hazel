@@ -386,6 +386,17 @@ let basic_tests = [
     ~acts=mk("¦") @ [Paste("let a = 1 in\nlet b = 2 in")],
     ~goal="let a = 1 in\nlet b = 2 in¦?",
   ),
+  /* A linebreak at either edge of the clipboard is pasted too */
+  test(
+    ~name="Paste ending in a linebreak keeps it",
+    ~acts=mk("¦x") @ [Paste("let a = 1 in\n")],
+    ~goal="let a = 1 in\n¦x",
+  ),
+  test(
+    ~name="Paste starting with a linebreak keeps it",
+    ~acts=mk("let a = 1 in¦") @ [Paste("\na")],
+    ~goal="let a = 1 in\na¦",
+  ),
   test(
     ~name="Paste plaintext into token at Inner caret",
     ~acts=mk("hel¦lo") @ [Paste("abc")],
@@ -1761,6 +1772,38 @@ else f|});
   345678,
   45678,
   ¦56789)|},
+  ),
+  /* A line of only spaces has no content for Home/End to skip to */
+  test_from_parse(
+    ~name="End on a whitespace-only line goes to its end",
+    ~init="x +\n  ¦  \n  y",
+    ~acts=[Action.Move(Line(Right))],
+    ~goal="x +\n    ¦\n  y",
+  ),
+  test_from_parse(
+    ~name="Home on a whitespace-only line goes to its start",
+    ~init="x +\n  ¦  \n  y",
+    ~acts=[Action.Move(Line(Left))],
+    ~goal="x +\n¦    \n  y",
+  ),
+  test_case(
+    "End on a whitespace-only line goes to its end (indentation UX)",
+    `Quick,
+    () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "End",
+      "x +\n    ¦\n  y",
+      perform(
+        ~settings={
+          ...default_settings,
+          indentation_ux: true,
+        },
+        parse_with_caret("x +\n  ¦  \n  y"),
+        [Action.Move(Line(Right))],
+      )
+      |> printer,
+    )
   ),
   test(
     ~name="Extend selection left by token",
