@@ -208,7 +208,10 @@ let html_of =
     | None =>
       let v = MvuShape.close_value(raw);
       let h =
-        if (MvuShape.is_html(v)) {
+        /* A sample with a hole stays text: its view would come back
+           stuck, and substituting out a stuck result can blow up
+           exponentially (Piano Roll's folds over a hole hung the page) */
+        if (MvuShape.is_html(v) || !MvuShape.is_settled(v)) {
           None;
         } else {
           switch (record_of(def_elab)) {
@@ -235,10 +238,13 @@ let html_of =
                   ),
                 )
               ) {
-              | Ok(html) when MvuShape.is_html(html) => Some(html)
+              | Ok(html)
+                  when MvuShape.is_html(html) && MvuShape.is_settled(html) =>
+                Some(html)
               /* a stuck view (an app livelit's view reads the program,
-                 which the closed evaluation cannot see): not this
-                 livelit's value to render */
+                 which the closed evaluation cannot see; a sample with a
+                 hole in it): not this livelit's value to render, so the
+                 sample falls back to text */
               | Ok(_) => None
               | Error(e) =>
                 print_endline(

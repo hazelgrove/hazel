@@ -345,6 +345,33 @@ let is_html = (d: DHExp.t): bool =>
   | None => false
   };
 
+/* A value finished all the way down (function bodies aside: they are
+   code). `is_html` looks at the head only, so it accepts HTML with stuck
+   insides: `Text(string_of_int(?))`, an attribute built from `"0 " ++ ?`. */
+let rec is_settled = (d: DHExp.t): bool =>
+  switch (d.term) {
+  | Atom(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Constructor(_)
+  | BuiltinFun(_)
+  | Fun(_)
+  | TypFun(_)
+  | FixF(_) => true
+  | Asc(d, _)
+  | Parens(d)
+  | Closure(_, d) => is_settled(d)
+  | TupLabel(l, d) => is_settled(l) && is_settled(d)
+  | ListLit(ds)
+  | Tuple(ds) => List.for_all(is_settled, ds)
+  | Ap(Forward, fn, arg) =>
+    switch (strip_wrappers(fn).term) {
+    | Constructor(_) => is_settled(arg)
+    | _ => false
+    }
+  | _ => false
+  };
+
 // === Checkpoints ===
 //
 // Rejects terms carrying a captured environment. Functions are fine:

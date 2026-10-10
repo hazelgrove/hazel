@@ -854,6 +854,41 @@ let edited_view_redraws = () => {
   );
 };
 
+/* A sample with a hole in it, or a view whose HTML comes back stuck
+   inside (`Text(string_of_int(undefined))`), is not drawn: the sample
+   falls back to text rather than printing the leftover HTML as code */
+let stuck_view_not_drawn = () => {
+  let drawn = (~view: string, p0: string) => {
+    let (ctx, ll, value, _) =
+      point_sample(
+        point_def(view)
+        ++ "let shift(p: Point): Point = case p | P(x, y) => P(x + 10, y + 10) end in
+let p0 : Point = "
+        ++ p0
+        ++ " in
+shift(p0)",
+      );
+    Haz3lcore.LivelitRenderer.html_of(~ctx, ll, value) != None;
+  };
+  let shows_x = "let view(p: Model): HTML =
+    case p | P(x, y) => Text(string_of_int(x)) end";
+  check(bool, "a whole sample", true, drawn(~view=shows_x, "P(30, 40)"));
+  check(
+    bool,
+    "a sample with a hole",
+    false,
+    drawn(~view=shows_x, "P(?, 40)"),
+  );
+  let past_end = "let view(p: Model): HTML =
+    case p | P(x, y) => Text(string_of_int(nth([1, 2], x))) end";
+  check(
+    bool,
+    "a view that comes back stuck",
+    false,
+    drawn(~view=past_end, "P(30, 40)"),
+  );
+};
+
 /* A view may take a second argument, a ViewContext: where it is drawn
    (at its Literal, Offside as a probe sample, in a probe's Drawer) and
    whether it is editable. Hazel tells the two forms apart by the view's
@@ -1085,6 +1120,11 @@ let tests = [
         edited_view_redraws,
       ),
       test_case("view form told apart by type", `Quick, view_form_by_type),
+      test_case(
+        "a stuck view falls back to text",
+        `Quick,
+        stuck_view_not_drawn,
+      ),
       test_case(
         "view context offside and in the drawer",
         `Quick,
