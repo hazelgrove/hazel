@@ -21,8 +21,6 @@ let mk_statics = (z: Zipper.t): StaticsBase.Map.t =>
     ),
   );
 
-/* literal text only: indentation is materialized as space pieces, so
-   re-deriving it at print time (~indent) would double-count */
 let render_zipper = (z: Zipper.t): string =>
   Printer.of_zipper(~holes="?", z);
 

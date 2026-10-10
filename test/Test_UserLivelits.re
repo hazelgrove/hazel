@@ -539,7 +539,7 @@ let redex_roundtrip = () => {
       },
       Exp(redex),
     );
-  let text = Haz3lcore.Printer.of_segment(~holes="?", ~indent="", seg);
+  let text = Haz3lcore.Printer.of_segment(~holes="?", seg);
   run_test(
     "committed transition text round-trips: " ++ text,
     "18",
