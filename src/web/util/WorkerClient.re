@@ -195,6 +195,52 @@ let rec start_ack_timeout = (~cold_start, latest) => {
     );
 };
 
+/* A request supersedes the one in flight only for the keys it carries:
+   the rest of the old batch rides along, its replies still going to the
+   old callbacks. Otherwise a cell whose inputs have not changed since
+   never hears back (Next onto a task slide: the slide's Auto Probe
+   default re-requests YourImpl alone, and HiddenTests stayed empty). */
+let supersede =
+    (prev: option(latest), batch: Request.batch, callbacks: callbacks)
+    : (Request.batch, callbacks) => {
+  let carried =
+    switch (prev) {
+    | Some(prev) =>
+      List.filter(
+        ((key, _)) => !List.mem_assoc(key, batch),
+        prev.request.batch,
+      )
+    | None => []
+    };
+  switch (prev) {
+  | Some(prev) when carried != [] =>
+    let is_old = key => List.mem_assoc(key, carried);
+    let split = (old_f, new_f, items) => {
+      let (old, fresh) = List.partition(((key, _)) => is_old(key), items);
+      if (old != []) {
+        old_f(old);
+      };
+      if (fresh != []) {
+        new_f(fresh);
+      };
+    };
+    (
+      batch @ carried,
+      {
+        on_result: split(prev.callbacks.on_result, callbacks.on_result),
+        on_timeout: split(prev.callbacks.on_timeout, callbacks.on_timeout),
+        on_ack: split(prev.callbacks.on_ack, callbacks.on_ack),
+        on_stream: (key, update) =>
+          (is_old(key) ? prev.callbacks.on_stream : callbacks.on_stream)(
+            key,
+            update,
+          ),
+      },
+    );
+  | _ => (batch, callbacks)
+  };
+};
+
 let request =
     (
       batch: Request.batch,
@@ -208,6 +254,17 @@ let request =
   | [] => ()
   | _ =>
     clear_timeouts();
+    let (batch, callbacks) =
+      supersede(
+        latest_request^,
+        batch,
+        {
+          on_result,
+          on_timeout,
+          on_ack,
+          on_stream,
+        },
+      );
     next_request_id := next_request_id^ + 1;
     let request: Request.t = {
       request_id: next_request_id^,
@@ -222,12 +279,7 @@ let request =
     );
     let latest = {
       request,
-      callbacks: {
-        on_result,
-        on_timeout,
-        on_ack,
-        on_stream,
-      },
+      callbacks,
       ack_retries: 0,
     };
     latest_request := Some(latest);
