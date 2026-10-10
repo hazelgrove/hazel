@@ -217,6 +217,19 @@ let tests = (
       },
     ),
     test_case(
+      "an unrelated module's tight spacing survives a definition edit",
+      `Quick,
+      () => {
+        /* materialization's spacing repair skips unchanged syntax */
+        let code = "let q = 1 in\nmodule M = {let x = 1;let y = 2} in M.x";
+        check_rendered_exact(
+          "unrelated tight module",
+          "let q = 5 in\nmodule M = {let x = 1;let y = 2} in M.x",
+          apply_and_render(code, Update(Definition, "q", "5")),
+        );
+      },
+    ),
+    test_case(
       "statics handoff rejects changed tokens with the same IDs",
       `Quick,
       () => {
