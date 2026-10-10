@@ -159,15 +159,32 @@ let value_exports = (items: list(Mod.t)): list(value_export) => {
   go(items);
 };
 
-let labeled_tuple_exp = (exports: list(value_export)): Exp.t => {
+/* [x], re-id'd from [stable] and [tag] when given: lowerings DefStatics
+   compares across runs (by id) mint no fresh ids */
+let stable_id =
+    (stable: option(Id.t), tag: string, x: IdTagged.t('a)): IdTagged.t('a) =>
+  switch (stable) {
+  | Some(id) => IdTagged.fast_copy(Id.mk_str(tag ++ Id.to_string(id)), x)
+  | None => x
+  };
+
+let labeled_tuple_exp = (~stable=?, exports: list(value_export)): Exp.t => {
   let fields =
     exports
-    |> List.map(({name, _}) =>
-         Exp.fresh(
-           TupLabel(Exp.fresh(Label(name)), Exp.fresh(Var(name))),
-         )
-       );
-  Exp.fresh(Tuple(fields));
+    |> List.map(({name, _}) => {
+         let id = (part, x) =>
+           stable_id(stable, "modtail-" ++ part ++ "-" ++ name ++ ":", x);
+         id(
+           "f",
+           Exp.fresh(
+             TupLabel(
+               id("l", Exp.fresh(Label(name))),
+               id("v", Exp.fresh(Var(name))),
+             ),
+           ),
+         );
+       });
+  stable_id(stable, "modtail:", Exp.fresh(Tuple(fields)));
 };
 
 let rec strip_typ_parens = (ty: Typ.t): Typ.t =>
@@ -284,37 +301,44 @@ let modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t =>
   };
 
 let wrap_item =
-    (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t =>
+    (
+      ~ana_labels: list((Var.t, Typ.t)),
+      ~stable=false,
+      item: Mod.t,
+      body: Exp.t,
+    )
+    : Exp.t => {
+  let rep = Mod.rep_id(item);
+  /* a non-binding item as `let _ = e in body` */
+  let wild = (tag, e) => {
+    let from = stable ? Some(rep) : None;
+    stable_id(
+      from,
+      tag ++ "let:",
+      Exp.fresh(
+        Let(stable_id(from, tag ++ "pat:", Pat.fresh(Wild)), e, body),
+      ),
+    );
+  };
   switch (item.term) {
   | ModLet(pat, def) =>
     IdTagged.fast_copy(
-      Mod.rep_id(item),
+      rep,
       Exp.fresh(Let(modlet_pat(ana_labels, pat), def, body)),
     )
   | ModType(tpat, typ) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(TyAlias(tpat, typ, body)),
-    )
-  | ModExp(e) => Exp.fresh(Let(Pat.fresh(Wild), e, body))
+    IdTagged.fast_copy(rep, Exp.fresh(TyAlias(tpat, typ, body)))
+  | ModExp(e) => wild("modexp-", e)
   | ModuleMod(mp, def) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(Let(mpat_to_pat(mp), def, body)),
-    )
+    IdTagged.fast_copy(rep, Exp.fresh(Let(mpat_to_pat(mp), def, body)))
   | EmptyHole =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(EmptyHole));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    wild("modhole-", IdTagged.fast_copy(rep, Exp.fresh(EmptyHole)))
   | Invalid(s) =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(Invalid(s)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    wild("modinv-", IdTagged.fast_copy(rep, Exp.fresh(Invalid(s))))
   | MultiHole(es) =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(MultiHole(es)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    wild("modmh-", IdTagged.fast_copy(rep, Exp.fresh(MultiHole(es))))
   };
+};
 
 let lower =
     (~ctx: Ctx.t, ~ana: option(Typ.t)=?, items: list(Mod.t)): lowered => {

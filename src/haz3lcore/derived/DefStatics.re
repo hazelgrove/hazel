@@ -62,89 +62,29 @@ let rec chain = (e: Exp.t): list(Exp.t) =>
   | None => [e]
   };
 
-/* a Module root itemizes like the monolithic lowering: each mod item
-   becomes a Let/TyAlias wrapper, plus a tail tuple of the exports.
+/* a module's items as a chain, like the monolithic lowering: each mod
+   item becomes a Let/TyAlias wrapper, plus a tail tuple of the exports.
    head_equal gates cleanliness on wrapper and tail ids, so they must be
-   stable: wrappers that can't reuse the item's rep id get derived ids */
-let derived_id = (tag: string, rep: Id.t): Id.t =>
-  Id.mk_str(tag ++ Id.to_string(rep));
-
-let lower_mod_item = (item: Mod.t): Exp.t => {
-  let hole = Exp.fresh(EmptyHole);
-  let rep = Mod.rep_id(item);
-  let stable_wild_let = (tag: string, e: Exp.t): Exp.t =>
-    IdTagged.fast_copy(
-      derived_id(tag ++ "let:", rep),
-      Exp.fresh(
-        Let(
-          IdTagged.fast_copy(
-            derived_id(tag ++ "pat:", rep),
-            Pat.fresh(Wild),
-          ),
-          e,
-          hole,
-        ),
+   stable: wrappers that can't reuse the item's rep id, and the tail (from
+   [rep] and its export names: it mentions every export, so any export
+   delta re-analyzes it), get derived ids */
+let lower_items = (rep: Id.t, items: list(Mod.t)): list(Exp.t) =>
+  List.map(
+    item =>
+      ModuleHelpers.wrap_item(
+        ~ana_labels=[],
+        ~stable=true,
+        item,
+        Exp.fresh(EmptyHole),
       ),
-    );
-  switch (item.term) {
-  | ModLet(pat, def) =>
-    IdTagged.fast_copy(rep, Exp.fresh(Let(pat, def, hole)))
-  | ModType(tpat, typ) =>
-    IdTagged.fast_copy(rep, Exp.fresh(TyAlias(tpat, typ, hole)))
-  | ModuleMod(mp, def) =>
-    IdTagged.fast_copy(
-      rep,
-      Exp.fresh(Let(ModuleHelpers.mpat_to_pat(mp), def, hole)),
-    )
-  | ModExp(e) => stable_wild_let("modexp-", e)
-  | EmptyHole =>
-    stable_wild_let(
-      "modhole-",
-      IdTagged.fast_copy(rep, Exp.fresh(EmptyHole)),
-    )
-  | Invalid(s) =>
-    stable_wild_let(
-      "modinv-",
-      IdTagged.fast_copy(rep, Exp.fresh(Invalid(s))),
-    )
-  | MultiHole(es) =>
-    stable_wild_let(
-      "modmh-",
-      IdTagged.fast_copy(rep, Exp.fresh(MultiHole(es))),
-    )
-  };
-};
-
-/* the module-value tail, with ids derived from the root's rep and export
-   names so it stays clean unless the export name set changes; it
-   mentions every export, so any export delta re-analyzes it */
-let exports_tail = (root_rep: Id.t, items: list(Mod.t)): Exp.t => {
-  let sid = (tag: string, name: string) =>
-    derived_id(tag ++ name ++ ":", root_rep);
-  let fields =
-    ModuleHelpers.value_exports(items)
-    |> List.map(({name, _}: ModuleHelpers.value_export) =>
-         IdTagged.fast_copy(
-           sid("modtail-f-", name),
-           Exp.fresh(
-             TupLabel(
-               IdTagged.fast_copy(
-                 sid("modtail-l-", name),
-                 Exp.fresh(Label(name)),
-               ),
-               IdTagged.fast_copy(
-                 sid("modtail-v-", name),
-                 Exp.fresh(Var(name)),
-               ),
-             ),
-           ),
-         )
-       );
-  IdTagged.fast_copy(
-    derived_id("modtail:", root_rep),
-    Exp.fresh(Tuple(fields)),
-  );
-};
+    items,
+  )
+  @ [
+    ModuleHelpers.labeled_tuple_exp(
+      ~stable=rep,
+      ModuleHelpers.value_exports(items),
+    ),
+  ];
 
 /* item equality across versions: the head only, ids included (an
    id-preserving rebuild compares equal) */
@@ -682,9 +622,7 @@ and calc_module_item =
     | Some(q) when q.d_id == Exp.rep_id(node) => q.d_members
     | _ => []
     };
-  let member_nodes =
-    List.map(lower_mod_item, members)
-    @ [exports_tail(Exp.rep_id(def), members)];
+  let member_nodes = lower_items(Exp.rep_id(def), members);
   let items_m =
     calc_members(
       ~settings,
@@ -985,8 +923,7 @@ let ctx0: Ctx.t = Builtins.ctx_init(Some(Operators.default_mode));
 let chain_root = (e: Exp.t): list(Exp.t) => {
   let s = strip(e);
   switch (s.term) {
-  | Module(items) =>
-    List.map(lower_mod_item, items) @ [exports_tail(Exp.rep_id(s), items)]
+  | Module(items) => lower_items(Exp.rep_id(s), items)
   | _ => chain(e)
   };
 };
