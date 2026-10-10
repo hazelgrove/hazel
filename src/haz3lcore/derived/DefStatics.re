@@ -38,17 +38,24 @@ let rec strip = (e: Exp.t): Exp.t =>
   | _ => e
   };
 
+/* a chain item's body, and the item rebuilt around another body */
+let split_body = (item: Exp.t): option((Exp.t, Exp.t => Exp.term)) =>
+  switch (item.term) {
+  | Let(p, d, body) => Some((body, (b => Let(p, d, b))))
+  | TyAlias(tp, ty, body) => Some((body, (b => TyAlias(tp, ty, b))))
+  | ModuleExp(mp, d, body) => Some((body, (b => ModuleExp(mp, d, b))))
+  | Seq(e, body) => Some((body, (b => Seq(e, b))))
+  | Filter(f, body) => Some((body, (b => Filter(f, b))))
+  | _ => None
+  };
+
 /* the top-level item chain; the trailing expression is its own item.
    a chain inside parens or a projector (a folded section) stays whole
    in the tail: the wrapper has info and elaboration of its own */
 let rec chain = (e: Exp.t): list(Exp.t) =>
-  switch (e.term) {
-  | Let(_, _, body)
-  | TyAlias(_, _, body)
-  | ModuleExp(_, _, body) => [e, ...chain(body)]
-  | Seq(_, body)
-  | Filter(_, body) => [e, ...chain(body)]
-  | _ => [e]
+  switch (split_body(e)) {
+  | Some((body, _)) => [e, ...chain(body)]
+  | None => [e]
   };
 
 /* a Module root itemizes like the monolithic lowering: each mod item
@@ -592,23 +599,10 @@ and calc_plain_item =
     (~settings, ~probe_ids=Id.Map.empty, ~ctx_in: Ctx.t, node: Exp.t): item => {
   incr(last_analyzed);
   let hole = Exp.fresh(EmptyHole);
-  let is_tail =
-    switch (node.term) {
-    | Let(_)
-    | TyAlias(_)
-    | ModuleExp(_)
-    | Seq(_)
-    | Filter(_) => false
-    | _ => true
-    };
-  let hollow_term: Exp.term =
-    switch (node.term) {
-    | Let(p, d, _) => Let(p, d, hole)
-    | TyAlias(tp, ty, _) => TyAlias(tp, ty, hole)
-    | ModuleExp(mp, d, _) => ModuleExp(mp, d, hole)
-    | Seq(e, _) => Seq(e, hole)
-    | Filter(f, _) => Filter(f, hole)
-    | t => t /* trailing expression: type as-is */
+  let (is_tail, hollow_term) =
+    switch (split_body(node)) {
+    | Some((_, rebuild)) => (false, rebuild(hole))
+    | None => (true, node.term) /* trailing expression: type as-is */
     };
   let hollow = {
     ...node,
