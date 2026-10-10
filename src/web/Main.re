@@ -236,11 +236,16 @@ let start = default_model => {
       )
       >= 0;
     JsUtil.focus_clipboard_shim();
+    /* Not while the crash screen is up: that would save the state that
+       crashed, and every reload would crash again. Autosave already skips
+       saving then (CrashHandling drops actions during an exception). */
     JsUtil.on_page_leave(() =>
-      Option.iter(
-        page => HazelDB.kv_journal(() => Page.Store.save(page)),
-        latest_page^,
-      )
+      if (CrashHandling.current_exception^ == None) {
+        Option.iter(
+          page => HazelDB.kv_journal(() => Page.Store.save(page)),
+          latest_page^,
+        );
+      }
     );
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
