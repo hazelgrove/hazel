@@ -346,28 +346,6 @@ let stamp_equal = (a: save_stamp, b: save_stamp): bool =>
   | _ => false
   };
 
-/* a divided program saves its document as text, without a live editor
-   (syntax init and zipper sexps are slow); the caret is in a cell anyway */
-let persist_divided = (d: Divided.t): CellEditor.Model.persistent => {
-  let z =
-    Divided.document(d)
-    |> Zipper.unzip
-    |> ZipperBase.update_refractors(_, r =>
-         Refractors.{
-           ...r,
-           manuals: Divided.probes(d),
-         }
-       );
-  CellEditor.Model.{
-    editor:
-      Editor.Model.mk_persistent(
-        PersistentZipper.of_text(PersistentZipper.to_string(z) ++ "\n"),
-        ~root=Divided.root(d),
-      ),
-    result: EvalResult.Model.persist(Divided.result(d)),
-  };
-};
-
 let save_current' = (prefix: string, model: Model.t): unit => {
   let names = Model.scratchpad_names(model);
   save_meta(
@@ -394,14 +372,22 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       };
     if (!content_unchanged) {
       Hashtbl.replace(last_saved_content, ck, stamp);
-    };
-    if (!content_unchanged) {
-      switch (program) {
-      | Divided(d) =>
-        save_items(prefix, sp.name, Divided.document(d) |> Zipper.unzip)
-      | Whole(editor) =>
-        save_items(prefix, sp.name, editor.editor.editor.state.zipper)
-      };
+      /* text, without a live editor (syntax init and zipper sexps are
+         slow); a divided program saves its document */
+      let z =
+        switch (program) {
+        | Whole(editor) => editor.editor.editor.state.zipper
+        | Divided(d) =>
+          Divided.document(d)
+          |> Zipper.unzip
+          |> ZipperBase.update_refractors(_, r =>
+               Refractors.{
+                 ...r,
+                 manuals: Divided.probes(d),
+               }
+             )
+        };
+      save_items(prefix, sp.name, z);
       /* the slide blob carries the editor only; the conversation lives
          solely under the :agent key */
       save_slide_kind(
@@ -410,24 +396,17 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         CodePersist({
           editor:
             Some(
-              switch (program) {
-              | Divided(d) => persist_divided(d)
-              | Whole(editor) =>
-                CellEditor.Model.{
-                  editor:
-                    Editor.Model.mk_persistent(
-                      PersistentZipper.of_text(
-                        PersistentZipper.to_string(
-                          editor.editor.editor.state.zipper,
-                        )
-                        ++ "\n",
-                      ),
-                      /* the editor's own root: a Mod-rooted slide saved
-                         as Exp reloads as an expression and wedges */
-                      ~root=editor.editor.editor.root,
+              CellEditor.Model.{
+                editor:
+                  Editor.Model.mk_persistent(
+                    PersistentZipper.of_text(
+                      PersistentZipper.to_string(z) ++ "\n",
                     ),
-                  result: EvalResult.Model.persist(editor.result),
-                }
+                    /* the editor's own root: a Mod-rooted slide saved as
+                       Exp reloads as an expression and wedges */
+                    ~root=Program.root(program),
+                  ),
+                result: EvalResult.Model.persist(Program.result(program)),
               },
             ),
           agent: Agent.Persistent.persist(Agent.Utils.init()),
@@ -439,8 +418,8 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       {
         caret:
           switch (program) {
-          /* whole programs save as text too (zipper sexps are slow), so
-             the caret is restored after hydration */
+          /* text saves lose it, so it's restored after hydration; a
+             divided program's is in a cell anyway */
           | Whole(editor) when !content_unchanged =>
             try(
               Some(
