@@ -107,6 +107,63 @@ let rec of_constructor_raw = (d: DHExp.t): option((string, DHExp.t)) =>
   | _ => None
   };
 
+// === Open values: taking parts out of a value left unfinished ===
+
+/* A value as the evaluator left it (safe_evaluate_open) may sit under
+   Closures whose environments give the free variables beneath them their
+   meaning. peel takes the wrappers off and returns what is under them,
+   with a function that puts the same Closures back around any part taken
+   out of it -- sharing the environments, not substituting them, so a part
+   still evaluates where it was made, at no cost however large they are. */
+let rec peel = (d: DHExp.t): (DHExp.t => DHExp.t, DHExp.t) =>
+  switch (d.term) {
+  | Asc(inner, _)
+  | Parens(inner) => peel(inner)
+  | Closure(env, inner) =>
+    let (wrap, core) = peel(inner);
+    (
+      (
+        part => {
+          ...d,
+          term: (Closure(env, wrap(part)): TermBase.Exp.term),
+        }
+      ),
+      core,
+    );
+  | _ => ((part => part), d)
+  };
+
+/* of_constructor_raw for an open value: the body keeps the environments
+   the constructor application sat under. */
+let of_constructor_open = (d: DHExp.t): option((string, DHExp.t)) => {
+  let (wrap, core) = peel(d);
+  switch (core.term) {
+  | Ap(Forward, fn, body) =>
+    switch (snd(peel(fn)).term) {
+    | Constructor(name, _) => Some((name, wrap(body)))
+    | _ => None
+    }
+  | Constructor(name, _) =>
+    Some((
+      name,
+      {
+        ...core,
+        term: Tuple([]),
+      },
+    ))
+  | _ => None
+  };
+};
+
+/* of_tuple for an open value: each item keeps the environments. */
+let of_tuple_open = (d: DHExp.t): option(list(DHExp.t)) => {
+  let (wrap, core) = peel(d);
+  switch (core.term) {
+  | Tuple(items) => Some(List.map(wrap, items))
+  | _ => None
+  };
+};
+
 // === Primitive extractors (strip wrappers, then match) ===
 
 let of_string = (d: DHExp.t): option(string) => {
@@ -208,6 +265,15 @@ let evaluate = exp => fst(Evaluator.evaluate(~env=Builtins.env_init, exp));
 // Error boundary: wrap evaluate to catch exceptions
 let safe_evaluate = (exp: DHExp.t): result(DHExp.t, string) =>
   try(Ok(evaluate(exp))) {
+  | exn => Error(Printexc.to_string(exn))
+  };
+
+/* safe_evaluate, but the value as the evaluator left it: its functions
+   still closures (Evaluator.evaluate_open). For a value read for its data
+   and whose functions are only ever applied by evaluating again -- a
+   livelit view's HTML, whose handlers run through HazelDOM's dispatch. */
+let safe_evaluate_open = (exp: DHExp.t): result(DHExp.t, string) =>
+  try(Ok(Evaluator.evaluate_open(~env=Builtins.env_init, exp))) {
   | exn => Error(Printexc.to_string(exn))
   };
 
@@ -398,3 +464,26 @@ let record_field =
     }
   };
 };
+
+/* record_field of a value as the evaluator left it (safe_evaluate_open):
+   the record may sit under Closures, whose environments give its fields'
+   free variables -- a livelit's helpers -- their meaning. Each Closure on
+   the way in is put back around the field, so the field still evaluates
+   in it: the environment is shared, not substituted in, so this costs
+   nothing however large the livelit. (record_field strips them, and
+   finishing substitutes them in, copying every helper into every field.) */
+let rec record_field_open =
+        (record: TermBase.Exp.t, label: string): option(TermBase.Exp.t) =>
+  switch (record.term) {
+  | Closure(env, inner) =>
+    record_field_open(inner, label)
+    |> Option.map(v =>
+         {
+           ...record,
+           term: (Closure(env, v): TermBase.Exp.term),
+         }
+       )
+  | Asc(inner, _)
+  | Parens(inner) => record_field_open(inner, label)
+  | _ => record_field(record, label)
+  };

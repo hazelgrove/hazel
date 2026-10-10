@@ -20,6 +20,11 @@ let evaluate:
   ) =>
   (Exp.t, EvaluatorState.t);
 
+/* evaluate, without finish: the value as the evaluator left it, its
+   functions still closures. For callers that only read a value's data and
+   apply its functions by evaluating again. */
+let evaluate_open: (~env: Environment.t(Exp.t), Exp.t) => Exp.t;
+
 let evaluate_and_limit:
   (
     ~step_limit: int,

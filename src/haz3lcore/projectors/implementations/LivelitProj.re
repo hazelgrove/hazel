@@ -510,10 +510,10 @@ module M: Projector = {
       | Some((seq, shape)) when seq == s.seq => shape
       | _ =>
         let shape =
-          switch (MvuShape.safe_evaluate(def_elab)) {
+          switch (MvuShape.safe_evaluate_open(def_elab)) {
           | Error(_) => None
           | Ok(record) =>
-            switch (MvuShape.record_field(record, "shape")) {
+            switch (MvuShape.record_field_open(record, "shape")) {
             | Some(f) =>
               switch (MvuShape.strip_wrappers(f).term) {
               | Fun(_)
@@ -548,11 +548,13 @@ module M: Projector = {
     | (Some((llname, args, _)), Some(InfoExp(exp))) =>
       switch (lookup_use(exp.ctx, llname, args)) {
       | Some({user_def: Some(def_elab), _}) =>
-        switch (MvuShape.safe_evaluate(def_elab)) {
+        switch (MvuShape.safe_evaluate_open(def_elab)) {
         | Ok(record) =>
-          Option.is_some(MvuShape.record_field(record, "params_from_model"))
+          Option.is_some(
+            MvuShape.record_field_open(record, "params_from_model"),
+          )
           && Option.is_some(
-               MvuShape.record_field(record, "init_from_params"),
+               MvuShape.record_field_open(record, "init_from_params"),
              )
         | Error(_) => false
         }
@@ -753,8 +755,10 @@ module M: Projector = {
      evaluator builds the command tree and ViewCmdRunner performs it down to
      the Html. Both of this module's view sites go through here so the two
      steps cannot drift apart. */
+  /* Not finished: a view's handlers close over the whole livelit, and
+     finishing copied all of it into each, every render. */
   let eval_view = (e: DHExp.t): result(DHExp.t, string) =>
-    switch (MvuShape.safe_evaluate(e)) {
+    switch (MvuShape.safe_evaluate_open(e)) {
     | Error(_) as err => err
     | Ok(cmd) => ViewCmdRunner.run(cmd)
     };
@@ -802,7 +806,7 @@ module M: Projector = {
       |> Option.map(snd)
     };
 
-  let record_field = MvuShape.record_field;
+  let record_field = MvuShape.record_field_open;
 
   /* The latest sampled value at some id (e.g. the model argument) */
   let latest_value = (samples: list(Sample.t)): option(TermBase.Exp.t) =>
@@ -986,7 +990,7 @@ module M: Projector = {
        unchanged) would pollute history with identity steps. A committing
        no-op still flushes when transient updates left the entry dirty. */
     let next_model =
-      switch (MvuShape.safe_evaluate(def_elab)) {
+      switch (MvuShape.safe_evaluate_open(def_elab)) {
       | Error(e) => `Error("definition error: " ++ e)
       | Ok(record) =>
         switch (record_field(record, "update")) {
@@ -1202,7 +1206,7 @@ module M: Projector = {
       ok(HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html))
     | (None, None) =>
       let ap = IdTagged.FreshGrammar.Exp.ap;
-      switch (MvuShape.safe_evaluate(def_elab)) {
+      switch (MvuShape.safe_evaluate_open(def_elab)) {
       | Error(e) => err("livelit definition error: " ++ e)
       | Ok(record) =>
         switch (record_field(record, "view")) {
@@ -1514,7 +1518,7 @@ module M: Projector = {
       )
       : option(Node.t) => {
     let ap = IdTagged.FreshGrammar.Exp.ap;
-    switch (MvuShape.safe_evaluate(def_elab)) {
+    switch (MvuShape.safe_evaluate_open(def_elab)) {
     | Error(_) => None
     | Ok(record) =>
       switch (

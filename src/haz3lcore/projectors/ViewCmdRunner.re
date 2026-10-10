@@ -81,14 +81,18 @@ let result_html = (r: DHExp.t, n: int): DHExp.t => {
 
 /* A command's answer, handed to its continuation: the continuation
    returns the next command, which runs in turn. */
+/* Commands are evaluated and taken apart OPEN (safe_evaluate_open,
+   of_constructor_open, of_tuple_open): a continuation closes over the
+   whole view, and finishing each step copied all of it in -- most of a
+   Kids' Choice redraw in Firefox. */
 let rec resume = (k: DHExp.t, x: DHExp.t): result(DHExp.t, string) =>
-  switch (safe_evaluate(Exp.ap(Forward, k, x))) {
+  switch (safe_evaluate_open(Exp.ap(Forward, k, x))) {
   | Error(e) => Error("continuation: " ++ e)
   | Ok(next) => run(next)
   }
 
 and run = (d: DHExp.t): result(DHExp.t, string) =>
-  switch (of_constructor_raw(d)) {
+  switch (of_constructor_open(d)) {
   | None => Error("view did not return a ViewCmd")
 
   /* The answer. */
@@ -98,7 +102,7 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
      node. Run the command, hand its answer to the continuation, and keep
      going -- the continuation returns another command, not a value. */
   | Some(("Bind", body)) =>
-    switch (of_tuple(body)) {
+    switch (of_tuple_open(body)) {
     | Some([c, k]) =>
       switch (run(c)) {
       | Error(_) as e => e
@@ -114,11 +118,11 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
      resolves a SpliceRef to this projector's splice -- a ref to someone
      else's splice renders as an error there, not as their code. */
   | Some(("Editor", body)) =>
-    switch (of_tuple(body)) {
+    switch (of_tuple_open(body)) {
     | Some([args, k]) =>
-      switch (of_tuple(args)) {
+      switch (of_tuple_open(args)) {
       | Some([r, dim]) =>
-        switch (of_constructor_raw(dim)) {
+        switch (of_constructor_open(dim)) {
         | Some(("FixedWidth", n)) =>
           switch (of_int(n)) {
           | Some(n) => resume(k, editor_html(r, n))
@@ -132,7 +136,7 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
     }
 
   | Some(("EvalSplice", body)) =>
-    switch (of_tuple(body)) {
+    switch (of_tuple_open(body)) {
     | Some([r, k]) =>
       switch (SpliceStore.splice_ref(r)) {
       | Some((_, v)) => resume(k, result_of(v))
@@ -149,11 +153,11 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
      code, which reads as a result and is not one. The view decides what
      None looks like. */
   | Some(("ResultView", body)) =>
-    switch (of_tuple(body)) {
+    switch (of_tuple_open(body)) {
     | Some([args, k]) =>
-      switch (of_tuple(args)) {
+      switch (of_tuple_open(args)) {
       | Some([r, dim]) =>
-        switch (of_constructor_raw(dim), SpliceStore.splice_ref(r)) {
+        switch (of_constructor_open(dim), SpliceStore.splice_ref(r)) {
         | (Some(("FixedWidth", n)), Some((_, v))) =>
           switch (of_int(n)) {
           | Some(n) =>
