@@ -601,19 +601,13 @@ let schedule_async = callback =>
    the budget is marshal/decode dead weight. its elisions are marked, so
    the display still notes them when what's left fits its own budget */
 let value_ship_budget = 6_000;
-let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
-  let (pruned, truncated) =
-    Language.TermPrune.prune(~budget=value_ship_budget, e);
-  if (truncated) {
-    print_endline(
-      Printf.sprintf(
-        "[worker] result value exceeds %d nodes: truncated for shipping (elided parts shown as holes)",
-        value_ship_budget,
-      ),
-    );
-  };
-  pruned;
-};
+let prune_value_size = (e: Language.Exp.t): Language.Exp.t =>
+  Language.TermPrune.prune_noting(
+    ~prefix="[worker] ",
+    ~budget=value_ship_budget,
+    ~purpose="shipping",
+    e,
+  );
 
 /* a finished item's cache stays resident; its response drops it (the UI
    never reads it: prev is worker-resident, predictions come via

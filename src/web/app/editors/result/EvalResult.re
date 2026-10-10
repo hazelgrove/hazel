@@ -215,18 +215,8 @@ let value_truncated = (e: Exp.t): bool =>
     exceeds_display_budget(e) || TermPrune.has_elision(e)
   );
 
-let prune_for_display = (e: Exp.t): Exp.t => {
-  let (pruned, truncated) = TermPrune.prune(~budget=display_budget, e);
-  if (truncated) {
-    print_endline(
-      Printf.sprintf(
-        "result value exceeds %d nodes: truncated for display (elided parts shown as holes)",
-        display_budget,
-      ),
-    );
-  };
-  pruned;
-};
+let prune_for_display = (e: Exp.t): Exp.t =>
+  TermPrune.prune_noting(~budget=display_budget, ~purpose="display", e);
 
 module Update = {
   open Updated;
