@@ -7,12 +7,10 @@ type key = string;
 module Request = {
   /* the incremental cache lives in the worker, per batch key. a stale or
      missing one is safe (reuse_check re-verifies every entry), just a
-     colder eval. `Seed` is for callers that own their cache (the sync
-     path, tests) */
+     colder eval */
   [@deriving (show, sexp, yojson)]
   type prev_source =
-    | UseResident
-    | Seed(Language.EvaluatorState.incr_eval);
+    | UseResident;
   /* what to stream during this evaluation. only the pending-eval
      highlight reads effect-free entries, so with it off [Effects] ships
      just the effect-bearing ones; the completion response is unaffected */
@@ -247,16 +245,13 @@ let resident: Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
   Hashtbl.create(4);
 
 let resolve_prev =
-    (~key: option(key)=?, prev: Request.prev_source)
-    : Language.EvaluatorState.incr_eval =>
-  switch (prev, key) {
-  | (Seed(p), _) => p
-  | (UseResident, Some(k)) =>
+    (~key: key, prev: Request.prev_source): Language.EvaluatorState.incr_eval =>
+  switch (prev) {
+  | UseResident =>
     Option.value(
-      Hashtbl.find_opt(resident, k),
+      Hashtbl.find_opt(resident, key),
       ~default=Language.IncrEval.empty,
     )
-  | (UseResident, None) => Language.IncrEval.empty
   };
 
 let store_resident = (key: key, response: Response.value): unit =>
@@ -266,12 +261,12 @@ let store_resident = (key: key, response: Response.value): unit =>
   | Error(_) => ()
   };
 
-let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev, _} = req_value;
+/* the main thread's evaluation: cold, with nothing to stream */
+let evaluate_sync =
+    (~eval_info: Language.EvalInfo.t, expr: Language.Exp.t): Response.value => {
   switch (
     Language.Evaluator.evaluate(
-      ~prev=resolve_prev(prev),
-      ~eval_info=eval_info_map,
+      ~eval_info,
       ~env=Language.Builtins.env_init,
       expr,
     )

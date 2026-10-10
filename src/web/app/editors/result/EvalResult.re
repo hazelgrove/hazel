@@ -22,7 +22,6 @@ module Model = {
     cached_targets: Calc.saved(Sample.targets), /* Input targets for cache invalidation */
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
-    incr_eval: Calc.saved(EvaluatorState.incr_eval),
     streaming_outbox: Calc.saved(option(IncrEval.outbox(EvaluatorState.t))),
     streaming_state: Calc.saved(option(EvaluatorState.t)),
     pending_eval_ids: list(Id.t),
@@ -51,7 +50,6 @@ module Model = {
     cached_targets: Calc.Pending,
     result: Calc.NewValue(ProgramResult.awaiting_worker_ack),
     dynamics: Calc.Pending,
-    incr_eval: Calc.Pending,
     streaming_outbox: Calc.Pending,
     streaming_state: Calc.Pending,
     pending_eval_ids: [],
@@ -338,7 +336,6 @@ module Update = {
           cached_targets,
           result,
           dynamics,
-          incr_eval,
           streaming_outbox,
           streaming_state,
           pending_eval_ids,
@@ -362,10 +359,6 @@ module Update = {
         cached_targets,
       );
 
-    /* Previous incremental map, if the last evaluation produced one. Pull
-     * from the saved field so it survives intermediate pending states
-     * (during which `result` itself is ResultPending). */
-    let prev_incr = incr_eval |> Calc.get_saved(IncrEval.empty);
     /* Project statics to the serializable slice the incremental evaluator
      * needs. The raw info_map can't cross postMessage because LivelitCtx
      * entries contain OCaml closures. Lazy: the projection is O(program)
@@ -404,12 +397,10 @@ module Update = {
         // Using the main thread:
         | None =>
           switch (
-            WorkerServer.evaluate_sync({
-              expr: elab,
-              eval_info_map: Lazy.force(eval_info_map),
-              prev: Seed(prev_incr),
-              stream: Full /* sync path: nothing streams */
-            })
+            WorkerServer.evaluate_sync(
+              ~eval_info=Lazy.force(eval_info_map),
+              elab,
+            )
           ) {
           | Ok((exp, state)) =>
             ProgramResult.ResultOk(
@@ -506,21 +497,6 @@ module Update = {
         };
       };
 
-    let incr_eval =
-      incr_eval
-      |> {
-        let.calc result = result
-        and.calc streaming_outbox = streaming_outbox;
-        switch (result, streaming_outbox) {
-        | (ProgramResult.ResultPending(_), Some(streaming_outbox)) =>
-          streaming_outbox.completed
-        | (ProgramResult.ResultPending(_), None) =>
-          incr_eval |> Calc.get_saved(IncrEval.empty)
-        | (ProgramResult.ResultFail(_), _) => IncrEval.empty
-        | (ProgramResult.ResultOk({state, _}), _) => state.incr_eval
-        };
-      };
-
     // Calculate the display
     let display =
       switch (display) {
@@ -609,7 +585,6 @@ module Update = {
       cached_targets: targets |> Calc.save,
       result: result |> Calc.make_old,
       dynamics: dynamics |> Calc.save,
-      incr_eval: incr_eval |> Calc.save,
       streaming_outbox: streaming_outbox |> Calc.save,
       streaming_state: streaming_state |> Calc.save,
       pending_eval_ids,
