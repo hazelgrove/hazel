@@ -123,34 +123,66 @@ let sibs_with_sel =
 module MapPiece = {
   type updater = Piece.t => Segment.t;
 
+  /* Identity-preserving: a piece, segment or tile with nothing changed
+     beneath it comes back as the same object. Incremental layers key on
+     piece identity -- MakeTerm.Incr reuses an item only if its pieces are
+     the same objects (Segment.ptr_eq), Measured's cache likewise -- and
+     rebuilding every record re-minted the whole program: a livelit's
+     commit (ProjectorPerform.update, through fast_local_seg's general
+     case) re-parsed every item, about 30% of a Kids' Choice slider
+     release in Firefox. */
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
+    let changed = ref(false);
+    let out =
+      List.concat_map(
+        p => {
+          let ps = List.map(of_piece(f), f(p));
+          switch (ps) {
+          | [q] when q === p => ()
+          | _ => changed := true
+          };
+          ps;
+        },
+        seg,
+      );
+    changed^ ? out : seg;
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
-    | Tile(t) => Tile(of_tile(f, t))
+    | Tile(t) =>
+      let t' = of_tile(f, t);
+      t' === t ? piece : Tile(t');
     | Projector(pr) =>
       /* Projector syntax and splice contents are ordinary zipped
        * pieces: recurse so updates reach projectors/pieces nested
        * inside other projectors' splices. */
-      Projector({
-        ...pr,
-        syntax: of_segment(f, pr.syntax),
-      })
+      let syntax = of_segment(f, pr.syntax);
+      syntax === pr.syntax
+        ? piece
+        : Projector({
+            ...pr,
+            syntax,
+          });
     | Splice(s) =>
-      Splice({
-        ...s,
-        content: of_segment(f, s.content),
-      })
+      let content = of_segment(f, s.content);
+      content === s.content
+        ? piece
+        : Splice({
+            ...s,
+            content,
+          });
     | Grout(_)
     | Secondary(_) => piece
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {
-      ...t,
-      children: List.map(of_segment(f), t.children),
-    };
+    let children = List.map(of_segment(f), t.children);
+    List.for_all2((a, b) => a === b, children, t.children)
+      ? t
+      : {
+        ...t,
+        children,
+      };
   };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
