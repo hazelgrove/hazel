@@ -179,5 +179,34 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "undo keeps the current font metrics",
+      `Quick,
+      () => {
+        /* On load a slide's default is applied (historic) before the font
+           is first measured, so the undo entry holds placeholder metrics */
+        let m0 = mk_model();
+        let m1 = apply(m0, insert("1"));
+        let fm: FontMetrics.t = {
+          row_height: 25.,
+          col_width: 10.4,
+        };
+        let m2 = apply(m1, Globals(SetFontMetrics(fm)));
+        let m3 = apply(m2, undo);
+        check(
+          bool,
+          "undo kept the measured font",
+          true,
+          m3.current.globals.font_metrics == fm,
+        );
+        let m4 = apply(m3, redo);
+        check(
+          bool,
+          "redo kept the measured font",
+          true,
+          m4.current.globals.font_metrics == fm,
+        );
+      },
+    ),
   ],
 );
