@@ -113,6 +113,16 @@ module Model = {
     | ProgramResult.ResultFail(_) => false
     };
 
+  /* Whether `dynamics` are a finished evaluation's: not while one streams
+     or after it fails part-way. Pins and the sample focus are judged only
+     on these (see ProbeFocus). */
+  let dynamics_complete = (model: t): bool =>
+    switch (Calc.get_value(model.result)) {
+    | ProgramResult.ResultOk(_) => true
+    | ProgramResult.ResultFail(_)
+    | ProgramResult.ResultPending(_) => false
+    };
+
   let pending_eval_ids = (model: t): list(Id.t) =>
     eval_is_pending(model) ? model.pending_eval_ids : [];
 

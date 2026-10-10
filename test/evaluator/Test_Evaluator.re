@@ -29,4 +29,5 @@ let tests =
     Test_Evaluator_Performance.tests,
     Test_Evaluator_Modules.tests,
     Test_Evaluator_Incremental.tests,
+    Test_Evaluator_StreamingFocus.tests,
   ];

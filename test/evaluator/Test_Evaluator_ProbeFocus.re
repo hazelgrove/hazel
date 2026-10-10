@@ -149,6 +149,7 @@ let edit_on_row =
   caret_on_row(ed, z, row)
   |> Haz3lcore.ProbeFocus.editor_effects(
        ~is_edited=true,
+       ~complete=true,
        ~syntax=ed.syntax,
        ~info_map=ed.info_map,
        ~dynamics=ed.dynamics,
