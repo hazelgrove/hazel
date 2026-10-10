@@ -1,7 +1,7 @@
-/* Gesture-keyed one-shot scroll for Left/Right sample nav: capture the
- * target's rect at keydown, consume after the next render — keeping the
- * sample under the eye (vertical) and in a comfort band (horizontal).
- * Gesture-keyed so it never fires on unrelated re-renders. */
+/* Gesture-keyed one-shot horizontal follow for Left/Right sample nav:
+ * capture the target at keydown, then after the next render scroll it into
+ * a comfort band. Gesture-keyed so it never fires on unrelated re-renders.
+ * Vertical shifts (drawers reflowing above the probe) are RefractorShift's. */
 
 open Js_of_ocaml;
 
@@ -17,14 +17,11 @@ let selector_for = (~scope: option(string), ~sample_id: option(int)) =>
   | (None, _) => default_selector
   };
 
-/* `fallback` covers Single window mode: the target sample isn't in the DOM
- * until the action renders, so capture measures the in-place predecessor. */
+/* `fallback`: the probe's indicated sample, for when the exact target
+ * isn't what rendered. */
 type anchor = {
   primary: string,
   fallback: string,
-  top: float,
-  left: float,
-  right: float,
 };
 
 let pending: ref(option(anchor)) = ref(None);
@@ -38,35 +35,13 @@ let find_anchor = (a: anchor): option(Js.t(Dom_html.element)) =>
   | None => find(a.fallback)
   };
 
-let rect_of = (el: Js.t(Dom_html.element)): (float, float, float) => {
-  let r = el##getBoundingClientRect;
-  (r##.top, r##.left, r##.right);
-};
-
 let capture =
-    (~scope: option(string)=?, ~sample_id: option(int)=?, ()): unit => {
-  let primary = selector_for(~scope, ~sample_id);
-  let fallback = selector_for(~scope, ~sample_id=None);
-  let a = {
-    primary,
-    fallback,
-    top: 0.,
-    left: 0.,
-    right: 0.,
-  };
-  switch (find_anchor(a)) {
-  | None => pending := None
-  | Some(el) =>
-    let (top, left, right) = rect_of(el);
-    pending :=
-      Some({
-        ...a,
-        top,
-        left,
-        right,
-      });
-  };
-};
+    (~scope: option(string)=?, ~sample_id: option(int)=?, ()): unit =>
+  pending :=
+    Some({
+      primary: selector_for(~scope, ~sample_id),
+      fallback: selector_for(~scope, ~sample_id=None),
+    });
 
 /* Bring the indicated sample into a comfort band, minimal motion. Margin
  * adapts to width: small samples get a lookahead preview; one that fits is
@@ -113,22 +88,5 @@ let consume = (): unit =>
   | None => ()
   | Some(a) =>
     pending := None;
-    switch (find_anchor(a)) {
-    | None => ()
-    | Some(el) =>
-      let (new_top, _, _) = rect_of(el);
-      let delta = new_top -. a.top;
-      if (delta != 0.0) {
-        let doc = Dom_html.document;
-        Js.Opt.iter(
-          doc##getElementById(Js.string("main")),
-          main => {
-            let st: float = Js.Unsafe.get(main, Js.string("scrollTop"));
-            Js.Unsafe.set(main, Js.string("scrollTop"), st +. delta);
-          },
-        );
-      };
-      /* runs even when the vertical delta was zero */
-      scroll_horizontally(el);
-    };
+    Option.iter(scroll_horizontally, find_anchor(a));
   };
