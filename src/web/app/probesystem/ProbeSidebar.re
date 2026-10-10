@@ -319,12 +319,18 @@ let toggle_controls_view = (~globals: Globals.t, ~explain_this_inject) => {
           div(
             ~attrs=[
               clss(["segment"] @ (active ? ["active"] : [])),
-              Attr.on_pointerdown(_ => {
-                ProbeProj.Settings.go(ToggleAutoRichDefault);
-                /* piggyback an app action so the toggle repaints (the
-                   settings ref alone doesn't re-render) */
-                explain_this_inject(ExplainThisUpdate.SpecificityOpen(true));
-              }),
+              Attr.on_pointerdown(_ =>
+                if (active) {
+                  Effect.Ignore;
+                } else {
+                  ProbeProj.Settings.go(ToggleAutoRichDefault);
+                  /* piggyback an app action so the toggle repaints (the
+                     settings ref alone doesn't re-render) */
+                  explain_this_inject(
+                    ExplainThisUpdate.SpecificityOpen(true),
+                  );
+                }
+              ),
             ],
             [text(label)],
           );
