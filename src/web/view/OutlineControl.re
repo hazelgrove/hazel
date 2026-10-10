@@ -260,16 +260,8 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
   | Some(p) =>
     let statics = Program.statics(p);
     let term = statics.term;
-    let rows = OutlineTree.row_ids(term);
     let row_of = id =>
-      switch (Id.Map.find_opt(id, statics.info_map)) {
-      | Some(info) =>
-        List.find_opt(
-          x => Id.Map.mem(x, rows),
-          [id, ...Language.Info.ancestors_of(info)],
-        )
-      | None => None
-      };
+      OutlineTree.enclosing_row(~info_map=statics.info_map, id, term);
     /* the indicated term, else the enclosing tiles, else the
        neighbours (a caret in a comment or between items) */
     let candidates =
@@ -291,20 +283,20 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
        row is its own, so skip the walks (this runs every render) */
     Option.map(
       r =>
-        switch (collapsed == [] ? None : OutlineTree.trail_of(r, term)) {
-        | Some(trail) =>
-          List.find_opt(
-            id =>
-              id != r
-              && (
-                switch (OutlineTree.label_path(id, term)) {
-                | Some(path) => List.mem(path, collapsed)
-                | None => false
-                }
-              ),
-            trail,
-          )
-          |> Option.value(~default=r)
+        switch (collapsed == [] ? None : OutlineTree.find_path(r, term)) {
+        | Some(chain) =>
+          /* the outermost folded row above */
+          let rec go = (path, chain) =>
+            switch (chain) {
+            | [(n: OutlineTree.node, seg), ...rest] =>
+              let path = path @ [seg];
+              switch (n.o_id) {
+              | Some(id) when id != r && List.mem(path, collapsed) => id
+              | _ => go(path, rest)
+              };
+            | [] => r
+            };
+          go([], chain);
         | None => r
         },
       row,
@@ -437,22 +429,7 @@ let view =
     /* each error badges the deepest row containing it; ancestor rows
        get a roll-up badge that CSS shows only while collapsed */
     let (error_items, error_subtree) = {
-      let outline_ids = {
-        let rec go = (acc, ns: list(OutlineTree.node)) =>
-          List.fold_left(
-            (acc, n: OutlineTree.node) =>
-              go(
-                switch (n.o_id) {
-                | Some(id) => [id, ...acc]
-                | None => acc
-                },
-                n.o_children,
-              ),
-            acc,
-            ns,
-          );
-        go([], OutlineTree.of_term(term));
-      };
+      let outline_ids = OutlineTree.collect(OutlineTree.of_term(term));
       let in_outline = id => List.mem(id, outline_ids);
       List.fold_left(
         ((direct, roll), err_id) => {

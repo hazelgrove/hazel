@@ -216,24 +216,82 @@ let of_term = (e: Exp.t): list(node) =>
     of_exp(~top=true, e) |> group_tests |> number_tests
   );
 
-/* ancestor labels of the node with id [fid], outermost first, for the
-   stacked header's qualifier chip (["Geo"] for a member of module Geo) */
-let path_of = (fid: Id.t, e: Exp.t): list(string) => {
-  let rec go = (trail, ns: list(node)) =>
-    List.fold_left(
-      (acc, n) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None =>
-          n.o_id == Some(fid)
-            ? Some(List.rev(trail))
-            : go([n.o_label, ...trail], n.o_children)
-        },
-      None,
+/* every row of [ns], each before its children */
+let rec flatten = (ns: list(node)): list(node) =>
+  List.concat_map(n => [n, ...flatten(n.o_children)], ns);
+
+/* their ids, in that order */
+let collect = (ns: list(node)): list(Id.t) =>
+  List.filter_map(n => n.o_id, flatten(ns));
+
+/* the row with id [fid], and the rows above it outermost first */
+let find = (fid: Id.t, e: Exp.t): option((list(node), node)) => {
+  let rec go = (above, ns: list(node)) =>
+    List.find_map(
+      n =>
+        n.o_id == Some(fid)
+          ? Some((List.rev(above), n)) : go([n, ...above], n.o_children),
       ns,
     );
-  go([], of_term(e)) |> Option.value(~default=[]);
+  go([], of_term(e));
 };
+
+let node_of = (fid: Id.t, e: Exp.t): option(node) =>
+  Option.map(snd, find(fid, e));
+
+let kind_of = (fid: Id.t, e: Exp.t): option(kind) =>
+  Option.map(n => n.o_kind, node_of(fid, e));
+
+/* ancestor labels of the node with id [fid], outermost first, for the
+   stacked header's qualifier chip (["Geo"] for a member of module Geo) */
+let path_of = (fid: Id.t, e: Exp.t): list(string) =>
+  switch (find(fid, e)) {
+  | Some((above, _)) => List.map(n => n.o_label, above)
+  | None => []
+  };
+
+/* ids of the rows from the top level down to [fid], inclusive; rows
+   without ids (test containers) are skipped */
+let trail_of = (fid: Id.t, e: Exp.t): option(list(Id.t)) =>
+  Option.map(
+    ((above, n)) => List.filter_map(n => n.o_id, above @ [n]),
+    find(fid, e),
+  );
+
+/* ids below [fid] (not fid itself): pinning a parent unpins its pinned
+   descendants */
+let descendant_ids = (fid: Id.t, e: Exp.t): list(Id.t) =>
+  switch (node_of(fid, e)) {
+  | Some(n) => collect(n.o_children)
+  | None => []
+  };
+
+/* the row that takes [fid]'s place once it's deleted: the next sibling,
+   else the one before, else its parent */
+let successor = (fid: Id.t, e: Exp.t): option(Id.t) =>
+  Option.bind(
+    find(fid, e),
+    ((above, _)) => {
+      let siblings =
+        switch (Util.ListUtil.last_opt(above)) {
+        | Some(parent) => parent.o_children
+        | None => of_term(e)
+        };
+      let rec split = (before, xs: list(node)) =>
+        switch (xs) {
+        | [n, ...rest] when n.o_id == Some(fid) => (before, rest)
+        | [n, ...rest] => split([n, ...before], rest)
+        | [] => (before, [])
+        };
+      let (before, after) = split([], siblings);
+      let first_id = List.find_map((n: node) => n.o_id);
+      switch (first_id(after), first_id(before)) {
+      | (Some(id), _)
+      | (None, Some(id)) => Some(id)
+      | (None, None) => first_id(List.rev(above))
+      };
+    },
+  );
 
 /* a durable name for a row: its labels root to node, each qualified by
    occurrence (labels repeat). persistence re-mints ids on load, so pins
@@ -279,22 +337,24 @@ let segs = (ns: list(node)): list((node, path_seg)) => {
   );
 };
 
-let label_path = (fid: Id.t, e: Exp.t): option(path) => {
-  let rec go = (trail, ns: list((node, path_seg))) =>
-    List.fold_left(
-      (acc, (n, seg)) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None =>
-          n.o_id == Some(fid)
-            ? Some(List.rev([seg, ...trail]))
-            : go([seg, ...trail], segs(n.o_children))
-        },
-      None,
-      ns,
-    );
-  go([], segs(of_term(e)));
-};
+/* [fid]'s row and the rows above it, outermost first, each with its
+   path segment */
+let find_path = (fid: Id.t, e: Exp.t): option(list((node, path_seg))) =>
+  Option.map(
+    ((above, n)) =>
+      snd(
+        List.fold_left_map(
+          (siblings, m) =>
+            (m.o_children, (m, List.assq(m, segs(siblings)))),
+          of_term(e),
+          above @ [n],
+        ),
+      ),
+    find(fid, e),
+  );
+
+let label_path = (fid: Id.t, e: Exp.t): option(path) =>
+  Option.map(List.map(snd), find_path(fid, e));
 
 let resolve_path = (path: path, e: Exp.t): option(Id.t) => {
   let find = (seg: path_seg, ns: list(node)): option(node) =>
@@ -313,154 +373,38 @@ let resolve_path = (path: path, e: Exp.t): option(Id.t) => {
 };
 
 /* the headerless rows' ids (⇒ and `;`) */
-let headless_row_ids = (e: Exp.t): Id.Map.t(unit) => {
-  let rec go = (acc, ns: list(node)) =>
-    List.fold_left(
-      (acc, n) =>
-        go(
-          switch (n.o_id) {
-          | Some(id) when n.o_kind == KTrail || n.o_kind == KStmt =>
-            Id.Map.add(id, (), acc)
-          | _ => acc
-          },
-          n.o_children,
-        ),
-      acc,
-      ns,
-    );
-  go(Id.Map.empty, of_term(e));
-};
-
-let kind_of = (fid: Id.t, e: Exp.t): option(kind) => {
-  let rec go = (ns: list(node)) =>
-    List.fold_left(
-      (acc, n) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None => n.o_id == Some(fid) ? Some(n.o_kind) : go(n.o_children)
-        },
-      None,
-      ns,
-    );
-  go(of_term(e));
-};
-
-/* ids below [fid] (not fid itself): pinning a parent unpins its pinned
-   descendants */
-let descendant_ids = (fid: Id.t, e: Exp.t): list(Id.t) => {
-  let rec collect = (ns: list(node)): list(Id.t) =>
-    List.concat_map(
-      n => Option.to_list(n.o_id) @ collect(n.o_children),
-      ns,
-    );
-  let rec find = (ns: list(node)): option(node) =>
-    List.fold_left(
-      (acc, n) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None => n.o_id == Some(fid) ? Some(n) : find(n.o_children)
-        },
-      None,
-      ns,
-    );
-  switch (find(of_term(e))) {
-  | Some(n) => collect(n.o_children)
-  | None => []
-  };
-};
-
-/* ids of the rows from the top level down to [fid], inclusive; rows
-   without ids (test containers) are skipped */
-let trail_of = (fid: Id.t, e: Exp.t): option(list(Id.t)) => {
-  let rec go = (trail, ns: list(node)) =>
-    List.fold_left(
-      (acc, n) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None =>
-          let trail =
-            switch (n.o_id) {
-            | Some(id) => [id, ...trail]
-            | None => trail
-            };
-          n.o_id == Some(fid)
-            ? Some(List.rev(trail)) : go(trail, n.o_children);
-        },
-      None,
-      ns,
-    );
-  go([], of_term(e));
-};
-
-let node_of = (fid: Id.t, e: Exp.t): option(node) => {
-  let rec go = (ns: list(node)) =>
-    List.fold_left(
-      (acc, n) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None => n.o_id == Some(fid) ? Some(n) : go(n.o_children)
-        },
-      None,
-      ns,
-    );
-  go(of_term(e));
-};
-
-/* the row that takes [fid]'s place once it's deleted: the next sibling,
-   else the one before, else its parent */
-let successor = (fid: Id.t, e: Exp.t): option(Id.t) => {
-  let first_id = List.find_map((n: node) => n.o_id);
-  let rec go = (parent, ns: list(node)): option(option(Id.t)) => {
-    let rec split = (before, xs: list(node)) =>
-      switch (xs) {
-      | [n, ...rest] when n.o_id == Some(fid) => Some((before, rest))
-      | [n, ...rest] => split([n, ...before], rest)
-      | [] => None
-      };
-    switch (split([], ns)) {
-    | Some((before, after)) =>
-      Some(
-        switch (first_id(after), first_id(before)) {
-        | (Some(id), _)
-        | (None, Some(id)) => Some(id)
-        | (None, None) => parent
-        },
-      )
-    | None =>
-      List.fold_left(
-        (acc, n: node) =>
-          switch (acc) {
-          | Some(_) => acc
-          | None => go(n.o_id == None ? parent : n.o_id, n.o_children)
-          },
-        None,
-        ns,
-      )
-    };
-  };
-  go(None, of_term(e)) |> Option.join;
-};
+let headless_row_ids = (e: Exp.t): Id.Map.t(unit) =>
+  List.fold_left(
+    (acc, n) =>
+      switch (n.o_id) {
+      | Some(id) when n.o_kind == KTrail || n.o_kind == KStmt =>
+        Id.Map.add(id, (), acc)
+      | _ => acc
+      },
+    Id.Map.empty,
+    flatten(of_term(e)),
+  );
 
 /* every row id, memoized on the term like [of_term] */
 let row_ids_cache: Slot.t(Exp.t, Id.Map.t(unit)) = Slot.mk();
 let row_ids = (e: Exp.t): Id.Map.t(unit) =>
-  Slot.get(
-    row_ids_cache,
-    e,
-    () => {
-      let rec go = (acc, ns: list(node)) =>
-        List.fold_left(
-          (acc, n) =>
-            go(
-              switch (n.o_id) {
-              | Some(id) => Id.Map.add(id, (), acc)
-              | None => acc
-              },
-              n.o_children,
-            ),
-          acc,
-          ns,
-        );
-      go(Id.Map.empty, of_term(e));
-    },
+  Slot.get(row_ids_cache, e, () =>
+    List.fold_left(
+      (acc, id) => Id.Map.add(id, (), acc),
+      Id.Map.empty,
+      collect(of_term(e)),
+    )
   );
+
+/* the row holding [id]: its own, else its nearest ancestor's */
+let enclosing_row =
+    (~info_map: Statics.Map.t, id: Id.t, e: Exp.t): option(Id.t) =>
+  switch (Id.Map.find_opt(id, info_map)) {
+  | Some(info) =>
+    let rows = row_ids(e);
+    List.find_opt(
+      x => Id.Map.mem(x, rows),
+      [id, ...Info.ancestors_of(info)],
+    );
+  | None => None
+  };
