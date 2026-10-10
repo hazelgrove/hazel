@@ -162,24 +162,14 @@ let mk_refractor_rows =
 let mk =
     (
       ~root=Sort.Exp,
-      ~m_cache=?,
-      ~t_cache=?,
+      ~m_cache=Measured.Incr.mk_cache(),
+      ~t_cache=MakeTerm.Incr.mk_cache(),
       ~info_map,
       ~dyn_map,
       ~elaborated=None,
       z,
     )
     : t => {
-  let m_cache =
-    switch (m_cache) {
-    | Some(c) => c
-    | None => Measured.Incr.mk_cache()
-    };
-  let t_cache =
-    switch (t_cache) {
-    | Some(c) => c
-    | None => MakeTerm.Incr.mk_cache()
-    };
   let segment = Zipper.unselect_and_zip(z);
   /* only Exp/Mod roots parse incrementally; other (small) roots parse
      once at their own sort, which the Exp-rooted [go] would misparse */
