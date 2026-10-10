@@ -11,7 +11,9 @@ let max_ack_retries = 3;
 let eval_timeout_ms = 20000; // Evaluation timeout in ms
 
 type callbacks = {
-  on_result: Response.t => unit,
+  on_result:
+    (~final_streams: list((key, ServerMessage.stream_update)), Response.t) =>
+    unit,
   on_timeout: Request.batch => unit,
   on_ack: ServerMessage.reuse_predictions => unit,
   on_stream: (key, ServerMessage.stream_update) => unit,
@@ -26,6 +28,10 @@ type latest = {
 let next_request_id = ref(0);
 let latest_request: ref(option(latest)) = ref(None);
 let ack_timeout_id = ref(None);
+
+/* The request whose messages are still being taken, if any. */
+let latest_request_id = (): option(int) =>
+  Option.map(l => l.request.request_id, latest_request^);
 let eval_timeout_id = ref(None);
 
 let clear_timer = timer_ref => {
@@ -136,7 +142,14 @@ let setup_worker_message_handler = worker => {
             latest_request := None;
             /* Hand the result off first; benchmarking the other encodings
              * can take tens of ms and must not delay evaluation latency. */
-            latest.callbacks.on_result(result.response);
+            latest.callbacks.on_result(
+              ~final_streams=
+                List.map(
+                  (st: ServerMessage.stream) => (st.key, st.update),
+                  result.final_streams,
+                ),
+              result.response,
+            );
             WorkerMetrics.record_response(result.request_id, msg);
             EvalMetrics.record_done(~now, ~encoded=evt##.data, result);
           },
@@ -218,7 +231,12 @@ let rec start_ack_timeout = (~cold_start, latest) => {
 let request =
     (
       batch: Request.batch,
-      ~on_result: Response.t => unit,
+      ~on_result:
+         (
+           ~final_streams: list((key, ServerMessage.stream_update)),
+           Response.t
+         ) =>
+         unit,
       ~on_timeout: Request.batch => unit,
       ~on_ack: ServerMessage.reuse_predictions => unit,
       ~on_stream: (key, ServerMessage.stream_update) => unit,

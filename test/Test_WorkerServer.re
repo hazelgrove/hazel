@@ -47,6 +47,7 @@ let response_of_exp = (e: Exp.t): WorkerServer.ServerMessage.t =>
     request_id: 1,
     response: [("cell", Ok((e, EvaluatorState.empty)))],
     eval_time,
+    final_streams: [],
   });
 
 let parse = (s: string): Exp.t =>

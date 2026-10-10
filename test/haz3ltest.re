@@ -124,6 +124,7 @@ let (suite, exit_with_test_status) =
     @ Test_ShortcutConfiguration.tests
     @ Test_ColorConfiguration.tests
     @ Test_ConfigurationMode.tests
+    @ [Test_ApplyWorkerMessages.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]
