@@ -2662,6 +2662,31 @@ module Incr = {
       entries,
     );
     cache.c_prev = Some((entries, m_map^, m_td^, m_proj^));
+    /* hand the statics path (term_of) these per-item parses too: it skips
+       its own when go_incr has already read the same segment (via
+       `last`), so at load its memo stayed empty and the first edit after
+       it re-parsed every item (a Kids' Choice slider's first release:
+       245 ms against ~60). Added, not replaced: other editors build
+       here too, and an entry only matches its own pieces (ptr_eq). Items
+       whose completion differs from the syntax are new pieces in the
+       semantic segment, so a mask is never skipped. */
+    if (root == Sort.Exp) {
+      memo :=
+        List.fold_left(
+          (m, (key, e)) =>
+            Id.Map.add(
+              key,
+              {
+                e_pieces: e.f_pieces,
+                e_term: e.f_term,
+                e_hole: e.f_hole,
+              },
+              m,
+            ),
+          memo^,
+          entries,
+        );
+    };
     /* every graft's rebuilt nodes, outermost first */
     let rebuilt = ref([]);
     let term =
