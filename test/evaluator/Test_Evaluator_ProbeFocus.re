@@ -119,7 +119,19 @@ let shown = (ed: editor, z: Haz3lcore.Zipper.t, row: int): string => {
         Haz3lcore.ProjectorInfo.pinned_interval(~sample_focus, ed.dynamics),
       samples_of(ed, id),
     );
-  switch (Sample.Selection.most_aligned_index(~ap_id, sample_focus, samples)) {
+  switch (
+    Sample.Selection.most_aligned_index(
+      ~ap_id,
+      ~below=
+        Sample.Selection.below_of(
+          ~cursor=sample_focus,
+          ~probe_id=id,
+          ed.dynamics,
+        ),
+      sample_focus,
+      samples,
+    )
+  ) {
   | Some(i) =>
     Test_Evaluator_Probes.format_sample_value(List.nth(samples, i).value)
   | None => samples == [] ? "⍟" : "⊖"
@@ -218,13 +230,14 @@ let tests = (
       `Quick,
       () => {
         let ed = load(nested_map);
-        /* Focus the [1, 2] row's call: no n is chosen, so each line shows
-           its first sample inside that call. */
+        /* Focus the [1, 2] row's call: no n is chosen, so the lines below
+           show its first inner call, n = 1, together; the else branch did
+           not run there. */
         let z = click(ed, ed.z, 0, 0);
         shows(ed, z, 1, "1");
         shows(ed, z, 3, "\"one\"");
-        shows(ed, z, 4, "\"other\"");
-        let z' = edit_on_row(ed, z, 4);
+        shows(ed, z, 4, "⊖");
+        let z' = edit_on_row(ed, z, 3);
         check(
           focus_testable,
           "focus unchanged",
@@ -287,7 +300,8 @@ let tests = (
           true,
           z.refractors.sample_focus.anchor != None,
         );
-        let z' = edit_on_row(ed, z, 4);
+        shows(ed, z, 3, "\"one\"");
+        let z' = edit_on_row(ed, z, 3);
         check(
           focus_testable,
           "focus unchanged",
@@ -429,20 +443,21 @@ let tests = (
       `Quick,
       () => {
         let ed = load(nested_map);
-        /* [1, 2] row focused, caret on the else line (which shows a
-           sample), explicit request for the then line */
-        let z = caret_on_row(ed, click(ed, ed.z, 0, 0), 4);
+        /* [1, 2] row focused, caret on the n line (which shows a sample),
+           explicit request for the else line */
+        let z = caret_on_row(ed, click(ed, ed.z, 0, 0), 1);
         let z' =
           resolve(
             ed,
             Haz3lcore.ProbePerform.set_pending_probe(
-              [probe_on_row(ed, 3)],
+              [probe_on_row(ed, 4)],
               z,
             ),
           );
-        /* the then line is captured (n = 1), not the caret's else line */
-        shows(ed, z', 1, "1");
-        shows(ed, z', 4, "⊖");
+        /* the else line is captured (n = 2), not the caret's n line */
+        shows(ed, z', 1, "2");
+        shows(ed, z', 4, "\"other\"");
+        shows(ed, z', 3, "⊖");
       },
     ),
     test_case(

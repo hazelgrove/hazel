@@ -1382,6 +1382,171 @@ in fact(4)|};
   ),
 ];
 
+/* Lines below the sightline show one call between them
+ * (Selection.coordinated_below), not each line's own first sample, which
+ * can come from different calls. */
+let coordinated_pick =
+    (~cursor, all, (id, samples): (Id.t, list(Sample.t)))
+    : option(Sample.t) =>
+  Sample.Selection.most_aligned_index(
+    ~ap_id=None,
+    ~below=Sample.Selection.below_of(~cursor, ~probe_id=id, all),
+    cursor,
+    samples,
+  )
+  |> Option.map(List.nth(samples));
+
+let per_line_pick =
+    (~cursor, (_, samples): (Id.t, list(Sample.t))): option(Sample.t) =>
+  Sample.Selection.most_aligned_index(~ap_id=None, cursor, samples)
+  |> Option.map(List.nth(samples));
+
+/* the probe whose samples number n (unique in each program below) */
+let with_count = (n, all) =>
+  Id.Map.bindings(all)
+  |> List.filter(((_, ss)) => List.length(ss) == n)
+  |> List.hd;
+
+let same_call = (a: option(Sample.t), b: option(Sample.t)) =>
+  switch (a, b) {
+  | (Some(a), Some(b)) => CallStack.equal(a.call_stack, b.call_stack)
+  | _ => false
+  };
+
+let running_sum = {|let running_sum = fun (nums: [Int]) ->
+  let go: (Int, [Int]) -> [Int] = fun (total, xs) ->
+    case ^^probe(xs)
+    | [] => ^^probe([])
+    | x :: rest => ^^probe((total + x) :: go(total + x, rest))
+    end
+  in go(0, nums)
+in running_sum([1, 2, 3])|};
+
+let coordinated_below_tests = [
+  test_case(
+    "Below the focus, an if's lines show one call (classify over map)",
+    `Quick,
+    () => {
+      let all =
+        get_probes_map(
+          {|let classify = fun x ->
+  if ^^probe(x < 0) then ^^probe("neg")
+  else if ^^probe(x == 0) then ^^probe("zero")
+  else ^^probe("pos")
+in
+let run = fun xs -> map(xs, classify) in
+run([-1, 0, 5])|},
+        );
+      let cursor = mk_cursor([]);
+      /* x < 0 runs in all three calls, x == 0 in two, each result once */
+      let lt = with_count(3, all);
+      let eq = with_count(2, all);
+      let first = coordinated_pick(~cursor, all, lt);
+      check(
+        int,
+        "x < 0 shows the first call",
+        List.fold_left(
+          (m, s: Sample.t) => min(m, List.length(s.call_stack)),
+          max_int,
+          snd(lt),
+        ),
+        List.length(Option.get(first).call_stack),
+      );
+      check(
+        bool,
+        "x == 0 did not run in that call: no sample",
+        true,
+        coordinated_pick(~cursor, all, eq) == None,
+      );
+      let results =
+        Id.Map.bindings(all)
+        |> List.filter(((_, ss)) => List.length(ss) == 1)
+        |> List.filter_map(coordinated_pick(~cursor, all));
+      check(int, "one result line shows", 1, List.length(results));
+      check(
+        bool,
+        "from the same call",
+        true,
+        same_call(Some(List.hd(results)), first),
+      );
+      check(
+        bool,
+        "line by line, x == 0 showed a later call",
+        true,
+        per_line_pick(~cursor, eq) != None,
+      );
+    },
+  ),
+  test_case(
+    "A recursive helper's lines show its outermost call (running sum)",
+    `Quick,
+    () => {
+      let all = get_probes_map(running_sum);
+      let cursor = mk_cursor([]);
+      let xs = with_count(4, all);
+      let cons = with_count(3, all);
+      let nil = with_count(1, all);
+      let xs_pick = coordinated_pick(~cursor, all, xs);
+      check(
+        int,
+        "xs: the outermost go call",
+        List.fold_left(
+          (m, s: Sample.t) => min(m, List.length(s.call_stack)),
+          max_int,
+          snd(xs),
+        ),
+        List.length(Option.get(xs_pick).call_stack),
+      );
+      check(
+        bool,
+        "the cons arm: the same call",
+        true,
+        same_call(coordinated_pick(~cursor, all, cons), xs_pick),
+      );
+      check(
+        bool,
+        "the [] arm did not run in that call: no sample",
+        true,
+        coordinated_pick(~cursor, all, nil) == None,
+      );
+    },
+  ),
+  test_case(
+    "Focused on the outer call, the base case does not leak in (running sum)",
+    `Quick,
+    () => {
+      let all = get_probes_map(running_sum);
+      let xs = with_count(4, all);
+      let nil = with_count(1, all);
+      let outer =
+        List.fold_left(
+          (best: option(Sample.t), s: Sample.t) =>
+            switch (best) {
+            | Some(b)
+                when List.length(b.call_stack) <= List.length(s.call_stack) => best
+            | _ => Some(s)
+            },
+          None,
+          snd(xs),
+        )
+        |> Option.get;
+      let cursor = mk_cursor(outer.call_stack);
+      check(
+        bool,
+        "the [] arm: no sample in the focused call",
+        true,
+        coordinated_pick(~cursor, all, nil) == None,
+      );
+      check(
+        bool,
+        "line by line, it showed the innermost call's []",
+        true,
+        per_line_pick(~cursor, nil) != None,
+      );
+    },
+  ),
+];
+
 let tests = (
   "Evaluator.ProbeSelection",
   List.concat([
@@ -1399,5 +1564,6 @@ let tests = (
     fact_pin_alignment_tests,
     interval_breadcrumb_tests,
     iteration_anchor_tests,
+    coordinated_below_tests,
   ]),
 );

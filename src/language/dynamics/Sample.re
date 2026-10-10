@@ -627,6 +627,147 @@ module Selection = {
     };
   };
 
+  /* Lines that run below the end of the sightline have no sample on it,
+   * so something has to choose which of their calls to show, and the
+   * choice must be made for all of them together: chosen line by line,
+   * neighbouring lines show different calls (both branches of an if at
+   * once, a recursive helper's arguments from its first call beside its
+   * result from its last).
+   *
+   * The coordinated choice, made once from every probe's samples: below
+   * the sightline, show the first call of each function (outermost, then
+   * earliest), and only inside calls that are themselves shown. A call of
+   * a function already shown, on the sightline or by an earlier call,
+   * shows nothing, nor does anything beneath it. Frames with no probed
+   * samples (library functions like map, unprobed helpers) pass through.
+   *
+   * Returns the chosen sample of each probe the choice covers. */
+  let coordinated_below =
+      (~root: CallStack.t, all: Id.Map.t(list(t))): Id.Map.t(span_ref) => {
+    let ids = CallStack.ids_of_stack;
+    let root_ids = ids(root);
+    let n_root = List.length(root_ids);
+    let shown: Hashtbl.t(Id.t, unit) = Hashtbl.create(64);
+    /* instance (a call, as its stack's ids) → its samples, in eval order */
+    let instances: Hashtbl.t(list(Id.t), list(t)) = Hashtbl.create(64);
+    Id.Map.iter(
+      (probe_id, samples) =>
+        List.iter(
+          (s: t) =>
+            if (s.origin != Print) {
+              let s_ids = ids(s.call_stack);
+              let n = List.length(s_ids);
+              if (n <= n_root) {
+                if (ListUtil.is_suffix_of(s_ids, root_ids)) {
+                  Hashtbl.replace(shown, probe_id, ());
+                };
+              } else if (ListUtil.is_suffix_of(root_ids, s_ids)) {
+                let prev =
+                  Hashtbl.find_opt(instances, s_ids)
+                  |> Option.value(~default=[]);
+                Hashtbl.replace(instances, s_ids, [s, ...prev]);
+              };
+            },
+          samples,
+        ),
+      all,
+    );
+    let ordered =
+      Hashtbl.fold(
+        (key, rev_samples, acc) => {
+          let samples = List.rev(rev_samples);
+          let first =
+            List.fold_left(
+              (m, s: t) => min(m, s.step_start),
+              max_int,
+              samples,
+            );
+          [(List.length(key), first, key, samples), ...acc];
+        },
+        instances,
+        [],
+      )
+      |> List.sort(((d1, f1, _, _), (d2, f2, _, _)) =>
+           d1 != d2 ? compare(d1, d2) : compare(f1, f2)
+         );
+    /* true: shown; false: not shown (its function is shown elsewhere) */
+    let status: Hashtbl.t(list(Id.t), bool) = Hashtbl.create(64);
+    let rec inside_shown = (key: list(Id.t)): bool =>
+      switch (key) {
+      | [] => true
+      | [_, ...parent] =>
+        List.length(parent) <= n_root
+        || (
+          switch (Hashtbl.find_opt(status, parent)) {
+          | Some(shown) => shown
+          | None => inside_shown(parent)
+          }
+        )
+      };
+    List.fold_left(
+      (chosen, (_, _, key, samples)) =>
+        if (inside_shown(key)
+            && !
+                 List.exists(
+                   (s: t) => Hashtbl.mem(shown, s.syntax_id),
+                   samples,
+                 )) {
+          Hashtbl.replace(status, key, true);
+          List.fold_left(
+            (chosen, s: t) =>
+              Id.Map.mem(s.syntax_id, chosen)
+                ? chosen : Id.Map.add(s.syntax_id, ref_of_sample(s), chosen),
+            chosen,
+            samples,
+          )
+          |> (
+            chosen => {
+              List.iter(
+                (s: t) => Hashtbl.replace(shown, s.syntax_id, ()),
+                samples,
+              );
+              chosen;
+            }
+          );
+        } else {
+          Hashtbl.replace(status, key, false);
+          chosen;
+        },
+      Id.Map.empty,
+      ordered,
+    );
+  };
+
+  /* One render asks once per probe; the samples and focus are shared. */
+  let coordinated_memo:
+    ref(option((Id.Map.t(list(t)), CallStack.t, Id.Map.t(span_ref)))) =
+    ref(None);
+  let coordinated = (~root: CallStack.t, all: Id.Map.t(list(t))) =>
+    switch (coordinated_memo^) {
+    | Some((a, r, chosen)) when a === all && CallStack.equal(r, root) => chosen
+    | _ =>
+      let chosen = coordinated_below(~root, all);
+      coordinated_memo := Some((all, root, chosen));
+      chosen;
+    };
+
+  /* How a line with no sample on the sightline picks one.
+   * - Coordinated(pick): this probe's sample in the coordinated choice
+   *   (coordinated_below), if it has one; otherwise the line shows ⊖.
+   * - PerLine: the line's first related sample, chosen on its own. Only
+   *   for callers without the whole program's samples. */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type below =
+    | Coordinated(option(span_ref))
+    | PerLine;
+
+  /* This probe's place in the coordinated choice under `cursor`. */
+  let below_of =
+      (~cursor: Focus.t, ~probe_id: Id.t, all: Id.Map.t(list(t))): below =>
+    Coordinated(
+      Id.Map.find_opt(probe_id, coordinated(~root=cursor.call_stack, all)),
+    );
+
   /* Find the sample most aligned with the sightline.
    *
    * Alignment = suffix matching: a sample is on the sightline if its
@@ -645,10 +786,16 @@ module Selection = {
    *
    * Fallback tiers:
    *   2.  Direct callee of indicated call (step-into).
-   *   3.  Any related sample (Above/Below/Same relative to effective stack).
+   *   3.  Below the sightline: the coordinated choice (~below); or, for
+   *       PerLine callers, any related sample.
    */
   let rec most_aligned_index =
-          (~ap_id: option(Id.t), cursor: Focus.t, samples: list(t))
+          (
+            ~ap_id: option(Id.t),
+            ~below: below=PerLine,
+            cursor: Focus.t,
+            samples: list(t),
+          )
           : option(int) => {
     /* Reference-first: if the cursor holds the IDENTITY of one of
      * this probe's samples — the anchored (clicked) sample, or the
@@ -682,7 +829,7 @@ module Selection = {
         }
       };
     let tiers = () => {
-      most_aligned_by_tiers(~ap_id, cursor, samples);
+      most_aligned_by_tiers(~ap_id, ~below, ~by_ref, cursor, samples);
     };
     switch (by_ref(cursor.anchor)) {
     | Some(_) as res => res
@@ -695,8 +842,25 @@ module Selection = {
   }
 
   and most_aligned_by_tiers =
-      (~ap_id: option(Id.t), cursor: Focus.t, samples: list(t))
+      (
+        ~ap_id: option(Id.t),
+        ~below: below,
+        ~by_ref: option(span_ref) => option(int),
+        cursor: Focus.t,
+        samples: list(t),
+      )
       : option(int) => {
+    let root_ids = CallStack.ids_of_stack(cursor.call_stack);
+    let is_below_sightline = (s: t) => {
+      let s_ids = CallStack.ids_of_stack(s.call_stack);
+      List.length(s_ids) > List.length(root_ids)
+      && ListUtil.is_suffix_of(root_ids, s_ids);
+    };
+    let coordinated_pick =
+      switch (below) {
+      | Coordinated(pick) => by_ref(pick)
+      | PerLine => None
+      };
     let suffix_scan = (stack: CallStack.t): option(int) =>
       List.fold_left(
         (best: option((int, int)), (i, sample: t)) => {
@@ -735,7 +899,15 @@ module Selection = {
       switch (cursor.pinned_stack, cursor.pinned_span) {
       | (None, None) => None
       | _ =>
-        List.mapi((i, s: t) => (i, List.length(s.call_stack)), samples)
+        List.mapi((i, s: t) => (i, s), samples)
+        /* below the sightline, only the coordinated choice decides */
+        |> List.filter(((_, s)) =>
+             switch (below) {
+             | Coordinated(_) => !is_below_sightline(s)
+             | PerLine => true
+             }
+           )
+        |> List.map(((i, s: t)) => (i, List.length(s.call_stack)))
         |> List.fold_left(
              (best, (i, depth)) =>
                switch (best) {
@@ -751,9 +923,15 @@ module Selection = {
       switch (effective_match) {
       | Some(_) => effective_match
       | None =>
-        switch (pinned_shallowest()) {
-        | Some(_) as res => res
-        | None => suffix_scan(cursor.call_stack)
+        switch (cursor.pinned_stack, cursor.pinned_span) {
+        | (None, None) => suffix_scan(cursor.call_stack)
+        | _ =>
+          /* under a pin, a line below the sightline takes the coordinated
+             choice before the pin's shallowest-candidate rule */
+          switch (coordinated_pick) {
+          | Some(_) as res => res
+          | None => pinned_shallowest()
+          }
         }
       };
     /* Fallback tiers use above-focus stack (depth-relative comparisons) */
@@ -773,8 +951,32 @@ module Selection = {
           switch (find(rel => rel.is_below_indicated_call == Some(0))) {
           | Some(_) as result => result
           | None =>
-            let indirect = find(rel => rel.is_below_indicated_call != None);
-            indirect == None ? find(Focus.is_related) : indirect;
+            switch (below) {
+            | Coordinated(_) =>
+              switch (coordinated_pick) {
+              | Some(_) as result => result
+              | None =>
+                /* a related sample above the sightline (the top level's
+                   empty stack is never a suffix match); below it, only
+                   the coordinated choice decides */
+                List.find_index(
+                  (sample: t) =>
+                    !is_below_sightline(sample)
+                    && Focus.is_related(
+                         Focus.relation(
+                           ~trimmed=true,
+                           ~ap_id,
+                           cursor,
+                           sample,
+                         ),
+                       ),
+                  samples,
+                )
+              }
+            | PerLine =>
+              let indirect = find(rel => rel.is_below_indicated_call != None);
+              indirect == None ? find(Focus.is_related) : indirect;
+            }
           }
         }
       };
@@ -785,11 +987,17 @@ module Selection = {
    * rather than the index). Used by ArrowUp/Down navigation and probe
    * click alignment. Same suffix-scan logic as most_aligned_index. */
   let most_aligned_sample =
-      (~ap_id: option(Id.t), ~cursor: Focus.t, samples: list(t)): option(t) =>
+      (
+        ~ap_id: option(Id.t),
+        ~below: below=PerLine,
+        ~cursor: Focus.t,
+        samples: list(t),
+      )
+      : option(t) =>
     switch (samples) {
     | [] => None
     | [first, ..._] =>
-      switch (most_aligned_index(~ap_id, cursor, samples)) {
+      switch (most_aligned_index(~ap_id, ~below, cursor, samples)) {
       | Some(idx) => List.nth_opt(samples, idx)
       | None => Some(first)
       }
@@ -829,12 +1037,13 @@ module Selection = {
         ~ap_id: option(Id.t),
         ~pinned: option(CallStack.t),
         ~pinned_interval: option((int, int))=None,
+        ~below: below=PerLine,
         ~cursor: Focus.t,
         samples: list(t),
       )
       : (list(t), int) => {
     let filtered = filter_by_pin(~ap_id, ~pinned, ~pinned_interval, samples);
-    let first_idx = most_aligned_index(~ap_id, cursor, filtered);
+    let first_idx = most_aligned_index(~ap_id, ~below, cursor, filtered);
     if (first_idx == None && mode == Single) {
       ([], offset);
     } else {

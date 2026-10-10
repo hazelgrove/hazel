@@ -33,7 +33,12 @@ let cursor_is_aligned_uncached =
       id =>
         switch (Dynamics.Map.lookup(id, dynamics)) {
         | Some([_, ..._] as samples) =>
-          Sample.Selection.most_aligned_index(~ap_id=None, cursor, samples)
+          Sample.Selection.most_aligned_index(
+            ~ap_id=None,
+            ~below=Sample.Selection.below_of(~cursor, ~probe_id=id, dynamics),
+            cursor,
+            samples,
+          )
           != None
         | _ => false
         },
@@ -100,9 +105,22 @@ let caret_nearest_ephemeral =
  * than ⊖: the Single-mode test of ProbeProj.select_samples. Only asked while
  * unpinned, so the pin filter just drops print samples. */
 let shows_aligned_sample =
-    (~ap_id: option(Id.t), z: Zipper.t, samples: list(Sample.t)): bool =>
+    (
+      ~ap_id: option(Id.t),
+      ~probe_id: Id.t,
+      ~dynamics: Dynamics.Map.t,
+      z: Zipper.t,
+      samples: list(Sample.t),
+    )
+    : bool =>
   Sample.Selection.most_aligned_index(
     ~ap_id,
+    ~below=
+      Sample.Selection.below_of(
+        ~cursor=z.refractors.sample_focus,
+        ~probe_id,
+        dynamics,
+      ),
     z.refractors.sample_focus,
     Sample.Selection.filter_by_pin(~ap_id, ~pinned=None, samples),
   )
@@ -200,13 +218,25 @@ let resolve_pending_probe_cursor =
             };
           if (gap_only
               && has_focus(z)
-              && shows_aligned_sample(~ap_id, z, samples)) {
+              && shows_aligned_sample(
+                   ~ap_id,
+                   ~probe_id,
+                   ~dynamics,
+                   z,
+                   samples,
+                 )) {
             only_if_not_aligned
               ? clear_pending_probe_cursor(z) : resolve(rest);
           } else {
             switch (
               Sample.Selection.most_aligned_sample(
                 ~ap_id,
+                ~below=
+                  Sample.Selection.below_of(
+                    ~cursor=z.refractors.sample_focus,
+                    ~probe_id,
+                    dynamics,
+                  ),
                 ~cursor=z.refractors.sample_focus,
                 samples,
               )
