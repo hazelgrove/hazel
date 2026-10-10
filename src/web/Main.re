@@ -11,6 +11,11 @@ let scroll_to_caret = ref(true);
 let slide_scrolls: ref(list((int, float))) = ref([]);
 let pending_scroll_restore: ref(option(float)) = ref(None);
 
+/* The page as of the last update, saved when the page is hidden or
+   unloaded: autosave waits for a second of quiet, so a quick reload or
+   close would otherwise lose the last edits. */
+let latest_page: ref(option(Page.Model.t)) = ref(None);
+
 /* The current tutorial slide index, if the app is in tutorial mode. */
 let tutorial_slide = (m: CrashHandling.Model.t): option(int) =>
   switch (m.model.current.current.editors) {
@@ -109,6 +114,7 @@ let apply =
       updated.model,
     );
 
+  latest_page := Some(model'.model.current.current);
   if (updated.is_edit) {
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SetAlarm(
@@ -230,6 +236,12 @@ let start = default_model => {
       )
       >= 0;
     JsUtil.focus_clipboard_shim();
+    JsUtil.on_page_leave(() =>
+      Option.iter(
+        page => HazelDB.kv_journal(() => Page.Store.save(page)),
+        latest_page^,
+      )
+    );
     /* Re-measure font metrics on zoom (DPR change). ResizeObserver
      * doesn't fire on zoom because CSS-level dimensions don't change,
      * but getBoundingClientRect returns different values due to
