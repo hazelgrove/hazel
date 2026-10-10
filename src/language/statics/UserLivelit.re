@@ -15,6 +15,8 @@ open Util;
    LivelitShape) sets the projector's footprint in character cells. Type
    members are accepted (and encouraged) but not yet semantically
    load-bearing. Helpers are ordinary additional members.
+   A view of type (Model, ViewContext) -> HTML is also told whether it is
+   editable and how much room it has (see `room` below).
    Since modules are sugar for labeled tuples, a positional 4/5-tuple
    (init, update, view, expand[, shape]) is accepted as the equivalent form.
 
@@ -26,6 +28,62 @@ open Util;
    members. */
 
 let expand_slot = 3;
+let view_slot = 2;
+
+/* How much room a view has. Free: the view sizes itself, by its shape (at
+   its literal, and in a probe's drawer, which reserves the shape's lines).
+   Lines(lines, columns): a probe sample on the line, where a view has the
+   line's lines and the sample's width, the budget its text is abbreviated
+   to (so resizing the sample resizes the room); it is clipped to that room.
+   A view of type (Model, ViewContext) -> HTML receives its room with
+   `editable`, whether its actions rewrite the program. Only a literal's
+   do: they update its model, which lives in the literal's syntax. A probe
+   sample's value has no literal to rewrite, so views drawn there are
+   read-only. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type room =
+  | Free
+  | Lines(int, int);
+
+/* The ViewContext value, (editable=<Bool>, room=<Room>) (BuiltinsADT) */
+let context_exp = (~editable: bool, room: room): TermBase.Exp.t =>
+  IdTagged.FreshGrammar.(
+    Exp.tuple([
+      Exp.tup_label(Exp.label("editable"), Exp.bool(editable)),
+      Exp.tup_label(
+        Exp.label("room"),
+        switch (room) {
+        | Free =>
+          Exp.constructor("Free", Some(Some(BuiltinsADT.ViewContext.room)))
+        | Lines(lines, cols) =>
+          Exp.ap(
+            Operators.Forward,
+            Exp.constructor(
+              "Lines",
+              Some(
+                Some(
+                  Typ.arrow(
+                    Typ.prod([Typ.int(), Typ.int()]),
+                    BuiltinsADT.ViewContext.room,
+                  ),
+                ),
+              ),
+            ),
+            Exp.tuple([Exp.int(lines), Exp.int(cols)]),
+          )
+        },
+      ),
+    ])
+  );
+
+/* What a view is applied to: the model, or (model, context) for a view
+   that takes a ViewContext */
+let view_arg =
+    (~takes_ctx: bool, ~editable: bool, ~room: room, model: TermBase.Exp.t)
+    : TermBase.Exp.t =>
+  takes_ctx
+    ? IdTagged.FreshGrammar.Exp.tuple([model, context_exp(~editable, room)])
+    : model;
 
 let is_livelit_name = (name: string): bool =>
   String.length(name) > 1 && name.[0] == '^';
@@ -187,6 +245,50 @@ let ty_member =
   };
 };
 
+/* Does a view's type take a ViewContext, (Model, ViewContext) -> HTML?
+   Told apart by type, not by arity, since a one-argument view's Model may
+   itself be a pair. The context is named, or written out as its labeled
+   product (editable=Bool, room=Room). */
+let takes_context = (view_ty: option(TermBase.Typ.t)): bool => {
+  let rec strip = (ty: TermBase.Typ.t): TermBase.Typ.t =>
+    switch (Typ.term_of(ty)) {
+    | Parens(ty) => strip(ty)
+    | _ => ty
+    };
+  let is_context = (ty: TermBase.Typ.t): bool =>
+    switch (Typ.term_of(strip(ty))) {
+    | Var("ViewContext") => true
+    | Prod(fields) =>
+      List.sort(
+        compare,
+        List.filter_map(
+          (f: TermBase.Typ.t) =>
+            switch (Typ.term_of(f)) {
+            | TupLabel({term: Label(l), _}, _) => Some(l)
+            | _ => None
+            },
+          fields,
+        ),
+      )
+      == ["editable", "room"]
+    | _ => false
+    };
+  switch (Option.map(ty => Typ.term_of(strip(ty)), view_ty)) {
+  | Some(Arrow(arg, _)) =>
+    switch (Typ.term_of(strip(arg))) {
+    | Prod([_, ctx]) => is_context(ctx)
+    | _ => false
+    }
+  | _ => false
+  };
+};
+
+let view_takes_ctx = (ctx: Ctx.t, name: string): bool =>
+  switch (Ctx.lookup_livelit(ctx, name)) {
+  | Some(ll) => ll.view_takes_ctx
+  | None => false
+  };
+
 /* The `shape` member: a LivelitShape constructor. Inline(w) is one
    line; Block(w, h) / Tab(w, h) are h LINES tall (the internal
    vertical counts linebreaks, hence h - 1). */
@@ -334,11 +436,14 @@ let use_parts =
    (`%model`, not a lexable token) and shared between the view call and the
    expansion, so a committed ^name.update(m, a) transition runs — and its
    probes fire — exactly once. The model keeps its surface ids as the
-   binding's definition, so its value samples at the model's own id. */
+   binding's definition, so its value samples at the model's own id. A
+   view that takes a ViewContext is told it is editable, with Free room:
+   the literal is as big as its shape says. */
 let instrument_view =
     (
       ~projector_id: Id.t,
       ~name: string,
+      ~takes_ctx: bool,
       ~model: TermBase.Exp.t,
       body: TermBase.Exp.t,
     )
@@ -360,7 +465,7 @@ let instrument_view =
           Grammar.Ap(
             Operators.Forward,
             Exp.dot(Exp.var("^" ++ name), Exp.label("view")),
-            m_ref(),
+            view_arg(~takes_ctx, ~editable=true, ~room=Free, m_ref()),
           ): TermBase.Exp.term,
         );
       Exp.let_(Pat.var(m_var), model, Exp.let_(Pat.wild(), view_ap, body));
@@ -377,7 +482,7 @@ let mk =
       ~def_ty: TermBase.Typ.t,
     )
     : result(LivelitCtx.raw_livelit, Mark.livelit_def_error) => {
-  let build = (~init, ~shape, ~expand, ~update_ty, ~expand_ty) => {
+  let build = (~init, ~shape, ~expand, ~update_ty, ~expand_ty, ~view_ty) => {
     let (model_t, expansion_t, action_t) = types_of(~update_ty, ~expand_ty);
     {
       LivelitCtx.name,
@@ -396,6 +501,7 @@ let mk =
         | None => default_shape
         },
       user_def: Some(def_elab),
+      view_takes_ctx: takes_context(view_ty),
     };
   };
   switch (detect(def_user)) {
@@ -408,11 +514,13 @@ let mk =
         ~expand=mk_expand_dot(~name),
         ~update_ty=ty_member(def_ty, ~label="update", ~index=None),
         ~expand_ty=ty_member(def_ty, ~label="expand", ~index=None),
+        ~view_ty=ty_member(def_ty, ~label="view", ~index=None),
       ),
     )
   | Ok(TupleDef(fs)) =>
     let update_i = slot_index(fs, ~label="update", ~index=1);
     let expand_i = slot_index(fs, ~label="expand", ~index=expand_slot);
+    let view_i = slot_index(fs, ~label="view", ~index=view_slot);
     let expand =
       field_label(List.nth(fs, expand_i)) != None
         ? mk_expand_dot(~name)
@@ -426,6 +534,7 @@ let mk =
         ~expand,
         ~update_ty=ty_member(def_ty, ~label="update", ~index=Some(update_i)),
         ~expand_ty=ty_member(def_ty, ~label="expand", ~index=Some(expand_i)),
+        ~view_ty=ty_member(def_ty, ~label="view", ~index=Some(view_i)),
       ),
     );
   };

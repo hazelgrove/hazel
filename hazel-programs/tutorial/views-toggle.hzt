@@ -1,0 +1,60 @@
+@title
+Views / Toggle
+
+@flags
+version=1 id=b3000004-0004-0004-0004-000000000004
+
+@prompt
+`^toggle` is a livelit for plain `Bool`: in code it is a cell you click to flip, lit for `true` and hollow for `false`. Since it expands to `Bool` and its model is a `Bool`, it needs no `wrap`, and it draws *every* `Bool` probe in its scope, not only those meant for it: here, one week's `raining` and whether the garden gets watered, a cell per day. Click the forecast's cells and watch the week change.
+
+@code
+# A view for plain Bool: a lit cell for true, a hollow one for false #
+let ^toggle = {
+  type Model = Bool;
+
+  type Action = + Flip;
+
+  # A bordered cell, filled when true #
+  let cell(b: Bool): HTML =
+    Div([Style([("box-sizing", "border-box"),
+                ("width", "13px"),
+                ("height", "13px"),
+                ("padding", "2px"),
+                ("border", "1.5px solid currentColor"),
+                ("border-radius", "2.5px")])],
+      [Div([Style([("width", "100%"),
+                   ("height", "100%"),
+                   ("border-radius", "1px"),
+                   ("background", if b then "currentColor" else "transparent")])],
+         [])]);
+
+  let view(b: Model): HTML =
+    Div([OnClick(Flip),
+         Style([("cursor", "pointer"),
+                ("width", "21px"),
+                ("height", "24px"),
+                ("display", "flex"),
+                ("align-items", "center"),
+                ("justify-content", "center")])],
+      [cell(b)]);
+
+  let init : Model = false;
+
+  let update(b: Model, _: Action): Model = !b;
+
+  let expand(b: Model): Bool = b;
+
+  let shape : LivelitShape = Inline(3)
+} in
+
+# The week's rain forecast: click a cell to change it #
+let forecast : [Bool] = [^^livelit(^toggle(false)), ^^livelit(^toggle(true)), ^^livelit(^toggle(true)), ^^livelit(^toggle(false)), ^^livelit(^toggle(false)), ^^livelit(^toggle(true)), ^^livelit(^toggle(false))] in
+
+# Water every other day from Monday, unless it rains #
+let water(day: Int): Bool =
+  let raining : Bool = ^^probe(nth(forecast, day)) in
+  let due = day / 2 * 2 == day in
+  ^^probe(due && !raining)
+in
+
+[water(0), water(1), water(2), water(3), water(4), water(5), water(6)]

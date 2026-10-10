@@ -41,7 +41,7 @@ let value((_, rank) : Card) : Int =
   end in
 
 # The probes below show intermediate hands as actual cards #
-# This is controlled by the rich views toggle in the probes sidebar #
+# This is controlled by the Rich Probes toggle in the probes sidebar #
 # Double-click any sample to flip it back to text #
 
 # Insertion Sort #

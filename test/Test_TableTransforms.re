@@ -549,14 +549,19 @@ let packed_renderer_tests = {
     ),
     test_case(
       "packed_renderer: can_handle accepts a labeled table", `Quick, () =>
-      check(bool, "accepts", true, renderer.can_handle(Sort.Exp, good_table))
+      check(
+        bool,
+        "accepts",
+        true,
+        renderer.can_handle(~statics=None, Sort.Exp, good_table),
+      )
     ),
     test_case("packed_renderer: can_handle rejects a non-table", `Quick, () =>
       check(
         bool,
         "rejects",
         false,
-        renderer.can_handle(Sort.Exp, G.int(42)),
+        renderer.can_handle(~statics=None, Sort.Exp, G.int(42)),
       )
     ),
     test_case(
@@ -564,7 +569,7 @@ let packed_renderer_tests = {
       `Quick,
       () => {
         let m0 =
-          switch (renderer.init_model(Sort.Exp, good_table)) {
+          switch (renderer.init_model(~statics=None, Sort.Exp, good_table)) {
           | Some(pm) => pm
           | None => fail("init_model should succeed on a valid table")
           };

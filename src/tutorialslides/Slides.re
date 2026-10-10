@@ -94,4 +94,15 @@ let all: list((string, string)) = [
   ("task-crop-plotter.hzt", [%blob "task-crop-plotter.hzt"]),
   ("task-growth-plotter.hzt", [%blob "task-growth-plotter.hzt"]),
   ("bonus-sample-colors.hzt", [%blob "bonus-sample-colors.hzt"]),
+  /* The Views folder, the probes tutorial's sequel: one lesson per
+     user-defined view. Unnumbered too, so this list orders it. */
+  ("views-sparkline.hzt", [%blob "views-sparkline.hzt"]),
+  ("views-color.hzt", [%blob "views-color.hzt"]),
+  ("views-horizon.hzt", [%blob "views-horizon.hzt"]),
+  ("views-toggle.hzt", [%blob "views-toggle.hzt"]),
+  ("views-diff.hzt", [%blob "views-diff.hzt"]),
+  ("views-gantt.hzt", [%blob "views-gantt.hzt"]),
+  ("views-piano-roll.hzt", [%blob "views-piano-roll.hzt"]),
+  ("views-map.hzt", [%blob "views-map.hzt"]),
+  ("views-wiring.hzt", [%blob "views-wiring.hzt"]),
 ];

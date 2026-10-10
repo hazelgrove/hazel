@@ -30,6 +30,12 @@ type raw_livelit = {
      (init, update, view, expand). The projector evaluates it at render
      time; `update`/`view` above are unused placeholders in that case. */
   user_def: option(TermBase.Exp.t),
+  /* User-defined livelits only: `view` has type (Model, ViewContext) ->
+     HTML, so every call passes whether it is editable and its room as
+     well (see UserLivelit.view_arg). A one-argument view gets the model
+     alone. */
+  [@default false]
+  view_takes_ctx: bool,
 };
 
 // referenced in docs/livelits.md
@@ -86,4 +92,5 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
   },
   shape: B.shape,
   user_def: None,
+  view_takes_ctx: false,
 };
