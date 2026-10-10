@@ -60,13 +60,7 @@ let closed_exp =
          }
        )
     |> OptUtil.sequence;
-  let env =
-    List.fold_left(
-      (env, b) => Environment.extend(env, b),
-      Environment.empty,
-      bindings,
-    );
-  info.elab_term |> Substitution.in_exp(env);
+  info.elab_term |> Substitution.in_exp(Environment.of_list(bindings));
 };
 
 let ctx =
@@ -208,25 +202,11 @@ let rows = (~settings: CoreSettings.t, ps: t): int =>
 /* what the title bar names: the stepped expression on one line, capped
    (the bar cuts it shorter with an ellipsis; the tooltip has this much) */
 let one_line = (s: string): string => {
-  let b = Buffer.create(String.length(s));
-  let space = ref(false);
-  String.iter(
-    c =>
-      switch (c) {
-      | ' '
-      | '\n'
-      | '\t'
-      | '\r' => space := Buffer.length(b) > 0
-      | c =>
-        if (space^) {
-          Buffer.add_char(b, ' ');
-          space := false;
-        };
-        Buffer.add_char(b, c);
-      },
-    s,
-  );
-  let s = Buffer.contents(b);
+  let s =
+    StringUtil.(
+      replace(regexp("[ \n\t\r]+"), s, " ")
+      |> replace(regexp("^ | $"), _, "")
+    );
   let cap = 240;
   if (String.length(s) <= cap) {
     s;

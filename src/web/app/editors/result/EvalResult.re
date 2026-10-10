@@ -583,13 +583,7 @@ module Update = {
         Model.Stepper(
           StepperView.Update.calculate(
             ~settings,
-            ~ctx=
-              OldValue(
-                SemanticCtx.of_ctx_and_env(
-                  Builtins.ctx_init(None),
-                  Builtins.closure_env,
-                ),
-              ),
+            ~ctx=OldValue(ProbeSteps.ctx),
             elab,
             stepper,
           ),
