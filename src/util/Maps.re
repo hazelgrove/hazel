@@ -5,7 +5,7 @@ module IntMap =
   MapUtil.Make({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = int;
-    let compare = compare;
+    let compare = Int.compare;
   });
 
 module BoolMap =
@@ -26,5 +26,7 @@ module StringMap =
   MapUtil.Make({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = string;
-    let compare = compare;
+    /* not the polymorphic compare: the same order, without its generic
+       walk (an environment lookup compares names this way) */
+    let compare = String.compare;
   });
