@@ -4,15 +4,21 @@ open OptUtil.Syntax;
 /* Inspector-only information for the hole Tab would insert first. Resolve
    its owner/child slot in the completion that was actually typechecked;
    neither mint new IDs nor typecheck a speculative program here. */
-let at_caret =
+let compute =
     (~statics: CachedStatics.t, z: Zipper.t): option(Language.Info.t) =>
   if (z.caret != Outer || !Selection.is_empty(z.selection)) {
     None;
   } else {
     let* snapshot = statics.completion;
     let source = MakeTerm.semantic_source(z);
-    /* Include IDs: Segment.equal deliberately ignores tile identity. */
-    if (source != snapshot.source) {
+    /* Include IDs: Segment.equal deliberately ignores tile identity. The
+       hash includes them too, and the source shares all but its spine
+       with the zipper's pieces, which are hashed already: comparing
+       structurally walked the whole program on every redraw. */
+    if (!(
+          Util.ValueHash.same(source, snapshot.source)
+          || source == snapshot.source
+        )) {
       None; /* Includes annotation/context edits during the statics debounce. */
     } else {
       let* chip = CompletionQuery.chip_at_caret(~seg=source, z);
@@ -49,4 +55,19 @@ let at_caret =
       | _ => None
       };
     };
+  };
+
+/* The page asks on every redraw, and a livelit release redraws several
+   times with the same zipper and statics (one per message from the eval
+   worker): answer those from the last call. */
+let last: ref(option((CachedStatics.t, Zipper.t, option(Language.Info.t)))) =
+  ref(None);
+let at_caret =
+    (~statics: CachedStatics.t, z: Zipper.t): option(Language.Info.t) =>
+  switch (last^) {
+  | Some((s, z', r)) when s === statics && z' === z => r
+  | _ =>
+    let r = compute(~statics, z);
+    last := Some((statics, z, r));
+    r;
   };
