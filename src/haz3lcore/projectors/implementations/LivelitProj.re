@@ -1082,6 +1082,42 @@ module M: Projector = {
      render. */
   let last_good_view: Hashtbl.t(Id.t, Node.t) = Hashtbl.create(16);
 
+  /* Each use's last evaluated view: its definition, the model value it was
+     drawn from, and the Html. A view is a function of those two -- a
+     splice's value rides in the model as SpliceRef(id, value), so a changed
+     splice is a changed model -- and every redraw evaluated every use's
+     view: on a Kids' Choice slider release, the views of all its sliders,
+     toggles and the face, for one changed model, 57% of the release. The
+     definition is compared by identity first (it is the same object while
+     its item's statics are reused), then structurally; the model
+     structurally. */
+  let view_memo:
+    Hashtbl.t(Id.t, (TermBase.Exp.t, TermBase.Exp.t, TermBase.Exp.t)) =
+    Hashtbl.create(16);
+  let memo_view =
+      (
+        ~id: Id.t,
+        ~def_elab: TermBase.Exp.t,
+        ~view_model: TermBase.Exp.t,
+        compute: unit => result(TermBase.Exp.t, string),
+      )
+      : result(TermBase.Exp.t, string) =>
+    switch (Hashtbl.find_opt(view_memo, id)) {
+    | Some((d, m, html))
+        when
+          (d === def_elab || Exp.fast_equal(d, def_elab))
+          && (m === view_model || Exp.fast_equal(m, view_model)) =>
+      Ok(html)
+    | _ =>
+      let r = compute();
+      switch (r) {
+      | Ok(html) =>
+        Hashtbl.replace(view_memo, id, (def_elab, view_model, html))
+      | Error(_) => Hashtbl.remove(view_memo, id)
+      };
+      r;
+    };
+
   let user_view =
       (
         ~id: Id.t,
@@ -1209,36 +1245,41 @@ module M: Projector = {
       ok(HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html))
     | (None, None) =>
       let ap = IdTagged.FreshGrammar.Exp.ap;
-      switch (MvuShape.safe_evaluate_open(def_elab)) {
-      | Error(e) => err("livelit definition error: " ++ e)
-      | Ok(record) =>
-        switch (record_field(record, "view")) {
-        | None => err("livelit definition is missing view")
-        | Some(view_fn) =>
-          /* The run's model value when there is one: in the surface term
-             a marked field is only its code, not the ref it becomes. The
-             view is drawn from that value, but the handlers are seeded
-             with the SYNTAX model, as on the live path: a transient
-             event records the seed's print as the syntax state that is
-             "ours", and the evaluated value prints its splices as
-             SpliceRef(id, value) where the syntax prints their code. Seeded
-             with the value, that record never matched, so every preview
-             was dropped as an external edit -- and a drag, whose release
-             is a no-op on the pre-drag model, was lost entirely. */
-          let view_model = Option.value(model_value, ~default=model);
-          switch (eval_view(ap(Forward, view_fn, view_model))) {
-          | Error(e) => err("livelit view error: " ++ e)
-          | Ok(html) when MvuShape.is_html(html) =>
-            ok(
-              HazelDOM.go(
-                ~elide_errors=true,
-                seed(~model, ~model_value),
-                html,
-              ),
-            )
-          | Ok(_) => err("livelit view did not produce HTML")
-          };
-        }
+      /* The run's model value when there is one: in the surface term
+         a marked field is only its code, not the ref it becomes. The
+         view is drawn from that value, but the handlers are seeded
+         with the SYNTAX model, as on the live path: a transient
+         event records the seed's print as the syntax state that is
+         "ours", and the evaluated value prints its splices as
+         SpliceRef(id, value) where the syntax prints their code. Seeded
+         with the value, that record never matched, so every preview
+         was dropped as an external edit -- and a drag, whose release
+         is a no-op on the pre-drag model, was lost entirely.
+         An unchanged definition and model draw what they drew last time,
+         without evaluating either (view_memo). */
+      let view_model = Option.value(model_value, ~default=model);
+      let evaluated =
+        memo_view(~id, ~def_elab, ~view_model, () =>
+          switch (MvuShape.safe_evaluate_open(def_elab)) {
+          | Error(e) => Error("livelit definition error: " ++ e)
+          | Ok(record) =>
+            switch (record_field(record, "view")) {
+            | None => Error("livelit definition is missing view")
+            | Some(view_fn) =>
+              switch (eval_view(ap(Forward, view_fn, view_model))) {
+              | Error(e) => Error("livelit view error: " ++ e)
+              | Ok(html) => Ok(html)
+              }
+            }
+          }
+        );
+      switch (evaluated) {
+      | Error(e) => err(e)
+      | Ok(html) when MvuShape.is_html(html) =>
+        ok(
+          HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html),
+        )
+      | Ok(_) => err("livelit view did not produce HTML")
       };
     };
   };
