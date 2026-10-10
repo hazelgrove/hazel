@@ -102,6 +102,17 @@ let kv_save = (key: string, value: string): unit => {
 let kv_get = (key: string): option(string) =>
   Util.Maps.StringMap.find_opt(key, cache^);
 
+let kv_save_sexp = (key: string, sexp_of: 'a => Sexplib.Sexp.t, v: 'a): unit =>
+  kv_save(key, Sexplib.Sexp.to_string(sexp_of(v)));
+
+/* None when missing or unreadable */
+let kv_get_sexp = (key: string, of_sexp: Sexplib.Sexp.t => 'a): option('a) =>
+  Option.bind(kv_get(key), s =>
+    try(Some(of_sexp(Sexplib.Sexp.of_string(s)))) {
+    | _ => None
+    }
+  );
+
 let kv_remove = (key: string): unit => {
   cache := Util.Maps.StringMap.remove(key, cache^);
   write(Delete(key));

@@ -39,10 +39,8 @@ type slide_meta = {
 };
 
 let meta_key = (prefix: string): string => prefix ++ ":_meta";
-let slide_key = (prefix: string, name: string): string =>
-  prefix ++ ":" ++ name;
 let agent_key = (prefix: string, name: string): string =>
-  prefix ++ ":" ++ name ++ ":agent";
+  content_key(prefix, name) ++ ":agent";
 let caret_key = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name ++ ":caret";
 let pins_key = (prefix: string, name: string): string =>
@@ -255,34 +253,25 @@ let read_caret = (prefix: string, name: string): unit => {
   };
 };
 
-let save_meta = (prefix: string, m: slide_meta): unit => {
-  let key = meta_key(prefix);
-  let serialized = m |> sexp_of_slide_meta |> Sexplib.Sexp.to_string;
-  HazelDB.kv_save(key, serialized);
-};
+let save_meta = (prefix: string, m: slide_meta): unit =>
+  HazelDB.kv_save_sexp(meta_key(prefix), sexp_of_slide_meta, m);
 
 let load_meta = (prefix: string): option(slide_meta) =>
-  switch (HazelDB.kv_get(meta_key(prefix))) {
-  | Some(data) =>
-    try(Some(data |> Sexplib.Sexp.of_string |> slide_meta_of_sexp)) {
-    | _ => None
-    }
-  | None => None
-  };
+  HazelDB.kv_get_sexp(meta_key(prefix), slide_meta_of_sexp);
 
 let save_slide_kind =
-    (prefix: string, name: string, kind: Scratchpad.kind_persistent): unit => {
-  let key = slide_key(prefix, name);
-  let serialized =
-    kind |> Scratchpad.sexp_of_kind_persistent |> Sexplib.Sexp.to_string;
-  HazelDB.kv_save(key, serialized);
-};
+    (prefix: string, name: string, kind: Scratchpad.kind_persistent): unit =>
+  HazelDB.kv_save_sexp(
+    content_key(prefix, name),
+    Scratchpad.sexp_of_kind_persistent,
+    kind,
+  );
 
 /* Load a slide blob. Tries the new schema first; on parse failure,
    falls back to legacy CellEditor-only blobs and wraps them as a Code kind. */
 let load_slide_kind =
     (prefix: string, name: string): option(Scratchpad.kind_persistent) =>
-  switch (HazelDB.kv_get(slide_key(prefix, name))) {
+  switch (HazelDB.kv_get(content_key(prefix, name))) {
   | None => None
   | Some(data) =>
     let sexp = Sexplib.Sexp.of_string(data);
@@ -303,21 +292,15 @@ let load_slide_kind =
   };
 
 let save_agent =
-    (prefix: string, name: string, agent: Agent.Persistent.t): unit => {
-  let key = agent_key(prefix, name);
-  let serialized =
-    agent |> Agent.Persistent.sexp_of_t |> Sexplib.Sexp.to_string;
-  HazelDB.kv_save(key, serialized);
-};
+    (prefix: string, name: string, agent: Agent.Persistent.t): unit =>
+  HazelDB.kv_save_sexp(
+    agent_key(prefix, name),
+    Agent.Persistent.sexp_of_t,
+    agent,
+  );
 
 let load_agent = (prefix: string, name: string): option(Agent.Persistent.t) =>
-  switch (HazelDB.kv_get(agent_key(prefix, name))) {
-  | Some(data) =>
-    try(Some(data |> Sexplib.Sexp.of_string |> Agent.Persistent.t_of_sexp)) {
-    | _ => None
-    }
-  | None => None
-  };
+  HazelDB.kv_get_sexp(agent_key(prefix, name), Agent.Persistent.t_of_sexp);
 
 /* Change-gate for agent saves: serializing a long conversation on
    every editor autosave is the expensive part, so skip when the agent
@@ -338,7 +321,7 @@ let last_saved_content: Hashtbl.t(string, save_stamp) = Hashtbl.create(8);
    roster, so autosave writes only touched items and reload restores the
    exact zipper unparsed; the text blob is the fallback for a bad roster */
 let items_ns = (prefix: string, name: string): string =>
-  prefix ++ ":" ++ name ++ ":items:";
+  content_key(prefix, name) ++ ":items:";
 
 let item_store = (prefix: string, name: string): ItemPersist.store => {
   let ns = items_ns(prefix, name);
@@ -355,13 +338,12 @@ let last_item_saves: Hashtbl.t(string, ItemPersist.saved) =
   Hashtbl.create(8);
 
 let save_items = (prefix: string, name: string, z: Zipper.t): unit => {
-  let content_key = prefix ++ ":" ++ name;
+  let ck = content_key(prefix, name);
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let prev =
-    Hashtbl.find_opt(last_item_saves, content_key)
-    |> Option.value(~default=[]);
+    Hashtbl.find_opt(last_item_saves, ck) |> Option.value(~default=[]);
   let saved = ItemPersist.save(~store=item_store(prefix, name), ~prev, seg);
-  Hashtbl.replace(last_item_saves, content_key, saved);
+  Hashtbl.replace(last_item_saves, ck, saved);
 };
 
 /* the keys a slide owns, exactly: its content key, its side keys, its item
@@ -481,14 +463,14 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       | Divided(d) => Stacked(d)
       | Whole(editor) => Unstacked(editor.editor.editor.state.zipper)
       };
-    let content_key = prefix ++ ":" ++ sp.name;
+    let ck = content_key(prefix, sp.name);
     let content_unchanged =
-      switch (Hashtbl.find_opt(last_saved_content, content_key)) {
+      switch (Hashtbl.find_opt(last_saved_content, ck)) {
       | Some(prev) => stamp_equal(prev, stamp)
       | None => false
       };
     if (!content_unchanged) {
-      Hashtbl.replace(last_saved_content, content_key, stamp);
+      Hashtbl.replace(last_saved_content, ck, stamp);
     };
     if (!content_unchanged) {
       /* whole programs save as text too (zipper sexps are slow), so the
@@ -547,12 +529,11 @@ let save_current' = (prefix: string, model: Model.t): unit => {
     };
     /* the view can change without the text (a parked pin dropped) */
     write_view(prefix, sp.name, view, Program.statics(program).term);
-    let agent_key_str = prefix ++ ":" ++ sp.name;
     /* the agent model changes on every streamed chunk, so a physical
        equality gate saved (and serialized, several MB) many times a
        second while the model spoke; gate on the fields that persist */
     let unchanged =
-      switch (Hashtbl.find_opt(last_saved_agent, agent_key_str)) {
+      switch (Hashtbl.find_opt(last_saved_agent, ck)) {
       | Some(prev) =>
         let prev: Agent.Model.t = prev;
         prev === agent
@@ -568,14 +549,14 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       agent.awaiting_response != None || agent.pending_dispatch_send != None;
     let now = JsUtil.timestamp();
     let recently =
-      switch (Hashtbl.find_opt(last_agent_save_ts, agent_key_str)) {
+      switch (Hashtbl.find_opt(last_agent_save_ts, ck)) {
       | Some(t) => now -. t < 10000.
       | None => false
       };
     if (!unchanged && !(busy && recently)) {
       save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
-      Hashtbl.replace(last_saved_agent, agent_key_str, agent);
-      Hashtbl.replace(last_agent_save_ts, agent_key_str, now);
+      Hashtbl.replace(last_saved_agent, ck, agent);
+      Hashtbl.replace(last_agent_save_ts, ck, now);
     };
   | (false, Drv(m)) =>
     save_slide_kind(
@@ -634,7 +615,7 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
                      a load should rewrite nothing */
                   Hashtbl.replace(
                     last_item_saves,
-                    prefix ++ ":" ++ name,
+                    content_key(prefix, name),
                     ItemPersist.items_of(
                       Zipper.unselect_and_zip(~erase_buffer=true, z),
                     ),
