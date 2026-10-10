@@ -1033,6 +1033,74 @@ let edit_case = (~name, ~acts, ~expected) =>
     check(string_testable, name, expected, edit_complete(acts))
   );
 
+/* Regression: a keyword-interleave (`case fun in ` then `|`) leaves an
+   orphan `|` at Exp with a degenerate fallback mold (mk_op(Any, []),
+   no in_) under a multi-token label after completion merges its
+   missing shards. remold_tile's inner-sort check then indexed past
+   mold.in_ with List.nth and MakeTerm's kid sorts escaped label
+   bounds, raising Failure("nth") on the live statics path
+   (MakeTerm.from_zip_for_sem at Sort.Exp). */
+let nth_crash_acts = () =>
+  Test_Editing.string_to_ltr_actions("case fun in ")
+  @ Test_Editing.string_to_ltr_actions("|");
+let nth_crash_tests = [
+  test_case(
+    "case fun in bar: completion does not crash",
+    `Quick,
+    () => {
+      let z = Test_Editing.perform(Zipper.init(), nth_crash_acts());
+      let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+      let result =
+        CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+      let out = print_seg(result.completed_seg);
+      /* concrete: the orphan `|` materializes a full case (fun body,
+         one rule), instead of crashing in remold. */
+      check(
+        string_testable,
+        "completed segment",
+        "case fun in->? |?=>?end",
+        out,
+      );
+    },
+  ),
+  test_case(
+    "case fun in bar: sem term (statics path) does not crash",
+    `Quick,
+    () => {
+      let z = Test_Editing.perform(Zipper.init(), nth_crash_acts());
+      /* the exact crash site: live statics calls MakeTerm.from_zip_for_sem
+         unguarded; before the fix this raised Failure("nth") */
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp).term;
+      let shown = Language.Exp.show(term);
+      check(
+        Alcotest.bool,
+        "sem term is produced without raising",
+        true,
+        String.length(shown) > 0,
+      );
+    },
+  ),
+  test_case(
+    "case fun in bar: typing on through the rule does not crash",
+    `Quick,
+    () => {
+      /* `=>` reassembles onto the degenerate `|`, whose mold then has too
+         few inner sorts for MakeTerm's kid sorts on the next insert */
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.string_to_ltr_actions("case fun in | x => 1 end"),
+        );
+      check(
+        string_testable,
+        "buffer",
+        "case fun in ~| x => 1 end¦",
+        Test_Editing.printer(z),
+      );
+    },
+  ),
+];
+
 let case_repair_tests = [
   test_sep(
     ~name="deleted end: single case, no wrap double-fire",
@@ -1992,6 +2060,8 @@ let tests: list((string, list(Alcotest.test_case(unit)))) = [
   ("CanonicalCompletion: tab-dispatch", tab_dispatch_tests),
   ("CanonicalCompletion: tab-materialize-equiv", tab_materialize_equiv_tests),
   ("CanonicalCompletion: joint-satisfiability", joint_tests),
+  /* Regression: Failure("nth") crash on keyword interleaves */
+  ("CanonicalCompletion: nth-crash-repro", nth_crash_tests),
   /* Debug test - run first to isolate crash */
   ("CanonicalCompletion: regrout-debug", regrout_debug_tests),
   /* Building block tests - verify Segment.reassemble and regrout behavior */
