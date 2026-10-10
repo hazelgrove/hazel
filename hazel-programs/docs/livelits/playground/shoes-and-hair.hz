@@ -532,15 +532,15 @@ let pants = ^^livelit(Drawing.^polygons((
     Polygon((
       name = "pants",
       points = [
-        (at = (0., 0.), label = Anchor("left hip")),
-        (at = (124., 0.), label = Anchor("right hip")),
-        (at = (132., 150.), label = Plain),
-        (at = (104., 150.), label = Anchor("right foot")),
-        (at = (76., 150.), label = Plain),
-        (at = (62., 42.), label = Plain),
-        (at = (48., 150.), label = Plain),
-        (at = (20., 150.), label = Anchor("left foot")),
-        (at = (-8., 150.), label = Plain)
+        (at = (98., 45.), label = Anchor("left hip")),
+        (at = (222., 45.), label = Anchor("right hip")),
+        (at = (230., 195.), label = Plain),
+        (at = (202., 195.), label = Anchor("right foot")),
+        (at = (174., 195.), label = Plain),
+        (at = (160., 87.), label = Plain),
+        (at = (146., 195.), label = Plain),
+        (at = (118., 195.), label = Anchor("left foot")),
+        (at = (90., 195.), label = Plain)
       ],
       stroke = (width = 3., color = "#1f2a36"),
       fill = "#34495e"))

@@ -2,7 +2,7 @@
 
 # Two shapes drawn apart, set into one picture by their anchors. The #
 # shirt's hips are anchors, and so are the pants' -- the pants drawn #
-# in a frame of their own, their left hip at (0, 0). Put the pants' #
+# in a frame of their own, centred on their canvas. Put the pants' #
 # left hip on the shirt's, layer the pants under the shirt, and the #
 # two make one outfit. Restyle either above, or move a point, and the #
 # outfit below follows. #
@@ -464,24 +464,24 @@ let shirt = ^^livelit(Drawing.^polygons((
 
 # THE PANTS #
 
-# Drawn in a frame of their own, the left hip at (0, 0) and the right #
-# 124 across, as wide as the shirt's hips. Their feet are anchors too, #
-# for shoes. #
+# Drawn in a frame of their own, centred on their canvas, the right #
+# hip 124 across from the left, as wide as the shirt's hips. Their #
+# feet are anchors too, for shoes. #
 
 let pants = ^^livelit(Drawing.^polygons((
   shapes = [
     Polygon((
       name = "pants",
       points = [
-        (at = (0., 0.), label = Anchor("left hip")),
-        (at = (124., 0.), label = Anchor("right hip")),
-        (at = (132., 150.), label = Plain),
-        (at = (104., 150.), label = Anchor("right foot")),
-        (at = (76., 150.), label = Plain),
-        (at = (62., 42.), label = Plain),
-        (at = (48., 150.), label = Plain),
-        (at = (20., 150.), label = Anchor("left foot")),
-        (at = (-8., 150.), label = Plain)
+        (at = (98., 45.), label = Anchor("left hip")),
+        (at = (222., 45.), label = Anchor("right hip")),
+        (at = (230., 195.), label = Plain),
+        (at = (202., 195.), label = Anchor("right foot")),
+        (at = (174., 195.), label = Plain),
+        (at = (160., 87.), label = Plain),
+        (at = (146., 195.), label = Plain),
+        (at = (118., 195.), label = Anchor("left foot")),
+        (at = (90., 195.), label = Plain)
       ],
       stroke = (width = 3., color = "#1f2a36"),
       fill = "#34495e"))
