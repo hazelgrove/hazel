@@ -212,8 +212,11 @@ let registry_tests = [
       );
     },
   ),
+  /* Tables › Rich Probes: a three-row table is short enough for the
+     line, but content in a chip is inert, so its column menus and + only
+     respond in the drawer: the table never takes a chip */
   test_case(
-    "a tall table fills the drawer instead of a chip",
+    "a table of any height fills the drawer instead of a chip",
     `Quick,
     () => {
       check(bool, "fills", true, ProbeProj.fills_drawer(live_renderer));
@@ -226,7 +229,7 @@ let registry_tests = [
       check(
         bool,
         "2 rows on the line",
-        true,
+        false,
         ProbeProj.fits_chip(~display=Inline, live_renderer, 2),
       );
     },

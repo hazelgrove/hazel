@@ -408,10 +408,11 @@ let fills_drawer = (r: packed_renderer): bool => r.id == "table";
 /* Whether a view `rows` rows tall goes in a sample chip: on the line, if
    it fits inline_rows_cap (rows on the line: a view told its room fits
    itself into it); in the drawer, which reserves the view's rows, at any
-   height, unless the view fills the drawer instead. */
+   height. Never the table: content in a chip is inert, and its column
+   menus and + only respond where it fills the drawer. */
 let fits_chip =
     (~display: sample_display, r: packed_renderer, rows: int): bool =>
-  rows <= inline_rows_cap || display == Block && !fills_drawer(r);
+  !fills_drawer(r) && (rows <= inline_rows_cap || display == Block);
 
 module DrawerHeight = {
   /* Cap; taller content scrolls inside `.below-wrapper`. */
@@ -2714,10 +2715,20 @@ let rich_rows =
   };
 };
 let rich_drawer_rows = rich_rows(~line=false);
-/* ...too many for the line: the view waits for the drawer */
+let chosen_fills_drawer = (model: probe_model): bool =>
+  switch (chosen_renderer(model)) {
+  | Some(pm) =>
+    switch (find(RichProbe.renderer_id_of_model(pm))) {
+    | Some(r) => fills_drawer(r)
+    | None => false
+    }
+  | None => false
+  };
+/* ...too many for the line, or the table at any height: the view waits
+   for the drawer */
 let needs_drawer = (model: probe_model, info: info): bool =>
   switch (rich_rows(~line=true, model, info)) {
-  | Some(n) => n > inline_rows_cap
+  | Some(n) => n > inline_rows_cap || chosen_fills_drawer(model)
   | None => false
   };
 
@@ -3013,24 +3024,10 @@ module M: Projector = {
      * or automatic, draw in the drawer's sample chips (fits_chip). The
      * anchored modal overlay is inline-mode only (anchored to the nav-bar
      * stub, it renders detached/clipped). */
-    let fills =
-      switch (chosen_renderer(model)) {
-      | Some(pm) =>
-        switch (find(RichProbe.renderer_id_of_model(pm))) {
-        | Some(r) => fills_drawer(r)
-        | None => false
-        }
-      | None => false
-      };
     let rich_drawer =
       drawer
-      && fills
-      && (
-        switch (rich_drawer_rows(model, info)) {
-        | Some(n) => n > inline_rows_cap
-        | None => false
-        }
-      )
+      && chosen_fills_drawer(model)
+      && Option.is_some(rich_drawer_rows(model, info))
         ? rich_content(
             ~settings,
             model,
