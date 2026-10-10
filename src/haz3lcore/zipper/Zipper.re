@@ -62,29 +62,6 @@ let remold = (z: t, ~root): t => {
   };
 };
 
-/* keep the old objects for pieces remold/regrout rebuilt unchanged, so
-   pointer-keyed layers downstream see only the actual change */
-let restore_sibs = (o: Siblings.t, n: Siblings.t): Siblings.t => (
-  Segment.restore_identity(fst(o), fst(n)),
-  Segment.restore_identity(snd(o), snd(n)),
-);
-
-let restore_relatives = (o: Relatives.t, n: Relatives.t): Relatives.t =>
-  List.length(o.ancestors) != List.length(n.ancestors)
-    ? n
-    : {
-      siblings: restore_sibs(o.siblings, n.siblings),
-      ancestors:
-        List.map2(
-          ((oa, osibs): Ancestors.generation, (na, nsibs)) => {
-            let a = oa === na || compare(oa, na) == 0 ? oa : na;
-            (a, restore_sibs(osibs, nsibs));
-          },
-          o.ancestors,
-          n.ancestors,
-        ),
-    };
-
 /* sparse normalization: remold stays global (same-mold tiles come back
    as-is) but regrout runs only on a caret window spanning the remold
    diff and any stale runs, falling back to the global pass when
@@ -92,6 +69,8 @@ let restore_relatives = (o: Relatives.t, n: Relatives.t): Relatives.t =>
 let sparse_hits: ref(int) = ref(0);
 let sparse_fallbacks: ref(int) = ref(0);
 
+/* keep the old objects for pieces remold/regrout rebuilt unchanged, so
+   pointer-keyed layers downstream see only the actual change */
 let restore_sibs_dirty =
     (o: Siblings.t, n: Siblings.t): (Siblings.t, Id.Set.t) => {
   let (pre, d1) = Segment.restore_identity_dirty(fst(o), fst(n));
@@ -135,6 +114,11 @@ let restore_relatives_dirty =
       anc_dirty^,
     );
   };
+
+let restore_relatives = (o: Relatives.t, n: Relatives.t): Relatives.t => {
+  let (relatives, _, _) = restore_relatives_dirty(o, n);
+  relatives;
+};
 
 let is_solid: Piece.t => bool =
   fun
@@ -433,7 +417,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
         |> Relatives.regrout(d);
       {
         ...z,
-        /* unchanged pieces keep their pre-rescan objects (see restore_sibs) */
+        /* unchanged pieces keep their pre-rescan objects (see restore_sibs_dirty) */
         relatives: restore_relatives(z.relatives, relatives),
       };
     };

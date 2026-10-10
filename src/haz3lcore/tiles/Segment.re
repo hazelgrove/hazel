@@ -1609,22 +1609,6 @@ let restore_identity_dirty = (old: t, neu: t): (t, Id.Set.t) =>
     (restored, dirty^);
   };
 
-let restore_identity = (old: t, neu: t): t =>
-  if (old === neu) {
-    neu;
-  } else {
-    let tbl = Hashtbl.create(List.length(old) + 1);
-    List.iter(p => Hashtbl.replace(tbl, Piece.id(p), p), old);
-    List.map(
-      p =>
-        switch (Hashtbl.find_opt(tbl, Piece.id(p))) {
-        | Some(o) when o === p || compare(o, p) == 0 => o
-        | _ => p
-        },
-      neu,
-    );
-  };
-
 /* Secondary collection for outer secondary model.
    Collects (before, after) secondary runs for each term based on skeleton structure. */
 module SecondaryCollection = {
