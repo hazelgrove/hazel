@@ -136,6 +136,26 @@ module Model = {
 module Update = {
   open Updated;
 
+  /* Undo/redo restore the document, not the environment (font metrics,
+     held modifiers, viewport): a snapshot from before the first font
+     measurement holds placeholder metrics. */
+  let keep_environment = (~from: Model.state, state: Model.state): Model.state => {
+    let (f, g) = (from.globals, state.globals);
+    f.font_metrics == g.font_metrics
+    && f.meta_down == g.meta_down
+    && f.visible_rows == g.visible_rows
+      ? state
+      : {
+        ...state,
+        globals: {
+          ...g,
+          font_metrics: f.font_metrics,
+          meta_down: f.meta_down,
+          visible_rows: f.visible_rows,
+        },
+      };
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Page.Update.t;
 
@@ -158,7 +178,7 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: restore(x.model),
+            current: keep_environment(~from=model.current, restore(x.model)),
             undo_stack: rest,
             redo_stack: [
               {
@@ -178,7 +198,7 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: restore(x.model),
+            current: keep_environment(~from=model.current, restore(x.model)),
             undo_stack: [
               {
                 ...x,
