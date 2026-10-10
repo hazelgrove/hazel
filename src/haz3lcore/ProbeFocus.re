@@ -244,20 +244,29 @@ let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
     }
   );
 
+/* `complete`: the dynamics come from a finished evaluation. While one
+ * streams, each probe's samples stop wherever the evaluator has got to, so a
+ * pinned call or the best-aligned sample may just not have arrived yet:
+ * dropping pins and moving the focus wait for the finished result. */
 let editor_effects =
     (
       ~is_edited: bool,
+      ~complete: bool,
       ~syntax: CachedSyntax.t,
       ~info_map: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
       z: Zipper.t,
     )
-    : Zipper.t =>
+    : Zipper.t => {
+  let when_complete = f => complete ? f : Fun.id;
   z
   |> ProbePerform.remove_colliding_probes(~syntax)
-  |> drop_dead_pin(~dynamics)
+  |> when_complete(drop_dead_pin(~dynamics))
   |> ProbePerform.add_ids_from_multi_term(~syntax, ~info_map)
   |> align_to_indicated_probe(~is_edited, ~syntax)
   |> resolve_pending_focus(~dynamics)
-  |> resolve_pending_probe_cursor(~dynamics, ~syntax, ~info_map)
+  |> when_complete(
+       resolve_pending_probe_cursor(~dynamics, ~syntax, ~info_map),
+     )
   |> ProbePerform.maybe_reset_cursor;
+};
