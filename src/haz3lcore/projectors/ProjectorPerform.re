@@ -244,15 +244,19 @@ let go =
     | None => Error(Cant_project)
     | Some(id) =>
       Util.AgentPulse.projector_commit := true;
-      /* Strip trailing whitespace/newlines before parenthesizing,
-       * as lift_syntax(~inline=false) may append trailing newlines */
+      /* Trim padding added by lift_syntax(~inline=false), but keep the
+       * value's own parentheses. A projector stores an extra wrapper
+       * that mk_info removes; stripping a tuple's parentheses here would
+       * leave its next view with a bare comma sequence. */
+      let is_refractor = ProjectorCore.Kind.is_refractor(kind);
+      /* Refractors replace ordinary source syntax, with no projector
+       * storage wrapper. Retain their existing parenthesization. */
       let trimmed_seg =
-        seg
-        |> Segment.unparenthesize
+        (is_refractor ? Segment.unparenthesize(seg) : seg)
         |> Segment.trim_secondary(Right)
         |> Segment.trim_secondary(Left);
       let parenthesized_piece = Segment.parenthesize(trimmed_seg);
-      if (ProjectorCore.Kind.is_refractor(kind)) {
+      if (is_refractor) {
         let parenthesized_seg = [parenthesized_piece];
         let manual_model =
           List.assoc_opt(id, z.refractors.manuals)

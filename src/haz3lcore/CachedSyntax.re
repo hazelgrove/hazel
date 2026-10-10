@@ -40,6 +40,11 @@ type t = {
   shape_info_map: Language.Statics.Map.t,
   shape_dyn_map: Language.Dynamics.Map.t,
   shape_elaborated: option(Language.Exp.t),
+  /* Rebuilt on every Editor.calculate (ProbeFocus), so compared
+   * structurally. Probe drawer rows follow the focused sample. */
+  shape_sample_focus: Language.Sample.Focus.t,
+  /* ProbeProj placeholders also read its global settings */
+  shape_settings_version: int,
 };
 
 // should not be serializing
@@ -139,6 +144,8 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
+    shape_sample_focus: z.refractors.sample_focus,
+    shape_settings_version: ProbeProj.Settings.version^,
   };
 };
 
@@ -193,6 +200,8 @@ let refresh_shapes =
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
+    shape_sample_focus: z.refractors.sample_focus,
+    shape_settings_version: ProbeProj.Settings.version^,
   };
 };
 
@@ -206,24 +215,33 @@ let elaborated_phys_eq =
   | _ => false
   };
 
-let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
-  let refractor_inputs_changed =
-    z.refractors.manuals !== old.cached_manuals
-    || z.refractors.multis.ephemerals !== old.cached_ephemerals;
+/* `old` is set only when the segment may have changed (edits, buffer
+ * clears, syntax projector models); everything else the cache reads is
+ * compared here. */
+let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) =>
   if (old.old) {
     mk(z, ~info_map, ~dyn_map, ~elaborated);
-  } else if (info_map !== old.shape_info_map
-             || dyn_map !== old.shape_dyn_map
-             || !elaborated_phys_eq(elaborated, old.shape_elaborated)
-             || refractor_inputs_changed) {
-    refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
   } else {
+    let shape_inputs_changed =
+      info_map !== old.shape_info_map
+      || dyn_map !== old.shape_dyn_map
+      || !elaborated_phys_eq(elaborated, old.shape_elaborated)
+      || z.refractors.manuals !== old.cached_manuals
+      || z.refractors.multis.ephemerals !== old.cached_ephemerals
+      || !
+           Language.Sample.Focus.equal(
+             z.refractors.sample_focus,
+             old.shape_sample_focus,
+           )
+      || ProbeProj.Settings.version^ != old.shape_settings_version;
+    let syntax =
+      shape_inputs_changed
+        ? refresh_shapes(z, info_map, dyn_map, ~elaborated, old) : old;
     let selection_ids = Selection.selection_ids(z.selection);
-    selection_ids == old.selection_ids
-      ? old
+    selection_ids == syntax.selection_ids
+      ? syntax
       : {
-        ...old,
+        ...syntax,
         selection_ids,
       };
   };
-};

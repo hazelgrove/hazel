@@ -64,8 +64,7 @@ let probed_str = (z: Zipper.t): string => {
   | Some(id) =>
     let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, z);
     switch (TermData.segment(id, syntax.term_data)) {
-    | Some(seg) =>
-      Printer.of_segment(~holes=" ", ~indent="", ~is_single_line=false, seg)
+    | Some(seg) => Printer.of_segment(~holes=" ", seg)
     | None => "<id not in term_data: " ++ Id.to_string(id) ++ ">"
     };
   };
@@ -99,8 +98,7 @@ let param_anchor_str = (z: Zipper.t): string => {
     | Some(id) =>
       let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, z);
       switch (TermData.segment(id, syntax.term_data)) {
-      | Some(seg) =>
-        Printer.of_segment(~holes=" ", ~indent="", ~is_single_line=false, seg)
+      | Some(seg) => Printer.of_segment(~holes=" ", seg)
       | None => "<id not in term_data>"
       };
     }
@@ -283,8 +281,7 @@ let step_into_resolution = (~fn: string, program: string): (string, string) => {
   let syntax = CachedSyntax.mk(~info_map, ~dyn_map=Id.Map.empty, zipper);
   let render = id =>
     switch (TermData.segment(id, syntax.term_data)) {
-    | Some(seg) =>
-      Printer.of_segment(~holes=" ", ~indent="", ~is_single_line=true, seg)
+    | Some(seg) => Printer.of_segment(~holes=" ", seg)
     | None => "<not-in-syntax>"
     };
   let binding_id =
@@ -386,15 +383,7 @@ let all_probed_strs = (program: string): list(string) => {
     ProbeTargets.ids_from_term(~syntax, ~info_map, root_id)
     |> List.filter_map(id =>
          switch (TermData.segment(id, syntax.term_data)) {
-         | Some(seg) =>
-           Some(
-             Printer.of_segment(
-               ~holes=" ",
-               ~indent="",
-               ~is_single_line=true,
-               seg,
-             ),
-           )
+         | Some(seg) => Some(Printer.of_segment(~holes=" ", seg))
          | None => None
          }
        )

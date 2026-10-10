@@ -89,7 +89,9 @@ module Update = {
       (~settings: Language.CoreSettings.t, ~a: Action.t, state: Model.state) => {
     /* We clear the TyDi (unparsed) buffer on every action except Accept.
      * For the LLM (parsed) buffer, we accept resize actions to permit
-     * incremental acceptance token-by-token or line-by-line. */
+     * incremental acceptance token-by-token or line-by-line.
+     * No buffer, nothing to clear: the syntax cache survives (e.g. a
+     * plain caret move). */
     let is_local_resize = (a: Action.t) =>
       switch (a) {
       | Select(Resize(Local(_))) => true
@@ -97,6 +99,7 @@ module Update = {
       };
     settings.assist
     && settings.statics
+    && Selection.is_buffer(state.zipper.selection)
     && a != Buffer(Accept)
     && !(
          Selection.non_empty_parsed_buffer(state.zipper.selection)

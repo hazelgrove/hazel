@@ -35,7 +35,9 @@ let (suite, exit_with_test_status) =
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
+      Test_Memo.tests,
       Test_Menhir.tests,
+      Test_ProjectorEdits.tests,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
       Test_TutorialReferencePanel.tests,
@@ -90,7 +92,7 @@ let (suite, exit_with_test_status) =
     @ Test_UserLivelits.tests
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
-    @ [Test_Move.tests]
+    @ [Test_Move.tests, Test_SyntaxCache.tests]
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
     @ Test_Autoprobe.tests

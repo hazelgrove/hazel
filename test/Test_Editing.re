@@ -202,19 +202,6 @@ let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
   };
 };
 
-/* Printer that includes indentation. mk_zipper produces Points in
- * Measured space (which includes indentation), so round-trip tests
- * must use a printer that also includes indentation for consistency. */
-let printer_indented = (z: Zipper.t): string =>
-  Printer.of_zipper(
-    ~holes=convex_char,
-    ~concave_holes=concave_char,
-    ~caret=caret_char,
-    ~selection_anchor=selection_char,
-    ~indent=" ",
-    z,
-  );
-
 let test = (~name, ~acts, ~goal): test_case(_) =>
   test_case(name, `Quick, () =>
     check(
@@ -309,10 +296,15 @@ let test_copy = (~name, ~z: Zipper.t, ~expected: string): test_case(_) =>
     name,
     `Quick,
     () => {
-      let actual = Printer.selected_text(~holes=convex_char, ~indent="", z);
+      let actual = Printer.selected_text(~holes=convex_char, z);
       check(testable(Fmt.string, String.equal), name, expected, actual);
     },
   );
+
+/* What Cmd+C writes to the clipboard: CodeEditable.copy_selection's
+ * Printer call, trimmed the same way. */
+let copied_text = (z: Zipper.t): string =>
+  Printer.selected_text(~refractors=z.refractors.manuals, z);
 
 let test_with_settings = (~settings, ~name, ~acts, ~goal): test_case(_) =>
   test_case(name, `Quick, () =>
@@ -385,6 +377,17 @@ let basic_tests = [
     ~name="Paste multiline body-less chain keeps layout",
     ~acts=mk("¦") @ [Paste("let a = 1 in\nlet b = 2 in")],
     ~goal="let a = 1 in\nlet b = 2 in¦?",
+  ),
+  /* A linebreak at either edge of the clipboard is pasted too */
+  test(
+    ~name="Paste ending in a linebreak keeps it",
+    ~acts=mk("¦x") @ [Paste("let a = 1 in\n")],
+    ~goal="let a = 1 in\n¦x",
+  ),
+  test(
+    ~name="Paste starting with a linebreak keeps it",
+    ~acts=mk("let a = 1 in¦") @ [Paste("\na")],
+    ~goal="let a = 1 in\na¦",
   ),
   test(
     ~name="Paste plaintext into token at Inner caret",
@@ -1597,20 +1600,14 @@ let move_tests = [
 ];
 
 let selection_tests = [
-  /* mk_zipper round-trip tests. Use printer_indented because Points
-   * from Measured include indentation columns. */
+  /* mk_zipper round-trip tests. */
   test_case(
     "mk_zipper: single-line anchor left",
     `Quick,
     () => {
       let z = mk_zipper({|let x = §1 in¦ x|});
       let goal = {|let x = §1 in¦ x|};
-      check(
-        testable(Fmt.string, String.equal),
-        goal,
-        goal,
-        printer_indented(z),
-      );
+      check(testable(Fmt.string, String.equal), goal, goal, printer(z));
     },
   ),
   test_case(
@@ -1619,12 +1616,7 @@ let selection_tests = [
     () => {
       let z = mk_zipper({|let x = ¦1 in§ x|});
       let goal = {|let x = ¦1 in§ x|};
-      check(
-        testable(Fmt.string, String.equal),
-        goal,
-        goal,
-        printer_indented(z),
-      );
+      check(testable(Fmt.string, String.equal), goal, goal, printer(z));
     },
   ),
   test_case(
@@ -1637,12 +1629,7 @@ x + y|});
       let goal = {|let x = 1 in
 §let y = 2 in¦
 x + y|};
-      check(
-        testable(Fmt.string, String.equal),
-        goal,
-        goal,
-        printer_indented(z),
-      );
+      check(testable(Fmt.string, String.equal), goal, goal, printer(z));
     },
   ),
   test_case(
@@ -1653,7 +1640,7 @@ x + y|};
 §fun b ->
 if c then d ¦else e
 else f|});
-      let result = printer_indented(z);
+      let result = printer(z);
       /* Check selection was created (has both markers) */
       let has_anchor =
         List.exists(c => c == selection_char, Token.to_list(result));
@@ -1761,6 +1748,38 @@ else f|});
   345678,
   45678,
   ¦56789)|},
+  ),
+  /* A line of only spaces has no content for Home/End to skip to */
+  test_from_parse(
+    ~name="End on a whitespace-only line goes to its end",
+    ~init="x +\n  ¦  \n  y",
+    ~acts=[Action.Move(Line(Right))],
+    ~goal="x +\n    ¦\n  y",
+  ),
+  test_from_parse(
+    ~name="Home on a whitespace-only line goes to its start",
+    ~init="x +\n  ¦  \n  y",
+    ~acts=[Action.Move(Line(Left))],
+    ~goal="x +\n¦    \n  y",
+  ),
+  test_case(
+    "End on a whitespace-only line goes to its end (indentation UX)",
+    `Quick,
+    () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "End",
+      "x +\n    ¦\n  y",
+      perform(
+        ~settings={
+          ...default_settings,
+          indentation_ux: true,
+        },
+        parse_with_caret("x +\n  ¦  \n  y"),
+        [Action.Move(Line(Right))],
+      )
+      |> printer,
+    )
   ),
   test(
     ~name="Extend selection left by token",
@@ -3800,11 +3819,7 @@ let cross_boundary_paste_tests = [
         |> perform(Zipper.init());
       let z = perform(z, sel_r_token(6));
       let clipboard =
-        Printer.of_segment(
-          ~holes=convex_char,
-          ~indent="",
-          z.selection.content,
-        );
+        Printer.of_segment(~holes=convex_char, z.selection.content);
       let z = perform(z, [Cut, Paste(clipboard)]);
       let seg = Zipper.unselect_and_zip(z);
       let inc = Segment.incomplete_tiles(seg);
@@ -4209,6 +4224,50 @@ let char_selection_tests = [
     ~z=mk_zipper({|"§a¦😀"|}),
     ~expected="a",
   ),
+  /* Indentation is real space pieces: printing adds nothing on top. */
+  test_case(
+    "Copy multi-line selection keeps its indentation",
+    `Quick,
+    () => {
+      let text = "let x =\n  1\nin x";
+      check(
+        testable(Fmt.string, String.equal),
+        "clipboard",
+        text,
+        copied_text(parse_zipper("§" ++ text ++ "¦")),
+      );
+    },
+  ),
+  test_case(
+    "Copy nested multi-line selection keeps its indentation",
+    `Quick,
+    () => {
+      let text = "let x =\n  let y =\n    1\n  in y\nin x";
+      check(
+        testable(Fmt.string, String.equal),
+        "clipboard",
+        text,
+        copied_text(parse_zipper("§" ++ text ++ "¦")),
+      );
+    },
+  ),
+  test_case(
+    "Probe text keeps the program's indentation",
+    `Quick,
+    () => {
+      let z =
+        perform(
+          parse_zipper("let x =\n  ¦1\nin x"),
+          [Probe(ToggleManual)],
+        );
+      check(
+        testable(Fmt.string, String.equal),
+        "probe text",
+        "let x =\n  ⟦1⟧     ≡ ∅\nin x",
+        ProbeText.of_zipper(~probe_map=Language.Sample.Map.empty, z),
+      );
+    },
+  ),
   /* P. Cut and paste with char-level selections */
   test_case(
     "Cut and paste partial keyword (via Cut)",
@@ -4555,12 +4614,7 @@ let test_cut_paste =
     () => {
       let z = mk_zipper(init);
       /* Get the selected text (what would go to clipboard) */
-      let full =
-        Printer.of_segment(
-          ~holes=convex_char,
-          ~indent="",
-          z.selection.content,
-        );
+      let full = Printer.of_segment(~holes=convex_char, z.selection.content);
       let clipboard = Zipper.trim_selected_text(z, full);
       /* Cut then paste */
       let z = perform(z, [Cut, Paste(clipboard)]);
@@ -4712,12 +4766,7 @@ let cross_boundary_tests = [
     `Quick,
     () => {
       let z = mk_zipper({|let §comparison = (0¦ == 0) in comparison|});
-      let full =
-        Printer.of_segment(
-          ~holes=convex_char,
-          ~indent="",
-          z.selection.content,
-        );
+      let full = Printer.of_segment(~holes=convex_char, z.selection.content);
       let clipboard = Zipper.trim_selected_text(z, full);
       let z = perform(z, [Cut, Paste(clipboard)]);
       /* Zip the whole thing and check for incomplete tiles anywhere */
