@@ -33,6 +33,7 @@ module Sets = Sets;
 module Maps = Maps;
 module MerkleSet = MerkleSet;
 module ValueHash = ValueHash;
+module IdentityMemo = IdentityMemo;
 module Id = Id;
 module Unicode = Unicode;
 module HazelString = HazelString;
