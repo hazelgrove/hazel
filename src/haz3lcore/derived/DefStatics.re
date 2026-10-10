@@ -309,47 +309,21 @@ type export_delta =
 
 let export_delta =
     (old: list(Ctx.entry), new_: list(Ctx.entry)): export_delta => {
-  let mk = (vars, tnames) =>
-    vars == [] && tnames == []
-      ? Unchanged
-      : Changed({
-          vars: List.sort_uniq(compare, vars),
-          tnames: List.sort_uniq(compare, tnames),
-        });
-  let of_pair = (o, n, vars, tnames) => {
-    let vside = e => is_type_entry(e) ? [] : [entry_name(e)];
-    (
-      vside(o) @ vside(n) @ vars,
-      tnames_of_entry(o) @ tnames_of_entry(n) @ tnames,
-    );
-  };
-  if (List.length(old) != List.length(new_)) {
-    let (vars, tnames) =
-      List.fold_left(
-        ((vars, tnames), e) =>
-          (
-            (is_type_entry(e) ? [] : [entry_name(e)]) @ vars,
-            tnames_of_entry(e) @ tnames,
-          ),
-        ([], []),
-        old @ new_,
-      );
-    mk(vars, tnames);
-  } else {
-    let rec go = (os, ns, vars, tnames) =>
-      switch (os, ns) {
-      | ([], []) => mk(vars, tnames)
-      | ([o, ...os], [n, ...ns]) =>
-        entry_equal(o, n)
-          ? go(os, ns, vars, tnames)
-          : {
-            let (vars, tnames) = of_pair(o, n, vars, tnames);
-            go(os, ns, vars, tnames);
-          }
-      | _ => mk(["*"], ["*"]) /* unreachable: same length */
-      };
-    go(old, new_, [], []);
-  };
+  let changed =
+    List.length(old) != List.length(new_)
+      ? old @ new_
+      : List.concat(
+          List.map2((o, n) => entry_equal(o, n) ? [] : [o, n], old, new_),
+        );
+  let vars =
+    List.concat_map(e => is_type_entry(e) ? [] : [entry_name(e)], changed);
+  let tnames = List.concat_map(tnames_of_entry, changed);
+  vars == [] && tnames == []
+    ? Unchanged
+    : Changed({
+        vars: List.sort_uniq(compare, vars),
+        tnames: List.sort_uniq(compare, tnames),
+      });
 };
 
 /* likewise for dirty value names: only a value binding shadows one */
