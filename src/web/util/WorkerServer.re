@@ -493,10 +493,36 @@ let post_reuse_plan = (model, request: Request.t) =>
     );
   };
 
-/* Dom_html.window is unavailable in a worker, so go through the global
- * object for setTimeout. */
-let schedule_async = callback =>
-  ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), 0.));
+/* Yield between slices through a MessageChannel, not setTimeout(0): nested
+ * timers are clamped to at least 4 ms, a slice runs in about 1 ms, and the
+ * clamp made evaluation several times slower (Growth Plotter: 800 ms
+ * against 130 ms of slices). A request that arrives meanwhile is queued
+ * ahead of the next slice, as before. Made on first use: the page and the
+ * test binary link this module too. */
+let slice_queue: Queue.t(unit => unit) = Queue.create();
+let slice_port: ref(option(Js.Unsafe.any)) = ref(None);
+
+let schedule_async = (callback: unit => unit): unit => {
+  Queue.push(callback, slice_queue);
+  let port =
+    switch (slice_port^) {
+    | Some(port) => port
+    | None =>
+      let channel =
+        Js.Unsafe.new_obj(Js.Unsafe.global##.MessageChannel, [||]);
+      Js.Unsafe.set(
+        Js.Unsafe.get(channel, "port1"),
+        "onmessage",
+        Js.wrap_callback(_ => Queue.pop(slice_queue, ())),
+      );
+      let port = Js.Unsafe.get(channel, "port2");
+      slice_port := Some(port);
+      port;
+    };
+  ignore(
+    Js.Unsafe.meth_call(port, "postMessage", [|Js.Unsafe.inject(0)|]),
+  );
+};
 
 let rec evaluate_next_batch_item =
         (model, request_id, pacing, completed, remaining) =>
