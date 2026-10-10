@@ -96,3 +96,52 @@ let same = (a: 'a, b: 'a): bool =>
          [|Js.Unsafe.inject(a), Js.Unsafe.inject(b)|],
        ),
      );
+
+/* Answers remembered for pairs of objects, by the identity of both: for a
+   comparison of immutable values that would otherwise be repeated on the
+   same pair. One answer per left object (the last pair asked about),
+   held weakly. Values that are not objects (numbers, strings) are not
+   remembered. */
+module Pairs = {
+  type t = Js.Unsafe.any;
+  let create = (): t =>
+    Js.Unsafe.new_obj(Js.Unsafe.get(Js.Unsafe.global, "WeakMap"), [||]);
+  let find_impl: Lazy.t(Js.Unsafe.any) =
+    lazy(
+      Js.Unsafe.js_expr(
+        {js|(function (m, a, b) {
+  if (typeof a !== "object" || a === null) return -1;
+  const e = m.get(a);
+  return e !== undefined && e[0] === b ? e[1] : -1;
+})|js},
+      )
+    );
+  let add_impl: Lazy.t(Js.Unsafe.any) =
+    lazy(
+      Js.Unsafe.js_expr(
+        {js|(function (m, a, b, r) {
+  if (typeof a === "object" && a !== null) m.set(a, [b, r]);
+})|js},
+      )
+    );
+  let find = (m: t, a: 'a, b: 'a): option(bool) =>
+    switch (
+      Js.Unsafe.fun_call(
+        Lazy.force(find_impl),
+        [|m, Js.Unsafe.inject(a), Js.Unsafe.inject(b)|],
+      )
+    ) {
+    | (-1) => None
+    | r => Some(r == 1)
+    };
+  let add = (m: t, a: 'a, b: 'a, r: bool): unit =>
+    Js.Unsafe.fun_call(
+      Lazy.force(add_impl),
+      [|
+        m,
+        Js.Unsafe.inject(a),
+        Js.Unsafe.inject(b),
+        Js.Unsafe.inject(r ? 1 : 0),
+      |],
+    );
+};
