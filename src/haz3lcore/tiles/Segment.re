@@ -1538,24 +1538,16 @@ module IDs = {
 
 let to_string = Base.segment_to_string;
 
-/* top-level item slices: each ends with an `…in` tile or top-level `;`
-   (the rest is the tail); the unit of the per-item incremental layers */
-let is_top_semi = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) => Tile.label(t) == [";"]
-  | _ => false
-  };
 /* only with its `in`: an unfinished `let x =` runs on into what follows */
 let is_in_tile = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
-    let label = Tile.label(t);
-    switch (List.rev(label)) {
-    | ["in", ..._] => List.mem(List.length(label) - 1, t.shards)
-    | _ => false
-    };
+    Tile.ends_with_in(t)
+    && List.mem(List.length(Tile.label(t)) - 1, t.shards)
   | _ => false
   };
+/* top-level item slices: each ends with an `…in` tile or top-level `;`
+   (the rest is the tail); the unit of the per-item incremental layers */
 let top_items = (seg: t): list(t) => {
   let arr = Array.of_list(seg);
   let len = Array.length(arr);
@@ -1563,7 +1555,7 @@ let top_items = (seg: t): list(t) => {
   let rec walk = (i, start, acc) =>
     if (i >= len) {
       start < len ? List.rev([slice(start, len), ...acc]) : List.rev(acc);
-    } else if (is_in_tile(arr[i]) || is_top_semi(arr[i])) {
+    } else if (is_in_tile(arr[i]) || Piece.is_semi(arr[i])) {
       walk(i + 1, i + 1, [slice(start, i + 1), ...acc]);
     } else {
       walk(i + 1, start, acc);

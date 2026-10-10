@@ -727,13 +727,6 @@ module Incr = {
   let built = ref(0);
   let reused = ref(0);
 
-  let rec seg_ptr_eq = (a: Segment.t, b: Segment.t): bool =>
-    switch (a, b) {
-    | ([], []) => true
-    | ([x, ...xs], [y, ...ys]) => x === y && seg_ptr_eq(xs, ys)
-    | _ => false
-    };
-
   /* cut after the last linebreak of a secondary run when content
      follows: deferred linebreaks and the piece-row flush there, and
      nothing else carries across rows (indentation is plain whitespace),
@@ -744,16 +737,8 @@ module Incr = {
     | _ =>
       let ps = Array.of_list(seg);
       let n = Array.length(ps);
-      let is_lb = (p: Piece.t) =>
-        switch (p) {
-        | Secondary(s) => Secondary.is_linebreak(s)
-        | _ => false
-        };
-      let is_sec = (p: Piece.t) =>
-        switch (p) {
-        | Secondary(_) => true
-        | _ => false
-        };
+      let is_lb = Piece.is_linebreak;
+      let is_sec = Piece.is_secondary;
       /* last linebreak of its secondary run, with content after? */
       let rec run_ends_here = k =>
         k >= n
@@ -830,7 +815,7 @@ module Incr = {
             | Some(e)
                 when
                   e.e_final == final
-                  && seg_ptr_eq(e.e_pieces, pieces)
+                  && Segment.ptr_eq(e.e_pieces, pieces)
                   && e.e_shape_slice == slice_for(shape_slices, anchor)
                   && e.e_refr_slice == slice_for(refr_slices, anchor) =>
               incr(reused);

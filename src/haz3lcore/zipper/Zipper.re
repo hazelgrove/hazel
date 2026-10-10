@@ -127,11 +127,6 @@ let is_solid: Piece.t => bool =
   | Secondary(_)
   | Grout(_) => false;
 
-let shape_complement: Nib.Shape.t => Nib.Shape.t =
-  fun
-  | Convex => Nib.Shape.concave()
-  | Concave(_) => Convex;
-
 /* the regrout bound at a window's outer edge: a shape fitting the
    boundary solid's outer face, so the (normal) run beyond is left
    alone; the far solid's true shape would re-decide that run without
@@ -140,14 +135,12 @@ let shape_complement: Nib.Shape.t => Nib.Shape.t =
 let window_bound =
     (outer: Direction.t, mini: list(Piece.t)): option(Nib.Shape.t) =>
   switch (ListUtil.last_opt(mini)) {
-  | Some(Piece.Tile(t)) =>
-    let (l, r) = Tile.shapes(t);
-    Some(shape_complement(outer == Direction.Left ? l : r));
-  | Some(Projector(pr)) =>
-    let (l, r) = ProjectorCore.shapes(pr);
-    Some(shape_complement(outer == Direction.Left ? l : r));
-  | Some(Secondary(_) | Grout(_))
-  | None => None
+  | Some(p) when is_solid(p) =>
+    Piece.shapes(p)
+    |> Option.map(((l, r)) =>
+         Nib.Shape.flip(outer == Direction.Left ? l : r)
+       )
+  | _ => None
   };
 
 /* split a caret-nearest-first affix into the regrout window (through
