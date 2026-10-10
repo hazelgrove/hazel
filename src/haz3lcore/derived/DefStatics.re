@@ -426,46 +426,40 @@ let fix_spine_infos_full =
         /* read the RAW info from d_map, never [m]: [m] may hold the last
            calc's patched entry, and re-patching doubles the co_ctx
            use-lists every calc */
-        switch (it.d_hole, Statics.Map.lookup_exp(it.d_id, it.d_map)) {
-        | (Some(_), Some(raw)) =>
-          let co_ctx = CoCtx.union([raw.co_ctx, below_co_scoped]);
-          let m =
+        let raw = Statics.Map.lookup_exp(it.d_id, it.d_map);
+        let co_ctx =
+          CoCtx.union([
+            Option.fold(
+              ~none=CoCtx.empty,
+              ~some=(r: Info.exp) => r.co_ctx,
+              raw,
+            ),
+            below_co_scoped,
+          ]);
+        /* a tail item is already accurate, and a module form has no
+           InfoExp at the root: those thread upward without patching */
+        let m =
+          switch (it.d_hole, raw) {
+          | (Some(_), Some(raw)) =>
             Id.Map.add(
               it.d_id,
               Info.InfoExp({
                 ...raw,
-                elab_term:
-                  switch (suffix_elab) {
-                  | Some(e) => e
-                  | None => raw.elab_term
-                  },
+                elab_term: Option.value(~default=raw.elab_term, suffix_elab),
                 probe_targets:
                   SubexpProbeTargets.union(raw.probe_targets, below_wit),
                 co_ctx,
               }),
               m,
-            );
-          (
-            m,
-            SubexpProbeTargets.union(probes_in(it), below_wit),
-            co_ctx,
-            suffix_elab,
-          );
-        | _ =>
-          /* tail item (already accurate) or no InfoExp at the root
-             (module forms): thread upward without patching */
-          let own_co =
-            switch (Statics.Map.lookup_exp(it.d_id, it.d_map)) {
-            | Some(raw) => raw.co_ctx
-            | None => CoCtx.empty
-            };
-          (
-            m,
-            SubexpProbeTargets.union(probes_in(it), below_wit),
-            CoCtx.union([own_co, below_co_scoped]),
-            suffix_elab,
-          );
-        };
+            )
+          | _ => m
+          };
+        (
+          m,
+          SubexpProbeTargets.union(probes_in(it), below_wit),
+          co_ctx,
+          suffix_elab,
+        );
       },
       items,
       (merged, SubexpProbeTargets.empty, CoCtx.empty, None),
@@ -823,6 +817,12 @@ and calc_module_item =
     |> Option.map(g =>
          ModuleHelpers.module_elab(~module_exp_id=Exp.rep_id(def), g)
        );
+  /* the members' co_ctx/witnesses, which the surrogate def lacks */
+  let with_members = (raw: Info.exp): Info.exp => {
+    ...raw,
+    co_ctx: CoCtx.union([raw.co_ctx, top_co]),
+    probe_targets: SubexpProbeTargets.union(raw.probe_targets, top_wit),
+  };
   /* the literal's info must look monolithic too: the evaluator reuses
      the module value recorded at this id while its elab is unchanged */
   let map =
@@ -830,13 +830,11 @@ and calc_module_item =
     | (Some(v), Some(raw)) =>
       let info =
         Info.InfoExp({
-          ...raw,
+          ...with_members(raw),
           /* the surrogate's are an ascription's */
           user_term: def,
           cls: Cls.Exp(Exp.cls_of_term(def.term)),
           elab_term: v,
-          co_ctx: CoCtx.union([raw.co_ctx, top_co]),
-          probe_targets: SubexpProbeTargets.union(raw.probe_targets, top_wit),
         });
       List.fold_left(
         (m, id) => Id.Map.add(id, info, m),
@@ -845,20 +843,12 @@ and calc_module_item =
       );
     | _ => map
     };
-  /* the item root likewise takes its members' co_ctx/witnesses (from
-     this fresh map, so the patch stays idempotent) */
+  /* the item root likewise (from this fresh map, so the patch stays
+     idempotent) */
   let map =
     switch (Statics.Map.lookup_exp(Exp.rep_id(node), map)) {
     | Some(raw) =>
-      Id.Map.add(
-        Exp.rep_id(node),
-        Info.InfoExp({
-          ...raw,
-          co_ctx: CoCtx.union([raw.co_ctx, top_co]),
-          probe_targets: SubexpProbeTargets.union(raw.probe_targets, top_wit),
-        }),
-        map,
-      )
+      Id.Map.add(Exp.rep_id(node), Info.InfoExp(with_members(raw)), map)
     | None => map
     };
   /* the item's free names = the members' frees minus module-internal
