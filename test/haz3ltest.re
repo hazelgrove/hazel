@@ -93,6 +93,7 @@ let (suite, exit_with_test_status) =
     @ [Test_ElabSize.tests]
     @ [Test_StaticsDepth.tests]
     @ [Test_Move.tests]
+    @ [Test_StaticsPasses.tests]
     @ [Test_Quote.tests]
     @ [Test_Quote.macro_tests]
     @ [Test_Quote.unquote_tests]
