@@ -1432,6 +1432,30 @@ run([-1, 0, 5])|};
 
 let coordinated_below_tests = [
   test_case(
+    "The first call is the first one run, not the shallowest",
+    `Quick,
+    () => {
+      /* f runs first through g, then directly */
+      let all =
+        get_probes_map(
+          {|let f = fun x -> ^^probe(x + 1) in
+let g = fun y -> f(y) in
+g(1);
+f(10)|},
+        );
+      let body = with_count(2, all);
+      check(
+        int,
+        "f(1) through g, two frames deep",
+        2,
+        List.length(
+          Option.get(coordinated_pick(~cursor=mk_cursor([]), all, body)).
+            call_stack,
+        ),
+      );
+    },
+  ),
+  test_case(
     "Calls off the focus path stay out, even below where you are",
     `Quick,
     () => {

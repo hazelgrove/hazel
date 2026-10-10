@@ -635,8 +635,9 @@ module Selection = {
    * result from its last).
    *
    * The coordinated choice, made once from every probe's samples: below
-   * the sightline, show the first call of each function (outermost, then
-   * earliest), and only inside calls that are themselves shown. A call of
+   * the sightline, show the first call of each function in execution
+   * order (for recursion, the outermost), and only inside calls that are
+   * themselves shown. A call of
    * a function already shown, on the sightline or by an earlier call,
    * shows nothing, nor does anything beneath it. Frames with no probed
    * samples (library functions like map, unprobed helpers) pass through.
@@ -672,23 +673,51 @@ module Selection = {
         ),
       all,
     );
+    /* Execution order: a call's key is the first step anything beneath it
+     * ran, so a call sorts before the calls it makes (ties: shallower
+     * first), and separate calls (one test's run, then the next) in the
+     * order they ran. */
+    let entered: Hashtbl.t(list(Id.t), int) = Hashtbl.create(64);
+    Hashtbl.iter(
+      (key, samples) => {
+        let first =
+          List.fold_left(
+            (m, s: t) => min(m, s.step_start),
+            max_int,
+            samples,
+          );
+        let rec up = (k: list(Id.t)) =>
+          if (List.length(k) > n_root) {
+            switch (Hashtbl.find_opt(entered, k)) {
+            | Some(m) when m <= first => ()
+            | _ => Hashtbl.replace(entered, k, first)
+            };
+            switch (k) {
+            | [_, ...parent] => up(parent)
+            | [] => ()
+            };
+          };
+        up(key);
+      },
+      instances,
+    );
     let ordered =
       Hashtbl.fold(
-        (key, rev_samples, acc) => {
-          let samples = List.rev(rev_samples);
-          let first =
-            List.fold_left(
-              (m, s: t) => min(m, s.step_start),
-              max_int,
-              samples,
-            );
-          [(List.length(key), first, key, samples), ...acc];
-        },
+        (key, rev_samples, acc) =>
+          [
+            (
+              Hashtbl.find(entered, key),
+              List.length(key),
+              key,
+              List.rev(rev_samples),
+            ),
+            ...acc,
+          ],
         instances,
         [],
       )
-      |> List.sort(((d1, f1, _, _), (d2, f2, _, _)) =>
-           d1 != d2 ? compare(d1, d2) : compare(f1, f2)
+      |> List.sort(((e1, d1, _, _), (e2, d2, _, _)) =>
+           e1 != e2 ? compare(e1, e2) : compare(d1, d2)
          );
     /* true: shown; false: not shown (its function is shown elsewhere) */
     let status: Hashtbl.t(list(Id.t), bool) = Hashtbl.create(64);
