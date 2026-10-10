@@ -25,13 +25,20 @@ let rec strip_wrappers = (d: DHExp.t): DHExp.t =>
    and functions constructed inside a closure are not individually wrapped.
    Stripping such a Closure discards the environment that gives embedded
    functions (e.g. HTML handlers) their meaning — substitute it instead. */
-let rec close_value = (d: DHExp.t): DHExp.t =>
+/* Remembered per value object: a livelit's view draws the same cached Html
+   on every redraw, and closing each event handler's environment into its
+   body (a substitution over the helpers it captured) was most of turning
+   that Html into the page, again each time. */
+let rec close_value_uncached = (d: DHExp.t): DHExp.t =>
   switch (d.term) {
   | Asc(inner, _)
   | Parens(inner) => close_value(inner)
   | Closure(env, inner) => close_value(Substitution.in_exp(env, inner))
   | _ => d
-  };
+  }
+and close_value = (d: DHExp.t): DHExp.t => Lazy.force(close_value_memo, d)
+and close_value_memo: Lazy.t(DHExp.t => DHExp.t) =
+  lazy(Util.IdentityMemo.memo(close_value_uncached));
 
 // Extract constructor name and body, stripping wrappers from the body too.
 // Nullary constructors get an empty tuple as placeholder body.

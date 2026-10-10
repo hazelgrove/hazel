@@ -366,7 +366,12 @@ module View = {
       Obj.repr(shape_map),
       Obj.repr(segment),
       Obj.repr(info_map),
-      Obj.repr(model.editor.syntax),
+      /* not the whole syntax record, which is rebuilt whenever a result
+         arrives: the parts of it the arms read (the rest of what they read
+         is above). With the record itself in the key, a livelit release
+         re-rendered the code three times for nothing. */
+      Obj.repr(model.editor.syntax.terms),
+      Obj.repr(model.editor.syntax.projectors),
       Obj.repr(model.statics.error_ids),
       Obj.repr(warning_ids),
       Obj.repr(buffer_ids),
@@ -376,6 +381,20 @@ module View = {
          splice frame's Some is fresh per render, as is its syntax */
       Obj.repr(frame),
     |];
+    /* and each splice's segment: which frame owns an id (in_frame) depends
+       only on which ids each splice holds. The splices map and each
+       splice's measured layout are rebuilt with the syntax whenever a
+       result arrives; the segments keep their identity. */
+    let key =
+      Array.append(
+        key,
+        Array.of_list(
+          List.map(
+            ((_, sp: CachedSyntax.splice)) => Obj.repr(sp.segment),
+            Id.Map.bindings(model.editor.syntax.splices),
+          ),
+        ),
+      );
     let nodes =
       switch (List.find_opt(e => key_eq(e.m_key, key), view_memo^)) {
       | Some(entry) =>
