@@ -851,11 +851,9 @@ module Selection = {
       )
       : option(int) => {
     let root_ids = CallStack.ids_of_stack(cursor.call_stack);
-    let is_below_sightline = (s: t) => {
-      let s_ids = CallStack.ids_of_stack(s.call_stack);
-      List.length(s_ids) > List.length(root_ids)
-      && ListUtil.is_suffix_of(root_ids, s_ids);
-    };
+    /* on the sightline: at or above its end, the top level included */
+    let is_on_sightline = (s: t) =>
+      ListUtil.is_suffix_of(CallStack.ids_of_stack(s.call_stack), root_ids);
     let coordinated_pick =
       switch (below) {
       | Coordinated(pick) => by_ref(pick)
@@ -900,10 +898,10 @@ module Selection = {
       | (None, None) => None
       | _ =>
         List.mapi((i, s: t) => (i, s), samples)
-        /* below the sightline, only the coordinated choice decides */
+        /* off the sightline, only the coordinated choice decides */
         |> List.filter(((_, s)) =>
              switch (below) {
-             | Coordinated(_) => !is_below_sightline(s)
+             | Coordinated(_) => is_on_sightline(s)
              | PerLine => true
              }
            )
@@ -956,22 +954,10 @@ module Selection = {
               switch (coordinated_pick) {
               | Some(_) as result => result
               | None =>
-                /* a related sample above the sightline (the top level's
-                   empty stack is never a suffix match); below it, only
-                   the coordinated choice decides */
-                List.find_index(
-                  (sample: t) =>
-                    !is_below_sightline(sample)
-                    && Focus.is_related(
-                         Focus.relation(
-                           ~trimmed=true,
-                           ~ap_id,
-                           cursor,
-                           sample,
-                         ),
-                       ),
-                  samples,
-                )
+                /* a sample on the sightline the suffix scans skip: the
+                   top level's empty stack. Off it (below, or in another
+                   branch), only the coordinated choice decides. */
+                List.find_index(is_on_sightline, samples)
               }
             | PerLine =>
               let indirect = find(rel => rel.is_below_indicated_call != None);
