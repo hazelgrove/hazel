@@ -1692,7 +1692,10 @@ let key_handler =
     FocusEffect.schedule_editor();
   };
   switch (key.key) {
-  | D("E" | "e") when key.meta == Down || key.ctrl == Down => parent(Remove)
+  | D("E" | "e") when key.meta == Down || key.ctrl == Down =>
+    /* the focused sample goes with the probe */
+    blur_to_editor();
+    parent(Remove);
   | D("Escape") when Settings.open_dropdown^ != None =>
     Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
   | D("Escape") when key.shift == Down =>
