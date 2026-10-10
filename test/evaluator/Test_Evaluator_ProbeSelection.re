@@ -1422,21 +1422,55 @@ let running_sum = {|let running_sum = fun (nums: [Int]) ->
   in go(0, nums)
 in running_sum([1, 2, 3])|};
 
-let coordinated_below_tests = [
-  test_case(
-    "Below the focus, an if's lines show one call (classify over map)",
-    `Quick,
-    () => {
-      let all =
-        get_probes_map(
-          {|let classify = fun x ->
+let classify = {|let classify = fun x ->
   if ^^probe(x < 0) then ^^probe("neg")
   else if ^^probe(x == 0) then ^^probe("zero")
   else ^^probe("pos")
 in
 let run = fun xs -> map(xs, classify) in
-run([-1, 0, 5])|},
-        );
+run([-1, 0, 5])|};
+
+let coordinated_below_tests = [
+  test_case(
+    "Calls off the focus path stay out, even below where you are",
+    `Quick,
+    () => {
+      let all = get_probes_map(classify);
+      /* the path runs into the first classify call, but you are at its
+         outer end (frames below the index, as after moving up) */
+      let neg =
+        Id.Map.bindings(all)
+        |> List.filter(((_, ss)) => List.length(ss) == 1)
+        |> List.map(((_, ss)) => List.hd(ss))
+        |> List.sort((a: Sample.t, b: Sample.t) =>
+             compare(List.length(a.call_stack), List.length(b.call_stack))
+           )
+        |> List.hd;
+      let path = mk_cursor(neg.call_stack);
+      let cursor = {
+        ...path,
+        index: 0,
+      };
+      let eq = with_count(2, all);
+      check(
+        bool,
+        "x == 0 ran only in other calls: no sample",
+        true,
+        coordinated_pick(~cursor, all, eq) == None,
+      );
+      check(
+        bool,
+        "line by line, it showed one of them",
+        true,
+        per_line_pick(~cursor, eq) != None,
+      );
+    },
+  ),
+  test_case(
+    "Below the focus, an if's lines show one call (classify over map)",
+    `Quick,
+    () => {
+      let all = get_probes_map(classify);
       let cursor = mk_cursor([]);
       /* x < 0 runs in all three calls, x == 0 in two, each result once */
       let lt = with_count(3, all);
