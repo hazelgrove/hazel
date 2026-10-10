@@ -248,12 +248,36 @@ type evaluation_start =
   | Yielding(Language.Evaluator.yielding_evaluation)
   | CompletedImmediately(Response.value);
 
+/* Stream pacing, per request. Each Stream message costs the client a full
+ * recalculation and render, so one per slice (dozens a second, each
+ * carrying the evaluator's accumulated state) made a large program's
+ * keystroke several times slower than its evaluation. Updates are held and
+ * posted when due: first stream_first_post_ms into the request, so a short
+ * evaluation posts none and shows only its Result, then at doubling gaps,
+ * so a long one shows its progress a few times. */
+type stream_pacing = {
+  /* drained updates of items finished before the request's Result */
+  held: list((key, Language.IncrEval.outbox(Language.EvaluatorState.t))),
+  due: float,
+  gap: float,
+};
+
+let stream_first_post_ms = 500.;
+let stream_max_gap_ms = 4000.;
+
+let start_stream_pacing = (): stream_pacing => {
+  held: [],
+  due: JsUtil.precise_timestamp() +. stream_first_post_ms,
+  gap: stream_first_post_ms,
+};
+
 type running = {
   request_id: int,
   key,
   remaining: Request.batch,
   completed: Response.t,
   evaluation: Language.Evaluator.yielding_evaluation,
+  pacing: stream_pacing,
 };
 
 type runtime =
@@ -423,6 +447,37 @@ let flush_stream_update = (model, request_id, key, evaluation) => {
   post_stream_update(model, request_id, key, update);
 };
 
+/* If due, post what is held, then what the running item has accumulated. */
+let post_streams_if_due =
+    (
+      model,
+      request_id,
+      ~running: option((key, Language.Evaluator.yielding_evaluation)),
+      pacing: stream_pacing,
+    )
+    : stream_pacing => {
+  let now = JsUtil.precise_timestamp();
+  if (now < pacing.due) {
+    pacing;
+  } else {
+    List.iter(
+      ((key, update)) => post_stream_update(model, request_id, key, update),
+      List.rev(pacing.held),
+    );
+    Option.iter(
+      ((key, evaluation)) =>
+        flush_stream_update(model, request_id, key, evaluation),
+      running,
+    );
+    let gap = Float.min(2. *. pacing.gap, stream_max_gap_ms);
+    {
+      held: [],
+      due: now +. gap,
+      gap,
+    };
+  };
+};
+
 /* ACK must be cheap: the client treats missing ACK as a dead worker and will
  * terminate/respawn. ReusePass belongs in `ReusePlan`, not here. */
 let post_ack = (request: Request.t) =>
@@ -438,12 +493,39 @@ let post_reuse_plan = (model, request: Request.t) =>
     );
   };
 
-/* Dom_html.window is unavailable in a worker, so go through the global
- * object for setTimeout. */
-let schedule_async = callback =>
-  ignore(Js.Unsafe.global##setTimeout(Js.wrap_callback(callback), 0.));
+/* Yield between slices through a MessageChannel, not setTimeout(0): nested
+ * timers are clamped to at least 4 ms, a slice runs in about 1 ms, and the
+ * clamp made evaluation several times slower (Growth Plotter: 800 ms
+ * against 130 ms of slices). A request that arrives meanwhile is queued
+ * ahead of the next slice, as before. Made on first use: the page and the
+ * test binary link this module too. */
+let slice_queue: Queue.t(unit => unit) = Queue.create();
+let slice_port: ref(option(Js.Unsafe.any)) = ref(None);
 
-let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
+let schedule_async = (callback: unit => unit): unit => {
+  Queue.push(callback, slice_queue);
+  let port =
+    switch (slice_port^) {
+    | Some(port) => port
+    | None =>
+      let channel =
+        Js.Unsafe.new_obj(Js.Unsafe.global##.MessageChannel, [||]);
+      Js.Unsafe.set(
+        Js.Unsafe.get(channel, "port1"),
+        "onmessage",
+        Js.wrap_callback(_ => Queue.pop(slice_queue, ())),
+      );
+      let port = Js.Unsafe.get(channel, "port2");
+      slice_port := Some(port);
+      port;
+    };
+  ignore(
+    Js.Unsafe.meth_call(port, "postMessage", [|Js.Unsafe.inject(0)|]),
+  );
+};
+
+let rec evaluate_next_batch_item =
+        (model, request_id, pacing, completed, remaining) =>
   switch (remaining) {
   | [] =>
     let model = {
@@ -458,6 +540,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
       evaluate_next_batch_item(
         model,
         request_id,
+        pacing,
         [(key, response), ...completed],
         remaining,
       )
@@ -471,6 +554,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
             remaining,
             completed,
             evaluation,
+            pacing,
           }),
       };
       model;
@@ -483,15 +567,45 @@ and begin_latest_batch = model =>
       runtime: Idle,
     }
   | Some({request_id, batch}) =>
-    evaluate_next_batch_item(model, request_id, [], batch)
+    evaluate_next_batch_item(
+      model,
+      request_id,
+      start_stream_pacing(),
+      [],
+      batch,
+    )
   }
-and finish_current_item = (model, running, response) =>
+and finish_current_item = (model, running, response) => {
+  /* The batch Result carries every item; until it is posted, a finished
+     item's updates wait with the rest. */
+  let pacing =
+    switch (running.remaining) {
+    | [] => running.pacing
+    | [_, ..._] =>
+      post_streams_if_due(
+        model,
+        running.request_id,
+        ~running=None,
+        {
+          ...running.pacing,
+          held: [
+            (
+              running.key,
+              Language.Evaluator.drain_streaming_outbox(running.evaluation),
+            ),
+            ...running.pacing.held,
+          ],
+        },
+      )
+    };
   evaluate_next_batch_item(
     model,
     running.request_id,
+    pacing,
     [(running.key, response), ...running.completed],
     running.remaining,
-  )
+  );
+}
 and plan_latest_batch = model =>
   switch (model.latest_request) {
   | None => {
@@ -528,15 +642,19 @@ and run_scheduled_slice = model => {
     | exception exn =>
       finish_current_item(model, running, error_response(exn))
     | EvaluationCompleted(value) =>
-      flush_stream_update(
-        model,
-        running.request_id,
-        running.key,
-        running.evaluation,
-      );
-      finish_current_item(model, running, Ok(value));
+      finish_current_item(model, running, Ok(value))
     | EvaluationYielded(evaluation) =>
-      flush_stream_update(model, running.request_id, running.key, evaluation);
+      let running = {
+        ...running,
+        evaluation,
+        pacing:
+          post_streams_if_due(
+            model,
+            running.request_id,
+            ~running=Some((running.key, evaluation)),
+            running.pacing,
+          ),
+      };
       if (Language.Evaluator.yielding_step_count(evaluation)
           >= total_step_limit) {
         finish_current_item(
@@ -547,11 +665,7 @@ and run_scheduled_slice = model => {
       } else {
         let model = {
           ...model,
-          runtime:
-            Running({
-              ...running,
-              evaluation,
-            }),
+          runtime: Running(running),
         };
         model;
       };
