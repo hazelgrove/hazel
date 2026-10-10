@@ -760,9 +760,10 @@ module Incr = {
       | Some((m, e)) => (m, e)
       | None => (Id.Map.empty, Hashtbl.create(1))
       };
-    let shape_slices = slices_of(prev_map, Id.Map.bindings(shape_map));
-    let refr_slices =
-      slices_of(prev_map, Id.Map.bindings(refractor_shape_map));
+    let shape_bindings = Id.Map.bindings(shape_map);
+    let refr_bindings = Id.Map.bindings(refractor_shape_map);
+    let shape_slices = slices_of(prev_map, shape_bindings);
+    let refr_slices = slices_of(prev_map, refr_bindings);
     let slice_for = (h, anchor) =>
       switch (Hashtbl.find_opt(h, anchor)) {
       | Some(l) => l
@@ -830,36 +831,14 @@ module Incr = {
       chunks,
     );
     let chunk_of_id = map^;
+    let shape_slices = slices_of(chunk_of_id, shape_bindings);
+    let refr_slices = slices_of(chunk_of_id, refr_bindings);
     List.iter(
-      ((_, e: entry)) => {
-        e.e_shape_slice = [];
-        e.e_refr_slice = [];
+      ((anchor, e: entry)) => {
+        e.e_shape_slice = slice_for(shape_slices, anchor);
+        e.e_refr_slice = slice_for(refr_slices, anchor);
       },
       chunks,
-    );
-    Id.Map.iter(
-      (id, sh) =>
-        switch (Id.Map.find_opt(id, chunk_of_id)) {
-        | Some(a) =>
-          switch (Hashtbl.find_opt(new_entries, a)) {
-          | Some(e) => e.e_shape_slice = [(id, sh), ...e.e_shape_slice]
-          | None => ()
-          }
-        | None => ()
-        },
-      shape_map,
-    );
-    Id.Map.iter(
-      (id, v) =>
-        switch (Id.Map.find_opt(id, chunk_of_id)) {
-        | Some(a) =>
-          switch (Hashtbl.find_opt(new_entries, a)) {
-          | Some(e) => e.e_refr_slice = [(id, v), ...e.e_refr_slice]
-          | None => ()
-          }
-        | None => ()
-        },
-      refractor_shape_map,
     );
     cache.prev = Some((chunk_of_id, new_entries));
     mk_chunked(
