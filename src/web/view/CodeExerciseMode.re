@@ -505,13 +505,14 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: CodeExercise.p('a) = {
-      let calculate = (statics, dynamics, ed) =>
+      let calculate = (cell: CellEditor.Model.t, ed) =>
         Editor.Update.calculate(
           ~settings,
           ~autoprobe_mode,
-          statics,
-          dynamics,
           ~is_edited,
+          ~dynamics_complete=EvalResult.Model.dynamics_complete(cell.result),
+          cell.editor.statics,
+          cell.editor.dynamics,
           ed,
         );
 
@@ -521,45 +522,21 @@ module Update = {
         module_name: model.editors.module_name,
         prompt: model.editors.prompt,
         point_distribution: model.editors.point_distribution,
-        prelude:
-          calculate(
-            cells.prelude.editor.statics,
-            cells.prelude.editor.dynamics,
-            model.editors.prelude,
-          ),
+        prelude: calculate(cells.prelude, model.editors.prelude),
         correct_impl:
-          calculate(
-            cells.test_validation.editor.statics,
-            cells.test_validation.editor.dynamics,
-            model.editors.correct_impl,
-          ),
+          calculate(cells.test_validation, model.editors.correct_impl),
         your_tests: {
-          tests:
-            calculate(
-              cells.user_tests.editor.statics,
-              cells.user_tests.editor.dynamics,
-              model.editors.your_tests.tests,
-            ),
+          tests: calculate(cells.user_tests, model.editors.your_tests.tests),
           required: model.editors.your_tests.required,
           provided: model.editors.your_tests.provided,
         },
-        your_impl:
-          calculate(
-            cells.user_impl.editor.statics,
-            cells.user_impl.editor.dynamics,
-            model.editors.your_impl,
-          ),
+        your_impl: calculate(cells.user_impl, model.editors.your_impl),
         hidden_bugs:
           List.map2(
             (cell: CellEditor.Model.t, editor: CodeExercise.wrong_impl('a)):
               CodeExercise.wrong_impl('a) =>
               {
-                impl:
-                  calculate(
-                    cell.editor.statics,
-                    cell.editor.dynamics,
-                    editor.impl,
-                  ),
+                impl: calculate(cell, editor.impl),
                 hint: editor.hint,
               },
             cells.hidden_bugs,
@@ -567,11 +544,7 @@ module Update = {
           ),
         hidden_tests: {
           tests:
-            calculate(
-              cells.hidden_tests.editor.statics,
-              cells.hidden_tests.editor.dynamics,
-              model.editors.hidden_tests.tests,
-            ),
+            calculate(cells.hidden_tests, model.editors.hidden_tests.tests),
           hints: model.editors.hidden_tests.hints,
         },
         syntax_tests: model.editors.syntax_tests,

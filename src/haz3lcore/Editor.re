@@ -199,6 +199,8 @@ module Update = {
         ~settings: Language.CoreSettings.t,
         ~autoprobe_mode: AutoProbe.t,
         ~is_edited,
+        /* see ProbeFocus: false while the evaluation behind new_dynamics streams */
+        ~dynamics_complete: bool,
         statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
         {syntax, state, root}: Model.t,
@@ -241,6 +243,7 @@ module Update = {
     let zipper =
       ProbeFocus.editor_effects(
         ~is_edited,
+        ~complete=dynamics_complete,
         ~syntax,
         ~info_map=statics.info_map,
         ~dynamics=new_dynamics,
@@ -267,12 +270,14 @@ module Update = {
           );
         /* Resolve pending_probe_cursor again since update_autoprobe
            may have set it after editor_effects already ran */
-        ProbeFocus.resolve_pending_probe_cursor(
-          ~dynamics=new_dynamics,
-          ~syntax,
-          ~info_map=statics.info_map,
-          z,
-        );
+        dynamics_complete
+          ? ProbeFocus.resolve_pending_probe_cursor(
+              ~dynamics=new_dynamics,
+              ~syntax,
+              ~info_map=statics.info_map,
+              z,
+            )
+          : z;
       };
 
     Model.{
