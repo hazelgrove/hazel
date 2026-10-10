@@ -5,7 +5,7 @@ Views / Tiny Map
 version=1 id=b3000008-0008-0008-0008-000000000008
 
 @prompt
-A `Route` is a delivery round on a town map 100 blocks wide: the depot, then the stops in the order the driver visits them. `^route` draws one as a tiny map three lines tall: the town's frame, the depot as a square, each stop as a dot, and the round as a dashed loop. Every `Route` probe in scope draws this way, so four days of rounds, each planned greedily (always the nearest stop next), sit side by side; look for the long legs that greedy routing leaves.
+A `Route` is a delivery round on a town map 100 blocks wide: the depot, then the stops in the order the driver visits them. `^route` draws one as a tiny map: the town's frame, the depot as a square, each stop as a dot, and the round as a dashed loop. On the line a view has two lines of room, so the map is drawn small; in the probe's drawer (**Cmd/Ctrl+↓**) it is drawn three lines tall. Every `Route` probe in scope draws this way, so four days of rounds, each planned greedily (always the nearest stop next), sit side by side; look for the long legs that greedy routing leaves.
 
 @code
 # A delivery round: the depot, then its stops in order, on a 100 x 60 map #
@@ -26,7 +26,14 @@ let ^route = {
 
   let at(p: (Int, Int)): String = s(px(p)) ++ "," ++ s(py(p));
 
-  let view(r: Model): HTML =
+  # Two lines tall on the line (48px), three elsewhere, its marks kept #
+  # the same size on screen #
+  let view(r: Model, ctx: ViewContext): HTML =
+    let (h, dot_r, sq) =
+      case ctx.room
+      | Lines(_, _) => (48, "3.8", 9)
+      | Free => (74, "2.5", 6)
+      end in
     case r
     | Route(depot, stops) =>
       let town =
@@ -48,19 +55,19 @@ let ^route = {
       let dots =
         map(stops, fun p ->
           Node("circle",
-            [Create("cx", s(px(p))), Create("cy", s(py(p))), Create("r", "2.5"),
+            [Create("cx", s(px(p))), Create("cy", s(py(p))), Create("r", dot_r),
              Style([("fill", "currentColor")])],
             [])) in
       let square =
         Node("rect",
-          [Create("x", s(px(depot) - 3)), Create("y", s(py(depot) - 3)),
-           Create("width", "6"), Create("height", "6"),
+          [Create("x", s(px(depot) - sq / 2)), Create("y", s(py(depot) - sq / 2)),
+           Create("width", s(sq)), Create("height", s(sq)),
            Style([("fill", "var(--sample-neutral-bg)"),
                   ("stroke", "currentColor"),
                   ("stroke-width", "1.5")])],
           []) in
       Node("svg",
-        [Create("viewBox", "0 0 118 74"), Width("118"), Height("74")],
+        [Create("viewBox", "0 0 118 74"), Width(s(118 * h / 74)), Height(s(h))],
         [town, loop] @ dots @ [square])
     end;
 
@@ -99,8 +106,6 @@ let depot = (50, 30) in
 let plan(stops: [(Int, Int)]): Route =
   let r = Route(depot, order(depot, stops)) in
   ^^probe(r)
-
-
 
 in
 

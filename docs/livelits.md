@@ -71,40 +71,44 @@ the `user_def` branch of `LivelitProj.re`.
 ### The View Context
 
 A view may take a second argument. A view of type
-`(Model, ViewContext) -> HTML` is told where it is drawn (at its literal,
-offside as a probe sample, or in a probe's drawer) and whether it is
-editable, that is, whether its actions rewrite the program:
+`(Model, ViewContext) -> HTML` is told whether it is editable, that is,
+whether its actions rewrite the program, and how much room it has:
 
 ```
-type Place = + Literal + Offside + Drawer        # built in
-type ViewContext = (at=Place, editable=Bool)     # built in
+type Room = + Free + Lines(Int, Int)             # built in
+type ViewContext = (editable=Bool, room=Room)    # built in
 
 let view(m: Model, ctx: ViewContext): HTML =
-  case ctx.at
-  | Drawer => chart(m)                 # room for axes, labels, every reading
-  | _ => spark(m, ctx.editable)        # drag handles only where edits land
+  case ctx.room
+  | Lines(_, cols) => spark(m, cols)   # on the line: the readings that fit
+  | Free => chart(m)                   # axes, labels, every reading
   end
 ```
 
-- `Literal`: the livelit used as an expression in the program, the
-  projector at its use. Editable: its actions update the model, which is
-  stored in the literal's syntax.
-- `Offside`: a probe sample at the end of a line. Not editable.
-- `Drawer`: a probe's drawer, below the line. Not editable.
-
-Only literals are editable today; a sample's value has no literal for an
-action to rewrite. Editability is still its own field, so a read-only
-literal (a locked slide, a past version) can be told apart later.
+- `editable`: true only at the livelit's literal, the projector at its use,
+  where its actions update the model stored in the literal's syntax. A
+  probe sample's value has no literal for an action to rewrite, so a view
+  drawn for a probe is read-only. Editability is its own field, so a
+  read-only literal (a locked slide, a past version) can be told apart
+  later.
+- `Free`: the view sizes itself, by its `shape`: at its literal, and in a
+  probe's drawer, which reserves the shape's lines.
+- `Lines(lines, columns)`: a probe sample on the line, which has two
+  lines (`Lines(2, columns)`) and the sample's width: the budget its text is
+  abbreviated to (12 columns a sample in Many mode, 150 in One), so
+  resizing the sample (Shift+drag, Shift+arrows) resizes the room. The
+  view is clipped to this room, fading out at an edge it overflows. A view
+  that takes the context is drawn on the line whatever its `shape`, since
+  it can fit itself into the room it is told; a one-argument view taller
+  than the line's lines waits for the drawer.
 
 Hazel tells the two forms apart by the view's type, not its arity (a
 one-argument view's `Model` may itself be a pair): the context's type must
-be written, as `ViewContext` or as `(at=Place, editable=Bool)`. A
+be written, as `ViewContext` or as `(editable=Bool, room=Room)`. A
 one-argument view keeps working everywhere and is drawn the same in every
-place. `Place` and `ViewContext` are ordinary built-in types (like
-`LivelitShape`), and a program's own `Literal`, `Offside` or `Drawer`
-constructors shadow theirs as usual. The place does not change the room a
-view gets: the literal and a drawer's sample chip are as tall as `shape`
-says, and a sample chip on the line is one line tall.
+room. `Room` and `ViewContext` are ordinary built-in types (like
+`LivelitShape`), and a program's own `Free` or `Lines` constructors shadow
+theirs as usual.
 
 ### Livelits as Rich Probes
 
@@ -131,33 +135,43 @@ let ^trace = {
 ```
 
 - **By type name.** A livelit that expands to `Point` takes sites typed
-  `Point`, not every `(Int, Int)`. A structural site matches only when the
-  expansion type is an alias whose body itself names a type or
-  constructor (`Plan = (Mode, Temp)`). Pattern probes match through the
-  pattern's type.
+  `Point`, not every `(Int, Int)`, so an alias opts values in. Two
+  structural exceptions: an expansion type written structurally (`[Int]`)
+  takes sites of that structure, and an alias whose body itself names a
+  type or constructor (`Plan = (Mode, Temp)`) takes sites typed by that
+  body. Pattern probes match through the pattern's type.
 - **Innermost first.** The livelits in the probed site's context are tried
   innermost binding first, and the first whose `view` renders the value
   is the automatic view, so a nearer definition shadows an outer one. The
   others whose views render it are offered in the sample menu's "View as"
   list. `wrap` is not type-checked; if it (or `view`) fails on a value,
   that livelit passes.
+- **On request.** "View as" also offers every livelit whose expansion type
+  fits the site's once aliases are unfolded (is consistent with it), though
+  an automatic pick never shows it: with `type Trace = [Int]`, a plain
+  `[Int]` can be shown as a `^trace` on request. At a site of unknown type
+  every livelit fits, so the list offers the ones whose view renders the
+  sample. A livelit is offered only if it declares its expansion type.
 - **Lists.** A list of a viewed type (`[Point]`) renders as a row of
   element views.
-- **Display.** Views are inert: their handlers dispatch nothing, and a view
-  that takes a `ViewContext` is told `at=Offside` in a sample chip on the
-  line and `at=Drawer` in the drawer, both with `editable=false`. With Rich
-  Views on (the probe sidebar toggle, on by default), a view whose `shape`
-  is at most 4 lines tall (`Inline` is 1) is embedded in each sample, and
-  a taller one in each sample the probe's drawer shows when it is open
-  (the drawer keeps its layout: the count badge, then one sample or all of
-  them, by the samples toggle).
+- **Display.** Views are read-only: their handlers dispatch nothing, and a
+  view that takes a `ViewContext` is told `editable=false`, with room
+  `Lines(2, columns)` in a sample chip on the line and `Free` in the
+  drawer. With Rich Probes on (the probe sidebar toggle, on by default), a
+  view is embedded in each sample on the line when it fits the line's room
+  (it takes the context, or its `shape` is at most 2 lines tall; `Inline`
+  is 1; a hand of cards takes 2), and is clipped to that room there;
+  otherwise it is drawn in each sample the probe's drawer shows when it is
+  open (the drawer keeps its layout: the count badge, then one sample or
+  all of them, by the samples toggle).
 - **View as.** The sample menu's action bar names the view the sample is
   drawn with (its badge and name; a livelit as written, `^name`) and opens
   a list of the views that apply: Text, then the views in the order Hazel
-  ranks them for its automatic pick (livelits innermost first, HTML,
-  Cards; then Table, which is never picked automatically). Choosing one
+  ranks them for its automatic pick (livelits by type name, innermost
+  first, then HTML, Cards), then the livelits offered on request, then
+  Table, which is never picked automatically. Choosing one
   sets it for every sample of the probe, in the drawer as on the line,
-  overriding the Rich Views setting for that probe only; it is probe
+  overriding the Rich Probes setting for that probe only; it is probe
   state, so it survives edits. A view too tall for the chip opens the
   drawer. In the keyboard menu (`/`), V opens the list, the arrows move,
   Enter chooses and Esc closes just the list. Double-clicking a sample
@@ -170,7 +184,7 @@ let ^trace = {
   for an exception) are left as they are, unless the view applies the
   fade itself from `--sample-fade` (1, or 0.7 where text fades), e.g.
   `("opacity", "var(--sample-fade, 1)")`. A view taller than one line hangs
-  over the lines below, as card fans do. The Views tutorial lessons
+  over the lines below, as card fans do, as far as its room. The Views tutorial lessons
   (`hazel-programs/tutorial/views-*.hzt`) each define one such view.
 - **In the drawer.** A view in a drawer chip sits in a card like the
   drawer's table (cream fill, a 1px border, rounded corners), in the code's

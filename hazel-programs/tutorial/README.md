@@ -45,6 +45,7 @@ Marker lines are *exactly*:
 | `@prompt` | `prompt` | markdown for the instructions panel |
 | `@code` | `your_impl` | editor contents (parsed with `MarkerParse.of_text`) |
 | `@test` | `hidden_tests.tests` | defaults to `test true end` |
+| `@solution` | `solution` | optional; a `@code` replacement that must pass every `@test` (checked by `Test_Tutorial`), never shown to the student |
 | `@hint` | `display_hint` | short one-liner |
 | `@reference` | `task_reference` | markdown for the Task Reference sidebar |
 | `@hints` | `hidden_tests.hints` | one hint per non-empty line |

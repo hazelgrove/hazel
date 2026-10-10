@@ -15,8 +15,8 @@ open Util;
    LivelitShape) sets the projector's footprint in character cells. Type
    members are accepted (and encouraged) but not yet semantically
    load-bearing. Helpers are ordinary additional members.
-   A view of type (Model, ViewContext) -> HTML is also told where it is
-   drawn and whether it is editable (see `place` below).
+   A view of type (Model, ViewContext) -> HTML is also told whether it is
+   editable and how much room it has (see `room` below).
    Since modules are sugar for labeled tuples, a positional 4/5-tuple
    (init, update, view, expand[, shape]) is accepted as the equivalent form.
 
@@ -30,47 +30,60 @@ open Util;
 let expand_slot = 3;
 let view_slot = 2;
 
-/* Where a view is drawn: at its literal in the program, offside as a probe
-   sample at the end of a line, or in a probe's drawer below the line. A
-   view of type (Model, ViewContext) -> HTML receives the place as `at`,
-   with `editable`, whether its actions rewrite the program. Only a
-   literal's do: they update its model, which lives in the literal's
-   syntax. A probe sample's value has no literal to rewrite, so views drawn
-   there are inert. */
+/* How much room a view has. Free: the view sizes itself, by its shape (at
+   its literal, and in a probe's drawer, which reserves the shape's lines).
+   Lines(lines, columns): a probe sample on the line, where a view has the
+   line's lines and the sample's width, the budget its text is abbreviated
+   to (so resizing the sample resizes the room); it is clipped to that room.
+   A view of type (Model, ViewContext) -> HTML receives its room with
+   `editable`, whether its actions rewrite the program. Only a literal's
+   do: they update its model, which lives in the literal's syntax. A probe
+   sample's value has no literal to rewrite, so views drawn there are
+   read-only. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type place =
-  | Literal
-  | Offside
-  | Drawer;
+type room =
+  | Free
+  | Lines(int, int);
 
-let editable = (place: place): bool =>
-  switch (place) {
-  | Literal => true
-  | Offside
-  | Drawer => false
-  };
-
-/* The ViewContext value, (at=<Place>, editable=<Bool>) (BuiltinsADT) */
-let context_exp = (place: place): TermBase.Exp.t =>
-  IdTagged.FreshGrammar.Exp.(
-    tuple([
-      tup_label(
-        label("at"),
-        constructor(
-          show_place(place),
-          Some(Some(BuiltinsADT.ViewContext.place)),
-        ),
+/* The ViewContext value, (editable=<Bool>, room=<Room>) (BuiltinsADT) */
+let context_exp = (~editable: bool, room: room): TermBase.Exp.t =>
+  IdTagged.FreshGrammar.(
+    Exp.tuple([
+      Exp.tup_label(Exp.label("editable"), Exp.bool(editable)),
+      Exp.tup_label(
+        Exp.label("room"),
+        switch (room) {
+        | Free =>
+          Exp.constructor("Free", Some(Some(BuiltinsADT.ViewContext.room)))
+        | Lines(lines, cols) =>
+          Exp.ap(
+            Operators.Forward,
+            Exp.constructor(
+              "Lines",
+              Some(
+                Some(
+                  Typ.arrow(
+                    Typ.prod([Typ.int(), Typ.int()]),
+                    BuiltinsADT.ViewContext.room,
+                  ),
+                ),
+              ),
+            ),
+            Exp.tuple([Exp.int(lines), Exp.int(cols)]),
+          )
+        },
       ),
-      tup_label(label("editable"), bool(editable(place))),
     ])
   );
 
-/* What a view is applied to at a place: the model, or (model, context)
-   for a view that takes a ViewContext */
+/* What a view is applied to: the model, or (model, context) for a view
+   that takes a ViewContext */
 let view_arg =
-    (~takes_ctx: bool, ~place: place, model: TermBase.Exp.t): TermBase.Exp.t =>
+    (~takes_ctx: bool, ~editable: bool, ~room: room, model: TermBase.Exp.t)
+    : TermBase.Exp.t =>
   takes_ctx
-    ? IdTagged.FreshGrammar.Exp.tuple([model, context_exp(place)]) : model;
+    ? IdTagged.FreshGrammar.Exp.tuple([model, context_exp(~editable, room)])
+    : model;
 
 let is_livelit_name = (name: string): bool =>
   String.length(name) > 1 && name.[0] == '^';
@@ -235,7 +248,7 @@ let ty_member =
 /* Does a view's type take a ViewContext, (Model, ViewContext) -> HTML?
    Told apart by type, not by arity, since a one-argument view's Model may
    itself be a pair. The context is named, or written out as its labeled
-   product (at=Place, editable=Bool). */
+   product (editable=Bool, room=Room). */
 let takes_context = (view_ty: option(TermBase.Typ.t)): bool => {
   let rec strip = (ty: TermBase.Typ.t): TermBase.Typ.t =>
     switch (Typ.term_of(ty)) {
@@ -257,7 +270,7 @@ let takes_context = (view_ty: option(TermBase.Typ.t)): bool => {
           fields,
         ),
       )
-      == ["at", "editable"]
+      == ["editable", "room"]
     | _ => false
     };
   switch (Option.map(ty => Typ.term_of(strip(ty)), view_ty)) {
@@ -424,7 +437,8 @@ let use_parts =
    expansion, so a committed ^name.update(m, a) transition runs — and its
    probes fire — exactly once. The model keeps its surface ids as the
    binding's definition, so its value samples at the model's own id. A
-   view that takes a ViewContext is told it draws at its literal. */
+   view that takes a ViewContext is told it is editable, with Free room:
+   the literal is as big as its shape says. */
 let instrument_view =
     (
       ~projector_id: Id.t,
@@ -451,7 +465,7 @@ let instrument_view =
           Grammar.Ap(
             Operators.Forward,
             Exp.dot(Exp.var("^" ++ name), Exp.label("view")),
-            view_arg(~takes_ctx, ~place=Literal, m_ref()),
+            view_arg(~takes_ctx, ~editable=true, ~room=Free, m_ref()),
           ): TermBase.Exp.term,
         );
       Exp.let_(Pat.var(m_var), model, Exp.let_(Pat.wild(), view_ap, body));

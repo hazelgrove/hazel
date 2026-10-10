@@ -31,8 +31,9 @@ type raw_livelit = {
      time; `update`/`view` above are unused placeholders in that case. */
   user_def: option(TermBase.Exp.t),
   /* User-defined livelits only: `view` has type (Model, ViewContext) ->
-     HTML, so every call passes the place it draws at as well (see
-     UserLivelit.view_arg). A one-argument view gets the model alone. */
+     HTML, so every call passes whether it is editable and its room as
+     well (see UserLivelit.view_arg). A one-argument view gets the model
+     alone. */
   [@default false]
   view_takes_ctx: bool,
 };

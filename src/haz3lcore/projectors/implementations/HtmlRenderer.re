@@ -28,6 +28,11 @@ let parse = (~statics as _, sort: Sort.t, exp: Exp.t): option(value) =>
   | _ => None
   };
 
+/* one view, found by `parse`; none offered only on request */
+let parse_chosen = (~statics, sort, exp, _: model) =>
+  parse(~statics, sort, exp);
+let on_request = (~statics as _, _: Sort.t, _: Exp.t): list(model) => [];
+
 let empty = ();
 let init = (_: value) => ();
 
@@ -36,6 +41,7 @@ let init = (_: value) => ();
 let auto_applies = (_: value): bool => true;
 
 let drawer_rows = (_: model, _: value): int => 8;
+let line_rows = drawer_rows;
 
 let views = (v: value): list(model) => [init(v)];
 let label = (_: model, _: value): RichProbe.view_label => {
@@ -53,7 +59,7 @@ let render =
       ~local as _: action => Ui_effect.t(unit),
       ~parent as _: external_action => Ui_effect.t(unit),
       ~sort as _: Sort.t,
-      ~place as _: RichProbe.place,
+      ~room as _: RichProbe.room,
       _: unit,
     )
     : Node.t => {

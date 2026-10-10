@@ -34,6 +34,11 @@ let parse = (~statics as _, _sort: Sort.t, exp: Exp.t): option(value) =>
   | _ => None
   };
 
+/* one view, found by `parse`; none offered only on request */
+let parse_chosen = (~statics, sort, exp, _: model) =>
+  parse(~statics, sort, exp);
+let on_request = (~statics as _, _: Sort.t, _: Exp.t): list(model) => [];
+
 let init = (_: value) => {mode: Show};
 let empty = {mode: Show};
 
@@ -47,9 +52,11 @@ let auto_applies = (v: value): bool =>
   | Card(_) => true
   };
 
-/* Card sprites are 47px tall (~3 editor rows); a hand fans in one row
-   of cards regardless of count. */
+/* Card sprites are 47px tall: two editor rows on the line, which a hand
+   fans along in one row of cards regardless of count; the drawer gives
+   them four. */
 let drawer_rows = (_: model, _: value): int => 4;
+let line_rows = (_: model, _: value): int => 2;
 
 let views = (v: value): list(model) => [init(v)];
 let label = (_: model, _: value): RichProbe.view_label => {
@@ -205,7 +212,7 @@ let render =
       ~local: a => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort as _: Sort.t,
-      ~place as _: RichProbe.place,
+      ~room as _: RichProbe.room,
       (),
     )
     : Node.t =>
