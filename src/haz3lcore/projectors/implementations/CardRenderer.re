@@ -126,7 +126,7 @@ module Singleton = {
           [
             switch (mode) {
             | Show
-            | Flipped => CardView.Card.view(sort, card)
+            | Flipped => CardView.Card.view((sort, card))
             | Choose =>
               CardView.Chooser.view(
                 ~on_pick=on_pick(info, parent),
@@ -156,7 +156,7 @@ module Hand = {
           ),
         ),
       ],
-      [CardView.Card.view(sort, card)],
+      [CardView.Card.view((sort, card))],
     );
 
   let view =
