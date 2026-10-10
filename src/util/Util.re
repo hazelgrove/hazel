@@ -33,6 +33,7 @@ module Sets = Sets;
 module Maps = Maps;
 module MerkleSet = MerkleSet;
 module ValueHash = ValueHash;
+module ShareCodec = ShareCodec;
 module IdentityMemo = IdentityMemo;
 module Id = Id;
 module Unicode = Unicode;
