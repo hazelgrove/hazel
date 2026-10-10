@@ -5,7 +5,7 @@ Views / Diff
 version=1 id=b3000005-0005-0005-0005-000000000005
 
 @prompt
-An `Edit` keeps, deletes, or inserts one word, and a `Diff` is a revision as a list of them. `^diff` draws a `Diff` as an inline diff: deleted words struck through in red, inserted words bold and underlined in the sample's own ink, so they read on the pale chips and on the focused one alike. Every probe of type `Diff` in scope draws this way; here, each call revises one item of a garden task list.
+An `Edit` keeps, deletes, or inserts one word, and a `Diff` is a revision as a list of them. `^diff` draws a `Diff` as an inline diff: deleted words struck through in red, inserted words bold and underlined in the sample's own ink, so they read on the pale chips and on the focused one alike. Every probe of type `Diff` in scope draws this way; here, each call revises one item of a garden task list. On the line a sample's room is its width, so unchanged words at either end give way to an ellipsis until the diff fits; widen a sample (click it, then **Shift+→**) to see more of its sentence.
 
 @code
 # One word of a revision, kept, deleted, or inserted #
@@ -37,14 +37,52 @@ let ^diff = {
         [Text(w)])
     end;
 
-  let view(d: Model): HTML =
+  let text_of(e: Edit): String =
+    case e
+    | Keep(w) => w
+    | Del(w)  => w
+    | Ins(w)  => w
+    end;
+
+  let kept(e: Edit): Bool =
+    case e
+    | Keep(_) => true
+    | _       => false
+    end;
+
+  # Columns the words take, a space between each two #
+  let width(es: [Edit]): Int =
+    fold_left(es, fun (n: Int, e: Edit) -> n + 1 + string_length(text_of(e)), 0) - 1;
+
+  # Unchanged words cut from the front until, after an ellipsis, the rest fits #
+  let cut(es: [Edit], cols: Int): [Edit] =
+    case es
+    | e :: rest =>
+      if kept(e) && width(Keep("…") :: es) > cols then cut(rest, cols) else es
+    | [] => []
+    end;
+
+  # Unchanged words at either end give way to an ellipsis until the diff fits #
+  let fit(es: [Edit], cols: Int): [Edit] =
+    let front = cut(es, cols) in
+    let es1 = if length(front) == length(es) then es else Keep("…") :: front in
+    let back = reverse(cut(reverse(es1), cols)) in
+    if length(back) == length(es1) then es1 else back @ [Keep("…")];
+
+  # On the line, fit to the sample's width; in the drawer, the whole diff #
+  let view(d: Model, ctx: ViewContext): HTML =
     case d
     | Diff(es) =>
+      let shown =
+        case ctx.room
+        | Lines(_, cols) => fit(es, cols - 1)
+        | Free => es
+        end in
       Span([Style([("font-family", "var(--code-font)"),
                     ("font-size", "var(--base-font-size)"),
                     ("white-space", "pre"),
                     ("padding", "0 2px")])],
-        intersperse(map(es, word), Text(" ")))
+        intersperse(map(shown, word), Text(" ")))
     end;
 
   let init : Model = Diff([Keep("a"), Del("b"), Ins("c")]);
