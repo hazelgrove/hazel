@@ -615,21 +615,23 @@ let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
   pruned;
 };
 
-/* async responses drop the incremental cache (the UI never reads it:
-   prev is worker-resident, predictions come via ReusePlan); must run
-   after store_resident */
-let slim_response = (response: Response.value): Response.value =>
-  switch (response) {
-  | Ok((exp, state)) =>
-    Ok((
-      exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
-      Language.EvaluatorState.{
-        ...state,
-        incr_eval: Language.IncrEval.empty,
-      },
-    ))
-  | Error(_) as e => e
-  };
+/* a finished item's cache stays resident; its response drops it (the UI
+   never reads it: prev is worker-resident, predictions come via
+   ReusePlan) */
+let complete = (key: key, response: Response.value): (key, Response.value) => {
+  store_resident(key, response);
+  (
+    key,
+    switch (response) {
+    | Ok((exp, state)) =>
+      Ok((
+        exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
+        slim_state(state),
+      ))
+    | Error(_) as e => e
+    },
+  );
+};
 
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
@@ -643,13 +645,12 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   | [(key, req_value), ...remaining] =>
     switch (timed_eval(() => start_evaluation(~key, req_value))) {
     | CompletedImmediately(response) =>
-      store_resident(key, response);
       evaluate_next_batch_item(
         model,
         request_id,
-        [(key, slim_response(response)), ...completed],
+        [complete(key, response), ...completed],
         remaining,
-      );
+      )
     | Yielding(evaluation) =>
       let model = {
         ...model,
@@ -674,15 +675,13 @@ and begin_latest_batch = model =>
   | Some({request_id, batch}) =>
     evaluate_next_batch_item(model, request_id, [], batch)
   }
-and finish_current_item = (model, running, response) => {
-  store_resident(running.key, response);
+and finish_current_item = (model, running, response) =>
   evaluate_next_batch_item(
     model,
     running.request_id,
-    [(running.key, slim_response(response)), ...running.completed],
+    [complete(running.key, response), ...running.completed],
     running.remaining,
-  );
-}
+  )
 and plan_latest_batch = model =>
   switch (model.latest_request) {
   | None => {
