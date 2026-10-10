@@ -149,7 +149,60 @@ let test_span_yojson = (): test_case(_) =>
     },
   );
 
+/* A request that covers only some keys must not drop the rest of the one in
+ * flight: Next onto a task slide re-requested YourImpl alone, and HiddenTests
+ * never got its result. */
+let test_supersede_keeps_other_keys = () =>
+  test_case(
+    "supersede keeps the other keys of the request in flight",
+    `Quick,
+    () => {
+      let value: WorkerServer.Request.value = {
+        expr: parse("1"),
+        eval_info_map: EvalInfo.empty,
+        prev: IncrEval.empty,
+      };
+      let replies = ref([]);
+      let callbacks = (caller): Web.WorkerClient.callbacks => {
+        on_result: r =>
+          replies := replies^ @ List.map(((key, _)) => (caller, key), r),
+        on_timeout: _ => (),
+        on_ack: _ => (),
+        on_stream: (_, _) => (),
+      };
+      let prev: Web.WorkerClient.latest = {
+        request: {
+          request_id: 1,
+          batch: [("hidden", value), ("impl", value)],
+        },
+        callbacks: callbacks("old"),
+        ack_retries: 0,
+      };
+      let (batch, merged) =
+        Web.WorkerClient.supersede(
+          Some(prev),
+          [("impl", value)],
+          callbacks("new"),
+        );
+      check(
+        list(string),
+        "old batch's other key rides along",
+        ["impl", "hidden"],
+        List.map(fst, batch),
+      );
+      let ok = Ok((parse("1"), EvaluatorState.empty));
+      merged.on_result([("impl", ok), ("hidden", ok)]);
+      check(
+        list(pair(string, string)),
+        "each reply goes to the caller that asked",
+        [("old", "hidden"), ("new", "impl")],
+        replies^,
+      );
+    },
+  );
+
 let tests = [
+  ("WorkerClient", [test_supersede_keeps_other_keys()]),
   (
     "WorkerServer encodings",
     [
