@@ -564,11 +564,7 @@ module View = {
       let z = model.editor.state.zipper;
       let segment = z.selection.content;
       let full =
-        Printer.of_segment(
-          ~indent=" ",
-          ~refractors=z.refractors.manuals,
-          segment,
-        );
+        Printer.of_segment(~refractors=z.refractors.manuals, segment);
       let str = Zipper.trim_selected_text(z, full);
       /* Cache for paste reuse only when nothing was trimmed: a trimmed
          sub-token string must re-parse on paste, not round-trip to the

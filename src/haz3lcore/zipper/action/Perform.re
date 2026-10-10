@@ -297,7 +297,7 @@ let rec go =
     Parser.to_zipper(
       ~root,
       ~zipper_init=Zipper.init(),
-      Printer.of_zipper(~holes="", ~indent="", z),
+      Printer.of_zipper(~holes="", z),
     )
     |> return(CantReparse)
   | Format(Preferred) =>

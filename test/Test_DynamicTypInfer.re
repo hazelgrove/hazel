@@ -65,7 +65,7 @@ let typ_to_string = (ty: Typ.t): string =>
     ~settings=ProjectorInfo.seg_settings(~inline=true),
     ty,
   )
-  |> Printer.of_segment(~holes="?", ~indent="", ~is_single_line=true);
+  |> Printer.of_segment(~holes="?");
 
 let testable_typ_string = testable(Fmt.string, String.equal);
 
