@@ -2147,20 +2147,13 @@ module Incr = {
     };
   };
 
-  /* [e] with [acc] in its synthetic body hole, plus the hole's rebuilt
-     ancestors, outermost first (the term map must hold them grafted).
-     the binding-form spine first, cheaply; then any Exp position (an
-     operand typed above a let, a let under a fun, `if` or operator). a
-     lost hole raises: callers parse whole rather than drop what follows */
-  let graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): (Exp.t, list(Exp.t)) => {
-    let is_hole = (e: Exp.t) => List.mem(hole_id, e.annotation.ids);
-    let path = ref([]);
-    let rebuilt = (e: Exp.t): Exp.t => {
-      path := [e, ...path^];
-      e;
-    };
+  /* [e] with [acc] in its body hole, if the hole is down the
+     binding-form spine; [rebuilt] sees each rebuilt node, innermost first */
+  let graft_spine =
+      (~rebuilt=(e: Exp.t) => e, hole_id: Id.t, acc: Exp.t, e: Exp.t)
+      : option(Exp.t) => {
     let rec spine = (e: Exp.t): option(Exp.t) =>
-      if (is_hole(e)) {
+      if (List.mem(hole_id, e.annotation.ids)) {
         Some(acc);
       } else {
         let re = (term: Exp.term) =>
@@ -2183,6 +2176,21 @@ module Incr = {
         | _ => None
         };
       };
+    spine(e);
+  };
+
+  /* [e] with [acc] in its synthetic body hole, plus the hole's rebuilt
+     ancestors, outermost first (the term map must hold them grafted).
+     the binding-form spine first, cheaply; then any Exp position (an
+     operand typed above a let, a let under a fun, `if` or operator). a
+     lost hole raises: callers parse whole rather than drop what follows */
+  let graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): (Exp.t, list(Exp.t)) => {
+    let is_hole = (e: Exp.t) => List.mem(hole_id, e.annotation.ids);
+    let path = ref([]);
+    let rebuilt = (e: Exp.t): Exp.t => {
+      path := [e, ...path^];
+      e;
+    };
     let anywhere = (e: Exp.t): Exp.t => {
       let found = ref(false);
       let keep = (_, x) => x;
@@ -2211,7 +2219,7 @@ module Incr = {
       found^ ? e : failwith("MakeTerm.Incr: body hole not found");
     };
     let e =
-      switch (spine(e)) {
+      switch (graft_spine(~rebuilt, hole_id, acc, e)) {
       | Some(e) => e
       | None => anywhere(e)
       };

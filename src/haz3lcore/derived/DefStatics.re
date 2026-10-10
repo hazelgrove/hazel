@@ -28,7 +28,11 @@ type t = {
   items: list(item),
   term: Exp.t, /* the whole term these items were computed from */
   probe_ids: Id.Map.t(unit),
-  merged: Statics.Map.t /* union of the items' maps, kept incrementally */
+  merged: Statics.Map.t, /* union of the items' maps, kept incrementally */
+  /* each item's elab grafted into its predecessor's body hole: recursion
+     depth is per item, so it fits the browser stack where a monolithic
+     elaboration doesn't */
+  elab: option(Exp.t),
 };
 
 let rec strip = (e: Exp.t): Exp.t =>
@@ -370,37 +374,16 @@ let seed_delta = (delta: export_delta, dirty_vars, dirty_tnames) =>
 /* observability: how many items the last calc actually re-analyzed */
 let last_analyzed: ref(int) = ref(0);
 
-let rec graft_at = (hole_id: Id.t, acc: Exp.t, e: Exp.t): option(Exp.t) =>
-  if (List.mem(hole_id, e.annotation.ids)) {
-    Some(acc);
-  } else {
-    let re = (term: Exp.term) => {
-      ...e,
-      term,
-    };
-    switch (e.term) {
-    | Let(p, d, b) =>
-      graft_at(hole_id, acc, b) |> Option.map(b => re(Let(p, d, b)))
-    | Seq(a, b) =>
-      graft_at(hole_id, acc, b) |> Option.map(b => re(Seq(a, b)))
-    | TyAlias(tp, ty, b) =>
-      graft_at(hole_id, acc, b) |> Option.map(b => re(TyAlias(tp, ty, b)))
-    | Filter(f, b) =>
-      graft_at(hole_id, acc, b) |> Option.map(b => re(Filter(f, b)))
-    | Parens(b) =>
-      graft_at(hole_id, acc, b) |> Option.map(b => re(Parens(b)))
-    | _ => None
-    };
-  };
-
 /* item statics hollows the continuation, so a spine root's info misses
    later items. the evaluator's reuse gating reads a root's elab_term,
    probe_targets and co_ctx, so each non-tail root gets them extended
    over the suffix (its co_ctx minus the root's value bindings), or cached
-   runs replay stale */
-let fix_spine_infos_full =
+   runs replay stale. also returns the top root's witnesses, co_ctx and
+   elab_term (the whole chain's elaboration; None on an unexpected elab
+   shape) */
+let fix_spine_infos =
     (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
-    : (Statics.Map.t, SubexpProbeTargets.t, CoCtx.t) => {
+    : (Statics.Map.t, SubexpProbeTargets.t, CoCtx.t, option(Exp.t)) => {
   let probes_in = (it: item): SubexpProbeTargets.t =>
     Id.Map.fold(
       (pid, (), acc) =>
@@ -409,91 +392,65 @@ let fix_spine_infos_full =
       probe_ids,
       SubexpProbeTargets.empty,
     );
-  let (merged, top_wit, top_co, _) =
-    List.fold_right(
-      (it: item, (m, below_wit, below_co, below_elab)) => {
-        let bound = var_names(it.d_exports);
-        let below_co_scoped =
-          CoCtx.filter_names(name => !List.mem(name, bound), below_co);
-        /* the root's elab_term is the whole suffix: a hollow one reads
-           as unchanged whatever happens downstream */
-        let suffix_elab =
-          switch (it.d_hole, below_elab) {
-          | (Some(h), Some(below)) => graft_at(h, below, it.d_elab)
-          | (None, _) => Some(it.d_elab)
-          | (Some(_), None) => None
-          };
-        /* read the RAW info from d_map, never [m]: [m] may hold the last
-           calc's patched entry, and re-patching doubles the co_ctx
-           use-lists every calc */
-        let raw = Statics.Map.lookup_exp(it.d_id, it.d_map);
-        let co_ctx =
-          CoCtx.union([
-            Option.fold(
-              ~none=CoCtx.empty,
-              ~some=(r: Info.exp) => r.co_ctx,
-              raw,
-            ),
-            below_co_scoped,
-          ]);
-        /* a tail item is already accurate, and a module form has no
-           InfoExp at the root: those thread upward without patching */
-        let m =
-          switch (it.d_hole, raw) {
-          | (Some(_), Some(raw)) =>
-            Id.Map.add(
-              it.d_id,
-              Info.InfoExp({
-                ...raw,
-                elab_term: Option.value(~default=raw.elab_term, suffix_elab),
-                probe_targets:
-                  SubexpProbeTargets.union(raw.probe_targets, below_wit),
-                co_ctx,
-              }),
-              m,
-            )
-          | _ => m
-          };
-        (
-          m,
-          SubexpProbeTargets.union(probes_in(it), below_wit),
-          co_ctx,
-          suffix_elab,
-        );
-      },
-      items,
-      (merged, SubexpProbeTargets.empty, CoCtx.empty, None),
-    );
-  (merged, top_wit, top_co);
-};
-
-let fix_spine_infos =
-    (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
-    : Statics.Map.t => {
-  let (merged, _, _) = fix_spine_infos_full(~probe_ids, items, merged);
-  merged;
+  List.fold_right(
+    (it: item, (m, below_wit, below_co, below_elab)) => {
+      let bound = var_names(it.d_exports);
+      let below_co_scoped =
+        CoCtx.filter_names(name => !List.mem(name, bound), below_co);
+      /* the root's elab_term is the whole suffix: a hollow one reads
+         as unchanged whatever happens downstream */
+      let suffix_elab =
+        switch (it.d_hole, below_elab) {
+        | (Some(h), Some(below)) =>
+          MakeTerm.Incr.graft_spine(h, below, it.d_elab)
+        | (None, _) => Some(it.d_elab)
+        | (Some(_), None) => None
+        };
+      /* read the RAW info from d_map, never [m]: [m] may hold the last
+         calc's patched entry, and re-patching doubles the co_ctx
+         use-lists every calc */
+      let raw = Statics.Map.lookup_exp(it.d_id, it.d_map);
+      let co_ctx =
+        CoCtx.union([
+          Option.fold(
+            ~none=CoCtx.empty,
+            ~some=(r: Info.exp) => r.co_ctx,
+            raw,
+          ),
+          below_co_scoped,
+        ]);
+      /* a tail item is already accurate, and a module form has no
+         InfoExp at the root: those thread upward without patching */
+      let m =
+        switch (it.d_hole, raw) {
+        | (Some(_), Some(raw)) =>
+          Id.Map.add(
+            it.d_id,
+            Info.InfoExp({
+              ...raw,
+              elab_term: Option.value(~default=raw.elab_term, suffix_elab),
+              probe_targets:
+                SubexpProbeTargets.union(raw.probe_targets, below_wit),
+              co_ctx,
+            }),
+            m,
+          )
+        | _ => m
+        };
+      (
+        m,
+        SubexpProbeTargets.union(probes_in(it), below_wit),
+        co_ctx,
+        suffix_elab,
+      );
+    },
+    items,
+    (merged, SubexpProbeTargets.empty, CoCtx.empty, None),
+  );
 };
 
 let map_union = (a: Statics.Map.t, b: Statics.Map.t): Statics.Map.t =>
   Id.Map.union((_, _x, y) => Some(y), a, b);
-
-let graft_elabs = (items: list(item)): option(Exp.t) => {
-  let rec go = (items: list(item)): option(Exp.t) =>
-    switch (items) {
-    | [] => None
-    | [last] =>
-      switch (last.d_hole) {
-      | None => Some(last.d_elab) /* trailing exp: real elab */
-      | Some(_) => None /* items with holes need a successor */
-      }
-    | [it, ...rest] =>
-      switch (go(rest), it.d_hole) {
-      | (Some(acc), Some(h)) => graft_at(h, acc, it.d_elab)
-      | _ => None
-      }
-    };
-  go(items);
-};
 
 /* a top-level export is used iff a later item mentions it before a
    value rebinding, or a hole below could ("$hole" in d_free: real holes
@@ -746,8 +703,8 @@ and calc_module_item =
       items_m,
     );
   /* member roots need the top spine's suffix patch too */
-  let (member_merged, top_wit, top_co) =
-    fix_spine_infos_full(~probe_ids, items_m, member_merged);
+  let (member_merged, top_wit, top_co, members_elab) =
+    fix_spine_infos(~probe_ids, items_m, member_merged);
   let value_exports = ModuleHelpers.value_exports(members);
   let type_exports = ModuleHelpers.collect_type_exports(ctx_in, members);
   let actual_ty =
@@ -813,10 +770,10 @@ and calc_module_item =
     );
   /* member elabs grafted, finished like monolithic Module statics */
   let module_value =
-    graft_elabs(items_m)
-    |> Option.map(g =>
-         ModuleHelpers.module_elab(~module_exp_id=Exp.rep_id(def), g)
-       );
+    Option.map(
+      ModuleHelpers.module_elab(~module_exp_id=Exp.rep_id(def)),
+      members_elab,
+    );
   /* the members' co_ctx/witnesses, which the surrogate def lacks */
   let with_members = (raw: Info.exp): Info.exp => {
     ...raw,
@@ -1307,7 +1264,7 @@ let calc =
         };
       go(prev_items, nodes, [], ctx0, [], [], prev_merged);
     };
-  let merged = fix_spine_infos(~probe_ids, items, merged);
+  let (merged, _, _, elab) = fix_spine_infos(~probe_ids, items, merged);
   /* a Module root's items read as module items, as monolithically */
   let merged =
     switch (strip(whole).term) {
@@ -1320,26 +1277,22 @@ let calc =
     term: whole,
     probe_ids,
     merged,
+    elab,
   };
 };
 
-/* the whole-program elaboration, each item's elab grafted into its
-   predecessor's body hole; None on an unexpected elab shape. recursion
-   depth is per item, so it fits the browser stack where a monolithic
-   elaboration doesn't */
-let whole_elab = (t: t): option(Exp.t) => {
-  let grafted = graft_elabs(t.items);
+/* the whole-program elaboration; None on an unexpected elab shape */
+let whole_elab = (t: t): option(Exp.t) =>
   switch (strip(t.term).term) {
   | Module(_) =>
     /* mod root: the graft is the lowered expansion's elab; finish it
        the way monolithic Module statics does (marks the module value) */
     Option.map(
       ModuleHelpers.module_elab(~module_exp_id=Exp.rep_id(strip(t.term))),
-      grafted,
+      t.elab,
     )
-  | _ => grafted
+  | _ => t.elab
   };
-};
 
 /* whole-program views over the per-item results */
 let all_error_ids = (t: t): list(Id.t) =>
