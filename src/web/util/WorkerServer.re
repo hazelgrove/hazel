@@ -644,13 +644,17 @@ and run_scheduled_slice = model => {
     | EvaluationCompleted(value) =>
       finish_current_item(model, running, Ok(value))
     | EvaluationYielded(evaluation) =>
-      let pacing =
-        post_streams_if_due(
-          model,
-          running.request_id,
-          ~running=Some((running.key, evaluation)),
-          running.pacing,
-        );
+      let running = {
+        ...running,
+        evaluation,
+        pacing:
+          post_streams_if_due(
+            model,
+            running.request_id,
+            ~running=Some((running.key, evaluation)),
+            running.pacing,
+          ),
+      };
       if (Language.Evaluator.yielding_step_count(evaluation)
           >= total_step_limit) {
         finish_current_item(
@@ -661,12 +665,7 @@ and run_scheduled_slice = model => {
       } else {
         let model = {
           ...model,
-          runtime:
-            Running({
-              ...running,
-              evaluation,
-              pacing,
-            }),
+          runtime: Running(running),
         };
         model;
       };
