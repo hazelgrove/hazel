@@ -499,66 +499,50 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
   stage_side(prefix, name);
   switch (load_slide_kind(prefix, name)) {
   | Some(CodePersist({editor: e, agent})) =>
-    let agent =
-      switch (load_agent(prefix, name)) {
-      | Some(p) => p
-      | None => agent
+    let persisted =
+      switch (e) {
+      | Some(e) => e
+      | None => Init.default_documentation_slide_name(name)
       };
-    Scratchpad.{
-      name,
-      kind:
-        Code({
-          view: SlideView.init,
-          program:
-            Whole(
-              {
-                let persisted =
-                  switch (e) {
-                  | Some(e) => e
-                  | None => Init.default_documentation_slide_name(name)
-                  };
-                /* per-item restore, else the whole-doc text */
-                switch (ItemPersist.load(~store=item_store(prefix, name))) {
-                | Some(seg) =>
-                  let root = persisted.editor.root;
-                  let z =
-                    Zipper.unzip(~direction=Left, seg)
-                    |> Zipper.remold_regrout(Right, ~root)
-                    |> ZipperBase.update_refractors(_, r =>
-                         Refractors.{
-                           ...r,
-                           manuals: read_probes(prefix, name, seg),
-                         }
-                       );
-                  /* prime the dirty cache: the first autosave tick after
-                     a load should rewrite nothing */
-                  Hashtbl.replace(
-                    last_item_saves,
-                    content_key(prefix, name),
-                    ItemPersist.items_of(
-                      Zipper.unselect_and_zip(~erase_buffer=true, z),
-                    ),
-                  );
-                  CellEditor.Model.unpersist_with(
-                    ~settings,
-                    ~zipper=z,
-                    persisted,
-                  );
-                | None =>
-                  /* the text copy re-mints ids, so no stored item slice
-                     can be reused: drop them rather than leave them */
-                  let ns = items_ns(prefix, name);
-                  HazelDB.kv_remove_where(k =>
-                    String.starts_with(~prefix=ns, k)
-                  );
-                  CellEditor.Model.unpersist(~settings, persisted);
-                };
-              },
+    Scratchpad.mk_code(
+      ~name,
+      ~agent=
+        Agent.Persistent.unpersist(
+          Option.value(load_agent(prefix, name), ~default=agent),
+        ),
+      /* per-item restore, else the whole-doc text */
+      ~editor=
+        switch (ItemPersist.load(~store=item_store(prefix, name))) {
+        | Some(seg) =>
+          let root = persisted.editor.root;
+          let z =
+            Zipper.unzip(~direction=Left, seg)
+            |> Zipper.remold_regrout(Right, ~root)
+            |> ZipperBase.update_refractors(_, r =>
+                 Refractors.{
+                   ...r,
+                   manuals: read_probes(prefix, name, seg),
+                 }
+               );
+          /* prime the dirty cache: the first autosave tick after a load
+             should rewrite nothing */
+          Hashtbl.replace(
+            last_item_saves,
+            content_key(prefix, name),
+            ItemPersist.items_of(
+              Zipper.unselect_and_zip(~erase_buffer=true, z),
             ),
-          agent: Agent.Persistent.unpersist(agent),
-        }),
-      dormant: false,
-    };
+          );
+          CellEditor.Model.unpersist_with(~settings, ~zipper=z, persisted);
+        | None =>
+          /* the text copy re-mints ids, so no stored item slice can be
+             reused: drop them rather than leave them */
+          let ns = items_ns(prefix, name);
+          HazelDB.kv_remove_where(k => String.starts_with(~prefix=ns, k));
+          CellEditor.Model.unpersist(~settings, persisted);
+        },
+      (),
+    );
   | Some(DrvPersist(p)) =>
     Scratchpad.{
       name,
@@ -593,25 +577,15 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
         dormant: false,
       }
     | None =>
-      let agent =
-        switch (load_agent(prefix, name)) {
-        | Some(p) => Agent.Persistent.unpersist(p)
-        | None => Agent.Utils.init()
-        };
-      Scratchpad.{
-        name,
-        kind:
-          Code({
-            program:
-              Whole(
-                Init.default_documentation_slide_name(name)
-                |> CellEditor.Model.unpersist(~settings),
-              ),
-            view: SlideView.init,
-            agent,
-          }),
-        dormant: false,
-      };
+      Scratchpad.mk_code(
+        ~name,
+        ~editor=
+          Init.default_documentation_slide_name(name)
+          |> CellEditor.Model.unpersist(~settings),
+        ~agent=?
+          Option.map(Agent.Persistent.unpersist, load_agent(prefix, name)),
+        (),
+      )
     }
   };
 };
@@ -674,19 +648,15 @@ let export_all =
       name =>
         switch (load_slide_kind(prefix, name)) {
         | Some(CodePersist({editor, agent})) =>
-          let agent =
-            switch (load_agent(prefix, name)) {
-            | Some(a) => a
-            | None => agent
-            };
           Scratchpad.{
             name,
             kind:
               CodePersist({
                 editor,
-                agent,
+                agent:
+                  Option.value(load_agent(prefix, name), ~default=agent),
               }),
-          };
+          }
         | Some(DrvPersist(_) as k) =>
           Scratchpad.{
             name,
