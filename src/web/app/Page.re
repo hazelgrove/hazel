@@ -148,6 +148,13 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
+    /* Measuring the font must not scroll: it happens at load, again when
+       web fonts settle (the #font-specimen size observer), and on zoom,
+       none of which is the user moving the caret. Asking for a caret
+       scroll here jumped the editor back to the caret after the user had
+       scrolled away, and a click aimed below landed on something else.
+       Startup reveals the caret once on its own (Main.scroll_to_caret
+       starts true). */
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -156,7 +163,7 @@ module Update = {
           font_metrics: fm,
         },
       }
-      |> Updated.return_quiet(~scroll_active=true)
+      |> Updated.return_quiet
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);
