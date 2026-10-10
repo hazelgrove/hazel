@@ -627,6 +627,42 @@ module Selection = {
     };
   };
 
+  /* The path alignment reads: the sightline, cut where a frame below where
+   * you are re-enters a function already on the path down to there (a
+   * deeper recursive call, remembered from before moving up). That
+   * function's lines belong to the call where you are; the frames stay
+   * stored for navigating back down. */
+  let alignment_path = (cursor: Focus.t): CallStack.t => {
+    let eff = Focus.effective_stack(cursor);
+    let fns = List.filter_map((f: CallStack.frame) => f.fn_def_id, eff);
+    let below =
+      ListUtil.take(
+        List.length(cursor.call_stack) - List.length(eff),
+        cursor.call_stack,
+      );
+    let rec keep = (kept, outer_first: CallStack.t) =>
+      switch (outer_first) {
+      | [] => kept
+      | [f, ...rest] =>
+        switch (f.fn_def_id) {
+        | Some(id) when List.mem(id, fns) => kept
+        | _ => keep([f, ...kept], rest)
+        }
+      };
+    keep(eff, List.rev(below));
+  };
+
+  /* A sample on `path` whose function is called again deeper on the path
+   * (recursion) belongs to an outer call of that function: the deeper call
+   * is the one shown, so the sample is shadowed. */
+  let shadowed = (~path: CallStack.t, s: t): bool =>
+    switch (s.call_stack) {
+    | [{fn_def_id: Some(fn), _}, ..._] =>
+      ListUtil.take(List.length(path) - List.length(s.call_stack), path)
+      |> List.exists((f: CallStack.frame) => f.fn_def_id == Some(fn))
+    | _ => false
+    };
+
   /* Lines that run below the end of the sightline have no sample on it,
    * so something has to choose which of their calls to show, and the
    * choice must be made for all of them together: chosen line by line,
@@ -644,10 +680,12 @@ module Selection = {
    *
    * Returns the chosen sample of each probe the choice covers. */
   let coordinated_below =
-      (~root: CallStack.t, all: Id.Map.t(list(t))): Id.Map.t(span_ref) => {
+      (~root: CallStack.t, ~path: CallStack.t, all: Id.Map.t(list(t)))
+      : Id.Map.t(span_ref) => {
     let ids = CallStack.ids_of_stack;
     let root_ids = ids(root);
     let n_root = List.length(root_ids);
+    let path_ids = ids(path);
     let shown: Hashtbl.t(Id.t, unit) = Hashtbl.create(64);
     /* instance (a call, as its stack's ids) → its samples, in eval order */
     let instances: Hashtbl.t(list(Id.t), list(t)) = Hashtbl.create(64);
@@ -658,11 +696,10 @@ module Selection = {
             if (s.origin != Print) {
               let s_ids = ids(s.call_stack);
               let n = List.length(s_ids);
-              if (n <= n_root) {
-                if (ListUtil.is_suffix_of(s_ids, root_ids)) {
-                  Hashtbl.replace(shown, probe_id, ());
-                };
-              } else if (ListUtil.is_suffix_of(root_ids, s_ids)) {
+              if (ListUtil.is_suffix_of(s_ids, path_ids)) {
+                Hashtbl.replace(shown, probe_id, ());
+              };
+              if (n > n_root && ListUtil.is_suffix_of(root_ids, s_ids)) {
                 let prev =
                   Hashtbl.find_opt(instances, s_ids)
                   |> Option.value(~default=[]);
@@ -719,8 +756,16 @@ module Selection = {
       |> List.sort(((e1, d1, _, _), (e2, d2, _, _)) =>
            e1 != e2 ? compare(e1, e2) : compare(d1, d2)
          );
-    /* true: shown; false: not shown (its function is shown elsewhere) */
+    /* true: shown; false: not shown (its function is shown elsewhere).
+       Calls on the remembered part of the path are shown already. */
     let status: Hashtbl.t(list(Id.t), bool) = Hashtbl.create(64);
+    Hashtbl.iter(
+      (key, _) =>
+        if (ListUtil.is_suffix_of(key, path_ids)) {
+          Hashtbl.replace(status, key, true);
+        },
+      instances,
+    );
     let rec inside_shown = (key: list(Id.t)): bool =>
       switch (key) {
       | [] => true
@@ -735,12 +780,14 @@ module Selection = {
       };
     List.fold_left(
       (chosen, (_, _, key, samples)) =>
-        if (inside_shown(key)
-            && !
-                 List.exists(
-                   (s: t) => Hashtbl.mem(shown, s.syntax_id),
-                   samples,
-                 )) {
+        if (Hashtbl.mem(status, key)) {
+          chosen;
+        } else if (inside_shown(key)
+                   && !
+                        List.exists(
+                          (s: t) => Hashtbl.mem(shown, s.syntax_id),
+                          samples,
+                        )) {
           Hashtbl.replace(status, key, true);
           List.fold_left(
             (chosen, s: t) =>
@@ -769,16 +816,25 @@ module Selection = {
 
   /* One render asks once per probe; the samples and focus are shared. */
   let coordinated_memo:
-    ref(option((Id.Map.t(list(t)), CallStack.t, Id.Map.t(span_ref)))) =
+    ref(
+      option(
+        (Id.Map.t(list(t)), CallStack.t, CallStack.t, Id.Map.t(span_ref)),
+      ),
+    ) =
     ref(None);
-  let coordinated = (~root: CallStack.t, all: Id.Map.t(list(t))) =>
+  let coordinated = (~cursor: Focus.t, all: Id.Map.t(list(t))) => {
+    let root = Focus.effective_stack(cursor);
+    let path = alignment_path(cursor);
     switch (coordinated_memo^) {
-    | Some((a, r, chosen)) when a === all && CallStack.equal(r, root) => chosen
+    | Some((a, r, p, chosen))
+        when
+          a === all && CallStack.equal(r, root) && CallStack.equal(p, path) => chosen
     | _ =>
-      let chosen = coordinated_below(~root, all);
-      coordinated_memo := Some((all, root, chosen));
+      let chosen = coordinated_below(~root, ~path, all);
+      coordinated_memo := Some((all, root, path, chosen));
       chosen;
     };
+  };
 
   /* How a line with no sample on the sightline picks one.
    * - Coordinated(pick): this probe's sample in the coordinated choice
@@ -793,9 +849,7 @@ module Selection = {
   /* This probe's place in the coordinated choice under `cursor`. */
   let below_of =
       (~cursor: Focus.t, ~probe_id: Id.t, all: Id.Map.t(list(t))): below =>
-    Coordinated(
-      Id.Map.find_opt(probe_id, coordinated(~root=cursor.call_stack, all)),
-    );
+    Coordinated(Id.Map.find_opt(probe_id, coordinated(~cursor, all)));
 
   /* Find the sample most aligned with the sightline.
    *
@@ -879,10 +933,22 @@ module Selection = {
         samples: list(t),
       )
       : option(int) => {
-    let root_ids = CallStack.ids_of_stack(cursor.call_stack);
+    /* Coordinated callers align against the path cut at recursive
+       re-entry and skip shadowed samples; PerLine keeps the old reading. */
+    let path =
+      switch (below) {
+      | Coordinated(_) => alignment_path(cursor)
+      | PerLine => cursor.call_stack
+      };
+    let path_ids = CallStack.ids_of_stack(path);
     /* on the sightline: at or above its end, the top level included */
     let is_on_sightline = (s: t) =>
-      ListUtil.is_suffix_of(CallStack.ids_of_stack(s.call_stack), root_ids);
+      ListUtil.is_suffix_of(CallStack.ids_of_stack(s.call_stack), path_ids);
+    let is_shadowed = (~on: CallStack.t, s: t) =>
+      switch (below) {
+      | Coordinated(_) => shadowed(~path=on, s)
+      | PerLine => false
+      };
     let coordinated_pick =
       switch (below) {
       | Coordinated(pick) => by_ref(pick)
@@ -898,7 +964,8 @@ module Selection = {
                    ~eq=CallStack.equal_frame,
                    sample.call_stack,
                    stack,
-                 )) {
+                 )
+              && !is_shadowed(~on=stack, sample)) {
             Some((i, slen));
           } else {
             best;
@@ -930,7 +997,8 @@ module Selection = {
         /* off the sightline, only the coordinated choice decides */
         |> List.filter(((_, s)) =>
              switch (below) {
-             | Coordinated(_) => is_on_sightline(s)
+             | Coordinated(_) =>
+               is_on_sightline(s) && !is_shadowed(~on=path, s)
              | PerLine => true
              }
            )
@@ -951,7 +1019,7 @@ module Selection = {
       | Some(_) => effective_match
       | None =>
         switch (cursor.pinned_stack, cursor.pinned_span) {
-        | (None, None) => suffix_scan(cursor.call_stack)
+        | (None, None) => suffix_scan(path)
         | _ =>
           /* under a pin, a line below the sightline takes the coordinated
              choice before the pin's shallowest-candidate rule */
@@ -983,10 +1051,11 @@ module Selection = {
               switch (coordinated_pick) {
               | Some(_) as result => result
               | None =>
-                /* a sample on the sightline the suffix scans skip: the
-                   top level's empty stack. Off it (below, or in another
-                   branch), only the coordinated choice decides. */
-                List.find_index(is_on_sightline, samples)
+                /* the top level's empty stack, which the suffix scans
+                   skip; off the path (below it, in another branch, or
+                   shadowed by a deeper call), only the coordinated
+                   choice decides */
+                List.find_index((s: t) => s.call_stack == [], samples)
               }
             | PerLine =>
               let indirect = find(rel => rel.is_below_indicated_call != None);

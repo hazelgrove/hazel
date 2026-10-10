@@ -1430,7 +1430,105 @@ in
 let run = fun xs -> map(xs, classify) in
 run([-1, 0, 5])|};
 
+/* running_sum by recursion, with a map callback; probes on the parameter,
+   both arms and the callback body */
+let running_sum_map = {|let running_sum = fun (nums: [Int]) ->
+  case ^^probe(nums)
+  | [] => ^^probe([])
+  | x :: rest =>
+    ^^probe(x :: map(running_sum(rest), fun y ->
+      ^^probe(x + y)
+    ))
+  end
+in running_sum([1, 2, 3])|};
+
+/* the innermost call's stack: the parameter sample with the longest stack */
+let deepest = (ss: list(Sample.t)): Sample.t =>
+  List.fold_left(
+    (best: Sample.t, s: Sample.t) =>
+      List.length(s.call_stack) > List.length(best.call_stack) ? s : best,
+    List.hd(ss),
+    ss,
+  );
+
 let coordinated_below_tests = [
+  test_case(
+    "Focused on an inner recursive call, an outer call's lines do not show",
+    `Quick,
+    () => {
+      let all = get_probes_map(running_sum_map);
+      /* nums: 4 calls; [] arm: 1; cons arm: 3; callback body: 2 + 1 = 3 */
+      let nums = with_count(4, all);
+      /* the cons arm: three samples, each in a running_sum call only */
+      let only_running_sum = (s: Sample.t) =>
+        List.for_all(
+          (f: CallStack.frame) =>
+            switch (f.name) {
+            | Some(n) => String.starts_with(~prefix="running_sum", n)
+            | None => false
+            },
+          s.call_stack,
+        );
+      let cons =
+        Id.Map.bindings(all)
+        |> List.filter(((_, ss)) =>
+             List.length(ss) == 3 && List.for_all(only_running_sum, ss)
+           )
+        |> List.hd;
+      /* focus the innermost call, running_sum([]) */
+      let cursor = mk_cursor(deepest(snd(nums)).call_stack);
+      check(
+        bool,
+        "the cons arm did not run in running_sum([]): no sample",
+        true,
+        coordinated_pick(~cursor, all, cons) == None,
+      );
+      check(
+        bool,
+        "line by line, it showed the parent call's",
+        true,
+        per_line_pick(~cursor, cons) != None,
+      );
+    },
+  ),
+  test_case(
+    "Moved back up a recursion, the callback shows the outer call's",
+    `Quick,
+    () => {
+      let all = get_probes_map(running_sum_map);
+      let nums = with_count(4, all);
+      let nil = with_count(1, all);
+      let inner = deepest(snd(nums));
+      /* the path still runs down to running_sum([]); you are at the top */
+      let cursor = {
+        ...mk_cursor(inner.call_stack),
+        index: 0,
+      };
+      let outer_len = 1;
+      let callback =
+        Id.Map.bindings(all)
+        |> List.filter(((id, ss)) =>
+             List.length(ss) == 3 && !Id.equal(id, fst(nil))
+           )
+        |> List.map(((id, ss)) =>
+             (id, ss, coordinated_pick(~cursor, all, (id, ss)))
+           );
+      /* the callback body's pick sits in the outer call: exactly one
+         running_sum frame on its stack */
+      let picks =
+        List.filter_map(((_, _, pick)) => pick, callback)
+        |> List.filter((s: Sample.t) =>
+             List.length(s.call_stack) > outer_len + 1
+           );
+      check(bool, "the callback body shows a value", true, picks != []);
+      check(
+        bool,
+        "the [] arm (innermost call only): no sample",
+        true,
+        coordinated_pick(~cursor, all, nil) == None,
+      );
+    },
+  ),
   test_case(
     "The first call is the first one run, not the shallowest",
     `Quick,
