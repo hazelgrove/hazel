@@ -12,7 +12,7 @@ module Model = ScratchModel.Model;
      <prefix>:_meta  → slide_meta (current_index, names)
      <k>             → CellEditor.Model.persistent
      <k>:agent       → Agent.Persistent.t
-     <k>:caret, :pins, :view, :collapse, :probes → what the slide shows
+     <k>:side        → what the slide shows beyond its text
      <k>:items:…     → per-item slices and their roster (ItemPersist) */
 
 /* per-slide tables below key on this, never the bare name: a Scratch
@@ -41,113 +41,122 @@ type slide_meta = {
 let meta_key = (prefix: string): string => prefix ++ ":_meta";
 let agent_key = (prefix: string, name: string): string =>
   content_key(prefix, name) ++ ":agent";
-let caret_key = (prefix: string, name: string): string =>
-  prefix ++ ":" ++ name ++ ":caret";
-let pins_key = (prefix: string, name: string): string =>
-  prefix ++ ":" ++ name ++ ":pins";
-let collapse_key = (prefix: string, name: string): string =>
-  prefix ++ ":" ++ name ++ ":collapse";
-let probes_key = (prefix: string, name: string): string =>
-  prefix ++ ":" ++ name ++ ":probes";
 
-/* manual probes live in zippers, not segments, so the per-item store
-   can't carry them: they ride their own key */
-let last_saved_probes: Hashtbl.t(string, string) = Hashtbl.create(8);
+/* what a slide shows beyond its text: the caret (text saves lose it),
+   pins and zoom by outline label path, collapse, and manual probes (they
+   live in zippers, which the item store doesn't carry) */
+[@deriving sexp]
+type side = {
+  caret: option(Point.t),
+  pins: list((OutlineTree.path, bool)),
+  zoom: option(OutlineTree.path),
+  parked: bool,
+  collapse: list(OutlineTree.path),
+  probes: Refractors.RefractorList.t,
+};
 
-let write_probes =
-    (prefix: string, name: string, probes: Refractors.RefractorList.t): unit => {
-  let key = probes_key(prefix, name);
-  let s = Sexplib.Sexp.to_string(Refractors.RefractorList.sexp_of_t(probes));
-  if (Hashtbl.find_opt(last_saved_probes, key) != Some(s)) {
-    Hashtbl.replace(last_saved_probes, key, s);
-    HazelDB.kv_save(key, s);
+let side_key = (prefix: string, name: string): string =>
+  content_key(prefix, name) ++ ":side";
+
+/* the keys :side replaced, read while it is missing */
+let legacy_suffixes = [":caret", ":pins", ":view", ":collapse", ":probes"];
+[@deriving of_sexp]
+type legacy_pin = {
+  pin_path: OutlineTree.path,
+  pin_run: bool,
+};
+[@deriving of_sexp]
+type legacy_view = {
+  vf_zoom: option(OutlineTree.path),
+  vf_parked: bool,
+};
+
+let read_side = (prefix: string, name: string): side =>
+  switch (HazelDB.kv_get_sexp(side_key(prefix, name), side_of_sexp)) {
+  | Some(side) => side
+  | None =>
+    let ck = content_key(prefix, name);
+    let get = (suffix, of_sexp, default) =>
+      HazelDB.kv_get_sexp(ck ++ suffix, of_sexp) |> Option.value(~default);
+    let view = HazelDB.kv_get_sexp(ck ++ ":view", legacy_view_of_sexp);
+    {
+      caret:
+        Option.bind(HazelDB.kv_get(ck ++ ":caret"), txt =>
+          Scanf.sscanf_opt(txt, " %d %d", (row, col) => Point.mk(~row, ~col))
+        ),
+      pins:
+        get(":pins", list_of_sexp(legacy_pin_of_sexp), [])
+        |> List.map(p => (p.pin_path, p.pin_run)),
+      zoom: Option.bind(view, v => v.vf_zoom),
+      parked: Option.fold(~none=false, ~some=v => v.vf_parked, view),
+      collapse: get(":collapse", list_of_sexp(OutlineTree.path_of_sexp), []),
+      probes: get(":probes", Refractors.RefractorList.t_of_sexp, []),
+    };
+  };
+
+/* the last side record written per slide: the next write's base (what it
+   doesn't update carries over) and its change gate */
+let last_side: Hashtbl.t(string, (side, string)) = Hashtbl.create(8);
+
+let write_side = (prefix: string, name: string, update: side => side): unit => {
+  let ck = content_key(prefix, name);
+  let (prev, prev_s) =
+    switch (Hashtbl.find_opt(last_side, ck)) {
+    | Some(last) => last
+    | None => (read_side(prefix, name), "")
+    };
+  let side = update(prev);
+  let s = Sexplib.Sexp.to_string(sexp_of_side(side));
+  if (s != prev_s) {
+    Hashtbl.replace(last_side, ck, (side, s));
+    HazelDB.kv_batch(() => {
+      HazelDB.kv_save(side_key(prefix, name), s);
+      List.iter(
+        suffix =>
+          if (HazelDB.kv_get(ck ++ suffix) != None) {
+            HazelDB.kv_remove(ck ++ suffix);
+          },
+        legacy_suffixes,
+      );
+    });
   };
 };
 
 /* the stored probes whose anchors are still in [seg] */
 let read_probes =
-    (prefix: string, name: string, seg: Segment.t): Refractors.RefractorList.t =>
-  switch (HazelDB.kv_get(probes_key(prefix, name))) {
-  | None => []
-  | Some(s) =>
-    switch (Refractors.RefractorList.t_of_sexp(Sexplib.Sexp.of_string(s))) {
-    | exception _ => []
-    | probes =>
-      let present = Segment.ids(seg);
-      List.filter(((id, _)) => List.mem(id, present), probes);
-    }
-  };
+    (prefix: string, name: string, seg: Segment.t): Refractors.RefractorList.t => {
+  let present = Segment.ids(seg);
+  List.filter(
+    ((id, _)) => List.mem(id, present),
+    read_side(prefix, name).probes,
+  );
+};
 
-/* restores awaiting hydration, per slide; a read_* that finds nothing
+/* restores awaiting hydration, per slide; a load that finds nothing
    clears its entry, so no leftover survives a failed read */
 let pending_caret: Hashtbl.t(string, Point.t) = Hashtbl.create(8);
-/* a slide's saved view, by outline label path */
-type saved_view = {
-  sv_pins: list((OutlineTree.path, bool)),
-  sv_zoom: option(OutlineTree.path),
-  sv_parked: bool,
-};
-let pending_pins: Hashtbl.t(string, saved_view) = Hashtbl.create(8);
+let pending_pins: Hashtbl.t(string, side) = Hashtbl.create(8);
 
-/* pins and collapse store as sexps, as labels are arbitrary program text */
-[@deriving sexp]
-type pin_rec = {
-  pin_path: OutlineTree.path,
-  pin_run: bool,
-};
-[@deriving sexp]
-type pins_file = list(pin_rec);
-[@deriving sexp]
-type collapse_file = list(OutlineTree.path);
-/* zoom and parked ride their own key beside the pins */
-[@deriving sexp]
-type view_file = {
-  vf_zoom: option(OutlineTree.path),
-  vf_parked: bool,
-};
-
-let view_key = (prefix: string, name: string): string =>
-  prefix ++ ":" ++ name ++ ":view";
-
-let read_pins = (prefix: string, name: string): unit => {
-  let decode = (txt: string): list((OutlineTree.path, bool)) =>
-    switch (pins_file_of_sexp(Sexplib.Sexp.of_string(txt))) {
-    | pins => List.map(p => (p.pin_path, p.pin_run), pins)
-    | exception _ => []
-    };
-  let pins =
-    switch (HazelDB.kv_get(pins_key(prefix, name))) {
-    | Some(txt) => decode(txt)
-    | None => []
-    };
-  let (zoom, parked) =
-    switch (
-      HazelDB.kv_get(view_key(prefix, name))
-      |> Option.map(txt => view_file_of_sexp(Sexplib.Sexp.of_string(txt)))
-    ) {
-    | Some(vf) => (vf.vf_zoom, vf.vf_parked)
-    | None
-    | exception _ => (None, false)
-    };
+let stage_side = (prefix: string, name: string): unit => {
   let ck = content_key(prefix, name);
-  pins == [] && zoom == None
+  let side = read_side(prefix, name);
+  switch (side.caret) {
+  | Some(p) => Hashtbl.replace(pending_caret, ck, p)
+  | None => Hashtbl.remove(pending_caret, ck)
+  };
+  side.pins == [] && side.zoom == None
     ? Hashtbl.remove(pending_pins, ck)
-    : Hashtbl.replace(
-        pending_pins,
-        ck,
-        {
-          sv_pins: pins,
-          sv_zoom: zoom,
-          sv_parked: parked,
-        },
-      );
+    : Hashtbl.replace(pending_pins, ck, side);
+  side.collapse == []
+    ? Hashtbl.remove(slide_collapse, ck)
+    : Hashtbl.replace(slide_collapse, ck, side.collapse);
 };
 
 /* the saved view against the loaded program's outline */
-let resolve_view = (saved: saved_view, term: Language.Exp.t): SlideView.t => {
+let resolve_view = (saved: side, term: Language.Exp.t): SlideView.t => {
   zoom:
     switch (
-      Option.bind(saved.sv_zoom, path => OutlineTree.resolve_path(path, term))
+      Option.bind(saved.zoom, path => OutlineTree.resolve_path(path, term))
     ) {
     | Some(m) => OutlineTree.trail_of(m, term) |> Option.value(~default=[])
     | None => []
@@ -162,96 +171,18 @@ let resolve_view = (saved: saved_view, term: Language.Exp.t): SlideView.t => {
                p_run: run,
              }
            ),
-      saved.sv_pins,
+      saved.pins,
     ),
-  parked: saved.sv_parked,
-};
-
-let read_collapse = (prefix: string, name: string): unit => {
-  let ck = content_key(prefix, name);
-  let decode = (txt: string): list(OutlineTree.path) =>
-    switch (collapse_file_of_sexp(Sexplib.Sexp.of_string(txt))) {
-    | paths => paths
-    | exception _ => []
-    };
-  switch (HazelDB.kv_get(collapse_key(prefix, name)) |> Option.map(decode)) {
-  | Some([]) => Hashtbl.remove(slide_collapse, ck)
-  | Some(paths) => Hashtbl.replace(slide_collapse, ck, paths)
-  | None => Hashtbl.remove(slide_collapse, ck)
-  };
+  parked: saved.parked,
 };
 
 let write_collapse = (prefix: string, name: string): unit =>
-  HazelDB.kv_save(
-    collapse_key(prefix, name),
-    collapse_paths(prefix, name)
-    |> sexp_of_collapse_file
-    |> Sexplib.Sexp.to_string,
-  );
-
-let last_saved_view: Hashtbl.t(string, string) = Hashtbl.create(8);
-let save_if_changed = (key: string, s: string): unit =>
-  if (Hashtbl.find_opt(last_saved_view, key) != Some(s)) {
-    Hashtbl.replace(last_saved_view, key, s);
-    HazelDB.kv_save(key, s);
-  };
-
-let write_view =
-    (prefix: string, name: string, view: SlideView.t, term: Language.Exp.t)
-    : unit => {
-  save_if_changed(
-    pins_key(prefix, name),
-    view.pins
-    |> List.filter_map((p: SlideView.pin) =>
-         OutlineTree.label_path(p.p_id, term)
-         |> Option.map(pin_path =>
-              {
-                pin_path,
-                pin_run: p.p_run,
-              }
-            )
-       )
-    |> sexp_of_pins_file
-    |> Sexplib.Sexp.to_string,
-  );
-  save_if_changed(
-    view_key(prefix, name),
+  write_side(prefix, name, side =>
     {
-      vf_zoom:
-        Option.bind(SlideView.zoom_root(view), m =>
-          OutlineTree.label_path(m, term)
-        ),
-      vf_parked: view.parked,
+      ...side,
+      collapse: collapse_paths(prefix, name),
     }
-    |> sexp_of_view_file
-    |> Sexplib.Sexp.to_string,
   );
-};
-
-let read_caret = (prefix: string, name: string): unit => {
-  let ck = content_key(prefix, name);
-  switch (
-    Option.map(
-      txt => String.split_on_char(' ', String.trim(txt)),
-      HazelDB.kv_get(caret_key(prefix, name)),
-    )
-  ) {
-  | Some([r, c]) =>
-    switch (int_of_string_opt(r), int_of_string_opt(c)) {
-    | (Some(row), Some(col)) =>
-      Hashtbl.replace(
-        pending_caret,
-        ck,
-        Point.{
-          row,
-          col,
-        },
-      )
-    | _ => Hashtbl.remove(pending_caret, ck)
-    }
-  | _ => Hashtbl.remove(pending_caret, ck)
-  };
-};
 
 let save_meta = (prefix: string, m: slide_meta): unit =>
   HazelDB.kv_save_sexp(meta_key(prefix), sexp_of_slide_meta, m);
@@ -311,7 +242,7 @@ let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
 
 /* the same gate for the editor blob, so an idle autosave serializes
    nothing: the zipper's content, or a divided program's cells' (caret
-   moves count, for the caret side key) */
+   moves count, for the saved caret) */
 type save_stamp =
   | Unstacked(Zipper.t)
   | Stacked(Divided.t);
@@ -348,14 +279,7 @@ let save_items = (prefix: string, name: string, z: Zipper.t): unit => {
 
 /* the keys a slide owns, exactly: its content key, its side keys, its item
    store. a name may itself contain `:`, so no prefix match */
-let side_suffixes = [
-  ":agent",
-  ":caret",
-  ":pins",
-  ":view",
-  ":collapse",
-  ":probes",
-];
+let side_suffixes = [":agent", ":side", ...legacy_suffixes];
 let slide_suffix = (ck: string, k: string): option(string) => {
   let n = String.length(ck);
   if (k == ck) {
@@ -380,8 +304,7 @@ let forget_gates = (ck: string): unit => {
       [],
     )
     |> List.iter(Hashtbl.remove(tbl));
-  drop(last_saved_probes);
-  drop(last_saved_view);
+  drop(last_side);
   drop(last_saved_agent);
   drop(last_agent_save_ts);
   drop(last_saved_content);
@@ -473,22 +396,6 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       Hashtbl.replace(last_saved_content, ck, stamp);
     };
     if (!content_unchanged) {
-      /* whole programs save as text too (zipper sexps are slow), so the
-         caret saves as a (row col) side key, restored after hydration */
-      switch (program) {
-      | Divided(_) => ()
-      | Whole(editor) =>
-        let z = editor.editor.editor.state.zipper;
-        switch (Zipper.Caret.point(editor.editor.editor.syntax.measured, z)) {
-        | exception _ => ()
-        | Point.{row, col} =>
-          HazelDB.kv_save(
-            caret_key(prefix, sp.name),
-            string_of_int(row) ++ " " ++ string_of_int(col),
-          )
-        };
-      };
-      write_probes(prefix, sp.name, Program.probes(program));
       switch (program) {
       | Divided(d) =>
         save_items(prefix, sp.name, Divided.document(d) |> Zipper.unzip)
@@ -527,8 +434,43 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         }),
       );
     };
-    /* the view can change without the text (a parked pin dropped) */
-    write_view(prefix, sp.name, view, Program.statics(program).term);
+    let term = Program.statics(program).term;
+    write_side(prefix, sp.name, side =>
+      {
+        caret:
+          switch (program) {
+          /* whole programs save as text too (zipper sexps are slow), so
+             the caret is restored after hydration */
+          | Whole(editor) when !content_unchanged =>
+            try(
+              Some(
+                Zipper.Caret.point(
+                  editor.editor.editor.syntax.measured,
+                  editor.editor.editor.state.zipper,
+                ),
+              )
+            ) {
+            | _ => side.caret
+            }
+          | _ => side.caret
+          },
+        probes: content_unchanged ? side.probes : Program.probes(program),
+        /* the view can change without the text (a parked pin dropped) */
+        pins:
+          List.filter_map(
+            (p: SlideView.pin) =>
+              OutlineTree.label_path(p.p_id, term)
+              |> Option.map(path => (path, p.p_run)),
+            view.pins,
+          ),
+        zoom:
+          Option.bind(SlideView.zoom_root(view), m =>
+            OutlineTree.label_path(m, term)
+          ),
+        parked: view.parked,
+        collapse: side.collapse,
+      }
+    );
     /* the agent model changes on every streamed chunk, so a physical
        equality gate saved (and serialized, several MB) many times a
        second while the model spoke; gate on the fields that persist */
@@ -575,9 +517,7 @@ let save_current = (prefix: string, model: Model.t): unit =>
   HazelDB.kv_batch(() => save_current'(prefix, model));
 
 let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t => {
-  read_caret(prefix, name);
-  read_pins(prefix, name);
-  read_collapse(prefix, name);
+  stage_side(prefix, name);
   switch (load_slide_kind(prefix, name)) {
   | Some(CodePersist({editor: e, agent})) =>
     let agent =
