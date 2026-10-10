@@ -515,15 +515,8 @@ let update_probe_fires_once = () => {
   );
 };
 
-/* The commit path's product: the redex term must print to text that
-   reparses and evaluates to the same transition */
-let redex_roundtrip = () => {
-  let redex =
-    UserLivelit.mk_update_redex(
-      ~name="dbl",
-      ~model_value=parse_exp("3"),
-      ~action=parse_exp("9"),
-    );
+/* A committed term as the program text shows it */
+let commit_text = (redex: Exp.t): string => {
   let seg =
     Haz3lcore.ExpToSegment.any_to_segment(
       ~settings={
@@ -539,11 +532,73 @@ let redex_roundtrip = () => {
       },
       Exp(redex),
     );
-  let text = Haz3lcore.Printer.of_segment(~holes="?", ~indent="", seg);
+  Haz3lcore.Printer.of_segment(~holes="?", ~indent="", seg);
+};
+
+/* The commit path's product: the redex term must print to text that
+   reparses and evaluates to the same transition */
+let redex_roundtrip = () => {
+  let text =
+    commit_text(
+      UserLivelit.mk_update_redex(
+        ~name="dbl",
+        ~model_value=parse_exp("3"),
+        ~action=parse_exp("9"),
+      ),
+    );
   run_test(
     "committed transition text round-trips: " ++ text,
     "18",
     "let ^dbl = " ++ dbl_module ++ " in ^dbl(" ++ text ++ ")",
+  );
+};
+
+/* Clicks faster than evaluation (Views › Toggle): an action on a model
+   whose last commit has no value yet commits a redex over that commit.
+   Updating the commit at event time instead comes back stuck (^sum is
+   free outside the program), and that stuck term was committed. */
+let update_over_pending_commit = () => {
+  let sum = "{
+let init = 0;
+let update = fun (m, a) -> m + a;
+let view = fun m -> Text(string_of_int(m));
+let expand = fun m -> m
+}";
+  let pending =
+    UserLivelit.mk_update_redex(
+      ~name="sum",
+      ~model_value=parse_exp("3"),
+      ~action=parse_exp("4"),
+    );
+  switch (
+    Haz3lcore.LivelitProj.update_redex(
+      ~ll_name="sum",
+      ~base_value=None,
+      ~model=pending,
+      parse_exp("5"),
+    )
+  ) {
+  | None => fail("no redex over the pending commit")
+  | Some(redex) =>
+    let text = commit_text(redex);
+    run_test(
+      "a redex over the pending commit: " ++ text,
+      "12",
+      "let ^sum = " ++ sum ++ " in ^sum(" ++ text ++ ")",
+    );
+  };
+  /* a model that is already a value: the update's result commits */
+  check(
+    bool,
+    "no redex over a literal",
+    true,
+    Haz3lcore.LivelitProj.update_redex(
+      ~ll_name="sum",
+      ~base_value=None,
+      ~model=parse_exp("3"),
+      parse_exp("5"),
+    )
+    == None,
   );
 };
 
@@ -1163,6 +1218,11 @@ let tests = [
       test_case("redex as model", `Quick, redex_as_model),
       test_case("update probe fires once", `Quick, update_probe_fires_once),
       test_case("redex round-trips", `Quick, redex_roundtrip),
+      test_case(
+        "an action on a pending commit",
+        `Quick,
+        update_over_pending_commit,
+      ),
       test_case(
         "sampled handlers are closed",
         `Quick,

@@ -23,6 +23,36 @@ let commit_decision =
       ] =>
   MvuShape.is_checkpointable(new_model) ? `Commit : `Ephemeral;
 
+/* The update redex an action commits, `^name.update(model, action)`: over
+   the newest model value, or, while the syntax model is a commit still
+   evaluating (`^toggle.update(true, Flip)`, no value yet), over that
+   term. Updating the term here instead would come back stuck (its ^name
+   is free outside the program) and commit `!^toggle.update(true, Flip)`. */
+let update_redex =
+    (
+      ~ll_name: string,
+      ~base_value: option(TermBase.Exp.t),
+      ~model: TermBase.Exp.t,
+      action: TermBase.Exp.t,
+    )
+    : option(TermBase.Exp.t) => {
+  let over = mv =>
+    MvuShape.is_checkpointable(mv) && MvuShape.is_checkpointable(action)
+      ? Some(
+          UserLivelit.mk_update_redex(
+            ~name=ll_name,
+            ~model_value=mv,
+            ~action,
+          ),
+        )
+      : None;
+  switch (base_value) {
+  | Some(mv) => over(mv)
+  | None when !MvuShape.is_settled(model) => over(model)
+  | None => None
+  };
+};
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -333,24 +363,10 @@ module M: Projector = {
       | None => model_value
       };
     let base = Option.value(base_value, ~default=model);
-    /* What goes in the syntax: the update redex when the base model is a
-       committable value (keeps the interaction visible to probes and the
-       stepper), independent of whether the optimistic path succeeds. */
-    let redex =
-      switch (base_value) {
-      | Some(mv)
-          when
-            MvuShape.is_checkpointable(mv)
-            && MvuShape.is_checkpointable(action) =>
-        Some(
-          UserLivelit.mk_update_redex(
-            ~name=ll_name,
-            ~model_value=mv,
-            ~action,
-          ),
-        )
-      | _ => None
-      };
+    /* What goes in the syntax: the update redex (keeps the interaction
+       visible to probes and the stepper), independent of whether the
+       optimistic path succeeds. */
+    let redex = update_redex(~ll_name, ~base_value, ~model, action);
     /* ~committed=None: an ephemeral store — the syntax is not changing
        (uncommittable model), so like a transient event it leaves the
        set of "ours" syntax states alone. */
@@ -366,7 +382,9 @@ module M: Projector = {
             ),
           )
         ) {
-        | Ok(html) when MvuShape.is_html(html) =>
+        /* a stuck view (over a model with no value yet) is no newer
+           truth to draw: drop the entry and wait for the sample */
+        | Ok(html) when MvuShape.is_html(html) && MvuShape.is_settled(html) =>
           let prior = Hashtbl.find_opt(optimistic, id);
           /* Transient and ephemeral events change nothing in the syntax,
              so the set of syntax states that count as "ours" is
@@ -630,8 +648,11 @@ module M: Projector = {
             )
           ) {
           | Error(e) => err("livelit view error: " ++ e)
-          | Ok(html) when MvuShape.is_html(html) =>
+          | Ok(html)
+              when MvuShape.is_html(html) && MvuShape.is_settled(html) =>
             ok(HazelDOM.go(seed(~model, ~model_value), html))
+          /* stuck: a committed update still evaluating (its ^name is free
+             here) draws as the last good view, pending */
           | Ok(_) => err("livelit view did not produce HTML")
           }
         }
