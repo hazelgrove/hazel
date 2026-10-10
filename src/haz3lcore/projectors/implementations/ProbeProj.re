@@ -1764,8 +1764,8 @@ let sample_view =
         };
       !(hide_env && ctx.ap_id == None) || sample.call_stack != [] || has_rich;
     };
-  /* `indicated-sample` marks the most-aligned sample, the DOM anchor
-   * SampleAnchor uses to compensate scroll on Left/Right.
+  /* `indicated-sample` marks the most-aligned sample, SampleAnchor's
+   * fallback target on Left/Right.
    * NB: samples are deliberately NOT `menu-trigger` — that would exempt them
    * from click-outside dismissal and break closing a dropdown by clicking
    * another sample; the opening click is protected by the listener instead. */
@@ -1901,7 +1901,7 @@ let move_cursor = (ctx: probe_ctx, offset: int) => {
     if (next_idx_maybe >= 0 && next_idx_maybe < List.length(samples)) {
       let sample = List.nth(samples, next_idx_maybe);
       Settings.close_view_list();
-      /* Anchor scroll only when the indication actually moves (an arrow at
+      /* Follow only when the indication actually moves (an arrow at
        * the ends is a no-op), scoped to this probe+sample. */
       SampleAnchor.capture(~scope=Id.cls(ctx.id), ~sample_id=sample.id, ());
       parent(

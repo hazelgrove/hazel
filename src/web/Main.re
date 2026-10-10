@@ -304,13 +304,33 @@ let start = default_model => {
           ~font_metrics,
           ~visible_rows=model.model.current.current.globals.visible_rows,
         );
+        /* Drawers reflow in the cell being worked in, which in multi-cell
+           views (tutorials, exercises) need not be get_editor's fixed one;
+           the key names the cell so switching cells rebaselines. */
+        let page = model.model.current.current;
+        let (shift_key, shift_editor) =
+          switch (
+            Editors.Selection.get_cursor_info(
+              ~inject=_ => Ui_effect.Ignore,
+              ~selection=page.selection,
+              page.editors,
+            ).
+              editor
+          ) {
+          | Some(e) => (
+              Editors.Model.editor_key(page.editors)
+              ++ "/"
+              ++ Editors.Selection.show(page.selection),
+              e,
+            )
+          | None => (Editors.Model.editor_key(page.editors), editor)
+          };
         RefractorShift.update(
-          ~editor_key=
-            Editors.Model.editor_key(model.model.current.current.editors),
+          ~editor_key=shift_key,
           ~font_metrics,
-          ~refractor_rows=editor.syntax.refractor_rows,
-          ~measured,
-          zipper,
+          ~refractor_rows=shift_editor.syntax.refractor_rows,
+          ~measured=shift_editor.syntax.measured,
+          shift_editor.state.zipper,
         );
         /* stagger multi-row offside displays clear of code and of each
            other (top-down priority, first-fit), per code container */
