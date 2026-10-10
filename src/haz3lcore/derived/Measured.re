@@ -27,11 +27,6 @@ module Rows = {
   };
   type t = IntMap.t(shape);
 
-  let min_content_start = (rs: list(row), map: t) =>
-    rs
-    |> List.map(r => find(r, map).content_start)
-    |> List.fold_left(min, Int.max_int);
-
   let max_content_end = (rs: list(row), map: t) =>
     rs |> List.map(r => find(r, map).content_end) |> List.fold_left(max, 0);
 };
@@ -130,27 +125,8 @@ let add_empty_piece_rows = map => {
 let rec add_n_empty_piece_rows = (n: int, map) =>
   n <= 0 ? map : add_n_empty_piece_rows(n - 1, add_empty_piece_rows(map));
 
-let find_shards_flat = (~msg="", t: Tile.t, map) =>
-  try(Id.Map.find(t.id, map.tiles)) {
-  | _ => failwith("find_shards: " ++ msg)
-  };
-let find_w_flat = (~msg="", w: Secondary.t, map: flat): measurement =>
-  try(Id.Map.find(w.id, map.secondary)) {
-  | _ => failwith("find_w: " ++ msg)
-  };
-let find_g_flat = (~msg="", g: Grout.t, map: flat): measurement =>
-  try(Id.Map.find(g.id, map.grout)) {
-  | _ => failwith("find_g: " ++ msg)
-  };
-let find_pr_flat = (~msg="", p: Base.projector, map: flat): measurement =>
-  try(Id.Map.find(p.id, map.projectors)) {
-  | _ => failwith("find_g: " ++ msg)
-  };
-let find_pr_opt_flat = (p: Base.projector, map: flat): option(measurement) =>
-  Id.Map.find_opt(p.id, map.projectors);
 // returns the measurement spanning the whole tile
-let find_t_flat = (t: Tile.t, map: flat): measurement => {
-  let shards = find_shards_flat(t, map);
+let tile_span = (t: Tile.t, shards: Shards.t): measurement => {
   let (first, last) =
     try({
       let first = ListUtil.assoc_err(Tile.l_shard(t), shards, "find_t");
@@ -164,18 +140,6 @@ let find_t_flat = (t: Tile.t, map: flat): measurement => {
     last: last.last,
   };
 };
-let find_p_flat = (~msg="", p: Piece.t, map: flat): measurement =>
-  try(
-    p
-    |> Piece.get(
-         w => find_w_flat(w, map),
-         g => find_g_flat(g, map),
-         t => find_t_flat(t, map),
-         p => find_pr_flat(p, map),
-       )
-  ) {
-  | _ => failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
-  };
 
 let find_by_id_flat = (id: Id.t, map: flat): option(measurement) => {
   switch (Id.Map.find_opt(id, map.secondary)) {
@@ -198,16 +162,7 @@ let find_by_id_flat = (id: Id.t, map: flat): option(measurement) => {
           origin: first.origin,
           last: last.last,
         });
-      | None =>
-        switch (Id.Map.find_opt(id, map.projectors)) {
-        | Some(m) => Some(m)
-        | None =>
-          Printf.printf(
-            "Measured.WARNING: id %s not found",
-            Id.to_string(id),
-          );
-          None;
-        }
+      | None => Id.Map.find_opt(id, map.projectors)
       }
     }
   };
@@ -589,40 +544,55 @@ let chunk_for_row = (row: int, m: t): option(chunk) => {
 
 /* ---- public accessors (chunk-translated) ---- */
 
-let find_shards = (~msg="", t: Tile.t, m: t) =>
-  switch (chunk_for_id(t.id, m)) {
-  | Some(ch) =>
-    find_shards_flat(~msg, t, ch.c_flat)
-    |> List.map(((i, meas)) => (i, shift_m(ch.c_start, meas)))
-  | None => failwith("find_shards: " ++ msg)
-  };
+let shift_shards = (s: int, shards: Shards.t): Shards.t =>
+  List.map(((i, meas)) => (i, shift_m(s, meas)), shards);
 
-let find_w = (~msg="", w: Secondary.t, m: t): measurement =>
-  switch (chunk_for_id(w.id, m)) {
-  | Some(ch) => shift_m(ch.c_start, find_w_flat(~msg, w, ch.c_flat))
-  | None => failwith("find_w: " ++ msg)
-  };
-let find_g = (~msg="", g: Grout.t, m: t): measurement =>
-  switch (chunk_for_id(g.id, m)) {
-  | Some(ch) => shift_m(ch.c_start, find_g_flat(~msg, g, ch.c_flat))
-  | None => failwith("find_g: " ++ msg)
-  };
-let find_pr = (~msg="", p: Base.projector, m: t): measurement =>
-  switch (chunk_for_id(p.id, m)) {
-  | Some(ch) => shift_m(ch.c_start, find_pr_flat(~msg, p, ch.c_flat))
-  | None => failwith("find_pr: " ++ msg)
-  };
-let find_pr_opt = (p: Base.projector, m: t): option(measurement) =>
-  switch (chunk_for_id(p.id, m)) {
+/* [id]'s binding in one of its chunk's maps, in absolute rows */
+let find_in =
+    (field: flat => Id.Map.t('a), shift: (int, 'a) => 'b, id: Id.t, m: t)
+    : option('b) =>
+  switch (chunk_for_id(id, m)) {
   | Some(ch) =>
-    find_pr_opt_flat(p, ch.c_flat) |> Option.map(shift_m(ch.c_start))
+    Id.Map.find_opt(id, field(ch.c_flat)) |> Option.map(shift(ch.c_start))
   | None => None
   };
+
+let or_fail = (what: string, msg: string, found: option('a)): 'a =>
+  switch (found) {
+  | Some(x) => x
+  | None => failwith(what ++ ": " ++ msg)
+  };
+
+let find_shards_by_id = (id: Id.t, m: t): option(Shards.t) =>
+  find_in(f => f.tiles, shift_shards, id, m);
+let find_shards = (~msg="", t: Tile.t, m: t): Shards.t =>
+  or_fail("find_shards", msg, find_shards_by_id(t.id, m));
+let find_w = (~msg="", w: Secondary.t, m: t): measurement =>
+  or_fail("find_w", msg, find_in(f => f.secondary, shift_m, w.id, m));
+let find_g = (~msg="", g: Grout.t, m: t): measurement =>
+  or_fail("find_g", msg, find_in(f => f.grout, shift_m, g.id, m));
+let find_pr_opt = (p: Base.projector, m: t): option(measurement) =>
+  find_in(f => f.projectors, shift_m, p.id, m);
+let find_pr = (~msg="", p: Base.projector, m: t): measurement =>
+  or_fail("find_pr", msg, find_pr_opt(p, m));
 let find_p = (~msg="", p: Piece.t, m: t): measurement =>
-  switch (chunk_for_id(Piece.id(p), m)) {
-  | Some(ch) => shift_m(ch.c_start, find_p_flat(~msg, p, ch.c_flat))
-  | None =>
-    failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
+  try(
+    p
+    |> Piece.get(
+         w => find_w(w, m),
+         g => find_g(g, m),
+         t =>
+           find_in(
+             f => f.tiles,
+             (s, sh) => shift_m(s, tile_span(t, sh)),
+             t.id,
+             m,
+           )
+           |> or_fail("find_t", msg),
+         p => find_pr(p, m),
+       )
+  ) {
+  | _ => failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
   };
 let find_by_id = (id: Id.t, m: t): option(measurement) =>
   switch (chunk_for_id(id, m)) {
@@ -631,14 +601,6 @@ let find_by_id = (id: Id.t, m: t): option(measurement) =>
   | None =>
     Printf.printf("Measured.WARNING: id %s not found", Id.to_string(id));
     None;
-  };
-
-let find_shards_by_id = (id: Id.t, m: t): option(Shards.t) =>
-  switch (chunk_for_id(id, m)) {
-  | Some(ch) =>
-    Id.Map.find_opt(id, ch.c_flat.tiles)
-    |> Option.map(List.map(((i, meas)) => (i, shift_m(ch.c_start, meas))))
-  | None => None
   };
 
 let row_shape = (row: int, m: t): option(Rows.shape) =>
