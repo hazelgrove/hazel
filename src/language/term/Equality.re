@@ -93,8 +93,21 @@ type settings = {
   env2: option(Environment.t(Exp.t)) // The environment to look up variables on the right in
 };
 
+/* Whether every renaming in scope maps a name to itself, as when a term
+   is compared with a copy of itself: then two identical subterms are
+   equal. Under a real renaming (x to y) they may not be. */
+let identity_alphas = (alphas: Alphas.t): bool =>
+  List.for_all(((a, b)) => a == b, alphas);
+
+/* ~hash_shortcut: two subterms built the same way, by their Merkle hashes
+   (Util.ValueHash), are equal without being walked, under identity
+   renamings. A comparison of a term with a copy of it that differs in one
+   place then visits only the path to that place. For comparisons that
+   are mostly of near-copies, like the eval worker's reuse check.
+   Off when the settings carry environments or a free-variable handler. */
 let equality =
     (
+      ~hash_shortcut=false,
       {
         type_alpha,
         exp_alpha,
@@ -122,11 +135,23 @@ let equality =
   } else {
     ();
   };
+  /* Identical terms are equal only when both sides are read alike: no
+     environments to look free variables up in, and no handler deciding
+     them. */
+  let hash_shortcut =
+    hash_shortcut
+    && Option.is_none(env1)
+    && Option.is_none(env2)
+    && Option.is_none(free_var_handler);
 
   let rec exp =
           (alphas_exp: Alphas.t, alphas_typ: Alphas.t, e1: Exp.t, e2: Exp.t) =>
-    /* Short-circuit: physical equality */
-    if (e1 === e2) {
+    /* Short-circuit: physical equality, or the same build by hash */
+    if (e1 === e2
+        || hash_shortcut
+        && Util.ValueHash.same(e1, e2)
+        && identity_alphas(alphas_exp)
+        && identity_alphas(alphas_typ)) {
       true;
     } else {
       let exp' = exp(alphas_exp, alphas_typ);
@@ -668,8 +693,12 @@ let equality =
   }
   and typ =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool =>
-    /* Short-circuit: physical equality */
-    if (t1 === t2) {
+    /* Short-circuit: physical equality, or the same build by hash */
+    if (t1 === t2
+        || hash_shortcut
+        && Util.ValueHash.same(t1, t2)
+        && identity_alphas(alphas_exp)
+        && identity_alphas(alphas_typ)) {
       true;
     } else {
       // This function takes alphas_exp for the theorem keyword branches which have expressions in types.

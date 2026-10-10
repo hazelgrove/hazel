@@ -64,6 +64,20 @@ let fast_equal =
   ).
     exp;
 let equal = fast_equal;
+/* fast_equal, with Equality's hash shortcut: for comparing a term with a
+   near-copy, where identical subterms are recognized without a walk. */
+let fast_equal_hashed =
+  Equality.(
+    equality(
+      ~hash_shortcut=true,
+      {
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_projectors: true,
+      },
+    )
+  ).
+    exp;
 
 /* In-order trace of annotation lexemes. Paired with fast_equal (which
    guarantees aligned structure), comparing traces detects lexeme-only
