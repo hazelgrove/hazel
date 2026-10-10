@@ -49,11 +49,28 @@ let resolve_override =
  * The projector's [init] may optionally return a replacement for the
  * underlying syntax (e.g. to wrap list items in splices); see
  * ProjectorBase.init_override. */
+/* A projector showing its own syntax holds it as one splice, so its
+   sub-editor can edit it (see ProjectorBase.show_syntax): the one way into a
+   projector's syntax is through a splice. A splice prints as its content, so
+   the invoke token's `_syntax` is what re-makes it when text is loaded. */
+let spliced = (syntax: syntax): syntax =>
+  switch (syntax) {
+  | [Splice(_)] => syntax
+  | _ => [Piece.mk_splice(syntax)]
+  };
+
+let unspliced = (syntax: syntax): syntax =>
+  switch (syntax) {
+  | [Splice({content, _})] => content
+  | _ => syntax
+  };
+
 let init =
     (
       kind: ProjectorCore.Kind.t,
       syntax: syntax,
       ~placement=ProjectorCore.Placement.Inline,
+      ~show_syntax=false,
       any: Language.Any.t,
     )
     : option(Base.piece) => {
@@ -65,7 +82,12 @@ let init =
        (e.g. wrapping list items in splices); placement is the livelit
        side's, saying whether the projector renders inline or docks. */
     let syntax = resolve_override(syntax, override);
-    Some(Projector(ProjectorCore.mk(~placement, kind, syntax, model)));
+    let syntax = show_syntax ? spliced(syntax) : syntax;
+    Some(
+      Projector(
+        ProjectorCore.mk(~placement, ~show_syntax, kind, syntax, model),
+      ),
+    );
   };
 };
 

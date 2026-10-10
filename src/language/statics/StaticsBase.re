@@ -273,9 +273,9 @@ let subsume = (~coercible, ctx: Ctx.t, ana: Typ.t, syn: Typ.t): option(Typ.t) =>
 /* Type after hole fixing: best type consistent with analysis expectation and
    statics synthetic type. On failure, prefer syn under synthesis and ana
    under analysis. */
-let fixed_typ =
-    (~coercible=false, ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
-  switch (subsume(~coercible, ctx, ana, elab_syn_ty)) {
+let fixed_typ_of =
+    (ana: Typ.t, elab_syn_ty: Typ.t, subsumed: option(Typ.t)): Typ.t =>
+  switch (subsumed) {
   | Some(ty) => ty
   | None =>
     if (Typ.is_syn_plus(ana)) {
@@ -284,6 +284,10 @@ let fixed_typ =
       ana;
     }
   };
+
+let fixed_typ =
+    (~coercible=false, ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
+  fixed_typ_of(ana, elab_syn_ty, subsume(~coercible, ctx, ana, elab_syn_ty));
 
 let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
@@ -321,14 +325,27 @@ let should_emit_nomeet_mark =
   | None => true
   };
 
+/* SUBSUMED, when given, is subsume(~coercible, ctx, ana, elab_syn_ty) with
+   the wrappers already stripped, computed once by the caller. */
 let syn_ana_ok_common =
-    (~coercible=false, ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t)
+    (
+      ~coercible=false,
+      ~subsumed: option(Lazy.t(option(Typ.t)))=?,
+      ctx: Ctx.t,
+      ty_ana: Typ.t,
+      elab_syn_ty: Typ.t,
+    )
     : Message.ok_common => {
   let ana = ana_skip_explicit_nonlabel(ty_ana);
   switch (ana.term) {
   | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
   | _ =>
-    switch (subsume(~coercible, ctx, ana, elab_syn_ty)) {
+    switch (
+      switch (subsumed) {
+      | Some(s) => Lazy.force(s)
+      | None => subsume(~coercible, ctx, ana, elab_syn_ty)
+      }
+    ) {
     | None => Message.Syn(elab_syn_ty)
     | Some(meet) =>
       Message.Ana(
@@ -343,14 +360,25 @@ let syn_ana_ok_common =
 };
 
 let expectation_mismatch_mark =
-    (~coercible=false, ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t)
+    (
+      ~coercible=false,
+      ~subsumed: option(Lazy.t(option(Typ.t)))=?,
+      ctx: Ctx.t,
+      ana: Typ.t,
+      elab_syn_ty: Typ.t,
+    )
     : option(Mark.t) => {
   let ana' = ana_skip_explicit_nonlabel(ana);
   let syn' = ana_skip_explicit_nonlabel(elab_syn_ty);
   switch (ana'.term) {
   | Unknown(SynSwitch) => None
   | _ =>
-    switch (subsume(~coercible, ctx, ana', syn')) {
+    switch (
+      switch (subsumed) {
+      | Some(s) => Lazy.force(s)
+      | None => subsume(~coercible, ctx, ana', syn')
+      }
+    ) {
     | Some(_) => None
     | None =>
       Some(
@@ -396,6 +424,61 @@ let prepend_pat_mark =
   };
 };
 
+/* The builtin modules' types by their paths (`Html.T`, `Attr.T`, ...), and
+   what each path resolves to in the builtin context. An ascription holding
+   one of these types written out, as a Rec of ~7800 nodes, is about 87 KB
+   marshaled to the eval worker, and each copy is its own value, so none is
+   shared: every `[]` in a recursive Html builder carried one. The path is
+   compact, one shared value, and the evaluator resolves an ascription's
+   type in the builtin context (Ascriptions.set_ctx), whatever the program
+   binds. */
+let builtin_type_paths: Lazy.t(list((Typ.t, Typ.t))) =
+  lazy({
+    let ctx = Builtins.ctx_init(None);
+    List.concat_map(
+      ((_alias, (m, t))) => {
+        let path = BuiltinsADT.HtmlModules.path(m, t);
+        let resolved = Typ.weak_head_normalize(ctx, path);
+        switch (Typ.term_of(resolved)) {
+        /* As it resolves, with its own references still paths, and fully
+           normalized, every alias inside expanded: the form statics
+           usually hands an ascription. */
+        | Rec(_)
+        | Sum(_) => [
+            (resolved, path),
+            (Typ.normalize(ctx, resolved), path),
+          ]
+        | _ => []
+        };
+      },
+      BuiltinsADT.HtmlModules.homes,
+    );
+  });
+
+/* A type for embedding in an elaboration, with each builtin module type
+   written out replaced by its path. Bottom up: once the types inside are
+   paths, `Html.T` written out is the form it resolves to, whose own
+   references (`Attr.T`, ...) are paths too. */
+let compact_builtin_types = (ty: Typ.t): Typ.t => {
+  let paths = Lazy.force(builtin_type_paths);
+  Typ.map_term(
+    ~f_typ=
+      (continue, t: Typ.t) => {
+        let t = continue(t);
+        switch (Typ.term_of(t)) {
+        | Rec(_)
+        | Sum(_) =>
+          switch (List.find_opt(((r, _)) => Typ.fast_equal(r, t), paths)) {
+          | Some((_, path)) => path
+          | None => t
+          }
+        | _ => t
+        };
+      },
+    ty,
+  );
+};
+
 /* Add an ascription wrapper if the types differ after normalization. */
 let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
@@ -406,7 +489,8 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
        sides first (`Var("HTML")` alone expands to ~7800 nodes). In practice
        the two sides are the same type in 85-100% of calls. */
     | Some(ty) when Typ.fast_equal(ty, t) => d
-    | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) => asc(d, ty)
+    | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) =>
+      asc(d, compact_builtin_types(ty))
     | _ => d
     }
   );

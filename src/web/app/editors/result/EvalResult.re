@@ -143,7 +143,69 @@ module Update = {
     | UpdateResult(ProgramResult.t(ProgramResult.inner))
     | UpdateStreamingEval(IncrEval.outbox(EvaluatorState.t))
     | MergeStreamingEval(IncrEval.outbox(EvaluatorState.t))
+    /* What UpdateStreamingEval, MergeStreamingEval and UpdateResult do, in
+       order, as one action: the reuse plan if it was held back (see
+       EvalRequest), streams, and the result if it has come. The page
+       recomputes its view after every action, so as separate actions they
+       cost a redraw each, most of them showing nothing new. */
+    | ApplyWorkerMessages(
+        option(IncrEval.outbox(EvaluatorState.t)),
+        list(IncrEval.outbox(EvaluatorState.t)),
+        option(ProgramResult.t(ProgramResult.inner)),
+      )
     | TheoremsAction(Theorems.Update.t);
+
+  let with_result = (result, model: Model.t): Model.t => {
+    ...model,
+    result: Calc.NewValue(result),
+    pending_eval_ids:
+      switch (result) {
+      | ProgramResult.ResultPending(_) => model.pending_eval_ids
+      | ProgramResult.ResultOk(_)
+      | ProgramResult.ResultFail(_) => []
+      },
+  };
+
+  /* Worker ReusePlan arrives here (via on_ack). Snapshot it for the
+   * frozen debug tint; also seed the streaming outbox / pending worklist. */
+  let with_plan =
+      (
+        ~settings: Settings.t,
+        stream: IncrEval.outbox(EvaluatorState.t),
+        model: Model.t,
+      )
+      : Model.t => {
+    ...model,
+    result: Calc.NewValue(ProgramResult.evaluating),
+    predicted_reuse: stream.completed,
+    streaming_outbox: Calc.Calculated(Some(stream)),
+    streaming_state: Calc.Pending,
+    pending_eval_ids:
+      /* The pending sweep feeds only the (default-off) incremental
+         deco, and clearing it walks every reused elaboration subtree
+         — skip the walk when nothing will read it. */
+      settings.show_incremental_deco
+        ? EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids)
+        : [],
+  };
+
+  let with_merged_stream =
+      (~settings: Settings.t, stream, model: Model.t): Model.t => {
+    let current =
+      model.streaming_outbox
+      |> Calc.get_saved(None)
+      |> Option.value(~default=IncrEval.empty_outbox);
+    {
+      ...model,
+      streaming_outbox:
+        Calc.Calculated(Some(IncrEval.merge_outbox(stream, current))),
+      streaming_state: Calc.Pending,
+      pending_eval_ids:
+        settings.show_incremental_deco
+          ? EvalWorklist.remove_streamed_ids(stream, model.pending_eval_ids)
+          : [],
+    };
+  };
 
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
@@ -185,57 +247,28 @@ module Update = {
         theorems,
       };
     | (UpdateResult(result), _) =>
-      {
-        ...model,
-        result: Calc.NewValue(result),
-        pending_eval_ids:
-          switch (result) {
-          | ProgramResult.ResultPending(_) => model.pending_eval_ids
-          | ProgramResult.ResultOk(_)
-          | ProgramResult.ResultFail(_) => []
+      with_result(result, model) |> Updated.return_quiet
+    | (ApplyWorkerMessages(plan, streams, result), _) =>
+      let model =
+        List.fold_left(
+          (model, stream) => with_merged_stream(~settings, stream, model),
+          switch (plan) {
+          | Some(plan) => with_plan(~settings, plan, model)
+          | None => model
           },
-      }
-      |> Updated.return_quiet
-    | (UpdateStreamingEval(stream), _) =>
-      /* Worker ReusePlan arrives here (via on_ack). Snapshot it for the
-       * frozen debug tint; also seed the streaming outbox / pending worklist. */
-      {
-        ...model,
-        result: Calc.NewValue(ProgramResult.evaluating),
-        predicted_reuse: stream.completed,
-        streaming_outbox: Calc.Calculated(Some(stream)),
-        streaming_state: Calc.Pending,
-        pending_eval_ids:
-          /* The pending sweep feeds only the (default-off) incremental
-             deco, and clearing it walks every reused elaboration subtree
-             — skip the walk when nothing will read it. */
-          settings.show_incremental_deco
-            ? EvalWorklist.remove_streamed_ids(
-                stream,
-                model.pending_eval_ids,
-              )
-            : [],
-      }
-      |> Updated.return_quiet
-    | (MergeStreamingEval(stream), _) =>
-      let current =
-        model.streaming_outbox
-        |> Calc.get_saved(None)
-        |> Option.value(~default=IncrEval.empty_outbox);
-      {
-        ...model,
-        streaming_outbox:
-          Calc.Calculated(Some(IncrEval.merge_outbox(stream, current))),
-        streaming_state: Calc.Pending,
-        pending_eval_ids:
-          settings.show_incremental_deco
-            ? EvalWorklist.remove_streamed_ids(
-                stream,
-                model.pending_eval_ids,
-              )
-            : [],
-      }
+          streams,
+        );
+      (
+        switch (result) {
+        | Some(result) => with_result(result, model)
+        | None => model
+        }
+      )
       |> Updated.return_quiet;
+    | (UpdateStreamingEval(stream), _) =>
+      with_plan(~settings, stream, model) |> Updated.return_quiet
+    | (MergeStreamingEval(stream), _) =>
+      with_merged_stream(~settings, stream, model) |> Updated.return_quiet
     };
   };
 
@@ -300,7 +333,9 @@ module Update = {
           queue_worker({
             expr: elab,
             eval_info_map,
-            prev: prev_incr,
+            /* The worker keeps its own cache from this key's last run. */
+            prev: IncrEval.empty,
+            use_held_prev: true,
           });
           ProgramResult.awaiting_worker_ack;
         // Using the main thread:
@@ -310,6 +345,7 @@ module Update = {
               expr: elab,
               eval_info_map,
               prev: prev_incr,
+              use_held_prev: false,
             })
           ) {
           | Ok((exp, state)) =>

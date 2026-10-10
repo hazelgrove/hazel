@@ -58,6 +58,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
+      | Bind => bind_(Pat.empty_hole(), empty_hole(), empty_hole())
       | Theorem => theorem(Pat.empty_hole(), empty_hole(), empty_hole())
       | ProofObject => proof_object(Exp.empty_hole())
       | Forall => forall(Pat.empty_hole(), empty_hole())
@@ -75,6 +76,8 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | If => if_(empty_hole(), empty_hole(), empty_hole())
       | Seq => seq(empty_hole(), empty_hole())
       | Test => test(empty_hole())
+      | Quote => quote(empty_hole())
+      | Unquote => unquote(empty_hole())
       | HintedTest => hinted_test(empty_hole(), empty_hole())
       | Filter =>
         filter(StepperFilter.residue(0, (Step, One)), empty_hole())

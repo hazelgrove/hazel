@@ -4,7 +4,7 @@
 # the control -- drag it up or down to change it. #
 
 # The constructors live out here: a use writes its own model in the #
-# program text (last line), and clients match on what it means. #
+# program text (last line), and clients match on the Mood it means. #
 type Drag = + Idle + Held(Int, Int) in
 type MoodIntensity = + Somewhat + Very in
 type Mood = + Happy(MoodIntensity) + Sad(MoodIntensity) + Neutral in
@@ -12,40 +12,58 @@ type Mood = + Happy(MoodIntensity) + Sad(MoodIntensity) + Neutral in
 let ^mood = {
   type Model = (Int, Drag);
 
-  # Three actions, and each one earns its place: #
+  # Three actions (Sec. 3.2.2), and each one earns its place: #
   #   Down(y)    Idle -> Held: records the mood AND the grab point, #
   #              so a later move knows what it is measuring from. #
   #   MoveTo(y)  the only action that changes the mood, and only #
   #              while Held -- see its Idle branch below. #
   #   Up         Held -> Idle. Without it the face would go on #
-  #              following the pointer after you let go. #
+  #              following the pointer after you let go. Up is #
+  #              also what writes the drag into the program text: #
+  #              Down and MoveTo only preview it. #
   type Action = + Down(Int) + MoveTo(Int) + Up;
 
   type Expansion = Mood;
 
-  let init : Model = (50, Idle);
+
+  # No splices, so init, update and view all answer with Pure. #
+  let init = Pure((50, Idle));
 
   let clamp = fun n -> if n < 0 then 0 else if n > 100 then 100 else n;
 
+  # EXPERIMENTAL, not in the paper: the params panel. Open the eye at #
+  # the face's left and the pane shows its params as well as its model. #
+  # The params are just the mood, 0 to 100: the drag in progress is #
+  # passing state, which params_from_model drops and init_from_params #
+  # starts over, Idle. Editing the params re-runs init_from_params, #
+  # which is also handed the old model (unused here: there is nothing #
+  # to keep) and returns the new one; editing the model does not run #
+  # init at all. #
+  type Params = Int;
+  let params_from_model = fun (v, _drag) : Model -> v;
+  let init_from_params = fun (p, _old) : (Params, Model) -> (clamp(p), Idle);
+
   # Held remembers the mood and the y where the grab began, so a #
   # move is just the distance dragged: DOWN smiles, 2 mood per px. #
-  let update = fun ((v, drag), a) : (Model, Action) ->
+  let update = fun (v, drag) : Model -> fun a : Action -> Pure(
     case a
     | Down(y) => (v, Held(v, y))
     | MoveTo(y) =>
       case drag
       # not dragging: pointer moves over the face are ignored. This is #
       # the branch that makes Up worth having -- the two only pay off #
-      # together, and hovering leaving the mood alone is how you see it. #
+      # together, and hovering leaving the mood alone is how you see #
+      # it. #
       | Idle => (v, drag)
       | Held(v0, y0) => (clamp(v0 + 2 * (y - y0)), drag)
       end
     | Up => (v, Idle)
-    end;
+    end);
 
   # The mouth is a quadratic whose control point sits at 90 + 4v/5, #
-  # while its corners stay at 130: the lip is flat at exactly v = 50. #
-  # Neutral brackets that crossing, and each expression takes a fifth. #
+  # while its corners stay at 130: the lip is flat at v = 50 and 51, #
+  # since Int division rounds 4v/5 down. Neutral brackets that #
+  # crossing, and each expression takes a fifth. #
   let mood = fun (v, _drag) : Model ->
     if v < 20 then Sad(Very)
     else if v < 40 then Sad(Somewhat)
@@ -57,7 +75,8 @@ let ^mood = {
   let mouth = fun v ->
     "M60 130 Q100 " ++ string_of_int(90 + 4 * v / 5) ++ " 140 130";
 
-  let view = fun (v, _drag) : Model ->
+  # The SVG's three pointer handlers emit the three Actions. #
+  let view = fun (v, _drag) : Model -> Pure(
     Html.div(
       [Attr.create("data-hint", "drag up/down"),
        Attr.style([("cursor", "ns-resize")])],
@@ -81,16 +100,18 @@ let ^mood = {
                Attr.create("fill", "transparent"), Attr.create("stroke-width", "5")], [])
           ])
       ]
-    );
+    ));
 
-  let expand_fun = fun m : Model -> mood(m);
+  # Functional (Overview): the expansion is the Mood, a value. #
+  let expand = Functional(fun m : Model -> mood(m));
 
   let shape = Tab(10, 4)
 } in
 
-# A use means its EXPANSION. Binding it gives the reader all three #
-# things at once: the WIDGET, the Mood it expands to as Hazel data #
-# (the probe below), and the String that greeting turns it into. #
+# A use means its EXPANSION (Sec. 2.2). Binding it gives the reader #
+# all three things at once: the WIDGET, the Mood it expands to as #
+# Hazel data (the probe below), and the String that greeting turns #
+# it into. #
 
 let greeting = fun m : Mood ->
   case m

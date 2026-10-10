@@ -124,13 +124,107 @@ let extend_sig_item = (ctx: t, item: TermBase.Sig.t): t =>
 let extend_sig_items = (ctx: t, items: list(TermBase.Sig.t)): t =>
   List.fold_left(extend_sig_item, ctx, items);
 
-let lookup_tvar = (ctx: t, name: string): option(kind) =>
-  List.find_map(
+/* While Some, lookup_tvar and lookup_var add each name they are asked
+ * for. A computation that reads its ctx only through those two (and
+ * lookup_alias, which is lookup_tvar) depends on the ctx only through their
+ * answers for the names recorded, which is what lets a caller cache it and
+ * check the cache by asking again: see TyDiCtx.named_fields_cached. Off, it
+ * costs one dereference per lookup. */
+let lookup_trace: ref(option(list(string))) = ref(None);
+
+let note_lookup = (name: string): unit =>
+  switch (lookup_trace^) {
+  | Some(names) => lookup_trace := Some([name, ...names])
+  | None => ()
+  };
+
+/* Run [f] with the trace on; its answer and the names it looked up. */
+let with_lookup_trace = (f: unit => 'a): ('a, list(string)) => {
+  let outer = lookup_trace^;
+  lookup_trace := Some([]);
+  switch (f()) {
+  | result =>
+    let names = Option.value(lookup_trace^, ~default=[]);
+    /* An enclosing trace sees these lookups too. */
+    lookup_trace := Option.map(outer_names => names @ outer_names, outer);
+    (result, names);
+  | exception e =>
+    lookup_trace := outer;
+    raise(e);
+  };
+};
+
+/* An index of one shared tail of entries: the builtin ctx, which every
+ * statics ctx is a user prefix consed onto (Builtins registers it). A
+ * lookup scans the prefix and, on reaching that exact list, answers from
+ * the index, which holds each name's FIRST entry of each kind -- what the
+ * scan would have found. A ctx not ending in it is scanned as before.
+ * Resolving a module path (Typ.path_sig) looks its name up as a type
+ * variable, which misses and so used to scan every builtin, then as a
+ * variable, which finds it among the builtins; on the Color slide that was
+ * ~50 ms of every keystroke's ~300 ms of statics. */
+type tail_index = {
+  tail: list(entry),
+  tvars: Hashtbl.t(string, kind),
+  vars: Hashtbl.t(string, var_entry),
+  ctrs: Hashtbl.t(string, var_entry),
+};
+
+let tail_index: ref(option(tail_index)) = ref(None);
+
+/* For tests: lookups answered from the index. */
+let tail_index_hits = ref(0);
+
+let index_tail = (tail: list(entry)): unit => {
+  let tvars = Hashtbl.create(64);
+  let vars = Hashtbl.create(256);
+  let ctrs = Hashtbl.create(256);
+  let first = (tbl, name, v) =>
+    if (!Hashtbl.mem(tbl, name)) {
+      Hashtbl.add(tbl, name, v);
+    };
+  List.iter(
     fun
-    | TVarEntry(v) when v.name == name => Some(v.kind)
-    | _ => None,
-    ctx.entries,
+    | TVarEntry(v) => first(tvars, v.name, v.kind)
+    | VarEntry(v) => first(vars, v.name, v)
+    | ConstructorEntry(v) => first(ctrs, v.name, v)
+    | LivelitEntry(_) => (),
+    tail,
   );
+  tail_index :=
+    Some({
+      tail,
+      tvars,
+      vars,
+      ctrs,
+    });
+};
+
+let lookup_tvar = (ctx: t, name: string): option(kind) => {
+  note_lookup(name);
+  switch (tail_index^) {
+  | None =>
+    List.find_map(
+      fun
+      | TVarEntry(v) when v.name == name => Some(v.kind)
+      | _ => None,
+      ctx.entries,
+    )
+  | Some(ix) =>
+    let rec go = (entries: list(entry)) =>
+      if (entries === ix.tail) {
+        incr(tail_index_hits);
+        Hashtbl.find_opt(ix.tvars, name);
+      } else {
+        switch (entries) {
+        | [] => None
+        | [TVarEntry(v), ..._] when v.name == name => Some(v.kind)
+        | [_, ...rest] => go(rest)
+        };
+      };
+    go(ctx.entries);
+  };
+};
 
 let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
   List.find_map(
@@ -155,21 +249,55 @@ let get_id: entry => Id.t =
   | TVarEntry({id, _}) => id
   | LivelitEntry({name, _}) => Id.mk_str(name);
 
-let lookup_var = (ctx: t, name: string): option(var_entry) =>
-  List.find_map(
-    fun
-    | VarEntry(v) when v.name == name => Some(v)
-    | _ => None,
-    ctx.entries,
-  );
+let lookup_var = (ctx: t, name: string): option(var_entry) => {
+  note_lookup(name);
+  switch (tail_index^) {
+  | None =>
+    List.find_map(
+      fun
+      | VarEntry(v) when v.name == name => Some(v)
+      | _ => None,
+      ctx.entries,
+    )
+  | Some(ix) =>
+    let rec go = (entries: list(entry)) =>
+      if (entries === ix.tail) {
+        incr(tail_index_hits);
+        Hashtbl.find_opt(ix.vars, name);
+      } else {
+        switch (entries) {
+        | [] => None
+        | [VarEntry(v), ..._] when v.name == name => Some(v)
+        | [_, ...rest] => go(rest)
+        };
+      };
+    go(ctx.entries);
+  };
+};
 
 let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
-  List.find_map(
-    fun
-    | ConstructorEntry(t) when t.name == name => Some(t)
-    | _ => None,
-    ctx.entries,
-  );
+  switch (tail_index^) {
+  | None =>
+    List.find_map(
+      fun
+      | ConstructorEntry(t) when t.name == name => Some(t)
+      | _ => None,
+      ctx.entries,
+    )
+  | Some(ix) =>
+    let rec go = (entries: list(entry)) =>
+      if (entries === ix.tail) {
+        incr(tail_index_hits);
+        Hashtbl.find_opt(ix.ctrs, name);
+      } else {
+        switch (entries) {
+        | [] => None
+        | [ConstructorEntry(t), ..._] when t.name == name => Some(t)
+        | [_, ...rest] => go(rest)
+        };
+      };
+    go(ctx.entries);
+  };
 
 let is_alias = (ctx: t, name: string): bool =>
   switch (lookup_tvar(ctx, name)) {

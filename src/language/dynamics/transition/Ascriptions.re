@@ -42,9 +42,38 @@ let ctx_ref: ref(Ctx.t) = ref(Ctx.empty);
    one walks the module's signature, so the result is memoized per path;
    the builtin context is constant after set_ctx, which clears the memo. */
 let path_memo: Hashtbl.t((string, string), Typ.t) = Hashtbl.create(16);
+
+/* Whether a constructor's own type is consistent with the type it is
+   ascribed, remembered by the two types' Merkle hashes (TypHash). A
+   livelit's view builds a tree of Html nodes, each a constructor
+   application ascribed Html.T, and each asked is_consistent of two copies
+   of the whole Html sum type -- a full meet, every node, every step: 88% of
+   a Polygons click in Firefox. The copies are fresh objects, so physical
+   identity misses; their hashes do not. The builtin context is constant
+   (set_ctx clears this), and is_consistent ignores an Unknown's provenance,
+   as the hash does, so the answer depends only on the two hashes. */
+let consistent_memo: Hashtbl.t((int, int, int, int), bool) =
+  Hashtbl.create(64);
+let consistent_by_hash = (a: Typ.t, b: Typ.t, compute: unit => bool): bool =>
+  switch (TypHash.hash(a), TypHash.hash(b)) {
+  | (Some((a1, a2)), Some((b1, b2))) =>
+    let key = (a1, a2, b1, b2);
+    switch (Hashtbl.find_opt(consistent_memo, key)) {
+    | Some(r) => r
+    | None =>
+      let r = compute();
+      if (Hashtbl.length(consistent_memo) > 4096) {
+        Hashtbl.reset(consistent_memo);
+      };
+      Hashtbl.replace(consistent_memo, key, r);
+      r;
+    };
+  | _ => compute()
+  };
 let set_ctx = (ctx: Ctx.t) => {
   ctx_ref := ctx;
   Hashtbl.reset(path_memo);
+  Hashtbl.reset(consistent_memo);
 };
 let resolve = (ctx: Ctx.t, t: Typ.t): Typ.t =>
   switch (Typ.term_of(t)) {
@@ -252,10 +281,12 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Sum(m) as sumt',
       )
         when
-          Typ.is_consistent(
-            ctx,
-            Typ.unroll(Typ.weak_head_normalize(ctx, sumt)),
-            sumt' |> Typ.temp,
+          consistent_by_hash(sumt, t, () =>
+            Typ.is_consistent(
+              ctx,
+              Typ.unroll(Typ.weak_head_normalize(ctx, sumt)),
+              sumt' |> Typ.temp,
+            )
           ) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
@@ -287,6 +318,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         IdTagged.fast_copy(DHExp.rep_id(e), ProofObject(e1) |> DHExp.fresh),
       )
     | (Test(_), Prod([])) => Some(e)
+    /* A quotation is a value of type Exp. */
+    | (Quote(_), _)
+        when Typ.is_consistent(ctx, t, Typ.temp(Var("Exp"): Typ.term)) =>
+      Some(e)
     // These are non-value cases we're handling to process ascriptions as early as possible
     | (BinOp(bin_op, _, _), _) =>
       switch (Operators.semantics_of_bin_op(bin_op)) {
@@ -334,6 +369,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         IdTagged.fast_copy(
           DHExp.rep_id(e),
           Let(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
+        ),
+      )
+    /* A bind's type IS its body's type -- both are M(b) -- so an
+       ascription on the whole pushes into the body, as Let's does. */
+    | (Bind(p, e1, e2), _) =>
+      Some(
+        IdTagged.fast_copy(
+          DHExp.rep_id(e),
+          Bind(p, e1, Asc(e2, t) |> DHExp.fresh) |> DHExp.fresh,
         ),
       )
     | (Seq(e1, e2), _) =>
@@ -399,6 +443,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Fun(_), _)
     | (TypFun(_), _)
     | (Test(_), _)
+    | (Quote(_), _)
+    | (Unquote(_), _)
     | (HintedTest(_), _)
     | (Cons(_), _)
     | (ProofObject(_), _)

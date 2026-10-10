@@ -42,9 +42,9 @@ let button(label: String, action: Action, primary: Bool): Html.T =
     [Attr.on_click(action),
      Attr.style([("padding", "0.35em 0.6em"), ("border-radius", "3px"),
             ("cursor", "pointer"), ("font-family", "inherit"), ("font-size", "0.85em"),
-            ("background", if primary then "var(--G0)" else "var(--T1)"),
-            ("color", if primary then "var(--SAND)" else "var(--STONE)"),
-            ("border", if primary then "1px solid var(--G0)" else "1px solid var(--BR1)")])],
+            ("background", if primary then "var(--surface-success)" else "var(--surface-default)"),
+            ("color", if primary then "var(--surface-code)" else "var(--text-default)"),
+            ("border", if primary then "1px solid var(--border-success)" else "1px solid var(--border-soft)")])],
     [Html.text(label)]
   )
 in
@@ -56,23 +56,23 @@ let view(model: Model): Html.T =
       Attr.class("watering-timer"),
       Attr.style([("max-width", "280px"), ("margin", "0 auto"),
              ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
-             ("background", "var(--SAND)"), ("color", "var(--STONE)"),
-             ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+             ("background", "var(--surface-code)"), ("color", "var(--text-default)"),
+             ("border", "1px solid var(--border-soft)"), ("border-radius", "0.4em"),
              ("overflow", "hidden")])
     ],
     [
       Html.div(
         [Attr.style([("padding", "0.9em 1em 0.8em"), ("text-align", "center"),
-                ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+                ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--text-strong)")])],
         [Html.text("🌙 Watering Timer")]
       ),
       Html.div(
         [Attr.style([("padding", "0.7em 1em"), ("text-align", "center"),
-                ("background", "var(--T2)"), ("font-size", "1.5em"),
+                ("background", "var(--surface-raised)"), ("font-size", "1.5em"),
                 ("font-weight", "bold"),
-                ("color", if model.running then "var(--G0)" else "var(--BR4)"),
-                ("border-top", "1px solid var(--BR1)"),
-                ("border-bottom", "1px solid var(--BR1)")])],
+                ("color", if model.running then "var(--text-success)" else "var(--text-strong)"),
+                ("border-top", "1px solid var(--border-soft)"),
+                ("border-bottom", "1px solid var(--border-soft)")])],
         [Html.text(clock(model.seconds))]
       ),
       Html.div(
@@ -85,8 +85,8 @@ let view(model: Model): Html.T =
       ),
       Html.div(
         [Attr.style([("padding", "0.6em 1em"), ("text-align", "center"),
-                ("font-size", "0.75em"), ("color", "var(--BR3)"),
-                ("border-top", "1px solid var(--BR1)")])],
+                ("font-size", "0.75em"), ("color", "var(--text-muted)"),
+                ("border-top", "1px solid var(--border-soft)")])],
         [Html.text(if model.running then "Watering..." else "Paused")]
       )
     ]

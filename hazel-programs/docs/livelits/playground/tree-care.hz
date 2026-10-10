@@ -1,0 +1,576 @@
+# A Tree-Care Livelit #
+
+# The biggest example in this deck, and the one whose MODEL is a #
+# recursive data type of its own -- a Tree that grows as you use it -- #
+# rather than a fixed handful of fields. Feed the tree to grow it, #
+# click a branch to trim it, and walk the seasons to see the same tree #
+# dressed four ways. #
+
+# Everything the widget knows is in the model, and the model is #
+# written into the program text (Sec. 3.2.1) -- so the tree you grow #
+# is literally part of your program. One part of it is client code: #
+# how feeding grows the tree, a GrowthStyle, is a splice, and here #
+# the client builds it with two more small livelits (GROWTH STYLE, #
+# below the tree). #
+
+type Season = + Fall + Winter + Spring + Summer in
+type LeafShape = + Oak + Maple + Elm + Aspen in
+
+# Aspen names a leaf AND a bark: two sum types may share a #
+# constructor, since analysis picks by the type expected. #
+type BarkType = + Smooth + Rough + Aspen in
+
+# A trim leaves a Scar, which carries the seasons left before it #
+# heals over into ordinary bark. #
+type Tree =
+  + Leaf(LeafShape)
+  + Branch(BarkType, Tree, Tree)
+  + Scar(BarkType, Int) in
+
+# Where a trim happened, as a walk from the root: L and R pick a side. #
+type Step = + L + R in
+
+# What a use MEANS (Sec. 2.2): a census, not a picture. #
+type Census = (leaves=Int, branches=Int, scars=Int, season=Season) in
+
+# How feeding grows the tree: by a percent of its leaves (a negative #
+# percent scars that share of its twigs instead), or by a constant #
+# number of leaves. #
+type GrowthStyle = + Percent(Int) + Constant(Int) in
+
+let ^tree = {
+  # seed drives the choice of where the tree grows (RANDOMNESS). It #
+  # is in the model, so it is in the text: a tree regrows the same way #
+  # from the same seed. scale is the picture's size, a percent. #
+  type Model =
+    (tree=Tree, season=Season, growth=SpliceRef, seed=Int, scale=Int);
+
+  # The three sub-languages of this widget, in one Action type: what #
+  # its handlers emit and update consumes (Sec. 3.2.2). #
+  #   season:  Next, Prev, SkipTo -- three ways to set the season #
+  #   growth:  Feed(style) grows the tree the way style says #
+  #   pruning: Trim(path) cuts at a branch and leaves a Scar #
+  #   zoom:    Zoom(-1), Zoom(0) and Zoom(1) shrink, reset and grow #
+  #            the picture #
+  # Feed carries the growth style because update cannot read a #
+  # splice (Sec. 3.2.4): the view reads it, and passes it on here. #
+  type Action =
+    + Next + Prev + SkipTo(Season) + Feed(GrowthStyle) + Trim([Step])
+    + Zoom(Int);
+
+  type Expansion = Census;
+
+
+  # The growth splice starts empty, a hole, for the client to fill. #
+  # (new_splice names a type from a closed set, IntT, FloatT, BoolT #
+  # or StringT, which it writes into the text as an ascription. A #
+  # GrowthStyle has no name in that set, so this says AnyT: no #
+  # declared type, and the splice is typed by its code.) #
+  let init =
+    do g <- new_splice((AnyT, None)) in
+    Pure((
+      tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
+      season=Spring,
+      growth=g,
+      seed=1,
+      scale=100
+    ));
+
+  # SEASONS #
+
+  let next_of = fun s : Season ->
+    case s | Spring => Summer | Summer => Fall | Fall => Winter
+           | Winter => Spring end;
+
+  let prev_of = fun s : Season ->
+    case s | Spring => Winter | Winter => Fall | Fall => Summer
+           | Summer => Spring end;
+
+  # How many seasons a fresh scar takes to heal. Winter wood is slow; #
+  # summer wood closes over fast. #
+  let heal_time = fun s : Season ->
+    case s | Winter => 4 | Fall => 3 | Spring => 2 | Summer => 1 end;
+
+  # Every season control -- Next, Prev, or a season button, even the #
+  # one already pressed -- ages every scar by one, once, however far #
+  # the season moves. At zero a scar stops, and the renderer draws it #
+  # as ordinary bark; the census still counts it as a scar. #
+  let age = fun t : Tree ->
+    case t
+    | Leaf(_) => t
+    | Scar(b, n) => if n <= 0 then Scar(b, 0) else Scar(b, n - 1)
+    | Branch(b, l, r) => Branch(b, age(l), age(r))
+    end;
+
+  # GROWTH #
+
+  # Feeding forks leaves: the tree grows at its tips, as trees do. #
+  let bark_for : LeafShape -> BarkType = fun s ->
+    case s | Oak => Rough | Maple => Smooth | Elm => Smooth
+           | Aspen => Aspen end;
+
+  let next_shape : LeafShape -> LeafShape = fun s ->
+    case s | Oak => Maple | Maple => Elm | Elm => Aspen | Aspen => Oak end;
+
+  # RANDOMNESS #
+
+  # A tiny pseudo-random generator, the ZX81's: the next seed is #
+  # 75 s + 74, mod 65537. Ints do not overflow, so this is exact. #
+  let next = fun s : Int -> int_mod((75 * s + 74, 65537));
+
+  # Choosing k of n uniformly, in one pass (Knuth's selection #
+  # sampling): with k still to pick among the n not yet seen, take #
+  # this one if a fresh draw mod n is below k. That takes exactly k, #
+  # each of the n equally likely. #
+  let take = fun (k, n, s) : (Int, Int, Int) -> int_mod((next(s), n)) < k;
+
+  # Fork k of the n leaves, chosen at random. Answers the tree, then #
+  # what is left of k, n and the seed, for the rest of the walk. #
+  let fork = fun (t, k, n, s) : (Tree, Int, Int, Int) ->
+    case t
+    | Leaf(sh) =>
+      if take((k, n, s))
+      then (Branch(bark_for(sh), Leaf(sh), Leaf(next_shape(sh))),
+            k - 1, n - 1, next(s))
+      else (t, k, n - 1, next(s))
+    | Scar(_, _) => (t, k, n, s)
+    | Branch(b, l, r) =>
+      let (l2, k2, n2, s2) = fork((l, k, n, s)) in
+      let (r2, k3, n3, s3) = fork((r, k2, n2, s2)) in
+      (Branch(b, l2, r2), k3, n3, s3)
+    end;
+
+  # Scar k of the n twigs -- forks that hold two leaves -- chosen at #
+  # random, as a trim would, each healing in ttl seasons. #
+  let scar = fun (t, k, n, s, ttl) : (Tree, Int, Int, Int, Int) ->
+    case t
+    | Branch(b, Leaf(_), Leaf(_)) =>
+      if take((k, n, s)) then (Scar(b, ttl), k - 1, n - 1, next(s))
+      else (t, k, n - 1, next(s))
+    | Branch(b, l, r) =>
+      let (l2, k2, n2, s2) = scar((l, k, n, s, ttl)) in
+      let (r2, k3, n3, s3) = scar((r, k2, n2, s2, ttl)) in
+      (Branch(b, l2, r2), k3, n3, s3)
+    | _ => (t, k, n, s)
+    end;
+
+  let leaves_of = fun t : Tree ->
+    case t
+    | Leaf(_) => 1
+    | Branch(_, l, r) => leaves_of(l) + leaves_of(r)
+    | _ => 0
+    end;
+
+  let twigs_of = fun t : Tree ->
+    case t
+    | Branch(_, Leaf(_), Leaf(_)) => 1
+    | Branch(_, l, r) => twigs_of(l) + twigs_of(r)
+    | _ => 0
+    end;
+
+  # Add exactly n leaves: forking a leaf adds one. When n is more than #
+  # the tree has, fork every leaf and go again. #
+  let grow = fun (t, n, s) : (Tree, Int, Int) ->
+    let have = leaves_of(t) in
+    if n <= 0 || have == 0 then (t, s)
+    else if n <= have then
+      let (t2, _, _, s2) = fork((t, n, have, s)) in (t2, s2)
+    else
+      let (t2, _, _, s2) = fork((t, have, have, s)) in
+      grow((t2, n - have, s2));
+
+  # One feeding, in the given style, answering the tree and the next #
+  # seed. Constant(n) adds n leaves. A positive percent adds that #
+  # share of the leaves, at least one; a negative one scars that share #
+  # of the twigs, at least one. #
+  let feed = fun (t, style, ttl, s) : (Tree, GrowthStyle, Int, Int) ->
+    case style
+    | Constant(n) => grow((t, n, s))
+    | Percent(p) =>
+      if p > 0 then
+        let k = leaves_of(t) * p / 100 in
+        grow((t, if k < 1 then 1 else k, s))
+      else if p < 0 then
+        let n = twigs_of(t) in
+        let k = n * (0 - p) / 100 in
+        let (t2, _, _, s2) = scar((t, if k < 1 then 1 else k, n, s, ttl)) in
+        (t2, s2)
+      else (t, s)
+    end;
+
+  # PRUNING #
+
+  # Walk to the named branch and replace it with a Scar, keeping its #
+  # bark. A path that runs off a leaf changes nothing. #
+  let cut = fun (t, path, ttl) : (Tree, [Step], Int) ->
+    case path
+    | [] => case t | Branch(b, _, _) => Scar(b, ttl) | _ => t end
+    | step :: rest =>
+      case t
+      | Branch(b, l, r) =>
+        case step
+        | L => Branch(b, cut((l, rest, ttl)), r)
+        | R => Branch(b, l, cut((r, rest, ttl)))
+        end
+      | _ => t
+      end
+    end;
+
+  # How many forks deep the tree goes. #
+  let depth = fun t : Tree ->
+    case t
+    | Branch(_, l, r) =>
+      let a = depth(l) in
+      let b = depth(r) in
+      1 + (if a > b then a else b)
+    | _ => 0
+    end;
+
+  # The picture's frame, in drawing units: 260 wide, and tall enough #
+  # for the tree, 20 a fork plus room for the trunk and the canopy. #
+  let frame_h = fun t : Tree -> 40 + 20 * depth(t);
+
+  # Zoom: - and + step the size by a quarter, from half to three #
+  # times. 0 is the standard size for this tree: the scale that makes #
+  # the whole tree 122 pixels tall, so a small tree is shown larger #
+  # and a big one smaller. #
+  let clamp_scale = fun s : Int -> if s < 50 then 50 else if s > 300 then 300 else s;
+  let fit_scale = fun t : Tree -> clamp_scale(100 * 170 / frame_h(t));
+  let zoom = fun (t, scale, z) : (Tree, Int, Int) ->
+    if z == 0 then fit_scale(t) else clamp_scale(scale + 25 * z);
+
+  let update = fun m : Model -> fun a : Action -> Pure(
+    let rebuild = fun (tree, season, seed, scale) ->
+      (tree=tree, season=season, growth=m.growth, seed=seed, scale=scale) in
+    case a
+    | Next => rebuild((age(m.tree), next_of(m.season), m.seed, m.scale))
+    | Prev => rebuild((age(m.tree), prev_of(m.season), m.seed, m.scale))
+    | SkipTo(s) => rebuild((age(m.tree), s, m.seed, m.scale))
+    | Feed(style) =>
+      let (t, seed) = feed((m.tree, style, heal_time(m.season), m.seed)) in
+      rebuild((t, m.season, seed, m.scale))
+    | Trim(path) =>
+      rebuild((cut((m.tree, path, heal_time(m.season))), m.season, m.seed,
+               m.scale))
+    | Zoom(z) => rebuild((m.tree, m.season, m.seed, zoom((m.tree, m.scale, z))))
+    end);
+
+  # THE CENSUS #
+
+  let count = fun t : Tree ->
+    case t
+    | Leaf(_) => (leaves=1, branches=0, scars=0)
+    | Scar(_, _) => (leaves=0, branches=0, scars=1)
+    | Branch(_, l, r) =>
+      let a = count(l) in
+      let b = count(r) in
+      (leaves=a.leaves + b.leaves,
+       branches=a.branches + b.branches + 1,
+       scars=a.scars + b.scars)
+    end;
+
+  # DRAWING #
+
+  # A leaf wears the season: bare in winter, small and green in #
+  # spring, full in summer, and its own color in fall. #
+  let leaf_color = fun (s, season) : (LeafShape, Season) ->
+    case season
+    | Spring => "#7cb342"
+    | Summer => "#2e7d32"
+    | Winter => "none"
+    | Fall =>
+      case s
+      | Oak => "#a1541f" | Maple => "#c62828"
+      | Elm => "#f9a825" | Aspen => "#fdd835"
+      end
+    end;
+
+  let leaf_size = fun season : Season ->
+    case season | Spring => 3 | Summer => 6 | Fall => 5 | Winter => 0 end;
+
+  let bark_color = fun b : BarkType ->
+    case b | Smooth => "#8d6e63" | Rough => "#5d4037" | Aspen => "#cfd8dc" end;
+
+  let str = string_of_int;
+
+  # Branches thin as they divide: the trunk is thickest, twigs are #
+  # hairlines. Taken from DEPTH, not from counting the subtree -- #
+  # counting at every limb made drawing quadratic in the tree. #
+  let thickness = fun d : Int ->
+    let t = 7 - d in if t < 1 then 1 else t;
+
+  let leaf_at = fun (s, season, x, y) : (LeafShape, Season, Int, Int) ->
+    let r = leaf_size(season) in
+    if r == 0 then Html.node("g", [], [])
+    else
+      case s
+      | Maple =>
+        Html.node("polygon",
+          [Attr.create("points",
+             str(x) ++ "," ++ str(y - r) ++ " " ++ str(x + r) ++ "," ++ str(y)
+             ++ " " ++ str(x) ++ "," ++ str(y + r) ++ " "
+             ++ str(x - r) ++ "," ++ str(y)),
+           Attr.create("fill", leaf_color((s, season)))], [])
+      | Elm =>
+        Html.node("ellipse",
+          [Attr.create("cx", str(x)), Attr.create("cy", str(y)),
+           Attr.create("rx", str(r + 2)), Attr.create("ry", str(r)),
+           Attr.create("fill", leaf_color((s, season)))], [])
+      | _ =>
+        Html.node("circle",
+          [Attr.create("cx", str(x)), Attr.create("cy", str(y)),
+           Attr.create("r", str(r)),
+           Attr.create("fill", leaf_color((s, season)))], [])
+      end;
+
+  # Lay the tree out by shrinking the horizontal spread to three #
+  # quarters of itself each level, so no trigonometry is needed. #
+  # Shrinking SLOWLY is what keeps a deep tree spreading: halving #
+  # pinches the canopy shut into a spire, since by the sixth fork the #
+  # siblings are a pixel apart. #
+  # Each branch carries the path that reaches it, which is what a #
+  # click sends back as Trim. #
+  let draw = fun (t, x, y, dx, dy, season, path, d)
+      : (Tree, Int, Int, Int, Int, Season, [Step], Int) ->
+    case t
+    | Leaf(s) => [leaf_at((s, season, x, y))]
+    | Scar(b, n) =>
+      [Html.node("circle",
+         [Attr.create("cx", str(x)), Attr.create("cy", str(y)),
+          Attr.create("r", if n <= 0 then "3" else "5"),
+          Attr.create("fill", if n <= 0 then bark_color(b) else "#3e2723"),
+          Attr.create("stroke", bark_color(b))],
+         [])]
+    | Branch(b, l, r) =>
+      let limb = fun (cx, cy) : (Int, Int) ->
+        Html.node("line",
+          [Attr.create("x1", str(x)), Attr.create("y1", str(y)),
+           Attr.create("x2", str(cx)), Attr.create("y2", str(cy)),
+           Attr.create("stroke", bark_color(b)),
+           Attr.create("stroke-width", str(thickness(d))),
+           Attr.create("cursor", "pointer"),
+           Attr.on_click(Trim(path))],
+          []) in
+      [limb((x - dx, y - dy)), limb((x + dx, y - dy))]
+      @ draw((l, x - dx, y - dy, dx * 3 / 4, dy, season, path @ [L], d + 1))
+      @ draw((r, x + dx, y - dy, dx * 3 / 4, dy, season, path @ [R], d + 1))
+    end;
+
+  # The season you are in reads as a pressed key: inverted, not just #
+  # bolder. Weight alone is hard to spot across four small buttons. #
+  let season_button = fun (s, current) : (Season, Season) ->
+    let here = s == current in
+    Html.button(
+      [Attr.on_click(SkipTo(s)),
+       Attr.style([("font-size", "0.7em"),
+                   ("font-weight", if here then "bold" else "normal"),
+                   ("background", if here then "#3e2723" else "#f3efe6"),
+                   ("color", if here then "#fdfcf7" else "#3e2723"),
+                   ("border", "1px solid #5d4037"),
+                   ("border-radius", "3px")])],
+      [Html.text(case s | Spring => "spr" | Summer => "sum"
+                        | Fall => "fall" | Winter => "win" end)]);
+
+  # The picture's size on the page: 186 pixels wide at 100%, and as #
+  # tall as its frame is, in proportion. #
+  let width_px = fun m : Model -> 186 * m.scale / 100;
+  let height_px = fun m : Model -> width_px(m) * frame_h(m.tree) / 260;
+
+  # Zoom out, to the standard size for this tree, and in. #
+  let zoom_button = fun (label, z) : (String, Int) ->
+    Html.button([Attr.on_click(Zoom(z)),
+                 Attr.create("title",
+                   if z < 0 then "smaller" else if z > 0 then "bigger"
+                   else "standard size for this tree"),
+                 Attr.style([("font-size", "0.9em"), ("min-width", "1.6em")])],
+                [Html.text(label)]);
+
+  # How the growth style reads on the feed button. #
+  let style_text = fun g : GrowthStyle ->
+    case g
+    | Percent(p) => (if p >= 0 then "+" else "") ++ str(p) ++ "%"
+    | Constant(n) => "+" ++ str(n) ++ " leaves"
+    end;
+
+  # view returns a ViewCmd (Sec. 3.2.3). At the top it places the #
+  # growth splice's editor, labelled, so the client's code for the #
+  # style -- here, the variable style_selected -- is edited in the #
+  # widget. It reads the splice with eval_splice, shows the style on #
+  # the feed button, and a click hands it to update inside Feed. Until the #
+  # splice has a value, there is nothing to feed with, and the button #
+  # says so. #
+  let view = fun m : Model ->
+    do g <- eval_splice(m.growth) in
+    do growth_editor <- editor((m.growth, FixedWidth(8))) in
+    let feed_button =
+      case g
+      | Some(Val(style)) =>
+        Html.button([Attr.on_click(Feed(style)),
+                     Attr.style([("font-size", "0.7em")])],
+                    [Html.text("feed " ++ style_text(style))])
+      | _ =>
+        Html.button([Attr.style([("font-size", "0.7em")])],
+                    [Html.text("feed: no growth style")])
+      end
+    in
+    Pure(
+    Html.div(
+      [Attr.style([("display", "flex"), ("flex-direction", "column"),
+                   ("gap", "0.2em")])],
+      [Html.div([Attr.style([("display", "flex"), ("gap", "0.4em"),
+                             ("align-items", "center"),
+                             ("font-size", "0.7em")])],
+         [Html.text("growth style"), growth_editor,
+          Html.div([Attr.style([("margin-left", "auto"), ("display", "flex"),
+                                ("gap", "0.1em")])],
+            [zoom_button(("-", -1)), zoom_button(("0", 0)),
+             zoom_button(("+", 1))])]),
+       Html.node("svg",
+         [Attr.create("viewBox", "0 0 260 " ++ str(frame_h(m.tree))),
+          Attr.width(str(width_px(m))),
+          Attr.height(str(height_px(m)))],
+         draw((m.tree, 130, frame_h(m.tree) - 20, 34, 20, m.season, [], 0))),
+       Html.div([Attr.style([("display", "flex"), ("gap", "0.2em")])],
+         [Html.button([Attr.on_click(Prev),
+                       Attr.style([("font-size", "0.7em")])],
+                      [Html.text("<")]),
+          season_button((Spring, m.season)),
+          season_button((Summer, m.season)),
+          season_button((Fall, m.season)),
+          season_button((Winter, m.season)),
+          Html.button([Attr.on_click(Next),
+                       Attr.style([("font-size", "0.7em")])],
+                      [Html.text(">")]),
+          feed_button])]));
+
+  # Functional (Overview): a census is plain data from the model. #
+  let expand = Functional(fun m : Model ->
+    let c = count(m.tree) in
+    (leaves=c.leaves, branches=c.branches, scars=c.scars, season=m.season));
+
+  # The footprint follows the picture, so it follows the tree: its #
+  # width in cells, at least the 20 the buttons need, and two lines of #
+  # controls plus the picture's height, about 20 pixels a line. The #
+  # picture is as tall as the tree is deep, so a tree that grows a #
+  # level grows its widget too, at any zoom. #
+  let shape = fun m : Model ->
+    let w = width_px(m) / 9 + 1 in
+    Block(if w < 20 then 20 else w, 3 + height_px(m) / 20)
+} in
+
+# GROWTH STYLE #
+
+# Two small livelits build the growth style the tree is fed with. #
+
+# A slider over a range. Its bounds are part of its model, so one #
+# definition serves both sliders below with no abbreviation. (Bounds #
+# as parameters, $slider 0 100, are the Parameters slide.) #
+let ^range = {
+  type Model = (lo=Int, hi=Int, value=Int);
+  type Action = Int;
+  type Expansion = Int;
+  let init = Pure((lo=0, hi=10, value=5));
+  let update = fun m : Model -> fun v : Action ->
+    Pure((lo=m.lo, hi=m.hi, value=v));
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.4em"),
+                   ("align-items", "center"),
+                   ("font-family", "var(--code-font)"),
+                   ("font-size", "0.8em")])],
+      [Html.input([
+         Attr.type_("range"), Attr.min(string_of_int(m.lo)),
+         Attr.max(string_of_int(m.hi)),
+         Attr.value(string_of_int(m.value)),
+         Attr.on_input(fun s -> int_of_string(s))]),
+       Html.text(string_of_int(m.value))]));
+  let expand = Functional(fun m : Model -> m.value);
+  let shape = Inline(22)
+} in
+
+# One of two, by a pair of buttons: a label and a splice for each #
+# case, and a use means the case whose button is pressed. A Macro #
+# (Sec. 3.2.5): its code is a function of both splices, applied to #
+# them at the use. Its Expansion is ?, the unknown type, so it is not #
+# tied to any one type: a livelit declares one expansion type, and #
+# this one is whatever its cases are (Either, Two Versions has the #
+# type-parameter alternative). #
+let ^either = {
+  # Two cases, each with a label and a splice; on_a says which is on. #
+  # A Bool is the implementation, but not the interface: the widget #
+  # shows both labels as buttons, and exactly one is pressed. #
+  type Model = (a_label=String, b_label=String, on_a=Bool,
+                a=SpliceRef, b=SpliceRef);
+  type Action = Bool;
+  type Expansion = ?;
+  let init =
+    do a <- new_splice((AnyT, None)) in
+    do b <- new_splice((AnyT, None)) in
+    Pure((a_label="a", b_label="b", on_a=true, a=a, b=b));
+  let update = fun m : Model -> fun on_a : Action ->
+    Pure((a_label=m.a_label, b_label=m.b_label, on_a=on_a, a=m.a, b=m.b));
+  # A pair of radio buttons, like an old car radio's: the pressed one #
+  # is drawn inverted, and pressing it again changes nothing. #
+  let button = fun (label, pressed, choose) : (String, Bool, Bool) ->
+    Html.button(
+      [Attr.on_click(choose),
+       Attr.style([("font-family", "var(--code-font)"),
+                   ("font-size", "0.9em"),
+                   ("font-weight", if pressed then "bold" else "normal"),
+                   ("background", if pressed then "#3e2723" else "#f3efe6"),
+                   ("color", if pressed then "#fdfcf7" else "#3e2723"),
+                   ("border", "1px solid #5d4037"),
+                   ("border-radius", "3px")])],
+      [Html.text(label)]);
+  let view = fun m : Model ->
+    do a <- editor((m.a, FixedWidth(10))) in
+    do b <- editor((m.b, FixedWidth(10))) in
+    let case_ = fun (label, pressed, choose, ed) ->
+      Html.div([Attr.style([("display", "flex"), ("gap", "0.3em"),
+                            ("align-items", "center"),
+                            ("opacity", if pressed then "1" else "0.55")])],
+               [button((label, pressed, choose)), ed]) in
+    Pure(
+      Html.div(
+        [Attr.style([("display", "flex"), ("gap", "0.8em"),
+                     ("align-items", "center"),
+                     ("font-size", "0.8em")])],
+        [case_((m.a_label, m.on_a, true, a)),
+         case_((m.b_label, if m.on_a then false else true, false, b))]));
+  # A Macro (Sec. 3.2.5): code for a function of both splices, applied #
+  # to them at the use. The binder of the case not taken is _. #
+  let expand = Macro(fun m : Model ->
+    (if m.on_a then quote fun a -> fun _ -> a end
+     else quote fun _ -> fun b -> b end,
+     [m.a, m.b]));
+  let shape = Inline(44)
+} in
+
+let a_pct = ^^livelit(^range((lo = -50, hi = 100, value = 30))) in
+let style_a = Percent(a_pct) in
+let b_leaves = ^^livelit(^range((lo=0, hi=13, value=4))) in
+let style_b = Constant(b_leaves) in
+let style_selected =
+  ^^livelit(^either((a_label="style a", b_label="style b", on_a=true,
+                     a=(style_a), b=(style_b)))) in
+let ^^probe(census) = ^^livelit(^tree((
+  tree=Branch(Smooth, Leaf(Oak), Branch(Rough, Leaf(Maple), Leaf(Elm))),
+  season=Spring,
+  growth=(style_selected),
+  seed=1,
+  scale=100
+))) in
+
+(census.leaves, census.branches, census.scars)
+
+# Two growth styles, each with its slider: style a grows by a #
+# percent, 30% to start, and style b by a constant, 4 leaves. #
+
+# The choice between them. Each case is client code naming a style, #
+# as Color's splices name its sliders' variables; style_selected #
+# means the one that is on. #
+
+# The use above carries its whole tree in its argument. Grow it and #
+# the argument grows with it; trim a branch and a Scar appears in the #
+# text. The EXPANSION stays a census either way, so a client counts #
+# without ever matching on the tree. #

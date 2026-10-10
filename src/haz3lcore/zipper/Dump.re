@@ -60,8 +60,39 @@ let to_zipper = (z: Zipper.t, ~root) =>
     go(z);
   };
 
-let to_segment = (z: Zipper.t, ~root): Segment.t =>
+let to_segment_by_walking = (z: Zipper.t, ~root): Segment.t =>
   z
   |> Zipper.clear_unparsed_buffer
   |> to_zipper(~root)
   |> Zipper.unselect_and_zip(~erase_buffer=true);
+
+/* Every nested segment counts: a tile's children, and a projector's syntax
+ * and a splice's content, which Segment.global_missing_shards does not
+ * enter (a `[` typed in a table cell is one). */
+let rec has_incomplete_tile = (seg: Segment.t): bool =>
+  List.exists(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        !Tile.is_complete(t) || List.exists(has_incomplete_tile, t.children)
+      | Projector(pr) => has_incomplete_tile(pr.syntax)
+      | Splice(s) => has_incomplete_tile(s.content)
+      | Grout(_)
+      | Secondary(_) => false
+      },
+    seg,
+  );
+
+/* The walk only ever puts down a missing shard, and can_put_down is false
+ * wherever none is missing, so with no incomplete tile anywhere it moves
+ * the caret to the end of the program and puts nothing down: the answer
+ * is the program as it stands. That is the usual case, and the walk is a
+ * Zipper.move per piece -- ~300 ms of every statics pass on the Color
+ * slide -- so check for it first. */
+let to_segment = (z: Zipper.t, ~root): Segment.t => {
+  let zipped =
+    z
+    |> Zipper.clear_unparsed_buffer
+    |> Zipper.unselect_and_zip(~erase_buffer=true);
+  has_incomplete_tile(zipped) ? to_segment_by_walking(z, ~root) : zipped;
+};

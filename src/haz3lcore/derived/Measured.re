@@ -211,18 +211,19 @@ let has_splice_info = (sid: Id.t, map): bool => Id.Map.mem(sid, map.splices);
 
 /* A splice consumes zero width in its parent's coordinate frame; its
  * intrinsic size is recorded separately in [map.splices] and the splice's
- * actual on-screen placement is decided by its parent projector's view. */
-let find_splice_placeholder = (s: Base.splice, map): measurement => {
-  let origin =
-    switch (Id.Map.find_opt(s.id, map.grout)) {
-    | Some(m) => m.origin
-    | None => Point.zero
-    };
-  {
-    origin,
-    last: origin,
+ * actual on-screen placement is decided by its parent projector's view.
+ * The exception is a splice measured inline (nested in another splice's
+ * content: see the Splice case of [of_segment_inner]), whose whole extent
+ * is recorded in [map.grout] by its id, so a caret beside it has a place:
+ * at (0, 0) the click and arrow scans gave up at the pane's first cell. */
+let find_splice_placeholder = (s: Base.splice, map): measurement =>
+  switch (Id.Map.find_opt(s.id, map.grout)) {
+  | Some(m) => m
+  | None => {
+      origin: Point.zero,
+      last: Point.zero,
+    }
   };
-};
 
 let find_p = (~msg="", p: Piece.t, map): measurement =>
   try(
@@ -316,6 +317,7 @@ module MkDeferredLinebreaks = () => {
 
 let of_segment_inner =
     (
+      ~in_splice=false,
       indent_level: Id.Map.t(int),
       is_single_line: bool,
       seg: Segment.t,
@@ -432,6 +434,9 @@ let of_segment_inner =
     (seg, indent, origin, map);
   };
 
+  /* How many splices' content [go] is inside: see the Splice case. */
+  let splice_depth = ref(in_splice ? 1 : 0);
+
   let rec go = (~top_level: bool, acc: acc, seg: Segment.t): acc =>
     switch (seg) {
     | [] => add_top_level(~top_level, acc)
@@ -442,6 +447,27 @@ let of_segment_inner =
     | Secondary(w) => add_secondary(acc, w)
     | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
+    | Splice(s) when splice_depth^ > 0 =>
+      /* A splice inside another splice's content: a livelit's cell, in
+       * the pane that shows the livelit's own syntax under its GUI
+       * (ProjectorPerform.ToggleSyntax), where the whole use is one
+       * splice. Nothing draws it elsewhere -- the pane's editor prints
+       * it inline, as its text -- so it is measured inline too. Measured
+       * as zero width, every caret, click and outline after it on its
+       * row landed that many columns short. Its size is still recorded,
+       * for the GUI's splice_size. */
+      let (_, _, start, _) = acc;
+      let (seg, indent, last, map) = go(~top_level=false, acc, s.content);
+      let size =
+        Point.{
+          row: last.row - start.row,
+          col: last.row == start.row ? last.col - start.col : last.col,
+        };
+      let map = {
+        ...map,
+        grout: Id.Map.add(s.id, mk_measurement(start, last), map.grout),
+      };
+      (seg, indent, last, add_splice_info(s, {size: size}, map));
     | Splice(s) =>
       /* A Splice appearing directly in the outer segment (not inside a
        * projector) consumes zero width at its position. Its interior is
@@ -517,8 +543,10 @@ let of_segment_inner =
    * Returns the outer map augmented with the splice's inner piece
    * measurements and the splice's intrinsic size. */
   and measure_splice = (s: Base.splice, outer: t): t => {
+    incr(splice_depth);
     let (_, _, last, inner) =
       go(~top_level=false, ([], 0, Point.zero, empty), s.content);
+    decr(splice_depth);
     let outer = merge_inner(inner, outer);
     /* The intrinsic size is the content's bounding box: [last] alone
      * would report the END POINT (the last line's width), understating
@@ -566,12 +594,16 @@ let of_segment =
     (
       ~indent_level=Id.Map.empty,
       ~is_single_line=false,
+      /* [seg] is a splice's content, measured in its own frame
+         (CachedSyntax.mk_splice_map): a splice nested in it is inline. */
+      ~in_splice=false,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_rows: Id.Map.t(int),
     )
     : t =>
   of_segment_inner(
+    ~in_splice,
     indent_level,
     is_single_line,
     seg,
@@ -601,7 +633,16 @@ let start_row_width = (measurement: measurement, measured: t): int =>
  * segment; without it, nested projectors measure as if inline. */
 let segment_bbox =
     (~shape_map=ProjectorCore.Shape.Map.empty, seg: Segment.t): Point.t => {
-  let m = of_segment_inner(Id.Map.empty, false, seg, shape_map, Id.Map.empty);
+  /* A splice's content: a splice nested in it is inline (of_segment). */
+  let m =
+    of_segment_inner(
+      ~in_splice=true,
+      Id.Map.empty,
+      false,
+      seg,
+      shape_map,
+      Id.Map.empty,
+    );
   let rows = m.rows |> Rows.bindings;
   switch (rows) {
   | [] => Point.zero

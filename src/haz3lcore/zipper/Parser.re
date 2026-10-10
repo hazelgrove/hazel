@@ -57,19 +57,81 @@ let try_segment_paste =
   };
 };
 
+/* Line endings as the editor keeps them. Token.to_list segments by
+   grapheme, and "\r\n" is ONE grapheme, so text with Windows line endings
+   arrives as "\r\n" characters, never as a lone "\r": each was inserted as
+   an unknown token, leaving a `¿` hole at the start of every line. A lone
+   "\r" (old Mac endings, or a stray one) is a line break too: skipping it
+   would glue `in\rx` into `inx`. */
+let line_ending = (c: string): string =>
+  switch (c) {
+  | "\r\n"
+  | "\r" => "\n"
+  | c => c
+  };
+
+/* The longest prefix of [chars] that stays one operand, or one operator,
+   at every step: exactly the characters typing would keep appending to
+   the token they start. Brackets, quotes, comment delimiters and
+   whitespace are in neither class, so they always come one at a time. */
+let take_run = (chars: list(string)): option((string, list(string))) => {
+  let same_class =
+    switch (chars) {
+    | [c, ..._] when Token.is_potential_operand(c) =>
+      Some(Token.is_potential_operand)
+    | [c, ..._] when Token.is_potential_operator(c) =>
+      Some(Token.is_potential_operator)
+    | _ => None
+    };
+  let+ same_class = same_class;
+  let fits = t => Token.is_potential_token(t) && same_class(t);
+  let rec go = (acc, rest) =>
+    switch (rest) {
+    | [c, ...rest'] when fits(acc ++ c) => go(acc ++ c, rest')
+    | _ => (acc, rest)
+    };
+  go(List.hd(chars), List.tl(chars));
+};
+
 /* Insert characters one-by-one into a zipper. Used for paste and
-   other operations that start from an existing zipper state. */
+   other operations that start from an existing zipper state.
+   With ~by_run, a run from take_run goes in as one insertion whenever
+   the caret is between tokens, and insertions skip their regrout, which
+   is done once at the end: regrouting walks the whole sibling run, so
+   doing it per insertion made loading quadratic in the run's length. */
 let to_zipper =
-    (~root, ~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
-  let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
-    let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z, ~root)) {
+    (~by_run=false, ~root, ~zipper_init=Zipper.init(), str: string)
+    : option(Zipper.t) => {
+  let insert = (z: Zipper.t, c: string): option(Zipper.t) =>
+    try(Insert.go(~regrout=!by_run, line_ending(c), z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_zipper: " ++ Printexc.to_string(exn));
       None;
     };
-  };
-  let+ z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
+  let rec go = (z: Zipper.t, chars: list(string)): option(Zipper.t) =>
+    switch (chars) {
+    | [] => Some(z)
+    | [c, ...rest] =>
+      let (s, rest) =
+        switch (
+          by_run && z.caret == Outer && z.selection.content == []
+            ? take_run(chars) : None
+        ) {
+        | Some(run) => run
+        | None => (c, rest)
+        };
+      /* A direct self call, which js_of_ocaml compiles to a loop. Through
+         `let*` it was a call inside Option.bind's closure: a stack frame per
+         run of characters, each holding the zipper it started from, so a
+         20 KB slide overflowed the stack or ran out of memory. */
+      switch (insert(z, s)) {
+      | None => None
+      | Some(z) => go(z, rest)
+      };
+    };
+  let+ z = go(zipper_init, Token.to_list(str));
+  /* ~by_run skipped every per-insertion regrout; do it once here. */
+  let z = by_run ? Zipper.remold_regrout(Left, z, ~root) : z;
   Zipper.rescan_reassemble(~with_parent=true, Left, z, ~root);
 };
 
@@ -105,47 +167,88 @@ let strip_trailing_grout = (seg: Segment.t): Segment.t => {
    is parsed independently; trailing grout (from Zipper.init) is
    stripped, segments are concatenated, and a final top-level regrout
    ensures shape consistency across boundaries. */
-let to_segment = (str: string, ~root): option(Segment.t) => {
-  let chars = str |> Token.to_list;
+let to_segment_with_manuals =
+    (~by_run=true, str: string, ~root)
+    : option((Segment.t, Refractors.RefractorList.t)) => {
   let segments = ref([]);
+  /* Projectors typed along the way (`^^probe(` and the like) are pinned
+     in each piece's refractors, by piece id; ids survive the split, so
+     every piece's pins are kept and handed back with the segment. */
+  let manuals = ref([]);
   let current_z = ref(Some(Zipper.init()));
   let chars_since_split = ref(0);
   let min_segment_size = 100;
-
-  let insert_char = (z: option(Zipper.t), c: string): option(Zipper.t) => {
-    let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z, ~root)) {
+  /* With ~by_run (the default), as in to_zipper: a run that stays one
+     token goes in as one insertion, and the regrout waits for the end of
+     the segment, where it happens anyway. Each segment starts from a fresh
+     zipper, so this always parses text on its own, which is when that is
+     safe. Over all 117 hazel-programs, with and without it, the result is
+     identical. */
+  let insert = (z: Zipper.t, s: string): option(Zipper.t) =>
+    try(Insert.go(~regrout=!by_run, line_ending(s), z, ~root)) {
     | exn =>
       print_endline("WARN: Parser.to_segment: " ++ Printexc.to_string(exn));
       None;
     };
-  };
-
-  List.iter(
-    c => {
-      current_z := insert_char(current_z^, c);
-      incr(chars_since_split);
+  /* A direct self call, so js_of_ocaml compiles it to a loop. */
+  let rec go = (chars: list(string)) =>
+    switch (chars, current_z^) {
+    | ([], _)
+    | (_, None) => ()
+    | ([c, ...rest], Some(z)) =>
+      let (s, rest) =
+        switch (
+          by_run && z.caret == Outer && z.selection.content == []
+            ? take_run(chars) : None
+        ) {
+        | Some(run) => run
+        | None => (c, rest)
+        };
+      current_z := insert(z, s);
+      chars_since_split :=
+        chars_since_split^ + List.length(chars) - List.length(rest);
       switch (current_z^) {
-      | None => ()
-      | Some(z) =>
-        if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
-          let z = Zipper.remold_regrout(Left, z, ~root);
-          let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-          segments := [strip_trailing_grout(seg), ...segments^];
-          current_z := Some(Zipper.init());
-          chars_since_split := 0;
-        }
+      | Some(z)
+          when
+            chars_since_split^ >= min_segment_size
+            && is_split_point(line_ending(s), z) =>
+        let z = Zipper.remold_regrout(Left, z, ~root);
+        manuals := z.refractors.manuals @ manuals^;
+        let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+        segments := [strip_trailing_grout(seg), ...segments^];
+        current_z := Some(Zipper.init());
+        chars_since_split := 0;
+      | _ => ()
       };
-    },
-    chars,
-  );
+      go(rest);
+    };
+  go(Token.to_list(str));
 
   let+ z = current_z^;
   let z = Zipper.remold_regrout(Left, z, ~root);
+  let manuals = z.refractors.manuals @ manuals^;
   let final_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let all_segments = List.rev([final_seg, ...segments^]);
   let combined = List.concat(all_segments);
-  Segment.regrout(Nib.Shape.(concave(), concave()), combined);
+  (Segment.regrout(Nib.Shape.(concave(), concave()), combined), manuals);
+};
+
+let to_segment = (~by_run=true, str: string, ~root): option(Segment.t) =>
+  to_segment_with_manuals(~by_run, str, ~root) |> Option.map(fst);
+
+/* to_zipper's result, from the segmented parser (hazelgrove/hazel#2610):
+   linear where to_zipper is quadratic in a long top-level sequence, and
+   the same zipper, projectors and all, on hazel-programs. For text parsed
+   on its own, not inserted into a program. */
+let to_zipper_segmented =
+    (~by_run=true, ~root, str: string): option(Zipper.t) => {
+  let+ (seg, manuals) = to_segment_with_manuals(~by_run, str, ~root);
+  Zipper.unzip(seg)
+  |> Zipper.rescan_reassemble(~with_parent=true, Left, _, ~root)
+  |> ZipperBase.update_manuals(existing =>
+       manuals
+       @ List.filter(((id, _)) => !List.mem_assoc(id, manuals), existing)
+     );
 };
 
 /* Quick O(n) check that clipboard has balanced parens/brackets/braces.

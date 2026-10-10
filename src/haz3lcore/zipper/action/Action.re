@@ -81,11 +81,13 @@ type project =
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
   | SetTerm(int, Language.Any.t, bool) /* Set underlying term, optionally preserving original splices */
+  | Unproject(int, Base.segment) /* Replace a projector with this segment, by index: a livelit turned back into code */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | SetModelQuiet(int, ProjectorCore.Kind.t, string) /* SetModel minus undo entry: for streaming
    * drag ticks (e.g. HTML projector resize). The first tick of a gesture
    * should be a normal SetModel so undo restores the pre-gesture state. */
   | TogglePlacement /* Dock/undock the indicated projector to/from the sidebar */
+  | ToggleSyntax(int) /* Show/hide a projector's own syntax, editable, below its UI */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
   | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
@@ -213,9 +215,11 @@ let is_edit: t => bool =
     | SetModel(_)
     | SetModelQuiet(_)
     | SetSyntax(_)
+    | Unproject(_)
     | SetTerm(_)
     | SetIndicated(_)
     | TogglePlacement
+    | ToggleSyntax(_)
     | RemoveIndicated => true
     | Focus(_)
     | SampleFocus(_)
@@ -269,10 +273,12 @@ let is_historic: t => bool =
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
+    | Unproject(_)
     | SetTerm(_)
     | SetModel(_)
     | SetIndicated(_)
     | TogglePlacement
+    | ToggleSyntax(_)
     | RemoveIndicated => true
     | SetModelQuiet(_)
     | Focus(_)
@@ -314,10 +320,12 @@ let should_animate: t => bool =
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
+    | Unproject(_)
     | SetTerm(_)
     | SetModel(_)
     | SetIndicated(_)
     | TogglePlacement
+    | ToggleSyntax(_)
     | RemoveIndicated
     | Focus(_)
     | SampleFocus(_)

@@ -674,3 +674,24 @@ let evaluate =
   let value = finish(~env, Trampoline.run(result));
   (value, state^);
 };
+
+/* evaluate, without finish: the value as the evaluator left it, its
+   functions still closures over their environments. finish substitutes
+   every variable's value in, recursively and unshared, so a value whose
+   functions close over many others -- a livelit view's HTML, each handler
+   closing over the whole livelit -- comes out with a copy of each, every
+   time: 76% of a Polygons click in Firefox. A caller that only reads the
+   value's data, and applies its functions by evaluating again, can take
+   it as it is. */
+let evaluate_open = (~env, d: DHExp.t): Exp.t => {
+  let (_, result) =
+    prepare_evaluation(
+      ~prev=IncrEval.empty,
+      ~eval_info=EvalInfo.empty,
+      ~env,
+      ~reuse_map=None,
+      ~outbox=None,
+      d,
+    );
+  Trampoline.run(result);
+};

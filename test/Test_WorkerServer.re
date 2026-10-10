@@ -47,6 +47,7 @@ let response_of_exp = (e: Exp.t): WorkerServer.ServerMessage.t =>
     request_id: 1,
     response: [("cell", Ok((e, EvaluatorState.empty)))],
     eval_time,
+    final_streams: [],
   });
 
 let parse = (s: string): Exp.t =>
@@ -149,6 +150,144 @@ let test_span_yojson = (): test_case(_) =>
     },
   );
 
+/* The incremental cache stays in the worker (WorkerServer.Held): a finished
+   run's cache is kept by key and the answer leaves it out, and a request
+   with use_held_prev evaluates against what is kept. */
+let request_of = text => {
+  switch (Haz3lcore.PersistentZipper.parse_text(~source="t", ~root=Exp, text)) {
+  | None => fail("did not parse")
+  | Some(z) =>
+    let Haz3lcore.MakeTerm.{term, _} =
+      Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let (info_map, elab) =
+      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
+    WorkerServer.Request.{
+      expr: elab,
+      eval_info_map:
+        EvalInfo.of_info_map(
+          ~probe_all=false,
+          ~targets=Id.Map.empty,
+          info_map,
+        ),
+      prev: IncrEval.empty,
+      use_held_prev: true,
+    };
+  };
+};
+
+let program = n =>
+  "let f = fun n -> n * 2 in let xs = [1, 2, 3] in (f("
+  ++ string_of_int(n)
+  ++ "), xs)";
+
+/* One run as the worker does it: resolve the held cache, evaluate, keep. */
+let run = (key, v) =>
+  WorkerServer.Held.keep(
+    key,
+    WorkerServer.evaluate_sync(WorkerServer.Held.resolve(key, v)),
+  );
+
+let result_of = (r: WorkerServer.Response.value) =>
+  switch (r) {
+  | Ok((result, _)) => result
+  | Error(_) => fail("the run failed")
+  };
+
+let test_held_by_key = () =>
+  test_case(
+    "the worker keeps each key's cache",
+    `Quick,
+    () => {
+      WorkerServer.Held.clear();
+      let v = request_of(program(10));
+      check(
+        bool,
+        "nothing is held at first",
+        true,
+        WorkerServer.Held.resolve("a", v).prev === IncrEval.empty,
+      );
+      switch (run("a", v)) {
+      | Ok((_, state)) =>
+        check(
+          bool,
+          "the answer leaves the cache out",
+          true,
+          state.incr_eval === IncrEval.empty,
+        )
+      | Error(_) => fail("the run failed")
+      };
+      check(
+        bool,
+        "the next run gets the cache",
+        false,
+        WorkerServer.Held.resolve("a", v).prev === IncrEval.empty,
+      );
+      check(
+        bool,
+        "another key gets none",
+        true,
+        WorkerServer.Held.resolve("b", v).prev === IncrEval.empty,
+      );
+      check(
+        bool,
+        "a request that passes its own prev keeps it",
+        true,
+        WorkerServer.Held.resolve(
+          "a",
+          {
+            ...v,
+            use_held_prev: false,
+          },
+        ).
+          prev
+        === IncrEval.empty,
+      );
+    },
+  );
+
+let test_held_same_result = () =>
+  test_case(
+    "a held cache gives the same result",
+    `Quick,
+    () => {
+      WorkerServer.Held.clear();
+      let _ = run("a", request_of(program(10)));
+      let edited = request_of(program(11));
+      let held = result_of(run("a", edited));
+      let fresh =
+        result_of(
+          WorkerServer.evaluate_sync({
+            ...edited,
+            use_held_prev: false,
+          }),
+        );
+      check(
+        bool,
+        "the same as a fresh run",
+        true,
+        Exp.fast_equal(held, fresh),
+      );
+    },
+  );
+
+let test_held_dropped_on_failure = () =>
+  test_case(
+    "a failed run keeps nothing",
+    `Quick,
+    () => {
+      WorkerServer.Held.clear();
+      let v = request_of(program(10));
+      let _ = run("a", v);
+      let _ = WorkerServer.Held.keep("a", Error(ProgramResult.Timeout));
+      check(
+        bool,
+        "no cache after a failure",
+        true,
+        WorkerServer.Held.resolve("a", v).prev === IncrEval.empty,
+      );
+    },
+  );
+
 let tests = [
   (
     "WorkerServer encodings",
@@ -159,6 +298,14 @@ let tests = [
       test_isomorphic(~name="Marshal", (module WorkerServer.MarshalEncoding)),
       test_isomorphic(~name="Direct", (module WorkerServer.DirectEncoding)),
       test_isomorphic(~name="Sexp", (module WorkerServer.SexpEncoding)),
+    ],
+  ),
+  (
+    "WorkerServer held cache",
+    [
+      test_held_by_key(),
+      test_held_same_result(),
+      test_held_dropped_on_failure(),
     ],
   ),
 ];

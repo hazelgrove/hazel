@@ -11,7 +11,9 @@ let max_ack_retries = 3;
 let eval_timeout_ms = 20000; // Evaluation timeout in ms
 
 type callbacks = {
-  on_result: Response.t => unit,
+  on_result:
+    (~final_streams: list((key, ServerMessage.stream_update)), Response.t) =>
+    unit,
   on_timeout: Request.batch => unit,
   on_ack: ServerMessage.reuse_predictions => unit,
   on_stream: (key, ServerMessage.stream_update) => unit,
@@ -26,6 +28,10 @@ type latest = {
 let next_request_id = ref(0);
 let latest_request: ref(option(latest)) = ref(None);
 let ack_timeout_id = ref(None);
+
+/* The request whose messages are still being taken, if any. */
+let latest_request_id = (): option(int) =>
+  Option.map(l => l.request.request_id, latest_request^);
 let eval_timeout_id = ref(None);
 
 let clear_timer = timer_ref => {
@@ -39,6 +45,38 @@ let clear_timer = timer_ref => {
 let clear_timeouts = () => {
   clear_timer(ack_timeout_id);
   clear_timer(eval_timeout_id);
+};
+
+/* A deadline measured on a main-thread timer is only fair if the page could
+   hear the worker meanwhile. When the main thread is blocked -- statics on a
+   large slide held Firefox's for 22-26 s at a stretch -- the timer fires late,
+   and the worker's reply, sent long before, is queued BEHIND it: the timeout
+   ran first, killed a healthy worker that had answered in 30 ms, respawned
+   it, and the respawn's own blocked stretch did it again, so the slide never
+   drew ("Evaluation timed out").
+
+   So a timer that fires more than [late_slack_ms] late does not decide. It
+   waits [grace_ms] more, long enough for anything already queued to be
+   handled first, and asks again; a grace timer that is itself late waits
+   again. A worker that is really gone is still caught, as soon as the page
+   has been free to hear it. */
+let late_slack_ms = 250.;
+let grace_ms = 500;
+let rec set_deadline = (timer_ref, ~delay_ms: int, on_expire: unit => unit) => {
+  let due = Util.JsUtil.precise_timestamp() +. float_of_int(delay_ms);
+  timer_ref :=
+    Some(
+      Dom_html.window##setTimeout(
+        Js.wrap_callback(() =>
+          if (Util.JsUtil.precise_timestamp() -. due > late_slack_ms) {
+            set_deadline(timer_ref, ~delay_ms=grace_ms, on_expire);
+          } else {
+            on_expire();
+          }
+        ),
+        float_of_int(delay_ms),
+      ),
+    );
 };
 
 /* Run f on the current request iff request_id still matches it; messages
@@ -104,7 +142,14 @@ let setup_worker_message_handler = worker => {
             latest_request := None;
             /* Hand the result off first; benchmarking the other encodings
              * can take tens of ms and must not delay evaluation latency. */
-            latest.callbacks.on_result(result.response);
+            latest.callbacks.on_result(
+              ~final_streams=
+                List.map(
+                  (st: ServerMessage.stream) => (st.key, st.update),
+                  result.final_streams,
+                ),
+              result.response,
+            );
             WorkerMetrics.record_response(result.request_id, msg);
             EvalMetrics.record_done(~now, ~encoded=evt##.data, result);
           },
@@ -150,55 +195,48 @@ let restart_worker = (): unit => {
  * UI has already shown Timeout. */
 let start_eval_timeout = latest => {
   clear_timer(eval_timeout_id);
-  eval_timeout_id :=
-    Some(
-      Dom_html.window##setTimeout(
-        Js.wrap_callback(() =>
-          with_latest(
-            latest.request.request_id,
-            latest => {
-              restart_worker();
-              fail_latest(latest);
-            },
-          )
-        ),
-        float_of_int(eval_timeout_ms),
-      ),
-    );
+  set_deadline(eval_timeout_id, ~delay_ms=eval_timeout_ms, () =>
+    with_latest(
+      latest.request.request_id,
+      latest => {
+        restart_worker();
+        fail_latest(latest);
+      },
+    )
+  );
 };
 
 let rec start_ack_timeout = (~cold_start, latest) => {
   clear_timer(ack_timeout_id);
   let duration = cold_start ? ack_cold_start_timeout_ms : ack_timeout_ms;
-  ack_timeout_id :=
-    Some(
-      Dom_html.window##setTimeout(
-        Js.wrap_callback(() =>
-          with_latest(latest.request.request_id, latest =>
-            if (latest.ack_retries >= max_ack_retries) {
-              restart_worker();
-              fail_latest(latest);
-            } else {
-              let latest = {
-                ...latest,
-                ack_retries: latest.ack_retries + 1,
-              };
-              latest_request := Some(latest);
-              restart_worker();
-              post_evaluate(get_worker(), latest.request);
-              start_ack_timeout(~cold_start=true, latest);
-            }
-          )
-        ),
-        float_of_int(duration),
-      ),
-    );
+  set_deadline(ack_timeout_id, ~delay_ms=duration, () =>
+    with_latest(latest.request.request_id, latest =>
+      if (latest.ack_retries >= max_ack_retries) {
+        restart_worker();
+        fail_latest(latest);
+      } else {
+        let latest = {
+          ...latest,
+          ack_retries: latest.ack_retries + 1,
+        };
+        latest_request := Some(latest);
+        restart_worker();
+        post_evaluate(get_worker(), latest.request);
+        start_ack_timeout(~cold_start=true, latest);
+      }
+    )
+  );
 };
 
 let request =
     (
       batch: Request.batch,
-      ~on_result: Response.t => unit,
+      ~on_result:
+         (
+           ~final_streams: list((key, ServerMessage.stream_update)),
+           Response.t
+         ) =>
+         unit,
       ~on_timeout: Request.batch => unit,
       ~on_ack: ServerMessage.reuse_predictions => unit,
       ~on_stream: (key, ServerMessage.stream_update) => unit,

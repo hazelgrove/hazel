@@ -1,0 +1,27 @@
+# Expansion Type Errors, Macro 2: A Parameter #
+
+# The code's parameters take the use's splices, so a parameter must #
+# accept the type its splice's code has -- which depends on the USE. #
+# Here the code is #
+#   fun a : String -> a ++ "!" #
+# The first use's splice holds 1, an Int, and is marked: #
+#   The expansion's code takes String for splice 1, whose code has #
+#   type Int #
+# The second use's splice holds "hi", a String, and is fine: it #
+# means "hi!". This is why a Macro is checked at each use. #
+
+let ^bang = {
+  type Model = (a = SpliceRef);
+  type Action = Int;
+  type Expansion = String;
+  let init =
+    do a <- new_splice((IntT, Some(IntLit(1)))) in
+    Pure((a = a));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do e <- editor((m.a, FixedWidth(6))) in
+    Pure(Html.div([], [Html.text("a = "), e]));
+  let expand = Macro(fun m : Model -> (quote fun a : String -> a ++ "!" end, [m.a]));
+  let shape = Inline(12)
+} in
+(^^livelit(^bang((a = (1)))), ^^livelit(^bang((a = ("hi")))))

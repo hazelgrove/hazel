@@ -21,6 +21,7 @@ let (suite, exit_with_test_status) =
       Test_LazyHydration.tests,
       Test_Undo.tests,
       Test_FastParseCorpus.tests,
+      Test_SlideReconcile.tests,
       Test_FastParse.tests,
       Test_MenhirFuzz.tests,
       Test_MenhirCorpus.tests,
@@ -67,6 +68,8 @@ let (suite, exit_with_test_status) =
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
+    @ [Test_LoadPath.tests]
+    @ [Test_ParseSegmented.tests]
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
@@ -76,6 +79,29 @@ let (suite, exit_with_test_status) =
       Test_RichProbeRegistry.tests,
     ]
     @ Test_UserLivelits.tests
+    @ Test_Dump.tests
+    @ [Test_LivelitMembers.tests]
+    @ [Test_CtxIndex.tests]
+    @ [Test_ExpansionErrors.tests]
+    @ [Test_TreeCare.tests]
+    @ [Test_Either.tests]
+    @ [Test_Parameters.tests]
+    @ [Test_ResultView.tests]
+    @ [Test_QuoteCoverage.tests]
+    @ [Test_Unproject.tests]
+    @ [Test_PaneLayout.tests]
+    @ [Test_ElabSize.tests]
+    @ [Test_StaticsDepth.tests]
+    @ [Test_Move.tests]
+    @ [Test_StaticsPasses.tests]
+    @ [Test_TypHash.tests]
+    @ [Test_ValueHash.tests]
+    @ [Test_IdentityMemo.tests]
+    @ [Test_OpenValues.tests]
+    @ [Test_Quote.tests]
+    @ [Test_Quote.macro_tests]
+    @ [Test_Quote.unquote_tests]
+    @ [Test_Quote.abs_tests]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
     @ [Test_UnusedWarnings.tests]
@@ -99,6 +125,7 @@ let (suite, exit_with_test_status) =
     @ Test_ShortcutConfiguration.tests
     @ Test_ColorConfiguration.tests
     @ Test_ConfigurationMode.tests
+    @ [Test_ApplyWorkerMessages.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]

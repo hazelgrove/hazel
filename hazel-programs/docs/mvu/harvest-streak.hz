@@ -137,7 +137,7 @@ let qualityColor(q: Quality): String =
   | Bronze => "oklch(58% 0.09 60)"
   | Silver => "oklch(60% 0.02 250)"
   | Gold => "oklch(64% 0.14 90)"
-  | Starlight => "var(--TYP)"
+  | Starlight => "var(--token-typ)"
   end
 in
 
@@ -158,8 +158,8 @@ let cellLast: String = "0.35em 1em 0.35em 0.5em" in
 let harvestButton(h: Harvest): Html.T =
   Html.button(
     [Attr.on_click(RecordHarvest(h)),
-     Attr.style([("padding", "0.35em 0.6em"), ("background", "var(--T1)"),
-            ("color", qualityColor(h.quality)), ("border", "1px solid var(--BR1)"),
+     Attr.style([("padding", "0.35em 0.6em"), ("background", "var(--surface-default)"),
+            ("color", qualityColor(h.quality)), ("border", "1px solid var(--border-soft)"),
             ("border-radius", "3px"), ("cursor", "pointer"),
             ("font-family", "inherit"), ("font-size", "0.85em"),
             ("text-align", "left"), ("white-space", "nowrap")])],
@@ -168,7 +168,7 @@ let harvestButton(h: Harvest): Html.T =
 in
 
 let headerCell(label: String, pad: String, align: String): Html.T =
-  Html.th([Attr.style([("padding", pad), ("text-align", align), ("color", "var(--BR3)"),
+  Html.th([Attr.style([("padding", pad), ("text-align", align), ("color", "var(--text-muted)"),
              ("font-size", "0.75em"), ("font-weight", "bold"),
              ("text-transform", "uppercase")])],
      [Html.text(label)])
@@ -178,7 +178,7 @@ let statBlock(label: String, color: String, value: String): Html.T =
   Html.div(
     [Attr.style([("text-align", "center")])],
     [
-      Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"),
+      Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--text-muted)"),
                   ("text-transform", "uppercase")])],
           [Html.text(label)]),
       Html.div([Attr.style([("font-size", "1.5em"), ("color", color), ("font-weight", "bold")])],
@@ -193,10 +193,10 @@ let view(model: Model): Html.T =
     let ordered: [Harvest] = reverse(model.harvests) in
     mapi(ordered, fun (i, h) ->
       Html.tr(
-        [Attr.style([("border-top", "1px solid var(--BR1)")])],
+        [Attr.style([("border-top", "1px solid var(--border-soft)")])],
         [
           Html.td(
-            [Attr.style([("padding", cellFirst), ("color", "var(--BR3)")])],
+            [Attr.style([("padding", cellFirst), ("color", "var(--text-muted)")])],
             [Html.text(string_of_int(i + 1))]
           ),
           Html.td(
@@ -213,7 +213,7 @@ let view(model: Model): Html.T =
             [Html.text(string_of_int(h.quantity))]
           ),
           Html.td(
-            [Attr.style([("padding", cellLast), ("color", "var(--BR4)"),
+            [Attr.style([("padding", cellLast), ("color", "var(--text-strong)"),
                     ("text-align", "right"), ("font-weight", "bold")])],
             [Html.text(string_of_int(harvestValue(h)))]
           )
@@ -227,17 +227,17 @@ let view(model: Model): Html.T =
       # the projector box and leave a permanent scrollbar. Use padding. #
       ("max-width", "600px"), ("margin", "0 auto"),
       ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
-      ("background", "var(--SAND)"), ("color", "var(--STONE)"),
-      ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+      ("background", "var(--surface-code)"), ("color", "var(--text-default)"),
+      ("border", "1px solid var(--border-soft)"), ("border-radius", "0.4em"),
       ("overflow", "hidden")
     ])],
     [
       Html.div(
         [Attr.style([("padding", "0.9em 1em 0.8em"), ("text-align", "center")])],
         [
-          Html.div([Attr.style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+          Html.div([Attr.style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--text-strong)")])],
               [Html.text("🌙 Harvest Ledger")]),
-          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
+          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--text-muted)"), ("margin-top", "0.3em")])],
               [Html.text("Track your night garden harvests")])
         ]
       ),
@@ -245,13 +245,13 @@ let view(model: Model): Html.T =
       # Summary stats, banded full width against the rounded outer frame #
       Html.div(
         [Attr.style([("display", "flex"), ("justify-content", "space-around"),
-                ("padding", sidePad), ("background", "var(--T2)"),
-                ("border-top", "1px solid var(--BR1)"),
-                ("border-bottom", "1px solid var(--BR1)")])],
+                ("padding", sidePad), ("background", "var(--surface-raised)"),
+                ("border-top", "1px solid var(--border-soft)"),
+                ("border-bottom", "1px solid var(--border-soft)")])],
         [
-          statBlock("Total Value", "var(--BR4)", string_of_int(model.totalValue)),
+          statBlock("Total Value", "var(--text-strong)", string_of_int(model.totalValue)),
           statBlock("Streak Bonus",
-                    if model.streakBonus > 0 then "var(--G0)" else "var(--BR3)",
+                    if model.streakBonus > 0 then "var(--text-success)" else "var(--text-muted)",
                     "+" ++ string_of_int(model.streakBonus)),
           statBlock("Last Quality", qualityColor(model.lastQuality), qualityEmoji(model.lastQuality))
         ]
@@ -279,11 +279,11 @@ let view(model: Model): Html.T =
             [],
             if length(model.harvests) == 0
             then [
-              Html.tr([Attr.style([("border-top", "1px solid var(--BR1)")])], [
+              Html.tr([Attr.style([("border-top", "1px solid var(--border-soft)")])], [
                 Html.td(
                   [Attr.col_span(5),
                    Attr.style([("padding", "1.2em 1em"), ("text-align", "center"),
-                          ("color", "var(--BR3)")])],
+                          ("color", "var(--text-muted)")])],
                   [Html.text("No harvests yet... the garden awaits")]
                 )
               ])
@@ -294,9 +294,9 @@ let view(model: Model): Html.T =
       ),
 
       Html.div(
-        [Attr.style([("padding", sidePad), ("border-top", "1px solid var(--BR1)")])],
+        [Attr.style([("padding", sidePad), ("border-top", "1px solid var(--border-soft)")])],
         [
-          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"),
+          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--text-muted)"),
                       ("text-transform", "uppercase"), ("margin-bottom", "0.5em")])],
               [Html.text("Record Harvest")]),
           Html.div(
@@ -314,8 +314,8 @@ let view(model: Model): Html.T =
           Html.button(
             [Attr.on_click(ClaimBonus),
              Attr.style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
-                    ("background", "var(--G0)"), ("color", "var(--SAND)"),
-                    ("border", "1px solid var(--G0)"), ("border-radius", "3px"),
+                    ("background", "var(--surface-success)"), ("color", "var(--surface-code)"),
+                    ("border", "1px solid var(--border-success)"), ("border-radius", "3px"),
                     ("cursor", "pointer"), ("font-family", "inherit"),
                     ("font-size", "0.85em")])],
             [Html.text("💰 Claim Bonus")]
@@ -325,8 +325,8 @@ let view(model: Model): Html.T =
 
       Html.div(
         [Attr.style([("padding", "0.6em 1em"), ("text-align", "center"),
-                ("font-size", "0.75em"), ("color", "var(--BR3)"),
-                ("border-top", "1px solid var(--BR1)")])],
+                ("font-size", "0.75em"), ("color", "var(--text-muted)"),
+                ("border-top", "1px solid var(--border-soft)")])],
         [Html.text("🌱 " ++ string_of_int(length(model.harvests)) ++ " harvests logged")]
       )
     ]
