@@ -53,7 +53,10 @@ module Response = {
 module ClientMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
-    | Evaluate(Request.t);
+    | Evaluate(Request.t)
+    /* the request with every value the worker already holds replaced by a
+       reference (Util.ShareCodec); true: reset the worker's table first */
+    | EvaluateShared(bool, Request.t);
 };
 
 module ServerMessage = {
@@ -103,6 +106,9 @@ module ServerMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
     | Ack(ack)
+    /* a shared request named a value this worker does not hold (it is new,
+       or its table was cleared): send it again in full */
+    | Resend(ack)
     | ReusePlan(reuse_plan)
     | Stream(stream)
     | Result(result);
@@ -817,8 +823,7 @@ let install_message_handler = () => {
     };
   };
 
-  let on_request = (req: Active.request): unit => {
-    let ClientMessage.Evaluate(request) = Active.decode_request(req);
+  let start = (request: Request.t): unit => {
     post_ack(request);
     eval_total := Core.Time_ns.Span.zero;
     commit({
@@ -827,6 +832,20 @@ let install_message_handler = () => {
       runtime: Planning,
     });
   };
+  let on_request = (req: Active.request): unit =>
+    switch (Active.decode_request(req)) {
+    | ClientMessage.Evaluate(request) => start(request)
+    | ClientMessage.EvaluateShared(reset, request) =>
+      if (reset) {
+        Util.ShareCodec.Worker.reset();
+      };
+      switch (Util.ShareCodec.Worker.decode(request)) {
+      | request => start(request)
+      | exception _ =>
+        Util.ShareCodec.Worker.reset();
+        post_message(ServerMessage.Resend({request_id: request.request_id}));
+      };
+    };
 
   Js_of_ocaml.Worker.set_onmessage(on_request);
 };

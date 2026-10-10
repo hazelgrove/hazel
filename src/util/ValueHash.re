@@ -29,7 +29,7 @@ let impl: Lazy.t(Js.Unsafe.any) =
       a = Math.imul(a ^ c, 16777619);
       b = Math.imul(b + c, 2654435761) ^ (b >>> 13);
     }
-    return [a >>> 0, b >>> 0];
+    return [a >>> 0, b >>> 0, 1];
   };
   const mix = (h, x, y) => {
     h[0] = Math.imul(h[0] ^ x, 16777619) >>> 0;
@@ -39,14 +39,14 @@ let impl: Lazy.t(Js.Unsafe.any) =
     switch (typeof v) {
       case "number":
         return Number.isInteger(v) && Math.abs(v) < 2147483648
-          ? [(v ^ 0x5bd1e995) >>> 0, Math.imul(v, 0x27d4eb2d) >>> 0]
+          ? [(v ^ 0x5bd1e995) >>> 0, Math.imul(v, 0x27d4eb2d) >>> 0, 1]
           : fnv("f" + v, 0x811c9dc5, 7);
       case "string": return fnv(v, 0x811c9dc5 ^ 0x51, 0x2545f491);
-      case "boolean": return v ? [1, 3] : [2, 5];
+      case "boolean": return v ? [1, 3, 1] : [2, 5, 1];
       case "bigint": return fnv("n" + v, 3, 11);
-      case "undefined": return [7, 13];
+      case "undefined": return [7, 13, 1];
       case "object": {
-        if (v === null) return [17, 19];
+        if (v === null) return [17, 19, 1];
         const m = memo.get(v);
         if (m === BUSY || m === NONE) return null; /* a cycle, or no hash */
         if (m !== undefined) return m;
@@ -55,11 +55,14 @@ let impl: Lazy.t(Js.Unsafe.any) =
           /* an OCaml block: [tag, field, ...]; an unforced lazy holds a
              function, which has no hash */
           memo.set(v, BUSY);
-          h = [0x9747b28c ^ v.length, 0x85ebca6b ^ v.length];
+          /* the third number is the size: how many values the block holds,
+             counting itself (ShareCodec references only big ones) */
+          h = [0x9747b28c ^ v.length, 0x85ebca6b ^ v.length, 1];
           for (let i = 0; i < v.length; i++) {
             const c = hash(v[i]);
             if (c === null) { memo.set(v, NONE); return null; }
             mix(h, c[0], c[1]);
+            h[2] += c[2];
           }
         } else {
           /* bytes, big integers and other custom values: by their printed
@@ -74,7 +77,7 @@ let impl: Lazy.t(Js.Unsafe.any) =
       default: return null; /* functions, symbols */
     }
   };
-  return (a, b) => {
+  const same = (a, b) => {
     try {
       const x = hash(a), y = hash(b);
       return x !== null && y !== null && x[0] === y[0] && x[1] === y[1];
@@ -82,6 +85,7 @@ let impl: Lazy.t(Js.Unsafe.any) =
       return false; /* too deep to walk: compare as before */
     }
   };
+  return { same, hash };
 })()|js},
     )
   );
@@ -92,10 +96,14 @@ let same = (a: 'a, b: 'a): bool =>
   a === b
   || Js.to_bool(
        Js.Unsafe.fun_call(
-         Lazy.force(impl),
+         Js.Unsafe.get(Lazy.force(impl), "same"),
          [|Js.Unsafe.inject(a), Js.Unsafe.inject(b)|],
        ),
      );
+
+/* The JS hash itself, for ShareCodec: a value to [h0, h1, size], or null
+   when it has no hash; it can throw on a value too deep to walk. */
+let js_hash = (): Js.Unsafe.any => Js.Unsafe.get(Lazy.force(impl), "hash");
 
 /* Answers remembered for pairs of objects, by the identity of both: for a
    comparison of immutable values that would otherwise be repeated on the

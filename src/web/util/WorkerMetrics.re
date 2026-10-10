@@ -121,7 +121,11 @@ let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit =>
         },
         active_encodings(),
       );
-    let WorkerServer.ClientMessage.Evaluate({batch, _}) = msg;
+    let batch =
+      switch (msg) {
+      | WorkerServer.ClientMessage.Evaluate({batch, _})
+      | WorkerServer.ClientMessage.EvaluateShared(_, {batch, _}) => batch
+      };
     push({
       id,
       entries: List.length(batch),

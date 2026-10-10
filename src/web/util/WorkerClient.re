@@ -96,8 +96,30 @@ let with_latest = (request_id, f) =>
  *
  * Encodes once: the Evaluation panel needs the posted byte length, and records
  * the send here so its latency clock starts as close to the post as it can. */
+/* Whether the worker's table of shared values (Util.ShareCodec) must start
+   over with the next request: at first, after the worker restarts, after a
+   Resend, or after a request could not be shared. */
+let share_reset = ref(true);
+
 let post_evaluate = (worker, request: Request.t) => {
-  let encoded = Active.encode_request(ClientMessage.Evaluate(request));
+  if (Util.ShareCodec.Client.size() > Util.ShareCodec.max_entries) {
+    share_reset := true;
+  };
+  let reset = share_reset^;
+  if (reset) {
+    Util.ShareCodec.Client.reset();
+  };
+  let msg =
+    switch (Util.ShareCodec.Client.encode(request)) {
+    | shared =>
+      share_reset := false;
+      ClientMessage.EvaluateShared(reset, shared);
+    | exception _ =>
+      /* too deep to walk: send it whole, and start the tables over */
+      share_reset := true;
+      ClientMessage.Evaluate(request);
+    };
+  let encoded = Active.encode_request(msg);
   EvalMetrics.record_sent(~request, ~encoded);
   worker##postMessage(encoded);
 };
@@ -125,6 +147,14 @@ let setup_worker_message_handler = worker => {
       /* Stop the latency clock first thing, before any decode/benchmark. */
       let now = Util.JsUtil.precise_timestamp();
       switch (Active.decode_response(evt##.data)) {
+      | ServerMessage.Resend({request_id}) =>
+        with_latest(
+          request_id,
+          latest => {
+            share_reset := true;
+            post_evaluate(worker, latest.request);
+          },
+        )
       | ServerMessage.Ack({request_id}) =>
         /* Liveness only — reuse tinting arrives next via ReusePlan. */
         with_latest(request_id, _ => clear_timer(ack_timeout_id))
@@ -183,6 +213,7 @@ let get_worker = () =>
 
 let restart_worker = (): unit => {
   EvalMetrics.incr_restarts();
+  share_reset := true;
   switch (worker_ref.contents) {
   | Some(w) => w##terminate
   | None => ()
