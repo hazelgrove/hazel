@@ -487,5 +487,49 @@ let tests = (
         [[], [7, 8, 9]],
       )
     }),
+    test_case(
+      "Under a pin, a request for a line the pinned call never runs leaves the focus",
+      `Quick,
+      () => {
+        let ed = load(clamp);
+        /* pin clamp(150), which takes the x > 100 branch only */
+        let z = click(ed, ed.z, 1, 0);
+        let pin =
+          switch (
+            Haz3lcore.ProbeProj.enclosing_call_pin(
+              List.hd(samples_of(ed, probe_on_row(ed, 1))),
+            )
+          ) {
+          | Some(pin) => pin
+          | None => fail("no enclosing call")
+          };
+        let z = Haz3lcore.SampleFocusPerform.go(z, pin);
+        shows(ed, z, 2, "100");
+        /* an explicit request for the else-if branch (row 4), as adding a
+           probe there makes: its samples all come from the other calls */
+        let z' =
+          resolve(
+            ed,
+            Haz3lcore.ProbePerform.set_pending_probe(
+              [probe_on_row(ed, 4)],
+              z,
+            ),
+          );
+        check(
+          focus_testable,
+          "focus unchanged",
+          z.refractors.sample_focus,
+          z'.refractors.sample_focus,
+        );
+        shows(ed, z', 1, "true");
+        shows(ed, z', 2, "100");
+        check(
+          bool,
+          "request resolved",
+          true,
+          z'.refractors.pending_probe_cursor == None,
+        );
+      },
+    ),
   ],
 );

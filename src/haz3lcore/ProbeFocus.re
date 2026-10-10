@@ -130,6 +130,18 @@ let shows_aligned_sample =
  * shows ⊖, but each shows its own first sample, possibly from different
  * calls, so an automatic request sets a focus rather than only filling
  * gaps. */
+/* The pinned span's step interval (as ProjectorInfo.pinned_interval). */
+let pinned_interval =
+    (~focus: Sample.Focus.t, dynamics: Dynamics.Map.t): option((int, int)) =>
+  switch (focus.pinned_span) {
+  | None => None
+  | Some(r) =>
+    Dynamics.Map.lookup(r.probe_id, dynamics)
+    |> Option.value(~default=[])
+    |> List.find_opt(s => Sample.ref_matches(r, s))
+    |> Option.map((s: Sample.t) => (s.step_start, s.step_end))
+  };
+
 let has_focus = (z: Zipper.t): bool =>
   z.refractors.sample_focus.anchor != None
   || z.refractors.sample_focus.call_stack != [];
@@ -216,6 +228,20 @@ let resolve_pending_probe_cursor =
             | Some(statics) => Sample.Focus.cur_var_ap(statics)
             | None => None
             };
+          /* Under a pin, only samples inside the pinned evaluation can take
+             the focus: capturing one outside it would leave the pinned
+             lines with nothing to show. */
+          let focus = z.refractors.sample_focus;
+          let pinned = focus.pinned_stack != None || focus.pinned_span != None;
+          let samples =
+            pinned
+              ? Sample.Selection.filter_by_pin(
+                  ~ap_id,
+                  ~pinned=focus.pinned_stack,
+                  ~pinned_interval=pinned_interval(~focus, dynamics),
+                  samples,
+                )
+              : samples;
           if (gap_only
               && has_focus(z)
               && shows_aligned_sample(
@@ -229,17 +255,19 @@ let resolve_pending_probe_cursor =
               ? clear_pending_probe_cursor(z) : resolve(rest);
           } else {
             switch (
-              Sample.Selection.most_aligned_sample(
-                ~ap_id,
-                ~below=
-                  Sample.Selection.below_of(
+              samples == []
+                ? None
+                : Sample.Selection.most_aligned_sample(
+                    ~ap_id,
+                    ~below=
+                      Sample.Selection.below_of(
+                        ~cursor=z.refractors.sample_focus,
+                        ~probe_id,
+                        dynamics,
+                      ),
                     ~cursor=z.refractors.sample_focus,
-                    ~probe_id,
-                    dynamics,
-                  ),
-                ~cursor=z.refractors.sample_focus,
-                samples,
-              )
+                    samples,
+                  )
             ) {
             | Some(sample) =>
               SampleFocusPerform.capture(
