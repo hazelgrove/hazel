@@ -30,6 +30,7 @@ let calculate = (~is_edited, statics, ed: Editor.t): Editor.t =>
     statics,
     Language.Dynamics.Map.empty,
     ed,
+    ~dynamics_complete=true,
   );
 
 let init = (~is_edited=false, code: string): state => {
