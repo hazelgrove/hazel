@@ -652,6 +652,29 @@ let on_dpr_change = (callback: unit => unit): unit => {
   listen();
 };
 
+/* Runs `f` when the page is hidden or unloaded (tab switch, close,
+   reload). */
+let on_page_leave = (f: unit => unit): unit => {
+  let listen = (target, event, handler) =>
+    ignore(
+      Js.Unsafe.meth_call(
+        target,
+        "addEventListener",
+        [|
+          Js.Unsafe.inject(Js.string(event)),
+          Js.Unsafe.inject(Js.wrap_callback(handler)),
+        |],
+      ),
+    );
+  listen(Dom_html.window, "pagehide", (_: Js.t({..})) => f());
+  listen(Dom_html.document, "visibilitychange", (_: Js.t({..})) =>
+    if (Js.to_string(Js.Unsafe.get(Dom_html.document, "visibilityState"))
+        == "hidden") {
+      f();
+    }
+  );
+};
+
 module QueryParams = {
   let get_arguments = (url: Url.url): list((string, string)) =>
     switch (url) {
