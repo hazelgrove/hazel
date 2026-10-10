@@ -344,6 +344,8 @@ let render =
     : list(Node.t) => {
   let vs = visible_items(~items, model);
   let selected_idx = clamp_visible(vs, selected(model));
+  /* Only selectable rows take an index (disabled ones don't), matching
+     nth_selectable_visible, which the keyboard path resolves through. */
   let (_, rendered) =
     List.fold_left_map(
       (sel_idx, v) =>
@@ -363,7 +365,7 @@ let render =
             ),
           )
         | VAction({label, decoration, tooltip, on_hover, enabled, action}) => (
-            sel_idx + 1,
+            enabled ? sel_idx + 1 : sel_idx,
             row_view(
               ~item_class,
               ~is_selected=enabled && sel_idx == selected_idx,
@@ -373,7 +375,8 @@ let render =
               ~on_pointerdown=
                 () => enabled ? inject_action(action) : Effect.Ignore,
               ~on_hover=
-                on_hover ? Some(inject_menu(SetSelected(sel_idx))) : None,
+                on_hover && enabled
+                  ? Some(inject_menu(SetSelected(sel_idx))) : None,
               label,
             ),
           )

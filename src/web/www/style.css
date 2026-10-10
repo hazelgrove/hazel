@@ -100,7 +100,42 @@ select {
   grid-template: 2em auto minmax(0, 1fr) 2em / 1fr fit-content(18em);
   background-color: var(--light-page-color);
   color: var(--text-default);
+}
+
+/* TEXT SELECTION
+ * Text is selectable unless it belongs to a control (a selection there is
+ * only ever accidental) or to code, where Hazel draws its own selection.
+ * Clickable text (rows, section headers) stays selectable: a press that
+ * selects text doesn't also click (JsUtil.install_text_selection_guards). */
+
+button,
+select,
+label,
+[role="button"],
+.icon,
+.named-menu-item,
+.toggle-switch,
+#top-bar,
+#sample-focus-bar,
+#sidebars .tab,
+.resize-handle,
+.context-menu,
+.code-editor {
+  -webkit-user-select: none;
   user-select: none;
+}
+
+/* read-only code (lesson examples, docs) has no Hazel selection */
+.code-editor.read-only,
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/* Page text selections match the editor's selection color */
+::selection {
+  background-color: var(--shard-selected);
 }
 
 #font-specimen {
@@ -201,7 +236,6 @@ select {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  user-select: none;
   outline: none;
 }
 
