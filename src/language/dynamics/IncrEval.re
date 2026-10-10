@@ -325,8 +325,16 @@ let reuse_check =
   let* entry = Id.Map.find_opt(id, prev.entries);
   let* info = EvalInfo.find_opt(id, eval_info);
 
+  /* The same build, by Merkle hash, is the same elaboration with the same
+     lexemes, and costs one lookup once both are hashed. Otherwise compare:
+     the cached elaboration is usually a near-copy of the new one (the
+     request is unmarshaled into fresh objects, but unchanged code keeps
+     its ids), so the hashed comparison visits only what changed. It was a
+     full walk of the subterm per check, and the reuse pass checks every
+     node. */
   let elab_same =
-    Exp.fast_equal(entry.prev_elab, info.elab_term)
+    Util.ValueHash.same(entry.prev_elab, info.elab_term)
+    || Exp.fast_equal_hashed(entry.prev_elab, info.elab_term)
     /* fast_equal ignores annotations; lexeme-only edits (e.g. an unknown
        operator @@ -> @@@) change display and stuck-application semantics,
        so they must invalidate reuse too */

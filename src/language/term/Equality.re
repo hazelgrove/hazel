@@ -93,8 +93,24 @@ type settings = {
   env2: option(Environment.t(Exp.t)) // The environment to look up variables on the right in
 };
 
+/* Whether every renaming in scope maps a name to itself, as when a term
+   is compared with a copy of itself: then two identical subterms are
+   equal. Under a real renaming (x to y) they may not be. */
+let identity_alphas = (alphas: Alphas.t): bool =>
+  List.for_all(((a, b)) => a == b, alphas);
+
+/* ~hash_shortcut: two subterms built the same way, by their Merkle hashes
+   (Util.ValueHash), are equal without being walked, and the answer for a
+   pair of subterms is remembered, under identity renamings. A comparison
+   of a term with a near-copy then visits only the paths to what changed,
+   and asking again about any pair of subterms already compared is one
+   lookup. For comparisons that are mostly of near-copies and repeat on
+   subterms, like the eval worker's reuse check, which compares every
+   node's elaboration with the cached one. Off when the settings carry
+   environments or a free-variable handler. */
 let equality =
     (
+      ~hash_shortcut=false,
       {
         type_alpha,
         exp_alpha,
@@ -122,9 +138,41 @@ let equality =
   } else {
     ();
   };
+  /* Identical terms are equal only when both sides are read alike: no
+     environments to look free variables up in, and no handler deciding
+     them. */
+  let hash_shortcut =
+    hash_shortcut
+    && Option.is_none(env1)
+    && Option.is_none(env2)
+    && Option.is_none(free_var_handler);
+  /* Without alpha-equivalence, renamings only ever pair a name with
+     itself, so there is nothing to check. */
+  let identity = (alpha, alphas) => !alpha || identity_alphas(alphas);
+  let memo = hash_shortcut ? Some(Util.ValueHash.Pairs.create()) : None;
+  let shortcut = (walk, alphas_exp, alphas_typ, a, b): bool =>
+    switch (memo) {
+    | Some(memo)
+        when
+          identity(exp_alpha, alphas_exp) && identity(type_alpha, alphas_typ) =>
+      Util.ValueHash.same(a, b)
+      || (
+        switch (Util.ValueHash.Pairs.find(memo, a, b)) {
+        | Some(r) => r
+        | None =>
+          let r = walk(alphas_exp, alphas_typ, a, b);
+          Util.ValueHash.Pairs.add(memo, a, b, r);
+          r;
+        }
+      )
+    | _ => walk(alphas_exp, alphas_typ, a, b)
+    };
 
   let rec exp =
-          (alphas_exp: Alphas.t, alphas_typ: Alphas.t, e1: Exp.t, e2: Exp.t) => {
+          (alphas_exp: Alphas.t, alphas_typ: Alphas.t, e1: Exp.t, e2: Exp.t) =>
+    shortcut(exp_walk, alphas_exp, alphas_typ, e1, e2)
+  and exp_walk =
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, e1: Exp.t, e2: Exp.t) => {
     let exp' = exp(alphas_exp, alphas_typ);
     let pat' = pat(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
@@ -615,6 +663,9 @@ let equality =
     };
   }
   and typ =
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool =>
+    shortcut(typ_walk, alphas_exp, alphas_typ, t1, t2)
+  and typ_walk =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool => {
     // This function takes alphas_exp for the theorem keyword branches which have expressions in types.
     let any' = any(alphas_exp, alphas_typ);
