@@ -37,6 +37,7 @@ let (suite, exit_with_test_status) =
       Test_MakeTerm.tests,
       Test_Memo.tests,
       Test_Menhir.tests,
+      Test_ProjectorEdits.tests,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
       Test_TutorialReferencePanel.tests,
