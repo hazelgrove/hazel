@@ -1,9 +1,10 @@
 /* Util.ValueHash: a Merkle hash of an immutable value by its structure,
-   ids included, remembered per object. Equality's ~hash_shortcut uses it
-   to recognize identical subterms without walking them, which made the
-   eval worker's reuse check cheap (IncrEval.reuse_check). So the hash
-   must never call two different values the same, and the hashed
-   comparison must agree with the plain one. */
+   ids included, remembered per object, and answers remembered per pair.
+   Equality's ~hash_shortcut uses both, to recognize identical subterms
+   without walking them and to answer a repeated comparison from memory,
+   which made the eval worker's reuse check cheap (IncrEval.reuse_check).
+   So the hash must never call two different values the same, and the
+   hashed comparison must agree with the plain one, asked once or again. */
 open Alcotest;
 open Haz3lcore;
 open Language;
@@ -92,6 +93,60 @@ let tests = (
           "re-elaborated: hashed agrees with plain",
           Exp.fast_equal(e, elab(program)),
           Exp.fast_equal_hashed(e, elab(program)),
+        );
+        /* asked again: answered from memory, the same */
+        check(bool, "copy, again", true, Exp.fast_equal_hashed(e, c));
+        check(bool, "edited, again", false, Exp.fast_equal_hashed(e, d));
+      },
+    ),
+    test_case(
+      "pairs: an answer is remembered for exactly that pair",
+      `Quick,
+      () => {
+        let m = Util.ValueHash.Pairs.create();
+        let a = [1, 2];
+        let b = [1, 2];
+        let c = [1, 2];
+        check(
+          option(bool),
+          "unknown",
+          None,
+          Util.ValueHash.Pairs.find(m, a, b),
+        );
+        Util.ValueHash.Pairs.add(m, a, b, true);
+        check(
+          option(bool),
+          "a, b",
+          Some(true),
+          Util.ValueHash.Pairs.find(m, a, b),
+        );
+        check(
+          option(bool),
+          "a, c",
+          None,
+          Util.ValueHash.Pairs.find(m, a, c),
+        );
+        check(
+          option(bool),
+          "b, a",
+          None,
+          Util.ValueHash.Pairs.find(m, b, a),
+        );
+        Util.ValueHash.Pairs.add(m, a, c, false);
+        check(
+          option(bool),
+          "a, c now",
+          Some(false),
+          Util.ValueHash.Pairs.find(m, a, c),
+        );
+        check(
+          option(bool),
+          "not an object",
+          None,
+          {
+            Util.ValueHash.Pairs.add(m, 3, 3, true);
+            Util.ValueHash.Pairs.find(m, 3, 3);
+          },
         );
       },
     ),
