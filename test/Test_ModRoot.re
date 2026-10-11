@@ -35,60 +35,46 @@ let semi_ids = (seg: Segment.t): list(Id.t) =>
     seg,
   );
 
-let check_parity = (~allow_semi_diff=true, seg: Segment.t, incr: MakeTerm.t) => {
+/* go_incr's record is go_mod_root's, except that top-level `;` entries in
+   terms may differ: the per-slice parse records a partial MultiHole
+   there, the monolithic one the full item list */
+let check_parity = (seg: Segment.t, incr: MakeTerm.t) => {
   let mono = MakeTerm.go_mod_root(seg);
   if (compare(incr.term, mono.term) != 0) {
     fail("term mismatch incr vs mono");
   };
-  let td_diff =
-    Id.Map.merge(
-      (_, a, b) =>
-        switch (a, b) {
-        | (Some(a), Some(b)) => compare(a, b) == 0 ? None : Some("value")
-        | (Some(_), None) => Some("incr-only")
-        | (None, Some(_)) => Some("mono-only")
-        | (None, None) => None
-        },
-      incr.term_data,
-      mono.term_data,
-    );
-  if (!Id.Map.is_empty(td_diff)) {
-    Id.Map.iter(
-      (id, why) => Printf.printf("TD DIFF %s: %s\n", Id.to_string(id), why),
-      td_diff,
-    );
-    fail(
-      Printf.sprintf("term_data mismatch: %d ids", Id.Map.cardinal(td_diff)),
-    );
+  let agree = (~skip=_ => false, what, a, b) => {
+    let diff =
+      Id.Map.merge(
+        (id, a, b) =>
+          switch (a, b) {
+          | (Some(a), Some(b)) =>
+            compare(a, b) == 0 || skip(id) ? None : Some("value")
+          | (Some(_), None) => Some("incr-only")
+          | (None, Some(_)) => Some("mono-only")
+          | (None, None) => None
+          },
+        a,
+        b,
+      );
+    if (!Id.Map.is_empty(diff)) {
+      fail(
+        what
+        ++ " mismatch at "
+        ++ string_of_int(Id.Map.cardinal(diff))
+        ++ " ids, e.g. "
+        ++ String.concat(
+             ", ",
+             Id.Map.bindings(diff)
+             |> Util.ListUtil.take(5)
+             |> List.map(((id, why)) => Id.to_string(id) ++ " " ++ why),
+           ),
+      );
+    };
   };
-  /* terms: top-level `;` entries may differ (the per-slice parse records a
-     partial MultiHole there, the monolithic one the full item list) */
+  agree("term_data", incr.term_data, mono.term_data);
   let semis = semi_ids(seg);
-  let tm_diff =
-    Id.Map.merge(
-      (id, a, b) =>
-        switch (a, b) {
-        | (Some(a), Some(b)) =>
-          compare(a, b) == 0
-            ? None
-            : allow_semi_diff && List.mem(id, semis) ? None : Some("value")
-        | (Some(_), None) => Some("incr-only")
-        | (None, Some(_)) => Some("mono-only")
-        | (None, None) => None
-        },
-      incr.terms,
-      mono.terms,
-    );
-  if (!Id.Map.is_empty(tm_diff)) {
-    Id.Map.iter(
-      (id, why) =>
-        Printf.printf("TERMS DIFF %s: %s\n", Id.to_string(id), why),
-      tm_diff,
-    );
-    fail(
-      Printf.sprintf("terms mismatch: %d ids", Id.Map.cardinal(tm_diff)),
-    );
-  };
+  agree(~skip=id => List.mem(id, semis), "terms", incr.terms, mono.terms);
 };
 
 let full_parity = () => {

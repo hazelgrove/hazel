@@ -11,125 +11,100 @@ let parse_seg_of = CorpusUtil.seg_of(~root=Exp);
 let probe_capture_parity = (): unit => {
   let settings = CoreSettings.on;
   let ctx = Builtins.ctx_init(Some(Operators.default_mode));
-  let src = "let f = fun q -> q + 1 in\nlet z = f(5) in\nz";
-  let seg = parse_seg_of(src);
-  let term = MakeTerm.go(seg).term;
+  let term =
+    MakeTerm.go(
+      parse_seg_of("let f = fun q -> q + 1 in\nlet z = f(5) in\nz"),
+    ).
+      term;
   let (map0, _) = Statics.mk_unmemoized(settings, ctx, term);
   let q_id =
-    Id.Map.fold(
-      (id, info, acc) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None =>
-          switch (info) {
-          | Info.InfoExp({user_term: {term: Var("q"), _}, _}) => Some(id)
-          | _ => None
-          }
-        },
-      map0,
-      None,
-    );
-  switch (q_id) {
-  | None => Printf.printf("PROBECAP: no Var(q) found\n")
-  | Some(q_id) =>
-    let probe_ids = Id.Map.singleton(q_id, ());
-    let capture_count = (info_map, elab) => {
-      let targets =
-        CachedStatics.compute_targets(~settings, ~info_map, ~probe_ids, ());
-      let ei = EvalInfo.of_info_map(~probe_all=false, ~targets, info_map);
-      let (_, state) =
-        Evaluator.evaluate(~eval_info=ei, ~env=Builtins.env_init, elab);
-      (
-        Id.Map.cardinal(targets),
-        Id.Map.cardinal(EvaluatorState.get_probes(state)),
-      );
+    switch (
+      Id.Map.fold(
+        (id, info, acc) =>
+          switch (acc, info) {
+          | (None, Info.InfoExp({user_term: {term: Var("q"), _}, _})) =>
+            Some(id)
+          | _ => acc
+          },
+        map0,
+        None,
+      )
+    ) {
+    | Some(id) => id
+    | None => fail("no use of q")
     };
-    let (map_m, elab_m) =
-      Statics.mk_unmemoized(~probe_ids, settings, ctx, term);
-    let (tm, pm) = capture_count(map_m, elab_m);
-    Printf.printf("PROBECAP mono: targets=%d captured=%d\n", tm, pm);
-    let ds0 = DefStatics.calc(~settings, term);
-    let ds = DefStatics.calc(~settings, ~prev=ds0, ~probe_ids, term);
-    Printf.printf(
-      "PROBECAP toggle-on analyzed: %d of %d items\n",
-      DefStatics.last_analyzed^,
-      List.length(ds.items),
-    );
-    check(
-      bool,
-      "probe toggle re-analyzes a strict subset",
-      true,
-      DefStatics.last_analyzed^ < List.length(ds.items),
-    );
-    /* guards against the spine patch re-reading its own output */
-    let root_co_size = (t: DefStatics.t) =>
-      switch (Statics.Map.lookup_exp(Exp.rep_id(term), t.merged)) {
-      | Some(info) =>
-        CoCtx.to_list(info.co_ctx)
-        |> List.fold_left((n, (_, es)) => n + List.length(es), 0)
-      | None => (-1)
-      };
-    let ds_i1 = DefStatics.calc(~settings, ~prev=ds, ~probe_ids, term);
-    let ds_i2 = DefStatics.calc(~settings, ~prev=ds_i1, ~probe_ids, term);
-    let ds_i3 = DefStatics.calc(~settings, ~prev=ds_i2, ~probe_ids, term);
-    Printf.printf(
-      "PROBECAP root co_ctx sizes across no-change calcs: %d %d %d\n",
-      root_co_size(ds_i1),
-      root_co_size(ds_i2),
-      root_co_size(ds_i3),
-    );
-    check(
-      int,
-      "spine patch idempotent (co_ctx does not grow)",
-      root_co_size(ds_i1),
-      root_co_size(ds_i3),
-    );
-    let ds_off = DefStatics.calc(~settings, ~prev=ds, term);
-    Printf.printf(
-      "PROBECAP toggle-off analyzed: %d\n",
-      DefStatics.last_analyzed^,
-    );
-    switch (Statics.Map.lookup_exp(Exp.rep_id(term), ds_off.merged)) {
+  let probe_ids = Id.Map.singleton(q_id, ());
+  let captured = (info_map, elab) => {
+    let targets =
+      CachedStatics.compute_targets(~settings, ~info_map, ~probe_ids, ());
+    let eval_info =
+      EvalInfo.of_info_map(~probe_all=false, ~targets, info_map);
+    let (_, state) =
+      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, elab);
+    Id.Map.cardinal(EvaluatorState.get_probes(state));
+  };
+  let (map_m, elab_m) =
+    Statics.mk_unmemoized(~probe_ids, settings, ctx, term);
+  let ds0 = DefStatics.calc(~settings, term);
+  let ds = DefStatics.calc(~settings, ~prev=ds0, ~probe_ids, term);
+  check(
+    bool,
+    "probe toggle re-analyzes a strict subset",
+    true,
+    DefStatics.last_analyzed^ < List.length(ds.items),
+  );
+  let root = Exp.rep_id(term);
+  /* eval reuse keys on probe_targets: a root missing the witness would
+     replay without samples */
+  let witnessed = (map, id) =>
+    switch (Statics.Map.lookup_exp(id, map)) {
     | Some(info) =>
+      !SubexpProbeTargets.equal(info.probe_targets, SubexpProbeTargets.empty)
+    | None => fail("no info at " ++ Id.show(id))
+    };
+  List.iter(
+    id =>
       check(
         bool,
-        "toggle-off clears the root witness",
-        true,
-        SubexpProbeTargets.equal(
-          info.probe_targets,
-          SubexpProbeTargets.empty,
-        ),
-      )
-    | None => Printf.printf("PROBECAP toggle-off: no root entry\n")
+        "witness as monolithic",
+        witnessed(map_m, id),
+        witnessed(ds.merged, id),
+      ),
+    [root, q_id],
+  );
+  /* guards against the spine patch re-reading its own output */
+  let root_co_size = (t: DefStatics.t) =>
+    switch (Statics.Map.lookup_exp(root, t.merged)) {
+    | Some(info) =>
+      CoCtx.to_list(info.co_ctx)
+      |> List.fold_left((n, (_, es)) => n + List.length(es), 0)
+    | None => (-1)
     };
-    /* print-only: eval reuse keys on probe_targets, so a stale root
-       witness would replay without samples */
-    let witness_at = (label, info_map, id) =>
-      switch (Statics.Map.lookup_exp(id, info_map)) {
-      | Some(info) =>
-        Printf.printf(
-          "PROBECAP witness %s: has_q=%b\n",
-          label,
-          !
-            SubexpProbeTargets.equal(
-              info.probe_targets,
-              SubexpProbeTargets.empty,
-            ),
-        )
-      | None => Printf.printf("PROBECAP witness %s: NO ENTRY\n", label)
-      };
-    let root_id = Exp.rep_id(term);
-    witness_at("mono root", map_m, root_id);
-    witness_at("comp root", ds.merged, root_id);
-    witness_at("mono q", map_m, q_id);
-    witness_at("comp q", ds.merged, q_id);
-    switch (DefStatics.whole_elab(ds)) {
-    | None => Printf.printf("PROBECAP comp: GRAFT SHAPE GAP\n")
-    | Some(elab_c) =>
-      let (tc, pc) = capture_count(ds.merged, elab_c);
-      Printf.printf("PROBECAP comp: targets=%d captured=%d\n", tc, pc);
-      check(bool, "compositional probe capture parity", pm > 0, pc > 0);
-    };
+  let ds_i1 = DefStatics.calc(~settings, ~prev=ds, ~probe_ids, term);
+  let ds_i2 = DefStatics.calc(~settings, ~prev=ds_i1, ~probe_ids, term);
+  let ds_i3 = DefStatics.calc(~settings, ~prev=ds_i2, ~probe_ids, term);
+  check(
+    int,
+    "spine patch idempotent (co_ctx does not grow)",
+    root_co_size(ds_i1),
+    root_co_size(ds_i3),
+  );
+  let ds_off = DefStatics.calc(~settings, ~prev=ds, term);
+  check(
+    bool,
+    "toggle-off clears the root witness",
+    false,
+    witnessed(ds_off.merged, root),
+  );
+  switch (DefStatics.whole_elab(ds)) {
+  | None => fail("whole_elab: shape gap")
+  | Some(elab_c) =>
+    check(
+      bool,
+      "compositional probe capture parity",
+      captured(map_m, elab_m) > 0,
+      captured(ds.merged, elab_c) > 0,
+    )
   };
 };
 

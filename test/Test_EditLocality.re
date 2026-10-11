@@ -196,25 +196,20 @@ let case = (name, ~fresh=2, ~items=2, ~analyzed=3, ~typing=false, mk) =>
     () => {
       let e = mk();
       let w = work(e.before, e.after);
-      Printf.printf(
-        "LOCALITY %s: pieces=%d kept=%d fresh=%d reparsed=%d resliced=%d remeasured=%d analyzed=%d fallbacks=%d\n",
-        name,
-        w.pieces,
-        w.kept,
-        w.fresh,
-        w.reparsed,
-        w.resliced,
-        w.remeasured,
-        w.analyzed,
-        e.fallbacks,
-      );
-      check(bool, "pieces kept", true, w.kept >= w.pieces - fresh);
-      check(bool, "fresh pieces", true, w.fresh <= fresh);
+      let at_most = (what, bound, n) =>
+        check(
+          bool,
+          Printf.sprintf("%s: %d, at most %d", what, n, bound),
+          true,
+          n <= bound,
+        );
+      at_most("pieces not kept", fresh, w.pieces - w.kept);
+      at_most("fresh pieces", fresh, w.fresh);
       check(int, "go_incr fallbacks", 0, w.fell_back);
-      check(bool, "go_incr items", true, w.reparsed <= items);
-      check(bool, "term_of items", true, w.resliced <= items);
-      check(bool, "measured chunks", true, w.remeasured <= items);
-      check(bool, "DefStatics items", true, w.analyzed <= analyzed);
+      at_most("go_incr items", items, w.reparsed);
+      at_most("term_of items", items, w.resliced);
+      at_most("measured chunks", items, w.remeasured);
+      at_most("DefStatics items", analyzed, w.analyzed);
       if (typing) {
         check(int, "sparse normalization", 0, e.fallbacks);
       };
