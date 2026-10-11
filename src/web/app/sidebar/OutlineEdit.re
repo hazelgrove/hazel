@@ -9,6 +9,48 @@ type t = {
   ed_anchor: option(Language.Id.t),
   ed_inside: bool,
   ed_text: string,
-  ed_caret: int,
   ed_error: option(string),
 };
+
+/* a name typed from [text] */
+let mk = (~row=?, ~anchor=?, ~inside=false, text: string): t => {
+  ed_row: row,
+  ed_anchor: anchor,
+  ed_inside: inside,
+  ed_text: text,
+  ed_error: None,
+};
+
+/* the same name being typed (its text aside) */
+let same = (a: t, b: t): bool =>
+  a.ed_row == b.ed_row
+  && a.ed_anchor == b.ed_anchor
+  && a.ed_inside == b.ed_inside;
+
+/* structural operations on a definition, from its row's context menu;
+   ItemEdit applies them at the item's owning block */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type def_op =
+  | NewBelow
+  | NewTypeBelow
+  | NewModuleBelow
+  | Duplicate
+  | MoveUp
+  | MoveDown
+  | Delete;
+
+/* a new definition's kind from its leading keyword */
+let new_kind = (text: string): (OutlineTree.kind, string) =>
+  String.starts_with(~prefix="type ", text)
+    ? (KType, "type ")
+    : String.starts_with(~prefix="module ", text)
+        ? (KModule, "module ") : (KConst, "");
+
+/* where a saved name leaves the outline's cursor: on its row, on a new
+   definition below it, or where the keys or a click moved it as they
+   saved (the commit then leaves the cursor alone) */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type after =
+  | Stay
+  | Next
+  | MoveTo(option(OutlineTree.path));

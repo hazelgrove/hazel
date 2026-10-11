@@ -47,7 +47,7 @@ let token = (needle, repl): step =>
     | (_, false) => fail("no token " ++ needle)
     };
 
-let op = (op: Web.OutlineSidebar.def_op, path): step =>
+let op = (op: Web.OutlineEdit.def_op, path): step =>
   (~root, seg) =>
     switch (
       Web.ItemEdit.apply(
