@@ -120,6 +120,25 @@ type item_span = {
   sp_kind: item_kind,
 };
 
+/* the first tile among [arr]'s pieces [lo, hi) */
+let rec first_tile = (arr: array(Piece.t), lo: int, hi: int): option(Tile.t) =>
+  lo >= hi
+    ? None
+    : (
+      switch (arr[lo]) {
+      | Tile(t) => Some(t)
+      | _ => first_tile(arr, lo + 1, hi)
+      }
+    );
+
+/* [stop] moved back over edge whitespace and a `;`, not past [start]:
+   where a `…;` run's content ends */
+let before_semi = (arr: array(Piece.t), start: int, stop: int): int => {
+  let rec back = i => i > start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
+  let stop = back(stop);
+  stop > start && Piece.is_semi(arr[stop - 1]) ? stop - 1 : stop;
+};
+
 let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => {
   let arr = Array.of_list(seg);
   let len = Array.length(arr);
@@ -131,26 +150,20 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
     };
   /* module bodies have 2-shard member defs ended by `;`: a `;`-run
      starting with a def head is a def item, not a statement */
-  let run_def_head = (start: int, stop: int): option(Id.t) => {
-    let rec first_tile = i =>
-      i >= stop
-        ? None
-        : (
-          switch (arr[i]) {
-          | Piece.Tile(t) => Some(t)
-          | _ => first_tile(i + 1)
-          }
-        );
-    switch (first_tile(start)) {
+  let run_def_head = (start: int, stop: int): option(Id.t) =>
+    switch (first_tile(arr, start, stop)) {
     | Some(t) =>
       switch (Tile.label(t)) {
-      | ["let", ..._]
-      | ["type", ..._]
-      | ["module", ..._] => Some(t.id)
+      | ["let" | "type" | "module", ..._] => Some(t.id)
       | _ => None
       }
     | None => None
     };
+  let span = (sp_start, sp_stop, sp_kind, sp_id) => {
+    sp_id,
+    sp_start,
+    sp_stop,
+    sp_kind,
   };
   let rec walk = (i, start, acc) =>
     if (i >= len) {
@@ -160,33 +173,14 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
         let rec go = j => j < len && (!is_edge_ws(arr[j]) || go(j + 1));
         start < len && go(start);
       };
-      let tail_ok =
-        switch (run_def_head(start, len)) {
-        | Some(_) => true
-        /* a nested segment without boundaries is an expression, not a
-           block, so no tail item (deep containment would swallow
-           arbitrary ids); the program's top level keeps its tail */
-        | None => !divided_only_tail || acc != []
-        };
+      let head = run_def_head(start, len);
+      /* a nested segment without boundaries is an expression, not a
+         block, so no tail item (deep containment would swallow
+         arbitrary ids); the program's top level keeps its tail */
+      let tail_ok = head != None || !divided_only_tail || acc != [];
       List.rev(
         has_content && tail_ok
-          ? [
-            switch (run_def_head(start, len)) {
-            | Some(id) => {
-                sp_id: Some(id),
-                sp_start: start,
-                sp_stop: len,
-                sp_kind: IDef,
-              }
-            | None => {
-                sp_id: None,
-                sp_start: start,
-                sp_stop: len,
-                sp_kind: ITail,
-              }
-            },
-            ...acc,
-          ]
+          ? [span(start, len, head == None ? ITail : IDef, head), ...acc]
           : acc,
       );
     } else if (is_in_tile(arr[i]) && run_def_head(start, i) == None) {
@@ -194,32 +188,14 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
       walk(
         stop,
         stop,
-        [
-          {
-            sp_id: Some(Piece.id(arr[i])),
-            sp_start: i,
-            sp_stop: stop,
-            sp_kind: IDef,
-          },
-          ...acc,
-        ],
+        [span(i, stop, IDef, Some(Piece.id(arr[i]))), ...acc],
       );
     } else if (Piece.is_semi(arr[i])) {
       let stop = ws_end(i + 1);
       let sp =
         switch (run_def_head(start, i)) {
-        | Some(id) => {
-            sp_id: Some(id),
-            sp_start: start,
-            sp_stop: stop,
-            sp_kind: IDef,
-          }
-        | None => {
-            sp_id: Some(Piece.id(arr[i])),
-            sp_start: start,
-            sp_stop: stop,
-            sp_kind: IStmt,
-          }
+        | Some(_) as head => span(start, stop, IDef, head)
+        | None => span(start, stop, IStmt, Some(Piece.id(arr[i])))
         };
       walk(stop, stop, [sp, ...acc]);
     } else {
@@ -263,13 +239,12 @@ let flat_body = (arr: array(Piece.t), sp: item_span): option((int, int)) => {
         | _ => first_in(~head, i + 1)
         }
       );
-  let rec back = i =>
-    i > sp.sp_start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
-  let stop = back(sp.sp_stop);
-  let stop =
-    stop > sp.sp_start && Piece.is_semi(arr[stop - 1]) ? stop - 1 : stop;
   sp.sp_kind == IDef
-    ? Option.map(b0 => (b0, stop), first_in(~head=true, sp.sp_start)) : None;
+    ? Option.map(
+        b0 => (b0, before_semi(arr, sp.sp_start, sp.sp_stop)),
+        first_in(~head=true, sp.sp_start),
+      )
+    : None;
 };
 
 /* [fid] is one of the pieces [lo, hi) themselves */
@@ -317,13 +292,11 @@ let rec headless_span =
         : option((int, int, string)) =>
   switch (find_item_span(~divided_only_tail, fid, seg)) {
   | Some({sp_kind: IStmt, sp_start, sp_stop, _}) =>
-    let arr = Array.of_list(seg);
-    let rec back = i =>
-      i > sp_start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
-    let stop = back(sp_stop);
-    let stop =
-      stop > sp_start && Piece.is_semi(arr[stop - 1]) ? stop - 1 : stop;
-    Some((sp_start, stop, {js|;|js}));
+    Some((
+      sp_start,
+      before_semi(Array.of_list(seg), sp_start, sp_stop),
+      {js|;|js},
+    ))
   | Some({sp_kind: ITail, sp_start, sp_stop, _}) =>
     Some((sp_start, sp_stop, {js|⇒|js}))
   | Some(sp) =>
@@ -648,62 +621,28 @@ let test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) =>
     List.find_map(
       (p: Piece.t) =>
         switch (p) {
-        | Tile(t) when List.hd(Tile.label(t)) == "test" => Some(t.id)
+        | Tile(t) when Tile.token(t, 0) == "test" => Some(t.id)
         | _ => None
         },
       List.rev(ListUtil.truncate(i, level)),
     )
   );
 
-/* contiguous test runs: the outline's "tests" container opens one cell
-   spanning the whole run */
-let span_is_test = (arr: array(Piece.t), sp: item_span): bool =>
-  if (sp.sp_kind != IStmt) {
-    false;
-  } else {
-    let rec first_tile = i =>
-      i >= sp.sp_stop
-        ? None
-        : (
-          switch (arr[i]) {
-          | Tile(t) => Some(t)
-          | _ => first_tile(i + 1)
-          }
-        );
-    switch (first_tile(sp.sp_start)) {
-    | Some(t) =>
-      switch (Tile.label(t)) {
-      | [hd, ..._] => hd == "test"
-      | [] => false
-      }
-    | None => false
-    };
-  };
-
 /* the span's leading `test` tile: module members are repped by it,
    top-level statements by their `;`, so run members carry both ids
    (harmless: consumers test membership against outline ids) */
-let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) => {
-  let rec go = i =>
-    i >= sp.sp_stop
-      ? None
-      : (
-        switch (arr[i]) {
-        | Piece.Tile(t) =>
-          switch (Tile.label(t)) {
-          | ["test", ..._] => Some(t.id)
-          | _ => None
-          }
-        | _ => go(i + 1)
-        }
-      );
-  go(sp.sp_start);
-};
+let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) =>
+  switch (first_tile(arr, sp.sp_start, sp.sp_stop)) {
+  | Some(t) when Tile.token(t, 0) == "test" => Some(t.id)
+  | _ => None
+  };
 
-/* the maximal run of adjacent test statements holding [fid], as (start,
-   stop, member ids); the last `;` stays outside, like a statement's. In
-   a module body a final `;`-less test parses as the tail but joins the
-   run; an expression block's tail is its value and never does. */
+/* contiguous test runs: the outline's "tests" container opens one cell
+   spanning the whole run. The maximal run of adjacent test statements
+   holding [fid], as (start, stop, member ids); the last `;` stays
+   outside, like a statement's. In a module body a final `;`-less test
+   parses as the tail but joins the run; an expression block's tail is
+   its value and never does. */
 let test_run =
     (~module_body=false, fid: Id.t, seg: Segment.t)
     : option((int, int, list(Id.t), int)) => {
@@ -712,7 +651,7 @@ let test_run =
   let n = Array.length(spans);
   let in_run = (sp: item_span): bool =>
     switch (sp.sp_kind) {
-    | IStmt => span_is_test(arr, sp)
+    | IStmt => span_test_tile_id(arr, sp) != None
     | ITail => module_body && span_test_tile_id(arr, sp) != None
     | IDef => false
     };
@@ -744,11 +683,12 @@ let test_run =
         List.init(b - a + 1, k => a + k),
       );
     let start = spans[a].sp_start;
-    let rec back = i =>
-      i > start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
-    let stop = back(spans[b].sp_stop);
-    let stop = stop > start && Piece.is_semi(arr[stop - 1]) ? stop - 1 : stop;
-    Some((start, stop, members, b - a + 1));
+    Some((
+      start,
+      before_semi(arr, start, spans[b].sp_stop),
+      members,
+      b - a + 1,
+    ));
   | _ => None
   };
 };
@@ -1003,7 +943,7 @@ and mk_def_entry =
     switch (def_at(at)) {
     | None => None
     | Some(def_seg) =>
-      let kw = List.hd(Tile.label(t));
+      let kw = Tile.token(t, 0);
       /* a `type … = …` alias takes a Typ body and a TPat header */
       let is_type = kw == "type";
       let (header, header_indent) =

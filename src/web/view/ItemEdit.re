@@ -186,21 +186,11 @@ type block = {
   sl: array(slot),
 };
 
-let span_in_tile = (arr: array(Piece.t), sp: Focus.item_span): bool => {
-  let rec first_tile = i =>
-    i >= sp.sp_stop
-      ? None
-      : (
-        switch (arr[i]) {
-        | Piece.Tile(t) => Some(t)
-        | _ => first_tile(i + 1)
-        }
-      );
-  switch (first_tile(sp.sp_start)) {
+let span_in_tile = (arr: array(Piece.t), sp: Focus.item_span): bool =>
+  switch (Focus.first_tile(arr, sp.sp_start, sp.sp_stop)) {
   | Some(t) => Tile.ends_with_in(t)
   | None => false
   };
-};
 
 let block =
     (
