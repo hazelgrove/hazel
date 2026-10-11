@@ -25,7 +25,7 @@ type report = (Id.t, list(instance_report));
 type t = list(report);
 
 let hints: list(report) => list(string) =
-  reports => joint_hints(List.concat(List.map(~f=snd, reports)));
+  reports => joint_hints(List.concat_map(~f=snd, reports));
 
 let empty: t = [];
 
