@@ -326,6 +326,9 @@ module Update = {
         /* false where this editor isn't rendered (the hidden master under
            an open stack): skips the O(program) pending-eval worklist */
         ~compute_pending=true,
+        /* false where no value row shows (the decks' status line): no
+           editor is built for the value */
+        ~show_value=true,
         ~is_edited: bool,
         /* the sample a probe drawer steps, if any */
         ~stepping: option(Sample.span_ref)=None,
@@ -500,6 +503,7 @@ module Update = {
     // Calculate the display
     let display =
       switch (display) {
+      | Evaluation(_) when !show_value => display
       | Evaluation(ev_display) =>
         let ev_calc =
           ev_display

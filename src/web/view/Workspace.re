@@ -562,6 +562,7 @@ let calculate =
           ~is_edited,
           ~statics_mode,
           ~compositional=true,
+          ~show_value=false,
           ~queue_worker,
           ~stitch=x => x,
           editor,
@@ -694,6 +695,7 @@ let calculate =
             },
             ~queue_worker,
             ~compute_pending=false,
+            ~show_value=false,
             ~is_edited,
             ~stepping=
               Option.map(
