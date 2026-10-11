@@ -119,48 +119,21 @@ let global_missing_shards = (seg: t) =>
   seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
 
 /* per-top-level-piece memo for the above, whose deep walk is
-   O(program); a piece's result is context-free. tick-swept */
-module MissingShardsMemo = {
-  type entry = {
-    mutable m_piece: Obj.t,
-    mutable m_tiles: list(Tile.t),
-    mutable m_tick: int,
-  };
-  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(256);
-  let tick = ref(0);
-};
+   O(program); a piece's result is context-free */
+let missing_shards_memo: Expiring.t(Id.t, (Piece.t, list(Tile.t))) =
+  Expiring.mk(~size=256, ~every=128, ~ttl=32);
 
 let global_missing_shards_incr = (seg: t): list(Tile.t) => {
-  open MissingShardsMemo;
-  incr(tick);
-  if (tick^ mod 128 == 0) {
-    let dead =
-      Hashtbl.fold(
-        (id, e, acc) => e.m_tick < tick^ - 32 ? [id, ...acc] : acc,
-        cache,
-        [],
-      );
-    List.iter(Hashtbl.remove(cache), dead);
-  };
+  Expiring.tick(missing_shards_memo);
   seg
   |> List.concat_map(p => {
        let id = Piece.id(p);
-       switch (Hashtbl.find_opt(cache, id)) {
-       | Some(e) when e.m_piece === Obj.repr(p) =>
-         e.m_tick = tick^;
-         e.m_tiles;
+       switch (Expiring.find_opt(missing_shards_memo, id)) {
+       | Some((p', tiles)) when p' === p => tiles
        | _ =>
          let tiles =
            incomplete_tiles_deep([p]) |> incomplete_tiles_to_missing_shards;
-         Hashtbl.replace(
-           cache,
-           id,
-           {
-             m_piece: Obj.repr(p),
-             m_tiles: tiles,
-             m_tick: tick^,
-           },
-         );
+         Expiring.replace(missing_shards_memo, id, (p, tiles));
          tiles;
        };
      });

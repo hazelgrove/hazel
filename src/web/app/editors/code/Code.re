@@ -256,20 +256,9 @@ module ChunkViews = {
     mutable cv_fm: Obj.t,
     mutable cv_settings: Obj.t,
     mutable cv_node: Node.t,
-    mutable cv_tick: int,
   };
-  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
-  let tick = ref(0);
-  let sweep = () =>
-    if (tick^ mod 64 == 0) {
-      let dead =
-        Hashtbl.fold(
-          (a, e, acc) => e.cv_tick < tick^ - 16 ? [a, ...acc] : acc,
-          cache,
-          [],
-        );
-      List.iter(Hashtbl.remove(cache), dead);
-    };
+  let cache: Expiring.t(Id.t, entry) =
+    Expiring.mk(~size=64, ~every=64, ~ttl=16);
 };
 
 /* every tile in the chunk subtree (of_delim consults term_data and
@@ -304,8 +293,7 @@ let view_chunked =
       ~buffer_ids: list(Id.t),
     )
     : list(Node.t) => {
-  incr(ChunkViews.tick);
-  ChunkViews.sweep();
+  Expiring.tick(ChunkViews.cache);
   let n = Array.length(measured.chunks);
   let sorts_of = (tiles: list(Tile.t)) =>
     tiles
@@ -345,7 +333,7 @@ let view_chunked =
          && (!e.cv_buffered || e.cv_buffer === Obj.repr(buffer_ids))
          && e.cv_fm === Obj.repr(font_metrics)
          && e.cv_settings === Obj.repr(settings);
-       switch (Hashtbl.find_opt(ChunkViews.cache, ch.c_anchor)) {
+       switch (Expiring.find_opt(ChunkViews.cache, ch.c_anchor)) {
        | Some(e)
            when
              stable(e)
@@ -355,13 +343,11 @@ let view_chunked =
                || e.cv_top_sorts == sorts_of(e.cv_top)
              ) =>
          e.cv_td = Obj.repr(term_data);
-         e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | Some(e) when stable(e) && e.cv_sorts == sorts_of(e.cv_tiles) =>
          e.cv_info = statics_ident;
          e.cv_td = Obj.repr(term_data);
          e.cv_top_sorts = sorts_of(e.cv_top);
-         e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | _ =>
          let tiles = chunk_tiles(ch.c_pieces, []);
@@ -386,9 +372,8 @@ let view_chunked =
            cv_fm: Obj.repr(font_metrics),
            cv_settings: Obj.repr(settings),
            cv_node: node,
-           cv_tick: ChunkViews.tick^,
          };
-         Hashtbl.replace(ChunkViews.cache, ch.c_anchor, e);
+         Expiring.replace(ChunkViews.cache, ch.c_anchor, e);
          node;
        };
      });

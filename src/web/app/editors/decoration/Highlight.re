@@ -717,18 +717,18 @@ let color =
    every streamed chunk, but ranges change only with the measured/term_data
    generation, so one table serves a whole evaluation */
 module RangeCache = {
-  let key: ref(Obj.t) = ref(Obj.repr(0));
-  let tbl: Hashtbl.t(Id.t, option((Measured.Point.t, Measured.Point.t))) =
-    Hashtbl.create(1024);
+  let slot:
+    Slot.t(
+      Measured.t,
+      Hashtbl.t(Id.t, option((Measured.Point.t, Measured.Point.t))),
+    ) =
+    Slot.mk();
   let for_gen =
       (~measured: Measured.t, ~term_data: TermData.t)
       : (Id.t => option((Measured.Point.t, Measured.Point.t))) => {
     /* measured is the stricter generation proxy: term_data only
        changes in mk, where measured is rebuilt too */
-    if (!(key^ === Obj.repr(measured))) {
-      Hashtbl.reset(tbl);
-      key := Obj.repr(measured);
-    };
+    let tbl = Slot.get(slot, measured, () => Hashtbl.create(1024));
     id =>
       switch (Hashtbl.find_opt(tbl, id)) {
       | Some(r) => r
@@ -743,42 +743,28 @@ module RangeCache = {
 /* per-id node cache for the pending-eval highlight */
 module IncrEvalCache = {
   type entry = {
-    mutable e_meas: Obj.t,
-    mutable e_range: (Measured.Point.t, Measured.Point.t),
-    mutable e_fm: Obj.t,
-    mutable e_sweep: bool,
-    mutable e_nodes: list(Node.t),
-    mutable e_tick: int,
+    e_meas: Obj.t,
+    e_range: (Measured.Point.t, Measured.Point.t),
+    e_fm: Obj.t,
+    e_sweep: bool,
+    e_nodes: list(Node.t),
   };
-  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
-  let tick = ref(0);
-  let bump = () => {
-    incr(tick);
-    if (tick^ mod 64 == 0) {
-      let dead =
-        Hashtbl.fold(
-          (id, e, acc) => e.e_tick < tick^ - 16 ? [id, ...acc] : acc,
-          cache,
-          [],
-        );
-      List.iter(Hashtbl.remove(cache), dead);
-    };
-  };
+  let cache: Expiring.t(Id.t, entry) =
+    Expiring.mk(~size=64, ~every=64, ~ttl=16);
   let get =
       (~id, ~measured, ~range, ~font_metrics, ~sweep: bool, ~mk)
       : list(Node.t) =>
-    switch (Hashtbl.find_opt(cache, id)) {
+    switch (Expiring.find_opt(cache, id)) {
     | Some(e)
         when
           e.e_meas === Obj.repr(measured)
           && e.e_range == range
           && e.e_fm === Obj.repr(font_metrics)
           && e.e_sweep == sweep =>
-      e.e_tick = tick^;
-      e.e_nodes;
+      e.e_nodes
     | _ =>
       let nodes = mk();
-      Hashtbl.replace(
+      Expiring.replace(
         cache,
         id,
         {
@@ -787,7 +773,6 @@ module IncrEvalCache = {
           e_fm: Obj.repr(font_metrics),
           e_sweep: sweep,
           e_nodes: nodes,
-          e_tick: tick^,
         },
       );
       nodes;
@@ -865,7 +850,7 @@ let incr_eval =
       ~show_active_eval: bool=false,
       (),
     ) => {
-  IncrEvalCache.bump();
+  Expiring.tick(IncrEvalCache.cache);
   let range_eq = ((o1, l1), (o2, l2)) =>
     Point.equals(o1, o2) && Point.equals(l1, l2);
   let range_of =
