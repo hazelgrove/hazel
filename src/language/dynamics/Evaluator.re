@@ -329,47 +329,11 @@ let evaluate =
         env,
         exp: DHExp.t,
       ) => {
-    let current_step_count = state^.step_count;
-
-    /* Save original call_stack before update. For probed compound expressions
-     * (Uneval case), we need this because:
-     * - The updated call_stack (after RecordStackFrame) should be passed to
-     *   recursive evaluation so inner expressions see the app_id
-     * - But the probe sample for THIS expression should use the original
-     *   call_stack (what it was before entering the function) */
-    let original_call_stack = call_stack;
-
-    /* Delegation law: at most one observation span per (source id,
-     * call-stack instance). A delegating administrative step declares the
-     * continuation (see eval_2); an evaluation matching a declared key
-     * CONTINUES that span — no second SpanOpen, no second sample. The
-     * span-opening evaluation mints on close: full step range, post-cast
-     * value, enter-data attached to the open span by the trace fold.
-     * (The different-stack flavor of this smear is still handled
-     * heuristically by ascription dominance in Sample.Map.dominated,
-     * applied by the trace fold — unifying it needs delegation markers
-     * that scope over subtree re-evaluation; deferred.) */
-    let is_target = Id.Map.find_opt(expr_id, eval_info.targets);
-    let continues_delegated_span =
-      switch (is_target) {
-      | None => false
-      | Some(_) => continues_delegation(expr_id, call_stack, delegations)
-      };
-    switch (is_target) {
-    | Some(_) when !continues_delegated_span =>
-      state :=
-        EvaluatorState.record_event(
-          state^,
-          ObsTrace.SpanOpen({
-            syntax_id: expr_id,
-            stack: original_call_stack,
-            step: current_step_count,
-          }),
-        )
-    | _ => ()
-    };
-
-    let.trampoline final_value =
+    switch (Id.Map.find_opt(expr_id, eval_info.targets)) {
+    | None =>
+      /* not a probe target: nothing to record around it, so no bind
+         (a bind that only returns its value costs a step and three
+         allocations, at every node) */
       eval_2_until_final(
         ~current_top_id,
         ~reuse_map,
@@ -379,30 +343,83 @@ let evaluate =
         ~state,
         env,
         exp,
-      );
+      )
+    | Some(_) =>
+      let current_step_count = state^.step_count;
 
-    // Record probe sample when the span this evaluation opened closes
-    switch (is_target) {
-    | Some(probe) when !continues_delegated_span =>
-      /* Closing the span mints the sample: record_event runs the trace
-       * fold, which pops the open span (start step, stack, enter-data)
-       * and lands the sample in state.probes. */
-      state :=
-        EvaluatorState.record_event(
-          state^,
-          ObsTrace.SpanClose({
-            syntax_id: expr_id,
-            value: final_value,
-            env,
-            spec: probe,
-            step: state^.step_count - 1,
-          }),
+      /* Save original call_stack before update. For probed compound expressions
+       * (Uneval case), we need this because:
+       * - The updated call_stack (after RecordStackFrame) should be passed to
+       *   recursive evaluation so inner expressions see the app_id
+       * - But the probe sample for THIS expression should use the original
+       *   call_stack (what it was before entering the function) */
+      let original_call_stack = call_stack;
+
+      /* Delegation law: at most one observation span per (source id,
+       * call-stack instance). A delegating administrative step declares the
+       * continuation (see eval_2); an evaluation matching a declared key
+       * CONTINUES that span — no second SpanOpen, no second sample. The
+       * span-opening evaluation mints on close: full step range, post-cast
+       * value, enter-data attached to the open span by the trace fold.
+       * (The different-stack flavor of this smear is still handled
+       * heuristically by ascription dominance in Sample.Map.dominated,
+       * applied by the trace fold — unifying it needs delegation markers
+       * that scope over subtree re-evaluation; deferred.) */
+      let is_target = Id.Map.find_opt(expr_id, eval_info.targets);
+      let continues_delegated_span =
+        switch (is_target) {
+        | None => false
+        | Some(_) => continues_delegation(expr_id, call_stack, delegations)
+        };
+      switch (is_target) {
+      | Some(_) when !continues_delegated_span =>
+        state :=
+          EvaluatorState.record_event(
+            state^,
+            ObsTrace.SpanOpen({
+              syntax_id: expr_id,
+              stack: original_call_stack,
+              step: current_step_count,
+            }),
+          )
+      | _ => ()
+      };
+
+      let.trampoline final_value =
+        eval_2_until_final(
+          ~current_top_id,
+          ~reuse_map,
+          ~in_closure?,
+          ~call_stack,
+          ~delegations,
+          ~state,
+          env,
+          exp,
         );
-      update_outbox_current(current_top_id, state^);
-    | _ => ()
-    };
 
-    Trampoline.return(final_value);
+      // Record probe sample when the span this evaluation opened closes
+      switch (is_target) {
+      | Some(probe) when !continues_delegated_span =>
+        /* Closing the span mints the sample: record_event runs the trace
+         * fold, which pops the open span (start step, stack, enter-data)
+         * and lands the sample in state.probes. */
+        state :=
+          EvaluatorState.record_event(
+            state^,
+            ObsTrace.SpanClose({
+              syntax_id: expr_id,
+              value: final_value,
+              env,
+              spec: probe,
+              step: state^.step_count - 1,
+            }),
+          );
+        update_outbox_current(current_top_id, state^);
+      | _ => ()
+      };
+
+      Trampoline.return(final_value);
+    };
   }
 
   // Do the above but also reuse the previous result if possible
@@ -418,87 +435,102 @@ let evaluate =
         env,
         exp: DHExp.t,
       )
-      : Trampoline.t(DHExp.t) => {
-    switch (
-      IncrEval.reuse_check(
-        ~call_stack,
-        ~prev,
+      : Trampoline.t(DHExp.t) =>
+    if (call_stack != []) {
+      /* inside a call: reuse_check refuses, and no entry is recorded, so
+         this stage would only pass the value through */
+      eval_3_record_probe_sample(
+        ~current_top_id,
         ~reuse_map,
-        ~eval_info,
-        ~id=expr_id,
-      )
-    ) {
-    | Some(entry) =>
-      // Evaluation cache hit: reuse previous result
-      state := EvaluatorState.append(state^, entry.state);
-      update_outbox_current(current_top_id, state^);
-      // Add the entry to the next incremental evaluation cache
-      state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
-      // Copy cache entries for every sub-id of the reused subtree from prev
-      state :=
-        {
-          ...state^,
-          incr_eval:
-            IncrEval.copy_descendant_entries(
-              ~root_id=expr_id,
-              ~root=entry.prev_elab,
-              ~prev,
-              state^.incr_eval,
-            ),
-        };
-      Trampoline.return(entry.value);
-    | None =>
-      // Evaluation cache miss: evaluate the expression from scratch
-      let.trampoline final_value =
-        eval_3_record_probe_sample(
-          ~current_top_id,
-          ~reuse_map,
-          ~in_closure?,
+        ~in_closure?,
+        ~call_stack,
+        ~delegations,
+        ~state,
+        ~expr_id,
+        env,
+        exp,
+      );
+    } else {
+      switch (
+        IncrEval.reuse_check(
           ~call_stack,
-          ~delegations,
-          ~state,
-          ~expr_id,
-          env,
-          exp,
-        );
-
-      // Record incremental entry if required
-      let info_snapshot =
-        if (call_stack != []) {
-          None;
-        } else {
-          EvalInfo.find_opt(expr_id, eval_info);
-        };
-      switch (info_snapshot) {
-      | None => Trampoline.return(final_value)
-      | Some({
-          elab_term: prev_elab,
-          co_ctx,
-          probe_targets: prev_probe_targets,
-          _,
-        }) =>
-        let entry: IncrEval.entry(EvaluatorState.t) = {
-          prev_elab,
-          prev_reuse_map:
-            IncrEval.make_clean(
-              IncrEval.restrict_to_co_ctx(reuse_map, co_ctx),
-            ),
-          prev_probe_targets,
-          value: final_value,
-          state: replay_state(state^),
-          seq: EvaluatorState.get_step_count(state^),
-        };
-
-        switch (outbox) {
-        | Some(outbox) =>
-          outbox := IncrEval.add_outbox_entry(expr_id, entry, outbox^)
-        | None => ()
-        };
+          ~prev,
+          ~reuse_map,
+          ~eval_info,
+          ~id=expr_id,
+        )
+      ) {
+      | Some(entry) =>
+        // Evaluation cache hit: reuse previous result
+        state := EvaluatorState.append(state^, entry.state);
+        update_outbox_current(current_top_id, state^);
+        // Add the entry to the next incremental evaluation cache
         state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
-        Trampoline.return(final_value);
+        // Copy cache entries for every sub-id of the reused subtree from prev
+        state :=
+          {
+            ...state^,
+            incr_eval:
+              IncrEval.copy_descendant_entries(
+                ~root_id=expr_id,
+                ~root=entry.prev_elab,
+                ~prev,
+                state^.incr_eval,
+              ),
+          };
+        Trampoline.return(entry.value);
+      | None =>
+        // Evaluation cache miss: evaluate the expression from scratch
+        let.trampoline final_value =
+          eval_3_record_probe_sample(
+            ~current_top_id,
+            ~reuse_map,
+            ~in_closure?,
+            ~call_stack,
+            ~delegations,
+            ~state,
+            ~expr_id,
+            env,
+            exp,
+          );
+
+        // Record incremental entry if required
+        let info_snapshot =
+          if (call_stack != []) {
+            None;
+          } else {
+            EvalInfo.find_opt(expr_id, eval_info);
+          };
+        switch (info_snapshot) {
+        | None => Trampoline.return(final_value)
+        | Some({
+            elab_term: prev_elab,
+            co_ctx,
+            probe_targets: prev_probe_targets,
+            _,
+          }) =>
+          let entry: IncrEval.entry(EvaluatorState.t) = {
+            prev_elab,
+            prev_reuse_map:
+              IncrEval.make_clean(
+                IncrEval.restrict_to_co_ctx(reuse_map, co_ctx),
+              ),
+            prev_probe_targets,
+            value: final_value,
+            state: replay_state(state^),
+            seq: EvaluatorState.get_step_count(state^),
+          };
+
+          switch (outbox) {
+          | Some(outbox) =>
+            outbox := IncrEval.add_outbox_entry(expr_id, entry, outbox^)
+          | None => ()
+          };
+          state := EvaluatorState.add_incr_entry(state^, expr_id, entry);
+          Trampoline.return(final_value);
+        };
       };
-    };
-  }
+    }
 
   // [PERF] We collect separate states for top-level expressions so we can replay those states.
   and eval_5_state_merge =
