@@ -736,6 +736,7 @@ let delay = (delay: float, callback: unit => unit) => {
 /* Publish #main's content width as `--main-scroll-width` (read by the cell
  * width rule). Two passes: reset the var first so the cell's own prior width
  * doesn't inflate the measurement, force layout, then read scrollWidth. */
+let published_main_scroll_width: ref(option(int)) = ref(None);
 let update_main_scroll_width = () =>
   Js.Opt.iter(
     Dom_html.document##getElementById(Js.string("main")),
@@ -747,8 +748,35 @@ let update_main_scroll_width = () =>
         "--main-scroll-width",
         string_of_int(sw) ++ "px",
       );
+      published_main_scroll_width := Some(sw);
     },
   );
+
+/* The cheap half: #main's scrollWidth as it is, published only if the
+   content grew past the published width. It cannot see the content
+   shrink (the cell is as wide as the published width), which takes the
+   exact two-pass measure above; that one rewrites a document-wide CSS
+   variable twice and forces a layout between, so it is kept off the path
+   of an edit (ScrollWidth). False when there is nothing published yet. */
+let grow_main_scroll_width = (): bool =>
+  switch (published_main_scroll_width^) {
+  | None => false
+  | Some(published) =>
+    Js.Opt.iter(
+      Dom_html.document##getElementById(Js.string("main")),
+      main => {
+        let sw: int = Js.Unsafe.get(main, "scrollWidth");
+        if (sw > published) {
+          set_css_custom_property(
+            "--main-scroll-width",
+            string_of_int(sw) ++ "px",
+          );
+          published_main_scroll_width := Some(sw);
+        };
+      },
+    );
+    true;
+  };
 
 /* Scroll compensation for sample focus bar:
  * When the bar's height changes (appearing/disappearing), adjust #main's
