@@ -21,6 +21,8 @@ type node = {
   /* KTest: the Test term's own id, for result lookup (o_id is the
      enclosing item, the open/jump/restructure handle) */
   o_test: option(Id.t),
+  /* a named row's binding token, and its sort (Pat, TPat or MPat) */
+  o_binder: option((Id.t, Sort.t)),
   o_children: list(node),
 };
 
@@ -32,31 +34,34 @@ let rec strip_exp = (e: Exp.t): Exp.t =>
   | _ => e
   };
 
-/* the binding's display name: first Var through wrappers, incl. the
-   funlet head */
-let rec pat_name = (p: Pat.t): option(string) =>
+/* the binding's name and its token: the first Var through wrappers,
+   incl. the funlet head */
+let rec pat_var = (p: Pat.t): option((string, Id.t)) =>
   switch (p.term) {
-  | Var(x) => Some(x)
+  | Var(x) => Some((x, Pat.rep_id(p)))
   | Parens(p)
   | Asc(p, _)
   | Projector(_, p)
-  | TupLabel(_, p) => pat_name(p)
-  | Ap(f, _) => pat_name(f)
-  | Tuple([p, ..._]) => pat_name(p)
+  | TupLabel(_, p) => pat_var(p)
+  | Ap(f, _) => pat_var(f)
+  | Tuple([p, ..._]) => pat_var(p)
   | _ => None
   };
 
-let row = (~id=?, ~label="", ~test=?, ~kids=[], kind: kind): node => {
+let row = (~id=?, ~label="", ~test=?, ~binder=?, ~kids=[], kind: kind): node => {
   o_label: label,
   o_kind: kind,
   o_id: id,
   o_test: test,
+  o_binder: binder,
   o_children: kids,
 };
 
 let type_row = (id: Id.t, tp: TPat.t): list(node) =>
   switch (tp.term) {
-  | Var(name) => [row(~id, ~label=name, KType)]
+  | Var(name) => [
+      row(~id, ~label=name, ~binder=(TPat.rep_id(tp), Sort.TPat), KType),
+    ]
   | _ => []
   };
 
@@ -111,7 +116,8 @@ and of_block = (fbody: Exp.t): list(node) => {
   };
 }
 
-and mk_def = (~id: Id.t, name: string, def: Exp.t): node => {
+and mk_def =
+    (~id: Id.t, ~binder: (Id.t, Sort.t), name: string, def: Exp.t): node => {
   let def = strip_exp(def);
   let (kind, kids) =
     switch (def.term) {
@@ -123,18 +129,22 @@ and mk_def = (~id: Id.t, name: string, def: Exp.t): node => {
       )
     | _ => (KConst, of_exp(def))
     };
-  row(~id, ~label=name, ~kids, kind);
+  row(~id, ~label=name, ~binder, ~kids, kind);
 }
 
 and let_row = (id: Id.t, pat: Pat.t, def: Exp.t): list(node) =>
-  switch (pat_name(pat)) {
-  | Some(name) => [mk_def(~id, name, def)]
+  switch (pat_var(pat)) {
+  | Some((name, binder)) => [
+      mk_def(~id, ~binder=(binder, Sort.Pat), name, def),
+    ]
   | None => []
   }
 
 and module_row = (id: Id.t, mpat: MPat.t, def: Exp.t): list(node) =>
   switch (mpat.term) {
-  | Var(name) => [mk_def(~id, name, def)]
+  | Var(name) => [
+      mk_def(~id, ~binder=(MPat.rep_id(mpat), Sort.MPat), name, def),
+    ]
   | _ => []
   }
 

@@ -17,104 +17,29 @@ type item = {
   owner: option(Id.t) /* the enclosing module's binder */
 };
 
-let rec pat_var = (p: Pat.t): option((string, Id.t)) =>
-  switch (p.term) {
-  | Var(x) => Some((x, Pat.rep_id(p)))
-  | Parens(p)
-  | Asc(p, _)
-  | Projector(_, p)
-  | TupLabel(_, p) => pat_var(p)
-  | Ap(f, _) => pat_var(f)
-  | Tuple([p, ..._]) => pat_var(p)
-  | _ => None
-  };
-
-let tpat_var = (tp: TPat.t): option((string, Id.t)) =>
-  switch (tp.term) {
-  | Var(x) => Some((x, TPat.rep_id(tp)))
-  | _ => None
-  };
-
-let mpat_var = (mp: MPat.t): option((string, Id.t)) =>
-  switch (mp.term) {
-  | Var(x) => Some((x, MPat.rep_id(mp)))
-  | _ => None
-  };
-
-let rec strip = (e: Exp.t): Exp.t =>
-  switch (e.term) {
-  | Parens(e)
-  | Projector(_, e)
-  | Filter(_, e) => strip(e)
-  | _ => e
-  };
-
-let module_items = (def: Exp.t): option(list(Mod.t)) =>
-  switch (strip(def).term) {
-  | Module(items) => Some(items)
-  | _ => None
-  };
-
 /* the item whose outline row is [row] */
-let find_item = (row: Id.t, term: Exp.t): option(item) => {
-  let found = ref(None);
-  let set = (kind, owner, var) =>
-    switch (found^, var) {
-    | (None, Some((old, binder))) =>
-      found :=
-        Some({
-          binder,
-          old,
-          kind,
-          owner,
-        })
-    | _ => ()
-    };
-  let members = (~owner, items: list(Mod.t)) =>
-    List.iter(
-      (m: Mod.t) =>
-        if (Mod.rep_id(m) == row) {
-          switch (m.term) {
-          | ModLet(p, _) => set(KValue, owner, pat_var(p))
-          | ModType(tp, _) => set(KType, owner, tpat_var(tp))
-          | ModuleMod(mp, _) => set(KModule, owner, mpat_var(mp))
-          | _ => ()
-          };
+let find_item = (row: Id.t, term: Exp.t): option(item) =>
+  switch (OutlineTree.find(row, term)) {
+  | Some((above, {o_binder: Some((binder, sort)), o_label: old, _})) =>
+    Some({
+      binder,
+      old,
+      kind:
+        switch (sort) {
+        | TPat => KType
+        | MPat => KModule
+        | _ => KValue
         },
-      items,
-    );
-  let f_exp = (continue, e: Exp.t) => {
-    let here = Exp.rep_id(e) == row;
-    switch (e.term) {
-    | Let(p, _, _) when here => set(KValue, None, pat_var(p))
-    | TyAlias(tp, _, _) when here => set(KType, None, tpat_var(tp))
-    | ModuleExp(mp, def, _) =>
-      if (here) {
-        set(KModule, None, mpat_var(mp));
-      };
-      switch (module_items(def)) {
-      | Some(items) => members(~owner=Option.map(snd, mpat_var(mp)), items)
-      | None => ()
-      };
-    | Module(items) => members(~owner=None, items)
-    | _ => ()
-    };
-    continue(e);
+      /* a member of `module M = {…}`: `M.x` names it too */
+      owner:
+        switch (Util.ListUtil.last_opt(above)) {
+        | Some({o_kind: OutlineTree.KModule, o_binder: Some((m, MPat)), _}) =>
+          Some(m)
+        | _ => None
+        },
+    })
+  | _ => None
   };
-  let f_mod = (continue, m: Mod.t) => {
-    switch (m.term) {
-    | ModuleMod(mp, def) =>
-      switch (module_items(def)) {
-      | Some(items) => members(~owner=Option.map(snd, mpat_var(mp)), items)
-      | None => ()
-      }
-    | _ => ()
-    };
-    continue(m);
-  };
-  ignore(TermBase.Exp.map_term(~f_exp, ~f_mod, term));
-  found^;
-};
 
 /* tokens naming the item: its references, and `M.x` labels */
 let references = (~info_map: Statics.Map.t, it: item): list(Id.t) =>
