@@ -249,16 +249,19 @@ module ChunkViews = {
   type entry = {
     mutable cv_flat: Obj.t, /* Measured.flat identity */
     mutable cv_final: bool,
-    mutable cv_tiles: list(Tile.t), /* chunk tiles, cached off cv_flat */
-    mutable cv_sorts: array((Sort.t, option(Sort.t))),
     /* info_map and term_data identities at the last sort probe; a match
-       skips the probe. under the same info_map, only top-level sorts can
-       move (record_top_frame reads context), so a new term_data probes
-       just the chunk's top-level tiles */
+       skips that half of the probe. A tile's view reads two sorts. The
+       parser's, from term_data, can move only for top-level tiles
+       (record_top_frame reads context; below, sorts follow the pieces),
+       so a new term_data probes just cv_top. The refined mold sort reads
+       statics only for Drv molds (see view_chunked), so a new info_map
+       probes just cv_drv. Every other tile's sorts are its own. */
     mutable cv_info: Obj.t,
     mutable cv_td: Obj.t,
     mutable cv_top: list(Tile.t),
-    mutable cv_top_sorts: array((Sort.t, option(Sort.t))),
+    mutable cv_top_sorts: array(option(Sort.t)),
+    mutable cv_drv: list((Id.t, Sort.t)), /* with its Drv mold sort */
+    mutable cv_drv_sorts: array(Sort.t),
     /* whether the chunk held buffer pieces: only then can buffer_ids
        change it (new buffer text is new pieces, so a new c_flat) */
     mutable cv_buffered: bool,
@@ -282,25 +285,36 @@ module ChunkViews = {
     };
 };
 
-/* every tile in the chunk subtree (of_delim consults term_data and
-   refine_sort per tile; grout/secondary render from pieces alone) */
-let rec chunk_tiles = (seg: Segment.t, acc: list(Tile.t)): list(Tile.t) =>
-  List.fold_left(
-    (acc, p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
-        List.fold_left(
-          (acc, s) => chunk_tiles(s, acc),
-          [t, ...acc],
-          t.children,
-        )
-      /* splice content renders through of_delim like any tile */
-      | Splice(s) => chunk_tiles(s.content, acc)
-      | _ => acc
-      },
-    acc,
-    seg,
-  );
+/* the tiles a chunk's sort probe reads (see ChunkViews.entry): its
+   top-level tiles, and its tiles with a Drv mold sort at any depth
+   (of_delim consults term_data and refine_sort per tile; grout/secondary
+   render from pieces alone) */
+let chunk_probes = (seg: Segment.t): (list(Tile.t), list((Id.t, Sort.t))) => {
+  let top = ref([]);
+  let drv = ref([]);
+  let rec go = (~top_level: bool, seg: Segment.t) =>
+    List.iter(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          if (top_level) {
+            top := [t, ...top^];
+          };
+          switch (Tile.mold(t).out) {
+          | Drv(_) as s => drv := [(t.id, s), ...drv^]
+          | _ => ()
+          };
+          List.iter(go(~top_level=false), t.children);
+        /* splice content renders through of_delim like any tile; it is
+           its own frame, so its top level is probed as the chunk's is */
+        | Splice(s) => go(~top_level=true, s.content)
+        | _ => ()
+        },
+      seg,
+    );
+  go(~top_level=true, seg);
+  (List.rev(top^), List.rev(drv^));
+};
 
 let view_chunked =
     (
@@ -319,18 +333,24 @@ let view_chunked =
   incr(ChunkViews.tick);
   ChunkViews.sweep();
   let n = Array.length(measured.chunks);
-  let sorts_of = (tiles: list(Tile.t)) =>
+  /* statics refine only Drv molds (Info.refine_sort_from_mold), and the
+     probes below rely on it, so no caller can refine any other sort */
+  let refine_sort = (id: Id.t, s: Sort.t): Sort.t =>
+    switch (s) {
+    | Drv(_) => refine_sort(id, s)
+    | _ => s
+    };
+  let td_sorts = (tiles: list(Tile.t)) =>
     tiles
     |> List.map((t: Tile.t) =>
-         (
-           refine_sort(t.id, Tile.mold(t).out),
-           Option.map(
-             (d: TermData.data) => d.sort,
-             Id.Map.find_opt(t.id, term_data),
-           ),
+         Option.map(
+           (d: TermData.data) => d.sort,
+           Id.Map.find_opt(t.id, term_data),
          )
        )
     |> Array.of_list;
+  let drv_sorts = (drv: list((Id.t, Sort.t))) =>
+    drv |> List.map(((id, s)) => refine_sort(id, s)) |> Array.of_list;
   let render = (ch: Measured.chunk, final: bool): t =>
     span(
       ~attrs=[Attr.class_("code-chunk")],
@@ -361,39 +381,30 @@ let view_chunked =
        | Some(e)
            when
              stable(e)
-             && e.cv_info === statics_ident
              && (
                e.cv_td === Obj.repr(term_data)
-               || e.cv_top_sorts == sorts_of(e.cv_top)
+               || e.cv_top_sorts == td_sorts(e.cv_top)
+             )
+             && (
+               e.cv_info === statics_ident
+               || e.cv_drv_sorts == drv_sorts(e.cv_drv)
              ) =>
          e.cv_td = Obj.repr(term_data);
-         e.cv_tick = ChunkViews.tick^;
-         e.cv_node;
-       | Some(e) when stable(e) && e.cv_sorts == sorts_of(e.cv_tiles) =>
          e.cv_info = statics_ident;
-         e.cv_td = Obj.repr(term_data);
-         e.cv_top_sorts = sorts_of(e.cv_top);
          e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | _ =>
-         let tiles = chunk_tiles(ch.c_pieces, []);
-         let top =
-           List.filter_map(
-             fun
-             | Piece.Tile(t) => Some(t)
-             | _ => None,
-             ch.c_pieces,
-           );
+         let (top, drv) = chunk_probes(ch.c_pieces);
          let node = render(ch, final);
          let e = {
            ChunkViews.cv_flat: Obj.repr(ch.c_flat),
            cv_final: final,
-           cv_tiles: tiles,
-           cv_sorts: sorts_of(tiles),
            cv_info: statics_ident,
            cv_td: Obj.repr(term_data),
            cv_top: top,
-           cv_top_sorts: sorts_of(top),
+           cv_top_sorts: td_sorts(top),
+           cv_drv: drv,
+           cv_drv_sorts: drv_sorts(drv),
            cv_buffered:
              buffer_ids != []
              && List.exists(
