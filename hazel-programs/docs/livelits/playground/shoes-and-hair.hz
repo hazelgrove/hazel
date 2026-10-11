@@ -580,7 +580,10 @@ let head = ^^livelit(Drawing.^polygons((
 # THE HAIR #
 
 # Three hairdos side by side on one canvas, each with its own crown. #
-# Where each is drawn does not matter: the crown places it. #
+# Where each is drawn does not matter: the crown places it. Each is #
+# two shapes: the hairdo, drawn behind the head, and its top, drawn on #
+# the head -- the hair over the scalp, down to a fringe -- named the #
+# hairdo's name and "top". #
 
 let hairdos = ^^livelit(Drawing.^polygons((
   shapes = [
@@ -643,6 +646,89 @@ let hairdos = ^^livelit(Drawing.^polygons((
         (at = (265.0, 84.0), label = Anchor("crown"))
       ],
       stroke = (width = 2.0, color = "#7a2e10"),
+      fill = "#b5562b")),
+    Polygon((
+      name = "short top",
+      points = [
+        (at = (18.3, 112.2), label = Plain),
+        (at = (21.0, 104.2), label = Plain),
+        (at = (26.3, 95.9), label = Plain),
+        (at = (33.5, 89.3), label = Plain),
+        (at = (42.2, 84.8), label = Plain),
+        (at = (55.0, 82.5), label = Plain),
+        (at = (67.8, 84.8), label = Plain),
+        (at = (76.5, 89.3), label = Plain),
+        (at = (83.7, 95.9), label = Plain),
+        (at = (89.0, 104.2), label = Plain),
+        (at = (91.7, 112.2), label = Plain),
+        (at = (85.0, 110.0), label = Plain),
+        (at = (79.0, 103.0), label = Plain),
+        (at = (71.0, 105.0), label = Plain),
+        (at = (64.0, 99.0), label = Plain),
+        (at = (56.0, 104.0), label = Plain),
+        (at = (48.0, 99.0), label = Plain),
+        (at = (40.0, 104.0), label = Plain),
+        (at = (33.0, 100.0), label = Plain),
+        (at = (26.0, 106.0), label = Plain),
+        (at = (21.0, 113.0), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#3b2314"),
+      fill = "#6f4e37")),
+    Polygon((
+      name = "long top",
+      points = [
+        (at = (123.3, 112.2), label = Plain),
+        (at = (126.0, 104.2), label = Plain),
+        (at = (131.3, 95.9), label = Plain),
+        (at = (138.5, 89.3), label = Plain),
+        (at = (147.2, 84.8), label = Plain),
+        (at = (160.0, 82.5), label = Plain),
+        (at = (172.8, 84.8), label = Plain),
+        (at = (181.5, 89.3), label = Plain),
+        (at = (188.7, 95.9), label = Plain),
+        (at = (194.0, 104.2), label = Plain),
+        (at = (196.7, 112.2), label = Plain),
+        (at = (193.0, 112.0), label = Plain),
+        (at = (188.0, 103.0), label = Plain),
+        (at = (178.0, 98.0), label = Plain),
+        (at = (166.0, 97.0), label = Plain),
+        (at = (154.0, 100.0), label = Plain),
+        (at = (143.0, 105.0), label = Plain),
+        (at = (134.0, 111.0), label = Plain),
+        (at = (128.0, 118.0), label = Plain),
+        (at = (124.0, 124.0), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#111111"),
+      fill = "#2b2b2b")),
+    Polygon((
+      name = "curly top",
+      points = [
+        (at = (228.3, 112.2), label = Plain),
+        (at = (231.0, 104.2), label = Plain),
+        (at = (236.3, 95.9), label = Plain),
+        (at = (243.5, 89.3), label = Plain),
+        (at = (252.2, 84.8), label = Plain),
+        (at = (265.0, 82.5), label = Plain),
+        (at = (277.8, 84.8), label = Plain),
+        (at = (286.5, 89.3), label = Plain),
+        (at = (293.7, 95.9), label = Plain),
+        (at = (299.0, 104.2), label = Plain),
+        (at = (301.7, 112.2), label = Plain),
+        (at = (298.0, 110.0), label = Plain),
+        (at = (293.0, 102.0), label = Plain),
+        (at = (287.0, 106.0), label = Plain),
+        (at = (281.0, 99.0), label = Plain),
+        (at = (275.0, 104.0), label = Plain),
+        (at = (269.0, 98.0), label = Plain),
+        (at = (263.0, 103.0), label = Plain),
+        (at = (257.0, 98.0), label = Plain),
+        (at = (251.0, 104.0), label = Plain),
+        (at = (245.0, 99.0), label = Plain),
+        (at = (239.0, 105.0), label = Plain),
+        (at = (234.0, 101.0), label = Plain),
+        (at = (230.0, 110.0), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#7a2e10"),
       fill = "#b5562b"))
   ],
   current = 1, chosen = -1, held = false, moved = false))) in
@@ -650,9 +736,9 @@ let hairdos = ^^livelit(Drawing.^polygons((
 let ^hairdo = Drawing.^choice@<Hair>(
   [("short", Short), ("long", Long), ("curly", Curly)]) in
 let style = ^^livelit(^hairdo(Long)) in
+let hairdo = case style | Short => "short" | Long => "long" | Curly => "curly" end in
 let hair =
-  Drawing.named(hairdos,
-    case style | Short => "short" | Long => "long" | Curly => "curly" end) in
+  Drawing.named(hairdos, hairdo) @ Drawing.named(hairdos, hairdo ++ " top") in
 
 # THE SHOES #
 
@@ -679,14 +765,17 @@ let shoe = ^^livelit(Drawing.^polygons((
 # THE PICTURE #
 
 # Each piece placed by its anchor, then stacked in drawing order: the #
-# body, the shoes, the hair, and the head on top of the hair, so only #
-# the hair around the face shows. #
+# body, the shoes, the back of the hair, the head, and the top of the #
+# hair on the head. The hairdo is placed whole, by its crown, then split #
+# into its two layers. #
 
 let head_at = Drawing.placed(head, "chin", body, "neck") in
 let hair_at = Drawing.placed(hair, "crown", head_at, "crown") in
 let right_shoe = Drawing.placed(shoe, "ankle", body, "right foot") in
 let left_shoe = Drawing.placed(Drawing.mirrored(shoe), "ankle", body, "left foot") in
-let outfit = body @ right_shoe @ left_shoe @ hair_at @ head_at in
+let outfit =
+  body @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo) @ head_at
+  @ Drawing.named(hair_at, hairdo ++ " top") in
 let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
 
 # Where the crown and the shoes' ankles ended up. #
