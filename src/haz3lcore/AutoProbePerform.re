@@ -343,9 +343,8 @@ let tail_id = (syntax: CachedSyntax.t): option(Id.t) => {
 };
 
 /* the ⇓ toggle: one probe on the last expression, an open drawer with no
-   marks on the code, named by Refractors.tail_target. it follows the
-   expression as it changes. a manual probe already on the expression
-   wins; the ⇓ probe stays itself when a pin or step-into makes it manual */
+   marks on the code. it follows the expression as it changes; a previous
+   anchor the auto-probe still holds goes back to a plain probe */
 let update_tail =
     (
       ~on: bool,
@@ -354,18 +353,14 @@ let update_tail =
       z: Zipper.t,
     )
     : Zipper.t => {
+  let target = on ? tail_id(syntax) : None;
   let prev = z.refractors.tail_target;
-  let target =
-    switch (on ? tail_id(syntax) : None) {
-    | Some(id)
-        when prev != Some(id) && List.mem_assoc(id, z.refractors.manuals) =>
-      None
-    | target => target
-    };
   /* its entry keeps the drawer's own state (a menu, a rich view) */
   let placed =
     switch (target) {
-    | Some(id) => ProbePerform.has_probe(id, z)
+    | Some(id) =>
+      Id.Map.mem(id, z.refractors.multis.ephemerals)
+      || List.mem_assoc(id, z.refractors.manuals)
     | None => true
     };
   if (target == prev && placed) {
@@ -379,13 +374,11 @@ let update_tail =
         }
       )
       |> ProbePerform.add_ids_from_multi_term(~syntax, ~info_map);
-    /* an anchor the auto-probe held first opens as a drawer; an old one it
-       still holds goes back to a plain probe */
     Zipper.update_ephemerals(
       eph => {
         let eph =
           switch (prev) {
-          | Some(old) when prev != target && Id.Map.mem(old, eph) =>
+          | Some(old) when Some(old) != target && Id.Map.mem(old, eph) =>
             Id.Map.add(old, Refractors.mk_entry(Probe), eph)
           | _ => eph
           };

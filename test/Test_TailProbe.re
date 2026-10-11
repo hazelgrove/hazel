@@ -140,8 +140,8 @@ let steady = () => {
   );
 };
 
-/* a manual probe already on the last expression wins: no ⇓ probe, and
-   it stays an ordinary probe */
+/* a manual probe on the last expression wins over the tail's: it stays
+   an ordinary probe, and the tail still names its term */
 let manual_wins = () => {
   let (z, last) = manual_first();
   check(
@@ -150,13 +150,14 @@ let manual_wins = () => {
     true,
     List.mem_assoc(last, z.refractors.manuals),
   );
-  check(bool, "no ⇓ probe", true, z.refractors.tail_target == None);
+  check(bool, "the tail", true, z.refractors.tail_target == Some(last));
   check(
     bool,
     "no ephemeral beside it",
     false,
     Id.Map.mem(last, z.refractors.multis.ephemerals),
   );
+  check(bool, "not the program value", false, is_program_value(z, last));
   check(bool, "steady", true, update(~on=true, z) === z);
 };
 
@@ -176,22 +177,6 @@ let promoted_stays = () => {
     |> Option.map((e: Refractors.entry) => e.model)
     == Some(ProbeProj.tail_model),
   );
-};
-
-/* a probe placed on the ⇓ probe's term replaces it */
-let placed_replaces = () => {
-  let (z, tail) = tail_on("let x = 1 in\nx + 1");
-  let (info_map, syntax) = analysed(z);
-  let z =
-    ProbePerform.add_manual(~syntax, tail, info_map, z) |> update(~on=true);
-  check(
-    bool,
-    "a plain manual probe",
-    true,
-    List.assoc_opt(tail, z.refractors.manuals)
-    == Some(Refractors.mk_entry(Probe)),
-  );
-  check(bool, "no ⇓ probe", true, z.refractors.tail_target == None);
 };
 
 /* a ⇓ probe entry made afresh (an auto-probe anchor on the last
@@ -371,7 +356,6 @@ let tests = (
     test_case("steady", `Quick, steady),
     test_case("a manual probe wins", `Quick, manual_wins),
     test_case("made manual, still the ⇓ probe", `Quick, promoted_stays),
-    test_case("a probe placed on it replaces it", `Quick, placed_replaces),
     test_case("a remade entry is a drawer", `Quick, remade_drawer),
     test_case("its projector is told", `Quick, projector_flag),
     test_case("no arms on the code", `Quick, no_arms),

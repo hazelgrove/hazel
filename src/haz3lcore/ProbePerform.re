@@ -182,18 +182,6 @@ let add_manual_targets =
       z,
       target_ids,
     );
-  /* a probe placed on the ⇓ probe's term replaces it */
-  let z =
-    switch (z.refractors.tail_target) {
-    | Some(id) when List.mem(id, target_ids) =>
-      Zipper.update_refractors(z, r =>
-        {
-          ...r,
-          tail_target: None,
-        }
-      )
-    | _ => z
-    };
 
   let sorted_ids = sort_ids_lexically(~syntax, target_ids);
   set_pending_probe(sorted_ids, z);
