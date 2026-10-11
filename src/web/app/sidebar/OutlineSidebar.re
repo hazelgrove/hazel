@@ -301,7 +301,8 @@ let rec node_view =
           }
         )
         /* a click takes the keyboard to the outline, at this row: focus
-           first, so the focus event's cursor lands before this one */
+           first, so the focus event's cursor lands before this one.
+           without a stack there are no keys, so no cursor */
         @ [
           Attr.on_mousedown(_ =>
             switch (edit.get()) {
@@ -313,11 +314,10 @@ let rec node_view =
               ])
             | Some(_) => Effect.Ignore
             | None =>
-              Effect.Many([
-                Effect.Prevent_default,
-                take_focus,
-                set_cursor(Some(row_path)),
-              ])
+              Effect.Many(
+                [Effect.Prevent_default, take_focus]
+                @ (stack_controls ? [set_cursor(Some(row_path))] : []),
+              )
             }
           ),
         ]

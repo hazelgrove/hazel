@@ -12,9 +12,6 @@ module Persist = ScratchPersist;
 let menu: ref(option((Id.t, bool, float, float))) = ref(None);
 /* its row the keys have selected */
 let menu_sel: ref(int) = ref(0);
-/* for handlers, where [menu] is shadowed */
-let set_menu = m => menu := m;
-let read_menu = () => menu^;
 
 /* the keyboard cursor: a row path, None for the header row */
 let cursor: ref(option(OutlineTree.path)) = ref(None);
@@ -230,21 +227,6 @@ let update =
     code |> Updated.return_quiet;
   };
 
-/* outside the scratch and documentation decks the outline only
-   navigates: its view state moves, and nothing reaches a program */
-let update_view = (a: Action.t): unit =>
-  switch (a) {
-  | Cursor(c) => cursor := c
-  | Focus => JsUtil.focus_outline()
-  | Collapse(_)
-  | Menu(_)
-  | MenuSel(_)
-  | DefOp(_)
-  | Edit(_)
-  | Commit(_)
-  | Focused => ()
-  };
-
 /* the row holding the editor's caret, or its nearest visible ancestor
    when collapsed away (OutlineFollow) */
 let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
@@ -385,14 +367,13 @@ let view =
     Option.bind(program, p =>
       EvalResult.Model.test_results(Program.result(p))
     );
-  let menu = is_deck ? menu^ : None;
   let key = {
     k_statics: statics,
     k_focused: focused,
     k_deck: is_deck,
     k_name: name,
     k_collapsed: collapsed,
-    k_menu: menu,
+    k_menu: menu^,
     k_menu_sel: menu_sel^,
     k_results: results,
     k_view: slide_view,
@@ -489,7 +470,7 @@ let view =
       focused_entries: focused,
       error_items,
       error_subtree,
-      menu,
+      menu: menu^,
       menu_sel: menu_sel^,
       /* live ✓/✗ for test rows, from the whole program's result */
       test_status: id =>
@@ -544,20 +525,17 @@ let view =
         },
       },
       /* like the cursor, the menu moves at the event */
-      menu_open: (id, is_module, x, y) =>
-        if (is_deck) {
-          set_menu(Some((id, is_module, x, y)));
-          menu_sel := 0;
-          inject(Menu(Some((id, is_module, x, y))));
-        } else {
-          Effect.Ignore;
-        },
+      menu_open: (id, is_module, x, y) => {
+        menu := Some((id, is_module, x, y));
+        menu_sel := 0;
+        inject(Menu(Some((id, is_module, x, y))));
+      },
       menu_close: inject(Menu(None)),
       menu_select: i => {
         menu_sel := i;
         inject(MenuSel(i));
       },
-      get_menu: () => is_deck ? read_menu() : None,
+      get_menu: () => menu^,
       get_menu_sel: () => menu_sel^,
       def_op: (op, id) => inject(DefOp(op, id)),
     };
