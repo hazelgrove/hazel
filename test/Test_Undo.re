@@ -56,6 +56,12 @@ let text_of = (model: History.Model.t): string =>
 let undo_len = (model: History.Model.t) => List.length(model.undo_stack);
 let redo_len = (model: History.Model.t) => List.length(model.redo_stack);
 
+let rejected = (label, model, action) =>
+  switch (apply(model, action)) {
+  | _ => fail(label ++ " should raise InvalidAction")
+  | exception Updated.InvalidAction => ()
+  };
+
 /* Pins */
 
 let focus_action = (a: Haz3lcore.Action.sample_focus): Page.Update.t =>
@@ -74,6 +80,88 @@ let focus_of = (model: History.Model.t): Language.Sample.Focus.t =>
     sample_focus;
 let pinned = (model: History.Model.t) =>
   focus_of(model).pinned_stack != None;
+
+/* Slides: a tutorial of two Probes lessons, applying what each action
+   schedules (a slide's defaults on arrival) as the app does. */
+
+let lesson = title =>
+  List.find(
+    (s: Tutorial.spec) => s.title == "Probes / " ++ title,
+    TutorialSettings.lessons,
+  );
+
+let mk_tutorial = (): History.Model.t => {
+  let globals = Globals.Model.init();
+  let exercises =
+    List.map(
+      title =>
+        TutorialMode.Model.of_spec(
+          ~settings=globals.settings.core,
+          ~instructor_mode=false,
+          lesson(title),
+        ),
+      ["Environment Explorer", "Case Expressions"],
+    );
+  let editors: Editors.Model.t =
+    Tutorial({
+      current: 0,
+      exercises,
+    });
+  {
+    current: {
+      globals,
+      editors,
+      explain_this: ExplainThisModel.init,
+      selection: Editors.Selection.default_selection(editors),
+    },
+    undo_stack: [],
+    redo_stack: [],
+  };
+};
+
+/* Entering a Probes lesson sets the probe settings, which are global. */
+let restoring_probe_settings = f => {
+  let saved = Haz3lcore.ProbeProj.Settings.s^;
+  Fun.protect(
+    ~finally=
+      () => {
+        TutorialSlideInit.maybe_apply_on_change(
+          ~autoprobe=Haz3lcore.AutoProbe.Off,
+          ~set_autoprobe=_ => (),
+          None,
+        );
+        Haz3lcore.ProbeProj.Settings.s := saved;
+      },
+    f,
+  );
+};
+
+let step = (model: History.Model.t, action: Page.Update.t): History.Model.t => {
+  let scheduled = ref([]);
+  let model =
+    History.Update.update(
+      ~import_log=_ => (),
+      ~get_log_and=_ => (),
+      ~schedule_action=a => scheduled := scheduled^ @ [a],
+      action,
+      model,
+    ).
+      model;
+  List.fold_left(apply, model, scheduled^);
+};
+
+let go_to = (slide: int): Page.Update.t =>
+  Editors(Tutorial(SwitchExercise(slide)));
+let slide_of = (model: History.Model.t) =>
+  switch (model.current.editors) {
+  | Tutorial(m) => m.current
+  | _ => fail("not in the tutorial")
+  };
+let exercise = (model: History.Model.t, slide: int) =>
+  switch (model.current.editors) {
+  | Tutorial(m) => List.nth(m.exercises, slide)
+  | _ => fail("not in the tutorial")
+  };
 
 let tests = (
   "Undo",
@@ -318,6 +406,50 @@ let tests = (
         check(bool, "undo unpins", false, pinned(m5));
         check(string, "and leaves the code alone", t1, text_of(m5));
       },
+    ),
+    test_case("undo and redo never leave the slide", `Quick, () =>
+      restoring_probe_settings(() => {
+        let m1 = step(mk_tutorial(), insert("1"));
+        check(int, "arriving pushed no entry", 1, undo_len(m1));
+        let m2 = step(m1, go_to(1));
+        rejected("undo of the previous slide's edit", m2, undo);
+        let t2 = text_of(m2);
+        let m3 = step(m2, insert("2"));
+        let t3 = text_of(m3);
+        let m4 = apply(m3, undo);
+        check(string, "undo reverts this slide's edit", t2, text_of(m4));
+        rejected("undo past this slide's first entry", m4, undo);
+        let m5 = apply(m4, redo);
+        check(string, "redo restores it", t3, text_of(m5));
+        check(int, "still on the slide", 1, slide_of(m5));
+        rejected("redo on another slide", step(m4, go_to(0)), redo);
+      })
+    ),
+    test_case("redo survives a visit to another slide", `Quick, () =>
+      restoring_probe_settings(() => {
+        let m1 = step(mk_tutorial(), insert("1"));
+        let t1 = text_of(m1);
+        let m2 = apply(m1, undo);
+        let m3 = step(step(m2, go_to(1)), go_to(0));
+        check(int, "arrivals kept the redo stack", 1, redo_len(m3));
+        let m4 = apply(m3, redo);
+        check(string, "redo restores the edit", t1, text_of(m4));
+      })
+    ),
+    test_case("undo on one slide leaves the others as they are", `Quick, () =>
+      restoring_probe_settings(() => {
+        let m1 = step(mk_tutorial(), insert("1"));
+        let m2 = step(step(m1, go_to(1)), move_right);
+        let m3 = step(m2, go_to(0));
+        let m4 = apply(m3, undo);
+        check(int, "on the edited slide", 0, slide_of(m4));
+        check(
+          bool,
+          "the other slide is the one left behind, not the one in the entry",
+          true,
+          exercise(m4, 1) === exercise(m3, 1),
+        );
+      })
     ),
   ],
 );
