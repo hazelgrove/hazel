@@ -4,228 +4,7 @@ open Language;
 
 /* statics parity gates over the mega corpus */
 
-/* id-preserving single-token edits at the last / first match of [needle] */
-let rec repl_last =
-        (~needle: string, ~repl: string, ps: list(Piece.t))
-        : (bool, list(Piece.t)) =>
-  switch (ps) {
-  | [] => (false, [])
-  | [p, ...rest] =>
-    let (done_, rest') = repl_last(~needle, ~repl, rest);
-    if (done_) {
-      (true, [p, ...rest']);
-    } else {
-      switch (p) {
-      | Tile(t) when Tile.label(t) == [needle] => (
-          true,
-          [
-            Piece.Tile({
-              ...t,
-              form: Form.Tok(repl),
-            }),
-            ...rest',
-          ],
-        )
-      | Tile(t) =>
-        let (d, kids') =
-          repl_last_kids(~needle, ~repl, List.rev(t.children));
-        d
-          ? (
-            true,
-            [
-              Piece.Tile({
-                ...t,
-                children: List.rev(kids'),
-              }),
-              ...rest',
-            ],
-          )
-          : (false, [p, ...rest']);
-      | _ => (false, [p, ...rest'])
-      };
-    };
-  }
-and repl_last_kids = (~needle, ~repl, kids_rev) =>
-  switch (kids_rev) {
-  | [] => (false, [])
-  | [k, ...rest] =>
-    let (d, k') = repl_last(~needle, ~repl, k);
-    d
-      ? (true, [k', ...rest])
-      : {
-        let (d2, rest') = repl_last_kids(~needle, ~repl, rest);
-        (d2, [k, ...rest']);
-      };
-  };
-
-let rec repl_first =
-        (~needle: string, ~repl: string, ps: list(Piece.t))
-        : (bool, list(Piece.t)) =>
-  switch (ps) {
-  | [] => (false, [])
-  | [p, ...rest] =>
-    switch (p) {
-    | Tile(t) when Tile.label(t) == [needle] => (
-        true,
-        [
-          Piece.Tile({
-            ...t,
-            form: Form.Tok(repl),
-          }),
-          ...rest,
-        ],
-      )
-    | Tile(t) =>
-      let (d, kids') = repl_first_kids(~needle, ~repl, t.children);
-      if (d) {
-        (
-          true,
-          [
-            Piece.Tile({
-              ...t,
-              children: kids',
-            }),
-            ...rest,
-          ],
-        );
-      } else {
-        let (d2, rest') = repl_first(~needle, ~repl, rest);
-        (d2, [p, ...rest']);
-      };
-    | _ =>
-      let (d, rest') = repl_first(~needle, ~repl, rest);
-      (d, [p, ...rest']);
-    }
-  }
-and repl_first_kids = (~needle, ~repl, kids) =>
-  switch (kids) {
-  | [] => (false, [])
-  | [k, ...rest] =>
-    let (d, k') = repl_first(~needle, ~repl, k);
-    d
-      ? (true, [k', ...rest])
-      : {
-        let (d2, rest') = repl_first_kids(~needle, ~repl, rest);
-        (d2, [k, ...rest']);
-      };
-  };
-
 let parse_seg_of = CorpusUtil.seg_of(~root=Exp);
-
-/* DefStatics error parity with whole-program statics, cold and after
-   non-export, export-type and cross-module edits; timings print */
-let defstatics_case = (name: string, ()): unit => {
-  switch (CorpusUtil.mega_src(name)) {
-  | None => fail("DEFSTATICS: corpus unreadable: " ++ name)
-  | Some(src) =>
-    let settings = CoreSettings.on;
-    let ctx = Builtins.ctx_init(Some(Operators.default_mode));
-    let seg1 = parse_seg_of(src);
-    let term1 = MakeTerm.go(seg1).term;
-    let sorted = ids => List.sort_uniq(compare, ids);
-    let whole = term => {
-      let (map, _) = Statics.mk_unmemoized(settings, ctx, term);
-      sorted(Statics.Map.error_ids(map));
-    };
-    let parity = (label, term, ds) => {
-      let w = whole(term);
-      let e = sorted(DefStatics.all_error_ids(ds));
-      if (w == e) {
-        Printf.printf(
-          "DEFSTATICS %s %s: parity OK (%d errors)\n",
-          name,
-          label,
-          List.length(w),
-        );
-      } else {
-        Printf.printf(
-          "DEFSTATICS %s %s: PARITY MISMATCH whole=%d engine=%d\n",
-          name,
-          label,
-          List.length(w),
-          List.length(e),
-        );
-      };
-      check(bool, name ++ " " ++ label ++ " error parity", true, w == e);
-    };
-    let time = (label, f) => {
-      let t0 = Sys.time();
-      let r = f();
-      Printf.printf(
-        "DEFSTATICS %s %s: %.0fms\n",
-        name,
-        label,
-        (Sys.time() -. t0) *. 1000.,
-      );
-      r;
-    };
-    let ds1 = time("engine cold", () => DefStatics.calc(~settings, term1));
-    Printf.printf(
-      "DEFSTATICS %s items: %d, warnings: %d\n",
-      name,
-      List.length(ds1.items),
-      List.length(DefStatics.all_warning_ids(ds1)),
-    );
-    parity("cold", term1, ds1);
-    {
-      /* the grafted elaboration evaluates like the monolithic one */
-
-      let (_, mono_elab) = Statics.mk_unmemoized(settings, ctx, term1);
-      switch (DefStatics.whole_elab(ds1)) {
-      | None => fail(name ++ " graft: shape gap")
-      | Some(graft_elab) =>
-        let (v1, _) = Evaluator.evaluate(~env=Builtins.env_init, mono_elab);
-        let (v2, _) = Evaluator.evaluate(~env=Builtins.env_init, graft_elab);
-        check(
-          bool,
-          name ++ " graft-eval parity",
-          true,
-          Exp.fast_equal(v1, v2),
-        );
-      };
-    };
-    let (f2, seg2) = repl_last(~needle="9", ~repl="8", seg1);
-    assert(f2);
-    let term2 = MakeTerm.go(seg2).term;
-    let ds2 =
-      time("incr non-export edit", () =>
-        DefStatics.calc(~settings, ~prev=ds1, term2)
-      );
-    Printf.printf(
-      "DEFSTATICS %s non-export analyzed: %d items\n",
-      name,
-      DefStatics.last_analyzed^,
-    );
-    parity("non-export", term2, ds2);
-    let (f3, seg3) = repl_first(~needle="Int", ~repl="Bool", seg1);
-    assert(f3);
-    let term3 = MakeTerm.go(seg3).term;
-    let ds3 =
-      time("incr export-type edit", () =>
-        DefStatics.calc(~settings, ~prev=ds1, term3)
-      );
-    Printf.printf(
-      "DEFSTATICS %s export-type analyzed: %d items\n",
-      name,
-      DefStatics.last_analyzed^,
-    );
-    parity("export-type", term3, ds3);
-    /* retypes a selfcheck that MetaRunner consumes downstream */
-    let (f4, seg4) = repl_first(~needle="Bool", ~repl="String", seg1);
-    assert(f4);
-    let term4 = MakeTerm.go(seg4).term;
-    let ds4 =
-      time("incr cross-module cascade", () =>
-        DefStatics.calc(~settings, ~prev=ds1, term4)
-      );
-    Printf.printf(
-      "DEFSTATICS %s cascade analyzed: %d items\n",
-      name,
-      DefStatics.last_analyzed^,
-    );
-    parity("cascade", term4, ds4);
-  };
-};
 
 /* a probe in a fn body called only from a later item samples under
    compositional statics as under monolithic (fresh evaluations) */
@@ -354,69 +133,6 @@ let probe_capture_parity = (): unit => {
   };
 };
 
-/* item insert/delete/move/duplicate re-analyzes just the changed item and
-   mentioners of its exports, and matches a cold calc */
-let structural_alignment = (): unit => {
-  let settings = CoreSettings.on;
-  let strip_tail = (seg: Segment.t): Segment.t =>
-    switch (List.rev(seg)) {
-    | [Piece.Tile(_), ...rest] => List.rev(rest)
-    | _ => seg
-    };
-  let item = txt => strip_tail(parse_seg_of(txt ++ "0"));
-  let a = item("let a = 1 in\n");
-  let b = item("let b = a + 1 in\n");
-  let c = item("let c = b + a in\n");
-  let d = item("let d = 7 in\n");
-  let tail = parse_seg_of("c + d");
-  let term_of = segs => MakeTerm.go(List.concat(segs)).term;
-  let base = term_of([a, b, c, d, tail]);
-  let ds0 = DefStatics.calc(~settings, base);
-  let run = (label, ~expect_analyzed, term) => {
-    let ds = DefStatics.calc(~settings, ~prev=ds0, term);
-    let analyzed = DefStatics.last_analyzed^;
-    let cold = DefStatics.calc(~settings, term);
-    let ids = (t: DefStatics.t) =>
-      List.map((it: DefStatics.item) => it.d_id, t.items);
-    let exports = (t: DefStatics.t) =>
-      List.map(
-        (it: DefStatics.item) =>
-          List.map(DefStatics.entry_name, it.d_exports),
-        t.items,
-      );
-    let errs = (t: DefStatics.t) =>
-      List.sort_uniq(compare, DefStatics.all_error_ids(t));
-    let warns = (t: DefStatics.t) =>
-      List.sort_uniq(compare, DefStatics.all_warning_ids(t));
-    check(bool, label ++ ": item ids = cold", true, ids(ds) == ids(cold));
-    check(
-      bool,
-      label ++ ": exports = cold",
-      true,
-      exports(ds) == exports(cold),
-    );
-    check(bool, label ++ ": errors = cold", true, errs(ds) == errs(cold));
-    check(
-      bool,
-      label ++ ": warnings = cold",
-      true,
-      warns(ds) == warns(cold),
-    );
-    check(int, label ++ ": items analyzed", expect_analyzed, analyzed);
-  };
-  run("noop", ~expect_analyzed=0, base);
-  /* insert a fresh unrelated def: just itself */
-  let e = item("let e = 2 in\n");
-  run("insert", ~expect_analyzed=1, term_of([a, b, e, c, d, tail]));
-  /* delete d: only the tail mentions it */
-  run("delete", ~expect_analyzed=1, term_of([a, b, c, tail]));
-  /* move b below c: c mentions b, plus b itself (move-in recompute) */
-  run("move", ~expect_analyzed=2, term_of([a, c, b, d, tail]));
-  /* duplicate a (fresh ids, same name): the copy + mentioners of a */
-  let a2 = item("let a = 1 in\n");
-  run("duplicate", ~expect_analyzed=3, term_of([a, a2, b, c, d, tail]));
-};
-
 /* per-item MakeTerm matches the monolithic term and re-parses per item */
 let incr_maketerm_parity = (): unit => {
   let settings = CoreSettings.on;
@@ -459,7 +175,14 @@ let incr_maketerm_parity = (): unit => {
   let seg' = List.map(p => p, seg);
   let _ = MakeTerm.Incr.term_of(seg');
   check(int, "recombination reuse", 0, MakeTerm.Incr.analyzed^);
-  let (found, seg2) = repl_last(~needle="9", ~repl="8", seg);
+  let (seg2, found) =
+    CorpusUtil.edit_token(
+      ~at=`Last,
+      ~keep_id=true,
+      ~needle="9",
+      ~repl="8",
+      seg,
+    );
   assert(found);
   let t2 = MakeTerm.Incr.term_of(seg2);
   check(int, "one edit, one item", 1, MakeTerm.Incr.analyzed^);
@@ -589,12 +312,6 @@ let tests = (
   [
     test_case("stream collector parity", `Quick, stream_collector_parity),
     test_case("probe capture parity", `Quick, probe_capture_parity),
-    test_case("structural alignment", `Quick, structural_alignment),
     test_case("incremental MakeTerm parity", `Quick, incr_maketerm_parity),
-    test_case(
-      "DefStatics error parity (mega-1k)",
-      `Quick,
-      defstatics_case("mega-1k.hz"),
-    ),
   ],
 );

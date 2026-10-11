@@ -271,9 +271,6 @@ let row = (term: Language.Exp.t, path: list(string)): Id.t => {
   };
 };
 
-let sorted_ids = (ids: list(Id.t)): list(string) =>
-  List.sort_uniq(compare, List.map(Id.to_string, ids));
-
 /* mega-scale slides skip the super-linear gates (typing parse, roundtrip);
    substring match, as names carry folder prefixes ("Perf / Mega 1k") */
 let mega_scale = (name: string): bool => {
