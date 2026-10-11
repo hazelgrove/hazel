@@ -314,45 +314,6 @@ let rec headless_span =
   | None => None
   };
 
-/* headerless content at any block depth: nested blocks share the
-   boundary structure, so the span walk applies at each level; an id
-   inside a def span yields None there and the walk descends */
-let rec headless_deep_go =
-        (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
-  switch (headless_span(~divided_only_tail=true, fid, seg)) {
-  | Some((start, stop, sym)) =>
-    Some((ListUtil.slice(start, stop - start, seg), sym))
-  | None =>
-    List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          List.find_map(ch => headless_deep_go(fid, ch), t.children)
-        | _ => None
-        },
-      seg,
-    )
-  };
-
-/* the top level's tail is unconditional (the ⇒ row); nested levels
-   have one only after an item boundary */
-let headless_content_deep =
-    (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
-  switch (headless_span(fid, seg)) {
-  | Some((start, stop, sym)) =>
-    Some((ListUtil.slice(start, stop - start, seg), sym))
-  | None =>
-    List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          List.find_map(ch => headless_deep_go(fid, ch), t.children)
-        | _ => None
-        },
-      seg,
-    )
-  };
-
 /* identity-preserving map: [xs] itself when [f] changed nothing, so
    splices re-mint only the spine above the replacement and pointer-keyed
    caches downstream (incremental parse, outline memo) still hit */
@@ -395,6 +356,75 @@ let splice_at =
           );
     Segment.ptr_eq(level', level) ? seg : go(seg);
   };
+
+/* an item's span (start, stop, …) at any block depth: nested blocks share
+   the boundary structure, so [at] applies at each level, top down; it
+   gets the tile the level is a child of (None at the top) */
+let rec find_deep =
+        (
+          ~parent: option(Tile.t)=?,
+          at: (option(Tile.t), Segment.t) => option((int, int, 'x)),
+          seg: Segment.t,
+        )
+        : option((Segment.t, 'x)) =>
+  switch (at(parent, seg)) {
+  | Some((start, stop, x)) =>
+    Some((ListUtil.slice(start, stop - start, seg), x))
+  | None =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => List.find_map(find_deep(~parent=t, at), t.children)
+        | _ => None
+        },
+      seg,
+    )
+  };
+
+/* [seg] with [repl] in place of [at]'s span, inside its edge whitespace */
+let rec splice_deep =
+        (
+          ~parent: option(Tile.t)=?,
+          at: (option(Tile.t), Segment.t) => option((int, int, 'x)),
+          repl: Segment.t,
+          seg: Segment.t,
+        )
+        : Segment.t =>
+  switch (at(parent, seg)) {
+  | Some((start, stop, _)) =>
+    let (pre, _, suf) = trim_ws(ListUtil.slice(start, stop - start, seg));
+    let out =
+      ListUtil.truncate(start, seg)
+      @ pre
+      @ repl
+      @ suf
+      @ ListUtil.remove_first_n(stop, seg);
+    Segment.ptr_eq(out, seg) ? seg : out;
+  | None =>
+    map_sharing(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          tile_sharing(
+            p,
+            t,
+            map_sharing(splice_deep(~parent=t, at, repl), t.children),
+          )
+        | _ => p
+        },
+      seg,
+    )
+  };
+
+/* headerless content: the top level's tail is unconditional (the ⇒ row);
+   nested levels have one only after an item boundary. An id inside a def
+   span yields None there and the walk descends */
+let headless_at = (fid: Id.t, parent: option(Tile.t), seg: Segment.t) =>
+  headless_span(~divided_only_tail=Option.is_some(parent), fid, seg);
+
+let headless_content_deep =
+    (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
+  find_deep(headless_at(fid), seg);
 
 /* A cell shows its item from its own left edge: the indentation every
    line after the first has in the program (the [base] of the line the
@@ -587,33 +617,6 @@ let restore = (ind: ScratchCell.indent, cur: Segment.t): Segment.t =>
     Segment.ptr_eq(out, ind.orig) ? ind.orig : out;
   };
 
-let splice_headless_deep =
-    (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
-  let rec go = (~top: bool, seg: Segment.t): Segment.t =>
-    switch (headless_span(~divided_only_tail=!top, fid, seg)) {
-    | Some((start, stop, _)) =>
-      let (pre, _, suf) = trim_ws(ListUtil.slice(start, stop - start, seg));
-      let out =
-        ListUtil.truncate(start, seg)
-        @ pre
-        @ repl
-        @ suf
-        @ ListUtil.remove_first_n(stop, seg);
-      Segment.ptr_eq(out, seg) ? seg : out;
-    | None =>
-      map_sharing(
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile(t) =>
-            tile_sharing(p, t, map_sharing(go(~top=false), t.children))
-          | _ => p
-          },
-        seg,
-      )
-    };
-  go(~top=true, seg);
-};
-
 /* the `test` before the statement `;` [semi]: a run member's row is its
    `;`, which stays outside the run's cell */
 let test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) =>
@@ -639,13 +642,13 @@ let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) =>
 
 /* contiguous test runs: the outline's "tests" container opens one cell
    spanning the whole run. The maximal run of adjacent test statements
-   holding [fid], as (start, stop, member ids); the last `;` stays
-   outside, like a statement's. In a module body a final `;`-less test
+   holding [fid], as (start, stop, (member ids, test count)); the last `;`
+   stays outside, like a statement's. In a module body a final `;`-less test
    parses as the tail but joins the run; an expression block's tail is
    its value and never does. */
 let test_run =
     (~module_body=false, fid: Id.t, seg: Segment.t)
-    : option((int, int, list(Id.t), int)) => {
+    : option((int, int, (list(Id.t), int))) => {
   let arr = Array.of_list(seg);
   let spans = Array.of_list(item_spans(seg));
   let n = Array.length(spans);
@@ -686,79 +689,32 @@ let test_run =
     Some((
       start,
       before_semi(arr, start, spans[b].sp_stop),
-      members,
-      b - a + 1,
+      (members, b - a + 1),
     ));
   | _ => None
   };
 };
 
-/* test runs at any block depth, like headless_deep_go */
-let rec test_run_deep_go =
-        (~module_body: bool, fid: Id.t, seg: Segment.t)
-        : option((Segment.t, list(Id.t), int)) =>
-  switch (test_run(~module_body, fid, seg)) {
-  | Some((start, stop, members, n)) =>
-    Some((ListUtil.slice(start, stop - start, seg), members, n))
-  | None =>
-    List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          List.find_map(
-            test_run_deep_go(
-              ~module_body=List.mem(Sort.Mod, Tile.mold(t).in_),
-              fid,
-            ),
-            t.children,
-          )
-        | _ => None
-        },
-      seg,
-    )
-  };
+/* test runs at any block depth; a level is a module body when its tile
+   has a member child */
+let run_at = (fid: Id.t, parent: option(Tile.t), seg: Segment.t) =>
+  test_run(
+    ~module_body=
+      switch (parent) {
+      | Some(t) => List.mem(Sort.Mod, Tile.mold(t).in_)
+      | None => false
+      },
+    fid,
+    seg,
+  );
 
 let test_run_deep = (fid: Id.t, seg: Segment.t) =>
-  test_run_deep_go(~module_body=false, fid, seg)
-  |> Option.map(((run, members, _)) => (run, members));
+  find_deep(run_at(fid), seg)
+  |> Option.map(((run, (members, _))) => (run, members));
 
 /* how many tests the run holding [fid] has (members carry two ids each) */
 let test_run_size_deep = (fid: Id.t, seg: Segment.t): option(int) =>
-  test_run_deep_go(~module_body=false, fid, seg)
-  |> Option.map(((_, _, n)) => n);
-
-let splice_run_deep = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
-  let rec go = (~module_body: bool, seg: Segment.t): Segment.t =>
-    switch (test_run(~module_body, fid, seg)) {
-    | Some((start, stop, _, _)) =>
-      let (pre, _, suf) = trim_ws(ListUtil.slice(start, stop - start, seg));
-      let out =
-        ListUtil.truncate(start, seg)
-        @ pre
-        @ repl
-        @ suf
-        @ ListUtil.remove_first_n(stop, seg);
-      Segment.ptr_eq(out, seg) ? seg : out;
-    | None =>
-      map_sharing(
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile(t) =>
-            tile_sharing(
-              p,
-              t,
-              map_sharing(
-                go(~module_body=List.mem(Sort.Mod, Tile.mold(t).in_)),
-                t.children,
-              ),
-            )
-          | _ => p
-          },
-        seg,
-      )
-    };
-  go(~module_body=false, seg);
-};
+  find_deep(run_at(fid), seg) |> Option.map(((_, (_, n))) => n);
 
 /* the definition RHS of the item [t] at [i] in [level]: a 3-shard
    `let … = … in`'s last child, or for a 2-shard member `let … =`, the
@@ -1072,8 +1028,8 @@ let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
          );
     | None => seg
     }
-  | Some(_) when e.e_run => splice_run_deep(e.e_id, body_text(e), seg)
-  | Some(_) => splice_headless_deep(e.e_id, body_text(e), seg)
+  | Some(_) when e.e_run => splice_deep(run_at(e.e_id), body_text(e), seg)
+  | Some(_) => splice_deep(headless_at(e.e_id), body_text(e), seg)
   | None =>
     splice_def(e.e_id, rewrap_ws(find_def, e.e_id, seg, body_text(e)), seg)
     |> splice_pat(e.e_id, rewrap_ws(find_pat, e.e_id, seg, header_text(e)))
