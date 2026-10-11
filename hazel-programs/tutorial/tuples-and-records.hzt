@@ -44,7 +44,7 @@ The type is written `(name = String, water = Int)`.
 
 @hints
 caption should be "moonleaf needs 250ml"
-fern should be a Plant record with water 200
+fern should be a Plant record named "fern" with water 200
 
 @code
 let plant: (String, Int) = ("moonleaf", 250) in
@@ -58,4 +58,4 @@ let fern: Plant = ¿ in
 
 @test
 test caption == "moonleaf needs 250ml" end;
-test fern.water == 200 end
+test fern.name == "fern" && fern.water == 200 end
