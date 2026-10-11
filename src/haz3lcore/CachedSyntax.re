@@ -227,8 +227,15 @@ let mk =
   };
 };
 
-let init = (~root=Sort.Exp, z: Zipper.t) =>
-  mk(~root, z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
+let init = (~root=Sort.Exp, ~m_cache=?, ~t_cache=?, z: Zipper.t) =>
+  mk(
+    ~root,
+    ~m_cache?,
+    ~t_cache?,
+    z,
+    ~info_map=Id.Map.empty,
+    ~dyn_map=Id.Map.empty,
+  );
 
 let mark_old: t => t =
   old => {

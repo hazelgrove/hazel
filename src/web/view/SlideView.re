@@ -27,11 +27,7 @@ let init: t = {
   parked: false,
 };
 
-let zoom_root = (v: t): option(Id.t) =>
-  switch (List.rev(v.zoom)) {
-  | [m, ..._] => Some(m)
-  | [] => None
-  };
+let zoom_root = (v: t): option(Id.t) => ListUtil.last_opt(v.zoom);
 
 /* the header symbol of a headerless cell, from the outline's kind */
 let sym_of = (fid: Id.t, term: Language.Exp.t): option(string) =>
@@ -80,15 +76,10 @@ let showing_zoom_cell = (~term, v: t): bool =>
 let normalize = (~term, v: t): t => {
   let exists = id => OutlineTree.kind_of(id, term) != None;
   let zoom =
-    List.fold_left(
-      (found, m) =>
-        switch (found) {
-        | Some(_) => found
-        | None =>
-          OutlineTree.kind_of(m, term) == Some(OutlineTree.KModule)
-            ? OutlineTree.trail_of(m, term) : None
-        },
-      None,
+    List.find_map(
+      m =>
+        OutlineTree.kind_of(m, term) == Some(OutlineTree.KModule)
+          ? OutlineTree.trail_of(m, term) : None,
       List.rev(v.zoom),
     )
     |> Option.value(~default=[]);
@@ -168,27 +159,26 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
     );
   let open_one = (p: Program.t, w: slot): option(Program.t) => {
     let id = slot_id(w);
+    let d =
+      switch (p) {
+      | Whole(e) => Divided.of_whole(e)
+      | Divided(d) => d
+      };
     let sym = sym_of(id, term);
     let open_cell = (~inner) =>
-      switch (p) {
-      | Whole(e) => Divided.split(~info_map, ~sym?, ~inner, e, id)
-      | Divided(d) => Divided.open_(~info_map, ~term, ~sym?, ~inner, id, d)
-      };
+      Divided.open_(~info_map, ~term, ~sym?, ~inner, id, d);
     (
-      switch (w, p) {
-      | (Pin({p_run: true, _}), Whole(e)) =>
-        Divided.split_run(~info_map, e, id)
-      | (Pin({p_run: true, _}), Divided(d)) =>
-        Divided.open_run(~info_map, ~term, id, d)
+      switch (w) {
+      | Pin({p_run: true, _}) => Divided.open_run(~info_map, ~term, id, d)
       /* a module row opens as its members; `{}` has none to show */
-      | (Pin(_), _)
+      | Pin(_)
           when OutlineTree.kind_of(id, term) == Some(OutlineTree.KModule) =>
         switch (open_cell(~inner=true)) {
         | Some(d) => Some(d)
         | None => open_cell(~inner=false)
         }
-      | (Pin(_), _) => open_cell(~inner=false)
-      | (Members(_), _) => open_cell(~inner=true)
+      | Pin(_) => open_cell(~inner=false)
+      | Members(_) => open_cell(~inner=true)
       }
     )
     |> Option.map(d => Program.Divided(d));
@@ -251,10 +241,9 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
 /* zoom out until [id] is in view */
 let reveal = (~term, id: Id.t, v: t): t => {
   let rec go = (zoom: list(Id.t)) =>
-    switch (List.rev(zoom)) {
-    | [] => []
-    | [m, ...rest] =>
-      inside(~term, Some(m), id) ? zoom : go(List.rev(rest))
+    switch (ListUtil.split_last_opt(zoom)) {
+    | None => []
+    | Some((rest, m)) => inside(~term, Some(m), id) ? zoom : go(rest)
     };
   {
     ...v,
@@ -310,11 +299,7 @@ let zoom_in = (~term, m: Id.t, v: t): t =>
 
 let zoom_out = (v: t): t => {
   ...v,
-  zoom:
-    switch (List.rev(v.zoom)) {
-    | [] => []
-    | [_, ...rest] => List.rev(rest)
-    },
+  zoom: Option.fold(~none=[], ~some=fst, ListUtil.split_last_opt(v.zoom)),
 };
 
 /* zoom to [m], an entry of the current trail (None: the program) */

@@ -489,6 +489,20 @@ let across = (): unit => {
   mv(~root=Exp, ~up=false, e, "a", ["E{a}", "b"]);
   let c = "let a = 1 in\nmodule E = {\n  # todo #\n} in\nlet b = 2 in\nb";
   mv(~root=Exp, ~up=true, c, "b", ["a", "b", "E"]);
+  /* nested: out of the inner module into the outer one's members, and in */
+  let nest = "let a = 1 in\nmodule M = {\n  module N = {\n    let x = 2;\n    let z = 5\n  };\n  let y = 3\n} in\nlet b = 4 in\nb";
+  mv(~root=Exp, ~up=true, nest, "x", ["a", "M{x,N{z},y}", "b"]);
+  mv(~root=Exp, ~up=false, nest, "z", ["a", "M{N{x},z,y}", "b"]);
+  mv(~root=Exp, ~up=true, nest, "y", ["a", "M{N{x,z,y}}", "b"]);
+  mv(~root=Exp, ~up=false, nest, "a", ["M{a,N{x,z},y}", "b"]);
+  let nest_mod = "let a = 1;\nmodule M = {\n  module N = {\n    let x = 2;\n    let z = 5\n  };\n  let y = 3\n};\nlet b = 4;\nb";
+  mv(~root=Mod, ~up=true, nest_mod, "x", ["a", "M{x,N{z},y}", "b"]);
+  mv(~root=Mod, ~up=false, nest_mod, "z", ["a", "M{N{x},z,y}", "b"]);
+  mv(~root=Mod, ~up=true, nest_mod, "y", ["a", "M{N{x,z,y}}", "b"]);
+  /* out of a module bound by let, in let-in form */
+  let v = "let a = 1 in\nlet m = {\n  let x = 2;\n  let y = 3\n} in\nlet b = 4 in\nb";
+  mv(~root=Exp, ~up=true, v, "x", ["a", "x", "m{y}", "b"]);
+  mv(~root=Exp, ~up=false, v, "y", ["a", "m{x}", "y", "b"]);
 };
 
 /* a module's last member, moved out, moves back in where it was */
@@ -909,6 +923,64 @@ f(1)|js},
   );
 };
 
+/* a module bound by `let` is a module too: its members take member form
+   and keep their separators, as in `module M = {…}` */
+let value_module = (): unit => {
+  let src = "let m = {\n  let a = 1;\n  let b = 2\n} in\nm.a";
+  let same = (desc, expected, got) =>
+    check(string, desc, text_of(parse(expected)), got);
+  let op = (label, op) => apply_ok(~src, ~label, ~op, ~desc=label);
+  same(
+    "new below a member is a member",
+    {js|let m = {
+  let a = 1;
+  let new_def = ¿;
+  let b = 2
+} in
+m.a|js},
+    op("a", NewBelow),
+  );
+  same(
+    "new below the last member",
+    {js|let m = {
+  let a = 1;
+  let b = 2;
+  let new_def = ¿
+} in
+m.a|js},
+    op("b", NewBelow),
+  );
+  same(
+    "a moved member keeps the separators in place",
+    "let m = {\n  let b = 2;\n  let a = 1\n} in\nm.a",
+    op("a", MoveDown),
+  );
+  same(
+    "a duplicated member",
+    "let m = {\n  let a = 1;\n  let a = 1;\n  let b = 2\n} in\nm.a",
+    op("a", Duplicate),
+  );
+  same(
+    "the last member deleted",
+    "let m = {\n  let a = 1\n} in\nm.a",
+    op("b", Delete),
+  );
+  switch (run_inside(src, "m", "c")) {
+  | Ok((seg', _)) =>
+    same(
+      "a member typed inside",
+      {js|let m = {
+  let a = 1;
+  let b = 2;
+  let c = ¿
+} in
+m.a|js},
+      text_of(seg'),
+    )
+  | Error(why) => fail("inside: " ++ why)
+  };
+};
+
 /* ⌘⌫ on a row the outline refuses to delete leaves its cursor there */
 let refused_delete_cursor = (): unit => {
   let seg = parse("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
@@ -1029,6 +1101,7 @@ let tests = (
     test_case("unterminated last member", `Quick, unterminated_tail),
     test_case("moves across module edges", `Quick, across),
     test_case("a last member out and back in", `Quick, back_in),
+    test_case("a module bound by let", `Quick, value_module),
     test_case("in and out again", `Quick, round_trip),
   ],
 );

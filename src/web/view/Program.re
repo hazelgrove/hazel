@@ -102,15 +102,9 @@ let probe_ids = (p: t): Id.Map.t(unit) =>
   switch (p) {
   | Whole(e) =>
     CachedStatics.probe_ids_of_zipper(e.editor.editor.state.zipper)
-  | Divided(d) =>
-    List.fold_left(
-      (acc, (id, _)) => Id.Map.add(id, (), acc),
-      Id.Map.empty,
-      Divided.probes(d),
-    )
+  | Divided(d) => Id.Map.map(_ => (), Id.Map.of_list(Divided.probes(d)))
   };
 
-/* the program's ⇒ row: its last expression, which the ⇓ toggle probes */
 /* the ⇓ probe's term, once placed: the program's last expression, in a
    stack the ⇒ cell's */
 let tail_target = (p: t): option(Id.t) =>
@@ -125,6 +119,7 @@ let tail_target = (p: t): option(Id.t) =>
     |> Option.join
   };
 
+/* the program's ⇒ row: its last expression, which the ⇓ toggle probes */
 let tail_row = (p: t): option(Id.t) =>
   OutlineTree.of_term(statics(p).term)
   |> List.find_opt((n: OutlineTree.node) => n.o_kind == KTrail)

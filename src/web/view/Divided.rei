@@ -15,19 +15,21 @@ type after_close =
   | Still(t)
   | Joined(CellEditor.Model.t);
 
-let split:
-  (
-    ~info_map: Language.Statics.Map.t,
-    ~sym: string=?,
-    ~inner: bool=?,
-    CellEditor.Model.t,
-    Id.t
-  ) =>
-  option(t);
-let split_run:
-  (~info_map: Language.Statics.Map.t, CellEditor.Model.t, Id.t) => option(t);
+/* no cells yet: only for [open_] or [open_run] to open the first */
+let of_whole: CellEditor.Model.t => t;
 /* with [prev], an earlier join: its parse and measure caches carry over */
 let join: (~prev: CellEditor.Model.t=?, t) => CellEditor.Model.t;
+/* one editor holding a program: the probes still anchored in it, the
+   caret beside the anchor; with [prev], an earlier editor's caches */
+let editor_of:
+  (
+    ~prev: CellEditor.Model.t=?,
+    ~root: Sort.t,
+    ~probes: Refractors.RefractorList.t,
+    ~anchor: option((Direction.t, Id.t)),
+    Segment.t
+  ) =>
+  CellEditor.Model.t;
 let document: t => Segment.t;
 
 let cells: t => list(ScratchCell.t);

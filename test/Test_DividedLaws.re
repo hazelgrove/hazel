@@ -113,10 +113,11 @@ let with_probe = (id: Id.t, e: Web.CellEditor.Model.t): Web.CellEditor.Model.t =
 
 let split = (~root=Sort.Exp, seg: Segment.t, id: Id.t): Divided.t =>
   switch (
-    Divided.split(
+    Divided.open_(
       ~info_map=info_map_of(~root, seg),
-      editor_of(~root, seg),
+      ~term=term_of(~root, seg),
       id,
+      Divided.of_whole(editor_of(~root, seg)),
     )
   ) {
   | Some(d) => d
@@ -146,12 +147,13 @@ let set_body = (e: Web.CellEditor.Model.t, d: Divided.t): Divided.t => {
    many rows opened */
 let roundtrip_rows = (~root=Sort.Exp, ~top_only=false, seg: Segment.t): int => {
   let info_map = info_map_of(~root, seg);
-  let editor = editor_of(~root, seg);
+  let term = term_of(~root, seg);
+  let whole = Divided.of_whole(editor_of(~root, seg));
   let text = text_of(seg);
   let ids = Segment.ids(seg);
   List.fold_left(
     (opened, id) =>
-      switch (Divided.split(~info_map, editor, id)) {
+      switch (Divided.open_(~info_map, ~term, id, whole)) {
       | None => opened
       | Some(d) =>
         let joined = Divided.join(d);
@@ -167,7 +169,7 @@ let roundtrip_rows = (~root=Sort.Exp, ~top_only=false, seg: Segment.t): int => {
         opened + 1;
       },
     0,
-    rows(~top_only, term_of(~root, seg)),
+    rows(~top_only, term),
   );
 };
 
@@ -210,12 +212,14 @@ let probes = () => {
   let one = tile("1", seg);
   let three = tile("3", seg);
   let editor = with_probe(one, editor_of(seg));
+  let term = term_of(seg);
   let d =
     switch (
-      Divided.split(
+      Divided.open_(
         ~info_map=info_map_of(seg),
-        editor,
-        row(term_of(seg), "f"),
+        ~term,
+        row(term, "f"),
+        Divided.of_whole(editor),
       )
     ) {
     | Some(d) => d
@@ -246,7 +250,14 @@ let probes_follow = () => {
   let info_map = info_map_of(seg);
   let editor = with_probe(one, with_probe(three, editor_of(seg)));
   let d =
-    switch (Divided.split(~info_map, editor, row(term, "f"))) {
+    switch (
+      Divided.open_(
+        ~info_map,
+        ~term,
+        row(term, "f"),
+        Divided.of_whole(editor),
+      )
+    ) {
     | Some(d) => d
     | None => fail("split refused")
     };
