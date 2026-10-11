@@ -184,72 +184,29 @@ let stream_collector_parity = (): unit => {
       ~targets=Sample.no_targets,
       info_map,
     );
-  let evaluation =
-    Evaluator.start_yielding_evaluation(
-      ~eval_info,
-      ~env=Builtins.env_init,
-      elab,
-    );
   let merged = ref(IncrEval.empty_outbox);
   let inc = ref(None);
   let chunks = ref(0);
-  let mismatches = ref(0);
   let compare_states = () => {
     let walk = StreamCollector.collect_stream_state(merged^, elab);
     let (inc', fast) =
       StreamCollector.collect_stream_state_inc(~prev=inc^, merged^, elab);
     inc := inc';
-    let probes_eq =
-      compare(
-        EvaluatorState.get_probes(walk),
-        EvaluatorState.get_probes(fast),
+    let differ = (what, get) =>
+      compare(get(walk), get(fast)) == 0 ? [] : [what];
+    switch (
+      differ("probes", EvaluatorState.get_probes)
+      @ differ("tests", EvaluatorState.get_tests)
+    ) {
+    | [] => ()
+    | ds =>
+      fail(
+        "chunk "
+        ++ string_of_int(chunks^)
+        ++ ": the incremental collector's "
+        ++ String.concat(" and ", ds)
+        ++ " differ from the walk's",
       )
-      == 0;
-    let tests_eq =
-      compare(
-        EvaluatorState.get_tests(walk),
-        EvaluatorState.get_tests(fast),
-      )
-      == 0;
-    if (!(probes_eq && tests_eq)) {
-      incr(mismatches);
-      if (mismatches^ <= 3) {
-        let tw = EvaluatorState.get_tests(walk);
-        let tf = EvaluatorState.get_tests(fast);
-        let rec first_diff = (i, a, b) =>
-          switch (a, b) {
-          | ([], []) => (-1)
-          | ([], _)
-          | (_, []) => i
-          | ([x, ...a], [y, ...b]) =>
-            compare(x, y) == 0 ? first_diff(i + 1, a, b) : i
-          };
-        Printf.printf(
-          "STREAMINC chunk %d MISMATCH probes=%b tests walk=%d fast=%d first_diff=%d\n",
-          chunks^,
-          probes_eq,
-          List.length(tw),
-          List.length(tf),
-          first_diff(0, tw, tf),
-        );
-        let digest = l =>
-          String.concat(
-            " ",
-            List.map(
-              ((id, reps)) =>
-                String.sub(Id.to_string(id), 0, 4)
-                ++ ":"
-                ++ string_of_int(List.length(reps))
-                ++ TestStatus.show(TestMap.joint_status(reps)),
-              l,
-            ),
-          );
-        Printf.printf("  walk: %s\n  fast: %s\n", digest(tw), digest(tf));
-        Printf.printf(
-          "  sorted_eq=%b\n",
-          compare(List.sort(compare, tw), List.sort(compare, tf)) == 0,
-        );
-      };
     };
   };
   let rec drive = ev =>
@@ -265,11 +222,6 @@ let stream_collector_parity = (): unit => {
     | Evaluator.EvaluationCompleted((_, final_state)) =>
       let (_, fast) =
         StreamCollector.collect_stream_state_inc(~prev=inc^, merged^, elab);
-      Printf.printf(
-        "STREAMINC chunks=%d mismatches=%d\n",
-        chunks^,
-        mismatches^,
-      );
       check(
         bool,
         "final streamed tests <= evaluated tests",
@@ -278,8 +230,14 @@ let stream_collector_parity = (): unit => {
         <= List.length(EvaluatorState.get_tests(final_state)),
       );
     };
-  drive(evaluation);
-  check(int, "incremental collector parity", 0, mismatches^);
+  drive(
+    Evaluator.start_yielding_evaluation(
+      ~eval_info,
+      ~env=Builtins.env_init,
+      elab,
+    ),
+  );
+  check(bool, "chunks streamed", true, chunks^ > 0);
 };
 
 let tests = (
