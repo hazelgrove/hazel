@@ -1,6 +1,9 @@
 open Haz3lcore;
 open Util;
 
+/* what a mode's saved slides are keyed under */
+let prefix = (~is_documentation) => is_documentation ? "doc" : "scratch";
+
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type code = {

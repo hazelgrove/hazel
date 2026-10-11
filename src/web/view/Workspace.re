@@ -10,6 +10,27 @@ module Persist = ScratchPersist;
 
 type code = Scratchpad.code;
 
+let cell = (id: Haz3lcore.Id.t, d: Divided.t): option(ScratchCell.t) =>
+  List.find_opt((e: ScratchCell.t) => e.e_id == id, Divided.cells(d));
+
+/* whether [term]'s outline names anything: a hydrating slide's
+   placeholder statics show only an unnamed ⇒ row */
+let named_outline = (term: Language.Exp.t): bool =>
+  List.exists(
+    (n: OutlineTree.node) => n.o_label != "",
+    OutlineTree.of_term(term),
+  );
+
+/* a loaded slide's saved view, once statics can resolve it: against the
+   placeholder, resolving drops pins */
+let saved_view = (~slide_key, code: code): option(Persist.side) =>
+  switch (Hashtbl.find_opt(Persist.pending_pins, slide_key), code.program) {
+  | (Some(saved), Whole(editor))
+      when named_outline(editor.editor.statics.term) =>
+    Some(saved)
+  | _ => None
+  };
+
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -247,9 +268,7 @@ let update =
   let cell_update = (id, side, a) =>
     switch (code.program) {
     | Divided(d) =>
-      switch (
-        List.find_opt((e: ScratchCell.t) => e.e_id == id, Divided.cells(d))
-      ) {
+      switch (cell(id, d)) {
       | None => code |> return_quiet
       | Some(e) =>
         let* ed =
@@ -410,16 +429,11 @@ let update =
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
        slide hydrating first can't drop it */
-    switch (Hashtbl.find_opt(Persist.pending_pins, slide_key), code.program) {
-    | (Some(saved), Whole(editor))
-        when
-          List.exists(
-            (n: OutlineTree.node) => n.o_label != "",
-            OutlineTree.of_term(editor.editor.statics.term),
-          ) =>
+    switch (saved_view(~slide_key, code)) {
+    | Some(saved) =>
       Hashtbl.remove(Persist.pending_pins, slide_key);
       view((term, _, _) => Persist.resolve_view(saved, term), code);
-    | _ => code |> return_quiet /* statics not ready: retry */
+    | None => code |> return_quiet /* statics not ready: retry */
     }
   | RestoreCaret(p) =>
     /* cleared here, not when scheduled: boot's calculate has a no-op
@@ -510,17 +524,8 @@ let calculate =
   | Some(p) => schedule_action(RestoreCaret(p))
   | None => ()
   };
-  switch (Hashtbl.mem(Persist.pending_pins, slide_key), program) {
-  | (true, Whole(editor))
-      when
-        List.exists(
-          (n: OutlineTree.node) => n.o_label != "",
-          OutlineTree.of_term(editor.editor.statics.term),
-        ) =>
-    /* only once statics has a named outline: early hydration frames see
-       a placeholder (a lone unnamed ⇒ row), where resolving drops pins */
-    schedule_action(RestorePins)
-  | _ => ()
+  if (Option.is_some(saved_view(~slide_key, code))) {
+    schedule_action(RestorePins);
   };
   let worker_request = ref([]);
   let queue_worker =

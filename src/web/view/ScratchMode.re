@@ -10,17 +10,15 @@ module Persist = ScratchPersist;
 
 let slide_key = (~is_documentation, model: Model.t): string =>
   Persist.content_key(
-    is_documentation ? "doc" : "scratch",
+    ScratchModel.prefix(~is_documentation),
     List.nth(model.scratchpads, model.current).name,
   );
 
-let current_cells = (model: Model.t): list(ScratchCell.t) =>
-  switch (Model.current_program(model)) {
-  | Some(Divided(d)) => Divided.cells(d)
-  | _ => []
-  };
 let cell_by_id = (model: Model.t, id: Haz3lcore.Id.t): option(ScratchCell.t) =>
-  List.find_opt((e: ScratchCell.t) => e.e_id == id, current_cells(model));
+  switch (Model.current_program(model)) {
+  | Some(Divided(d)) => Workspace.cell(id, d)
+  | _ => None
+  };
 
 module Update = {
   open Updated;
@@ -63,7 +61,7 @@ module Update = {
           OutlineControl.update(
             ~settings,
             ~schedule_workspace=a => schedule_action(Workspace(a)),
-            ~prefix=is_documentation ? "doc" : "scratch",
+            ~prefix=ScratchModel.prefix(~is_documentation),
             ~name=List.nth(model.scratchpads, model.current).name,
             a,
             code,
@@ -393,12 +391,10 @@ module Selection = {
       | (None, [e, ..._]) => Stack(e.e_id, Body, MainEditor)
       | (None, []) => Stack(Haz3lcore.Id.invalid, Body, MainEditor)
       };
-    let open_ = (id, d) =>
-      List.exists((e: ScratchCell.t) => e.e_id == id, Divided.cells(d));
     switch (selection, Model.current_program(after)) {
     | (Stack(_), Some(Whole(_))) => Cell(MainEditor)
     | (Stack(id, _, _), Some(Divided(d))) =>
-      open_(id, d) ? selection : active(d)
+      Option.is_some(Workspace.cell(id, d)) ? selection : active(d)
     | (Cell(MainEditor), Some(Divided(d))) => active(d)
     | _ => selection
     };

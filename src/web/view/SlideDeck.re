@@ -218,7 +218,7 @@ let update =
       let model =
         Persist.hydrate_current(
           ~settings=settings.core,
-          is_documentation ? "doc" : "scratch",
+          ScratchModel.prefix(~is_documentation),
           model,
         );
       model |> Updated.return(~historic=false);
@@ -261,7 +261,7 @@ let update =
       | Some(new_name) when new_name == current.name => model |> return_quiet
       | Some(new_name) =>
         Persist.rename_slide(
-          is_documentation ? "doc" : "scratch",
+          ScratchModel.prefix(~is_documentation),
           current.name,
           new_name,
         );
@@ -283,7 +283,7 @@ let update =
       if (confirmed) {
         WorkerClient.cancel();
         Persist.forget_slide(
-          is_documentation ? "doc" : "scratch",
+          ScratchModel.prefix(~is_documentation),
           List.nth(model.scratchpads, model.current).name,
         );
         let new_sp =
@@ -303,7 +303,7 @@ let update =
               )
             : Persist.hydrate_current(
                 ~settings=settings.core,
-                is_documentation ? "doc" : "scratch",
+                ScratchModel.prefix(~is_documentation),
                 {
                   scratchpads: new_sp,
                   current: max(model.current - 1, 0),
