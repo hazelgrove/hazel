@@ -522,9 +522,20 @@ let evaluate =
             exp,
           );
 
-        // Record incremental entry if required
+        // Record incremental entry if required -- not for an open
+        // function: a type application's result is its body, a bare
+        // `fun` with no environment, which the caller goes on to close.
+        // Reused as a value, it was applied as it stood and the run got
+        // stuck (Test_IncrSlides: ^choice@<Style> on the Arms slide).
+        let open_function = (d: DHExp.t) =>
+          switch (d.term) {
+          | Fun(_)
+          | TypFun(_)
+          | FixF(_, _, None) => true
+          | _ => false
+          };
         let info_snapshot =
-          if (call_stack != []) {
+          if (call_stack != [] || open_function(final_value)) {
             None;
           } else {
             EvalInfo.find_opt(expr_id, eval_info);
