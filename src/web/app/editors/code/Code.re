@@ -365,13 +365,7 @@ let view_chunked =
          e.cv_node;
        | _ =>
          let tiles = chunk_tiles(ch.c_pieces, []);
-         let top =
-           List.filter_map(
-             fun
-             | Piece.Tile(t) => Some(t)
-             | _ => None,
-             ch.c_pieces,
-           );
+         let top = Segment.tiles(ch.c_pieces);
          let node = render(ch, final);
          let e = {
            ChunkViews.cv_flat: Obj.repr(ch.c_flat),

@@ -379,15 +379,24 @@ module View = {
         let refine_sort = (id, mold_out) =>
           Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
         let code_text_view =
-          CodeViewable.view_chunked(
-            ~globals,
-            ~measured,
-            ~term_data,
-            ~buffer_ids,
-            ~shape_map,
-            ~refractor_rows,
-            ~refine_sort,
-            ~statics_ident=Obj.repr(info_map),
+          div_c(
+            "code",
+            [
+              span_c(
+                "code-text",
+                Code.view_chunked(
+                  ~measured,
+                  ~settings=globals.settings,
+                  ~shape_map,
+                  ~refractor_rows,
+                  ~font_metrics=globals.font_metrics,
+                  ~term_data,
+                  ~refine_sort,
+                  ~statics_ident=Obj.repr(info_map),
+                  ~buffer_ids,
+                ),
+              ),
+            ],
           );
         /* shared by the error and warning arms (canonical completion
            depends on the segment, which the memo key covers) */
