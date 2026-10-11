@@ -2,7 +2,7 @@
 Views / Color
 
 @flags
-version=1 id=b3000002-0002-0002-0002-000000000002
+version=2 id=b3000002-0002-0002-0002-000000000002
 
 @prompt
 A `Color` is an sRGB triple, and `^color` is a color literal: in code it is a swatch, and clicking it opens a picker below it (click the swatch again to close it). Its `wrap` member turns any `Color` into a closed swatch, so every probe of type `Color` in scope draws its samples as swatches: here, the sixteen steps from gold to navy through the four colors of `sunset`. Pick a new color for one of them and the probed ramp follows.
@@ -154,10 +154,11 @@ let sunset : [Color] = [^^livelit(^color((color=RGB(219, 184, 107), hue=85, x=80
 
 # The color k/n of the way along the stops, by the livelit's own mix #
 let along(stops: [Color], k: Int, n: Int): Color =
+  let mix = ^color.mix in
   let segs = length(stops) - 1 in
   let seg = k * segs / n in
   if seg >= segs then nth(stops, segs)
-  else ^color.mix(nth(stops, seg), nth(stops, seg + 1), k * segs - seg * n, n)
+  else mix(nth(stops, seg), nth(stops, seg + 1), k * segs - seg * n, n)
 in
 
 let shade(k: Int): Color = ^^probe(along(sunset, k, 15)) in

@@ -2,7 +2,7 @@
 Views / Tiny Map
 
 @flags
-version=1 id=b3000008-0008-0008-0008-000000000008
+version=2 id=b3000008-0008-0008-0008-000000000008
 
 @prompt
 A `Route` is a delivery round on a town map 100 blocks wide: the depot, then the stops in the order the driver visits them. `^route` draws one as a tiny map: the town's frame, the depot as a square, each stop as a dot, and the round as a dashed loop. On the line a view has two lines of room, so the map is drawn small; in the probe's drawer (**Cmd/Ctrl+↓**) it is drawn three lines tall. Every `Route` probe in scope draws this way, so four days of rounds, each planned greedily (always the nearest stop next), sit side by side; look for the long legs that greedy routing leaves.
@@ -92,9 +92,11 @@ let order(here: (Int, Int), left: [(Int, Int)]): [(Int, Int)] =
   case left
   | [] => []
   | first :: _ =>
-    let next =
-      fold_left(left, fun (best: (Int, Int), p: (Int, Int)) ->
-        if dist(here, p) < dist(here, best) then p else best, first) in
+    # The nearest stop so far, and how far it is #
+    let (next, _) =
+      fold_left(left, fun ((best, d): ((Int, Int), Int), p: (Int, Int)) ->
+        if dist(here, p) < d then (p, dist(here, p)) else (best, d),
+        (first, dist(here, first))) in
     next :: order(next, filter(left, fun p -> p != next))
   end
 in
