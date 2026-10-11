@@ -1,6 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open CorpusUtil;
 
 /* slide views (Web.SlideView): pins, zoom and parking change which cells
    are open, never the program */
@@ -17,35 +18,11 @@ module M = {
 let b = M.y in
 b";
 
-let parse = (src: string): Segment.t =>
-  switch (FastParse.of_text(~root=Exp, src)) {
-  | Some(seg) => seg
-  | None => failwith("parse failed")
-  };
-
-let text_of = (seg: Segment.t): string =>
-  seg |> Zipper.unzip |> MarkerParse.to_text;
-
-let seg = parse(src);
+let seg = seg_of(src);
 let term = MakeTerm.Incr.term_of(seg);
 let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
 
-let row = (label: string): Id.t => {
-  let rec find = (ns: list(Web.OutlineTree.node)) =>
-    List.fold_left(
-      (acc, n: Web.OutlineTree.node) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None => n.o_label == label ? n.o_id : find(n.o_children)
-        },
-      None,
-      ns,
-    );
-  switch (find(Web.OutlineTree.of_term(term))) {
-  | Some(id) => id
-  | None => failwith("no row " ++ label)
-  };
-};
+let row = row_by_label(term);
 
 let whole = (): Web.Program.t => Whole(Focus.cell_of_seg(seg));
 
@@ -77,6 +54,13 @@ let open_ids = (p: Web.Program.t): list(Id.t) =>
     List.map((c: Web.ScratchCell.t) => c.e_id, Divided.cells(d))
   };
 
+/* the first open cell's body */
+let body = (p: Web.Program.t): option(Web.CellEditor.Model.t) =>
+  switch (p) {
+  | Divided(d) => Some(List.hd(Divided.cells(d)).e_body)
+  | Whole(_) => None
+  };
+
 let pin_unpin = () => {
   let (_, p) = run([V.pin(~term, row("a"))]);
   check(bool, "a open", true, open_ids(p) == [row("a")]);
@@ -90,52 +74,15 @@ let zoom = () => {
   let (v, p) = run([V.zoom_in(~term, m)]);
   check(bool, "the module as one cell", true, open_ids(p) == [m]);
   check(bool, "shown as the zoom cell", true, V.showing_zoom_cell(~term, v));
+  /* as a pinned module opens it (its edits: module_row) */
+  check(
+    option(string),
+    "its members, without braces",
+    Some("let x = a + 1;\nlet y = x * 2"),
+    Option.map(e => text_of(Focus.zip_of_cell(e)), body(p)),
+  );
   let (_, p) = run([V.zoom_in(~term, m), V.zoom_out]);
   check(bool, "whole after zoom out", true, open_ids(p) == []);
-};
-
-let contains = (needle, hay) => {
-  let (nl, hl) = (String.length(needle), String.length(hay));
-  let rec go = i =>
-    i + nl <= hl && (String.sub(hay, i, nl) == needle || go(i + 1));
-  go(0);
-};
-
-/* zoomed, the module shows as its members alone; edits land inside
-   its braces */
-let zoom_members = () => {
-  let m = row("M");
-  let (_, p) = run([V.zoom_in(~term, m)]);
-  switch (p) {
-  | Whole(_) => fail("not divided")
-  | Divided(d) =>
-    let body = List.hd(Divided.cells(d)).e_body;
-    let txt = text_of(Focus.zip_of_cell(body));
-    check(bool, "no braces", false, String.contains(txt, '{'));
-    check(bool, "the members", true, contains("let x", txt));
-    let members =
-      switch (FastParse.of_text(~root=Mod, "let x = a + 5")) {
-      | Some(seg) => seg
-      | None => fail("mod parse")
-      };
-    let d =
-      Divided.update_cell(
-        List.hd(Divided.cells(d)).e_id,
-        (c: Web.ScratchCell.t) =>
-          {
-            ...c,
-            e_body: Focus.cell_of_seg(~root=Sort.Mod, members),
-          },
-        d,
-      );
-    let doc = text_of(Divided.document(d));
-    check(
-      bool,
-      "edit inside the braces",
-      true,
-      contains("module M = {", doc) && contains("a + 5", doc),
-    );
-  };
 };
 
 let pins_outside_zoom = () => {
@@ -167,31 +114,7 @@ let park = () => {
 /* going from one editor to cells, the caret lands in its cell */
 let caret_travels = () => {
   let x = row("x");
-  let two =
-    switch (
-      List.find_opt(
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile(t) => Tile.label(t) == ["2"]
-          | _ => false
-          },
-        {
-          let rec all = (s: Segment.t) =>
-            List.concat_map(
-              (p: Piece.t) =>
-                switch (p) {
-                | Tile(t) => [p, ...List.concat_map(all, t.children)]
-                | _ => [p]
-                },
-              s,
-            );
-          all(seg);
-        },
-      )
-    ) {
-    | Some(p) => Piece.id(p)
-    | None => failwith("no 2")
-    };
+  let two = tile("2", seg);
   let z =
     switch (
       Move.jump_to_side_of_id(Util.Direction.Left, Zipper.unzip(seg), two)
@@ -223,21 +146,7 @@ let caret_travels = () => {
 
 /* closing every cell keeps the caret, whichever cell holds it */
 let close_keeps_caret = () => {
-  let rec find = (s: Segment.t): option(Id.t) =>
-    List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == ["+"] => Some(t.id)
-        | Tile(t) => List.find_map(find, t.children)
-        | _ => None
-        },
-      s,
-    );
-  let plus =
-    switch (find(seg)) {
-    | Some(id) => id
-    | None => failwith("no +")
-    };
+  let plus = tile("+", seg);
   let z =
     switch (
       Move.jump_to_side_of_id(Util.Direction.Left, Zipper.unzip(seg), plus)
@@ -302,19 +211,9 @@ let discard = () => {
    follows it: it stays open, and pinned, when another row opens */
 let tail_follows = () => {
   let src = "let f = fun x -> x in\nf(1)";
-  let seg = parse(src);
-  let rows_of = (term, keep: Web.OutlineTree.node => bool) => {
-    let rec find = (ns: list(Web.OutlineTree.node)) =>
-      List.find_map(
-        (n: Web.OutlineTree.node) => keep(n) ? n.o_id : find(n.o_children),
-        ns,
-      );
-    switch (find(Web.OutlineTree.of_term(term))) {
-    | Some(id) => id
-    | None => failwith("no such row")
-    };
-  };
-  let trail = term => rows_of(term, n => n.o_kind == Web.OutlineTree.KTrail);
+  let seg = seg_of(src);
+  /* "": the ⇒ row */
+  let trail = term => row_by_label(term, "");
   let term = MakeTerm.Incr.term_of(seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   let t0 = trail(term);
@@ -366,7 +265,7 @@ let tail_follows = () => {
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   let t1 = trail(term);
   check(bool, "the ⇒ row has a new root", true, t1 != t0);
-  let f = rows_of(term, n => n.o_label == "f");
+  let f = row_by_label(term, "f");
   let (v, p) = V.realize(~info_map, ~term, V.pin(~term, f, v), Divided(d));
   check(bool, "the ⇒ pin follows", true, pinned(t1, v));
   check(bool, "the ⇒ cell stays open", true, List.mem(t1, open_ids(p)));
@@ -377,11 +276,6 @@ let tail_follows = () => {
    name; zooming in and out keeps that cell */
 let module_row = () => {
   let (m, x) = (row("M"), row("x"));
-  let of_text = (root, s) =>
-    switch (FastParse.of_text(~root, s)) {
-    | Some(seg) => seg
-    | None => fail("parse " ++ s)
-    };
   let (v, p) = run([V.pin(~term, x), V.pin(~term, m)]);
   check(bool, "one cell, the member folded in", true, open_ids(p) == [m]);
   check(bool, "not the zoom cell", false, V.showing_zoom_cell(~term, v));
@@ -420,7 +314,7 @@ let module_row = () => {
                         | Tile(t) => List.nth_opt(t.children, 0)
                         | _ => None
                         },
-                      of_text(Exp, "module N = {} in 0"),
+                      seg_of("module N = {} in 0"),
                     ),
                   ),
                 ),
@@ -428,7 +322,7 @@ let module_row = () => {
             e_body:
               Focus.cell_of_seg(
                 ~root=Sort.Mod,
-                of_text(Mod, "let x = a + 5;\nlet y = x * 2"),
+                seg_of(~root=Mod, "let x = a + 5;\nlet y = x * 2"),
               ),
           },
         d,
@@ -440,11 +334,6 @@ let module_row = () => {
       text_of(Divided.document(d)),
     );
   };
-  let body = (p: Web.Program.t) =>
-    switch (p) {
-    | Divided(d) => Some(List.hd(Divided.cells(d)).e_body)
-    | Whole(_) => None
-    };
   let (v, p) = run([V.pin(~term, m)]);
   let (v, p') = V.realize(~info_map, ~term, V.zoom_in(~term, m, v), p);
   check(
@@ -482,19 +371,10 @@ let module_row = () => {
 
 /* `{}` has no members to show: it opens as its definition */
 let empty_module_row = () => {
-  let seg = parse("module E = {} in\n1");
+  let seg = seg_of("module E = {} in\n1");
   let term = MakeTerm.Incr.term_of(seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
-  let e =
-    switch (
-      List.find_map(
-        (n: Web.OutlineTree.node) => n.o_label == "E" ? n.o_id : None,
-        Web.OutlineTree.of_term(term),
-      )
-    ) {
-    | Some(id) => id
-    | None => fail("no row E")
-    };
+  let e = row_by_label(term, "E");
   check(
     bool,
     "a module row",
@@ -557,7 +437,6 @@ let tests = (
   [
     test_case("pin and unpin", `Quick, pin_unpin),
     test_case("zoom", `Quick, zoom),
-    test_case("zoom shows the members", `Quick, zoom_members),
     test_case("pins outside the zoom", `Quick, pins_outside_zoom),
     test_case("pins inside the zoom", `Quick, pins_inside_zoom),
     test_case("park", `Quick, park),
