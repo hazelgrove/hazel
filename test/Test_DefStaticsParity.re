@@ -226,6 +226,77 @@ let separate_slots = () => {
   );
 };
 
+/* an item never flags its own top-level binders unused (its body hole
+   could use them), so top-level unused warnings are unused_binders' */
+let items_leave_binders_unflagged = () => {
+  let check_calc = (what, term) => {
+    let ds = DefStatics.calc(~settings, term);
+    let binders =
+      List.concat_map(
+        (it: DefStatics.item) =>
+          List.concat_map(
+            fun
+            | Ctx.VarEntry({id, _}) => [
+                id,
+                ...DefStatics.fun_wrapper_ids(it.d_node, id),
+              ]
+            | _ => [],
+            it.d_exports,
+          ),
+        ds.items,
+      );
+    let flagged =
+      List.concat_map(
+        (it: DefStatics.item) =>
+          List.filter(id => List.mem(id, binders), it.d_warning_ids),
+        ds.items,
+      );
+    check(list(string), what, [], List.map(Id.show, flagged));
+  };
+  let exp = src => term_of(~root=Exp, parse(~root=Exp, src));
+  List.iter(
+    ((what, src)) => check_calc(what, exp(src)),
+    [
+      (
+        "unused definitions",
+        "let f(x : Int) : Bool = x > 0 in\nlet g(y) = y in\nlet (a, b) = (1, 2) in\n1",
+      ),
+      (
+        "an unused module",
+        "module M = {\n  let x = 1;\n  let y = 2\n} in\n3",
+      ),
+      ("an unused module literal", "let m = {\n  let x = 1\n} in\n3"),
+    ]
+    @ CorpusUtil.incomplete_programs,
+  );
+  check_calc(
+    "a module root",
+    term_of(
+      ~root=Mod,
+      parse(
+        ~root=Mod,
+        "let a = 1;\nmodule M = {\n  let x = 1\n};\nlet f(x) = x;\n2",
+      ),
+    ),
+  );
+  List.iter(
+    ((path, src)) =>
+      Option.iter(
+        seg => check_calc(path, MakeTerm.Incr.term_of(seg)),
+        CorpusUtil.parse(src),
+      ),
+    CorpusUtil.slide_corpus(),
+  );
+  List.iter(
+    ((root, file)) =>
+      switch (CorpusUtil.corpus_seg(~root, file)) {
+      | Some(seg) => check_calc(file, term_of(~root, seg))
+      | None => fail("corpus unreadable: " ++ file)
+      },
+    [(Sort.Exp, "mega-1k.hz"), (Sort.Mod, "mega-mod-1k.hz")],
+  );
+};
+
 let tests = (
   "DefStaticsParity",
   [
@@ -430,6 +501,11 @@ let tests = (
         "module M = {\n  let (y, x) = (0, 0);\n  let x = 1;\n  let x = true;\n  let n = 5;\n  let u = x\n} in\nM.u",
         [op(MoveDown, ["M", "x"])],
       ),
+    ),
+    test_case(
+      "items leave their binders' unused warnings to the engine",
+      `Quick,
+      items_leave_binders_unflagged,
     ),
   ],
 );

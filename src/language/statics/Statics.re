@@ -4401,42 +4401,26 @@ let mk = ((ana, ctx, e, probe_ids) as key) => {
       [(k, r), ...List.filter(((k', _)) => !(k' === k), mk_cache^)];
     r;
   | None =>
-    let rec take = (n, l) =>
-      n <= 0
-        ? []
-        : (
-          switch (l) {
-          | [] => []
-          | [x, ...xs] => [x, ...take(n - 1, xs)]
-          }
-        );
     let r = mk_impl(key);
-    mk_cache := [(key, r), ...take(mk_cache_max - 1, mk_cache^)];
+    mk_cache := [(key, r), ...ListUtil.take(mk_cache_max - 1, mk_cache^)];
     r;
   };
 };
 
+/* [f], or nothing with statics off */
+let statics_gated =
+    (
+      f,
+      ~ana=Typ.temp(Unknown(SynSwitch)),
+      ~probe_ids=Id.Map.empty,
+      core: CoreSettings.t,
+      ctx,
+      exp,
+    ) =>
+  core.statics
+    ? f((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+
 /* bypasses the memo, for callers that cache for themselves: per-item
    calls would churn its small LRU */
-let mk_unmemoized =
-    (
-      ~ana=Typ.temp(Unknown(SynSwitch)),
-      ~probe_ids=Id.Map.empty,
-      core: CoreSettings.t,
-      ctx,
-      exp,
-    ) =>
-  core.statics
-    ? mk_impl((ana, ctx, exp, probe_ids))
-    : (Id.Map.empty, Exp.fresh(Tuple([])));
-
-let mk =
-    (
-      ~ana=Typ.temp(Unknown(SynSwitch)),
-      ~probe_ids=Id.Map.empty,
-      core: CoreSettings.t,
-      ctx,
-      exp,
-    ) =>
-  core.statics
-    ? mk((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+let mk_unmemoized = statics_gated(mk_impl);
+let mk = statics_gated(mk);
