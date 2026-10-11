@@ -7,36 +7,7 @@ open Language;
 
 let settings = CoreSettings.on;
 
-let parse = (~root, src: string): Segment.t =>
-  switch (CorpusUtil.parse(~root, src)) {
-  | Some(seg) => seg
-  | None =>
-    switch (MarkerParse.of_text(~root, src)) {
-    | Some(z) => Zipper.unselect_and_zip(z)
-    | None => fail("parse failed: " ++ src)
-    }
-  };
-
-let term_of = (~root, seg): Exp.t =>
-  root == Sort.Mod ? MakeTerm.go_mod_root(seg).term : MakeTerm.go(seg).term;
-
-/* the outline row at [path] (labels from the top) */
-let row = (term: Exp.t, path: list(string)): Id.t => {
-  let rec go = (nodes: list(Web.OutlineTree.node), path) =>
-    switch (path) {
-    | [] => None
-    | [l, ...rest] =>
-      List.find_opt((n: Web.OutlineTree.node) => n.o_label == l, nodes)
-      |> Option.map((n: Web.OutlineTree.node) =>
-           rest == [] ? n.o_id : go(n.o_children, rest)
-         )
-      |> Option.join
-    };
-  switch (go(Web.OutlineTree.of_term(term), path)) {
-  | Some(id) => id
-  | None => fail("no row " ++ String.concat("/", path))
-  };
-};
+let term_of = MakeTerm.Incr.term_of_root;
 
 type step = (~root: Sort.t, Segment.t) => Segment.t;
 
@@ -53,7 +24,7 @@ let op = (op: Web.OutlineEdit.def_op, path): step =>
       Web.ItemEdit.apply(
         ~mod_root=root == Sort.Mod,
         op,
-        row(term_of(~root, seg), path),
+        CorpusUtil.row(term_of(~root, seg), path),
         seg,
       )
     ) {
@@ -74,7 +45,7 @@ let move = (~up, path): step =>
     switch (
       Web.ItemEdit.edit(
         ctx,
-        Op(up ? MoveUp : MoveDown, row(term, path)),
+        Op(up ? MoveUp : MoveDown, CorpusUtil.row(term, path)),
         seg,
       )
     ) {
@@ -140,7 +111,7 @@ let script = (~root=Sort.Exp, ~eval=true, src: string, steps: list(step), ()) =>
       }
       : prev;
   };
-  let seg = parse(~root, src);
+  let seg = CorpusUtil.seg_of(~root, src);
   let ds = DefStatics.calc(~settings, term_of(~root, seg));
   let incr = exact(0, ds, IncrEval.empty);
   ignore(
@@ -202,10 +173,7 @@ let corpus_through_calc_auto = () => {
    the slot key, differs per document */
 let separate_slots = () => {
   let term = src =>
-    switch (FastParse.of_text(~root=Mod, src)) {
-    | Some(seg) => MakeTerm.Incr.term_of_mod(seg)
-    | None => fail("unparseable: " ++ src)
-    };
+    MakeTerm.Incr.term_of_mod(CorpusUtil.seg_of(~root=Mod, src));
   let (a, b) = (term("let x = 1;\nx"), term("let y = true;\ny"));
   check(
     bool,
@@ -253,7 +221,7 @@ let items_leave_binders_unflagged = () => {
       );
     check(list(string), what, [], List.map(Id.show, flagged));
   };
-  let exp = src => term_of(~root=Exp, parse(~root=Exp, src));
+  let exp = src => MakeTerm.Incr.term_of(CorpusUtil.seg_of(src));
   List.iter(
     ((what, src)) => check_calc(what, exp(src)),
     [
@@ -271,9 +239,8 @@ let items_leave_binders_unflagged = () => {
   );
   check_calc(
     "a module root",
-    term_of(
-      ~root=Mod,
-      parse(
+    MakeTerm.Incr.term_of_mod(
+      CorpusUtil.seg_of(
         ~root=Mod,
         "let a = 1;\nmodule M = {\n  let x = 1\n};\nlet f(x) = x;\n2",
       ),
@@ -289,10 +256,7 @@ let items_leave_binders_unflagged = () => {
   );
   List.iter(
     ((root, file)) =>
-      switch (CorpusUtil.corpus_seg(~root, file)) {
-      | Some(seg) => check_calc(file, term_of(~root, seg))
-      | None => fail("corpus unreadable: " ++ file)
-      },
+      check_calc(file, term_of(~root, CorpusUtil.mega_seg(~root, file))),
     [(Sort.Exp, "mega-1k.hz"), (Sort.Mod, "mega-mod-1k.hz")],
   );
 };

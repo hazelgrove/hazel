@@ -26,14 +26,12 @@ let mem_store = (): (ItemPersist.store, ref(list((string, string)))) => {
 let sets = log =>
   List.filter(((op, _)) => op == "set", log^) |> List.length;
 
-let zip_of_text = (text: string): Zipper.t =>
-  switch (MarkerParse.of_text(~root=Sort.Exp, text)) {
-  | Some(z) => z
-  | None => failwith("parse failed: " ++ text)
-  };
-
+/* as typed, so incomplete tiles and grout survive */
 let seg_of_text = (text: string): Segment.t =>
-  Zipper.unselect_and_zip(~erase_buffer=true, zip_of_text(text));
+  switch (CorpusUtil.typed_seg(text)) {
+  | Some(seg) => seg
+  | None => fail("parse failed: " ++ text)
+  };
 
 let seg_equal = (a: Segment.t, b: Segment.t): bool =>
   Sexplib.Sexp.compare(Segment.sexp_of_t(a), Segment.sexp_of_t(b)) == 0;

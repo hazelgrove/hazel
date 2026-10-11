@@ -5,11 +5,7 @@ open Language;
 /* the default context is one record per mode, so analyzing the same term
    again hits Statics.mk's memo */
 let repeat_hits = () => {
-  let term =
-    switch (FastParse.of_text(~root=Exp, "let x = 1 in\nx + 1")) {
-    | Some(seg) => MakeTerm.go(seg).term
-    | None => fail("unparseable")
-    };
+  let term = MakeTerm.go(CorpusUtil.seg_of("let x = 1 in\nx + 1")).term;
   let run = () =>
     Statics.mk(
       CoreSettings.on,
@@ -25,11 +21,7 @@ let repeat_hits = () => {
    not just the probes, and judging probes by them re-ran statics on every
    result */
 let result_frame_reuses = () => {
-  let z =
-    switch (FastParse.of_text(~root=Exp, "let a = 1 in\na + 2")) {
-    | Some(seg) => Zipper.unzip(seg)
-    | None => fail("unparseable")
-    };
+  let z = Zipper.unzip(CorpusUtil.seg_of("let a = 1 in\na + 2"));
   let settings = {
     ...CoreSettings.on,
     probe_all: true,

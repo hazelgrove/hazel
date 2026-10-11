@@ -12,11 +12,7 @@ module M = {
 };
 x";
 
-let parse_mod = (src: string): Segment.t =>
-  switch (FastParse.of_text(~root=Mod, src)) {
-  | Some(seg) => seg
-  | None => fail("mod-root parse failed")
-  };
+let parse_mod = CorpusUtil.seg_of(~root=Mod);
 
 let probe = () => {
   let seg = parse_mod(mod_src);
@@ -254,127 +250,112 @@ let recursive_type_export = () => {
 /* ---- corpus scale: mega-mod-1k (build_mega.py compose_mod_root) ---- */
 
 let corpus = () => {
-  switch (CorpusUtil.mega_src("mega-mod-1k.hz")) {
-  | None => fail("mega-mod-1k.hz unreadable")
-  | Some(src) =>
-    let seg = parse_mod(src);
-    let cache = MakeTerm.Incr.mk_cache();
-    let fb = MakeTerm.Incr.fell_back^;
-    let incr = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg);
-    check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
-    check_parity(seg, incr);
-    let term = incr.term;
-    let n_items =
-      switch (term.term) {
-      | Module(items) => List.length(items)
-      | _ => (-1)
-      };
-    Printf.printf("CORPUS mod items: %d\n", n_items);
-    check(bool, "many items", true, n_items > 20);
-    let t0 = Sys.time();
-    let ds0 = DefStatics.calc(~settings, term);
-    Printf.printf(
-      "CORPUS cold calc: %.0f ms\n",
-      (Sys.time() -. t0) *. 1000.0,
-    );
-    let t0e = Sys.time();
-    switch (DefStatics.whole_elab(ds0)) {
-    | None => Printf.printf("CORPUS whole_elab: GAP\n")
-    | Some(elab) =>
-      Printf.printf(
-        "CORPUS whole_elab: %.0f ms\n",
-        (Sys.time() -. t0e) *. 1000.0,
-      );
-      let te = Sys.time();
-      let (v, _) = Evaluator.evaluate(~env=Builtins.env_init, elab);
-      Printf.printf("CORPUS eval: %.0f ms\n", (Sys.time() -. te) *. 1000.0);
-      ignore(v);
+  let seg = CorpusUtil.mega_seg(~root=Mod, "mega-mod-1k.hz");
+  let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
+  let incr = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg);
+  check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
+  check_parity(seg, incr);
+  let term = incr.term;
+  let n_items =
+    switch (term.term) {
+    | Module(items) => List.length(items)
+    | _ => (-1)
     };
-    let (mono_map, _) = Statics.mk_unmemoized(settings, ctx0, term);
-    check(
-      Alcotest.list(string),
-      "corpus error-id parity",
-      sorted_ids(Statics.Map.error_ids(mono_map)),
-      sorted_ids(DefStatics.all_error_ids(ds0)),
+  Printf.printf("CORPUS mod items: %d\n", n_items);
+  check(bool, "many items", true, n_items > 20);
+  let t0 = Sys.time();
+  let ds0 = DefStatics.calc(~settings, term);
+  Printf.printf("CORPUS cold calc: %.0f ms\n", (Sys.time() -. t0) *. 1000.0);
+  let t0e = Sys.time();
+  switch (DefStatics.whole_elab(ds0)) {
+  | None => Printf.printf("CORPUS whole_elab: GAP\n")
+  | Some(elab) =>
+    Printf.printf(
+      "CORPUS whole_elab: %.0f ms\n",
+      (Sys.time() -. t0e) *. 1000.0,
     );
-    let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
-    check(bool, "edit found the literal", true, edited);
-    MakeTerm.Incr.full_analyzed := 0;
-    let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
-    check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
-    let ds1 = DefStatics.calc(~settings, ~prev=ds0, incr2.term);
-    ignore(ds1);
-    check(int, "item + 1 member re-analyzed", 2, DefStatics.last_analyzed^);
+    let te = Sys.time();
+    let (v, _) = Evaluator.evaluate(~env=Builtins.env_init, elab);
+    Printf.printf("CORPUS eval: %.0f ms\n", (Sys.time() -. te) *. 1000.0);
+    ignore(v);
   };
+  let (mono_map, _) = Statics.mk_unmemoized(settings, ctx0, term);
+  check(
+    Alcotest.list(string),
+    "corpus error-id parity",
+    sorted_ids(Statics.Map.error_ids(mono_map)),
+    sorted_ids(DefStatics.all_error_ids(ds0)),
+  );
+  let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
+  check(bool, "edit found the literal", true, edited);
+  MakeTerm.Incr.full_analyzed := 0;
+  let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
+  check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
+  let ds1 = DefStatics.calc(~settings, ~prev=ds0, incr2.term);
+  ignore(ds1);
+  check(int, "item + 1 member re-analyzed", 2, DefStatics.last_analyzed^);
 };
 
 /* ---- the whole corpus in one `module App = {...}`: a member edit costs
    about one member, not the whole module ---- */
 let big_module = () => {
-  switch (CorpusUtil.mega_src("mega-mod-1k.hz")) {
-  | None => fail("mega-mod-1k.hz unreadable")
-  | Some(src) =>
-    let seg = parse_mod(src);
-    let inner = MakeTerm.go_mod_root(seg).term; /* Module(items) */
-    let app = Mod.fresh(ModuleMod(MPat.fresh(Var("App")), inner));
-    let term = Exp.fresh(Module([app]));
-    let t0 = Sys.time();
-    let ds0 = DefStatics.calc(~settings, term);
-    let cold = (Sys.time() -. t0) *. 1000.0;
-    let (mono_map, _) = Statics.mk_unmemoized(settings, ctx0, term);
-    check(
-      Alcotest.list(string),
-      "big-module error-id parity",
-      sorted_ids(Statics.Map.error_ids(mono_map)),
-      sorted_ids(DefStatics.all_error_ids(ds0)),
-    );
-    let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
-    check(bool, "edit found the literal", true, edited);
-    let inner2 = MakeTerm.go_mod_root(seg2).term;
-    let app2 =
-      IdTagged.fast_copy(
-        Mod.rep_id(app),
-        Mod.fresh(
-          ModuleMod(
-            IdTagged.fast_copy(
-              MPat.rep_id(
-                switch (app.term) {
-                | ModuleMod(mp, _) => mp
-                | _ => failwith("app shape")
-                },
-              ),
-              MPat.fresh(Var("App")),
+  let seg = CorpusUtil.mega_seg(~root=Mod, "mega-mod-1k.hz");
+  let inner = MakeTerm.go_mod_root(seg).term; /* Module(items) */
+  let app = Mod.fresh(ModuleMod(MPat.fresh(Var("App")), inner));
+  let term = Exp.fresh(Module([app]));
+  let t0 = Sys.time();
+  let ds0 = DefStatics.calc(~settings, term);
+  let cold = (Sys.time() -. t0) *. 1000.0;
+  let (mono_map, _) = Statics.mk_unmemoized(settings, ctx0, term);
+  check(
+    Alcotest.list(string),
+    "big-module error-id parity",
+    sorted_ids(Statics.Map.error_ids(mono_map)),
+    sorted_ids(DefStatics.all_error_ids(ds0)),
+  );
+  let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
+  check(bool, "edit found the literal", true, edited);
+  let inner2 = MakeTerm.go_mod_root(seg2).term;
+  let app2 =
+    IdTagged.fast_copy(
+      Mod.rep_id(app),
+      Mod.fresh(
+        ModuleMod(
+          IdTagged.fast_copy(
+            MPat.rep_id(
+              switch (app.term) {
+              | ModuleMod(mp, _) => mp
+              | _ => failwith("app shape")
+              },
             ),
-            inner2,
+            MPat.fresh(Var("App")),
           ),
+          inner2,
         ),
-      );
-    let term2 =
-      IdTagged.fast_copy(Exp.rep_id(term), Exp.fresh(Module([app2])));
-    let t1 = Sys.time();
-    let ds1 = DefStatics.calc(~settings, ~prev=ds0, term2);
-    let incr = (Sys.time() -. t1) *. 1000.0;
-    Printf.printf(
-      "BIGMOD cold calc: %.0f ms; member edit: %.0f ms, %d analyzed\n",
-      cold,
-      incr,
-      DefStatics.last_analyzed^,
+      ),
     );
-    /* depth 2: App item + WateringTimer member + its format member */
-    check(int, "3 analyzed at depth 2", 3, DefStatics.last_analyzed^);
-    check(bool, "member edit under half of cold", true, incr < cold /. 2.0);
-    ignore(ds1);
-  };
+  let term2 =
+    IdTagged.fast_copy(Exp.rep_id(term), Exp.fresh(Module([app2])));
+  let t1 = Sys.time();
+  let ds1 = DefStatics.calc(~settings, ~prev=ds0, term2);
+  let incr = (Sys.time() -. t1) *. 1000.0;
+  Printf.printf(
+    "BIGMOD cold calc: %.0f ms; member edit: %.0f ms, %d analyzed\n",
+    cold,
+    incr,
+    DefStatics.last_analyzed^,
+  );
+  /* depth 2: App item + WateringTimer member + its format member */
+  check(int, "3 analyzed at depth 2", 3, DefStatics.last_analyzed^);
+  check(bool, "member edit under half of cold", true, incr < cold /. 2.0);
+  ignore(ds1);
 };
 
 /* the spine root's elab_term is the whole suffix: incremental eval reuses
    a node whose elab_term is unchanged, so a hollow root would hide edits */
 let spine_elab_is_whole_suffix = () => {
-  let parse_exp = (src: string): Exp.t =>
-    switch (FastParse.of_text(~root=Exp, src)) {
-    | Some(seg) => MakeTerm.Incr.term_of(seg)
-    | None => fail("exp parse failed")
-    };
+  let parse_exp = src => MakeTerm.Incr.term_of(CorpusUtil.seg_of(src));
   let t0 = parse_exp("let junk = 1 in\nlet x = 2 in\nx");
   let ds0 = DefStatics.calc(~settings, t0);
   let top_elab = (ds: DefStatics.t, t: Exp.t) =>

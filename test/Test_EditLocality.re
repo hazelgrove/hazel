@@ -130,10 +130,7 @@ let edit = (~statics, z: Zipper.t, a: Action.t): edit => {
 };
 
 let corpus = (file: string): Zipper.t =>
-  switch (CorpusUtil.corpus_seg(~root=Exp, file)) {
-  | Some(seg) => Zipper.unzip(seg)
-  | None => fail("corpus unreadable: " ++ file)
-  };
+  Zipper.unzip(CorpusUtil.mega_seg(file));
 
 /* mega-1k, caret in DewLedger's update at `m.dew < 10|` */
 let dew = lazy(corpus("mega-1k.hz"));
@@ -155,30 +152,16 @@ let undo = () => {
   };
 };
 
-/* the outline row at [path] (labels from the top) */
-let row = (term: Language.Exp.t, path: list(string)): Id.t => {
-  let rec go = (nodes: list(Web.OutlineTree.node), path) =>
-    switch (path) {
-    | [] => None
-    | [l, ...rest] =>
-      List.find_opt((n: Web.OutlineTree.node) => n.o_label == l, nodes)
-      |> Option.map((n: Web.OutlineTree.node) =>
-           rest == [] ? n.o_id : go(n.o_children, rest)
-         )
-      |> Option.join
-    };
-  switch (go(Web.OutlineTree.of_term(term), path)) {
-  | Some(id) => id
-  | None => fail("no row " ++ String.concat("/", path))
-  };
-};
-
 /* deep in the program, so the tiles passed on the way down count */
 let restructure = () => {
   let seg = Zipper.unselect_and_zip(Lazy.force(dew));
   let term = MakeTerm.Incr.term_of(seg);
   switch (
-    Web.ItemEdit.apply(MoveDown, row(term, ["MetaRunner", "init"]), seg)
+    Web.ItemEdit.apply(
+      MoveDown,
+      CorpusUtil.row(term, ["MetaRunner", "init"]),
+      seg,
+    )
   ) {
   | Some((after, _)) => {
       before: seg,
