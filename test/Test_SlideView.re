@@ -410,7 +410,8 @@ let module_row = () => {
             ...c,
             /* a module name parses only in place: take N's */
             e_header:
-              Focus.pat_cell_of_seg(
+              Focus.cell_of_seg(
+                ~root=Sort.Pat,
                 Focus.core_ws(
                   Option.get(
                     List.find_map(

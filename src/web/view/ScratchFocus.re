@@ -809,24 +809,6 @@ let cell_of_seg = (~root=Sort.Exp, seg: Segment.t): CellEditor.Model.t =>
   |> Editor.Model.mk(~root)
   |> CellEditor.Model.mk;
 
-let pat_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
-  seg
-  |> Zipper.unzip(~direction=Left)
-  |> Editor.Model.mk(~root=Pat)
-  |> CellEditor.Model.mk;
-
-let typ_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
-  seg
-  |> Zipper.unzip(~direction=Left)
-  |> Editor.Model.mk(~root=Typ)
-  |> CellEditor.Model.mk;
-
-let tpat_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
-  seg
-  |> Zipper.unzip(~direction=Left)
-  |> Editor.Model.mk(~root=TPat)
-  |> CellEditor.Model.mk;
-
 /* the header pattern is the first child of 2- and 3-shard items alike */
 let find_pat = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
   Option.bind(tile_ctx(fid, seg), ((_, _, t)) =>
@@ -878,12 +860,15 @@ let captured_ctx =
 /* headerless cells carry a grout header, never rendered or spliced: a
    bare [] zipper would crash Skel */
 let empty_header_cell = (): CellEditor.Model.t =>
-  pat_cell_of_seg([
-    Piece.Grout({
-      id: Id.mk(),
-      shape: Convex,
-    }),
-  ]);
+  cell_of_seg(
+    ~root=Pat,
+    [
+      Piece.Grout({
+        id: Id.mk(),
+        shape: Convex,
+      }),
+    ],
+  );
 
 /* only delimiter-complete items open as cells: an unfinished `let x =`
    has no definition slot to show */
@@ -893,88 +878,6 @@ let item_complete = (fid: Id.t, seg: Segment.t): bool =>
       (t: Tile.t) => t.id == fid,
       Segment.incomplete_tiles_deep(seg),
     );
-
-let rec mk_entry =
-        (
-          ~info_map: Language.Statics.Map.t,
-          ~sym: option(string)=?,
-          fid: Id.t,
-          master_seg: Segment.t,
-        )
-        : option(ScratchCell.t) =>
-  !item_complete(fid, master_seg)
-    ? None
-    : (
-      switch (headless_content_deep(fid, master_seg)) {
-      | Some((raw, span_sym)) =>
-        let sym = Option.value(sym, ~default=span_sym);
-        let content = core_ws(raw);
-        let (cut, body_indent) = cut_indent(master_seg, content);
-        let e_ctx =
-          switch (captured_ctx(~info_map, fid, content)) {
-          | Some(ctx) => ctx
-          | None =>
-            Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
-          };
-        Some(
-          ScratchCell.{
-            e_id: fid,
-            e_mod: false,
-            e_sym: Some(sym),
-            e_run: false,
-            e_members: [],
-            e_inner: false,
-            e_header: empty_header_cell(),
-            e_body: cell_of_seg(cut),
-            e_header_indent: ScratchCell.no_indent,
-            e_body_indent: body_indent,
-            e_ctx,
-          },
-        );
-      | None => mk_def_entry(~info_map, fid, master_seg)
-      }
-    )
-and mk_def_entry =
-    (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
-    : option(ScratchCell.t) =>
-  switch (tile_ctx(fid, master_seg)) {
-  | None => None
-  | Some((_, _, t) as at) =>
-    switch (def_at(at)) {
-    | None => None
-    | Some(def_seg) =>
-      let kw = Tile.token(t, 0);
-      /* a `type … = …` alias takes a Typ body and a TPat header */
-      let is_type = kw == "type";
-      let (header, header_indent) =
-        cut_indent(
-          master_seg,
-          core_ws(Option.value(ListUtil.hd_opt(t.children), ~default=[])),
-        );
-      let (body, body_indent) = cut_indent(master_seg, core_ws(def_seg));
-      let e_ctx =
-        switch (captured_ctx(~info_map, fid, def_seg)) {
-        | Some(ctx) => ctx
-        | None =>
-          Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
-        };
-      Some(
-        ScratchCell.{
-          e_id: fid,
-          e_mod: kw == "module",
-          e_sym: None,
-          e_run: false,
-          e_members: [],
-          e_inner: false,
-          e_header: (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(header),
-          e_body: is_type ? typ_cell_of_seg(body) : cell_of_seg(body),
-          e_header_indent: header_indent,
-          e_body_indent: body_indent,
-          e_ctx,
-        },
-      );
-    }
-  };
 
 /* a module definition's members: the child of its braces */
 let brace_child = (def_seg: Segment.t): option(Segment.t) =>
@@ -1008,44 +911,121 @@ let with_brace_child = (def_seg: Segment.t, kid: Segment.t): Segment.t =>
     def_seg,
   );
 
+/* a cell for item [fid] showing [body], its slice of [master], at [root]:
+   under [header] (a pattern and its root) if it has one, else headerless.
+   Its ctx is the one inside [body] */
+let mk_cell =
+    (
+      ~info_map: Language.Statics.Map.t,
+      ~master: Segment.t,
+      ~root=Sort.Exp,
+      ~header: option((Sort.t, Segment.t))=?,
+      fid: Id.t,
+      body: Segment.t,
+    )
+    : ScratchCell.t => {
+  let (e_header, e_header_indent) =
+    switch (header) {
+    | Some((root, pat)) =>
+      let (cut, indent) = cut_indent(master, core_ws(pat));
+      (cell_of_seg(~root, cut), indent);
+    | None => (empty_header_cell(), ScratchCell.no_indent)
+    };
+  let (cut, e_body_indent) = cut_indent(master, core_ws(body));
+  {
+    e_id: fid,
+    e_mod: false,
+    e_sym: None,
+    e_run: false,
+    e_members: [],
+    e_inner: false,
+    e_header,
+    e_body: cell_of_seg(~root, cut),
+    e_header_indent,
+    e_body_indent,
+    e_ctx:
+      Option.value(
+        captured_ctx(~info_map, fid, body),
+        ~default=
+          Language.Builtins.ctx_init(Some(Language.Operators.default_mode)),
+      ),
+  };
+};
+
+let pat_of = (t: Tile.t): Segment.t =>
+  Option.value(ListUtil.hd_opt(t.children), ~default=[]);
+
+let mk_def_entry =
+    (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
+    : option(ScratchCell.t) =>
+  Option.bind(tile_ctx(fid, master_seg), ((_, _, t) as at) =>
+    Option.map(
+      def_seg => {
+        let kw = Tile.token(t, 0);
+        /* a `type … = …` alias takes a Typ body and a TPat header */
+        let is_type = kw == "type";
+        {
+          ...
+            mk_cell(
+              ~info_map,
+              ~master=master_seg,
+              ~root=is_type ? Typ : Exp,
+              ~header=(is_type ? TPat : Pat, pat_of(t)),
+              fid,
+              def_seg,
+            ),
+          e_mod: kw == "module",
+        };
+      },
+      def_at(at),
+    )
+  );
+
+let mk_entry =
+    (
+      ~info_map: Language.Statics.Map.t,
+      ~sym: option(string)=?,
+      fid: Id.t,
+      master_seg: Segment.t,
+    )
+    : option(ScratchCell.t) =>
+  !item_complete(fid, master_seg)
+    ? None
+    : (
+      switch (headless_content_deep(fid, master_seg)) {
+      | Some((raw, span_sym)) =>
+        Some({
+          ...mk_cell(~info_map, ~master=master_seg, fid, raw),
+          e_sym: Some(Option.value(sym, ~default=span_sym)),
+        })
+      | None => mk_def_entry(~info_map, fid, master_seg)
+      }
+    );
+
 let mk_members_entry =
     (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
     : option(ScratchCell.t) =>
   !item_complete(fid, master_seg)
     ? None
-    : (
-      switch (Option.bind(find_def(fid, master_seg), brace_child)) {
-      | None => None
-      | Some(members) =>
-        let (header, header_indent) =
-          cut_indent(
-            master_seg,
-            core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
-          );
-        let (body, body_indent) = cut_indent(master_seg, core_ws(members));
-        let e_ctx =
-          switch (captured_ctx(~info_map, fid, members)) {
-          | Some(ctx) => ctx
-          | None =>
-            Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
-          };
-        Some(
-          ScratchCell.{
-            e_id: fid,
-            e_mod: true,
-            e_sym: None,
-            e_run: false,
-            e_members: [],
-            e_inner: true,
-            e_header: pat_cell_of_seg(header),
-            e_body: cell_of_seg(~root=Sort.Mod, body),
-            e_header_indent: header_indent,
-            e_body_indent: body_indent,
-            e_ctx,
-          },
-        );
-      }
-    );
+    : Option.bind(tile_ctx(fid, master_seg), ((_, _, t) as at) =>
+        Option.map(
+          members =>
+            {
+              ...
+                mk_cell(
+                  ~info_map,
+                  ~master=master_seg,
+                  ~root=Mod,
+                  ~header=(Pat, pat_of(t)),
+                  fid,
+                  members,
+                ),
+              e_mod: true,
+              e_inner: true,
+            },
+          Option.bind(def_at(at), brace_child),
+        )
+      );
 
 let mk_run_entry =
     (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
@@ -1056,29 +1036,12 @@ let mk_run_entry =
       switch (test_run_deep(fid, master_seg)) {
       | None => mk_entry(~info_map, fid, master_seg)
       | Some((run_slice, members)) =>
-        let (content, body_indent) =
-          cut_indent(master_seg, core_ws(run_slice));
-        let e_ctx =
-          switch (captured_ctx(~info_map, fid, content)) {
-          | Some(ctx) => ctx
-          | None =>
-            Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
-          };
-        Some(
-          ScratchCell.{
-            e_id: fid,
-            e_mod: false,
-            e_sym: Some("tests"),
-            e_run: true,
-            e_members: members,
-            e_inner: false,
-            e_header: empty_header_cell(),
-            e_body: cell_of_seg(content),
-            e_header_indent: ScratchCell.no_indent,
-            e_body_indent: body_indent,
-            e_ctx,
-          },
-        );
+        Some({
+          ...mk_cell(~info_map, ~master=master_seg, fid, run_slice),
+          e_sym: Some("tests"),
+          e_run: true,
+          e_members: members,
+        })
       }
     );
 
