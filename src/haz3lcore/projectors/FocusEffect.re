@@ -77,7 +77,7 @@ let keep_focus = (): unit => {
   switch (active) {
   | Some(el) when is_live_offside(el) =>
     let id = Js.to_string(el##.id);
-    kept := id == "" ? None : Some(id);
+    kept := String.equal(id, "") ? None : Some(id);
     blur_expected := false;
   | _ =>
     if (blur_expected^) {
@@ -93,7 +93,9 @@ let keep_focus = (): unit => {
           | Some(el) =>
             let tag = Js.to_string(el##.tagName);
             let eid = Js.to_string(el##.id);
-            tag == "BODY" || eid == "page" || eid == "clipboard-shim";
+            String.equal(tag, "BODY")
+            || String.equal(eid, "page")
+            || String.equal(eid, "clipboard-shim");
           };
         if (fell_to_nothing) {
           switch (JsUtil.get_elem_by_id_opt(id)) {

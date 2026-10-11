@@ -98,7 +98,7 @@ module Chooser = {
       ]
       @ maybe_rank;
     List.map(
-      (suit: suit) => List.map((rank: rank) => (suit, rank), ranks),
+      ~f=(suit: suit) => List.map(~f=(rank: rank) => (suit, rank), ranks),
       suits,
     );
   };
@@ -127,7 +127,7 @@ module Chooser = {
     Node.div(
       ~attrs=[
         Attr.classes(
-          ["card-wrapper"] @ (c == indicated ? ["indicated"] : []),
+          ["card-wrapper"] @ (equal_card(c, indicated) ? ["indicated"] : []),
         ),
         Attr.on_mousedown(_ => on_pick(c)),
         card_pos(col, row),
@@ -146,11 +146,14 @@ module Chooser = {
     Node.div(
       ~attrs=[Attr.classes(["chooser", Sort.show(sort)])],
       List.mapi(
-        (r, row) =>
-          List.mapi(
-            (col, c) => card_wrapper(~on_pick, ~indicated, sort, col, r, c),
-            row,
-          ),
+        ~f=
+          (r, row) =>
+            List.mapi(
+              ~f=
+                (col, c) =>
+                  card_wrapper(~on_pick, ~indicated, sort, col, r, c),
+              row,
+            ),
         grid(card_sort),
       )
       |> List.concat,
