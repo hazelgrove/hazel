@@ -388,6 +388,102 @@ let spine_elab_is_whole_suffix = () => {
   );
 };
 
+/* a probe in a fn body called only from a later item samples under
+   compositional statics as under monolithic (fresh evaluations) */
+let probe_capture_parity = (): unit => {
+  let term =
+    MakeTerm.go(
+      CorpusUtil.seg_of("let f = fun q -> q + 1 in\nlet z = f(5) in\nz"),
+    ).
+      term;
+  let (map0, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, term);
+  let q_id =
+    switch (
+      Id.Map.fold(
+        (id, info, acc) =>
+          switch (acc, info) {
+          | (None, Info.InfoExp({user_term: {term: Var("q"), _}, _})) =>
+            Some(id)
+          | _ => acc
+          },
+        map0,
+        None,
+      )
+    ) {
+    | Some(id) => id
+    | None => fail("no use of q")
+    };
+  let probe_ids = Id.Map.singleton(q_id, ());
+  let captured = (info_map, elab) => {
+    let targets =
+      CachedStatics.compute_targets(~settings, ~info_map, ~probe_ids, ());
+    let eval_info =
+      EvalInfo.of_info_map(~probe_all=false, ~targets, info_map);
+    let (_, state) =
+      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, elab);
+    Id.Map.cardinal(EvaluatorState.get_probes(state));
+  };
+  let (map_m, elab_m) =
+    Statics.mk_unmemoized(~probe_ids, settings, DefStatics.ctx0, term);
+  let ds0 = DefStatics.calc(~settings, term);
+  let ds = DefStatics.calc(~settings, ~prev=ds0, ~probe_ids, term);
+  check(
+    bool,
+    "probe toggle re-analyzes a strict subset",
+    true,
+    DefStatics.last_analyzed^ < List.length(ds.items),
+  );
+  let root = Exp.rep_id(term);
+  /* eval reuse keys on probe_targets: a root missing the witness would
+     replay without samples */
+  let witnessed = (map, id) =>
+    switch (Statics.Map.lookup_exp(id, map)) {
+    | Some(info) =>
+      !SubexpProbeTargets.equal(info.probe_targets, SubexpProbeTargets.empty)
+    | None => fail("no info at " ++ Id.show(id))
+    };
+  List.iter(
+    id =>
+      check(
+        bool,
+        "witness as monolithic",
+        witnessed(map_m, id),
+        witnessed(ds.merged, id),
+      ),
+    [root, q_id],
+  );
+  /* guards against the spine patch re-reading its own output */
+  let root_co_size = (t: DefStatics.t) =>
+    switch (Statics.Map.lookup_exp(root, t.merged)) {
+    | Some(info) =>
+      CoCtx.to_list(info.co_ctx)
+      |> List.fold_left((n, (_, es)) => n + List.length(es), 0)
+    | None => (-1)
+    };
+  let ds_i1 = DefStatics.calc(~settings, ~prev=ds, ~probe_ids, term);
+  let ds_i2 = DefStatics.calc(~settings, ~prev=ds_i1, ~probe_ids, term);
+  let ds_i3 = DefStatics.calc(~settings, ~prev=ds_i2, ~probe_ids, term);
+  check(
+    int,
+    "spine patch idempotent (co_ctx does not grow)",
+    root_co_size(ds_i1),
+    root_co_size(ds_i3),
+  );
+  let ds_off = DefStatics.calc(~settings, ~prev=ds, term);
+  check(
+    bool,
+    "toggle-off clears the root witness",
+    false,
+    witnessed(ds_off.merged, root),
+  );
+  check(
+    bool,
+    "compositional probe capture parity",
+    captured(map_m, elab_m) > 0,
+    captured(ds.merged, graft(ds)) > 0,
+  );
+};
+
 /* small programs: outline edits, and names resolved across items */
 let small = [
   test_case(
@@ -769,6 +865,7 @@ let tests = (
       `Quick,
       spine_elab_is_whole_suffix,
     ),
+    test_case("probe capture parity", `Quick, probe_capture_parity),
   ]
   @ small
   @ type_deps
