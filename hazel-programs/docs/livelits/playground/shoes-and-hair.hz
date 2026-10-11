@@ -604,8 +604,7 @@ let body = Drawing.under(pants, "left hip", shirt, "left hip") in
 # is in the middle of an edge. It is 16 longer than what shows: placed, #
 # it moves 8 down, under the collar, and the head 8 down over its top. #
 
-let ^neck_dial = Drawing.^slider("neck", 0, 60) in
-let neck_length = ^^livelit(^neck_dial(28)) in
+let neck_length = ^^livelit(Drawing.^slider("neck", 0, 60)(28)) in
 let neck : Picture =
   let top = 0. -. float_of_int(neck_length) -. 16. in
   [Polygon((
@@ -807,10 +806,10 @@ let hairdos = ^^livelit(Drawing.^polygons((
 
 let ^hairdo = Drawing.^choice@<Hair>(
   [("short", Short), ("long", Long), ("curly", Curly)]) in
-let style = ^^livelit(^hairdo(Long)) in
-let hairdo = case style | Short => "short" | Long => "long" | Curly => "curly" end in
+let hairdo = ^^livelit(^hairdo(Long)) in
+let hairdo_name = case hairdo | Short => "short" | Long => "long" | Curly => "curly" end in
 let hair =
-  Drawing.named(hairdos, hairdo) @ Drawing.named(hairdos, hairdo ++ " top") in
+  Drawing.named(hairdos, hairdo_name) @ Drawing.named(hairdos, hairdo_name ++ " top") in
 
 # THE SHOES #
 
@@ -848,8 +847,8 @@ let hair_at = Drawing.placed(hair, "crown", head_at, "crown") in
 let right_shoe = Drawing.placed(shoe, "ankle", body, "right foot") in
 let left_shoe = Drawing.placed(Drawing.mirrored(shoe), "ankle", body, "left foot") in
 let outfit =
-  neck_at @ body @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo) @ head_at
-  @ Drawing.named(hair_at, hairdo ++ " top") in
+  neck_at @ body @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo_name) @ head_at
+  @ Drawing.named(hair_at, hairdo_name ++ " top") in
 let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
 
 # Where the crown and the shoes' ankles ended up. #

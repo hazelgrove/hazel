@@ -620,11 +620,9 @@ let shirts = ^^livelit(Drawing.^polygons((
 # the neck, sideways and downward, starting at the size it is drawn. #
 let ^shirt_style = Drawing.^choice@<Style>(
   [("t-shirt", TShirt), ("long sleeves", LongSleeves), ("tank top", TankTop)]) in
-let style_worn = ^^livelit(^shirt_style(TShirt)) in
-let ^shirt_width_dial = Drawing.^slider("shirt width", 10, 120) in
-let ^shirt_height_dial = Drawing.^slider("shirt height", 20, 300) in
-let shirt_width = ^^livelit(^shirt_width_dial(66)) in
-let shirt_height = ^^livelit(^shirt_height_dial(146)) in
+let shirt_style = ^^livelit(^shirt_style(TShirt)) in
+let shirt_width = ^^livelit(Drawing.^slider("shirt width", 10, 120)(66)) in
+let shirt_height = ^^livelit(Drawing.^slider("shirt height", 20, 300)(146)) in
 
 # Every point x-scaled about the neck, and those below it y-scaled. #
 let stretch_points : ([Vertex], Float, Float, Float, Float) -> [Vertex] =
@@ -647,7 +645,7 @@ let stretch : (Picture, Float, Float, Float, Float) -> Picture =
     end in
 
 let torso =
-  Drawing.named(shirts, case style_worn | TankTop => "tank" | _ => "shirt" end)
+  Drawing.named(shirts, case shirt_style | TankTop => "tank" | _ => "shirt" end)
   @ Drawing.named(shirts, "stitching") in
 # The drawn torso is 66 from the neck to a shoulder, and 146 from the #
 # neck to the hips. #
@@ -699,8 +697,7 @@ let body = pants_at @ shirt in
 # is in the middle of an edge. It is 16 longer than what shows: placed, #
 # it moves 8 down, under the collar, and the head 8 down over its top. #
 
-let ^neck_dial = Drawing.^slider("neck", 0, 60) in
-let neck_length = ^^livelit(^neck_dial(28)) in
+let neck_length = ^^livelit(Drawing.^slider("neck", 0, 60)(28)) in
 let neck : Picture =
   let top = 0. -. float_of_int(neck_length) -. 16. in
   [Polygon((
@@ -902,10 +899,10 @@ let hairdos = ^^livelit(Drawing.^polygons((
 
 let ^hairdo = Drawing.^choice@<Hair>(
   [("short", Short), ("long", Long), ("curly", Curly)]) in
-let style = ^^livelit(^hairdo(Long)) in
-let hairdo = case style | Short => "short" | Long => "long" | Curly => "curly" end in
+let hairdo = ^^livelit(^hairdo(Long)) in
+let hairdo_name = case hairdo | Short => "short" | Long => "long" | Curly => "curly" end in
 let hair =
-  Drawing.named(hairdos, hairdo) @ Drawing.named(hairdos, hairdo ++ " top") in
+  Drawing.named(hairdos, hairdo_name) @ Drawing.named(hairdos, hairdo_name ++ " top") in
 
 # THE SHOES #
 
@@ -935,12 +932,9 @@ let shoe = ^^livelit(Drawing.^polygons((
 # degrees (0 is straight out, 90 straight down, -90 straight up), and #
 # their length and width. #
 
-let ^angle_dial = Drawing.^slider("arms (up / down)", -180, 180) in
-let ^length_dial = Drawing.^slider("arm length", 10, 300) in
-let ^width_dial = Drawing.^slider("arm width", 3, 60) in
-let arm_angle = ^^livelit(^angle_dial(55)) in
-let arm_length = ^^livelit(^length_dial(95)) in
-let arm_width = ^^livelit(^width_dial(16)) in
+let arm_angle = ^^livelit(Drawing.^slider("arms (up / down)", -180, 180)(55)) in
+let arm_length = ^^livelit(Drawing.^slider("arm length", 10, 300)(95)) in
+let arm_width = ^^livelit(Drawing.^slider("arm width", 3, 60)(16)) in
 
 let skin = "#f1c27d" in
 let skin_line = (width = 2., color = "#8a5a44") in
@@ -989,15 +983,11 @@ let disc = fun (name, c, r, stroke, fill) : (String, Point, Float, Stroke, Strin
 let ^hand_style = Drawing.^choice@<Hand>(
   [("round", Round), ("mittens", Mittens), ("stars", Stars),
    ("claws", Claws), ("human", Human), ("alien", Alien)]) in
-let hand_worn = ^^livelit(^hand_style(Human)) in
-let ^hand_size_dial = Drawing.^slider("hand size", 2, 80) in
-let ^fingers_dial = Drawing.^slider("human fingers", 1, 100) in
-let ^alien_dial = Drawing.^slider("alien fingers", 1, 99) in
-let ^claw_dial = Drawing.^slider("claw length", 20, 300) in
-let hand_size = ^^livelit(^hand_size_dial(14)) in
-let fingers = ^^livelit(^fingers_dial(5)) in
-let alien_fingers = ^^livelit(^alien_dial(3)) in
-let claw_length = ^^livelit(^claw_dial(100)) in
+let hand_style = ^^livelit(^hand_style(Human)) in
+let hand_size = ^^livelit(Drawing.^slider("hand size", 2, 80)(14)) in
+let fingers = ^^livelit(Drawing.^slider("human fingers", 1, 100)(5)) in
+let alien_fingers = ^^livelit(Drawing.^slider("alien fingers", 1, 99)(3)) in
+let claw_length = ^^livelit(Drawing.^slider("claw length", 20, 300)(100)) in
 
 let fmin = fun (x, y) : (Float, Float) -> if x <. y then x else y in
 let fmax = fun (x, y) : (Float, Float) -> if x >. y then x else y in
@@ -1149,7 +1139,7 @@ let star_points : (Float, Int) -> [Point] =
 # A hand of size r in its own frame, as shapes with their fills and #
 # outlines, by the style worn. #
 let hand_shapes = fun r : Float ->
-  case hand_worn
+  case hand_style
   | Round => [(ellipse((0., 0., r, r)), skin, skin_line)]
   | Mittens =>
     [(ellipse((0.4 *. r, 0., 1.2 *. r, 0.85 *. r)), skin, skin_line),
@@ -1192,7 +1182,7 @@ let hand_at = fun (side, a, (hx, hy)) : (Float, Float, Point) ->
 
 # How much of the arm its sleeve covers, by the shirt's style, as the #
 # game has it: a t-shirt's 38%, long sleeves' 95%, a tank top's none. #
-let sleeve = case style_worn | TShirt => 0.38 | LongSleeves => 0.95 | TankTop => 0. end in
+let sleeve = case shirt_style | TShirt => 0.38 | LongSleeves => 0.95 | TankTop => 0. end in
 let arm = fun (side, shoulder) : (Float, Found) ->
   case shoulder
   | Missing => ([], [], [], [])
@@ -1233,8 +1223,8 @@ let (left_arm, left_sleeve, left_join, left_hand) =
 let outfit =
   neck_at @ pants_at @ right_arm @ left_arm @ right_sleeve @ left_sleeve @ shirt
   @ right_join @ left_join @ right_hand @ left_hand
-  @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo) @ head_at
-  @ Drawing.named(hair_at, hairdo ++ " top") in
+  @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo_name) @ head_at
+  @ Drawing.named(hair_at, hairdo_name ++ " top") in
 let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
 
 # Where the crown and the shoes' ankles ended up. #
