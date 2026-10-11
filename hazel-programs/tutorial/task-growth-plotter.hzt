@@ -2,7 +2,7 @@
 Probes / Task - Growth Plotter
 
 @flags
-show_report version=1 id=d0000027-0027-0027-0027-000000000027
+show_report version=2 id=d0000027-0027-0027-0027-000000000027
 
 @prompt
 # Task: The moonlit field
@@ -103,10 +103,10 @@ let isHarvestable(cell: Cell): Bool =
   case cell
   | Empty => false
   | Planted(_, stage) =>
-      case stage
-      | ReadyToHarvest => true
-      | _ => false
-      end
+    case stage
+    | ReadyToHarvest => true
+    | _ => false
+    end
   end
 in
 
@@ -202,12 +202,12 @@ let update(model: Model, action: Action): Model =
   | PlantCrop(row, col) => plantAt(model, row, col)
   | HarvestCrop(row, col) => harvestAt(model, row, col)
   | WaterField =>
-      let newField = waterField(model.field) in
-      (field = newField, currentSeed = model.currentSeed, dayCount = model.dayCount)
+    let newField = waterField(model.field) in
+    (field = newField, currentSeed = model.currentSeed, dayCount = model.dayCount)
   | PassDay =>
-      (field = model.field, currentSeed = model.currentSeed, dayCount = model.dayCount + 1)
+    (field = model.field, currentSeed = model.currentSeed, dayCount = model.dayCount + 1)
   | SelectSeed(crop) =>
-      (field = model.field, currentSeed = crop, dayCount = model.dayCount)
+    (field = model.field, currentSeed = crop, dayCount = model.dayCount)
   end
 in
 
@@ -221,8 +221,8 @@ let countPlanted(field: Field): Int =
   fold_left(field, fun (acc, row) ->
     acc + fold_left(row, fun (acc2, cell) ->
       if isPlanted(cell) then acc2 + 1 else acc2
+      , 0)
     , 0)
-  , 0)
 in
 
 let getCropKind(cell: Cell): CropKind =
