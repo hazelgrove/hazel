@@ -42,7 +42,13 @@ let find_item = (row: Id.t, term: Exp.t): option(item) =>
   };
 
 /* tokens naming the item: its references, and `M.x` labels */
-let references = (~info_map: Statics.Map.t, it: item): list(Id.t) =>
+let references = (~info_map: Statics.Map.t, it: item): list(Id.t) => {
+  /* `M.x` or `U.Meters`: the label, when its module is the item's owner */
+  let qualified = (owner, base, l, label, acc) =>
+    l == it.old
+    && Option.bind(Id.Map.find_opt(base, info_map), Info.get_binding_site)
+    == Some(owner)
+      ? [label, ...acc] : acc;
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       switch (Info.get_binding_site(info), it.owner, info) {
@@ -50,44 +56,31 @@ let references = (~info_map: Statics.Map.t, it: item): list(Id.t) =>
           id,
           ...acc,
         ]
-      | (_, Some(owner), InfoExp({user_term: {term: Dot(e1, e2), _}, _})) =>
-        switch (e2.term) {
-        | Label(l) when l == it.old =>
-          switch (
-            Option.bind(
-              Id.Map.find_opt(Exp.rep_id(e1), info_map),
-              Info.get_binding_site,
-            )
-          ) {
-          | Some(b) when b == owner => [Exp.rep_id(e2), ...acc]
-          | _ => acc
-          }
-        | _ => acc
-        }
-      /* a type member used qualified: `U.Meters` */
       | (
           _,
           Some(owner),
-          InfoTyp({user_term: {term: ProdProjection(t1, t2), _}, _}),
+          InfoExp({
+            user_term: {term: Dot(e1, {term: Label(l), _} as e2), _},
+            _,
+          }),
         ) =>
-        switch (t2.term) {
-        | Label(l) when l == it.old =>
-          switch (
-            Option.bind(
-              Id.Map.find_opt(Typ.rep_id(t1), info_map),
-              Info.get_binding_site,
-            )
-          ) {
-          | Some(b) when b == owner => [Typ.rep_id(t2), ...acc]
-          | _ => acc
-          }
-        | _ => acc
-        }
+        qualified(owner, Exp.rep_id(e1), l, Exp.rep_id(e2), acc)
+      | (
+          _,
+          Some(owner),
+          InfoTyp({
+            user_term:
+              {term: ProdProjection(t1, {term: Label(l), _} as t2), _},
+            _,
+          }),
+        ) =>
+        qualified(owner, Typ.rep_id(t1), l, Typ.rep_id(t2), acc)
       | _ => acc
       },
     info_map,
     [],
   );
+};
 
 let bound = (kind, ctx: Ctx.t, name: string): option(Id.t) =>
   switch (kind) {
@@ -150,46 +143,35 @@ let check_name = (kind, name: string): option(string) => {
 
 /* each tile in [ids] now reads [name]; untouched subtrees stay the
    same values (the parse caches compare by identity) */
-let rec relabel = (ids: list(Id.t), name: string, seg: Segment.t): Segment.t => {
-  let changed = ref(false);
-  let out =
-    List.map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          let kids = List.map(relabel(ids, name), t.children);
-          let kids_same = List.for_all2((a, b) => a === b, kids, t.children);
-          let hit = List.mem(t.id, ids);
-          if (!hit && kids_same) {
-            p;
-          } else {
-            changed := true;
-            Piece.Tile({
-              ...t,
-              form:
-                switch (hit, t.form) {
-                | (true, Tok(_)) => Tok(name)
-                | _ => t.form
-                },
-              children: kids_same ? t.children : kids,
-            });
-          };
-        | Projector(pr) =>
-          switch (relabel(ids, name, [pr.syntax])) {
-          | [syntax] when syntax !== pr.syntax =>
-            changed := true;
-            Piece.Projector({
-              ...pr,
-              syntax,
-            });
-          | _ => p
-          }
-        | p => p
-        },
-      seg,
-    );
-  changed^ ? out : seg;
-};
+let rec relabel = (ids: list(Id.t), name: string, seg: Segment.t): Segment.t =>
+  ScratchFocus.map_sharing(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        let children =
+          ScratchFocus.map_sharing(relabel(ids, name), t.children);
+        switch (t.form) {
+        | Tok(_) when List.mem(t.id, ids) =>
+          Piece.Tile({
+            ...t,
+            form: Tok(name),
+            children,
+          })
+        | _ => ScratchFocus.tile_sharing(p, t, children)
+        };
+      | Projector(pr) =>
+        switch (relabel(ids, name, [pr.syntax])) {
+        | [syntax] when syntax !== pr.syntax =>
+          Piece.Projector({
+            ...pr,
+            syntax,
+          })
+        | _ => p
+        }
+      | p => p
+      },
+    seg,
+  );
 
 let rename =
     (~info_map, ~term, row: Id.t, name: string, seg: Segment.t)
