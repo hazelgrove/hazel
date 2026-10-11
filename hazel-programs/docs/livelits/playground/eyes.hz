@@ -610,8 +610,7 @@ let body = Drawing.under(pants, "left hip", shirt, "left hip") in
 # is in the middle of an edge. It is 16 longer than what shows: placed, #
 # it moves 8 down, under the collar, and the head 8 down over its top. #
 
-let ^neck_dial = Drawing.^slider("neck", 0, 60) in
-let neck_length = ^^livelit(^neck_dial(28)) in
+let neck_length = ^^livelit(Drawing.^slider("neck", 0, 60)(28)) in
 let neck : Picture =
   let top = 0. -. float_of_int(neck_length) -. 16. in
   [Polygon((
@@ -813,10 +812,10 @@ let hairdos = ^^livelit(Drawing.^polygons((
 
 let ^hairdo = Drawing.^choice@<Hair>(
   [("short", Short), ("long", Long), ("curly", Curly)]) in
-let style = ^^livelit(^hairdo(Long)) in
-let hairdo = case style | Short => "short" | Long => "long" | Curly => "curly" end in
+let hairdo = ^^livelit(^hairdo(Long)) in
+let hairdo_name = case hairdo | Short => "short" | Long => "long" | Curly => "curly" end in
 let hair =
-  Drawing.named(hairdos, hairdo) @ Drawing.named(hairdos, hairdo ++ " top") in
+  Drawing.named(hairdos, hairdo_name) @ Drawing.named(hairdos, hairdo_name ++ " top") in
 
 # THE SHOES #
 
@@ -844,23 +843,17 @@ let shoe = ^^livelit(Drawing.^polygons((
 
 let ^eye_style = Drawing.^choice@<EyeStyle>(
   [("plain", Plain), ("stars", StarEyes), ("hearts", HeartEyes), ("x eyes", XEyes)]) in
-let eyes_worn = ^^livelit(^eye_style(Plain)) in
+let eye_style = ^^livelit(^eye_style(Plain)) in
 let ^iris_color = Drawing.^choice@<String>(
   [("blue", "#3b82f6"), ("green", "#22c55e"), ("brown", "#8b5a2b"),
    ("gray", "#9ca3af"), ("purple", "#8b5cf6")]) in
-let iris_ink = ^^livelit(^iris_color("#3b82f6")) in
-let ^eye_size_dial = Drawing.^slider("eye size", -35, 300) in
-let ^eye_shape_dial = Drawing.^slider("eye shape (round / narrow)", 0, 100) in
-let ^eye_angle_dial = Drawing.^slider("eye angle", -60, 60) in
-let ^iris_dial = Drawing.^slider("iris size", 0, 150) in
-let ^whites_dial = Drawing.^slider("eye whites", 0, 150) in
-let ^shine_dial = Drawing.^slider("shine size", 0, 150) in
-let eye_size = ^^livelit(^eye_size_dial(50)) in
-let eye_shape = ^^livelit(^eye_shape_dial(0)) in
-let eye_angle = ^^livelit(^eye_angle_dial(0)) in
-let iris_size = ^^livelit(^iris_dial(0)) in
-let whites_size = ^^livelit(^whites_dial(0)) in
-let shine_size = ^^livelit(^shine_dial(45)) in
+let iris_color = ^^livelit(^iris_color("#3b82f6")) in
+let eye_size = ^^livelit(Drawing.^slider("eye size", -35, 300)(50)) in
+let eye_shape = ^^livelit(Drawing.^slider("eye shape (round / narrow)", 0, 100)(0)) in
+let eye_angle = ^^livelit(Drawing.^slider("eye angle", -60, 60)(0)) in
+let iris_size = ^^livelit(Drawing.^slider("iris size", 0, 150)(0)) in
+let eye_whites = ^^livelit(Drawing.^slider("eye whites", 0, 150)(0)) in
+let shine_size = ^^livelit(Drawing.^slider("shine size", 0, 150)(45)) in
 
 let fmin = fun (x, y) : (Float, Float) -> if x <. y then x else y in
 
@@ -929,7 +922,7 @@ let eye = fun (x, deg) : (Float, Float) ->
   let t = deg *. pi /. 180. in
   let turn = fun (px, py) : (Float, Float) ->
     (x +. px *. cos(t) -. py *. sin(t), y +. px *. sin(t) +. py *. cos(t)) in
-  case eyes_worn
+  case eye_style
   | XEyes =>
     [face_shape(("eye", stroke_eye((turn((0. -. r, 0. -. r)), turn((r, r)), 3. +. r /. 6.)), 0., "black", "black")),
      face_shape(("eye", stroke_eye((turn((0. -. r, r)), turn((r, 0. -. r)), 3. +. r /. 6.)), 0., "black", "black"))]
@@ -939,7 +932,7 @@ let eye = fun (x, deg) : (Float, Float) ->
     let k = 1. -. 0.88 *. float_of_int(eye_shape) /. 100. in
     let iris_r = if iris_size > 0 then r +. float_of_int(iris_size) *. 0.25 else 0. in
     let white_r =
-      if iris_r >. 0. && whites_size > 0 then iris_r +. float_of_int(whites_size) *. 0.25 else 0. in
+      if iris_r >. 0. && eye_whites > 0 then iris_r +. float_of_int(eye_whites) *. 0.25 else 0. in
     let outer = if iris_r >. 0. then iris_r else r in
     # the shine: toward the light, up and to the left, in the picture's #
     # own frame, kept within half the eye #
@@ -951,7 +944,7 @@ let eye = fun (x, deg) : (Float, Float) ->
     let (dx, dy) = (cos(t) *. ux -. sin(t) *. uy *. k, sin(t) *. ux +. cos(t) *. uy *. k) in
     let shine_r = fmin((r *. float_of_int(shine_size) /. 150., outer *. k *. 0.45)) in
     (if white_r >. 0. then [face_shape(("eye", round_eye((x, y, white_r, k, t, 20, 0)), 2., "black", "#ffffff"))] else [])
-    @ (if iris_r >. 0. then [face_shape(("eye", round_eye((x, y, iris_r, k, t, 20, 0)), 0., iris_ink, iris_ink))] else [])
+    @ (if iris_r >. 0. then [face_shape(("eye", round_eye((x, y, iris_r, k, t, 20, 0)), 0., iris_color, iris_color))] else [])
     @ [face_shape(("eye", round_eye((x, y, r, k, t, 16, 0)), 0., "black", "black"))]
     @ (if shine_r >. 0.3
        then [face_shape(("eye", round_eye((x +. dx, y +. dy, shine_r, 1., 0., 10, 0)), 0., "white", "white"))]
@@ -976,8 +969,8 @@ let hair_at = Drawing.placed(hair, "crown", head_at, "crown") in
 let right_shoe = Drawing.placed(shoe, "ankle", body, "right foot") in
 let left_shoe = Drawing.placed(Drawing.mirrored(shoe), "ankle", body, "left foot") in
 let outfit =
-  neck_at @ body @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo) @ head_at
-  @ Drawing.named(hair_at, hairdo ++ " top") in
+  neck_at @ body @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo_name) @ head_at
+  @ Drawing.named(hair_at, hairdo_name ++ " top") in
 let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
 
 # Where the crown and the shoes' ankles ended up. #
