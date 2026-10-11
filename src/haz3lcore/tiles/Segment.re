@@ -99,18 +99,30 @@ and incomplete_tiles_deep_acc = (acc, seg: t) =>
   List.fold_left(
     (acc, p) =>
       switch (p) {
-      | Piece.Tile(t) =>
-        let acc = !Tile.is_complete(t) ? [t, ...acc] : acc;
-        List.fold_left(
-          (acc, child) => incomplete_tiles_deep_acc(acc, child),
-          acc,
-          t.children,
-        );
+      | Piece.Tile(t) => List.rev_append(incomplete_of_tile(t), acc)
       | _ => acc
       },
     acc,
     seg,
+  )
+/* A tile's incomplete tiles (itself, then its children's, in traversal
+   order), remembered by the tile's identity: a tile is immutable, and an
+   edit keeps the unchanged ones, so the walk on each redraw (the problems
+   panel, the outline) is over what changed, not the whole program. */
+and incomplete_of_tile = (t: Tile.t): list(Tile.t) =>
+  Lazy.force(incomplete_of_tile_memo, t)
+and incomplete_of_tile_memo =
+  lazy(Util.IdentityMemo.memo(incomplete_of_tile_uncached))
+and incomplete_of_tile_uncached = (t: Tile.t): list(Tile.t) => {
+  let acc = !Tile.is_complete(t) ? [t] : [];
+  List.rev(
+    List.fold_left(
+      (acc, child) => incomplete_tiles_deep_acc(acc, child),
+      acc,
+      t.children,
+    ),
   );
+};
 
 let incomplete_tiles_to_missing_shards = seg =>
   seg |> List.map(Tile.missing_shards) |> List.concat;
