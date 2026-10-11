@@ -61,9 +61,17 @@ let utility: ProjectorBase.utility = {
   };
 };
 
+/* the ⇓ toggle's probe: the probe on [tail] (Refractors.tail_target),
+   whether ephemeral or made manual by a pin or step-into. its drawer is
+   drawn after the program's last line and reserves no rows */
+let is_program_value =
+    (~tail: option(Id.t), id: Id.t, kind: ProjectorCore.Kind.t): bool =>
+  tail == Some(id) && kind == Probe;
+
 let mk_info =
     (
       ~stepping: option(ProjectorBase.stepping)=None,
+      ~tail: option(Id.t)=None,
       p: Piece.projector,
       ~sample_focus: Sample.Focus.t,
       ~statics: Statics.Map.t,
@@ -113,6 +121,7 @@ let mk_info =
     | Some(st) when st.span.probe_id == p.id => stepping
     | _ => None
     },
+  program_value: is_program_value(~tail, p.id, p.kind),
   utility,
 };
 

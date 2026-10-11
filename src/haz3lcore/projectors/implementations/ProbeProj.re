@@ -9,7 +9,11 @@ open RichProbeRegistry;
 
 /* Global, UI-only probe display state (mutable refs). See ZipperBase.re. */
 
+/* Models persist inside stored zippers; extra fields are tolerated so one
+   saved with a since-dropped field (`bare`) keeps the rest of its state
+   instead of resetting to defaults. */
 [@deriving (show({with_path: false}), sexp, yojson)]
+[@sexp.allow_extra_fields]
 type probe_model = {
   active_renderer: option(packed_model),
   drawer_mode: bool,
@@ -23,9 +27,6 @@ type probe_model = {
   /* dbl-click toggles the auto rendering back to the text view */
   [@default false]
   rich_off: bool,
-  /* the ⇓ toggle's probe: its drawer and nothing at the line's end */
-  [@default false]
-  bare: bool,
 };
 
 let init_probe_model: probe_model = {
@@ -34,14 +35,13 @@ let init_probe_model: probe_model = {
   dropdown_redraw: 0,
   auto_rich: false,
   rich_off: false,
-  bare: false,
 };
 
+/* the ⇓ probe opens as a drawer */
 let tail_model: string =
   {
     ...init_probe_model,
     drawer_mode: true,
-    bare: true,
   }
   |> sexp_of_probe_model
   |> Sexplib.Sexp.to_string;
@@ -57,13 +57,6 @@ let probe_model_of_sexp = sexp =>
     print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
     init_probe_model;
   | exception _ => init_probe_model
-  };
-
-/* the ⇓ probe's model, whatever local state it has picked up since */
-let is_bare = (model: string): bool =>
-  switch (Sexplib.Sexp.of_string(model)) {
-  | sexp => probe_model_of_sexp(sexp).bare
-  | exception _ => false
   };
 
 /* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
@@ -302,8 +295,6 @@ type probe_ctx = {
   /* per-probe auto (canvas wells): embed regardless of size — the
      global default only auto-embeds content that fits inline_rows_cap */
   auto_unbounded: bool,
-  /* the ⇓ toggle's probe: a drawer only */
-  bare: bool,
   p_info: info,
 };
 
@@ -1771,7 +1762,7 @@ let key_handler =
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
   | D("Escape") when ctx.p_info.stepping != None =>
     Many([parent(Probe(HideSteps)), Stop_propagation, Prevent_default])
-  | D("Escape") when drawer_mode_active && !ctx.bare =>
+  | D("Escape") when drawer_mode_active && !ctx.p_info.program_value =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
     blur_to_editor();
@@ -1956,7 +1947,6 @@ let prepare_offside =
       auto_rich_on:
         (model.auto_rich || settings.auto_rich_default) && !model.rich_off,
       auto_unbounded: model.auto_rich,
-      bare: model.bare,
       p_info: info,
     };
     let filtered_samples =
@@ -2105,7 +2095,7 @@ let live_offside_view =
     ["live-offside", settings.window |> Sample.Window.show_mode]
     @ (Settings.sticky^ ? ["sticky"] : [])
     @ (scrollable ? ["drawer-overflow"] : [])
-    @ (ctx.bare ? ["program-value"] : []);
+    @ (ctx.p_info.program_value ? ["program-value"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
     ~menu_open=Settings.open_dropdown^ != None,
@@ -2580,7 +2570,7 @@ module M: Projector = {
     let drawer = model.drawer_mode || stepping;
     let offside_main =
       switch (data_opt, drawer) {
-      | (_, true) when model.bare => Node.div([])
+      | (_, true) when info.program_value => Node.div([])
       | (None, _) => empty_view(~id=info.id, ~settings)
       | (Some(data), false) =>
         /* rich content embeds inside each sample chip (value_view);
@@ -2662,7 +2652,8 @@ module M: Projector = {
         switch (data_opt, drawer) {
         /* the program stopped short of the ⇓ probe: how far it got */
         | (_, true)
-            when model.bare && Settings.value_fallback^(info.id) != None =>
+            when
+              info.program_value && Settings.value_fallback^(info.id) != None =>
           Settings.value_fallback^(info.id)
         | (Some(data), true) =>
           Some(

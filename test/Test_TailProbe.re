@@ -2,7 +2,7 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* The ⇓ toggle's probe: one bare drawer probe on the program's last
+/* The ⇓ toggle's probe: one drawer probe on the program's last
    expression, re-anchored as that expression changes */
 
 let zipper = (src: string): Zipper.t =>
@@ -39,6 +39,32 @@ let update = (~on, z: Zipper.t): Zipper.t => {
   AutoProbePerform.update_tail(~on, ~syntax, ~info_map, z);
 };
 
+let is_program_value = (z: Zipper.t, id: Id.t): bool =>
+  ProjectorInfo.is_program_value(~tail=z.refractors.tail_target, id, Probe);
+
+/* ⇓ on over a program, with its tail */
+let tail_on = (src: string): (Zipper.t, Id.t) => {
+  let z = update(~on=true, zipper(src));
+  (z, Option.get(z.refractors.tail_target));
+};
+
+/* a pin or step-into makes the ⇓ probe a manual probe */
+let promoted = (): (Zipper.t, Id.t) => {
+  let (z, tail) = tail_on("let x = 1 in\nx + 1");
+  let (info_map, syntax) = analysed(z);
+  (
+    ProbePerform.promote_to_manual(tail, z)
+    |> ProbePerform.add_ids_from_multi_term(~syntax, ~info_map),
+    tail,
+  );
+};
+
+/* a manual probe already on the last expression, then ⇓ on */
+let manual_first = (): (Zipper.t, Id.t) => {
+  let z = update(~on=true, zipper("let x = 1 in\n^^probe(x + 1)"));
+  (z, Option.get(AutoProbePerform.tail_id(snd(analysed(z)))));
+};
+
 let finds_tail = () => {
   check(string, "a bare expression", "1 + 2", tail_text("1 + 2"));
   check(
@@ -57,7 +83,7 @@ let finds_tail = () => {
   );
 };
 
-/* on: a bare drawer probe at the tail; off: gone */
+/* on: a drawer probe at the tail; off: gone */
 let toggles = () => {
   let z = zipper("let x = 1 in\nx + 1");
   let on = update(~on=true, z);
@@ -69,7 +95,7 @@ let toggles = () => {
     );
   check(
     bool,
-    "a bare drawer",
+    "a drawer",
     true,
     switch (entry) {
     | Some(e) => e.model == ProbeProj.tail_model
@@ -104,22 +130,110 @@ let steady = () => {
   );
 };
 
-/* a manual probe on the last expression wins over the tail's */
+/* a manual probe already on the last expression wins: no ⇓ probe, and
+   it stays an ordinary probe */
 let manual_wins = () => {
-  let z = update(~on=true, zipper("let x = 1 in\n^^probe(x + 1)"));
-  let tail = Option.get(z.refractors.tail_target);
+  let (z, last) = manual_first();
   check(
     bool,
     "a manual probe",
     true,
-    List.mem_assoc(tail, z.refractors.manuals),
+    List.mem_assoc(last, z.refractors.manuals),
   );
+  check(bool, "no ⇓ probe", true, z.refractors.tail_target == None);
   check(
     bool,
     "no ephemeral beside it",
     false,
-    Id.Map.mem(tail, z.refractors.multis.ephemerals),
+    Id.Map.mem(last, z.refractors.multis.ephemerals),
   );
+  check(bool, "steady", true, update(~on=true, z) === z);
+};
+
+/* the ⇓ probe stays itself once made manual, until ⇓ is off */
+let promoted_stays = () => {
+  let (z, tail) = promoted();
+  let again = update(~on=true, z);
+  check(bool, "still the ⇓ probe", true, is_program_value(again, tail));
+  check(bool, "steady", true, again === z);
+  let off = update(~on=false, z);
+  check(bool, "off: not", false, is_program_value(off, tail));
+  check(
+    bool,
+    "a drawer probe of its own",
+    true,
+    List.assoc_opt(tail, off.refractors.manuals)
+    |> Option.map((e: Refractors.entry) => e.model)
+    == Some(ProbeProj.tail_model),
+  );
+};
+
+/* a probe placed on the ⇓ probe's term replaces it */
+let placed_replaces = () => {
+  let (z, tail) = tail_on("let x = 1 in\nx + 1");
+  let (info_map, syntax) = analysed(z);
+  let z =
+    ProbePerform.add_manual(~syntax, tail, info_map, z) |> update(~on=true);
+  check(
+    bool,
+    "a plain manual probe",
+    true,
+    List.assoc_opt(tail, z.refractors.manuals)
+    == Some(Refractors.mk_entry(Probe)),
+  );
+  check(bool, "no ⇓ probe", true, z.refractors.tail_target == None);
+};
+
+/* the ⇓ probe's projector is told so, whichever way it's held */
+let projector_flag = () => {
+  let flag = ((z: Zipper.t, id: Id.t)): bool => {
+    let (info_map, syntax) = analysed(z);
+    Web.RefractorView.mk_data(
+      ~refractors=CachedSyntax.refractor_entries(z.refractors),
+      ~syntax,
+      ~indicated=None,
+      ~statics=info_map,
+      ~dynamics=Dynamics.Map.empty,
+      ~sample_focus=z.refractors.sample_focus,
+      ~editor_active=false,
+      ~tail=z.refractors.tail_target,
+      (),
+    )
+    |> List.exists((d: Web.ProjectorView.Model.projector_data) =>
+         d.p.id == id && d.info.program_value
+       );
+  };
+  check(bool, "the ⇓ probe", true, flag(tail_on("let x = 1 in\nx + 1")));
+  check(bool, "made manual", true, flag(promoted()));
+  check(bool, "a manual probe already there", false, flag(manual_first()));
+};
+
+/* models saved while the ⇓ probe's had a `bare` field keep the rest */
+let old_model_loads = () => {
+  let saved = "((active_renderer())(drawer_mode true)(dropdown_redraw 3)(auto_rich false)(rich_off true)(bare true))";
+  let m = ProbeProj.probe_model_of_sexp(Sexplib.Sexp.of_string(saved));
+  check(bool, "drawer", true, m.drawer_mode);
+  check(int, "redraw count", 3, m.dropdown_redraw);
+  check(bool, "rich off", true, m.rich_off);
+  /* and through the projector, as a stored manual probe */
+  let z = zipper("let x = 1 in\nx + 1");
+  let (info_map, syntax) = analysed(z);
+  let z =
+    Zipper.add_manual(
+      ~model=saved,
+      Option.get(AutoProbePerform.tail_id(syntax)),
+      Probe,
+      z,
+    );
+  let rows =
+    CachedSyntax.mk_refractor_rows(
+      z,
+      syntax.term_data,
+      info_map,
+      Dynamics.Map.empty,
+      ~elaborated=None,
+    );
+  check(bool, "its drawer reserves rows", false, Id.Map.is_empty(rows));
 };
 
 /* the program's drawer is drawn after the program and reserves no rows,
@@ -138,15 +252,11 @@ let reserves_nothing = () => {
   check(bool, "no rows", true, Id.Map.is_empty(rows));
 };
 
-/* a pin or step-into makes the ⇓ probe a manual probe that keeps the bare
-   model; its drawer stays after the program, so still no rows */
+/* a pin or step-into makes the ⇓ probe a manual probe; its drawer stays
+   after the program, so still no rows */
 let promoted_reserves_nothing = () => {
-  let z = update(~on=true, zipper("let x = 1 in\nx + 1"));
-  let tail = Option.get(z.refractors.tail_target);
+  let (z, tail) = promoted();
   let (info_map, syntax) = analysed(z);
-  let z =
-    ProbePerform.promote_to_manual(tail, z)
-    |> ProbePerform.add_ids_from_multi_term(~syntax, ~info_map);
   check(
     bool,
     "a manual probe",
@@ -217,5 +327,9 @@ let tests = (
     test_case("on and off", `Quick, toggles),
     test_case("steady", `Quick, steady),
     test_case("a manual probe wins", `Quick, manual_wins),
+    test_case("made manual, still the ⇓ probe", `Quick, promoted_stays),
+    test_case("a probe placed on it replaces it", `Quick, placed_replaces),
+    test_case("its projector is told", `Quick, projector_flag),
+    test_case("an old model with bare loads", `Quick, old_model_loads),
   ],
 );
