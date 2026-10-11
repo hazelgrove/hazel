@@ -365,10 +365,13 @@ module Update = {
     /* Project statics to the serializable slice the incremental evaluator
      * needs. The raw info_map can't cross postMessage because LivelitCtx
      * entries contain OCaml closures. Lazy: the projection is O(program)
-     * and most calls (e.g. each stream update) never force it. */
+     * and most calls (e.g. each stream update) never force it. Keyed by
+     * the program, so this program's last projection is updated, not
+     * rebuilt, and keeps the identity of what did not change. */
     let eval_info_map =
       lazy(
         EvalInfo.of_info_map(
+          ~key=Exp.rep_id(Calc.get_value(elab)),
           ~probe_all=Calc.get_value(settings).probe_all,
           ~targets=Calc.get_value(targets),
           statics.info_map,
