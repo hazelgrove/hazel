@@ -37,12 +37,7 @@ let last_reveal_ms: ref(float) = ref(0.);
 let last_verify_ms: ref(float) = ref(0.);
 let verify_scheduled = ref(false);
 
-let now_ms = (): float => Js.Unsafe.global##.Date##now();
-
-let connected = (el: Js.t(Dom_html.element)): bool =>
-  try(Js.to_bool(Js.Unsafe.get(el, "isConnected"))) {
-  | _ => false
-  };
+let now_ms = PerfTimer.now;
 
 /* is the caret mid-glide? the glide (a WAAPI animation) displaces its
    rect, which would poison the anchor. the permanent CSS blink is
@@ -73,46 +68,32 @@ let set_scroll_top = (g: geom, v: float): unit => {
   g.scroll_top = float_of_int(g.container##.scrollTop);
 };
 
-/* one stable handler reading the current geom, on at most one
-   container: a closure per cold anchor would leak a handler (and its
-   dead geom) per post-pause action */
-let scroll_handler: Js.Unsafe.any =
-  Js.Unsafe.inject(
-    Js.wrap_callback(_ =>
-      switch (geom^) {
-      | Some(g) => g.scroll_top = float_of_int(g.container##.scrollTop)
-      | None => ()
-      }
-    ),
-  );
-let listened: ref(option(Js.t(Dom_html.element))) = ref(None);
-let ensure_scroll_listener = (container: Js.t(Dom_html.element)): unit => {
-  let already =
-    switch (listened^) {
-    | Some(c) => c === container
-    | None => false
-    };
-  if (!already) {
-    switch (listened^) {
-    | Some(old) =>
-      let _ =
-        Js.Unsafe.meth_call(
-          old,
-          "removeEventListener",
-          [|Js.Unsafe.inject(Js.string("scroll")), scroll_handler|],
-        );
-      ();
-    | None => ()
-    };
-    let _ =
-      Js.Unsafe.meth_call(
+/* one handler reading the current geom, on at most one container: a
+   listener per cold anchor would leak a handler (and its dead geom) per
+   post-pause action */
+let listened:
+  ref(option((Js.t(Dom_html.element), Dom_html.event_listener_id))) =
+  ref(None);
+let ensure_scroll_listener = (container: Js.t(Dom_html.element)): unit =>
+  switch (listened^) {
+  | Some((c, _)) when c === container => ()
+  | old =>
+    Option.iter(((_, id)) => Dom_html.removeEventListener(id), old);
+    let id =
+      Dom_html.addEventListener(
         container,
-        "addEventListener",
-        [|Js.Unsafe.inject(Js.string("scroll")), scroll_handler|],
+        Dom_html.Event.scroll,
+        Dom_html.handler(_ => {
+          switch (geom^) {
+          | Some(g) => g.scroll_top = float_of_int(g.container##.scrollTop)
+          | None => ()
+          };
+          Js._true;
+        }),
+        Js._false,
       );
-    listened := Some(container);
+    listened := Some((container, id));
   };
-};
 
 /* scroll delta keeping row [row] out of the margin band of a viewport
    [height] tall, else 0 */
@@ -162,7 +143,7 @@ let schedule_verify = (): unit =>
           | (Some(g), Some((row, rh)), Some(caret))
               when
                 caret === g.caret_el
-                && connected(g.container)
+                && JsUtil.connected(g.container)
                 && !animating(caret) =>
             /* reading here costs the frame's own layout, not an
                extra mid-task flush */
@@ -289,7 +270,7 @@ let reveal = (): unit => {
     let caret_now = JsUtil.get_elem_by_id_opt("caret");
     switch (geom^, caret_now) {
     | (Some(g), Some(caret))
-        when burst && caret === g.caret_el && connected(g.container) =>
+        when burst && caret === g.caret_el && JsUtil.connected(g.container) =>
       /* synchronous on purpose: under long-task holds the rAF can
          lag behind keystrokes; the write keeps the caret pinned */
       apply(g, decide(g, row, rh));
