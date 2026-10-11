@@ -32,7 +32,7 @@ let follow_cursor = (): unit => {
   let find = sel =>
     Js.Opt.to_option(
       Dom_html.document##querySelector(
-        Js.string("#outline-sidebar .outline-body:focus" ++ sel),
+        Js.string("#outline-sidebar .outline-body:focus-within" ++ sel),
       ),
     );
   let follow = (key, scroll) =>

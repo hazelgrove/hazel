@@ -31,8 +31,8 @@
 #outline-sidebar .outline-body:focus {
   outline: none;
 }
-#outline-sidebar .outline-body:focus .outline-label.outline-cursor,
-#outline-sidebar:has(.outline-body:focus) > summary.outline-cursor {
+#outline-sidebar .outline-body:focus-within .outline-label.outline-cursor,
+#outline-sidebar:has(.outline-body:focus-within) > summary.outline-cursor {
   box-shadow: inset 2px 0 0 var(--caret-color);
   background: color-mix(in srgb, var(--surface-shard) 70%, transparent);
 }
@@ -442,32 +442,31 @@
 
 /* a name typed in place: no bar, a soft rounded tint behind the name
    and the caret's own red caret */
-#outline-sidebar .outline-body:focus .outline-label.outline-editing,
+#outline-sidebar .outline-body:focus-within .outline-label.outline-editing,
 #outline-sidebar
-  .outline-body:focus:has(.outline-editing)
+  .outline-body:focus-within:has(.outline-editing)
   .outline-label.outline-cursor {
   box-shadow: none;
   background: transparent;
 }
-#outline-sidebar .outline-edit-text {
-  display: inline-block;
+#outline-sidebar .outline-edit-input {
+  font: inherit;
+  color: inherit;
+  margin: 0;
+  border: none;
+  outline: none;
   min-width: 3ch;
   padding: 0 3px;
   border-radius: 3px;
   background: color-mix(in srgb, var(--caret-color) 10%, transparent);
-  white-space: pre;
+  caret-color: var(--caret-color);
+  field-sizing: content;
 }
-#outline-sidebar .outline-edit-caret {
-  display: inline-block;
-  width: 1.5px;
-  height: 1.1em;
-  margin: 0 -0.75px;
-  vertical-align: -0.2em;
-  background: var(--caret-color);
-}
+/* a new definition's keyword, beside its field */
 #outline-sidebar .outline-edit-kw {
   font-weight: bold;
   opacity: 0.7;
+  white-space: pre;
 }
 #outline-sidebar .outline-edit-hint {
   margin-left: 22px;
@@ -505,10 +504,6 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
-  /* the editor caret's blink */
-  #outline-sidebar .outline-edit-caret {
-    animation: 1s blink step-end infinite;
-  }
   #outline-sidebar .outline-kw-leaving {
     animation: ol-kw-leave 220ms ease-in;
   }

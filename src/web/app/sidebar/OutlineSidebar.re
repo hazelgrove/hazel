@@ -101,26 +101,121 @@ type handlers = {
   def_op: (OutlineEdit.def_op, Language.Id.t) => Effect.t(unit),
 };
 
-/* the typed text with its caret; a new definition's keyword colored */
-let edit_text = (ed: OutlineEdit.t): list(Node.t) => {
-  let t = ed.ed_text;
-  let n = String.length(t);
-  let c = max(0, min(ed.ed_caret, n));
-  let p =
-    ed.ed_row == None ? String.length(snd(OutlineEdit.new_kind(t))) : 0;
-  let piece = (a, b) => text(String.sub(t, a, b - a));
-  let caret = span(~attrs=[clss(["outline-edit-caret"])], []);
-  (
-    p > 0
-      ? [
-        span(
-          ~attrs=[clss(["outline-edit-kw"])],
-          c <= p ? [piece(0, c), caret, piece(c, p)] : [piece(0, p)],
+/* whether focus is moving within the row list (into a name's field, or
+   back out to the list), not arriving from or leaving for elsewhere */
+let within_rows = evt => {
+  open Js_of_ocaml;
+  let e = Js.Unsafe.coerce(evt);
+  let rows = e##.currentTarget##closest(Js.string(".outline-body"));
+  let other = e##.relatedTarget;
+  Js.Opt.test(rows)
+  && Js.Opt.test(other)
+  && Js.to_bool(rows##contains(other));
+};
+
+let focus_without_scroll = el =>
+  Js_of_ocaml.Js.Unsafe.coerce(el)##focus(
+    Js_of_ocaml.Js.Unsafe.obj([|
+      ("preventScroll", Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js._true)),
+    |]),
+  );
+
+/* a name's field holds the keys while it shows: it takes focus whenever
+   focus is in the row list (after a save it refused, say) or nowhere */
+module FieldFocus =
+  Attr.Hooks.Make({
+    module State = Unit;
+    module Input = {
+      type t = unit;
+      let sexp_of_t = Sexplib0.Sexp_conv.sexp_of_unit;
+      let combine = ((), ()) => ();
+    };
+    let take = el => {
+      open Js_of_ocaml;
+      let active = Js.Unsafe.coerce(Dom_html.document)##.activeElement;
+      if (!Js.Opt.test(active)
+          || active ==
+          Js.Unsafe.coerce(Dom_html.document)##.body
+          || Js.Opt.test(
+               active##closest(Js.string("#outline-sidebar .outline-body")),
+             )
+          && active != el) {
+        focus_without_scroll(el);
+      };
+    };
+    let init = ((), _) => ();
+    let on_mount = ((), (), el) => take(el);
+    let update = (~old_input as (), ~new_input as (), (), el) => take(el);
+    let destroy = ((), (), _) => ();
+  });
+
+/* the keys back to the row list, as a name's field goes */
+let focus_rows = Effect.of_sync_fun(Util.JsUtil.focus_outline, ());
+
+/* the open name's field, given the keys again */
+let focus_field =
+  Effect.of_sync_fun(
+    () =>
+      Js_of_ocaml.(
+        Js.Opt.iter(
+          Dom_html.document##querySelector(
+            Js.string("#outline-sidebar .outline-edit-input"),
+          ),
+          focus_without_scroll,
+        )
+      ),
+    (),
+  );
+
+/* the field a name is typed in. A new definition's leading `type ` or
+   `module ` picks its kind and moves out of the field into a label */
+let edit_field = (~on: handlers, ed: OutlineEdit.t): list(Node.t) => {
+  let kw = ed.ed_row == None ? snd(OutlineEdit.new_kind(ed.ed_text)) : "";
+  let k = String.length(kw);
+  let name = String.sub(ed.ed_text, k, String.length(ed.ed_text) - k);
+  [
+    /* always there, so the field keeps its place (and its focus) as a
+       keyword comes and goes */
+    span(~attrs=[clss(["outline-edit-kw"])], kw == "" ? [] : [text(kw)]),
+    input(
+      ~attrs=[
+        clss(["outline-edit-input"]),
+        Attr.value_prop(name),
+        /* the width where field-sizing isn't supported */
+        Attr.create(
+          "size",
+          string_of_int(max(3, String.length(name) + 1)),
         ),
-      ]
-      : []
-  )
-  @ (c > p || p == 0 ? [piece(p, c), caret, piece(c, n)] : [piece(p, n)]);
+        Attr.create("spellcheck", "false"),
+        Attr.create("autocomplete", "off"),
+        Attr.create("autocorrect", "off"),
+        Attr.create("autocapitalize", "off"),
+        Attr.create_hook("outline-field-focus", FieldFocus.create()),
+        /* a click in the field moves its caret, nothing else */
+        Attr.on_mousedown(_ => Effect.Stop_propagation),
+        Attr.on_click(_ => Effect.Stop_propagation),
+        Attr.on_input((_, s) =>
+          on.edit.set(
+            Some({
+              ...ed,
+              ed_text: kw ++ s,
+              ed_error: None,
+            }),
+          )
+        ),
+        /* leaving the outline saves the name; a field a save left behind
+           (Enter opened the next) saves nothing */
+        Attr.on_blur(evt =>
+          switch (on.edit.get()) {
+          | Some(cur) when OutlineEdit.same(cur, ed) && !within_rows(evt) =>
+            Effect.Many([Effect.Stop_propagation, on.edit.commit(cur, Stay)])
+          | _ => Effect.Stop_propagation
+          }
+        ),
+      ],
+      (),
+    ),
+  ];
 };
 
 let edit_hint = (ed: OutlineEdit.t): list(Node.t) =>
@@ -130,7 +225,7 @@ let edit_hint = (ed: OutlineEdit.t): list(Node.t) =>
   };
 
 /* the row a new definition is typed into, below its anchor */
-let new_row_view = (ed: OutlineEdit.t): Node.t => {
+let new_row_view = (~on: handlers, ed: OutlineEdit.t): Node.t => {
   let (k, _) = OutlineEdit.new_kind(ed.ed_text);
   div(
     ~attrs=[clss(["outline-leaf"])],
@@ -143,11 +238,11 @@ let new_row_view = (ed: OutlineEdit.t): Node.t => {
             "outline-new",
             kind_cls(k),
           ]),
+          /* a click beside the field leaves the keys in it */
+          Attr.on_mousedown(_ => Effect.Prevent_default),
         ],
-        [
-          span(~attrs=[clss(["outline-glyph"])], [text(kind_glyph(k))]),
-          span(~attrs=[clss(["outline-edit-text"])], edit_text(ed)),
-        ],
+        [span(~attrs=[clss(["outline-glyph"])], [text(kind_glyph(k))])]
+        @ edit_field(~on, ed),
       ),
     ]
     @ edit_hint(ed),
@@ -354,7 +449,8 @@ let rec node_view =
             | Some(ed) when ed.ed_row == None || ed.ed_row != n.o_id =>
               /* clicking away from a name saves it */
               on.edit.commit(ed, MoveTo(Some(row_path)))
-            | Some(_) => Effect.Ignore
+            /* a click beside its field leaves the keys in it */
+            | Some(_) => Effect.Prevent_default
             | None =>
               props.stack_controls
                 ? take_cursor(on, Some(row_path))
@@ -368,8 +464,10 @@ let rec node_view =
             [
               Attr.create("data-ol-id", Language.Id.to_string(id)),
               /* Prevent_default: label clicks must not toggle the row's
-                 <details> */
-              Attr.on_click(_ => stop(show(props, on, id))),
+                 <details>. while its name is typed the row stays put */
+              Attr.on_click(_ =>
+                stop(editing == None ? show(props, on, id) : Effect.Ignore)
+              ),
             ]
             /* every block level gets the menu, except trailing-expression
                rows */
@@ -450,9 +548,7 @@ let rec node_view =
       ]
       @ (
         switch (editing, props.created) {
-        | (Some(ed), _) => [
-            span(~attrs=[clss(["outline-edit-text"])], edit_text(ed)),
-          ]
+        | (Some(ed), _) => edit_field(~on, ed)
         | (None, Some((id, kw))) when n.o_id == Some(id) => [
             /* the keyword typed to make it a type or module, leaving */
             span(~attrs=[clss(["outline-kw-leaving"])], [text(kw)]),
@@ -531,7 +627,7 @@ let rec node_view =
     switch (on.edit.current) {
     | Some({ed_row: None, ed_anchor: Some(a), ed_inside: true, _} as ed)
         when n.o_id == Some(a) =>
-      Some(new_row_view(ed))
+      Some(new_row_view(~on, ed))
     | _ => None
     };
   switch (n.o_children, inside_row) {
@@ -594,16 +690,16 @@ and rows_view =
     (~props: props, ~on: handlers, ~path: OutlineTree.path, ns): list(Node.t) =>
   List.concat_map(
     ((n: OutlineTree.node, seg)) =>
-      [node_view(~props, ~on, ~path, ~seg, n)] @ new_row_after(on.edit, n),
+      [node_view(~props, ~on, ~path, ~seg, n)] @ new_row_after(~on, n),
     OutlineTree.segs(ns),
   )
 
 /* a new definition typed below [n] */
-and new_row_after = (edit: edit_ctl, n: OutlineTree.node): list(Node.t) =>
-  switch (edit.current) {
+and new_row_after = (~on: handlers, n: OutlineTree.node): list(Node.t) =>
+  switch (on.edit.current) {
   | Some({ed_row: None, ed_anchor: Some(a), ed_inside: false, _} as ed)
       when n.o_id == Some(a) => [
-      new_row_view(ed),
+      new_row_view(~on, ed),
     ]
   | _ => []
   };
@@ -787,6 +883,18 @@ let keys =
     };
   let (code, alt, shift) = (k.code, k.alt == Down, k.shift == Down);
   let meta = k.meta == Down || k.ctrl == Down;
+  /* mid-composition (an IME's, a dead key's) the field has the key */
+  let composing =
+    Js_of_ocaml.Js.Optdef.case(
+      Js_of_ocaml.Js.Unsafe.coerce(evt)##.isComposing,
+      () => false,
+      Js_of_ocaml.Js.to_bool,
+    );
+  /* a name's own keys stay in its field: the page's shortcuts (⌘Z) don't
+     reach past it */
+  let in_field =
+    on.edit.get() != None
+    && !List.mem(key, ["Shift", "Alt", "Meta", "Control"]);
   let id_of = (r: visible_row) => r.r_node.o_id;
   let is_module = (r: visible_row) => r.r_node.o_kind == OutlineTree.KModule;
   /* the context menu at the cursor's row, as the editor opens its own */
@@ -879,20 +987,10 @@ let keys =
     nameable(r)
       ? on.edit.set(Some(OutlineEdit.mk(~row=?r.r_node.o_id, r.r_name)))
       : Effect.Ignore;
-  /* typing a name: Enter saves and starts a new definition below, ↑↓
-     save and move, Esc cancels */
-  let edit_key = (ed: OutlineEdit.t) => {
-    let t = ed.ed_text;
-    let c = max(0, min(ed.ed_caret, String.length(t)));
-    let put = (t, c) =>
-      on.edit.set(
-        Some({
-          ...ed,
-          ed_text: t,
-          ed_caret: c,
-          ed_error: None,
-        }),
-      );
+  /* a name in its field: Enter saves and starts a new definition below,
+     ↑↓ save and move, Esc cancels; the field takes the other keys. As the
+     field goes the keys return to the row list */
+  let edit_key = (ed: OutlineEdit.t): option(Effect.t(unit)) => {
     let anchor =
       Option.bind(ed.ed_anchor, a =>
         Array.find_opt(r => r.r_node.o_id == Some(a), visible)
@@ -903,58 +1001,81 @@ let keys =
       | Some(r) => on.set_cursor(Some(r.r_path))
       | None => Effect.Ignore
       };
+    let field = Js_of_ocaml.Js.Unsafe.coerce(evt)##.target;
+    let kw = ed.ed_row == None ? snd(OutlineEdit.new_kind(ed.ed_text)) : "";
     switch (key) {
-    | "Enter" => Some(on.edit.commit(ed, Next))
-    | "Escape" => Some(Effect.Many([on.edit.set(None), back_to_anchor]))
+    | _ when composing => None
+    | "Enter" => Some(Effect.Many([focus_rows, on.edit.commit(ed, Next)]))
+    | "Escape" =>
+      Some(Effect.Many([focus_rows, on.edit.set(None), back_to_anchor]))
     | "ArrowUp" when ed.ed_row != None =>
-      Some(on.edit.commit(ed, MoveTo(target(idx - 1))))
+      Some(
+        Effect.Many([
+          focus_rows,
+          on.edit.commit(ed, MoveTo(target(idx - 1))),
+        ]),
+      )
     | "ArrowDown" when ed.ed_row != None =>
-      Some(on.edit.commit(ed, MoveTo(target(idx + 1))))
+      Some(
+        Effect.Many([
+          focus_rows,
+          on.edit.commit(ed, MoveTo(target(idx + 1))),
+        ]),
+      )
     | "ArrowUp"
     | "ArrowDown" =>
       Some(
-        on.edit.commit(
-          ed,
-          switch (anchor) {
-          | Some(r) => MoveTo(Some(r.r_path))
-          | None => Stay
-          },
+        Effect.Many([
+          focus_rows,
+          on.edit.commit(
+            ed,
+            switch (anchor) {
+            | Some(r) => MoveTo(Some(r.r_path))
+            | None => Stay
+            },
+          ),
+        ]),
+      )
+    | "Backspace" when ed.ed_text == "" && ed.ed_row == None =>
+      Some(Effect.Many([focus_rows, on.edit.set(None), back_to_anchor]))
+    /* at the field's start: the keyword label goes */
+    | "Backspace"
+        when
+          kw != "" && field##.selectionStart == 0 && field##.selectionEnd == 0 =>
+      Some(
+        on.edit.set(
+          Some({
+            ...ed,
+            ed_text:
+              String.sub(
+                ed.ed_text,
+                String.length(kw),
+                String.length(ed.ed_text) - String.length(kw),
+              ),
+            ed_error: None,
+          }),
         ),
       )
-    | "ArrowLeft" => Some(put(t, max(0, c - 1)))
-    | "ArrowRight" => Some(put(t, min(String.length(t), c + 1)))
-    | "Home" => Some(put(t, 0))
-    | "End" => Some(put(t, String.length(t)))
-    | "Backspace" when t == "" && ed.ed_row == None =>
-      Some(Effect.Many([on.edit.set(None), back_to_anchor]))
-    | "Backspace" =>
-      Some(
-        c == 0
-          ? Effect.Ignore
-          : put(
-              String.sub(t, 0, c - 1)
-              ++ String.sub(t, c, String.length(t) - c),
-              c - 1,
-            ),
-      )
-    | "Delete" =>
-      Some(
-        c >= String.length(t)
-          ? Effect.Ignore
-          : put(
-              String.sub(t, 0, c)
-              ++ String.sub(t, c + 1, String.length(t) - c - 1),
-              c,
-            ),
-      )
     | "Tab" => Some(Effect.Ignore)
-    | _ when String.length(key) == 1 && !meta =>
+    /* typed before the field has the focus (it takes it a frame after the
+       name opens): the character still lands in the name */
+    | _
+        when
+          !meta
+          && Util.Unicode.count_codepoints(key) == 1
+          && !
+               Js_of_ocaml.Js.to_bool(
+                 field##.classList##contains(
+                   Js_of_ocaml.Js.string("outline-edit-input"),
+                 ),
+               ) =>
       Some(
-        put(
-          String.sub(t, 0, c)
-          ++ key
-          ++ String.sub(t, c, String.length(t) - c),
-          c + 1,
+        on.edit.set(
+          Some({
+            ...ed,
+            ed_text: ed.ed_text ++ key,
+            ed_error: None,
+          }),
         ),
       )
     | _ => None
@@ -995,11 +1116,14 @@ let keys =
   | (Some(_), _) =>
     switch (act()) {
     | Some(eff) => stop(Effect.Many([on.menu_close, eff]))
+    | None when in_field =>
+      Effect.Many([Effect.Stop_propagation, on.menu_close])
     | None => on.menu_close
     }
   | (None, _) =>
     switch (act()) {
     | Some(eff) => stop(eff)
+    | None when in_field => Effect.Stop_propagation
     | None => Effect.Ignore
     }
   };
@@ -1167,18 +1291,26 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
               ? [
                 Attr.tabindex(0),
                 Attr.on_keydown(keys(~props, ~on, ~visible)),
-                Attr.on_focus(_ =>
-                  Effect.Many([Effect.Stop_propagation, on.focused])
+                /* focus from a name's field, with the name still open
+                   (a click on the list's background): back to the field */
+                Attr.on_focus(evt =>
+                  switch (within_rows(evt), on.edit.get()) {
+                  | (false, _) =>
+                    Effect.Many([Effect.Stop_propagation, on.focused])
+                  | (true, Some(_)) =>
+                    Effect.Many([Effect.Stop_propagation, focus_field])
+                  | (true, None) => Effect.Stop_propagation
+                  }
                 ),
                 /* leaving the outline saves a name being typed */
-                Attr.on_blur(_ =>
+                Attr.on_blur(evt =>
                   switch (on.edit.get()) {
-                  | Some(ed) =>
+                  | Some(ed) when !within_rows(evt) =>
                     Effect.Many([
                       Effect.Stop_propagation,
                       on.edit.commit(ed, Stay),
                     ])
-                  | None => Effect.Stop_propagation
+                  | _ => Effect.Stop_propagation
                   }
                 ),
               ]

@@ -9,19 +9,23 @@ type t = {
   ed_anchor: option(Language.Id.t),
   ed_inside: bool,
   ed_text: string,
-  ed_caret: int,
   ed_error: option(string),
 };
 
-/* a name typed from [text], its caret at the end */
+/* a name typed from [text] */
 let mk = (~row=?, ~anchor=?, ~inside=false, text: string): t => {
   ed_row: row,
   ed_anchor: anchor,
   ed_inside: inside,
   ed_text: text,
-  ed_caret: String.length(text),
   ed_error: None,
 };
+
+/* the same name being typed (its text aside) */
+let same = (a: t, b: t): bool =>
+  a.ed_row == b.ed_row
+  && a.ed_anchor == b.ed_anchor
+  && a.ed_inside == b.ed_inside;
 
 /* structural operations on a definition, from its row's context menu;
    ItemEdit applies them at the item's owning block */
