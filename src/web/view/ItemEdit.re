@@ -94,6 +94,9 @@ type slot = {
 type block = {
   seg: Segment.t,
   arr: array(Piece.t),
+  spans: array(Focus.item_span),
+  /* a member block: new items are 2-shard members, not `… in` forms */
+  in_module: bool,
   /* the segment starts a line */
   bol: bool,
   /* a 2-shard member, not a `… in` item */
@@ -236,11 +239,17 @@ let block =
   {
     seg,
     arr,
+    spans,
+    in_module,
     bol,
     member,
     sl,
   };
 };
+
+/* items that ops may move or remove: not the trailing expression */
+let movable = (b: block, k: int): bool =>
+  k >= 0 && k < Array.length(b.sl) && b.spans[k].sp_kind != ITail;
 
 let indent_end = (b: block, k: int): int => {
   let rec go = i =>
@@ -370,30 +379,20 @@ let insert =
 };
 
 /* [op] on item [j] of its own block: an op invalid there (a move at the
-   block's edge) no-ops rather than act on the enclosing item. [in_module]:
-   a member block, so new items are 2-shard members, not `… in` forms */
+   block's edge) no-ops rather than act on the enclosing item */
 let apply_at =
-    (
-      ~name: option(string)=?,
-      op: OutlineEdit.def_op,
-      ~in_module: bool,
-      ~bol: bool,
-      spans: array(Focus.item_span),
-      j: int,
-      seg: Segment.t,
-    )
+    (~name: option(string)=?, op: OutlineEdit.def_op, b: block, j: int)
     : option((Segment.t, option(Id.t))) => {
   let named = placeholder => Option.value(name, ~default=placeholder);
-  let b = block(~in_module, ~bol, spans, seg);
   let n = Array.length(b.sl);
-  let movable = k => k >= 0 && k < n && spans[k].Focus.sp_kind != Focus.ITail;
+  let movable = movable(b);
   /* a member block can still hold a let-in item (an expression's
      chain): it takes let-in forms, and moves never mix the two families
      (that would cross block levels); outside modules, moves may mix defs
      and statements */
   let same_family = (j, k) =>
-    !in_module
-    || span_in_tile(b.arr, spans[j]) == span_in_tile(b.arr, spans[k]);
+    !b.in_module
+    || span_in_tile(b.arr, b.spans[j]) == span_in_tile(b.arr, b.spans[k]);
   let new_item = (~member, item) =>
     /* below the trailing expression would strand it above the new def:
        the new def goes above it */
@@ -437,174 +436,116 @@ let apply_at =
   };
 };
 
-/* where [fid]'s item is, seen from a level: not at or below it, there
-   but the op refused, or the level rebuilt around the op's result */
-type found('a) =
-  | Absent
-  | Refused
-  | Done('a);
-
-let map_found = (f: 'a => 'b, r: found('a)): found('b) =>
-  switch (r) {
-  | Absent => Absent
-  | Refused => Refused
-  | Done(x) => Done(f(x))
-  };
-
-/* [act] at the block that owns [fid]'s item, the block rebuilt around
-   its result. A module's members (the child of its braces, wherever they
-   stand), or the top level of a module-rooted program, are a member block
-   ([in_module]). An op its block refuses stops there: the item around it
-   is a different row */
-let rec at_level_found =
-        (
-          ~act:
-             (
-               ~in_module: bool,
-               ~bol: bool,
-               array(Focus.item_span),
-               int,
-               Segment.t
-             ) =>
-             option((Segment.t, option(Id.t))),
-          ~mod_root: bool,
-          fid: Id.t,
-          ~members: bool,
-          ~top: bool,
-          seg: Segment.t,
-        )
-        : found((Segment.t, option(Id.t))) => {
-  let spans = Array.of_list(Focus.item_spans(~divided_only_tail=!top, seg));
-  let n = Array.length(spans);
-  let find = pred => {
-    let rec go = j => j >= n ? None : pred(spans[j]) ? Some(j) : go(j + 1);
-    go(0);
-  };
-  let acted = r =>
-    switch (r) {
-    | Some(x) => Done(x)
-    | None => Refused
+/* the item for row [fid]: the block holding it, the item's index there,
+   and the program with that block replaced. The block is [fid]'s own
+   level when the item is one of its spans by id, a member's flat body
+   when [fid] lies in one, and otherwise the nearest level up whose span
+   holds [fid]. A level is a member block when its sort is Mod: a module's
+   members, or the top of a module-rooted program */
+let locate =
+    (~mod_root: bool, fid: Id.t, seg: Segment.t)
+    : option((block, int, Segment.t => Segment.t)) => {
+  /* the level holding piece [id]: its pieces, the piece's index there,
+     and the generations around it */
+  let level_of = id =>
+    switch (Move.relatives_beside_id(Left, id, seg)) {
+    | Some({siblings: (pre, suf), ancestors}) =>
+      Some((pre @ suf, List.length(pre), ancestors))
+    | None => None
     };
-  let in_module = members || top && mod_root;
-  let found = find((sp: Focus.item_span) => sp.sp_id == Some(fid));
-  let flat =
-    found == None
-      ? Focus.flat_body_of(fid, Array.of_list(seg), Array.to_list(spans))
-      : None;
-  switch (found, flat) {
-  | (Some(j), _) => acted(act(~in_module, ~bol=top, spans, j, seg))
-  | (None, Some((b0, b1))) =>
-    /* a let or the tail of a member's flat body: acts in that body,
-       from its first line's indentation */
-    let arr = Array.of_list(seg);
-    let rec back = i =>
-      i > 0 && Piece.is_space(arr[i - 1]) ? back(i - 1) : i;
-    let line = back(b0);
-    let bol = line > 0 && Piece.is_linebreak(arr[line - 1]);
-    let b0 = bol ? line : b0;
-    let body = ListUtil.slice(b0, b1 - b0, seg);
-    let bspans = Array.of_list(Focus.item_spans(body));
-    let barr = Array.of_list(body);
-    let rec holding = k =>
-      k >= Array.length(bspans)
-        ? None
-        : bspans[k].sp_id == Some(fid)
-          || Focus.piece_at(fid, bspans[k].sp_start, bspans[k].sp_stop, barr)
-            ? Some(k) : holding(k + 1);
-    switch (holding(0)) {
-    | Some(k) =>
-      act(~in_module=false, ~bol, bspans, k, body)
-      |> Option.map(((body', target)) =>
+  /* the program with [level] for the level under [ancestors]; a module
+     body left with only whitespace is the parser's `{}` */
+  let rebuild = (ancestors: Ancestors.t, level: Segment.t): Segment.t =>
+    switch (ancestors) {
+    | [({children: ([], []), _} as a, (pre, suf)), ...rest]
+        when
+          Ancestor.label(a) == ["{", "}"]
+          && List.for_all(Focus.is_edge_ws, level) =>
+      Ancestors.zip(pre @ [empty_body(), ...suf], rest)
+    | _ => Ancestors.zip(level, ancestors)
+    };
+  let rec at = (~own: bool, (level, i, ancestors)) => {
+    let top = ancestors == [];
+    let spans =
+      Array.of_list(Focus.item_spans(~divided_only_tail=!top, level));
+    let here = j =>
+      Some((
+        block(
+          ~in_module=
+            Ancestors.sort(mod_root ? Mod : Exp, ancestors) == Sort.Mod,
+          ~bol=top,
+          spans,
+          level,
+        ),
+        j,
+        rebuild(ancestors),
+      ));
+    let found =
+      own
+        ? Array.find_index(sp => sp.Focus.sp_id == Some(fid), spans) : None;
+    let flat =
+      own && found == None
+        ? Focus.flat_body_of(
+            fid,
+            Array.of_list(level),
+            Array.to_list(spans),
+          )
+        : None;
+    switch (found, flat) {
+    | (Some(j), _) => here(j)
+    | (None, Some((b0, b1))) =>
+      /* a let or the tail of a member's flat body: acts in that body,
+         from its first line's indentation */
+      let arr = Array.of_list(level);
+      let rec back = i =>
+        i > 0 && Piece.is_space(arr[i - 1]) ? back(i - 1) : i;
+      let line = back(b0);
+      let bol = line > 0 && Piece.is_linebreak(arr[line - 1]);
+      let b0 = bol ? line : b0;
+      let body = ListUtil.slice(b0, b1 - b0, level);
+      let spans = Array.of_list(Focus.item_spans(body));
+      let barr = Array.of_list(body);
+      Array.find_index(
+        (sp: Focus.item_span) =>
+          sp.sp_id == Some(fid)
+          || Focus.piece_at(fid, sp.sp_start, sp.sp_stop, barr),
+        spans,
+      )
+      |> Option.map(k =>
            (
-             ListUtil.truncate(b0, seg)
-             @ body'
-             @ ListUtil.remove_first_n(b1, seg),
-             target,
+             block(~in_module=false, ~bol, spans, body),
+             k,
+             (
+               body =>
+                 rebuild(
+                   ancestors,
+                   ListUtil.truncate(b0, level)
+                   @ body
+                   @ ListUtil.remove_first_n(b1, level),
+                 )
+             ),
            )
-         )
-      |> acted
-    | None => Refused
-    };
-  | (None, None) =>
-    /* descend into tile children first (the owning block may be a
-       module or fn body) */
-    let is_body = (t: Base.tile) =>
-      Tile.label(t) == ["{", "}"] && List.length(t.children) == 1;
-    let rec try_children =
-            (ps: Segment.t): found((Segment.t, option(Id.t))) =>
-      switch (ps) {
-      | [] => Absent
-      | [Piece.Tile(t) as p, ...rest] =>
-        let rec try_kids = (before, kids) =>
-          switch (kids) {
-          | [] => Absent
-          | [ch, ...more] =>
-            switch (
-              at_level_found(
-                ~act,
-                ~mod_root,
-                fid,
-                ~members=List.mem(Sort.Mod, Tile.mold(t).in_),
-                ~top=false,
-                ch,
-              )
-            ) {
-            | Done((ch', target)) =>
-              Done((List.rev(before) @ [ch', ...more], target))
-            | Refused => Refused
-            | Absent => try_kids([ch, ...before], more)
-            }
-          };
-        switch (try_kids([], t.children)) {
-        | Done((children, target)) =>
-          let tile =
-            switch (children) {
-            | [kid] when is_body(t) && List.for_all(Focus.is_edge_ws, kid) =>
-              empty_body()
-            | _ =>
-              Piece.Tile({
-                ...t,
-                children,
-              })
-            };
-          Done(([tile, ...rest], target));
-        | Refused => Refused
-        | Absent =>
-          try_children(rest)
-          |> map_found(((rest', target)) => ([p, ...rest'], target))
-        };
-      | [p, ...rest] =>
-        try_children(rest)
-        |> map_found(((rest', target)) => ([p, ...rest'], target))
-      };
-    switch (try_children(seg)) {
-    | Absent =>
+         );
+    | (None, None) =>
       /* contained in one of this level's statement or tail spans (e.g.
          a ModExp test's row id is the inner test term): that span is
          the item */
       switch (
-        find((sp: Focus.item_span) =>
-          Focus.seg_contains_id(
-            fid,
-            ListUtil.slice(sp.sp_start, sp.sp_stop - sp.sp_start, seg),
-          )
-        )
+        Array.find_index(
+          (sp: Focus.item_span) => sp.sp_start <= i && i < sp.sp_stop,
+          spans,
+        ),
+        ancestors,
       ) {
-      | Some(j) => acted(act(~in_module, ~bol=top, spans, j, seg))
-      | None => Absent
+      | (Some(j), _) => here(j)
+      | (None, [(a, _), ..._]) =>
+        Option.bind(level_of(a.id), at(~own=false))
+      | (None, []) => None
       }
-    | r => r
     };
   };
+  Option.bind(level_of(fid), at(~own=true));
 };
-
-let at_level =
-    (~act, ~mod_root, fid, ~top, seg): option((Segment.t, option(Id.t))) =>
-  switch (at_level_found(~act, ~mod_root, fid, ~members=false, ~top, seg)) {
-  | Done(r) => Some(r)
-  | Absent
-  | Refused => None
-  };
 
 let apply =
     (
@@ -615,14 +556,9 @@ let apply =
       seg: Segment.t,
     )
     : option((Segment.t, option(Id.t))) =>
-  at_level(
-    ~act=
-      (~in_module, ~bol, spans, j, seg) =>
-        apply_at(~name?, op, ~in_module, ~bol, spans, j, seg),
-    ~mod_root,
-    fid,
-    ~top=true,
-    seg,
+  Option.bind(locate(~mod_root, fid, seg), ((b, j, rebuild)) =>
+    apply_at(~name?, op, b, j)
+    |> Option.map(((level, target)) => (rebuild(level), target))
   );
 
 /* [item] (member form) into module [m]'s members: after the last, or
@@ -754,44 +690,28 @@ type spot = {
 };
 
 /* where the item holding [fid] sits, seen from its own block */
-let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) => {
-  let found = ref(None);
-  let _ =
-    at_level(
-      ~act=
-        (~in_module, ~bol, spans, j, seg) => {
-          let b = block(~in_module, ~bol, spans, seg);
-          let n = Array.length(b.sl);
-          let movable = k =>
-            k >= 0 && k < n && spans[k].Focus.sp_kind != Focus.ITail;
-          let k = up ? j - 1 : j + 1;
-          if (j < n) {
-            let module_at =
-              movable(k)
+let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) =>
+  Option.bind(
+    locate(~mod_root, fid, seg),
+    ((b, j, _)) => {
+      let k = up ? j - 1 : j + 1;
+      j < Array.length(b.sl)
+        ? Some({
+            s_member: b.member(j),
+            s_item: bare(b, j),
+            s_trail: trail(b, j),
+            s_module:
+              movable(b, k)
                 ? switch (List.find_map(Piece.is_tile, bare(b, k))) {
                   | Some(t) when Tile.token(t, 0) == "module" => Some(t.id)
                   | _ => None
                   }
-                : None;
-            found :=
-              Some({
-                s_member: b.member(j),
-                s_item: bare(b, j),
-                s_trail: trail(b, j),
-                s_module: module_at,
-                s_edge: !movable(k),
-              });
-          };
-          /* found: stop the search here */
-          Some((seg, None));
-        },
-      ~mod_root,
-      fid,
-      ~top=true,
-      seg,
-    );
-  found^;
-};
+                : None,
+            s_edge: !movable(b, k),
+          })
+        : None;
+    },
+  );
 
 /* [item] placed just above ([up]) or below the item holding [target],
    in that block's form */
@@ -806,28 +726,19 @@ let insert_near =
       seg: Segment.t,
     )
     : option(Segment.t) =>
-  at_level(
-    ~act=
-      (~in_module, ~bol, spans, j, seg) => {
-        let b = block(~in_module, ~bol, spans, seg);
-        j < Array.length(b.sl)
-          ? insert(
-              b,
-              ~pos=up ? Before(j) : After(j),
-              ~member=b.member(j),
-              ~src_indent?,
-              ~trail,
-              item,
-            )
-            |> Option.map(seg => (seg, None))
-          : None;
-      },
-    ~mod_root,
-    target,
-    ~top=true,
-    seg,
-  )
-  |> Option.map(fst);
+  Option.bind(locate(~mod_root, target, seg), ((b, j, rebuild)) =>
+    j < Array.length(b.sl)
+      ? insert(
+          b,
+          ~pos=up ? Before(j) : After(j),
+          ~member=b.member(j),
+          ~src_indent?,
+          ~trail,
+          item,
+        )
+        |> Option.map(rebuild)
+      : None
+  );
 
 /* Alt↑↓: into an expanded module beside the item (its end going up,
    its start going down); from a module's first or last member, out to

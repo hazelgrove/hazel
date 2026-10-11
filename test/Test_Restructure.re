@@ -489,6 +489,20 @@ let across = (): unit => {
   mv(~root=Exp, ~up=false, e, "a", ["E{a}", "b"]);
   let c = "let a = 1 in\nmodule E = {\n  # todo #\n} in\nlet b = 2 in\nb";
   mv(~root=Exp, ~up=true, c, "b", ["a", "b", "E"]);
+  /* nested: out of the inner module into the outer one's members, and in */
+  let nest = "let a = 1 in\nmodule M = {\n  module N = {\n    let x = 2;\n    let z = 5\n  };\n  let y = 3\n} in\nlet b = 4 in\nb";
+  mv(~root=Exp, ~up=true, nest, "x", ["a", "M{x,N{z},y}", "b"]);
+  mv(~root=Exp, ~up=false, nest, "z", ["a", "M{N{x},z,y}", "b"]);
+  mv(~root=Exp, ~up=true, nest, "y", ["a", "M{N{x,z,y}}", "b"]);
+  mv(~root=Exp, ~up=false, nest, "a", ["M{a,N{x,z},y}", "b"]);
+  let nest_mod = "let a = 1;\nmodule M = {\n  module N = {\n    let x = 2;\n    let z = 5\n  };\n  let y = 3\n};\nlet b = 4;\nb";
+  mv(~root=Mod, ~up=true, nest_mod, "x", ["a", "M{x,N{z},y}", "b"]);
+  mv(~root=Mod, ~up=false, nest_mod, "z", ["a", "M{N{x},z,y}", "b"]);
+  mv(~root=Mod, ~up=true, nest_mod, "y", ["a", "M{N{x,z,y}}", "b"]);
+  /* out of a module bound by let, in let-in form */
+  let v = "let a = 1 in\nlet m = {\n  let x = 2;\n  let y = 3\n} in\nlet b = 4 in\nb";
+  mv(~root=Exp, ~up=true, v, "x", ["a", "x", "m{y}", "b"]);
+  mv(~root=Exp, ~up=false, v, "y", ["a", "m{x}", "y", "b"]);
 };
 
 /* a module's last member, moved out, moves back in where it was */
