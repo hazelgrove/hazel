@@ -184,63 +184,41 @@ let test_glyph =
 /* drag-to-resize: pointerdown attaches DOCUMENT-level move/up
    listeners (pointer events — canceled pointerdown suppresses compat
    mouseup); width rides a ROOT css variable */
-let resize_attrs: list(Attr.t) = {
-  Js_of_ocaml.[
-    Attr.on_pointerdown(_ => {
-      let doc = Js.Unsafe.coerce(Dom_html.document);
-      let move_ref = ref(Js.Unsafe.inject(Js.null));
-      let up_ref = ref(Js.Unsafe.inject(Js.null));
-      let on_move =
-        Js.Unsafe.callback(evt => {
-          let x: int = Js.Unsafe.coerce(evt)##.clientX;
-          let w = max(140, min(420, x));
-          let root =
-            Js.Unsafe.coerce(Dom_html.document)##.documentElement##.style;
-          let _ =
-            Js.Unsafe.meth_call(
-              root,
-              "setProperty",
-              [|
-                Js.Unsafe.inject(Js.string("--outline-w")),
-                Js.Unsafe.inject(Js.string(string_of_int(w) ++ "px")),
-              |],
-            );
-          ();
-        });
-      let on_up =
-        Js.Unsafe.callback(_ => {
-          let _ =
-            Js.Unsafe.meth_call(
-              doc,
-              "removeEventListener",
-              [|Js.Unsafe.inject(Js.string("pointermove")), move_ref^|],
-            );
-          let _ =
-            Js.Unsafe.meth_call(
-              doc,
-              "removeEventListener",
-              [|Js.Unsafe.inject(Js.string("pointerup")), up_ref^|],
-            );
-          ();
-        });
-      move_ref := Js.Unsafe.inject(on_move);
-      up_ref := Js.Unsafe.inject(on_up);
-      let _ =
-        Js.Unsafe.meth_call(
-          doc,
-          "addEventListener",
-          [|Js.Unsafe.inject(Js.string("pointermove")), move_ref^|],
-        );
-      let _ =
-        Js.Unsafe.meth_call(
-          doc,
-          "addEventListener",
-          [|Js.Unsafe.inject(Js.string("pointerup")), up_ref^|],
-        );
-      Effect.Prevent_default;
-    }),
-  ];
-};
+let resize_attrs: list(Attr.t) = [
+  Attr.on_pointerdown(_ => {
+    let listen = (name, f) =>
+      Js_of_ocaml.(
+        Dom_html.addEventListener(
+          Dom_html.document,
+          Dom.Event.make(name),
+          Dom_html.handler(e => {
+            f(e);
+            Js._true;
+          }),
+          Js._false,
+        )
+      );
+    let move =
+      listen("pointermove", e =>
+        Util.JsUtil.set_css_custom_property(
+          "--outline-w",
+          string_of_int(
+            max(140, min(420, Js_of_ocaml.Js.Unsafe.coerce(e)##.clientX)),
+          )
+          ++ "px",
+        )
+      );
+    let up = ref(Option.none);
+    up :=
+      Some(
+        listen("pointerup", _ => {
+          Js_of_ocaml.Dom_html.removeEventListener(move);
+          Option.iter(Js_of_ocaml.Dom_html.removeEventListener, up^);
+        }),
+      );
+    Effect.Prevent_default;
+  }),
+];
 
 /* the keyboard to the outline: a click anywhere in it takes focus */
 let take_focus =
