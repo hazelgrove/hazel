@@ -44,13 +44,13 @@ module Scratchpad = {
     kind: kind_persistent,
   };
 
-  let mk_code = (~name, ~editor, ()): t => {
+  let mk_code = (~name, ~editor, ~agent=Agent.Utils.init(), ()): t => {
     name,
     kind:
       Code({
         program: Whole(editor),
         view: SlideView.init,
-        agent: Agent.Utils.init(),
+        agent,
       }),
     dormant: false,
   };
