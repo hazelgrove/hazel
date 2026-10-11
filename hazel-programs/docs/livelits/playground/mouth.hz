@@ -815,9 +815,8 @@ let hairdos = ^^livelit(Drawing.^polygons((
   ],
   current = 1, chosen = -1, held = false, moved = false))) in
 
-let ^hairdo = Drawing.^choice@<Hair>(
-  [("short", Short), ("long", Long), ("curly", Curly)]) in
-let hairdo = ^^livelit(^hairdo(Long)) in
+let hairdo = ^^livelit(Drawing.^choice@<Hair>(
+  [("short", Short), ("long", Long), ("curly", Curly)])(Long)) in
 let hairdo_name = case hairdo | Short => "short" | Long => "long" | Curly => "curly" end in
 let hair =
   Drawing.named(hairdos, hairdo_name) @ Drawing.named(hairdos, hairdo_name ++ " top") in
@@ -846,13 +845,11 @@ let shoe = ^^livelit(Drawing.^polygons((
 
 # THE EYES #
 
-let ^eye_style = Drawing.^choice@<EyeStyle>(
-  [("plain", Plain), ("stars", StarEyes), ("hearts", HeartEyes), ("x eyes", XEyes)]) in
-let eye_style = ^^livelit(^eye_style(Plain)) in
-let ^iris_color = Drawing.^choice@<String>(
+let eye_style = ^^livelit(Drawing.^choice@<EyeStyle>(
+  [("plain", Plain), ("stars", StarEyes), ("hearts", HeartEyes), ("x eyes", XEyes)])(Plain)) in
+let iris_color = ^^livelit(Drawing.^choice@<String>(
   [("blue", "#3b82f6"), ("green", "#22c55e"), ("brown", "#8b5a2b"),
-   ("gray", "#9ca3af"), ("purple", "#8b5cf6")]) in
-let iris_color = ^^livelit(^iris_color("#3b82f6")) in
+   ("gray", "#9ca3af"), ("purple", "#8b5cf6")])("#3b82f6")) in
 let eye_size = ^^livelit(Drawing.^slider("eye size", -35, 300)(50)) in
 let eye_shape = ^^livelit(Drawing.^slider("eye shape (round / narrow)", 0, 100)(0)) in
 let eye_angle = ^^livelit(Drawing.^slider("eye angle", -60, 60)(0)) in
@@ -962,21 +959,18 @@ let eyes = eye((68., float_of_int(eye_angle))) @ eye((132., 0. -. float_of_int(e
 
 # THE MOUTH #
 
-let ^teeth = Drawing.^choice@<Teeth>(
-  [("normal teeth", NormalTeeth), ("spiky", SpikyTeeth), ("no teeth", NoTeeth)]) in
-let ^tongue = Drawing.^choice@<Tongue>(
-  [("tongue in", TongueIn), ("sticking out", TongueOut), ("no tongue", NoTongue)]) in
-let ^tongue_color = Drawing.^choice@<String>(
-  [("pink", "#e75480"), ("rose", "#ff6f91"), ("red", "#d62f4b"), ("magenta", "#c71585"),
-   ("purple", "#8e44ad"), ("green", "#2ecc71"), ("blue", "#3b82f6")]) in
 let smile = ^^livelit(Drawing.^slider("smile", -100, 200)(85)) in
 let mouth_open = ^^livelit(Drawing.^slider("mouth open", 0, 300)(0)) in
-let teeth = ^^livelit(^teeth(NormalTeeth)) in
+let teeth = ^^livelit(Drawing.^choice@<Teeth>(
+  [("normal teeth", NormalTeeth), ("spiky", SpikyTeeth), ("no teeth", NoTeeth)])(NormalTeeth)) in
 let spikes = ^^livelit(Drawing.^slider("spiky teeth", 0, 15)(5)) in
-let tongue = ^^livelit(^tongue(TongueIn)) in
+let tongue = ^^livelit(Drawing.^choice@<Tongue>(
+  [("tongue in", TongueIn), ("sticking out", TongueOut), ("no tongue", NoTongue)])(TongueIn)) in
 let tongue_length = ^^livelit(Drawing.^slider("tongue length", 10, 300)(100)) in
 let tongue_width = ^^livelit(Drawing.^slider("tongue width", 30, 250)(100)) in
-let tongue_color = ^^livelit(^tongue_color("#e75480")) in
+let tongue_color = ^^livelit(Drawing.^choice@<String>(
+  [("pink", "#e75480"), ("rose", "#ff6f91"), ("red", "#d62f4b"), ("magenta", "#c71585"),
+   ("purple", "#8e44ad"), ("green", "#2ecc71"), ("blue", "#3b82f6")])("#e75480")) in
 # each tongue color darkened, for its outline (the game mixes in 45% #
 # black) #
 let tongue_line =

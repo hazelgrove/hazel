@@ -810,9 +810,8 @@ let hairdos = ^^livelit(Drawing.^polygons((
   ],
   current = 1, chosen = -1, held = false, moved = false))) in
 
-let ^hairdo = Drawing.^choice@<Hair>(
-  [("short", Short), ("long", Long), ("curly", Curly)]) in
-let hairdo = ^^livelit(^hairdo(Long)) in
+let hairdo = ^^livelit(Drawing.^choice@<Hair>(
+  [("short", Short), ("long", Long), ("curly", Curly)])(Long)) in
 let hairdo_name = case hairdo | Short => "short" | Long => "long" | Curly => "curly" end in
 let hair =
   Drawing.named(hairdos, hairdo_name) @ Drawing.named(hairdos, hairdo_name ++ " top") in
@@ -841,13 +840,11 @@ let shoe = ^^livelit(Drawing.^polygons((
 
 # THE EYES #
 
-let ^eye_style = Drawing.^choice@<EyeStyle>(
-  [("plain", Plain), ("stars", StarEyes), ("hearts", HeartEyes), ("x eyes", XEyes)]) in
-let eye_style = ^^livelit(^eye_style(Plain)) in
-let ^iris_color = Drawing.^choice@<String>(
+let eye_style = ^^livelit(Drawing.^choice@<EyeStyle>(
+  [("plain", Plain), ("stars", StarEyes), ("hearts", HeartEyes), ("x eyes", XEyes)])(Plain)) in
+let iris_color = ^^livelit(Drawing.^choice@<String>(
   [("blue", "#3b82f6"), ("green", "#22c55e"), ("brown", "#8b5a2b"),
-   ("gray", "#9ca3af"), ("purple", "#8b5cf6")]) in
-let iris_color = ^^livelit(^iris_color("#3b82f6")) in
+   ("gray", "#9ca3af"), ("purple", "#8b5cf6")])("#3b82f6")) in
 let eye_size = ^^livelit(Drawing.^slider("eye size", -35, 300)(50)) in
 let eye_shape = ^^livelit(Drawing.^slider("eye shape (round / narrow)", 0, 100)(0)) in
 let eye_angle = ^^livelit(Drawing.^slider("eye angle", -60, 60)(0)) in

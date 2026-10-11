@@ -618,9 +618,8 @@ let shirts = ^^livelit(Drawing.^polygons((
 # Messed Up Dress Up's shirt controls: its style, and its width and #
 # height. The style picks the torso; width and height stretch it about #
 # the neck, sideways and downward, starting at the size it is drawn. #
-let ^shirt_style = Drawing.^choice@<Style>(
-  [("t-shirt", TShirt), ("long sleeves", LongSleeves), ("tank top", TankTop)]) in
-let shirt_style = ^^livelit(^shirt_style(TShirt)) in
+let shirt_style = ^^livelit(Drawing.^choice@<Style>(
+  [("t-shirt", TShirt), ("long sleeves", LongSleeves), ("tank top", TankTop)])(TShirt)) in
 let shirt_width = ^^livelit(Drawing.^slider("shirt width", 10, 120)(66)) in
 let shirt_height = ^^livelit(Drawing.^slider("shirt height", 20, 300)(146)) in
 
@@ -897,9 +896,8 @@ let hairdos = ^^livelit(Drawing.^polygons((
   ],
   current = 1, chosen = -1, held = false, moved = false))) in
 
-let ^hairdo = Drawing.^choice@<Hair>(
-  [("short", Short), ("long", Long), ("curly", Curly)]) in
-let hairdo = ^^livelit(^hairdo(Long)) in
+let hairdo = ^^livelit(Drawing.^choice@<Hair>(
+  [("short", Short), ("long", Long), ("curly", Curly)])(Long)) in
 let hairdo_name = case hairdo | Short => "short" | Long => "long" | Curly => "curly" end in
 let hair =
   Drawing.named(hairdos, hairdo_name) @ Drawing.named(hairdos, hairdo_name ++ " top") in
@@ -980,10 +978,9 @@ let disc = fun (name, c, r, stroke, fill) : (String, Point, Float, Stroke, Strin
 # hand; 1 a thumbs-up, 100 a fringe), an alien hand's, and the claws' #
 # length as a percent of the usual. #
 
-let ^hand_style = Drawing.^choice@<Hand>(
+let hand_style = ^^livelit(Drawing.^choice@<Hand>(
   [("round", Round), ("mittens", Mittens), ("stars", Stars),
-   ("claws", Claws), ("human", Human), ("alien", Alien)]) in
-let hand_style = ^^livelit(^hand_style(Human)) in
+   ("claws", Claws), ("human", Human), ("alien", Alien)])(Human)) in
 let hand_size = ^^livelit(Drawing.^slider("hand size", 2, 80)(14)) in
 let fingers = ^^livelit(Drawing.^slider("human fingers", 1, 100)(5)) in
 let alien_fingers = ^^livelit(Drawing.^slider("alien fingers", 1, 99)(3)) in

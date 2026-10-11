@@ -804,9 +804,8 @@ let hairdos = ^^livelit(Drawing.^polygons((
   ],
   current = 1, chosen = -1, held = false, moved = false))) in
 
-let ^hairdo = Drawing.^choice@<Hair>(
-  [("short", Short), ("long", Long), ("curly", Curly)]) in
-let hairdo = ^^livelit(^hairdo(Long)) in
+let hairdo = ^^livelit(Drawing.^choice@<Hair>(
+  [("short", Short), ("long", Long), ("curly", Curly)])(Long)) in
 let hairdo_name = case hairdo | Short => "short" | Long => "long" | Curly => "curly" end in
 let hair =
   Drawing.named(hairdos, hairdo_name) @ Drawing.named(hairdos, hairdo_name ++ " top") in
