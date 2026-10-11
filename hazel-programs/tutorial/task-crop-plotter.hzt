@@ -2,7 +2,7 @@
 Probes / Task - Crop Plotter
 
 @flags
-show_report version=1 id=f0000032-0032-0032-0032-000000000032
+show_report version=2 id=f0000032-0032-0032-0032-000000000032
 
 @prompt
 # Task: Plant a column
@@ -79,7 +79,7 @@ in
 
 # TODO: Complete setCol helper here, AFTER calling it in update below #
 let setCol(grove: Grove, col: Col, plant: Plant): Grove =
-¿
+  ¿
 
 
 in
@@ -99,20 +99,20 @@ in
 let update(m: Model, action: Action): Model =
   case action
   | SelectSeed(idx) =>
-      (
-        grove = m.grove,
-        currentSeed = nth(m.seedInventory, idx),
-        seedInventory = m.seedInventory
-      )
+    (
+      grove = m.grove,
+      currentSeed = nth(m.seedInventory, idx),
+      seedInventory = m.seedInventory
+    )
   | PlantSeed(row, col) =>
-      updateGrove(m, fun g -> setCell(g, row, col, m.currentSeed))
+    updateGrove(m, fun g -> setCell(g, row, col, m.currentSeed))
   | Uproot(row, col) =>
-      updateGrove(m, fun g -> setCell(g, row, col, ""))
+    updateGrove(m, fun g -> setCell(g, row, col, ""))
   | ClearGrove =>
-      updateGrove(m, fun g -> setAll(g, ""))
+    updateGrove(m, fun g -> setAll(g, ""))
   | PlantRow(row) =>
-      updateGrove(m, fun g -> setRow(g, row, m.currentSeed))
-  # TODO: Add PlantCol case here #
+    updateGrove(m, fun g -> setRow(g, row, m.currentSeed))
+    # TODO: Add PlantCol case here #
   end
 in
 
