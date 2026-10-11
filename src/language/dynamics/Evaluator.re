@@ -109,6 +109,9 @@ let evaluate =
       ~track_reuse: bool,
       ~reused_ids: Id.Map.t(unit),
       ~eval_info: EvalInfo.t,
+      /* calls reused from earlier evaluations (CallMemo): for evaluating
+         a livelit's view again; None everywhere else */
+      ~call_memo: option(CallMemo.t),
       // Outputs
       ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t))),
     ) => {
@@ -300,19 +303,44 @@ let evaluate =
           ]
         | _ => delegations
         };
-      Trampoline.Next(
-        () =>
-          evaluate(
-            ~reuse_map=body_reuse_map,
-            ~in_closure?,
-            ~call_stack,
-            ~delegations,
-            ~parent_state=state,
-            ~current_top_id,
-            env,
-            next,
-          ),
-      );
+      let continue = () =>
+        evaluate(
+          ~reuse_map=body_reuse_map,
+          ~in_closure?,
+          ~call_stack,
+          ~delegations,
+          ~parent_state=state,
+          ~current_top_id,
+          env,
+          next,
+        );
+      switch (call_memo, kind, next.term) {
+      | (Some(memo), Some(FunAp), Closure(call_env, body)) =>
+        /* a call: the same call as before gives what it gave before */
+        let key =
+          CallMemo.is_costly(memo, body)
+            ? Some(CallMemo.key(call_env, body)) : None;
+        switch (Option.bind(key, key => CallMemo.find(memo, body, key))) {
+        | Some(value) => Trampoline.return(value)
+        | None =>
+          let steps_before = state^.step_count;
+          Trampoline.Next(
+            () => {
+              let.trampoline value = continue();
+              CallMemo.record(
+                memo,
+                ~steps=state^.step_count - steps_before,
+                ~key?,
+                call_env,
+                body,
+                value,
+              );
+              Trampoline.return(value);
+            },
+          );
+        };
+      | _ => Trampoline.Next(continue)
+      };
     };
   }
 
@@ -604,6 +632,7 @@ let prepare_evaluation =
          it (the worker posts it as the reuse plan): the pass is a full
          walk of the program and was costing as much as the evaluation */
       ~reuse_stream: option(IncrEval.t(EvaluatorState.t))=None,
+      ~call_memo: option(CallMemo.t)=None,
       ~outbox,
       d: DHExp.t,
     )
@@ -649,6 +678,7 @@ let prepare_evaluation =
       ~delegations=[],
       ~reuse_map,
       ~reused_ids,
+      ~call_memo,
       ~parent_state=state,
       ~outbox,
       ~current_top_id=None,
@@ -780,13 +810,14 @@ let evaluate =
    time: 76% of a Polygons click in Firefox. A caller that only reads the
    value's data, and applies its functions by evaluating again, can take
    it as it is. */
-let evaluate_open = (~env, d: DHExp.t): Exp.t => {
+let evaluate_open = (~call_memo=?, ~env, d: DHExp.t): Exp.t => {
   let (_, result) =
     prepare_evaluation(
       ~prev=IncrEval.empty,
       ~eval_info=EvalInfo.empty,
       ~env,
       ~reuse_map=None,
+      ~call_memo,
       ~outbox=None,
       d,
     );

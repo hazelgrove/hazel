@@ -38,6 +38,7 @@ module MerkleSet = MerkleSet;
 module ValueHash = ValueHash;
 module ShareCodec = ShareCodec;
 module IdentityMemo = IdentityMemo;
+module IdentityTable = IdentityTable;
 module Id = Id;
 module Unicode = Unicode;
 module HazelString = HazelString;
