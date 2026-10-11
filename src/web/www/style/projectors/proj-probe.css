@@ -1389,6 +1389,17 @@
 .below-wrapper .live-offside .sample-group:has(.rich-livelit-view) {
   gap: 8px;
 }
+/* ...wrapping onto rows within the drawer's width (ProbeProj.drawer_wrap):
+   --per-row views a row, each row the lines a view takes, a line between
+   rows, as the drawer reserves them. */
+.below-wrapper .live-offside .sample-group.wraps {
+  display: grid;
+  grid-template-columns: repeat(var(--per-row), max-content);
+  grid-auto-rows: calc(
+    var(--view-lines) * var(--base-font-size) * var(--line-height)
+  );
+  row-gap: calc(var(--base-font-size) * var(--line-height));
+}
 /* ...and the row stays top-aligned beside it: the inline baseline rule
    (.projector.probe .live-offside) outranks the drawer's flex-start, and
    on a baseline a One-mode ⋯ pushed the card 2px down, past its rows. */

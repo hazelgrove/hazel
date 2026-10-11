@@ -195,7 +195,9 @@ let ^trace = {
   draws to the card's edges, and a view 2px less than its lines' height
   (25.13px a line: 124px for five) fills the rows the drawer reserves for
   it but for those 2px, which it overhangs. Views of `Tune` in Views /
-  Piano Roll are drawn for it.
+  Piano Roll are drawn for it. Samples of one call that don't fit the
+  drawer's width (80 columns, the width its text wraps to) side by side,
+  each as wide as its `shape`, wrap onto rows, a line between rows.
 
 The renderer is `LivelitRenderer.re`, registered in
 `RichProbeRegistry.re` ahead of the generic HTML and card renderers; the

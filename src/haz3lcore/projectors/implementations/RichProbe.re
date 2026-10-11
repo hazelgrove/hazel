@@ -67,6 +67,9 @@ module type RichProbe = {
   /* Height in editor rows in a sample chip on the line: the view goes
      there if this is at most lines_on_line, else it waits for the drawer */
   let line_rows: (model, value) => int;
+  /* Width in columns of the rendering in a drawer chip, if known: the
+     drawer wraps such views onto rows (ProbeProj.drawer_wrap) */
+  let drawer_cols: (model, value) => option(int);
 
   /* The views this renderer offers for a value, as the models that select
      them, in the order an automatic pick prefers them (its pick is the
@@ -134,6 +137,14 @@ type packed_renderer = {
     ) =>
     option(int),
   line_rows:
+    (
+      ~statics: option(Info.t),
+      ~model: option(packed_model),
+      Sort.t,
+      Exp.t
+    ) =>
+    option(int),
+  drawer_cols:
     (
       ~statics: option(Info.t),
       ~model: option(packed_model),
@@ -252,6 +263,17 @@ let pack_renderer =
       | None =>
         R.parse(~statics, sort, exp)
         |> Option.map(v => R.line_rows(R.init(v), v))
+      },
+    drawer_cols: (~statics, ~model, sort, exp) =>
+      switch (Option.bind(model, cast_model)) {
+      | Some(m) =>
+        Option.bind(R.parse_chosen(~statics, sort, exp, m), v =>
+          R.drawer_cols(m, v)
+        )
+      | None =>
+        Option.bind(R.parse(~statics, sort, exp), v =>
+          R.drawer_cols(R.init(v), v)
+        )
       },
     views: (~statics, sort, exp) =>
       switch (R.parse(~statics, sort, exp)) {
