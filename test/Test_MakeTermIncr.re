@@ -37,6 +37,15 @@ let check_parity = (name: string, seg: Segment.t): MakeTerm.Incr.cache => {
   cache;
 };
 
+/* the statics path (term_of) grafts the same item parses */
+let check_term_of = (name: string, seg: Segment.t): unit => {
+  MakeTerm.Incr.last := None;
+  let fb = MakeTerm.Incr.fell_back^;
+  let term = MakeTerm.Incr.term_of(seg);
+  check(int, name ++ ":term_of no fallback", fb, MakeTerm.Incr.fell_back^);
+  check(bool, name ++ ":term_of", true, term == MakeTerm.go(seg).term);
+};
+
 let corpus_case = (file: string, ()) => {
   let seg = CorpusUtil.mega_seg(file);
   let cache = check_parity(file, seg);
@@ -57,15 +66,30 @@ let corpus_case = (file: string, ()) => {
   let reparsed = MakeTerm.Incr.full_analyzed^ - a1;
   check(bool, file ++ ": localized reparse", true, reparsed <= 1);
   records_agree(file ++ ":after edit", MakeTerm.go(seg'), incr_r);
-};
-
-/* the statics path (term_of) grafts the same item parses */
-let check_term_of = (name: string, seg: Segment.t): unit => {
-  MakeTerm.Incr.last := None;
-  let fb = MakeTerm.Incr.fell_back^;
-  let term = MakeTerm.Incr.term_of(seg);
-  check(int, name ++ ":term_of no fallback", fb, MakeTerm.Incr.fell_back^);
-  check(bool, name ++ ":term_of", true, term == MakeTerm.go(seg).term);
+  check_term_of(file, seg);
+  ignore(MakeTerm.Incr.term_of(List.map(p => p, seg)));
+  check(
+    int,
+    file ++ ": term_of a fresh list of the same pieces parses nothing",
+    0,
+    MakeTerm.Incr.analyzed^,
+  );
+  let (edited, found) =
+    CorpusUtil.edit_token(
+      ~at=`Last,
+      ~keep_id=true,
+      ~needle="9",
+      ~repl="8",
+      seg,
+    );
+  check(bool, file ++ ": a 9 to edit", true, found);
+  check_term_of(file ++ " edited", edited);
+  check(
+    int,
+    file ++ ": term_of re-parses the edited item only",
+    1,
+    MakeTerm.Incr.analyzed^,
+  );
 };
 
 let edge_case = ((name, src), ()) => {

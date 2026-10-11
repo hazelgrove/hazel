@@ -108,69 +108,6 @@ let probe_capture_parity = (): unit => {
   };
 };
 
-/* per-item MakeTerm matches the monolithic term and re-parses per item */
-let incr_maketerm_parity = (): unit => {
-  let settings = CoreSettings.on;
-  let ctx = Builtins.ctx_init(Some(Operators.default_mode));
-  let check_prog = (label, seg) => {
-    let t_mono = MakeTerm.go(seg).term;
-    let t_incr = MakeTerm.Incr.term_of(seg);
-    let chain_ids = t => List.map(Exp.rep_id, DefStatics.chain(t));
-    check(
-      bool,
-      label ++ ": chain ids",
-      true,
-      chain_ids(t_mono) == chain_ids(t_incr),
-    );
-    let errs = t => {
-      let (map, _) = Statics.mk_unmemoized(settings, ctx, t);
-      List.sort_uniq(compare, Statics.Map.error_ids(map));
-    };
-    check(
-      bool,
-      label ++ ": statics errors",
-      true,
-      errs(t_mono) == errs(t_incr),
-    );
-    check(
-      bool,
-      label ++ ": full term equal",
-      true,
-      compare(t_mono, t_incr) == 0,
-    );
-  };
-  check_prog(
-    "small",
-    parse_seg_of("let a = 1 in\ntest a == 1 end;\nlet b = a + 1 in\nb"),
-  );
-
-  let seg = CorpusUtil.mega_seg("mega-1k.hz");
-  check_prog("mega-1k", seg);
-  /* fresh list, same pieces: nothing re-parses */
-  let seg' = List.map(p => p, seg);
-  let _ = MakeTerm.Incr.term_of(seg');
-  check(int, "recombination reuse", 0, MakeTerm.Incr.analyzed^);
-  let (seg2, found) =
-    CorpusUtil.edit_token(
-      ~at=`Last,
-      ~keep_id=true,
-      ~needle="9",
-      ~repl="8",
-      seg,
-    );
-  assert(found);
-  let t2 = MakeTerm.Incr.term_of(seg2);
-  check(int, "one edit, one item", 1, MakeTerm.Incr.analyzed^);
-  let t2_mono = MakeTerm.go(seg2).term;
-  check(
-    bool,
-    "edited: chain ids",
-    true,
-    List.map(Exp.rep_id, DefStatics.chain(t2_mono))
-    == List.map(Exp.rep_id, DefStatics.chain(t2)),
-  );
-};
-
 /* at every chunk of a yielding evaluation, the incremental stream
    collector agrees with the full-walk one */
 let stream_collector_parity = (): unit => {
@@ -245,6 +182,5 @@ let tests = (
   [
     test_case("stream collector parity", `Quick, stream_collector_parity),
     test_case("probe capture parity", `Quick, probe_capture_parity),
-    test_case("incremental MakeTerm parity", `Quick, incr_maketerm_parity),
   ],
 );
