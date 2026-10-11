@@ -43,6 +43,9 @@ type Found = + Found(Point) + Missing in
 # A hairdo, as the buttons name it. #
 type Hair = + Short + Long + Curly in
 
+# A shirt's style, as its buttons name it. #
+type Style = + TShirt + LongSleeves + TankTop in
+
 # DRAWING, AS A LIBRARY #
 
 # The editor, the picture viewer, the radio buttons, and the functions #
@@ -546,11 +549,13 @@ module Drawing = {
 
 # THE SHIRT AND PANTS #
 
-# As the last slides have them, but the shirt has no sleeves: the arms #
-# bring their own. Its shoulders are anchors, where the arms come out. #
-# The pants hang from the shirt's hips. #
+# As the last slides have them, but the shirt is a system of polygons #
+# now (see THE ARMS): its editor draws the torsos, without sleeves -- a #
+# t-shirt's, and a tank top's with its straps over bare shoulders -- #
+# with the shoulders as anchors, where the arms come out. The pants #
+# hang from the shirt's hips. #
 
-let shirt = ^^livelit(Drawing.^polygons((
+let shirts = ^^livelit(Drawing.^polygons((
   shapes = [
     Polygon((
       name = "shirt",
@@ -567,6 +572,37 @@ let shirt = ^^livelit(Drawing.^polygons((
       ],
       stroke = (width = 3., color = "#2b4a6f"),
       fill = "#5b8bd0")),
+    Polygon((
+      name = "tank",
+      points = [
+        (at = (136., 40.), label = Plain),
+        (at = (184., 40.), label = Plain),
+        (at = (226., 50.), label = Anchor("right shoulder")),
+        (at = (224., 104.), label = Plain),
+        (at = (96., 104.), label = Plain),
+        (at = (94., 50.), label = Anchor("left shoulder"))
+      ],
+      stroke = (width = 2., color = "#8a5a44"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "tank",
+      points = [
+        (at = (140., 40.), label = Plain),
+        (at = (160., 60.), label = Anchor("neck")),
+        (at = (180., 40.), label = Plain),
+        (at = (196., 40.), label = Plain),
+        (at = (204., 64.), label = Plain),
+        (at = (214., 86.), label = Plain),
+        (at = (224., 104.), label = Plain),
+        (at = (222., 206.), label = Anchor("right hip")),
+        (at = (98., 206.), label = Anchor("left hip")),
+        (at = (96., 104.), label = Plain),
+        (at = (106., 86.), label = Plain),
+        (at = (116., 64.), label = Plain),
+        (at = (124., 40.), label = Plain)
+      ],
+      stroke = (width = 3., color = "#2b4a6f"),
+      fill = "#5b8bd0")),
     Path((
       name = "stitching",
       points = [
@@ -576,6 +612,50 @@ let shirt = ^^livelit(Drawing.^polygons((
       stroke = (width = 1., color = "#dce8f7")))
   ],
   current = 0, chosen = -1, held = false, moved = false))) in
+
+# Messed Up Dress Up's shirt controls: its style, and its width and #
+# height. The style picks the torso; width and height stretch it about #
+# the neck, sideways and downward, starting at the size it is drawn. #
+let ^shirt_style = Drawing.^choice@<Style>(
+  [("t-shirt", TShirt), ("long sleeves", LongSleeves), ("tank top", TankTop)]) in
+let style_worn = ^^livelit(^shirt_style(TShirt)) in
+let ^shirt_width_dial = Drawing.^slider("shirt width", 10, 120) in
+let ^shirt_height_dial = Drawing.^slider("shirt height", 20, 300) in
+let shirt_width = ^^livelit(^shirt_width_dial(66)) in
+let shirt_height = ^^livelit(^shirt_height_dial(146)) in
+
+# Every point x-scaled about the neck, and those below it y-scaled. #
+let stretch_points : ([Vertex], Float, Float, Float, Float) -> [Vertex] =
+  fun (vs, cx, cy, sx, sy) ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      (at = (cx +. (x -. cx) *. sx, if y >. cy then cy +. (y -. cy) *. sy else y),
+       label = v.label)
+      :: stretch_points((tl, cx, cy, sx, sy))
+    end in
+let stretch : (Picture, Float, Float, Float, Float) -> Picture =
+  fun (pic, cx, cy, sx, sy) ->
+    case pic
+    | [] => []
+    | sh :: tl =>
+      Drawing.with_points(sh, stretch_points((Drawing.points_of(sh), cx, cy, sx, sy)))
+      :: stretch((tl, cx, cy, sx, sy))
+    end in
+
+let torso =
+  Drawing.named(shirts, case style_worn | TankTop => "tank" | _ => "shirt" end)
+  @ Drawing.named(shirts, "stitching") in
+# The drawn torso is 66 from the neck to a shoulder, and 146 from the #
+# neck to the hips. #
+let shirt =
+  case Drawing.anchor(torso, "neck")
+  | Found((cx, cy)) =>
+    stretch((torso, cx, cy, float_of_int(shirt_width) /. 66.,
+             float_of_int(shirt_height) /. 146.))
+  | Missing => torso
+  end in
 
 let pants = ^^livelit(Drawing.^polygons((
   shapes = [
@@ -597,7 +677,17 @@ let pants = ^^livelit(Drawing.^polygons((
   ],
   current = 0, chosen = -1, held = false, moved = false))) in
 
-let pants_at = Drawing.placed(pants, "left hip", shirt, "left hip") in
+# The pants' hips are as wide as the shirt's, so they take its width #
+# too: stretched sideways about their left hip, then hung from it, so #
+# both hips meet the shirt's. #
+let pants_at =
+  case Drawing.anchor(pants, "left hip")
+  | Found((lx, _)) =>
+    Drawing.placed(
+      stretch((pants, lx, 1000000., float_of_int(shirt_width) /. 66., 1.)),
+      "left hip", shirt, "left hip")
+  | Missing => Drawing.placed(pants, "left hip", shirt, "left hip")
+  end in
 let body = pants_at @ shirt in
 
 # THE NECK #
@@ -887,6 +977,9 @@ let disc = fun (name, c, r, stroke, fill) : (String, Point, Float, Stroke, Strin
 # layers: the arm; the shirt's sleeve over its first 38%, as Messed Up #
 # Dress Up's t-shirt has it; the sleeve again without its outline, over #
 # the torso's edge, so sleeve and torso join; and the hand. #
+# How much of the arm its sleeve covers, by the shirt's style, as the #
+# game has it: a t-shirt's 38%, long sleeves' 95%, a tank top's none. #
+let sleeve = case style_worn | TShirt => 0.38 | LongSleeves => 0.95 | TankTop => 0. end in
 let arm = fun (side, shoulder) : (Float, Found) ->
   case shoulder
   | Missing => ([], [], [], [])
@@ -897,8 +990,13 @@ let arm = fun (side, shoulder) : (Float, Found) ->
     let (rx, ry) = (sx -. side *. 12., sy +. 12.) in
     let along = fun k : Float -> (rx +. side *. k *. len *. cos(a), ry +. k *. len *. sin(a)) in
     ([band(("arm", (rx, ry), along(1.), w, skin_line, skin))],
-     [band(("sleeve", (rx, ry), along(0.38), w +. 14., cloth_line, cloth))],
-     [band(("sleeve", (rx, ry), along(0.38), w +. 9., (width = 0., color = cloth), cloth))],
+     (if sleeve >. 0.
+      then [band(("sleeve", (rx, ry), along(sleeve), w +. 14., cloth_line, cloth))]
+      else []),
+     # with no sleeve, the arm's own skin joins it to the bare shoulder #
+     (if sleeve >. 0.
+      then [band(("sleeve", (rx, ry), along(sleeve), w +. 9., (width = 0., color = cloth), cloth))]
+      else [band(("arm", (rx, ry), along(0.2), w -. 1., (width = 0., color = skin), skin))]),
      [disc(("hand", along(1.), 14., skin_line, skin))])
   end in
 
@@ -932,4 +1030,6 @@ let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
 
 # Slide the arms' angle and they swing from the shoulders, up over #
 # the head or down by the sides; slide their length and width and they #
-# grow, sleeves and all. The hair, neck and shoes work as before. #
+# grow, sleeves and all. Press a shirt style and the sleeves change; #
+# slide the shirt wider or taller and the arms and pants move with it. #
+# The hair, neck and shoes work as before. #
