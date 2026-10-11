@@ -1,13 +1,10 @@
 # Mouth #
 
-# The face gets a mouth, as Messed Up Dress Up draws one: a smile, from #
-# a frown to a grin, that opens -- a smile like a D, a frown the other #
-# way up -- with teeth (plain, spiky or none) and a tongue (in, sticking #
-# out, or none) of any length, width and color. Its lips are quadratic #
-# curves between two corners, in the game's face units. Where the game #
-# clips the inside of the mouth to the lips, the teeth and tongue here #
-# are regions between the lip curves. A deep mouth stretches the head's #
-# lower half, as in the game, and the head rises on its neck. #
+# The head gets a mouth, as Messed Up Dress Up draws one: a smile, #
+# from a frown to a grin, that opens, with normal teeth, spiky teeth #
+# or none, and a tongue -- in, sticking out, or none -- as long, wide #
+# and colored as its sliders say. A deep mouth stretches the head's #
+# lower half to make room. #
 
 # THE PICTURE, AS TYPES #
 
@@ -32,17 +29,6 @@ type Picture = [Shape] in
 
 # An anchor's point, if a shape has one of that name. #
 type Found = + Found(Point) + Missing in
-
-# FOUND OR MISSING #
-
-# An anchor's point, if a shape has one of that name. #
-type Found = + Found(Point) + Missing in
-
-# A hairdo, as the buttons name it. #
-type Hair = + Short + Long + Curly in
-
-# An eye's style, as its buttons name it. #
-type EyeStyle = + Plain + StarEyes + HeartEyes + XEyes in
 
 # Teeth and a tongue, as their buttons name them. #
 type Teeth = + NormalTeeth + SpikyTeeth + NoTeeth in
@@ -372,9 +358,10 @@ module Drawing = {
       end;
     let shape_nodes : Picture -> [Html.T] =
       fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
-    # The frame: the usual one, grown to take in every point with a #
-    # margin, then made the viewer's shape, 320 by 440, about its middle; #
-    # a taller picture (a long neck) is drawn smaller, never cut off. #
+    # The frame: every point, with a margin, made the viewer's shape, #
+    # 320 by 440, about its middle. It fits the drawing, so a slide that #
+    # draws only a head shows the head large; a slide that wants its #
+    # frame to stay put while the drawing changes adds Drawing.frame. #
     let vertices_of = fun s : Shape ->
       case s | Polygon(p) => p.points | Path(p) => p.points end;
     let grow = fun ((x0, y0, x1, y1), v) : ((Float, Float, Float, Float), Vertex) ->
@@ -389,7 +376,16 @@ module Drawing = {
       fun (b, ss) ->
         case ss | [] => b | s :: tl => bounds((grow_all((b, vertices_of(s))), tl)) end;
     let view_box = fun pic : Picture ->
-      let (x0, y0, x1, y1) = bounds(((0., -40., 320., 400.), pic)) in
+      let start =
+        case pic
+        | [] => (0., 0., 0., 0.)
+        | s :: _ =>
+          case vertices_of(s)
+          | [] => (0., 0., 0., 0.)
+          | v :: _ => let (x, y) = v.at in (x, y, x, y)
+          end
+        end in
+      let (x0, y0, x1, y1) = bounds((start, pic)) in
       let (w, h) = (x1 -. x0, y1 -. y0) in
       let (w2, h2) =
         if w *. 440. >. h *. 320. then (w, w *. 440. /. 320.) else (h *. 320. /. 440., h) in
@@ -548,88 +544,42 @@ module Drawing = {
       | s :: tl =>
         let name = case s | Polygon(p) => p.name | Path(p) => p.name end in
         if name == n then s :: named(tl, n) else named(tl, n)
-      end
+      end;
+
+  # A box the picture always takes in: an invisible path along its #
+  # diagonal, for a slide whose frame should stay put while what it #
+  # draws changes -- the arms swinging, the eyes growing. #
+  let frame = fun (x0, y0, x1, y1) : (Float, Float, Float, Float) ->
+    [Path((name = "frame",
+           points = [(at = (x0, y0), label = Plain), (at = (x1, y1), label = Plain)],
+           stroke = (width = 0., color = "none")))]
 } in
 
-# THE SHIRT AND PANTS #
+# HELPERS #
 
-# As the last slide has them; the pants hang from the shirt's hips. #
+let fmin = fun (x, y) : (Float, Float) -> if x <. y then x else y in
+let fmax = fun (x, y) : (Float, Float) -> if x >. y then x else y in
+let fabs = fun x : Float -> if x <. 0. then 0. -. x else x in
 
-let shirt = ^^livelit(Drawing.^polygons((
-  shapes = [
-    Polygon((
-      name = "shirt",
-      points = [
-        (at = (130., 40.), label = Plain),
-        (at = (160., 60.), label = Anchor("neck")),
-        (at = (190., 40.), label = Plain),
-        (at = (232., 56.), label = Plain),
-        (at = (272., 112.), label = Anchor("right hand")),
-        (at = (240., 128.), label = Plain),
-        (at = (224., 104.), label = Plain),
-        (at = (222., 206.), label = Anchor("right hip")),
-        (at = (98., 206.), label = Anchor("left hip")),
-        (at = (96., 104.), label = Plain),
-        (at = (80., 128.), label = Plain),
-        (at = (48., 112.), label = Anchor("left hand")),
-        (at = (88., 56.), label = Plain)
-      ],
-      stroke = (width = 3., color = "#2b4a6f"),
-      fill = "#5b8bd0")),
-    Path((
-      name = "stitching",
-      points = [
-        (at = (104., 194.), label = Plain),
-        (at = (216., 194.), label = Plain)
-      ],
-      stroke = (width = 1., color = "#dce8f7")))
-  ],
-  current = 0, chosen = -1, held = false, moved = false))) in
-
-let pants = ^^livelit(Drawing.^polygons((
-  shapes = [
-    Polygon((
-      name = "pants",
-      points = [
-        (at = (98., 45.), label = Anchor("left hip")),
-        (at = (222., 45.), label = Anchor("right hip")),
-        (at = (230., 195.), label = Plain),
-        (at = (202., 195.), label = Anchor("right foot")),
-        (at = (174., 195.), label = Plain),
-        (at = (160., 87.), label = Plain),
-        (at = (146., 195.), label = Plain),
-        (at = (118., 195.), label = Anchor("left foot")),
-        (at = (90., 195.), label = Plain)
-      ],
-      stroke = (width = 3., color = "#1f2a36"),
-      fill = "#34495e"))
-  ],
-  current = 0, chosen = -1, held = false, moved = false))) in
-
-let body = Drawing.under(pants, "left hip", shirt, "left hip") in
-
-# THE NECK #
-
-# A rectangle as long as the slider says. Its base is the anchor that #
-# goes on the shirt's neck, and its top the one the chin goes on; each #
-# is in the middle of an edge. It is 16 longer than what shows: placed, #
-# it moves 8 down, under the collar, and the head 8 down over its top. #
-
-let neck_length = ^^livelit(Drawing.^slider("neck", 0, 60)(28)) in
-let neck : Picture =
-  let top = 0. -. float_of_int(neck_length) -. 16. in
-  [Polygon((
-    name = "neck",
-    points = [
-      (at = (-12., 0.), label = Plain),
-      (at = (0., 0.), label = Anchor("base")),
-      (at = (12., 0.), label = Plain),
-      (at = (12., top), label = Plain),
-      (at = (0., top), label = Anchor("top")),
-      (at = (-12., top), label = Plain)
-    ],
-    stroke = (width = 2., color = "#8a5a44"),
-    fill = "#f1c27d"))] in
+# Every point x-scaled about cx, and those below cy y-scaled. #
+let stretch_points : ([Vertex], Float, Float, Float, Float) -> [Vertex] =
+  fun (vs, cx, cy, sx, sy) ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      (at = (cx +. (x -. cx) *. sx, if y >. cy then cy +. (y -. cy) *. sy else y),
+       label = v.label)
+      :: stretch_points((tl, cx, cy, sx, sy))
+    end in
+let stretch : (Picture, Float, Float, Float, Float) -> Picture =
+  fun (pic, cx, cy, sx, sy) ->
+    case pic
+    | [] => []
+    | sh :: tl =>
+      Drawing.with_points(sh, stretch_points((Drawing.points_of(sh), cx, cy, sx, sy)))
+      :: stretch((tl, cx, cy, sx, sy))
+    end in
 
 # THE HEAD #
 
@@ -659,205 +609,7 @@ let head = ^^livelit(Drawing.^polygons((
   ],
   current = 0, chosen = -1, held = false, moved = false))) in
 
-# THE HAIR #
-
-# Three hairdos side by side on one canvas, each with its own crown. #
-# Where each is drawn does not matter: the crown places it. Each is #
-# two shapes: the hairdo, drawn behind the head, and its top, drawn on #
-# the head -- the hair over the scalp, down to a fringe -- named the #
-# hairdo's name and "top". #
-
-let hairdos = ^^livelit(Drawing.^polygons((
-  shapes = [
-    Polygon((
-      name = "short",
-      points = [
-        (at = (15.0, 124.0), label = Plain),
-        (at = (13.0, 98.0), label = Plain),
-        (at = (23.0, 76.0), label = Plain),
-        (at = (41.0, 68.0), label = Plain),
-        (at = (55.0, 67.0), label = Plain),
-        (at = (69.0, 68.0), label = Plain),
-        (at = (87.0, 76.0), label = Plain),
-        (at = (97.0, 98.0), label = Plain),
-        (at = (95.0, 124.0), label = Plain),
-        (at = (55.0, 84.0), label = Anchor("crown"))
-      ],
-      stroke = (width = 2.0, color = "#3b2314"),
-      fill = "#6f4e37")),
-    Polygon((
-      name = "long",
-      points = [
-        (at = (116.0, 194.0), label = Plain),
-        (at = (114.0, 104.0), label = Plain),
-        (at = (126.0, 76.0), label = Plain),
-        (at = (146.0, 67.0), label = Plain),
-        (at = (160.0, 66.0), label = Plain),
-        (at = (174.0, 67.0), label = Plain),
-        (at = (194.0, 76.0), label = Plain),
-        (at = (206.0, 104.0), label = Plain),
-        (at = (204.0, 194.0), label = Plain),
-        (at = (184.0, 188.0), label = Plain),
-        (at = (188.0, 124.0), label = Plain),
-        (at = (160.0, 84.0), label = Anchor("crown")),
-        (at = (132.0, 124.0), label = Plain),
-        (at = (136.0, 188.0), label = Plain)
-      ],
-      stroke = (width = 2.0, color = "#111111"),
-      fill = "#2b2b2b")),
-    Polygon((
-      name = "curly",
-      points = [
-        (at = (221.0, 120.0), label = Plain),
-        (at = (215.0, 104.0), label = Plain),
-        (at = (221.0, 90.0), label = Plain),
-        (at = (217.0, 78.0), label = Plain),
-        (at = (229.0, 70.0), label = Plain),
-        (at = (235.0, 60.0), label = Plain),
-        (at = (249.0, 62.0), label = Plain),
-        (at = (257.0, 54.0), label = Plain),
-        (at = (265.0, 60.0), label = Plain),
-        (at = (273.0, 54.0), label = Plain),
-        (at = (281.0, 62.0), label = Plain),
-        (at = (295.0, 60.0), label = Plain),
-        (at = (301.0, 70.0), label = Plain),
-        (at = (313.0, 78.0), label = Plain),
-        (at = (309.0, 90.0), label = Plain),
-        (at = (315.0, 104.0), label = Plain),
-        (at = (309.0, 120.0), label = Plain),
-        (at = (265.0, 84.0), label = Anchor("crown"))
-      ],
-      stroke = (width = 2.0, color = "#7a2e10"),
-      fill = "#b5562b")),
-    Polygon((
-      name = "short top",
-      points = [
-        (at = (18.3, 112.2), label = Plain),
-        (at = (21.0, 104.2), label = Plain),
-        (at = (26.3, 95.9), label = Plain),
-        (at = (33.5, 89.3), label = Plain),
-        (at = (42.2, 84.8), label = Plain),
-        (at = (55.0, 82.5), label = Plain),
-        (at = (67.8, 84.8), label = Plain),
-        (at = (76.5, 89.3), label = Plain),
-        (at = (83.7, 95.9), label = Plain),
-        (at = (89.0, 104.2), label = Plain),
-        (at = (91.7, 112.2), label = Plain),
-        (at = (85.0, 110.0), label = Plain),
-        (at = (79.0, 103.0), label = Plain),
-        (at = (71.0, 105.0), label = Plain),
-        (at = (64.0, 99.0), label = Plain),
-        (at = (56.0, 104.0), label = Plain),
-        (at = (48.0, 99.0), label = Plain),
-        (at = (40.0, 104.0), label = Plain),
-        (at = (33.0, 100.0), label = Plain),
-        (at = (26.0, 106.0), label = Plain),
-        (at = (21.0, 113.0), label = Plain)
-      ],
-      stroke = (width = 2.0, color = "#3b2314"),
-      fill = "#6f4e37")),
-    Polygon((
-      name = "long top",
-      points = [
-        (at = (123.3, 112.2), label = Plain),
-        (at = (126.0, 104.2), label = Plain),
-        (at = (131.3, 95.9), label = Plain),
-        (at = (138.5, 89.3), label = Plain),
-        (at = (147.2, 84.8), label = Plain),
-        (at = (160.0, 82.5), label = Plain),
-        (at = (172.8, 84.8), label = Plain),
-        (at = (181.5, 89.3), label = Plain),
-        (at = (188.7, 95.9), label = Plain),
-        (at = (194.0, 104.2), label = Plain),
-        (at = (196.7, 112.2), label = Plain),
-        (at = (193.0, 112.0), label = Plain),
-        (at = (188.0, 103.0), label = Plain),
-        (at = (178.0, 98.0), label = Plain),
-        (at = (166.0, 97.0), label = Plain),
-        (at = (154.0, 100.0), label = Plain),
-        (at = (143.0, 105.0), label = Plain),
-        (at = (134.0, 111.0), label = Plain),
-        (at = (128.0, 118.0), label = Plain),
-        (at = (124.0, 124.0), label = Plain)
-      ],
-      stroke = (width = 2.0, color = "#111111"),
-      fill = "#2b2b2b")),
-    Polygon((
-      name = "curly top",
-      points = [
-        (at = (228.3, 112.2), label = Plain),
-        (at = (231.0, 104.2), label = Plain),
-        (at = (236.3, 95.9), label = Plain),
-        (at = (243.5, 89.3), label = Plain),
-        (at = (252.2, 84.8), label = Plain),
-        (at = (265.0, 82.5), label = Plain),
-        (at = (277.8, 84.8), label = Plain),
-        (at = (286.5, 89.3), label = Plain),
-        (at = (293.7, 95.9), label = Plain),
-        (at = (299.0, 104.2), label = Plain),
-        (at = (301.7, 112.2), label = Plain),
-        (at = (298.0, 110.0), label = Plain),
-        (at = (293.0, 102.0), label = Plain),
-        (at = (287.0, 106.0), label = Plain),
-        (at = (281.0, 99.0), label = Plain),
-        (at = (275.0, 104.0), label = Plain),
-        (at = (269.0, 98.0), label = Plain),
-        (at = (263.0, 103.0), label = Plain),
-        (at = (257.0, 98.0), label = Plain),
-        (at = (251.0, 104.0), label = Plain),
-        (at = (245.0, 99.0), label = Plain),
-        (at = (239.0, 105.0), label = Plain),
-        (at = (234.0, 101.0), label = Plain),
-        (at = (230.0, 110.0), label = Plain)
-      ],
-      stroke = (width = 2.0, color = "#7a2e10"),
-      fill = "#b5562b"))
-  ],
-  current = 1, chosen = -1, held = false, moved = false))) in
-
-let hairdo = ^^livelit(Drawing.^choice@<Hair>(
-  [("short", Short), ("long", Long), ("curly", Curly)])(Long)) in
-let hairdo_name = case hairdo | Short => "short" | Long => "long" | Curly => "curly" end in
-let hair =
-  Drawing.named(hairdos, hairdo_name) @ Drawing.named(hairdos, hairdo_name ++ " top") in
-
-# THE SHOES #
-
-# One shoe, its ankle the anchor; the left is its mirror image. #
-
-let shoe = ^^livelit(Drawing.^polygons((
-  shapes = [
-    Polygon((
-      name = "shoe",
-      points = [
-        (at = (160.0, 110.0), label = Anchor("ankle")),
-        (at = (172.0, 110.0), label = Plain),
-        (at = (174.0, 122.0), label = Plain),
-        (at = (200.0, 126.0), label = Plain),
-        (at = (204.0, 136.0), label = Plain),
-        (at = (148.0, 136.0), label = Plain),
-        (at = (146.0, 120.0), label = Plain)
-      ],
-      stroke = (width = 2.0, color = "#222222"),
-      fill = "#c0392b"))
-  ],
-  current = 0, chosen = -1, held = false, moved = false))) in
-
-# THE EYES #
-
-let eye_style = ^^livelit(Drawing.^choice@<EyeStyle>(
-  [("plain", Plain), ("stars", StarEyes), ("hearts", HeartEyes), ("x eyes", XEyes)])(Plain)) in
-let iris_color = ^^livelit(Drawing.^choice@<String>(
-  [("blue", "#3b82f6"), ("green", "#22c55e"), ("brown", "#8b5a2b"),
-   ("gray", "#9ca3af"), ("purple", "#8b5cf6")])("#3b82f6")) in
-let eye_size = ^^livelit(Drawing.^slider("eye size", -35, 300)(50)) in
-let eye_shape = ^^livelit(Drawing.^slider("eye shape (round / narrow)", 0, 100)(0)) in
-let eye_angle = ^^livelit(Drawing.^slider("eye angle", -60, 60)(0)) in
-let iris_size = ^^livelit(Drawing.^slider("iris size", 0, 150)(0)) in
-let eye_whites = ^^livelit(Drawing.^slider("eye whites", 0, 150)(0)) in
-let shine_size = ^^livelit(Drawing.^slider("shine size", 0, 150)(45)) in
-
-let fmin = fun (x, y) : (Float, Float) -> if x <. y then x else y in
+# THE FACE, IN THE GAME'S UNITS #
 
 # The game's face units on the head drawn here: its head is 160 high #
 # about (100, 110.6), and this one runs from its crown to its chin. #
@@ -891,71 +643,9 @@ let round_eye : (Float, Float, Float, Float, Float, Int, Int) -> [Point] =
       let (px, py) = (r *. cos(a), k *. r *. sin(a)) in
       (x +. px *. cos(t) -. py *. sin(t), y +. px *. sin(t) +. py *. cos(t))
       :: round_eye((x, y, r, k, t, n, i + 1)) in
-# A star of five points, r to its points, turned by t. #
-let star_eye : (Float, Float, Float, Float, Int) -> [Point] =
-  fun (x, y, r, t, i) ->
-    if i == 10 then []
-    else
-      let a = t -. pi /. 2. +. float_of_int(i) *. pi /. 5. in
-      let rr = if i == 1 || i == 3 || i == 5 || i == 7 || i == 9 then r *. 0.45 else r in
-      (x +. rr *. cos(a), y +. rr *. sin(a)) :: star_eye((x, y, r, t, i + 1)) in
-# A heart, r across from its middle, turned by t. #
-let heart_eye : (Float, Float, Float, Float, Int) -> [Point] =
-  fun (x, y, r, t, i) ->
-    if i == 24 then []
-    else
-      let a = 2. *. pi *. float_of_int(i) /. 24. in
-      let s3 = sin(a) *. sin(a) *. sin(a) in
-      let hx = r *. s3 in
-      let hy = 0. -. r /. 16. *. (13. *. cos(a) -. 5. *. cos(2. *. a) -. 2. *. cos(3. *. a) -. cos(4. *. a)) in
-      (x +. hx *. cos(t) -. hy *. sin(t), y +. hx *. sin(t) +. hy *. cos(t))
-      :: heart_eye((x, y, r, t, i + 1)) in
-# A stroke w wide from a to b, as a polygon. #
-let stroke_eye = fun ((ax, ay), (bx, by), w) : (Point, Point, Float) ->
-  let (dx, dy) = (bx -. ax, by -. ay) in
-  let d = sqrt(dx *. dx +. dy *. dy) in
-  let (nx, ny) = (0. -. dy /. d *. w /. 2., dx /. d *. w /. 2.) in
-  [(ax +. nx, ay +. ny), (bx +. nx, by +. ny), (bx -. nx, by -. ny), (ax -. nx, ay -. ny)] in
-
-# One eye at x, in face units, slanted by deg: the game's eye(). #
-let eye = fun (x, deg) : (Float, Float) ->
-  let y = 100. in
-  let r = float_of_int(6 + eye_size / 7) in
-  let t = deg *. pi /. 180. in
-  let turn = fun (px, py) : (Float, Float) ->
-    (x +. px *. cos(t) -. py *. sin(t), y +. px *. sin(t) +. py *. cos(t)) in
-  case eye_style
-  | XEyes =>
-    [face_shape(("eye", stroke_eye((turn((0. -. r, 0. -. r)), turn((r, r)), 3. +. r /. 6.)), 0., "black", "black")),
-     face_shape(("eye", stroke_eye((turn((0. -. r, r)), turn((r, 0. -. r)), 3. +. r /. 6.)), 0., "black", "black"))]
-  | StarEyes => [face_shape(("eye", star_eye((x, y, r *. 1.5, t, 0)), 2., "#e0a800", "#ffcc33"))]
-  | HeartEyes => [face_shape(("eye", heart_eye((x, y, r *. 1.4, t, 0)), 2., "#a01040", "#e0245e"))]
-  | Plain =>
-    let k = 1. -. 0.88 *. float_of_int(eye_shape) /. 100. in
-    let iris_r = if iris_size > 0 then r +. float_of_int(iris_size) *. 0.25 else 0. in
-    let white_r =
-      if iris_r >. 0. && eye_whites > 0 then iris_r +. float_of_int(eye_whites) *. 0.25 else 0. in
-    let outer = if iris_r >. 0. then iris_r else r in
-    # the shine: toward the light, up and to the left, in the picture's #
-    # own frame, kept within half the eye #
-    let (wx, wy) = (-0.3 *. outer, -0.3 *. outer) in
-    let (ux, uy0) = (cos(t) *. wx +. sin(t) *. wy, (0. -. sin(t) *. wx +. cos(t) *. wy) /. k) in
-    let len = sqrt(ux *. ux +. uy0 *. uy0) in
-    let most = outer *. 0.55 in
-    let (ux, uy) = if len >. most then (ux *. most /. len, uy0 *. most /. len) else (ux, uy0) in
-    let (dx, dy) = (cos(t) *. ux -. sin(t) *. uy *. k, sin(t) *. ux +. cos(t) *. uy *. k) in
-    let shine_r = fmin((r *. float_of_int(shine_size) /. 150., outer *. k *. 0.45)) in
-    (if white_r >. 0. then [face_shape(("eye", round_eye((x, y, white_r, k, t, 20, 0)), 2., "black", "#ffffff"))] else [])
-    @ (if iris_r >. 0. then [face_shape(("eye", round_eye((x, y, iris_r, k, t, 20, 0)), 0., iris_color, iris_color))] else [])
-    @ [face_shape(("eye", round_eye((x, y, r, k, t, 16, 0)), 0., "black", "black"))]
-    @ (if shine_r >. 0.3
-       then [face_shape(("eye", round_eye((x +. dx, y +. dy, shine_r, 1., 0., 10, 0)), 0., "white", "white"))]
-       else [])
-  end in
-
-# Both eyes, mirror images: the left slants by the angle, the right by #
-# its opposite, so the outer corners rise together. #
-let eyes = eye((68., float_of_int(eye_angle))) @ eye((132., 0. -. float_of_int(eye_angle))) in
+# No eyes on this slide, so nothing has stretched the head before the #
+# mouth does. #
+let head_drop = 0. in
 
 # THE MOUTH #
 
@@ -982,7 +672,6 @@ let tongue_line =
   else if tongue_color == "#2ecc71" then "#19703e"
   else "#204887" in
 
-let fmax = fun (x, y) : (Float, Float) -> if x >. y then x else y in
 
 # The lips. Each is a quadratic curve from the corner (60, 150) to the #
 # corner (140, 150), pulled toward a control point (100, c): a smile's #
@@ -1097,9 +786,11 @@ let mouth =
 
 # A deep mouth stretches the head's lower half, as in the game: every #
 # point below the head's middle moves down, more the lower it is, by as #
-# much as the mouth needs below it (12 under the lower lip) or rose. #
+# much as the mouth needs below it (12 under the lower lip) or rose -- #
+# less what big eyes already stretched it (THE EYES): the head takes the #
+# larger of the two. #
 let stretch_by =
-  fmax((rise, fmax((bottom +. 2.5 +. 12. -. 190.6, 0.)))) *. face_scale in
+  fmax((0., fmax((rise, bottom +. 2.5 +. 12. -. 190.6)) -. head_drop)) *. face_scale in
 let (head_cy, head_ry) = (crown_y +. 80. *. face_scale, 80. *. face_scale) in
 let stretch_head : [Vertex] -> [Vertex] =
   fun vs ->
@@ -1119,32 +810,14 @@ let head_shaped : Picture =
 
 # THE PICTURE #
 
-# Each piece placed by its anchor, then stacked in drawing order: the #
-# neck, behind the shirt so it shows in the collar; the body; the shoes; #
-# the back of the hair; the head; and the top of the hair on the head. #
-# The hairdo is placed whole, by its crown, then split into its two #
-# layers. The eyes and mouth go with the head, placed by its chin with #
-# it. #
+# The head, stretched for a deep mouth, and the mouth. #
 
-let neck_at = Drawing.shift(Drawing.placed(neck, "base", body, "neck"), 0., 8.) in
-let head_at =
-  Drawing.shift(Drawing.placed(head_shaped @ eyes @ mouth, "chin", neck_at, "top"), 0., 8.) in
-let hair_at = Drawing.placed(hair, "crown", head_at, "crown") in
-let right_shoe = Drawing.placed(shoe, "ankle", body, "right foot") in
-let left_shoe = Drawing.placed(Drawing.mirrored(shoe), "ankle", body, "left foot") in
-let outfit =
-  neck_at @ body @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo_name) @ head_at
-  @ Drawing.named(hair_at, hairdo_name ++ " top") in
-let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
+let picture = Drawing.frame((110., 80., 210., 170.)) @ head_shaped @ mouth in
+let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (picture)))) in
 
-# Where the crown and the shoes' ankles ended up. #
-(Drawing.anchor(drawn, "crown"), Drawing.anchor(right_shoe, "ankle"),
- Drawing.anchor(left_shoe, "ankle"))
+# Where the chin ended up. #
+Drawing.anchor(drawn, "chin")
 
 # Slide the smile from a frown to a grin, and open the mouth: press #
-# for spiky teeth or none, and stick the tongue out, longer or wider. #
-# Press plain, stars, hearts or x eyes, and slide the eyes bigger, #
-# narrower or slanted; give them an iris, then whites around it. #
-# Press short, long or curly and the outfit's hair changes. Move a #
-# hairdo's crown in its editor and that hairdo sits higher or lower. #
-# Slide the neck longer and the head, and its hair, go up with it. #
+# for normal teeth, spiky teeth or none, and stick the tongue out, #
+# longer or wider. #

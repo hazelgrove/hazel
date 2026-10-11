@@ -1,9 +1,9 @@
-# Shoes and Hair #
+# Hair #
 
-# The outfit, finished: shoes on the pants' feet, a head on the #
-# shirt's neck, and hair on the head's crown -- each piece drawn in its #
-# own editor, anywhere on its canvas, and set into the picture by its #
-# anchors. The hair is one of three hairdos, chosen with buttons. #
+# A head and its hair, chosen with buttons: short, long or curly, as #
+# Messed Up Dress Up has them. Each hairdo is drawn in the hair #
+# editor, in two parts -- the back, behind the head, and the top, over #
+# its crown -- and placed by the crown anchor. #
 
 # THE PICTURE, AS TYPES #
 
@@ -23,11 +23,6 @@ in
 
 # A picture is its shapes, drawn in order: the first is underneath. #
 type Picture = [Shape] in
-
-# FOUND OR MISSING #
-
-# An anchor's point, if a shape has one of that name. #
-type Found = + Found(Point) + Missing in
 
 # FOUND OR MISSING #
 
@@ -361,9 +356,10 @@ module Drawing = {
       end;
     let shape_nodes : Picture -> [Html.T] =
       fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
-    # The frame: the usual one, grown to take in every point with a #
-    # margin, then made the viewer's shape, 320 by 440, about its middle; #
-    # a taller picture (a long neck) is drawn smaller, never cut off. #
+    # The frame: every point, with a margin, made the viewer's shape, #
+    # 320 by 440, about its middle. It fits the drawing, so a slide that #
+    # draws only a head shows the head large; a slide that wants its #
+    # frame to stay put while the drawing changes adds Drawing.frame. #
     let vertices_of = fun s : Shape ->
       case s | Polygon(p) => p.points | Path(p) => p.points end;
     let grow = fun ((x0, y0, x1, y1), v) : ((Float, Float, Float, Float), Vertex) ->
@@ -378,7 +374,16 @@ module Drawing = {
       fun (b, ss) ->
         case ss | [] => b | s :: tl => bounds((grow_all((b, vertices_of(s))), tl)) end;
     let view_box = fun pic : Picture ->
-      let (x0, y0, x1, y1) = bounds(((0., -40., 320., 400.), pic)) in
+      let start =
+        case pic
+        | [] => (0., 0., 0., 0.)
+        | s :: _ =>
+          case vertices_of(s)
+          | [] => (0., 0., 0., 0.)
+          | v :: _ => let (x, y) = v.at in (x, y, x, y)
+          end
+        end in
+      let (x0, y0, x1, y1) = bounds((start, pic)) in
       let (w, h) = (x1 -. x0, y1 -. y0) in
       let (w2, h2) =
         if w *. 440. >. h *. 320. then (w, w *. 440. /. 320.) else (h *. 320. /. 440., h) in
@@ -537,88 +542,42 @@ module Drawing = {
       | s :: tl =>
         let name = case s | Polygon(p) => p.name | Path(p) => p.name end in
         if name == n then s :: named(tl, n) else named(tl, n)
-      end
+      end;
+
+  # A box the picture always takes in: an invisible path along its #
+  # diagonal, for a slide whose frame should stay put while what it #
+  # draws changes -- the arms swinging, the eyes growing. #
+  let frame = fun (x0, y0, x1, y1) : (Float, Float, Float, Float) ->
+    [Path((name = "frame",
+           points = [(at = (x0, y0), label = Plain), (at = (x1, y1), label = Plain)],
+           stroke = (width = 0., color = "none")))]
 } in
 
-# THE SHIRT AND PANTS #
+# HELPERS #
 
-# As the last slide has them; the pants hang from the shirt's hips. #
+let fmin = fun (x, y) : (Float, Float) -> if x <. y then x else y in
+let fmax = fun (x, y) : (Float, Float) -> if x >. y then x else y in
+let fabs = fun x : Float -> if x <. 0. then 0. -. x else x in
 
-let shirt = ^^livelit(Drawing.^polygons((
-  shapes = [
-    Polygon((
-      name = "shirt",
-      points = [
-        (at = (130., 40.), label = Plain),
-        (at = (160., 60.), label = Anchor("neck")),
-        (at = (190., 40.), label = Plain),
-        (at = (232., 56.), label = Plain),
-        (at = (272., 112.), label = Anchor("right hand")),
-        (at = (240., 128.), label = Plain),
-        (at = (224., 104.), label = Plain),
-        (at = (222., 206.), label = Anchor("right hip")),
-        (at = (98., 206.), label = Anchor("left hip")),
-        (at = (96., 104.), label = Plain),
-        (at = (80., 128.), label = Plain),
-        (at = (48., 112.), label = Anchor("left hand")),
-        (at = (88., 56.), label = Plain)
-      ],
-      stroke = (width = 3., color = "#2b4a6f"),
-      fill = "#5b8bd0")),
-    Path((
-      name = "stitching",
-      points = [
-        (at = (104., 194.), label = Plain),
-        (at = (216., 194.), label = Plain)
-      ],
-      stroke = (width = 1., color = "#dce8f7")))
-  ],
-  current = 0, chosen = -1, held = false, moved = false))) in
-
-let pants = ^^livelit(Drawing.^polygons((
-  shapes = [
-    Polygon((
-      name = "pants",
-      points = [
-        (at = (98., 45.), label = Anchor("left hip")),
-        (at = (222., 45.), label = Anchor("right hip")),
-        (at = (230., 195.), label = Plain),
-        (at = (202., 195.), label = Anchor("right foot")),
-        (at = (174., 195.), label = Plain),
-        (at = (160., 87.), label = Plain),
-        (at = (146., 195.), label = Plain),
-        (at = (118., 195.), label = Anchor("left foot")),
-        (at = (90., 195.), label = Plain)
-      ],
-      stroke = (width = 3., color = "#1f2a36"),
-      fill = "#34495e"))
-  ],
-  current = 0, chosen = -1, held = false, moved = false))) in
-
-let body = Drawing.under(pants, "left hip", shirt, "left hip") in
-
-# THE NECK #
-
-# A rectangle as long as the slider says. Its base is the anchor that #
-# goes on the shirt's neck, and its top the one the chin goes on; each #
-# is in the middle of an edge. It is 16 longer than what shows: placed, #
-# it moves 8 down, under the collar, and the head 8 down over its top. #
-
-let neck_length = ^^livelit(Drawing.^slider("neck", 0, 60)(28)) in
-let neck : Picture =
-  let top = 0. -. float_of_int(neck_length) -. 16. in
-  [Polygon((
-    name = "neck",
-    points = [
-      (at = (-12., 0.), label = Plain),
-      (at = (0., 0.), label = Anchor("base")),
-      (at = (12., 0.), label = Plain),
-      (at = (12., top), label = Plain),
-      (at = (0., top), label = Anchor("top")),
-      (at = (-12., top), label = Plain)
-    ],
-    stroke = (width = 2., color = "#8a5a44"),
-    fill = "#f1c27d"))] in
+# Every point x-scaled about cx, and those below cy y-scaled. #
+let stretch_points : ([Vertex], Float, Float, Float, Float) -> [Vertex] =
+  fun (vs, cx, cy, sx, sy) ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      (at = (cx +. (x -. cx) *. sx, if y >. cy then cy +. (y -. cy) *. sy else y),
+       label = v.label)
+      :: stretch_points((tl, cx, cy, sx, sy))
+    end in
+let stretch : (Picture, Float, Float, Float, Float) -> Picture =
+  fun (pic, cx, cy, sx, sy) ->
+    case pic
+    | [] => []
+    | sh :: tl =>
+      Drawing.with_points(sh, stretch_points((Drawing.points_of(sh), cx, cy, sx, sy)))
+      :: stretch((tl, cx, cy, sx, sy))
+    end in
 
 # THE HEAD #
 
@@ -810,50 +769,18 @@ let hairdo_name = case hairdo | Short => "short" | Long => "long" | Curly => "cu
 let hair =
   Drawing.named(hairdos, hairdo_name) @ Drawing.named(hairdos, hairdo_name ++ " top") in
 
-# THE SHOES #
-
-# One shoe, its ankle the anchor; the left is its mirror image. #
-
-let shoe = ^^livelit(Drawing.^polygons((
-  shapes = [
-    Polygon((
-      name = "shoe",
-      points = [
-        (at = (160.0, 110.0), label = Anchor("ankle")),
-        (at = (172.0, 110.0), label = Plain),
-        (at = (174.0, 122.0), label = Plain),
-        (at = (200.0, 126.0), label = Plain),
-        (at = (204.0, 136.0), label = Plain),
-        (at = (148.0, 136.0), label = Plain),
-        (at = (146.0, 120.0), label = Plain)
-      ],
-      stroke = (width = 2.0, color = "#222222"),
-      fill = "#c0392b"))
-  ],
-  current = 0, chosen = -1, held = false, moved = false))) in
-
 # THE PICTURE #
 
-# Each piece placed by its anchor, then stacked in drawing order: the #
-# neck, behind the shirt so it shows in the collar; the body; the shoes; #
-# the back of the hair; the head; and the top of the hair on the head. #
-# The hairdo is placed whole, by its crown, then split into its two #
-# layers. #
+# The back of the hair, the head, the top of the hair. #
 
-let neck_at = Drawing.shift(Drawing.placed(neck, "base", body, "neck"), 0., 8.) in
-let head_at = Drawing.shift(Drawing.placed(head, "chin", neck_at, "top"), 0., 8.) in
-let hair_at = Drawing.placed(hair, "crown", head_at, "crown") in
-let right_shoe = Drawing.placed(shoe, "ankle", body, "right foot") in
-let left_shoe = Drawing.placed(Drawing.mirrored(shoe), "ankle", body, "left foot") in
-let outfit =
-  neck_at @ body @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo_name) @ head_at
-  @ Drawing.named(hair_at, hairdo_name ++ " top") in
-let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
+let hair_at = Drawing.placed(hair, "crown", head, "crown") in
+let picture =
+  Drawing.named(hair_at, hairdo_name) @ head @ Drawing.named(hair_at, hairdo_name ++ " top") in
+let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (picture)))) in
 
-# Where the crown and the shoes' ankles ended up. #
-(Drawing.anchor(drawn, "crown"), Drawing.anchor(right_shoe, "ankle"),
- Drawing.anchor(left_shoe, "ankle"))
+# Where the crown ended up. #
+Drawing.anchor(drawn, "crown")
 
-# Press short, long or curly and the outfit's hair changes. Move a #
-# hairdo's crown in its editor and that hairdo sits higher or lower. #
-# Slide the neck longer and the head, and its hair, go up with it. #
+# Press short, long or curly and the hair changes. Move a hairdo's #
+# crown in its editor and that hairdo sits higher or lower on the #
+# head. #
