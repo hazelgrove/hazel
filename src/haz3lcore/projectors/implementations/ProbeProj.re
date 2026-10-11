@@ -233,11 +233,6 @@ module Settings = {
   let value_fallback: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
     ref(_ => None);
 
-  /* Bumped when drawers must re-lay out (their print width or a
-   * measured height changed): CachedSyntax recomputes drawer rows when
-   * it moves. */
-  let layout = DrawerFit.layout;
-
   /* drawers print values at the editor's visible width */
   let set_drawer_width = (width: int) =>
     if (width != s^.drawer.width) {
@@ -249,7 +244,7 @@ module Settings = {
           },
         };
       version := version^ + 1;
-      layout := layout^ + 1;
+      DrawerFit.layout := DrawerFit.layout^ + 1;
     };
 
   let set_sticky = (b: bool) => {

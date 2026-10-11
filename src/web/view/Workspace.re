@@ -757,7 +757,7 @@ let calculate =
                     prev === e
                     && s' === settings
                     && d' === extra_dyn
-                    && t' == (is_tail_cell(e), ProbeProj.Settings.layout^) =>
+                    && t' == (is_tail_cell(e), DrawerFit.layout^) =>
                 Some(prev)
               | _ => None
               }
@@ -860,12 +860,7 @@ let calculate =
           Hashtbl.replace(
             calc_entry_memo,
             e.e_id,
-            (
-              settings,
-              extra_dyn,
-              (is_tail_cell(e), ProbeProj.Settings.layout^),
-              e',
-            ),
+            (settings, extra_dyn, (is_tail_cell(e), DrawerFit.layout^), e'),
           );
           e';
         };

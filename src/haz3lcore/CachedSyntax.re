@@ -32,7 +32,7 @@ type t = {
   cached_manuals: Refractors.RefractorList.t,
   cached_ephemerals: Refractors.Map.t,
   cached_stepping: option(ProjectorBase.stepping),
-  /* ProbeProj.Settings.layout when the rows were computed */
+  /* DrawerFit.layout when the rows were computed */
   cached_layout: int,
   cached_proofs: Refractors.Map.t,
   /* Errors reported by projectors (e.g. "can't render as table") */
@@ -217,7 +217,7 @@ let mk =
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
     cached_stepping: z.refractors.stepping,
-    cached_layout: ProbeProj.Settings.layout^,
+    cached_layout: DrawerFit.layout^,
     cached_proofs: z.refractors.proofs,
     projector_errors,
     missing_shards: Segment.global_missing_shards_incr(segment),
@@ -276,7 +276,7 @@ let refresh_shapes =
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
     cached_stepping: z.refractors.stepping,
-    cached_layout: ProbeProj.Settings.layout^,
+    cached_layout: DrawerFit.layout^,
     cached_proofs: z.refractors.proofs,
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
@@ -302,7 +302,7 @@ let calculate =
     z.refractors.manuals !== old.cached_manuals
     || z.refractors.multis.ephemerals !== old.cached_ephemerals
     || z.refractors.stepping != old.cached_stepping
-    || ProbeProj.Settings.layout^ != old.cached_layout
+    || DrawerFit.layout^ != old.cached_layout
     || z.refractors.proofs !== old.cached_proofs;
   if (old.old) {
     /* [old] marks caret moves too; an unchanged segment keeps its
