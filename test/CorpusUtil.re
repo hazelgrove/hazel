@@ -50,6 +50,17 @@ let seg_of = (~root: Sort.t=Exp, src: string): Segment.t =>
     }
   };
 
+/* typed into an empty editor key by key, as the editor reads it */
+let typed_zipper = (~root: Sort.t=Exp, src: string): Zipper.t =>
+  switch (Parser.to_zipper(~root, src)) {
+  | Some(z) => z
+  | None => Alcotest.fail("untypeable: " ++ src)
+  };
+
+/* a program's text, holes as the text parser's markers */
+let text_of = (seg: Segment.t): string =>
+  MarkerParse.to_text(Zipper.unzip(seg));
+
 let corpus_seg = (~root: Sort.t=Exp, name: string): option(Segment.t) =>
   Option.bind(mega_src(name), parse(~root));
 
@@ -253,6 +264,36 @@ let copy_piece = (p: Piece.t): Piece.t =>
     })
   };
 
+/* the first tile of the one token [label], in document order */
+let tile = (label: string, seg: Segment.t): Id.t => {
+  let rec find = (seg: Segment.t) =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when Tile.label(t) == [label] => Some(t.id)
+        | Tile(t) => List.find_map(find, t.children)
+        | _ => None
+        },
+      seg,
+    );
+  switch (find(seg)) {
+  | Some(id) => id
+  | None => Alcotest.fail("no tile " ++ label)
+  };
+};
+
+/* the first outline row labeled [label], depth first */
+let row_by_label = (term: Language.Exp.t, label: string): Id.t =>
+  switch (
+    List.find_map(
+      (n: Web.OutlineTree.node) => n.o_label == label ? n.o_id : None,
+      Web.OutlineTree.(flatten(of_term(term))),
+    )
+  ) {
+  | Some(id) => id
+  | None => Alcotest.fail("no row " ++ label)
+  };
+
 /* the outline row at [path] (labels from the top) */
 let row = (term: Language.Exp.t, path: list(string)): Id.t => {
   let rec go = (nodes: list(Web.OutlineTree.node), path) =>
@@ -271,12 +312,13 @@ let row = (term: Language.Exp.t, path: list(string)): Id.t => {
   };
 };
 
-/* mega-scale slides skip the super-linear gates (typing parse, roundtrip);
-   substring match, as names carry folder prefixes ("Perf / Mega 1k") */
-let mega_scale = (name: string): bool => {
-  let sub = "Mega";
-  let (nl, sl) = (String.length(name), String.length(sub));
+let contains = (needle: string, hay: string): bool => {
+  let (nl, hl) = (String.length(needle), String.length(hay));
   let rec go = i =>
-    i + sl <= nl && (String.sub(name, i, sl) == sub || go(i + 1));
+    i + nl <= hl && (String.sub(hay, i, nl) == needle || go(i + 1));
   go(0);
 };
+
+/* mega-scale slides skip the super-linear gates (typing parse, roundtrip);
+   substring match, as names carry folder prefixes ("Perf / Mega 1k") */
+let mega_scale = (name: string): bool => contains("Mega", name);

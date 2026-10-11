@@ -239,8 +239,7 @@ let arrows_redraw = () => {
 let commit_cursor = () => {
   module C = Web.OutlineControl;
   let settings = Web.Globals.Model.init().settings;
-  let seg =
-    Option.get(CorpusUtil.parse("let a = 1 in\nlet b = 2 in\na + b"));
+  let seg = CorpusUtil.seg_of("let a = 1 in\nlet b = 2 in\na + b");
   let code =
     switch (
       Web.ScratchModel.Scratchpad.mk_code(
@@ -254,16 +253,7 @@ let commit_cursor = () => {
     | Drv(_) => fail("not a code slide")
     };
   let term = MakeTerm.Incr.term_of(seg);
-  let row = label =>
-    switch (
-      List.find_opt(
-        (n: OutlineTree.node) => n.o_label == label,
-        OutlineTree.of_term(term),
-      )
-    ) {
-    | Some({o_id: Some(id), _}) => id
-    | _ => fail("no row " ++ label)
-    };
+  let row = CorpusUtil.row_by_label(term);
   let commit = (ed, after) =>
     C.update(
       ~settings,

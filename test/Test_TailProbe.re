@@ -5,11 +5,7 @@ open Language;
 /* The ⇓ toggle's probe: one drawer probe on the program's last
    expression, re-anchored as that expression changes */
 
-let zipper = (src: string): Zipper.t =>
-  switch (Parser.to_zipper(~root=Exp, src)) {
-  | Some(z) => z
-  | None => Alcotest.fail("could not parse: " ++ src)
-  };
+let zipper = CorpusUtil.typed_zipper(~root=Exp);
 
 let analysed = (z: Zipper.t) => {
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
@@ -37,6 +33,18 @@ let tail_text = (src: string): string => {
 let update = (~on, z: Zipper.t): Zipper.t => {
   let (info_map, syntax) = analysed(z);
   AutoProbePerform.update_tail(~on, ~syntax, ~info_map, z);
+};
+
+/* the rows [z]'s drawers reserve under the code */
+let reserved = (z: Zipper.t) => {
+  let (info_map, syntax) = analysed(z);
+  CachedSyntax.mk_refractor_rows(
+    z,
+    syntax.term_data,
+    info_map,
+    Dynamics.Map.empty,
+    ~elaborated=None,
+  );
 };
 
 /* by the predicate the views use */
@@ -207,21 +215,7 @@ let promoted_reloads = () => {
   check(bool, "unanchored", true, loaded.refractors.tail_target == None);
   let z = update(~on=true, loaded);
   check(bool, "the ⇓ probe", true, is_program_value(z, tail));
-  let (info_map, syntax) = analysed(z);
-  check(
-    bool,
-    "no rows",
-    true,
-    Id.Map.is_empty(
-      CachedSyntax.mk_refractor_rows(
-        z,
-        syntax.term_data,
-        info_map,
-        Dynamics.Map.empty,
-        ~elaborated=None,
-      ),
-    ),
-  );
+  check(bool, "no rows", true, Id.Map.is_empty(reserved(z)));
 };
 
 /* a ⇓ probe entry made afresh (an auto-probe anchor on the last
@@ -291,23 +285,13 @@ let no_arms = () => {
    so toggling ⇓ never moves the code */
 let reserves_nothing = () => {
   let z = update(~on=true, zipper("let x = 1 in\nx + 1"));
-  let (info_map, _) = analysed(z);
-  let rows =
-    CachedSyntax.mk_refractor_rows(
-      z,
-      snd(analysed(z)).term_data,
-      info_map,
-      Language.Dynamics.Map.empty,
-      ~elaborated=None,
-    );
-  check(bool, "no rows", true, Id.Map.is_empty(rows));
+  check(bool, "no rows", true, Id.Map.is_empty(reserved(z)));
 };
 
 /* a pin or step-into makes the ⇓ probe a manual probe; its drawer stays
    after the program, so still no rows */
 let promoted_reserves_nothing = () => {
   let (z, tail) = promoted();
-  let (info_map, syntax) = analysed(z);
   check(
     bool,
     "a manual probe",
@@ -320,15 +304,7 @@ let promoted_reserves_nothing = () => {
     false,
     Id.Map.mem(tail, z.refractors.multis.ephemerals),
   );
-  let rows =
-    CachedSyntax.mk_refractor_rows(
-      z,
-      syntax.term_data,
-      info_map,
-      Language.Dynamics.Map.empty,
-      ~elaborated=None,
-    );
-  check(bool, "no rows", true, Id.Map.is_empty(rows));
+  check(bool, "no rows", true, Id.Map.is_empty(reserved(z)));
 };
 
 /* its rows come back when it stops being the ⇓ probe, though no

@@ -62,8 +62,7 @@ module Cells = {
   let src = "let a = 1 in\nlet b = 2 in\na + b";
 
   let mk = (): History.Model.t => {
-    let seg =
-      Option.get(Haz3lcore.FastParse.of_text(~root=Haz3lcore.Sort.Exp, src));
+    let seg = CorpusUtil.seg_of(src);
     let editors: Editors.Model.t =
       Scratch(
         ScratchModel.Model.{
@@ -124,14 +123,7 @@ module Cells = {
     };
 
   let row = (m: History.Model.t, label: string): Haz3lcore.Id.t =>
-    Option.get(
-      List.find_map(
-        (n: OutlineTree.node) => n.o_label == label ? n.o_id : None,
-        OutlineTree.flatten(
-          OutlineTree.of_term(Program.statics(program(m)).term),
-        ),
-      ),
-    );
+    CorpusUtil.row_by_label(Program.statics(program(m)).term, label);
 
   let workspace = (a: Workspace.Action.t): Page.Update.t =>
     Editors(Scratch(Workspace(a)));
