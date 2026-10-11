@@ -52,25 +52,13 @@ let compact_program = (p: Program.t): Program.t =>
   | Divided(d) => Divided(Divided.compact(compact_cell, d))
   };
 
-let compact_scratch = (m: ScratchMode.Model.t): ScratchMode.Model.t => {
-  ...m,
-  scratchpads:
-    List.map(
-      (sp: ScratchMode.Scratchpad.t) =>
-        switch (sp.kind) {
-        | Code({program, _} as code) => {
-            ...sp,
-            kind:
-              Code({
-                ...code,
-                program: compact_program(program),
-              }),
-          }
-        | Drv(_) => sp
-        },
-      m.scratchpads,
-    ),
-};
+let compact_scratch =
+  ScratchMode.Model.map_code((_, code) =>
+    {
+      ...code,
+      program: compact_program(code.program),
+    }
+  );
 
 let compact = (m: Page.Model.t): Page.Model.t => {
   ...m,

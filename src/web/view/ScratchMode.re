@@ -32,28 +32,6 @@ module Update = {
     | DrvAction(DerivationExerciseMode.Update.t)
     | Deck(SlideDeck.Action.t);
 
-  let current_code = (model: Model.t): option(Scratchpad.code) =>
-    switch (List.nth(model.scratchpads, model.current).kind) {
-    | Code(c) => Some(c)
-    | Drv(_) => None
-    };
-
-  let with_code = (model: Model.t, code: Scratchpad.code): Model.t => {
-    let sp = List.nth(model.scratchpads, model.current);
-    {
-      ...model,
-      scratchpads:
-        ListUtil.put_nth(
-          model.current,
-          {
-            ...sp,
-            kind: Code(code),
-          },
-          model.scratchpads,
-        ),
-    };
-  };
-
   let update =
       (
         ~schedule_action,
@@ -64,7 +42,7 @@ module Update = {
       ) => {
     switch (action) {
     | Workspace(a) =>
-      switch (current_code(model)) {
+      switch (Model.current_code(model)) {
       | None => model |> return_quiet
       | Some(code) =>
         let* code =
@@ -75,10 +53,10 @@ module Update = {
             a,
             code,
           );
-        with_code(model, code);
+        Model.with_current_kind(Code(code), model);
       }
     | Outline(a) =>
-      switch (current_code(model)) {
+      switch (Model.current_code(model)) {
       | None => model |> return_quiet
       | Some(code) =>
         let* code =
@@ -90,11 +68,10 @@ module Update = {
             a,
             code,
           );
-        with_code(model, code);
+        Model.with_current_kind(Code(code), model);
       }
     | DrvAction(a) =>
-      let scratchpad = List.nth(model.scratchpads, model.current);
-      switch (scratchpad.kind) {
+      switch (List.nth(model.scratchpads, model.current).kind) {
       | Drv(m) =>
         let* new_m =
           DerivationExerciseMode.Update.update(
@@ -104,21 +81,9 @@ module Update = {
             a,
             m,
           );
-        let new_sp =
-          ListUtil.put_nth(
-            model.current,
-            {
-              ...scratchpad,
-              kind: Drv(new_m),
-            },
-            model.scratchpads,
-          );
-        {
-          ...model,
-          scratchpads: new_sp,
-        };
+        Model.with_current_kind(Drv(new_m), model);
       | Code(_) => model |> return_quiet
-      };
+      }
     | RefreshStatics =>
       CodeWithStatics.StaticsDebounce.force_on_next := true;
       model |> Updated.return_quiet(~recalculate=true);
@@ -149,45 +114,33 @@ module Update = {
         schedule_action(RefreshStatics)
       );
 
-    let scratchpad = List.nth(model.scratchpads, model.current);
-    switch (scratchpad.kind) {
-    | Code(code) =>
-      with_code(
-        model,
-        Workspace.calculate(
-          ~settings,
-          ~autoprobe_mode,
-          ~tail_probe,
-          ~schedule_action=a => schedule_action(Workspace(a)),
-          ~is_edited,
-          ~statics_mode,
-          ~slide_key=slide_key(~is_documentation, model),
-          code,
-        ),
-      )
-    | Drv(m) =>
-      let new_m =
-        DerivationExerciseMode.Update.calculate(
-          ~settings,
-          ~autoprobe_mode,
-          ~is_edited,
-          ~schedule_action=a => schedule_action(DrvAction(a)),
-          m,
-        );
-      let new_sp =
-        ListUtil.put_nth(
-          model.current,
-          {
-            ...scratchpad,
-            kind: Drv(new_m),
-          },
-          model.scratchpads,
-        );
-      {
-        ...model,
-        scratchpads: new_sp,
+    let kind: Scratchpad.kind =
+      switch (List.nth(model.scratchpads, model.current).kind) {
+      | Code(code) =>
+        Code(
+          Workspace.calculate(
+            ~settings,
+            ~autoprobe_mode,
+            ~tail_probe,
+            ~schedule_action=a => schedule_action(Workspace(a)),
+            ~is_edited,
+            ~statics_mode,
+            ~slide_key=slide_key(~is_documentation, model),
+            code,
+          ),
+        )
+      | Drv(m) =>
+        Drv(
+          DerivationExerciseMode.Update.calculate(
+            ~settings,
+            ~autoprobe_mode,
+            ~is_edited,
+            ~schedule_action=a => schedule_action(DrvAction(a)),
+            m,
+          ),
+        )
       };
-    };
+    Model.with_current_kind(kind, model);
   };
 };
 

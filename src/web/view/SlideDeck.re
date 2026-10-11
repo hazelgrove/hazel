@@ -265,19 +265,15 @@ let update =
           current.name,
           new_name,
         );
-        let new_sp =
-          ListUtil.put_nth(
-            model.current,
+        Model.map_current(
+          sp =>
             {
-              ...current,
+              ...sp,
               name: new_name,
             },
-            model.scratchpads,
-          );
-        Updated.return({
-          ...model,
-          scratchpads: new_sp,
-        });
+          model,
+        )
+        |> Updated.return;
       };
     | DeleteSlide =>
       let confirmed =
@@ -330,32 +326,20 @@ let update =
           | true => Init.default_documentation_slide_name(scratchpad.name)
           };
         let* data = source |> CellEditor.Model.unpersist |> Updated.return;
-        {
-          ...model,
-          scratchpads:
-            ListUtil.put_nth(
-              model.current,
-              {
-                ...scratchpad,
-                kind:
-                  Code({
-                    program: Whole(data),
-                    view: SlideView.init,
-                    agent,
-                  }),
-              },
-              model.scratchpads,
-            ),
-        };
+        Model.with_current_kind(
+          Code({
+            program: Whole(data),
+            view: SlideView.init,
+            agent,
+          }),
+          model,
+        );
       | Drv(_) =>
-        let new_sp =
-          Scratchpad.blank_drv(~settings=settings.core, scratchpad.name);
-        {
-          ...model,
-          scratchpads:
-            ListUtil.put_nth(model.current, new_sp, model.scratchpads),
-        }
-        |> Updated.return;
+        Model.map_current(
+          _ => Scratchpad.blank_drv(~settings=settings.core, scratchpad.name),
+          model,
+        )
+        |> Updated.return
       };
     | InitImportScratchpad(file) =>
       JsUtil.read_file(file, data =>
@@ -377,24 +361,14 @@ let update =
             |> CellEditor.Model.persistent_of_sexp
             |> CellEditor.Model.unpersist(~settings=settings.core);
 
-          let scratchpads =
-            ListUtil.put_nth(
-              model.current,
-              {
-                ...scratchpad,
-                kind:
-                  Code({
-                    program: Whole(new_data),
-                    view: SlideView.init,
-                    agent,
-                  }),
-              },
-              model.scratchpads,
-            );
-          {
-            ...model,
-            scratchpads,
-          }
+          Model.with_current_kind(
+            Code({
+              program: Whole(new_data),
+              view: SlideView.init,
+              agent,
+            }),
+            model,
+          )
           |> Updated.return;
         | Drv(_) => model |> return_quiet
         };
