@@ -411,6 +411,9 @@ module Selection = {
 };
 
 module View = {
+  open Virtual_dom.Vdom;
+  open Node;
+
   type event =
     | MakeActive(Selection.t);
 
@@ -439,7 +442,7 @@ module View = {
     /* the program's result, for a cell whose drawers show its probe
        stepper or proofs */
     c_drawers: option(EvalResult.Model.t),
-    c_nodes: list(Virtual_dom.Vdom.Node.t),
+    c_nodes: list(Node.t),
   };
   let stack_cache: ref(list((Haz3lcore.Id.t, cached_cell))) = ref([]);
 
@@ -463,27 +466,21 @@ module View = {
       [
         /* shown until hydration, which blocks on large slides; the same
            spinner as the boot screen (index.html/loading.css) */
-        Virtual_dom.Vdom.Node.div(
-          ~attrs=[Virtual_dom.Vdom.Attr.classes(["slide-loading"])],
+        div(
+          ~attrs=[Attr.classes(["slide-loading"])],
           [
-            Virtual_dom.Vdom.Node.div(
-              ~attrs=[Virtual_dom.Vdom.Attr.classes(["spinner"])],
+            div(
+              ~attrs=[Attr.classes(["spinner"])],
               [
-                Virtual_dom.Vdom.Node.div(
-                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["loader"])],
-                  [],
-                ),
-                Virtual_dom.Vdom.Node.div(
-                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["nut-container"])],
+                div(~attrs=[Attr.classes(["loader"])], []),
+                div(
+                  ~attrs=[Attr.classes(["nut-container"])],
                   [
-                    Virtual_dom.Vdom.Node.create(
+                    create(
                       "img",
                       ~attrs=[
-                        Virtual_dom.Vdom.Attr.classes(["spinner-nut"]),
-                        Virtual_dom.Vdom.Attr.create(
-                          "src",
-                          "img/hazelnut.svg",
-                        ),
+                        Attr.classes(["spinner-nut"]),
+                        Attr.create("src", "img/hazelnut.svg"),
                       ],
                       [],
                     ),
@@ -491,9 +488,9 @@ module View = {
                 ),
               ],
             ),
-            Virtual_dom.Vdom.Node.text("loading "),
-            Virtual_dom.Vdom.Node.text(current.name),
-            Virtual_dom.Vdom.Node.text({js|…|js}),
+            text("loading "),
+            text(current.name),
+            text({js|…|js}),
           ],
         ),
       ];
@@ -557,17 +554,9 @@ module View = {
                     switch (OutlineTree.path_of(e.e_id, term)) {
                     | [] => []
                     | path => [
-                        Virtual_dom.Vdom.Node.span(
-                          ~attrs=[
-                            Virtual_dom.Vdom.Attr.classes([
-                              "focus-qualifier",
-                            ]),
-                          ],
-                          [
-                            Virtual_dom.Vdom.Node.text(
-                              String.concat(".", path) ++ ".",
-                            ),
-                          ],
+                        span(
+                          ~attrs=[Attr.classes(["focus-qualifier"])],
+                          [text(String.concat(".", path) ++ ".")],
                         ),
                       ]
                     };
@@ -587,7 +576,7 @@ module View = {
                         move: Haz3lcore.Action.move,
                       ) =>
                     if (idx < 0 || idx >= List.length(cells)) {
-                      Virtual_dom.Vdom.Effect.Ignore;
+                      Effect.Ignore;
                     } else {
                       /* headerless entries have no header pane */
                       let side = headerless(idx) ? ScratchCell.Body : side;
@@ -595,7 +584,7 @@ module View = {
                          or the caret vanishes and arrows scroll the page */
                       Haz3lcore.FocusEffect.schedule_cell();
                       let id = List.nth(cells, idx).e_id;
-                      Virtual_dom.Vdom.Effect.Many([
+                      Effect.Many([
                         signal(MakeActive(Stack(id, side, MainEditor))),
                         inject(
                           Workspace(
@@ -740,57 +729,42 @@ module View = {
                   let header_pane =
                     switch (e.e_sym) {
                     | Some(sym) =>
-                      Virtual_dom.Vdom.Node.div(
+                      div(
                         ~attrs=[
-                          Virtual_dom.Vdom.Attr.classes([
-                            "focus-header",
-                            "focus-header-sym",
-                          ]),
+                          Attr.classes(["focus-header", "focus-header-sym"]),
                         ],
                         /* no qualifier chip: the symbol is the label; the
                            trailing ⇒ names what it's the result of, the
                            program (not editable) */
                         [
-                          Virtual_dom.Vdom.Node.span(
-                            ~attrs=[
-                              Virtual_dom.Vdom.Attr.classes(["focus-sym"]),
-                            ],
+                          span(
+                            ~attrs=[Attr.classes(["focus-sym"])],
                             (
                               sym == {js|⇒|js}
                                 ? [
-                                  Virtual_dom.Vdom.Node.span(
+                                  span(
                                     ~attrs=[
-                                      Virtual_dom.Vdom.Attr.classes([
-                                        "focus-sym-name",
-                                      ]),
+                                      Attr.classes(["focus-sym-name"]),
                                     ],
-                                    [
-                                      Virtual_dom.Vdom.Node.text(current.name),
-                                    ],
+                                    [text(current.name)],
                                   ),
                                 ]
                                 : []
                             )
                             @ [
-                              Virtual_dom.Vdom.Node.span(
-                                ~attrs=[
-                                  Virtual_dom.Vdom.Attr.classes([
-                                    "focus-sym-mark",
-                                  ]),
-                                ],
-                                [Virtual_dom.Vdom.Node.text(sym)],
+                              span(
+                                ~attrs=[Attr.classes(["focus-sym-mark"])],
+                                [text(sym)],
                               ),
                             ]
                             @ (
                               sym == {js|⇒|js}
                                 ? [
-                                  Virtual_dom.Vdom.Node.span(
+                                  span(
                                     ~attrs=[
-                                      Virtual_dom.Vdom.Attr.classes([
-                                        "focus-sym-word",
-                                      ]),
+                                      Attr.classes(["focus-sym-word"]),
                                     ],
-                                    [Virtual_dom.Vdom.Node.text("result")],
+                                    [text("result")],
                                   ),
                                 ]
                                 : []
@@ -799,10 +773,8 @@ module View = {
                         ],
                       )
                     | None =>
-                      Virtual_dom.Vdom.Node.div(
-                        ~attrs=[
-                          Virtual_dom.Vdom.Attr.classes(["focus-header"]),
-                        ],
+                      div(
+                        ~attrs=[Attr.classes(["focus-header"])],
                         qualifier
                         @ [
                           pane_view(
@@ -819,9 +791,9 @@ module View = {
                   let nodes =
                     (zoom_cell ? [] : [header_pane])
                     @ [
-                      Virtual_dom.Vdom.Node.div(
+                      div(
                         ~attrs=[
-                          Virtual_dom.Vdom.Attr.classes(
+                          Attr.classes(
                             ["focus-body"] @ (zoom_cell ? ["zoom-body"] : []),
                           ),
                         ],
@@ -871,8 +843,8 @@ module View = {
           let (result_footer, _overlays) =
             EvalResult.View.view(
               ~globals,
-              ~signal=_ => Virtual_dom.Vdom.Effect.Ignore,
-              ~inject=_ => Virtual_dom.Vdom.Effect.Ignore,
+              ~signal=_ => Effect.Ignore,
+              ~inject=_ => Effect.Ignore,
               ~selected=None,
               ~locked=false,
               ~result_kind=`StatusLine,
@@ -883,18 +855,12 @@ module View = {
             List.is_empty(result_footer)
               ? []
               : [
-                Virtual_dom.Vdom.Node.div(
-                  ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-result"])],
-                  result_footer,
-                ),
+                div(~attrs=[Attr.classes(["stack-result"])], result_footer),
               ]
           )
           @ [
             /* slack, so even the last cell can scroll to the viewport top */
-            Virtual_dom.Vdom.Node.div(
-              ~attrs=[Virtual_dom.Vdom.Attr.classes(["stack-slack"])],
-              [],
-            ),
+            div(~attrs=[Attr.classes(["stack-slack"])], []),
           ];
         };
         switch (program) {
@@ -926,9 +892,9 @@ module View = {
              with ⇓ on, the program's drawer runs on into it. The same
              height either way, so toggling ⇓ leaves the view in place */
           @ [
-            Virtual_dom.Vdom.Node.div(
+            div(
               ~attrs=[
-                Virtual_dom.Vdom.Attr.classes(
+                Attr.classes(
                   ["tail-slack"]
                   @ (globals.settings.tail_probe ? ["drawer"] : []),
                 ),
@@ -985,7 +951,7 @@ module View = {
         Icons.import,
         file => {
           switch (file) {
-          | None => Virtual_dom.Vdom.Effect.Ignore
+          | None => Effect.Ignore
           | Some(file) => inject(Deck(InitImportScratchpad(file)))
           }
         },
@@ -1010,7 +976,7 @@ module View = {
           if (confirmed) {
             inject(Deck(ResetCurrent));
           } else {
-            Virtual_dom.Vdom.Effect.Ignore;
+            Effect.Ignore;
           };
         },
         ~tooltip="Reset Editor",
@@ -1035,7 +1001,7 @@ module View = {
             HazelDB.clear_all();
             Js_of_ocaml.Dom_html.window##.location##reload;
           };
-          Virtual_dom.Vdom.Effect.Ignore;
+          Effect.Ignore;
         },
         ~tooltip="Reset Hazel (LOSE ALL DATA)",
       );
@@ -1076,7 +1042,7 @@ module View = {
         /* No arrows in these modes (~nav_buttons=false above): slides are
            reached through the breadcrumb dropdowns. */
         | Previous
-        | Next => Virtual_dom.Vdom.Effect.Ignore
+        | Next => Effect.Ignore
         | Add => inject(Deck(AddSlide))
         | Rename => inject(Deck(RenameSlide))
         | Delete => inject(Deck(DeleteSlide)),
