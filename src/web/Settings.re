@@ -192,7 +192,9 @@ module Update = {
             ...settings.core,
             statics: !settings.core.statics,
             assist: !settings.core.statics,
-            dynamics: !settings.core.statics && settings.core.dynamics,
+            /* evaluation needs types: off with them, and back on with them
+               (it stayed off, unnoticed until a reload) */
+            dynamics: !settings.core.statics,
           },
         }
       | Elaborate => {
