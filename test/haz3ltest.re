@@ -157,9 +157,7 @@ let (suite, exit_with_test_status) =
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]
-    @ [Test_CompletionItems.tests]
-    /* last: the keystroke benchmark leaves less stack for later tests */
-    @ (CorpusUtil.bench_enabled ? [Test_MegaBench.tests] : []),
+    @ [Test_CompletionItems.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();
