@@ -59,6 +59,17 @@ module Action = {
 
 open Action;
 
+/* whether [action] gives an item's cell the focus: an outline ensure
+   while divided, or a toggle that opens one (it closes an item an open
+   cell holds) */
+let focuses_item = (action: Action.t, program: Program.t): bool =>
+  switch (action, program) {
+  | (FocusEnsure(_), Divided(_)) => true
+  | (FocusToggle(fid), Divided(d)) => Divided.owner(fid, d) == None
+  | (FocusToggle(_), Whole(_)) => true
+  | _ => false
+  };
+
 /* a cell's statics: its DefStatics item (analyzed in the program's
    context) scoped to the cell's ids, so id-keyed consumers never see
    foreign ones; unused-binder warnings come from across items */
@@ -271,6 +282,7 @@ let update =
       | Some(e) =>
         let* ed =
           CellEditor.Update.update(~settings, a, ScratchCell.pane(side, e));
+        /* the pane an action reaches takes the focus */
         let d =
           d
           |> Divided.update_cell(id, ScratchCell.with_pane(side, ed))
@@ -286,6 +298,24 @@ let update =
         };
       }
     | Whole(_) => code |> return_quiet
+    };
+  /* the cell now holding [fid] takes the focus, on its body */
+  let focusing = (fid, updated: Updated.t(code)): Updated.t(code) =>
+    if (focuses_item(action, code.program)) {
+      let* after = updated;
+      switch (after.program) {
+      | Divided(d) =>
+        switch (Divided.owner(fid, d)) {
+        | Some(e) => {
+            ...after,
+            program: Divided(Divided.set_active(e.e_id, Body, d)),
+          }
+        | None => after
+        }
+      | Whole(_) => after
+      };
+    } else {
+      updated;
     };
   switch (action) {
   | AgentAction(a) =>
@@ -355,6 +385,7 @@ let update =
         },
       code,
     )
+    |> focusing(fid)
   | FocusToggleRun(fid) =>
     /* the tests container: one cell for the run, or close it (or its
        members open one by one) */
@@ -400,6 +431,7 @@ let update =
         },
       code,
     )
+    |> focusing(fid)
   | UnfocusDef => view((term, _, v) => SlideView.discard(~term, v), code)
   | ZoomIn(fid) =>
     view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)

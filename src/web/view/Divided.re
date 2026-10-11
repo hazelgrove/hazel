@@ -20,7 +20,9 @@ type t = {
   /* the program as of the last structural change; cells overwrite
      their slots when the document is assembled */
   base: Segment.t,
-  /* the cell (and side) that last had the caret: join lands there */
+  /* the cell (and side) with the focus, where keys go and join lands;
+     None: the first body has it, and join keeps no caret. The page's
+     selection says only that the stack has the focus */
   active: option((Id.t, side)),
   /* whole-program statics of the assembled document, refreshed on
      statics frames while divided */
@@ -171,11 +173,18 @@ let active_cell = (d: t): option((Cell.t, side)) =>
   | None => None
   };
 
-let active_editor = (d: t): CellEditor.Model.t =>
+/* the pane with the focus: the active one, else the first body */
+let focused = (d: t): option((Cell.t, side)) =>
   switch (active_cell(d), d.cells) {
-  | (Some((e, side)), _) => Cell.pane(side, e)
-  | (None, [e, ..._]) => e.e_body
-  | (None, []) => d.shell
+  | (Some(_) as a, _) => a
+  | (None, [e, ..._]) => Some((e, Body))
+  | (None, []) => None
+  };
+
+let active_editor = (d: t): CellEditor.Model.t =>
+  switch (focused(d)) {
+  | Some((e, side)) => Cell.pane(side, e)
+  | None => d.shell
   };
 
 /* a caret as a side of a piece id: before its right neighbour, else
@@ -627,6 +636,20 @@ let set_active = (id: Id.t, side: side, d: t): t =>
       active: Some((id, side)),
     }
     : d;
+
+/* [d] after cells of [prev] opened and closed: [prev]'s focused pane
+   keeps the focus while open, and the first body, focused by default,
+   stays so while still first */
+let keep_focus = (~prev: t, d: t): t =>
+  switch (focused(prev), d.cells) {
+  | (Some((e, _)), [first, ..._])
+      when prev.active == None && first.e_id == e.e_id => {
+      ...d,
+      active: None,
+    }
+  | (Some((e, side)), _) => set_active(e.e_id, side, d)
+  | (None, _) => d
+  };
 
 let map_editors = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
   ...d,

@@ -14,12 +14,6 @@ let slide_key = (~is_documentation, model: Model.t): string =>
     List.nth(model.scratchpads, model.current).name,
   );
 
-let cell_by_id = (model: Model.t, id: Haz3lcore.Id.t): option(ScratchCell.t) =>
-  switch (Model.current_program(model)) {
-  | Some(Divided(d)) => Divided.cell(id, d)
-  | _ => None
-  };
-
 module Update = {
   open Updated;
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -146,8 +140,8 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Cell(CellEditor.Selection.t)
-    /* an open cell's header or body */
-    | Stack(Haz3lcore.Id.t, ScratchCell.side, CellEditor.Selection.t)
+    /* the open cells: the one Divided.active names has the focus */
+    | Stack(CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
     | TextBox;
 
@@ -165,16 +159,16 @@ module Selection = {
             editor,
           );
         Update.Workspace(CellAction(a));
-      | (Stack(i, side, selection), Code(_)) =>
-        switch (cell_by_id(model, i)) {
-        | Some(entry) =>
+      | (Stack(selection), Code({program: Divided(d), _})) =>
+        switch (Divided.focused(d)) {
+        | Some((e, side)) =>
           let+ a =
             CellEditor.Selection.get_cursor_info(
-              ~inject=a => inject(Workspace(Stack(i, side, a))),
+              ~inject=a => inject(Workspace(Stack(e.e_id, side, a))),
               ~selection,
-              ScratchCell.pane(side, entry),
+              ScratchCell.pane(side, e),
             );
-          Update.Workspace(Stack(i, side, a));
+          Update.Workspace(Stack(e.e_id, side, a));
         | None => empty
         }
       | (Drv(selection), Drv(m)) =>
@@ -187,6 +181,7 @@ module Selection = {
         Update.DrvAction(a);
       | (Cell(_), Code({program: Divided(_), _}))
       | (Cell(_), Drv(_))
+      | (Stack(_), Code({program: Whole(_), _}))
       | (Stack(_), Drv(_))
       | (Drv(_), Code(_))
       | (TextBox, _) => empty
@@ -238,7 +233,7 @@ module Selection = {
                in_cell(ScratchCell.pane(side, e))
                  ? Some((
                      Update.Workspace(Stack(e.e_id, side, caret)),
-                     Stack(e.e_id, side, MainEditor),
+                     Stack(MainEditor),
                    ))
                  : None,
              [ScratchCell.Body, Header],
@@ -271,7 +266,8 @@ module Selection = {
   };
 
   /* a jump to a whole-program id across open cells: (open the item
-     holding it, select the pane holding it, move that pane's caret) */
+     holding it, select the stack, focus the pane holding it and move its
+     caret there) */
   let cross_cell_target =
       (~target_id: Haz3lcore.Id.t, ~d: Divided.t)
       : option((Update.t, t, Update.t)) => {
@@ -308,7 +304,7 @@ module Selection = {
           MainEditor(Perform(Move(Goal(TileId(target_id)))));
         Some((
           Update.Workspace(FocusEnsure(fid)),
-          Stack(j, side, MainEditor),
+          Stack(MainEditor),
           Update.Workspace(Stack(j, side, caret)),
         ));
       }
@@ -340,7 +336,7 @@ module Selection = {
           ),
           Some(Divided(d)),
         ) =>
-        let* entry = cell_by_id(model, i);
+        let* entry = Divided.cell(i, d);
         let cell = ScratchCell.pane(side, entry);
         let cell_map = cell.editor.statics.info_map;
         let* ci = Indicated.ci_of(cell.editor.editor.state.zipper, cell_map);
@@ -355,48 +351,23 @@ module Selection = {
     );
   };
 
-  /* where an outline open lands the selection: the body pane of the
-     cell that will hold [fid]; None when a toggle closes it */
+  /* an outline open selects the stack, where Workspace focuses the cell
+     it opens; None when a toggle closes one */
   let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
     switch (action, Model.current_program(model)) {
-    | (Workspace(FocusEnsure(fid)), Some(Divided(d))) =>
-      Some(
-        Stack(
-          switch (Divided.owner(fid, d)) {
-          | Some(e) => e.e_id
-          | None => fid
-          },
-          Body,
-          MainEditor,
-        ),
-      )
-    /* an id already in an open cell (its own or an enclosing one) opens
-       no cell, so the selection stays put */
-    | (Workspace(FocusToggle(fid)), Some(Divided(d))) =>
-      Option.is_none(Divided.owner(fid, d))
-        ? Some(Stack(fid, Body, MainEditor)) : None
-    | (Workspace(FocusToggle(fid)), Some(Whole(_))) =>
-      Some(Stack(fid, Body, MainEditor))
+    | (Workspace(a), Some(p)) when Workspace.focuses_item(a, p) =>
+      Some(Stack(MainEditor))
     | _ => None
     };
 
-  /* after an update: a selected cell that closed falls back to the
-     active one, and a whole program selects its editor */
-  let follow = (selection: t, after: Model.t): t => {
-    let active = (d: Divided.t) =>
-      switch (Divided.active(d), Divided.cells(d)) {
-      | (Some((id, side)), _) => Stack(id, side, MainEditor)
-      | (None, [e, ..._]) => Stack(e.e_id, Body, MainEditor)
-      | (None, []) => Stack(Haz3lcore.Id.invalid, Body, MainEditor)
-      };
+  /* after an update, the selection follows the program between one
+     editor and open cells */
+  let follow = (selection: t, after: Model.t): t =>
     switch (selection, Model.current_program(after)) {
     | (Stack(_), Some(Whole(_))) => Cell(MainEditor)
-    | (Stack(id, _, _), Some(Divided(d))) =>
-      Option.is_some(Divided.cell(id, d)) ? selection : active(d)
-    | (Cell(MainEditor), Some(Divided(d))) => active(d)
+    | (Cell(MainEditor), Some(Divided(_))) => Stack(MainEditor)
     | _ => selection
     };
-  };
 
   let get_derivation_info = (~selection: t, model: Model.t) => {
     let scratchpad = List.nth(model.scratchpads, model.current);
@@ -501,13 +472,18 @@ module View = {
           /* the zoomed module as one cell: the breadcrumb names it */
           let zoom_cell = SlideView.showing_zoom_cell(~term, view);
           let tests = EvalResult.Model.test_results(Divided.result(d));
+          let focus =
+            switch (selected, Divided.focused(d)) {
+            | (Some(Selection.Stack(sel)), Some((e, side))) =>
+              Some((e.e_id, side, sel))
+            | _ => None
+            };
           let rendered =
             List.mapi(
               (i, e: ScratchCell.t) => {
                 let sel = (side: ScratchCell.side) =>
-                  switch (selected) {
-                  | Some(Selection.Stack(j, s, sel))
-                      when j == e.e_id && s == side =>
+                  switch (focus) {
+                  | Some((j, s, sel)) when j == e.e_id && s == side =>
                     Some(sel)
                   | _ => None
                   };
@@ -583,7 +559,7 @@ module View = {
                       Haz3lcore.FocusEffect.schedule_cell();
                       let id = List.nth(cells, idx).e_id;
                       Effect.Many([
-                        signal(MakeActive(Stack(id, side, MainEditor))),
+                        signal(MakeActive(Stack(MainEditor))),
                         inject(
                           Workspace(
                             Stack(
@@ -707,10 +683,11 @@ module View = {
                       ) =>
                     CellEditor.View.view(
                       ~globals,
+                      /* the pane's own action (a click's caret move)
+                         gives it the focus */
                       ~signal=
                         fun
-                        | MakeActive(s) =>
-                          signal(MakeActive(Stack(e.e_id, side, s))),
+                        | MakeActive(s) => signal(MakeActive(Stack(s))),
                       ~inject=
                         a => inject(Workspace(Stack(e.e_id, side, a))),
                       ~selected=sel(side),

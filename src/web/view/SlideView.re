@@ -103,10 +103,6 @@ let slot_id =
   | Pin(p) => p.p_id
   | Members(m) => m;
 
-/* the program with exactly [shown] open. Opens go first, so replacing
-   the last cell doesn't join; one blocked by an open cell retries after
-   the closes. Pins that can't open drop; from one editor, the caret
-   moves into the cell holding it. */
 /* headerless cells follow an edited expression to its new root, and
    their pins with them, so normalize doesn't drop them */
 let follow_headless = (~term, v: t, p: Program.t): (t, Program.t) =>
@@ -140,8 +136,14 @@ let follow_headless = (~term, v: t, p: Program.t): (t, Program.t) =>
     };
   };
 
+/* the program with exactly [shown] open. Opens go first, so replacing
+   the last cell doesn't join; one blocked by an open cell retries after
+   the closes. Pins that can't open drop; from one editor, the caret
+   moves into the cell holding it. The focused cell keeps the focus while
+   it stays open; else the last cell to open takes it. */
 let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
   let (v, p) = follow_headless(~term, v, p);
+  let before = p;
   let v = normalize(~term, v);
   let want = shown(~term, v);
   let cells =
@@ -223,8 +225,10 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
     );
   let (p, failed) = open_all(p, blocked);
   let p =
-    switch (whole_caret, p) {
-    | (Some(a), Divided(d)) => Program.Divided(Divided.place_caret(a, d))
+    switch (p, whole_caret, before) {
+    | (Divided(d), Some(a), _) => Program.Divided(Divided.place_caret(a, d))
+    | (Divided(d), None, Divided(prev)) =>
+      Program.Divided(Divided.keep_focus(~prev, d))
     | _ => p
     };
   (
