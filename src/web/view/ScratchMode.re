@@ -506,12 +506,6 @@ module View = {
           /* the zoomed module as one cell: the breadcrumb names it */
           let zoom_cell = SlideView.showing_zoom_cell(~term, view);
           let tests = EvalResult.Model.test_results(Divided.result(d));
-          let same_tests = (a, b) =>
-            switch (a, b) {
-            | (Some(x), Some(y)) => x === y
-            | (None, None) => true
-            | _ => false
-            };
           let rendered =
             List.mapi(
               (i, e: ScratchCell.t) => {
@@ -543,28 +537,18 @@ module View = {
                 let drawers =
                   draws(e.e_body) || draws(e.e_header)
                     ? Some(Divided.result(d)) : None;
-                let same_drawers =
-                  switch (stack_cache_lookup(e.e_id)) {
-                  | Some({c_drawers: Some(a), _}) =>
-                    switch (drawers) {
-                    | Some(b) => a === b
-                    | None => false
-                    }
-                  | Some({c_drawers: None, _}) => Option.is_none(drawers)
-                  | None => false
-                  };
                 switch (stack_cache_lookup(e.e_id)) {
                 | Some(c)
                     when
                       c.c_key == key
-                      && same_drawers
+                      && Option.equal((===), c.c_drawers, drawers)
                       && c.c_header === e.e_header
                       && c.c_body === e.e_body
                       && c.c_settings === globals.Globals.Model.settings
                       && c.c_font_metrics
                       === globals.Globals.Model.font_metrics
                       && c.c_colors === globals.Globals.Model.color_highlights
-                      && same_tests(c.c_tests, tests) => (
+                      && Option.equal((===), c.c_tests, tests) => (
                     e.e_id,
                     c,
                   )
