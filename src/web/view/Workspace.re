@@ -729,20 +729,8 @@ let calculate =
         );
       let calc_entry = (e: ScratchCell.t): ScratchCell.t => {
         /* the stepping drawer's rows follow the program's stepper */
-        let fit = (c: CellEditor.Model.t) =>
-          switch (
-            CellEditor.Update.fit_steps(
-              ~settings,
-              Divided.result(d),
-              c.editor,
-            )
-          ) {
-          | (editor, true) => {
-              ...c,
-              editor,
-            }
-          | (_, false) => c
-          };
+        let fit = c =>
+          fst(CellEditor.Update.fit_steps(~settings, Divided.result(d), c));
         let (h, b) = (fit(e.e_header), fit(e.e_body));
         /* identity kept when nothing moved: the memo below keys on it */
         let e =

@@ -65,6 +65,18 @@ module Model = {
       },
     },
   };
+
+  /* a cell's samples: its own and, for a stack cell, the whole program's,
+     which win on conflict (they saw real call sites) */
+  let samples =
+      (~program: option(Language.Dynamics.Map.t), result: EvalResult.Model.t)
+      : Language.Dynamics.Map.t => {
+    let own = EvalResult.Model.dynamics(result);
+    switch (program) {
+    | Some(program) => Id.Map.union((_, m, _) => Some(m), program, own)
+    | None => own
+    };
+  };
 };
 
 module Update = {
@@ -120,38 +132,31 @@ module Update = {
   /* a stepping drawer takes the rows its stepper needs; true when they
      changed, which the layout must pick up */
   let fit_steps =
-      (~settings, result: EvalResult.Model.t, editor: CodeEditable.Model.t)
-      : (CodeEditable.Model.t, bool) => {
-    let z = editor.editor.state.zipper;
+      (~settings, result: EvalResult.Model.t, cell: Model.t): (Model.t, bool) => {
+    let z = cell.editor.editor.state.zipper;
     switch (z.refractors.stepping, result.probe_steps) {
     | (Some(st), Some(ps)) when ps.span == st.span =>
       let rows = ProbeSteps.rows(~settings, ps);
       rows == st.rows
-        ? (editor, false)
+        ? (cell, false)
         : (
-          {
-            ...editor,
-            editor: {
-              ...editor.editor,
-              state: {
-                ...editor.editor.state,
-                zipper:
-                  Zipper.update_refractors(z, r =>
-                    {
-                      ...r,
-                      stepping:
-                        Some({
-                          ...st,
-                          rows,
-                        }),
-                    }
-                  ),
-              },
-            },
-          },
+          Model.map_zipper(
+            z =>
+              Zipper.update_refractors(z, r =>
+                {
+                  ...r,
+                  stepping:
+                    Some({
+                      ...st,
+                      rows,
+                    }),
+                }
+              ),
+            cell,
+          ),
           true,
         );
-    | _ => (editor, false)
+    | _ => (cell, false)
     };
   };
 
@@ -173,33 +178,27 @@ module Update = {
         {editor, result}: Model.t,
       )
       : Model.t => {
-    /* own samples plus, for stack cells, the master's whole-program
-       samples, which win on conflict (they saw real call sites) */
-    let mk_dynamics = result => {
-      let own = EvalResult.Model.dynamics(result);
-      switch (extra_dynamics) {
-      | Some(extra) => Id.Map.union((_, m, _) => Some(m), extra, own)
-      | None => own
-      };
-    };
-    /* First pass: calculate editor with current dynamics (may be stale) */
-    let editor =
+    /* both passes make the same choices, but for the edit and its
+       statics mode */
+    let calc = (~is_edited, ~statics_mode=?, result, editor) =>
       CodeEditable.Update.calculate(
         ~settings,
         ~autoprobe_mode,
         ~tail_probe,
         ~proofs,
         ~is_edited,
-        ~statics_mode,
+        ~statics_mode?,
         ~compositional,
         ~ctx?,
         ~projected?,
         ~stitch,
         ~ana?,
-        ~dynamics=mk_dynamics(result),
+        ~dynamics=Model.samples(~program=extra_dynamics, result),
         ~is_dynamic_term=false,
         editor,
       );
+    /* First pass: calculate editor with current dynamics (may be stale) */
+    let editor = calc(~is_edited, ~statics_mode, result, editor);
     /* Save probe results reference before result calculation */
     let probes_before = EvalResult.Model.probe_results(result);
     /* Calculate result (may produce new dynamics from worker) */
@@ -215,7 +214,16 @@ module Update = {
         editor |> CodeEditable.Model.get_statics,
         result,
       );
-    let (editor, steps_resized) = fit_steps(~settings, result, editor);
+    let (cell, steps_resized) =
+      fit_steps(
+        ~settings,
+        result,
+        {
+          editor,
+          result,
+        },
+      );
+    let editor = cell.editor;
     let proofs_resized =
       !Id.Map.is_empty(editor.editor.state.zipper.refractors.proofs)
       && Theorems.fit(~settings, result.theorems);
@@ -240,33 +248,13 @@ module Update = {
       || dynamics_changed
       || steps_resized
       || proofs_resized;
-    let editor =
-      if (needs_second_pass) {
-        /* Pass autoprobe_mode to second pass to avoid clear_autoprobe removing the probe */
-        /* and the first pass's statics choices: a refresh here must not fall
-           back to whole-program statics in a compositional editor */
-        CodeEditable.Update.calculate(
-          ~settings,
-          ~autoprobe_mode,
-          ~tail_probe,
-          ~proofs,
-          ~is_edited=false, /* Not an edit, just resolving pending focus/cursor */
-          ~compositional,
-          ~ctx?,
-          ~projected?,
-          ~stitch,
-          ~ana?,
-          ~dynamics=mk_dynamics(result),
-          ~is_dynamic_term=false,
-          editor,
-        );
-      } else {
-        editor;
-      };
-    {
-      editor,
-      result,
-    };
+    needs_second_pass
+      ? {
+        ...cell,
+        /* not an edit, just resolving pending focus/cursor */
+        editor: calc(~is_edited=false, result, editor),
+      }
+      : cell;
   };
 };
 
@@ -320,11 +308,13 @@ module View = {
         ~result_kind=?,
         ~locked=false,
         ~lines=false,
-        /* stack cells: the master's whole-program result supplies this
-           cell's samples (its own result never evaluates while stacked) */
-        ~master_result: option(EvalResult.Model.t)=?,
-        /* where the master's result takes actions (its probe stepper's) */
-        ~master_inject: option(EvalResult.Update.t => Ui_effect.t(unit))=?,
+        /* stack cells: the whole program's result, and where it takes
+           actions. It shows as this cell's (its own never evaluates while
+           stacked): samples, test markers, drawers */
+        ~master:
+           option(
+             (EvalResult.Model.t, EvalResult.Update.t => Ui_effect.t(unit)),
+           )=?,
         /* arrow-key at the buffer's edge: hosts (e.g. the editor
            stack) route the caret to a neighboring pane */
         ~escape: Util.Direction.t => Ui_effect.t(unit)=_ => Ui_effect.Ignore,
@@ -334,6 +324,11 @@ module View = {
         ~cull=true,
         model: Model.t,
       ) => {
+    let (result, result_inject) =
+      switch (master) {
+      | Some(m) => m
+      | None => (model.result, (a => inject(ResultAction(a))))
+      };
     let (footer, overlays) =
       EvalResult.View.view(
         ~globals={
@@ -354,7 +349,7 @@ module View = {
               signal(MakeActive(MainEditor)),
               inject(MainEditor(Perform(Move(Goal(TileId(id)))))),
             ]),
-        ~inject=a => inject(ResultAction(a)),
+        ~inject=result_inject,
         ~selected={
           switch (selected) {
           | Some(Result(a)) => Some(a)
@@ -363,23 +358,18 @@ module View = {
         },
         ~result_kind?,
         ~locked,
-        model.result,
+        result,
       );
     /* a stepping drawer in this editor renders its result's stepper */
-    let (steps_result, steps_inject) =
-      switch (master_result, master_inject) {
-      | (Some(r), Some(mi)) => (r, mi)
-      | _ => (model.result, (a => inject(ResultAction(a))))
-      };
     Haz3lcore.ProbeProj.Settings.steps_view :=
       (
         id =>
-          switch (steps_result.probe_steps) {
+          switch (result.probe_steps) {
           | Some(ps) when ps.span.probe_id == id =>
             ProbeSteps.view(
               ~globals,
-              ~inject=a => steps_inject(ProbeStepperAction(a)),
-              ~focus=f => steps_inject(ProbeStepperFocus(f)),
+              ~inject=a => result_inject(ProbeStepperAction(a)),
+              ~focus=f => result_inject(ProbeStepperFocus(f)),
               ~close=inject(MainEditor(Perform(Probe(HideSteps)))),
               ~stepped=
                 switch (
@@ -406,7 +396,7 @@ module View = {
       );
     /* the ⇓ drawer, when the program stopped before its last line */
     let tail = model.editor.editor.state.zipper.refractors.tail_target;
-    let stop = EvalResult.Model.stopped(~tail, steps_result);
+    let stop = EvalResult.Model.stopped(~tail, result);
     Option.iter(id => EvalResult.Model.note_stop(id, stop), tail);
     Haz3lcore.ProbeProj.Settings.value_fallback :=
       (
@@ -419,8 +409,8 @@ module View = {
         id =>
           Theorems.View.view_one(
             ~globals,
-            ~inject=a => steps_inject(TheoremsAction(a)),
-            steps_result.theorems,
+            ~inject=a => result_inject(TheoremsAction(a)),
+            result.theorems,
             id,
           )
       );
@@ -439,17 +429,17 @@ module View = {
                     [signal(MakeActive(MainEditor))]
                     /* the program takes focus back from a drawer's step */
                     @ (
-                      switch (steps_result.probe_steps) {
+                      switch (result.probe_steps) {
                       | Some({focus: Some(_), _}) => [
-                          steps_inject(ProbeStepperFocus(None)),
+                          result_inject(ProbeStepperFocus(None)),
                         ]
                       | _ => []
                       }
                     )
                     @ (
-                      switch (steps_result.theorems.focus) {
+                      switch (result.theorems.focus) {
                       | Some(_) => [
-                          steps_inject(TheoremsAction(TheoremFocus(None))),
+                          result_inject(TheoremsAction(TheoremFocus(None))),
                         ]
                       | None => []
                       }
@@ -465,36 +455,18 @@ module View = {
                   take_focus: _ => Ui_effect.Ignore,
                   focus: selected == Some(MainEditor) ? Some() : None,
                 }),
-          ~overlays=
-            switch (master_result) {
-            /* a cell's tests ran in the whole program: its markers too */
-            | Some(mr) when globals.settings.core.dynamics =>
-              switch (EvalResult.Model.test_results(mr)) {
-              | Some(results) => [
-                  EvalResult.View.test_result_layer(
-                    ~font_metrics=globals.font_metrics,
-                    ~measured=model.editor.editor.syntax.measured,
-                    results,
-                  ),
-                ]
-              | None => []
-              }
-            | _ => overlays(model.editor.editor)
-            },
+          ~overlays=overlays(model.editor.editor),
           ~lines,
           ~cull,
-          ~dynamics={
-            let own = EvalResult.Model.dynamics(model.result);
-            switch (master_result) {
-            | Some(mr) =>
-              Id.Map.union(
-                (_, m, _) => Some(m),
-                EvalResult.Model.dynamics(mr),
-                own,
-              )
-            | None => own
-            };
-          },
+          ~dynamics=
+            Model.samples(
+              ~program=
+                Option.map(
+                  ((r, _)) => EvalResult.Model.dynamics(r),
+                  master,
+                ),
+              model.result,
+            ),
           ~pending_eval_ids=EvalResult.Model.pending_eval_ids(model.result),
           ~show_active_eval=EvalResult.Model.eval_is_pending(model.result),
           model.editor,

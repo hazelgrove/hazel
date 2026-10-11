@@ -699,9 +699,9 @@ module View = {
                   let pane_view =
                       (
                         side: ScratchCell.side,
+                        ~result_kind,
                         ~lines,
-                        ~master_result=?,
-                        ~master_inject=?,
+                        ~master=?,
                         ~escape,
                         ~escape_vertical,
                         ~cull,
@@ -716,11 +716,10 @@ module View = {
                       ~inject=
                         a => inject(Workspace(Stack(e.e_id, side, a))),
                       ~selected=sel(side),
-                      ~result_kind=`NoResults,
+                      ~result_kind,
                       ~locked=false,
                       ~lines,
-                      ~master_result?,
-                      ~master_inject?,
+                      ~master?,
                       ~escape,
                       ~escape_vertical=Some(escape_vertical),
                       ~cull,
@@ -779,6 +778,7 @@ module View = {
                         @ [
                           pane_view(
                             Header,
+                            ~result_kind=`NoResults,
                             ~lines=false,
                             ~escape=header_escape,
                             ~escape_vertical=header_escape_vertical,
@@ -800,13 +800,16 @@ module View = {
                         [
                           pane_view(
                             Body,
+                            /* its tests ran in the whole program */
+                            ~result_kind=`TestSigilsOnly,
                             ~lines=true,
-                            ~master_result=Divided.result(d),
-                            ~master_inject=
+                            ~master=(
+                              Divided.result(d),
                               a =>
                                 inject(
                                   Workspace(CellAction(ResultAction(a))),
                                 ),
+                            ),
                             ~escape=body_escape,
                             ~escape_vertical=body_escape_vertical,
                             /* culling measures one `.cull-scope`: only
