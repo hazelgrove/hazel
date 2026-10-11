@@ -3,8 +3,9 @@ open Language;
 
 /* how [t] differs from a cold calc and from monolithic statics: error and
    warning ids, and per id the type, elaboration, runtime free variables
-   and probe targets. spine roots keep their hollow item's type, so their
-   types are compared only against the cold calc */
+   and probe targets; from the cold calc, also its items and their exports.
+   spine roots keep their hollow item's type, so their types are compared
+   only against the cold calc */
 let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
   let analyzed = DefStatics.last_analyzed^;
   let cold =
@@ -138,8 +139,31 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
       );
     };
   };
+  /* items and members by id, each with its exports' names, in order */
+  let rec shape = items =>
+    List.concat_map(
+      (it: DefStatics.item) =>
+        [
+          Id.show(it.d_id)
+          ++ " exports "
+          ++ String.concat(
+               " ",
+               List.map(DefStatics.entry_name, it.d_exports),
+             ),
+          ...shape(it.d_members),
+        ],
+      items,
+    );
   Option.iter(
-    cold => {
+    (cold: DefStatics.t) => {
+      let rec first_diff = (xs, ys) =>
+        switch (xs, ys) {
+        | ([], []) => ()
+        | ([x, ...xs], [y, ...ys]) when x == y => first_diff(xs, ys)
+        | ([x, ..._], _) => note("item " ++ x ++ " differs from cold")
+        | ([], [y, ..._]) => note("item " ++ y ++ " missing")
+        };
+      first_diff(shape(t.items), shape(cold.items));
       ids(
         "error ids vs cold",
         DefStatics.all_error_ids(cold),

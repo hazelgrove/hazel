@@ -685,9 +685,8 @@ module Incr = {
   };
   let mk_cache = (): cache => {prev: None};
 
-  /* telemetry/test hooks: chunks re-measured vs reused, cumulative */
+  /* test hook: chunks re-measured, cumulative */
   let built = ref(0);
-  let reused = ref(0);
 
   /* cut after the last linebreak of a secondary run when content
      follows: deferred linebreaks and the piece-row flush there, and
@@ -780,9 +779,7 @@ module Incr = {
                   e.e_final == final
                   && Segment.ptr_eq(e.e_pieces, pieces)
                   && e.e_shape_slice == slice_for(shape_slices, anchor)
-                  && e.e_refr_slice == slice_for(refr_slices, anchor) =>
-              incr(reused);
-              e;
+                  && e.e_refr_slice == slice_for(refr_slices, anchor) => e
             | _ =>
               incr(built);
               let f =

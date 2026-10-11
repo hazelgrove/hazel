@@ -66,7 +66,6 @@ let remold = (z: t, ~root): t => {
    as-is) but regrout runs only on a caret window spanning the remold
    diff and any stale runs, falling back to the global pass when
    ancestors changed or are stale */
-let sparse_hits: ref(int) = ref(0);
 let sparse_fallbacks: ref(int) = ref(0);
 
 /* keep the old objects for pieces remold/regrout rebuilt unchanged, so
@@ -201,7 +200,6 @@ let remold_regrout_sparse = (d: Direction.t, z: t, ~root): t => {
       relatives: restore_relatives(z.relatives, z'.relatives),
     };
   } else {
-    incr(sparse_hits);
     let (pre, suf) = relatives.siblings;
     /* stale runs the remold diff can't see join the window */
     let dirty =

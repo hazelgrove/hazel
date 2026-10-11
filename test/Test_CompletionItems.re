@@ -130,59 +130,43 @@ let type_after_item =
      });
 };
 
-let corpus_case = (file: string, ()) =>
-  switch (CorpusUtil.corpus_seg(~root=Exp, file)) {
-  | None => fail("corpus unreadable/unparseable: " ++ file)
-  | Some(seg) =>
-    check_parity(file ++ " (complete)", seg);
-    let n = List.length(Segment.top_items(seg));
-    List.iter(
-      ((k, keys)) =>
-        switch (type_after_item(k, keys, seg)) {
-        | None =>
-          fail(Printf.sprintf("%s: could not type after item %d", file, k))
-        | Some(z) =>
-          check_parity(
-            Printf.sprintf("%s item %d + %S", file, k, keys),
-            Zipper.unselect_and_zip(~erase_buffer=true, z),
-          )
-        },
-      [
-        (n / 2, "let q = 1"),
-        (n / 3, "case x "),
-        (2 * n / 3, "(1 + "),
-        (0, "let f = fun x ->"),
-        (n - 2, "if true then"),
-      ],
-    );
-  };
+let corpus_case = (file: string, ()) => {
+  let seg = CorpusUtil.mega_seg(file);
+  check_parity(file ++ " (complete)", seg);
+  let n = List.length(Segment.top_items(seg));
+  List.iter(
+    ((k, keys)) =>
+      switch (type_after_item(k, keys, seg)) {
+      | None =>
+        fail(Printf.sprintf("%s: could not type after item %d", file, k))
+      | Some(z) =>
+        check_parity(
+          Printf.sprintf("%s item %d + %S", file, k, keys),
+          Zipper.unselect_and_zip(~erase_buffer=true, z),
+        )
+      },
+    [
+      (n / 2, "let q = 1"),
+      (n / 3, "case x "),
+      (2 * n / 3, "(1 + "),
+      (0, "let f = fun x ->"),
+      (n - 2, "if true then"),
+    ],
+  );
+};
 
-let edge_programs = [
-  ("two defs", "let a = 1 in\nlet b = 2 in\na + b"),
-  ("tail op tree", "let a = 1 in\na + 2 * 3 - 4"),
-  ("seq semis", "let f = fun x -> x in\nf(1); f(2); f(3)"),
-  (
-    "case adoption",
-    "let f = fun x ->\ncase x\n| 1 => 2\n| _ => 3\nend in\nf(0)",
-  ),
-  ("blank lines", "let a = 1 in\n\n\nlet b = 2 in\nb"),
-  ("single expr", "1 + 2 * 3"),
-];
-
-let edge_case = ((name, src), ()) =>
-  switch (ParsedCorpus.to_segment(~root=Exp, src)) {
-  | None => fail("unparseable edge program: " ++ name)
-  | Some(seg) =>
-    check_parity(name, seg);
-    switch (type_after_item(0, "let z = 0", seg)) {
-    | None => fail(name ++ ": could not type")
-    | Some(z) =>
-      check_parity(
-        name ++ " + incomplete let",
-        Zipper.unselect_and_zip(~erase_buffer=true, z),
-      )
-    };
+let edge_case = ((name, src), ()) => {
+  let seg = CorpusUtil.seg_of(src);
+  check_parity(name, seg);
+  switch (type_after_item(0, "let z = 0", seg)) {
+  | None => fail(name ++ ": could not type")
+  | Some(z) =>
+    check_parity(
+      name ++ " + incomplete let",
+      Zipper.unselect_and_zip(~erase_buffer=true, z),
+    )
   };
+};
 
 /* an unfinished form typed above complete items molds them into its
    open slot (a pattern, a type); whole completion re-molds them */
@@ -193,49 +177,43 @@ let open_slot_tails = [
 let open_slot_keys = ["let", "let foo", "type t ="];
 
 let open_slot_case = ((tag, src), keys, ()) =>
-  switch (ParsedCorpus.to_segment(~root=Exp, src)) {
-  | None => fail("unparseable: " ++ src)
-  | Some(seg) =>
-    switch (type_after_item(0, keys, seg)) {
-    | None => fail("could not type " ++ keys)
-    | Some(z) =>
-      check_parity(
-        Printf.sprintf("%S above a %s", keys, tag),
-        Zipper.unselect_and_zip(~erase_buffer=true, z),
-      )
-    }
+  switch (type_after_item(0, keys, CorpusUtil.seg_of(src))) {
+  | None => fail("could not type " ++ keys)
+  | Some(z) =>
+    check_parity(
+      Printf.sprintf("%S above a %s", keys, tag),
+      Zipper.unselect_and_zip(~erase_buffer=true, z),
+    )
   };
 
 /* the memo serves both the Exp (decorations) and editor-root (semantics)
    readings: each sort gets its own completion, in either order */
-let sort_keyed_case = () =>
-  switch (ParsedCorpus.to_segment(~root=Exp, "(a")) {
-  | None => fail("unparseable: (a")
-  | Some(seg) =>
-    let uncached = sort =>
-      CanonicalCompletion.complete_item_uncached(~sort, seg).completed_seg;
-    let (exp, pat) = (uncached(Exp), uncached(Pat));
+let sort_keyed_case = () => {
+  let seg = CorpusUtil.seg_of("(a");
+  let uncached = sort =>
+    CanonicalCompletion.complete_item_uncached(~sort, seg).completed_seg;
+  let (exp, pat) = (uncached(Exp), uncached(Pat));
+  check(
+    bool,
+    "readings differ by sort",
+    false,
+    Segment.equiv_mod_grout(exp, pat),
+  );
+  let same = (name, expected, sort) =>
     check(
       bool,
-      "readings differ by sort",
-      false,
-      Segment.equiv_mod_grout(exp, pat),
+      name,
+      true,
+      Segment.equiv_mod_grout(
+        expected,
+        CanonicalCompletion.complete_items(~sort, seg).completed_seg,
+      ),
     );
-    let same = (name, expected, sort) =>
-      check(
-        bool,
-        name,
-        true,
-        Segment.equiv_mod_grout(
-          expected,
-          CanonicalCompletion.complete_items(~sort, seg).completed_seg,
-        ),
-      );
-    same("Exp reading", exp, Exp);
-    same("Pat reading after Exp", pat, Pat);
-    same("Exp reading after Pat", exp, Exp);
-    same("Pat reading again", pat, Pat);
-  };
+  same("Exp reading", exp, Exp);
+  same("Pat reading after Exp", pat, Pat);
+  same("Exp reading after Pat", exp, Exp);
+  same("Pat reading again", pat, Pat);
+};
 
 /* the per-item caches: a live set past the bound stays cached, and
    superseded versions don't grow the bound */
@@ -283,7 +261,7 @@ let tests = (
   "CompletionItems",
   List.map(
     ((name, _) as e) => test_case(name, `Quick, edge_case(e)),
-    edge_programs,
+    CorpusUtil.edge_programs,
   )
   @ List.concat_map(
       ((tag, _) as tail) =>
