@@ -288,6 +288,104 @@ let test_held_dropped_on_failure = () =>
     },
   );
 
+/* Responses are shared like requests (WorkerServer.share_response on the
+   worker, WorkerClient.unshare on the client), over the active encoding and
+   structuredClone as on the real boundary. The two tables live in one JS
+   runtime here. */
+let shared_rt = (msg: WorkerServer.ServerMessage.t) => {
+  module M = WorkerServer.MarshalEncoding;
+  let w = M.encode_response(WorkerServer.share_response(msg));
+  let w = structured_clone(w);
+  (String.length(Obj.magic(w): string), M.decode_response(w));
+};
+let reset_sharing = () => {
+  Util.ShareCodec.Client.reset();
+  Util.ShareCodec.Worker.reset();
+  WorkerServer.response_reset := true;
+  Web.WorkerClient.awaiting_response_reset := false;
+};
+let result_exp = (msg: WorkerServer.ServerMessage.t): Exp.t =>
+  switch (msg) {
+  | WorkerServer.ServerMessage.Result({
+      response: [("cell", Ok((e, _))), ..._],
+      _,
+    }) => e
+  | _ => fail("not a result")
+  };
+let unshared = (wire: WorkerServer.ServerMessage.t) =>
+  switch (Web.WorkerClient.unshare(wire)) {
+  | Some(Ok(msg)) => msg
+  | Some(Error ()) => fail("unshare: unknown reference")
+  | None => fail("unshare: ignored")
+  };
+let a_result = (~id: int, e: Exp.t): WorkerServer.ServerMessage.t =>
+  WorkerServer.ServerMessage.Result({
+    request_id: id,
+    response: [("cell", Ok((e, EvaluatorState.empty)))],
+    eval_time,
+    final_streams: [],
+  });
+
+let test_shared_responses = (): test_case(_) =>
+  test_case(
+    "Shared responses: round trip, and an unchanged result is small and shared",
+    `Quick,
+    () => {
+      reset_sharing();
+      let e = Test_ShareCodec.elab(Test_ShareCodec.program(40));
+      let (first, wire1) = shared_rt(a_result(~id=1, e));
+      let (second, wire2) = shared_rt(a_result(~id=2, e));
+      check(
+        bool,
+        "the first resets the client's table",
+        true,
+        switch (wire1) {
+        | WorkerServer.ServerMessage.Shared(true, _) => true
+        | _ => false
+        },
+      );
+      let e1 = result_exp(unshared(wire1));
+      let e2 = result_exp(unshared(wire2));
+      check(bool, "the result arrives", true, Util.ValueHash.same(e, e1));
+      check(bool, "the second is much smaller", true, second * 5 < first);
+      check(bool, "and is the very value received", true, e1 === e2);
+    },
+  );
+
+let test_shared_response_recovery = (): test_case(_) =>
+  test_case(
+    "Shared responses: a value the client lost is an error, then ignored until the worker resets",
+    `Quick,
+    () => {
+      reset_sharing();
+      let e = Test_ShareCodec.elab(Test_ShareCodec.program(10));
+      ignore(unshared(snd(shared_rt(a_result(~id=1, e)))));
+      Util.ShareCodec.Worker.reset(); /* the client's table is lost */
+      let after = snd(shared_rt(a_result(~id=2, e)));
+      check(
+        bool,
+        "an error",
+        true,
+        Web.WorkerClient.unshare(after) == Some(Error()),
+      );
+      let stale = snd(shared_rt(a_result(~id=3, e)));
+      check(
+        bool,
+        "the rest is ignored",
+        true,
+        Web.WorkerClient.unshare(stale) == None,
+      );
+      WorkerServer.response_reset := true; /* ResetResponses */
+      let fresh = snd(shared_rt(a_result(~id=4, e)));
+      check(
+        bool,
+        "after the reset, whole again",
+        true,
+        Util.ValueHash.same(e, result_exp(unshared(fresh))),
+      );
+    },
+  );
+
 let tests = [
   (
     "WorkerServer encodings",
@@ -298,6 +396,8 @@ let tests = [
       test_isomorphic(~name="Marshal", (module WorkerServer.MarshalEncoding)),
       test_isomorphic(~name="Direct", (module WorkerServer.DirectEncoding)),
       test_isomorphic(~name="Sexp", (module WorkerServer.SexpEncoding)),
+      test_shared_responses(),
+      test_shared_response_recovery(),
     ],
   ),
   (
