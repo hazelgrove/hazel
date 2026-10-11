@@ -86,10 +86,54 @@ let in_a_cell = () => {
   );
 };
 
+/* a proof drawer's step takes focus as the steps drawer's does: view
+   state the model keeps through recalculation, so the step draws its
+   selection and takes the keys */
+let step_focus = () => {
+  let calc = ce =>
+    Web.CellEditor.Update.calculate(
+      ~settings=CoreSettings.on,
+      ~proofs=Theorems,
+      ~is_edited=true,
+      ~statics_mode=Force,
+      ~queue_worker=None,
+      ~stitch=x => x,
+      ce,
+    );
+  let ce =
+    calc(
+      Web.CellEditor.Model.mk(
+        Editor.Model.mk(~root=Exp, zipper("theorem a = 1 + 1 == 2 in\n1")),
+      ),
+    );
+  check(
+    int,
+    "one theorem",
+    1,
+    List.length(Util.Calc.get_saved([], ce.result.theorems.thms)),
+  );
+  let focus = Some((0, Web.StepperBase.Here()));
+  let focused =
+    Web.EvalResult.Update.update(
+      ~settings=Web.Settings.Model.init,
+      TheoremsAction(TheoremFocus(focus)),
+      ce.result,
+    );
+  check(bool, "not an edit", false, focused.is_edit);
+  check(bool, "not an undo step", false, focused.historic);
+  let ce =
+    calc({
+      ...ce,
+      result: focused.model,
+    });
+  check(bool, "kept", true, ce.result.theorems.focus == focus);
+};
+
 let tests = (
   "ProofDrawers",
   [
     test_case("a drawer under each theorem", `Quick, placed),
     test_case("a theorem's cell", `Quick, in_a_cell),
+    test_case("a proof step takes focus", `Quick, step_focus),
   ],
 );

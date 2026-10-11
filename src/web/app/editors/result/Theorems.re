@@ -39,6 +39,10 @@ module Model = {
   type t = {
     thm_map: Id.Map.t(theorem),
     thms: Calc.saved(list(Id.t)),
+    /* a proof drawer's step the pointer last went to, as ProbeSteps.focus:
+       its editors draw their selections and take the keys */
+    [@default None]
+    focus: option((int, StepperView.Focus.t)),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,6 +51,7 @@ module Model = {
   let init = {
     thm_map: Id.Map.empty,
     thms: Calc.Pending,
+    focus: None,
   };
 
   /* (proven, all), for the results' status line */
@@ -89,6 +94,7 @@ module Model = {
         p.thm_map,
       ),
     thms: Calc.Pending,
+    focus: None,
   };
 
   let get_score = (model: t): option((float, float)) => {
@@ -119,7 +125,8 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | TheoremUpdate(int, StepperView.Update.t);
+    | TheoremUpdate(int, StepperView.Update.t)
+    | TheoremFocus(option((int, StepperView.Focus.t)));
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     let settings =
@@ -157,6 +164,12 @@ module Update = {
         };
       | None => model |> Updated.raise_invalid_action
       };
+    | TheoremFocus(focus) =>
+      {
+        ...model,
+        focus,
+      }
+      |> Updated.return_quiet
     };
   };
 
@@ -165,7 +178,7 @@ module Update = {
         ~settings: Calc.t(CoreSettings.t),
         ~statics: Calc.t(Haz3lcore.CachedStatics.t),
         ~dynamics: Calc.t(option(Dynamics.t)),
-        {thm_map, thms}: Model.t,
+        {thm_map, thms, focus}: Model.t,
       ) => {
     let settings =
       switch (settings) {
@@ -281,6 +294,7 @@ module Update = {
     Model.{
       thm_map,
       thms: thms |> Calc.save,
+      focus,
     };
   };
 };
@@ -363,8 +377,8 @@ module View = {
       stepper_view,
     );
 
-  /* one theorem's proof, for its drawer, under the steps drawer's title
-     bar */
+  /* one theorem's proof, for its drawer: the steps drawer's title bar,
+     and its focus kept in the model, as the steps drawer's is */
   let view_one =
       (
         ~globals: Globals.t,
@@ -410,9 +424,9 @@ module View = {
             ),
             ...stepper(
                  ~globals,
-                 ~take_focus=_ => Ui_effect.Ignore,
+                 ~take_focus=f => inject(Update.TheoremFocus(Some(f))),
                  ~inject,
-                 ~selected=None,
+                 ~selected=model.focus,
                  idx,
                  thm.stepper_view,
                ),
