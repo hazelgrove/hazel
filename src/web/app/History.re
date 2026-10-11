@@ -31,6 +31,32 @@ module Model = {
 module Update = {
   open Updated;
 
+  /* Undo and redo stay on the current slide (and mode). */
+  let same_slide = (a: Model.state, b: Model.state): bool =>
+    Editors.Model.editor_key(a.editors)
+    == Editors.Model.editor_key(b.editors);
+
+  /* Entries are whole pages, so restoring one would also roll back the
+     other slides' carets and evaluation results (their ✔). */
+  let keep_other_slides =
+      (~from: Model.state, state: Model.state): Model.state =>
+    switch (from.editors, state.editors) {
+    | (Tutorial(f), Tutorial(s)) => {
+        ...state,
+        editors:
+          Tutorial({
+            ...s,
+            exercises:
+              ListUtil.put_nth(
+                s.current,
+                List.nth(s.exercises, s.current),
+                f.exercises,
+              ),
+          }),
+      }
+    | _ => state
+    };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Page.Update.t;
 
@@ -47,13 +73,10 @@ module Update = {
     switch (action) {
     | Globals(Undo) =>
       switch (model.undo_stack) {
-      | [] =>
-        print_endline("Cannot undo");
-        model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] when same_slide(x.model, model.current) => {
           ...x,
           model: {
-            current: x.model,
+            current: x.model |> keep_other_slides(~from=model.current),
             undo_stack: rest,
             redo_stack: [
               {
@@ -64,16 +87,16 @@ module Update = {
             ],
           },
         }
+      | _ =>
+        print_endline("Cannot undo");
+        model |> Updated.raise_invalid_action;
       }
     | Globals(Redo) =>
       switch (model.redo_stack) {
-      | [] =>
-        print_endline("Cannot redo");
-        model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] when same_slide(x.model, model.current) => {
           ...x,
           model: {
-            current: x.model,
+            current: x.model |> keep_other_slides(~from=model.current),
             undo_stack: [
               {
                 ...x,
@@ -84,6 +107,9 @@ module Update = {
             redo_stack: rest,
           },
         }
+      | _ =>
+        print_endline("Cannot redo");
+        model |> Updated.raise_invalid_action;
       }
     | action =>
       let current =
