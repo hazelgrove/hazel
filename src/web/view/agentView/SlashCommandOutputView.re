@@ -1,15 +1,16 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.WebUtil;
+open Poly;
 
 /** Format a USD amount with up to 6 decimals; trims for tiny values. */
 let format_usd = (n: float): string =>
   if (n >= 1.0) {
-    Printf.sprintf("$%.2f", n);
+    Stdlib.Printf.sprintf("$%.2f", n);
   } else if (n >= 0.01) {
-    Printf.sprintf("$%.4f", n);
+    Stdlib.Printf.sprintf("$%.4f", n);
   } else if (n > 0.0) {
-    Printf.sprintf("$%.6f", n);
+    Stdlib.Printf.sprintf("$%.6f", n);
   } else {
     "$0.00";
   };
@@ -21,11 +22,11 @@ let format_int_commas = (n: int): string => {
   let parts = ref([]);
   let i = ref(len);
   while (i^ > 3) {
-    parts := [String.sub(s, i^ - 3, 3), ...parts^];
+    parts := [String.sub(s, ~pos=i^ - 3, ~len=3), ...parts^];
     i := i^ - 3;
   };
-  parts := [String.sub(s, 0, i^), ...parts^];
-  (n < 0 ? "-" : "") ++ String.concat(",", parts^);
+  parts := [String.sub(s, ~pos=0, ~len=i^), ...parts^];
+  (n < 0 ? "-" : "") ++ String.concat(~sep=",", parts^);
 };
 
 let card =
@@ -76,7 +77,8 @@ let kv_row = (~k: string, ~v: string, ~strong=false, ()): Node.t =>
   );
 
 let view_cost = (p: Message.Model.cost_output): Node.t => {
-  let model_name = p.cost_model == "" ? "(no model selected)" : p.cost_model;
+  let model_name =
+    String.equal(p.cost_model, "") ? "(no model selected)" : p.cost_model;
   let cost_value =
     switch (p.cost_estimated_usd) {
     | None => "—"
@@ -114,7 +116,7 @@ let view_cost = (p: Message.Model.cost_output): Node.t => {
     ~kind="cost",
     ~title="Session cost",
     ~icon="$",
-    p.cost_model == ""
+    String.equal(p.cost_model, "")
       ? [
         stats,
         div(
@@ -159,7 +161,10 @@ let view_credits = (p: Message.Model.credits_output): Node.t => {
         div(
           ~attrs=[
             clss(["slash-progress-fill"]),
-            Attr.create("style", Printf.sprintf("width: %.1f%%;", pct)),
+            Attr.create(
+              "style",
+              Stdlib.Printf.sprintf("width: %.1f%%;", pct),
+            ),
           ],
           [],
         ),
@@ -206,7 +211,7 @@ let view_usage = (p: Message.Model.usage_output): Node.t => {
     opt_row("limit", p.usage_limit),
     opt_row("remaining", p.usage_remaining),
   ];
-  let rows = List.filter_map(x => x, candidates);
+  let rows = List.filter_map(~f=x => x, candidates);
   card(
     ~kind="usage",
     ~title="OpenRouter key usage",
@@ -216,7 +221,7 @@ let view_usage = (p: Message.Model.usage_output): Node.t => {
 };
 
 let view_key = (key: string): Node.t =>
-  if (key == "") {
+  if (String.equal(key, "")) {
     card(
       ~kind="key",
       ~title="OpenRouter API key",
@@ -245,20 +250,21 @@ let view_key = (key: string): Node.t =>
 let view_help = (p: Message.Model.help_output): Node.t => {
   let rows =
     List.map(
-      (e: Message.Model.help_entry) =>
-        div(
-          ~attrs=[clss(["slash-help-row"])],
-          [
-            code(
-              ~attrs=[clss(["slash-help-cmd"])],
-              [text("/" ++ e.help_name)],
-            ),
-            span(
-              ~attrs=[clss(["slash-help-desc"])],
-              [text(e.help_description)],
-            ),
-          ],
-        ),
+      ~f=
+        (e: Message.Model.help_entry) =>
+          div(
+            ~attrs=[clss(["slash-help-row"])],
+            [
+              code(
+                ~attrs=[clss(["slash-help-cmd"])],
+                [text("/" ++ e.help_name)],
+              ),
+              span(
+                ~attrs=[clss(["slash-help-desc"])],
+                [text(e.help_description)],
+              ),
+            ],
+          ),
       p.help_entries,
     );
   card(

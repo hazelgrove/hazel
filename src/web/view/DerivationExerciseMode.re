@@ -3,6 +3,7 @@ open Virtual_dom.Vdom;
 open Util;
 open Language;
 open Node;
+open Poly;
 
 let stitched_results =
   DerivationExercise.map_stitched((_, cell_editor: CellEditor.Model.t) =>
@@ -122,9 +123,9 @@ module Model = {
     switch (pos) {
     | Trees(i, pos) =>
       try({
-        let tree = List.nth(trees, i);
+        let tree = List.nth_exn(trees, i);
         let res = Tree.nth(tree, pos);
-        let tree = List.nth(eds.trees, i);
+        let tree = List.nth_exn(eds.trees, i);
         let ed = Tree.nth(tree, pos);
         switch (ed, res) {
         | (Just({rule: Some(rule), _}), {rule: None, _}) =>
@@ -167,15 +168,15 @@ module Model = {
       (~scratch_mode: bool, model: t)
       : list((option(string), list(CodeEditable.Model.t))) => {
     let rec postorder = (Tree.Node(v, c)) =>
-      List.concat_map(postorder, c) @ [v];
+      List.concat_map(~f=postorder, c) @ [v];
     let tree_editors =
       model.cells.trees
-      |> List.concat_map(tree =>
+      |> List.concat_map(~f=tree =>
            tree
            |> postorder
-           |> List.filter_map(cell_opt =>
+           |> List.filter_map(~f=cell_opt =>
                 Option.map(
-                  (cell: CellEditor.Model.t) => cell.editor,
+                  ~f=(cell: CellEditor.Model.t) => cell.editor,
                   cell_opt,
                 )
               )
@@ -397,7 +398,7 @@ module Update = {
               };
             }) {
             | Invalid_argument(_)
-            | Not_found =>
+            | Stdlib.Not_found =>
               let root = DerivationExercise.root_of_pos(pos);
               ""
               |> DerivationExercise.zipper_of_code(~root)
@@ -460,41 +461,46 @@ module Update = {
             model.editors.setup,
           ),
         trees: {
-          List.map2(Util.Tree.combine, cells.trees, model.editors.trees)
+          List.map2_exn(
+            cells.trees,
+            model.editors.trees,
+            ~f=Util.Tree.combine,
+          )
           |> List.map(
-               Util.Tree.map(
-                 fun
-                 | (
-                     Some(di: CellEditor.Model.t),
-                     DerivationExercise.Abbr.Just(
-                       DerivationExercise.{jdmt, rule},
+               ~f=
+                 Util.Tree.map(
+                   fun
+                   | (
+                       Some(di: CellEditor.Model.t),
+                       DerivationExercise.Abbr.Just(
+                         DerivationExercise.{jdmt, rule},
+                       ),
+                     ) => {
+                       DerivationExercise.Abbr.Just(
+                         DerivationExercise.{
+                           jdmt:
+                             calculate(
+                               di.editor.statics,
+                               di.editor.dynamics,
+                               jdmt,
+                             ),
+                           rule,
+                         },
+                       );
+                     }
+                   | (None, DerivationExercise.Abbr.Abbr(d)) =>
+                     DerivationExercise.Abbr.Abbr(d)
+                   /* The cells/editors trees are built in lockstep, so a cell
+                      should be [Some(_)] iff the matching editor is [Just(_)]. */
+                   | (None, _) =>
+                     failwith(
+                       "DerivationExerciseMode.calculate: editor present but no cell",
+                     )
+                   | (Some(_), _) =>
+                     failwith(
+                       "DerivationExerciseMode.calculate: cell present but no editor",
                      ),
-                   ) => {
-                     DerivationExercise.Abbr.Just(
-                       DerivationExercise.{
-                         jdmt:
-                           calculate(
-                             di.editor.statics,
-                             di.editor.dynamics,
-                             jdmt,
-                           ),
-                         rule,
-                       },
-                     );
-                   }
-                 | (None, DerivationExercise.Abbr.Abbr(d)) =>
-                   DerivationExercise.Abbr.Abbr(d)
-                 /* The cells/editors trees are built in lockstep, so a cell
-                    should be [Some(_)] iff the matching editor is [Just(_)]. */
-                 | (None, _) =>
-                   failwith(
-                     "DerivationExerciseMode.calculate: editor present but no cell",
-                   )
-                 | (Some(_), _) =>
-                   failwith(
-                     "DerivationExerciseMode.calculate: cell present but no editor",
-                   ),
-               ),
+                 ),
              );
         },
       };
@@ -547,10 +553,10 @@ module Selection = {
       (~settings as _: Settings.t, id: Id.t, model: Model.t)
       : option((Update.t, t)) => {
     DerivationExercise.positioned_editors(model.editors)
-    |> List.find_opt(((_, e: Editor.t)) =>
-         TermData.root_piece(id, e.syntax.term_data) != None
+    |> List.find(~f=((_, e: Editor.t)) =>
+         Option.is_some(TermData.root_piece(id, e.syntax.term_data))
        )
-    |> Option.map(((pos, _)) =>
+    |> Option.map(~f=((pos, _)) =>
          (
            Update.Editor(
              pos,
@@ -584,7 +590,7 @@ module NinjaKeys = {
   // Wrap a function (to be called by Js setInterval) in a loop call.
   // Clear the interval if the function returns true.
   let loop = (f: unit => bool, interval: float) => {
-    let id_ref = ref(Option.None);
+    let id_ref = ref(Stdlib.Option.None);
     id_ref :=
       Some(
         Dom_html.window##setInterval(
@@ -633,7 +639,7 @@ module NinjaKeys = {
       let action = Js.Unsafe.get(target_elem, "action");
       let id = Js.to_string(action##.id);
       let rule_image = RuleImage.t_of_sexp(Sexplib.Sexp.of_string(id));
-      let rule = Option.get(RuleImage.to_rule(M.rule_set, rule_image));
+      let rule = Option.value_exn(RuleImage.to_rule(M.rule_set, rule_image));
       if (current_hover_rule^ != rule) {
         current_hover_rule := rule;
         Ui_effect.Expert.handle(M.schedule_action(Refresh));
@@ -645,8 +651,9 @@ module NinjaKeys = {
       let* copied = opt_get_copied();
       let left = ev##.clientX;
       let bottom = Dom_html.window##.innerHeight - ev##.clientY;
-      copied##.style##.left := Js.string(Printf.sprintf("%dpx", left));
-      copied##.style##.bottom := Js.string(Printf.sprintf("%dpx", bottom));
+      copied##.style##.left := Js.string(Stdlib.Printf.sprintf("%dpx", left));
+      copied##.style##.bottom :=
+        Js.string(Stdlib.Printf.sprintf("%dpx", bottom));
       Js._true;
     };
 
@@ -710,7 +717,7 @@ module NinjaKeys = {
                  ),
                ),
              );
-         val keywords = keywords(rule) |> String.concat(" ")
+         val keywords = keywords(rule) |> String.concat(~sep=" ")
        }
       ];
     };
@@ -721,7 +728,7 @@ module NinjaKeys = {
         "data",
         M.rule_set
         |> RuleImage.all_rules_of_rule_set
-        |> List.map(from_rule)
+        |> List.map(~f=from_rule)
         |> Array.of_list
         |> Js.array,
       );
@@ -890,9 +897,9 @@ module View = {
         ],
         (
           DerivationExercise.all_abbrs(pos)
-          |> List.filter(abbr => abbr != index)
-          |> List.filter(_ => !pos_is_value(pos))
-          |> List.map(dropdown_option_abbr_view(~pos, ~index=_))
+          |> List.filter(~f=abbr => abbr != index)
+          |> List.filter(~f=_ => !pos_is_value(pos))
+          |> List.map(~f=dropdown_option_abbr_view(~pos, ~index=_))
         )
         @ (
           switch (index) {
@@ -954,7 +961,7 @@ module View = {
             ~attrs=[Attr.class_("deduction-prems")],
             (
               children_node
-              |> List.mapi((i, t) =>
+              |> List.mapi(~f=(i, t) =>
                    div(
                      ~attrs=[Attr.class_("deduction-just-wrapper")],
                      [add_premise_btn_view(~pos, ~index=i), t],
@@ -1104,23 +1111,26 @@ module View = {
     //   | Abbr(index);
 
     let info_tree =
-      List.map2(Tree.combine, eds.trees, model.cells.trees)
+      List.map2_exn(eds.trees, model.cells.trees, ~f=Tree.combine)
       |> List.map(
-           Tree.map(
-             fun
-             | (
-                 DerivationExercise.Abbr.Just(DerivationExercise.{rule, _}),
-                 Some(di),
-               ) => (
-                 Just(rule, di): ed
-               )
-             | (Abbr(i), _) => Abbr(i)
-             | _ =>
-               raise(Failure("DerivationExercise.mk: ed<>di inconsistent")),
-           ),
+           ~f=
+             Tree.map(
+               fun
+               | (
+                   DerivationExercise.Abbr.Just(DerivationExercise.{rule, _}),
+                   Some(di),
+                 ) => (
+                   Just(rule, di): ed
+                 )
+               | (Abbr(i), _) => Abbr(i)
+               | _ =>
+                 raise(
+                   Failure("DerivationExercise.mk: ed<>di inconsistent"),
+                 ),
+             ),
          )
-      |> List.map2(Tree.combine, model.verified_tree)
-      |> List.mapi(i =>
+      |> (l => List.map2_exn(model.verified_tree, l, ~f=Tree.combine))
+      |> List.mapi(~f=i =>
            Tree.mapi((pos, (res, ed)) =>
              (DerivationExercise.Trees(i, pos), res, ed)
            )
@@ -1140,7 +1150,7 @@ module View = {
           CellCommon.caption("Derivation"),
           div(
             ~attrs=[Attr.classes(["cell-item", "derivation-panel"])],
-            (info_tree |> List.mapi(derivation_view))
+            (info_tree |> List.mapi(~f=derivation_view))
             @ (
               if (globals.settings.instructor_mode) {
                 [
@@ -1194,7 +1204,9 @@ module View = {
 
     let option_view = (name, n) =>
       option(
-        ~attrs=n == name ? [Attr.create("selected", "selected")] : [],
+        ~attrs=
+          String.equal(n, name)
+            ? [Attr.create("selected", "selected")] : [],
         [text(n)],
       );
 
@@ -1220,8 +1232,9 @@ module View = {
               }),
             ],
             List.map(
-              option_view(RuleImage.show_rule_set(eds.rule_set)),
-              RuleImage.all_of_rule_set |> List.map(RuleImage.show_rule_set),
+              ~f=option_view(RuleImage.show_rule_set(eds.rule_set)),
+              RuleImage.all_of_rule_set
+              |> List.map(~f=RuleImage.show_rule_set),
             ),
           );
         } else {

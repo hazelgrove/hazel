@@ -58,7 +58,7 @@ let apply_override =
       action: ContextualAction.t,
     )
     : ContextualAction.t =>
-  switch (List.assoc_opt(action.label, overrides)) {
+  switch (List.Assoc.find(overrides, action.label, ~equal=String.equal)) {
   | Some(hotkey) => {
       ...action,
       hotkey,
@@ -73,8 +73,8 @@ let initialize =
     ) => {
   let opts =
     actions
-    |> List.map(apply_override(~overrides))
-    |> List.map(of_contextual_action)
+    |> List.map(~f=apply_override(~overrides))
+    |> List.map(~f=of_contextual_action)
     |> Array.of_list;
   Js.Unsafe.set(elem(), "data", Js.array(opts));
 };

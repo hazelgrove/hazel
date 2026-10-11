@@ -10,7 +10,7 @@ let tyalias_base_exp_coloring_ids = (~tpat_id: Id.t, ~def_id: Id.t) => [
 ];
 let tyalias_exp = (~tpat_id: Id.t, ~def_id: Id.t): form => {
   let explanation =
-    Printf.sprintf(
+    Stdlib.Printf.sprintf(
       "The [*type*](%s) is bound to the [*type variable*](%s) in the body.",
       Id.to_string(def_id),
       Id.to_string(tpat_id),

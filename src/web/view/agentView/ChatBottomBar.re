@@ -6,6 +6,7 @@ open Js_of_ocaml;
 open Haz3lcore;
 
 open JsUtil;
+open Poly;
 
 // Shared bottom bar component for Chat and Workbench views
 let view =
@@ -22,12 +23,12 @@ let view =
   let current_chat = ChatSystem.Utils.find_chat(current_chat_id, chat_system);
   let is_compacting =
     switch (agent_model.compaction_in_progress) {
-    | Some(id) when id == current_chat_id => true
+    | Some(id) when Id.equal(id, current_chat_id) => true
     | _ => false
     };
   let is_awaiting_assistant =
     switch (agent_model.awaiting_response) {
-    | Some(id) when id == current_chat_id => true
+    | Some(id) when Id.equal(id, current_chat_id) => true
     | _ => false
     };
   let agent_busy = is_compacting || is_awaiting_assistant;
@@ -134,7 +135,7 @@ let view =
 
   // Send / queue: while the agent is busy, SendMessage enqueues for later (see Agent.send_message).
   let send_message = _ => {
-    let message_content = String.trim(current_text);
+    let message_content = String.strip(current_text);
     if (String.length(message_content) > 0) {
       ChatScrollPin.request := true; /* a sent prompt re-pins the list */
       let user_message = Message.Utils.mk_user_message(message_content);
@@ -224,11 +225,12 @@ let view =
     let messages = Chat.Utils.get(current_chat);
     let user_facing_messages =
       List.filter(
-        (msg: Message.Model.t) =>
-          switch (msg.role) {
-          | Message.Model.System(_) => false
-          | _ => true
-          },
+        ~f=
+          (msg: Message.Model.t) =>
+            switch (msg.role) {
+            | Message.Model.System(_) => false
+            | _ => true
+            },
         messages,
       );
     let format_message = (msg: Message.Model.t): string => {
@@ -250,8 +252,8 @@ let view =
     };
     let formatted_text =
       List.fold_left(
-        (acc, msg) => acc ++ format_message(msg),
-        "",
+        ~f=(acc, msg) => acc ++ format_message(msg),
+        ~init="",
         user_facing_messages,
       );
     JsUtil.focus_clipboard_shim();
@@ -335,13 +337,14 @@ let view =
     switch (last_prompt_tokens_opt, context_limit_opt) {
     | (Some(n), Some(m)) when m > 0 =>
       let frac = float_of_int(n) /. float_of_int(m);
-      let bar_pct = min(100, int_of_float(ceil(frac *. 100.0)));
-      let pct_line = "(" ++ Printf.sprintf("%.1f%%", frac *. 100.0) ++ ")";
+      let bar_pct = min(100, int_of_float(Stdlib.ceil(frac *. 100.0)));
+      let pct_line =
+        "(" ++ Stdlib.Printf.sprintf("%.1f%%", frac *. 100.0) ++ ")";
       (
         base_label,
         Some(pct_line),
         Some(bar_pct),
-        title(Some(Printf.sprintf("%.2f%%", frac *. 100.0))),
+        title(Some(Stdlib.Printf.sprintf("%.2f%%", frac *. 100.0))),
       );
     | _ => (base_label, None, None, title(None))
     };
@@ -410,20 +413,20 @@ let view =
   // "google/gemini-3-flash-preview" -> "Gemini 3 Flash Preview".
   let pretty_model_name = (id: string): string => {
     let after_slash =
-      switch (String.index_opt(id, '/')) {
-      | Some(i) => String.sub(id, i + 1, String.length(id) - i - 1)
+      switch (String.index(id, '/')) {
+      | Some(i) => String.sub(id, ~pos=i + 1, ~len=String.length(id) - i - 1)
       | None => id
       };
-    let parts = String.split_on_char('-', after_slash);
+    let parts = String.split(after_slash, ~on='-');
     let cap = (s: string): string =>
-      if (s == "") {
+      if (String.equal(s, "")) {
         s;
       } else {
-        let first = String.sub(s, 0, 1) |> String.uppercase_ascii;
-        let rest = String.sub(s, 1, String.length(s) - 1);
+        let first = String.sub(s, ~pos=0, ~len=1) |> String.uppercase;
+        let rest = String.sub(s, ~pos=1, ~len=String.length(s) - 1);
         first ++ rest;
       };
-    String.concat(" ", List.map(cap, parts));
+    String.concat(~sep=" ", List.map(~f=cap, parts));
   };
 
   let change_model_button: Node.t =
@@ -459,12 +462,13 @@ let view =
       AgentGlobals.get_active_llm_id(globals.settings.agent_globals);
     let last_usage =
       List.fold_left(
-        (acc, m: Message.Model.t) =>
-          switch (m.role) {
-          | Agent(Some(u)) => Some(u)
-          | _ => acc
-          },
-        None,
+        ~f=
+          (acc, m: Message.Model.t) =>
+            switch (m.role) {
+            | Agent(Some(u)) => Some(u)
+            | _ => acc
+            },
+        ~init=Stdlib.Option.none,
         Chat.Utils.get(current_chat),
       );
     let (lit, tooltip) =
@@ -475,9 +479,9 @@ let view =
           ),
           Some(aid),
         )
-          when n > 0 && mid == aid => (
+          when n > 0 && String.equal(mid, aid) => (
           true,
-          Printf.sprintf(
+          Stdlib.Printf.sprintf(
             "Prompt cache hit on last turn (%d cached tokens). Cache is per-model; switching models invalidates it.",
             n,
           ),
@@ -608,7 +612,7 @@ let view =
                 ~attrs=[clss(["chat-action-buttons-left"])],
                 [
                   // Prompt button
-                  if (chunked_chat.prompt != "") {
+                  if (!String.equal(chunked_chat.prompt, "")) {
                     div(
                       ~attrs=[
                         clss(["chat-action-button", "icon"]),
@@ -630,7 +634,7 @@ let view =
                     [Icons.wrench],
                   ),
                   // Context View button (shows agent editor view, static errors, and workbench)
-                  if (chunked_chat.context != "") {
+                  if (!String.equal(chunked_chat.context, "")) {
                     div(
                       ~attrs=[
                         clss(["chat-action-button", "icon"]),
@@ -680,7 +684,9 @@ let view =
             div(
               ~attrs=[clss(["chat-send-queue-body"])],
               [
-                text(String.concat("\n\n", current_chat.pending_send_queue)),
+                text(
+                  String.concat(~sep="\n\n", current_chat.pending_send_queue),
+                ),
               ],
             ),
           ],
@@ -747,7 +753,7 @@ let view =
             div(
               ~attrs=[clss(["chat-input-top-bar-right"])],
               List.filter_map(
-                x => x,
+                ~f=x => x,
                 [cache_indicator_label, model_name_label],
               ),
             ),
@@ -764,31 +770,32 @@ let view =
             div(
               ~attrs=[clss(["chat-slash-menu"])],
               List.mapi(
-                (i, (name, desc)) =>
-                  div(
-                    ~attrs=[
-                      clss(
-                        ["chat-slash-menu-item"]
-                        @ (sm.selected_index == i ? ["selected"] : []),
-                      ),
-                      Attr.on_mousedown(_ =>
-                        Effect.Many([
-                          effect_run_slash_command(name),
-                          Effect.Prevent_default,
-                        ])
-                      ),
-                    ],
-                    [
-                      span(
-                        ~attrs=[clss(["chat-slash-cmd"])],
-                        [text("/" ++ name)],
-                      ),
-                      span(
-                        ~attrs=[clss(["chat-slash-desc"])],
-                        [text(desc)],
-                      ),
-                    ],
-                  ),
+                ~f=
+                  (i, (name, desc)) =>
+                    div(
+                      ~attrs=[
+                        clss(
+                          ["chat-slash-menu-item"]
+                          @ (sm.selected_index == i ? ["selected"] : []),
+                        ),
+                        Attr.on_mousedown(_ =>
+                          Effect.Many([
+                            effect_run_slash_command(name),
+                            Effect.Prevent_default,
+                          ])
+                        ),
+                      ],
+                      [
+                        span(
+                          ~attrs=[clss(["chat-slash-cmd"])],
+                          [text("/" ++ name)],
+                        ),
+                        span(
+                          ~attrs=[clss(["chat-slash-desc"])],
+                          [text(desc)],
+                        ),
+                      ],
+                    ),
                 cmds,
               ),
             );
@@ -886,7 +893,7 @@ let view =
                   switch (slash_menu) {
                   | Some(sm) =>
                     let cmds = ChatSlashCommands.filtered(sm.filter);
-                    switch (List.nth_opt(cmds, sm.selected_index)) {
+                    switch (List.nth(cmds, sm.selected_index)) {
                     | Some((name, _)) =>
                       Js.Opt.iter(
                         Dom_html.document##getElementById(
@@ -953,7 +960,7 @@ let view =
           {
             // Thin in-composer bottom bar: reasoning dropup left, send/stop right.
             let queue_button =
-              if (agent_busy && String.length(String.trim(current_text)) > 0) {
+              if (agent_busy && String.length(String.strip(current_text)) > 0) {
                 div(
                   ~attrs=[
                     clss([
@@ -981,7 +988,7 @@ let view =
                   ],
                   [Icons.stop_square],
                 );
-              } else if (String.length(String.trim(current_text)) > 0) {
+              } else if (String.length(String.strip(current_text)) > 0) {
                 div(
                   ~attrs=[
                     clss(["send-button", "icon", "chat-message-send-button"]),

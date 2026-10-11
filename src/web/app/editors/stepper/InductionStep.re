@@ -102,14 +102,14 @@ module F =
   let persist = (model: model) => {
     {
       scrut: CodeEditable.Model.persist(model.scrut),
-      cases: List.map(InductionCase.persist, model.cases),
+      cases: List.map(~f=InductionCase.persist, model.cases),
     };
   };
 
   let unpersist = (p: persistent) => {
     {
       scrut: CodeEditable.Model.unpersist(p.scrut),
-      cases: List.map(InductionCase.unpersist, p.cases),
+      cases: List.map(~f=InductionCase.unpersist, p.cases),
       elab_scrut_raw: Calc.Pending,
       elab_scrut_sub: Calc.Pending,
       scrut_ty: Calc.Pending,
@@ -132,7 +132,7 @@ module F =
           scrut: new_scrut,
         };
       | CaseUpdate(i, a) =>
-        switch (List.nth_opt(model.cases, i)) {
+        switch (List.nth(model.cases, i)) {
         | Some(case) =>
           let* new_case = InductionCase.update(~settings, a, case);
           {
@@ -230,33 +230,35 @@ module F =
     };
     let (cases, constraints, validities) =
       List.map(
-        InductionCase.calculate(
-          ~settings,
-          ~scrut_ty,
-          ~scrut_co_ctx,
-          ~elab_scrut=elab_scrut_sub,
-          ~ctx,
-          ~info_map,
-          ~exp,
-          ~ana,
-        ),
+        ~f=
+          InductionCase.calculate(
+            ~settings,
+            ~scrut_ty,
+            ~scrut_co_ctx,
+            ~elab_scrut=elab_scrut_sub,
+            ~ctx,
+            ~info_map,
+            ~exp,
+            ~ana,
+          ),
         cases,
       )
       |> ListUtil.unzip3;
 
     let new_join_exp =
       List.fold_left(
-        (acc, case: InductionCase.model) =>
-          switch (acc, case.last_exp) {
-          | (None, Calc.Pending) => None
-          | (None, Calc.Calculated(last_exp)) => Some(last_exp)
-          | (Some(acc), Calc.Pending) => Some(acc)
-          | (Some(acc), Calc.Calculated(last_exp))
-              when Exp.fast_equal(acc, last_exp) =>
-            Some(acc)
-          | (Some(_), Calc.Calculated(_)) => Some(Exp.fresh(EmptyHole))
-          },
-        None,
+        ~f=
+          (acc, case: InductionCase.model) =>
+            switch (acc, case.last_exp) {
+            | (None, Calc.Pending) => None
+            | (None, Calc.Calculated(last_exp)) => Some(last_exp)
+            | (Some(acc), Calc.Pending) => Some(acc)
+            | (Some(acc), Calc.Calculated(last_exp))
+                when Exp.fast_equal(acc, last_exp) =>
+              Some(acc)
+            | (Some(_), Calc.Calculated(_)) => Some(Exp.fresh(EmptyHole))
+            },
+        ~init=None,
         cases,
       );
     let join_exp =
@@ -272,13 +274,15 @@ module F =
         let.calc constraints = Calc.combine_list(constraints)
         and.calc ctx = ctx
         and.calc scrut_ty = scrut_ty;
-        let constraints = List.filter_map(Fun.id, constraints);
-        Coverage.check(
-          constraints,
-          Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
-        ).
-          exhaustiveness
-        == Exhaustive;
+        let constraints = List.filter_map(~f=Fn.id, constraints);
+        Poly.equal(
+          Coverage.check(
+            constraints,
+            Typ.normalize(SemanticCtx.get_ctx(ctx), scrut_ty),
+          ).
+            exhaustiveness,
+          Exhaustive,
+        );
       };
 
     let validity =
@@ -287,13 +291,14 @@ module F =
         let.calc validities = Calc.combine_list(validities)
         and.calc is_exhaustive = is_exhaustive;
         List.fold_left(
-          (v1, v2) =>
-            switch (v1, v2) {
-            | (Some(true), Some(true)) => Some(true)
-            | (Some(false), Some(false)) => Some(false)
-            | (_, _) => None
-            },
-          is_exhaustive ? Some(true) : None,
+          ~f=
+            (v1, v2) =>
+              switch (v1, v2) {
+              | (Some(true), Some(true)) => Some(true)
+              | (Some(false), Some(false)) => Some(false)
+              | (_, _) => None
+              },
+          ~init=is_exhaustive ? Some(true) : None,
           validities,
         );
       };
@@ -331,7 +336,7 @@ module F =
           );
         ScrutUpdate(ci);
       | Case(i, a) =>
-        switch (List.nth_opt(model.cases, i)) {
+        switch (List.nth(model.cases, i)) {
         | Some(case) =>
           let+ ci =
             InductionCase.get_cursor_info(
@@ -402,21 +407,22 @@ module F =
 
     let cases =
       List.mapi(
-        (i, case) =>
-          InductionCase.view(
-            ~globals,
-            ~inject=x => inject(CaseUpdate(i, x)),
-            ~take_focus=x => take_focus(Case(i, x)),
-            ~remove_case=inject(RemoveCase(i)),
-            ~hide_stepper,
-            ~focus=
-              switch (focus) {
-              | Some(Case(j, s)) when i == j => Some(s)
-              | Some(_)
-              | None => None
-              },
-            case,
-          ),
+        ~f=
+          (i, case) =>
+            InductionCase.view(
+              ~globals,
+              ~inject=x => inject(CaseUpdate(i, x)),
+              ~take_focus=x => take_focus(Case(i, x)),
+              ~remove_case=inject(RemoveCase(i)),
+              ~hide_stepper,
+              ~focus=
+                switch (focus) {
+                | Some(Case(j, s)) when i == j => Some(s)
+                | Some(_)
+                | None => None
+                },
+              case,
+            ),
         model.cases,
       );
 
