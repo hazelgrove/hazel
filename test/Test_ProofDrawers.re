@@ -4,11 +4,7 @@ open Language;
 
 /* A drawer under each top-level theorem, holding its proof */
 
-let zipper = (src: string): Zipper.t =>
-  switch (Parser.to_zipper(~root=Exp, src)) {
-  | Some(z) => z
-  | None => Alcotest.fail("could not parse: " ++ src)
-  };
+let zipper = CorpusUtil.typed_zipper(~root=Exp);
 
 let syntax = (z: Zipper.t): CachedSyntax.t => {
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
