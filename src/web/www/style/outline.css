@@ -431,10 +431,10 @@
 .outline-menu-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: calc(var(--outline-menu-z) - 1);
 }
 #outline-sidebar .outline-menu {
-  z-index: 41;
+  z-index: var(--outline-menu-z);
   font-family: var(--ui-font);
   font-size: 1rem;
   font-weight: normal;
