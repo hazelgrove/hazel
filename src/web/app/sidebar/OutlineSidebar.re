@@ -235,6 +235,46 @@ let take_focus =
     (),
   );
 
+/* The outline's UX mode (see SlideView.mode): which mode shows, the
+   rows with a GUI (a livelit's use), which of them UX mode shows, and
+   how to switch mode or show and hide a row there. None outside decks. */
+type ux_ctl = {
+  ux_mode: bool,
+  ux_rows: list(Language.Id.t),
+  ux_shown: list(Language.Id.t),
+  ux_toggle: Language.Id.t => Effect.t(unit),
+  ux_set_mode: bool => Effect.t(unit),
+};
+
+/* a GUI row's chip: whether UX mode shows it, and a click to change it
+   (from either mode) */
+let ux_chip = (ux: option(ux_ctl), id: Language.Id.t): list(Node.t) =>
+  switch (ux) {
+  | Some(u) when List.mem(id, u.ux_rows) =>
+    let on = List.mem(id, u.ux_shown);
+    [
+      span(
+        ~attrs=[
+          clss(["outline-ux-chip"] @ (on ? ["outline-ux-on"] : [])),
+          Attr.title(
+            on
+              ? "shown in UX mode: hide it there"
+              : "hidden in UX mode: show it there",
+          ),
+          Attr.on_click(_ =>
+            Effect.Many([
+              Effect.Prevent_default,
+              Effect.Stop_propagation,
+              u.ux_toggle(id),
+            ])
+          ),
+        ],
+        [text({js|🖼️|js})],
+      ),
+    ];
+  | _ => []
+  };
+
 let rec node_view =
         (
           ~stack_controls: bool,
@@ -257,6 +297,7 @@ let rec node_view =
           ~edit: edit_ctl,
           ~created: option((Language.Id.t, string)),
           ~pinned: list(Language.Id.t),
+          ~ux: option(ux_ctl),
           n: OutlineTree.node,
         )
         : Node.t => {
@@ -505,7 +546,8 @@ let rec node_view =
               [],
             ),
           ]
-        | Some(id) => [
+        | Some(id) =>
+          [
             span(
               ~attrs=[
                 clss(
@@ -530,6 +572,7 @@ let rec node_view =
               [],
             ),
           ]
+          @ ux_chip(ux, id)
         | None => []
         }
       ),
@@ -624,6 +667,7 @@ let rec node_view =
                   ~edit,
                   ~created,
                   ~pinned,
+                  ~ux,
                   kid,
                 ),
               ]
@@ -1116,6 +1160,7 @@ let header_view =
       ~zoom_to: option(Language.Id.t) => Effect.t(unit),
       ~show_whole: bool => Effect.t(unit),
       ~discard: Effect.t(unit),
+      ~ux: option(ux_ctl),
     )
     : list(Node.t) => {
   let stop = eff =>
@@ -1203,11 +1248,47 @@ let header_view =
             ),
           ]
           : [];
+  /* the two modes: dev, the architecture, and UX, the art made in it */
+  let mode_switch =
+    switch (ux) {
+    | None => []
+    | Some(u) =>
+      let btn = (ux_mode, glyph, title) =>
+        span(
+          ~attrs=[
+            clss(
+              ["outline-mode-btn"]
+              @ (u.ux_mode == ux_mode ? ["outline-mode-on"] : []),
+            ),
+            Attr.title(title),
+            Attr.on_click(_ => stop(u.ux_set_mode(ux_mode))),
+          ],
+          [text(glyph)],
+        );
+      [
+        span(
+          ~attrs=[clss(["outline-mode"])],
+          [
+            btn(
+              false,
+              {js|🏗️|js},
+              "dev mode: the outline's own picks (the architecture)",
+            ),
+            btn(
+              true,
+              {js|🖼️|js},
+              "UX mode: the livelits' GUIs to start (the art made in it)",
+            ),
+          ],
+        ),
+      ];
+    };
   [
     span(~attrs=[clss(["outline-menu-glyph"])], [text({js|☰|js})]),
     span(~attrs=[clss(["outline-word"])], [text("outline")]),
     span(~attrs=[clss(["outline-crumbs"])], crumb_nodes @ tail),
-  ];
+  ]
+  @ mode_switch;
 };
 
 /* what the outline shows */
@@ -1229,6 +1310,7 @@ type props = {
   /* the menu row the keys have selected */
   menu_sel: int,
   test_status: Language.Id.t => option(TestStatus.t),
+  ux: option(ux_ctl),
 };
 
 /* what the outline asks for */
@@ -1272,6 +1354,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
     menu,
     menu_sel,
     test_status,
+    ux,
   } = props;
   let {
     jump,
@@ -1390,7 +1473,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
               : []
           ),
         stack_controls
-          ? header_view(~header, ~zoom_to, ~show_whole, ~discard)
+          ? header_view(~header, ~zoom_to, ~show_whole, ~discard, ~ux)
           : [text({js|☰ outline|js})],
       ),
       div(~attrs=[clss(["outline-resize"]), ...resize_attrs], []),
@@ -1450,6 +1533,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
                     ~edit,
                     ~created,
                     ~pinned,
+                    ~ux,
                     root,
                   ),
                 ]

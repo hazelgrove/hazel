@@ -11,20 +11,39 @@ type pin = {
   p_run: bool,
 };
 
+/* The outline's two modes, each with pins of its own. Dev (the
+   architecture) shows what was picked, nothing to start; UX (the art
+   made in it) shows the livelits' GUIs to start: every row whose
+   definition is a livelit's use. Either can show anything: a row
+   pinned in UX mode is pinned there only. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type mode =
+  | Dev
+  | UX;
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   /* module rows from the top level down to the zoomed module; [] is
      the whole program */
   zoom: list(Id.t),
+  /* the current mode's pins */
   pins: list(pin),
   /* the current level's whole is shown even though pins exist */
   parked: bool,
+  mode,
+  /* the other mode's pins and parked, kept while this one shows; UX's
+     are None until first shown or changed (then: its livelit rows) */
+  away_pins: option(list(pin)),
+  away_parked: bool,
 };
 
 let init: t = {
   zoom: [],
   pins: [],
   parked: false,
+  mode: Dev,
+  away_pins: None,
+  away_parked: false,
 };
 
 let zoom_root = (v: t): option(Id.t) =>
@@ -96,6 +115,8 @@ let normalize = (~term, v: t): t => {
     ...v,
     zoom,
     pins: List.filter((p: pin) => exists(p.p_id), v.pins),
+    away_pins:
+      Option.map(List.filter((p: pin) => exists(p.p_id)), v.away_pins),
   };
 };
 
@@ -329,4 +350,67 @@ let zoom_to = (m: option(Id.t), v: t): t => {
 let park = (parked: bool, v: t): t => {
   ...v,
   parked,
+};
+
+/* UX mode's pins to start: a pin for each livelit row */
+let ux_default = (~term): list(pin) =>
+  List.map(
+    id =>
+      {
+        p_id: id,
+        p_run: false,
+      },
+    OutlineTree.livelit_row_ids(term),
+  );
+
+/* the other mode's pins, its default if never set */
+let away = (~term, v: t): list(pin) =>
+  switch (v.away_pins) {
+  | Some(ps) => ps
+  | None => v.mode == Dev ? ux_default(~term) : []
+  };
+
+/* show the other mode: its pins become the current ones, and these are
+   kept for coming back */
+let set_mode = (~term, mode: mode, v: t): t =>
+  mode == v.mode
+    ? v
+    : {
+      ...v,
+      mode,
+      pins: away(~term, v),
+      parked: v.away_parked,
+      away_pins: Some(v.pins),
+      away_parked: v.parked,
+    };
+
+/* UX mode's pins, whichever mode shows */
+let ux_pins = (~term, v: t): list(pin) =>
+  v.mode == UX ? v.pins : away(~term, v);
+
+let in_ux = (~term, id: Id.t, v: t): bool =>
+  List.exists((p: pin) => p.p_id == id, ux_pins(~term, v));
+
+/* show or hide [id] in UX mode, from either mode: in UX mode it is a
+   pin like any other; in dev mode it changes the pins kept for UX */
+let toggle_ux = (~term, id: Id.t, v: t): t => {
+  let toggled = ps =>
+    List.exists((p: pin) => p.p_id == id, ps)
+      ? List.filter((p: pin) => p.p_id != id, ps)
+      : ps
+        @ [
+          {
+            p_id: id,
+            p_run: false,
+          },
+        ];
+  v.mode == UX
+    ? {
+      ...v,
+      pins: toggled(v.pins),
+    }
+    : {
+      ...v,
+      away_pins: Some(toggled(away(~term, v))),
+    };
 };

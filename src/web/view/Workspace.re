@@ -31,6 +31,10 @@ module Action = {
     | ZoomTo(option(Haz3lcore.Id.t))
     /* park (true) or unpark the pins at this level */
     | ShowWhole(bool)
+    /* the outline's mode: dev, or UX (the livelits' GUIs) */
+    | OutlineMode(SlideView.mode)
+    /* show or hide an item in UX mode, from either mode */
+    | ToggleUX(Haz3lcore.Id.t)
     /* open and close cells to match the view (after undo) */
     | RealizeView
     /* a loaded slide's saved view and caret, restored once ready */
@@ -395,6 +399,10 @@ let update =
   | ZoomOut => view((_, _, v) => SlideView.zoom_out(v), code)
   | ZoomTo(m) => view((_, _, v) => SlideView.zoom_to(m, v), code)
   | ShowWhole(parked) => view((_, _, v) => SlideView.park(parked, v), code)
+  | OutlineMode(mode) =>
+    view((term, _, v) => SlideView.set_mode(~term, mode, v), code)
+  | ToggleUX(fid) =>
+    view((term, _, v) => SlideView.toggle_ux(~term, fid, v), code)
   | RealizeView =>
     /* after undo: the restored program's statics may be compacted
        away, so the view is realized against fresh ones */

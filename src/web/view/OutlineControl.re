@@ -499,6 +499,25 @@ let view =
           Language.TestMap.lookup(id, tr.test_map)
           |> Option.map(Language.TestMap.joint_status)
         ),
+      ux:
+        switch (slide_view) {
+        | Some(v) when is_deck =>
+          Some({
+            ux_mode: v.mode == SlideView.UX,
+            ux_rows: OutlineTree.livelit_row_ids(term),
+            ux_shown:
+              List.map(
+                (p: SlideView.pin) => p.p_id,
+                SlideView.ux_pins(~term, v),
+              ),
+            ux_toggle: id => inject_workspace(ToggleUX(id)),
+            ux_set_mode: ux =>
+              inject_workspace(
+                OutlineMode(ux ? SlideView.UX : SlideView.Dev),
+              ),
+          })
+        | _ => None
+        },
     };
     /* a row inside an open cell can't open on its own: go to it there */
     let nested = id =>

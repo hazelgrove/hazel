@@ -96,6 +96,10 @@ type saved_view = {
   sv_pins: list((OutlineTree.path, bool)),
   sv_zoom: option(OutlineTree.path),
   sv_parked: bool,
+  /* the outline's mode, and the other mode's pins and parked */
+  sv_ux: bool,
+  sv_away: option(list((OutlineTree.path, bool))),
+  sv_away_parked: bool,
 };
 let pending_pins: Hashtbl.t(string, saved_view) = Hashtbl.create(8);
 
@@ -119,6 +123,17 @@ type view_file = {
 let view_key = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name ++ ":view";
 
+/* the outline's mode rides a key of its own, so views saved before it
+   read as they were: dev mode, UX's pins never set */
+[@deriving sexp]
+type mode_file = {
+  mf_ux: bool,
+  mf_away: option(pins_file),
+  mf_away_parked: bool,
+};
+let mode_key = (prefix: string, name: string): string =>
+  prefix ++ ":" ++ name ++ ":mode";
+
 let read_pins = (prefix: string, name: string): unit => {
   let decode = (txt: string): list((OutlineTree.path, bool)) =>
     switch (pins_file_of_sexp(Sexplib.Sexp.of_string(txt))) {
@@ -139,8 +154,17 @@ let read_pins = (prefix: string, name: string): unit => {
     | None
     | exception _ => (None, false)
     };
+  let mode =
+    switch (
+      HazelDB.kv_get(mode_key(prefix, name))
+      |> Option.map(txt => mode_file_of_sexp(Sexplib.Sexp.of_string(txt)))
+    ) {
+    | Some(mf) => Some(mf)
+    | None
+    | exception _ => None
+    };
   let ck = content_key(prefix, name);
-  pins == [] && zoom == None
+  pins == [] && zoom == None && mode == None
     ? Hashtbl.remove(pending_pins, ck)
     : Hashtbl.replace(
         pending_pins,
@@ -149,12 +173,43 @@ let read_pins = (prefix: string, name: string): unit => {
           sv_pins: pins,
           sv_zoom: zoom,
           sv_parked: parked,
+          sv_ux:
+            switch (mode) {
+            | Some(mf) => mf.mf_ux
+            | None => false
+            },
+          sv_away:
+            Option.bind(mode, mf =>
+              Option.map(List.map(p => (p.pin_path, p.pin_run)), mf.mf_away)
+            ),
+          sv_away_parked:
+            switch (mode) {
+            | Some(mf) => mf.mf_away_parked
+            | None => false
+            },
         },
       );
 };
 
 /* the saved view against the loaded program's outline */
+let resolve_pins =
+    (saved: list((OutlineTree.path, bool)), term: Language.Exp.t)
+    : list(SlideView.pin) =>
+  List.filter_map(
+    ((path, run)) =>
+      OutlineTree.resolve_path(path, term)
+      |> Option.map(id =>
+           SlideView.{
+             p_id: id,
+             p_run: run,
+           }
+         ),
+    saved,
+  );
 let resolve_view = (saved: saved_view, term: Language.Exp.t): SlideView.t => {
+  mode: saved.sv_ux ? UX : Dev,
+  away_pins: Option.map(ps => resolve_pins(ps, term), saved.sv_away),
+  away_parked: saved.sv_away_parked,
   zoom:
     switch (
       Option.bind(saved.sv_zoom, path => OutlineTree.resolve_path(path, term))
@@ -162,18 +217,7 @@ let resolve_view = (saved: saved_view, term: Language.Exp.t): SlideView.t => {
     | Some(m) => OutlineTree.trail_of(m, term) |> Option.value(~default=[])
     | None => []
     },
-  pins:
-    List.filter_map(
-      ((path, run)) =>
-        OutlineTree.resolve_path(path, term)
-        |> Option.map(id =>
-             SlideView.{
-               p_id: id,
-               p_run: run,
-             }
-           ),
-      saved.sv_pins,
-    ),
+  pins: resolve_pins(saved.sv_pins, term),
   parked: saved.sv_parked,
 };
 
@@ -209,9 +253,8 @@ let save_if_changed = (key: string, s: string): unit =>
 let write_view =
     (prefix: string, name: string, view: SlideView.t, term: Language.Exp.t)
     : unit => {
-  save_if_changed(
-    pins_key(prefix, name),
-    view.pins
+  let saved_pins = (pins: list(SlideView.pin)): pins_file =>
+    pins
     |> List.filter_map((p: SlideView.pin) =>
          OutlineTree.label_path(p.p_id, term)
          |> Option.map(pin_path =>
@@ -220,8 +263,21 @@ let write_view =
                 pin_run: p.p_run,
               }
             )
-       )
-    |> sexp_of_pins_file
+       );
+  save_if_changed(
+    pins_key(prefix, name),
+    saved_pins(view.pins) |> sexp_of_pins_file |> Sexplib.Sexp.to_string,
+  );
+  /* always written, so a reset view (dev mode, UX never set) replaces
+     what was saved before it */
+  save_if_changed(
+    mode_key(prefix, name),
+    {
+      mf_ux: view.mode == UX,
+      mf_away: Option.map(saved_pins, view.away_pins),
+      mf_away_parked: view.away_parked,
+    }
+    |> sexp_of_mode_file
     |> Sexplib.Sexp.to_string,
   );
   save_if_changed(
@@ -379,6 +435,7 @@ let side_suffixes = [
   ":caret",
   ":pins",
   ":view",
+  ":mode",
   ":collapse",
   ":probes",
 ];

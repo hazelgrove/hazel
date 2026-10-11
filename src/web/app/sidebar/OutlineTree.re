@@ -518,3 +518,48 @@ let row_ids = (e: Exp.t): Id.Map.t(unit) =>
       go(Id.Map.empty, of_term(e));
     },
   );
+
+/* a definition that is a livelit's use, ^^livelit(...): one with a GUI */
+let rec is_livelit_use = (e: Exp.t): bool =>
+  switch (e.term) {
+  | Parens(e) => is_livelit_use(e)
+  | Projector(pd, _) => pd.kind == ProjectorKind.Livelit
+  | _ => false
+  };
+
+/* the rows whose definition is a livelit's use, in program order, at
+   every level: what the outline's UX mode shows unless told otherwise.
+   Memoized on the term like [row_ids]. */
+let livelit_rows_cache: Slot.t(Exp.t, list(Id.t)) = Slot.mk();
+let livelit_row_ids = (e: Exp.t): list(Id.t) =>
+  Slot.get(
+    livelit_rows_cache,
+    e,
+    () => {
+      let rec exp = (acc, e: Exp.t) =>
+        switch (e.term) {
+        | Parens(e)
+        | Filter(_, e) => exp(acc, e)
+        | Projector(pd, e) =>
+          pd.kind == ProjectorKind.Livelit ? acc : exp(acc, e)
+        | Let(_, def, body) =>
+          exp(
+            is_livelit_use(def) ? [Exp.rep_id(e), ...acc] : exp(acc, def),
+            body,
+          )
+        | ModuleExp(_, def, body) => exp(exp(acc, def), body)
+        | TyAlias(_, _, body)
+        | Seq(_, body) => exp(acc, body)
+        | Module(items) => List.fold_left(item, acc, items)
+        | _ => acc
+        }
+      and item = (acc, m: Mod.t) =>
+        switch (m.term) {
+        | ModLet(_, def) =>
+          is_livelit_use(def) ? [Mod.rep_id(m), ...acc] : exp(acc, def)
+        | ModuleMod(_, def) => exp(acc, def)
+        | _ => acc
+        };
+      List.rev(exp([], e));
+    },
+  );

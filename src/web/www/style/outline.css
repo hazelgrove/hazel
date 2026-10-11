@@ -345,6 +345,52 @@
   opacity: 1;
 }
 
+/* the outline's two modes (SlideView.mode), at the header's end: 🏗️
+   dev, the outline's own picks, and 🖼️ UX, the livelits' GUIs to
+   start; each keeps its own open cells. Only while the sidebar is open */
+#outline-sidebar > summary .outline-mode {
+  display: none;
+}
+#outline-sidebar[open] > summary .outline-mode {
+  display: inline-flex;
+  gap: 2px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+#outline-sidebar .outline-mode-btn {
+  cursor: pointer;
+  padding: 0 2px;
+  border-radius: 4px;
+  opacity: 0.35;
+  filter: grayscale(1);
+}
+#outline-sidebar .outline-mode-btn:hover {
+  opacity: 0.75;
+}
+#outline-sidebar .outline-mode-btn.outline-mode-on {
+  opacity: 1;
+  filter: none;
+}
+
+/* a GUI row's chip (a livelit's use): whether UX mode shows the row,
+   faint while it doesn't; a click changes it, from either mode */
+#outline-sidebar .outline-ux-chip {
+  display: inline-block;
+  margin-left: 5px;
+  font-size: 0.75em;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.25;
+  filter: grayscale(1);
+}
+#outline-sidebar .outline-ux-chip:hover {
+  opacity: 0.7;
+}
+#outline-sidebar .outline-ux-chip.outline-ux-on {
+  opacity: 0.95;
+  filter: none;
+}
+
 #outline-sidebar .outline-focus-btn.outline-btn-disabled,
 #outline-sidebar .outline-focus-btn.outline-btn-disabled:hover {
   opacity: 0.25;
