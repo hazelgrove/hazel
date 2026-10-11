@@ -340,7 +340,13 @@ let update =
             switch (program) {
             | Divided(d) =>
               List.find_opt(
-                (e: ScratchCell.t) => e.e_run && List.mem(fid, e.e_members),
+                (e: ScratchCell.t) =>
+                  switch (e.e_kind) {
+                  | Run(ids) => List.mem(fid, ids)
+                  | Def(_)
+                  | Members
+                  | Headless(_) => false
+                  },
                 Divided.cells(d),
               )
             | Whole(_) => None
@@ -557,7 +563,7 @@ let calculate =
          (its key, e_id, follows only on view changes): counted before
          the cell calculates, so this frame's run samples it */
       let is_tail_cell = (e: ScratchCell.t) =>
-        tail_probe && e.e_sym == Some({js|⇒|js});
+        tail_probe && e.e_kind == Headless({js|⇒|js});
       let tail_root = (e: ScratchCell.t) =>
         switch (Focus.zip_of_cell(e.e_body)) {
         | [] => None
@@ -775,13 +781,22 @@ let calculate =
                   dynamics: false,
                 }
               : statics_off(settings);
+          /* a module binder: its header's private pat statics would misread
+             it as a constructor, so it takes only its item's projected ones */
+          let binds_module =
+            switch (e.e_kind) {
+            | Def({binds_module}) => binds_module
+            | Members => true
+            | Headless(_)
+            | Run(_) => false
+            };
           let e' =
             ScratchCell.{
               ...e,
               e_header:
                 CellEditor.Update.calculate(
                   ~settings=
-                    e.e_mod && proj_header == None
+                    binds_module && proj_header == None
                       ? statics_off(settings)
                       : Language.CoreSettings.{
                           ...settings,

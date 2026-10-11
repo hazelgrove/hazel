@@ -564,7 +564,7 @@ module View = {
                      zoomed module shows as its members */
                   let headerless = idx =>
                     switch (List.nth_opt(cells, idx)) {
-                    | Some(e) => zoom_cell || e.ScratchCell.e_sym != None
+                    | Some(e) => zoom_cell || ScratchCell.symbol(e) != None
                     | None => false
                     };
                   let pane_focus =
@@ -724,7 +724,7 @@ module View = {
                       ScratchCell.pane(side, e),
                     );
                   let header_pane =
-                    switch (e.e_sym) {
+                    switch (ScratchCell.symbol(e)) {
                     | Some(sym) =>
                       div(
                         ~attrs=[

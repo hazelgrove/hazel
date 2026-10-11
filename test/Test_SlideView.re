@@ -389,7 +389,7 @@ let module_row = () => {
   | Whole(_) => fail("not divided")
   | Divided(d) =>
     let e = List.hd(Divided.cells(d));
-    check(bool, "a members cell", true, e.e_inner);
+    check(bool, "a members cell", true, e.e_kind == Members);
     check(
       string,
       "the name above",
@@ -512,7 +512,12 @@ let empty_module_row = () => {
   | (_, Whole(_)) => fail("didn't open")
   | (_, Divided(d)) =>
     let c = List.hd(Divided.cells(d));
-    check(bool, "a definition cell", false, c.e_inner);
+    check(
+      bool,
+      "a definition cell",
+      true,
+      c.e_kind == Def({binds_module: true}),
+    );
     check(string, "its braces", "{}", text_of(Focus.zip_of_cell(c.e_body)));
   };
 };

@@ -124,7 +124,14 @@ module Update = {
                 ),
                 /* header too: binder and signature errors live there.
                    a ⇒ or `;` cell shows none, and its empty one is a hole */
-                (Option.is_none(e.e_sym) ? [e.e_header.editor] : [])
+                (
+                  switch (e.e_kind) {
+                  | Def(_)
+                  | Members => [e.e_header.editor]
+                  | Headless(_)
+                  | Run(_) => []
+                  }
+                )
                 @ [e.e_body.editor],
               ),
             cells,

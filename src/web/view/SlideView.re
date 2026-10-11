@@ -94,8 +94,8 @@ let normalize = (~term, v: t): t => {
    one members cell serves the pin and the zoom alike */
 let satisfies = (e: ScratchCell.t, w: slot): bool =>
   switch (w) {
-  | Pin(p) => e.e_id == p.p_id && e.e_run == p.p_run
-  | Members(m) => e.e_id == m && e.e_inner
+  | Pin(p) => e.e_id == p.p_id && ScratchCell.is_run(e) == p.p_run
+  | Members(m) => e.e_id == m && e.e_kind == Members
   };
 
 let slot_id =

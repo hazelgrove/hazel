@@ -870,15 +870,16 @@ let with_brace_child = (def_seg: Segment.t, kid: Segment.t): Segment.t =>
     def_seg,
   );
 
-/* a cell for item [fid] showing [body], its slice of [master], at [root]:
-   under [header] (a pattern and its root) if it has one, else headerless.
-   Its ctx is the one inside [body] */
+/* a [kind] cell for item [fid] showing [body], its slice of [master], at
+   [root]: under [header] (a pattern and its root) if it has one, else
+   headerless. Its ctx is the one inside [body] */
 let mk_cell =
     (
       ~info_map: Language.Statics.Map.t,
       ~master: Segment.t,
       ~root=Sort.Exp,
       ~header: option((Sort.t, Segment.t))=?,
+      ~kind: ScratchCell.kind,
       fid: Id.t,
       body: Segment.t,
     )
@@ -893,11 +894,7 @@ let mk_cell =
   let (cut, e_body_indent) = cut_indent(master, core_ws(body));
   {
     e_id: fid,
-    e_mod: false,
-    e_sym: None,
-    e_run: false,
-    e_members: [],
-    e_inner: false,
+    e_kind: kind,
     e_header,
     e_body: cell_of_seg(~root, cut),
     e_header_indent,
@@ -923,18 +920,15 @@ let mk_def_entry =
         let kw = Tile.token(t, 0);
         /* a `type … = …` alias takes a Typ body and a TPat header */
         let is_type = kw == "type";
-        {
-          ...
-            mk_cell(
-              ~info_map,
-              ~master=master_seg,
-              ~root=is_type ? Typ : Exp,
-              ~header=(is_type ? TPat : Pat, pat_of(t)),
-              fid,
-              def_seg,
-            ),
-          e_mod: kw == "module",
-        };
+        mk_cell(
+          ~info_map,
+          ~master=master_seg,
+          ~root=is_type ? Typ : Exp,
+          ~header=(is_type ? TPat : Pat, pat_of(t)),
+          ~kind=Def({binds_module: kw == "module"}),
+          fid,
+          def_seg,
+        );
       },
       def_at(at),
     )
@@ -953,10 +947,15 @@ let mk_entry =
     : (
       switch (headless_content_deep(fid, master_seg)) {
       | Some((raw, span_sym)) =>
-        Some({
-          ...mk_cell(~info_map, ~master=master_seg, fid, raw),
-          e_sym: Some(Option.value(sym, ~default=span_sym)),
-        })
+        Some(
+          mk_cell(
+            ~info_map,
+            ~master=master_seg,
+            ~kind=Headless(Option.value(sym, ~default=span_sym)),
+            fid,
+            raw,
+          ),
+        )
       | None => mk_def_entry(~info_map, fid, master_seg)
       }
     );
@@ -968,20 +967,14 @@ let mk_members_entry =
     ? None
     : Option.bind(tile_ctx(fid, master_seg), ((_, _, t) as at) =>
         Option.map(
-          members =>
-            {
-              ...
-                mk_cell(
-                  ~info_map,
-                  ~master=master_seg,
-                  ~root=Mod,
-                  ~header=(Pat, pat_of(t)),
-                  fid,
-                  members,
-                ),
-              e_mod: true,
-              e_inner: true,
-            },
+          mk_cell(
+            ~info_map,
+            ~master=master_seg,
+            ~root=Mod,
+            ~header=(Pat, pat_of(t)),
+            ~kind=Members,
+            fid,
+          ),
           Option.bind(def_at(at), brace_child),
         )
       );
@@ -995,12 +988,15 @@ let mk_run_entry =
       switch (test_run_deep(fid, master_seg)) {
       | None => mk_entry(~info_map, fid, master_seg)
       | Some((run_slice, members)) =>
-        Some({
-          ...mk_cell(~info_map, ~master=master_seg, fid, run_slice),
-          e_sym: Some("tests"),
-          e_run: true,
-          e_members: members,
-        })
+        Some(
+          mk_cell(
+            ~info_map,
+            ~master=master_seg,
+            ~kind=Run(members),
+            fid,
+            run_slice,
+          ),
+        )
       }
     );
 
@@ -1013,8 +1009,8 @@ let header_text = (e: ScratchCell.t): Segment.t =>
 /* splice a cell's text back into [seg], keeping [seg]'s edge whitespace */
 
 let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
-  switch (e.e_sym) {
-  | None when e.e_inner =>
+  switch (e.e_kind) {
+  | Members =>
     switch (find_def(e.e_id, seg)) {
     | Some(def_seg) =>
       let members =
@@ -1031,17 +1027,17 @@ let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
          );
     | None => seg
     }
-  | Some(_) when e.e_run => splice_deep(run_at(e.e_id), body_text(e), seg)
-  | Some(_) => splice_deep(headless_at(e.e_id), body_text(e), seg)
-  | None =>
+  | Run(_) => splice_deep(run_at(e.e_id), body_text(e), seg)
+  | Headless(_) => splice_deep(headless_at(e.e_id), body_text(e), seg)
+  | Def(_) =>
     splice_def(e.e_id, rewrap_ws(find_def, e.e_id, seg, body_text(e)), seg)
     |> splice_pat(e.e_id, rewrap_ws(find_pat, e.e_id, seg, header_text(e)))
   };
 
 let cell_content = (e: ScratchCell.t, seg: Segment.t): option(Segment.t) =>
-  switch (e.e_sym) {
-  | None when e.e_inner => Option.bind(find_def(e.e_id, seg), brace_child)
-  | Some(_) when e.e_run => test_run_deep(e.e_id, seg) |> Option.map(fst)
-  | Some(_) => headless_content_deep(e.e_id, seg) |> Option.map(fst)
-  | None => find_def(e.e_id, seg)
+  switch (e.e_kind) {
+  | Members => Option.bind(find_def(e.e_id, seg), brace_child)
+  | Run(_) => test_run_deep(e.e_id, seg) |> Option.map(fst)
+  | Headless(_) => headless_content_deep(e.e_id, seg) |> Option.map(fst)
+  | Def(_) => find_def(e.e_id, seg)
   };

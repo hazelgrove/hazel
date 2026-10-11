@@ -41,13 +41,17 @@ let check_run_pin =
   switch (Focus.mk_run_entry(~info_map, first, seg)) {
   | None => fail(label ++ ": mk_run_entry returned None")
   | Some(e) =>
-    check(bool, label ++ ": entry is a run cell", true, e.e_run);
     /* members carry both statement `;` and test tile ids */
     check(
       bool,
-      label ++ ": members cover the container's kids",
+      label ++ ": a run cell covering the container's kids",
       true,
-      List.for_all(id => List.mem(id, e.e_members), ids),
+      switch (e.e_kind) {
+      | Run(members) => List.for_all(id => List.mem(id, members), ids)
+      | Def(_)
+      | Members
+      | Headless(_) => false
+      },
     );
     check(
       bool,

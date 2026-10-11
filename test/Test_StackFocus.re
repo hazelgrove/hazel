@@ -113,7 +113,7 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
   switch (Focus.mk_entry(~info_map, fid, master)) {
   | None => failwith("mk_entry failed for " ++ label)
   | Some(e) =>
-    check(bool, label ++ ": headless", true, e.e_sym != None);
+    check(bool, label ++ ": headless", true, e.e_kind == Headless(sym));
     check(
       string,
       label ++ ": body",
@@ -398,10 +398,10 @@ let header_symbols = () => {
   ) {
   | (_, Divided(d)) =>
     check(
-      option(string),
+      bool,
       "the outline's symbol",
-      Some({js|;|js}),
-      List.hd(Web.Divided.cells(d)).e_sym,
+      true,
+      List.hd(Web.Divided.cells(d)).e_kind == Headless({js|;|js}),
     )
   | (_, Whole(_)) => fail("didn't open")
   };
