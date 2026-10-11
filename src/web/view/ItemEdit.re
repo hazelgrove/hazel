@@ -13,19 +13,16 @@ let parse = (~root=Sort.Exp, txt: string): option(Segment.t) =>
 
 /* a module body left with only whitespace: the parser's form for `{}` is
    one nullary tile, not a brace with an empty child */
-let empty_body = (): option(Piece.t) => {
-  let rec find = (ps: Segment.t): option(Piece.t) =>
-    List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == ["{}"] => Some(p)
-        | Tile(t) => List.find_map(find, t.children)
-        | _ => None
-        },
-      ps,
-    );
-  Option.bind(parse("module Zz = {} in\n0"), find);
-};
+let empty_body = (): Piece.t =>
+  Piece.mk_tile(Form.classify_label(Exp, [Token.empty_module]), []);
+
+/* a module body brace holding [members] */
+let brace_of = (members: Segment.t): Piece.t =>
+  Piece.mk_tile((Form.Compound(ModBody), Exp), [members]);
+
+/* a member's `;` */
+let fresh_semi = (): Piece.t =>
+  Piece.mk_tile((Form.Compound(CellJoin), Mod), []);
 
 let first_tile_id = (seg: Segment.t): option(Id.t) =>
   List.find_map(
@@ -35,88 +32,6 @@ let first_tile_id = (seg: Segment.t): option(Id.t) =>
       | _ => None
       },
     seg,
-  );
-
-/* fresh-id member pieces for [txt] (one member, `;` optional): parsed
-   inside a real module so it sorts as a member, before a dummy member
-   so it keeps its `;`, then cut after that `;` and its whitespace */
-let member_chunk = (txt: string): option(Segment.t) => {
-  let txt = String.trim(txt);
-  let txt =
-    String.length(txt) > 0 && txt.[String.length(txt) - 1] == ';'
-      ? String.sub(txt, 0, String.length(txt) - 1) : txt;
-  switch (parse("module Zz = {" ++ txt ++ {js|;
-let zz = ¿} in
-0|js})) {
-  | None => None
-  | Some(seg) =>
-    let body = {
-      let rec find_mod = (ps: Segment.t) =>
-        switch (ps) {
-        | [] => None
-        | [Piece.Tile(t), ...rest] =>
-          switch (Tile.label(t)) {
-          | ["module", ..._] =>
-            switch (List.rev(t.children)) {
-            | [def, ..._] =>
-              List.find_map(
-                (p: Piece.t) =>
-                  switch (p) {
-                  | Tile(bt) =>
-                    switch (bt.children) {
-                    | [inner] => Some(inner)
-                    | _ => None
-                    }
-                  | _ => None
-                  },
-                def,
-              )
-            | [] => None
-            }
-          | _ => find_mod(rest)
-          }
-        | [_, ...rest] => find_mod(rest)
-        };
-      find_mod(seg);
-    };
-    switch (body) {
-    | None => None
-    | Some(members) =>
-      let arr = Array.of_list(members);
-      let n = Array.length(arr);
-      let rec last_semi = (i, best) =>
-        i >= n
-          ? best : last_semi(i + 1, Piece.is_semi(arr[i]) ? Some(i) : best);
-      switch (last_semi(0, None)) {
-      | None => None
-      | Some(j) =>
-        let rec ws_end = i =>
-          i < n && Focus.is_edge_ws(arr[i]) ? ws_end(i + 1) : i;
-        Some(ListUtil.truncate(ws_end(j + 1), members));
-      };
-    };
-  };
-};
-
-/* a member as (core, terminator, has `;`): the terminator is its `;` and
-   trailing whitespace, or just the whitespace (a last member may lack `;`) */
-let split_terminator = (ps: Segment.t): (Segment.t, Segment.t, bool) => {
-  let arr = Array.of_list(ps);
-  let rec back = i =>
-    i > 0 && Focus.is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
-  let at = back(Array.length(arr));
-  at > 0 && Piece.is_semi(arr[at - 1])
-    ? (
-      ListUtil.truncate(at - 1, ps),
-      ListUtil.remove_first_n(at - 1, ps),
-      true,
-    )
-    : (ListUtil.truncate(at, ps), ListUtil.remove_first_n(at, ps), false);
-};
-
-let fresh_semi = (): option(Piece.t) =>
-  Option.bind(member_chunk({js|let zz = 0|js}), chunk =>
-    List.find_opt(Piece.is_semi, chunk)
   );
 
 let text_of = (ps: Segment.t): string =>
@@ -129,16 +44,15 @@ let drop_suffix = (suffix: string, s: string): string => {
 };
 
 /* fresh-id pieces for one item, without edge whitespace: in member form
-   (no `;`), or in let-in form (with its `in` or `;`), which is parsed
-   with a dummy tail and then dropped */
-let member_core = (txt: string): option(Segment.t) =>
-  Option.map(
-    chunk => {
-      let (core, _, _) = split_terminator(chunk);
-      Focus.core_ws(core);
-    },
-    member_chunk(txt),
-  );
+   (parsed as a module's, without a last `;`), or in let-in form (with its
+   `in` or `;`), which is parsed with a dummy tail and then dropped */
+let member_core = (txt: string): option(Segment.t) => {
+  let txt = String.trim(txt);
+  let txt =
+    String.ends_with(~suffix=";", txt)
+      ? String.sub(txt, 0, String.length(txt) - 1) : txt;
+  Option.map(Focus.core_ws, parse(~root=Mod, txt));
+};
 let letin_core = (txt: string): option(Segment.t) =>
   Option.map(
     (sk: Segment.t) =>
@@ -413,56 +327,50 @@ let insert =
     | Some(t) when t != [] => t
     | _ => default
     };
-  let semi = () => member ? Option.map(s => [s], fresh_semi()) : Some([]);
+  let semi = () => member ? [fresh_semi()] : [];
   switch (pos) {
   | After(k) when k == n - 1 =>
     /* the new last member: it takes the old last's terminator, which
        takes `;` */
-    switch (fresh_semi()) {
-    | Some(s) when member && b.member(k) =>
-      let sep = trail(b, k) == [] ? [space()] : trail(b, k);
-      Some(
-        ListUtil.truncate(b.sl[k].core, b.seg)
-        @ [s]
-        @ sep
-        @ spaces(k)
-        @ shifted(k)
-        @ term(b, k)
-        @ trail_or(spacing(trail(b, k)))
-        @ ListUtil.remove_first_n(b.sl[k].hi, b.seg),
-      );
-    | _ => None
-    }
+    member && b.member(k)
+      ? {
+        let sep = trail(b, k) == [] ? [space()] : trail(b, k);
+        Some(
+          ListUtil.truncate(b.sl[k].core, b.seg)
+          @ [fresh_semi()]
+          @ sep
+          @ spaces(k)
+          @ shifted(k)
+          @ term(b, k)
+          @ trail_or(spacing(trail(b, k)))
+          @ ListUtil.remove_first_n(b.sl[k].hi, b.seg),
+        );
+      }
+      : None
   | After(k) =>
-    Option.map(
-      t => {
-        let at = b.sl[k].hi;
-        ListUtil.truncate(at, b.seg)
-        @ spaces(k + 1)
-        @ shifted(k + 1)
-        @ t
-        @ trail_or(spacing(trail(b, k)))
-        @ ListUtil.remove_first_n(at, b.seg);
-      },
-      semi(),
-    )
+    let at = b.sl[k].hi;
+    Some(
+      ListUtil.truncate(at, b.seg)
+      @ spaces(k + 1)
+      @ shifted(k + 1)
+      @ semi()
+      @ trail_or(spacing(trail(b, k)))
+      @ ListUtil.remove_first_n(at, b.seg),
+    );
   | Before(p) =>
-    Option.map(
-      t => {
-        let at = b.sl[p].lo;
-        let default =
-          p > 0
-            ? spacing(trail(b, p - 1))
-            : [starts_line(b, p) ? linebreak() : space()];
-        ListUtil.truncate(at, b.seg)
-        @ spaces(p)
-        @ shifted(p)
-        @ t
-        @ trail_or(default)
-        @ ListUtil.remove_first_n(at, b.seg);
-      },
-      semi(),
-    )
+    let at = b.sl[p].lo;
+    let default =
+      p > 0
+        ? spacing(trail(b, p - 1))
+        : [starts_line(b, p) ? linebreak() : space()];
+    Some(
+      ListUtil.truncate(at, b.seg)
+      @ spaces(p)
+      @ shifted(p)
+      @ semi()
+      @ trail_or(default)
+      @ ListUtil.remove_first_n(at, b.seg),
+    );
   };
 };
 
@@ -684,14 +592,7 @@ let rec at_level_found =
           let tile =
             switch (children) {
             | [kid] when is_body(t) && List.for_all(Focus.is_edge_ws, kid) =>
-              Option.value(
-                empty_body(),
-                ~default=
-                  Piece.Tile({
-                    ...t,
-                    children,
-                  }),
-              )
+              empty_body()
             | _ =>
               Piece.Tile({
                 ...t,
@@ -807,30 +708,6 @@ let into_members =
     }
   };
 
-/* a module body brace holding [members], from a scaffold parse */
-let brace_of = (members: Segment.t): option(Piece.t) => {
-  let rec find = (ps: Segment.t): option(Base.tile) =>
-    List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when Tile.label(t) == ["{", "}"] => Some(t)
-        | Tile(t) => List.find_map(find, t.children)
-        | _ => None
-        },
-      ps,
-    );
-  Option.bind(parse({js|module Zz = {
-let zz = ¿
-} in
-0|js}), find)
-  |> Option.map(t =>
-       Piece.Tile({
-         ...t,
-         children: [members],
-       })
-     );
-};
-
 /* [item] (member form) as the only member of module [m], whose body is
    the parser's empty `{}`: on its own line, indented past the module */
 let into_empty =
@@ -851,26 +728,23 @@ let into_empty =
       | Some(src) when src != inner => LocalReformat.shift(inner - src, item)
       | _ => item
       };
-    switch (
-      List.exists(empty, def_seg),
+    let brace =
       brace_of(
         [linebreak()]
         @ Indentation.make_indent_spaces(inner)
         @ item
         @ [linebreak()]
         @ Indentation.make_indent_spaces(outer),
-      ),
-    ) {
-    | (true, Some(brace)) =>
-      Some(
-        Focus.splice_def(
-          m,
-          List.map(p => empty(p) ? brace : p, def_seg),
-          seg,
-        ),
-      )
-    | _ => None
-    };
+      );
+    List.exists(empty, def_seg)
+      ? Some(
+          Focus.splice_def(
+            m,
+            List.map(p => empty(p) ? brace : p, def_seg),
+            seg,
+          ),
+        )
+      : None;
   };
 
 /* append [member] to module [fid]'s body, at any depth */
