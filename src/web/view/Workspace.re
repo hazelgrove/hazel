@@ -152,6 +152,15 @@ let view =
   |> Updated.return(~historic=false);
 };
 
+/* a view change from the outline: the keys go to the cell the stack
+   focuses, which a close can move. The vdom gives a closed cell's element
+   to the next cell, so the DOM focus follows only through FocusEffect,
+   unless the outline holds the keys */
+let outline_view = (f, code: code): Updated.t(code) => {
+  Haz3lcore.FocusEffect.schedule_cell();
+  view(f, code);
+};
+
 /* after an edit to the whole program (agent, outline menu): the same
    view again, pins to vanished items dropped */
 let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
@@ -351,7 +360,7 @@ let update =
       )
     };
   | FocusToggle(fid) =>
-    view(
+    outline_view(
       (term, program, v) =>
         if (List.mem(
               SlideView.{
@@ -389,7 +398,7 @@ let update =
   | FocusToggleRun(fid) =>
     /* the tests container: one cell for the run, or close it (or its
        members open one by one) */
-    view(
+    outline_view(
       (term, program, v) => {
         let (members, size) =
           switch (Focus.test_run_deep(fid, Program.document(program))) {
@@ -422,7 +431,7 @@ let update =
       code,
     )
   | FocusEnsure(fid) =>
-    view(
+    outline_view(
       (term, program, v) =>
         switch (program) {
         | Divided(d) when Divided.owner(fid, d) == None =>
@@ -432,12 +441,14 @@ let update =
       code,
     )
     |> focusing(fid)
-  | UnfocusDef => view((term, _, v) => SlideView.discard(~term, v), code)
+  | UnfocusDef =>
+    outline_view((term, _, v) => SlideView.discard(~term, v), code)
   | ZoomIn(fid) =>
-    view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)
-  | ZoomOut => view((_, _, v) => SlideView.zoom_out(v), code)
-  | ZoomTo(m) => view((_, _, v) => SlideView.zoom_to(m, v), code)
-  | ShowWhole(parked) => view((_, _, v) => SlideView.park(parked, v), code)
+    outline_view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)
+  | ZoomOut => outline_view((_, _, v) => SlideView.zoom_out(v), code)
+  | ZoomTo(m) => outline_view((_, _, v) => SlideView.zoom_to(m, v), code)
+  | ShowWhole(parked) =>
+    outline_view((_, _, v) => SlideView.park(parked, v), code)
   | RealizeView =>
     /* after undo: the restored program's statics may be compacted
        away, so the view is realized against fresh ones */
