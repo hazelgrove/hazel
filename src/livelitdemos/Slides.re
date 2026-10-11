@@ -84,11 +84,13 @@ let playground_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Polygons", [%blob "polygons.hz"]),
     ("Polygon Viewer", [%blob "polygon-viewer.hz"]),
     ("Shirt and Pants", [%blob "shirt-and-pants.hz"]),
-    ("Shoes and Hair", [%blob "shoes-and-hair.hz"]),
+    ("Hair", [%blob "hair.hz"]),
+    ("Shoes", [%blob "shoes.hz"]),
     ("Arms", [%blob "arms.hz"]),
     ("Hands", [%blob "hands.hz"]),
     ("Eyes", [%blob "eyes.hz"]),
     ("Mouth", [%blob "mouth.hz"]),
+    ("Full Body", [%blob "full-body.hz"]),
   ]
   |> List.map(((name, text)) =>
        (
