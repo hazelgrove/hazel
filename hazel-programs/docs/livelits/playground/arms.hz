@@ -673,7 +673,7 @@ let shirt =
 # their length and width. #
 
 let arm_angle = ^^livelit(Drawing.^slider("arms (up / down)", -180, 180)(55)) in
-let arm_length = ^^livelit(Drawing.^slider("arm length", 10, 300)(95)) in
+let arm_length = ^^livelit(Drawing.^slider("arm length", 10, 600)(95)) in
 let arm_width = ^^livelit(Drawing.^slider("arm width", 3, 60)(16)) in
 
 let skin = "#f1c27d" in
