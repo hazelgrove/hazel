@@ -43,13 +43,8 @@ type entry =
 /* newest-first entries plus a size, so added_bindings/subtract_prefix
    are O(diff) rather than paying List.length */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type repr = {
-  use_mode: option(Operators.mode), // None if elaboration has already occurred
-  entries: list(entry),
-};
-
 type t = {
-  use_mode: option(Operators.mode),
+  use_mode: option(Operators.mode), // None if elaboration has already occurred
   entries: list(entry),
   size: int,
 };
@@ -73,19 +68,6 @@ let prepend_entries = (ctx: t, new_entries: list(entry)): t => {
   entries: new_entries @ ctx.entries,
   size: ctx.size + List.length(new_entries),
 };
-
-/* serialization goes through [repr], the plain record without size */
-let repr_of = (ctx: t): repr => {
-  use_mode: ctx.use_mode,
-  entries: ctx.entries,
-};
-let of_repr = (r: repr): t => of_entries(~use_mode=r.use_mode, r.entries);
-let sexp_of_t = (ctx: t) => sexp_of_repr(repr_of(ctx));
-let t_of_sexp = s => of_repr(repr_of_sexp(s));
-let yojson_of_t = (ctx: t) => yojson_of_repr(repr_of(ctx));
-let t_of_yojson = j => of_repr(repr_of_yojson(j));
-let pp = (fmt, ctx: t) => pp_repr(fmt, repr_of(ctx));
-let show = (ctx: t) => show_repr(repr_of(ctx));
 
 let empty: t = of_entries(~use_mode=None, []);
 
