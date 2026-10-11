@@ -47,11 +47,7 @@ let statics = (d: t): CachedStatics.t =>
   | Some(s) => s
   | None => d.shell.editor.statics
   };
-let has_fresh_statics = (d: t): bool =>
-  switch (d.statics) {
-  | Some(_) => true
-  | None => false
-  };
+let has_fresh_statics = (d: t): bool => Option.is_some(d.statics);
 let with_statics = (s: CachedStatics.t, d: t): t => {
   ...d,
   statics: Some(s),
@@ -75,34 +71,10 @@ let owns = (id: Id.t, e: Cell.t): bool =>
 let owner = (id: Id.t, d: t): option(Cell.t) =>
   List.find_opt(owns(id), d.cells);
 
-let outline_order = (term: Language.Exp.t): list(Id.t) => {
-  let rec flatten = (acc, ns: list(OutlineTree.node)) =>
-    List.fold_left(
-      (acc, n: OutlineTree.node) =>
-        flatten(
-          switch (n.o_id) {
-          | Some(id) => [id, ...acc]
-          | None => acc
-          },
-          n.o_children,
-        ),
-      acc,
-      ns,
-    );
-  List.rev(flatten([], OutlineTree.of_term(term)));
-};
-
 let insert = (~term, entry: Cell.t, cells: list(Cell.t)): list(Cell.t) => {
-  let order = outline_order(term);
-  let rank = id => {
-    let rec go = (k, l) =>
-      switch (l) {
-      | [] => max_int
-      | [x, ..._] when x == id => k
-      | [_, ...rest] => go(k + 1, rest)
-      };
-    go(0, order);
-  };
+  let order = OutlineTree.collect(OutlineTree.of_term(term));
+  let rank = id =>
+    Option.value(List.find_index(x => x == id, order), ~default=max_int);
   let r = rank(entry.e_id);
   let (before, after) =
     List.partition((e: Cell.t) => rank(e.e_id) < r, cells);
@@ -115,9 +87,8 @@ let probes_of = (c: CellEditor.Model.t): Refractors.RefractorList.t =>
 /* manual probes of the cells and of the shell (placed before the
    split), first per anchor */
 let probes = (d: t): Refractors.RefractorList.t =>
-  List.fold_left(
-    (acc, (id, _) as p) => List.mem_assoc(id, acc) ? acc : acc @ [p],
-    [],
+  ListUtil.dedup_f(
+    ((a, _), (b, _)) => a == b,
     List.concat_map(
       (e: Cell.t) => probes_of(e.e_header) @ probes_of(e.e_body),
       d.cells,
