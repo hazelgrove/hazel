@@ -269,9 +269,41 @@ let successors = () => {
   };
 };
 
+/* flipping Outline Arrows redraws the outline, all else unchanged */
+let arrows_redraw = () => {
+  let statics = {
+    ...CachedStatics.empty,
+    term:
+      term_of_text("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)"),
+  };
+  let view = arrows =>
+    Web.OutlineControl.view(
+      ~arrows,
+      ~deck=None,
+      ~statics,
+      ~segment=[],
+      ~inject=_ => Virtual_dom.Vdom.Effect.Ignore,
+      ~inject_workspace=_ => Virtual_dom.Vdom.Effect.Ignore,
+      ~jump=_ => Virtual_dom.Vdom.Effect.Ignore,
+      ~leave=Virtual_dom.Vdom.Effect.Ignore,
+    );
+  let off = view(false);
+  check(
+    bool,
+    "the same inputs reuse the outline",
+    true,
+    view(false) === off,
+  );
+  check(bool, "arrows on: a new outline", false, view(true) === off);
+};
+
 let tests = [
   (
     "OutlinePaths",
-    cases @ [test_case("a deleted row's successor", `Quick, successors)],
+    cases
+    @ [
+      test_case("a deleted row's successor", `Quick, successors),
+      test_case("Outline Arrows redraws the outline", `Quick, arrows_redraw),
+    ],
   ),
 ];

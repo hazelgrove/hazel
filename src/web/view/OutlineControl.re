@@ -279,43 +279,13 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
   };
 
 /* single-slot vdom memo: building the outline is O(program), but its
-   inputs change on statics frames and outline use, not per keystroke */
-type memo_key = {
-  k_statics: CachedStatics.t,
-  k_focused: list((Id.t, option(string))),
-  k_deck: bool,
-  k_name: string,
-  k_collapsed: list(OutlineTree.path),
-  k_menu: option((Id.t, bool, float, float)),
-  k_menu_sel: int,
-  k_results: option(Language.TestResults.t),
-  k_view: option(SlideView.t),
-  k_cursor: option(OutlineTree.path),
-  k_edit: option(OutlineEdit.t),
-  k_created: option((Id.t, string)),
-};
-
-let memo: ref(option((memo_key, Node.t))) = ref(None);
-
-let same = (a: memo_key, b: memo_key): bool =>
-  a.k_statics === b.k_statics
-  && a.k_focused == b.k_focused
-  && a.k_deck == b.k_deck
-  && a.k_name == b.k_name
-  && a.k_collapsed == b.k_collapsed
-  && a.k_menu == b.k_menu
-  && a.k_menu_sel == b.k_menu_sel
-  && a.k_view == b.k_view
-  && a.k_cursor == b.k_cursor
-  && a.k_edit == b.k_edit
-  && a.k_created == b.k_created
-  && (
-    switch (a.k_results, b.k_results) {
-    | (Some(x), Some(y)) => x === y
-    | (None, None) => true
-    | _ => false
-    }
-  );
+   inputs change on statics frames and outline use, not per keystroke.
+   statics and test results compare by identity, the rest by value */
+let memo = Util.Slot.mk();
+let same = ((statics, results, rest), (statics', results', rest')) =>
+  statics === statics'
+  && Option.equal((===), results, results')
+  && rest == rest';
 
 /* the outline of the slide's whole program in Scratch and Documentation,
    else of the current editor's [statics] and [segment] */
@@ -367,180 +337,184 @@ let view =
     Option.bind(program, p =>
       EvalResult.Model.test_results(Program.result(p))
     );
-  let key = {
-    k_statics: statics,
-    k_focused: focused,
-    k_deck: is_deck,
-    k_name: name,
-    k_collapsed: collapsed,
-    k_menu: menu^,
-    k_menu_sel: menu_sel^,
-    k_results: results,
-    k_view: slide_view,
-    k_cursor: cursor^,
-    k_edit: edit^,
-    k_created: created^,
-  };
-  switch (memo^) {
-  | Some((k, node)) when same(k, key) => node
-  | _ =>
-    /* statics compacted by undo have no term until they recompute: parse
-       this slide's program instead (never another document's) */
-    let term =
-      switch (program) {
-      | Some(p)
-          when
-            !
-              List.exists(
-                (n: OutlineTree.node) => n.o_label != "",
-                OutlineTree.of_term(statics.term),
-              ) =>
-        MakeTerm.Incr.term_of_root(
-          ~root=Program.root(p),
-          Program.document(p),
-        )
-      | _ => statics.term
-      };
-    /* each error badges the deepest row containing it; ancestor rows
-       get a roll-up badge that CSS shows only while collapsed */
-    let (error_items, error_subtree) = {
-      let outline_ids = OutlineTree.collect(OutlineTree.of_term(term));
-      let in_outline = id => List.mem(id, outline_ids);
-      List.fold_left(
-        ((direct, roll), err_id) => {
-          let path =
-            switch (Id.Map.find_opt(err_id, statics.info_map)) {
-            | Some(info) => [err_id, ...Language.Info.ancestors_of(info)]
-            | None => [err_id]
-            };
-          switch (List.filter(in_outline, path)) {
-          | [] => (direct, roll)
-          | [deepest, ...above] => ([deepest, ...direct], above @ roll)
-          };
-        },
-        ([], []),
-        statics.error_ids,
-      );
-    };
-    let label = id =>
-      switch (OutlineTree.node_of(id, term)) {
-      | Some(n) => n.o_label
-      | None => ""
-      };
-    let (h_open, h_parked) =
-      switch (slide_view) {
-      | Some(v) =>
-        let n = List.length(SlideView.visible(~term, v));
-        v.parked ? (0, n) : (n, 0);
-      | None => (0, 0)
-      };
-    let props: OutlineSidebar.props = {
+  let key = (
+    statics,
+    results,
+    (
       arrows,
-      stack_controls: is_deck,
-      can_open: {
-        let incomplete =
-          Segment.incomplete_tiles_deep(
-            switch (program) {
-            | Some(Divided(d)) => Divided.document(d)
-            | _ => segment
-            },
+      focused,
+      is_deck,
+      name,
+      collapsed,
+      menu^,
+      menu_sel^,
+      slide_view,
+      cursor^,
+      edit^,
+      created^,
+    ),
+  );
+  Util.Slot.get(
+    ~same,
+    memo,
+    key,
+    () => {
+      /* statics compacted by undo have no term until they recompute: parse
+         this slide's program instead (never another document's) */
+      let term =
+        switch (program) {
+        | Some(p)
+            when
+              !
+                List.exists(
+                  (n: OutlineTree.node) => n.o_label != "",
+                  OutlineTree.of_term(statics.term),
+                ) =>
+          MakeTerm.Incr.term_of_root(
+            ~root=Program.root(p),
+            Program.document(p),
           )
-          |> List.map((t: Tile.t) => t.id);
-        (id => !List.mem(id, incomplete));
-      },
-      is_collapsed: path => List.mem(path, collapsed),
-      header: {
-        h_program: name,
-        h_trail:
+        | _ => statics.term
+        };
+      /* each error badges the deepest row containing it; ancestor rows
+         get a roll-up badge that CSS shows only while collapsed */
+      let (error_items, error_subtree) = {
+        let outline_ids = OutlineTree.collect(OutlineTree.of_term(term));
+        let in_outline = id => List.mem(id, outline_ids);
+        List.fold_left(
+          ((direct, roll), err_id) => {
+            let path =
+              switch (Id.Map.find_opt(err_id, statics.info_map)) {
+              | Some(info) => [err_id, ...Language.Info.ancestors_of(info)]
+              | None => [err_id]
+              };
+            switch (List.filter(in_outline, path)) {
+            | [] => (direct, roll)
+            | [deepest, ...above] => ([deepest, ...direct], above @ roll)
+            };
+          },
+          ([], []),
+          statics.error_ids,
+        );
+      };
+      let label = id =>
+        switch (OutlineTree.node_of(id, term)) {
+        | Some(n) => n.o_label
+        | None => ""
+        };
+      let (h_open, h_parked) =
+        switch (slide_view) {
+        | Some(v) =>
+          let n = List.length(SlideView.visible(~term, v));
+          v.parked ? (0, n) : (n, 0);
+        | None => (0, 0)
+        };
+      let props: OutlineSidebar.props = {
+        arrows,
+        stack_controls: is_deck,
+        can_open: {
+          let incomplete =
+            Segment.incomplete_tiles_deep(
+              switch (program) {
+              | Some(Divided(d)) => Divided.document(d)
+              | _ => segment
+              },
+            )
+            |> List.map((t: Tile.t) => t.id);
+          id => !List.mem(id, incomplete);
+        },
+        is_collapsed: path => List.mem(path, collapsed),
+        header: {
+          h_program: name,
+          h_trail:
+            switch (slide_view) {
+            | Some(v) => List.map(id => (id, label(id)), v.zoom)
+            | None => []
+            },
+          h_open,
+          h_parked,
+        },
+        zoom_root: Option.bind(slide_view, SlideView.zoom_root),
+        cursor: cursor^,
+        created: created^,
+        pinned:
           switch (slide_view) {
-          | Some(v) => List.map(id => (id, label(id)), v.zoom)
+          | Some(v) => List.map((p: SlideView.pin) => p.p_id, v.pins)
           | None => []
           },
-        h_open,
-        h_parked,
-      },
-      zoom_root: Option.bind(slide_view, SlideView.zoom_root),
-      cursor: cursor^,
-      created: created^,
-      pinned:
-        switch (slide_view) {
-        | Some(v) => List.map((p: SlideView.pin) => p.p_id, v.pins)
-        | None => []
-        },
-      focused_entries: focused,
-      error_items,
-      error_subtree,
-      menu: menu^,
-      menu_sel: menu_sel^,
-      /* live ✓/✗ for test rows, from the whole program's result */
-      test_status: id =>
-        Option.bind(results, (tr: Language.TestResults.t) =>
-          Language.TestMap.lookup(id, tr.test_map)
-          |> Option.map(Language.TestMap.joint_status)
-        ),
-    };
-    /* a row inside an open cell can't open on its own: go to it there */
-    let nested = id =>
-      switch (program) {
-      | Some(Divided(d)) =>
-        switch (Divided.owner(id, d)) {
-        | Some(e) => e.e_id != id
-        | None => false
-        }
-      | _ => false
+        focused_entries: focused,
+        error_items,
+        error_subtree,
+        menu: menu^,
+        menu_sel: menu_sel^,
+        /* live ✓/✗ for test rows, from the whole program's result */
+        test_status: id =>
+          Option.bind(results, (tr: Language.TestResults.t) =>
+            Language.TestMap.lookup(id, tr.test_map)
+            |> Option.map(Language.TestMap.joint_status)
+          ),
       };
-    let on: OutlineSidebar.handlers = {
-      jump,
-      /* a plain click with cells open adds (or moves to) that cell; it
-         never replaces them */
-      focus: id =>
-        nested(id) ? jump(id) : inject_workspace(FocusEnsure(id)),
-      toggle: id =>
-        nested(id) ? jump(id) : inject_workspace(FocusToggle(id)),
-      toggle_run: id => inject_workspace(FocusToggleRun(id)),
-      toggle_collapse: path => inject(Collapse(path)),
-      zoom_to: m => inject_workspace(ZoomTo(m)),
-      zoom_in: id => inject_workspace(ZoomIn(id)),
-      show_whole: b => inject_workspace(ShowWhole(b)),
-      discard: inject_workspace(UnfocusDef),
-      zoom_out: inject_workspace(ZoomOut),
-      get_cursor: () => cursor^,
-      /* the ref moves at the keypress; the action re-renders */
-      set_cursor: c => {
-        cursor := c;
-        inject(Cursor(c));
-      },
-      focused: inject(Focused),
-      leave,
-      edit: {
-        current: edit^,
-        get: () => edit^,
-        set: e => {
-          edit := e;
-          inject(Edit(e));
+      /* a row inside an open cell can't open on its own: go to it there */
+      let nested = id =>
+        switch (program) {
+        | Some(Divided(d)) =>
+          switch (Divided.owner(id, d)) {
+          | Some(e) => e.e_id != id
+          | None => false
+          }
+        | _ => false
+        };
+      let on: OutlineSidebar.handlers = {
+        jump,
+        /* a plain click with cells open adds (or moves to) that cell; it
+           never replaces them */
+        focus: id =>
+          nested(id) ? jump(id) : inject_workspace(FocusEnsure(id)),
+        toggle: id =>
+          nested(id) ? jump(id) : inject_workspace(FocusToggle(id)),
+        toggle_run: id => inject_workspace(FocusToggleRun(id)),
+        toggle_collapse: path => inject(Collapse(path)),
+        zoom_to: m => inject_workspace(ZoomTo(m)),
+        zoom_in: id => inject_workspace(ZoomIn(id)),
+        show_whole: b => inject_workspace(ShowWhole(b)),
+        discard: inject_workspace(UnfocusDef),
+        zoom_out: inject_workspace(ZoomOut),
+        get_cursor: () => cursor^,
+        /* the ref moves at the keypress; the action re-renders */
+        set_cursor: c => {
+          cursor := c;
+          inject(Cursor(c));
         },
-        commit: (ed, then_new) => {
-          edit := None;
-          inject(Commit(ed, then_new));
+        focused: inject(Focused),
+        leave,
+        edit: {
+          current: edit^,
+          get: () => edit^,
+          set: e => {
+            edit := e;
+            inject(Edit(e));
+          },
+          commit: (ed, then_new) => {
+            edit := None;
+            inject(Commit(ed, then_new));
+          },
         },
-      },
-      /* like the cursor, the menu moves at the event */
-      menu_open: (id, is_module, x, y) => {
-        menu := Some((id, is_module, x, y));
-        menu_sel := 0;
-        inject(Menu(Some((id, is_module, x, y))));
-      },
-      menu_close: inject(Menu(None)),
-      menu_select: i => {
-        menu_sel := i;
-        inject(MenuSel(i));
-      },
-      get_menu: () => menu^,
-      get_menu_sel: () => menu_sel^,
-      def_op: (op, id) => inject(DefOp(op, id)),
-    };
-    let node = OutlineSidebar.view(~props, ~on, term);
-    memo := Some((key, node));
-    node;
-  };
+        /* like the cursor, the menu moves at the event */
+        menu_open: (id, is_module, x, y) => {
+          menu := Some((id, is_module, x, y));
+          menu_sel := 0;
+          inject(Menu(Some((id, is_module, x, y))));
+        },
+        menu_close: inject(Menu(None)),
+        menu_select: i => {
+          menu_sel := i;
+          inject(MenuSel(i));
+        },
+        get_menu: () => menu^,
+        get_menu_sel: () => menu_sel^,
+        def_op: (op, id) => inject(DefOp(op, id)),
+      };
+      OutlineSidebar.view(~props, ~on, term);
+    },
+  );
 };
