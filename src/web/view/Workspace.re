@@ -132,47 +132,28 @@ let with_segment =
     : Scratchpad.code => {
   let program = code.program;
   let root = Program.root(program);
-  let present = {
-    let ids = Segment.ids(new_seg);
-    List.fold_left((m, id) => Id.Map.add(id, (), m), Id.Map.empty, ids);
-  };
-  let manuals =
-    List.filter(
-      ((id, _)) => Id.Map.mem(id, present),
-      Program.probes(program),
+  let fresh =
+    Divided.editor_of(
+      ~root,
+      ~probes=Program.probes(program),
+      ~anchor=
+        switch (program) {
+        | Whole(e) => Divided.anchor_of(e.editor.editor.state.zipper)
+        | Divided(_) => None
+        },
+      new_seg,
     );
   let statics =
     settings.core.statics
       ? Haz3lcore.CachedStatics.init_compositional_term(
           ~settings=settings.core,
           ~probe_ids=
-            List.fold_left(
-              (m, (id, _)) => Id.Map.add(id, (), m),
-              Id.Map.empty,
-              manuals,
+            CachedStatics.probe_ids_of_zipper(
+              fresh.editor.editor.state.zipper,
             ),
           MakeTerm.Incr.term_of_root(~root, new_seg),
         )
       : Haz3lcore.CachedStatics.empty;
-  let z =
-    Zipper.unzip(~direction=Left, new_seg)
-    |> ZipperBase.update_refractors(_, r =>
-         Refractors.{
-           ...r,
-           manuals,
-         }
-       );
-  let z =
-    switch (program) {
-    | Whole(e) =>
-      switch (Divided.anchor_of(e.editor.editor.state.zipper)) {
-      | Some((side, id)) =>
-        Option.value(Move.jump_to_side_of_id(side, z, id), ~default=z)
-      | None => z
-      }
-    | Divided(_) => z
-    };
-  let fresh = CellEditor.Model.mk(Editor.Model.mk(z, ~root));
   let editor: CellEditor.Model.t = {
     editor: {
       ...fresh.editor,

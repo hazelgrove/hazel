@@ -269,13 +269,20 @@ let place_caret = ((side, id): (Direction.t, Id.t), d: t): t => {
   go([], d.cells);
 };
 
-/* one editor again: root, probes and the result carry over, and the
-   caret lands where it was in the active cell */
-let join = (~prev: option(CellEditor.Model.t)=?, d: t): CellEditor.Model.t => {
-  let seg = document(d);
-  let present = Segment.ids(seg);
-  let manuals =
-    List.filter(((id, _)) => List.mem(id, present), probes(d));
+/* one editor holding [seg] at [root]: the [probes] still anchored in it,
+   the caret beside [anchor]; with [prev], an earlier editor's parse and
+   measure caches */
+let editor_of =
+    (
+      ~prev: option(CellEditor.Model.t)=?,
+      ~root: Sort.t,
+      ~probes: Refractors.RefractorList.t,
+      ~anchor: option((Direction.t, Id.t)),
+      seg: Segment.t,
+    )
+    : CellEditor.Model.t => {
+  let present = Id.Map.of_list(List.map(id => (id, ()), Segment.ids(seg)));
+  let manuals = List.filter(((id, _)) => Id.Map.mem(id, present), probes);
   let z =
     Zipper.unzip(~direction=Left, seg)
     |> ZipperBase.update_refractors(_, r =>
@@ -285,34 +292,42 @@ let join = (~prev: option(CellEditor.Model.t)=?, d: t): CellEditor.Model.t => {
          }
        );
   let z =
-    switch (caret_anchor(d)) {
+    switch (anchor) {
     | Some((side, id)) =>
       Option.value(Move.jump_to_side_of_id(side, z, id), ~default=z)
     | None => z
     };
-  let editor =
-    switch (prev) {
-    | Some(pe) =>
-      let s = pe.editor.editor.syntax;
-      Editor.Model.{
-        root: root(d),
-        state: {
-          zipper: z,
-          col_target: None,
-        },
-        syntax:
-          CachedSyntax.mk(
-            ~root=root(d),
-            ~m_cache=s.m_cache,
-            ~t_cache=s.t_cache,
-            ~info_map=Id.Map.empty,
-            ~dyn_map=Id.Map.empty,
-            z,
-          ),
-      };
-    | None => Editor.Model.mk(z, ~root=root(d))
-    };
-  let fresh = CellEditor.Model.mk(editor);
+  let syntax =
+    Option.map((pe: CellEditor.Model.t) => pe.editor.editor.syntax, prev);
+  CellEditor.Model.mk(
+    Editor.Model.{
+      root,
+      state: {
+        zipper: z,
+        col_target: None,
+      },
+      syntax:
+        CachedSyntax.init(
+          ~root,
+          ~m_cache=?Option.map((s: CachedSyntax.t) => s.m_cache, syntax),
+          ~t_cache=?Option.map((s: CachedSyntax.t) => s.t_cache, syntax),
+          z,
+        ),
+    },
+  );
+};
+
+/* one editor again: root, probes and the result carry over, and the
+   caret lands where it was in the active cell */
+let join = (~prev: option(CellEditor.Model.t)=?, d: t): CellEditor.Model.t => {
+  let fresh =
+    editor_of(
+      ~prev?,
+      ~root=root(d),
+      ~probes=probes(d),
+      ~anchor=caret_anchor(d),
+      document(d),
+    );
   {
     editor: {
       ...fresh.editor,

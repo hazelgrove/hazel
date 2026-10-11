@@ -19,6 +19,17 @@ type after_close =
 let of_whole: CellEditor.Model.t => t;
 /* with [prev], an earlier join: its parse and measure caches carry over */
 let join: (~prev: CellEditor.Model.t=?, t) => CellEditor.Model.t;
+/* one editor holding a program: the probes still anchored in it, the
+   caret beside the anchor; with [prev], an earlier editor's caches */
+let editor_of:
+  (
+    ~prev: CellEditor.Model.t=?,
+    ~root: Sort.t,
+    ~probes: Refractors.RefractorList.t,
+    ~anchor: option((Direction.t, Id.t)),
+    Segment.t
+  ) =>
+  CellEditor.Model.t;
 let document: t => Segment.t;
 
 let cells: t => list(ScratchCell.t);
