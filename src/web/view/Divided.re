@@ -102,25 +102,16 @@ let settle = (~pool: Refractors.RefractorList.t, d: t): t => {
   let set = (c: CellEditor.Model.t, ms): CellEditor.Model.t =>
     List.map(fst, probes_of(c)) == List.map(fst, ms)
       ? c
-      : {
-        ...c,
-        editor: {
-          ...c.editor,
-          editor: {
-            ...c.editor.editor,
-            state: {
-              ...c.editor.editor.state,
-              zipper:
-                ZipperBase.update_refractors(c.editor.editor.state.zipper, r =>
-                  Refractors.{
-                    ...r,
-                    manuals: ms,
-                  }
-                ),
-            },
-          },
-        },
-      };
+      : CellEditor.Model.map_zipper(
+          z =>
+            ZipperBase.update_refractors(z, r =>
+              Refractors.{
+                ...r,
+                manuals: ms,
+              }
+            ),
+          c,
+        );
   let placed = ref([]);
   let take = (c: CellEditor.Model.t) => {
     let ids = Segment.ids(Focus.zip_of_cell(c));
@@ -171,21 +162,19 @@ let entry = (~info_map, ~sym=?, ~inner=false, id: Id.t, base: Segment.t) =>
 
 let active = (d: t): option((Id.t, side)) => d.active;
 
+let active_cell = (d: t): option((Cell.t, side)) =>
+  switch (d.active) {
+  | Some((id, side)) =>
+    List.find_opt((e: Cell.t) => e.e_id == id, d.cells)
+    |> Option.map(e => (e, side))
+  | None => None
+  };
+
 let active_editor = (d: t): CellEditor.Model.t =>
-  switch (
-    switch (d.active) {
-    | Some((id, side)) =>
-      List.find_opt((e: Cell.t) => e.e_id == id, d.cells)
-      |> Option.map(Cell.pane(side))
-    | None => None
-    }
-  ) {
-  | Some(c) => c
-  | None =>
-    switch (d.cells) {
-    | [e, ..._] => e.e_body
-    | [] => d.shell
-    }
+  switch (active_cell(d), d.cells) {
+  | (Some((e, side)), _) => Cell.pane(side, e)
+  | (None, [e, ..._]) => e.e_body
+  | (None, []) => d.shell
   };
 
 /* a caret as a side of a piece id: before its right neighbour, else
@@ -198,72 +187,50 @@ let anchor_of = (z: Zipper.t): option((Direction.t, Id.t)) =>
   };
 
 let caret_anchor = (d: t): option((Direction.t, Id.t)) =>
-  switch (d.active) {
-  | None => None
-  | Some((id, side)) =>
-    switch (List.find_opt((e: Cell.t) => e.e_id == id, d.cells)) {
-    | None => None
-    | Some(e) =>
-      let z = Cell.pane(side, e).editor.editor.state.zipper;
-      switch (anchor_of(z)) {
-      | Some(a) => Some(a)
-      | None => Some((Direction.Left, e.e_id))
-      };
-    }
-  };
-
-let with_zipper = (c: CellEditor.Model.t, z: Zipper.t): CellEditor.Model.t => {
-  ...c,
-  editor: {
-    ...c.editor,
-    editor: {
-      ...c.editor.editor,
-      state: {
-        ...c.editor.editor.state,
-        zipper: z,
+  Option.map(
+    ((e: Cell.t, side)) =>
+      switch (anchor_of(Cell.pane(side, e).editor.editor.state.zipper)) {
+      | Some(a) => a
+      | None => (Direction.Left, e.e_id)
       },
-    },
-  },
-};
+    active_cell(d),
+  );
 
 /* the caret moves into the open cell holding [id], which becomes
    active; unchanged if no cell holds it */
-let place_caret = ((side, id): (Direction.t, Id.t), d: t): t => {
-  let moved = (c: CellEditor.Model.t) =>
-    List.mem(id, Segment.ids(Focus.zip_of_cell(c)))
-      ? Move.jump_to_side_of_id(side, c.editor.editor.state.zipper, id) : None;
+let place_caret = ((dir, id): (Direction.t, Id.t), d: t): t => {
+  /* the cell with the caret beside [id], and the side it is in */
+  let moved = (e: Cell.t) =>
+    List.find_map(
+      side => {
+        let c = Cell.pane(side, e);
+        List.mem(id, Segment.ids(Focus.zip_of_cell(c)))
+          ? Move.jump_to_side_of_id(dir, c.editor.editor.state.zipper, id)
+            |> Option.map(z =>
+                 (
+                   Cell.with_pane(
+                     side,
+                     CellEditor.Model.map_zipper(_ => z, c),
+                     e,
+                   ),
+                   side,
+                 )
+               )
+          : None;
+      },
+      [Body, Header],
+    );
   let rec go = (before, cells: list(Cell.t)) =>
     switch (cells) {
     | [] => d
     | [e, ...rest] =>
-      switch (moved(e.e_body), moved(e.e_header)) {
-      | (Some(z), _) => {
+      switch (moved(e)) {
+      | Some((e, side)) => {
           ...d,
-          cells:
-            List.rev(before)
-            @ [
-              {
-                ...e,
-                e_body: with_zipper(e.e_body, z),
-              },
-              ...rest,
-            ],
-          active: Some((e.e_id, Body)),
+          cells: List.rev(before) @ [e, ...rest],
+          active: Some((e.e_id, side)),
         }
-      | (None, Some(z)) => {
-          ...d,
-          cells:
-            List.rev(before)
-            @ [
-              {
-                ...e,
-                e_header: with_zipper(e.e_header, z),
-              },
-              ...rest,
-            ],
-          active: Some((e.e_id, Header)),
-        }
-      | (None, None) => go([e, ...before], rest)
+      | None => go([e, ...before], rest)
       }
     };
   go([], d.cells);
