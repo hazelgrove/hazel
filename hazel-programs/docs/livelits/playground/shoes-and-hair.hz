@@ -361,13 +361,36 @@ module Drawing = {
       end;
     let shape_nodes : Picture -> [Html.T] =
       fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
+    # The frame: the usual one, grown to take in every point with a #
+    # margin, then made the viewer's shape, 320 by 440, about its middle; #
+    # a taller picture (a long neck) is drawn smaller, never cut off. #
+    let vertices_of = fun s : Shape ->
+      case s | Polygon(p) => p.points | Path(p) => p.points end;
+    let grow = fun ((x0, y0, x1, y1), v) : ((Float, Float, Float, Float), Vertex) ->
+      let (x, y) = v.at in
+      ((if x -. 12. <. x0 then x -. 12. else x0),
+       (if y -. 12. <. y0 then y -. 12. else y0),
+       (if x +. 12. >. x1 then x +. 12. else x1),
+       (if y +. 12. >. y1 then y +. 12. else y1));
+    let grow_all : ((Float, Float, Float, Float), [Vertex]) -> (Float, Float, Float, Float) =
+      fun (b, vs) -> case vs | [] => b | v :: tl => grow_all((grow((b, v)), tl)) end;
+    let bounds : ((Float, Float, Float, Float), Picture) -> (Float, Float, Float, Float) =
+      fun (b, ss) ->
+        case ss | [] => b | s :: tl => bounds((grow_all((b, vertices_of(s))), tl)) end;
+    let view_box = fun pic : Picture ->
+      let (x0, y0, x1, y1) = bounds(((0., -40., 320., 400.), pic)) in
+      let (w, h) = (x1 -. x0, y1 -. y0) in
+      let (w2, h2) =
+        if w *. 440. >. h *. 320. then (w, w *. 440. /. 320.) else (h *. 320. /. 440., h) in
+      num(x0 -. (w2 -. w) /. 2.) ++ " " ++ num(y0 -. (h2 -. h) /. 2.) ++ " "
+      ++ num(w2) ++ " " ++ num(h2);
     let view = fun m : Model ->
       do r <- eval_splice(m.picture) in
       Pure(
         case r
         | Some(Val(pic)) =>
           Html.node("svg",
-            [Attr.create("viewBox", "0 -40 320 440"), Attr.width("320"),
+            [Attr.create("viewBox", view_box(pic)), Attr.width("320"),
              Attr.height("440"),
              Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")])],
             shape_nodes(pic))
@@ -453,6 +476,29 @@ module Drawing = {
           button((label, v, v == m))))));
     let expand = Functional(fun m : Model -> m);
     let shape = Inline(27)
+  };
+  # ^slider: a number in a range, set with a slider and labelled. #
+  let ^slider = fun (label, lo, hi) : (String, Int, Int) -> {
+    type Model = Int;
+    type Action = Int;
+    type Expansion = Int;
+    let init = Pure((lo + hi) / 2);
+    let update = fun _m : Model -> fun a : Action -> Pure(a);
+    let view = fun m : Model -> Pure(
+      Html.div(
+        [Attr.style([("display", "flex"), ("gap", "0.5em"), ("align-items", "center"),
+                     ("font-family", "var(--code-font)"), ("font-size", "0.8em")])],
+        [Html.span([Attr.style([("white-space", "nowrap")])], [Html.text(label)]),
+         Html.input([
+           Attr.type_("range"),
+           Attr.min(string_of_int(lo)), Attr.max(string_of_int(hi)),
+           Attr.value(string_of_int(m)),
+           Attr.style([("flex", "1"), ("min-width", "0")]),
+           Attr.on_input(fun s -> int_of_string(s))]),
+         Html.span([Attr.style([("white-space", "nowrap"), ("min-width", "3ch")])],
+           [Html.text(string_of_int(m))])]));
+    let expand = Functional(fun m : Model -> m);
+    let shape = Inline(34)
   };
 
   # A piece moved so its anchor a lands on the base's anchor b, or left #
@@ -549,9 +595,33 @@ let pants = ^^livelit(Drawing.^polygons((
 
 let body = Drawing.under(pants, "left hip", shirt, "left hip") in
 
+# THE NECK #
+
+# A rectangle as long as the slider says. Its base is the anchor that #
+# goes on the shirt's neck, and its top the one the chin goes on; each #
+# is in the middle of an edge. It is 16 longer than what shows: placed, #
+# it moves 8 down, under the collar, and the head 8 down over its top. #
+
+let ^neck_dial = Drawing.^slider("neck", 0, 60) in
+let neck_length = ^^livelit(^neck_dial(28)) in
+let neck : Picture =
+  let top = 0. -. float_of_int(neck_length) -. 16. in
+  [Polygon((
+    name = "neck",
+    points = [
+      (at = (-12., 0.), label = Plain),
+      (at = (0., 0.), label = Anchor("base")),
+      (at = (12., 0.), label = Plain),
+      (at = (12., top), label = Plain),
+      (at = (0., top), label = Anchor("top")),
+      (at = (-12., top), label = Plain)
+    ],
+    stroke = (width = 2., color = "#8a5a44"),
+    fill = "#f1c27d"))] in
+
 # THE HEAD #
 
-# A round face: its chin is the anchor that goes on the shirt's neck, #
+# A round face: its chin is the anchor that goes on the neck's top, #
 # and its crown the one the hair goes on. #
 
 let head = ^^livelit(Drawing.^polygons((
@@ -765,16 +835,18 @@ let shoe = ^^livelit(Drawing.^polygons((
 # THE PICTURE #
 
 # Each piece placed by its anchor, then stacked in drawing order: the #
-# body, the shoes, the back of the hair, the head, and the top of the #
-# hair on the head. The hairdo is placed whole, by its crown, then split #
-# into its two layers. #
+# neck, behind the shirt so it shows in the collar; the body; the shoes; #
+# the back of the hair; the head; and the top of the hair on the head. #
+# The hairdo is placed whole, by its crown, then split into its two #
+# layers. #
 
-let head_at = Drawing.placed(head, "chin", body, "neck") in
+let neck_at = Drawing.shift(Drawing.placed(neck, "base", body, "neck"), 0., 8.) in
+let head_at = Drawing.shift(Drawing.placed(head, "chin", neck_at, "top"), 0., 8.) in
 let hair_at = Drawing.placed(hair, "crown", head_at, "crown") in
 let right_shoe = Drawing.placed(shoe, "ankle", body, "right foot") in
 let left_shoe = Drawing.placed(Drawing.mirrored(shoe), "ankle", body, "left foot") in
 let outfit =
-  body @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo) @ head_at
+  neck_at @ body @ right_shoe @ left_shoe @ Drawing.named(hair_at, hairdo) @ head_at
   @ Drawing.named(hair_at, hairdo ++ " top") in
 let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
 
@@ -784,3 +856,4 @@ let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
 
 # Press short, long or curly and the outfit's hair changes. Move a #
 # hairdo's crown in its editor and that hairdo sits higher or lower. #
+# Slide the neck longer and the head, and its hair, go up with it. #
