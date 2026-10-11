@@ -12,7 +12,7 @@ type item = {
   d_ctx_in: Ctx.t,
   d_map: Statics.Map.t,
   d_error_ids: list(Id.t),
-  d_warning_ids: list(Id.t), /* raw; all_warning_ids redoes unused binders */
+  d_warning_ids: list(Id.t), /* never its top-level binders (unused_binders) */
   d_exports: list(Ctx.entry),
   d_free: list(string), /* free expression vars of pat+def */
   d_tfree: list(string), /* type-side names the item depends on */
@@ -1089,26 +1089,10 @@ let whole_elab = (t: t): option(Exp.t) =>
 let all_error_ids = (t: t): list(Id.t) =>
   List.concat_map(it => it.d_error_ids, t.items);
 
-let all_warning_ids = (t: t): list(Id.t) => {
-  /* unused top-level binders are the engine's call, wrappers included */
-  let binder_ids =
-    List.concat_map(
-      it =>
-        List.concat_map(
-          fun
-          | Ctx.VarEntry({id, _}) => [id, ...fun_wrapper_ids(it.d_node, id)]
-          | _ => [],
-          it.d_exports,
-        ),
-      t.items,
-    );
-  let engine_unused = unused_binders(t.items);
-  List.concat_map(
-    it => List.filter(id => !List.mem(id, binder_ids), it.d_warning_ids),
-    t.items,
-  )
-  @ engine_unused;
-};
+/* an item never flags its own top-level binders (its body hole could use
+   them): unused ones are unused_binders' call, wrappers included */
+let all_warning_ids = (t: t): list(Id.t) =>
+  List.concat_map(it => it.d_warning_ids, t.items) @ unused_binders(t.items);
 
 /* set by the test runner to check each calc_auto result */
 let after_calc: ref(option((CoreSettings.t, t) => unit)) = ref(None);
