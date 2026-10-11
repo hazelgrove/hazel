@@ -329,26 +329,12 @@ module Selection = {
     Util.OptUtil.Syntax.(
       {
         let statics = Divided.statics(d);
-        let* info = Id.Map.find_opt(target_id, statics.info_map);
         /* the nearest enclosing outline item is the def to focus */
-        let rec outline_ids = (acc, ns: list(OutlineTree.node)) =>
-          List.fold_left(
-            (acc, n: OutlineTree.node) =>
-              outline_ids(
-                switch (n.o_id) {
-                | Some(id) => [id, ...acc]
-                | None => acc
-                },
-                n.o_children,
-              ),
-            acc,
-            ns,
-          );
-        let items = outline_ids([], OutlineTree.of_term(statics.term));
         let* fid =
-          List.find_opt(
-            id => List.mem(id, items),
-            [target_id, ...Language.Info.ancestors_of(info)],
+          OutlineTree.enclosing_row(
+            ~info_map=statics.info_map,
+            target_id,
+            statics.term,
           );
         /* the cell that holds [fid] once it's ensured */
         let j =
