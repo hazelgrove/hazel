@@ -102,6 +102,18 @@ let project_cell_statics =
       ),
   };
 };
+
+/* a cell's item: the top-level one whose map knows its id (a module
+   member's is its module's) */
+let item_of =
+    (ds: Haz3lcore.DefStatics.t, e: ScratchCell.t)
+    : option(Haz3lcore.DefStatics.item) =>
+  List.find_opt(
+    (it: Haz3lcore.DefStatics.item) =>
+      it.d_id == e.e_id || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
+    ds.items,
+  );
+
 /* incremental-parse cache for a divided program's statics frames:
    only the edited item re-parses */
 let stacked_incr_cache: ref(Haz3lcore.MakeTerm.Incr.cache) =
@@ -617,15 +629,7 @@ let calculate =
             d
             |> Divided.with_statics(statics)
             |> Divided.map_cells((e: ScratchCell.t) =>
-                 switch (
-                   /* the cell may be a module member: its top-level
-                      item is the one whose map knows its id */
-                   List.find_opt(
-                     (it: Haz3lcore.DefStatics.item) =>
-                       it.d_id == e.e_id || Id.Map.mem(e.e_id, it.d_map),
-                     ds.items,
-                   )
-                 ) {
+                 switch (item_of(ds, e)) {
                  | Some(it) when fresh(it) =>
                    switch (Focus.cell_content(e, spliced)) {
                    | Some(def_seg) =>
@@ -770,47 +774,27 @@ let calculate =
             e.e_body.editor.editor.root == Haz3lcore.Sort.Exp
             || e.e_body.editor.editor.root == Haz3lcore.Sort.Mod;
           let body_is_typ = e.e_body.editor.editor.root == Haz3lcore.Sort.Typ;
-          /* on statics frames cells read their item's
-             analysis instead of re-running a private one */
-          let (proj_header, proj_body) =
+          /* on statics frames (which always analyze, so [ds] is there)
+             cells read their item's analysis instead of re-running a
+             private one */
+          let item =
             statics_mode == StaticsMode.Force
-              ? {
-                switch (ds) {
-                | Some(ds) =>
-                  switch (
-                    List.find_opt(
-                      (it: Haz3lcore.DefStatics.item) =>
-                        it.d_id == e.e_id
-                        || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
-                      ds.items,
-                    )
-                  ) {
-                  | Some(it) =>
-                    let warns = Lazy.force(frame_warns);
-                    (
-                      Some(
-                        project_cell_statics(
-                          ~settings,
-                          ~item=it,
-                          ~engine_warnings=warns,
-                          e.e_header,
-                        ),
-                      ),
-                      Some(
-                        project_cell_statics(
-                          ~settings,
-                          ~item=it,
-                          ~engine_warnings=warns,
-                          e.e_body,
-                        ),
-                      ),
-                    );
-                  | None => (None, None)
-                  }
-                | None => (None, None)
-                };
-              }
-              : (None, None);
+              ? Option.bind(ds, ds => item_of(ds, e)) : None;
+          let project = (c: CellEditor.Model.t) =>
+            Option.map(
+              item =>
+                project_cell_statics(
+                  ~settings,
+                  ~item,
+                  ~engine_warnings=Lazy.force(frame_warns),
+                  c,
+                ),
+              item,
+            );
+          let (proj_header, proj_body) = (
+            project(e.e_header),
+            project(e.e_body),
+          );
           /* dynamics off: a cell shows the whole program's samples, and
              its own run would be on the main thread with no step limit */
           let body_settings =
