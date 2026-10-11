@@ -19,7 +19,7 @@ Values can outgrow their sample boxes, especially in *many* mode, where all of a
 Probe `card`. Expand its sample with **Cmd/Ctrl+↓**, or read it in single mode.
 
 @hints
-The moonbloom drinks 1260 ml a week.
+moonbloom_weekly should be what the moonbloom drinks in a week
 
 @code
 type Care = (water = Int, weekly = Int) in
