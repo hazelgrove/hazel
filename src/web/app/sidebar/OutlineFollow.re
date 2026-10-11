@@ -14,16 +14,8 @@ let css = (id: Language.Id.t): string =>
   ++ "\"] { box-shadow: inset 2px 0 0 var(--ol-mark); }";
 
 let scroll_nearest = el =>
-  Js.Unsafe.meth_call(
-    el,
-    "scrollIntoView",
-    [|
-      Js.Unsafe.inject(
-        Js.Unsafe.obj([|
-          ("block", Js.Unsafe.inject(Js.string("nearest"))),
-        |]),
-      ),
-    |],
+  Js.Unsafe.coerce(el)##scrollIntoView(
+    Js.Unsafe.obj([|("block", Js.Unsafe.inject(Js.string("nearest")))|]),
   );
 
 let last_cursor: ref(option(string)) = ref(None);
