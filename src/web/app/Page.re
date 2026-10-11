@@ -560,13 +560,14 @@ module Update = {
         Editors.Update.calculate(
           ~settings=
             dynamics
-              ? model.globals.settings.core
+              ? model.globals.settings
               : {
-                ...model.globals.settings.core,
-                dynamics: false,
+                ...model.globals.settings,
+                core: {
+                  ...model.globals.settings.core,
+                  dynamics: false,
+                },
               },
-          ~autoprobe_mode=model.globals.settings.autoprobe_mode,
-          ~tail_probe=model.globals.settings.tail_probe,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,

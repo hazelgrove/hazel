@@ -98,9 +98,7 @@ module Update = {
 
   let calculate =
       (
-        ~settings,
-        ~autoprobe_mode,
-        ~tail_probe=false,
+        ~settings: Settings.t,
         ~schedule_action,
         ~is_edited,
         ~is_documentation: bool,
@@ -117,9 +115,9 @@ module Update = {
       | Code(code) =>
         Code(
           Workspace.calculate(
-            ~settings,
-            ~autoprobe_mode,
-            ~tail_probe,
+            ~settings=settings.core,
+            ~autoprobe_mode=settings.autoprobe_mode,
+            ~tail_probe=settings.tail_probe,
             ~schedule_action=a => schedule_action(Workspace(a)),
             ~is_edited,
             ~statics_mode,
@@ -130,8 +128,8 @@ module Update = {
       | Drv(m) =>
         Drv(
           DerivationExerciseMode.Update.calculate(
-            ~settings,
-            ~autoprobe_mode,
+            ~settings=settings.core,
+            ~autoprobe_mode=settings.autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(DrvAction(a)),
             m,

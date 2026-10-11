@@ -517,7 +517,7 @@ let calculate =
       ~autoprobe_mode,
       /* the ⇓ toggle: the whole program's last expression, or the ⇒
          cell's, probed as an open drawer */
-      ~tail_probe=false,
+      ~tail_probe,
       ~schedule_action: Action.t => unit,
       ~is_edited,
       ~statics_mode,

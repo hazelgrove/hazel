@@ -368,23 +368,16 @@ module Update = {
     };
   };
 
-  let calculate =
-      (
-        ~settings,
-        ~autoprobe_mode,
-        ~tail_probe=false,
-        ~is_edited,
-        ~schedule_action,
-        model,
-      ) => {
+  /* the decks read the app's settings, the other modes their core and
+     auto-probe mode */
+  let calculate = (~settings: Settings.t, ~is_edited, ~schedule_action, model) => {
+    let autoprobe_mode = settings.autoprobe_mode;
     switch (model) {
     | Model.Scratch(m) =>
       Model.Scratch(
         ScratchMode.Update.calculate(
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
-          ~autoprobe_mode,
-          ~tail_probe,
           ~is_edited,
           ~is_documentation=false,
           m,
@@ -395,8 +388,6 @@ module Update = {
         ScratchMode.Update.calculate(
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
-          ~autoprobe_mode,
-          ~tail_probe,
           ~is_edited,
           ~is_documentation=true,
           m,
@@ -406,7 +397,7 @@ module Update = {
       Model.Config(
         ConfigurationMode.Update.calculate(
           ~schedule_action=a => schedule_action(Configuration(a)),
-          ~settings,
+          ~settings=settings.core,
           ~autoprobe_mode,
           ~is_edited,
           m,
@@ -416,7 +407,7 @@ module Update = {
       Model.Tutorial(
         TutorialsMode.Update.calculate(
           ~schedule_action=a => schedule_action(Tutorial(a)),
-          ~settings,
+          ~settings=settings.core,
           ~autoprobe_mode,
           ~is_edited,
           m,
@@ -426,7 +417,7 @@ module Update = {
       Model.Exercises(
         ExercisesMode.Update.calculate(
           ~schedule_action=a => schedule_action(Exercises(a)),
-          ~settings,
+          ~settings=settings.core,
           ~autoprobe_mode,
           ~is_edited,
           m,
