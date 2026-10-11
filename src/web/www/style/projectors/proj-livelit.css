@@ -345,3 +345,16 @@
     color: var(--ui-bkg);
     cursor: default;
 }
+/* Under forced colors -- what a high-contrast OS theme turns on -- the
+   browser drops the colors above and draws the pressed button as it
+   draws any disabled one: grey text on a half-clear face. The current
+   choice then looked like the one choice that was unavailable. Keep the
+   inversion, in the reader's own system colors. */
+@media (forced-colors: active) {
+    .livelit .choice-button:disabled {
+        forced-color-adjust: none;
+        background: ButtonText;
+        color: ButtonFace;
+        border-color: ButtonText;
+    }
+}
