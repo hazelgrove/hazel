@@ -25,8 +25,8 @@ let fast_equal = Equality.syntactic.pat;
 let equal = fast_equal;
 
 let rep_id = ({annotation: {ids, _}, _}: t) => {
-  assert(ids != []);
-  List.hd(ids);
+  assert(!List.is_empty(ids));
+  List.hd_exn(ids);
 };
 
 let term_of: t => TermBase.Pat.term = IdTagged.term_of;
@@ -118,7 +118,8 @@ let rec is_tuple_of_vars = (pat: t) =>
     | Projector(_, pat)
     | Asc(pat, _)
     | TupLabel(_, pat) => is_tuple_of_vars(pat)
-    | Tuple(pats) => pats |> List.for_all(x => x |> is_var |> Option.is_some)
+    | Tuple(pats) =>
+      pats |> List.for_all(~f=x => x |> is_var |> Option.is_some)
     | Label(_)
     | ExplicitNonlabel
     | Invalid(_)
@@ -201,7 +202,7 @@ let rec match_tup_label: t => option((LabeledTuple.label, t)) =
     };
 
 let get_label: t => option(LabeledTuple.label) =
-  p => match_tup_label(p) |> Option.map(fst);
+  p => match_tup_label(p) |> Option.map(~f=fst);
 
 let rec bindings = (dp: t): Binding.s =>
   switch (dp |> term_of) {
@@ -223,19 +224,23 @@ let rec bindings = (dp: t): Binding.s =>
         id: rep_id(dp),
       },
     ]
-  | Tuple(dps) => List.flatten(List.map(bindings, dps))
+  | Tuple(dps) => List.concat(List.map(~f=bindings, dps))
   | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
-  | ListLit(dps) => List.flatten(List.map(bindings, dps))
+  | ListLit(dps) => List.concat(List.map(~f=bindings, dps))
   | Ap(_, dp1) => bindings(dp1)
   };
 
 let bound_vars = (dp: t): list(Var.t) =>
-  dp |> bindings |> List.map((b: Binding.t) => b.name);
+  dp |> bindings |> List.map(~f=(b: Binding.t) => b.name);
 
 let get_duplicate_bindings = (pat: t) => {
   let bindings = bound_vars(pat);
   List.filter(
-    binding => {List.length(List.filter(x => x == binding, bindings)) > 1},
+    ~f=
+      binding => {
+        List.length(List.filter(~f=x => String.equal(x, binding), bindings))
+        > 1
+      },
     bindings,
   );
 };

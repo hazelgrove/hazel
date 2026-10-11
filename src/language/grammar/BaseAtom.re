@@ -27,23 +27,23 @@ let void_token = "Void";
 let table: list((string, TermBase.Typ.term)) =
   (
     Atom.all_of_cls
-    |> List.map((a: Atom.cls) =>
+    |> List.map(~f=(a: Atom.cls) =>
          (atom_token(a), Atom(a): TermBase.Typ.term)
        )
-    |> List.sort(((s, _), (s', _)) => String.compare(s, s'))
+    |> List.sort(~compare=((s, _), (s', _)) => String.compare(s, s'))
   )
   @ [(void_token, Sum([]): TermBase.Typ.term)]
   @ (
     DrvSort.all
-    |> List.map((s: DrvSort.t) =>
+    |> List.map(~f=(s: DrvSort.t) =>
          (DrvSort.to_string(s), DrvQuoteTy(s): TermBase.Typ.term)
        )
   );
 
-let base_typs: list(string) = List.map(fst, table);
+let base_typs: list(string) = List.map(~f=fst, table);
 
 let typ_term_of = (t: string): option(TermBase.Typ.term) =>
-  List.assoc_opt(t, table);
+  List.Assoc.find(table, t, ~equal=String.equal);
 
 let token_of_typ = (tm: TermBase.Typ.term): option(string) =>
   switch (tm) {

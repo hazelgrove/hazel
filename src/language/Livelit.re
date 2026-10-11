@@ -202,7 +202,9 @@ module Emotion: BuiltinLivelit = {
     /* Calculate mouth curvature from the model value */
     let smile = (100.0 -. float_of_int(n_int)) /. 100.0 *. 50.0 -. 25.0;
     let pathData =
-      "M60 130 Q100 " ++ Printf.sprintf("%.1f", 130.0 -. smile) ++ " 140 130";
+      "M60 130 Q100 "
+      ++ Stdlib.Printf.sprintf("%.1f", 130.0 -. smile)
+      ++ " 140 130";
 
     Node.div([
       Node.create_svg(
@@ -451,4 +453,4 @@ module Js: BuiltinLivelit = {
 
 let livelits: list(raw_livelit) =
   [(module Slider), (module Emotion), (module Js)]
-  |> List.map(raw_of_builtin);
+  |> List.map(~f=raw_of_builtin);
