@@ -711,13 +711,12 @@ let run_at = (fid: Id.t, parent: option(Tile.t), seg: Segment.t) =>
     seg,
   );
 
-let test_run_deep = (fid: Id.t, seg: Segment.t) =>
+/* the run holding [fid]: its text, its member ids and how many tests it
+   has (members carry two ids each) */
+let test_run_deep =
+    (fid: Id.t, seg: Segment.t): option((Segment.t, list(Id.t), int)) =>
   find_deep(run_at(fid), seg)
-  |> Option.map(((run, (members, _))) => (run, members));
-
-/* how many tests the run holding [fid] has (members carry two ids each) */
-let test_run_size_deep = (fid: Id.t, seg: Segment.t): option(int) =>
-  find_deep(run_at(fid), seg) |> Option.map(((_, (_, n))) => n);
+  |> Option.map(((run, (members, n))) => (run, members, n));
 
 /* the definition RHS of the item [t] at [i] in [level]: a 3-shard
    `let … = … in`'s last child, or for a 2-shard member `let … =`, the
@@ -987,7 +986,7 @@ let mk_run_entry =
     : (
       switch (test_run_deep(fid, master_seg)) {
       | None => mk_entry(~info_map, fid, master_seg)
-      | Some((run_slice, members)) =>
+      | Some((run_slice, members, _)) =>
         Some(
           mk_cell(
             ~info_map,
@@ -1037,7 +1036,7 @@ let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
 let cell_content = (e: ScratchCell.t, seg: Segment.t): option(Segment.t) =>
   switch (e.e_kind) {
   | Members => Option.bind(find_def(e.e_id, seg), brace_child)
-  | Run(_) => test_run_deep(e.e_id, seg) |> Option.map(fst)
+  | Run(_) => test_run_deep(e.e_id, seg) |> Option.map(((run, _, _)) => run)
   | Headless(_) => headless_content_deep(e.e_id, seg) |> Option.map(fst)
   | Def(_) => find_def(e.e_id, seg)
   };

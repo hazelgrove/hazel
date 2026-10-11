@@ -363,10 +363,10 @@ let update =
        members open one by one) */
     view(
       (term, program, v) => {
-        let members =
+        let (members, size) =
           switch (Focus.test_run_deep(fid, Program.document(program))) {
-          | Some((_, ms)) => ms
-          | None => [fid]
+          | Some((_, ms, n)) => (ms, Some(n))
+          | None => ([fid], None)
           };
         switch (
           List.find_opt(
@@ -387,8 +387,7 @@ let update =
               v,
               singles,
             );
-          Some(List.length(singles))
-          == Focus.test_run_size_deep(fid, Program.document(program))
+          Some(List.length(singles)) == size
             ? v : SlideView.pin(~term, ~run=true, fid, v);
         };
       },

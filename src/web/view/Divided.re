@@ -381,7 +381,7 @@ let open_ =
 let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
   let members =
     switch (Focus.test_run_deep(fid, d.base)) {
-    | Some((_, ms)) => ms
+    | Some((_, ms, _)) => ms
     | None => [fid]
     };
   let (alone, keeping) =

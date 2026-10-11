@@ -268,7 +268,10 @@ let names_and_keys = () => {
     option(int),
     "three tests",
     Some(3),
-    Focus.test_run_size_deep(outline_id(rterm, "1"), run),
+    Option.map(
+      ((_, _, n)) => n,
+      Focus.test_run_deep(outline_id(rterm, "1"), run),
+    ),
   );
   let own = Web.ScratchPersist.slide_suffix("scratch:Week 1");
   check(
