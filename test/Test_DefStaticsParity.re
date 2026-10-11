@@ -169,6 +169,7 @@ let script = (~root=Sort.Exp, ~eval=true, src: string, steps: list(step), ()) =>
   };
   let seg = CorpusUtil.seg_of(~root, src);
   let ds = calc(seg);
+  /* step 0: the cold calc */
   let threaded = exact(0, noop, ds, (IncrEval.empty, None));
   ignore(
     List.fold_left(
@@ -787,7 +788,7 @@ let corpus = [
       ~root=Exp,
       "mega-1k.hz",
       [
-        /* breaks WateringTimer's selfcheck */
+        /* WateringTimer and its selfcheck member, which this breaks */
         token("180", "181") |> analyzed(2) |> changes_value,
         /* the tail only */
         token(~at=`Last, ~keep_id=true, "9", "8") |> analyzed(1),
