@@ -454,11 +454,13 @@ module DrawerHeight = {
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   open Float;
   let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
+  /* a sample drawn as a view has no .code: measure from the chip */
   let text_box =
     e##.currentTarget
     |> Js.Opt.to_option
-    |> Option.map(JsUtil.get_child_with_class(_, "code"))
-    |> Option.join;
+    |> Option.map(t =>
+         JsUtil.get_child_with_class(t, "code") |> Option.value(~default=t)
+       );
   switch (text_box) {
   | None => None
   | Some(text_box) =>
@@ -799,6 +801,9 @@ let value_view =
     Effect.Ignore;
   };
 
+  /* the view the chip draws the value with, if any */
+  let chip = chip_view(ctx, ~display, sample.value);
+
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
     /* buttons > 0 guards a stale drag flag: capture can be lost without a
        pointerup, which would otherwise resize on shift-hover with no button. */
@@ -809,15 +814,17 @@ let value_view =
     ) {
     | (Some(_), Some(goal)) =>
       let target_width = max(1, goal.col);
-      /* Inline: width isn't linear in budget (Abbreviate is discrete), so
-       * bisect. Block: wrap width is target_width directly. */
+      /* Inline text: width isn't linear in budget (Abbreviate is discrete),
+       * so bisect. A view's room, and Block's wrap width, is target_width
+       * directly. */
       let budget =
-        switch (display) {
-        | Inline =>
+        switch (display, chip) {
+        | (Inline, None) =>
           let width_at = (b: int): int =>
             abbreviated_seg_of(utility, b, sample.value) |> snd;
           find_best_budget(width_at, target_width);
-        | Block => target_width
+        | (Inline, Some(_))
+        | (Block, _) => target_width
         };
       local(ChangeLength(sample.id, budget));
     | _ => Effect.Ignore
@@ -928,7 +935,7 @@ let value_view =
           (),
         );
       let rich_node =
-        switch (chip_view(ctx, ~display, sample.value)) {
+        switch (chip) {
         | Some((r, pm)) => render_rich(r, pm)
         | None => None
         };
