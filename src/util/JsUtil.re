@@ -194,8 +194,8 @@ let outline_has_focus = (): bool =>
 let active_cell_id = "active-code-editor";
 
 /* Focus the active cell without scrolling it into view — scroll is handled
-   separately (scroll_cursor_into_view_if_needed), and the browser's default
-   focus scroll would fight it. */
+   separately (CaretReveal), and the browser's default focus scroll would
+   fight it. */
 let focus_active_cell = (): bool =>
   switch (get_elem_by_id_opt(active_cell_id)) {
   | Some(elem) =>
@@ -566,23 +566,6 @@ let find_scroll_container_cached =
     found;
   };
 };
-
-let scroll_cursor_into_view_if_needed = () =>
-  try({
-    let caret_elem = get_elem_by_id("caret");
-    switch (find_scroll_container_cached(caret_elem)) {
-    | Some(container) => scroll_vertically_into_view(container, caret_elem)
-    | None =>
-      caret_elem##scrollIntoView(
-        Js.Unsafe.obj([|
-          ("block", Js.Unsafe.inject(Js.string("nearest"))),
-          ("inline", Js.Unsafe.inject(Js.string("nearest"))),
-        |]),
-      )
-    };
-  }) {
-  | Assert_failure(_) => ()
-  };
 
 /* the nearest ancestor that really scrolls: overflow auto or scroll, with
    content past its height (a box overflowing by a pixel doesn't count) */

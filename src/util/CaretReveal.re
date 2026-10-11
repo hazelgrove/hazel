@@ -282,7 +282,8 @@ let reveal = (): unit => {
   let burst = now -. last_reveal_ms^ < burst_ms;
   last_reveal_ms := now;
   switch (published^) {
-  | None => JsUtil.scroll_cursor_into_view_if_needed()
+  /* no caret rendered yet, so none to reveal */
+  | None => ()
   | Some((row, rh)) =>
     /* getElementById is a lookup, not a layout read */
     let caret_now = JsUtil.get_elem_by_id_opt("caret");
