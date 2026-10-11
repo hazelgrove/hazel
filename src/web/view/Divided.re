@@ -57,21 +57,23 @@ let with_statics = (s: CachedStatics.t, d: t): t => {
   statics: Some(s),
 };
 
-let document = (d: t): Segment.t =>
-  List.fold_left((seg, e) => Focus.splice_entry(e, seg), d.base, d.cells);
+/* [seg] with [cells]' text in their slots */
+let spliced = (seg: Segment.t, cells: list(Cell.t)): Segment.t =>
+  List.fold_left((seg, e) => Focus.splice_entry(e, seg), seg, cells);
+
+let document = (d: t): Segment.t => spliced(d.base, d.cells);
 
 /* in program coordinates: the indentation the cell cut is its own too */
 let cell_ids = (e: Cell.t): list(Id.t) =>
   Segment.ids(Focus.header_text(e)) @ Segment.ids(Focus.body_text(e));
 
-/* the open cell covering [id]: its own item, a run member, or any
-   piece inside its text */
+/* the cell covers [id]: its own item, a run member, or any piece inside
+   its text */
+let owns = (id: Id.t, e: Cell.t): bool =>
+  List.mem(id, Cell.covers(e)) || List.mem(id, cell_ids(e));
+
 let owner = (id: Id.t, d: t): option(Cell.t) =>
-  List.find_opt(
-    (e: Cell.t) =>
-      List.mem(id, Cell.covers(e)) || List.mem(id, cell_ids(e)),
-    d.cells,
-  );
+  List.find_opt(owns(id), d.cells);
 
 let outline_order = (term: Language.Exp.t): list(Id.t) => {
   let rec flatten = (acc, ns: list(OutlineTree.node)) =>
@@ -402,6 +404,26 @@ let close = (id: Id.t, d: t): after_close =>
     }
   };
 
+/* [mk]'s cell, cut from the base with [closing] folded back in, opens
+   among [keeping] and becomes active */
+let open_among =
+    (~term, mk: Segment.t => option(Cell.t), closing, keeping, d: t)
+    : option(t) => {
+  let base = spliced(d.base, closing);
+  mk(base)
+  |> Option.map((entry: Cell.t) =>
+       settle(
+         ~pool=probes(d),
+         {
+           ...d,
+           base,
+           cells: insert(~term, entry, keeping),
+           active: Some((entry.e_id, Body)),
+         },
+       )
+     );
+};
+
 /* opening a parent folds its open descendants back into it; an id inside
    an open cell opens nothing (the caller moves the caret there instead) */
 let open_ =
@@ -413,24 +435,13 @@ let open_ =
     let desc = OutlineTree.descendant_ids(id, term);
     let (closing, keeping) =
       List.partition((e: Cell.t) => List.mem(e.e_id, desc), d.cells);
-    let base =
-      List.fold_left(
-        (seg, e) => Focus.splice_entry(e, seg),
-        d.base,
-        closing,
-      );
-    entry(~info_map, ~sym?, ~inner, id, base)
-    |> Option.map(entry =>
-         settle(
-           ~pool=probes(d),
-           {
-             ...d,
-             base,
-             cells: insert(~term, entry, keeping),
-             active: Some((id, Body)),
-           },
-         )
-       );
+    open_among(
+      ~term,
+      entry(~info_map, ~sym?, ~inner, id),
+      closing,
+      keeping,
+      d,
+    );
   };
 
 /* [fid]'s test run as one cell, folding in members open alone; None if
@@ -446,34 +457,15 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
       (e: Cell.t) => !e.e_run && List.mem(e.e_id, members),
       d.cells,
     );
-  let held =
-    List.exists(
-      (e: Cell.t) =>
-        List.mem(fid, Cell.covers(e)) || List.mem(fid, cell_ids(e)),
-      keeping,
-    );
-  held
+  List.exists(owns(fid), keeping)
     ? None
-    : {
-      let base =
-        List.fold_left(
-          (seg, e) => Focus.splice_entry(e, seg),
-          d.base,
-          alone,
-        );
-      Focus.mk_run_entry(~info_map, fid, base)
-      |> Option.map(entry =>
-           settle(
-             ~pool=probes(d),
-             {
-               ...d,
-               base,
-               cells: insert(~term, entry, keeping),
-               active: Some((entry.e_id, Body)),
-             },
-           )
-         );
-    };
+    : open_among(
+        ~term,
+        Focus.mk_run_entry(~info_map, fid),
+        alone,
+        keeping,
+        d,
+      );
 };
 
 /* after an edit to the joined program (agent, outline menu): the same
