@@ -161,7 +161,8 @@ let manual_wins = () => {
   check(bool, "steady", true, update(~on=true, z) === z);
 };
 
-/* the ⇓ probe stays itself once made manual, until ⇓ is off */
+/* the ⇓ probe stays itself once made manual; ⇓ off makes it a drawer
+   probe of its own, and ⇓ on takes it back */
 let promoted_stays = () => {
   let (z, tail) = promoted();
   let again = update(~on=true, z);
@@ -176,6 +177,50 @@ let promoted_stays = () => {
     List.assoc_opt(tail, off.refractors.manuals)
     |> Option.map((e: Refractors.entry) => e.model)
     == Some(ProbeProj.tail_model),
+  );
+  check(
+    bool,
+    "on again: the ⇓ probe",
+    true,
+    is_program_value(update(~on=true, off), tail),
+  );
+};
+
+/* and through a save and load: the probe saved with the slide comes back
+   into a fresh editor as the ⇓ probe */
+let promoted_reloads = () => {
+  let (z, tail) = promoted();
+  let seg = Zipper.unselect_and_zip(z);
+  Web.ScratchPersist.write_side("tailtest", "promoted", side =>
+    {
+      ...side,
+      probes: z.refractors.manuals,
+    }
+  );
+  let loaded =
+    ZipperBase.update_refractors(Zipper.unzip(seg), r =>
+      {
+        ...r,
+        manuals: Web.ScratchPersist.read_probes("tailtest", "promoted", seg),
+      }
+    );
+  check(bool, "unanchored", true, loaded.refractors.tail_target == None);
+  let z = update(~on=true, loaded);
+  check(bool, "the ⇓ probe", true, is_program_value(z, tail));
+  let (info_map, syntax) = analysed(z);
+  check(
+    bool,
+    "no rows",
+    true,
+    Id.Map.is_empty(
+      CachedSyntax.mk_refractor_rows(
+        z,
+        syntax.term_data,
+        info_map,
+        Dynamics.Map.empty,
+        ~elaborated=None,
+      ),
+    ),
   );
 };
 
@@ -356,6 +401,7 @@ let tests = (
     test_case("steady", `Quick, steady),
     test_case("a manual probe wins", `Quick, manual_wins),
     test_case("made manual, still the ⇓ probe", `Quick, promoted_stays),
+    test_case("made manual, saved and loaded", `Quick, promoted_reloads),
     test_case("a remade entry is a drawer", `Quick, remade_drawer),
     test_case("its projector is told", `Quick, projector_flag),
     test_case("no arms on the code", `Quick, no_arms),
