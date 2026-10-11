@@ -2519,15 +2519,23 @@ and uexp_to_info_map =
           let (fn_info, fn_elab, m) =
             go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
           livelit_abbrev_site := outer_abbrev_site;
+          /* `^a@<T>(args)(model)`: ^a at T first, as an abbreviation
+             `let ^b = ^a@<T>(args) in` has it */
+          let ty =
+            Option.bind(UserLivelit.ap_head(fn), ((_, ty)) => ty)
+            |> Option.map(Typ.normalize(ctx));
           switch (
             Option.bind(Ctx.lookup_livelit(ctx, s), ll =>
-              Option.bind(UserLivelit.ap_arg(fn_elab), args =>
-                UserLivelit.apply_args(
-                  ~name=s,
-                  ~id=Exp.rep_id(fn),
-                  ~args,
-                  ~runtime=fn_elab,
-                  ll,
+              Option.bind(
+                UserLivelit.at_type(~name=s, ~id=Exp.rep_id(fn), ~ty, ll), ll =>
+                Option.bind(UserLivelit.ap_arg(fn_elab), args =>
+                  UserLivelit.apply_args(
+                    ~name=s,
+                    ~id=Exp.rep_id(fn),
+                    ~args,
+                    ~runtime=fn_elab,
+                    ll,
+                  )
                 )
               )
             )
