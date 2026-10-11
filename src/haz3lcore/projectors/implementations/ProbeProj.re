@@ -1135,7 +1135,7 @@ let step_into_action = (ctx: probe_ctx, sample: Sample.t, ap_id: Id.t) =>
             Effect.Stop_propagation,
             step_into_sample(
               ~parent=ctx.parent,
-              ~local=ctx.local,
+              ~local=ctx.local_quiet,
               ~sample,
               ~ap_id,
             ),
@@ -1820,7 +1820,7 @@ let sample_view =
     [
       value_view(
         ~display,
-        ~alt_toggle=() => local(ToggleDropdown(did)),
+        ~alt_toggle=() => ctx.local_quiet(ToggleDropdown(did)),
         ctx,
         ~num_total,
         view_seg,
@@ -2163,10 +2163,15 @@ let key_handler =
     blur_to_editor();
     parent(Remove);
   | D("Escape") when Settings.open_dropdown^ != None =>
-    Many([local(SetDropdown(None)), Stop_propagation, Prevent_default])
+    Many([
+      ctx.local_quiet(SetDropdown(None)),
+      Stop_propagation,
+      Prevent_default,
+    ])
   | D("Escape") when key.shift == Down =>
     blur_to_editor();
-    Many([local(ResetSettings), parent(SampleFocus(Reset))]);
+    /* the unpin is the undo step; ResetSettings changes no model state */
+    Many([ctx.local_quiet(ResetSettings), parent(SampleFocus(Reset))]);
   | D("Escape") when drawer_mode_active =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
@@ -2254,7 +2259,7 @@ let key_handler =
       Many([
         Stop_propagation,
         Prevent_default,
-        step_into_sample(~parent, ~local, ~sample, ~ap_id),
+        step_into_sample(~parent, ~local=ctx.local_quiet, ~sample, ~ap_id),
       ])
     | _ => Many([Stop_propagation, Prevent_default])
     }
@@ -2523,7 +2528,7 @@ let live_offside_view =
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
     ~menu_open=Settings.open_dropdown^ != None,
-    ~on_close=() => local(SetDropdown(None)),
+    ~on_close=() => ctx.local_quiet(SetDropdown(None)),
     (),
   );
   Node.div(

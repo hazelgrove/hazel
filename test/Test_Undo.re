@@ -56,6 +56,25 @@ let text_of = (model: History.Model.t): string =>
 let undo_len = (model: History.Model.t) => List.length(model.undo_stack);
 let redo_len = (model: History.Model.t) => List.length(model.redo_stack);
 
+/* Pins */
+
+let focus_action = (a: Haz3lcore.Action.sample_focus): Page.Update.t =>
+  Globals(ActiveEditor(Project(SampleFocus(a))));
+/* The stack is never checked against samples during update. */
+let call_stack: Language.CallStack.t = [
+  {
+    id: Haz3lcore.Id.mk(),
+    name: Some("f"),
+    fn_def_id: None,
+  },
+];
+let pin: Page.Update.t = focus_action(TogglePin(call_stack, None));
+let focus_of = (model: History.Model.t): Language.Sample.Focus.t =>
+  Page.Update.get_editor(model.current).editor.state.zipper.refractors.
+    sample_focus;
+let pinned = (model: History.Model.t) =>
+  focus_of(model).pinned_stack != None;
+
 let tests = (
   "Undo",
   [
@@ -258,6 +277,46 @@ let tests = (
           true,
           m4.current.globals.font_metrics == fm,
         );
+      },
+    ),
+    test_case(
+      "unpinning is an undo step, and undoing it re-pins without touching the code",
+      `Quick,
+      () => {
+        let m1 = apply(mk_model(), insert("1"));
+        let t1 = text_of(m1);
+        let m2 = apply(m1, pin);
+        check(bool, "pinned", true, pinned(m2));
+        check(int, "pinning pushed an entry", 2, undo_len(m2));
+        let m3 = apply(m2, focus_action(Reset));
+        check(bool, "unpinned", false, pinned(m3));
+        check(int, "unpinning pushed an entry", 3, undo_len(m3));
+        let m4 = apply(m3, undo);
+        check(
+          bool,
+          "undo restores the pin and the focus that came with it",
+          true,
+          Language.Sample.Focus.equal(focus_of(m4), focus_of(m2)),
+        );
+        check(string, "and leaves the code alone", t1, text_of(m4));
+        let m5 = apply(m4, redo);
+        check(bool, "redo unpins again", false, pinned(m5));
+        check(string, "still leaving the code alone", t1, text_of(m5));
+      },
+    ),
+    test_case(
+      "undo after pinning unpins; focus moves are not undo steps",
+      `Quick,
+      () => {
+        let m1 = apply(mk_model(), insert("1"));
+        let t1 = text_of(m1);
+        let m2 = apply(m1, focus_action(SetIndex(0)));
+        let m3 = apply(m2, focus_action(Reset));
+        check(int, "focus moves pushed nothing", 1, undo_len(m3));
+        let m4 = apply(m3, pin);
+        let m5 = apply(m4, undo);
+        check(bool, "undo unpins", false, pinned(m5));
+        check(string, "and leaves the code alone", t1, text_of(m5));
       },
     ),
   ],
