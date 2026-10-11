@@ -62,6 +62,7 @@ let (suite, exit_with_test_status) =
       Test_ModuleEval.tests,
       Test_ProbePersist.tests,
       Test_DividedLaws.tests,
+      Test_HeadlessRows.tests,
       Test_TermPrune.tests,
       Test_ResultLine.tests,
       Test_ProbeSteps.tests,
