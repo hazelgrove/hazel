@@ -98,6 +98,7 @@ let (suite, exit_with_test_status) =
     @ [Test_ValueHash.tests]
     @ [Test_IdentityMemo.tests]
     @ [Test_ShareCodec.tests]
+    @ [Test_CopyDescendants.tests]
     @ [Test_CallMemo.tests]
     @ [Test_IncompleteTiles.tests]
     @ [Test_OpenValues.tests]

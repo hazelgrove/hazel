@@ -123,6 +123,12 @@ let merge_outbox =
     },
 };
 
+/* Not into a function's body: entries are recorded only for nodes
+   evaluated outside any call (Evaluator's eval_4_reuse), and a function's
+   body is evaluated only when it is applied, which pushes a call frame, so
+   no node in it has an entry. A livelit's definition is mostly function
+   bodies, and walking them on every reuse was a third of the worker's
+   evaluation of a Kids' Choice release. */
 let copy_descendant_entries =
     (~root_id: Id.t, ~root: Exp.t, ~prev: t('state), incr: t('state))
     : t('state) => {
@@ -135,7 +141,10 @@ let copy_descendant_entries =
       | None => ()
       };
     };
-    continue(e);
+    switch (e.term) {
+    | Fun(_) => e
+    | _ => continue(e)
+    };
   };
   let _ = TermBase.Exp.map_term(~f_exp, root);
   acc^;
