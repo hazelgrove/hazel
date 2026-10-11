@@ -71,6 +71,9 @@ let owns = (id: Id.t, e: Cell.t): bool =>
 let owner = (id: Id.t, d: t): option(Cell.t) =>
   List.find_opt(owns(id), d.cells);
 
+let cell = (id: Id.t, d: t): option(Cell.t) =>
+  List.find_opt((e: Cell.t) => e.e_id == id, d.cells);
+
 let insert = (~term, entry: Cell.t, cells: list(Cell.t)): list(Cell.t) => {
   let order = OutlineTree.collect(OutlineTree.of_term(term));
   let rank = id =>
@@ -164,9 +167,7 @@ let active = (d: t): option((Id.t, side)) => d.active;
 
 let active_cell = (d: t): option((Cell.t, side)) =>
   switch (d.active) {
-  | Some((id, side)) =>
-    List.find_opt((e: Cell.t) => e.e_id == id, d.cells)
-    |> Option.map(e => (e, side))
+  | Some((id, side)) => Option.map(e => (e, side), cell(id, d))
   | None => None
   };
 
@@ -620,7 +621,7 @@ let update_cell = (id: Id.t, f: Cell.t => Cell.t, d: t): t => {
 };
 
 let set_active = (id: Id.t, side: side, d: t): t =>
-  List.exists((e: Cell.t) => e.e_id == id, d.cells)
+  Option.is_some(cell(id, d))
     ? {
       ...d,
       active: Some((id, side)),

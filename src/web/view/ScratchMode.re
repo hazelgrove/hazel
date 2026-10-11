@@ -16,7 +16,7 @@ let slide_key = (~is_documentation, model: Model.t): string =>
 
 let cell_by_id = (model: Model.t, id: Haz3lcore.Id.t): option(ScratchCell.t) =>
   switch (Model.current_program(model)) {
-  | Some(Divided(d)) => Workspace.cell(id, d)
+  | Some(Divided(d)) => Divided.cell(id, d)
   | _ => None
   };
 
@@ -392,7 +392,7 @@ module Selection = {
     switch (selection, Model.current_program(after)) {
     | (Stack(_), Some(Whole(_))) => Cell(MainEditor)
     | (Stack(id, _, _), Some(Divided(d))) =>
-      Option.is_some(Workspace.cell(id, d)) ? selection : active(d)
+      Option.is_some(Divided.cell(id, d)) ? selection : active(d)
     | (Cell(MainEditor), Some(Divided(d))) => active(d)
     | _ => selection
     };

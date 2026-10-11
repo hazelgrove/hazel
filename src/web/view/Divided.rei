@@ -33,7 +33,10 @@ let editor_of:
 let document: t => Segment.t;
 
 let cells: t => list(ScratchCell.t);
+/* the cell holding [id]: its item, a run member or any piece of its text */
 let owner: (Id.t, t) => option(ScratchCell.t);
+/* the cell keyed by [id] */
+let cell: (Id.t, t) => option(ScratchCell.t);
 let root: t => Sort.t;
 let result: t => EvalResult.Model.t;
 let with_result: (EvalResult.Model.t, t) => t;

@@ -10,9 +10,6 @@ module Persist = ScratchPersist;
 
 type code = Scratchpad.code;
 
-let cell = (id: Haz3lcore.Id.t, d: Divided.t): option(ScratchCell.t) =>
-  List.find_opt((e: ScratchCell.t) => e.e_id == id, Divided.cells(d));
-
 /* whether [term]'s outline names anything: a hydrating slide's
    placeholder statics show only an unnamed ⇒ row */
 let named_outline = (term: Language.Exp.t): bool =>
@@ -269,7 +266,7 @@ let update =
   let cell_update = (id, side, a) =>
     switch (code.program) {
     | Divided(d) =>
-      switch (cell(id, d)) {
+      switch (Divided.cell(id, d)) {
       | None => code |> return_quiet
       | Some(e) =>
         let* ed =
