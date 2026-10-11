@@ -1249,7 +1249,9 @@
    clipped to that room instead of spilling over, and fades out at an edge
    it overflows. Only there: each axis's fade runs on that axis's scroll
    timeline, which is inactive (no fade) while the view fits. Safe
-   alignment keeps an overflowing view's start inside the room. */
+   alignment keeps an overflowing view's start inside the room. The room
+   is never narrower than the view's own drawing (min-content), so a view
+   that ignores its width, or can't shrink further, keeps its size. */
 @property --room-fade-x {
   syntax: "<length>";
   inherits: false;
@@ -1274,6 +1276,7 @@
 }
 .live-offside .value .value-rich.in-room {
   max-width: calc(var(--room-cols) * 0.6 * var(--base-font-size));
+  min-width: min-content;
   max-height: calc(
     var(--room-lines) * var(--base-font-size) * var(--line-height)
   );
