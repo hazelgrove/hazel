@@ -327,7 +327,7 @@ let close = (id: Id.t, d: t): after_close =>
           cells: [closing],
         }),
       )
-    | _ =>
+    | [first, ..._] =>
       Still(
         settle(
           ~pool=probes(d),
@@ -335,10 +335,11 @@ let close = (id: Id.t, d: t): after_close =>
             ...d,
             cells: rest,
             base: Focus.splice_entry(closing, d.base),
+            /* closing the focused cell hands the focus to the first body */
             active:
-              switch (d.active) {
-              | Some((a, _)) when a == id => None
-              | a => a
+              switch (focused(d)) {
+              | Some((e, _)) when e.e_id == id => Some((first.e_id, Body))
+              | _ => d.active
               },
           },
         ),

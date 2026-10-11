@@ -288,6 +288,48 @@ let tests = (
       },
     ),
     test_case(
+      "an outline close leaves the keys in an open cell",
+      `Quick,
+      () => {
+        let m = Cells.run(Cells.mk(), Refresh);
+        let (a, b) = (Cells.row(m, "a"), Cells.row(m, "b"));
+        let m = Cells.run(m, Cells.workspace(FocusToggle(a)));
+        let m = Cells.run(m, Cells.workspace(FocusToggle(b)));
+        check(bool, "b has the focus", true, focused(m, b, Body));
+        let stack_selected = (m: History.Model.t) =>
+          switch (m.current.selection) {
+          | Scratch(Stack(_)) => true
+          | _ => false
+          };
+        /* the view gives the focused pane the id FocusEffect's Cell
+           focuses, while the stack is selected */
+        let keys_to = (m, id) => {
+          let d = Cells.divided(m);
+          Divided.cell(id, d) != None
+          && Divided.active(d) == Some((id, Body))
+          && focused(m, id, Body)
+          && stack_selected(m)
+          && Haz3lcore.FocusEffect.scheduled^ == Some(Cell);
+        };
+        Haz3lcore.FocusEffect.scheduled := None;
+        let m = Cells.run(m, Cells.workspace(FocusToggle(b)));
+        check(
+          bool,
+          "b closed",
+          true,
+          Divided.cell(b, Cells.divided(m)) == None,
+        );
+        check(bool, "its keys go to a", true, keys_to(m, a));
+        /* an unfocused cell closing above the focused one moves its
+           element, so the DOM focus is placed again */
+        let m = Cells.run(m, Cells.workspace(FocusToggle(b)));
+        check(bool, "b has the focus again", true, focused(m, b, Body));
+        Haz3lcore.FocusEffect.scheduled := None;
+        let m = Cells.run(m, Cells.workspace(FocusToggle(a)));
+        check(bool, "b keeps the keys", true, keys_to(m, b));
+      },
+    ),
+    test_case(
       "undo restores the focused cell",
       `Quick,
       () => {
