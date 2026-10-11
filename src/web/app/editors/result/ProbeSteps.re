@@ -218,6 +218,46 @@ let one_line = (s: string): string => {
   };
 };
 
+/* a stepping drawer's title bar: what it steps, then its controls, undo
+   first (a proof drawer's too) */
+let bar = (~classes=[], ~label, ~name, ~title=?, ~status=[], ~undo, controls) => {
+  Virtual_dom.Vdom.(
+    Node.div(
+      ~attrs=[Attr.classes(classes @ ["steps-bar"])],
+      [
+        WebUtil.div_c(
+          "steps-bar-name",
+          [
+            WebUtil.span_c("steps-bar-label", [Node.text(label)]),
+            Node.span(
+              ~attrs=[
+                Attr.classes(["steps-bar-expr"]),
+                ...Option.to_list(Option.map(Attr.title, title)),
+              ],
+              [Node.text(name)],
+            ),
+          ],
+        ),
+        ...status,
+      ]
+      @ [
+        WebUtil.div_c(
+          "steps-bar-controls",
+          [
+            Widgets.button_d(
+              ~tooltip="Step back",
+              Icons.undo,
+              Option.value(undo, ~default=Ui_effect.Ignore),
+              ~disabled=Option.is_none(undo),
+            ),
+            ...controls,
+          ],
+        ),
+      ],
+    )
+  );
+};
+
 /* a title bar (what's stepped; undo, settings, history, close) over the
    stepper's trace */
 let view =
@@ -237,75 +277,45 @@ let view =
     open Node;
     let evaluation = globals.settings.core.evaluation;
     let set = s => globals.inject_global(Set(Evaluation(s)));
-    let undo = StepperView.Update.undo(ps.stepper);
-    let bar =
-      div(
-        ~attrs=[Attr.classes(["steps-bar"])],
+    let title_bar =
+      bar(
+        ~label="Stepper",
+        ~name=stepped,
+        ~title=stepped,
+        ~undo=Option.map(inject, StepperView.Update.undo(ps.stepper)),
         [
+          Widgets.button(~tooltip="Stepper settings", Icons.gear, _ =>
+            set(ShowSettings)
+          ),
+          span(~attrs=[Attr.classes(["steps-bar-sep"])], []),
           div(
-            ~attrs=[Attr.classes(["steps-bar-name"])],
+            ~attrs=[
+              Attr.classes(["steps-bar-history"]),
+              Attr.title("Keep every step (off: show only the current one)"),
+              Attr.on_mousedown(_ => set(ShowRecord)),
+            ],
             [
-              span(
-                ~attrs=[Attr.classes(["steps-bar-label"])],
-                [text("Stepper")],
+              Widgets.toggle("", evaluation.stepper_history, _ =>
+                Ui_effect.Ignore
               ),
-              span(
-                ~attrs=[
-                  Attr.classes(["steps-bar-expr"]),
-                  Attr.title(stepped),
-                ],
-                [text(stepped)],
-              ),
+              text("History"),
             ],
           ),
-          div(
-            ~attrs=[Attr.classes(["steps-bar-controls"])],
-            [
-              Widgets.button_d(
-                ~tooltip="Step back",
-                Icons.undo,
-                switch (undo) {
-                | Some(a) => inject(a)
-                | None => Ui_effect.Ignore
-                },
-                ~disabled=undo == None,
-              ),
-              Widgets.button(~tooltip="Stepper settings", Icons.gear, _ =>
-                set(ShowSettings)
-              ),
-              span(~attrs=[Attr.classes(["steps-bar-sep"])], []),
-              div(
-                ~attrs=[
-                  Attr.classes(["steps-bar-history"]),
-                  Attr.title(
-                    "Keep every step (off: show only the current one)",
-                  ),
-                  Attr.on_mousedown(_ => set(ShowRecord)),
-                ],
-                [
-                  Widgets.toggle("", evaluation.stepper_history, _ =>
-                    Ui_effect.Ignore
-                  ),
-                  text("History"),
-                ],
-              ),
-              span(~attrs=[Attr.classes(["steps-bar-sep"])], []),
-              span(
-                ~attrs=[
-                  Attr.classes(["steps-bar-close"]),
-                  Attr.title("Close the stepper"),
-                  Attr.on_click(_ => close),
-                ],
-                [text("×")],
-              ),
+          span(~attrs=[Attr.classes(["steps-bar-sep"])], []),
+          span(
+            ~attrs=[
+              Attr.classes(["steps-bar-close"]),
+              Attr.title("Close the stepper"),
+              Attr.on_click(_ => close),
             ],
+            [text("×")],
           ),
         ],
       );
     Some(
       div(
         ~attrs=[Attr.classes(["probe-stepper-frame"])],
-        [bar]
+        [title_bar]
         @ (
           evaluation.show_settings
             ? SettingsModal.view(
