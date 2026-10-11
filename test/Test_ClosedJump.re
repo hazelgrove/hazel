@@ -58,7 +58,14 @@ let jump = () => {
     },
   };
   let d =
-    switch (Web.Divided.split(~info_map=ds.merged, editor, row("b"))) {
+    switch (
+      Web.Divided.open_(
+        ~info_map=ds.merged,
+        ~term,
+        row("b"),
+        Web.Divided.of_whole(editor),
+      )
+    ) {
     | Some(d) => d
     | None => fail("split")
     };

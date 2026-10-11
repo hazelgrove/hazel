@@ -182,17 +182,14 @@ let settle = (~pool: Refractors.RefractorList.t, d: t): t => {
   };
 };
 
-let mk = (editor: CellEditor.Model.t, base: Segment.t, cell: Cell.t): t =>
-  settle(
-    ~pool=probes_of(editor),
-    {
-      shell: editor,
-      cells: [cell],
-      base,
-      active: Some((cell.e_id, Body)),
-      statics: None,
-    },
-  );
+/* the program before its first cell opens */
+let of_whole = (editor: CellEditor.Model.t): t => {
+  shell: editor,
+  cells: [],
+  base: Focus.zip_of_cell(editor),
+  active: None,
+  statics: None,
+};
 
 /* a cell for [id]: its header and body, or with [inner], a module's
    members alone */
@@ -200,24 +197,6 @@ let entry = (~info_map, ~sym=?, ~inner=false, id: Id.t, base: Segment.t) =>
   inner
     ? Focus.mk_members_entry(~info_map, id, base)
     : Focus.mk_entry(~info_map, ~sym?, id, base);
-
-let split =
-    (
-      ~info_map,
-      ~sym: option(string)=?,
-      ~inner=false,
-      editor: CellEditor.Model.t,
-      id: Id.t,
-    )
-    : option(t) => {
-  let base = Focus.zip_of_cell(editor);
-  entry(~info_map, ~sym?, ~inner, id, base) |> Option.map(mk(editor, base));
-};
-
-let split_run = (~info_map, editor: CellEditor.Model.t, id: Id.t): option(t) => {
-  let base = Focus.zip_of_cell(editor);
-  Focus.mk_run_entry(~info_map, id, base) |> Option.map(mk(editor, base));
-};
 
 let active = (d: t): option((Id.t, side)) => d.active;
 

@@ -168,27 +168,26 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
     );
   let open_one = (p: Program.t, w: slot): option(Program.t) => {
     let id = slot_id(w);
+    let d =
+      switch (p) {
+      | Whole(e) => Divided.of_whole(e)
+      | Divided(d) => d
+      };
     let sym = sym_of(id, term);
     let open_cell = (~inner) =>
-      switch (p) {
-      | Whole(e) => Divided.split(~info_map, ~sym?, ~inner, e, id)
-      | Divided(d) => Divided.open_(~info_map, ~term, ~sym?, ~inner, id, d)
-      };
+      Divided.open_(~info_map, ~term, ~sym?, ~inner, id, d);
     (
-      switch (w, p) {
-      | (Pin({p_run: true, _}), Whole(e)) =>
-        Divided.split_run(~info_map, e, id)
-      | (Pin({p_run: true, _}), Divided(d)) =>
-        Divided.open_run(~info_map, ~term, id, d)
+      switch (w) {
+      | Pin({p_run: true, _}) => Divided.open_run(~info_map, ~term, id, d)
       /* a module row opens as its members; `{}` has none to show */
-      | (Pin(_), _)
+      | Pin(_)
           when OutlineTree.kind_of(id, term) == Some(OutlineTree.KModule) =>
         switch (open_cell(~inner=true)) {
         | Some(d) => Some(d)
         | None => open_cell(~inner=false)
         }
-      | (Pin(_), _) => open_cell(~inner=false)
-      | (Members(_), _) => open_cell(~inner=true)
+      | Pin(_) => open_cell(~inner=false)
+      | Members(_) => open_cell(~inner=true)
       }
     )
     |> Option.map(d => Program.Divided(d));

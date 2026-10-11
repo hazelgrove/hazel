@@ -132,7 +132,14 @@ let last_member_jump = () => {
     };
   let editor = Focus.cell_of_seg(seg);
   let d =
-    switch (Web.Divided.split_run(~info_map, editor, first)) {
+    switch (
+      Web.Divided.open_run(
+        ~info_map,
+        ~term,
+        first,
+        Web.Divided.of_whole(editor),
+      )
+    ) {
     | Some(d) => d
     | None => fail("split_run")
     };
