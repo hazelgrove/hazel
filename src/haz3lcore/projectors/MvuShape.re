@@ -279,8 +279,9 @@ let safe_evaluate = (exp: DHExp.t): result(DHExp.t, string) =>
    still closures (Evaluator.evaluate_open). For a value read for its data
    and whose functions are only ever applied by evaluating again -- a
    livelit view's HTML, whose handlers run through HazelDOM's dispatch. */
-let safe_evaluate_open = (exp: DHExp.t): result(DHExp.t, string) =>
-  try(Ok(Evaluator.evaluate_open(~env=Builtins.env_init, exp))) {
+let safe_evaluate_open =
+    (~call_memo=?, exp: DHExp.t): result(DHExp.t, string) =>
+  try(Ok(Evaluator.evaluate_open(~call_memo?, ~env=Builtins.env_init, exp))) {
   | exn => Error(Printexc.to_string(exn))
   };
 

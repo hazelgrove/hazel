@@ -760,11 +760,17 @@ module M: Projector = {
      steps cannot drift apart. */
   /* Not finished: a view's handlers close over the whole livelit, and
      finishing copied all of it into each, every render. */
-  let eval_view = (e: DHExp.t): result(DHExp.t, string) =>
-    switch (MvuShape.safe_evaluate_open(e)) {
+  /* A view is evaluated again after each change of its model, mostly
+     making the same calls with the same arguments as last time: those
+     give what they gave (CallMemo), shared by every view on the page. */
+  let view_calls = lazy(CallMemo.create());
+  let eval_view = (e: DHExp.t): result(DHExp.t, string) => {
+    let call_memo = Lazy.force(view_calls);
+    switch (MvuShape.safe_evaluate_open(~call_memo, e)) {
     | Error(_) as err => err
-    | Ok(cmd) => ViewCmdRunner.run(cmd)
+    | Ok(cmd) => ViewCmdRunner.run(~call_memo, cmd)
     };
+  };
 
   /* Dynamics on: the view fold-in (Statics' Projector case) samples the
      live HTML of a user-defined livelit at this projector's id */
