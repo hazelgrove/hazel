@@ -1853,40 +1853,35 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
  * sort: the tile's own sort context (e.g. Mod for semicolons inside Module body),
  * needed by Code.re's sort-consistency check.
  * Only skel and base_seg should be updated to match the outer term. */
-let consolidate_adopted = (): unit => {
-  adopted_ids^
-  |> List.iter(id => {
-       switch (Id.Map.find_opt(id, map^)) {
-       | None => ()
-       | Some(term) =>
-         let rep = Language.Any.rep_id(term);
-         switch (
-           Id.Map.find_opt(rep, term_data^),
-           Id.Map.find_opt(id, term_data^),
-         ) {
-         | (Some(rep_data), Some(old_data)) =>
-           /* Preserve the original root_piece and sort while updating skel/base_seg.
-              root_piece: identifies the actual tile for shard decoration.
-              sort: the adopted tile's own sort context (e.g. Mod for semicolons
-              inside a Module body), not the outer expression's sort. */
-           term_data :=
-             Id.Map.add(
-               id,
-               {
-                 ...rep_data,
-                 root_piece: old_data.root_piece,
-                 sort: old_data.sort,
-               },
-               term_data^,
-             )
-         | (Some(rep_data), None) =>
-           /* Fallback: if no old entry, use rep_data as-is (shouldn't happen normally) */
-           term_data := Id.Map.add(id, rep_data, term_data^)
-         | (None, _) => ()
-         };
-       }
-     });
-};
+let reconsolidate =
+    (adopted: list(Id.t), m: TermMap.t, td0: TermData.t): TermData.t =>
+  List.fold_left(
+    (td, id) =>
+      switch (Id.Map.find_opt(id, m)) {
+      | None => td
+      | Some(term) =>
+        let rep = Language.Any.rep_id(term);
+        switch (Id.Map.find_opt(rep, td), Id.Map.find_opt(id, td)) {
+        | (Some(rep_data), Some(old_data)) =>
+          Id.Map.add(
+            id,
+            TermData.{
+              ...rep_data,
+              root_piece: old_data.root_piece,
+              sort: old_data.sort,
+            },
+            td,
+          )
+        | (Some(rep_data), None) => Id.Map.add(id, rep_data, td)
+        | (None, _) => td
+        };
+      },
+    td0,
+    adopted,
+  );
+
+let consolidate_adopted = (): unit =>
+  term_data := reconsolidate(adopted_ids^, map^, term_data^);
 
 /* every parse runs inside [fresh]: accumulators start empty; masks and
  * any stray lexeme are cleared on exit, even on a raise, while the
@@ -2455,35 +2450,6 @@ module Incr = {
       (m, e: Exp.t) => TermMap.add_all(e.annotation.ids, Exp(e), m),
       m,
       List.rev(outer_first),
-    );
-
-  /* consolidate_adopted against explicit maps (go runs it once at the
-     end; per-item runs used pre-fixup rep data, so replay here) */
-  let reconsolidate =
-      (adopted: list(Id.t), m: TermMap.t, td0: TermData.t): TermData.t =>
-    List.fold_left(
-      (td, id) =>
-        switch (Id.Map.find_opt(id, m)) {
-        | None => td
-        | Some(term) =>
-          let rep = Language.Any.rep_id(term);
-          switch (Id.Map.find_opt(rep, td), Id.Map.find_opt(id, td)) {
-          | (Some(rep_data), Some(old_data)) =>
-            Id.Map.add(
-              id,
-              TermData.{
-                ...rep_data,
-                root_piece: old_data.root_piece,
-                sort: old_data.sort,
-              },
-              td,
-            )
-          | (Some(rep_data), None) => Id.Map.add(id, rep_data, td)
-          | (None, _) => td
-          };
-        },
-      td0,
-      adopted,
     );
 
   let go_incr' = (~root: Sort.t=Exp, ~cache: cache, seg: Segment.t): t => {
