@@ -8,8 +8,21 @@ open Language;
 
 let playground = "hazel-programs/docs/livelits/playground/";
 
+let parse_seg_of = (src: string): Haz3lcore.Segment.t =>
+  switch (
+    Haz3lcore.FastParse.of_text(
+      ~materialize=Haz3lcore.Triggers.invoked_projector,
+      ~collect_refractors=true,
+      ~root=Exp,
+      src,
+    )
+  ) {
+  | Some(seg) => seg
+  | None => failwith("IncrSlides: parse failed")
+  };
+
 let elab_of = (src: string) => {
-  let seg = Test_BenchStatics.parse_seg_of(src);
+  let seg = parse_seg_of(src);
   let term = Haz3lcore.MakeTerm.go(seg).term;
   let (map, elab) =
     Statics.mk(
@@ -59,22 +72,24 @@ let eval = (~prev=IncrEval.empty, map, elab) => {
   Evaluator.evaluate(~prev, ~eval_info=ei, ~env=Builtins.env_init, elab);
 };
 
-let summary = (e: Exp.t): string => {
-  let (pruned, _) = TermPrune.prune(~budget=60, e);
-  let s = Exp.show(pruned);
-  String.length(s) > 1500 ? String.sub(s, 0, 1500) ++ "..." : s;
-};
+/* a result's outermost form: a stuck run shows a Let or Match where
+   a completed one shows its value (printing either whole can exceed a
+   JS string) */
+let summary = (e: Exp.t): string =>
+  switch (e.term) {
+  | Let(_) => "Let (stuck)"
+  | Match(_) => "Match (stuck)"
+  | Ap(_) => "Ap (stuck)"
+  | Tuple(es) => Printf.sprintf("Tuple of %d", List.length(es))
+  | _ => "other"
+  };
 
 /* [slide]'s int literal [from] (the [nth] one) set to [to_]: the
    incremental result is the fresh one */
 let case = (~slide, ~from, ~to_, ~nth=0, ()) => {
   let path = playground ++ slide ++ ".hz";
   let path = Sys.file_exists(path) ? path : "../" ++ path;
-  let src =
-    switch (CorpusUtil.read_file(path)) {
-    | Some(src) => src
-    | None => failwith("no slide at " ++ path)
-    };
+  let src = In_channel.with_open_bin(path, In_channel.input_all);
   let (term, map, elab) = elab_of(src);
   let (_, state) = eval(map, elab);
   switch (List.nth_opt(int_lits(from, term), nth)) {
