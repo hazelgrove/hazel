@@ -77,25 +77,32 @@ let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
    by the term's last top-level tile: the anchor (an infix operator, say)
    can sit lines above the term's end, where the drawer is drawn */
 let rows_key = (id: Id.t, term_data: TermData.t): Id.t =>
-  switch (TermData.segment(id, term_data)) {
-  | Some(seg) =>
-    List.fold_left(
-      (key, p: Piece.t) =>
-        switch (p) {
-        | Tile(t) => t.id
-        | _ => key
-        },
-      id,
-      seg,
+  switch (
+    Option.bind(TermData.segment(id, term_data), seg =>
+      Util.ListUtil.last_opt(Segment.tiles(seg))
     )
+  ) {
+  | Some(t) => t.id
   | None => id
   };
 
-/* the ⇓ probe's drawer reserves no rows: it's drawn after the program's
-   last line (RefractorView), past any trailing blank lines */
-let is_program_value = (z: Zipper.t, id: Id.t): bool =>
-  z.refractors.tail_target == Some(id)
-  && Id.Map.mem(id, z.refractors.multis.ephemerals);
+/* the ⇓ probe: the tail target's probe while it keeps the bare model, as
+   it does when a pin or step-into makes it manual. its drawer reserves no
+   rows: it's drawn after the program's last line (RefractorView), past
+   any trailing blank lines */
+let is_program_value =
+    (~tail: option(Id.t), id: Id.t, kind: ProjectorCore.Kind.t, model): bool =>
+  tail == Some(id) && kind == Probe && ProbeProj.is_bare(model);
+
+/* every refractor by id: an ephemeral entry over a manual one, either
+   over a proof */
+let refractor_entries = (r: Refractors.t): Refractors.Map.t =>
+  Id.Map.union(
+    (_, _, b) => Some(b),
+    r.manuals |> Id.Map.of_list,
+    r.multis.ephemerals,
+  )
+  |> Id.Map.union((_, a, _) => Some(a), _, r.proofs);
 
 let mk_refractor_rows =
     (
@@ -106,14 +113,12 @@ let mk_refractor_rows =
       ~elaborated: option(Language.Exp.t),
     )
     : Id.Map.t(int) => {
+  let tail = z.refractors.tail_target;
   let entries =
-    Id.Map.union(
-      (_, _, b) => Some(b),
-      z.refractors.manuals |> Id.Map.of_list,
-      z.refractors.multis.ephemerals,
-    )
-    |> Id.Map.filter((id, _) => !is_program_value(z, id))
-    |> Id.Map.union((_, a, _) => Some(a), _, z.refractors.proofs);
+    refractor_entries(z.refractors)
+    |> Id.Map.filter((id, e: Refractors.entry) =>
+         !is_program_value(~tail, id, e.kind, e.model)
+       );
   /* proofs keep their theorem tile: their rows go under its own line */
   let rekey = rows =>
     Id.Map.fold(

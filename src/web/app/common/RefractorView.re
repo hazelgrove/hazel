@@ -28,21 +28,16 @@ let measurement_of_term =
    theorem term itself runs on to the program's end */
 let measurement_of_tile =
     (id: Id.t, measured: Measured.t): option(Measured.measurement) =>
-  switch (Measured.find_shards_by_id(id, measured)) {
-  | Some([_, ..._] as shards) =>
-    let last =
-      List.fold_left(
-        (acc: Util.Point.t, (_, m: Measured.measurement)) =>
-          Util.Point.compare(m.last, acc) > 0 ? m.last : acc,
-        Util.Point.zero,
-        shards,
-      );
-    Some({
-      origin: last,
-      last,
-    });
-  | _ => None
-  };
+  Option.bind(
+    Measured.find_shards_by_id(id, measured),
+    Util.ListUtil.last_opt,
+  )
+  |> Option.map(((_, m: Measured.measurement)) =>
+       Measured.{
+         origin: m.last,
+         last: m.last,
+       }
+     );
 
 /* the ⇓ probe's drawer: after the program's last line, trailing blank
    lines included */
@@ -103,7 +98,7 @@ let mk_data =
   /* measure + cull BEFORE building per-refractor data: in All mode there are
    * hundreds of refractors but few on screen, so building all then discarding dominated cost */
   let program_value = (id, entry: Refractors.entry) =>
-    tail == Some(id) && entry.kind == Probe && ProbeProj.is_bare(entry.model);
+    CachedSyntax.is_program_value(~tail, id, entry.kind, entry.model);
   Id.Map.bindings(refractors)
   |> List.filter_map(((id, entry: Refractors.entry)) =>
        (
@@ -201,9 +196,7 @@ let all =
       ~refractor_rows,
       ~term_data,
       ~program_value=
-        tail == Some(d.p.id)
-        && d.p.kind == Probe
-        && ProbeProj.is_bare(d.p.model),
+        CachedSyntax.is_program_value(~tail, d.p.id, d.p.kind, d.p.model),
       d.p.id,
       d.measurement,
     );

@@ -693,13 +693,7 @@ module View = {
         ? globals.visible_rows : None;
     let refractor_data =
       RefractorView.mk_data(
-        ~refractors=
-          Id.Map.union(
-            (_, _, b) => Some(b),
-            zipper.refractors.manuals |> Id.Map.of_list,
-            zipper.refractors.multis.ephemerals,
-          )
-          |> Id.Map.union((_, a, _) => Some(a), _, zipper.refractors.proofs),
+        ~refractors=CachedSyntax.refractor_entries(zipper.refractors),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.for_decoration(zipper),
         ~statics=model.statics.info_map,

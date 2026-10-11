@@ -138,6 +138,38 @@ let reserves_nothing = () => {
   check(bool, "no rows", true, Id.Map.is_empty(rows));
 };
 
+/* a pin or step-into makes the ⇓ probe a manual probe that keeps the bare
+   model; its drawer stays after the program, so still no rows */
+let promoted_reserves_nothing = () => {
+  let z = update(~on=true, zipper("let x = 1 in\nx + 1"));
+  let tail = Option.get(z.refractors.tail_target);
+  let (info_map, syntax) = analysed(z);
+  let z =
+    ProbePerform.promote_to_manual(tail, z)
+    |> ProbePerform.add_ids_from_multi_term(~syntax, ~info_map);
+  check(
+    bool,
+    "a manual probe",
+    true,
+    List.mem_assoc(tail, z.refractors.manuals),
+  );
+  check(
+    bool,
+    "no ephemeral beside it",
+    false,
+    Id.Map.mem(tail, z.refractors.multis.ephemerals),
+  );
+  let rows =
+    CachedSyntax.mk_refractor_rows(
+      z,
+      syntax.term_data,
+      info_map,
+      Language.Dynamics.Map.empty,
+      ~elaborated=None,
+    );
+  check(bool, "no rows", true, Id.Map.is_empty(rows));
+};
+
 /* a drawer's rows go under its term's last line, not under its operator:
    `1 +` / `2` gets no blank line between */
 let rows_under_last_line = () => {
@@ -170,6 +202,11 @@ let tests = (
       "the program's drawer reserves no rows",
       `Quick,
       reserves_nothing,
+    ),
+    test_case(
+      "a promoted program drawer reserves no rows",
+      `Quick,
+      promoted_reserves_nothing,
     ),
     test_case(
       "drawer rows under the last line",
