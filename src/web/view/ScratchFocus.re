@@ -131,6 +131,13 @@ let rec first_tile = (arr: array(Piece.t), lo: int, hi: int): option(Tile.t) =>
       }
     );
 
+/* a def item's head: a let, type or module tile */
+let is_def_head = (t: Tile.t): bool =>
+  switch (Tile.label(t)) {
+  | ["let" | "type" | "module", ..._] => true
+  | _ => false
+  };
+
 /* [stop] moved back over edge whitespace and a `;`, not past [start]:
    where a `…;` run's content ends */
 let before_semi = (arr: array(Piece.t), start: int, stop: int): int => {
@@ -152,12 +159,8 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
      starting with a def head is a def item, not a statement */
   let run_def_head = (start: int, stop: int): option(Id.t) =>
     switch (first_tile(arr, start, stop)) {
-    | Some(t) =>
-      switch (Tile.label(t)) {
-      | ["let" | "type" | "module", ..._] => Some(t.id)
-      | _ => None
-      }
-    | None => None
+    | Some(t) when is_def_head(t) => Some(t.id)
+    | _ => None
     };
   let span = (sp_start, sp_stop, sp_kind, sp_id) => {
     sp_id,

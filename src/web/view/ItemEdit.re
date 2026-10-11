@@ -25,14 +25,7 @@ let fresh_semi = (): Piece.t =>
   Piece.mk_tile((Form.Compound(CellJoin), Mod), []);
 
 let first_tile_id = (seg: Segment.t): option(Id.t) =>
-  List.find_map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) => Some(t.id)
-      | _ => None
-      },
-    seg,
-  );
+  Option.map((t: Tile.t) => t.id, List.find_map(Piece.is_tile, seg));
 
 let text_of = (ps: Segment.t): string =>
   String.trim(MarkerParse.to_text(Zipper.unzip(ps)));
@@ -773,18 +766,9 @@ let in_form =
   | (false, true) =>
     /* a definition takes `in`; a statement (a test) keeps its `;` */
     let def =
-      switch (
-        List.find_map(
-          (p: Piece.t) =>
-            switch (p) {
-            | Tile(t) => Some(Tile.label(t))
-            | _ => None
-            },
-          ps,
-        )
-      ) {
-      | Some(["let", ..._] | ["type", ..._] | ["module", ..._]) => true
-      | _ => false
+      switch (List.find_map(Piece.is_tile, ps)) {
+      | Some(t) => Focus.is_def_head(t)
+      | None => false
       };
     letin_core(text_of(ps) ++ (def ? " in" : ";"));
   };
@@ -802,15 +786,6 @@ type spot = {
 /* where the item holding [fid] sits, seen from its own block */
 let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) => {
   let found = ref(None);
-  let first_tile = ps =>
-    List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) => Some(t)
-        | _ => None
-        },
-      ps,
-    );
   let _ =
     at_level(
       ~act=
@@ -823,13 +798,9 @@ let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) => {
           if (j < n) {
             let module_at =
               movable(k)
-                ? switch (first_tile(bare(b, k))) {
-                  | Some(t) =>
-                    switch (Tile.label(t)) {
-                    | ["module", ..._] => Some(t.id)
-                    | _ => None
-                    }
-                  | None => None
+                ? switch (List.find_map(Piece.is_tile, bare(b, k))) {
+                  | Some(t) when Tile.token(t, 0) == "module" => Some(t.id)
+                  | _ => None
                   }
                 : None;
             found :=
