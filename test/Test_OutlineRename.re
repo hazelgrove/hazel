@@ -1,45 +1,22 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open CorpusUtil;
 
 /* outline rename: the binder, its references and `M.x` labels change; a
    capturing rename is refused */
 
-let parse = (~root=Sort.Exp, src: string): Segment.t =>
-  switch (FastParse.of_text(~root, src)) {
-  | Some(seg) => seg
-  | None => failwith("parse failed: " ++ src)
-  };
-
-let text_of = (seg: Segment.t): string =>
-  seg |> Zipper.unzip |> MarkerParse.to_text;
-
-let term_of = (~root, seg) =>
-  root == Sort.Mod
-    ? MakeTerm.Incr.term_of_mod(seg) : MakeTerm.Incr.term_of(seg);
-
-let row = (term, label: string): Id.t => {
-  let rec find = (ns: list(Web.OutlineTree.node)) =>
-    List.fold_left(
-      (acc, n: Web.OutlineTree.node) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None => n.o_label == label ? n.o_id : find(n.o_children)
-        },
-      None,
-      ns,
-    );
-  switch (find(Web.OutlineTree.of_term(term))) {
-  | Some(id) => id
-  | None => failwith("no row " ++ label)
-  };
-};
-
 let rename = (~root=Sort.Exp, src, label, name) => {
-  let seg = parse(~root, src);
-  let term = term_of(~root, seg);
+  let seg = seg_of(~root, src);
+  let term = MakeTerm.Incr.term_of_root(~root, seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
-  Web.OutlineRename.rename(~info_map, ~term, row(term, label), name, seg)
+  Web.OutlineRename.rename(
+    ~info_map,
+    ~term,
+    row_by_label(term, label),
+    name,
+    seg,
+  )
   |> Result.map(text_of);
 };
 
@@ -49,7 +26,7 @@ let renamed = (~root=Sort.Exp, src, label, name, expected) =>
     check(
       string,
       label ++ " -> " ++ name,
-      text_of(parse(~root, expected)),
+      text_of(seg_of(~root, expected)),
       txt,
     )
   | Error(why) => fail("refused: " ++ why)
@@ -133,7 +110,7 @@ let qualified_type = () =>
 
 /* a use folded away by a projector is renamed with the rest */
 let folded = () => {
-  let seg = parse("let foo = 1 in\nlet bar = foo + 1 in\nbar");
+  let seg = seg_of("let foo = 1 in\nlet bar = foo + 1 in\nbar");
   let count = ref(0);
   let rec fold = (seg: Segment.t): Segment.t =>
     List.map(
@@ -152,7 +129,7 @@ let folded = () => {
       seg,
     );
   let seg = fold(seg);
-  let term = term_of(~root=Exp, seg);
+  let term = MakeTerm.Incr.term_of(seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   let rec inside = (seg: Segment.t): list(string) =>
     List.concat_map(
@@ -165,7 +142,13 @@ let folded = () => {
       seg,
     );
   switch (
-    Web.OutlineRename.rename(~info_map, ~term, row(term, "foo"), "baz", seg)
+    Web.OutlineRename.rename(
+      ~info_map,
+      ~term,
+      row_by_label(term, "foo"),
+      "baz",
+      seg,
+    )
   ) {
   | Ok(seg) => check(list(string), "the folded use", ["baz"], inside(seg))
   | Error(why) => fail("refused: " ++ why)
