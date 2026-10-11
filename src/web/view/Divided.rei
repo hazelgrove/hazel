@@ -5,9 +5,7 @@ open Util;
    comes back only through [join] or a [Joined] result. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type side =
-  | Header
-  | Body;
+type side = ScratchCell.side = | Header | Body;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t;

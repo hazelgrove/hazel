@@ -253,24 +253,10 @@ let update =
       | None => code |> return_quiet
       | Some(e) =>
         let* ed =
-          CellEditor.Update.update(
-            ~settings,
-            a,
-            side == Header ? e.e_header : e.e_body,
-          );
+          CellEditor.Update.update(~settings, a, ScratchCell.pane(side, e));
         let d =
           d
-          |> Divided.update_cell(id, e =>
-               side == Header
-                 ? {
-                   ...e,
-                   e_header: ed,
-                 }
-                 : {
-                   ...e,
-                   e_body: ed,
-                 }
-             )
+          |> Divided.update_cell(id, ScratchCell.with_pane(side, ed))
           |> Divided.set_active(id, side);
         let d =
           switch (ed.editor.editor.state.zipper.refractors.stepping) {

@@ -47,6 +47,30 @@ type t = {
   e_ctx: Language.Ctx.t /* outer ctx at the definition */
 };
 
+/* which of a cell's two editors */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type side =
+  | Header
+  | Body;
+
+let pane = (side: side, e: t): CellEditor.Model.t =>
+  switch (side) {
+  | Header => e.e_header
+  | Body => e.e_body
+  };
+
+let with_pane = (side: side, ed: CellEditor.Model.t, e: t): t =>
+  switch (side) {
+  | Header => {
+      ...e,
+      e_header: ed,
+    }
+  | Body => {
+      ...e,
+      e_body: ed,
+    }
+  };
+
 let rec header_name = (e: t): option(string) =>
   switch (e.e_sym) {
   | Some(sym) => Some(sym)

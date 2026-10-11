@@ -8,9 +8,7 @@ module Focus = ScratchFocus;
 module Cell = ScratchCell;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type side =
-  | Header
-  | Body;
+type side = ScratchCell.side = | Header | Body;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -226,7 +224,7 @@ let active_editor = (d: t): CellEditor.Model.t =>
     switch (d.active) {
     | Some((id, side)) =>
       List.find_opt((e: Cell.t) => e.e_id == id, d.cells)
-      |> Option.map((e: Cell.t) => side == Header ? e.e_header : e.e_body)
+      |> Option.map(Cell.pane(side))
     | None => None
     }
   ) {
@@ -254,8 +252,7 @@ let caret_anchor = (d: t): option((Direction.t, Id.t)) =>
     switch (List.find_opt((e: Cell.t) => e.e_id == id, d.cells)) {
     | None => None
     | Some(e) =>
-      let z =
-        (side == Header ? e.e_header : e.e_body).editor.editor.state.zipper;
+      let z = Cell.pane(side, e).editor.editor.state.zipper;
       switch (anchor_of(z)) {
       | Some(a) => Some(a)
       | None => Some((Direction.Left, e.e_id))
