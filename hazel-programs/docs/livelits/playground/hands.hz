@@ -3,9 +3,11 @@
 # The arms get hands, chosen with buttons: Messed Up Dress Up's six -- #
 # round, mittens, stars, claws, human and alien -- and its sliders for #
 # their size, how many fingers a human hand has, how many an alien #
-# hand has, and how long the claws are. A hand is drawn in its own #
-# frame, the arm along x, then turned to the arm's angle and, on the #
-# left, mirrored. #
+# hand has, how many points a star has and how far it turns toward the #
+# next, how many claws there are and how long, and the hand's angle. A #
+# hand is drawn in its own frame, the arm along x, turned about the #
+# wrist by its angle, then turned to the arm's angle and, on the left, #
+# mirrored. #
 
 # THE PICTURE, AS TYPES #
 
@@ -676,7 +678,7 @@ let shirt =
 # their length and width. #
 
 let arm_angle = ^^livelit(Drawing.^slider("arms (up / down)", -180, 180)(55)) in
-let arm_length = ^^livelit(Drawing.^slider("arm length", 10, 300)(95)) in
+let arm_length = ^^livelit(Drawing.^slider("arm length", 10, 600)(95)) in
 let arm_width = ^^livelit(Drawing.^slider("arm width", 3, 60)(16)) in
 
 let skin = "#f1c27d" in
@@ -718,18 +720,25 @@ let disc = fun (name, c, r, stroke, fill) : (String, Point, Float, Stroke, Strin
 # the torso's edge, so sleeve and torso join; and the hand. #
 # THE HANDS #
 
-# Messed Up Dress Up's hand controls: the style, its size, and the #
-# three that only some styles read -- a human hand's fingers (5 is a #
-# hand; 1 a thumbs-up, 100 a fringe), an alien hand's, and the claws' #
-# length as a percent of the usual. #
+# Messed Up Dress Up's hand controls: the style, its size, and those #
+# only some styles read -- a human hand's fingers (5 is a hand; 1 a #
+# thumbs-up, 100 a fringe), an alien hand's, a star's points and how #
+# far it turns toward the next one, and the claws' number and their #
+# length as a percent of the usual -- and the hand's angle, about the #
+# wrist, in degrees (one for every style here, where the game keeps one #
+# per style). #
 
 let hand_style = ^^livelit(Drawing.^choice@<Hand>(
   [("round", Round), ("mittens", Mittens), ("stars", Stars),
    ("claws", Claws), ("human", Human), ("alien", Alien)])(Human)) in
 let hand_size = ^^livelit(Drawing.^slider("hand size", 2, 80)(14)) in
 let fingers = ^^livelit(Drawing.^slider("human fingers", 1, 100)(5)) in
-let alien_fingers = ^^livelit(Drawing.^slider("alien fingers", 1, 99)(3)) in
-let claw_length = ^^livelit(Drawing.^slider("claw length", 20, 300)(100)) in
+let alien_fingers = ^^livelit(Drawing.^slider("alien fingers", 1, 100)(3)) in
+let star_count = ^^livelit(Drawing.^slider("star points", 1, 100)(5)) in
+let star_turn = ^^livelit(Drawing.^slider("star turn (% to the next point)", 0, 100)(0)) in
+let claw_count = ^^livelit(Drawing.^slider("claws", 1, 100)(4)) in
+let claw_length = ^^livelit(Drawing.^slider("claw length", 20, 900)(100)) in
+let hand_angle = ^^livelit(Drawing.^slider("hand angle", 0, 360)(0)) in
 
 
 # Points around an ellipse about (cx, cy), n of them: 20 for a palm, #
@@ -807,7 +816,7 @@ let many_fingers = fun n : Int ->
 # An alien hand of n long, thin fingers, each with a round pad: 3 is a #
 # tree frog's, and more spread wider with smaller pads. #
 let alien_hand = fun n : Int ->
-  let n = if n < 1 then 1 else if n > 99 then 99 else n in
+  let n = if n < 1 then 1 else if n > 100 then 100 else n in
   let span = if n <= 1 then 0. else fmin((330., 90. +. float_of_int(n - 3) *. 14.)) in
   let step = if n > 1 then span /. float_of_int(n - 1) else 90. in
   let half = sin(step *. pi /. 360.) in
@@ -849,32 +858,52 @@ let fingered = fun (r, fs, palm) : (Float, [Finger], Float) ->
     :: parts(fs) in
   layer((skin_ink, 2.5)) @ layer((skin, 0.)) in
 
-# Four hooked talons fanned out from a paw: each a curve out to a sharp #
+# n hooked talons fanned out from a paw: each a curve out to a sharp #
 # hook and back, wide where it leaves the paw; k is the claws' length #
-# as a fraction of the usual. #
-let talons = fun (r, k) : (Float, Float) ->
+# as a fraction of the usual. Up to 4 they keep the usual spacing; more #
+# fan out wider, nearly all the way round at 100, and get thinner, #
+# outline and all, so each still shows. #
+let talons = fun (r, k, n) : (Float, Float, Int) ->
+  let paw = r *. 0.7 in
+  let nf = float_of_int(n) in
+  let span = if n <= 4 then 118. *. (nf -. 1.) /. 3. else fmin((330., 118. +. (nf -. 4.) *. 20.)) in
+  let step = if n > 1 then span /. (nf -. 1.) else 0. in
+  # half a gap between neighbours, where they leave the paw #
+  let room = if n > 4 then paw *. 0.8 *. sin(step *. pi /. 360.) else 1000000. in
+  let line = if n > 4 then fmax((0.6, fmin((2., room *. 0.5)))) else 2. in
   let one = fun deg : Float ->
     let t = deg *. pi /. 180. in
     let (dx, dy) = (cos(t), sin(t)) in
     let len = r *. 1.4 *. k in
-    let w = r *. 0.25 *. fmin((1., 0.6 +. 0.4 *. k)) in
+    let w = fmax((r *. 0.03, fmin((r *. 0.25 *. fmin((1., 0.6 +. 0.4 *. k)), room *. 1.1)))) in
     let hook = r *. 0.55 *. fmax((0.5, fmin((k, 2.)))) in
     let p = fun (along, across) : (Float, Float) ->
       (dx *. along -. dy *. across, dy *. along +. dx *. across) in
-    let paw = r *. 0.7 in
     (quad((p((paw *. 0.8, 0. -. w)), p((paw +. len *. 0.75, 0. -. w *. 0.9)), p((paw +. len, hook)), 0))
      @ quad((p((paw +. len, hook)), p((paw +. len *. 0.45, w *. 0.6)), p((paw *. 0.8, w)), 0)),
-     "#f4ecd6", (width = 2., color = "#5c4a2e")) in
-  [one(-62.), one(-22.), one(18.), one(56.)] in
+     "#f4ecd6", (width = line, color = "#5c4a2e")) in
+  let fan : Int -> [([Point], String, Stroke)] =
+    fun i ->
+      if i == n then []
+      else one(0. -. 3. -. span /. 2. +. float_of_int(i) *. step) :: fan(i + 1) in
+  if n == 4 then [one(-62.), one(-22.), one(18.), one(56.)] else fan(0) in
 
-# A ten-pointed star. #
-let star_points : (Float, Int) -> [Point] =
-  fun (r, i) ->
-    if i == 10 then []
+# A star of n points, the first straight up, then turned toward the #
+# next by turn (a fraction of the way there), with a dip between each #
+# two; a wide gap (1 or 2 points) dips in a rounded curve, so 1 is a #
+# teardrop and 2 a lens. Point i, then its dips j = 1 to dips. #
+let star_points : (Float, Int, Float, Int, Int) -> [Point] =
+  fun (r, n, turn, i, j) ->
+    if i == n then []
     else
-      let a = 0. -. pi /. 2. +. float_of_int(i) *. pi /. 5. in
-      let rr = if i == 1 || i == 3 || i == 5 || i == 7 || i == 9 then r *. 0.55 else r *. 1.4 in
-      (rr *. cos(a), rr *. sin(a)) :: star_points((r, i + 1)) in
+      let gap = 2. *. pi /. float_of_int(n) in
+      let dips = if n >= 3 then 1 else if n == 2 then 2 else 5 in
+      let a = 0. -. pi /. 2. +. (turn +. float_of_int(i)) *. gap in
+      if j == 0 then (r *. 1.4 *. cos(a), r *. 1.4 *. sin(a)) :: star_points((r, n, turn, i, 1))
+      else if j > dips then star_points((r, n, turn, i + 1, 0))
+      else
+        let b = a +. gap *. float_of_int(j) /. float_of_int(dips + 1) in
+        (r *. 0.55 *. cos(b), r *. 0.55 *. sin(b)) :: star_points((r, n, turn, i, j + 1)) in
 
 # A hand of size r in its own frame, as shapes with their fills and #
 # outlines, by the style worn. #
@@ -884,9 +913,12 @@ let hand_shapes = fun r : Float ->
   | Mittens =>
     [(ellipse((0.4 *. r, 0., 1.2 *. r, 0.85 *. r)), skin, skin_line),
      (ellipse((0.1 *. r, 0. -. 0.9 *. r, 0.35 *. r, 0.5 *. r)), skin, skin_line)]
-  | Stars => [(star_points((r, 0)), skin, skin_line)]
+  | Stars =>
+    # many points get a thinner outline, so each still shows #
+    let line = if star_count > 5 then fmax((0.6, fmin((2., pi *. r *. 0.55 /. float_of_int(star_count))))) else 2. in
+    [(star_points((r, star_count, float_of_int(star_turn) /. 100., 0, 0)), skin, (width = line, color = skin_line.color))]
   | Claws =>
-    talons((r, float_of_int(claw_length) /. 100.))
+    talons((r, float_of_int(claw_length) /. 100., claw_count))
     @ [(ellipse((0.1 *. r, 0., 0.85 *. r, 0.8 *. r)), skin, skin_line),
        (ellipse((0. -. 0.1 *. r, 0.05 *. r, 0.32 *. r, 0.36 *. r)), "#c9966a", none("#c9966a"))]
   | Human =>
@@ -894,8 +926,29 @@ let hand_shapes = fun r : Float ->
   | Alien => fingered((r, alien_hand(alien_fingers), 0.55))
   end in
 
-# The hand in its own frame, made once: both arms draw the same hand. #
-let the_hand = hand_shapes(float_of_int(hand_size)) in
+# The hand in its own frame, made once: both arms draw the same hand, #
+# turned about the wrist by the hand angle (a star turns its own points; #
+# a round hand looks the same however it turns). #
+let turn_shapes : [([Point], String, Stroke)] -> [([Point], String, Stroke)] =
+  fun ss ->
+    let t = float_of_int(hand_angle) *. pi /. 180. in
+    let turn_points : [Point] -> [Point] =
+      fun ps ->
+        case ps
+        | [] => []
+        | (u, v) :: tl => (u *. cos(t) -. v *. sin(t), u *. sin(t) +. v *. cos(t)) :: turn_points(tl)
+        end in
+    case ss
+    | [] => []
+    | (ps, fill, stroke) :: tl => (turn_points(ps), fill, stroke) :: turn_shapes(tl)
+    end in
+let the_hand =
+  let hand = hand_shapes(float_of_int(hand_size)) in
+  case hand_style
+  | Stars => hand
+  | Round => hand
+  | _ => if hand_angle == 0 then hand else turn_shapes(hand)
+  end in
 
 # The hand at h, the end of an arm at angle a: x in the hand's frame #
 # runs along the arm, and y across it, mirrored on the left. #
@@ -962,6 +1015,7 @@ let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (picture)))) in
 # Where the shoulders ended up. #
 (Drawing.anchor(drawn, "right shoulder"), Drawing.anchor(drawn, "left shoulder"))
 
-# Press a hand style and both hands change; slide the hand size, or #
-# the fingers of a human or alien hand, or the claws' length. The arms #
-# and the shirt work as on the last slide. #
+# Press a hand style and both hands change; slide the hand size, the #
+# fingers of a human or alien hand, a star's points or its turn, the #
+# claws' number or length, or the hand's angle. The arms and the shirt #
+# work as on the last slide. #

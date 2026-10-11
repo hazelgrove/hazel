@@ -119,9 +119,38 @@ let case = (~slide, ~from, ~to_, ~nth=0, ()) => {
   };
 };
 
+/* The marks a slide's statics leave, as the editor would print them:
+   every playground slide has none. */
+let no_errors = (slide, ()) => {
+  let path = playground ++ slide ++ ".hz";
+  let path = Sys.file_exists(path) ? path : "../" ++ path;
+  let (_, map, _) =
+    elab_of(In_channel.with_open_bin(path, In_channel.input_all));
+  let marks =
+    Id.Map.fold(
+      (_, info, acc) =>
+        switch (Info.marks_of(info)) {
+        | [] => acc
+        | marks => [
+            Haz3lcore.ErrorPrint.string_of_marks(info, marks),
+            ...acc,
+          ]
+        },
+      map,
+      [],
+    )
+    |> List.sort_uniq(String.compare);
+  check(list(string), slide ++ ": no static errors", [], marks);
+};
+
 let tests = (
   "IncrSlides",
-  [
+  List.map(
+    slide =>
+      test_case(slide ++ ": no static errors", `Quick, no_errors(slide)),
+    ["hair", "shoes", "arms", "hands", "eyes", "mouth", "full-body"],
+  )
+  @ [
     /* each slide's first ^choice is an inline use with a type
        argument, Drawing.^choice@<T>, whose type application's result
        is an open function: reused as a value, it stuck the run */

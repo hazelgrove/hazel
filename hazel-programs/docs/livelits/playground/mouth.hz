@@ -644,8 +644,9 @@ let round_eye : (Float, Float, Float, Float, Float, Int, Int) -> [Point] =
       (x +. px *. cos(t) -. py *. sin(t), y +. px *. sin(t) +. py *. cos(t))
       :: round_eye((x, y, r, k, t, n, i + 1)) in
 # No eyes on this slide, so nothing has stretched the head before the #
-# mouth does. #
+# mouth does, and none for the mouth to clear. #
 let head_drop = 0. in
+let eye_below = fun x : Float -> -1000. in
 
 # THE MOUTH #
 
@@ -689,7 +690,22 @@ let (upper, lower) =
 let lip_top = fun c : Float -> fmin((150., 75. +. c /. 2.)) -. 2.5 in
 # An opening frown would rise into the nose's place: the mouth moves #
 # down instead, by as much as its top rose. #
-let rise = if mouth_open == 0 then 0. else fmax((0., lip_top(q) -. lip_top(upper))) in
+let rise0 = if mouth_open == 0 then 0. else fmax((0., lip_top(q) -. lip_top(upper))) in
+# And big eyes close together reach down past its corners: it moves #
+# down until, all along its top curve as drawn (a smile's corners, a #
+# frown's middle, an open mouth's upper lip), it is 8 below the eyes #
+# right above it (THE EYES), as the game does. The usual eyes never #
+# move it. #
+let clear_of_eyes : Int -> Float =
+  fun i ->
+    if i > 40 then 0.
+    else
+      let x = 60. +. 2. *. float_of_int(i) in
+      let t = (x -. 60.) /. 80. in
+      let c = if mouth_open == 0 then q else upper in
+      let lip = 150. +. rise0 +. 2. *. t *. (1. -. t) *. (c -. 150.) -. 2.5 in
+      fmax((eye_below(x) +. 8. -. lip, clear_of_eyes(i + 1))) in
+let rise = rise0 +. clear_of_eyes(0) in
 # The lip with control c, at x. #
 let lip_y = fun (c, x) : (Float, Float) ->
   let t = (x -. 60.) /. 80. in
