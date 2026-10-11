@@ -394,89 +394,6 @@ let bbox_of = (rows: list(row_data)): option(bbox) =>
 /* Fraction of a group's width covered by the active-eval sweep bar. */
 let sweep_width_ratio = 0.45;
 
-let svg_of_bbox =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~clss: list(string),
-      ~sweep: bool=false,
-      ~path_cmds: list(SvgUtil.Path.cmd),
-      bb: bbox,
-    )
-    : Node.t => {
-  let width_f = bb.max_col -. bb.min_col;
-  let height = bb.max_row - bb.min_row + 1;
-  let height_f = float_of_int(height);
-
-  /* Clip-path ids must be document-unique; derive one from the group's
-   * bounding box (cols are fractional, so scale to tenths of a column). */
-  let clip_id =
-    Printf.sprintf(
-      "incremental-active-%d-%d-%d-%d",
-      int_of_float(bb.min_col *. 10.0),
-      bb.min_row,
-      int_of_float(bb.max_col *. 10.0),
-      bb.max_row,
-    );
-  let active_sweep =
-    if (sweep) {
-      let sweep_width = max(1.0, width_f *. sweep_width_ratio);
-      [
-        Node.create_svg(
-          "defs",
-          [
-            Node.create_svg(
-              "clipPath",
-              ~attrs=[Attr.create("id", clip_id)],
-              [SvgUtil.Path.view(~attrs=[], path_cmds)],
-            ),
-          ],
-        ),
-        Node.create_svg(
-          "g",
-          ~attrs=[Attr.create("clip-path", "url(#" ++ clip_id ++ ")")],
-          [
-            Node.create_svg(
-              "rect",
-              ~attrs=[
-                Attr.classes(["incremental-sweep"]),
-                Attr.create("x", "0"),
-                Attr.create("y", "0"),
-                Attr.create("width", Printf.sprintf("%f", sweep_width)),
-                Attr.create("height", Printf.sprintf("%f", height_f)),
-              ],
-              [],
-            ),
-          ],
-        ),
-      ];
-    } else {
-      [];
-    };
-
-  Node.create_svg(
-    "svg",
-    ~attrs=[
-      Attr.classes(["shard"] @ clss),
-      Attr.create(
-        "style",
-        Printf.sprintf(
-          "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
-          bb.min_col *. font_metrics.col_width,
-          float_of_int(bb.min_row) *. font_metrics.row_height,
-          width_f *. font_metrics.col_width,
-          height_f *. font_metrics.row_height,
-        ),
-      ),
-      Attr.create(
-        "viewBox",
-        Printf.sprintf("%f 0 %f %d", 0.0, width_f, height),
-      ),
-      Attr.create("preserveAspectRatio", "none"),
-    ],
-    [SvgUtil.Path.view(~attrs=[], path_cmds)] @ active_sweep,
-  );
-};
-
 let svg_of_group =
     (
       ~font_metrics: FontMetrics.t,
@@ -488,9 +405,82 @@ let svg_of_group =
   switch (bbox_of(rows)) {
   | None => None
   | Some(bb) =>
+    let width_f = bb.max_col -. bb.min_col;
+    let height = bb.max_row - bb.min_row + 1;
+    let height_f = float_of_int(height);
+
     let path_cmds =
       outline_path(~origin_col=bb.min_col, ~origin_row=bb.min_row, rows);
-    Some(svg_of_bbox(~font_metrics, ~clss, ~sweep, ~path_cmds, bb));
+    /* Clip-path ids must be document-unique; derive one from the group's
+     * bounding box (cols are fractional, so scale to tenths of a column). */
+    let clip_id =
+      Printf.sprintf(
+        "incremental-active-%d-%d-%d-%d",
+        int_of_float(bb.min_col *. 10.0),
+        bb.min_row,
+        int_of_float(bb.max_col *. 10.0),
+        bb.max_row,
+      );
+    let active_sweep =
+      if (sweep) {
+        let sweep_width = max(1.0, width_f *. sweep_width_ratio);
+        [
+          Node.create_svg(
+            "defs",
+            [
+              Node.create_svg(
+                "clipPath",
+                ~attrs=[Attr.create("id", clip_id)],
+                [SvgUtil.Path.view(~attrs=[], path_cmds)],
+              ),
+            ],
+          ),
+          Node.create_svg(
+            "g",
+            ~attrs=[Attr.create("clip-path", "url(#" ++ clip_id ++ ")")],
+            [
+              Node.create_svg(
+                "rect",
+                ~attrs=[
+                  Attr.classes(["incremental-sweep"]),
+                  Attr.create("x", "0"),
+                  Attr.create("y", "0"),
+                  Attr.create("width", Printf.sprintf("%f", sweep_width)),
+                  Attr.create("height", Printf.sprintf("%f", height_f)),
+                ],
+                [],
+              ),
+            ],
+          ),
+        ];
+      } else {
+        [];
+      };
+
+    Some(
+      Node.create_svg(
+        "svg",
+        ~attrs=[
+          Attr.classes(["shard"] @ clss),
+          Attr.create(
+            "style",
+            Printf.sprintf(
+              "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
+              bb.min_col *. font_metrics.col_width,
+              float_of_int(bb.min_row) *. font_metrics.row_height,
+              width_f *. font_metrics.col_width,
+              height_f *. font_metrics.row_height,
+            ),
+          ),
+          Attr.create(
+            "viewBox",
+            Printf.sprintf("%f 0 %f %d", 0.0, width_f, height),
+          ),
+          Attr.create("preserveAspectRatio", "none"),
+        ],
+        [SvgUtil.Path.view(~attrs=[], path_cmds)] @ active_sweep,
+      ),
+    );
   };
 
 /* Clip partial-token boundaries for char-level selections.
@@ -600,7 +590,6 @@ let of_segment =
       ~font_metrics: FontMetrics.t,
       ~shape_init: ShardDec.tip,
       ~clss: list(string),
-      ~sweep: bool=false,
       segment: Segment.t,
     )
     : list(Node.t) => {
@@ -608,7 +597,7 @@ let of_segment =
     rows_of_segment(~trim_ws, ~measured, ~shape_map, ~shape_init, segment)
     |> List.map(((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
-  List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep), groups);
+  List.filter_map(svg_of_group(~font_metrics, ~clss), groups);
 };
 
 let selection =
@@ -708,7 +697,6 @@ let color =
     (
       ~syntax: CachedSyntax.t,
       ~font_metrics: FontMetrics.t,
-      ~sweep: bool=false,
       clss: list(string),
       id: Id.t,
     ) =>
@@ -720,7 +708,6 @@ let color =
       ~font_metrics,
       ~shape_init=Some(Convex),
       ~clss,
-      ~sweep,
       segment,
     )
   | None => []
@@ -973,46 +960,29 @@ let incr_eval =
     visible_ranges(pending_inactive_ranges)
     |> merge_regions
     |> List.map(clamp_region);
+  let nodes_of = (~sweep, clss, regions) =>
+    List.concat_map(
+      ((id, range)) =>
+        IncrEvalCache.get(
+          ~id, ~measured=syntax.measured, ~range, ~font_metrics, ~sweep, ~mk=() =>
+          contour_of_range(
+            ~font_metrics,
+            ~measured=syntax.measured,
+            ~sweep,
+            clss,
+            range,
+          )
+        ),
+      regions,
+    );
   let inactive_nodes =
-    regions
-    |> List.concat_map(((id, range)) =>
-         IncrEvalCache.get(
-           ~id,
-           ~measured=syntax.measured,
-           ~range,
-           ~font_metrics,
-           ~sweep=false,
-           ~mk=() =>
-           contour_of_range(
-             ~font_metrics,
-             ~measured=syntax.measured,
-             ["incremental-pending"],
-             range,
-           )
-         )
-       );
+    nodes_of(~sweep=false, ["incremental-pending"], regions);
   /* the active range can span thousands of rows: clamp and cache it like
      the inactive regions (the sweep animates in CSS, so a reused node
      keeps animating) */
   let active_nodes =
     visible_ranges(active_ids)
     |> List.map(clamp_region)
-    |> List.concat_map(((id, range)) =>
-         IncrEvalCache.get(
-           ~id,
-           ~measured=syntax.measured,
-           ~range,
-           ~font_metrics,
-           ~sweep=true,
-           ~mk=() =>
-           contour_of_range(
-             ~font_metrics,
-             ~measured=syntax.measured,
-             ~sweep=true,
-             ["incremental-pending", "incremental-active"],
-             range,
-           )
-         )
-       );
+    |> nodes_of(~sweep=true, ["incremental-pending", "incremental-active"]);
   div_c("incremental-highlights", inactive_nodes @ active_nodes);
 };
