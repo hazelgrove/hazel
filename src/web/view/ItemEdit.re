@@ -437,13 +437,6 @@ let apply_at =
   };
 };
 
-/* where a level sits: members live under a brace tile inside the
-   module tile's def child, two hops from the module, so it's threaded */
-type block_ctx =
-  | BPlain
-  | BModDef /* the module tile's def child: the brace lives here */
-  | BModBody; /* the brace's child: the member list */
-
 /* where [fid]'s item is, seen from a level: not at or below it, there
    but the op refused, or the level rebuilt around the op's result */
 type found('a) =
@@ -459,9 +452,10 @@ let map_found = (f: 'a => 'b, r: found('a)): found('b) =>
   };
 
 /* [act] at the block that owns [fid]'s item, the block rebuilt around
-   its result. A module body, or the top level of a module-rooted
-   program, is a member block ([in_module]). An op its block refuses
-   stops there: the item around it is a different row */
+   its result. A module's members (the child of its braces, wherever they
+   stand), or the top level of a module-rooted program, are a member block
+   ([in_module]). An op its block refuses stops there: the item around it
+   is a different row */
 let rec at_level_found =
         (
           ~act:
@@ -475,7 +469,7 @@ let rec at_level_found =
              option((Segment.t, option(Id.t))),
           ~mod_root: bool,
           fid: Id.t,
-          ~bctx: block_ctx,
+          ~members: bool,
           ~top: bool,
           seg: Segment.t,
         )
@@ -491,7 +485,7 @@ let rec at_level_found =
     | Some(x) => Done(x)
     | None => Refused
     };
-  let in_module = bctx == BModBody || top && mod_root;
+  let in_module = members || top && mod_root;
   let found = find((sp: Focus.item_span) => sp.sp_id == Some(fid));
   let flat =
     found == None
@@ -534,35 +528,14 @@ let rec at_level_found =
   | (None, None) =>
     /* descend into tile children first (the owning block may be a
        module or fn body) */
-    let is_module_tile = (t: Base.tile) =>
-      switch (Tile.label(t)) {
-      | ["module", ..._] => true
-      | _ => false
-      };
     let is_body = (t: Base.tile) =>
       Tile.label(t) == ["{", "}"] && List.length(t.children) == 1;
-    /* [after_head]: the tile follows a 2-shard `module X =` head, whose
-       body is its next sibling rather than a child */
-    let child_bctx =
-        (~after_head: bool, t: Base.tile, is_last: bool): block_ctx =>
-      if (is_module_tile(t) && is_last) {
-        BModDef;
-      } else if ((bctx == BModDef || after_head) && is_body(t)) {
-        BModBody;
-      } else {
-        BPlain;
-      };
     let rec try_children =
-            (~after_head=false, ps: Segment.t)
-            : found((Segment.t, option(Id.t))) =>
+            (ps: Segment.t): found((Segment.t, option(Id.t))) =>
       switch (ps) {
       | [] => Absent
-      | [Piece.Secondary(_) as p, ...rest] =>
-        try_children(~after_head, rest)
-        |> map_found(((rest', target)) => ([p, ...rest'], target))
       | [Piece.Tile(t) as p, ...rest] =>
-        let n_kids = List.length(t.children);
-        let rec try_kids = (before, k, kids) =>
+        let rec try_kids = (before, kids) =>
           switch (kids) {
           | [] => Absent
           | [ch, ...more] =>
@@ -571,7 +544,7 @@ let rec at_level_found =
                 ~act,
                 ~mod_root,
                 fid,
-                ~bctx=child_bctx(~after_head, t, k == n_kids - 1),
+                ~members=List.mem(Sort.Mod, Tile.mold(t).in_),
                 ~top=false,
                 ch,
               )
@@ -579,10 +552,10 @@ let rec at_level_found =
             | Done((ch', target)) =>
               Done((List.rev(before) @ [ch', ...more], target))
             | Refused => Refused
-            | Absent => try_kids([ch, ...before], k + 1, more)
+            | Absent => try_kids([ch, ...before], more)
             }
           };
-        switch (try_kids([], 0, t.children)) {
+        switch (try_kids([], t.children)) {
         | Done((children, target)) =>
           let tile =
             switch (children) {
@@ -597,10 +570,7 @@ let rec at_level_found =
           Done(([tile, ...rest], target));
         | Refused => Refused
         | Absent =>
-          try_children(
-            ~after_head=is_module_tile(t) && List.length(t.shards) == 2,
-            rest,
-          )
+          try_children(rest)
           |> map_found(((rest', target)) => ([p, ...rest'], target))
         };
       | [p, ...rest] =>
@@ -629,9 +599,8 @@ let rec at_level_found =
 };
 
 let at_level =
-    (~act, ~mod_root, fid, ~bctx, ~top, seg)
-    : option((Segment.t, option(Id.t))) =>
-  switch (at_level_found(~act, ~mod_root, fid, ~bctx, ~top, seg)) {
+    (~act, ~mod_root, fid, ~top, seg): option((Segment.t, option(Id.t))) =>
+  switch (at_level_found(~act, ~mod_root, fid, ~members=false, ~top, seg)) {
   | Done(r) => Some(r)
   | Absent
   | Refused => None
@@ -652,7 +621,6 @@ let apply =
         apply_at(~name?, op, ~in_module, ~bol, spans, j, seg),
     ~mod_root,
     fid,
-    ~bctx=BPlain,
     ~top=true,
     seg,
   );
@@ -819,7 +787,6 @@ let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) => {
         },
       ~mod_root,
       fid,
-      ~bctx=BPlain,
       ~top=true,
       seg,
     );
@@ -857,7 +824,6 @@ let insert_near =
       },
     ~mod_root,
     target,
-    ~bctx=BPlain,
     ~top=true,
     seg,
   )

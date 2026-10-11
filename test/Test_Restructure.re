@@ -909,6 +909,64 @@ f(1)|js},
   );
 };
 
+/* a module bound by `let` is a module too: its members take member form
+   and keep their separators, as in `module M = {…}` */
+let value_module = (): unit => {
+  let src = "let m = {\n  let a = 1;\n  let b = 2\n} in\nm.a";
+  let same = (desc, expected, got) =>
+    check(string, desc, text_of(parse(expected)), got);
+  let op = (label, op) => apply_ok(~src, ~label, ~op, ~desc=label);
+  same(
+    "new below a member is a member",
+    {js|let m = {
+  let a = 1;
+  let new_def = ¿;
+  let b = 2
+} in
+m.a|js},
+    op("a", NewBelow),
+  );
+  same(
+    "new below the last member",
+    {js|let m = {
+  let a = 1;
+  let b = 2;
+  let new_def = ¿
+} in
+m.a|js},
+    op("b", NewBelow),
+  );
+  same(
+    "a moved member keeps the separators in place",
+    "let m = {\n  let b = 2;\n  let a = 1\n} in\nm.a",
+    op("a", MoveDown),
+  );
+  same(
+    "a duplicated member",
+    "let m = {\n  let a = 1;\n  let a = 1;\n  let b = 2\n} in\nm.a",
+    op("a", Duplicate),
+  );
+  same(
+    "the last member deleted",
+    "let m = {\n  let a = 1\n} in\nm.a",
+    op("b", Delete),
+  );
+  switch (run_inside(src, "m", "c")) {
+  | Ok((seg', _)) =>
+    same(
+      "a member typed inside",
+      {js|let m = {
+  let a = 1;
+  let b = 2;
+  let c = ¿
+} in
+m.a|js},
+      text_of(seg'),
+    )
+  | Error(why) => fail("inside: " ++ why)
+  };
+};
+
 /* ⌘⌫ on a row the outline refuses to delete leaves its cursor there */
 let refused_delete_cursor = (): unit => {
   let seg = parse("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
@@ -1029,6 +1087,7 @@ let tests = (
     test_case("unterminated last member", `Quick, unterminated_tail),
     test_case("moves across module edges", `Quick, across),
     test_case("a last member out and back in", `Quick, back_in),
+    test_case("a module bound by let", `Quick, value_module),
     test_case("in and out again", `Quick, round_trip),
   ],
 );
