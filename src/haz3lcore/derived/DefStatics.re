@@ -1097,30 +1097,26 @@ let all_warning_ids = (t: t): list(Id.t) =>
 /* set by the test runner to check each calc_auto result */
 let after_calc: ref(option((CoreSettings.t, t) => unit)) = ref(None);
 
-/* the last calc per document (LRU), so switching documents doesn't force
-   a cold pass; keyed by the term's rep id, stable unless the first item
-   is replaced */
-let slots: Hashtbl.t(Id.t, t) = Hashtbl.create(8);
-let slots_mru: ref(list(Id.t)) = ref([]);
+/* the last calc per document, most recent first, so switching documents
+   doesn't force a cold pass; keyed by the term's rep id, stable unless
+   the first item is replaced */
+let slots: ref(list((Id.t, t))) = ref([]);
 let slots_cap = 8;
 
 let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   /* a probe change keeps the slot: calc re-analyzes just the affected items */
   let key = Exp.rep_id(whole);
-  let prev = Hashtbl.find_opt(slots, key);
+  let prev = List.assoc_opt(key, slots^);
   let t = calc(~settings, ~prev?, ~probe_ids, whole);
-  Hashtbl.replace(slots, key, t);
-  slots_mru := [key, ...List.filter(k => k != key, slots_mru^)];
-  switch (Util.ListUtil.split_n_opt(slots_cap, slots_mru^)) {
-  | Some((keep, evict)) when evict != [] =>
-    List.iter(Hashtbl.remove(slots), evict);
-    slots_mru := keep;
-  | _ => ()
-  };
+  slots :=
+    [
+      (key, t),
+      ...Util.ListUtil.take(slots_cap - 1, List.remove_assoc(key, slots^)),
+    ];
   Option.iter(check => check(settings, t), after_calc^);
   t;
 };
 
 /* the last calc of [whole]'s document, if still cached */
 let cached = (whole: Exp.t): option(t) =>
-  Hashtbl.find_opt(slots, Exp.rep_id(whole));
+  List.assoc_opt(Exp.rep_id(whole), slots^);
