@@ -58,6 +58,14 @@ let letin_core = (txt: string): option(Segment.t) =>
     parse(String.trim(txt) ++ "\n0"),
   );
 
+/* a new definition's text */
+let template = (kind: OutlineRename.kind, name: string): string =>
+  switch (kind) {
+  | KType => "type " ++ name ++ {js| = ¿|js}
+  | KModule => "module " ++ name ++ " = {}"
+  | KValue => "let " ++ name ++ {js| = ¿|js}
+  };
+
 let space = (): Piece.t => Piece.Secondary(Secondary.mk_space(Id.mk()));
 let linebreak = (): Piece.t =>
   Piece.Secondary(Secondary.mk_newline(Id.mk()));
@@ -415,9 +423,9 @@ let apply_at =
       let member = b.member(j);
       let txt =
         switch (op) {
-        | NewTypeBelow => "type " ++ named("NewType") ++ {js| = ¿|js}
-        | NewModuleBelow => "module " ++ named("NewModule") ++ " = {}"
-        | _ => "let " ++ named("new_def") ++ {js| = ¿|js}
+        | NewTypeBelow => template(KType, named("NewType"))
+        | NewModuleBelow => template(KModule, named("NewModule"))
+        | _ => template(KValue, named("new_def"))
         };
       Option.bind(
         member ? member_core(txt) : letin_core(txt ++ " in"),
@@ -1017,7 +1025,8 @@ let edit =
       seg,
     )
     |> Result.map(~f=seg => (seg, Some(row)))
-  | Insert(anchor, text) =>
+  | Insert(at, text)
+  | InsertInside(at, text) =>
     let (kind, name) = typed_name(text);
     let (rkind, op): (OutlineRename.kind, OutlineEdit.def_op) =
       switch (kind) {
@@ -1028,21 +1037,13 @@ let edit =
     switch (OutlineRename.check_name(rkind, name)) {
     | Some(why) => Error(why)
     | None =>
-      apply(~name, ~mod_root=ctx.mod_root, op, anchor, seg)
-      |> Option.to_result(~none="a definition can't go here")
-    };
-  | InsertInside(m, text) =>
-    let (kind, name) = typed_name(text);
-    let (rkind, member): (OutlineRename.kind, string) =
-      switch (kind) {
-      | KType => (KType, "type " ++ name ++ {js| = ¿|js})
-      | KModule => (KModule, "module " ++ name ++ " = {}")
-      | _ => (KValue, "let " ++ name ++ {js| = ¿|js})
-      };
-    switch (OutlineRename.check_name(rkind, name)) {
-    | Some(why) => Error(why)
-    | None =>
-      new_inside(~member, m, seg)
+      (
+        switch (e) {
+        | InsertInside(_) =>
+          new_inside(~member=template(rkind, name), at, seg)
+        | _ => apply(~name, ~mod_root=ctx.mod_root, op, at, seg)
+        }
+      )
       |> Option.to_result(~none="a definition can't go here")
     };
   };
