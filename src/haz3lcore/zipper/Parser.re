@@ -15,8 +15,10 @@ let set_segment_cache = (seg: option(Segment.t), str: string): unit =>
 
 /* Would splicing [text] at the caret merge with a neighboring token
    (e.g. pasting `+2` right after `x1`)? Shared by the segment-cache
-   paste and the FastParse paste gate. */
+   paste and the FastParse paste gate. A selection is replaced by the
+   paste, so its own edge tokens are not neighbors. */
 let boundary_merges = (text: string, z: Zipper.t): bool => {
+  let z = Zipper.destroy_selection(z);
   let chars = Token.to_list(text);
   switch (chars) {
   | [] => false
