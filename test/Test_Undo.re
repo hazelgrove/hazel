@@ -56,6 +56,102 @@ let text_of = (model: History.Model.t): string =>
 let undo_len = (model: History.Model.t) => List.length(model.undo_stack);
 let redo_len = (model: History.Model.t) => List.length(model.redo_stack);
 
+/* a stacked slide driven as the page drives it: each action, then a
+   calculate, then the actions it scheduled */
+module Cells = {
+  let src = "let a = 1 in\nlet b = 2 in\na + b";
+
+  let mk = (): History.Model.t => {
+    let seg =
+      Option.get(Haz3lcore.FastParse.of_text(~root=Haz3lcore.Sort.Exp, src));
+    let editors: Editors.Model.t =
+      Scratch(
+        ScratchModel.Model.{
+          current: 0,
+          scratchpads: [
+            ScratchModel.Scratchpad.mk_code(
+              ~name="Focus",
+              ~editor=ScratchFocus.cell_of_seg(seg),
+              (),
+            ),
+          ],
+        },
+      );
+    {
+      current: {
+        globals: Globals.Model.init(),
+        editors,
+        explain_this: ExplainThisModel.init,
+        selection: Editors.Selection.default_selection(editors),
+      },
+      undo_stack: [],
+      redo_stack: [],
+    };
+  };
+
+  let rec run = (m: History.Model.t, action: Page.Update.t): History.Model.t => {
+    let scheduled = ref([]);
+    let schedule_action = a => scheduled := scheduled^ @ [a];
+    let m =
+      History.Update.update(
+        ~import_log=_ => (),
+        ~get_log_and=_ => (),
+        ~schedule_action,
+        action,
+        m,
+      ).
+        model;
+    let m =
+      History.Update.calculate(
+        ~schedule_action,
+        ~is_edited=true,
+        ~dynamics=false,
+        m,
+      );
+    List.fold_left(run, m, scheduled^);
+  };
+
+  let program = (m: History.Model.t): Program.t =>
+    switch (m.current.editors) {
+    | Scratch(s) => Option.get(ScratchModel.Model.current_program(s))
+    | _ => failwith("not a deck")
+    };
+
+  let divided = (m: History.Model.t): Divided.t =>
+    switch (program(m)) {
+    | Divided(d) => d
+    | Whole(_) => failwith("not divided")
+    };
+
+  let row = (m: History.Model.t, label: string): Haz3lcore.Id.t =>
+    Option.get(
+      List.find_map(
+        (n: OutlineTree.node) => n.o_label == label ? n.o_id : None,
+        OutlineTree.flatten(
+          OutlineTree.of_term(Program.statics(program(m)).term),
+        ),
+      ),
+    );
+
+  let workspace = (a: Workspace.Action.t): Page.Update.t =>
+    Editors(Scratch(Workspace(a)));
+
+  let body = (m: History.Model.t, id: Haz3lcore.Id.t): string =>
+    Option.get(Divided.cell(id, divided(m))).e_body.editor.editor.state.
+      zipper
+    |> Haz3lcore.Zipper.zip
+    |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
+
+  let focus = (m: History.Model.t) =>
+    Option.map(
+      ((e: ScratchCell.t, side)) => (e.e_id, side),
+      Divided.focused(divided(m)),
+    );
+};
+
+let focused = (m, id, side: ScratchCell.side) =>
+  Cells.focus(m) == Some((id, side));
+
 let tests = (
   "Undo",
   [
@@ -145,6 +241,77 @@ let tests = (
         let m3 = apply(m2, insert("2"));
         check(int, "new edit cleared the redo stack", 0, redo_len(m3));
         check(int, "new edit pushed an undo entry", 1, undo_len(m3));
+      },
+    ),
+    test_case(
+      "outline opens focus their cell, closes leave the focus",
+      `Quick,
+      () => {
+        let m = Cells.run(Cells.mk(), Refresh);
+        let (a, b) = (Cells.row(m, "a"), Cells.row(m, "b"));
+        let m = Cells.run(m, Cells.workspace(FocusToggle(b)));
+        check(bool, "b opens with the focus", true, focused(m, b, Body));
+        let m = Cells.run(m, Cells.workspace(FocusToggle(a)));
+        check(bool, "then a", true, focused(m, a, Body));
+        let m =
+          Cells.run(
+            m,
+            Cells.workspace(
+              Stack(
+                b,
+                Header,
+                MainEditor(Perform(Move(Local(Right, ByChar)))),
+              ),
+            ),
+          );
+        check(
+          bool,
+          "an action takes it to b's header",
+          true,
+          focused(m, b, Header),
+        );
+        let m = Cells.run(m, Cells.workspace(FocusEnsure(a)));
+        check(
+          bool,
+          "an ensure gives it a's body",
+          true,
+          focused(m, a, Body),
+        );
+        let m = Cells.run(m, Cells.workspace(FocusToggle(b)));
+        check(bool, "closing b leaves it", true, focused(m, a, Body));
+        check(
+          bool,
+          "b closed",
+          true,
+          Divided.cell(b, Cells.divided(m)) == None,
+        );
+      },
+    ),
+    test_case(
+      "undo restores the focused cell",
+      `Quick,
+      () => {
+        let m = Cells.run(Cells.mk(), Refresh);
+        let (a, b) = (Cells.row(m, "a"), Cells.row(m, "b"));
+        let m = Cells.run(m, Cells.workspace(FocusToggle(b)));
+        let m = Cells.run(m, insert("0"));
+        check(string, "typing reaches b", "02", Cells.body(m, b));
+        let m = Cells.run(m, Cells.workspace(FocusToggle(a)));
+        check(bool, "a has the focus", true, focused(m, a, Body));
+        /* the snapshot has only b open: realizing the view opens a again,
+           and the focus stays where the undone edit was */
+        let m = Cells.run(m, undo);
+        check(string, "the edit is undone", "2", Cells.body(m, b));
+        check(
+          bool,
+          "a is open again",
+          true,
+          Divided.cell(a, Cells.divided(m)) != None,
+        );
+        check(bool, "b has the focus", true, focused(m, b, Body));
+        let m = Cells.run(m, insert("9"));
+        check(string, "and takes the keys", "92", Cells.body(m, b));
+        check(string, "a is untouched", "1", Cells.body(m, a));
       },
     ),
     test_case(

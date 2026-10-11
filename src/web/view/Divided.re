@@ -20,7 +20,9 @@ type t = {
   /* the program as of the last structural change; cells overwrite
      their slots when the document is assembled */
   base: Segment.t,
-  /* the cell (and side) that last had the caret: join lands there */
+  /* the cell (and side) with the focus, where keys go and join lands;
+     None: the first body has it, and join keeps no caret. The page's
+     selection says only that the stack has the focus */
   active: option((Id.t, side)),
   /* whole-program statics of the assembled document, refreshed on
      statics frames while divided */
@@ -70,6 +72,9 @@ let owns = (id: Id.t, e: Cell.t): bool =>
 
 let owner = (id: Id.t, d: t): option(Cell.t) =>
   List.find_opt(owns(id), d.cells);
+
+let cell = (id: Id.t, d: t): option(Cell.t) =>
+  List.find_opt((e: Cell.t) => e.e_id == id, d.cells);
 
 let insert = (~term, entry: Cell.t, cells: list(Cell.t)): list(Cell.t) => {
   let order = OutlineTree.collect(OutlineTree.of_term(term));
@@ -164,17 +169,22 @@ let active = (d: t): option((Id.t, side)) => d.active;
 
 let active_cell = (d: t): option((Cell.t, side)) =>
   switch (d.active) {
-  | Some((id, side)) =>
-    List.find_opt((e: Cell.t) => e.e_id == id, d.cells)
-    |> Option.map(e => (e, side))
+  | Some((id, side)) => Option.map(e => (e, side), cell(id, d))
   | None => None
   };
 
-let active_editor = (d: t): CellEditor.Model.t =>
+/* the pane with the focus: the active one, else the first body */
+let focused = (d: t): option((Cell.t, side)) =>
   switch (active_cell(d), d.cells) {
-  | (Some((e, side)), _) => Cell.pane(side, e)
-  | (None, [e, ..._]) => e.e_body
-  | (None, []) => d.shell
+  | (Some(_) as a, _) => a
+  | (None, [e, ..._]) => Some((e, Body))
+  | (None, []) => None
+  };
+
+let active_editor = (d: t): CellEditor.Model.t =>
+  switch (focused(d)) {
+  | Some((e, side)) => Cell.pane(side, e)
+  | None => d.shell
   };
 
 /* a caret as a side of a piece id: before its right neighbour, else
@@ -381,12 +391,12 @@ let open_ =
 let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
   let members =
     switch (Focus.test_run_deep(fid, d.base)) {
-    | Some((_, ms)) => ms
+    | Some((_, ms, _)) => ms
     | None => [fid]
     };
   let (alone, keeping) =
     List.partition(
-      (e: Cell.t) => !e.e_run && List.mem(e.e_id, members),
+      (e: Cell.t) => !Cell.is_run(e) && List.mem(e.e_id, members),
       d.cells,
     );
   List.exists(owns(fid), keeping)
@@ -424,26 +434,31 @@ let resplit =
     | Some(slice) =>
       same(slice, Focus.body_text(e))
       && (
-        e.e_run
-        || e.e_sym != None
-        || (
+        switch (e.e_kind) {
+        | Run(_)
+        | Headless(_) => true
+        | Def(_)
+        | Members =>
           switch (Focus.find_pat(e.e_id, base)) {
           | Some(pat) => same(pat, Focus.header_text(e))
           | None => false
           }
-        )
+        }
       )
     };
   let cells =
     List.filter_map(
       (e: Cell.t) =>
-        if (untouched(e)) {
-          Some(e);
-        } else if (e.e_run) {
-          Focus.mk_run_entry(~info_map, e.e_id, base);
-        } else {
-          entry(~info_map, ~sym=?e.e_sym, ~inner=e.e_inner, e.e_id, base);
-        },
+        untouched(e)
+          ? Some(e)
+          : (
+            switch (e.e_kind) {
+            | Run(_) => Focus.mk_run_entry(~info_map, e.e_id, base)
+            | Members => Focus.mk_members_entry(~info_map, e.e_id, base)
+            | Headless(sym) => Focus.mk_entry(~info_map, ~sym, e.e_id, base)
+            | Def(_) => Focus.mk_entry(~info_map, e.e_id, base)
+            }
+          ),
       d.cells,
     );
   /* an edit can carry one open item into another (a member into an open
@@ -563,8 +578,8 @@ let follow_headless =
   let cells =
     List.map(
       (e: Cell.t) =>
-        switch (e.e_sym) {
-        | Some(_) when !e.e_run && !Id.Map.mem(e.e_id, rows) =>
+        switch (e.e_kind) {
+        | Headless(_) when !Id.Map.mem(e.e_id, rows) =>
           let body = Focus.zip_of_cell(e.e_body);
           let top =
             List.filter_map(
@@ -615,12 +630,26 @@ let update_cell = (id: Id.t, f: Cell.t => Cell.t, d: t): t => {
 };
 
 let set_active = (id: Id.t, side: side, d: t): t =>
-  List.exists((e: Cell.t) => e.e_id == id, d.cells)
+  Option.is_some(cell(id, d))
     ? {
       ...d,
       active: Some((id, side)),
     }
     : d;
+
+/* [d] after cells of [prev] opened and closed: [prev]'s focused pane
+   keeps the focus while open, and the first body, focused by default,
+   stays so while still first */
+let keep_focus = (~prev: t, d: t): t =>
+  switch (focused(prev), d.cells) {
+  | (Some((e, _)), [first, ..._])
+      when prev.active == None && first.e_id == e.e_id => {
+      ...d,
+      active: None,
+    }
+  | (Some((e, side)), _) => set_active(e.e_id, side, d)
+  | (None, _) => d
+  };
 
 let map_editors = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
   ...d,

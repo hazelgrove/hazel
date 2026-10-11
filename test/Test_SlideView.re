@@ -389,7 +389,7 @@ let module_row = () => {
   | Whole(_) => fail("not divided")
   | Divided(d) =>
     let e = List.hd(Divided.cells(d));
-    check(bool, "a members cell", true, e.e_inner);
+    check(bool, "a members cell", true, e.e_kind == Members);
     check(
       string,
       "the name above",
@@ -512,9 +512,44 @@ let empty_module_row = () => {
   | (_, Whole(_)) => fail("didn't open")
   | (_, Divided(d)) =>
     let c = List.hd(Divided.cells(d));
-    check(bool, "a definition cell", false, c.e_inner);
+    check(
+      bool,
+      "a definition cell",
+      true,
+      c.e_kind == Def({binds_module: true}),
+    );
     check(string, "its braces", "{}", text_of(Focus.zip_of_cell(c.e_body)));
   };
+};
+
+/* opening a cell leaves the focus where it is; when the focused cell
+   closes, a cell opening at once takes it, else the first body has it,
+   and keeps it as others open */
+let focus_stays = () => {
+  let focus = (p: Web.Program.t) =>
+    switch (p) {
+    | Divided(d) =>
+      Option.map(
+        ((c: Web.ScratchCell.t, side)) => (c.e_id, side),
+        Divided.focused(d),
+      )
+    | Whole(_) => None
+    };
+  let (a, b, m) = (row("a"), row("b"), row("M"));
+  let (v, p) = run([V.pin(~term, a), V.pin(~term, b)]);
+  check(
+    bool,
+    "opening b leaves it with a",
+    true,
+    focus(p) == Some((a, Body)),
+  );
+  let (_, p') =
+    V.realize(~info_map, ~term, V.pin(~term, m, V.unpin(a, v)), p);
+  check(bool, "M opens as a closes", true, focus(p') == Some((m, Body)));
+  let (v, p) = V.realize(~info_map, ~term, V.unpin(a, v), p);
+  check(bool, "a closes alone", true, focus(p) == Some((b, Body)));
+  let (_, p) = V.realize(~info_map, ~term, V.pin(~term, m, v), p);
+  check(bool, "and keeps it as M opens", true, focus(p) == Some((b, Body)));
 };
 
 let tests = (
@@ -537,5 +572,6 @@ let tests = (
     ),
     test_case("a module row opens as its members", `Quick, module_row),
     test_case("an empty module opens whole", `Quick, empty_module_row),
+    test_case("the focused cell keeps the focus", `Quick, focus_stays),
   ],
 );

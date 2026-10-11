@@ -113,7 +113,7 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
   switch (Focus.mk_entry(~info_map, fid, master)) {
   | None => failwith("mk_entry failed for " ++ label)
   | Some(e) =>
-    check(bool, label ++ ": headless", true, e.e_sym != None);
+    check(bool, label ++ ": headless", true, e.e_kind == Headless(sym));
     check(
       string,
       label ++ ": body",
@@ -268,7 +268,10 @@ let names_and_keys = () => {
     option(int),
     "three tests",
     Some(3),
-    Focus.test_run_size_deep(outline_id(rterm, "1"), run),
+    Option.map(
+      ((_, _, n)) => n,
+      Focus.test_run_deep(outline_id(rterm, "1"), run),
+    ),
   );
   let own = Web.ScratchPersist.slide_suffix("scratch:Week 1");
   check(
@@ -295,6 +298,116 @@ let names_and_keys = () => {
     None,
     own("scratch:Week 1: Lists:agent"),
   );
+};
+
+/* a headless cell's symbol has two sources: its row's outline kind, which
+   a pin passes when it opens the cell, and its item span. Where both name
+   one they agree, but on a module body's last item: the outline lists it
+   as a statement (`;`), the span reads it as the body's tail (⇒). The
+   outline's wins. Mega 2k/4k repeat 1k's shapes and would take half a
+   minute: every row re-walks the program */
+let header_symbols = () => {
+  let survey = (~root, name, src): int => {
+    let seg =
+      switch (CorpusUtil.parse(~root, src)) {
+      | Some(seg) => seg
+      | None => Option.get(CorpusUtil.typed_seg(~root, src))
+      };
+    let term = MakeTerm.Incr.term_of_root(~root, seg);
+    let exceptions = ref(0);
+    /* [in_module]: these rows are a module body's items */
+    let rec walk = (~in_module, ns: list(Web.OutlineTree.node)) =>
+      List.iter(
+        (n: Web.OutlineTree.node) =>
+          switch (n.o_kind) {
+          | KTests => walk(~in_module, n.o_children)
+          | kind =>
+            switch (
+              Option.bind(n.o_id, id => Web.SlideView.sym_of(id, term)),
+              Option.bind(n.o_id, id =>
+                Option.map(snd, Focus.headless_content_deep(id, seg))
+              ),
+            ) {
+            | (Some(o), Some(s)) when o != s =>
+              incr(exceptions);
+              check(
+                bool,
+                name ++ ": only a module body's last item",
+                true,
+                in_module && o == {js|;|js} && s == {js|⇒|js},
+              );
+            | _ => ()
+            };
+            walk(~in_module=kind == KModule, n.o_children);
+          },
+        ns,
+      );
+    walk(~in_module=root == Sort.Mod, Web.OutlineTree.of_term(term));
+    exceptions^;
+  };
+  let module_last = "module M = {\n  let a = 1;\n  a + 1\n} in\nM.a";
+  List.iter(
+    ((root, src, n)) => check(int, src, n, survey(~root, src, src)),
+    [
+      (Sort.Exp, module_last, 1),
+      (Exp, "module M = {\n  let a = 1;\n  test a == 1 end\n} in\nM.a", 1),
+      (Exp, "let m = {\n  let a = 1;\n  a + 2\n} in\nm", 1),
+      (
+        Exp,
+        "module M = {\n  module N = {\n    let p = 1;\n    p\n  };\n  0\n} in\n1",
+        2,
+      ),
+      (Exp, "module M = {\n  a + 1;\n  let b = 2\n} in\nM.b", 0),
+      (Mod, "let a = 1;\ntest a == 1 end;\na + 1", 1),
+      (Exp, "let a = 1 in\na;\ntest a == 1 end", 0),
+      (Exp, "let f = fun x ->\n  test x == x end;\n  x\nin\nf(1)", 0),
+      (Exp, "let f = fun x ->\n  let y = x in\n  y + 1\nin\nf(1)", 0),
+    ],
+  );
+  List.iter(
+    ((name, src)) => ignore(survey(~root=Exp, name, src)),
+    CorpusUtil.incomplete_programs @ CorpusUtil.slide_corpus(),
+  );
+  List.iter(
+    ((file, root, n)) =>
+      check(
+        int,
+        file,
+        n,
+        survey(~root, file, Option.get(CorpusUtil.mega_src(file))),
+      ),
+    [("mega-1k.hz", Sort.Exp, 0), ("mega-mod-1k.hz", Mod, 1)],
+  );
+  /* a pin opens the module's last item under the outline's symbol */
+  let seg = parse(module_last);
+  let (term, info_map) = statics_of(seg);
+  let last =
+    switch (
+      List.find_map(
+        (n: Web.OutlineTree.node) => n.o_kind == KStmt ? n.o_id : None,
+        Web.OutlineTree.flatten(Web.OutlineTree.of_term(term)),
+      )
+    ) {
+    | Some(id) => id
+    | None => fail("no statement row")
+    };
+  switch (
+    Web.SlideView.realize(
+      ~info_map,
+      ~term,
+      Web.SlideView.pin(~term, last, Web.SlideView.init),
+      Whole(Focus.cell_of_seg(seg)),
+    )
+  ) {
+  | (_, Divided(d)) =>
+    check(
+      bool,
+      "the outline's symbol",
+      true,
+      List.hd(Web.Divided.cells(d)).e_kind == Headless({js|;|js}),
+    )
+  | (_, Whole(_)) => fail("didn't open")
+  };
 };
 
 let tests = (
@@ -386,6 +499,7 @@ let tests = (
         (),
       )
     ),
+    test_case("header symbols", `Quick, header_symbols),
     test_case("member restructure", `Quick, member_restructure),
     test_case("names, run sizes and slide keys", `Quick, names_and_keys),
     test_case("unfinished let stays closed", `Quick, unfinished_let),

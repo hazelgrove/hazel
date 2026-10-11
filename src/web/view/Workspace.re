@@ -10,9 +10,6 @@ module Persist = ScratchPersist;
 
 type code = Scratchpad.code;
 
-let cell = (id: Haz3lcore.Id.t, d: Divided.t): option(ScratchCell.t) =>
-  List.find_opt((e: ScratchCell.t) => e.e_id == id, Divided.cells(d));
-
 /* whether [term]'s outline names anything: a hydrating slide's
    placeholder statics show only an unnamed ⇒ row */
 let named_outline = (term: Language.Exp.t): bool =>
@@ -61,6 +58,17 @@ module Action = {
 };
 
 open Action;
+
+/* whether [action] gives an item's cell the focus: an outline ensure
+   while divided, or a toggle that opens one (it closes an item an open
+   cell holds) */
+let focuses_item = (action: Action.t, program: Program.t): bool =>
+  switch (action, program) {
+  | (FocusEnsure(_), Divided(_)) => true
+  | (FocusToggle(fid), Divided(d)) => Divided.owner(fid, d) == None
+  | (FocusToggle(_), Whole(_)) => true
+  | _ => false
+  };
 
 /* a cell's statics: its DefStatics item (analyzed in the program's
    context) scoped to the cell's ids, so id-keyed consumers never see
@@ -269,11 +277,12 @@ let update =
   let cell_update = (id, side, a) =>
     switch (code.program) {
     | Divided(d) =>
-      switch (cell(id, d)) {
+      switch (Divided.cell(id, d)) {
       | None => code |> return_quiet
       | Some(e) =>
         let* ed =
           CellEditor.Update.update(~settings, a, ScratchCell.pane(side, e));
+        /* the pane an action reaches takes the focus */
         let d =
           d
           |> Divided.update_cell(id, ScratchCell.with_pane(side, ed))
@@ -289,6 +298,24 @@ let update =
         };
       }
     | Whole(_) => code |> return_quiet
+    };
+  /* the cell now holding [fid] takes the focus, on its body */
+  let focusing = (fid, updated: Updated.t(code)): Updated.t(code) =>
+    if (focuses_item(action, code.program)) {
+      let* after = updated;
+      switch (after.program) {
+      | Divided(d) =>
+        switch (Divided.owner(fid, d)) {
+        | Some(e) => {
+            ...after,
+            program: Divided(Divided.set_active(e.e_id, Body, d)),
+          }
+        | None => after
+        }
+      | Whole(_) => after
+      };
+    } else {
+      updated;
     };
   switch (action) {
   | AgentAction(a) =>
@@ -340,7 +367,13 @@ let update =
             switch (program) {
             | Divided(d) =>
               List.find_opt(
-                (e: ScratchCell.t) => e.e_run && List.mem(fid, e.e_members),
+                (e: ScratchCell.t) =>
+                  switch (e.e_kind) {
+                  | Run(ids) => List.mem(fid, ids)
+                  | Def(_)
+                  | Members
+                  | Headless(_) => false
+                  },
                 Divided.cells(d),
               )
             | Whole(_) => None
@@ -352,15 +385,16 @@ let update =
         },
       code,
     )
+    |> focusing(fid)
   | FocusToggleRun(fid) =>
     /* the tests container: one cell for the run, or close it (or its
        members open one by one) */
     view(
       (term, program, v) => {
-        let members =
+        let (members, size) =
           switch (Focus.test_run_deep(fid, Program.document(program))) {
-          | Some((_, ms)) => ms
-          | None => [fid]
+          | Some((_, ms, n)) => (ms, Some(n))
+          | None => ([fid], None)
           };
         switch (
           List.find_opt(
@@ -381,8 +415,7 @@ let update =
               v,
               singles,
             );
-          Some(List.length(singles))
-          == Focus.test_run_size_deep(fid, Program.document(program))
+          Some(List.length(singles)) == size
             ? v : SlideView.pin(~term, ~run=true, fid, v);
         };
       },
@@ -398,6 +431,7 @@ let update =
         },
       code,
     )
+    |> focusing(fid)
   | UnfocusDef => view((term, _, v) => SlideView.discard(~term, v), code)
   | ZoomIn(fid) =>
     view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)
@@ -557,7 +591,7 @@ let calculate =
          (its key, e_id, follows only on view changes): counted before
          the cell calculates, so this frame's run samples it */
       let is_tail_cell = (e: ScratchCell.t) =>
-        tail_probe && e.e_sym == Some({js|⇒|js});
+        tail_probe && e.e_kind == Headless({js|⇒|js});
       let tail_root = (e: ScratchCell.t) =>
         switch (Focus.zip_of_cell(e.e_body)) {
         | [] => None
@@ -775,13 +809,22 @@ let calculate =
                   dynamics: false,
                 }
               : statics_off(settings);
+          /* a module binder: its header's private pat statics would misread
+             it as a constructor, so it takes only its item's projected ones */
+          let binds_module =
+            switch (e.e_kind) {
+            | Def({binds_module}) => binds_module
+            | Members => true
+            | Headless(_)
+            | Run(_) => false
+            };
           let e' =
             ScratchCell.{
               ...e,
               e_header:
                 CellEditor.Update.calculate(
                   ~settings=
-                    e.e_mod && proj_header == None
+                    binds_module && proj_header == None
                       ? statics_off(settings)
                       : Language.CoreSettings.{
                           ...settings,

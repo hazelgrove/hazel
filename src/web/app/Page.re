@@ -124,7 +124,14 @@ module Update = {
                 ),
                 /* header too: binder and signature errors live there.
                    a ⇒ or `;` cell shows none, and its empty one is a hole */
-                (Option.is_none(e.e_sym) ? [e.e_header.editor] : [])
+                (
+                  switch (e.e_kind) {
+                  | Def(_)
+                  | Members => [e.e_header.editor]
+                  | Headless(_)
+                  | Run(_) => []
+                  }
+                )
                 @ [e.e_body.editor],
               ),
             cells,
@@ -176,8 +183,8 @@ module Update = {
   let equal = (===);
 
   /* a jump into a cell that isn't open, or to another cell's binder: the
-     item opens and its pane is selected now, the caret moves once the
-     cell is there */
+     item opens now; once its cell is there, the caret moves into the pane
+     holding the target, which takes the focus */
   let jump_across = (~schedule_action, (ensure, selection, caret)) => {
     schedule_action(Editors(caret));
     Haz3lcore.FocusEffect.schedule_cell_top();
@@ -464,16 +471,8 @@ module Update = {
             visible_rows: None,
           }
           : model.globals;
-      /* an unchanged selection whose cell closed falls back to an open
-         one; a fresh one already names its target */
       let selection =
-        selection === model.selection
-          ? Editors.Selection.follow(
-              ~before=model.editors,
-              selection,
-              editors,
-            )
-          : selection;
+        Editors.Selection.follow(~before=model.editors, selection, editors);
       {
         ...model,
         editors,

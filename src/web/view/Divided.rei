@@ -33,7 +33,10 @@ let editor_of:
 let document: t => Segment.t;
 
 let cells: t => list(ScratchCell.t);
+/* the cell holding [id]: its item, a run member or any piece of its text */
 let owner: (Id.t, t) => option(ScratchCell.t);
+/* the cell keyed by [id] */
+let cell: (Id.t, t) => option(ScratchCell.t);
 let root: t => Sort.t;
 let result: t => EvalResult.Model.t;
 let with_result: (EvalResult.Model.t, t) => t;
@@ -42,6 +45,8 @@ let has_fresh_statics: t => bool;
 let with_statics: (CachedStatics.t, t) => t;
 let probes: t => Refractors.RefractorList.t;
 let active: t => option((Id.t, side));
+/* the pane with the focus: the active one, else the first cell's body */
+let focused: t => option((ScratchCell.t, side));
 let active_editor: t => CellEditor.Model.t;
 let outside_editor: t => CodeEditable.Model.t;
 
@@ -81,6 +86,9 @@ let follow_headless:
 
 let update_cell: (Id.t, ScratchCell.t => ScratchCell.t, t) => t;
 let set_active: (Id.t, side, t) => t;
+/* after cells of [prev] opened and closed: [prev]'s focused pane keeps
+   the focus while open */
+let keep_focus: (~prev: t, t) => t;
 let map_editors: (CellEditor.Model.t => CellEditor.Model.t, t) => t;
 /* the probe drawer stepping a sample, in whichever editor holds it */
 let stepping: t => option(ProjectorBase.stepping);
