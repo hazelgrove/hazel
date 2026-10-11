@@ -49,8 +49,8 @@ type edit_ctl = {
   /* read at the keypress: keys can outrun renders */
   get: unit => option(OutlineEdit.t),
   set: option(OutlineEdit.t) => Effect.t(unit),
-  /* save; with [true], start a new definition below */
-  commit: (OutlineEdit.t, bool) => Effect.t(unit),
+  /* save, the cursor going as [after] says */
+  commit: (OutlineEdit.t, OutlineEdit.after) => Effect.t(unit),
 };
 
 /* what the outline shows */
@@ -230,9 +230,14 @@ let take_focus =
     (),
   );
 
-/* the cursor to [c], with the keys */
+/* the cursor to [c], with the keys: after the focus event's own cursor
+   (the caret's row), so set at the event's end */
 let take_cursor = (on: handlers, c: option(OutlineTree.path)) =>
-  Effect.Many([Effect.Prevent_default, take_focus, on.set_cursor(c)]);
+  Effect.Many([
+    Effect.Prevent_default,
+    take_focus,
+    Effect.lazy_(lazy(on.set_cursor(c))),
+  ]);
 
 /* this event only: no default action, no other listeners */
 let stop = eff =>
@@ -348,10 +353,7 @@ let rec node_view =
             switch (on.edit.get()) {
             | Some(ed) when ed.ed_row == None || ed.ed_row != n.o_id =>
               /* clicking away from a name saves it */
-              Effect.Many([
-                on.edit.commit(ed, false),
-                on.set_cursor(Some(row_path)),
-              ])
+              on.edit.commit(ed, MoveTo(Some(row_path)))
             | Some(_) => Effect.Ignore
             | None =>
               props.stack_controls
@@ -773,10 +775,9 @@ let keys =
       Array.find_index(r => r.r_path == p, visible)
     )
     |> Option.value(~default=-1);
-  let go = i =>
-    i < 0 || n == 0
-      ? on.set_cursor(None)
-      : on.set_cursor(Some(visible[min(i, n - 1)].r_path));
+  let target = (i): option(OutlineTree.path) =>
+    i < 0 || n == 0 ? None : Some(visible[min(i, n - 1)].r_path);
+  let go = i => on.set_cursor(target(i));
   let cur = idx >= 0 ? Some(visible[idx]) : None;
   let k = Util.Key.mk(KeyDown, evt);
   let key =
@@ -892,26 +893,34 @@ let keys =
           ed_error: None,
         }),
       );
+    let anchor =
+      Option.bind(ed.ed_anchor, a =>
+        Array.find_opt(r => r.r_node.o_id == Some(a), visible)
+      );
     let back_to_anchor =
       /* an unfinished new definition vanishes; the cursor returns */
-      switch (
-        Option.bind(ed.ed_anchor, a =>
-          Array.find_opt(r => r.r_node.o_id == Some(a), visible)
-        )
-      ) {
+      switch (anchor) {
       | Some(r) => on.set_cursor(Some(r.r_path))
       | None => Effect.Ignore
       };
     switch (key) {
-    | "Enter" => Some(on.edit.commit(ed, true))
+    | "Enter" => Some(on.edit.commit(ed, Next))
     | "Escape" => Some(Effect.Many([on.edit.set(None), back_to_anchor]))
     | "ArrowUp" when ed.ed_row != None =>
-      Some(Effect.Many([on.edit.commit(ed, false), go(idx - 1)]))
+      Some(on.edit.commit(ed, MoveTo(target(idx - 1))))
     | "ArrowDown" when ed.ed_row != None =>
-      Some(Effect.Many([on.edit.commit(ed, false), go(idx + 1)]))
+      Some(on.edit.commit(ed, MoveTo(target(idx + 1))))
     | "ArrowUp"
     | "ArrowDown" =>
-      Some(Effect.Many([on.edit.commit(ed, false), back_to_anchor]))
+      Some(
+        on.edit.commit(
+          ed,
+          switch (anchor) {
+          | Some(r) => MoveTo(Some(r.r_path))
+          | None => Stay
+          },
+        ),
+      )
     | "ArrowLeft" => Some(put(t, max(0, c - 1)))
     | "ArrowRight" => Some(put(t, min(String.length(t), c + 1)))
     | "Home" => Some(put(t, 0))
@@ -1167,7 +1176,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
                   | Some(ed) =>
                     Effect.Many([
                       Effect.Stop_propagation,
-                      on.edit.commit(ed, false),
+                      on.edit.commit(ed, Stay),
                     ])
                   | None => Effect.Stop_propagation
                   }

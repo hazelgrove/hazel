@@ -297,6 +297,86 @@ let arrows_redraw = () => {
   check(bool, "arrows on: a new outline", false, view(true) === off);
 };
 
+/* a name saved by a key or click that also moved the cursor (↑ while
+   renaming) leaves the cursor where it went; a plain save puts it on the
+   row it named */
+let commit_cursor = () => {
+  module C = Web.OutlineControl;
+  let settings = Web.Globals.Model.init().settings;
+  let seg =
+    Option.get(CorpusUtil.parse("let a = 1 in\nlet b = 2 in\na + b"));
+  let code =
+    switch (
+      Web.ScratchModel.Scratchpad.mk_code(
+        ~name="t",
+        ~editor=Web.ScratchFocus.cell_of_seg(seg),
+        (),
+      ).
+        kind
+    ) {
+    | Code(code) => code
+    | Drv(_) => fail("not a code slide")
+    };
+  let term = MakeTerm.Incr.term_of(seg);
+  let row = label =>
+    switch (
+      List.find_opt(
+        (n: OutlineTree.node) => n.o_label == label,
+        OutlineTree.of_term(term),
+      )
+    ) {
+    | Some({o_id: Some(id), _}) => id
+    | _ => fail("no row " ++ label)
+    };
+  let commit = (ed, after) =>
+    C.update(
+      ~settings,
+      ~schedule_workspace=_ => (),
+      ~prefix="scratch",
+      ~name="t",
+      Commit(ed, after),
+      code,
+    ).
+      model;
+  let at_a = OutlineTree.label_path(row("a"), term);
+  let rename = Web.OutlineEdit.mk(~row=row("b"), "c");
+  C.cursor := at_a;
+  ignore(commit(rename, MoveTo(at_a)));
+  check(bool, "↑ renaming: the cursor stays up", true, C.cursor^ == at_a);
+  let renamed = commit(rename, Stay);
+  check(
+    bool,
+    "a plain rename: the cursor on the renamed row",
+    true,
+    C.cursor^
+    == OutlineTree.label_path(
+         row("b"),
+         Web.Program.statics(renamed.program).term,
+       )
+    && C.cursor^ != at_a,
+  );
+  let new_type = Web.OutlineEdit.mk(~anchor=row("a"), "type T");
+  C.cursor := at_a;
+  C.created := None;
+  ignore(commit(new_type, MoveTo(at_a)));
+  check(
+    bool,
+    "↓ naming a type: the cursor stays, no keyword animates",
+    true,
+    C.cursor^ == at_a && C.created^ == None,
+  );
+  ignore(commit(new_type, Stay));
+  check(
+    bool,
+    "a plain save: the cursor on the new type, its keyword animating",
+    true,
+    C.cursor^ != at_a && C.created^ != None,
+  );
+  C.cursor := None;
+  C.created := None;
+  C.edit := None;
+};
+
 let tests = [
   (
     "OutlinePaths",
@@ -304,6 +384,11 @@ let tests = [
     @ [
       test_case("a deleted row's successor", `Quick, successors),
       test_case("Outline Arrows redraws the outline", `Quick, arrows_redraw),
+      test_case(
+        "where a saved name leaves the cursor",
+        `Quick,
+        commit_cursor,
+      ),
     ],
   ),
 ];

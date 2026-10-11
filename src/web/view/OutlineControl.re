@@ -2,7 +2,8 @@ open Haz3lcore;
 open Util;
 open Virtual_dom.Vdom;
 
-/* The outline sidebar. Its transient UI state lives in the refs below;
+/* The outline sidebar. Its transient UI state lives in the refs below,
+   which the view's handlers write at the event (keys can outrun renders);
    its collapse state is saved with the slide. */
 
 module Scratchpad = ScratchModel.Scratchpad;
@@ -29,15 +30,10 @@ module Action = {
   type t =
     /* toggle a branch's collapse */
     | Collapse(OutlineTree.path)
-    | Menu(option((Id.t, bool, float, float)))
-    | MenuSel(int)
     | DefOp(OutlineEdit.def_op, Id.t)
-    | Cursor(option(OutlineTree.path))
-    | Edit(option(OutlineEdit.t))
-    /* true: then a new one */
-    | Commit(OutlineEdit.t, bool)
-    /* the outline took keyboard focus */
-    | Focused
+    | Commit(OutlineEdit.t, OutlineEdit.after)
+    /* the refs above moved: draw them */
+    | Redraw
     /* give the outline keyboard focus */
     | Focus;
 };
@@ -80,13 +76,7 @@ let update =
     )
     : Updated.t(Scratchpad.code) =>
   switch (action) {
-  | Menu(m) =>
-    menu := m;
-    menu_sel := 0;
-    code |> Updated.return_quiet;
-  | MenuSel(i) =>
-    menu_sel := i;
-    code |> Updated.return_quiet;
+  | Redraw => code |> Updated.return_quiet
   | Collapse(path) =>
     let ck = Persist.content_key(prefix, name);
     let cur = Persist.collapse_paths(prefix, name);
@@ -137,17 +127,22 @@ let update =
       };
       code |> Updated.return;
     };
-  | Cursor(c) =>
-    cursor := c;
-    created := None;
-    code |> Updated.return_quiet;
-  | Edit(e) =>
-    edit := e;
-    created := None;
-    code |> Updated.return_quiet;
-  | Commit(ed, then_new) =>
+  | Commit(ed, after) =>
     /* nothing reaches the program until here: a rename is one
        refactoring, a new definition one insertion */
+    let then_new = after == Next;
+    /* the cursor (and a new row's keyword) follow the commit, unless the
+       event that saved moved the cursor itself */
+    let moved =
+      switch (after) {
+      | MoveTo(_) => true
+      | Stay
+      | Next => false
+      };
+    let place = c =>
+      if (!moved) {
+        cursor := c;
+      };
     let fresh_below = (id: Id.t) => OutlineEdit.mk(~anchor=id, "");
     let refuse = why => {
       edit :=
@@ -180,14 +175,14 @@ let update =
         | Ok((new_seg, _)) =>
           let code = Workspace.with_segment(~settings, code, new_seg);
           let new_term = Program.statics(code.program).term;
-          cursor := OutlineTree.label_path(row, new_term);
+          place(OutlineTree.label_path(row, new_term));
           edit := then_new ? Some(fresh_below(row)) : None;
           code |> Updated.return;
         };
       };
     | (None, Some(anchor)) when text == "" =>
       edit := None;
-      cursor := OutlineTree.label_path(anchor, term);
+      place(OutlineTree.label_path(anchor, term));
       code |> Updated.return_quiet;
     | (None, Some(anchor)) =>
       switch (
@@ -202,9 +197,11 @@ let update =
         let prefix = snd(OutlineEdit.new_kind(text));
         switch (target) {
         | Some(id) =>
-          cursor := OutlineTree.label_path(id, new_term);
+          place(OutlineTree.label_path(id, new_term));
           edit := then_new ? Some(fresh_below(id)) : None;
-          created := prefix == "" ? None : Some((id, prefix));
+          if (!moved) {
+            created := prefix == "" ? None : Some((id, prefix));
+          };
         | None => edit := None
         };
         code |> Updated.return;
@@ -213,15 +210,6 @@ let update =
       edit := None;
       code |> Updated.return_quiet;
     };
-  | Focused =>
-    /* the outline starts at the row holding the caret */
-    switch (OutlineFollow.mark^) {
-    | Some(id) =>
-      cursor :=
-        OutlineTree.label_path(id, Program.statics(code.program).term)
-    | None => ()
-    };
-    code |> Updated.return_quiet;
   | Focus =>
     JsUtil.focus_outline();
     code |> Updated.return_quiet;
@@ -464,6 +452,7 @@ let view =
           }
         | _ => false
         };
+      let redraw = inject(Redraw);
       let on: OutlineSidebar.handlers = {
         jump,
         /* a plain click with cells open adds (or moves to) that cell; it
@@ -480,35 +469,65 @@ let view =
         discard: inject_workspace(UnfocusDef),
         zoom_out: inject_workspace(ZoomOut),
         get_cursor: () => cursor^,
-        /* the ref moves at the keypress; the action re-renders */
         set_cursor: c => {
           cursor := c;
-          inject(Cursor(c));
+          created := None;
+          redraw;
         },
-        focused: inject(Focused),
+        /* the outline starts at the row holding the caret */
+        focused:
+          Effect.Many([
+            Effect.of_sync_fun(
+              () =>
+                switch (OutlineFollow.mark^) {
+                | Some(id) =>
+                  cursor := OutlineTree.label_path(id, statics.term)
+                | None => ()
+                },
+              (),
+            ),
+            redraw,
+          ]),
         leave,
         edit: {
           current: edit^,
           get: () => edit^,
           set: e => {
             edit := e;
-            inject(Edit(e));
+            created := None;
+            redraw;
           },
-          commit: (ed, then_new) => {
+          commit: (ed, after) => {
             edit := None;
-            inject(Commit(ed, then_new));
+            switch (after) {
+            | MoveTo(c) =>
+              cursor := c;
+              created := None;
+            | Stay
+            | Next => ()
+            };
+            inject(Commit(ed, after));
           },
         },
-        /* like the cursor, the menu moves at the event */
         menu_open: (id, is_module, x, y) => {
           menu := Some((id, is_module, x, y));
           menu_sel := 0;
-          inject(Menu(Some((id, is_module, x, y))));
+          redraw;
         },
-        menu_close: inject(Menu(None)),
+        menu_close:
+          Effect.Many([
+            Effect.of_sync_fun(
+              () => {
+                menu := None;
+                menu_sel := 0;
+              },
+              (),
+            ),
+            redraw,
+          ]),
         menu_select: i => {
           menu_sel := i;
-          inject(MenuSel(i));
+          redraw;
         },
         get_menu: () => menu^,
         get_menu_sel: () => menu_sel^,

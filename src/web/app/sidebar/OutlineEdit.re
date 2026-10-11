@@ -41,3 +41,12 @@ let new_kind = (text: string): (OutlineTree.kind, string) =>
     ? (KType, "type ")
     : String.starts_with(~prefix="module ", text)
         ? (KModule, "module ") : (KConst, "");
+
+/* where a saved name leaves the outline's cursor: on its row, on a new
+   definition below it, or where the keys or a click moved it as they
+   saved (the commit then leaves the cursor alone) */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type after =
+  | Stay
+  | Next
+  | MoveTo(option(OutlineTree.path));
