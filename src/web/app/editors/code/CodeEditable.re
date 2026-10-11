@@ -18,6 +18,23 @@ module Update = {
 
   exception CantReset;
 
+  /* Setting or clearing a pin is an undo step; other focus moves aren't. */
+  let pin_step =
+      (action: Action.t, before: Model.t, u: Updated.t(Model.t))
+      : Updated.t(Model.t) => {
+    let pin = (m: Model.t) => {
+      let f = m.editor.state.zipper.refractors.sample_focus;
+      (f.pinned_stack, f.pinned_span);
+    };
+    switch (action) {
+    | Project(SampleFocus(_)) => {
+        ...u,
+        historic: pin(u.model) != pin(before),
+      }
+    | _ => u
+    };
+  };
+
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) => {
@@ -89,7 +106,8 @@ module Update = {
              | Probe(_) => false
              };
            },
-         );
+         )
+      |> pin_step(action, model);
     };
     switch (action) {
     | Perform(action) =>

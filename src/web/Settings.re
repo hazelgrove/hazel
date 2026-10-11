@@ -175,6 +175,8 @@ module Update = {
     | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
+    /* SetAutoprobe minus undo entry: a slide's default on arrival */
+    | SetAutoprobeQuiet(Haz3lcore.AutoProbe.t)
     | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
@@ -488,7 +490,8 @@ module Update = {
               }
             ),
         }
-      | SetAutoprobe(mode) => {
+      | SetAutoprobe(mode)
+      | SetAutoprobeQuiet(mode) => {
           ...settings,
           autoprobe_mode: mode,
         }
@@ -530,7 +533,8 @@ module Update = {
          ~scroll_active=false,
          ~historic=
            switch (action) {
-           | Evaluation(ShowSettings) => false
+           | Evaluation(ShowSettings)
+           | SetAutoprobeQuiet(_) => false
            | _ => true
            },
        );
