@@ -414,9 +414,10 @@ let view =
                 (n: OutlineTree.node) => n.o_label != "",
                 OutlineTree.of_term(statics.term),
               ) =>
-        let seg = Program.document(p);
-        Program.root(p) == Sort.Mod
-          ? MakeTerm.Incr.term_of_mod(seg) : MakeTerm.Incr.term_of(seg);
+        MakeTerm.Incr.term_of_root(
+          ~root=Program.root(p),
+          Program.document(p),
+        )
       | _ => statics.term
       };
     /* each error badges the deepest row containing it; ancestor rows
