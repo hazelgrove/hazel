@@ -955,7 +955,8 @@ module View = {
         let z = model.editor.state.zipper;
         /* escape_vertical fires on Up at the first row / Down at the last,
            before the core move snaps the caret to line start/end */
-        let caret_row_edge = (v: Haz3lcore.Action.vertical): option(int) =>
+        let caret_row_edge =
+            (key: string): option((Haz3lcore.Action.vertical, int)) =>
           switch (escape_vertical) {
           | None => None
           | Some(_) when z.selection.content != [] => None
@@ -964,9 +965,9 @@ module View = {
             let Util.Point.{row, col} =
               Haz3lcore.Zipper.Caret.point(measured, z);
             let last_row = max(0, measured.total_rows - 1);
-            switch (v) {
-            | Up when row == 0 => Some(col)
-            | Down when row == last_row => Some(col)
+            switch (key) {
+            | "ArrowUp" when row == 0 => Some((Up, col))
+            | "ArrowDown" when row == last_row => Some((Down, col))
             | _ => None
             };
           };
@@ -977,30 +978,20 @@ module View = {
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
           switch (key) {
-          | {key: D("ArrowUp"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
-              when
-                Option.is_some(escape_vertical)
-                && Option.is_some(caret_row_edge(Up)) =>
+          | {
+              key: D(("ArrowUp" | "ArrowDown") as k),
+              shift: Up,
+              meta: Up,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+              when Option.is_some(caret_row_edge(k)) =>
+            let (v, col) = Option.get(caret_row_edge(k));
             Effect.Many([
               Effect.Prevent_default,
-              Option.get(
-                escape_vertical,
-                Up,
-                Option.get(caret_row_edge(Up)),
-              ),
-            ])
-          | {key: D("ArrowDown"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
-              when
-                Option.is_some(escape_vertical)
-                && Option.is_some(caret_row_edge(Down)) =>
-            Effect.Many([
-              Effect.Prevent_default,
-              Option.get(
-                escape_vertical,
-                Down,
-                Option.get(caret_row_edge(Down)),
-              ),
-            ])
+              Option.get(escape_vertical, v, col),
+            ]);
           | {
               key: D("ArrowLeft" | "ArrowUp"),
               shift: Up,
