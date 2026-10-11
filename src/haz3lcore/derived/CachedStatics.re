@@ -340,34 +340,51 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
     },
   );
 
+/* statics of [term] from its DefStatics run; [elaborated] stands in for
+   the grafted elaboration */
+let of_def_statics =
+    (
+      ~settings: CoreSettings.t,
+      ~probe_ids,
+      ~elaborated=?,
+      term: Exp.t,
+      ds: DefStatics.t,
+    )
+    : t => {
+  term,
+  elaborated:
+    switch (elaborated) {
+    | Some(e) => e
+    | None =>
+      switch (DefStatics.whole_elab(ds)) {
+      | Some(elab) => elab
+      | None => dh_err("Compositional elaboration gap")
+      }
+    },
+  info_map: ds.merged,
+  error_ids: DefStatics.all_error_ids(ds),
+  warning_ids: DefStatics.all_warning_ids(ds),
+  targets: compute_targets(~settings, ~info_map=ds.merged, ~probe_ids, ()),
+  completion: None,
+  /* set by callers that have the pins */
+  pins: Id.Map.empty,
+};
+
 /* per-item statics via DefStatics: an edit re-analyzes only the dirty
    set, and no whole-program recursion runs (it can overflow the browser
    stack). takes a term so callers holding a segment skip the zipper */
 let init_compositional_term =
     (~settings: CoreSettings.t, ~probe_ids, term: Exp.t): t => {
   let ds = DefStatics.calc_auto(~settings, ~probe_ids, term);
-  let info_map = ds.merged;
-  let elaborated =
-    switch () {
-    | _ when !settings.dynamics && !settings.elaborate =>
-      dh_err("Dynamics & Elaboration disabled")
-    | _ =>
-      switch (DefStatics.whole_elab(ds)) {
-      | Some(elab) => elab
-      | None => dh_err("Compositional elaboration gap")
-      }
-    };
-  {
+  of_def_statics(
+    ~settings,
+    ~probe_ids,
+    ~elaborated=?
+      !settings.dynamics && !settings.elaborate
+        ? Some(dh_err("Dynamics & Elaboration disabled")) : None,
     term,
-    elaborated,
-    info_map,
-    error_ids: DefStatics.all_error_ids(ds),
-    warning_ids: DefStatics.all_warning_ids(ds),
-    targets: compute_targets(~settings, ~info_map, ~probe_ids, ()),
-    completion: None,
-    /* set by init_compositional, which has the zipper */
-    pins: Id.Map.empty,
-  };
+    ds,
+  );
 };
 
 let init_compositional =

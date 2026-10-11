@@ -615,31 +615,17 @@ let calculate =
             };
           let ds =
             Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
-          let statics =
-            Haz3lcore.CachedStatics.{
-              term,
-              elaborated:
-                switch (Haz3lcore.DefStatics.whole_elab(ds)) {
-                | Some(elab) => elab
-                | None =>
-                  Haz3lcore.CachedStatics.dh_err(
-                    "Compositional elaboration gap",
-                  )
-                },
-              info_map: ds.merged,
-              error_ids: Haz3lcore.DefStatics.all_error_ids(ds),
-              warning_ids: Haz3lcore.DefStatics.all_warning_ids(ds),
-              targets:
-                Haz3lcore.CachedStatics.compute_targets(
-                  ~settings,
-                  ~info_map=ds.merged,
-                  ~probe_ids,
-                  (),
-                ),
-              completion: None,
-              /* the cells' own pins (probe_ids adds the projectors') */
-              pins: probe_ids,
-            };
+          let statics = {
+            ...
+              Haz3lcore.CachedStatics.of_def_statics(
+                ~settings,
+                ~probe_ids,
+                term,
+                ds,
+              ),
+            /* the cells' own pins (probe_ids adds the projectors') */
+            pins: probe_ids,
+          };
           let fresh = it => !List.exists(p => p === it, prev_items);
           (
             d
