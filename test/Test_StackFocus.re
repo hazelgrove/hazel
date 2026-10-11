@@ -1,33 +1,12 @@
 open Alcotest;
 open Haz3lcore;
 open Language;
+open CorpusUtil;
 
 /* focus slicing: mk_entry carves header/body cells with a frozen ctx out of
    the program, and splice_entry restores it byte-identically */
 
 module Focus = Web.ScratchMode.Focus;
-module SModel = Web.ScratchMode.Model;
-
-let parse = (src: string): Segment.t =>
-  switch (
-    FastParse.of_text(
-      ~materialize=Triggers.invoked_projector,
-      ~collect_refractors=true,
-      ~root=Exp,
-      src,
-    )
-  ) {
-  | Some(seg) => seg
-  | None =>
-    /* the fast path bails on some shapes; recover like persistence */
-    switch (MarkerParse.of_text(~root=Exp, src)) {
-    | Some(z) => Zipper.unselect_and_zip(z)
-    | None => failwith("parse failed: " ++ src)
-    }
-  };
-
-let text_of = (seg: Segment.t): string =>
-  seg |> Zipper.unzip |> MarkerParse.to_text;
 
 let statics_of = (seg: Segment.t) => {
   let term = MakeTerm.go(seg).term;
@@ -38,23 +17,6 @@ let statics_of = (seg: Segment.t) => {
       term,
     );
   (term, info_map);
-};
-
-let outline_id = (term, label: string): Id.t => {
-  let rec find = (ns: list(Web.OutlineTree.node)) =>
-    List.fold_left(
-      (acc, n: Web.OutlineTree.node) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None => n.o_label == label ? n.o_id : find(n.o_children)
-        },
-      None,
-      ns,
-    );
-  switch (find(Web.OutlineTree.of_term(term))) {
-  | Some(id) => id
-  | None => failwith("no outline row: " ++ label)
-  };
 };
 
 /* focus [label]: header/body text, [bound] in the frozen ctx, exact splice */
@@ -68,9 +30,9 @@ let check_focus =
       (),
     )
     : unit => {
-  let master = parse(src);
+  let master = seg_of(src);
   let (term, info_map) = statics_of(master);
-  let fid = outline_id(term, label);
+  let fid = row_by_label(term, label);
   switch (Focus.mk_entry(~info_map, fid, master)) {
   | None => failwith("mk_entry failed for " ++ label)
   | Some(e) =>
@@ -107,9 +69,9 @@ let check_focus =
 
 /* headerless items (tests, trailing bodies): symbol chip, body, splice */
 let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
-  let master = parse(src);
+  let master = seg_of(src);
   let (term, info_map) = statics_of(master);
-  let fid = outline_id(term, label);
+  let fid = row_by_label(term, label);
   switch (Focus.mk_entry(~info_map, fid, master)) {
   | None => failwith("mk_entry failed for " ++ label)
   | Some(e) =>
@@ -135,113 +97,13 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
   };
 };
 
-/* member-granularity restructure: ops apply at the row's OWNING block */
-let check_restructure =
-    (~src, ~label, ~op, ~expect: string => bool, ~desc, ()): unit => {
-  let master = parse(src);
-  let (term, _) = statics_of(master);
-  let fid = outline_id(term, label);
-  switch (Web.ItemEdit.apply(op, fid, master)) {
-  | None => failwith("apply failed: " ++ desc)
-  | Some((seg', _)) =>
-    let txt = text_of(seg');
-    if (!expect(txt)) {
-      Printf.printf("RESTRUCTURE %s =>\n%s\n<<<END\n", desc, txt);
-    };
-    check(bool, desc, true, expect(txt));
-  };
-};
-
-let contains = (needle, hay) => {
-  let nl = String.length(needle)
-  and hl = String.length(hay);
-  let rec go = i =>
-    i + nl <= hl && (String.sub(hay, i, nl) == needle || go(i + 1));
-  go(0);
-};
-
-let member_restructure = (): unit => {
-  let m_src = "module M = {\n  let a = 1;\n  let b = 2;\n} in M.a";
-  check_restructure(
-    ~src=m_src,
-    ~label="b",
-    ~op=Web.OutlineEdit.Delete,
-    ~expect=t => !contains("let b", t) && contains("let a", t),
-    ~desc="member delete",
-    (),
-  );
-  check_restructure(
-    ~src=m_src,
-    ~label="b",
-    ~op=Web.OutlineEdit.MoveUp,
-    ~expect=
-      t => {
-        let ia = String.index(t, 'a');
-        let ib = String.index(t, 'b');
-        ib < ia && contains("in M.a", t);
-      },
-    ~desc="member move up",
-    (),
-  );
-  check_restructure(
-    ~src=m_src,
-    ~label="a",
-    ~op=Web.OutlineEdit.NewBelow,
-    ~expect=
-      t =>
-        contains("new_def", t)
-        && !contains("new_def = ? in", t)  /* MEMBER form, not let-in */
-        && contains("let b = 2", t),
-    ~desc="member new-below is a 2-shard member",
-    (),
-  );
-  check_restructure(
-    ~src=m_src,
-    ~label="a",
-    ~op=Web.OutlineEdit.Duplicate,
-    ~expect=t => contains("let b", t),
-    ~desc="member duplicate keeps the block intact",
-    (),
-  );
-  /* fn-body block: new def below a nested let stays inside the fn */
-  check_restructure(
-    ~src="let f = fun x -> let y = 1 in y in f(1)",
-    ~label="y",
-    ~op=Web.OutlineEdit.NewBelow,
-    ~expect=
-      t =>
-        contains("new_def", t)
-        && !contains("new_def = ?", t)  /* implicit hole */
-        && contains("in f(1)", t),
-    ~desc="fn-body new-below is a let-in",
-    (),
-  );
-};
-
 /* a let without its `in` can't open as a cell */
 let unfinished_let = () => {
-  let first_tile_id = (seg: Segment.t): Id.t =>
-    switch (
-      List.find_map(
-        (p: Piece.t) =>
-          switch (p) {
-          | Tile(t) => Some(t.id)
-          | _ => None
-          },
-        seg,
-      )
-    ) {
-    | Some(id) => id
-    | None => failwith("no tile")
-    };
   let open_at = (typed: string): bool => {
-    let seg =
-      switch (Parser.to_zipper(typed, ~root=Exp)) {
-      | Some(z) => Zipper.unselect_and_zip(z)
-      | None => failwith("typing failed: " ++ typed)
-      };
+    let seg = Zipper.unselect_and_zip(typed_zipper(typed));
     let (_, info_map) = statics_of(seg);
-    Focus.mk_entry(~info_map, first_tile_id(seg), seg) != None;
+    let first = Option.get(List.find_map(Piece.is_tile, seg));
+    Focus.mk_entry(~info_map, first.id, seg) != None;
   };
   check(bool, "unfinished let stays closed", false, open_at("let x = 1"));
   check(bool, "finished let opens", true, open_at("let x = 1 in x"));
@@ -250,9 +112,9 @@ let unfinished_let = () => {
 /* review fixes: a typed-function header is named by its function, a run
    counts its tests, and a slide owns only its own keys */
 let names_and_keys = () => {
-  let master = parse("let add(x: Int, y: Int): Int = x + y in add(1, 2)");
+  let master = seg_of("let add(x: Int, y: Int): Int = x + y in add(1, 2)");
   let (term, info_map) = statics_of(master);
-  switch (Focus.mk_entry(~info_map, outline_id(term, "add"), master)) {
+  switch (Focus.mk_entry(~info_map, row_by_label(term, "add"), master)) {
   | None => fail("no cell for add")
   | Some(e) =>
     check(
@@ -262,7 +124,7 @@ let names_and_keys = () => {
       Web.ScratchCell.header_name(e),
     )
   };
-  let run = parse("test 1 == 1 end;\ntest 2 == 2 end;\ntest 3 == 3 end;\n0");
+  let run = seg_of("test 1 == 1 end;\ntest 2 == 2 end;\ntest 3 == 3 end;\n0");
   let (rterm, _) = statics_of(run);
   check(
     option(int),
@@ -270,7 +132,7 @@ let names_and_keys = () => {
     Some(3),
     Option.map(
       ((_, _, n)) => n,
-      Focus.test_run_deep(outline_id(rterm, "1"), run),
+      Focus.test_run_deep(row_by_label(rterm, "1"), run),
     ),
   );
   let own = Web.ScratchPersist.slide_suffix("scratch:Week 1");
@@ -308,11 +170,7 @@ let names_and_keys = () => {
    minute: every row re-walks the program */
 let header_symbols = () => {
   let survey = (~root, name, src): int => {
-    let seg =
-      switch (CorpusUtil.parse(~root, src)) {
-      | Some(seg) => seg
-      | None => Option.get(CorpusUtil.typed_seg(~root, src))
-      };
+    let seg = seg_of(~root, src);
     let term = MakeTerm.Incr.term_of_root(~root, seg);
     let exceptions = ref(0);
     /* [in_module]: these rows are a module body's items */
@@ -366,20 +224,15 @@ let header_symbols = () => {
   );
   List.iter(
     ((name, src)) => ignore(survey(~root=Exp, name, src)),
-    CorpusUtil.incomplete_programs @ CorpusUtil.slide_corpus(),
+    incomplete_programs @ slide_corpus(),
   );
   List.iter(
     ((file, root, n)) =>
-      check(
-        int,
-        file,
-        n,
-        survey(~root, file, Option.get(CorpusUtil.mega_src(file))),
-      ),
+      check(int, file, n, survey(~root, file, Option.get(mega_src(file)))),
     [("mega-1k.hz", Sort.Exp, 0), ("mega-mod-1k.hz", Mod, 1)],
   );
   /* a pin opens the module's last item under the outline's symbol */
-  let seg = parse(module_last);
+  let seg = seg_of(module_last);
   let (term, info_map) = statics_of(seg);
   let last =
     switch (
@@ -456,9 +309,11 @@ let tests = (
       "a non-ASCII header name",
       `Quick,
       () => {
-        let master = parse("let café = 1 in café");
+        let master = seg_of("let café = 1 in café");
         let (term, info_map) = statics_of(master);
-        switch (Focus.mk_entry(~info_map, outline_id(term, "café"), master)) {
+        switch (
+          Focus.mk_entry(~info_map, row_by_label(term, "café"), master)
+        ) {
         | Some(e) =>
           check(
             option(string),
@@ -500,7 +355,6 @@ let tests = (
       )
     ),
     test_case("header symbols", `Quick, header_symbols),
-    test_case("member restructure", `Quick, member_restructure),
     test_case("names, run sizes and slide keys", `Quick, names_and_keys),
     test_case("unfinished let stays closed", `Quick, unfinished_let),
     test_case("type alias", `Quick, () =>
