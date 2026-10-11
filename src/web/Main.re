@@ -301,13 +301,6 @@ let start = default_model => {
         let zipper = editor.state.zipper;
         let measured = Haz3lcore.CachedSyntax.measured(editor.syntax);
         let font_metrics = model.model.current.current.globals.font_metrics;
-        ScrollWidth.update(
-          ~measured,
-          ~refractor_rows=editor.syntax.refractor_rows,
-          ~sample_focus=zipper.refractors.sample_focus,
-          ~font_metrics,
-          ~visible_rows=model.model.current.current.globals.visible_rows,
-        );
         RefractorShift.update(
           ~editor_key=
             Editors.Model.editor_key(model.model.current.current.editors),
@@ -319,6 +312,15 @@ let start = default_model => {
         /* stagger multi-row offside displays clear of code and of each
            other (top-down priority, first-fit), per code container */
         ProbeStagger.update(~font_metrics);
+        /* after the displays are placed: its read sees where they are,
+           and shares their layout */
+        ScrollWidth.update(
+          ~measured,
+          ~refractor_rows=editor.syntax.refractor_rows,
+          ~sample_focus=zipper.refractors.sample_focus,
+          ~font_metrics,
+          ~visible_rows=model.model.current.current.globals.visible_rows,
+        );
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
