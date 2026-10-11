@@ -2258,6 +2258,36 @@ let arm = fun (side, shoulder) : (Float, Found) ->
      hand_at((side, a, along(1.))))
   end in
 
+# The part of a raised arm in front of the face: from where it clears #
+# the shirt's top, 14 above the shoulder as the game's collar is, out #
+# to the hand. It is drawn again after the head, as the game draws its #
+# arms over the face, with a little fill and no outline over where the #
+# copy starts, so no seam shows. An arm that never rises past the #
+# shirt's top has no such part. #
+let arm_front = fun (side, shoulder) : (Float, Found) ->
+  case shoulder
+  | Missing => []
+  | Found((sx, sy)) =>
+    let a = float_of_int(arm_angle) *. pi /. 180. in
+    let len = float_of_int(arm_length) in
+    let w = float_of_int(arm_width) in
+    let (rx, ry) = (sx -. side *. 12., sy +. 12.) in
+    let along = fun k : Float -> (rx +. side *. k *. len *. cos(a), ry +. k *. len *. sin(a)) in
+    let rise = 0. -. sin(a) *. len in
+    let clear = 26. +. w /. 2. *. fabs(cos(a)) in
+    if rise <=. clear then []
+    else
+      let k0 = clear /. rise in
+      let (k_in, k_out) = (fmax((0., k0 -. 3. /. len)), fmin((1., k0 +. 3. /. len))) in
+      [band(("arm", along(k0), along(1.), w, skin_line, skin)),
+       band(("arm", along(k_in), along(k_out), w -. 2., (width = 0., color = skin), skin))]
+      @ (if sleeve >. k0
+         then
+           [band(("sleeve", along(k0), along(sleeve), w +. 14., cloth_line, cloth)),
+            band(("sleeve", along(k_in), along(sleeve), w +. 11., (width = 0., color = cloth), cloth))]
+         else [])
+  end in
+
 # THE FACE, IN THE GAME'S UNITS #
 
 # The game's face units on the head drawn here: its head is 160 high #
@@ -2653,8 +2683,8 @@ let head_shaped : Picture =
 # the pants' legs; the pants; the arms and their sleeves, under the #
 # shirt where they join it; the shirt; the sleeves' fill over the #
 # shirt's edge; the back of the hair; the head, its eyes and mouth; the #
-# top of the hair, grown with the head; and the hands, last, in front #
-# of the face when the arms are raised, as the game draws them. #
+# top of the hair, grown with the head; then raised arms again, over #
+# the face; and the hands, last, as the game draws them. #
 
 let neck_at = Drawing.shift(Drawing.placed(neck, "base", body, "neck"), 0., 8.) in
 let face_at = Drawing.shift(Drawing.placed(head_shaped @ eyes @ mouth, "chin", neck_at, "top"), 0., 8.) in
@@ -2678,7 +2708,9 @@ let outfit =
   @ neck_at @ right_shoe @ left_shoe @ pants_at @ right_arm @ left_arm @ right_sleeve
   @ left_sleeve @ shirt @ right_join @ left_join
   @ Drawing.named(hair_at, hairdo_name) @ face_at
-  @ Drawing.named(hair_at, hairdo_name ++ " top") @ right_hand @ left_hand in
+  @ Drawing.named(hair_at, hairdo_name ++ " top")
+  @ arm_front((1., Drawing.anchor(body, "right shoulder")))
+  @ arm_front((-1., Drawing.anchor(body, "left shoulder"))) @ right_hand @ left_hand in
 let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
 
 # Where the crown and the shoes' ankles ended up. #
