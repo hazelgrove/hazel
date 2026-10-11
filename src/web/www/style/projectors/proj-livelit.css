@@ -240,18 +240,44 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    /* the content box's sideways clip (.livelit > *, above), which with
+       the eye open is the GUI's alone: see the pane below */
+    overflow-x: clip;
+    overflow-y: visible;
+}
+.livelit-gui:has(.context-menu) {
+    overflow: visible;
 }
 .livelit-syntax {
     position: relative;
     flex: none;
     box-sizing: border-box;
     width: 100%;
-    /* rows are sized exactly; a pixel of rounding must not scroll */
-    overflow-x: auto;
-    overflow-y: hidden;
+    /* Rows are sized exactly, and a pixel of rounding must not scroll,
+       so the pane clips below. Sideways it doesn't clip: a probe in the
+       model draws its samples past the end of its line, as a probe does
+       anywhere in the editor, and that is past the pane's right edge,
+       into the rows the livelit's shape keeps clear beside it. As a
+       scroller the pane cut the samples off at its edge, and its scroll
+       bar covered the model's row. (`visible` beside `clip`, not
+       `hidden`, which would turn it back into `auto`.) */
+    overflow-x: visible;
+    overflow-y: clip;
     border-top: 1px dashed var(--border-soft);
     background: var(--ui-bkg);
     pointer-events: auto;
+}
+/* ...nor does the content box around the GUI and the pane, which clipped
+   them at the livelit's right edge just the same. Not while a context
+   menu is open, which lifts the clip altogether (above). */
+.livelit:not(:has(.context-menu)) > .livelit-with-syntax {
+    overflow-x: visible;
+    overflow-y: clip;
+}
+/* Samples on the model's first row run under the panel label at that
+   row's right edge, so the label gives way. */
+.livelit-syntax:has(.offside-wrapper[data-row="0"]) > .livelit-model-label {
+    visibility: hidden;
 }
 /* The pane's two panels: a params line (experimental, only for a livelit
    defining params_from_model and init_from_params), then the model, the
