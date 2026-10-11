@@ -31,6 +31,8 @@ type t = {
    * compared by physical eq in `calculate` to skip the rebuild. */
   cached_manuals: Refractors.RefractorList.t,
   cached_ephemerals: Refractors.Map.t,
+  /* the ⇓ probe's term: its drawer reserves no rows */
+  cached_tail: option(Id.t),
   cached_stepping: option(ProjectorBase.stepping),
   /* ProbeProj.Settings.layout when the rows were computed */
   cached_layout: int,
@@ -211,6 +213,7 @@ let mk =
     refractor_rows,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
+    cached_tail: z.refractors.tail_target,
     cached_stepping: z.refractors.stepping,
     cached_layout: ProbeProj.Settings.layout^,
     cached_proofs: z.refractors.proofs,
@@ -270,6 +273,7 @@ let refresh_shapes =
     measured,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
+    cached_tail: z.refractors.tail_target,
     cached_stepping: z.refractors.stepping,
     cached_layout: ProbeProj.Settings.layout^,
     cached_proofs: z.refractors.proofs,
@@ -296,6 +300,7 @@ let calculate =
   let refractor_inputs_changed =
     z.refractors.manuals !== old.cached_manuals
     || z.refractors.multis.ephemerals !== old.cached_ephemerals
+    || z.refractors.tail_target != old.cached_tail
     || z.refractors.stepping != old.cached_stepping
     || ProbeProj.Settings.layout^ != old.cached_layout
     || z.refractors.proofs !== old.cached_proofs;

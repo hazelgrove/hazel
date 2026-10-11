@@ -247,7 +247,7 @@ let no_arms = () => {
   );
 };
 
-/* models saved while the ⇓ probe's had a `bare` field keep the rest */
+/* a model saved with the dropped `bare` field keeps the rest of its state */
 let old_model_loads = () => {
   let saved = "((active_renderer())(drawer_mode true)(dropdown_redraw 3)(auto_rich false)(rich_off true)(bare true))";
   let m = ProbeProj.probe_model_of_sexp(Sexplib.Sexp.of_string(saved));
@@ -319,6 +319,27 @@ let promoted_reserves_nothing = () => {
   check(bool, "no rows", true, Id.Map.is_empty(rows));
 };
 
+/* its rows come back when it stops being the ⇓ probe, though no
+   refractor entry changed */
+let rows_follow_role = () => {
+  let (z, _) = promoted();
+  let (info_map, syntax) = analysed(z);
+  check(
+    bool,
+    "none as the ⇓ probe",
+    true,
+    Id.Map.is_empty(syntax.refractor_rows),
+  );
+  let off = update(~on=false, z);
+  let syntax = CachedSyntax.calculate(off, info_map, Id.Map.empty, syntax);
+  check(
+    bool,
+    "its own once ⇓ is off",
+    false,
+    Id.Map.is_empty(syntax.refractor_rows),
+  );
+};
+
 /* a drawer's rows go under its term's last line, not under its operator:
    `1 +` / `2` gets no blank line between */
 let rows_under_last_line = () => {
@@ -357,6 +378,7 @@ let tests = (
       `Quick,
       promoted_reserves_nothing,
     ),
+    test_case("rows follow the ⇓ role", `Quick, rows_follow_role),
     test_case(
       "drawer rows under the last line",
       `Quick,
