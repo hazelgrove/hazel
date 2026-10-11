@@ -2419,13 +2419,9 @@ module M: Projector = {
 
   let placeholder = (model: model, info: info) =>
     switch (info.stepping) {
-    | Some(st) =>
-      /* uncapped: steps are worked through, so the drawer opens to the
-         whole trace instead of scrolling inside itself */
-      ProjectorCore.Shape.{
-        horizontal: 0,
-        vertical: Tab(max(1, DrawerFit.rows(info.id, st.rows))),
-      }
+    /* uncapped: steps are worked through, so the drawer opens to the
+       whole trace instead of scrolling inside itself */
+    | Some(st) => DrawerFit.shape(info.id, st.rows)
     | None => placeholder_samples(model, info)
     };
 
