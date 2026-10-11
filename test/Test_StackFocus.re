@@ -165,7 +165,7 @@ let member_restructure = (): unit => {
   check_restructure(
     ~src=m_src,
     ~label="b",
-    ~op=Web.OutlineSidebar.Delete,
+    ~op=Web.OutlineEdit.Delete,
     ~expect=t => !contains("let b", t) && contains("let a", t),
     ~desc="member delete",
     (),
@@ -173,7 +173,7 @@ let member_restructure = (): unit => {
   check_restructure(
     ~src=m_src,
     ~label="b",
-    ~op=Web.OutlineSidebar.MoveUp,
+    ~op=Web.OutlineEdit.MoveUp,
     ~expect=
       t => {
         let ia = String.index(t, 'a');
@@ -186,7 +186,7 @@ let member_restructure = (): unit => {
   check_restructure(
     ~src=m_src,
     ~label="a",
-    ~op=Web.OutlineSidebar.NewBelow,
+    ~op=Web.OutlineEdit.NewBelow,
     ~expect=
       t =>
         contains("new_def", t)
@@ -198,7 +198,7 @@ let member_restructure = (): unit => {
   check_restructure(
     ~src=m_src,
     ~label="a",
-    ~op=Web.OutlineSidebar.Duplicate,
+    ~op=Web.OutlineEdit.Duplicate,
     ~expect=t => contains("let b", t),
     ~desc="member duplicate keeps the block intact",
     (),
@@ -207,7 +207,7 @@ let member_restructure = (): unit => {
   check_restructure(
     ~src="let f = fun x -> let y = 1 in y in f(1)",
     ~label="y",
-    ~op=Web.OutlineSidebar.NewBelow,
+    ~op=Web.OutlineEdit.NewBelow,
     ~expect=
       t =>
         contains("new_def", t)

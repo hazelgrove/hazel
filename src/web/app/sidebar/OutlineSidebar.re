@@ -11,18 +11,6 @@ let clss = cs => Attr.classes(cs);
 
 module TestStatus = Language.TestStatus;
 
-/* structural operations on a definition, from its row's context menu;
-   ItemEdit applies them at the item's owning block */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type def_op =
-  | NewBelow
-  | NewTypeBelow
-  | NewModuleBelow
-  | Duplicate
-  | MoveUp
-  | MoveDown
-  | Delete;
-
 /* the header row: the program and the zoom trail as a breadcrumb, and
    how many pins the current level shows or keeps parked */
 type header = {
@@ -56,41 +44,22 @@ let kind_cls = (k: OutlineTree.kind): string =>
   | KTrail => "ol-trail"
   };
 
-type name_edit =
-  OutlineEdit.t = {
-    ed_row: option(Language.Id.t),
-    ed_anchor: option(Language.Id.t),
-    ed_inside: bool,
-    ed_text: string,
-    ed_caret: int,
-    ed_error: option(string),
-  };
-
 type edit_ctl = {
-  current: option(name_edit),
+  current: option(OutlineEdit.t),
   /* read at the keypress: keys can outrun renders */
-  get: unit => option(name_edit),
-  set: option(name_edit) => Effect.t(unit),
+  get: unit => option(OutlineEdit.t),
+  set: option(OutlineEdit.t) => Effect.t(unit),
   /* save; with [true], start a new definition below */
-  commit: (name_edit, bool) => Effect.t(unit),
-};
-
-/* a new definition's kind from its leading keyword */
-let new_kind = (text: string): (OutlineTree.kind, string) => {
-  let starts = p =>
-    String.length(text) >= String.length(p)
-    && String.sub(text, 0, String.length(p)) == p;
-  starts("type ")
-    ? (KType, "type ")
-    : starts("module ") ? (KModule, "module ") : (KConst, "");
+  commit: (OutlineEdit.t, bool) => Effect.t(unit),
 };
 
 /* the typed text with its caret; a new definition's keyword colored */
-let edit_text = (ed: name_edit): list(Node.t) => {
+let edit_text = (ed: OutlineEdit.t): list(Node.t) => {
   let t = ed.ed_text;
   let n = String.length(t);
   let c = max(0, min(ed.ed_caret, n));
-  let p = ed.ed_row == None ? String.length(snd(new_kind(t))) : 0;
+  let p =
+    ed.ed_row == None ? String.length(snd(OutlineEdit.new_kind(t))) : 0;
   let piece = (a, b) => text(String.sub(t, a, b - a));
   let caret = span(~attrs=[clss(["outline-edit-caret"])], []);
   (
@@ -106,15 +75,15 @@ let edit_text = (ed: name_edit): list(Node.t) => {
   @ (c > p || p == 0 ? [piece(p, c), caret, piece(c, n)] : [piece(p, n)]);
 };
 
-let edit_hint = (ed: name_edit): list(Node.t) =>
+let edit_hint = (ed: OutlineEdit.t): list(Node.t) =>
   switch (ed.ed_error) {
   | Some(why) => [div(~attrs=[clss(["outline-edit-hint"])], [text(why)])]
   | None => []
   };
 
 /* the row a new definition is typed into, below its anchor */
-let new_row_view = (ed: name_edit): Node.t => {
-  let (k, _) = new_kind(ed.ed_text);
+let new_row_view = (ed: OutlineEdit.t): Node.t => {
+  let (k, _) = OutlineEdit.new_kind(ed.ed_text);
   div(
     ~attrs=[clss(["outline-leaf"])],
     [
@@ -701,7 +670,7 @@ type menu_row =
 
 let menu_rows =
     (
-      ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
+      ~def_op: (OutlineEdit.def_op, Language.Id.t) => Effect.t(unit),
       ~zoom_in: Language.Id.t => Effect.t(unit),
       ~edit: edit_ctl,
       ~is_module: bool,
@@ -718,16 +687,7 @@ let menu_rows =
       () =>
         Effect.Many([
           take_focus,
-          edit.set(
-            Some({
-              ed_row: None,
-              ed_anchor: Some(id),
-              ed_inside: inside,
-              ed_text: prefix,
-              ed_caret: String.length(prefix),
-              ed_error: None,
-            }),
-          ),
+          edit.set(Some(OutlineEdit.mk(~anchor=id, ~inside, prefix))),
         ]),
     );
   (
@@ -884,7 +844,7 @@ let keys =
       ~zoom_in: Language.Id.t => Effect.t(unit),
       ~zoom_out: Effect.t(unit),
       ~show_whole: bool => Effect.t(unit),
-      ~def_op: (def_op, Language.Id.t) => Effect.t(unit),
+      ~def_op: (OutlineEdit.def_op, Language.Id.t) => Effect.t(unit),
       ~leave: Effect.t(unit),
       ~edit: edit_ctl,
       /* read at the keypress, like the cursor */
@@ -1021,20 +981,11 @@ let keys =
     };
   let start_edit = (r: visible_row) =>
     nameable(r)
-      ? edit.set(
-          Some({
-            ed_row: r.r_node.o_id,
-            ed_anchor: None,
-            ed_inside: false,
-            ed_text: r.r_name,
-            ed_caret: String.length(r.r_name),
-            ed_error: None,
-          }),
-        )
+      ? edit.set(Some(OutlineEdit.mk(~row=?r.r_node.o_id, r.r_name)))
       : Effect.Ignore;
   /* typing a name: Enter saves and starts a new definition below, ↑↓
      save and move, Esc cancels */
-  let edit_key = (ed: name_edit) => {
+  let edit_key = (ed: OutlineEdit.t) => {
     let t = ed.ed_text;
     let c = max(0, min(ed.ed_caret, String.length(t)));
     let put = (t, c) =>
@@ -1304,7 +1255,7 @@ type handlers = {
   menu_select: int => Effect.t(unit),
   get_menu: unit => option((Language.Id.t, bool, float, float)),
   get_menu_sel: unit => int,
-  def_op: (def_op, Language.Id.t) => Effect.t(unit),
+  def_op: (OutlineEdit.def_op, Language.Id.t) => Effect.t(unit),
 };
 
 let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {

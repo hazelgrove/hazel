@@ -34,7 +34,7 @@ module Action = {
     | Collapse(OutlineTree.path)
     | Menu(option((Id.t, bool, float, float)))
     | MenuSel(int)
-    | DefOp(OutlineSidebar.def_op, Id.t)
+    | DefOp(OutlineEdit.def_op, Id.t)
     | Cursor(option(OutlineTree.path))
     | Edit(option(OutlineEdit.t))
     /* true: then a new one */
@@ -151,14 +151,7 @@ let update =
   | Commit(ed, then_new) =>
     /* nothing reaches the program until here: a rename is one
        refactoring, a new definition one insertion */
-    let fresh_below = (id: Id.t): OutlineEdit.t => {
-      ed_row: None,
-      ed_anchor: Some(id),
-      ed_inside: false,
-      ed_text: "",
-      ed_caret: 0,
-      ed_error: None,
-    };
+    let fresh_below = (id: Id.t) => OutlineEdit.mk(~anchor=id, "");
     let refuse = why => {
       edit :=
         Some({
@@ -209,7 +202,7 @@ let update =
       | Ok((new_seg, target)) =>
         let code = Workspace.with_segment(~settings, code, new_seg);
         let new_term = Program.statics(code.program).term;
-        let prefix = snd(OutlineSidebar.new_kind(text));
+        let prefix = snd(OutlineEdit.new_kind(text));
         switch (target) {
         | Some(id) =>
           cursor := OutlineTree.label_path(id, new_term);

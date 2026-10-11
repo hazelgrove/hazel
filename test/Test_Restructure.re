@@ -77,7 +77,7 @@ let top_level = (): unit => {
     apply_ok(
       ~src=top_src,
       ~label="a",
-      ~op=Web.OutlineSidebar.NewBelow,
+      ~op=Web.OutlineEdit.NewBelow,
       ~desc="top new-below",
     );
   check(bool, "top new-below inserts", true, contains("new_def", t));
@@ -91,7 +91,7 @@ let top_level = (): unit => {
     apply_ok(
       ~src=top_src,
       ~label="a",
-      ~op=Web.OutlineSidebar.NewTypeBelow,
+      ~op=Web.OutlineEdit.NewTypeBelow,
       ~desc="top new-type",
     );
   check(bool, "top new-type inserts", true, contains("type NewType", t));
@@ -99,7 +99,7 @@ let top_level = (): unit => {
     apply_ok(
       ~src=top_src,
       ~label="a",
-      ~op=Web.OutlineSidebar.NewModuleBelow,
+      ~op=Web.OutlineEdit.NewModuleBelow,
       ~desc="top new-module",
     );
   check(
@@ -112,7 +112,7 @@ let top_level = (): unit => {
     apply_ok(
       ~src=top_src,
       ~label="b",
-      ~op=Web.OutlineSidebar.Delete,
+      ~op=Web.OutlineEdit.Delete,
       ~desc="top delete",
     );
   check(bool, "top delete removes", true, !contains("let b", t));
@@ -120,7 +120,7 @@ let top_level = (): unit => {
     apply_ok(
       ~src=top_src,
       ~label="b",
-      ~op=Web.OutlineSidebar.MoveUp,
+      ~op=Web.OutlineEdit.MoveUp,
       ~desc="top move-up",
     );
   check(
@@ -133,7 +133,7 @@ let top_level = (): unit => {
     apply_ok(
       ~src=top_src,
       ~label="a",
-      ~op=Web.OutlineSidebar.MoveDown,
+      ~op=Web.OutlineEdit.MoveDown,
       ~desc="top move-down",
     );
   check(
@@ -146,7 +146,7 @@ let top_level = (): unit => {
     apply_ok(
       ~src=top_src,
       ~label="a",
-      ~op=Web.OutlineSidebar.Duplicate,
+      ~op=Web.OutlineEdit.Duplicate,
       ~desc="top duplicate",
     );
   check(
@@ -166,7 +166,7 @@ let top_level = (): unit => {
   apply_none(
     ~src=top_src,
     ~label="a",
-    ~op=Web.OutlineSidebar.MoveUp,
+    ~op=Web.OutlineEdit.MoveUp,
     ~desc="first item can't move up",
   );
 };
@@ -177,7 +177,7 @@ let statements = (): unit => {
     apply_ok(
       ~src=top_src,
       ~label="1",
-      ~op=Web.OutlineSidebar.Delete,
+      ~op=Web.OutlineEdit.Delete,
       ~desc="test delete",
     );
   check(bool, "test delete removes", true, !contains("test b == 2", t));
@@ -185,7 +185,7 @@ let statements = (): unit => {
     apply_ok(
       ~src=top_src,
       ~label="1",
-      ~op=Web.OutlineSidebar.MoveUp,
+      ~op=Web.OutlineEdit.MoveUp,
       ~desc="test move-up",
     );
   check(
@@ -222,7 +222,7 @@ let members = (): unit => {
     apply_ok(
       ~src=m_src,
       ~label="a",
-      ~op=Web.OutlineSidebar.NewBelow,
+      ~op=Web.OutlineEdit.NewBelow,
       ~desc="member new-below",
     );
   check(
@@ -334,22 +334,22 @@ let unterminated_tail = (): unit => {
     let t = apply_ok(~src, ~label, ~op, ~desc);
     check(list(string), desc ++ ": members", expected, rows_of(t));
   };
-  ok(~label="z", ~op=Web.OutlineSidebar.MoveUp, ~desc="move up", ["z", "a"]);
+  ok(~label="z", ~op=Web.OutlineEdit.MoveUp, ~desc="move up", ["z", "a"]);
   ok(
     ~label="a",
-    ~op=Web.OutlineSidebar.MoveDown,
+    ~op=Web.OutlineEdit.MoveDown,
     ~desc="move down",
     ["z", "a"],
   );
   ok(
     ~label="z",
-    ~op=Web.OutlineSidebar.Duplicate,
+    ~op=Web.OutlineEdit.Duplicate,
     ~desc="duplicate",
     ["a", "z", "z"],
   );
   ok(
     ~label="z",
-    ~op=Web.OutlineSidebar.NewBelow,
+    ~op=Web.OutlineEdit.NewBelow,
     ~desc="new below",
     ["a", "z", "new_def"],
   );
@@ -385,13 +385,9 @@ let unterminated_tail = (): unit => {
         mod_rows(mod_parse(text_of(seg'))),
       )
     };
-  mod_ok(Web.OutlineSidebar.MoveUp, "mod move up", ["z", "a"]);
-  mod_ok(Web.OutlineSidebar.Duplicate, "mod duplicate", ["a", "z", "z"]);
-  mod_ok(
-    Web.OutlineSidebar.NewBelow,
-    "mod new below",
-    ["a", "z", "new_def"],
-  );
+  mod_ok(Web.OutlineEdit.MoveUp, "mod move up", ["z", "a"]);
+  mod_ok(Web.OutlineEdit.Duplicate, "mod duplicate", ["a", "z", "z"]);
+  mod_ok(Web.OutlineEdit.NewBelow, "mod new below", ["a", "z", "new_def"]);
 };
 
 /* Alt↑↓ across module edges: in at the neighbour's end or start, out to
@@ -560,7 +556,7 @@ let round_trip = (): unit => {
   switch (
     R.apply(
       ~mod_root=true,
-      Web.OutlineSidebar.Delete,
+      Web.OutlineEdit.Delete,
       outline_id(term, "s"),
       seg0,
     )
@@ -576,7 +572,7 @@ let fn_body = (): unit => {
     apply_ok(
       ~src,
       ~label="y",
-      ~op=Web.OutlineSidebar.NewBelow,
+      ~op=Web.OutlineEdit.NewBelow,
       ~desc="flattened fn-body new-below",
     );
   check(
@@ -590,7 +586,7 @@ let fn_body = (): unit => {
   apply_none(
     ~src,
     ~label="y",
-    ~op=Web.OutlineSidebar.MoveUp,
+    ~op=Web.OutlineEdit.MoveUp,
     ~desc="nested let can't cross its member head",
   );
 };
@@ -630,7 +626,7 @@ let let_body = (): unit => {
   let t =
     ok(
       ~label="x",
-      ~op=Web.OutlineSidebar.MoveDown,
+      ~op=Web.OutlineEdit.MoveDown,
       ~desc="move down",
       ["z", "x.y"],
     );
@@ -638,7 +634,7 @@ let let_body = (): unit => {
   ignore(
     ok(
       ~label="z",
-      ~op=Web.OutlineSidebar.MoveUp,
+      ~op=Web.OutlineEdit.MoveUp,
       ~desc="move up",
       ["z", "x.y"],
     ),
@@ -646,7 +642,7 @@ let let_body = (): unit => {
   ignore(
     ok(
       ~label="x",
-      ~op=Web.OutlineSidebar.Duplicate,
+      ~op=Web.OutlineEdit.Duplicate,
       ~desc="duplicate",
       ["x.y", "x.y", "z"],
     ),
@@ -654,18 +650,17 @@ let let_body = (): unit => {
   ignore(
     ok(
       ~label="x",
-      ~op=Web.OutlineSidebar.NewBelow,
+      ~op=Web.OutlineEdit.NewBelow,
       ~desc="new below",
       ["x.y", "new_def", "z"],
     ),
   );
-  let t =
-    ok(~label="x", ~op=Web.OutlineSidebar.Delete, ~desc="delete", ["z"]);
+  let t = ok(~label="x", ~op=Web.OutlineEdit.Delete, ~desc="delete", ["z"]);
   check(bool, "delete takes the body", false, contains("y + 1", t));
   ignore(
     ok(
       ~label="y",
-      ~op=Web.OutlineSidebar.NewBelow,
+      ~op=Web.OutlineEdit.NewBelow,
       ~desc="inner new below",
       ["x.y.new_def", "z"],
     ),
@@ -673,7 +668,7 @@ let let_body = (): unit => {
   ignore(
     ok(
       ~label="y",
-      ~op=Web.OutlineSidebar.Delete,
+      ~op=Web.OutlineEdit.Delete,
       ~desc="inner delete",
       ["x", "z"],
     ),
@@ -681,7 +676,7 @@ let let_body = (): unit => {
   apply_none(
     ~src,
     ~label="y",
-    ~op=Web.OutlineSidebar.MoveUp,
+    ~op=Web.OutlineEdit.MoveUp,
     ~desc="the inner let can't leave its member",
   );
   /* a function member's flattened body: the same */
@@ -690,7 +685,7 @@ let let_body = (): unit => {
     apply_ok(
       ~src=fsrc,
       ~label="f",
-      ~op=Web.OutlineSidebar.MoveDown,
+      ~op=Web.OutlineEdit.MoveDown,
       ~desc="fn member move down",
     );
   check(
@@ -730,24 +725,24 @@ let refused = (): unit => {
     op =>
       check(
         bool,
-        "result row: " ++ Web.OutlineSidebar.show_def_op(op),
+        "result row: " ++ Web.OutlineEdit.show_def_op(op),
         true,
         R.apply(op, result_row, seg) == None,
       ),
-    Web.OutlineSidebar.[Delete, Duplicate, MoveUp, MoveDown],
+    Web.OutlineEdit.[Delete, Duplicate, MoveUp, MoveDown],
   );
   /* a module's last test without its `;` */
   let msrc = "let z = 0 in\nmodule M = {\n  let a = 1;\n  test 1 + 1 == 2 end\n} in\nM.a";
   apply_none(
     ~src=msrc,
     ~label="1",
-    ~op=Web.OutlineSidebar.Delete,
+    ~op=Web.OutlineEdit.Delete,
     ~desc="last test: delete",
   );
   apply_none(
     ~src=msrc,
     ~label="1",
-    ~op=Web.OutlineSidebar.Duplicate,
+    ~op=Web.OutlineEdit.Duplicate,
     ~desc="last test: duplicate",
   );
   let seg = parse(msrc);

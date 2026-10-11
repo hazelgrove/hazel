@@ -478,7 +478,7 @@ let insert =
 let apply_at =
     (
       ~name: option(string)=?,
-      op: OutlineSidebar.def_op,
+      op: OutlineEdit.def_op,
       ~in_module: bool,
       ~bol: bool,
       spans: array(Focus.item_span),
@@ -746,7 +746,7 @@ let apply =
     (
       ~name: option(string)=?,
       ~mod_root=false,
-      op: OutlineSidebar.def_op,
+      op: OutlineEdit.def_op,
       fid: Id.t,
       seg: Segment.t,
     )
@@ -1109,7 +1109,7 @@ let move =
 
 /* how the outline edits a program's items, addressed by id */
 type t =
-  | Op(OutlineSidebar.def_op, Id.t)
+  | Op(OutlineEdit.def_op, Id.t)
   | Rename(Id.t, string)
   /* a new definition below the row: `name`, `type Name` or
      `module Name` */
@@ -1119,7 +1119,7 @@ type t =
 
 /* a typed name and the kind its keyword picks */
 let typed_name = (text: string): (OutlineTree.kind, string) => {
-  let (kind, prefix) = OutlineSidebar.new_kind(text);
+  let (kind, prefix) = OutlineEdit.new_kind(text);
   (
     kind,
     String.trim(
@@ -1176,7 +1176,7 @@ let edit =
     |> Result.map(seg => (seg, Some(row)))
   | Insert(anchor, text) =>
     let (kind, name) = typed_name(text);
-    let (rkind, op): (OutlineRename.kind, OutlineSidebar.def_op) =
+    let (rkind, op): (OutlineRename.kind, OutlineEdit.def_op) =
       switch (kind) {
       | KType => (KType, NewTypeBelow)
       | KModule => (KModule, NewModuleBelow)
