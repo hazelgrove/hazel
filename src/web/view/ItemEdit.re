@@ -1,6 +1,7 @@
 module Focus = ScratchFocus;
 
 open Haz3lcore;
+open Util;
 
 let parse = (~root=Sort.Exp, txt: string): option(Segment.t) =>
   FastParse.of_text(
@@ -85,13 +86,13 @@ let zz = ¿} in
       let n = Array.length(arr);
       let rec last_semi = (i, best) =>
         i >= n
-          ? best : last_semi(i + 1, Focus.is_semi(arr[i]) ? Some(i) : best);
+          ? best : last_semi(i + 1, Piece.is_semi(arr[i]) ? Some(i) : best);
       switch (last_semi(0, None)) {
       | None => None
       | Some(j) =>
         let rec ws_end = i =>
           i < n && Focus.is_edge_ws(arr[i]) ? ws_end(i + 1) : i;
-        Some(Focus.take(ws_end(j + 1), members));
+        Some(ListUtil.truncate(ws_end(j + 1), members));
       };
     };
   };
@@ -104,14 +105,18 @@ let split_terminator = (ps: Segment.t): (Segment.t, Segment.t, bool) => {
   let rec back = i =>
     i > 0 && Focus.is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
   let at = back(Array.length(arr));
-  at > 0 && Focus.is_semi(arr[at - 1])
-    ? (Focus.take(at - 1, ps), Focus.drop(at - 1, ps), true)
-    : (Focus.take(at, ps), Focus.drop(at, ps), false);
+  at > 0 && Piece.is_semi(arr[at - 1])
+    ? (
+      ListUtil.truncate(at - 1, ps),
+      ListUtil.remove_first_n(at - 1, ps),
+      true,
+    )
+    : (ListUtil.truncate(at, ps), ListUtil.remove_first_n(at, ps), false);
 };
 
 let fresh_semi = (): option(Piece.t) =>
   Option.bind(member_chunk({js|let zz = 0|js}), chunk =>
-    List.find_opt(Focus.is_semi, chunk)
+    List.find_opt(Piece.is_semi, chunk)
   );
 
 let text_of = (ps: Segment.t): string =>
@@ -192,7 +197,7 @@ let span_in_tile = (arr: array(Piece.t), sp: Focus.item_span): bool => {
         }
       );
   switch (first_tile(sp.sp_start)) {
-  | Some(t) => Focus.ends_with_in(t)
+  | Some(t) => Tile.ends_with_in(t)
   | None => false
   };
 };
@@ -208,11 +213,7 @@ let block =
   let arr = Array.of_list(seg);
   let len = Array.length(arr);
   let member = k => in_module && !span_in_tile(arr, spans[k]);
-  let is_sec = i =>
-    switch (arr[i]) {
-    | Piece.Secondary(_) => true
-    | _ => false
-    };
+  let is_sec = i => Piece.is_secondary(arr[i]);
   let comment = i =>
     switch (arr[i]) {
     | Piece.Secondary(w) => Secondary.is_comment(w)
@@ -248,7 +249,7 @@ let block =
   };
   let semi_ended = (sp: Focus.item_span) => {
     let ce = content_end(sp);
-    ce > sp.sp_start && Focus.is_semi(arr[ce - 1]);
+    ce > sp.sp_start && Piece.is_semi(arr[ce - 1]);
   };
   /* trailing spans without an item: comments only, the hole, or the
      hole of a member block with no members */
@@ -292,7 +293,7 @@ let block =
         let lo = line_start(i) ? attach(i) : f;
         let ce = content_end(sp);
         let (core, term) =
-          if (member(k) && ce > f && Focus.is_semi(arr[ce - 1])) {
+          if (member(k) && ce > f && Piece.is_semi(arr[ce - 1])) {
             (
               ce - 1,
               switch (merged) {
@@ -342,24 +343,26 @@ let indent_end = (b: block, k: int): int => {
   go(b.sl[k].lo);
 };
 let indent = (b: block, k: int) =>
-  Focus.slice(b.sl[k].lo, indent_end(b, k), b.seg);
+  ListUtil.slice(b.sl[k].lo, indent_end(b, k) - b.sl[k].lo, b.seg);
 /* the item itself: no indentation or terminator */
-let bare = (b: block, k: int) =>
-  Focus.slice(indent_end(b, k), b.sl[k].core, b.seg);
+let bare = (b: block, k: int) => {
+  let i = indent_end(b, k);
+  ListUtil.slice(i, b.sl[k].core - i, b.seg);
+};
 let term = (b: block, k: int) =>
-  Focus.slice(b.sl[k].core, b.sl[k].term, b.seg);
+  ListUtil.slice(b.sl[k].core, b.sl[k].term - b.sl[k].core, b.seg);
 let trail = (b: block, k: int) =>
-  Focus.slice(b.sl[k].term, b.sl[k].hi, b.seg);
+  ListUtil.slice(b.sl[k].term, b.sl[k].hi - b.sl[k].term, b.seg);
 /* between items [k] and [k + 1]: comments neither owns */
 let gap = (b: block, k: int) =>
-  Focus.slice(b.sl[k].hi, b.sl[k + 1].lo, b.seg);
+  ListUtil.slice(b.sl[k].hi, b.sl[k + 1].lo - b.sl[k].hi, b.seg);
 let starts_line = (b: block, k: int): bool =>
   b.sl[k].lo == 0 ? b.bol : Piece.is_linebreak(b.arr[b.sl[k].lo - 1]);
 
 /* items [k] and [k + 1] trade places; indentation, terminators and the
    spacing between stay put */
 let swap = (b: block, k: int): Segment.t =>
-  Focus.take(b.sl[k].lo, b.seg)
+  ListUtil.truncate(b.sl[k].lo, b.seg)
   @ indent(b, k)
   @ bare(b, k + 1)
   @ term(b, k)
@@ -369,20 +372,21 @@ let swap = (b: block, k: int): Segment.t =>
   @ bare(b, k)
   @ term(b, k + 1)
   @ trail(b, k + 1)
-  @ Focus.drop(b.sl[k + 1].hi, b.seg);
+  @ ListUtil.remove_first_n(b.sl[k + 1].hi, b.seg);
 
 /* item [k] gone; a module's last member hands its terminator to the one
    before it */
 let remove = (b: block, k: int): Segment.t =>
   if (k > 0 && k == Array.length(b.sl) - 1 && b.member(k) && b.member(k - 1)) {
-    Focus.take(b.sl[k - 1].core, b.seg)
+    ListUtil.truncate(b.sl[k - 1].core, b.seg)
     @ term(b, k)
     @ (
       gap(b, k - 1) == [] ? trail(b, k) : trail(b, k - 1) @ gap(b, k - 1)
     )
-    @ Focus.drop(b.sl[k].hi, b.seg);
+    @ ListUtil.remove_first_n(b.sl[k].hi, b.seg);
   } else {
-    Focus.take(b.sl[k].lo, b.seg) @ Focus.drop(b.sl[k].hi, b.seg);
+    ListUtil.truncate(b.sl[k].lo, b.seg)
+    @ ListUtil.remove_first_n(b.sl[k].hi, b.seg);
   };
 
 type pos =
@@ -428,14 +432,14 @@ let insert =
     | Some(s) when member && b.member(k) =>
       let sep = trail(b, k) == [] ? [space()] : trail(b, k);
       Some(
-        Focus.take(b.sl[k].core, b.seg)
+        ListUtil.truncate(b.sl[k].core, b.seg)
         @ [s]
         @ sep
         @ spaces(k)
         @ shifted(k)
         @ term(b, k)
         @ trail_or(spacing(trail(b, k)))
-        @ Focus.drop(b.sl[k].hi, b.seg),
+        @ ListUtil.remove_first_n(b.sl[k].hi, b.seg),
       );
     | _ => None
     }
@@ -443,12 +447,12 @@ let insert =
     Option.map(
       t => {
         let at = b.sl[k].hi;
-        Focus.take(at, b.seg)
+        ListUtil.truncate(at, b.seg)
         @ spaces(k + 1)
         @ shifted(k + 1)
         @ t
         @ trail_or(spacing(trail(b, k)))
-        @ Focus.drop(at, b.seg);
+        @ ListUtil.remove_first_n(at, b.seg);
       },
       semi(),
     )
@@ -460,12 +464,12 @@ let insert =
           p > 0
             ? spacing(trail(b, p - 1))
             : [starts_line(b, p) ? linebreak() : space()];
-        Focus.take(at, b.seg)
+        ListUtil.truncate(at, b.seg)
         @ spaces(p)
         @ shifted(p)
         @ t
         @ trail_or(default)
-        @ Focus.drop(at, b.seg);
+        @ ListUtil.remove_first_n(at, b.seg);
       },
       semi(),
     )
@@ -611,7 +615,7 @@ let rec at_level_found =
     let line = back(b0);
     let bol = line > 0 && Piece.is_linebreak(arr[line - 1]);
     let b0 = bol ? line : b0;
-    let body = Focus.slice(b0, b1, seg);
+    let body = ListUtil.slice(b0, b1 - b0, seg);
     let bspans = Array.of_list(Focus.item_spans(body));
     let barr = Array.of_list(body);
     let rec holding = k =>
@@ -624,7 +628,12 @@ let rec at_level_found =
     | Some(k) =>
       act(~in_module=false, ~bol, bspans, k, body)
       |> Option.map(((body', target)) =>
-           (Focus.take(b0, seg) @ body' @ Focus.drop(b1, seg), target)
+           (
+             ListUtil.truncate(b0, seg)
+             @ body'
+             @ ListUtil.remove_first_n(b1, seg),
+             target,
+           )
          )
       |> acted
     | None => Refused
@@ -721,7 +730,7 @@ let rec at_level_found =
         find((sp: Focus.item_span) =>
           Focus.seg_contains_id(
             fid,
-            Focus.slice(sp.sp_start, sp.sp_stop, seg),
+            ListUtil.slice(sp.sp_start, sp.sp_stop - sp.sp_start, seg),
           )
         )
       ) {
@@ -852,15 +861,14 @@ let into_empty =
       | Some(src) when src != inner => LocalReformat.shift(inner - src, item)
       | _ => item
       };
-    let spaces = k => List.init(k, _ => space());
     switch (
       List.exists(empty, def_seg),
       brace_of(
         [linebreak()]
-        @ spaces(inner)
+        @ Indentation.make_indent_spaces(inner)
         @ item
         @ [linebreak()]
-        @ spaces(outer),
+        @ Indentation.make_indent_spaces(outer),
       ),
     ) {
     | (true, Some(brace)) =>
@@ -1173,7 +1181,7 @@ let edit =
       name,
       seg,
     )
-    |> Result.map(seg => (seg, Some(row)))
+    |> Result.map(~f=seg => (seg, Some(row)))
   | Insert(anchor, text) =>
     let (kind, name) = typed_name(text);
     let (rkind, op): (OutlineRename.kind, OutlineEdit.def_op) =

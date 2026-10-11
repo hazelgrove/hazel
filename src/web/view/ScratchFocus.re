@@ -2,17 +2,8 @@
    `in`/`;`), complete and grouted; slicing the whole `let…in` tile
    leaves a prefix tile without its operand and crashes Skel. */
 open Haz3lcore;
+open Util;
 
-let ends_with_in = (t: Base.tile): bool =>
-  switch (List.rev(Tile.label(t))) {
-  | ["in", ..._] => true
-  | _ => false
-  };
-let is_semi = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) => Tile.label(t) == [";"]
-  | _ => false
-  };
 /* cells hold slices without edge whitespace (stray in an isolated
    cell); splicing re-wraps them in the program's own padding, so it
    round-trips unstored. Comments are content, not padding. */
@@ -105,26 +96,12 @@ let rec seg_contains_id = (target: Id.t, seg: Segment.t): bool =>
     seg,
   );
 
-let rec take = (n, xs) =>
-  switch (n, xs) {
-  | (0, _)
-  | (_, []) => []
-  | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
-  };
-let rec drop = (n, xs) =>
-  switch (n, xs) {
-  | (0, _)
-  | (_, []) => xs
-  | (n, [_, ...xs]) => drop(n - 1, xs)
-  };
-let slice = (a, b, xs) => take(b - a, drop(a, xs));
-
 /* split [ps] at the first `;` piece: (def run, separator + rest) */
 let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
   let rec go = (acc, ps) =>
     switch (ps) {
     | [] => (List.rev(acc), [])
-    | [p, ..._] when is_semi(p) => (List.rev(acc), ps)
+    | [p, ..._] when Piece.is_semi(p) => (List.rev(acc), ps)
     | [p, ...rest] => go([p, ...acc], rest)
     };
   go([], ps);
@@ -152,7 +129,7 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
   let rec ws_end = i => i < len && is_edge_ws(arr[i]) ? ws_end(i + 1) : i;
   let is_in_tile = (p: Piece.t) =>
     switch (p) {
-    | Tile(t) => ends_with_in(t)
+    | Tile(t) => Tile.ends_with_in(t)
     | _ => false
     };
   /* module bodies have 2-shard member defs ended by `;`: a `;`-run
@@ -230,7 +207,7 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
           ...acc,
         ],
       );
-    } else if (is_semi(arr[i])) {
+    } else if (Piece.is_semi(arr[i])) {
       let stop = ws_end(i + 1);
       let sp =
         switch (run_def_head(start, i)) {
@@ -284,7 +261,7 @@ let flat_body = (arr: array(Piece.t), sp: item_span): option((int, int)) => {
       ? None
       : (
         switch (arr[i]) {
-        | Tile(t) when ends_with_in(t) => head ? None : Some(i)
+        | Tile(t) when Tile.ends_with_in(t) => head ? None : Some(i)
         | Tile(_) => first_in(~head=false, i + 1)
         | _ => first_in(~head, i + 1)
         }
@@ -292,7 +269,8 @@ let flat_body = (arr: array(Piece.t), sp: item_span): option((int, int)) => {
   let rec back = i =>
     i > sp.sp_start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
   let stop = back(sp.sp_stop);
-  let stop = stop > sp.sp_start && is_semi(arr[stop - 1]) ? stop - 1 : stop;
+  let stop =
+    stop > sp.sp_start && Piece.is_semi(arr[stop - 1]) ? stop - 1 : stop;
   sp.sp_kind == IDef
     ? Option.map(b0 => (b0, stop), first_in(~head=true, sp.sp_start)) : None;
 };
@@ -325,7 +303,11 @@ let find_item_span =
   | Some(_) as r => r
   | None =>
     List.find_opt(
-      sp => seg_contains_id(fid, slice(sp.sp_start, sp.sp_stop, seg)),
+      sp =>
+        seg_contains_id(
+          fid,
+          ListUtil.slice(sp.sp_start, sp.sp_stop - sp.sp_start, seg),
+        ),
       spans,
     )
   };
@@ -342,7 +324,8 @@ let rec headless_span =
     let rec back = i =>
       i > sp_start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
     let stop = back(sp_stop);
-    let stop = stop > sp_start && is_semi(arr[stop - 1]) ? stop - 1 : stop;
+    let stop =
+      stop > sp_start && Piece.is_semi(arr[stop - 1]) ? stop - 1 : stop;
     Some((sp_start, stop, {js|;|js}));
   | Some({sp_kind: ITail, sp_start, sp_stop, _}) =>
     Some((sp_start, sp_stop, {js|⇒|js}))
@@ -350,7 +333,11 @@ let rec headless_span =
     let arr = Array.of_list(seg);
     switch (flat_body_of(fid, arr, [sp])) {
     | Some((b0, b1)) =>
-      headless_span(~divided_only_tail=true, fid, slice(b0, b1, seg))
+      headless_span(
+        ~divided_only_tail=true,
+        fid,
+        ListUtil.slice(b0, b1 - b0, seg),
+      )
       |> Option.map(((a, b, sym)) => (b0 + a, b0 + b, sym))
     | None => None
     };
@@ -363,7 +350,8 @@ let rec headless_span =
 let rec headless_deep_go =
         (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
   switch (headless_span(~divided_only_tail=true, fid, seg)) {
-  | Some((start, stop, sym)) => Some((slice(start, stop, seg), sym))
+  | Some((start, stop, sym)) =>
+    Some((ListUtil.slice(start, stop - start, seg), sym))
   | None =>
     List.find_map(
       (p: Piece.t) =>
@@ -381,7 +369,8 @@ let rec headless_deep_go =
 let headless_content_deep =
     (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
   switch (headless_span(fid, seg)) {
-  | Some((start, stop, sym)) => Some((slice(start, stop, seg), sym))
+  | Some((start, stop, sym)) =>
+    Some((ListUtil.slice(start, stop - start, seg), sym))
   | None =>
     List.find_map(
       (p: Piece.t) =>
@@ -421,22 +410,10 @@ let tile_sharing =
    and a line new to the cell gets [base] spaces made once for its line
    break. */
 
-let is_space_piece = (p: Piece.t): bool =>
-  switch (p) {
-  | Secondary(w) => Secondary.is_space(w)
-  | _ => false
-  };
-
-let is_linebreak_piece = (p: Piece.t): bool =>
-  switch (p) {
-  | Secondary(w) => Secondary.is_linebreak(w)
-  | _ => false
-  };
-
 /* up to [n] of the spaces that open [ps] */
 let rec drop_spaces = (n: int, ps: Segment.t): Segment.t =>
   switch (ps) {
-  | [p, ...rest] when n > 0 && is_space_piece(p) => drop_spaces(n - 1, rest)
+  | [p, ...rest] when n > 0 && Piece.is_space(p) => drop_spaces(n - 1, rest)
   | _ => ps
   };
 
@@ -448,7 +425,7 @@ let dedent = (base: int, seg: Segment.t): Segment.t =>
       let rec walk = (ps: Segment.t): Segment.t =>
         switch (ps) {
         | [] => []
-        | [p, ...rest] when is_linebreak_piece(p) => [
+        | [p, ...rest] when Piece.is_linebreak(p) => [
             p,
             ...walk(drop_spaces(base, rest)),
           ]
@@ -491,14 +468,6 @@ type cut_pairs = {
   after: Id.Map.t(Segment.t),
 };
 
-let rec split_spaces = (ps: Segment.t): (Segment.t, Segment.t) =>
-  switch (ps) {
-  | [p, ...rest] when is_space_piece(p) =>
-    let (sp, rest) = split_spaces(rest);
-    ([p, ...sp], rest);
-  | _ => ([], ps)
-  };
-
 let pairs_of = (ind: ScratchCell.indent): cut_pairs => {
   let tiles = ref(Id.Map.empty);
   let after = ref(Id.Map.empty);
@@ -506,11 +475,11 @@ let pairs_of = (ind: ScratchCell.indent): cut_pairs => {
      breaks, which lead the rest of [o] only */
   let rec pair = (o: Segment.t, c: Segment.t) =>
     switch (o, c) {
-    | ([lb, ...o_rest], [_, ...c_rest]) when is_linebreak_piece(lb) =>
-      let (o_sp, o_rest) = split_spaces(o_rest);
-      let (c_sp, c_rest) = split_spaces(c_rest);
+    | ([lb, ...o_rest], [_, ...c_rest]) when Piece.is_linebreak(lb) =>
+      let (o_sp, o_rest) = Segment.split_space_run(o_rest);
+      let (c_sp, c_rest) = Segment.split_space_run(c_rest);
       let removed =
-        Util.ListUtil.take(List.length(o_sp) - List.length(c_sp), o_sp);
+        ListUtil.take(List.length(o_sp) - List.length(c_sp), o_sp);
       after := Id.Map.add(Piece.id(lb), removed, after^);
       pair(o_rest, c_rest);
     | ([Tile(ot) as op, ...o_rest], [Tile(ct), ...c_rest]) =>
@@ -539,7 +508,7 @@ let pairs = (ind: ScratchCell.indent): cut_pairs =>
   | Some((_, p)) => p
   | None =>
     let p = pairs_of(ind);
-    pairs_memo := [(ind.cut, p), ...Util.ListUtil.take(31, pairs_memo^)];
+    pairs_memo := [(ind.cut, p), ...ListUtil.take(31, pairs_memo^)];
     p;
   };
 
@@ -584,13 +553,13 @@ let restore = (ind: ScratchCell.indent, cur: Segment.t): Segment.t =>
       let rec walk = (ps: Segment.t): Segment.t =>
         switch (ps) {
         | [] => []
-        | [lb, ...rest] when is_linebreak_piece(lb) =>
+        | [lb, ...rest] when Piece.is_linebreak(lb) =>
           let back =
             switch (Id.Map.find_opt(Piece.id(lb), after)) {
             | Some(sp) => sp
             | None =>
               switch (rest) {
-              | [next, ..._] when is_linebreak_piece(next) => []
+              | [next, ..._] when Piece.is_linebreak(next) => []
               | _ => fresh_indent(Piece.id(lb), ind.base)
               }
             };
@@ -629,8 +598,13 @@ let splice_headless_deep =
   let rec go = (~top: bool, seg: Segment.t): Segment.t =>
     switch (headless_span(~divided_only_tail=!top, fid, seg)) {
     | Some((start, stop, _)) =>
-      let (pre, _, suf) = trim_ws(slice(start, stop, seg));
-      let out = take(start, seg) @ pre @ repl @ suf @ drop(stop, seg);
+      let (pre, _, suf) = trim_ws(ListUtil.slice(start, stop - start, seg));
+      let out =
+        ListUtil.truncate(start, seg)
+        @ pre
+        @ repl
+        @ suf
+        @ ListUtil.remove_first_n(stop, seg);
       Segment.ptr_eq(out, seg) ? seg : out;
     | None =>
       map_sharing(
@@ -737,7 +711,11 @@ let test_run =
       : spans[j].sp_id == Some(fid)
         || seg_contains_id(
              fid,
-             slice(spans[j].sp_start, spans[j].sp_stop, seg),
+             ListUtil.slice(
+               spans[j].sp_start,
+               spans[j].sp_stop - spans[j].sp_start,
+               seg,
+             ),
            )
           ? Some(j) : idx(j + 1);
   switch (idx(0)) {
@@ -758,7 +736,7 @@ let test_run =
     let rec back = i =>
       i > start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
     let stop = back(spans[b].sp_stop);
-    let stop = stop > start && is_semi(arr[stop - 1]) ? stop - 1 : stop;
+    let stop = stop > start && Piece.is_semi(arr[stop - 1]) ? stop - 1 : stop;
     Some((start, stop, members, b - a + 1));
   | _ => None
   };
@@ -770,7 +748,7 @@ let rec test_run_deep_go =
         : option((Segment.t, list(Id.t), int)) =>
   switch (test_run(~module_body, fid, seg)) {
   | Some((start, stop, members, n)) =>
-    Some((slice(start, stop, seg), members, n))
+    Some((ListUtil.slice(start, stop - start, seg), members, n))
   | None =>
     List.find_map(
       (p: Piece.t) =>
@@ -802,8 +780,13 @@ let splice_run_deep = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
   let rec go = (~module_body: bool, seg: Segment.t): Segment.t =>
     switch (test_run(~module_body, fid, seg)) {
     | Some((start, stop, _, _)) =>
-      let (pre, _, suf) = trim_ws(slice(start, stop, seg));
-      let out = take(start, seg) @ pre @ repl @ suf @ drop(stop, seg);
+      let (pre, _, suf) = trim_ws(ListUtil.slice(start, stop - start, seg));
+      let out =
+        ListUtil.truncate(start, seg)
+        @ pre
+        @ repl
+        @ suf
+        @ ListUtil.remove_first_n(stop, seg);
       Segment.ptr_eq(out, seg) ? seg : out;
     | None =>
       map_sharing(
@@ -834,7 +817,7 @@ let rec find_def = (fid: Id.t, seg: Segment.t): option(Segment.t) => {
     switch (ps) {
     | [] => None
     | [Piece.Tile(t), ...rest] when t.id == fid =>
-      if (ends_with_in(t)) {
+      if (Tile.ends_with_in(t)) {
         switch (List.rev(t.children)) {
         | [def, ..._] => Some(def)
         | [] => None
@@ -864,7 +847,7 @@ let rec splice_def = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => 
     | [] => []
     | [Piece.Tile(t) as p, ...rest] when t.id == fid =>
       /* the program's own tile when the text is its own */
-      if (ends_with_in(t)) {
+      if (Tile.ends_with_in(t)) {
         switch (List.rev(t.children)) {
         | [last, ..._] when Segment.ptr_eq(repl, last) => [p, ...rest]
         | [_, ...rev_rest] => [
