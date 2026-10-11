@@ -2596,38 +2596,31 @@ let from_zip_for_sem_with_completion =
   /* small for the same reason as [go]: keys pin zippers */
   Core.Memo.general(~cache_size_bound=8, from_zip_for_sem_with_completion);
 
-/* semantic pattern of a Pat-rooted cell (`name : T` headers) */
-let from_zip_for_pat = (z: Zipper.t): Pat.t => {
-  let (seg, _) = semantic_segment(~root=Sort.Pat, semantic_source(z));
+/* the semantic term of a cell rooted at [root]; [default] if it has no
+   skeleton */
+let from_zip_at =
+    (~root: Sort.t, ~default: unit => 'a, term: unsorted => 'a, z: Zipper.t)
+    : 'a => {
+  let (seg, _) = semantic_segment(~root, semantic_source(z));
   fresh(seg, () =>
     switch (Segment.skel(seg)) {
-    | exception _ => Pat.fresh(EmptyHole)
-    | skel => pat(unsorted(Sort.Pat, skel, seg))
+    | exception _ => default()
+    | skel => term(unsorted(root, skel, seg))
     }
   );
 };
 
-/* semantic type of a Typ-rooted cell (type-alias bodies) */
-let from_zip_for_typ = (z: Zipper.t): Typ.t => {
-  let (seg, _) = semantic_segment(~root=Sort.Typ, semantic_source(z));
-  fresh(seg, () =>
-    switch (Segment.skel(seg)) {
-    | exception _ => Typ.fresh(Unknown(Hole(EmptyHole)))
-    | skel => typ(unsorted(Sort.Typ, skel, seg))
-    }
+/* `name : T` headers, type-alias bodies and type-alias headers */
+let from_zip_for_pat =
+  from_zip_at(~root=Sort.Pat, ~default=() => Pat.fresh(EmptyHole), pat);
+let from_zip_for_typ =
+  from_zip_at(
+    ~root=Sort.Typ,
+    ~default=() => Typ.fresh(Unknown(Hole(EmptyHole))),
+    typ,
   );
-};
-
-/* semantic tpat of a TPat-rooted cell (type-alias headers) */
-let from_zip_for_tpat = (z: Zipper.t): TPat.t => {
-  let (seg, _) = semantic_segment(~root=Sort.TPat, semantic_source(z));
-  fresh(seg, () =>
-    switch (Segment.skel(seg)) {
-    | exception _ => TPat.fresh(EmptyHole)
-    | skel => tpat(unsorted(Sort.TPat, skel, seg))
-    }
-  );
-};
+let from_zip_for_tpat =
+  from_zip_at(~root=Sort.TPat, ~default=() => TPat.fresh(EmptyHole), tpat);
 
 /* syntax data for a non-Exp-rooted cell, parsed at its own sort (the
    Exp-rooted [go] would flag every token sort-inconsistent); go_s also
