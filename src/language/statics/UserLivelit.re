@@ -687,12 +687,22 @@ let head_key = (e: TermBase.Exp.t): option(string) =>
     Option.map(k => k ++ "." ++ n, path_key(p))
   | _ => None
   };
-/* The head inside a direct use with parameters, `^a(args)(model)`. */
-let ap_head_key = (e: TermBase.Exp.t): option(string) =>
+/* The head inside a direct use with parameters, `^a(args)(model)`, or
+   with a type argument before them, `^a@<T>(args)(model)`: its key, and
+   the type argument when there is one. */
+let ap_head = (e: TermBase.Exp.t): option((string, option(TermBase.Typ.t))) =>
   switch (strip_parens(e).term) {
-  | Ap(_, f, _) => head_key(f)
+  | Ap(_, f, _) =>
+    switch (head_key(f), strip_parens(f).term) {
+    | (Some(k), _) => Some((k, None))
+    | (None, TypAp(tf, ty)) =>
+      Option.map(k => (k, Some(ty)), head_key(tf))
+    | _ => None
+    }
   | _ => None
   };
+let ap_head_key = (e: TermBase.Exp.t): option(string) =>
+  Option.map(fst, ap_head(e));
 
 /* ==================== Macro expansion (Sec. 3.2.5) ====================
    A Macro livelit's use means its quoted function applied to the code of
@@ -907,16 +917,19 @@ let use_parts =
     | None => None
     }
   | Ap(_, fn, model) =>
-    switch (strip_parens(fn).term) {
-    | Ap(_, head, args) when head_key(head) != None =>
-      switch (Option.bind(head_key(head), Ctx.lookup_livelit(ctx))) {
+    switch (ap_head(fn), strip_parens(fn).term) {
+    | (Some((key, ty)), Ap(_, _, args)) =>
+      switch (Ctx.lookup_livelit(ctx, key)) {
       | Some({user_def: Some(_), vparam: true, _} as ll) =>
+        /* `^a@<T>(args)`: ^a at T, then applied */
+        let head =
+          switch (ty) {
+          | Some(ty) =>
+            (TypAp(runtime_ref(ll), ty): TermBase.Exp.term) |> Exp.fresh
+          | None => runtime_ref(ll)
+          };
         let written =
-          IdTagged.FreshGrammar.Exp.ap(
-            Operators.Forward,
-            runtime_ref(ll),
-            args,
-          );
+          IdTagged.FreshGrammar.Exp.ap(Operators.Forward, head, args);
         let def =
           switch (Option.bind(elab, e => Exp.find_by_id(Exp.rep_id(fn), e))) {
           | Some(d) => d
@@ -1079,6 +1092,22 @@ let apply_args =
       runtime,
     })
   | _ => None
+  };
+
+/* A direct use's livelit at its type argument, if it gives one
+   (`^a@<T>(args)(model)`); then apply_args applies it to the arguments.
+   No type argument: the livelit as it is. */
+let at_type =
+    (
+      ~name: string,
+      ~id: Id.t,
+      ~ty: option(TermBase.Typ.t),
+      ll: LivelitCtx.raw_livelit,
+    )
+    : option(LivelitCtx.raw_livelit) =>
+  switch (ty) {
+  | None => Some(ll)
+  | Some(ty) => instantiate(~name, ~id, ~ty, ll)
   };
 
 /* A Macro use's expansion obligation (Fig. 5 premise 5), said in terms of

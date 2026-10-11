@@ -78,6 +78,29 @@ let init_of = (m, name) =>
 
 let has = (msg, m) => List.mem(msg, messages(m));
 
+/* ^choose, a livelit taking a type and then values, and [use] after it */
+let choose_text = use =>
+  {|type Pick = + One + Two in
+let ^choose = typfun A -> fun cases : [(String, A)] -> {
+  type Model = A;
+  type Action = A;
+  type Expansion = A;
+  let init = let (_, v) = head(cases) in Pure(v);
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
+  let view = fun m : Model -> Pure(Html.text("pick"));
+  let expand = Functional(fun m : Model -> m);
+  let shape = Inline(4)
+} in
+|}
+  ++ use;
+
+/* the constructor a program evaluates to */
+let ctor = elab =>
+  switch ((Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst).term) {
+  | Constructor(c, _) => c
+  | _ => "not a constructor"
+  };
+
 let tests = (
   "Parameters",
   [
@@ -156,6 +179,77 @@ let ^pick = ^choose@<Pick>([("one", One), ("two", Two)]) in
           | _ => "not a constructor"
           },
         );
+      },
+    ),
+    /* The same, given at the use: `^a@<T>(args)(model)`, no abbreviation.
+       The type argument instantiates the livelit before the arguments
+       apply, as in the abbreviation. */
+    test_case(
+      "A direct use ^a@<T>(args)(model) means its model",
+      `Quick,
+      () => {
+        let (m, elab) =
+          load(
+            ~source="type-then-values-direct",
+            choose_text(
+              "^^livelit(^choose@<Pick>([(\"one\", One), (\"two\", Two)])(Two))",
+            ),
+          );
+        check(list(string), "no errors", [], messages(m));
+        check(string, "the use means its model", "Two", ctor(elab));
+      },
+    ),
+    test_case(
+      "A direct use ^a@<T>(args)(model) works without the projector too",
+      `Quick,
+      () => {
+        let (m, elab) =
+          load(
+            ~source="type-then-values-direct-bare",
+            choose_text(
+              "^choose@<Pick>([(\"one\", One), (\"two\", Two)])(Two)",
+            ),
+          );
+        check(list(string), "no errors", [], messages(m));
+        check(string, "the use means its model", "Two", ctor(elab));
+      },
+    ),
+    test_case(
+      "A direct use ^a@<T>(args)(model) checks the model at T",
+      `Quick,
+      () => {
+        let (m, _) =
+          load(
+            ~source="type-then-values-direct-bad",
+            choose_text(
+              "^^livelit(^choose@<Pick>([(\"one\", One), (\"two\", Two)])(1))",
+            ),
+          );
+        check(bool, "an error", true, messages(m) != []);
+      },
+    ),
+    /* As the playground slides use it: a module's member. */
+    test_case(
+      "A direct use Lib.^a@<T>(args)(model) of a module's member",
+      `Quick,
+      () => {
+        let text = {|type Pick = + One + Two in
+module Lib = {
+  let ^choose = typfun A -> fun cases : [(String, A)] -> {
+    type Model = A;
+    type Action = A;
+    type Expansion = A;
+    let init = let (_, v) = head(cases) in Pure(v);
+    let update = fun _m : Model -> fun a : Action -> Pure(a);
+    let view = fun m : Model -> Pure(Html.text("pick"));
+    let expand = Functional(fun m : Model -> m);
+    let shape = Inline(4)
+  }
+} in
+^^livelit(Lib.^choose@<Pick>([("one", One), ("two", Two)])(Two))|};
+        let (m, elab) = load(~source="type-then-values-member", text);
+        check(list(string), "no errors", [], messages(m));
+        check(string, "the use means its model", "Two", ctor(elab));
       },
     ),
     test_case("^slider used directly is an error", `Quick, () =>

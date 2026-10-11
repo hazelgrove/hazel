@@ -321,22 +321,39 @@ module M: Projector = {
     | term => term
     };
 
-  /* A use's livelit name, its parameters if it is a direct use with them
-     (`^a(args)(model)`), and its model. */
+  /* A use's livelit name, its type argument and parameters if it is a
+     direct use with them (`^a(args)(model)`, `^a@<T>(args)(model)`), and
+     its model. */
   let get_use = (info: info) =>
     switch (info.statics) {
-    | Some(InfoExp({user_term, _})) =>
+    | Some(InfoExp({user_term, elab_term, _})) =>
       /* The name is the head's key: `^f` is "f", a module member
          `Lib.^f` is "Lib.f" (UserLivelit.head_key). */
       switch (strip_wrappers(user_term.term)) {
       | Ap(_dir, head, model) when UserLivelit.head_key(head) != None =>
-        Some((Option.get(UserLivelit.head_key(head)), None, model))
+        Some((Option.get(UserLivelit.head_key(head)), None, None, model))
       | Ap(_dir, fn, model) =>
-        switch (strip_wrappers(fn.term)) {
-        | Ap(_, head, args) when UserLivelit.head_key(head) != None =>
-          Some((Option.get(UserLivelit.head_key(head)), Some(args), model))
+        let fn = {
+          ...fn,
+          term: strip_wrappers(fn.term),
+        };
+        switch (UserLivelit.ap_head(fn), fn.term) {
+        | (Some((key, ty)), Ap(_, _, args)) =>
+          /* the arguments as statics elaborated them, when the use's
+             elaboration has `^a(args)` (it is the use's runtime): a
+             constructor written in them then compares equal to the same
+             one in the model, as it does through an abbreviation */
+          let args =
+            Option.value(
+              ~default=args,
+              Option.bind(
+                Exp.find_by_id(Exp.rep_id(fn), elab_term),
+                UserLivelit.ap_arg,
+              ),
+            );
+          Some((key, ty, Some(args), model));
         | _ => None
-        }
+        };
       | _ => None
       }
     | _ => None
@@ -346,22 +363,37 @@ module M: Projector = {
      parameters when it gives them. The arguments are the use's own terms;
      they are closed, as statics requires, so they mean here what they
      mean there. */
-  let lookup_use = (ctx: Ctx.t, llname: string, args) =>
+  let lookup_use = (ctx: Ctx.t, llname: string, ty, args) =>
     switch (Ctx.lookup_livelit(ctx, llname), args) {
     | (Some(ll), None) => Some(ll)
     | (Some(ll), Some(args)) =>
-      UserLivelit.apply_args(
-        ~name=llname,
-        ~id=ll.id,
-        ~args,
-        ~runtime=
-          IdTagged.FreshGrammar.Exp.ap(
-            Operators.Forward,
-            UserLivelit.runtime_ref(ll),
-            args,
-          ),
-        ll,
-      )
+      /* `^a@<T>(args)`: ^a at T, then applied; at run time the same,
+         reached through ^a's own runtime reference (instantiate drops
+         it) */
+      let head =
+        switch (ty) {
+        | Some(ty) =>
+          (TypAp(UserLivelit.runtime_ref(ll), ty): TermBase.Exp.term)
+          |> Exp.fresh
+        | None => UserLivelit.runtime_ref(ll)
+        };
+      Option.bind(
+        UserLivelit.at_type(
+          ~name=llname,
+          ~id=ll.id,
+          ~ty=Option.map(Typ.normalize(ctx), ty),
+          ll,
+        ),
+        ll =>
+        UserLivelit.apply_args(
+          ~name=llname,
+          ~id=ll.id,
+          ~args,
+          ~runtime=
+            IdTagged.FreshGrammar.Exp.ap(Operators.Forward, head, args),
+          ll,
+        )
+      );
     | (None, _) => None
     };
 
@@ -545,8 +577,8 @@ module M: Projector = {
      has a params line (params_panel, below). */
   let has_params_panel = (info: ProjectorBase.info): bool =>
     switch (get_use(info), info.statics) {
-    | (Some((llname, args, _)), Some(InfoExp(exp))) =>
-      switch (lookup_use(exp.ctx, llname, args)) {
+    | (Some((llname, ty, args, _)), Some(InfoExp(exp))) =>
+      switch (lookup_use(exp.ctx, llname, ty, args)) {
       | Some({user_def: Some(def_elab), _}) =>
         switch (MvuShape.safe_evaluate_open(def_elab)) {
         | Ok(record) =>
@@ -568,8 +600,8 @@ module M: Projector = {
   let gui_shape = (info, splice_size): ProjectorCore.Shape.t => {
     let looked_up =
       switch (get_use(info), info.statics) {
-      | (Some((llname, args, model)), Some(InfoExp(exp))) =>
-        switch (lookup_use(exp.ctx, llname, args)) {
+      | (Some((llname, ty, args, model)), Some(InfoExp(exp))) =>
+        switch (lookup_use(exp.ctx, llname, ty, args)) {
         | Some(ll) =>
           let dynamic =
             switch (ll.user_def) {
@@ -1447,6 +1479,7 @@ module M: Projector = {
         ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
         ~print_term: TermBase.Exp.t => string,
         ~ll_name: string,
+        ~ty: option(TermBase.Typ.t),
         ~args: option(TermBase.Exp.t),
         ~model: TermBase.Exp.t,
       )
@@ -1479,13 +1512,26 @@ module M: Projector = {
         ++ String.sub(name, i + 1, String.length(name) - i - 1)
       | None => "^" ++ name
       };
-    let head_term = (name, args) =>
-      switch (args) {
+    /* `^a@<T>`, when the use gives a type argument */
+    let typed_head = (name, ty) =>
+      switch (ty) {
+      | Some(ty) =>
+        (TypAp(head_of(name), ty): TermBase.Exp.term) |> Exp.fresh
       | None => head_of(name)
-      | Some(a) => F.Exp.ap(Operators.Forward, head_of(name), a)
+      };
+    let head_term = (name, ty, args) =>
+      switch (args) {
+      | None => typed_head(name, ty)
+      | Some(a) => F.Exp.ap(Operators.Forward, typed_head(name, ty), a)
       };
     let text =
       head_text(ll_name)
+      ++ (
+        switch (ty) {
+        | Some(ty) => "@<" ++ Typ.pretty_print(ty) ++ ">"
+        | None => ""
+        }
+      )
       ++ (
         switch (args) {
         | None => ""
@@ -1494,25 +1540,33 @@ module M: Projector = {
           String.length(p) > 0 && p.[0] == '(' ? p : "(" ++ p ++ ")";
         }
       );
+    /* a typed head: `^f`, `^f(args)`, or `^f@<T>(args)` */
     let parse = (typed: string) =>
       switch (info.utility.string_to_exp(String.trim(typed))) {
       | Some(e) when UserLivelit.head_key(e) != None =>
-        Some((Option.get(UserLivelit.head_key(e)), None))
-      | Some({term: Ap(_, h, a), _}) when UserLivelit.head_key(h) != None =>
-        Some((Option.get(UserLivelit.head_key(h)), Some(a)))
-      | _ => None
+        Some((Option.get(UserLivelit.head_key(e)), None, None))
+      | Some(e) =>
+        switch (UserLivelit.ap_head(e), UserLivelit.strip_parens(e).term) {
+        | (Some((key, ty)), Ap(_, _, a)) => Some((key, ty, Some(a)))
+        | _ => None
+        }
+      | None => None
       };
     let revealed = seg => [Piece.mk_splice(seg)];
     let swap = (typed: string): option(Ui_effect.t(unit)) => {
       open OptUtil.Syntax;
-      let* (name, args') = parse(typed);
-      let* ll = lookup_use(ctx, name, args');
+      let* (name, ty', args') = parse(typed);
+      let* ll = lookup_use(ctx, name, ty', args');
       if (name == ll_name) {
         Some(
           parent(
             SetTerm(
               Exp(
-                F.Exp.ap(Operators.Forward, head_term(name, args'), model),
+                F.Exp.ap(
+                  Operators.Forward,
+                  head_term(name, ty', args'),
+                  model,
+                ),
               ),
               true,
             ),
@@ -1529,7 +1583,11 @@ module M: Projector = {
           info.utility.term_to_seg(
             ~inline=true,
             Exp(
-              F.Exp.ap(Operators.Forward, head_term(name, args'), model'),
+              F.Exp.ap(
+                Operators.Forward,
+                head_term(name, ty', args'),
+                model',
+              ),
             ),
           );
         let seg = Option.value(~default=seg, splice_marked_fields(seg));
@@ -1735,8 +1793,8 @@ module M: Projector = {
     let head = ref(None);
     let node =
       switch (get_use(info)) {
-      | Some((ll_name, args, model)) =>
-        let ll = lookup_use(ctx, ll_name, args);
+      | Some((ll_name, ty, args, model)) =>
+        let ll = lookup_use(ctx, ll_name, ty, args);
 
         /* Write an updated model back into the Ap's argument position,
            with its splices: SpliceStore.write_model turns each SpliceRef
@@ -1826,6 +1884,7 @@ module M: Projector = {
                   ~parent,
                   ~print_term,
                   ~ll_name,
+                  ~ty,
                   ~args,
                   ~model,
                 ),
