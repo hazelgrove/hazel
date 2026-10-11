@@ -208,6 +208,28 @@ let projector_flag = () => {
   check(bool, "a manual probe already there", false, flag(manual_first()));
 };
 
+/* the ⇓ probe draws no arms on the code, whichever way it's held */
+let no_arms = () => {
+  let arms = ((z: Zipper.t, _)): int => {
+    let (_, syntax) = analysed(z);
+    Web.Arms.Refractors.of_zipper(
+      ~font_metrics=Web.FontMetrics.init,
+      ~syntax,
+      ~completion=Web.Arms.lazy_completion(z),
+      z,
+    )
+    |> List.length;
+  };
+  check(int, "the ⇓ probe", 0, arms(tail_on("let x = 1 in\nx + 1")));
+  check(int, "made manual", 0, arms(promoted()));
+  check(
+    bool,
+    "a manual probe already there",
+    true,
+    arms(manual_first()) > 0,
+  );
+};
+
 /* models saved while the ⇓ probe's had a `bare` field keep the rest */
 let old_model_loads = () => {
   let saved = "((active_renderer())(drawer_mode true)(dropdown_redraw 3)(auto_rich false)(rich_off true)(bare true))";
@@ -330,6 +352,7 @@ let tests = (
     test_case("made manual, still the ⇓ probe", `Quick, promoted_stays),
     test_case("a probe placed on it replaces it", `Quick, placed_replaces),
     test_case("its projector is told", `Quick, projector_flag),
+    test_case("no arms on the code", `Quick, no_arms),
     test_case("an old model with bare loads", `Quick, old_model_loads),
   ],
 );

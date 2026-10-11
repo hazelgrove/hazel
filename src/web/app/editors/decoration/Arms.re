@@ -759,9 +759,18 @@ module Refractors = {
         ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
       )
-      : list(Node.t) =>
+      : list(Node.t) => {
+    /* the ⇓ toggle's probe shows only its drawer */
+    let armed = ((id, entry: Refractors.entry)) =>
+      !
+        ProjectorInfo.is_program_value(
+          ~tail=z.refractors.tail_target,
+          id,
+          entry.kind,
+        );
     (
       z.refractors.manuals
+      |> List.filter(armed)
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -776,8 +785,7 @@ module Refractors = {
     @ (
       z.refractors.multis.ephemerals
       |> Id.Map.to_list
-      /* the ⇓ toggle's probe shows only its drawer */
-      |> List.filter(((id, _)) => z.refractors.tail_target != Some(id))
+      |> List.filter(armed)
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -805,6 +813,7 @@ module Refractors = {
            )
          )
     );
+  };
 
   let all =
       (
