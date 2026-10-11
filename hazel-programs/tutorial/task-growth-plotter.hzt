@@ -32,6 +32,7 @@ watering does not affect empty cells
 multiple waterings progress through stages
 cannot harvest immature crops
 PassDay increments day count
+cannot harvest after only three waterings
 
 @code
 # Moonlit Field Plotter #
@@ -328,4 +329,12 @@ test
 end
 
 @test
-0
+hint "cannot harvest after only three waterings"
+test
+  let m = run(init, [
+    PlantCrop(0, 0),
+    WaterField, WaterField, WaterField,
+    HarvestCrop(0, 0)
+  ]) in
+  isPlanted(getCell(m.field, 0, 0))
+end
