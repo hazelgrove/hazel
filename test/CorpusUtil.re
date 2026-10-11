@@ -13,9 +13,8 @@ let read_file = (path: string): option(string) =>
   | exception _ => None
   };
 
-/* timing-only cases register only under HAZEL_BENCH=1 */
+/* HAZEL_BENCH=1: timing the suite, so the runner skips the statics oracle */
 let bench_enabled = Sys.getenv_opt("HAZEL_BENCH") == Some("1");
-let bench_cases = cases => bench_enabled ? cases : [];
 
 let mega_path = (name: string): string => {
   let path = "hazel-programs/mega/" ++ name;

@@ -1,32 +1,6 @@
-/* Timing case: HAZEL_BENCH=1 bash test/run_node.sh test 'LabelBench' */
 open Alcotest;
 open Haz3lcore;
 open Language;
-
-/* statics cost of a labeled-tuple-heavy module vs an unlabeled control;
-   run node with --cpu-prof for attribution */
-
-let slice_lines = (src: string, lo: int, hi: int): string =>
-  String.split_on_char('\n', src)
-  |> List.filteri((i, _) => i + 1 >= lo && i + 1 <= hi)
-  |> String.concat("\n");
-
-let bench = (label: string, src: string, iters: int) => {
-  switch (ParsedCorpus.to_segment(~root=Exp, src)) {
-  | None => fail("unparseable: " ++ label)
-  | Some(seg) =>
-    let term = MakeTerm.go(seg).term;
-    let ctx0 = Builtins.ctx_init(Some(Operators.default_mode));
-    /* warm */
-    let _ = Statics.mk_unmemoized(CoreSettings.on, ctx0, term);
-    let t0 = Sys.time();
-    for (_ in 1 to iters) {
-      ignore(Statics.mk_unmemoized(CoreSettings.on, ctx0, term));
-    };
-    let dt = (Sys.time() -. t0) /. float_of_int(iters) *. 1000.0;
-    Printf.printf("LABELBENCH %s: %.1f ms/iter\n", label, dt);
-  };
-};
 
 let rec mentions = (tok: string, seg: Segment.t): bool =>
   List.exists(
@@ -119,26 +93,7 @@ let insitu = () => {
   };
 };
 
-let case = () => {
-  let path = "hazel-programs/mega/mega-4k.hz";
-  let path = Sys.file_exists(path) ? path : "../" ++ path;
-  switch (CorpusUtil.read_file(path)) {
-  | None => fail("corpus unreadable")
-  | Some(src) =>
-    /* SmithWorks: a labeled-tuple Model */
-    let smith = slice_lines(src, 1906, 1945) ++ "\n1";
-    /* Text: comparable-size module with NO labeled tuples */
-    let text = slice_lines(src, 4, 30) ++ "\n1";
-    bench("module Text (no labels, ~27 lines)", text, 10);
-    bench("module SmithWorks (labeled, ~40 lines)", smith, 10);
-    check(bool, "ran", true, true);
-  };
-};
-
 let tests = (
   "LabelBench",
-  [test_case("in-situ incremental calc", `Quick, insitu)]
-  @ CorpusUtil.bench_cases([
-      test_case("labeled module statics", `Quick, case),
-    ]),
+  [test_case("in-situ incremental calc", `Quick, insitu)],
 );

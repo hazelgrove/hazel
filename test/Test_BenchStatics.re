@@ -1,9 +1,8 @@
-/* Timing cases: HAZEL_BENCH=1 bash test/run_node.sh test 'BenchStatics' */
 open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* statics parity gates over the mega corpus, plus print-only timing cases */
+/* statics parity gates over the mega corpus */
 
 let read_file = CorpusUtil.read_file;
 
@@ -242,116 +241,6 @@ let defstatics_case = (name: string, ()): unit => {
     parity("cascade", term4, ds4);
   };
 };
-
-/* times each stage of a slide load; to find what overflows Chrome's
-   smaller stack, run the test JS under plain node (no --stack-size) */
-exception Bail;
-
-let load_pipeline_probe = (): unit =>
-  List.iter(
-    name => {
-      let path = "hazel-programs/mega/" ++ name;
-      let path =
-        Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
-      switch (read_file(path)) {
-      | None => Printf.printf("LOADPIPE %s: <unreadable>\n", name)
-      | Some(src) =>
-        let stage = (label, f) => {
-          let t0 = Sys.time();
-          switch (f()) {
-          | r =>
-            Printf.printf(
-              "LOADPIPE %s %s: %.0fms\n",
-              name,
-              label,
-              (Sys.time() -. t0) *. 1000.,
-            );
-            r;
-          | exception e =>
-            Printf.printf(
-              "LOADPIPE %s %s: RAISED %s\n",
-              name,
-              label,
-              Printexc.to_string(e),
-            );
-            raise(Bail);
-          };
-        };
-        try({
-          let seg = stage("parse", () => parse_seg_of(src));
-          let z = stage("unzip", () => Zipper.unzip(seg));
-          let mt = stage("maketerm", () => MakeTerm.go(seg));
-          let ctx = Builtins.ctx_init(Some(Operators.default_mode));
-          let (map, elab) =
-            switch (Statics.mk_unmemoized(CoreSettings.on, ctx, mt.term)) {
-            | r =>
-              Printf.printf("LOADPIPE %s statics+elab: ok\n", name);
-              r;
-            | exception e =>
-              Printf.printf(
-                "LOADPIPE %s statics+elab: RAISED %s — bisecting by item\n",
-                name,
-                Printexc.to_string(e),
-              );
-              let nodes = DefStatics.chain(mt.term);
-              let _ =
-                List.fold_left(
-                  (ctx, node) =>
-                    switch (
-                      DefStatics.calc_item(
-                        ~settings=CoreSettings.on,
-                        ~ctx_in=ctx,
-                        node,
-                      )
-                    ) {
-                    | it =>
-                      Printf.printf(
-                        "LOADPIPE %s   item %s: ok\n",
-                        name,
-                        switch (it.d_exports) {
-                        | [e, ..._] => DefStatics.entry_name(e)
-                        | [] => "<tail>"
-                        },
-                      );
-                      it.d_ctx_out;
-                    | exception e2 =>
-                      Printf.printf(
-                        "LOADPIPE %s   item OVERFLOWS: %s\n",
-                        name,
-                        Printexc.to_string(e2),
-                      );
-                      ctx;
-                    },
-                  ctx,
-                  nodes,
-                );
-              raise(Bail);
-            };
-          let _syn = stage("cachedsyntax", () => CachedSyntax.init(z));
-          let ei =
-            stage("evalinfo", () =>
-              EvalInfo.of_info_map(
-                ~probe_all=false,
-                ~targets=Sample.no_targets,
-                map,
-              )
-            );
-          let _ =
-            stage("evaluate plain", () =>
-              Evaluator.evaluate(~env=Builtins.env_init, elab)
-            );
-          let _ =
-            stage("evaluate w/ eval_info", () =>
-              Evaluator.evaluate(~eval_info=ei, ~env=Builtins.env_init, elab)
-            );
-          ();
-        }) {
-        | Bail => ()
-        };
-      };
-    },
-    ["mega-1k.hz", "mega-2k.hz", "mega-4k.hz"],
-  );
 
 /* a probe in a fn body called only from a later item samples under
    compositional statics as under monolithic (fresh evaluations) */
@@ -735,17 +624,5 @@ let tests = (
       `Quick,
       defstatics_case("mega-1k.hz"),
     ),
-  ]
-  @ CorpusUtil.bench_cases([
-      test_case(
-        "DefStatics compositional timing (mega-4k)",
-        `Quick,
-        defstatics_case("mega-4k.hz"),
-      ),
-      test_case(
-        "slide-load pipeline (informational)",
-        `Quick,
-        load_pipeline_probe,
-      ),
-    ]),
+  ],
 );
