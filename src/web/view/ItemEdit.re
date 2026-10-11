@@ -328,7 +328,14 @@ let insert =
     | Some(t) when t != [] => t
     | _ => default
     };
-  let semi = () => member ? [fresh_semi()] : [];
+  /* at [at], laid out like item [like], then [default] spacing */
+  let splice = (at, like, default) =>
+    ListUtil.truncate(at, b.seg)
+    @ spaces(like)
+    @ shifted(like)
+    @ (member ? [fresh_semi()] : [])
+    @ trail_or(default)
+    @ ListUtil.remove_first_n(at, b.seg);
   switch (pos) {
   | After(k) when k == n - 1 =>
     /* the new last member: it takes the old last's terminator, which
@@ -348,30 +355,17 @@ let insert =
         );
       }
       : None
-  | After(k) =>
-    let at = b.sl[k].hi;
-    Some(
-      ListUtil.truncate(at, b.seg)
-      @ spaces(k + 1)
-      @ shifted(k + 1)
-      @ semi()
-      @ trail_or(spacing(trail(b, k)))
-      @ ListUtil.remove_first_n(at, b.seg),
-    );
+  | After(k) => Some(splice(b.sl[k].hi, k + 1, spacing(trail(b, k))))
   | Before(p) =>
-    let at = b.sl[p].lo;
-    let default =
-      p > 0
-        ? spacing(trail(b, p - 1))
-        : [starts_line(b, p) ? linebreak() : space()];
     Some(
-      ListUtil.truncate(at, b.seg)
-      @ spaces(p)
-      @ shifted(p)
-      @ semi()
-      @ trail_or(default)
-      @ ListUtil.remove_first_n(at, b.seg),
-    );
+      splice(
+        b.sl[p].lo,
+        p,
+        p > 0
+          ? spacing(trail(b, p - 1))
+          : [starts_line(b, p) ? linebreak() : space()],
+      ),
+    )
   };
 };
 
