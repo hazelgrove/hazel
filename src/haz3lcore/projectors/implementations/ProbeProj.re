@@ -9,11 +9,7 @@ open RichProbeRegistry;
 
 /* Global, UI-only probe display state (mutable refs). See ZipperBase.re. */
 
-/* Models persist inside stored zippers; extra fields are tolerated so one
-   saved with a since-dropped field (`bare`) keeps the rest of its state
-   instead of resetting to defaults. */
 [@deriving (show({with_path: false}), sexp, yojson)]
-[@sexp.allow_extra_fields]
 type probe_model = {
   active_renderer: option(packed_model),
   drawer_mode: bool,
@@ -27,6 +23,10 @@ type probe_model = {
   /* dbl-click toggles the auto rendering back to the text view */
   [@default false]
   rich_off: bool,
+  /* made by the ⇓ toggle: marks its probe through a pin, step-into or
+     reload (ProjectorInfo.is_program_value) */
+  [@default false]
+  bare: bool,
 };
 
 let init_probe_model: probe_model = {
@@ -35,13 +35,15 @@ let init_probe_model: probe_model = {
   dropdown_redraw: 0,
   auto_rich: false,
   rich_off: false,
+  bare: false,
 };
 
-/* the ⇓ probe opens as a drawer */
+/* the ⇓ probe: an open drawer, marked bare */
 let tail_model: string =
   {
     ...init_probe_model,
     drawer_mode: true,
+    bare: true,
   }
   |> sexp_of_probe_model
   |> Sexplib.Sexp.to_string;
@@ -57,6 +59,13 @@ let probe_model_of_sexp = sexp =>
     print_endline("probe_model_of_sexp: malformed payload: " ++ msg);
     init_probe_model;
   | exception _ => init_probe_model
+  };
+
+/* the ⇓ probe's model, whatever local state it has picked up since */
+let is_bare = (model: string): bool =>
+  switch (Sexplib.Sexp.of_string(model)) {
+  | sexp => probe_model_of_sexp(sexp).bare
+  | exception _ => false
   };
 
 /* `^^probe@<rid>` trigger-option mapping: a pin whose model selects

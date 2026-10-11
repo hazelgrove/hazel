@@ -39,8 +39,18 @@ let update = (~on, z: Zipper.t): Zipper.t => {
   AutoProbePerform.update_tail(~on, ~syntax, ~info_map, z);
 };
 
+/* by the predicate the views use */
 let is_program_value = (z: Zipper.t, id: Id.t): bool =>
-  ProjectorInfo.is_program_value(~tail=z.refractors.tail_target, id, Probe);
+  switch (Id.Map.find_opt(id, CachedSyntax.refractor_entries(z.refractors))) {
+  | Some(e) =>
+    ProjectorInfo.is_program_value(
+      ~tail=z.refractors.tail_target,
+      id,
+      e.kind,
+      e.model,
+    )
+  | None => false
+  };
 
 /* ⇓ on over a program, with its tail */
 let tail_on = (src: string): (Zipper.t, Id.t) => {
@@ -247,34 +257,6 @@ let no_arms = () => {
   );
 };
 
-/* a model saved with the dropped `bare` field keeps the rest of its state */
-let old_model_loads = () => {
-  let saved = "((active_renderer())(drawer_mode true)(dropdown_redraw 3)(auto_rich false)(rich_off true)(bare true))";
-  let m = ProbeProj.probe_model_of_sexp(Sexplib.Sexp.of_string(saved));
-  check(bool, "drawer", true, m.drawer_mode);
-  check(int, "redraw count", 3, m.dropdown_redraw);
-  check(bool, "rich off", true, m.rich_off);
-  /* and through the projector, as a stored manual probe */
-  let z = zipper("let x = 1 in\nx + 1");
-  let (info_map, syntax) = analysed(z);
-  let z =
-    Zipper.add_manual(
-      ~model=saved,
-      Option.get(AutoProbePerform.tail_id(syntax)),
-      Probe,
-      z,
-    );
-  let rows =
-    CachedSyntax.mk_refractor_rows(
-      z,
-      syntax.term_data,
-      info_map,
-      Dynamics.Map.empty,
-      ~elaborated=None,
-    );
-  check(bool, "its drawer reserves rows", false, Id.Map.is_empty(rows));
-};
-
 /* the program's drawer is drawn after the program and reserves no rows,
    so toggling ⇓ never moves the code */
 let reserves_nothing = () => {
@@ -393,6 +375,5 @@ let tests = (
     test_case("a remade entry is a drawer", `Quick, remade_drawer),
     test_case("its projector is told", `Quick, projector_flag),
     test_case("no arms on the code", `Quick, no_arms),
-    test_case("an old model with bare loads", `Quick, old_model_loads),
   ],
 );

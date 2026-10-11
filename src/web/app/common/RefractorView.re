@@ -98,7 +98,7 @@ let mk_data =
   /* measure + cull BEFORE building per-refractor data: in All mode there are
    * hundreds of refractors but few on screen, so building all then discarding dominated cost */
   let program_value = (id, entry: Refractors.entry) =>
-    ProjectorInfo.is_program_value(~tail, id, entry.kind);
+    ProjectorInfo.is_program_value(~tail, id, entry.kind, entry.model);
   Id.Map.bindings(refractors)
   |> List.filter_map(((id, entry: Refractors.entry)) =>
        (

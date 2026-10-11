@@ -113,7 +113,7 @@ let mk_refractor_rows =
   let entries =
     refractor_entries(z.refractors)
     |> Id.Map.filter((id, e: Refractors.entry) =>
-         !ProjectorInfo.is_program_value(~tail, id, e.kind)
+         !ProjectorInfo.is_program_value(~tail, id, e.kind, e.model)
        );
   /* proofs keep their theorem tile: their rows go under its own line */
   let rekey = rows =>

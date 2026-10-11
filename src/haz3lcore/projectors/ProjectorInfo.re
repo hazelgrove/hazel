@@ -61,12 +61,19 @@ let utility: ProjectorBase.utility = {
   };
 };
 
-/* the ⇓ toggle's probe: the probe on [tail] (Refractors.tail_target),
-   whether ephemeral or made manual by a pin or step-into. its drawer is
-   drawn after the program's last line and reserves no rows */
+/* the ⇓ toggle's probe: the probe on [tail] (Refractors.tail_target)
+   while it keeps the bare model, as it does when a pin or step-into makes
+   it manual. its drawer is drawn after the program's last line and
+   reserves no rows */
 let is_program_value =
-    (~tail: option(Id.t), id: Id.t, kind: ProjectorCore.Kind.t): bool =>
-  tail == Some(id) && kind == Probe;
+    (
+      ~tail: option(Id.t),
+      id: Id.t,
+      kind: ProjectorCore.Kind.t,
+      model: string,
+    )
+    : bool =>
+  tail == Some(id) && kind == Probe && ProbeProj.is_bare(model);
 
 let mk_info =
     (
@@ -121,7 +128,7 @@ let mk_info =
     | Some(st) when st.span.probe_id == p.id => stepping
     | _ => None
     },
-  program_value: is_program_value(~tail, p.id, p.kind),
+  program_value: is_program_value(~tail, p.id, p.kind, p.model),
   utility,
 };
 

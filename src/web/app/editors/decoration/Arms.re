@@ -767,6 +767,7 @@ module Refractors = {
           ~tail=z.refractors.tail_target,
           id,
           entry.kind,
+          entry.model,
         );
     (
       z.refractors.manuals
