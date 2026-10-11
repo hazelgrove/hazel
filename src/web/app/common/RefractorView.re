@@ -98,7 +98,7 @@ let mk_data =
   /* measure + cull BEFORE building per-refractor data: in All mode there are
    * hundreds of refractors but few on screen, so building all then discarding dominated cost */
   let program_value = (id, entry: Refractors.entry) =>
-    CachedSyntax.is_program_value(~tail, id, entry.kind, entry.model);
+    ProjectorInfo.is_program_value(~tail, id, entry.kind, entry.model);
   Id.Map.bindings(refractors)
   |> List.filter_map(((id, entry: Refractors.entry)) =>
        (
@@ -145,6 +145,7 @@ let mk_data =
            ~dynamics,
            ~elaborated=None,
            ~stepping,
+           ~tail,
          );
        ProjectorView.Model.{
          p,
@@ -186,7 +187,6 @@ let all =
       ~visible: option(Globals.VisibleRows.t)=?,
       ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
       ~term_data: TermData.t,
-      ~tail: option(Id.t)=None,
       refractor_data: list(ProjectorView.Model.projector_data),
       refractor_list: list(Id.t),
     ) => {
@@ -195,8 +195,7 @@ let all =
     row_range(
       ~refractor_rows,
       ~term_data,
-      ~program_value=
-        CachedSyntax.is_program_value(~tail, d.p.id, d.p.kind, d.p.model),
+      ~program_value=d.info.program_value,
       d.p.id,
       d.measurement,
     );

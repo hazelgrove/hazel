@@ -31,6 +31,8 @@ type t = {
    * compared by physical eq in `calculate` to skip the rebuild. */
   cached_manuals: Refractors.RefractorList.t,
   cached_ephemerals: Refractors.Map.t,
+  /* the ⇓ probe's term: its drawer reserves no rows */
+  cached_tail: option(Id.t),
   cached_stepping: option(ProjectorBase.stepping),
   /* DrawerFit.layout when the rows were computed */
   cached_layout: int,
@@ -86,14 +88,6 @@ let rows_key = (id: Id.t, term_data: TermData.t): Id.t =>
   | None => id
   };
 
-/* the ⇓ probe: the tail target's probe while it keeps the bare model, as
-   it does when a pin or step-into makes it manual. its drawer reserves no
-   rows: it's drawn after the program's last line (RefractorView), past
-   any trailing blank lines */
-let is_program_value =
-    (~tail: option(Id.t), id: Id.t, kind: ProjectorCore.Kind.t, model): bool =>
-  tail == Some(id) && kind == Probe && ProbeProj.is_bare(model);
-
 /* every refractor by id: an ephemeral entry over a manual one, either
    over a proof */
 let refractor_entries = (r: Refractors.t): Refractors.Map.t =>
@@ -114,10 +108,12 @@ let mk_refractor_rows =
     )
     : Id.Map.t(int) => {
   let tail = z.refractors.tail_target;
+  /* the ⇓ probe's drawer reserves no rows: it's drawn after the program's
+     last line (RefractorView), past any trailing blank lines */
   let entries =
     refractor_entries(z.refractors)
     |> Id.Map.filter((id, e: Refractors.entry) =>
-         !is_program_value(~tail, id, e.kind, e.model)
+         !ProjectorInfo.is_program_value(~tail, id, e.kind, e.model)
        );
   /* proofs keep their theorem tile: their rows go under its own line */
   let rekey = rows =>
@@ -149,6 +145,7 @@ let mk_refractor_rows =
           ~dynamics=dyn_map,
           ~elaborated,
           ~stepping=z.refractors.stepping,
+          ~tail,
         );
       let (module P) = ProjectorInit.to_module(entry.kind);
       let shape = P.placeholder(entry.model, info);
@@ -216,6 +213,7 @@ let mk =
     refractor_rows,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
+    cached_tail: z.refractors.tail_target,
     cached_stepping: z.refractors.stepping,
     cached_layout: DrawerFit.layout^,
     cached_proofs: z.refractors.proofs,
@@ -275,6 +273,7 @@ let refresh_shapes =
     measured,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
+    cached_tail: z.refractors.tail_target,
     cached_stepping: z.refractors.stepping,
     cached_layout: DrawerFit.layout^,
     cached_proofs: z.refractors.proofs,
@@ -301,6 +300,7 @@ let calculate =
   let refractor_inputs_changed =
     z.refractors.manuals !== old.cached_manuals
     || z.refractors.multis.ephemerals !== old.cached_ephemerals
+    || z.refractors.tail_target != old.cached_tail
     || z.refractors.stepping != old.cached_stepping
     || DrawerFit.layout^ != old.cached_layout
     || z.refractors.proofs !== old.cached_proofs;
