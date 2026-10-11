@@ -256,7 +256,7 @@ let separate_slots = () => {
 let app_path_reuses_its_slot = () => {
   let seg =
     CorpusUtil.seg_of(
-      "module M = {\n  let x = 16;\n  let y = 2\n} in\nlet u = M.x in\nu",
+      "module M = {\n  type Model = (wood = Int, resin = Int);\n  let init : Model = (wood = 16, resin = 0)\n} in\nlet u = M.init in\nu",
     );
   let (edited, _) = CorpusUtil.edit_token(~needle="16", ~repl="17", seg);
   let init = seg =>
@@ -790,6 +790,8 @@ let corpus = [
       [
         /* WateringTimer and its selfcheck member, which this breaks */
         token("180", "181") |> analyzed(2) |> changes_value,
+        /* DewLedger, a labeled-tuple Model's module, and its selfcheck */
+        token("morning", "evening") |> analyzed(2),
         /* the tail only */
         token(~at=`Last, ~keep_id=true, "9", "8") |> analyzed(1),
         /* retypes a selfcheck that MetaRunner consumes downstream */
@@ -826,17 +828,6 @@ let corpus = [
       ~wrap=src => "module App = {\n" ++ src ++ "\n}",
       "mega-mod-1k.hz",
       [token("180", "181") |> analyzed(3)],
-    ),
-  ),
-  test_case(
-    "mega-2k labeled-tuple module",
-    `Quick,
-    /* the last 16 is SmithWorks': its item and the member */
-    mega(
-      ~root=Exp,
-      ~eval=false,
-      "mega-2k.hz",
-      [token(~at=`Last, "16", "17") |> analyzed(2)],
     ),
   ),
 ];
