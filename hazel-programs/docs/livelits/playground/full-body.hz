@@ -2652,8 +2652,9 @@ let head_shaped : Picture =
 # neck, behind the shirt so it shows in the collar; the shoes, under #
 # the pants' legs; the pants; the arms and their sleeves, under the #
 # shirt where they join it; the shirt; the sleeves' fill over the #
-# shirt's edge; the hands; the back of the hair; the head, its eyes and #
-# mouth; and the top of the hair, grown with the head. #
+# shirt's edge; the back of the hair; the head, its eyes and mouth; the #
+# top of the hair, grown with the head; and the hands, last, in front #
+# of the face when the arms are raised, as the game draws them. #
 
 let neck_at = Drawing.shift(Drawing.placed(neck, "base", body, "neck"), 0., 8.) in
 let face_at = Drawing.shift(Drawing.placed(head_shaped @ eyes @ mouth, "chin", neck_at, "top"), 0., 8.) in
@@ -2675,9 +2676,9 @@ let (left_arm, left_sleeve, left_join, left_hand) =
 let outfit =
   Drawing.frame((0., -40., 320., 400.))
   @ neck_at @ right_shoe @ left_shoe @ pants_at @ right_arm @ left_arm @ right_sleeve
-  @ left_sleeve @ shirt @ right_join @ left_join @ right_hand @ left_hand
+  @ left_sleeve @ shirt @ right_join @ left_join
   @ Drawing.named(hair_at, hairdo_name) @ face_at
-  @ Drawing.named(hair_at, hairdo_name ++ " top") in
+  @ Drawing.named(hair_at, hairdo_name ++ " top") @ right_hand @ left_hand in
 let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
 
 # Where the crown and the shoes' ankles ended up. #
