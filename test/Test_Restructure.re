@@ -909,10 +909,116 @@ f(1)|js},
   );
 };
 
+/* ⌘⌫ on a row the outline refuses to delete leaves its cursor there */
+let refused_delete_cursor = (): unit => {
+  let seg = parse("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
+  let term = statics_term(seg);
+  let rows = Web.OutlineTree.flatten(Web.OutlineTree.of_term(term));
+  let path = (n: Web.OutlineTree.node) =>
+    Option.bind(n.o_id, id => Web.OutlineTree.label_path(id, term));
+  /* f's ⇒ row; the program's own comes after it */
+  let result =
+    List.find((n: Web.OutlineTree.node) => n.o_kind == KTrail, rows);
+  let visible =
+    Array.of_list(
+      List.map(
+        (n: Web.OutlineTree.node): Web.OutlineSidebar.visible_row =>
+          {
+            r_path: Option.get(path(n)),
+            r_node: n,
+            r_name: n.o_label,
+            r_parent: None,
+            r_expanded: n.o_children != [],
+          },
+        rows,
+      ),
+    );
+  let cursor = ref(path(result));
+  let refused = ref(false);
+  let none = _ => Virtual_dom.Vdom.Effect.Ignore;
+  let on: Web.OutlineSidebar.handlers = {
+    jump: none,
+    focus: none,
+    toggle: none,
+    toggle_run: none,
+    toggle_collapse: none,
+    zoom_to: none,
+    zoom_in: none,
+    show_whole: none,
+    discard: Virtual_dom.Vdom.Effect.Ignore,
+    zoom_out: Virtual_dom.Vdom.Effect.Ignore,
+    get_cursor: () => cursor^,
+    set_cursor: c => {
+      cursor := c;
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    focused: Virtual_dom.Vdom.Effect.Ignore,
+    leave: Virtual_dom.Vdom.Effect.Ignore,
+    edit: {
+      current: None,
+      get: () => None,
+      set: none,
+      commit: (_, _) => Virtual_dom.Vdom.Effect.Ignore,
+    },
+    menu_open: (_, _, _, _) => Virtual_dom.Vdom.Effect.Ignore,
+    menu_close: Virtual_dom.Vdom.Effect.Ignore,
+    menu_select: none,
+    get_menu: () => None,
+    get_menu_sel: () => 0,
+    def_op: (op, id) => {
+      refused := R.apply(op, id, seg) == None;
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+  };
+  let props: Web.OutlineSidebar.props = {
+    arrows: true,
+    stack_controls: true,
+    can_open: _ => true,
+    is_collapsed: _ => false,
+    header: {
+      h_program: "",
+      h_trail: [],
+      h_open: 0,
+      h_parked: 0,
+    },
+    zoom_root: None,
+    cursor: cursor^,
+    created: None,
+    pinned: [],
+    focused_entries: [],
+    error_items: [],
+    error_subtree: [],
+    menu: None,
+    menu_sel: 0,
+    test_status: _ => None,
+  };
+  let cmd_backspace =
+    Js_of_ocaml.Js.(
+      Unsafe.coerce(
+        Unsafe.obj([|
+          ("key", Unsafe.inject(string("Backspace"))),
+          ("code", Unsafe.inject(string("Backspace"))),
+          ("metaKey", Unsafe.inject(_true)),
+          ("ctrlKey", Unsafe.inject(_false)),
+          ("altKey", Unsafe.inject(_false)),
+          ("shiftKey", Unsafe.inject(_false)),
+        |]),
+      )
+    );
+  ignore(Web.OutlineSidebar.keys(~props, ~on, ~visible, cmd_backspace));
+  check(bool, "the delete was tried and refused", true, refused^);
+  check(bool, "the cursor stays on the row", true, cursor^ == path(result));
+};
+
 let tests = (
   "Restructure",
   [
     test_case("a refused op does nothing", `Quick, refused),
+    test_case(
+      "a refused delete leaves the outline cursor",
+      `Quick,
+      refused_delete_cursor,
+    ),
     test_case("ops keep the layout", `Quick, layout),
     test_case("top-level ops", `Quick, top_level),
     test_case("statement ops", `Quick, statements),

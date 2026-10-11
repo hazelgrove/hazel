@@ -791,45 +791,24 @@ let keys =
     : Effect.t(unit) => {
   let n = Array.length(visible);
   let idx =
-    switch (on.get_cursor()) {
-    | None => (-1)
-    | Some(p) =>
-      let rec find = i =>
-        i >= n ? (-1) : visible[i].r_path == p ? i : find(i + 1);
-      find(0);
-    };
+    Option.bind(on.get_cursor(), p =>
+      Array.find_index(r => r.r_path == p, visible)
+    )
+    |> Option.value(~default=-1);
   let go = i =>
     i < 0 || n == 0
       ? on.set_cursor(None)
       : on.set_cursor(Some(visible[min(i, n - 1)].r_path));
   let cur = idx >= 0 ? Some(visible[idx]) : None;
-  let e = Js_of_ocaml.Js.Unsafe.coerce(evt);
-  let key: string = Js_of_ocaml.Js.to_string(e##.key);
-  let code: string = Js_of_ocaml.Js.to_string(e##.code);
-  let alt: bool = Js_of_ocaml.Js.to_bool(e##.altKey);
-  let shift: bool = Js_of_ocaml.Js.to_bool(e##.shiftKey);
-  let meta: bool =
-    Js_of_ocaml.Js.to_bool(e##.metaKey)
-    || Js_of_ocaml.Js.to_bool(e##.ctrlKey);
+  let k = Util.Key.mk(KeyDown, evt);
+  let key =
+    switch (k.key) {
+    | D(key)
+    | U(key) => key
+    };
+  let (code, alt, shift) = (k.code, k.alt == Down, k.shift == Down);
+  let meta = k.meta == Down || k.ctrl == Down;
   let id_of = (r: visible_row) => r.r_node.o_id;
-  let show = (r: visible_row) =>
-    switch (id_of(r)) {
-    | Some(id) => props.focused_entries != [] ? on.focus(id) : on.jump(id)
-    | None => on.toggle_collapse(r.r_path)
-    };
-  let open_close = (r: visible_row) =>
-    switch (id_of(r), r.r_node.o_kind) {
-    | (Some(id), _) when in_stack(props, id) || props.can_open(id) =>
-      on.toggle(id)
-    | (None, OutlineTree.KTests) =>
-      switch (
-        List.filter_map((c: OutlineTree.node) => c.o_id, r.r_node.o_children)
-      ) {
-      | [first, ..._] => on.toggle_run(first)
-      | [] => Effect.Ignore
-      }
-    | _ => Effect.Ignore
-    };
   let is_module = (r: visible_row) => r.r_node.o_kind == OutlineTree.KModule;
   /* the context menu at the cursor's row, as the editor opens its own */
   let open_menu = (r: visible_row) =>
@@ -880,8 +859,20 @@ let keys =
           ? on.show_whole(true)
           : props.header.h_parked > 0 ? on.show_whole(false) : Effect.Ignore,
       )
-    | ("Enter", false, false, Some(r)) => Some(show(r))
-    | (" ", false, false, Some(r)) => Some(open_close(r))
+    | ("Enter", false, false, Some(r)) =>
+      Some(
+        switch (id_of(r)) {
+        | Some(id) => show(props, on, id)
+        | None => on.toggle_collapse(r.r_path)
+        },
+      )
+    | (" ", false, false, Some(r)) =>
+      Some(
+        switch (open_close(props, on, r.r_node)) {
+        | Some(act) => act()
+        | None => Effect.Ignore
+        },
+      )
     | ("ArrowUp", true, false, Some(r)) =>
       Option.map(id => on.def_op(MoveUp, id), id_of(r))
     | ("ArrowDown", true, false, Some(r)) =>
@@ -891,20 +882,10 @@ let keys =
     | ("ArrowLeft", true, false, _) => Some(on.zoom_out)
     | (_, false, true, Some(r)) when code == "KeyD" =>
       Option.map(id => on.def_op(Duplicate, id), id_of(r))
+    /* the cursor moves only once the delete lands (DefOp) */
     | ("Backspace", false, true, Some(r))
     | ("Delete", false, false, Some(r)) =>
-      Option.map(
-        id =>
-          Effect.Many([
-            on.set_cursor(
-              idx + 1 < n
-                ? Some(visible[idx + 1].r_path)
-                : idx > 0 ? Some(visible[idx - 1].r_path) : None,
-            ),
-            on.def_op(Delete, id),
-          ]),
-        id_of(r),
-      )
+      Option.map(id => on.def_op(Delete, id), id_of(r))
     | _ => None
     };
   let nameable = (r: visible_row) =>
@@ -935,17 +916,12 @@ let keys =
       );
     let back_to_anchor =
       /* an unfinished new definition vanishes; the cursor returns */
-      switch (ed.ed_anchor) {
-      | Some(a) =>
-        let rec find = (i): option(OutlineTree.path) =>
-          i >= n
-            ? Option.none
-            : visible[i].r_node.o_id == Option.some(a)
-                ? Option.some(visible[i].r_path) : find(i + 1);
-        switch (find(0)) {
-        | Some(p) => on.set_cursor(Some(p))
-        | None => Effect.Ignore
-        };
+      switch (
+        Option.bind(ed.ed_anchor, a =>
+          Array.find_opt(r => r.r_node.o_id == Some(a), visible)
+        )
+      ) {
+      | Some(r) => on.set_cursor(Some(r.r_path))
       | None => Effect.Ignore
       };
     switch (key) {
