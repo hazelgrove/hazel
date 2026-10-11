@@ -142,6 +142,7 @@ let update = (~settings, a: StepperView.Update.t, ps: t): Updated.t(t) => {
   if (steps(a)) {
     reveal := true;
   };
+  /* dirty: calculate redraws the drawer */
   let updated = {
     let* stepper = StepperView.Update.update(~settings, a, ps.stepper);
     {
@@ -150,9 +151,6 @@ let update = (~settings, a: StepperView.Update.t, ps: t): Updated.t(t) => {
       dirty: true,
     };
   };
-  /* the drawer's cached view shows the old stepper until this moves */
-  Haz3lcore.ProbeProj.Settings.version :=
-    Haz3lcore.ProbeProj.Settings.version^ + 1;
   {
     ...updated,
     is_edit: false,
