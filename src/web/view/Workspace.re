@@ -107,24 +107,28 @@ let project_cell_statics =
 let stacked_incr_cache: ref(Haz3lcore.MakeTerm.Incr.cache) =
   ref(Haz3lcore.MakeTerm.Incr.mk_cache());
 
+/* [code] showing [v]: its cells opened and closed to match */
+let realize = (~info_map, ~term, v: SlideView.t, code: code): code => {
+  let (view, program) = SlideView.realize(~info_map, ~term, v, code.program);
+  {
+    ...code,
+    program,
+    view,
+  };
+};
+
 /* change what the slide shows, then open and close cells to match;
    view changes are not undo steps */
 let view =
     (f: (Language.Exp.t, Program.t, SlideView.t) => SlideView.t, code: code)
     : Updated.t(code) => {
   let statics = Program.statics(code.program);
-  let (view, program) =
-    SlideView.realize(
-      ~info_map=statics.info_map,
-      ~term=statics.term,
-      f(statics.term, code.program, code.view),
-      code.program,
-    );
-  {
-    ...code,
-    program,
-    view,
-  }
+  realize(
+    ~info_map=statics.info_map,
+    ~term=statics.term,
+    f(statics.term, code.program, code.view),
+    code,
+  )
   |> Updated.return(~historic=false);
 };
 
@@ -132,19 +136,35 @@ let view =
    view again, pins to vanished items dropped */
 let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
   let statics = Program.statics(program);
-  let (view, program) =
-    SlideView.realize(
-      ~info_map=statics.info_map,
-      ~term=statics.term,
-      code.view,
+  realize(
+    ~info_map=statics.info_map,
+    ~term=statics.term,
+    code.view,
+    {
+      ...code,
       program,
-    );
-  {
-    ...code,
-    program,
-    view,
-  };
+    },
+  );
 };
+
+/* [program]'s document parsed and analyzed now: its statics may lag it,
+   or be compacted away by undo */
+let fresh_term = (program: Program.t): Language.Exp.t =>
+  MakeTerm.Incr.term_of_root(
+    ~root=Program.root(program),
+    Program.document(program),
+  );
+let fresh_info_map =
+    (~settings: Settings.t, program: Program.t, term: Language.Exp.t)
+    : Language.Statics.Map.t =>
+  settings.core.statics
+    ? CachedStatics.init_compositional_term(
+        ~settings=settings.core,
+        ~probe_ids=Program.probe_ids(program),
+        term,
+      ).
+        info_map
+    : Id.Map.empty;
 
 /* the program after an outline edit: statics seeded now (the outline
    reads them), manual probes and the caret kept, cells re-cut */
@@ -230,23 +250,11 @@ let with_segment =
    document, which the statics may lag */
 let item_ctx =
     (~settings: Settings.t, ~collapsed, program: Program.t): ItemEdit.ctx => {
-  let seg = Program.document(program);
-  let mod_root = Program.root(program) == Haz3lcore.Sort.Mod;
-  let term = MakeTerm.Incr.term_of_root(~root=Program.root(program), seg);
+  let term = fresh_term(program);
   {
-    mod_root,
+    mod_root: Program.root(program) == Haz3lcore.Sort.Mod,
     term,
-    info_map:
-      lazy(
-        settings.core.statics
-          ? Haz3lcore.CachedStatics.init_compositional_term(
-              ~settings=settings.core,
-              ~probe_ids=Program.probe_ids(program),
-              term,
-            ).
-              info_map
-          : Haz3lcore.Id.Map.empty
-      ),
+    info_map: lazy(fresh_info_map(~settings, program, term)),
     is_open: id =>
       switch (OutlineTree.label_path(id, term)) {
       | Some(path) => !List.mem(path, collapsed)
@@ -406,25 +414,13 @@ let update =
   | RealizeView =>
     /* after undo: the restored program's statics may be compacted
        away, so the view is realized against fresh ones */
-    let seg = Program.document(code.program);
-    let term =
-      MakeTerm.Incr.term_of_root(~root=Program.root(code.program), seg);
-    let info_map =
-      settings.core.statics
-        ? CachedStatics.init_compositional_term(
-            ~settings=settings.core,
-            ~probe_ids=Program.probe_ids(code.program),
-            term,
-          ).
-            info_map
-        : Id.Map.empty;
-    let (view, program) =
-      SlideView.realize(~info_map, ~term, code.view, code.program);
-    {
-      ...code,
-      program,
-      view,
-    }
+    let term = fresh_term(code.program);
+    realize(
+      ~info_map=fresh_info_map(~settings, code.program, term),
+      ~term,
+      code.view,
+      code,
+    )
     |> return(~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
