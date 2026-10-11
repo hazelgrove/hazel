@@ -94,6 +94,17 @@ module Inc = {
     let exit_ = ref(Id.Map.empty);
     let c = ref(0);
     let f_exp = (continue, e: Exp.t): Exp.t => {
+      /* not into a function's body: it is evaluated only when called,
+         inside a call, where no stream entry is recorded, so its nodes
+         are never looked up (and an id the index lacks only means the
+         full walk). A livelit's definition is mostly function bodies,
+         and indexing them was the largest cost of collecting a
+         release's results. */
+      let continue =
+        switch (e.term) {
+        | Fun(_) => (e => e)
+        | _ => continue
+        };
       let id = Exp.rep_id(e);
       /* first occurrence wins: temp/invalid ids repeat, and only the
          outermost can carry a relevant cache entry */

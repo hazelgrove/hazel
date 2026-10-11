@@ -634,10 +634,16 @@ let stream_collector_parity = (): unit => {
     let inc = ref(None);
     let chunks = ref(0);
     let mismatches = ref(0);
+    /* chunks the incremental collector left to the full walk: a parity
+       check alone would pass if it always did */
+    let fallbacks = ref(0);
     let compare_states = () => {
       let walk = StreamCollector.collect_stream_state(merged^, elab);
       let (inc', fast) =
         StreamCollector.collect_stream_state_inc(~prev=inc^, merged^, elab);
+      if (inc' == None) {
+        incr(fallbacks);
+      };
       inc := inc';
       let probes_eq =
         compare(
@@ -720,6 +726,12 @@ let stream_collector_parity = (): unit => {
       };
     drive(evaluation);
     check(int, "incremental collector parity", 0, mismatches^);
+    Printf.printf(
+      "STREAMINC fallbacks=%d of %d chunks\n",
+      fallbacks^,
+      chunks^,
+    );
+    check(int, "incremental collector never falls back", 0, fallbacks^);
   };
 };
 
