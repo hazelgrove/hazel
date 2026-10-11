@@ -151,9 +151,7 @@ let with_segment =
               Id.Map.empty,
               manuals,
             ),
-          root == Haz3lcore.Sort.Mod
-            ? MakeTerm.Incr.term_of_mod(new_seg)
-            : MakeTerm.Incr.term_of(new_seg),
+          MakeTerm.Incr.term_of_root(~root, new_seg),
         )
       : Haz3lcore.CachedStatics.empty;
   let z =
@@ -213,8 +211,7 @@ let item_ctx =
     (~settings: Settings.t, ~collapsed, program: Program.t): ItemEdit.ctx => {
   let seg = Program.document(program);
   let mod_root = Program.root(program) == Haz3lcore.Sort.Mod;
-  let term =
-    mod_root ? MakeTerm.Incr.term_of_mod(seg) : MakeTerm.Incr.term_of(seg);
+  let term = MakeTerm.Incr.term_of_root(~root=Program.root(program), seg);
   {
     mod_root,
     term,
@@ -406,8 +403,7 @@ let update =
        away, so the view is realized against fresh ones */
     let seg = Program.document(code.program);
     let term =
-      Program.root(code.program) == Sort.Mod
-        ? MakeTerm.Incr.term_of_mod(seg) : MakeTerm.Incr.term_of(seg);
+      MakeTerm.Incr.term_of_root(~root=Program.root(code.program), seg);
     let info_map =
       settings.core.statics
         ? CachedStatics.init_compositional_term(
