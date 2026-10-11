@@ -33,6 +33,20 @@ let request =
   /* this request's id, once posted: a held plan is shown only while it is
      still the latest (not replaced, cancelled or timed out) */
   let mine = ref(None);
+  /* A stream dispatched since the last paint. With shared responses the
+     result is small and comes a few ms after the last stream, before the
+     page has drawn it; applied in the same frame, the stream (which
+     carries a livelit's new view, the face on Kids' Choice) waited for
+     the result's processing too. So a result that comes then is applied
+     just after the next paint. */
+  let stream_unpainted = ref(false);
+  let after_paint = (f: unit => unit) =>
+    Js_of_ocaml.Dom_html.window##requestAnimationFrame(
+      Js_of_ocaml.Js.wrap_callback(_ =>
+        ignore(Js_of_ocaml.Dom_html.setTimeout(f, 0.))
+      ),
+    )
+    |> ignore;
   /* Take the held plan, if any, cancelling its timer. */
   let take_plan = () => {
     switch (held_plan_timer^) {
@@ -57,41 +71,55 @@ let request =
     batch,
     ~on_result=
       (~final_streams, results) => {
-        let plan = Option.value(take_plan(), ~default=[]);
-        List.iter(
-          ((key, result)) => {
-            let result: Language.ProgramResult.t(Language.ProgramResult.inner) =
-              switch (result) {
-              | Ok((r, s)) =>
-                ResultOk({
-                  result: r,
-                  state: s,
-                })
-              | Error(e) => ResultFail(e)
+        let apply = () => {
+          let plan = Option.value(take_plan(), ~default=[]);
+          List.iter(
+            ((key, result)) => {
+              let result:
+                Language.ProgramResult.t(Language.ProgramResult.inner) =
+                switch (result) {
+                | Ok((r, s)) =>
+                  ResultOk({
+                    result: r,
+                    state: s,
+                  })
+                | Error(e) => ResultFail(e)
+                };
+              /* with this item's held plan and final streams, as one
+                 action: one redraw */
+              let of_key = l =>
+                List.filter_map(((k, x)) => k == key ? Some(x) : None, l);
+              switch (of_key(plan), of_key(final_streams)) {
+              | ([], []) =>
+                dispatch(
+                  pos_of_key(key),
+                  EvalResult.Update.UpdateResult(result),
+                )
+              | (plan, streams) =>
+                dispatch(
+                  pos_of_key(key),
+                  EvalResult.Update.ApplyWorkerMessages(
+                    List.nth_opt(plan, 0),
+                    streams,
+                    Some(result),
+                  ),
+                )
               };
-            /* with this item's held plan and final streams, as one
-               action: one redraw */
-            let of_key = l =>
-              List.filter_map(((k, x)) => k == key ? Some(x) : None, l);
-            switch (of_key(plan), of_key(final_streams)) {
-            | ([], []) =>
-              dispatch(
-                pos_of_key(key),
-                EvalResult.Update.UpdateResult(result),
-              )
-            | (plan, streams) =>
-              dispatch(
-                pos_of_key(key),
-                EvalResult.Update.ApplyWorkerMessages(
-                  List.nth_opt(plan, 0),
-                  streams,
-                  Some(result),
-                ),
-              )
-            };
-          },
-          results,
-        );
+            },
+            results,
+          );
+        };
+        if (stream_unpainted^) {
+          /* only if no newer request has been posted since: its own
+             results replace this one's */
+          after_paint(() =>
+            if (WorkerClient.latest_request_id() == None) {
+              apply();
+            }
+          );
+        } else {
+          apply();
+        };
       },
     ~on_timeout=
       batch => {
@@ -126,7 +154,11 @@ let request =
           );
       },
     ~on_stream=
-      (key, stream) =>
+      (key, stream) => {
+        if (! stream_unpainted^) {
+          stream_unpainted := true;
+          after_paint(() => stream_unpainted := false);
+        };
         /* with this key's held plan, as one action: one redraw */
         switch (take_plan()) {
         | None =>
@@ -144,7 +176,8 @@ let request =
               None,
             ),
           );
-        },
+        };
+      },
   );
   mine := WorkerClient.latest_request_id();
 };

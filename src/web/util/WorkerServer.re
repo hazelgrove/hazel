@@ -56,7 +56,10 @@ module ClientMessage = {
     | Evaluate(Request.t)
     /* the request with every value the worker already holds replaced by a
        reference (Util.ShareCodec); true: reset the worker's table first */
-    | EvaluateShared(bool, Request.t);
+    | EvaluateShared(bool, Request.t)
+    /* the client could not resolve a shared response: start the responses'
+       table over (the client asks for the evaluation again) */
+    | ResetResponses;
 };
 
 module ServerMessage = {
@@ -111,7 +114,11 @@ module ServerMessage = {
     | Resend(ack)
     | ReusePlan(reuse_plan)
     | Stream(stream)
-    | Result(result);
+    | Result(result)
+    /* a message with every value the client already holds replaced by a
+       reference (Util.ShareCodec), as requests are; true: the client resets
+       its table first */
+    | Shared(bool, t);
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -454,8 +461,36 @@ let is_latest = (model, request_id) =>
 /* All worker→client messages cross postMessage in the Active encoding
  * (see ENCODING above): posting the live value graph overflows Chrome's
  * structured clone on deep results (#2368). */
+/* Responses are shared like requests (Util.ShareCodec, the other way): a
+   result the client already holds goes as a reference, so a release's
+   result carries what changed. Encoding the whole response was as much
+   of the worker's time per release as evaluating (Kids' Choice, 44 ms
+   profiled), and decoding it a main-thread cost on the way to the redraw.
+   The worker's sent-set starts over at first, when the client asks
+   (ResetResponses), when it grows past ShareCodec.max_entries, and after a
+   message too deep to walk, which is sent whole. */
+let response_reset = ref(true);
+let share_response = (msg: ServerMessage.t): ServerMessage.t => {
+  if (Util.ShareCodec.Client.size() > Util.ShareCodec.max_entries) {
+    response_reset := true;
+  };
+  let reset = response_reset^;
+  if (reset) {
+    Util.ShareCodec.Client.reset();
+  };
+  switch (Util.ShareCodec.Client.encode(msg)) {
+  | shared =>
+    response_reset := false;
+    ServerMessage.Shared(reset, shared);
+  | exception _ =>
+    response_reset := true;
+    msg;
+  };
+};
 let post_message = (msg: ServerMessage.t): unit =>
-  Js_of_ocaml.Worker.post_message(Active.encode_response(msg));
+  Js_of_ocaml.Worker.post_message(
+    Active.encode_response(share_response(msg)),
+  );
 
 /* A completed item's last stream, held for the result message when no item
    follows it (see ServerMessage.result.final_streams). */
@@ -845,6 +880,7 @@ let install_message_handler = () => {
         Util.ShareCodec.Worker.reset();
         post_message(ServerMessage.Resend({request_id: request.request_id}));
       };
+    | ClientMessage.ResetResponses => response_reset := true
     };
 
   Js_of_ocaml.Worker.set_onmessage(on_request);

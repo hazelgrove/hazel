@@ -141,49 +141,93 @@ let cancel = (): unit => {
   latest_request := None;
 };
 
+/* Shared responses (WorkerServer.post_message): after one named a value
+   this client does not hold, the rest of the old stream is ignored until
+   the worker starts its table over. */
+let awaiting_response_reset = ref(false);
+
+/* A response as the worker meant it, a shared one decoded. None: ignored,
+   while waiting for the worker's reset. Error: it named a value this
+   client does not hold; the caller asks for the reset (and the
+   evaluation again, whose answer it was). */
+let unshare = (msg: ServerMessage.t): option(result(ServerMessage.t, unit)) =>
+  switch (msg) {
+  | ServerMessage.Shared(reset, shared) =>
+    if (reset) {
+      Util.ShareCodec.Worker.reset();
+      awaiting_response_reset := false;
+    };
+    if (awaiting_response_reset^) {
+      None;
+    } else {
+      switch (Util.ShareCodec.Worker.decode(shared)) {
+      | msg => Some(Ok(msg))
+      | exception _ =>
+        Util.ShareCodec.Worker.reset();
+        awaiting_response_reset := true;
+        Some(Error());
+      };
+    };
+  | msg => Some(Ok(msg))
+  };
+
 let setup_worker_message_handler = worker => {
   worker##.onmessage :=
     Dom.handler(evt => {
       /* Stop the latency clock first thing, before any decode/benchmark. */
       let now = Util.JsUtil.precise_timestamp();
-      switch (Active.decode_response(evt##.data)) {
-      | ServerMessage.Resend({request_id}) =>
-        with_latest(
-          request_id,
-          latest => {
-            share_reset := true;
-            post_evaluate(worker, latest.request);
-          },
-        )
-      | ServerMessage.Ack({request_id}) =>
-        /* Liveness only — reuse tinting arrives next via ReusePlan. */
-        with_latest(request_id, _ => clear_timer(ack_timeout_id))
-      | ServerMessage.ReusePlan({request_id, initial}) =>
-        with_latest(request_id, latest => latest.callbacks.on_ack(initial))
-      | ServerMessage.Stream({request_id, key, update}) =>
-        with_latest(request_id, latest =>
-          latest.callbacks.on_stream(key, update)
-        )
-      | ServerMessage.Result(result) as msg =>
-        with_latest(
-          result.request_id,
-          latest => {
-            clear_timeouts();
-            latest_request := None;
-            /* Hand the result off first; benchmarking the other encodings
-             * can take tens of ms and must not delay evaluation latency. */
-            latest.callbacks.on_result(
-              ~final_streams=
-                List.map(
-                  (st: ServerMessage.stream) => (st.key, st.update),
-                  result.final_streams,
-                ),
-              result.response,
-            );
-            WorkerMetrics.record_response(result.request_id, msg);
-            EvalMetrics.record_done(~now, ~encoded=evt##.data, result);
-          },
-        )
+      let handle = (msg: ServerMessage.t) =>
+        switch (msg) {
+        | ServerMessage.Shared(_) => () /* unshared before here */
+        | ServerMessage.Resend({request_id}) =>
+          with_latest(
+            request_id,
+            latest => {
+              share_reset := true;
+              post_evaluate(worker, latest.request);
+            },
+          )
+        | ServerMessage.Ack({request_id}) =>
+          /* Liveness only — reuse tinting arrives next via ReusePlan. */
+          with_latest(request_id, _ => clear_timer(ack_timeout_id))
+        | ServerMessage.ReusePlan({request_id, initial}) =>
+          with_latest(request_id, latest => latest.callbacks.on_ack(initial))
+        | ServerMessage.Stream({request_id, key, update}) =>
+          with_latest(request_id, latest =>
+            latest.callbacks.on_stream(key, update)
+          )
+        | ServerMessage.Result(result) as msg =>
+          with_latest(
+            result.request_id,
+            latest => {
+              clear_timeouts();
+              latest_request := None;
+              /* Hand the result off first; benchmarking the other encodings
+               * can take tens of ms and must not delay evaluation latency. */
+              latest.callbacks.on_result(
+                ~final_streams=
+                  List.map(
+                    (st: ServerMessage.stream) => (st.key, st.update),
+                    result.final_streams,
+                  ),
+                result.response,
+              );
+              WorkerMetrics.record_response(result.request_id, msg);
+              EvalMetrics.record_done(~now, ~encoded=evt##.data, result);
+            },
+          )
+        };
+      switch (unshare(Active.decode_response(evt##.data))) {
+      | Some(Ok(msg)) => handle(msg)
+      | None => ()
+      | Some(Error ()) =>
+        worker##postMessage(
+          Active.encode_request(ClientMessage.ResetResponses),
+        );
+        switch (latest_request^) {
+        | Some(latest) => post_evaluate(worker, latest.request)
+        | None => ()
+        };
       };
       Js._true;
     });
