@@ -165,16 +165,9 @@ let update = (~settings, a: StepperView.Update.t, ps: t): Updated.t(t) => {
    one unless history is on) */
 let stepper_rows = (~settings: CoreSettings.t, s: StepperView.Model.t): int => {
   let rec go = (m: StepperBase.step_model) => {
-    let shown =
-      StepperBase.StepKind.is_missing_step(m.step_kind)
-      || settings.evaluation.stepper_history
-      && (
-        m.hidden != Calc.Calculated(true)
-        || settings.evaluation.show_hidden_steps
-      );
     let here =
       switch (m.editor) {
-      | _ when !shown => 0
+      | _ when !StepperBase.Stepper.this_step_shown(~settings, m) => 0
       | Calc.Calculated(ed) =>
         Haz3lcore.Measured.num_rows(ed.editor.syntax.measured)
       | Calc.Pending => 1

@@ -10,13 +10,34 @@ module Persist = ScratchPersist;
 
 type code = Scratchpad.code;
 
+let cell = (id: Haz3lcore.Id.t, d: Divided.t): option(ScratchCell.t) =>
+  List.find_opt((e: ScratchCell.t) => e.e_id == id, Divided.cells(d));
+
+/* whether [term]'s outline names anything: a hydrating slide's
+   placeholder statics show only an unnamed ⇒ row */
+let named_outline = (term: Language.Exp.t): bool =>
+  List.exists(
+    (n: OutlineTree.node) => n.o_label != "",
+    OutlineTree.of_term(term),
+  );
+
+/* a loaded slide's saved view, once statics can resolve it: against the
+   placeholder, resolving drops pins */
+let saved_view = (~slide_key, code: code): option(Persist.side) =>
+  switch (Hashtbl.find_opt(Persist.pending_pins, slide_key), code.program) {
+  | (Some(saved), Whole(editor))
+      when named_outline(editor.editor.statics.term) =>
+    Some(saved)
+  | _ => None
+  };
+
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     /* the whole program's editor; while divided, its result */
     | CellAction(CellEditor.Update.t)
-    | StackHeader(Haz3lcore.Id.t, CellEditor.Update.t)
-    | StackBody(Haz3lcore.Id.t, CellEditor.Update.t)
+    /* an open cell's header or body */
+    | Stack(Haz3lcore.Id.t, ScratchCell.side, CellEditor.Update.t)
     /* open or close an item's cell */
     | FocusToggle(Haz3lcore.Id.t)
     /* one cell for a whole test run */
@@ -81,10 +102,32 @@ let project_cell_statics =
       ),
   };
 };
+
+/* a cell's item: the top-level one whose map knows its id (a module
+   member's is its module's) */
+let item_of =
+    (ds: Haz3lcore.DefStatics.t, e: ScratchCell.t)
+    : option(Haz3lcore.DefStatics.item) =>
+  List.find_opt(
+    (it: Haz3lcore.DefStatics.item) =>
+      it.d_id == e.e_id || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
+    ds.items,
+  );
+
 /* incremental-parse cache for a divided program's statics frames:
    only the edited item re-parses */
 let stacked_incr_cache: ref(Haz3lcore.MakeTerm.Incr.cache) =
   ref(Haz3lcore.MakeTerm.Incr.mk_cache());
+
+/* [code] showing [v]: its cells opened and closed to match */
+let realize = (~info_map, ~term, v: SlideView.t, code: code): code => {
+  let (view, program) = SlideView.realize(~info_map, ~term, v, code.program);
+  {
+    ...code,
+    program,
+    view,
+  };
+};
 
 /* change what the slide shows, then open and close cells to match;
    view changes are not undo steps */
@@ -92,18 +135,12 @@ let view =
     (f: (Language.Exp.t, Program.t, SlideView.t) => SlideView.t, code: code)
     : Updated.t(code) => {
   let statics = Program.statics(code.program);
-  let (view, program) =
-    SlideView.realize(
-      ~info_map=statics.info_map,
-      ~term=statics.term,
-      f(statics.term, code.program, code.view),
-      code.program,
-    );
-  {
-    ...code,
-    program,
-    view,
-  }
+  realize(
+    ~info_map=statics.info_map,
+    ~term=statics.term,
+    f(statics.term, code.program, code.view),
+    code,
+  )
   |> Updated.return(~historic=false);
 };
 
@@ -111,19 +148,35 @@ let view =
    view again, pins to vanished items dropped */
 let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
   let statics = Program.statics(program);
-  let (view, program) =
-    SlideView.realize(
-      ~info_map=statics.info_map,
-      ~term=statics.term,
-      code.view,
+  realize(
+    ~info_map=statics.info_map,
+    ~term=statics.term,
+    code.view,
+    {
+      ...code,
       program,
-    );
-  {
-    ...code,
-    program,
-    view,
-  };
+    },
+  );
 };
+
+/* [program]'s document parsed and analyzed now: its statics may lag it,
+   or be compacted away by undo */
+let fresh_term = (program: Program.t): Language.Exp.t =>
+  MakeTerm.Incr.term_of_root(
+    ~root=Program.root(program),
+    Program.document(program),
+  );
+let fresh_info_map =
+    (~settings: Settings.t, program: Program.t, term: Language.Exp.t)
+    : Language.Statics.Map.t =>
+  settings.core.statics
+    ? CachedStatics.init_compositional_term(
+        ~settings=settings.core,
+        ~probe_ids=Program.probe_ids(program),
+        term,
+      ).
+        info_map
+    : Id.Map.empty;
 
 /* the program after an outline edit: statics seeded now (the outline
    reads them), manual probes and the caret kept, cells re-cut */
@@ -209,23 +262,11 @@ let with_segment =
    document, which the statics may lag */
 let item_ctx =
     (~settings: Settings.t, ~collapsed, program: Program.t): ItemEdit.ctx => {
-  let seg = Program.document(program);
-  let mod_root = Program.root(program) == Haz3lcore.Sort.Mod;
-  let term = MakeTerm.Incr.term_of_root(~root=Program.root(program), seg);
+  let term = fresh_term(program);
   {
-    mod_root,
+    mod_root: Program.root(program) == Haz3lcore.Sort.Mod,
     term,
-    info_map:
-      lazy(
-        settings.core.statics
-          ? Haz3lcore.CachedStatics.init_compositional_term(
-              ~settings=settings.core,
-              ~probe_ids=Program.probe_ids(program),
-              term,
-            ).
-              info_map
-          : Haz3lcore.Id.Map.empty
-      ),
+    info_map: lazy(fresh_info_map(~settings, program, term)),
     is_open: id =>
       switch (OutlineTree.label_path(id, term)) {
       | Some(path) => !List.mem(path, collapsed)
@@ -244,12 +285,10 @@ let update =
     )
     : Updated.t(code) => {
   open Updated;
-  let cell_update = (id, side: Divided.side, a) =>
+  let cell_update = (id, side, a) =>
     switch (code.program) {
     | Divided(d) =>
-      switch (
-        List.find_opt((e: ScratchCell.t) => e.e_id == id, Divided.cells(d))
-      ) {
+      switch (cell(id, d)) {
       | None => code |> return_quiet
       | Some(e) =>
         let* ed =
@@ -387,39 +426,22 @@ let update =
   | RealizeView =>
     /* after undo: the restored program's statics may be compacted
        away, so the view is realized against fresh ones */
-    let seg = Program.document(code.program);
-    let term =
-      MakeTerm.Incr.term_of_root(~root=Program.root(code.program), seg);
-    let info_map =
-      settings.core.statics
-        ? CachedStatics.init_compositional_term(
-            ~settings=settings.core,
-            ~probe_ids=Program.probe_ids(code.program),
-            term,
-          ).
-            info_map
-        : Id.Map.empty;
-    let (view, program) =
-      SlideView.realize(~info_map, ~term, code.view, code.program);
-    {
-      ...code,
-      program,
-      view,
-    }
+    let term = fresh_term(code.program);
+    realize(
+      ~info_map=fresh_info_map(~settings, code.program, term),
+      ~term,
+      code.view,
+      code,
+    )
     |> return(~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
        slide hydrating first can't drop it */
-    switch (Hashtbl.find_opt(Persist.pending_pins, slide_key), code.program) {
-    | (Some(saved), Whole(editor))
-        when
-          List.exists(
-            (n: OutlineTree.node) => n.o_label != "",
-            OutlineTree.of_term(editor.editor.statics.term),
-          ) =>
+    switch (saved_view(~slide_key, code)) {
+    | Some(saved) =>
       Hashtbl.remove(Persist.pending_pins, slide_key);
       view((term, _, _) => Persist.resolve_view(saved, term), code);
-    | _ => code |> return_quiet /* statics not ready: retry */
+    | None => code |> return_quiet /* statics not ready: retry */
     }
   | RestoreCaret(p) =>
     /* cleared here, not when scheduled: boot's calculate has a no-op
@@ -439,8 +461,7 @@ let update =
       };
     | Divided(_) => code |> return_quiet
     };
-  | StackHeader(id, a) => cell_update(id, Header, a)
-  | StackBody(id, a) => cell_update(id, Body, a)
+  | Stack(id, side, a) => cell_update(id, side, a)
   | CellAction(a) =>
     switch (code.program) {
     | Whole(editor) =>
@@ -496,7 +517,7 @@ let calculate =
       ~autoprobe_mode,
       /* the ⇓ toggle: the whole program's last expression, or the ⇒
          cell's, probed as an open drawer */
-      ~tail_probe=false,
+      ~tail_probe,
       ~schedule_action: Action.t => unit,
       ~is_edited,
       ~statics_mode,
@@ -511,17 +532,8 @@ let calculate =
   | Some(p) => schedule_action(RestoreCaret(p))
   | None => ()
   };
-  switch (Hashtbl.mem(Persist.pending_pins, slide_key), program) {
-  | (true, Whole(editor))
-      when
-        List.exists(
-          (n: OutlineTree.node) => n.o_label != "",
-          OutlineTree.of_term(editor.editor.statics.term),
-        ) =>
-    /* only once statics has a named outline: early hydration frames see
-       a placeholder (a lone unnamed ⇒ row), where resolving drops pins */
-    schedule_action(RestorePins)
-  | _ => ()
+  if (Option.is_some(saved_view(~slide_key, code))) {
+    schedule_action(RestorePins);
   };
   let worker_request = ref([]);
   let queue_worker =
@@ -550,6 +562,7 @@ let calculate =
           ~is_edited,
           ~statics_mode,
           ~compositional=true,
+          ~show_value=false,
           ~queue_worker,
           ~stitch=x => x,
           editor,
@@ -617,15 +630,7 @@ let calculate =
             d
             |> Divided.with_statics(statics)
             |> Divided.map_cells((e: ScratchCell.t) =>
-                 switch (
-                   /* the cell may be a module member: its top-level
-                      item is the one whose map knows its id */
-                   List.find_opt(
-                     (it: Haz3lcore.DefStatics.item) =>
-                       it.d_id == e.e_id || Id.Map.mem(e.e_id, it.d_map),
-                     ds.items,
-                   )
-                 ) {
+                 switch (item_of(ds, e)) {
                  | Some(it) when fresh(it) =>
                    switch (Focus.cell_content(e, spliced)) {
                    | Some(def_seg) =>
@@ -690,6 +695,7 @@ let calculate =
             },
             ~queue_worker,
             ~compute_pending=false,
+            ~show_value=false,
             ~is_edited,
             ~stepping=
               Option.map(
@@ -725,20 +731,8 @@ let calculate =
         );
       let calc_entry = (e: ScratchCell.t): ScratchCell.t => {
         /* the stepping drawer's rows follow the program's stepper */
-        let fit = (c: CellEditor.Model.t) =>
-          switch (
-            CellEditor.Update.fit_steps(
-              ~settings,
-              Divided.result(d),
-              c.editor,
-            )
-          ) {
-          | (editor, true) => {
-              ...c,
-              editor,
-            }
-          | (_, false) => c
-          };
+        let fit = c =>
+          fst(CellEditor.Update.fit_steps(~settings, Divided.result(d), c));
         let (h, b) = (fit(e.e_header), fit(e.e_body));
         /* identity kept when nothing moved: the memo below keys on it */
         let e =
@@ -757,7 +751,7 @@ let calculate =
                     prev === e
                     && s' === settings
                     && d' === extra_dyn
-                    && t' == (is_tail_cell(e), ProbeProj.Settings.layout^) =>
+                    && t' == (is_tail_cell(e), DrawerFit.layout^) =>
                 Some(prev)
               | _ => None
               }
@@ -770,47 +764,27 @@ let calculate =
             e.e_body.editor.editor.root == Haz3lcore.Sort.Exp
             || e.e_body.editor.editor.root == Haz3lcore.Sort.Mod;
           let body_is_typ = e.e_body.editor.editor.root == Haz3lcore.Sort.Typ;
-          /* on statics frames cells read their item's
-             analysis instead of re-running a private one */
-          let (proj_header, proj_body) =
+          /* on statics frames (which always analyze, so [ds] is there)
+             cells read their item's analysis instead of re-running a
+             private one */
+          let item =
             statics_mode == StaticsMode.Force
-              ? {
-                switch (ds) {
-                | Some(ds) =>
-                  switch (
-                    List.find_opt(
-                      (it: Haz3lcore.DefStatics.item) =>
-                        it.d_id == e.e_id
-                        || Haz3lcore.Id.Map.mem(e.e_id, it.d_map),
-                      ds.items,
-                    )
-                  ) {
-                  | Some(it) =>
-                    let warns = Lazy.force(frame_warns);
-                    (
-                      Some(
-                        project_cell_statics(
-                          ~settings,
-                          ~item=it,
-                          ~engine_warnings=warns,
-                          e.e_header,
-                        ),
-                      ),
-                      Some(
-                        project_cell_statics(
-                          ~settings,
-                          ~item=it,
-                          ~engine_warnings=warns,
-                          e.e_body,
-                        ),
-                      ),
-                    );
-                  | None => (None, None)
-                  }
-                | None => (None, None)
-                };
-              }
-              : (None, None);
+              ? Option.bind(ds, ds => item_of(ds, e)) : None;
+          let project = (c: CellEditor.Model.t) =>
+            Option.map(
+              item =>
+                project_cell_statics(
+                  ~settings,
+                  ~item,
+                  ~engine_warnings=Lazy.force(frame_warns),
+                  c,
+                ),
+              item,
+            );
+          let (proj_header, proj_body) = (
+            project(e.e_header),
+            project(e.e_body),
+          );
           /* dynamics off: a cell shows the whole program's samples, and
              its own run would be on the main thread with no step limit */
           let body_settings =
@@ -860,12 +834,7 @@ let calculate =
           Hashtbl.replace(
             calc_entry_memo,
             e.e_id,
-            (
-              settings,
-              extra_dyn,
-              (is_tail_cell(e), ProbeProj.Settings.layout^),
-              e',
-            ),
+            (settings, extra_dyn, (is_tail_cell(e), DrawerFit.layout^), e'),
           );
           e';
         };

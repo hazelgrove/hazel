@@ -175,6 +175,15 @@ module Update = {
 
   let equal = (===);
 
+  /* a jump into a cell that isn't open, or to another cell's binder: the
+     item opens and its pane is selected now, the caret moves once the
+     cell is there */
+  let jump_across = (~schedule_action, (ensure, selection, caret)) => {
+    schedule_action(Editors(caret));
+    Haz3lcore.FocusEffect.schedule_cell_top();
+    (ensure, selection);
+  };
+
   let update_global =
       (
         ~import_log,
@@ -225,10 +234,8 @@ module Update = {
       |> Updated.return(~scroll_active=false);
     | JumpToTile(id) =>
       switch (Editors.Selection.closed_jump(id, model.editors)) {
-      | Some((ensure, selection, caret)) =>
-        /* outside every open cell: open its item, then move there */
-        schedule_action(Editors(caret));
-        Haz3lcore.FocusEffect.schedule_cell_top();
+      | Some(across) =>
+        let (ensure, selection) = jump_across(~schedule_action, across);
         let* editors =
           Editors.Update.update(
             ~globals,
@@ -422,36 +429,20 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
-      /* a stack cell's jump to a binder in another definition becomes:
-         stack the target, select it, then jump the caret (as JumpToTile) */
-      let (action, selection, followup) =
+      let (action, selection) =
         switch (Editors.Selection.stack_jump_override(action, model.editors)) {
-        | Some((action', selection, followup)) => (
-            action',
-            selection,
-            Some(followup),
-          )
-        | None => (action, model.selection, None)
-        };
-      switch (followup) {
-      | Some(k) =>
-        schedule_action(Editors(k));
-        Haz3lcore.FocusEffect.schedule_cell_top();
-      | None => ()
-      };
-      /* an outline add selects and focuses the new cell (focus also
-         scrolls it into view) */
-      let selection =
-        switch (followup) {
-        | Some(_) => selection
+        /* a stack cell's jump to a binder in another definition */
+        | Some(across) => jump_across(~schedule_action, across)
         | None =>
+          /* an outline add selects and focuses the new cell (focus also
+             scrolls it into view) */
           switch (
             Editors.Selection.stack_add_selection(action, model.editors)
           ) {
           | Some(s) =>
             Haz3lcore.FocusEffect.schedule_cell_top();
-            s;
-          | None => selection
+            (action, s);
+          | None => (action, model.selection)
           }
         };
       let* editors =
@@ -569,13 +560,14 @@ module Update = {
         Editors.Update.calculate(
           ~settings=
             dynamics
-              ? model.globals.settings.core
+              ? model.globals.settings
               : {
-                ...model.globals.settings.core,
-                dynamics: false,
+                ...model.globals.settings,
+                core: {
+                  ...model.globals.settings.core,
+                  dynamics: false,
+                },
               },
-          ~autoprobe_mode=model.globals.settings.autoprobe_mode,
-          ~tail_probe=model.globals.settings.tail_probe,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,

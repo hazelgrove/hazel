@@ -162,12 +162,16 @@ let outline_page_rows = (): int =>
   | _ => 10
   };
 
+/* the outline's row list holds the keys: focus is on it or inside it (a
+   name's field). Only where the list takes keys (a deck's: it has a
+   tabindex); elsewhere a <summary> focused by a click would keep a jump's
+   focus from the editor */
 let outline_has_focus = (): bool =>
   switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
   | Some(el) =>
-    Js.to_bool(
-      Js.Unsafe.coerce(el)##matches(
-        Js.string("#outline-sidebar .outline-body"),
+    Js.Opt.test(
+      Js.Unsafe.coerce(el)##closest(
+        Js.string("#outline-sidebar .outline-body[tabindex]"),
       ),
     )
   | None => false
