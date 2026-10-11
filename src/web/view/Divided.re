@@ -741,16 +741,7 @@ let keep_stepping = (span: Language.Sample.span_ref, d: t): t =>
         (c: CellEditor.Model.t) =>
           switch (c.editor.editor.state.zipper.refractors.stepping) {
           | Some(st) when st.span != span =>
-            CellEditor.Model.map_zipper(
-              z =>
-                Zipper.update_refractors(z, r =>
-                  {
-                    ...r,
-                    stepping: None,
-                  }
-                ),
-              c,
-            )
+            CellEditor.Model.map_zipper(ProbePerform.hide_steps, c)
           | _ => c
           },
         d,

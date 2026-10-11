@@ -309,27 +309,37 @@ let update_autoprobe =
   };
 };
 
-/* the program's last expression: past its lets, type aliases, module
-   lets and `;` statements (the outline's ⇒ row) */
-let tail_id = (syntax: CachedSyntax.t): option(Id.t) => {
-  let rec tail_of = (e: Exp.t): Exp.t =>
-    switch (e.term) {
-    | Let(_, _, body)
-    | TyAlias(_, _, body)
-    | ModuleExp(_, _, body)
-    | Use(_, body)
-    | Theorem(_, _, body)
-    | Seq(_, body) => tail_of(body)
-    | _ => e
-    };
+let program_exp = (syntax: CachedSyntax.t): option(Exp.t) =>
   switch (
     Option.bind(program_root_id(syntax), id =>
       Id.Map.find_opt(id, syntax.terms)
     )
   ) {
-  | Some(Exp(e)) => Some(Exp.rep_id(tail_of(e)))
+  | Some(Exp(e)) => Some(e)
   | _ => None
   };
+
+/* the rest of the program's top level after a let, type alias, module
+   let, use, theorem or `;` statement */
+let top_level_rest = (e: Exp.t): option(Exp.t) =>
+  switch (e.term) {
+  | Let(_, _, body)
+  | TyAlias(_, _, body)
+  | ModuleExp(_, _, body)
+  | Use(_, body)
+  | Theorem(_, _, body)
+  | Seq(_, body) => Some(body)
+  | _ => None
+  };
+
+/* the program's last expression (the outline's ⇒ row) */
+let tail_id = (syntax: CachedSyntax.t): option(Id.t) => {
+  let rec tail_of = (e: Exp.t): Exp.t =>
+    switch (top_level_rest(e)) {
+    | Some(body) => tail_of(body)
+    | None => e
+    };
+  Option.map(e => Exp.rep_id(tail_of(e)), program_exp(syntax));
 };
 
 /* the ⇓ toggle: one probe on the last expression, an open drawer with no
@@ -389,28 +399,22 @@ let update_tail =
 
 /* the theorems along a program's top level, in order */
 let theorems_of_exp = (e: Exp.t): list(Id.t) => {
-  let rec go = (acc, e: Exp.t) =>
-    switch (e.term) {
-    | Theorem(_, _, body) => go([Exp.rep_id(e), ...acc], body)
-    | Let(_, _, body)
-    | TyAlias(_, _, body)
-    | ModuleExp(_, _, body)
-    | Use(_, body)
-    | Seq(_, body) => go(acc, body)
-    | _ => acc
+  let rec go = (acc, e: Exp.t) => {
+    let acc =
+      switch (e.term) {
+      | Theorem(_) => [Exp.rep_id(e), ...acc]
+      | _ => acc
+      };
+    switch (top_level_rest(e)) {
+    | Some(body) => go(acc, body)
+    | None => List.rev(acc)
     };
-  List.rev(go([], e));
+  };
+  go([], e);
 };
 
 let theorem_ids = (syntax: CachedSyntax.t): list(Id.t) =>
-  switch (
-    Option.bind(program_root_id(syntax), id =>
-      Id.Map.find_opt(id, syntax.terms)
-    )
-  ) {
-  | Some(Exp(e)) => theorems_of_exp(e)
-  | _ => []
-  };
+  Option.fold(~none=[], ~some=theorems_of_exp, program_exp(syntax));
 
 /* where an editor shows proofs: none, under each of its theorems, or
    (a theorem's cell, which holds its statement) under its root */
@@ -434,30 +438,23 @@ let update_proofs =
       | None => []
       }
     };
-  let current = z.refractors.proofs;
-  if (List.length(wanted) == Id.Map.cardinal(current)
-      && List.for_all(
-           ((id, model)) =>
-             switch (Id.Map.find_opt(id, current)) {
-             | Some(e) => e.model == model
-             | None => false
-             },
-           wanted,
-         )) {
-    z;
-  } else {
-    let proofs =
-      List.fold_left(
-        (m, (id, model)) =>
-          Id.Map.add(id, Refractors.mk_entry(~model, Proof), m),
-        Id.Map.empty,
-        wanted,
-      );
-    Zipper.update_refractors(z, r =>
-      {
-        ...r,
-        proofs,
-      }
+  let proofs =
+    List.fold_left(
+      (m, (id, model)) =>
+        Id.Map.add(id, Refractors.mk_entry(~model, Proof), m),
+      Id.Map.empty,
+      wanted,
     );
-  };
+  Id.Map.equal(
+    (a: Refractors.entry, b: Refractors.entry) => a.model == b.model,
+    proofs,
+    z.refractors.proofs,
+  )
+    ? z
+    : Zipper.update_refractors(z, r =>
+        {
+          ...r,
+          proofs,
+        }
+      );
 };

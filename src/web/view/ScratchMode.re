@@ -989,40 +989,15 @@ module View = {
               cells,
             );
           stack_cache := rendered;
-          /* the whole program's result, live below the cells */
+          /* the whole program's status is the inspector's; below the
+             cells, its elaboration while evaluation is off. Nothing here
+             takes input */
           let (result_footer, _overlays) =
             EvalResult.View.view(
               ~globals,
-              ~signal=
-                fun
-                | MakeActive(a) => signal(MakeActive(Cell(Result(a))))
-                | JumpTo(id) =>
-                  /* the target may be in no open cell: open its item */
-                  switch (Selection.cross_cell_target(~target_id=id, ~d)) {
-                  | Some((ensure, sel, caret)) =>
-                    Virtual_dom.Vdom.Effect.Many([
-                      inject(ensure),
-                      signal(MakeActive(sel)),
-                      inject(caret),
-                    ])
-                  | None =>
-                    Virtual_dom.Vdom.Effect.Many([
-                      signal(MakeActive(Cell(MainEditor))),
-                      inject(
-                        Workspace(
-                          CellAction(
-                            MainEditor(Perform(Move(Goal(TileId(id))))),
-                          ),
-                        ),
-                      ),
-                    ])
-                  },
-              ~inject=a => inject(Workspace(CellAction(ResultAction(a)))),
-              ~selected=
-                switch (selected) {
-                | Some(Selection.Cell(Result(a))) => Some(a)
-                | _ => None
-                },
+              ~signal=_ => Virtual_dom.Vdom.Effect.Ignore,
+              ~inject=_ => Virtual_dom.Vdom.Effect.Ignore,
+              ~selected=None,
               ~locked=false,
               ~result_kind=`StatusLine,
               Divided.result(d),

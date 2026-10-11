@@ -2282,13 +2282,11 @@ let keep_clicks = [
   ),
 ];
 
-let steps_drawer_view = (~parent, ~overflowing: bool, info: info): Node.t =>
+let steps_drawer_view = (~parent, info: info): Node.t =>
   div(
     ~attrs=
       [
-        Attr.classes(
-          ["steps-drawer"] @ (overflowing ? ["overflowing"] : []),
-        ),
+        Attr.classes(["steps-drawer"]),
         Attr.create("data-drawer-id", Id.to_string(info.id)),
       ]
       @ keep_clicks,
@@ -2421,13 +2419,9 @@ module M: Projector = {
 
   let placeholder = (model: model, info: info) =>
     switch (info.stepping) {
-    | Some(st) =>
-      /* uncapped: steps are worked through, so the drawer opens to the
-         whole trace instead of scrolling inside itself */
-      ProjectorCore.Shape.{
-        horizontal: 0,
-        vertical: Tab(max(1, DrawerFit.rows(info.id, st.rows))),
-      }
+    /* uncapped: steps are worked through, so the drawer opens to the
+       whole trace instead of scrolling inside itself */
+    | Some(st) => DrawerFit.shape(info.id, st.rows)
     | None => placeholder_samples(model, info)
     };
 
@@ -2621,9 +2615,7 @@ module M: Projector = {
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
       stepping
-        ? Some(
-            steps_drawer_view(~parent, ~overflowing=drawer_overflow, info),
-          )
+        ? Some(steps_drawer_view(~parent, info))
         : drawer
           && (
             switch (rich_drawer_rows(model, info)) {

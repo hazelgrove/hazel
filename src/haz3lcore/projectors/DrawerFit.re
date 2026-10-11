@@ -13,6 +13,12 @@ let measured: Hashtbl.t(Id.t, int) = Hashtbl.create(8);
 let rows = (id: Id.t, computed: int): int =>
   max(computed, Hashtbl.find_opt(measured, id) |> Option.value(~default=1));
 
+/* a drawer opens to its whole length below its line */
+let shape = (id: Id.t, computed: int): ProjectorShape.t => {
+  horizontal: 0,
+  vertical: Tab(rows(id, computed)),
+};
+
 /* true when it changed */
 let set_measured = (id: Id.t, n: int): bool =>
   if (Hashtbl.find_opt(measured, id) == Some(n)) {

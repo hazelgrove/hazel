@@ -20,62 +20,55 @@ let schedule_editor = (): unit => {
   scheduled := Some(Editor);
 };
 
-/* a sidebar jump moves the model selection but not DOM focus; this restores it */
-let schedule_cell = (): unit => {
-  /* don't downgrade a pending CellTop: several actions in one frame
-     may each request focus */
+/* don't downgrade a pending CellTop: several actions in one frame may
+   each request focus */
+let schedule_below_top = (target: target): unit =>
   switch (scheduled^) {
   | Some(CellTop) => ()
-  | _ => scheduled := Some(Cell)
+  | _ => scheduled := Some(target)
   };
-};
+
+/* a sidebar jump moves the model selection but not DOM focus; this restores it */
+let schedule_cell = (): unit => schedule_below_top(Cell);
 
 let schedule_cell_top = (): unit => {
   scheduled := Some(CellTop);
 };
 
 /* a jump: as schedule_cell, and a caret out of view comes near the top */
-let schedule_cell_caret_top = (): unit =>
-  switch (scheduled^) {
-  | Some(CellTop) => ()
-  | _ => scheduled := Some(CellCaretTop)
-  };
+let schedule_cell_caret_top = (): unit => schedule_below_top(CellCaretTop);
 
-let execute = (): bool =>
-  switch (scheduled^) {
+let execute = (): bool => {
+  let target = scheduled^;
+  scheduled := None;
+  /* a jump from the outline keeps the keys there */
+  let focus_cell = () =>
+    JsUtil.outline_has_focus() || JsUtil.focus_active_cell();
+  switch (target) {
   | Some(Editor) =>
-    scheduled := None;
     /* focus the editor itself, not the clipboard shim: the caret CSS
        is gated on `.code-editor:focus` */
     JsUtil.focus_active_editor();
     true;
-  | Some(Cell) =>
-    scheduled := None;
-    /* a jump from the outline keeps the keys there */
-    JsUtil.outline_has_focus() ? true : JsUtil.focus_active_cell();
+  | Some(Cell) => focus_cell()
   | Some(CellCaretTop) =>
-    scheduled := None;
-    let focused =
-      JsUtil.outline_has_focus() ? true : JsUtil.focus_active_cell();
+    let focused = focus_cell();
     JsUtil.align_caret_near_top();
     focused;
   | Some(CellTop) =>
-    scheduled := None;
-    let focused =
-      JsUtil.outline_has_focus() ? true : JsUtil.focus_active_cell();
+    let focused = focus_cell();
     JsUtil.align_active_cell_top();
     focused;
   | Some(Probe(probe_id)) =>
-    scheduled := None;
-    let elem_id = Id.cls(probe_id);
-    switch (JsUtil.get_elem_by_id_opt(elem_id)) {
+    switch (JsUtil.get_elem_by_id_opt(Id.cls(probe_id))) {
     | Some(elem) =>
       elem##focus;
       true;
     | None => false
-    };
+    }
   | None => false
   };
+};
 
 /* Focus keeper: vdom's keyed reorder drops DOM focus from a moved element
  * under culling churn, so a focused probe goes dark on scroll. Each frame,

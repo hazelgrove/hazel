@@ -7,12 +7,10 @@ type key = string;
 module Request = {
   /* the incremental cache lives in the worker, per batch key. a stale or
      missing one is safe (reuse_check re-verifies every entry), just a
-     colder eval. `Seed` is for callers that own their cache (the sync
-     path, tests) */
+     colder eval */
   [@deriving (show, sexp, yojson)]
   type prev_source =
-    | UseResident
-    | Seed(Language.EvaluatorState.incr_eval);
+    | UseResident;
   /* what to stream during this evaluation. only the pending-eval
      highlight reads effect-free entries, so with it off [Effects] ships
      just the effect-bearing ones; the completion response is unaffected */
@@ -247,16 +245,13 @@ let resident: Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
   Hashtbl.create(4);
 
 let resolve_prev =
-    (~key: option(key)=?, prev: Request.prev_source)
-    : Language.EvaluatorState.incr_eval =>
-  switch (prev, key) {
-  | (Seed(p), _) => p
-  | (UseResident, Some(k)) =>
+    (~key: key, prev: Request.prev_source): Language.EvaluatorState.incr_eval =>
+  switch (prev) {
+  | UseResident =>
     Option.value(
-      Hashtbl.find_opt(resident, k),
+      Hashtbl.find_opt(resident, key),
       ~default=Language.IncrEval.empty,
     )
-  | (UseResident, None) => Language.IncrEval.empty
   };
 
 let store_resident = (key: key, response: Response.value): unit =>
@@ -266,12 +261,12 @@ let store_resident = (key: key, response: Response.value): unit =>
   | Error(_) => ()
   };
 
-let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{expr, eval_info_map, prev, _} = req_value;
+/* the main thread's evaluation: cold, with nothing to stream */
+let evaluate_sync =
+    (~eval_info: Language.EvalInfo.t, expr: Language.Exp.t): Response.value => {
   switch (
     Language.Evaluator.evaluate(
-      ~prev=resolve_prev(prev),
-      ~eval_info=eval_info_map,
+      ~eval_info,
       ~env=Language.Builtins.env_init,
       expr,
     )
@@ -601,35 +596,31 @@ let schedule_async = callback =>
    the budget is marshal/decode dead weight. its elisions are marked, so
    the display still notes them when what's left fits its own budget */
 let value_ship_budget = 6_000;
-let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
-  let (pruned, truncated) =
-    Language.TermPrune.prune(~budget=value_ship_budget, e);
-  if (truncated) {
-    print_endline(
-      Printf.sprintf(
-        "[worker] result value exceeds %d nodes: truncated for shipping (elided parts shown as holes)",
-        value_ship_budget,
-      ),
-    );
-  };
-  pruned;
-};
+let prune_value_size = (e: Language.Exp.t): Language.Exp.t =>
+  Language.TermPrune.prune_noting(
+    ~prefix="[worker] ",
+    ~budget=value_ship_budget,
+    ~purpose="shipping",
+    e,
+  );
 
-/* async responses drop the incremental cache (the UI never reads it:
-   prev is worker-resident, predictions come via ReusePlan); must run
-   after store_resident */
-let slim_response = (response: Response.value): Response.value =>
-  switch (response) {
-  | Ok((exp, state)) =>
-    Ok((
-      exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
-      Language.EvaluatorState.{
-        ...state,
-        incr_eval: Language.IncrEval.empty,
-      },
-    ))
-  | Error(_) as e => e
-  };
+/* a finished item's cache stays resident; its response drops it (the UI
+   never reads it: prev is worker-resident, predictions come via
+   ReusePlan) */
+let complete = (key: key, response: Response.value): (key, Response.value) => {
+  store_resident(key, response);
+  (
+    key,
+    switch (response) {
+    | Ok((exp, state)) =>
+      Ok((
+        exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
+        slim_state(state),
+      ))
+    | Error(_) as e => e
+    },
+  );
+};
 
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
@@ -643,13 +634,12 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   | [(key, req_value), ...remaining] =>
     switch (timed_eval(() => start_evaluation(~key, req_value))) {
     | CompletedImmediately(response) =>
-      store_resident(key, response);
       evaluate_next_batch_item(
         model,
         request_id,
-        [(key, slim_response(response)), ...completed],
+        [complete(key, response), ...completed],
         remaining,
-      );
+      )
     | Yielding(evaluation) =>
       let model = {
         ...model,
@@ -674,15 +664,13 @@ and begin_latest_batch = model =>
   | Some({request_id, batch}) =>
     evaluate_next_batch_item(model, request_id, [], batch)
   }
-and finish_current_item = (model, running, response) => {
-  store_resident(running.key, response);
+and finish_current_item = (model, running, response) =>
   evaluate_next_batch_item(
     model,
     running.request_id,
-    [(running.key, slim_response(response)), ...running.completed],
+    [complete(running.key, response), ...running.completed],
     running.remaining,
-  );
-}
+  )
 and plan_latest_batch = model =>
   switch (model.latest_request) {
   | None => {

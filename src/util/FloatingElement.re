@@ -160,15 +160,9 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
           let w = float_of_int(el##.offsetWidth);
           let up =
             viewport_top +. h > m##.bottom && rect##.top -. h >= m##.top;
-          let _ =
-            Js.Unsafe.meth_call(
-              el##.classList,
-              "toggle",
-              [|
-                Js.Unsafe.inject(Js.string("float-up")),
-                Js.Unsafe.inject(Js.bool(up)),
-              |],
-            );
+          up
+            ? el##.classList##add(Js.string("float-up"))
+            : el##.classList##remove(Js.string("float-up"));
           (
             up ? rect##.top -. h : viewport_top,
             viewport_left +. w > m##.right

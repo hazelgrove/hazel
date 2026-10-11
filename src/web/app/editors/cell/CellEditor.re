@@ -445,6 +445,14 @@ module View = {
                         ]
                       | _ => []
                       }
+                    )
+                    @ (
+                      switch (steps_result.theorems.focus) {
+                      | Some(_) => [
+                          steps_inject(TheoremsAction(TheoremFocus(None))),
+                        ]
+                      | None => []
+                      }
                     ),
                   ),
           ~edit_mode=
