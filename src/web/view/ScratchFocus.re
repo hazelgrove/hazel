@@ -83,18 +83,15 @@ let line_indent = (id: Id.t, seg: Segment.t): option(int) => {
   };
 };
 
-let rec seg_contains_id = (target: Id.t, seg: Segment.t): bool =>
-  List.exists(
-    (p: Piece.t) =>
-      Piece.id(p) == target
-      || (
-        switch (p) {
-        | Tile(t) => List.exists(seg_contains_id(target), t.children)
-        | _ => false
-        }
-      ),
-    seg,
-  );
+let seg_contains_id = (id: Id.t, seg: Segment.t): bool =>
+  Option.is_some(Segment.find_ctx(seg, id));
+
+/* the tile [fid], the segment it sits in and its index there */
+let tile_ctx = (fid: Id.t, seg: Segment.t): option((Segment.t, int, Tile.t)) =>
+  switch (Segment.find_ctx(seg, fid)) {
+  | Some((level, i, Tile(t))) => Some((level, i, t))
+  | _ => None
+  };
 
 /* split [ps] at the first `;` piece: (def run, separator + rest) */
 let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
@@ -402,6 +399,30 @@ let tile_sharing =
         children,
       });
 
+/* [seg] with the segment holding tile [fid] replaced by [f] of it, the
+   tile's index and the tile; the program's own pieces wherever nothing
+   changed */
+let splice_at =
+    (fid: Id.t, f: (Segment.t, int, Tile.t) => Segment.t, seg: Segment.t)
+    : Segment.t =>
+  switch (tile_ctx(fid, seg)) {
+  | None => seg
+  | Some((level, i, t)) =>
+    let level' = f(level, i, t);
+    let rec go = (s: Segment.t): Segment.t =>
+      s === level
+        ? level'
+        : map_sharing(
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile(t) => tile_sharing(p, t, map_sharing(go, t.children))
+              | _ => p
+              },
+            s,
+          );
+    Segment.ptr_eq(level', level) ? seg : go(seg);
+  };
+
 /* A cell shows its item from its own left edge: the indentation every
    line after the first has in the program (the [base] of the line the
    cell's text starts on) is cut on the way in and put back on the way
@@ -622,27 +643,17 @@ let splice_headless_deep =
 
 /* the `test` before the statement `;` [semi]: a run member's row is its
    `;`, which stays outside the run's cell */
-let rec test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) => {
-  let rec scan = (last, ps: Segment.t) =>
-    switch (ps) {
-    | [] => None
-    | [Piece.Tile(t), ..._] when t.id == semi => last
-    | [Piece.Tile(t), ...rest] =>
-      switch (List.find_map(test_before_semi(semi), t.children)) {
-      | Some(_) as found => found
-      | None =>
-        scan(
-          switch (Tile.label(t)) {
-          | ["test", ..._] => Some(t.id)
-          | _ => last
-          },
-          rest,
-        )
-      }
-    | [_, ...rest] => scan(last, rest)
-    };
-  scan(None, seg);
-};
+let test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) =>
+  Option.bind(tile_ctx(semi, seg), ((level, i, _)) =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when List.hd(Tile.label(t)) == "test" => Some(t.id)
+        | _ => None
+        },
+      List.rev(ListUtil.truncate(i, level)),
+    )
+  );
 
 /* contiguous test runs: the outline's "tests" container opens one cell
    spanning the whole run */
@@ -809,71 +820,43 @@ let splice_run_deep = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
   go(~module_body=false, seg);
 };
 
-/* the definition RHS of item [fid]: a 3-shard `let … = … in`'s last
-   child, or for a 2-shard member `let … =`, the sibling run after it
-   up to the next `;` (or segment end) */
-let rec find_def = (fid: Id.t, seg: Segment.t): option(Segment.t) => {
-  let rec scan = (ps: list(Piece.t)): option(Segment.t) =>
-    switch (ps) {
-    | [] => None
-    | [Piece.Tile(t), ...rest] when t.id == fid =>
-      if (Tile.ends_with_in(t)) {
-        switch (List.rev(t.children)) {
-        | [def, ..._] => Some(def)
-        | [] => None
-        };
-      } else {
-        Some(fst(split_at_semi(rest)));
-      }
-    | [Piece.Tile(t), ...rest] =>
-      switch (
-        List.fold_left(
-          (acc, child) => acc == None ? find_def(fid, child) : acc,
-          None,
-          t.children,
-        )
-      ) {
-      | Some(d) => Some(d)
-      | None => scan(rest)
-      }
-    | [_, ...rest] => scan(rest)
-    };
-  scan(seg);
-};
+/* the definition RHS of the item [t] at [i] in [level]: a 3-shard
+   `let … = … in`'s last child, or for a 2-shard member `let … =`, the
+   sibling run after it up to the next `;` (or segment end) */
+let def_at = ((level, i, t): (Segment.t, int, Tile.t)): option(Segment.t) =>
+  Tile.ends_with_in(t)
+    ? ListUtil.last_opt(t.children)
+    : Some(fst(split_at_semi(ListUtil.remove_first_n(i + 1, level))));
 
-let rec splice_def = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t => {
-  let rec scan = (ps: list(Piece.t)): list(Piece.t) =>
-    switch (ps) {
-    | [] => []
-    | [Piece.Tile(t) as p, ...rest] when t.id == fid =>
-      /* the program's own tile when the text is its own */
+let find_def = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
+  Option.bind(tile_ctx(fid, seg), def_at);
+
+let splice_def = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
+  splice_at(
+    fid,
+    (level, i, t) =>
       if (Tile.ends_with_in(t)) {
-        switch (List.rev(t.children)) {
-        | [last, ..._] when Segment.ptr_eq(repl, last) => [p, ...rest]
-        | [_, ...rev_rest] => [
+        switch (ListUtil.split_last_opt(t.children)) {
+        /* the program's own tile when the text is its own */
+        | Some((_, last)) when Segment.ptr_eq(repl, last) => level
+        | Some((init, _)) =>
+          ListUtil.put_nth(
+            i,
             Piece.Tile({
               ...t,
-              children: List.rev([repl, ...rev_rest]),
+              children: init @ [repl],
             }),
-            ...rest,
-          ]
-        | [] => [p, ...rest]
+            level,
+          )
+        | None => level
         };
       } else {
-        let (_, tail) = split_at_semi(rest);
-        [p, ...repl] @ tail;
-      }
-    | [Piece.Tile(t) as p, ...rest] => [
-        tile_sharing(p, t, map_sharing(splice_def(fid, repl), t.children)),
-        ...scan(rest),
-      ]
-    | [p, ...rest] => [p, ...scan(rest)]
-    };
-  /* keep the list itself on no change: parents compare child segments
-     by ===, so a fresh copy would still rebuild every ancestor tile */
-  let out = scan(seg);
-  Segment.ptr_eq(out, seg) ? seg : out;
-};
+        ListUtil.truncate(i + 1, level)
+        @ repl
+        @ snd(split_at_semi(ListUtil.remove_first_n(i + 1, level)));
+      },
+    seg,
+  );
 
 let zip_of_cell = (cell: CellEditor.Model.t): Segment.t =>
   Zipper.unselect_and_zip(cell.editor.editor.state.zipper);
@@ -904,80 +887,27 @@ let tpat_cell_of_seg = (seg: Segment.t): CellEditor.Model.t =>
   |> Editor.Model.mk(~root=TPat)
   |> CellEditor.Model.mk;
 
-/* a `type … = …` alias takes a Typ body and a TPat header */
-let rec is_type_item = (fid: Id.t, seg: Segment.t): bool =>
-  List.exists(
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) when t.id == fid =>
-        switch (Tile.label(t)) {
-        | ["type", ..._] => true
-        | _ => false
-        }
-      | Tile(t) => List.exists(is_type_item(fid), t.children)
-      | _ => false
-      },
-    seg,
-  );
-
-let rec is_module_item = (fid: Id.t, seg: Segment.t): bool =>
-  List.exists(
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) when t.id == fid =>
-        switch (Tile.label(t)) {
-        | ["module", ..._] => true
-        | _ => false
-        }
-      | Tile(t) => List.exists(is_module_item(fid), t.children)
-      | _ => false
-      },
-    seg,
-  );
-
 /* the header pattern is the first child of 2- and 3-shard items alike */
-let rec find_pat = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
-  List.fold_left(
-    (acc, p: Piece.t) =>
-      switch (acc) {
-      | Some(_) => acc
-      | None =>
-        switch (p) {
-        | Tile(t) when t.id == fid =>
-          switch (t.children) {
-          | [pat, ..._] => Some(pat)
-          | [] => None
-          }
-        | Tile(t) =>
-          List.fold_left(
-            (acc, child) => acc == None ? find_pat(fid, child) : acc,
-            None,
-            t.children,
-          )
-        | _ => None
-        }
-      },
-    None,
-    seg,
+let find_pat = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
+  Option.bind(tile_ctx(fid, seg), ((_, _, t)) =>
+    ListUtil.hd_opt(t.children)
   );
 
-let rec splice_pat = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
-  map_sharing(
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) when t.id == fid =>
-        switch (t.children) {
-        | [first, ..._] when Segment.ptr_eq(repl, first) => p
-        | [_, ...rest] =>
+let splice_pat = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
+  splice_at(
+    fid,
+    (level, i, t) =>
+      switch (t.children) {
+      | [first, ...rest] when !Segment.ptr_eq(repl, first) =>
+        ListUtil.put_nth(
+          i,
           Piece.Tile({
             ...t,
             children: [repl, ...rest],
-          })
-        | [] => p
-        }
-      | Tile(t) =>
-        tile_sharing(p, t, map_sharing(splice_pat(fid, repl), t.children))
-      | _ => p
+          }),
+          level,
+        )
+      | _ => level
       },
     seg,
   );
@@ -989,26 +919,13 @@ let captured_ctx =
     : option(Language.Ctx.t) => {
   let info_of = id => Id.Map.find_opt(id, info_map);
   let rec seg_info = (seg: Segment.t) =>
-    List.fold_left(
-      (acc, p: Piece.t) =>
-        switch (acc) {
-        | Some(_) => acc
-        | None =>
-          switch (info_of(Piece.id(p))) {
-          | Some(i) => Some(i)
-          | None =>
-            switch (p) {
-            | Tile(t) =>
-              List.fold_left(
-                (acc, ch) => acc == None ? seg_info(ch) : acc,
-                None,
-                t.children,
-              )
-            | _ => None
-            }
-          }
+    List.find_map(
+      (p: Piece.t) =>
+        switch (info_of(Piece.id(p)), p) {
+        | (Some(_) as info, _) => info
+        | (None, Tile(t)) => List.find_map(seg_info, t.children)
+        | (None, _) => None
         },
-      None,
       seg,
     );
   switch (seg_info(def_seg), info_of(fid)) {
@@ -1080,37 +997,43 @@ let rec mk_entry =
 and mk_def_entry =
     (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
     : option(ScratchCell.t) =>
-  switch (find_def(fid, master_seg)) {
+  switch (tile_ctx(fid, master_seg)) {
   | None => None
-  | Some(def_seg) =>
-    let is_type = is_type_item(fid, master_seg);
-    let (header, header_indent) =
-      cut_indent(
-        master_seg,
-        core_ws(Option.value(find_pat(fid, master_seg), ~default=[])),
+  | Some((_, _, t) as at) =>
+    switch (def_at(at)) {
+    | None => None
+    | Some(def_seg) =>
+      let kw = List.hd(Tile.label(t));
+      /* a `type … = …` alias takes a Typ body and a TPat header */
+      let is_type = kw == "type";
+      let (header, header_indent) =
+        cut_indent(
+          master_seg,
+          core_ws(Option.value(ListUtil.hd_opt(t.children), ~default=[])),
+        );
+      let (body, body_indent) = cut_indent(master_seg, core_ws(def_seg));
+      let e_ctx =
+        switch (captured_ctx(~info_map, fid, def_seg)) {
+        | Some(ctx) => ctx
+        | None =>
+          Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
+        };
+      Some(
+        ScratchCell.{
+          e_id: fid,
+          e_mod: kw == "module",
+          e_sym: None,
+          e_run: false,
+          e_members: [],
+          e_inner: false,
+          e_header: (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(header),
+          e_body: is_type ? typ_cell_of_seg(body) : cell_of_seg(body),
+          e_header_indent: header_indent,
+          e_body_indent: body_indent,
+          e_ctx,
+        },
       );
-    let (body, body_indent) = cut_indent(master_seg, core_ws(def_seg));
-    let e_ctx =
-      switch (captured_ctx(~info_map, fid, def_seg)) {
-      | Some(ctx) => ctx
-      | None =>
-        Language.Builtins.ctx_init(Some(Language.Operators.default_mode))
-      };
-    Some(
-      ScratchCell.{
-        e_id: fid,
-        e_mod: is_module_item(fid, master_seg),
-        e_sym: None,
-        e_run: false,
-        e_members: [],
-        e_inner: false,
-        e_header: (is_type ? tpat_cell_of_seg : pat_cell_of_seg)(header),
-        e_body: is_type ? typ_cell_of_seg(body) : cell_of_seg(body),
-        e_header_indent: header_indent,
-        e_body_indent: body_indent,
-        e_ctx,
-      },
-    );
+    }
   };
 
 /* a module definition's members: the child of its braces */
