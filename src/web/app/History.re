@@ -31,10 +31,20 @@ module Model = {
 module Update = {
   open Updated;
 
-  /* Undo and redo stay on the current slide (and mode). */
+  /* Undo and redo stay in the current mode, and on the current lesson
+     (tutorial or exercise slide). Scratch and documentation slides are
+     parts of one document: adding or deleting one stays undoable. */
   let same_slide = (a: Model.state, b: Model.state): bool =>
-    Editors.Model.editor_key(a.editors)
-    == Editors.Model.editor_key(b.editors);
+    switch (a.editors, b.editors) {
+    | (Tutorial(_), Tutorial(_))
+    | (Exercises(_), Exercises(_)) =>
+      Editors.Model.editor_key(a.editors)
+      == Editors.Model.editor_key(b.editors)
+    | (Scratch(_), Scratch(_))
+    | (Documentation(_), Documentation(_))
+    | (Config(_), Config(_)) => true
+    | _ => false
+    };
 
   /* Entries are whole pages, so restoring one would also roll back the
      other slides' carets and evaluation results (their ✔). */

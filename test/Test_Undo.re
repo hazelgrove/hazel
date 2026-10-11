@@ -267,6 +267,21 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "adding a scratch slide stays undoable",
+      `Quick,
+      () => {
+        let m = mk_model();
+        let n = (m: History.Model.t) =>
+          switch (m.current.editors) {
+          | Scratch(s) => List.length(s.scratchpads)
+          | _ => (-1)
+          };
+        let added = apply(m, Editors(Scratch(AddSlide)));
+        check(int, "one more slide", n(m) + 1, n(added));
+        check(int, "undo removes it", n(m), n(apply(added, undo)));
+      },
+    ),
     test_case("undo and redo never leave the slide", `Quick, () =>
       restoring_probe_settings(() => {
         let m1 = step(mk_tutorial(), insert("1"));
