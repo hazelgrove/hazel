@@ -197,8 +197,8 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Cell(CellEditor.Selection.t)
-    | StackH(Haz3lcore.Id.t, CellEditor.Selection.t)
-    | StackB(Haz3lcore.Id.t, CellEditor.Selection.t)
+    /* an open cell's header or body */
+    | Stack(Haz3lcore.Id.t, ScratchCell.side, CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
     | TextBox;
 
@@ -216,28 +216,16 @@ module Selection = {
             editor,
           );
         Update.Workspace(CellAction(a));
-      | (StackH(i, selection), Code(_)) =>
+      | (Stack(i, side, selection), Code(_)) =>
         switch (cell_by_id(model, i)) {
         | Some(entry) =>
           let+ a =
             CellEditor.Selection.get_cursor_info(
-              ~inject=a => inject(Workspace(StackHeader(i, a))),
+              ~inject=a => inject(Workspace(Stack(i, side, a))),
               ~selection,
-              entry.e_header,
+              ScratchCell.pane(side, entry),
             );
-          Update.Workspace(StackHeader(i, a));
-        | None => empty
-        }
-      | (StackB(i, selection), Code(_)) =>
-        switch (cell_by_id(model, i)) {
-        | Some(entry) =>
-          let+ a =
-            CellEditor.Selection.get_cursor_info(
-              ~inject=a => inject(Workspace(StackBody(i, a))),
-              ~selection,
-              entry.e_body,
-            );
-          Update.Workspace(StackBody(i, a));
+          Update.Workspace(Stack(i, side, a));
         | None => empty
         }
       | (Drv(selection), Drv(m)) =>
@@ -250,8 +238,7 @@ module Selection = {
         Update.DrvAction(a);
       | (Cell(_), Code({program: Divided(_), _}))
       | (Cell(_), Drv(_))
-      | (StackH(_), Drv(_))
-      | (StackB(_), Drv(_))
+      | (Stack(_), Drv(_))
       | (Drv(_), Code(_))
       | (TextBox, _) => empty
       };
@@ -297,19 +284,16 @@ module Selection = {
         Focus.seg_contains_id(tile, Focus.zip_of_cell(cell));
       Divided.cells(d)
       |> List.find_map((e: ScratchCell.t) =>
-           if (in_cell(e.e_body)) {
-             Some((
-               Update.Workspace(StackBody(e.e_id, caret)),
-               StackB(e.e_id, MainEditor),
-             ));
-           } else if (in_cell(e.e_header)) {
-             Some((
-               Update.Workspace(StackHeader(e.e_id, caret)),
-               StackH(e.e_id, MainEditor),
-             ));
-           } else {
-             None;
-           }
+           List.find_map(
+             side =>
+               in_cell(ScratchCell.pane(side, e))
+                 ? Some((
+                     Update.Workspace(Stack(e.e_id, side, caret)),
+                     Stack(e.e_id, side, MainEditor),
+                   ))
+                 : None,
+             [ScratchCell.Body, Header],
+           )
          );
     };
     switch (find(tile)) {
@@ -378,20 +362,19 @@ module Selection = {
         let headless =
           Focus.headless_content_deep(fid, doc) != None
           || Focus.test_run_deep(fid, doc) != None;
-        let in_header =
+        let side: ScratchCell.side =
           !headless
           && Focus.seg_contains_id(
                target_id,
                Option.value(Focus.find_pat(fid, doc), ~default=[]),
-             );
+             )
+            ? Header : Body;
         let caret: CellEditor.Update.t =
           MainEditor(Perform(Move(Goal(TileId(target_id)))));
         Some((
           Update.Workspace(FocusEnsure(fid)),
-          in_header ? StackH(j, MainEditor) : StackB(j, MainEditor),
-          in_header
-            ? Update.Workspace(StackHeader(j, caret))
-            : Update.Workspace(StackBody(j, caret)),
+          Stack(j, side, MainEditor),
+          Update.Workspace(Stack(j, side, caret)),
         ));
       }
     );
@@ -414,27 +397,16 @@ module Selection = {
       switch (action, Model.current_program(model)) {
       | (
           Workspace(
-            StackBody(
+            Stack(
               i,
-              MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
-            ),
-          ) |
-          Workspace(
-            StackHeader(
-              i,
+              side,
               MainEditor(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
             ),
           ),
           Some(Divided(d)),
         ) =>
-        let from_header =
-          switch (action) {
-          | Workspace(StackHeader(_)) => true
-          | _ => false
-          };
         let* entry = cell_by_id(model, i);
-        let cell =
-          from_header ? entry.ScratchCell.e_header : entry.ScratchCell.e_body;
+        let cell = ScratchCell.pane(side, entry);
         let cell_map = cell.editor.statics.info_map;
         let* ci = Indicated.ci_of(cell.editor.editor.state.zipper, cell_map);
         let* binding_id = Language.Info.get_binding_site(ci);
@@ -454,11 +426,12 @@ module Selection = {
     switch (action, Model.current_program(model)) {
     | (Workspace(FocusEnsure(fid)), Some(Divided(d))) =>
       Some(
-        StackB(
+        Stack(
           switch (Divided.owner(fid, d)) {
           | Some(e) => e.e_id
           | None => fid
           },
+          Body,
           MainEditor,
         ),
       )
@@ -466,30 +439,28 @@ module Selection = {
        no cell, so the selection stays put */
     | (Workspace(FocusToggle(fid)), Some(Divided(d))) =>
       Option.is_none(Divided.owner(fid, d))
-        ? Some(StackB(fid, MainEditor)) : None
+        ? Some(Stack(fid, Body, MainEditor)) : None
     | (Workspace(FocusToggle(fid)), Some(Whole(_))) =>
-      Some(StackB(fid, MainEditor))
+      Some(Stack(fid, Body, MainEditor))
     | _ => None
     };
 
   /* after an update: a selected cell that closed falls back to the
      active one, and a whole program selects its editor */
   let follow = (selection: t, after: Model.t): t => {
-    let pane = ((id, side): (Haz3lcore.Id.t, Divided.side), s) =>
-      side == Divided.Header ? StackH(id, s) : StackB(id, s);
     let active = (d: Divided.t) =>
       switch (Divided.active(d), Divided.cells(d)) {
-      | (Some(a), _) => a
-      | (None, [e, ..._]) => (e.e_id, Divided.Body)
-      | (None, []) => (Haz3lcore.Id.invalid, Divided.Body)
+      | (Some((id, side)), _) => Stack(id, side, MainEditor)
+      | (None, [e, ..._]) => Stack(e.e_id, Body, MainEditor)
+      | (None, []) => Stack(Haz3lcore.Id.invalid, Body, MainEditor)
       };
     let open_ = (id, d) =>
       List.exists((e: ScratchCell.t) => e.e_id == id, Divided.cells(d));
     switch (selection, Model.current_program(after)) {
-    | (StackH(_) | StackB(_), Some(Whole(_))) => Cell(MainEditor)
-    | (StackH(id, _) | StackB(id, _), Some(Divided(d))) =>
-      open_(id, d) ? selection : pane(active(d), MainEditor)
-    | (Cell(MainEditor), Some(Divided(d))) => pane(active(d), MainEditor)
+    | (Stack(_), Some(Whole(_))) => Cell(MainEditor)
+    | (Stack(id, _, _), Some(Divided(d))) =>
+      open_(id, d) ? selection : active(d)
+    | (Cell(MainEditor), Some(Divided(d))) => active(d)
     | _ => selection
     };
   };
@@ -609,23 +580,18 @@ module View = {
           let rendered =
             List.mapi(
               (i, e: ScratchCell.t) => {
-                let header_sel =
+                let sel = (side: ScratchCell.side) =>
                   switch (selected) {
-                  | Some(Selection.StackH(j, sel)) when j == e.e_id =>
-                    Some(sel)
-                  | _ => None
-                  };
-                let body_sel =
-                  switch (selected) {
-                  | Some(Selection.StackB(j, sel)) when j == e.e_id =>
+                  | Some(Selection.Stack(j, s, sel))
+                      when j == e.e_id && s == side =>
                     Some(sel)
                   | _ => None
                   };
                 let key = {
                   k_index: i,
                   k_stack_len: List.length(cells),
-                  k_header_sel: header_sel,
-                  k_body_sel: body_sel,
+                  k_header_sel: sel(Header),
+                  k_body_sel: sel(Body),
                   k_meta_down: globals.Globals.Model.meta_down,
                   /* only the first body culls (below) */
                   k_visible_rows:
@@ -696,53 +662,45 @@ module View = {
                     | None => false
                     };
                   let pane_focus =
-                      (idx, to_header, move: Haz3lcore.Action.move) =>
+                      (
+                        idx,
+                        side: ScratchCell.side,
+                        move: Haz3lcore.Action.move,
+                      ) =>
                     if (idx < 0 || idx >= List.length(cells)) {
                       Virtual_dom.Vdom.Effect.Ignore;
                     } else {
                       /* headerless entries have no header pane */
-                      let to_header = to_header && !headerless(idx);
+                      let side = headerless(idx) ? ScratchCell.Body : side;
                       /* DOM focus must follow to the new pane after render,
                          or the caret vanishes and arrows scroll the page */
                       Haz3lcore.FocusEffect.schedule_cell();
                       let id = List.nth(cells, idx).e_id;
                       Virtual_dom.Vdom.Effect.Many([
-                        signal(
-                          MakeActive(
-                            to_header
-                              ? StackH(id, MainEditor)
-                              : StackB(id, MainEditor),
-                          ),
-                        ),
+                        signal(MakeActive(Stack(id, side, MainEditor))),
                         inject(
-                          to_header
-                            ? Workspace(
-                                StackHeader(
-                                  id,
-                                  MainEditor(Perform(Move(move))),
-                                ),
-                              )
-                            : Workspace(
-                                StackBody(
-                                  id,
-                                  MainEditor(Perform(Move(move))),
-                                ),
-                              ),
+                          Workspace(
+                            Stack(
+                              id,
+                              side,
+                              MainEditor(Perform(Move(move))),
+                            ),
+                          ),
                         ),
                       ]);
                     };
                   let header_escape = (d: Util.Direction.t) =>
                     switch (d) {
-                    | Left => pane_focus(i - 1, false, End)
-                    | Right => pane_focus(i, false, Start)
+                    | Left => pane_focus(i - 1, Body, End)
+                    | Right => pane_focus(i, Body, Start)
                     };
                   let body_escape = (d: Util.Direction.t) =>
                     switch (d) {
                     | Left =>
                       headerless(i)
-                        ? pane_focus(i - 1, false, End)
-                        : pane_focus(i, true, End)
-                    | Right => pane_focus(i + 1, true, Start)
+                        ? pane_focus(i - 1, Body, End)
+                        : pane_focus(i, Header, End)
+                    | Right => pane_focus(i + 1, Header, Start)
                     };
                   /* Up/Down at a pane's edge keep the goal column in the
                      adjacent pane, shifted by the qualifier chip's width
@@ -768,10 +726,10 @@ module View = {
                       )
                     | None => 0
                     };
-                  let pane_point = (idx, to_header, row, col) =>
+                  let pane_point = (idx, side, row, col) =>
                     pane_focus(
                       idx,
-                      to_header,
+                      side,
                       Point(
                         Util.Point.{
                           row,
@@ -780,36 +738,26 @@ module View = {
                         None,
                       ),
                     );
-                  let same_pane = (to_header, v: Haz3lcore.Action.vertical) =>
+                  let same_pane = (side, v: Haz3lcore.Action.vertical) =>
                     inject(
-                      to_header
-                        ? Workspace(
-                            StackHeader(
-                              e.e_id,
-                              MainEditor(
-                                Perform(Move(Vertical(v, ByChar))),
-                              ),
-                            ),
-                          )
-                        : Workspace(
-                            StackBody(
-                              e.e_id,
-                              MainEditor(
-                                Perform(Move(Vertical(v, ByChar))),
-                              ),
-                            ),
-                          ),
+                      Workspace(
+                        Stack(
+                          e.e_id,
+                          side,
+                          MainEditor(Perform(Move(Vertical(v, ByChar)))),
+                        ),
+                      ),
                     );
                   let header_escape_vertical =
                       (v: Haz3lcore.Action.vertical, col) =>
                     switch (v) {
-                    | Down => pane_point(i, false, 0, col + qual_cols(i))
+                    | Down => pane_point(i, Body, 0, col + qual_cols(i))
                     | Up =>
                       i == 0
-                        ? same_pane(true, Up)
+                        ? same_pane(Header, Up)
                         : pane_point(
                             i - 1,
-                            false,
+                            Body,
                             body_last_row(i - 1),
                             col + qual_cols(i),
                           )
@@ -819,27 +767,57 @@ module View = {
                     switch (v) {
                     | Down =>
                       i + 1 >= List.length(cells)
-                        ? same_pane(false, Down)
+                        ? same_pane(Body, Down)
                         : headerless(i + 1)
-                            ? pane_point(i + 1, false, 0, col)
+                            ? pane_point(i + 1, Body, 0, col)
                             : pane_point(
                                 i + 1,
-                                true,
+                                Header,
                                 0,
                                 col - qual_cols(i + 1),
                               )
                     | Up =>
                       headerless(i)
                         ? i == 0
-                            ? same_pane(false, Up)
+                            ? same_pane(Body, Up)
                             : pane_point(
                                 i - 1,
-                                false,
+                                Body,
                                 body_last_row(i - 1),
                                 col,
                               )
-                        : pane_point(i, true, 0, col - qual_cols(i))
+                        : pane_point(i, Header, 0, col - qual_cols(i))
                     };
+                  let pane_view =
+                      (
+                        side: ScratchCell.side,
+                        ~lines,
+                        ~master_result=?,
+                        ~master_inject=?,
+                        ~escape,
+                        ~escape_vertical,
+                        ~cull,
+                        (),
+                      ) =>
+                    CellEditor.View.view(
+                      ~globals,
+                      ~signal=
+                        fun
+                        | MakeActive(s) =>
+                          signal(MakeActive(Stack(e.e_id, side, s))),
+                      ~inject=
+                        a => inject(Workspace(Stack(e.e_id, side, a))),
+                      ~selected=sel(side),
+                      ~result_kind=`NoResults,
+                      ~locked=false,
+                      ~lines,
+                      ~master_result?,
+                      ~master_inject?,
+                      ~escape,
+                      ~escape_vertical=Some(escape_vertical),
+                      ~cull,
+                      ScratchCell.pane(side, e),
+                    );
                   let header_pane =
                     switch (e.e_sym) {
                     | Some(sym) =>
@@ -908,23 +886,13 @@ module View = {
                         ],
                         qualifier
                         @ [
-                          CellEditor.View.view(
-                            ~globals,
-                            ~signal=
-                              fun
-                              | MakeActive(sel) =>
-                                signal(MakeActive(StackH(e.e_id, sel))),
-                            ~inject=
-                              a =>
-                                inject(Workspace(StackHeader(e.e_id, a))),
-                            ~selected=header_sel,
-                            ~result_kind=`NoResults,
-                            ~locked=false,
+                          pane_view(
+                            Header,
                             ~lines=false,
                             ~escape=header_escape,
-                            ~escape_vertical=Some(header_escape_vertical),
+                            ~escape_vertical=header_escape_vertical,
                             ~cull=false,
-                            e.e_header,
+                            (),
                           ),
                         ],
                       )
@@ -939,17 +907,8 @@ module View = {
                           ),
                         ],
                         [
-                          CellEditor.View.view(
-                            ~globals,
-                            ~signal=
-                              fun
-                              | MakeActive(sel) =>
-                                signal(MakeActive(StackB(e.e_id, sel))),
-                            ~inject=
-                              a => inject(Workspace(StackBody(e.e_id, a))),
-                            ~selected=body_sel,
-                            ~result_kind=`NoResults,
-                            ~locked=false,
+                          pane_view(
+                            Body,
                             ~lines=true,
                             ~master_result=Divided.result(d),
                             ~master_inject=
@@ -958,14 +917,12 @@ module View = {
                                   Workspace(CellAction(ResultAction(a))),
                                 ),
                             ~escape=body_escape,
-                            ~escape_vertical=Some(body_escape_vertical),
+                            ~escape_vertical=body_escape_vertical,
                             /* culling measures one `.cull-scope`: only
                                the first body opts in; the rest render
                                unculled, not against another's rows */
-                            ~cull={
-                              i == 0;
-                            },
-                            e.e_body,
+                            ~cull=i == 0,
+                            (),
                           ),
                         ],
                       ),

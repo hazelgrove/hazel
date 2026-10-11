@@ -15,8 +15,8 @@ module Action = {
   type t =
     /* the whole program's editor; while divided, its result */
     | CellAction(CellEditor.Update.t)
-    | StackHeader(Haz3lcore.Id.t, CellEditor.Update.t)
-    | StackBody(Haz3lcore.Id.t, CellEditor.Update.t)
+    /* an open cell's header or body */
+    | Stack(Haz3lcore.Id.t, ScratchCell.side, CellEditor.Update.t)
     /* open or close an item's cell */
     | FocusToggle(Haz3lcore.Id.t)
     /* one cell for a whole test run */
@@ -244,7 +244,7 @@ let update =
     )
     : Updated.t(code) => {
   open Updated;
-  let cell_update = (id, side: Divided.side, a) =>
+  let cell_update = (id, side, a) =>
     switch (code.program) {
     | Divided(d) =>
       switch (
@@ -439,8 +439,7 @@ let update =
       };
     | Divided(_) => code |> return_quiet
     };
-  | StackHeader(id, a) => cell_update(id, Header, a)
-  | StackBody(id, a) => cell_update(id, Body, a)
+  | Stack(id, side, a) => cell_update(id, side, a)
   | CellAction(a) =>
     switch (code.program) {
     | Whole(editor) =>

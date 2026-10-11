@@ -144,7 +144,7 @@ let last_member_jump = () => {
   switch (Web.ScratchMode.Selection.jump_in_divided(last, d)) {
   | Some((
       Workspace(
-        StackBody(_, MainEditor(Perform(Move(Goal(TileId(target)))))),
+        Stack(_, Body, MainEditor(Perform(Move(Goal(TileId(target)))))),
       ),
       _,
     )) =>
