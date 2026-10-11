@@ -149,6 +149,7 @@ let (suite, exit_with_test_status) =
     @ [Test_CallMemo.tests]
     @ [Test_IncompleteTiles.tests]
     @ [Test_ChunkProbe.tests]
+    @ [Test_EvalInfoProjection.tests]
     @ [Test_OpenValues.tests]
     @ [Test_Quote.tests]
     @ [Test_Quote.macro_tests]
