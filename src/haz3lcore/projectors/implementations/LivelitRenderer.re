@@ -29,12 +29,14 @@ type model = option(string);
 type action = unit;
 /* A livelit that draws the value, and the lines it takes: where its room is
    Free (its shape's, in the drawer) and in a chip on the line, where a
-   view told its room fits itself into the line's (line_rows_of) */
+   view told its room fits itself into the line's (line_rows_of); and its
+   shape's columns, its width in the drawer */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type drawn = {
   name: string,
   rows: int,
   line_rows: int,
+  cols: int,
 };
 [@deriving (show({with_path: false}), sexp, yojson)]
 type value = {
@@ -334,6 +336,7 @@ let drawn = (ll: LivelitCtx.raw_livelit): drawn => {
   name: ll.name,
   rows: rows_of(ll),
   line_rows: line_rows_of(ll),
+  cols: ll.shape.horizontal,
 };
 
 /* the elements of a list value (closed), if it is one */
@@ -399,6 +402,9 @@ let chosen = (m: model, v: value): drawn =>
 
 let drawer_rows = (m: model, v: value): int => chosen(m, v).rows;
 let line_rows = (m: model, v: value): int => chosen(m, v).line_rows;
+/* a list's chip holds a row of views, as wide as the list is long */
+let drawer_cols = (m: model, v: value): option(int) =>
+  v.as_list ? None : Some(chosen(m, v).cols);
 
 let views = (v: value): list(model) =>
   List.map((d: drawn) => Some(d.name), [v.first, ...v.alts]);

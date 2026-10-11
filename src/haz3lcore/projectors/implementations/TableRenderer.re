@@ -55,6 +55,7 @@ let auto_applies = (_: value): bool => false;
  * zeroes cell padding and cells hold single-line abbreviated values). */
 let drawer_rows = (_: model, (_, rows): v): int => List.length(rows) + 1;
 let line_rows = drawer_rows;
+let drawer_cols = (_: model, _): option(int) => None;
 
 let views = (v: value): list(model) => [init(v)];
 let label = (_: model, _: value): RichProbe.view_label => {

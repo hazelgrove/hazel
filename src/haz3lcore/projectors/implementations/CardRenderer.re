@@ -57,6 +57,7 @@ let auto_applies = (v: value): bool =>
    them four. */
 let drawer_rows = (_: model, _: value): int => 4;
 let line_rows = (_: model, _: value): int => 2;
+let drawer_cols = (_: model, _): option(int) => None;
 
 let views = (v: value): list(model) => [init(v)];
 let label = (_: model, _: value): RichProbe.view_label => {

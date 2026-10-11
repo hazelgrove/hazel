@@ -454,11 +454,13 @@ module DrawerHeight = {
 let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): option(Point.t) => {
   open Float;
   let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
+  /* a sample drawn as a view has no .code: measure from the chip */
   let text_box =
     e##.currentTarget
     |> Js.Opt.to_option
-    |> Option.map(JsUtil.get_child_with_class(_, "code"))
-    |> Option.join;
+    |> Option.map(t =>
+         JsUtil.get_child_with_class(t, "code") |> Option.value(~default=t)
+       );
   switch (text_box) {
   | None => None
   | Some(text_box) =>
@@ -799,6 +801,9 @@ let value_view =
     Effect.Ignore;
   };
 
+  /* the view the chip draws the value with, if any */
+  let chip = chip_view(ctx, ~display, sample.value);
+
   let val_mousemove = (e: Js.t(Dom_html.mouseEvent)) => {
     /* buttons > 0 guards a stale drag flag: capture can be lost without a
        pointerup, which would otherwise resize on shift-hover with no button. */
@@ -809,15 +814,17 @@ let value_view =
     ) {
     | (Some(_), Some(goal)) =>
       let target_width = max(1, goal.col);
-      /* Inline: width isn't linear in budget (Abbreviate is discrete), so
-       * bisect. Block: wrap width is target_width directly. */
+      /* Inline text: width isn't linear in budget (Abbreviate is discrete),
+       * so bisect. A view's room, and Block's wrap width, is target_width
+       * directly. */
       let budget =
-        switch (display) {
-        | Inline =>
+        switch (display, chip) {
+        | (Inline, None) =>
           let width_at = (b: int): int =>
             abbreviated_seg_of(utility, b, sample.value) |> snd;
           find_best_budget(width_at, target_width);
-        | Block => target_width
+        | (Inline, Some(_))
+        | (Block, _) => target_width
         };
       local(ChangeLength(sample.id, budget));
     | _ => Effect.Ignore
@@ -928,7 +935,7 @@ let value_view =
           (),
         );
       let rich_node =
-        switch (chip_view(ctx, ~display, sample.value)) {
+        switch (chip) {
         | Some((r, pm)) => render_rich(r, pm)
         | None => None
         };
@@ -2509,6 +2516,9 @@ let live_offside_view =
       /* Content taller than the drawer cap; gates the wrapper's
        * scroll-affordance fade via the drawer-overflow class. */
       ~scrollable: bool=false,
+      /* Views wrapping onto rows in the drawer (drawer_wrap): the views a
+       * row, and the lines each takes */
+      ~wrap: option((int, int))=None,
       data: offside_data,
       local,
       view_seg: View.seg,
@@ -2569,13 +2579,25 @@ let live_offside_view =
           view_seg_line,
           local,
         );
+      let group_attrs =
+        switch (wrap) {
+        | Some((per_row, lines)) => [
+            Attr.classes(["sample-group", "wraps"]),
+            Attr.create(
+              "style",
+              Printf.sprintf(
+                "--per-row: %d; --view-lines: %d",
+                per_row,
+                lines,
+              ),
+            ),
+          ]
+        | None => [Attr.classes(["sample-group"])]
+        };
       let group_views =
         List.map(
           samples =>
-            Node.div(
-              ~attrs=[Attr.classes(["sample-group"])],
-              List.map(sample_view, samples),
-            ),
+            Node.div(~attrs=group_attrs, List.map(sample_view, samples)),
           groups,
         );
       /* Sample-count circle at the start of the samples row. */
@@ -2680,16 +2702,28 @@ let rich_drawer_view =
     @ [content],
   );
 
-/* Rows the active rich renderer wants in the drawer (or, ~line, takes on
- * the line), when it applies to the indicated value. */
-let rich_rows =
-    (~line: bool=false, model: probe_model, info: info): option(int) => {
+/* What the active rich renderer measures (`measure`: its rows or columns),
+ * when it applies to the indicated value. */
+let rich_measure =
+    (
+      measure:
+        (
+          packed_renderer,
+          ~statics: option(Info.t),
+          ~model: option(packed_model),
+          Sort.t,
+          Exp.t
+        ) =>
+        option(int),
+      model: probe_model,
+      info: info,
+    )
+    : option(int) => {
   let sort =
     switch (info.statics) {
     | Some(statics) => Language.Statics.Info.sort_of(statics)
     | None => Sort.Exp
     };
-  let rows = (r: packed_renderer) => line ? r.line_rows : r.drawer_rows;
   switch (chosen_renderer(model)) {
   | Some(pm) =>
     switch (
@@ -2697,7 +2731,7 @@ let rich_rows =
       get_current(~settings=Settings.s^, info),
     ) {
     | (Some(r), Some(exp)) =>
-      rows(r, ~statics=info.statics, ~model=Some(pm), sort, exp)
+      measure(r, ~statics=info.statics, ~model=Some(pm), sort, exp)
     | _ => None
     }
   | None
@@ -2711,7 +2745,7 @@ let rich_rows =
         renderers,
       )
       |> Option.map((r: packed_renderer) =>
-           rows(r, ~statics=info.statics, ~model=None, sort, exp)
+           measure(r, ~statics=info.statics, ~model=None, sort, exp)
          )
       |> Option.join
     | None => None
@@ -2719,7 +2753,45 @@ let rich_rows =
   | None => None
   };
 };
+/* Rows the active rich renderer wants in the drawer (or, ~line, takes on
+ * the line) */
+let rich_rows = (~line: bool=false) =>
+  rich_measure((r: packed_renderer) => line ? r.line_rows : r.drawer_rows);
 let rich_drawer_rows = rich_rows(~line=false);
+
+/* Views in the drawer wrap onto rows within its width, drawer.width
+ * columns (as its text does), each as wide as its renderer says (a
+ * livelit's shape): (views a row, rows of views), when the samples, all
+ * of one call, need more than a row. */
+let drawer_wrap = (model: probe_model, info: info): option((int, int)) =>
+  switch (
+    rich_measure((r: packed_renderer) => r.drawer_cols, model, info),
+    info.dynamics,
+    info.statics,
+  ) {
+  | (Some(cols), Some(dynamics), Some(statics)) =>
+    let samples =
+      select_samples(
+        ~settings=Settings.s^,
+        ~id=info.id,
+        ~ap_id=Sample.Focus.cur_var_ap(statics),
+        dynamics,
+      );
+    let n = List.length(samples);
+    /* a column between views */
+    let per_row = max(1, (Settings.s^.drawer.width + 1) / (cols + 1));
+    n > per_row && List.length(Sample.Selection.group_by_call(samples)) == 1
+      ? Some((per_row, (n + per_row - 1) / per_row)) : None;
+  | _ => None
+  };
+
+/* The drawer's lines for the active rich renderer: its rows of views,
+ * with a line between rows */
+let rich_drawer_lines = (model: probe_model, info: info): option(int) =>
+  switch (rich_drawer_rows(model, info), drawer_wrap(model, info)) {
+  | (Some(rows), Some((_, wraps))) => Some(rows * wraps + wraps - 1)
+  | (rows, _) => rows
+  };
 let chosen_fills_drawer = (model: probe_model): bool =>
   switch (chosen_renderer(model)) {
   | Some(pm) =>
@@ -2798,7 +2870,7 @@ module M: Projector = {
   let placeholder = (model: model, info) =>
     if (model.drawer_mode) {
       let rows =
-        switch (rich_drawer_rows(model, info)) {
+        switch (rich_drawer_lines(model, info)) {
         | Some(n) => min(DrawerHeight.max_rows, n)
         | None => DrawerHeight.compute(info)
         };
@@ -3019,7 +3091,7 @@ module M: Projector = {
     let drawer_overflow =
       drawer
       && (
-        switch (rich_drawer_rows(model, info)) {
+        switch (rich_drawer_lines(model, info)) {
         | Some(n) => n > DrawerHeight.max_rows
         | None => DrawerHeight.content_rows(info) > DrawerHeight.max_rows
         }
@@ -3078,6 +3150,15 @@ module M: Projector = {
               ~drawer_mode_active=true,
               ~rich_content=rich_drawer,
               ~scrollable=drawer_overflow,
+              ~wrap=
+                switch (
+                  drawer_wrap(model, info),
+                  rich_drawer_rows(model, info),
+                ) {
+                | (Some((per_row, _)), Some(lines)) =>
+                  Some((per_row, lines))
+                | _ => None
+                },
               data,
               local,
               view_seg,

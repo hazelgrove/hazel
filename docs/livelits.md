@@ -97,7 +97,9 @@ let view(m: Model, ctx: ViewContext): HTML =
   lines (`Lines(2, columns)`) and the sample's width: the budget its text is
   abbreviated to (12 columns a sample in Many mode, 150 in One), so
   resizing the sample (Shift+drag, Shift+arrows) resizes the room. The
-  view is clipped to this room, fading out at an edge it overflows. A view
+  view is clipped to this room, fading out at an edge it overflows, but
+  the room is never narrower than the view's own drawing, so a view that
+  ignores the columns (or can't shrink further) keeps its width. A view
   that takes the context is drawn on the line whatever its `shape`, since
   it can fit itself into the room it is told; a one-argument view taller
   than the line's lines waits for the drawer.
@@ -193,7 +195,9 @@ let ^trace = {
   draws to the card's edges, and a view 2px less than its lines' height
   (25.13px a line: 124px for five) fills the rows the drawer reserves for
   it but for those 2px, which it overhangs. Views of `Tune` in Views /
-  Piano Roll are drawn for it.
+  Piano Roll are drawn for it. Samples of one call that don't fit the
+  drawer's width (80 columns, the width its text wraps to) side by side,
+  each as wide as its `shape`, wrap onto rows, a line between rows.
 
 The renderer is `LivelitRenderer.re`, registered in
 `RichProbeRegistry.re` ahead of the generic HTML and card renderers; the
