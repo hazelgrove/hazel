@@ -2,7 +2,7 @@
 Views / Horizon Chart
 
 @flags
-version=1 id=b3000003-0003-0003-0003-000000000003
+version=2 id=b3000003-0003-0003-0003-000000000003
 
 @prompt
 A `Drift` is a thermostat's hourly deviation from its setpoint over two days, in tenths of a degree. `^drift` draws one as a horizon chart: green for warm hours and red for cold ones, each folded into two bands of four tenths with the darker band overlaid on the lighter, so all 48 hours fit in one line. Every probe of type `Drift` in scope draws its samples this way, and the six rooms below compare at a glance: which room's heating oscillates, and which one's heater failed overnight?
@@ -57,12 +57,13 @@ let ^drift = {
   let shape : LivelitShape = Inline(10)
 } in
 
-# The largest swing either way, in tenths #
+# The largest swing either way, in tenths: the least bound on every reading #
 let swing(d: Drift): Int =
   case ^^probe(d)
   | Drift(vs) =>
-    fold_left(vs, fun (a: Int, v: Int) ->
-      if v > a then v else if 0 - v > a then 0 - v else a, 0)
+    let least(t: Int): Int =
+      if all(vs, fun v -> abs(v) <= t) then t else least(t + 1) in
+    least(0)
   end
 in
 

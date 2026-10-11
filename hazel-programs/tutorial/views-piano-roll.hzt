@@ -2,7 +2,7 @@
 Views / Piano Roll
 
 @flags
-version=1 id=b3000007-0007-0007-0007-000000000007
+version=2 id=b3000007-0007-0007-0007-000000000007
 
 @prompt
 A `Tune` is a list of notes, each a MIDI pitch, a start, and a length in eighth notes. `^roll` draws one as a piano roll: time across the bar, pitch up over the tune's own range, with the black keys' rows shaded and each C marked. At five lines it is too tall for the line, where the samples stay text, so it opens in the probe's drawer: right-click a sample and choose **View as** (or expand the probe, **Cmd/Ctrl+↓**). Every `Tune` probe in scope draws this way, so in Many mode the drawer shows a motif and three classic transformations of it side by side: moved up a fourth, turned upside down, and played backward.
@@ -32,18 +32,17 @@ let ^roll = {
     let k = p - p / 12 * 12 in
     k == 1 || k == 3 || k == 6 || k == 8 || k == 10;
 
-  let low(ns: [(Int, Int, Int)]): Int =
-    fold_left(ns, fun (m: Int, (p, _, _): (Int, Int, Int)) ->
-      if p < m then p else m, 127);
+  # The lowest and highest pitches #
+  let bounds(ns: [(Int, Int, Int)]): (Int, Int) =
+    fold_left(ns, fun ((lo, hi): (Int, Int), (p, _, _): (Int, Int, Int)) ->
+      if p < lo then (p, if p > hi then p else hi)
+      else if p > hi then (lo, p)
+      else (lo, hi), (127, 0));
 
-  let high(ns: [(Int, Int, Int)]): Int =
-    fold_left(ns, fun (m: Int, (p, _, _): (Int, Int, Int)) ->
-      if p > m then p else m, 0);
-
-  # When the last note ends #
-  let fin(ns: [(Int, Int, Int)]): Int =
-    fold_left(ns, fun (m: Int, (_, at, len): (Int, Int, Int)) ->
-      if at + len > m then at + len else m, 0);
+  # The note that ends last #
+  let latest(ns: [(Int, Int, Int)]): (Int, Int, Int) =
+    fold_left(ns, fun ((q, a, l): (Int, Int, Int), (p, at, len): (Int, Int, Int)) ->
+      if at + len > a + l then (p, at, len) else (q, a, l), (0, 0, 0));
 
   let box(x: Int, y: Int, wd: Int, ht: Int, round: Int, fill: String): HTML =
     Node("rect",
@@ -66,14 +65,16 @@ let ^roll = {
   let view(t: Model): HTML =
     case t
     | Tune(ns) =>
-      # A row a semitone: an octave at least, centered on the tune #
-      let span = high(ns) - low(ns) + 3 in
-      let rows = if span < 12 then 12 else span in
-      let top = (low(ns) + high(ns) + rows) / 2 in
+      let (lo, hi) = bounds(ns) in
+      # A row a semitone (a pixel at least): an octave at least, centered on the tune #
+      let span = hi - lo + 3 in
+      let rows = if span < 12 then 12 else if span > h then h else span in
+      let top = (lo + hi + rows) / 2 in
       let row = h / rows in
       let y(p: Int): Int = (h - rows * row) / 2 + (top - p) * row in
       # Whole bars of 16 eighths #
-      let bars = (fin(ns) + 15) / 16 in
+      let (_, start, len) = latest(ns) in
+      let bars = (start + len + 15) / 16 in
       let n = 16 * (if bars < 1 then 1 else bars) in
       let x(at: Int): Int = gutter + at * axis / n in
       let pitches = range(top - rows + 1, top) in
@@ -100,8 +101,8 @@ let ^roll = {
             [Text("C" ++ s(p / 12 - 1))])) in
       let notes =
         map(ns, fun ((p, at, len): (Int, Int, Int)) ->
-          box(x(at) + 1, y(p) + 1, x(at + len) - x(at) - 2, row - 2, 2,
-              "currentColor")) in
+          box(x(at) + 1, y(p) + 1, x(at + len) - x(at) - 2,
+              if row > 2 then row - 2 else 1, 2, "currentColor")) in
       Node("svg",
         [Create("viewBox", "0 0 " ++ s(w) ++ " " ++ s(h)),
          Width(s(w)), Height(s(h))],
