@@ -351,17 +351,8 @@ let view =
          this slide's program instead (never another document's) */
       let term =
         switch (program) {
-        | Some(p)
-            when
-              !
-                List.exists(
-                  (n: OutlineTree.node) => n.o_label != "",
-                  OutlineTree.of_term(statics.term),
-                ) =>
-          MakeTerm.Incr.term_of_root(
-            ~root=Program.root(p),
-            Program.document(p),
-          )
+        | Some(p) when !Workspace.named_outline(statics.term) =>
+          Workspace.fresh_term(p)
         | _ => statics.term
         };
       /* each error badges the deepest row containing it; ancestor rows

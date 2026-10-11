@@ -464,10 +464,8 @@ let rec node_view =
             [
               Attr.create("data-ol-id", Language.Id.to_string(id)),
               /* Prevent_default: label clicks must not toggle the row's
-                 <details>. while its name is typed the row stays put */
-              Attr.on_click(_ =>
-                stop(editing == None ? show(props, on, id) : Effect.Ignore)
-              ),
+                 <details> */
+              Attr.on_click(_ => stop(show(props, on, id))),
             ]
             /* every block level gets the menu, except trailing-expression
                rows */

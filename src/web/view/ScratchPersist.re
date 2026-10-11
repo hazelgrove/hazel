@@ -620,15 +620,10 @@ let load_all =
 let hydrate_current = (~settings, prefix: string, model: Model.t): Model.t => {
   let sp = List.nth(model.scratchpads, model.current);
   if (sp.dormant) {
-    {
-      ...model,
-      scratchpads:
-        Util.ListUtil.put_nth(
-          model.current,
-          load_scratchpad(~settings, prefix, sp.name),
-          model.scratchpads,
-        ),
-    };
+    Model.map_current(
+      _ => load_scratchpad(~settings, prefix, sp.name),
+      model,
+    );
   } else {
     model;
   };
