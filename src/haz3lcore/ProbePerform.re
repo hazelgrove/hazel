@@ -290,7 +290,10 @@ let add_ids_from_multi_term =
       (map, id) =>
         switch (Id.Map.find_opt(id, old_ephemerals)) {
         | Some(existing) => Id.Map.add(id, existing, map)
-        | None => Id.Map.add(id, Refractors.mk_entry(Probe), map)
+        | None =>
+          /* the ⇓ probe opens as a drawer */
+          let model = List.mem(id, tail) ? Some(ProbeProj.tail_model) : None;
+          Id.Map.add(id, Refractors.mk_entry(~model?, Probe), map);
         },
       Id.Map.empty,
       ids,

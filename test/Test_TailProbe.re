@@ -184,6 +184,23 @@ let placed_replaces = () => {
   check(bool, "no ⇓ probe", true, z.refractors.tail_target == None);
 };
 
+/* a ⇓ probe entry made afresh (an auto-probe anchor on the last
+   expression let go, say) still opens as a drawer */
+let remade_drawer = () => {
+  let (z, tail) = tail_on("let x = 1 in\nx + 1");
+  let (info_map, syntax) = analysed(z);
+  let z =
+    ProbePerform.rm_multi(~drill=false, ~syntax, ~info_map, tail, z)
+    |> ProbePerform.add_ids_from_multi_term(~syntax, ~info_map);
+  check(
+    bool,
+    "a drawer",
+    true,
+    Id.Map.find_opt(tail, z.refractors.multis.ephemerals)
+    == Some(Refractors.mk_entry(~model=ProbeProj.tail_model, Probe)),
+  );
+};
+
 /* the ⇓ probe's projector is told so, whichever way it's held */
 let projector_flag = () => {
   let flag = ((z: Zipper.t, id: Id.t)): bool => {
@@ -351,6 +368,7 @@ let tests = (
     test_case("a manual probe wins", `Quick, manual_wins),
     test_case("made manual, still the ⇓ probe", `Quick, promoted_stays),
     test_case("a probe placed on it replaces it", `Quick, placed_replaces),
+    test_case("a remade entry is a drawer", `Quick, remade_drawer),
     test_case("its projector is told", `Quick, projector_flag),
     test_case("no arms on the code", `Quick, no_arms),
     test_case("an old model with bare loads", `Quick, old_model_loads),
