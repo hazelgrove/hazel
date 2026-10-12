@@ -378,6 +378,10 @@ module Drawing = {
     # 320 by 440, about its middle. It fits the drawing, so a slide that #
     # draws only a head shows the head large; a slide that wants its #
     # frame to stay put while the drawing changes adds Drawing.frame. #
+    # A picture with a frame is shown framed: the box is the frame's, #
+    # whatever else it draws, and anything outside it is cut off. Its #
+    # points are not walked either: in the woods, that walk was over #
+    # half of the view's work. #
     let vertices_of = fun s : Shape ->
       case s | Polygon(p) => p.points | Path(p) => p.points end;
     let grow = fun ((x0, y0, x1, y1), v) : ((Float, Float, Float, Float), Vertex) ->
@@ -391,9 +395,20 @@ module Drawing = {
     let bounds : ((Float, Float, Float, Float), Picture) -> (Float, Float, Float, Float) =
       fun (b, ss) ->
         case ss | [] => b | s :: tl => bounds((grow_all((b, vertices_of(s))), tl)) end;
+    let framing : Picture -> Picture =
+      fun ss ->
+        case ss
+        | [] => []
+        | s :: tl =>
+          case s
+          | Path(p) => if p.name == "frame" then [s] else framing(tl)
+          | _ => framing(tl)
+          end
+        end;
     let view_box = fun pic : Picture ->
+      let boxed = case framing(pic) | [] => pic | f => f end in
       let start =
-        case pic
+        case boxed
         | [] => (0., 0., 0., 0.)
         | s :: _ =>
           case vertices_of(s)
@@ -401,7 +416,7 @@ module Drawing = {
           | v :: _ => let (x, y) = v.at in (x, y, x, y)
           end
         end in
-      let (x0, y0, x1, y1) = bounds((start, pic)) in
+      let (x0, y0, x1, y1) = bounds((start, boxed)) in
       let (w, h) = (x1 -. x0, y1 -. y0) in
       let (w2, h2) =
         if w *. 440. >. h *. 320. then (w, w *. 440. /. 320.) else (h *. 320. /. 440., h) in
@@ -572,9 +587,10 @@ module Drawing = {
         if name == n then s :: named(tl, n) else named(tl, n)
       end;
 
-  # A box the picture always takes in: an invisible path along its #
-  # diagonal, for a slide whose frame should stay put while what it #
-  # draws changes -- the arms swinging, the eyes growing. #
+  # A box for the picture: an invisible path along its diagonal, for a #
+  # slide whose frame should stay put while what it draws changes -- #
+  # the arms swinging, the eyes growing. ^picture shows exactly this #
+  # box (with its margin), and cuts off anything outside it. #
   let frame = fun (x0, y0, x1, y1) : (Float, Float, Float, Float) ->
     [Path((name = "frame",
            points = [(at = (x0, y0), label = Plain), (at = (x1, y1), label = Plain)],
