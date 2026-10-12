@@ -326,11 +326,17 @@
    inverted, so the livelit's view needs no branch. */
 .livelit .choice {
     display: flex;
-    gap: 0.4em;
+    /* a long list wraps into rows: ^choice's shape counts them, so the
+       livelit is as many lines tall (LivelitProj.computed_shape) */
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 0.25em 0.4em;
     align-items: center;
     font-size: 0.8em;
 }
 .livelit .choice-button {
+    /* a label is one line: two-word labels broke inside their buttons */
+    white-space: nowrap;
     font-family: var(--code-font);
     font-size: 0.9em;
     border: 1px solid var(--border-soft);
