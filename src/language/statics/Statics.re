@@ -4018,7 +4018,13 @@ and uexp_to_info_map =
     | TyAlias(typat, utyp, body) =>
       let ty_alias_case = (typat: TPat.t, utyp: Typ.t, body: Exp.t) => {
         let m =
-          utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
+          utpat_to_info_map(
+            ~ctx,
+            ~ancestors=ancestors_inclusive,
+            ~alias_def=utyp,
+            typat,
+            m,
+          )
           |> snd;
         switch (typat.term) {
         | Var(name) when !Ctx.is_base_typ(name) =>
@@ -5811,7 +5817,8 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, utpat: TPat.t, m: Map.t): (Info.tpat, Map.t) => {
+    (~ctx, ~ancestors, ~alias_def: option(Typ.t)=?, utpat: TPat.t, m: Map.t)
+    : (Info.tpat, Map.t) => {
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
   let status_for_node =
@@ -5822,7 +5829,11 @@ and utpat_to_info_map =
         [TPatShadowsType(name, BaseTyp)],
         None,
       )
-    | Var(name) => ([], Some(Message.Var(name)))
+    | Var(name) =>
+      switch (alias_def) {
+      | Some(def) => ([], Some(Message.Alias(name, def)))
+      | None => ([], Some(Message.Var(name)))
+      }
     | Invalid(_) => ([TPatNotAVar(NotCapitalized)], None)
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };
