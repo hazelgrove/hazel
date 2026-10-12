@@ -2303,16 +2303,19 @@ let hand_shapes = fun r : Float ->
 
 # The hand in its own frame, made once: both arms draw the same hand, #
 # turned about the wrist by the hand angle (a star turns its own points; #
-# a round hand looks the same however it turns). #
+# a round hand looks the same however it turns). The two walks are side #
+# by side, not one inside the other: statics analyzes a recursive #
+# function's body three times, so one nested in another is analyzed #
+# nine times. #
+let hand_turn = float_of_int(hand_angle) *. pi /. 180. in
+let turn_points : [Point] -> [Point] =
+  fun ps ->
+    case ps
+    | [] => []
+    | (u, v) :: tl => (u *. cos(hand_turn) -. v *. sin(hand_turn), u *. sin(hand_turn) +. v *. cos(hand_turn)) :: turn_points(tl)
+    end in
 let turn_shapes : [([Point], String, Stroke)] -> [([Point], String, Stroke)] =
   fun ss ->
-    let t = float_of_int(hand_angle) *. pi /. 180. in
-    let turn_points : [Point] -> [Point] =
-      fun ps ->
-        case ps
-        | [] => []
-        | (u, v) :: tl => (u *. cos(t) -. v *. sin(t), u *. sin(t) +. v *. cos(t)) :: turn_points(tl)
-        end in
     case ss
     | [] => []
     | (ps, fill, stroke) :: tl => (turn_points(ps), fill, stroke) :: turn_shapes(tl)
