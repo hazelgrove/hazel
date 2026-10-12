@@ -2200,8 +2200,10 @@ let (left_arm, left_sleeve, left_join, left_hand) =
   arm((-1., Drawing.anchor(body, "left shoulder"))) in
 let right_fist =
   if broom_on then [disc(("hand", (hx, hy), float_of_int(hand_size), skin_line, skin))] else right_hand in
+# The picture's box, which ^picture shows and cuts off at: tall enough #
+# for the hat's tip as the slide opens. #
 let outfit =
-  Drawing.frame((0., -40., 320., 400.))
+  Drawing.frame((0., -110.5, 320., 400.))
   @ neck_at @ stockings @ boots @ skirt @ skirt_webs @ right_arm @ left_arm @ right_sleeve
   @ left_sleeve @ shirt @ torso_webs @ belt @ right_join @ left_join
   @ Drawing.named(hair_at, hairdo_name) @ face_at
