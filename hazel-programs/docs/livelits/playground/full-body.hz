@@ -795,22 +795,50 @@ let head = ^^livelit(Drawing.^polygons((
 # THE SKIN #
 
 # Messed Up Dress Up's skin colors, the ones that mean something named #
-# for what they mean (smiley, mad, sick, alien, witch). Every shape #
-# drawn in the usual skin or its outline takes the chosen pair: one #
-# pass over the finished picture. #
+# for what they mean (smiley yellow, mad red, sick green, alien grey, #
+# witch green). Every shape drawn in the usual skin or its outline #
+# takes the chosen pair: one pass over the finished picture. (The #
+# third color, a shade darker, is for the witch's nose.) #
 
-let skin_colors = ^^livelit(Drawing.^choice@<(String, String)>(
-  [("peach", ("#f1c27d", "#8a5a44")),
-   ("smiley yellow", ("#cfa000", "#6e5500")),
-   ("mad red", ("#dc143c", "#78091f")),
-   ("sick green", ("#8cbe32", "#4a6a14")),
-   ("alien grey", ("#aab2ba", "#5a6168")),
-   ("witch green", ("#6fa34a", "#3a5a24")),
-   ("pale", ("#ffdbac", "#8a6a48")),
-   ("tan", ("#e0ac69", "#7a5228")),
-   ("brown", ("#c68642", "#6a4018")),
-   ("dark brown", ("#8d5524", "#4a2a10"))])(("#f1c27d", "#8a5a44"))) in
-let (skin_fill, skin_ink) = skin_colors in
+# ^skin: one swatch per skin, in its own color, as in the game; the #
+# one in use is outlined. Ten of them are too many for a ^choice, #
+# whose width is fixed for seven short buttons. #
+let ^skin = {
+  type Model = (String, String, String);
+  type Action = (String, String, String);
+  type Expansion = (String, String, String);
+  let skins = [("peach", ("#f1c27d", "#8a5a44", "#cfa76c"), "black"),
+     ("smiley", ("#cfa000", "#6e5500", "#b28a00"), "black"),
+     ("mad", ("#dc143c", "#78091f", "#bd1134"), "white"),
+     ("sick", ("#8cbe32", "#4a6a14", "#78a32b"), "black"),
+     ("alien", ("#aab2ba", "#5a6168", "#9299a0"), "black"),
+     ("witch", ("#6fa34a", "#3a5a24", "#5f8c40"), "black"),
+     ("pale", ("#ffdbac", "#8a6a48", "#dbbc94"), "black"),
+     ("tan", ("#e0ac69", "#7a5228", "#c1945a"), "black"),
+     ("brown", ("#c68642", "#6a4018", "#aa7339"), "black"),
+     ("dark", ("#8d5524", "#4a2a10", "#79491f"), "white")];
+  let init = Pure(("#f1c27d", "#8a5a44", "#cfa76c"));
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
+  let swatch = fun (name, v, text, m) : (String, (String, String, String), String, (String, String, String)) ->
+    let (fill, _, _) = v in
+    Html.button(
+      [Attr.on_click(v),
+       Attr.style([("background", fill), ("color", text),
+                   ("font-family", "var(--code-font)"), ("font-size", "0.72em"),
+                   ("border-radius", "3px"), ("padding", "0 0.3em"), ("cursor", "pointer"),
+                   ("border", if v == m then "2px solid var(--text-default)" else "1px solid #888")])],
+      [Html.text(name)]);
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.25em"), ("align-items", "center")])],
+      map((skins, fun (name, v, text) : (String, (String, String, String), String) ->
+        swatch((name, v, text, m))))));
+  let expand = Functional(fun m : Model -> m);
+  let shape = Inline(43)
+} in
+
+let skin_colors = ^^livelit(^skin(("#f1c27d", "#8a5a44", "#cfa76c"))) in
+let (skin_fill, skin_ink, skin_shade) = skin_colors in
 let recolor = fun c : String ->
   if c == "#f1c27d" then skin_fill else if c == "#8a5a44" then skin_ink else c in
 let skinned : Picture -> Picture =
