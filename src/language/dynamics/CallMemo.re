@@ -140,36 +140,70 @@ type t = {
   costly: IdentityTable.t(Exp.t, unit),
   /* each costly body's last calls, newest first */
   entries: IdentityTable.t(Exp.t, list(entry)),
-  /* how many calls were reused, for tests and measuring */
+  /* each costly body's lookups and hits, over the memo's life */
+  tries: IdentityTable.t(Exp.t, (int, int)),
+  /* how many calls were looked up, and how many reused, for tests and
+     measuring */
+  lookups: ref(int),
   hits: ref(int),
 };
 
 let create = (): t => {
   costly: IdentityTable.create(),
   entries: IdentityTable.create(),
+  tries: IdentityTable.create(),
+  lookups: ref(0),
   hits: ref(0),
 };
 
 let is_costly = (memo: t, body: Exp.t): bool =>
   IdentityTable.find_opt(memo.costly, body) != None;
 
+/* A body whose lookups keep missing is given up on. A lookup costs the
+   call's key, every value its body reads put in form and hashed, and on a
+   miss the key is recorded too. Kids' Choice's face makes a few calls,
+   mostly the same ones each time, and hits; a picture of 600 shapes calls
+   its shape helper 600 times with 600 shapes, and at most [max_entries]
+   of them are kept, so it misses every time. Its keys were a third of
+   the picture's view, and the view took 2.6 times as long with the memo
+   as without it (the Scenes slide's woods). So a body stops being looked
+   up, and recorded, once it has missed [misses_per_hit] times for each
+   time it hit. */
+let misses_per_hit = 24;
+let worth_a_lookup = (memo: t, body: Exp.t): bool =>
+  switch (IdentityTable.find_opt(memo.tries, body)) {
+  | None => true
+  | Some((lookups, hits)) => lookups < misses_per_hit * (hits + 1)
+  };
+
 let key = (env: Environment.t(Exp.t), body: Exp.t): Exp.t =>
   values(env, body);
 
 /* the result of an earlier call of [body] with this key */
-let find = (memo: t, body: Exp.t, key: Exp.t): option(Exp.t) =>
-  switch (IdentityTable.find_opt(memo.entries, body)) {
-  | None => None
-  | Some(entries) =>
-    switch (
-      List.find_opt((e: entry) => ValueHash.same(e.key, key), entries)
-    ) {
-    | Some(e) =>
-      incr(memo.hits);
-      Some(e.value);
+let find = (memo: t, body: Exp.t, key: Exp.t): option(Exp.t) => {
+  incr(memo.lookups);
+  let (lookups, hits) =
+    Option.value(IdentityTable.find_opt(memo.tries, body), ~default=(0, 0));
+  let found =
+    switch (IdentityTable.find_opt(memo.entries, body)) {
     | None => None
-    }
-  };
+    | Some(entries) =>
+      switch (
+        List.find_opt((e: entry) => ValueHash.same(e.key, key), entries)
+      ) {
+      | Some(e) =>
+        incr(memo.hits);
+        Some(e.value);
+      | None => None
+      }
+    };
+  IdentityTable.replace(
+    memo.tries,
+    body,
+    (lookups + 1, found == None ? hits : hits + 1),
+  );
+  found;
+};
 
 /* After a call of [body] under [env] took [steps] steps and gave [value]:
    remember it, if it was costly. [key] is the call's key when the caller

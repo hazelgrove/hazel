@@ -315,7 +315,10 @@ let evaluate =
           next,
         );
       switch (call_memo, kind, next.term) {
-      | (Some(memo), Some(FunAp), Closure(call_env, body)) =>
+      | (Some(memo), Some(FunAp), Closure(call_env, body))
+          when
+            !CallMemo.is_costly(memo, body)
+            || CallMemo.worth_a_lookup(memo, body) =>
         /* a call: the same call as before gives what it gave before */
         let key =
           CallMemo.is_costly(memo, body)

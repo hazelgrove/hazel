@@ -123,6 +123,44 @@ let tests = (
       },
     ),
     test_case(
+      "calls that keep missing stop being looked up; calls that hit do not",
+      `Quick,
+      () => {
+        /* heavy's every call is new (its map reads n): heavy, map and sum
+           miss each time; range(60) is the same call every time, and hits */
+        let f =
+          elab(
+            "fun k -> "
+            ++ helpers
+            ++ "let xs = range(60) in let heavy = fun n -> sum(map((fun x -> x * n, xs))) in heavy(k)",
+          );
+        let memo = CallMemo.create();
+        for (k in 1 to 30) {
+          ignore(apply(~call_memo=memo, f, k));
+        };
+        let lookups = memo.lookups^;
+        let hits = memo.hits^;
+        for (k in 31 to 40) {
+          ignore(apply(~call_memo=memo, f, k));
+        };
+        /* without giving up, each run looked up map's 60 calls and sum's
+           61 and heavy's one: over 1,200 in ten runs */
+        check(
+          bool,
+          "ten more runs look up only what still hits",
+          true,
+          memo.lookups^ - lookups < 50,
+        );
+        check(bool, "range(60) is still reused", true, memo.hits^ > hits);
+        check(
+          bool,
+          "and the answers are the same as without",
+          true,
+          same_value(apply(~call_memo=memo, f, 41), apply(f, 41)),
+        );
+      },
+    ),
+    test_case(
       "ids are left out of a value's form, and a closure is its code and what it reads",
       `Quick,
       () => {
