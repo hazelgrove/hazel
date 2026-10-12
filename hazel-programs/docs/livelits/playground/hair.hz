@@ -210,14 +210,15 @@ module Drawing = {
 
     # DRAWING #
     let num = fun x : Float -> to_fixed(x, 1);
+    # each point followed by a space, the last too (a points list may end #
+    # with one); to_fixed itself, not num, which cost a call a number #
     let coords : [Vertex] -> String =
       fun vs ->
         case vs
         | [] => ""
         | v :: tl =>
           let (x, y) = v.at in
-          num(x) ++ "," ++ num(y)
-          ++ (case tl | [] => "" | _ => " " ++ coords(tl) end)
+          to_fixed(x, 1) ++ "," ++ to_fixed(y, 1) ++ " " ++ coords(tl)
         end;
     let shape_node = fun s : Shape ->
       case s
@@ -329,14 +330,15 @@ module Drawing = {
     let init = do p <- new_splice((AnyT, None)) in Pure((picture = p));
     let update = fun m : Model -> fun _a : Action -> Pure(m);
     let num = fun x : Float -> to_fixed(x, 1);
+    # each point followed by a space, the last too (a points list may end #
+    # with one); to_fixed itself, not num, which cost a call a number #
     let coords : [Vertex] -> String =
       fun vs ->
         case vs
         | [] => ""
         | v :: tl =>
           let (x, y) = v.at in
-          num(x) ++ "," ++ num(y)
-          ++ (case tl | [] => "" | _ => " " ++ coords(tl) end)
+          to_fixed(x, 1) ++ "," ++ to_fixed(y, 1) ++ " " ++ coords(tl)
         end;
     let shape_node = fun s : Shape ->
       case s
