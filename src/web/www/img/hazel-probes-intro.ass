@@ -1,11 +1,12 @@
 [Script Info]
-; Captions burned into hazel-probes-intro.mp4 (the Probes tutorial's intro video). Its voiceover reads
-; them aloud: scripts/intro_voiceover.txt has one spoken line per caption, at the caption's start time.
+; Captions burned into hazel-probes-intro.mp4 (the Probes tutorial's intro video). Its voiceover
+; (scripts/intro_voiceover.txt) speaks them in phrases, each of which may span several captions.
 ; To change the captions, edit the Dialogue lines below, then from the repo root run
 ;   python3 scripts/render_intro_captions.py      (needs ffmpeg and Pillow; writes a silent video)
 ;   scripts/render_intro_voiceover.py              (needs Kokoro; adds the voice; see its header)
-; Positions: \pos is the center of the caption box. (938,272) sits right of the code before Auto Probe
-; turns on at 59.17s; (938,530) sits in the blank area beside the case rules after that.
+; Positions: \pos is the center of the caption box. (938,272) sits right of the code, for captions 1 to 14;
+; (938,530), from caption 15 (Auto Probe, 59.2 s) on, sits in the blank area beside the case rules.
+; Times: each caption starts where its words begin in the voice track (scripts/intro_voiceover.txt).
 Title: Hazel Probes intro captions
 ScriptType: v4.00+
 PlayResX: 1198
@@ -19,24 +20,24 @@ Style: Caption,Helvetica Neue,30,&H00FFFFFF,&H00FFFFFF,&H361E1E1E,&H361E1E1E,0,0
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
-Dialogue: 0,0:00:00.40,0:00:06.00,Caption,,0,0,0,,{\pos(938,272)}A quick preview of programming\Nwith live probes in Hazel.
-Dialogue: 0,0:00:06.00,0:00:13.80,Caption,,0,0,0,,{\pos(938,272)}The tutorial then covers Hazel\Nand each probe feature in detail.
-Dialogue: 0,0:00:14.00,0:00:17.20,Caption,,0,0,0,,{\pos(938,272)}First, manual probes.
-Dialogue: 0,0:00:17.20,0:00:19.30,Caption,,0,0,0,,{\pos(938,272)}Right-click any expression\Nor pattern...
-Dialogue: 0,0:00:19.30,0:00:21.40,Caption,,0,0,0,,{\pos(938,272)}...and choose Add probe\N(or press Cmd/Ctrl+E).
-Dialogue: 0,0:00:21.40,0:00:24.60,Caption,,0,0,0,,{\pos(938,272)}Its value appears at the end\Nof the line.
-Dialogue: 0,0:00:24.60,0:00:30.50,Caption,,0,0,0,,{\pos(938,272)}Not just variables: here,\Nan arithmetic expression...
-Dialogue: 0,0:00:30.50,0:00:33.50,Caption,,0,0,0,,{\pos(938,272)}...and here, a whole case\Nexpression.
-Dialogue: 0,0:00:33.50,0:00:37.00,Caption,,0,0,0,,{\pos(938,272)}By default, a probe shows\None value at a time.
-Dialogue: 0,0:00:37.00,0:00:40.30,Caption,,0,0,0,,{\pos(938,272)}With a sample selected, press\NSpace for Many mode...
-Dialogue: 0,0:00:40.30,0:00:43.60,Caption,,0,0,0,,{\pos(938,272)}...which shows every value\Nfrom the run.
-Dialogue: 0,0:00:43.60,0:00:49.00,Caption,,0,0,0,,{\pos(938,272)}Click a sample to make it\Nthe focus...
-Dialogue: 0,0:00:49.00,0:00:55.70,Caption,,0,0,0,,{\pos(938,272)}...and the other probes highlight\Ntheir samples from that same call.
-Dialogue: 0,0:00:55.70,0:00:59.17,Caption,,0,0,0,,{\pos(938,272)}Rather than placing every\Nprobe by hand...
-Dialogue: 0,0:00:59.17,0:01:04.40,Caption,,0,0,0,,{\pos(938,530)}...press Cmd/Ctrl+P to turn\Non Auto Probe.
-Dialogue: 0,0:01:04.40,0:01:09.20,Caption,,0,0,0,,{\pos(938,530)}It puts one probe on each line\Nthat has something to probe.
-Dialogue: 0,0:01:09.20,0:01:17.30,Caption,,0,0,0,,{\pos(938,530)}Unlike some other environments,\NHazel runs incomplete programs.
-Dialogue: 0,0:01:17.30,0:01:19.80,Caption,,0,0,0,,{\pos(938,530)}This hole is the unfinished\Nbody of watering_amount.
-Dialogue: 0,0:01:19.80,0:01:22.80,Caption,,0,0,0,,{\pos(938,530)}Each call returns that hole,\Nwhich the tests show too.
-Dialogue: 0,0:01:22.80,0:01:25.00,Caption,,0,0,0,,{\pos(938,530)}Start typing...
-Dialogue: 0,0:01:25.00,0:01:32.29,Caption,,0,0,0,,{\pos(938,530)}...and the feedback stays live,\Neven while the code is incomplete.
+Dialogue: 0,0:00:00.40,0:00:05.16,Caption,,0,0,0,,{\pos(938,272)}Let's begin with a quick\Npreview of programming with\Nlive probes in Hazel.
+Dialogue: 0,0:00:05.16,0:00:14.20,Caption,,0,0,0,,{\pos(938,272)}The tutorial will then cover Hazel\Nand each probe feature in detail.
+Dialogue: 0,0:00:14.20,0:00:16.13,Caption,,0,0,0,,{\pos(938,272)}First, manual probes.
+Dialogue: 0,0:00:16.13,0:00:18.40,Caption,,0,0,0,,{\pos(938,272)}Right-click any expression\Nor pattern...
+Dialogue: 0,0:00:18.40,0:00:22.18,Caption,,0,0,0,,{\pos(938,272)}...and choose Add probe\N(or press Cmd/Ctrl+E).
+Dialogue: 0,0:00:22.18,0:00:24.90,Caption,,0,0,0,,{\pos(938,272)}Its value appears at the end\Nof the line.
+Dialogue: 0,0:00:24.90,0:00:29.21,Caption,,0,0,0,,{\pos(938,272)}Not just variables: here,\Nan arithmetic expression...
+Dialogue: 0,0:00:29.21,0:00:32.20,Caption,,0,0,0,,{\pos(938,272)}...and here, a whole case\Nexpression.
+Dialogue: 0,0:00:32.20,0:00:35.61,Caption,,0,0,0,,{\pos(938,272)}By default, a probe shows\None value at a time.
+Dialogue: 0,0:00:35.61,0:00:38.43,Caption,,0,0,0,,{\pos(938,272)}With a sample selected, press\NSpace for Many mode...
+Dialogue: 0,0:00:38.43,0:00:42.60,Caption,,0,0,0,,{\pos(938,272)}...which shows every value\Nfrom the run.
+Dialogue: 0,0:00:42.60,0:00:44.75,Caption,,0,0,0,,{\pos(938,272)}Click a sample to make it\Nthe focus...
+Dialogue: 0,0:00:44.75,0:00:55.40,Caption,,0,0,0,,{\pos(938,272)}...and the other probes highlight\Ntheir samples from that same call.
+Dialogue: 0,0:00:55.40,0:00:58.08,Caption,,0,0,0,,{\pos(938,272)}Rather than placing every\Nprobe by hand...
+Dialogue: 0,0:00:58.08,0:01:02.18,Caption,,0,0,0,,{\pos(938,530)}...press Cmd/Ctrl+P to turn\Non Auto Probe.
+Dialogue: 0,0:01:02.18,0:01:08.00,Caption,,0,0,0,,{\pos(938,530)}It puts one probe on each line\Nthat has something to probe.
+Dialogue: 0,0:01:08.00,0:01:14.00,Caption,,0,0,0,,{\pos(938,530)}Unlike some other environments,\NHazel runs incomplete programs.
+Dialogue: 0,0:01:14.00,0:01:17.50,Caption,,0,0,0,,{\pos(938,530)}This hole is the unfinished\Nbody of watering_amount.
+Dialogue: 0,0:01:17.50,0:01:22.00,Caption,,0,0,0,,{\pos(938,530)}Each call returns that hole,\Nwhich the tests show too.
+Dialogue: 0,0:01:22.00,0:01:23.10,Caption,,0,0,0,,{\pos(938,530)}Start typing...
+Dialogue: 0,0:01:23.10,0:01:32.29,Caption,,0,0,0,,{\pos(938,530)}...and the feedback stays live,\Neven while the code is incomplete.

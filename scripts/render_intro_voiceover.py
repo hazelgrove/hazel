@@ -3,17 +3,17 @@
 
     KOKORO_DIR=<dir> <venv>/bin/python scripts/render_intro_voiceover.py
 
-speaks each line of scripts/intro_voiceover.txt with Kokoro (voice bm_lewis,
-en-gb), starting at its caption's time, mixes the lines into one track with
-ffmpeg, normalizes it to -16 LUFS, and muxes it as 48 kHz AAC into
-src/web/www/img/hazel-probes-intro.mp4, replacing any audio there. The video
-stream is copied, not re-encoded. After re-rendering the captions with
+speaks each phrase of scripts/intro_voiceover.txt with Kokoro (voice
+bm_lewis, en-gb) at its start time and speed, mixes the phrases into one
+track with ffmpeg, normalizes it to -16 LUFS, and muxes it as 48 kHz AAC
+into src/web/www/img/hazel-probes-intro.mp4, replacing any audio there. The
+video stream is copied, not re-encoded. After re-rendering the captions with
 render_intro_captions.py (which writes a silent video), run this again.
 
-A line runs at speed 1.0 unless it would run into the next caption's time;
-then it is sped up, by steps of 0.05 up to --max-speed. A line that still
-does not fit pushes the next line's start later. Lines never overlap, and the
-script prints the schedule with any changes.
+A phrase is one Kokoro call, so it can span several captions and keep its
+sentences' natural flow. The script stops if a phrase would run into the
+next one (or past the video's end), and prints the schedule with the pause
+before each phrase.
 
 Setup (nothing of this is in the repo; Kokoro and its voices are Apache-2.0):
     python3 -m venv <venv> && <venv>/bin/pip install kokoro-onnx
@@ -52,19 +52,9 @@ def read_script(path):
             raw = raw.rstrip("\n")
             if not raw.strip() or raw.startswith("#"):
                 continue
-            t, text = raw.split("\t", 1)
-            lines.append((parse_time(t), text.strip()))
+            t, speed, text = raw.split("\t", 2)
+            lines.append((parse_time(t), float(speed), text.strip()))
     return lines
-
-
-def caption_starts(ass_path):
-    starts = []
-    with open(ass_path, encoding="utf-8") as f:
-        for line in f:
-            if line.startswith("Dialogue:"):
-                h, m, s = line.split(",")[1].split(":")
-                starts.append(int(h) * 3600 + int(m) * 60 + float(s))
-    return starts
 
 
 def media_duration(path):
@@ -121,7 +111,6 @@ def write_wav(path, samples, sr):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--script", default=os.path.join(HERE, "intro_voiceover.txt"))
-    ap.add_argument("--captions", default=os.path.join(IMG, "hazel-probes-intro.ass"))
     ap.add_argument("--video", default=os.path.join(IMG, "hazel-probes-intro.mp4"),
                     help="video whose video stream is kept")
     ap.add_argument("--out", default=None, help="default: replace --video")
@@ -129,8 +118,7 @@ def main():
                     help="directory with kokoro-v1.0.onnx and voices-v1.0.bin")
     ap.add_argument("--voice", default="bm_lewis")
     ap.add_argument("--lang", default="en-gb")
-    ap.add_argument("--max-speed", type=float, default=1.15)
-    ap.add_argument("--gap", type=float, default=0.12, help="least silence between lines, s")
+    ap.add_argument("--gap", type=float, default=0.2, help="least silence between phrases, s")
     ap.add_argument("--bitrate", default="96k")
     ap.add_argument("--keep", help="directory to keep the line clips and the track in")
     args = ap.parse_args()
@@ -138,44 +126,33 @@ def main():
         sys.exit("set KOKORO_DIR or pass --kokoro (see the header of this script)")
     out = args.out or args.video
 
-    lines = read_script(args.script)
-    starts = caption_starts(args.captions)
-    if [round(t, 2) for t, _ in lines] != [round(t, 2) for t in starts]:
-        sys.exit("the spoken script's times do not match the captions' start times")
+    phrases = read_script(args.script)
     video_end = media_duration(args.video)
 
     kokoro = make_kokoro(args.kokoro)
     work = tempfile.mkdtemp(prefix="intro-voice-")
     try:
-        schedule, prev_end = [], 0.0
-        for i, (cue, text) in enumerate(lines):
-            limit = (lines[i + 1][0] if i + 1 < len(lines) else video_end) - args.gap
-            start = max(cue, prev_end + args.gap)
-            speed = 1.0
-            while True:
-                samples, sr = kokoro.create(text, voice=args.voice, speed=speed, lang=args.lang)
-                clip = trim(samples, sr)
-                dur = len(clip) / sr
-                if start + dur <= limit or speed >= args.max_speed - 1e-9:
-                    break
-                speed = round(min(speed + 0.05, args.max_speed), 2)
-            if i + 1 == len(lines) and start + dur > video_end:
-                sys.exit(f"the last line runs past the video's end: {text}")
-            wav = os.path.join(work, f"line-{i + 1:02d}.wav")
+        schedule = []
+        for i, (start, speed, text) in enumerate(phrases):
+            samples, sr = kokoro.create(text, voice=args.voice, speed=speed, lang=args.lang)
+            clip = trim(samples, sr)
+            wav = os.path.join(work, f"phrase-{i + 1:02d}.wav")
             write_wav(wav, clip, sr)
-            schedule.append(dict(n=i + 1, cue=cue, start=start, dur=dur, speed=speed,
-                                 end=start + dur, limit=limit + args.gap, text=text, wav=wav))
-            prev_end = start + dur
+            schedule.append(dict(n=i + 1, start=start, end=start + len(clip) / sr,
+                                 speed=speed, text=text, wav=wav))
 
-        print(f"{'#':>2} {'caption':>7} {'voice':>7} {'end':>7} {'next':>7} speed  line")
+        print(f"{'#':>2} {'start':>6} {'end':>6} {'pause':>5} speed  phrase")
+        prev_end, problems = 0.0, []
         for s in schedule:
-            notes = []
-            if s["speed"] != 1.0:
-                notes.append(f"sped up to {s['speed']}")
-            if s["start"] > s["cue"] + 1e-6:
-                notes.append(f"starts {s['start'] - s['cue']:.2f}s late")
-            print(f"{s['n']:>2} {s['cue']:7.2f} {s['start']:7.2f} {s['end']:7.2f} {s['limit']:7.2f}"
-                  f" {s['speed']:5.2f}  {s['text']}" + (f"   [{'; '.join(notes)}]" if notes else ""))
+            pause = s["start"] - prev_end
+            print(f"{s['n']:>2} {s['start']:6.2f} {s['end']:6.2f} {pause:5.2f} {s['speed']:5.2f}  {s['text']}")
+            if s["n"] > 1 and pause < args.gap:
+                problems.append(f"phrase {s['n']} starts {args.gap - pause:.2f}s too early")
+            prev_end = s["end"]
+        if prev_end > video_end:
+            problems.append(f"the last phrase ends {prev_end - video_end:.2f}s after the video")
+        if problems:
+            sys.exit("; ".join(problems))
 
         # One track: each clip delayed to its start, summed (they never overlap),
         # padded to the video's length.
@@ -216,7 +193,7 @@ def main():
             for name in os.listdir(work):
                 if name.endswith((".wav", ".m4a")):
                     shutil.copy(os.path.join(work, name), args.keep)
-        print(f"wrote {out} ({os.path.getsize(out) / 1e6:.2f} MB, {len(schedule)} lines, "
+        print(f"wrote {out} ({os.path.getsize(out) / 1e6:.2f} MB, {len(schedule)} phrases, "
               f"loudness {before:.1f} -> {after:.1f} LUFS)")
     finally:
         shutil.rmtree(work)
