@@ -1,27 +1,27 @@
-# Spoken script for src/web/www/img/hazel-probes-intro.mp4: one line per caption
-# in src/web/www/img/hazel-probes-intro.ass, at that caption's start time.
-# Format: start time (m:ss.ss), a tab, the line as it is said. Key names are
-# written as spoken. render_intro_voiceover.py checks the times against the
-# captions, then may speed a line up (to 1.15x) or start it a little late so
-# that no two lines overlap; it prints what it did.
-0:00.40	A quick preview of programming with live probes in Hazel.
-0:06.00	The tutorial then covers Hazel, and each probe feature, in detail.
-0:14.00	First, manual probes.
-0:17.20	Right-click any expression or pattern,
-0:19.30	and choose Add probe, or press Command or Control E.
-0:21.40	Its value appears at the end of the line.
-0:24.60	Not just variables: here, an arithmetic expression,
-0:30.50	and here, a whole case expression.
-0:33.50	By default, a probe shows one value at a time.
-0:37.00	With a sample selected, press Space for Many mode,
-0:40.30	which shows every value from the run.
-0:43.60	Click a sample to make it the focus,
-0:49.00	and the other probes highlight their samples from that same call.
-0:55.70	Rather than placing every probe by hand,
-0:59.17	press Command or Control P to turn on Auto Probe.
-1:04.40	It puts one probe on each line that has something to probe.
-1:09.20	Unlike some other environments, Hazel runs incomplete programs.
-1:17.30	This hole is the unfinished body of watering amount.
-1:19.80	Each call returns that hole, which the tests show too.
-1:22.80	Start typing,
-1:25.00	and the feedback stays live, even while the code is incomplete.
+# Spoken script for src/web/www/img/hazel-probes-intro.mp4, read by
+# render_intro_voiceover.py. Format: start time (m:ss.ss), a tab, speed, a tab,
+# the phrase as it is said (key names written as spoken). Each phrase is one
+# Kokoro call and may span several captions; it may say a little more than
+# they do, but nothing they or the video contradict.
+# Start times follow the original narration's pacing (its phrases started at
+# about the same moments) and the on-screen action. The caption times in
+# hazel-probes-intro.ass were then set to where each caption's words begin in
+# this voice track.
+# captions 1-2
+0:00.40	0.90	Let's begin with a quick preview of programming with live probes in Hazel. The tutorial will then cover Hazel, and each probe feature, in detail. For now, here's a short tour of a few of them.
+# captions 3-6 (the menu opens at 19.3 s; the probe appears at 21.4 s)
+0:14.20	1.00	First, manual probes. Right-click any expression or pattern, and choose Add probe, or press Command or Control E. Its value appears at the end of the line.
+# captions 7-8 (arithmetic probe at 29.1 s; case clicked at 30.7 s, probed at 33.2 s)
+0:24.90	1.00	Probes aren't limited to variables: here, an arithmetic expression, and here, a whole case expression.
+# captions 9-11 (a sample is selected at 34.9 s; Space at 37.1 s)
+0:32.20	1.00	By default, a probe shows one value at a time. With a sample selected, press Space for Many mode, which shows every value from the run, side by side.
+# captions 12-13 (samples clicked from 43.6 s to 55.6 s)
+0:42.60	0.95	Click a sample to make it the focus, and the other probes highlight their samples from that same call. Click another sample, and the highlights move to its call, so you can read one call at a time.
+# captions 14-16 (Auto Probe turns on at 59.2 s; samples clicked until 69.7 s)
+0:55.40	1.00	Rather than placing every probe by hand, press Command or Control P to turn on Auto Probe. It puts one probe on each line that has something to probe, and they all follow the focus.
+# caption 17
+1:08.00	1.00	Unlike some other environments, Hazel runs programs even while they're incomplete.
+# captions 18-19 (the hole is clicked at 73.2 s)
+1:14.00	0.95	This hole is the unfinished body of watering amount. Each call returns that hole, which the tests show too.
+# captions 20-21 (typing starts at 83.1 s; the tests read true from 90.1 s)
+1:22.00	1.00	Start typing, and the feedback stays live, even while the code is incomplete. Once the body is finished, all three tests read true.
