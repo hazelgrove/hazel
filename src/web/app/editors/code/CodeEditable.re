@@ -396,6 +396,19 @@ module View = {
 
   module MouseState = Pointer.MkState();
 
+  /* Where a click falls in the multi-click cycle MouseState counts. */
+  type click =
+    | Single
+    | Double
+    | Triple;
+
+  let click_of_count = (count: int): click =>
+    switch (count mod 3) {
+    | 0 => Single
+    | 1 => Double
+    | _ => Triple
+    };
+
   /* The hidden text input every editable editor types through. Keystrokes
    * and `input` events originate here (see InputEvent), and it is what a
    * phone raises its keyboard for. Focused with preventScroll: the editor
@@ -410,6 +423,35 @@ module View = {
    * event is diffed against. Reset when the caret moves or the input loses
    * focus: the IME's word in progress no longer applies. */
   let composed: ref(string) = ref("");
+
+  /* A touch held in place opens the context menu, since there is no right
+   * button. Armed on a touch pointerdown; a pointerup, a pointercancel or
+   * the next pointerdown disarms it. */
+  module LongPress = {
+    let delay_ms = 500.0;
+    let timer: ref(option(Dom_html.timeout_id_safe)) = ref(None);
+    let is_armed = (): bool => Option.is_some(timer^);
+    let cancel = (): unit =>
+      switch (timer^) {
+      | Some(id) =>
+        Dom_html.clearTimeout(id);
+        timer := None;
+      | None => ()
+      };
+    let arm = (f: unit => unit): unit => {
+      cancel();
+      timer :=
+        Some(
+          Dom_html.setTimeout(
+            () => {
+              timer := None;
+              f();
+            },
+            delay_ms,
+          ),
+        );
+    };
+  };
 
   /* Toggle an `is-resizing` class on the editor's code-container
    * for the duration of a drag gesture. Used by CSS to suppress
@@ -833,14 +875,92 @@ module View = {
       };
     };
 
-    let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) => {
+    /* A click inside the selection keeps it (so the menu's Cut/Copy apply
+       to it); outside, the caret moves to the click location as a plain
+       click would before the menu opens. */
+    let open_context_menu = (mouse: Pointer.Event.t) =>
+      Effect.Many(
+        (
+          click_in_selection(loc(mouse))
+            ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
+        )
+        @ [inject(ContextMenu(ContextMenu.Model.Toggle))],
+      );
+
+    /* Abort the gesture in progress: a pointercancel (the browser took the
+       touch for scrolling) or a pointerup that never arrived. */
+    let cancel_gesture = (target: Js.opt(Js.t(Dom_html.element))): unit => {
+      MouseState.reset();
+      DragClass.remove(target);
+      EdgeScroll.stop();
+      LongPress.cancel();
+    };
+
+    /* Keystrokes go to this editor's hidden input from here on; whatever
+       the IME was composing is stale once the caret moves. */
+    let take_focus = (mouse: Pointer.Event.t): unit => {
       Js.Opt.iter(mouse.current_target, focus_input);
       composed := "";
+    };
+
+    let click_effect = (mouse: Pointer.Event.t, click: click) =>
+      switch (click) {
+      | Single =>
+        Effect.Many([
+          signal(MakeActive),
+          inject(Perform(Move(Point(loc(mouse), None)))),
+        ])
+      | Double => inject(Perform(Select(Smart(2))))
+      | Triple => inject(Perform(Select(Smart(3))))
+      };
+
+    let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) => {
+      LongPress.cancel();
+      /* virtual_dom has neither on_pointercancel nor on_pointermove; raw
+         handlers, set per gesture */
+      Js.Opt.iter(
+        mouse.current_target,
+        editor => {
+          let editor = Js.Unsafe.coerce(editor);
+          editor##.onpointercancel :=
+            Dom.handler(_ => {
+              cancel_gesture(mouse.current_target);
+              Js._true;
+            });
+          /* A touch that leaves its cell is a scroll (not every browser
+             sends pointercancel for one): neither a tap nor a long-press. */
+          editor##.onpointermove :=
+            Dom.handler(evt => {
+              let pointer = Pointer.Event.mk(evt);
+              switch (pointer.pointer_type) {
+              | Touch when MouseState.is_button_down() =>
+                MouseState.note_move(loc(pointer));
+                if (MouseState.has_left_down_loc()) {
+                  LongPress.cancel();
+                };
+              | Touch
+              | Mouse
+              | Pen => ()
+              };
+              Js._true;
+            });
+        },
+      );
       switch (mouse) {
+      | {pointer_type: Touch, button: Left, _} =>
+        /* A touch commits nothing until it lifts: the browser may still take
+           it to scroll (pointercancel), or LongPress may claim it. The tap,
+           with the caret move and the keyboard, happens in toggle_button. */
+        MouseState.pointerdown(loc(mouse));
+        LongPress.arm(() =>
+          Bonsai.Effect.Expert.handle(open_context_menu(mouse))
+        );
+        Effect.Ignore;
       | {button: Left, shift: Down, _} =>
         /* Shift+click extends (or starts) a selection and arms a
          * drag-resize. Registered without click-counting so a
          * following plain click starts a fresh streak. */
+        take_focus(mouse);
         MouseState.pointerdown_no_count(loc(mouse));
         PointerCapture.set(mouse.current_target, pointer_id);
         DragClass.add(mouse.current_target);
@@ -856,51 +976,57 @@ module View = {
         ]);
       | {button: Left, sys: PC, ctrl: Down, _}
       | {button: Left, sys: Mac, meta: Down, _} =>
+        take_focus(mouse);
         Effect.Many([
           signal(MakeActive),
           inject(Perform(Move(Point(loc(mouse), None)))),
           inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
-        ])
+        ]);
       | {button: Right, ctrl, _} when ctrl != Down =>
-        /* Right-click inside the selection keeps it (so the menu's
-           Cut/Copy apply to it); outside, move the caret to the click
-           location as a plain click would before opening the menu. */
-        Effect.Many(
-          [Effect.Prevent_default]
-          @ (
-            click_in_selection(loc(mouse))
-              ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
-          )
-          @ [inject(ContextMenu(ContextMenu.Model.Toggle))],
-        )
+        take_focus(mouse);
+        Effect.Many([Effect.Prevent_default, open_context_menu(mouse)]);
       | {button: Left, _} =>
+        take_focus(mouse);
         MouseState.pointerdown(loc(mouse));
         DragClass.add(mouse.current_target);
-        let click_count = MouseState.count();
-        /* Check how many clicks have happened recently
-         * and cycle between options on-click */
-        switch (click_count mod 3 + 1) {
-        | 1 =>
+        let click = click_of_count(MouseState.count());
+        switch (click) {
+        | Single =>
           /* prepare to drag if the mouse moves */
-          PointerCapture.set(mouse.current_target, pointer_id);
-          Effect.Many([
-            signal(MakeActive),
-            inject(Perform(Move(Point(loc(mouse), None)))),
-          ]);
-        | 2 => inject(Perform(Select(Smart(2))))
-        | 3 => inject(Perform(Select(Smart(3))))
-        | _ => failwith("THEN PERISH")
+          PointerCapture.set(mouse.current_target, pointer_id)
+        | Double
+        | Triple => ()
         };
+        click_effect(mouse, click);
       | _ => Effect.Ignore
       };
     };
 
     let toggle_button = (e: Pointer.Event.t, pointer_id: int) => {
+      /* A touch lifting in the cell it pressed, while LongPress is still
+         armed, was neither taken for a scroll, moved, nor held: a tap. */
+      let tap =
+        switch (e.pointer_type) {
+        | Touch
+            when
+              LongPress.is_armed()
+              && Point.equals(loc(e), MouseState.get_down_loc()) =>
+          Some(click_of_count(MouseState.count()))
+        | Touch
+        | Mouse
+        | Pen => None
+        };
+      LongPress.cancel();
       MouseState.pointerup(loc(e));
       PointerCapture.release(e.current_target, pointer_id);
       DragClass.remove(e.current_target);
       EdgeScroll.stop();
-      Effect.Ignore;
+      switch (tap) {
+      | Some(click) =>
+        take_focus(e);
+        click_effect(e, click);
+      | None => Effect.Ignore
+      };
     };
 
     let drag_select_or_hover = (pointer: Pointer.Event.t) => {
@@ -908,9 +1034,7 @@ module View = {
       if (!left_button_held && MouseState.is_button_down()) {
         /* Recover from stuck state: buttons bitmask says left is up
          * but MouseState thinks it's down (missed pointerup) */
-        MouseState.reset();
-        DragClass.remove(pointer.current_target);
-        EdgeScroll.stop();
+        cancel_gesture(pointer.current_target);
         Effect.Ignore;
       } else {
         let current_loc = loc(pointer);
@@ -1150,9 +1274,13 @@ module View = {
           Js.Opt.iter(evt##.currentTarget, focus_input);
           Effect.Ignore;
         }),
+        /* Hazel's own menu opened on the right-button pointerdown, or
+           opens from LongPress for a touch; neither wants the browser's.
+           Ctrl+right-click and the keyboard's Menu key keep it. */
         Attr.on_contextmenu(evt =>
           switch (Pointer.Event.mk(evt)) {
-          | {button: Right, ctrl: Up, _} =>
+          | {button: Right, ctrl: Up, _}
+          | {pointer_type: Touch, _} =>
             Effect.Many([Effect.Stop_propagation, Effect.Prevent_default])
           | _ => Effect.Ignore
           }
