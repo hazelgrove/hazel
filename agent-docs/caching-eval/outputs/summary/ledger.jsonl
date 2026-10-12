@@ -1,0 +1,8 @@
+{"run_id":"2026-08-04T16-00-06-897Z","phase":"before","credits":{"total_credits":8600,"total_usage":7010.774257606}}
+{"run_id":"2026-08-04T16-00-06-897Z","phase":"after","credits":{"total_credits":8600,"total_usage":7010.774257606}}
+{"run_id":"agent-eval-1785859273165","phase":"before","total_credits":8600.0,"total_usage":7010.811654156}
+{"run_id":"agent-eval-1785859273165","phase":"after","total_credits":8600.0,"total_usage":7010.869264047}
+{"run_id":"agent-eval-1785859310865","phase":"before","total_credits":8600.0,"total_usage":7010.869264047}
+{"run_id":"agent-eval-1785859310865","phase":"after","total_credits":8600.0,"total_usage":7011.124054247}
+{"run_id":"agent-eval-1785859392793","phase":"before","total_credits":8600.0,"total_usage":7011.143261147}
+{"run_id":"agent-eval-1785859392793","phase":"after","total_credits":8600.0,"total_usage":7011.342131905}
