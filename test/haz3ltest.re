@@ -148,6 +148,7 @@ let (suite, exit_with_test_status) =
     @ [Test_ShareCodec.tests]
     @ [Test_CallMemo.tests]
     @ [Test_IncrSlides.tests]
+    @ [Test_Ascriptions.tests]
     @ [Test_IncompleteTiles.tests]
     @ [Test_ChunkProbe.tests]
     @ [Test_EvalInfoProjection.tests]

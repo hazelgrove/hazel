@@ -86,10 +86,15 @@ let unrolled = (t: Typ.t): Typ.t =>
     Util.IdentityTable.replace(unroll_memo, t, u);
     u;
   };
+/* Values already given a type: see [transition_multiple]. */
+let pushed:
+  ref(Util.IdentityTable.t(DHExp.term, list(((int, int), DHExp.t)))) =
+  ref(Util.IdentityTable.create());
 let set_ctx = (ctx: Ctx.t) => {
   ctx_ref := ctx;
   Hashtbl.reset(path_memo);
   Hashtbl.reset(consistent_memo);
+  pushed := Util.IdentityTable.create();
 };
 let resolve = (ctx: Ctx.t, t: Typ.t): Typ.t =>
   switch (Typ.term_of(t)) {
@@ -103,6 +108,16 @@ let resolve = (ctx: Ctx.t, t: Typ.t): Typ.t =>
     }
   | _ => Typ.weak_head_normalize(ctx, t)
   };
+
+/* Whether pushing an ascription through a list's or tuple's parts gave
+   back the very same parts. Then the value already had the type -- plain
+   data, well typed, no function to wrap -- and the push gives the value
+   itself rather than a copy of it: the same objects, so what is kept by
+   identity downstream (the view's call memo) still knows them. Only a
+   recursive push can give a part back unchanged; a stepwise one wraps
+   each part in a new ascription. */
+let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
+  List.for_all2((d, d') => d === d', ds, ds');
 
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let ctx = ctx_ref^;
@@ -150,13 +165,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(recur(Asc(inner, t) |> DHExp.fresh))
     | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
       // TODO Figure out what to do if the labels don't match
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          TupLabel(l, recur(Asc(inner, inner_ty) |> DHExp.fresh))
-          |> DHExp.fresh,
-        ),
-      )
+      let inner' = recur(Asc(inner, inner_ty) |> DHExp.fresh);
+      inner' === inner
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(
+              DHExp.rep_id(e),
+              TupLabel(l, inner') |> DHExp.fresh,
+            ),
+          );
     | (Module(items), Sig(sig_items)) when Mod.is_value_shape(items) =>
       /* Sealing: keep the signature's value members, in signature order,
          ascribing each to its declared type with the signature's own type
@@ -197,19 +214,13 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          Tuple(
-            List.map2(
-              (e, ty) => recur(Asc(e, ty) |> DHExp.fresh),
-              es,
-              tys,
-            ),
-          )
-          |> DHExp.fresh,
-        ),
-      )
+      let es' =
+        List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys);
+      unchanged(es, es')
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(DHExp.rep_id(e), Tuple(es') |> DHExp.fresh),
+          );
     | (_, Unknown(_)) => Some(e)
     | (Atom(value), Atom(typ)) =>
       switch (value, typ) {
@@ -227,24 +238,26 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | (Bool(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          ListLit(List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds))
-          |> DHExp.fresh,
-        ),
-      )
+      let ds' = List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds);
+      unchanged(ds, ds')
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(
+              DHExp.rep_id(e),
+              ListLit(ds') |> DHExp.fresh,
+            ),
+          );
     | (Cons(d1, d2), List(ty)) =>
-      Some(
-        IdTagged.fast_copy(
-          DHExp.rep_id(e),
-          Cons(
-            recur(Asc(d1, ty) |> DHExp.fresh),
-            recur(Asc(d2, t) |> DHExp.fresh),
-          )
-          |> DHExp.fresh,
-        ),
-      )
+      let d1' = recur(Asc(d1, ty) |> DHExp.fresh);
+      let d2' = recur(Asc(d2, t) |> DHExp.fresh);
+      d1' === d1 && d2' === d2
+        ? Some(e)
+        : Some(
+            IdTagged.fast_copy(
+              DHExp.rep_id(e),
+              Cons(d1', d2') |> DHExp.fresh,
+            ),
+          );
     | (TypFun(tp, body, name), Poly(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
@@ -307,13 +320,15 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
-        Some(
-          IdTagged.fast_copy(
-            DHExp.rep_id(e),
-            Ap(Forward, con, recur(Asc(payload, t') |> DHExp.fresh))
-            |> DHExp.fresh,
-          ),
-        )
+        let payload' = recur(Asc(payload, t') |> DHExp.fresh);
+        payload' === payload
+          ? Some(e)
+          : Some(
+              IdTagged.fast_copy(
+                DHExp.rep_id(e),
+                Ap(Forward, con, payload') |> DHExp.fresh,
+              ),
+            );
       | Some(None)
       | None => None
       };
@@ -477,9 +492,24 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   };
 };
 
-let rec transition_multiple = (d: DHExp.t): DHExp.t => {
+let rec push_all = (d: DHExp.t): DHExp.t => {
   switch (transition(~recursive=true, d)) {
-  | Some(d'') => transition_multiple(d'')
+  | Some(d'') => push_all(d'')
   | None => d
   };
 };
+
+/* An ascription pushed all the way through a value. That builds a copy of
+   the value, every list cell and tuple field, in a single step, so it is
+   not even a step count, and a value crosses many typed boundaries. The
+   woods' picture, given to view_box(pic : Picture) and to shape_nodes,
+   was copied whole, 15,500 nodes, at each one. The copies were new
+   objects, so the view's call memo put each in form again for its keys,
+   three times a redraw.
+
+   The same value given the same type gives the same result, so a push is
+   remembered: by the value's term, which a variable lookup keeps when it
+   copies the value's outer record (fast_copy), and by the type's Merkle
+   hash, since each annotation is a type object of its own. The result
+   comes back as the same objects, re-rooted at the value's own id. */
+let transition_multiple = push_all;
