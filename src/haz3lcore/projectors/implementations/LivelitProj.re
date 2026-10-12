@@ -254,6 +254,26 @@ let wrap_ctor_args = (arg: Base.segment): option(Base.segment) => {
  * invocation: the `^name` tile followed by the application's
  * argument tile. Returns None when nothing was marked, so an
  * unmarked livelit installs no syntax override at all. */
+/* A livelit's `shape` member computed from its parameters -- not a
+   literal, so UserLivelit.shape_of cannot read it statically, and not a
+   function of the model (M.model_shape) -- by evaluating the use's applied
+   definition. ^choice counts the rows its buttons take this way. None
+   when the member is absent, a function, or not a shape once evaluated. */
+let evaluated_shape = (def_elab: TermBase.Exp.t): option(ProjectorShape.t) =>
+  switch (MvuShape.safe_evaluate_open(def_elab)) {
+  | Error(_) => None
+  | Ok(record) =>
+    switch (MvuShape.record_field_open(record, "shape")) {
+    | Some(f) =>
+      switch (MvuShape.strip_wrappers(f).term) {
+      | Fun(_)
+      | FixF(_) => None
+      | _ => UserLivelit.shape_of(MvuShape.close_value(f))
+      }
+    | None => None
+    }
+  };
+
 let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
   let wrapped = ref(0);
   let wrap = (field: Base.segment) =>
@@ -595,6 +615,26 @@ module M: Projector = {
     | _ => false
     };
 
+  /* A livelit may also compute a constant footprint from its parameters,
+     which UserLivelit.shape_of cannot read as a literal: ^choice counts
+     the rows its buttons take, `let shape = Block(36, rows(cases))`. The
+     use's applied definition is evaluated for it, with no model sample
+     needed, and cached per projector until the definition changes. Only
+     tried when the static reading gave the default, so a literal shape
+     costs nothing. */
+  let computed_shapes:
+    Hashtbl.t(Id.t, (TermBase.Exp.t, option(ProjectorShape.t))) =
+    Hashtbl.create(16);
+  let computed_shape =
+      (info: info, def_elab: TermBase.Exp.t): option(ProjectorShape.t) =>
+    switch (Hashtbl.find_opt(computed_shapes, info.id)) {
+    | Some((d, shape)) when Exp.fast_equal(d, def_elab) => shape
+    | _ =>
+      let shape = evaluated_shape(def_elab);
+      Hashtbl.replace(computed_shapes, info.id, (def_elab, shape));
+      shape;
+    };
+
   /* The GUI's own footprint: the definition's shape, widened for its
      splices, before any syntax pane is added. */
   let gui_shape = (info, splice_size): ProjectorCore.Shape.t => {
@@ -605,7 +645,13 @@ module M: Projector = {
         | Some(ll) =>
           let dynamic =
             switch (ll.user_def) {
-            | Some(def_elab) => model_shape(info, def_elab, model)
+            | Some(def_elab) =>
+              switch (model_shape(info, def_elab, model)) {
+              | Some(shape) => Some(shape)
+              | None when ll.shape == UserLivelit.default_shape =>
+                computed_shape(info, def_elab)
+              | None => None
+              }
             | None => None
             };
           Some(Option.value(dynamic, ~default=ll.shape));

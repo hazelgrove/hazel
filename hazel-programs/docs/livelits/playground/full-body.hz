@@ -498,9 +498,19 @@ module Drawing = {
         map((cases, fun (label, v) : (String, A) ->
           button((label, v, v == m))))));
     let expand = Functional(fun m : Model -> m);
-    # wide enough for seven short buttons (a shape is fixed: it cannot #
-    # follow the cases) #
-    let shape = Inline(36)
+    # As many lines as its buttons take, wrapped into rows 36 columns #
+    # wide: a button is about 3/4 of a column a letter, and 2 more for #
+    # its edges and the gap after it. #
+    let shape =
+      let rows = fun (cs, col, n) : ([(String, A)], Int, Int) ->
+        case cs
+        | [] => n
+        | (label, _) :: tl =>
+          let w = (3 * string_length(label) + 8) / 4 in
+          if col + w > 36 then rows((tl, w, n + 1))
+          else rows((tl, col + w, n))
+        end in
+      Block(36, rows((cases, 0, 1)))
   };
   # ^slider: a number in a range, set with a slider and labelled. #
   let ^slider = fun (label, lo, hi) : (String, Int, Int) -> {
