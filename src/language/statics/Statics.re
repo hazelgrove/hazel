@@ -3683,9 +3683,17 @@ and uexp_to_info_map =
             ~elab_term,
             ~elab_syn_ty=syn_ty_let,
             ~marks=livelit_marks @ marks_let,
+            /* A fixpoint binds the pattern in its definition too, so the
+               names the definition uses recursively are not free in the
+               let, as they are not at fun_id above. Leaving them in made
+               every expression around a recursive let -- a module of
+               recursive helpers, a function with one inside -- read a
+               name that has no provenance in any reuse map, so none of it
+               was ever reused, nor anything that reads it. */
             ~co_ctx=
               CoCtx.union([
-                def.co_ctx,
+                requires_fixf
+                  ? CoCtx.mk(ctx, p_ana.ctx, def.co_ctx) : def.co_ctx,
                 CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
                 pat_typ_refs,
               ]),
