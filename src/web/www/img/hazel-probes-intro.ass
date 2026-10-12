@@ -1,8 +1,9 @@
 [Script Info]
-; Captions burned into hazel-probes-intro.mp4 (the Probes tutorial's intro video, which has no audio track).
-; To change them, edit the Dialogue lines below, then re-render from the repo root with:
-;   python3 scripts/render_intro_captions.py
-; (needs ffmpeg and Pillow; it reads the caption-free recording from git history, see the script's header).
+; Captions burned into hazel-probes-intro.mp4 (the Probes tutorial's intro video). Its voiceover reads
+; them aloud: scripts/intro_voiceover.txt has one spoken line per caption, at the caption's start time.
+; To change the captions, edit the Dialogue lines below, then from the repo root run
+;   python3 scripts/render_intro_captions.py      (needs ffmpeg and Pillow; writes a silent video)
+;   scripts/render_intro_voiceover.py              (needs Kokoro; adds the voice; see its header)
 ; Positions: \pos is the center of the caption box. (938,272) sits right of the code before Auto Probe
 ; turns on at 59.17s; (938,530) sits in the blank area beside the case rules after that.
 Title: Hazel Probes intro captions

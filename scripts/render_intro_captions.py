@@ -5,7 +5,8 @@
 
 reads src/web/www/img/hazel-probes-intro.ass and writes
 src/web/www/img/hazel-probes-intro.mp4: H.264, yuv420p, faststart, the
-source's size and timing, and no audio track.
+source's size and timing, and no audio track. Then run
+render_intro_voiceover.py, which adds the synthesized voice.
 
 The caption-free source is the original narrated recording, which stays in
 git history (blob SOURCE_BLOB below); its audio is dropped. Pass --source to
