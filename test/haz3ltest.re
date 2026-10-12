@@ -101,6 +101,7 @@ let (suite, exit_with_test_status) =
     @ [Test_CopyDescendants.tests]
     @ [Test_CallMemo.tests]
     @ [Test_IncrSlides.tests]
+    @ [Test_Ascriptions.tests]
     @ [Test_IncompleteTiles.tests]
     @ [Test_OpenValues.tests]
     @ [Test_Quote.tests]
