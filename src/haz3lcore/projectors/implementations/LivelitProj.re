@@ -254,13 +254,40 @@ let wrap_ctor_args = (arg: Base.segment): option(Base.segment) => {
  * invocation: the `^name` tile followed by the application's
  * argument tile. Returns None when nothing was marked, so an
  * unmarked livelit installs no syntax override at all. */
+/* Under Modules II a livelit's definition is analyzed against the
+   `Livelit` signature at a coercion site, so its elaboration ascribes the
+   module to the signature -- Asc(Module, Sig), under the definition's
+   type and value parameters and helper bindings -- and evaluated, that
+   seals the module to the signature's members: init, update, view and
+   expand. The members the projector reads besides them (shape,
+   params_from_model, init_from_params) are then gone. To read those,
+   evaluate the definition with that ascription removed. */
+let rec unsealed = (d: TermBase.Exp.t): TermBase.Exp.t => {
+  let re = (term: TermBase.Exp.term): TermBase.Exp.t => {
+    ...d,
+    term,
+  };
+  switch (d.term) {
+  | Asc({term: Module(_), _} as m, {term: Sig(_), _}) => m
+  | Ap(dir, f, args) => re(Ap(dir, unsealed(f), args))
+  | TypAp(f, ty) => re(TypAp(unsealed(f), ty))
+  | TypFun(tp, body, name) => re(TypFun(tp, unsealed(body), name))
+  | Fun(p, body, closure, name) =>
+    re(Fun(p, unsealed(body), closure, name))
+  | Let(p, def, body) => re(Let(p, def, unsealed(body)))
+  | TyAlias(tp, t, body) => re(TyAlias(tp, t, unsealed(body)))
+  | Parens(inner) => re(Parens(unsealed(inner)))
+  | _ => d
+  };
+};
+
 /* A livelit's `shape` member computed from its parameters -- not a
    literal, so UserLivelit.shape_of cannot read it statically, and not a
    function of the model (M.model_shape) -- by evaluating the use's applied
    definition. ^choice counts the rows its buttons take this way. None
    when the member is absent, a function, or not a shape once evaluated. */
 let evaluated_shape = (def_elab: TermBase.Exp.t): option(ProjectorShape.t) =>
-  switch (MvuShape.safe_evaluate_open(def_elab)) {
+  switch (MvuShape.safe_evaluate_open(unsealed(def_elab))) {
   | Error(_) => None
   | Ok(record) =>
     switch (MvuShape.record_field_open(record, "shape")) {
@@ -562,7 +589,7 @@ module M: Projector = {
       | Some((seq, shape)) when seq == s.seq => shape
       | _ =>
         let shape =
-          switch (MvuShape.safe_evaluate_open(def_elab)) {
+          switch (MvuShape.safe_evaluate_open(unsealed(def_elab))) {
           | Error(_) => None
           | Ok(record) =>
             switch (MvuShape.record_field_open(record, "shape")) {
@@ -600,7 +627,7 @@ module M: Projector = {
     | (Some((llname, ty, args, _)), Some(InfoExp(exp))) =>
       switch (lookup_use(exp.ctx, llname, ty, args)) {
       | Some({user_def: Some(def_elab), _}) =>
-        switch (MvuShape.safe_evaluate_open(def_elab)) {
+        switch (MvuShape.safe_evaluate_open(unsealed(def_elab))) {
         | Ok(record) =>
           Option.is_some(
             MvuShape.record_field_open(record, "params_from_model"),
@@ -1669,7 +1696,7 @@ module M: Projector = {
       )
       : option(Node.t) => {
     let ap = IdTagged.FreshGrammar.Exp.ap;
-    switch (MvuShape.safe_evaluate_open(def_elab)) {
+    switch (MvuShape.safe_evaluate_open(unsealed(def_elab))) {
     | Error(_) => None
     | Ok(record) =>
       switch (
