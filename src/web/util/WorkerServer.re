@@ -835,6 +835,29 @@ and run_scheduled_slice = model => {
   };
 };
 
+/* Slices run back to back for up to this long before the worker yields
+   to its event loop. Yielding after every slice (5000 trampoline steps,
+   about 3 ms) paid the ~4 ms clamp on chained setTimeouts each time: on
+   the Scenes slide's woods, 1,292 slices spent 5.8 s between slices
+   against 4.2 s evaluating. A new request still gets in within this
+   budget. */
+let slice_time_budget_ms = 30.;
+let run_slices_for_budget = model => {
+  let t0 = Util.JsUtil.precise_timestamp();
+  let rec go = model => {
+    let next = run_scheduled_slice(model);
+    switch (next.runtime) {
+    | Idle => next
+    | Planning
+    | Starting
+    | Running(_) =>
+      Util.JsUtil.precise_timestamp() -. t0 < slice_time_budget_ms
+        ? go(next) : next
+    };
+  };
+  go(model);
+};
+
 let install_message_handler = () => {
   let model = ref(initial_model);
 
@@ -854,7 +877,7 @@ let install_message_handler = () => {
         }
         : next_model;
     if (should_schedule_slice) {
-      schedule_async(() => commit(run_scheduled_slice(model^)));
+      schedule_async(() => commit(run_slices_for_budget(model^)));
     };
   };
 
