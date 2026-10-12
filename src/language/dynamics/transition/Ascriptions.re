@@ -70,6 +70,22 @@ let consistent_by_hash = (a: Typ.t, b: Typ.t, compute: unit => bool): bool =>
     };
   | _ => compute()
   };
+/* Typ.unroll of a resolved type, remembered per type object. Every Html
+   node a view builds is ascribed Html.T, which resolves (path_memo) to the
+   same Rec over a sum of 47 constructors each time, and unrolling it
+   substitutes through the whole sum: on the Scenes slide's woods, a sixth
+   of the picture view's time was this one unrolling, done again for each
+   node. Unrolling depends only on the type. */
+let unroll_memo: Util.IdentityTable.t(Typ.t, Typ.t) =
+  Util.IdentityTable.create();
+let unrolled = (t: Typ.t): Typ.t =>
+  switch (Util.IdentityTable.find_opt(unroll_memo, t)) {
+  | Some(u) => u
+  | None =>
+    let u = Typ.unroll(t);
+    Util.IdentityTable.replace(unroll_memo, t, u);
+    u;
+  };
 let set_ctx = (ctx: Ctx.t) => {
   ctx_ref := ctx;
   Hashtbl.reset(path_memo);
@@ -102,7 +118,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
        which needs weak_head_normalize to get the structural form (Rec/Sum/Arrow).
        The ORIGINAL compact type `t` is preserved in newly created Asc nodes. */
     let t_resolved = resolve(ctx, t);
-    switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t_resolved))) {
+    switch (DHExp.term_of(e), Typ.term_of(unrolled(t_resolved))) {
     | (Asc(e', t'), _)
         // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when Typ.is_consistent(ctx, Typ.unroll(t), Typ.unroll(t')) =>
@@ -301,16 +317,21 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | Some(None)
       | None => None
       };
-    | (Constructor(_, Some(Some(t))), t')
+    | (Constructor(_, Some(Some(ct))), t')
+        /* by hash, keyed as for an applied constructor above (the
+           constructor's type and the ascription's): every Html leaf a
+           view builds asks this of the same two types */
         when
-          Typ.is_consistent(
-            ctx,
-            /* the constructor's own type may be a compact alias of a
-               recursive builtin sum (Null : JSON): resolve it the way
-               the ascription's type was, or the unrolled target never
-               reads as consistent and the cast sticks */
-            Typ.unroll(Typ.weak_head_normalize(ctx, t)),
-            t' |> Typ.temp,
+          consistent_by_hash(ct, t, () =>
+            Typ.is_consistent(
+              ctx,
+              /* the constructor's own type may be a compact alias of a
+                 recursive builtin sum (Null : JSON): resolve it the way
+                 the ascription's type was, or the unrolled target never
+                 reads as consistent and the cast sticks */
+              Typ.unroll(Typ.weak_head_normalize(ctx, ct)),
+              t' |> Typ.temp,
+            )
           ) =>
       Some(e)
     | (ProofObject(e1), ProofOf(e2)) when Exp.fast_equal(e1, e2) =>
