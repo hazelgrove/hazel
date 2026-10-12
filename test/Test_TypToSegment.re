@@ -467,8 +467,61 @@ let count_tests =
       },
     ),
   ];
+
+/* A signature's members are printed as types, and get the parentheses any
+   type does: printed bare, an arrow's tuple argument reads as the tuple's
+   fields, the last of them the arrow. Compared with spaces removed, so the
+   test is about the parentheses, not the spacing. */
+let sig_paren_tests = {
+  let printed = src =>
+    typ(src)
+    |> TypToSegment.typ_to_segment(~settings)
+    |> Printer.of_segment(~holes="", ~concave_holes="", ~refractors=[])
+    |> String.to_seq
+    |> Seq.filter(c => c != ' ' && c != '\n')
+    |> String.of_seq;
+  let contains = (s, sub) => {
+    let n = String.length(sub);
+    let rec go = i =>
+      i + n <= String.length(s) && (String.sub(s, i, n) == sub || go(i + 1));
+    go(0);
+  };
+  let has = (name, src, sub) =>
+    test_case(
+      name,
+      `Quick,
+      () => {
+        let out = printed(src);
+        check(
+          bool,
+          Printf.sprintf("`%s` in `%s`", sub, out),
+          true,
+          contains(out, sub),
+        );
+      },
+    );
+  [
+    has(
+      "a member's arrow keeps its tuple argument in parentheses",
+      "{ let f : (a = Int, b = Bool) -> Int }",
+      "letf:(a=Int,b=Bool)->Int",
+    ),
+    has(
+      "a member type alias keeps its tuple in parentheses",
+      "{ type T = (a = Int, b = Bool) }",
+      "typeT=(a=Int,b=Bool)",
+    ),
+    has(
+      "a member's outermost arrow is left bare",
+      "{ let g : Int -> Bool }",
+      "letg:Int->Bool",
+    ),
+  ];
+};
+
 let tests = [
   ("TypToSegment.Regions", region_tests),
+  ("TypToSegment.SigParens", sig_paren_tests),
   (
     "TypToSegment.Ids",
     count_tests

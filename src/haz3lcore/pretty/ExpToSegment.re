@@ -988,7 +988,36 @@ and parenthesize_typ =
       ),
     )
     |> rewrap
-  | Sig(_) => term |> rewrap
+  /* A signature's members are types too, and need the same parentheses
+     inside them: an arrow's tuple argument printed bare reads as the
+     tuple's fields, one of them the arrow. Their outermost type is left
+     bare, as written (`type Action = + A + B`, `let f : A -> B`). */
+  | Sig(items) =>
+    let member = t =>
+      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.min);
+    Sig(
+      List.map(
+        (item: Sig.t) =>
+          switch (item.term) {
+          | SigLet({term: Asc(p, t), _} as asc) => {
+              ...item,
+              term: (
+                SigLet({
+                  ...asc,
+                  term: (Asc(p, member(t)): Pat.term),
+                }): Sig.term
+              ),
+            }
+          | SigType(tp, t) => {
+              ...item,
+              term: (SigType(tp, member(t)): Sig.term),
+            }
+          | _ => item
+          },
+        items,
+      ),
+    )
+    |> rewrap;
   };
 }
 
