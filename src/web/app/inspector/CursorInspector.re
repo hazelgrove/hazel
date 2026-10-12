@@ -1055,6 +1055,16 @@ let tpat_view =
       div_ok([text("Fillable with a new alias")])
     | Some(TPatOk(Var(name))) =>
       div_ok([ContextInspector.alias_view(name)])
+    /* The bar names the alias; the full view also prints what it is an
+       alias for, laid out like any type there. */
+    | Some(TPatOk(Alias(name, def))) =>
+      globals.settings.inspector_expanded
+        ? div_ok([
+            ContextInspector.alias_view(name),
+            text("="),
+            view_type(def),
+          ])
+        : div_ok([ContextInspector.alias_view(name)])
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])
