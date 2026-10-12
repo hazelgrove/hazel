@@ -762,7 +762,10 @@ module View = {
     NutMenu.(
       Widgets.(
         div(
-          ~attrs=[Attr.class_("nut-menu")],
+          /* focusable (not tabbable): a tap on one of its items keeps focus
+             inside the menu, which is what holds it open on a touch screen
+             (nut-menu.css) */
+          ~attrs=[Attr.class_("nut-menu"), Attr.tabindex(-1)],
           [
             submenu(
               ~tooltip="Settings",
@@ -803,7 +806,12 @@ module View = {
       [
         div(
           ~attrs=[Attr.class_("wrap")],
-          [a(~attrs=[Attr.class_("nut-icon")], [Icons.hazelnut])],
+          [
+            a(
+              ~attrs=[Attr.class_("nut-icon"), Attr.tabindex(0)],
+              [Icons.hazelnut],
+            ),
+          ],
         ),
         nut_menu(~globals, ~inject=a => inject(Editors(a)), ~editors),
         div(

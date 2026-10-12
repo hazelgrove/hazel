@@ -89,6 +89,13 @@
   background-color: var(--surface-code);
 }
 
+@media (max-width: 600px) {
+  #main.Tutorial {
+    padding: 0.5em;
+    gap: 0.8em;
+  }
+}
+
 /* Derivation slides inside the unified Scratch/Documentation modes
    don't need the tall top padding that Exercises uses for the score/title
    header; tighten it so the Rule Set label sits near the top bar. */

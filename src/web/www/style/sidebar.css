@@ -34,6 +34,13 @@
   -ms-user-select: none;
 }
 
+/* Dragging a handle is mouse-only; a touch screen has no use for it. */
+@media (hover: none) {
+  .resize-handle {
+    display: none;
+  }
+}
+
 /* Persistent Sidebar */
 
 #persistent {
