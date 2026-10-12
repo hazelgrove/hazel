@@ -792,6 +792,40 @@ let head = ^^livelit(Drawing.^polygons((
   ],
   current = 0, chosen = -1, held = false, moved = false))) in
 
+# THE SKIN #
+
+# Messed Up Dress Up's skin colors, the ones that mean something named #
+# for what they mean (smiley, mad, sick, alien, witch). Every shape #
+# drawn in the usual skin or its outline takes the chosen pair: one #
+# pass over the finished picture. #
+
+let skin_colors = ^^livelit(Drawing.^choice@<(String, String)>(
+  [("peach", ("#f1c27d", "#8a5a44")),
+   ("smiley yellow", ("#cfa000", "#6e5500")),
+   ("mad red", ("#dc143c", "#78091f")),
+   ("sick green", ("#8cbe32", "#4a6a14")),
+   ("alien grey", ("#aab2ba", "#5a6168")),
+   ("witch green", ("#6fa34a", "#3a5a24")),
+   ("pale", ("#ffdbac", "#8a6a48")),
+   ("tan", ("#e0ac69", "#7a5228")),
+   ("brown", ("#c68642", "#6a4018")),
+   ("dark brown", ("#8d5524", "#4a2a10"))])(("#f1c27d", "#8a5a44"))) in
+let (skin_fill, skin_ink) = skin_colors in
+let recolor = fun c : String ->
+  if c == "#f1c27d" then skin_fill else if c == "#8a5a44" then skin_ink else c in
+let skinned : Picture -> Picture =
+  fun ps ->
+    case ps
+    | [] => []
+    | Polygon(p) :: tl =>
+      Polygon((name = p.name, points = p.points,
+               stroke = (width = p.stroke.width, color = recolor(p.stroke.color)), fill = recolor(p.fill)))
+      :: skinned(tl)
+    | Path(p) :: tl =>
+      Path((name = p.name, points = p.points, stroke = (width = p.stroke.width, color = recolor(p.stroke.color))))
+      :: skinned(tl)
+    end in
+
 # THE HAIR #
 
 # Three hairdos side by side on one canvas, each with its own crown. #
@@ -2822,7 +2856,7 @@ let outfit =
   @ Drawing.named(hair_at, hairdo_name ++ " top")
   @ arm_front((1., Drawing.anchor(body, "right shoulder")))
   @ arm_front((-1., Drawing.anchor(body, "left shoulder"))) @ right_hand @ left_hand in
-let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (outfit)))) in
+let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (skinned(outfit))))) in
 
 # Where the crown and the shoes' ankles ended up. #
 (Drawing.anchor(drawn, "crown"), Drawing.anchor(right_shoe, "ankle"),
