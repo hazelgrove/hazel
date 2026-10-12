@@ -27,6 +27,10 @@ module Model = {
        (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
     shortcut_overrides: list((string, option(string))),
     simple_indication: bool,
+    /* The panel over the cursor inspector that shows what it inspects
+       with its types printed whole, on several lines (#2674). */
+    [@sexp.default false]
+    inspector_expanded: bool,
   };
 
   let init = {
@@ -96,6 +100,7 @@ module Model = {
     show_incremental_deco: false,
     shortcut_overrides: [],
     simple_indication: false,
+    inspector_expanded: false,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -158,7 +163,8 @@ module Update = {
     | ShowRowLines
     | ShowIncrementalDeco
     | SetShortcutOverrides(list((string, option(string))))
-    | SimpleIndication;
+    | SimpleIndication
+    | InspectorExpanded;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -490,6 +496,10 @@ module Update = {
       | SimpleIndication => {
           ...settings,
           simple_indication: !settings.simple_indication,
+        }
+      | InspectorExpanded => {
+          ...settings,
+          inspector_expanded: !settings.inspector_expanded,
         }
       }
     )
