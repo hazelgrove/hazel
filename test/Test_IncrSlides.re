@@ -148,7 +148,7 @@ let tests = (
   List.map(
     slide =>
       test_case(slide ++ ": no static errors", `Quick, no_errors(slide)),
-    ["hair", "shoes", "arms", "hands", "eyes", "mouth", "full-body"],
+    ["hair", "shoes", "arms", "hands", "eyes", "mouth", "full-body", "witch"],
   )
   @ [
     /* each slide's first ^choice is an inline use with a type
