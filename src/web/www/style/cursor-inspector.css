@@ -411,3 +411,63 @@
 .context-inspector .context-entry .seperator {
   color: var(--context-inspector-colon);
 }
+/* The full view (#2674): a toggle at the bar's right end opens a panel
+   over the bar with what the bar inspects, its types printed whole, on
+   several lines. The bar stays one line, clipped as before. */
+#bottom-bar .ci-expand {
+  flex: none;
+  display: flex;
+  align-items: center;
+  padding: 0 0.6em;
+  cursor: pointer;
+  user-select: none;
+  color: var(--text-muted);
+}
+#bottom-bar .ci-expand:hover,
+#bottom-bar .ci-expand.open {
+  color: var(--text-strong);
+  background-color: var(--surface-highlight);
+}
+#page > .ci-expanded {
+  position: absolute;
+  z-index: var(--context-inspector-z);
+  left: 0;
+  right: 0;
+  bottom: 2em;
+  /* as tall as what it shows, up to this, until its top edge is dragged
+     (which sets a height, any up to the window's top) */
+  max-height: 40vh;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--menu-bkg);
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px -10px 20px var(--menu-shadow);
+}
+#page > .ci-expanded[style*="height"] {
+  max-height: none;
+}
+#page > .ci-expanded .ci-expanded-grip {
+  flex: none;
+  height: 6px;
+  cursor: row-resize;
+  border-top: 2px solid var(--menu-outline);
+}
+#page > .ci-expanded .ci-expanded-grip:hover {
+  background-color: var(--surface-highlight);
+}
+/* types are laid out to the panel's width (panel_columns), so this
+   scrolls down; across only if a single token is wider than the panel */
+#page > .ci-expanded .ci-expanded-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: auto;
+  padding: 0.4em 0.8em 0.5em;
+}
+#page > .ci-expanded .ci-expanded-body > * {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.5em;
+  white-space: normal;
+}

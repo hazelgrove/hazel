@@ -944,6 +944,7 @@ module View = {
       ),
       sidebar,
       bottom_bar,
+      CursorInspector.expanded_view(~globals, cursor),
       ContextInspector.view(~globals, cursor.info),
       HoverRuleSpec.view(~globals),
     ];
