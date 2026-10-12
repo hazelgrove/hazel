@@ -2905,8 +2905,10 @@ let (right_arm, right_sleeve, right_join, right_hand) =
   arm((1., Drawing.anchor(body, "right shoulder"))) in
 let (left_arm, left_sleeve, left_join, left_hand) =
   arm((-1., Drawing.anchor(body, "left shoulder"))) in
+# The picture's box, which ^picture shows and cuts off at: tall enough #
+# for the hair as the slide opens. #
 let outfit =
-  Drawing.frame((0., -40., 320., 400.))
+  Drawing.frame((0., -58., 320., 400.))
   @ neck_at @ right_shoe @ left_shoe @ pants_at @ right_arm @ left_arm @ right_sleeve
   @ left_sleeve @ shirt @ right_join @ left_join
   @ Drawing.named(hair_at, hairdo_name) @ face_at
