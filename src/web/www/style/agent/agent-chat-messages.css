@@ -324,7 +324,7 @@
 
 .system-message-container.error .system-message {
   background-color: var(--ERRHOLE);
-  color: var(--R4);
+  color: var(--text-error);
   opacity: 1;
 }
 
