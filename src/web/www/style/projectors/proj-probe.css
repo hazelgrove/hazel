@@ -1107,6 +1107,35 @@
   display: none;
 }
 
+/* Viewport-aware open direction, set after render from the menu's measured
+ * size (SampleMenuPlacement; FloatingElement for drawer menus). Down-right
+ * is the rule above. Without room below, the menu hangs from the sample's
+ * top edge; without room to the right, it is right-aligned to the sample;
+ * the square corner stays at the sample. */
+.live-offside .sample-context-menu.open-down-left {
+  border-radius: 0.2em 0 0.2em 0.2em;
+  transform-origin: top right;
+}
+.live-offside .sample-context-menu.open-up-right {
+  border-radius: 0.2em 0.2em 0.2em 0;
+  transform-origin: bottom left;
+}
+.live-offside .sample-context-menu.open-up-left {
+  border-radius: 0.2em 0.2em 0 0.2em;
+  transform-origin: bottom right;
+}
+/* Inline (absolute) menus only: drawer menus get top/left from
+ * FloatingElement. */
+.live-offside
+  .sample-context-menu:is(.open-down-left, .open-up-left):not(.floating-fixed) {
+  left: auto;
+  right: 3px;
+}
+.live-offside
+  .sample-context-menu:is(.open-up-right, .open-up-left):not(.floating-fixed) {
+  bottom: 100%;
+}
+
 /* Drawer-mode dropdowns are promoted to position:fixed (FloatingElement)
  * to escape `.below-wrapper`'s overflow clip; the fixed inline style wins
  * over the absolute rule above. Lift above the code it now floats over. */

@@ -1310,6 +1310,8 @@ let sample_context_menu =
         Attr.create("data-float-anchor-edge", "bottom"),
         Attr.create("data-float-local-top", "0"),
         Attr.create("data-float-local-left", "3"),
+        /* Up and/or left when out of room, as inline (SampleMenuPlacement). */
+        Attr.create("data-float-flip", "true"),
         /* Start hidden; update_all() positions + reveals after measuring. */
         Attr.create(
           "style",
