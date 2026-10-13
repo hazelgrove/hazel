@@ -36,6 +36,60 @@ let tests = (
         let v = parse_and_evaluate("[fun x -> x + 1]");
         let t = typ("[Int -> Int]");
         check(bool, "a new value", false, push(v, t) === v);
+        check(bool, "and again", false, push(v, t) === v);
+        check(
+          bool,
+          "never remembered",
+          false,
+          Ascriptions.known_to_have(v, t),
+        );
+      },
+    ),
+    /* A typed recursive function over a list is given the list's tail at
+       each call, as a new ListLit around the same cells (Unboxing). After
+       one push through the list, every tail is known to have the type, so
+       the next push is a lookup, not a walk. */
+    test_case(
+      "after one push, a list's tails are known to have its type",
+      `Quick,
+      () => {
+        let v = parse_and_evaluate("[1, 2, 3]");
+        let t = typ("[Int]");
+        check(bool, "the same object", true, push(v, t) === v);
+        let tail =
+          switch (DHExp.term_of(v)) {
+          | ListLit([_, ...tl]) => ListLit(tl) |> DHExp.fresh
+          | _ => failf("not a list value")
+          };
+        check(
+          bool,
+          "the tail is known",
+          true,
+          Ascriptions.known_to_have(tail, t),
+        );
+        check(bool, "and given back", true, push(tail, t) === tail);
+        check(
+          bool,
+          "not for another type",
+          false,
+          Ascriptions.known_to_have(tail, typ("[String]")),
+        );
+      },
+    ),
+    test_case(
+      "a value without the type is not remembered as having it",
+      `Quick,
+      () => {
+        let v = parse_and_evaluate("[1, 2]");
+        let t = typ("[String]");
+        check(bool, "not given back", false, push(v, t) === v);
+        check(
+          bool,
+          "not remembered",
+          false,
+          Ascriptions.known_to_have(v, t),
+        );
+        check(bool, "still not given back", false, push(v, t) === v);
       },
     ),
   ],

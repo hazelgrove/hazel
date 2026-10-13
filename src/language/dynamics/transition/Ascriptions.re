@@ -86,15 +86,79 @@ let unrolled = (t: Typ.t): Typ.t =>
     Util.IdentityTable.replace(unroll_memo, t, u);
     u;
   };
-/* Values already given a type: see [transition_multiple]. */
-let pushed:
-  ref(Util.IdentityTable.t(DHExp.term, list(((int, int), DHExp.t)))) =
+/* Data values already found to have a type, by the type's hash. A push
+   through a value that already has the type gives the value back, but it
+   still walks all of it, and a value crosses a typed boundary at every
+   call of a typed function. A recursive one over a list is given the
+   list's tail each time, so the walks over one list add up to the square
+   of its length. Values are immutable, so once a walk gives a value back,
+   that value has the type for good, and the next push through it is one
+   lookup.
+
+   Keyed by the value's term, which a variable lookup keeps when it copies
+   the value's outer record (fast_copy). A list's tail is a new ListLit
+   (Unboxing) around the same OCaml list cells, so a list is keyed by its
+   cells, and when a list has the type, so has every tail of it. The
+   builtin context is constant (set_ctx clears this), as for
+   consistent_memo. */
+let has_type: ref(Util.IdentityTable.t(Obj.t, list((int, int)))) =
   ref(Util.IdentityTable.create());
+/* Only values with parts are remembered: an atom or a bare constructor
+   is checked in one match, cheaper than a lookup, and remembering every
+   number in a picture's points cost more than it saved in Firefox. */
+let type_key = (d: DHExp.t): option(Obj.t) =>
+  switch (DHExp.term_of(d)) {
+  | ListLit([_, ..._] as ds) => Some(Obj.repr(ds))
+  | ListLit([])
+  | Atom(_)
+  | Constructor(_) => None
+  | term => Obj.is_block(Obj.repr(term)) ? Some(Obj.repr(term)) : None
+  };
+let known_to_have = (d: DHExp.t, t: Typ.t): bool =>
+  switch (type_key(d), TypHash.hash(t)) {
+  | (Some(k), Some(h)) =>
+    switch (Util.IdentityTable.find_opt(has_type^, k)) {
+    | Some(hs) => List.mem(h, hs)
+    | None => false
+    }
+  | _ => false
+  };
+let remember_has = (key: Obj.t, h: (int, int)): unit => {
+  let hs =
+    Util.IdentityTable.find_opt(has_type^, key) |> Option.value(~default=[]);
+  if (!List.mem(h, hs)) {
+    Util.IdentityTable.replace(has_type^, key, [h, ...hs]);
+  };
+};
+/* After a recursive push of Asc(e, t): if it gave e back, e has t. */
+let noted = (e: DHExp.t, t: Typ.t, r: option(DHExp.t)): option(DHExp.t) => {
+  switch (r, TypHash.hash(t)) {
+  | (Some(r'), Some(h)) when r' === e =>
+    switch (DHExp.term_of(e)) {
+    | ListLit([_, ..._] as ds) =>
+      let rec tails = (l: list(DHExp.t)) =>
+        switch (l) {
+        | [] => ()
+        | [_, ...tl] =>
+          remember_has(Obj.repr(l), h);
+          tails(tl);
+        };
+      tails(ds);
+    | _ =>
+      switch (type_key(e)) {
+      | Some(k) => remember_has(k, h)
+      | None => ()
+      }
+    }
+  | _ => ()
+  };
+  r;
+};
 let set_ctx = (ctx: Ctx.t) => {
   ctx_ref := ctx;
   Hashtbl.reset(path_memo);
   Hashtbl.reset(consistent_memo);
-  pushed := Util.IdentityTable.create();
+  has_type := Util.IdentityTable.create();
 };
 let resolve = (ctx: Ctx.t, t: Typ.t): Typ.t =>
   switch (Typ.term_of(t)) {
@@ -119,7 +183,15 @@ let resolve = (ctx: Ctx.t, t: Typ.t): Typ.t =>
 let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
   List.for_all2((d, d') => d === d', ds, ds');
 
-let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
+/* A recursive push through a value known to have the type gives it back
+   without walking it (has_type). */
+let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) =>
+  switch (DHExp.term_of(d)) {
+  | Asc(e, t) when recursive && known_to_have(e, t) => Some(e)
+  | Asc(e, t) when recursive => noted(e, t, step(~recursive, d))
+  | _ => step(~recursive, d)
+  }
+and step = (~recursive: bool, d: DHExp.t): option(DHExp.t) => {
   let ctx = ctx_ref^;
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
@@ -507,9 +579,6 @@ let rec push_all = (d: DHExp.t): DHExp.t => {
    objects, so the view's call memo put each in form again for its keys,
    three times a redraw.
 
-   The same value given the same type gives the same result, so a push is
-   remembered: by the value's term, which a variable lookup keeps when it
-   copies the value's outer record (fast_copy), and by the type's Merkle
-   hash, since each annotation is a type object of its own. The result
-   comes back as the same objects, re-rooted at the value's own id. */
+   A value that comes back unchanged already had the type, and is
+   remembered as having it (has_type), so it is walked once. */
 let transition_multiple = push_all;
