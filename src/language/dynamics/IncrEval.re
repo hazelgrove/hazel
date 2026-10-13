@@ -362,11 +362,15 @@ let reuse_check =
      node: 280 ms of a Kids' Choice slider release in Firefox. */
   let elab_same =
     Util.ValueHash.same(entry.prev_elab, info.elab_term)
-    || Exp.fast_equal_hashed(entry.prev_elab, info.elab_term)
-    /* fast_equal ignores annotations; lexeme-only edits (e.g. an unknown
-       operator @@ -> @@@) change display and stuck-application semantics,
-       so they must invalidate reuse too */
-    && Exp.lexeme_trace(entry.prev_elab) == Exp.lexeme_trace(info.elab_term);
+    /* fast_equal ignores annotations, but lexeme-only edits (e.g. an
+       unknown operator @@ -> @@@) change display and stuck-application
+       semantics, so they must invalidate reuse too. Lexemes are compared
+       in the same memoized walk as structure: a subterm that came back
+       with new ids but nothing else changed (an open cell elaborated
+       again) is one walk, not a lexeme trace for each enclosing let that
+       contains it, which was quadratic (2 s of a slider change with the
+       picture's cell open; performance analysis issue 008). */
+    || Exp.fast_equal_hashed_with_lexemes(entry.prev_elab, info.elab_term);
   let* () = OptUtil.some_if(elab_same, ());
 
   let* current_reuse_map = reuse_map_for_co_ctx(reuse_map, info.co_ctx);

@@ -111,6 +111,25 @@ let lexeme_trace = (e: t): list(option(string)) => {
 let fast_equal_with_lexemes = (a: t, b: t): bool =>
   fast_equal(a, b) && lexeme_trace(a) == lexeme_trace(b);
 
+/* fast_equal_with_lexemes in one walk, with Equality's hash shortcut and
+   memo: for comparing a term with a near-copy, as the eval worker's reuse
+   check does for every node. Two terms that differ only by ids then cost
+   one visit per node in all, instead of a lexeme trace of each subterm
+   every time it is asked about. */
+let fast_equal_hashed_with_lexemes =
+  Equality.(
+    equality(
+      ~hash_shortcut=true,
+      ~lexemes=true,
+      {
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_projectors: true,
+      },
+    )
+  ).
+    exp;
+
 let temp: term => t =
   term => {
     term,

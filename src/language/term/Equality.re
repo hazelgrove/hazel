@@ -111,6 +111,7 @@ let identity_alphas = (alphas: Alphas.t): bool =>
 let equality =
     (
       ~hash_shortcut=false,
+      ~lexemes=false,
       {
         type_alpha,
         exp_alpha,
@@ -150,6 +151,14 @@ let equality =
      itself, so there is nothing to check. */
   let identity = (alpha, alphas) => !alpha || identity_alphas(alphas);
   let memo = hash_shortcut ? Some(Util.ValueHash.Pairs.create()) : None;
+  /* ~lexemes: two nodes are also equal only if their lexemes are, at
+     every node of every sort, as Exp.lexeme_trace compares them. Checked
+     here, in the one walk and through its hash shortcut and memo, a
+     comparison of two near-copies that differ only by ids costs one visit
+     per node, instead of a trace of each subterm every time it is asked
+     about (the eval worker's reuse check asks about every enclosing let). */
+  let lex = (a: IdTagged.t(_), b: IdTagged.t(_)): bool =>
+    !lexemes || a.annotation.lexeme == b.annotation.lexeme;
   let shortcut = (walk, alphas_exp, alphas_typ, a, b): bool =>
     switch (memo) {
     | Some(memo)
@@ -171,7 +180,10 @@ let equality =
   let rec exp =
           (alphas_exp: Alphas.t, alphas_typ: Alphas.t, e1: Exp.t, e2: Exp.t) =>
     /* Short-circuit: physical equality, or the hash shortcut */
-    e1 === e2 || shortcut(exp_walk, alphas_exp, alphas_typ, e1, e2)
+    e1 === e2 || shortcut(exp_lex, alphas_exp, alphas_typ, e1, e2)
+  and exp_lex =
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, e1: Exp.t, e2: Exp.t) =>
+    lex(e1, e2) && exp_walk(alphas_exp, alphas_typ, e1, e2)
   and exp_walk =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, e1: Exp.t, e2: Exp.t) => {
     let exp' = exp(alphas_exp, alphas_typ);
@@ -549,6 +561,15 @@ let equality =
         m1: TermBase.Mod.t,
         m2: TermBase.Mod.t,
       )
+      : bool =>
+    lex(m1, m2) && mod_walk(alphas_exp, alphas_typ, m1, m2)
+  and mod_walk =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        m1: TermBase.Mod.t,
+        m2: TermBase.Mod.t,
+      )
       : bool => {
     let exp' = exp(alphas_exp, alphas_typ);
     let typ' = typ(alphas_exp, alphas_typ);
@@ -589,6 +610,10 @@ let equality =
     };
   }
   and pat =
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t)
+      : option(Alphas.t) =>
+    lex(p1, p2) ? pat_walk(alphas_exp, alphas_typ, p1, p2) : None
+  and pat_walk =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, p1: Pat.t, p2: Pat.t)
       : option(Alphas.t) => {
     let pat' = pat(alphas_exp, alphas_typ);
@@ -702,7 +727,10 @@ let equality =
   and typ =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool =>
     /* Short-circuit: physical equality, or the hash shortcut */
-    t1 === t2 || shortcut(typ_walk, alphas_exp, alphas_typ, t1, t2)
+    t1 === t2 || shortcut(typ_lex, alphas_exp, alphas_typ, t1, t2)
+  and typ_lex =
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t) =>
+    lex(t1, t2) && typ_walk(alphas_exp, alphas_typ, t1, t2)
   and typ_walk =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, t1: Typ.t, t2: Typ.t): bool => {
     // This function takes alphas_exp for the theorem keyword branches which have expressions in types.
@@ -820,6 +848,15 @@ let equality =
         s1: TermBase.Sig.t,
         s2: TermBase.Sig.t,
       )
+      : bool =>
+    lex(s1, s2) && sig_walk(alphas_exp, alphas_typ, s1, s2)
+  and sig_walk =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        s1: TermBase.Sig.t,
+        s2: TermBase.Sig.t,
+      )
       : bool => {
     let typ' = typ(alphas_exp, alphas_typ);
     let tpat' = (tp1, tp2) => Option.is_some(tpat(tp1, tp2));
@@ -865,6 +902,15 @@ let equality =
         mp1: TermBase.MPat.t,
         mp2: TermBase.MPat.t,
       )
+      : option(Alphas.t) =>
+    lex(mp1, mp2) ? mpat_walk(alphas_exp, alphas_typ, mp1, mp2) : None
+  and mpat_walk =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        mp1: TermBase.MPat.t,
+        mp2: TermBase.MPat.t,
+      )
       : option(Alphas.t) => {
     let any' = any(alphas_exp, alphas_typ);
     switch (mp1 |> Annotated.term_of, mp2 |> Annotated.term_of) {
@@ -889,7 +935,9 @@ let equality =
     | (Asc(_, _), _) => None
     };
   }
-  and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
+  and tpat = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) =>
+    lex(tp1, tp2) ? tpat_walk(tp1, tp2) : None
+  and tpat_walk = (tp1: TPat.t, tp2: TPat.t): option(Alphas.t) => {
     switch (tp1 |> Annotated.term_of, tp2 |> Annotated.term_of) {
     // Variables: special case depending on alpha equivalence.
     | (Var(x), Var(y)) when type_alpha => Some(Alphas.singleton(x, y))
@@ -916,6 +964,9 @@ let equality =
     };
   }
   and rul =
+      (alphas_exp: Alphas.t, alphas_typ: Alphas.t, r1: Rul.t, r2: Rul.t): bool =>
+    lex(r1, r2) && rul_walk(alphas_exp, alphas_typ, r1, r2)
+  and rul_walk =
       (alphas_exp: Alphas.t, alphas_typ: Alphas.t, r1: Rul.t, r2: Rul.t): bool => {
     let pat' = pat(alphas_exp, alphas_typ);
     let exp' = exp(alphas_exp, alphas_typ);
