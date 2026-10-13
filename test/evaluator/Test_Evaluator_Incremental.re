@@ -1900,10 +1900,72 @@ let lexeme_edit_test =
     },
   );
 
+/* The reuse check compares lexemes in the same walk as structure
+ * (Exp.fast_equal_hashed_with_lexemes); it must agree with the trace
+ * comparison it replaced (Exp.fast_equal_with_lexemes): equal for the same
+ * term with new ids, unequal for a lexeme-only edit or a real change. */
+let one_walk_lexemes_test =
+  test_case(
+    "one-walk lexeme check agrees with the trace check",
+    `Quick,
+    () => {
+      let parse = text =>
+        switch (Haz3lcore.Parser.to_segment(text, ~root=Exp)) {
+        | Some(seg) => Haz3lcore.MakeTerm.go(seg).term
+        | None => Alcotest.fail("parse failed")
+        };
+      let relex = (from: string, to_: string, e: Exp.t): Exp.t =>
+        Exp.map_term(
+          ~f_exp=
+            (continue, t: Exp.t) =>
+              continue(
+                t.annotation.lexeme == Some(from)
+                  ? {
+                    ...t,
+                    annotation: {
+                      ...t.annotation,
+                      lexeme: Some(to_),
+                    },
+                  }
+                  : t,
+              ),
+          e,
+        );
+      let e = parse("let y = 1 @@ 2 in let z = (y, [y, 3]) in z");
+      let cases = [
+        ("the same term with new ids", Exp.replace_all_ids(e), true),
+        ("a lexeme-only edit", relex("@@", "@@@", e), false),
+        (
+          "a real change",
+          parse("let y = 1 @@ 2 in let z = (y, [y, 4]) in z"),
+          false,
+        ),
+      ];
+      List.iter(
+        ((name, e2, expected)) => {
+          check(
+            bool,
+            name ++ ": the trace check",
+            expected,
+            Exp.fast_equal_with_lexemes(e, e2),
+          );
+          check(
+            bool,
+            name ++ ": the one-walk check",
+            expected,
+            Exp.fast_equal_hashed_with_lexemes(e, e2),
+          );
+        },
+        cases,
+      );
+    },
+  );
+
 let tests = (
   "Evaluator.Incremental",
   [
     lexeme_edit_test,
+    one_walk_lexemes_test,
     test_case(
       "Top-level cast call: incremental reuse preserves result",
       `Quick,
