@@ -155,6 +155,28 @@ module Store = {
     );
   };
 
+  /* Load default editor state without touching IndexedDB.
+     Used in Patchwork mode where Automerge provides the content. */
+  let load_default = (~settings) => {
+    let (current, slides) = Lazy.force(Init.startup).scratch;
+    let scratchpads =
+      List.map(
+        ((name, persistent)) =>
+          ScratchMode.Scratchpad.mk_code(
+            ~name,
+            ~editor=CellEditor.Model.unpersist(~settings, persistent),
+            (),
+          ),
+        slides,
+      );
+    Model.Scratch(
+      ScratchMode.Model.{
+        current,
+        scratchpads,
+      },
+    );
+  };
+
   let load_config = (~settings) =>
     ConfigurationMode.StoreConfig.load()
     |> ConfigurationMode.Model.unpersist(~settings);
@@ -684,95 +706,101 @@ module View = {
     };
 
   let top_bar =
-      (~globals: Globals.t, ~inject: Update.t => 'a, ~editors: Model.t) => {
-    let mode_menu = {
-      div(
-        ~attrs=[Attr.class_("mode-name"), Attr.title("Toggle Mode")],
-        [
-          select(
-            ~attrs=[
-              Attr.on_change(_ =>
-                fun
-                | "Scratch" => inject(Update.SwitchMode(Scratch))
-                | "Documentation" => inject(Update.SwitchMode(Documentation))
-                | "Tutorial" =>
-                  // Default the sidebar to the task reference panel so
-                  // tutorial users see the reference material on entry.
-                  Ui_effect.Many([
-                    inject(Update.SwitchMode(Tutorial)),
-                    globals.inject_global(
-                      Set(Sidebar(SwitchPanel(TaskReference))),
-                    ),
-                  ])
-                | "Exercises" => inject(Update.SwitchMode(Exercises))
-                | "Configuration" => inject(Update.SwitchMode(Config))
-                | _ => failwith("Invalid mode")
-              ),
-            ],
-            List.map(
-              s =>
-                EditorModeView.option_view(
-                  (
-                    switch (editors) {
-                    | Scratch(_) => "Scratch"
-                    | Documentation(_) => "Documentation"
-                    | Tutorial(_) => "Tutorial"
-                    | Exercises(_) => "Exercises"
-                    | Config(_) => "Configuration"
-                    }
-                  )
-                  == s,
-                  s,
+      (~globals: Globals.t, ~inject: Update.t => 'a, ~editors: Model.t) =>
+    /* In Patchwork mode, hide the mode switcher and mode-specific contents
+       since only Scratch mode is supported (other modes aren't synced via Automerge). */
+    if (Haz3lcore.PatchworkComm.is_in_iframe()) {
+      div(~attrs=[Attr.id("editor-mode")], []);
+    } else {
+      let mode_menu = {
+        div(
+          ~attrs=[Attr.class_("mode-name"), Attr.title("Toggle Mode")],
+          [
+            select(
+              ~attrs=[
+                Attr.on_change(_ =>
+                  fun
+                  | "Scratch" => inject(Update.SwitchMode(Scratch))
+                  | "Documentation" =>
+                    inject(Update.SwitchMode(Documentation))
+                  | "Tutorial" =>
+                    // Default the sidebar to the task reference panel so
+                    // tutorial users see the reference material on entry.
+                    Ui_effect.Many([
+                      inject(Update.SwitchMode(Tutorial)),
+                      globals.inject_global(
+                        Set(Sidebar(SwitchPanel(TaskReference))),
+                      ),
+                    ])
+                  | "Exercises" => inject(Update.SwitchMode(Exercises))
+                  | "Configuration" => inject(Update.SwitchMode(Config))
+                  | _ => failwith("Invalid mode")
                 ),
-              [
-                "Scratch",
-                "Documentation",
-                "Tutorial",
-                "Configuration",
-                "Exercises",
               ],
+              List.map(
+                s =>
+                  EditorModeView.option_view(
+                    (
+                      switch (editors) {
+                      | Scratch(_) => "Scratch"
+                      | Documentation(_) => "Documentation"
+                      | Tutorial(_) => "Tutorial"
+                      | Exercises(_) => "Exercises"
+                      | Config(_) => "Configuration"
+                      }
+                    )
+                    == s,
+                    s,
+                  ),
+                [
+                  "Scratch",
+                  "Documentation",
+                  "Tutorial",
+                  "Configuration",
+                  "Exercises",
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        );
+      };
+      let contents =
+        switch (editors) {
+        | Scratch(m) =>
+          ScratchMode.View.top_bar(
+            ~globals,
+            ~is_documentation=false,
+            ~inject=a => Update.Scratch(a) |> inject,
+            m,
+          )
+        | Documentation(m) =>
+          ScratchMode.View.top_bar(
+            ~globals,
+            ~is_documentation=true,
+            ~inject=a => Update.Scratch(a) |> inject,
+            m,
+          )
+        | Config(m) =>
+          ConfigurationMode.View.top_bar(
+            ~inject=a => Update.Configuration(a) |> inject,
+            m,
+          )
+        | Tutorial(m) =>
+          TutorialsMode.View.top_bar(
+            ~globals,
+            ~inject=a => Update.Tutorial(a) |> inject,
+            m,
+          )
+        | Exercises(m) =>
+          ExercisesMode.View.top_bar(
+            ~globals,
+            ~inject=a => Update.Exercises(a) |> inject,
+            m,
+          )
+        };
+      div(
+        ~attrs=[Attr.id("editor-mode")],
+        [text("/"), mode_menu, text("/")] @ contents,
       );
     };
-    let contents =
-      switch (editors) {
-      | Scratch(m) =>
-        ScratchMode.View.top_bar(
-          ~globals,
-          ~is_documentation=false,
-          ~inject=a => Update.Scratch(a) |> inject,
-          m,
-        )
-      | Documentation(m) =>
-        ScratchMode.View.top_bar(
-          ~globals,
-          ~is_documentation=true,
-          ~inject=a => Update.Scratch(a) |> inject,
-          m,
-        )
-      | Config(m) =>
-        ConfigurationMode.View.top_bar(
-          ~inject=a => Update.Configuration(a) |> inject,
-          m,
-        )
-      | Tutorial(m) =>
-        TutorialsMode.View.top_bar(
-          ~globals,
-          ~inject=a => Update.Tutorial(a) |> inject,
-          m,
-        )
-      | Exercises(m) =>
-        ExercisesMode.View.top_bar(
-          ~globals,
-          ~inject=a => Update.Exercises(a) |> inject,
-          m,
-        )
-      };
-    div(
-      ~attrs=[Attr.id("editor-mode")],
-      [text("/"), mode_menu, text("/")] @ contents,
-    );
-  };
 };

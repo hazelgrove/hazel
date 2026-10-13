@@ -1,0 +1,58 @@
+{
+  "name": "@hazelgrove/hazel-embed",
+  "private": false,
+  "version": "0.1.0",
+  "description": "React component for embedding Hazel in other applications",
+  "author": "Hazel Team",
+  "license": "MIT",
+  "keywords": [
+    "hazel",
+    "embed",
+    "react",
+    "component",
+    "iframe"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hazelgrove/hazel.git",
+    "directory": "embed"
+  },
+  "type": "module",
+  "main": "src/index.ts",
+  "exports": {
+    ".": {
+      "import": "./src/index.ts"
+    }
+  },
+  "files": [
+    "**/*"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepublishOnly": "npm run build",
+    "type:patchworkmessages:fix": "sed 's/Index/FlatDoc/g' src/types/patchworkmessages.mli > src/types/patchworkmessages.tmp && mv src/types/patchworkmessages.tmp src/types/patchworkmessages.mli",
+    "type:patchworkmessages": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --number-as-int --readable-names --preset full --output-dir src/types src/types/patchworkmessages.d.ts && pnpm type:patchworkmessages:fix && cp src/types/patchworkmessages.mli ../src/haz3lcore/patchwork/PatchworkMessages.mli",
+    "type:flatdoc": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --number-as-int --readable-names --preset full --output-dir src/types src/types/flatdoc.d.ts && cp src/types/flatdoc.mli ../src/haz3lcore/patchwork/FlatDoc.mli",
+    "type": "npm run type:patchworkmessages && npm run type:flatdoc",
+    "style": "prettier --write ."
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@ocsigen/ts2ocaml": "^1.4.6",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.3",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vite-plugin-dts": "^4.5.4"
+  },
+  "packageManager": "pnpm@9.6.0"
+}

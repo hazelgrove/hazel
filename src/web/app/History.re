@@ -50,7 +50,9 @@ module Update = {
       | [] =>
         print_endline("Cannot undo");
         model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        PatchworkUndoSync.sync(model.current, x.model);
+        {
           ...x,
           model: {
             current: x.model,
@@ -63,14 +65,16 @@ module Update = {
               ...model.redo_stack,
             ],
           },
-        }
+        };
       }
     | Globals(Redo) =>
       switch (model.redo_stack) {
       | [] =>
         print_endline("Cannot redo");
         model |> Updated.raise_invalid_action;
-      | [x, ...rest] => {
+      | [x, ...rest] =>
+        PatchworkUndoSync.sync(model.current, x.model);
+        {
           ...x,
           model: {
             current: x.model,
@@ -83,7 +87,7 @@ module Update = {
             ],
             redo_stack: rest,
           },
-        }
+        };
       }
     | action =>
       let current =
