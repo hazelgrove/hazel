@@ -239,10 +239,27 @@ let evaluate =
         exp,
       );
 
-    let (call_stack, new_state) =
-      EvaluatorState.update(eval_info, state^, call_stack, env, exp, effects);
-
-    state := new_state;
+    /* Most steps have no effects: then the step only counts, and taking
+       that path first skips update's closures, its fold and its tuple,
+       at every step. */
+    let call_stack =
+      switch (effects) {
+      | [] =>
+        state := EvaluatorState.tick(state^);
+        call_stack;
+      | _ =>
+        let (call_stack, new_state) =
+          EvaluatorState.update(
+            eval_info,
+            state^,
+            call_stack,
+            env,
+            exp,
+            effects,
+          );
+        state := new_state;
+        call_stack;
+      };
     update_outbox_current(current_top_id, state^);
 
     /* Function bodies are not incremental-cache boundaries: we do not record

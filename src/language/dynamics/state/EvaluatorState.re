@@ -184,6 +184,13 @@ let add_incr_entry = (state: t, id: Id.t, entry: IncrEval.entry(t)): t => {
   incr_eval: IncrEval.add_entry(id, entry, state.incr_eval),
 };
 
+/* One step with no effects: the count goes up, and nothing else changes.
+   update does the same, then folds the step's effects in. */
+let tick = (state: t): t => {
+  ...state,
+  step_count: state.step_count + 1,
+};
+
 let update =
     (
       eval_info: EvalInfo.t,
