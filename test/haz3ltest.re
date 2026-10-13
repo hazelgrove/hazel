@@ -43,6 +43,7 @@ let (suite, exit_with_test_status) =
       Test_PatternMatch.tests,
       Test_Equality.tests,
       Test_Substitution.tests,
+      Test_TypHash.tests,
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
@@ -99,6 +100,7 @@ let (suite, exit_with_test_status) =
       Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
+      Test_Ascriptions.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
