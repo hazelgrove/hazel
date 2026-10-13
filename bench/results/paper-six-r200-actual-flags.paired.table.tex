@@ -1,0 +1,35 @@
+\begin{table}
+  \centering
+  \small
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabularx}{\linewidth}{@{}c p{0.30\linewidth} c RRRRR@{}}
+    \toprule
+    \# & Scenario & Edits &
+      \aZero{} &
+      $\ap{}+\al{}$ &
+      $\cdots+\,\aC{}$ &
+      $\cdots+\,\am{}$ &
+      \astar{} \\
+    \midrule
+    1 & Re-running a report against multiple datasets, all downstream code relies on the dataset and must be recalculated each time.
+      & 3 & \hazelresult{284.11}{1.00}{1.00} & \hazelresult{272.36}{1.02}{1.02} & \hazelresult{294.22}{0.95}{0.95} & \hazelresult{288.07}{1.02}{1.02} & \hazelresult{283.62}{0.96}{0.95} \\
+    \addlinespace
+    2 & Add three new summary metrics to the end of a dataset analysis report
+      & 4 & \hazelresult{566.76}{1.00}{1.00} & \hazelresult{50.91}{11.06}{11.47} & \hazelresult{52.03}{10.32}{11.47} & \hazelresult{48.58}{11.47}{11.47} & \hazelresult{53.53}{10.18}{11.47} \\
+    \addlinespace
+    3 & Fix two stated bugs in the middle of a dataset analysis report.
+      & 2 & \hazelresult{235.46}{1.00}{1.00} & \hazelresult{36.76}{6.52}{6.86} & \hazelresult{42.16}{5.44}{6.86} & \hazelresult{36.30}{6.86}{6.86} & \hazelresult{42.85}{5.37}{6.86} \\
+    \addlinespace
+    4 & Find a threshold value for one of the metrics in the report using a binary search.
+      & 9 & \hazelresult{1073.46}{1.00}{1.00} & \hazelresult{232.26}{4.45}{4.45} & \hazelresult{251.70}{4.19}{4.45} & \hazelresult{234.58}{4.43}{4.45} & \hazelresult{252.39}{4.07}{4.45} \\
+    \addlinespace
+    5 & Similar to scenario 4, but the report generation is parameterized and thus inside a function, so any re-use would happen inside a function call.
+      & 10 & \hazelresult{1059.21}{1.00}{1.00} & \hazelresult{429.34}{2.52}{10.85} & \hazelresult{102.19}{10.85}{10.85} & \hazelresult{436.04}{2.51}{10.85} & \hazelresult{101.37}{9.95}{10.85} \\
+    \addlinespace
+    6 & As part of report generation, three values are packed into a tuple, and then unpacked downstream. The agent is asked to fix bugs in all three values one at a time.
+      & 4 & \hazelresult{2270.43}{1.00}{1.00} & \hazelresult{986.88}{2.37}{4.82} & \hazelresult{1085.33}{2.10}{4.82} & \hazelresult{480.15}{4.82}{4.82} & \hazelresult{457.61}{4.78}{4.82} \\
+    \bottomrule
+  \end{tabularx}
+  \caption{Total evaluation time (ms), and speedup relative to regular evaluation \aZero{} across all edits made in each benchmarking scenario. Columns $\cdots+\,\am{}$ and $\cdots+\,\aC{}$ abbreviate $(\ap{}+\al{})+\am{}$ and $(\ap{}+\al{})+\aC{}$ respectively.}
+  \label{tab:hazel-benchmarks}
+\end{table}

@@ -1,0 +1,35 @@
+== SPEEDUP vs a0 (ratio of medians), 95% paired-bootstrap CI, n = 200
+reshape-source  aPL 1.04x [0.98,1.09]  aM 0.99x [0.93,1.06]  a2 0.97x [0.91,1.03]  aStar 1.00x [0.94,1.05]
+add-metrics     aPL 11.13x [10.25,12.05]  aM 11.67x [10.78,12.86]  a2 10.89x [9.97,11.74]  aStar 10.59x [9.59,11.42]
+fix-middle      aPL 6.40x [5.89,7.10]  aM 6.49x [6.00,7.02]  a2 5.59x [5.12,6.10]  aStar 5.50x [4.91,6.19]
+tune-threshold  aPL 4.62x [4.31,4.96]  aM 4.58x [4.23,5.04]  a2 4.26x [3.99,4.57]  aStar 4.25x [3.85,4.62]
+tariff-tune     aPL 2.47x [2.20,2.71]  aM 2.43x [2.23,2.68]  a2 10.36x [9.53,11.33]  aStar 10.45x [9.38,11.39]
+split-summary   aPL 2.30x [2.05,2.55]  aM 4.73x [4.15,5.21]  a2 2.09x [1.82,2.31]  aStar 4.96x [4.48,5.44]
+
+== aStar time / X time  (>1 = aStar SLOWER). Bonferroni-adjusted 99.72% CI over 18 comparisons
+reshape-source  vs aPL   1.041  [0.963, 1.115]  inconclusive
+reshape-source  vs aM    0.985  [0.915, 1.090]  inconclusive
+reshape-source  vs a2    0.964  [0.905, 1.040]  inconclusive  NOT shown within ±10%
+add-metrics     vs aPL   1.052  [0.904, 1.244]  inconclusive
+add-metrics     vs aM    1.102  [0.967, 1.308]  inconclusive
+add-metrics     vs a2    1.029  [0.910, 1.177]  inconclusive  NOT shown within ±10%
+fix-middle      vs aPL   1.166  [0.953, 1.432]  inconclusive
+fix-middle      vs aM    1.180  [0.986, 1.415]  inconclusive
+fix-middle      vs a2    1.016  [0.861, 1.199]  inconclusive  NOT shown within ±10%
+tune-threshold  vs aPL   1.087  [0.976, 1.248]  inconclusive
+tune-threshold  vs aM    1.076  [0.957, 1.273]  inconclusive
+tune-threshold  vs a2    1.003  [0.911, 1.140]  inconclusive  NOT shown within ±10%
+tariff-tune     vs aPL   0.236  [0.200, 0.285]  aStar faster
+tariff-tune     vs aM    0.232  [0.204, 0.278]  aStar faster
+tariff-tune     vs a2    0.992  [0.881, 1.161]  inconclusive  NOT shown within ±10%
+split-summary   vs aPL   0.464  [0.389, 0.547]  aStar faster
+split-summary   vs aM    0.953  [0.790, 1.129]  inconclusive
+split-summary   vs a2    0.422  [0.345, 0.500]  aStar faster  NOT shown within ±10%
+
+== drift: a0 median by fifth of reps
+reshape-source     218   276   285   335   347
+add-metrics        542   529   585   588   624
+fix-middle         259   280   177   219   246
+tune-threshold     970  1045  1159  1178  1055
+tariff-tune        999  1084   931   983  1236
+split-summary     2223  2206  2801  2026  2185

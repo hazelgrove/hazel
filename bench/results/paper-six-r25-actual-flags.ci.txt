@@ -1,0 +1,58 @@
+n = 25 reps per cell; target coverage 95%
+intervals are order statistics with 95.67% coverage
+
+SPEEDUP vs a0 (per-rep ratios)
+scenario          calculus   median        interval          width/med
+reshape-source    aPL         0.99x  [0.94, 1.06]           0.12
+reshape-source    aM          0.99x  [0.98, 1.08]           0.10
+reshape-source    a2          0.93x  [0.91, 0.99]           0.09
+reshape-source    aStar       0.92x  [0.86, 0.96]           0.11
+add-metrics       aPL        11.70x  [10.79, 12.47]         0.14
+add-metrics       aM         11.37x  [9.34, 14.49]          0.45
+add-metrics       a2         10.27x  [9.07, 15.20]          0.60
+add-metrics       aStar      11.01x  [9.11, 11.58]          0.22
+fix-middle        aPL         6.25x  [5.89, 6.96]           0.17
+fix-middle        aM          6.68x  [6.15, 8.78]           0.39
+fix-middle        a2          5.77x  [5.15, 6.68]           0.27
+fix-middle        aStar       5.84x  [5.22, 6.38]           0.20
+tune-threshold    aPL         4.36x  [4.01, 4.89]           0.20
+tune-threshold    aM          4.18x  [3.96, 5.45]           0.36
+tune-threshold    a2          4.02x  [3.56, 4.47]           0.23
+tune-threshold    aStar       3.87x  [3.56, 4.70]           0.29
+tariff-tune       aPL         2.68x  [2.46, 2.99]           0.20
+tariff-tune       aM          2.69x  [2.23, 3.11]           0.33
+tariff-tune       a2         10.65x  [9.51, 13.69]          0.39
+tariff-tune       aStar       9.78x  [8.89, 11.32]          0.25
+split-summary     aPL         2.28x  [1.81, 2.59]           0.34
+split-summary     aM          5.03x  [3.57, 5.71]           0.42
+split-summary     a2          2.56x  [2.21, 2.76]           0.22
+split-summary     aStar       5.12x  [4.21, 6.06]           0.36
+
+PAIRWISE (X vs Y = Y is this many times faster than X)
+scenario          claim           median        interval          verdict
+reshape-source    aM vs aPL         0.99x  [0.97, 1.02]        inconclusive (spans 1.0)
+reshape-source    a2 vs aPL         0.94x  [0.89, 0.98]        a2 SLOWER
+reshape-source    aStar vs aPL      0.94x  [0.88, 0.96]        aStar SLOWER
+add-metrics       aM vs aPL         0.95x  [0.87, 1.10]        inconclusive (spans 1.0)
+add-metrics       a2 vs aPL         0.89x  [0.76, 1.05]        inconclusive (spans 1.0)
+add-metrics       aStar vs aPL      0.89x  [0.75, 1.06]        inconclusive (spans 1.0)
+fix-middle        aM vs aPL         1.02x  [0.98, 1.14]        inconclusive (spans 1.0)
+fix-middle        a2 vs aPL         0.88x  [0.76, 0.98]        a2 SLOWER
+fix-middle        aStar vs aPL      0.90x  [0.81, 0.94]        aStar SLOWER
+tune-threshold    aM vs aPL         1.06x  [0.90, 1.19]        inconclusive (spans 1.0)
+tune-threshold    a2 vs aPL         0.93x  [0.80, 1.07]        inconclusive (spans 1.0)
+tune-threshold    aStar vs aPL      0.92x  [0.77, 1.09]        inconclusive (spans 1.0)
+tariff-tune       aM vs aPL         1.03x  [0.97, 1.14]        inconclusive (spans 1.0)
+tariff-tune       a2 vs aPL         3.92x  [3.36, 4.79]        a2 faster
+tariff-tune       aStar vs aPL      3.67x  [3.49, 4.36]        aStar faster
+split-summary     aM vs aPL         2.24x  [1.57, 3.10]        aM faster
+split-summary     a2 vs aPL         1.15x  [0.96, 1.23]        inconclusive (spans 1.0)
+split-summary     aStar vs aPL      2.29x  [1.84, 2.56]        aStar faster
+
+SKEW (mean/median per cell; >1 means right-skewed by pauses)
+calculus    reshape-s add-metri fix-middl tune-thre tariff-tu split-sum
+a0              1.094     1.408     1.178     1.213     1.117     1.050
+aPL             1.154     1.519     1.090     1.153     1.077     1.259
+aM              1.037     1.062     1.109     1.189     1.077     1.360
+a2              1.176     1.286     1.192     1.258     1.136     1.069
+aStar           1.055     1.163     1.197     1.203     1.065     1.241

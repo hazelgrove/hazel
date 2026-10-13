@@ -1,0 +1,17 @@
+    1 & Re-running a report against multiple datasets, all downstream code relies on the dataset and must be recalculated each time.
+      & 3 & \hazelresult{284.11}{1.00}{1.00} & \hazelresultci{272.36}{1.02}{1.02}{0.99}{1.04} & \hazelresultci{294.22}{0.95}{0.95}{0.88}{1.01} & \hazelresultci{288.07}{1.02}{1.02}{0.95}{1.07} & \hazelresultci{283.62}{0.96}{0.95}{0.90}{1.00} \\
+    \addlinespace
+    2 & Add three new summary metrics to the end of a dataset analysis report
+      & 4 & \hazelresult{566.76}{1.00}{1.00} & \hazelresultci{50.91}{11.06}{11.47}{10.41}{12.11} & \hazelresultci{52.03}{10.32}{11.47}{9.66}{11.59} & \hazelresultci{48.58}{11.47}{11.47}{10.45}{12.75} & \hazelresultci{53.53}{10.18}{11.47}{9.38}{10.87} \\
+    \addlinespace
+    3 & Fix two stated bugs in the middle of a dataset analysis report.
+      & 2 & \hazelresult{235.46}{1.00}{1.00} & \hazelresultci{36.76}{6.52}{6.86}{5.98}{6.98} & \hazelresultci{42.16}{5.44}{6.86}{5.04}{5.86} & \hazelresultci{36.30}{6.86}{6.86}{6.46}{7.13} & \hazelresultci{42.85}{5.37}{6.86}{5.10}{5.60} \\
+    \addlinespace
+    4 & Find a threshold value for one of the metrics in the report using a binary search.
+      & 9 & \hazelresult{1073.46}{1.00}{1.00} & \hazelresultci{232.26}{4.45}{4.45}{4.32}{4.73} & \hazelresultci{251.70}{4.19}{4.45}{3.86}{4.32} & \hazelresultci{234.58}{4.43}{4.45}{4.20}{4.72} & \hazelresultci{252.39}{4.07}{4.45}{3.82}{4.40} \\
+    \addlinespace
+    5 & Similar to scenario 4, but the report generation is parameterized and thus inside a function, so any re-use would happen inside a function call.
+      & 10 & \hazelresult{1059.21}{1.00}{1.00} & \hazelresultci{429.34}{2.52}{10.85}{2.37}{2.74} & \hazelresultci{102.19}{10.85}{10.85}{9.90}{11.83} & \hazelresultci{436.04}{2.51}{10.85}{2.31}{2.73} & \hazelresultci{101.37}{9.95}{10.85}{9.29}{10.54} \\
+    \addlinespace
+    6 & As part of report generation, three values are packed into a tuple, and then unpacked downstream. The agent is asked to fix bugs in all three values one at a time.
+      & 4 & \hazelresult{2270.43}{1.00}{1.00} & \hazelresultci{986.88}{2.37}{4.82}{2.18}{2.58} & \hazelresultci{1085.33}{2.10}{4.82}{1.92}{2.22} & \hazelresultci{480.15}{4.82}{4.82}{4.53}{5.24} & \hazelresultci{457.61}{4.78}{4.82}{4.43}{5.22} \\

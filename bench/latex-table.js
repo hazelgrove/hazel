@@ -65,7 +65,7 @@ const SCENARIOS = [
 /* Column order of the table. a0 is the baseline and gets special treatment
  * in the shading rule below; the other four are the incremental calculi. */
 const BASELINE = 'a0';
-const CALCULI = ['a0', 'aPL', 'aM', 'a2', 'aStar'];
+const CALCULI = ['a0', 'aPL', 'a2', 'aM', 'aStar'];
 
 /* ---------- numbers ---------- */
 
@@ -117,13 +117,55 @@ function median(xs) {
  *
  * Summing per-step medians instead would report a total no single rep ever
  * exhibited, which is why the sum happens before the median. */
-function incrTotalMs(samples) {
+function incrTotalsByRep(samples) {
   const byRep = new Map();
   for (const m of samples) {
     if (m.step === 0) continue;
     byRep.set(m.rep, (byRep.get(m.rep) || 0) + m.eval_ms);
   }
-  return median([...byRep.values()]);
+  return byRep;
+}
+
+const incrTotalMs = samples => median([...incrTotalsByRep(samples).values()]);
+
+/* The paired speedup (--paired): the median over reps of a0's total divided
+ * by the calculus's total IN THE SAME REP. Every calculus runs within seconds
+ * of a0 in each rep, so drift that both share -- a laptop heating up and
+ * throttling over a long run -- cancels in the ratio, where a ratio of the
+ * two medians keeps it as noise. It is also the estimator bench/ci.js
+ * reports intervals for, so table and intervals agree. */
+function pairedRatios(baseByRep, byRep) {
+  return [...baseByRep.keys()]
+    .filter(rep => byRep.has(rep))
+    .map(rep => baseByRep.get(rep) / byRep.get(rep));
+}
+
+const pairedSpeedup = (baseByRep, byRep) => median(pairedRatios(baseByRep, byRep));
+
+/* The interval for --ci: bench/ci.js's distribution-free interval for a
+ * median, [x_(i), x_(n+1-i)] with the largest i whose coverage
+ * sum_{j=i}^{n-i} C(n,j) / 2^n still reaches CI_TARGET. Duplicated rather
+ * than imported because ci.js is a script, not a module; keep the two in
+ * step. Throws rather than widen silently when n is too small to reach the
+ * target, since a table would print the too-narrow interval without comment. */
+const CI_TARGET = 0.95;
+const choose = (n, k) => {
+  let r = 1;
+  for (let i = 0; i < k; i++) r = (r * (n - i)) / (i + 1);
+  return r;
+};
+const coverageOf = (n, i) => {
+  let c = 0;
+  for (let j = i; j <= n - i; j++) c += choose(n, j);
+  return c / 2 ** n;
+};
+function medianCI(xs, target = CI_TARGET) {
+  const s = [...xs].sort((a, b) => a - b);
+  const n = s.length;
+  let best = 0;
+  for (let i = 1; i <= n >> 1 && coverageOf(n, i) >= target; i++) best = i;
+  if (best === 0) throw new Error(`${n} reps cannot reach ${target * 100}% coverage`);
+  return { lo: s[best - 1], hi: s[n - best] };
 }
 
 const furthestFrom1 = xs =>
@@ -263,6 +305,7 @@ function rowFor(scenario, number, ctx) {
   }
 
   const times = new Map();
+  const totalsByRep = new Map();
   let short = false;
   for (const calculus of CALCULI) {
     const ms = traceSamples.filter(m => m.calculus === calculus);
@@ -289,6 +332,7 @@ function rowFor(scenario, number, ctx) {
       }
     }
     times.set(calculus, incrTotalMs(ms));
+    totalsByRep.set(calculus, incrTotalsByRep(ms));
   }
   if (short) return null;
 
@@ -301,7 +345,19 @@ function rowFor(scenario, number, ctx) {
   /* Speedups, rounded before the shading rule sees them. a0's own cell is
    * the baseline: exactly 1.00x and deliberately neutral, so its arg3 is not
    * computed from the row. */
-  const speedups = new Map(CALCULI.map(c => [c, roundHalfUp(base / times.get(c), 2)]));
+  const speedups = new Map(
+    CALCULI.map(c => [
+      c,
+      c === BASELINE
+        ? 1
+        : roundHalfUp(
+            ctx.paired
+              ? pairedSpeedup(totalsByRep.get(BASELINE), totalsByRep.get(c))
+              : base / times.get(c),
+            2
+          ),
+    ])
+  );
   const incremental = CALCULI.filter(c => c !== BASELINE).map(c => speedups.get(c));
 
   return {
@@ -311,7 +367,13 @@ function rowFor(scenario, number, ctx) {
     cells: CALCULI.map(calculus => {
       const speedup = speedups.get(calculus);
       const extreme = calculus === BASELINE ? 1 : sameSideExtreme(speedup, incremental);
-      return `\\hazelresult{${fmt2(times.get(calculus))}}{${fmt2(speedup)}}{${fmt2(extreme)}}`;
+      const args = `{${fmt2(times.get(calculus))}}{${fmt2(speedup)}}{${fmt2(extreme)}}`;
+      /* a0's own speedup is 1 by definition, so it has no interval. */
+      if (!ctx.ci || calculus === BASELINE) return `\\hazelresult${args}`;
+      const { lo, hi } = medianCI(
+        pairedRatios(totalsByRep.get(BASELINE), totalsByRep.get(calculus))
+      );
+      return `\\hazelresultci${args}{${fmt2(lo)}}{${fmt2(hi)}}`;
     }),
   };
 }
@@ -327,8 +389,8 @@ const PREAMBLE = `\\begin{table}
     \\# & Scenario & Edits &
       \\aZero{} &
       $\\ap{}+\\al{}$ &
-      $\\cdots+\\,\\am{}$ &
       $\\cdots+\\,\\aC{}$ &
+      $\\cdots+\\,\\am{}$ &
       \\astar{} \\\\
     \\midrule`;
 
@@ -352,17 +414,31 @@ const USAGE = [
   'usage: node bench/latex-table.js [--rows-only] [--policy=NAME] <results.bench.json>...',
   '  --rows-only   emit just the row bodies, for pasting into an existing table',
   '  --policy=N    pick an id policy when the JSON carries more than one',
+  '  --paired      speedup = median over reps of the within-rep speedup (see pairedSpeedup)',
+  '  --ci          with --paired: add each speedup\'s 95% interval, as \\hazelresultci',
 ];
 
 function main(args) {
   const files = args.filter(a => !a.startsWith('--'));
   const rowsOnly = args.includes('--rows-only');
+  const paired = args.includes('--paired');
+  const ci = args.includes('--ci');
   const policyFlag = (args.find(a => a.startsWith('--policy=')) || '').split('=')[1];
   const wantsHelp = args.includes('--help');
   const unknown = args.filter(
-    a => a.startsWith('--') && a !== '--rows-only' && a !== '--help' && !a.startsWith('--policy=')
+    a =>
+      a.startsWith('--') &&
+      a !== '--rows-only' &&
+      a !== '--paired' &&
+      a !== '--ci' &&
+      a !== '--help' &&
+      !a.startsWith('--policy=')
   );
 
+  if (ci && !paired) {
+    console.error('--ci needs --paired: the interval is for the paired median speedup');
+    return 1;
+  }
   if (wantsHelp || files.length === 0 || unknown.length > 0) {
     for (const u of unknown) console.error(`unknown flag: ${u}`);
     for (const line of USAGE) console.error(line);
@@ -394,7 +470,7 @@ function main(args) {
     return 1;
   }
 
-  const ctx = { byTrace, policy, files, problems };
+  const ctx = { byTrace, policy, files, problems, paired, ci };
   const rows = SCENARIOS.map((s, i) => rowFor(s, i + 1, ctx)).filter(Boolean);
 
   if (problems.length > 0) {
@@ -417,6 +493,8 @@ module.exports = {
   SCENARIOS,
   incrTotalMs,
   main,
+  medianCI,
+  pairedSpeedup,
   median,
   renderRows,
   renderTable,

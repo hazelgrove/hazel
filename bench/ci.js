@@ -144,7 +144,7 @@ for (const [t, byCal] of tot) {
 console.log('\nPAIRWISE (X vs Y = Y is this many times faster than X)');
 console.log('scenario          claim           median        interval          verdict');
 for (const [t, byCal] of tot) {
-  for (const [x, y] of [['aPL', 'aM'], ['aPL', 'a2'], ['aPL', 'aStar']]) {
+  for (const [x, y] of [['aPL', 'aM'], ['aPL', 'a2'], ['aPL', 'aStar'], ['aM', 'aStar'], ['a2', 'aStar']]) {
     if (!byCal.has(x) || !byCal.has(y)) continue;
     const X = byCal.get(x), Y = byCal.get(y);
     const r = [...X.keys()].filter(k => Y.has(k)).map(k => X.get(k) / Y.get(k));
