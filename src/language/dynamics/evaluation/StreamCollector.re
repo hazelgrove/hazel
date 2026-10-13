@@ -121,7 +121,18 @@ module Inc = {
         e;
       };
     };
-    let _ = TermBase.Exp.map_term(~f_exp, d);
+    /* only expressions are indexed, so don't walk (and rebuild) the
+       patterns and types */
+    let skip = (_, x) => x;
+    let _ =
+      TermBase.Exp.map_term(
+        ~f_exp,
+        ~f_pat=skip,
+        ~f_typ=skip,
+        ~f_tpat=skip,
+        ~f_mpat=skip,
+        d,
+      );
     (enter^, exit_^);
   };
 

@@ -240,6 +240,49 @@ let test_streaming_plan_omits_misses_and_keeps_children = () => {
   );
 };
 
+/* The page's incremental collector indexes only expressions, so its index
+   must still hold every id the stream names, with types, typed patterns
+   and match arms around them: a missing id falls back to the full walk
+   (correct, but O(program) per stream message). */
+let test_inc_collector_indexes_typed_program = () => {
+  let src = "type T = Int in let f = fun (x : T) -> x + 1 in let (a, b) : (Int, Int) = (f(1), f(2)) in let c = case a | 2 => let k : Int = b * 10 in k | _ => 0 end in test a + b == 5 end; c + 100";
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=100, ~to_=200, exp1);
+  let (_, _, prev) = eval_incr(exp1);
+  let (info_map, elab) = statics_and_elab(exp2);
+  let eval_info = eval_info_of_statics(info_map);
+  let stream =
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  let outbox = IncrEval.outbox_of_completed(stream);
+  check(
+    bool,
+    "the stream names reused parts",
+    true,
+    Id.Map.cardinal(stream.entries) > 1,
+  );
+  let (inc, state) =
+    StreamCollector.collect_stream_state_inc(~prev=None, outbox, elab);
+  check(
+    bool,
+    "the incremental collector finds every streamed id",
+    true,
+    Option.is_some(inc),
+  );
+  let full = StreamCollector.collect_stream_state(outbox, elab);
+  check(
+    int,
+    "same steps as the full walk",
+    full.step_count,
+    state.step_count,
+  );
+  check(
+    int,
+    "same tests as the full walk",
+    TestMap.count(full.tests),
+    TestMap.count(state.tests),
+  );
+};
+
 let test_materialize_stream_state_marks_reused_entries = () => {
   let src = "let x = 1 + 2 in let y = x + 10 in y";
   let exp = parse_exp(src);
@@ -2020,6 +2063,11 @@ let tests = (
       "Streaming plan omits misses and keeps children",
       `Quick,
       test_streaming_plan_omits_misses_and_keeps_children,
+    ),
+    test_case(
+      "Incremental collector indexes a typed program",
+      `Quick,
+      test_inc_collector_indexes_typed_program,
     ),
     test_case(
       "Materialize streaming state marks reused entries",
