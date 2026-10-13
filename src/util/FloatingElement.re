@@ -74,6 +74,7 @@
          - data-float-anchor-class: class name of ancestor to position relative to
          - data-float-local-top: local Y offset in pixels
          - data-float-local-left: local X offset in pixels
+         - data-float-flip (optional): flip up/left when out of room
          - style "position: fixed; visibility: hidden; top: 0; left: 0;"
 
       2. Call setup_scroll_listener() once at app startup
@@ -147,6 +148,38 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
         | _ => true
         };
       let viewport_left = rect##.left +. local_left;
+      /* `flip`: a menu that opens down-right of its anchor flips above it
+       * and/or right-aligns to it when its measured size doesn't fit within
+       * #main (Menu.fit_direction); the open-* class names the side taken. */
+      let (viewport_top, viewport_left) =
+        switch (get_data_string(el, "flip")) {
+        | None => (viewport_top, viewport_left)
+        | Some(_) =>
+          let height = float_of_int(el##.offsetHeight) +. local_top;
+          let width = float_of_int(el##.offsetWidth) +. local_left;
+          let dir =
+            Menu.fit_direction(
+              ~menu_height=height,
+              ~menu_width=width,
+              Menu.space_from(
+                ~anchor_top=rect##.top,
+                ~anchor_bot=base_top,
+                ~anchor_left=rect##.left,
+                ~anchor_right=rect##.right,
+              ),
+            );
+          Menu.set_open_class(el, Some(dir));
+          (
+            switch (dir.vertical) {
+            | `Down => viewport_top
+            | `Up => rect##.top -. height
+            },
+            switch (dir.horizontal) {
+            | `Right => viewport_left
+            | `Left => rect##.right -. width
+            },
+          );
+        };
       el##.style##.top := Js.string(Printf.sprintf("%fpx", viewport_top));
       el##.style##.left := Js.string(Printf.sprintf("%fpx", viewport_left));
       el##.style##.visibility := Js.string(visible ? "visible" : "hidden");

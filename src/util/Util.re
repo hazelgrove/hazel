@@ -28,6 +28,7 @@ module MenuListener = MenuListener;
 module ContextMenuListener = ContextMenuListener;
 module ColumnMenuListener = ColumnMenuListener;
 module SampleMenuListener = SampleMenuListener;
+module SampleMenuPlacement = SampleMenuPlacement;
 module Key = Key;
 module Os = Os;
 module Point = Point;
