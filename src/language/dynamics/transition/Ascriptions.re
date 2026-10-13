@@ -88,12 +88,15 @@ let unrolled = (t: Typ.t): Typ.t =>
   };
 /* Data values already found to have a type, by the type's hash. A push
    through a value that already has the type gives the value back, but it
-   still walks all of it, and a value crosses a typed boundary at every
-   call of a typed function. A recursive one over a list is given the
-   list's tail each time, so the walks over one list add up to the square
-   of its length. Values are immutable, so once a walk gives a value back,
-   that value has the type for good, and the next push through it is one
-   lookup.
+   still walks all of it. A value is pushed through at every call of a
+   function whose parameter is annotated (`fun x : T -> ...`), so one value
+   given to several such functions is walked at each, and a recursive one
+   over a list is given the list's tail each time, so the walks over one
+   list add up to the square of its length. (A function annotated at its
+   let, `let f : A -> B = fun x -> ...`, is not pushed through on its
+   recursive calls.) Values are immutable, so once a walk gives a value
+   back, that value has the type for good, and the next push through it is
+   one lookup.
 
    Keyed by the value's term, which a variable lookup keeps when it copies
    the value's outer record (fast_copy). A list's tail is a new ListLit
