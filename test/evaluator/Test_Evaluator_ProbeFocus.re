@@ -222,9 +222,160 @@ clamp(150);
 clamp(-45);
 clamp(92)|};
 
+/* A nested map, n * 10. rows: 0 row, 1 n, 2 n * 10, 3 inner map, 4 outer
+ * map. map is a recursive library function, so the path runs through map
+ * frames for both maps and each iteration: at 40 it reads map ❯ map ❯ λ ❯
+ * map ❯ map ❯ λ (focus bar indices 0 to 5). */
+let nested_map_times_ten = {|map([[1, 2], [3, 4]], fun row ->
+  map(row, fun n ->
+    n * 10
+  )
+)|};
+
+/* rows: 0 x, 1 case x (its scrutinee), 2 1, 3 x * fact(x - 1), 4 the case,
+ * 6 fact(5). x's samples: 5, 4, 3, 2, 1, 0. */
+let fact = {|let fact = fun x ->
+  case x
+  | 0 => 1
+  | _ => x * fact(x - 1)
+  end
+in
+fact(5)|};
+
+/* The recursive call on its own line. rows: 0 x, 4 fact(x - 1), 5 x * rest,
+ * 8 fact(4). The call line's samples, in evaluation order: 1, 1, 2, 6 (6 is
+ * fact(4)'s call fact(3)). */
+let fact_let = {|let fact = fun x ->
+  case x
+  | 0 => 1
+  | _ =>
+    let rest = fact(x - 1) in
+    x * rest
+  end
+in
+fact(4)|};
+
+/* The stack focus bar's click on its i-th entry from the outer end. */
+let bar = (z: Haz3lcore.Zipper.t, i: int): Haz3lcore.Zipper.t =>
+  Haz3lcore.SampleFocusPerform.set_index(z, i);
+
 let tests = (
   "Evaluator.ProbeFocus",
   [
+    test_case(
+      "Nested map: focusing the outer map's result keeps the selected iteration",
+      `Quick,
+      () => {
+        let ed = load(nested_map_times_ten);
+        /* click 10, press Right twice: 30, in the row [3, 4] */
+        let z = click(ed, click(ed, ed.z, 2, 0), 2, 2);
+        shows(ed, z, 2, "30");
+        shows(ed, z, 1, "3");
+        shows(ed, z, 0, "[3, 4]");
+        /* the outer result: the focus moves to the top level, and the
+           calls below stay on the path (map's own recursion does not cut
+           it: map has no probed lines) */
+        let z' = click(ed, z, 4, 0);
+        check(
+          int,
+          "the path is kept",
+          List.length(z.refractors.sample_focus.call_stack),
+          List.length(z'.refractors.sample_focus.call_stack),
+        );
+        shows(ed, z', 2, "30");
+        shows(ed, z', 1, "3");
+        shows(ed, z', 0, "[3, 4]");
+      },
+    ),
+    test_case(
+      "Nested map: moving up the path from 40 keeps 40",
+      `Quick,
+      () => {
+        let ed = load(nested_map_times_ten);
+        let z = click(ed, ed.z, 2, 3);
+        shows(ed, z, 2, "40");
+        shows(ed, z, 1, "4");
+        let keeps_40 = (what, z') => {
+          check(string, what ++ ": n * 10", "40", shown(ed, z', 2));
+          check(string, what ++ ": n", "4", shown(ed, z', 1));
+          check(string, what ++ ": row", "[3, 4]", shown(ed, z', 0));
+        };
+        /* the row line's sample [3, 4] */
+        keeps_40("row clicked", click(ed, z, 0, 1));
+        /* the inner map's result [30, 40] */
+        keeps_40("inner result clicked", click(ed, z, 3, 1));
+        /* the focus bar's outer λ (map ❯ map ❯ λ) */
+        keeps_40("bar's outer λ", bar(z, 2));
+        /* and the top level */
+        keeps_40("bar's top level", bar(z, -1));
+      },
+    ),
+    test_case(
+      "Recursion: the focus bar moves every line of the function, the clicked one too",
+      `Quick,
+      () => {
+        let ed = load(fact);
+        /* click x's 5, press Right twice: fact(3) */
+        let z = click(ed, click(ed, ed.z, 0, 0), 0, 2);
+        shows(ed, z, 0, "3");
+        shows(ed, z, 1, "3");
+        shows(ed, z, 4, "6");
+        /* the bar's outermost fact: fact(5) on every line, x included */
+        let z = bar(z, 0);
+        shows(ed, z, 0, "5");
+        shows(ed, z, 1, "5");
+        shows(ed, z, 3, "120");
+        shows(ed, z, 4, "120");
+        /* click case x's 5, then the bar's third fact: fact(3) on every
+           line, case x included */
+        let z = click(ed, z, 1, 0);
+        shows(ed, z, 1, "5");
+        let z = bar(z, 2);
+        shows(ed, z, 1, "3");
+        shows(ed, z, 0, "3");
+        shows(ed, z, 3, "6");
+        shows(ed, z, 4, "6");
+      },
+    ),
+    test_case(
+      "Recursion: clicking the call's result shows that call, not a deeper one",
+      `Quick,
+      () => {
+        let ed = load(fact);
+        let z = click(ed, click(ed, ed.z, 0, 0), 0, 2);
+        shows(ed, z, 0, "3");
+        /* fact(5)'s result where it is called */
+        let z = click(ed, z, 6, 0);
+        shows(ed, z, 6, "120");
+        shows(ed, z, 0, "5");
+        shows(ed, z, 1, "5");
+        shows(ed, z, 4, "120");
+        shows(ed, z, 2, "⊖");
+        /* the deeper calls stay on the bar (as ghosts): its third fact
+           entry goes back down to fact(3) */
+        let z = bar(z, 2);
+        shows(ed, z, 0, "3");
+        shows(ed, z, 4, "6");
+      },
+    ),
+    test_case(
+      "Recursion: clicking the recursive call's line keeps the call you are in",
+      `Quick,
+      () => {
+        let ed = load(fact_let);
+        /* click x's 4, press Right twice (fact(2)), then the bar's
+           outermost fact: fact(4) */
+        let z = bar(click(ed, click(ed, ed.z, 0, 0), 0, 2), 0);
+        shows(ed, z, 0, "4");
+        shows(ed, z, 4, "6");
+        /* the call line's 6, fact(4)'s call fact(3): the line keeps the
+           clicked sample, and the function's lines stay on fact(4) */
+        let z = click(ed, z, 4, 3);
+        shows(ed, z, 4, "6");
+        shows(ed, z, 0, "4");
+        shows(ed, z, 5, "24");
+      },
+    ),
     test_case(
       "Editing a line that shows a sample leaves an enclosing-call focus alone",
       `Quick,

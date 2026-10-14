@@ -29,26 +29,6 @@ let update_pinned_call =
  * the sightline downward (peeking into a call without entering it).
  *
  * See Sample.Focus module comment and plans/sample-focus-sightline.md. */
-/* The last `kept` frames of `stack` (the outer end) plus the frames below
- * them, up to the first that calls a function already among the kept ones:
- * clicking a call keeps where you went inside it, but not a deeper call of
- * the same function (recursion), which would outvote the clicked call. */
-let keep_below_until_reentry = (~kept: int, stack: CallStack.t): CallStack.t => {
-  let n = List.length(stack);
-  let outer = ListUtil.remove_first_n(n - kept, stack);
-  let fns = List.filter_map((f: CallStack.frame) => f.fn_def_id, outer);
-  let rec keep = (acc, outer_first: CallStack.t) =>
-    switch (outer_first) {
-    | [] => acc
-    | [f, ...rest] =>
-      switch (f.fn_def_id) {
-      | Some(fn) when List.mem(fn, fns) => acc
-      | _ => keep([f, ...acc], rest)
-      }
-    };
-  keep(outer, List.rev(ListUtil.take(n - kept, stack)));
-};
-
 let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
   update(z, sample_focus =>
     {
@@ -75,16 +55,16 @@ let capture = (z: Zipper.t, data: Sample.Capture.t, id): Zipper.t => {
              sightline so below-focus frames aren't lost — symmetric
              with the None branch below. */
           let extended = CallStack.extend(ap_id, data.call_stack);
+          /* The full sightline is kept even when it runs on into a deeper
+             call of the clicked call's function (recursion): the clicked
+             call's lines still show that call, since alignment counts the
+             anchored call as where you are (Selection.alignment_path). */
           ListUtil.is_suffix_of(
             ~eq=CallStack.equal_frame,
             extended,
             sample_focus.call_stack,
           )
-            ? keep_below_until_reentry(
-                ~kept=List.length(extended),
-                sample_focus.call_stack,
-              )
-            : extended;
+            ? sample_focus.call_stack : extended;
         | None =>
           /* When data.call_stack is a suffix of the current sightline,
              preserve below-focus frames from the old call_stack but
