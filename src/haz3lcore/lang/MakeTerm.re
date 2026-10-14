@@ -1603,7 +1603,7 @@ let consolidate_adopted = (): unit => {
 
 let go =
   Core.Memo.general(
-    ~cache_size_bound=1000,
+    ~cache_size_bound=8,
     seg => {
       map := TermMap.empty;
       term_data := Id.Map.empty;
@@ -1631,7 +1631,7 @@ let for_projection =
    * that no contained sub-segment is non-convex. However, there can still be convex
    * holes, singleton multiholes representing sort errors, non-singleton multiholes
    * representing missing infix operators, and invalid tokens. */
-  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
+  Core.Memo.general(~cache_size_bound=8, (seg: Segment.t) =>
     if (!Segment.deep_tile_complete(seg)) {
       None; /* Returns None if any subsegment contains incomplete tiles */
     } else if (Segment.is_padded(seg)) {
@@ -1691,4 +1691,4 @@ let from_zip_for_sem = (z: Zipper.t, ~root) =>
   go(Dump.to_segment(z, ~root));
 
 let from_zip_for_sem =
-  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);
+  Core.Memo.general(~cache_size_bound=8, from_zip_for_sem);
