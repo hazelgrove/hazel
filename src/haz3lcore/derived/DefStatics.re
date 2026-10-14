@@ -1057,12 +1057,32 @@ let calc =
     };
   let (merged, _, _, elab) = fix_spine_infos(~probe_ids, items, merged);
   /* a Module root's items read as module items, as monolithically */
-  let merged =
+  let (merged, module_root) =
     switch (strip(whole).term) {
-    | Module(mod_items) =>
-      ModuleHelpers.reclassify_expanded_module_items(mod_items, merged)
-    | _ => merged
+    | Module(mod_items) => (
+        ModuleHelpers.reclassify_expanded_module_items(mod_items, merged),
+        true,
+      )
+    | _ => (merged, false)
     };
+  /* what changed from the last calc's merged, for EvalInfo's projection:
+     the keys of the walk's changes, old and new, and each item's root
+     (fix_spine_infos). A Module root's reclassification rewrites keys of
+     its own, so then nothing is noted and EvalInfo walks, as before */
+  switch (prev) {
+  | Some(p) when !module_root =>
+    let keys = (m: Statics.Map.t, acc) =>
+      Id.Map.fold((k, _, acc) => [k, ...acc], m, acc);
+    let changed =
+      List.fold_left(
+        (acc, (old, new_)) =>
+          keys(old, Option.fold(~none=acc, ~some=n => keys(n, acc), new_)),
+        List.map((it: item) => it.d_id, items),
+        changes,
+      );
+    EvalInfo.note_delta(~base=p.merged, ~changed, merged);
+  | _ => ()
+  };
   {
     items,
     term: whole,

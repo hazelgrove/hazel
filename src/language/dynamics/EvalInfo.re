@@ -175,6 +175,60 @@ let project_from =
   };
 };
 
+/* The keys at which a statics map may differ from the map it was built
+   from, as its builder says (DefStatics.calc: the maps of its walk's
+   changes, and the spine roots it patched). Given that, a projection of
+   the old map is updated at those keys alone, where project_from walks
+   both maps whole. A note is found by the identity of both maps, so one
+   about other maps is never used; without one, project_from does as
+   before. */
+let deltas: ref(list((StaticsBase.Map.t, StaticsBase.Map.t, list(Id.t)))) =
+  ref([]);
+let deltas_cap = 8;
+
+let note_delta =
+    (~base: StaticsBase.Map.t, ~changed: list(Id.t), map: StaticsBase.Map.t)
+    : unit =>
+  deltas :=
+    [
+      (map, base, changed),
+      ...ListUtil.take(
+           deltas_cap - 1,
+           List.filter(((m, _, _)) => m !== map, deltas^),
+         ),
+    ];
+
+let delta_from =
+    (prev_map: StaticsBase.Map.t, info_map: StaticsBase.Map.t)
+    : option(list(Id.t)) =>
+  List.find_map(
+    ((m, b, changed)) =>
+      m === info_map && b === prev_map ? Some(changed) : None,
+    deltas^,
+  );
+
+/* how many projections a delta updated (tests) */
+let delta_hits = ref(0);
+
+let project_delta =
+    (
+      ~probe_all: bool,
+      ~full: list(Id.t),
+      prev: Id.Map.t(entry),
+      changed: list(Id.t),
+      info_map: StaticsBase.Map.t,
+    )
+    : Id.Map.t(entry) =>
+  List.fold_left(
+    (acc, k) =>
+      switch (Id.Map.find_opt(k, info_map)) {
+      | None => Id.Map.remove(k, acc)
+      | Some(info) => set_entry(~probe_all, ~full, k, info, acc)
+      },
+    prev,
+    changed,
+  );
+
 /* The last projection per document (LRU, as DefStatics keeps its last
    calc): a commit changes a few infos of a statics map that shares the
    rest with the last one, so its projection is updated, not rebuilt. It
@@ -201,9 +255,15 @@ let of_info_map =
       if (prev_map === info_map) {
         prev;
       } else {
-        switch (project_from(~probe_all, ~full, prev_map, prev, info_map)) {
-        | Some(statics) => statics
-        | None => project_all(~probe_all, ~full, info_map)
+        switch (delta_from(prev_map, info_map)) {
+        | Some(changed) =>
+          incr(delta_hits);
+          project_delta(~probe_all, ~full, prev, changed, info_map);
+        | None =>
+          switch (project_from(~probe_all, ~full, prev_map, prev, info_map)) {
+          | Some(statics) => statics
+          | None => project_all(~probe_all, ~full, info_map)
+          }
         };
       }
     | _ => project_all(~probe_all, ~full, info_map)
