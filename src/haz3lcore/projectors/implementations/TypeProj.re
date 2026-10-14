@@ -220,6 +220,7 @@ module M: Projector = {
         ),
       overlay: None,
       below: None,
+      below_rows: None,
       error: false,
     };
 };
