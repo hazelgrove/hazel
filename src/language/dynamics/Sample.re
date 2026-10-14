@@ -627,41 +627,97 @@ module Selection = {
     };
   };
 
+  /* The functions whose bodies have probed lines: the function of the
+   * innermost frame of every sample. Library functions (map, fold_left)
+   * and unprobed helpers have none, so their frames never cut the path:
+   * a nested or iterating map call is not a recursive call of anything
+   * the programmer sees. One render asks once per probe, on the same
+   * samples. */
+  let lines_memo: ref(option((Id.Map.t(list(t)), Id.t => bool))) =
+    ref(None);
+  let has_lines = (all: Id.Map.t(list(t))): (Id.t => bool) =>
+    switch (lines_memo^) {
+    | Some((a, has)) when a === all => has
+    | _ =>
+      let fns: Hashtbl.t(Id.t, unit) = Hashtbl.create(16);
+      Id.Map.iter(
+        (_, samples) =>
+          List.iter(
+            (s: t) =>
+              switch (s.call_stack) {
+              | [{fn_def_id: Some(fn), _}, ..._] when s.origin != Print =>
+                Hashtbl.replace(fns, fn, ())
+              | _ => ()
+              },
+            samples,
+          ),
+        all,
+      );
+      let has = fn => Hashtbl.mem(fns, fn);
+      lines_memo := Some((all, has));
+      has;
+    };
+
   /* The path alignment reads: the sightline, cut where a frame below where
    * you are re-enters a function already on the path down to there (a
    * deeper recursive call, remembered from before moving up). That
    * function's lines belong to the call where you are; the frames stay
-   * stored for navigating back down. */
-  let alignment_path = (cursor: Focus.t): CallStack.t => {
+   * stored for navigating back down. Only functions with probed lines
+   * (~has_lines) cut: the cut is there so a function's lines show one
+   * call, and a function without lines passes through.
+   *
+   * A click on a call's sample where it is called (perspective extension)
+   * puts that call just below where you are; it counts as where you are,
+   * so the clicked call's lines show that call, not a deeper recursive
+   * call of the same function remembered from before. */
+  let alignment_path =
+      (~has_lines: Id.t => bool=_ => true, cursor: Focus.t): CallStack.t => {
     let eff = Focus.effective_stack(cursor);
-    let fns = List.filter_map((f: CallStack.frame) => f.fn_def_id, eff);
     let below =
       ListUtil.take(
         List.length(cursor.call_stack) - List.length(eff),
         cursor.call_stack,
       );
-    let rec keep = (kept, outer_first: CallStack.t) =>
+    let fns_of = (stack: CallStack.t) =>
+      List.filter_map((f: CallStack.frame) => f.fn_def_id, stack)
+      |> List.filter(has_lines);
+    let rec keep = (~fns, kept, outer_first: CallStack.t) =>
       switch (outer_first) {
       | [] => kept
       | [f, ...rest] =>
         switch (f.fn_def_id) {
         | Some(id) when List.mem(id, fns) => kept
-        | _ => keep([f, ...kept], rest)
+        | _ => keep(~fns, [f, ...kept], rest)
         }
       };
-    keep(eff, List.rev(below));
+    let fns = fns_of(eff);
+    switch (cursor.anchor, List.rev(below)) {
+    | (Some(r), [f, ...rest])
+        when
+          r.probe_id == f.id
+          && CallStack.ids_of_stack(r.stack) == CallStack.ids_of_stack(eff)
+          && !List.exists(id => List.mem(id, fns), fns_of([f])) =>
+      /* The clicked call's function joins the cut. A clicked recursive
+         call of a function already where you are (the call line inside
+         the recursion) is cut as before: its lines show the call where
+         you are, the clicked sample's own. */
+      keep(~fns=fns_of([f]) @ fns, [f, ...eff], rest)
+    | (_, below_outer_first) => keep(~fns, eff, below_outer_first)
+    };
   };
 
   /* A sample on `path` whose function is called again deeper on the path
    * (recursion) belongs to an outer call of that function: the deeper call
    * is the one shown, so the sample is shadowed. */
-  let shadowed = (~path: CallStack.t, s: t): bool =>
-    switch (s.call_stack) {
+  let shadowed_stack = (~path: CallStack.t, stack: CallStack.t): bool =>
+    switch (stack) {
     | [{fn_def_id: Some(fn), _}, ..._] =>
-      ListUtil.take(List.length(path) - List.length(s.call_stack), path)
+      ListUtil.take(List.length(path) - List.length(stack), path)
       |> List.exists((f: CallStack.frame) => f.fn_def_id == Some(fn))
     | _ => false
     };
+  let shadowed = (~path: CallStack.t, s: t): bool =>
+    shadowed_stack(~path, s.call_stack);
 
   /* Lines that run below the end of the sightline have no sample on it,
    * so something has to choose which of their calls to show, and the
@@ -822,34 +878,45 @@ module Selection = {
       ),
     ) =
     ref(None);
-  let coordinated = (~cursor: Focus.t, all: Id.Map.t(list(t))) => {
+  /* The alignment path under `cursor` and the coordinated choice below it. */
+  let coordinated =
+      (~cursor: Focus.t, all: Id.Map.t(list(t)))
+      : (CallStack.t, Id.Map.t(span_ref)) => {
     let root = Focus.effective_stack(cursor);
-    let path = alignment_path(cursor);
+    let path = alignment_path(~has_lines=has_lines(all), cursor);
     switch (coordinated_memo^) {
     | Some((a, r, p, chosen))
         when
-          a === all && CallStack.equal(r, root) && CallStack.equal(p, path) => chosen
+          a === all && CallStack.equal(r, root) && CallStack.equal(p, path) => (
+        path,
+        chosen,
+      )
     | _ =>
       let chosen = coordinated_below(~root, ~path, all);
       coordinated_memo := Some((all, root, path, chosen));
-      chosen;
+      (path, chosen);
     };
   };
 
   /* How a line with no sample on the sightline picks one.
-   * - Coordinated(pick): this probe's sample in the coordinated choice
-   *   (coordinated_below), if it has one; otherwise the line shows ⊖.
+   * - Coordinated(pick, path): this probe's sample in the coordinated
+   *   choice (coordinated_below), if it has one; otherwise the line shows
+   *   ⊖. `path` is the alignment path the choice was made under
+   *   (alignment_path, with the functions that have probed lines), which
+   *   the line's own alignment reads too.
    * - PerLine: the line's first related sample, chosen on its own. Only
    *   for callers without the whole program's samples. */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type below =
-    | Coordinated(option(span_ref))
+    | Coordinated(option(span_ref), CallStack.t)
     | PerLine;
 
   /* This probe's place in the coordinated choice under `cursor`. */
   let below_of =
-      (~cursor: Focus.t, ~probe_id: Id.t, all: Id.Map.t(list(t))): below =>
-    Coordinated(Id.Map.find_opt(probe_id, coordinated(~cursor, all)));
+      (~cursor: Focus.t, ~probe_id: Id.t, all: Id.Map.t(list(t))): below => {
+    let (path, chosen) = coordinated(~cursor, all);
+    Coordinated(Id.Map.find_opt(probe_id, chosen), path);
+  };
 
   /* Find the sample most aligned with the sightline.
    *
@@ -914,7 +981,28 @@ module Selection = {
     let tiers = () => {
       most_aligned_by_tiers(~ap_id, ~below, ~by_ref, cursor, samples);
     };
-    switch (by_ref(cursor.anchor)) {
+    /* The anchor is shown by reference only while the path runs through
+     * it. Moving the focus with the stack focus bar leaves the anchor
+     * alone; moved up a recursion, the anchored sample (a deeper call) is
+     * off the cut path, and moved down, it is shadowed by the deeper call.
+     * Either way the anchored line shows the call where you are, as the
+     * other lines of its function do. An anchor whose stack is not on the
+     * sightline at all (ids changed by an edit) keeps the old reading,
+     * where by_ref's step fallback finds it. */
+    let anchor_on_path =
+      switch (below, cursor.anchor) {
+      | (Coordinated(_, path), Some(r)) =>
+        let r_ids = CallStack.ids_of_stack(r.stack);
+        !
+          ListUtil.is_suffix_of(
+            r_ids,
+            CallStack.ids_of_stack(cursor.call_stack),
+          )
+        || ListUtil.is_suffix_of(r_ids, CallStack.ids_of_stack(path))
+        && !shadowed_stack(~path, r.stack);
+      | _ => true
+      };
+    switch (anchor_on_path ? by_ref(cursor.anchor) : None) {
     | Some(_) as res => res
     | None =>
       switch (by_ref(cursor.pinned_span)) {
@@ -937,7 +1025,7 @@ module Selection = {
        re-entry and skip shadowed samples; PerLine keeps the old reading. */
     let path =
       switch (below) {
-      | Coordinated(_) => alignment_path(cursor)
+      | Coordinated(_, path) => path
       | PerLine => cursor.call_stack
       };
     let path_ids = CallStack.ids_of_stack(path);
@@ -951,7 +1039,7 @@ module Selection = {
       };
     let coordinated_pick =
       switch (below) {
-      | Coordinated(pick) => by_ref(pick)
+      | Coordinated(pick, _) => by_ref(pick)
       | PerLine => None
       };
     let suffix_scan = (stack: CallStack.t): option(int) =>
