@@ -666,6 +666,10 @@ let calc =
   let probe_dirty = (p: item): bool =>
     !Id.Map.is_empty(probe_delta)
     && Id.Map.exists((pid, ()) => Id.Map.mem(pid, p.d_map), probe_delta);
+  /* every key of merged this calc may change, for EvalInfo (note_delta) */
+  let touched: ref(list(Id.t)) = ref([]);
+  let touch = (m: Statics.Map.t) =>
+    Id.Map.iter((k, _) => touched := [k, ...touched^], m);
   let (items, merged) =
     switch (prev) {
     | None =>
@@ -782,6 +786,8 @@ let calc =
             ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
           );
         let merged = remove_stale(p_map, merged);
+        touch(p_map);
+        touch(it.d_map);
         claimed := map_union(claimed^, it.d_map);
         (it, ctx_out, dirty_vars, dirty_tnames, map_union(merged, it.d_map));
       };
@@ -792,7 +798,12 @@ let calc =
           let merged =
             List.fold_left(
               (m, q: item) =>
-                Id.Set.mem(q.d_id, node_ids) ? m : remove_stale(q.d_map, m),
+                if (Id.Set.mem(q.d_id, node_ids)) {
+                  m;
+                } else {
+                  touch(q.d_map);
+                  remove_stale(q.d_map, m);
+                },
               merged,
               ps,
             );
@@ -805,6 +816,7 @@ let calc =
               dirty_vars,
               dirty_tnames,
             );
+          touch(q.d_map);
           go(
             pt,
             ns,
@@ -912,6 +924,14 @@ let calc =
       go(prev_items, nodes, [], ctx0, [], [], prev_merged);
     };
   let merged = fix_spine_infos(~probe_ids, items, merged);
+  switch (prev) {
+  | Some(p) =>
+    /* fix_spine_infos writes each item's root */
+    let changed =
+      List.fold_left((acc, it: item) => [it.d_id, ...acc], touched^, items);
+    EvalInfo.note_delta(~base=p.merged, ~changed, merged);
+  | None => ()
+  };
   {
     items,
     term: whole,

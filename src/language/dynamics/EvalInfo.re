@@ -81,6 +81,19 @@ let same_entry = (a: entry, b: entry): bool =>
     }
   );
 
+/* [acc] with [k]'s entry projected from [info]; an entry that holds what
+   the old one held is kept, the object itself */
+let set_entry =
+    (~probe_all: bool, k: Id.t, info: Info.t, acc: Id.Map.t(entry)) =>
+  switch (project(~probe_all, info)) {
+  | None => Id.Map.remove(k, acc)
+  | Some(e) =>
+    switch (Id.Map.find_opt(k, acc)) {
+    | Some(old) when same_entry(old, e) => acc
+    | _ => Id.Map.add(k, e, acc)
+    }
+  };
+
 /* The projection of [info_map], given [prev], the projection of
    [prev_map]: one walk over both maps in key order, comparing infos by
    identity, and only the entries that changed are added or removed. So
@@ -112,15 +125,7 @@ let project_from =
       };
     };
   };
-  let set = (k, info, acc) =>
-    switch (project(~probe_all, info)) {
-    | None => Id.Map.remove(k, acc)
-    | Some(e) =>
-      switch (Id.Map.find_opt(k, acc)) {
-      | Some(old) when same_entry(old, e) => acc
-      | _ => Id.Map.add(k, e, acc)
-      }
-    };
+  let set = set_entry(~probe_all);
   let rec go =
           (acc, a: Seq.node((Id.t, Info.t)), b: Seq.node((Id.t, Info.t))) =>
     switch (a, b) {
@@ -152,6 +157,60 @@ let project_from =
   };
 };
 
+/* The keys at which a statics map may differ from the map it was built
+   from, as its builder says (DefStatics.calc: the items it analyzed again,
+   the ones it dropped, the spine roots it patched). Given that, a
+   projection of the old map is updated at those keys alone, where
+   project_from walks both maps whole: 13-14 ms a release on Full Body,
+   though some 180 entries change. A note is found by the identity of
+   both maps, so one about other maps is never used; without one,
+   project_from does as before. */
+let deltas: ref(list((StaticsBase.Map.t, StaticsBase.Map.t, list(Id.t)))) =
+  ref([]);
+let deltas_cap = 8;
+
+let note_delta =
+    (~base: StaticsBase.Map.t, ~changed: list(Id.t), map: StaticsBase.Map.t)
+    : unit =>
+  deltas :=
+    [
+      (map, base, changed),
+      ...ListUtil.take(
+           deltas_cap - 1,
+           List.filter(((m, _, _)) => m !== map, deltas^),
+         ),
+    ];
+
+let delta_from =
+    (prev_map: StaticsBase.Map.t, info_map: StaticsBase.Map.t)
+    : option(list(Id.t)) =>
+  List.find_map(
+    ((m, b, changed)) =>
+      m === info_map && b === prev_map ? Some(changed) : None,
+    deltas^,
+  );
+
+/* how many projections a delta updated (tests) */
+let delta_hits = ref(0);
+
+let project_delta =
+    (
+      ~probe_all: bool,
+      prev: Id.Map.t(entry),
+      changed: list(Id.t),
+      info_map: StaticsBase.Map.t,
+    )
+    : Id.Map.t(entry) =>
+  List.fold_left(
+    (acc, k) =>
+      switch (Id.Map.find_opt(k, info_map)) {
+      | None => Id.Map.remove(k, acc)
+      | Some(info) => set_entry(~probe_all, k, info, acc)
+      },
+    prev,
+    changed,
+  );
+
 /* The last projection per document (LRU, as DefStatics keeps its last
    calc): a commit changes a few infos of a statics map that shares the
    rest with the last one, so its projection is updated, not rebuilt. The
@@ -176,9 +235,15 @@ let of_info_map =
       if (prev_map === info_map) {
         prev;
       } else {
-        switch (project_from(~probe_all, prev_map, prev, info_map)) {
-        | Some(statics) => statics
-        | None => project_all(~probe_all, info_map)
+        switch (delta_from(prev_map, info_map)) {
+        | Some(changed) =>
+          incr(delta_hits);
+          project_delta(~probe_all, prev, changed, info_map);
+        | None =>
+          switch (project_from(~probe_all, prev_map, prev, info_map)) {
+          | Some(statics) => statics
+          | None => project_all(~probe_all, info_map)
+          }
         };
       }
     | _ => project_all(~probe_all, info_map)

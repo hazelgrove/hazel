@@ -1,6 +1,7 @@
 /* EvalInfo.of_info_map keeps each program's last projection of statics
    and updates it from the statics map's changes instead of rebuilding it,
-   so the request that carries it hashes only what changed. Over real
+   so the request that carries it hashes only what changed; after a
+   DefStatics calc, at the keys the calc says it touched (note_delta). Over real
    edits, with per-item statics as the app runs them, it must give the
    same projection as a rebuild and keep the unchanged entries themselves;
    and when the maps share nothing it must still be right. */
@@ -61,7 +62,14 @@ let edit_case = ((name, mk: unit => Test_EditLocality.edit)) =>
       let ds0 = DefStatics.calc(~settings, term(e.before));
       let ds1 = DefStatics.calc(~settings, ~prev=ds0, term(e.after));
       let p0 = project(ds0.merged);
+      let hits = EvalInfo.delta_hits^;
       let p1 = project(ds1.merged);
+      check(
+        int,
+        name ++ ": updated from DefStatics' note, not a walk",
+        hits + 1,
+        EvalInfo.delta_hits^,
+      );
       agrees(name, p1, ds1.merged);
       let n = Id.Map.cardinal(p1);
       let k = kept(p0, p1);
