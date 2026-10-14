@@ -321,9 +321,38 @@ let last_analyzed: ref(int) = ref(0);
    runs replay stale. also returns the top root's witnesses, co_ctx and
    elab_term (the whole chain's elaboration; None on an unexpected elab
    shape) */
+/* An item's root, patched, is a function of the item and what is below it.
+   When those are the very objects of the last calc, the last answer is
+   reused, and so is the entry merged already holds. Kept by the item's
+   id, with its elaboration, which is new whenever the item is analyzed
+   again; emptied past 4096 items. */
+type spine_memo = {
+  m_elab: Exp.t,
+  m_id: Id.t,
+  m_map: Statics.Map.t,
+  m_hole: option(Id.t),
+  m_exports: list(Ctx.entry),
+  m_probe_ids: Id.Map.t(unit),
+  m_below_wit: SubexpProbeTargets.t,
+  m_below_co: CoCtx.t,
+  m_below_elab: option(Exp.t),
+  out_info: option(Info.t),
+  out_wit: SubexpProbeTargets.t,
+  out_co: CoCtx.t,
+  out_elab: option(Exp.t),
+};
+let spine_memo: Hashtbl.t(Id.t, spine_memo) = Hashtbl.create(256);
+/* roots reused, and patched; and, for tests, a check that recomputes
+   each reused root and counts those that differ */
+let spine_reused = ref(0);
+let spine_patched = ref(0);
+let spine_check = ref(false);
+let spine_mismatches = ref(0);
+
 let fix_spine_infos =
     (~probe_ids: Id.Map.t(unit), items: list(item), merged: Statics.Map.t)
     : (Statics.Map.t, SubexpProbeTargets.t, CoCtx.t, option(Exp.t)) => {
+  let same_probes = (a, b) => a === b || Id.Map.equal((_, _) => true, a, b);
   let probes_in = (it: item): SubexpProbeTargets.t =>
     Id.Map.fold(
       (pid, (), acc) =>
@@ -332,58 +361,130 @@ let fix_spine_infos =
       probe_ids,
       SubexpProbeTargets.empty,
     );
+  let patch_root = (it: item, (m, below_wit, below_co, below_elab)) => {
+    let bound = var_names(it.d_exports);
+    let below_co_scoped =
+      CoCtx.filter_names(name => !List.mem(name, bound), below_co);
+    /* the root's elab_term is the whole suffix: a hollow one reads
+       as unchanged whatever happens downstream */
+    let suffix_elab =
+      switch (it.d_hole, below_elab) {
+      | (Some(h), Some(below)) =>
+        MakeTerm.Incr.graft_spine(h, below, it.d_elab)
+      | (None, _) => Some(it.d_elab)
+      | (Some(_), None) => None
+      };
+    /* read the RAW info from d_map, never [m]: [m] may hold the last
+       calc's patched entry, and re-patching doubles the co_ctx
+       use-lists every calc */
+    let raw = Statics.Map.lookup_exp(it.d_id, it.d_map);
+    let co_ctx =
+      CoCtx.union([
+        Option.fold(~none=CoCtx.empty, ~some=(r: Info.exp) => r.co_ctx, raw),
+        below_co_scoped,
+      ]);
+    /* a tail item is already accurate, and a module form has no
+       InfoExp at the root: those thread upward without patching */
+    let m =
+      switch (it.d_hole, raw) {
+      | (Some(_), Some(raw)) =>
+        Id.Map.add(
+          it.d_id,
+          Info.InfoExp({
+            ...raw,
+            elab_term: Option.value(~default=raw.elab_term, suffix_elab),
+            probe_targets:
+              SubexpProbeTargets.union(raw.probe_targets, below_wit),
+            co_ctx,
+          }),
+          m,
+        )
+      | _ => m
+      };
+    (
+      m,
+      SubexpProbeTargets.union(probes_in(it), below_wit),
+      co_ctx,
+      suffix_elab,
+    );
+  };
   List.fold_right(
-    (it: item, (m, below_wit, below_co, below_elab)) => {
-      let bound = var_names(it.d_exports);
-      let below_co_scoped =
-        CoCtx.filter_names(name => !List.mem(name, bound), below_co);
-      /* the root's elab_term is the whole suffix: a hollow one reads
-         as unchanged whatever happens downstream */
-      let suffix_elab =
-        switch (it.d_hole, below_elab) {
-        | (Some(h), Some(below)) =>
-          MakeTerm.Incr.graft_spine(h, below, it.d_elab)
-        | (None, _) => Some(it.d_elab)
-        | (Some(_), None) => None
+    (it: item, (m, below_wit, below_co, below_elab)) =>
+      switch (Hashtbl.find_opt(spine_memo, it.d_id)) {
+      | Some(c)
+          when
+            c.m_elab === it.d_elab
+            && c.m_map === it.d_map
+            && c.m_id == it.d_id
+            && c.m_hole == it.d_hole
+            && c.m_exports === it.d_exports
+            && same_probes(c.m_probe_ids, probe_ids)
+            && c.m_below_wit === below_wit
+            && c.m_below_co === below_co
+            && c.m_below_elab === below_elab =>
+        incr(spine_reused);
+        if (spine_check^) {
+          let (m', w, co_, e) =
+            patch_root(it, (m, below_wit, below_co, below_elab));
+          let fresh = m' === m ? None : Id.Map.find_opt(it.d_id, m');
+          /* by printed form, ids and all (no ValueHash on this branch) */
+          let same = (f, a, b) => Sexplib.Sexp.equal(f(a), f(b));
+          let exp = Exp.sexp_of_t
+          and co = CoCtx.sexp_of_t
+          and wit = SubexpProbeTargets.sexp_of_t;
+          let same_info =
+            switch (fresh, c.out_info) {
+            | (None, None) => true
+            | (Some(Info.InfoExp(a)), Some(Info.InfoExp(b))) =>
+              same(exp, a.elab_term, b.elab_term)
+              && same(co, a.co_ctx, b.co_ctx)
+              && same(wit, a.probe_targets, b.probe_targets)
+            | _ => false
+            };
+          if (!(
+                same_info
+                && same(wit, w, c.out_wit)
+                && same(co, co_, c.out_co)
+                && same(Sexplib.Std.sexp_of_option(exp), e, c.out_elab)
+              )) {
+            incr(spine_mismatches);
+          };
         };
-      /* read the RAW info from d_map, never [m]: [m] may hold the last
-         calc's patched entry, and re-patching doubles the co_ctx
-         use-lists every calc */
-      let raw = Statics.Map.lookup_exp(it.d_id, it.d_map);
-      let co_ctx =
-        CoCtx.union([
-          Option.fold(
-            ~none=CoCtx.empty,
-            ~some=(r: Info.exp) => r.co_ctx,
-            raw,
-          ),
-          below_co_scoped,
-        ]);
-      /* a tail item is already accurate, and a module form has no
-         InfoExp at the root: those thread upward without patching */
-      let m =
-        switch (it.d_hole, raw) {
-        | (Some(_), Some(raw)) =>
-          Id.Map.add(
-            it.d_id,
-            Info.InfoExp({
-              ...raw,
-              elab_term: Option.value(~default=raw.elab_term, suffix_elab),
-              probe_targets:
-                SubexpProbeTargets.union(raw.probe_targets, below_wit),
-              co_ctx,
-            }),
-            m,
-          )
-        | _ => m
+        let m =
+          switch (c.out_info, Id.Map.find_opt(it.d_id, m)) {
+          | (Some(info), Some(held)) when held === info => m
+          | (Some(info), _) => Id.Map.add(it.d_id, info, m)
+          | (None, _) => m
+          };
+        (m, c.out_wit, c.out_co, c.out_elab);
+      | _ =>
+        incr(spine_patched);
+        let (m', out_wit, out_co, out_elab) as out =
+          patch_root(it, (m, below_wit, below_co, below_elab));
+        if (Hashtbl.length(spine_memo) > 4096) {
+          Hashtbl.reset(spine_memo);
         };
-      (
-        m,
-        SubexpProbeTargets.union(probes_in(it), below_wit),
-        co_ctx,
-        suffix_elab,
-      );
-    },
+        Hashtbl.replace(
+          spine_memo,
+          it.d_id,
+          {
+            m_elab: it.d_elab,
+            m_id: it.d_id,
+            m_map: it.d_map,
+            m_hole: it.d_hole,
+            m_exports: it.d_exports,
+            m_probe_ids: probe_ids,
+            m_below_wit: below_wit,
+            m_below_co: below_co,
+            m_below_elab: below_elab,
+            out_info: m' === m ? None : Id.Map.find_opt(it.d_id, m'),
+            out_wit,
+            out_co,
+            out_elab,
+          },
+        );
+        out;
+      },
     items,
     (merged, SubexpProbeTargets.empty, CoCtx.empty, None),
   );
