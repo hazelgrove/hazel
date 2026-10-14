@@ -1,0 +1,83 @@
+# DRAWER FOLDS #
+
+# A probe in drawer mode prints its samples below the line #
+# (toggle with the chevron, or cmd/ctrl-down on a probe). #
+# Big values fold: a folded part prints a summary on the #
+# rest of its line. The drawer opens parts breadth-first, #
+# stopping before the next one would not fit. #
+
+# Try these on the drawer under `beds`: #
+# - Hover a line. The tint and the caret beside it show #
+#   what a click does. #
+# - Click a summary to open it. Click its label or #
+#   opening bracket, or its closing one, to fold it. #
+# - Drag the drawer's bottom edge. A taller drawer opens #
+#   more; a shorter one folds more. Your clicks stay put. #
+# - Shift-drag inside the sample, or shift-left/right with #
+#   the probe focused, to change the width. Summaries use #
+#   whatever is left of their line. #
+
+let beds = [
+  (name="tomato", water=3, sun=true, tags=["vine", "summer", "red"], yield=(kg=4, grade="A")),
+  (name="basil", water=2, sun=true, tags=["herb"], yield=(kg=1, grade="B")),
+  (name="fern", water=5, sun=false, tags=["shade", "perennial"], yield=(kg=0, grade="C")),
+  (name="squash", water=4, sun=true, tags=["vine", "autumn"], yield=(kg=9, grade="A")),
+  (name="mint", water=3, sun=false, tags=["herb", "spreads", "perennial"], yield=(kg=2, grade="B")),
+  (name="carrot", water=2, sun=true, tags=["root"], yield=(kg=3, grade="A")),
+  (name="lettuce", water=4, sun=false, tags=["leafy", "spring"], yield=(kg=2, grade="B")),
+  (name="pepper", water=3, sun=true, tags=["summer", "hot"], yield=(kg=2, grade="A"))
+] in
+let _ = ^^probe_drawer(beds) in
+
+# LONG LISTS #
+
+# Short items pack across rows instead of one per row: #
+let squares: Int -> [Int] =
+  fun n -> if n == 0 then [] else squares(n - 1) @ [n * n] in
+let _ = ^^probe_drawer(squares(60)) in
+
+# A list too long for the drawer stops at a count. Click #
+# the count for another drawerful. #
+let _ = ^^probe_drawer(squares(600)) in
+
+# NESTED VALUES #
+
+# Constructors and tuples fold too. A folded constructor #
+# keeps its argument slots: Node(…, 40, …). Open a few #
+# levels, then fold the root `Node(` to start over. #
+type Tree =
+  + Leaf
+  + Node(Tree, Int, Tree) in
+let insert: (Tree, Int) -> Tree =
+  fun (t, x) ->
+    case t
+    | Leaf => Node(Leaf, x, Leaf)
+    | Node(l, y, r) =>
+      if x < y then Node(insert(l, x), y, r) else Node(l, y, insert(r, x))
+    end in
+let build: (Tree, [Int]) -> Tree =
+  fun (t, xs) ->
+    case xs
+    | [] => t
+    | x :: rest => build(insert(t, x), rest)
+    end in
+let _ =
+  ^^probe_drawer(
+    build(Leaf, [50, 30, 70, 20, 40, 60, 80, 10, 25, 35, 45, 55, 65, 75, 90, 5, 15, 33, 48, 62, 85, 95, 1, 12, 38])
+  ) in
+
+# MANY SAMPLES #
+
+# A probe inside a function has a sample per call. #
+# Double-click a sample to show all of them. #
+# Folds are shared by path: open `visits` in one sample #
+# and it opens in every sample. #
+# Width: resizing the first sample resizes them all. A #
+# later sample resizes alone, so it stays under the pointer. #
+let plots = [
+  (id=1, crop="kale", soil=(ph=62, wet=31), visits=[(day=2, note="weeded"), (day=5, note="watered"), (day=9, note="thinned")]),
+  (id=2, crop="leek", soil=(ph=68, wet=22), visits=[(day=3, note="mulched"), (day=6, note="watered")]),
+  (id=3, crop="pea", soil=(ph=71, wet=45), visits=[(day=1, note="staked"), (day=4, note="netted"), (day=8, note="fed"), (day=11, note="watered")]),
+  (id=4, crop="beet", soil=(ph=65, wet=28), visits=[(day=2, note="thinned"), (day=7, note="weeded")])
+] in
+map(plots, fun p -> ^^probe_drawer(p).crop)

@@ -15,6 +15,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
     ("Polymorphism", [%blob "polymorphism.hz"]),
     ("Cards", [%blob "cards.hz"]),
     ("Probes", [%blob "probes.hz"]),
+    ("Drawer Folds", [%blob "drawer-folds.hz"]),
     ("Livelits / Builtins", [%blob "livelits-builtins.hz"]),
   ]
   |> List.map(((name, text)) =>
