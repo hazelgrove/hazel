@@ -135,5 +135,10 @@ let reuse_pass =
       ~reuse_map: IncrEval.reuse_map=IncrEval.clean_reuse_map_of_env(env),
       d: DHExp.t,
     )
-    : IncrEval.t(EvaluatorState.t) =>
-  reuse_pass_for(~prev, ~eval_info, ~reuse_map, d);
+    : IncrEval.t(EvaluatorState.t) => {
+  /* The plan's entries come out of `prev`, closures and all, and a client
+   * still waiting on a result re-runs from them: they keep the maps those
+   * closures captured. */
+  ...reuse_pass_for(~prev, ~eval_info, ~reuse_map, d),
+  closure_maps: prev.closure_maps,
+};

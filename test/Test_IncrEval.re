@@ -3100,6 +3100,274 @@ let test_two_calls_deep_timing = () => {
   );
 };
 
+/* ---- closures carry their re-use map --------------------------------
+ *
+ * A call evaluates the body under the map the closure captured, as the
+ * formalism's App rule does -- whatever run, callstack or environment the
+ * closure came from. A closure whose map cannot be found raises
+ * IncrEval.ClosureMapMissing, so every test here also checks that none is
+ * missing. */
+
+/* Run `src` and then each edit in turn under `calculus`, threading the
+ * cache, and report the probe report and which probes the LAST run
+ * replayed. */
+let run_sequence_probes =
+    (~calculus: Calculus.t, ~src: string, ~edits: list(Exp.t => Exp.t)) =>
+  switch (Parser.to_zipper(~root=Exp, src)) {
+  | None => failwith("could not parse: " ++ src)
+  | Some(z) =>
+    let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+    let programs =
+      List.rev(
+        List.fold_left(
+          (acc, edit) => [edit(List.hd(acc)), ...acc],
+          [term],
+          edits,
+        ),
+      );
+    let targets_of = (p: Exp.t) => {
+      let (info_map, _) = statics_and_elab(p);
+      (info_map, targets_of_zipper(z, info_map));
+    };
+    let last = List.nth(programs, List.length(programs) - 1);
+    let (last_info, last_targets) = targets_of(last);
+    let labels = (id: Id.t) =>
+      switch (EvalInfo.find_opt(id, eval_info_of(last_info, last_targets))) {
+      | Some({elab_term, _}) => show(elab_term)
+      | None => Id.to_string(id)
+      };
+    let (prev, _) =
+      List.fold_left(
+        ((prev, _), p) => {
+          let (_, targets) = targets_of(p);
+          let (_, state) = eval_under(~calculus, ~prev, ~targets, p);
+          (state.incr_eval, ());
+        },
+        (IncrEval.empty, ()),
+        List.filteri((i, _) => i < List.length(programs) - 1, programs),
+      );
+    let cutoff = Sample.seq_counter^;
+    let (_, state) =
+      eval_under(~calculus, ~prev, ~targets=last_targets, last);
+    let probes = EvaluatorState.get_probes(state);
+    let replayed =
+      Id.Map.fold(
+        (id, _, acc) =>
+          switch (Sample.Map.lookup(id, probes)) {
+          | Some(samples)
+              when List.exists((s: Sample.t) => s.seq <= cutoff, samples) => [
+              labels(id),
+              ...acc,
+            ]
+          | _ => acc
+          },
+        last_targets,
+        [],
+      );
+    let (_, ref_state) =
+      eval_under(~calculus=Calculus.A0, ~targets=last_targets, last);
+    (
+      show_report(probe_report(last_targets, ref_state)),
+      show_report(probe_report(last_targets, state)),
+      List.sort(compare, replayed),
+    );
+  };
+
+/* Every calculus agrees with a0 at every step, has the same probe report
+ * at the last, and replays exactly `expect(c)` there. */
+let check_sequence_replays =
+    (
+      ~name: string,
+      ~src: string,
+      ~edits: list(Exp.t => Exp.t),
+      ~expect: Calculus.t => list(string),
+    ) => {
+  check_sequence(~name, ~src, ~edits);
+  List.iter(
+    (calculus: Calculus.t) => {
+      let (want, got, replayed) =
+        run_sequence_probes(~calculus, ~src, ~edits);
+      Printf.printf(
+        "CLOSURE %-44s %-5s replayed=[%s]\n",
+        name,
+        Calculus.name(calculus),
+        String.concat(",", replayed),
+      );
+      check(
+        string,
+        name ++ ": " ++ Calculus.name(calculus) ++ " probe samples",
+        want,
+        got,
+      );
+      check(
+        list(string),
+        name ++ ": " ++ Calculus.name(calculus) ++ " replays",
+        expect(calculus),
+        replayed,
+      );
+    },
+    Calculus.available,
+  );
+};
+
+let under_callstack_keys = (replayed, calculus: Calculus.t) =>
+  Calculus.capabilities(calculus).callstack_keys ? replayed : [];
+
+/* A top-level closure that comes out of the cache keeps the map it was
+ * created under. `f` is re-created in the second run, when `k` is already
+ * clean, and cached; the third run takes that closure from the cache and
+ * re-uses `k * 2` inside its body. Only `f(a)` is called, and `a` changes
+ * every run, so nothing but re-use inside the body can replay the probe. */
+let test_cached_closure_reuses_inside_body = () =>
+  check_sequence_replays(
+    ~name="cached closure re-uses inside its body",
+    ~src=
+      "let k = 5 in
+let f : Int -> Int = fun n -> let c = ^^probe(k * 2) in c + n + 1 in
+let z = (3, 4) in
+let (a, b) = z in
+f(a) * 100 + b",
+    ~edits=[lit(1, 2), lit(3, 7)],
+    ~expect=under_callstack_keys(["k * 2"]),
+  );
+
+/* The formalism's closures keep the map they were created under, even out
+ * of the cache: one created in the very first run, when every flag is
+ * dirty, re-uses nothing inside its body for as long as it stays cached. */
+let test_first_run_closure_keeps_dirty_map = () =>
+  check_sequence_replays(
+    ~name="first-run closure keeps its dirty map",
+    ~src=
+      "let k = 5 in
+let f : Int -> Int = fun n -> let c = ^^probe(k * 2) in c + n + 1 in
+let z = (3, 4) in
+let (a, b) = z in
+f(a) * 100 + b",
+    ~edits=[lit(3, 7), lit(7, 9)],
+    ~expect=_ =>
+    []
+  );
+
+/* A closure created beyond the depth guard -- a dozen calls deep, where no
+ * map is maintained -- and called back at the top level. Its map is built
+ * from what each step beyond the guard bound. `mk` is re-created in the
+ * second run, so in the third its map has `k` clean, and so does the map
+ * of every closure it makes: `k * 4` is re-used inside the call. */
+let test_closure_from_beyond_the_guard = () =>
+  check_sequence_replays(
+    ~name="closure created beyond the guard",
+    ~src=
+      "let k = 5 in
+let mk : Int -> (Int -> Int) =
+  fun n -> if n < 3 then (fun x -> ^^probe(k * 4) + x) else mk(n - 1) in
+let g = mk(11) in
+g(6) * 100 + g(7)",
+    ~edits=[lit(3, 2), lit(11, 12)],
+    ~expect=under_callstack_keys(["k * 4"]),
+  );
+
+/* Prelude functions are fixpoints in the initial environment, unwrapped in
+ * the caller's; `map` is looked up and called inside the guard, recurses
+ * through and beyond it, and calls back the closure passed to it at every
+ * depth -- all of which need a closure map. Nothing re-uses: the prelude's
+ * code has no statics, so nothing inside it is cached and every name it
+ * binds, `x` passed to the closure among them, is Dirty. */
+let test_prelude_closures = () =>
+  check_sequence_replays(
+    ~name="closures through the prelude",
+    ~src=
+      "let k = 5 in
+let xs = [1, 2, 3, 4, 8, 9] in
+let ys = map(xs, fun x -> ^^probe(x * 2) + k) in
+fold_left(ys, fun (acc, y) -> acc + y, 0)",
+    ~edits=[lit(5, 6), lit(6, 7)],
+    ~expect=_ =>
+    []
+  );
+
+/* A type function's body runs under the type function's environment
+ * without a call frame, so it must run under that environment's map too,
+ * not the caller's: here the caller's `x` is another binding. */
+let test_type_function_body_map = () =>
+  check_sequence(
+    ~name="type function body under its own environment",
+    ~src=
+      "let x = 1 in
+let f = typfun A -> x + 0 in
+let x = 2 in
+f@<Int> * 10 + x",
+    ~edits=[lit(1, 5), lit(2, 7), lit(5, 1)],
+  );
+
+/* While a result is pending the client re-runs from what has streamed so
+ * far, or from the re-use plan: both must bring the maps of the closures
+ * they hand back. */
+let test_closure_maps_survive_streaming_and_plan = () => {
+  let src = "let k = 5 in
+let f : Int -> Int = fun n -> k * 2 + n in
+let z = (3, 4) in
+let (a, b) = z in
+f(a) * 100 + f(b)";
+  let before = parse_exp(src);
+  let after = lit(3, 7, before);
+  let want = reference(after);
+  let (info_map, elab) = statics_and_elab(before);
+  let eval_info = eval_info_of(info_map, Id.Map.empty);
+  List.iter(
+    (calculus: Calculus.t) => {
+      let evaluation =
+        Evaluator.start_yielding_evaluation(
+          ~calculus,
+          ~eval_info,
+          ~env=Builtins.env_init,
+          elab,
+        );
+      let rec finish = (streamed, evaluation) => {
+        let streamed =
+          IncrEval.merge_outbox(
+            Evaluator.drain_streaming_outbox(evaluation),
+            streamed,
+          );
+        switch (Evaluator.run_yielding_slice(~step_budget=50, evaluation)) {
+        | EvaluationCompleted((_, state)) => (streamed, state)
+        | EvaluationYielded(evaluation) => finish(streamed, evaluation)
+        };
+      };
+      let (streamed, state) = finish(IncrEval.empty_outbox, evaluation);
+      let streamed =
+        IncrEval.merge_outbox(
+          Evaluator.drain_streaming_outbox(evaluation),
+          streamed,
+        );
+      let plan =
+        ReusePass.reuse_pass(
+          ~prev=state.incr_eval,
+          ~eval_info=
+            eval_info_of(fst(statics_and_elab(after)), Id.Map.empty),
+          ~env=Builtins.env_init,
+          snd(statics_and_elab(after)),
+        );
+      List.iter(
+        ((what, prev)) => {
+          let (v, _) = eval_under(~calculus, ~prev, after);
+          check(
+            string,
+            Calculus.name(calculus) ++ " from " ++ what ++ " agrees with a0",
+            want,
+            show(v),
+          );
+        },
+        [
+          ("the streamed entries", streamed.completed),
+          ("the re-use plan", plan),
+          ("the final cache", state.incr_eval),
+        ],
+      );
+    },
+    Calculus.available,
+  );
+};
+
 let tests = (
   "IncrEval",
   [
@@ -3193,6 +3461,32 @@ let tests = (
       test_case_flag_clean_scrutinee_patterns_swapped,
     ),
     test_case("two calls deep, timing", `Quick, test_two_calls_deep_timing),
+    test_case(
+      "cached closure re-uses inside its body",
+      `Quick,
+      test_cached_closure_reuses_inside_body,
+    ),
+    test_case(
+      "first-run closure keeps its dirty map",
+      `Quick,
+      test_first_run_closure_keeps_dirty_map,
+    ),
+    test_case(
+      "closure created beyond the guard",
+      `Quick,
+      test_closure_from_beyond_the_guard,
+    ),
+    test_case("closures through the prelude", `Quick, test_prelude_closures),
+    test_case(
+      "type function body under its own environment",
+      `Quick,
+      test_type_function_body_map,
+    ),
+    test_case(
+      "closure maps survive streaming and the plan",
+      `Quick,
+      test_closure_maps_survive_streaming_and_plan,
+    ),
     test_case(
       "probe under partly-clean tuple",
       `Quick,

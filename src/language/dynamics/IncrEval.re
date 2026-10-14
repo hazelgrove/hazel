@@ -132,11 +132,16 @@ type entry('state) = {
  *
  * Callstacks are projected to frame ids, innermost first (which is what
  * CallStack.equal compares), so the path into the trie is the reverse of a
- * callstack: outermost call first. */
+ * callstack: outermost call first.
+ *
+ * `closure_maps` is the re-use map each closure in the cached values
+ * captured, keyed by the id of the environment node it closed over (see
+ * `closure_maps` below). Only the root's is ever non-empty. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('state) = {
   entries: Id.Map.t(entry('state)),
   children: Id.Map.t(t('state)),
+  closure_maps: Id.Map.t(reuse_map),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -154,6 +159,7 @@ type outbox('state) = {
 let empty: t('state) = {
   entries: Id.Map.empty,
   children: Id.Map.empty,
+  closure_maps: Id.Map.empty,
 };
 
 let empty_outbox: outbox('state) = {
@@ -271,6 +277,17 @@ let rec add_stream = (stream: t('state), incr: t('state)): t('state) => {
       incr.children,
       stream.children,
     ),
+  /* Empty but at a stream the client merges -- the evaluator's own merges
+   * never carry closure maps -- so keep that case free. A node's map never
+   * changes once recorded, so either side's is the same. */
+  closure_maps:
+    Id.Map.is_empty(stream.closure_maps)
+      ? incr.closure_maps
+      : Id.Map.union(
+          (_, map, _) => Some(map),
+          stream.closure_maps,
+          incr.closure_maps,
+        ),
 };
 
 let merge_outbox =
@@ -360,6 +377,7 @@ let copy_descendant_entries =
           node.children,
         );
       {
+        ...node,
         entries,
         children,
       };
@@ -1028,104 +1046,405 @@ let update_maps_after_binding =
 let cacheable = (~depth_limit: int, call_stack: CallStack.t): bool =>
   CallStack.depth_within(~limit=depth_limit, call_stack);
 
-/* Crossing into a function body swaps the environment for the closure's, so
- * the caller's re-use map stops describing what the names in scope are bound
- * to. a2's App rule takes the body's rho from the closure (lambda is
- * rho-annotated in figure eval2); Hazel's closures carry no re-use map, so we
- * keep the part of the caller's that is still justified: a binding survives
- * the crossing when the body's environment binds that name to the same value
- * the caller's map was describing, which is what makes the caller's
- * provenance a true statement about the body's environment too.
+/* The re-use map each closure captured.
  *
- * Sameness is physical equality first and Exp.fast_equal second — the same
- * value often is the same object (the closure's environment shares cells with
- * the caller's), but not when one side came out of the cache and the other
- * was rebuilt. fast_equal compares closures by environment id, so this stays
- * off the deep-closure-traversal path that clean/dirty flags exist to avoid.
+ * The formalism's closures carry it: `closure (env : ...) (reuse : ReuseMap)
+ * x body`, and the App rule evaluates the body under that captured map,
+ * never the caller's. Hazel's runtime closures carry the environment only,
+ * so the map is kept beside them, keyed by the id of the environment node a
+ * closure closes over: an environment and its map are extended in lockstep
+ * -- the formalism's `sigma.set x v` beside `rho.set x (...)` -- so a node
+ * names one map. A lookup that misses is a bug, never a fallback: there is
+ * no sound map to guess (see ClosureMapMissing).
  *
- * Dropping is the conservative side: a dropped binding is simply absent from
- * the map, and reuse_map_for_co_ctx then refuses re-use for any expression
- * that mentions it. */
-let transport_across_env =
+ * A node's map comes from one of three places, tried in this order:
+ *
+ *  - recorded this run, by the step that minted the node. Inside the
+ *    guard the map is being maintained anyway and is stored whole
+ *    (`record_captured`). Beyond it nothing is maintained and every flag is
+ *    Dirty, so the step stores only what it bound, over which node, in O(1)
+ *    (`record_bindings`); the map is built from that only if a closure over
+ *    the node is called back inside the guard, and kept once built.
+ *  - the initial environment, each node seeded with the clean map of the
+ *    bindings at and below it, as the top-level map is seeded.
+ *  - carried from the previous run. A closure that comes out of the cache
+ *    closed over a node minted then, and the formalism hands it back with
+ *    the map it captured then. `carry` keeps exactly the maps of closures
+ *    reachable from the new cache's values, so what is carried is bounded
+ *    by what is cached.
+ *
+ * All of it only under callstack keys: below the top level nothing else is
+ * cached, so without them no closure's map is ever read. */
+exception
+  ClosureMapMissing({
+    env_node: Id.t,
+    closure: option(string),
+  });
+
+type binding = {
+  pat: Pat.t,
+  source_id: Id.t,
+  flag,
+};
+
+type closure_node =
+  | Captured(reuse_map)
+  /* The map of `base` (the empty map for the empty environment) extended
+   * by `bindings`, in order -- what update_maps_after_binding would have
+   * built had the map been maintained. */
+  | Binds({
+      base: option(Id.t),
+      bindings: list(binding),
+    });
+
+type closure_maps = {
+  recorded: Hashtbl.t(Id.t, closure_node),
+  /* Recorded beyond the guard, newest first, and not yet in `recorded`.
+   * A step there only conses onto this; it is moved into `recorded` the
+   * first time a lookup finds nothing anywhere else. */
+  beyond: ref(list((Id.t, closure_node))),
+  seeded: Id.Map.t(reuse_map),
+  carried: Id.Map.t(reuse_map),
+  /* Environment nodes already walked for the streaming outbox this run. */
+  streamed: Hashtbl.t(Id.t, unit),
+};
+
+/* The top node of `env`, or None for the empty environment. */
+let env_node = (env: Environment.t(Exp.t)): option(Id.t) =>
+  switch (env) {
+  | Empty => None
+  | E(e) => Some(e.id)
+  };
+
+/* The environment `n` nodes down the spine of `env`. */
+let rec drop_env = (n: int, env: Environment.t(Exp.t)): Environment.t(Exp.t) =>
+  switch (n, env) {
+  | (0, _)
+  | (_, Empty) => env
+  | (_, E(e)) => drop_env(n - 1, e.prev_env)
+  };
+
+/* Every node of an initial environment, mapped to the clean map of the
+ * bindings at and below it. The same environment value is handed to every
+ * run (Builtins.env_init), so this is built once per environment. */
+let seed_memo: ref(option((Environment.t(Exp.t), Id.Map.t(reuse_map)))) =
+  ref(None);
+
+let seed_maps = (env: Environment.t(Exp.t)): Id.Map.t(reuse_map) =>
+  switch (seed_memo^) {
+  | Some((seeded_env, seeds)) when seeded_env === env => seeds
+  | _ =>
+    let rec go = (env: Environment.t(Exp.t)) =>
+      switch (env) {
+      | Empty => (empty_reuse_map, Id.Map.empty)
+      | E({id, binding: (name, _), prev_env, _}) =>
+        let (below, seeds) = go(prev_env);
+        /* As clean_reuse_map_of_env, so the top node's map is the
+         * top-level map exactly. */
+        let map =
+          Maps.StringMap.add(
+            name,
+            {
+              source: Id.invalid,
+              path: [],
+              flag: Clean,
+            },
+            below,
+          );
+        (map, Id.Map.add(id, map, seeds));
+      };
+    let (_, seeds) = go(env);
+    seed_memo := Some((env, seeds));
+    seeds;
+  };
+
+/* `top_map` is the map the evaluation starts under. When it is the one
+ * derived from `env` every node of `env` is seeded; a map supplied from
+ * outside describes the whole environment only, so it seeds the top node
+ * alone. */
+let new_closure_maps =
     (
-      ~from_env: Environment.t(Exp.t),
-      ~to_env: Environment.t(Exp.t),
-      reuse_map: reuse_map,
+      ~prev: t('state),
+      ~env: Environment.t(Exp.t),
+      ~top_map: option(reuse_map),
+    )
+    : closure_maps => {
+  recorded: Hashtbl.create(1024),
+  beyond: ref([]),
+  seeded:
+    switch (top_map, env_node(env)) {
+    | (None, _) => seed_maps(env)
+    | (Some(map), Some(id)) => Id.Map.singleton(id, map)
+    | (Some(_), None) => Id.Map.empty
+    },
+  carried: prev.closure_maps,
+  streamed: Hashtbl.create(64),
+};
+
+/* First write wins: a step that mints no node presents an environment some
+ * earlier step already described. */
+let record = (maps: closure_maps, env: Environment.t(Exp.t), node) =>
+  switch (env) {
+  | Empty => ()
+  | E(e) =>
+    if (!Hashtbl.mem(maps.recorded, e.id)) {
+      Hashtbl.replace(maps.recorded, e.id, node);
+    }
+  };
+
+/* Inside the guard: the map is maintained, so store it whole. */
+let record_captured =
+    (maps: closure_maps, ~env: Environment.t(Exp.t), map: reuse_map) =>
+  record(maps, env, Captured(map));
+
+/* Beyond the guard: the step minted the top `added` nodes of `env` by
+ * binding `bindings`, over the environment below them. No lookup and no
+ * hashing: a node is minted once, so there is nothing to check. */
+let record_bindings =
+    (
+      maps: closure_maps,
+      ~env: Environment.t(Exp.t),
+      ~added: int,
+      bindings: list(binding),
+    ) =>
+  switch (env) {
+  | Empty => ()
+  | E(e) =>
+    maps.beyond :=
+      [
+        (
+          e.id,
+          Binds({
+            base: env_node(drop_env(added, env)),
+            bindings,
+          }),
+        ),
+        ...maps.beyond^,
+      ]
+  };
+
+/* Move what was recorded beyond the guard into `recorded`. Oldest first,
+ * so that, as in `record`, a node's first record is the one kept. */
+let index_beyond = (maps: closure_maps): bool =>
+  switch (maps.beyond^) {
+  | [] => false
+  | beyond =>
+    maps.beyond := [];
+    List.iter(
+      ((id, node)) =>
+        if (!Hashtbl.mem(maps.recorded, id)) {
+          Hashtbl.replace(maps.recorded, id, node);
+        },
+      List.rev(beyond),
+    );
+    true;
+  };
+
+/* The map of the node `id`, building it from recorded bindings if need be.
+ * Iterative, since a chain of Binds is as long as the recursion that made
+ * it, and memoizing every node built on the way. */
+let map_of_node =
+    (maps: closure_maps, ~closure: option(string), id: Id.t): reuse_map => {
+  let rec known = id =>
+    switch (Hashtbl.find_opt(maps.recorded, id)) {
+    | Some(Captured(map)) => Some(`Map(map))
+    | Some(Binds({base, bindings})) => Some(`Binds((base, bindings)))
+    | None =>
+      switch (Id.Map.find_opt(id, maps.seeded)) {
+      | Some(map) => Some(`Map(map))
+      | None =>
+        switch (Id.Map.find_opt(id, maps.carried)) {
+        | Some(map) => Some(`Map(map))
+        | None => index_beyond(maps) ? known(id) : None
+        }
+      }
+    };
+  /* Walk down to a node whose map is known, stacking the bindings above. */
+  let rec down = (id, pending) =>
+    switch (known(id)) {
+    | Some(`Map(map)) => (map, pending)
+    | Some(`Binds(None, bindings)) => (
+        empty_reuse_map,
+        [(id, bindings), ...pending],
+      )
+    | Some(`Binds(Some(base), bindings)) =>
+      down(base, [(id, bindings), ...pending])
+    | None =>
+      raise(
+        ClosureMapMissing({
+          env_node: id,
+          closure,
+        }),
+      )
+    };
+  let (map, pending) = down(id, []);
+  List.fold_left(
+    (map, (id, bindings)) => {
+      let map =
+        List.fold_left(
+          (map, {pat, source_id, flag}) =>
+            with_pat_provenance(~source_id, ~flag, pat, map),
+          map,
+          bindings,
+        );
+      Hashtbl.replace(maps.recorded, id, Captured(map));
+      map;
+    },
+    map,
+    pending,
+  );
+};
+
+/* The map a closure over `env` captured. */
+let closure_map =
+    (
+      maps: closure_maps,
+      ~closure: option(string),
+      env: Environment.t(Exp.t),
     )
     : reuse_map =>
-  Maps.StringMap.filter(
-    (name, _) =>
-      switch (
-        Environment.lookup(from_env, name),
-        Environment.lookup(to_env, name),
-      ) {
-      | (Some(before), Some(after)) =>
-        before === after || Exp.fast_equal(before, after)
-      | (Some(_) | None, _) => false
-      },
-    reuse_map,
-  );
-
-/* The re-use map a closure captured, keyed by the id of the environment node
- * it closed over.
- *
- * The formalism does not need this: its closures carry the map beside the
- * environment — `closure (env : ...) (reuse : ReuseMap) x body` — and the App
- * rule evaluates the body under that captured map, never the caller's. Hazel's
- * runtime closures carry the environment only, so transport_across_env above
- * reconstructs an approximation of it from the caller's map, paying a value
- * comparison per binding and dropping whatever it cannot justify. Recording
- * the map at closure creation and looking it up at the call carries the same
- * information by a different route: no comparison, and nothing dropped. */
-type closure_reuse = Id.Map.t(reuse_map);
-
-let no_closure_reuse: closure_reuse = Id.Map.empty;
-
-let record_closure_reuse =
-    (~env: Environment.t(Exp.t), reuse_map: reuse_map, table: closure_reuse)
-    : closure_reuse =>
   switch (env) {
-  /* The empty environment has no node to key on, and closes over no
-   * bindings, so there is nothing a map over it could say. */
-  | Empty => table
-  /* First write wins, and must: a map's flags say whether each binding's
-   * value survived the previous run, and update_reuse_map_after_effects
-   * recomputes them against a reused-id set that grows as evaluation
-   * proceeds. So one environment node is described by maps with different
-   * flags at different moments, and only the write taken as the node was
-   * created describes the moment a closure over it captures. Overwriting
-   * hands a closure flags from a later moment and marks bindings clean that
-   * it has no right to treat as clean, which produces wrong values. */
-  | E(e) when Id.Map.mem(e.id, table) => table
-  | E(e) => Id.Map.add(e.id, reuse_map, table)
+  /* Nothing bound, so nothing for a map to say. */
+  | Empty => empty_reuse_map
+  | E(e) => map_of_node(maps, ~closure, e.id)
   };
 
-/* An application extends the closure's environment with the parameter
- * bindings, so the environment the closure captured sits exactly `added`
- * nodes down the spine of the body's: `added` is how many variables the
- * application's pattern bound, and Environment.extend adds one node each.
- *
- * The lookup is exact, and must not fall back to a search outward. An
- * enclosing node's map looks like a conservative answer and is sound, but it
- * was recorded before the closure's own bindings existed, so it omits them
- * and reuse_map_for_co_ctx then refuses re-use for any body expression
- * mentioning one -- losing more re-use than transport, which at least
- * justifies those bindings against the body's environment. None, leaving the
- * caller to transport, is the honest miss. */
-let reuse_map_of_closure_env =
-    (~table: closure_reuse, ~added: int, env: Environment.t(Exp.t))
-    : option(reuse_map) => {
-  let rec drop = (n: int, env: Environment.t(Exp.t)) =>
-    switch (n, env) {
-    | (0, _) => Some(env)
-    | (_, Empty) => None
-    | (_, E(e)) => drop(n - 1, e.prev_env)
+/* Call `f` on the environment of every closure in a value, through
+ * whatever contains it -- data structures, and the environments of other
+ * closures, each visited once. A function body is code and holds no
+ * runtime closure, so it is not entered. */
+let iter_closure_envs =
+    (~visited: Hashtbl.t(Id.t, unit), f: Environment.t(Exp.t) => unit)
+    : (Exp.t => unit) => {
+  let rec walk_env = (env: Environment.t(Exp.t)) =>
+    switch (env) {
+    | Empty => ()
+    | E(e) =>
+      if (!Hashtbl.mem(visited, e.id)) {
+        Hashtbl.replace(visited, e.id, ());
+        value(snd(e.binding));
+        walk_env(e.prev_env);
+      }
+    }
+  and value = (v: Exp.t) =>
+    switch (v.term) {
+    | Atom(_)
+    | Var(_)
+    | Label(_)
+    | Constructor(_)
+    | BuiltinFun(_)
+    | EmptyHole
+    | Fun(_)
+    | TypFun(_) => ()
+    | Closure(env, body) =>
+      f(env);
+      walk_env(env);
+      switch (body.term) {
+      | Fun(_)
+      | TypFun(_) => ()
+      | _ => value(body)
+      };
+    | Tuple(vs)
+    | ListLit(vs) => List.iter(value, vs)
+    | Cons(a, b)
+    | Ap(_, a, b)
+    | TupLabel(a, b) =>
+      value(a);
+      value(b);
+    | Parens(a)
+    | Asc(a, _) => value(a)
+    /* Unwrapping a fixpoint extends the environment it is unwrapped in,
+     * not this one, so nothing is evaluated under it; walked anyway, so
+     * that nothing stored in a value is missed. */
+    | FixF(_, _, Some(fix_env)) => walk_env(fix_env)
+    | FixF(_, _, None) => ()
+    | _ =>
+      let _ =
+        TermBase.Exp.map_term(
+          ~f_exp=
+            (continue, e: Exp.t) =>
+              switch (e.term) {
+              | Closure(_) =>
+                value(e);
+                e;
+              | _ => continue(e)
+              },
+          v,
+        );
+      ();
     };
-  switch (drop(added, env)) {
-  | None
-  | Some(Empty) => None
-  | Some(E(e)) => Id.Map.find_opt(e.id, table)
+  value;
+};
+
+/* `carried` extended with the map of every closure reachable from `v`. */
+let carry_value =
+    (
+      maps: closure_maps,
+      ~visited: Hashtbl.t(Id.t, unit),
+      carried: Id.Map.t(reuse_map),
+      v: Exp.t,
+    )
+    : Id.Map.t(reuse_map) => {
+  let carried = ref(carried);
+  iter_closure_envs(
+    ~visited,
+    env =>
+      switch (env) {
+      | Empty => ()
+      | E(e) =>
+        if (!Id.Map.mem(e.id, carried^)) {
+          carried :=
+            Id.Map.add(
+              e.id,
+              map_of_node(maps, ~closure=None, e.id),
+              carried^,
+            );
+        }
+      },
+    v,
+  );
+  carried^;
+};
+
+/* The closure maps the next run needs: those of every closure reachable
+ * from a value in `incr`, the cache this run built. A closure the next run
+ * can obtain without evaluating comes out of that cache, and nothing else
+ * can carry over, so the carried table is pruned to the live closures every
+ * run and does not grow with the number of runs. */
+let carry = (maps: closure_maps, incr: t('state)): t('state) => {
+  let visited = Hashtbl.create(256);
+  let rec walk = (carried, incr: t('state)) =>
+    Id.Map.fold(
+      (_, child, carried) => walk(carried, child),
+      incr.children,
+      Id.Map.fold(
+        (_, entry: entry('state), carried) =>
+          carry_value(maps, ~visited, carried, entry.value),
+        incr.entries,
+        carried,
+      ),
+    );
+  {
+    ...incr,
+    closure_maps: walk(Id.Map.empty, incr),
   };
+};
+
+/* A client still waiting on a result re-runs from the entries streamed so
+ * far, so each streamed entry brings the maps of the closures in it. */
+let carry_streamed =
+    (maps: closure_maps, v: Exp.t, outbox: outbox('state)): outbox('state) => {
+  ...outbox,
+  completed: {
+    ...outbox.completed,
+    closure_maps:
+      carry_value(
+        maps,
+        ~visited=maps.streamed,
+        outbox.completed.closure_maps,
+        v,
+      ),
+  },
 };
 
 let reuse_check =

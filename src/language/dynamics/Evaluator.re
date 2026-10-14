@@ -112,6 +112,29 @@ let binding_flag =
   | _ => Dirty
   };
 
+/* How many environment nodes a step's bindings mint: Environment.extend
+ * adds one per variable a pattern binds. */
+let nodes_bound = (effects: list(EvaluatorState.effect)): int =>
+  List.fold_left(
+    (n, effect) =>
+      switch (effect) {
+      | EvaluatorState.RecordPatMatch({pat: {term: Var(_), _}, _}) => n + 1
+      | EvaluatorState.RecordPatMatch({pat, _}) =>
+        n + List.length(Pat.bound_vars(pat))
+      | _ => n
+      },
+    0,
+    effects,
+  );
+
+let called_name = (effects: list(EvaluatorState.effect)): option(string) =>
+  List.find_map(
+    fun
+    | EvaluatorState.RecordStackFrame(name, _, _) => name
+    | _ => None,
+    effects,
+  );
+
 let rec evaluate =
         // Constants
         (
@@ -123,7 +146,7 @@ let rec evaluate =
            * the callstack_keys capability passes. */
           ~depth_limit: int,
           /* Each node's flag, as it finished, for the whole evaluation.
-           * Shared like `closure_reuse`. */
+           * Shared like `closure_maps`. */
           ~flags: IncrEval.flags,
           ~eval_info: EvalInfo.t,
           // Call Stack
@@ -132,10 +155,11 @@ let rec evaluate =
           ~delegations: list(delegation),
           // Inputs
           ~reuse_map: IncrEval.reuse_map,
-          /* Re-use maps captured at closure creation, so a call can read the
-           * closure's own map instead of reconstructing one from the
-           * caller's. Shared for the whole evaluation, like `outbox`. */
-          ~closure_reuse: ref(IncrEval.closure_reuse),
+          /* The re-use map each closure captured, so a call reads the
+           * closure's own map as the formalism's App rule does. Shared for
+           * the whole evaluation, like `outbox`; None unless callstack keys
+           * are on, since only then is a map read inside a call. */
+          ~closure_maps: option(IncrEval.closure_maps),
           env,
           exp: DHExp.t,
           // Outputs
@@ -157,7 +181,7 @@ let rec evaluate =
       ~flags,
       ~eval_info,
       ~outbox,
-      ~closure_reuse,
+      ~closure_maps,
     );
   let expr_id = DHExp.rep_id(exp);
   /* A `match` or `if` takes its flag from the arm it continues into, which
@@ -212,6 +236,19 @@ let rec evaluate =
   /* The cache key for this evaluation, or None when the guard refuses it. */
   let cache_key = (call_stack: CallStack.t): option(list(Id.t)) =>
     cacheable(call_stack) ? Some(CallStack.ids_of_stack(call_stack)) : None;
+  /* Whatever is evaluated inside a Closure runs under that closure's
+   * environment, so under that environment's map. A step that binds names
+   * has already left exactly that map to its continuation; this is for the
+   * Closures no binding step built -- a type function's body, applied
+   * without a call frame, runs under the type function's environment, not
+   * the caller's. */
+  let reuse_map =
+    switch (closure_maps, exp.term) {
+    | (Some(maps), Closure(closure_env, _))
+        when track_reuse && cacheable(call_stack) =>
+      IncrEval.closure_map(maps, ~closure=None, closure_env)
+    | _ => reuse_map
+    };
   /* Outbox publication keys only on proper program nodes
    * (EvalInfo.is_program_node).
    * Administrative/stepped intermediates never publish: doing so either
@@ -324,9 +361,9 @@ let rec evaluate =
         reuse_map;
       } else {
         /* A call replaces the environment with the closure's rather than
-         * extending it, so the map has to be transported across the switch
-         * before the parameter binding is added on top of it — a2's App rule
-         * evaluates the body under rho'[x |-> <uid(e2), f>]. */
+         * extending it, so the map is switched to the closure's before the
+         * parameter binding is added on top of it — a2's App rule evaluates
+         * the body under rho'[x |-> <uid(e2), f>]. */
         let entered_call =
           List.exists(
             fun
@@ -346,38 +383,31 @@ let rec evaluate =
         let base =
           switch (body_env) {
           | Some(body_env) =>
-            /* The formalism's App rule reads rho straight off the closure, so
-             * when we have the captured map, use it. The lookup is exact: it
-             * will not substitute an enclosing environment's map, because such
-             * a map predates the closure's own bindings and would lose more
-             * re-use than transport does. Falling back keeps the old behaviour
-             * for closures we never recorded — created beyond the guard's
-             * depth, or before the map was being maintained. */
-            switch (
-              IncrEval.reuse_map_of_closure_env(
-                ~table=closure_reuse^,
-                ~added=
-                  List.fold_left(
-                    (n, effect) =>
-                      switch (effect) {
-                      | EvaluatorState.RecordPatMatch({pat, _}) =>
-                        n + List.length(Pat.bound_vars(pat))
-                      | _ => n
-                      },
-                    0,
-                    effects,
-                  ),
-                body_env,
+            /* The formalism's App rule reads rho straight off the closure.
+             * The closure's environment sits exactly as many nodes down the
+             * body's as the application's pattern bound. */
+            switch (closure_maps) {
+            | Some(maps) =>
+              IncrEval.closure_map(
+                maps,
+                ~closure=called_name(effects),
+                IncrEval.drop_env(nodes_bound(effects), body_env),
               )
-            ) {
-            | Some(captured) => captured
+            /* A call is inside the guard only under callstack keys, and
+             * those always keep closure maps. */
             | None =>
-              IncrEval.transport_across_env(
-                ~from_env=env,
-                ~to_env=body_env,
-                reuse_map,
+              failwith(
+                "Evaluator: call inside the guard without closure maps",
               )
             }
+          /* A type function's body runs under the type function's
+           * environment, without a call frame, so at the caller's callstack
+           * and inside the guard. Only callstack keys keep the map of that
+           * environment (the Closure case at the top of `evaluate` reads it);
+           * without them the body gets no map at all, re-using nothing that
+           * mentions a variable rather than the caller's map, which names
+           * the caller's bindings. */
+          | None when kind == Some(TypFunAp) && Option.is_none(closure_maps) => IncrEval.empty_reuse_map
           | None => reuse_map
           };
         /* The argument was evaluated out here, so its flag is read at the
@@ -449,29 +479,52 @@ let rec evaluate =
     | _ => ()
     };
 
-    /* Record the environment this step produced together with the map that
-     * describes it. A binding step extends the environment and extends the
-     * map in the same breath -- the formalism's `sigma_c.set x v` beside its
-     * `rho_c.set x (...)` -- so pairing the two here is what later lets an
-     * application read rho off the closure instead of rebuilding it. Keyed on
-     * the new environment's own node, which is what a closure capturing it
-     * will present at the call.
-     *
-     * Only when the map is being maintained: otherwise `body_reuse_map` is
-     * just the incoming map, which does not describe the extended
-     * environment, and recording it would hand out a map missing the very
-     * binding the step introduced. */
-    if (maintaining_reuse_map) {
-      switch (next.term) {
-      | Closure(produced_env, _) =>
-        closure_reuse :=
-          IncrEval.record_closure_reuse(
-            ~env=produced_env,
-            body_reuse_map,
-            closure_reuse^,
-          )
-      | _ => ()
+    /* Record the map of each environment node this step minted. A binding
+     * step extends the environment and the map in the same breath -- the
+     * formalism's `sigma_c.set x v` beside its `rho_c.set x (...)` -- so this
+     * is the map a closure over the new node captures. Inside the guard that
+     * map is `body_reuse_map`. Beyond it no map is maintained, so the step
+     * records only what it bound, in O(1), and the map is built from that if
+     * a closure over the node is ever called back inside the guard. Every
+     * flag there is Dirty, except a parameter whose argument the guard's
+     * last cacheable frame evaluated. A step that mints no node presents an
+     * environment an earlier step already described. */
+    switch (closure_maps, next.term) {
+    | (Some(maps), Closure(produced_env, _)) =>
+      let added = nodes_bound(effects);
+      if (added == 0) {
+        ();
+      } else if (maintaining_reuse_map) {
+        IncrEval.record_captured(maps, ~env=produced_env, body_reuse_map);
+      } else {
+        let call_stack_ids =
+          cacheable(step_call_stack)
+            ? Some(CallStack.ids_of_stack(step_call_stack)) : None;
+        IncrEval.record_bindings(
+          maps,
+          ~env=produced_env,
+          ~added,
+          List.filter_map(
+            fun
+            | EvaluatorState.RecordPatMatch({pat, rhs, _}) =>
+              Some(
+                IncrEval.{
+                  pat,
+                  source_id: DHExp.rep_id(rhs),
+                  flag:
+                    switch (call_stack_ids) {
+                    | Some(call_stack_ids) =>
+                      binding_flag(~flags, ~call_stack_ids, ~kind, rhs)
+                    | None => Dirty
+                    },
+                },
+              )
+            | _ => None,
+            effects,
+          ),
+        );
       };
+    | _ => ()
     };
 
     Trampoline.return((is_finished, call_stack, body_reuse_map, kind, next));
@@ -772,7 +825,12 @@ let rec evaluate =
          * through the evaluation state instead. */
         switch (outbox) {
         | Some(outbox) when call_stack == [] =>
-          outbox := IncrEval.add_outbox_entry(expr_id, entry, outbox^)
+          outbox := IncrEval.add_outbox_entry(expr_id, entry, outbox^);
+          switch (closure_maps) {
+          | Some(maps) =>
+            outbox := IncrEval.carry_streamed(maps, entry.value, outbox^)
+          | None => ()
+          };
         | Some(_)
         | None => ()
         };
@@ -864,6 +922,12 @@ let prepare_evaluation =
    * remove_pat_bindings walk dominates evaluation otherwise. */
   let track_reuse =
     reuse && (!IncrEval.is_empty(prev) || EvalInfo.has_statics(eval_info));
+  /* Only a call reads a closure's map, and only callstack keys cache
+   * anything inside a call, so no other calculus keeps them. */
+  let closure_maps =
+    caps.callstack_keys && track_reuse
+      ? Some(IncrEval.new_closure_maps(~prev, ~env, ~top_map=reuse_map))
+      : None;
   let reuse_map =
     switch (reuse_map) {
     | Some(m) => m
@@ -885,11 +949,25 @@ let prepare_evaluation =
       ~flags=IncrEval.new_flags(),
       ~parent_state=state,
       ~outbox,
-      ~closure_reuse=ref(IncrEval.no_closure_reuse),
+      ~closure_maps,
       ~current_top_id=None,
       env,
       d,
     );
+  /* Once the run is over, hand the next one the maps of the closures its
+   * cache holds. */
+  let result =
+    switch (closure_maps) {
+    | None => result
+    | Some(maps) =>
+      let.trampoline value = result;
+      state :=
+        {
+          ...state^,
+          incr_eval: IncrEval.carry(maps, state^.incr_eval),
+        };
+      Trampoline.return(value);
+    };
   (state, result);
 };
 
