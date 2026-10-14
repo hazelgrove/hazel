@@ -339,7 +339,18 @@ let nineties_face = () => {
 let tests = (
   "Unproject",
   slides()
-  |> List.map(f => test_case(f, `Quick, check_slide(f)))
+  /* A slide too long for the per-PR corpus parses (ParsedCorpus.long_text,
+     the Dress Up slides) is checked here in the full tests only: these
+     ten were 229 s of the quick suite's 571 s, on a laptop. */
+  |> List.map(f =>
+       test_case(
+         f,
+         String.length(read(Filename.concat(root(), f)))
+         > ParsedCorpus.long_text
+           ? `Slow : `Quick,
+         check_slide(f),
+       )
+     )
   |> List.append([
        test_case("Splices in Text", `Quick, splices_in_text),
        test_case("Emotion (Kids' Choice)", `Quick, kids_emotion),
