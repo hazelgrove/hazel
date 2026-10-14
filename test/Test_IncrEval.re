@@ -3231,12 +3231,13 @@ f(a) * 100 + b",
     ~expect=under_callstack_keys(["k * 2"]),
   );
 
-/* The formalism's closures keep the map they were created under, even out
- * of the cache: one created in the very first run, when every flag is
- * dirty, re-uses nothing inside its body for as long as it stays cached. */
+/* A closure created in the very first run, when every flag is dirty, keeps
+ * that dirty map in the cache. Called through a CLEAN function expression,
+ * though, it is the closure applied there last run, and its body runs
+ * under markClean of that map: `k * 2` is re-used. */
 let test_first_run_closure_keeps_dirty_map = () =>
   check_sequence_replays(
-    ~name="first-run closure keeps its dirty map",
+    ~name="first-run closure refreshed at a clean call",
     ~src=
       "let k = 5 in
 let f : Int -> Int = fun n -> let c = ^^probe(k * 2) in c + n + 1 in
@@ -3244,8 +3245,108 @@ let z = (3, 4) in
 let (a, b) = z in
 f(a) * 100 + b",
     ~edits=[lit(3, 7), lit(7, 9)],
+    ~expect=under_callstack_keys(["k * 2"]),
+  );
+
+/* Refreshing at a call: the body of a closure runs under markClean of its
+ * captured map exactly when the function expression's flag is Clean. */
+let refresh_src = "let k = 5 in
+let f : Int -> Int = fun n -> let c = ^^probe(k * 2) in c + n in
+let z = (3, 4) in
+let (a, b) = z in
+f(a) * 100 + b";
+
+/* The closure is re-created because what it captured changed, so the
+ * function expression is Dirty and there is no refresh -- and re-using
+ * `k * 2` would be wrong. */
+let test_no_refresh_for_a_recreated_closure = () =>
+  check_sequence_replays(
+    ~name="no refresh: closure re-created by an edit",
+    ~src=refresh_src,
+    ~edits=[lit(5, 6)],
     ~expect=_ =>
     []
+  );
+
+/* The value is the cached closure from the first run, but the function
+ * expression is Dirty (a `let` whose own right-hand side changed), so its
+ * dirty map stands. */
+let test_no_refresh_through_a_dirty_expression = () =>
+  check_sequence_replays(
+    ~name="no refresh: cached closure, dirty expression",
+    ~src=
+      "let k = 5 in
+let f : Int -> Int = fun n -> let c = ^^probe(k * 2) in c + n in
+let g = let w = 7 in f in
+let z = (3, 4) in
+let (a, b) = z in
+g(a) * 100 + b",
+    ~edits=[lit(7, 8)],
+    ~expect=_ =>
+    []
+  );
+
+/* Retyping the function's name at the call keeps the occurrence's id while
+ * it now denotes another function. The occurrence's entry names the old
+ * variable, so its flag is Dirty and nothing is refreshed; once the new
+ * name has been evaluated there, a later run refreshes as usual. */
+let renamed_call_src = "let k = 5 in
+let f : Int -> Int = fun n -> let c = ^^probe(k * 2) in c + n in
+let g : Int -> Int = fun n -> let c = ^^probe(k * 8) in c + n in
+let z = (3, 4) in
+let (a, b) = z in
+f(a) * 100 + b";
+
+let test_no_refresh_for_a_renamed_call = () => {
+  check_sequence_replays(
+    ~name="no refresh: call retyped to another function",
+    ~src=renamed_call_src,
+    ~edits=[rename_var_occurrences(~from="f", ~to_="g")],
+    ~expect=_ =>
+    []
+  );
+  check_sequence_replays(
+    ~name="refresh once the retyped call has run",
+    ~src=renamed_call_src,
+    ~edits=[rename_var_occurrences(~from="f", ~to_="g"), lit(3, 7)],
+    ~expect=under_callstack_keys(["k * 8"]),
+  );
+};
+
+/* A function passed as an argument: inside `apply`, `h` is clean only if
+ * the tuple it came in is clean in that component, which needs tuple
+ * flags. */
+let test_refresh_through_an_argument = () =>
+  check_sequence_replays(
+    ~name="refresh: function passed in a tuple argument",
+    ~src=
+      "let k = 5 in
+let f : Int -> Int = fun n -> let c = ^^probe(k * 2) in c + n in
+let apply = fun (h : Int -> Int, x : Int) -> h(x) in
+let z = (3, 4) in
+let (a, b) = z in
+apply((f, a)) * 100 + b",
+    ~edits=[lit(3, 7)],
+    ~expect=calculus =>
+    Calculus.capabilities(calculus).tuple_flags
+      ? under_callstack_keys(["k * 2"], calculus) : []
+  );
+
+/* A function pulled out of an unchanged tuple is clean under every
+ * calculus that caches inside calls. */
+let test_refresh_through_a_tuple = () =>
+  check_sequence_replays(
+    ~name="refresh: function pulled out of a tuple",
+    ~src=
+      "let k = 5 in
+let f : Int -> Int = fun n -> let c = ^^probe(k * 2) in c + n in
+let fs = (f, 1) in
+let (h, u) = fs in
+let z = (3, 4) in
+let (a, b) = z in
+h(a) * 100 + b + u",
+    ~edits=[lit(3, 7)],
+    ~expect=under_callstack_keys(["k * 2"]),
   );
 
 /* A closure created beyond the depth guard -- a dozen calls deep, where no
@@ -3467,9 +3568,34 @@ let tests = (
       test_cached_closure_reuses_inside_body,
     ),
     test_case(
-      "first-run closure keeps its dirty map",
+      "first-run closure refreshed at a clean call",
       `Quick,
       test_first_run_closure_keeps_dirty_map,
+    ),
+    test_case(
+      "no refresh: closure re-created by an edit",
+      `Quick,
+      test_no_refresh_for_a_recreated_closure,
+    ),
+    test_case(
+      "no refresh: cached closure, dirty expression",
+      `Quick,
+      test_no_refresh_through_a_dirty_expression,
+    ),
+    test_case(
+      "no refresh: call retyped to another function",
+      `Quick,
+      test_no_refresh_for_a_renamed_call,
+    ),
+    test_case(
+      "refresh: function passed in a tuple argument",
+      `Quick,
+      test_refresh_through_an_argument,
+    ),
+    test_case(
+      "refresh: function pulled out of a tuple",
+      `Quick,
+      test_refresh_through_a_tuple,
     ),
     test_case(
       "closure created beyond the guard",

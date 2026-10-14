@@ -909,9 +909,9 @@ g(a) * 100 + g(b)",
     ~witness=Calculus.AM,
   );
 
-/* A closure stored in a TUPLE component, so transport_across_env has to
- * decide whether the caller's provenance survives into the body, and the
- * tuple's own flag has a function-valued component. */
+/* A closure stored in a TUPLE component, so the body runs under the map
+ * the closure captured -- refreshed when `h` is clean -- and the tuple's
+ * own flag has a function-valued component. */
 let test_closure_in_tuple_probe = () =>
   check_probes(
     ~name="8b: closure as a tuple component, probed body",

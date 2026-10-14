@@ -127,6 +127,29 @@ let nodes_bound = (effects: list(EvaluatorState.effect)): int =>
     effects,
   );
 
+/* The flag f1 the function expression of the call `exp` finished with, at
+ * the callstack the call was made from -- its own step evaluated it, just
+ * before entering the call. Dirty for anything else: an application this
+ * evaluator did not make through FunAp, or a function expression evaluated
+ * where no flag is recorded. */
+let function_flag =
+    (
+      ~flags: IncrEval.flags,
+      ~step_call_stack: CallStack.t,
+      ~kind: option(step_kind),
+      exp: DHExp.t,
+    )
+    : IncrEval.flag =>
+  switch (kind, DHExp.term_of(exp)) {
+  | (Some(FunAp), Ap(_, fn, _)) =>
+    IncrEval.flag_at(
+      flags,
+      ~call_stack_ids=CallStack.ids_of_stack(step_call_stack),
+      ~id=DHExp.rep_id(fn),
+    )
+  | _ => Dirty
+  };
+
 let called_name = (effects: list(EvaluatorState.effect)): option(string) =>
   List.find_map(
     fun
@@ -383,12 +406,25 @@ let rec evaluate =
         let base =
           switch (body_env) {
           | Some(body_env) =>
-            /* The formalism's App rule reads rho straight off the closure.
-             * The closure's environment sits exactly as many nodes down the
-             * body's as the application's pattern bound. */
+            /* The formalism's App rule reads rho straight off the closure,
+             * and markClean's it first when the function expression's flag
+             * is Clean (see IncrEval.refreshed_closure_map). The closure's
+             * environment sits exactly as many nodes down the body's as the
+             * application's pattern bound.
+             *
+             * A recursive function reaches here as the closure its fixpoint
+             * unwrapped to, whose environment ends in the self-binding the
+             * unwrap made (Dirty, by the fix rule). The formalism's appFix
+             * refreshes rho_c and then binds the function with the flag f1
+             * of the function expression; refreshing a map that already
+             * holds the self-binding gives that binding exactly f1 -- Clean
+             * if refreshed, Dirty if not -- so this is appFix too. */
             switch (closure_maps) {
             | Some(maps) =>
-              IncrEval.closure_map(
+              (
+                function_flag(~flags, ~step_call_stack, ~kind, exp) == Clean
+                  ? IncrEval.refreshed_closure_map : IncrEval.closure_map
+              )(
                 maps,
                 ~closure=called_name(effects),
                 IncrEval.drop_env(nodes_bound(effects), body_env),

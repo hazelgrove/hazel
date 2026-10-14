@@ -1107,6 +1107,8 @@ type closure_maps = {
   carried: Id.Map.t(reuse_map),
   /* Environment nodes already walked for the streaming outbox this run. */
   streamed: Hashtbl.t(Id.t, unit),
+  /* markClean of a node's map, for `refreshed_closure_map`. */
+  refreshed: Hashtbl.t(Id.t, reuse_map),
 };
 
 /* The top node of `env`, or None for the empty environment. */
@@ -1179,6 +1181,7 @@ let new_closure_maps =
     },
   carried: prev.closure_maps,
   streamed: Hashtbl.create(64),
+  refreshed: Hashtbl.create(64),
 };
 
 /* First write wins: a step that mints no node presents an environment some
@@ -1307,6 +1310,63 @@ let closure_map =
   /* Nothing bound, so nothing for a map to say. */
   | Empty => empty_reuse_map
   | E(e) => map_of_node(maps, ~closure, e.id)
+  };
+
+/* make_clean, rebuilding only the entries that are not already clean --
+ * in practice few: the builtins, and most bindings once a program has been
+ * run once, are clean -- and the map itself when there are none. */
+let mark_clean = (map: reuse_map): reuse_map =>
+  Maps.StringMap.fold(
+    (name, prov: provenance, cleaned) =>
+      prov.flag == Clean
+        ? cleaned
+        : Maps.StringMap.add(
+            name,
+            {
+              ...prov,
+              flag: Clean,
+            },
+            cleaned,
+          ),
+    map,
+    map,
+  );
+
+/* The map a call evaluates the body of a closure over `env` under, when
+ * the function expression's flag is Clean: markClean of the captured map,
+ * the formalism's App rule (and appFix, before the function's own binding
+ * is added).
+ *
+ * A clean flag on the function expression says its value is the value
+ * cached for it at this callstack last run: the same body, the same values
+ * for its free variables, bound at the same sources and paths, whatever
+ * their flags (Veq1.clo). That is the closure applied here last run, so
+ * the entries its body left at this callstack were recorded under
+ * markClean of this very map and computed from these very values. Its
+ * captured flags, by contrast, say only whether those values had changed
+ * when the closure was CREATED -- possibly runs ago, for a closure that
+ * has come out of the cache since -- which is not what re-using inside the
+ * body needs to know.
+ *
+ * Memoized per node: a closure called repeatedly at clean call sites asks
+ * for the same refreshed map each time. */
+let refreshed_closure_map =
+    (
+      maps: closure_maps,
+      ~closure: option(string),
+      env: Environment.t(Exp.t),
+    )
+    : reuse_map =>
+  switch (env) {
+  | Empty => empty_reuse_map
+  | E(e) =>
+    switch (Hashtbl.find_opt(maps.refreshed, e.id)) {
+    | Some(map) => map
+    | None =>
+      let map = mark_clean(map_of_node(maps, ~closure, e.id));
+      Hashtbl.replace(maps.refreshed, e.id, map);
+      map;
+    }
   };
 
 /* Call `f` on the environment of every closure in a value, through
