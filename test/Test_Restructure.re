@@ -644,6 +644,129 @@ m.a|js}),
   ]);
 };
 
+/* Alt↑↓ into a module bound by `let`, as into `module M = {…}`: the
+   first member going down, the last going up, `{}` taking its only one */
+let into_value_module = () => {
+  let v = "let a = 1 in\nlet m = {\n  let x = 2;\n  let y = 3\n} in\nlet b = 4 in\nb";
+  let e = "let a = 1 in\nlet e = {} in\nlet b = 2 in\nb";
+  cases([
+    (
+      "from above",
+      v,
+      "a",
+      op(MoveDown),
+      Some(
+        "let m = {\n  let a = 1;\n  let x = 2;\n  let y = 3\n} in\nlet b = 4 in\nb",
+      ),
+    ),
+    (
+      "from below",
+      v,
+      "b",
+      op(MoveUp),
+      Some(
+        "let a = 1 in\nlet m = {\n  let x = 2;\n  let y = 3;\n  let b = 4\n} in\nb",
+      ),
+    ),
+    (
+      "with the comment above it",
+      "let a = 1 in\nlet m = {\n  let x = 2\n} in\n# about b #\nlet b = 4 in\nb",
+      "b",
+      op(MoveUp),
+      Some(
+        "let a = 1 in\nlet m = {\n  let x = 2;\n  # about b #\n  let b = 4\n} in\nb",
+      ),
+    ),
+    (
+      "{} from above",
+      e,
+      "a",
+      op(MoveDown),
+      Some("let e = {\n  let a = 1\n} in\nlet b = 2 in\nb"),
+    ),
+    (
+      "{} from below",
+      e,
+      "b",
+      op(MoveUp),
+      Some("let a = 1 in\nlet e = {\n  let b = 2\n} in\nb"),
+    ),
+    (
+      "a test goes in as a bare member",
+      "let a = 1 in\nlet m = {\n  let y = 3\n} in\ntest a == 1 end;\nlet b = 4 in\nb",
+      "1",
+      op(MoveUp),
+      Some(
+        "let a = 1 in\nlet m = {\n  let y = 3;\n  test a == 1 end\n} in\nlet b = 4 in\nb",
+      ),
+    ),
+    (
+      "an empty signature is stepped over",
+      "let a = 1 in\ntype T = {} in\nlet b = 2 in\nb",
+      "a",
+      op(MoveDown),
+      Some("type T = {} in\nlet a = 1 in\nlet b = 2 in\nb"),
+    ),
+    (
+      "a module body inside an if is stepped over",
+      "let a = 1 in\nmodule M = if true then {} else {\n  let x = 2\n} in\nlet b = 2 in\nb",
+      "a",
+      op(MoveDown),
+      Some(
+        "module M = if true then {} else {\n  let x = 2\n} in\nlet a = 1 in\nlet b = 2 in\nb",
+      ),
+    ),
+  ]);
+  expect(
+    ~root=Mod,
+    "in a module-rooted program, the `;`s stay put",
+    Some(
+      "let a = 1;\nlet m = {\n  let x = 2;\n  let y = 3;\n  let b = 4\n};\nb",
+    ),
+    run(
+      ~root=Mod,
+      op(MoveUp),
+      "b",
+      "let a = 1;\nlet m = {\n  let x = 2;\n  let y = 3\n};\nlet b = 4;\nb",
+    ),
+  );
+  /* out, then back in where it was */
+  List.iter(
+    ((root, src, label, up, out)) => {
+      let step = (up, seg) =>
+        fst(
+          ok(label, edit(~root, op(up ? MoveUp : MoveDown), label, seg)),
+        );
+      let seg = step(up, seg_of(~root, src));
+      expect(~root, label ++ " out", Some(out), Some(seg));
+      check(string, label ++ " back in", src, text_of(step(!up, seg)));
+    },
+    [
+      (
+        Sort.Exp,
+        v,
+        "x",
+        true,
+        "let a = 1 in\nlet x = 2 in\nlet m = {\n  let y = 3\n} in\nlet b = 4 in\nb",
+      ),
+      (
+        Exp,
+        v,
+        "y",
+        false,
+        "let a = 1 in\nlet m = {\n  let x = 2\n} in\nlet y = 3 in\nlet b = 4 in\nb",
+      ),
+      (
+        Mod,
+        "let a = 1;\nlet m = {\n  let x = 2\n};\nlet b = 4;\nb",
+        "x",
+        false,
+        "let a = 1;\nlet m = {};\nlet x = 2;\nlet b = 4;\nb",
+      ),
+    ],
+  );
+};
+
 /* ⌘⌫ on a row the outline refuses to delete leaves its cursor there */
 let refused_delete_cursor = (): unit => {
   let seg = seg_of("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
@@ -763,6 +886,7 @@ let tests = (
     test_case("moves across module edges", `Quick, across),
     test_case("a last member out and back in", `Quick, back_in),
     test_case("a module bound by let", `Quick, value_module),
+    test_case("moves into a module bound by let", `Quick, into_value_module),
     test_case("in and out again", `Quick, round_trip),
   ],
 );

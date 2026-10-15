@@ -139,6 +139,9 @@ let is_def_head = (t: Tile.t): bool =>
   | _ => false
   };
 
+/* a form whose child is a module's member list: a module body's braces */
+let holds_members = (m: Mold.t): bool => List.mem(Sort.Mod, m.in_);
+
 /* [stop] moved back over edge whitespace and a `;`, not past [start]:
    where a `…;` run's content ends */
 let before_semi = (arr: array(Piece.t), start: int, stop: int): int => {
@@ -399,7 +402,7 @@ let locate_headless =
     switch (st.st_from) {
     | Top => false
     /* a module's members are items, even a lone one */
-    | Kid(t, k) => List.nth_opt(Tile.mold(t).in_, k) != Some(Sort.Mod)
+    | Kid(t, _) => !holds_members(Tile.mold(t))
     | Syntax => true
     };
   let projected =
@@ -842,7 +845,7 @@ let run_at = (fid: Id.t, parent: option(Tile.t), seg: Segment.t) =>
   test_run(
     ~module_body=
       switch (parent) {
-      | Some(t) => List.mem(Sort.Mod, Tile.mold(t).in_)
+      | Some(t) => holds_members(Tile.mold(t))
       | None => false
       },
     fid,
