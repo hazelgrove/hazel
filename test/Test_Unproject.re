@@ -26,6 +26,26 @@ let read = path => {
   text;
 };
 
+/* Whether `sub` occurs in `text`, by a plain scan. (Str.search_forward
+   did this, at load, for every slide, and under js_of_ocaml Str's matcher
+   took about 22 s of every test run's start before any test ran.) */
+let contains = (text: string, sub: string): bool => {
+  let n = String.length(text)
+  and k = String.length(sub);
+  let found = ref(false)
+  and i = ref(0);
+  while (! found^ && i^ + k <= n) {
+    let j = ref(0);
+    while (j^ < k && text.[i^ + j^] == sub.[j^]) {
+      incr(j);
+    };
+    if (j^ == k) {
+      found := true;
+    };
+    incr(i);
+  };
+  found^;
+};
 /* Every .hz under the livelit slides, one folder deep, with a projected
    use in it. */
 let slides = () => {
@@ -44,12 +64,7 @@ let slides = () => {
            |> List.concat_map(hz(f))
          : hz("", f);
      })
-  |> List.filter(f => {
-       let text = read(Filename.concat(r, f));
-       try(Str.search_forward(Str.regexp_string("^^livelit("), text, 0) >= 0) {
-       | Not_found => false
-       };
-     });
+  |> List.filter(f => contains(read(Filename.concat(r, f)), "^^livelit("));
 };
 
 /* The text with each `^^livelit(e)` replaced by `e`: what removing the
