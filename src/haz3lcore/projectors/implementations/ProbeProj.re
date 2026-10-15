@@ -69,8 +69,9 @@ let probe_model_of_sexp = sexp =>
   | exception _ => init_probe_model
   };
 
-/* `^^probe@<rid>` trigger-option mapping: a pin whose model selects
-   renderer <rid> (in its empty state) round-trips through text. */
+/* `^^probe_<rid>` trigger-option mapping: a pin whose model selects
+   renderer <rid> (in its empty state) round-trips through text. The
+   table only draws in the drawer, so its trigger opens the drawer too. */
 let model_string_for_renderer = (rid: string): option(string) =>
   rid == "drawer"
     ? Some(
@@ -85,6 +86,7 @@ let model_string_for_renderer = (rid: string): option(string) =>
            sexp_of_probe_model({
              ...init_probe_model,
              active_renderer: Some(r.empty_model),
+             drawer_mode: r.id == "table",
            })
            |> Sexplib.Sexp.to_string
          );
