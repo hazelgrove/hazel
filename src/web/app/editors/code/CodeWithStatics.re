@@ -222,6 +222,15 @@ module Update = {
                             ~settings,
                             ~stitch,
                             ~root=editor.root,
+                            /* (experiment: the livelit projectors too, as
+                               a divided program's cells have them, so
+                               their views are folded into the worker's
+                               run and run there to Html) */
+                            ~probe_ids=
+                              CachedStatics.probe_ids_of_zipper(
+                                ~projectors=editor.syntax.projectors,
+                                editor.state.zipper,
+                              ),
                             editor.state.zipper,
                           )
                         : CachedStatics.init(
