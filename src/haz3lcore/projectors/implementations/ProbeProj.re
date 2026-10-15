@@ -630,6 +630,49 @@ module ValueState = {
   let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
 };
 
+/* Shift-drag resizes a sample. While Shift is held, `shift-held` on the
+   body gives samples a horizontal resize cursor; during the drag,
+   `sample-resizing` keeps it wherever the pointer goes (proj-probe.css). */
+module ResizeCursor = {
+  let installed = ref(false);
+  let set_class = (cls: string, on: bool) => {
+    let list = Dom_html.document##.body##.classList;
+    on ? list##add(Js.string(cls)) : list##remove(Js.string(cls));
+  };
+  let ensure = () =>
+    if (! installed^) {
+      installed := true;
+      let on_key = (down: bool, e: Js.t(Dom_html.keyboardEvent)) => {
+        if (Js.Optdef.to_option(e##.key) == Some(Js.string("Shift"))) {
+          set_class("shift-held", down);
+        };
+        Js._true;
+      };
+      let listen = (~capture=true, target, name, f) =>
+        Dom_html.addEventListener(
+          target,
+          Dom_html.Event.make(name),
+          Dom_html.handler(f),
+          Js.bool(capture),
+        )
+        |> ignore;
+      listen(Dom_html.document, "keydown", on_key(true));
+      listen(Dom_html.document, "keyup", on_key(false));
+      /* bubbling, so only the window's own blur: in the capture phase it
+         would also see every element losing focus */
+      listen(
+        ~capture=false,
+        Dom_html.window,
+        "blur",
+        _ => {
+          set_class("shift-held", false);
+          Js._true;
+        },
+      );
+    };
+  let dragging = (on: bool) => set_class("sample-resizing", on);
+};
+
 let value_view =
     (
       ~display: sample_display,
@@ -643,12 +686,14 @@ let value_view =
       sample: Sample.t,
     ) => {
   let {settings, ap_id, utility, _} = ctx;
+  ResizeCursor.ensure();
   let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
     if (Js.to_bool(e##.shiftKey)) {
       let target =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
       JsUtil.setPointerCapture(target, e##.pointerId);
       ValueState.mousedown := Some(target);
+      ResizeCursor.dragging(true);
     };
     ctx.parent(
       SampleFocus(Capture(Sample.capture_of_sample(sample), ap_id)),
@@ -662,6 +707,7 @@ let value_view =
       JsUtil.releasePointerCapture(target, e##.pointerId);
     };
     ValueState.mousedown := None;
+    ResizeCursor.dragging(false);
     Effect.Ignore;
   };
 

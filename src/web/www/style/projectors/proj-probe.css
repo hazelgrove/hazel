@@ -348,9 +348,14 @@
   line-height: initial;
 } */
 
-/* .projector.probe .sample:first-child .value:hover .code-text {
-  cursor: col-resize;
-} */
+/* Shift-drag resizes a sample (ProbeProj.ResizeCursor): the cursor says
+ * so while Shift is held over a sample, and anywhere during the drag. */
+body.shift-held .live-offside .value,
+body.shift-held .live-offside .value *,
+body.sample-resizing,
+body.sample-resizing * {
+  cursor: ew-resize !important;
+}
 
 /* TOKEN BKG. Layout lives on .sample; visual fills live on .value (so
  * they don't bleed into the context-menu when it flows in-line). */
