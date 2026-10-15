@@ -392,6 +392,30 @@ let open_close =
   };
 };
 
+/* rows with a name to edit in place; tests, ⇒ and statements have none */
+let nameable = (n: OutlineTree.node): bool =>
+  n.o_id != None
+  && (
+    switch (n.o_kind) {
+    | KFn
+    | KConst
+    | KType
+    | KModule => true
+    | KTest
+    | KTests
+    | KStmt
+    | KTrail => false
+    }
+  );
+
+/* a row's name into its field, as F2, ⌘Enter and a double-click on the
+   name start it, unless a name is open already. [name] is the program's,
+   not an open cell's live header text */
+let start_rename =
+    (~on: handlers, n: OutlineTree.node, name: string): Effect.t(unit) =>
+  nameable(n) && on.edit.get() == None
+    ? on.edit.set(Some(OutlineEdit.mk(~row=?n.o_id, name))) : Effect.Ignore;
+
 let rec node_view =
         (
           ~props: props,
@@ -420,11 +444,24 @@ let rec node_view =
       );
     | None => (false, false, false)
     };
+  let name = n.o_label;
   /* the focused row's name tracks its header editor LIVE */
   let n = live_label(props, n);
   /* paths name the row by its outline label, not the live header text
      (`inc(x)` for `inc`): collapse state and the cursor survive pinning */
   let row_path = path @ [seg];
+  /* a double-click on the name renames it */
+  let name_view = label =>
+    span(
+      ~attrs=
+        [clss(["outline-name"])]
+        @ (
+          props.stack_controls && nameable(n)
+            ? [Attr.on_double_click(_ => stop(start_rename(~on, n, name)))]
+            : []
+        ),
+      [text(label)],
+    );
   let badge = (cls, title) =>
     span(
       ~attrs=[clss(["outline-err-badge", ...cls]), Attr.title(title)],
@@ -581,7 +618,7 @@ let rec node_view =
         | (None, Some((id, kw))) when n.o_id == Some(id) => [
             /* the keyword typed to make it a type or module, leaving */
             span(~attrs=[clss(["outline-kw-leaving"])], [text(kw)]),
-            text(n.o_label),
+            name_view(n.o_label),
           ]
         /* rows with no name of their own get a word for what they are,
            set apart from real names */
@@ -591,7 +628,7 @@ let rec node_view =
         | _ when n.o_kind == KTests => [
             span(~attrs=[clss(["outline-synthetic"])], [text(n.o_label)]),
           ]
-        | _ => [text(n.o_label)]
+        | _ => [name_view(n.o_label)]
         }
       )
       @ (has_err ? [badge([], "contains type errors")] : [])
@@ -987,18 +1024,6 @@ let keys =
       Option.map(id => on.def_op(Delete, id), id_of(r))
     | _ => None
     };
-  let nameable = (r: visible_row) =>
-    switch (r.r_node.o_kind) {
-    | KFn
-    | KConst
-    | KType
-    | KModule => r.r_node.o_id != None
-    | _ => false
-    };
-  let start_edit = (r: visible_row) =>
-    nameable(r)
-      ? on.edit.set(Some(OutlineEdit.mk(~row=?r.r_node.o_id, r.r_name)))
-      : Effect.Ignore;
   /* a name in its field: Enter saves and starts a new definition below,
      ↑↓ save and move, Esc cancels; the field takes the other keys. As the
      field goes the keys return to the row list */
@@ -1099,7 +1124,8 @@ let keys =
     switch (on.edit.get(), key, meta, cur) {
     | (Some(ed), _, _, _) => edit_key(ed)
     | (None, "Enter", true, Some(r))
-    | (None, "F2", _, Some(r)) => Some(start_edit(r))
+    | (None, "F2", _, Some(r)) =>
+      Some(start_rename(~on, r.r_node, r.r_name))
     | (None, _, _, _) => nav_key()
     };
   /* an open menu takes ↑↓, Enter and Esc; any other key closes it, then
