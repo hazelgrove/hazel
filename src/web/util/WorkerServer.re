@@ -528,30 +528,34 @@ let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
    page's runner answers at once. A run that fails keeps the command, so
    the page reports the error as before. Each sample is run once: a later
    post of the same sample (streams repeat completed items) reuses it. */
-let ran_views: Hashtbl.t((Id.t, int), (Language.DHExp.t, Language.DHExp.t)) =
+/* (experiment 2: per projector, the last command and its Html; a command
+   that is the same object, or syntactically equal (Exp.fast_equal, which
+   ignores ids, so a fresh run's rebuilt command still matches), reuses
+   the Html, so only views whose command changed are run) */
+let last_view: Hashtbl.t(Id.t, (Language.DHExp.t, Language.DHExp.t)) =
   Hashtbl.create(64);
 let run_view = (s: Language.Sample.t): Language.Sample.t =>
-  switch (Hashtbl.find_opt(ran_views, (s.syntax_id, s.id))) {
-  | Some((v, out)) when v === s.value => {
-      ...s,
-      value: out,
-    }
-  | _ =>
-    let out =
-      Language.ViewCmdRunner.is_command(s.value)
-        ? switch (Language.ViewCmdRunner.run(s.value)) {
-          | Ok(h) => Language.ViewCmdRunner.pure(h)
-          | Error(_) => s.value
-          | exception _ => s.value
-          }
-        : s.value;
-    if (Hashtbl.length(ran_views) > 4096) {
-      Hashtbl.reset(ran_views);
-    };
-    Hashtbl.replace(ran_views, (s.syntax_id, s.id), (s.value, out));
-    {
-      ...s,
-      value: out,
+  if (!Language.ViewCmdRunner.is_command(s.value)) {
+    s;
+  } else {
+    switch (Hashtbl.find_opt(last_view, s.syntax_id)) {
+    | Some((c, out))
+        when c === s.value || Language.Exp.fast_equal(c, s.value) => {
+        ...s,
+        value: out,
+      }
+    | _ =>
+      let out =
+        switch (Language.ViewCmdRunner.run(s.value)) {
+        | Ok(h) => Language.ViewCmdRunner.pure(h)
+        | Error(_) => s.value
+        | exception _ => s.value
+        };
+      Hashtbl.replace(last_view, s.syntax_id, (s.value, out));
+      {
+        ...s,
+        value: out,
+      };
     };
   };
 let run_views = (probes: Language.Sample.Map.t): Language.Sample.Map.t =>
