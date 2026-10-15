@@ -29,15 +29,7 @@ type effect =
   | Declare(string, TermBase.Typ.t);
 
 /* SpliceRef((id, value)) ~> (id, value) */
-let splice_ref = (r: DHExp.t): option((string, DHExp.t)) =>
-  switch (of_constructor(r)) {
-  | Some(("SpliceRef", body)) =>
-    switch (of_tuple(body)) {
-    | Some([id, v]) => Option.map(id => (id, v), of_string(id))
-    | _ => None
-    }
-  | _ => None
-  };
+let splice_ref = MvuShape.splice_ref;
 
 /* A ref to a splice holding `code`, as the runner hands it back: the
    value it carries is the code itself, which for a literal or a hole is
