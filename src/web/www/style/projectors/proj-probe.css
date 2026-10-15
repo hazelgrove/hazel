@@ -58,9 +58,8 @@
   stroke: var(--statics-arm) !important;
 }
 .code-deco .refractors svg path.child-line.repl {
-  stroke: var(--border-strong) !important;
+  stroke: var(--border-success-muted) !important;
   /* stroke-dasharray: 0.5 2.5; */
-  opacity: 0.25;
 }
 .code-deco .refractors svg path.child-line.repl-indicated {
   stroke: var(--border-success) !important;
