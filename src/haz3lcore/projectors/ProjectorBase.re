@@ -128,6 +128,10 @@ module View = {
     overlay: option(Node.t),
     offside: option(Node.t),
     below: option(Node.t),
+    /* The rows the below view may use (its Tab(n) placeholder's n); the
+     * framework caps the below view's height to them, so taller content
+     * scrolls instead of overlapping the code underneath. */
+    below_rows: option(int),
     /* If true, the projector div gets the "error" class,
      * triggering the dashed red SVG border from proj-base.css */
     error: bool,
@@ -185,11 +189,20 @@ module View = {
     row_height: float,
   };
 
-  let mk = (~overlay=None, ~offside=None, ~below=None, ~error=false, inline) => {
+  let mk =
+      (
+        ~overlay=None,
+        ~offside=None,
+        ~below=None,
+        ~below_rows=None,
+        ~error=false,
+        inline,
+      ) => {
     inline,
     overlay,
     offside,
     below,
+    below_rows,
     error,
   };
 };

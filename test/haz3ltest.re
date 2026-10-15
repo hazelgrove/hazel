@@ -33,6 +33,7 @@ let (suite, exit_with_test_status) =
       Test_Grammar.tests,
       Test_FormId.tests,
       Test_Abbreviate.tests,
+      Test_ValueOutline.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
       Test_Memo.tests,

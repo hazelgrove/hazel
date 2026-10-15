@@ -348,9 +348,14 @@
   line-height: initial;
 } */
 
-/* .projector.probe .sample:first-child .value:hover .code-text {
-  cursor: col-resize;
-} */
+/* Shift-drag resizes a sample (ProbeProj.ResizeCursor): the cursor says
+ * so while Shift is held over a sample, and anywhere during the drag. */
+body.shift-held .live-offside .value,
+body.shift-held .live-offside .value *,
+body.sample-resizing,
+body.sample-resizing * {
+  cursor: ew-resize !important;
+}
 
 /* TOKEN BKG. Layout lives on .sample; visual fills live on .value (so
  * they don't bleed into the context-menu when it flows in-line). */
@@ -785,9 +790,77 @@
   border-top-width: 2px;
   background-clip: padding-box;
   box-shadow: inset 0 1px 0 var(--probe-drawer-edge);
-  /* cap at 15 lines (matches DrawerHeight.max_rows) */
-  max-height: calc(15 * var(--line-height) * 1em);
+  /* max-height is set inline from the rows the probe reserves
+     (ProjectorView.below_wrapper), so taller content scrolls */
   overflow: hidden auto;
+}
+
+/* The drawer's bottom edge (ProbeProj.DrawerEdge): drag to resize. Sticky,
+ * so it stays at the visible bottom while the drawer scrolls. */
+.below-wrapper .drawer-edge {
+  position: sticky;
+  bottom: 0;
+  height: 6px;
+  margin-top: -6px;
+  cursor: ns-resize;
+  z-index: calc(var(--projector-z) + 6);
+}
+.below-wrapper .drawer-edge:hover,
+.below-wrapper .drawer-edge:active {
+  box-shadow: inset 0 -2px 0 var(--text-muted);
+}
+
+/* DRAWER FOLDS (ValueOutlineView). A head is what a click acts on: a
+ * summary opens, an opening or closing delimiter folds, a count shows more.
+ * Hover tints what the click would change; the caret beside a head shows
+ * only while that head is hovered. */
+.live-offside .fold-outline .fold-row {
+  position: relative;
+}
+.live-offside .fold-outline .fold-kids {
+  padding-left: 2ch;
+}
+.live-offside .fold-outline .fold-pretty {
+  display: inline-block;
+  vertical-align: top;
+}
+.live-offside .fold-outline .fold-head {
+  cursor: pointer;
+  border-radius: 2px;
+}
+.live-offside .fold-outline .fold-caret {
+  position: absolute;
+  left: -1.5ch;
+  width: 1.5ch;
+  text-align: center;
+  font-size: 0.9em;
+  color: var(--sample-focus-text);
+  visibility: hidden;
+}
+.live-offside .fold-outline .fold-head:hover > .fold-caret {
+  visibility: visible;
+}
+.live-offside .fold-outline .fold-head.summary:hover,
+.live-offside .fold-outline .fold-head.more:hover,
+.live-offside
+  .fold-outline
+  .fold-block:has(> .fold-row > .fold-head:hover)
+  > .fold-row
+  > .fold-head {
+  background-color: color-mix(
+    in oklch,
+    var(--sample-focus-text) 16%,
+    transparent
+  );
+}
+.live-offside
+  .fold-outline
+  .fold-block:has(> .fold-row > .fold-head:hover) {
+  background-color: color-mix(
+    in oklch,
+    var(--sample-focus-text) 7%,
+    transparent
+  );
 }
 
 /* Persistent-when-overflowing scrollbar (Chromium/Safari). NB: setting

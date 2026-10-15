@@ -387,7 +387,13 @@ let offside_wrapper =
   );
 
 /* below view at pane col 0: shift back by origin.col (wrapper sits at the projector's col) */
-let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
+let below_wrapper =
+    (
+      font_metrics: FontMetrics.t,
+      origin_col: int,
+      ~rows: option(int),
+      v: Node.t,
+    ) =>
   div(
     ~attrs=[
       Attr.classes(["below-wrapper"]),
@@ -399,9 +405,20 @@ let below_wrapper = (font_metrics: FontMetrics.t, origin_col: int, v: Node.t) =>
       Attr.create(
         "style",
         Printf.sprintf(
-          "position: absolute; top: %fpx; left: %fpx;",
+          "position: absolute; top: %fpx; left: %fpx;%s",
           font_metrics.row_height,
           -. (font_metrics.col_width *. float_of_int(origin_col)),
+          /* in code-line units, as the content is (font_metrics.row_height
+             can differ in the last decimal and show a needless scrollbar),
+             plus the 1px top border (border-box) */
+          switch (rows) {
+          | Some(n) =>
+            Printf.sprintf(
+              " max-height: calc(%d * var(--line-height) * var(--base-font-size) + 1px);",
+              n,
+            )
+          | None => ""
+          },
         ),
       ),
     ],
@@ -687,7 +704,13 @@ let split_views =
       |> Option.to_list;
     let below_view =
       views.below
-      |> Option.map(below_wrapper(font_metrics, measurement.origin.col))
+      |> Option.map(
+           below_wrapper(
+             font_metrics,
+             measurement.origin.col,
+             ~rows=views.below_rows,
+           ),
+         )
       |> Option.to_list;
     /* A Tab projector's wrapper div spans only its top row (that is all
        the measurement covers), so mount the GUI in an extent layer sized
