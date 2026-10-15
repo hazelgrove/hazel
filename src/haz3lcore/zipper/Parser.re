@@ -223,8 +223,19 @@ let to_segment_with_manuals =
         | None => (c, rest)
         };
       current_z := insert(z, s);
-      chars_since_split :=
-        chars_since_split^ + List.length(chars) - List.length(rest);
+      /* the characters this insertion took, counted along the run alone
+         (List.length of what was left made the whole load quadratic in
+         the text's length: about 3 s of a 41 KB slide's parse) */
+      let rec taken = (xs, n) =>
+        xs === rest
+          ? n
+          : (
+            switch (xs) {
+            | [_, ...xs] => taken(xs, n + 1)
+            | [] => n
+            }
+          );
+      chars_since_split := chars_since_split^ + taken(chars, 0);
       switch (current_z^) {
       | Some(z)
           when
