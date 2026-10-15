@@ -298,11 +298,21 @@ module M: Projector = {
     |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
     |> String.of_seq;
 
+  /* A literal's view is editable, with Free room: its shape's size */
+  let view_arg = (~takes_ctx, model) =>
+    UserLivelit.view_arg(
+      ~takes_ctx,
+      ~editable=true,
+      ~room=UserLivelit.Free,
+      model,
+    );
+
   let event_inject =
       (
         ~id: Id.t,
         ~print_term: TermBase.Exp.t => string,
         ~ll_name: string,
+        ~view_takes_ctx: bool,
         ~def_elab: TermBase.Exp.t,
         ~model: TermBase.Exp.t,
         ~model_value: option(TermBase.Exp.t),
@@ -352,7 +362,15 @@ module M: Projector = {
     let store_entry = (new_model, record, ~committed) =>
       switch (record_field(record, "view", 2)) {
       | Some(view_fn) =>
-        switch (MvuShape.safe_evaluate(ap(Forward, view_fn, new_model))) {
+        switch (
+          MvuShape.safe_evaluate(
+            ap(
+              Forward,
+              view_fn,
+              view_arg(~takes_ctx=view_takes_ctx, new_model),
+            ),
+          )
+        ) {
         | Ok(html) when MvuShape.is_html(html) =>
           let prior = Hashtbl.find_opt(optimistic, id);
           /* Transient and ephemeral events change nothing in the syntax,
@@ -503,6 +521,7 @@ module M: Projector = {
         ~id: Id.t,
         ~print_term: TermBase.Exp.t => string,
         ~ll_name: string,
+        ~view_takes_ctx: bool,
         ~def_elab: TermBase.Exp.t,
         ~model: TermBase.Exp.t,
         ~model_value: option(TermBase.Exp.t),
@@ -532,6 +551,7 @@ module M: Projector = {
           ~id,
           ~print_term,
           ~ll_name,
+          ~view_takes_ctx,
           ~def_elab,
           ~model,
           ~model_value,
@@ -605,7 +625,15 @@ module M: Projector = {
         switch (record_field(record, "view", 2)) {
         | None => err("livelit definition is missing view")
         | Some(view_fn) =>
-          switch (MvuShape.safe_evaluate(ap(Forward, view_fn, model))) {
+          switch (
+            MvuShape.safe_evaluate(
+              ap(
+                Forward,
+                view_fn,
+                view_arg(~takes_ctx=view_takes_ctx, model),
+              ),
+            )
+          ) {
           | Error(e) => err("livelit view error: " ++ e)
           | Ok(html) when MvuShape.is_html(html) =>
             ok(HazelDOM.go(seed(~model, ~model_value), html))
@@ -646,7 +674,7 @@ module M: Projector = {
         };
 
         switch (ll) {
-        | Some({user_def: Some(def_elab), _}) =>
+        | Some({user_def: Some(def_elab), view_takes_ctx, _}) =>
           let view_term = term =>
             Exp(term)
             |> info.utility.term_to_seg(~inline=true)
@@ -662,6 +690,7 @@ module M: Projector = {
               user_view(
                 ~id=info.id,
                 ~ll_name,
+                ~view_takes_ctx,
                 ~print_term=
                   term =>
                     /* Model terms contain no projectors or refractors, so

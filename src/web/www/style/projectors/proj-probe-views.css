@@ -1,0 +1,196 @@
+/* "View as": the control in the sample menu's action bar that names the
+ * view a probe shows its samples with, and the list that hangs from it
+ * (ProbeProj.view_picker). The control's bottom edge and the list's top
+ * edge are one shared 1px line: the open control sits over the list with
+ * a transparent bottom border, so the list's top border shows only past
+ * the control's right edge. Every size is a whole pixel, so the two
+ * borders meet without a seam. */
+
+/* room for the 22px control: a 30px bar, the actions centered in it */
+.context-actions:has(> .view-as) {
+  align-items: center;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.context-actions .action-separator {
+  align-self: center;
+  flex: none;
+  width: 1px;
+  height: 18px;
+  background-color: var(--menu-outline);
+}
+
+.context-actions .view-as {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-strong);
+  white-space: nowrap;
+  user-select: none;
+}
+
+.view-as .view-picker {
+  position: relative;
+  display: flex;
+}
+
+/* open, the picker rises over the menu's code (the call's arguments and
+   bindings below are code text, at --code-text-z) */
+.view-as.open .view-picker {
+  z-index: calc(var(--code-text-z) + 1);
+}
+
+.view-as .view-trigger {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 6px 0 5px;
+  border: 1px solid var(--menu-outline);
+  border-radius: 3px;
+  background-color: color-mix(in srgb, var(--menu-bkg) 50%, transparent);
+  cursor: pointer;
+}
+
+.view-as .view-trigger:hover {
+  background-color: var(--menu-bkg);
+}
+
+/* open: the control takes the list's color and gives up its lower
+   corners and bottom border to the list below it */
+.view-as.open .view-trigger {
+  position: relative;
+  z-index: 2;
+  background-color: var(--menu-bkg);
+  border-bottom-color: transparent;
+  border-radius: 3px 3px 0 0;
+}
+
+.view-as .view-chevron {
+  display: block;
+  flex: none;
+}
+
+.view-as .view-chevron path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.2;
+}
+
+/* floats over the call's arguments below, so the menu does not reflow */
+.view-as .view-list {
+  position: absolute;
+  left: 0;
+  top: calc(100% - 1px);
+  z-index: 1;
+  min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 3px 0;
+  background-color: var(--menu-bkg);
+  border: 1px solid var(--menu-outline);
+  border-radius: 0 3px 3px 3px;
+  box-shadow: 0 4px 10px var(--menu-shadow);
+}
+
+/* one code line tall: a check column, the view's badge, its name */
+.view-as .view-row {
+  display: grid;
+  grid-template-columns: 12px 14px auto;
+  align-items: center;
+  column-gap: 6px;
+  height: 24px;
+  padding: 0 12px 0 7px;
+  cursor: pointer;
+}
+
+.view-as .view-row:hover,
+.view-as .view-row.highlighted {
+  background-color: color-mix(in srgb, var(--surface-shard) 75%, transparent);
+}
+
+/* the pointer takes over from the keyboard */
+.view-as .view-list:hover .view-row.highlighted:not(:hover) {
+  background-color: transparent;
+}
+
+/* the current view's check, in the focused sample's green */
+.view-as .view-check {
+  display: flex;
+  justify-content: center;
+  color: var(--sample-focus-text);
+}
+
+.view-as .view-check path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.view-as .view-row.current .view-name {
+  font-weight: bold;
+}
+
+.view-as .view-list-rule {
+  height: 1px;
+  margin: 3px 8px;
+  background-color: var(--menu-outline);
+}
+
+/* a livelit is named as it is written */
+.view-as .view-name.code {
+  font-family: var(--code-font);
+  font-size: 14px;
+}
+
+/* badges: a 14px tile per kind of view */
+.view-as .view-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  background-color: var(--exp-base);
+  color: var(--sample-focus-text);
+}
+
+.view-as .view-icon > span {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.view-as .view-icon-text {
+  background-color: transparent;
+  border: 1px solid var(--menu-outline);
+  color: var(--text-accent);
+  font-size: 9px;
+}
+
+.view-as .view-icon-livelit {
+  background-color: var(--sample-focus-keyboard-bg);
+  font-family: var(--code-font);
+}
+
+.view-as .view-icon-table svg {
+  width: 10px;
+  height: 10px;
+}
+
+.view-as .view-icon-table svg path {
+  fill: currentColor;
+}
+
+.view-as .view-icon-html {
+  padding: 0 2px;
+  font-family: var(--code-font);
+  font-size: 8px;
+}

@@ -28,11 +28,16 @@ let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
   | m => m
   };
 
-let parse = (_sort: Sort.t, exp: Exp.t): option(value) =>
+let parse = (~statics as _, _sort: Sort.t, exp: Exp.t): option(value) =>
   switch (CardSyntax.any_to_state(Exp(exp))) {
   | Some((Exp, c)) => Some(c)
   | _ => None
   };
+
+/* one view, found by `parse`; none offered only on request */
+let parse_chosen = (~statics, sort, exp, _: model) =>
+  parse(~statics, sort, exp);
+let on_request = (~statics as _, _: Sort.t, _: Exp.t): list(model) => [];
 
 let init = (_: value) => {mode: Show};
 let empty = {mode: Show};
@@ -47,9 +52,17 @@ let auto_applies = (v: value): bool =>
   | Card(_) => true
   };
 
-/* Card sprites are 47px tall (~3 editor rows); a hand fans in one row
-   of cards regardless of count. */
-let drawer_rows = (_: value): int => 4;
+/* Card sprites are 47px tall: two editor rows on the line, which a hand
+   fans along in one row of cards regardless of count; the drawer gives
+   them four. */
+let drawer_rows = (_: model, _: value): int => 4;
+let line_rows = (_: model, _: value): int => 2;
+
+let views = (v: value): list(model) => [init(v)];
+let label = (_: model, _: value): RichProbe.view_label => {
+  name: "Cards",
+  code: false,
+};
 
 let update: (m, a) => m =
   (_, action) =>
@@ -199,6 +212,7 @@ let render =
       ~local: a => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~sort as _: Sort.t,
+      ~room as _: RichProbe.room,
       (),
     )
     : Node.t =>
@@ -208,11 +222,9 @@ let render =
   | Hand(hand) => Hand.view(model.mode, local, Sort.Exp, hand)
   };
 
+/* a spade in its text presentation (U+FE0E), so it takes the ink */
 let badge =
   Node.span(
-    ~attrs=[
-      Attr.classes(["card-badge"]),
-      Attr.title("Click to view cards visually"),
-    ],
-    [Node.text({js|♠️|js})],
+    ~attrs=[Attr.classes(["card-badge"])],
+    [Node.text({js|♠︎|js})],
   );
