@@ -59,7 +59,8 @@ type props = {
   arrows: bool,
   /* pins, zoom and item edits: only where a slide has cells */
   stack_controls: bool,
-  can_open: Language.Id.t => bool,
+  /* why a row's item opens no cell, if it doesn't: the cell code's rule */
+  refusal: Language.Id.t => option(ScratchFocus.refusal),
   is_collapsed: OutlineTree.path => bool,
   header,
   zoom_root: option(Language.Id.t),
@@ -358,21 +359,38 @@ let live_label = (props: props, n: OutlineTree.node): OutlineTree.node =>
 let show = (props: props, on: handlers, id: Language.Id.t): Effect.t(unit) =>
   props.focused_entries != [] ? on.focus(id) : on.jump(id);
 
+/* why a row opens no cell, if it doesn't; a tests container's run goes by
+   its first test */
+let refusal =
+    (props: props, n: OutlineTree.node): option(ScratchFocus.refusal) =>
+  switch (n.o_id, n.o_kind) {
+  | (Some(id), _) => props.refusal(id)
+  | (None, KTests) =>
+    Option.bind(
+      List.find_map((c: OutlineTree.node) => c.o_id, n.o_children),
+      props.refusal,
+    )
+  | (None, _) => None
+  };
+
 /* the cell button's act: open or close the row's cell; a tests container
    opens its whole run as one cell, at any depth. None: nothing to open */
 let open_close =
     (props: props, on: handlers, n: OutlineTree.node)
-    : option(unit => Effect.t(unit)) =>
+    : option(unit => Effect.t(unit)) => {
+  let opens = refusal(props, n) == None;
   switch (n.o_id, n.o_kind) {
-  | (Some(id), _) when in_stack(props, id) || props.can_open(id) =>
+  | (Some(id), _) when in_stack(props, id) || opens =>
     Some(() => on.toggle(id))
   | (None, KTests) =>
     switch (List.filter_map((c: OutlineTree.node) => c.o_id, n.o_children)) {
-    | [first, ..._] => Some(() => on.toggle_run(first))
-    | [] => None
+    | [first, ..._] as kids when opens || List.exists(in_stack(props), kids) =>
+      Some(() => on.toggle_run(first))
+    | _ => None
     }
   | _ => None
   };
+};
 
 let rec node_view =
         (
@@ -412,18 +430,31 @@ let rec node_view =
       ~attrs=[clss(["outline-err-badge", ...cls]), Attr.title(title)],
       [text({js|●|js})],
     );
-  let cell_button = (~cls=[], ~title, act) =>
-    span(
-      ~attrs=
-        [clss(["outline-focus-btn", ...cls]), Attr.title(title)]
-        @ (
-          switch (act) {
-          | Some(act) => [Attr.on_click(_ => stop(act()))]
-          | None => []
-          }
+  /* an unfinished item's button waits, disabled; a row under a projector
+     has none */
+  let cell_button = (~cls, ~title) =>
+    switch (open_close(props, on, n), refusal(props, n)) {
+    | (Some(act), _) => [
+        span(
+          ~attrs=[
+            clss(["outline-focus-btn", ...cls]),
+            Attr.title(title),
+            Attr.on_click(_ => stop(act())),
+          ],
+          [],
         ),
-      [],
-    );
+      ]
+    | (None, Some(Unfinished)) => [
+        span(
+          ~attrs=[
+            clss(["outline-focus-btn", "outline-btn-disabled"]),
+            Attr.title("finish the definition to open it"),
+          ],
+          [],
+        ),
+      ]
+    | (None, _) => []
+    };
   let label =
     div(
       ~attrs=
@@ -579,37 +610,20 @@ let rec node_view =
             List.filter_map((c: OutlineTree.node) => c.o_id, n.o_children);
           let all_pinned =
             kid_ids != [] && List.for_all(in_stack(props), kid_ids);
-          [
-            cell_button(
-              ~cls=all_pinned ? ["outline-btn-on"] : [],
-              ~title=
-                all_pinned
-                  ? "close the tests cell" : "open the tests as one cell",
-              open_close(props, on, n),
-            ),
-          ];
+          cell_button(
+            ~cls=all_pinned ? ["outline-btn-on"] : [],
+            ~title=
+              all_pinned
+                ? "close the tests cell" : "open the tests as one cell",
+          );
         | Some(id) =>
-          switch (open_close(props, on, n)) {
-          | None => [
-              cell_button(
-                ~cls=["outline-btn-disabled"],
-                ~title="finish the definition to open it",
-                None,
-              ),
-            ]
-          | act => [
-              cell_button(
-                ~cls=
-                  stacked
-                    ? ["outline-btn-on"]
-                    : List.mem(id, props.pinned)
-                        ? ["outline-btn-parked"] : [],
-                ~title=
-                  stacked ? "close this cell" : "open in the editor stack",
-                act,
-              ),
-            ]
-          }
+          cell_button(
+            ~cls=
+              stacked
+                ? ["outline-btn-on"]
+                : List.mem(id, props.pinned) ? ["outline-btn-parked"] : [],
+            ~title=stacked ? "close this cell" : "open in the editor stack",
+          )
         | None => []
         }
       ),

@@ -235,12 +235,22 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
   let rows = ref(0);
   let n_projected = ref(0);
   let broken = ref([]);
-  let check_row = (~row, ~pin, ~expect, ~header, ~body) => {
+  /* the outline's verdict, from the cell code in one walk */
+  let refused =
+    Focus.refusals(~want=id => Id.Map.mem(id, O.row_ids(term)), seg);
+  let check_row = (~row, ~id, ~pin, ~expect, ~header, ~body) => {
     incr(rows);
     let whys = ref([]);
     let fail = why => whys := [why, ...whys^];
     let under =
       List.exists(id => Id.Map.mem(id, projected), Segment.ids(body));
+    switch (Id.Map.find_opt(id, refused), under) {
+    | (None, false)
+    | (Some(Focus.Projected), true) => ()
+    | (Some(Projected), false) => fail("refused as under a projector")
+    | (Some(Unfinished), _) => fail("refused as unfinished")
+    | (None, true) => fail("not refused under a projector")
+    };
     switch (V.realize(~info_map, ~term, pin, Whole(whole))) {
     | exception e => fail("raised " ++ Printexc.to_string(e))
     | (v, Whole(_)) when under && v.pins == [] => incr(n_projected)
@@ -304,6 +314,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
           let sym = kind == KTrail ? {js|⇒|js} : ";";
           check_row(
             ~row,
+            ~id,
             ~pin,
             ~expect=e => e.e_kind == Headless(sym),
             ~header=None,
@@ -312,6 +323,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
         | Some(Def(h, b)) =>
           check_row(
             ~row,
+            ~id,
             ~pin,
             ~expect=is_def,
             ~header=Some(span(h)),
@@ -322,6 +334,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
           | Some(members) =>
             check_row(
               ~row,
+              ~id,
               ~pin,
               ~expect=e => e.e_kind == Members,
               ~header=Some(span(h)),
@@ -331,6 +344,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
           | None =>
             check_row(
               ~row,
+              ~id,
               ~pin,
               ~expect=is_def,
               ~header=Some(span(h)),
@@ -350,6 +364,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
         let (_, _, r) = stmt(Util.ListUtil.last(kids));
         check_row(
           ~row="tests",
+          ~id=List.hd(kids),
           ~pin=V.pin(~term, ~run=true, List.hd(kids), V.init),
           ~expect=
             e =>

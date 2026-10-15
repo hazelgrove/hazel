@@ -392,9 +392,9 @@ let path_to = (fid: Id.t, seg: Segment.t): option(list(step)) => {
    holding its span, the span and its symbol. The innermost level holding
    the row's piece decides, as OutlineTree reads a block on through the
    parentheses or projector around its tail. None for a definition, and
-   under a projector, whose syntax no cell cuts */
-let locate_headless =
-    (fid: Id.t, seg: Segment.t): option((list(step), int, int, string)) => {
+   under a projector, whose syntax no cell cuts. [path] is path_to's */
+let locate_along =
+    (fid: Id.t, path: list(step)): option((list(step), int, int, string)) => {
   let nested = (st: step) =>
     switch (st.st_from) {
     | Top => false
@@ -422,8 +422,12 @@ let locate_headless =
         projected(steps) ? None : Some((List.rev(steps), a, b, sym))
       }
     };
-  Option.bind(path_to(fid, seg), path => up(List.rev(path)));
+  up(List.rev(path));
 };
+
+let locate_headless =
+    (fid: Id.t, seg: Segment.t): option((list(step), int, int, string)) =>
+  Option.bind(path_to(fid, seg), locate_along(fid));
 
 let headless_content_deep =
     (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
@@ -968,12 +972,11 @@ let empty_header_cell = (): CellEditor.Model.t =>
 
 /* only delimiter-complete items open as cells: an unfinished `let x =`
    has no definition slot to show */
+let unfinished = (seg: Segment.t): list(Id.t) =>
+  List.map((t: Tile.t) => t.id, Segment.incomplete_tiles_deep(seg));
+
 let item_complete = (fid: Id.t, seg: Segment.t): bool =>
-  !
-    List.exists(
-      (t: Tile.t) => t.id == fid,
-      Segment.incomplete_tiles_deep(seg),
-    );
+  !List.mem(fid, unfinished(seg));
 
 /* a module definition's members: the child of its braces */
 let brace_child = (def_seg: Segment.t): option(Segment.t) =>
@@ -1141,6 +1144,57 @@ let mk_run_entry =
         )
       }
     );
+
+/* why an item opens no cell: unfinished, or under a projector, whose
+   syntax no cell cuts */
+type refusal =
+  | Unfinished
+  | Projected;
+
+/* of the items [want] picks, those the entry makers above refuse for one
+   of these, from one walk over [seg] rather than a search per item. Under
+   a projector only a headless span cut outside it opens: the tile, run
+   and unfinished searches stop at projectors */
+let refusals = (~want: Id.t => bool, seg: Segment.t): Id.Map.t(refusal) => {
+  let out =
+    ref(
+      List.fold_left(
+        (acc, id) => want(id) ? Id.Map.add(id, Unfinished, acc) : acc,
+        Id.Map.empty,
+        unfinished(seg),
+      ),
+    );
+  /* [above]: path_to's steps down to [level], innermost first */
+  let rec in_level = (~under, above, from, level: Segment.t) =>
+    List.iteri(
+      (i, p: Piece.t) => {
+        let path = [
+          {
+            st_level: level,
+            st_idx: i,
+            st_from: from,
+          },
+          ...above,
+        ];
+        let id = Piece.id(p);
+        if (under && want(id) && locate_along(id, List.rev(path)) == None) {
+          out := Id.Map.add(id, Projected, out^);
+        };
+        switch (p) {
+        | Tile(t) =>
+          List.iteri(
+            (k, kid) => in_level(~under, path, Kid(t, k), kid),
+            t.children,
+          )
+        | Projector(pr) => in_level(~under=true, path, Syntax, [pr.syntax])
+        | _ => ()
+        };
+      },
+      level,
+    );
+  in_level(~under=false, [], Top, seg);
+  out^;
+};
 
 /* a cell's header and body text in program coordinates */
 let body_text = (e: ScratchCell.t): Segment.t =>
