@@ -72,6 +72,23 @@ let compact = (m: Page.Model.t): Page.Model.t => {
     },
 };
 
+/* the newest entry of each stack stays whole, so the latest undo or redo
+   restores without rebuilding (on Full Body, compacted, about an edit's
+   time); it is compacted when the next one is pushed above it. One page
+   model more, at most two. */
+let compact_head =
+    (stack: list(Updated.t(Page.Model.t))): list(Updated.t(Page.Model.t)) =>
+  switch (stack) {
+  | [] => []
+  | [x, ...rest] => [
+      {
+        ...x,
+        model: compact(x.model),
+      },
+      ...rest,
+    ]
+  };
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type state = Page.Model.t;
@@ -128,9 +145,9 @@ module Update = {
             redo_stack: [
               {
                 ...x,
-                model: compact(model.current),
+                model: model.current,
               },
-              ...model.redo_stack,
+              ...compact_head(model.redo_stack),
             ],
           },
         }
@@ -147,9 +164,9 @@ module Update = {
             undo_stack: [
               {
                 ...x,
-                model: compact(model.current),
+                model: model.current,
               },
-              ...model.undo_stack,
+              ...compact_head(model.undo_stack),
             ],
             redo_stack: rest,
           },
@@ -168,9 +185,9 @@ module Update = {
         let new_stack = [
           {
             ...current,
-            model: compact(model.current),
+            model: model.current,
           },
-          ...model.undo_stack,
+          ...compact_head(model.undo_stack),
         ];
         /* capped even when cap_undo_stack is off */
         let undo_stack =
