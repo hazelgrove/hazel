@@ -20,6 +20,14 @@ let empty_body = (): Piece.t =>
 let brace_of = (members: Segment.t): Piece.t =>
   Piece.mk_tile((Form.Compound(ModBody), Exp), [members]);
 
+/* the parser's `{}` for a module, not for a signature */
+let is_empty_body = (t: Tile.t): bool =>
+  Tile.label(t) == [Token.empty_module] && Tile.mold(t).out == Exp;
+
+/* a module body: braces around a member list, or `{}` */
+let is_module_body = (t: Tile.t): bool =>
+  Focus.holds_members(Tile.mold(t)) || is_empty_body(t);
+
 /* a member's `;` */
 let fresh_semi = (): Piece.t =>
   Piece.mk_tile((Form.Compound(CellJoin), Mod), []);
@@ -251,6 +259,23 @@ let block =
 let movable = (b: block, k: int): bool =>
   k >= 0 && k < Array.length(b.sl) && b.spans[k].sp_kind != ITail;
 
+/* item [k]'s head, when it defines a module: its definition is a module
+   body alone, whatever binds it */
+let module_at = (b: block, k: int): option(Id.t) =>
+  switch (b.spans[k]) {
+  | {sp_kind: IDef, sp_id: Some(head), _} =>
+    switch (
+      Option.map(
+        List.filter(p => !Piece.is_secondary(p)),
+        Focus.find_def(head, b.seg),
+      )
+    ) {
+    | Some([Tile(t)]) when is_module_body(t) => Some(head)
+    | _ => None
+    }
+  | _ => None
+  };
+
 let indent_end = (b: block, k: int): int => {
   let rec go = i =>
     i < b.sl[k].core && Piece.is_space(b.arr[i]) ? go(i + 1) : i;
@@ -440,8 +465,9 @@ let apply_at =
    and the program with that block replaced. The block is [fid]'s own
    level when the item is one of its spans by id, a member's flat body
    when [fid] lies in one, and otherwise the nearest level up whose span
-   holds [fid]. A level is a member block when its sort is Mod: a module's
-   members, or the top of a module-rooted program */
+   holds [fid]. A level is a member block when it is a module body's
+   member list (Focus.holds_members), or the top of a module-rooted
+   program */
 let locate =
     (~mod_root: bool, fid: Id.t, seg: Segment.t)
     : option((block, int, Segment.t => Segment.t)) => {
@@ -472,7 +498,10 @@ let locate =
       Some((
         block(
           ~in_module=
-            Ancestors.sort(mod_root ? Mod : Exp, ancestors) == Sort.Mod,
+            switch (ancestors) {
+            | [] => mod_root
+            | [(a, _), ..._] => Focus.holds_members(Ancestor.mold(a))
+            },
           ~bol=top,
           spans,
           level,
@@ -617,7 +646,7 @@ let into_empty =
   | Some(def_seg) =>
     let empty = (p: Piece.t) =>
       switch (p) {
-      | Tile(t) => Tile.label(t) == ["{}"]
+      | Tile(t) => is_empty_body(t)
       | _ => false
       };
     let outer = Option.value(Focus.line_indent(m, seg), ~default=0);
@@ -684,7 +713,7 @@ type spot = {
   s_member: bool,
   s_item: Segment.t,
   s_trail: Segment.t,
-  /* the neighbour in the move's direction, if it is a module */
+  /* the neighbour in the move's direction, if it defines a module */
   s_module: option(Id.t),
   s_edge: bool,
 };
@@ -700,13 +729,7 @@ let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) =>
             s_member: b.member(j),
             s_item: bare(b, j),
             s_trail: trail(b, j),
-            s_module:
-              movable(b, k)
-                ? switch (List.find_map(Piece.is_tile, bare(b, k))) {
-                  | Some(t) when Tile.token(t, 0) == "module" => Some(t.id)
-                  | _ => None
-                  }
-                : None,
+            s_module: movable(b, k) ? module_at(b, k) : None,
             s_edge: !movable(b, k),
           })
         : None;
@@ -740,11 +763,11 @@ let insert_near =
       : None
   );
 
-/* Alt↑↓: into an expanded module beside the item (its end going up,
-   its start going down); from a module's first or last member, out to
-   just above or below it. Collapsed modules are stepped over and
-   function bodies keep their items. [owner]: the item's module. The
-   item is reindented to where it lands */
+/* Alt↑↓: into an expanded module beside the item, bound by `module` or
+   `let` (its end going up, its start going down); from a module's first
+   or last member, out to just above or below it. Collapsed modules are
+   stepped over and function bodies keep their items. [owner]: the item's
+   module. The item is reindented to where it lands */
 let move =
     (
       ~mod_root: bool,
