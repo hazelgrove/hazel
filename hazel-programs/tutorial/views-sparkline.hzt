@@ -5,7 +5,7 @@ Views / Sparkline
 version=1 id=b3000001-0001-0001-0001-000000000001
 
 @prompt
-A `Trace` is one shipment's hourly temperatures, with the safe range they must stay within. The livelit `^trace` expands to a `Trace`, and its `wrap` member lets it draw any `Trace` value: here as a sparkline, where the band is the safe range, red dots are readings outside it, and the number is the last reading. Every probe of type `Trace` in the livelit's scope draws its samples this way, so the eight calls below line up as eight sparklines on one scale. Double-click a sample to see it as text.
+A `Trace` is one shipment's hourly temperatures, with the safe range they must stay within. The livelit `^trace` expands to a `Trace`, and its `wrap` member lets it draw any `Trace` value: here as a sparkline, where the band is the safe range, red dots are readings outside it, and the number is the last reading. Every probe of type `Trace` in the livelit's scope draws its samples this way, so the eight calls below line up as eight sparklines on one scale. Double-click a sample to show this probe's samples as text, and again to switch back.
 
 Its `view` also takes a `ViewContext`, which tells it how much room it has. On the line, a sample's room is its width: narrow a sample (click it, then **Shift+←**) and its sparkline keeps the latest readings that fit. In the probe's drawer (**Cmd/Ctrl+↓**) a view sizes itself, and this one labels the safe range and the hours.
 

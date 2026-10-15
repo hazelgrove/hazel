@@ -8,12 +8,12 @@
 
 # INTRODUCTION #
 
-# Probe permit a kind of inline evaluation, #
+# Probes permit a kind of inline evaluation, #
 # similar to value hints in Emacs or IntelliJ. #
 
 # You can put one on any expression or pattern to see #
 # the values it takes on during evaluation. Sampled #
-# values are sorted by left-to-right by most-recent. #
+# values are sorted left-to-right by most-recent. #
 
 # When a sample is selected, you can hover over it to see #
 # relevant environment variables, and all /other/ samples #
@@ -28,7 +28,7 @@
 
 # TUTORIAL #
 
-# The expression 10 * 10 below has a probe.  #
+# The expression 10 + 10 below has a probe.  #
 # Its value, 20, is shown in a cell to the right. #
 let chips = ^^probe(10 + 10) in
 
@@ -207,14 +207,14 @@ let d = ^^statics(from_lvs([(label="a", value=a),
 b;
 
 
-# RICH PROBES: Domain-specific interfaces for probe samples             #
-# A probe sample's context menu offers "View as ..." entries that open  #
-# domain-specific interactive views of the sample's value. Today the    #
-# only one available is "View as table", which accepts any list of      #
-# labeled tuples. The sample below has it opened already — click the    #
-# probe sample to open its context menu and choose "Hide table" to      #
-# close the modal. Inside the table you can drop columns, rename,       #
-# sort, filter, group by, etc.                                          #
+# RICH PROBES: views of probe samples                                   #
+# A probe sample's context menu (right-click a sample) has a "View as"  #
+# control that picks how the probe draws its samples. Besides text,     #
+# there is a table, for any list of labeled tuples, and any livelit in  #
+# scope can be a view (see the Views folder in Tutorial mode).          #
+# The probe below starts with its table open in the probe's drawer;     #
+# set View as back to Text to close it. Inside the table you can drop   #
+# columns, rename, sort, filter, group by, etc.                         #
 
 let inventory = ^^table([
   (item="Apple",  qty=24, price=0.50),
@@ -231,7 +231,7 @@ let inventory = ^^table([
 
 
 
-# Actions you take in the table modal are real syntax edits — they    #
-# rewrite the underlying probed expression. Try dropping a column,    #
-# then close the modal: the source above now ends in `|> map(...)`.   #
+# Actions you take in the table are real syntax edits: they rewrite #
+# the underlying probed expression. Try dropping a column: the       #
+# source above now ends in `|> map(...)`.                            #
 

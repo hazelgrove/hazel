@@ -5,7 +5,7 @@ Views / Gantt Strip
 version=1 id=b3000006-0006-0006-0006-000000000006
 
 @prompt
-A `Run` is a CPU schedule: which job holds the processor, from when to when. `^gantt` draws one as a Gantt strip, a track per job on one fixed time axis. On the line a view has two lines of room, so the strip is drawn compact, scaled to the sample's width; in the probe's drawer (**Cmd/Ctrl+↓**) it is drawn full size, three lines tall, with the time axis labeled. Every `Run` probe in scope draws this way, and the four calls compare scheduling policies: first come first served, shortest job first, and round robin with two quanta.
+A `Run` is a CPU schedule: which job holds the processor, from when to when. `^gantt` draws one as a Gantt strip, a track per job on one fixed time axis. On the line a view has two lines of room, so the strip is drawn compact, scaled to the sample's width; in the probe's drawer (**Cmd/Ctrl+↓**) it is drawn full size, three lines tall, with the time axis labeled. Every `Run` probe in scope draws this way, and the four calls compare scheduling policies: first come first served, shortest job first, and round robin, two ticks at a time and then one.
 
 @code
 # A CPU schedule: which job runs, from when to when #

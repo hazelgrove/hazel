@@ -15,6 +15,9 @@
 # shape -- Inline(w), Block(w, h), or Tab(w, h) -- for its footprint. #
 # The following slides each define one. #
 
+# A livelit whose module has a wrap member can also draw probe samples #
+# of its type: see the Views folder in Tutorial mode. #
+
 # One livelit ships built in: #
 
 # ^js #

@@ -2,16 +2,16 @@
 Views / Piano Roll
 
 @flags
-version=2 id=b3000007-0007-0007-0007-000000000007
+version=3 id=b3000007-0007-0007-0007-000000000007
 
 @prompt
-A `Tune` is a list of notes, each a MIDI pitch, a start, and a length in eighth notes. `^roll` draws one as a piano roll: time across the bar, pitch up over the tune's own range, with the black keys' rows shaded and each C marked. At five lines it is too tall for the line, where the samples stay text, so it opens in the probe's drawer: right-click a sample and choose **View as** (or expand the probe, **Cmd/Ctrl+↓**). Every `Tune` probe in scope draws this way, so in Many mode the drawer shows a motif and three classic transformations of it side by side: moved up a fourth, turned upside down, and played backward.
+A `Tune` is a list of notes, each a MIDI pitch, a start, and a length in eighth notes. `^roll` draws one as a piano roll, in the style of a music editor: a keyboard down the left, time across the bar, pitch up over the tune's own range, and a color for each note name (every C is red). At five lines it is too tall for the line, where the samples stay text, so it draws in the probe's drawer. This probe's drawer starts open; with the probe focused, **Cmd/Ctrl+↑** closes it and **Cmd/Ctrl+↓** opens it again. Every `Tune` probe in scope draws this way, so in Many mode the drawer shows a motif and three classic transformations of it: moved up a fourth, turned upside down, and played backward.
 
 @code
 # A tune: notes of (MIDI pitch, start, length), times in eighths #
 type Tune = + Tune([(Int, Int, Int)]) in
 
-# A piano roll for the probe drawer, five lines tall #
+# A piano roll for the probe drawer, five lines tall, in a music editor's style #
 let ^roll = {
   type Model = Tune;
 
@@ -19,18 +19,26 @@ let ^roll = {
 
   let s : Int -> String = string_of_int;
 
-  # Size in px: a gutter for the labels, then 16px an eighth #
+  # Size in px: the keys (black ones 26 long), then 15px an eighth #
   let w : Int = 290;
 
-  let h : Int = 124;
+  let h : Int = 126;
 
-  let gutter : Int = 26;
+  let keys : Int = 42;
 
-  let axis : Int = 256;
+  let short : Int = 26;
+
+  let axis : Int = 240;
+
+  let pc(p: Int): Int = p - p / 12 * 12;
 
   let black(p: Int): Bool =
-    let k = p - p / 12 * 12 in
+    let k = pc(p) in
     k == 1 || k == 3 || k == 6 || k == 8 || k == 10;
+
+  # A hue per pitch class around the wheel, C red #
+  let hue(p: Int, lc: String): String =
+    "oklch(" ++ lc ++ " " ++ s(25 + 30 * pc(p)) ++ ")";
 
   # The lowest and highest pitches #
   let bounds(ns: [(Int, Int, Int)]): (Int, Int) =
@@ -59,9 +67,6 @@ let ^roll = {
        Style([("stroke", stroke)])],
       []);
 
-  let faint(pct: String): String =
-    "color-mix(in srgb, currentColor " ++ pct ++ ", transparent)";
-
   let view(t: Model): HTML =
     case t
     | Tune(ns) =>
@@ -76,37 +81,50 @@ let ^roll = {
       let (_, start, len) = latest(ns) in
       let bars = (start + len + 15) / 16 in
       let n = 16 * (if bars < 1 then 1 else bars) in
-      let x(at: Int): Int = gutter + at * axis / n in
+      let x(at: Int): Int = keys + 1 + at * axis / n in
       let pitches = range(top - rows + 1, top) in
-      let cs = filter(pitches, fun (p: Int) -> p - p / 12 * 12 == 0) in
       let lanes =
-        map(filter(pitches, black), fun (p: Int) ->
-          box(0, y(p), w, row, 0, "var(--surface-default)")) in
+        map(pitches, fun (p: Int) ->
+          box(keys, y(p), w - keys, row - 1, 0,
+              if black(p) then "#202226" else "#2b2e33")) in
       let beats =
         map(range(0, n / 2), fun (i: Int) ->
           rule(x(2 * i), 0, x(2 * i), h,
-               if i - i / 4 * 4 == 0 then "var(--probe-drawer-edge)"
-               else "var(--border-raised)")) in
-      let octaves =
-        map(cs, fun (p: Int) ->
-          rule(0, y(p) + row, w, y(p) + row, faint("25%"))) in
+               if i - i / 4 * 4 == 0 then "rgb(255 255 255 / 0.22)"
+               else "rgb(255 255 255 / 0.07)")) in
+      # White keys meet under each black key's middle, and at E-F and B-C #
+      let seams =
+        map(pitches, fun (p: Int) ->
+          if black(p) then rule(short, y(p) + row / 2 - 1, keys, y(p) + row / 2 - 1, "#c2beb3")
+          else if pc(p) == 0 || pc(p) == 5 then rule(0, y(p) + row - 1, keys, y(p) + row - 1, "#c2beb3")
+          else Node("g", [], [])) in
+      let blacks =
+        map(filter(pitches, black), fun (p: Int) ->
+          box(0, y(p), short, row, 1, "#1b1c1f")) in
       let labels =
-        map(cs, fun (p: Int) ->
+        map(filter(pitches, fun (p: Int) -> pc(p) == 0), fun (p: Int) ->
           Node("text",
-            [Create("x", "6"), Create("y", s(y(p) + row / 2)),
-             Create("dominant-baseline", "central"),
+            [Create("x", s(keys - 4)), Create("y", s(y(p) + row / 2)),
+             Create("text-anchor", "end"), Create("dominant-baseline", "central"),
              Style([("font-family", "var(--code-font)"),
-                    ("font-size", "12px"),
-                    ("fill", faint("80%"))])],
+                    ("font-size", "10px"),
+                    ("font-weight", "600"),
+                    ("fill", "#6d695f")])],
             [Text("C" ++ s(p / 12 - 1))])) in
       let notes =
         map(ns, fun ((p, at, len): (Int, Int, Int)) ->
-          box(x(at) + 1, y(p) + 1, x(at + len) - x(at) - 2,
-              if row > 2 then row - 2 else 1, 2, "currentColor")) in
+          Node("rect",
+            [Create("x", s(x(at) + 1) ++ ".5"), Create("y", s(y(p) + 1) ++ ".5"),
+             Create("width", s(x(at + len) - x(at) - 3)), Create("height", s(if row > 3 then row - 3 else 1)),
+             Create("rx", "2"),
+             Style([("fill", hue(p, "76% 0.15")), ("stroke", hue(p, "50% 0.13"))])],
+            [])) in
       Node("svg",
         [Create("viewBox", "0 0 " ++ s(w) ++ " " ++ s(h)),
          Width(s(w)), Height(s(h))],
-        lanes @ beats @ octaves @ labels @ notes)
+        [box(0, 0, w, h, 0, "#1b1d20")] @ lanes @ beats
+        @ [box(0, 0, keys, h, 0, "#f2f0ea")] @ seams @ blacks
+        @ [rule(keys - 1, 0, keys - 1, h, "#0d0e10")] @ labels @ notes)
     end;
 
   let init : Model = Tune([(60, 0, 2), (64, 2, 2), (67, 4, 4)]);
@@ -146,7 +164,7 @@ in
 
 # Play a tune: the probe sees each one #
 let play(t: Tune): Int =
-  case ^^probe(t)
+  case ^^probe_drawer(t)
   | Tune(ns) => length(ns)
   end
 in
