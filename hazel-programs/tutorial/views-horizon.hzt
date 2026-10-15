@@ -12,6 +12,7 @@ A `Drift` is a thermostat's hourly deviation from its setpoint over two days, in
 type Drift = + Drift([Int]) in
 
 # Horizon charts: Heer, Kong and Agrawala, Sizing the Horizon (CHI 2009) #
+# In code: Hoffswell, Satyanarayan and Heer, Augmenting Code with In Situ Visualizations to Aid Program Understanding (CHI 2018) #
 let ^drift = {
   type Model = Drift;
 
