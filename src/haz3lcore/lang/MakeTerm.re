@@ -694,6 +694,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["quote", "end"], [Exp(body)]) => ret(Quote(body))
+      | (["unquote", "end"], [Exp(e)]) => ret(Unquote(e))
       | (["proof_object", "end"], [Exp(proof)]) =>
         ret(ProofObject(proof))
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
@@ -745,6 +747,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        /* `do p <- c in body`: same tile shape as let, three
+           delimiters and two children, so it reads the same way. */
+        | (["do", "<-", "in"], [Pat(pat), Exp(cmd)]) => Bind(pat, cmd, r)
         | (["module", "=", "in"], [MPat(mp), Exp(def)]) =>
           ModuleExp(mp, def, r)
         | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
@@ -938,6 +943,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               )
             | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
+            /* A livelit that is a module member, `Lib.^flag`: kept as the
+               name it is, so it prints back as written and a use's head
+               can be resolved by its qualified key (UserLivelit.head_key). */
+            | LivelitName(_) => Dot(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
 
@@ -1594,7 +1603,7 @@ let consolidate_adopted = (): unit => {
 
 let go =
   Core.Memo.general(
-    ~cache_size_bound=1000,
+    ~cache_size_bound=8,
     seg => {
       map := TermMap.empty;
       term_data := Id.Map.empty;
@@ -1622,7 +1631,7 @@ let for_projection =
    * that no contained sub-segment is non-convex. However, there can still be convex
    * holes, singleton multiholes representing sort errors, non-singleton multiholes
    * representing missing infix operators, and invalid tokens. */
-  Core.Memo.general(~cache_size_bound=1000, (seg: Segment.t) =>
+  Core.Memo.general(~cache_size_bound=8, (seg: Segment.t) =>
     if (!Segment.deep_tile_complete(seg)) {
       None; /* Returns None if any subsegment contains incomplete tiles */
     } else if (Segment.is_padded(seg)) {
@@ -1682,4 +1691,4 @@ let from_zip_for_sem = (z: Zipper.t, ~root) =>
   go(Dump.to_segment(z, ~root));
 
 let from_zip_for_sem =
-  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem);
+  Core.Memo.general(~cache_size_bound=8, from_zip_for_sem);

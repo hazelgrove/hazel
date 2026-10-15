@@ -123,6 +123,12 @@ let merge_outbox =
     },
 };
 
+/* Not into a function's body: entries are recorded only for nodes
+   evaluated outside any call (Evaluator's eval_4_reuse), and a function's
+   body is evaluated only when it is applied, which pushes a call frame, so
+   no node in it has an entry. A livelit's definition is mostly function
+   bodies, and walking them on every reuse was a third of the worker's
+   evaluation of a Kids' Choice release. */
 let copy_descendant_entries =
     (~root_id: Id.t, ~root: Exp.t, ~prev: t('state), incr: t('state))
     : t('state) => {
@@ -135,7 +141,10 @@ let copy_descendant_entries =
       | None => ()
       };
     };
-    continue(e);
+    switch (e.term) {
+    | Fun(_) => e
+    | _ => continue(e)
+    };
   };
   let _ = TermBase.Exp.map_term(~f_exp, root);
   acc^;
@@ -169,7 +178,7 @@ let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
 
 let equal_projection = (a: projection, b: projection): bool =>
   switch (a, b) {
-  | (Ascribed(t1), Ascribed(t2)) => Typ.fast_equal(t1, t2)
+  | (Ascribed(t1), Ascribed(t2)) => Typ.fast_equal_hashed(t1, t2)
   | (Ascribed(_), _)
   | (_, Ascribed(_)) => false
   | _ => a == b
@@ -344,7 +353,16 @@ let reuse_check =
   let* entry = Id.Map.find_opt(id, prev.entries);
   let* info = EvalInfo.find_opt(id, eval_info);
 
-  let elab_same = Exp.fast_equal(entry.prev_elab, info.elab_term);
+  /* The same build, by Merkle hash, is the same elaboration, and costs
+     one lookup once both are hashed. Otherwise compare: the cached
+     elaboration is usually a near-copy of the new one (the request is
+     unmarshaled into fresh objects, but unchanged code keeps its ids), so
+     the hashed comparison visits only what changed. It was a full walk of
+     the subterm per check, and the reuse pass checks every node: 280 ms of
+     a Kids' Choice slider release in Firefox. */
+  let elab_same =
+    Util.ValueHash.same(entry.prev_elab, info.elab_term)
+    || Exp.fast_equal_hashed(entry.prev_elab, info.elab_term);
   let* () = OptUtil.some_if(elab_same, ());
 
   let* current_reuse_map = reuse_map_for_co_ctx(reuse_map, info.co_ctx);

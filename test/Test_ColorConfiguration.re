@@ -95,9 +95,10 @@ let plausible = s =>
   )
   && !List.exists(bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);
 
-/* Two emitted properties carry flags rather than colors, and are the only
+/* Two emitted properties carry flags rather than colors, and four the
+   livelit toggle's look (glyphs and a stroke width); they are the only
    ones this check does not apply to. */
-let flags = [CC.polarity_target, CC.contrast_target];
+let flags = [CC.polarity_target, CC.contrast_target, ...CC.reveal_targets];
 
 let unparseable = vars =>
   vars
@@ -570,6 +571,196 @@ let theme_css_is_current = () => {
   };
 };
 
+/* The livelit toggle's look, chosen with the slide's ^reveal livelit:
+   Triangle publishes the disclosure glyphs, right then down, and no
+   strike. [binding] replaces the whole `let livelit_reveal = ... in`. */
+let reveal_literal = "let livelit_reveal = ^^livelit(^reveal(Eye)) in";
+
+let source_with_binding = (binding: string) =>
+  switch (split_on_string(~needle=reveal_literal, CC.source.backup_text)) {
+  | [before, after] =>
+    before ++ binding ++ after |> Haz3lcore.PersistentZipper.of_slide_text
+  | parts =>
+    failf(
+      "colors.hz: expected one %s, found %d",
+      reveal_literal,
+      List.length(parts) - 1,
+    )
+  };
+
+let source_with_reveal = (ctor: string) =>
+  source_with_binding(
+    "let livelit_reveal = ^^livelit(^reveal(" ++ ctor ++ ")) in",
+  );
+
+let reveal_of = vars =>
+  List.filter(((n, _)) => List.mem(n, CC.reveal_targets), vars)
+  |> List.sort(compare);
+
+let triangle_reveals = () => {
+  let vars = CC.vars_of_source(source_with_reveal("Triangle"));
+  check(
+    int,
+    "the whole theme, still",
+    List.length(CC.all_targets),
+    List.length(vars),
+  );
+  check(
+    list(pair(string, string)),
+    "the triangle's glyphs",
+    List.sort(compare, CC.reveal_vars("triangle")),
+    reveal_of(vars),
+  );
+  check(
+    string,
+    "right while hidden, down while shown",
+    "triangle \"\xE2\x96\xB8\" \"\xE2\x96\xBE\" 0px 0deg 1.3em",
+    String.concat(" ", List.map(snd, CC.reveal_vars("triangle"))),
+  );
+};
+
+/* A Colors slide saved before livelit-reveal was a field: it must still
+   yield its whole theme -- the user's colors -- with the eye, not nothing.
+   Rebuilt from today's slide by taking the field back out. */
+let a_slide_saved_before_the_toggle_keeps_its_colors = () => {
+  let text = CC.source.backup_text;
+  let drop = (needle, s) =>
+    switch (split_on_string(~needle, s)) {
+    | [a, b] => a ++ b
+    | parts =>
+      failf(
+        "colors.hz: expected one %S, found %d",
+        needle,
+        List.length(parts) - 1,
+      )
+    };
+  let old =
+    text
+    |> drop(reveal_literal)
+    |> (
+      s =>
+        /* the scheme, no longer extended with the toggle's look */
+        switch (split_on_string(~needle="end) ... (", s)) {
+        | [a, _] => a ++ "end)"
+        | _ =>
+          failf("colors.hz: expected the scheme extended once at the end")
+        }
+    );
+  let vars =
+    CC.vars_of_source(Haz3lcore.PersistentZipper.of_slide_text(old));
+  let committed = CC.vars_of_source(CC.source);
+  check(
+    int,
+    "every property, the toggle's defaulted",
+    List.length(CC.all_targets),
+    List.length(vars),
+  );
+  check(
+    list(pair(string, string)),
+    "the same colors as with the field",
+    List.sort(compare, committed),
+    List.sort(compare, vars),
+  );
+};
+
+let chevron_reveals = () => {
+  let vars = CC.vars_of_source(source_with_reveal("Chevron"));
+  check(
+    int,
+    "the whole theme, still",
+    List.length(CC.all_targets),
+    List.length(vars),
+  );
+  check(
+    list(pair(string, string)),
+    "the chevron's glyphs",
+    List.sort(compare, CC.reveal_vars("chevron")),
+    reveal_of(vars),
+  );
+  check(
+    string,
+    "one angle, turned down while shown",
+    "chevron \"\xE2\x9D\xAF\" \"\xE2\x9D\xAF\" 0px 90deg 0.9em",
+    String.concat(" ", List.map(snd, CC.reveal_vars("chevron"))),
+  );
+};
+
+/* The hazelnut: two images, shut and with its cap off, as data URIs. */
+let nut_reveals = () => {
+  let vars = CC.vars_of_source(source_with_reveal("Nut"));
+  check(
+    int,
+    "the whole theme, still",
+    List.length(CC.all_targets),
+    List.length(vars),
+  );
+  check(
+    list(pair(string, string)),
+    "the nut's glyphs",
+    List.sort(compare, CC.reveal_vars("nut")),
+    reveal_of(vars),
+  );
+  let get = n => List.assoc(n, vars);
+  let prefix = "url(\"data:image/svg+xml,";
+  let is_image = v =>
+    String.length(v) > String.length(prefix)
+    && String.sub(v, 0, String.length(prefix)) == prefix;
+  check(
+    bool,
+    "shut is an image",
+    true,
+    is_image(get(CC.reveal_closed_target)),
+  );
+  check(
+    bool,
+    "open is an image",
+    true,
+    is_image(get(CC.reveal_open_target)),
+  );
+  check(
+    bool,
+    "and a different one",
+    true,
+    get(CC.reveal_closed_target) != get(CC.reveal_open_target),
+  );
+  check(
+    bool,
+    "nothing a url(\"...\") cannot carry",
+    false,
+    List.exists(
+      c =>
+        String.contains(
+          get(CC.reveal_open_target)
+          |> (v => String.sub(v, 5, String.length(v) - 7)),
+          c,
+        ),
+      ['"', '#', '<', '>', '\n'],
+    ),
+  );
+};
+
+/* A slide saved in the hour the choice was a string,
+   `let livelit_reveal = "triangle" in`: still its colors, and still the
+   triangle. */
+let a_slide_saved_with_the_string_keeps_its_choice = () => {
+  let vars =
+    CC.vars_of_source(
+      source_with_binding("let livelit_reveal = \"triangle\" in"),
+    );
+  check(
+    int,
+    "the whole theme",
+    List.length(CC.all_targets),
+    List.length(vars),
+  );
+  check(
+    list(pair(string, string)),
+    "the triangle's glyphs",
+    List.sort(compare, CC.reveal_vars("triangle")),
+    reveal_of(vars),
+  );
+};
+
 let tests = [
   (
     "ColorConfiguration",
@@ -617,6 +808,19 @@ let tests = [
         "schemes are pairwise distinct",
         `Quick,
         schemes_are_pairwise_distinct,
+      ),
+      test_case("triangle reveals", `Quick, triangle_reveals),
+      test_case("chevron reveals", `Quick, chevron_reveals),
+      test_case("nut reveals", `Quick, nut_reveals),
+      test_case(
+        "a slide saved with the string keeps its choice",
+        `Quick,
+        a_slide_saved_with_the_string_keeps_its_choice,
+      ),
+      test_case(
+        "a slide saved before the toggle keeps its colors",
+        `Quick,
+        a_slide_saved_before_the_toggle_keeps_its_colors,
       ),
     ],
   ),

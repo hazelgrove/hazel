@@ -9,7 +9,7 @@ type state = {
 let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
   Result.of_option(~error, z);
 
-let go =
+let go_unguarded =
     (
       ~settings: Language.CoreSettings.t,
       ~statics: CachedStatics.t,
@@ -387,3 +387,51 @@ let go =
   | Structural(a) => CompositionGo.Public.go(~syntax, ~z, ~a)
   };
 };
+
+/* A livelit's model, revealed as syntax under its GUI (the eye), is
+   read-only: it is selected and navigated as any code, but changed only
+   through the GUI, whose commits rewrite it (ProjectorPerform.SetTerm).
+   Text edits to a model -- its splice refs especially -- can only break or
+   re-point what the livelit's own update keeps consistent. The caret is in
+   the model when the innermost splice around it is the revealed syntax
+   itself, the splice directly under a livelit showing its syntax; a cell
+   of the GUI is a splice nested deeper, and stays editable. */
+let in_revealed_model = (z: Zipper.t): bool => {
+  let rec innermost_splice = (ancestors: Ancestors.t) =>
+    switch (ancestors) {
+    | [] => false
+    | [(Ancestor.Splice(_), _), (Ancestor.Projector(pa), _), ..._] =>
+      pa.show_syntax && pa.kind == Language.ProjectorKind.Livelit
+    | [(Ancestor.Splice(_), _), ..._] => false
+    | [_, ...rest] => innermost_splice(rest)
+    };
+  innermost_splice(z.relatives.ancestors);
+};
+
+/* The edits refused there: everything Action.is_edit counts but projector
+   actions (the GUI's own commits, the eye) and probes, which change no
+   text. */
+let changes_text = (a: Action.t): bool =>
+  switch (a) {
+  | Project(_)
+  | Probe(_) => false
+  | a => Action.is_edit(a)
+  };
+
+let go =
+    (
+      ~settings: Language.CoreSettings.t,
+      ~statics: CachedStatics.t,
+      ~syntax: CachedSyntax.t,
+      ~root,
+      a: Action.t,
+      state: state,
+    )
+    : Action.Result.t(Zipper.t) =>
+  changes_text(a) && in_revealed_model(state.zipper)
+    ? Error(
+        Composition_action_failure(
+          "a livelit's model is read-only while its syntax is shown: change it with the livelit",
+        ),
+      )
+    : go_unguarded(~settings, ~statics, ~syntax, ~root, a, state);

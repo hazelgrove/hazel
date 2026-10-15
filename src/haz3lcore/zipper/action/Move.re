@@ -140,7 +140,7 @@ let move_until_wrap = (p, d, z) =>
  * few cases including for example `true && !|flag`,
  * where the caret (|) is at the leftmost edge of
  * `flag`, but the not operator ("!") is indicated */
-let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
+let jump_to_side_of_id_by_walking = (d: Direction.t, z, id): option(t) => {
   let at_piece =
     fun
     | (_, Some(piece)) when d == Left => Piece.id(piece) == id
@@ -149,6 +149,135 @@ let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
   let z = do_to_extreme(local(ByToken, d), z);
   at_piece(Zipper.generalized_neighbors(z))
     ? Some(z) : do_until(local(ByToken, Direction.toggle(d)), at_piece, z);
+};
+
+/* Where the walk above ends, found without walking. It goes to one end of
+ * the program and steps a token at a time back until the piece is beside
+ * the caret, which costs a Zipper.move per token -- ~150 ms of focusing
+ * Tree Care's widget. `local` steps into tiles but not into a projector's
+ * syntax, so when the piece is reached through tiles alone the walk stops
+ * at the one boundary beside it, in its own segment: nothing earlier in
+ * the walk's order has it as a neighbour (a tile's own children come after
+ * its left side and before its right side). That zipper is built here
+ * directly. Anything else -- the caret inside a splice, where the walk is
+ * confined; the piece inside a projector or splice; no such piece -- is
+ * left to the walk. Test_Move checks the two agree. */
+let rec has_id_deep = (id: Id.t, seg: Segment.t): bool =>
+  List.exists(
+    (p: Piece.t) =>
+      Piece.id(p) == id
+      || (
+        switch (p) {
+        | Tile(t) => List.exists(has_id_deep(id), t.children)
+        | Projector(pr) => has_id_deep(id, pr.syntax)
+        | Splice(sp) => has_id_deep(id, sp.content)
+        | Grout(_)
+        | Secondary(_) => false
+        }
+      ),
+    seg,
+  );
+
+exception Not_through_tiles;
+
+/* The relatives with [id] beside the caret on side [d] of it, if [id] is
+ * reached through tiles alone. */
+let relatives_beside_id =
+    (d: Direction.t, id: Id.t, seg: Segment.t): option(Relatives.t) => {
+  let rec in_seg =
+          (seg: Segment.t, ancestors: Ancestors.t): option(Relatives.t) => {
+    let rec go = (pre_rev: Segment.t, suf: Segment.t) =>
+      switch (suf) {
+      | [] => None
+      | [p, ...rest] when Piece.id(p) == id =>
+        let pre = List.rev(pre_rev);
+        Some(
+          Relatives.{
+            siblings:
+              switch (d) {
+              | Left => (pre, suf)
+              | Right => (pre @ [p], rest)
+              },
+            ancestors,
+          },
+        );
+      | [Tile(t) as p, ...rest] =>
+        let sibs = (List.rev(pre_rev), rest);
+        let n = List.length(t.children);
+        let rec child = k =>
+          if (k >= n) {
+            None;
+          } else {
+            let (before, after) = ListUtil.split_n(k, t.children);
+            let (c, after) =
+              switch (after) {
+              | [c, ...after] => (c, after)
+              | [] => failwith("relatives_beside_id: child index")
+              };
+            let (sh_l, sh_r) = ListUtil.split_n(k + 1, t.shards);
+            let anc =
+              Ancestor.Tile({
+                id: t.id,
+                label: t.label,
+                mold: t.mold,
+                shards: (sh_l, sh_r),
+                children: (before, after),
+              });
+            switch (in_seg(c, [(anc, sibs), ...ancestors])) {
+            | Some(_) as found => found
+            | None => child(k + 1)
+            };
+          };
+        switch (child(0)) {
+        | Some(_) as found => found
+        | None => go([p, ...pre_rev], rest)
+        };
+      | [(Projector(_) | Splice(_)) as p, ..._] when has_id_deep(id, [p]) =>
+        raise(Not_through_tiles)
+      | [p, ...rest] => go([p, ...pre_rev], rest)
+      };
+    go([], seg);
+  };
+  switch (in_seg(seg, [])) {
+  | found => found
+  | exception Not_through_tiles => None
+  };
+};
+
+/* For tests: jumps made without walking. */
+let direct_jumps = ref(0);
+
+let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
+  let in_splice =
+    List.exists(
+      ((a, _): Ancestors.generation) =>
+        switch (a) {
+        | Ancestor.Tile(_) => false
+        | Projector(_)
+        | Splice(_) => true
+        },
+      z.relatives.ancestors,
+    );
+  let direct =
+    in_splice
+      ? None
+      : {
+        let z = unselect(z);
+        relatives_beside_id(d, id, Zipper.zip(z))
+        |> Option.map(relatives =>
+             {
+               ...z,
+               relatives,
+               caret: Outer,
+             }
+           );
+      };
+  switch (direct) {
+  | Some(_) =>
+    incr(direct_jumps);
+    direct;
+  | None => jump_to_side_of_id_by_walking(d, z, id)
+  };
 };
 
 /* Caret-position invariant for the char-level selection model:

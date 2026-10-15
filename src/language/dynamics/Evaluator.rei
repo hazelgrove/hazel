@@ -20,6 +20,14 @@ let evaluate:
   ) =>
   (Exp.t, EvaluatorState.t);
 
+/* evaluate, without finish: the value as the evaluator left it, its
+   functions still closures. For callers that only read a value's data and
+   apply its functions by evaluating again. With [call_memo], a call the
+   same as one in an earlier evaluation with that memo gives that call's
+   result without evaluating it (CallMemo): for a pure evaluation only. */
+let evaluate_open:
+  (~call_memo: CallMemo.t=?, ~env: Environment.t(Exp.t), Exp.t) => Exp.t;
+
 let evaluate_and_limit:
   (
     ~step_limit: int,

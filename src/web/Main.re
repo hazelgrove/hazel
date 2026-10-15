@@ -194,6 +194,13 @@ let start = default_model => {
                "--row-height-px",
                Printf.sprintf("%fpx", rect.height),
              );
+             /* one code column, for a stylesheet that must line up with
+                the text grid (proj-livelit.css: the syntax toggle's
+                columns) */
+             JsUtil.set_css_custom_property(
+               "--col-width-px",
+               Printf.sprintf("%fpx", rect.width),
+             );
              i(
                Page.Update.Globals(
                  SetFontMetrics({
@@ -294,13 +301,6 @@ let start = default_model => {
         let zipper = editor.state.zipper;
         let measured = Haz3lcore.CachedSyntax.measured(editor.syntax);
         let font_metrics = model.model.current.current.globals.font_metrics;
-        ScrollWidth.update(
-          ~measured,
-          ~refractor_rows=editor.syntax.refractor_rows,
-          ~sample_focus=zipper.refractors.sample_focus,
-          ~font_metrics,
-          ~visible_rows=model.model.current.current.globals.visible_rows,
-        );
         RefractorShift.update(
           ~editor_key=
             Editors.Model.editor_key(model.model.current.current.editors),
@@ -312,6 +312,15 @@ let start = default_model => {
         /* stagger multi-row offside displays clear of code and of each
            other (top-down priority, first-fit), per code container */
         ProbeStagger.update(~font_metrics);
+        /* after the displays are placed: its read sees where they are,
+           and shares their layout */
+        ScrollWidth.update(
+          ~measured,
+          ~refractor_rows=editor.syntax.refractor_rows,
+          ~sample_focus=zipper.refractors.sample_focus,
+          ~font_metrics,
+          ~visible_rows=model.model.current.current.globals.visible_rows,
+        );
         SampleAnchor.consume();
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
@@ -348,6 +357,16 @@ let start = default_model => {
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
 | _ =>
+  /* Start the eval worker now, while the page is idle waiting on
+     IndexedDB, not on first use. Firefox loads a worker's script through
+     the main thread, so a worker first created mid-calculation -- whose
+     statics held the main thread for 20+ s on the Livelit Playground's
+     largest slides -- could not even load until the calculation ended:
+     it never acknowledged, the page reported "Evaluation timed out", and
+     the slide never drew. Created here, it is loaded and listening before
+     the first request. (Chromium fetches worker scripts off the main
+     thread, which is why it never showed there.) */
+  ignore(WorkerClient.get_worker());
   /* Load all IndexedDB data, then construct model and start Bonsai.
      The hazelnut loading spinner (in index.html) stays visible until
      Bonsai renders its first frame. */
@@ -369,5 +388,5 @@ switch (JsUtil.Fragment.get_current()) {
       start(default_model),
       ~bind_to_element_with_id="container",
     );
-  })
+  });
 };

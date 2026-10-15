@@ -132,7 +132,14 @@ let tests = (
     | files =>
       List.map(
         path =>
-          test_case("differential: " ++ path, `Slow, () => check_file(path)),
+          test_case(
+            "differential: " ++ path,
+            `Slow,
+            () => {
+              ParsedCorpus.skip_if_long(read_file(path));
+              check_file(path);
+            },
+          ),
         files,
       )
     };

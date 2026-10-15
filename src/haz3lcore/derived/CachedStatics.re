@@ -59,11 +59,22 @@ let compute_targets =
   let effective_probe_ids =
     settings.probe_all ? all_probeable_ids(info_map) : probe_ids;
   /* The model argument of a projected livelit use, whose value the commit
-     path reads when writing a ^name.update(model, action) transition */
+     path reads when writing a ^name.update(model, action) transition, and
+     the shape and the drag read too. Under parens; under the splice that
+     holds a use while it shows its syntax (missed, the model went
+     unsampled whenever the syntax showed: the GUI stopped following
+     commits and a livelit whose shape follows its model shrank to the
+     default); and in a direct use with parameters, ^a(args)(model). */
   let rec livelit_model = (e: Exp.t): option(Id.t) =>
     switch (e.term) {
-    | Parens(e) => livelit_model(e)
-    | Ap(_, {term: LivelitName(_), _}, model) => Some(Exp.rep_id(model))
+    | Parens(e)
+    | Splice(e) => livelit_model(e)
+    /* the head a bare `^f` or a module member `Lib.^f` */
+    | Ap(_, head, model)
+        when
+          Language.UserLivelit.head_key(head) != None
+          || Language.UserLivelit.ap_head_key(head) != None =>
+      Some(Exp.rep_id(model))
     | _ => None
     };
   Id.Map.fold(

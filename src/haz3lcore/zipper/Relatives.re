@@ -76,6 +76,21 @@ let rec find_splice_descent_when =
     | [Base.Splice(s) as p, ...rest_pieces] =>
       if (pred(s)) {
         let (before, after) = split_at_current(acc, rest_pieces);
+        /* A splice reached through a tile has that tile's child sort. One
+           directly in a projector's syntax has none from outside -- a
+           livelit use showing its syntax holds all of it as one such
+           splice -- so it takes its content's: as Any, `^a()` then a
+           digit remolded `(` as a new operand and grouted it apart from
+           `^a`, which no longer named a use (#2631). */
+        let sort =
+          switch (sort) {
+          | Sort.Any =>
+            switch (Segment.sort_of(Segment.skel(s.content), s.content)) {
+            | sort => sort
+            | exception _ => Sort.Any
+            }
+          | sort => sort
+          };
         let splice_anc: Ancestor.splice_anc = {
           id: s.id,
           sort,
@@ -85,7 +100,45 @@ let rec find_splice_descent_when =
         ];
         Some((ancs, splice_inner_sibs(s), s, before, after));
       } else {
-        scan([p, ...acc], rest_pieces);
+        /* The splice sought may be nested in this one: a livelit's cell,
+           when the livelit shows its syntax and the whole use is one
+           splice. Descend as into a tile's child, with this splice as a
+           frame of its own; without it, a click in such a cell found no
+           way in, and the cell ignored the keyboard. */
+        switch (find_splice_descent_when(d, pred, s.content)) {
+        | Some((sub_ancs, sub_sibs, sub_splice, inner_l, inner_r)) =>
+          let (before, after) = split_at_current(acc, rest_pieces);
+          let sub_ancs_fixed =
+            switch (List.rev(sub_ancs)) {
+            | [] => sub_ancs
+            | [(outermost_anc, _), ...rest_rev] =>
+              List.rev([(outermost_anc, (inner_l, inner_r)), ...rest_rev])
+            };
+          let sort =
+            switch (sort) {
+            | Sort.Any =>
+              switch (Segment.sort_of(Segment.skel(s.content), s.content)) {
+              | sort => sort
+              | exception _ => Sort.Any
+              }
+            | sort => sort
+            };
+          let outer_frame = (
+            Ancestor.Splice({
+              id: s.id,
+              sort,
+            }),
+            (Segment.empty, Segment.empty),
+          );
+          Some((
+            sub_ancs_fixed @ [outer_frame],
+            sub_sibs,
+            sub_splice,
+            before,
+            after,
+          ));
+        | None => scan([p, ...acc], rest_pieces)
+        };
       }
     | [Base.Tile(t) as p, ...rest_pieces] =>
       let n_kids = List.length(t.children);
@@ -183,6 +236,8 @@ let enter_projector =
       id: pr.id,
       kind: pr.kind,
       model: pr.model,
+      placement: pr.placement,
+      show_syntax: pr.show_syntax,
       before: outer_left,
       after: outer_right,
     };
@@ -231,6 +286,14 @@ let exit_splice = (d: Direction.t, rs: t): option(t) => {
         let zipped_tile = Ancestor.zip(active_seg, Ancestor.Tile(tile_anc));
         let new_seg =
           fst(tile_gen_sibs) @ [zipped_tile, ...snd(tile_gen_sibs)];
+        walk_to_projector(new_seg, rest);
+      /* A splice the exited one is nested in -- a livelit showing its
+         syntax holds its cells inside one -- is closed around them on the
+         way up, as find_splice_descent_when opened it. */
+      | [(Ancestor.Splice(outer), outer_gen_sibs), ...rest] =>
+        let zipped = Piece.mk_splice(~id=outer.id, active_seg);
+        let new_seg =
+          fst(outer_gen_sibs) @ [zipped, ...snd(outer_gen_sibs)];
         walk_to_projector(new_seg, rest);
       | [(Ancestor.Projector(pr_anc), outer_sibs), ...rest] =>
         Some((active_seg, pr_anc, outer_sibs, rest))

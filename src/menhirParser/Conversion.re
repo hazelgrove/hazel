@@ -247,10 +247,14 @@ module rec Exp: {
       | Label(s)
       | Constructor(s, None) => dot(of_menhir_ast(e1), label(s))
       | EmptyHole => dot(of_menhir_ast(e1), empty_hole())
+      /* A livelit module member, `Lib.^flag`, as MakeTerm keeps it. */
+      | LivelitName(_) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
       | _ => dot(of_menhir_ast(e1), multi_hole([Exp(of_menhir_ast(e2))]))
       }
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
+    | Bind(p, e1, e2) =>
+      bind_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | Theorem(p, e1, e2) =>
       theorem(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
     | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
@@ -316,6 +320,8 @@ module rec Exp: {
     | EmptyHole => empty_hole()
     | Seq(e1, e2) => seq(of_menhir_ast(e1), of_menhir_ast(e2))
     | Test(e) => test(of_menhir_ast(e))
+    | Quote(e) => quote(of_menhir_ast(e))
+    | Unquote(e) => unquote(of_menhir_ast(e))
     | HintedTest(e, hint) =>
       hinted_test(of_menhir_ast(e), of_menhir_ast(hint))
     | Cons(e1, e2) => cons(of_menhir_ast(e1), of_menhir_ast(e2))
@@ -370,6 +376,7 @@ module rec Exp: {
     | Tuple(l) => TupleExp(List.map(of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
+    | Bind(p, e1, e2) => Bind(Pat.of_core(p), of_core(e1), of_core(e2))
     | Theorem(p, e1, e2) =>
       Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
     | ProofObject(t) => ProofObject(Exp.of_core(t))
@@ -394,6 +401,8 @@ module rec Exp: {
     | EmptyHole => EmptyHole
     | Seq(e1, e2) => Seq(of_core(e1), of_core(e2))
     | Test(e) => Test(of_core(e))
+    | Quote(e) => Quote(of_core(e))
+    | Unquote(e) => Unquote(of_core(e))
     | HintedTest(e, hint) => HintedTest(of_core(e), of_core(hint))
     | Cons(e1, e2) => Cons(of_core(e1), of_core(e2))
     | ListConcat(e1, e2) => ListConcat(of_core(e1), of_core(e2))

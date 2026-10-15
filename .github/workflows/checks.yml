@@ -94,7 +94,7 @@ jobs:
     name: Full tests
     runs-on: ubuntu-latest
     # Without this, GitHub's 360-min default applies.
-    timeout-minutes: 90
+    timeout-minutes: 120
     permissions:
       contents: read
     steps:
@@ -105,7 +105,12 @@ jobs:
 
       - name: Run tests
         run: opam exec -- make ci
-        timeout-minutes: 60
+        # 60 was outgrown on the livelits branch (PR #2597): the suite ran
+        # 44 min, then 55, then hit 60 and was killed with no failing test.
+        # 75 was outgrown too: passing runs took 47.7 to 74.5 min on the same
+        # code, and one hit 75 with no failing test. The job's own 120 still
+        # bounds it.
+        timeout-minutes: 100
 
       # Results UI, not the gate: the step above already fails on a red suite.
       - name: Test Report

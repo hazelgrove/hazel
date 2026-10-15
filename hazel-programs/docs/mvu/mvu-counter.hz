@@ -14,10 +14,10 @@ in
 let stepButton(label: String, action: Action): Html.T =
   Html.button(
     [Attr.on_click(action),
-     Attr.style([("padding", "0.35em 0.6em"), ("background", "var(--T1)"),
-            ("border", "1px solid var(--BR1)"), ("border-radius", "3px"),
+     Attr.style([("padding", "0.35em 0.6em"), ("background", "var(--surface-default)"),
+            ("border", "1px solid var(--border-soft)"), ("border-radius", "3px"),
             ("cursor", "pointer"), ("font-family", "inherit"), ("font-size", "1em"),
-            ("color", "var(--STONE)")])],
+            ("color", "var(--text-default)")])],
     [Html.text(label)]
   )
 in
@@ -27,21 +27,21 @@ let view(model: Model): Html.T =
     [Attr.class("counter"),
      Attr.style([("max-width", "280px"), ("margin", "0 auto"),
             ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
-            ("background", "var(--SAND)"), ("color", "var(--STONE)"),
-            ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+            ("background", "var(--surface-code)"), ("color", "var(--text-default)"),
+            ("border", "1px solid var(--border-soft)"), ("border-radius", "0.4em"),
             ("overflow", "hidden")])],
     [
       Html.div(
         [Attr.style([("padding", "0.9em 1em 0.8em"), ("text-align", "center"),
-                ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+                ("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--text-strong)")])],
         [Html.text("Counter")]
       ),
       Html.div(
         [Attr.style([("padding", "0.7em 1em"), ("text-align", "center"),
-                ("background", "var(--T2)"), ("font-size", "1.5em"),
-                ("font-weight", "bold"), ("color", "var(--BR4)"),
-                ("border-top", "1px solid var(--BR1)"),
-                ("border-bottom", "1px solid var(--BR1)")])],
+                ("background", "var(--surface-raised)"), ("font-size", "1.5em"),
+                ("font-weight", "bold"), ("color", "var(--text-strong)"),
+                ("border-top", "1px solid var(--border-soft)"),
+                ("border-bottom", "1px solid var(--border-soft)")])],
         [Html.int(model)]
       ),
       Html.div(
@@ -51,8 +51,8 @@ let view(model: Model): Html.T =
       ),
       Html.div(
         [Attr.style([("padding", "0.6em 1em"), ("text-align", "center"),
-                ("font-size", "0.75em"), ("color", "var(--BR3)"),
-                ("border-top", "1px solid var(--BR1)")])],
+                ("font-size", "0.75em"), ("color", "var(--text-muted)"),
+                ("border-top", "1px solid var(--border-soft)")])],
         [Html.text("Use + and - to change the count")]
       )
     ]

@@ -64,6 +64,8 @@ module Utils = {
     | Fun(_, e, _, _)
     | UnOp(_, e)
     | Test(e)
+    | Quote(e)
+    | Unquote(e)
     | Parens(e)
     | Splice(e)
     | Filter(_, e)
@@ -76,6 +78,7 @@ module Utils = {
     | DeferredAp(e, _)
     | HintedTest(e, _) => [e]
     | Let(_, e1, e2)
+    | Bind(_, e1, e2)
     | Seq(e1, e2)
     | Ap(_, e1, e2)
     | Dot(e1, e2)

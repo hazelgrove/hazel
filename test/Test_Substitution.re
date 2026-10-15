@@ -73,6 +73,44 @@ let tests = (
         check(exp, "f -> g, g -> h in fix f. f", expected, result);
       },
     ),
+    /* A let's binder scopes over its body, not its definition: in
+       `let x = (x, 2) in x` the definition's x is the OUTER x. The binder
+       is renamed away from capture (x is in env), and the definition once
+       got that renaming too, `let x' = (x', 2) in x'`, which left it
+       unbound -- a shadowing let inside a do-block stuck on it. */
+    test_case(
+      "a let's definition sees the outer binding",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("x", Exp.int(1))]);
+        let expr =
+          Exp.let_(
+            Pat.var("x"),
+            Exp.tuple([Exp.var("x"), Exp.int(2)]),
+            Exp.var("x"),
+          );
+        let result = Substitution.in_exp(env, expr);
+        let expected =
+          Exp.let_(
+            Pat.var("x"),
+            Exp.tuple([Exp.int(1), Exp.int(2)]),
+            Exp.var("x"),
+          );
+        check(exp, "x -> 1 in let x = (x, 2) in x", expected, result);
+      },
+    ),
+    /* So does a do-block's command. */
+    test_case(
+      "a bind's command sees the outer binding",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("x", Exp.int(1))]);
+        let expr = Exp.bind_(Pat.var("x"), Exp.var("x"), Exp.var("x"));
+        let result = Substitution.in_exp(env, expr);
+        let expected = Exp.bind_(Pat.var("x"), Exp.int(1), Exp.var("x"));
+        check(exp, "x -> 1 in do x <- x in x", expected, result);
+      },
+    ),
     /* A module member's name is its label, so it must not be renamed away
        from capture the way an ordinary binder is: `M.x` would stop finding
        it. The substitution shadows for the items that follow instead. This

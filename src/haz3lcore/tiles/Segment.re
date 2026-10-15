@@ -33,18 +33,30 @@ and incomplete_tiles_deep_acc = (acc, seg: t) =>
   List.fold_left(
     (acc, p) =>
       switch (p) {
-      | Piece.Tile(t) =>
-        let acc = !Tile.is_complete(t) ? [t, ...acc] : acc;
-        List.fold_left(
-          (acc, child) => incomplete_tiles_deep_acc(acc, child),
-          acc,
-          t.children,
-        );
+      | Piece.Tile(t) => List.rev_append(incomplete_of_tile(t), acc)
       | _ => acc
       },
     acc,
     seg,
+  )
+/* A tile's incomplete tiles (itself, then its children's, in traversal
+   order), remembered by the tile's identity: a tile is immutable, and an
+   edit keeps the unchanged ones, so the walk on each redraw (the problems
+   panel, the outline) is over what changed, not the whole program. */
+and incomplete_of_tile = (t: Tile.t): list(Tile.t) =>
+  Lazy.force(incomplete_of_tile_memo, t)
+and incomplete_of_tile_memo =
+  lazy(Util.IdentityMemo.memo(incomplete_of_tile_uncached))
+and incomplete_of_tile_uncached = (t: Tile.t): list(Tile.t) => {
+  let acc = !Tile.is_complete(t) ? [t] : [];
+  List.rev(
+    List.fold_left(
+      (acc, child) => incomplete_tiles_deep_acc(acc, child),
+      acc,
+      t.children,
+    ),
   );
+};
 
 let incomplete_tiles_to_missing_shards = seg =>
   seg |> List.map(Tile.missing_shards) |> List.concat;
@@ -1130,7 +1142,12 @@ let presplit_orphans = (seg: t): t =>
        | p => [p],
      );
 
-let rescan = (seg: t): t => {
+/* Also says whether any piece came out different, so a caller can skip
+   comparing the whole segment. A conversion can hand back a piece equal
+   to the one it replaces (an orphan shard already carrying its
+   ancestor's id), so the flag compares that one piece. */
+let rescan_changed = (seg: t): (t, bool) => {
+  let changed = ref(false);
   let has_incomplete =
     List.exists(
       p =>
@@ -1141,7 +1158,7 @@ let rescan = (seg: t): t => {
       seg,
     );
   if (!has_incomplete) {
-    seg;
+    (seg, false);
   } else {
     /* Walk left-to-right with a STACK of backpack frames.
      * Each incomplete tile pushes a new frame with its missing shards.
@@ -1195,6 +1212,9 @@ let rescan = (seg: t): t => {
             | Some(target_shard) when shard_idx(target_shard) > max_idx =>
               let idx = shard_idx(target_shard);
               let converted = Piece.Tile(target_shard);
+              if (converted != hd) {
+                changed := true;
+              };
               let entries = List.filter(((k, _)) => k != tok, entries);
               /* If this frame is exhausted, pop to previous frame */
               let (frame, stack) =
@@ -1223,7 +1243,8 @@ let rescan = (seg: t): t => {
           };
         }
       };
-    go(seg);
+    let seg = go(seg);
+    (seg, changed^);
   };
 };
 

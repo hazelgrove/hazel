@@ -81,6 +81,7 @@ let exp_to_seg =
   );
 
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
+  let show_syntax = Token.of_projector_invoke_show_syntax(name);
   let* (name, placement) = Token.of_projector_invoke_parts(name);
   let kind = ProjectorCore.Kind.of_name(name);
   /* Statics haven't run yet at trigger time, so we pass the empty
@@ -91,6 +92,7 @@ let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
     kind,
     syntax,
     ~placement,
+    ~show_syntax,
     ~elaborated=CachedStatics.empty.elaborated,
   );
 };
@@ -161,6 +163,7 @@ let refractor_to_invoke =
     (
       ~model: option(string)=?,
       ~placement=ProjectorCore.Placement.Inline,
+      ~show_syntax=false,
       kind: ProjectorCore.Kind.t,
       seg: Segment.t,
     )
@@ -170,7 +173,7 @@ let refractor_to_invoke =
     Piece.mk_tile(
       Form.mk_atom_op(
         Exp,
-        Token.mk_projector_invoke(~opt?, ~placement, kind),
+        Token.mk_projector_invoke(~opt?, ~placement, ~show_syntax, kind),
       ),
       [],
     ),
@@ -195,16 +198,35 @@ let refractor_to_invoke_text =
    eat the author's own parens instead of one we added. `^^fold((Int,
    String))` came back as `^^fold(Int, String)`. */
 let projector_to_invoke = (pr: Base.projector): Segment.t =>
-  refractor_to_invoke(~placement=pr.placement, pr.kind, pr.syntax);
+  refractor_to_invoke(
+    ~placement=pr.placement,
+    ~show_syntax=pr.show_syntax,
+    pr.kind,
+    pr.syntax,
+  );
 
 let expand_livelit = (~ctx, z: t): option(t) =>
   switch (z.relatives.siblings |> fst |> List.rev) {
   | [Secondary({content: Whitespace(w), _}), Tile({label: [t], _}), ..._]
       when Token.is_livelit(t) && w == Token.space =>
     let* ll = Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t));
-    let seg = exp_to_seg(ll.model_default);
+    /* A user livelit's init is a command (Sec. 3.2.1): perform it, so the
+       new use starts with the model it answers and the splices it made.
+       A builtin's model_default is already a model. */
+    let model =
+      switch (ll.user_def) {
+      | Some(def_elab) =>
+        switch (UpdateCmdRunner.init_model(def_elab)) {
+        | Ok(m) => m
+        | Error(e) =>
+          print_endline("Triggers: livelit init failed: " ++ e);
+          Language.IdTagged.FreshGrammar.Exp.empty_hole();
+        }
+      | None => ll.model_default
+      };
+    let seg = exp_to_seg(model);
     let seg =
-      switch (ll.model_default) {
+      switch (model) {
       | {term: Tuple(_), _} => Segment.unparenthesize(seg)
       | _ => seg
       };
@@ -275,6 +297,31 @@ let refractor_seg_to_seg_with =
    *   ([let_idx, eq_idx, in_idx], [pat_skel, def_skel])
    * The children between delimiters must be recursively processed. */
 
+  /* Slices and ends in constant time. A program's top level is one long
+   * `let ... in` chain (a right-nested Pre), and slicing the list from its
+   * head (ListUtil.sublist), or taking a child's range (Skel.range, which
+   * walks both ends down the chain), at every node of it made printing a
+   * program with refractors quadratic in its top-level items: about a
+   * second of the autosave on the Livelit Playground's Full Body slide. */
+  let pieces = Array.of_list(seg);
+  let slice = ((i, j)) =>
+    i < 0 || j > Array.length(pieces) || i > j
+      ? raise(Invalid_argument("refractor_seg_to_seg_with: slice"))
+      : Array.to_list(Array.sub(pieces, i, j - i));
+  let rec first = (skel: Skel.t): int =>
+    switch (skel) {
+    | Op(root)
+    | Pre(root, _) => Aba.first_a(root)
+    | Post(skel, _)
+    | Bin(skel, _, _) => first(skel)
+    };
+  let rec last = (skel: Skel.t): int =>
+    switch (skel) {
+    | Op(root)
+    | Post(_, root) => Aba.last_a(root)
+    | Pre(_, skel)
+    | Bin(_, _, skel) => last(skel)
+    };
   /* Process an Aba root, returning segment from first_a to last_a (inclusive).
    * Recursively processes all child skeletons in the Aba. */
   let rec go_aba =
@@ -285,7 +332,7 @@ let refractor_seg_to_seg_with =
     switch (indices, children) {
     | ([single_idx], []) =>
       /* Atomic operator: just slice around this single index */
-      (map, ListUtil.sublist((single_idx, single_idx + 1), seg))
+      (map, slice((single_idx, single_idx + 1)))
     | ([first_idx, ...rest_indices], children) =>
       /* Compound operator: interleave index slices with processed children.
        * For indices [i0, i1, i2] and children [c0, c1]:
@@ -302,13 +349,13 @@ let refractor_seg_to_seg_with =
         switch (indices, children) {
         | ([], []) =>
           /* After last index: include slice for the final token */
-          (map, ListUtil.sublist((prev_idx, prev_idx + 1), seg))
+          (map, slice((prev_idx, prev_idx + 1)))
         | ([next_idx, ...rest_indices], [child, ...rest_children]) =>
           /* Process: slice from prev token to child, then child, then continue */
-          let (child_start, child_end) = Skel.range(child);
-          let before_child = ListUtil.sublist((prev_idx, child_start), seg);
+          let (child_start, child_end) = (first(child), last(child));
+          let before_child = slice((prev_idx, child_start));
           let (map, child_result) = go(map, child);
-          let after_child = ListUtil.sublist((child_end + 1, next_idx), seg);
+          let after_child = slice((child_end + 1, next_idx));
           let (map, rest_result) =
             go_interleave(map, next_idx, rest_indices, rest_children);
           (map, before_child @ child_result @ after_child @ rest_result);
@@ -331,38 +378,38 @@ let refractor_seg_to_seg_with =
         /* Prefix operator: root Aba comes before the trailing child */
         let root_indices = Aba.get_as(root);
         let root_end = ListUtil.last(root_indices);
-        let (child_start, _) = Skel.range(child);
+        let child_start = first(child);
 
         let (map, root_result) = go_aba(map, root);
-        let between = ListUtil.sublist((root_end + 1, child_start), seg);
+        let between = slice((root_end + 1, child_start));
         let (map, child_result) = go(map, child);
 
         (map, root_result @ between @ child_result);
 
       | Post(child, root) =>
         /* Postfix operator: child comes before root Aba */
-        let (_, child_end) = Skel.range(child);
+        let child_end = last(child);
         let root_indices = Aba.get_as(root);
         let root_start = List.hd(root_indices);
 
         let (map, child_result) = go(map, child);
-        let between = ListUtil.sublist((child_end + 1, root_start), seg);
+        let between = slice((child_end + 1, root_start));
         let (map, root_result) = go_aba(map, root);
 
         (map, child_result @ between @ root_result);
 
       | Bin(left, root, right) =>
         /* Binary operator: left @ (root Aba) @ right */
-        let (_, left_end) = Skel.range(left);
-        let (right_start, _) = Skel.range(right);
+        let left_end = last(left);
+        let right_start = first(right);
         let root_indices = Aba.get_as(root);
         let root_start = List.hd(root_indices);
         let root_end = ListUtil.last(root_indices);
 
         let (map, left_result) = go(map, left);
-        let before_root = ListUtil.sublist((left_end + 1, root_start), seg);
+        let before_root = slice((left_end + 1, root_start));
         let (map, root_result) = go_aba(map, root);
-        let after_root = ListUtil.sublist((root_end + 1, right_start), seg);
+        let after_root = slice((root_end + 1, right_start));
         let (map, right_result) = go(map, right);
 
         (
@@ -372,7 +419,7 @@ let refractor_seg_to_seg_with =
       };
 
     /* Check if this term needs to be wrapped with a refractor invocation */
-    let root_id = Segment.root_id(skel, seg);
+    let root_id = Piece.id(pieces[Aba.first_a(Skel.root(skel))]);
     switch (List.assoc_opt(root_id, map)) {
     | Some(entry) => (
         ListUtil.remove_assoc(root_id, map),
@@ -382,7 +429,13 @@ let refractor_seg_to_seg_with =
     };
   };
 
-  if (List.is_empty(refractors)) {
+  /* A term is wrapped only when its root piece, a piece at this level, is
+   * a refractor's: so with none of them here there is nothing to do, and
+   * no skeleton to build. (Printing recurses into every nested segment,
+   * passing the refractors not yet placed, so without this check each one
+   * built its skeleton: most of what was left of the autosave's time.) */
+  if (List.is_empty(refractors)
+      || !List.exists(p => List.mem_assoc(Piece.id(p), refractors), seg)) {
     (refractors, seg);
   } else {
     /* Segment.skel throws exceptions for incomplete/malformed segments
@@ -390,13 +443,12 @@ let refractor_seg_to_seg_with =
      * the segment unchanged. */
     try({
       let skel = Segment.skel(seg);
-      let (skel_start, skel_end) = Skel.range(skel);
+      let (skel_start, skel_end) = (first(skel), last(skel));
       let (map, new_seg) = go(refractors, skel);
       /* Preserve any leading/trailing Secondary (whitespace/comments) that
        * fall outside the skel range, since skel only tracks tile indices */
-      let leading = ListUtil.sublist((0, skel_start), seg);
-      let trailing =
-        ListUtil.sublist((skel_end + 1, List.length(seg)), seg);
+      let leading = slice((0, skel_start));
+      let trailing = slice((skel_end + 1, Array.length(pieces)));
       (map, leading @ new_seg @ trailing);
     }) {
     | Skel.Nonconvex_segment

@@ -93,8 +93,8 @@ let stripBtn(label: String, action: Action): Html.T =
       Attr.on_click(action),
       Attr.style([
         ("width", "56px"), ("height", "20px"), ("font-size", "0.75em"),
-        ("background", "var(--T1)"), ("color", "var(--BR3)"),
-        ("border", "1px solid var(--BR1)"), ("border-radius", "3px"),
+        ("background", "var(--surface-default)"), ("color", "var(--text-muted)"),
+        ("border", "1px solid var(--border-soft)"), ("border-radius", "3px"),
         ("font-family", "inherit"), ("cursor", "pointer")
       ])
     ],
@@ -107,17 +107,17 @@ let view(model: Model): Html.T =
     [Attr.style([
       ("max-width", "320px"), ("margin", "0 auto"), ("text-align", "center"),
       ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
-      ("background", "var(--SAND)"), ("color", "var(--STONE)"),
-      ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+      ("background", "var(--surface-code)"), ("color", "var(--text-default)"),
+      ("border", "1px solid var(--border-soft)"), ("border-radius", "0.4em"),
       ("overflow", "hidden")
     ])],
     [
       Html.div(
         [Attr.style([("padding", "0.9em 1em 0.8em")])],
         [
-          Html.div([Attr.style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--BR4)")])],
+          Html.div([Attr.style([("font-size", "1.2em"), ("font-weight", "bold"), ("color", "var(--text-strong)")])],
               [Html.text("🌙 Crop Plotter")]),
-          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--BR3)"), ("margin-top", "0.3em")])],
+          Html.div([Attr.style([("font-size", "0.75em"), ("color", "var(--text-muted)"), ("margin-top", "0.3em")])],
               [Html.text("Click to plant, double-click to uproot")])
         ]
       ),
@@ -125,9 +125,9 @@ let view(model: Model): Html.T =
       # so selecting one never shifts the row #
       Html.div(
         [Attr.style([("display", "flex"), ("justify-content", "center"), ("gap", "0.4em"),
-                ("padding", "0.7em 1em"), ("background", "var(--T2)"),
-                ("border-top", "1px solid var(--BR1)"),
-                ("border-bottom", "1px solid var(--BR1)")])],
+                ("padding", "0.7em 1em"), ("background", "var(--surface-raised)"),
+                ("border-top", "1px solid var(--border-soft)"),
+                ("border-bottom", "1px solid var(--border-soft)")])],
         mapi(model.seedInventory, fun (idx, seed) ->
           Html.button(
             [
@@ -135,10 +135,10 @@ let view(model: Model): Html.T =
               Attr.style([
                 ("font-size", "1.2em"), ("padding", "0.2em 0.4em"), ("cursor", "pointer"),
                 ("font-family", "inherit"), ("border-radius", "3px"),
-                ("background", if seed == model.currentSeed then "var(--SAND)" else "var(--T1)"),
+                ("background", if seed == model.currentSeed then "var(--surface-code)" else "var(--surface-default)"),
                 ("border", if seed == model.currentSeed
-                           then "1px solid var(--G0)"
-                           else "1px solid var(--BR1)")
+                           then "1px solid var(--border-success)"
+                           else "1px solid var(--border-soft)")
               ])
             ],
             [Html.text(seed)]
@@ -171,7 +171,7 @@ let view(model: Model): Html.T =
                       Attr.on_double_click(Uproot(row_idx, col_idx)),
                       Attr.style([
                         ("width", "56px"), ("height", "56px"), ("font-size", "1.5em"),
-                        ("background", "var(--T1)"), ("border", "1px solid var(--BR1)"),
+                        ("background", "var(--surface-default)"), ("border", "1px solid var(--border-soft)"),
                         ("border-radius", "3px"), ("font-family", "inherit"),
                         ("cursor", "pointer")
                       ])
@@ -186,8 +186,8 @@ let view(model: Model): Html.T =
             [
               Attr.on_click(ClearGrove),
               Attr.style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
-                     ("background", "var(--T1)"), ("color", "var(--STONE)"),
-                     ("border", "1px solid var(--BR1)"), ("border-radius", "3px"),
+                     ("background", "var(--surface-default)"), ("color", "var(--text-default)"),
+                     ("border", "1px solid var(--border-soft)"), ("border-radius", "3px"),
                      ("cursor", "pointer"), ("font-family", "inherit"),
                      ("font-size", "0.85em")])
             ],
@@ -196,8 +196,8 @@ let view(model: Model): Html.T =
         ]
       ),
       Html.div(
-        [Attr.style([("padding", "0.6em 1em"), ("font-size", "0.75em"), ("color", "var(--BR3)"),
-                ("border-top", "1px solid var(--BR1)")])],
+        [Attr.style([("padding", "0.6em 1em"), ("font-size", "0.75em"), ("color", "var(--text-muted)"),
+                ("border-top", "1px solid var(--border-soft)")])],
         [Html.text("Holding " ++ model.currentSeed)]
       )
     ]

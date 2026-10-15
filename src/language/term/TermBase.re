@@ -233,6 +233,8 @@ and Exp: {
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
+        | Bind(p, e1, e2) =>
+          Bind(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | Theorem(p, e1, e2) =>
           Theorem(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | ProofObject(t) => ProofObject(exp_map_term(t))
@@ -249,6 +251,8 @@ and Exp: {
           If(exp_map_term(e1), exp_map_term(e2), exp_map_term(e3))
         | Seq(e1, e2) => Seq(exp_map_term(e1), exp_map_term(e2))
         | Test(e) => Test(exp_map_term(e))
+        | Quote(e) => Quote(exp_map_term(e))
+        | Unquote(e) => Unquote(exp_map_term(e))
         | HintedTest(e, h) => HintedTest(exp_map_term(e), exp_map_term(h))
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))

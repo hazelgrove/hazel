@@ -92,6 +92,35 @@ let unwrap = (x: t('a)) => (
     term: term',
   },
 );
+
+/* A term as an elaboration holds it: without its secondary (below). */
+let strip_secondary = (x: t('a)): t('a) =>
+  x.annotation.secondary == IdTag.empty_secondary
+    ? x
+    : Annotated.{
+        term: x.term,
+        annotation: {
+          ...x.annotation,
+          secondary: IdTag.empty_secondary,
+        },
+      };
+
+/* unwrap, for building an elaboration: the rewrapped term keeps its ids
+   but not the source's whitespace and comments (secondary). Nothing reads
+   an elaboration's secondary -- only FastParse prints with it, from parsed
+   source -- and it was about a third of every program sent to the eval
+   worker, a run of pieces, each with its own id, at every node. */
+let unwrap_elab = (x: t('a)) => (
+  x.term,
+  term' =>
+    Annotated.{
+      term: term',
+      annotation: {
+        ...x.annotation,
+        secondary: IdTag.empty_secondary,
+      },
+    },
+);
 let rep_id = ({annotation: {ids, _}, _}: Annotated.t('a, IdTag.t)) =>
   List.hd(ids);
 

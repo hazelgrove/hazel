@@ -1,0 +1,1227 @@
+# Scenes #
+
+# Four of Messed Up Dress Up's backgrounds -- the forest, under the #
+# sea, the beach and the witch's woods -- behind a paper doll for the #
+# figure, which its sliders size and place anywhere on the stage. In #
+# the woods, the hut can stand on giant chicken legs (off to start), #
+# as long as you like, and come nearer the fence, and the skulls' red #
+# eyes can be any size. #
+
+# THE PICTURE, AS TYPES #
+
+# A point in the plane, x across and y down, as the drawing has it. #
+type Point = (Float, Float) in
+
+# A vertex is a point and, if it is one, the name of its anchor. #
+type Label = + Plain + Anchor(String) in
+type Vertex = (at = Point, label = Label) in
+
+# A closed polygon has a stroke and a fill; an open path a stroke only. #
+type Stroke = (width = Float, color = String) in
+type Shape =
+  + Polygon((name = String, points = [Vertex], stroke = Stroke, fill = String))
+  + Path((name = String, points = [Vertex], stroke = Stroke))
+in
+
+# A picture is its shapes, drawn in order: the first is underneath. #
+type Picture = [Shape] in
+
+# FOUND OR MISSING #
+
+# An anchor's point, if a shape has one of that name. #
+type Found = + Found(Point) + Missing in
+
+# A scene, as its buttons name it. #
+type Scene = + Forest + Underwater + Beach + Woods in
+
+# DRAWING, AS A LIBRARY #
+
+# The editor, the picture viewer, the radio buttons, and the functions #
+# that place pieces by their anchors: one module, so its livelits are #
+# used by member name -- Drawing.^polygons, Drawing.^picture, #
+# Drawing.^choice. #
+
+module Drawing = {
+  let ^polygons = {
+    # The picture, and where the editor is: the shape being edited, the #
+    # point chosen in it (-1 for none), and a drag, held and whether it #
+    # has moved yet -- a press that does not move only chooses. #
+    type Model =
+      (shapes = Picture, current = Int, chosen = Int, held = Bool, moved = Bool);
+    type Action =
+      + Down(Int, Int) + MoveTo(Int, Int) + Up
+      + NewPolygon + NewPath + Toggle + Remove + Next + Prev
+      + SetName(String) + SetWidth(String) + SetStroke(String) + SetFill(String)
+      + SetAnchor(String);
+    type Expansion = Picture;
+
+    let init = Pure((shapes = [], current = -1, chosen = -1, held = false, moved = false));
+
+    # LISTS #
+    let len : [Shape] -> Int =
+      fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
+    let count : [Vertex] -> Int =
+      fun xs -> case xs | [] => 0 | _ :: tl => 1 + count(tl) end;
+    let shape_at : (Picture, Int) -> Shape =
+      fun xs, i ->
+        case xs
+        | [] => Path((name = "", points = [], stroke = (width = 1., color = "black")))
+        | hd :: tl => if i <= 0 then hd else shape_at(tl, i - 1)
+        end;
+    let set_shape : (Picture, Int, Shape) -> Picture =
+      fun xs, i, s ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then s :: tl else hd :: set_shape(tl, i - 1, s)
+        end;
+    let drop_shape : (Picture, Int) -> Picture =
+      fun xs, i ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then tl else hd :: drop_shape(tl, i - 1)
+        end;
+    let vertex_at : ([Vertex], Int) -> Vertex =
+      fun xs, i ->
+        case xs
+        | [] => (at = (0., 0.), label = Plain)
+        | hd :: tl => if i <= 0 then hd else vertex_at(tl, i - 1)
+        end;
+    let set_vertex : ([Vertex], Int, Vertex) -> [Vertex] =
+      fun xs, i, v ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then v :: tl else hd :: set_vertex(tl, i - 1, v)
+        end;
+
+    # SHAPES #
+    let points_of : Shape -> [Vertex] =
+      fun s -> case s | Polygon(p) => p.points | Path(p) => p.points end;
+    let with_points : (Shape, [Vertex]) -> Shape =
+      fun s, vs ->
+        case s
+        | Polygon(p) => Polygon((name = p.name, points = vs, stroke = p.stroke, fill = p.fill))
+        | Path(p) => Path((name = p.name, points = vs, stroke = p.stroke))
+        end;
+    let name_of : Shape -> String =
+      fun s -> case s | Polygon(p) => p.name | Path(p) => p.name end;
+    let stroke_of : Shape -> Stroke =
+      fun s -> case s | Polygon(p) => p.stroke | Path(p) => p.stroke end;
+    let with_stroke : (Shape, Stroke) -> Shape =
+      fun s, k ->
+        case s
+        | Polygon(p) => Polygon((name = p.name, points = p.points, stroke = k, fill = p.fill))
+        | Path(p) => Path((name = p.name, points = p.points, stroke = k))
+        end;
+    let with_name : (Shape, String) -> Shape =
+      fun s, n ->
+        case s
+        | Polygon(p) => Polygon((name = n, points = p.points, stroke = p.stroke, fill = p.fill))
+        | Path(p) => Path((name = n, points = p.points, stroke = p.stroke))
+        end;
+    # Closing a path makes a polygon, filled white; opening a polygon #
+    # keeps its outline and drops the fill. #
+    let toggled : Shape -> Shape =
+      fun s ->
+        case s
+        | Polygon(p) => Path((name = p.name, points = p.points, stroke = p.stroke))
+        | Path(p) => Polygon((name = p.name, points = p.points, stroke = p.stroke, fill = "#ffffff"))
+        end;
+
+    # The point of the current shape within reach of a press, or -1. #
+    let near : ([Vertex], Float, Float, Int) -> Int =
+      fun vs, x, y, i ->
+        case vs
+        | [] => -1
+        | v :: tl =>
+          let (vx, vy) = v.at in
+          let dx = vx -. x in
+          let dy = vy -. y in
+          if dx *. dx +. dy *. dy <=. 64. then i else near(tl, x, y, i + 1)
+        end;
+
+    # Rebuild the model with some fields changed. #
+    let rebuild = fun (_m, shapes, current, chosen, held, moved) :
+        (Model, Picture, Int, Int, Bool, Bool) ->
+      (shapes = shapes, current = current, chosen = chosen, held = held, moved = moved);
+    let edit = fun (m, f) : (Model, Shape -> Shape) ->
+      if m.current < 0 then m
+      else rebuild((m, set_shape(m.shapes, m.current, f(shape_at(m.shapes, m.current))),
+               m.current, m.chosen, m.held, m.moved));
+
+    let update = fun m : Model -> fun a : Action -> Pure(
+      case a
+      | Down(px, py) =>
+        let x = float_of_int(px) in
+        let y = float_of_int(py) in
+        if m.current < 0 then
+          rebuild((m, m.shapes @ [Polygon((name = "shape", points = [(at = (x, y), label = Plain)],
+                                      stroke = (width = 2., color = "#333333"), fill = "#f2c94c"))],
+              len(m.shapes), 0, true, false))
+        else
+          let vs = points_of(shape_at(m.shapes, m.current)) in
+          let hit = near(vs, x, y, 0) in
+          if hit == -1 then
+            let added = with_points(shape_at(m.shapes, m.current), vs @ [(at = (x, y), label = Plain)]) in
+            rebuild((m, set_shape(m.shapes, m.current, added), m.current, count(vs), true, true))
+          else rebuild((m, m.shapes, m.current, hit, true, false))
+      | MoveTo(px, py) =>
+        if !m.held || m.chosen < 0 then m
+        else
+          let s = shape_at(m.shapes, m.current) in
+          let vs = points_of(s) in
+          let v = vertex_at(vs, m.chosen) in
+          let moved = with_points(s, set_vertex(vs, m.chosen,
+            (at = (float_of_int(px), float_of_int(py)), label = v.label))) in
+          rebuild((m, set_shape(m.shapes, m.current, moved), m.current, m.chosen, true, true))
+      | Up => rebuild((m, m.shapes, m.current, m.chosen, false, false))
+      | NewPolygon =>
+        rebuild((m, m.shapes @ [Polygon((name = "polygon", points = [], stroke = (width = 2., color = "#333333"), fill = "#9ecae1"))],
+            len(m.shapes), -1, false, false))
+      | NewPath =>
+        rebuild((m, m.shapes @ [Path((name = "path", points = [], stroke = (width = 2., color = "#333333")))],
+            len(m.shapes), -1, false, false))
+      | Toggle => edit((m, toggled))
+      | Remove =>
+        if m.current < 0 then m
+        else rebuild((m, drop_shape(m.shapes, m.current), m.current - 1, -1, false, false))
+      | Next =>
+        if len(m.shapes) == 0 then m
+        else rebuild((m, m.shapes, if m.current + 1 >= len(m.shapes) then 0 else m.current + 1, -1, false, false))
+      | Prev =>
+        if len(m.shapes) == 0 then m
+        else rebuild((m, m.shapes, if m.current <= 0 then len(m.shapes) - 1 else m.current - 1, -1, false, false))
+      | SetName(n) => edit((m, fun s -> with_name(s, n)))
+      | SetWidth(w) =>
+        edit((m, fun s -> with_stroke(s, (width = float_of_int(int_of_string(w)), color = stroke_of(s).color))))
+      | SetStroke(c) =>
+        edit((m, fun s -> with_stroke(s, (width = stroke_of(s).width, color = c))))
+      | SetFill(c) =>
+        edit((m, fun s ->
+          case s
+          | Polygon(p) => Polygon((name = p.name, points = p.points, stroke = p.stroke, fill = c))
+          | Path(_) => s
+          end))
+      | SetAnchor(n) =>
+        if m.chosen < 0 then m
+        else edit((m, fun s ->
+          let vs = points_of(s) in
+          let v = vertex_at(vs, m.chosen) in
+          with_points(s, set_vertex(vs, m.chosen,
+            (at = v.at, label = if n == "" then Plain else Anchor(n))))))
+      end);
+
+    # DRAWING #
+    let num = fun x : Float -> to_fixed(x, 1);
+    # each point followed by a space, the last too (a points list may end #
+    # with one); to_fixed itself, not num, which cost a call a number #
+    let coords : [Vertex] -> String =
+      fun vs ->
+        case vs
+        | [] => ""
+        | v :: tl =>
+          let (x, y) = v.at in
+          to_fixed(x, 1) ++ "," ++ to_fixed(y, 1) ++ " " ++ coords(tl)
+        end;
+    let shape_node = fun s : Shape ->
+      case s
+      | Polygon(p) =>
+        Html.node("polygon",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", p.fill),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round")], [])
+      | Path(p) =>
+        Html.node("polyline",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", "none"),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round"),
+           Attr.create("stroke-linecap", "round")], [])
+      end;
+    let shape_nodes : Picture -> [Html.T] =
+      fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
+    # The current shape's points: a dot each, the chosen one coral, and #
+    # an anchor a diamond with its name beside it. #
+    let handle = fun (v, i, chosen) : (Vertex, Int, Int) ->
+      let (x, y) = v.at in
+      let fill = if i == chosen then "coral" else "teal" in
+      case v.label
+      | Plain =>
+        [Html.node("circle",
+           [Attr.create("cx", num(x)), Attr.create("cy", num(y)),
+            Attr.create("r", "5"), Attr.create("fill", fill)], [])]
+      | Anchor(n) =>
+        [Html.node("rect",
+           [Attr.create("x", num(x -. 5.)), Attr.create("y", num(y -. 5.)),
+            Attr.create("width", "10"), Attr.create("height", "10"),
+            Attr.create("fill", fill),
+            Attr.create("transform", "rotate(45 " ++ num(x) ++ " " ++ num(y) ++ ")")], []),
+         Html.node("text",
+           [Attr.create("x", num(x +. 9.)), Attr.create("y", num(y -. 7.)),
+            Attr.create("font-size", "11"),
+            Attr.create("font-family", "var(--code-font)")],
+           [Html.text(n)])]
+      end;
+    let handles : ([Vertex], Int, Int) -> [Html.T] =
+      fun vs, i, chosen ->
+        case vs | [] => [] | v :: tl => handle((v, i, chosen)) @ handles(tl, i + 1, chosen) end;
+
+    let control = fun (label, input) : (String, Html.T) ->
+      Html.node("label", [Attr.style([("display", "flex"), ("gap", "0.4em"), ("align-items", "center")])],
+        [Html.text(label), input]);
+    let button = fun (label, a) : (String, Action) ->
+      Html.button([Attr.on_click(a)], [Html.text(label)]);
+
+    let view = fun m : Model -> Pure(
+      let s = shape_at(m.shapes, m.current) in
+      let editing = m.current >= 0 in
+      let chosen_label =
+        if m.chosen < 0 then ""
+        else case vertex_at(points_of(s), m.chosen).label | Plain => "" | Anchor(n) => n end in
+      Html.div([Attr.style([("font-family", "var(--code-font)"), ("font-size", "0.8em")])], [
+        Html.node("svg",
+          [Attr.create("viewBox", "0 0 320 240"), Attr.width("320"), Attr.height("240"),
+           Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")]),
+           Attr.on_mouse_down_at(fun (x, y) -> Down(x, y)),
+           Attr.on_mouse_move_at(fun (x, y) -> MoveTo(x, y)),
+           Attr.on_mouse_up_at(fun _ -> Up)],
+          shape_nodes(m.shapes) @ (if editing then handles(points_of(s), 0, m.chosen) else [])),
+        Html.div([Attr.style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "0.4em"), ("margin", "0.4em 0")])],
+          [button(("new polygon", NewPolygon)), button(("new path", NewPath)),
+           button(("< shape", Prev)), button(("shape >", Next))]
+          @ (if editing then
+               [button((case s | Polygon(_) => "open it" | Path(_) => "close it" end, Toggle)),
+                button(("remove", Remove))]
+             else [])),
+        Html.div([Attr.style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "0.8em")])],
+          if !editing then [Html.text("no shape yet: click the drawing")]
+          else
+            [control(("name", Html.input([Attr.value(name_of(s)), Attr.on_input(fun v -> SetName(v))]))),
+             control(("width", Html.input([Attr.type_("range"), Attr.min("1"), Attr.max("12"),
+                       Attr.value(to_fixed(stroke_of(s).width, 0)),
+                       Attr.on_input(fun v -> SetWidth(v))]))),
+             control(("stroke", Html.input([Attr.type_("color"), Attr.value(stroke_of(s).color),
+                       Attr.on_input(fun v -> SetStroke(v))])))]
+            @ (case s
+               | Polygon(p) =>
+                 [control(("fill", Html.input([Attr.type_("color"), Attr.value(p.fill),
+                            Attr.on_input(fun v -> SetFill(v))])))]
+               | Path(_) => []
+               end)
+            @ (if m.chosen < 0 then []
+               else [control(("anchor", Html.input([Attr.value(chosen_label),
+                        Attr.placeholder("name this point"),
+                        Attr.on_input(fun v -> SetAnchor(v))])))])),
+        Html.div([Attr.style([("margin-top", "0.4em"), ("opacity", "0.7")])],
+          [Html.text(string_of_int(len(m.shapes)) ++ " shapes"
+            ++ (if editing then ", editing " ++ name_of(s) ++ " (" ++ string_of_int(count(points_of(s))) ++ " points)" else ""))])
+      ]));
+
+    let expand = Functional(fun m : Model -> m.shapes);
+    let shape = Block(46, 20)
+  };
+
+  # ^picture shows a picture it is given: its model is one splice, #
+  # the client's code for the picture, and its use means that #
+  # picture. A livelit cannot name the slide's own functions, so it #
+  # draws with its own few. #
+  let ^picture = {
+    type Model = (picture = SpliceRef);
+    type Action = ();
+    type Expansion = Picture;
+    let init = do p <- new_splice((AnyT, None)) in Pure((picture = p));
+    let update = fun m : Model -> fun _a : Action -> Pure(m);
+    let num = fun x : Float -> to_fixed(x, 1);
+    # each point followed by a space, the last too (a points list may end #
+    # with one); to_fixed itself, not num, which cost a call a number #
+    let coords : [Vertex] -> String =
+      fun vs ->
+        case vs
+        | [] => ""
+        | v :: tl =>
+          let (x, y) = v.at in
+          to_fixed(x, 1) ++ "," ++ to_fixed(y, 1) ++ " " ++ coords(tl)
+        end;
+    let shape_node = fun s : Shape ->
+      case s
+      | Polygon(p) =>
+        Html.node("polygon",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", p.fill),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round")], [])
+      | Path(p) =>
+        Html.node("polyline",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", "none"),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round"),
+           Attr.create("stroke-linecap", "round")], [])
+      end;
+    let shape_nodes : Picture -> [Html.T] =
+      fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
+    # The frame: every point, with a margin, made the viewer's shape, #
+    # 320 by 440, about its middle. It fits the drawing, so a slide that #
+    # draws only a head shows the head large; a slide that wants its #
+    # frame to stay put while the drawing changes adds Drawing.frame. #
+    # A picture with a frame is shown framed: the box is the frame's, #
+    # whatever else it draws, and anything outside it is cut off. Its #
+    # points are not walked either: in the woods, that walk was over #
+    # half of the view's work. #
+    let vertices_of = fun s : Shape ->
+      case s | Polygon(p) => p.points | Path(p) => p.points end;
+    let grow = fun ((x0, y0, x1, y1), v) : ((Float, Float, Float, Float), Vertex) ->
+      let (x, y) = v.at in
+      ((if x -. 12. <. x0 then x -. 12. else x0),
+       (if y -. 12. <. y0 then y -. 12. else y0),
+       (if x +. 12. >. x1 then x +. 12. else x1),
+       (if y +. 12. >. y1 then y +. 12. else y1));
+    let grow_all : ((Float, Float, Float, Float), [Vertex]) -> (Float, Float, Float, Float) =
+      fun (b, vs) -> case vs | [] => b | v :: tl => grow_all((grow((b, v)), tl)) end;
+    let bounds : ((Float, Float, Float, Float), Picture) -> (Float, Float, Float, Float) =
+      fun (b, ss) ->
+        case ss | [] => b | s :: tl => bounds((grow_all((b, vertices_of(s))), tl)) end;
+    let framing : Picture -> Picture =
+      fun ss ->
+        case ss
+        | [] => []
+        | s :: tl =>
+          case s
+          | Path(p) => if p.name == "frame" then [s] else framing(tl)
+          | _ => framing(tl)
+          end
+        end;
+    let view_box = fun pic : Picture ->
+      let boxed = case framing(pic) | [] => pic | f => f end in
+      let start =
+        case boxed
+        | [] => (0., 0., 0., 0.)
+        | s :: _ =>
+          case vertices_of(s)
+          | [] => (0., 0., 0., 0.)
+          | v :: _ => let (x, y) = v.at in (x, y, x, y)
+          end
+        end in
+      let (x0, y0, x1, y1) = bounds((start, boxed)) in
+      let (w, h) = (x1 -. x0, y1 -. y0) in
+      let (w2, h2) =
+        if w *. 440. >. h *. 320. then (w, w *. 440. /. 320.) else (h *. 320. /. 440., h) in
+      num(x0 -. (w2 -. w) /. 2.) ++ " " ++ num(y0 -. (h2 -. h) /. 2.) ++ " "
+      ++ num(w2) ++ " " ++ num(h2);
+    let view = fun m : Model ->
+      do r <- eval_splice(m.picture) in
+      Pure(
+        case r
+        | Some(Val(pic)) =>
+          Html.node("svg",
+            [Attr.create("viewBox", view_box(pic)), Attr.width("320"),
+             Attr.height("440"),
+             Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")])],
+            shape_nodes(pic))
+        | _ =>
+          Html.div([Attr.style([("font-family", "var(--code-font)"), ("font-size", "0.8em")])],
+            [Html.text("no picture yet")])
+        end);
+    # A Macro: the picture is the client's code, so a use means it. #
+    let expand = Macro(fun m : Model -> (quote fun p -> p end, [m.picture]));
+    let shape = Block(34, 22)
+  };
+
+  # PLACING #
+
+  let points_of : Shape -> [Vertex] =
+    fun s -> case s | Polygon(p) => p.points | Path(p) => p.points end;
+  let with_points : (Shape, [Vertex]) -> Shape =
+    fun s, vs ->
+      case s
+      | Polygon(p) => Polygon((name = p.name, points = vs, stroke = p.stroke, fill = p.fill))
+      | Path(p) => Path((name = p.name, points = vs, stroke = p.stroke))
+      end;
+  let anchor_in : ([Vertex], String) -> Found =
+    fun vs, n ->
+      case vs
+      | [] => Missing
+      | v :: tl =>
+        case v.label
+        | Anchor(a) => if a == n then Found(v.at) else anchor_in(tl, n)
+        | Plain => anchor_in(tl, n)
+        end
+      end;
+  # The first shape in a picture with an anchor of that name has it. #
+  let anchor : (Picture, String) -> Found =
+    fun pic, n ->
+      case pic
+      | [] => Missing
+      | s :: tl =>
+        case anchor_in(points_of(s), n) | Found(p) => Found(p) | Missing => anchor(tl, n) end
+      end;
+  # Every point of every shape moved by (dx, dy). #
+  let shift_points : ([Vertex], Float, Float) -> [Vertex] =
+    fun vs, dx, dy ->
+      case vs
+      | [] => []
+      | v :: tl =>
+        let (x, y) = v.at in
+        (at = (x +. dx, y +. dy), label = v.label) :: shift_points(tl, dx, dy)
+      end;
+  let shift : (Picture, Float, Float) -> Picture =
+    fun pic, dx, dy ->
+      case pic
+      | [] => []
+      | s :: tl => with_points(s, shift_points(points_of(s), dx, dy)) :: shift(tl, dx, dy)
+      end;
+  # `under(piece, a, base, b)`: the piece moved so its anchor a lands on #
+  # the base's anchor b, drawn first, so the base is on top. Without #
+  # both anchors, the piece is left where it was drawn. #
+  let under : (Picture, String, Picture, String) -> Picture =
+    fun piece, a, base, b ->
+      case (anchor(piece, a), anchor(base, b))
+      | (Found((px, py)), Found((bx, by))) => shift(piece, bx -. px, by -. py) @ base
+      | _ => piece @ base
+      end;
+
+  # ^choice: one of several values, pressed like an old car radio's #
+  # buttons -- the configuration panel's, here as a library member. #
+  let ^choice = typfun A -> fun cases : [(String, A)] -> {
+    type Model = A;
+    type Action = A;
+    type Expansion = A;
+    let init = let (_, v) = head(cases) in Pure(v);
+    let update = fun _m : Model -> fun a : Action -> Pure(a);
+    let button = fun (label, v, pressed) : (String, A, Bool) ->
+      Html.button(
+        [Attr.class("choice-button"), Attr.disabled(pressed),
+         Attr.on_click(v)],
+        [Html.text(label)]);
+    let view = fun m : Model -> Pure(
+      Html.div(
+        [Attr.class("choice")],
+        map((cases, fun (label, v) : (String, A) ->
+          button((label, v, v == m))))));
+    let expand = Functional(fun m : Model -> m);
+    # As many lines as its buttons take, wrapped into rows 36 columns #
+    # wide: a button is about 3/4 of a column a letter, and 2 more for #
+    # its edges and the gap after it. #
+    let shape =
+      let rows = fun (cs, col, n) : ([(String, A)], Int, Int) ->
+        case cs
+        | [] => n
+        | (label, _) :: tl =>
+          let w = (3 * string_length(label) + 8) / 4 in
+          if col + w > 36 then rows((tl, w, n + 1))
+          else rows((tl, col + w, n))
+        end in
+      Block(36, rows((cases, 0, 1)))
+  };
+  # ^slider: a number in a range, set with a slider and labelled. #
+  let ^slider = fun (label, lo, hi) : (String, Int, Int) -> {
+    type Model = Int;
+    type Action = Int;
+    type Expansion = Int;
+    let init = Pure((lo + hi) / 2);
+    let update = fun _m : Model -> fun a : Action -> Pure(a);
+    let view = fun m : Model -> Pure(
+      Html.div(
+        [Attr.style([("display", "flex"), ("gap", "0.5em"), ("align-items", "center"),
+                     ("font-family", "var(--code-font)"), ("font-size", "0.8em")])],
+        [Html.span([Attr.style([("white-space", "nowrap")])], [Html.text(label)]),
+         Html.input([
+           Attr.type_("range"),
+           Attr.min(string_of_int(lo)), Attr.max(string_of_int(hi)),
+           Attr.value(string_of_int(m)),
+           Attr.style([("flex", "1"), ("min-width", "0")]),
+           Attr.on_input(fun s -> int_of_string(s))]),
+         Html.span([Attr.style([("white-space", "nowrap"), ("min-width", "3ch")])],
+           [Html.text(string_of_int(m))])]));
+    let expand = Functional(fun m : Model -> m);
+    let shape = Inline(34)
+  };
+
+  # A piece moved so its anchor a lands on the base's anchor b, or left #
+  # where it was drawn without both. Layering is up to the client: a #
+  # picture is drawn in order, so put the pieces in the order to stack. #
+  let placed : (Picture, String, Picture, String) -> Picture =
+    fun piece, a, base, b ->
+      case (anchor(piece, a), anchor(base, b))
+      | (Found((px, py)), Found((bx, by))) => shift(piece, bx -. px, by -. py)
+      | _ => piece
+      end;
+
+  # A picture mirrored left to right: a right shoe makes a left one. #
+  let mirror_points : [Vertex] -> [Vertex] =
+    fun vs ->
+      case vs
+      | [] => []
+      | v :: tl =>
+        let (x, y) = v.at in
+        (at = (0. -. x, y), label = v.label) :: mirror_points(tl)
+      end;
+  let mirrored : Picture -> Picture =
+    fun pic ->
+      case pic
+      | [] => []
+      | s :: tl => with_points(s, mirror_points(points_of(s))) :: mirrored(tl)
+      end;
+
+  # The shapes of a picture with that name. #
+  let named : (Picture, String) -> Picture =
+    fun pic, n ->
+      case pic
+      | [] => []
+      | s :: tl =>
+        let name = case s | Polygon(p) => p.name | Path(p) => p.name end in
+        if name == n then s :: named(tl, n) else named(tl, n)
+      end;
+
+  # A box for the picture: an invisible path along its diagonal, for a #
+  # slide whose frame should stay put while what it draws changes -- #
+  # the arms swinging, the eyes growing. ^picture shows exactly this #
+  # box (with its margin), and cuts off anything outside it. #
+  let frame = fun (x0, y0, x1, y1) : (Float, Float, Float, Float) ->
+    [Path((name = "frame",
+           points = [(at = (x0, y0), label = Plain), (at = (x1, y1), label = Plain)],
+           stroke = (width = 0., color = "none")))]
+} in
+
+# HELPERS #
+
+let fmin = fun (x, y) : (Float, Float) -> if x <. y then x else y in
+let fmax = fun (x, y) : (Float, Float) -> if x >. y then x else y in
+let fabs = fun x : Float -> if x <. 0. then 0. -. x else x in
+
+# Every point x-scaled about cx, and those below cy y-scaled. #
+let stretch_points : ([Vertex], Float, Float, Float, Float) -> [Vertex] =
+  fun (vs, cx, cy, sx, sy) ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      (at = (cx +. (x -. cx) *. sx, if y >. cy then cy +. (y -. cy) *. sy else y),
+       label = v.label)
+      :: stretch_points((tl, cx, cy, sx, sy))
+    end in
+let stretch : (Picture, Float, Float, Float, Float) -> Picture =
+  fun (pic, cx, cy, sx, sy) ->
+    case pic
+    | [] => []
+    | sh :: tl =>
+      Drawing.with_points(sh, stretch_points((Drawing.points_of(sh), cx, cy, sx, sy)))
+      :: stretch((tl, cx, cy, sx, sy))
+    end in
+
+# THE SCENE #
+
+# Which scene, and where the figure stands in it: its size, about its #
+# feet, and how far it is moved across and up or down. #
+let scene = ^^livelit(Drawing.^choice@<Scene>(
+  [("forest", Forest), ("underwater", Underwater), ("beach", Beach), ("woods", Woods)])(Woods)) in
+let fig_size = ^^livelit(Drawing.^slider("figure size", 10, 200)(100)) in
+let fig_x = ^^livelit(Drawing.^slider("across", -300, 300)(0)) in
+let fig_y = ^^livelit(Drawing.^slider("up, down", -300, 80)(0)) in
+
+# The witch's woods: the hut far off behind the fence, on giant chicken #
+# legs if chosen (off to start), as long as their slider says; how #
+# near the hut comes, growing but always behind the fence; and the #
+# red eyes in the skulls, how big, and how many blinks a minute. #
+let chicken_legs = ^^livelit(Drawing.^choice@<Bool>([("no legs", false), ("chicken legs", true)])(false)) in
+let leg_size = ^^livelit(Drawing.^slider("leg size", 20, 300)(100)) in
+let hut_near = ^^livelit(Drawing.^slider("hut nearer", 0, 100)(0)) in
+let eye_glow = ^^livelit(Drawing.^slider("eye size", 0, 100)(70)) in
+let eye_rate = ^^livelit(Drawing.^slider("blinks a minute", 0, 240)(30)) in
+
+# THE STAGE #
+
+# The game's stage for a scene: its ground at 320, where the figure's #
+# feet go, and 600 across here, so the picture's 320 by 440 shows most #
+# of it. Sizes are in k, a 700th of its height, as the game has them. #
+let (x0, y0, x1, y1) = (-300., -195., 300., 406.2) in
+let g = 320. in
+let w = x1 -. x0 in
+let k = (y1 -. y0) /. 700. in
+
+# SHAPES #
+
+# Points as vertices, and shapes made of them: outlined, filled, or a #
+# line. A color with 8 hex digits is see-through. #
+let verts : [Point] -> [Vertex] =
+  fun ps -> case ps | [] => [] | p :: tl => (at = p, label = Plain) :: verts(tl) end in
+let shape = fun (name, ps, wd, ink, fill) : (String, [Point], Float, String, String) ->
+  Polygon((name = name, points = verts(ps), stroke = (width = wd, color = ink), fill = fill)) in
+let solid = fun (name, ps, fill) : (String, [Point], String) -> shape((name, ps, 0., "none", fill)) in
+let line = fun (name, ps, wd, ink) : (String, [Point], Float, String) ->
+  Path((name = name, points = verts(ps), stroke = (width = wd, color = ink))) in
+let seg = fun (name, a, b, wd, ink) : (String, Point, Point, Float, String) -> line((name, [a, b], wd, ink)) in
+let box = fun (name, x, y, bw, bh, fill) : (String, Float, Float, Float, Float, String) ->
+  solid((name, [(x, y), (x +. bw, y), (x +. bw, y +. bh), (x, y +. bh)], fill)) in
+
+# n + 1 points round an oval about (cx, cy), from angle a0 to a1. #
+let arc_pts = fun (cx, cy, rx, ry, a0, a1, n) : (Float, Float, Float, Float, Float, Float, Int) ->
+  init((n + 1, fun i : Int ->
+    let t = a0 +. (a1 -. a0) *. float_of_int(i) /. float_of_int(n) in
+    (cx +. rx *. cos(t), cy +. ry *. sin(t)))) in
+# An oval of n points, outlined or not; a small round dot. #
+let oval_pts = fun (cx, cy, rx, ry, n) : (Float, Float, Float, Float, Int) ->
+  init((n, fun i : Int ->
+    let t = 2. *. pi *. float_of_int(i) /. float_of_int(n) in
+    (cx +. rx *. cos(t), cy +. ry *. sin(t)))) in
+let oval = fun (name, cx, cy, rx, ry, n, fill) : (String, Float, Float, Float, Float, Int, String) ->
+  solid((name, oval_pts((cx, cy, rx, ry, n)), fill)) in
+let ring = fun (name, cx, cy, r, n, wd, ink, fill) : (String, Float, Float, Float, Int, Float, String, String) ->
+  shape((name, oval_pts((cx, cy, r, r, n)), wd, ink, fill)) in
+let dot = fun (name, cx, cy, r, fill) : (String, Float, Float, Float, String) ->
+  oval((name, cx, cy, r, r, 8, fill)) in
+
+# A quadratic curve from a to c, pulled toward b; a cubic from a to d, #
+# pulled toward b, then c: n + 1 points on each. #
+let qcurve = fun ((ax, ay), (bx, by), (cx, cy), n) : (Point, Point, Point, Int) ->
+  init((n + 1, fun i : Int ->
+    let t = float_of_int(i) /. float_of_int(n) in
+    let u = 1. -. t in
+    (u *. u *. ax +. 2. *. u *. t *. bx +. t *. t *. cx,
+     u *. u *. ay +. 2. *. u *. t *. by +. t *. t *. cy))) in
+let ccurve = fun ((ax, ay), (bx, by), (cx, cy), (dx, dy), n) : (Point, Point, Point, Point, Int) ->
+  init((n + 1, fun i : Int ->
+    let t = float_of_int(i) /. float_of_int(n) in
+    let u = 1. -. t in
+    (u *. u *. u *. ax +. 3. *. u *. u *. t *. bx +. 3. *. u *. t *. t *. cx +. t *. t *. t *. dx,
+     u *. u *. u *. ay +. 3. *. u *. u *. t *. by +. 3. *. u *. t *. t *. cy +. t *. t *. t *. dy))) in
+
+# The same "random" number every time, from two whole numbers, as the #
+# game has it, so a scene holds still; and a side, -1 or 1, by turns. #
+let rnd = fun (i, j) : (Int, Int) ->
+  let v = sin(float_of_int(i) *. 127.1 +. float_of_int(j) *. 311.7) *. 43758.5453 in
+  v -. floor(v) in
+let side = fun i : Int -> if int_mod(i, 2) == 1 then 1. else -1. in
+let by_twos = fun (i, a, b) : (Int, String, String) -> if int_mod(i, 2) == 1 then b else a in
+
+# n pictures, from 0 to n - 1, one after another. #
+let each : (Int, (Int -> Picture)) -> Picture = fun (n, f) -> concat(init((n, f))) in
+
+# Bands of color across the stage, from y = top, each step tall: a #
+# gradient, as the game draws it, in steps. #
+let bands : (String, [String], Float, Float) -> Picture =
+  fun (name, cs, top, step) ->
+    case cs
+    | [] => []
+    | c :: tl => box((name, x0, top, w, step +. 0.6, c)) :: bands((name, tl, top +. step, step))
+    end in
+
+# Ground from y = at, in a gentle wave, down to the stage's bottom. #
+let land = fun (name, at, amp, phase, fill) : (String, Float, Float, Float, String) ->
+  solid((name,
+    init((25, fun i : Int ->
+      let bump =
+        if int_mod(i, 2) == 1
+        then 0.5 *. amp *. k *. sin(float_of_int((i + 1) / 2) *. 1.7 +. phase)
+        else 0. in
+      (x0 +. w *. float_of_int(i) /. 24., at +. bump)))
+    @ [(x1, y1), (x0, y1)], fill)) in
+
+# Every point of a picture moved by f. #
+let moved = fun (pic, f) : (Picture, (Point -> Point)) ->
+  map((pic, fun sh : Shape ->
+    Drawing.with_points(sh, map((Drawing.points_of(sh), fun v : Vertex ->
+      (at = f(v.at), label = v.label)))))) in
+# A picture grown s times about c, then moved so c lands on n. #
+let grown = fun (pic, (cx, cy), s, (nx, ny)) : (Picture, Point, Float, Point) ->
+  moved((pic, fun (x, y) : Point -> (nx +. s *. (x -. cx), ny +. s *. (y -. cy)))) in
+# A picture turned deg degrees about c (clockwise: y runs down). #
+let turned = fun (pic, (cx, cy), deg) : (Picture, Point, Float) ->
+  let (ca, sa) = (cos(deg *. pi /. 180.), sin(deg *. pi /. 180.)) in
+  moved((pic, fun (x, y) : Point ->
+    (cx +. (x -. cx) *. ca -. (y -. cy) *. sa, cy +. (x -. cx) *. sa +. (y -. cy) *. ca))) in
+# Every point kept on the stage: what reaches past an edge is flattened #
+# onto it, so the frame holds still. #
+let on_stage = fun pic : Picture ->
+  moved((pic, fun (x, y) : Point -> (fmin((fmax((x, x0)), x1)), fmin((fmax((y, y0)), y1))))) in
+
+# THE FIGURE #
+
+# A paper doll for the figure, in Messed Up Dress Up's usual look -- #
+# long hair, a blue tee, long pants, red sneakers, smiley yellow skin -- #
+# its feet at (0, 0). The slides before this one draw the real figure. #
+let (skin, ink) = ("#cfa000", "#6e5500") in
+let arm = fun sd : Float ->
+  let (sx, sy, hx, hy) = (sd *. 50., -282., sd *. 112., -198.) in
+  [seg(("arm", (sx, sy), (hx, hy), 20., ink)), seg(("arm", (sx, sy), (hx, hy), 16., skin)),
+   seg(("sleeve", (sx, sy), (sx +. 0.38 *. (hx -. sx), sy +. 0.38 *. (hy -. sy)), 30., "#5b8bd0"))] in
+let doll =
+  [oval(("shadow", 0., 0., 130., 12., 16, "#00000014")),
+   solid(("hair", arc_pts((0., -404., 100., 100., pi, 2. *. pi, 10)) @ [(98., -250.), (-98., -250.)], "#2b2b2b")),
+   box(("neck", -13., -322., 26., 40., skin)),
+   shape(("shoe", oval_pts((-28., -8., 30., 13., 12)), 2., "#7a1f15", "#c0392b")),
+   shape(("shoe", oval_pts((28., -8., 30., 13., 12)), 2., "#7a1f15", "#c0392b")),
+   shape(("pants", [(-54., -168.), (54., -168.), (50., -12.), (6., -12.), (0., -120.), (-6., -12.), (-50., -12.)],
+          3., "#1f2d3a", "#34495e"))]
+  @ arm(-1.) @ arm(1.)
+  @ [shape(("shirt", [(-60., -292.), (60., -292.), (66., -150.), (-66., -150.)], 3., "#2b4a6f", "#5b8bd0")),
+     solid(("collar", [(-18., -292.), (18., -292.), (0., -264.)], skin)),
+     ring(("hand", -112., -198., 14., 10, 2., ink, skin)),
+     ring(("hand", 112., -198., 14., 10, 2., ink, skin)),
+     ring(("head", 0., -404., 92., 24, 3., ink, skin)),
+     solid(("bangs", arc_pts((0., -404., 97., 97., 1.08 *. pi, 1.92 *. pi, 8))
+       @ [(70., -446.), (40., -432.), (10., -446.), (-20., -432.), (-50., -446.), (-78., -436.)], "#2b2b2b")),
+     dot(("eye", -34., -410., 10., "#111111")), dot(("eye", 34., -410., 10., "#111111")),
+     dot(("shine", -31., -413., 3., "#ffffff")), dot(("shine", 37., -413., 3., "#ffffff")),
+     line(("smile", qcurve(((-38., -370.), (0., -338.), (38., -370.), 4)), 4., "#3a2a00"))] in
+
+# THE FOREST #
+
+# A sunny wood: rows of pines far off, sunshafts slanting down onto a #
+# meadow full of flowers, and big round trees at the sides. #
+let forest = fun k : Float ->
+  let sky = bands(("sky", ["#afdeef", "#bae3ec", "#c6e8ea", "#d1ece8", "#ddf1e6", "#e8f6e3"], y0, (g -. y0) /. 6.)) @ [box(("sky", x0, g, w, y1 -. g, "#eef8e2"))] in
+  let pines = fun (row, n, base, step, tall, c0, c1) : (Int, Int, Float, Float, Float, String, String) ->
+    each((n, fun i : Int ->
+      let x = x0 -. 50. *. k +. float_of_int(i) *. step in
+      let ht = tall *. k *. (0.8 +. 0.4 *. rnd((i, row))) in
+      let b = base +. 20. *. k *. rnd((i, row + 2)) in
+      [box(("trunk", x -. 4. *. k, b -. 10. *. k, 8. *. k, 14. *. k, "#5d3f24")),
+       solid(("pine", [(x, b -. ht), (x +. ht *. 0.21, b -. 4. *. k), (x -. ht *. 0.21, b -. 4. *. k)], by_twos((i, c0, c1))))])) in
+  let shafts = each((4, fun j : Int ->
+    let xt = x0 +. w *. (0.12 +. 0.2 *. float_of_int(j)) in
+    let xb = w *. (0.09 *. float_of_int(j) -. 0.12) in
+    [solid(("sunshaft", [(xt, y0), (xt +. 50. *. k, y0), (xb +. 110. *. k, g +. 20. *. k), (xb -. 20. *. k, g +. 20. *. k)],
+            "#fff6bf52"))])) in
+  let meadow = [land(("meadow", g -. 30. *. k, 10., 2.1, "#86c95f")),
+                oval(("meadow", 0., g +. 20. *. k, w *. 0.42, 70. *. k, 20, "#a6e07a"))] in
+  # a flower: five petals round a yellow middle #
+  let flowers = each((14, fun i : Int ->
+    let (x, y) = (x0 +. w *. rnd((i, 5)), g -. 20. *. k +. 110. *. k *. rnd((i, 6))) in
+    let c = by_twos((i / 2, by_twos((i, "#ff6fa5", "#ffd23f")), by_twos((i, "#ffffff", "#b388ff")))) in
+    [solid(("flower", init((15, fun j : Int ->
+       let t = 2. *. pi *. float_of_int(j) /. 15. in
+       let r = (6.2 +. 2.4 *. cos(5. *. t)) *. k in
+       (x +. r *. cos(t), y +. r *. sin(t)))), c)),
+     dot(("flower", x, y, 2.6 *. k, "#f2a900"))])) in
+  let trees = each((4, fun i : Int ->
+    let near = i < 2 in
+    let x = side(i) *. fmax((w /. 2. -. (if near then 70. else 200.) *. k, 170. *. k)) in
+    let b = g +. (if near then 60. else 30.) *. k in
+    let u = k *. (if near then 1.15 else 0.9) in
+    let cy = b -. 270. *. u in
+    [shape(("trunk", qcurve(((x -. 18. *. u, b), (x -. 10. *. u, b -. 120. *. u), (x -. 12. *. u, cy), 4))
+       @ qcurve(((x +. 12. *. u, cy), (x +. 10. *. u, b -. 120. *. u), (x +. 18. *. u, b), 4)), 2. *. k, "#4a301a", "#6b4728"))]
+    @ map(([(-60., 10., 70., "#2e7d32"), (60., 10., 70., "#2e7d32"), (0., -50., 85., "#388e3c"),
+            (-45., -40., 60., "#43a047"), (45., -45., 60., "#43a047"), (0., 30., 65., "#33873a")],
+           fun (dx, dy, r, c) : (Float, Float, Float, String) ->
+             oval(("leaves", x +. dx *. u, cy +. dy *. u, r *. u, r *. u, 14, c)))))) in
+  sky @ [land(("hills", g -. 150. *. k, 30., 0.5, "#b5dc98"))]
+  @ pines((0, 20, g -. 110. *. k, 40. *. k, 150., "#4f8f5a", "#5c9c63"))
+  @ pines((1, 15, g -. 60. *. k, 52. *. k, 210., "#2f6b3a", "#3c7d45"))
+  @ shafts @ meadow @ flowers @ trees in
+
+# UNDER THE SEA #
+
+# Light coming down through the water; rocks, then a sandy bottom; #
+# seaweed along both sides; a shipwreck on the left, half sunk, its mast #
+# broken; a picnic table on the right with a shark at each end, facing #
+# it, a fork in its fin; fish, and bubbles rising. #
+let underwater = fun k : Float ->
+  let sea = bands(("sea", ["#69ceea", "#5cbddc", "#50accc", "#439bbe", "#378aae", "#2a79a0", "#1e6890", "#115782"], y0, (y1 -. y0) /. 8.)) in
+  let rays = each((5, fun j : Int ->
+    let xt = x0 +. w *. (0.05 +. 0.22 *. float_of_int(j)) in
+    [solid(("light", [(xt, y0), (xt +. 60. *. k, y0), (xt +. 10. *. k +. w *. 0.08, g), (xt -. 50. *. k +. w *. 0.08, g)],
+            "#ffffff1a"))])) in
+  let bottom = [land(("rocks", g -. 70. *. k, 40., 1.2, "#2f6f8f")), land(("sand", g -. 18. *. k, 8., 0.3, "#e6d29a"))]
+    @ each((14, fun i : Int ->
+        [dot(("grain", x0 +. w *. rnd((i, 9)), g -. 5. *. k +. 120. *. k *. rnd((i, 10)), 2.2 *. k, "#c9b27a"))])) in
+  let weed = each((12, fun i : Int ->
+    let x = side(i) *. (w *. 0.16 +. w *. 0.33 *. rnd((i, 12))) in
+    let b = g +. 40. *. k *. rnd((i, 13)) in
+    let ht = (140. +. 110. *. rnd((i, 14))) *. k in
+    [line(("seaweed", init((9, fun j : Int ->
+       let sway = if int_mod(j, 2) == 0 then 0. else if int_mod(j, 4) == 1 then 11. else -11. in
+       (x +. sway *. k, b -. ht *. float_of_int(j) /. 8.))), 8. *. k, by_twos((i, "#3cb371", "#2e8b57"))))])) in
+  # the wreck, tipped 9 degrees #
+  let (wx, wy) = (fmin((x0 +. w *. 0.2, -230. *. k)), g -. 10. *. k) in
+  let wp = fun (a, b) : (Float, Float) -> (wx +. a *. k, wy +. b *. k) in
+  let wreck =
+    turned((
+      [shape(("hull", [wp((-160., -40.))] @ qcurve((wp((150., -64.)), wp((150., 10.)), wp((110., 30.)), 4))
+         @ qcurve((wp((-120., 40.)), wp((-160., 10.)), wp((-160., -40.)), 4)), 4. *. k, "#3e2a18", "#6d4c2f"))]
+      @ map(([-20., 0., 20.], fun d : Float ->
+          seg(("plank", wp((-150., -20. +. d)), wp((140., -42. +. d)), 2.5 *. k, "#4e3420"))))
+      @ map(([-90., -40., 10., 60.], fun a : Float ->
+          ring(("porthole", wx +. a *. k, wy -. (16. +. a *. 0.08) *. k, 9. *. k, 10, 2.5 *. k, "#c9a14a", "#1d3a4a"))))
+      @ [seg(("mast", wp((10., -52.)), wp((30., -250.)), 11. *. k, "#5a3d24")),
+         solid(("sail", [wp((32., -240.)), wp((110., -205.)), wp((70., -150.)), wp((90., -120.)), wp((26., -110.))], "#d8cfaed9")),
+         seg(("yard", wp((25., -200.)), wp((95., -165.)), 6. *. k, "#5a3d24"))],
+      (wx, wy), -9.))
+    @ [oval(("sand", wx -. 20. *. k, wy +. 40. *. k, 190. *. k, 34. *. k, 20, "#e6d29a"))] in
+  # the table, and a shark sitting up at each end, facing it (toward #
+  # the middle, -sd): a grey body, a white belly, a fin on its back, a #
+  # tail at its feet, an eye, a toothy grin, a fork held up in its fin #
+  let (tx, ty) = (fmax((x1 -. w *. 0.22, 230. *. k)), g +. 30. *. k) in
+  let tp = fun (a, b) : (Float, Float) -> (tx +. a *. k, ty +. b *. k) in
+  let shark = fun sd : Float ->
+    let (cx, cy) = (tx +. sd *. 128. *. k, ty -. 92. *. k) in
+    let sp = fun (a, b) : (Float, Float) -> (cx -. sd *. a *. k, cy +. b *. k) in
+    [shape(("tail", qcurve((sp((14., 64.)), sp((-30., 92.)), sp((-56., 72.)), 3)) @ [sp((-20., 58.))],
+            2.5 *. k, "#4d5b69", "#7d8ea0")),
+     shape(("shark", qcurve((sp((-12., -70.)), sp((30., -78.)), sp((30., -30.)), 3))
+       @ qcurve((sp((30., -30.)), sp((26., 30.)), sp((10., 66.)), 3))
+       @ qcurve((sp((10., 66.)), sp((-30., 60.)), sp((-34., 10.)), 3))
+       @ qcurve((sp((-34., 10.)), sp((-40., -50.)), sp((-12., -70.)), 3)), 3. *. k, "#4d5b69", "#8b9cad")),
+     solid(("belly", qcurve((sp((26., -40.)), sp((22., 20.)), sp((8., 60.)), 3))
+       @ qcurve((sp((8., 60.)), sp((-4., 20.)), sp((4., -40.)), 3)), "#eef3f6")),
+     shape(("fin", [sp((-30., -10.)), sp((-62., -24.)), sp((-34., 18.))], 2.5 *. k, "#4d5b69", "#7d8ea0")),
+     dot(("eye", cx -. sd *. 10. *. k, cy -. 48. *. k, 6. *. k, "#ffffff")),
+     dot(("eye", cx -. sd *. 12. *. k, cy -. 48. *. k, 3. *. k, "#111111")),
+     shape(("grin", qcurve((sp((4., -30.)), sp((18., -20.)), sp((28., -32.)), 4)), 2. *. k, "#333333", "#ffffff"))]
+    @ map(([6., 13., 20.], fun a : Float ->
+        let (px, py) = sp((a, -30. +. (a -. 4.) *. 0.1)) in
+        shape(("tooth", [(px, py), (px -. sd *. 3. *. k, py +. 5. *. k), (px -. sd *. 6. *. k, py)], 0.8 *. k, "#999999", "#ffffff"))))
+    @ [seg(("fork", (cx -. sd *. 46. *. k, cy +. 14. *. k), (cx -. sd *. 46. *. k, cy -. 34. *. k), 3. *. k, "#9aa4ad")),
+       seg(("fork", (cx -. sd *. 40. *. k, cy -. 34. *. k), (cx -. sd *. 52. *. k, cy -. 34. *. k), 3. *. k, "#9aa4ad"))]
+    @ map(([40., 46., 52.], fun a : Float ->
+        seg(("fork", (cx -. sd *. a *. k, cy -. 34. *. k), (cx -. sd *. a *. k, cy -. 48. *. k), 3. *. k, "#9aa4ad"))))
+    @ [shape(("fin", qcurve((sp((16., -2.)), sp((36., -8.)), sp((52., 4.)), 3))
+         @ qcurve((sp((52., 4.)), sp((38., 14.)), sp((16., 10.)), 3)), 2.5 *. k, "#4d5b69", "#7d8ea0"))] in
+  let table =
+    map(([-70., 70.], fun a : Float -> seg(("table leg", tp((a, -60.)), tp((a *. 1.2, 0.)), 8. *. k, "#7a5230"))))
+    @ [box(("bench", tx -. 120. *. k, ty -. 34. *. k, 240. *. k, 10. *. k, "#8b5a2b"))]
+    @ shark(-1.) @ shark(1.)
+    @ [shape(("table", [tp((-100., -74.)), tp((100., -74.)), tp((100., -58.)), tp((-100., -58.))], 2. *. k, "#5a3a1c", "#8b5a2b"))]
+    @ each((10, fun i : Int ->
+        [box(("cloth", tx +. (float_of_int(i) *. 20. -. 100.) *. k, ty -. 80. *. k, 20. *. k, 8. *. k, by_twos((i, "#e53935", "#ffffff"))))]))
+    @ [shape(("plate", oval_pts((tx -. 40. *. k, ty -. 84. *. k, 18. *. k, 5. *. k, 12)), 1.5 *. k, "#bbbbbb", "#ffffff")),
+       solid(("pie", qcurve((tp((-52., -88.)), tp((-40., -100.)), tp((-28., -88.)), 3)), "#f2b84b")),
+       shape(("plate", oval_pts((tx +. 40. *. k, ty -. 84. *. k, 18. *. k, 5. *. k, 12)), 1.5 *. k, "#bbbbbb", "#ffffff")),
+       oval(("ham", tx +. 40. *. k, ty -. 90. *. k, 12. *. k, 6. *. k, 10, "#e57373"))] in
+  let fish = each((4, fun i : Int ->
+    let (x, y) = (x0 +. w *. (0.1 +. 0.8 *. rnd((i, 15))), y0 +. (g -. y0) *. (0.15 +. 0.4 *. rnd((i, 16)))) in
+    let sd = side(i) in
+    let c = by_twos((i / 2, by_twos((i, "#ff9f1c", "#ffd23f")), by_twos((i, "#ff6f91", "#7bdff2")))) in
+    [oval(("fish", x, y, 18. *. k, 9. *. k, 12, c)),
+     solid(("fish", [(x -. sd *. 16. *. k, y), (x -. sd *. 30. *. k, y -. 9. *. k), (x -. sd *. 30. *. k, y +. 9. *. k)], c)),
+     dot(("fish eye", x +. sd *. 9. *. k, y -. 2. *. k, 2. *. k, "#111111"))])) in
+  let bubbles = each((10, fun i : Int ->
+    let (x, y, r) = (x0 +. w *. rnd((i, 17)), y0 +. (g -. y0) *. rnd((i, 18)), (3. +. 6. *. rnd((i, 19))) *. k) in
+    [line(("bubble", arc_pts((x, y, r, r, 0., 2. *. pi, 8)), 1.5 *. k, "#ffffffb3"))])) in
+  sea @ rays @ bottom @ weed @ wreck @ table @ fish @ bubbles in
+
+# THE BEACH #
+
+# The sun high on the right; the ocean next to the sand, waves on it and #
+# foam at its edge; palm trees at the sides; a striped umbrella over a #
+# beach chair on each side; blankets on the sand; and a sand castle on #
+# each side of the figure, with towers, a door and a flag. #
+let beach = fun k : Float ->
+  let (sea, shore) = (g -. 170. *. k, g -. 55. *. k) in
+  let sky = bands(("sky", ["#69c1f3", "#7dcaf5", "#91d2f7", "#a4dbfa", "#b8e3fc", "#ccecfe"], y0, (sea -. y0) /. 6.)) in
+  let (sx, sy) = (x1 -. w *. 0.16, y0 +. (y1 -. y0) *. 0.14) in
+  let sun = each((12, fun i : Int ->
+    let a = float_of_int(i) *. pi /. 6. in
+    [seg(("sun ray", (sx +. 58. *. k *. cos(a), sy +. 58. *. k *. sin(a)), (sx +. 82. *. k *. cos(a), sy +. 82. *. k *. sin(a)),
+          6. *. k, "#ffd23f"))]))
+    @ [oval(("sun", sx, sy, 46. *. k, 46. *. k, 20, "#ffd23f"))] in
+  let ocean = bands(("ocean", ["#258dc8", "#309cd1", "#3baad9", "#46b9e2"], sea, (shore +. 20. *. k -. sea) /. 4.)) in
+  let waves = each((10, fun i : Int ->
+    let (x, y) = (x0 +. w *. rnd((i, 20)), sea +. (shore -. sea) *. (0.15 +. 0.7 *. rnd((i, 21)))) in
+    [line(("wave", qcurve(((x -. 16. *. k, y), (x -. 8. *. k, y -. 6. *. k), (x, y), 2))
+       @ qcurve(((x, y), (x +. 8. *. k, y -. 6. *. k), (x +. 16. *. k, y), 2)), 2.5 *. k, "#ffffffcc"))])) in
+  let sand = [land(("foam", shore -. 4. *. k, 6., 0.9, "#ffffff")), land(("sand", shore +. 4. *. k, 6., 1.4, "#f3dca5"))] in
+  let palm = fun sd : Float ->
+    let (bx, by) = (sd *. fmax((w /. 2. -. 60. *. k, 200. *. k)), g +. 40. *. k) in
+    let (tx, ty) = (bx -. sd *. 70. *. k, g -. 340. *. k) in
+    let bend = (bx +. sd *. 10. *. k, g -. 180. *. k) in
+    [line(("palm", qcurve(((bx, by), bend, (tx, ty), 6)), 20. *. k, "#9b6b3c"))]
+    @ map((qcurve(((bx, by), bend, (tx, ty), 9)), fun (qx, qy) : Point ->
+        seg(("palm ring", (qx -. 9. *. k, qy), (qx +. 9. *. k, qy +. 4. *. k), 2.5 *. k, "#7a522c"))))
+    @ map(([-160., -125., -90., -55., -20., 15., 160., 195.], fun deg : Float ->
+        let r = deg *. pi /. 180. in
+        let (ex, ey) = (tx +. 120. *. k *. cos(r), ty +. 80. *. k *. sin(r) +. 40. *. k) in
+        shape(("frond", qcurve(((tx, ty), (tx +. 70. *. k *. cos(r), ty +. 60. *. k *. sin(r) -. 30. *. k), (ex, ey), 3))
+          @ qcurve(((ex, ey), (tx +. 50. *. k *. cos(r), ty +. 40. *. k *. sin(r) -. 4. *. k), (tx, ty), 3)),
+          2. *. k, "#1f6e33", "#2e9d4a"))))
+    @ map(([(-8., 10.), (8., 12.), (0., 20.)], fun (dx, dy) : Point ->
+        dot(("coconut", tx +. dx *. k, ty +. dy *. k, 9. *. k, "#6b4a2b")))) in
+  let lounge = fun (sd, ca, cb) : (Float, String, String) ->
+    let (x, b) = (sd *. fmax((w /. 2. -. 210. *. k, 150. *. k)), g +. 20. *. k) in
+    let (px, py) = (x +. sd *. 16. *. k, b -. 230. *. k) in
+    let (cx, cy) = (x +. sd *. 30. *. k, b -. 10. *. k) in
+    [seg(("pole", (x, b), (px, py), 5. *. k, "#d8d8d8"))]
+    @ each((6, fun j : Int ->
+        let (a0, a1) = (pi +. float_of_int(j) *. pi /. 6., pi +. float_of_int(j + 1) *. pi /. 6.) in
+        let (p0, p1) = (px +. 120. *. k *. cos(a0), px +. 120. *. k *. cos(a1)) in
+        [shape(("umbrella", [(px, py)] @ qcurve(((p0, py +. 26. *. k), ((p0 +. p1) /. 2., py +. 38. *. k), (p1, py +. 26. *. k), 2)),
+                1.2 *. k, "#555555", by_twos((j, ca, cb))))]))
+    @ [shape(("chair", [(cx -. 40. *. k, cy -. 34. *. k), (cx +. 40. *. k, cy -. 34. *. k), (cx +. 34. *. k, cy -. 18. *. k), (cx -. 34. *. k, cy -. 18. *. k)],
+              1.5 *. k, "#555555", ca)),
+       shape(("chair", [(cx -. 34. *. k, cy -. 34. *. k), (cx +. 34. *. k, cy -. 34. *. k), (cx +. 40. *. k, cy -. 92. *. k), (cx -. 28. *. k, cy -. 92. *. k)],
+              1.5 *. k, "#555555", cb))]
+    @ map(([-1., 0., 1.], fun j : Float ->
+        seg(("chair", (cx +. j *. 22. *. k, cy -. 34. *. k), (cx +. j *. 22. *. k +. 6. *. k, cy -. 92. *. k), 7. *. k, ca))))
+    @ map(([-36., 36.], fun dx : Float ->
+        seg(("chair leg", (cx +. dx *. k, cy -. 20. *. k), (cx +. dx *. 1.1 *. k, cy), 3. *. k, "#777777")))) in
+  let blanket = fun (sd, ca, cb, dy) : (Float, String, String, Float) ->
+    let (x, y, bw, bh) = (sd *. w *. 0.2, g +. dy *. k, 150. *. k, 42. *. k) in
+    each((6, fun j : Int ->
+      let (l, r) = (x -. bw /. 2. +. float_of_int(j) *. bw /. 6., x -. bw /. 2. +. float_of_int(j + 1) *. bw /. 6.) in
+      [solid(("blanket", [(l +. 14. *. k, y -. bh), (r +. 14. *. k, y -. bh), (r, y), (l, y)], by_twos((j, ca, cb))))])) in
+  let castle = fun sd : Float ->
+    let (x, y) = (sd *. fmax((w *. 0.3, 120. *. k)), g +. 45. *. k) in
+    let tower = fun (tx, tw, th) : (Float, Float, Float) ->
+      [shape(("castle", [(tx -. tw /. 2., y -. th), (tx +. tw /. 2., y -. th), (tx +. tw /. 2., y), (tx -. tw /. 2., y)],
+              2. *. k, "#b08a43", "#e2bd6e"))]
+      @ map(([-1., 0., 1.], fun j : Float ->
+          let cl = tx +. j *. tw /. 3. -. tw /. 8. in
+          shape(("castle", [(cl, y -. th -. 8. *. k), (cl +. tw /. 4., y -. th -. 8. *. k), (cl +. tw /. 4., y -. th +. 1. *. k), (cl, y -. th +. 1. *. k)],
+                 1.5 *. k, "#b08a43", "#e2bd6e")))) in
+    tower((x, 80. *. k, 46. *. k)) @ tower((x -. 34. *. k, 26. *. k, 74. *. k)) @ tower((x +. 34. *. k, 26. *. k, 74. *. k))
+    @ tower((x, 30. *. k, 92. *. k))
+    @ [solid(("door", [(x -. 9. *. k, y)] @ qcurve(((x -. 9. *. k, y -. 16. *. k), (x, y -. 26. *. k), (x +. 9. *. k, y -. 16. *. k), 3))
+         @ [(x +. 9. *. k, y)], "#9a7638")),
+       seg(("flagpole", (x, y -. 100. *. k), (x, y -. 132. *. k), 2. *. k, "#555555")),
+       solid(("flag", [(x, y -. 132. *. k), (x +. sd *. 22. *. k, y -. 125. *. k), (x, y -. 118. *. k)], "#e53935"))] in
+  sky @ sun @ ocean @ waves @ sand @ palm(-1.) @ palm(1.)
+  @ lounge((-1., "#e53935", "#ffffff")) @ lounge((1., "#1e88e5", "#ffd23f"))
+  @ blanket((-1., "#8e44ad", "#ffd23f", 70.)) @ blanket((1., "#2ecc71", "#ffffff", 95.))
+  @ castle(-1.) @ castle(1.) in
+
+# THE WITCH'S WOODS #
+
+# Dusk: a moon and bats, dark hills and dead trees; far off on a rise, #
+# behind the fence, a log hut, on giant clawed chicken legs if chosen; #
+# a fence of pointed stakes across the middle, skulls on its posts; a #
+# giant dead tree on the left, its roots humped out of the ground, and a #
+# smaller one at the right edge; skeletons reaching up out of the #
+# ground; and her cauldron bubbling green over a fire on the right. #
+let woods = fun (legs, leg_size, near, glow) : (Bool, Int, Int, Int) ->
+  let sky = bands(("sky", ["#36244a", "#4d314a", "#643e4a", "#7a4b4a", "#91594a", "#a7664a", "#be734a", "#d5804a"], y0, (g -. 40. *. k -. y0) /. 8.)) in
+  # a red dot in a skull's eye hole, its size a share of the hole #
+  let eye_dot = fun (cx, cy, hole) : (Float, Float, Float) ->
+    if glow == 0 then [] else [dot(("red eye", cx, cy, hole *. float_of_int(glow) /. 100., "#ff2626"))] in
+  let (mx, my) = (x1 -. w *. 0.17, y0 +. (y1 -. y0) *. 0.15) in
+  let moon = [oval(("moon", mx, my, 44. *. k, 44. *. k, 20, "#fff3c4")),
+              dot(("crater", mx +. 14. *. k, my -. 8. *. k, 9. *. k, "#efe0a8")),
+              dot(("crater", mx -. 16. *. k, my +. 12. *. k, 6. *. k, "#efe0a8"))] in
+  # a bat: two scalloped wings and a small body, as the game's curves #
+  let bats = each((4, fun i : Int ->
+    let (bx, by) = (x0 +. w *. (0.12 +. 0.2 *. float_of_int(i) +. 0.06 *. rnd((i, 30))), y0 +. (y1 -. y0) *. (0.08 +. 0.18 *. rnd((i, 31)))) in
+    let b = (14. +. 6. *. rnd((i, 32))) *. k in
+    [solid(("bat", map(([(0., 0.), (-0.55, -0.35), (-1.2, -0.2), (-0.94, 0.04), (-0.75, 0.25), (-0.51, 0.15), (-0.3, 0.3), (-0.15, 0.15), (0., 0.2), (0.15, 0.15), (0.3, 0.3), (0.51, 0.15), (0.75, 0.25), (0.94, 0.04), (1.2, -0.2), (0.55, -0.35)], fun (x, y) : Point -> (bx +. b *. x, by +. b *. y))), "#1a1426"))])) in
+  # Dead trees, each grown from its own seed: a trunk, then limbs that #
+  # fork two or three ways, bending as they go, thinner each time. A #
+  # tree has its own lean, height, spread and twist; some droop. #
+  let dead_tree = fun (seed, x, y, ht, wd, col, depth, droop, wide, lean0)
+      : (Int, Float, Float, Float, Float, String, Int, Float, Float, Float) ->
+    let lean = lean0 +. (rnd((seed, 1)) -. 0.5) *. 0.35 in
+    let twist = 0.3 +. 0.6 *. rnd((seed, 2)) in
+    let spread = (0.45 +. 0.4 *. rnd((seed, 3))) *. wide in
+    let grow : (Float, Float, Float, Float, Float, Int, Int) -> Picture =
+      fun (x, y, a, len, wd, lvl, id) ->
+        let bend = (rnd((seed, id * 7 + 1)) -. 0.5) *. twist in
+        let (mx, my) = (x +. cos(a) *. len *. 0.5, y +. sin(a) *. len *. 0.5) in
+        let (ex, ey) = (mx +. cos(a +. bend) *. len *. 0.5, my +. sin(a +. bend) *. len *. 0.5) in
+        let limb = line(("limb", [(x, y), (mx, my), (ex, ey)], fmax((0.8 *. k, wd)), col)) in
+        if lvl == 0 then [limb]
+        else
+          let n = if rnd((seed, id * 7 + 2)) >. 0.55 then 3 else 2 in
+          limb :: each((n, fun c : Int ->
+            let a0 = a +. bend +. (float_of_int(c) -. float_of_int(n - 1) /. 2.) *. spread *. (0.7 +. 0.6 *. rnd((seed, id * 7 + 3 + c))) in
+            let dr = droop *. 0.22 *. float_of_int(depth - lvl + 1) in
+            grow((ex, ey, atan2(sin(a0) +. dr, cos(a0)), len *. (0.55 +. 0.3 *. rnd((seed, id * 11 + c))), wd *. 0.6, lvl - 1, id * 3 + c + 1)))) in
+    grow((x, y, lean -. pi /. 2., ht *. 0.38, wd, depth, 1)) in
+  # two rows far off, the farther paler; one in eight a snapped stump #
+  let far = fun (row, n, base, col) : (Int, Int, Float, String) ->
+    each((n, fun i : Int ->
+      let seed = 100 + row * 40 + i in
+      let x = x0 +. w *. (float_of_int(i) +. 0.2 +. 0.6 *. rnd((seed, 9))) /. float_of_int(n) in
+      let kind = rnd((seed, 10)) in
+      let ht = (if row == 1 then 200. else 150.) *. k *. (0.65 +. 0.6 *. rnd((seed, 11))) in
+      if kind <. 0.12 then dead_tree((seed, x, base, ht *. 0.45, (if row == 1 then 9. else 6.) *. k, col, 1, 0., 1., 0.))
+      else dead_tree((seed, x, base +. 10. *. k *. rnd((seed, 12)), ht, (if row == 1 then 8. else 6.) *. k *. (0.8 +. 0.5 *. rnd((seed, 13))),
+                      col, if kind <. 0.45 then 3 else 2, if kind >. 0.8 then 1. else 0., 1., 0.)))) in
+  # The hut, behind the fence up on its rise. Nearer, it comes down #
+  # toward the fence and grows, but stays behind it (drawn before it). #
+  let ls = float_of_int(leg_size) /. 100. in
+  let nr = float_of_int(near) /. 100. in
+  let (hut_x, hut_base) = (w *. 0.19, g -. 112. *. k) in
+  let leg_h = if legs then 120. *. k *. ls else 0. in
+  let (hw, hh) = (120. *. k, 84. *. k) in
+  let top = hut_base -. leg_h -. hh in
+  # a giant chicken leg, red-orange and scaly, white feathers at the top, #
+  # three long splayed toes and a spur, every one clawed #
+  let leg = fun sd : Float ->
+    let hip = (hut_x +. sd *. 30. *. k, hut_base -. leg_h) in
+    let knee = (hut_x +. sd *. 52. *. k, hut_base -. leg_h *. 0.5) in
+    let ankle = (hut_x +. sd *. 34. *. k, hut_base) in
+    let (hipx, hipy) = hip in
+    let (ax, ay) = ankle in
+    let thick = sqrt(ls) in
+    let toe = fun (dx, dy) : (Float, Float) ->
+      let (tx, ty) = (ax +. dx *. k, ay +. dy *. k) in
+      let d = sqrt(dx *. dx +. dy *. dy) in
+      let (ux, uy) = (dx /. d, dy /. d) in
+      [seg(("toe", ankle, (tx, ty), 10. *. k, "#8f2a12")), seg(("toe", ankle, (tx, ty), 7. *. k, "#e0552b")),
+       shape(("claw", [(tx -. uy *. 3. *. k, ty +. ux *. 3. *. k), (tx +. ux *. 10. *. k, ty +. uy *. 10. *. k),
+                       (tx +. (ux *. 14. +. uy *. 6.) *. k, ty +. (uy *. 14. -. ux *. 6.) *. k), (tx +. uy *. 3. *. k, ty -. ux *. 3. *. k)],
+              1.2 *. k, "#3a2614", "#f2ead8"))] in
+    [line(("leg", [hip, knee, ankle], 18. *. thick *. k, "#8f2a12")), line(("leg", [hip, knee, ankle], 13. *. thick *. k, "#e0552b"))]
+    @ map(([0.15, 0.3, 0.6, 0.75, 0.88], fun t : Float ->
+        let ((px, py), (qx, qy), u) = if t <. 0.5 then (hip, knee, t *. 2.) else (knee, ankle, (t -. 0.5) *. 2.) in
+        let (x, y) = (px +. (qx -. px) *. u, py +. (qy -. py) *. u) in
+        seg(("scale", (x -. 6. *. k, y), (x +. 6. *. k, y +. 2. *. k), 1.6 *. k, "#8f2a12"))))
+    @ map(([-1., 0., 1.], fun t : Float ->
+        let (fx, fy) = (hipx +. t *. 8. *. k, hipy -. 4. *. k) in
+        shape(("feather", qcurve(((fx, fy), (fx -. 4. *. k, fy +. 14. *. k), (fx +. 2. *. k, fy +. 22. *. k), 3))
+          @ qcurve(((fx +. 2. *. k, fy +. 22. *. k), (fx +. 8. *. k, fy +. 14. *. k), (fx +. 6. *. k, fy), 3)),
+          1. *. k, "#c9c9c9", "#ffffff"))))
+    @ toe((sd *. 44., 8.)) @ toe((sd *. 20., 16.)) @ toe((0. -. sd *. 8., 14.)) @ toe((0. -. sd *. 26., 4.)) in
+  let roof_w = hw /. 2. +. 20. *. k in
+  let hut =
+    [solid(("rise", qcurve(((hut_x -. w *. 0.17, g -. 40. *. k), (hut_x -. w *. 0.03, g -. 140. *. k), (hut_x +. w *. 0.17, g -. 40. *. k), 8)),
+            "#3b2f2a"))]
+    @ (if legs then leg(-1.) @ leg(1.) else [])
+    @ each((6, fun r : Int ->
+        let y = top +. float_of_int(r) *. hh /. 6. in
+        [shape(("log", [(hut_x -. hw /. 2. -. 6. *. k, y), (hut_x +. hw /. 2. +. 6. *. k, y), (hut_x +. hw /. 2. +. 6. *. k, y +. hh /. 6.),
+                        (hut_x -. hw /. 2. -. 6. *. k, y +. hh /. 6.)], 1.5 *. k, "#4a2c14", by_twos((r, "#9b6a3c", "#8a5a32"))))]))
+    @ [shape(("door", [(hut_x -. 14. *. k, top +. 20. *. k), (hut_x +. 14. *. k, top +. 20. *. k), (hut_x +. 14. *. k, top +. hh), (hut_x -. 14. *. k, top +. hh)],
+              2. *. k, "#4a1410", "#c0392b")),
+       seg(("door", (hut_x -. 9. *. k, top +. 34. *. k), (hut_x +. 9. *. k, top +. 52. *. k), 2. *. k, "#4a1410")),
+       seg(("door", (hut_x +. 9. *. k, top +. 34. *. k), (hut_x -. 9. *. k, top +. 52. *. k), 2. *. k, "#4a1410"))]
+    @ concat(map(([-1., 1.], fun sd : Float ->
+        let wx = hut_x +. sd *. 38. *. k in
+        [shape(("window", [(wx -. 11. *. k, top +. 18. *. k), (wx +. 11. *. k, top +. 18. *. k), (wx +. 11. *. k, top +. 42. *. k), (wx -. 11. *. k, top +. 42. *. k)],
+                3. *. k, "#2a3a8a", "#ffd166")),
+         seg(("window", (wx, top +. 18. *. k), (wx, top +. 42. *. k), 2. *. k, "#2a3a8a"))])))
+    @ [shape(("roof", [(hut_x -. roof_w, top +. 4. *. k), (hut_x, top -. 52. *. k), (hut_x +. roof_w, top +. 4. *. k)], 3. *. k, "#3a2614", "#6b4a2b"))]
+    @ map(([1., 2., 3.], fun j : Float ->
+        seg(("roof", (hut_x -. roof_w *. (1. -. j /. 4.), top +. 4. *. k -. 14. *. k *. j), (hut_x +. roof_w *. (1. -. j /. 4.), top +. 4. *. k -. 14. *. k *. j),
+             1.5 *. k, "#4a301a")))) in
+  let hut_at = grown((hut, (hut_x, hut_base), 1. +. 1.1 *. nr, (hut_x, hut_base +. nr *. 76. *. k))) in
+  let ground = [land(("ground", g -. 40. *. k, 8., 1.9, "#4a3a2a"))]
+    @ each((12, fun i : Int ->
+        let (x, y) = (x0 +. w *. rnd((i, 41)), g -. 30. *. k +. 120. *. k *. rnd((i, 42))) in
+        [solid(("grass", [(x -. 7. *. k, y), (x -. 3. *. k, y -. 12. *. k), (x, y), (x +. 3. *. k, y -. 14. *. k), (x +. 7. *. k, y)], "#3d5a2a"))])) in
+  # a skull: a round crown, a jaw, two eye holes (and their red eyes), a #
+  # nose hole and three teeth #
+  let skull = fun (sx, sy) : (Float, Float) ->
+    [shape(("skull", qcurve(((sx -. 11. *. k, sy +. 2. *. k), (sx -. 12. *. k, sy -. 14. *. k), (sx, sy -. 15. *. k), 3))
+       @ qcurve(((sx, sy -. 15. *. k), (sx +. 12. *. k, sy -. 14. *. k), (sx +. 11. *. k, sy +. 2. *. k), 3))
+       @ [(sx +. 6. *. k, sy +. 4. *. k), (sx +. 5. *. k, sy +. 10. *. k), (sx -. 5. *. k, sy +. 10. *. k), (sx -. 6. *. k, sy +. 4. *. k)],
+       1.2 *. k, "#6b6355", "#efe8d8")),
+     dot(("eye hole", sx -. 4.5 *. k, sy -. 3. *. k, 3.4 *. k, "#1a1426")),
+     dot(("eye hole", sx +. 4.5 *. k, sy -. 3. *. k, 3.4 *. k, "#1a1426"))]
+    @ eye_dot((sx -. 4.5 *. k, sy -. 3. *. k, 3.4 *. k)) @ eye_dot((sx +. 4.5 *. k, sy -. 3. *. k, 3.4 *. k))
+    @ [solid(("nose hole", [(sx -. 1.5 *. k, sy +. 3. *. k), (sx, sy), (sx +. 1.5 *. k, sy +. 3. *. k)], "#1a1426"))]
+    @ map(([-3., 0., 3.], fun t : Float ->
+        seg(("tooth", (sx +. t *. k, sy +. 6. *. k), (sx +. t *. k, sy +. 10. *. k), 1. *. k, "#6b6355")))) in
+  # the fence: pointed stakes side by side on a rail, a skull on every #
+  # fourth #
+  let (fy, ph, step) = (g -. 26. *. k, 70. *. k, 22. *. k) in
+  let fence = [box(("rail", x0, fy -. ph *. 0.55, w, 6. *. k, "#3a2a1a"))]
+    @ each((34, fun i : Int ->
+        let x = x0 -. step /. 2. +. float_of_int(i) *. step in
+        let ht = ph *. (0.9 +. 0.2 *. rnd((i, 50))) in
+        [shape(("stake", [(x -. step /. 2. +. 1., fy), (x -. step /. 2. +. 1., fy -. ht), (x, fy -. ht -. 12. *. k),
+                          (x +. step /. 2. -. 1., fy -. ht), (x +. step /. 2. -. 1., fy)], 1.4 *. k, "#2f2216", by_twos((i, "#7a5e3e", "#6b5236")))),
+         seg(("grain", (x -. 3. *. k, fy -. ht *. 0.8), (x -. 2. *. k, fy -. ht *. 0.3), 1.2 *. k, "#4a3622"))]
+        @ (if int_mod(i, 4) == 1 then skull((x, fy -. ht -. 14. *. k)) else []))) in
+  # the giant on the left, its limbs sprawling toward the middle and its #
+  # roots humped up out of the ground; a middling one at the right edge #
+  let big_tree = fun (seed, fx, ht, wd, roots, droop, wide, lean, depth, giant)
+      : (Int, Float, Float, Float, Float, Float, Float, Float, Int, Bool) ->
+    let (x, b, col) = (x0 +. w *. fx, g +. 40. *. k, "#2a1f1a") in
+    map(([-2., -1., 0., 1., 2.], fun t : Float ->
+      line(("root", qcurve(((x, b -. 10. *. k), (x +. t *. 2. *. roots *. k, b -. 2. *. k), (x +. t *. 4. *. roots *. k, b +. 8. *. k), 3)),
+            roots *. k, col))))
+    @ (if giant then
+        concat(map(([(30., 230., 30., 15., 0), (18., 170., 46., 12., 1), (24., 120., -6., 13., 2), (10., 300., 62., 9., 3),
+                     (-14., -60., 20., 11., 4), (6., 70., 66., 8., 5)],
+          fun (dx, reach, dy, rw, r) : (Float, Float, Float, Float, Int) ->
+            let (sx, ex, ey) = (x +. dx *. k, x +. reach *. k, b +. dy *. k) in
+            let hump = (18. +. 14. *. rnd((r, 80))) *. k in
+            let (m1, m2) = (sx +. (ex -. sx) *. 0.35, sx +. (ex -. sx) *. 0.7) in
+            let root = ccurve(((sx, b -. 14. *. k), (m1, b -. 14. *. k -. hump), (m2, ey -. hump *. 0.6), (ex, ey), 5)) in
+            [line(("root", root, (rw +. 3.) *. k, "#1a130f")), line(("root", root, rw *. k, col)),
+             line(("root", ccurve(((m1, b -. 10. *. k -. hump *. 0.75), (m1 +. 8. *. k, b -. 12. *. k -. hump *. 0.8),
+                                   (m2, ey -. hump *. 0.5), (m2 +. 10. *. k, ey -. hump *. 0.42), 4)), 1.6 *. k, "#4a3a30b3"))])))
+       else [])
+    @ dead_tree((seed, x, b, ht *. k, wd *. k, col, depth, droop, wide, lean))
+    @ [oval(("knot hole", x -. wd *. 0.12 *. k, b -. ht *. 0.2 *. k, wd *. 0.14 *. k, wd *. 0.26 *. k, 10, "#120c0a"))] in
+  # a skeleton reaching up out of the ground: a skull half buried, an arm #
+  # bone up to a bony hand #
+  let skeleton = fun (fx, fy, sd) : (Float, Float, Float) ->
+    let (x, y, bone, ln) = (w *. fx, g +. fy *. k, "#efe8d8", "#6b6355") in
+    let (ax, ay) = (x +. sd *. 26. *. k, y -. 4. *. k) in
+    let (ex, ey) = (ax +. sd *. 10. *. k, ay -. 34. *. k) in
+    let (px, py) = (ex -. sd *. 4. *. k, ey -. 26. *. k) in
+    [line(("arm bone", [(ax, ay), (ex, ey), (px, py)], 7. *. k, ln)), line(("arm bone", [(ax, ay), (ex, ey), (px, py)], 4.5 *. k, bone))]
+    @ map(([-2., -1., 0., 1., 2.], fun t : Float ->
+        let a = (t *. 22. -. 90.) *. pi /. 180. in
+        seg(("finger bone", (px, py), (px +. 12. *. k *. cos(a), py +. 12. *. k *. sin(a)), 2.6 *. k, bone))))
+    @ [shape(("skull", qcurve(((x -. 13. *. k, y), (x -. 14. *. k, y -. 20. *. k), (x, y -. 21. *. k), 3))
+         @ qcurve(((x, y -. 21. *. k), (x +. 14. *. k, y -. 20. *. k), (x +. 13. *. k, y), 3)), 1.2 *. k, ln, bone)),
+       dot(("eye hole", x -. 5. *. k, y -. 9. *. k, 3.6 *. k, "#1a1426")),
+       dot(("eye hole", x +. 5. *. k, y -. 9. *. k, 3.6 *. k, "#1a1426"))]
+    @ eye_dot((x -. 5. *. k, y -. 9. *. k, 3.6 *. k)) @ eye_dot((x +. 5. *. k, y -. 9. *. k, 3.6 *. k))
+    @ [oval(("dirt", x, y +. 1. *. k, 26. *. k, 5. *. k, 12, "#3a2c1e"))] in
+  # her cauldron, bubbling green over a fire, a red-eyed skull on the pot, #
+  # and a plume of two ribbons twisting up round each other #
+  let (cx, cb, cr) = (fmax((w *. 0.32, 180. *. k)), g +. 55. *. k, 46. *. k) in
+  let cy = cb -. 26. *. k -. cr *. 0.7 in
+  let cauldron =
+    each((3, fun i : Int ->
+      let fx = cx +. float_of_int(i - 1) *. 26. *. k in
+      [solid(("flame", qcurve(((fx -. 10. *. k, cb -. 14. *. k), (fx -. 6. *. k, cb -. 46. *. k), (fx, cb -. 60. *. k), 3))
+         @ qcurve(((fx, cb -. 60. *. k), (fx +. 6. *. k, cb -. 46. *. k), (fx +. 10. *. k, cb -. 14. *. k), 3)), "#ff8c1a")),
+       solid(("flame", qcurve(((fx -. 5. *. k, cb -. 14. *. k), (fx -. 3. *. k, cb -. 32. *. k), (fx, cb -. 40. *. k), 2))
+         @ qcurve(((fx, cb -. 40. *. k), (fx +. 3. *. k, cb -. 32. *. k), (fx +. 5. *. k, cb -. 14. *. k), 2)), "#ffd23f"))]))
+    @ map(([-30., -10., 10., 30.], fun t : Float ->
+        seg(("firewood", (cx +. t *. k, cb -. 6. *. k), (cx +. t *. 1.4 *. k, cb -. 16. *. k), 6. *. k, "#5a3a1c"))))
+    @ map(([-1., 1.], fun sd : Float ->
+        seg(("pot leg", (cx +. sd *. cr *. 0.7, cy +. cr *. 0.5), (cx +. sd *. cr *. 0.9, cb -. 4. *. k), 6. *. k, "#1b1b1f"))))
+    @ [shape(("pot", qcurve(((cx -. cr, cy), (cx -. cr *. 1.1, cy +. cr *. 1.05), (cx, cy +. cr *. 1.05), 4))
+         @ qcurve(((cx, cy +. cr *. 1.05), (cx +. cr *. 1.1, cy +. cr *. 1.05), (cx +. cr, cy), 4)), 3. *. k, "#0e0e12", "#26262c")),
+       oval(("rim", cx, cy, cr *. 1.06, cr *. 0.24, 16, "#1b1b1f")),
+       oval(("brew", cx, cy, cr *. 0.92, cr *. 0.17, 16, "#7bd33a"))]
+    @ map(([(-0.4, -4., 7.), (0.1, -8., 9.), (0.45, -3., 6.), (-0.1, -20., 5.), (0.3, -30., 4.)], fun (dx, dy, rr) : (Float, Float, Float) ->
+        ring(("bubble", cx +. dx *. cr, cy +. dy *. k, rr *. k, 8, 1.5 *. k, "#4f9a1f", "#a6e86a"))))
+    @ [solid(("pot skull", qcurve(((cx -. 14. *. k, cy +. 30. *. k), (cx -. 15. *. k, cy +. 12. *. k), (cx, cy +. 11. *. k), 3))
+         @ qcurve(((cx, cy +. 11. *. k), (cx +. 15. *. k, cy +. 12. *. k), (cx +. 14. *. k, cy +. 30. *. k), 3))
+         @ [(cx +. 7. *. k, cy +. 33. *. k), (cx +. 6. *. k, cy +. 39. *. k), (cx -. 6. *. k, cy +. 39. *. k), (cx -. 7. *. k, cy +. 33. *. k)],
+         "#3b3b44")),
+       dot(("pot skull eye", cx -. 6. *. k, cy +. 22. *. k, 3.6 *. k, "#ff3b3b")),
+       dot(("pot skull eye", cx +. 6. *. k, cy +. 22. *. k, 3.6 *. k, "#ff3b3b"))]
+    @ map(([("#7bd33ad9", 0.), ("#3fd0e0d9", pi)], fun (c, ph) : (String, Float) ->
+        line(("plume", init((13, fun t : Int ->
+          let tf = float_of_int(t) in
+          (cx +. 18. *. k *. sin(tf *. 0.7 +. ph) *. (1. -. tf /. 16.), cy -. 6. *. k -. tf *. 16. *. k))), 6. *. k, c)))) in
+  sky @ moon @ bats @ [land(("hills", g -. 150. *. k, 30., 0.7, "#3a2c4f"))]
+  @ far((0, 6, g -. 130. *. k, "#3b2c52")) @ far((1, 5, g -. 92. *. k, "#24192f"))
+  @ hut_at @ ground @ fence
+  @ big_tree((23, 0.1, 560., 64., 16., 0.45, 1.7, 0.22, 5, true))
+  @ big_tree((7, 0.98, 250., 16., 7., 0.1, 1., -0.1, 3, false))
+  @ skeleton((-0.14, 52., 1.)) @ skeleton((0.12, 66., -1.)) @ skeleton((-0.44, 74., -1.)) @ skeleton((0.45, 70., 1.))
+  @ cauldron in
+
+# THE PICTURE #
+
+# The chosen scene, then the figure on it, its feet on the ground, at #
+# its size about them and moved where its sliders say -- each kept on #
+# the stage, whose frame holds still. (Kept apart, so moving the figure #
+# leaves the scene as it was.) #
+let backdrop =
+  on_stage(
+    case scene
+    | Forest => forest(k)
+    | Underwater => underwater(k)
+    | Beach => beach(k)
+    | Woods => woods((chicken_legs, leg_size, hut_near, eye_glow))
+    end) in
+let figure =
+  on_stage(grown((doll, (0., 0.), float_of_int(fig_size) /. 100., (float_of_int(fig_x), g +. float_of_int(fig_y))))) in
+let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (Drawing.frame((x0, y0, x1, y1)) @ backdrop @ figure)))) in
+
+# In the game the skulls' eyes grow and shrink together, this many #
+# seconds apart; a picture here holds still, so this is the answer for #
+# now (0: a steady glow). #
+if eye_rate == 0 then 0. else 60. /. float_of_int(eye_rate)
+
+# Press a scene; grow, shrink and move the figure; in the woods, give #
+# the hut its legs and stretch them, bring it nearer, and grow the #
+# skulls' eyes. #

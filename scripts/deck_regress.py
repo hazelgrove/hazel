@@ -40,8 +40,8 @@ import urllib.request
 
 # One place for the slide's identity. The deep-link id is derived from the
 # NAME, so renaming the slide changes the URL too -- keep them together.
-SLIDE_NAME = "SpliceRef, MVP"
-SLIDE_ID = "livelits-spliceref-mvp"
+SLIDE_NAME = "Editable Parameters"
+SLIDE_ID = "livelits-editable-parameters"
 # /fresh forwards every query param to the page it opens, so the two
 # URLs differ only in whether saved state is cleared on the way in.
 SLIDE_QUERY = f"slide={SLIDE_ID}&panel=none"
@@ -50,8 +50,8 @@ FRESH_URL = f"/fresh?{SLIDE_QUERY}"
 
 # Every slide in the livelits deck, in the order the demo presents them.
 DECK = [
-    "Overview", "Define a Slider", "The Expansion", SLIDE_NAME, "Emotion",
-    "Color Picker", "Tree Care", "Timings", "JavaScript (advanced)",
+    "Overview", "Define a Slider", "Higher-order, Functional Expansion", SLIDE_NAME, "Emotion",
+    "Color Picker", "Tree Care", "Timings", "Advanced / JavaScript",
 ]
 
 
@@ -183,9 +183,12 @@ def reset_slide(d):
       in a comment; the second attempt reintroduced the bug anyway.
 
     /fresh is served from the app's ORIGIN but is not the app, so nothing
-    holds the database open: it can call deleteDatabase, wait for it, and
-    only then navigate. Deleting whole cannot wedge anything, since the
-    app rebuilds the schema on boot.
+    holds the database open: it can clear the store, wait, and only then
+    navigate. It keeps the colour configuration, which is not slide state
+    and so does not make the suite order-dependent -- but it does mean the
+    suite runs under whatever theme is saved, so a geometry assertion that
+    depends on the theme would be measuring the developer's preferences.
+    None currently do.
     """
     d.goto(FRESH_URL)
     time.sleep(3)
@@ -563,6 +566,541 @@ def c_splice_cell_does_not_clip(d, log):
     return geo
 
 
+
+# --- the eye: a livelit's own syntax, edited in place --------------------
+# Kids' Choice's face reads its head color from a let-bound slider through
+# a cell, `color = (head : Int)`. Opening the eye shows the use's syntax in
+# a pane under the face; retyping that cell to name another slider must
+# hand the face to that slider. The pane is an editor nested in the
+# projector, so only real clicks and keys reach it.
+
+KIDS_FRESH = "/fresh?slide=livelits-emotion-kids-choice&panel=none"
+FACE_SVG = ("[...document.querySelectorAll('svg')].find(s => "
+            "(s.getAttribute('viewBox') || '').startsWith('0 -80 200 '))")
+FACE_FILL = ("const s = %s; if (!s) return null; const p = [...s.querySelectorAll('path')]"
+             ".find(x => (x.getAttribute('d') || '').startsWith('M38 60'));"
+             " return p && p.getAttribute('fill');" % FACE_SVG)
+PANE_LINE = ("const p = document.querySelector('.livelit-syntax'); if (!p) return null;"
+             " return p.innerText.split('\\n').filter(l => l.includes(arguments[0])).join(' / ');")
+
+
+def wait_for(d, script, secs, args=None):
+    t = time.time()
+    while time.time() - t < secs:
+        v = d.js(script, args)
+        if v:
+            return v
+        time.sleep(0.5)
+    return None
+
+
+def slider_box(d, label):
+    """The range input of the let-bound slider whose widget reads [label]."""
+    return d.js("""
+      const ins = [...document.querySelectorAll('.user-livelit input[type=range]')]
+        .filter(i => (i.closest('.user-livelit').innerText || '').includes(arguments[0]));
+      const i = ins[0]; if (!i) return null;
+      i.scrollIntoView({block: 'center'});
+      const r = i.getBoundingClientRect();
+      return [Math.round(r.x), Math.round(r.y + r.height / 2), Math.round(r.width), i.value];
+    """, [label])
+
+
+def drag_labelled(d, label, frac):
+    slider_box(d, label); time.sleep(0.5)   # scroll first, then measure
+    b = slider_box(d, label)
+    assert b, f"no slider labelled {label!r}"
+    x, y, w = b[0], b[1], b[2]
+    d.pointer([{"type": "pointerMove", "x": x + w // 2, "y": y},
+               {"type": "pointerDown", "button": 0},
+               {"type": "pointerMove", "x": x + int(w * frac), "y": y, "duration": 200},
+               {"type": "pointerUp", "button": 0}])
+    time.sleep(4)
+
+
+def pane_token(d, word, off):
+    """A point in the pane at character [off] of its first [word] token."""
+    return d.js("""
+      const [word, off] = arguments;
+      const p = document.querySelector('.livelit-syntax'); if (!p) return null;
+      const w = document.createTreeWalker(p, NodeFilter.SHOW_TEXT); let n;
+      while (n = w.nextNode()) if (n.textContent === word) {
+        const rg = document.createRange(); rg.setStart(n, off); rg.setEnd(n, off);
+        const r = rg.getBoundingClientRect();
+        return [Math.round(r.left), Math.round(r.top + r.height / 2)];
+      }
+      return null;
+    """, [word, off])
+
+
+def open_eye_of(d, target_js):
+    """Click the syntax toggle of the livelit whose element [target_js] finds."""
+    d.js("(%s).scrollIntoView({block: 'center'}); return 1;" % target_js)
+    time.sleep(1)
+    eye = d.js("""
+      const g = (%s).closest('.projector').getBoundingClientRect(); let best = null, bd = 1e9;
+      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+        const r = t.getBoundingClientRect();
+        const dd = Math.abs(r.top - g.top) + Math.abs(r.left - g.left);
+        if (dd < bd) { bd = dd; best = t; } }
+      const r = best.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """ % target_js)
+    click_at(d, *eye)
+    assert wait_for(d, "return !!document.querySelector('.livelit-syntax')", 20), "no pane"
+    time.sleep(1)
+
+
+PANE_TEXT = ("const p = document.querySelector('.livelit-syntax'); return p && "
+             "p.innerText.replace(/\\s+/g, ' ').replace('params', '').replace('model', '').trim();")
+
+
+@case("eye: the revealed model is read-only, and the face's GUI still drives it")
+def c_eye_read_only(d, log):
+    # Cyrus, docs/livelits.md "Revealing a use's syntax": the model shown
+    # under an open eye is selectable but read-only; the GUI changes it.
+    d.goto(KIDS_FRESH)
+    assert wait_for(d, "return !!" + FACE_SVG, 120), "the face never drew"
+    time.sleep(4)
+    open_eye_of(d, FACE_SVG)
+    before = d.js(PANE_TEXT)
+    d.js("document.querySelector('.livelit-syntax').scrollIntoView({block: 'center'}); return 1;")
+    time.sleep(1)
+    at = pane_token(d, "85", 1)
+    assert at, "no `85` in the pane"
+    click_at(d, *at)
+    time.sleep(1)
+    # each key checked on its own: a Backspace after a typed 7 would undo
+    # it, and an editable model would pass
+    for key in ["7", "\ue003"]:
+        d.keys([key])
+        time.sleep(1.5)
+        after = d.js(PANE_TEXT)
+        log({"key": repr(key), "after": after[:60]})
+        assert after == before, f"the revealed model took {key!r}: {after[:80]!r}"
+    # the face's own smile slider, in its GUI, still commits
+    smile = d.js("""
+      const i = [...(%s).closest('.projector').querySelectorAll('input[type=range]')][0];
+      i.scrollIntoView({block: 'center'});
+      const r = i.getBoundingClientRect();
+      return [Math.round(r.left), Math.round(r.top + r.height / 2), Math.round(r.width)];
+    """ % FACE_SVG)
+    time.sleep(1)
+    smile = d.js("""
+      const i = [...(%s).closest('.projector').querySelectorAll('input[type=range]')][0];
+      const r = i.getBoundingClientRect();
+      return [Math.round(r.left), Math.round(r.top + r.height / 2), Math.round(r.width)];
+    """ % FACE_SVG)
+    x, y, w = smile
+    d.pointer([{"type": "pointerMove", "x": x + int(w * 0.85), "y": y},
+               {"type": "pointerDown", "button": 0},
+               {"type": "pointerMove", "x": x + int(w * 0.3), "y": y, "duration": 250},
+               {"type": "pointerUp", "button": 0}])
+    time.sleep(6)
+    moved = d.js(PANE_TEXT)
+    log({"moved": moved[:60]})
+    assert "smile = 85" not in moved and "smile = " in moved, \
+        f"the face's slider did not reach the revealed model: {moved[:80]!r}"
+    return {}
+
+
+@case("eye: a GUI cell takes typing while the syntax is revealed")
+def c_eye_gui_cell(d, log):
+    # Found on Color (Figure 3): with the syntax shown the use is one
+    # splice, its cells nested in it, and a click in a GUI cell found no
+    # way in -- the GUI looked unresponsive.
+    color = ("[...document.querySelectorAll('.user-livelit')].find(w => "
+             "/teal/.test(w.innerText) && w.querySelector('.livelit-splice'))")
+    d.goto("/fresh?slide=livelits-color-figure-3&panel=none")
+    assert wait_for(d, "return !!(" + color + ")", 120), "no ^color"
+    time.sleep(3)
+    open_eye_of(d, color)
+    at = d.js("""
+      const c = (%s).querySelectorAll('.livelit-splice')[0];
+      c.scrollIntoView({block: 'center'});
+      const t = [...c.querySelectorAll('*')].find(e => e.children.length === 0 && e.textContent === 'red');
+      const r = (t || c).getBoundingClientRect();
+      return [Math.round(r.right - 1), Math.round(r.top + r.height / 2)];
+    """ % color)
+    time.sleep(1)
+    at = d.js("""
+      const c = (%s).querySelectorAll('.livelit-splice')[0];
+      const t = [...c.querySelectorAll('*')].find(e => e.children.length === 0 && e.textContent === 'red');
+      const r = (t || c).getBoundingClientRect();
+      return [Math.round(r.right - 1), Math.round(r.top + r.height / 2)];
+    """ % color)
+    click_at(d, *at)
+    time.sleep(1)
+    d.keys(list(" / 2"))
+    time.sleep(6)
+    pane = d.js(PANE_TEXT)
+    log({"pane": pane})
+    assert "(red / 2)" in pane, f"typing in the GUI cell did not land: {pane!r}"
+    return {}
+
+
+@case("eye: the params line edits live, and refuses what is not a value")
+def c_eye_live_params(d, log):
+    # Cyrus: params, where a livelit has them, are edited live. Emotion's
+    # ^mood: its params are the mood. A pause in typing commits; text that
+    # parses but is no value (a free `x`) commits nothing.
+    d.goto("/fresh?slide=livelits-emotion&panel=none")
+    assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 0", 120)
+    time.sleep(3)
+    last = "[...document.querySelectorAll('.livelit-syntax-toggle')].slice(-1)[0]"
+    open_eye_of(d, last)
+    state = """
+      const i = document.querySelector('.livelit-params-input');
+      const p = document.querySelector('.livelit-syntax');
+      return [i && i.value, document.activeElement === i,
+              p && p.innerText.replace(/\\s+/g, ' ')];
+    """
+    at = d.js("""
+      const i = document.querySelector('.livelit-params-input');
+      i.scrollIntoView({block: 'center'});
+      const r = i.getBoundingClientRect();
+      return [Math.round(r.right - 6), Math.round(r.top + r.height / 2)];
+    """)
+    time.sleep(1)
+    at = d.js("""
+      const r = document.querySelector('.livelit-params-input').getBoundingClientRect();
+      return [Math.round(r.right - 6), Math.round(r.top + r.height / 2)];
+    """)
+    click_at(d, *at)
+    time.sleep(0.5)
+    d.keys(["\ue010", "\ue003", "\ue003", "4", "0"])
+    time.sleep(3)
+    v, focused, pane = d.js(state)
+    log({"after 40": [v, focused, pane[:60]]})
+    assert v == "40" and focused and "^mood(40" in pane, f"params 40 did not commit: {[v, focused, pane[:60]]}"
+    d.keys(["\ue003", "\ue003", "x"])
+    time.sleep(3)
+    v, focused, pane = d.js(state)
+    log({"after x": [v, focused, pane[:60]]})
+    assert "^mood(40" in pane, f"a free x was committed: {pane[:80]!r}"
+    return {}
+
+
+def type_into(d, selector, text):
+    """Click the end of the input [selector], clear it, and type [text]."""
+    for _ in range(2):
+        at = d.js("""
+          const i = document.querySelector(arguments[0]);
+          i.scrollIntoView({block: 'center'});
+          const r = i.getBoundingClientRect();
+          return [Math.round(r.right - 6), Math.round(r.top + r.height / 2)];
+        """, [selector])
+        time.sleep(0.5)
+    click_at(d, *at)
+    time.sleep(0.3)
+    d.keys(["\ue010"] + ["\ue003"] * 80 + list(text))
+
+
+@case("eye: the head line swaps the livelit, changes its arguments, or unprojects")
+def c_eye_head(d, log):
+    # The revealed syntax's editable line is the use's head, `^percent`:
+    # name another livelit to swap it (from its init), change a direct
+    # use's arguments to keep its model, or Enter anything else to turn
+    # the use back into code. A half-typed name changes nothing.
+    d.goto("/fresh?slide=livelits-parameters&panel=none")
+    assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 1", 120)
+    time.sleep(3)
+    first = "document.querySelectorAll('.livelit-syntax-toggle')[0]"
+    d.js("%s.scrollIntoView({block: 'center'}); return 1;" % first)
+    time.sleep(1)
+    eye = d.js("const r = %s.getBoundingClientRect();"
+               " return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];" % first)
+    click_at(d, *eye)
+    assert wait_for(d, "return !!document.querySelector('.livelit-head-input')", 20), "no head line"
+    model = ("const p = document.querySelector('.livelit-syntax'); return p && p.innerText"
+             ".replace(/\\s+/g, ' ').replace('livelit', '').replace('model', '').trim();")
+    head = "return document.querySelector('.livelit-head-input').value;"
+    assert d.js(head) == "^percent", f"head reads {d.js(head)!r}"
+    steps = [("^die", "^die(3)"), ("^sl", "^die(3)"),
+             ("^slider(0, 50)", "^slider(0, 50)(25)"),
+             ("^slider(0, 80)", "^slider(0, 80)(25)")]
+    for typed, want in steps:
+        type_into(d, ".livelit-head-input", typed)
+        time.sleep(5)
+        got = d.js(model)
+        log({typed: got})
+        assert got == want, f"after {typed!r} the model reads {got!r}, not {want!r}"
+    type_into(d, ".livelit-head-input", "zzz")
+    time.sleep(1)
+    d.keys(["\ue007"])
+    time.sleep(5)
+    code = d.js("return [...document.querySelectorAll('.code-text, .code')]"
+                ".map(e => e.innerText).join('\\n');")
+    log({"after Enter": bool(d.js("return !!document.querySelector('.livelit-head-input')"))})
+    assert not d.js("return !!document.querySelector('.livelit-head-input')"), "the use is still a livelit"
+    assert "25 +" in code, "the use did not turn into its model, 25"
+    return {}
+
+
+@case("eye: Kids' Choice's params line edits live and keeps the face's cells")
+def c_eye_kids_params(d, log):
+    # params_from_model with cells: init_from_params gets the old model too
+    # and keeps every cell, so a params edit leaves the client's code alone.
+    d.goto(KIDS_FRESH)
+    assert wait_for(d, "return !!" + FACE_SVG, 120), "the face never drew"
+    time.sleep(4)
+    open_eye_of(d, FACE_SVG)
+    assert wait_for(d, "return !!document.querySelector('.livelit-params-input')", 20), "no params line"
+    type_into(d, ".livelit-params-input", "(smile=85, brow=30, sickness=50)")
+    time.sleep(5)
+    got = d.js("""
+      const p = document.querySelector('.livelit-syntax').innerText.replace(/\\s+/g, ' ');
+      const s = (%s);
+      return [(p.match(/sickness = (\\d+)/) || [])[1], /color = \\(head/.test(p),
+              s.getAttribute('viewBox')];
+    """ % FACE_SVG)
+    log({"sickness, cell kept, viewBox": got})
+    assert got[0] == "50", f"sickness is {got[0]!r}"
+    assert got[1], "the color cell (head) was not kept"
+    # the face redraws once the run comes back: slow on this slide
+    grew = wait_for(d, "const s = (%s); return s && s.getAttribute('viewBox') !== '0 -80 200 300'"
+                       " ? s.getAttribute('viewBox') : null;" % FACE_SVG, 30)
+    log({"grew to": grew})
+    assert grew, "the face did not grow"
+    return {}
+
+@case("eye: a right-click menu in the open syntax is not clipped")
+def c_eye_menu(d, log):
+    # Found by hand: the pane under an open eye clipped the menu to its own
+    # one row, so `Select term` showed cut off and could not be clicked.
+    d.goto(KIDS_FRESH)
+    star = "[...document.querySelectorAll('button')].find(b => b.innerText.includes('star eyes'))"
+    assert wait_for(d, "return !!" + star, 120), "the star-eyes toggle never drew"
+    time.sleep(4)
+    d.js("const b = %s; b.scrollIntoView({block: 'center'}); return 1;" % star)
+    time.sleep(1)
+    eye = d.js("""
+      const g = %s.closest('.projector').getBoundingClientRect(); let best = null, bd = 1e9;
+      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+        const r = t.getBoundingClientRect();
+        const dd = Math.abs(r.top - g.top) + Math.abs(r.right - g.left);
+        if (dd < bd) { bd = dd; best = t; } }
+      const r = best.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """ % star)
+    click_at(d, *eye)
+    assert wait_for(d, "return !!document.querySelector('.livelit-syntax')", 20), "no pane"
+    at = pane_token(d, "false", 2)
+    assert at, "no `false` in the star toggle's pane"
+    d.pointer([{"type": "pointerMove", "x": at[0], "y": at[1]},
+               {"type": "pointerDown", "button": 2},
+               {"type": "pointerUp", "button": 2}])
+    time.sleep(1.5)
+    item = d.js("""
+      const m = document.querySelector('.context-menu'); if (!m) return null;
+      const it = [...m.querySelectorAll('*')].find(e => /Select term/.test(e.textContent)
+        && ![...e.children].some(c => /Select term/.test(c.textContent)));
+      if (!it) return null;
+      const r = it.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+      const top = document.elementFromPoint(x, y);
+      return [Math.round(x), Math.round(y), !!(top && m.contains(top))];
+    """)
+    log({"select_term": item})
+    assert item, "no context menu, or no Select term in it"
+    assert item[2], "Select term is covered or clipped: a click there would miss it"
+    click_at(d, item[0], item[1])
+    time.sleep(1.5)
+    assert not d.js("return !!document.querySelector('.context-menu')"), \
+        "the menu stayed open after Select term"
+    return {"select_term": item}
+
+
+@case("eye: an open eye keeps the rest of its line on the line")
+def c_eye_alignment(d, log):
+    # Found by hand on Overview's `(^flag(true), ^flag(false))`: opening
+    # the first flag's eye made it a Block, and the second flag dropped to
+    # the pane's last row. An inline use now hangs its pane as a Tab.
+    d.goto("/fresh?slide=livelits-overview&panel=none")
+    flags = """
+      return [...document.querySelectorAll('.livelit button')]
+        .filter(b => /^(yes|no)$/.test(b.innerText.trim()))
+        .map(b => Math.round(b.getBoundingClientRect().top));
+    """
+    assert wait_for(d, "const f = (() => {%s})(); return f.length == 2 ? f : null;" % flags, 120), \
+        "Overview's two flags never drew"
+    time.sleep(3)
+    d.js("const b = [...document.querySelectorAll('.livelit button')]"
+         ".find(b => b.innerText.trim() === 'yes'); b.scrollIntoView({block: 'center'}); return 1;")
+    time.sleep(1)
+    before = d.js(flags)
+    eye = d.js("""
+      const b = [...document.querySelectorAll('.livelit button')]
+        .find(b => b.innerText.trim() === 'yes');
+      const g = b.closest('.projector').getBoundingClientRect(); let best = null, bd = 1e9;
+      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+        const r = t.getBoundingClientRect();
+        const dd = Math.abs(r.top - g.top) + Math.abs(r.right - g.left);
+        if (dd < bd) { bd = dd; best = t; } }
+      const r = best.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """)
+    click_at(d, *eye)
+    assert wait_for(d, "return !!document.querySelector('.livelit-syntax')", 20), "no pane"
+    time.sleep(1)
+    after = d.js(flags)
+    log({"tops": [before, after]})
+    assert abs(after[0] - after[1]) <= 2, f"the flags are no longer on one row: {after}"
+    assert abs(after[1] - before[1]) <= 2, f"the second flag moved: {before} -> {after}"
+    return {"tops": [before, after]}
+
+
+
+@case("eye: a click with the eye shut adds no parens to the use")
+def c_eye_no_parens(d, log):
+    # Found by hand on Overview: a flag clicked while its eye was shut
+    # came back as `(^flag(false))` -- SetSyntax wrapped every multi-piece
+    # syntax in parens -- seen as soon as the eye opened.
+    d.goto("/fresh?slide=livelits-overview&panel=none")
+    flag = ("[...document.querySelectorAll('.livelit button')]"
+            ".filter(b => /^(yes|no)$/.test(b.innerText.trim()))[0]")
+    assert wait_for(d, "return !!" + flag, 120), "Overview's flags never drew"
+    time.sleep(3)
+    d.js("const b = %s; b.scrollIntoView({block: 'center'}); return 1;" % flag)
+    time.sleep(1)
+    at = d.js("const r = %s.getBoundingClientRect();"
+              " return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];" % flag)
+    click_at(d, *at)
+    time.sleep(4)
+    eye = d.js("""
+      const g = %s.closest('.projector').getBoundingClientRect(); let best = null, bd = 1e9;
+      for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+        const r = t.getBoundingClientRect();
+        const dd = Math.abs(r.top - g.top) + Math.abs(r.right - g.left);
+        if (dd < bd) { bd = dd; best = t; } }
+      const r = best.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """ % flag)
+    click_at(d, *eye)
+    pane = wait_for(d, "const p = document.querySelector('.livelit-syntax');"
+                       " return p && p.innerText.replace(/\\s+/g, ' ').replace('livelit', '')"
+                       ".replace('model', '').trim();", 20)
+    log({"pane": pane})
+    assert pane == "^flag(false)", f"the use came back as {pane!r}"
+    return {"pane": pane}
+
+
+TOGGLE_SPACING = """
+  const out = [];
+  for (const t of document.querySelectorAll('.livelit-syntax-toggle')) {
+    t.scrollIntoView({block: 'center'});
+    const T = t.getBoundingClientRect();
+    if (T.width === 0) continue;
+    // the livelit itself: the projector under the toggle's overlay
+    const P = [...document.elementsFromPoint(T.left + 1, T.top + 1)]
+      .find(e => e.classList && e.classList.contains('projector') && !e.contains(t));
+    if (!P) { out.push('no livelit under a toggle'); continue; }
+    const R = P.getBoundingClientRect();
+    const gui = [...P.children].find(c => c.tagName !== 'svg');
+    const G = gui && gui.getBoundingClientRect();
+    const left = document.elementFromPoint(R.left - 3, T.top + T.height / 2);
+    if (T.left < R.left - 0.5) out.push('hangs out of its livelit by ' + (R.left - T.left).toFixed(1));
+    if (G && T.right > G.left + 0.5) out.push('overlaps the GUI by ' + (T.right - G.left).toFixed(1));
+    if (left && left.closest('.livelit-syntax-toggle')) out.push('covers the code to its left');
+  }
+  return out;
+"""
+
+
+@case("eye: every toggle sits inside its livelit, clear of the code")
+def c_eye_spacing(d, log):
+    # Found by hand: hanging in the margin, the toggle covered the `=` of
+    # `let x = ...` (and Overview's tuple `(`) by its own width.
+    problems = []
+    for slide in ["livelits-overview", "livelits-emotion-kids-choice"]:
+        d.goto(f"/fresh?slide={slide}&panel=none")
+        assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 1", 120)
+        time.sleep(3)
+        problems += [f"{slide}: {p}" for p in d.js(TOGGLE_SPACING)]
+    log({"problems": problems[:5]})
+    assert not problems, problems[:5]
+    return {}
+
+
+@case("eye: the toggle stays visible while the mouse is in the livelit")
+def c_eye_hover(d, log):
+    # Found by hand: hovering raises the livelit above the overlay that
+    # holds its toggle, and its backing hid the glyph.
+    d.goto("/fresh?slide=livelits-parameters&panel=none")
+    assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 1", 120)
+    time.sleep(3)
+    d.js("document.querySelector('.livelit-syntax-toggle').scrollIntoView({block: 'center'}); return 1;")
+    time.sleep(1)
+    on_top = """
+      const g = document.querySelector('.livelit-syntax-toggle .livelit-eye-glyph');
+      const r = g.getBoundingClientRect();
+      const top = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return !!(top && top.closest('.livelit-syntax-toggle'));
+    """
+    assert d.js(on_top), "the toggle is covered even with the mouse away"
+    inside = d.js("""
+      const g = document.querySelector('.livelit-syntax-toggle').getBoundingClientRect();
+      const P = [...document.elementsFromPoint(g.left + 1, g.top + 1)]
+        .find(e => e.classList && e.classList.contains('projector')
+                   && !e.querySelector('.livelit-syntax-toggle'));
+      const r = P.getBoundingClientRect();
+      return [Math.round(r.left + r.width * 0.6), Math.round(r.top + r.height / 2)];
+    """)
+    d.pointer([{"type": "pointerMove", "x": inside[0], "y": inside[1]}])
+    time.sleep(1)
+    assert d.js(on_top), "the toggle vanished with the mouse inside the livelit"
+    return {}
+
+@case("eye: the Colors slide's ^reveal turns the eyes into triangles")
+def c_reveal_choice(d, log):
+    # The Colors slide (Configuration mode) chooses the toggle's look with
+    # its own livelit, ^reveal: one button per case. Pressing "triangle"
+    # must reach every livelit's toggle. Pressed back to "eye" at the end,
+    # since /fresh keeps the colour configuration for the cases after.
+    setsel = """
+      const [want, idx] = arguments;
+      const s = [...document.querySelectorAll('select')][idx];
+      if (!s || ![...s.options].some(o => o.value === want)) return 'no';
+      s.value = want;
+      s.dispatchEvent(new Event('input', {bubbles: true}));
+      s.dispatchEvent(new Event('change', {bubbles: true}));
+      return 'ok';
+    """
+    glyph = ("return getComputedStyle(document.documentElement)"
+             ".getPropertyValue('--hazel-livelit-reveal').trim();")
+    press = """
+      const b = [...document.querySelectorAll('.choice button')]
+        .find(b => b.innerText.trim() === arguments[0]);
+      if (!b) return null;
+      b.scrollIntoView({block: 'center'});
+      const r = b.getBoundingClientRect();
+      return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+    """
+    d.goto(KIDS_FRESH)
+    assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 3", 120)
+    assert d.js(setsel, ["Configuration", 0]) == "ok", "no Configuration mode"
+    assert wait_for(d, "return !!document.querySelector('.choice')", 60), "no ^reveal on the Colors slide"
+    time.sleep(1)
+    d.js(press, ["triangle"]); time.sleep(1)
+    click_at(d, *d.js(press, ["triangle"]))
+    time.sleep(5)
+    assert d.js(glyph) == "triangle", f"the choice did not reach the page: {d.js(glyph)!r}"
+    d.goto("/?slide=livelits-emotion-kids-choice&panel=none")
+    assert wait_for(d, "return document.querySelectorAll('.livelit-syntax-toggle').length > 3", 120)
+    time.sleep(2)
+    drawn = d.js("return [...document.querySelectorAll('.livelit-eye-glyph')]"
+                 ".slice(0, 3).map(g => getComputedStyle(g, '::before').content);")
+    log({"glyphs": drawn})
+    assert drawn and all(g == '"\u25b8"' for g in drawn), f"toggles not triangles: {drawn}"
+    # back to the eye
+    assert d.js(setsel, ["Configuration", 0]) == "ok"
+    assert wait_for(d, "return !!document.querySelector('.choice')", 60)
+    time.sleep(1)
+    d.js(press, ["eye"]); time.sleep(1)
+    click_at(d, *d.js(press, ["eye"]))
+    time.sleep(5)
+    assert d.js(glyph) == "eye", "could not press the eye back"
+    return {"glyphs": drawn}
+
 @case("every deck slide renders its livelits")
 def c_deck(d, log):
     setsel = """
@@ -581,9 +1119,23 @@ def c_deck(d, log):
     d.js(setsel, ["Livelits", 1]); time.sleep(4)
     problems = []
     for name in DECK:
-        if d.js(setsel, [name, 2]) != "ok":
-            problems.append(f"{name}: could not select"); continue
+        # A slide in a folder, "Advanced / JavaScript", is a path: the
+        # folder in the third picker, then the slide in the one it opens.
+        parts = name.split(" / ")
+        result = "ok"
+        for i, part in enumerate(parts):
+            result = d.js(setsel, [part, 2 + i])
+            if result != "ok":
+                break
+            if i < len(parts) - 1:
+                time.sleep(4)
+        if result != "ok":
+            problems.append(f"{name}: could not select ({result})"); continue
         time.sleep(7)
+        shown = d.js("const s = [...document.querySelectorAll('select')][arguments[0]];"
+                     " return s ? s.value : null;", [2 + len(parts) - 1])
+        if shown != parts[-1]:
+            problems.append(f"{name}: the picker shows {shown!r}"); continue
         st = probe(d)
         log({name: st})
         if st["errors"]:

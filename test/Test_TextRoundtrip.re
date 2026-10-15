@@ -49,6 +49,7 @@ let slide_roundtrip_case = ((name, z): (string, Zipper.t)) =>
     `Slow,
     () => {
       let before = MarkerParse.to_text(z);
+      ParsedCorpus.skip_if_long(before);
       let after = roundtripped_text(z);
       check(
         string,

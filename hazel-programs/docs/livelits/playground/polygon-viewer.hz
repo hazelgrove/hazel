@@ -1,0 +1,129 @@
+# Polygon Viewer #
+
+# The Polygons picture, shown and not edited. Its only controls are #
+# global: one stroke color and one fill color for every shape, or each #
+# shape's own colors. With no handles, no per-shape controls and no #
+# list walking in update, this is about as little as a picture livelit #
+# can do -- a measure of what the livelit machinery costs by itself. #
+
+type Point = (Float, Float) in
+type Label = + Plain + Anchor(String) in
+type Vertex = (at = Point, label = Label) in
+type Stroke = (width = Float, color = String) in
+type Shape =
+  + Polygon((name = String, points = [Vertex], stroke = Stroke, fill = String))
+  + Path((name = String, points = [Vertex], stroke = Stroke))
+in
+type Picture = [Shape] in
+
+let ^polygon_view = {
+  # The picture, and the two global colors; "" is each shape's own. #
+  type Model = (shapes = Picture, stroke = String, fill = String);
+  type Action = + SetStroke(String) + SetFill(String) + Own;
+  type Expansion = Picture;
+
+  let init = Pure((shapes = [], stroke = "", fill = ""));
+
+  let update = fun m : Model -> fun a : Action -> Pure(
+    case a
+    | SetStroke(c) => (shapes = m.shapes, stroke = c, fill = m.fill)
+    | SetFill(c) => (shapes = m.shapes, stroke = m.stroke, fill = c)
+    | Own => (shapes = m.shapes, stroke = "", fill = "")
+    end);
+
+  # The picture with the global colors laid over it. #
+  let or_own = fun (global, own) : (String, String) -> if global == "" then own else global;
+  let recolor = fun (s, stroke, fill) : (Shape, String, String) ->
+    case s
+    | Polygon(p) =>
+      Polygon((name = p.name, points = p.points,
+               stroke = (width = p.stroke.width, color = or_own((stroke, p.stroke.color))),
+               fill = or_own((fill, p.fill))))
+    | Path(p) =>
+      Path((name = p.name, points = p.points,
+            stroke = (width = p.stroke.width, color = or_own((stroke, p.stroke.color)))))
+    end;
+  let recolored : (Picture, String, String) -> Picture =
+    fun ss, stroke, fill ->
+      case ss | [] => [] | s :: tl => recolor((s, stroke, fill)) :: recolored(tl, stroke, fill) end;
+
+  let num = fun x : Float -> to_fixed(x, 1);
+  let coords : [Vertex] -> String =
+    fun vs ->
+      case vs
+      | [] => ""
+      | v :: tl =>
+        let (x, y) = v.at in
+        num(x) ++ "," ++ num(y) ++ (case tl | [] => "" | _ => " " ++ coords(tl) end)
+      end;
+  let shape_node = fun s : Shape ->
+    case s
+    | Polygon(p) =>
+      Html.node("polygon",
+        [Attr.create("points", coords(p.points)), Attr.create("fill", p.fill),
+         Attr.create("stroke", p.stroke.color),
+         Attr.create("stroke-width", num(p.stroke.width)),
+         Attr.create("stroke-linejoin", "round")], [])
+    | Path(p) =>
+      Html.node("polyline",
+        [Attr.create("points", coords(p.points)), Attr.create("fill", "none"),
+         Attr.create("stroke", p.stroke.color),
+         Attr.create("stroke-width", num(p.stroke.width)),
+         Attr.create("stroke-linejoin", "round"),
+         Attr.create("stroke-linecap", "round")], [])
+    end;
+  let shape_nodes : Picture -> [Html.T] =
+    fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
+
+  let view = fun m : Model -> Pure(
+    Html.div([Attr.style([("font-family", "var(--code-font)"), ("font-size", "0.8em")])], [
+      Html.node("svg",
+        [Attr.create("viewBox", "0 0 320 240"), Attr.width("320"), Attr.height("240"),
+         Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")])],
+        shape_nodes(recolored(m.shapes, m.stroke, m.fill))),
+      Html.div([Attr.style([("display", "flex"), ("gap", "0.8em"), ("margin-top", "0.4em")])], [
+        Html.node("label", [], [Html.text("stroke "),
+          Html.input([Attr.type_("color"), Attr.value(or_own((m.stroke, "#333333"))),
+                      Attr.on_input(fun v -> SetStroke(v))])]),
+        Html.node("label", [], [Html.text("fill "),
+          Html.input([Attr.type_("color"), Attr.value(or_own((m.fill, "#f2c94c"))),
+                      Attr.on_input(fun v -> SetFill(v))])]),
+        Html.button([Attr.on_click(Own)], [Html.text("own colors")])])
+    ]));
+
+  let expand = Functional(fun m : Model -> recolored(m.shapes, m.stroke, m.fill));
+  let shape = Block(40, 16)
+} in
+
+# The shirt from Polygons, to look at in other colors. #
+
+^^livelit(^polygon_view((
+  shapes = [
+    Polygon((
+      name = "shirt",
+      points = [
+        (at = (130., 40.), label = Plain),
+        (at = (160., 60.), label = Anchor("neck")),
+        (at = (190., 40.), label = Plain),
+        (at = (232., 56.), label = Plain),
+        (at = (272., 112.), label = Anchor("right hand")),
+        (at = (240., 128.), label = Plain),
+        (at = (224., 104.), label = Plain),
+        (at = (222., 206.), label = Anchor("right hip")),
+        (at = (98., 206.), label = Anchor("left hip")),
+        (at = (96., 104.), label = Plain),
+        (at = (80., 128.), label = Plain),
+        (at = (48., 112.), label = Anchor("left hand")),
+        (at = (88., 56.), label = Plain)
+      ],
+      stroke = (width = 3., color = "#2b4a6f"),
+      fill = "#5b8bd0")),
+    Path((
+      name = "stitching",
+      points = [
+        (at = (104., 194.), label = Plain),
+        (at = (216., 194.), label = Plain)
+      ],
+      stroke = (width = 1., color = "#dce8f7")))
+  ],
+  stroke = "", fill = "")))

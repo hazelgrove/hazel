@@ -175,7 +175,7 @@ let view(model: Model): Html.T =
             Attr.on_click(ClickCell(pos)),
             Attr.style([
               ("width", "72px"), ("height", "72px"), ("font-size", "1.8em"),
-              ("background", "var(--T1)"), ("border", "1px solid var(--BR1)"),
+              ("background", "var(--surface-default)"), ("border", "1px solid var(--border-soft)"),
               ("border-radius", "3px"), ("font-family", "inherit"), ("cursor", "pointer")
             ])
           ],
@@ -187,24 +187,24 @@ let view(model: Model): Html.T =
   Html.div(
     [Attr.style([("max-width", "300px"), ("margin", "0 auto"), ("text-align", "center"),
             ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
-            ("background", "var(--SAND)"), ("color", "var(--STONE)"),
-            ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+            ("background", "var(--surface-code)"), ("color", "var(--text-default)"),
+            ("border", "1px solid var(--border-soft)"), ("border-radius", "0.4em"),
             ("overflow", "hidden")])],
     [
       Html.div(
         [Attr.style([("padding", "0.9em 1em 0.8em"), ("font-size", "1.2em"),
-                ("font-weight", "bold"), ("color", "var(--BR4)")])],
+                ("font-weight", "bold"), ("color", "var(--text-strong)")])],
         [Html.text("🌱 Sprouts and Shrooms 🍄")]
       ),
       # The status line is the one place a decided game shows colour #
       Html.div(
-        [Attr.style([("padding", "0.7em 1em"), ("background", "var(--T2)"),
-                ("border-top", "1px solid var(--BR1)"),
-                ("border-bottom", "1px solid var(--BR1)"),
+        [Attr.style([("padding", "0.7em 1em"), ("background", "var(--surface-raised)"),
+                ("border-top", "1px solid var(--border-soft)"),
+                ("border-bottom", "1px solid var(--border-soft)"),
                 ("color", case model.status
-                          | Won(_) => "var(--G0)"
-                          | Draw => "var(--BR3)"
-                          | InProgress => "var(--STONE)"
+                          | Won(_) => "var(--text-success)"
+                          | Draw => "var(--text-muted)"
+                          | InProgress => "var(--text-default)"
                           end)])],
         [Html.text(statusText)]
       ),
@@ -219,8 +219,8 @@ let view(model: Model): Html.T =
             [
               Attr.on_click(NewGame),
               Attr.style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
-                     ("background", "var(--G0)"), ("color", "var(--SAND)"),
-                     ("border", "1px solid var(--G0)"), ("border-radius", "3px"),
+                     ("background", "var(--surface-success)"), ("color", "var(--surface-code)"),
+                     ("border", "1px solid var(--border-success)"), ("border-radius", "3px"),
                      ("cursor", "pointer"), ("font-family", "inherit"),
                      ("font-size", "0.85em")])
             ],

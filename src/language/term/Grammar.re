@@ -49,6 +49,12 @@ and exp_term('a) =
   | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
+  /* `do p <- e in e'`: Figure 3's monadic bind, as syntax rather than
+     as a function, which is how the paper writes it. The typing rule
+     supplies the polymorphism a builtin `bind` would have needed:
+     e : M(a), p : a, e' : M(b) gives M(b), for M one of the two
+     command monads. */
+  | Bind(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a), exp_t('a))
   | ProofObject(exp_t('a))
   | Forall(pat_t('a), exp_t('a))
@@ -62,6 +68,16 @@ and exp_term('a) =
   | Seq(exp_t('a), exp_t('a))
   | Test(exp_t('a))
   | HintedTest(exp_t('a), exp_t('a))
+  /* `quote e end`: the expression e as code, a value of type Exp (PLDI
+     2021 Sec. 3.2, Fig. 3 l.56, where it is written `e` in backticks). The
+     body is never evaluated; a livelit's Macro expand returns it, and the
+     livelit mechanism decodes it at each use. */
+  | Quote(exp_t('a))
+  /* `unquote e end`, inside a quotation: e is an Exp in the scope the
+     quotation is written in, and its value -- code -- is spliced in where
+     the unquote sits (quasiquotation's antiquote). Elaborated away by
+     statics; the evaluator never sees one. */
+  | Unquote(exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] Environment.t(exp_t('a)), exp_t('a))
   | Parens(exp_t('a)) // (
@@ -223,6 +239,12 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e1),
             map_exp_annotation(f, e2),
           )
+        | Bind(p, e1, e2) =>
+          Bind(
+            map_pat_annotation(f, p),
+            map_exp_annotation(f, e1),
+            map_exp_annotation(f, e2),
+          )
         | Theorem(p, e1, e2) =>
           Theorem(
             map_pat_annotation(f, p),
@@ -260,6 +282,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Seq(e1, e2) =>
           Seq(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | Test(e) => Test(map_exp_annotation(f, e))
+        | Quote(e) => Quote(map_exp_annotation(f, e))
+        | Unquote(e) => Unquote(map_exp_annotation(f, e))
         | HintedTest(e1, h) =>
           HintedTest(map_exp_annotation(f, e1), map_exp_annotation(f, h))
         | Filter(k, e) =>
@@ -685,6 +709,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Let(p, e1, e2),
       annotation: default_annotation(ann),
     };
+    let bind_ = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: Bind(p, e1, e2),
+      annotation: default_annotation(ann),
+    };
     let theorem = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Theorem(p, e1, e2),
       annotation: default_annotation(ann),
@@ -731,6 +759,14 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let test = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
       term: Test(e),
+      annotation: default_annotation(ann),
+    };
+    let quote = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
+      term: Quote(e),
+      annotation: default_annotation(ann),
+    };
+    let unquote = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
+      term: Unquote(e),
       annotation: default_annotation(ann),
     };
     let hinted_test = (~ann=?, e, h): exp_t(DefaultAnnotation.t) => {

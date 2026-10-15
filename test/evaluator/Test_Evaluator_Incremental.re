@@ -1001,6 +1001,70 @@ let c = {
   );
 };
 
+/* A recursive helper inside a let's definition -- a module with a recursive
+ * member, as every Livelit Playground slide's Drawing library has; a function
+ * with a recursive helper inside -- must not stop the let from being reused.
+ * The helper's FixF binds its name, but the enclosing let's co_ctx kept it,
+ * and with no provenance for it in any reuse map, reuse_check refused the
+ * let, its binding went dirty, and so did everything reading it: on the
+ * Scenes slide every evaluation redid the whole program. */
+let nth_top_level_rhs = (n, exp: Exp.t): Exp.t => {
+  let rec go = (depth, e: Exp.t) =>
+    switch (e.term) {
+    | Let(_, rhs, _) when depth == n => rhs
+    | Let(_, _, body) => go(depth + 1, body)
+    | _ => failwith("nth_top_level_rhs: fewer top-level lets")
+    };
+  go(0, exp);
+};
+
+let test_module_with_recursive_member_reuses_after_unrelated_edit = () => {
+  let src = {|let lib = {
+  let count : [Int] -> Int =
+    fun xs -> case xs | [] => 0 | _ :: tl => 1 + count(tl) end;
+  let five = count([1, 2, 3, 4, 5])
+} in
+let knob = 7 in
+lib.five + knob|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=7, ~to_=8, exp1);
+  let (_, _, incr1) = eval_incr(exp1);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
+  check(dhexp_typ, "result after the edit", parse_exp("13"), r2);
+  check(
+    bool,
+    "the module, unchanged, is reused",
+    true,
+    directly_reused(Exp.rep_id(nth_top_level_rhs(0, exp2)), plan2),
+  );
+};
+
+let test_function_with_inner_recursive_let_reuses_after_unrelated_edit = () => {
+  let src = {|let total = fun n ->
+  let go : Int -> Int = fun i -> if i == 0 then 0 else i + go(i - 1) in
+  go(n) in
+let s = total(10) in
+let knob = 7 in
+s + knob|};
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=7, ~to_=8, exp1);
+  let (_, _, incr1) = eval_incr(exp1);
+  let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
+  check(dhexp_typ, "result after the edit", parse_exp("63"), r2);
+  check(
+    bool,
+    "the function, unchanged, is reused",
+    true,
+    directly_reused(Exp.rep_id(nth_top_level_rhs(0, exp2)), plan2),
+  );
+  check(
+    bool,
+    "and so is its call, which reads it",
+    true,
+    directly_reused(Exp.rep_id(nth_top_level_rhs(1, exp2)), plan2),
+  );
+};
+
 /* Statics-level invariant: distinct TupLabel siblings of an elaborated
  * Tuple must have distinct rep_ids. The IncrEval cache is keyed by
  * rep_id; if two siblings collide on the same id, the cache silently
@@ -1941,6 +2005,16 @@ let tests = (
       "SHADOWING: parenthesized recursive Fun — f(8) reuses after unrelated _=55 edit",
       `Quick,
       test_paren_recursive_fun_app_reuses_after_unrelated_edit,
+    ),
+    test_case(
+      "RECURSION INSIDE: a module with a recursive member reuses after an unrelated edit",
+      `Quick,
+      test_module_with_recursive_member_reuses_after_unrelated_edit,
+    ),
+    test_case(
+      "RECURSION INSIDE: a function with an inner recursive let, and its call, reuse after an unrelated edit",
+      `Quick,
+      test_function_with_inner_recursive_let_reuses_after_unrelated_edit,
     ),
     test_case(
       "THREE-RUN: leftmost `1+2` reuses on run 3 (1+2+3+4 -> 1+2+3+5 -> 1+2+4+5)",

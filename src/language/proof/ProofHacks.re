@@ -361,6 +361,25 @@ let rec replace_exp =
           } else {
             continue(exp);
           }
+        /* A binder like Let's: the pattern's names reach e2 only, so the
+           same restriction applies to the command and not to the body. */
+        | Bind(p, e1, e2) =>
+          if (is_bound(p)) {
+            if (uses_blacklist_var(
+                  exp,
+                  restrict_blacklist(p, blacklist_vars),
+                )) {
+              raise(BlacklistVarFound);
+            };
+            Bind(
+              p,
+              replace_exp(e1, restrict_blacklist(p, blacklist_vars)),
+              e2,
+            )
+            |> rewrap;
+          } else {
+            continue(exp);
+          }
         | FixF(p, e, env) =>
           if (is_bound(p)) {
             if (uses_blacklist_var(exp, blacklist_vars)) {
@@ -452,6 +471,8 @@ let rec replace_exp =
         | If(_, _, _)
         | Seq(_, _)
         | Test(_)
+        | Quote(_)
+        | Unquote(_)
         | HintedTest(_, _)
         | Filter(_)
         | Closure(_)

@@ -1,0 +1,26 @@
+# Either, Two Versions #
+
+# ^either is one of two, by a pair of buttons: a label and a splice #
+# for each case, and a use means the case whose button is pressed. #
+# It is a Macro whose code is fun a -> fun _ -> a (or the other), so #
+# its splices reach the expansion as arguments (Sec. 3.2.5). #
+
+# What should its Expansion be? It is whatever the two cases are -- #
+# Ints in one use, Strings in another -- and a livelit declares ONE #
+# expansion type (Sec. 2.3). The two slides that follow are the two #
+# ways out: #
+
+# 1. Unknown Expansion. Declare Expansion = ?, the unknown type. One #
+#    definition serves every use, but a client gets ? from each, and #
+#    checks its use of the result only gradually. #
+
+# 2. Type Parameter. Write the definition as a type function, #
+#    typfun A -> {... type Expansion = A ...}, and give each use its #
+#    type through an abbreviation, let ^either_int = ^either@<Int>. #
+#    Each use then has a static type, and a splice of the wrong type #
+#    is an expansion error at the use. This goes beyond the paper, #
+#    whose livelit parameters (Sec. 2.4.1) are values, not types; its #
+#    abbreviations, let $uslider = $slider 0, are the model for the #
+#    syntax. #
+
+"see the two slides that follow"

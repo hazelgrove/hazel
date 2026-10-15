@@ -386,6 +386,8 @@ type compound_form =
   | ApExpTyp
   | Case
   | Test
+  | Quote
+  | Unquote
   | ProofOf
   | ProofObject
   | HintedTest
@@ -407,6 +409,7 @@ type compound_form =
   | Drv(drv_compound_form)
   // TRIPLE DELIMITERS
   | Let
+  | Bind
   | Theorem
   | TypeAlias
   | If
@@ -501,6 +504,8 @@ let get: compound_form => t =
   | ApExpTyp => mk_post_c(L, ["@<", ">"], P.ap, Exp, [Typ])
   | Case => mk_op_c(L, ["case", "end"], Exp, [Rul])
   | Test => mk_op_c(L, ["test", "end"], Exp, [Exp])
+  | Quote => mk_op_c(L, ["quote", "end"], Exp, [Exp])
+  | Unquote => mk_op_c(L, ["unquote", "end"], Exp, [Exp])
   | Fun => mk_pre_c(L, ["fun", "->"], P.fun_, Exp, [Pat])
   | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Exp, [Pat])
   | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
@@ -524,6 +529,11 @@ let get: compound_form => t =
   | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
   // TRIPLE DELIMITERS
   | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
+  /* Figure 3's bind. Same shape and precedence as let -- a pattern, a
+     thing bound, and a body it scopes over -- so it nests and chains
+     the way a let does, which is what makes a do-block just a
+     right-nested run of these. */
+  | Bind => mk_pre_c(L, ["do", "<-", "in"], P.let_, Exp, [Pat, Exp])
   | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])
   | If => mk_pre_c(L, ["if", "then", "else"], P.if_, Exp, [Exp, Exp])
   | HintedTest => mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp])

@@ -140,6 +140,7 @@ and exp =
   | BinExp(exp, bin_op, exp)
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
+  | Bind(pat, exp, exp)
   | Theorem(pat, exp, exp)
   | ProofObject(exp)
   | Fun(pat, exp, option(string))
@@ -159,6 +160,8 @@ and exp =
   | Undefined
   | Seq(exp, exp)
   | Test(exp)
+  | Quote(exp)
+  | Unquote(exp)
   | HintedTest(exp, exp)
   | Deferral
   | TypFun(tpat, exp)
@@ -243,7 +246,23 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         let* tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
         let+ suffix = nonascii_name_suffix;
         let ident = String.make(1, leading) ++ tail ++ suffix;
-        if (List.exists(a => a == ident, ["String", "Int", "Float", "Bool"])) {
+        /* Every capitalized word Lexer.mll reserves: generated as a
+           constructor, `Nat` or `Void` lexes as a type keyword and the
+           program fails to parse. */
+        if (List.mem(
+              ident,
+              [
+                "SInt",
+                "Nat",
+                "Int",
+                "Float",
+                "Bool",
+                "String",
+                "Void",
+                "Unknown",
+                "Internal",
+              ],
+            )) {
           "Keyword";
         } else if (!avoids_builtin(ident)) {
           ident ++ "z";
@@ -868,6 +887,26 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_pat(p);
             return(Let(shrunk, e1, e2));
           }
+        | Bind(p, e1, e2) =>
+          of_list([e1, e2])
+          <+> (
+            switch (pat_typ_opt(p)) {
+            | Some(t) => of_list([Asc(e1, t), Asc(e2, t)])
+            | None => Iter.empty
+            }
+          )
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(Bind(p, shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(Bind(p, e1, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(Bind(shrunk, e1, e2));
+          }
         | Theorem(p, e1, e2) =>
           of_list([e1, e2])
           <+> (
@@ -1073,6 +1112,18 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e);
             return(Test(shrunk));
+          }
+        | Quote(e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Quote(shrunk));
+          }
+        | Unquote(e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Unquote(shrunk));
           }
         | HintedTest(e1, e2) =>
           {

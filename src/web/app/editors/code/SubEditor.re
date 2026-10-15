@@ -543,7 +543,8 @@ let confine_pre =
   let names_its_target =
     switch (action) {
     | Action.Project(
-        SetSyntax(_) | SetTerm(_) | SetModel(_) | SetModelQuiet(_),
+        SetSyntax(_) | SetTerm(_) | Unproject(_) | SetModel(_) |
+        SetModelQuiet(_),
       ) =>
       true
     | _ => false

@@ -166,19 +166,55 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       Print.typ(actual),
       Print.typ(declared),
     )
+  | BadMacroExpansion({expansion, splices, code, problem}) =>
+    let n = List.length(splices);
+    let of_splices = n == 1 ? "its splice" : prn("its %d splices", n);
+    switch (problem) {
+    | TooFewParameters =>
+      prn(
+        "The expansion's code has type %s, but must be a function of %s, to Expansion = %s",
+        Print.typ(code),
+        of_splices,
+        Print.typ(expansion),
+      )
+    | SpliceParameter({index, param}) =>
+      prn(
+        "The expansion's code takes %s for splice %d, whose code has type %s",
+        Print.typ(param),
+        index + 1,
+        Print.typ(List.nth(splices, index)),
+      )
+    | Result(result) when n == 0 =>
+      prn(
+        "The expansion's code has type %s, but the livelit declares Expansion = %s",
+        Print.typ(result),
+        Print.typ(expansion),
+      )
+    | Result(result) =>
+      prn(
+        "Applied to %s, the expansion's code has type %s, but the livelit declares Expansion = %s",
+        of_splices,
+        Print.typ(result),
+        Print.typ(expansion),
+      )
+    | ErrorInCode =>
+      n == 0
+        ? "The expansion's code has a type error"
+        : prn("The expansion's code has a type error, given %s", of_splices)
+    };
+  | LivelitNeedsTypeArgument(name) =>
+    prn(
+      "^%s takes a type argument: give it one with let ^name = ^%s@<Type> in",
+      name,
+      name,
+    )
+  | LivelitNeedsArguments(name) =>
+    prn(
+      "^%s takes parameters: give them with let ^name = ^%s(args) in, then use ^name",
+      name,
+      name,
+    )
   | InvalidLivelitDef(DefNotModule) => "Livelit definition should be a module declaring types Model, Action, Expansion and members init, update, view, expand"
-  | InvalidLivelitDef(DefMissingMembers(missing)) =>
-    prn(
-      "Livelit definition is missing members: %s",
-      String.concat(", ", missing),
-    )
-  | InvalidLivelitDef(DefMissingTypes(missing)) =>
-    prn(
-      "Livelit definition is missing type members: %s",
-      String.concat(", ", missing),
-    )
-  | InvalidLivelitDef(DefMemberMismatch({name, expected, actual})) =>
-    member_mismatch_string(~what="Member ", name, ~expected, ~actual)
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"
