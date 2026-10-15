@@ -520,9 +520,46 @@ let post_batch_result = (model, request_id, completed) => {
    probe targets, value, nested incr_eval) stays in the worker, as
    decoding it would dominate main-thread heap churn */
 let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
+/* Livelit views, run here (^ticket(18)). A livelit use's sample is its
+   view's command (UserLivelit.instrument_view folds `def.view(model)` into
+   the program), and the page used to run each command to Html on its main
+   thread (LivelitProj.live_html), again on every redraw that missed its
+   view cache. Run here instead, the sample becomes Pure(html), which the
+   page's runner answers at once. A run that fails keeps the command, so
+   the page reports the error as before. Each sample is run once: a later
+   post of the same sample (streams repeat completed items) reuses it. */
+let ran_views: Hashtbl.t((Id.t, int), (Language.DHExp.t, Language.DHExp.t)) =
+  Hashtbl.create(64);
+let run_view = (s: Language.Sample.t): Language.Sample.t =>
+  switch (Hashtbl.find_opt(ran_views, (s.syntax_id, s.id))) {
+  | Some((v, out)) when v === s.value => {
+      ...s,
+      value: out,
+    }
+  | _ =>
+    let out =
+      Language.ViewCmdRunner.is_command(s.value)
+        ? switch (Language.ViewCmdRunner.run(s.value)) {
+          | Ok(h) => Language.ViewCmdRunner.pure(h)
+          | Error(_) => s.value
+          | exception _ => s.value
+          }
+        : s.value;
+    if (Hashtbl.length(ran_views) > 4096) {
+      Hashtbl.reset(ran_views);
+    };
+    Hashtbl.replace(ran_views, (s.syntax_id, s.id), (s.value, out));
+    {
+      ...s,
+      value: out,
+    };
+  };
+let run_views = (probes: Language.Sample.Map.t): Language.Sample.Map.t =>
+  Id.Map.map(List.map(run_view), probes);
 let slim_state = (state: Language.EvaluatorState.t) =>
   Language.EvaluatorState.{
     ...state,
+    probes: run_views(state.probes),
     incr_eval: Language.IncrEval.empty,
   };
 let slim_entries =
@@ -700,10 +737,7 @@ let slim_response = (response: Response.value): Response.value =>
   | Ok((exp, state)) =>
     Ok((
       exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
-      Language.EvaluatorState.{
-        ...state,
-        incr_eval: Language.IncrEval.empty,
-      },
+      slim_state(state),
     ))
   | Error(_) as e => e
   };

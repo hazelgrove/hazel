@@ -187,3 +187,15 @@ and run = (~call_memo=?, d: DHExp.t): result(DHExp.t, string) =>
 
   | Some((name, _)) => Error("not a ViewCmd command: " ++ name)
   };
+
+/* For running views in the eval worker (^ticket(18)): whether a value is
+   a view command, and the command that answers with this Html at once
+   (the page's runner returns Pure's Html without evaluating anything). */
+let is_command = (d: DHExp.t): bool =>
+  switch (of_constructor_open(d)) {
+  | Some(("Pure" | "Bind" | "Editor" | "EvalSplice" | "ResultView", _)) =>
+    true
+  | _ => false
+  };
+let pure = (h: DHExp.t): DHExp.t =>
+  Exp.ap(Forward, Exp.constructor("Pure", None), h);
