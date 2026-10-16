@@ -56,15 +56,21 @@ type text_ctl = {
   get: unit => option(E.t),
   /* the same line, typed on, or its caret [placed] */
   set: (~placed: bool=?, option(E.t)) => Effect.t(unit),
-  /* text mode, or a new definition's line in it: the line the caret
-     leaves saved first */
-  start: (~pending: string=?, E.line, int) => Effect.t(unit),
+  /* text mode, or a new definition's line in it ([kw] picks its kind):
+     the line the caret leaves saved first */
+  start: (~kw: string=?, E.line, int) => Effect.t(unit),
   /* the caret to another line, the one it leaves saved (or [discard]ed) */
   go: (~discard: bool=?, E.line, int, option(int)) => Effect.t(unit),
   /* save the caret's line, then as [after] says */
   save: E.after => Effect.t(unit),
-  /* row mode, what's typed dropped */
-  abandon: Effect.t(unit),
+  /* row mode, what's typed dropped (a new definition with it) */
+  abandon: unit => Effect.t(unit),
+  /* a new definition dropped, with the line it's on now */
+  discard: Language.Id.t => Effect.t(unit),
+  /* a key on a new definition's line, for the editor */
+  type_: E.edit => Effect.t(unit),
+  /* the new definition remade as a keyword's kind */
+  rekind: string => Effect.t(unit),
   /* an op on an item: what's typed saved first (a delete drops it) */
   op: (E.def_op, Language.Id.t) => Effect.t(unit),
   flash: Effect.t(unit),
@@ -101,6 +107,8 @@ type props = {
   test_status: Language.Id.t => option(TestStatus.t),
   /* an item whose definition is only holes: Backspace removes it */
   blank: Language.Id.t => bool,
+  /* a new definition's name and caret, as the program has them */
+  live: option(E.live),
 };
 
 /* what the outline asks for */
@@ -210,65 +218,54 @@ module FieldFocus =
 /* the keys to the row list, as a field goes */
 let focus_rows = Effect.of_sync_fun(Util.JsUtil.focus_outline, ());
 
-/* the field a line's name is typed in. A new definition's leading
-   `type ` or `module ` picks its kind and moves out of the field into a
-   label */
-let edit_field = (~on: handlers, t: E.t, ~fresh: bool, typed: string) => {
-  let kw = fresh ? snd(E.new_kind(typed)) : "";
-  let name = E.slice(typed, E.units(kw), E.units(typed));
-  [
-    /* always there, so the field keeps its place (and its focus) as a
-       keyword comes and goes */
-    span(~attrs=[clss(["outline-edit-kw"])], kw == "" ? [] : [text(kw)]),
-    input(
-      ~attrs=[
-        clss(["outline-edit-input"]),
-        Attr.value_prop(name),
-        /* the width where field-sizing isn't supported */
-        Attr.create("size", string_of_int(max(3, E.units(name) + 1))),
-        Attr.create("spellcheck", "false"),
-        Attr.create("autocomplete", "off"),
-        Attr.create("autocorrect", "off"),
-        Attr.create("autocapitalize", "off"),
-        Attr.create_hook(
-          "outline-field-focus",
-          FieldFocus.create((t.seq, t.col)),
-        ),
-        /* a click in the field moves its caret, nothing else */
-        Attr.on_mousedown(_ => Effect.Stop_propagation),
-        Attr.on_click(_ => Effect.Stop_propagation),
-        Attr.on_input((evt, s) =>
-          switch (on.text.get()) {
-          | Some(cur) when E.same_line(cur.line, t.line) =>
-            let full = kw ++ s;
-            let at: int =
-              Js_of_ocaml.Js.Unsafe.coerce(evt)##.target##.selectionStart;
-            let kw' = fresh ? snd(E.new_kind(full)) : "";
-            on.text.set(
-              Some({
-                ...cur,
-                pending: Some(full),
-                col: E.units(kw) + at - E.units(kw'),
-                col_target: None,
-                error: None,
-              }),
-            );
-          | _ => Effect.Ignore
-          }
-        ),
-        /* leaving the outline saves the name */
-        Attr.on_blur(evt =>
-          switch (on.text.get()) {
-          | Some(cur) when E.same_line(cur.line, t.line) && leaving(evt) =>
-            Effect.Many([Effect.Stop_propagation, on.text.save(Leave)])
-          | _ => Effect.Stop_propagation
-          }
-        ),
-      ],
-      (),
-    ),
-  ];
-};
+/* the field a row's name is typed in */
+let edit_field = (~on: handlers, t: E.t, typed: string) => [
+  input(
+    ~attrs=[
+      clss(["outline-edit-input"]),
+      Attr.value_prop(typed),
+      /* the width where field-sizing isn't supported */
+      Attr.create("size", string_of_int(max(3, E.units(typed) + 1))),
+      Attr.create("spellcheck", "false"),
+      Attr.create("autocomplete", "off"),
+      Attr.create("autocorrect", "off"),
+      Attr.create("autocapitalize", "off"),
+      Attr.create_hook(
+        "outline-field-focus",
+        FieldFocus.create((t.seq, t.col)),
+      ),
+      /* a click in the field moves its caret, nothing else */
+      Attr.on_mousedown(_ => Effect.Stop_propagation),
+      Attr.on_click(_ => Effect.Stop_propagation),
+      Attr.on_input((evt, s) =>
+        switch (on.text.get()) {
+        | Some(cur) when E.same_line(cur.line, t.line) =>
+          let at: int =
+            Js_of_ocaml.Js.Unsafe.coerce(evt)##.target##.selectionStart;
+          on.text.set(
+            Some({
+              ...cur,
+              pending: Some(s),
+              col: at,
+              col_target: None,
+              error: None,
+            }),
+          );
+        | _ => Effect.Ignore
+        }
+      ),
+      /* leaving the outline saves the name */
+      Attr.on_blur(evt =>
+        switch (on.text.get()) {
+        | Some(cur) when E.same_line(cur.line, t.line) && leaving(evt) =>
+          Effect.Many([Effect.Stop_propagation, on.text.save(Leave)])
+        | _ => Effect.Stop_propagation
+        }
+      ),
+    ],
+    (),
+  ),
+];
 
 let edit_hint = (t: E.t): list(Node.t) =>
   switch (t.error) {
@@ -490,6 +487,14 @@ let click_col = (evt, name: string): int => {
   };
 };
 
+/* a new definition on text mode's line: its own row stands aside for
+   the line */
+let fresh_id = (on: handlers): option(Language.Id.t) =>
+  switch (on.text.current) {
+  | Some({line: New(_), fresh: Some(f), _}) => Some(f.f_id)
+  | _ => None
+  };
+
 /* text mode as drawn: its lines, the caret's, and the caret */
 type drawn = {
   d_lines: array(E.entry),
@@ -506,10 +511,16 @@ let caret_path = (d: option(drawn)): option(OutlineTree.path) =>
   | _ => None
   };
 
-/* the row a new definition is typed into */
-let new_row_view = (~on: handlers, ~flash: int, t: E.t): Node.t => {
-  let typed = Option.value(t.pending, ~default="");
-  let (k, _) = E.new_kind(typed);
+/* a new definition's line: its keyword, then its name as the program has
+   it, the caret where the editor's is */
+let new_row_view = (~live: option(E.live), ~flash: int, t: E.t): Node.t => {
+  let kw = Option.fold(~none="", ~some=(f: E.fresh) => f.f_kw, t.fresh);
+  let (k, _) = E.new_kind(kw);
+  let (name, at) =
+    switch (live) {
+    | Some(l) => (l.l_name, l.l_at)
+    | None => ("", 0)
+    };
   div(
     ~attrs=[clss(["outline-leaf"])],
     [
@@ -519,11 +530,29 @@ let new_row_view = (~on: handlers, ~flash: int, t: E.t): Node.t => {
             ["outline-label", "outline-editing", "outline-new", kind_cls(k)]
             @ flash_cls(flash),
           ),
-          /* a click beside the field leaves the keys in it */
+          /* a click on the line leaves the keys where they are */
           Attr.on_mousedown(_ => Effect.Prevent_default),
         ],
         [span(~attrs=[clss(["outline-glyph"])], [text(kind_glyph(k))])]
-        @ edit_field(~on, t, ~fresh=true, typed),
+        @ (
+          kw == ""
+            ? [] : [span(~attrs=[clss(["outline-edit-kw"])], [text(kw)])]
+        )
+        @ [
+          span(
+            ~attrs=[clss(["outline-live"])],
+            [
+              text(E.slice(name, 0, at)),
+              /* keyed by the text: each edit restarts its blink */
+              span(
+                ~key=name ++ "|" ++ string_of_int(at),
+                ~attrs=[clss(["outline-live-caret"])],
+                [],
+              ),
+              text(E.slice(name, at, E.units(name))),
+            ],
+          ),
+        ],
       ),
     ]
     @ edit_hint(t),
@@ -782,7 +811,6 @@ let rec node_view =
           edit_field(
             ~on,
             d.d_text,
-            ~fresh=false,
             Option.value(d.d_text.pending, ~default=name),
           )
         /* a ghost line's one caret position, at its start */
@@ -844,7 +872,10 @@ let rec node_view =
     | Some(d) =>
       switch (caret_entry(d)) {
       | Of_new(a, (First | Last) as place) when n.o_id == Some(a) =>
-        Some((place, new_row_view(~on, ~flash=props.flash, d.d_text)))
+        Some((
+          place,
+          new_row_view(~live=props.live, ~flash=props.flash, d.d_text),
+        ))
       | _ => None
       }
     | None => None
@@ -967,23 +998,26 @@ and rows_view =
       ~path: OutlineTree.path,
       ns,
     )
-    : list(Node.t) =>
+    : list(Node.t) => {
+  let fresh = fresh_id(on);
   List.concat_map(
     ((n: OutlineTree.node, seg)) =>
-      [node_view(~props, ~on, ~tm, ~path, ~seg, n)]
-      @ new_row_after(~props, ~on, ~tm, n),
+      n.o_id != None && n.o_id == fresh
+        ? []
+        : [node_view(~props, ~on, ~tm, ~path, ~seg, n)]
+          @ new_row_after(~props, ~tm, n),
     OutlineTree.segs(ns),
-  )
+  );
+}
 
 /* a new definition typed below [n] */
 and new_row_after =
-    (~props: props, ~on: handlers, ~tm: option(drawn), n: OutlineTree.node)
-    : list(Node.t) =>
+    (~props: props, ~tm: option(drawn), n: OutlineTree.node): list(Node.t) =>
   switch (tm) {
   | Some(d) =>
     switch (caret_entry(d)) {
     | Of_new(a, Below) when n.o_id == Some(a) => [
-        new_row_view(~on, ~flash=props.flash, d.d_text),
+        new_row_view(~live=props.live, ~flash=props.flash, d.d_text),
       ]
     | _ => []
     }
@@ -999,15 +1033,15 @@ type menu_row =
 
 let menu_rows = (~on: handlers, at: E.menu_at): list(menu_row) => {
   let mac = Util.Os.is_mac^;
-  /* a new definition's line, its keyword ([prefix]) picking its kind */
-  let new_row = (~place=E.Below, id, label, prefix) =>
+  /* a new definition's line, its keyword ([kw]) picking its kind */
+  let new_row = (~place=E.Below, id, label, kw) =>
     Item(
       label,
       None,
       () =>
         Effect.Many([
           follow(Some(Of_new(id, place))),
-          on.text.start(~pending=prefix, New(id, place), 0),
+          on.text.start(~kw, New(id, place), 0),
         ]),
     );
   let test = (op, id) =>
@@ -1355,6 +1389,7 @@ let keys =
           },
           ~blank=props.blank,
           ~page=Util.JsUtil.outline_page_rows,
+          ~live=?props.live,
           press,
         );
       let entry_of = (line: E.line) =>
@@ -1437,7 +1472,7 @@ let keys =
         );
       | Save(after) =>
         Act(Effect.Many([relocated, focus_rows, on.text.save(after)]))
-      | Abandon => Act(Effect.Many([focus_rows, on.text.abandon]))
+      | Abandon => Act(Effect.Many([focus_rows, on.text.abandon()]))
       | NewTest(op, id)
       | Op(op, id) =>
         Act(Effect.Many([relocated, focus_rows, on.text.op(op, id)]))
@@ -1447,7 +1482,7 @@ let keys =
             relocated,
             switch (to_) {
             | Some((line, col)) => go(~discard=true, line, col, None)
-            | None => Effect.Many([focus_rows, on.text.abandon])
+            | None => Effect.Many([focus_rows, on.text.abandon()])
             },
             on.def_op(Delete, id),
           ]),
@@ -1462,6 +1497,21 @@ let keys =
           },
         )
       | Exit => Act(Effect.Many([relocated, on.text.save(Leave), on.leave]))
+      | Type(edit) =>
+        Act(Effect.Many([relocated, forget, on.text.type_(edit)]))
+      | Rekind(kw) =>
+        Act(Effect.Many([relocated, forget, on.text.rekind(kw)]))
+      | Drop(d, Some((line, col))) =>
+        /* the line it's on, before the caret leaves it */
+        let drop = on.text.discard(d);
+        Act(
+          Effect.Many([relocated, drop, go(~discard=true, line, col, None)]),
+        );
+      /* the first line: row mode, which drops it */
+      | Drop(_, None) =>
+        Act(Effect.Many([relocated, focus_rows, on.text.abandon()]))
+      /* the key goes on to the page, whose undo it is */
+      | Undo(line, col) => Pass(go(~discard=true, line, col, None))
       };
     };
   /* a thunk: building a key's effect can move the cursor at once, so
@@ -1642,28 +1692,32 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
     | Some({line: New(a, First | Last), _}) => Some(a)
     | _ => None
     };
+  let fresh = fresh_id(on);
   /* the rows on screen, in order: the keyboard's list */
   let visible: array(visible_row) = {
     let rec walk = (parent, prefix, ns: list(OutlineTree.node)) =>
       List.concat_map(
-        ((n: OutlineTree.node, seg)) => {
-          let path = prefix @ [seg];
-          let name = n.o_label;
-          let n = live_label(props, n);
-          let branch = n.o_children != [];
-          let expanded =
-            branch && (!props.is_collapsed(path) || n.o_id == opened);
-          [
-            {
-              r_path: path,
-              r_node: n,
-              r_name: name,
-              r_parent: parent,
-              r_expanded: expanded,
+        ((n: OutlineTree.node, seg)) =>
+          n.o_id != None && n.o_id == fresh
+            ? []
+            : {
+              let path = prefix @ [seg];
+              let name = n.o_label;
+              let n = live_label(props, n);
+              let branch = n.o_children != [];
+              let expanded =
+                branch && (!props.is_collapsed(path) || n.o_id == opened);
+              [
+                {
+                  r_path: path,
+                  r_node: n,
+                  r_name: name,
+                  r_parent: parent,
+                  r_expanded: expanded,
+                },
+              ]
+              @ (expanded ? walk(Some(path), path, n.o_children) : []);
             },
-          ]
-          @ (expanded ? walk(Some(path), path, n.o_children) : []);
-        },
         OutlineTree.segs(ns),
       );
     Array.of_list(walk(None, root_path, roots));

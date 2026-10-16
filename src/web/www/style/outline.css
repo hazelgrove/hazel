@@ -477,7 +477,25 @@
   caret-color: var(--text-warning);
   field-sizing: content;
 }
-/* a new definition's keyword, beside its field */
+/* a new definition's name, typed into the program: the field's look,
+   the caret at the editor's place in it */
+#outline-sidebar .outline-live {
+  display: inline-block;
+  min-width: 3ch;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--shard-selected) 70%, transparent);
+  white-space: pre;
+}
+#outline-sidebar .outline-live-caret {
+  display: inline-block;
+  width: 0;
+  height: 1.2em;
+  margin: 0 -0.75px;
+  vertical-align: text-bottom;
+  border-left: 1.5px solid var(--text-warning);
+}
+/* a new definition's keyword, beside its name */
 #outline-sidebar .outline-edit-kw {
   font-weight: bold;
   opacity: 0.7;
@@ -578,7 +596,8 @@
   #outline-sidebar .outline-err-badge {
     animation: ol-fade-in 0.4s ease-out;
   }
-  #outline-sidebar .outline-ghost-caret {
+  #outline-sidebar .outline-ghost-caret,
+  #outline-sidebar .outline-live-caret {
     animation: ol-caret-blink 1s steps(1) infinite;
   }
 }

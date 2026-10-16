@@ -2,10 +2,12 @@ open Util;
 
 /* The outline's text mode: a line-based text area of names. Every shown
    row is a line; a nameable row's line is its name, any other row is a
-   ghost line with one caret position, at its start. Here are the caret,
-   the text typed on its line, and what each key does, as data: the
-   sidebar turns outcomes into effects, and OutlineControl saves names to
-   the program. */
+   ghost line with one caret position, at its start. A new definition's
+   line is the definition itself, in the program from the line's start:
+   its name is typed there, by the editor. Here are the caret, the text
+   typed on a row's line, and what each key does, as data: the sidebar
+   turns outcomes into effects, and OutlineControl saves names to the
+   program. */
 
 module Id = Language.Id;
 
@@ -52,6 +54,14 @@ type line =
   | Row(OutlineTree.path, option(key))
   | New(Id.t, place);
 
+/* a New line's definition, once it's in the program, and its keyword
+   (`type ` or `module `, else none): its name is typed there, live */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type fresh = {
+  f_id: Id.t,
+  f_kw: string,
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   line,
@@ -66,16 +76,35 @@ type t = {
   error: option(string),
   /* bumped as the keys place the caret: the field then moves its own */
   seq: int,
+  fresh: option(fresh),
 };
 
-let at = (~col=0, ~pending=?, ~seq=0, line: line): t => {
+let at = (~col=0, ~pending=?, ~seq=0, ~fresh=?, line: line): t => {
   line,
   col,
   col_target: None,
   pending,
   error: None,
   seq,
+  fresh,
 };
+
+/* a new definition's name as the program has it, and the caret's place
+   in it, as last drawn */
+type live = {
+  l_name: string,
+  l_at: int,
+};
+
+/* a key on a new definition's line, for the editor to apply to its name */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type edit =
+  | Insert(string)
+  /* the character toward a side */
+  | Erase(Direction.t)
+  | Step(Direction.t)
+  /* to the name's start or end */
+  | Edge(Direction.t);
 
 /* a name to save, from the line it was typed on; the caret's column comes
    back with the line if the save is refused */
@@ -268,20 +297,12 @@ let units = (s: string): int => Js_of_ocaml.Js.string(s)##.length;
 let slice = (s: string, a: int, b: int): string =>
   Js_of_ocaml.Js.to_string(Js_of_ocaml.Js.string(s)##substring(a, b));
 
-/* a line's text: what's typed on the caret's, a name, or nothing */
-let text_of = (~t: t, ~caret: bool, e: entry): string =>
+/* a line's name off the caret: a nameable row's (a new definition's
+   line is only ever the caret's) */
+let name_of_line = (e: entry): string =>
   switch (e) {
-  | Of_new(_) => caret ? Option.value(t.pending, ~default="") : ""
-  | Of_row(r) when nameable(r.r_node) =>
-    caret ? Option.value(t.pending, ~default=r.r_name) : r.r_name
-  | Of_row(_) => ""
-  };
-
-/* a new definition's keyword, set apart from the name in its field */
-let keyword = (e: entry, text: string): string =>
-  switch (e) {
-  | Of_new(_) => snd(new_kind(text))
-  | Of_row(_) => ""
+  | Of_row(r) when nameable(r.r_node) => r.r_name
+  | _ => ""
   };
 
 /* a key, as text mode reads it */
@@ -334,19 +355,174 @@ type outcome =
   | Fold(OutlineTree.path)
   | Menu
   /* save, row mode, and back to the editor */
-  | Exit;
+  | Exit
+  /* a new definition's name, edited in the program */
+  | Type(edit)
+  /* a new definition remade as a keyword's kind (none: a value) */
+  | Rekind(string)
+  /* a new definition's line gone, its definition with it: the caret to a
+     neighbour line */
+  | Drop(Id.t, option((line, int)))
+  /* the page's undo, which takes a new definition away: the caret to
+     [line] first */
+  | Undo(line, int);
 
 /* the line where Enter puts a new definition, for a nameable row: first
    inside an expanded module, else below */
 let new_place = (r: visible_row): place =>
   r.r_expanded && r.r_node.o_kind == KModule ? First : Below;
 
-/* what key [p] does on line [at]. [blank]: an item whose definition is
-   only holes; [page]: a screenful of lines */
-let decide =
+let len_of_line = (e: entry): int => units(name_of_line(e));
+
+let ghost_line = (e: entry): bool =>
+  switch (e) {
+  | Of_row(r) => !nameable(r.r_node)
+  | Of_new(_) => false
+  };
+
+/* what key [p] does on new definition line [at]: its name is typed into
+   the program by the editor, [live] as last drawn (none yet: blank) */
+let live_key =
     (
       ~lines: array(entry),
       ~at: int,
+      ~t: t,
+      ~live: option(live),
+      ~page: unit => int,
+      p: press,
+    )
+    : outcome => {
+  let n = Array.length(lines);
+  let (name, col) =
+    switch (live) {
+    | Some(l) => (l.l_name, l.l_at)
+    | None => ("", 0)
+    };
+  let len = units(name);
+  let to_end = j =>
+    Go(
+      line_of(lines[j]),
+      ghost_line(lines[j]) ? 0 : len_of_line(lines[j]),
+      None,
+    );
+  let to_start = j => Go(line_of(lines[j]), 0, None);
+  let vertical = (~up, j) =>
+    if (j == at) {
+      Type(Edge(up ? Left : Right));
+    } else {
+      let target = Option.value(t.col_target, ~default=col);
+      Go(
+        line_of(lines[j]),
+        ghost_line(lines[j]) ? 0 : min(target, len_of_line(lines[j])),
+        Some(target),
+      );
+    };
+  /* the line above, where the caret goes when this one does */
+  let above = () => at > 0 ? to_end(at - 1) : Save(Leave);
+  let blank = String.trim(name) == "";
+  let kw = Option.fold(~none="", ~some=f => f.f_kw, t.fresh);
+  let alone = !p.alt && !p.meta && !p.shift;
+  switch (p.key) {
+  | _ when p.composing => Swallow
+  | "Shift"
+  | "Alt"
+  | "Meta"
+  | "Control"
+  | "CapsLock" => Page
+  | "Escape" => t.error != None ? Abandon : Save(Leave)
+  | "Enter" when p.meta || p.shift => Save(Leave)
+  | "Enter" when p.alt || p.ctrl => Swallow
+  | "Enter" => blank ? Save(Leave) : Save(Next)
+  | "Tab"
+  | "F2" => Swallow
+  /* not an item to move yet */
+  | "ArrowUp"
+  | "ArrowDown" when p.alt && !p.meta && !p.shift => Flash
+  | "ArrowUp" when p.meta && !p.alt && !p.shift =>
+    at == 0 ? Type(Edge(Left)) : to_start(0)
+  | "ArrowDown" when p.meta && !p.alt && !p.shift =>
+    at == n - 1 ? Type(Edge(Right)) : to_end(n - 1)
+  | "ArrowUp" when alone => vertical(~up=true, max(0, at - 1))
+  | "ArrowDown" when alone => vertical(~up=false, min(n - 1, at + 1))
+  | "PageUp" when alone => vertical(~up=true, max(0, at - page()))
+  | "PageDown" when alone => vertical(~up=false, min(n - 1, at + page()))
+  | "ArrowLeft" when alone =>
+    col > 0 ? Type(Step(Left)) : at > 0 ? to_end(at - 1) : Swallow
+  | "ArrowRight" when alone =>
+    col < len ? Type(Step(Right)) : at < n - 1 ? to_start(at + 1) : Swallow
+  | "Home" when alone => Type(Edge(Left))
+  | "End" when alone => Type(Edge(Right))
+  | "ArrowUp"
+  | "ArrowDown"
+  | "ArrowLeft"
+  | "ArrowRight"
+  | "Home"
+  | "End"
+  | "PageUp"
+  | "PageDown" => Swallow
+  /* ⌘⌫: the definition goes, named or not */
+  | "Backspace" when p.meta =>
+    switch (t.fresh) {
+    | Some(f) =>
+      Drop(
+        f.f_id,
+        at > 0
+          ? Some((
+              line_of(lines[at - 1]),
+              ghost_line(lines[at - 1]) ? 0 : len_of_line(lines[at - 1]),
+            ))
+          : None,
+      )
+    | None => above()
+    }
+  | "Backspace" when p.alt || p.ctrl => Swallow
+  | "Backspace" when col > 0 => Type(Erase(Left))
+  /* at the start: a type or module's keyword goes first */
+  | "Backspace" when blank && kw != "" && t.fresh != None => Rekind("")
+  /* a blank name: the line goes, and its definition with it */
+  | "Backspace" => blank ? above() : Flash
+  | "Delete" when alone && col < len => Type(Erase(Right))
+  | "Delete" => Flash
+  | _ when p.alt && !p.meta && p.code == "KeyF" => Flash
+  | _ when p.alt && !p.meta && p.code == "KeyO" => Exit
+  | "." when p.meta => Menu
+  | "F10" when p.shift => Menu
+  | _ when p.meta && !p.alt && !p.shift && p.code == "KeyD" => Flash
+  /* the page's undo takes the definition away, typed name and all */
+  | _
+      when
+        p.meta && !p.alt && !p.shift && String.lowercase_ascii(p.key) == "z" =>
+    switch (t.fresh) {
+    | Some(_) when at > 0 =>
+      Undo(
+        line_of(lines[at - 1]),
+        ghost_line(lines[at - 1]) ? 0 : len_of_line(lines[at - 1]),
+      )
+    | Some(_) => Page
+    /* not in yet: the Enter that made it */
+    | None => above()
+    }
+  | _ when p.meta => Page
+  | _ when p.ctrl => Swallow
+  /* a value's name begun `type ` or `module `: that kind instead */
+  | " "
+      when
+        kw == ""
+        && t.fresh != None
+        && col == len
+        && (name == "type" || name == "module") =>
+    Rekind(name ++ " ")
+  | _ when Unicode.count_codepoints(p.key) == 1 => Type(Insert(p.key))
+  | _ => Swallow
+  };
+};
+
+/* what key [p] does on row [r]'s line, [at] */
+let decide_row =
+    (
+      ~lines: array(entry),
+      ~at: int,
+      ~r: visible_row,
       ~t: t,
       ~caret: caret,
       ~blank: Id.t => bool,
@@ -355,26 +531,14 @@ let decide =
     )
     : outcome => {
   let n = Array.length(lines);
-  let here = lines[at];
-  let ghost = j =>
-    switch (lines[j]) {
-    | Of_row(r) => !nameable(r.r_node)
-    | Of_new(_) => false
-    };
-  let text = text_of(~t, ~caret=true, here);
-  let kw = keyword(here, text);
-  let value = slice(text, units(kw), units(text));
+  let ghost = j => ghost_line(lines[j]);
+  let here_ghost = !nameable(r.r_node);
+  let value = here_ghost ? "" : Option.value(t.pending, ~default=r.r_name);
   let len = units(value);
   /* a line's length in its field */
-  let len_of = j =>
-    if (j == at) {
-      len;
-    } else {
-      let s = text_of(~t, ~caret=false, lines[j]);
-      units(s) - units(keyword(lines[j], s));
-    };
+  let len_of = j => j == at ? len : len_of_line(lines[j]);
   let col =
-    ghost(at) ? 0 : caret.in_field ? caret.c_col : max(0, min(t.col, len));
+    here_ghost ? 0 : caret.in_field ? caret.c_col : max(0, min(t.col, len));
   let sel = caret.in_field && caret.c_sel;
   /* the field's own key, or the model's while the field lacks the keys */
   let own = o => caret.in_field ? Field : o;
@@ -392,33 +556,17 @@ let decide =
         Some(target),
       );
     };
-  let row =
-    switch (here) {
-    | Of_row(r) => Some(r)
-    | Of_new(_) => None
-    };
-  let item = Option.bind(row, r => r.r_node.o_id);
+  let item = r.r_node.o_id;
   /* an op on the line's item: never the ⇒, which stays last */
   let op = o =>
-    switch (row, item) {
-    | (Some(r), Some(id)) when r.r_node.o_kind != KTrail => Op(o, id)
+    switch (item) {
+    | Some(id) when r.r_node.o_kind != KTrail => Op(o, id)
     | _ => Flash
     };
-  let unsaved =
-    switch (here) {
-    | Of_new(_) => text != ""
-    | Of_row(r) => t.pending != None && t.pending != Some(r.r_name)
-    };
-  /* the line above, where a removed line's caret goes */
-  let above = () => at > 0 ? to_end(at - 1) : Save(Leave);
-  /* [s] into the field's text at the caret: the new text, and the caret
-     in the field after it, a new definition's keyword set apart again */
-  let typed = (s: string, a: int, b: int) => {
-    let k = units(kw);
-    let full = kw ++ slice(value, 0, a) ++ s ++ slice(value, b, len);
-    let kw' = keyword(here, full);
-    Edit(full, k + a + units(s) - units(kw'));
-  };
+  let unsaved = t.pending != None && t.pending != Some(r.r_name);
+  /* [s] into the name at the caret: the new text, and the caret after it */
+  let typed = (s: string, a: int, b: int) =>
+    Edit(slice(value, 0, a) ++ s ++ slice(value, b, len), a + units(s));
   let alone = !p.alt && !p.meta && !p.shift;
   switch (p.key) {
   | _ when p.composing => Field
@@ -430,34 +578,27 @@ let decide =
   | "Escape" => t.error != None ? Abandon : Save(Leave)
   | "Enter" when p.meta || p.shift => Save(Leave)
   | "Enter" when p.alt || p.ctrl => Swallow
+  | "Enter" when !here_ghost =>
+    switch (item) {
+    | Some(id) => Go(New(id, new_place(r)), 0, None)
+    | None => Flash
+    }
   | "Enter" =>
-    switch (here) {
-    | Of_new(_) => String.trim(text) == "" ? Save(Leave) : Save(Next)
-    | Of_row(r) when nameable(r.r_node) =>
-      switch (item) {
-      | Some(id) => Go(New(id, new_place(r)), 0, None)
-      | None => Flash
+    switch (r.r_node.o_kind, item) {
+    | (KTrail, _) => Flash
+    | (KTest, Some(id)) => NewTest(NewTestBelow, id)
+    | (KTests, _) =>
+      switch (
+        List.filter_map((c: OutlineTree.node) => c.o_id, r.r_node.o_children)
+      ) {
+      | [] => Flash
+      | [first, ..._] as ids =>
+        r.r_expanded
+          ? NewTest(NewTestAbove, first)
+          : NewTest(NewTestBelow, ListUtil.last(ids))
       }
-    | Of_row(r) =>
-      switch (r.r_node.o_kind, item) {
-      | (KTrail, _) => Flash
-      | (KTest, Some(id)) => NewTest(NewTestBelow, id)
-      | (KTests, _) =>
-        switch (
-          List.filter_map(
-            (c: OutlineTree.node) => c.o_id,
-            r.r_node.o_children,
-          )
-        ) {
-        | [] => Flash
-        | [first, ..._] as ids =>
-          r.r_expanded
-            ? NewTest(NewTestAbove, first)
-            : NewTest(NewTestBelow, ListUtil.last(ids))
-        }
-      | (_, Some(id)) => Go(New(id, Below), 0, None)
-      | (_, None) => Flash
-      }
+    | (_, Some(id)) => Go(New(id, Below), 0, None)
+    | (_, None) => Flash
     }
   | "Tab"
   | "F2" => Swallow
@@ -473,13 +614,13 @@ let decide =
   | "PageUp" when alone => vertical(~up=true, max(0, at - page()))
   | "PageDown" when alone => vertical(~up=false, min(n - 1, at + page()))
   | "ArrowLeft" when alone =>
-    ghost(at) || !sel && col == 0
+    here_ghost || !sel && col == 0
       ? at > 0 ? to_end(at - 1) : Swallow : own(Place(col - 1))
   | "ArrowRight" when alone =>
-    ghost(at) || !sel && col >= len
+    here_ghost || !sel && col >= len
       ? at < n - 1 ? to_start(at + 1) : Swallow : own(Place(col + 1))
-  | "Home" when alone && !ghost(at) => own(Place(0))
-  | "End" when alone && !ghost(at) => own(Place(len))
+  | "Home" when alone && !here_ghost => own(Place(0))
+  | "End" when alone && !here_ghost => own(Place(len))
   | "ArrowUp"
   | "ArrowDown"
   | "ArrowLeft"
@@ -487,21 +628,14 @@ let decide =
   | "Home"
   | "End"
   | "PageUp"
-  | "PageDown" => ghost(at) ? Swallow : own(Swallow)
-  | "Backspace" when p.meta =>
-    switch (here) {
-    | Of_new(_) => above()
-    | Of_row(_) => op(Delete)
-    }
-  | "Backspace" when ghost(at) => Flash
+  | "PageDown" => here_ghost ? Swallow : own(Swallow)
+  | "Backspace" when p.meta => op(Delete)
+  | "Backspace" when here_ghost => Flash
   | "Backspace" when sel || col > 0 =>
     p.alt || p.ctrl ? own(Swallow) : own(typed("", col - 1, col))
   | "Backspace" =>
-    switch (here, item) {
-    /* at the field's start: a new definition's keyword goes */
-    | (Of_new(_), _) when kw != "" => Edit(value, 0)
-    | (Of_new(_), _) when text == "" => above()
-    | (Of_row(_), Some(id)) when String.trim(value) == "" && blank(id) =>
+    switch (item) {
+    | Some(id) when String.trim(value) == "" && blank(id) =>
       Remove(
         id,
         at > 0
@@ -514,30 +648,41 @@ let decide =
     /* rows never merge */
     | _ => Flash
     }
-  | "Delete" when ghost(at) => Flash
+  | "Delete" when here_ghost => Flash
   | "Delete" when alone && (sel || col < len) => own(typed("", col, col + 1))
   | "Delete" when alone => Flash
   | _ when p.alt && !p.meta && p.code == "KeyF" =>
-    switch (row) {
-    | Some(r) when r.r_node.o_children != [] => Fold(r.r_path)
-    | _ => Flash
-    }
+    r.r_node.o_children != [] ? Fold(r.r_path) : Flash
   | _ when p.alt && !p.meta && p.code == "KeyO" => Exit
   | "." when p.meta => Menu
   | "F10" when p.shift => Menu
   | _ when p.meta && !p.alt && !p.shift && p.code == "KeyD" => op(Duplicate)
   | _ when p.meta && !p.alt && String.lowercase_ascii(p.key) == "z" =>
-    switch (here) {
-    | _ when p.shift => Page
-    | _ when unsaved => Revert
-    /* a fresh line is the Enter that made it */
-    | Of_new(_) => above()
-    | Of_row(_) => Page
-    }
-  | _ when p.meta => ghost(at) ? Page : Field
-  | _ when p.ctrl => ghost(at) ? Swallow : Field
+    p.shift ? Page : unsaved ? Revert : Page
+  | _ when p.meta => here_ghost ? Page : Field
+  | _ when p.ctrl => here_ghost ? Swallow : Field
   | _ when Unicode.count_codepoints(p.key) == 1 =>
-    ghost(at) ? Flash : own(typed(p.key, col, col))
-  | _ => ghost(at) ? Swallow : Field
+    here_ghost ? Flash : own(typed(p.key, col, col))
+  | _ => here_ghost ? Swallow : Field
   };
 };
+
+/* what key [p] does on line [at]. [blank]: an item whose definition is
+   only holes; [page]: a screenful of lines; [live]: a new definition's
+   name */
+let decide =
+    (
+      ~lines: array(entry),
+      ~at: int,
+      ~t: t,
+      ~caret: caret,
+      ~blank: Id.t => bool,
+      ~page: unit => int,
+      ~live: option(live)=?,
+      p: press,
+    )
+    : outcome =>
+  switch (lines[at]) {
+  | Of_new(_) => live_key(~lines, ~at, ~t, ~live, ~page, p)
+  | Of_row(r) => decide_row(~lines, ~at, ~r, ~t, ~caret, ~blank, ~page, p)
+  };
