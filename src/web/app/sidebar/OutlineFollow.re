@@ -60,8 +60,90 @@ let follow_cursor = (): unit => {
   };
 };
 
+/* text mode's caret shows its item in the editor, the editor's own caret
+   left alone: [wanted] until the outline next draws, which finds its
+   [spot], then shown after that render */
+let wanted: ref(option(Language.Id.t)) = ref(None);
+
+type spot =
+  /* lines of the program's editor, or of the nth open cell's body: the
+     item's first and last */
+  | Lines(option(int), (int, int))
+  /* the nth open cell, from its header */
+  | Cell(int);
+
+let spot: ref(option(spot)) = ref(None);
+
+let rect = (el: Js.t(Dom_html.element)) => el##getBoundingClientRect;
+
+/* [top, bottom] (viewport px) brought into the view of [el]'s scroll
+   container, the least it takes, its top first if it doesn't fit */
+let show_span = (el: Js.t(Dom_html.element), top: float, bottom: float) =>
+  switch (Util.JsUtil.find_scroll_container(el)) {
+  | None => ()
+  | Some(sc) =>
+    let r = rect(sc);
+    let margin = Js.Optdef.get(r##.height, () => 0.) *. 0.1;
+    let above = top -. (r##.top +. margin);
+    let below = bottom -. (r##.bottom -. margin);
+    let by = above < 0. ? above : below > 0. ? min(below, above) : 0.;
+    Util.JsUtil.adjust_scroll(sc, by);
+  };
+
+let reveal = (s: spot): unit => {
+  let all = sel =>
+    Dom.list_of_nodeList(
+      Dom_html.document##querySelectorAll(Js.string("#main " ++ sel)),
+    );
+  let nth = (sel, i) => List.nth_opt(all(sel), i);
+  let code_in = (el: Js.t(Dom_html.element)) =>
+    Js.Opt.to_option(el##querySelector(Js.string(".code-container")));
+  let (_, row_h) = Util.JsUtil.font_metrics_from_specimen();
+  let lines = ((first, last), code: Js.t(Dom_html.element)) => {
+    let top = rect(code)##.top;
+    show_span(
+      code,
+      top +. float_of_int(first) *. row_h,
+      top +. float_of_int(last + 1) *. row_h,
+    );
+  };
+  switch (s) {
+  | Lines(None, rows) =>
+    Option.iter(lines(rows), nth(".code-editor .code-container", 0))
+  | Lines(Some(i), rows) =>
+    Option.iter(lines(rows), Option.bind(nth(".focus-body", i), code_in))
+  | Cell(i) =>
+    Option.iter(
+      (body: Js.t(Dom_html.element)) => {
+        /* its header, and a few of its lines */
+        let head =
+          Js.Opt.case(
+            Js.Unsafe.coerce(body)##.previousElementSibling,
+            () => body,
+            (h: Js.t(Dom_html.element)) =>
+              Js.to_bool(h##.classList##contains(Js.string("focus-header")))
+                ? h : body,
+          );
+        let b = rect(body);
+        show_span(
+          body,
+          rect(head)##.top,
+          min(b##.bottom, b##.top +. 4. *. row_h),
+        );
+      },
+      nth(".focus-body", i),
+    )
+  };
+};
+
 let update = (): unit => {
   follow_cursor();
+  switch (spot^) {
+  | Some(s) =>
+    spot := None;
+    reveal(s);
+  | None => ()
+  };
   if (mark^ != last_scrolled^) {
     last_scrolled := mark^;
     switch (mark^) {

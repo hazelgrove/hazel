@@ -963,76 +963,18 @@ let refused_delete_cursor = (): unit => {
     );
   let cursor = ref(path(result));
   let refused = ref(false);
-  let none = _ => Virtual_dom.Vdom.Effect.Ignore;
-  let on: Web.OutlineSidebar.handlers = {
-    jump: none,
-    focus: none,
-    toggle: none,
-    toggle_run: none,
-    toggle_collapse: none,
-    zoom_to: none,
-    zoom_in: none,
-    show_whole: none,
-    discard: Virtual_dom.Vdom.Effect.Ignore,
-    zoom_out: Virtual_dom.Vdom.Effect.Ignore,
-    get_cursor: () => cursor^,
-    set_cursor: c => {
-      cursor := c;
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
-    focused: Virtual_dom.Vdom.Effect.Ignore,
-    leave: Virtual_dom.Vdom.Effect.Ignore,
-    edit: {
-      current: None,
-      get: () => None,
-      set: none,
-      commit: (_, _) => Virtual_dom.Vdom.Effect.Ignore,
-    },
-    menu_open: (_, _, _, _) => Virtual_dom.Vdom.Effect.Ignore,
-    menu_close: Virtual_dom.Vdom.Effect.Ignore,
-    menu_select: none,
-    get_menu: () => None,
-    get_menu_sel: () => 0,
-    def_op: (op, id) => {
-      refused := R.apply(op, id, seg) == None;
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
-  };
-  let props: Web.OutlineSidebar.props = {
-    arrows: true,
-    stack_controls: true,
-    refusal: _ => None,
-    is_collapsed: _ => false,
-    header: {
-      h_program: "",
-      h_trail: [],
-      h_open: 0,
-      h_parked: 0,
-    },
-    zoom_root: None,
-    cursor: cursor^,
-    created: None,
-    pinned: [],
-    focused_entries: [],
-    error_items: [],
-    error_subtree: [],
-    menu: None,
-    menu_sel: 0,
-    test_status: _ => None,
-  };
-  let cmd_backspace =
-    Js_of_ocaml.Js.(
-      Unsafe.coerce(
-        Unsafe.obj([|
-          ("key", Unsafe.inject(string("Backspace"))),
-          ("code", Unsafe.inject(string("Backspace"))),
-          ("metaKey", Unsafe.inject(_true)),
-          ("ctrlKey", Unsafe.inject(_false)),
-          ("altKey", Unsafe.inject(_false)),
-          ("shiftKey", Unsafe.inject(_false)),
-        |]),
-      )
+  let on =
+    OutlineHarness.handlers(
+      ~cursor,
+      ~def_op=
+        (op, id) => {
+          refused := R.apply(op, id, seg) == None;
+          Virtual_dom.Vdom.Effect.Ignore;
+        },
+      (),
     );
+  let props = OutlineHarness.props(~cursor=cursor^, ());
+  let cmd_backspace = OutlineHarness.keydown(~meta=true, "Backspace");
   ignore(Web.OutlineSidebar.keys(~props, ~on, ~visible, cmd_backspace));
   check(bool, "the delete was tried and refused", true, refused^);
   check(bool, "the cursor stays on the row", true, cursor^ == path(result));

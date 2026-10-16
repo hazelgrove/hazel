@@ -233,11 +233,13 @@ let arrows_redraw = () => {
   check(bool, "arrows on: a new outline", false, view(true) === off);
 };
 
-/* a name saved by a key or click that also moved the cursor (↑ while
-   renaming) leaves the cursor where it went; a plain save puts it on the
-   row it named */
-let commit_cursor = () => {
+/* where a saved name leaves text mode's caret: where the keys put it
+   (↑ while renaming), in row mode on the renamed row (Esc), on a new line
+   below a new definition (Enter, its keyword leaving); a refused save
+   brings the caret back to what was typed */
+let save_caret = () => {
   module C = Web.OutlineControl;
+  module E = Web.OutlineEdit;
   let settings = Web.Globals.Model.init().settings;
   let seg = CorpusUtil.seg_of("let a = 1 in\nlet b = 2 in\na + b");
   let code =
@@ -254,216 +256,160 @@ let commit_cursor = () => {
     };
   let term = MakeTerm.Incr.term_of(seg);
   let row = CorpusUtil.row_by_label(term);
-  let commit = (ed, after) =>
+  let save = (sv, after) =>
     C.update(
       ~settings,
       ~schedule_workspace=_ => (),
       ~prefix="scratch",
       ~name="t",
-      Commit(ed, after),
+      Save(sv, after),
       code,
     ).
       model;
-  let at_a = OutlineTree.label_path(row("a"), term);
-  let rename = Web.OutlineEdit.mk(~row=row("b"), "c");
-  C.cursor := at_a;
-  ignore(commit(rename, MoveTo(at_a)));
-  check(bool, "↑ renaming: the cursor stays up", true, C.cursor^ == at_a);
-  let renamed = commit(rename, Stay);
+  let line = label =>
+    E.Row(
+      Option.get(OutlineTree.label_path(row(label), term)),
+      Some(Item(row(label))),
+    );
+  let rename_b: E.save = {
+    sv_line: line("b"),
+    sv_text: "c",
+    sv_col: 1,
+  };
+  let up = E.at(line("a"));
+  C.text := Some(up);
+  ignore(save(rename_b, Stay));
+  check(bool, "↑ renaming: the caret stays up", true, C.text^ == Some(up));
+  C.text := None;
+  let renamed = save(rename_b, Leave);
+  let term' = Web.Program.statics(renamed.program).term;
   check(
     bool,
-    "a plain rename: the cursor on the renamed row",
+    "Esc: row mode, the cursor on the renamed row",
     true,
-    C.cursor^
-    == OutlineTree.label_path(
-         row("b"),
-         Web.Program.statics(renamed.program).term,
-       )
-    && C.cursor^ != at_a,
+    C.cursor^ == OutlineTree.label_path(row("b"), term')
+    && OutlineTree.node_of(row("b"), term')
+    |> Option.map((n: OutlineTree.node) => n.o_label) == Some("c"),
   );
-  let new_type = Web.OutlineEdit.mk(~anchor=row("a"), "type T");
-  C.cursor := at_a;
+  let new_t = E.New(row("a"), Below);
+  C.text := Some(E.at(new_t));
   C.created := None;
-  ignore(commit(new_type, MoveTo(at_a)));
+  let typed =
+    save(
+      {
+        sv_line: new_t,
+        sv_text: "type T",
+        sv_col: 1,
+      },
+      Next,
+    );
+  let t =
+    CorpusUtil.row_by_label(Web.Program.statics(typed.program).term, "T");
   check(
     bool,
-    "↓ naming a type: the cursor stays, no keyword animates",
+    "Enter: a new line below the new type, its keyword leaving",
     true,
-    C.cursor^ == at_a && C.created^ == None,
+    Option.map((t: E.t) => t.line, C.text^) == Some(New(t, Below))
+    && C.created^ == Some((t, "type ")),
   );
-  ignore(commit(new_type, Stay));
+  C.text := Some(up);
+  ignore(
+    save(
+      {
+        sv_line: line("b"),
+        sv_text: "B",
+        sv_col: 1,
+      },
+      Stay,
+    ),
+  );
   check(
     bool,
-    "a plain save: the cursor on the new type, its keyword animating",
+    "refused: the caret back on b, with what was typed and why",
     true,
-    C.cursor^ != at_a && C.created^ != None,
+    switch (C.text^) {
+    | Some({line: back, col: 1, pending: Some("B"), error: Some(_), _}) =>
+      E.same_line(back, line("b"))
+    | _ => false
+    },
   );
   C.cursor := None;
   C.created := None;
-  C.edit := None;
+  C.text := None;
 };
 
 /* the outline's keys over [src]'s rows, every row shown, the cell code
-   deciding which open; the handlers record the cells asked for and the
-   name opened for typing */
+   deciding which open; the handlers record the cells asked for and text
+   mode's state */
 let sidebar = (src: string) => {
   module S = Web.OutlineSidebar;
   let seg = CorpusUtil.seg_of(src);
   let term = MakeTerm.Incr.term_of(seg);
   let refused = Web.ScratchFocus.refusals(~want=_ => true, seg);
-  let rows = OutlineTree.flatten(OutlineTree.of_term(term));
-  let path = (n: OutlineTree.node) =>
-    Option.get(Option.bind(n.o_id, id => OutlineTree.label_path(id, term)));
-  let visible =
-    Array.of_list(
-      List.map(
-        (n: OutlineTree.node): S.visible_row =>
-          {
-            r_path: path(n),
-            r_node: n,
-            r_name: n.o_label,
-            r_parent: None,
-            r_expanded: n.o_children != [],
-          },
-        rows,
-      ),
-    );
+  let visible = OutlineHarness.visible(term);
   let cursor = ref(None);
   let toggled = ref([]);
-  let typing = ref(None);
-  let none = _ => Virtual_dom.Vdom.Effect.Ignore;
-  let on: S.handlers = {
-    jump: none,
-    focus: none,
-    toggle: id => {
-      toggled := [id, ...toggled^];
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
-    toggle_run: none,
-    toggle_collapse: none,
-    zoom_to: none,
-    zoom_in: none,
-    show_whole: none,
-    discard: Virtual_dom.Vdom.Effect.Ignore,
-    zoom_out: Virtual_dom.Vdom.Effect.Ignore,
-    get_cursor: () => cursor^,
-    set_cursor: c => {
-      cursor := c;
-      Virtual_dom.Vdom.Effect.Ignore;
-    },
-    focused: Virtual_dom.Vdom.Effect.Ignore,
-    leave: Virtual_dom.Vdom.Effect.Ignore,
-    edit: {
-      current: None,
-      get: () => typing^,
-      set: e => {
-        typing := e;
-        Virtual_dom.Vdom.Effect.Ignore;
-      },
-      commit: (_, _) => Virtual_dom.Vdom.Effect.Ignore,
-    },
-    menu_open: (_, _, _, _) => Virtual_dom.Vdom.Effect.Ignore,
-    menu_close: Virtual_dom.Vdom.Effect.Ignore,
-    menu_select: none,
-    get_menu: () => None,
-    get_menu_sel: () => 0,
-    def_op: (_, _) => Virtual_dom.Vdom.Effect.Ignore,
-  };
-  let props: S.props = {
-    arrows: true,
-    stack_controls: true,
-    refusal: id => Id.Map.find_opt(id, refused),
-    is_collapsed: _ => false,
-    header: {
-      h_program: "",
-      h_trail: [],
-      h_open: 0,
-      h_parked: 0,
-    },
-    zoom_root: None,
-    cursor: None,
-    created: None,
-    pinned: [],
-    focused_entries: [],
-    error_items: [],
-    error_subtree: [],
-    menu: None,
-    menu_sel: 0,
-    test_status: _ => None,
-  };
+  let text = ref(None);
+  let on =
+    OutlineHarness.handlers(
+      ~cursor,
+      ~text,
+      ~toggle=
+        id => {
+          toggled := [id, ...toggled^];
+          Virtual_dom.Vdom.Effect.Ignore;
+        },
+      (),
+    );
+  let props =
+    OutlineHarness.props(~refusal=id => Id.Map.find_opt(id, refused), ());
   let row = label =>
     Array.find_opt((r: S.visible_row) => r.r_node.o_label == label, visible);
   /* [key] pressed with the cursor on [label]'s row: the cells it asked
-     to open or close, and the name open after */
-  let press = (key: string, label: string) => {
+     to open or close, and text mode's state after */
+  let press = (~meta=false, key: string, label: string) => {
     cursor := Option.map((r: S.visible_row) => r.r_path, row(label));
     toggled := [];
-    typing := None;
-    let evt =
-      Js_of_ocaml.Js.(
-        Unsafe.coerce(
-          Unsafe.obj([|
-            ("key", Unsafe.inject(string(key))),
-            ("code", Unsafe.inject(string(key))),
-            ("metaKey", Unsafe.inject(_false)),
-            ("ctrlKey", Unsafe.inject(_false)),
-            ("altKey", Unsafe.inject(_false)),
-            ("shiftKey", Unsafe.inject(_false)),
-          |]),
-        )
-      );
-    ignore(S.keys(~props, ~on, ~visible, evt));
-    (toggled^, typing^);
+    text := None;
+    ignore(
+      S.keys(~props, ~on, ~visible, OutlineHarness.keydown(~meta, key)),
+    );
+    (toggled^, text^);
   };
-  /* a double-click on [label]'s name, [typing] already open: the name
-     open after */
-  let double_click = (~typing as t=None, label: string) => {
-    typing := t;
-    let r = Option.get(row(label));
-    ignore(S.start_rename(~on, r.r_node, r.r_name));
-    typing^;
-  };
-  (term, press, double_click);
+  (term, press);
 };
 
 /* Space opens a row's cell, but not under a projector: the cell code
    refuses those rows, and the outline offers nothing */
 let space_under_projector = () => {
-  let (term, press, _) = sidebar("let a = 1 in\n^^fold((let b = 2 in\nb))");
+  let (term, press) = sidebar("let a = 1 in\n^^fold((let b = 2 in\nb))");
   let row = CorpusUtil.row_by_label(term);
   check(bool, "a opens", true, fst(press(" ", "a")) == [row("a")]);
   check(bool, "b, folded away, doesn't", true, fst(press(" ", "b")) == []);
 };
 
-/* a double-click on a name opens it for typing as F2 does; a test or a
-   statement has no name of its own, and an open name stays */
-let double_click_names = () => {
-  let (term, press, double_click) =
-    sidebar("let a = 1 in\nlet b = 2 in\ntest a == 1 end;\na + b;\na");
-  let typing = label =>
-    Some(
-      Web.OutlineEdit.mk(~row=CorpusUtil.row_by_label(term, label), label),
+/* F2 and ⌘Enter start text mode on the cursor's row: at a name's end, or
+   a ghost line's one caret position */
+let start_text = () => {
+  module E = Web.OutlineEdit;
+  let (term, press) = sidebar("let ab = 1 in\ntest ab == 1 end;\nab");
+  let at = (label, col) =>
+    Option.map(
+      path =>
+        E.at(
+          Row(path, Some(Item(CorpusUtil.row_by_label(term, label)))),
+          ~col,
+        ),
+      OutlineTree.label_path(CorpusUtil.row_by_label(term, label), term),
     );
+  check(bool, "F2 on ab", true, snd(press("F2", "ab")) == at("ab", 2));
   check(
     bool,
-    "F2 opens a's name",
+    "⌘Enter on ab",
     true,
-    snd(press("F2", "a")) == typing("a"),
+    snd(press(~meta=true, "Enter", "ab")) == at("ab", 2),
   );
-  check(
-    bool,
-    "so does a double-click",
-    true,
-    double_click("a") == typing("a"),
-  );
-  check(bool, "not a test's", true, double_click("1") == None);
-  check(bool, "nor a statement's", true, double_click("") == None);
-  check(
-    bool,
-    "b's name, being typed, stays",
-    true,
-    double_click(~typing=typing("b"), "a") == typing("b"),
-  );
+  check(bool, "F2 on a test", true, snd(press("F2", "1")) == at("1", 0));
 };
 
 let tests = [
@@ -473,21 +419,13 @@ let tests = [
     @ [
       test_case("a deleted row's successor", `Quick, successors),
       test_case("Outline Arrows redraws the outline", `Quick, arrows_redraw),
-      test_case(
-        "where a saved name leaves the cursor",
-        `Quick,
-        commit_cursor,
-      ),
+      test_case("where a saved name leaves the caret", `Quick, save_caret),
       test_case(
         "Space does nothing under a projector",
         `Quick,
         space_under_projector,
       ),
-      test_case(
-        "a double-click on a name renames, as F2 does",
-        `Quick,
-        double_click_names,
-      ),
+      test_case("F2 and ⌘Enter start text mode", `Quick, start_text),
     ],
   ),
 ];
