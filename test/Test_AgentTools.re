@@ -5375,6 +5375,22 @@ let module_member_tests = (
         );
       },
     ),
+    test_case(
+      "a module opening with a test keeps its member paths",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { test 1 == 1 end; let x = 1 } in m",
+            Update(Definition, "m/x", "5"),
+          );
+        check_rendered(
+          "member_after_leading_test",
+          "let m = { test 1 == 1 end; let x = 5 } in m",
+          result,
+        );
+      },
+    ),
   ],
 );
 
