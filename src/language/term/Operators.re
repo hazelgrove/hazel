@@ -356,7 +356,7 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Nat(Plus) => Defined(Nat, Nat, Nat, just(Bigint.(+)))
   | Nat(Minus) =>
     Undefined(
-      "Cannot subtract natural numbers, for truncated subtraction use `monus`",
+      "Cannot subtract natural numbers, for truncated subtraction use `Nat.monus`",
     )
   | Nat(Times) => Defined(Nat, Nat, Nat, just(Bigint.( * )))
   | Nat(Power) => Defined(Nat, Nat, Nat, just(Bigint.pow))
