@@ -116,10 +116,12 @@ let let_ = 45;
    level with `let ... ;` so `let x = 1; a; b` keeps `a; b` as the
    let body. `else` sits just inside `if`. */
 let re_seq = let_;
-/* Reason patterns: `|` (or) looser than `,`, and `as`/`when` looser
-   still (patterns hold no let or rule operators to clash with) */
+/* Reason patterns: `as` inside `,` (in a parameter list each parameter
+   names itself), `|` (or) looser than `,`, `when` loosest (patterns hold
+   no let or rule operators to clash with) */
+let re_as = lab;
 let re_or = let_;
-let re_as = let_ + 1; /* = rule_sep, below */
+let re_when = let_ + 1; /* = rule_sep, below */
 let re_else = semi;
 
 /* Rules looser than commas so can do `case a,b | _ => ... */

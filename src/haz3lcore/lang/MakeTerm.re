@@ -585,25 +585,51 @@ let rec is_irrefutable = (p: Pat.t): bool =>
    `scrut` (a variable holding the scrutinee, when the caller has one):
    `| a | b => e` duplicates e for each alternative; `| p as x => e`
    binds x to the scrutinee in e; `| p when g => e | rest` tests g and
-   falls through to matching rest. */
+   otherwise falls through to matching rest. The fallthrough is a
+   function defined outside the match (returned with the rules, for the
+   caller to bind around it), so the rules after a guard see the scope
+   the switch has, not the guarded pattern's variables. */
+let fall_count = ref(0);
 let rec reason_rules =
         (scrut: option(Exp.t), rules: list((Pat.t, Exp.t)))
-        : list((Pat.t, Exp.t)) =>
+        : (list((string, Exp.t)), list((Pat.t, Exp.t))) =>
   switch (rules) {
-  | [] => []
+  | [] => ([], [])
   | [(p, e), ...rest] =>
-    switch (pat_extra(when_pats, p)) {
-    | Some((q, guard)) =>
-      let rest = reason_rules(scrut, rest);
-      let fallthrough =
-        switch (scrut) {
-        | Some(s) => fresh_exp(Match(s, rest))
-        | None => fresh_exp(EmptyHole)
-        };
-      reason_alternatives(scrut, q, fresh_exp(If(guard, e, fallthrough)))
-      @ (is_irrefutable(q) ? [] : rest);
-    | None => reason_alternatives(scrut, p, e) @ reason_rules(scrut, rest)
-    }
+    let (falls, rest) = reason_rules(scrut, rest);
+    switch (pat_extra(when_pats, p), scrut) {
+    | (Some((q, guard)), Some(s)) =>
+      incr(fall_count);
+      let name = "$fall" ++ string_of_int(fall_count^);
+      let unit_pat: Pat.term = Tuple([]);
+      let fall: Exp.term =
+        Fun(
+          IdTagged.fresh(unit_pat),
+          fresh_exp(Match(s, rest)),
+          None,
+          None,
+        );
+      let var: Exp.term = Var(name);
+      let unit: Exp.term = Tuple([]);
+      let call = fresh_exp(Ap(Forward, fresh_exp(var), fresh_exp(unit)));
+      (
+        falls @ [(name, fresh_exp(fall))],
+        reason_alternatives(scrut, q, fresh_exp(If(guard, e, call)))
+        @ (is_irrefutable(q) ? [] : rest),
+      );
+    | (Some((q, guard)), None) =>
+      let hole: Exp.term = EmptyHole;
+      (
+        falls,
+        reason_alternatives(
+          scrut,
+          q,
+          fresh_exp(If(guard, e, fresh_exp(hole))),
+        )
+        @ rest,
+      );
+    | (None, _) => (falls, reason_alternatives(scrut, p, e) @ rest)
+    };
   }
 and reason_alternatives =
     (scrut: option(Exp.t), p: Pat.t, e: Exp.t): list((Pat.t, Exp.t)) =>
@@ -614,6 +640,22 @@ and reason_alternatives =
     reason_alternatives(scrut, q, fresh_exp(Let(x, s, e)))
   | _ => [(p, e)]
   };
+
+/* The match of `scrut` against Reason rules, inside the fallthrough
+   functions its guards need */
+let reason_match = (scrut: Exp.t, rules): Exp.term => {
+  let (falls, rules) = reason_rules(Some(scrut), rules);
+  let matched: Exp.term = Match(scrut, rules);
+  List.fold_right(
+    ((name, fall), body: Exp.t) => {
+      let pat: Pat.term = Var(name);
+      fresh_exp(Let(IdTagged.fresh(pat), fall, body));
+    },
+    falls,
+    fresh_exp(matched),
+  ).
+    term;
+};
 
 let reason_needs_scrut = (rules: list((Pat.t, Exp.t))): bool =>
   List.exists(
@@ -760,7 +802,9 @@ let reason_fun = (arrow_id: Id.t, params: Pat.t, body: Exp.t): Exp.term => {
     switch (pat_extra(as_pats, p), p.term) {
     | (Some((q, x)), _) =>
       switch (x.term) {
-      | Var(name) =>
+      | Var(name)
+      | Asc({term: Var(name), _}, _) =>
+        /* (p as x) and (p as x: t) */
         let v: Exp.term = Var(name);
         (x, fresh_exp(Let(q, fresh_exp(v), body)));
       | _ => (p, body)
@@ -1218,12 +1262,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           let x_pat: Pat.term = Var(x);
           let x_exp: Exp.term = Var(x);
           let s = fresh_exp(x_exp);
-          let matched = fresh_exp(Match(s, reason_rules(Some(s), rules)));
+          let matched = fresh_exp(reason_match(s, rules));
           (Let(IdTagged.fresh(x_pat), scrut, matched), ids);
         | Rules(_, rules) =>
           let ids = List.filter(id => id != Id.invalid, ids);
           adopted_ids := ids @ adopted_ids^;
-          (Match(scrut, reason_rules(None, rules)), ids);
+          (Match(scrut, snd(reason_rules(None, rules))), ids);
         | MultiHole(_)
         | Invalid(_) => ret(hole(tm))
         }
@@ -1357,8 +1401,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       let arg_pat = IdTagged.mk_internal([derived_id(id, 1)], pat_term);
       let scrut_term: Exp.term = Var(x);
       let scrut = IdTagged.mk_internal([derived_id(id, 2)], scrut_term);
-      let match_term: Exp.term =
-        Match(scrut, reason_rules(Some(scrut), rules));
+      let match_term: Exp.term = reason_match(scrut, rules);
       let body = IdTagged.mk_internal([derived_id(id, 3)], match_term);
       ret(Fun(arg_pat, body, None, None));
     | _ => ret(hole(tm))
@@ -2616,6 +2659,7 @@ let go_impl =
   or_pats := Id.Map.empty;
   as_pats := Id.Map.empty;
   when_pats := Id.Map.empty;
+  fall_count := 0;
   and_exps := Id.Map.empty;
   bind_exps := Id.Map.empty;
   and_typs := Id.Map.empty;

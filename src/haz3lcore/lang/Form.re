@@ -424,7 +424,7 @@ let reason_rows_of: family => list(row) =
   | ReOpen => [mk_prefix(Exp, P.ap)]
   /* the loosest pattern operators: `a, b as t` names the pair */
   | ReAs => [mk_infix(Pat, P.re_as)]
-  | ReWhen => [mk(Non, Mold.mk_bin'(P.re_as, Pat, Pat, [], Exp))]
+  | ReWhen => [mk(Non, Mold.mk_bin'(P.re_when, Pat, Pat, [], Exp))]
   | ReAnd => [mk_infix(Exp, P.re_and), mk_infix(Typ, P.re_and)]
   /* `g = e` after `and` (and `~x=e` arguments, `~x=default` params) */
   | ReBind => [

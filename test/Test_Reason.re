@@ -227,6 +227,16 @@ let fits = (l, r) =>
       "(\"negative\", \"big\", \"small\")",
     ),
     case(
+      "a failed guard falls through in the switch's scope",
+      {|let f = (x, y) =>
+  switch (x, y) {
+  | (Some(x), _) when x > 10 => "big"
+  | (_, y) => y
+  };
+(f(Some(1), "fell through"), f(Some(11), "no"))|},
+      "(\"fell through\", \"big\")",
+    ),
+    case(
       "as-patterns",
       {|let swap = ((a, b) as pair) => ((b, a), pair);
 let tail_or = (d, xs) =>

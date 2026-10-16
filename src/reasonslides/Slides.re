@@ -5,6 +5,7 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
   [
     ("Reason Basics", [%blob "basics.reason"]),
     ("Probes & Projectors", [%blob "probes-projectors.reason"]),
+    ("Hazel in Hazel: Skel", [%blob "hazel-skel.reason"]),
   ]
   |> List.map(((name, text))
        /* indentation kept as written: of_slide_text's per-line flattening

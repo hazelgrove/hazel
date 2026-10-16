@@ -1,0 +1,181 @@
+// HAZEL, IN HAZEL
+// The algorithm below is Hazel's own: it is how the editor turns a
+// row of tiles into an operator tree (src/haz3lcore/tiles/Skel.re),
+// shunting-yard style. It runs here, on Hazel's evaluator, with probes.
+// Changes from the original: labeled arguments are passed in order
+// (`~prec` is an explicit option), and pieces are (token, shapes)
+// pairs instead of editor tiles.
+
+// From src/util/Aba.re: alternating lists a, b, a, ..., a
+module Aba = {
+  // invariant: List.length(as) == List.length(bs) + 1
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t('a, 'b) = (list('a), list('b));
+
+  let mk = (as_: list('a), bs: list('b)): t('a, 'b) => {
+    assert(List.length(as_) == List.length(bs) + 1);
+    (as_, bs);
+  };
+};
+
+// Stand-ins for the editor's precedence table and tiles
+type direction =
+  | Left
+  | Right;
+module Precedence = {
+  type t = int;
+  let mult = 27;
+  let plus = 28;
+  let comma = 44;
+  // higher precedence means lower int representation
+  let compare = (p1: t, p2: t): int => p2 - p1;
+  let associativity = (p: t) =>
+    if (p == mult || p == plus) {Some(Left)} else {None};
+};
+type shape =
+  | Convex
+  | Concave(Precedence.t);
+type piece = (string, (shape, shape));
+
+module ListUtil = {
+  let rec split_n = (n, xs) =>
+    switch (n, xs) {
+    | (0, _) => ([], xs)
+    | (_, [x, ...xs]) =>
+      let (prefix, suffix) = split_n(n - 1, xs);
+      ([x, ...prefix], suffix);
+    | (_, []) => failwith("split_n")
+    };
+  let split_last = (xs) => {
+    let rev = List.rev(xs);
+    (List.rev(List.tl(rev)), List.hd(rev));
+  };
+  let split_first = (xs) => (List.hd(xs), List.tl(xs));
+  let split_last_opt = (xs) =>
+    switch (xs) {
+    | [] => None
+    | _ => Some(split_last(xs))
+    };
+};
+
+// From src/haz3lcore/tiles/Skel.re
+type t =
+  | Op(root)
+  | Pre(root, t)
+  | Post(t, root)
+  | Bin(t, root, t)
+and root = Aba.t(int, t);
+
+type ip = (int, piece);
+
+// Determines if two adjacent pieces (p1 left of p2) can be chained
+// together in the skeleton: here, repeated commas and pluses
+let is_chainable = ((t1, (l1, r1)): piece, (t2, (l2, r2)): piece): bool =>
+  switch (l1, r1, l2, r2) {
+  | (Concave(_), Concave(_), Concave(_), Concave(_)) =>
+    t1 == t2 && (t1 == "," || t1 == "+")
+  | _ => false
+  };
+
+module Stacks = {
+  type skel = t;
+  type stacks = {
+    output: list(skel),
+    shunted: list(ip),
+  };
+
+  let empty = {output: [], shunted: []};
+
+  let rec pop_chain = (~popped, shunted: list(ip)): (list(ip), list(ip)) =>
+    switch (shunted) {
+    | [] => (popped, shunted)
+    | [hd, ...tl] =>
+      switch (popped) {
+      | [] => pop_chain(~popped=[hd], tl)
+      | [p, ..._] =>
+        if (is_chainable(snd(hd), snd(p))) {
+          pop_chain(~popped=[hd, ...popped], tl);
+        } else {
+          (popped, shunted);
+        }
+      }
+    };
+
+  let shapes_of_chain = (chain: list(ip)): option((shape, shape)) =>
+    switch (chain, ListUtil.split_last_opt(chain)) {
+    | ([(_, (_, (l, _))), ..._], Some((_, (_, (_, (_, r)))))) => Some((l, r))
+    | _ => None
+    };
+
+  let rec push_output = (~prec: option(Precedence.t), stacks: stacks): stacks => {
+    let (chain, shunted) = pop_chain(~popped=[], stacks.shunted);
+    switch (prec, shapes_of_chain(chain)) {
+    | (Some(prec), Some((_, Concave(prec'))))
+        when
+          Precedence.compare(prec', prec) < 0
+          || Precedence.compare(prec', prec) == 0
+          && Precedence.associativity(prec') != Some(Left) => stacks
+    | (_, None) => stacks
+    | (_, Some((l, r))) =>
+      let is = List.map(fst, chain);
+      let chain_len = List.length(chain);
+      let split_kids = (n: int): (list(skel), list(skel)) => {
+        let (kids, rest) = ListUtil.split_n(n, stacks.output);
+        (List.rev(kids), rest);
+      };
+      let output =
+        switch (l, r) {
+        | (Convex, Convex) =>
+          let (kids, output) = split_kids(chain_len - 1);
+          [Op(Aba.mk(is, kids)), ...output];
+        | (Convex, Concave(_)) =>
+          let (kids, output) = split_kids(chain_len);
+          let (kids, r) = ListUtil.split_last(kids);
+          [Pre(Aba.mk(is, kids), r), ...output];
+        | (Concave(_), Convex) =>
+          let (kids, output) = split_kids(chain_len);
+          let (l, kids) = ListUtil.split_first(kids);
+          [Post(l, Aba.mk(is, kids)), ...output];
+        | (Concave(_), Concave(_)) =>
+          let (kids, output) = split_kids(chain_len + 1);
+          let (l, kids) = ListUtil.split_first(kids);
+          let (kids, r) = ListUtil.split_last(kids);
+          [Bin(l, Aba.mk(is, kids), r), ...output];
+        };
+      push_output(~prec, {shunted, output});
+    };
+  };
+
+  let push_shunted = ((_, (_, (l, _))) as ip: ip, stacks: stacks): stacks => {
+    let stacks =
+      switch (l) {
+      | Convex => stacks
+      | Concave(prec) => push_output(~prec=Some(prec), stacks)
+      };
+    {...stacks, shunted: [ip, ...stacks.shunted]};
+  };
+
+  let finish = (stacks) => push_output(~prec=None, stacks);
+};
+
+let mk = (seg: list(ip)): t => {
+  let stacks =
+    seg
+    |> List.fold_left(Fun.flip(Stacks.push_shunted), Stacks.empty)
+    |> Stacks.finish;
+  List.hd(stacks.output);
+};
+
+// A row of pieces for `1 + 2 * 3, 4`
+let piece = (tok: string): piece =>
+  switch (tok) {
+  | "+" => (tok, (Concave(Precedence.plus), Concave(Precedence.plus)))
+  | "*" => (tok, (Concave(Precedence.mult), Concave(Precedence.mult)))
+  | "," => (tok, (Concave(Precedence.comma), Concave(Precedence.comma)))
+  | _ => (tok, (Convex, Convex))
+  };
+let row = ["1", "+", "2", "*", "3", ",", "4"];
+
+// Probe the result, or add probes (Cmd/Ctrl-E) inside push_output
+// to watch the stacks as each piece arrives
+mk(List.mapi((i, tok) => (i, piece(tok)), row))
