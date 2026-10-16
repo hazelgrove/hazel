@@ -147,11 +147,13 @@ and let_row = (id: Id.t, pat: Pat.t, def: Exp.t): list(node) =>
   | None => []
   }
 
+/* `module M = …`, or `module M : S = …`: the name under its signature */
 and module_row = (id: Id.t, mpat: MPat.t, def: Exp.t): list(node) =>
   switch (mpat.term) {
   | Var(name) => [
       mk_def(~id, ~binder=(MPat.rep_id(mpat), Sort.MPat), name, def),
     ]
+  | Asc(inner, _) => module_row(id, inner, def)
   | _ => []
   }
 

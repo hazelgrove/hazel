@@ -119,6 +119,8 @@ let use_above_test = () => {
   };
 };
 
+let uses_and_signatures = "type S = {\n  let x : Int\n} in\nuse Nat in\nmodule M : S = {\n  let x = 1\n} in\nuse Nat in\ntest M.x == 1 end;\nM.x";
+
 let cases = [
   test_case(
     "a test added elsewhere leaves a test's path",
@@ -126,6 +128,9 @@ let cases = [
     test_elsewhere,
   ),
   test_case("a use above a test leaves its path", `Quick, use_above_test),
+  test_case("use rows and a module with a signature", `Quick, () =>
+    check_self_resolution("uses and signatures", uses_and_signatures)
+  ),
   test_case(
     "rename moves a slide's keys; delete removes them",
     `Quick,

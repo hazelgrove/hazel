@@ -120,14 +120,23 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
       1;
     | _ => 0
     }
-  and module_row = (id, mpat: MPat.t, def: Exp.t): int =>
-    switch (mpat.term) {
-    | Var(_) =>
+  /* a name, maybe under a signature; the header holds the whole
+     pattern */
+  and module_row = (id, mpat: MPat.t, def: Exp.t): int => {
+    let rec named = (mp: MPat.t) =>
+      switch (mp.term) {
+      | Var(_) => true
+      | Asc(inner, _) => named(inner)
+      | _ => false
+      };
+    if (named(mpat)) {
       def_row(id, MPat.rep_id(mpat), def);
       def_kids(def);
       1;
-    | _ => 0
-    }
+    } else {
+      0;
+    };
+  }
   and of_mod = (items: list(Mod.t)): int =>
     List.fold_left(
       (n, m: Mod.t) =>
@@ -469,6 +478,11 @@ let shapes = [
   (
     "a use in a member's body",
     "module M = {\n  let x =\n    use Nat in\n    1 + 2;\n  let y = 2\n} in\nM.x",
+    0,
+  ),
+  (
+    "a module with a signature",
+    "type S = {\n  let x : Int\n} in\nmodule M : S = {\n  let x = 1;\n  let y = 2\n} in\nM.x",
     0,
   ),
 ];

@@ -866,6 +866,93 @@ b|js}),
   ]);
 };
 
+/* `module M : S = {…}` reads and edits like `module M = {…}`: its row has
+   its members, and ops on it, on its members and moves in and out work
+   the same, keeping the signature */
+let signed_module = () => {
+  let sg = "type S = {\n  let x : Int\n} in\n";
+  let mm = "module M : S = {\n  let x = 1;\n  let y = 2\n} in\n";
+  let m = sg ++ mm ++ "let b = 4 in\nM.x";
+  check(list(string), "its row", ["S", "M{x,y}", "b"], outline(m));
+  let with_members = members =>
+    Some(
+      sg ++ "module M : S = {\n" ++ members ++ "\n} in\nlet b = 4 in\nM.x",
+    );
+  cases([
+    (
+      "new below it",
+      m,
+      "M",
+      op(NewBelow),
+      Some(sg ++ mm ++ {js|let new_def = ¿ in
+let b = 4 in
+M.x|js}),
+    ),
+    (
+      "duplicated",
+      m,
+      "M",
+      op(Duplicate),
+      Some(sg ++ mm ++ mm ++ "let b = 4 in\nM.x"),
+    ),
+    ("moved", m, "M", op(MoveUp), Some(mm ++ sg ++ "let b = 4 in\nM.x")),
+    ("deleted", m, "M", op(Delete), Some(sg ++ "let b = 4 in\nM.x")),
+    (
+      "new below a member",
+      m,
+      "x",
+      op(NewBelow),
+      with_members({js|  let x = 1;
+  let new_def = ¿;
+  let y = 2|js}),
+    ),
+    (
+      "a member moved",
+      m,
+      "x",
+      op(MoveDown),
+      with_members("  let y = 2;\n  let x = 1"),
+    ),
+    (
+      "a member duplicated",
+      m,
+      "x",
+      op(Duplicate),
+      with_members("  let x = 1;\n  let x = 1;\n  let y = 2"),
+    ),
+    ("a member deleted", m, "x", op(Delete), with_members("  let y = 2")),
+    (
+      "a member typed inside",
+      m,
+      "M",
+      inside("z"),
+      with_members({js|  let x = 1;
+  let y = 2;
+  let z = ¿|js}),
+    ),
+    (
+      "b up into it",
+      m,
+      "b",
+      op(MoveUp),
+      Some(
+        sg
+        ++ "module M : S = {\n  let x = 1;\n  let y = 2;\n  let b = 4\n} in\nM.x",
+      ),
+    ),
+    (
+      "y down out of it",
+      m,
+      "y",
+      op(MoveDown),
+      Some(
+        sg
+        ++ "module M : S = {\n  let x = 1\n} in\nlet y = 2 in\nlet b = 4 in\nM.x",
+      ),
+    ),
+  ]);
+};
+
 /* a new test, `test ¿ end`, lands right after its row in its block's
    form, or above it as a run's first */
 let new_tests = () => {
@@ -1159,5 +1246,6 @@ let tests = (
     test_case("moves into a module bound by let", `Quick, into_value_module),
     test_case("in and out again", `Quick, round_trip),
     test_case("use rows", `Quick, use_rows),
+    test_case("a module with a signature", `Quick, signed_module),
   ],
 );
