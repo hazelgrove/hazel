@@ -34,6 +34,9 @@ type def_op =
   | NewBelow
   | NewTypeBelow
   | NewModuleBelow
+  /* a `test ¿ end` below the item, or above it: the first of a run */
+  | NewTestBelow
+  | NewTestAbove
   | Duplicate
   | MoveUp
   | MoveDown
