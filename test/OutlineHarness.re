@@ -37,8 +37,11 @@ let visible =
   Array.of_list(walk(None, [], O.of_term(term)));
 };
 
-/* text mode's state kept as OutlineControl keeps it, minus the program */
-let text_ctl = (state: ref(option(E.t))): S.text_ctl => {
+/* text mode's state kept as OutlineControl keeps it, minus the program;
+   the ops it asks for go to [ops] */
+let text_ctl =
+    (~ops: ref(list((E.def_op, Id.t)))=ref([]), state: ref(option(E.t)))
+    : S.text_ctl => {
   current: state^,
   get: () => state^,
   set: (~placed as _=false, t) => {
@@ -59,7 +62,10 @@ let text_ctl = (state: ref(option(E.t))): S.text_ctl => {
   },
   save: _ => ignore,
   abandon: ignore,
-  op: (_, _) => ignore,
+  op: (op, id) => {
+    ops := [(op, id), ...ops^];
+    ignore;
+  },
   flash: ignore,
   relocate: t => state := Some(t),
   note: _ => (),
@@ -70,7 +76,9 @@ let handlers =
     (
       ~cursor: ref(option(O.path))=ref(None),
       ~text: ref(option(E.t))=ref(None),
+      ~ops: ref(list((E.def_op, Id.t)))=ref([]),
       ~toggle: Id.t => Virtual_dom.Vdom.Effect.t(unit)=none,
+      ~toggle_collapse: O.path => Virtual_dom.Vdom.Effect.t(unit)=none,
       ~def_op: (E.def_op, Id.t) => Virtual_dom.Vdom.Effect.t(unit)=(_, _) =>
                                                                     ignore,
       (),
@@ -80,7 +88,7 @@ let handlers =
   focus: none,
   toggle,
   toggle_run: none,
-  toggle_collapse: none,
+  toggle_collapse,
   zoom_to: none,
   zoom_in: none,
   show_whole: none,
@@ -93,7 +101,7 @@ let handlers =
   },
   focused: ignore,
   leave: ignore,
-  text: text_ctl(text),
+  text: text_ctl(~ops, text),
   menu_open: (_, _, _) => ignore,
   menu_close: ignore,
   menu_select: none,

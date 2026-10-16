@@ -862,6 +862,119 @@ let copy_and_delete = () => {
   reset();
 };
 
+/* ⌥F folds the cursor's row in row mode too; a leaf has nothing to fold */
+let row_mode_fold = () => {
+  let visible = H.visible(term);
+  let cursor = ref(None);
+  let folded = ref([]);
+  let on =
+    H.handlers(
+      ~cursor,
+      ~toggle_collapse=
+        p => {
+          folded := [p, ...folded^];
+          H.ignore;
+        },
+      (),
+    );
+  let press = label => {
+    cursor :=
+      Option.map(
+        (r: Web.OutlineSidebar.visible_row) => r.r_path,
+        Array.find_opt(
+          (r: Web.OutlineSidebar.visible_row) => r.r_node.o_label == label,
+          visible,
+        ),
+      );
+    folded := [];
+    ignore(
+      Web.OutlineSidebar.keys(
+        ~props=H.props(),
+        ~on,
+        ~visible,
+        H.keydown(~alt=true, ~code="KeyF", {js|ƒ|js}),
+      ),
+    );
+    folded^;
+  };
+  let beta = press("beta");
+  check(bool, "beta folds", true, beta == Option.to_list(cursor^));
+  check(bool, "alpha has nothing to fold", true, press("alpha") == []);
+};
+
+/* a test's menu and a tests label's offer a new test: below the test,
+   first of an expanded run, after a folded one */
+let test_menus = () => {
+  let ops = ref([]);
+  let on = H.handlers(~ops, ());
+  let labels = rows =>
+    List.filter_map(
+      (r: Web.OutlineSidebar.menu_row) =>
+        switch (r) {
+        | Item(label, _, _) => Some(label)
+        | Divider => None
+        },
+      rows,
+    );
+  let act = (rows, label) =>
+    List.iter(
+      (r: Web.OutlineSidebar.menu_row) =>
+        switch (r) {
+        | Item(l, _, act) when l == label => ignore(act())
+        | _ => ()
+        },
+      rows,
+    );
+  let tests =
+    List.filter_map(
+      (n: O.node) => n.o_kind == KTest ? n.o_id : None,
+      O.flatten(O.of_term(term)),
+    );
+  let (first, last) = (List.nth(tests, 0), List.nth(tests, 1));
+  let on_test = Web.OutlineSidebar.menu_rows(~on, On_item(first, KTest));
+  check(
+    bool,
+    "a test's menu",
+    true,
+    List.mem("New test below", labels(on_test)),
+  );
+  act(on_test, "New test below");
+  check(bool, "below it", true, ops^ == [(NewTestBelow, first)]);
+  check(
+    bool,
+    "not a definition's",
+    false,
+    List.mem(
+      "New test below",
+      labels(
+        Web.OutlineSidebar.menu_rows(~on, On_item(id("alpha"), KConst)),
+      ),
+    ),
+  );
+  ops := [];
+  act(
+    Web.OutlineSidebar.menu_rows(~on, On_run(first, last, true)),
+    "New test below",
+  );
+  check(
+    bool,
+    "an expanded run: first of it",
+    true,
+    ops^ == [(NewTestAbove, first)],
+  );
+  ops := [];
+  act(
+    Web.OutlineSidebar.menu_rows(~on, On_run(first, last, false)),
+    "New test below",
+  );
+  check(
+    bool,
+    "a folded run: after it",
+    true,
+    ops^ == [(NewTestBelow, last)],
+  );
+};
+
 let tests = (
   "OutlineText",
   [
@@ -882,5 +995,7 @@ let tests = (
     test_case("new tests take the caret", `Quick, new_tests),
     test_case("a module's new first member", `Quick, first_member),
     test_case("copy and delete move the caret", `Quick, copy_and_delete),
+    test_case("⌥F in row mode", `Quick, row_mode_fold),
+    test_case("menus offer a new test", `Quick, test_menus),
   ],
 );
