@@ -134,6 +134,11 @@
 #outline-sidebar .outline-menu-glyph {
   opacity: 0.7;
 }
+/* held to the header's line: ☰'s fallback font is taller than ✎'s, and
+   text mode's switch would move every row */
+#outline-sidebar[open] > summary .outline-menu-glyph {
+  height: 1lh;
+}
 #outline-sidebar .outline-crumb {
   cursor: pointer;
   opacity: 0.65;
@@ -464,14 +469,19 @@
   .outline-label.outline-cursor {
   background: transparent;
 }
+/* the name's text stays where the row draws it: the tint's padding takes
+   no room, and the box is the row's line */
 #outline-sidebar .outline-edit-input {
   font: inherit;
   color: inherit;
-  margin: 0;
+  box-sizing: border-box;
+  height: 1lh;
+  margin: 0 -3px;
   border: none;
   outline: none;
   min-width: 3ch;
   padding: 0 3px;
+  vertical-align: baseline;
   border-radius: 3px;
   background: color-mix(in srgb, var(--shard-selected) 70%, transparent);
   caret-color: var(--text-warning);
@@ -481,8 +491,12 @@
    the caret at the editor's place in it */
 #outline-sidebar .outline-live {
   display: inline-block;
+  box-sizing: border-box;
+  height: 1lh;
   min-width: 3ch;
+  margin: 0 -3px;
   padding: 0 3px;
+  vertical-align: baseline;
   border-radius: 3px;
   background: color-mix(in srgb, var(--shard-selected) 70%, transparent);
   white-space: pre;
