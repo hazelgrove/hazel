@@ -20,6 +20,10 @@ let install = () => {
       Js.to_bytestring(Js.Unsafe.global##atob(Js.string(blob)))
     );
   let baked = timed("decode", () => Language.Library.decode(raw));
-  let baked = timed("reid", () => Language.Library.reid(baked));
-  timed("eval", () => Language.Library.install_baked(baked));
+  Language.Library.install_baked(baked);
 };
+
+/* the definitions evaluated now rather than at the first evaluation: for
+   the worker, which starts with the app and evaluates first thing */
+let evaluate = () =>
+  timed("eval", () => ignore(Language.Builtins.env_init()));

@@ -375,8 +375,12 @@ let start = default_model => {
   };
 };
 
-/* the standard library, before anything computes statics or evaluates */
+/* the standard library's context, before anything computes statics (its
+   definitions evaluate on first use) */
 StdlibBaked.timed("install", StdlibBaked.install);
+/* the worker now, so its load and the library's evaluation there overlap
+   this thread's boot rather than delaying the first result */
+ignore(WorkerClient.get_worker());
 
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()

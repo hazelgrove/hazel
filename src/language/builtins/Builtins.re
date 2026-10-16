@@ -99,7 +99,10 @@ let env_base: Environment.t(Exp.t) =
 /* The Hazel-source standard library (Library.install): its context entries
    go on top of the builtins', its evaluated bindings on top of env_base */
 let library_entries: ref(list(Ctx.entry)) = ref([]);
-let library_env: ref(Environment.t(Exp.t)) = ref(env_base);
+/* lazy: statics need only the entries, and the main thread rarely
+   evaluates */
+let library_env: ref(Lazy.t(Environment.t(Exp.t))) =
+  ref(Lazy.from_val(env_base));
 
 /* one record per mode, so memos keyed on context identity (Statics.mk,
    DefStatics) hit until the library changes */
@@ -107,7 +110,7 @@ let ctx_by_mode: Hashtbl.t(option(Operators.mode), Ctx.t) =
   Hashtbl.create(5);
 
 let install_library =
-    (~entries: list(Ctx.entry), ~env: Environment.t(Exp.t)): unit => {
+    (~entries: list(Ctx.entry), ~env: Lazy.t(Environment.t(Exp.t))): unit => {
   library_entries := entries;
   library_env := env;
   Hashtbl.reset(ctx_by_mode);
@@ -122,7 +125,7 @@ let ctx_init = (use_mode: option(Operators.mode)): Ctx.t =>
     ctx;
   };
 
-let env_init = (): Environment.t(Exp.t) => library_env^;
+let env_init = (): Environment.t(Exp.t) => Lazy.force(library_env^);
 
 /* without the library: what the library's own source is checked against */
 let ctx_base: option(Operators.mode) => Ctx.t = {

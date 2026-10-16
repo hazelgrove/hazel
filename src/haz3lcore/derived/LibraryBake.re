@@ -113,7 +113,11 @@ let of_items =
              {
                hash,
                entries: added.entries,
-               defs: List.map(((x, def)) => (x, compact(def)), defs),
+               defs:
+                 Marshal.to_string(
+                   List.map(((x, def)) => (x, compact(def)), defs),
+                   [],
+                 ),
              }
            )
       }

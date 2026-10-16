@@ -9,32 +9,30 @@ type baked = {
   hash: string,
   /* what the library adds to the context, newest first */
   entries: list(Ctx.entry),
-  /* each top-level definition's elaboration, in order, one shared id
-     throughout (install re-ids it). Evaluated one at a time, so stack
-     depth stays per definition however long the library grows */
-  defs: list((Var.t, Exp.t)),
+  /* Marshal of each top-level definition's elaboration, in order, one
+     shared id throughout (install re-ids it). Decoded and evaluated only
+     when something first evaluates: statics need just the entries */
+  defs: string,
 };
 
 /* [blob]: Marshal'd, not base64 */
 let decode = (blob: string): baked => Marshal.from_string(blob, 0);
 
-/* the elaborations with fresh ids, as evaluation results get */
-let reid = (b: baked): baked => {
-  ...b,
-  defs: List.map(((x, def)) => (x, Exp.replace_all_ids(def)), b.defs),
-};
-
-/* [b] re-id'd */
-let install_baked = (b: baked): unit =>
-  Builtins.install_library(
-    ~entries=b.entries,
-    ~env=
-      List.fold_left(
-        (env, (x, def)) =>
-          Environment.extend(env, (x, Evaluator.evaluate_raw(~env, def))),
-        Builtins.env_base,
-        b.defs,
+/* the definitions evaluated in order, each on its own, so stack depth
+   stays per definition however long the library grows; fresh ids, as
+   evaluation results get */
+let env_of = (defs: string): Environment.t(Exp.t) =>
+  List.fold_left(
+    (env, (x, def)) =>
+      Environment.extend(
+        env,
+        (x, Evaluator.evaluate_raw(~env, Exp.replace_all_ids(def))),
       ),
+    Builtins.env_base,
+    Marshal.from_string(defs, 0): list((Var.t, Exp.t)),
   );
 
-let install = (blob: string): unit => install_baked(reid(decode(blob)));
+let install_baked = (b: baked): unit =>
+  Builtins.install_library(~entries=b.entries, ~env=lazy(env_of(b.defs)));
+
+let install = (blob: string): unit => install_baked(decode(blob));

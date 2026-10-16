@@ -38,10 +38,9 @@ let () =
         );
       prerr_endline(
         Printf.sprintf(
-          "bake: %d definitions; entries %s, elab %s; segment %s",
-          List.length(baked.defs),
+          "bake: entries %s, definitions %dKB; segment %s",
           kb(baked.entries),
-          kb(baked.defs),
+          String.length(baked.defs) / 1024,
           kb(segment),
         ),
       );
