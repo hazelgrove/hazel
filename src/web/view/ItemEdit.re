@@ -695,13 +695,13 @@ let into_empty =
       : None;
   };
 
-/* append [member] to module [fid]'s body, at any depth */
+/* [member] into module [fid]'s body, at any depth: last, or [first] */
 let new_inside =
-    (~member: string, fid: Id.t, seg: Segment.t)
+    (~first=false, ~member: string, fid: Id.t, seg: Segment.t)
     : option((Segment.t, option(Id.t))) =>
   Option.bind(member_core(member), item =>
     (
-      switch (into_members(fid, item, seg)) {
+      switch (into_members(~first, fid, item, seg)) {
       | Some(_) as r => r
       | None => into_empty(fid, item, seg)
       }
@@ -880,7 +880,9 @@ type t =
      `module Name` */
   | Insert(Id.t, string)
   /* the same, last inside a module */
-  | InsertInside(Id.t, string);
+  | InsertInside(Id.t, string)
+  /* or first */
+  | InsertFirst(Id.t, string);
 
 /* a typed name and the kind its keyword picks */
 let typed_name = (text: string): (OutlineTree.kind, string) => {
@@ -940,7 +942,8 @@ let edit =
     )
     |> Result.map(~f=seg => (seg, Some(row)))
   | Insert(at, text)
-  | InsertInside(at, text) =>
+  | InsertInside(at, text)
+  | InsertFirst(at, text) =>
     let (kind, name) = typed_name(text);
     let (rkind, op): (OutlineRename.kind, OutlineEdit.def_op) =
       switch (kind) {
@@ -955,6 +958,8 @@ let edit =
         switch (e) {
         | InsertInside(_) =>
           new_inside(~member=template(rkind, name), at, seg)
+        | InsertFirst(_) =>
+          new_inside(~first=true, ~member=template(rkind, name), at, seg)
         | _ => apply(~name, ~mod_root=ctx.mod_root, op, at, seg)
         }
       )
