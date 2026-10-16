@@ -1281,7 +1281,16 @@ let rule_chain_spans =
              | Tile(t) => Tile.is_case_rule(t) && Tile.is_complete(t)
              | _ => false
              }
-           );
+           )
+        /* a Reason rule list (led by a prefix rule) always has an owner
+           (switch braces or `fun`): never an orphan */
+        && !
+             List.exists(
+               fun
+               | Piece.Tile({form: Compound(RulePre), _}) => true
+               | _ => false,
+               ps,
+             );
       all_rules
         ? switch (List.hd(ps)) {
           | Piece.Tile(t) => Some(Id.next(t.id))
