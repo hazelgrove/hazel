@@ -664,7 +664,17 @@ let view =
             text := Some(E.at(line, ~col, ~pending?, ~seq=next_seq()));
             created := None;
             flash := 0;
-            Effect.Many([save(req, Stay), redraw]);
+            /* a new member's line unfolds its module, where it lands */
+            let unfold =
+              switch (line) {
+              | New(m, First | Last) =>
+                switch (OutlineTree.label_path(m, term)) {
+                | Some(p) when List.mem(p, collapsed) => inject(Collapse(p))
+                | _ => Effect.Ignore
+                }
+              | _ => Effect.Ignore
+              };
+            Effect.Many([save(req, Stay), unfold, redraw]);
           },
           go: (~discard=false, line, col, col_target) => {
             let req = discard ? None : Option.bind(text^, save_of);
