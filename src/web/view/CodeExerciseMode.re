@@ -386,7 +386,11 @@ module Update = {
           || action
           |> (
             fun
-            | ResultAction(UpdateResult(_)) => true
+            | ResultAction(
+                UpdateResult(_) | UpdateStreamingEval(_) |
+                MergeStreamingEval(_),
+              ) =>
+              true
             | _ => false
           ) =>
       let cell = CodeExercise.get_stitched(pos, model.cells);
