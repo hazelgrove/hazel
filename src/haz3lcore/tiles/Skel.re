@@ -32,7 +32,10 @@ let is_chainable = (p1: Piece.t, p2: Piece.t): bool =>
       Mold.is_infix_op(Tile.mold(t1)) && Mold.is_infix_op(Tile.mold(t2));
     switch (t1.form, t2.form) {
     /* case rules chain with each other and their case header */
-    | (Form.Compound(Case | Rule), Form.Compound(Rule)) => true
+    | (Form.Compound(Case | Rule | RulePre), Form.Compound(Rule)) => true
+    /* Reason sum types: `| A | B` */
+    | (Form.Compound(ReSumBar | ReSumBarPre), Form.Compound(ReSumBar)) =>
+      true
     | (Form.Compound(Comma), Form.Compound(Comma)) => both_infix()
     /* semicolons chain within a module or signature body */
     | (Form.Compound(CellJoin), Form.Compound(CellJoin)) =>

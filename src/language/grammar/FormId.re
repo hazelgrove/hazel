@@ -140,7 +140,23 @@ type family =
   | ModType
   | ModuleExp
   | ModuleMod
-  | SigLet;
+  | SigLet
+  /* ReasonML surface families (live only when Surface.current is
+   * Reason; see Form.reason_rows_of) */
+  | ReLet
+  | ReType
+  | ReSwitch
+  | RulePre
+  | ReFun
+  | ReArrow
+  | ReIf
+  | ReElse
+  | BraceAp
+  | ReSpread
+  | ReField
+  | ReSumBar
+  | ReSumBarPre
+  | ReRec;
 
 /* A form identity, sort-free: label is derived from the form alone;
  * the mold is derived from (form, sort) where sort is the tile's
@@ -257,7 +273,21 @@ let label_of_family: family => Label.t =
   | ModType => ["type", "="]
   | ModuleExp => ["module", "=", "in"]
   | ModuleMod => ["module", "="]
-  | SigLet => ["let"];
+  | SigLet => ["let"]
+  | ReLet => ["let", "=", ";"]
+  | ReType => ["type", "=", ";"]
+  | ReSwitch => ["switch", "{", "}"]
+  | RulePre => ["|", "=>"]
+  | ReFun => ["fun"]
+  | ReArrow => ["=>"]
+  | ReIf => ["if"]
+  | ReElse => ["else"]
+  | BraceAp => Token.mod_lbl
+  | ReSpread => ["..."]
+  | ReField => [":"]
+  | ReSumBar => ["|"]
+  | ReSumBarPre => ["|"]
+  | ReRec => ["rec"];
 
 let label_of: t => Label.t =
   fun

@@ -95,6 +95,12 @@ let fun_ = 37;
 
 let lab = 39;
 
+/* ReasonML arrow functions `(x) => e` (and arrow types): looser than
+   `:` so `(x): int => e` annotates the parameters, tighter than `,`
+   so `List.map(x => e, xs)` keeps the list out of the body; equal on
+   both sides and right-associative so `a => b => c` curries. */
+let re_arrow = 40 |> right_associative;
+
 let case_ = 42;
 
 let comma = 44;
@@ -102,6 +108,12 @@ let comma = 44;
 /* Let looser than commas so can do `let x = 1 in x, x */
 let let_ = 45;
 // let x = 3 in _____
+
+/* ReasonML `;`: the block statement separator, looser than `,` and
+   level with `let ... ;` so `let x = 1; a; b` keeps `a; b` as the
+   let body. `else` sits just inside `if`. */
+let re_seq = let_;
+let re_else = semi;
 
 /* Rules looser than commas so can do `case a,b | _ => ... */
 let rule_sep = 46;

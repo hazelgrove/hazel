@@ -162,18 +162,79 @@ let shape_affix =
   go((d == Left ? List.rev : Fun.id)(affix), r);
 };
 
+/* The extent of the left operand of the infix tile at index i of seg,
+   as the index where it starts: walk left while precedence lets the
+   tile's left nib reach (for pre-remold segments this is a heuristic
+   shunting walk over shapes, not a full skel). */
+let left_operand_start = (seg: array(Piece.t), i: int, prec: Precedence.t) => {
+  let rec go = (k: int, need_operand: bool): int =>
+    if (k < 0) {
+      0;
+    } else {
+      switch (seg[k]) {
+      | Secondary(_) => go(k - 1, need_operand)
+      | Grout({shape: Convex, _}) => need_operand ? go(k - 1, false) : k + 1
+      | Grout({shape: Concave, _}) => need_operand ? k + 1 : go(k - 1, true)
+      | Projector(_) => need_operand ? go(k - 1, false) : k + 1
+      | Tile(t) =>
+        let (l, r) = Tile.shapes(t);
+        switch (need_operand, r) {
+        | (true, Convex) => go(k - 1, l != Convex)
+        | (true, Concave(_)) => k + 1
+        | (false, Concave(p)) when p < prec => go(k - 1, l != Convex)
+        | (false, _) => k + 1
+        };
+      };
+    };
+  go(i - 1, true);
+};
+
+let is_reason_arrow = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile({form: Compound(ReArrow), _} as t) => Tile.mold(t).out == Exp
+  | _ => false
+  };
+
 let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   switch (s) {
   | Drv(_) => remold_template(s, shape, seg)
   | Any => seg
   | Typ => remold_typ(shape, seg)
   | Pat => remold_pat(shape, seg)
-  | Exp => remold_exp(shape, seg)
-  | Rul => remold_rul(shape, seg)
+  | Exp => remold_exp(shape, seg) |> remold_arrow_params
+  | Rul => remold_rul(shape, seg) |> remold_arrow_params
   | TPat => remold_tpat(shape, seg)
   | Mod => remold_mod(shape, seg)
   | Sig => remold_sig(shape, seg)
   | MPat => remold_mpat(shape, seg)
+  }
+/* ReasonML arrow functions `(x, y) => e` put a pattern to the LEFT of
+   `=>`, but remolding runs left to right, so the parameters arrive
+   molded as an expression. Once an arrow is in place, remold its left
+   operand (as far as the arrow's precedence reaches) as a pattern. */
+and remold_arrow_params = (seg: t): t =>
+  if (!List.exists(is_reason_arrow, seg)) {
+    seg;
+  } else {
+    let arr = Array.of_list(seg);
+    let out = ref([]);
+    let consumed = ref(0);
+    Array.iteri(
+      (i, p) =>
+        if (is_reason_arrow(p)) {
+          let start =
+            max(consumed^, left_operand_start(arr, i, Precedence.re_arrow));
+          let before = Array.sub(arr, consumed^, start - consumed^);
+          let params = Array.sub(arr, start, i - start) |> Array.to_list;
+          out := out^ @ Array.to_list(before) @ remold(params, Pat) @ [p];
+          consumed := i + 1;
+        },
+      arr,
+    );
+    out^
+    @ Array.to_list(
+        Array.sub(arr, consumed^, Array.length(arr) - consumed^),
+      );
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;

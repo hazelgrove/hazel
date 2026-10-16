@@ -133,7 +133,28 @@ let keywords = [
   "module",
 ];
 
-let is_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
+let reason_keywords = [
+  "let",
+  "rec",
+  "and",
+  "in",
+  "type",
+  "switch",
+  "fun",
+  "if",
+  "else",
+  "module",
+  "open",
+  "when",
+  "as",
+  "of",
+];
+
+let is_hazel_keyword = match(regexp("^(" ++ concat("|", keywords) ++ ")$"));
+let is_reason_keyword =
+  match(regexp("^(" ++ concat("|", reason_keywords) ++ ")$"));
+let is_keyword = t =>
+  Surface.is_reason() ? is_reason_keyword(t) : is_hazel_keyword(t);
 
 /* ASCII identifier-ish character classes (byte-based; a non-ASCII
  * leading byte counts as non-wordish) */
@@ -308,9 +329,21 @@ let quote_label_when_necessary = (l: string): string =>
  * plus "Void" and the Drv* names recognized as DrvQuoteTy(sort).
  * Derived from BaseAtom.table, the single home for these spellings. */
 let base_typs = BaseAtom.base_typs;
-let is_base_typ = match(regexp("^(" ++ concat("|", base_typs) ++ ")$"));
+let is_hazel_base_typ =
+  match(regexp("^(" ++ concat("|", base_typs) ++ ")$"));
+let is_reason_base_typ =
+  match(
+    regexp("^(" ++ concat("|", BaseAtom.base_typs_of(Reason)) ++ ")$"),
+  );
+let is_base_typ = t =>
+  Surface.is_reason() ? is_reason_base_typ(t) : is_hazel_base_typ(t);
+/* ReasonML type variables: 'a, 'elt */
+let is_quoted_typ_var = match(regexp("^'[a-z_][A-Za-z0-9_']*$"));
 let is_typ_var = str =>
-  is_var(str) || unicode_match(capitalized_name_regexp, str);
+  is_var(str)
+  || unicode_match(capitalized_name_regexp, str)
+  || Surface.is_reason()
+  && is_quoted_typ_var(str);
 
 /* List literals */
 let list_start = "[";

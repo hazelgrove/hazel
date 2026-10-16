@@ -302,14 +302,113 @@ let rows_of: family => list(row) =
     ]
   | ModuleExp => [mk_pre_c'(L, P.let_, Exp, [MPat, Exp], Exp)]
   | ModuleMod => [mk_pre_c'(L, P.let_, Mod, [MPat], Exp)]
-  | SigLet => [mk_pre_c'(L, P.let_, Sig, [], Pat)];
+  | SigLet => [mk_pre_c'(L, P.let_, Sig, [], Pat)]
+  | ReLet
+  | ReType
+  | ReSwitch
+  | RulePre
+  | ReFun
+  | ReArrow
+  | ReIf
+  | ReElse
+  | BraceAp
+  | ReSpread
+  | ReField
+  | ReSumBar
+  | ReSumBarPre
+  | ReRec => [];
+
+/* The ReasonML surface's rows. Families shared with Hazel keep their
+ * meaning but may live at fewer sorts or other precedences (`;` is
+ * the loose block separator, `:` in expressions is a record field
+ * since Reason parenthesizes ascriptions); Hazel-only spellings
+ * (`fun ->`, `case end`, `let in`, `+` sums, `::`, ...) have no rows,
+ * so their tokens mold as plain operands/operators. */
+let reason_rows_of: family => list(row) =
+  fun
+  | CellJoin => [mk_infix(Exp, P.re_seq)]
+  | Plus => [mk_infix(Exp, P.plus)]
+  | Minus => [mk_infix(Exp, P.plus)]
+  | Times => [mk_infix(Exp, P.mult)]
+  | Divide => [mk_infix(Exp, P.mult)]
+  | Equals => [mk_infix(Exp, P.eqs)]
+  | StringConcat => [mk_infix(Exp, P.concat)]
+  | Lt
+  | Gt
+  | NotEquals
+  | Gte
+  | Lte => [mk_infix(Exp, P.eqs)]
+  | FPlus
+  | FMinus => [mk_infix(Exp, P.plus)]
+  | FTimes
+  | FDivide => [mk_infix(Exp, P.mult)]
+  | LogicalAnd => [mk_infix(Exp, P.and_)]
+  | LogicalOr => [mk_infix(Exp, P.or_)]
+  | ListConcat => [mk_infix(Exp, P.concat)]
+  | TypeAsc => [mk_infix(Pat, ~l=Pat, ~r=Typ, P.asc)]
+  | Dot => [mk_infix(Exp, P.dot), mk_infix(Typ, P.dot)]
+  | Not => [mk_prefix(Exp, P.not_)]
+  | UnaryMinus => [mk_prefix(Exp, P.neg), mk_prefix(Pat, P.neg)]
+  | Comma => [
+      mk_infix(Exp, P.comma),
+      mk_infix(Pat, P.comma),
+      mk_infix(Typ, P.comma),
+    ]
+  | ListLit => [mk_op_c(LT, Exp, [Exp]), mk_op_c(LT, Pat, [Pat])]
+  | Parens => [
+      mk_parens(Exp),
+      mk_parens(Pat),
+      mk_parens(Typ),
+      mk_parens(TPat),
+    ]
+  | ApEmpty => [mk_post_c(LT, P.ap, Exp, [])]
+  | Ap => [
+      mk_post_c(LT, P.ap, Exp, [Exp]),
+      mk_post_c(LT, P.ap, Pat, [Pat]),
+      mk_post_c(LT, P.type_sum_ap, Typ, [Typ]),
+      mk_post_c(LT, P.ap, TPat, [TPat]),
+    ]
+  | Rule => [mk(L, Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))]
+  | Pipeline => [mk_infix(Exp, P.eqs)]
+  /* Braces: blocks and records (record types and patterns too) */
+  | ModBody => [
+      mk_op_c(LT, Exp, [Exp]),
+      mk_op_c(LT, Pat, [Pat]),
+      mk_op_c(LT, Typ, [Typ]),
+    ]
+  | ReLet => [mk_pre_c(L, P.let_, Exp, [Pat, Exp])]
+  | ReType => [mk_pre_c(L, P.let_, Exp, [TPat, Typ])]
+  | ReSwitch => [mk_op_c(L, Exp, [Exp, Rul])]
+  /* The first rule of a switch/fun body has no left operand */
+  | RulePre => [mk(L, Mold.mk_pre'(P.rule_sep, Rul, [Pat], Exp))]
+  | ReFun => [mk(Non, Mold.mk_pre'(P.rule_sep, Exp, [], Rul))]
+  | ReArrow => [
+      mk(Non, Mold.mk_bin'(P.re_arrow, Exp, Pat, [], Exp)),
+      mk_infix(Typ, P.re_arrow),
+    ]
+  | ReIf => [mk_prefix(Exp, P.if_)]
+  | ReElse => [mk_infix(Exp, P.re_else)]
+  /* `if (c) {a}`: a block applied to the condition */
+  | BraceAp => [mk_post_c(LT, P.ap, Exp, [Exp])]
+  | ReSpread => [mk_prefix(Exp, P.neg), mk_prefix(Pat, P.neg)]
+  | ReField => [mk_infix(Exp, P.lab), mk_infix(Typ, P.lab)]
+  | ReSumBar => [mk_infix(Typ, P.type_plus)]
+  | ReSumBarPre => [mk_prefix(Typ, P.type_plus)]
+  | ReRec => [mk_prefix(Pat, P.ap)]
+  | _ => [];
+
+let rows_for = (s: Surface.t, fam: family): list(row) =>
+  switch (s) {
+  | Hazel => rows_of(fam)
+  | Reason => reason_rows_of(fam)
+  };
 
 /* Join a family's rows with its label (FormId.label_of_family, the
  * label's single home). Failfast: a mold whose child count disagrees
  * with the label's delimiter count would be a malformed form. */
-let defs_of_rows = (fam: family): list(def) => {
+let defs_of_rows = (s: Surface.t, fam: family): list(def) => {
   let label = label_of_family(fam);
-  rows_of(fam)
+  rows_for(s, fam)
   |> List.map(((expansion, mold): row) => {
        if (List.length(mold.in_) + 1 != List.length(label)) {
          failwith(
@@ -354,16 +453,38 @@ let same_label_rank = (fam: family, out: Sort.t): int =>
   /* ["|-"]: bin Entail over prefix UnaryEntail */
   | (Entail, _) => 0
   | (UnaryEntail, _) => 1
+  /* Reason: ["{","}"] block over postfix block-ap; ["|","=>"] infix
+   * rule over the leading rule; ["|"] infix sum bar over the leading
+   * bar (remold shape-fitting picks the prefix ones at a left edge) */
+  | (ModBody, _) => 0
+  | (BraceAp, _) => 1
+  | (Rule, _) => 0
+  | (RulePre, _) => 1
+  | (ReSumBar, _) => 0
+  | (ReSumBarPre, _) => 1
   | _ => 0
   };
 
 /* The flat form table: every family's rows, in family declaration
  * order. This order is immaterial (see same_label_rank); consumers
  * needing candidate order go through compound_defs. */
-let forms: list((family, def)) =
+let forms_of = (s: Surface.t): list((family, def)) =>
   List.concat_map(
-    fam => defs_of_rows(fam) |> List.map(def => (fam, def)),
+    fam => defs_of_rows(s, fam) |> List.map(def => (fam, def)),
     all_of_family,
+  );
+
+/* The current surface's table. Tables derived from it below are
+ * likewise built once per surface (Surface.memo builds a surface's
+ * value only while that surface is current). */
+let forms: unit => list((family, def)) = Surface.memo(forms_of);
+
+/* Every delimiter token of the current surface's compound forms */
+let delims: unit => list(Token.t) =
+  Surface.memo(_ =>
+    forms()
+    |> List.concat_map(((_, {label, _}: def)) => label)
+    |> List.sort_uniq(compare)
   );
 
 /* These are tokens that have proven annoying as TyDi suggestions.
@@ -379,8 +500,8 @@ let is_annoying_delim = List.mem(_, annoying_delims);
  * when you're entering e.g. the `in` in a let, you don't get
  * disruptive switching between a convex variable and concaved
  * delimiter */
-let infix_delimiter_ops_prefixes: list(Token.t) =
-  forms
+let infix_delimiter_ops_prefixes_of = _: list(Token.t) =>
+  forms()
   |> List.filter_map(((_, form: def)) => {
        switch ((form.mold.nibs |> snd).shape) {
        /* Only NON-leading delimiters contribute prefixes. A
@@ -410,8 +531,8 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
  * the alphanumeric set above: leading delimiters and the complete
  * tokens themselves are excluded, since complete symbolic operators
  * have real molds that must govern. */
-let symbolic_delim_prefixes: list(Token.t) =
-  forms
+let symbolic_delim_prefixes_of = _: list(Token.t) =>
+  forms()
   |> List.filter_map(((_, {label, _}: def)) =>
        List.length(label) >= 2 ? Some(List.tl(label)) : None
      )
@@ -426,12 +547,23 @@ let symbolic_delim_prefixes: list(Token.t) =
    closure-private, built once at module init — NOT inlined into a
    Hashtbl.mem(..., _) partial application, whose desugaring would
    rebuild it on every call. */
-let is_infix_delimiter_op_prefix: Token.t => bool = {
-  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
-  List.iter(t => Hashtbl.replace(tbl, t, ()), infix_delimiter_ops_prefixes);
-  List.iter(t => Hashtbl.replace(tbl, t, ()), symbolic_delim_prefixes);
-  t => Hashtbl.mem(tbl, t);
-};
+let symbolic_delim_prefixes: unit => list(Token.t) =
+  Surface.memo(symbolic_delim_prefixes_of);
+let infix_delimiter_prefix_tbl: unit => Hashtbl.t(Token.t, unit) =
+  Surface.memo(s => {
+    let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
+    List.iter(
+      t => Hashtbl.replace(tbl, t, ()),
+      infix_delimiter_ops_prefixes_of(s),
+    );
+    List.iter(
+      t => Hashtbl.replace(tbl, t, ()),
+      symbolic_delim_prefixes_of(s),
+    );
+    tbl;
+  });
+let is_infix_delimiter_op_prefix = (t: Token.t): bool =>
+  Hashtbl.mem(infix_delimiter_prefix_tbl(), t);
 
 /* Backup molds handed to delimiter prefixes in operator position. Mold
    identity, not token, is what tells a backup-molded `-` (pending `->`)
@@ -448,7 +580,8 @@ let is_infix_delimiter_prefix_mold = (m: Mold.t): bool =>
 /* Tokens that appear both as single-token labels and in other forms labels.
  * These have special put-down behavior to make sure we can actually enter
  * the single-delimiter variant during left-to-right entry */
-let amiguous_polymorphs: list(Token.t) = {
+let amiguous_polymorphs_of = _: list(Token.t) => {
+  let forms = forms();
   let single_token_labels =
     forms
     |> List.filter_map(((_, {label, _})) =>
@@ -470,11 +603,14 @@ let amiguous_polymorphs: list(Token.t) = {
   single_token_labels |> List.filter(appears_in_other_forms);
 };
 
-let is_ambiguous_polymorph: Token.t => bool = {
-  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(16);
-  List.iter(t => Hashtbl.replace(tbl, t, ()), amiguous_polymorphs);
-  t => Hashtbl.mem(tbl, t);
-};
+let ambiguous_polymorph_tbl: unit => Hashtbl.t(Token.t, unit) =
+  Surface.memo(s => {
+    let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(16);
+    List.iter(t => Hashtbl.replace(tbl, t, ()), amiguous_polymorphs_of(s));
+    tbl;
+  });
+let is_ambiguous_polymorph = (t: Token.t): bool =>
+  Hashtbl.mem(ambiguous_polymorph_tbl(), t);
 
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   fun
@@ -562,21 +698,28 @@ module Expansion = {
   };
 
   /* Sort-agnostic expansions (kept for is_leading) */
-  let expansions: expansions =
-    List.filter_map(((_, form: def)) => expanding_of(form), forms)
-    |> List.flatten
-    |> List.sort_uniq(compare);
+  let expansions: unit => expansions =
+    Surface.memo(_ =>
+      List.filter_map(((_, form: def)) => expanding_of(form), forms())
+      |> List.flatten
+      |> List.sort_uniq(compare)
+    );
 
   /* Sort-aware expansions */
-  let sorted_expansions: sorted_expansions =
-    List.filter_map(((_, form: def)) => sorted_expanding_of(form), forms)
-    |> List.flatten;
+  let sorted_expansions: unit => sorted_expansions =
+    Surface.memo(_ =>
+      List.filter_map(
+        ((_, form: def)) => sorted_expanding_of(form),
+        forms(),
+      )
+      |> List.flatten
+    );
 
   /* Try to get expansion for a token in a specific sort context.
      Returns None if no expansion exists for this sort. */
   let try_get = (sort: Sort.t, t: Token.t): option((Label.t, Direction.t)) => {
     let matching =
-      sorted_expansions
+      sorted_expansions()
       |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
     switch (matching) {
     | Some((_, _, lbl, dir)) => Some((lbl, dir))
@@ -591,7 +734,7 @@ module Expansion = {
      direct forms for things like parens. Other sorts remain strict. */
   let get = (sort: Sort.t, t: Token.t): (Label.t, Direction.t) => {
     let matching =
-      sorted_expansions
+      sorted_expansions()
       |> List.find_opt(((tok, s, _, _)) => tok == t && s == sort);
     switch (matching) {
     | Some((_, _, lbl, dir)) => (lbl, dir)
@@ -601,7 +744,7 @@ module Expansion = {
         /* Rul context: fall back to any expansion since rules contain
            Exp/Pat operands but have no direct operand forms. */
         let any_match =
-          sorted_expansions |> List.find_opt(((tok, _, _, _)) => tok == t);
+          sorted_expansions() |> List.find_opt(((tok, _, _, _)) => tok == t);
         switch (any_match) {
         | Some((_, _, lbl, dir)) => (lbl, dir)
         | None => ([t], Right)
@@ -613,7 +756,7 @@ module Expansion = {
 
   /* Check if token is a leading delimiter in ANY sort (sort-agnostic) */
   let is_leading = (t: Token.t): bool =>
-    switch (List.assoc_opt(t, expansions)) {
+    switch (List.assoc_opt(t, expansions())) {
     | Some((_, Left)) => true
     | _ => false
     };
@@ -645,45 +788,50 @@ let atomic_candidates_uncached = (t: Token.t): list((t, Mold.t)) =>
 /* Memoized per token: accessors derive Tok molds on every read, and
  * the predicate scan above is the expensive part. Token sets are
  * session-bounded. */
-let atomic_candidates_tbl: Hashtbl.t(Token.t, list((t, Mold.t))) =
-  Hashtbl.create(1024);
-let atomic_candidates = (t: Token.t): list((t, Mold.t)) =>
-  switch (Hashtbl.find_opt(atomic_candidates_tbl, t)) {
+let atomic_candidates_tbl: unit => Hashtbl.t(Token.t, list((t, Mold.t))) =
+  Surface.memo(_ => Hashtbl.create(1024));
+let atomic_candidates = (t: Token.t): list((t, Mold.t)) => {
+  let tbl = atomic_candidates_tbl();
+  switch (Hashtbl.find_opt(tbl, t)) {
   | Some(c) => c
   | None =>
     let c = atomic_candidates_uncached(t);
-    Hashtbl.replace(atomic_candidates_tbl, t, c);
+    Hashtbl.replace(tbl, t, c);
     c;
   };
+};
 
 /* label => (family, mold) pairs in candidate order: same_label_rank
  * first (stable, so ties keep declaration order), memoized. */
-let compound_defs: Label.t => list((family, Mold.t)) = {
-  let tbl: Hashtbl.t(Label.t, list((family, Mold.t))) =
-    Hashtbl.create(256);
-  List.iter(
-    ((fam, {label, mold, _}: def)) => {
-      let prev = Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
-      Hashtbl.replace(tbl, label, prev @ [(fam, mold)]);
-    },
-    forms,
-  );
-  Hashtbl.filter_map_inplace(
-    (_, rows) =>
-      Some(
-        List.stable_sort(
-          ((f1, m1: Mold.t), (f2, m2: Mold.t)) =>
-            compare(
-              same_label_rank(f1, m1.out),
-              same_label_rank(f2, m2.out),
-            ),
-          rows,
+let compound_defs_tbl: unit => Hashtbl.t(Label.t, list((family, Mold.t))) =
+  Surface.memo(_ => {
+    let tbl: Hashtbl.t(Label.t, list((family, Mold.t))) =
+      Hashtbl.create(256);
+    List.iter(
+      ((fam, {label, mold, _}: def)) => {
+        let prev = Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
+        Hashtbl.replace(tbl, label, prev @ [(fam, mold)]);
+      },
+      forms(),
+    );
+    Hashtbl.filter_map_inplace(
+      (_, rows) =>
+        Some(
+          List.stable_sort(
+            ((f1, m1: Mold.t), (f2, m2: Mold.t)) =>
+              compare(
+                same_label_rank(f1, m1.out),
+                same_label_rank(f2, m2.out),
+              ),
+            rows,
+          ),
         ),
-      ),
-    tbl,
-  );
-  label => Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
-};
+      tbl,
+    );
+    tbl;
+  });
+let compound_defs = (label: Label.t): list((family, Mold.t)) =>
+  Option.value(Hashtbl.find_opt(compound_defs_tbl(), label), ~default=[]);
 
 /* Candidate order breaks ties among junction-fitting molds during
  * remolding and picks the classified form, so the InfixDelimiterPrefix
@@ -705,7 +853,11 @@ let base_candidates = (label: Label.t): list((t, Mold.t)) => {
       };
     let (backups, atomics) =
       List.partition(is_backup, atomic_candidates(t));
-    atomics @ compounds @ backups;
+    /* Reason's single-word keyword forms (`if`, `else`, `fun`, `rec`)
+     * are reserved: they outrank the identifier classes. (Hazel's
+     * keywords are all multi-token and claimed by expansion instead.) */
+    Surface.is_reason() && compounds != [] && Token.is_var(t)
+      ? compounds @ atomics @ backups : atomics @ compounds @ backups;
   | _ => compounds
   };
 };
@@ -717,35 +869,50 @@ let base_molds = (label: Label.t): list(Mold.t) =>
 /* Rows, labels, and (family, out-sort) molds are built once at
  * startup; accessors below are single table lookups. defs_tbl groups
  * the flat table by family (rows in defs_of_rows order). */
-let defs_tbl: Hashtbl.t(family, list(def)) = {
-  let tbl = Hashtbl.create(128);
-  List.iter(
-    f =>
-      Hashtbl.replace(
-        tbl,
-        f,
-        forms |> List.filter(((g, _)) => g == f) |> List.map(snd),
-      ),
-    all_of_family,
-  );
-  tbl;
-};
-let defs_of = (fam: family): list(def) => Hashtbl.find(defs_tbl, fam);
-let family_mold_tbl: Hashtbl.t((family, Sort.t), Mold.t) = {
-  let tbl = Hashtbl.create(256);
-  List.iter(
-    f =>
-      List.iter(
-        (def: def) =>
-          if (!Hashtbl.mem(tbl, (f, def.mold.out))) {
-            Hashtbl.add(tbl, (f, def.mold.out), def.mold);
-          },
-        defs_of(f),
-      ),
-    all_of_family,
-  );
-  tbl;
-};
+let defs_tbl: unit => Hashtbl.t(family, list(def)) =
+  Surface.memo(_ => {
+    let tbl = Hashtbl.create(128);
+    let forms = forms();
+    List.iter(
+      f =>
+        Hashtbl.replace(
+          tbl,
+          f,
+          forms |> List.filter(((g, _)) => g == f) |> List.map(snd),
+        ),
+      all_of_family,
+    );
+    tbl;
+  });
+let defs_of = (fam: family): list(def) => Hashtbl.find(defs_tbl(), fam);
+/* (family, sort) -> mold over BOTH surfaces' rows, current surface
+ * first: a tile keeps its mold even when it was built under the other
+ * surface (e.g. Hazel-built syntax inspected while Reason is current) */
+let family_mold_tbl: unit => Hashtbl.t((family, Sort.t), Mold.t) =
+  Surface.memo(s => {
+    let tbl = Hashtbl.create(256);
+    let other =
+      switch (s) {
+      | Hazel => Surface.Reason
+      | Reason => Hazel
+      };
+    List.iter(
+      sfc =>
+        List.iter(
+          f =>
+            List.iter(
+              (def: def) =>
+                if (!Hashtbl.mem(tbl, (f, def.mold.out))) {
+                  Hashtbl.add(tbl, (f, def.mold.out), def.mold);
+                },
+              defs_of_rows(sfc, f),
+            ),
+          all_of_family,
+        ),
+      [s, other],
+    );
+    tbl;
+  });
 
 let unmolded_mold = (label: Label.t, sort: Sort.t): Mold.t =>
   switch (label) {
@@ -767,7 +934,7 @@ let unmolded_mold = (label: Label.t, sort: Sort.t): Mold.t =>
 let mold_of = (f: t, sort: Sort.t): Mold.t =>
   switch (f) {
   | Compound(fam) =>
-    switch (Hashtbl.find_opt(family_mold_tbl, (fam, sort))) {
+    switch (Hashtbl.find_opt(family_mold_tbl(), (fam, sort))) {
     | Some(mold) => mold
     /* parens wrap one child at every sort, but the family table only
      * registers rows at the grammar's declared sorts; the childless

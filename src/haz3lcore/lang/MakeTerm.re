@@ -163,7 +163,7 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
     (ts: list(tile))
     |> List.map(
          fun
-         | (_, (F(Compound(Rule)), [Pat(p)])) => Some(p)
+         | (_, (F(Compound(Rule | RulePre)), [Pat(p)])) => Some(p)
          | _ => None: tile => option(TermBase.pat_t),
        )
     |> OptUtil.sequence
@@ -457,6 +457,10 @@ let is_ctr_headed: Any.t => bool =
   | Typ({term: Var(name), _}) => Token.is_ctr(name)
   | _ => false;
 
+let is_typ_kid: Any.t => bool =
+  fun
+  | Typ(_) => true
+  | _ => false;
 let is_exp_kid: Any.t => bool =
   fun
   | Exp(_) => true
@@ -465,6 +469,147 @@ let is_pat_kid: Any.t => bool =
   fun
   | Pat(_) => true
   | _ => false;
+
+/* ReasonML surface helpers.
+
+   `[x, ...xs]` / `{...r}`: the spread prefix makes a parens-like term
+   whose id is recorded here, so the enclosing list can tell a trailing
+   spread from an ordinary last element. */
+let spread_ids: ref(list(Id.t)) = ref([]);
+let is_spread = (rep: Id.t): bool => List.mem(rep, spread_ids^);
+
+/* An id derived from a tile id, for nodes Reason syntax implies but
+   does not spell (the inner functions of a curried `(a, b) => e`) */
+let derived_id = (id: Id.t, n: int): Id.t => {
+  let rec go = (id, n) => n <= 0 ? id : go(Id.next(id), n - 1);
+  go(id, n);
+};
+
+/* `{...}` in an expression is a block unless its body is a comma
+   sequence, which Reason reads as a record: `x: e` fields (made as
+   labeled-tuple entries by the `:` case) and punned `x` fields. */
+let reason_record_body = (body: Exp.t): Exp.t =>
+  switch (body.term) {
+  | Tuple(es) =>
+    let pun = (e: Exp.t): Exp.t =>
+      switch (e.term) {
+      | Var(x) =>
+        let id = derived_id(Exp.rep_id(e), 1);
+        let label_term: Exp.term = Label(x);
+        let label = IdTagged.mk_internal([derived_id(id, 1)], label_term);
+        let entry: Exp.term = TupLabel(label, e);
+        IdTagged.mk_internal([id], entry);
+      | _ => e
+      };
+    {
+      ...body,
+      term: Tuple(List.map(pun, es)),
+    };
+  | _ => body
+  };
+
+/* Reason arrow parameters: `x`, `()`, `(p)`, `(p1, p2)` (curried) and
+   `(ps): t` (return annotation) */
+let reason_params = (params: Pat.t): (list(Pat.t), option(Typ.t)) => {
+  let group = (p: Pat.t): list(Pat.t) =>
+    switch (p.term) {
+    | Parens({term: Tuple(ps), _}) when ps != [] => ps
+    | Parens(p) => [p]
+    | _ => [p]
+    };
+  switch (params.term) {
+  | Asc(lhs, ty) =>
+    switch (lhs.term) {
+    | Parens(_)
+    | Tuple([]) => (group(lhs), Some(ty))
+    | _ => ([params], None)
+    }
+  | _ => (group(params), None)
+  };
+};
+
+let reason_fun = (arrow_id: Id.t, params: Pat.t, body: Exp.t): Exp.term => {
+  let (ps, ret_ty) = reason_params(params);
+  let body =
+    switch (ret_ty) {
+    | Some(ty) =>
+      let asc: Exp.term = Asc(body, ty);
+      IdTagged.mk_internal([derived_id(arrow_id, 100)], asc);
+    | None => body
+    };
+  /* the outermost function is the arrow tile's (its ids are attached by
+     the caller); inner ones get ids derived from it */
+  let rec curry = (ps: list(Pat.t), k: int): Exp.t =>
+    switch (ps) {
+    | [] => body
+    | [p, ...rest] =>
+      let f: Exp.term = Fun(p, curry(rest, k + 1), None, None);
+      IdTagged.mk_internal([derived_id(arrow_id, k)], f);
+    };
+  switch (ps) {
+  | [] => Fun(params, body, None, None)
+  | [p, ...rest] => Fun(p, curry(rest, 1), None, None)
+  };
+};
+
+/* `f(a, b)` is curried in Reason; constructors take one (tuple) arg */
+let reason_ap = (ap_id: Id.t, f: Exp.t, arg: Exp.t): Exp.term =>
+  switch (f.term, arg.term) {
+  | (Constructor(_), _) => Ap(Forward, f, arg)
+  | (_, Tuple(es)) when List.length(es) >= 2 =>
+    let (init, last) = ListUtil.split_last(es);
+    let (inner, _) =
+      List.fold_left(
+        ((acc, n), e) => {
+          let ap: Exp.term = Ap(Forward, acc, e);
+          (IdTagged.mk_internal([derived_id(ap_id, n)], ap), n + 1);
+        },
+        (f, 1),
+        init,
+      );
+    Ap(Forward, inner, last);
+  | _ => Ap(Forward, f, arg)
+  };
+
+/* Reason type application: the standard containers map to Hazel's;
+   other type constructors are read as their (unparameterized) name. */
+let reason_typ_ap = (name: string, arg: Typ.t): Typ.term =>
+  switch (name) {
+  | "list"
+  | "array" => List(arg)
+  | "option" =>
+    Sum([
+      Variant(
+        "None",
+        ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+        None,
+      ),
+      Variant(
+        "Some",
+        ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
+        Some(arg),
+      ),
+    ])
+  | _ => Var(name)
+  };
+
+/* Reason's (n-ary, curried) arrow types */
+let reason_arrow_typ = (l: Typ.t, r: Typ.t): Typ.term =>
+  switch (l.term) {
+  | Parens({term: Prod(ts), _}) when List.length(ts) >= 2 =>
+    let (init, last) = ListUtil.split_last(ts);
+    let inner =
+      List.fold_right(
+        (t, acc) => {
+          let arr: Typ.term = Arrow(t, acc);
+          Typ.fresh(arr);
+        },
+        init @ [last],
+        r,
+      );
+    inner.term;
+  | _ => Arrow(l, r)
+  };
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
@@ -808,6 +953,49 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           (Module(flatten_mod(body)), ids);
         | _ => ret(Module(flatten_mod(body)))
         }
+      | (F(Compound(ModBody)), [Exp(body)]) when Surface.is_reason() =>
+        ret(Parens(reason_record_body(body)))
+      | (
+          F(Compound(ReSwitch)),
+          [Exp(scrut), Rul({term, annotation: {ids, _}})],
+        ) =>
+        switch (term) {
+        | Rules(_, rules) =>
+          let ids = List.filter(id => id != Id.invalid, ids);
+          adopted_ids := ids @ adopted_ids^;
+          (Match(scrut, rules), ids);
+        | MultiHole(_)
+        | Invalid(_) => ret(hole(tm))
+        }
+      | (
+          F(Compound(ListLit)),
+          [Exp({term: Tuple(es), annotation: {ids, _}})],
+        )
+          when
+            Surface.is_reason()
+            && es != []
+            && is_spread(Exp.rep_id(ListUtil.last(es))) =>
+        /* [a, b, ...rest] */
+        adopted_ids := ids @ adopted_ids^;
+        let (init, last) = ListUtil.split_last(es);
+        let tail =
+          switch (last.term) {
+          | Parens(xs) => xs
+          | _ => last
+          };
+        let (first, rest) = (List.hd(init), List.tl(init));
+        let rec cons = (es: list(Exp.t), k: int): Exp.t =>
+          switch (es) {
+          | [] => tail
+          | [e, ...es] =>
+            let c: Exp.term = Cons(e, cons(es, k + 1));
+            IdTagged.mk_internal([derived_id(Exp.rep_id(e), 7 + k)], c);
+          };
+        (Cons(first, cons(rest, 0)), ids);
+      | (F(Compound(ListLit)), [Exp({term: Parens(xs), _} as body)])
+          when Surface.is_reason() && is_spread(Exp.rep_id(body)) =>
+        /* [...xs] */
+        ret(xs.term)
       | (F(Compound(ModBody)), [Exp(body)]) => ret(Parens(body))
       | (F(Compound(Parens)), [Exp(body)]) => ret(Parens(body))
       | (F(Compound(Parens)), [kid]) =>
@@ -900,11 +1088,38 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
+  | Pre(([(id, (F(Compound(ReFun)), []))], []), Rul(rules)) as tm =>
+    /* fun | p => e | ... : a function matching on its argument */
+    switch (rules.term) {
+    | Rules(_, rules) =>
+      let x = "$arg";
+      let pat_term: Pat.term = Var(x);
+      let arg_pat = IdTagged.mk_internal([derived_id(id, 1)], pat_term);
+      let scrut_term: Exp.term = Var(x);
+      let scrut = IdTagged.mk_internal([derived_id(id, 2)], scrut_term);
+      let match_term: Exp.term = Match(scrut, rules);
+      let body = IdTagged.mk_internal([derived_id(id, 3)], match_term);
+      ret(Fun(arg_pat, body, None, None));
+    | _ => ret(hole(tm))
+    }
+  | Pre(([(_, (F(Compound(ReIf)), []))], []), Exp(r)) as tm =>
+    /* `if` marks the If that `(c) {a}` (and `else`) already built */
+    switch (r.term) {
+    | If(_) => (r.term, IdTagged.ids(r))
+    | _ => ret(hole(tm))
+    }
+  | Pre(([(id, (F(Compound(ReSpread)), []))], []), Exp(r)) => {
+      spread_ids := [id, ...spread_ids^];
+      ret(Parens(r));
+    }
   | Pre(tiles, Exp(r)) as tm =>
     switch (tiles) {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
+        | (F(Compound(ReLet)), [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (F(Compound(ReType)), [TPat(tpat), Typ(def)]) =>
+          TyAlias(tpat, def, r)
         | (F(Compound(UnaryMinus)), []) => UnOp(Int(Minus), r)
         | (F(Compound(Not)), []) => UnOp(Bool(Not), r)
         | (F(Compound(Fun)), [Pat(pat)]) => Fun(pat, r, None, None)
@@ -960,6 +1175,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     }
   | Post(Exp(l), tiles) as tm =>
     switch (tiles) {
+    | ([(id, (F(Compound(BraceAp)), [Exp(then_)]))], []) =>
+      /* `(c) {a}`: an if-then; `else` replaces the unit alternative */
+      let unit_term: Exp.term = Tuple([]);
+      let unit = IdTagged.mk_internal([derived_id(id, 1)], unit_term);
+      ret(If(l, reason_record_body(then_), unit));
+    | ([(id, (F(Compound(Ap)), [Exp(arg)]))], [])
+        when Surface.is_reason() =>
+      ret(reason_ap(id, l, arg))
     | ([(_id, t)], []) =>
       switch (t) {
       | (F(f), []) when is_empty_tuple_form(f) =>
@@ -1004,6 +1227,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (F(Compound(ApExpTyp)), [Typ(ty)]) => ret(TypAp(l, ty))
       | _ => ret(hole(tm))
       }
+    | _ => ret(hole(tm))
+    }
+  | Bin(
+      Pat(params),
+      ([(id, (F(Compound(ReArrow)), []))], []),
+      Exp(body),
+    ) =>
+    ret(reason_fun(id, params, body))
+  | Bin(Exp(l), ([(_, (F(Compound(ReElse)), []))], []), Exp(r)) as tm =>
+    switch (l.term) {
+    | If(c, t, _) => (If(c, t, r), IdTagged.ids(l))
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Typ(r)) as tm =>
@@ -1061,7 +1295,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | F(Compound(CellJoin)) => Seq(l, r)
           | F(Compound(StringConcat)) => BinOp(String(Concat), l, r)
           | F(Compound(TupleExtension)) => TupleExtension(l, r)
-          | F(Compound(TupleLabeled)) =>
+          | F(Compound(TupleLabeled | ReField)) =>
             switch (l.term) {
             | Deferral(_) =>
               TupLabel(
@@ -1192,6 +1426,65 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | (F(Tok(t)), []) when Token.is_wild(t) => ret(Wild)
       | (F(Tok(t)), []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (F(Compound(Parens)), [Pat(body)]) => ret(Parens(body))
+      | (F(Compound(ModBody)), [Pat(body)]) when Surface.is_reason() =>
+        /* record patterns: {x, y} puns */
+        let pun = (p: Pat.t): Pat.t =>
+          switch (p.term) {
+          | Var(x) =>
+            let id = derived_id(Pat.rep_id(p), 1);
+            let label_term: Pat.term = Label(x);
+            let label =
+              IdTagged.mk_internal([derived_id(id, 1)], label_term);
+            let entry: Pat.term = TupLabel(label, p);
+            IdTagged.mk_internal([id], entry);
+          | _ => p
+          };
+        switch (body.term) {
+        | Tuple(ps) =>
+          ret(
+            Parens({
+              ...body,
+              term: Tuple(List.map(pun, ps)),
+            }),
+          )
+        | Var(_) =>
+          let entry = pun(body);
+          let tup: Pat.term = Tuple([entry]);
+          ret(
+            Parens(
+              IdTagged.mk_internal([derived_id(Pat.rep_id(body), 3)], tup),
+            ),
+          );
+        | _ => ret(Parens(body))
+        };
+      | (
+          F(Compound(ListLit)),
+          [Pat({term: Tuple(ps), annotation: {ids, _}})],
+        )
+          when
+            Surface.is_reason()
+            && ps != []
+            && is_spread(Pat.rep_id(ListUtil.last(ps))) =>
+        /* [a, b, ...rest] */
+        adopted_ids := ids @ adopted_ids^;
+        let (init, last) = ListUtil.split_last(ps);
+        let tail =
+          switch (last.term) {
+          | Parens(xs) => xs
+          | _ => last
+          };
+        let (first, rest) = (List.hd(init), List.tl(init));
+        let rec cons = (ps: list(Pat.t), k: int): Pat.t =>
+          switch (ps) {
+          | [] => tail
+          | [p, ...ps] =>
+            let c: Pat.term = Cons(p, cons(ps, k + 1));
+            IdTagged.mk_internal([derived_id(Pat.rep_id(p), 7 + k)], c);
+          };
+        (Cons(first, cons(rest, 0)), ids);
+      | (F(Compound(ListLit)), [Pat({term: Parens(xs), _} as body)])
+          when Surface.is_reason() && is_spread(Pat.rep_id(body)) =>
+        ret(xs.term)
       | (F(Compound(Parens)), [kid]) =>
         /* Cross-sort parens (see the exp case) */
         ret(Parens(IdTagged.mk_internal([Id.mk()], Pat.hole([kid]))))
@@ -1315,6 +1608,12 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     }
   | Pre(tiles, Pat(r)) as tm =>
     switch (tiles) {
+    | ([(_, (F(Compound(ReRec)), []))], []) =>
+      /* `let rec`: Hazel infers recursion */
+      (r.term, IdTagged.ids(r))
+    | ([(id, (F(Compound(ReSpread)), []))], []) =>
+      spread_ids := [id, ...spread_ids^];
+      ret(Parens(r));
     | ([(_id, (F(Compound(UnaryMinus)), []))], []) =>
       /* Negative literal patterns: the pattern grammar has no unary ops,
          and a matched value is a plain negative atom, so fold the minus
@@ -1401,6 +1700,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (_, (F(Tok(t)), [])) when Token.is_empty_module(t) => Sig([])
         | (Some(term), _) => term
         | (_, (F(Tok("_")), [])) => ExplicitNonlabel
+        | (_, (F(Tok(t)), []))
+            when Surface.is_reason() && Token.is_quoted_typ_var(t) =>
+          /* budget polymorphism: 'a is the unknown type */
+          Unknown(Internal)
+        | (_, (F(Compound(ModBody)), [Typ(body)])) => Parens(body)
         | (_, (F(Compound(ProofOf)), [Exp(exp)])) => ProofOf(exp)
         | (_, (F(Tok(t)), [])) when Token.is_typ_var(t) => Var(t)
         | (_, (F(Tok(t)), [])) when Token.is_quoted_label(t) =>
@@ -1424,6 +1728,12 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       );
     | _ => ret(hole(tm))
     }
+  | Post(
+      Typ({term: Var(name), _}),
+      ([(_, (F(Compound(Ap)), [Typ(arg)]))], []),
+    )
+      when Surface.is_reason() && !Token.is_ctr(name) =>
+    ret(reason_typ_ap(name, arg))
   | Post(l, tiles) as tm =>
     switch (tiles) {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
@@ -1470,6 +1780,51 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     ret(Poly(tpat, t))
   | Pre(([(_id, (F(Compound(Rec)), [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
+  | Pre(([(_, (F(Compound(ReSumBarPre)), []))], []), Typ(t)) =>
+    ret(Sum([parse_sum_term(t)]))
+  | Pre(
+      ([(_, (F(Compound(ReSumBarPre)), [])), ..._] as ts, kids),
+      Typ(last),
+    )
+      when
+        List.for_all(
+          fun
+          | (_, (F(Compound(ReSumBar)), [])) => true
+          | _ => false,
+          List.tl(ts),
+        )
+        && List.for_all(is_typ_kid, kids) => {
+      let kids =
+        List.filter_map(
+          fun
+          | Grammar.Typ(t) => Some(t)
+          | _ => None,
+          kids,
+        );
+      ret(Sum(List.map(parse_sum_term, kids @ [last])));
+    }
+  | Bin(
+      Typ(first),
+      ([(_, (F(Compound(ReSumBar)), [])), ..._] as ts, kids),
+      Typ(last),
+    )
+      when
+        List.for_all(
+          fun
+          | (_, (F(Compound(ReSumBar)), [])) => true
+          | _ => false,
+          ts,
+        )
+        && List.for_all(is_typ_kid, kids) => {
+      let kids =
+        List.filter_map(
+          fun
+          | Grammar.Typ(t) => Some(t)
+          | _ => None,
+          kids,
+        );
+      ret(Sum(List.map(parse_sum_term, [first] @ kids @ [last])));
+    }
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
@@ -1508,7 +1863,9 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | None =>
       switch (tiles) {
       | ([(_id, (F(Compound(TypeArrow)), []))], []) => ret(Arrow(l, r))
-      | ([(_id, (F(Compound(TupleLabeled)), []))], []) =>
+      | ([(_id, (F(Compound(ReArrow)), []))], []) =>
+        ret(reason_arrow_typ(l, r))
+      | ([(_id, (F(Compound(TupleLabeled | ReField)), []))], []) =>
         switch (l.term) {
         | Var(name) =>
           ret(
@@ -1587,6 +1944,9 @@ and tpat_term: unsorted => TPat.term = {
       )
     | _ => ret(hole(tm))
     }
+  | Post(TPat({term: Var(_) as v, _}), _) when Surface.is_reason() =>
+    /* type t('a) = ...: parameters are read as the unknown type */
+    v
   | (Pre(_) | Post(_)) as tm => ret(hole(tm))
   | tm => ret(hole(tm));
 }
@@ -1732,6 +2092,18 @@ and rul = (unsorted): Rul.t => {
   switch (e) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
+    | Pre(tiles, Exp(last_clause)) =>
+      /* Reason: `| p => e | ...` has no scrutinee in the rule list */
+      switch (is_rules(tiles)) {
+      | Some((ps, leading_clauses)) =>
+        let scrut_term: Exp.term = EmptyHole;
+        mk_rules(
+          IdTagged.mk_internal([Id.invalid], scrut_term),
+          List.combine(ps, leading_clauses @ [last_clause]),
+          ids(unsorted),
+        );
+      | None => mk_rules(e, [], [Id.invalid])
+      }
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
       | Some((ps, leading_clauses)) =>
@@ -1901,6 +2273,7 @@ let go_impl =
   projectors := Id.Map.empty;
   projector_list := [];
   adopted_ids := [];
+  spread_ids := [];
   secondary_map := Segment.SecondaryCollection.collect(seg);
   shard_masks := masks;
   pending_lexeme := None;

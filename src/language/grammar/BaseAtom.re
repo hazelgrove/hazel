@@ -40,10 +40,29 @@ let table: list((string, TermBase.Typ.term)) =
        )
   );
 
-let base_typs: list(string) = List.map(fst, table);
+/* ReasonML's spellings of the base types (unit is the empty product) */
+let reason_table: list((string, TermBase.Typ.term)) = [
+  ("bool", Atom(Bool)),
+  ("float", Atom(Float)),
+  ("int", Atom(Int)),
+  ("string", Atom(String)),
+  ("unit", Prod([])),
+];
+
+let table_of = (s: Surface.t) =>
+  switch (s) {
+  | Hazel => table
+  | Reason => reason_table
+  };
+
+let base_typs_of = (s: Surface.t): list(string) =>
+  List.map(fst, table_of(s));
+
+/* Hazel's spellings, for code that is not surface-aware */
+let base_typs: list(string) = base_typs_of(Hazel);
 
 let typ_term_of = (t: string): option(TermBase.Typ.term) =>
-  List.assoc_opt(t, table);
+  List.assoc_opt(t, table_of(Surface.get()));
 
 let token_of_typ = (tm: TermBase.Typ.term): option(string) =>
   switch (tm) {

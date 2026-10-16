@@ -634,7 +634,7 @@ module Local = {
     /* Form delimiters that lex like identifiers; using one as a variable
        name makes the surrounding code misparse. */
     let reserved_words: list(Token.t) =
-      List.filter(Token.is_var, Form.delims);
+      List.filter(Token.is_var, Form.delims());
 
     let identifier_words = (s: string): list(string) => {
       let is_id_char = c =>

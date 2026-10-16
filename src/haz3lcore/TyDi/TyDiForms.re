@@ -9,7 +9,7 @@ let leading_expander = " ";
  * mono delimiters, all infix operators, and all leading delimiters */
 module Delims = {
   let leading = (sort: Sort.t): list(Token.t) =>
-    Form.delims
+    Form.delims()
     |> List.filter_map(token => {
          let (lbl, _) = Form.Expansion.get(sort, token);
          Form.remold_candidates(lbl, sort) != []
@@ -45,7 +45,7 @@ module Delims = {
   /* compound forms only: single tokens registered merely as atoms
    * (e.g. infix-delimiter prefixes) are not infix suggestions */
   let infix = (sort: Sort.t): list(Token.t) =>
-    Form.delims
+    Form.delims()
     |> List.filter(token =>
          Form.compound_defs([token])
          |> List.exists(((_, m): (Form.family, Mold.t)) =>

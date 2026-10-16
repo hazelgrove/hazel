@@ -26,6 +26,10 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   | _ when Token.is_string_delim(t) || Token.is_quoted_label_delim(t) =>
     /* Special case for constructing string/label literals. */
     ([t ++ t], Left)
+  | "|" when Surface.is_reason() =>
+    /* Reason: `|` starts a rule wherever an expression or rule list is
+       expected, and is a bare sum-type bar in types */
+    Form.Expansion.get(sort, t)
   | "|" when before_case_shard(z) || inside_case(z) =>
     /* SPECIAL CASE: Case rule delimiter.
        Inside a case, always expand | to Rule form regardless of local sort.
@@ -55,8 +59,13 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   let local_sort = Relatives.sort(~root, z.relatives);
   let parent_sort = Ancestors.sort(root, z.relatives.ancestors);
 
-  /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
-  if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
+  /* Reason: `|` reads its meaning off the local sort (a rule in
+     expressions and rule lists, a sum bar in types), never the parent's */
+  if (t == "|" && Surface.is_reason()) {
+    local_sort;
+  } else if
+    /* Special case: semicolon inside module/sig context should be ModSeq/SigSeq, not CellJoin */
+    (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
     parent_sort;
   } else {
     /* Default: local-first with parent fallback */
