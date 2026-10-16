@@ -115,6 +115,7 @@ let (suite, exit_with_test_status) =
     @ Test_ConfigurationMode.tests
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
+    @ [Test_ByteBudgets.tests]
     @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
