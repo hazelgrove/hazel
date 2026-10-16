@@ -107,8 +107,10 @@ let bound_constructor_aps =
 /* The named fields of a labeled tuple type or the value members of a
  * signature type, with their types (a signature's own manifest type members
  * are substituted into its member types). */
+/* the head only: a full normalize of every entry, per keystroke, would
+   expand each module's whole signature */
 let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
-  switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
+  switch (Typ.weak_head_normalize(ctx, typ) |> Typ.term_of) {
   | Prod(ts) => List.filter_map(Typ.match_tup_label, ts)
   | Sig(items) =>
     Sig.members(items)
