@@ -97,16 +97,30 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
   };
 };
 
-/* a let without its `in` can't open as a cell */
+/* a let without its `in` can't open as a cell, and the outline's
+   refusals say why */
 let unfinished_let = () => {
-  let open_at = (typed: string): bool => {
+  let open_at = (typed: string): (bool, option(Focus.refusal)) => {
     let seg = Zipper.unselect_and_zip(typed_zipper(typed));
     let (_, info_map) = statics_of(seg);
     let first = Option.get(List.find_map(Piece.is_tile, seg));
-    Focus.mk_entry(~info_map, first.id, seg) != None;
+    (
+      Focus.mk_entry(~info_map, first.id, seg) != None,
+      Id.Map.find_opt(first.id, Focus.refusals(~want=_ => true, seg)),
+    );
   };
-  check(bool, "unfinished let stays closed", false, open_at("let x = 1"));
-  check(bool, "finished let opens", true, open_at("let x = 1 in x"));
+  check(
+    bool,
+    "unfinished let stays closed",
+    true,
+    open_at("let x = 1") == (false, Some(Focus.Unfinished)),
+  );
+  check(
+    bool,
+    "finished let opens",
+    true,
+    open_at("let x = 1 in x") == (true, None),
+  );
 };
 
 /* review fixes: a typed-function header is named by its function, a run

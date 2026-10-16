@@ -270,6 +270,8 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
    inputs change on statics frames and outline use, not per keystroke.
    statics and test results compare by identity, the rest by value */
 let memo = Util.Slot.mk();
+/* the cell code's refusals of the rows: per program, not per frame */
+let refusals = Util.Slot.mk();
 let same = ((statics, results, rest), (statics', results', rest')) =>
   statics === statics'
   && Option.equal((===), results, results')
@@ -391,16 +393,26 @@ let view =
       let props: OutlineSidebar.props = {
         arrows,
         stack_controls: is_deck,
-        can_open: {
-          let incomplete =
-            Segment.incomplete_tiles_deep(
-              switch (program) {
-              | Some(Divided(d)) => Divided.document(d)
-              | _ => segment
-              },
-            )
-            |> List.map((t: Tile.t) => t.id);
-          id => !List.mem(id, incomplete);
+        refusal: {
+          let refused =
+            lazy(
+              Util.Slot.get(
+                ~same=
+                  ((p, t), (p', t')) =>
+                    Option.equal((===), p, p') && t === t',
+                refusals,
+                (program, term),
+                () =>
+                  ScratchFocus.refusals(
+                    ~want=id => Id.Map.mem(id, OutlineTree.row_ids(term)),
+                    switch (program) {
+                    | Some(Divided(d)) => Divided.document(d)
+                    | _ => segment
+                    },
+                  ),
+              )
+            );
+          id => Id.Map.find_opt(id, Lazy.force(refused));
         },
         is_collapsed: path => List.mem(path, collapsed),
         header: {

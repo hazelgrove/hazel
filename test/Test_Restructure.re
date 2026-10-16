@@ -831,7 +831,7 @@ let refused_delete_cursor = (): unit => {
   let props: Web.OutlineSidebar.props = {
     arrows: true,
     stack_controls: true,
-    can_open: _ => true,
+    refusal: _ => None,
     is_collapsed: _ => false,
     header: {
       h_program: "",

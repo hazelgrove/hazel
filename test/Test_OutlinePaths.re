@@ -303,6 +303,169 @@ let commit_cursor = () => {
   C.edit := None;
 };
 
+/* the outline's keys over [src]'s rows, every row shown, the cell code
+   deciding which open; the handlers record the cells asked for and the
+   name opened for typing */
+let sidebar = (src: string) => {
+  module S = Web.OutlineSidebar;
+  let seg = CorpusUtil.seg_of(src);
+  let term = MakeTerm.Incr.term_of(seg);
+  let refused = Web.ScratchFocus.refusals(~want=_ => true, seg);
+  let rows = OutlineTree.flatten(OutlineTree.of_term(term));
+  let path = (n: OutlineTree.node) =>
+    Option.get(Option.bind(n.o_id, id => OutlineTree.label_path(id, term)));
+  let visible =
+    Array.of_list(
+      List.map(
+        (n: OutlineTree.node): S.visible_row =>
+          {
+            r_path: path(n),
+            r_node: n,
+            r_name: n.o_label,
+            r_parent: None,
+            r_expanded: n.o_children != [],
+          },
+        rows,
+      ),
+    );
+  let cursor = ref(None);
+  let toggled = ref([]);
+  let typing = ref(None);
+  let none = _ => Virtual_dom.Vdom.Effect.Ignore;
+  let on: S.handlers = {
+    jump: none,
+    focus: none,
+    toggle: id => {
+      toggled := [id, ...toggled^];
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    toggle_run: none,
+    toggle_collapse: none,
+    zoom_to: none,
+    zoom_in: none,
+    show_whole: none,
+    discard: Virtual_dom.Vdom.Effect.Ignore,
+    zoom_out: Virtual_dom.Vdom.Effect.Ignore,
+    get_cursor: () => cursor^,
+    set_cursor: c => {
+      cursor := c;
+      Virtual_dom.Vdom.Effect.Ignore;
+    },
+    focused: Virtual_dom.Vdom.Effect.Ignore,
+    leave: Virtual_dom.Vdom.Effect.Ignore,
+    edit: {
+      current: None,
+      get: () => typing^,
+      set: e => {
+        typing := e;
+        Virtual_dom.Vdom.Effect.Ignore;
+      },
+      commit: (_, _) => Virtual_dom.Vdom.Effect.Ignore,
+    },
+    menu_open: (_, _, _, _) => Virtual_dom.Vdom.Effect.Ignore,
+    menu_close: Virtual_dom.Vdom.Effect.Ignore,
+    menu_select: none,
+    get_menu: () => None,
+    get_menu_sel: () => 0,
+    def_op: (_, _) => Virtual_dom.Vdom.Effect.Ignore,
+  };
+  let props: S.props = {
+    arrows: true,
+    stack_controls: true,
+    refusal: id => Id.Map.find_opt(id, refused),
+    is_collapsed: _ => false,
+    header: {
+      h_program: "",
+      h_trail: [],
+      h_open: 0,
+      h_parked: 0,
+    },
+    zoom_root: None,
+    cursor: None,
+    created: None,
+    pinned: [],
+    focused_entries: [],
+    error_items: [],
+    error_subtree: [],
+    menu: None,
+    menu_sel: 0,
+    test_status: _ => None,
+  };
+  let row = label =>
+    Array.find_opt((r: S.visible_row) => r.r_node.o_label == label, visible);
+  /* [key] pressed with the cursor on [label]'s row: the cells it asked
+     to open or close, and the name open after */
+  let press = (key: string, label: string) => {
+    cursor := Option.map((r: S.visible_row) => r.r_path, row(label));
+    toggled := [];
+    typing := None;
+    let evt =
+      Js_of_ocaml.Js.(
+        Unsafe.coerce(
+          Unsafe.obj([|
+            ("key", Unsafe.inject(string(key))),
+            ("code", Unsafe.inject(string(key))),
+            ("metaKey", Unsafe.inject(_false)),
+            ("ctrlKey", Unsafe.inject(_false)),
+            ("altKey", Unsafe.inject(_false)),
+            ("shiftKey", Unsafe.inject(_false)),
+          |]),
+        )
+      );
+    ignore(S.keys(~props, ~on, ~visible, evt));
+    (toggled^, typing^);
+  };
+  /* a double-click on [label]'s name, [typing] already open: the name
+     open after */
+  let double_click = (~typing as t=None, label: string) => {
+    typing := t;
+    let r = Option.get(row(label));
+    ignore(S.start_rename(~on, r.r_node, r.r_name));
+    typing^;
+  };
+  (term, press, double_click);
+};
+
+/* Space opens a row's cell, but not under a projector: the cell code
+   refuses those rows, and the outline offers nothing */
+let space_under_projector = () => {
+  let (term, press, _) = sidebar("let a = 1 in\n^^fold((let b = 2 in\nb))");
+  let row = CorpusUtil.row_by_label(term);
+  check(bool, "a opens", true, fst(press(" ", "a")) == [row("a")]);
+  check(bool, "b, folded away, doesn't", true, fst(press(" ", "b")) == []);
+};
+
+/* a double-click on a name opens it for typing as F2 does; a test or a
+   statement has no name of its own, and an open name stays */
+let double_click_names = () => {
+  let (term, press, double_click) =
+    sidebar("let a = 1 in\nlet b = 2 in\ntest a == 1 end;\na + b;\na");
+  let typing = label =>
+    Some(
+      Web.OutlineEdit.mk(~row=CorpusUtil.row_by_label(term, label), label),
+    );
+  check(
+    bool,
+    "F2 opens a's name",
+    true,
+    snd(press("F2", "a")) == typing("a"),
+  );
+  check(
+    bool,
+    "so does a double-click",
+    true,
+    double_click("a") == typing("a"),
+  );
+  check(bool, "not a test's", true, double_click("1") == None);
+  check(bool, "nor a statement's", true, double_click("") == None);
+  check(
+    bool,
+    "b's name, being typed, stays",
+    true,
+    double_click(~typing=typing("b"), "a") == typing("b"),
+  );
+};
+
 let tests = [
   (
     "OutlinePaths",
@@ -314,6 +477,16 @@ let tests = [
         "where a saved name leaves the cursor",
         `Quick,
         commit_cursor,
+      ),
+      test_case(
+        "Space does nothing under a projector",
+        `Quick,
+        space_under_projector,
+      ),
+      test_case(
+        "a double-click on a name renames, as F2 does",
+        `Quick,
+        double_click_names,
       ),
     ],
   ),

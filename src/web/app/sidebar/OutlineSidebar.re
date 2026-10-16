@@ -59,7 +59,8 @@ type props = {
   arrows: bool,
   /* pins, zoom and item edits: only where a slide has cells */
   stack_controls: bool,
-  can_open: Language.Id.t => bool,
+  /* why a row's item opens no cell, if it doesn't: the cell code's rule */
+  refusal: Language.Id.t => option(ScratchFocus.refusal),
   is_collapsed: OutlineTree.path => bool,
   header,
   zoom_root: option(Language.Id.t),
@@ -358,21 +359,62 @@ let live_label = (props: props, n: OutlineTree.node): OutlineTree.node =>
 let show = (props: props, on: handlers, id: Language.Id.t): Effect.t(unit) =>
   props.focused_entries != [] ? on.focus(id) : on.jump(id);
 
+/* why a row opens no cell, if it doesn't; a tests container's run goes by
+   its first test */
+let refusal =
+    (props: props, n: OutlineTree.node): option(ScratchFocus.refusal) =>
+  switch (n.o_id, n.o_kind) {
+  | (Some(id), _) => props.refusal(id)
+  | (None, KTests) =>
+    Option.bind(
+      List.find_map((c: OutlineTree.node) => c.o_id, n.o_children),
+      props.refusal,
+    )
+  | (None, _) => None
+  };
+
 /* the cell button's act: open or close the row's cell; a tests container
    opens its whole run as one cell, at any depth. None: nothing to open */
 let open_close =
     (props: props, on: handlers, n: OutlineTree.node)
-    : option(unit => Effect.t(unit)) =>
+    : option(unit => Effect.t(unit)) => {
+  let opens = refusal(props, n) == None;
   switch (n.o_id, n.o_kind) {
-  | (Some(id), _) when in_stack(props, id) || props.can_open(id) =>
+  | (Some(id), _) when in_stack(props, id) || opens =>
     Some(() => on.toggle(id))
   | (None, KTests) =>
     switch (List.filter_map((c: OutlineTree.node) => c.o_id, n.o_children)) {
-    | [first, ..._] => Some(() => on.toggle_run(first))
-    | [] => None
+    | [first, ..._] as kids when opens || List.exists(in_stack(props), kids) =>
+      Some(() => on.toggle_run(first))
+    | _ => None
     }
   | _ => None
   };
+};
+
+/* rows with a name to edit in place; tests, ⇒ and statements have none */
+let nameable = (n: OutlineTree.node): bool =>
+  n.o_id != None
+  && (
+    switch (n.o_kind) {
+    | KFn
+    | KConst
+    | KType
+    | KModule => true
+    | KTest
+    | KTests
+    | KStmt
+    | KTrail => false
+    }
+  );
+
+/* a row's name into its field, as F2, ⌘Enter and a double-click on the
+   name start it, unless a name is open already. [name] is the program's,
+   not an open cell's live header text */
+let start_rename =
+    (~on: handlers, n: OutlineTree.node, name: string): Effect.t(unit) =>
+  nameable(n) && on.edit.get() == None
+    ? on.edit.set(Some(OutlineEdit.mk(~row=?n.o_id, name))) : Effect.Ignore;
 
 let rec node_view =
         (
@@ -402,28 +444,54 @@ let rec node_view =
       );
     | None => (false, false, false)
     };
+  let name = n.o_label;
   /* the focused row's name tracks its header editor LIVE */
   let n = live_label(props, n);
   /* paths name the row by its outline label, not the live header text
      (`inc(x)` for `inc`): collapse state and the cursor survive pinning */
   let row_path = path @ [seg];
+  /* a double-click on the name renames it */
+  let name_view = label =>
+    span(
+      ~attrs=
+        [clss(["outline-name"])]
+        @ (
+          props.stack_controls && nameable(n)
+            ? [Attr.on_double_click(_ => stop(start_rename(~on, n, name)))]
+            : []
+        ),
+      [text(label)],
+    );
   let badge = (cls, title) =>
     span(
       ~attrs=[clss(["outline-err-badge", ...cls]), Attr.title(title)],
       [text({js|●|js})],
     );
-  let cell_button = (~cls=[], ~title, act) =>
-    span(
-      ~attrs=
-        [clss(["outline-focus-btn", ...cls]), Attr.title(title)]
-        @ (
-          switch (act) {
-          | Some(act) => [Attr.on_click(_ => stop(act()))]
-          | None => []
-          }
+  /* an unfinished item's button waits, disabled; a row under a projector
+     has none */
+  let cell_button = (~cls, ~title) =>
+    switch (open_close(props, on, n), refusal(props, n)) {
+    | (Some(act), _) => [
+        span(
+          ~attrs=[
+            clss(["outline-focus-btn", ...cls]),
+            Attr.title(title),
+            Attr.on_click(_ => stop(act())),
+          ],
+          [],
         ),
-      [],
-    );
+      ]
+    | (None, Some(Unfinished)) => [
+        span(
+          ~attrs=[
+            clss(["outline-focus-btn", "outline-btn-disabled"]),
+            Attr.title("finish the definition to open it"),
+          ],
+          [],
+        ),
+      ]
+    | (None, _) => []
+    };
   let label =
     div(
       ~attrs=
@@ -550,7 +618,7 @@ let rec node_view =
         | (None, Some((id, kw))) when n.o_id == Some(id) => [
             /* the keyword typed to make it a type or module, leaving */
             span(~attrs=[clss(["outline-kw-leaving"])], [text(kw)]),
-            text(n.o_label),
+            name_view(n.o_label),
           ]
         /* rows with no name of their own get a word for what they are,
            set apart from real names */
@@ -560,7 +628,7 @@ let rec node_view =
         | _ when n.o_kind == KTests => [
             span(~attrs=[clss(["outline-synthetic"])], [text(n.o_label)]),
           ]
-        | _ => [text(n.o_label)]
+        | _ => [name_view(n.o_label)]
         }
       )
       @ (has_err ? [badge([], "contains type errors")] : [])
@@ -579,37 +647,20 @@ let rec node_view =
             List.filter_map((c: OutlineTree.node) => c.o_id, n.o_children);
           let all_pinned =
             kid_ids != [] && List.for_all(in_stack(props), kid_ids);
-          [
-            cell_button(
-              ~cls=all_pinned ? ["outline-btn-on"] : [],
-              ~title=
-                all_pinned
-                  ? "close the tests cell" : "open the tests as one cell",
-              open_close(props, on, n),
-            ),
-          ];
+          cell_button(
+            ~cls=all_pinned ? ["outline-btn-on"] : [],
+            ~title=
+              all_pinned
+                ? "close the tests cell" : "open the tests as one cell",
+          );
         | Some(id) =>
-          switch (open_close(props, on, n)) {
-          | None => [
-              cell_button(
-                ~cls=["outline-btn-disabled"],
-                ~title="finish the definition to open it",
-                None,
-              ),
-            ]
-          | act => [
-              cell_button(
-                ~cls=
-                  stacked
-                    ? ["outline-btn-on"]
-                    : List.mem(id, props.pinned)
-                        ? ["outline-btn-parked"] : [],
-                ~title=
-                  stacked ? "close this cell" : "open in the editor stack",
-                act,
-              ),
-            ]
-          }
+          cell_button(
+            ~cls=
+              stacked
+                ? ["outline-btn-on"]
+                : List.mem(id, props.pinned) ? ["outline-btn-parked"] : [],
+            ~title=stacked ? "close this cell" : "open in the editor stack",
+          )
         | None => []
         }
       ),
@@ -973,18 +1024,6 @@ let keys =
       Option.map(id => on.def_op(Delete, id), id_of(r))
     | _ => None
     };
-  let nameable = (r: visible_row) =>
-    switch (r.r_node.o_kind) {
-    | KFn
-    | KConst
-    | KType
-    | KModule => r.r_node.o_id != None
-    | _ => false
-    };
-  let start_edit = (r: visible_row) =>
-    nameable(r)
-      ? on.edit.set(Some(OutlineEdit.mk(~row=?r.r_node.o_id, r.r_name)))
-      : Effect.Ignore;
   /* a name in its field: Enter saves and starts a new definition below,
      ↑↓ save and move, Esc cancels; the field takes the other keys. As the
      field goes the keys return to the row list */
@@ -1085,7 +1124,8 @@ let keys =
     switch (on.edit.get(), key, meta, cur) {
     | (Some(ed), _, _, _) => edit_key(ed)
     | (None, "Enter", true, Some(r))
-    | (None, "F2", _, Some(r)) => Some(start_edit(r))
+    | (None, "F2", _, Some(r)) =>
+      Some(start_rename(~on, r.r_node, r.r_name))
     | (None, _, _, _) => nav_key()
     };
   /* an open menu takes ↑↓, Enter and Esc; any other key closes it, then
