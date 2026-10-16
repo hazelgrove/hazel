@@ -767,6 +767,105 @@ let into_value_module = () => {
   );
 };
 
+/* `use X in` is a row of its own among the definitions, and an item like
+   them: it moves, duplicates and goes like one, so what it scopes over is
+   what's below it. A module has no `use` member: a move steps over it */
+let use_rows = () => {
+  let src = "let a = 1 in\nuse Nat in\nlet b = a + 2 in\nb";
+  check(list(string), "its row", ["a", "use Nat", "b"], outline(src));
+  let m = "module M = {\n  let x = 1\n} in\n";
+  cases([
+    (
+      "down past b",
+      src,
+      "use Nat",
+      op(MoveDown),
+      Some("let a = 1 in\nlet b = a + 2 in\nuse Nat in\nb"),
+    ),
+    (
+      "up past a",
+      src,
+      "use Nat",
+      op(MoveUp),
+      Some("use Nat in\nlet a = 1 in\nlet b = a + 2 in\nb"),
+    ),
+    (
+      "b up out of its scope",
+      src,
+      "b",
+      op(MoveUp),
+      Some("let a = 1 in\nlet b = a + 2 in\nuse Nat in\nb"),
+    ),
+    (
+      "duplicated",
+      src,
+      "use Nat",
+      op(Duplicate),
+      Some("let a = 1 in\nuse Nat in\nuse Nat in\nlet b = a + 2 in\nb"),
+    ),
+    (
+      "deleted",
+      src,
+      "use Nat",
+      op(Delete),
+      Some("let a = 1 in\nlet b = a + 2 in\nb"),
+    ),
+    (
+      "a definition below",
+      src,
+      "use Nat",
+      op(NewBelow),
+      Some(
+        {js|let a = 1 in
+use Nat in
+let new_def = ¿ in
+let b = a + 2 in
+b|js},
+      ),
+    ),
+    (
+      "a test below",
+      src,
+      "use Nat",
+      op(NewTestBelow),
+      Some({js|let a = 1 in
+use Nat in
+test ¿ end;
+let b = a + 2 in
+b|js}),
+    ),
+    (
+      "a module stepped over going down",
+      "use Nat in\n" ++ m ++ "M.x",
+      "use Nat",
+      op(MoveDown),
+      Some(m ++ "use Nat in\nM.x"),
+    ),
+    (
+      "and going up",
+      m ++ "use Nat in\nM.x",
+      "use Nat",
+      op(MoveUp),
+      Some("use Nat in\n" ++ m ++ "M.x"),
+    ),
+  ]);
+  /* in a function body: among its items, never out of it */
+  let f = "let f = fun x ->\n  use Nat in\n  let y = x + 1 in\n  y * 2\nin\nf(1)";
+  check(list(string), "in a function body", ["f{use Nat,y}"], outline(f));
+  cases([
+    (
+      "down in the body",
+      f,
+      "use Nat",
+      op(MoveDown),
+      Some(
+        "let f = fun x ->\n  let y = x + 1 in\n  use Nat in\n  y * 2\nin\nf(1)",
+      ),
+    ),
+    ("not out of the body", f, "use Nat", op(MoveUp), None),
+  ]);
+};
+
 /* a new test, `test ¿ end`, lands right after its row in its block's
    form, or above it as a run's first */
 let new_tests = () => {
@@ -1059,5 +1158,6 @@ let tests = (
     test_case("a module bound by let", `Quick, value_module),
     test_case("moves into a module bound by let", `Quick, into_value_module),
     test_case("in and out again", `Quick, round_trip),
+    test_case("use rows", `Quick, use_rows),
   ],
 );

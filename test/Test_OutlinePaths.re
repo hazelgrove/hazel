@@ -94,12 +94,38 @@ let test_elsewhere = () => {
   };
 };
 
+/* a test goes by the named row before it: a `use` added above it leaves
+   its path */
+let use_above_test = () => {
+  let before = term_of_text("let b = 1 in\ntest b == 1 end;\nb");
+  let after = term_of_text("let b = 1 in\nuse Nat in\ntest b == 1 end;\nb");
+  let test = (e: Exp.t) =>
+    List.find_map(
+      (n: OutlineTree.node) => n.o_kind == KTest ? n.o_id : None,
+      OutlineTree.flatten(OutlineTree.of_term(e)),
+    );
+  switch (test(before), test(after)) {
+  | (Some(t0), Some(t1)) =>
+    check(
+      bool,
+      "resolves to the same test",
+      true,
+      Option.bind(OutlineTree.label_path(t0, before), path =>
+        OutlineTree.resolve_path(path, after)
+      )
+      == Some(t1),
+    )
+  | _ => fail("no test row")
+  };
+};
+
 let cases = [
   test_case(
     "a test added elsewhere leaves a test's path",
     `Quick,
     test_elsewhere,
   ),
+  test_case("a use above a test leaves its path", `Quick, use_above_test),
   test_case(
     "rename moves a slide's keys; delete removes them",
     `Quick,

@@ -1,8 +1,8 @@
 open Language;
 
 /* the module/definition tree behind the outline sidebar: definitions,
-   module members and nested lets, plus `…;` statements and trailing ⇒
-   rows. row ids are chain-item ids (as in DefStatics and ItemEdit) */
+   module members and nested lets, plus `…;` statements, `use … in` and
+   trailing ⇒ rows. row ids are chain-item ids (as in ItemEdit) */
 
 type kind =
   | KModule
@@ -12,6 +12,7 @@ type kind =
   | KTest /* one `test … end;` statement */
   | KTests /* container for a contiguous run of tests */
   | KStmt /* any other `…;` statement */
+  | KUse /* `use X in`: no name, no cell; scopes over the rows below it */
   | KTrail; /* a block's trailing expression */
 
 type node = {
@@ -75,9 +76,13 @@ let stmt_row = (id: Id.t, e: Exp.t): list(node) => {
   };
 };
 
-/* a block (the program, a function body) is an item chain: defs, `…;`
-   statements and the trailing body. a nested block shows its ⇒ row only
-   beside other items; the top level always does (it anchors the result) */
+let use_row = (id: Id.t, typ: Typ.t): node =>
+  row(~id, ~label="use " ++ Typ.pretty_print(typ), KUse);
+
+/* a block (the program, a function body) is an item chain: defs, `use`s,
+   `…;` statements and the trailing body. a nested block shows its ⇒ row
+   only beside other items; the top level always does (it anchors the
+   result) */
 let rec of_exp = (~top=false, e: Exp.t): list(node) => {
   let e = strip_exp(e);
   switch (e.term) {
@@ -87,6 +92,7 @@ let rec of_exp = (~top=false, e: Exp.t): list(node) => {
     type_row(Exp.rep_id(e), tpat) @ of_exp(~top, body)
   | ModuleExp(mpat, def, body) =>
     module_row(Exp.rep_id(e), mpat, def) @ of_exp(~top, body)
+  | Use(typ, body) => [use_row(Exp.rep_id(e), typ), ...of_exp(~top, body)]
   | Seq(e1, body) => stmt_row(Exp.rep_id(e), e1) @ of_exp(~top, body)
   /* a Module root: its items are the program's top level, with no
      wrapper row */
@@ -108,6 +114,7 @@ and of_block = (fbody: Exp.t): list(node) => {
       | Let(_, _, body)
       | TyAlias(_, _, body)
       | ModuleExp(_, _, body)
+      | Use(_, body)
       | Seq(_, body) => tail_of(body)
       | _ => e
       };
@@ -332,8 +339,12 @@ let segs = (ns: list(node)): list((node, path_seg)) => {
         };
       let k = Hashtbl.find_opt(seen, l) |> Option.value(~default=0);
       Hashtbl.replace(seen, l, k + 1);
-      if (n.o_label != "" && n.o_kind != KTest && n.o_kind != KTests) {
-        prev := n.o_label;
+      switch (n.o_kind) {
+      | KTest
+      | KTests
+      | KUse => ()
+      | _ when n.o_label == "" => ()
+      | _ => prev := n.o_label
       };
       (
         n,

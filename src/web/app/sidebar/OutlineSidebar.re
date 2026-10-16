@@ -29,6 +29,7 @@ let kind_glyph = (k: OutlineTree.kind): string =>
   | KTest
   | KTests => {js|◦|js} /* overridden by the test's live status */
   | KStmt => {js|;|js}
+  | KUse => {js|↓|js}
   | KTrail => {js|⇒|js}
   };
 
@@ -41,6 +42,7 @@ let kind_cls = (k: OutlineTree.kind): string =>
   | KTest => "ol-test"
   | KTests => "ol-tests"
   | KStmt => "ol-stmt"
+  | KUse => "ol-use"
   | KTrail => "ol-trail"
   };
 
@@ -404,6 +406,7 @@ let nameable = (n: OutlineTree.node): bool =>
     | KTest
     | KTests
     | KStmt
+    | KUse
     | KTrail => false
     }
   );

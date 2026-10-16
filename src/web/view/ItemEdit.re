@@ -711,7 +711,7 @@ let new_inside =
 
 /* an item's bare pieces in a block's form: members end in their
    place's `;`, other blocks use `… in`. Converting goes through text
-   (fresh ids) */
+   (fresh ids); a `use` has no member form, so it reads as none */
 let in_form =
     (~member: bool, ~was_member: bool, ps: Segment.t): option(Segment.t) =>
   switch (member, was_member) {
@@ -786,7 +786,8 @@ let insert_near =
 /* Alt↑↓: into an expanded module beside the item, bound by `module` or
    `let` (its end going up, its start going down); from a module's first
    or last member, out to just above or below it. Collapsed modules are
-   stepped over and function bodies keep their items. [owner]: the item's
+   stepped over, as is any module by an item with no member form (a
+   `use`), and function bodies keep their items. [owner]: the item's
    module. The item is reindented to where it lands */
 let move =
     (
