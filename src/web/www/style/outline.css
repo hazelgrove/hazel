@@ -521,12 +521,41 @@
   opacity: 0.7;
   white-space: pre;
 }
+/* a name that won't do, underlined as it's typed */
+#outline-sidebar .outline-edit-input.outline-invalid,
+#outline-sidebar .outline-live.outline-invalid {
+  box-shadow: inset 0 -1.5px 0 var(--text-error);
+}
+/* why a save was refused: a bubble just under the line, over the rows
+   below, so nothing moves; or over the line when the list would clip it
+   there. It starts where the line's text does (its static position) and
+   wraps to show the reason whole */
 #outline-sidebar .outline-edit-hint {
-  margin-left: 22px;
+  display: none;
+}
+#outline-sidebar .outline-edit-hint.outline-hint-on {
+  display: inline-block;
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 1px);
+  width: max-content;
+  max-width: calc(100% - 28px);
+  padding: 1px 7px 2px;
   font-size: 10.5px;
   font-style: italic;
+  font-weight: normal;
   color: var(--text-error);
   white-space: normal;
+  cursor: default;
+  background: var(--surface-default);
+  border: 1px solid color-mix(in srgb, var(--text-error) 45%, transparent);
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.14);
+}
+#outline-sidebar .outline-edit-hint.outline-hint-on[data-above] {
+  top: auto;
+  bottom: calc(100% + 1px);
+  box-shadow: 0 -2px 6px rgb(0 0 0 / 0.1);
 }
 
 /* text mode, said quietly: the menu glyph turns into a pencil in the

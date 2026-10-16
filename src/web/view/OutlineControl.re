@@ -93,24 +93,7 @@ let collapsed = (deck: option(deck)): list(OutlineTree.path) =>
    name erased, Backspace removes it */
 let blank_body = (program: Program.t, id: Id.t): bool =>
   switch (ScratchFocus.find_def(id, Program.document(program))) {
-  | Some(def) =>
-    List.for_all(
-      (p: Piece.t) =>
-        switch (p) {
-        | Secondary(w) => !Secondary.is_comment(w)
-        | Grout(_) => true
-        | Tile(t) =>
-          ItemEdit.is_empty_body(t)
-          || (
-            switch (Tile.label(t)) {
-            | [tok] => Token.is_explicit_hole(tok)
-            | _ => false
-            }
-          )
-        | Projector(_) => false
-        },
-      def,
-    )
+  | Some(def) => ItemEdit.blank_def(def)
   | None => false
   };
 
@@ -192,6 +175,43 @@ let live_name = (program: Program.t, d: Id.t): option(E.live) =>
          }
        )
   );
+
+/* why new definition [f]'s name, [name], won't do: a blank one will (it
+   goes) */
+let name_refusal = (f: E.fresh, name: string): option(string) => {
+  let name = String.trim(name);
+  name == ""
+    ? None
+    : OutlineRename.check_name(
+        ItemEdit.rename_kind(fst(E.new_kind(f.f_kw))),
+        name,
+      );
+};
+
+/* why the caret's line [t] can't be saved as it stands: what's typed on a
+   row's line, or a new definition's name ([live]) */
+let refusal =
+    (
+      ~statics_on: bool,
+      ~info_map: Lazy.t(Language.Statics.Map.t),
+      ~term: Language.Exp.t,
+      ~seg: Lazy.t(Segment.t),
+      ~live: option(E.live),
+      t: E.t,
+    )
+    : option(string) =>
+  switch (t.line, t.fresh, t.pending) {
+  | (New(_), Some(f), _) =>
+    Option.bind(live, (l: E.live) => name_refusal(f, l.l_name))
+  | (Row(_, Some(Item(row))), _, Some(typed))
+      when OutlineTree.node_of(row, term) != None =>
+    switch (ItemEdit.plan_rename(~info_map, ~term, ~seg, row, typed)) {
+    | Error(why) => Some(why)
+    | Ok(Some(_)) when !statics_on => Some("renaming needs statics on")
+    | Ok(_) => None
+    }
+  | _ => None
+  };
 
 /* [edit] on new definition [d]'s name, applied as the editor applies
    typing: None when no editor has its caret in the name, or the edit
@@ -417,6 +437,7 @@ let rekind =
     switch (made, text^) {
     | (Ok((seg, Some(d))), Some(t)) =>
       let code = with_fresh(~settings, d, seg, code);
+      /* blank, its name will do */
       text :=
         Some({
           ...t,
@@ -425,6 +446,7 @@ let rekind =
               f_id: d,
               f_kw: kw,
             }),
+          error: None,
           seq: next_seq(),
         });
       code |> Updated.return(~historic=false);
@@ -554,45 +576,62 @@ let update =
     };
   | Save(sv, after) =>
     /* nothing reaches the program until here: a rename is one
-       refactoring */
+       refactoring, a kind change with it. Refused, the caret comes back
+       with what was typed and why; or, leaving anyway ([Done]), the name
+       stays as it was and its row flashes */
     let refuse = why => {
-      text :=
-        Some({
-          ...E.at(sv.sv_line, ~col=sv.sv_col, ~pending=sv.sv_text),
-          error: Some(why),
-          seq: next_seq(),
-        });
+      if (after == Done) {
+        incr(flash);
+      } else {
+        text :=
+          Some({
+            ...E.at(sv.sv_line, ~col=sv.sv_col, ~pending=sv.sv_text),
+            error: Some(why),
+            seq: next_seq(),
+          });
+      };
       code |> Updated.return_quiet;
     };
     let program = code.program;
     let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
-    let txt = String.trim(sv.sv_text);
     /* the save landed: row mode's cursor on the row, if it was left */
     let landed = (code: Scratchpad.code, id: Id.t) =>
-      if (after == Leave) {
+      if (E.leaves(after)) {
         cursor :=
           OutlineTree.label_path(id, Program.statics(code.program).term);
       };
     switch (sv.sv_line) {
-    | Row(_, Some(Item(row))) =>
-      switch (OutlineTree.node_of(row, ctx.term)) {
-      | None => code |> Updated.return_quiet
-      | Some(n) when n.o_label == txt =>
+    | Row(_, Some(Item(row)))
+        when OutlineTree.node_of(row, ctx.term) != None =>
+      let seg = Program.document(program);
+      switch (
+        ItemEdit.plan_rename(
+          ~info_map=ctx.info_map,
+          ~term=ctx.term,
+          ~seg=Lazy.from_val(seg),
+          row,
+          sv.sv_text,
+        )
+      ) {
+      | Error(why) => refuse(why)
+      | Ok(None) =>
         landed(code, row);
         code |> Updated.return_quiet;
-      | Some(_) when !settings.core.statics =>
+      | Ok(Some(_)) when !settings.core.statics =>
         refuse("renaming needs statics on")
-      | Some(_) =>
-        switch (
-          ItemEdit.edit(ctx, Rename(row, txt), Program.document(program))
-        ) {
-        | Error(why) => refuse(why)
-        | Ok((new_seg, _)) =>
+      | Ok(Some(rn)) =>
+        switch (ItemEdit.apply_rename(rn, row, seg)) {
+        | None => refuse("it can't be renamed")
+        | Some(new_seg) =>
           let code = Workspace.with_segment(~settings, code, new_seg);
           landed(code, row);
+          /* a kind's keyword leaves as a new definition's does */
+          if (rn.rn_kind != None) {
+            created := Some((row, fst(E.split_typed(sv.sv_text))));
+          };
           code |> Updated.return;
         }
-      }
+      };
     /* a new definition's name is the program's already (Settle) */
     | Row(_)
     | New(_) => code |> Updated.return_quiet
@@ -600,7 +639,7 @@ let update =
   | Create(line, kw) => create(~settings, line, kw, code)
   | Type(line, edit) =>
     switch (text^) {
-    | Some({line: on, fresh: Some(f), _}) when E.same_line(on, line) =>
+    | Some({line: on, fresh: Some(f), _} as t) when E.same_line(on, line) =>
       switch (
         live_edit(
           ~settings,
@@ -611,11 +650,23 @@ let update =
           code,
         )
       ) {
-      /* one undo step with its definition's insertion */
-      | Some(u) => {
+      /* one undo step with its definition's insertion. A refusal shown
+         follows the name as it's typed */
+      | Some(u) =>
+        text :=
+          Some({
+            ...t,
+            error:
+              Option.bind(t.error, _ =>
+                Option.bind(live_name(u.model.program, f.f_id), l =>
+                  name_refusal(f, l.l_name)
+                )
+              ),
+          });
+        {
           ...u,
           historic: false,
-        }
+        };
       | None =>
         incr(flash);
         code |> Updated.return_quiet;
@@ -625,18 +676,26 @@ let update =
     }
   | Settle(line, f, after) =>
     let program = code.program;
+    /* leaving anyway ([Done]), a name that won't do is the hole again,
+       which the blank rule drops, the line's row flashing */
     let name =
-      Option.map(
-        pat => String.trim(ItemEdit.text(pat)),
-        ScratchFocus.find_pat(f.f_id, Program.document(program)),
-      );
-    let kind = ItemEdit.rename_kind(fst(E.new_kind(f.f_kw)));
+      switch (
+        Option.map(
+          pat => String.trim(ItemEdit.text(pat)),
+          ScratchFocus.find_pat(f.f_id, Program.document(program)),
+        )
+      ) {
+      | Some(n) when after == Done && name_refusal(f, n) != None =>
+        incr(flash);
+        Some("");
+      | name => name
+      };
     switch (name) {
     /* gone already (undone) */
     | None => code |> Updated.return_quiet
     | Some("") => drop(~settings, line, f.f_id, code)
     | Some(n) =>
-      switch (OutlineRename.check_name(kind, n)) {
+      switch (name_refusal(f, n)) {
       | Some(why) =>
         text :=
           Some({
@@ -674,7 +733,7 @@ let update =
             when a == f.f_id =>
           create(~settings, next, "", code)
         | _ =>
-          if (after == Leave) {
+          if (E.leaves(after)) {
             cursor := OutlineTree.label_path(f.f_id, Lazy.force(term));
           };
           /* its row shows the name now, not when the statics catch up */
@@ -779,6 +838,7 @@ let view =
       ~inject_workspace: Workspace.Action.t => Effect.t(unit),
       ~jump: Id.t => Effect.t(unit),
       ~leave: Effect.t(unit),
+      ~statics_on: bool,
     )
     : Node.t => {
   let program = program_of(deck);
@@ -850,6 +910,7 @@ let view =
       flash^,
       created^,
       live,
+      statics_on,
     ),
   );
   Util.Slot.get(
@@ -959,6 +1020,17 @@ let view =
           | None => false
           },
         live,
+        check:
+          refusal(
+            ~statics_on,
+            ~info_map=Lazy.from_val(statics.info_map),
+            ~term,
+            ~seg=
+              lazy(
+                Option.fold(~none=segment, ~some=Program.document, program)
+              ),
+            ~live,
+          ),
       };
       /* a row inside an open cell can't open on its own: go to it there */
       let nested = id =>
@@ -1028,9 +1100,11 @@ let view =
         discard: inject_workspace(UnfocusDef),
         zoom_out: inject_workspace(ZoomOut),
         get_cursor: () => cursor^,
+        /* a row's flash stays with it */
         set_cursor: c => {
           cursor := c;
           created := None;
+          flash := 0;
           redraw;
         },
         /* the outline starts at the row holding the caret */
@@ -1101,7 +1175,7 @@ let view =
             | Some(t) =>
               let req = save(t, after);
               switch (after, t.fresh) {
-              | (Leave, _) =>
+              | (Leave | Done, _) =>
                 text := None;
                 cursor := path_of(t.line);
               /* the next line waits for its definition, below this one */

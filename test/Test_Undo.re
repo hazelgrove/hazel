@@ -61,7 +61,7 @@ let redo_len = (model: History.Model.t) => List.length(model.redo_stack);
 module Cells = {
   let src = "let a = 1 in\nlet b = 2 in\na + b";
 
-  let mk = (): History.Model.t => {
+  let mk = (~src=src, ()): History.Model.t => {
     let seg = CorpusUtil.seg_of(src);
     let editors: Editors.Model.t =
       Scratch(

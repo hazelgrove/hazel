@@ -26,12 +26,23 @@ type def_op =
   | MoveDown
   | Delete;
 
-/* a new definition's kind from its leading keyword */
+/* a typed definition's kind from its leading keyword, and the keyword:
+   `type `, `module `, or `let ` (a value, as no keyword is) */
 let new_kind = (text: string): (OutlineTree.kind, string) =>
   String.starts_with(~prefix="type ", text)
     ? (KType, "type ")
     : String.starts_with(~prefix="module ", text)
-        ? (KModule, "module ") : (KConst, "");
+        ? (KModule, "module ")
+        : String.starts_with(~prefix="let ", text)
+            ? (KConst, "let ") : (KConst, "");
+
+/* a rename's typed text: its leading kind keyword, shown apart from the
+   field, and the field's text */
+let split_typed = (text: string): (string, string) => {
+  let (_, kw) = new_kind(text);
+  let n = String.length(kw);
+  (kw, String.sub(text, n, String.length(text) - n));
+};
 
 /* where a new definition goes: below its anchor, or first or last inside
    it (a module) */
@@ -65,14 +76,16 @@ type fresh = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   line,
-  /* in the line's field, which leaves out a new definition's keyword */
+  /* in the line's field, which leaves out a keyword typed first */
   col: int,
   /* the column ↑↓ aim for: set by the first vertical move, kept by the
      next ones, cleared by any other key */
   col_target: option(int),
-  /* typed on the line, not yet saved */
+  /* typed on the line, not yet saved: a kind keyword, then the field's
+     text */
   pending: option(string),
-  /* why the line's last save was refused */
+  /* why the line's name can't be saved: shown once a save has tried it,
+     kept up to date as it's typed, gone once the name will do */
   error: option(string),
   /* bumped as the keys place the caret: the field then moves its own */
   seq: int,
@@ -132,12 +145,17 @@ type save = {
 };
 
 /* what follows a save: the caret where the keys put it, a new definition
-   below what was saved, or row mode */
+   below what was saved, or row mode; or ([Done]) row mode whatever the
+   save's outcome, a refused name undone and its row flashed */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type after =
   | Stay
   | Next
-  | Leave;
+  | Leave
+  | Done;
+
+/* a save that ends text mode */
+let leaves = (a: after): bool => a == Leave || a == Done;
 
 /* a context menu's row: an item (its kind picks the menu's rows), or a
    tests label, by its first and last tests, and whether it's expanded */
@@ -317,6 +335,15 @@ let units = (s: string): int => Js_of_ocaml.Js.string(s)##.length;
 let slice = (s: string, a: int, b: int): string =>
   Js_of_ocaml.Js.to_string(Js_of_ocaml.Js.string(s)##substring(a, b));
 
+/* a rename's field typed to [field], its caret at [col], under keyword
+   [kw]: the line's typed text, and the caret in the field it shows (a
+   keyword typed at the field's start moves out of it) */
+let retyped = (kw: string, field: string, col: int): (string, int) => {
+  let text = kw ++ field;
+  let (kw', _) = split_typed(text);
+  (text, max(0, col + units(kw) - units(kw')));
+};
+
 /* where a word ends from [at] toward [side] in [name]: past any
    separators, then the word. Words are letters, digits, underscores and
    anything outside ASCII; a name's other characters (`'`) separate
@@ -404,8 +431,6 @@ type outcome =
   /* what's typed on the line, undone */
   | Revert
   | Save(after)
-  /* row mode, what's typed dropped */
-  | Abandon
   | NewTest(def_op, Id.t)
   /* save, then an op on the line's item */
   | Op(def_op, Id.t)
@@ -515,7 +540,7 @@ let live_key =
   | "Meta"
   | "Control"
   | "CapsLock" => Page
-  | "Escape" => t.error != None ? Abandon : Save(Leave)
+  | "Escape" => Save(Done)
   | "Enter" when p.meta || p.shift => Save(Leave)
   | "Enter" when p.alt || p.ctrl => Swallow
   | "Enter" => blank ? Save(Leave) : Save(Next)
@@ -640,7 +665,10 @@ let decide_row =
   let n = Array.length(lines);
   let ghost = j => ghost_line(lines[j]);
   let here_ghost = !nameable(r.r_node);
-  let value = here_ghost ? "" : Option.value(t.pending, ~default=r.r_name);
+  /* a kind keyword typed first, shown apart, and the field's text */
+  let (kw, value) =
+    here_ghost
+      ? ("", "") : split_typed(Option.value(t.pending, ~default=r.r_name));
   let len = units(value);
   /* a line's length in its field */
   let len_of = j => j == at ? len : len_of_line(lines[j]);
@@ -672,8 +700,15 @@ let decide_row =
     };
   let unsaved = t.pending != None && t.pending != Some(r.r_name);
   /* [s] into the name at the caret: the new text, and the caret after it */
-  let typed = (s: string, a: int, b: int) =>
-    Edit(slice(value, 0, a) ++ s ++ slice(value, b, len), a + units(s));
+  let typed = (s: string, a: int, b: int) => {
+    let (text, col) =
+      retyped(
+        kw,
+        slice(value, 0, a) ++ s ++ slice(value, b, len),
+        a + units(s),
+      );
+    Edit(text, col);
+  };
   let alone = !p.alt && !p.meta && !p.shift;
   switch (p.key) {
   | _ when p.composing => Field
@@ -682,7 +717,7 @@ let decide_row =
   | "Meta"
   | "Control"
   | "CapsLock" => Page
-  | "Escape" => t.error != None ? Abandon : Save(Leave)
+  | "Escape" => Save(Done)
   | "Enter" when p.meta || p.shift => Save(Leave)
   | "Enter" when p.alt || p.ctrl => Swallow
   | "Enter" when !here_ghost =>
@@ -738,6 +773,8 @@ let decide_row =
   | "PageDown" => here_ghost ? Swallow : own(Swallow)
   | "Backspace" when p.meta => op(Delete)
   | "Backspace" when here_ghost => Flash
+  /* at the field's start, a keyword typed before it goes first */
+  | "Backspace" when kw != "" && !sel && col == 0 => Edit(value, 0)
   | "Backspace" when sel || col > 0 =>
     p.alt || p.ctrl ? own(Swallow) : own(typed("", col - 1, col))
   | "Backspace" =>

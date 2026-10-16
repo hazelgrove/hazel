@@ -126,6 +126,7 @@ let props =
     (
       ~cursor: option(O.path)=None,
       ~refusal: Id.t => option(Web.ScratchFocus.refusal)=_ => None,
+      ~check: E.t => option(string)=_ => None,
       (),
     )
     : S.props => {
@@ -152,6 +153,7 @@ let props =
   test_status: _ => None,
   blank: _ => false,
   live: None,
+  check,
 };
 
 /* a keydown as the browser sends it, on the row list */
