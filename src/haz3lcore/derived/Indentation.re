@@ -202,6 +202,8 @@ let is_incrementor = (p: Piece.t): bool =>
   | Tile(t) =>
     switch (Tile.shapes(t)) {
     | _ when Tile.ends_with_in(t) => false
+    /* Reason rules sit at the level of their `switch` */
+    | _ when t.form == Compound(ReSwitch) => false
     | (_, Concave(_)) when Tile.is_multidelimiter(t) => true
     | _ => false
     }
@@ -259,6 +261,9 @@ let rec go =
                the +2; consecutive linebreaks inherit its level */
             | (Some(prev), _) when is_incrementor(prev) =>
               prev_is_lb ? level : level + 2
+            | (None, Some(next))
+                when
+                  not_top && Surface.is_reason() && Piece.is_case_rule(next) => base
             | (None, _) when not_top => base + 2
             /* Check effective_next (skipping linebreaks) for case rule */
             | _
