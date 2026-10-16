@@ -1,0 +1,28 @@
+let greeting = "Hello from ReasonML";
+
+let square = (x) => x * x;
+let add = (a, b) => a + b;
+
+let rec fact = (n) => if (n <= 1) {1} else {n * fact(n - 1)};
+
+type shape =
+  | Circle(float)
+  | Rect(float, float);
+
+let area = (s: shape): float =>
+  switch (s) {
+  | Circle(r) => 3.14 *. r *. r
+  | Rect(w, h) => w *. h
+  };
+
+let rec sum = (xs) =>
+  switch (xs) {
+  | [] => 0
+  | [x, ...rest] => x + sum(rest)
+  };
+
+let origin = {x: 0, y: 0};
+let p = {x: 3, y: 4};
+let dist2 = (a, b) => square(b.x - a.x) + square(b.y - a.y);
+
+(square(7), add(1, 2), fact(5), area(Rect(2., 3.)), sum([1, 2, 3, 4]), dist2(origin, p))

@@ -21,6 +21,7 @@ let view =
       );
     switch (editors) {
     | Scratch(m)
+    | Reason(m)
     | Documentation(m) =>
       let scratchpad = List.nth(m.scratchpads, m.current);
       switch (scratchpad.kind) {

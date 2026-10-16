@@ -7,7 +7,8 @@ module Model = {
     | Documentation
     | Exercises
     | Config
-    | Tutorial;
+    | Tutorial
+    | Reason;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -15,11 +16,32 @@ module Model = {
     | Documentation(ScratchMode.Model.t)
     | Exercises(ExercisesMode.Model.t)
     | Config(ConfigurationMode.Model.t)
-    | Tutorial(TutorialsMode.Model.t);
+    | Tutorial(TutorialsMode.Model.t)
+    /* Scratch slides in the ReasonML surface syntax */
+    | Reason(ScratchMode.Model.t);
+
+  /* The surface syntax a mode's editors read and write */
+  let surface_of_mode: mode => Haz3lcore.Surface.t =
+    fun
+    | Reason => Reason
+    | Scratch
+    | Documentation
+    | Exercises
+    | Config
+    | Tutorial => Hazel;
+  let surface: t => Haz3lcore.Surface.t =
+    fun
+    | Reason(_) => Reason
+    | Scratch(_)
+    | Documentation(_)
+    | Exercises(_)
+    | Config(_)
+    | Tutorial(_) => Hazel;
 
   let mode_string: t => string =
     fun
     | Scratch(_) => "Scratch"
+    | Reason(_) => "ReasonML"
     | Documentation(_) => "Documentation"
     | Config(_) => "Configuration"
     | Tutorial(_) => "Tutorial"
@@ -34,6 +56,7 @@ module Model = {
   let supports_viewport_culling: t => bool =
     fun
     | Scratch(m)
+    | Reason(m)
     | Documentation(m) =>
       switch (List.nth_opt(m.scratchpads, m.current)) {
       | Some(sp) =>
@@ -53,6 +76,7 @@ module Model = {
   let editor_key: t => string =
     fun
     | Scratch(m) => "scratch:" ++ string_of_int(m.current)
+    | Reason(m) => "reason:" ++ string_of_int(m.current)
     | Documentation(m) => "documentation:" ++ string_of_int(m.current)
     | Tutorial(m) => "tutorial:" ++ string_of_int(m.current)
     | Config(m) => "config:" ++ string_of_int(m.current)
@@ -69,6 +93,7 @@ module Model = {
       };
     };
     switch (model) {
+    | Reason(m) => ["Reason", ...scratchpad_kind_class(m)]
     | Scratch(m)
     | Documentation(m) => scratchpad_kind_class(m)
     | Tutorial(_)
@@ -155,6 +180,16 @@ module Store = {
     );
   };
 
+  let load_reason = (~settings) =>
+    Haz3lcore.Surface.with_(Reason, () =>
+      ScratchMode.Persist.load_all(
+        "reason",
+        ~settings,
+        ~default_names=Init.reason_slide_names(),
+        ~default_current=0,
+      )
+    );
+
   let load_config = (~settings) =>
     ConfigurationMode.StoreConfig.load()
     |> ConfigurationMode.Model.unpersist(~settings);
@@ -168,8 +203,10 @@ module Store = {
       Model.Scratch(load_scratch(~settings));
     } else {
       let mode = StoreMode.load();
+      Haz3lcore.Surface.set(Model.surface_of_mode(mode));
       switch (mode) {
       | Scratch => Model.Scratch(load_scratch(~settings))
+      | Reason => Model.Reason(load_reason(~settings))
       | Documentation => Model.Documentation(load_documentation(~settings))
       | Tutorial =>
         Model.Tutorial(
@@ -194,6 +231,9 @@ module Store = {
     | Model.Documentation(m) =>
       StoreMode.save(Documentation);
       ScratchMode.Persist.save_current("doc", m);
+    | Model.Reason(m) =>
+      StoreMode.save(Reason);
+      ScratchMode.Persist.save_current("reason", m);
     | Model.Tutorial(m) =>
       StoreMode.save(Tutorial);
       TutorialsMode.Store.save(~instructor_mode, m);
@@ -208,6 +248,7 @@ module Store = {
 
   let reset = (~settings, ~instructor_mode) => {
     StoreMode.save(Tutorial);
+    Haz3lcore.Surface.set(Hazel);
     HazelDB.kv_clear();
     let _ = TutorialsMode.Store.reset(~settings, ~instructor_mode);
     let _ = ExercisesMode.Store.reset(~settings, ~instructor_mode);
@@ -238,7 +279,27 @@ module Update = {
         action: t,
         model: Model.t,
       ) => {
+    /* the surface follows the mode: a switch reads the target mode's
+       editors in its surface, every other action the current mode's */
+    Haz3lcore.Surface.set(
+      switch (action) {
+      | SwitchMode(mode) => Model.surface_of_mode(mode)
+      | ShowConfig(_) => Hazel
+      | _ => Model.surface(model)
+      },
+    );
     switch (action, model) {
+    | (Scratch(action), Reason(m)) =>
+      let* scratch =
+        ScratchMode.Update.update(
+          ~schedule_action=a => schedule_action(Scratch(a)),
+          ~is_documentation=true,
+          ~is_reason=true,
+          ~settings=globals.settings,
+          action,
+          m,
+        );
+      Model.Reason(scratch);
     | (Scratch(action), Scratch(m)) =>
       let* scratch =
         ScratchMode.Update.update(
@@ -291,6 +352,8 @@ module Update = {
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Documentation(_))
     | (Tutorial(_), Config(_))
+    | (Tutorial(_), Reason(_))
+    | (Exercises(_), Reason(_))
     | (Scratch(_), Exercises(_))
     | (Scratch(_), Tutorial(_))
     | (Scratch(_), Config(_))
@@ -300,11 +363,15 @@ module Update = {
     | (Exercises(_), Documentation(_))
     | (Configuration(_), _) => model |> raise_invalid_action
     | (SwitchMode(Scratch), Scratch(_))
+    | (SwitchMode(Reason), Reason(_))
     | (SwitchMode(Documentation), Documentation(_))
     | (SwitchMode(Config), Config(_))
     | (SwitchMode(Exercises), Exercises(_)) => model |> return_quiet
     | (SwitchMode(Scratch), _) =>
       Model.Scratch(Store.load_scratch(~settings=globals.settings.core))
+      |> return
+    | (SwitchMode(Reason), _) =>
+      Model.Reason(Store.load_reason(~settings=globals.settings.core))
       |> return
     | (SwitchMode(Documentation), _) =>
       Model.Documentation(
@@ -354,7 +421,18 @@ module Update = {
 
   let calculate =
       (~settings, ~autoprobe_mode, ~is_edited, ~schedule_action, model) => {
+    Haz3lcore.Surface.set(Model.surface(model));
     switch (model) {
+    | Model.Reason(m) =>
+      Model.Reason(
+        ScratchMode.Update.calculate(
+          ~schedule_action=a => schedule_action(Scratch(a)),
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited,
+          m,
+        ),
+      )
     | Model.Scratch(m) =>
       Model.Scratch(
         ScratchMode.Update.calculate(
@@ -437,7 +515,8 @@ module Selection = {
         );
       let+ a = ci;
       Update.Scratch(a);
-    | (Scratch(selection), Documentation(m)) =>
+    | (Scratch(selection), Documentation(m))
+    | (Scratch(selection), Reason(m)) =>
       let ci =
         ScratchMode.Selection.get_cursor_info(
           ~inject=a => inject(Scratch(a)),
@@ -478,10 +557,12 @@ module Selection = {
     | (Scratch(_), Exercises(_))
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Documentation(_))
+    | (Exercises(_), Reason(_))
     | (Exercises(_), Tutorial(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Documentation(_))
+    | (Tutorial(_), Reason(_))
     | (Configuration(_), _)
     | (_, Config(_)) => empty
     };
@@ -498,7 +579,8 @@ module Selection = {
       |> Option.map(((x, y)) =>
            (Update.Configuration(x), Configuration(y))
          )
-    | Documentation(m) =>
+    | Documentation(m)
+    | Reason(m) =>
       ScratchMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Scratch(x), Scratch(y)))
     | Tutorial(m) =>
@@ -513,6 +595,7 @@ module Selection = {
     fun
     | Model.Scratch(_) => Scratch(Cell(MainEditor))
     | Model.Documentation(_) => Scratch(Cell(MainEditor))
+    | Model.Reason(_) => Scratch(Cell(MainEditor))
     | Model.Config(_) => Scratch(Cell(MainEditor))
     | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) =>
@@ -526,6 +609,7 @@ module Selection = {
   let get_derivation_info = (~selection: t, editors: Model.t) =>
     switch (selection, editors) {
     | (Scratch(sel), Scratch(m))
+    | (Scratch(sel), Reason(m))
     | (Scratch(sel), Documentation(m)) =>
       ScratchMode.Selection.get_derivation_info(~selection=sel, m)
     | (Exercises(sel), Exercises(m)) =>
@@ -568,7 +652,8 @@ module View = {
         m,
       )
     // Add in the line numbering for Documentation editor
-    | Documentation(m) =>
+    | Documentation(m)
+    | Reason(m) =>
       ScratchMode.View.view(
         ~signal=
           fun
@@ -663,7 +748,8 @@ module View = {
         ~inject=x => inject(Update.Configuration(x)),
         s,
       )
-    | Documentation(s) =>
+    | Documentation(s)
+    | Reason(s) =>
       ScratchMode.View.file_menu(
         ~globals,
         ~inject=x => inject(Update.Scratch(x)),
@@ -695,6 +781,7 @@ module View = {
                 fun
                 | "Scratch" => inject(Update.SwitchMode(Scratch))
                 | "Documentation" => inject(Update.SwitchMode(Documentation))
+                | "ReasonML" => inject(Update.SwitchMode(Reason))
                 | "Tutorial" =>
                   // Default the sidebar to the task reference panel so
                   // tutorial users see the reference material on entry.
@@ -716,6 +803,7 @@ module View = {
                     switch (editors) {
                     | Scratch(_) => "Scratch"
                     | Documentation(_) => "Documentation"
+                    | Reason(_) => "ReasonML"
                     | Tutorial(_) => "Tutorial"
                     | Exercises(_) => "Exercises"
                     | Config(_) => "Configuration"
@@ -727,6 +815,7 @@ module View = {
               [
                 "Scratch",
                 "Documentation",
+                "ReasonML",
                 "Tutorial",
                 "Configuration",
                 "Exercises",
@@ -745,7 +834,8 @@ module View = {
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )
-      | Documentation(m) =>
+      | Documentation(m)
+      | Reason(m) =>
         ScratchMode.View.top_bar(
           ~globals,
           ~is_documentation=true,

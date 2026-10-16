@@ -50,12 +50,15 @@ let of_slide_text = (text: string): t =>
 let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
   let text = StringUtil.strip_final_newline(text);
   switch (
-    FastParse.parsed_of_text(
-      ~materialize=Triggers.invoked_projector,
-      ~collect_refractors=true,
-      ~root,
-      text,
-    )
+    Surface.is_reason()
+      /* the fast path is a parser for Hazel's surface only */
+      ? Error("Reason surface")
+      : FastParse.parsed_of_text(
+          ~materialize=Triggers.invoked_projector,
+          ~collect_refractors=true,
+          ~root,
+          text,
+        )
   ) {
   | Ok({segment, refractors}) =>
     /* Caret starts at the TOP: unzip's default direction (Right) leaves

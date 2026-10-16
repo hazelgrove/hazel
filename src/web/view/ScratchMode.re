@@ -318,7 +318,7 @@ module Persist = {
               (
                 switch (e) {
                 | Some(e) => e
-                | None => Init.default_documentation_slide_name(name)
+                | None => Init.default_slide(prefix, name)
                 }
               )
               |> CellEditor.Model.unpersist(~settings),
@@ -370,7 +370,7 @@ module Persist = {
           kind:
             Code({
               editor:
-                Init.default_documentation_slide_name(name)
+                Init.default_slide(prefix, name)
                 |> CellEditor.Model.unpersist(~settings),
               agent,
             }),
@@ -703,9 +703,11 @@ module Update = {
         ~schedule_action,
         ~settings: Settings.t,
         ~is_documentation: bool,
+        ~is_reason: bool=false,
         action: t,
         model: Model.t,
       ) => {
+    let prefix = is_reason ? "reason" : is_documentation ? "doc" : "scratch";
     switch (action) {
     | AgentAction(a) =>
       let scratchpad = List.nth(model.scratchpads, model.current);
@@ -795,7 +797,7 @@ module Update = {
       let* current = i |> Updated.return(~historic=false);
       Persist.hydrate_current(
         ~settings=settings.core,
-        is_documentation ? "doc" : "scratch",
+        prefix,
         {
           ...model,
           current,
@@ -876,7 +878,7 @@ module Update = {
               )
             : Persist.hydrate_current(
                 ~settings=settings.core,
-                is_documentation ? "doc" : "scratch",
+                prefix,
                 {
                   scratchpads: new_sp,
                   current: max(model.current - 1, 0),
@@ -896,7 +898,7 @@ module Update = {
           | false =>
             CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp))
             |> CellEditor.Model.persist
-          | true => Init.default_documentation_slide_name(scratchpad.name)
+          | true => Init.default_slide(prefix, scratchpad.name)
           };
         let* data = source |> CellEditor.Model.unpersist |> Updated.return;
         {

@@ -1,7 +1,7 @@
 /* Property tests for the FormId v2 classification layer
  * (Form.classify_label / label_of / mold_of / remold_candidates and
  * the family table), stated oracle-free against the form registry
- * (Form.forms / Form.defs_of / Form.compound_defs). */
+ * (Form.forms() / Form.defs_of / Form.compound_defs). */
 open Alcotest;
 open Haz3lcore;
 
@@ -22,7 +22,7 @@ let all_sorts: list(Sort.t) =
   @ List.map(s => Sort.Drv(s), Language.DrvSort.all);
 
 let all_labels: list(Label.t) =
-  Form.forms |> List.map(snd) |> List.map((f: Form.def) => f.label);
+  Form.forms() |> List.map(snd) |> List.map((f: Form.def) => f.label);
 
 let token_corpus: list(Token.t) = [
   "x",
@@ -94,9 +94,9 @@ let check_family_grouping = (): unit =>
             same_family,
           );
         },
-        Form.forms,
+        Form.forms(),
       ),
-    Form.forms,
+    Form.forms(),
   );
 
 /* family uniqueness: within a family, (out sort -> mold) is a
@@ -109,9 +109,10 @@ let check_family_uniqueness = (): unit =>
       let defs = Form.defs_of(fam);
       check(
         bool,
-        "every family is inhabited: " ++ Form.show_family(fam),
+        "every family is inhabited (in some surface): "
+        ++ Form.show_family(fam),
         true,
-        defs != [],
+        List.exists(s => Form.defs_of_rows(s, fam) != [], Surface.all),
       );
       List.iter(
         (d1: Form.def) =>
@@ -243,7 +244,7 @@ let check_remold = (sort: Sort.t, label: Label.t): unit => {
     cands,
   );
   let expected_compounds =
-    Form.forms
+    Form.forms()
     |> List.filter(((_, def): (Form.family, Form.def)) =>
          def.label == label && def.mold.out == sort
        )

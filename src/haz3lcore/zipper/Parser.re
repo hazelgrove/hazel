@@ -190,7 +190,9 @@ let has_balanced_delimiters = (s: string): bool => {
    the splice is safe. */
 let fast_paste_blocker =
     (clipboard: string, z: Zipper.t, ~root): option(string) =>
-  if (String.length(clipboard) == 0) {
+  if (Surface.is_reason()) {
+    Some("the fast parser reads Hazel's surface only");
+  } else if (String.length(clipboard) == 0) {
     Some("empty clipboard");
   } else if (z.caret != Outer) {
     Some("caret is inside a token");

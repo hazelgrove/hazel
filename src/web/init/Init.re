@@ -36,6 +36,25 @@ let startup: Lazy.t(PersistentData.t) =
     ),
   });
 
+/* The ReasonML mode's slides. Built lazily, and with the Reason surface
+   current: these are Reason text, parsed on load. */
+let reason_slides: Lazy.t(list((string, CellEditor.Model.persistent))) =
+  lazy(
+    Reasonslides.Slides.all_slides
+    |> List.map(((name, content: PersistentZipper.t)) =>
+         (
+           name,
+           {
+             editor: content |> Editor.Model.mk_persistent(~root=Exp),
+             result: EvalResult.Model.init |> EvalResult.Model.persist,
+           }: CellEditor.Model.persistent,
+         )
+       )
+  );
+
+let reason_slide_names = (): list(string) =>
+  List.map(fst, Lazy.force(reason_slides));
+
 let find_documentation_slide = (name: string) => {
   Lazy.force(startup).documentation
   |> snd
@@ -50,6 +69,22 @@ let default_documentation_slide_name =
     find_documentation_slide(name),
   );
 };
+
+/* The default content of a named slide in a slide-mode store: the
+   ReasonML mode ("reason") reads its own slides, the others the
+   documentation slides. */
+let default_slide =
+    (prefix: string, name: string): CellEditor.Model.persistent =>
+  switch (prefix) {
+  | "reason" =>
+    OptUtil.get(
+      () => empty_cell_editor_persistent(~root=Exp),
+      Lazy.force(reason_slides)
+      |> List.find_opt(((n, _)) => n == name)
+      |> Option.map(snd),
+    )
+  | _ => default_documentation_slide_name(name)
+  };
 
 /* Derivation slides included in the Documentation mode under the
    "Derivations" section. The folder prefix makes the slide names split into

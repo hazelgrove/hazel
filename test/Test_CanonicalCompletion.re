@@ -1849,7 +1849,7 @@ let joint_tests = [
  * clippable_sort rather than repinning blindly. */
 let clippable_guard_tests = {
   let labels =
-    Form.forms
+    Form.forms()
     |> List.map(((_, d: Form.def)) => d.label)
     |> List.sort_uniq(compare);
   let n = List.length(labels);

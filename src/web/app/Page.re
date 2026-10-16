@@ -79,7 +79,8 @@ module Update = {
     };
     switch (model.editors) {
     | Scratch(m) => get_scratchpad_editor(m)
-    | Documentation(m) => get_scratchpad_editor(m)
+    | Documentation(m)
+    | Reason(m) => get_scratchpad_editor(m)
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     | Config(m) => (List.nth(m.configs, m.current) |> snd).editor
@@ -106,7 +107,8 @@ module Update = {
     };
     switch (model.editors) {
     | Scratch(m) => scratchpad_editors(m)
-    | Documentation(m) => scratchpad_editors(m)
+    | Documentation(m)
+    | Reason(m) => scratchpad_editors(m)
     | Tutorial(m) => [
         (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
       ]
@@ -264,6 +266,7 @@ module Update = {
             persisted.backup_text,
           );
         | Scratch(model)
+        | Reason(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
           let (ext, contents) =

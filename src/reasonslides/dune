@@ -1,0 +1,20 @@
+(include_subdirs unqualified)
+
+(copy_files ../../hazel-programs/reason/*.reason)
+
+(library
+ (name reasonslides)
+ (libraries haz3lcore)
+ (js_of_ocaml)
+ (preprocess
+  (pps ppx_blob))
+ (preprocessor_deps
+  (glob_files *.reason)))
+
+(env
+ (dev
+  (js_of_ocaml
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+ (release
+  (js_of_ocaml
+   (flags :standard))))
