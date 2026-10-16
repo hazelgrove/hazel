@@ -263,7 +263,23 @@ let live_edit =
     let target = (side, r) => E.reach_to(l_name, l_at, side, r);
     switch (edit) {
     | Insert(s) => step(code, Insert(s))
-    | Paste(s) => Option.bind(E.fragment(s), s => step(code, Paste(s)))
+    /* the paste's text in the name, at the selection, and nothing more */
+    | Paste(s) =>
+      let (lo, hi) = (min(l_at, l_anchor), max(l_at, l_anchor));
+      Option.bind(E.fragment(s), s =>
+        switch (step(code, Paste(s))) {
+        | Some(u) as pasted
+            when
+              name(u.model)
+              == Some({
+                   l_name:
+                     E.slice(l_name, 0, lo) ++ s ++ E.slice(l_name, hi, len),
+                   l_at: lo + E.units(s),
+                   l_anchor: lo + E.units(s),
+                 }) => pasted
+        | _ => None
+        }
+      );
     | Erase(side, _) when sel => step(code, erase(side))
     /* nothing there: refused */
     | Erase(side, _) when !inside(side) => None
