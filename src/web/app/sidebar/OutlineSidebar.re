@@ -1608,21 +1608,20 @@ let header_view =
           ]
           : [];
   [
-    span(~attrs=[clss(["outline-menu-glyph"])], [text({js|☰|js})]),
+    /* text mode, said quietly: a pencil for the menu glyph, taking no
+       room from the crumbs */
+    typing
+      ? span(
+          ~attrs=[
+            clss(["outline-menu-glyph", "outline-mode-glyph"]),
+            Attr.title({js|editing names · esc to finish|js}),
+          ],
+          [text({js|✎|js})],
+        )
+      : span(~attrs=[clss(["outline-menu-glyph"])], [text({js|☰|js})]),
     span(~attrs=[clss(["outline-word"])], [text("outline")]),
     span(~attrs=[clss(["outline-crumbs"])], crumb_nodes @ tail),
-  ]
-  /* text mode, said quietly */
-  @ (
-    typing
-      ? [
-        span(
-          ~attrs=[clss(["outline-mode-hint"])],
-          [text({js|editing names · esc|js})],
-        ),
-      ]
-      : []
-  );
+  ];
 };
 
 let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {

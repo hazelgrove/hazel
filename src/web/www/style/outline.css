@@ -491,14 +491,11 @@
   white-space: normal;
 }
 
-/* text mode, said quietly at the header's end */
-#outline-sidebar .outline-mode-hint {
-  margin-left: auto;
-  padding-left: 6px;
-  flex-shrink: 0;
-  font-size: 10.5px;
-  font-style: italic;
-  color: var(--ol-faded);
+/* text mode, said quietly: the menu glyph turns into a pencil in the
+   field caret's color */
+#outline-sidebar .outline-mode-glyph {
+  color: var(--text-warning);
+  opacity: 1;
 }
 
 /* text mode: a ghost line's one caret position, at its start, in the
