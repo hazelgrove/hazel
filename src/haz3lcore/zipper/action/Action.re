@@ -122,7 +122,10 @@ module Structural = {
   type t =
     | Update(target, path, code)
     | Delete(target, path)
-    | Insert(insert_target, path, code);
+    | Insert(insert_target, path, code)
+    /* `test code end` after the binding at path and the tests directly
+       following it; with no path, after the program's last item */
+    | InsertTest(option(path), code);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

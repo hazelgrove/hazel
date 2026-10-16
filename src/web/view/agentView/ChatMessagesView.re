@@ -1446,19 +1446,8 @@ let view =
           },
         );
 
-      let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool => {
-        switch (tool_result.tool_call.name) {
-        | "update_definition"
-        | "update_body"
-        | "update_pattern"
-        | "update_binding_clause"
-        | "delete_binding_clause"
-        | "delete_body"
-        | "insert_before"
-        | "insert_after" => true
-        | _ => false
-        };
-      };
+      let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool =>
+        List.mem(tool_result.tool_call.name, Agent.ToolUtils.edit_tool_names);
 
       let edit_tool_results =
         agent_chunk.tool_results |> List.filter(is_edit_tool_call);
