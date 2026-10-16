@@ -51,6 +51,8 @@ type infer_state = {
   extras: Hashtbl.t(Id.t, list(constraint_)),
   gens: Hashtbl.t(Id.t, gen),
   instantiated: Hashtbl.t(Id.t, unit),
+  /* Holes something consumed the way only `?` allows (see gradual_use). */
+  gradual: Hashtbl.t(Id.t, unit),
 };
 
 type apply_state = {
@@ -581,6 +583,22 @@ let constraints_of_info = (st: infer_state, info: Info.t): list(constraint_) => 
   };
 };
 
+/* Labeled-tuple operations (`.`, tuple extension, the label builtins)
+   accept `?` structurally but give no constraint a hole could be solved
+   by; a type variable would not do, so such holes are never generalized. */
+let gradual_use = (ty: Typ.t): unit =>
+  switch (mode^) {
+  | Infer(st) =>
+    List.iter(h => Hashtbl.replace(st.gradual, h, ()), holes_in_typ(st, ty))
+  | _ => ()
+  };
+
+let is_implicit_hole = (ty: Typ.t): bool =>
+  switch (mode^) {
+  | Infer(st) => hole_of(st, ty) != None
+  | _ => false
+  };
+
 let is_exp_hole = (info: Info.t): bool =>
   switch (info) {
   | InfoExp({cls: Exp(EmptyHole | MultiHole | Invalid), _}) => true
@@ -724,7 +742,10 @@ let generalize_let =
     let generalizable =
       Solver.unsolved_roots(def_node)
       |> List.filter((r: Solver.node) =>
-           !r.etc && r.holes != [] && List.for_all(owned, r.holes)
+           !r.etc
+           && r.holes != []
+           && List.for_all(owned, r.holes)
+           && !List.exists(Hashtbl.mem(st.gradual), r.holes)
          );
     let_time := let_time^ +. now() -. t0;
     if (generalizable == []) {
@@ -871,6 +892,7 @@ let run = (pass: unit => ('a, StaticsBase.Map.t)): ('a, StaticsBase.Map.t) => {
     extras: Hashtbl.create(64),
     gens: Hashtbl.create(8),
     instantiated: Hashtbl.create(16),
+    gradual: Hashtbl.create(8),
   };
   Fun.protect(
     ~finally=() => mode := prev,

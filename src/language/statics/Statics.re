@@ -551,7 +551,9 @@ and uexp_to_info_map =
          would disagree with the syn-based meet and cause spurious Asc
          wrappings on elements that already syn to the meet type. */
       let syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
-      Inference.record_join(~site=Exp.rep_id(uexp), ~ctx, syn_tys);
+      if (Typ.is_syn(inner_ana_ty)) {
+        Inference.record_join(~site=Exp.rep_id(uexp), ~ctx, syn_tys);
+      };
       let meet_ty =
         Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, syn_tys);
       let ds =
@@ -874,6 +876,7 @@ and uexp_to_info_map =
       };
     | TupleExtension(e1, e2) =>
       let (t1, e1_elab, m) = go(e1, m);
+      Inference.gradual_use(t1.elab_syn_ty);
       let m =
         switch (Typ.weak_head_normalize(ctx, t1.ty).term) {
         | Prod(_)
@@ -881,6 +884,7 @@ and uexp_to_info_map =
         | _ => append_mark_exp(m, e1, [TupleExtensionRequiresTuples])
         };
       let (t2, e2_elab, m) = go(e2, m);
+      Inference.gradual_use(t2.elab_syn_ty);
       let m =
         switch (Typ.weak_head_normalize(ctx, t2.ty).term) {
         | Prod(_)
@@ -1363,8 +1367,16 @@ and uexp_to_info_map =
           info_e2.probe_targets,
         ]);
 
+      Inference.gradual_use(info_e1.elab_syn_ty);
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
+        /* Re-analyzing an inference hole against this one-label tuple
+           would read as a constraint on it; it is not one. */
+        | (Unknown(_), Label(_))
+            when Inference.is_implicit_hole(info_e1.elab_syn_ty) => (
+            Prod([]) |> Typ.temp,
+            m,
+          )
         | (Unknown(_), Label(name)) =>
           // This is so that the statics will result in Unknown(Internal)
           let ty =
@@ -1734,6 +1746,14 @@ and uexp_to_info_map =
         let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
         | Some(kind) =>
+          let gradual_arg = ((info, elab, m)) => {
+            Option.iter(
+              (a: Info.exp) => Inference.gradual_use(a.elab_syn_ty),
+              Map.lookup_exp(Exp.rep_id(arg), m),
+            );
+            (info, elab, m);
+          };
+          gradual_arg @@
           CustomStatics.custom_statics_ap(
             ~annotation=uexp.annotation,
             ~ctx,
@@ -1749,7 +1769,7 @@ and uexp_to_info_map =
              }),
             m,
             arg,
-          )
+          );
         | None =>
           let (ty_in, ty_out) =
             Inference.matched_arrow(
@@ -1841,6 +1861,18 @@ and uexp_to_info_map =
 
       switch (custom_statics) {
       | Some(kind) =>
+        let gradual_args = ((info, elab, m)) => {
+          List.iter(
+            arg =>
+              Option.iter(
+                (a: Info.exp) => Inference.gradual_use(a.elab_syn_ty),
+                Map.lookup_exp(Exp.rep_id(arg), m),
+              ),
+            args,
+          );
+          (info, elab, m);
+        };
+        gradual_args @@
         CustomStatics.custom_statics_deferred_ap(
           ~elab_term=DeferredAp(fn_elab, args) |> rewrap,
           ~ctx,
@@ -1856,7 +1888,7 @@ and uexp_to_info_map =
            }),
           m,
           args,
-        )
+        );
       | None =>
         let (ty_in, ty_out) =
           Inference.matched_arrow(ctx, ~fn_syn=fn.elab_syn_ty, ~fn_ty=fn.ty);
@@ -2408,11 +2440,13 @@ and uexp_to_info_map =
       let (cond, cond_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
       let (cons, cons_elab, m) = go(~ana, e1, m);
       let (alt, alt_elab, m) = go(~ana, e2, m);
-      Inference.record_join(
-        ~site=Exp.rep_id(uexp),
-        ~ctx,
-        [cons.elab_syn_ty, alt.elab_syn_ty],
-      );
+      if (Typ.is_syn(ana)) {
+        Inference.record_join(
+          ~site=Exp.rep_id(uexp),
+          ~ctx,
+          [cons.elab_syn_ty, alt.elab_syn_ty],
+        );
+      };
       let (syn_if, cms_if) =
         ConstructorStaticsHelpers.syn_marks_match(
           ctx,
@@ -2498,7 +2532,9 @@ and uexp_to_info_map =
 
       let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
       let e_co_ctxs = List.map(Info.exp_co_ctx, es);
-      Inference.record_join(~site=Exp.rep_id(uexp), ~ctx, e_syn_tys);
+      if (Typ.is_syn(ana)) {
+        Inference.record_join(~site=Exp.rep_id(uexp), ~ctx, e_syn_tys);
+      };
       let (syn_ty_match, marks_match) =
         ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);
       let (constraints, ps_elabs, m) =

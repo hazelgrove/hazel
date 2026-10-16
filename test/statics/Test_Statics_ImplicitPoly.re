@@ -176,6 +176,16 @@ let tests = (
       {|let f : ? -> ? = fun x -> x in f|},
       Some(T.arrow(unknown(), unknown())),
     ),
+    fully_consistent_typecheck(
+      "A projected binder is not generalized; its use decides it",
+      {|let get = fun r -> r.a in get((a=1, b=true))|},
+      Some(T.int()),
+    ),
+    fully_consistent_typecheck(
+      "Elements checked against a type need not agree with each other",
+      {|let fs : [Int -> ?] = [fun x -> x, fun y -> [y]] in fs|},
+      Some(T.list(T.arrow(T.int(), unknown()))),
+    ),
     has_conflict({|let id = fun x -> x in id(1) ++ "a"|}),
     has_conflict({|let f = fun x -> if x then 1 else x + 1 in f|}),
   ],

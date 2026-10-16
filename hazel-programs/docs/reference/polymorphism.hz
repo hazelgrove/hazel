@@ -1,11 +1,17 @@
 # Polymorphism #
 
-# We can take types as parameters to type functions, #
-# and use them in annoatations in the body: #
+# A definition whose argument types nothing constrains is polymorphic #
+# on its own: pair has type poly a -> poly b -> a -> b -> (a, b), #
+# and each use is applied to the types it needs behind the scenes. #
+let pair = fun x -> fun y -> (x, y) in
+let ex0 = (pair(1)("one"), pair(true)(2.0)) in # ((1, "one"), (true, 2.)) #
+
+# Type parameters can also be written explicitly with type functions, #
+# and used in annotations in the body: #
 let id = typfun A -> fun x : A -> x in
 
-# Such functions are applied like so: #
-let ex1 = id@<Int>(1) in # 1 #
+# They can be applied without naming the type, or with it: #
+let ex1 = (id(1), id@<Int>(1)) in # (1, 1) #
 
 # We can annotate the type of a type function with a poly. #
 let const : poly A -> poly B -> A -> B -> A = 
@@ -54,4 +60,4 @@ let ex5 = list_of_mylist(x) in # [1, 2, 3] #
 
 
 # All output from examples: #
-(ex1, ex2, ex3, ex4, ex5)
+(ex0, ex1, ex2, ex3, ex4, ex5)
