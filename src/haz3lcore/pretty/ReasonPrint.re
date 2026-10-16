@@ -116,6 +116,9 @@ let rec typ = (t: Typ.t): Segment.t =>
       };
     }
   | Rec({term: Var(x), _}, _) => [tok(Typ, x)]
+  /* M.t: a module's type */
+  | ProdProjection(m, {term: Label(x), _}) =>
+    typ(m) @ [form(Dot, Typ, []), tok(Typ, x)]
   | _ => raise(Unprintable)
   }
 and is_labeled = (t: Typ.t) =>

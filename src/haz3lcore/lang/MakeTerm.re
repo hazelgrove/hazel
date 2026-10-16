@@ -664,9 +664,49 @@ let reason_needs_scrut = (rules: list((Pat.t, Exp.t))): bool =>
     rules,
   );
 
+/* The inner functions of a curried `let f = (a, b) => ...` take f's name
+   (Hazel names only the outer one), so call stacks read f, not `fn` */
+let rec name_curried = (name: string, e: Exp.t): Exp.t =>
+  switch (e.term) {
+  | Fun(p, body, t, None) => {
+      ...e,
+      term: Fun(p, name_inner(name, body), t, None),
+    }
+  | Parens(inner) => {
+      ...e,
+      term: Parens(name_curried(name, inner)),
+    }
+  | _ => e
+  }
+and name_inner = (name: string, e: Exp.t): Exp.t =>
+  switch (e.term) {
+  | Fun(p, body, t, None) => {
+      ...e,
+      term: Fun(p, name_inner(name, body), t, Some(name)),
+    }
+  | Asc(inner, t) => {
+      ...e,
+      term: Asc(name_inner(name, inner), t),
+    }
+  | _ => e
+  };
+let rec pat_name = (p: Pat.t): option(string) =>
+  switch (p.term) {
+  | Var(x) => Some(x)
+  | Parens(p)
+  | Asc(p, _) => pat_name(p)
+  | _ => None
+  };
+
 /* `let p = e1 and q = e2; body`: one let of the tuple of bindings, which
    Hazel makes mutually recursive when they are functions */
 let reason_let = (pat: Pat.t, def: Exp.t, body: Exp.t): Exp.term => {
+  let named = (p: Pat.t, d: Exp.t) =>
+    switch (pat_name(p)) {
+    | Some(name) => name_curried(name, d)
+    | None => d
+    };
+  let def = named(pat, def);
   let rec operands = (e: Exp.t): list(Exp.t) =>
     switch (Id.Map.find_opt(Exp.rep_id(e), and_exps^)) {
     | Some((l, r)) => operands(l) @ operands(r)
@@ -680,7 +720,7 @@ let reason_let = (pat: Pat.t, def: Exp.t, body: Exp.t): Exp.term => {
       List.map(
         (e: Exp.t) =>
           switch (Id.Map.find_opt(Exp.rep_id(e), bind_exps^)) {
-          | Some((p, d)) => (p, d)
+          | Some((p, d)) => (p, named(p, d))
           | None =>
             let hole: Pat.term = EmptyHole;
             (IdTagged.fresh(hole), e);
