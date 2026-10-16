@@ -29,22 +29,28 @@ module Fresh = IdTagged.FreshGrammar;
 let fn_builtin = x => Fn(x);
 let const_builtin = x => Const(x);
 
-let ctx_entry_of_builtin: builtin => Ctx.entry =
+let typ_of_builtin: builtin => Typ.t =
   fun
-  | Const({name, typ, _}) =>
+  | Const({typ, _}) => typ |> Typ.fresh
+  | Fn({arg, ret, _}) => Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret));
+
+let ctx_entry_of_builtin = (b: builtin): Ctx.entry =>
+  switch (b) {
+  | Const({name, _}) =>
     Ctx.VarEntry({
       name,
-      typ: typ |> Typ.fresh,
+      typ: typ_of_builtin(b),
       id: Id.invalid,
       custom_statics: None,
     })
-  | Fn({name, arg, ret, custom_statics, _}) =>
+  | Fn({name, custom_statics, _}) =>
     Ctx.VarEntry({
       name,
-      typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
+      typ: typ_of_builtin(b),
       id: Id.invalid,
       custom_statics,
-    });
+    })
+  };
 
 let form_of_builtin:
   builtin => option((string, TermBase.exp_t => option(TermBase.exp_t))) =

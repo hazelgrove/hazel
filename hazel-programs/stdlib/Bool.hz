@@ -1,0 +1,10 @@
+# Bool: truth values #
+module Bool = {
+  let and = $prim.bool_and;
+  let or = $prim.bool_or;
+  let of_int = $prim.bool_of_int;
+  let of_sint = $prim.bool_of_sint;
+  let of_nat = $prim.bool_of_nat;
+  let of_float = $prim.bool_of_float;
+  let of_string = $prim.bool_of_string
+}

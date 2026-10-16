@@ -1266,9 +1266,9 @@ and uexp_to_info_map =
       )
     | BuiltinFun(string) =>
       let (syn_b, marks_b) =
-        switch (Ctx.lookup_var(Builtins.ctx_init(None), string)) {
+        switch (Builtins.builtin_typ(string)) {
         | None => (SynTy.unknown_internal(), [Mark.Free(string)])
-        | Some(var) => (var.typ, [])
+        | Some(typ) => (typ, [])
         };
       add(
         ~elab_term=BuiltinFun(string) |> rewrap,

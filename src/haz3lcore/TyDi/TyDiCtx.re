@@ -204,7 +204,7 @@ let typ_context_entries = (ctx: Ctx.t): list(TyDiSuggestion.t) =>
  * builtin context. */
 let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
   let ctx = Info.ctx_of(ci);
-  let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
+  let ctx = Ctx.filter_shadowed(ctx) |> Ctx.filter_internal;
   switch (ci) {
   | InfoExp({ana, _}) =>
     bound_variables(ana, ctx)
@@ -251,7 +251,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     strategy,
   };
   let ctx = Info.ctx_of(ci);
-  let ctx = Ctx.filter_shadowed(ctx); /* Remove shadowing */
+  let ctx = Ctx.filter_shadowed(ctx) |> Ctx.filter_internal;
   switch (ci) {
   | InfoExp({ana, _}) =>
     let exp_refs = ty =>

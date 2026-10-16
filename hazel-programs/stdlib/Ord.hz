@@ -1,0 +1,4 @@
+# Ord: comparison results (Lt, Eq, Gt) #
+module Ord = {
+  let invert = $prim.invert_ord
+}

@@ -1,0 +1,11 @@
+# Color: OKLCH color operations #
+module Color = {
+  let lighten = $prim.color_lighten;
+  let darken = $prim.color_darken;
+  let saturate = $prim.color_saturate;
+  let rotate = $prim.color_rotate;
+  let with_lightness = $prim.color_with_lightness;
+  let fade = $prim.color_fade;
+  let lightness = $prim.color_lightness;
+  let mix = $prim.color_mix
+}

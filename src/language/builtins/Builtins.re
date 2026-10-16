@@ -24,8 +24,63 @@ let builtins =
 /* Check for accidental duplicates */
 let _ = to_map(builtins);
 
+/* The standard library's source reaches every other builtin as
+   `$prim.name` and names it publicly (plans/stdlib.md §4). The tuple
+   operations stay top-level: their typing rules (custom_statics) would
+   not survive projection. */
+let prim = "$prim";
+
+let (top_level, prims) =
+  List.partition(
+    fun
+    | Fn({custom_statics: Some(_), _})
+    | Fn({name: "from_lvs", _}) => true
+    | _ => false,
+    builtins,
+  );
+
+let prim_entry: Ctx.entry =
+  Ctx.VarEntry({
+    name: prim,
+    typ:
+      Fresh.Typ.prod(
+        List.map(
+          b =>
+            Fresh.Typ.tup_label(
+              Fresh.Typ.label(name_of_builtin(b)),
+              typ_of_builtin(b),
+            ),
+          prims,
+        ),
+      ),
+    id: Id.invalid,
+    custom_statics: None,
+  });
+
+let prim_value: Exp.t =
+  Fresh.Exp.tuple(
+    List.map(
+      b => {
+        let (name, imp) = imp_of_builtin(b);
+        Fresh.Exp.tup_label(Fresh.Exp.label(name), imp);
+      },
+      prims,
+    ),
+  );
+
+/* BuiltinFun(name)'s type, for statics: most names are not in the ctx */
+let builtin_typ: string => option(Typ.t) = {
+  let table = Hashtbl.create(List.length(builtins));
+  List.iter(
+    b => Hashtbl.replace(table, name_of_builtin(b), typ_of_builtin(b)),
+    builtins,
+  );
+  Hashtbl.find_opt(table);
+};
+
 let ctx_entries =
-  List.map(ctx_entry_of_builtin, builtins)
+  [prim_entry]
+  @ List.map(ctx_entry_of_builtin, top_level)
   @ List.map(entry => Ctx.LivelitEntry(entry), Livelit.livelits)
   @ BuiltinsADT.constructor_entries
   /* Product types, so they get no constructors -- just names the config
@@ -38,8 +93,7 @@ let ctx_entries =
 let forms_init: forms = List.filter_map(form_of_builtin, builtins);
 
 let env_base: Environment.t(Exp.t) =
-  builtins
-  |> List.map(imp_of_builtin)
+  [(prim, prim_value), ...List.map(imp_of_builtin, top_level)]
   |> List.fold_left(Environment.extend, Environment.empty);
 
 /* The Hazel-source standard library (Library.install): its context entries
