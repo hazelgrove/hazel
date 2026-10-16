@@ -128,7 +128,11 @@ let get_definition_target =
     let (_, body_id_opt) = get_fn_info(~info_map, app_id);
     switch (body_id_opt) {
     | Some(_) => body_id_opt
-    | None => fn_def_id
+    /* a library function's definition is not in the editor */
+    | None =>
+      Option.bind(fn_def_id, id =>
+        is_in_user_code(~info_map, id) ? Some(id) : None
+      )
     };
   };
 };

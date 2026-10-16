@@ -19,12 +19,12 @@ let gradebook : [GradebookEntry] = (
 # (benchmark) Version with String Columns matching API #
 let get_value =
   fun (r, c) ->
-    find(to_lvs(r), fun e -> e.label == c).value in
+    List.find(to_lvs(r), fun e -> e.label == c).value in
 let dot_product =
   fun (t1, c1 : String, c2 : String) ->
-    fold_left(
-      map(t1, fun r -> (get_value(r,c1) * get_value(r, c2))),
-      int_plus,
+    List.fold_left(
+      List.map(t1, fun r -> (get_value(r,c1) * get_value(r, c2))),
+      Int.plus,
       0
     ) in
 dot_product(gradebook, "quiz1", "quiz2")
@@ -34,7 +34,7 @@ dot_product(gradebook, "quiz1", "quiz2")
 let dot_product =
   typfun R ->
     fun (t1 : [R], c1 : R -> Int, c2 : R -> Int) ->
-      fold_left(map(t1, fun r -> (c1(r) * c2(r))), int_plus, 0)
+      List.fold_left(List.map(t1, fun r -> (c1(r) * c2(r))), Int.plus, 0)
       : Int in
 let result =
   dot_product@<(

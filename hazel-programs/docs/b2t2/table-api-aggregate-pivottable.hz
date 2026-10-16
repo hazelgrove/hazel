@@ -31,36 +31,36 @@ let pivot_table =
     aggs : [(String, String, ? -> ?)]
   ) ->
     let groups =
-      fold_left(
+      List.fold_left(
         t1,
         (fun (
           groups,
           row
         ) ->
           let k =
-            filter(to_lvs(row), fun e -> mem(cs, e.label))
+            List.filter(to_lvs(row), fun e -> List.mem(cs, e.label))
             |> from_lvs in
-          case find_opt(groups, fun (gk, _) -> k == gk)
+          case List.find_opt(groups, fun (gk, _) -> k == gk)
           | None => (k, [row]) :: groups
           | Some((key, rows)) =>
-            (k, row :: rows) :: filter(groups, fun (gk, _) -> k != gk)
+            (k, row :: rows) :: List.filter(groups, fun (gk, _) -> k != gk)
           end),
         []
       ) in
-    map(
+    List.map(
       groups,
       fun (k, g) ->
         k
         ... (
-          map(
+          List.map(
             aggs,
             fun (dest_col, source_col, reduction) ->
               let vals =
-                filter_map(
+                List.filter_map(
                   g,
                   fun r ->
-                    find_opt(to_lvs(r), fun e -> e.label == source_col)
-                    |> option_map(_, fun e -> e.value)
+                    List.find_opt(to_lvs(r), fun e -> e.label == source_col)
+                    |> Option.map(_, fun e -> e.value)
                 ) in
               let reduced = reduction(vals) in
               (label= dest_col, value= reduced)
@@ -69,7 +69,7 @@ let pivot_table =
         )
     ) in
 let average =
-  fun ns -> fold_left(ns, int_plus, 0) / length(ns) in
+  fun ns -> List.fold_left(ns, Int.plus, 0) / List.length(ns) in
 test
   pivot_table(
     students,

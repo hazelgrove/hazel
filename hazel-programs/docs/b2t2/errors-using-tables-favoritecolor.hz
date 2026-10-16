@@ -1,6 +1,6 @@
 let tfilter = (
   typfun row ->
-    fun (t1 : [row], pred : row -> Bool) -> filter(t1, pred)
+    fun (t1 : [row], pred : row -> Bool) -> List.filter(t1, pred)
 ) in
 type Student = (
   name= String,

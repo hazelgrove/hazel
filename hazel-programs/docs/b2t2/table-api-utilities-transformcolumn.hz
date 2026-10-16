@@ -24,10 +24,10 @@ let ensures = [
 ] in
 let transform_column =
   fun (t : [?], c : String, f : (? -> ?)) ->
-    map(
+    List.map(
       t,
       fun r ->
-        map(
+        List.map(
           to_lvs(r),
           fun e ->
             if e.label == c
@@ -49,5 +49,5 @@ test
 
 # (idiomatic) Idiomatic way to do this #
 test
-  map(students, fun r -> r ... (name= r.name ++ " Smith"))
+  List.map(students, fun r -> r ... (name= r.name ++ " Smith"))
   == expected end

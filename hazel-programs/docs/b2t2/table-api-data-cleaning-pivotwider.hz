@@ -16,64 +16,64 @@ let distinct =
     | [] => []
     | (x :: xs) =>
       let seen = distinct(xs) in
-      if mem(xs, x) then xs else x :: xs
+      if List.mem(xs, x) then xs else x :: xs
     end in
 let pivot_wider =
   fun (t1, c1, c2) ->
     let kept_columns =
-      map(
+      List.map(
         t1,
         fun row ->
           let entries = to_lvs(row) in
-          filter(
+          List.filter(
             entries,
-            fun (label= l, value= v) -> ! mem([c1, c2], l)
+            fun (label= l, value= v) -> ! List.mem([c1, c2], l)
           )
           |> from_lvs
       )
       |> distinct in
     let new_columns =
-      flat_map(
+      List.flat_map(
         t1,
         fun row ->
           let entries = to_lvs(row) in
-          find_map(
+          List.find_map(
             entries,
             fun (label= l, value= v) ->
               if l == c1 then Some(v) else None
           )
-          |> option_to_list
+          |> Option.to_list
       )
       |> distinct in
-    map(
+    List.map(
       kept_columns,
       fun kept ->
         kept
         ... (
-          map(
+          List.map(
             new_columns,
             fun c -> (
               label= c,
               value=
-              find_map(
+              List.find_map(
                 t1,
                 fun r ->
                   let entries = to_lvs(r) in
                   if (
-                    filter(
+                    List.filter(
                       entries,
-                      fun (label= l, value= v) -> ! mem([c1,c2], l)
+                      fun (label= l, value= v) -> ! List.mem([c1,c2], l)
                     )
                     |> from_lvs
                   )
                   == kept
-                  && find_map(
+                  && List.find_map(
                     entries,
                     fun (label= l, value= v) ->
                       if l == c1 then Some(v) else None
                   )
                   == Some(c)
-                  then find_map(
+                  then List.find_map(
                     entries,
                     fun (label= l, value= v) ->
                       if l == c2 then Some(v) else None

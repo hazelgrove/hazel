@@ -793,8 +793,8 @@ let test_tuple_destructuring_edit_updates = () => {
 /* List literal: same idea — editing one element shouldn't break the result.
  * We sum via a cons-accumulator-style expression to exercise Cons + fold. */
 let test_list_literal_element_edit_updates = () => {
-  /* Use length so the test is independent of fold syntax variations. */
-  let src = "length([7, 8, 9])";
+  /* Use List.length so the test is independent of fold syntax variations. */
+  let src = "List.length([7, 8, 9])";
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=8, ~to_=88, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
@@ -1630,7 +1630,7 @@ let test_toplevel_cast_edit = () => {
 
 /* Regression test: builtins must participate in reuse.
  *
- * A subexpression that references a builtin (e.g. `string_length`) has that
+ * A subexpression that references a builtin (e.g. `String.length`) has that
  * builtin's name in its co_ctx. The builtin is bound in `Builtins.env_init()`,
  * never via a let/pattern, so its name has no provenance entry unless the
  * reuse_map is seeded from the environment. Before that seeding,
@@ -1638,13 +1638,13 @@ let test_toplevel_cast_edit = () => {
  * so the subexpression could NEVER be reused — and neither could anything
  * downstream of it.
  *
- *   Run 1: n = string_length("hello"), _ = 55, n   -> 5
+ *   Run 1: n = String.length("hello"), _ = 55, n   -> 5
  *   Run 2: edit the unrelated `_ = 55` literal to 77.
  *
- * The `string_length("hello")` Ap is unrelated to the edited binding, so it
+ * The `String.length("hello")` Ap is unrelated to the edited binding, so it
  * must be reused on run 2. */
 let test_builtin_call_reuses_after_unrelated_edit = () => {
-  let src = {|let n = string_length("hello") in
+  let src = {|let n = String.length("hello") in
 let _ = 55 in
 n|};
   let exp1 = parse_exp(src);
@@ -1655,7 +1655,7 @@ n|};
     true,
     !Exp.fast_equal(exp1, exp2),
   );
-  /* Locate the `string_length("hello")` Ap by its string-literal argument. */
+  /* Locate the `String.length("hello")` Ap by its string-literal argument. */
   let builtin_ap_id = {
     let found = ref(None);
     let f_exp = (continue, e: Exp.t): Exp.t => {
@@ -1672,14 +1672,14 @@ n|};
     let _ = TermBase.Exp.map_term(~f_exp, exp1);
     switch (found^) {
     | Some(id) => id
-    | None => failwith("could not locate `string_length(\"hello\")` Ap node")
+    | None => failwith("could not locate `String.length(\"hello\")` Ap node")
     };
   };
   let (r1, _, incr1) = eval_incr(exp1);
   let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(
     dhexp_typ,
-    "Run 1: string_length(\"hello\") = 5",
+    "Run 1: String.length(\"hello\") = 5",
     parse_exp("5"),
     r1,
   );
@@ -1688,7 +1688,7 @@ n|};
    * builtin name in the Ap's co_ctx forces a permanent cache miss here. */
   check(
     bool,
-    "string_length(\"hello\") Ap is reused on run 2",
+    "String.length(\"hello\") Ap is reused on run 2",
     true,
     directly_reused(builtin_ap_id, plan2),
   );

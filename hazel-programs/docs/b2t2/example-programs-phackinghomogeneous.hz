@@ -1,8 +1,8 @@
 let fisherTest = (
   fun (xs : [Bool], ys : [Bool]) ->
-    let zipped = zip(xs, ys) in
+    let zipped = List.zip(xs, ys) in
     let contigencyTable =
-      fold_left(
+      List.fold_left(
         zipped,
         fun (
           ((a,b),(c,d)),
@@ -32,7 +32,7 @@ let fisherTest = (
       * factorial(c)
       * factorial(d)
       * factorial(a + b + c + d) in
-    float_of_int(numerator) /. float_of_int(denominator)
+    Float.of_int(numerator) /. Float.of_int(denominator)
 ) in
 type JellyAnon = (
   get_acne= Bool,
@@ -64,25 +64,25 @@ let jellyAnon : [JellyAnon] = (
 let pHacking =
   fun t ->
     let jelly_anon =
-      map(t, fun r -> omit_labels(r, `get_acne`)) in
+      List.map(t, fun r -> omit_labels(r, `get_acne`)) in
     let get_acne = t.get_acne in
     let header =
-      to_lvs(head(jelly_anon)) |> map(_, fun e -> e.label) in
-    map(
+      to_lvs(List.head(jelly_anon)) |> List.map(_, fun e -> e.label) in
+    List.map(
       header,
       fun c -> (
         c,
         fisherTest(
           get_acne,
-          map(
+          List.map(
             t,
-            fun r -> (to_lvs(r) |> find(_, fun e -> e.label == c)).value
+            fun r -> (to_lvs(r) |> List.find(_, fun e -> e.label == c)).value
           )
         )
       )
     )
-    |> filter(_, fun (c, p) -> p <. 0.05)
-    |> map(
+    |> List.filter(_, fun (c, p) -> p <. 0.05)
+    |> List.map(
       _,
       fun (c, p) ->
         "We found a link between "

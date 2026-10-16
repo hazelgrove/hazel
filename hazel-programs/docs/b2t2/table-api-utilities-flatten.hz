@@ -26,20 +26,20 @@ let ensures = [
 ] in
 let flatten =
   fun (t1 : [?], cs : [String]) ->
-    flat_map(
+    List.flat_map(
       t1,
       fun r ->
-        case filter(to_lvs(r), fun e -> mem(cs, e.label))
+        case List.filter(to_lvs(r), fun e -> List.mem(cs, e.label))
         | [] => [r] : [?]
         | e :: es =>
-          fold_left(
+          List.fold_left(
             es,
             fun (acc, e2) ->
-              zip(acc, e2.value)
-              |> map(_, fun (lvs, v) -> lvs @ [(label= e2.label, value= v)]),
-            map(e.value, fun v -> [(label= e.label, value= v)])
+              List.zip(acc, e2.value)
+              |> List.map(_, fun (lvs, v) -> lvs @ [(label= e2.label, value= v)]),
+            List.map(e.value, fun v -> [(label= e.label, value= v)])
           )
-          |> map(_, fun rest -> r ... from_lvs(rest))
+          |> List.map(_, fun rest -> r ... from_lvs(rest))
         end
     )
     : [?] in
@@ -64,8 +64,8 @@ test
 
 # (idiomatic) Idiomatic way to do this #
 test
-  flat_map(
+  List.flat_map(
     gradebookSeq,
-    fun r -> map(r.quizzes, fun r' -> r ... (quizzes= r'))
+    fun r -> List.map(r.quizzes, fun r' -> r ... (quizzes= r'))
   )
   == expected end

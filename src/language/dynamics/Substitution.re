@@ -23,9 +23,10 @@
 /* How far to inline function values. A closed term needs them
    everywhere; a term only shown (a result, a probe sample) inlines
    them once: inside an inlined function, the functions it calls (and
-   modules, records of functions) stay names. Inlining them there
-   copies each callee into every call site at every level of calls,
-   which for a stuck term over a module grows exponentially. */
+   records of functions) stay names. Inlining them there copies each
+   callee into every call site at every level of calls, which for a
+   stuck term over a module grows exponentially. A module shown stays
+   its name (`List.map`, not the library's whole List). */
 type fns =
   | Inline
   | Shown
@@ -54,6 +55,7 @@ let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
         | Var(x) =>
           switch (Environment.lookup(env, x)) {
           | Some({term: Var(y), _}) when y == x => e
+          | Some({term: Module(_), _}) when fns != Inline => e
           | Some(v) when fns == Named && names_fn(v) => e
           | Some(v) =>
             v

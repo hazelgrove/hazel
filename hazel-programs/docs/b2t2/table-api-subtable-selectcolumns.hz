@@ -23,12 +23,12 @@ let ensures = [
 ] in
 let select_cols1 =
   fun (t1 : [?], bs : [Bool]) ->
-    map(
+    List.map(
       t1,
       fun r ->
         to_lvs(r)
-        |> zip(_, bs)
-        |> filter_map(_, fun (e, b) -> if b then Some(e) else None)
+        |> List.zip(_, bs)
+        |> List.filter_map(_, fun (e, b) -> if b then Some(e) else None)
         |> from_lvs
     ) in
 test
@@ -52,12 +52,12 @@ let ensures = [
 ] in
 let select_cols2 =
   fun (t1 : [?], ns : [Int]) ->
-    map(
+    List.map(
       t1,
       fun r ->
         to_lvs(r)
-        |> (fun entries -> map(ns, nth_opt(entries, _)))
-        |> filter_map(_, fun (e) -> e)
+        |> (fun entries -> List.map(ns, List.nth_opt(entries, _)))
+        |> List.filter_map(_, fun (e) -> e)
         |> from_lvs
     ) in
 test
@@ -80,15 +80,15 @@ let ensures = [
 ] in
 let select_cols3 =
   fun (t1 : [?], cs : [String]) ->
-    map(
+    List.map(
       t1,
       fun r ->
         to_lvs(r)
         |> (
           fun entries ->
-            filter_map(
+            List.filter_map(
               cs,
-              fun c -> find_opt(entries, fun e -> e.label == c)
+              fun c -> List.find_opt(entries, fun e -> e.label == c)
             )
         )
         |> from_lvs
@@ -103,7 +103,7 @@ test
 
 # (idiomatic) We have label filtering on tuples as a primitive operation but without row types there's no way to give it a first-class type. This is the idiomatic way to do the operation #
 test
-  map(students, select_labels(_, `favorite_color`, `age`))
+  List.map(students, select_labels(_, `favorite_color`, `age`))
   == [
     (favorite_color="blue", age=12),
     (favorite_color="green", age=17),

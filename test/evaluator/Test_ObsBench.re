@@ -56,7 +56,7 @@ let let_chain = (n: int): string => {
 /* Builtin HOF + tuple patterns + probed closure body: closures, builtin
  * frames, and list churn that fib lacks. */
 let fold_prog = {|let update = fun (m, a) -> ^^probe(m + a) in
-let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
+let run = fun (m, xs) -> List.fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
 run(0, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15])|};
 
 let all_exp_targets = (info_map: Statics.Map.t): Sample.targets =>

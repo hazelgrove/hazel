@@ -49,9 +49,9 @@ let sort_by_columns =
   typfun r ->
     let get_values =
       fun (r, c : [String]) ->
-        (let entries = to_lvs(r) in filter_map(c,fun c -> find_opt(entries,fun (label=l, value=v) -> c == l))).value in
+        (let entries = to_lvs(r) in List.filter_map(c,fun c -> List.find_opt(entries,fun (label=l, value=v) -> c == l))).value in
     fun (t : [?], c : [String]) ->
-      sort(
+      List.sort(
         (
           fun (
             f,

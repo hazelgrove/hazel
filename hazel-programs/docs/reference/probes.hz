@@ -233,5 +233,5 @@ let inventory = ^^table([
 
 # Actions you take in the table modal are real syntax edits — they    #
 # rewrite the underlying probed expression. Try dropping a column,    #
-# then close the modal: the source above now ends in `|> map(...)`.   #
+# then close the modal: the source above ends in `|> List.map(...)`.  #
 

@@ -24,15 +24,15 @@ let ensures = [
 let distinct =
   typfun row ->
     fun (t : [row]) ->
-      fold_left(
+      List.fold_left(
         t,
         fun (
           acc,
           elem
-        ) -> if mem(acc, elem) then acc else acc @ [elem],
+        ) -> if List.mem(acc, elem) then acc else acc @ [elem],
         []
       )
       : [row] in
 test
-  distinct@<(quiz3= Int)>(map(gradebook, select_labels(_, `quiz3`)))
+  distinct@<(quiz3= Int)>(List.map(gradebook, select_labels(_, `quiz3`)))
   == [7, 8] : [(quiz3= Int)] end

@@ -54,16 +54,16 @@ let group_join
             get_key2 : (r2 -> k),
             aggregate : ((r1, [r2]) -> r3)
           ) ->
-            map(
+            List.map(
               t1,
               fun (r : r1) ->
                 let t2' : [r2] =
-                  filter(t2, fun r' : r2 -> get_key1(r) == get_key2(r')) in
+                  List.filter(t2, fun r' : r2 -> get_key1(r) == get_key2(r')) in
                 aggregate(r, t2')
             )
             : [r3] in
 let average =
-  fun ns -> fold_left(ns, int_plus, 0) / length(ns) in
+  fun ns -> List.fold_left(ns, Int.plus, 0) / List.length(ns) in
 
 test
   group_join@<(Student)>@<(GradebookEntry)>@<(

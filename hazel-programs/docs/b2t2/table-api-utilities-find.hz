@@ -26,21 +26,21 @@ let find =
       fun (row : ?) ->
         let row_entries = to_lvs(row) in
         let r_entries = to_lvs(r) in
-        all(
+        List.all(
           r_entries,
           fun e ->
-            case find_opt(row_entries, fun e' -> e'.label == e.label)
+            case List.find_opt(row_entries, fun e' -> e'.label == e.label)
             | Some(e') => e'.value == e.value
             | None => false
             end
         )
         : Bool in
-    find_index(t, is_match) : (+ None + Some(Int)) in
+    List.find_index(t, is_match) : (+ None + Some(Int)) in
 
 test
   find(students, (age= 13)) == Some(2) end;
 
 # (idiomatic) Idiomatic way to do this is type safe but requires the user to project the labels manually #
 test
-  find_index(students, fun r -> r == (r ... (age= 13)))
+  List.find_index(students, fun r -> r == (r ... (age= 13)))
   == Some(2) end

@@ -25,7 +25,7 @@ let ensures = [
 ] in
 let cross_join =
   fun (t1 : [?], t2 : [?]) ->
-    flat_map(t1, fun r1 -> map(t2, fun r2 -> r1 ... r2)) in
+    List.flat_map(t1, fun r1 -> List.map(t2, fun r2 -> r1 ... r2)) in
 # Examples #
 test
   cross_join(students, petiteJelly)
@@ -66,7 +66,7 @@ let cross_join =
     typfun r2 ->
       typfun r3 ->
         fun (t1 : [r1], t2 : [r2], combine : ((r1, r2) -> r3)) ->
-          flat_map(t1, fun r1 -> map(t2, fun r2 -> combine(r1, r2)))
+          List.flat_map(t1, fun r1 -> List.map(t2, fun r2 -> combine(r1, r2)))
           : [r3] in
 # Examples #
 test

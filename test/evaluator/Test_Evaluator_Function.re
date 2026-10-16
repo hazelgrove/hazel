@@ -10,12 +10,12 @@ let tests = (
   [
     test_case("Function deferral", `Quick, () =>
       evaluation_test(
-        "string_sub(\"hello\", 1, _)(2)",
+        "String.sub(\"hello\", 1, _)(2)",
         string("el"),
         ap(
           Forward,
           deferred_ap(
-            var("string_sub"),
+            dot(var("String"), label("sub")),
             [string("hello"), int(1), deferral(InAp)],
           ),
           int(2),
@@ -45,7 +45,7 @@ let tests = (
     test_case("Deferral applied to unknown type", `Quick, () =>
       parse_and_evaluate_test(
         {|"llo"|},
-        {|(string_sub : ?)(_, 2, 3)("hello")|},
+        {|(String.sub : ?)(_, 2, 3)("hello")|},
       )
     ),
     test_case(
@@ -54,15 +54,15 @@ let tests = (
       () => {
         parse_and_evaluate_test(
           {|[]|},
-          {|let f : ? -> ? = map(_, fun _ -> 1) in f([])|},
+          {|let f : ? -> ? = List.map(_, fun _ -> 1) in f([])|},
         );
         parse_and_evaluate_test(
           {|[1.0 : Int, 2.0 : Int]|},
-          {|let f : [Int] -> ? = map(_, fun i -> i) in f([1.0, 2.0] : ?)|},
+          {|let f : [Int] -> ? = List.map(_, fun i -> i) in f([1.0, 2.0] : ?)|},
         );
         parse_and_evaluate_test(
           {|[1.0 : Int, 2.0 : Int]|},
-          {|let f : ? ->  [Int]  = map(_, fun i -> i) in f([1.0, 2.0] : ?)|},
+          {|let f : ? ->  [Int]  = List.map(_, fun i -> i) in f([1.0, 2.0] : ?)|},
         );
       },
     ),

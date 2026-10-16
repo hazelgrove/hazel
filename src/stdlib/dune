@@ -20,8 +20,7 @@
    %{dep:../../hazel-programs/stdlib/Color.hz}
    %{dep:../../hazel-programs/stdlib/Option.hz}
    %{dep:../../hazel-programs/stdlib/List.hz}
-   %{dep:../../hazel-programs/stdlib/Prelude.hz}
-   %{dep:../../hazel-programs/stdlib/Compat.hz})))
+   %{dep:../../hazel-programs/stdlib/Prelude.hz})))
 
 (library
  (name stdlibBaked)

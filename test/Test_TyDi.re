@@ -83,11 +83,11 @@ let variable_tests = (
       ~code="let x = 1 in let xy = 2 in x¦",
       ~expect=None,
     ),
-    /* Builtins are included in suggestions */
+    /* The library's members are suggested through their module */
     tydi_test(
-      ~name="Builtin variable: string_of_int",
-      ~code="let x : String = st¦",
-      ~expect=Some("ring_capitalize("),
+      ~name="Library member: String.capitalize",
+      ~code="let x : String = Str¦",
+      ~expect=Some("ing.capitalize("),
     ),
   ],
 );
@@ -586,7 +586,7 @@ let qualified_tests = (
     tydi_test(
       ~name="Qualified: type-name module with matching field",
       ~code=
-        "module String = {let empty = \"\"; let length = string_length} in let i : Int = Str¦",
+        "module String = {let empty = \"\"; let length = String.length} in let i : Int = Str¦",
       ~expect=Some("ing.length("),
     ),
   ],

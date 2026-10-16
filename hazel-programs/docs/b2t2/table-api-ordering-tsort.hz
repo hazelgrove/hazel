@@ -29,12 +29,12 @@ let ensures = [
 # This could be done in a typesafe way if a function was passed to do the projection #
 let get_value =
   fun (r, c : String) ->
-    (to_lvs(r) |> find(_, fun (label=l, value=v) -> l == c)).value in
+    (to_lvs(r) |> List.find(_, fun (label=l, value=v) -> l == c)).value in
 let tsort =
   typfun r ->
     fun (t : [?], c : String, b : Bool) ->
       let sorted =
-        sort(
+        List.sort(
           fun (
             first,
             second
@@ -44,7 +44,7 @@ let tsort =
             else Gt,
           t
         ) in
-      (if b then sorted else reverse(sorted)) : [r] in
+      (if b then sorted else List.reverse(sorted)) : [r] in
 test
   tsort@<GradebookEntry>(gradebook, "final", false)
   == [

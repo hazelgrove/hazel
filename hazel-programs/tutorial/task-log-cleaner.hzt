@@ -16,9 +16,9 @@ The garden keepers' log is a mess: entry numbers, stray dashes, runaway spaces. 
 5. Final trim for any leftover edge spaces
 
 Some standard library functions that may be useful:
-- `string_trim: String -> String`
-- `string_match: (String, String) -> Bool`
-- `string_replace: (String, String, String) -> String`
+- `String.trim: String -> String`
+- `String.match: (String, String) -> Bool`
+- `String.replace: (String, String, String) -> String`
 
 The string functions you need are tragically underdocumented. You will have to figure out what those String arguments mean by experimenting with probes.
 
@@ -37,9 +37,9 @@ Get one test's input through one step at a time: trim first, then strip the entr
 - a space matches a literal space
 
 ### Functions
-- `string_trim: String -> String`
-- `string_match: (String, String) -> Bool`
-- `string_replace: (String, String, String) -> String`
+- `String.trim: String -> String`
+- `String.match: (String, String) -> Bool`
+- `String.replace: (String, String, String) -> String`
 
 ### Approach (writing tasks)
 1. Read the comment block: what should the function do?
