@@ -487,7 +487,7 @@ in apply(add(_, 10), 5)|},
          step-into predicate can't rely on fn_def_id alone and must suppress
          builtin call sites separately. */
       let samples =
-        get_all_samples({|^^probe(map([1, 2, 3], fun n -> n + 1))|});
+        get_all_samples({|^^probe(List.map([1, 2, 3], fun n -> n + 1))|});
       switch (samples) {
       | [s, ..._] =>
         check(
@@ -498,6 +498,41 @@ in apply(add(_, 10), 5)|},
         )
       | [] => fail("Expected at least 1 sample")
       };
+    },
+  ),
+  test_case(
+    "Step into is offered on a user call, not on a library call",
+    `Quick,
+    () => {
+      let offered = code => {
+        let (_, elaborated, info_map, targets) = parse_with_probes(code);
+        let (_, state) =
+          Evaluator.evaluate(
+            ~eval_info=EvalInfo.of_targets(targets),
+            ~env=Builtins.env_init(),
+            elaborated,
+          );
+        switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
+        | [(id, [s, ..._])] =>
+          Haz3lcore.ProbeProj.can_step_into(
+            Option.get(Statics.Map.lookup(id, info_map)),
+            s,
+          )
+        | _ => fail("Expected one probe with samples")
+        };
+      };
+      check(
+        bool,
+        "user call",
+        true,
+        offered({|let inc = fun n -> n + 1 in ^^probe(inc(1))|}),
+      );
+      check(
+        bool,
+        "library call",
+        false,
+        offered({|^^probe(List.map([1, 2, 3], fun n -> n + 1))|}),
+      );
     },
   ),
 ];

@@ -986,12 +986,22 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
     | Some(name) => !is_builtin(name)
     | None => false
     };
-  /* Suppress the dynamic offer for direct builtin call sites: their fn_def_id
-     points to library code with nowhere to step. */
+  /* the name a callee is reached through: `List` in List.map(xs, f) */
+  let rec root_name = (e: Exp.t): option(string) =>
+    switch (e.term) {
+    | Var(name)
+    | Constructor(name, _) => Some(name)
+    | Dot(e, _)
+    | Parens(e) => root_name(e)
+    | _ => None
+    };
+  /* Suppress the dynamic offer for direct builtin and library call sites:
+     their fn_def_id points to library code with nowhere to step. */
   let static_fn_is_builtin =
-    switch (fn_var_name) {
-    | Some(name) => is_builtin(name)
-    | None => false
+    switch (statics) {
+    | InfoExp({user_term: {term: Ap(_, fn, _), _}, _}) =>
+      Option.fold(~none=false, ~some=is_builtin, root_name(fn))
+    | _ => false
     };
   let dynamic_ok =
     !static_fn_is_builtin
