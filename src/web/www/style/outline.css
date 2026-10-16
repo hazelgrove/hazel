@@ -18,8 +18,9 @@
      borderless in outline modes — a cell-side border stopped where
      the cell content did) */
   border-right: 0.6px solid var(--border-default);
-  /* the row holding the editor's caret: a light brown fill (OutlineFollow) */
-  --ol-mark-bg: color-mix(in srgb, var(--surface-shard) 45%, transparent);
+  /* the row holding the editor's caret (OutlineFollow): the full brown,
+     darker than an open cell's tint */
+  --ol-mark-bg: var(--surface-shard);
 }
 
 #outline-sidebar[open] {
@@ -202,7 +203,8 @@
   transition: color 0.4s ease-out;
 }
 
-/* tints, lightest to strongest: hover, open as a cell, keyboard cursor */
+/* brown tints, lightest to strongest: hover, open as a cell, the editor's
+   caret row; the keyboard cursor takes the selection yellow */
 #outline-sidebar .outline-label:hover {
   background: color-mix(in srgb, var(--surface-shard) 28%, transparent);
 }
