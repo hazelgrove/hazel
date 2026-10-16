@@ -1697,14 +1697,19 @@ let header_view =
             ),
           ]
           : [];
+  let mac = Util.Os.is_mac^;
   [
     /* text mode, said quietly: a pencil for the menu glyph, taking no
-       room from the crumbs */
+       room from the crumbs; its keys on hover */
     typing
       ? span(
           ~attrs=[
             clss(["outline-menu-glyph", "outline-mode-glyph"]),
-            Attr.title({js|editing names · esc to finish|js}),
+            Attr.title(
+              mac
+                ? {js|Enter new below · Tab / ⇧Tab into / out of a module · ⌥F fold · ⌥↑↓ move · ⌘D duplicate · ⌘⌫ delete · Esc done|js}
+                : {js|Enter new below · Tab / Shift+Tab into / out of a module · Alt+F fold · Alt+↑↓ move · Ctrl+D duplicate · Ctrl+Backspace delete · Esc done|js},
+            ),
           ],
           [text({js|✎|js})],
         )
