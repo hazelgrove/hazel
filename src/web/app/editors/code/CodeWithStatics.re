@@ -103,6 +103,16 @@ module StaticsDebounce = {
 
   let pending = () => timer_id^ != None || force_on_next^;
 
+  /* nothing pending: for tests, which never yield to the timer */
+  let reset = () => {
+    switch (timer_id^) {
+    | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
+    | None => ()
+    };
+    timer_id := None;
+    force_on_next := false;
+  };
+
   /* Call from calculate to get the statics_mode for this cycle.
      schedule_refresh should dispatch the mode's RefreshStatics action. */
   let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
