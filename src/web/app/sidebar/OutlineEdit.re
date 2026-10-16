@@ -24,6 +24,10 @@ type def_op =
   | Duplicate
   | MoveUp
   | MoveDown
+  /* Tab: into the module or value above, last; ⇧Tab: a module's or
+     value's last item out, just after it */
+  | Indent
+  | Outdent
   | Delete;
 
 /* a new definition's kind from its leading keyword */
@@ -61,6 +65,11 @@ type fresh = {
   f_id: Id.t,
   f_kw: string,
 };
+
+/* the line Enter starts once new definition [f] is named: below it, or
+   first inside it, a module (an empty one) */
+let next_line = (f: fresh): line =>
+  New(f.f_id, fst(new_kind(f.f_kw)) == KModule ? First : Below);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -222,7 +231,8 @@ let rec under = (p: OutlineTree.path, q: OutlineTree.path): bool =>
   };
 
 /* the rows as lines, with a new definition's after its anchor: first
-   inside it, or past the rows under it (below it, or last inside it) */
+   inside it, or past the rows under it (below it, or last inside it, but
+   above a function's ⇒, which stays last) */
 let lines = (~text: option(t), visible: array(visible_row)): array(entry) => {
   let rows = Array.map(r => Of_row(r), visible);
   switch (text) {
@@ -234,7 +244,18 @@ let lines = (~text: option(t), visible: array(visible_row)): array(entry) => {
       let rec past = j =>
         j < n && under(visible[i].r_path, visible[j].r_path)
           ? past(j + 1) : j;
-      let k = place == First ? i + 1 : past(i + 1);
+      let trail = j =>
+        j > i
+        && visible[j].r_node.o_kind == KTrail
+        && visible[j].r_parent == Some(visible[i].r_path);
+      let k =
+        switch (place) {
+        | First => i + 1
+        | Below => past(i + 1)
+        | Last =>
+          let j = past(i + 1);
+          trail(j - 1) ? j - 1 : j;
+        };
       Array.concat([
         Array.sub(rows, 0, k),
         [|Of_new(a, place)|],
@@ -424,6 +445,9 @@ type outcome =
   | Copy(string, bool)
   /* a new definition remade as a keyword's kind (none: a value) */
   | Rekind(string)
+  /* a new definition's line moved a level in or out, to [line]: its
+     definition goes there */
+  | Shift(line)
   /* a new definition's line gone, its definition with it: the caret to a
      neighbour line */
   | Drop(Id.t, option((line, int)))
@@ -432,9 +456,11 @@ type outcome =
   | Undo(line, int);
 
 /* the line where Enter puts a new definition, for a nameable row: first
-   inside an expanded module, else below */
-let new_place = (r: visible_row): place =>
-  r.r_expanded && r.r_node.o_kind == KModule ? First : Below;
+   inside an expanded module or an empty one ([blank]), else below */
+let new_place = (~blank: Id.t => bool, r: visible_row): place =>
+  r.r_node.o_kind == KModule
+  && (r.r_expanded || Option.fold(~none=false, ~some=blank, r.r_node.o_id))
+    ? First : Below;
 
 let len_of_line = (e: entry): int => units(name_of_line(e));
 
@@ -442,6 +468,152 @@ let ghost_line = (e: entry): bool =>
   switch (e) {
   | Of_row(r) => !nameable(r.r_node)
   | Of_new(_) => false
+  };
+
+/* the row at [path] among the lines */
+let row_at =
+    (lines: array(entry), path: OutlineTree.path): option(visible_row) =>
+  Array.find_map(
+    fun
+    | Of_row(r) when r.r_path == path => Some(r)
+    | _ => None,
+    lines,
+  );
+
+/* the row whose items [r] is one of, a run's tests being their level's
+   items; none at the top level */
+let level_row = (lines: array(entry), r: visible_row): option(visible_row) =>
+  switch (Option.bind(r.r_parent, row_at(lines))) {
+  | Some(run) when run.r_node.o_kind == KTests =>
+    Option.bind(run.r_parent, row_at(lines))
+  | parent => parent
+  };
+
+/* where a line sits among the items of its level, as the program has
+   them: the row the level is in (none: the top level), and the items
+   just above and below the line there */
+type beside = {
+  b_level: option(visible_row),
+  b_above: option(OutlineTree.node),
+  b_below: option(OutlineTree.node),
+};
+
+/* a line's [beside]; a run of tests counts as its tests, and [skip] (a
+   new definition's own row) isn't there */
+let beside =
+    (~skip: option(Id.t), lines: array(entry), e: entry): option(beside) => {
+  let items = (level: option(visible_row)) =>
+    (
+      switch (level) {
+      | Some(r) => r.r_node.o_children
+      | None =>
+        List.filter_map(
+          fun
+          | Of_row({r_parent: None, r_node, _}) => Some(r_node)
+          | _ => None,
+          Array.to_list(lines),
+        )
+      }
+    )
+    |> List.concat_map((n: OutlineTree.node) =>
+         n.o_kind == KTests ? n.o_children : [n]
+       )
+    |> List.filter((n: OutlineTree.node) => skip == None || n.o_id != skip);
+  /* item [id] in [level]'s, and the items before and after it */
+  let split = (level, id) => {
+    let rec go = (above, ns: list(OutlineTree.node)) =>
+      switch (ns) {
+      | [] => None
+      | [n, ...rest] when n.o_id == Some(id) => Some((above, n, rest))
+      | [n, ...rest] => go(Some(n), rest)
+      };
+    go(None, items(level));
+  };
+  let row_of = (id: Id.t) =>
+    Array.find_map(
+      fun
+      | Of_row(r) when r.r_node.o_id == Some(id) => Some(r)
+      | _ => None,
+      lines,
+    );
+  switch (e) {
+  | Of_row(r) =>
+    Option.bind(
+      r.r_node.o_id,
+      id => {
+        let level = level_row(lines, r);
+        Option.map(
+          ((above, _, rest)) =>
+            {
+              b_level: level,
+              b_above: above,
+              b_below: ListUtil.hd_opt(rest),
+            },
+          split(level, id),
+        );
+      },
+    )
+  | Of_new(a, Below) =>
+    Option.bind(
+      row_of(a),
+      r => {
+        let level = level_row(lines, r);
+        Option.map(
+          ((_, n, rest)) =>
+            {
+              b_level: level,
+              b_above: Some(n),
+              b_below: ListUtil.hd_opt(rest),
+            },
+          split(level, a),
+        );
+      },
+    )
+  | Of_new(a, place) =>
+    Option.map(
+      r => {
+        let ns = items(Some(r));
+        switch (place, ListUtil.split_last_opt(ns)) {
+        | (First, _) => {
+            b_level: Some(r),
+            b_above: None,
+            b_below: ListUtil.hd_opt(ns),
+          }
+        /* last in a function: above its ⇒ */
+        | (_, Some((init, {o_kind: KTrail, _} as trail))) => {
+            b_level: Some(r),
+            b_above: ListUtil.last_opt(init),
+            b_below: Some(trail),
+          }
+        | _ => {
+            b_level: Some(r),
+            b_above: ListUtil.last_opt(ns),
+            b_below: None,
+          }
+        };
+      },
+      row_of(a),
+    )
+  };
+};
+
+/* Tab takes an item of kind [item] into the item [above] it: a module
+   (never a `use`), or a value, as its body's last local definition */
+let joins = (~above: OutlineTree.node, item: OutlineTree.kind): bool =>
+  switch (above.o_kind, item) {
+  | (KModule, KUse) => false
+  | (KModule | KFn | KConst, _) => true
+  | _ => false
+  };
+
+/* ⇧Tab takes the last item of [level] out of it, [below] being what
+   follows that item there: a module's last member, or a value's last
+   local definition, a function's ⇒ staying last */
+let leaves = (~level: visible_row, below: option(OutlineTree.node)): bool =>
+  switch (level.r_node.o_kind, below) {
+  | (KModule, None)
+  | (KFn | KConst, None | Some({o_kind: KTrail, _})) => true
+  | _ => false
   };
 
 /* what key [p] does on new definition line [at]: its name is typed into
@@ -504,6 +676,22 @@ let live_key =
   let blank = String.trim(name) == "";
   let kw = Option.fold(~none="", ~some=f => f.f_kw, t.fresh);
   let alone = !p.alt && !p.meta && !p.shift;
+  /* where the line goes in a level ([out]: out of one): last into the
+     module or value above it; out of the module or value it's the last
+     line of, just after that */
+  let shifted = (~out) =>
+    switch (
+      beside(~skip=Option.map(f => f.f_id, t.fresh), lines, lines[at]),
+      out,
+    ) {
+    | (Some({b_above: Some({o_id: Some(m), _} as above), _}), false)
+        when joins(~above, fst(new_kind(kw))) =>
+      Some(New(m, Last))
+    | (Some({b_level: Some(level), b_below, _}), true)
+        when leaves(~level, b_below) =>
+      Option.map(m => New(m, Below), level.r_node.o_id)
+    | _ => None
+    };
   switch (p.key) {
   /* IME and dead keys compose text in a field, and this line isn't one:
      refused */
@@ -518,7 +706,19 @@ let live_key =
   | "Escape" => t.error != None ? Abandon : Save(Leave)
   | "Enter" when p.meta || p.shift => Save(Leave)
   | "Enter" when p.alt || p.ctrl => Swallow
-  | "Enter" => blank ? Save(Leave) : Save(Next)
+  /* a blank last line in a module or a value's body goes out of it, as
+     ⇧Tab takes it; elsewhere it's gone, and text mode with it */
+  | "Enter" when blank =>
+    switch (shifted(~out=true)) {
+    | Some(to_) => Shift(to_)
+    | None => Save(Leave)
+    }
+  | "Enter" => Save(Next)
+  | "Tab" when !p.alt && !p.meta && !p.ctrl =>
+    switch (shifted(~out=p.shift)) {
+    | Some(to_) => Shift(to_)
+    | None => Flash
+    }
   | "Tab"
   | "F2" => Swallow
   /* not an item to move yet */
@@ -687,7 +887,7 @@ let decide_row =
   | "Enter" when p.alt || p.ctrl => Swallow
   | "Enter" when !here_ghost =>
     switch (item) {
-    | Some(id) => Go(New(id, new_place(r)), 0, None)
+    | Some(id) => Go(New(id, new_place(~blank, r)), 0, None)
     | None => Flash
     }
   | "Enter" =>
@@ -706,6 +906,18 @@ let decide_row =
       }
     | (_, Some(id)) => Go(New(id, Below), 0, None)
     | (_, None) => Flash
+    }
+  /* Tab: into the module or value above, last; ⇧Tab: out of the one
+     it's the last item of */
+  | "Tab" when !p.alt && !p.meta && !p.ctrl =>
+    switch (beside(~skip=None, lines, lines[at]), p.shift) {
+    | (Some({b_above: Some(above), _}), false)
+        when joins(~above, r.r_node.o_kind) =>
+      op(Indent)
+    | (Some({b_level: Some(level), b_below, _}), true)
+        when leaves(~level, b_below) =>
+      op(Outdent)
+    | _ => Flash
     }
   | "Tab"
   | "F2" => Swallow
