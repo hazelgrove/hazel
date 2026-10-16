@@ -407,7 +407,7 @@ and remold_typ = (shape, seg: t): t =>
     | Grout(_) => [hd, ...remold_typ(shape, tl)]
     | Projector(p) => [hd, ...remold_typ(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
-      switch (remold_tile(Typ, shape, t)) {
+      switch (remold_tile(~rest=tl, Typ, shape, t)) {
       | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -434,7 +434,7 @@ and remold_typ_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
       /* If we encounter ; and Mod or Sig is a parent sort, return to let the parent
          handle it as ModSeq/SigSeq. This handles cases like `type T = Int;` where ;
          follows a Typ child of ModType or SigType. */
-      switch (remold_tile(Typ, shape, t)) {
+      switch (remold_tile(~rest=tl, Typ, shape, t)) {
       | None
           when
             Tile.is_semi(t)
@@ -485,7 +485,7 @@ and remold_pat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         remold_pat_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
-      switch (remold_tile(Pat, shape, t)) {
+      switch (remold_tile(~rest=tl, Pat, shape, t)) {
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -524,7 +524,7 @@ and remold_pat = (shape, seg: t): t =>
     | Grout(_) => [hd, ...remold_pat(shape, tl)]
     | Projector(p) => [hd, ...remold_pat(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
-      switch (remold_tile(Pat, shape, t)) {
+      switch (remold_tile(~rest=tl, Pat, shape, t)) {
       | None => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);

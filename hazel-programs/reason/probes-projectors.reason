@@ -1,0 +1,31 @@
+// PROBES show the values an expression takes as the program runs.
+// Put the caret on an expression and press Cmd/Ctrl-E to add one;
+// the same shortcut removes it.
+
+let chips = ^^probe(10 + 10);
+let mult = 1 + 2 * 3;
+let score = ^^probe(chips * mult);
+
+// A probe inside a function shows one sample per call. Click a
+// sample to focus it: the other probes then show that call's values.
+let celsius = (fahrenheit) => {
+  let diff = ^^probe(fahrenheit -. 32.);
+  5. /. 9. *. diff;
+};
+
+let rec fib = (n) =>
+  switch (n) {
+  | 0
+  | 1 => n
+  | n => ^^probe(fib(n - 1) + fib(n - 2))
+  };
+
+// PROJECTORS replace a piece of syntax with a live view of it.
+// Drag the slider or flip the checkbox: the program re-runs.
+let phase: int = ^^slider(44);
+let guard: bool = ^^check(true);
+
+// LIVELITS are widgets that elaborate to values
+let mood = ^^livelit(^emotion(55));
+
+(score, celsius(212.), fib(6), phase, guard, mood)

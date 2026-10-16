@@ -339,3 +339,60 @@ let to_segment = (~root: Sort.t, str: string): Segment.t =>
   |> build
   |> deep_remold(_, root)
   |> Segment.regrout(Nib.Shape.(concave(), concave()));
+
+/* 4. Triggers: `^^name(syntax)` written in the text. A refractor
+   trigger (`^^probe`) leaves its syntax in place and is reported as
+   (root id of the syntax, trigger token) for pinning on the zipper; a
+   projector trigger (`^^slider`) becomes the projector `materialize`
+   builds. (The typing parser does this per keystroke in Triggers;
+   that module sits above this one.) */
+let rec materialize_triggers =
+        (
+          ~materialize: (Token.t, Segment.t) => option(Piece.t),
+          ~is_refractor: Token.t => bool,
+          ~refractors: ref(list((Id.t, string))),
+          seg: Segment.t,
+        )
+        : Segment.t => {
+  let go = materialize_triggers(~materialize, ~is_refractor, ~refractors);
+  let invoke = (t: Tile.t) =>
+    Tile.arity(t) == 1 && Token.is_projector_invoke(Tile.token(t, 0));
+  switch (seg) {
+  | [] => []
+  | [Tile(nt), Tile({children: [syntax], _} as parens), ...rest]
+      when invoke(nt) && Tile.is_paren_shaped(parens) =>
+    let syntax = go(syntax);
+    let tok = Tile.token(nt, 0);
+    if (is_refractor(tok)) {
+      switch (Segment.root_id(Segment.skel(syntax), syntax)) {
+      | id => refractors := [(id, tok), ...refractors^]
+      | exception _ => ()
+      };
+      syntax @ go(rest);
+    } else {
+      switch (materialize(tok, syntax)) {
+      | Some(p) => [p, ...go(rest)]
+      | None => [Tile(nt), Tile(parens), ...go(rest)]
+      };
+    };
+  | [Tile(t), ...rest] => [
+      Tile({
+        ...t,
+        children: List.map(go, t.children),
+      }),
+      ...go(rest),
+    ]
+  | [p, ...rest] => [p, ...go(rest)]
+  };
+};
+
+let to_segment_with_triggers =
+    (~root: Sort.t, ~materialize, ~is_refractor, str: string)
+    : (Segment.t, list((Id.t, string))) => {
+  let refractors = ref([]);
+  let seg =
+    to_segment(~root, str)
+    |> materialize_triggers(~materialize, ~is_refractor, ~refractors)
+    |> Segment.regrout(Nib.Shape.(concave(), concave()));
+  (seg, refractors^);
+};

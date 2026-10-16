@@ -2,7 +2,10 @@
  * hazel-programs/reason, embedded at compile time and parsed (with the
  * Reason surface current) when the ReasonML mode loads them. */
 let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
-  [("Reason Basics", [%blob "basics.reason"])]
+  [
+    ("Reason Basics", [%blob "basics.reason"]),
+    ("Probes & Projectors", [%blob "probes-projectors.reason"]),
+  ]
   |> List.map(((name, text))
        /* indentation kept as written: of_slide_text's per-line flattening
           leaves Reason's switch/rule nesting unreadable */

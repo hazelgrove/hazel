@@ -76,11 +76,24 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
     )
   | Error(_) when Surface.is_reason() =>
     /* Reason text loads in bulk (see ReasonLoad) */
-    Parser.to_segment(text, ~root)
-    |> Option.map(segment =>
-         Zipper.unzip(~direction=Left, segment)
-         |> Zipper.remold_regrout(Left, ~root)
-       )
+    switch (
+      ReasonLoad.to_segment_with_triggers(
+        ~root,
+        ~materialize=Triggers.invoked_projector,
+        ~is_refractor=Triggers.is_refractor_trigger,
+        text,
+      )
+    ) {
+    | (segment, refractors) =>
+      Some(
+        Zipper.unzip(~direction=Left, segment)
+        |> Zipper.remold_regrout(Left, ~root)
+        |> Triggers.apply_refractors(refractors),
+      )
+    | exception exn =>
+      print_endline("ReasonLoad failed: " ++ Printexc.to_string(exn));
+      MarkerParse.of_text(~root, text);
+    }
   | Error(why) =>
     /* MarkerParse subsumes the plain typing parse and also destructs
        `¿` markers back into Grout (concave grout and other fast-path

@@ -393,7 +393,9 @@ let reason_rows_of: family => list(row) =
   | ReFun => [mk(Non, Mold.mk_pre'(P.rule_sep, Exp, [], Rul))]
   | ReArrow => [
       mk(Non, Mold.mk_bin'(P.re_arrow, Exp, Pat, [], Exp)),
-      mk_infix(Typ, P.re_arrow),
+      /* arrow types bind tighter than ascription, as Hazel's `->` does:
+         `(f: 'a => 'b, x)` */
+      mk_infix(Typ, P.type_arrow),
     ]
   | ReIf => [mk_prefix(Exp, P.if_)]
   | ReElse => [mk_infix(Exp, P.re_else)]
