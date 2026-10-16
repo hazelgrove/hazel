@@ -102,9 +102,10 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Page.Update.t;
 
-  /* only slide decks have views to realize; a flag copied out of the
-     settings follows them back */
-  let realize_view = (~schedule_action: t => unit, m: Page.Model.t) => {
+  /* a snapshot restored: only slide decks have views to realize; a flag
+     copied out of the settings follows them back; keys the swap left
+     on another pane or on nothing go to the restored focus */
+  let restore = (~schedule_action: t => unit, m: Page.Model.t) => {
     Language.EvalWorklist.compute_enabled :=
       m.globals.settings.show_incremental_deco;
     switch (m.editors) {
@@ -115,6 +116,7 @@ module Update = {
     | Exercises(_)
     | Config(_) => ()
     };
+    Haz3lcore.FocusEffect.schedule_cell_if_lost();
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -134,7 +136,7 @@ module Update = {
         print_endline("Cannot undo");
         model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
-        realize_view(~schedule_action, x.model);
+        restore(~schedule_action, x.model);
         {
           ...x,
           model: {
@@ -156,7 +158,7 @@ module Update = {
         print_endline("Cannot redo");
         model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
-        realize_view(~schedule_action, x.model);
+        restore(~schedule_action, x.model);
         {
           ...x,
           model: {
