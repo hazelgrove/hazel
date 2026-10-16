@@ -104,7 +104,7 @@ let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));
 /* Examples parse on first display, not at startup */
 let mk_example = str =>
   lazy(
-    switch (Parser.to_segment(str, ~root=Exp)) {
+    switch (Surface.with_(Hazel, () => Parser.to_segment(str, ~root=Exp))) {
     | None => []
     | Some(seg) => Indentation.reindent_segment(seg)
     }

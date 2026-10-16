@@ -1219,9 +1219,16 @@ let mk_form =
       children,
     )
     : Piece.t => {
+  /* current surface's row first, then any surface's: the printer emits
+     Hazel syntax, which may be displayed while another surface is live */
+  let at_sort = List.find_opt((d: Form.def) => d.mold.out == sort);
   let form: Form.def =
     switch (
-      List.find_opt((d: Form.def) => d.mold.out == sort, Form.defs_of(fam))
+      switch (at_sort(Form.defs_of(fam))) {
+      | Some(d) => Some(d)
+      | None =>
+        List.find_map(s => at_sort(Form.defs_of_rows(s, fam)), Surface.all)
+      }
     ) {
     | Some(d) => d
     | None =>
@@ -3667,36 +3674,57 @@ let uniquify_repeated_tiles = (seg: Segment.t): Segment.t => {
   go_seg(seg);
 };
 
+let reason_fold_fns = (settings: Settings.t) =>
+  switch (settings.fold_fn_bodies) {
+  | `Fold => true
+  | `Text
+  | `NoFold => false
+  };
+
 let exp_to_segment =
-    (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t => {
-  let exp =
-    exp
-    |> parenthesize(
-         ~parenthesization=settings.parenthesization,
-         ~already_paren,
-         ~show_filters=settings.show_filters,
-         ~show_ascriptions=settings.show_ascriptions,
-       );
-  let p = exp_to_pretty(~settings, exp);
-  p
-  |> PrettySegment.select
-  |> strip_if_incomplete(Exp(exp))
-  |> uniquify_repeated_tiles;
-};
+    (~already_paren=false, ~settings: Settings.t, exp: Exp.t): Segment.t =>
+  switch (
+    Surface.is_reason()
+      ? ReasonPrint.exp_to_segment(~fold_fns=reason_fold_fns(settings), exp)
+      : None
+  ) {
+  | Some(seg) => seg
+  | None =>
+    let exp =
+      exp
+      |> parenthesize(
+           ~parenthesization=settings.parenthesization,
+           ~already_paren,
+           ~show_filters=settings.show_filters,
+           ~show_ascriptions=settings.show_ascriptions,
+         );
+    let p = exp_to_pretty(~settings, exp);
+    p
+    |> PrettySegment.select
+    |> strip_if_incomplete(Exp(exp))
+    |> uniquify_repeated_tiles;
+  };
 
 let any_to_segment =
-    (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t => {
-  let any =
-    any
-    |> parenthesize_any(
-         ~parenthesization=settings.parenthesization,
-         ~already_paren,
-         ~show_filters=settings.show_filters,
-         ~show_ascriptions=settings.show_ascriptions,
-       );
-  let p = any_to_pretty(~settings, any);
-  p
-  |> PrettySegment.select
-  |> strip_if_incomplete(any)
-  |> uniquify_repeated_tiles;
-};
+    (~already_paren=false, ~settings: Settings.t, any: Any.t): Segment.t =>
+  switch (
+    Surface.is_reason()
+      ? ReasonPrint.any_to_segment(~fold_fns=reason_fold_fns(settings), any)
+      : None
+  ) {
+  | Some(seg) => seg
+  | None =>
+    let any =
+      any
+      |> parenthesize_any(
+           ~parenthesization=settings.parenthesization,
+           ~already_paren,
+           ~show_filters=settings.show_filters,
+           ~show_ascriptions=settings.show_ascriptions,
+         );
+    let p = any_to_pretty(~settings, any);
+    p
+    |> PrettySegment.select
+    |> strip_if_incomplete(any)
+    |> uniquify_repeated_tiles;
+  };

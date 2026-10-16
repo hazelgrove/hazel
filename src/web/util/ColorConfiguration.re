@@ -494,7 +494,10 @@ let css_vars_of_value = (value: Exp.t): list((string, string)) => {
 let vars_of_source =
     (slide: Haz3lcore.PersistentZipper.t): list((string, string)) =>
   try({
-    let zipper = Haz3lcore.PersistentZipper.unpersist(slide, ~root=Exp);
+    let zipper =
+      Haz3lcore.Surface.with_(Hazel, () =>
+        Haz3lcore.PersistentZipper.unpersist(slide, ~root=Exp)
+      );
     let term = Haz3lcore.MakeTerm.from_zip_for_sem(zipper, ~root=Exp).term;
     let (_, elaborated) =
       Statics.mk(

@@ -45,9 +45,15 @@ let ids_sufficient = (~settings: ExpToSegment.Settings.t, typ: Typ.t) => {
   ok^;
 };
 
+let reason = (typ: Typ.t): option(Base.segment) =>
+  Surface.is_reason() ? ReasonPrint.typ_to_segment(typ) : None;
+
 let typ_to_segment =
     (~settings: ExpToSegment.Settings.t, typ: Typ.t): Base.segment =>
-  prepare(~settings, typ) |> to_segment;
+  switch (reason(typ)) {
+  | Some(seg) => seg
+  | None => prepare(~settings, typ) |> to_segment
+  };
 
 let typ_to_segment_with_diff_ids =
     (
@@ -56,8 +62,11 @@ let typ_to_segment_with_diff_ids =
       ~against: Typ.t,
       typ: Typ.t,
     )
-    : (Base.segment, Id.Set.t) => {
-  let prepared = prepare(~settings, typ);
-  let against = prepare(~settings, against);
-  (to_segment(prepared), diff_ids(~ctx?, ~against, prepared));
-};
+    : (Base.segment, Id.Set.t) =>
+  switch (reason(typ)) {
+  | Some(seg) => (seg, Id.Set.empty)
+  | None =>
+    let prepared = prepare(~settings, typ);
+    let against = prepare(~settings, against);
+    (to_segment(prepared), diff_ids(~ctx?, ~against, prepared));
+  };

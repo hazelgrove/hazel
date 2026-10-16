@@ -111,9 +111,13 @@ let highlight =
 };
 
 let memo_parse =
-  Core.Memo.general(~cache_size_bound=1000, code =>
-    Parser.to_zipper(~root=Exp, String.trim(code))
-  );
+  Core.Memo.general(~cache_size_bound=1000, code
+    /* documentation code is Hazel, whatever surface the editor shows */
+    =>
+      Surface.with_(Hazel, () =>
+        Parser.to_zipper(~root=Exp, String.trim(code))
+      )
+    );
 
 /*
  Markdown like thing:

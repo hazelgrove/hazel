@@ -30,7 +30,8 @@ let has_label_of = (t: t, fam: Form.family): bool =>
 
 let is_comma = (t: t): bool => t.form == Form.Compound(Comma);
 
-let is_case_rule = (t: t): bool => t.form == Form.Compound(Rule);
+let is_case_rule = (t: t): bool =>
+  t.form == Form.Compound(Rule) || t.form == Form.Compound(RulePre);
 
 let is_case = (t: t): bool => t.form == Form.Compound(Case);
 
@@ -59,9 +60,12 @@ let is_multidelimiter = (t: t): bool => List.length(label(t)) > 1;
  * these shape classes are spelled here and nowhere else. */
 
 /* let/type/module/theorem/filter forms */
+/* definition forms whose body follows the last delimiter: Hazel's
+   `let ... in`, Reason's `let ... ;` */
 let ends_with_in = (t: t): bool =>
   switch (label(t) |> List.rev) {
   | ["in", ..._] => true
+  | [";", _, ..._] => true
   | _ => false
   };
 
