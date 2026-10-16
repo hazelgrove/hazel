@@ -14,7 +14,7 @@ let builtins =
                | x :: xs => 1 + length(xs)
              end|},
       name: "length",
-      arg: List(unknown(Internal)),
+      arg: List(var("a")),
       ret: Atom(Int),
       imp: {
         Fresh.(
@@ -52,12 +52,8 @@ let builtins =
                | x :: xs => f(x) :: map(f, xs)
              end|},
       name: "map",
-      arg:
-        Prod([
-          list(unknown(Internal)),
-          arrow(unknown(Internal), unknown(Internal)),
-        ]),
-      ret: List(unknown(Internal)),
+      arg: Prod([list(var("a")), arrow(var("a"), var("b"))]),
+      ret: List(var("b")),
       imp: {
         Fresh.(
           Exp.(
@@ -97,9 +93,8 @@ let builtins =
              | x :: xs => if f(x) then x :: filter(f, xs) else filter(f, xs)
            end|},
       name: "filter",
-      arg:
-        Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
-      ret: List(unknown(Internal)),
+      arg: Prod([list(var("a")), arrow(var("a"), bool())]),
+      ret: List(var("a")),
       imp: {
         Fresh.(
           Exp.(
@@ -149,14 +144,11 @@ let builtins =
       name: "fold_left",
       arg:
         Prod([
-          list(unknown(Internal)),
-          arrow(
-            prod([unknown(Internal), unknown(Internal)]),
-            unknown(Internal),
-          ),
-          unknown(Internal),
+          list(var("a")),
+          arrow(prod([var("b"), var("a")]), var("b")),
+          var("b"),
         ]),
-      ret: Typ.term_of(unknown(Internal)),
+      ret: Var("b"),
       imp: {
         Fresh.(
           Exp.(
@@ -244,8 +236,8 @@ let builtins =
              | (x :: xs, y :: ys) => (x,y) :: zip(xs,ys)
            end|},
       name: "zip",
-      arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
-      ret: List(prod([unknown(Internal), unknown(Internal)])),
+      arg: Prod([list(var("a")), list(var("b"))]),
+      ret: List(prod([var("a"), var("b")])),
       imp: {
         Fresh.(
           Exp.(
@@ -343,8 +335,8 @@ let builtins =
            end|},
       /* Faster (possibly) than tail-rec variant in medium-length cases since @ is builtin */
       name: "reverse",
-      arg: List(unknown(Internal)),
-      ret: List(unknown(Internal)),
+      arg: List(var("a")),
+      ret: List(var("a")),
       imp: {
         Fresh.(
           Exp.(
@@ -913,8 +905,8 @@ let builtins =
     {
       str: {|fix append -> fun (xs, ys) -> xs @ ys|},
       name: "append",
-      arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
-      ret: List(unknown(Internal)),
+      arg: Prod([list(var("a")), list(var("a"))]),
+      ret: List(var("a")),
       imp: {
         Fresh.(
           Exp.(
@@ -938,8 +930,8 @@ let builtins =
              | xs :: xss => xs @ concat(xss)
            end|},
       name: "concat",
-      arg: List(list(unknown(Internal))),
-      ret: List(unknown(Internal)),
+      arg: List(list(var("a"))),
+      ret: List(var("a")),
       imp: {
         Fresh.(
           Exp.(
@@ -1126,7 +1118,7 @@ let builtins =
     {
       str: {|fix mem -> fun (xs, x) -> any(xs, fun t -> x == t)|},
       name: "mem",
-      arg: Prod([list(unknown(Internal)), unknown(Internal)]),
+      arg: Prod([list(var("a")), var("a")]),
       ret: Atom(Bool),
       imp: {
         Fresh.(
