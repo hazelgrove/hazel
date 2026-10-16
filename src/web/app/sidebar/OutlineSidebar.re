@@ -69,6 +69,8 @@ type text_ctl = {
   discard: Language.Id.t => Effect.t(unit),
   /* a key on a new definition's line, for the editor */
   type_: E.edit => Effect.t(unit),
+  /* the clipboard's text, typed into the new definition's name */
+  paste: unit => Effect.t(unit),
   /* the new definition remade as a keyword's kind */
   rekind: string => Effect.t(unit),
   /* an op on an item: what's typed saved first (a delete drops it) */
@@ -512,7 +514,7 @@ let caret_path = (d: option(drawn)): option(OutlineTree.path) =>
   };
 
 /* a new definition's line: its keyword, then its name as the program has
-   it, the caret where the editor's is */
+   it, the caret and the selection where the editor's are */
 let new_row_view = (~live: option(E.live), ~flash: int, t: E.t): Node.t => {
   let kw = Option.fold(~none="", ~some=(f: E.fresh) => f.f_kw, t.fresh);
   let line =
@@ -521,11 +523,19 @@ let new_row_view = (~live: option(E.live), ~flash: int, t: E.t): Node.t => {
     | Row(_) => []
     };
   let (k, _) = E.new_kind(kw);
-  let (name, at) =
+  let (name, at, anchor) =
     switch (live) {
-    | Some(l) => (l.l_name, l.l_at)
-    | None => ("", 0)
+    | Some(l) => (l.l_name, l.l_at, l.l_anchor)
+    | None => ("", 0, 0)
     };
+  let (lo, hi) = (min(at, anchor), max(at, anchor));
+  /* keyed by the text: each edit restarts its blink */
+  let caret =
+    span(
+      ~key=name ++ "|" ++ string_of_int(at) ++ "|" ++ string_of_int(anchor),
+      ~attrs=[clss(["outline-live-caret"])],
+      [],
+    );
   div(
     ~attrs=[clss(["outline-leaf"])],
     [
@@ -553,16 +563,20 @@ let new_row_view = (~live: option(E.live), ~flash: int, t: E.t): Node.t => {
         @ [
           span(
             ~attrs=[clss(["outline-live"])],
-            [
-              text(E.slice(name, 0, at)),
-              /* keyed by the text: each edit restarts its blink */
-              span(
-                ~key=name ++ "|" ++ string_of_int(at),
-                ~attrs=[clss(["outline-live-caret"])],
-                [],
-              ),
-              text(E.slice(name, at, E.units(name))),
-            ],
+            [text(E.slice(name, 0, lo))]
+            @ (at == lo ? [caret] : [])
+            @ (
+              hi > lo
+                ? [
+                  span(
+                    ~attrs=[clss(["outline-live-sel"])],
+                    [text(E.slice(name, lo, hi))],
+                  ),
+                ]
+                : []
+            )
+            @ (at == hi && hi > lo ? [caret] : [])
+            @ [text(E.slice(name, hi, E.units(name)))],
           ),
         ],
       ),
@@ -1515,6 +1529,16 @@ let keys =
       | Exit => Act(Effect.Many([relocated, on.text.save(Leave), on.leave]))
       | Type(edit) =>
         Act(Effect.Many([relocated, forget, on.text.type_(edit)]))
+      | Paste => Act(Effect.Many([relocated, forget, on.text.paste()]))
+      | Copy(s, cut) =>
+        Act(
+          Effect.Many([
+            relocated,
+            forget,
+            Util.JsUtil.write_clipboard(s),
+            cut ? on.text.type_(Cut) : Effect.Ignore,
+          ]),
+        )
       | Rekind(kw) =>
         Act(Effect.Many([relocated, forget, on.text.rekind(kw)]))
       | Drop(d, Some((line, col))) =>

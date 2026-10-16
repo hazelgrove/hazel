@@ -924,9 +924,11 @@ and piece_text = (p: Piece.t): string =>
   };
 
 /* a name as the editor holds it: the text of item [def]'s pattern (or,
-   with no [def], of the zipper's whole segment, a cell's header), and
-   the caret's offset in it, in JS string units, when the caret is there */
-let name_at = (~def: option(Id.t), z: Zipper.t): option((string, int)) => {
+   with no [def], of the zipper's whole segment, a cell's header), the
+   caret's offset in it and the selection's other end (the caret's offset
+   when nothing is selected), in JS string units: when the caret and the
+   selection are in the name */
+let name_at = (~def: option(Id.t), z: Zipper.t): option((string, int, int)) => {
   let (pre, suf) = z.relatives.siblings;
   /* the caret's text before and after it, from the innermost level out
      to the name's level: None when the caret isn't in the name */
@@ -947,10 +949,13 @@ let name_at = (~def: option(Id.t), z: Zipper.t): option((string, int)) => {
         );
       }
     };
-  /* an inner caret splits the token to its right */
+  let selecting = z.selection.content != [];
+  let selected = text(z.selection.content);
+  /* an inner caret splits the token to its right; a selection's is in the
+     selection's own token, which sits between the siblings */
   let (before, after) =
     switch (z.caret, suf) {
-    | (Inner(n), [p, ...rest]) =>
+    | (Inner(n), [p, ...rest]) when !selecting =>
       let t = piece_text(p);
       (
         text(pre) ++ OutlineEdit.slice(t, 0, n + 1),
@@ -958,27 +963,47 @@ let name_at = (~def: option(Id.t), z: Zipper.t): option((string, int)) => {
       );
     | _ => (text(pre), text(suf))
     };
-  Option.map(
+  /* what's selected of it: a selection's end can be inside a token */
+  let (skipped, picked) =
+    !selecting
+      ? (0, "")
+      : (
+        OutlineEdit.units(
+          fst(
+            Unicode.split_nth(
+              selected,
+              min(
+                fst(Zipper.selection_trim_offsets(z)),
+                Unicode.length(selected),
+              ),
+            ),
+          ),
+        ),
+        Zipper.trim_selected_text(z, selected),
+      );
+  Option.bind(
+    out(before, after, z.relatives.ancestors),
     ((before, after)) => {
-      let all = before ++ after;
+      let all = before ++ selected ++ after;
       let rec lead = i =>
         i < String.length(all) && String.contains(" \t\n\r", all.[i])
           ? lead(i + 1) : i;
-      let lead = lead(0);
       let name = String.trim(all);
-      (
-        name,
-        max(
-          0,
-          min(
-            OutlineEdit.units(name),
-            OutlineEdit.units(before)
-            - OutlineEdit.units(String.sub(all, 0, lead)),
-          ),
-        ),
+      let from =
+        OutlineEdit.units(before)
+        + skipped
+        - OutlineEdit.units(String.sub(all, 0, lead(0)));
+      let clamp = i => max(0, min(OutlineEdit.units(name), i));
+      let (lo, hi) = (
+        clamp(from),
+        clamp(from + OutlineEdit.units(picked)),
       );
+      /* a selection of the space around the name isn't in it */
+      OutlineEdit.slice(name, lo, hi) != picked
+        ? None
+        : z.selection.focus == Left
+            ? Some((name, lo, hi)) : Some((name, hi, lo));
     },
-    out(before, after, z.relatives.ancestors),
   );
 };
 

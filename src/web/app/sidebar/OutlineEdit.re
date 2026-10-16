@@ -89,22 +89,38 @@ let at = (~col=0, ~pending=?, ~seq=0, ~fresh=?, line: line): t => {
   fresh,
 };
 
-/* a new definition's name as the program has it, and the caret's place
-   in it, as last drawn */
+/* a new definition's name as the program has it, the caret's place in
+   it and the selection's other end (the caret's place when nothing is
+   selected), as last drawn */
 type live = {
   l_name: string,
   l_at: int,
+  l_anchor: int,
 };
 
-/* a key on a new definition's line, for the editor to apply to its name */
+/* how far a key reaches from the caret: a character, a word, or the
+   name's start or end */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type reach =
+  | Char
+  | Word
+  | Edge;
+
+/* a key on a new definition's line, for the editor to apply to its name.
+   A selection is replaced by what's typed or pasted, and erased by an
+   erase whatever its reach */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type edit =
   | Insert(string)
-  /* the character toward a side */
-  | Erase(Direction.t)
-  | Step(Direction.t)
-  /* to the name's start or end */
-  | Edge(Direction.t);
+  /* the clipboard's text: refused unless it can be part of a name */
+  | Paste(string)
+  | Erase(Direction.t, reach)
+  | Step(Direction.t, reach)
+  /* the selection's moving end */
+  | Select(Direction.t, reach)
+  | SelectAll
+  /* the selection erased, if there is one */
+  | Cut;
 
 /* a name to save, from the line it was typed on; the caret's column comes
    back with the line if the save is refused */
@@ -301,6 +317,45 @@ let units = (s: string): int => Js_of_ocaml.Js.string(s)##.length;
 let slice = (s: string, a: int, b: int): string =>
   Js_of_ocaml.Js.to_string(Js_of_ocaml.Js.string(s)##substring(a, b));
 
+/* where a word ends from [at] toward [side] in [name]: past any
+   separators, then the word. Words are letters, digits, underscores and
+   anything outside ASCII; a name's other characters (`'`) separate
+   them */
+let word_edge = (name: string, at: int, side: Direction.t): int => {
+  let n = units(name);
+  let word = i => {
+    let c = slice(name, i, i + 1);
+    String.length(c) > 1 || Language.Token.is_wordish_char(c.[0]);
+  };
+  let rec skip = (i, f) =>
+    switch (side) {
+    | Left => i > 0 && f(i - 1) ? skip(i - 1, f) : i
+    | Right => i < n && f(i) ? skip(i + 1, f) : i
+    };
+  skip(skip(max(0, min(at, n)), i => !word(i)), word);
+};
+
+/* where [reach] from [at] toward [side] ends in [name] */
+let reach_to = (name: string, at: int, side: Direction.t, r: reach): int =>
+  switch (r, side) {
+  | (Char, Left) => max(0, at - 1)
+  | (Char, Right) => min(units(name), at + 1)
+  | (Word, _) => word_edge(name, at, side)
+  | (Edge, Left) => 0
+  | (Edge, Right) => units(name)
+  };
+
+/* clipboard text that can go into a name: its ends trimmed, the rest
+   name characters, but no `.` (qualified names, floats) or the `?^$`
+   that start or end special tokens */
+let fragment = (text: string): option(string) => {
+  let s = String.trim(text);
+  s != ""
+  && Language.Token.is_potential_operand(s)
+  && !String.exists(c => String.contains(".?^$", c), s)
+    ? Some(s) : None;
+};
+
 /* a line's name off the caret: a nameable row's (a new definition's
    line is only ever the caret's) */
 let name_of_line = (e: entry): string =>
@@ -362,6 +417,11 @@ type outcome =
   | Exit
   /* a new definition's name, edited in the program */
   | Type(edit)
+  /* the clipboard's text, typed into a new definition's name */
+  | Paste
+  /* a new definition's selection to the clipboard, and with [cut] out of
+     the name */
+  | Copy(string, bool)
   /* a new definition remade as a keyword's kind (none: a value) */
   | Rekind(string)
   /* a new definition's line gone, its definition with it: the caret to a
@@ -385,7 +445,9 @@ let ghost_line = (e: entry): bool =>
   };
 
 /* what key [p] does on new definition line [at]: its name is typed into
-   the program by the editor, [live] as last drawn (none yet: blank) */
+   the program by the editor, [live] as last drawn (none yet: blank). Keys
+   can outrun the drawing, so what happens in the name (at its ends too:
+   a refusal, or nothing) is the editor's to decide */
 let live_key =
     (
       ~lines: array(entry),
@@ -397,12 +459,13 @@ let live_key =
     )
     : outcome => {
   let n = Array.length(lines);
-  let (name, col) =
+  let (name, col, anchor) =
     switch (live) {
-    | Some(l) => (l.l_name, l.l_at)
-    | None => ("", 0)
+    | Some(l) => (l.l_name, l.l_at, l.l_anchor)
+    | None => ("", 0, 0)
     };
   let len = units(name);
+  let sel = anchor != col;
   let to_end = j =>
     Go(
       line_of(lines[j]),
@@ -412,7 +475,7 @@ let live_key =
   let to_start = j => Go(line_of(lines[j]), 0, None);
   let vertical = (~up, j) =>
     if (j == at) {
-      Type(Edge(up ? Left : Right));
+      Type(Step(up ? Left : Right, Edge));
     } else {
       let target = Option.value(t.col_target, ~default=col);
       Go(
@@ -421,13 +484,32 @@ let live_key =
         Some(target),
       );
     };
+  let at_side = (side: Direction.t) => side == Left ? col == 0 : col >= len;
+  /* ←→ Home End: the caret by [r], or with Shift the selection's moving
+     end; a character past the name's end goes on to the next line */
+  let horizontal = (side: Direction.t, r: reach) =>
+    if (p.shift) {
+      Type(Select(side, r));
+    } else if (sel || !at_side(side)) {
+      Type(Step(side, r));
+    } else if (r != Char) {
+      Swallow;
+    } else if (side == Left) {
+      at > 0 ? to_end(at - 1) : Swallow;
+    } else {
+      at < n - 1 ? to_start(at + 1) : Swallow;
+    };
   /* the line above, where the caret goes when this one does */
   let above = () => at > 0 ? to_end(at - 1) : Save(Leave);
   let blank = String.trim(name) == "";
   let kw = Option.fold(~none="", ~some=f => f.f_kw, t.fresh);
   let alone = !p.alt && !p.meta && !p.shift;
   switch (p.key) {
-  | _ when p.composing => Swallow
+  /* IME and dead keys compose text in a field, and this line isn't one:
+     refused */
+  | _ when p.composing => Flash
+  | "Dead"
+  | "Process" => Flash
   | "Shift"
   | "Alt"
   | "Meta"
@@ -443,19 +525,21 @@ let live_key =
   | "ArrowUp"
   | "ArrowDown" when p.alt && !p.meta && !p.shift => Flash
   | "ArrowUp" when p.meta && !p.alt && !p.shift =>
-    at == 0 ? Type(Edge(Left)) : to_start(0)
+    at == 0 ? Type(Step(Left, Edge)) : to_start(0)
   | "ArrowDown" when p.meta && !p.alt && !p.shift =>
-    at == n - 1 ? Type(Edge(Right)) : to_end(n - 1)
+    at == n - 1 ? Type(Step(Right, Edge)) : to_end(n - 1)
   | "ArrowUp" when alone => vertical(~up=true, max(0, at - 1))
   | "ArrowDown" when alone => vertical(~up=false, min(n - 1, at + 1))
   | "PageUp" when alone => vertical(~up=true, max(0, at - page()))
   | "PageDown" when alone => vertical(~up=false, min(n - 1, at + page()))
-  | "ArrowLeft" when alone =>
-    col > 0 ? Type(Step(Left)) : at > 0 ? to_end(at - 1) : Swallow
-  | "ArrowRight" when alone =>
-    col < len ? Type(Step(Right)) : at < n - 1 ? to_start(at + 1) : Swallow
-  | "Home" when alone => Type(Edge(Left))
-  | "End" when alone => Type(Edge(Right))
+  /* ⌥: a word; ⌘: the name's start or end */
+  | ("ArrowLeft" | "ArrowRight") as k when !p.ctrl && !(p.alt && p.meta) =>
+    horizontal(
+      k == "ArrowLeft" ? Left : Right,
+      p.alt ? Word : p.meta ? Edge : Char,
+    )
+  | ("Home" | "End") as k when !p.alt && !p.meta && !p.ctrl =>
+    horizontal(k == "Home" ? Left : Right, Edge)
   | "ArrowUp"
   | "ArrowDown"
   | "ArrowLeft"
@@ -479,13 +563,14 @@ let live_key =
       )
     | None => above()
     }
-  | "Backspace" when p.alt || p.ctrl => Swallow
-  | "Backspace" when col > 0 => Type(Erase(Left))
-  /* at the start: a type or module's keyword goes first */
-  | "Backspace" when blank && kw != "" && t.fresh != None => Rekind("")
+  | "Backspace" when p.ctrl => Swallow
+  | "Backspace" when !blank => Type(Erase(Left, p.alt ? Word : Char))
+  /* at a blank name's start: a type or module's keyword goes first */
+  | "Backspace" when kw != "" && t.fresh != None => Rekind("")
   /* a blank name: the line goes, and its definition with it */
-  | "Backspace" => blank ? above() : Flash
-  | "Delete" when alone && col < len => Type(Erase(Right))
+  | "Backspace" => above()
+  | "Delete" when !p.meta && !p.ctrl && !p.shift && !blank =>
+    Type(Erase(Right, p.alt ? Word : Char))
   | "Delete" => Flash
   | _ when p.alt && !p.meta && p.code == "KeyF" => Flash
   | _ when p.alt && !p.meta && p.code == "KeyO" => Exit
@@ -506,6 +591,23 @@ let live_key =
     /* not in yet: the Enter that made it */
     | None => above()
     }
+  | _
+      when
+        p.meta && !p.alt && !p.shift && String.lowercase_ascii(p.key) == "a" =>
+    Type(SelectAll)
+  | _
+      when
+        p.meta && !p.alt && !p.shift && String.lowercase_ascii(p.key) == "v" =>
+    Paste
+  /* what's drawn: what was just seen selected (the clipboard is written
+     as the key goes down) */
+  | ("c" | "C" | "x" | "X") as c when p.meta && !p.alt && !p.shift =>
+    sel
+      ? Copy(
+          slice(name, min(col, anchor), max(col, anchor)),
+          String.lowercase_ascii(c) == "x",
+        )
+      : Swallow
   | _ when p.meta => Page
   | _ when p.ctrl => Swallow
   /* a value's name begun `type ` or `module `: that kind instead */
@@ -513,6 +615,7 @@ let live_key =
       when
         kw == ""
         && t.fresh != None
+        && !sel
         && col == len
         && (name == "type" || name == "module") =>
     Rekind(name ++ " ")

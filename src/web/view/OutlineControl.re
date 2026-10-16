@@ -179,21 +179,25 @@ let live_pane =
     )
   };
 
-/* new definition [d]'s name and the caret's place in it, from the editor */
+/* new definition [d]'s name, the caret's place in it and the selection's,
+   from the editor */
 let live_name = (program: Program.t, d: Id.t): option(E.live) =>
   Option.bind(live_pane(program, d), ((_, z, def)) =>
     ItemEdit.name_at(~def, z)
-    |> Option.map(((l_name, l_at)) =>
+    |> Option.map(((l_name, l_at, l_anchor)) =>
          E.{
            l_name,
            l_at,
+           l_anchor,
          }
        )
   );
 
 /* [edit] on new definition [d]'s name, applied as the editor applies
    typing: None when no editor has its caret in the name, or the edit
-   would take the caret out of it */
+   would take the caret (or the selection) out of it, or a paste isn't a
+   name's text. Words and the name's ends are reached a character at a
+   time: the editor's word keys go by whole tokens */
 let live_edit =
     (
       ~settings: Settings.t,
@@ -224,32 +228,81 @@ let live_edit =
       | exception (Haz3lcore.Action.Failure.Exception(_)) => None
       }
     };
+  /* [a] until the caret is at [target], toward [side] (a character can
+     span units): as far as it gets */
+  let until = (a, side: Direction.t, target, u: Updated.t(Scratchpad.code)) => {
+    let rec go = (u: Updated.t(Scratchpad.code), n) =>
+      switch (name(u.model)) {
+      | Some({l_at, _})
+          when n > 0 && (side == Left ? l_at > target : l_at < target) =>
+        switch (step(u.model, a)) {
+        | Some(u) => go(u, n - 1)
+        | None => u
+        }
+      | _ => u
+      };
+    go(
+      u,
+      Option.fold(
+        ~none=0,
+        ~some=(l: E.live) => E.units(l.l_name),
+        name(u.model),
+      ),
+    );
+  };
+  let move = side => Haz3lcore.Action.Move(Local(side, ByChar));
+  let select = side => Haz3lcore.Action.Select(Resize(Local(side, ByChar)));
+  let erase = side => Haz3lcore.Action.Destruct(Local(side, ByChar));
   switch (name(code)) {
   | None => None
-  | Some({l_name, l_at}) =>
+  | Some({l_name, l_at, l_anchor}) =>
     let len = E.units(l_name);
+    let sel = l_anchor != l_at;
+    let inside = side => side == Direction.Left ? l_at > 0 : l_at < len;
+    let quiet = code |> Updated.return_quiet;
+    let target = (side, r) => E.reach_to(l_name, l_at, side, r);
     switch (edit) {
     | Insert(s) => step(code, Insert(s))
-    | Erase(Left) when l_at > 0 =>
-      step(code, Destruct(Local(Left, ByChar)))
-    | Erase(Right) when l_at < len =>
-      step(code, Destruct(Local(Right, ByChar)))
-    | Step(Left) when l_at > 0 => step(code, Move(Local(Left, ByChar)))
-    | Step(Right) when l_at < len => step(code, Move(Local(Right, ByChar)))
-    | Edge(side) =>
-      /* a character at a time: one can span units */
-      let rec go = (u: Updated.t(Scratchpad.code), n) =>
-        switch (name(u.model)) {
-        | Some({l_at, _}) when n > 0 && (side == Left ? l_at > 0 : l_at < len) =>
-          switch (step(u.model, Move(Local(side, ByChar)))) {
-          | Some(u) => go(u, n - 1)
+    | Paste(s) => Option.bind(E.fragment(s), s => step(code, Paste(s)))
+    | Erase(side, _) when sel => step(code, erase(side))
+    /* nothing there: refused */
+    | Erase(side, _) when !inside(side) => None
+    | Erase(side, Char) => step(code, erase(side))
+    | Erase(side, r) =>
+      step(
+        until(select(side), side, target(side, r), quiet).model,
+        erase(side),
+      )
+    | Step(side, Char) =>
+      sel || inside(side) ? step(code, move(side)) : None
+    /* a selection collapses toward [side] first, as a character step's
+       does, and the reach is from there */
+    | Step(side, r) =>
+      Option.map(
+        (u: Updated.t(Scratchpad.code)) =>
+          switch (name(u.model)) {
+          | Some(l) =>
+            until(
+              move(side),
+              side,
+              E.reach_to(l.l_name, l.l_at, side, r),
+              u,
+            )
           | None => u
-          }
-        | _ => u
-        };
-      Some(go(code |> Updated.return_quiet, len));
-    | Erase(_)
-    | Step(_) => None
+          },
+        sel ? step(code, move(side)) : Some(quiet),
+      )
+    /* at the name's end: no further */
+    | Select(side, r) =>
+      Some(until(select(side), side, target(side, r), quiet))
+    | Cut => sel ? step(code, erase(Left)) : Some(quiet)
+    /* from the name's start: a selection collapses there first */
+    | SelectAll =>
+      Option.map(
+        u =>
+          until(select(Right), Right, len, until(move(Left), Left, 0, u)),
+        sel ? step(code, move(Left)) : Some(quiet),
+      )
     };
   };
 };
@@ -1085,6 +1138,16 @@ let view =
           type_: edit =>
             switch (text^) {
             | Some(t) => inject(Type(t.line, edit))
+            | None => Effect.Ignore
+            },
+          /* read as the editor's ⌘V reads it. The read is async: the text
+             is for the line it was pasted on, if the caret is still there */
+          paste: () =>
+            switch (text^) {
+            | Some(t) =>
+              Effect.bind(JsUtil.read_clipboard(), ~f=s =>
+                inject(Type(t.line, Paste(s)))
+              )
             | None => Effect.Ignore
             },
           rekind: kw =>

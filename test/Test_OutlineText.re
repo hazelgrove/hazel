@@ -124,10 +124,12 @@ let press =
   );
 };
 
-/* a new definition's name as the program has it, and the caret in it */
-let named = (l_name, l_at): E.live => {
+/* a new definition's name as the program has it, the caret in it and the
+   selection's other end, if anything is selected */
+let named = (~anchor=?, l_name, l_at): E.live => {
   l_name,
   l_at,
+  l_anchor: Option.value(anchor, ~default=l_at),
 };
 let fresh = (~kw="", ()): E.fresh => {
   f_id: Id.mk(),
@@ -279,13 +281,13 @@ let backspace = () => {
   check(
     outcome,
     "a new line's name: a character, in the program",
-    Type(Erase(Left)),
+    Type(Erase(Left, Char)),
     press(~on=new_below, ~live=named("x", 1), "+", k("Backspace")),
   );
   check(
     outcome,
-    "a named new line's start: flashes",
-    Flash,
+    "a named new line's start: the editor's to refuse",
+    Type(Erase(Left, Char)),
     press(~on=new_below, ~live=named("x", 0), "+", k("Backspace")),
   );
   check(
@@ -598,6 +600,189 @@ let early = () => {
   );
 };
 
+/* a new line's name takes a field's keys: Shift selects, ⌥ reaches a
+   word, ⌘ the name's start or end; ⌘A, ⌘V. IME and dead keys flash */
+let live_keys = () => {
+  let at = (~anchor=?, name, col, key) =>
+    press(
+      ~on=New(id("alpha"), Below),
+      ~fresh=fresh(),
+      ~live=named(~anchor?, name, col),
+      "+",
+      key,
+    );
+  let shift = k(~shift=true);
+  List.iter(
+    ((label, want, got)) => check(outcome, label, want, got),
+    [
+      (
+        {js|Shift+←: the selection|js},
+        E.Type(Select(Left, Char)),
+        at("abc", 3, shift("ArrowLeft")),
+      ),
+      (
+        "at the name's start: the editor's, which goes no further",
+        Type(Select(Left, Char)),
+        at("abc", 0, shift("ArrowLeft")),
+      ),
+      (
+        {js|Shift+⌥←: a word|js},
+        Type(Select(Left, Word)),
+        at("abc", 3, k(~shift=true, ~alt=true, "ArrowLeft")),
+      ),
+      (
+        {js|Shift+⌘→: to the end|js},
+        Type(Select(Right, Edge)),
+        at("abc", 1, k(~shift=true, ~meta=true, "ArrowRight")),
+      ),
+      (
+        "Shift+Home",
+        Type(Select(Left, Edge)),
+        at("abc", 2, shift("Home")),
+      ),
+      (
+        "Shift+End at the end",
+        Type(Select(Right, Edge)),
+        at("abc", 3, shift("End")),
+      ),
+      ({js|⌘A|js}, Type(SelectAll), at("abc", 1, k(~meta=true, "a"))),
+      (
+        {js|⌘A on a blank name: the editor's, which selects nothing|js},
+        Type(SelectAll),
+        at("", 0, k(~meta=true, "a")),
+      ),
+      (
+        {js|← on a selection at the start: it collapses, the line kept|js},
+        Type(Step(Left, Char)),
+        at(~anchor=2, "abc", 0, k("ArrowLeft")),
+      ),
+      (
+        {js|⌥←: a word|js},
+        Type(Step(Left, Word)),
+        at("abc", 2, k(~alt=true, "ArrowLeft")),
+      ),
+      (
+        {js|⌘←: the start|js},
+        Type(Step(Left, Edge)),
+        at("abc", 2, k(~meta=true, "ArrowLeft")),
+      ),
+      (
+        {js|⌫ on a selection at the start: it goes|js},
+        Type(Erase(Left, Char)),
+        at(~anchor=2, "abc", 0, k("Backspace")),
+      ),
+      (
+        {js|⌥⌫: a word|js},
+        Type(Erase(Left, Word)),
+        at("abc", 2, k(~alt=true, "Backspace")),
+      ),
+      (
+        {js|⌥⌦: a word|js},
+        Type(Erase(Right, Word)),
+        at("abc", 1, k(~alt=true, "Delete")),
+      ),
+      (
+        {js|⌥⌦ at the end: the editor's to refuse|js},
+        Type(Erase(Right, Word)),
+        at("abc", 3, k(~alt=true, "Delete")),
+      ),
+      (
+        {js|⌥⌫ on a blank name: the line goes, as ⌫'s does|js},
+        go("alpha", 5, None),
+        at("", 0, k(~alt=true, "Backspace")),
+      ),
+      (
+        "a letter over a selection: the editor's to replace",
+        Type(Insert("x")),
+        at(~anchor=0, "abc", 3, k("x")),
+      ),
+      (
+        "a space over a selected `type`: no keyword",
+        Type(Insert(" ")),
+        at(~anchor=0, "type", 4, k(" ")),
+      ),
+      ({js|⌘V|js}, Paste, at("abc", 3, k(~meta=true, "v"))),
+      (
+        {js|⌘C: the selection|js},
+        Copy("bc", false),
+        at(~anchor=3, "abc", 1, k(~meta=true, "c")),
+      ),
+      (
+        {js|⌘X: cut|js},
+        Copy("bc", true),
+        at(~anchor=1, "abc", 3, k(~meta=true, "x")),
+      ),
+      (
+        {js|⌘C with nothing selected|js},
+        Swallow,
+        at("abc", 1, k(~meta=true, "c")),
+      ),
+      (
+        {js|⌘V in a rename's field: the field's|js},
+        Field,
+        press(~field=true, ~col=2, "alpha", k(~meta=true, "v")),
+      ),
+      (
+        "a dead key",
+        Flash,
+        at("abc", 3, k(~alt=true, ~code="KeyE", "Dead")),
+      ),
+      (
+        "an IME's composition",
+        Flash,
+        at(
+          "abc",
+          3,
+          {
+            ...k("Process"),
+            composing: true,
+          },
+        ),
+      ),
+    ],
+  );
+};
+
+/* clipboard text that can be part of a name; where a word ends */
+let fragments_and_words = () => {
+  List.iter(
+    ((label, text, want)) =>
+      check(option(string), label, want, E.fragment(text)),
+    [
+      ("a name's characters", "Bar_2'", Some("Bar_2'")),
+      ("a copied line's newline trimmed", "  bar\n", Some("bar")),
+      ("two lines", "a\nb", None),
+      ("code", "x = 1", None),
+      ("a space inside", "a b", None),
+      ("only space", " \n", None),
+      ("a qualified name", "M.x", None),
+      ("a livelit's", "^slider", None),
+    ],
+  );
+  List.iter(
+    ((name, at, side, want)) =>
+      check(
+        int,
+        Printf.sprintf(
+          "%s from %d %s",
+          name,
+          at,
+          side == Util.Direction.Left ? "left" : "right",
+        ),
+        want,
+        E.word_edge(name, at, side),
+      ),
+    [
+      ("foo_bar", 7, Util.Direction.Left, 0),
+      ("foo'bar", 7, Left, 4),
+      ("foo'bar", 4, Left, 0),
+      ("foo'bar", 0, Right, 3),
+      ("foo'bar", 3, Right, 7),
+      ("x''", 3, Left, 0),
+    ],
+  );
+};
+
 /* a new line sits after its anchor's rows, or first inside it */
 let new_lines = () => {
   let at = (anchor, place) => {
@@ -871,21 +1056,21 @@ a + b|js}),
     text_of(code),
   );
   check(at_name, "the caret after them", Some(("ab", 2)), live_of(code));
-  let code = typing(line, [Step(Left), Insert("x")], code);
+  let code = typing(line, [Step(Left, Char), Insert("x")], code);
   check(at_name, "← then x", Some(("axb", 2)), live_of(code));
-  let code = typing(line, [Edge(Right)], code);
+  let code = typing(line, [Step(Right, Edge)], code);
   check(at_name, "End", Some(("axb", 3)), live_of(code));
-  let code = typing(line, [Edge(Left)], code);
+  let code = typing(line, [Step(Left, Edge)], code);
   check(at_name, "Home", Some(("axb", 0)), live_of(code));
   C.flash := 0;
-  let same = run(Type(line, Erase(Left)), code);
+  let same = run(Type(line, Erase(Left, Char)), code);
   check(
     bool,
     "⌫ at the start: refused, the program as it was",
     true,
     C.flash^ == 1 && text_of(same) == text_of(code),
   );
-  let code = typing(line, [Erase(Right)], code);
+  let code = typing(line, [Erase(Right, Char)], code);
   check(at_name, "Delete", Some(("xb", 0)), live_of(code));
   /* a key toward another line, or one that never came: nothing */
   let other = run(Type(New(a, First), Insert("q")), code);
@@ -907,7 +1092,7 @@ let live_leaving = () => {
     (line, run(Create(line, ""), code));
   };
   let (line, code) = start();
-  let code = typing(line, [Insert("q"), Erase(Left)], code);
+  let code = typing(line, [Insert("q"), Erase(Left, Char)], code);
   let f: E.fresh = {
     f_id: fresh_def(),
     f_kw: "",
@@ -1064,7 +1249,8 @@ type T = ¿ in
 a|js}),
     text_of(code),
   );
-  let back = run(Rekind(line, ""), typing(line, [Erase(Left)], code));
+  let back =
+    run(Rekind(line, ""), typing(line, [Erase(Left, Char)], code));
   check(
     string,
     "a value again",
@@ -1166,6 +1352,190 @@ a + b|js}),
   check(int, "one undo step", 1, List.length(m.undo_stack));
   let m = U.run(m, Globals(Undo));
   check(string, "⌘Z: as before the Enter", before, program(m));
+  reset();
+};
+
+/* a new definition below a in [src], made, and its line */
+let live_line = (src: string) => {
+  let code = code_of(src);
+  let a =
+    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let line = E.New(a, Below);
+  C.text := Some(E.at(line));
+  (line, run(Create(line, ""), code));
+};
+let two = "let a = 1 in\nlet b = 2 in\na + b";
+/* the program with the new definition named [name] */
+let named_two = name =>
+  printed(
+    "let a = 1 in\nlet " ++ name ++ {js| = ¿ in
+let b = 2 in
+a + b|js},
+  );
+
+/* the new definition's name, the caret in it and the selection's other
+   end, as the editor has them */
+let selection_of = (code: Web.ScratchModel.Scratchpad.code) =>
+  C.live_name(code.program, fresh_def())
+  |> Option.map((l: E.live) => (l.l_name, l.l_at, l.l_anchor));
+let at_sel = option(triple(string, int, int));
+
+/* what the editor holding the name has selected */
+let editor_selected = (code: Web.ScratchModel.Scratchpad.code) =>
+  switch (C.live_pane(code.program, fresh_def())) {
+  | Some((_, z, _)) =>
+    Zipper.trim_selected_text(z, Web.ItemEdit.text(z.selection.content))
+  | None => fail("no editor holds the name")
+  };
+
+/* ⌘V on a new definition's line: the clipboard's text, through the
+   editor's paste, when it can be part of a name; else refused, flashed,
+   the program as it was */
+let live_paste = () => {
+  let (line, code) = live_line(two);
+  let code =
+    typing(line, [Insert("f"), Insert("o"), Step(Left, Char)], code);
+  let code = typing(line, [Paste("Bar")], code);
+  check(at_name, "at the caret", Some(("fBaro", 4)), live_of(code));
+  check(string, "in the program", named_two("fBaro"), text_of(code));
+  C.flash := 0;
+  let same = run(Type(line, Paste("x = 1")), code);
+  check(
+    bool,
+    "code: refused",
+    true,
+    C.flash^ == 1 && text_of(same) == text_of(code),
+  );
+  let same = run(Type(line, Paste("c\nd")), code);
+  check(
+    bool,
+    "two lines: refused",
+    true,
+    C.flash^ == 2 && text_of(same) == text_of(code),
+  );
+  let code = typing(line, [Paste("z\n")], code);
+  check(
+    at_name,
+    "a copied line: its newline left out",
+    Some(("fBarzo", 5)),
+    live_of(code),
+  );
+  let code = typing(line, [SelectAll, Paste("q")], code);
+  check(
+    at_name,
+    "over a selection: replacing it",
+    Some(("q", 1)),
+    live_of(code),
+  );
+  check(string, "so the program", named_two("q"), text_of(code));
+  reset();
+};
+
+/* ⌥⌫ ⌥⌦ ⌥← ⌥→ by words: runs of letters, digits and underscores */
+let live_words = () => {
+  let (line, code) = live_line(two);
+  let code = typing(line, [Paste("ab'cd'ef")], code);
+  let code = typing(line, [Erase(Left, Word)], code);
+  check(
+    at_name,
+    {js|⌥⌫: the last word|js},
+    Some(("ab'cd'", 6)),
+    live_of(code),
+  );
+  check(string, "in the program", named_two("ab'cd'"), text_of(code));
+  let code = typing(line, [Erase(Left, Word)], code);
+  check(
+    at_name,
+    "again: the ' and the word before it",
+    Some(("ab'", 3)),
+    live_of(code),
+  );
+  let code = typing(line, [Step(Left, Word)], code);
+  check(at_name, {js|⌥←|js}, Some(("ab'", 0)), live_of(code));
+  let code = typing(line, [Step(Right, Word)], code);
+  check(at_name, {js|⌥→|js}, Some(("ab'", 2)), live_of(code));
+  let code = typing(line, [Paste("x_y"), Step(Left, Char)], code);
+  let code = typing(line, [Erase(Right, Word)], code);
+  check(
+    at_name,
+    {js|⌥⌦: the rest of the word, _ and all|js},
+    Some(("abx_'", 4)),
+    live_of(code),
+  );
+  check(string, "in the program", named_two("abx_'"), text_of(code));
+  reset();
+};
+
+/* Shift's selection is the editor's, kept to the name; typing replaces
+   it, ⌫ erases it */
+let live_selection = () => {
+  let (line, code) = live_line(two);
+  let code = typing(line, [Paste("alpha")], code);
+  let code = typing(line, [Select(Left, Char), Select(Left, Char)], code);
+  check(
+    at_sel,
+    {js|Shift+← twice|js},
+    Some(("alpha", 3, 5)),
+    selection_of(code),
+  );
+  check(string, "the editor's selection", "ha", editor_selected(code));
+  let code = typing(line, [Insert("X")], code);
+  check(at_sel, "typed over", Some(("alpX", 4, 4)), selection_of(code));
+  check(string, "in the program", named_two("alpX"), text_of(code));
+  let code = typing(line, [Step(Left, Char), Select(Left, Edge)], code);
+  check(
+    at_sel,
+    "Shift+Home from inside",
+    Some(("alpX", 0, 3)),
+    selection_of(code),
+  );
+  check(string, "the editor's too", "alp", editor_selected(code));
+  let code = typing(line, [Erase(Left, Char)], code);
+  check(
+    at_sel,
+    {js|⌫: what's selected|js},
+    Some(("X", 0, 0)),
+    selection_of(code),
+  );
+  let code = typing(line, [Insert("y"), Insert("z"), SelectAll], code);
+  check(
+    at_sel,
+    {js|⌘A: the name|js},
+    Some(("yzX", 3, 0)),
+    selection_of(code),
+  );
+  C.flash := 0;
+  let same = run(Type(line, Select(Right, Char)), code);
+  check(
+    bool,
+    "no further than the name, quietly",
+    true,
+    C.flash^ == 0 && selection_of(same) == selection_of(code),
+  );
+  let code = typing(line, [Step(Left, Char)], code);
+  check(
+    at_sel,
+    {js|←: collapsed to its start|js},
+    Some(("yzX", 0, 0)),
+    selection_of(code),
+  );
+  let code = typing(line, [Select(Right, Word)], code);
+  check(
+    at_sel,
+    {js|Shift+⌥→: the word|js},
+    Some(("yzX", 3, 0)),
+    selection_of(code),
+  );
+  let code =
+    typing(line, [Step(Right, Char), Select(Left, Char), Cut], code);
+  check(at_sel, {js|⌘X's cut|js}, Some(("yz", 2, 2)), selection_of(code));
+  let code = typing(line, [Cut], code);
+  check(
+    at_sel,
+    "a cut with nothing selected: nothing",
+    Some(("yz", 2, 2)),
+    selection_of(code),
+  );
   reset();
 };
 
@@ -1378,6 +1748,8 @@ let tests = (
     test_case("item ops", `Quick, ops),
     test_case("⌥F folds", `Quick, fold),
     test_case("keys before the field has them", `Quick, early),
+    test_case("a new line's keys, as a field's", `Quick, live_keys),
+    test_case("pasted fragments; words", `Quick, fragments_and_words),
     test_case("new lines' places", `Quick, new_lines),
     test_case("finding the caret's line", `Quick, finding),
     test_case("blank definitions", `Quick, blank_bodies),
@@ -1389,6 +1761,9 @@ let tests = (
     test_case("a new definition with cells open", `Quick, live_in_stack),
     test_case("keys before a new definition is in", `Quick, keys_wait),
     test_case("⌘Z takes a new definition, name and all", `Quick, live_undo),
+    test_case("⌘V on a new definition's line", `Quick, live_paste),
+    test_case("words in a new definition's name", `Quick, live_words),
+    test_case("selecting in a new definition's name", `Quick, live_selection),
     test_case("copy and delete move the caret", `Quick, copy_and_delete),
     test_case("⌥F in row mode", `Quick, row_mode_fold),
     test_case("menus offer a new test", `Quick, test_menus),

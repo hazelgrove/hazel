@@ -71,6 +71,7 @@ let text_ctl =
     edits := [edit, ...edits^];
     ignore;
   },
+  paste: () => ignore,
   rekind: _ => ignore,
   op: (op, id) => {
     ops := [(op, id), ...ops^];

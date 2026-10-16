@@ -495,6 +495,12 @@
   vertical-align: text-bottom;
   border-left: 1.5px solid var(--text-warning);
 }
+/* the editor's selection in the name, in the colors a field's own
+   selection takes */
+#outline-sidebar .outline-live-sel {
+  background: Highlight;
+  color: HighlightText;
+}
 /* a new definition's keyword, beside its name */
 #outline-sidebar .outline-edit-kw {
   font-weight: bold;
