@@ -129,6 +129,24 @@ let tests = (
       Some(poly("a", T.arrow(a, a))),
     ),
     fully_consistent_typecheck(
+      "Function definition sugar is generalized",
+      {|let id(x) = x in id|},
+      Some(poly("a", T.arrow(a, a))),
+    ),
+    fully_consistent_typecheck(
+      "Recursive function definition sugar is generalized",
+      {|let map(f, xs) = case xs | [] => [] | x :: rest => f(x) :: map(f, rest) end in map|},
+      Some(
+        poly(
+          "a",
+          poly(
+            "b",
+            T.arrow(T.prod([T.arrow(a, b), T.list(a)]), T.list(b)),
+          ),
+        ),
+      ),
+    ),
+    fully_consistent_typecheck(
       "Generalized identity is instantiated at each use",
       {|let id = fun x -> x in (id(1), id(true))|},
       Some(T.prod([T.int(), T.bool()])),

@@ -3,49 +3,51 @@
 # A function whose argument types nothing pins down works at every type. #
 # Put the cursor on id to see its type, poly a -> a -> a, and on a use #
 # of it to see which instance that use is. #
-let id = fun x -> x in
+let id(x) = x in
 let ex1 = (id(1), id("one"), id(true)) in # (1, "one", true) #
 
 # Each use is applied to the types it needs behind the scenes: #
 # the program above runs as if you had written id@<Int>(1). #
-let pair = fun x -> fun y -> (x, y) in
-let swap = fun (a, b) -> (b, a) in
-let ex2 = (pair(1)("one"), swap((true, 2.5))) in # ((1, "one"), (2.5, true)) #
+let pair(x, y) = (x, y) in
+let swap(a, b) = (b, a) in
+let ex2 = (pair(1, "one"), swap(true, 2.5)) in # ((1, "one"), (2.5, true)) #
 
-# Higher-order functions generalize too. #
-let compose = fun f -> fun g -> fun x -> f(g(x)) in
-let twice = fun f -> fun x -> f(f(x)) in
-let ex3 = (twice(fun n -> n + 1)(0), compose(string_of_int)(twice(fun n -> n * 2))(5)) in # (2, "20") #
+# Functions that take or return functions generalize too. #
+let twice(f, x) = f(f(x)) in
+let compose(f, g) = fun x -> f(g(x)) in
+let ex3 = (twice(fun n -> n + 1, 0), compose(string_of_int, fun n -> n * 2)(5)) in # (2, "10") #
 
 # Polymorphic list functions, written by hand. #
 # Recursive calls inside a definition use one type; #
 # the definition is generalized once it is done. #
-let map = fun f -> fun xs ->
+let map(f, xs) =
   case xs
   | [] => []
-  | x :: rest => f(x) :: map(f)(rest)
+  | x :: rest => f(x) :: map(f, rest)
   end in
-let filter = fun keep -> fun xs ->
+let filter(keep, xs) =
   case xs
   | [] => []
-  | x :: rest => if keep(x) then x :: filter(keep)(rest) else filter(keep)(rest)
+  | x :: rest => if keep(x) then x :: filter(keep, rest) else filter(keep, rest)
   end in
-let fold = fun f -> fun acc -> fun xs ->
+let fold(f, acc, xs) =
   case xs
   | [] => acc
-  | x :: rest => fold(f)(f(acc, x))(rest)
+  | x :: rest => fold(f, f(acc, x), rest)
   end in
-let length = fun xs -> fold(fun (n, _) -> n + 1)(0)(xs) in
+let length(xs) = fold(fun (n, _) -> n + 1, 0, xs) in
 let ex4 = (
-  map(fun n -> n * 10)([1, 2, 3]),
-  map(string_of_int)([4, 5]),
-  filter(fun s -> string_length(s) > 1)(["a", "bb", "ccc"]),
-  fold(fun (acc, n) -> acc + n)(0)([1, 2, 3]),
+  map(fun n -> n * 10, [1, 2, 3]),
+  map(string_of_int, [4, 5]),
+  filter(fun s -> string_length(s) > 1, ["a", "bb", "ccc"]),
+  fold(fun (sum, n) -> sum + n, 0, [1, 2, 3]),
   length([true, false])
 ) in # ([10, 20, 30], ["4", "5"], ["bb", "ccc"], 6, 2) #
+# Try: write zip(xs, ys) the same way and look at the type it gets. #
 
 # Constraints still apply: this one is Int -> Int, not polymorphic. #
-let succ = fun n -> n + 1 in
+let succ(n) = n + 1 in
+# Try: annotate map's list, map(f, xs : [Int]), and see map's type change. #
 
 # When uses can't agree on a type, the error goes on the polymorphic #
 # reference, not on whichever argument came last. #
@@ -53,27 +55,29 @@ let succ = fun n -> n + 1 in
 let ex5 = id(1) + 1 in # 2 #
 
 # An unfinished definition is not generalized: a hole in the body might #
-# still use x at some type. Try filling the hole with x + 1. #
-let later = fun x -> ? in
+# still use x at some type. Try: fill the hole with x + 1. #
+let later(x) = ? in
 
 # A type hole you write yourself stays gradual. #
-let anything = fun (x : ?) -> x in
-let ex9 = (succ(41), anything("any"), later) in
+let anything(x : ?) = x in
+let ex6 = (succ(41), anything("any"), later) in
 
 # Explicit polymorphism #
 
 # Type parameters can also be written out, with typfun and poly, and #
 # applied with @<...>. Explicitly polymorphic functions can be called #
 # either way. #
-let const : poly A -> poly B -> A -> B -> A =
-  typfun A -> typfun B -> fun x -> fun _ -> x in
-let ex6 = (const(2)("two"), const@<Int>@<String>(2)("two")) in # (2, 2) #
+let const : poly A -> poly B -> (A, B) -> A =
+  typfun A -> typfun B -> fun (x, _) -> x in
+let ex7 = (const(2, "two"), const@<Int>@<String>(2, "two")) in # (2, 2) #
 
 # Writing types out is still necessary beyond rank 1: an argument that #
-# must itself be polymorphic can't be inferred. #
-let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A, B) -> (A, B) =
-  typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
-let ex7 = apply_both(typfun D -> fun x : D -> x)(3, "three") in # (3, "three") #
+# must itself be polymorphic can't be inferred. Any polymorphic function #
+# can be passed to it, including inferred ones like id. #
+let apply_both : poly A -> poly B -> (poly D -> D -> D, A, B) -> (A, B) =
+  typfun A -> typfun B -> fun (f, x, y) -> (f@<A>(x), f@<B>(y)) in
+let ex8 = apply_both(id, 3, "three") in # (3, "three") #
+# Try: pass succ instead of id. #
 
 # Recursive types #
 
@@ -89,15 +93,14 @@ let x : MyList = Cons(1, Cons(2, Cons(3, Nil))) in
 # Note that if the sum is the top level operator, #
 # type aliases are implicitly least fixed points on their own name: #
 type MyList2 = Nil + Cons(Int, MyList2) in
-type Broken = Int -> (HasInt(Int) + HasMore(Int, Broken)) in 
+type Broken = Int -> (HasInt(Int) + HasMore(Int, Broken)) in
 
-
-let list_of_mylist : (MyList -> [Int]) = fun myl : MyList -> 
-  case myl 
+let list_of_mylist(myl : MyList) : [Int] =
+  case myl
   | Nil => []
-  | Cons(h, t) => h :: list_of_mylist(t)    
+  | Cons(h, t) => h :: list_of_mylist(t)
   end in
-let ex8 = list_of_mylist(x) in # [1, 2, 3] #
+let ex9 = list_of_mylist(x) in # [1, 2, 3] #
 
 
 # All output from examples: #
