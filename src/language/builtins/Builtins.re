@@ -98,7 +98,9 @@ let env_base: Environment.t(Exp.t) =
 
 /* The Hazel-source standard library (Library.install): its context entries
    go on top of the builtins', its values on top of env_base */
-let library_entries: ref(list(Ctx.entry)) = ref([]);
+/* lazy: the worker never checks anything */
+let library_entries: ref(Lazy.t(list(Ctx.entry))) =
+  ref(Lazy.from_val([]));
 let library_names: ref(Util.Maps.StringMap.t(unit)) =
   ref(Util.Maps.StringMap.empty);
 /* env_base with just these library names bound: each definition is
@@ -120,7 +122,7 @@ let library_modules: ref(list((Var.t, Id.t))) = ref([]);
 
 let install_library =
     (
-      ~entries: list(Ctx.entry),
+      ~entries: Lazy.t(list(Ctx.entry)),
       ~names: list(Var.t),
       ~env_for: list(Var.t) => Environment.t(Exp.t),
     )
@@ -141,7 +143,8 @@ let ctx_init = (use_mode: option(Operators.mode)): Ctx.t =>
   switch (Hashtbl.find_opt(ctx_by_mode, use_mode)) {
   | Some(ctx) => ctx
   | None =>
-    let ctx = Ctx.of_entries(~use_mode, library_entries^ @ ctx_entries);
+    let ctx =
+      Ctx.of_entries(~use_mode, Lazy.force(library_entries^) @ ctx_entries);
     Hashtbl.replace(ctx_by_mode, use_mode, ctx);
     ctx;
   };
@@ -170,8 +173,18 @@ let mentioned = (~keep: Var.t => bool, d: Exp.t): list(Var.t) => {
 
 /* what [d] evaluates against: the builtins and the library names it
    mentions (a mention a binding shadows only costs its evaluation) */
-let env_for = (d: Exp.t): Environment.t(Exp.t) =>
-  library_env_for^(mentioned(~keep=is_library_name, d));
+let env_for: Exp.t => Environment.t(Exp.t) = {
+  /* a request asks twice (reuse prediction, then evaluation) */
+  let last = ref(None);
+  d =>
+    switch (last^) {
+    | Some((d', f, env)) when d' === d && f === library_env_for^ => env
+    | _ =>
+      let env = library_env_for^(mentioned(~keep=is_library_name, d));
+      last := Some((d, library_env_for^, env));
+      env;
+    };
+};
 
 /* the whole library, every definition evaluated */
 let env_init = (): Environment.t(Exp.t) =>

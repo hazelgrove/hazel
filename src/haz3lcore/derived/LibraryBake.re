@@ -34,10 +34,11 @@ let rec chain = (items: list(Mod.t), tail: Exp.t): option(Exp.t) =>
     )
   };
 
-/* every annotation one shared id (Marshal stores it once) and no
-   secondary: install re-ids the elab, as evaluation results are */
+/* every annotation one shared id and no secondary, and without a lexeme
+   one shared record (Marshal stores a shared value once): install re-ids
+   the elab, as evaluation results are */
 let compact: Exp.t => Exp.t = {
-  let shared = Id.mk();
+  let shared = IdTagged.IdTag.mk_internal([Id.mk()]);
   let f:
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
@@ -45,10 +46,14 @@ let compact: Exp.t => Exp.t = {
     (continue, x) =>
       {
         ...x,
-        annotation: {
-          ...IdTagged.IdTag.mk_internal([shared]),
-          lexeme: x.annotation.lexeme,
-        },
+        annotation:
+          switch (x.annotation.lexeme) {
+          | None => shared
+          | lexeme => {
+              ...shared,
+              lexeme,
+            }
+          },
       }
       |> continue;
   e =>
@@ -137,7 +142,7 @@ let of_items =
         |> Result.map((defs): Library.baked =>
              {
                hash,
-               entries: added.entries,
+               entries: Marshal.to_string(added.entries, []),
                defs: baked_defs(defs),
              }
            )

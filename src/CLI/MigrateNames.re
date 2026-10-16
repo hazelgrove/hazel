@@ -43,7 +43,7 @@ let plan = (~renames: renames, term: Exp.t): plan => {
       fun
       | Ctx.VarEntry(v) when v.name == name => Some(v.id)
       | _ => None,
-      Builtins.library_entries^,
+      Lazy.force(Builtins.library_entries^),
     );
   let (info_map, _) =
     Statics.mk(

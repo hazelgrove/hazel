@@ -17,8 +17,8 @@ type def = {
 type baked = {
   /* of the concatenated source text */
   hash: string,
-  /* what the library adds to the context, newest first */
-  entries: list(Ctx.entry),
+  /* Marshal of what the library adds to the context, newest first */
+  entries: string,
   /* in order */
   defs: array(def),
 };
@@ -74,7 +74,7 @@ let env_for_of = (defs: array(def)): (list(Var.t) => Environment.t(Exp.t)) => {
 
 let install_baked = (b: baked): unit =>
   Builtins.install_library(
-    ~entries=b.entries,
+    ~entries=lazy(Marshal.from_string(b.entries, 0)),
     ~names=Array.to_list(Array.map(d => d.name, b.defs)),
     ~env_for=env_for_of(b.defs),
   );
