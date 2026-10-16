@@ -101,6 +101,28 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "With inference off, unannotated binders stay gradual",
+      `Quick,
+      () => {
+        let exp = parse_exp({|let id = fun x -> x in id|});
+        let (s, _) =
+          Statics.mk(
+            {
+              ...CoreSettings.on,
+              inference: false,
+            },
+            Builtins.ctx_init(Some(Int)),
+            exp,
+          );
+        check(
+          option(testable_typ),
+          "gradual",
+          Some(T.arrow(unknown(), unknown())),
+          synthesized_type(s, exp),
+        );
+      },
+    ),
     fully_consistent_typecheck(
       "Identity is generalized",
       {|let id = fun x -> x in id|},

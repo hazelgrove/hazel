@@ -4494,20 +4494,23 @@ and mpat_to_info_map =
 let mk =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids)) => {
+    ((ana, ctx, e, probe_ids, inference)) => {
       let (elab, m) =
-        Inference.run(() => {
-          let (_, elab, m) =
-            uexp_to_info_map(
-              ~ana,
-              ~ctx,
-              ~ancestors=[],
-              ~probe_ids,
-              e,
-              Id.Map.empty,
-            );
-          (elab, m);
-        });
+        Inference.run(
+          ~enabled=inference,
+          () => {
+            let (_, elab, m) =
+              uexp_to_info_map(
+                ~ana,
+                ~ctx,
+                ~ancestors=[],
+                ~probe_ids,
+                e,
+                Id.Map.empty,
+              );
+            (elab, m);
+          },
+        );
       /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
          Ensure they all resolve to the same info entry for cursor features. */
       let m_ref = ref(m);
@@ -4537,4 +4540,5 @@ let mk =
       exp,
     ) =>
   core.statics
-    ? mk((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+    ? mk((ana, ctx, exp, probe_ids, core.inference))
+    : (Id.Map.empty, Exp.fresh(Tuple([])));

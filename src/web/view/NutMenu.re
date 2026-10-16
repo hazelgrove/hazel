@@ -85,6 +85,15 @@ let semantics_group = (~globals) => {
         tooltip: Some("Enable static typing"),
       },
       {
+        name: "Inference",
+        active: globals.settings.core.inference,
+        setting: Inference,
+        tooltip:
+          Some(
+            "Infer the types of unannotated definitions, including polymorphic ones (type checking runs twice when there is something to infer)",
+          ),
+      },
+      {
         name: "Completion",
         active: globals.settings.core.assist,
         setting: Assist,

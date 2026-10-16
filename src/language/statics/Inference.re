@@ -1020,7 +1020,9 @@ let conflict_at = (site: Id.t): option(list(Typ.t)) =>
 
 /* Run statics with inference: once to infer, and, if there was anything to
    infer, once more with the solutions in place. */
-let run = (pass: unit => ('a, StaticsBase.Map.t)): ('a, StaticsBase.Map.t) => {
+let run =
+    (~enabled: bool, pass: unit => ('a, StaticsBase.Map.t))
+    : ('a, StaticsBase.Map.t) => {
   let prev = mode^;
   let st = {
     holes: Hashtbl.create(64),
@@ -1033,7 +1035,7 @@ let run = (pass: unit => ('a, StaticsBase.Map.t)): ('a, StaticsBase.Map.t) => {
   Fun.protect(
     ~finally=() => mode := prev,
     () => {
-      mode := disabled ? Off : Infer(st);
+      mode := disabled || !enabled ? Off : Infer(st);
       let_time := 0.;
       let t0 = now();
       let (r1, m1) = pass();
