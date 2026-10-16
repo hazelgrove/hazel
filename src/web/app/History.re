@@ -79,6 +79,9 @@ module Model = {
     current: state,
     undo_stack: list(Updated.t(state)),
     redo_stack: list(Updated.t(state)),
+    /* while the step on top of the undo stack is tentative, the redo
+       stack it cleared: retracting the step puts that back */
+    tentative_redo: option(list(Updated.t(state))),
   };
 
   let equal = (===);
@@ -87,12 +90,14 @@ module Model = {
     current: Page.Store.load(),
     undo_stack: [],
     redo_stack: [],
+    tentative_redo: None,
   };
 
   let reset = (~font_metrics=?, ()) => {
     current: Page.Model.reset(~font_metrics?, ()),
     undo_stack: [],
     redo_stack: [],
+    tentative_redo: None,
   };
 };
 
@@ -149,6 +154,7 @@ module Update = {
               },
               ...model.redo_stack,
             ],
+            tentative_redo: None,
           },
         };
       }
@@ -171,6 +177,7 @@ module Update = {
               ...model.undo_stack,
             ],
             redo_stack: rest,
+            tentative_redo: None,
           },
         };
       }
@@ -200,16 +207,28 @@ module Update = {
             current: current.model,
             undo_stack,
             redo_stack: [],
+            tentative_redo: current.tentative ? Some(model.redo_stack) : None,
           },
         };
       } else {
-        {
-          ...current,
-          model: {
-            current: current.model,
-            undo_stack: model.undo_stack,
-            redo_stack: model.redo_stack,
-          },
+        switch (current.retract, model.tentative_redo, model.undo_stack) {
+        /* as if the tentative step had never been made */
+        | (true, Some(redo_stack), [_, ...undo_stack]) => {
+            ...current,
+            model: {
+              current: current.model,
+              undo_stack,
+              redo_stack,
+              tentative_redo: None,
+            },
+          }
+        | _ => {
+            ...current,
+            model: {
+              ...model,
+              current: current.model,
+            },
+          }
         };
       };
     };
@@ -232,9 +251,8 @@ module Update = {
       ~redo=model.redo_stack,
     );
     {
+      ...model,
       current,
-      undo_stack: model.undo_stack,
-      redo_stack: model.redo_stack,
     };
   };
 };

@@ -1355,6 +1355,56 @@ a + b|js}),
   reset();
 };
 
+/* a blank new definition dropped takes its insertion out of the history:
+   ⌘Z then undoes the change before it, and a redo the Enter cleared
+   comes back. Named, it stays a step */
+let undo_after_drop = () => {
+  module U = Test_Undo.Cells;
+  let outline = (a: C.Action.t): Web.Page.Update.t =>
+    Editors(Scratch(Outline(a)));
+  let program = m => CorpusUtil.text_of(Web.Program.document(U.program(m)));
+  let depth = (m: Web.History.Model.t) => List.length(m.undo_stack);
+  /* Enter below a, then [settle]d as the line's left */
+  let enter = (~name="", m) => {
+    let line = E.New(U.row(m, "a"), Below);
+    C.text := Some(E.at(line));
+    let m = U.run(m, outline(Create(line, "")));
+    let f: E.fresh = {
+      f_id: fresh_def(),
+      f_kw: "",
+    };
+    let m =
+      String.fold_left(
+        (m, c) =>
+          U.run(m, outline(Type(line, Insert(String.make(1, c))))),
+        m,
+        name,
+      );
+    (m, () => U.run(m, outline(Settle(line, f, Leave))));
+  };
+  let m = U.run(U.mk(), Refresh);
+  let before = program(m);
+  let m = U.run(m, outline(DefOp(MoveUp, U.row(m, "b"))));
+  let moved = program(m);
+  check(int, "a move: one step", 1, depth(m));
+  let (m, leave) = enter(m);
+  check(int, "Enter: a step of its own", 2, depth(m));
+  let m = leave();
+  check(string, "left blank: dropped", moved, program(m));
+  check(int, "its step gone with it", 1, depth(m));
+  let m = U.run(m, Globals(Undo));
+  check(string, {js|⌘Z: the move undone|js}, before, program(m));
+  let (_, leave) = enter(m);
+  let m = leave();
+  check(int, "a redo the Enter cleared, back", 1, List.length(m.redo_stack));
+  let m = U.run(m, Globals(Redo));
+  check(string, {js|⌘⇧Z: the move again|js}, moved, program(m));
+  let (_, leave) = enter(~name="n", m);
+  let m = leave();
+  check(int, "named: its step kept", 2, depth(m));
+  reset();
+};
+
 /* a new definition below a in [src], made, and its line */
 let live_line = (src: string) => {
   let code = code_of(src);
@@ -1761,6 +1811,11 @@ let tests = (
     test_case("a new definition with cells open", `Quick, live_in_stack),
     test_case("keys before a new definition is in", `Quick, keys_wait),
     test_case("⌘Z takes a new definition, name and all", `Quick, live_undo),
+    test_case(
+      "a dropped definition leaves no undo step",
+      `Quick,
+      undo_after_drop,
+    ),
     test_case("⌘V on a new definition's line", `Quick, live_paste),
     test_case("words in a new definition's name", `Quick, live_words),
     test_case("selecting in a new definition's name", `Quick, live_selection),

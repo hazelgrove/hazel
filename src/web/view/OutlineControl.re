@@ -339,7 +339,8 @@ let with_fresh =
 
 /* new line [line]'s definition, a hole for its name, the editor's caret
    in it: unless the caret has moved on from the line meanwhile. One undo
-   step, with the name typed after it */
+   step, with the name typed after it; a tentative one, taken back if the
+   name is left blank */
 let create =
     (~settings: Settings.t, line: E.line, kw: string, code: Scratchpad.code)
     : Updated.t(Scratchpad.code) =>
@@ -367,7 +368,7 @@ let create =
             }),
           seq: next_seq(),
         });
-      code |> Updated.return;
+      code |> Updated.return(~tentative=true);
     | Ok((_, None))
     | Error(_) =>
       /* refused: the caret back on its row */
@@ -435,9 +436,9 @@ let rekind =
   | Row(_) => code |> Updated.return_quiet
   };
 
-/* new definition [d] gone with its line [line], not an undo step: its
-   insertion's step, still on top, then takes back nothing. The editor's
-   caret goes beside the line's anchor */
+/* new definition [d] gone with its line [line], its insertion's step
+   taken back from the history: as if it had never been made. The
+   editor's caret goes beside the line's anchor */
 let drop =
     (~settings: Settings.t, line: E.line, d: Id.t, code: Scratchpad.code)
     : Updated.t(Scratchpad.code) => {
@@ -451,7 +452,7 @@ let drop =
       | Row(_) => None
       };
     Workspace.with_segment(~settings, ~caret?, code, seg)
-    |> Updated.return(~historic=false);
+    |> Updated.return(~historic=false, ~retract=true);
   | Error(_) => code |> Updated.return_quiet
   };
 };
