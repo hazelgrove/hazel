@@ -480,10 +480,8 @@ let is_spread = (rep: Id.t): bool => List.mem(rep, spread_ids^);
 
 /* An id derived from a tile id, for nodes Reason syntax implies but
    does not spell (the inner functions of a curried `(a, b) => e`) */
-let derived_id = (id: Id.t, n: int): Id.t => {
-  let rec go = (id, n) => n <= 0 ? id : go(Id.next(id), n - 1);
-  go(id, n);
-};
+let derived_id = (id: Id.t, n: int): Id.t =>
+  n <= 0 ? id : Id.derive(~salt="reason" ++ string_of_int(n), id);
 
 /* `{...}` in an expression is a block unless its body is a comma
    sequence, which Reason reads as a record: `x: e` fields (made as
@@ -581,81 +579,129 @@ let rec is_irrefutable = (p: Pat.t): bool =>
   | _ => false
   };
 
-/* Rules with or-patterns, as-patterns and guards, as plain rules over
-   `scrut` (a variable holding the scrutinee, when the caller has one):
-   `| a | b => e` duplicates e for each alternative; `| p as x => e`
-   binds x to the scrutinee in e; `| p when g => e | rest` tests g and
-   otherwise falls through to matching rest. The fallthrough is a
-   function defined outside the match (returned with the rules, for the
-   caller to bind around it), so the rules after a guard see the scope
-   the switch has, not the guarded pattern's variables. */
-let fall_count = ref(0);
-let rec reason_rules =
-        (scrut: option(Exp.t), rules: list((Pat.t, Exp.t)))
-        : (list((string, Exp.t)), list((Pat.t, Exp.t))) =>
-  switch (rules) {
-  | [] => ([], [])
-  | [(p, e), ...rest] =>
-    let (falls, rest) = reason_rules(scrut, rest);
-    switch (pat_extra(when_pats, p), scrut) {
-    | (Some((q, guard)), Some(s)) =>
-      incr(fall_count);
-      let name = "$fall" ++ string_of_int(fall_count^);
-      let unit_pat: Pat.term = Tuple([]);
-      let fall: Exp.term =
-        Fun(
-          IdTagged.fresh(unit_pat),
-          fresh_exp(Match(s, rest)),
-          None,
-          None,
-        );
-      let var: Exp.term = Var(name);
-      let unit: Exp.term = Tuple([]);
-      let call = fresh_exp(Ap(Forward, fresh_exp(var), fresh_exp(unit)));
-      (
-        falls @ [(name, fresh_exp(fall))],
-        reason_alternatives(scrut, q, fresh_exp(If(guard, e, call)))
-        @ (is_irrefutable(q) ? [] : rest),
-      );
-    | (Some((q, guard)), None) =>
-      let hole: Exp.term = EmptyHole;
-      (
-        falls,
-        reason_alternatives(
-          scrut,
-          q,
-          fresh_exp(If(guard, e, fresh_exp(hole))),
-        )
-        @ rest,
-      );
-    | (None, _) => (falls, reason_alternatives(scrut, p, e) @ rest)
-    };
-  }
-and reason_alternatives =
-    (scrut: option(Exp.t), p: Pat.t, e: Exp.t): list((Pat.t, Exp.t)) =>
+/* Rules with or-patterns, as-patterns and guards, as plain Hazel
+   matches over `scrut` (a variable holding the scrutinee, when the
+   caller has one): `| a | b => e` duplicates e for each alternative;
+   `| p as x => e` binds x to the scrutinee in e; a guarded rule
+   `| p when g => e`, after the guard-free rules before it, becomes
+
+     switch (scrut) { | p => g ? Some(e) : None | _ => None }
+
+   whose None falls through to matching the rules after it. Those rules
+   thus see the switch's scope (not p's variables), appear once, and no
+   function is introduced (Hazel checks let-bound functions repeatedly).
+   Nodes made here take ids derived from the rule's pattern, so they are
+   the same on every re-parse and evaluation results can be reused. */
+let derived_exp = (base: Id.t, k: int, term: Exp.term): Exp.t =>
+  IdTagged.mk_internal([derived_id(base, k)], term);
+let derived_pat = (base: Id.t, k: int, term: Pat.term): Pat.t =>
+  IdTagged.mk_internal([derived_id(base, k)], term);
+
+let rec reason_alternatives =
+        (scrut: option(Exp.t), p: Pat.t, e: Exp.t): list((Pat.t, Exp.t)) =>
   switch (pat_extra(or_pats, p), pat_extra(as_pats, p), scrut) {
   | (Some((a, b)), _, _) =>
     reason_alternatives(scrut, a, e) @ reason_alternatives(scrut, b, e)
   | (None, Some((q, x)), Some(s)) =>
-    reason_alternatives(scrut, q, fresh_exp(Let(x, s, e)))
+    let base = Pat.rep_id(unparen_pat(p));
+    reason_alternatives(scrut, q, derived_exp(base, 31, Let(x, s, e)));
   | _ => [(p, e)]
   };
 
-/* The match of `scrut` against Reason rules, inside the fallthrough
-   functions its guards need */
-let reason_match = (scrut: Exp.t, rules): Exp.term => {
-  let (falls, rules) = reason_rules(Some(scrut), rules);
-  let matched: Exp.term = Match(scrut, rules);
-  List.fold_right(
-    ((name, fall), body: Exp.t) => {
-      let pat: Pat.term = Var(name);
-      fresh_exp(Let(IdTagged.fresh(pat), fall, body));
-    },
-    falls,
-    fresh_exp(matched),
-  ).
-    term;
-};
+/* The plain rules of a guard-free prefix, and what follows it */
+let rec guard_split =
+        (rules: list((Pat.t, Exp.t)))
+        : (
+            list((Pat.t, Exp.t)),
+            option((Pat.t, Pat.t, Exp.t, Exp.t, list((Pat.t, Exp.t)))),
+          ) =>
+  switch (rules) {
+  | [] => ([], None)
+  | [(p, e), ...rest] =>
+    switch (pat_extra(when_pats, p)) {
+    | Some((q, guard)) => ([], Some((p, q, guard, e, rest)))
+    | None =>
+      let (pre, guarded) = guard_split(rest);
+      ([(p, e), ...pre], guarded);
+    }
+  };
+
+/* The match of `scrut` (a variable, or for guard-less rules any
+   expression) against Reason rules */
+let rec reason_match = (scrut: Exp.t, rules): Exp.term => {
+  let plain = rules =>
+    List.concat_map(
+      ((p, e)) => reason_alternatives(Some(scrut), p, e),
+      rules,
+    );
+  switch (guard_split(rules)) {
+  | (pre, None) => Match(scrut, plain(pre))
+  | (pre, Some((p, q, guard, e, rest))) =>
+    let base = Pat.rep_id(unparen_pat(p));
+    let ctr = (k, name) => derived_exp(base, k, Constructor(name, None));
+    let some = (k, x) =>
+      derived_exp(base, k, Ap(Forward, ctr(k + 1, name_some), x));
+    let tried =
+      derived_exp(
+        base,
+        21,
+        Match(
+          scrut,
+          plain([
+            (
+              q,
+              derived_exp(
+                base,
+                22,
+                If(guard, some(23, e), ctr(25, "None")),
+              ),
+            ),
+          ])
+          @ (
+            is_irrefutable(q)
+              ? [] : [(derived_pat(base, 26, Wild), ctr(27, "None"))]
+          ),
+        ),
+      );
+    let v = "$guarded";
+    let guarded: Exp.term =
+      Match(
+        tried,
+        [
+          (
+            derived_pat(
+              base,
+              28,
+              Ap(
+                derived_pat(base, 29, Constructor(name_some, None)),
+                derived_pat(base, 30, Var(v)),
+              ),
+            ),
+            derived_exp(base, 32, Var(v)),
+          ),
+          (
+            derived_pat(base, 33, Wild),
+            derived_exp(base, 34, reason_match(scrut, rest)),
+          ),
+        ],
+      );
+    switch (pre) {
+    | [] => guarded
+    | pre =>
+      Match(
+        scrut,
+        plain(pre)
+        @ [(derived_pat(base, 35, Wild), derived_exp(base, 36, guarded))],
+      )
+    };
+  };
+}
+and name_some = "Some";
+
+/* Rules of a scrutinee that is not bound to a variable: guards and
+   as-patterns are left unexpanded (their placeholders are marked) */
+let reason_rules_unbound = rules =>
+  List.concat_map(((p, e)) => reason_alternatives(None, p, e), rules);
 
 let reason_needs_scrut = (rules: list((Pat.t, Exp.t))): bool =>
   List.exists(
@@ -721,15 +767,14 @@ let reason_let = (pat: Pat.t, def: Exp.t, body: Exp.t): Exp.term => {
         (e: Exp.t) =>
           switch (Id.Map.find_opt(Exp.rep_id(e), bind_exps^)) {
           | Some((p, d)) => (p, named(p, d))
-          | None =>
-            let hole: Pat.term = EmptyHole;
-            (IdTagged.fresh(hole), e);
+          | None => (derived_pat(Exp.rep_id(e), 61, EmptyHole), e)
           },
         rest,
       );
+    let base = Pat.rep_id(pat);
     let pats: Pat.term = Tuple([pat, ...List.map(fst, binds)]);
     let defs: Exp.term = Tuple([first, ...List.map(snd, binds)]);
-    Let(IdTagged.fresh(pats), fresh_exp(defs), body);
+    Let(derived_pat(base, 62, pats), derived_exp(base, 63, defs), body);
   };
 };
 
@@ -767,7 +812,8 @@ let reason_type = (tpat: TPat.t, def: Typ.t, body: Exp.t): Exp.term => {
       List.fold_left((t, (tp, d)) => Typ.subst(d, tp, t), first, binds);
     let body =
       List.fold_right(
-        ((tp, d), body) => fresh_exp(TyAlias(tp, d, body)),
+        ((tp: TPat.t, d), body) =>
+          derived_exp(TPat.rep_id(tp), 64, TyAlias(tp, d, body)),
         binds,
         body,
       );
@@ -845,8 +891,15 @@ let reason_fun = (arrow_id: Id.t, params: Pat.t, body: Exp.t): Exp.term => {
       | Var(name)
       | Asc({term: Var(name), _}, _) =>
         /* (p as x) and (p as x: t) */
-        let v: Exp.term = Var(name);
-        (x, fresh_exp(Let(q, fresh_exp(v), body)));
+        let base = Pat.rep_id(unparen_pat(p));
+        (
+          x,
+          derived_exp(
+            base,
+            33,
+            Let(q, derived_exp(base, 34, Var(name)), body),
+          ),
+        );
       | _ => (p, body)
       }
     | (None, Asc(inner, t)) =>
@@ -901,41 +954,35 @@ let reason_ap = (ap_id: Id.t, f: Exp.t, arg: Exp.t): Exp.term =>
 
 /* Reason type application: the standard containers map to Hazel's;
    other type constructors are read as their (unparameterized) name. */
-let reason_typ_ap = (name: string, arg: Typ.t): Typ.term =>
+let reason_typ_ap = (ap_id: Id.t, name: string, arg: Typ.t): Typ.term =>
   switch (name) {
   | "list"
   | "array" => List(arg)
   | "option" =>
-    Sum([
-      Variant(
-        "None",
-        ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
-        None,
-      ),
-      Variant(
-        "Some",
-        ConstructorMap.mk_variant_ann(~ids=[Id.mk()], ()),
-        Some(arg),
-      ),
-    ])
+    let variant = (k, ctr, arg) =>
+      ConstructorMap.Variant(
+        ctr,
+        ConstructorMap.mk_variant_ann(~ids=[derived_id(ap_id, k)], ()),
+        arg,
+      );
+    Sum([variant(1, "None", None), variant(2, "Some", Some(arg))]);
   | _ => Var(name)
   };
 
 /* Reason's (n-ary, curried) arrow types */
-let reason_arrow_typ = (l: Typ.t, r: Typ.t): Typ.term =>
+let reason_arrow_typ = (arrow_id: Id.t, l: Typ.t, r: Typ.t): Typ.term =>
   switch (l.term) {
-  | Parens({term: Prod(ts), _}) when List.length(ts) >= 2 =>
-    let (init, last) = ListUtil.split_last(ts);
-    let inner =
+  | Parens({term: Prod([t, ...ts]), _}) when ts != [] =>
+    let (inner, _) =
       List.fold_right(
-        (t, acc) => {
+        (t, (acc, k)) => {
           let arr: Typ.term = Arrow(t, acc);
-          Typ.fresh(arr);
+          (IdTagged.mk_internal([derived_id(arrow_id, k)], arr), k + 1);
         },
-        init @ [last],
-        r,
+        ts,
+        (r, 1),
       );
-    inner.term;
+    Arrow(t, inner);
   | _ => Arrow(l, r)
   };
 
@@ -1298,16 +1345,15 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           /* guards and as-patterns refer back to the scrutinee */
           let ids = List.filter(id => id != Id.invalid, ids);
           adopted_ids := ids @ adopted_ids^;
+          let base = Exp.rep_id(scrut);
           let x = "$scrut";
-          let x_pat: Pat.term = Var(x);
-          let x_exp: Exp.term = Var(x);
-          let s = fresh_exp(x_exp);
-          let matched = fresh_exp(reason_match(s, rules));
-          (Let(IdTagged.fresh(x_pat), scrut, matched), ids);
+          let s = derived_exp(base, 41, Var(x));
+          let matched = derived_exp(base, 42, reason_match(s, rules));
+          (Let(derived_pat(base, 43, Var(x)), scrut, matched), ids);
         | Rules(_, rules) =>
           let ids = List.filter(id => id != Id.invalid, ids);
           adopted_ids := ids @ adopted_ids^;
-          (Match(scrut, snd(reason_rules(None, rules))), ids);
+          (Match(scrut, reason_rules_unbound(rules)), ids);
         | MultiHole(_)
         | Invalid(_) => ret(hole(tm))
         }
@@ -1673,9 +1719,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 | Variant(c, _, _) => c
                 | BadEntry(_) => "exn"
                 };
+              let base = Exp.rep_id(l);
               let tp: TPat.term = Var("exn_" ++ name);
               let sum: Typ.term = Sum([variant]);
-              TyAlias(IdTagged.fresh(tp), IdTagged.fresh(sum), r);
+              TyAlias(
+                IdTagged.mk_internal([derived_id(base, 71)], tp),
+                IdTagged.mk_internal([derived_id(base, 72)], sum),
+                r,
+              );
             | None => Seq(l, r)
             }
           | F(Compound(StringConcat)) => BinOp(String(Concat), l, r)
@@ -2152,10 +2203,10 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     }
   | Post(
       Typ({term: Var(name), _}),
-      ([(_, (F(Compound(Ap)), [Typ(arg)]))], []),
+      ([(id, (F(Compound(Ap)), [Typ(arg)]))], []),
     )
       when Surface.is_reason() && !Token.is_ctr(name) =>
-    ret(reason_typ_ap(name, arg))
+    ret(reason_typ_ap(id, name, arg))
   | Post(l, tiles) as tm =>
     switch (tiles) {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
@@ -2285,8 +2336,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | None =>
       switch (tiles) {
       | ([(_id, (F(Compound(TypeArrow)), []))], []) => ret(Arrow(l, r))
-      | ([(_id, (F(Compound(ReArrow)), []))], []) =>
-        ret(reason_arrow_typ(l, r))
+      | ([(id, (F(Compound(ReArrow)), []))], []) =>
+        ret(reason_arrow_typ(id, l, r))
       | ([(_id, (F(Compound(TupleLabeled | ReField)), []))], []) =>
         switch (l.term) {
         | Var(name) =>
@@ -2699,7 +2750,6 @@ let go_impl =
   or_pats := Id.Map.empty;
   as_pats := Id.Map.empty;
   when_pats := Id.Map.empty;
-  fall_count := 0;
   and_exps := Id.Map.empty;
   bind_exps := Id.Map.empty;
   and_typs := Id.Map.empty;

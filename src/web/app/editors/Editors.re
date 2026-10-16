@@ -93,7 +93,8 @@ module Model = {
       };
     };
     switch (model) {
-    | Reason(m) => ["Reason", ...scratchpad_kind_class(m)]
+    /* styled as the slide modes it is built like */
+    | Reason(m) => ["Documentation", ...scratchpad_kind_class(m)]
     | Scratch(m)
     | Documentation(m) => scratchpad_kind_class(m)
     | Tutorial(_)

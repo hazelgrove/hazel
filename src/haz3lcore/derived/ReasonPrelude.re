@@ -257,8 +257,8 @@ let term: Lazy.t(option(Language.Exp.t)) =
     )
   );
 
-/* Names a term mentions: variables, and constructors (a module's name
-   is a constructor in `List.map`) */
+/* Names a term mentions: variables, constructors (a module's name is a
+   constructor in `List.map`) and labels (its member) */
 let mentions = (e: Language.Exp.t): list(string) => {
   let names = ref([]);
   let _ =
@@ -267,7 +267,8 @@ let mentions = (e: Language.Exp.t): list(string) => {
         (continue, e: Language.Exp.t) => {
           switch (e.term) {
           | Var(x)
-          | Constructor(x, _) => names := [x, ...names^]
+          | Constructor(x, _)
+          | Label(x) => names := [x, ...names^]
           | _ => ()
           };
           continue(e);
@@ -277,43 +278,83 @@ let mentions = (e: Language.Exp.t): list(string) => {
   names^;
 };
 
-/* The prelude's definitions, outermost first: (name, what it mentions,
-   rebuild with a new body). Built once. */
-let items:
-  Lazy.t(list((string, list(string), Language.Exp.t => Language.Exp.t))) =
+/* A definition the program may need: its name, what it mentions, and
+   how to rebuild it around a body given the names needed (a module
+   keeps only the members needed, and what they need) */
+type item = {
+  name: string,
+  uses: list(string),
+  /* applied to the needed names when the item is kept (pruning then,
+     so a module's kept members can add what they need before earlier
+     items are considered), then to the body */
+  rebuild: (Hashtbl.t(string, unit), Language.Exp.t) => Language.Exp.t,
+};
+
+let prune_module =
+    (needed: Hashtbl.t(string, unit), items: list(Language.Mod.t))
+    : list(Language.Mod.t) =>
+  List.fold_right(
+    (item: Language.Mod.t, kept) =>
+      switch (item.term) {
+      | ModLet({term: Var(name), _}, def) =>
+        if (Hashtbl.mem(needed, name)) {
+          List.iter(x => Hashtbl.replace(needed, x, ()), mentions(def));
+          [item, ...kept];
+        } else {
+          kept;
+        }
+      | _ => [item, ...kept]
+      },
+    items,
+    [],
+  );
+
+let items: Lazy.t(list(item)) =
   lazy({
     let rec go = (e: Language.Exp.t) =>
       switch (e.term) {
       | Let({term: Var(name), _} as p, d, body) => [
-          (
+          {
             name,
-            mentions(d),
-            (
-              b => {
-                let t: Language.Exp.term = Let(p, d, b);
-                {
-                  ...e,
-                  term: t,
-                };
-              }
-            ),
-          ),
+            uses: mentions(d),
+            rebuild: (_, b) => {
+              let t: Language.Exp.term = Let(p, d, b);
+              {
+                ...e,
+                term: t,
+              };
+            },
+          },
           ...go(body),
         ]
       | ModuleExp({term: Var(name), _} as mp, d, body) => [
-          (
+          {
             name,
-            mentions(d),
-            (
-              b => {
-                let t: Language.Exp.term = ModuleExp(mp, d, b);
-                {
-                  ...e,
-                  term: t,
+            /* a module's own uses are counted when its members are kept */
+            uses: [],
+            rebuild: needed => {
+              let d =
+                switch (d.term) {
+                | Module(members) =>
+                  let t: Language.Exp.term =
+                    Module(prune_module(needed, members));
+                  {
+                    ...d,
+                    term: t,
+                  };
+                | _ => d
                 };
-              }
-            ),
-          ),
+              (
+                b => {
+                  let t: Language.Exp.term = ModuleExp(mp, d, b);
+                  {
+                    ...e,
+                    term: t,
+                  };
+                }
+              );
+            },
+          },
           ...go(body),
         ]
       | _ => []
@@ -326,17 +367,20 @@ let items:
 
 /* The program inside the prelude definitions it needs (directly or
    through other definitions): checking all of them on every edit costs
-   more than most programs do */
+   more than most programs do. Member names are matched by name across
+   modules, which can only keep a little more than needed. */
 let wrap = (program: Language.Exp.t): Language.Exp.t => {
   let needed = Hashtbl.create(64);
   List.iter(x => Hashtbl.replace(needed, x, ()), mentions(program));
   /* a definition only mentions earlier ones: one pass from the last */
   let kept =
     List.fold_right(
-      ((name, uses, rebuild), kept) =>
-        if (Hashtbl.mem(needed, name)) {
-          List.iter(x => Hashtbl.replace(needed, x, ()), uses);
-          [rebuild, ...kept];
+      (item, kept) =>
+        if (Hashtbl.mem(needed, item.name)) {
+          List.iter(x => Hashtbl.replace(needed, x, ()), item.uses);
+          /* rebuilding prunes a module, which adds its kept members' uses */
+          let body_of = item.rebuild(needed);
+          [body_of, ...kept];
         } else {
           kept;
         },
