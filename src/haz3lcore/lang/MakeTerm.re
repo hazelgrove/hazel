@@ -490,6 +490,34 @@ let derived_id = (id: Id.t, n: int): Id.t => {
    labeled-tuple entries by the `:` case) and punned `x` fields. */
 let reason_record_body = (body: Exp.t): Exp.t =>
   switch (body.term) {
+  | Tuple([{term: Parens(r), _} as spread, ...entries])
+      when is_spread(Exp.rep_id(spread)) =>
+    /* {...r, x: e}: Hazel's labeled-tuple extension keeps r's labels
+       and takes e for x */
+    let pun = (e: Exp.t): Exp.t =>
+      switch (e.term) {
+      | Var(x) =>
+        let id = derived_id(Exp.rep_id(e), 1);
+        let label_term: Exp.term = Label(x);
+        let label = IdTagged.mk_internal([derived_id(id, 1)], label_term);
+        let entry: Exp.term = TupLabel(label, e);
+        IdTagged.mk_internal([id], entry);
+      | _ => e
+      };
+    let update: Exp.term = Tuple(List.map(pun, entries));
+    {
+      ...body,
+      term:
+        TupleExtension(
+          r,
+          IdTagged.mk_internal(
+            [derived_id(Exp.rep_id(spread), 5)],
+            update,
+          ),
+        ),
+    };
+  | Tuple([{term: Parens(r), _} as spread])
+      when is_spread(Exp.rep_id(spread)) => r
   | Tuple(es) =>
     let pun = (e: Exp.t): Exp.t =>
       switch (e.term) {
@@ -514,6 +542,77 @@ let reason_no_body = (id: Id.t): Exp.t => {
   let hole: Exp.term = EmptyHole;
   IdTagged.mk_internal([derived_id(id, 1)], hole);
 };
+
+/* Reason pattern forms Hazel's patterns lack, keyed by the id of the
+   placeholder pattern term made for them: or-patterns' alternatives,
+   as-patterns' (pattern, name), guarded patterns' (pattern, guard).
+   Rules and parameters desugar them (reason_rules, reason_fun). */
+let or_pats: ref(Id.Map.t((Pat.t, Pat.t))) = ref(Id.Map.empty);
+let as_pats: ref(Id.Map.t((Pat.t, Pat.t))) = ref(Id.Map.empty);
+let when_pats: ref(Id.Map.t((Pat.t, Exp.t))) = ref(Id.Map.empty);
+
+let rec unparen_pat = (p: Pat.t): Pat.t =>
+  switch (p.term) {
+  | Parens(p) => unparen_pat(p)
+  | _ => p
+  };
+let pat_extra = (tbl, p: Pat.t) =>
+  Id.Map.find_opt(Pat.rep_id(unparen_pat(p)), tbl^);
+
+let fresh_exp = (term: Exp.term): Exp.t => IdTagged.fresh(term);
+
+/* matches every value of its type: a guarded rule on such a pattern
+   leaves nothing for the rules after it but its fallthrough */
+let rec is_irrefutable = (p: Pat.t): bool =>
+  switch (p.term) {
+  | Var(_)
+  | Wild => true
+  | Parens(p)
+  | Asc(p, _) => is_irrefutable(p)
+  | Tuple(ps) => List.for_all(is_irrefutable, ps)
+  | _ => false
+  };
+
+/* Rules with or-patterns, as-patterns and guards, as plain rules over
+   `scrut` (a variable holding the scrutinee, when the caller has one):
+   `| a | b => e` duplicates e for each alternative; `| p as x => e`
+   binds x to the scrutinee in e; `| p when g => e | rest` tests g and
+   falls through to matching rest. */
+let rec reason_rules =
+        (scrut: option(Exp.t), rules: list((Pat.t, Exp.t)))
+        : list((Pat.t, Exp.t)) =>
+  switch (rules) {
+  | [] => []
+  | [(p, e), ...rest] =>
+    switch (pat_extra(when_pats, p)) {
+    | Some((q, guard)) =>
+      let rest = reason_rules(scrut, rest);
+      let fallthrough =
+        switch (scrut) {
+        | Some(s) => fresh_exp(Match(s, rest))
+        | None => fresh_exp(EmptyHole)
+        };
+      reason_alternatives(scrut, q, fresh_exp(If(guard, e, fallthrough)))
+      @ (is_irrefutable(q) ? [] : rest);
+    | None => reason_alternatives(scrut, p, e) @ reason_rules(scrut, rest)
+    }
+  }
+and reason_alternatives =
+    (scrut: option(Exp.t), p: Pat.t, e: Exp.t): list((Pat.t, Exp.t)) =>
+  switch (pat_extra(or_pats, p), pat_extra(as_pats, p), scrut) {
+  | (Some((a, b)), _, _) =>
+    reason_alternatives(scrut, a, e) @ reason_alternatives(scrut, b, e)
+  | (None, Some((q, x)), Some(s)) =>
+    reason_alternatives(scrut, q, fresh_exp(Let(x, s, e)))
+  | _ => [(p, e)]
+  };
+
+let reason_needs_scrut = (rules: list((Pat.t, Exp.t))): bool =>
+  List.exists(
+    ((p, _)) =>
+      pat_extra(when_pats, p) != None || pat_extra(as_pats, p) != None,
+    rules,
+  );
 
 /* A Reason module body is a block of definitions: its let/type/module
    chain becomes Hazel's module items (a trailing expression is an
@@ -577,16 +676,44 @@ let reason_fun = (arrow_id: Id.t, params: Pat.t, body: Exp.t): Exp.term => {
     };
   /* the outermost function is the arrow tile's (its ids are attached by
      the caller); inner ones get ids derived from it */
+  /* (p as x) => e: take x, then bind p from it */
+  let rec unas = (p: Pat.t, body: Exp.t): (Pat.t, Exp.t) =>
+    switch (pat_extra(as_pats, p), p.term) {
+    | (Some((q, x)), _) =>
+      switch (x.term) {
+      | Var(name) =>
+        let v: Exp.term = Var(name);
+        (x, fresh_exp(Let(q, fresh_exp(v), body)));
+      | _ => (p, body)
+      }
+    | (None, Asc(inner, t)) =>
+      /* ((p as x): t) => e */
+      let (inner', body') = unas(inner, body);
+      inner' === inner
+        ? (p, body)
+        : (
+          {
+            ...p,
+            term: Asc(inner', t),
+          },
+          body',
+        );
+    | (None, Parens(inner)) => unas(inner, body)
+    | (None, _) => (p, body)
+    };
   let rec curry = (ps: list(Pat.t), k: int): Exp.t =>
     switch (ps) {
     | [] => body
     | [p, ...rest] =>
-      let f: Exp.term = Fun(p, curry(rest, k + 1), None, None);
+      let (p, inner) = unas(p, curry(rest, k + 1));
+      let f: Exp.term = Fun(p, inner, None, None);
       IdTagged.mk_internal([derived_id(arrow_id, k)], f);
     };
   switch (ps) {
   | [] => Fun(params, body, None, None)
-  | [p, ...rest] => Fun(p, curry(rest, 1), None, None)
+  | [p, ...rest] =>
+    let (p, inner) = unas(p, curry(rest, 1));
+    Fun(p, inner, None, None);
   };
 };
 
@@ -1004,10 +1131,20 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           [Exp(scrut), Rul({term, annotation: {ids, _}})],
         ) =>
         switch (term) {
+        | Rules(_, rules) when reason_needs_scrut(rules) =>
+          /* guards and as-patterns refer back to the scrutinee */
+          let ids = List.filter(id => id != Id.invalid, ids);
+          adopted_ids := ids @ adopted_ids^;
+          let x = "$scrut";
+          let x_pat: Pat.term = Var(x);
+          let x_exp: Exp.term = Var(x);
+          let s = fresh_exp(x_exp);
+          let matched = fresh_exp(Match(s, reason_rules(Some(s), rules)));
+          (Let(IdTagged.fresh(x_pat), scrut, matched), ids);
         | Rules(_, rules) =>
           let ids = List.filter(id => id != Id.invalid, ids);
           adopted_ids := ids @ adopted_ids^;
-          (Match(scrut, rules), ids);
+          (Match(scrut, reason_rules(None, rules)), ids);
         | MultiHole(_)
         | Invalid(_) => ret(hole(tm))
         }
@@ -1141,11 +1278,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       let arg_pat = IdTagged.mk_internal([derived_id(id, 1)], pat_term);
       let scrut_term: Exp.term = Var(x);
       let scrut = IdTagged.mk_internal([derived_id(id, 2)], scrut_term);
-      let match_term: Exp.term = Match(scrut, rules);
+      let match_term: Exp.term =
+        Match(scrut, reason_rules(Some(scrut), rules));
       let body = IdTagged.mk_internal([derived_id(id, 3)], match_term);
       ret(Fun(arg_pat, body, None, None));
     | _ => ret(hole(tm))
     }
+  | Pre(([(_, (F(Compound(ReOpen)), []))], []), _) =>
+    /* `open M;` brings nothing into scope here (Hazel modules are
+       accessed qualified); it is a unit statement */
+    ret(Tuple([]))
   | Pre(([(_, (F(Compound(ReIf)), []))], []), Exp(r)) as tm =>
     /* `if` marks the If that `(c) {a}` (and `else`) already built */
     switch (r.term) {
@@ -1229,8 +1371,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(id, (F(Compound(Ap)), [Exp(arg)]))], [])
         when Surface.is_reason() =>
       ret(reason_ap(id, l, arg))
-    | ([(_, (F(Compound(SeqPost)), []))], []) =>
-      /* `e;` closing a block: just e */
+    | ([(_, (F(Compound(SeqPost | CommaPost)), []))], []) =>
+      /* `e;` closing a block, `e,` closing a list: just e */
       (l.term, IdTagged.ids(l))
     | ([(_id, t)], []) =>
       switch (t) {
@@ -1564,6 +1706,22 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
+  | Post(Pat(l), ([(_, (F(Compound(CommaPost)), []))], [])) => (
+      l.term,
+      IdTagged.ids(l),
+    )
+  | Bin(Pat(l), ([(id, (F(Compound(ReSumBar)), []))], []), Pat(r)) as tm => {
+      or_pats := Id.Map.add(id, (l, r), or_pats^);
+      ret(hole(tm));
+    }
+  | Bin(Pat(l), ([(id, (F(Compound(ReAs)), []))], []), Pat(r)) as tm => {
+      as_pats := Id.Map.add(id, (l, r), as_pats^);
+      ret(hole(tm));
+    }
+  | Bin(Pat(l), ([(id, (F(Compound(ReWhen)), []))], []), Exp(g)) as tm => {
+      when_pats := Id.Map.add(id, (l, g), when_pats^);
+      ret(hole(tm));
+    }
   | Post(Pat(l), tiles) as tm =>
     switch (tiles) {
     | ([(_id, t)], []) =>
@@ -1777,6 +1935,10 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       );
     | _ => ret(hole(tm))
     }
+  | Post(Typ(l), ([(_, (F(Compound(CommaPost)), []))], [])) => (
+      l.term,
+      IdTagged.ids(l),
+    )
   | Post(
       Typ({term: Var(name), _}),
       ([(_, (F(Compound(Ap)), [Typ(arg)]))], []),
@@ -2323,6 +2485,9 @@ let go_impl =
   projector_list := [];
   adopted_ids := [];
   spread_ids := [];
+  or_pats := Id.Map.empty;
+  as_pats := Id.Map.empty;
+  when_pats := Id.Map.empty;
   secondary_map := Segment.SecondaryCollection.collect(seg);
   shard_masks := masks;
   pending_lexeme := None;

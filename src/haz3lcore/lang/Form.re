@@ -321,7 +321,11 @@ let rows_of: family => list(row) =
   | ReLetStmt
   | ReTypeStmt
   | ReModuleStmt
-  | SeqPost => [];
+  | SeqPost
+  | CommaPost
+  | ReOpen
+  | ReAs
+  | ReWhen => [];
 
 /* The ReasonML surface's rows. Families shared with Hazel keep their
  * meaning but may live at fewer sorts or other precedences (`;` is
@@ -397,7 +401,7 @@ let reason_rows_of: family => list(row) =
   | BraceAp => [mk_post_c(LT, P.ap, Exp, [Exp])]
   | ReSpread => [mk_prefix(Exp, P.neg), mk_prefix(Pat, P.neg)]
   | ReField => [mk_infix(Exp, P.lab), mk_infix(Typ, P.lab)]
-  | ReSumBar => [mk_infix(Typ, P.type_plus)]
+  | ReSumBar => [mk_infix(Typ, P.type_plus), mk_infix(Pat, P.re_or)]
   | ReSumBarPre => [mk_prefix(Typ, P.type_plus)]
   | ReRec => [mk_prefix(Pat, P.ap)]
   | ReModule => [mk_pre_c'(L, P.let_, Exp, [MPat, Exp], Exp)]
@@ -405,6 +409,16 @@ let reason_rows_of: family => list(row) =
   | ReTypeStmt => [mk_op_c(L, Exp, [TPat, Typ])]
   | ReModuleStmt => [mk_op_c(L, Exp, [MPat, Exp])]
   | SeqPost => [mk_post_c(Non, P.re_seq, Exp, [])]
+  | CommaPost => [
+      mk_post_c(Non, P.comma, Exp, []),
+      mk_post_c(Non, P.comma, Pat, []),
+      mk_post_c(Non, P.comma, Typ, []),
+    ]
+  /* `open M` is a statement: `open M; e` sequences it before e */
+  | ReOpen => [mk_prefix(Exp, P.ap)]
+  /* the loosest pattern operators: `a, b as t` names the pair */
+  | ReAs => [mk_infix(Pat, P.re_as)]
+  | ReWhen => [mk(Non, Mold.mk_bin'(P.re_as, Pat, Pat, [], Exp))]
   | _ => [];
 
 let rows_for = (s: Surface.t, fam: family): list(row) =>
@@ -476,6 +490,8 @@ let same_label_rank = (fam: family, out: Sort.t): int =>
    * (remold picks the statement where nothing follows) */
   | (ReLet | ReType | ReModule | CellJoin, _) => 0
   | (ReLetStmt | ReTypeStmt | ReModuleStmt | SeqPost, _) => 1
+  | (Comma, _) => 0
+  | (CommaPost, _) => 1
   | _ => 0
   };
 

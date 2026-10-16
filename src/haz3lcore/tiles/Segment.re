@@ -261,7 +261,8 @@ and remold_tile =
      empty body */
   let closes_statement = (t: Tile.t) =>
     switch (t.form) {
-    | Compound(ReLetStmt | ReTypeStmt | ReModuleStmt | SeqPost) => true
+    | Compound(ReLetStmt | ReTypeStmt | ReModuleStmt | SeqPost | CommaPost) =>
+      true
     | _ => false
     };
   let prefer_right_fit = (ts: list(Tile.t)) =>
@@ -499,6 +500,13 @@ and remold_pat_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
           let (remolded_pat, shape, rest) =
             remold_pat_uni(shape, rest, parent_sorts);
           ([Piece.Tile(t), ...remolded_typ] @ remolded_pat, shape, rest);
+        /* Reason `p when guard`: the guard is an expression */
+        | (_, {shape, sort: Exp}) =>
+          let (remolded_exp, shape, rest) =
+            remold_exp_uni(shape, tl, [Sort.Pat, ...parent_sorts]);
+          let (remolded_pat, shape, rest) =
+            remold_pat_uni(shape, rest, parent_sorts);
+          ([Piece.Tile(t), ...remolded_exp] @ remolded_pat, shape, rest);
         | _ =>
           let (remolded, shape, rest) =
             remold_pat_uni(snd(Tile.shapes(t)), tl, parent_sorts);
@@ -527,6 +535,10 @@ and remold_pat = (shape, seg: t): t =>
         | (_, {shape, sort: Typ}) =>
           let (remolded, shape, rest) =
             remold_typ_uni(shape, tl, [Sort.Pat]);
+          [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
+        | (_, {shape, sort: Exp}) =>
+          let (remolded, shape, rest) =
+            remold_exp_uni(shape, tl, [Sort.Pat]);
           [Piece.Tile(t), ...remolded] @ remold_pat(shape, rest);
         | _ => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
         }

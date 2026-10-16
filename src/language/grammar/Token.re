@@ -65,8 +65,13 @@ let is_reason_block_comment = t =>
   match(reason_open_comment_regexp, t)
   && ends_block_comment(t)
   && no_inner_close(t);
+/* Attributes such as `[@deriving show]` mean nothing to Hazel: they ride
+   along as annotations, like comments */
+let reason_attribute_regexp = regexp("^\\[@[^\n]*\\]$");
 let is_reason_comment = t =>
-  match(reason_line_comment_regexp, t) || is_reason_block_comment(t);
+  match(reason_line_comment_regexp, t)
+  || is_reason_block_comment(t)
+  || match(reason_attribute_regexp, t);
 let is_reason_open_comment = t =>
   match(reason_open_comment_regexp, t)
   && !ends_block_comment(t)

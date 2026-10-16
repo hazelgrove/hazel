@@ -199,6 +199,54 @@ map(x => x * 2, [1, 2, 3])|},
       "let d = List.map((x) => x * 2, [1]);\n",
       "(1, 2)",
     ),
+    case(
+      "or-patterns",
+      {|type shape =
+  | Convex
+  | Concave(int);
+let fits = (l, r) =>
+  switch (l, r) {
+  | (Convex, Concave(_))
+  | (Concave(_), Convex) => true
+  | (Convex, Convex)
+  | (Concave(_), Concave(_)) => false
+  };
+(fits(Convex, Concave(3)), fits(Convex, Convex))|},
+      "(true, false)",
+    ),
+    case(
+      "guards",
+      {|let classify = (n) =>
+  switch (n) {
+  | 0 => "zero"
+  | n when n < 0 => "negative"
+  | n when n > 100 => "big"
+  | _ => "small"
+  };
+(classify(-5), classify(500), classify(7))|},
+      "(\"negative\", \"big\", \"small\")",
+    ),
+    case(
+      "as-patterns",
+      {|let swap = ((a, b) as pair) => ((b, a), pair);
+let tail_or = (d, xs) =>
+  switch (xs) {
+  | [_, ..._] as l => List.tl(l)
+  | [] => d
+  };
+(swap((1, 2)), tail_or([], [1, 2]))|},
+      "(((2, 1), (1, 2)), [2])",
+    ),
+    case(
+      "record update, trailing commas, attributes, open",
+      {|open Util;
+[@deriving show]
+type point = {x: int, y: int,};
+let p = {x: 1, y: 2,};
+let q = {...p, y: 20};
+(q.x + q.y, [1, 2,])|},
+      "(21, [1, 2])",
+    ),
     typed_like_loaded("switch", switch_len),
     typed_like_loaded("variants", shapes),
     typed_like_loaded(

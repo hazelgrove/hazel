@@ -14,6 +14,7 @@ let invalid_arg = (msg: string) => ?;
 let ignore = (_) => ();
 let min = (a, b) => if (a < b) {a} else {b};
 let max = (a, b) => if (a < b) {b} else {a};
+let assert = (b: bool) => if (b) {()} else {failwith("assert")};
 let succ = (n) => n + 1;
 let pred = (n) => n - 1;
 
@@ -68,6 +69,23 @@ module List = {
       };
     go(0, xs);
   };
+  let rev_map = (f, xs) => rev(map(f, xs));
+  let rec map2 = (f, xs, ys) =>
+    switch ((xs, ys)) {
+    | ([x, ...xs], [y, ...ys]) => [f(x, y), ...map2(f, xs, ys)]
+    | _ => []
+    };
+  let rev_map2 = (f, xs, ys) => rev(map2(f, xs, ys));
+  let rec fold_left2 = (f, acc, xs, ys) =>
+    switch ((xs, ys)) {
+    | ([x, ...xs], [y, ...ys]) => fold_left2(f, f(acc, x, y), xs, ys)
+    | _ => acc
+    };
+  let rec fold_right2 = (f, xs, ys, acc) =>
+    switch ((xs, ys)) {
+    | ([x, ...xs], [y, ...ys]) => f(x, y, fold_right2(f, xs, ys, acc))
+    | _ => acc
+    };
   let rec iter = (f, xs) =>
     switch (xs) {
     | [] => ()
@@ -76,6 +94,17 @@ module List = {
         iter(f, rest);
       }
     };
+  let iteri = (f, xs) => {
+    let rec go = (i, xs) =>
+      switch (xs) {
+      | [] => ()
+      | [x, ...rest] => {
+          f(i, x);
+          go(i + 1, rest);
+        }
+      };
+    go(0, xs);
+  };
   let rec fold_left = (f, acc, xs) =>
     switch (xs) {
     | [] => acc

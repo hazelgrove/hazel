@@ -163,7 +163,12 @@ type family =
   | ReLetStmt
   | ReTypeStmt
   | ReModuleStmt
-  | SeqPost;
+  | SeqPost
+  /* `(a, b,)`: a trailing comma */
+  | CommaPost
+  | ReOpen
+  | ReAs
+  | ReWhen;
 
 /* A form identity, sort-free: label is derived from the form alone;
  * the mold is derived from (form, sort) where sort is the tile's
@@ -299,7 +304,11 @@ let label_of_family: family => Label.t =
   | ReLetStmt => ["let", "=", ";"]
   | ReTypeStmt => ["type", "=", ";"]
   | ReModuleStmt => ["module", "=", ";"]
-  | SeqPost => [";"];
+  | SeqPost => [";"]
+  | CommaPost => [","]
+  | ReOpen => ["open"]
+  | ReAs => ["as"]
+  | ReWhen => ["when"];
 
 let label_of: t => Label.t =
   fun

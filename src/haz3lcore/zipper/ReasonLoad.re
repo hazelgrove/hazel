@@ -105,6 +105,23 @@ let lex = (str: string): list(unit_) => {
         emit(Comment(c));
         go(j);
       | "/" when at(i + 1, "*") => go(block(i + 2, []))
+      | "[" when at(i + 1, "@") =>
+        /* an attribute, to its closing bracket on this line */
+        let rec attr = (j, depth, acc) =>
+          if (j >= n || chars[j] == "\n") {
+            (join(acc), j);
+          } else if (chars[j] == "[") {
+            attr(j + 1, depth + 1, [chars[j], ...acc]);
+          } else if (chars[j] == "]" && depth == 1) {
+            (join([chars[j], ...acc]), j + 1);
+          } else if (chars[j] == "]") {
+            attr(j + 1, depth - 1, [chars[j], ...acc]);
+          } else {
+            attr(j + 1, depth, [chars[j], ...acc]);
+          };
+        let (a, j) = attr(i, 0, []);
+        emit(Token.is_comment(a) ? Comment(a) : Tok(a));
+        go(j);
       | c =>
         let (tok, j) = munch(i + 1, [c], c);
         emit(Tok(tok));
