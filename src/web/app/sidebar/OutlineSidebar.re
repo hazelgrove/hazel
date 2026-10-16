@@ -73,6 +73,8 @@ type text_ctl = {
   paste: unit => Effect.t(unit),
   /* the new definition remade as a keyword's kind */
   rekind: string => Effect.t(unit),
+  /* the new definition's line moved a level in or out, to a line */
+  shift: E.line => Effect.t(unit),
   /* an op on an item: what's typed saved first (a delete drops it) */
   op: (E.def_op, Language.Id.t) => Effect.t(unit),
   flash: Effect.t(unit),
@@ -952,10 +954,17 @@ let rec node_view =
       @ [
         div(
           ~attrs=[clss(["outline-kids"])],
-          switch (inside) {
-          | Some((First, row)) => [row, ...kids]
-          | Some((_, row)) => kids @ [row]
-          | None => kids
+          switch (inside, Util.ListUtil.split_last_opt(kids)) {
+          | (Some((First, row)), _) => [row, ...kids]
+          /* last inside a function: above its ⇒ */
+          | (Some((_, row)), Some((init, trail)))
+              when
+                Util.ListUtil.last_opt(n.o_children)
+                |> Option.map((c: OutlineTree.node) => c.o_kind)
+                == Some(KTrail) =>
+            init @ [row, trail]
+          | (Some((_, row)), _) => kids @ [row]
+          | (None, _) => kids
           },
         ),
       ],
@@ -1541,6 +1550,8 @@ let keys =
         )
       | Rekind(kw) =>
         Act(Effect.Many([relocated, forget, on.text.rekind(kw)]))
+      | Shift(line) =>
+        Act(Effect.Many([relocated, forget, on.text.shift(line)]))
       | Drop(d, Some((line, col))) =>
         /* the line it's on, before the caret leaves it */
         let drop = on.text.discard(d);

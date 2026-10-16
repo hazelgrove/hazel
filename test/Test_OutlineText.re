@@ -29,10 +29,10 @@ beta(alpha)|};
 let term = MakeTerm.Incr.term_of(CorpusUtil.seg_of(src));
 let id = CorpusUtil.row_by_label(term);
 
-/* the program's lines, with [collapsed] rows folded and a new
-   definition's line if [text] has one */
-let lines = (~collapsed=[], ~text=?, ()) =>
-  E.lines(~text, H.visible(~collapsed, term));
+/* the program's lines ([of_]: another's), with [collapsed] rows folded
+   and a new definition's line if [text] has one */
+let lines = (~of_=term, ~collapsed=[], ~text=?, ()) =>
+  E.lines(~text, H.visible(~collapsed, of_));
 
 /* a line by what it shows: a name, a test's number, the "tests" and ";"
    rows, beta's "beta⇒" and the program's "⇒", a new line's "+" */
@@ -81,6 +81,7 @@ let k = (~alt=false, ~meta=false, ~shift=false, ~code=?, key): E.press => {
    definition [fresh] once in and its name [live] as drawn */
 let press =
     (
+      ~of_=term,
       ~collapsed=[],
       ~col=0,
       ~field=false,
@@ -96,7 +97,7 @@ let press =
       p: E.press,
     )
     : E.outcome => {
-  let base = lines(~collapsed, ());
+  let base = lines(~of_, ~collapsed, ());
   let line =
     switch (on) {
     | Some(line) => line
@@ -107,7 +108,7 @@ let press =
     col_target,
     error,
   };
-  let ls = lines(~collapsed, ~text=t, ());
+  let ls = lines(~of_, ~collapsed, ~text=t, ());
   E.decide(
     ~lines=ls,
     ~at=Option.get(E.find(ls, line)),
@@ -542,7 +543,255 @@ let ops = () => {
     Flash,
     press({js|⇒|js}, k(~meta=true, "Backspace")),
   );
-  check(outcome, "No Tab", Swallow, press("alpha", k("Tab")));
+};
+
+let tab = k("Tab");
+let shift_tab = k(~shift=true, "Tab");
+
+/* Tab: an item into the module above it, or the value (a `let`) above
+   it, last; ⇧Tab: a module's or a value's last item out. Anything else
+   flashes */
+let nesting = () => {
+  let tests =
+    List.filter_map(
+      (n: O.node) => n.o_kind == KTest ? n.o_id : None,
+      O.flatten(O.of_term(term)),
+    );
+  let semi =
+    List.find_map(
+      (n: O.node) => n.o_kind == KStmt ? n.o_id : None,
+      O.flatten(O.of_term(term)),
+    )
+    |> Option.get;
+  List.iter(
+    ((label, want, got)) => check(outcome, label, want, got),
+    [
+      (
+        "Tab: a run's first test into the module above it",
+        E.Op(Indent, List.nth(tests, 0)),
+        press("1", tab),
+      ),
+      (
+        "into a folded one too",
+        Op(Indent, List.nth(tests, 0)),
+        press(~collapsed=["Geo"], "1", tab),
+      ),
+      (
+        "a value into the value above",
+        Op(Indent, id("beta")),
+        press("beta", tab),
+      ),
+      ("a statement", Op(Indent, semi), press(";", tab)),
+      (
+        "a member into the member above",
+        Op(Indent, id("unit")),
+        press("unit", tab),
+      ),
+      ("nothing above: flashes", Flash, press("alpha", tab)),
+      ("first in a body", Flash, press("inner", tab)),
+      ("a type above", Flash, press("Geo", tab)),
+      ("a test above", Flash, press("2", tab)),
+      ("a tests label isn't an item", Flash, press("tests", tab)),
+      ({js|⇒|js}, Flash, press({js|⇒|js}, tab)),
+      (
+        {js|⇧Tab: a module's last member out|js},
+        Op(Outdent, id("unit")),
+        press("unit", shift_tab),
+      ),
+      (
+        "a value's last local definition, above its ⇒",
+        Op(Outdent, id("inner")),
+        press("inner", shift_tab),
+      ),
+      ("a member that isn't last", Flash, press("origin", shift_tab)),
+      ("the top level", Flash, press("alpha", shift_tab)),
+      ("a top-level test", Flash, press("2", shift_tab)),
+      ({js|a body's ⇒|js}, Flash, press({js|beta⇒|js}, shift_tab)),
+      ({js|⌥Tab: nothing|js}, Swallow, press("1", k(~alt=true, "Tab"))),
+    ],
+  );
+};
+
+/* a new definition's line: Tab takes it into a module above it, last;
+   ⇧Tab, or Enter on it blank, out of a module or value it's the last
+   line of, just after it. Enter on a blank line anywhere else leaves */
+let nesting_lines = () => {
+  let at = (~name="", line, key) =>
+    press(
+      ~on=line,
+      ~fresh=fresh(),
+      ~live=named(name, E.units(name)),
+      "+",
+      key,
+    );
+  let enter = k("Enter");
+  List.iter(
+    ((label, want, got)) => check(outcome, label, want, got),
+    [
+      (
+        "below a module: Tab takes it in, last",
+        E.Shift(New(id("Geo"), Last)),
+        at(New(id("Geo"), Below), tab),
+      ),
+      (
+        "named too",
+        Shift(New(id("Geo"), Last)),
+        at(~name="z", New(id("Geo"), Below), tab),
+      ),
+      (
+        "below a value: into its body",
+        Shift(New(id("alpha"), Last)),
+        at(New(id("alpha"), Below), tab),
+      ),
+      (
+        {js|below a function: inside it, above its ⇒|js},
+        Shift(New(id("beta"), Last)),
+        at(New(id("beta"), Below), tab),
+      ),
+      ("below a type: flashes", Flash, at(New(id("Shape"), Below), tab)),
+      (
+        {js|last in a function, above its ⇒: ⇧Tab takes it out|js},
+        Shift(New(id("beta"), Below)),
+        at(New(id("beta"), Last), shift_tab),
+      ),
+      (
+        "and Enter, blank",
+        Shift(New(id("beta"), Below)),
+        at(New(id("beta"), Last), k("Enter")),
+      ),
+      (
+        "first inside a module: nothing above",
+        Flash,
+        at(New(id("Geo"), First), tab),
+      ),
+      (
+        {js|last in a module: ⇧Tab takes it out, below the module|js},
+        Shift(New(id("Geo"), Below)),
+        at(New(id("unit"), Below), shift_tab),
+      ),
+      (
+        "last inside it: the same",
+        Shift(New(id("Geo"), Below)),
+        at(~name="z", New(id("Geo"), Last), shift_tab),
+      ),
+      (
+        "first inside a module with members",
+        Flash,
+        at(New(id("Geo"), First), shift_tab),
+      ),
+      (
+        "last in a value's body",
+        Shift(New(id("beta"), Below)),
+        at(New(id("inner"), Below), shift_tab),
+      ),
+      ("the top level", Flash, at(New(id("alpha"), Below), shift_tab)),
+      (
+        "Enter, blank, last in a module: out",
+        Shift(New(id("Geo"), Below)),
+        at(New(id("unit"), Below), enter),
+      ),
+      (
+        "last in a value's body: out",
+        Shift(New(id("beta"), Below)),
+        at(New(id("inner"), Below), enter),
+      ),
+      (
+        "mid-module: gone, text mode too",
+        Save(Leave),
+        at(New(id("origin"), Below), enter),
+      ),
+      (
+        "the top level: gone",
+        Save(Leave),
+        at(New(id("alpha"), Below), enter),
+      ),
+      (
+        "named: the next line",
+        Save(Next),
+        at(~name="z", New(id("unit"), Below), enter),
+      ),
+    ],
+  );
+};
+
+/* a program with an empty module, a `use`, and a module in a module */
+let nested =
+  MakeTerm.Incr.term_of(
+    CorpusUtil.seg_of(
+      {|module A = {} in
+use Nat in
+module M = {
+  let a = 1;
+  module N = {
+    let x = 2
+  }
+} in
+let b = 3 in
+b|},
+    ),
+  );
+let nid = CorpusUtil.row_by_label(nested);
+
+/* Enter on an empty module goes inside it; a blank last line inside a
+   module goes out of it, one level at a time */
+let empty_modules = () => {
+  let empty = i => i == nid("A");
+  let at = (line, key) =>
+    press(
+      ~of_=nested,
+      ~on=line,
+      ~fresh=fresh(),
+      ~live=named("", 0),
+      "+",
+      key,
+    );
+  let enter = k("Enter");
+  List.iter(
+    ((label, want, got)) => check(outcome, label, want, got),
+    [
+      (
+        "Enter on an empty module: first inside it",
+        E.Go(New(nid("A"), First), 0, None),
+        press(~of_=nested, ~blank=empty, "A", enter),
+      ),
+      (
+        "on a value: below it",
+        Go(New(nid("b"), Below), 0, None),
+        press(~of_=nested, ~blank=empty, "b", enter),
+      ),
+      (
+        "a blank line inside it, Enter: out, below it",
+        Shift(New(nid("A"), Below)),
+        at(New(nid("A"), First), enter),
+      ),
+      (
+        "a blank last line in N: out of N, still in M",
+        Shift(New(nid("N"), Below)),
+        at(New(nid("x"), Below), enter),
+      ),
+      (
+        "then out of M",
+        Shift(New(nid("M"), Below)),
+        at(New(nid("N"), Below), enter),
+      ),
+      ("mid-module: gone", Save(Leave), at(New(nid("a"), Below), enter)),
+      (
+        "Tab below N: into it",
+        Shift(New(nid("N"), Last)),
+        at(New(nid("N"), Below), tab),
+      ),
+      (
+        "last inside M, below N: into N",
+        Shift(New(nid("N"), Last)),
+        at(New(nid("M"), Last), tab),
+      ),
+      (
+        "a use never goes into a module",
+        Flash,
+        press(~of_=nested, "use Nat", tab),
+      ),
+    ],
+  );
 };
 
 /* ⌥F folds the line's row, as the editor's Fold does */
@@ -815,6 +1064,12 @@ let new_lines = () => {
     "last inside Geo",
     find_line(base, "unit") + 1,
     at("Geo", Last),
+  );
+  check(
+    int,
+    {js|last inside beta: above its ⇒|js},
+    find_line(base, {js|beta⇒|js}),
+    at("beta", Last),
   );
 };
 
@@ -1217,6 +1472,231 @@ M.a|js},
   reset();
 };
 
+/* Tab and ⇧Tab move the caret's item a level in and out, one step
+   each: the caret goes with it, at its column; a folded module it goes
+   into unfolds; no cell opens */
+let nesting_ops = () => {
+  let src = "let a = 1 in\nmodule M = {\n  let x = 2\n} in\nlet bee = 4 in\nbee";
+  let code = code_of(src);
+  let term = Web.Workspace.fresh_term(code.program);
+  let ck = Web.ScratchPersist.content_key("scratch", "t");
+  Hashtbl.replace(
+    Web.ScratchPersist.slide_collapse,
+    ck,
+    [Option.get(O.label_path(CorpusUtil.row_by_label(term, "M"), term))],
+  );
+  /* the caret on [label]'s row, at column 2 */
+  let on = (code: Web.ScratchModel.Scratchpad.code, label) => {
+    let term = Web.Workspace.fresh_term(code.program);
+    let id = CorpusUtil.row_by_label(term, label);
+    C.text :=
+      Some(
+        E.at(
+          Row(Option.get(O.label_path(id, term)), Some(Item(id))),
+          ~col=2,
+        ),
+      );
+    id;
+  };
+  let caret = (code: Web.ScratchModel.Scratchpad.code) =>
+    switch (caret_on(code), C.text^) {
+    | (Some(n), Some(t)) => Some((n.o_label, t.col))
+    | _ => None
+    };
+  let scheduled = ref([]);
+  let in_ =
+    C.update(
+      ~settings=Web.Globals.Model.init().settings,
+      ~schedule_workspace=a => scheduled := [a, ...scheduled^],
+      ~prefix="scratch",
+      ~name="t",
+      DefOp(Indent, on(code, "bee")),
+      code,
+    );
+  check(
+    string,
+    "Tab: M's last member",
+    printed(
+      "let a = 1 in\nmodule M = {\n  let x = 2;\n  let bee = 4\n} in\nbee",
+    ),
+    text_of(in_.model),
+  );
+  check(bool, "one undo step", true, in_.historic);
+  check(at_name, "the caret along", Some(("bee", 2)), caret(in_.model));
+  check(
+    bool,
+    "M unfolded",
+    true,
+    Web.ScratchPersist.collapse_paths("scratch", "t") == [],
+  );
+  check(bool, "no cell opened", true, scheduled^ == []);
+  let out = run(DefOp(Outdent, on(in_.model, "bee")), in_.model);
+  check(string, {js|⇧Tab: out again|js}, printed(src), text_of(out));
+  check(at_name, "the caret along", Some(("bee", 2)), caret(out));
+  Hashtbl.remove(Web.ScratchPersist.slide_collapse, ck);
+  reset();
+};
+
+/* a new line moved a level, as its key moves it: the caret there at
+   once, its definition after */
+let shift = (from: E.line, to_: E.line, code) => {
+  C.text :=
+    Option.map(
+      (t: E.t) =>
+        {
+          ...t,
+          line: to_,
+        },
+      C.text^,
+    );
+  update(Shift(from, to_), code);
+};
+
+/* `module M` named, Enter: the next line first inside it. Blank there,
+   Enter takes the line out, just after M, and Tab back in; named, it
+   keeps its name, the editor's caret where it was. Still the step that
+   made it */
+let module_lines = () => {
+  let code = code_of("let a = 1 in\na");
+  let a =
+    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let line = E.New(a, Below);
+  C.text := Some(E.at(line));
+  let code =
+    typing(line, [Insert("M")], run(Create(line, "module "), code));
+  let m: E.fresh = {
+    f_id: fresh_def(),
+    f_kw: "module ",
+  };
+  let inside = E.next_line(m);
+  check(
+    bool,
+    "Enter after a module's name: first inside it",
+    true,
+    inside == New(m.f_id, First),
+  );
+  check(
+    bool,
+    "after a value's: below it",
+    true,
+    E.next_line({
+      ...m,
+      f_kw: "",
+    })
+    == New(m.f_id, Below),
+  );
+  C.text := Some(E.at(inside));
+  let code = run(Settle(line, m, Next), code);
+  check(
+    string,
+    "a line inside M",
+    printed({js|let a = 1 in
+module M = {
+  let ¿ = ¿
+} in
+a|js}),
+    text_of(code),
+  );
+  let below = E.New(m.f_id, Below);
+  let out = shift(inside, below, code);
+  check(bool, "not a step of its own", false, out.historic);
+  check(
+    string,
+    "out, just after M",
+    printed({js|let a = 1 in
+module M = {} in
+let ¿ = ¿ in
+a|js}),
+    text_of(out.model),
+  );
+  check(
+    bool,
+    "the caret's line there",
+    true,
+    switch (C.text^) {
+    | Some({line, fresh: Some(_), _}) => line == below
+    | _ => false
+    },
+  );
+  let code =
+    typing(
+      below,
+      [Insert("z"), Insert("q"), Step(Left, Char)],
+      out.model,
+    );
+  let code = shift(below, New(m.f_id, Last), code).model;
+  check(
+    string,
+    "named, Tab: back in, the name kept",
+    printed({js|let a = 1 in
+module M = {
+  let zq = ¿
+} in
+a|js}),
+    text_of(code),
+  );
+  check(at_name, "the caret where it was", Some(("zq", 1)), live_of(code));
+  reset();
+};
+
+/* a new line below a function, Tab: inside it, its last local
+   definition; ⇧Tab: out again */
+let value_lines = () => {
+  let src = "let f = fun x ->\n  x\nin\nf";
+  let code = code_of(src);
+  let f =
+    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "f");
+  let below = E.New(f, Below);
+  C.text := Some(E.at(below));
+  let code = run(Create(below, ""), code);
+  let inside = E.New(f, Last);
+  let code = shift(below, inside, code).model;
+  check(
+    string,
+    "Tab: inside f, before its result",
+    printed({js|let f = fun x ->
+  let ¿ = ¿ in
+  x
+in
+f|js}),
+    text_of(code),
+  );
+  let code =
+    shift(inside, below, typing(inside, [Insert("y")], code)).model;
+  check(
+    string,
+    {js|named, ⇧Tab: out again|js},
+    printed({js|let f = fun x ->
+  x
+in
+let y = ¿ in
+f|js}),
+    text_of(code),
+  );
+  /* into what takes no definitions, refused: the caret back */
+  C.flash := 0;
+  let into_x =
+    E.New(
+      CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "f"),
+      First,
+    );
+  let same = shift(below, into_x, code);
+  check(
+    bool,
+    "refused: flashed, the program and the caret's line as they were",
+    true,
+    C.flash^ == 1
+    && text_of(same.model) == text_of(code)
+    && (
+      switch (C.text^) {
+      | Some({line, _}) => line == below
+      | None => false
+      }
+    ),
+  );
+  reset();
+};
+
 /* `type ` typed as a value's name makes it a type, blank; ⌫ at its
    start makes it a value again: still the step that made it */
 let live_kinds = () => {
@@ -1354,6 +1834,56 @@ a + b|js}),
   check(int, "one undo step", 1, List.length(m.undo_stack));
   let m = U.run(m, Globals(Undo));
   check(string, "⌘Z: as before the Enter", before, program(m));
+  reset();
+};
+
+/* a blank new definition dropped takes its insertion out of the history:
+   ⌘Z then undoes the change before it, and a redo the Enter cleared
+   comes back. Named, it stays a step */
+let undo_after_drop = () => {
+  module U = Test_Undo.Cells;
+  let outline = (a: C.Action.t): Web.Page.Update.t =>
+    Editors(Scratch(Outline(a)));
+  let program = m => CorpusUtil.text_of(Web.Program.document(U.program(m)));
+  let depth = (m: Web.History.Model.t) => List.length(m.undo_stack);
+  /* Enter below a, then [settle]d as the line's left */
+  let enter = (~name="", m) => {
+    let line = E.New(U.row(m, "a"), Below);
+    C.text := Some(E.at(line));
+    let m = U.run(m, outline(Create(line, "")));
+    let f: E.fresh = {
+      f_id: fresh_def(),
+      f_kw: "",
+    };
+    let m =
+      String.fold_left(
+        (m, c) =>
+          U.run(m, outline(Type(line, Insert(String.make(1, c))))),
+        m,
+        name,
+      );
+    (m, () => U.run(m, outline(Settle(line, f, Leave))));
+  };
+  let m = U.run(U.mk(), Refresh);
+  let before = program(m);
+  let m = U.run(m, outline(DefOp(MoveUp, U.row(m, "b"))));
+  let moved = program(m);
+  check(int, "a move: one step", 1, depth(m));
+  let (m, leave) = enter(m);
+  check(int, "Enter: a step of its own", 2, depth(m));
+  let m = leave();
+  check(string, "left blank: dropped", moved, program(m));
+  check(int, "its step gone with it", 1, depth(m));
+  let m = U.run(m, Globals(Undo));
+  check(string, {js|⌘Z: the move undone|js}, before, program(m));
+  let (_, leave) = enter(m);
+  let m = leave();
+  check(int, "a redo the Enter cleared, back", 1, List.length(m.redo_stack));
+  let m = U.run(m, Globals(Redo));
+  check(string, {js|⌘⇧Z: the move again|js}, moved, program(m));
+  let (_, leave) = enter(~name="n", m);
+  let m = leave();
+  check(int, "named: its step kept", 2, depth(m));
   reset();
 };
 
@@ -1759,6 +2289,9 @@ let tests = (
     test_case("ways out", `Quick, leaving),
     test_case("⌘Z", `Quick, undo),
     test_case("item ops", `Quick, ops),
+    test_case("Tab and Shift+Tab nest items", `Quick, nesting),
+    test_case("Tab and Shift+Tab on a new line", `Quick, nesting_lines),
+    test_case("Enter in and out of modules", `Quick, empty_modules),
     test_case("⌥F folds", `Quick, fold),
     test_case("keys before the field has them", `Quick, early),
     test_case("a new line's keys, as a field's", `Quick, live_keys),
@@ -1774,6 +2307,14 @@ let tests = (
     test_case("a new definition with cells open", `Quick, live_in_stack),
     test_case("keys before a new definition is in", `Quick, keys_wait),
     test_case("⌘Z takes a new definition, name and all", `Quick, live_undo),
+    test_case(
+      "a dropped definition leaves no undo step",
+      `Quick,
+      undo_after_drop,
+    ),
+    test_case("Tab and Shift+Tab keep the caret", `Quick, nesting_ops),
+    test_case("a new line in and out of a module", `Quick, module_lines),
+    test_case("a new line in and out of a function", `Quick, value_lines),
     test_case("⌘V on a new definition's line", `Quick, live_paste),
     test_case("words in a new definition's name", `Quick, live_words),
     test_case("selecting in a new definition's name", `Quick, live_selection),
