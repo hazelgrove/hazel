@@ -46,6 +46,10 @@ type gen = {
 
 type constraint_ = (Ctx.t, Typ.t, Typ.t);
 
+type decision =
+  | Decided(Typ.t)
+  | Conflicted(list(Typ.t));
+
 type infer_state = {
   holes: Hashtbl.t(Id.t, hole),
   extras: Hashtbl.t(Id.t, list(constraint_)),
@@ -53,6 +57,8 @@ type infer_state = {
   instantiated: Hashtbl.t(Id.t, unit),
   /* Holes something consumed the way only `?` allows (see gradual_use). */
   gradual: Hashtbl.t(Id.t, unit),
+  /* What a let's definition alone decided for the holes it owns. */
+  decided: Hashtbl.t(Id.t, decision),
 };
 
 type apply_state = {
@@ -373,13 +379,81 @@ module Solver = {
     | (Arrow(a1, b1), Arrow(a2, b2)) =>
       union(a1, a2);
       union(b1, b2);
-    | (Prod(ns1), Prod(ns2)) when List.length(ns1) == List.length(ns2) =>
-      List.iter2(union, ns1, ns2)
+    | (Prod(ns1), Prod(ns2)) =>
+      switch (align(ns1, ns2)) {
+      | Some(pairs) => List.iter(((a, b)) => union(a, b), pairs)
+      | None when labeled(ns1) || labeled(ns2) => ()
+      | None => r.conflict = r.conflict @ [s2]
+      }
     | (List(n1), List(n2)) => union(n1, n2)
     | (Label(l1, n1), Label(l2, n2)) when l1 == l2 => union(n1, n2)
+    | (Label(_), Label(_)) => ()
+    /* A labeled tuple and its labels' payload are interchangeable where
+       Hazel lifts singletons; say nothing rather than something wrong. */
+    | (Label(_), _)
+    | (_, Label(_))
+    | (Prod([_]), _)
+    | (_, Prod([_])) => ()
     | (Leaf(t1, c1), Leaf(t2, c2)) when leaf_equal((t1, c1), (t2, c2)) =>
       ()
     | _ => r.conflict = r.conflict @ [s2]
+    }
+  /* Pair up tuple elements as labeled-tuple statics does: labeled ones by
+     label, the rest by position; None if they don't line up. */
+  and align =
+      (ns1: list(node), ns2: list(node)): option(list((node, node))) => {
+    let label_of = n =>
+      switch (find(n).shape) {
+      | Some(Label(l, inner)) => (Some(l), inner)
+      | _ => (None, n)
+      };
+    let es1 = List.map(label_of, ns1);
+    let es2 = List.map(label_of, ns2);
+    if (List.length(es1) != List.length(es2)) {
+      None;
+    } else {
+      let by_label =
+        List.filter_map(
+          ((l, n1)) =>
+            switch (l) {
+            | Some(l) =>
+              List.find_map(
+                ((l2, n2)) => l2 == Some(l) ? Some((l, n1, n2)) : None,
+                es2,
+              )
+            | None => None
+            },
+          es1,
+        );
+      let matched = List.map(((l, _, _)) => Some(l), by_label);
+      let rest = es =>
+        List.filter_map(
+          ((l, n)) => List.mem(l, matched) && l != None ? None : Some(n),
+          es,
+        );
+      let (rest1, rest2) = (rest(es1), rest(es2));
+      List.length(rest1) == List.length(rest2)
+        ? Some(
+            List.map(((_, a, b)) => (a, b), by_label)
+            @ List.combine(rest1, rest2),
+          )
+        : None;
+    };
+  }
+  and labeled = (ns: list(node)): bool =>
+    List.exists(
+      n =>
+        switch (find(n).shape) {
+        | Some(Label(_)) => true
+        | _ => false
+        },
+      ns,
+    );
+
+  let is_alias = (ctx: Ctx.t, x: string): bool =>
+    switch (Ctx.lookup_tvar(ctx, x)) {
+    | Some(Singleton(_)) => true
+    | _ => false
     };
 
   let structure = (s: t, sh: shape): node => {
@@ -423,7 +497,13 @@ module Solver = {
     switch (hole_of(s.st, ty)) {
     | Some(id) => of_hole(s, id)
     | None =>
-      let whnf = Typ.weak_head_normalize(ctx, ty);
+      /* A type variable that isn't an alias here is rigid, whether or not
+         it is in scope (generalized ones are bound only in pass 2). */
+      let whnf =
+        switch (Typ.term_of(ty)) {
+        | Var(x) when !is_alias(ctx, x) => ty
+        | _ => Typ.weak_head_normalize(ctx, ty)
+        };
       switch (Typ.term_of(whnf)) {
       | Unknown(_) => fresh(s)
       | Arrow(t1, t2) =>
@@ -457,6 +537,7 @@ module Solver = {
     } else {
       switch (r.shape) {
       | None => unsolved(r)
+      | Some(Leaf({term: Var(x), _} as t, ctx)) when !is_alias(ctx, x) => t
       | Some(Leaf(t, ctx)) => norm ? Typ.normalize(ctx, t) : t
       | Some(Arrow(a, b)) => Arrow(go(a), go(b)) |> Typ.temp
       | Some(Prod(ns)) => Prod(List.map(go, ns)) |> Typ.temp
@@ -747,22 +828,42 @@ let generalize_let =
            && List.for_all(owned, r.holes)
            && !List.exists(Hashtbl.mem(st.gradual), r.holes)
          );
+    let nested =
+      Hashtbl.fold(
+        (id, g: gen, acc) => Id.Set.mem(id, ids) ? g.tvars @ acc : acc,
+        st.gens,
+        [],
+      );
+    let tvars =
+      tvar_names(ctx_tvar_names(ctx) @ nested, List.length(generalizable));
+    let named = List.combine(generalizable, tvars);
+    /* An unsolved class: its type variable if generalized; `?` if it is
+       this definition's alone (nothing outside may decide it later); else
+       still the outer hole it belongs to. */
+    let unsolved = (r: Solver.node) =>
+      switch (List.find_opt(((r', _)) => r' === r, named)) {
+      | Some((_, a)) => Var(a) |> Typ.temp
+      | None when List.for_all(owned, r.holes) => unknown()
+      | None => hole_typ(List.find(h => !owned(h), r.holes))
+      };
+    Hashtbl.iter(
+      (h, n) =>
+        if (owned(h)) {
+          let r = Solver.find(n);
+          Hashtbl.replace(
+            st.decided,
+            h,
+            r.conflict != []
+              ? Conflicted(Solver.conflict_typs(r))
+              : Decided(Solver.resolve(~norm=false, ~unsolved, n)),
+          );
+        },
+      s.nodes,
+    );
     let_time := let_time^ +. now() -. t0;
     if (generalizable == []) {
       None;
     } else {
-      let nested =
-        Hashtbl.fold(
-          (id, g: gen, acc) => Id.Set.mem(id, ids) ? g.tvars @ acc : acc,
-          st.gens,
-          [],
-        );
-      let tvars =
-        tvar_names(
-          ctx_tvar_names(ctx) @ nested,
-          List.length(generalizable),
-        );
-      let named = List.combine(generalizable, tvars);
       let gen = {
         tvars,
         holes:
@@ -772,15 +873,6 @@ let generalize_let =
           ),
       };
       Hashtbl.replace(st.gens, let_id, gen);
-      let unsolved = (r: Solver.node) =>
-        switch (List.find_opt(((r', _)) => r' === r, named)) {
-        | Some((_, a)) => Var(a) |> Typ.temp
-        | None =>
-          switch (r.holes) {
-          | [h, ..._] => hole_typ(h)
-          | [] => unknown()
-          }
-        };
       Some(poly_of(gen, Solver.resolve(~norm=false, ~unsolved, def_node)));
     };
   | _ => None
@@ -803,19 +895,27 @@ let solve = (st: infer_state, m: StaticsBase.Map.t): apply_state => {
   Hashtbl.iter((_, cs) => List.iter(Solver.add(s), cs), st.extras);
   let fills = Hashtbl.create(64);
   let conflicts = Hashtbl.create(8);
+  let conflict = (id, tys) =>
+    switch (root_site(st, id)) {
+    | Some(site) =>
+      if (!Hashtbl.mem(conflicts, site)) {
+        Hashtbl.add(conflicts, site, tys);
+      }
+    | None => ()
+    };
   Hashtbl.iter(
     (id, _) => {
-      let n = Solver.of_hole(s, id);
-      let r = Solver.find(n);
-      if (r.conflict != []) {
-        switch (root_site(st, id)) {
-        | Some(site) =>
-          if (!Hashtbl.mem(conflicts, site)) {
-            Hashtbl.add(conflicts, site, Solver.conflict_typs(r));
-          }
-        | None => ()
+      let n =
+        switch (Hashtbl.find_opt(st.decided, id)) {
+        | Some(Decided(ty)) => Solver.of_typ(s, Ctx.empty, ty)
+        | Some(Conflicted(_))
+        | None => Solver.of_hole(s, id)
         };
-      } else if (r.shape != None) {
+      let r = Solver.find(n);
+      switch (Hashtbl.find_opt(st.decided, id)) {
+      | Some(Conflicted(tys)) => conflict(id, tys)
+      | _ when r.conflict != [] => conflict(id, Solver.conflict_typs(r))
+      | _ when r.shape != None =>
         let unsolved = _ => unknown();
         Hashtbl.replace(
           fills,
@@ -825,6 +925,7 @@ let solve = (st: infer_state, m: StaticsBase.Map.t): apply_state => {
             Solver.resolve(~norm=true, ~unsolved, n),
           ),
         );
+      | _ => ()
       };
     },
     st.holes,
@@ -893,6 +994,7 @@ let run = (pass: unit => ('a, StaticsBase.Map.t)): ('a, StaticsBase.Map.t) => {
     gens: Hashtbl.create(8),
     instantiated: Hashtbl.create(16),
     gradual: Hashtbl.create(8),
+    decided: Hashtbl.create(64),
   };
   Fun.protect(
     ~finally=() => mode := prev,

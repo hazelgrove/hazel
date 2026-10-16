@@ -551,6 +551,9 @@ and uexp_to_info_map =
          would disagree with the syn-based meet and cause spurious Asc
          wrappings on elements that already syn to the meet type. */
       let syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
+      /* Unlike branches, elements only have to agree with each other when
+         nothing else says what they are; a list checked against a type
+         may be heterogeneous under its `?`s. */
       if (Typ.is_syn(inner_ana_ty)) {
         Inference.record_join(~site=Exp.rep_id(uexp), ~ctx, syn_tys);
       };
@@ -2440,13 +2443,12 @@ and uexp_to_info_map =
       let (cond, cond_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
       let (cons, cons_elab, m) = go(~ana, e1, m);
       let (alt, alt_elab, m) = go(~ana, e2, m);
-      if (Typ.is_syn(ana)) {
-        Inference.record_join(
-          ~site=Exp.rep_id(uexp),
-          ~ctx,
-          [cons.elab_syn_ty, alt.elab_syn_ty],
-        );
-      };
+      /* Branches must meet whatever the mode (see cms_if). */
+      Inference.record_join(
+        ~site=Exp.rep_id(uexp),
+        ~ctx,
+        [cons.elab_syn_ty, alt.elab_syn_ty],
+      );
       let (syn_if, cms_if) =
         ConstructorStaticsHelpers.syn_marks_match(
           ctx,
@@ -2532,9 +2534,7 @@ and uexp_to_info_map =
 
       let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
       let e_co_ctxs = List.map(Info.exp_co_ctx, es);
-      if (Typ.is_syn(ana)) {
-        Inference.record_join(~site=Exp.rep_id(uexp), ~ctx, e_syn_tys);
-      };
+      Inference.record_join(~site=Exp.rep_id(uexp), ~ctx, e_syn_tys);
       let (syn_ty_match, marks_match) =
         ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);
       let (constraints, ps_elabs, m) =

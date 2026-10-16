@@ -176,10 +176,22 @@ let tests = (
       {|let f : ? -> ? = fun x -> x in f|},
       Some(T.arrow(unknown(), unknown())),
     ),
+    /* Projection gives no constraint and a type variable can't be
+       projected, so `r` stays gradual; uses don't decide it either. */
     fully_consistent_typecheck(
-      "A projected binder is not generalized; its use decides it",
+      "A projected binder stays gradual",
       {|let get = fun r -> r.a in get((a=1, b=true))|},
-      Some(T.int()),
+      Some(unknown()),
+    ),
+    fully_consistent_typecheck(
+      "A let's uses don't decide its holes",
+      {|let f = fun x -> ? in f(1)|},
+      Some(unknown()),
+    ),
+    fully_consistent_typecheck(
+      "Branches agree even when checked against ?",
+      {|let f = fun x -> ((if true then x else 1) : ?) in f|},
+      Some(T.arrow(T.int(), unknown())),
     ),
     fully_consistent_typecheck(
       "Elements checked against a type need not agree with each other",
