@@ -444,9 +444,29 @@ let enter = () => {
   );
 };
 
-/* every way out saves; a refused name's second Esc drops it */
+/* every way out saves; Esc leaves whatever the save's outcome, in one
+   press */
 let leaving = () => {
-  check(outcome, "Esc", Save(Leave), press("alpha", k("Escape")));
+  check(outcome, "Esc", Save(Done), press("alpha", k("Escape")));
+  check(
+    outcome,
+    "Esc with a refusal shown: one press still",
+    Save(Done),
+    press(~pending="Bad", ~error="no", "alpha", k("Escape")),
+  );
+  check(
+    outcome,
+    "Esc on a new line",
+    Save(Done),
+    press(
+      ~on=New(id("alpha"), Below),
+      ~fresh=fresh(),
+      ~live=named("B", 1),
+      ~error="no",
+      "+",
+      k("Escape"),
+    ),
+  );
   check(
     outcome,
     "⌘Enter",
@@ -459,11 +479,76 @@ let leaving = () => {
     Save(Leave),
     press("1", k(~shift=true, "Enter")),
   );
+};
+
+/* a kind keyword typed first in a rename moves out of the field, shown
+   apart; Backspace at the field's start takes it back off */
+let rename_keywords = () => {
+  check(
+    pair(string, string),
+    "split",
+    ("module ", "M"),
+    E.split_typed("module M"),
+  );
+  check(
+    pair(string, string),
+    "a value's",
+    ("let ", "x"),
+    E.split_typed("let x"),
+  );
+  check(
+    pair(string, string),
+    "no space yet",
+    ("", "type"),
+    E.split_typed("type"),
+  );
+  check(
+    pair(string, int),
+    "a keyword's space typed at the field's end: the caret to its start",
+    ("module ", 0),
+    E.retyped("", "module ", 7),
+  );
+  check(
+    pair(string, int),
+    "under a keyword, the field's caret as typed",
+    ("type Ab", 2),
+    E.retyped("type ", "Ab", 2),
+  );
   check(
     outcome,
-    "Esc after a refusal",
-    Abandon,
-    press(~pending="Bad", ~error="no", "alpha", k("Escape")),
+    "a space after `module`, before the field has the keys",
+    Edit("module ", 0),
+    press(~pending="module", ~col=6, "alpha", k(" ")),
+  );
+  check(
+    outcome,
+    "a letter under the keyword",
+    Edit("module Mx", 2),
+    press(~pending="module M", ~col=1, "alpha", k("x")),
+  );
+  check(
+    outcome,
+    "Backspace at the field's start: the keyword goes",
+    Edit("M", 0),
+    press(~field=true, ~pending="module M", ~col=0, "alpha", k("Backspace")),
+  );
+  check(
+    outcome,
+    "inside the name: the field's",
+    Field,
+    press(~field=true, ~pending="module M", ~col=1, "alpha", k("Backspace")),
+  );
+  check(
+    outcome,
+    "End: the field's end, not the text's",
+    Place(1),
+    press(~pending="module M", "alpha", k("End")),
+  );
+  check(
+    outcome,
+    "⌘Z: the keyword undone too",
+    Revert,
+    press(~pending="module alpha", "alpha", k(~meta=true, "z")),
   );
 };
 
@@ -1192,6 +1277,7 @@ let reset = () => {
   C.text := None;
   C.cursor := None;
   C.flash := 0;
+  C.created := None;
 };
 
 /* a new test below a test, or first of a run: the caret on it */
@@ -2277,6 +2363,214 @@ let test_menus = () => {
   );
 };
 
+/* Esc leaves in one press: a name that will do is saved; one that won't
+   is dropped, the program as it was, its row flashing; a new
+   definition's that won't goes with its definition */
+let esc_leaves = () => {
+  let src = "let a = 1 in\nlet b = a + 1 in\nb";
+  let code = code_of(src);
+  let term = Web.Workspace.fresh_term(code.program);
+  let a = CorpusUtil.row_by_label(term, "a");
+  let line = E.Row(Option.get(O.label_path(a, term)), Some(Item(a)));
+  /* the key's save has left text mode already */
+  let esc = typed => {
+    reset();
+    update(
+      Save(
+        {
+          sv_line: line,
+          sv_text: typed,
+          sv_col: 1,
+        },
+        Done,
+      ),
+      code,
+    );
+  };
+  let saved = esc("c");
+  check(
+    string,
+    "a name that will do: saved",
+    printed("let c = 1 in\nlet b = c + 1 in\nb"),
+    text_of(saved.model),
+  );
+  check(bool, "row mode, no flash", true, C.text^ == None && C.flash^ == 0);
+  check(
+    bool,
+    "the cursor on its row",
+    true,
+    C.cursor^
+    == O.label_path(a, Web.Workspace.fresh_term(saved.model.program)),
+  );
+  let kept = esc("B");
+  check(
+    string,
+    "one that won't: as it was",
+    printed(src),
+    text_of(kept.model),
+  );
+  check(bool, "not an undo step", false, kept.historic);
+  check(
+    bool,
+    "row mode, its row flashing",
+    true,
+    C.text^ == None && C.flash^ == 1,
+  );
+  let (line, code) = live_line(two);
+  let code = typing(line, [Insert("B")], code);
+  let f: E.fresh = {
+    f_id: fresh_def(),
+    f_kw: "",
+  };
+  C.text := None;
+  C.flash := 0;
+  let gone = update(Settle(line, f, Done), code);
+  check(
+    string,
+    "a new definition's that won't: gone with it",
+    printed(two),
+    text_of(gone.model),
+  );
+  check(bool, "flashed, row mode", true, C.flash^ == 1 && C.text^ == None);
+  let (line, code) = live_line(two);
+  let code = typing(line, [Insert("c")], code);
+  let d = fresh_def();
+  C.text := None;
+  let named =
+    run(
+      Settle(
+        line,
+        {
+          f_id: d,
+          f_kw: "",
+        },
+        Done,
+      ),
+      code,
+    );
+  check(string, "one that will: kept", named_two("c"), text_of(named));
+  check(
+    bool,
+    "the cursor on its row",
+    true,
+    C.cursor^ == O.label_path(d, Web.Workspace.fresh_term(code.program)),
+  );
+  reset();
+};
+
+/* a refusal shown on a new definition's line follows its name as it's
+   typed, and goes once the name will do */
+let live_rechecks = () => {
+  let (line, code) = live_line(two);
+  let code = typing(line, [Insert("B")], code);
+  let error = () => Option.bind(C.text^, (t: E.t) => t.error);
+  C.text :=
+    Option.map(
+      (t: E.t) =>
+        {
+          ...t,
+          error: Some("value names start lowercase"),
+        },
+      C.text^,
+    );
+  let code = typing(line, [Insert("x")], code);
+  check(
+    option(string),
+    "still won't do: shown",
+    Some("value names start lowercase"),
+    error(),
+  );
+  let code = typing(line, [SelectAll, Insert("b")], code);
+  check(option(string), "will do: gone", None, error());
+  ignore(
+    typing(line, [Insert("C"), Step(Left, Edge), Insert("C")], code),
+  );
+  check(option(string), "won't again: not till a save tries", None, error());
+  reset();
+};
+
+/* a refusal shown on a rename's line follows what's typed there */
+let rename_rechecks = () => {
+  let visible = H.visible(term);
+  let reason = "value names start lowercase";
+  let text =
+    ref(
+      Some({
+        ...E.at(line_of(lines(), "alpha"), ~col=1, ~pending="A"),
+        error: Some(reason),
+      }),
+    );
+  let on = H.handlers(~text, ());
+  /* a stand-in: a capital first won't do */
+  let check_name = (t: E.t) =>
+    switch (t.pending) {
+    | Some(s) when s != "" && Char.uppercase_ascii(s.[0]) == s.[0] =>
+      Some(reason)
+    | _ => None
+    };
+  let key = (~code=?, k) =>
+    ignore(
+      Web.OutlineSidebar.keys(
+        ~props=H.props(~check=check_name, ()),
+        ~on,
+        ~visible,
+        H.keydown(~code?, k),
+      ),
+    );
+  let error = () => Option.bind(text^, (t: E.t) => t.error);
+  key(~code="KeyB", "b");
+  check(option(string), "still won't do: shown", Some(reason), error());
+  key("Backspace");
+  key("Backspace");
+  check(option(string), "will do: gone", None, error());
+  key(~code="KeyC", "C");
+  check(option(string), "won't again: not till a save tries", None, error());
+};
+
+/* a kind change is one undo step, its uses with it */
+let kind_undo = () => {
+  module U = Test_Undo.Cells;
+  let outline = (a: C.Action.t): Web.Page.Update.t =>
+    Editors(Scratch(Outline(a)));
+  let program = m => CorpusUtil.text_of(Web.Program.document(U.program(m)));
+  let m = U.run(U.mk(~src="let m = {\n  let x = 1\n} in\nm.x", ()), Refresh);
+  let before = program(m);
+  let row = U.row(m, "m");
+  let term = Web.Program.statics(U.program(m)).term;
+  C.text := None;
+  let m =
+    U.run(
+      m,
+      outline(
+        Save(
+          {
+            sv_line:
+              Row(Option.get(O.label_path(row, term)), Some(Item(row))),
+            sv_text: "module M",
+            sv_col: 1,
+          },
+          Leave,
+        ),
+      ),
+    );
+  check(
+    string,
+    "a module, its use too",
+    printed("module M = {\n  let x = 1\n} in\nM.x"),
+    program(m),
+  );
+  check(int, "one undo step", 1, List.length(m.undo_stack));
+  check(
+    bool,
+    "its keyword leaves as a new definition's does",
+    true,
+    C.created^ == Some((row, "module ")),
+  );
+  let m = U.run(m, Globals(Undo));
+  check(string, "⌘Z: a value again", before, program(m));
+  reset();
+};
+
 let tests = (
   "OutlineText",
   [
@@ -2321,5 +2615,10 @@ let tests = (
     test_case("copy and delete move the caret", `Quick, copy_and_delete),
     test_case("⌥F in row mode", `Quick, row_mode_fold),
     test_case("menus offer a new test", `Quick, test_menus),
+    test_case("a keyword typed first in a rename", `Quick, rename_keywords),
+    test_case("Esc leaves in one press", `Quick, esc_leaves),
+    test_case("a new line's refusal follows its name", `Quick, live_rechecks),
+    test_case("a rename's refusal follows its text", `Quick, rename_rechecks),
+    test_case("a kind change is one undo step", `Quick, kind_undo),
   ],
 );

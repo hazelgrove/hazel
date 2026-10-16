@@ -28,18 +28,39 @@ let is_empty_body = (t: Tile.t): bool =>
 let is_module_body = (t: Tile.t): bool =>
   Focus.holds_members(Tile.mold(t)) || is_empty_body(t);
 
+/* a definition that is a module body */
+let module_def = (def: Segment.t): bool =>
+  switch (List.filter(p => !Piece.is_secondary(p), def)) {
+  | [Tile(t)] => is_module_body(t)
+  | _ => false
+  };
+
+/* a definition of only holes, or an empty module's `{}` */
+let blank_def = (def: Segment.t): bool =>
+  List.for_all(
+    (p: Piece.t) =>
+      switch (p) {
+      | Secondary(w) => !Secondary.is_comment(w)
+      | Grout(_) => true
+      | Tile(t) =>
+        is_empty_body(t)
+        || (
+          switch (Tile.label(t)) {
+          | [tok] => Token.is_explicit_hole(tok)
+          | _ => false
+          }
+        )
+      | Projector(_) => false
+      },
+    def,
+  );
+
 /* item [d] is a `let` of a value, not of a module: its body takes local
    definitions */
 let is_value = (d: Id.t, seg: Segment.t): bool =>
   switch (Focus.tile_ctx(d, seg), Focus.find_def(d, seg)) {
   | (Some((_, _, t)), Some(def)) =>
-    Tile.token(t, 0) == "let"
-    && (
-      switch (List.filter(p => !Piece.is_secondary(p), def)) {
-      | [Tile(m)] => !is_module_body(m)
-      | _ => true
-      }
-    )
+    Tile.token(t, 0) == "let" && !module_def(def)
   | _ => false
   };
 
@@ -89,13 +110,19 @@ let letin_core = (txt: string): option(Segment.t) =>
     parse(String.trim(txt) ++ "\n0"),
   );
 
+/* a kind's keyword, and its blank definition */
+let kind_kw = (kind: OutlineRename.kind): string =>
+  switch (kind) {
+  | KType => "type"
+  | KModule => "module"
+  | KValue => "let"
+  };
+let blank_text = (kind: OutlineRename.kind): string =>
+  kind == KModule ? "{}" : {js|¿|js};
+
 /* a new definition's text */
 let template = (kind: OutlineRename.kind, name: string): string =>
-  switch (kind) {
-  | KType => "type " ++ name ++ {js| = ¿|js}
-  | KModule => "module " ++ name ++ " = {}"
-  | KValue => "let " ++ name ++ {js| = ¿|js}
-  };
+  kind_kw(kind) ++ " " ++ name ++ " = " ++ blank_text(kind);
 let test_template = {js|test ¿ end|js};
 
 let space = (): Piece.t => Piece.Secondary(Secondary.mk_space(Id.mk()));
@@ -1037,6 +1064,7 @@ let outdent =
 /* how the outline edits a program's items, addressed by id */
 type t =
   | Op(OutlineEdit.def_op, Id.t)
+  /* as typed: a kind keyword first changes the item's kind */
   | Rename(Id.t, string)
   /* a new definition below the row: `name`, `type Name` or
      `module Name` */
@@ -1183,6 +1211,211 @@ let typed_name = (text: string): (OutlineTree.kind, string) => {
   );
 };
 
+/* whether item [it] (row [row]) can be a [kind]'s, keeping its definition
+   (else it's remade blank): a definition of only holes can be any kind's,
+   a `{…}` a value's or a module's. Only a plain name changes kind, or one
+   under an annotation, which stays with its definition */
+let refit =
+    (it: OutlineRename.item, kind: OutlineRename.kind, row: Id.t, seg)
+    : result(bool, string) =>
+  switch (Focus.tile_ctx(row, seg)) {
+  | None => Error("this row has no name to change")
+  | Some((_, _, t) as at) =>
+    let def = Option.value(Focus.def_at(at), ~default=[]);
+    let named =
+      switch (List.filter(p => !Piece.is_secondary(p), Focus.pat_of(t))) {
+      | [Tile(b)] => b.id == it.binder
+      | [Tile(b), Tile(colon), ..._] =>
+        b.id == it.binder && Tile.label(colon) == [":"]
+      | _ => false
+      };
+    switch (it.kind, kind) {
+    | _ when !named => Error("only a plain name changes kind")
+    | _ when blank_def(def) => Ok(false)
+    | (KValue, KModule)
+    | (KModule, KValue) when module_def(def) => Ok(true)
+    | (_, KModule) => Error({js|only a {…} body can be a module|js})
+    | (_, KType) => Error("a type needs a type body")
+    | (KType, KValue) => Error("a value needs a value body")
+    | (_, KValue) => Error({js|only a {…} module can be a value|js})
+    };
+  };
+
+/* [pat] with the first token reading [name] given id [id] */
+let with_binder = (name: string, id: Id.t, pat: Segment.t): Segment.t => {
+  let rec go = (found, seg: Segment.t) =>
+    List.fold_left_map(
+      (found, p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when !found && Tile.label(t) == [name] => (
+            true,
+            Piece.Tile({
+              ...t,
+              id,
+            }),
+          )
+        | Tile(t) =>
+          let (found, children) = List.fold_left_map(go, found, t.children);
+          (
+            found,
+            Piece.Tile({
+              ...t,
+              children,
+            }),
+          );
+        | p => (found, p)
+        },
+      found,
+      seg,
+    );
+  snd(go(false, pat));
+};
+
+/* item [row] remade as a [kind]'s, named [name], keeping its id and its
+   binding token's ([binder]). With [keep], its definition stays, and its
+   pattern's annotation with it; else it's blank, as a new one is. The
+   head is parsed from text, in the item's own form */
+let rekind =
+    (
+      ~binder: Id.t,
+      ~keep: bool,
+      row: Id.t,
+      kind: OutlineRename.kind,
+      name: string,
+      seg: Segment.t,
+    )
+    : option(Segment.t) =>
+  switch (Focus.tile_ctx(row, seg)) {
+  | None => None
+  | Some((_, _, t)) =>
+    let member = !Tile.ends_with_in(t);
+    let pat = Focus.pat_of(t);
+    let pat_text =
+      keep
+        ? String.trim(text(OutlineRename.relabel([binder], name, pat)))
+        : name;
+    let head =
+      kind_kw(kind)
+      ++ " "
+      ++ pat_text
+      ++ " = "
+      ++ (keep ? "{}" : blank_text(kind));
+    /* [core] in [old]'s spacing */
+    let respace = (old: Segment.t, core: Segment.t) => {
+      let (pre, _, suf) = Focus.trim_ws(old);
+      pre @ Focus.core_ws(core) @ suf;
+    };
+    switch (member ? member_core(head) : letin_core(head ++ " in")) {
+    | Some([Tile(h), ...rest]) =>
+      let pat = respace(pat, with_binder(name, binder, Focus.pat_of(h)));
+      let made = (children: list(Segment.t)) =>
+        Piece.Tile({
+          ...h,
+          id: t.id,
+          children,
+        });
+      Some(
+        Focus.splice_at(
+          row,
+          (level, i, t) =>
+            if (member) {
+              let (def, after) =
+                Focus.split_at_semi(ListUtil.remove_first_n(i + 1, level));
+              ListUtil.truncate(i, level)
+              @ [made([pat])]
+              @ (keep ? def : respace(def, rest))
+              @ after;
+            } else {
+              let def = ListUtil.last(t.children);
+              let def' = ListUtil.last(h.children);
+              ListUtil.put_nth(
+                i,
+                made([pat, keep ? def : respace(def, def')]),
+                level,
+              );
+            },
+          seg,
+        ),
+      );
+    | _ => None
+    };
+  };
+
+/* a rename typed on an item's line, checked. A kind keyword typed first
+   changes its kind (its own kind's is dropped): the new kind, and whether
+   its definition stays */
+type renaming = {
+  rn_item: OutlineRename.item,
+  rn_name: string,
+  rn_kind: option((OutlineRename.kind, bool)),
+  rn_refs: list(Id.t),
+};
+
+/* renaming row [row] as [typed]: nothing to do, or why not */
+let plan_rename =
+    (
+      ~info_map: Lazy.t(Language.Statics.Map.t),
+      ~term: Language.Exp.t,
+      ~seg: Lazy.t(Segment.t),
+      row: Id.t,
+      typed: string,
+    )
+    : result(option(renaming), string) => {
+  let (kw, rest) = OutlineEdit.split_typed(typed);
+  let name = String.trim(rest);
+  switch (OutlineRename.find_item(row, term)) {
+  | None => Error("this row has no name to change")
+  | Some(it) =>
+    let kind =
+      kw == "" ? it.kind : rename_kind(fst(OutlineEdit.new_kind(kw)));
+    let change =
+      kind == it.kind
+        ? Ok(None)
+        : Result.map(
+            ~f=keep => Some((kind, keep)),
+            refit(it, kind, row, Lazy.force(seg)),
+          );
+    Result.bind(change, ~f=change =>
+      OutlineRename.prepare(~info_map, ~kind, it, name)
+      |> Result.map(~f=refs =>
+           Option.map(
+             rn_refs =>
+               {
+                 rn_item: it,
+                 rn_name: name,
+                 rn_kind: change,
+                 rn_refs,
+               },
+             refs,
+           )
+         )
+    );
+  };
+};
+
+/* the program renamed as planned, at row [row] */
+let apply_rename =
+    (rn: renaming, row: Id.t, seg: Segment.t): option(Segment.t) =>
+  switch (rn.rn_kind) {
+  | None =>
+    Some(
+      OutlineRename.relabel(
+        [rn.rn_item.binder, ...rn.rn_refs],
+        rn.rn_name,
+        seg,
+      ),
+    )
+  | Some((kind, keep)) =>
+    rekind(
+      ~binder=rn.rn_item.binder,
+      ~keep,
+      row,
+      kind,
+      rn.rn_name,
+      OutlineRename.relabel(rn.rn_refs, rn.rn_name, seg),
+    )
+  };
+
 type ctx = {
   mod_root: bool,
   term: Language.Exp.t,
@@ -1241,15 +1474,23 @@ let edit =
   | Op(op, fid) =>
     apply(~mod_root=ctx.mod_root, op, fid, seg)
     |> Option.to_result(~none="it can't go here")
-  | Rename(row, name) =>
-    OutlineRename.rename(
-      ~info_map=Lazy.force(ctx.info_map),
-      ~term=ctx.term,
-      row,
-      name,
-      seg,
-    )
-    |> Result.map(~f=seg => (seg, Some(row)))
+  | Rename(row, typed) =>
+    switch (
+      plan_rename(
+        ~info_map=ctx.info_map,
+        ~term=ctx.term,
+        ~seg=Lazy.from_val(seg),
+        row,
+        typed,
+      )
+    ) {
+    | Error(why) => Error(why)
+    | Ok(None) => Ok((seg, Some(row)))
+    | Ok(Some(rn)) =>
+      apply_rename(rn, row, seg)
+      |> Option.to_result(~none="it can't be renamed")
+      |> Result.map(~f=seg => (seg, Some(row)))
+    }
   | Insert(at, text)
   | InsertInside(at, text)
   | InsertFirst(at, text) =>

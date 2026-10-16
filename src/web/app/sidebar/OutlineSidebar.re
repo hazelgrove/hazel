@@ -113,6 +113,8 @@ type props = {
   blank: Language.Id.t => bool,
   /* a new definition's name and caret, as the program has them */
   live: option(E.live),
+  /* why a line's name can't be saved as it stands, if it can't */
+  check: E.t => option(string),
 };
 
 /* what the outline asks for */
@@ -222,60 +224,164 @@ module FieldFocus =
 /* the keys to the row list, as a field goes */
 let focus_rows = Effect.of_sync_fun(Util.JsUtil.focus_outline, ());
 
-/* the field a row's name is typed in */
-let edit_field = (~on: handlers, t: E.t, typed: string) => [
-  input(
-    ~attrs=[
-      clss(["outline-edit-input"]),
-      Attr.value_prop(typed),
-      /* the width where field-sizing isn't supported */
-      Attr.create("size", string_of_int(max(3, E.units(typed) + 1))),
-      Attr.create("spellcheck", "false"),
-      Attr.create("autocomplete", "off"),
-      Attr.create("autocorrect", "off"),
-      Attr.create("autocapitalize", "off"),
-      Attr.create_hook(
-        "outline-field-focus",
-        FieldFocus.create((t.seq, t.col)),
-      ),
-      /* a click in the field moves its caret, nothing else */
-      Attr.on_mousedown(_ => Effect.Stop_propagation),
-      Attr.on_click(_ => Effect.Stop_propagation),
-      Attr.on_input((evt, s) =>
-        switch (on.text.get()) {
-        | Some(cur) when E.same_line(cur.line, t.line) =>
-          let at: int =
-            Js_of_ocaml.Js.Unsafe.coerce(evt)##.target##.selectionStart;
-          on.text.set(
-            Some({
-              ...cur,
-              pending: Some(s),
-              col: at,
-              col_target: None,
-              error: None,
-            }),
-          );
-        | _ => Effect.Ignore
-        }
-      ),
-      /* leaving the outline saves the name */
-      Attr.on_blur(evt =>
-        switch (on.text.get()) {
-        | Some(cur) when E.same_line(cur.line, t.line) && leaving(evt) =>
-          Effect.Many([Effect.Stop_propagation, on.text.save(Leave)])
-        | _ => Effect.Stop_propagation
-        }
-      ),
-    ],
-    (),
-  ),
-];
-
-let edit_hint = (t: E.t): list(Node.t) =>
-  switch (t.error) {
-  | Some(why) => [div(~attrs=[clss(["outline-edit-hint"])], [text(why)])]
-  | None => []
+/* a refusal's bubble hangs under its line, or over it when the list would
+   clip it there: placed once the frame's patch is done ([later]), and as
+   the list scrolls ([watch], which returns what stops it) */
+let hint_js: Js_of_ocaml.Js.Unsafe.any =
+  Js_of_ocaml.Js.Unsafe.js_expr(
+    {|(function () {
+  function place(el) {
+    if (!el.isConnected || !el.classList.contains('outline-hint-on')) return;
+    var body = el.closest('.outline-body');
+    if (!body) return;
+    el.removeAttribute('data-above');
+    var r = el.getBoundingClientRect(), b = body.getBoundingClientRect();
+    var top = b.top + body.clientTop, bottom = top + body.clientHeight;
+    var row = el.parentElement.getBoundingClientRect();
+    if (r.bottom > bottom && row.top - 1 - r.height >= top)
+      el.setAttribute('data-above', '');
+  }
+  return {
+    later: function (el) { queueMicrotask(function () { place(el); }); },
+    watch: function (el) {
+      var body = el.closest('.outline-body');
+      var go = function () { place(el); };
+      if (body) body.addEventListener('scroll', go, { passive: true });
+      return function () {
+        if (body) body.removeEventListener('scroll', go);
+      };
+    }
   };
+})()|},
+  );
+
+module HintPlace =
+  Attr.Hooks.Make({
+    module State = {
+      type t = ref(option(unit => unit));
+    };
+    module Input = {
+      type t = unit;
+      let sexp_of_t = Sexplib0.Sexp_conv.sexp_of_unit;
+      let combine = ((), ()) => ();
+    };
+    let later = el =>
+      ignore(
+        Js_of_ocaml.Js.Unsafe.meth_call(
+          hint_js,
+          "later",
+          [|Js_of_ocaml.Js.Unsafe.inject(el)|],
+        ),
+      );
+    let init = ((), _) => ref(Option.none);
+    let on_mount = ((), stop, el) => {
+      let off =
+        Js_of_ocaml.Js.Unsafe.meth_call(
+          hint_js,
+          "watch",
+          [|Js_of_ocaml.Js.Unsafe.inject(el)|],
+        );
+      stop := Some(() => ignore(Js_of_ocaml.Js.Unsafe.fun_call(off, [||])));
+      later(el);
+    };
+    let update = (~old_input as (), ~new_input as (), _, el) => later(el);
+    let destroy = ((), stop, _) => Option.iter(f => f(), stop^);
+  });
+
+/* why the line's name can't be saved, in a bubble once a save has tried
+   it. Set before the name, its own place is where the line's text starts;
+   there all the while the line is typed on, so the field keeps its place
+   among the row's nodes */
+let edit_hint = (t: E.t): Node.t =>
+  span(
+    ~attrs=[
+      clss(
+        ["outline-edit-hint"] @ (t.error == None ? [] : ["outline-hint-on"]),
+      ),
+      Attr.create_hook("outline-hint-place", HintPlace.create()),
+    ],
+    [text(Option.value(t.error, ~default=""))],
+  );
+
+/* [t] as typed: a refusal shown follows it, gone once the name will do */
+let rechecked = (~check: E.t => option(string), t: E.t): E.t => {
+  ...t,
+  error: Option.bind(t.error, _ => check(t)),
+};
+
+/* the field a row's name is typed in, after any kind keyword typed first,
+   underlined while the name won't do */
+let edit_field = (~props: props, ~on: handlers, t: E.t, typed: string) => {
+  let (kw, field) = E.split_typed(typed);
+  [
+    edit_hint(t),
+    span(~attrs=[clss(["outline-edit-kw"])], [text(kw)]),
+    input(
+      ~attrs=[
+        clss(
+          ["outline-edit-input"]
+          @ (props.check(t) == None ? [] : ["outline-invalid"]),
+        ),
+        Attr.value_prop(field),
+        /* the width where field-sizing isn't supported */
+        Attr.create("size", string_of_int(max(3, E.units(field) + 1))),
+        Attr.create("spellcheck", "false"),
+        Attr.create("autocomplete", "off"),
+        Attr.create("autocorrect", "off"),
+        Attr.create("autocapitalize", "off"),
+        Attr.create_hook(
+          "outline-field-focus",
+          FieldFocus.create((t.seq, t.col)),
+        ),
+        /* a click in the field moves its caret, nothing else */
+        Attr.on_mousedown(_ => Effect.Stop_propagation),
+        Attr.on_click(_ => Effect.Stop_propagation),
+        /* a space (after a keyword) coming up in a branch's <summary>
+           would click it, folding the row */
+        Attr.on_keyup(evt =>
+          Js_of_ocaml.Js.to_string(Js_of_ocaml.Js.Unsafe.coerce(evt)##.key)
+          == " "
+            ? Effect.Prevent_default : Effect.Ignore
+        ),
+        /* a keyword typed at the field's start moves out of it */
+        Attr.on_input((evt, s) =>
+          switch (on.text.get()) {
+          | Some(cur) when E.same_line(cur.line, t.line) =>
+            let at: int =
+              Js_of_ocaml.Js.Unsafe.coerce(evt)##.target##.selectionStart;
+            let (kw, _) =
+              E.split_typed(Option.value(cur.pending, ~default=""));
+            let (typed, col) = E.retyped(kw, s, at);
+            on.text.set(
+              ~placed=fst(E.split_typed(typed)) != kw,
+              Some(
+                rechecked(
+                  ~check=props.check,
+                  {
+                    ...cur,
+                    pending: Some(typed),
+                    col,
+                    col_target: None,
+                  },
+                ),
+              ),
+            );
+          | _ => Effect.Ignore
+          }
+        ),
+        /* leaving the outline saves the name */
+        Attr.on_blur(evt =>
+          switch (on.text.get()) {
+          | Some(cur) when E.same_line(cur.line, t.line) && leaving(evt) =>
+            Effect.Many([Effect.Stop_propagation, on.text.save(Leave)])
+          | _ => Effect.Stop_propagation
+          }
+        ),
+      ],
+      (),
+    ),
+  ];
+};
 
 /* a refusal flashes the caret's line; alternating names replay it */
 let flash_cls = (n: int): list(string) =>
@@ -516,8 +622,10 @@ let caret_path = (d: option(drawn)): option(OutlineTree.path) =>
   };
 
 /* a new definition's line: its keyword, then its name as the program has
-   it, the caret and the selection where the editor's are */
-let new_row_view = (~live: option(E.live), ~flash: int, t: E.t): Node.t => {
+   it, the caret and the selection where the editor's are, underlined
+   while the name won't do ([invalid]) */
+let new_row_view =
+    (~live: option(E.live), ~flash: int, ~invalid: bool, t: E.t): Node.t => {
   let kw = Option.fold(~none="", ~some=(f: E.fresh) => f.f_kw, t.fresh);
   let line =
     switch (t.line) {
@@ -557,14 +665,19 @@ let new_row_view = (~live: option(E.live), ~flash: int, t: E.t): Node.t => {
             Attr.on_mousedown(_ => Effect.Prevent_default),
           ]
           @ line,
-        [span(~attrs=[clss(["outline-glyph"])], [text(kind_glyph(k))])]
+        [
+          span(~attrs=[clss(["outline-glyph"])], [text(kind_glyph(k))]),
+          edit_hint(t),
+        ]
         @ (
           kw == ""
             ? [] : [span(~attrs=[clss(["outline-edit-kw"])], [text(kw)])]
         )
         @ [
           span(
-            ~attrs=[clss(["outline-live"])],
+            ~attrs=[
+              clss(["outline-live"] @ (invalid ? ["outline-invalid"] : [])),
+            ],
             [text(E.slice(name, 0, lo))]
             @ (at == lo ? [caret] : [])
             @ (
@@ -582,10 +695,18 @@ let new_row_view = (~live: option(E.live), ~flash: int, t: E.t): Node.t => {
           ),
         ],
       ),
-    ]
-    @ edit_hint(t),
+    ],
   );
 };
+
+/* text mode's new definition line, as drawn */
+let new_row_of = (~props: props, d: drawn): Node.t =>
+  new_row_view(
+    ~live=props.live,
+    ~flash=props.flash,
+    ~invalid=props.check(d.d_text) != None,
+    d.d_text,
+  );
 
 let rec node_view =
         (
@@ -702,11 +823,11 @@ let rec node_view =
             ["outline-label", kind_cls(n.o_kind)]
             @ (cursor ? ["outline-cursor"] : [])
             @ (caret != None ? ["outline-editing"] : [])
+            /* a refusal flashes the caret's line, or in row mode the
+               cursor's row (a name dropped as text mode ended) */
             @ (
-              switch (caret) {
-              | Some(_) => flash_cls(props.flash)
-              | None => []
-              }
+              caret != None || tm == None && cursor
+                ? flash_cls(props.flash) : []
             )
             @ (stacked ? ["outline-focused"] : [])
             @ (has_err ? ["outline-has-err"] : [])
@@ -837,6 +958,7 @@ let rec node_view =
         switch (caret, props.created) {
         | (Some(d), _) when nameable(n) =>
           edit_field(
+            ~props,
             ~on,
             d.d_text,
             Option.value(d.d_text.pending, ~default=name),
@@ -888,11 +1010,6 @@ let rec node_view =
         }
       ),
     );
-  let hint =
-    switch (caret) {
-    | Some(d) when nameable(n) => edit_hint(d.d_text)
-    | _ => []
-    };
   /* a new member being named first or last inside this module: shown
      open, even when collapsed or empty */
   let inside =
@@ -900,16 +1017,13 @@ let rec node_view =
     | Some(d) =>
       switch (caret_entry(d)) {
       | Of_new(a, (First | Last) as place) when n.o_id == Some(a) =>
-        Some((
-          place,
-          new_row_view(~live=props.live, ~flash=props.flash, d.d_text),
-        ))
+        Some((place, new_row_of(~props, d)))
       | _ => None
       }
     | None => None
     };
   switch (n.o_children, inside) {
-  | ([], None) => div(~attrs=[clss(["outline-leaf"])], [label, ...hint])
+  | ([], None) => div(~attrs=[clss(["outline-leaf"])], [label])
   | (kids, _) =>
     let kids = rows_view(~props, ~on, ~tm, ~path=row_path, kids);
     create(
@@ -949,9 +1063,6 @@ let rec node_view =
             ),
           [label],
         ),
-      ]
-      @ hint
-      @ [
         div(
           ~attrs=[clss(["outline-kids"])],
           switch (inside, Util.ListUtil.split_last_opt(kids)) {
@@ -1051,9 +1162,7 @@ and new_row_after =
   switch (tm) {
   | Some(d) =>
     switch (caret_entry(d)) {
-    | Of_new(a, Below) when n.o_id == Some(a) => [
-        new_row_view(~live=props.live, ~flash=props.flash, d.d_text),
-      ]
+    | Of_new(a, Below) when n.o_id == Some(a) => [new_row_of(~props, d)]
     | _ => []
     }
   | None => []
@@ -1482,13 +1591,17 @@ let keys =
         Act(
           on.text.set(
             ~placed=true,
-            Some({
-              ...t',
-              pending: Some(text),
-              col,
-              col_target: None,
-              error: None,
-            }),
+            Some(
+              rechecked(
+                ~check=props.check,
+                {
+                  ...t',
+                  pending: Some(text),
+                  col,
+                  col_target: None,
+                },
+              ),
+            ),
           ),
         )
       | Revert =>
@@ -1511,7 +1624,6 @@ let keys =
         );
       | Save(after) =>
         Act(Effect.Many([relocated, focus_rows, on.text.save(after)]))
-      | Abandon => Act(Effect.Many([focus_rows, on.text.abandon()]))
       | NewTest(op, id)
       | Op(op, id) =>
         Act(Effect.Many([relocated, focus_rows, on.text.op(op, id)]))
@@ -1708,14 +1820,19 @@ let header_view =
             ),
           ]
           : [];
+  let mac = Util.Os.is_mac^;
   [
     /* text mode, said quietly: a pencil for the menu glyph, taking no
-       room from the crumbs */
+       room from the crumbs; its keys on hover */
     typing
       ? span(
           ~attrs=[
             clss(["outline-menu-glyph", "outline-mode-glyph"]),
-            Attr.title({js|editing names · esc to finish|js}),
+            Attr.title(
+              mac
+                ? {js|Enter new below · Tab / ⇧Tab into / out of a module · ⌥F fold · ⌥↑↓ move · ⌘D duplicate · ⌘⌫ delete · Esc done|js}
+                : {js|Enter new below · Tab / Shift+Tab into / out of a module · Alt+F fold · Alt+↑↓ move · Ctrl+D duplicate · Ctrl+Backspace delete · Esc done|js},
+            ),
           ],
           [text({js|✎|js})],
         )
