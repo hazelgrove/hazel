@@ -87,7 +87,8 @@ let slide_corpus = (): list((string, string)) => {
       |> List.concat_map(entry => {
            let path = Filename.concat(dir, entry);
            switch (Sys.is_directory(path)) {
-           | true => entry == "mega" ? [] : find(path)
+           /* the stdlib's sources are module bodies, not slides */
+           | true => List.mem(entry, ["mega", "stdlib"]) ? [] : find(path)
            | false => Filename.check_suffix(entry, ".hz") ? [path] : []
            | exception _ => []
            };

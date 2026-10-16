@@ -76,7 +76,7 @@ let eval_n = (~probe_all=false, ~reps: int, code: string): unit => {
     ignore(
       Evaluator.evaluate(
         ~eval_info=EvalInfo.of_targets(targets),
-        ~env=Builtins.env_init,
+        ~env=Builtins.env_init(),
         elaborated,
       ),
     );

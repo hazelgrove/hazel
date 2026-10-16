@@ -36,7 +36,7 @@ let rec collect_stream_state_for =
           },
           ~mode=`Environment,
           ~targets=Sample.no_targets,
-          Builtins.env_init,
+          Builtins.env_init(),
           d,
         );
       switch (rule) {
@@ -198,26 +198,51 @@ module Inc = {
 
   let collect =
       (inc: t, stream: IncrEval.outbox(EvaluatorState.t)): EvaluatorState.t => {
+    let within = ((fe, fx), (e, x)) => fe <= e && x <= fx;
+    let span = id =>
+      switch (
+        Id.Map.find_opt(id, inc.enter),
+        Id.Map.find_opt(id, inc.exit_),
+      ) {
+      | (Some(e), Some(x)) => Some((e, x))
+      | _ => None
+      };
+    let current =
+      switch (stream.current) {
+      | Some({id, state}) when !Id.equal(id, Id.invalid) =>
+        Some((span(id), state))
+      | _ => None
+      };
+    /* as in the walk, the in-flight node stands for its whole subtree:
+       its partial state already holds its completed descendants */
+    let frontier =
+      switch (current) {
+      | Some((Some(cur), _)) =>
+        List.filter(
+          ((_, fe, fx, _)) => !within(cur, (fe, fx)),
+          inc.frontier,
+        )
+      | _ => inc.frontier
+      };
     let state =
       List.fold_left(
         (acc, (_, _, _, entry: IncrEval.entry(EvaluatorState.t))) =>
           EvaluatorState.append(acc, EvaluatorState.rebase(entry.state)),
         EvaluatorState.empty,
-        inc.frontier,
+        frontier,
       );
-    switch (stream.current) {
-    | Some({id, state: cur})
+    switch (current) {
+    | Some((span, cur))
         when
-          !Id.equal(id, Id.invalid)
-          && !
-               List.exists(
-                 ((_, fe, fx, _)) =>
-                   switch (Id.Map.find_opt(id, inc.enter)) {
-                   | Some(en) => fe <= en && en <= fx
-                   | None => false
-                   },
-                 inc.frontier,
-               ) =>
+          !
+            List.exists(
+              ((_, fe, fx, _)) =>
+                switch (span) {
+                | Some((e, _)) => fe <= e && e <= fx
+                | None => false
+                },
+              frontier,
+            ) =>
       EvaluatorState.append(state, EvaluatorState.rebase(cur))
     | _ => state
     };

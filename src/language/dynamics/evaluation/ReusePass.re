@@ -69,7 +69,7 @@ let rec reuse_pass_for =
         },
         ~mode=`Environment,
         ~targets=eval_info.targets,
-        Builtins.env_init,
+        Builtins.env_init(),
         d,
       );
     switch (rule) {

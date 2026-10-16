@@ -10,6 +10,8 @@ Printexc.register_printer(exn => {
   }
 });
 
+StdlibBaked.install();
+
 /* every edit checks sparse normalization against the global pass */
 NormalizeCheck.install();
 

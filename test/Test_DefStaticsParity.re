@@ -88,7 +88,7 @@ let evaluate = (~prev=IncrEval.empty, info_map, elab) =>
         ~targets=Id.Map.empty,
         info_map,
       ),
-    ~env=Builtins.env_init,
+    ~env=Builtins.env_init(),
     elab,
   );
 
@@ -142,7 +142,7 @@ let script = (~root=Sort.Exp, ~eval=true, src: string, steps: list(step), ()) =>
       );
       if (i == 0) {
         let (mono_map, mono_elab) =
-          Statics.mk_unmemoized(settings, DefStatics.ctx0, ds.term);
+          Statics.mk_unmemoized(settings, DefStatics.ctx0(), ds.term);
         check(
           bool,
           "the graft evaluates as the monolithic elaboration",
@@ -397,7 +397,7 @@ let probe_capture_parity = (): unit => {
       CorpusUtil.seg_of("let f = fun q -> q + 1 in\nlet z = f(5) in\nz"),
     ).
       term;
-  let (map0, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, term);
+  let (map0, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0(), term);
   let q_id =
     switch (
       Id.Map.fold(
@@ -421,11 +421,11 @@ let probe_capture_parity = (): unit => {
     let eval_info =
       EvalInfo.of_info_map(~probe_all=false, ~targets, info_map);
     let (_, state) =
-      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, elab);
+      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init(), elab);
     Id.Map.cardinal(EvaluatorState.get_probes(state));
   };
   let (map_m, elab_m) =
-    Statics.mk_unmemoized(~probe_ids, settings, DefStatics.ctx0, term);
+    Statics.mk_unmemoized(~probe_ids, settings, DefStatics.ctx0(), term);
   let ds0 = DefStatics.calc(~settings, term);
   let ds = DefStatics.calc(~settings, ~prev=ds0, ~probe_ids, term);
   check(

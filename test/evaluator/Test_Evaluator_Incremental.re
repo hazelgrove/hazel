@@ -52,7 +52,7 @@ let eval_incr =
       info_map,
     );
   let (result, state) =
-    Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   (result, state, state.incr_eval);
 };
 
@@ -131,7 +131,7 @@ let reuse_plan =
     : EvaluatorState.incr_eval => {
   let (info_map, elab) = statics_and_elab(exp);
   let eval_info = eval_info_of_statics(info_map);
-  ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
 };
 
 let has_reuse = (ack_incr: EvaluatorState.incr_eval): bool =>
@@ -200,7 +200,7 @@ let test_streaming_plan_reuses_root_without_descending = () => {
   let (info_map, elab) = statics_and_elab(exp);
   let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   let root_id = Exp.rep_id(elab);
   check(
     bool,
@@ -224,7 +224,7 @@ let test_streaming_plan_omits_misses_and_keeps_children = () => {
   let (info_map, elab) = statics_and_elab(exp2);
   let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   let root_id = Exp.rep_id(elab);
   check(
     bool,
@@ -247,7 +247,7 @@ let test_materialize_stream_state_marks_reused_entries = () => {
   let (info_map, elab) = statics_and_elab(exp);
   let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   let state =
     StreamCollector.collect_stream_state(
       IncrEval.outbox_of_completed(stream),
@@ -277,7 +277,7 @@ let eval_with_targets =
       ~targets,
       info_map,
     );
-  Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
 };
 
 let replace_first_u_plus_one = (exp: Exp.t): Exp.t => {
@@ -872,7 +872,7 @@ let test_probe_replay_on_reuse = () => {
     Evaluator.evaluate(
       ~prev=IncrEval.empty,
       ~eval_info,
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elab,
     );
   /* Second run: same elaboration, same (empty) targets. Just confirm the
@@ -881,7 +881,7 @@ let test_probe_replay_on_reuse = () => {
     Evaluator.evaluate(
       ~prev=state1.incr_eval,
       ~eval_info,
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elab,
     );
   check(
@@ -1631,7 +1631,7 @@ let test_toplevel_cast_edit = () => {
 /* Regression test: builtins must participate in reuse.
  *
  * A subexpression that references a builtin (e.g. `string_length`) has that
- * builtin's name in its co_ctx. The builtin is bound in `Builtins.env_init`,
+ * builtin's name in its co_ctx. The builtin is bound in `Builtins.env_init()`,
  * never via a let/pattern, so its name has no provenance entry unless the
  * reuse_map is seeded from the environment. Before that seeding,
  * `reuse_map_for_co_ctx` returned None for any co_ctx containing a builtin,

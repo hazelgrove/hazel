@@ -4533,18 +4533,33 @@ let mk_impl = ((ana, ctx, e, probe_ids)) => {
   let (_, elab, m) =
     uexp_to_info_map(~ana, ~ctx, ~ancestors=[], ~probe_ids, e, Id.Map.empty);
   /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
-     Ensure they all resolve to the same info entry for cursor features. */
+     Ensure they all resolve to the same info entry for cursor features.
+     map_term, which skips closure environments: a value (a probe sample)
+     can hold closures over the standard library, and walking their
+     environments repeats every shared one */
   let m_ref = ref(m);
+  let f:
+    'a.
+    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
+   =
+    (continue, x) => {
+      let ids = x.annotation.ids;
+      switch (List.find_map(id => Id.Map.find_opt(id, m_ref^), ids)) {
+      | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
+      | None => ()
+      };
+      continue(x);
+    };
   let _ =
-    Grammar.map_exp_annotation(
-      ({ids, _}: IdTagged.IdTag.t) => {
-        let info_opt = List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
-        switch (info_opt) {
-        | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
-        | None => ()
-        };
-        ();
-      },
+    Exp.map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
       e,
     );
   (m_ref^, elab);

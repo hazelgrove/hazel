@@ -80,11 +80,14 @@ let tests = (
                 read_file(path) |> Util.StringUtil.strip_final_newline;
               let f0 = Sys.time();
               let known_gap = List.mem(Filename.basename(path), known_gaps);
+              /* module bodies: the mod-rooted mega corpus and the
+                 standard library's sources */
               let root =
                 String.starts_with(
                   ~prefix="mega-mod",
                   Filename.basename(path),
                 )
+                || Filename.basename(Filename.dirname(path)) == "stdlib"
                   ? Sort.Mod : Sort.Exp;
               let r =
                 known_gap

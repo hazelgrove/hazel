@@ -18,7 +18,7 @@ let qcheck_evaluator_does_not_crash_test =
     | exp =>
       switch (
         Evaluator.evaluate_and_limit(
-          ~env=Builtins.env_init,
+          ~env=Builtins.env_init(),
           ~step_limit=10000,
           exp,
         )
@@ -75,7 +75,7 @@ let check_evaluator_stepper_consistent =
   | elaborated_exp =>
     switch (
       Evaluator.evaluate_and_limit(
-        ~env=Builtins.env_init,
+        ~env=Builtins.env_init(),
         ~step_limit,
         elaborated_exp,
       ),
@@ -183,13 +183,13 @@ let qcheck_pattern_equivalence_test =
 
         let evaluated_first =
           Evaluator.evaluate_and_limit(
-            ~env=Builtins.env_init,
+            ~env=Builtins.env_init(),
             ~step_limit=10000,
             elaborated_first,
           );
         let evaluated_second =
           Evaluator.evaluate_and_limit(
-            ~env=Builtins.env_init,
+            ~env=Builtins.env_init(),
             ~step_limit=1000000,
             elaborated_second,
           );
@@ -347,7 +347,7 @@ let eval_limited =
     ~step_limit,
     ~prev,
     ~eval_info,
-    ~env=Builtins.env_init,
+    ~env=Builtins.env_init(),
     elab,
   );
 
@@ -542,9 +542,9 @@ let yielding_evaluation_test =
           Builtins.ctx_init(Some(Int)),
           parse_exp("let x = 1 in let y = 2 in x + y"),
         );
-      let (sync_exp, _) = Evaluator.evaluate(~env=Builtins.env_init, exp);
+      let (sync_exp, _) = Evaluator.evaluate(~env=Builtins.env_init(), exp);
       let evaluation =
-        Evaluator.start_yielding_evaluation(~env=Builtins.env_init, exp);
+        Evaluator.start_yielding_evaluation(~env=Builtins.env_init(), exp);
       let evaluation =
         switch (Evaluator.run_yielding_slice(~step_budget=1, evaluation)) {
         | EvaluationYielded(evaluation) => evaluation
@@ -577,7 +577,7 @@ let yielding_streaming_outbox_test =
       let evaluation =
         Evaluator.start_yielding_evaluation(
           ~eval_info,
-          ~env=Builtins.env_init,
+          ~env=Builtins.env_init(),
           exp,
         );
       let ((_, final_state), stream) =
@@ -641,7 +641,7 @@ let yielding_streaming_current_state_test =
       let evaluation =
         Evaluator.start_yielding_evaluation(
           ~eval_info,
-          ~env=Builtins.env_init,
+          ~env=Builtins.env_init(),
           exp,
         );
       let outbox = yield_until_current(~remaining_slices=1000, evaluation);
@@ -756,7 +756,7 @@ let yielding_streaming_current_id_invalid_race_test =
       let evaluation =
         Evaluator.start_yielding_evaluation(
           ~eval_info,
-          ~env=Builtins.env_init,
+          ~env=Builtins.env_init(),
           exp,
         );
       let final_count =

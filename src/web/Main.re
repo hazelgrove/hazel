@@ -375,6 +375,9 @@ let start = default_model => {
   };
 };
 
+/* the standard library, before anything computes statics or evaluates */
+StdlibBaked.timed("install", StdlibBaked.install);
+
 switch (JsUtil.Fragment.get_current()) {
 | Some("debug") => DebugMode.go()
 | _ =>
