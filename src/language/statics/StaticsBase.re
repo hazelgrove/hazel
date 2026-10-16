@@ -265,8 +265,9 @@ let syn = Unknown(SynSwitch) |> Typ.temp;
 /* Type after hole fixing: best type consistent with analysis expectation and
    statics synthetic type (Typ.meet). On meet failure, prefer syn under
    synthesis and ana under analysis. */
-let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
-  switch (Typ.meet(ctx, ana, elab_syn_ty)) {
+let fixed_typ_of =
+    (ana: Typ.t, elab_syn_ty: Typ.t, met: option(Typ.t)): Typ.t =>
+  switch (met) {
   | Some(ty) => ty
   | None =>
     if (Typ.is_syn_plus(ana)) {
@@ -275,6 +276,9 @@ let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
       ana;
     }
   };
+
+let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
+  fixed_typ_of(ana, elab_syn_ty, Typ.meet(ctx, ana, elab_syn_ty));
 
 let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
@@ -312,13 +316,26 @@ let should_emit_nomeet_mark =
   | None => true
   };
 
+/* MET, when given, is Typ.meet(ctx, ana, elab_syn_ty) with the wrappers
+   already stripped, computed once by the caller. */
 let syn_ana_ok_common =
-    (ctx: Ctx.t, ty_ana: Typ.t, elab_syn_ty: Typ.t): Message.ok_common => {
+    (
+      ~met: option(Lazy.t(option(Typ.t)))=?,
+      ctx: Ctx.t,
+      ty_ana: Typ.t,
+      elab_syn_ty: Typ.t,
+    )
+    : Message.ok_common => {
   let ana = ana_skip_explicit_nonlabel(ty_ana);
   switch (ana.term) {
   | Unknown(SynSwitch) => Message.Syn(elab_syn_ty)
   | _ =>
-    switch (Typ.meet(ctx, ana, elab_syn_ty)) {
+    switch (
+      switch (met) {
+      | Some(m) => Lazy.force(m)
+      | None => Typ.meet(ctx, ana, elab_syn_ty)
+      }
+    ) {
     | None => Message.Syn(elab_syn_ty)
     | Some(meet) =>
       Message.Ana(
@@ -333,13 +350,24 @@ let syn_ana_ok_common =
 };
 
 let expectation_mismatch_mark =
-    (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): option(Mark.t) => {
+    (
+      ~met: option(Lazy.t(option(Typ.t)))=?,
+      ctx: Ctx.t,
+      ana: Typ.t,
+      elab_syn_ty: Typ.t,
+    )
+    : option(Mark.t) => {
   let ana' = ana_skip_explicit_nonlabel(ana);
   let syn' = ana_skip_explicit_nonlabel(elab_syn_ty);
   switch (ana'.term) {
   | Unknown(SynSwitch) => None
   | _ =>
-    switch (Typ.meet(ctx, ana', syn')) {
+    switch (
+      switch (met) {
+      | Some(m) => Lazy.force(m)
+      | None => Typ.meet(ctx, ana', syn')
+      }
+    ) {
     | Some(_) => None
     | None =>
       Some(
