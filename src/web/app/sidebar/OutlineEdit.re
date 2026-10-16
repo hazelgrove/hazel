@@ -318,15 +318,23 @@ let slice = (s: string, a: int, b: int): string =>
   Js_of_ocaml.Js.to_string(Js_of_ocaml.Js.string(s)##substring(a, b));
 
 /* where a word ends from [at] toward [side] in [name]: past any
-   separators, then the word. Words are letters, digits, underscores and
-   anything outside ASCII; a name's other characters (`'`) separate
-   them */
+   separators, then the word. Words as a text field reads them: letters,
+   digits, underscores and anything outside ASCII, an apostrophe between
+   two of them included (`can't`) */
 let word_edge = (name: string, at: int, side: Direction.t): int => {
   let n = units(name);
-  let word = i => {
-    let c = slice(name, i, i + 1);
-    String.length(c) > 1 || Language.Token.is_wordish_char(c.[0]);
-  };
+  let wordish = i =>
+    i >= 0
+    && i < n
+    && {
+      let c = slice(name, i, i + 1);
+      String.length(c) > 1 || Language.Token.is_wordish_char(c.[0]);
+    };
+  let word = i =>
+    wordish(i)
+    || slice(name, i, i + 1) == "'"
+    && wordish(i - 1)
+    && wordish(i + 1);
   let rec skip = (i, f) =>
     switch (side) {
     | Left => i > 0 && f(i - 1) ? skip(i - 1, f) : i

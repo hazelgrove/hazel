@@ -774,11 +774,13 @@ let fragments_and_words = () => {
       ),
     [
       ("foo_bar", 7, Util.Direction.Left, 0),
-      ("foo'bar", 7, Left, 4),
-      ("foo'bar", 4, Left, 0),
-      ("foo'bar", 0, Right, 3),
-      ("foo'bar", 3, Right, 7),
-      ("x''", 3, Left, 0),
+      ("fooBar", 6, Left, 0),
+      ("foo'bar", 7, Left, 0),
+      ("x'", 2, Left, 0),
+      ("ab''cd", 6, Left, 4),
+      ("ab''cd", 4, Left, 0),
+      ("ab''cd", 0, Right, 2),
+      ("ab''cd", 2, Right, 6),
     ],
   );
 };
@@ -1431,38 +1433,49 @@ let live_paste = () => {
   reset();
 };
 
-/* ⌥⌫ ⌥⌦ ⌥← ⌥→ by words: runs of letters, digits and underscores */
+/* ⌥⌫ ⌥⌦ ⌥← ⌥→ by words: runs of letters, digits and underscores, and an
+   apostrophe inside one */
 let live_words = () => {
   let (line, code) = live_line(two);
-  let code = typing(line, [Paste("ab'cd'ef")], code);
+  let code = typing(line, [Paste("ab''cd''ef")], code);
   let code = typing(line, [Erase(Left, Word)], code);
   check(
     at_name,
     {js|⌥⌫: the last word|js},
-    Some(("ab'cd'", 6)),
+    Some(("ab''cd''", 8)),
     live_of(code),
   );
-  check(string, "in the program", named_two("ab'cd'"), text_of(code));
+  check(string, "in the program", named_two("ab''cd''"), text_of(code));
   let code = typing(line, [Erase(Left, Word)], code);
   check(
     at_name,
-    "again: the ' and the word before it",
-    Some(("ab'", 3)),
+    "again: the '' and the word before them",
+    Some(("ab''", 4)),
     live_of(code),
   );
   let code = typing(line, [Step(Left, Word)], code);
-  check(at_name, {js|⌥←|js}, Some(("ab'", 0)), live_of(code));
+  check(at_name, {js|⌥←|js}, Some(("ab''", 0)), live_of(code));
   let code = typing(line, [Step(Right, Word)], code);
-  check(at_name, {js|⌥→|js}, Some(("ab'", 2)), live_of(code));
-  let code = typing(line, [Paste("x_y"), Step(Left, Char)], code);
+  check(at_name, {js|⌥→|js}, Some(("ab''", 2)), live_of(code));
+  let code =
+    typing(
+      line,
+      [
+        Paste("x_y"),
+        Step(Left, Char),
+        Step(Left, Char),
+        Step(Left, Char),
+      ],
+      code,
+    );
   let code = typing(line, [Erase(Right, Word)], code);
   check(
     at_name,
     {js|⌥⌦: the rest of the word, _ and all|js},
-    Some(("abx_'", 4)),
+    Some(("ab''", 2)),
     live_of(code),
   );
-  check(string, "in the program", named_two("abx_'"), text_of(code));
+  check(string, "in the program", named_two("ab''"), text_of(code));
   reset();
 };
 
