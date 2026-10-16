@@ -2106,6 +2106,22 @@ let composition_utils_tests = (
       },
     ),
     test_case(
+      "parse insert_test tool call, with and without a path",
+      `Quick,
+      () => {
+        let parse = args =>
+          CompositionUtils.Public.action_of(~tool_name="insert_test", ~args);
+        switch (parse(mk_json_args([("path", "a"), ("code", "a == 1")]))) {
+        | Action(EditorAction(InsertTest(Some("a"), "a == 1"))) => ()
+        | _ => Alcotest.fail("insert_test with a path")
+        };
+        switch (parse(mk_json_args([("path", ""), ("code", "a == 1")]))) {
+        | Action(EditorAction(InsertTest(None, "a == 1"))) => ()
+        | _ => Alcotest.fail("insert_test with an empty path")
+        };
+      },
+    ),
+    test_case(
       "parse insert_after with empty path → InsertAtProgramBoundary",
       `Quick,
       () => {
@@ -3341,8 +3357,8 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        /* 36 while DocPacks is empty (read_docs is not offered) */
-        check(int, "tool count", 36, List.length(tools));
+        /* 37 while DocPacks is empty (read_docs is not offered) */
+        check(int, "tool count", 37, List.length(tools));
       },
     ),
     test_case(
@@ -3400,8 +3416,9 @@ let tool_json_tests = (
       "edit tools have required path parameter",
       `Quick,
       () => {
-        /* insert_after / insert_before are intentionally excluded: their
-           `path` is optional (omitting it inserts at the program boundary). */
+        /* insert_after / insert_before / insert_test are intentionally
+           excluded: their `path` is optional (omitting it inserts at the
+           program boundary, or after the last item for a test). */
         let edit_tool_names = [
           "update_definition",
           "update_body",
@@ -3554,6 +3571,7 @@ let tool_json_tests = (
             "delete_body",
             "insert_after",
             "insert_before",
+            "insert_test",
           ],
           ToolUtils.edit_tool_names,
         );
@@ -5375,6 +5393,153 @@ let module_member_tests = (
         );
       },
     ),
+    test_case(
+      "a module opening with a test keeps its member paths",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { test 1 == 1 end; let x = 1 } in m",
+            Update(Definition, "m/x", "5"),
+          );
+        check_rendered(
+          "member_after_leading_test",
+          "let m = { test 1 == 1 end; let x = 5 } in m",
+          result,
+        );
+      },
+    ),
+  ],
+);
+
+/* insert_test: after the binding and the tests directly following it,
+   so tests keep source order in one run; with no path, after the last
+   item, before the trailing expression */
+let insert_test_tests = (
+  "AgentTools.InsertTest",
+  [
+    test_case("after the binding at path", `Quick, () =>
+      check_rendered_exact(
+        "after_binding",
+        "let a = 1 in\ntest a == 1 end;\nlet b = 2 in\na + b",
+        apply_and_render(
+          "let a = 1 in\nlet b = 2 in\na + b",
+          InsertTest(Some("a"), "a == 1"),
+        ),
+      )
+    ),
+    test_case("after the tests already following it, in order", `Quick, () =>
+      check_rendered_exact(
+        "after_run",
+        "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\ntest a < 2 end;\ntest a != 3 end;\nlet b = 2 in\nb",
+        apply_chain_render(
+          "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\nlet b = 2 in\nb",
+          [
+            InsertTest(Some("a"), "a < 2"),
+            InsertTest(Some("a"), "a != 3"),
+          ],
+        ),
+      )
+    ),
+    test_case("in a function body, one line each", `Quick, () =>
+      check_rendered_exact(
+        "fn_body",
+        "let f = fun x ->\n  let y = x + 1 in\n  test y > x end;\n  test y != x end;\n  y * 2\nin\nf(1)",
+        apply_chain_render(
+          "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)",
+          [
+            InsertTest(Some("f/y"), "y > x"),
+            InsertTest(Some("f/y"), "y != x"),
+          ],
+        ),
+      )
+    ),
+    test_case(
+      "no path: after the last item, before the trailing expression",
+      `Quick,
+      () => {
+        check_rendered_exact(
+          "no_path",
+          "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na",
+          apply_and_render(
+            "let a = 1 in\ntest a == 1 end;\na",
+            InsertTest(None, "a > 0"),
+          ),
+        );
+        check_rendered_exact(
+          "no_path_no_bindings",
+          "test 1 + 1 == 2 end;\n1 + 1",
+          apply_and_render("1 + 1", InsertTest(None, "1 + 1 == 2")),
+        );
+      },
+    ),
+    test_case(
+      "at a member path, as a member after the member's tests",
+      `Quick,
+      () => {
+        check_rendered(
+          "member",
+          "let m = { let x = 1; test x == 1 end; test x > 0 end; let y = 2 } in m",
+          apply_and_render(
+            "let m = {\n  let x = 1;\n  test x == 1 end;\n  let y = 2\n} in m",
+            InsertTest(Some("m/x"), "x > 0"),
+          ),
+        );
+        check_rendered(
+          "member_last",
+          "let m = { let x = 1; test x == 1 end; test x > 0 end } in m",
+          apply_and_render(
+            "let m = { let x = 1; test x == 1 end } in m",
+            InsertTest(Some("m/x"), "x > 0"),
+          ),
+        );
+        check_rendered(
+          "member_after_leading_test",
+          "let m = { test 1 == 1 end; let x = 1; test x > 0 end } in m",
+          apply_and_render(
+            "let m = { test 1 == 1 end; let x = 1 } in m",
+            InsertTest(Some("m/x"), "x > 0"),
+          ),
+        );
+      },
+    ),
+    test_case("code that is already a whole test is kept", `Quick, () =>
+      check_rendered_exact(
+        "wrapped",
+        "let a = 1 in\ntest a == 1 end;\na",
+        apply_and_render(
+          "let a = 1 in\na",
+          InsertTest(Some("a"), "test a == 1 end;"),
+        ),
+      )
+    ),
+    test_case("a bad path errors with the paths there are", `Quick, () =>
+      switch (
+        run_agent_action(
+          "let a = 1 in\na",
+          InsertTest(Some("nope"), "a == 1"),
+        )
+      ) {
+      | Ok(_) => Alcotest.fail("expected a bad path to be rejected")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "names the path and the available ones",
+          true,
+          StringUtil.match(StringUtil.regexp("\"nope\" not found"), msg)
+          && StringUtil.match(StringUtil.regexp("Available paths"), msg),
+        )
+      | Error(e) =>
+        Alcotest.fail("unexpected failure kind: " ++ Action.Failure.show(e))
+      }
+    ),
+    test_case("a test that isn't a Bool is rejected", `Quick, () =>
+      expect_composition_failure(
+        "let a = 1 in\na",
+        InsertTest(Some("a"), "a + 1"),
+        "non-Bool test",
+      )
+    ),
   ],
 );
 
@@ -5389,6 +5554,7 @@ let tests = [
   update_binding_clause_tests,
   module_member_tests,
   insert_tests,
+  insert_test_tests,
   delete_tests,
   static_error_tests,
   nested_definition_tests,

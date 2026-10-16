@@ -35,6 +35,14 @@ let fresh_semi = (): Piece.t =>
 let first_tile_id = (seg: Segment.t): option(Id.t) =>
   Option.map((t: Tile.t) => t.id, List.find_map(Piece.is_tile, seg));
 
+/* the outline row of a new item: a `…;` statement's is its `;` (the
+   Seq's), any other item's its first tile */
+let row_id = (item: Segment.t): option(Id.t) =>
+  switch (ListUtil.last_opt(item)) {
+  | Some(Tile(t)) when Tile.is_semi(t) => Some(t.id)
+  | _ => first_tile_id(item)
+  };
+
 let text_of = (ps: Segment.t): string =>
   String.trim(MarkerParse.to_text(Zipper.unzip(ps)));
 
@@ -73,6 +81,7 @@ let template = (kind: OutlineRename.kind, name: string): string =>
   | KModule => "module " ++ name ++ " = {}"
   | KValue => "let " ++ name ++ {js| = ¿|js}
   };
+let test_template = {js|test ¿ end|js};
 
 let space = (): Piece.t => Piece.Secondary(Secondary.mk_space(Id.mk()));
 let linebreak = (): Piece.t =>
@@ -418,11 +427,14 @@ let apply_at =
   let same_family = (j, k) =>
     !b.in_module
     || span_in_tile(b.arr, b.spans[j]) == span_in_tile(b.arr, b.spans[k]);
-  let new_item = (~member, item) =>
-    /* below the trailing expression would strand it above the new def:
-       the new def goes above it */
-    insert(b, ~pos=movable(j) ? After(j) : Before(j), ~member, item)
-    |> Option.map(seg => (seg, first_tile_id(item)));
+  /* below the trailing expression would strand it above the new item:
+     the new item goes above it. A member block has no trailing
+     expression: its last member, `;` or not, takes new items after it */
+  let new_item = (~above=false, ~member, item) => {
+    let trailing = !movable(j) && !b.member(j);
+    insert(b, ~pos=above || trailing ? Before(j) : After(j), ~member, item)
+    |> Option.map(seg => (seg, row_id(item)));
+  };
   if (j >= n) {
     None;
   } else {
@@ -448,6 +460,14 @@ let apply_at =
       Option.bind(
         member ? member_core(txt) : letin_core(txt ++ " in"),
         new_item(~member),
+      );
+    | NewTestBelow
+    | NewTestAbove =>
+      let member = b.member(j);
+      Option.bind(
+        member
+          ? member_core(test_template) : letin_core(test_template ++ ";"),
+        new_item(~above=op == NewTestAbove, ~member),
       );
     | Duplicate when movable(j) =>
       let member = b.member(j);

@@ -1271,6 +1271,29 @@ let tool_call_summary_tests = [
     },
   ),
   test_case(
+    "insert_test: an edit at its path, or none without one",
+    `Quick,
+    () => {
+      let at =
+        mk_tc(
+          ~name="insert_test",
+          ~args=`Assoc([("path", `String("fib"))]),
+        );
+      let s = get_summary(at);
+      check_category("insert_test", Edit, at);
+      check_signifier("insert_test", Some("fib"), at);
+      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
+      check_bool("persists=true", true, s.persists);
+      let bare = mk_tc(~name="insert_test", ~args=`Assoc([]));
+      check_signifier("no path", None, bare);
+      check_bool(
+        "display_name keeps the tool name",
+        true,
+        ToolCallSummary.display_name_for(bare) == "insert_test",
+      );
+    },
+  ),
+  test_case(
     "insert_before with path: display_name preserves tool name",
     `Quick,
     () => {

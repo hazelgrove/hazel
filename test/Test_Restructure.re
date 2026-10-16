@@ -767,6 +767,176 @@ let into_value_module = () => {
   );
 };
 
+/* a new test, `test ¿ end`, lands right after its row in its block's
+   form, or above it as a run's first */
+let new_tests = () => {
+  let run = "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na";
+  let m = "module M = {\n  let a = 1;\n  test a == 1 end;\n  test a > 0 end\n} in\nM.a";
+  cases([
+    (
+      "after a test in a run",
+      run,
+      "1",
+      op(NewTestBelow),
+      Some(
+        {js|let a = 1 in
+test a == 1 end;
+test ¿ end;
+test a > 0 end;
+a|js},
+      ),
+    ),
+    (
+      "after a lone test",
+      "let a = 1 in\ntest a == 1 end;\na",
+      "1",
+      op(NewTestBelow),
+      Some({js|let a = 1 in
+test a == 1 end;
+test ¿ end;
+a|js}),
+    ),
+    (
+      "after a definition",
+      "let a = 1 in\nlet b = 2 in\nb",
+      "a",
+      op(NewTestBelow),
+      Some({js|let a = 1 in
+test ¿ end;
+let b = 2 in
+b|js}),
+    ),
+    (
+      "a member after a member test",
+      m,
+      "1",
+      op(NewTestBelow),
+      Some(
+        {js|module M = {
+  let a = 1;
+  test a == 1 end;
+  test ¿ end;
+  test a > 0 end
+} in
+M.a|js},
+      ),
+    ),
+    (
+      "after a module's last test, without its `;`",
+      m,
+      "2",
+      op(NewTestBelow),
+      Some(
+        {js|module M = {
+  let a = 1;
+  test a == 1 end;
+  test a > 0 end;
+  test ¿ end
+} in
+M.a|js},
+      ),
+    ),
+    (
+      "a new definition there goes below it too",
+      m,
+      "2",
+      op(NewBelow),
+      Some(
+        {js|module M = {
+  let a = 1;
+  test a == 1 end;
+  test a > 0 end;
+  let new_def = ¿
+} in
+M.a|js},
+      ),
+    ),
+    (
+      "above the trailing expression",
+      "let a = 1 in\na",
+      "",
+      op(NewTestBelow),
+      Some({js|let a = 1 in
+test ¿ end;
+a|js}),
+    ),
+    (
+      "a run's first",
+      run,
+      "1",
+      op(NewTestAbove),
+      Some(
+        {js|let a = 1 in
+test ¿ end;
+test a == 1 end;
+test a > 0 end;
+a|js},
+      ),
+    ),
+    (
+      "a member run's first",
+      m,
+      "1",
+      op(NewTestAbove),
+      Some(
+        {js|module M = {
+  let a = 1;
+  test ¿ end;
+  test a == 1 end;
+  test a > 0 end
+} in
+M.a|js},
+      ),
+    ),
+  ]);
+  /* the op lands on the new test's row, numbered in its run */
+  List.iter(
+    ((desc, src)) =>
+      switch (edit(op(NewTestBelow), "2", seg_of(src))) {
+      | Some((seg, Some(target))) =>
+        let rows =
+          Web.OutlineTree.(flatten(of_term(MakeTerm.Incr.term_of(seg))));
+        let run =
+          switch (
+            List.find_opt(
+              (n: Web.OutlineTree.node) => n.o_kind == KTests,
+              rows,
+            )
+          ) {
+          | Some(n) => n.o_children
+          | None => fail(desc ++ ": no run")
+          };
+        check(
+          list(string),
+          desc ++ ": the run, renumbered",
+          ["1", "2", "3", "4"],
+          List.map((n: Web.OutlineTree.node) => n.o_label, run),
+        );
+        check(
+          list(string),
+          desc ++ ": the new row is 3",
+          ["3"],
+          List.filter_map(
+            (n: Web.OutlineTree.node) =>
+              n.o_id == Some(target) ? Some(n.o_label) : None,
+            run,
+          ),
+        );
+      | _ => fail(desc ++ ": refused or no row")
+      },
+    [
+      (
+        "top level",
+        "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\ntest a < 2 end;\na",
+      ),
+      (
+        "members",
+        "module M = {\n  test 1 == 1 end;\n  test 2 == 2 end;\n  test 3 == 3 end;\n} in\n0",
+      ),
+    ],
+  );
+};
+
 /* ⌘⌫ on a row the outline refuses to delete leaves its cursor there */
 let refused_delete_cursor = (): unit => {
   let seg = seg_of("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
@@ -879,6 +1049,7 @@ let tests = (
     ),
     test_case("ops keep the layout", `Quick, layout),
     test_case("top-level ops", `Quick, top_level),
+    test_case("new tests", `Quick, new_tests),
     test_case("member ops", `Quick, members),
     test_case("flattened fn-body ops", `Quick, fn_body),
     test_case("a member whose body opens with a let", `Quick, let_body),
