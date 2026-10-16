@@ -349,6 +349,85 @@ let tests = (
       },
     ),
     test_case(
+      "undo and redo hand the keys to the cell they restore",
+      `Quick,
+      () => {
+        let m = Cells.run(Cells.mk(), Refresh);
+        let (a, b) = (Cells.row(m, "a"), Cells.row(m, "b"));
+        let m = Cells.run(m, Cells.workspace(FocusToggle(a)));
+        let m = Cells.run(m, Cells.workspace(FocusToggle(b)));
+        let caret_in = (id): Page.Update.t =>
+          Cells.workspace(
+            Stack(
+              id,
+              Body,
+              MainEditor(Perform(Move(Local(Right, ByChar)))),
+            ),
+          );
+        let m = Cells.run(m, caret_in(a));
+        let m = Cells.run(m, insert("0"));
+        let m = Cells.run(m, caret_in(b));
+        /* the restored focus names an open cell, the stack is selected,
+           and the DOM focus follows unless something else holds it */
+        let keys_to = (m: History.Model.t, id) => {
+          let d = Cells.divided(m);
+          Divided.cell(id, d) != None
+          && Divided.active(d) == Some((id, Body))
+          && (
+            switch (m.current.selection) {
+            | Scratch(Stack(_)) => true
+            | _ => false
+            }
+          )
+          && Haz3lcore.FocusEffect.scheduled^ == Some(CellIfLost);
+        };
+        Haz3lcore.FocusEffect.scheduled := None;
+        let m = Cells.run(m, undo);
+        check(string, "the edit is undone", "1", Cells.body(m, a));
+        check(bool, "undo gives a the keys", true, keys_to(m, a));
+        Haz3lcore.FocusEffect.scheduled := None;
+        let m = Cells.run(m, redo);
+        check(string, "the edit is redone", "10", Cells.body(m, a));
+        check(bool, "redo gives b the keys", true, keys_to(m, b));
+        let m = Cells.run(m, undo);
+        let m = Cells.run(m, insert("9"));
+        check(string, "typing reaches a", "19", Cells.body(m, a));
+        check(string, "b is untouched", "2", Cells.body(m, b));
+      },
+    ),
+    test_case(
+      "an undo that closes the cells hands the keys to one editor",
+      `Quick,
+      () => {
+        let m = Cells.run(Cells.mk(), Refresh);
+        let a = Cells.row(m, "a");
+        let m = Cells.run(m, Cells.workspace(FocusToggle(a)));
+        let m = Cells.run(m, insert("0"));
+        let m = Cells.run(m, Cells.workspace(FocusToggle(a)));
+        Haz3lcore.FocusEffect.scheduled := None;
+        /* the snapshot has a open, the view has nothing pinned */
+        let m = Cells.run(m, undo);
+        check(
+          string,
+          "the edit is undone",
+          "let a = 1 in\nlet b = 2 in\na + b",
+          text_of(m),
+        );
+        check(
+          bool,
+          "one editor, selected, with the keys",
+          true,
+          (
+            switch (Cells.program(m), m.current.selection) {
+            | (Whole(_), Scratch(Cell(MainEditor))) => true
+            | _ => false
+            }
+          )
+          && Haz3lcore.FocusEffect.scheduled^ == Some(CellIfLost),
+        );
+      },
+    ),
+    test_case(
       "non-historic actions leave both stacks untouched",
       `Quick,
       () => {
