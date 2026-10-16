@@ -496,12 +496,12 @@
 }
 
 /* text mode: a ghost line's one caret position, at its start, in the
-   field caret's color; it takes no room */
+   field caret's color; it takes no room, clear of italic text */
 #outline-sidebar .outline-ghost-caret {
   display: inline-block;
   width: 0;
   height: 1.2em;
-  margin-right: -1.5px;
+  margin: 0 -0.5px 0 -1px;
   vertical-align: text-bottom;
   border-left: 1.5px solid var(--text-warning);
 }
@@ -509,7 +509,7 @@
 /* a refused key: its line pulses once, over the row's own fill. Two names
    alternate so each refusal replays it */
 #outline-sidebar {
-  --ol-flash: color-mix(in srgb, var(--text-error) 20%, transparent);
+  --ol-flash: color-mix(in srgb, var(--text-error) 16%, transparent);
 }
 @keyframes ol-flash-a {
   from {
