@@ -234,6 +234,7 @@ module Update = {
                             ~settings,
                             ~stitch,
                             ~root=editor.root,
+                            ~ctx?,
                             editor.state.zipper,
                           )
                         : CachedStatics.init(

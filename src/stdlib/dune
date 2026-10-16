@@ -2,14 +2,14 @@
 ; Sources are listed in dependency order: later modules may use earlier ones.
 
 (rule
- (targets stdlib.blob stdlib.segment)
+ (targets stdlib.blob stdlib.hz)
  (action
   (run
    node
    --stack-size=8192
    %{dep:bake/bake.bc.js}
    stdlib.blob
-   stdlib.segment
+   stdlib.hz
    %{dep:../../hazel-programs/stdlib/String.hz}
    %{dep:../../hazel-programs/stdlib/Int.hz}
    %{dep:../../hazel-programs/stdlib/SInt.hz}
@@ -25,8 +25,19 @@
 
 (library
  (name stdlibBaked)
+ (modules StdlibBaked)
  (libraries language)
  (js_of_ocaml)
  (preprocess
   (pps ppx_blob js_of_ocaml-ppx))
  (preprocessor_deps stdlib.blob))
+
+; the library's source, for the app's library document (not the worker)
+
+(library
+ (name stdlibSource)
+ (modules StdlibSource)
+ (js_of_ocaml)
+ (preprocess
+  (pps ppx_blob))
+ (preprocessor_deps stdlib.hz))

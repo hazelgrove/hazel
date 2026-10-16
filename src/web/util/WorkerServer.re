@@ -51,7 +51,10 @@ module Response = {
 module ClientMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
-    | Evaluate(Request.t);
+    | Evaluate(Request.t)
+    /* a new standard library (Marshal of Library.baked), when it was
+       edited: later evaluations run against it */
+    | InstallLibrary(string);
 };
 
 module ServerMessage = {
@@ -762,16 +765,22 @@ let install_message_handler = () => {
     };
   };
 
-  let on_request = (req: Active.request): unit => {
-    let ClientMessage.Evaluate(request) = Active.decode_request(req);
-    post_ack(request);
-    eval_total := Core.Time_ns.Span.zero;
-    commit({
-      ...model^,
-      latest_request: Some(request),
-      runtime: Planning,
-    });
-  };
+  let on_request = (req: Active.request): unit =>
+    switch (Active.decode_request(req)) {
+    | Evaluate(request) =>
+      post_ack(request);
+      eval_total := Core.Time_ns.Span.zero;
+      commit({
+        ...model^,
+        latest_request: Some(request),
+        runtime: Planning,
+      });
+    | InstallLibrary(blob) =>
+      Language.Library.install(blob);
+      /* cached results were computed against the old library */
+      Hashtbl.reset(resident);
+      planned_reuse := [];
+    };
 
   Js_of_ocaml.Worker.set_onmessage(on_request);
 };

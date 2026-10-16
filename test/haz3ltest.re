@@ -54,6 +54,7 @@ let (suite, exit_with_test_status) =
       Test_Restructure.tests,
       Test_StreamCollector.tests,
       Test_MegaCorpus.tests,
+      Test_Stdlib.tests,
       Test_MeasuredChunks.tests,
       Test_MakeTermIncr.tests,
       Test_EditLocality.tests,

@@ -123,3 +123,16 @@ let ctx_init = (use_mode: option(Operators.mode)): Ctx.t =>
   };
 
 let env_init = (): Environment.t(Exp.t) => library_env^;
+
+/* without the library: what the library's own source is checked against */
+let ctx_base: option(Operators.mode) => Ctx.t = {
+  let by_mode = Hashtbl.create(5);
+  use_mode =>
+    switch (Hashtbl.find_opt(by_mode, use_mode)) {
+    | Some(ctx) => ctx
+    | None =>
+      let ctx = Ctx.of_entries(~use_mode, ctx_entries);
+      Hashtbl.replace(by_mode, use_mode, ctx);
+      ctx;
+    };
+};
