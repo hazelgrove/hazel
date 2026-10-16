@@ -1374,10 +1374,18 @@ and uexp_to_info_map =
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
         /* Re-analyzing an inference hole against this one-label tuple
-           would read as a constraint on it; it is not one. */
-        | (Unknown(_), Label(_))
+           would read as a constraint on it; it is not one. What the
+           projection gives may be known once the hole is filled. */
+        | (Unknown(_), Label(name))
             when Inference.is_implicit_hole(info_e1.elab_syn_ty) => (
-            Prod([]) |> Typ.temp,
+            Prod([
+              TupLabel(
+                Label(name) |> Typ.temp,
+                Inference.gradual_result(~site=Exp.rep_id(uexp)),
+              )
+              |> Typ.temp,
+            ])
+            |> Typ.temp,
             m,
           )
         | (Unknown(_), Label(name)) =>
