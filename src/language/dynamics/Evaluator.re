@@ -657,6 +657,18 @@ let yielding_step_count = (evaluation: yielding_evaluation): int => {
   step_counter;
 };
 
+let evaluate_raw = (~env, d: DHExp.t): DHExp.t =>
+  prepare_evaluation(
+    ~prev=IncrEval.empty,
+    ~eval_info=EvalInfo.empty,
+    ~env,
+    ~reuse_map=None,
+    ~outbox=None,
+    d,
+  )
+  |> snd
+  |> Trampoline.run;
+
 let evaluate =
     (
       ~prev: EvaluatorState.incr_eval=IncrEval.empty,

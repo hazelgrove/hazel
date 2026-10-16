@@ -1,4 +1,3 @@
-open BuiltinsUtil;
 module Fresh = IdTagged.FreshGrammar;
 open Fresh.Typ;
 
@@ -60,111 +59,6 @@ module Option = {
 
   let pat_some =
     Pat.constructor("Some", Some(Some(arrow(unknown(SynSwitch), t))));
-
-  let builtins: list(hazel_fn) = [
-    {
-      str: {|fix option_map -> fun (opt, f) -> case opt
-               | None => None
-               | Some(x) => Some(f(x))
-             end|},
-      name: "option_map",
-      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
-      ret: Unknown(Internal),
-      imp: {
-        Fresh.(
-          Exp.(
-            fix_f(
-              Pat.var("option_map"),
-              fn(
-                Pat.tuple([Pat.var("opt"), Pat.var("f")]),
-                match(
-                  var("opt"),
-                  [
-                    (pat_none, none),
-                    (
-                      Pat.ap(pat_some, Pat.var("x")),
-                      ap(Forward, some, ap(Forward, var("f"), var("x"))),
-                    ),
-                  ],
-                ),
-                None,
-                Some("option_map+"),
-              ),
-              None,
-            )
-          )
-        );
-      },
-    },
-    {
-      str: {|fix option_bind -> fun (opt, f) -> case opt
-               | None => None
-               | Some x => f(x)
-             end|},
-      name: "option_bind",
-      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
-      ret: Unknown(Internal),
-      imp: {
-        Fresh.(
-          Exp.(
-            fix_f(
-              Pat.var("option_bind"),
-              fn(
-                Pat.tuple([Pat.var("opt"), Pat.var("f")]),
-                match(
-                  var("opt"),
-                  [
-                    (pat_none, none),
-                    (
-                      Pat.ap(pat_some, Pat.var("x")),
-                      ap(Forward, var("f"), var("x")),
-                    ),
-                  ],
-                ),
-                None,
-                Some("option_bind+"),
-              ),
-              None,
-            )
-          )
-        );
-      },
-    },
-    {
-      name: "option_to_list",
-      arg: t.term,
-      ret: List(unknown(Internal)),
-      str: {|fix option_to_list -> fun opt -> case opt
-               | None => []
-               | Some x => [x]
-             end|},
-      imp: {
-        Fresh.(
-          Exp.(
-            fix_f(
-              Pat.var("option_to_list"),
-              fn(
-                Pat.var("opt"),
-                match(
-                  var("opt"),
-                  [
-                    (pat_none, list_lit([])),
-                    (
-                      Pat.ap(pat_some, Pat.var("x")),
-                      list_lit([var("x")]),
-                    ),
-                  ],
-                ),
-                None,
-                Some("option_to_list+"),
-              ),
-              None,
-            )
-          )
-        );
-      },
-    },
-  ];
 };
 
 module JSON = {
@@ -751,7 +645,6 @@ let constructors: Ctx.t = {
   );
 };
 
-let builtins = Option.builtins;
 let constructor_entries = constructors.entries @ types;
 
 /* Build an Ord-returning compare builtin from an Atom.compare_entry, the

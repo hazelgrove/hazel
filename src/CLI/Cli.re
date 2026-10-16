@@ -414,7 +414,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       let (_, state) =
         Evaluator.evaluate(
           ~eval_info=EvalInfo.of_targets(sample_map),
-          ~env=Builtins.env_init,
+          ~env=Builtins.env_init(),
           elaborated,
         );
       EvaluatorState.get_probes(state);
@@ -667,4 +667,7 @@ let default_cmd = {
   );
 };
 
-let () = exit(Cmd.eval(default_cmd));
+let () = {
+  StdlibBaked.install();
+  exit(Cmd.eval(default_cmd));
+};

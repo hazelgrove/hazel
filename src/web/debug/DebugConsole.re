@@ -17,7 +17,7 @@ let print =
   | "F3" => term |> Language.Exp.show |> print
   | "F4" => map |> Language.Statics.Map.show |> print
   | "F5" when settings.core.dynamics =>
-    let env_init = Language.Builtins.env_init;
+    let env_init = Language.Builtins.env_init();
     let (result, _) =
       Language.Evaluator.evaluate(~env=env_init, statics.elaborated);
     result |> Language.DHExp.show |> print;
@@ -74,7 +74,7 @@ let print =
       | outputs => Some(String.concat("\n", outputs))
       };
 
-    let env_init = Language.Builtins.env_init;
+    let env_init = Language.Builtins.env_init();
     let (_, state) =
       Language.Evaluator.evaluate(~env=env_init, statics.elaborated);
     let res = print_summary(state);
@@ -84,7 +84,7 @@ let print =
     };
   | "F9" =>
     /* Print program with probes in text-only format */
-    let env_init = Language.Builtins.env_init;
+    let env_init = Language.Builtins.env_init();
     let (_, state) =
       Language.Evaluator.evaluate(~env=env_init, statics.elaborated);
     let probe_map = state.probes |> Language.Sample.Map.finalize;

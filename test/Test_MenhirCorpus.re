@@ -59,8 +59,15 @@ let rec find_hz = (dir: string): list(string) =>
          let path = Filename.concat(dir, entry);
          switch (Sys.is_directory(path)) {
          /* the mega/bench perf corpora: composed from already-swept
-            sources and too slow here; FastParseCorpus covers them */
-         | true when List.mem(Filename.basename(path), ["mega", "bench"]) =>
+            sources and too slow here; FastParseCorpus covers them. The
+            stdlib's sources are module bodies, not programs: its bake
+            requires the fast path */
+         | true
+             when
+               List.mem(
+                 Filename.basename(path),
+                 ["mega", "bench", "stdlib"],
+               ) =>
            []
          | true => find_hz(path)
          | false => Filename.check_suffix(entry, ".hz") ? [path] : []

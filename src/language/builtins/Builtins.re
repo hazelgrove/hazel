@@ -9,8 +9,6 @@ let builtins =
   @ List.map(of_atom_builtin, Atom.converter_builtins)
   @ List.map(fn_builtin, BuiltinsADT.ord_builtins)
   @ List.map(of_atom_builtin, Operators.builtins)
-  @ List.map(hazel_fn_builtin, BuiltinsList.builtins)
-  @ List.map(hazel_fn_builtin, BuiltinsADT.builtins)
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
   @ List.map(const_builtin, BuiltinsBase.numeric_constants)
   @ List.map(fn_builtin, BuiltinsTupleOperations.builtins)
@@ -37,27 +35,37 @@ let ctx_entries =
       BuiltinsColorScheme.type_aliases,
     );
 
-/* built once: of_entries is O(n) (a List.length) and ctx_init runs per
-   statics run. one record per mode, so memos keyed on context identity
-   (Statics.mk) can hit */
-let ctx_init_base: Ctx.t = Ctx.of_entries(~use_mode=None, ctx_entries);
-let ctx_init: option(Operators.mode) => Ctx.t = {
-  let by_mode = Hashtbl.create(5);
-  use_mode =>
-    switch (Hashtbl.find_opt(by_mode, use_mode)) {
-    | Some(ctx) => ctx
-    | None =>
-      let ctx = Ctx.set_use_mode(ctx_init_base, use_mode);
-      Hashtbl.replace(by_mode, use_mode, ctx);
-      ctx;
-    };
-};
-
 let forms_init: forms = List.filter_map(form_of_builtin, builtins);
 
-let env_init: Environment.t(Exp.t) =
+let env_base: Environment.t(Exp.t) =
   builtins
   |> List.map(imp_of_builtin)
   |> List.fold_left(Environment.extend, Environment.empty);
 
-let closure_env: Environment.t(Exp.t) = env_init;
+/* The Hazel-source standard library (Library.install): its context entries
+   go on top of the builtins', its evaluated bindings on top of env_base */
+let library_entries: ref(list(Ctx.entry)) = ref([]);
+let library_env: ref(Environment.t(Exp.t)) = ref(env_base);
+
+/* one record per mode, so memos keyed on context identity (Statics.mk,
+   DefStatics) hit until the library changes */
+let ctx_by_mode: Hashtbl.t(option(Operators.mode), Ctx.t) =
+  Hashtbl.create(5);
+
+let install_library =
+    (~entries: list(Ctx.entry), ~env: Environment.t(Exp.t)): unit => {
+  library_entries := entries;
+  library_env := env;
+  Hashtbl.reset(ctx_by_mode);
+};
+
+let ctx_init = (use_mode: option(Operators.mode)): Ctx.t =>
+  switch (Hashtbl.find_opt(ctx_by_mode, use_mode)) {
+  | Some(ctx) => ctx
+  | None =>
+    let ctx = Ctx.of_entries(~use_mode, library_entries^ @ ctx_entries);
+    Hashtbl.replace(ctx_by_mode, use_mode, ctx);
+    ctx;
+  };
+
+let env_init = (): Environment.t(Exp.t) => library_env^;

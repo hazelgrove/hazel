@@ -997,8 +997,9 @@ and calc_chain =
 };
 
 /* the seed ctx must be PHYSICALLY stable across calc calls: reuse
-   gating chains on pointer identity in the clean case */
-let ctx0: Ctx.t = Builtins.ctx_init(Some(Operators.default_mode));
+   gating chains on pointer identity in the clean case (ctx_init's memo
+   holds it until the library changes) */
+let ctx0 = (): Ctx.t => Builtins.ctx_init(Some(Operators.default_mode));
 
 /* [chain], except a Module root itemizes via the lowering (chain never
    descends into defs, so only a root Module is seen here) */
@@ -1047,7 +1048,7 @@ let calc =
       ~prevs=Option.fold(~none=[], ~some=(p: t) => p.items, prev),
       ~dirty_vars=[],
       ~dirty_tnames=[],
-      ~ctx_in=ctx0,
+      ~ctx_in=ctx0(),
       nodes,
     );
   let merged =

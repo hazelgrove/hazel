@@ -1,0 +1,23 @@
+; The Hazel-source standard library, baked at build time (plans/stdlib.md).
+; Sources are listed in dependency order: later modules may use earlier ones.
+
+(rule
+ (targets stdlib.blob stdlib.segment)
+ (action
+  (run
+   node
+   --stack-size=8192
+   %{dep:bake/bake.bc.js}
+   stdlib.blob
+   stdlib.segment
+   %{dep:../../hazel-programs/stdlib/Option.hz}
+   %{dep:../../hazel-programs/stdlib/List.hz}
+   %{dep:../../hazel-programs/stdlib/Compat.hz})))
+
+(library
+ (name stdlibBaked)
+ (libraries language)
+ (js_of_ocaml)
+ (preprocess
+  (pps ppx_blob js_of_ocaml-ppx))
+ (preprocessor_deps stdlib.blob))

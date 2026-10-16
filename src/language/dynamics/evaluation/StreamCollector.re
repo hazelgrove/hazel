@@ -36,7 +36,7 @@ let rec collect_stream_state_for =
           },
           ~mode=`Environment,
           ~targets=Sample.no_targets,
-          Builtins.env_init,
+          Builtins.env_init(),
           d,
         );
       switch (rule) {

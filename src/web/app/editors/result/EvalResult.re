@@ -563,7 +563,7 @@ module Update = {
         Model.Stepper(
           StepperView.Update.calculate(
             ~settings,
-            ~ctx=OldValue(ProbeSteps.ctx),
+            ~ctx=OldValue(ProbeSteps.ctx()),
             elab,
             stepper,
           ),

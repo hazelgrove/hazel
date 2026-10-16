@@ -1,0 +1,20 @@
+# Option: Hazel-source transcription of the BuiltinsADT.re option_* HazelFn builtins #
+module Option = {
+  let map : (Option, ? -> ?) -> ? = fun (opt, f) ->
+    case opt
+    | None => None
+    | Some(x) => Some(f(x))
+    end;
+
+  let bind : (Option, ? -> ?) -> ? = fun (opt, f) ->
+    case opt
+    | None => None
+    | Some(x) => f(x)
+    end;
+
+  let to_list : Option -> [?] = fun opt ->
+    case opt
+    | None => []
+    | Some(x) => [x]
+    end
+}

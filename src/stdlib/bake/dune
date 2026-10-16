@@ -1,0 +1,8 @@
+; Build-time baker for the Hazel-source standard library; see Bake.re.
+
+(executable
+ (name bake)
+ (libraries haz3lcore)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx)))

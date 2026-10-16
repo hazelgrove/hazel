@@ -10,7 +10,7 @@ let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
   let (_, state) =
     Evaluator.evaluate(
       ~eval_info=EvalInfo.of_targets(targets),
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elaborated,
     );
   EvaluatorState.get_probes(state);
@@ -713,7 +713,7 @@ in ^^probe(f(42))|};
       let (_, state) =
         Evaluator.evaluate(
           ~eval_info=EvalInfo.of_targets(targets),
-          ~env=Builtins.env_init,
+          ~env=Builtins.env_init(),
           elaborated,
         );
       let probes_map = EvaluatorState.get_probes(state);

@@ -98,7 +98,7 @@ let tests = (
         let (_, state) =
           Evaluator.evaluate(
             ~eval_info=EvalInfo.of_targets(targets),
-            ~env=Builtins.env_init,
+            ~env=Builtins.env_init(),
             elaborated,
           );
         let values =

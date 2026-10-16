@@ -21,7 +21,7 @@ let elab = (s: string): Language.Exp.t =>
 let ctx =
   Language.SemanticCtx.of_ctx_and_env(
     Language.Builtins.ctx_init(None),
-    Language.Builtins.closure_env,
+    Language.Builtins.env_init(),
   );
 
 /* the analysis itself: a pass rebuilds the record around it (targets) */
