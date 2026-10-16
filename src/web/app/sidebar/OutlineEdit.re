@@ -229,6 +229,10 @@ let lines = (~text: option(t), visible: array(visible_row)): array(entry) => {
   };
 };
 
+/* a new definition's line, named in the page */
+let new_key = (a: Id.t, p: place): string =>
+  Id.to_string(a) ++ ":" ++ show_place(p);
+
 /* the same line: a row by its key when known (renames change paths) */
 let same_line = (a: line, b: line): bool =>
   switch (a, b) {

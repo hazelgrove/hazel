@@ -1169,6 +1169,36 @@ a + b|js}),
   reset();
 };
 
+/* keys typed on a new line before its definition is in (the Enter's
+   frame) wait for it, not for the line the Enter left */
+let keys_wait = () => {
+  let visible = H.visible(term);
+  let line = E.New(id("alpha"), Below);
+  let text = ref(Some(E.at(line)));
+  let edits = ref([]);
+  let on = H.handlers(~text, ~edits, ());
+  Web.OutlineFollow.held := None;
+  ignore(
+    Web.OutlineSidebar.keys(
+      ~props=H.props(),
+      ~on,
+      ~visible,
+      H.keydown(~code="KeyQ", "q"),
+    ),
+  );
+  check(bool, "nothing typed yet", true, edits^ == []);
+  check(
+    bool,
+    "held for the new line",
+    true,
+    switch (Web.OutlineFollow.held^) {
+    | Some((key, [_])) => key == E.new_key(id("alpha"), Below)
+    | _ => false
+    },
+  );
+  Web.OutlineFollow.held := None;
+};
+
 /* ⌘D puts the caret in the copy; ⌘⌫ on the next row; a refused op
    flashes */
 let copy_and_delete = () => {
@@ -1357,6 +1387,7 @@ let tests = (
     test_case("leaving a new definition's line", `Quick, live_leaving),
     test_case("a keyword picks a new definition's kind", `Quick, live_kinds),
     test_case("a new definition with cells open", `Quick, live_in_stack),
+    test_case("keys before a new definition is in", `Quick, keys_wait),
     test_case("⌘Z takes a new definition, name and all", `Quick, live_undo),
     test_case("copy and delete move the caret", `Quick, copy_and_delete),
     test_case("⌥F in row mode", `Quick, row_mode_fold),

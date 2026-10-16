@@ -515,6 +515,11 @@ let caret_path = (d: option(drawn)): option(OutlineTree.path) =>
    it, the caret where the editor's is */
 let new_row_view = (~live: option(E.live), ~flash: int, t: E.t): Node.t => {
   let kw = Option.fold(~none="", ~some=(f: E.fresh) => f.f_kw, t.fresh);
+  let line =
+    switch (t.line) {
+    | New(a, p) => [Attr.create("data-line", E.new_key(a, p))]
+    | Row(_) => []
+    };
   let (k, _) = E.new_kind(kw);
   let (name, at) =
     switch (live) {
@@ -525,14 +530,21 @@ let new_row_view = (~live: option(E.live), ~flash: int, t: E.t): Node.t => {
     ~attrs=[clss(["outline-leaf"])],
     [
       div(
-        ~attrs=[
-          clss(
-            ["outline-label", "outline-editing", "outline-new", kind_cls(k)]
-            @ flash_cls(flash),
-          ),
-          /* a click on the line leaves the keys where they are */
-          Attr.on_mousedown(_ => Effect.Prevent_default),
-        ],
+        ~attrs=
+          [
+            clss(
+              [
+                "outline-label",
+                "outline-editing",
+                "outline-new",
+                kind_cls(k),
+              ]
+              @ flash_cls(flash),
+            ),
+            /* a click on the line leaves the keys where they are */
+            Attr.on_mousedown(_ => Effect.Prevent_default),
+          ]
+          @ line,
         [span(~attrs=[clss(["outline-glyph"])], [text(kind_glyph(k))])]
         @ (
           kw == ""
@@ -1354,9 +1366,13 @@ let keys =
     };
   /* text mode: the outline as a text area of names (OutlineEdit) */
   let text_key = (t: E.t): verdict =>
-    switch (text_lines(~on, ~visible, t)) {
-    | None => Pass(Effect.Ignore)
-    | Some((lines, at, t')) =>
+    switch (t.line, t.fresh, text_lines(~on, ~visible, t)) {
+    /* a new line whose definition isn't in yet: its keys wait for it */
+    | (New(a, p), None, _) when !composing =>
+      OutlineFollow.hold(E.new_key(a, p), evt);
+      Act(Effect.Ignore);
+    | (_, _, None) => Pass(Effect.Ignore)
+    | (_, _, Some((lines, at, t'))) =>
       let field = Js_of_ocaml.Js.Unsafe.coerce(evt)##.target;
       let in_field =
         Js_of_ocaml.Js.to_bool(
