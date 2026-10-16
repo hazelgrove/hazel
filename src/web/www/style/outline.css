@@ -324,13 +324,17 @@
 }
 
 /* rows with no name to type (the ⇒ result, the "tests" label, numbered
-   tests, `use` rows): one faded ink, italic. The ⇒ row's own opacity
-   fades its word; the others match it */
+   tests, `use` rows): one faded ink, italic. Faded from the outline's own
+   ink, as --text-muted is brighter than it in dark themes. The ⇒ row's
+   own opacity fades its word; the others match it */
+#outline-sidebar {
+  --ol-faded: color-mix(in srgb, var(--text-accent) 75%, transparent);
+}
 #outline-sidebar .outline-synthetic,
 #outline-sidebar .ol-test:not(.outline-has-err) .outline-name,
 #outline-sidebar .ol-use:not(.outline-has-err) .outline-name {
   font-style: italic;
-  color: var(--text-muted);
+  color: var(--ol-faded);
 }
 #outline-sidebar .ol-tests .outline-synthetic,
 #outline-sidebar .ol-test .outline-name,
@@ -492,7 +496,7 @@
   flex-shrink: 0;
   font-size: 10.5px;
   font-style: italic;
-  color: var(--text-muted);
+  color: var(--ol-faded);
 }
 
 /* text mode: a ghost line's one caret position, at its start, in the
