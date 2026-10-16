@@ -646,6 +646,48 @@ let bench_eval_cmd = {
   Cmd.v(info, Term.(const(bench_eval) $ iterations_arg $ files_arg));
 };
 
+let migrate_cmd = {
+  let doc =
+    "Rename uses of moved library names, by scope: a variable is renamed "
+    ++ "only where it means the library's binding (or nothing). A .hzt "
+    ++ "file is a lesson; anything else is one program.";
+  let renames_arg = {
+    let doc = "The renames, as `let old = New.path;` lines.";
+    Arg.(
+      required
+      & opt(some(string), None)
+      & info(["renames"], ~docv="FILE", ~doc)
+    );
+  };
+  let write_arg = {
+    let doc = "Rewrite the files in place.";
+    Arg.(value & flag & info(["write"], ~doc));
+  };
+  let verify_arg = {
+    let doc = "Check that each rewrite keeps the static errors, the result and the test statuses.";
+    Arg.(value & flag & info(["verify"], ~doc));
+  };
+  let json_arg = {
+    let doc = "Each FILE holds a JSON list of programs; print a JSON list of results.";
+    Arg.(value & flag & info(["json"], ~doc));
+  };
+  let files_arg =
+    Arg.(non_empty & pos_all(string, []) & info([], ~docv="FILES"));
+  let info = Cmd.info("migrate", ~doc);
+  Cmd.v(
+    info,
+    Term.(
+      const(MigrateNames.run)
+      $ renames_arg
+      $ write_arg
+      $ verify_arg
+      $ json_arg
+      $ output_arg
+      $ files_arg
+    ),
+  );
+};
+
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
@@ -663,6 +705,7 @@ let default_cmd = {
       grade_json_cmd,
       grade_report_cmd,
       bench_eval_cmd,
+      migrate_cmd,
     ],
   );
 };
