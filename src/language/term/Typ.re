@@ -56,7 +56,13 @@ let all_ids_temp = {
         annotation: IdTagged.IdTag.temp(),
       }
       |> continue;
-  map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
+  /* A type hole's id is its identity (Inference solves holes by id). */
+  let f_typ = (continue, ty: t): t =>
+    switch (ty.term) {
+    | Unknown(Hole(EmptyHole)) => ty
+    | _ => f(continue, ty)
+    };
+  map_term(~f_exp=f, ~f_pat=f, ~f_typ, ~f_tpat=f, ~f_rul=f);
 };
 
 let (replace_temp, replace_temp_exp) = {
