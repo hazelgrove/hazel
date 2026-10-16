@@ -14,6 +14,9 @@ module Scratchpad = {
     /* the program level, while shown: the standard library's document in
        the slide's place (LibraryDoc); not saved */
     lib: option(CellEditor.Model.t),
+    /* the library generation this slide was last checked and run against
+       (LibraryDoc.generation) */
+    lib_gen: int,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -58,6 +61,7 @@ module Scratchpad = {
         view: SlideView.init,
         agent,
         lib: None,
+        lib_gen: 0,
       }),
     dormant: false,
   };

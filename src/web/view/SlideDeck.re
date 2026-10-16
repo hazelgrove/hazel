@@ -332,6 +332,7 @@ let update =
             view: SlideView.init,
             agent,
             lib: None,
+            lib_gen: 0,
           }),
           model,
         );
@@ -368,6 +369,7 @@ let update =
               view: SlideView.init,
               agent,
               lib: None,
+              lib_gen: 0,
             }),
             model,
           )

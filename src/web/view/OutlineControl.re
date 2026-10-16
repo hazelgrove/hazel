@@ -878,7 +878,7 @@ let view =
         header: {
           h_level:
             switch (program_level, is_deck) {
-            | (Some(slide), _) => AtProgram(slide)
+            | (Some(slide), _) => AtProgram(slide, LibraryDoc.edited())
             | (None, true) => InSlide
             | (None, false) => Plain
             },
@@ -982,6 +982,7 @@ let view =
         toggle_collapse: path => inject(Collapse(path)),
         zoom_to: m => inject_workspace(ZoomTo(m)),
         program: b => inject_workspace(ShowLibrary(b)),
+        reset_library: inject_workspace(ResetLibrary),
         /* at the program level, back in: the inverse of out of the slide */
         zoom_in: id =>
           inject_workspace(

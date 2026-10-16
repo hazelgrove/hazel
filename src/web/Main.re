@@ -393,6 +393,8 @@ switch (JsUtil.Fragment.get_current()) {
        in. The inline script in index.html has already themed the loading
        screen from the same cache; this validates it and fills a miss. */
     ConfigurationMode.apply_theme_at_startup();
+    /* a library edited in an earlier session, over the shipped one */
+    LibraryDoc.restore();
     let model = CrashHandling.Model.load();
     let default_model =
       CrashHandling.Update.calculate(

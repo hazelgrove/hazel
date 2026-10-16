@@ -102,6 +102,7 @@ let handlers =
   toggle_collapse,
   zoom_to: none,
   program: none,
+  reset_library: Virtual_dom.Vdom.Effect.Ignore,
   zoom_in: none,
   show_whole: none,
   discard: ignore,

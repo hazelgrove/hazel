@@ -19,7 +19,8 @@ module E = OutlineEdit;
 type level =
   | Plain
   | InSlide
-  | AtProgram(string);
+  /* the slide's name, and whether the library has been edited */
+  | AtProgram(string, bool);
 /* the header row: the program and the zoom trail as a breadcrumb, and
    how many pins the current level shows or keeps parked */
 type header = {
@@ -129,6 +130,8 @@ type handlers = {
   zoom_to: option(Language.Id.t) => Effect.t(unit),
   /* to the program level (true) or back into the slide */
   program: bool => Effect.t(unit),
+  /* the shipped library again */
+  reset_library: Effect.t(unit),
   zoom_in: Language.Id.t => Effect.t(unit),
   show_whole: bool => Effect.t(unit),
   discard: Effect.t(unit),
@@ -397,7 +400,7 @@ let live_label = (props: props, n: OutlineTree.node): OutlineTree.node =>
    into */
 let slide_row = (~props: props, ~on: handlers): list(Node.t) =>
   switch (props.header.h_level) {
-  | AtProgram(slide) => [
+  | AtProgram(slide, _) => [
       div(
         ~attrs=[clss(["outline-leaf"])],
         [
@@ -422,7 +425,7 @@ let slide_row = (~props: props, ~on: handlers): list(Node.t) =>
 /* the program level's outline: the library's, for navigating only */
 let at_program = (props: props): bool =>
   switch (props.header.h_level) {
-  | AtProgram(_) => true
+  | AtProgram(_, _) => true
   | Plain
   | InSlide => false
   };
@@ -1716,7 +1719,8 @@ let header_view =
         sep,
         ...crumb_nodes,
       ]
-    | AtProgram(slide) => [
+    | AtProgram(slide, edited) =>
+      [
         level_crumb(
           ~here=true,
           "program",
@@ -1731,6 +1735,20 @@ let header_view =
           on.program(false),
         ),
       ]
+      @ (
+        edited
+          ? [
+            span(
+              ~attrs=[
+                clss(["outline-crumb-chip"]),
+                Attr.title("the library is edited: back to the shipped one"),
+                Attr.on_click(_ => stop(on.reset_library)),
+              ],
+              [text({js|edited ↺|js})],
+            ),
+          ]
+          : []
+      )
     };
   let tail =
     header.h_open > 0

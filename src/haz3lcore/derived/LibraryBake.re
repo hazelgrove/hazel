@@ -94,17 +94,22 @@ let of_items =
   | Some(_) when List.length(names) < 2 =>
     Error("the library must bind at least two names")
   | Some(exp) =>
-    let (map, elab) = Statics.mk(CoreSettings.on, base, exp);
+    /* per item, as a slide's statics: a monolithic pass down a chain this
+       long overflows a browser's stack, and the app re-bakes an edited
+       library */
+    let ds = DefStatics.calc(~settings=CoreSettings.on, ~ctx_in=base, exp);
     switch (
-      Statics.Map.error_ids(map),
-      Statics.Map.lookup(Exp.rep_id(tail), map),
+      DefStatics.all_error_ids(ds),
+      Statics.Map.lookup(Exp.rep_id(tail), ds.merged),
+      ds.elab,
     ) {
-    | ([_, ..._] as ids, _) =>
+    | ([_, ..._] as ids, _, _) =>
       Error(
         Printf.sprintf("%d static errors in the library", List.length(ids)),
       )
-    | ([], None) => Error("no statics for the library's tail")
-    | ([], Some(info)) =>
+    | ([], None, _) => Error("no statics for the library's tail")
+    | ([], _, None) => Error("the library did not elaborate")
+    | ([], Some(info), Some(elab)) =>
       switch (Ctx.subtract_prefix(Info.ctx_of(info), base)) {
       | None => Error("the library's context does not extend the builtins'")
       | Some(added) =>

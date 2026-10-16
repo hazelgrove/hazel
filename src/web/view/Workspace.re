@@ -52,6 +52,8 @@ module Action = {
     | ShowLibrary(bool)
     /* the library document's editor, while shown */
     | LibraryAction(CellEditor.Update.t)
+    /* the shipped library again, here and in the worker */
+    | ResetLibrary
     /* park (true) or unpark the pins at this level */
     | ShowWhole(bool)
     /* open and close cells to match the view (after undo) */
@@ -289,16 +291,57 @@ let item_ctx =
   };
 };
 
+/* back into the slide applies an edited library (LibraryDoc.apply); one
+   that doesn't check keeps the program level, its errors in view */
 let show_library = (shown: bool, code: code): Updated.t(code) =>
-  Updated.return(
-    ~is_edit=false,
-    {
-      ...code,
-      lib:
-        shown
-          ? Some(Option.value(code.lib, ~default=LibraryDoc.editor())) : None,
-    },
-  );
+  switch (shown, code.lib) {
+  | (true, _) =>
+    Updated.return(
+      ~is_edit=false,
+      {
+        ...code,
+        lib: Some(Option.value(code.lib, ~default=LibraryDoc.editor())),
+      },
+    )
+  | (false, None) => code |> Updated.return_quiet
+  | (false, Some(ed)) =>
+    switch (LibraryDoc.apply(LibraryDoc.text_of(ed))) {
+    | Ok(_) =>
+      Updated.return(
+        ~is_edit=false,
+        {
+          ...code,
+          lib: None,
+        },
+      )
+    | Error(msg) =>
+      print_endline("stdlib: not applied: " ++ msg);
+      code |> Updated.return_quiet;
+    }
+  };
+
+/* the slide's result, run again */
+let rerun = (program: Program.t): Program.t =>
+  switch (program) {
+  | Whole(ed) =>
+    Whole({
+      ...ed,
+      result: {
+        ...ed.result,
+        elab: Calc.Pending,
+      },
+    })
+  | Divided(d) =>
+    Divided(
+      Divided.with_result(
+        {
+          ...Divided.result(d),
+          elab: Calc.Pending,
+        },
+        d,
+      ),
+    )
+  };
 
 let update =
     (
@@ -479,19 +522,22 @@ let update =
   | LibraryAction(a) =>
     switch (code.lib) {
     | Some(ed) =>
-      /* read only for now: carets and selections move, edits are dropped */
-      let u = CellEditor.Update.update(~settings, a, ed);
-      u.is_edit
-        ? code |> return_quiet
-        : {
-          let* ed = u;
-          {
-            ...code,
-            lib: Some(ed),
-          };
-        };
+      let* ed = CellEditor.Update.update(~settings, a, ed);
+      {
+        ...code,
+        lib: Some(ed),
+      };
     | None => code |> return_quiet
     }
+  | ResetLibrary =>
+    LibraryDoc.reset();
+    Updated.return(
+      ~is_edit=false,
+      {
+        ...code,
+        lib: Option.map(_ => LibraryDoc.editor(), code.lib),
+      },
+    );
   | ZoomTo(m) => outline_view((_, _, v) => SlideView.zoom_to(m, v), code)
   | ShowWhole(parked) =>
     outline_view((_, _, v) => SlideView.park(parked, v), code)
@@ -959,6 +1005,9 @@ let calculate =
       code: code,
     )
     : code => {
+  /* the library changed since this slide last ran: check and run it
+     again */
+  let stale = code.lib == None && code.lib_gen != LibraryDoc.generation^;
   let code =
     calculate_slide(
       ~settings,
@@ -966,9 +1015,15 @@ let calculate =
       ~tail_probe,
       ~schedule_action,
       ~is_edited,
-      ~statics_mode,
+      ~statics_mode=stale ? StaticsMode.Force : statics_mode,
       ~slide_key,
-      code,
+      stale
+        ? {
+          ...code,
+          program: rerun(code.program),
+          lib_gen: LibraryDoc.generation^,
+        }
+        : code,
     );
   {
     ...code,
