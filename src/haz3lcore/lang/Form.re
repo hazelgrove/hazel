@@ -325,7 +325,11 @@ let rows_of: family => list(row) =
   | CommaPost
   | ReOpen
   | ReAs
-  | ReWhen => [];
+  | ReWhen
+  | ReAnd
+  | ReBind
+  | ReTilde
+  | ReException => [];
 
 /* The ReasonML surface's rows. Families shared with Hazel keep their
  * meaning but may live at fewer sorts or other precedences (`;` is
@@ -421,6 +425,16 @@ let reason_rows_of: family => list(row) =
   /* the loosest pattern operators: `a, b as t` names the pair */
   | ReAs => [mk_infix(Pat, P.re_as)]
   | ReWhen => [mk(Non, Mold.mk_bin'(P.re_as, Pat, Pat, [], Exp))]
+  | ReAnd => [mk_infix(Exp, P.re_and), mk_infix(Typ, P.re_and)]
+  /* `g = e` after `and` (and `~x=e` arguments, `~x=default` params) */
+  | ReBind => [
+      mk(Non, Mold.mk_bin'(P.re_bind, Exp, Pat, [], Exp)),
+      mk(Non, Mold.mk_bin'(P.re_bind, Pat, Pat, [], Exp)),
+      mk_infix(Typ, P.re_bind),
+    ]
+  | ReTilde => [mk_prefix(Exp, P.ap), mk_prefix(Pat, P.ap)]
+  /* `exception E(t);` declares a constructor: its operand is a type */
+  | ReException => [mk(Non, Mold.mk_pre'(P.ap, Exp, [], Typ))]
   | _ => [];
 
 let rows_for = (s: Surface.t, fam: family): list(row) =>

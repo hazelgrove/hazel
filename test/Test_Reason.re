@@ -247,6 +247,19 @@ let q = {...p, y: 20};
 (q.x + q.y, [1, 2,])|},
       "(21, [1, 2])",
     ),
+    case(
+      "and: mutual recursion, recursive types; exceptions; labeled args",
+      {|type t =
+  | Op(root)
+  | Pre(root, t)
+and root = (list(int), list(t));
+exception Nonconvex(int);
+let rec even = (n) => if (n == 0) {true} else {odd(n - 1)}
+and odd = (n) => if (n == 0) {false} else {even(n - 1)};
+let scale = (~factor, ~offset=0, x) => x * factor + offset;
+(even(10), odd(7), scale(~factor=3, ~offset=1, 5), Op(([1], [])))|},
+      "(true, true, 16, Op([1], []))",
+    ),
     typed_like_loaded("switch", switch_len),
     typed_like_loaded("variants", shapes),
     typed_like_loaded(

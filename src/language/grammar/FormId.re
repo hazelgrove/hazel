@@ -168,7 +168,13 @@ type family =
   | CommaPost
   | ReOpen
   | ReAs
-  | ReWhen;
+  | ReWhen
+  /* `let rec f = ... and g = ...`, `type t = ... and u = ...` */
+  | ReAnd
+  | ReBind
+  /* labeled arguments `~x`, read positionally */
+  | ReTilde
+  | ReException;
 
 /* A form identity, sort-free: label is derived from the form alone;
  * the mold is derived from (form, sort) where sort is the tile's
@@ -308,7 +314,11 @@ let label_of_family: family => Label.t =
   | CommaPost => [","]
   | ReOpen => ["open"]
   | ReAs => ["as"]
-  | ReWhen => ["when"];
+  | ReWhen => ["when"]
+  | ReAnd => ["and"]
+  | ReBind => ["="]
+  | ReTilde => ["~"]
+  | ReException => ["exception"];
 
 let label_of: t => Label.t =
   fun

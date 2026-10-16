@@ -205,9 +205,12 @@ let rec next_could_start = (rest: t, s: Sort.t): bool =>
   | [Projector(p), ..._] => fst(ProjectorCore.shapes(p)) == Convex
   };
 
+/* expression-level infix forms whose left operand is a pattern: arrow
+   functions `(x) => e` and `and g = e` bindings */
 let is_reason_arrow = (p: Piece.t): bool =>
   switch (p) {
-  | Tile({form: Compound(ReArrow), _} as t) => Tile.mold(t).out == Exp
+  | Tile({form: Compound(ReArrow | ReBind), _} as t) =>
+    Tile.mold(t).out == Exp
   | _ => false
   };
 
@@ -238,8 +241,12 @@ and remold_arrow_params = (seg: t): t =>
     Array.iteri(
       (i, p) =>
         if (is_reason_arrow(p)) {
-          let start =
-            max(consumed^, left_operand_start(arr, i, Precedence.re_arrow));
+          let prec =
+            switch (Piece.shapes(p)) {
+            | Some((Concave(prec), _)) => prec
+            | _ => Precedence.re_arrow
+            };
+          let start = max(consumed^, left_operand_start(arr, i, prec));
           let before = Array.sub(arr, consumed^, start - consumed^);
           let params = Array.sub(arr, start, i - start) |> Array.to_list;
           out := out^ @ Array.to_list(before) @ remold(params, Pat) @ [p];
@@ -626,6 +633,17 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         let remolded = remold(~shape=r.shape, tl, r.sort);
         let (_, shape, _) = shape_affix(Left, remolded, r.shape);
         ([Tile(t), ...remolded], shape, []);
+      /* Reason: an expression inside a pattern (a guard, a `~x=default`)
+         ends at the pattern's next comma */
+      | Some(t)
+          when
+            Surface.is_reason()
+            && Tile.has_label_of(t, Comma)
+            && List.mem(Sort.Pat, parent_sorts) => (
+          [],
+          shape,
+          seg,
+        )
       /* If we encounter ; and Mod is a parent sort, return to let Mod handle it as ModSeq.
          NOTE: This creates a grammatical ambiguity - we're prioritizing ModSeq over CellJoin
          when inside a module context. This may not always be desired if someone wants an

@@ -550,6 +550,14 @@ let reason_no_body = (id: Id.t): Exp.t => {
 let or_pats: ref(Id.Map.t((Pat.t, Pat.t))) = ref(Id.Map.empty);
 let as_pats: ref(Id.Map.t((Pat.t, Pat.t))) = ref(Id.Map.empty);
 let when_pats: ref(Id.Map.t((Pat.t, Exp.t))) = ref(Id.Map.empty);
+/* `a and b` chains and their `p = e` bindings, in expressions and types;
+   `exception E(t)` declarations */
+let and_exps: ref(Id.Map.t((Exp.t, Exp.t))) = ref(Id.Map.empty);
+let bind_exps: ref(Id.Map.t((Pat.t, Exp.t))) = ref(Id.Map.empty);
+let and_typs: ref(Id.Map.t((Typ.t, Typ.t))) = ref(Id.Map.empty);
+let bind_typs: ref(Id.Map.t((Typ.t, Typ.t))) = ref(Id.Map.empty);
+let exn_decls: ref(Id.Map.t(ConstructorMap.variant(Typ.t))) =
+  ref(Id.Map.empty);
 
 let rec unparen_pat = (p: Pat.t): Pat.t =>
   switch (p.term) {
@@ -613,6 +621,77 @@ let reason_needs_scrut = (rules: list((Pat.t, Exp.t))): bool =>
       pat_extra(when_pats, p) != None || pat_extra(as_pats, p) != None,
     rules,
   );
+
+/* `let p = e1 and q = e2; body`: one let of the tuple of bindings, which
+   Hazel makes mutually recursive when they are functions */
+let reason_let = (pat: Pat.t, def: Exp.t, body: Exp.t): Exp.term => {
+  let rec operands = (e: Exp.t): list(Exp.t) =>
+    switch (Id.Map.find_opt(Exp.rep_id(e), and_exps^)) {
+    | Some((l, r)) => operands(l) @ operands(r)
+    | None => [e]
+    };
+  switch (operands(def)) {
+  | []
+  | [_] => Let(pat, def, body)
+  | [first, ...rest] =>
+    let binds =
+      List.map(
+        (e: Exp.t) =>
+          switch (Id.Map.find_opt(Exp.rep_id(e), bind_exps^)) {
+          | Some((p, d)) => (p, d)
+          | None =>
+            let hole: Pat.term = EmptyHole;
+            (IdTagged.fresh(hole), e);
+          },
+        rest,
+      );
+    let pats: Pat.term = Tuple([pat, ...List.map(fst, binds)]);
+    let defs: Exp.term = Tuple([first, ...List.map(snd, binds)]);
+    Let(IdTagged.fresh(pats), fresh_exp(defs), body);
+  };
+};
+
+/* `type t = A and u = B; body`: u's definition is substituted into t's
+   (Hazel's aliases are sequential; a type mentioning itself is
+   recursive), then u is defined too */
+let reason_type = (tpat: TPat.t, def: Typ.t, body: Exp.t): Exp.term => {
+  let rec operands = (t: Typ.t): list(Typ.t) =>
+    switch (Id.Map.find_opt(Typ.rep_id(t), and_typs^)) {
+    | Some((l, r)) => operands(l) @ operands(r)
+    | None => [t]
+    };
+  switch (operands(def)) {
+  | []
+  | [_] => TyAlias(tpat, def, body)
+  | [first, ...rest] =>
+    let binds =
+      List.filter_map(
+        (t: Typ.t) =>
+          switch (Id.Map.find_opt(Typ.rep_id(t), bind_typs^)) {
+          | Some(({term: Var(name), annotation}, d)) =>
+            let tp: TPat.term = Var(name);
+            Some((
+              {
+                term: tp,
+                annotation,
+              }: TPat.t,
+              d,
+            ));
+          | _ => None
+          },
+        rest,
+      );
+    let first =
+      List.fold_left((t, (tp, d)) => Typ.subst(d, tp, t), first, binds);
+    let body =
+      List.fold_right(
+        ((tp, d), body) => fresh_exp(TyAlias(tp, d, body)),
+        binds,
+        body,
+      );
+    TyAlias(tpat, first, body);
+  };
+};
 
 /* A Reason module body is a block of definitions: its let/type/module
    chain becomes Hazel's module items (a trailing expression is an
@@ -1080,9 +1159,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Op(tiles) as tm =>
     switch (tiles) {
     | ([(id, (F(Compound(ReLetStmt)), [Pat(pat), Exp(def)]))], []) =>
-      ret(Let(pat, def, reason_no_body(id)))
+      ret(reason_let(pat, def, reason_no_body(id)))
     | ([(id, (F(Compound(ReTypeStmt)), [TPat(tpat), Typ(def)]))], []) =>
-      ret(TyAlias(tpat, def, reason_no_body(id)))
+      ret(reason_type(tpat, def, reason_no_body(id)))
     | ([(id, (F(Compound(ReModuleStmt)), [MPat(mp), Exp(def)]))], []) =>
       ret(ModuleExp(mp, reason_module_def(def), reason_no_body(id)))
     // single-tile case
@@ -1284,6 +1363,23 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       ret(Fun(arg_pat, body, None, None));
     | _ => ret(hole(tm))
     }
+  | Pre(([(_, (F(Compound(ReTilde)), []))], []), Exp(r)) => (
+      r.term,
+      IdTagged.ids(r),
+    )
+  | Pre(([(id, (F(Compound(ReException)), []))], []), Typ(t)) => {
+      exn_decls := Id.Map.add(id, parse_sum_term(t), exn_decls^);
+      ret(Tuple([]));
+    }
+  | Bin(Pat(p), ([(id, (F(Compound(ReBind)), []))], []), Exp(e)) => {
+      /* a binding after `and`, or a labeled argument `~x=e` (its value) */
+      bind_exps := Id.Map.add(id, (p, e), bind_exps^);
+      (e.term, IdTagged.ids(e));
+    }
+  | Bin(Exp(l), ([(id, (F(Compound(ReAnd)), []))], []), Exp(r)) as tm => {
+      and_exps := Id.Map.add(id, (l, r), and_exps^);
+      ret(hole(tm));
+    }
   | Pre(([(_, (F(Compound(ReOpen)), []))], []), _) =>
     /* `open M;` brings nothing into scope here (Hazel modules are
        accessed qualified); it is a unit statement */
@@ -1303,9 +1399,10 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
-        | (F(Compound(ReLet)), [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (F(Compound(ReLet)), [Pat(pat), Exp(def)]) =>
+          reason_let(pat, def, r)
         | (F(Compound(ReType)), [TPat(tpat), Typ(def)]) =>
-          TyAlias(tpat, def, r)
+          reason_type(tpat, def, r)
         | (F(Compound(ReModule)), [MPat(mp), Exp(def)]) =>
           ModuleExp(mp, reason_module_def(def), r)
         | (F(Compound(UnaryMinus)), []) => UnOp(Int(Minus), r)
@@ -1483,7 +1580,21 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | F(Compound(LogicalAnd)) => BinOp(Bool(And), l, r)
           | F(Compound(LogicalOr)) => BinOp(Bool(Or), l, r)
           | F(Compound(Cons)) => Cons(l, r)
-          | F(Compound(CellJoin)) => Seq(l, r)
+          | F(Compound(CellJoin)) =>
+            switch (Id.Map.find_opt(Exp.rep_id(l), exn_decls^)) {
+            | Some(variant) =>
+              /* `exception E(t); rest`: E is a constructor of its own
+                 sum type (there is no raising: `raise` is a hole) */
+              let name =
+                switch (variant) {
+                | Variant(c, _, _) => c
+                | BadEntry(_) => "exn"
+                };
+              let tp: TPat.term = Var("exn_" ++ name);
+              let sum: Typ.term = Sum([variant]);
+              TyAlias(IdTagged.fresh(tp), IdTagged.fresh(sum), r);
+            | None => Seq(l, r)
+            }
           | F(Compound(StringConcat)) => BinOp(String(Concat), l, r)
           | F(Compound(TupleExtension)) => TupleExtension(l, r)
           | F(Compound(TupleLabeled | ReField)) =>
@@ -1709,6 +1820,15 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   | Post(Pat(l), ([(_, (F(Compound(CommaPost)), []))], [])) => (
       l.term,
       IdTagged.ids(l),
+    )
+  | Pre(([(_, (F(Compound(ReTilde)), []))], []), Pat(r)) => (
+      r.term,
+      IdTagged.ids(r),
+    )
+  | Bin(Pat(p), ([(_, (F(Compound(ReBind)), []))], []), Exp(_)) => (
+      /* `~x=default`: the default is not modeled */
+      p.term,
+      IdTagged.ids(p),
     )
   | Bin(Pat(l), ([(id, (F(Compound(ReSumBar)), []))], []), Pat(r)) as tm => {
       or_pats := Id.Map.add(id, (l, r), or_pats^);
@@ -1939,6 +2059,14 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       l.term,
       IdTagged.ids(l),
     )
+  | Bin(Typ(l), ([(id, (F(Compound(ReAnd)), []))], []), Typ(r)) as tm => {
+      and_typs := Id.Map.add(id, (l, r), and_typs^);
+      ret(hole(tm));
+    }
+  | Bin(Typ(n), ([(id, (F(Compound(ReBind)), []))], []), Typ(d)) as tm => {
+      bind_typs := Id.Map.add(id, (n, d), bind_typs^);
+      ret(hole(tm));
+    }
   | Post(
       Typ({term: Var(name), _}),
       ([(_, (F(Compound(Ap)), [Typ(arg)]))], []),
@@ -2488,6 +2616,11 @@ let go_impl =
   or_pats := Id.Map.empty;
   as_pats := Id.Map.empty;
   when_pats := Id.Map.empty;
+  and_exps := Id.Map.empty;
+  bind_exps := Id.Map.empty;
+  and_typs := Id.Map.empty;
+  bind_typs := Id.Map.empty;
+  exn_decls := Id.Map.empty;
   secondary_map := Segment.SecondaryCollection.collect(seg);
   shard_masks := masks;
   pending_lexeme := None;

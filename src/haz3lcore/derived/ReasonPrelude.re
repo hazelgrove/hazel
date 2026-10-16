@@ -11,6 +11,7 @@
 
 let source = {|let failwith = (msg: string) => ?;
 let invalid_arg = (msg: string) => ?;
+let raise = (exn) => ?;
 let ignore = (_) => ();
 let min = (a, b) => if (a < b) {a} else {b};
 let max = (a, b) => if (a < b) {b} else {a};
@@ -196,6 +197,12 @@ module List = {
     | [y, ...rest] => if (cmp(x, y) <= 0) {[x, y, ...rest]} else {[y, ...insert(cmp, x, rest)]}
     };
   let sort = (cmp, xs) => fold_right((x, acc) => insert(cmp, x, acc), xs, []);
+};
+
+module Fun = {
+  let id = (x) => x;
+  let flip = (f, x, y) => f(y, x);
+  let const = (c, _) => c;
 };
 
 module Option = {

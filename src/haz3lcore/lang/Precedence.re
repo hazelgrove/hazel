@@ -100,6 +100,9 @@ let lab = 39;
    so `List.map(x => e, xs)` keeps the list out of the body; equal on
    both sides and right-associative so `a => b => c` curries. */
 let re_arrow = 40 |> right_associative;
+/* `let f = ... and g = ...`: `=` just outside arrows, `and` outside that */
+let re_bind = 41;
+let re_and = 43;
 
 let case_ = 42;
 
