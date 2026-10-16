@@ -638,8 +638,10 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  /* held at its start till it runs: a save's work can delay that by a
+     frame, which showed the row without the keyword */
   #outline-sidebar .outline-kw-leaving {
-    animation: ol-kw-leave 220ms ease-in;
+    animation: ol-kw-leave 220ms ease-in backwards;
   }
   /* an error badge fades in with its row's red */
   #outline-sidebar .outline-err-badge {
