@@ -136,10 +136,55 @@ let edit_test = () => {
   );
 };
 
+/* A library module with recursive members, as every Livelit Playground
+   slide's Drawing library has, and a picture built from it, then a knob
+   only the last line reads. An edit to the knob should reuse the library
+   and the picture. Until #2675 the recursive members' own names counted
+   as free around them, with no provenance in any reuse map, so the
+   module's binding was never reused: here that re-run took 252 steps, not
+   132, and fails this budget (its items were still reused one by one); on
+   the livelits branch, where much more reads such a library, every move of
+   a figure in the woods redid far more (performance series, reports 004
+   and 006). */
+let library_program = {|let lib = {
+  let range : Int -> [Int] =
+    fun n -> if n == 0 then [] else n :: range(n - 1);
+  let sum : [Int] -> Int =
+    fun xs -> case xs | [] => 0 | hd :: tl => hd + sum(tl) end;
+  let picture = sum(range(300))
+} in
+let knob = 7 in
+lib.picture + knob|};
+
+let library_edit_test = () => {
+  let exp = parse_exp(library_program);
+  let (_, prev, cold) = work(exp);
+  let edited = replace_int_lit(~from=7, ~to_=8, exp);
+  let (result, _, steps) = work(~prev, edited);
+  check(dhexp_typ, "the edited program's value", parse_exp("45158"), result);
+  /* 132 steps on 2026-10-15 (a cold run is 127,394): the library reused */
+  within_budget("re-run beside a recursive library", ~budget=145, steps);
+  check(
+    bool,
+    Printf.sprintf(
+      "the edit's %d steps are under 5%% of a run's %d",
+      steps,
+      cold,
+    ),
+    true,
+    steps * 20 < cold,
+  );
+};
+
 let tests = (
   "PerfBudgets",
   [
     test_case("Cold run: steps within budget", `Quick, cold_test),
     test_case("Re-run after an edit: steps within budget", `Quick, edit_test),
+    test_case(
+      "Re-run beside a library with recursive members: steps within budget",
+      `Quick,
+      library_edit_test,
+    ),
   ],
 );
