@@ -74,6 +74,13 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
       |> Zipper.remold_regrout(Left, ~root)
       |> Triggers.apply_refractors(refractors),
     )
+  | Error(_) when Surface.is_reason() =>
+    /* Reason text loads in bulk (see ReasonLoad) */
+    Parser.to_segment(text, ~root)
+    |> Option.map(segment =>
+         Zipper.unzip(~direction=Left, segment)
+         |> Zipper.remold_regrout(Left, ~root)
+       )
   | Error(why) =>
     /* MarkerParse subsumes the plain typing parse and also destructs
        `¿` markers back into Grout (concave grout and other fast-path

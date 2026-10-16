@@ -22,7 +22,8 @@ let run = (src: string): (int, string) =>
     | None => failf("did not parse: %s", src)
     | Some(seg) =>
       let term =
-        MakeTerm.from_zip_for_sem(Zipper.unzip(seg), ~root=Exp).term;
+        MakeTerm.from_zip_for_sem(Zipper.unzip(seg), ~root=Exp).term
+        |> ReasonPrelude.wrap;
       let (info_map, elab) =
         Statics.mk(CoreSettings.on, Builtins.ctx_init(None), term);
       let errors = List.length(Statics.Map.error_ids(info_map));
@@ -40,6 +41,56 @@ let case = (name: string, src: string, expected: string) =>
       check(int, "static errors", 0, errors);
       check(string, "value", expected, value);
     },
+  );
+
+/* Type `typed` at the start of a loaded program, then run it */
+let edit_case = (name: string, program: string, typed: string, expected) =>
+  test_case("edit: " ++ name, `Quick, () =>
+    Surface.with_(
+      Reason,
+      () => {
+        let seg = ReasonLoad.to_segment(~root=Exp, program);
+        let z =
+          Token.to_list(typed)
+          |> List.fold_left(
+               (z, c) =>
+                 Insert.go(c == "\n" ? Token.linebreak : c, z, ~root=Exp)
+                 |> Option.get,
+               Zipper.unzip(~direction=Left, seg),
+             );
+        let term =
+          MakeTerm.from_zip_for_sem(z, ~root=Exp).term |> ReasonPrelude.wrap;
+        let (info_map, elab) =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(None), term);
+        check(
+          int,
+          "static errors",
+          0,
+          List.length(Statics.Map.error_ids(info_map)),
+        );
+        let (result, _) = Evaluator.evaluate(~env=Builtins.env_init, elab);
+        check(string, "value", expected, hazel_text(result));
+      },
+    )
+  );
+
+/* Typing a program (the editor's insertion path) and loading it in bulk
+   (ReasonLoad) build the same syntax */
+let typed_like_loaded = (name: string, src: string) =>
+  test_case("typed = loaded: " ++ name, `Quick, () =>
+    Surface.with_(
+      Reason,
+      () => {
+        let typed = Parser.typing_to_segment(src, ~root=Exp) |> Option.get;
+        let loaded = ReasonLoad.to_segment(~root=Exp, src);
+        let text = Printer.of_segment;
+        let term = seg =>
+          MakeTerm.from_zip_for_sem(Zipper.unzip(seg), ~root=Exp).term
+          |> hazel_text;
+        check(string, "text", text(typed), text(loaded));
+        check(string, "term", term(typed), term(loaded));
+      },
+    )
   );
 
 /* Reason text must survive the typing parser verbatim */
@@ -135,6 +186,28 @@ map(x => x * 2, [1, 2, 3])|},
       "comments",
       "/* a block\n   comment */\nlet x = 1; // trailing\n/* inline */ let s = \"not // one\";\n(x, s)",
       "(1, \"not // one\")",
+    ),
+    case(
+      "prelude",
+      {|let xs = [3, 1, 2];
+(List.length(xs), List.fold_left((a, b) => a + b, 0, xs), List.sort((a, b) => a - b, xs), String.concat(", ", List.map(string_of_int, xs)), Option.map((x) => x + 1, Some(1)))|},
+      "(3, 6, [1, 2, 3], \"3, 1, 2\", Some(2))",
+    ),
+    edit_case(
+      "a definition typed above an expression",
+      "(1, 2)",
+      "let d = List.map((x) => x * 2, [1]);\n",
+      "(1, 2)",
+    ),
+    typed_like_loaded("switch", switch_len),
+    typed_like_loaded("variants", shapes),
+    typed_like_loaded(
+      "fun matching",
+      "let describe = fun\n  | 0 => \"zero\"\n  | _ => \"many\";\ndescribe(1)",
+    ),
+    typed_like_loaded(
+      "modules and comments",
+      "/* doc\n   comment */\nmodule M = {\n  let x = 1; // one\n  let f = (y) => y + x;\n};\nM.f(M.x)",
     ),
     reprint("switch", switch_len),
     reprint("variants", shapes),

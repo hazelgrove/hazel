@@ -199,6 +199,8 @@ let init =
   let (make_term_result, completion) =
     MakeTerm.from_zip_for_sem_with_completion(z, ~root);
   let term = make_term_result.term |> stitch;
+  /* Reason programs see the Reason standard library */
+  let term = Surface.is_reason() ? ReasonPrelude.wrap(term) : term;
   let probe_ids = probe_ids_of_zipper(z);
 
   let st = {

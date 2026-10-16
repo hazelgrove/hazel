@@ -189,14 +189,20 @@ let left_operand_start = (seg: array(Piece.t), i: int, prec: Precedence.t) => {
   go(i - 1, true);
 };
 
-/* The left shape of the next content piece: the edge of the segment
-   reads as concave, as a bracket's inside does */
-let rec next_left_shape = (rest: t): Nib.Shape.t =>
+/* Whether the next content piece can begin an operand at sort s (by
+   any of its forms there, not just its current mold: a `(` provisionally
+   molded as a call after `e` still starts `(...)` after `e;`). Grout
+   aside, which regrout redoes; the segment's end cannot. */
+let rec next_could_start = (rest: t, s: Sort.t): bool =>
   switch (rest) {
-  | [] => Nib.Shape.concave()
-  | [Secondary(_) | Grout(_), ...rest] => next_left_shape(rest)
-  | [Tile(t), ..._] => fst(Tile.shapes(t))
-  | [Projector(p), ..._] => fst(ProjectorCore.shapes(p))
+  | [] => false
+  | [Secondary(_) | Grout(_), ...rest] => next_could_start(rest, s)
+  | [Tile(t), ..._] =>
+    Form.base_candidates(Tile.label(t))
+    |> List.exists(((_, m): (Form.t, Mold.t)) =>
+         m.out == s && fst(m.nibs).shape == Nib.Shape.Convex
+       )
+  | [Projector(p), ..._] => fst(ProjectorCore.shapes(p)) == Convex
   };
 
 let is_reason_arrow = (p: Piece.t): bool =>
@@ -253,10 +259,17 @@ and remold_tile =
      fits what follows (grout, which regrout will redo, aside): a `;`
      or `let ... ;` with nothing after it closes instead of opening an
      empty body */
+  let closes_statement = (t: Tile.t) =>
+    switch (t.form) {
+    | Compound(ReLetStmt | ReTypeStmt | ReModuleStmt | SeqPost) => true
+    | _ => false
+    };
   let prefer_right_fit = (ts: list(Tile.t)) =>
     switch (rest) {
-    | Some(rest) when Surface.is_reason() =>
-      let next = next_left_shape(rest);
+    | Some(rest)
+        when Surface.is_reason() && List.exists(closes_statement, ts) =>
+      let next =
+        next_could_start(rest, s) ? Nib.Shape.Convex : Nib.Shape.concave();
       switch (
         List.filter(t => Nib.Shape.fits(snd(Tile.shapes(t)), next), ts)
       ) {

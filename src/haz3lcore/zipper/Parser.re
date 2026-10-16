@@ -174,7 +174,20 @@ let strip_trailing_grout = (seg: Segment.t): Segment.t => {
    is parsed independently; trailing grout (from Zipper.init) is
    stripped, segments are concatenated, and a final top-level regrout
    ensures shape consistency across boundaries. */
-let to_segment = (str: string, ~root): option(Segment.t) => {
+let rec to_segment = (str: string, ~root): option(Segment.t) =>
+  Surface.is_reason()
+    ? switch (ReasonLoad.to_segment(~root, str)) {
+      | seg => Some(seg)
+      | exception exn =>
+        print_endline(
+          "WARN: ReasonLoad failed ("
+          ++ Printexc.to_string(exn)
+          ++ "); typing the text instead",
+        );
+        typing_to_segment(str, ~root);
+      }
+    : typing_to_segment(str, ~root)
+and typing_to_segment = (str: string, ~root): option(Segment.t) => {
   let chars = str |> typing_units;
   let segments = ref([]);
   let current_z = ref(Some(Zipper.init()));
