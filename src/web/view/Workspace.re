@@ -47,6 +47,11 @@ module Action = {
     | ZoomOut
     /* a breadcrumb: None = the program */
     | ZoomTo(option(Haz3lcore.Id.t))
+    /* the program level: the standard library shown in the slide's
+       place (true), or the slide again */
+    | ShowLibrary(bool)
+    /* the library document's editor, while shown */
+    | LibraryAction(CellEditor.Update.t)
     /* park (true) or unpark the pins at this level */
     | ShowWhole(bool)
     /* open and close cells to match the view (after undo) */
@@ -284,6 +289,17 @@ let item_ctx =
   };
 };
 
+let show_library = (shown: bool, code: code): Updated.t(code) =>
+  Updated.return(
+    ~is_edit=false,
+    {
+      ...code,
+      lib:
+        shown
+          ? Some(Option.value(code.lib, ~default=LibraryDoc.editor())) : None,
+    },
+  );
+
 let update =
     (
       ~settings: Settings.t,
@@ -456,7 +472,26 @@ let update =
     outline_view((term, _, v) => SlideView.discard(~term, v), code)
   | ZoomIn(fid) =>
     outline_view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)
+  /* out of the slide's top: the program level */
+  | ZoomOut when code.view.zoom == [] => show_library(true, code)
   | ZoomOut => outline_view((_, _, v) => SlideView.zoom_out(v), code)
+  | ShowLibrary(shown) => show_library(shown, code)
+  | LibraryAction(a) =>
+    switch (code.lib) {
+    | Some(ed) =>
+      /* read only for now: carets and selections move, edits are dropped */
+      let u = CellEditor.Update.update(~settings, a, ed);
+      u.is_edit
+        ? code |> return_quiet
+        : {
+          let* ed = u;
+          {
+            ...code,
+            lib: Some(ed),
+          };
+        };
+    | None => code |> return_quiet
+    }
   | ZoomTo(m) => outline_view((_, _, v) => SlideView.zoom_to(m, v), code)
   | ShowWhole(parked) =>
     outline_view((_, _, v) => SlideView.park(parked, v), code)
@@ -548,7 +583,7 @@ let calc_entry_memo:
   ) =
   Hashtbl.create(8);
 
-let calculate =
+let calculate_slide =
     (
       ~settings,
       ~autoprobe_mode,
@@ -909,5 +944,34 @@ let calculate =
   {
     ...code,
     program,
+  };
+};
+
+let calculate =
+    (
+      ~settings,
+      ~autoprobe_mode,
+      ~tail_probe,
+      ~schedule_action: Action.t => unit,
+      ~is_edited,
+      ~statics_mode,
+      ~slide_key: string,
+      code: code,
+    )
+    : code => {
+  let code =
+    calculate_slide(
+      ~settings,
+      ~autoprobe_mode,
+      ~tail_probe,
+      ~schedule_action,
+      ~is_edited,
+      ~statics_mode,
+      ~slide_key,
+      code,
+    );
+  {
+    ...code,
+    lib: Option.map(LibraryDoc.calculate(~settings, ~is_edited), code.lib),
   };
 };

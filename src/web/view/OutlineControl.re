@@ -726,6 +726,10 @@ let view =
       ~inject_workspace: Workspace.Action.t => Effect.t(unit),
       ~jump: Id.t => Effect.t(unit),
       ~leave: Effect.t(unit),
+      /* the program level, shown in place of this slide (its name): the
+         outline is the library's, for navigating only */
+      ~program_level: option(string)=?,
+      (),
     )
     : Node.t => {
   let program = program_of(deck);
@@ -797,6 +801,7 @@ let view =
       flash^,
       created^,
       live,
+      program_level,
     ),
   );
   Util.Slot.get(
@@ -871,6 +876,12 @@ let view =
         },
         is_collapsed: path => List.mem(path, collapsed),
         header: {
+          h_level:
+            switch (program_level, is_deck) {
+            | (Some(slide), _) => AtProgram(slide)
+            | (None, true) => InSlide
+            | (None, false) => Plain
+            },
           h_program: name,
           h_trail:
             switch (slide_view) {
@@ -970,7 +981,12 @@ let view =
         toggle_run: id => inject_workspace(FocusToggleRun(id)),
         toggle_collapse: path => inject(Collapse(path)),
         zoom_to: m => inject_workspace(ZoomTo(m)),
-        zoom_in: id => inject_workspace(ZoomIn(id)),
+        program: b => inject_workspace(ShowLibrary(b)),
+        /* at the program level, back in: the inverse of out of the slide */
+        zoom_in: id =>
+          inject_workspace(
+            program_level == None ? ZoomIn(id) : ShowLibrary(false),
+          ),
         show_whole: b => inject_workspace(ShowWhole(b)),
         discard: inject_workspace(UnfocusDef),
         zoom_out: inject_workspace(ZoomOut),

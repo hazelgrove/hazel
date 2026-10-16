@@ -11,6 +11,9 @@ module Scratchpad = {
     /* what the slide shows of it: pins, zoom, parked */
     view: SlideView.t,
     agent: Agent.Model.t,
+    /* the program level, while shown: the standard library's document in
+       the slide's place (LibraryDoc); not saved */
+    lib: option(CellEditor.Model.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -54,6 +57,7 @@ module Scratchpad = {
         program: Whole(editor),
         view: SlideView.init,
         agent,
+        lib: None,
       }),
     dormant: false,
   };

@@ -13,9 +13,17 @@ let clss = cs => Attr.classes(cs);
 module TestStatus = Language.TestStatus;
 module E = OutlineEdit;
 
+/* where the outline sits: a slide's (under the program level, whose
+   crumb shows the standard library), the program level's (the library,
+   with the slide to go back to), or neither */
+type level =
+  | Plain
+  | InSlide
+  | AtProgram(string);
 /* the header row: the program and the zoom trail as a breadcrumb, and
    how many pins the current level shows or keeps parked */
 type header = {
+  h_level: level,
   h_program: string,
   h_trail: list((Language.Id.t, string)),
   h_open: int,
@@ -119,6 +127,8 @@ type handlers = {
   toggle_run: Language.Id.t => Effect.t(unit),
   toggle_collapse: OutlineTree.path => Effect.t(unit),
   zoom_to: option(Language.Id.t) => Effect.t(unit),
+  /* to the program level (true) or back into the slide */
+  program: bool => Effect.t(unit),
   zoom_in: Language.Id.t => Effect.t(unit),
   show_whole: bool => Effect.t(unit),
   discard: Effect.t(unit),
@@ -383,6 +393,40 @@ let live_label = (props: props, n: OutlineTree.node): OutlineTree.node =>
 
 /* a row's click: with a stack open, add or move to its cell (a jump would
    target the hidden master) */
+/* the program level's last row: the slide, after the library, to go back
+   into */
+let slide_row = (~props: props, ~on: handlers): list(Node.t) =>
+  switch (props.header.h_level) {
+  | AtProgram(slide) => [
+      div(
+        ~attrs=[clss(["outline-leaf"])],
+        [
+          div(
+            ~attrs=[
+              clss(["outline-label", "ol-slide"]),
+              Attr.title("back into " ++ slide),
+              Attr.on_click(_ => on.program(false)),
+            ],
+            [
+              span(~attrs=[clss(["outline-glyph"])], [text({js|⊞|js})]),
+              text(slide),
+            ],
+          ),
+        ],
+      ),
+    ]
+  | Plain
+  | InSlide => []
+  };
+
+/* the program level's outline: the library's, for navigating only */
+let at_program = (props: props): bool =>
+  switch (props.header.h_level) {
+  | AtProgram(_) => true
+  | Plain
+  | InSlide => false
+  };
+
 let show = (props: props, on: handlers, id: Language.Id.t): Effect.t(unit) =>
   props.focused_entries != [] ? on.focus(id) : on.jump(id);
 
@@ -1292,6 +1336,13 @@ let keys =
   };
   let nav_key = () =>
     switch (key, alt, meta, cur) {
+    /* the program level navigates only: no menus, opens, moves or deletes */
+    | (".", _, true, _)
+    | ("F10", _, _, _)
+    | (" ", _, _, _)
+    | ("ArrowUp" | "ArrowDown", true, _, _)
+    | ("Backspace" | "Delete", _, _, _) when at_program(props) => Option.none
+    | (_, _, true, _) when at_program(props) && code == "KeyD" => Option.none
     | (".", false, true, Some(r)) => open_menu(r)
     | ("F10", false, false, Some(r)) when shift => open_menu(r)
     | ("Escape", _, _, _) => Some(on.leave)
@@ -1353,6 +1404,9 @@ let keys =
       Option.map(id => on.def_op(MoveUp, id), id_of(r))
     | ("ArrowDown", true, false, Some(r)) =>
       Option.map(id => on.def_op(MoveDown, id), id_of(r))
+    /* the program level: back into the slide from any row */
+    | ("ArrowRight", true, false, _) when at_program(props) =>
+      Some(on.program(false))
     | ("ArrowRight", true, false, Some(r)) when is_module(r) =>
       Option.map(on.zoom_in, id_of(r))
     | ("ArrowLeft", true, false, _) => Some(on.zoom_out)
@@ -1536,7 +1590,7 @@ let keys =
     switch (on.text.get(), key, meta, cur) {
     | (Some(t), _, _, _) => text_key(t)
     | (None, "Enter", true, _)
-    | (None, "F2", _, _) =>
+    | (None, "F2", _, _) when !at_program(props) =>
       switch (cur, n) {
       | (Some(r), _) => Act(start_text(~on, r))
       | (None, 0) => Pass(Effect.Ignore)
@@ -1640,6 +1694,44 @@ let header_view =
         crumbs,
       ),
     );
+  let level_crumb = (~here, label, title, effect) =>
+    span(
+      ~attrs=[
+        clss(["outline-crumb"] @ (here ? ["outline-crumb-here"] : [])),
+        Attr.title(title),
+        Attr.on_click(_ => stop(effect)),
+      ],
+      [text(label)],
+    );
+  let crumb_nodes =
+    switch (header.h_level) {
+    | Plain => crumb_nodes
+    | InSlide => [
+        level_crumb(
+          ~here=false,
+          "program",
+          "zoom out to the program: the standard library",
+          on.program(true),
+        ),
+        sep,
+        ...crumb_nodes,
+      ]
+    | AtProgram(slide) => [
+        level_crumb(
+          ~here=true,
+          "program",
+          "the standard library",
+          Effect.Ignore,
+        ),
+        sep,
+        level_crumb(
+          ~here=false,
+          slide,
+          "back into " ++ slide,
+          on.program(false),
+        ),
+      ]
+    };
   let tail =
     header.h_open > 0
       ? [
@@ -1782,7 +1874,8 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
               ]
               : []
           ),
-        props.stack_controls
+        /* the program level has no stack, but its way back is a crumb */
+        props.stack_controls || at_program(props)
           ? header_view(~on, ~typing=tm != None, props.header)
           : [text({js|☰ outline|js})],
       ),
@@ -1791,7 +1884,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
         ~attrs=
           [clss(["outline-body"] @ (tm == None ? [] : ["text-mode"]))]
           @ (
-            props.stack_controls
+            props.stack_controls || at_program(props)
               ? [
                 Attr.tabindex(0),
                 Attr.on_keydown(keys(~props, ~on, ~visible)),
@@ -1834,7 +1927,8 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
               [text("no definitions")],
             ),
           ]
-          : rows_view(~props, ~on, ~tm, ~path=root_path, roots),
+          : rows_view(~props, ~on, ~tm, ~path=root_path, roots)
+            @ slide_row(~props, ~on),
       ),
     ]
     @ (

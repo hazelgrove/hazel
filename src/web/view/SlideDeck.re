@@ -331,6 +331,7 @@ let update =
             program: Whole(data),
             view: SlideView.init,
             agent,
+            lib: None,
           }),
           model,
         );
@@ -366,6 +367,7 @@ let update =
               program: Whole(new_data),
               view: SlideView.init,
               agent,
+              lib: None,
             }),
             model,
           )

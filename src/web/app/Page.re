@@ -84,6 +84,8 @@ module Update = {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
+      /* the program level: the library's document */
+      | Code({lib: Some(editor), _}) => editor.editor
       | Code({program: Whole(editor), _}) => editor.editor
       /* divided: the cell with the caret */
       | Code({program: Divided(d), _}) => Divided.active_editor(d).editor
@@ -1040,16 +1042,29 @@ module View = {
         | None => []
         },
       );
+    /* the program level: the slide's name, its outline the library's */
+    let program_level =
+      switch (deck) {
+      | Some((_, m)) =>
+        let sp = List.nth(m.scratchpads, m.current);
+        switch (sp.kind) {
+        | Code({lib: Some(_), _}) => Some(sp.name)
+        | _ => None
+        };
+      | None => None
+      };
     let outline =
       OutlineControl.view(
         ~arrows=globals.settings.outline_arrows,
-        ~deck,
+        ~deck=program_level == None ? deck : None,
+        ~program_level?,
         ~statics=current_editor.statics,
         ~segment=current_editor.editor.syntax.segment,
         ~inject=a => inject(Editors(Scratch(Outline(a)))),
         ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
+        (),
       );
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);

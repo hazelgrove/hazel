@@ -49,6 +49,7 @@
   b2t2
   docslides
   tutorialslides
+  stdlibSource
   omd)
  (js_of_ocaml)
  (preprocess

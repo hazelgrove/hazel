@@ -101,6 +101,7 @@ let handlers =
   toggle_run: none,
   toggle_collapse,
   zoom_to: none,
+  program: none,
   zoom_in: none,
   show_whole: none,
   discard: ignore,
@@ -133,6 +134,7 @@ let props =
   refusal,
   is_collapsed: _ => false,
   header: {
+    h_level: Plain,
     h_program: "",
     h_trail: [],
     h_open: 0,
