@@ -44,13 +44,13 @@ let brown_get_acne =
         fun (t1 : [row], proj : row -> v) ->
           let go =
             fun (groups : [(value= v, count= Int)], row : row) ->
-              case find_opt(groups, fun g -> g.value == proj(row))
+              case List.find_opt(groups, fun g -> g.value == proj(row))
               | None => (value= proj(row), count= 1) :: groups
               | Some(value=v,count=c) =>
                 (value= proj(row), count= c + 1)
-                :: filter(groups, fun g -> g.value != proj(row))
+                :: List.filter(groups, fun g -> g.value != proj(row))
               end in
-          fold_left(t1, go, []) : [(value= v, count= Int)]
+          List.fold_left(t1, go, []) : [(value= v, count= Int)]
   ) in
   let build_column
   : poly r1 ->
@@ -60,7 +60,7 @@ let brown_get_acne =
       typfun r2 ->
         typfun r3 ->
           fun (table, project, build_result) ->
-            map(table, fun r : r1 -> build_result(r, project(r)))
+            List.map(table, fun r : r1 -> build_result(r, project(r)))
   ) in
   let incorrect =
     let brown_and_get_acne_table =

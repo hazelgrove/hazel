@@ -71,9 +71,9 @@ let init: Model = (
 
 # Replace the cell at (row, col) with the given plant #
 let setCell(grove: Grove, row: Row, _col: Col, plant: Plant): Grove =
-  mapi(grove, fun (i, r) ->
+  List.mapi(grove, fun (i, r) ->
     if i == row
-    then mapi(r, fun (j, c) ->
+    then List.mapi(r, fun (j, c) ->
       if j == row
       then plant
       else c)
@@ -82,14 +82,14 @@ in
 
 # Fill a whole row with the given plant #
 let setRow(grove: Grove, targetRow: Row, plant: Plant): Grove =
-  mapi(grove, fun (i, row) ->
+  List.mapi(grove, fun (i, row) ->
     if i == targetRow
-    then map(row, fun _ -> plant)
+    then List.map(row, fun _ -> plant)
     else row)
 in
 
 let setAll(grove: Grove, plant: Plant): Grove =
-  map(grove, fun row -> map(row, fun _ -> plant))
+  List.map(grove, fun row -> List.map(row, fun _ -> plant))
 in
 
 let updateGrove(m: Model, f: Grove -> Grove): Model =
@@ -105,7 +105,7 @@ let update(m: Model, action: Action): Model =
   | SelectSeed(idx) =>
       (
         grove = m.grove,
-        currentSeed = nth(m.seedInventory, idx),
+        currentSeed = List.nth(m.seedInventory, idx),
         seedInventory = m.seedInventory
       )
   | PlantSeed(row, col) =>
@@ -120,7 +120,7 @@ let update(m: Model, action: Action): Model =
 in
 
 let run(init: Model, actions: [Action]): Model =
-  fold_left(actions, fun (m, a) -> update(m, a), init)
+  List.fold_left(actions, fun (m, a) -> update(m, a), init)
 in
 
 # ===== TESTS ===== #

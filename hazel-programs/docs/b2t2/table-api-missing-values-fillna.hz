@@ -24,16 +24,16 @@ let ensures = [
 ] in
 let fillna =
   fun (t1 : [?], c : String, v) ->
-    let rows = map(t1, to_lvs) in
+    let rows = List.map(t1, to_lvs) in
     let mapped =
-      map(
+      List.map(
         rows,
         fun entries ->
           from_lvs(
-            filter(entries, fun e -> e.label != c)
+            List.filter(entries, fun e -> e.label != c)
             @ [
-              case option_bind(
-                find_opt(entries, fun e -> e.label == c),
+              case Option.bind(
+                List.find_opt(entries, fun e -> e.label == c),
                 fun x -> x.value
               )
               | None => (label= c, value= v)
@@ -55,7 +55,7 @@ test
 
 # (idiomatic) The idiomatic way to do this would be to just map the column. This gives you the schema safety. #
 test
-  map(
+  List.map(
     studentsMissing,
     fun (r : StudentMissing) ->
       r

@@ -38,11 +38,11 @@ let select_many
           project : ((r1, Int) -> [r2]),
           result : ((r1, r2) -> r3)
         ) ->
-          enumerate(t1)
-          |> flat_map(
+          List.enumerate(t1)
+          |> List.flat_map(
             _,
             fun (i, r) : (Int, r1) ->
-              map(project(r,i), fun r2 : r2 -> result(r, r2))
+              List.map(project(r,i), fun r2 : r2 -> result(r, r2))
           ) in
 test
   select_many@<GradebookEntry>@<GradebookEntry>@<(midterm= Int)>(

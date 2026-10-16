@@ -39,25 +39,25 @@ let group_by =
             aggregate : ((K, [V]) -> r3)
           ) ->
             let grouped =
-              fold_left(
+              List.fold_left(
                 t1,
                 (fun (
                   groups : [(K, [r1])],
                   row : r1
                 ) ->
                   let k = key(row) in
-                  case find_opt(groups, fun (gk, _) -> k == gk)
+                  case List.find_opt(groups, fun (gk, _) -> k == gk)
                   | None => (k, [row]) :: groups
                   | Some((key, rows)) =>
-                    (k, row :: rows) :: filter(groups, fun (gk, _) -> k != gk)
+                    (k, row :: rows) :: List.filter(groups, fun (gk, _) -> k != gk)
                   end),
                 []
               ) in
-            map(grouped, fun (k, g) -> aggregate(k, map(g, project)))
+            List.map(grouped, fun (k, g) -> aggregate(k, List.map(g, project)))
             : [r3] in
 test
   let average =
-    fun ns -> fold_left(ns, int_plus, 0) / length(ns) in
+    fun ns -> List.fold_left(ns, Int.plus, 0) / List.length(ns) in
   let abstract_age =
     fun (r : GradebookEntry) ->
       if r.age <= 12

@@ -37,7 +37,7 @@ let more_people : [Person] = [
 
 # Labeled args can also be inferred from the type signature #
 let make_name : (first=String, last=String) -> String = fun f, b -> f ++ " " ++ b in
-test string_compare(make_name(first="Hay", last="Zul"), "Hay Zul") == Eq end;
+test String.compare(make_name(first="Hay", last="Zul"), "Hay Zul") == Eq end;
 
 # Args can also be used like a tuple and projected #
 let make_name : (first=String, last=String) -> String = fun args -> args.first ++ " " ++ args.last in  

@@ -1,42 +1,42 @@
 let get_value =
   fun (r : ?, label : String) ->
-    find(to_lvs(r), fun e ->e.label == label).value in
+    List.find(to_lvs(r), fun e ->e.label == label).value in
 let add_rows =
   typfun row -> fun (r : row, rs : [row]) -> rs @ [r] in
 let add_col =
   fun (t : [?], c : String, vs : [?]) ->
-    zip(t, vs)
-    |> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in
+    List.zip(t, vs)
+    |> List.map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in
 let remove_duplicates =
   fun (xs : [?]) ->
-    fold_left(
+    List.fold_left(
       xs,
-      fun (seen, x) -> if mem(seen, x) then seen else seen @ [x],
+      fun (seen, x) -> if List.mem(seen, x) then seen else seen @ [x],
       []
     ) in
 let drop_columns =
   fun (t : [?], c : [String]) ->
-    map(
+    List.map(
       t,
       fun row ->
         to_lvs(row)
-        |> filter(
+        |> List.filter(
           _,
-          fun entry -> ! any(c, fun col -> entry.label == col)
+          fun entry -> ! List.any(c, fun col -> entry.label == col)
         )
         |> from_lvs
     ) in
 let build_col =
   fun (t : [?], c : String, f : ? -> ?) ->
-    map(t, fun (r) -> from_lvs(to_lvs(r) @ [(c, f(r))])) in
+    List.map(t, fun (r) -> from_lvs(to_lvs(r) @ [(c, f(r))])) in
 let empty_table : [()] = [] in
 let table_of_column =
   fun c, vs ->
-    let t1 = add_rows@<?>(empty_table, map(vs, fun _ -> ())) in
+    let t1 = add_rows@<?>(empty_table, List.map(vs, fun _ -> ())) in
     add_col(t1, c, vs) in
 let get_col =
   fun (t, c : String) ->
-    map(t, fun r -> to_lvs(r) |> find(_, fun (label=l, value=v) -> l == c)).value in
+    List.map(t, fun r -> to_lvs(r) |> List.find(_, fun (label=l, value=v) -> l == c)).value in
 let group_by_subtractive =
   fun t, c ->
     let keys =
@@ -46,7 +46,7 @@ let group_by_subtractive =
     let make_group =
       fun kr ->
         let k = kr.key in
-        let g = filter(t, fun r -> get_value(r, c) == k) in
+        let g = List.filter(t, fun r -> get_value(r, c) == k) in
         drop_columns(g, [c]) in
     build_col(keys, "groups", make_group) in
 

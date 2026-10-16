@@ -23,7 +23,7 @@ let ensures = [
 let select_rows1 =
   typfun r ->
     fun (t1 : [r], ns : [Int]) ->
-      map(ns, nth_opt(t1, _)) |> filter_map(_, fun x -> x) in
+      List.map(ns, List.nth_opt(t1, _)) |> List.filter_map(_, fun x -> x) in
 test
   select_rows1@<Student>(students, [2, 0, 2, 1])
   == [
@@ -45,8 +45,8 @@ let ensures = [
 let select_rows2 =
   typfun r ->
     fun (t1 : [r], bs : [Bool]) ->
-      zip(bs, t1)
-      |> filter_map(
+      List.zip(bs, t1)
+      |> List.filter_map(
         _,
         fun (b, r) -> if b then Some(r) else None
       ) in

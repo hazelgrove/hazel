@@ -36,26 +36,26 @@ let group_by_retentive =
   fun (t1 : [?], c : String) ->
     let get_value =
       fun (r : ?, label : String) ->
-        find_opt(to_lvs(r), fun e -> e.label == label)
-        |> option_map(_, fun e -> e.value) in
+        List.find_opt(to_lvs(r), fun e -> e.label == label)
+        |> Option.map(_, fun e -> e.value) in
     let remove_duplicates =
       fun (xs : [?]) ->
-        fold_left(
+        List.fold_left(
           xs,
-          fun (seen, x) -> if mem(seen, x) then seen else seen @ [x],
+          fun (seen, x) -> if List.mem(seen, x) then seen else seen @ [x],
           []
         )
         : [?] in
     let get_key = fun (r : ?) -> get_value(r, c) in
     let keys =
-      map(t1, get_key)
-      |> filter_map(_, fun opt -> opt)
+      List.map(t1, get_key)
+      |> List.filter_map(_, fun opt -> opt)
       |> remove_duplicates in
-    map(
+    List.map(
       keys,
       fun k ->
         let rows =
-          filter(
+          List.filter(
             t1,
             fun r ->
               case get_key(r)
@@ -96,10 +96,10 @@ let group_by_retentive
         | x::xs =>
           let key = c(x) in
           let grouped = group_by_retentive@<row>@<key>(xs, c) in
-          case find_opt(grouped, fun g -> g.key == key)
+          case List.find_opt(grouped, fun g -> g.key == key)
           | Some(g) =>
             ((key= g.key) ... (groups= g.groups @ [x]))
-            :: filter(grouped, fun g -> g.key != key)
+            :: List.filter(grouped, fun g -> g.key != key)
           | None => ((key= key) ... (groups= [x])) :: grouped
           end
         end in

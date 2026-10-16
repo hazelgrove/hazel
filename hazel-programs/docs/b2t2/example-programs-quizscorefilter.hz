@@ -13,17 +13,17 @@ let gradebook : [GradebookEntry] = [
   ("Alice", 17, 6, 8, 88, 8, 7, 85),
   ("Eve", 13, 7, 9, 84, 8, 8, 77)
 ] in
-let sum = fold_left(_, int_plus, 0) in
-map(
+let sum = List.fold_left(_, Int.plus, 0) in
+List.map(
   gradebook,
   fun gb ->
     let scores =
       to_lvs(gb)
-      |> filter(_, fun e -> string_match("quiz.*", e.label))
-      |> map(_, fun e -> e.value) in
+      |> List.filter(_, fun e -> String.match("quiz.*", e.label))
+      |> List.map(_, fun e -> e.value) in
     gb
     ... (
       average_score=
-      float_of_int(sum(scores)) /. float_of_int(length(scores))
+      Float.of_int(sum(scores)) /. Float.of_int(List.length(scores))
     )
 )

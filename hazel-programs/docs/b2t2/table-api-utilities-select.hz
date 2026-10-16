@@ -24,7 +24,7 @@ let select =
   typfun r1 ->
     typfun r2 ->
       fun (t1 : [r1], f : ((r1, Int) -> r2)) ->
-        mapi(t1, fun (i, r) -> f(r, i)) : [r2] in
+        List.mapi(t1, fun (i, r) -> f(r, i)) : [r2] in
 
 test
   select@<Student>@<((id= Int, color= String, age= Int))>(

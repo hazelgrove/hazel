@@ -49,29 +49,29 @@ let left_join =
   let project_labels_str =
     fun (v, cs) ->
       to_lvs(v)
-      |> filter(_, fun e -> mem(cs, e.label))
+      |> List.filter(_, fun e -> List.mem(cs, e.label))
       |> from_lvs in
   let omit_labels_str =
     fun (v, cs) ->
       to_lvs(v)
-      |> filter(_, fun e -> ! mem(cs, e.label))
+      |> List.filter(_, fun e -> ! List.mem(cs, e.label))
       |> from_lvs in
   let make_optional =
     fun (v) ->
       to_lvs(v)
-      |> map(_, fun e -> e ... (value= Some(e.value)))
+      |> List.map(_, fun e -> e ... (value= Some(e.value)))
       |> from_lvs in
   fun (t1 : [?], t2 : [?], cs : [String]) ->
     let right_columns =
-      case hd_opt(t2)
+      case List.hd_opt(t2)
       |None => []
-      |Some(v) => to_lvs(v) |> map(_, fun e -> e.label)
+      |Some(v) => to_lvs(v) |> List.map(_, fun e -> e.label)
       end in
-    flat_map(
+    List.flat_map(
       t1,
       fun r1 ->
         let matched =
-          filter(
+          List.filter(
             t2,
             fun r2 ->
               project_labels_str(r2, cs) == project_labels_str(r1, cs)
@@ -82,15 +82,15 @@ let left_join =
             r1
             ... (
               from_lvs(
-                map(
-                  filter(right_columns, fun e -> !mem(cs, e)),
+                List.map(
+                  List.filter(right_columns, fun e -> !List.mem(cs, e)),
                   fun lc -> (label= lc, value= None)
                 )
               )
             )
           ]
         | _ =>
-          map(
+          List.map(
             matched,
             fun r2 -> r1 ... (make_optional(omit_labels_str(r2, cs)))
           )
@@ -151,14 +151,14 @@ let left_join =
             proj2 : r2 -> k,
             combine : (r1, (+ None + Some(r2))) -> r3
           ) ->
-            flat_map(
+            List.flat_map(
               t1,
               fun (r1 : r1) ->
                 let t2' =
-                  filter(t2, fun (r2 : r2) -> proj1(r1) == proj2(r2)) in
+                  List.filter(t2, fun (r2 : r2) -> proj1(r1) == proj2(r2)) in
                 case t2'
                 | [] => [combine(r1, None)]
-                | _ => map(t2', fun (r2 : r2) -> combine(r1, Some(r2)))
+                | _ => List.map(t2', fun (r2 : r2) -> combine(r1, Some(r2)))
                 end
             )
             : [r3] in

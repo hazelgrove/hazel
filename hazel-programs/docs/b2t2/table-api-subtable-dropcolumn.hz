@@ -28,11 +28,11 @@ let ensures = [
 ] in
 let drop_column =
   fun (t : [?], c : String) ->
-    map(
+    List.map(
       t,
       fun row ->
         to_lvs(row)
-        |> filter(_, fun entry -> entry.label != c)
+        |> List.filter(_, fun entry -> entry.label != c)
         |> from_lvs
     )
     : [?] in
@@ -59,7 +59,7 @@ test
 
 # (idiomatic) omit_labels is a primitive operation to drop columns but without row types there's no way to give it a first-class type. This is the idiomatic way to do the operation #
 test
-  map(gradebook, omit_labels(_, `final`))
+  List.map(gradebook, omit_labels(_, `final`))
   == [
     ("Bob",   12, 8, 9, 77, 7, 9),
     ("Alice", 17, 6, 8, 88, 8, 7),

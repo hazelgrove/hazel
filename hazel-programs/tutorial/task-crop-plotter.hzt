@@ -16,14 +16,14 @@ The crop plotter plants seeds on a grid, one action at a time. It already suppor
 Look at how `PlantRow` is implemented for guidance. `PlantCol` is similar but vertical.
 
 @hint
-Mirror `setRow`: map over the rows, and in each row change only the cell at the target column. `mapi` hands the callback an index; probe to see which argument it is.
+Mirror `setRow`: map over the rows, and in each row change only the cell at the target column. `List.mapi` hands the callback an index; probe to see which argument it is.
 
 @reference
 ### Approach (extension tasks)
 1. Read the comment block: what should the new action do?
 2. Find the existing feature it mirrors (`PlantRow`) and read its three parts: the Action variant, the helper, the update arm.
 3. Build the column versions of each; watch the `setCol` calls' samples to see the grid change.
-4. Unsure about `mapi`? Probe its callback and see which argument is the index.
+4. Unsure about `List.mapi`? Probe its callback and see which argument is the index.
 
 @hints
 PlantRow still works
@@ -64,16 +64,16 @@ let init: Model = (
 ) in
 
 let setCell(grove: Grove, row: Row, col: Col, plant: Plant): Grove =
-  mapi(grove, fun (i, r) ->
+  List.mapi(grove, fun (i, r) ->
     if i == row
-    then mapi(r, fun (j, c) -> if j == col then plant else c)
+    then List.mapi(r, fun (j, c) -> if j == col then plant else c)
     else r)
 in
 
 let setRow(grove: Grove, targetRow: Row, plant: Plant): Grove =
-  mapi(grove, fun (i, row) ->
+  List.mapi(grove, fun (i, row) ->
     if i == targetRow
-    then map(row, fun _ -> plant)
+    then List.map(row, fun _ -> plant)
     else row)
 in
 
@@ -85,7 +85,7 @@ let setCol(grove: Grove, col: Col, plant: Plant): Grove =
 in
 
 let setAll(grove: Grove, plant: Plant): Grove =
-  map(grove, fun row -> map(row, fun _ -> plant))
+  List.map(grove, fun row -> List.map(row, fun _ -> plant))
 in
 
 let updateGrove(m: Model, f: Grove -> Grove): Model =
@@ -101,7 +101,7 @@ let update(m: Model, action: Action): Model =
   | SelectSeed(idx) =>
       (
         grove = m.grove,
-        currentSeed = nth(m.seedInventory, idx),
+        currentSeed = List.nth(m.seedInventory, idx),
         seedInventory = m.seedInventory
       )
   | PlantSeed(row, col) =>
@@ -117,7 +117,7 @@ let update(m: Model, action: Action): Model =
 in
 
 let run(init: Model, actions: [Action]): Model =
-  fold_left(actions, fun (m, a) -> update(m, a), init)
+  List.fold_left(actions, fun (m, a) -> update(m, a), init)
 in
 
 # Existing tests #

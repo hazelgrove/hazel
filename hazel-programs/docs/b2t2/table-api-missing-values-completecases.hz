@@ -22,11 +22,11 @@ let ensures = [
 ] in
 let complete_cases =
   fun (t : [?], c : String) ->
-    map(
+    List.map(
       t,
       fun r ->
         # The scrutinee is annotated so Some/None resolve to the builtin Option rather than the OptInt/OptString constructors defined above #
-        case ((to_lvs(r) |> find_opt(_, fun e -> e.label == c)) : Option)
+        case ((to_lvs(r) |> List.find_opt(_, fun e -> e.label == c)) : Option)
         | Some(e) => ! (e.value == (None : Option))
         | None => false
         end
@@ -45,7 +45,7 @@ let complete_cases =
   typfun R ->
     typfun C ->
       fun (t : [R], project : (R -> + None + Some(C))) ->
-        map(
+        List.map(
           t,
           fun (r : R) ->
             case project(r)

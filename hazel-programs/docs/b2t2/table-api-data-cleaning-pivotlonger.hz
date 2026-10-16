@@ -14,17 +14,17 @@ let ensures = [
 ] in
 let pivot_longer =
   fun (t1, cs, c1, c2) ->
-    flat_map(
+    List.flat_map(
       t1,
       fun row ->
         let entries = to_lvs(row) in
         let pivot_entries, other_entries =
-          partition(
+          List.partition(
             entries,
-            fun (label= l, value= v) -> contains(cs, fun c -> l == c)
+            fun (label= l, value= v) -> List.contains(cs, fun c -> l == c)
           ) in
         let rest = from_lvs(other_entries) in
-        map(
+        List.map(
           pivot_entries,
           fun (label= l, value= v) ->
             rest
@@ -70,10 +70,10 @@ test
 
 # (idiomatic) The idiomatic way to do this with concrete data. Giving good type feedback#
 test
-  flat_map(
+  List.flat_map(
     gradebook,
     fun (entry : GradebookEntry) ->
-      map(
+      List.map(
         to_lvs(select_labels(entry, `midterm`, `final`)),
         fun (e : (label= String, value= Int)) ->
           omit_labels(entry, `midterm`, `final`)

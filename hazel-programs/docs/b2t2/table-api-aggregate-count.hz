@@ -25,15 +25,15 @@ let ensures = [
 let count =
   fun (t1 : [?], c : String) ->
     (
-      flat_map(t1, to_lvs)
-      |> filter(_, fun e -> e.label == c)
-      |> fold_left(
+      List.flat_map(t1, to_lvs)
+      |> List.filter(_, fun e -> e.label == c)
+      |> List.fold_left(
         _,
         fun (counts, e) ->
-          case find_opt(counts, fun entry -> e.value == entry.value)
+          case List.find_opt(counts, fun entry -> e.value == entry.value)
           | None => counts @ [(value= e.value, count= 1)]
           | Some(_) =>
-            map(
+            List.map(
               counts,
               fun entry ->
                 if e.value == entry.value
@@ -71,11 +71,11 @@ let count =
         | (r :: tl) =>
           let k = c(r) in
           let counts = count@<row>@<key>(tl, c) in
-          case find_opt(counts, fun entry -> k == entry.value)
+          case List.find_opt(counts, fun entry -> k == entry.value)
           |None => (value= k, count= 1) :: counts
           |Some((value=key,count=c)) =>
             (value= key, count= c + 1)
-            :: filter(counts, fun entry -> k != entry.value)
+            :: List.filter(counts, fun entry -> k != entry.value)
           end
         end
         : [(value= key, count= Int)] in
@@ -98,13 +98,13 @@ let ensures = [
 let count =
   fun (t1 : [?], c : String) ->
     (
-      flat_map(t1, to_lvs)
-      |> filter(_, fun e -> e.label == c)
+      List.flat_map(t1, to_lvs)
+      |> List.filter(_, fun e -> e.label == c)
       |> group_by_label(_, `value`)
       |> to_lvs
-      |> map(
+      |> List.map(
         _,
-        fun e -> (value= e.label) ... (count= length(e.value))
+        fun e -> (value= e.label) ... (count= List.length(e.value))
       )
     )
     : [(value= String, count= Int)] in

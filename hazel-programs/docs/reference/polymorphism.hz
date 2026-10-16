@@ -25,7 +25,7 @@ let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) =
     | h :: t => f(h) :: map@<A>@<B>(f)(t)
     | _ => emptylist@<B>   
     end in
-let ex4 = map@<Int>@<String>(string_of_int)([1,2,3]) in # ["1", "2", "3"] #
+let ex4 = map@<Int>@<String>(String.of_int)([1,2,3]) in # ["1", "2", "3"] #
 
 
 # Recursive types #

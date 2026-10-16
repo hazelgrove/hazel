@@ -28,14 +28,14 @@ let departments : [Department] = (
 let tfilter =
   typfun row ->
     fun (t : [row], pred : (row -> Bool)) ->
-      filter(t, pred) : [row] in
+      List.filter(t, pred) : [row] in
 let get_row =
-  typfun row -> fun (t : [row], n : Int) -> nth(t, n) : row in
+  typfun row -> fun (t : [row], n : Int) -> List.nth(t, n) : row in
 let build_column =
   typfun row ->
     typfun row' ->
       fun (t : [row], fn : (row -> row')) ->
-        map(t, fn) : [row'] in
+        List.map(t, fn) : [row'] in
 let incorrect =
   let last_name_to_dept_id =
     fun (dept_tab : [Department], name : String) ->

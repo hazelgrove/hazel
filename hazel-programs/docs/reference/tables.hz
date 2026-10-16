@@ -32,15 +32,15 @@ let gradebook : [GradebookEntry] = [
 
 # The to_lvs operation on labeled tuples converts them to a list of (label, value) entries. #
 # We can map this over a table to do things like extracting all quiz scores and compute an average. #
-let average = ^^fold(fun (ns: [Int]) -> float_of_int(fold_left(ns, int_plus, 0))  /. float_of_int(length(ns))) in
+let average = ^^fold(fun (ns: [Int]) -> Float.of_int(List.fold_left(ns, Int.plus, 0))  /. Float.of_int(List.length(ns))) in
 let gradebook_with_average = 
-  map(gradebook,
+  List.map(gradebook,
     fun e: GradebookEntry ->
       let ^^statics(with_average) = 
         e ... (quiz_average=
         to_lvs(omit_labels(e, `name`))
-        |> filter(_, fun (label, _score):^^fold((label=String, value=Int)) -> string_match("quiz.*", label))
-        |> map(_, fun e -> e.value)
+        |> List.filter(_, fun (label, _score):^^fold((label=String, value=Int)) -> String.match("quiz.*", label))
+        |> List.map(_, fun e -> e.value)
         |> average)
       in ^^probe(with_average))
 in
@@ -76,7 +76,7 @@ let sightings : [DailySighting] = [
   (9, ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(true), ^^check(false), ^^check(false), ^^check(false))
 ] in
 # to_lvs the grid into a long format table for analysis #
-let lvs : [(label=String, value=Bool)] = flat_map(sightings, fun sighting:^^fold((day=Int, fox=Bool, deer=Bool, rabbit=Bool, bear=Bool, owl=Bool, raccoon=Bool, wolf=Bool, moose=Bool)) -> to_lvs(omit_labels(sighting, `day`))) in
+let lvs : [(label=String, value=Bool)] = List.flat_map(sightings, fun sighting:^^fold((day=Int, fox=Bool, deer=Bool, rabbit=Bool, bear=Bool, owl=Bool, raccoon=Bool, wolf=Bool, moose=Bool)) -> to_lvs(omit_labels(sighting, `day`))) in
 let counts : [String] -> [(String, Int)] = ^^fold(fun elems -> case elems
 | [] => []
 | (hd :: tl) => 
@@ -91,8 +91,8 @@ let counts : [String] -> [(String, Int)] = ^^fold(fun elems -> case elems
 end) in                  
 # Show counts for each species#
 let sighting_counts =   
-  filter(lvs, fun (label=_l, value=v) -> v).label
-  |> sort(fun (a,b) -> string_compare(a,b), _)
+  List.filter(lvs, fun (label=_l, value=v) -> v).label
+  |> List.sort(fun (a,b) -> String.compare(a,b), _)
   |> counts 
 in ^^probe(sighting_counts);
 gradebook

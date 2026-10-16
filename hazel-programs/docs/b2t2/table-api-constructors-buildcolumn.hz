@@ -25,7 +25,7 @@ let ensures = [
 #Lack of first class labels requires writing this with from_lvs and to_lvs. With a known column the higher-order version should be used#
 let build_column =
   fun (t : [?], c : String, f : ? -> ?) ->
-    map(t, fun (r) -> from_lvs(to_lvs(r) @ [(c, f(r))])) in
+    List.map(t, fun (r) -> from_lvs(to_lvs(r) @ [(c, f(r))])) in
 # Examples #
 test
   build_column(
@@ -67,7 +67,7 @@ let build_column =
     typfun v ->
       typfun r' ->
         fun (t : [r], c : ((r, v) -> r'), f : (r -> v)) ->
-          map(t, fun r -> c(r, f(r))) : [r'] in
+          List.map(t, fun r -> c(r, f(r))) : [r'] in
 # Examples #
 test
   build_column@<Student>@<Bool>@<(

@@ -10,10 +10,10 @@ let ensures = [
 let dropna =
   typfun R ->
     fun (t1 : [R]) ->
-      filter(
+      List.filter(
         t1,
         fun row ->
-          ! any(to_lvs(row), fun e -> e.value == (None : Option))
+          ! List.any(to_lvs(row), fun e -> e.value == (None : Option))
       )
       : [R] in
 type StudentFullyOptional = (

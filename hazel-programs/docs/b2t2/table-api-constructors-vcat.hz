@@ -27,7 +27,7 @@ test
   let update = (
     typfun row ->
       fun (t1 : [row], f : (row -> ?)) ->
-        map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?]
+        List.map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?]
   ) in
   vcat@<Student>(
     students,

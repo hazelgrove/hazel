@@ -5,9 +5,9 @@ Probes / Folding over a List
 wrapper show_report version=1 id=b0000013-0013-0013-0013-000000000013
 
 @prompt
-`fold_left` combines a list into a single value, carrying a running accumulator from left to right:
+`List.fold_left` combines a list into a single value, carrying a running accumulator from left to right:
 ```hazelnostatics
-fold_left(list, fun (a, b) -> "..." , start)
+List.fold_left(list, fun (a, b) -> "..." , start)
 ```
 Each step, the callback receives two things: the running value so far, and the next element from the list. Which parameter is which, `a` or `b`? We have forgotten. Rather than guess, check the probe samples to figure it out.
 
@@ -24,14 +24,14 @@ Break the callback across lines and read the probes: the one stepping through th
 
 @reference
 ### Fold
-`fold_left(list, callback, init)` combines the list into one value, threading a running value through the callback.
+`List.fold_left(list, callback, init)` combines the list into one value, threading a running value through the callback.
 
 @hints
 The watering cans total 680.
 
 @code
 let watering_cans = [250, 180, 50, 200] in
-fold_left(watering_cans, fun (a, b) ->
+List.fold_left(watering_cans, fun (a, b) ->
 ¿
 , 0)
 

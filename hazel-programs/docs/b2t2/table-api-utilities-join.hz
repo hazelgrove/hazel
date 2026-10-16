@@ -54,12 +54,12 @@ let join
             get_key2 : (r2 -> k),
             combine : ((r1, r2) -> r3)
           ) ->
-            flat_map(
+            List.flat_map(
               t1,
               fun (r : r1) ->
                 let t2' : [r2] =
-                  filter(t2, fun r' : r2 -> get_key1(r) == get_key2(r')) in
-                map(t2', fun r' : r2 -> combine(r, r'))
+                  List.filter(t2, fun r' : r2 -> get_key1(r) == get_key2(r')) in
+                List.map(t2', fun r' : r2 -> combine(r, r'))
             )
             : [r3] in
 
