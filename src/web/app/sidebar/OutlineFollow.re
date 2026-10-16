@@ -11,7 +11,7 @@ let last_scrolled: ref(option(Language.Id.t)) = ref(None);
 let css = (id: Language.Id.t): string =>
   "#outline-sidebar .outline-body:not(:focus-within) .outline-label[data-ol-id=\""
   ++ Language.Id.to_string(id)
-  ++ "\"] { box-shadow: inset 2px 0 0 var(--ol-mark); }";
+  ++ "\"] { background: var(--ol-mark-bg); }";
 
 let scroll_nearest = el =>
   Js.Unsafe.coerce(el)##scrollIntoView(

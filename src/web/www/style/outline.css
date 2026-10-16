@@ -18,23 +18,22 @@
      borderless in outline modes — a cell-side border stopped where
      the cell content did) */
   border-right: 0.6px solid var(--border-default);
-  /* the row holding the editor's caret: a dim edge bar (OutlineFollow) */
-  --ol-mark: color-mix(in srgb, var(--caret-color) 45%, transparent);
+  /* the row holding the editor's caret: a light brown fill (OutlineFollow) */
+  --ol-mark-bg: color-mix(in srgb, var(--surface-shard) 45%, transparent);
 }
 
 #outline-sidebar[open] {
   width: var(--outline-w, 210px);
 }
 
-/* keyboard focus: the cursor row gets the caret's full color (the
+/* keyboard focus: the cursor row fills with the selection yellow (the
    editor-caret mark hides meanwhile), no browser focus ring */
 #outline-sidebar .outline-body:focus {
   outline: none;
 }
 #outline-sidebar .outline-body:focus-within .outline-label.outline-cursor,
 #outline-sidebar:has(.outline-body:focus-within) > summary.outline-cursor {
-  box-shadow: inset 2px 0 0 var(--caret-color);
-  background: color-mix(in srgb, var(--surface-shard) 70%, transparent);
+  background: var(--surface-highlight);
 }
 
 /* Chrome slots details content into an internal ::details-content
@@ -440,14 +439,13 @@
   font-weight: normal;
 }
 
-/* a name typed in place: no bar, the editor's selection yellow behind
-   the name, softened, with a caret to match (the caret's own red reads
-   as an error) */
+/* a name typed in place: the row's fill gives way to the editor's
+   selection yellow behind the name, softened, with a caret to match (the
+   caret's own red reads as an error) */
 #outline-sidebar .outline-body:focus-within .outline-label.outline-editing,
 #outline-sidebar
   .outline-body:focus-within:has(.outline-editing)
   .outline-label.outline-cursor {
-  box-shadow: none;
   background: transparent;
 }
 #outline-sidebar .outline-edit-input {
