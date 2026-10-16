@@ -427,16 +427,47 @@ let let_body = () => {
 let refused = () => {
   /* label "": the first ⇒ row, f's */
   let f = "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)";
-  /* a module's last test without its `;` */
-  let m = "let z = 0 in\nmodule M = {\n  let a = 1;\n  test 1 + 1 == 2 end\n} in\nM.a";
   cases([
     ("result row: delete", f, "", op(Delete), None),
     ("result row: duplicate", f, "", op(Duplicate), None),
     ("result row: move up", f, "", op(MoveUp), None),
     ("result row: move down", f, "", op(MoveDown), None),
-    ("last test: delete", m, "1", op(Delete), None),
-    ("last test: duplicate", m, "1", op(Duplicate), None),
-    ("last test: Alt+Up leaves the module put", m, "1", op(MoveUp), None),
+  ]);
+};
+
+/* a module's last test without its `;`, or its only member, is a member
+   like the rest, not a result: ops act on it, never on the module */
+let last_test = () => {
+  let m = "let z = 0 in\nmodule M = {\n  let a = 1;\n  test 1 + 1 == 2 end\n} in\nM.a";
+  let swapped = "let z = 0 in\nmodule M = {\n  test 1 + 1 == 2 end;\n  let a = 1\n} in\nM.a";
+  let sole = "module M = {\n  test 1 == 1 end\n} in\n0";
+  cases([
+    (
+      "deleted",
+      m,
+      "1",
+      op(Delete),
+      Some("let z = 0 in\nmodule M = {\n  let a = 1\n} in\nM.a"),
+    ),
+    (
+      "duplicated",
+      m,
+      "1",
+      op(Duplicate),
+      Some(
+        "let z = 0 in\nmodule M = {\n  let a = 1;\n  test 1 + 1 == 2 end;\n  test 1 + 1 == 2 end\n} in\nM.a",
+      ),
+    ),
+    ("moved up", m, "1", op(MoveUp), Some(swapped)),
+    ("the member above it moved down", m, "a", op(MoveDown), Some(swapped)),
+    ("alone: deleted", sole, "1", op(Delete), Some("module M = {} in\n0")),
+    (
+      "alone: duplicated",
+      sole,
+      "1",
+      op(Duplicate),
+      Some("module M = {\n  test 1 == 1 end;\n  test 1 == 1 end\n} in\n0"),
+    ),
   ]);
 };
 
@@ -1231,6 +1262,7 @@ let tests = (
   "Restructure",
   [
     test_case("a refused op does nothing", `Quick, refused),
+    test_case("a module's last test is a member", `Quick, last_test),
     test_case(
       "a refused delete leaves the outline cursor",
       `Quick,

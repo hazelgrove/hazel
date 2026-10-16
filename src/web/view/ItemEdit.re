@@ -114,6 +114,9 @@ type block = {
   spans: array(Focus.item_span),
   /* a member block: new items are 2-shard members, not `… in` forms */
   in_module: bool,
+  /* a module body's: its last item, a statement without its `;`, is a
+     member like the rest, not a result */
+  body: bool,
   /* the segment starts a line */
   bol: bool,
   /* a 2-shard member, not a `… in` item */
@@ -130,6 +133,7 @@ let span_in_tile = (arr: array(Piece.t), sp: Focus.item_span): bool =>
 let block =
     (
       ~in_module: bool,
+      ~body: bool,
       ~bol: bool,
       spans: array(Focus.item_span),
       seg: Segment.t,
@@ -258,15 +262,17 @@ let block =
     arr,
     spans,
     in_module,
+    body,
     bol,
     member,
     sl,
   };
 };
 
-/* items that ops may move or remove: not the trailing expression */
+/* items that ops may move or remove: not the trailing expression, which
+   a module body hasn't */
 let movable = (b: block, k: int): bool =>
-  k >= 0 && k < Array.length(b.sl) && b.spans[k].sp_kind != ITail;
+  k >= 0 && k < Array.length(b.sl) && (b.body || b.spans[k].sp_kind != ITail);
 
 /* item [k]'s head, when it defines a module: its definition is a module
    body alone, whatever binds it */
@@ -512,16 +518,21 @@ let locate =
     };
   let rec at = (~own: bool, (level, i, ancestors)) => {
     let top = ancestors == [];
+    /* a module body's members, a lone statement among them too */
+    let body =
+      switch (ancestors) {
+      | [] => false
+      | [(a, _), ..._] => Focus.holds_members(Ancestor.mold(a))
+      };
     let spans =
-      Array.of_list(Focus.item_spans(~divided_only_tail=!top, level));
+      Array.of_list(
+        Focus.item_spans(~divided_only_tail=!top && !body, level),
+      );
     let here = j =>
       Some((
         block(
-          ~in_module=
-            switch (ancestors) {
-            | [] => mod_root
-            | [(a, _), ..._] => Focus.holds_members(Ancestor.mold(a))
-            },
+          ~in_module=top ? mod_root : body,
+          ~body,
           ~bol=top,
           spans,
           level,
@@ -562,7 +573,7 @@ let locate =
       )
       |> Option.map(k =>
            (
-             block(~in_module=false, ~bol, spans, body),
+             block(~in_module=false, ~body=false, ~bol, spans, body),
              k,
              (
                body =>
@@ -631,6 +642,7 @@ let into_members =
       let b =
         block(
           ~in_module=true,
+          ~body=true,
           ~bol=false,
           Array.of_list(Focus.item_spans(members)),
           members,
