@@ -70,6 +70,15 @@ let modules = () =>
     "module N = {\n  let x = 1\n} in\nN.x",
   );
 
+/* a module under a signature: its name and `M.x`, the signature kept */
+let signed_module = () =>
+  renamed(
+    "type S = {\n  let x : Int\n} in\nmodule M : S = {\n  let x = 1\n} in\nM.x",
+    "M",
+    "N",
+    "type S = {\n  let x : Int\n} in\nmodule N : S = {\n  let x = 1\n} in\nN.x",
+  );
+
 let mod_root = () =>
   renamed(
     ~root=Mod,
@@ -162,6 +171,7 @@ let tests = (
     test_case("module members and M.x", `Quick, members),
     test_case("types", `Quick, types),
     test_case("modules", `Quick, modules),
+    test_case("a module with a signature", `Quick, signed_module),
     test_case("module-rooted program", `Quick, mod_root),
     test_case("capture is refused", `Quick, capture),
     test_case("names are checked", `Quick, names),

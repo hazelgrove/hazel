@@ -5,8 +5,9 @@ open Language;
 /* every outline row opens as its own item: a ⇒ or `;` row as a headless
    cell holding just its expression or statement, a definition under its
    pattern, a test run as one cell; and joining gives back the program,
-   with its own pieces. What a cell should hold comes from the parsed term
-   (each term's span in its level), not from the cell code under test */
+   with its own pieces. A `use` row opens none. What a cell should hold
+   comes from the parsed term (each term's span in its level), not from
+   the cell code under test */
 
 module Divided = Web.Divided;
 module Focus = Web.ScratchFocus;
@@ -34,7 +35,9 @@ type want =
   /* a pattern over a definition: a let, type or module, or a theorem */
   | Def(Id.t, Id.t)
   /* a module literal under its name: its members, if braced */
-  | Module(Id.t, Id.t);
+  | Module(Id.t, Id.t)
+  /* no cell: a `use` */
+  | Shut;
 
 /* OutlineTree's walk, with each row's terms */
 let wants = (term: Exp.t): Id.Map.t(want) => {
@@ -68,6 +71,9 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
     | ModuleExp(mpat, def, body) =>
       let n = module_row(Exp.rep_id(s), mpat, def);
       n + of_exp(~top, body);
+    | Use(_, body) =>
+      add(Exp.rep_id(s), Shut);
+      1 + of_exp(~top, body);
     | Seq(e1, body) =>
       add(Exp.rep_id(s), Headless(Exp.rep_id(e1)));
       1 + of_exp(~top, body);
@@ -85,6 +91,7 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
         | Let(_, _, body)
         | TyAlias(_, _, body)
         | ModuleExp(_, _, body)
+        | Use(_, body)
         | Seq(_, body) => last(body)
         | _ => e
         };
@@ -113,14 +120,23 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
       1;
     | _ => 0
     }
-  and module_row = (id, mpat: MPat.t, def: Exp.t): int =>
-    switch (mpat.term) {
-    | Var(_) =>
+  /* a name, maybe under a signature; the header holds the whole
+     pattern */
+  and module_row = (id, mpat: MPat.t, def: Exp.t): int => {
+    let rec named = (mp: MPat.t) =>
+      switch (mp.term) {
+      | Var(_) => true
+      | Asc(inner, _) => named(inner)
+      | _ => false
+      };
+    if (named(mpat)) {
       def_row(id, MPat.rep_id(mpat), def);
       def_kids(def);
       1;
-    | _ => 0
-    }
+    } else {
+      0;
+    };
+  }
   and of_mod = (items: list(Mod.t)): int =>
     List.fold_left(
       (n, m: Mod.t) =>
@@ -174,6 +190,7 @@ let kind_name = (k: O.kind): string =>
   switch (k) {
   | KTrail => {js|⇒|js}
   | KStmt => ";"
+  | KUse => "use"
   | KTest => "test"
   | KTests => "tests"
   | KModule => "module"
@@ -238,6 +255,34 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
   /* the outline's verdict, from the cell code in one walk */
   let refused =
     Focus.refusals(~want=id => Id.Map.mem(id, O.row_ids(term)), seg);
+  let note = (row, whys) =>
+    if (whys != []) {
+      broken :=
+        [
+          Printf.sprintf(
+            "%s: %s: %s",
+            name,
+            row,
+            String.concat("; ", List.rev(whys)),
+          ),
+          ...broken^,
+        ];
+    };
+  /* a row that opens no cell: the outline gets why, and a pin drops */
+  let check_shut = (~row, ~id, ~pin) => {
+    incr(rows);
+    let whys = ref([]);
+    let fail = why => whys := [why, ...whys^];
+    if (Id.Map.find_opt(id, refused) != Some(Focus.Directive)) {
+      fail("not refused as a use");
+    };
+    switch (V.realize(~info_map, ~term, pin, Whole(whole))) {
+    | exception e => fail("raised " ++ Printexc.to_string(e))
+    | (v, Whole(_)) when v.pins == [] => ()
+    | _ => fail("opened")
+    };
+    note(row, whys^);
+  };
   let check_row = (~row, ~id, ~pin, ~expect, ~header, ~body) => {
     incr(rows);
     let whys = ref([]);
@@ -249,6 +294,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
     | (Some(Focus.Projected), true) => ()
     | (Some(Projected), false) => fail("refused as under a projector")
     | (Some(Unfinished), _) => fail("refused as unfinished")
+    | (Some(Directive), _) => fail("refused as a use")
     | (None, true) => fail("not refused under a projector")
     };
     switch (V.realize(~info_map, ~term, pin, Whole(whole))) {
@@ -289,18 +335,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
         fail("join changed the ids");
       };
     };
-    if (whys^ != []) {
-      broken :=
-        [
-          Printf.sprintf(
-            "%s: %s: %s",
-            name,
-            row,
-            String.concat("; ", List.rev(whys^)),
-          ),
-          ...broken^,
-        ];
-    };
+    note(row, whys^);
   };
   List.iter(
     (n: O.node) =>
@@ -310,6 +345,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
         let pin = V.pin(~term, id, V.init);
         switch (Id.Map.find_opt(id, wants)) {
         | None => failwith(name ++ ": no term for " ++ row)
+        | Some(Shut) => check_shut(~row, ~id, ~pin)
         | Some(Headless(b)) =>
           let sym = kind == KTrail ? {js|⇒|js} : ";";
           check_row(
@@ -381,6 +417,15 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
       },
     O.flatten(O.of_term(term)),
   );
+  /* and every item the walk expects has its row */
+  let shown = O.row_ids(term);
+  Id.Map.iter(
+    (id, _) =>
+      if (!Id.Map.mem(id, shown)) {
+        note("a term " ++ Id.show(id), ["has no row"]);
+      },
+    wants,
+  );
   {
     rows: rows^,
     projected: n_projected^,
@@ -419,6 +464,27 @@ let shapes = [
   ),
   ("a theorem, by its statement", "theorem t = 1 + 1 == 2 in\n0", 0),
   ("a test run", "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na", 0),
+  ("a use first", "use Nat in\nlet a = 1 in\na + 2", 0),
+  (
+    "a use among definitions and tests",
+    "let a = 1 in\nuse Nat in\nlet b = a + 2 in\ntest b == 3 end;\nb",
+    0,
+  ),
+  (
+    "a use in a function body",
+    "let f = fun x ->\n  use Nat in\n  let y = x + 1 in\n  y * 2\nin\nf(1)",
+    0,
+  ),
+  (
+    "a use in a member's body",
+    "module M = {\n  let x =\n    use Nat in\n    1 + 2;\n  let y = 2\n} in\nM.x",
+    0,
+  ),
+  (
+    "a module with a signature",
+    "type S = {\n  let x : Int\n} in\nmodule M : S = {\n  let x = 1;\n  let y = 2\n} in\nM.x",
+    0,
+  ),
 ];
 
 let shape_rows = () => {

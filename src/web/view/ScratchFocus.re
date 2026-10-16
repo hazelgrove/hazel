@@ -110,7 +110,7 @@ let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
    expression. A 2-shard member's body is its sibling run, so an `…in`
    there stays in the member */
 type item_kind =
-  | IDef /* let / type / module: header+body cells */
+  | IDef /* let / type / module (header+body cells), or `use … in` */
   | IStmt /* a `…;` statement: headerless cell */
   | ITail; /* the trailing expression: headerless cell */
 
@@ -138,6 +138,9 @@ let is_def_head = (t: Tile.t): bool =>
   | ["let" | "type" | "module", ..._] => true
   | _ => false
   };
+
+/* `use X in`: an item with no cell, as it has nothing of its own */
+let is_use = (t: Tile.t): bool => Tile.token(t, 0) == "use";
 
 /* a form whose child is a module's member list: a module body's braces */
 let holds_members = (m: Mold.t): bool => List.mem(Sort.Mod, m.in_);
@@ -1148,11 +1151,12 @@ let mk_run_entry =
       }
     );
 
-/* why an item opens no cell: unfinished, or under a projector, whose
-   syntax no cell cuts */
+/* why an item opens no cell: unfinished, under a projector, whose
+   syntax no cell cuts, or a `use`, which never opens */
 type refusal =
   | Unfinished
-  | Projected;
+  | Projected
+  | Directive;
 
 /* of the items [want] picks, those the entry makers above refuse for one
    of these, from one walk over [seg] rather than a search per item. Under
@@ -1185,10 +1189,13 @@ let refusals = (~want: Id.t => bool, seg: Segment.t): Id.Map.t(refusal) => {
         };
         switch (p) {
         | Tile(t) =>
+          if (want(id) && is_use(t)) {
+            out := Id.Map.add(id, Directive, out^);
+          };
           List.iteri(
             (k, kid) => in_level(~under, path, Kid(t, k), kid),
             t.children,
-          )
+          );
         | Projector(pr) => in_level(~under=true, path, Syntax, [pr.syntax])
         | _ => ()
         };

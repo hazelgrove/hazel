@@ -11,7 +11,8 @@ let op = (o, id) => R.Op(o, id);
 let inside = (text, id) => R.InsertInside(id, text);
 
 /* [e] on the row labeled [label]: the new program and the row it lands
-   on, or None where it's refused. ~closed: moves step over modules */
+   on, or None where it's refused. Modules are open as the outline shows
+   them, or with ~closed all collapsed: moves step over them */
 let edit =
     (~root=Sort.Exp, ~closed=false, e: Id.t => R.t, label, seg: Segment.t)
     : option((Segment.t, option(Id.t))) => {
@@ -20,7 +21,8 @@ let edit =
     mod_root: root == Sort.Mod,
     term,
     info_map: lazy(Language.Statics.Map.empty),
-    is_open: _ => !closed,
+    is_open: id =>
+      !closed && Web.OutlineTree.expanded(~collapsed=[], id, term),
   };
   Result.to_option(R.edit(ctx, e(row_by_label(term, label)), seg));
 };
@@ -767,6 +769,251 @@ let into_value_module = () => {
   );
 };
 
+/* `use X in` is a row of its own among the definitions, and an item like
+   them: it moves, duplicates and goes like one, so what it scopes over is
+   what's below it. A module has no `use` member: a move steps over it */
+let use_rows = () => {
+  let src = "let a = 1 in\nuse Nat in\nlet b = a + 2 in\nb";
+  check(list(string), "its row", ["a", "use Nat", "b"], outline(src));
+  let m = "module M = {\n  let x = 1\n} in\n";
+  cases([
+    (
+      "down past b",
+      src,
+      "use Nat",
+      op(MoveDown),
+      Some("let a = 1 in\nlet b = a + 2 in\nuse Nat in\nb"),
+    ),
+    (
+      "up past a",
+      src,
+      "use Nat",
+      op(MoveUp),
+      Some("use Nat in\nlet a = 1 in\nlet b = a + 2 in\nb"),
+    ),
+    (
+      "b up out of its scope",
+      src,
+      "b",
+      op(MoveUp),
+      Some("let a = 1 in\nlet b = a + 2 in\nuse Nat in\nb"),
+    ),
+    (
+      "duplicated",
+      src,
+      "use Nat",
+      op(Duplicate),
+      Some("let a = 1 in\nuse Nat in\nuse Nat in\nlet b = a + 2 in\nb"),
+    ),
+    (
+      "deleted",
+      src,
+      "use Nat",
+      op(Delete),
+      Some("let a = 1 in\nlet b = a + 2 in\nb"),
+    ),
+    (
+      "a definition below",
+      src,
+      "use Nat",
+      op(NewBelow),
+      Some(
+        {js|let a = 1 in
+use Nat in
+let new_def = ¿ in
+let b = a + 2 in
+b|js},
+      ),
+    ),
+    (
+      "a test below",
+      src,
+      "use Nat",
+      op(NewTestBelow),
+      Some({js|let a = 1 in
+use Nat in
+test ¿ end;
+let b = a + 2 in
+b|js}),
+    ),
+    (
+      "a module stepped over going down",
+      "use Nat in\n" ++ m ++ "M.x",
+      "use Nat",
+      op(MoveDown),
+      Some(m ++ "use Nat in\nM.x"),
+    ),
+    (
+      "and going up",
+      m ++ "use Nat in\nM.x",
+      "use Nat",
+      op(MoveUp),
+      Some("use Nat in\n" ++ m ++ "M.x"),
+    ),
+  ]);
+  /* in a function body: among its items, never out of it */
+  let f = "let f = fun x ->\n  use Nat in\n  let y = x + 1 in\n  y * 2\nin\nf(1)";
+  check(list(string), "in a function body", ["f{use Nat,y}"], outline(f));
+  cases([
+    (
+      "down in the body",
+      f,
+      "use Nat",
+      op(MoveDown),
+      Some(
+        "let f = fun x ->\n  let y = x + 1 in\n  use Nat in\n  y * 2\nin\nf(1)",
+      ),
+    ),
+    ("not out of the body", f, "use Nat", op(MoveUp), None),
+  ]);
+};
+
+/* `module M : S = {…}` reads and edits like `module M = {…}`: its row has
+   its members, and ops on it, on its members and moves in and out work
+   the same, keeping the signature */
+let signed_module = () => {
+  let sg = "type S = {\n  let x : Int\n} in\n";
+  let mm = "module M : S = {\n  let x = 1;\n  let y = 2\n} in\n";
+  let m = sg ++ mm ++ "let b = 4 in\nM.x";
+  check(list(string), "its row", ["S", "M{x,y}", "b"], outline(m));
+  let with_members = members =>
+    Some(
+      sg ++ "module M : S = {\n" ++ members ++ "\n} in\nlet b = 4 in\nM.x",
+    );
+  cases([
+    (
+      "new below it",
+      m,
+      "M",
+      op(NewBelow),
+      Some(sg ++ mm ++ {js|let new_def = ¿ in
+let b = 4 in
+M.x|js}),
+    ),
+    (
+      "duplicated",
+      m,
+      "M",
+      op(Duplicate),
+      Some(sg ++ mm ++ mm ++ "let b = 4 in\nM.x"),
+    ),
+    ("moved", m, "M", op(MoveUp), Some(mm ++ sg ++ "let b = 4 in\nM.x")),
+    ("deleted", m, "M", op(Delete), Some(sg ++ "let b = 4 in\nM.x")),
+    (
+      "new below a member",
+      m,
+      "x",
+      op(NewBelow),
+      with_members({js|  let x = 1;
+  let new_def = ¿;
+  let y = 2|js}),
+    ),
+    (
+      "a member moved",
+      m,
+      "x",
+      op(MoveDown),
+      with_members("  let y = 2;\n  let x = 1"),
+    ),
+    (
+      "a member duplicated",
+      m,
+      "x",
+      op(Duplicate),
+      with_members("  let x = 1;\n  let x = 1;\n  let y = 2"),
+    ),
+    ("a member deleted", m, "x", op(Delete), with_members("  let y = 2")),
+    (
+      "a member typed inside",
+      m,
+      "M",
+      inside("z"),
+      with_members({js|  let x = 1;
+  let y = 2;
+  let z = ¿|js}),
+    ),
+    (
+      "b up into it",
+      m,
+      "b",
+      op(MoveUp),
+      Some(
+        sg
+        ++ "module M : S = {\n  let x = 1;\n  let y = 2;\n  let b = 4\n} in\nM.x",
+      ),
+    ),
+    (
+      "y down out of it",
+      m,
+      "y",
+      op(MoveDown),
+      Some(
+        sg
+        ++ "module M : S = {\n  let x = 1\n} in\nlet y = 2 in\nlet b = 4 in\nM.x",
+      ),
+    ),
+  ]);
+};
+
+/* a module the outline doesn't show (`let _ = {…}`) is stepped over like
+   a collapsed one, so a move never lands out of sight; a named one takes
+   the item in */
+let unshown_module = () => {
+  let u = "let a = 1 in\nlet _ = {\n  let x = 2\n} in\nlet b = 4 in\nb";
+  check(list(string), "no row", ["a", "b"], outline(u));
+  let seg = seg_of(u);
+  let term = MakeTerm.Incr.term_of(seg);
+  /* each `let`'s head, by its pattern */
+  let head = name =>
+    switch (
+      List.find_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile({children: [pat, ..._], _} as t)
+              when String.trim(text_of(pat)) == name =>
+            Some(t.id)
+          | _ => None
+          },
+        seg,
+      )
+    ) {
+    | Some(id) => id
+    | None => fail("no let " ++ name)
+    };
+  check(
+    pair(bool, bool),
+    "expanded: a, not _",
+    (true, false),
+    (
+      Web.OutlineTree.expanded(~collapsed=[], head("a"), term),
+      Web.OutlineTree.expanded(~collapsed=[], head("_"), term),
+    ),
+  );
+  cases([
+    (
+      "down past it",
+      u,
+      "a",
+      op(MoveDown),
+      Some("let _ = {\n  let x = 2\n} in\nlet a = 1 in\nlet b = 4 in\nb"),
+    ),
+    (
+      "up past it",
+      u,
+      "b",
+      op(MoveUp),
+      Some("let a = 1 in\nlet b = 4 in\nlet _ = {\n  let x = 2\n} in\nb"),
+    ),
+    (
+      "a named one takes it in",
+      "let a = 1 in\nlet m = {\n  let x = 2\n} in\nlet b = 4 in\nb",
+      "a",
+      op(MoveDown),
+      Some("let m = {\n  let a = 1;\n  let x = 2\n} in\nlet b = 4 in\nb"),
+    ),
+  ]);
+};
+
 /* a new test, `test ¿ end`, lands right after its row in its block's
    form, or above it as a run's first */
 let new_tests = () => {
@@ -1059,5 +1306,8 @@ let tests = (
     test_case("a module bound by let", `Quick, value_module),
     test_case("moves into a module bound by let", `Quick, into_value_module),
     test_case("in and out again", `Quick, round_trip),
+    test_case("use rows", `Quick, use_rows),
+    test_case("a module with a signature", `Quick, signed_module),
+    test_case("moves step over unshown modules", `Quick, unshown_module),
   ],
 );

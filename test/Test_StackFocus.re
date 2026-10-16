@@ -123,6 +123,41 @@ let unfinished_let = () => {
   );
 };
 
+/* `use X in` is an item boundary: the ⇒ after it opens as its own cell,
+   in the mode it sets, and its own row opens none */
+let use_boundary = () => {
+  let src = "use Nat in\nlet a = 1 in\na + 2";
+  check_headless(~src, ~label="", ~sym={js|⇒|js}, ~body="a + 2", ());
+  let master = seg_of(src);
+  let (term, info_map) = statics_of(master);
+  let mode = label =>
+    Option.bind(
+      Focus.mk_entry(~info_map, row_by_label(term, label), master),
+      (e: Web.ScratchCell.t) =>
+      e.e_ctx.use_mode
+    );
+  check(
+    bool,
+    "the cells after it in its mode",
+    true,
+    mode("") == Some(Nat) && mode("a") == Some(Nat),
+  );
+  let use = row_by_label(term, "use Nat");
+  check(
+    bool,
+    "its row opens no cell",
+    true,
+    Focus.mk_entry(~info_map, use, master) == None,
+  );
+  check(
+    bool,
+    "and the outline knows why",
+    true,
+    Id.Map.find_opt(use, Focus.refusals(~want=_ => true, master))
+    == Some(Focus.Directive),
+  );
+};
+
 /* review fixes: a typed-function header is named by its function, a run
    counts its tests, and a slide owns only its own keys */
 let names_and_keys = () => {
@@ -346,6 +381,16 @@ let tests = (
         ~label="1",
         ~sym={js|;|js},
         ~body="test x > 0 end",
+        (),
+      )
+    ),
+    test_case("after a use, the ⇒ opens", `Quick, use_boundary),
+    test_case("fn-body ⇒ after a use", `Quick, () =>
+      check_headless(
+        ~src="let f = fun x ->\n  use Nat in\n  x + 1\nin\nf(1)",
+        ~label="",
+        ~sym={js|⇒|js},
+        ~body="x + 1",
         (),
       )
     ),
