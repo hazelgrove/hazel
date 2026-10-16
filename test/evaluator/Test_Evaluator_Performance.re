@@ -81,6 +81,28 @@ let tests = (
           sum(list_of_ones(n))|},
       )
     }),
+    test_case(
+      "a shown function names the library module it calls",
+      `Quick,
+      () => {
+        let shown =
+          parse_and_evaluate(
+            "let f = fun xs -> List.map(xs, fun y -> y) in f",
+          );
+        let is_module = (e: Exp.t) =>
+          switch (e.term) {
+          | Module(_) => true
+          | _ => false
+          };
+        check(int, "modules inlined", 0, count_exps(is_module, shown));
+        check(
+          bool,
+          "names List",
+          true,
+          count_exps(is_var("List"), shown) > 0,
+        );
+      },
+    ),
     test_case("stuck result doesn't inline callees at every level", `Quick, () =>
       check_shown_small(
         "result",
