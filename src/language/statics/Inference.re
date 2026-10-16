@@ -97,6 +97,16 @@ let derive = (salt: string, id: Id.t): Id.t =>
     d;
   };
 
+/* Ids for the nodes the elaboration adds (see Id.derive_implicit). */
+let derive_implicit = (salt: string, id: Id.t): Id.t =>
+  switch (Hashtbl.find_opt(id_cache, (id, "!" ++ salt))) {
+  | Some(d) => d
+  | None =>
+    let d = Id.derive_implicit(~salt, id);
+    Hashtbl.add(id_cache, (id, "!" ++ salt), d);
+    d;
+  };
+
 let salt_of_kind: hole_kind => string =
   fun
   | Binder => "implicit-binder"
@@ -263,7 +273,7 @@ let instantiate =
         let a = arg(i);
         let elab =
           IdTagged.mk_internal(
-            [derive("implicit-typap-" ++ string_of_int(i), site)],
+            [derive_implicit("implicit-typap-" ++ string_of_int(i), site)],
             TypAp(elab, Typ.normalize(ctx, a)): Exp.term,
           );
         go(i + 1, elab, Typ.subst(a, tp, body), [a, ...args]);
@@ -972,10 +982,10 @@ let wrap_typfuns = (~let_id: Id.t, gen: gen, elab: Exp.t): Exp.t =>
   List.fold_right(
     (a, body) =>
       IdTagged.mk_internal(
-        [derive("implicit-typfun-" ++ a, let_id)],
+        [derive_implicit("implicit-typfun-" ++ a, let_id)],
         TypFun(
           IdTagged.mk_internal(
-            [derive("implicit-tpat-" ++ a, let_id)],
+            [derive_implicit("implicit-tpat-" ++ a, let_id)],
             Var(a): TPat.term,
           ),
           body,

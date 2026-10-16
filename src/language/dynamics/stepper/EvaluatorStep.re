@@ -212,9 +212,17 @@ let rec matches =
   };
 };
 
+/* Applying one of implicit polymorphism's hidden type functions is
+   elaboration bookkeeping, shown alongside cast steps. */
+let is_implicit_step = (~settings: CoreSettings.Evaluation.t, x: EvalObj.t) =>
+  x.knd == TypFunAp
+  && !settings.show_ascription_steps
+  && Id.is_implicit(DHExp.rep_id(x.d_loc));
+
 let should_hide_eval_obj =
     (~settings, x: EvalObj.t): (FilterAction.action, EvalObj.t) =>
-  if (should_hide_step_kind(~settings, x.knd)) {
+  if (should_hide_step_kind(~settings, x.knd)
+      || is_implicit_step(~settings, x)) {
     (Eval, x);
   } else {
     let (act, _, ctx) =

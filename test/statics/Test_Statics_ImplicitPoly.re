@@ -61,9 +61,46 @@ let has_conflict = program =>
     },
   );
 
+/* The elaboration printed as results and the stepper print it. */
+let printed = (~show_ascriptions, program: string): string => {
+  let exp = parse_exp(program);
+  let (_, elab) =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp);
+  Haz3lcore.ExpToSegment.exp_to_segment(
+    ~settings={
+      ...Haz3lcore.ExpToSegment.Settings.editable(~inline=true),
+      show_ascriptions,
+    },
+    elab,
+  )
+  |> Haz3lcore.Printer.of_segment(~holes="?", ~refractors=[]);
+};
+
 let tests = (
   "Statics.ImplicitPoly",
   [
+    test_case(
+      "Hidden type abstractions and applications stay hidden",
+      `Quick,
+      () => {
+        let program = {|let id = fun x -> x in id(1)|};
+        check(
+          string,
+          "hidden",
+          "let id = fun x -> x in id(1)",
+          printed(~show_ascriptions=false, program),
+        );
+        check(
+          bool,
+          "shown with ascriptions",
+          true,
+          Util.StringUtil.match(
+            Util.StringUtil.regexp("@<"),
+            printed(~show_ascriptions=true, program),
+          ),
+        );
+      },
+    ),
     fully_consistent_typecheck(
       "Identity is generalized",
       {|let id = fun x -> x in id|},
@@ -165,6 +202,11 @@ let tests = (
       "Function sugar is generalized",
       {|let id(x) = x in (id(1), id("s"))|},
       Some(T.prod([T.int(), T.string()])),
+    ),
+    fully_consistent_typecheck(
+      "Module members are generalized",
+      {|module M = { let id = fun x -> x } in (M.id(1), M.id(true))|},
+      Some(T.prod([T.int(), T.bool()])),
     ),
     fully_consistent_typecheck(
       "An expression hole blocks generalization (etc)",

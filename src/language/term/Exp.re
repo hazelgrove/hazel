@@ -469,10 +469,17 @@ let (replace_all_ids, replace_all_ids_typ) = {
         ...exp,
         annotation: {
           /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
-             so re-idded results still display faithfully. Secondary and
+             so re-idded results still display faithfully, and keep
+             implicit nodes implicit (Id.derive_implicit). Secondary and
              shard provenance stay dropped: display of results is
              AutoFormat and the tile-id references are invalidated. */
-          ...IdTagged.IdTag.mk_internal([Id.mk()]),
+          ...
+            IdTagged.IdTag.mk_internal([
+              switch (exp.annotation.ids) {
+              | [id, ..._] when Id.is_implicit(id) => Id.mk_implicit()
+              | _ => Id.mk()
+              },
+            ]),
           lexeme: exp.annotation.lexeme,
         },
       }
