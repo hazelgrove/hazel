@@ -257,27 +257,91 @@ let term: Lazy.t(option(Language.Exp.t)) =
     )
   );
 
-/* The program inside the prelude: the prelude's innermost (empty) body
-   becomes the program */
-let wrap = (program: Language.Exp.t): Language.Exp.t => {
-  let rec go = (e: Language.Exp.t): Language.Exp.t =>
-    switch (e.term) {
-    | Let(p, d, body) => {
-        ...e,
-        term: Let(p, d, go(body)),
-      }
-    | TyAlias(tp, t, body) => {
-        ...e,
-        term: TyAlias(tp, t, go(body)),
-      }
-    | ModuleExp(mp, d, body) => {
-        ...e,
-        term: ModuleExp(mp, d, go(body)),
-      }
-    | _ => program
+/* Names a term mentions: variables, and constructors (a module's name
+   is a constructor in `List.map`) */
+let mentions = (e: Language.Exp.t): list(string) => {
+  let names = ref([]);
+  let _ =
+    Language.Exp.map_term(
+      ~f_exp=
+        (continue, e: Language.Exp.t) => {
+          switch (e.term) {
+          | Var(x)
+          | Constructor(x, _) => names := [x, ...names^]
+          | _ => ()
+          };
+          continue(e);
+        },
+      e,
+    );
+  names^;
+};
+
+/* The prelude's definitions, outermost first: (name, what it mentions,
+   rebuild with a new body). Built once. */
+let items:
+  Lazy.t(list((string, list(string), Language.Exp.t => Language.Exp.t))) =
+  lazy({
+    let rec go = (e: Language.Exp.t) =>
+      switch (e.term) {
+      | Let({term: Var(name), _} as p, d, body) => [
+          (
+            name,
+            mentions(d),
+            (
+              b => {
+                let t: Language.Exp.term = Let(p, d, b);
+                {
+                  ...e,
+                  term: t,
+                };
+              }
+            ),
+          ),
+          ...go(body),
+        ]
+      | ModuleExp({term: Var(name), _} as mp, d, body) => [
+          (
+            name,
+            mentions(d),
+            (
+              b => {
+                let t: Language.Exp.term = ModuleExp(mp, d, b);
+                {
+                  ...e,
+                  term: t,
+                };
+              }
+            ),
+          ),
+          ...go(body),
+        ]
+      | _ => []
+      };
+    switch (Lazy.force(term)) {
+    | Some(prelude) => go(prelude)
+    | None => []
     };
-  switch (Lazy.force(term)) {
-  | Some(prelude) => go(prelude)
-  | None => program
-  };
+  });
+
+/* The program inside the prelude definitions it needs (directly or
+   through other definitions): checking all of them on every edit costs
+   more than most programs do */
+let wrap = (program: Language.Exp.t): Language.Exp.t => {
+  let needed = Hashtbl.create(64);
+  List.iter(x => Hashtbl.replace(needed, x, ()), mentions(program));
+  /* a definition only mentions earlier ones: one pass from the last */
+  let kept =
+    List.fold_right(
+      ((name, uses, rebuild), kept) =>
+        if (Hashtbl.mem(needed, name)) {
+          List.iter(x => Hashtbl.replace(needed, x, ()), uses);
+          [rebuild, ...kept];
+        } else {
+          kept;
+        },
+      Lazy.force(items),
+      [],
+    );
+  List.fold_right((rebuild, body) => rebuild(body), kept, program);
 };
