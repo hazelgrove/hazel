@@ -498,7 +498,7 @@ type limited_result =
   | StepLimitExceeded;
 
 let finish = (~env, e: DHExp.t): Exp.t =>
-  e |> Substitution.in_exp(env) |> Exp.replace_all_ids;
+  e |> Substitution.in_exp(~fns=Shown, env) |> Exp.replace_all_ids;
 
 /* Shared setup for all evaluation entry points: run the reuse pass to find
  * reusable cache entries, then build the (unstarted) evaluation trampoline. */

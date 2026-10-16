@@ -73,7 +73,10 @@ module Env = {
     | FixF(_)
     | Closure(_)
     | BuiltinFun(_) when !full => Opaque
-    | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
+    | _ =>
+      Val(
+        d |> DHExp.strip_ascriptions |> Substitution.in_exp(~fns=Shown, env),
+      )
     };
 
   let mk_entry =
