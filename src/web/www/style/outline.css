@@ -325,10 +325,24 @@
   font-style: italic;
 }
 
-/* words standing in for a name ("result", "tests"): lighter, italic */
-#outline-sidebar .outline-synthetic {
+/* rows with no name to type (the ⇒ result, the "tests" label, numbered
+   tests, `use` rows): one faded ink, italic. Faded from the outline's own
+   ink, as --text-muted is brighter than it in dark themes. The ⇒ row's
+   own opacity fades its word; the others match it */
+#outline-sidebar {
+  --ol-faded: color-mix(in srgb, var(--text-accent) 75%, transparent);
+}
+#outline-sidebar .outline-synthetic,
+#outline-sidebar .ol-test:not(.outline-has-err) .outline-name,
+#outline-sidebar .ol-use:not(.outline-has-err) .outline-name {
   font-style: italic;
-  color: var(--text-muted);
+  color: var(--ol-faded);
+}
+#outline-sidebar .ol-tests .outline-synthetic,
+#outline-sidebar .ol-test .outline-name,
+#outline-sidebar .ol-use .outline-name,
+#outline-sidebar .ol-use .outline-synthetic {
+  opacity: 0.85;
 }
 
 /* live test status: glyph carries the ✓/✗/? */
@@ -477,6 +491,55 @@
   white-space: normal;
 }
 
+/* text mode, said quietly at the header's end */
+#outline-sidebar .outline-mode-hint {
+  margin-left: auto;
+  padding-left: 6px;
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-style: italic;
+  color: var(--ol-faded);
+}
+
+/* text mode: a ghost line's one caret position, at its start, in the
+   field caret's color; it takes no room, clear of italic text */
+#outline-sidebar .outline-ghost-caret {
+  display: inline-block;
+  width: 0;
+  height: 1.2em;
+  margin: 0 -0.5px 0 -1px;
+  vertical-align: text-bottom;
+  border-left: 1.5px solid var(--text-warning);
+}
+
+/* a refused key: its line pulses once, over the row's own fill. Two names
+   alternate so each refusal replays it */
+#outline-sidebar {
+  --ol-flash: color-mix(in srgb, var(--text-error) 16%, transparent);
+}
+@keyframes ol-flash-a {
+  from {
+    box-shadow: inset 0 0 0 100vmax var(--ol-flash);
+  }
+  to {
+    box-shadow: inset 0 0 0 100vmax transparent;
+  }
+}
+@keyframes ol-flash-b {
+  from {
+    box-shadow: inset 0 0 0 100vmax var(--ol-flash);
+  }
+  to {
+    box-shadow: inset 0 0 0 100vmax transparent;
+  }
+}
+#outline-sidebar .outline-label.outline-flash-a {
+  animation: ol-flash-a 160ms ease-out;
+}
+#outline-sidebar .outline-label.outline-flash-b {
+  animation: ol-flash-b 160ms ease-out;
+}
+
 /* the keyword that made a new definition a type or module leaves */
 #outline-sidebar .outline-kw-leaving {
   display: inline-block;
@@ -504,6 +567,12 @@
   }
 }
 
+@keyframes ol-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
 @media (prefers-reduced-motion: no-preference) {
   #outline-sidebar .outline-kw-leaving {
     animation: ol-kw-leave 220ms ease-in;
@@ -511,5 +580,16 @@
   /* an error badge fades in with its row's red */
   #outline-sidebar .outline-err-badge {
     animation: ol-fade-in 0.4s ease-out;
+  }
+  #outline-sidebar .outline-ghost-caret {
+    animation: ol-caret-blink 1s steps(1) infinite;
+  }
+}
+
+/* reduced motion: the refusal's tint holds, then goes, without fading */
+@media (prefers-reduced-motion: reduce) {
+  #outline-sidebar .outline-label.outline-flash-a,
+  #outline-sidebar .outline-label.outline-flash-b {
+    animation-timing-function: steps(1, end);
   }
 }
