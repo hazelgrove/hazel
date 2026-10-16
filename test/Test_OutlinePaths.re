@@ -325,22 +325,48 @@ let save_caret = () => {
   let new_t = E.New(row("a"), Below);
   C.text := Some(E.at(new_t));
   C.created := None;
-  let typed =
-    save(
-      {
-        sv_line: new_t,
-        sv_text: "type T",
-        sv_col: 1,
-      },
-      Next,
-    );
+  let act = (action, code) =>
+    C.update(
+      ~settings,
+      ~schedule_workspace=_ => (),
+      ~prefix="scratch",
+      ~name="t",
+      action,
+      code,
+    ).
+      model;
+  let made = act(Create(new_t, "type "), code);
   let t =
-    CorpusUtil.row_by_label(Web.Program.statics(typed.program).term, "T");
+    switch (C.text^) {
+    | Some({fresh: Some(f), _}) => f.f_id
+    | _ => fail("no new type")
+    };
+  let typed = act(Type(new_t, Insert("T")), made);
+  /* the Enter's own keydown puts the caret on the next line, waiting */
+  C.text := Some(E.at(New(t, Below)));
+  ignore(
+    act(
+      Settle(
+        new_t,
+        {
+          f_id: t,
+          f_kw: "type ",
+        },
+        Next,
+      ),
+      typed,
+    ),
+  );
   check(
     bool,
     "Enter: a new line below the new type, its keyword leaving",
     true,
-    Option.map((t: E.t) => t.line, C.text^) == Some(New(t, Below))
+    (
+      switch (C.text^) {
+      | Some({line: New(a, Below), fresh: Some(_), _}) => a == t
+      | _ => false
+      }
+    )
     && C.created^ == Some((t, "type ")),
   );
   C.text := Some(up);

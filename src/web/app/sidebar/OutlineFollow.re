@@ -136,7 +136,74 @@ let reveal = (s: spot): unit => {
   };
 };
 
+/* keys typed on a new definition's line before it's in the program
+   (they can come in the frame of the Enter that started it): held, with
+   the line's key, and typed again once that line is drawn; dropped if it
+   never is (the caret moved on, or the Enter was refused) */
+let held: ref(option((string, list(Js.Unsafe.any)))) = ref(None);
+
+let hold = (line: string, evt: Js.t(Dom_html.keyboardEvent)): unit => {
+  let e = Js.Unsafe.coerce(evt);
+  let init =
+    Js.Unsafe.obj([|
+      ("key", Js.Unsafe.inject(e##.key)),
+      ("code", Js.Unsafe.inject(e##.code)),
+      ("metaKey", Js.Unsafe.inject(e##.metaKey)),
+      ("ctrlKey", Js.Unsafe.inject(e##.ctrlKey)),
+      ("altKey", Js.Unsafe.inject(e##.altKey)),
+      ("shiftKey", Js.Unsafe.inject(e##.shiftKey)),
+      ("bubbles", Js.Unsafe.inject(Js._true)),
+      ("cancelable", Js.Unsafe.inject(Js._true)),
+    |]);
+  held :=
+    Some((
+      line,
+      switch (held^) {
+      | Some((l, keys)) when l == line => keys @ [init]
+      | _ => [init]
+      },
+    ));
+};
+
+let replay = (): unit =>
+  switch (held^) {
+  | None => ()
+  | Some((line, keys)) =>
+    held := None;
+    let drawn =
+      Js.Opt.to_option(
+        Dom_html.document##querySelector(
+          Js.string(
+            "#outline-sidebar .outline-new[data-line=\"" ++ line ++ "\"]",
+          ),
+        ),
+      );
+    let body =
+      Js.Opt.to_option(
+        Dom_html.document##querySelector(
+          Js.string("#outline-sidebar .outline-body"),
+        ),
+      );
+    switch (drawn, body) {
+    | (Some(_), Some(body)) =>
+      List.iter(
+        init =>
+          ignore(
+            Js.Unsafe.coerce(body)##dispatchEvent(
+              Js.Unsafe.new_obj(
+                Js.Unsafe.global##._KeyboardEvent,
+                [|Js.Unsafe.inject(Js.string("keydown")), init|],
+              ),
+            ),
+          ),
+        keys,
+      )
+    | _ => ()
+    };
+  };
+
 let update = (): unit => {
+  replay();
   follow_cursor();
   switch (spot^) {
   | Some(s) =>

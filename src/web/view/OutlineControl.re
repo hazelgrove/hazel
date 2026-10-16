@@ -44,6 +44,18 @@ module Action = {
     | Collapse(OutlineTree.path)
     | DefOp(E.def_op, Id.t)
     | Save(E.save, E.after)
+    /* a New line's definition, its keyword given and a hole for its
+       name, the editor's caret in that */
+    | Create(E.line, string)
+    /* a key on a new definition's line, as the editor takes it there */
+    | Type(E.line, E.edit)
+    /* a new definition's line left: a blank name takes its definition
+       with it, a name that isn't one is refused */
+    | Settle(E.line, E.fresh, E.after)
+    /* a new definition remade as a keyword's kind (none: a value) */
+    | Rekind(E.line, string)
+    /* a new definition dropped with its line */
+    | Discard(E.line, Id.t)
     /* the refs above moved: draw them */
     | Redraw
     /* give the outline keyboard focus */
@@ -140,6 +152,256 @@ let spot = (program: Program.t, id: Id.t): option(OutlineFollow.spot) => {
 /* what the editor shows for row [id] in [term] */
 let shown = (id: Id.t, term: Language.Exp.t): option(Id.t) =>
   Option.bind(OutlineTree.node_of(id, term), E.shown_of_node);
+
+/* the editor whose caret is in new definition [d]'s name: how its actions
+   go, its zipper, and [d] (none: the zipper is the name, a cell's header) */
+let live_pane =
+    (program: Program.t, d: Id.t)
+    : option(
+        (CellEditor.Update.t => Workspace.Action.t, Zipper.t, option(Id.t)),
+      ) =>
+  switch (program) {
+  | Whole(e) =>
+    Some((
+      (a => Workspace.Action.CellAction(a)),
+      e.editor.editor.state.zipper,
+      Some(d),
+    ))
+  | Divided(dv) =>
+    Option.map(
+      ((cell: ScratchCell.t, side: ScratchCell.side)) =>
+        (
+          a => Workspace.Action.Stack(cell.e_id, side, a),
+          ScratchCell.pane(side, cell).editor.editor.state.zipper,
+          cell.e_id == d && side == Header ? None : Some(d),
+        ),
+      Divided.focused(dv),
+    )
+  };
+
+/* new definition [d]'s name and the caret's place in it, from the editor */
+let live_name = (program: Program.t, d: Id.t): option(E.live) =>
+  Option.bind(live_pane(program, d), ((_, z, def)) =>
+    ItemEdit.name_at(~def, z)
+    |> Option.map(((l_name, l_at)) =>
+         E.{
+           l_name,
+           l_at,
+         }
+       )
+  );
+
+/* [edit] on new definition [d]'s name, applied as the editor applies
+   typing: None when no editor has its caret in the name, or the edit
+   would take the caret out of it */
+let live_edit =
+    (
+      ~settings: Settings.t,
+      ~schedule_workspace,
+      ~slide_key: string,
+      d: Id.t,
+      edit: E.edit,
+      code: Scratchpad.code,
+    )
+    : option(Updated.t(Scratchpad.code)) => {
+  let name = (code: Scratchpad.code) => live_name(code.program, d);
+  /* one action, by the editor holding the name, its caret kept there */
+  let step = (code: Scratchpad.code, a: Haz3lcore.Action.t) =>
+    switch (live_pane(code.program, d)) {
+    | None => None
+    | Some((route, _, _)) =>
+      switch (
+        Workspace.update(
+          ~settings,
+          ~schedule_action=schedule_workspace,
+          ~slide_key,
+          route(MainEditor(Perform(a))),
+          code,
+        )
+      ) {
+      | u when name(u.model) != None => Some(u)
+      | _ => None
+      | exception (Haz3lcore.Action.Failure.Exception(_)) => None
+      }
+    };
+  switch (name(code)) {
+  | None => None
+  | Some({l_name, l_at}) =>
+    let len = E.units(l_name);
+    switch (edit) {
+    | Insert(s) => step(code, Insert(s))
+    | Erase(Left) when l_at > 0 =>
+      step(code, Destruct(Local(Left, ByChar)))
+    | Erase(Right) when l_at < len =>
+      step(code, Destruct(Local(Right, ByChar)))
+    | Step(Left) when l_at > 0 => step(code, Move(Local(Left, ByChar)))
+    | Step(Right) when l_at < len => step(code, Move(Local(Right, ByChar)))
+    | Edge(side) =>
+      /* a character at a time: one can span units */
+      let rec go = (u: Updated.t(Scratchpad.code), n) =>
+        switch (name(u.model)) {
+        | Some({l_at, _}) when n > 0 && (side == Left ? l_at > 0 : l_at < len) =>
+          switch (step(u.model, Move(Local(side, ByChar)))) {
+          | Some(u) => go(u, n - 1)
+          | None => u
+          }
+        | _ => u
+        };
+      Some(go(code |> Updated.return_quiet, len));
+    | Erase(_)
+    | Step(_) => None
+    };
+  };
+};
+
+/* the program as [seg], new definition [d] in it with the editor's caret
+   in its name. A stack whose cells hold none of it gives it a cell of its
+   own, pinned once it's named (Settle): it has no row to pin till then */
+let with_fresh =
+    (~settings: Settings.t, d: Id.t, seg: Segment.t, code: Scratchpad.code)
+    : Scratchpad.code => {
+  let caret =
+    Option.map(id => (Direction.Left, id), ItemEdit.name_slot(d, seg));
+  let code = Workspace.with_segment(~settings, ~caret?, code, seg);
+  switch (code.program) {
+  | Divided(dv) when Divided.owner(d, dv) == None =>
+    let st = Program.statics(code.program);
+    switch (Divided.open_(~info_map=st.info_map, ~term=st.term, d, dv)) {
+    | Some(dv) => {
+        ...code,
+        program:
+          Divided(
+            Option.fold(
+              ~none=dv,
+              ~some=c => Divided.place_caret(c, dv),
+              caret,
+            ),
+          ),
+      }
+    | None => code
+    };
+  | _ => code
+  };
+};
+
+/* new line [line]'s definition, a hole for its name, the editor's caret
+   in it: unless the caret has moved on from the line meanwhile. One undo
+   step, with the name typed after it */
+let create =
+    (~settings: Settings.t, line: E.line, kw: string, code: Scratchpad.code)
+    : Updated.t(Scratchpad.code) =>
+  switch (line, text^) {
+  | (New(anchor, place), Some(t))
+      when E.same_line(t.line, line) && t.fresh == None =>
+    let program = code.program;
+    let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
+    switch (
+      ItemEdit.edit(
+        ctx,
+        Blank(place, anchor, fst(E.new_kind(kw))),
+        Program.document(program),
+      )
+    ) {
+    | Ok((seg, Some(d))) =>
+      let code = with_fresh(~settings, d, seg, code);
+      text :=
+        Some({
+          ...t,
+          fresh:
+            Some({
+              f_id: d,
+              f_kw: kw,
+            }),
+          seq: next_seq(),
+        });
+      code |> Updated.return;
+    | Ok((_, None))
+    | Error(_) =>
+      /* refused: the caret back on its row */
+      incr(flash);
+      text :=
+        Option.map(
+          path =>
+            E.at(
+              Row(path, Some(Item(anchor))),
+              ~col=
+                Option.fold(
+                  ~none=0,
+                  ~some=(n: OutlineTree.node) => E.units(n.o_label),
+                  OutlineTree.node_of(anchor, ctx.term),
+                ),
+              ~seq=next_seq(),
+            ),
+          OutlineTree.label_path(anchor, ctx.term),
+        );
+      code |> Updated.return_quiet;
+    };
+  | _ => code |> Updated.return_quiet
+  };
+
+/* new line [line]'s definition remade as [kw]'s kind, its name blank, as
+   a keyword typed before the name (or erased) asks: still the step that
+   made it */
+let rekind =
+    (
+      ~settings: Settings.t,
+      line: E.line,
+      f: E.fresh,
+      kw: string,
+      code: Scratchpad.code,
+    )
+    : Updated.t(Scratchpad.code) =>
+  switch (line) {
+  | New(anchor, place) =>
+    let program = code.program;
+    let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
+    let made =
+      Result.bind(
+        ItemEdit.edit(ctx, Op(Delete, f.f_id), Program.document(program)),
+        ~f=((seg, _)) =>
+        ItemEdit.edit(ctx, Blank(place, anchor, fst(E.new_kind(kw))), seg)
+      );
+    switch (made, text^) {
+    | (Ok((seg, Some(d))), Some(t)) =>
+      let code = with_fresh(~settings, d, seg, code);
+      text :=
+        Some({
+          ...t,
+          fresh:
+            Some({
+              f_id: d,
+              f_kw: kw,
+            }),
+          seq: next_seq(),
+        });
+      code |> Updated.return(~historic=false);
+    | _ =>
+      incr(flash);
+      code |> Updated.return_quiet;
+    };
+  | Row(_) => code |> Updated.return_quiet
+  };
+
+/* new definition [d] gone with its line [line], not an undo step: its
+   insertion's step, still on top, then takes back nothing. The editor's
+   caret goes beside the line's anchor */
+let drop =
+    (~settings: Settings.t, line: E.line, d: Id.t, code: Scratchpad.code)
+    : Updated.t(Scratchpad.code) => {
+  let program = code.program;
+  let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
+  switch (ItemEdit.edit(ctx, Op(Delete, d), Program.document(program))) {
+  | Ok((seg, _)) =>
+    let caret =
+      switch (line) {
+      | New(anchor, _) => Some((Direction.Right, anchor))
+      | Row(_) => None
+      };
+    Workspace.with_segment(~settings, ~caret?, code, seg)
+    |> Updated.return(~historic=false);
+  | Error(_) => code |> Updated.return_quiet
+  };
+};
 
 let update =
     (
@@ -239,7 +501,7 @@ let update =
     };
   | Save(sv, after) =>
     /* nothing reaches the program until here: a rename is one
-       refactoring, a new definition one insertion */
+       refactoring */
     let refuse = why => {
       text :=
         Some({
@@ -251,19 +513,13 @@ let update =
     };
     let program = code.program;
     let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
-    let apply = e => ItemEdit.edit(ctx, e, Program.document(program));
     let txt = String.trim(sv.sv_text);
-    /* the save landed on row [id]: what follows it */
-    let landed = (code: Scratchpad.code, id: Id.t) => {
-      let term = Program.statics(code.program).term;
-      switch (after, text^) {
-      /* unless the keys moved the caret on meanwhile */
-      | (Next, Some(t)) when E.same_line(t.line, sv.sv_line) =>
-        text := Some(E.at(New(id, Below), ~seq=next_seq()))
-      | (Leave, _) => cursor := OutlineTree.label_path(id, term)
-      | _ => ()
+    /* the save landed: row mode's cursor on the row, if it was left */
+    let landed = (code: Scratchpad.code, id: Id.t) =>
+      if (after == Leave) {
+        cursor :=
+          OutlineTree.label_path(id, Program.statics(code.program).term);
       };
-    };
     switch (sv.sv_line) {
     | Row(_, Some(Item(row))) =>
       switch (OutlineTree.node_of(row, ctx.term)) {
@@ -274,7 +530,9 @@ let update =
       | Some(_) when !settings.core.statics =>
         refuse("renaming needs statics on")
       | Some(_) =>
-        switch (apply(Rename(row, txt))) {
+        switch (
+          ItemEdit.edit(ctx, Rename(row, txt), Program.document(program))
+        ) {
         | Error(why) => refuse(why)
         | Ok((new_seg, _)) =>
           let code = Workspace.with_segment(~settings, code, new_seg);
@@ -282,35 +540,113 @@ let update =
           code |> Updated.return;
         }
       }
-    | New(anchor, _) when txt == "" =>
-      if (after == Leave) {
-        cursor := OutlineTree.label_path(anchor, ctx.term);
-      };
-      code |> Updated.return_quiet;
-    | New(anchor, place) =>
+    /* a new definition's name is the program's already (Settle) */
+    | Row(_)
+    | New(_) => code |> Updated.return_quiet
+    };
+  | Create(line, kw) => create(~settings, line, kw, code)
+  | Type(line, edit) =>
+    switch (text^) {
+    | Some({line: on, fresh: Some(f), _}) when E.same_line(on, line) =>
       switch (
-        apply(
-          switch (place) {
-          | Below => Insert(anchor, txt)
-          | First => InsertFirst(anchor, txt)
-          | Last => InsertInside(anchor, txt)
-          },
+        live_edit(
+          ~settings,
+          ~schedule_workspace,
+          ~slide_key=Persist.content_key(prefix, name),
+          f.f_id,
+          edit,
+          code,
         )
       ) {
-      | Error(why) => refuse(why)
-      | Ok((new_seg, target)) =>
-        let code = Workspace.with_segment(~settings, code, new_seg);
-        switch (target) {
-        | Some(id) =>
-          let kw = snd(E.new_kind(txt));
-          created := kw == "" ? None : Some((id, kw));
-          landed(code, id);
-        | None => ()
-        };
-        code |> Updated.return;
+      /* one undo step with its definition's insertion */
+      | Some(u) => {
+          ...u,
+          historic: false,
+        }
+      | None =>
+        incr(flash);
+        code |> Updated.return_quiet;
       }
-    | Row(_) => code |> Updated.return_quiet
+    /* typed toward a line that never came, or has gone */
+    | _ => code |> Updated.return_quiet
+    }
+  | Settle(line, f, after) =>
+    let program = code.program;
+    let name =
+      Option.map(
+        pat => String.trim(ItemEdit.text(pat)),
+        ScratchFocus.find_pat(f.f_id, Program.document(program)),
+      );
+    let kind = ItemEdit.rename_kind(fst(E.new_kind(f.f_kw)));
+    switch (name) {
+    /* gone already (undone) */
+    | None => code |> Updated.return_quiet
+    | Some("") => drop(~settings, line, f.f_id, code)
+    | Some(n) =>
+      switch (OutlineRename.check_name(kind, n)) {
+      | Some(why) =>
+        text :=
+          Some({
+            ...E.at(line, ~fresh=f, ~seq=next_seq()),
+            error: Some(why),
+          });
+        code |> Updated.return_quiet;
+      | None =>
+        /* a type or module's keyword leaves as its row comes */
+        created := f.f_kw == "" ? None : Some((f.f_id, f.f_kw));
+        let term = lazy(Workspace.fresh_term(program));
+        /* a cell of its own stays open, pinned now it has a row */
+        let code =
+          switch (program) {
+          | Divided(dv)
+              when
+                Divided.cell(f.f_id, dv) != None
+                && !
+                     List.exists(
+                       (p: SlideView.pin) => p.p_id == f.f_id,
+                       code.view.pins,
+                     ) =>
+            let term = Lazy.force(term);
+            Workspace.realize(
+              ~info_map=Workspace.fresh_info_map(~settings, program, term),
+              ~term,
+              SlideView.pin(~term, f.f_id, code.view),
+              code,
+            );
+          | _ => code
+          };
+        switch (after, text^) {
+        /* the next line, below it, unless the keys moved on meanwhile */
+        | (Next, Some({line: New(a, Below) as next, fresh: None, _}))
+            when a == f.f_id =>
+          create(~settings, next, "", code)
+        | _ =>
+          if (after == Leave) {
+            cursor := OutlineTree.label_path(f.f_id, Lazy.force(term));
+          };
+          /* its row shows the name now, not when the statics catch up */
+          switch (OutlineTree.node_of(f.f_id, Program.statics(program).term)) {
+          | Some(n') when n'.o_label == n => code |> Updated.return_quiet
+          | _ =>
+            CodeWithStatics.StaticsDebounce.force_on_next := true;
+            code |> Updated.return_quiet(~recalculate=true);
+          };
+        };
+      }
     };
+  | Rekind(line, kw) =>
+    switch (text^) {
+    | Some({line: on, fresh: Some(f), _})
+        when E.same_line(on, line) && f.f_kw != kw =>
+      /* the name still the keyword typed, or blank to go back */
+      switch (live_name(code.program, f.f_id)) {
+      | Some({l_name, _}) when kw == "" ? l_name == "" : l_name ++ " " == kw =>
+        rekind(~settings, line, f, kw, code)
+      | _ => code |> Updated.return_quiet
+      }
+    | _ => code |> Updated.return_quiet
+    }
+  | Discard(line, d) => drop(~settings, line, d, code)
   | Focus =>
     JsUtil.focus_outline();
     code |> Updated.return_quiet;
@@ -437,6 +773,13 @@ let view =
     Option.bind(program, p =>
       EvalResult.Model.test_results(Program.result(p))
     );
+  /* a new definition's name, as the editor has it: it changes as the
+     program does, not the statics */
+  let live =
+    switch (text^, program) {
+    | (Some({fresh: Some(f), _}), Some(p)) => live_name(p, f.f_id)
+    | _ => None
+    };
   let key = (
     statics,
     results,
@@ -453,6 +796,7 @@ let view =
       text^,
       flash^,
       created^,
+      live,
     ),
   );
   Util.Slot.get(
@@ -561,6 +905,7 @@ let view =
           | Some(p) => blank_body(p, id)
           | None => false
           },
+        live,
       };
       /* a row inside an open cell can't open on its own: go to it there */
       let nested = id =>
@@ -588,21 +933,31 @@ let view =
           }
         | New(a, _) => OutlineTree.label_path(a, term)
         };
-      /* what's typed on [t]'s line, to save */
-      let save_of = (t: E.t): option(E.save) =>
-        Option.map(
-          s =>
-            E.{
-              sv_line: t.line,
-              sv_text: s,
-              sv_col: t.col,
-            },
-          t.pending,
-        );
-      let save = (req, after) =>
-        switch (req) {
-        | Some(sv) => inject(Save(sv, after))
-        | None => Effect.Ignore
+      /* what saves [t]'s line as the caret leaves it ([after]): the name
+         typed there, or a new definition's check */
+      let save = (t: E.t, after: E.after) =>
+        switch (t.fresh, t.pending) {
+        | (Some(f), _) => inject(Settle(t.line, f, after))
+        | (None, Some(s)) =>
+          inject(
+            Save(
+              {
+                sv_line: t.line,
+                sv_text: s,
+                sv_col: t.col,
+              },
+              after,
+            ),
+          )
+        | (None, None) => Effect.Ignore
+        };
+      let save_current = (after: E.after) =>
+        Option.fold(~none=Effect.Ignore, ~some=t => save(t, after), text^);
+      /* a New line's definition, made as the line starts */
+      let create = (line: E.line, kw: string) =>
+        switch (line) {
+        | New(_) => inject(Create(line, kw))
+        | Row(_) => Effect.Ignore
         };
       let on: OutlineSidebar.handlers = {
         jump,
@@ -659,9 +1014,9 @@ let view =
             flash := 0;
             redraw;
           },
-          start: (~pending=?, line, col) => {
-            let req = Option.bind(text^, save_of);
-            text := Some(E.at(line, ~col, ~pending?, ~seq=next_seq()));
+          start: (~kw="", line, col) => {
+            let req = save_current(Stay);
+            text := Some(E.at(line, ~col, ~seq=next_seq()));
             created := None;
             flash := 0;
             /* a new member's line unfolds its module, where it lands */
@@ -674,10 +1029,10 @@ let view =
                 }
               | _ => Effect.Ignore
               };
-            Effect.Many([save(req, Stay), unfold, redraw]);
+            Effect.Many([req, unfold, create(line, kw), redraw]);
           },
           go: (~discard=false, line, col, col_target) => {
-            let req = discard ? None : Option.bind(text^, save_of);
+            let req = discard ? Effect.Ignore : save_current(Stay);
             text :=
               Some({
                 ...E.at(line, ~col, ~seq=next_seq()),
@@ -685,19 +1040,21 @@ let view =
               });
             created := None;
             flash := 0;
-            Effect.Many([save(req, Stay), redraw]);
+            Effect.Many([req, create(line, ""), redraw]);
           },
           save: after =>
             switch (text^) {
             | None => Effect.Ignore
             | Some(t) =>
-              let req = save_of(t);
-              switch (after) {
-              | Leave =>
+              let req = save(t, after);
+              switch (after, t.fresh) {
+              | (Leave, _) =>
                 text := None;
                 cursor := path_of(t.line);
-              | Stay
-              | Next =>
+              /* the next line waits for its definition, below this one */
+              | (Next, Some(f)) =>
+                text := Some(E.at(New(f.f_id, Below), ~seq=next_seq()))
+              | (Stay | Next, _) =>
                 /* the save takes what's typed; a refusal brings it back */
                 text :=
                   Some({
@@ -707,32 +1064,47 @@ let view =
                   })
               };
               flash := 0;
-              Effect.Many([save(req, after), redraw]);
+              Effect.Many([req, redraw]);
             },
-          abandon:
-            Effect.Many([
-              Effect.of_sync_fun(
-                () => {
-                  Option.iter((t: E.t) => cursor := path_of(t.line), text^);
-                  text := None;
-                },
-                (),
-              ),
-              redraw,
-            ]),
+          abandon: () => {
+            let drop =
+              switch (text^) {
+              | Some({fresh: Some(f), line, _}) =>
+                inject(Discard(line, f.f_id))
+              | _ => Effect.Ignore
+              };
+            Option.iter((t: E.t) => cursor := path_of(t.line), text^);
+            text := None;
+            Effect.Many([drop, redraw]);
+          },
+          discard: d =>
+            switch (text^) {
+            | Some(t) => inject(Discard(t.line, d))
+            | None => Effect.Ignore
+            },
+          type_: edit =>
+            switch (text^) {
+            | Some(t) => inject(Type(t.line, edit))
+            | None => Effect.Ignore
+            },
+          rekind: kw =>
+            switch (text^) {
+            | Some(t) => inject(Rekind(t.line, kw))
+            | None => Effect.Ignore
+            },
           op: (op, id) =>
             switch (text^) {
             | None => inject(DefOp(op, id))
             | Some(t) =>
               /* a delete drops what's typed; other ops save it first */
-              let req = op == Delete ? None : save_of(t);
+              let req = op == Delete ? Effect.Ignore : save(t, Stay);
               text :=
                 Some({
                   ...t,
                   pending: None,
                   error: None,
                 });
-              Effect.Many([save(req, Stay), inject(DefOp(op, id))]);
+              Effect.Many([req, inject(DefOp(op, id))]);
             },
           flash:
             Effect.Many([

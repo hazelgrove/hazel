@@ -38,9 +38,13 @@ let visible =
 };
 
 /* text mode's state kept as OutlineControl keeps it, minus the program;
-   the ops it asks for go to [ops] */
+   the ops it asks for go to [ops], a new definition's keys to [edits] */
 let text_ctl =
-    (~ops: ref(list((E.def_op, Id.t)))=ref([]), state: ref(option(E.t)))
+    (
+      ~ops: ref(list((E.def_op, Id.t)))=ref([]),
+      ~edits: ref(list(E.edit))=ref([]),
+      state: ref(option(E.t)),
+    )
     : S.text_ctl => {
   current: state^,
   get: () => state^,
@@ -48,8 +52,8 @@ let text_ctl =
     state := t;
     ignore;
   },
-  start: (~pending=?, line, col) => {
-    state := Some(E.at(line, ~col, ~pending?));
+  start: (~kw as _="", line, col) => {
+    state := Some(E.at(line, ~col));
     ignore;
   },
   go: (~discard as _=false, line, col, col_target) => {
@@ -61,7 +65,13 @@ let text_ctl =
     ignore;
   },
   save: _ => ignore,
-  abandon: ignore,
+  abandon: () => ignore,
+  discard: _ => ignore,
+  type_: edit => {
+    edits := [edit, ...edits^];
+    ignore;
+  },
+  rekind: _ => ignore,
   op: (op, id) => {
     ops := [(op, id), ...ops^];
     ignore;
@@ -77,6 +87,7 @@ let handlers =
       ~cursor: ref(option(O.path))=ref(None),
       ~text: ref(option(E.t))=ref(None),
       ~ops: ref(list((E.def_op, Id.t)))=ref([]),
+      ~edits: ref(list(E.edit))=ref([]),
       ~toggle: Id.t => Virtual_dom.Vdom.Effect.t(unit)=none,
       ~toggle_collapse: O.path => Virtual_dom.Vdom.Effect.t(unit)=none,
       ~def_op: (E.def_op, Id.t) => Virtual_dom.Vdom.Effect.t(unit)=(_, _) =>
@@ -101,7 +112,7 @@ let handlers =
   },
   focused: ignore,
   leave: ignore,
-  text: text_ctl(~ops, text),
+  text: text_ctl(~ops, ~edits, text),
   menu_open: (_, _, _) => ignore,
   menu_close: ignore,
   menu_select: none,
@@ -139,6 +150,7 @@ let props =
   menu_sel: 0,
   test_status: _ => None,
   blank: _ => false,
+  live: None,
 };
 
 /* a keydown as the browser sends it, on the row list */

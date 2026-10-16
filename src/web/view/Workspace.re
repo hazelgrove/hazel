@@ -196,9 +196,15 @@ let fresh_info_map =
     : Id.Map.empty;
 
 /* the program after an outline edit: statics seeded now (the outline
-   reads them), manual probes and the caret kept, cells re-cut */
+   reads them), manual probes and the caret kept, cells re-cut; or the
+   caret beside [caret], in whichever editor holds it */
 let with_segment =
-    (~settings: Settings.t, code: Scratchpad.code, new_seg: Segment.t)
+    (
+      ~settings: Settings.t,
+      ~caret: option((Direction.t, Id.t))=?,
+      code: Scratchpad.code,
+      new_seg: Segment.t,
+    )
     : Scratchpad.code => {
   let program = code.program;
   let root = Program.root(program);
@@ -207,9 +213,10 @@ let with_segment =
       ~root,
       ~probes=Program.probes(program),
       ~anchor=
-        switch (program) {
-        | Whole(e) => Divided.anchor_of(e.editor.editor.state.zipper)
-        | Divided(_) => None
+        switch (caret, program) {
+        | (Some(_), _) => caret
+        | (None, Whole(e)) => Divided.anchor_of(e.editor.editor.state.zipper)
+        | (None, Divided(_)) => None
         },
       new_seg,
     );
@@ -247,13 +254,21 @@ let with_segment =
       | Still(d) => Program.Divided(Divided.with_statics(statics, d))
       }
     };
-  resync(
-    {
-      ...code,
+  let code =
+    resync(
+      {
+        ...code,
+        program,
+      },
       program,
-    },
-    program,
-  );
+    );
+  switch (caret, code.program) {
+  | (Some(c), Divided(d)) => {
+      ...code,
+      program: Divided(Divided.place_caret(c, d)),
+    }
+  | _ => code
+  };
 };
 
 /* the program as an item edit sees it: parsed from the current

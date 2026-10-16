@@ -2,8 +2,8 @@ open Alcotest;
 open Haz3lcore;
 
 /* the outline's text mode (OutlineEdit): what each key does on each kind
-   of line, as data, over a real program's rows; and the saves and ops
-   OutlineControl makes of them */
+   of line, as data, over a real program's rows; and the saves, ops and
+   new definitions OutlineControl makes of them */
 
 module E = Web.OutlineEdit;
 module O = Web.OutlineTree;
@@ -77,7 +77,8 @@ let k = (~alt=false, ~meta=false, ~shift=false, ~code=?, key): E.press => {
 };
 
 /* [key] on the line showing [which], the caret at [col] (in its field
-   when [field]), what's typed [pending] */
+   when [field]), what's typed [pending]; on a new definition's line, its
+   definition [fresh] once in and its name [live] as drawn */
 let press =
     (
       ~collapsed=[],
@@ -88,6 +89,8 @@ let press =
       ~col_target=?,
       ~error=?,
       ~blank=_ => false,
+      ~fresh=?,
+      ~live=?,
       ~on=?,
       which: string,
       p: E.press,
@@ -100,7 +103,7 @@ let press =
     | None => line_of(base, which)
     };
   let t: E.t = {
-    ...E.at(line, ~col, ~pending?),
+    ...E.at(line, ~col, ~pending?, ~fresh?),
     col_target,
     error,
   };
@@ -116,8 +119,19 @@ let press =
     },
     ~blank,
     ~page=() => 3,
+    ~live?,
     p,
   );
+};
+
+/* a new definition's name as the program has it, and the caret in it */
+let named = (l_name, l_at): E.live => {
+  l_name,
+  l_at,
+};
+let fresh = (~kw="", ()): E.fresh => {
+  f_id: Id.mk(),
+  f_kw: kw,
 };
 
 let outcome = testable(Fmt.of_to_string(E.show_outcome), (==));
@@ -264,15 +278,27 @@ let backspace = () => {
   );
   check(
     outcome,
-    "a new line with a name: flashes",
-    Flash,
-    press(~on=new_below, ~pending="x", "+", k("Backspace")),
+    "a new line's name: a character, in the program",
+    Type(Erase(Left)),
+    press(~on=new_below, ~live=named("x", 1), "+", k("Backspace")),
   );
   check(
     outcome,
-    "a new line's keyword goes first",
-    Edit("", 0),
-    press(~on=new_below, ~pending="type ", "+", k("Backspace")),
+    "a named new line's start: flashes",
+    Flash,
+    press(~on=new_below, ~live=named("x", 0), "+", k("Backspace")),
+  );
+  check(
+    outcome,
+    "a new type's keyword goes first",
+    Rekind(""),
+    press(
+      ~on=new_below,
+      ~fresh=fresh(~kw="type ", ()),
+      ~live=named("", 0),
+      "+",
+      k("Backspace"),
+    ),
   );
   let blank = i => i == id("blank");
   check(
@@ -316,6 +342,19 @@ let backspace = () => {
     "⌘⌫ on a new line: it goes",
     go("alpha", 5, None),
     press(~on=new_below, "+", k(~meta=true, "Backspace")),
+  );
+  let f = fresh();
+  check(
+    outcome,
+    "⌘⌫ on a named new line: its definition too",
+    Drop(f.f_id, Some((line_of(lines(), "alpha"), 5))),
+    press(
+      ~on=new_below,
+      ~fresh=f,
+      ~live=named("x", 1),
+      "+",
+      k(~meta=true, "Backspace"),
+    ),
   );
 };
 
@@ -390,9 +429,9 @@ let enter = () => {
   let new_below = E.New(id("alpha"), Below);
   check(
     outcome,
-    "a new line, named: saved, a next below",
+    "a new line, named: a next below",
     Save(Next),
-    press(~on=new_below, ~pending="b", "+", k("Enter")),
+    press(~on=new_below, ~live=named("b", 1), "+", k("Enter")),
   );
   check(
     outcome,
@@ -440,13 +479,13 @@ let undo = () => {
   let new_below = E.New(id("alpha"), Below);
   check(
     outcome,
-    "a new line, named: its name",
-    Revert,
-    press(~on=new_below, ~pending="x", "+", z),
+    "a new line: the page's, which takes its definition, the caret up",
+    Undo(line_of(lines(), "alpha"), 5),
+    press(~on=new_below, ~fresh=fresh(), ~live=named("x", 1), "+", z),
   );
   check(
     outcome,
-    "a blank new line: the Enter that made it",
+    "its definition not in yet: the Enter that made it",
     go("alpha", 5, None),
     press(~on=new_below, "+", z),
   );
@@ -541,15 +580,21 @@ let early = () => {
   );
   check(
     outcome,
-    "a new line's keyword sets itself apart",
-    Edit("type ", 0),
+    "a new line's name begun `type `: a type instead",
+    Rekind("type "),
     press(
       ~on=New(id("alpha"), Below),
-      ~pending="type",
-      ~col=4,
+      ~fresh=fresh(),
+      ~live=named("type", 4),
       "+",
       k(" "),
     ),
+  );
+  check(
+    outcome,
+    "a letter on a new line: into the program",
+    Type(Insert("q")),
+    press(~on=New(id("alpha"), Below), ~live=named("", 0), "+", k("q")),
   );
 };
 
@@ -680,7 +725,7 @@ let code_of = (src: string) =>
   | Drv(_) => fail("not a code slide")
   };
 
-let run = (action, code: Web.ScratchModel.Scratchpad.code) =>
+let update = (action, code: Web.ScratchModel.Scratchpad.code) =>
   C.update(
     ~settings=Web.Globals.Model.init().settings,
     ~schedule_workspace=_ => (),
@@ -688,8 +733,8 @@ let run = (action, code: Web.ScratchModel.Scratchpad.code) =>
     ~name="t",
     action,
     code,
-  ).
-    model;
+  );
+let run = (action, code) => update(action, code).model;
 
 let text_of = (code: Web.ScratchModel.Scratchpad.code) =>
   CorpusUtil.text_of(Web.Program.document(code.program));
@@ -765,20 +810,195 @@ a|js},
   reset();
 };
 
-/* Enter on an expanded module names its new first member */
+/* the same text, as the program prints it */
+let printed = (src: string) => CorpusUtil.text_of(CorpusUtil.seg_of(src));
+
+/* text mode's new definition, once in */
+let fresh_def = (): Id.t =>
+  switch (C.text^) {
+  | Some({fresh: Some(f), _}) => f.f_id
+  | _ => fail("no new definition")
+  };
+
+/* the new definition's name and the caret in it, as the editor has them */
+let live_of = (code: Web.ScratchModel.Scratchpad.code) =>
+  C.live_name(code.program, fresh_def())
+  |> Option.map((l: E.live) => (l.l_name, l.l_at));
+
+/* keys on a new definition's line, in order: none its own undo step */
+let typing = (line, edits, code) =>
+  List.fold_left(
+    (code, e) => {
+      let u = update(Type(line, e), code);
+      check(bool, "not an undo step of its own", false, u.historic);
+      u.model;
+    },
+    code,
+    edits,
+  );
+
+let at_name = testable(Fmt.(option(pair(string, int))), (==));
+
+/* Enter makes the new definition at once, a hole for its name and the
+   editor's caret in it; keys typed on its line are the editor's there */
+let live_typing = () => {
+  let code = code_of("let a = 1 in\nlet b = 2 in\na + b");
+  let a =
+    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let line = E.New(a, Below);
+  C.text := Some(E.at(line));
+  let made = update(Create(line, ""), code);
+  check(bool, "one undo step", true, made.historic);
+  let code = made.model;
+  check(
+    string,
+    "in below a, a hole for its name",
+    printed({js|let a = 1 in
+let ¿ = ¿ in
+let b = 2 in
+a + b|js}),
+    text_of(code),
+  );
+  check(at_name, "the editor's caret in it", Some(("", 0)), live_of(code));
+  let code = typing(line, [Insert("a"), Insert("b")], code);
+  check(
+    string,
+    "letters into the program",
+    printed({js|let a = 1 in
+let ab = ¿ in
+let b = 2 in
+a + b|js}),
+    text_of(code),
+  );
+  check(at_name, "the caret after them", Some(("ab", 2)), live_of(code));
+  let code = typing(line, [Step(Left), Insert("x")], code);
+  check(at_name, "← then x", Some(("axb", 2)), live_of(code));
+  let code = typing(line, [Edge(Right)], code);
+  check(at_name, "End", Some(("axb", 3)), live_of(code));
+  let code = typing(line, [Edge(Left)], code);
+  check(at_name, "Home", Some(("axb", 0)), live_of(code));
+  C.flash := 0;
+  let same = run(Type(line, Erase(Left)), code);
+  check(
+    bool,
+    "⌫ at the start: refused, the program as it was",
+    true,
+    C.flash^ == 1 && text_of(same) == text_of(code),
+  );
+  let code = typing(line, [Erase(Right)], code);
+  check(at_name, "Delete", Some(("xb", 0)), live_of(code));
+  /* a key toward another line, or one that never came: nothing */
+  let other = run(Type(New(a, First), Insert("q")), code);
+  check(string, "keys for another line", text_of(code), text_of(other));
+  reset();
+};
+
+/* the new definition's line left: a blank name takes the definition
+   with it, not an undo step; a name that isn't one is refused, and a
+   second Esc drops it */
+let live_leaving = () => {
+  let src = "let a = 1 in\nlet b = 2 in\na + b";
+  let start = () => {
+    let code = code_of(src);
+    let a =
+      CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+    let line = E.New(a, Below);
+    C.text := Some(E.at(line));
+    (line, run(Create(line, ""), code));
+  };
+  let (line, code) = start();
+  let code = typing(line, [Insert("q"), Erase(Left)], code);
+  let f: E.fresh = {
+    f_id: fresh_def(),
+    f_kw: "",
+  };
+  let gone = update(Settle(line, f, Stay), code);
+  check(string, "blank: gone", printed(src), text_of(gone.model));
+  check(bool, "not an undo step", false, gone.historic);
+  let (line, code) = start();
+  let code = typing(line, [Insert("B")], code);
+  let f: E.fresh = {
+    f_id: fresh_def(),
+    f_kw: "",
+  };
+  let kept = run(Settle(line, f, Leave), code);
+  check(
+    bool,
+    "a capital: refused, the caret back on its line",
+    true,
+    switch (C.text^) {
+    | Some({line: back, error: Some(_), fresh: Some(f'), _}) =>
+      E.same_line(back, line) && f' == f
+    | _ => false
+    },
+  );
+  check(
+    bool,
+    "the name still in the program",
+    true,
+    text_of(kept) == text_of(code),
+  );
+  let dropped = update(Discard(line, f.f_id), kept);
+  check(string, "Esc again: dropped", printed(src), text_of(dropped.model));
+  check(bool, "not an undo step", false, dropped.historic);
+  let (line, code) = start();
+  let code = typing(line, [Insert("c")], code);
+  let d = fresh_def();
+  C.text := None;
+  ignore(
+    run(
+      Settle(
+        line,
+        {
+          f_id: d,
+          f_kw: "",
+        },
+        Leave,
+      ),
+      code,
+    ),
+  );
+  check(
+    bool,
+    "a name: row mode's cursor on its row",
+    true,
+    C.cursor^ == O.label_path(d, Web.Workspace.fresh_term(code.program)),
+  );
+  reset();
+};
+
+/* Enter on an expanded module: its new first member, live; Enter after
+   its name, a next line below it */
 let first_member = () => {
   let code = code_of("module M = {\n  let a = 1;\n  let b = 2\n} in\nM.a");
   let m =
     CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "M");
   let line = E.New(m, First);
   C.text := Some(E.at(line));
-  let code' =
+  let code = typing(line, [Insert("z")], run(Create(line, ""), code));
+  check(
+    string,
+    "z first in M",
+    printed(
+      {js|module M = {
+  let z = ¿;
+  let a = 1;
+  let b = 2
+} in
+M.a|js},
+    ),
+    text_of(code),
+  );
+  let z = fresh_def();
+  /* Enter: the next line waits for its definition (the save's keydown) */
+  C.text := Some(E.at(New(z, Below)));
+  let code =
     run(
-      Save(
+      Settle(
+        line,
         {
-          sv_line: line,
-          sv_text: "zero",
-          sv_col: 4,
+          f_id: z,
+          f_kw: "",
         },
         Next,
       ),
@@ -786,28 +1006,197 @@ let first_member = () => {
     );
   check(
     string,
-    "zero first in M",
-    CorpusUtil.text_of(
-      CorpusUtil.seg_of(
-        {js|module M = {
-  let zero = ¿;
+    "the next one below z",
+    printed(
+      {js|module M = {
+  let z = ¿;
+  let ¿ = ¿;
   let a = 1;
   let b = 2
 } in
 M.a|js},
-      ),
     ),
-    text_of(code'),
+    text_of(code),
   );
-  let zero =
-    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code'.program), "zero");
   check(
     bool,
-    "a new line below it",
+    "the caret on it",
     true,
-    Option.map((t: E.t) => t.line, C.text^) == Some(New(zero, Below)),
+    switch (C.text^) {
+    | Some({line: New(a, Below), fresh: Some(_), _}) => a == z
+    | _ => false
+    },
   );
   reset();
+};
+
+/* `type ` typed as a value's name makes it a type, blank; ⌫ at its
+   start makes it a value again: still the step that made it */
+let live_kinds = () => {
+  let code = code_of("let a = 1 in\na");
+  let a =
+    CorpusUtil.row_by_label(Web.Workspace.fresh_term(code.program), "a");
+  let line = E.New(a, Below);
+  C.text := Some(E.at(line));
+  let code =
+    typing(
+      line,
+      [Insert("t"), Insert("y"), Insert("p"), Insert("e")],
+      run(Create(line, ""), code),
+    );
+  let typed = update(Rekind(line, "type "), code);
+  check(bool, "not an undo step", false, typed.historic);
+  check(
+    string,
+    "a type",
+    printed({js|let a = 1 in
+type ¿ = ¿ in
+a|js}),
+    text_of(typed.model),
+  );
+  check(at_name, "its name blank", Some(("", 0)), live_of(typed.model));
+  let code = typing(line, [Insert("T")], typed.model);
+  check(
+    string,
+    "named",
+    printed({js|let a = 1 in
+type T = ¿ in
+a|js}),
+    text_of(code),
+  );
+  let back = run(Rekind(line, ""), typing(line, [Erase(Left)], code));
+  check(
+    string,
+    "a value again",
+    printed({js|let a = 1 in
+let ¿ = ¿ in
+a|js}),
+    text_of(back),
+  );
+  reset();
+};
+
+/* with cells open, a new definition the stack doesn't show gets a cell
+   of its own, its name typed in the header; named, it stays pinned */
+let live_in_stack = () => {
+  let code = code_of("let a = 1 in\nlet b = 2 in\na + b");
+  let term = Web.Workspace.fresh_term(code.program);
+  let a = CorpusUtil.row_by_label(term, "a");
+  let code =
+    Web.Workspace.realize(
+      ~info_map=
+        Web.Workspace.fresh_info_map(
+          ~settings=Web.Globals.Model.init().settings,
+          code.program,
+          term,
+        ),
+      ~term,
+      Web.SlideView.pin(~term, a, code.view),
+      code,
+    );
+  let line = E.New(a, Below);
+  C.text := Some(E.at(line));
+  let code = typing(line, [Insert("n")], run(Create(line, ""), code));
+  let d = fresh_def();
+  let header = (code: Web.ScratchModel.Scratchpad.code) =>
+    switch (code.program) {
+    | Divided(dv) =>
+      Option.map(
+        (e: Web.ScratchCell.t) =>
+          CorpusUtil.text_of(Web.ScratchFocus.zip_of_cell(e.e_header)),
+        Web.Divided.cell(d, dv),
+      )
+    | Whole(_) => None
+    };
+  check(
+    option(string),
+    "its own cell, n in its header",
+    Some("n"),
+    header(code),
+  );
+  C.text := None;
+  let code =
+    run(
+      Settle(
+        line,
+        {
+          f_id: d,
+          f_kw: "",
+        },
+        Leave,
+      ),
+      code,
+    );
+  check(
+    bool,
+    "pinned",
+    true,
+    List.exists((p: Web.SlideView.pin) => p.p_id == d, code.view.pins),
+  );
+  reset();
+};
+
+/* the page's undo after a new definition's name: the definition goes,
+   name and all, in one step */
+let live_undo = () => {
+  module U = Test_Undo.Cells;
+  let outline = (a: C.Action.t): Web.Page.Update.t =>
+    Editors(Scratch(Outline(a)));
+  let program = m => CorpusUtil.text_of(Web.Program.document(U.program(m)));
+  let m = U.run(U.mk(), Refresh);
+  let before = program(m);
+  let line = E.New(U.row(m, "a"), Below);
+  C.text := Some(E.at(line));
+  let m = U.run(m, outline(Create(line, "")));
+  let m =
+    List.fold_left(
+      (m, c) => U.run(m, outline(Type(line, Insert(c)))),
+      m,
+      ["n", "e", "w"],
+    );
+  check(
+    string,
+    "named in the program",
+    printed({js|let a = 1 in
+let new = ¿ in
+let b = 2 in
+a + b|js}),
+    program(m),
+  );
+  check(int, "one undo step", 1, List.length(m.undo_stack));
+  let m = U.run(m, Globals(Undo));
+  check(string, "⌘Z: as before the Enter", before, program(m));
+  reset();
+};
+
+/* keys typed on a new line before its definition is in (the Enter's
+   frame) wait for it, not for the line the Enter left */
+let keys_wait = () => {
+  let visible = H.visible(term);
+  let line = E.New(id("alpha"), Below);
+  let text = ref(Some(E.at(line)));
+  let edits = ref([]);
+  let on = H.handlers(~text, ~edits, ());
+  Web.OutlineFollow.held := None;
+  ignore(
+    Web.OutlineSidebar.keys(
+      ~props=H.props(),
+      ~on,
+      ~visible,
+      H.keydown(~code="KeyQ", "q"),
+    ),
+  );
+  check(bool, "nothing typed yet", true, edits^ == []);
+  check(
+    bool,
+    "held for the new line",
+    true,
+    switch (Web.OutlineFollow.held^) {
+    | Some((key, [_])) => key == E.new_key(id("alpha"), Below)
+    | _ => false
+    },
+  );
+  Web.OutlineFollow.held := None;
 };
 
 /* ⌘D puts the caret in the copy; ⌘⌫ on the next row; a refused op
@@ -994,6 +1383,12 @@ let tests = (
     test_case("blank definitions", `Quick, blank_bodies),
     test_case("new tests take the caret", `Quick, new_tests),
     test_case("a module's new first member", `Quick, first_member),
+    test_case("a new definition's name, live", `Quick, live_typing),
+    test_case("leaving a new definition's line", `Quick, live_leaving),
+    test_case("a keyword picks a new definition's kind", `Quick, live_kinds),
+    test_case("a new definition with cells open", `Quick, live_in_stack),
+    test_case("keys before a new definition is in", `Quick, keys_wait),
+    test_case("⌘Z takes a new definition, name and all", `Quick, live_undo),
     test_case("copy and delete move the caret", `Quick, copy_and_delete),
     test_case("⌥F in row mode", `Quick, row_mode_fold),
     test_case("menus offer a new test", `Quick, test_menus),
