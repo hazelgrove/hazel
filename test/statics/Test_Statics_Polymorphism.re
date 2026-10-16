@@ -72,7 +72,7 @@ let tests = (
     ),
     inconsistent_typecheck(
       "Polymorphic Equality type contains arrow 1",
-      {| string_compare == string_compare |} |> parse_exp,
+      {| String.compare == String.compare |} |> parse_exp,
     ),
     inconsistent_typecheck(
       "Polymorphic Equality type contains arrow 2",

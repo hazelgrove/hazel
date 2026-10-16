@@ -265,7 +265,7 @@ let operator_tests = [
   ),
   probe_line_test(
     "Probe on builtin function call",
-    {|^^probe(string_length("hello"))|},
+    {|^^probe(String.length("hello"))|},
     [(0, ["5"])],
   ),
   probe_line_test(
