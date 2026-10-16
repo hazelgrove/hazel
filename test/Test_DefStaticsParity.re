@@ -724,6 +724,16 @@ let type_deps = [
       [token("Bool", "String") |> analyzed(4)],
     ),
   ),
+  test_case(
+    "a module type member through an alias",
+    `Quick,
+    script(
+      "module M = {\n  type T = Int;\n  let x = 1\n} in\ntype U = M.T in\nlet y : U = 2 in\ny",
+      /* M's signature changes; U's definition mentions M, so y, which
+         mentions only U, is stale too */
+      [token(~at=`First, "Int", "Bool")],
+    ),
+  ),
 ];
 
 /* a literal edit keeps its id, as typing into a token does: seeded

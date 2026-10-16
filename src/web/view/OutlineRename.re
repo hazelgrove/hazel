@@ -43,10 +43,17 @@ let find_item = (row: Id.t, term: Exp.t): option(item) =>
 
 /* tokens naming the item: its references, and `M.x` labels */
 let references = (~info_map: Statics.Map.t, it: item): list(Id.t) => {
+  /* a path's base in a type (`U` of `U.Meters`) names the module's value */
+  let module_site = (info: Info.t) =>
+    switch (info) {
+    | InfoTyp({user_term: {term: Var(name), _}, ctx, _}) =>
+      Option.map((v: Ctx.var_entry) => v.id, Ctx.lookup_var(ctx, name))
+    | _ => Info.get_binding_site(info)
+    };
   /* `M.x` or `U.Meters`: the label, when its module is the item's owner */
   let qualified = (owner, base, l, label, acc) =>
     l == it.old
-    && Option.bind(Id.Map.find_opt(base, info_map), Info.get_binding_site)
+    && Option.bind(Id.Map.find_opt(base, info_map), module_site)
     == Some(owner)
       ? [label, ...acc] : acc;
   Id.Map.fold(

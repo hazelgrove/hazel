@@ -752,55 +752,60 @@ in 1|},
       )
     ),
     /* ===== MODULE ELABORATION TESTS =====
-       NOTE: Modules currently elaborate to labeled tuples.
-       These tests will need updating when modules get their own
-       semantics separate from labeled tuples (Phase 2). */
-    test_case("Module single binding elaborates to labeled tuple", `Quick, () =>
+       Modules elaborate to modules: each item keeps its elaborated
+       definition, type items are dropped, and the signature annotation
+       stays a signature type. */
+    test_case("Module single binding elaborates to a module", `Quick, () =>
       alco_check(
-        {|{ let x = 1 } => let x = 1 in (x=x)|},
-        Exp.(
-          let_(
-            Pat.var("x"),
-            int(1),
-            tuple([tup_label(label("x"), var("x"))]),
-          )
-        ),
+        {|{ let x = 1 }|},
+        Exp.(module_([Mod.mod_let(Pat.var("x"), int(1))])),
         dhexp_of_uexp(parse_exp({|{ let x = 1 }|})),
       )
     ),
-    test_case(
-      "Module multiple bindings elaborates to labeled tuple", `Quick, () =>
+    test_case("Module multiple bindings elaborates to a module", `Quick, () =>
       alco_check(
         {|{ let x = 1; let y = true }|},
         Exp.(
-          let_(
-            Pat.var("x"),
-            int(1),
-            let_(
-              Pat.var("y"),
-              bool(true),
-              tuple([
-                tup_label(label("x"), var("x")),
-                tup_label(label("y"), var("y")),
-              ]),
-            ),
-          )
+          module_([
+            Mod.mod_let(Pat.var("x"), int(1)),
+            Mod.mod_let(Pat.var("y"), bool(true)),
+          ])
         ),
         dhexp_of_uexp(parse_exp({|{ let x = 1; let y = true }|})),
       )
     ),
-    test_case("Module in let binding preserves type", `Quick, () =>
+    test_case("Module type items are dropped by elaboration", `Quick, () =>
+      alco_check(
+        {|{ type T = Int; let x = 1 }|},
+        Exp.(module_([Mod.mod_let(Pat.var("x"), int(1))])),
+        dhexp_of_uexp(parse_exp({|{ type T = Int; let x = 1 }|})),
+      )
+    ),
+    test_case("Module in let binding elaborates in place", `Quick, () =>
       alco_check(
         {|let m = { let x = 1 } in m.x|},
-        dhexp_of_uexp(parse_exp({|let m = (let x = 1 in (x=x)) in m.x|})),
+        Exp.(
+          let_(
+            Pat.var("m"),
+            module_([Mod.mod_let(Pat.var("x"), int(1))]),
+            dot(var("m"), label("x")),
+          )
+        ),
         dhexp_of_uexp(parse_exp({|let m = { let x = 1 } in m.x|})),
       )
     ),
-    test_case("Module with sig annotation elaborates labels", `Quick, () =>
+    test_case("Module with sig annotation keeps the signature", `Quick, () =>
       alco_check(
         {|let m : { let x : Int } = { let x = 1 } in m|},
-        dhexp_of_uexp(
-          parse_exp({|let m : (x=Int) = (let x = 1 in (x=x)) in m|}),
+        Exp.(
+          let_(
+            Pat.asc(
+              Pat.var("m"),
+              Typ.sig_([Sig.sig_let(Pat.asc(Pat.var("x"), Typ.int()))]),
+            ),
+            module_([Mod.mod_let(Pat.var("x"), int(1))]),
+            var("m"),
+          )
         ),
         dhexp_of_uexp(
           parse_exp({|let m : { let x : Int } = { let x = 1 } in m|}),

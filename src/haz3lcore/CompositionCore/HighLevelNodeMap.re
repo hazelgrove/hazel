@@ -524,7 +524,8 @@ let rec build_children =
             switch (item.term) {
             | ModLet(_)
             | ModType(_)
-            | ModuleMod(_) => true
+            | ModuleMod(_)
+            | ModVal(_) => true
             | ModExp(_)
             | Invalid(_)
             | EmptyHole
