@@ -429,18 +429,50 @@ let update =
     |> return(~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
-       slide hydrating first can't drop it */
+       slide hydrating first can't drop it; a deep link's outline
+       request goes over it, on the linked slide only */
+    let link = DeepLink.outline_for(slide_key);
     switch (Hashtbl.find_opt(Persist.pending_pins, slide_key), code.program) {
-    | (Some(saved), Whole(editor))
+    | (saved, Whole(editor))
         when
-          List.exists(
-            (n: OutlineTree.node) => n.o_label != "",
-            OutlineTree.of_term(editor.editor.statics.term),
-          ) =>
+          (saved != None || link != None)
+          && List.exists(
+               (n: OutlineTree.node) => n.o_label != "",
+               OutlineTree.of_term(editor.editor.statics.term),
+             ) =>
       Hashtbl.remove(Persist.pending_pins, slide_key);
-      view((term, _, _) => Persist.resolve_view(saved, term), code);
+      if (link != None) {
+        DeepLink.outline_applied := true;
+      };
+      view(
+        (term, _, v) => {
+          let v =
+            switch (saved) {
+            | Some(saved) => Persist.resolve_view(saved, term)
+            | None => v
+            };
+          switch (link) {
+          | Some(r) =>
+            let v =
+              switch (r.ux) {
+              | Some(ux) => SlideView.set_mode(~term, ux ? UX : Dev, v)
+              | None => v
+              };
+            switch (r.ux_rows) {
+            | Some(labels) =>
+              SlideView.set_ux_pins(
+                SlideView.rows_labeled(~term, ~norm=DeepLink.key, labels),
+                v,
+              )
+            | None => v
+            };
+          | None => v
+          };
+        },
+        code,
+      );
     | _ => code |> return_quiet /* statics not ready: retry */
-    }
+    };
   | RestoreCaret(p) =>
     /* cleared here, not when scheduled: boot's calculate has a no-op
        scheduler, so the entry must survive until a real loop runs it */
@@ -523,7 +555,11 @@ let calculate =
   | Some(p) => schedule_action(RestoreCaret(p))
   | None => ()
   };
-  switch (Hashtbl.mem(Persist.pending_pins, slide_key), program) {
+  switch (
+    Hashtbl.mem(Persist.pending_pins, slide_key)
+    || DeepLink.outline_for(slide_key) != None,
+    program,
+  ) {
   | (true, Whole(editor))
       when
         List.exists(

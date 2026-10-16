@@ -388,6 +388,50 @@ let set_mode = (~term, mode: mode, v: t): t =>
 let ux_pins = (~term, v: t): list(pin) =>
   v.mode == UX ? v.pins : away(~term, v);
 
+/* UX mode's pins replaced, whichever mode shows */
+let set_ux_pins = (pins: list(pin), v: t): t =>
+  v.mode == UX
+    ? {
+      ...v,
+      pins,
+    }
+    : {
+      ...v,
+      away_pins: Some(pins),
+    };
+
+/* pins for the rows whose labels, through [norm], are [labels]: each the
+   first such row in outline order, at any depth; a label naming no row
+   is dropped */
+let rows_labeled =
+    (~term, ~norm: string => string, labels: list(string)): list(pin) => {
+  let rec find = (wanted, ns: list(OutlineTree.node)) =>
+    List.fold_left(
+      (found, n: OutlineTree.node) =>
+        switch (found) {
+        | Some(_) => found
+        | None =>
+          n.o_id != None && norm(n.o_label) == wanted
+            ? n.o_id : find(wanted, n.o_children)
+        },
+      None,
+      ns,
+    );
+  let outline = OutlineTree.of_term(term);
+  labels
+  |> List.filter_map(wanted => find(wanted, outline))
+  |> List.fold_left(
+       (seen, id) => List.mem(id, seen) ? seen : seen @ [id],
+       [],
+     )
+  |> List.map(id =>
+       {
+         p_id: id,
+         p_run: false,
+       }
+     );
+};
+
 let in_ux = (~term, id: Id.t, v: t): bool =>
   List.exists((p: pin) => p.p_id == id, ux_pins(~term, v));
 

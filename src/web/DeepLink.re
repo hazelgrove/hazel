@@ -17,6 +17,8 @@ module Sidebar = SidebarModel.Settings;
  *   ?panel=probes                  which sidebar panel is open (none: closed)
  *   ?caret=12,4                    the caret, at line 12 column 4
  *   ?select=12,1-14,20             that span selected, instead of a caret
+ *   ?outline=ux                    the slide's outline in UX mode (or dev)
+ *   ?ux=arm_length,drawn           the rows UX mode shows, by their labels
  *
  * Lines and columns are 1-based, the way the gutter numbers them, and a
  * column past the end of its line lands at the end of the line -- so
@@ -199,6 +201,73 @@ let action = (): option(Action.t) =>
     point(~default_col=1, caret)
     |> Option.map(p => Action.Move(Action.Point(p, None)))
   | (None, None) => None
+  };
+
+/* --- The outline --- */
+
+/* `?outline=` picks the linked slide's outline mode, and `?ux=` the rows
+   UX mode shows (the livelits' GUIs to start), by their labels: matched
+   loosely, like slide names, at any depth, the first row in outline order
+   winning. A label naming no row is dropped, as a stale slide name is.
+   Either alone is fine: `?ux=` from dev mode sets what UX mode will show.
+
+   What this is for is a script reaching a slide's UX view with chosen rows
+   without clicking through the outline (the performance series' "UX mode,
+   the slider and the picture"), and a reader following a link to the art
+   rather than the code. Like the rest, it applies once, to the linked slide,
+   over whatever view that slide had saved, and is then ordinary state. */
+type outline_request = {
+  /* Some(true): UX mode; Some(false): dev mode */
+  ux: option(bool),
+  /* the rows' labels, through `key` */
+  ux_rows: option(list(string)),
+};
+
+let outline_request = (): option(outline_request) => {
+  let ux =
+    switch (param("outline") |> Option.map(key)) {
+    | Some("ux") => Some(true)
+    | Some("dev") => Some(false)
+    | _ => None
+    };
+  let ux_rows =
+    param("ux")
+    |> Option.map(s =>
+         String.split_on_char(',', s)
+         |> List.map(key)
+         |> List.filter(k => k != "")
+       );
+  ux == None && ux_rows == None
+    ? None
+    : Some({
+        ux,
+        ux_rows,
+      });
+};
+
+/* Applied by the first restore of the linked slide's view, and never
+   again: after that a reload keeps what the reader made of it. (The
+   view itself is resolved in Workspace: this module sits below the
+   slide views, as the editors' "Copy URL" uses it.) */
+let outline_applied = ref(false);
+
+/* The linked slide's key, as `key` reads `doc:<name>`, and its request:
+   read once, since every calculation asks until it is applied. */
+let linked_outline: Lazy.t(option((string, outline_request))) =
+  lazy(
+    switch (slide()) {
+    | Some(name) =>
+      outline_request() |> Option.map(r => (key("doc") ++ key(name), r))
+    | None => None
+    }
+  );
+
+/* The request for the slide stored under [slide_key] (`doc:<name>`), if it
+   is the linked one and nothing has applied it yet. */
+let outline_for = (slide_key: string): option(outline_request) =>
+  switch (outline_applied^, Lazy.force(linked_outline)) {
+  | (false, Some((linked, r))) when key(slide_key) == linked => Some(r)
+  | _ => None
   };
 
 /* --- Building one --- */
