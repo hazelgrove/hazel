@@ -112,17 +112,23 @@ let bound_constructor_aps =
 let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
   switch (Typ.weak_head_normalize(ctx, typ) |> Typ.term_of) {
   | Prod(ts) => List.filter_map(Typ.match_tup_label, ts)
+  /* one pass over the members (a projection per member was quadratic in
+     the signature, per keystroke), the last declaration of a name
+     winning */
   | Sig(items) =>
-    Sig.members(items)
-    |> Sig.dedup_last
-    |> List.filter_map((m: Sig.member) =>
+    let seen = Hashtbl.create(16);
+    Typ.sig_members_closed(items)
+    |> List.rev
+    |> List.filter_map(((m: Sig.member, ty)) =>
          switch (m) {
-         | Val(label, _) =>
-           Typ.sig_project_value(items, label)
-           |> Option.map(field_ty => (label, field_ty))
+         | Val(label, _) when !Hashtbl.mem(seen, label) =>
+           Hashtbl.add(seen, label, ());
+           Some((label, ty));
+         | Val(_)
          | TypeManifest(_) => None
          }
        )
+    |> List.rev;
   | _ => []
   };
 

@@ -461,9 +461,12 @@ let post_batch_result = (model, request_id, completed) =>
    probe targets, value, nested incr_eval) stays in the worker, as
    decoding it would dominate main-thread heap churn */
 let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
+/* also without the observation trace: the worker has minted its samples
+   already, and its span events hold whole environments (the standard
+   library's, every message) */
 let slim_state = (state: Language.EvaluatorState.t) =>
   Language.EvaluatorState.{
-    ...state,
+    ...clear_transient(state),
     incr_eval: Language.IncrEval.empty,
   };
 let slim_entries =
