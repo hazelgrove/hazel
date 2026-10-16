@@ -206,9 +206,9 @@ let operator_tests = (
 let typ_t =
   Alcotest.testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 
-let of_infix_delim = Lazy.force(TyDiForms.Typ.of_infix_delim);
-let of_const_mono_delim = Lazy.force(TyDiForms.Typ.of_const_mono_delim);
-let of_leading_delim = Lazy.force(TyDiForms.Typ.of_leading_delim);
+let of_infix_delim = TyDiForms.Typ.of_infix_delim();
+let of_const_mono_delim = TyDiForms.Typ.of_const_mono_delim();
+let of_leading_delim = TyDiForms.Typ.of_leading_delim();
 
 let unk = Typ.temp(Unknown(Internal));
 let bool_ = Typ.temp(Atom(Bool));

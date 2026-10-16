@@ -19,28 +19,33 @@ module Delims = {
        })
     |> List.sort_uniq(compare);
 
-  let leading_exp = leading(Exp);
-  let leading_pat = leading(Pat);
-  let leading_typ = leading(Typ);
-  /* Drv sorts: at the mold level Drv(Jdmt)/Drv(Ctx)/Drv(Prop) all collapse
-     to Drv(Exp) (see DrvSort.re on the "remolding issue"), so we reuse the
-     Drv(Exp) delim list for all of them. */
-  let leading_drv_exp = leading(Drv(Exp));
-  let leading_drv_typ = leading(Drv(Typ));
-  let leading_drv_pat = leading(Drv(Pat));
-  let leading_drv_tpat = leading(Drv(TPat));
-
+  /* Built once per surface: each surface spells its own delimiters */
+  let leading_of_surface =
+    Surface.memo(_ => {
+      let leading_exp = leading(Exp);
+      let leading_pat = leading(Pat);
+      let leading_typ = leading(Typ);
+      /* Drv sorts: at the mold level Drv(Jdmt)/Drv(Ctx)/Drv(Prop) all
+         collapse to Drv(Exp) (see DrvSort.re on the "remolding issue"), so
+         we reuse the Drv(Exp) delim list for all of them. */
+      let leading_drv_exp = leading(Drv(Exp));
+      let leading_drv_typ = leading(Drv(Typ));
+      let leading_drv_pat = leading(Drv(Pat));
+      let leading_drv_tpat = leading(Drv(TPat));
+      (sort: Sort.t) =>
+        switch (sort) {
+        | Exp => leading_exp
+        | Pat => leading_pat
+        | Typ => leading_typ
+        | Drv(Jdmt | Ctx | Prop | Exp) => leading_drv_exp
+        | Drv(Typ) => leading_drv_typ
+        | Drv(Pat) => leading_drv_pat
+        | Drv(TPat) => leading_drv_tpat
+        | _ => []
+        };
+    });
   let leading = (sort: Sort.t): list(string) =>
-    switch (sort) {
-    | Exp => leading_exp
-    | Pat => leading_pat
-    | Typ => leading_typ
-    | Drv(Jdmt | Ctx | Prop | Exp) => leading_drv_exp
-    | Drv(Typ) => leading_drv_typ
-    | Drv(Pat) => leading_drv_pat
-    | Drv(TPat) => leading_drv_tpat
-    | _ => []
-    };
+    leading_of_surface((), sort);
 
   /* compound forms only: single tokens registered merely as atoms
    * (e.g. infix-delimiter prefixes) are not infix suggestions */
@@ -53,29 +58,28 @@ module Delims = {
             )
        )
     |> List.sort_uniq(compare);
-  let infix_exp = infix(Exp);
-  let infix_pat = infix(Pat);
-  let infix_typ = infix(Typ);
-  let infix_drv_exp = infix(Drv(Exp));
-  let infix_drv_typ = infix(Drv(Typ));
-  let infix_drv_pat = infix(Drv(Pat));
-  let infix_drv_tpat = infix(Drv(TPat));
-  let infix = (sort: Sort.t): list(string) =>
-    switch (sort) {
-    | Exp => infix_exp
-    | Pat => infix_pat
-    | Typ => infix_typ
-    | Drv(Jdmt | Ctx | Prop | Exp) => infix_drv_exp
-    | Drv(Typ) => infix_drv_typ
-    | Drv(Pat) => infix_drv_pat
-    | Drv(TPat) => infix_drv_tpat
-    | _ => []
-    };
-
-  let const_mono = (sort: Sort.t): list(Token.t) =>
-    Token.const_mono_delims
-    |> List.filter(token => Form.remold_candidates([token], sort) != [])
-    |> List.sort_uniq(compare);
+  let infix_of_surface =
+    Surface.memo(_ => {
+      let infix_exp = infix(Exp);
+      let infix_pat = infix(Pat);
+      let infix_typ = infix(Typ);
+      let infix_drv_exp = infix(Drv(Exp));
+      let infix_drv_typ = infix(Drv(Typ));
+      let infix_drv_pat = infix(Drv(Pat));
+      let infix_drv_tpat = infix(Drv(TPat));
+      (sort: Sort.t) =>
+        switch (sort) {
+        | Exp => infix_exp
+        | Pat => infix_pat
+        | Typ => infix_typ
+        | Drv(Jdmt | Ctx | Prop | Exp) => infix_drv_exp
+        | Drv(Typ) => infix_drv_typ
+        | Drv(Pat) => infix_drv_pat
+        | Drv(TPat) => infix_drv_tpat
+        | _ => []
+        };
+    });
+  let infix = (sort: Sort.t): list(string) => infix_of_surface((), sort);
 
   /* base_typs (String, Int, Float, Bool, Nat, SInt) have Exp/Pat-sort
    * molds (as constructors) but derive Unknown self types (free
@@ -83,27 +87,46 @@ module Delims = {
    * from Exp and Pat suggestions; constructor suggestions come from
    * TyDiCtx.bound_constructors instead. They remain in Typ sort for
    * type-position completion. */
-  let const_mono_exp =
-    const_mono(Exp) |> List.filter(t => !List.mem(t, Token.base_typs));
-  let const_mono_pat =
-    const_mono(Pat) |> List.filter(t => !List.mem(t, Token.base_typs));
-  let const_mono_typ = const_mono(Typ);
-  let const_mono_drv_exp = const_mono(Drv(Exp));
-  let const_mono_drv_typ = const_mono(Drv(Typ));
-  let const_mono_drv_pat = const_mono(Drv(Pat));
-  let const_mono_drv_tpat = const_mono(Drv(TPat));
-
+  let const_mono_of_surface =
+    Surface.memo(s => {
+      let base_typs = Language.BaseAtom.base_typs_of(s);
+      let consts = (sort: Sort.t) =>
+        (
+          switch (s) {
+          | Hazel => Token.const_mono_delims
+          | Reason =>
+            /* Reason's base types and literals; Hazel's `undefined` and
+               `{}` (empty module) are not Reason */
+            base_typs
+            @ Token.bools
+            @ [Token.wild, Token.empty_list, Token.empty_tuple]
+          }
+        )
+        |> List.filter(token => Form.remold_candidates([token], sort) != [])
+        |> List.sort_uniq(compare);
+      let const_mono_exp =
+        consts(Exp) |> List.filter(t => !List.mem(t, base_typs));
+      let const_mono_pat =
+        consts(Pat) |> List.filter(t => !List.mem(t, base_typs));
+      let const_mono_typ = consts(Typ);
+      let const_mono_drv_exp = consts(Drv(Exp));
+      let const_mono_drv_typ = consts(Drv(Typ));
+      let const_mono_drv_pat = consts(Drv(Pat));
+      let const_mono_drv_tpat = consts(Drv(TPat));
+      (sort: Sort.t) =>
+        switch (sort) {
+        | Exp => const_mono_exp
+        | Pat => const_mono_pat
+        | Typ => const_mono_typ
+        | Drv(Jdmt | Ctx | Prop | Exp) => const_mono_drv_exp
+        | Drv(Typ) => const_mono_drv_typ
+        | Drv(Pat) => const_mono_drv_pat
+        | Drv(TPat) => const_mono_drv_tpat
+        | _ => []
+        };
+    });
   let const_mono = (sort: Sort.t): list(string) =>
-    switch (sort) {
-    | Exp => const_mono_exp
-    | Pat => const_mono_pat
-    | Typ => const_mono_typ
-    | Drv(Jdmt | Ctx | Prop | Exp) => const_mono_drv_exp
-    | Drv(Typ) => const_mono_drv_typ
-    | Drv(Pat) => const_mono_drv_pat
-    | Drv(TPat) => const_mono_drv_tpat
-    | _ => []
-    };
+    const_mono_of_surface((), sort);
 };
 
 /* Specifies type information for syntactic forms. All tables are
@@ -161,8 +184,8 @@ module Typ = {
   /* Lazy: each entry runs Parser + Statics per token, which is pure
    * startup cost for the worker/CLI; forced at the suggestion call
    * sites (suggest_form). */
-  let of_const_mono_delim: Lazy.t(list((Token.t, Typ.t))) =
-    lazy(
+  let of_const_mono_delim: unit => list((Token.t, Typ.t)) =
+    Surface.memo(_ =>
       derive_table(
         List.sort_uniq(
           compare,
@@ -171,8 +194,8 @@ module Typ = {
       )
     );
 
-  let of_infix_delim: Lazy.t(list((Token.t, Typ.t))) =
-    lazy(
+  let of_infix_delim: unit => list((Token.t, Typ.t)) =
+    Surface.memo(_ =>
       derive_table(
         List.sort_uniq(compare, Delims.infix(Exp) @ Delims.infix(Pat)),
       )
@@ -182,8 +205,8 @@ module Typ = {
    * so e.g. "fun " derives Arrow(?, ?) and "[ " derives [?]. Only the
    * Exp/Pat domains matter: suggest_form consults the table only for
    * those sorts. */
-  let of_leading_delim: Lazy.t(list((Token.t, Typ.t))) =
-    lazy(
+  let of_leading_delim: unit => list((Token.t, Typ.t)) =
+    Surface.memo(_ =>
       derive_table(
         List.sort_uniq(compare, Delims.leading(Exp) @ Delims.leading(Pat)),
       )
@@ -221,12 +244,7 @@ let suggest_form =
   let sort = Info.sort_of(ci);
   let delims = delims_of_sort(sort);
   let filtered =
-    Typ.filter_by(
-      Info.ctx_of(ci),
-      Typ.expected(ci),
-      Lazy.force(ty_map),
-      delims,
-    );
+    Typ.filter_by(Info.ctx_of(ci), Typ.expected(ci), ty_map(), delims);
   switch (sort) {
   | Exp =>
     List.map(
