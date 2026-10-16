@@ -378,6 +378,69 @@ let unroll = (ty: t): t =>
   | _ => ty
   };
 
+/* ctx extended with type variable `entry`, keeping alias resolution
+   lexical. Aliases are expanded by name in the context of use, so an alias
+   definition already in ctx that mentions the name would come to mean the
+   new binding: in `type T = .. in type S = T in type T = (S)`, S would
+   become the second T and expanding T would loop. Such definitions are
+   rewritten to what the name meant before: the alias it shadows, an
+   invalid type if it was unbound, or unknown for a shadowed abstract type.
+   Alias definitions then refer only to older bindings, so expanding
+   aliases terminates. */
+let extend_tvar = (ctx: Ctx.t, entry: Ctx.tvar_entry): Ctx.t => {
+  let mentions: Ctx.kind => bool =
+    fun
+    | Singleton(ty) => List.mem(entry.name, free_vars(ty))
+    | Abstract => false;
+  let stale =
+    fun
+    | Ctx.TVarEntry(e) => mentions(e.kind)
+    | _ => false;
+  if (!mentions(entry.kind) && !List.exists(stale, ctx.entries)) {
+    Ctx.extend_tvar(ctx, entry);
+  } else {
+    let meant =
+      switch (Ctx.lookup_tvar(ctx, entry.name)) {
+      | Some(Singleton(ty)) => ty
+      | Some(Abstract) => Unknown(Internal) |> temp
+      | None => Unknown(Hole(Invalid(entry.name))) |> temp
+      };
+    let refresh = (e: Ctx.tvar_entry): Ctx.tvar_entry =>
+      switch (e.kind) {
+      | Singleton(ty) when mentions(e.kind) => {
+          ...e,
+          kind: Singleton(subst(meant, Var(entry.name) |> TPat.fresh, ty)),
+        }
+      | _ => e
+      };
+    let entries =
+      List.map(
+        fun
+        | Ctx.TVarEntry(e) when mentions(e.kind) =>
+          Ctx.TVarEntry(refresh(e))
+        | e => e,
+        ctx.entries,
+      );
+    Ctx.extend_tvar(
+      {
+        ...ctx,
+        entries,
+      },
+      refresh(entry),
+    );
+  };
+};
+
+let extend_alias = (ctx: Ctx.t, name: string, id: Id.t, ty: t): Ctx.t =>
+  extend_tvar(
+    ctx,
+    {
+      name,
+      id,
+      kind: Singleton(ty),
+    },
+  );
+
 /* Unroll a Rec type until its head is not a Rec. Returns None on self-loop
    types like `rec x -> x` where unrolling cannot make progress. Normalizes
    the body first so that vacuous inner Recs (e.g. `rec x -> (rec ? -> x)`)
@@ -471,10 +534,11 @@ let remove_duplicate_labels =
 };
 
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
-  if (rec_counter > 1000) {
-    failwith("weak_head_normalize exceeded 1000 recursive calls");
-  };
   switch (term_of(ty)) {
+  /* Aliases bound by extend_tvar form no cycles; this caps contexts built
+     raw and absurd nesting, where an unknown beats an exception escaping
+     statics. */
+  | _ when rec_counter > 1000 => Unknown(Internal) |> temp
   | Parens(t)
   | Projector(_, t) =>
     weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
@@ -527,12 +591,11 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
    by module lowering to expand only module-LOCAL aliases when a member
    type escapes its scope, keeping global/builtin aliases compact. */
 let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t => {
-  if (rec_counter > 1000) {
-    failwith("normalize exceeded 1000 recursive calls");
-  };
   let normalize = normalize(~rec_counter=rec_counter + 1, ~expand);
   let (term, rewrap) = unwrap(ty);
   switch (term) {
+  /* as in weak_head_normalize */
+  | _ when rec_counter > 1000 => Unknown(Internal) |> rewrap
   | Var(x) when expand(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => normalize(ctx, ty)
