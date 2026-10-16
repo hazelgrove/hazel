@@ -230,8 +230,9 @@ and uexp_to_info_map =
       | (Some(_), Some(tys)) => marks @ [Mark.InferenceConflict(tys)]
       | _ => marks
       };
+    let sub = subsume(ctx, ana, elab_syn_ty);
     let marks =
-      switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
+      switch (sub.mismatch) {
       | None => marks
       | Some(m) when marks == [] => [m] // TODO: we should probably eventually add this on top of existing marks
       | Some(_) => marks
@@ -241,13 +242,12 @@ and uexp_to_info_map =
         () =>
           switch (ana) {
           | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
-          | _ =>
-            Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
+          | _ => Message.Exp(Common(sub.ok))
           },
         message,
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-    let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let ty = sub.ty;
     let self_id = Exp.rep_id(user_term);
     let probe_targets =
       SubexpProbeTargets.add_self(
@@ -2941,11 +2941,12 @@ and upat_to_info_map =
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
+    let sub = subsume(ctx, ana, elab_syn_ty);
     let marks =
       if (marks != []) {
         marks;
       } else {
-        switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
+        switch (sub.mismatch) {
         | None => marks
         | Some(m) => marks @ [m]
         };
@@ -2956,11 +2957,11 @@ and upat_to_info_map =
         : Message.Pat(
             switch (ana) {
             | {term: Unknown(SynSwitch), _} => Message.Default
-            | _ => Message.Common(syn_ana_ok_common(ctx, ana, elab_syn_ty))
+            | _ => Message.Common(sub.ok)
             },
           );
     let cls = Cls.Pat(Pat.cls_of_term(user_term.term));
-    let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let ty = sub.ty;
     let warning_acc =
       warnings
       @ (

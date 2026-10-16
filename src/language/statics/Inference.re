@@ -207,9 +207,17 @@ let wants_instance = (ctx: Ctx.t, ana: Typ.t): bool =>
   };
 
 let rec poly_binders = (ctx: Ctx.t, ty: Typ.t): option((TPat.t, Typ.t)) =>
-  switch (Typ.term_of(Typ.weak_head_normalize(ctx, strip(ty)))) {
-  | Poly(tp, body) => Some((tp, body))
-  | Parens(t) => poly_binders(ctx, t)
+  switch (Typ.term_of(strip(ty))) {
+  /* Only these heads can normalize to a `poly`; skip the lookup for the
+     rest, as this runs for every expression. */
+  | Poly(_)
+  | Var(_)
+  | ProdProjection(_) =>
+    switch (Typ.term_of(Typ.weak_head_normalize(ctx, strip(ty)))) {
+    | Poly(tp, body) => Some((tp, body))
+    | Parens(t) => poly_binders(ctx, t)
+    | _ => None
+    }
   | _ => None
   };
 
