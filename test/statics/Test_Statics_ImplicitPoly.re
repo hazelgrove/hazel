@@ -214,6 +214,11 @@ let tests = (
       Some(T.arrow(unknown(), unknown())),
     ),
     fully_consistent_typecheck(
+      "A tuple-pattern let isn't generalized, nor decided by its uses",
+      {|let (f, g) = (fun x -> x, fun y -> y) in (f(1), f(true))|},
+      Some(T.prod([unknown(), unknown()])),
+    ),
+    fully_consistent_typecheck(
       "An annotated let is not generalized",
       {|let f : ? -> ? = fun x -> x in f|},
       Some(T.arrow(unknown(), unknown())),

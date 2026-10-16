@@ -2197,17 +2197,22 @@ and uexp_to_info_map =
          definition whose type has unconstrained implicit holes gets a
          `poly` scheme (Inference). */
       let scheme =
-        switch (gen, IdTagged.term_of(p), module_items) {
-        | (Some(g), _, _) => Some(Inference.poly_of(g, ty_p_ana))
-        | (None, Var(_), None) =>
+        switch (gen, module_items) {
+        | (Some(g), _) => Some(Inference.poly_of(g, ty_p_ana))
+        | (None, None) =>
           Inference.generalize_let(
             ~let_id,
+            ~generalize=
+              switch (IdTagged.term_of(p)) {
+              | Var(_) => true
+              | _ => false
+              },
             ~ctx,
             ~def=def.user_term,
             ~def_ty=ty_p_ana,
             m,
           )
-        | _ => None
+        | (None, Some(_)) => None
         };
       let (p_ana_ctx, ty_p_ana) =
         switch (scheme) {

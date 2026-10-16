@@ -784,11 +784,13 @@ let poly_of = (gen: gen, ty: Typ.t): Typ.t =>
     ty,
   );
 
-/* Pass 1, at `let x = def`: decide which holes to generalize over and
-   return the scheme `x` gets in the body. */
+/* Pass 1, at `let p = def`: decide the holes `def` owns from `def` alone
+   and, if `p` is a variable (`generalize`), which of them to generalize
+   over; return the scheme `p` gets in the body. */
 let generalize_let =
     (
       ~let_id: Id.t,
+      ~generalize: bool,
       ~ctx: Ctx.t,
       ~def: Exp.t,
       ~def_ty: Typ.t,
@@ -839,7 +841,7 @@ let generalize_let =
       | None => false
       };
     let generalizable =
-      Solver.unsolved_roots(def_node)
+      (generalize ? Solver.unsolved_roots(def_node) : [])
       |> List.filter((r: Solver.node) =>
            !r.etc
            && r.holes != []
