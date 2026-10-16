@@ -28,6 +28,7 @@ let mk_model = (): History.Model.t => {
     current: page,
     undo_stack: [],
     redo_stack: [],
+    tentative_redo: None,
   };
 };
 
@@ -85,6 +86,7 @@ module Cells = {
       },
       undo_stack: [],
       redo_stack: [],
+      tentative_redo: None,
     };
   };
 

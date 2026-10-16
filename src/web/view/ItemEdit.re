@@ -55,6 +55,15 @@ let blank_def = (def: Segment.t): bool =>
     def,
   );
 
+/* item [d] is a `let` of a value, not of a module: its body takes local
+   definitions */
+let is_value = (d: Id.t, seg: Segment.t): bool =>
+  switch (Focus.tile_ctx(d, seg), Focus.find_def(d, seg)) {
+  | (Some((_, _, t)), Some(def)) =>
+    Tile.token(t, 0) == "let" && !module_def(def)
+  | _ => false
+  };
+
 /* a member's `;` */
 let fresh_semi = (): Piece.t =>
   Piece.mk_tile((Form.Compound(CellJoin), Mod), []);
@@ -147,6 +156,9 @@ type block = {
   spans: array(Focus.item_span),
   /* a member block: new items are 2-shard members, not `… in` forms */
   in_module: bool,
+  /* a module body's: its last item, a statement without its `;`, is a
+     member like the rest, not a result */
+  body: bool,
   /* the segment starts a line */
   bol: bool,
   /* a 2-shard member, not a `… in` item */
@@ -163,6 +175,7 @@ let span_in_tile = (arr: array(Piece.t), sp: Focus.item_span): bool =>
 let block =
     (
       ~in_module: bool,
+      ~body: bool,
       ~bol: bool,
       spans: array(Focus.item_span),
       seg: Segment.t,
@@ -291,15 +304,17 @@ let block =
     arr,
     spans,
     in_module,
+    body,
     bol,
     member,
     sl,
   };
 };
 
-/* items that ops may move or remove: not the trailing expression */
+/* items that ops may move or remove: not the trailing expression, which
+   a module body hasn't */
 let movable = (b: block, k: int): bool =>
-  k >= 0 && k < Array.length(b.sl) && b.spans[k].sp_kind != ITail;
+  k >= 0 && k < Array.length(b.sl) && (b.body || b.spans[k].sp_kind != ITail);
 
 /* item [k]'s head, when it defines a module: its definition is a module
    body alone, whatever binds it */
@@ -479,7 +494,10 @@ let apply_at =
     | MoveDown when movable(j) && movable(j + 1) && same_family(j, j + 1) =>
       Some((swap(b, j), None))
     | MoveUp
-    | MoveDown => None
+    | MoveDown
+    /* across levels: [indent] and [outdent] */
+    | Indent
+    | Outdent => None
     | NewBelow
     | NewTypeBelow
     | NewModuleBelow =>
@@ -545,16 +563,21 @@ let locate =
     };
   let rec at = (~own: bool, (level, i, ancestors)) => {
     let top = ancestors == [];
+    /* a module body's members, a lone statement among them too */
+    let body =
+      switch (ancestors) {
+      | [] => false
+      | [(a, _), ..._] => Focus.holds_members(Ancestor.mold(a))
+      };
     let spans =
-      Array.of_list(Focus.item_spans(~divided_only_tail=!top, level));
+      Array.of_list(
+        Focus.item_spans(~divided_only_tail=!top && !body, level),
+      );
     let here = j =>
       Some((
         block(
-          ~in_module=
-            switch (ancestors) {
-            | [] => mod_root
-            | [(a, _), ..._] => Focus.holds_members(Ancestor.mold(a))
-            },
+          ~in_module=top ? mod_root : body,
+          ~body,
           ~bol=top,
           spans,
           level,
@@ -595,7 +618,7 @@ let locate =
       )
       |> Option.map(k =>
            (
-             block(~in_module=false, ~bol, spans, body),
+             block(~in_module=false, ~body=false, ~bol, spans, body),
              k,
              (
                body =>
@@ -664,6 +687,7 @@ let into_members =
       let b =
         block(
           ~in_module=true,
+          ~body=true,
           ~bol=false,
           Array.of_list(Focus.item_spans(members)),
           members,
@@ -728,19 +752,82 @@ let into_empty =
       : None;
   };
 
-/* [member] into module [fid]'s body, at any depth: last, or [first] */
+/* a function's head: `fun … ->` or `typfun … ->` */
+let is_fun_head = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    switch (Tile.label(t)) {
+    | ["fun", "->"]
+    | ["typfun", "->"] => true
+    | _ => false
+    }
+  | _ => false
+  };
+
+/* a function only inside parentheses or a projector: a local definition
+   in front of it would land outside its lambda */
+let wrapped_fun = (def: Segment.t): bool => {
+  let solid = seg => List.filter(p => !Piece.is_secondary(p), seg);
+  let rec within = (seg: Segment.t) =>
+    switch (solid(seg)) {
+    | [p, ..._] when is_fun_head(p) => true
+    | [Tile({children: [kid], _} as t)] when Tile.label(t) == ["(", ")"] =>
+      within(kid)
+    | [Projector(pr)] => within([pr.syntax])
+    | _ => false
+    };
+  switch (solid(def)) {
+  | [p, ..._] when is_fun_head(p) => false
+  | _ => within(def)
+  };
+};
+
+/* [item] (in let-in form) as value [d]'s last local definition: just
+   before its body's result, inside a function's lambda, spaced as the
+   body is (on its line when it's one line) */
+let body_last =
+    (~src_indent: option(int)=?, d: Id.t, item: Segment.t, seg: Segment.t)
+    : option(Segment.t) =>
+  switch (is_value(d, seg) ? Focus.find_def(d, seg) : None) {
+  | Some(body) when wrapped_fun(body) => None
+  | None => None
+  | Some(body) =>
+    let b =
+      block(
+        ~in_module=false,
+        ~body=false,
+        ~bol=false,
+        Array.of_list(Focus.item_spans(body)),
+        body,
+      );
+    let n = Array.length(b.sl);
+    n > 0 && b.spans[n - 1].sp_kind == ITail
+      ? insert(b, ~pos=Before(n - 1), ~member=false, ~src_indent?, item)
+        |> Option.map(body => Focus.splice_def(d, body, seg))
+      : None;
+  };
+
+/* [member] into module [fid]'s body, at any depth: last, or [first]; or
+   into value [fid]'s, as its last local definition */
 let new_inside =
     (~first=false, ~member: string, fid: Id.t, seg: Segment.t)
     : option((Segment.t, option(Id.t))) =>
-  Option.bind(member_core(member), item =>
-    (
-      switch (into_members(~first, fid, item, seg)) {
-      | Some(_) as r => r
-      | None => into_empty(fid, item, seg)
-      }
-    )
-    |> Option.map(seg => (seg, first_tile_id(item)))
-  );
+  is_value(fid, seg)
+    ? first
+        ? None
+        : Option.bind(letin_core(member ++ " in"), item =>
+            body_last(fid, item, seg)
+            |> Option.map(seg => (seg, row_id(item)))
+          )
+    : Option.bind(member_core(member), item =>
+        (
+          switch (into_members(~first, fid, item, seg)) {
+          | Some(_) as r => r
+          | None => into_empty(fid, item, seg)
+          }
+        )
+        |> Option.map(seg => (seg, first_tile_id(item)))
+      );
 
 /* an item's bare pieces in a block's form: members end in their
    place's `;`, other blocks use `… in`. Converting goes through text
@@ -761,13 +848,23 @@ let in_form =
     letin_core(text_of(ps) ++ (def ? " in" : ";"));
   };
 
+/* item [k]'s head, when it's a `let` of a value */
+let value_at = (b: block, k: int): option(Id.t) =>
+  switch (b.spans[k]) {
+  | {sp_kind: IDef, sp_id: Some(head), _} when is_value(head, b.seg) =>
+    Some(head)
+  | _ => None
+  };
+
 type spot = {
   /* the item is a 2-shard member */
   s_member: bool,
   s_item: Segment.t,
   s_trail: Segment.t,
-  /* the neighbour in the move's direction, if it defines a module */
+  /* the neighbour in the move's direction, if it defines a module, or a
+     value */
   s_module: option(Id.t),
+  s_value: option(Id.t),
   s_edge: bool,
 };
 
@@ -783,6 +880,7 @@ let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) =>
             s_item: bare(b, j),
             s_trail: trail(b, j),
             s_module: movable(b, k) ? module_at(b, k) : None,
+            s_value: movable(b, k) ? value_at(b, k) : None,
             s_edge: !movable(b, k),
           })
         : None;
@@ -816,12 +914,98 @@ let insert_near =
       : None
   );
 
+/* The item [s] holding [fid] moved across a level's edge: each way below
+   takes it out of [seg], puts it in where it lands, reindented, and
+   gives back the row it lands on */
+
+/* the indentation of the line item [s] starts on */
+let start_indent = (s: spot, seg: Segment.t): option(int) =>
+  switch (s.s_item) {
+  | [p, ..._] => Focus.line_indent(Piece.id(p), seg)
+  | [] => None
+  };
+
+/* the spacing item [s] takes along: its lines, not a space it had on a
+   line it shared (the spacing where it lands then follows it) */
+let own_lines = (s: spot): Segment.t =>
+  List.exists(Piece.is_linebreak, s.s_trail) ? s.s_trail : [];
+
+/* into module [m]'s members: last, or [first]; an empty body takes it as
+   its only member */
+let into_module =
+    (~mod_root, ~first: bool, s: spot, fid: Id.t, m: Id.t, seg: Segment.t)
+    : option((Segment.t, option(Id.t))) =>
+  switch (
+    apply(~mod_root, Delete, fid, seg),
+    in_form(~member=true, ~was_member=s.s_member, s.s_item),
+  ) {
+  | (Some((seg1, _)), Some(item)) =>
+    let src_indent = start_indent(s, seg);
+    (
+      switch (
+        into_members(
+          ~first,
+          ~src_indent?,
+          ~trail=own_lines(s),
+          m,
+          item,
+          seg1,
+        )
+      ) {
+      | Some(_) as r => r
+      | None => into_empty(~src_indent?, m, item, seg1)
+      }
+    )
+    |> Option.map(seg2 => (seg2, row_id(item)));
+  | _ => None
+  };
+
+/* into value [d]'s body, as its last local definition */
+let into_body =
+    (~mod_root, s: spot, fid: Id.t, d: Id.t, seg: Segment.t)
+    : option((Segment.t, option(Id.t))) =>
+  switch (
+    apply(~mod_root, Delete, fid, seg),
+    in_form(~member=false, ~was_member=s.s_member, s.s_item),
+  ) {
+  | (Some((seg1, _)), Some(item)) =>
+    body_last(~src_indent=?start_indent(s, seg), d, item, seg1)
+    |> Option.map(seg2 => (seg2, row_id(item)))
+  | _ => None
+  };
+
+/* just above or below the item holding [target], in that block's form */
+let beside =
+    (~mod_root, ~up: bool, s: spot, fid: Id.t, target: Id.t, seg: Segment.t)
+    : option((Segment.t, option(Id.t))) =>
+  switch (
+    apply(~mod_root, Delete, fid, seg),
+    spot(~mod_root, ~up, target, seg),
+  ) {
+  | (Some((seg1, _)), Some(ts)) =>
+    switch (in_form(~member=ts.s_member, ~was_member=s.s_member, s.s_item)) {
+    | Some(item) =>
+      insert_near(
+        ~mod_root,
+        ~up,
+        ~src_indent=?start_indent(s, seg),
+        ~trail=own_lines(s),
+        target,
+        item,
+        seg1,
+      )
+      |> Option.map(seg2 => (seg2, row_id(item)))
+    | None => None
+    }
+  | _ => None
+  };
+
 /* Alt↑↓: into an expanded module beside the item, bound by `module` or
    `let` (its end going up, its start going down); from a module's first
    or last member, out to just above or below it. Modules not [is_open]
    are stepped over, as is any module by an item with no member form (a
    `use`), and function bodies keep their items. [owner]: the item's
-   module. The item is reindented to where it lands */
+   module */
 let move =
     (
       ~mod_root: bool,
@@ -835,12 +1019,6 @@ let move =
   switch (spot(~mod_root, ~up, fid, seg)) {
   | None => None
   | Some(s) =>
-    let removed = () => Option.map(fst, apply(~mod_root, Delete, fid, seg));
-    let src_indent =
-      switch (s.s_item) {
-      | [p, ..._] => Focus.line_indent(Piece.id(p), seg)
-      | [] => None
-      };
     let step = () =>
       s.s_edge
         ? None
@@ -848,62 +1026,39 @@ let move =
           |> Option.map(((seg, _)) => (seg, Some(fid)));
     switch (s.s_module) {
     | Some(k) when is_open(k) =>
-      /* in: the neighbour module's members gain the item, or an empty
-         body takes it as its only member; else the module is stepped
-         over */
-      let into =
-        switch (
-          removed(),
-          in_form(~member=true, ~was_member=s.s_member, s.s_item),
-        ) {
-        | (Some(seg1), Some(item)) =>
-          (
-            switch (
-              into_members(
-                ~first=!up,
-                ~src_indent?,
-                ~trail=s.s_trail,
-                k,
-                item,
-                seg1,
-              )
-            ) {
-            | Some(_) as r => r
-            | None => into_empty(~src_indent?, k, item, seg1)
-            }
-          )
-          |> Option.map(seg2 => (seg2, first_tile_id(item)))
-        | _ => None
-        };
-      into == None ? step() : into;
-    | _ when !s.s_edge => step()
-    | _ =>
-      /* out: just above or below the owning module, in its block's form */
-      switch (owner) {
-      | None => None
-      | Some(m) =>
-        switch (removed(), spot(~mod_root, ~up, m, seg)) {
-        | (Some(seg1), Some(ms)) =>
-          switch (
-            in_form(~member=ms.s_member, ~was_member=s.s_member, s.s_item)
-          ) {
-          | Some(item) =>
-            insert_near(
-              ~mod_root,
-              ~up,
-              ~src_indent?,
-              ~trail=s.s_trail,
-              m,
-              item,
-              seg1,
-            )
-            |> Option.map(seg2 => (seg2, first_tile_id(item)))
-          | None => None
-          }
-        | _ => None
-        }
+      switch (into_module(~mod_root, ~first=!up, s, fid, k, seg)) {
+      | Some(_) as r => r
+      | None => step()
       }
+    | _ when !s.s_edge => step()
+    | _ => Option.bind(owner, m => beside(~mod_root, ~up, s, fid, m, seg))
     };
+  };
+
+/* Tab: the item holding [fid] into the item just above it, in place, a
+   level deeper: a module's last member, or a value's last local
+   definition. Only into a row the outline [shown]s */
+let indent =
+    (~mod_root: bool, ~shown: Id.t => bool, fid: Id.t, seg: Segment.t)
+    : option((Segment.t, option(Id.t))) =>
+  switch (spot(~mod_root, ~up=true, fid, seg)) {
+  | Some({s_module: Some(m), _} as s) when shown(m) =>
+    into_module(~mod_root, ~first=false, s, fid, m, seg)
+  | Some({s_value: Some(d), _} as s) when shown(d) =>
+    into_body(~mod_root, s, fid, d, seg)
+  | _ => None
+  };
+
+/* ⇧Tab: the item holding [fid], the last of [owner]'s members or local
+   definitions, out to just after [owner], in place, a level out */
+let outdent =
+    (~mod_root: bool, ~owner: Id.t, fid: Id.t, seg: Segment.t)
+    : option((Segment.t, option(Id.t))) =>
+  switch (spot(~mod_root, ~up=false, fid, seg), Focus.find_def(owner, seg)) {
+  | (Some({s_edge: true, _} as s), Some(def))
+      when Focus.seg_contains_id(fid, def) =>
+    beside(~mod_root, ~up=false, s, fid, owner, seg)
+  | _ => None
   };
 
 /* how the outline edits a program's items, addressed by id */
@@ -1270,6 +1425,15 @@ type ctx = {
   is_open: Id.t => bool,
 };
 
+/* row [fid]'s parent row in [term]'s outline, and its kind */
+let parent_row =
+    (term: Language.Exp.t, fid: Id.t): option((Id.t, OutlineTree.kind)) =>
+  switch (Option.map(List.rev, OutlineTree.trail_of(fid, term))) {
+  | Some([_, parent, ..._]) =>
+    Option.map(k => (parent, k), OutlineTree.kind_of(parent, term))
+  | _ => None
+  };
+
 /* the new program and the row the edit lands on, or why not */
 let edit =
     (ctx: ctx, e: t, seg: Segment.t)
@@ -1277,10 +1441,8 @@ let edit =
   switch (e) {
   | Op((MoveUp | MoveDown) as op, fid) =>
     let owner =
-      switch (Option.map(List.rev, OutlineTree.trail_of(fid, ctx.term))) {
-      | Some([_, parent, ..._])
-          when OutlineTree.kind_of(parent, ctx.term) == Some(KModule) =>
-        Some(parent)
+      switch (parent_row(ctx.term, fid)) {
+      | Some((parent, KModule)) => Some(parent)
       | _ => None
       };
     move(
@@ -1292,6 +1454,23 @@ let edit =
       seg,
     )
     |> Option.to_result(~none="it can't move there");
+  | Op(Indent, fid) =>
+    indent(
+      ~mod_root=ctx.mod_root,
+      ~shown=id => OutlineTree.node_of(id, ctx.term) != None,
+      fid,
+      seg,
+    )
+    |> Option.to_result(~none="it can't go in there")
+  | Op(Outdent, fid) =>
+    (
+      switch (parent_row(ctx.term, fid)) {
+      | Some((owner, KModule | KFn | KConst)) =>
+        outdent(~mod_root=ctx.mod_root, ~owner, fid, seg)
+      | _ => None
+      }
+    )
+    |> Option.to_result(~none="it can't go out there")
   | Op(op, fid) =>
     apply(~mod_root=ctx.mod_root, op, fid, seg)
     |> Option.to_result(~none="it can't go here")

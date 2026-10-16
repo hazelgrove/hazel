@@ -427,16 +427,61 @@ let let_body = () => {
 let refused = () => {
   /* label "": the first ⇒ row, f's */
   let f = "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)";
-  /* a module's last test without its `;` */
-  let m = "let z = 0 in\nmodule M = {\n  let a = 1;\n  test 1 + 1 == 2 end\n} in\nM.a";
   cases([
     ("result row: delete", f, "", op(Delete), None),
     ("result row: duplicate", f, "", op(Duplicate), None),
     ("result row: move up", f, "", op(MoveUp), None),
     ("result row: move down", f, "", op(MoveDown), None),
-    ("last test: delete", m, "1", op(Delete), None),
-    ("last test: duplicate", m, "1", op(Duplicate), None),
-    ("last test: Alt+Up leaves the module put", m, "1", op(MoveUp), None),
+  ]);
+};
+
+/* a module's last test without its `;`, or its only member, is a member
+   like the rest, not a result: ops act on it, never on the module */
+let last_test = () => {
+  let m = "let z = 0 in\nmodule M = {\n  let a = 1;\n  test 1 + 1 == 2 end\n} in\nM.a";
+  let swapped = "let z = 0 in\nmodule M = {\n  test 1 + 1 == 2 end;\n  let a = 1\n} in\nM.a";
+  let sole = "module M = {\n  test 1 == 1 end\n} in\n0";
+  cases([
+    (
+      "deleted",
+      m,
+      "1",
+      op(Delete),
+      Some("let z = 0 in\nmodule M = {\n  let a = 1\n} in\nM.a"),
+    ),
+    (
+      "duplicated",
+      m,
+      "1",
+      op(Duplicate),
+      Some(
+        "let z = 0 in\nmodule M = {\n  let a = 1;\n  test 1 + 1 == 2 end;\n  test 1 + 1 == 2 end\n} in\nM.a",
+      ),
+    ),
+    ("moved up", m, "1", op(MoveUp), Some(swapped)),
+    ("the member above it moved down", m, "a", op(MoveDown), Some(swapped)),
+    ("alone: deleted", sole, "1", op(Delete), Some("module M = {} in\n0")),
+    (
+      "alone: duplicated",
+      sole,
+      "1",
+      op(Duplicate),
+      Some("module M = {\n  test 1 == 1 end;\n  test 1 == 1 end\n} in\n0"),
+    ),
+    (
+      "alone: out",
+      sole,
+      "1",
+      op(Outdent),
+      Some("module M = {} in\ntest 1 == 1 end;\n0"),
+    ),
+    (
+      "alone: nothing above it",
+      "module P = {} in\n" ++ sole,
+      "1",
+      op(Indent),
+      None,
+    ),
   ]);
 };
 
@@ -1184,6 +1229,255 @@ M.a|js},
   );
 };
 
+/* Tab: an item into the module just above it, as its last member, in
+   place a level deeper; ⇧Tab: a module's last member out, just after it.
+   Folded or empty, a module takes it all the same */
+let nesting = () => {
+  let x = "let a = 1 in\nmodule M = {\n  let x = 2;\n  let y = 3\n} in\nlet b = 4 in\nb";
+  let into_x = "let a = 1 in\nmodule M = {\n  let x = 2;\n  let y = 3;\n  let b = 4\n} in\nb";
+  let e = "let a = 1 in\nmodule E = {} in\nlet b = 2 in\nb";
+  cases([
+    ("into a module", x, "b", op(Indent), Some(into_x)),
+    ("and out again", into_x, "b", op(Outdent), Some(x)),
+    (
+      "into an empty one",
+      e,
+      "b",
+      op(Indent),
+      Some("let a = 1 in\nmodule E = {\n  let b = 2\n} in\nb"),
+    ),
+    (
+      "a lone member out",
+      "let a = 1 in\nmodule E = {\n  let b = 2\n} in\nb",
+      "b",
+      op(Outdent),
+      Some(e),
+    ),
+    ("nothing above", x, "a", op(Indent), None),
+    (
+      "a type above",
+      "type T = Int in\nlet b = 4 in\nb",
+      "b",
+      op(Indent),
+      None,
+    ),
+    ("a member that isn't last", x, "x", op(Outdent), None),
+    ("the top level", x, "a", op(Outdent), None),
+    ({js|⇒|js}, x, "", op(Indent), None),
+    (
+      "a use never goes in",
+      "module M = {\n  let x = 2\n} in\nuse Nat in\nM.x",
+      "use Nat",
+      op(Indent),
+      None,
+    ),
+    (
+      "nor into a module the outline doesn't show",
+      "let a = 1 in\nlet _ = {\n  let x = 2\n} in\nlet b = 4 in\nb",
+      "b",
+      op(Indent),
+      None,
+    ),
+    (
+      "a module bound by let",
+      "let a = 1 in\nlet m = {\n  let x = 2\n} in\nlet b = 4 in\nb",
+      "b",
+      op(Indent),
+      Some("let a = 1 in\nlet m = {\n  let x = 2;\n  let b = 4\n} in\nb"),
+    ),
+    (
+      "a test",
+      "let a = 1 in\nmodule M = {\n  let y = 3\n} in\ntest a == 1 end;\nlet b = 4 in\nb",
+      "1",
+      op(Indent),
+      Some(
+        "let a = 1 in\nmodule M = {\n  let y = 3;\n  test a == 1 end\n} in\nlet b = 4 in\nb",
+      ),
+    ),
+    (
+      "a test out",
+      "let a = 1 in\nmodule M = {\n  let y = 3;\n  test a == 1 end\n} in\nlet b = 4 in\nb",
+      "1",
+      op(Outdent),
+      Some(
+        "let a = 1 in\nmodule M = {\n  let y = 3\n} in\ntest a == 1 end;\nlet b = 4 in\nb",
+      ),
+    ),
+    (
+      "a module into a module",
+      "module M = {\n  let y = 3\n} in\nmodule N = {\n  let z = 4\n} in\nM.y",
+      "N",
+      op(Indent),
+      Some(
+        "module M = {\n  let y = 3;\n  module N = {\n    let z = 4\n  }\n} in\nM.y",
+      ),
+    ),
+  ]);
+  /* a folded module takes it too: the outline unfolds it */
+  expect(
+    "into a folded module",
+    Some(into_x),
+    run(~closed=true, op(Indent), "b", x),
+  );
+  /* a statement: its row is its `;` */
+  let stmt = seg_of("module M = {\n  let y = 3\n} in\n1 + 1;\nM.y");
+  let term = MakeTerm.Incr.term_of(stmt);
+  let semi =
+    List.find_map(
+      (n: Web.OutlineTree.node) => n.o_kind == KStmt ? n.o_id : None,
+      Web.OutlineTree.(flatten(of_term(term))),
+    );
+  let ctx: R.ctx = {
+    mod_root: false,
+    term,
+    info_map: lazy(Language.Statics.Map.empty),
+    is_open: _ => true,
+  };
+  expect(
+    "a statement",
+    Some("module M = {\n  let y = 3;\n  1 + 1\n} in\nM.y"),
+    Option.bind(semi, id =>
+      Result.to_option(R.edit(ctx, op(Indent, id), stmt))
+      |> Option.map(fst)
+    ),
+  );
+  /* a module-rooted program's members, and a signed module */
+  let md = "let a = 1;\nmodule M = {\n  let x = 2\n};\nlet b = 4;\nb";
+  let md_in = "let a = 1;\nmodule M = {\n  let x = 2;\n  let b = 4\n};\nb";
+  expect(
+    ~root=Mod,
+    "module-rooted: in",
+    Some(md_in),
+    run(~root=Mod, op(Indent), "b", md),
+  );
+  expect(
+    ~root=Mod,
+    "module-rooted: out",
+    Some(md),
+    run(~root=Mod, op(Outdent), "b", md_in),
+  );
+  let sg = "type S = {\n  let x : Int\n} in\n";
+  expect(
+    "a signed module",
+    Some(sg ++ "module M : S = {\n  let x = 1;\n  let b = 4\n} in\nM.x"),
+    run(
+      op(Indent),
+      "b",
+      sg ++ "module M : S = {\n  let x = 1\n} in\nlet b = 4 in\nM.x",
+    ),
+  );
+  /* the row it lands on is the item's */
+  switch (edit(op(Indent), "b", seg_of(x))) {
+  | Some((seg, target)) =>
+    check(
+      bool,
+      "it lands on b",
+      true,
+      target == Some(row_by_label(MakeTerm.Incr.term_of(seg), "b")),
+    )
+  | None => fail("b refused")
+  };
+};
+
+/* Tab into a value: its body's last local definition, just before the
+   result (inside a function's lambda); ⇧Tab out again, just after it */
+let nesting_values = () => {
+  let f = "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nlet g = 5 in\nf(g)";
+  let f_in = "let f = fun x ->\n  let y = x + 1 in\n  let g = 5 in\n  y * 2\nin\nf(g)";
+  cases([
+    ("into a function", f, "g", op(Indent), Some(f_in)),
+    ("and out again", f_in, "g", op(Outdent), Some(f)),
+    (
+      "a constant's body gets one",
+      "let x = 1 + 2 in\nlet moved = 5 in\nx",
+      "moved",
+      op(Indent),
+      Some("let x = let moved = 5 in 1 + 2 in\nx"),
+    ),
+    (
+      "on its own line when the body is",
+      "let x =\n  1 + 2\nin\nlet moved = 5 in\nx",
+      "moved",
+      op(Indent),
+      Some("let x =\n  let moved = 5 in\n  1 + 2\nin\nx"),
+    ),
+    (
+      "a one-line function",
+      "let f = fun x -> x * 2 in\nlet g = 5 in\nf(g)",
+      "g",
+      op(Indent),
+      Some("let f = fun x -> let g = 5 in x * 2 in\nf(g)"),
+    ),
+    (
+      "out of a one-line body, onto a line of its own",
+      "let x = let moved = 5 in 1 + 2 in\nx",
+      "moved",
+      op(Outdent),
+      Some("let x = 1 + 2 in\nlet moved = 5 in\nx"),
+    ),
+    (
+      "a member value",
+      "module M = {\n  let f = fun x ->\n    x;\n  let g = 5\n} in\nM.f(1)",
+      "g",
+      op(Indent),
+      Some(
+        "module M = {\n  let f = fun x ->\n    let g = 5 in\n    x\n} in\nM.f(1)",
+      ),
+    ),
+    (
+      "out of a member value",
+      "module M = {\n  let f = fun x ->\n    let g = 5 in\n    x\n} in\nM.f(1)",
+      "g",
+      op(Outdent),
+      Some(
+        "module M = {\n  let f = fun x ->\n    x;\n  let g = 5\n} in\nM.f(1)",
+      ),
+    ),
+    (
+      "a curried function: inside its last lambda",
+      "let f = fun x -> fun y ->\n  x + y\nin\nlet g = 5 in\ng",
+      "g",
+      op(Indent),
+      Some("let f = fun x -> fun y ->\n  let g = 5 in\n  x + y\nin\ng"),
+    ),
+    (
+      "a function only in parentheses: refused",
+      "let f = (fun x -> x) in\nlet g = 5 in\ng",
+      "g",
+      op(Indent),
+      None,
+    ),
+    (
+      "nor a module alias",
+      "module N = {} in\nmodule M = N in\nlet b = 2 in\nb",
+      "b",
+      op(Indent),
+      None,
+    ),
+    (
+      "nor across an item with no row",
+      "module M = {\n  let x = 1\n} in\nlet _ = 5 in\nlet b = 2 in\nb",
+      "b",
+      op(Indent),
+      None,
+    ),
+    (
+      "not the last local definition",
+      "let f = fun x ->\n  let y = 1 in\n  let z = 2 in\n  y\nin\nf",
+      "y",
+      op(Outdent),
+      None,
+    ),
+    (
+      "a test",
+      "let f = fun x ->\n  x\nin\ntest f(1) == 1 end;\nf",
+      "1",
+      op(Indent),
+      Some("let f = fun x ->\n  test f(1) == 1 end;\n  x\nin\nf"),
+    ),
+  ]);
+};
+
 /* ⌘⌫ on a row the outline refuses to delete leaves its cursor there */
 let refused_delete_cursor = (): unit => {
   let seg = seg_of("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
@@ -1231,6 +1525,7 @@ let tests = (
   "Restructure",
   [
     test_case("a refused op does nothing", `Quick, refused),
+    test_case("a module's last test is a member", `Quick, last_test),
     test_case(
       "a refused delete leaves the outline cursor",
       `Quick,
@@ -1251,5 +1546,11 @@ let tests = (
     test_case("use rows", `Quick, use_rows),
     test_case("a module with a signature", `Quick, signed_module),
     test_case("moves step over unshown modules", `Quick, unshown_module),
+    test_case("Tab and Shift+Tab across module edges", `Quick, nesting),
+    test_case(
+      "Tab and Shift+Tab across value bodies",
+      `Quick,
+      nesting_values,
+    ),
   ],
 );

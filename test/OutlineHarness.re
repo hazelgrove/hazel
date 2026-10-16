@@ -73,6 +73,7 @@ let text_ctl =
   },
   paste: () => ignore,
   rekind: _ => ignore,
+  shift: _ => ignore,
   op: (op, id) => {
     ops := [(op, id), ...ops^];
     ignore;
