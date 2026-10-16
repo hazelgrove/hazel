@@ -785,8 +785,8 @@ let insert_near =
 
 /* Alt↑↓: into an expanded module beside the item, bound by `module` or
    `let` (its end going up, its start going down); from a module's first
-   or last member, out to just above or below it. Collapsed modules are
-   stepped over, as is any module by an item with no member form (a
+   or last member, out to just above or below it. Modules not [is_open]
+   are stepped over, as is any module by an item with no member form (a
    `use`), and function bodies keep their items. [owner]: the item's
    module. The item is reindented to where it lands */
 let move =
@@ -902,7 +902,8 @@ type ctx = {
   mod_root: bool,
   term: Language.Exp.t,
   info_map: Lazy.t(Language.Statics.Map.t),
-  /* whether a module row is expanded: moves step over collapsed ones */
+  /* whether a module row is expanded: moves step over collapsed ones,
+     and over modules the outline doesn't show (`let _ = {…}`) */
   is_open: Id.t => bool,
 };
 

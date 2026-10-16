@@ -379,6 +379,13 @@ let find_path = (fid: Id.t, e: Exp.t): option(list((node, path_seg))) =>
 let label_path = (fid: Id.t, e: Exp.t): option(path) =>
   Option.map(List.map(snd), find_path(fid, e));
 
+/* row [fid] shows its children: it is a row, and not [collapsed] */
+let expanded = (~collapsed: list(path), fid: Id.t, e: Exp.t): bool =>
+  switch (label_path(fid, e)) {
+  | Some(path) => !List.mem(path, collapsed)
+  | None => false
+  };
+
 let resolve_path = (path: path, e: Exp.t): option(Id.t) => {
   let find = (seg: path_seg, ns: list(node)): option(node) =>
     segs(ns) |> List.find_opt(((_, s)) => s == seg) |> Option.map(fst);

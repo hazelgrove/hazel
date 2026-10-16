@@ -265,11 +265,7 @@ let item_ctx =
     mod_root: Program.root(program) == Haz3lcore.Sort.Mod,
     term,
     info_map: lazy(fresh_info_map(~settings, program, term)),
-    is_open: id =>
-      switch (OutlineTree.label_path(id, term)) {
-      | Some(path) => !List.mem(path, collapsed)
-      | None => true
-      },
+    is_open: id => OutlineTree.expanded(~collapsed, id, term),
   };
 };
 

@@ -11,7 +11,8 @@ let op = (o, id) => R.Op(o, id);
 let inside = (text, id) => R.InsertInside(id, text);
 
 /* [e] on the row labeled [label]: the new program and the row it lands
-   on, or None where it's refused. ~closed: moves step over modules */
+   on, or None where it's refused. Modules are open as the outline shows
+   them, or with ~closed all collapsed: moves step over them */
 let edit =
     (~root=Sort.Exp, ~closed=false, e: Id.t => R.t, label, seg: Segment.t)
     : option((Segment.t, option(Id.t))) => {
@@ -20,7 +21,8 @@ let edit =
     mod_root: root == Sort.Mod,
     term,
     info_map: lazy(Language.Statics.Map.empty),
-    is_open: _ => !closed,
+    is_open: id =>
+      !closed && Web.OutlineTree.expanded(~collapsed=[], id, term),
   };
   Result.to_option(R.edit(ctx, e(row_by_label(term, label)), seg));
 };
@@ -953,6 +955,65 @@ M.x|js}),
   ]);
 };
 
+/* a module the outline doesn't show (`let _ = {…}`) is stepped over like
+   a collapsed one, so a move never lands out of sight; a named one takes
+   the item in */
+let unshown_module = () => {
+  let u = "let a = 1 in\nlet _ = {\n  let x = 2\n} in\nlet b = 4 in\nb";
+  check(list(string), "no row", ["a", "b"], outline(u));
+  let seg = seg_of(u);
+  let term = MakeTerm.Incr.term_of(seg);
+  /* each `let`'s head, by its pattern */
+  let head = name =>
+    switch (
+      List.find_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile({children: [pat, ..._], _} as t)
+              when String.trim(text_of(pat)) == name =>
+            Some(t.id)
+          | _ => None
+          },
+        seg,
+      )
+    ) {
+    | Some(id) => id
+    | None => fail("no let " ++ name)
+    };
+  check(
+    pair(bool, bool),
+    "expanded: a, not _",
+    (true, false),
+    (
+      Web.OutlineTree.expanded(~collapsed=[], head("a"), term),
+      Web.OutlineTree.expanded(~collapsed=[], head("_"), term),
+    ),
+  );
+  cases([
+    (
+      "down past it",
+      u,
+      "a",
+      op(MoveDown),
+      Some("let _ = {\n  let x = 2\n} in\nlet a = 1 in\nlet b = 4 in\nb"),
+    ),
+    (
+      "up past it",
+      u,
+      "b",
+      op(MoveUp),
+      Some("let a = 1 in\nlet b = 4 in\nlet _ = {\n  let x = 2\n} in\nb"),
+    ),
+    (
+      "a named one takes it in",
+      "let a = 1 in\nlet m = {\n  let x = 2\n} in\nlet b = 4 in\nb",
+      "a",
+      op(MoveDown),
+      Some("let m = {\n  let a = 1;\n  let x = 2\n} in\nlet b = 4 in\nb"),
+    ),
+  ]);
+};
+
 /* a new test, `test ¿ end`, lands right after its row in its block's
    form, or above it as a run's first */
 let new_tests = () => {
@@ -1247,5 +1308,6 @@ let tests = (
     test_case("in and out again", `Quick, round_trip),
     test_case("use rows", `Quick, use_rows),
     test_case("a module with a signature", `Quick, signed_module),
+    test_case("moves step over unshown modules", `Quick, unshown_module),
   ],
 );
