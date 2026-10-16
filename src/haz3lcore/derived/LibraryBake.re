@@ -82,6 +82,26 @@ let defs = (elab: Exp.t): result(list((Var.t, Exp.t)), string) => {
   go(elab, []);
 };
 
+/* each definition with the earlier ones it mentions (the latest of each
+   name), compacted */
+let baked_defs = (defs: list((Var.t, Exp.t))): array(Library.def) => {
+  let latest = Hashtbl.create(64);
+  defs
+  |> List.mapi((i, (name, def)) => {
+       let deps =
+         Builtins.mentioned(~keep=Hashtbl.mem(latest), def)
+         |> List.map(Hashtbl.find(latest))
+         |> List.sort_uniq(compare);
+       Hashtbl.replace(latest, name, i);
+       Library.{
+         name,
+         deps,
+         elab: Marshal.to_string(compact(def), []),
+       };
+     })
+  |> Array.of_list;
+};
+
 /* [items] checked against the builtins alone: the library never sees
    itself */
 let of_items =
@@ -118,11 +138,7 @@ let of_items =
              {
                hash,
                entries: added.entries,
-               defs:
-                 Marshal.to_string(
-                   List.map(((x, def)) => (x, compact(def)), defs),
-                   [],
-                 ),
+               defs: baked_defs(defs),
              }
            )
       }

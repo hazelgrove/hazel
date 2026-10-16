@@ -22,8 +22,3 @@ let install = () => {
   let baked = timed("decode", () => Language.Library.decode(raw));
   Language.Library.install_baked(baked);
 };
-
-/* the definitions evaluated now rather than at the first evaluation: for
-   the worker, which starts with the app and evaluates first thing */
-let evaluate = () =>
-  timed("eval", () => ignore(Language.Builtins.env_init()));

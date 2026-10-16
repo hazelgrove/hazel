@@ -70,6 +70,30 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "a program evaluates only the definitions it mentions",
+      `Quick,
+      () => {
+        /* afresh: nothing evaluated yet */
+        StdlibBaked.install();
+        let (_, elab) =
+          Statics.mk(
+            CoreSettings.on,
+            ctx(),
+            Test_Evaluator_Prelude.parse_exp("List.length([1, 2])"),
+          );
+        let env = Builtins.env_for(elab);
+        let evaluated = x => List.mem_assoc(x, Builtins.library_modules^);
+        check(bool, "List", true, evaluated("List"));
+        check(bool, "not Color", false, evaluated("Color"));
+        check(
+          bool,
+          "Color not bound",
+          true,
+          Environment.lookup(env, "Color") == None,
+        );
+      },
+    ),
     test_case("the bake refuses a library with static errors", `Quick, () =>
       check(
         bool,

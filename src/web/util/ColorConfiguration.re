@@ -505,7 +505,7 @@ let vars_of_source =
         term,
       );
     let (result, _) =
-      Evaluator.evaluate(~env=Builtins.env_init(), elaborated);
+      Evaluator.evaluate(~env=Builtins.env_for(elaborated), elaborated);
     css_vars_of_value(result);
   }) {
   | _ => []

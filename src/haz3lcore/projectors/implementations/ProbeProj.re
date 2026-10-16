@@ -979,8 +979,7 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
       Some(name)
     | _ => None
     };
-  let is_builtin = name =>
-    Environment.lookup(Builtins.env_init(), name) != None;
+  let is_builtin = name => Builtins.predefined(name);
   let static_ok =
     switch (fn_var_name) {
     | Some(name) => !is_builtin(name)

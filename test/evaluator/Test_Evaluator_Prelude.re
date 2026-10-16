@@ -23,7 +23,7 @@ let testable_exp =
   );
 let evaluate = unevaluated => {
   let (result, _) =
-    Evaluator.evaluate(~env=Builtins.env_init(), unevaluated);
+    Evaluator.evaluate(~env=Builtins.env_for(unevaluated), unevaluated);
   result;
 };
 let dhexp_typ = testable_exp();
@@ -195,7 +195,7 @@ let full_preservation_test = (uexp: TermBase.exp_t): unit => {
   let ty = elaborated_type(statics, uexp);
 
   let (evaluated, _) =
-    Evaluator.evaluate(~env=Builtins.env_init(), elaborated);
+    Evaluator.evaluate(~env=Builtins.env_for(elaborated), elaborated);
   let (new_statics, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), evaluated);
 

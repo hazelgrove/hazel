@@ -10,7 +10,7 @@ module CollectStreamEVMode =
 module CollectStreamTransition = Transition(CollectStreamEVMode);
 
 let rec collect_stream_state_for =
-        (stream: IncrEval.outbox(EvaluatorState.t), d: DHExp.t)
+        (~env, stream: IncrEval.outbox(EvaluatorState.t), d: DHExp.t)
         : EvaluatorState.t => {
   let id = DHExp.rep_id(d);
   switch (Id.Map.find_opt(id, stream.completed.entries)) {
@@ -32,18 +32,18 @@ let rec collect_stream_state_for =
         CollectStreamTransition.transition(
           (~in_closure=?, _env, child) => {
             ignore(in_closure);
-            (collect_stream_state_for(stream, child), Indet);
+            (collect_stream_state_for(~env, stream, child), Indet);
           },
           ~mode=`Environment,
           ~targets=Sample.no_targets,
-          Builtins.env_init(),
+          env,
           d,
         );
       switch (rule) {
       | Step({expr, is_value: false, _}) =>
         EvaluatorState.append(
           req_state,
-          collect_stream_state_for(stream, expr),
+          collect_stream_state_for(~env, stream, expr),
         )
       | Step({is_value: true, _})
       | Constructor
@@ -56,7 +56,7 @@ let rec collect_stream_state_for =
 
 let collect_stream_state =
     (stream: IncrEval.outbox(EvaluatorState.t), d: DHExp.t): EvaluatorState.t => {
-  let state = collect_stream_state_for(stream, d);
+  let state = collect_stream_state_for(~env=Builtins.env_for(d), stream, d);
   {
     ...state,
     incr_eval: {

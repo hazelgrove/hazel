@@ -2,6 +2,16 @@
    elaborated at build time by src/stdlib/bake; each entry point installs
    the result at startup. */
 
+/* a top-level definition: its elaboration Marshal'd with one shared id
+   throughout (install re-ids it), decoded and evaluated only when a
+   program first needs it */
+type def = {
+  name: Var.t,
+  /* the earlier definitions it mentions, by index */
+  deps: list(int),
+  elab: string,
+};
+
 /* the baked form: written by bake, read here; Marshal, so main thread,
    worker and baker must come from one build */
 type baked = {
@@ -9,40 +19,65 @@ type baked = {
   hash: string,
   /* what the library adds to the context, newest first */
   entries: list(Ctx.entry),
-  /* Marshal of each top-level definition's elaboration, in order, one
-     shared id throughout (install re-ids it). Decoded and evaluated only
-     when something first evaluates: statics need just the entries */
-  defs: string,
+  /* in order */
+  defs: array(def),
 };
 
 /* [blob]: Marshal'd, not base64 */
 let decode = (blob: string): baked => Marshal.from_string(blob, 0);
 
-/* the definitions evaluated in order, each on its own, so stack depth
-   stays per definition however long the library grows; fresh ids, as
-   evaluation results get */
-let env_of = (defs: string): Environment.t(Exp.t) => {
-  let (env, modules) =
-    List.fold_left(
-      ((env, modules), (x, def)) => {
-        let v = Evaluator.evaluate_raw(~env, Exp.replace_all_ids(def));
-        (
-          Environment.extend(env, (x, v)),
-          switch (v.term) {
-          | Module([item, ..._]) => [(x, Mod.rep_id(item)), ...modules]
-          | _ => modules
-          },
+/* evaluated on demand, each definition once and against only the
+   definitions it mentions; an env per set of names asked for, so a
+   program's stays the same object across its runs */
+let env_for_of = (defs: array(def)): (list(Var.t) => Environment.t(Exp.t)) => {
+  let values = Array.make(Array.length(defs), None);
+  let rec extend = (env, i) =>
+    Environment.extend(env, (defs[i].name, value(i)))
+  and value = i =>
+    switch (values[i]) {
+    | Some(v) => v
+    | None =>
+      let env = List.fold_left(extend, Builtins.env_base, defs[i].deps);
+      let v =
+        Evaluator.evaluate_raw(
+          ~env,
+          Exp.replace_all_ids(Marshal.from_string(defs[i].elab, 0)),
         );
-      },
-      (Builtins.env_base, []),
-      Marshal.from_string(defs, 0): list((Var.t, Exp.t)),
-    );
-  Builtins.library_modules := modules;
-  env;
+      switch (v.term) {
+      | Module([item, ..._]) =>
+        Builtins.library_modules :=
+          [(defs[i].name, Mod.rep_id(item)), ...Builtins.library_modules^]
+      | _ => ()
+      };
+      values[i] = Some(v);
+      v;
+    };
+  let last = Hashtbl.create(Array.length(defs));
+  Array.iteri((i, d) => Hashtbl.replace(last, d.name, i), defs);
+  let envs = Hashtbl.create(16);
+  names => {
+    let is = List.filter_map(Hashtbl.find_opt(last), names);
+    let is = List.sort_uniq(compare, is);
+    switch (Hashtbl.find_opt(envs, is)) {
+    | Some(env) => env
+    | None =>
+      let env = List.fold_left(extend, Builtins.env_base, is);
+      /* bounded: programs with distinct name sets keep coming */
+      if (Hashtbl.length(envs) > 256) {
+        Hashtbl.reset(envs);
+      };
+      Hashtbl.replace(envs, is, env);
+      env;
+    };
+  };
 };
 
 let install_baked = (b: baked): unit =>
-  Builtins.install_library(~entries=b.entries, ~env=lazy(env_of(b.defs)));
+  Builtins.install_library(
+    ~entries=b.entries,
+    ~names=Array.to_list(Array.map(d => d.name, b.defs)),
+    ~env_for=env_for_of(b.defs),
+  );
 
 let install = (blob: string): unit => install_baked(decode(blob));
 

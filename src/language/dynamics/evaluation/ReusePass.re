@@ -51,6 +51,7 @@ let update_reuse_map_after_effects =
 
 let rec reuse_pass_for =
         (
+          ~env: Environment.t(Exp.t),
           ~prev: EvaluatorState.incr_eval,
           ~eval_info: EvalInfo.t,
           ~reuse_map: IncrEval.reuse_map,
@@ -65,11 +66,14 @@ let rec reuse_pass_for =
       ReusePassTransition.transition(
         (~in_closure=?, _env, child) => {
           ignore(in_closure);
-          (reuse_pass_for(~prev, ~eval_info, ~reuse_map, child), Indet);
+          (
+            reuse_pass_for(~env, ~prev, ~eval_info, ~reuse_map, child),
+            Indet,
+          );
         },
         ~mode=`Environment,
         ~targets=eval_info.targets,
-        Builtins.env_init(),
+        env,
         d,
       );
     switch (rule) {
@@ -82,7 +86,7 @@ let rec reuse_pass_for =
         );
       IncrEval.add_stream(
         req_stream,
-        reuse_pass_for(~prev, ~eval_info, ~reuse_map, expr),
+        reuse_pass_for(~env, ~prev, ~eval_info, ~reuse_map, expr),
       );
     | Step({is_value: true, _})
     | Constructor
@@ -101,4 +105,4 @@ let reuse_pass =
       d: DHExp.t,
     )
     : IncrEval.t(EvaluatorState.t) =>
-  reuse_pass_for(~prev, ~eval_info, ~reuse_map, d);
+  reuse_pass_for(~env, ~prev, ~eval_info, ~reuse_map, d);

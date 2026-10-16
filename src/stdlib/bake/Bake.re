@@ -40,7 +40,12 @@ let () =
         Printf.sprintf(
           "bake: entries %s, definitions %dKB; segment %s",
           kb(baked.entries),
-          String.length(baked.defs) / 1024,
+          Array.fold_left(
+            (n, d: Language.Library.def) => n + String.length(d.elab),
+            0,
+            baked.defs,
+          )
+          / 1024,
           kb(segment),
         ),
       );

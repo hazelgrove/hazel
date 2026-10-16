@@ -270,7 +270,7 @@ let evaluate_sync =
   switch (
     Language.Evaluator.evaluate(
       ~eval_info,
-      ~env=Language.Builtins.env_init(),
+      ~env=Language.Builtins.env_for(expr),
       expr,
     )
   ) {
@@ -360,7 +360,7 @@ let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
         Language.ReusePass.reuse_pass(
           ~prev=resolve_prev(~key, prev),
           ~eval_info=eval_info_map,
-          ~env=Language.Builtins.env_init(),
+          ~env=Language.Builtins.env_for(expr),
           expr,
         )
       ) {
@@ -422,7 +422,7 @@ let start_evaluation = (~key: key, req_value: Request.value): evaluation_start =
         wants_incremental(req_value)
           ? resolve_prev(~key, prev) : Language.IncrEval.empty,
       ~eval_info=eval_info_map,
-      ~env=Language.Builtins.env_init(),
+      ~env=Language.Builtins.env_for(expr),
       ~reuse_stream=?planned,
       expr,
     )

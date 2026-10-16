@@ -79,7 +79,7 @@ module Update = {
         open Calc.Syntax;
         let.calc elab = elab;
         elab
-        |> Substitution.in_exp(Builtins.env_init())
+        |> Substitution.in_exp(Builtins.env_for(elab))
         |> Exp.replace_all_ids;
       };
     let (root, _, _) =

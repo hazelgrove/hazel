@@ -97,22 +97,43 @@ let env_base: Environment.t(Exp.t) =
   |> List.fold_left(Environment.extend, Environment.empty);
 
 /* The Hazel-source standard library (Library.install): its context entries
-   go on top of the builtins', its evaluated bindings on top of env_base */
+   go on top of the builtins', its values on top of env_base */
 let library_entries: ref(list(Ctx.entry)) = ref([]);
-/* lazy: statics need only the entries, and the main thread rarely
-   evaluates */
-let library_env: ref(Lazy.t(Environment.t(Exp.t))) =
-  ref(Lazy.from_val(env_base));
+let library_names: ref(Util.Maps.StringMap.t(unit)) =
+  ref(Util.Maps.StringMap.empty);
+/* env_base with just these library names bound: each definition is
+   evaluated when first needed, so a program pays for what it uses however
+   large the library grows */
+let library_env_for: ref(list(Var.t) => Environment.t(Exp.t)) =
+  ref(_ => env_base);
 
 /* one record per mode, so memos keyed on context identity (Statics.mk,
    DefStatics) hit until the library changes */
 let ctx_by_mode: Hashtbl.t(option(Operators.mode), Ctx.t) =
   Hashtbl.create(5);
 
+/* the library's modules, once evaluated, by name and first item's id
+   (evaluation rebuilds a module value's node but keeps its items' ids): a
+   module shown (a result stuck inside List.map, a sample) shows as its
+   name */
+let library_modules: ref(list((Var.t, Id.t))) = ref([]);
+
 let install_library =
-    (~entries: list(Ctx.entry), ~env: Lazy.t(Environment.t(Exp.t))): unit => {
+    (
+      ~entries: list(Ctx.entry),
+      ~names: list(Var.t),
+      ~env_for: list(Var.t) => Environment.t(Exp.t),
+    )
+    : unit => {
   library_entries := entries;
-  library_env := env;
+  library_names :=
+    List.fold_left(
+      (m, x) => Util.Maps.StringMap.add(x, (), m),
+      Util.Maps.StringMap.empty,
+      names,
+    );
+  library_env_for := env_for;
+  library_modules := [];
   Hashtbl.reset(ctx_by_mode);
 };
 
@@ -125,13 +146,46 @@ let ctx_init = (use_mode: option(Operators.mode)): Ctx.t =>
     ctx;
   };
 
-let env_init = (): Environment.t(Exp.t) => Lazy.force(library_env^);
+let is_library_name = (x: Var.t): bool =>
+  Util.Maps.StringMap.mem(x, library_names^);
 
-/* the library's modules, once evaluated, by name and first item's id
-   (evaluation rebuilds a module value's node but keeps its items' ids): a
-   module shown (a result stuck inside List.map, a sample) shows as its
-   name */
-let library_modules: ref(list((Var.t, Id.t))) = ref([]);
+/* the names [d] mentions that [keep] accepts, once each: a superset of its
+   free ones */
+let mentioned = (~keep: Var.t => bool, d: Exp.t): list(Var.t) => {
+  let seen = Hashtbl.create(16);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) => {
+          switch (e.term) {
+          | Var(x) when keep(x) => Hashtbl.replace(seen, x, ())
+          | _ => ()
+          };
+          cont(e);
+        },
+      d,
+    );
+  Hashtbl.fold((x, (), acc) => [x, ...acc], seen, []);
+};
+
+/* what [d] evaluates against: the builtins and the library names it
+   mentions (a mention a binding shadows only costs its evaluation) */
+let env_for = (d: Exp.t): Environment.t(Exp.t) =>
+  library_env_for^(mentioned(~keep=is_library_name, d));
+
+/* the whole library, every definition evaluated */
+let env_init = (): Environment.t(Exp.t) =>
+  library_env_for^(
+    Util.Maps.StringMap.fold(
+      (x, (), acc) => [x, ...acc],
+      library_names^,
+      [],
+    ),
+  );
+
+/* whether env_init binds [name], without evaluating the library */
+let predefined = (name: Var.t): bool =>
+  Environment.lookup(env_base, name) != None || is_library_name(name);
 
 let library_module_name = (v: Exp.t): option(Var.t) =>
   switch (v.term) {

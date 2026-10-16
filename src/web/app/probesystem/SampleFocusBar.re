@@ -31,7 +31,7 @@ let get_fn_info =
        * Skip for built-in names: their FixF patterns create context entries
        * with fresh IDs that aren't navigable tiles in the user's zipper. */
       let body_id: option(Id.t) =
-        if (Environment.lookup(Builtins.env_init(), name) != None) {
+        if (Builtins.predefined(name)) {
           None;
         } else {
           switch (Statics.Map.lookup(fn_id, info_map)) {
@@ -119,7 +119,7 @@ let get_definition_target =
       let base =
         String.ends_with(~suffix="+", n)
           ? String.sub(n, 0, String.length(n) - 1) : n;
-      Environment.lookup(Builtins.env_init(), base) != None;
+      Builtins.predefined(base);
     | None => false
     };
   if (is_builtin_name) {
@@ -154,7 +154,7 @@ let get_param_target =
       let base =
         String.ends_with(~suffix="+", n)
           ? String.sub(n, 0, String.length(n) - 1) : n;
-      Environment.lookup(Builtins.env_init(), base) != None;
+      Builtins.predefined(base);
     | None => false
     };
   if (is_builtin_name) {
