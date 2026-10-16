@@ -883,7 +883,104 @@ type t =
   /* the same, last inside a module */
   | InsertInside(Id.t, string)
   /* or first */
-  | InsertFirst(Id.t, string);
+  | InsertFirst(Id.t, string)
+  /* a new definition with a hole for its name, below the row or first or
+     last inside it, its name to be typed in the editor */
+  | Blank(OutlineEdit.place, Id.t, OutlineTree.kind);
+
+/* the op that makes a new definition of [kind] below an item */
+let new_op = (kind: OutlineRename.kind): OutlineEdit.def_op =>
+  switch (kind) {
+  | KType => NewTypeBelow
+  | KModule => NewModuleBelow
+  | KValue => NewBelow
+  };
+
+let rename_kind = (kind: OutlineTree.kind): OutlineRename.kind =>
+  switch (kind) {
+  | KType => KType
+  | KModule => KModule
+  | _ => KValue
+  };
+
+/* where item [id]'s name is typed: its pattern's first piece */
+let name_slot = (id: Id.t, seg: Segment.t): option(Id.t) =>
+  Option.bind(Focus.find_pat(id, seg), pat =>
+    List.find_opt(p => !Piece.is_secondary(p), pat) |> Option.map(Piece.id)
+  );
+
+/* a name's text, holes blank */
+let rec text = (seg: Segment.t): string =>
+  String.concat("", List.map(piece_text, seg))
+and piece_text = (p: Piece.t): string =>
+  switch (p) {
+  | Tile(t) =>
+    Aba.mk(t.shards, t.children)
+    |> Aba.join(List.nth(Tile.label(t)), text)
+    |> String.concat("")
+  | Grout(_) => ""
+  | Secondary(w) => Secondary.get_string(w.content)
+  | Projector(pr) => piece_text(pr.syntax)
+  };
+
+/* a name as the editor holds it: the text of item [def]'s pattern (or,
+   with no [def], of the zipper's whole segment, a cell's header), and
+   the caret's offset in it, in JS string units, when the caret is there */
+let name_at = (~def: option(Id.t), z: Zipper.t): option((string, int)) => {
+  let (pre, suf) = z.relatives.siblings;
+  /* the caret's text before and after it, from the innermost level out
+     to the name's level: None when the caret isn't in the name */
+  let rec out = (before, after, ancestors: Ancestors.t) =>
+    switch (ancestors, def) {
+    | ([], None) => Some((before, after))
+    | ([], Some(_)) => None
+    | ([(a, (gpre, gsuf)), ...rest], _) =>
+      switch (def) {
+      | Some(d) when a.id == d =>
+        fst(a.children) == [] ? Some((before, after)) : None
+      | _ =>
+        let (l, r) = Ancestor.disassemble(a);
+        out(
+          text(gpre) ++ text(l) ++ before,
+          after ++ text(r) ++ text(gsuf),
+          rest,
+        );
+      }
+    };
+  /* an inner caret splits the token to its right */
+  let (before, after) =
+    switch (z.caret, suf) {
+    | (Inner(n), [p, ...rest]) =>
+      let t = piece_text(p);
+      (
+        text(pre) ++ OutlineEdit.slice(t, 0, n + 1),
+        OutlineEdit.slice(t, n + 1, OutlineEdit.units(t)) ++ text(rest),
+      );
+    | _ => (text(pre), text(suf))
+    };
+  Option.map(
+    ((before, after)) => {
+      let all = before ++ after;
+      let rec lead = i =>
+        i < String.length(all) && String.contains(" \t\n\r", all.[i])
+          ? lead(i + 1) : i;
+      let lead = lead(0);
+      let name = String.trim(all);
+      (
+        name,
+        max(
+          0,
+          min(
+            OutlineEdit.units(name),
+            OutlineEdit.units(before)
+            - OutlineEdit.units(String.sub(all, 0, lead)),
+          ),
+        ),
+      );
+    },
+    out(before, after, z.relatives.ancestors),
+  );
+};
 
 /* a typed name and the kind its keyword picks */
 let typed_name = (text: string): (OutlineTree.kind, string) => {
@@ -947,12 +1044,7 @@ let edit =
   | InsertInside(at, text)
   | InsertFirst(at, text) =>
     let (kind, name) = typed_name(text);
-    let (rkind, op): (OutlineRename.kind, OutlineEdit.def_op) =
-      switch (kind) {
-      | KType => (KType, NewTypeBelow)
-      | KModule => (KModule, NewModuleBelow)
-      | _ => (KValue, NewBelow)
-      };
+    let rkind = rename_kind(kind);
     switch (OutlineRename.check_name(rkind, name)) {
     | Some(why) => Error(why)
     | None =>
@@ -962,9 +1054,42 @@ let edit =
           new_inside(~member=template(rkind, name), at, seg)
         | InsertFirst(_) =>
           new_inside(~first=true, ~member=template(rkind, name), at, seg)
-        | _ => apply(~name, ~mod_root=ctx.mod_root, op, at, seg)
+        | _ => apply(~name, ~mod_root=ctx.mod_root, new_op(rkind), at, seg)
         }
       )
       |> Option.to_result(~none="a definition can't go here")
     };
+  | Blank(place, at, kind) =>
+    /* made with a placeholder name, which a hole replaces: not every
+       pattern sort parses one (`module ¿`) */
+    let rkind = rename_kind(kind);
+    let name =
+      switch (rkind) {
+      | KType => "T"
+      | KModule => "M"
+      | KValue => "x"
+      };
+    (
+      switch (place) {
+      | Below => apply(~name, ~mod_root=ctx.mod_root, new_op(rkind), at, seg)
+      | First =>
+        new_inside(~first=true, ~member=template(rkind, name), at, seg)
+      | Last => new_inside(~member=template(rkind, name), at, seg)
+      }
+    )
+    |> Option.to_result(~none="a definition can't go here")
+    |> Result.map(~f=((seg, d)) =>
+         switch (Option.bind(d, d => Focus.find_pat(d, seg)), d) {
+         | (Some(pat), Some(d)) =>
+           let hole = (p: Piece.t) =>
+             Piece.is_secondary(p)
+               ? p
+               : Grout({
+                   id: Id.mk(),
+                   shape: Convex,
+                 });
+           (Focus.splice_pat(d, List.map(hole, pat), seg), Some(d));
+         | _ => (seg, d)
+         }
+       );
   };
