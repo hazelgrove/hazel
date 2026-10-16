@@ -85,12 +85,17 @@ let unwrap_quote = (d: Direction.t, t: Token.t, z: t, ~root): option(t) => {
   };
 };
 
+/* Reason comments have no single-character quotes to unwrap: they edit
+   like ordinary tokens */
+let is_quoted = (t: Token.t): bool =>
+  Token.is_string_or_comment(t)
+  && !(Surface.is_reason() && Token.is_comment(t));
+
 let outer = (d: Direction.t, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(d, z)) {
-  | Some(t) when Token.length(t) > 1 && !Token.is_string_or_comment(t) =>
+  | Some(t) when Token.length(t) > 1 && !is_quoted(t) =>
     Insert.replace_shard(d, Token.rm_edge(d, t), z, ~root)
-  | Some(t) when Token.is_string_or_comment(t) =>
-    unwrap_quote(d, t, z, ~root)
+  | Some(t) when is_quoted(t) => unwrap_quote(d, t, z, ~root)
   | _ => delete(d, z)
   };
 
@@ -99,7 +104,7 @@ let rm_nth_right = (idx, t, z, ~root) =>
 
 let inner_left = (idx: int, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {
-  | Some(t) when Token.is_string_or_comment(t) && idx == 0 =>
+  | Some(t) when is_quoted(t) && idx == 0 =>
     unwrap_quote(Right, t, z |> Caret.set(Outer), ~root)
   | Some(t) =>
     let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
@@ -113,7 +118,7 @@ let is_last_inner_pos = (t, idx) => Token.length(t) - 2 == idx;
 
 let inner_right = (idx: int, z: t, ~root): option(t) =>
   switch (Zipper.neighbor_token(Right, z)) {
-  | Some(t) when Token.is_string_or_comment(t) && is_last_inner_pos(t, idx) =>
+  | Some(t) when is_quoted(t) && is_last_inner_pos(t, idx) =>
     unwrap_quote(Right, t, z |> Caret.set(Outer), ~root)
   | Some(t) =>
     let* z = rm_nth_right(idx + 1, t, z, ~root);

@@ -57,6 +57,74 @@ let try_segment_paste =
   };
 };
 
+/* The units text is typed in: characters, except that under the Reason
+   surface each comment arrives whole (typed character by character its
+   opening would read as operators). A block comment spanning lines
+   arrives as one block comment per line, since tokens never span lines.
+   String literals are skipped over, so comment-like text inside them is
+   kept. */
+let reason_chunks = (str: string): list(string) => {
+  let chars = Array.of_list(Token.to_list(str));
+  let n = Array.length(chars);
+  let at = (i, s) => i < n && chars[i] == s;
+  let out = ref([]);
+  let emit = c => out := [c, ...out^];
+  let rec until_newline = (i, acc) =>
+    i >= n || chars[i] == "\n"
+      ? (String.concat("", List.rev(acc)), i)
+      : until_newline(i + 1, [chars[i], ...acc]);
+  /* a block comment body from i (after its opening), line by line */
+  let rec block = (i, acc) =>
+    if (i >= n) {
+      emit("/*" ++ String.concat("", List.rev(acc)) ++ "*/");
+      i;
+    } else if (at(i, "*") && at(i + 1, "/")) {
+      emit("/*" ++ String.concat("", List.rev(acc)) ++ "*/");
+      i + 2;
+    } else if (chars[i] == "\n") {
+      emit("/*" ++ String.concat("", List.rev(acc)) ++ " */");
+      emit("\n");
+      /* keep the next line's indentation as typed whitespace */
+      let j = ref(i + 1);
+      while (j^ < n && chars[j^] == " ") {
+        emit(" ");
+        incr(j);
+      };
+      block(j^, [" "]);
+    } else {
+      block(i + 1, [chars[i], ...acc]);
+    };
+  let rec go = (i, in_string) =>
+    if (i >= n) {
+      ();
+    } else if (in_string) {
+      emit(chars[i]);
+      if (chars[i] == "\\" && i + 1 < n) {
+        emit(chars[i + 1]);
+        go(i + 2, true);
+      } else {
+        go(i + 1, chars[i] != "\"");
+      };
+    } else if (chars[i] == "\"") {
+      emit(chars[i]);
+      go(i + 1, true);
+    } else if (at(i, "/") && at(i + 1, "/")) {
+      let (comment, j) = until_newline(i, []);
+      emit(comment);
+      go(j, false);
+    } else if (at(i, "/") && at(i + 1, "*")) {
+      go(block(i + 2, []), false);
+    } else {
+      emit(chars[i]);
+      go(i + 1, false);
+    };
+  go(0, false);
+  List.rev(out^);
+};
+
+let typing_units = (str: string): list(string) =>
+  Surface.is_reason() ? reason_chunks(str) : Token.to_list(str);
+
 /* Insert characters one-by-one into a zipper. Used for paste and
    other operations that start from an existing zipper state. */
 let to_zipper =
@@ -70,7 +138,7 @@ let to_zipper =
       None;
     };
   };
-  let+ z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
+  let+ z = str |> typing_units |> List.fold_left(insert, Some(zipper_init));
   Zipper.rescan_reassemble(~with_parent=true, Left, z, ~root);
 };
 
@@ -107,7 +175,7 @@ let strip_trailing_grout = (seg: Segment.t): Segment.t => {
    stripped, segments are concatenated, and a final top-level regrout
    ensures shape consistency across boundaries. */
 let to_segment = (str: string, ~root): option(Segment.t) => {
-  let chars = str |> Token.to_list;
+  let chars = str |> typing_units;
   let segments = ref([]);
   let current_z = ref(Some(Zipper.init()));
   let chars_since_split = ref(0);
@@ -148,6 +216,10 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
   let final_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let all_segments = List.rev([final_seg, ...segments^]);
   let combined = List.concat(all_segments);
+  /* Reason: a chunk-final `let ... ;` was molded with nothing after it;
+     remold the joined top level so it takes the next chunk as its body */
+  let combined =
+    Surface.is_reason() ? Segment.remold(combined, root) : combined;
   Segment.regrout(Nib.Shape.(concave(), concave()), combined);
 };
 

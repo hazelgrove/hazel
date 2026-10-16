@@ -508,6 +508,44 @@ let reason_record_body = (body: Exp.t): Exp.t =>
   | _ => body
   };
 
+/* The body a closed Reason definition (the last statement of a block
+   or file) does not have: an empty hole, which ends a module's items */
+let reason_no_body = (id: Id.t): Exp.t => {
+  let hole: Exp.term = EmptyHole;
+  IdTagged.mk_internal([derived_id(id, 1)], hole);
+};
+
+/* A Reason module body is a block of definitions: its let/type/module
+   chain becomes Hazel's module items (a trailing expression is an
+   expression item; an empty tail ends the module). A non-block
+   definition (`module M = N;`) is a module expression as is. */
+let reason_module_def = (def: Exp.t): Exp.t => {
+  let rec items = (e: Exp.t): list(TermBase.Mod.t) => {
+    let item = (term: TermBase.Mod.term): TermBase.Mod.t => {
+      term,
+      annotation: e.annotation,
+    };
+    switch (e.term) {
+    | Let(p, d, rest) => [item(ModLet(p, d)), ...items(rest)]
+    | TyAlias(tp, t, rest) => [item(ModType(tp, t)), ...items(rest)]
+    | ModuleExp(mp, d, rest) => [item(ModuleMod(mp, d)), ...items(rest)]
+    | EmptyHole => []
+    | _ => [item(ModExp(e))]
+    };
+  };
+  switch (def.term) {
+  | Parens({term: Let(_) | TyAlias(_) | ModuleExp(_), _} as body) => {
+      ...def,
+      term: Module(items(body)),
+    }
+  | Parens({term: EmptyHole, _}) => {
+      ...def,
+      term: Module([]),
+    }
+  | _ => def
+  };
+};
+
 /* Reason arrow parameters: `x`, `()`, `(p)`, `(p1, p2)` (curried) and
    `(ps): t` (return annotation) */
 let reason_params = (params: Pat.t): (list(Pat.t), option(Typ.t)) => {
@@ -914,6 +952,12 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
+    | ([(id, (F(Compound(ReLetStmt)), [Pat(pat), Exp(def)]))], []) =>
+      ret(Let(pat, def, reason_no_body(id)))
+    | ([(id, (F(Compound(ReTypeStmt)), [TPat(tpat), Typ(def)]))], []) =>
+      ret(TyAlias(tpat, def, reason_no_body(id)))
+    | ([(id, (F(Compound(ReModuleStmt)), [MPat(mp), Exp(def)]))], []) =>
+      ret(ModuleExp(mp, reason_module_def(def), reason_no_body(id)))
     // single-tile case
     | ([(_id, t)], []) =>
       switch (t) {
@@ -1120,6 +1164,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (F(Compound(ReLet)), [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (F(Compound(ReType)), [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
+        | (F(Compound(ReModule)), [MPat(mp), Exp(def)]) =>
+          ModuleExp(mp, reason_module_def(def), r)
         | (F(Compound(UnaryMinus)), []) => UnOp(Int(Minus), r)
         | (F(Compound(Not)), []) => UnOp(Bool(Not), r)
         | (F(Compound(Fun)), [Pat(pat)]) => Fun(pat, r, None, None)
@@ -1183,6 +1229,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(id, (F(Compound(Ap)), [Exp(arg)]))], [])
         when Surface.is_reason() =>
       ret(reason_ap(id, l, arg))
+    | ([(_, (F(Compound(SeqPost)), []))], []) =>
+      /* `e;` closing a block: just e */
+      (l.term, IdTagged.ids(l))
     | ([(_id, t)], []) =>
       switch (t) {
       | (F(f), []) when is_empty_tuple_form(f) =>

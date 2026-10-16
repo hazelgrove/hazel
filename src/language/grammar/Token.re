@@ -44,8 +44,38 @@ let empty = ""; /* This is invalid for view */
 let space = " ";
 let linebreak = "\n";
 let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
-let is_comment = t => match(comment_regexp, t) || t == "#";
-let is_comment_delim = t => t == "#";
+/* ReasonML comments: line comments (two slashes to the end of the
+   line) and block comments on one line (text loading splits multi-line
+   block comments by line). A block comment being typed is a potential
+   token until it closes. */
+let reason_line_comment_regexp = regexp("^//[^\n]*$");
+let reason_open_comment_regexp = regexp("^/\\*[^\n]*$");
+let ends_block_comment = t => {
+  let n = String.length(t);
+  n >= 4 && String.sub(t, n - 2, 2) == "*/";
+};
+/* no block-comment closer except (optionally) at the very end */
+let no_inner_close = t => {
+  let n = String.length(t);
+  let rec go = i =>
+    i + 1 >= n - 2 ? true : String.sub(t, i, 2) == "*/" ? false : go(i + 1);
+  go(2);
+};
+let is_reason_block_comment = t =>
+  match(reason_open_comment_regexp, t)
+  && ends_block_comment(t)
+  && no_inner_close(t);
+let is_reason_comment = t =>
+  match(reason_line_comment_regexp, t) || is_reason_block_comment(t);
+let is_reason_open_comment = t =>
+  match(reason_open_comment_regexp, t)
+  && !ends_block_comment(t)
+  && no_inner_close(t ++ "xx");
+let is_comment = t =>
+  Surface.is_reason()
+    ? is_reason_comment(t) : match(comment_regexp, t) || t == "#";
+/* the auto-closing comment delimiter: Hazel's `#` (Reason has none) */
+let is_comment_delim = t => !Surface.is_reason() && t == "#";
 let is_secondary = t => List.mem(t, [space, linebreak]) || is_comment(t);
 
 /* STRINGS: special-case syntax */
@@ -236,6 +266,8 @@ let is_potential_token = t =>
     t == "()"
     || t == "[]"
     || t == "{}"
+    || Surface.is_reason()
+    && is_reason_open_comment(t)
     || t == "¿"  /* implicit-hole marker; see Haz3lcore.MarkerParse */
     || is_potential_operand(t)
     || is_potential_operator(t)

@@ -316,7 +316,12 @@ let rows_of: family => list(row) =
   | ReField
   | ReSumBar
   | ReSumBarPre
-  | ReRec => [];
+  | ReRec
+  | ReModule
+  | ReLetStmt
+  | ReTypeStmt
+  | ReModuleStmt
+  | SeqPost => [];
 
 /* The ReasonML surface's rows. Families shared with Hazel keep their
  * meaning but may live at fewer sorts or other precedences (`;` is
@@ -395,6 +400,11 @@ let reason_rows_of: family => list(row) =
   | ReSumBar => [mk_infix(Typ, P.type_plus)]
   | ReSumBarPre => [mk_prefix(Typ, P.type_plus)]
   | ReRec => [mk_prefix(Pat, P.ap)]
+  | ReModule => [mk_pre_c'(L, P.let_, Exp, [MPat, Exp], Exp)]
+  | ReLetStmt => [mk_op_c(L, Exp, [Pat, Exp])]
+  | ReTypeStmt => [mk_op_c(L, Exp, [TPat, Typ])]
+  | ReModuleStmt => [mk_op_c(L, Exp, [MPat, Exp])]
+  | SeqPost => [mk_post_c(Non, P.re_seq, Exp, [])]
   | _ => [];
 
 let rows_for = (s: Surface.t, fam: family): list(row) =>
@@ -462,6 +472,10 @@ let same_label_rank = (fam: family, out: Sort.t): int =>
   | (RulePre, _) => 1
   | (ReSumBar, _) => 0
   | (ReSumBarPre, _) => 1
+  /* Reason definitions: the body-taking form over the closed statement
+   * (remold picks the statement where nothing follows) */
+  | (ReLet | ReType | ReModule | CellJoin, _) => 0
+  | (ReLetStmt | ReTypeStmt | ReModuleStmt | SeqPost, _) => 1
   | _ => 0
   };
 

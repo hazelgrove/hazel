@@ -189,6 +189,16 @@ let left_operand_start = (seg: array(Piece.t), i: int, prec: Precedence.t) => {
   go(i - 1, true);
 };
 
+/* The left shape of the next content piece: the edge of the segment
+   reads as concave, as a bracket's inside does */
+let rec next_left_shape = (rest: t): Nib.Shape.t =>
+  switch (rest) {
+  | [] => Nib.Shape.concave()
+  | [Secondary(_) | Grout(_), ...rest] => next_left_shape(rest)
+  | [Tile(t), ..._] => fst(Tile.shapes(t))
+  | [Projector(p), ..._] => fst(ProjectorCore.shapes(p))
+  };
+
 let is_reason_arrow = (p: Piece.t): bool =>
   switch (p) {
   | Tile({form: Compound(ReArrow), _} as t) => Tile.mold(t).out == Exp
@@ -236,8 +246,25 @@ and remold_arrow_params = (seg: t): t =>
         Array.sub(arr, consumed^, Array.length(arr) - consumed^),
       );
   }
-and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
+and remold_tile =
+    (~rest: option(t)=?, s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
+  /* Reason: among forms that fit on the left, prefer one whose right
+     fits what follows (grout, which regrout will redo, aside): a `;`
+     or `let ... ;` with nothing after it closes instead of opening an
+     empty body */
+  let prefer_right_fit = (ts: list(Tile.t)) =>
+    switch (rest) {
+    | Some(rest) when Surface.is_reason() =>
+      let next = next_left_shape(rest);
+      switch (
+        List.filter(t => Nib.Shape.fits(snd(Tile.shapes(t)), next), ts)
+      ) {
+      | [] => ts
+      | fit => fit
+      };
+    | _ => ts
+    };
   let+ remolded =
     switch (Form.remold_candidates(Tile.label(t), s)) {
     | [] => None
@@ -254,7 +281,9 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
         fun
         | [_] as ts => ts
         | ts =>
-          ts |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+          ts
+          |> List.filter(t => Nib.Shape.fits(shape, fst(Tile.shapes(t))))
+          |> prefer_right_fit
       )
       |> ListUtil.hd_opt
     };
@@ -565,7 +594,7 @@ and remold_exp_uni = (shape, seg: t, parent_sorts): (t, Nib.Shape.t, t) =>
         remold_exp_uni(snd(ProjectorCore.shapes(p)), tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
-      switch (remold_tile(Exp, shape, t)) {
+      switch (remold_tile(~rest=tl, Exp, shape, t)) {
       | None => ([], shape, seg)
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);
@@ -666,7 +695,7 @@ and remold_exp = (shape, seg: t): t =>
     | Grout(_) => [hd, ...remold_exp(shape, tl)]
     | Projector(p) => [hd, ...remold_exp(snd(ProjectorCore.shapes(p)), tl)]
     | Tile(t) =>
-      switch (remold_tile(Exp, shape, t)) {
+      switch (remold_tile(~rest=tl, Exp, shape, t)) {
       | None => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
       | Some(t) when !Tile.has_end(Right, t) =>
         let (_, r) = Tile.nibs(t);

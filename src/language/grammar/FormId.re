@@ -156,7 +156,14 @@ type family =
   | ReField
   | ReSumBar
   | ReSumBarPre
-  | ReRec;
+  | ReRec
+  | ReModule
+  /* closed variants for the last statement of a block or file, which
+     has no body: `let x = 1;` and a trailing `e;` */
+  | ReLetStmt
+  | ReTypeStmt
+  | ReModuleStmt
+  | SeqPost;
 
 /* A form identity, sort-free: label is derived from the form alone;
  * the mold is derived from (form, sort) where sort is the tile's
@@ -287,7 +294,12 @@ let label_of_family: family => Label.t =
   | ReField => [":"]
   | ReSumBar => ["|"]
   | ReSumBarPre => ["|"]
-  | ReRec => ["rec"];
+  | ReRec => ["rec"]
+  | ReModule => ["module", "=", ";"]
+  | ReLetStmt => ["let", "=", ";"]
+  | ReTypeStmt => ["type", "=", ";"]
+  | ReModuleStmt => ["module", "=", ";"]
+  | SeqPost => [";"];
 
 let label_of: t => Label.t =
   fun
