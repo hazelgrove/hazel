@@ -177,7 +177,10 @@ let qcheck_pattern_equivalence_test =
         open IdTagged.FreshGrammar;
         open Exp;
         let first = asc(uexp, typ);
-        let second = let_(Pat.asc(Pat.var("x"), typ), uexp, var("x"));
+        /* The property needs the binder to be fresh for `uexp`: the
+           generator's own names (x, y, …) would make the let recursive. */
+        let second =
+          let_(Pat.asc(Pat.var("fresh_x"), typ), uexp, var("fresh_x"));
         let elaborated_first = elaborate(first);
         let elaborated_second = elaborate(second);
 

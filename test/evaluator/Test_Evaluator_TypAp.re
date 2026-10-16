@@ -28,5 +28,29 @@ map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
         {|type y = Int in typfun y -> (? : y)|},
       )
     ),
+    /* Implicit polymorphism elaborates to hidden typfuns and @<…>s. */
+    test_case("Generalized let used at two types", `Quick, () =>
+      parse_and_evaluate_test(
+        "(1, true)",
+        {|let id = fun x -> x in (id(1), id(true))|},
+      )
+    ),
+    test_case("Explicitly poly function applied without @<>", `Quick, () =>
+      parse_and_evaluate_test(
+        "3",
+        {|let id : poly a -> a -> a = typfun a -> fun x : a -> x in id(3)|},
+      )
+    ),
+    test_case("Generalized recursive map", `Quick, () =>
+      parse_and_evaluate_test(
+        "([2, 3], [false])",
+        {|let map = fun f -> fun xs ->
+  case xs
+    | [] => []
+    | x :: t => f(x) :: map(f)(t)
+  end
+in (map(fun x -> x + 1)([1, 2]), map(fun b -> !b)([true]))|},
+      )
+    ),
   ],
 );
