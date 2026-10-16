@@ -502,6 +502,16 @@ let rename_keywords = () => {
     ("", "type"),
     E.split_typed("type"),
   );
+  /* not underlined before its space; still refused if saved as a name */
+  check(
+    bool,
+    "a kind keyword waits for its space",
+    true,
+    E.kind_pending("type"),
+  );
+  check(bool, "so does `let`", true, E.kind_pending("let"));
+  check(bool, "a longer word is a name", false, E.kind_pending("types"));
+  check(bool, "other keywords aren't kinds", false, E.kind_pending("fun"));
   check(
     pair(string, int),
     "a keyword's space typed at the field's end: the caret to its start",

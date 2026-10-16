@@ -226,7 +226,7 @@ let focus_rows = Effect.of_sync_fun(Util.JsUtil.focus_outline, ());
 
 /* a refusal's bubble hangs under its line, or over it when the list would
    clip it there: placed once the frame's patch is done ([later]), and as
-   the list scrolls ([watch], which returns what stops it) */
+   the list scrolls or resizes ([watch], which returns what stops it) */
 let hint_js: Js_of_ocaml.Js.Unsafe.any =
   Js_of_ocaml.Js.Unsafe.js_expr(
     {|(function () {
@@ -246,9 +246,13 @@ let hint_js: Js_of_ocaml.Js.Unsafe.any =
     watch: function (el) {
       var body = el.closest('.outline-body');
       var go = function () { place(el); };
+      var sized = body && typeof ResizeObserver === 'function'
+        ? new ResizeObserver(go) : null;
       if (body) body.addEventListener('scroll', go, { passive: true });
+      if (sized) sized.observe(body);
       return function () {
         if (body) body.removeEventListener('scroll', go);
+        if (sized) sized.disconnect();
       };
     }
   };
@@ -320,7 +324,12 @@ let edit_field = (~props: props, ~on: handlers, t: E.t, typed: string) => {
       ~attrs=[
         clss(
           ["outline-edit-input"]
-          @ (props.check(t) == None ? [] : ["outline-invalid"]),
+          @ (
+            props.check(t) == None
+            || t.error == None
+            && E.kind_pending(typed)
+              ? [] : ["outline-invalid"]
+          ),
         ),
         Attr.value_prop(field),
         /* the width where field-sizing isn't supported */
@@ -700,13 +709,24 @@ let new_row_view =
 };
 
 /* text mode's new definition line, as drawn */
-let new_row_of = (~props: props, d: drawn): Node.t =>
+let new_row_of = (~props: props, d: drawn): Node.t => {
+  /* a value's name typed as `module`, before the space that makes it one
+     and before any save has tried it */
+  let kind_pending =
+    switch (props.live, d.d_text.fresh) {
+    | (Some(l), Some(f)) =>
+      d.d_text.error == None
+      && fst(E.new_kind(f.f_kw)) == OutlineTree.KConst
+      && E.kind_pending(l.l_name)
+    | _ => false
+    };
   new_row_view(
     ~live=props.live,
     ~flash=props.flash,
-    ~invalid=props.check(d.d_text) != None,
+    ~invalid=props.check(d.d_text) != None && !kind_pending,
     d.d_text,
   );
+};
 
 let rec node_view =
         (

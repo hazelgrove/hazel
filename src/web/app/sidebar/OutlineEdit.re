@@ -48,6 +48,11 @@ let split_typed = (text: string): (string, string) => {
   (kw, String.sub(text, n, String.length(text) - n));
 };
 
+/* a kind keyword still short of its space: refused if saved as a name,
+   but not yet underlined while typed, as the space makes it a kind */
+let kind_pending = (text: string): bool =>
+  List.mem(text, ["type", "module", "let"]);
+
 /* where a new definition goes: below its anchor, or first or last inside
    it (a module) */
 [@deriving (show({with_path: false}), sexp, yojson)]
