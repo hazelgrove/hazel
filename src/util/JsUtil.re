@@ -393,21 +393,34 @@ let sync_at_bottom_class = (evt: Js.t(Dom_html.event)): unit =>
 let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
   Js.Unsafe.coerce(element);
 
+/* overflow auto or scroll, with content past its height. Content past
+   the height alone isn't enough: a box with visible overflow reports it
+   without scrolling (a code container does, by decorations below its
+   last row). A pixel's overflow is rounding */
+let scrolls_vertically = (el: Js.t(Dom_html.element)): bool => {
+  let overflow = el##.scrollHeight - el##.clientHeight;
+  overflow > 1
+  && {
+    let style =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "getComputedStyle",
+        [|Js.Unsafe.inject(el)|],
+      );
+    let oy = Js.to_string(Js.Unsafe.get(style, "overflowY"));
+    oy == "auto" || oy == "scroll";
+  };
+};
+
 let rec find_scroll_container_node =
         (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) =>
   switch (Js.Opt.to_option(node##.parentNode)) {
   | None => None
   | Some(parent_node) =>
     switch (Dom_html.CoerceTo.element(parent_node) |> Js.Opt.to_option) {
-    | Some(parent_element) =>
-      let scroll_height = parent_element##.scrollHeight;
-      let client_height = parent_element##.clientHeight;
-      if (scroll_height - client_height > 1) {
-        Some(parent_element);
-      } else {
-        find_scroll_container_node(parent_node);
-      };
-    | None => find_scroll_container_node(parent_node)
+    | Some(parent_element) when scrolls_vertically(parent_element) =>
+      Some(parent_element)
+    | _ => find_scroll_container_node(parent_node)
     }
   };
 
@@ -525,7 +538,8 @@ let scroll_vertically_into_view_ancestors =
 
 /* find_scroll_container reads scrollHeight/clientHeight up the parent
    chain, forcing layout on dirty frames after every action; reuse the
-   found container while it is connected and still an ancestor */
+   found container while it is connected, still an ancestor and still
+   scrolls */
 let scroll_container_cache: ref(option(Js.t(Dom_html.element))) =
   ref(None);
 let connected = (el: Js.t(Dom_html.element)): bool =>
@@ -539,7 +553,8 @@ let find_scroll_container_cached =
     /* the caret may move to an editor in another scroll container */
     && Js.to_bool(
          Js.Unsafe.meth_call(el, "contains", [|Js.Unsafe.inject(element)|]),
-       );
+       )
+    && scrolls_vertically(el);
   switch (scroll_container_cache^) {
   | Some(el) when valid(el) => Some(el)
   | _ =>
@@ -549,30 +564,12 @@ let find_scroll_container_cached =
   };
 };
 
-/* the nearest ancestor that really scrolls: overflow auto or scroll, with
-   content past its height (a box overflowing by a pixel doesn't count) */
-let rec scrolling_ancestor =
-        (el: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
-  switch (Js.Opt.to_option(Js.Unsafe.get(el, "parentElement"))) {
-  | None => None
-  | Some(p: Js.t(Dom_html.element)) =>
-    let style =
-      Js.Unsafe.meth_call(
-        Dom_html.window,
-        "getComputedStyle",
-        [|Js.Unsafe.inject(p)|],
-      );
-    let oy = Js.to_string(Js.Unsafe.get(style, "overflowY"));
-    (oy == "auto" || oy == "scroll") && p##.scrollHeight - p##.clientHeight > 1
-      ? Some(p) : scrolling_ancestor(p);
-  };
-
 /* after a jump: a caret out of comfortable view comes to a fifth of the
    way down its scroll container, with the lines above it in sight */
 let align_caret_near_top = (): unit =>
   try({
     let caret = get_elem_by_id("caret");
-    switch (scrolling_ancestor(caret)) {
+    switch (find_scroll_container(caret)) {
     | Some(container) =>
       let c = caret##getBoundingClientRect;
       let r = container##getBoundingClientRect;
