@@ -425,12 +425,17 @@ let reason_rows_of: family => list(row) =
   /* the loosest pattern operators: `a, b as t` names the pair */
   | ReAs => [mk_infix(Pat, P.re_as)]
   | ReWhen => [mk(Non, Mold.mk_bin'(P.re_when, Pat, Pat, [], Exp))]
-  | ReAnd => [mk_infix(Exp, P.re_and), mk_infix(Typ, P.re_and)]
-  /* `g = e` after `and` (and `~x=e` arguments, `~x=default` params) */
+  /* `and p =` in `let p = e1 and q = e2;` (`type t = … and u = …;`): a
+     binding after the first, delimited like a rule `| p =>`, so the
+     bindings chain at one level inside the let */
+  | ReAnd => [
+      mk(L, Mold.mk_bin'(P.re_and, Exp, Exp, [Pat], Exp)),
+      mk(L, Mold.mk_bin'(P.re_and, Typ, Typ, [TPat], Typ)),
+    ]
+  /* `~x=e` arguments, `~x=default` params */
   | ReBind => [
       mk(Non, Mold.mk_bin'(P.re_bind, Exp, Pat, [], Exp)),
       mk(Non, Mold.mk_bin'(P.re_bind, Pat, Pat, [], Exp)),
-      mk_infix(Typ, P.re_bind),
     ]
   | ReTilde => [mk_prefix(Exp, P.ap), mk_prefix(Pat, P.ap)]
   /* `exception E(t);` declares a constructor: its operand is a type */

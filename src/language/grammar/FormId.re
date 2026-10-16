@@ -315,7 +315,7 @@ let label_of_family: family => Label.t =
   | ReOpen => ["open"]
   | ReAs => ["as"]
   | ReWhen => ["when"]
-  | ReAnd => ["and"]
+  | ReAnd => ["and", "="]
   | ReBind => ["="]
   | ReTilde => ["~"]
   | ReException => ["exception"];

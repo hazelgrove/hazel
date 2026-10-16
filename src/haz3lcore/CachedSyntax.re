@@ -107,7 +107,7 @@ let mk_refractor_rows =
 
 let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let segment = Zipper.unselect_and_zip(z);
-  let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
+  let MakeTerm.{term: _, terms, projectors, projector_list, term_data, _} =
     MakeTerm.go(segment);
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(

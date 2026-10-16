@@ -185,6 +185,26 @@ let for_zipper = (~settings, z: Zipper.t, st: t): option(t) =>
   )
   |> Option.map(_ => st);
 
+/* Tiles MakeTerm maps to another term's info (MakeTerm.show_as) get that
+   info, following chains */
+let with_shown_as =
+    (shown_as: Id.Map.t(Id.t), info_map: Statics.Map.t): Statics.Map.t => {
+  let rec target = (n, id) =>
+    switch (Id.Map.find_opt(id, shown_as)) {
+    | Some(next) when n > 0 => target(n - 1, next)
+    | _ => id
+    };
+  Id.Map.fold(
+    (tile, _, m) =>
+      switch (Id.Map.find_opt(target(8, tile), info_map)) {
+      | Some(info) => Id.Map.add(tile, info, m)
+      | None => m
+      },
+    shown_as,
+    info_map,
+  );
+};
+
 let init =
     (
       ~settings: CoreSettings.t,
@@ -203,16 +223,18 @@ let init =
   let term = Surface.is_reason() ? ReasonPrelude.wrap(term) : term;
   let probe_ids = probe_ids_of_zipper(z);
 
+  let st =
+    init_from_term(
+      ~settings,
+      ~ctx?,
+      ~is_dynamic_term,
+      ~ana?,
+      ~probe_ids,
+      term,
+    );
   let st = {
-    ...
-      init_from_term(
-        ~settings,
-        ~ctx?,
-        ~is_dynamic_term,
-        ~ana?,
-        ~probe_ids,
-        term,
-      ),
+    ...st,
+    info_map: with_shown_as(make_term_result.shown_as, st.info_map),
     completion: Some(completion),
   };
   /* The agent's handoff is only valid for the ordinary, unstitched Exp

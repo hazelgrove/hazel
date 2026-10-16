@@ -58,7 +58,7 @@ let try_segment_paste =
 };
 
 /* The units text is typed in: characters, except that under the Reason
-   surface each comment arrives whole (typed character by character its
+   surface each comment (and attribute) arrives whole (typed character by character its
    opening would read as operators). A block comment spanning lines
    arrives as one block comment per line, since tokens never span lines.
    String literals are skipped over, so comment-like text inside them is
@@ -114,6 +114,27 @@ let reason_chunks = (str: string): list(string) => {
       go(j, false);
     } else if (at(i, "/") && at(i + 1, "*")) {
       go(block(i + 2, []), false);
+    } else if (at(i, "[") && at(i + 1, "@")) {
+      /* an attribute `[@…]`, through its matching bracket on this line */
+      let rec close = (j, depth, in_str) =>
+        if (j >= n || chars[j] == "\n") {
+          j;
+        } else if (in_str) {
+          chars[j] == "\\"
+            ? close(j + 2, depth, true)
+            : close(j + 1, depth, chars[j] != "\"");
+        } else if (chars[j] == "\"") {
+          close(j + 1, depth, true);
+        } else if (chars[j] == "[") {
+          close(j + 1, depth + 1, false);
+        } else if (chars[j] == "]") {
+          depth == 1 ? j + 1 : close(j + 1, depth - 1, false);
+        } else {
+          close(j + 1, depth, false);
+        };
+      let j = close(i, 0, false);
+      emit(String.concat("", Array.to_list(Array.sub(chars, i, j - i))));
+      go(j, false);
     } else {
       emit(chars[i]);
       go(i + 1, false);

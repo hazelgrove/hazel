@@ -206,7 +206,7 @@ let rec next_could_start = (rest: t, s: Sort.t): bool =>
   };
 
 /* expression-level infix forms whose left operand is a pattern: arrow
-   functions `(x) => e` and `and g = e` bindings */
+   functions `(x) => e` and labeled arguments `~x=e` */
 let is_reason_arrow = (p: Piece.t): bool =>
   switch (p) {
   | Tile({form: Compound(ReArrow | ReBind), _} as t) =>
@@ -249,7 +249,24 @@ and remold_arrow_params = (seg: t): t =>
           let start = max(consumed^, left_operand_start(arr, i, prec));
           let before = Array.sub(arr, consumed^, start - consumed^);
           let params = Array.sub(arr, start, i - start) |> Array.to_list;
-          out := out^ @ Array.to_list(before) @ remold(params, Pat) @ [p];
+          /* `=` is a labeled argument's only after `~x`: typing `=>` or
+             `==` passes through a lone `=`, which must not leave its
+             left operand molded as a pattern */
+          let labeled =
+            switch (p, List.filter(q => !Piece.is_secondary(q), params)) {
+            | (
+                Tile({form: Compound(ReBind), _}),
+                [Tile({form: Compound(ReTilde), _}), ..._],
+              ) =>
+              true
+            | (Tile({form: Compound(ReBind), _}), _) => false
+            | _ => true
+            };
+          out :=
+            out^
+            @ Array.to_list(before)
+            @ (labeled ? remold(params, Pat) : params)
+            @ [p];
           consumed := i + 1;
         },
       arr,

@@ -257,6 +257,8 @@ let rec go =
             /* After a complete case rule WITH a body, we expect the next
              * rule at the same level. Don't indent for "next rule" position. */
             | (Some(prev), _) when is_complete_case_rule_with_body(prev) => base
+            /* `and q = …` sits at the level of its `let` */
+            | (_, Some(next)) when Piece.is_and_binding(next) => base
             /* only the FIRST linebreak after an incrementor takes
                the +2; consecutive linebreaks inherit its level */
             | (Some(prev), _) when is_incrementor(prev) =>

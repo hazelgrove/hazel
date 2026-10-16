@@ -35,6 +35,9 @@ let is_case_rule = (t: t): bool =>
 
 let is_case = (t: t): bool => t.form == Form.Compound(Case);
 
+/* `and p =`: a Reason binding after the first in a let or type */
+let is_and_binding = (t: t): bool => t.form == Form.Compound(ReAnd);
+
 let is_semi = (t: t): bool => t.form == Form.Compound(CellJoin);
 
 let is_dot = (t: t): bool => t.form == Form.Compound(Dot);

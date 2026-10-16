@@ -121,6 +121,148 @@ let area = (s: shape): float =>
   };
 area(Rect(2., 3.))|};
 
+/* Every tile of a program has statics info for the cursor inspector to
+   show (Reason tiles the translation consumes borrow another term's) */
+let rec tiles = (seg: Segment.t): list(Tile.t) =>
+  List.concat_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) => [t, ...List.concat_map(tiles, t.children)]
+      | _ => []
+      },
+    seg,
+  );
+let statics_of = (seg: Segment.t) =>
+  CachedStatics.init(
+    ~settings=CoreSettings.on,
+    ~is_dynamic_term=false,
+    ~stitch=Fun.id,
+    ~root=Exp,
+    Zipper.unzip(seg),
+  );
+let inspected = (name: string, src: string) =>
+  test_case("inspector: " ++ name, `Quick, () =>
+    Surface.with_(
+      Reason,
+      () => {
+        let seg = ReasonLoad.to_segment(~root=Exp, src);
+        let st = statics_of(seg);
+        let missing =
+          tiles(seg)
+          |> List.filter((t: Tile.t) => !Id.Map.mem(t.id, st.info_map))
+          |> List.map((t: Tile.t) => String.concat(" ", Tile.label(t)));
+        check(list(string), "tiles without info", [], missing);
+      },
+    )
+  );
+
+/* `and p =` is one tile with the pattern as its child, and the cursor on
+   it describes that binding */
+let and_binding =
+  test_case("and: a binding tile", `Quick, () =>
+    Surface.with_(
+      Reason,
+      () => {
+        let src = "let rec even = n => n == 0 || odd(n - 1)\nand odd = n => n != 0 && even(n - 1);\neven(4)";
+        let seg = ReasonLoad.to_segment(~root=Exp, src);
+        let ands =
+          tiles(seg)
+          |> List.filter((t: Tile.t) => t.form == Compound(ReAnd));
+        check(int, "one and tile", 1, List.length(ands));
+        let t = List.hd(ands);
+        check(list(string), "label", ["and", "="], Tile.label(t));
+        check(
+          string,
+          "child",
+          "odd",
+          Printer.of_segment(List.hd(t.children)) |> String.trim,
+        );
+        let st = statics_of(seg);
+        let cls =
+          Id.Map.find_opt(t.id, st.info_map) |> Option.map(Info.cls_label);
+        check(option(string), "describes", Some("Variable binding"), cls);
+        check(int, "static errors", 0, List.length(st.error_ids));
+      },
+    )
+  );
+
+let forms = {|// One of each Reason form the surface supports
+[@ocaml.warning "-27"]
+open List;
+
+exception Not_here(string);
+
+type color =
+  | Red
+  | Green
+  | Rgb(int, int, int);
+
+type point = {x: int, y: int};
+
+type tree('a) =
+  | Leaf
+  | Node(tree('a), 'a, tree('a));
+
+type expr =
+  | Num(int)
+  | Add(expr, expr)
+and stmt =
+  | Print(expr)
+  | Seq(list(stmt));
+
+module Geo = {
+  let origin = {x: 0, y: 0};
+  let shift = (p: point, dx: int): point => {...p, x: p.x + dx};
+};
+
+let rec even = n => if (n == 0) {true} else {odd(n - 1)}
+and odd = n => if (n == 0) {false} else {even(n - 1)};
+
+let name = (c: color): string =>
+  switch (c) {
+  | Red => "red"
+  | Green as g => "green"
+  | Rgb(r, _, _) when r > 200 => "reddish"
+  | Rgb(_) => "mixed"
+  };
+
+let first =
+  fun
+  | [] => None
+  | [x, ..._] => Some(x);
+
+let sum3 = (a, b, c) => a + b + c;
+let labeled = (~root, ~depth) => root * depth;
+let block = {
+  let a = 1;
+  let b = 2;
+  a + b;
+};
+let x = {x: 1, y: 2};
+let y = x.y;
+let tup = (1, "two", 3.);
+let lst = [1, 2, ...[3]];
+let piped = [1, 2, 3] |> List.map(n => n * 2);
+let cmp = if (sum3(1, 2, 3) > 5) {"big"} else if (y < 0) {"neg"} else {"small"};
+let shifted = Geo.shift(Geo.origin, 3);
+let fact = labeled(~root=2, ~depth=3);
+let opt: option(int) = first(lst);
+let strs = "a" ++ "b";
+let flt = 1.5 *. 2.;
+let neg = - 3;
+let bools = true && !false || even(4);
+let unit_ = ();
+let hole = ?;
+(name(Rgb(250, 0, 0)), shifted, block, fact, opt)|};
+
+let guard_call = {|let f = (a, b) => a < b;
+let g = (x) =>
+  switch (x) {
+  | (p, q) when f(p, q) => 1
+  | _ => 0
+  };
+g((1, 2))|};
+
 let tests = (
   "Reason",
   [
@@ -280,7 +422,12 @@ let scale = (~factor, ~offset=0, x) => x * factor + offset;
       "modules and comments",
       "/* doc\n   comment */\nmodule M = {\n  let x = 1; // one\n  let f = (y) => y + x;\n};\nM.f(M.x)",
     ),
+    typed_like_loaded("guard with a call", guard_call),
+    typed_like_loaded("every form", forms),
     reprint("switch", switch_len),
     reprint("variants", shapes),
+    inspected("every form", forms),
+    inspected("guards", guard_call),
+    and_binding,
   ],
 );

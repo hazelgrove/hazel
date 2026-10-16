@@ -70,6 +70,9 @@ type t = {
   term_data: TermData.t,
   projectors: Id.Map.t(Piece.projector),
   projector_list: list(Id.t),
+  /* tiles the cursor inspector describes by another term's info (see
+     show_as) */
+  shown_as: Id.Map.t(Id.t),
 };
 
 let is_nary =
@@ -478,6 +481,21 @@ let is_pat_kid: Any.t => bool =
 let spread_ids: ref(list(Id.t)) = ref([]);
 let is_spread = (rep: Id.t): bool => List.mem(rep, spread_ids^);
 
+/* Tiles the Reason translation consumes without making a term of their
+   own (curried parameters' parens and commas, `...`, `~`, a type
+   constructor's name), or whose own term is not the one to describe (a
+   switch that first binds its scrutinee): the inspector shows the info
+   of the term each is mapped to here */
+let shown_as: ref(Id.Map.t(Id.t)) = ref(Id.Map.empty);
+let show_as = (target: Id.t, ids: list(Id.t)) =>
+  List.iter(
+    id =>
+      if (id != target && id != Id.invalid) {
+        shown_as := Id.Map.add(id, target, shown_as^);
+      },
+    ids,
+  );
+
 /* An id derived from a tile id, for nodes Reason syntax implies but
    does not spell (the inner functions of a curried `(a, b) => e`) */
 let derived_id = (id: Id.t, n: int): Id.t =>
@@ -486,10 +504,11 @@ let derived_id = (id: Id.t, n: int): Id.t =>
 /* `{...}` in an expression is a block unless its body is a comma
    sequence, which Reason reads as a record: `x: e` fields (made as
    labeled-tuple entries by the `:` case) and punned `x` fields. */
-let reason_record_body = (body: Exp.t): Exp.t =>
+let reason_record_body = (~owner: Id.t, body: Exp.t): Exp.t =>
   switch (body.term) {
   | Tuple([{term: Parens(r), _} as spread, ...entries])
       when is_spread(Exp.rep_id(spread)) =>
+    show_as(owner, IdTagged.ids(spread));
     /* {...r, x: e}: Hazel's labeled-tuple extension keeps r's labels
        and takes e for x */
     let pun = (e: Exp.t): Exp.t =>
@@ -515,7 +534,9 @@ let reason_record_body = (body: Exp.t): Exp.t =>
         ),
     };
   | Tuple([{term: Parens(r), _} as spread])
-      when is_spread(Exp.rep_id(spread)) => r
+      when is_spread(Exp.rep_id(spread)) =>
+    show_as(owner, IdTagged.ids(spread));
+    r;
   | Tuple(es) =>
     let pun = (e: Exp.t): Exp.t =>
       switch (e.term) {
@@ -548,12 +569,10 @@ let reason_no_body = (id: Id.t): Exp.t => {
 let or_pats: ref(Id.Map.t((Pat.t, Pat.t))) = ref(Id.Map.empty);
 let as_pats: ref(Id.Map.t((Pat.t, Pat.t))) = ref(Id.Map.empty);
 let when_pats: ref(Id.Map.t((Pat.t, Exp.t))) = ref(Id.Map.empty);
-/* `a and b` chains and their `p = e` bindings, in expressions and types;
-   `exception E(t)` declarations */
-let and_exps: ref(Id.Map.t((Exp.t, Exp.t))) = ref(Id.Map.empty);
-let bind_exps: ref(Id.Map.t((Pat.t, Exp.t))) = ref(Id.Map.empty);
-let and_typs: ref(Id.Map.t((Typ.t, Typ.t))) = ref(Id.Map.empty);
-let bind_typs: ref(Id.Map.t((Typ.t, Typ.t))) = ref(Id.Map.empty);
+/* `e1 and p = e2` links of let and type chains (the definition before,
+   the binding's pattern, its definition); `exception E(t)` declarations */
+let and_exps: ref(Id.Map.t((Exp.t, Pat.t, Exp.t))) = ref(Id.Map.empty);
+let and_typs: ref(Id.Map.t((Typ.t, TPat.t, Typ.t))) = ref(Id.Map.empty);
 let exn_decls: ref(Id.Map.t(ConstructorMap.variant(Typ.t))) =
   ref(Id.Map.empty);
 
@@ -752,28 +771,19 @@ let reason_let = (pat: Pat.t, def: Exp.t, body: Exp.t): Exp.term => {
     | Some(name) => name_curried(name, d)
     | None => d
     };
-  let def = named(pat, def);
-  let rec operands = (e: Exp.t): list(Exp.t) =>
+  /* the bindings of the chain whose first pattern is p */
+  let rec binds = (p: Pat.t, e: Exp.t): list((Pat.t, Exp.t)) =>
     switch (Id.Map.find_opt(Exp.rep_id(e), and_exps^)) {
-    | Some((l, r)) => operands(l) @ operands(r)
-    | None => [e]
+    | Some((l, q, r)) => binds(p, l) @ binds(q, r)
+    | None => [(p, named(p, e))]
     };
-  switch (operands(def)) {
+  switch (binds(pat, def)) {
   | []
-  | [_] => Let(pat, def, body)
-  | [first, ...rest] =>
-    let binds =
-      List.map(
-        (e: Exp.t) =>
-          switch (Id.Map.find_opt(Exp.rep_id(e), bind_exps^)) {
-          | Some((p, d)) => (p, named(p, d))
-          | None => (derived_pat(Exp.rep_id(e), 61, EmptyHole), e)
-          },
-        rest,
-      );
+  | [_] => Let(pat, named(pat, def), body)
+  | binds =>
     let base = Pat.rep_id(pat);
-    let pats: Pat.term = Tuple([pat, ...List.map(fst, binds)]);
-    let defs: Exp.term = Tuple([first, ...List.map(snd, binds)]);
+    let pats: Pat.term = Tuple(List.map(fst, binds));
+    let defs: Exp.term = Tuple(List.map(snd, binds));
     Let(derived_pat(base, 62, pats), derived_exp(base, 63, defs), body);
   };
 };
@@ -782,32 +792,39 @@ let reason_let = (pat: Pat.t, def: Exp.t, body: Exp.t): Exp.term => {
    (Hazel's aliases are sequential; a type mentioning itself is
    recursive), then u is defined too */
 let reason_type = (tpat: TPat.t, def: Typ.t, body: Exp.t): Exp.term => {
-  let rec operands = (t: Typ.t): list(Typ.t) =>
+  let rec binds = (tp: TPat.t, t: Typ.t): list((TPat.t, Typ.t)) =>
     switch (Id.Map.find_opt(Typ.rep_id(t), and_typs^)) {
-    | Some((l, r)) => operands(l) @ operands(r)
-    | None => [t]
+    | Some((l, q, r)) => binds(tp, l) @ binds(q, r)
+    | None => [(tp, t)]
     };
-  switch (operands(def)) {
+  switch (binds(tpat, def)) {
   | []
   | [_] => TyAlias(tpat, def, body)
-  | [first, ...rest] =>
-    let binds =
-      List.filter_map(
-        (t: Typ.t) =>
-          switch (Id.Map.find_opt(Typ.rep_id(t), bind_typs^)) {
-          | Some(({term: Var(name), annotation}, d)) =>
-            let tp: TPat.term = Var(name);
-            Some((
-              {
-                term: tp,
-                annotation,
-              }: TPat.t,
-              d,
-            ));
-          | _ => None
-          },
-        rest,
-      );
+  | [(_, first), ...binds] =>
+    /* the uses of a later type in the first are substituted away: they
+       show as that type's declaration */
+    List.iter(
+      ((tp: TPat.t, _)) =>
+        switch (tp.term) {
+        | Var(name) =>
+          let uses = ref([]);
+          let _ =
+            Typ.map_term(
+              ~f_typ=
+                (continue, t: Typ.t) => {
+                  switch (t.term) {
+                  | Var(x) when x == name => uses := Typ.all_ids(t) @ uses^
+                  | _ => ()
+                  };
+                  continue(t);
+                },
+              first,
+            );
+          show_as(TPat.rep_id(tp), uses^);
+        | _ => ()
+        },
+      binds,
+    );
     let first =
       List.fold_left((t, (tp, d)) => Typ.subst(d, tp, t), first, binds);
     let body =
@@ -854,18 +871,26 @@ let reason_module_def = (def: Exp.t): Exp.t => {
 
 /* Reason arrow parameters: `x`, `()`, `(p)`, `(p1, p2)` (curried) and
    `(ps): t` (return annotation) */
-let reason_params = (params: Pat.t): (list(Pat.t), option(Typ.t)) => {
+let reason_params =
+    (~owner: Id.t, params: Pat.t): (list(Pat.t), option(Typ.t)) => {
+  /* the parens, commas and return annotation are the function's */
   let group = (p: Pat.t): list(Pat.t) =>
     switch (p.term) {
-    | Parens({term: Tuple(ps), _}) when ps != [] => ps
-    | Parens(p) => [p]
+    | Parens({term: Tuple(ps), _} as tuple) when ps != [] =>
+      show_as(owner, IdTagged.ids(p) @ IdTagged.ids(tuple));
+      ps;
+    | Parens(inner) =>
+      show_as(owner, IdTagged.ids(p));
+      [inner];
     | _ => [p]
     };
   switch (params.term) {
   | Asc(lhs, ty) =>
     switch (lhs.term) {
     | Parens(_)
-    | Tuple([]) => (group(lhs), Some(ty))
+    | Tuple([]) =>
+      show_as(owner, IdTagged.ids(params));
+      (group(lhs), Some(ty));
     | _ => ([params], None)
     }
   | _ => (group(params), None)
@@ -873,7 +898,7 @@ let reason_params = (params: Pat.t): (list(Pat.t), option(Typ.t)) => {
 };
 
 let reason_fun = (arrow_id: Id.t, params: Pat.t, body: Exp.t): Exp.term => {
-  let (ps, ret_ty) = reason_params(params);
+  let (ps, ret_ty) = reason_params(~owner=arrow_id, params);
   let body =
     switch (ret_ty) {
     | Some(ty) =>
@@ -914,7 +939,9 @@ let reason_fun = (arrow_id: Id.t, params: Pat.t, body: Exp.t): Exp.term => {
           },
           body',
         );
-    | (None, Parens(inner)) => unas(inner, body)
+    | (None, Parens(inner)) =>
+      let (inner', body') = unas(inner, body);
+      inner' === inner ? (p, body) : (inner', body');
     | (None, _) => (p, body)
     };
   let rec curry = (ps: list(Pat.t), k: int): Exp.t =>
@@ -938,6 +965,7 @@ let reason_ap = (ap_id: Id.t, f: Exp.t, arg: Exp.t): Exp.term =>
   switch (f.term, arg.term) {
   | (Constructor(_), _) => Ap(Forward, f, arg)
   | (_, Tuple(es)) when List.length(es) >= 2 =>
+    show_as(ap_id, IdTagged.ids(arg));
     let (init, last) = ListUtil.split_last(es);
     let (inner, _) =
       List.fold_left(
@@ -1296,7 +1324,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(id, (F(Compound(ReModuleStmt)), [MPat(mp), Exp(def)]))], []) =>
       ret(ModuleExp(mp, reason_module_def(def), reason_no_body(id)))
     // single-tile case
-    | ([(_id, t)], []) =>
+    | ([(tile_id, t)], []) =>
       switch (t) {
       | (F(f), []) when is_empty_tuple_form(f) => ret(Tuple([]))
       | (F(Tok(t)), []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
@@ -1335,7 +1363,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | _ => ret(Module(flatten_mod(body)))
         }
       | (F(Compound(ModBody)), [Exp(body)]) when Surface.is_reason() =>
-        ret(Parens(reason_record_body(body)))
+        ret(Parens(reason_record_body(~owner=tile_id, body)))
       | (
           F(Compound(ReSwitch)),
           [Exp(scrut), Rul({term, annotation: {ids, _}})],
@@ -1349,6 +1377,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           let x = "$scrut";
           let s = derived_exp(base, 41, Var(x));
           let matched = derived_exp(base, 42, reason_match(s, rules));
+          /* the switch and its rules describe the match, not the let */
+          show_as(Exp.rep_id(matched), [tile_id, ...ids]);
           (Let(derived_pat(base, 43, Var(x)), scrut, matched), ids);
         | Rules(_, rules) =>
           let ids = List.filter(id => id != Id.invalid, ids);
@@ -1368,6 +1398,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         /* [a, b, ...rest] */
         adopted_ids := ids @ adopted_ids^;
         let (init, last) = ListUtil.split_last(es);
+        show_as(tile_id, IdTagged.ids(last));
         let tail =
           switch (last.term) {
           | Parens(xs) => xs
@@ -1478,9 +1509,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
-  | Pre(([(id, (F(Compound(ReFun)), []))], []), Rul(rules)) as tm =>
+  | Pre(([(id, (F(Compound(ReFun)), []))], []), Rul(rul)) as tm =>
     /* fun | p => e | ... : a function matching on its argument */
-    switch (rules.term) {
+    switch (rul.term) {
     | Rules(_, rules) =>
       let x = "$arg";
       let pat_term: Pat.term = Var(x);
@@ -1489,6 +1520,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       let scrut = IdTagged.mk_internal([derived_id(id, 2)], scrut_term);
       let match_term: Exp.term = reason_match(scrut, rules);
       let body = IdTagged.mk_internal([derived_id(id, 3)], match_term);
+      show_as(derived_id(id, 3), IdTagged.ids(rul));
       ret(Fun(arg_pat, body, None, None));
     | _ => ret(hole(tm))
     }
@@ -1501,18 +1533,22 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       ret(Tuple([]));
     }
   | Bin(Pat(p), ([(id, (F(Compound(ReBind)), []))], []), Exp(e)) => {
-      /* a binding after `and`, or a labeled argument `~x=e` (its value) */
-      bind_exps := Id.Map.add(id, (p, e), bind_exps^);
+      /* a labeled argument `~x=e`: its value */
+      show_as(id, IdTagged.ids(p));
       (e.term, IdTagged.ids(e));
     }
-  | Bin(Exp(l), ([(id, (F(Compound(ReAnd)), []))], []), Exp(r)) as tm => {
-      and_exps := Id.Map.add(id, (l, r), and_exps^);
+  | Bin(Exp(l), ([(id, (F(Compound(ReAnd)), [Pat(p)]))], []), Exp(r)) as tm => {
+      and_exps := Id.Map.add(id, (l, p, r), and_exps^);
+      show_as(Pat.rep_id(p), [id]);
       ret(hole(tm));
     }
-  | Pre(([(_, (F(Compound(ReOpen)), []))], []), _) =>
-    /* `open M;` brings nothing into scope here (Hazel modules are
-       accessed qualified); it is a unit statement */
-    ret(Tuple([]))
+  | Pre(([(id, (F(Compound(ReOpen)), []))], []), Exp(m)) => {
+      /* `open M;` brings nothing into scope here (Hazel modules are
+         accessed qualified), and M need not be bound: a unit statement,
+         which M's tiles describe too */
+      show_as(id, IdTagged.ids(m));
+      ret(Tuple([]));
+    }
   | Pre(([(_, (F(Compound(ReIf)), []))], []), Exp(r)) as tm =>
     /* `if` marks the If that `(c) {a}` (and `else`) already built */
     switch (r.term) {
@@ -1593,7 +1629,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       /* `(c) {a}`: an if-then; `else` replaces the unit alternative */
       let unit_term: Exp.term = Tuple([]);
       let unit = IdTagged.mk_internal([derived_id(id, 1)], unit_term);
-      ret(If(l, reason_record_body(then_), unit));
+      ret(If(l, reason_record_body(~owner=id, then_), unit));
     | ([(id, (F(Compound(Ap)), [Exp(arg)]))], [])
         when Surface.is_reason() =>
       ret(reason_ap(id, l, arg))
@@ -1722,6 +1758,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               let base = Exp.rep_id(l);
               let tp: TPat.term = Var("exn_" ++ name);
               let sum: Typ.term = Sum([variant]);
+              show_as(derived_id(base, 72), IdTagged.ids(l));
               TyAlias(
                 IdTagged.mk_internal([derived_id(base, 71)], tp),
                 IdTagged.mk_internal([derived_id(base, 72)], sum),
@@ -1841,7 +1878,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     ret(MultiHole([Exp(exp(tm))]))
   | Op(tiles) as tm =>
     switch (tiles) {
-    | ([(_id, tile)], []) =>
+    | ([(tile_id, tile)], []) =>
       switch (tile) {
       | (F(f), []) when is_empty_tuple_form(f) => ret(Tuple([]))
       | (F(Tok(t)), []) when Token.is_empty_list(t) => ret(ListLit([]))
@@ -1904,6 +1941,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         /* [a, b, ...rest] */
         adopted_ids := ids @ adopted_ids^;
         let (init, last) = ListUtil.split_last(ps);
+        show_as(tile_id, IdTagged.ids(last));
         let tail =
           switch (last.term) {
           | Parens(xs) => xs
@@ -1966,14 +2004,17 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     )
   | Bin(Pat(l), ([(id, (F(Compound(ReSumBar)), []))], []), Pat(r)) as tm => {
       or_pats := Id.Map.add(id, (l, r), or_pats^);
+      show_as(Pat.rep_id(l), [id]);
       ret(hole(tm));
     }
   | Bin(Pat(l), ([(id, (F(Compound(ReAs)), []))], []), Pat(r)) as tm => {
       as_pats := Id.Map.add(id, (l, r), as_pats^);
+      show_as(Pat.rep_id(r), [id]);
       ret(hole(tm));
     }
   | Bin(Pat(l), ([(id, (F(Compound(ReWhen)), []))], []), Exp(g)) as tm => {
       when_pats := Id.Map.add(id, (l, g), when_pats^);
+      show_as(Exp.rep_id(g), [id]);
       ret(hole(tm));
     }
   | Post(Pat(l), tiles) as tm =>
@@ -2193,20 +2234,24 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       l.term,
       IdTagged.ids(l),
     )
-  | Bin(Typ(l), ([(id, (F(Compound(ReAnd)), []))], []), Typ(r)) as tm => {
-      and_typs := Id.Map.add(id, (l, r), and_typs^);
-      ret(hole(tm));
-    }
-  | Bin(Typ(n), ([(id, (F(Compound(ReBind)), []))], []), Typ(d)) as tm => {
-      bind_typs := Id.Map.add(id, (n, d), bind_typs^);
+  | Bin(Typ(l), ([(id, (F(Compound(ReAnd)), [TPat(tp)]))], []), Typ(r)) as tm => {
+      and_typs := Id.Map.add(id, (l, tp, r), and_typs^);
+      show_as(TPat.rep_id(tp), [id]);
       ret(hole(tm));
     }
   | Post(
-      Typ({term: Var(name), _}),
+      Typ({term: Var(name), _} as ctr),
       ([(id, (F(Compound(Ap)), [Typ(arg)]))], []),
     )
-      when Surface.is_reason() && !Token.is_ctr(name) =>
-    ret(reason_typ_ap(id, name, arg))
+      when Surface.is_reason() && !Token.is_ctr(name) => {
+      show_as(id, IdTagged.ids(ctr));
+      let term = reason_typ_ap(id, name, arg);
+      switch (term) {
+      | Var(_) => show_as(id, Typ.all_ids(arg))
+      | _ => ()
+      };
+      ret(term);
+    }
   | Post(l, tiles) as tm =>
     switch (tiles) {
     /* Type aps which would otherwise be parsed here are recognized in sum type parsing above */
@@ -2417,9 +2462,16 @@ and tpat_term: unsorted => TPat.term = {
       )
     | _ => ret(hole(tm))
     }
-  | Post(TPat({term: Var(_) as v, _}), _) when Surface.is_reason() =>
-    /* type t('a) = ...: parameters are read as the unknown type */
-    v
+  | Post(TPat({term: Var(_) as v, _} as name), tiles)
+      when Surface.is_reason() => {
+      /* type t('a) = ...: parameters are read as the unknown type */
+      switch (tiles) {
+      | ([(id, (_, kids))], []) =>
+        show_as(id, IdTagged.ids(name) @ List.concat_map(Any.ids, kids))
+      | _ => ()
+      };
+      v;
+    }
   | (Pre(_) | Post(_)) as tm => ret(hole(tm))
   | tm => ret(hole(tm));
 }
@@ -2747,13 +2799,12 @@ let go_impl =
   projector_list := [];
   adopted_ids := [];
   spread_ids := [];
+  shown_as := Id.Map.empty;
   or_pats := Id.Map.empty;
   as_pats := Id.Map.empty;
   when_pats := Id.Map.empty;
   and_exps := Id.Map.empty;
-  bind_exps := Id.Map.empty;
   and_typs := Id.Map.empty;
-  bind_typs := Id.Map.empty;
   exn_decls := Id.Map.empty;
   secondary_map := Segment.SecondaryCollection.collect(seg);
   shard_masks := masks;
@@ -2766,6 +2817,7 @@ let go_impl =
     terms: map^,
     projectors: projectors^,
     projector_list: projector_list^,
+    shown_as: shown_as^,
   };
 };
 

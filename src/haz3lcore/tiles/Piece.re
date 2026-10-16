@@ -163,6 +163,11 @@ let is_case_rule: t => bool =
   | Tile(t) => Tile.is_case_rule(t)
   | _ => false;
 
+let is_and_binding: t => bool =
+  fun
+  | Tile(t) => Tile.is_and_binding(t)
+  | _ => false;
+
 let mk_secondary = (id, content) => Secondary(Secondary.mk(id, content));
 
 let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
