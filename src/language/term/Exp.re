@@ -464,26 +464,26 @@ let (replace_all_ids, replace_all_ids_typ) = {
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
-    (continue, exp) =>
+    (continue, exp) => {
+      /* fresh ids, implicit nodes staying implicit (Id.derive_implicit);
+         keep the lexeme (hole flavor, unknown-op tokens) so re-idded
+         results still display faithfully. Secondary and shard provenance
+         stay dropped: display of results is AutoFormat and the tile-id
+         references are invalidated. */
+      let id =
+        switch (exp.annotation.ids) {
+        | [id, ..._] when Id.is_implicit(id) => Id.mk_implicit()
+        | _ => Id.mk()
+        };
       {
         ...exp,
         annotation: {
-          /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
-             so re-idded results still display faithfully, and keep
-             implicit nodes implicit (Id.derive_implicit). Secondary and
-             shard provenance stay dropped: display of results is
-             AutoFormat and the tile-id references are invalidated. */
-          ...
-            IdTagged.IdTag.mk_internal([
-              switch (exp.annotation.ids) {
-              | [id, ..._] when Id.is_implicit(id) => Id.mk_implicit()
-              | _ => Id.mk()
-              },
-            ]),
+          ...IdTagged.IdTag.mk_internal([id]),
           lexeme: exp.annotation.lexeme,
         },
       }
       |> continue;
+    };
   (
     map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
     Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
