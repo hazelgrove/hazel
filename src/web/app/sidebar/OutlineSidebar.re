@@ -687,13 +687,19 @@ let rec node_view =
           switch (n.o_id) {
           | Some(id) => [
               Attr.create("data-ol-id", Language.Id.to_string(id)),
-              /* Prevent_default: label clicks must not toggle the row's
-                 <details>. In text mode the editor only follows */
-              Attr.on_click(_ =>
-                stop(tm == None ? show(props, on, id) : Effect.Ignore)
-              ),
             ]
           | None => []
+          }
+        )
+        /* Prevent_default: label clicks must not toggle the row's
+           <details>. In text mode a click only places the caret */
+        @ (
+          switch (n.o_id, tm) {
+          | (_, Some(_)) => [Attr.on_click(_ => stop(Effect.Ignore))]
+          | (Some(id), None) => [
+              Attr.on_click(_ => stop(show(props, on, id))),
+            ]
+          | (None, None) => []
           }
         )
         @ (
