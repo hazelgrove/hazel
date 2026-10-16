@@ -440,8 +440,9 @@
   font-weight: normal;
 }
 
-/* a name typed in place: no bar, a soft rounded tint behind the name
-   and the caret's own red caret */
+/* a name typed in place: no bar, the editor's selection yellow behind
+   the name, softened, with a caret to match (the caret's own red reads
+   as an error) */
 #outline-sidebar .outline-body:focus-within .outline-label.outline-editing,
 #outline-sidebar
   .outline-body:focus-within:has(.outline-editing)
@@ -458,8 +459,8 @@
   min-width: 3ch;
   padding: 0 3px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--caret-color) 10%, transparent);
-  caret-color: var(--caret-color);
+  background: color-mix(in srgb, var(--shard-selected) 70%, transparent);
+  caret-color: var(--text-warning);
   field-sizing: content;
 }
 /* a new definition's keyword, beside its field */
