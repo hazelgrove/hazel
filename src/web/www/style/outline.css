@@ -323,10 +323,20 @@
   font-style: italic;
 }
 
-/* words standing in for a name ("result", "tests"): lighter, italic */
-#outline-sidebar .outline-synthetic {
+/* rows with no name to type (the ⇒ result, the "tests" label, numbered
+   tests, `use` rows): one faded ink, italic. The ⇒ row's own opacity
+   fades its word; the others match it */
+#outline-sidebar .outline-synthetic,
+#outline-sidebar .ol-test:not(.outline-has-err) .outline-name,
+#outline-sidebar .ol-use:not(.outline-has-err) .outline-name {
   font-style: italic;
   color: var(--text-muted);
+}
+#outline-sidebar .ol-tests .outline-synthetic,
+#outline-sidebar .ol-test .outline-name,
+#outline-sidebar .ol-use .outline-name,
+#outline-sidebar .ol-use .outline-synthetic {
+  opacity: 0.85;
 }
 
 /* live test status: glyph carries the ✓/✗/? */
