@@ -740,6 +740,31 @@ module Transition = (EV: EV_MODE) => {
           kind: Ascription,
           is_value: false,
         })
+      /* A type function applied to a value got here through `?` (statics
+         instantiates it otherwise): instantiate it at `?`, as a cast would,
+         with an implicit type application the stepper takes itself. */
+      | _
+          when
+            switch (Unboxing.unbox(TypFun, d1')) {
+            | Matches(_) => true
+            | IndetMatch
+            | DoesNotMatch => false
+            } =>
+        Step({
+          expr:
+            Ap(
+              dir,
+              IdTagged.mk_internal(
+                [Id.mk_implicit()],
+                TypAp(d1', Unknown(Internal) |> Typ.temp): Exp.term,
+              ),
+              d2',
+            )
+            |> rewrap,
+          side_effects: [],
+          kind: AscriptionTypAp,
+          is_value: false,
+        })
       | _ =>
         /* Extract function name and def ID before unboxing (unboxing discards them) */
         let fn_name = get_fn_name_from_expr(d1');

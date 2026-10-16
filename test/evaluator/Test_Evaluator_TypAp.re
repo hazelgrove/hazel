@@ -98,6 +98,15 @@ map@<T>@<Int>(fun e -> string_length(e), ["hello","bar"])|},
         );
       },
     ),
+    test_case(
+      "A generalized function used through ? still applies", `Quick, () =>
+      parse_and_evaluate_test(
+        "(1, 2)",
+        {|let id = fun x -> x in
+let g : ? = id in
+(g(1), (fun (h : ?) -> h(2))(id))|},
+      )
+    ),
     test_case("Generalized recursive map", `Quick, () =>
       parse_and_evaluate_test(
         "([2, 3], [false])",

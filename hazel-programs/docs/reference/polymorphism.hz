@@ -1,38 +1,79 @@
 # Polymorphism #
 
-# A definition whose argument types nothing constrains is polymorphic #
-# on its own: pair has type poly a -> poly b -> a -> b -> (a, b), #
-# and each use is applied to the types it needs behind the scenes. #
+# A function whose argument types nothing pins down works at every type. #
+# Put the cursor on id to see its type, poly a -> a -> a, and on a use #
+# of it to see which instance that use is. #
+let id = fun x -> x in
+let ex1 = (id(1), id("one"), id(true)) in # (1, "one", true) #
+
+# Each use is applied to the types it needs behind the scenes: #
+# the program above runs as if you had written id@<Int>(1). #
 let pair = fun x -> fun y -> (x, y) in
-let ex0 = (pair(1)("one"), pair(true)(2.0)) in # ((1, "one"), (true, 2.)) #
+let swap = fun (a, b) -> (b, a) in
+let ex2 = (pair(1)("one"), swap((true, 2.5))) in # ((1, "one"), (2.5, true)) #
 
-# Type parameters can also be written explicitly with type functions, #
-# and used in annotations in the body: #
-let id = typfun A -> fun x : A -> x in
+# Higher-order functions generalize too. #
+let compose = fun f -> fun g -> fun x -> f(g(x)) in
+let twice = fun f -> fun x -> f(f(x)) in
+let ex3 = (twice(fun n -> n + 1)(0), compose(string_of_int)(twice(fun n -> n * 2))(5)) in # (2, "20") #
 
-# They can be applied without naming the type, or with it: #
-let ex1 = (id(1), id@<Int>(1)) in # (1, 1) #
+# Polymorphic list functions, written by hand. #
+# Recursive calls inside a definition use one type; #
+# the definition is generalized once it is done. #
+let map = fun f -> fun xs ->
+  case xs
+  | [] => []
+  | x :: rest => f(x) :: map(f)(rest)
+  end in
+let filter = fun keep -> fun xs ->
+  case xs
+  | [] => []
+  | x :: rest => if keep(x) then x :: filter(keep)(rest) else filter(keep)(rest)
+  end in
+let fold = fun f -> fun acc -> fun xs ->
+  case xs
+  | [] => acc
+  | x :: rest => fold(f)(f(acc, x))(rest)
+  end in
+let length = fun xs -> fold(fun (n, _) -> n + 1)(0)(xs) in
+let ex4 = (
+  map(fun n -> n * 10)([1, 2, 3]),
+  map(string_of_int)([4, 5]),
+  filter(fun s -> string_length(s) > 1)(["a", "bb", "ccc"]),
+  fold(fun (acc, n) -> acc + n)(0)([1, 2, 3]),
+  length([true, false])
+) in # ([10, 20, 30], ["4", "5"], ["bb", "ccc"], 6, 2) #
 
-# We can annotate the type of a type function with a poly. #
-let const : poly A -> poly B -> A -> B -> A = 
-  typfun A -> typfun B -> fun x -> fun y -> x in
-let ex2 = const@<Int>@<String>(2)("Hello World") in # 2 #
+# Constraints still apply: this one is Int -> Int, not polymorphic. #
+let succ = fun n -> n + 1 in
 
-# We can go beyond rank 1 polymorphism: #
-let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> (A , B) =
-  typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in  
-let ex3 = apply_both@<Int>@<String>(id)(3, "Hello World") in # (3, "Hello World") # 
+# When uses can't agree on a type, the error goes on the polymorphic #
+# reference, not on whichever argument came last. #
+# Try: change ex5 to id(1) ++ "!" and look at the mark on id. #
+let ex5 = id(1) + 1 in # 2 #
 
-# Finally, here is a more in-depth, yet applicable example: polymorphic map #
-let emptylist : poly A -> [A] = typfun A -> [] in # polymorphic constant #
-let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) = 
-  typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> 
-    case l
-    | h :: t => f(h) :: map@<A>@<B>(f)(t)
-    | _ => emptylist@<B>   
-    end in
-let ex4 = map@<Int>@<String>(string_of_int)([1,2,3]) in # ["1", "2", "3"] #
+# An unfinished definition is not generalized: a hole in the body might #
+# still use x at some type. Try filling the hole with x + 1. #
+let later = fun x -> ? in
 
+# A type hole you write yourself stays gradual. #
+let anything = fun (x : ?) -> x in
+let ex9 = (succ(41), anything("any"), later) in
+
+# Explicit polymorphism #
+
+# Type parameters can also be written out, with typfun and poly, and #
+# applied with @<...>. Explicitly polymorphic functions can be called #
+# either way. #
+let const : poly A -> poly B -> A -> B -> A =
+  typfun A -> typfun B -> fun x -> fun _ -> x in
+let ex6 = (const(2)("two"), const@<Int>@<String>(2)("two")) in # (2, 2) #
+
+# Writing types out is still necessary beyond rank 1: an argument that #
+# must itself be polymorphic can't be inferred. #
+let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A, B) -> (A, B) =
+  typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) in
+let ex7 = apply_both(typfun D -> fun x : D -> x)(3, "three") in # (3, "three") #
 
 # Recursive types #
 
@@ -56,8 +97,8 @@ let list_of_mylist : (MyList -> [Int]) = fun myl : MyList ->
   | Nil => []
   | Cons(h, t) => h :: list_of_mylist(t)    
   end in
-let ex5 = list_of_mylist(x) in # [1, 2, 3] #
+let ex8 = list_of_mylist(x) in # [1, 2, 3] #
 
 
 # All output from examples: #
-(ex0, ex1, ex2, ex3, ex4, ex5)
+(ex1, ex2, ex3, ex4, ex5, ex6, ex7, ex8, ex9)
