@@ -29,7 +29,8 @@ type derived_tag =
 type hole_kind =
   | Binder
   | Inst(int)
-  | Derived(Id.t, derived_tag);
+  | Derived(Id.t, derived_tag)
+  | Opaque;
 
 type hole = {
   site: Id.t,
@@ -112,13 +113,15 @@ let salt_of_kind: hole_kind => string =
   | Binder => "implicit-binder"
   | Inst(i) => "implicit-inst-" ++ string_of_int(i)
   | Derived(_, ArrowL) => "implicit-arrow-l"
-  | Derived(_, ArrowR) => "implicit-arrow-r";
+  | Derived(_, ArrowR) => "implicit-arrow-r"
+  | Opaque => "implicit-opaque";
 
 let hole_id = (site: Id.t, kind: hole_kind): Id.t =>
   switch (kind) {
   | Derived(parent, _) => derive(salt_of_kind(kind), parent)
   | Binder
-  | Inst(_) => derive(salt_of_kind(kind), site)
+  | Inst(_)
+  | Opaque => derive(salt_of_kind(kind), site)
   };
 
 let hole_typ = (id: Id.t): Typ.t =>
@@ -690,6 +693,17 @@ let gradual_use = (ty: Typ.t): unit =>
   | Infer(st) =>
     List.iter(h => Hashtbl.replace(st.gradual, h, ()), holes_in_typ(st, ty))
   | _ => ()
+  };
+
+/* The result of a gradual use (above) of a hole: unknown now, but maybe
+   known once the hole is filled, so it must not be generalized either. */
+let gradual_result = (~site: Id.t): Typ.t =>
+  switch (mode^) {
+  | Infer(st) =>
+    let h = new_hole(st, site, Opaque);
+    Hashtbl.replace(st.gradual, Typ.rep_id(h), ());
+    h;
+  | _ => unknown()
   };
 
 let is_implicit_hole = (ty: Typ.t): bool =>
