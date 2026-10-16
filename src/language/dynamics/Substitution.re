@@ -101,6 +101,10 @@ let rec in_exp = (~fns=Inline, env: Environment.t(Exp.t), exp: Exp.t) =>
         | Forall(pat, e) =>
           let (env', pat') = in_pat(~fns, env, env, pat);
           Forall(pat', in_exp(~fns, env', e)) |> rewrap;
+        /* a library module shown is its name, not its every member */
+        | Module(_)
+            when fns != Inline && Builtins.library_module_name(e) != None =>
+          Var(Option.get(Builtins.library_module_name(e))) |> rewrap
         | Module(items) =>
           /* Items scope sequentially: a pending item binds its name for the
              items that follow, so it shadows the substitution there. An

@@ -48,6 +48,28 @@ let tests = (
         "[20, 30]",
       )
     ),
+    /* a module as a value (a sample of `List`, typed on the way to
+       `List.map`) once shipped as the library's whole List, every message */
+    test_case(
+      "a library module shows and ships as its name",
+      `Quick,
+      () => {
+        let env = Builtins.env_init();
+        let list = Option.get(Environment.lookup(env, "List"));
+        check(
+          bool,
+          "named",
+          true,
+          Library.name_modules(list).term == Var("List"),
+        );
+        check(
+          bool,
+          "elided in a sample's environment",
+          true,
+          Sample.Env.elide(env, list) == Opaque,
+        );
+      },
+    ),
     test_case("the bake refuses a library with static errors", `Quick, () =>
       check(
         bool,

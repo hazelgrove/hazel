@@ -127,6 +127,23 @@ let ctx_init = (use_mode: option(Operators.mode)): Ctx.t =>
 
 let env_init = (): Environment.t(Exp.t) => Lazy.force(library_env^);
 
+/* the library's modules, once evaluated, by name and first item's id
+   (evaluation rebuilds a module value's node but keeps its items' ids): a
+   module shown (a result stuck inside List.map, a sample) shows as its
+   name */
+let library_modules: ref(list((Var.t, Id.t))) = ref([]);
+
+let library_module_name = (v: Exp.t): option(Var.t) =>
+  switch (v.term) {
+  | Module([item, ..._]) =>
+    let id = Mod.rep_id(item);
+    List.find_map(
+      ((x, first)) => Id.equal(first, id) ? Some(x) : None,
+      library_modules^,
+    );
+  | _ => None
+  };
+
 /* without the library: what the library's own source is checked against */
 let ctx_base: option(Operators.mode) => Ctx.t = {
   let by_mode = Hashtbl.create(5);
