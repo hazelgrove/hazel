@@ -94,7 +94,7 @@ let references = (~info_map: Statics.Map.t, it: item): list(Id.t) =>
   );
 
 let uses_memo = Util.Slot.mk();
-/* the names [name] used, value or type */
+/* where [name] is used, as a value or a type */
 let uses = (~info_map: Statics.Map.t, name: string): list(Info.t) =>
   Hashtbl.find_all(
     Util.Slot.get(
