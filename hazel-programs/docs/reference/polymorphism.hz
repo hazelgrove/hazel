@@ -49,18 +49,28 @@ let ex4 = (
 let succ(n) = n + 1 in
 # Try: annotate map's list, map(f, xs : [Int]), and see map's type change. #
 
-# When uses can't agree on a type, the error goes on the polymorphic #
-# reference, not on whichever argument came last. #
-# Try: change ex5 to id(1) ++ "!" and look at the mark on id. #
-let ex5 = id(1) + 1 in # 2 #
-
 # An unfinished definition is not generalized: a hole in the body might #
 # still use x at some type. Try: fill the hole with x + 1. #
 let later(x) = ? in
 
 # A type hole you write yourself stays gradual. #
 let anything(x : ?) = x in
-let ex6 = (succ(41), anything("any"), later) in
+let ex5 = (succ(41), anything("any"), later) in
+
+# Type errors #
+
+# 1. succ is not polymorphic, so a String argument is an error. #
+let error1 = succ("one") in
+
+# 2. When one use of a polymorphic function needs two different types, #
+# the error goes on the function, not on whichever argument came last. #
+# Put the cursor on id to see both types. #
+let error2 = id(1) ++ "!" in
+
+# 3. A parameter used as two different types is marked where it is #
+# defined, with both types listed. Try: annotate n with one of them #
+# and watch the error move to the use that disagrees. #
+let show(n) = if n then "yes" else string_of_int(n) in
 
 # Explicit polymorphism #
 
@@ -69,14 +79,14 @@ let ex6 = (succ(41), anything("any"), later) in
 # either way. #
 let const : poly A -> poly B -> (A, B) -> A =
   typfun A -> typfun B -> fun (x, _) -> x in
-let ex7 = (const(2, "two"), const@<Int>@<String>(2, "two")) in # (2, 2) #
+let ex6 = (const(2, "two"), const@<Int>@<String>(2, "two")) in # (2, 2) #
 
 # Writing types out is still necessary beyond rank 1: an argument that #
 # must itself be polymorphic can't be inferred. Any polymorphic function #
 # can be passed to it, including inferred ones like id. #
 let apply_both : poly A -> poly B -> (poly D -> D -> D, A, B) -> (A, B) =
   typfun A -> typfun B -> fun (f, x, y) -> (f@<A>(x), f@<B>(y)) in
-let ex8 = apply_both(id, 3, "three") in # (3, "three") #
+let ex7 = apply_both(id, 3, "three") in # (3, "three") #
 # Try: pass succ instead of id. #
 
 # Recursive types #
@@ -100,8 +110,8 @@ let list_of_mylist(myl : MyList) : [Int] =
   | Nil => []
   | Cons(h, t) => h :: list_of_mylist(t)
   end in
-let ex9 = list_of_mylist(x) in # [1, 2, 3] #
+let ex8 = list_of_mylist(x) in # [1, 2, 3] #
 
 
 # All output from examples: #
-(ex1, ex2, ex3, ex4, ex5, ex6, ex7, ex8, ex9)
+(ex1, ex2, ex3, ex4, ex5, ex6, ex7, ex8)
