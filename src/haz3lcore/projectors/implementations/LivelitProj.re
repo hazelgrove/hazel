@@ -897,11 +897,20 @@ module M: Projector = {
              A sample that is already Html is left alone: the stream also
              carries the use's own value, and running is only meaningful
              for the ones that are commands. */
+          /* (^ticket(18)) timed, unless it answers at once (Pure: the
+             worker ran it, or it is Html already): how ViewRoute picks
+             the views worth running in the worker */
+          let timed =
+            ViewCmdRunner.is_command(v) && !ViewCmdRunner.is_pure(v);
+          let t0 = timed ? JsUtil.precise_timestamp() : 0.;
           let v =
             switch (ViewCmdRunner.run(v)) {
             | Ok(html) => html
             | Error(_) => v
             };
+          if (timed) {
+            ViewRoute.note(s.syntax_id, JsUtil.precise_timestamp() -. t0);
+          };
           if (MvuShape.is_html(v)) {
             switch (acc) {
             | Some((best, _)) when best >= s.seq => acc

@@ -26,6 +26,10 @@ module Request = {
     eval_info_map: Language.EvalInfo.t,
     prev: prev_source,
     stream: stream_interest,
+    /* the livelit views to run here, to Html (^ticket(18)): the page's
+       costly ones on the screen (ViewRoute.ids); every other view the
+       page runs itself */
+    view_ids: list(Id.t),
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -420,10 +424,13 @@ let stream_min_interval_ms: ref(float) = ref(100.);
 /* the running batch item's interest (items run one at a time) */
 let current_stream_interest: ref(Request.stream_interest) =
   ref(Request.Full);
+/* and the views it asks to have run here (^ticket(18)) */
+let current_view_ids: ref(list(Id.t)) = ref([]);
 
 let start_evaluation = (~key: key, req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev, stream} = req_value;
+  let Request.{expr, eval_info_map, prev, stream, view_ids} = req_value;
   current_stream_interest := stream;
+  current_view_ids := view_ids;
   let planned = take_planned_reuse(expr);
   /* stream cadence scales with program size: each posted chunk costs
      the client a stream-collection + recalc cycle that grows with it */
@@ -525,7 +532,8 @@ let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
    the program), and the page used to run each command to Html on its main
    thread (LivelitProj.live_html), again on every redraw that missed its
    view cache. Run here instead, the sample becomes Pure(html), which the
-   page's runner answers at once. A run that fails keeps the command, so
+   page's runner answers at once: only the views the request names, the
+   page's costly ones on the screen (ViewRoute). A run that fails keeps the command, so
    the page reports the error as before. Each sample is run once: a later
    post of the same sample (streams repeat completed items) reuses it. */
 /* (experiment 2: per projector, the last command and its Html; a command
@@ -535,7 +543,8 @@ let slim_hole: Lazy.t(Language.Exp.t) = lazy(Language.Exp.fresh(EmptyHole));
 let last_view: Hashtbl.t(Id.t, (Language.DHExp.t, Language.DHExp.t)) =
   Hashtbl.create(64);
 let run_view = (s: Language.Sample.t): Language.Sample.t =>
-  if (!Language.ViewCmdRunner.is_command(s.value)) {
+  if (!Language.ViewCmdRunner.is_command(s.value)
+      || !List.mem(s.syntax_id, current_view_ids^)) {
     s;
   } else {
     switch (Hashtbl.find_opt(last_view, s.syntax_id)) {

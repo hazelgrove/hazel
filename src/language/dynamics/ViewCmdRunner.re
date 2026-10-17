@@ -199,3 +199,10 @@ let is_command = (d: DHExp.t): bool =>
   };
 let pure = (h: DHExp.t): DHExp.t =>
   Exp.ap(Forward, Exp.constructor("Pure", None), h);
+/* a command that answers at once: the worker's answer, or a view that is
+   Pure already; running it costs nothing, so the page does not time it */
+let is_pure = (d: DHExp.t): bool =>
+  switch (of_constructor_open(d)) {
+  | Some(("Pure", _)) => true
+  | _ => false
+  };

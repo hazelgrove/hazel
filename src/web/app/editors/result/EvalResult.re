@@ -374,6 +374,9 @@ module Update = {
             /* highlight off: stream only effect-bearing entries (tests,
                probes); each streamed chunk costs a main-thread render */
             stream: Language.EvalWorklist.compute_enabled^ ? Full : Effects,
+            /* the costly livelit views on the screen, run there to Html
+               (^ticket(18)) */
+            view_ids: Haz3lcore.ViewRoute.ids(),
           });
           ProgramResult.awaiting_worker_ack;
         // Using the main thread:
@@ -383,7 +386,8 @@ module Update = {
               expr: elab,
               eval_info_map: Lazy.force(eval_info_map),
               prev: Seed(prev_incr),
-              stream: Full /* sync path: nothing streams */
+              stream: Full /* sync path: nothing streams */,
+              view_ids: [] /* the page runs every view itself */,
             })
           ) {
           | Ok((exp, state)) =>
