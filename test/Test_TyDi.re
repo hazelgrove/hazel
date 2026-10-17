@@ -565,6 +565,17 @@ let qualified_tests = (
       ~code="let m = { type T = Int; let value = 1 } in m.va¦",
       ~expect=Some("lue"),
     ),
+    tydi_test(
+      ~name="Qualified: a module's constructor",
+      ~code="module M = { type t = Apple(Int) + Banana } in M.Ap¦",
+      ~expect=Some("ple"),
+    ),
+    tydi_test(
+      ~name="Qualified: a module's constructor in a pattern",
+      ~code=
+        "module M = { type t = Apple(Int) + Banana } in fun x -> case x | M.Ba¦",
+      ~expect=Some("nana"),
+    ),
     /* Module keyword syntax */
     tydi_test(
       ~name="Qualified: module keyword with capitalized name",
