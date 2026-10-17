@@ -477,6 +477,7 @@ let above: Web.OutlineSidebar.above = {
   a_out: "out to up",
   a_here: "up here",
   a_chip: Some(("chip", "chip title")),
+  a_alarm: None,
 };
 
 /* a slide in a deck, and a level above it, shown or not */
@@ -831,6 +832,45 @@ let above_folds = () => {
   );
 };
 
+/* a level above in trouble: its crumb is the alarm, holding the chip's way
+   out, in a slide and at the level */
+let alarmed_level = () => {
+  module S = Web.OutlineSidebar;
+  let al: S.alarm = {
+    al_why: "up is broken",
+    al_act: "x",
+    al_act_title: "undo it",
+  };
+  let alarmed = {
+    ...above,
+    a_alarm: Some(al),
+  };
+  check(
+    bool,
+    "none by default",
+    true,
+    S.level_alarm(InSlide(above)) == None,
+  );
+  check(
+    bool,
+    "in a slide",
+    true,
+    S.level_alarm(InSlide(alarmed)) == Some(al),
+  );
+  check(
+    bool,
+    "at the level",
+    true,
+    S.level_alarm(Enclosing(alarmed, "s")) == Some(al),
+  );
+  check(
+    bool,
+    "the pill holds the chip's way out",
+    true,
+    S.level_chip(Enclosing(alarmed, "s")) == None,
+  );
+};
+
 let tests = [
   (
     "OutlineLevels",
@@ -839,6 +879,7 @@ let tests = [
       test_case("a slide under a level above", `Quick, in_slide_level),
       test_case("at the level above", `Quick, enclosing_level),
       test_case("the level above's folds", `Quick, above_folds),
+      test_case("an alarmed level above", `Quick, alarmed_level),
     ],
   ),
   (

@@ -181,6 +181,34 @@
 #outline-sidebar .outline-crumb-chip:hover {
   opacity: 1;
 }
+/* the level above in trouble: a filled pill, its way out past a divider */
+#outline-sidebar .outline-crumb.outline-crumb-alarm {
+  display: inline-flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  opacity: 1;
+  cursor: default;
+  font-weight: bold;
+  color: var(--border-error-strong);
+  background: var(--surface-error-soft);
+  border-radius: 7px;
+}
+#outline-sidebar .outline-crumb-alarm > span {
+  padding: 0 5px;
+  cursor: pointer;
+}
+#outline-sidebar .outline-crumb-alarm > .outline-alarm-go {
+  border-radius: 7px 0 0 7px;
+}
+#outline-sidebar .outline-crumb-alarm > .outline-alarm-act {
+  font-weight: normal;
+  border-left: 1px solid
+    color-mix(in srgb, var(--border-error-strong) 40%, transparent);
+  border-radius: 0 7px 7px 0;
+}
+#outline-sidebar .outline-crumb-alarm > span:hover {
+  background: color-mix(in srgb, var(--border-error) 18%, transparent);
+}
 
 #outline-sidebar .outline-body {
   flex: 1 1 auto;

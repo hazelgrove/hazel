@@ -1060,6 +1060,21 @@ module View = {
                     "the library is edited: back to the shipped one",
                   ))
                 : None,
+            a_alarm:
+              switch (LibraryDoc.errors^) {
+              | 0 => None
+              | n =>
+                Some({
+                  al_why:
+                    Printf.sprintf(
+                      "the standard library has %d error%s",
+                      n,
+                      n == 1 ? "" : "s",
+                    ),
+                  al_act: {js|↺|js},
+                  al_act_title: "back to the shipped library",
+                })
+              },
           },
           e_shown: lib != None,
           e_go: shown => workspace(ShowLibrary(shown)),
