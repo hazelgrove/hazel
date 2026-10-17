@@ -1,6 +1,6 @@
-# Option: Hazel-source transcription of the BuiltinsADT.re option_* HazelFn builtins #
+# Option: a value that may be missing (Some or None) #
 module Option = {
-  # the builtin Option: bare None and Some stay builtin, for the OCaml builtins that make them #
+  # the type Option; None and Some also work unqualified everywhere #
   type t = None + Some(?);
 
   let map : (Option, ? -> ?) -> ? = fun (opt, f) ->

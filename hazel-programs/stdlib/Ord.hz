@@ -1,6 +1,6 @@
 # Ord: comparison results (Lt, Eq, Gt) #
 module Ord = {
-  # the builtin Ord: bare Lt, Eq and Gt stay builtin, for the OCaml builtins that make them #
+  # the type Ord; Lt, Eq and Gt also work unqualified everywhere #
   type t = Lt + Eq + Gt;
 
   let invert = $prim.invert_ord

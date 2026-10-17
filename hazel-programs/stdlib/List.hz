@@ -1,4 +1,4 @@
-# List: Hazel-source transcription of the BuiltinsList.re HazelFn builtins #
+# List: lists and their operations #
 module List = {
   let length : [?] -> Int = fun xs ->
     case xs
