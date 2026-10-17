@@ -33,8 +33,7 @@ let get_selection_anchor_info =
     (~cursor_edge: Direction.t, z: Zipper.t): option(selection_anchor_info) =>
   switch (z.selection) {
   | {content: [], _} => None
-  | {mode: Buffer(_), _} => None
-  | {focus, content: [first_piece, ..._] as content, mode: Normal, _} =>
+  | {focus, content: [first_piece, ..._] as content, _} =>
     Some({
       focus,
       first: endpoint_of(first_piece),
