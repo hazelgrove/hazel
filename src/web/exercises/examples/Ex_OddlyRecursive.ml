@@ -68,7 +68,7 @@ let exercise : Exercise.t =
                 \")))))((Grout((id eb5dbce3-88e3-494e-aa29-0d512045a946)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text =
                "let not : Bool -> Bool =\n\
@@ -175,7 +175,7 @@ let exercise : Exercise.t =
                 \")))))((Grout((id 84e0eb4d-d8da-43b7-966f-643bac9fe1be)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text =
                "let odd:Int->Bool =\n\
@@ -233,7 +233,7 @@ let exercise : Exercise.t =
                     3b710475-5b43-4e13-b7f3-323880c553ac)(shape \
                     Convex))))))(ancestors())))(caret \
                     Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                    -1)(pinned_stack())(indicated_call())(time())(seq \
+                    -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                     0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                  backup_text =
                    "test not(false) end;\ntest not(not(true)) end; \n";
@@ -284,7 +284,7 @@ let exercise : Exercise.t =
                 \")))))((Grout((id 2f69627f-253b-4d80-af1b-d2321abf0fbe)(shape \
                 Convex))))))(ancestors())))(caret \
                 Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                -1)(pinned_stack())(indicated_call())(time())(seq \
+                -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                 0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
              backup_text = "let odd: Int -> Bool =\nfun n ->  \nin ";
            };
@@ -340,7 +340,7 @@ let exercise : Exercise.t =
                       1c84de0f-5625-4704-9b2f-d0b97e6a9bd3)(shape \
                       Convex))))))(ancestors())))(caret \
                       Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                      -1)(pinned_stack())(indicated_call())(time())(seq \
+                      -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                       0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                    backup_text = "let odd: Int -> Bool =\nfun x -> false \nin ";
                  };
@@ -396,7 +396,7 @@ let exercise : Exercise.t =
                       0b3175f5-9638-44ba-9d58-1b311dfa7264)(shape \
                       Convex))))))(ancestors())))(caret \
                       Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                      -1)(pinned_stack())(indicated_call())(time())(seq \
+                      -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                       0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                    backup_text = "let odd: Int -> Bool =\nfun x -> true \nin ";
                  };
@@ -543,7 +543,7 @@ let exercise : Exercise.t =
                       561709df-4ca9-4cd7-b7cd-915dab6bd3ec)(shape \
                       Convex))))))(ancestors())))(caret \
                       Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                      -1)(pinned_stack())(indicated_call())(time())(seq \
+                      -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                       0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                    backup_text =
                      "let odd: Int -> Bool =\n\
@@ -665,7 +665,7 @@ let exercise : Exercise.t =
                     5e56d9c6-5039-421e-962d-a368419b98c8)(content(Whitespace\" \
                     \"))))))))))()))(ancestors())))(caret \
                     Outer)(refractors((manuals())(multis((ids())(suppressed())(ephemerals())))(sample_focus((call_stack())(index \
-                    -1)(pinned_stack())(indicated_call())(time())(seq \
+                    -1)(pinned_stack())(anti_pin())(indicated_call())(time())(seq \
                     0)(step_range())(pending_focus())(anchor())(pinned_span())))(autoprobe_target())(pending_probe_cursor()))))";
                  backup_text =
                    "test not(odd(0)) end;\n\
