@@ -499,6 +499,38 @@ let function_sugar_param_anchor =
   climb(Info.ancestors_of(ci));
 };
 
+/* a closure's definition id, back to a function in [info_map]: a recursive
+   function's closure carries its inner Fun's derived id (Id.next of the
+   surface Fun's, which its FixF keeps: Statics' requires_fixf) */
+let fn_def_in = {
+  let memo = Util.Slot.mk();
+  (info_map: Statics.Map.t, id: Id.t) => (
+    Id.Map.mem(id, info_map)
+      ? Some(id)
+      : Hashtbl.find_opt(
+          Util.Slot.get(
+            memo,
+            info_map,
+            () => {
+              let derived = Hashtbl.create(256);
+              Id.Map.iter(
+                (fid, info: Info.t) =>
+                  switch (info) {
+                  | InfoExp({user_term: {term: Fun(_), _}, _}) =>
+                    Hashtbl.replace(derived, Id.next(fid), fid)
+                  | _ => ()
+                  },
+                info_map,
+              );
+              derived;
+            },
+          ),
+          id,
+        ):
+      option(Id.t)
+  );
+};
+
 /* Step-into is sample-level: a sample with call_stack [a,b,c] gives the body
  * stack [ap_id,a,b,c]. Sets pending_focus; CellEditor's second calculate pass
  * (once worker dynamics land) resolves it and FocusEffect schedules DOM focus. */
@@ -532,7 +564,7 @@ let step_into_call_stack =
   let* body_id =
     switch (static_body_id) {
     | Some(id) => Some(id)
-    | None => frame.fn_def_id
+    | None => Option.bind(frame.fn_def_id, fn_def_in(info_map))
     };
   let* ci_body = Statics.Map.lookup(body_id, info_map);
 
