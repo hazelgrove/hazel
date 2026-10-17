@@ -249,6 +249,7 @@ let rec var_names_of_pat = (pat: Pat.t): list(string) => {
   | Wild
   | Atom(_)
   | Constructor(_, _)
+  | Dot(_)
   | Label(_)
   | Projector(_, _)
   | ExplicitNonlabel => []

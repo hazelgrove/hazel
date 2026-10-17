@@ -1487,6 +1487,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           available := available^ - 1; // space
           Constructor(name, typ);
         }
+      | Dot(_) => pat.term // a short path: kept whole
       | Parens(p) =>
         if (available^ <= 3) {
           available := available^ - ellipsis_cost;

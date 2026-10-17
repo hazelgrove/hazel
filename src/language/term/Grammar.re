@@ -91,6 +91,9 @@ and pat_term('a) =
   | Tuple(list(pat_t('a)))
   | Label(string)
   | TupLabel(pat_t('a), pat_t('a))
+  /* `M.A`: a constructor a module exports. The left is the module path
+     (a name, or a `Dot` of one), the right a `Label`; nothing in it binds. */
+  | Dot(pat_t('a), pat_t('a))
   | Parens(pat_t('a))
   | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
@@ -348,6 +351,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | Label(l) => Label(l)
         | TupLabel(p1, p2) =>
           TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
+        | Dot(p1, p2) =>
+          Dot(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Parens(p) => Parens(map_pat_annotation(f, p))
         | Projector(data, p) => Projector(data, map_pat_annotation(f, p))
         | Ap(p1, p2) =>
@@ -858,6 +863,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let tup_label = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
       term: TupLabel(p1, p2),
+      annotation: default_annotation(ann),
+    };
+    let dot = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
+      term: Dot(p1, p2),
       annotation: default_annotation(ann),
     };
     let parens = (~ann=?, p): pat_t(DefaultAnnotation.t) => {

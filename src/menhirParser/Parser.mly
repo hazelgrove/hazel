@@ -322,6 +322,9 @@ nonAscriptingPat:
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
+    (* A module's constructor (`M.A`, `m.N.A`); the head is the path. *)
+    | p = nonAscriptingPat; DOT; c = CONSTRUCTOR_IDENT { DotPat(p, c) }
+    | p = nonAscriptingPat; DOT; x = IDENT { DotPat(p, x) }
     (* Base-type keywords are ordinary constructors in pat position too
        (JSON's Int/Float/Bool/String cases; `let x : Int ⧖ Bool` is a
        pattern-level hole beside a constructor pattern) — MakeTerm

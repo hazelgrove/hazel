@@ -22,9 +22,26 @@ let collect_module_refs_in_typ = (ctx: Ctx.t, id: Id.t, typ: Typ.t): CoCtx.t => 
   |> CoCtx.union;
 };
 
-/* Walk a Pat.t AST and collect module refs from any Asc(_, ann) sub-patterns. */
+/* The module a qualified constructor's path starts from (`M` of `M.N.A`) */
+let rec pat_path_head = (p: Pat.t): option((Var.t, Id.t)) =>
+  switch (p.term) {
+  | Var(name)
+  | Constructor(name, _) => Some((name, Pat.rep_id(p)))
+  | Parens(p)
+  | Dot(p, _) => pat_path_head(p)
+  | _ => None
+  };
+
+/* Walk a Pat.t AST and collect module refs from any Asc(_, ann) sub-patterns
+   and from the paths of qualified constructors (`M.A`). */
 let rec collect_pat_type_refs = (ctx: Ctx.t, pat: Pat.t): CoCtx.t =>
   switch (pat.term) {
+  | Dot(path, _) =>
+    switch (pat_path_head(path)) {
+    | Some((name, id)) when Ctx.lookup_var(ctx, name) != None =>
+      CoCtx.singleton(name, id, Unknown(Internal) |> Typ.temp)
+    | _ => CoCtx.empty
+    }
   | Asc(p, ann) =>
     CoCtx.union([
       collect_module_refs_in_typ(ctx, Typ.rep_id(ann), ann),
@@ -199,6 +216,7 @@ let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
     | ExplicitNonlabel
     | Atom(_)
     | Constructor(_)
+    | Dot(_)
     | Label(_) => pat
     }
   };
