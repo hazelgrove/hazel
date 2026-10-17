@@ -500,6 +500,50 @@ in apply(add(_, 10), 5)|},
       };
     },
   ),
+  /* the probe's menu offers step into on a call it names (cur_var_ap)
+     whose function has code */
+  test_case(
+    "Step into is offered on user calls, bare or through a module, not on a builtin",
+    `Quick,
+    () => {
+      let offered = code => {
+        let (_, elaborated, info_map, targets) = parse_with_probes(code);
+        let (_, state) =
+          Evaluator.evaluate(
+            ~eval_info=EvalInfo.of_targets(targets),
+            ~env=Builtins.env_init,
+            elaborated,
+          );
+        switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
+        | [(id, [s, ..._])] =>
+          let info = Option.get(Statics.Map.lookup(id, info_map));
+          Sample.Focus.cur_var_ap(info) == Some(id)
+          && Haz3lcore.ProbeProj.can_step_into(info, s);
+        | _ => fail("Expected one probe with samples")
+        };
+      };
+      check(
+        bool,
+        "bare call",
+        true,
+        offered({|let inc = fun n -> n + 1 in ^^probe(inc(1))|}),
+      );
+      check(
+        bool,
+        "call through a module",
+        true,
+        offered(
+          {|module M = { let inc = fun n -> n + 1 } in ^^probe(M.inc(1))|},
+        ),
+      );
+      check(
+        bool,
+        "builtin",
+        false,
+        offered({|^^probe(string_length("abc"))|}),
+      );
+    },
+  ),
   /* a recursive function's closure carries its inner Fun's derived id
      (its FixF keeps the surface Fun's): step into resolves it back */
   test_case(
