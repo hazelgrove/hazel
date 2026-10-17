@@ -690,12 +690,12 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
     };
   }
 /* The signature items a module path denotes, if any. A path is a variable
-   naming a module (looked up in the value namespace once it is not a type
-   alias) or a projection of a value member out of another path. A type
-   alias whose expansion is a signature also counts, so `S.T` resolves on
-   `type S = { type T = Int }`. Never uses Ctx.lookup_alias: it returns an
-   invalid-hole type for unbound names, which would shadow the value
-   namespace. */
+   naming a module (looked up in the value namespace unless a type alias of
+   the name is a signature) or a projection of a value member out of
+   another path. A type alias whose expansion is a signature also counts,
+   so `S.T` resolves on `type S = { type T = Int }`. Never uses
+   Ctx.lookup_alias: it returns an invalid-hole type for unbound names,
+   which would shadow the value namespace. */
 and path_sig = (~rec_counter=0, ctx: Ctx.t, t: t): option(list(Sig.t)) =>
   if (rec_counter > 1000) {
     None;
@@ -704,15 +704,22 @@ and path_sig = (~rec_counter=0, ctx: Ctx.t, t: t): option(list(Sig.t)) =>
     | Parens(t)
     | Projector(_, t) => path_sig(~rec_counter=rec_counter + 1, ctx, t)
     | Var(n) =>
-      switch (Ctx.lookup_tvar(ctx, n)) {
-      | Some(Singleton(alias)) => as_sig(~rec_counter, ctx, alias)
-      | Some(Abstract) => None
+      let alias_sig =
+        switch (Ctx.lookup_tvar(ctx, n)) {
+        | Some(Singleton(alias)) => as_sig(~rec_counter, ctx, alias)
+        | Some(Abstract)
+        | None => None
+        };
+      /* a type of the name that is no signature leaves the module of
+         that name visible: `Option.t` beside the builtin `Option` */
+      switch (alias_sig) {
+      | Some(_) => alias_sig
       | None =>
         switch (Ctx.lookup_var(ctx, n)) {
         | Some({typ, _}) => as_sig(~rec_counter, ctx, typ)
         | None => None
         }
-      }
+      };
     | ProdProjection(p, {term: Label(l), _}) =>
       switch (path_sig(~rec_counter=rec_counter + 1, ctx, p)) {
       | Some(items) =>

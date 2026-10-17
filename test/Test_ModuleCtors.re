@@ -271,4 +271,66 @@ let patterns = [
   ),
 ];
 
-let tests = ("ModuleCtors", expressions @ patterns);
+/* Option.t and Ord.t are declared in the library's source; bare None,
+   Some, Lt, Eq and Gt stay builtin, as OCaml builtins make them */
+let library_type = (module_name, builtin: Typ.t) => {
+  let ctx = ctx();
+  let declared =
+    Option.bind(Ctx.lookup_var(ctx, module_name), (v: Ctx.var_entry) =>
+      Option.bind(Typ.as_sig(~rec_counter=0, ctx, v.typ), items =>
+        Typ.sig_project_type(items, "t")
+      )
+    );
+  check(
+    bool,
+    module_name ++ ".t is the builtin " ++ module_name,
+    true,
+    switch (declared) {
+    | Some(t) => Typ.fast_equal(Typ.normalize(ctx, t), builtin)
+    | None => false
+    },
+  );
+};
+
+let library = [
+  test_case(
+    "the library's types are the builtin ones",
+    `Quick,
+    () => {
+      library_type("Option", BuiltinsADT.Option.t);
+      library_type("Ord", BuiltinsADT.Ord.t);
+    },
+  ),
+  test_case(
+    "Option.t and its constructors",
+    `Quick,
+    () => {
+      no_errors("let x : Option.t = Some(1) in x");
+      no_errors("let x : Option = Option.Some(1) in x");
+      same("Option.Some(2)", "Some(2)");
+      same("Option.None", "None");
+      same_typ("Option.None", "None");
+      same(
+        "case Option.map(Some(3), fun n -> n + 1)\n| Option.Some(n) => n\n| Option.None => 0\nend",
+        "4",
+      );
+      no_errors(
+        "let x : Option.t = Option.Some(1) in\ncase x\n| Some(y) => y\n| None => 0\nend",
+      );
+    },
+  ),
+  test_case(
+    "Ord.t matches what OCaml builtins make",
+    `Quick,
+    () => {
+      same(
+        "case Int.compare(1, 2)\n| Ord.Lt => 1\n| Ord.Eq => 2\n| Ord.Gt => 3\nend",
+        "1",
+      );
+      no_errors("let o : Ord.t = Int.compare(3, 3) in o");
+      same("Ord.invert(Ord.Lt)", "Gt");
+    },
+  ),
+];
+
+let tests = ("ModuleCtors", expressions @ patterns @ library);
