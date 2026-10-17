@@ -55,6 +55,7 @@ module Model = {
       flip_animations: true,
       display_warnings: true,
       selection_chunkiness: false,
+      inference: true,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -158,6 +159,7 @@ module Update = {
     | AutoReindent
     | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
+    | Inference
     | Assist
     | Elaborate
     | Benchmark
@@ -239,6 +241,13 @@ module Update = {
           core: {
             ...settings.core,
             selection_chunkiness: !settings.core.selection_chunkiness,
+          },
+        }
+      | Inference => {
+          ...settings,
+          core: {
+            ...settings.core,
+            inference: !settings.core.inference,
           },
         }
       | Assist => {

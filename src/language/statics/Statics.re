@@ -221,8 +221,18 @@ and uexp_to_info_map =
         m: Map.t,
       )
       : (Info.exp, Exp.t, Map.t) => {
+    /* A `poly` meeting a non-`poly` expectation is implicitly applied. */
+    let site = Exp.rep_id(user_term);
+    let (elab_term, elab_syn_ty, instantiated) =
+      Inference.instantiate(~ctx, ~site, ~ana, elab_term, elab_syn_ty);
     let marks =
-      switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
+      switch (instantiated, Inference.conflict_at(site)) {
+      | (Some(_), Some(tys)) => marks @ [Mark.InferenceConflict(tys)]
+      | _ => marks
+      };
+    let sub = subsume(ctx, ana, elab_syn_ty);
+    let marks =
+      switch (sub.mismatch) {
       | None => marks
       | Some(m) when marks == [] => [m] // TODO: we should probably eventually add this on top of existing marks
       | Some(_) => marks
@@ -232,13 +242,12 @@ and uexp_to_info_map =
         () =>
           switch (ana) {
           | {term: Unknown(SynSwitch), _} => Message.Exp(Default)
-          | _ =>
-            Message.Exp(Common(syn_ana_ok_common(ctx, ana, elab_syn_ty)))
+          | _ => Message.Exp(Common(sub.ok))
           },
         message,
       );
     let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-    let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let ty = sub.ty;
     let self_id = Exp.rep_id(user_term);
     let probe_targets =
       SubexpProbeTargets.add_self(
@@ -264,6 +273,7 @@ and uexp_to_info_map =
       inferred_label,
       label_sort,
       dot_labels,
+      instance: instantiated,
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoExp(info), m));
   };
@@ -541,6 +551,12 @@ and uexp_to_info_map =
          would disagree with the syn-based meet and cause spurious Asc
          wrappings on elements that already syn to the meet type. */
       let syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
+      /* Unlike branches, elements only have to agree with each other when
+         nothing else says what they are; a list checked against a type
+         may be heterogeneous under its `?`s. */
+      if (Typ.is_syn(inner_ana_ty)) {
+        Inference.record_join(~site=Exp.rep_id(uexp), ~ctx, syn_tys);
+      };
       let meet_ty =
         Typ.meet_all(~empty=Unknown(Internal) |> Typ.temp, ctx, syn_tys);
       let ds =
@@ -803,6 +819,11 @@ and uexp_to_info_map =
             [e1, e2],
           );
         let tys = List.map(Info.exp_ty, es);
+        Inference.record_join(
+          ~site=Exp.rep_id(uexp),
+          ~ctx,
+          List.map((e: Info.exp) => e.elab_syn_ty, es),
+        );
         let elab_poly =
           BinOp(op, List.nth(es_elabs, 0), List.nth(es_elabs, 1)) |> rewrap;
         let co_poly = CoCtx.union(List.map(Info.exp_co_ctx, es));
@@ -858,6 +879,7 @@ and uexp_to_info_map =
       };
     | TupleExtension(e1, e2) =>
       let (t1, e1_elab, m) = go(e1, m);
+      Inference.gradual_use(t1.elab_syn_ty);
       let m =
         switch (Typ.weak_head_normalize(ctx, t1.ty).term) {
         | Prod(_)
@@ -865,6 +887,7 @@ and uexp_to_info_map =
         | _ => append_mark_exp(m, e1, [TupleExtensionRequiresTuples])
         };
       let (t2, e2_elab, m) = go(e2, m);
+      Inference.gradual_use(t2.elab_syn_ty);
       let m =
         switch (Typ.weak_head_normalize(ctx, t2.ty).term) {
         | Prod(_)
@@ -1347,8 +1370,24 @@ and uexp_to_info_map =
           info_e2.probe_targets,
         ]);
 
+      Inference.gradual_use(info_e1.elab_syn_ty);
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
+        /* Re-analyzing an inference hole against this one-label tuple
+           would read as a constraint on it; it is not one. What the
+           projection gives may be known once the hole is filled. */
+        | (Unknown(_), Label(name))
+            when Inference.is_implicit_hole(info_e1.elab_syn_ty) => (
+            Prod([
+              TupLabel(
+                Label(name) |> Typ.temp,
+                Inference.gradual_result(~site=Exp.rep_id(uexp)),
+              )
+              |> Typ.temp,
+            ])
+            |> Typ.temp,
+            m,
+          )
         | (Unknown(_), Label(name)) =>
           // This is so that the statics will result in Unknown(Internal)
           let ty =
@@ -1718,6 +1757,14 @@ and uexp_to_info_map =
         let (fn, fn_elab, m) = go(~ana=fn_ana, fn, m);
         switch (custom_statics) {
         | Some(kind) =>
+          let gradual_arg = ((info, elab, m)) => {
+            Option.iter(
+              (a: Info.exp) => Inference.gradual_use(a.elab_syn_ty),
+              Map.lookup_exp(Exp.rep_id(arg), m),
+            );
+            (info, elab, m);
+          };
+          gradual_arg @@
           CustomStatics.custom_statics_ap(
             ~annotation=uexp.annotation,
             ~ctx,
@@ -1733,9 +1780,14 @@ and uexp_to_info_map =
              }),
             m,
             arg,
-          )
+          );
         | None =>
-          let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
+          let (ty_in, ty_out) =
+            Inference.matched_arrow(
+              ctx,
+              ~fn_syn=fn.elab_syn_ty,
+              ~fn_ty=fn.ty,
+            );
           let (arg, arg_elab, m) = go(~ana=ty_in, arg, m);
           let elab_term = Ap(dir, fn_elab, arg_elab) |> rewrap;
           let co_ap = CoCtx.union([fn.co_ctx, arg.co_ctx]);
@@ -1820,6 +1872,18 @@ and uexp_to_info_map =
 
       switch (custom_statics) {
       | Some(kind) =>
+        let gradual_args = ((info, elab, m)) => {
+          List.iter(
+            arg =>
+              Option.iter(
+                (a: Info.exp) => Inference.gradual_use(a.elab_syn_ty),
+                Map.lookup_exp(Exp.rep_id(arg), m),
+              ),
+            args,
+          );
+          (info, elab, m);
+        };
+        gradual_args @@
         CustomStatics.custom_statics_deferred_ap(
           ~elab_term=DeferredAp(fn_elab, args) |> rewrap,
           ~ctx,
@@ -1835,9 +1899,10 @@ and uexp_to_info_map =
            }),
           m,
           args,
-        )
+        );
       | None =>
-        let (ty_in, ty_out) = MatchedTyp.arrow_tolerant(ctx, fn.ty);
+        let (ty_in, ty_out) =
+          Inference.matched_arrow(ctx, ~fn_syn=fn.elab_syn_ty, ~fn_ty=fn.ty);
         let num_args = List.length(args);
         switch (MatchedTyp.args(ctx, ty_in, num_args)) {
         | L(ty_ins) =>
@@ -2049,8 +2114,37 @@ and uexp_to_info_map =
         | Constructor(v, _) when Ctx.lookup_var(ctx, v) != None => Some(v)
         | _ => None
         };
+      /* A let generalized by inference analyzes its definition with the
+         generalized type variables in scope (elaboration pass only). */
+      let let_id = Exp.rep_id(uexp);
+      let gen = Inference.let_gen(~let_id);
+      /* Type variables the definition's annotations use without binding
+         are bound by this let (Inference.written_tvars). */
+      let def_is_value = Inference.is_value(def);
+      let written: Inference.gen = {
+        tvars:
+          switch (IdTagged.term_of(p)) {
+          | Var(_)
+          | Asc({term: Var(_), _}, _) when def_is_value =>
+            Inference.written_tvars(~ctx, p, def)
+          | _ => []
+          },
+        holes: [],
+      };
+      let ctx_written = Inference.extend_with_tvars(~let_id, ctx, written);
+      let ctx_def =
+        switch (gen) {
+        | Some(g) => Inference.extend_with_tvars(~let_id, ctx_written, g)
+        | None => ctx_written
+        };
+      let go_pat_def =
+        upat_to_info_map(
+          ~ctx=ctx_def,
+          ~ancestors=ancestors_inclusive,
+          ~probe_ids,
+        );
       let (p_syn, _, _) =
-        go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+        go_pat_def(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (def_term, def_rewrap) = Exp.unwrap(def);
       let def =
         switch (
@@ -2076,10 +2170,10 @@ and uexp_to_info_map =
       let is_rec = is_recursive(ctx, p, def, rec_check_ty);
       let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
         if (!is_rec) {
-          let (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
+          let (def, def_elab, m) = go(~ctx=ctx_def, ~ana=p_syn.ty, def, m);
           let ty_p_ana = def.ty;
           let (p_ana', _, _) =
-            go_pat(
+            go_pat_def(
               ~is_synswitch=false,
               ~co_ctx=CoCtx.empty,
               ~ana=ty_p_ana,
@@ -2092,7 +2186,7 @@ and uexp_to_info_map =
           let ty_p_ana = def_base.ty;
           /* Analyze pattern to incorporate def type into ctx */
           let (p_ana', _, _) =
-            go_pat(
+            go_pat_def(
               ~is_synswitch=false,
               ~co_ctx=CoCtx.empty,
               ~ana=ty_p_ana,
@@ -2120,6 +2214,65 @@ and uexp_to_info_map =
             };
           let (def, def_elab, m) = go(~ctx=def_ctx, ~ana, def, m);
           (def, def_elab, def_ctx, m, ty_p_ana);
+        };
+      /* Implicit polymorphism: an unannotated variable bound to a
+         definition whose type has unconstrained implicit holes gets a
+         `poly` scheme (Inference). */
+      let scheme =
+        switch (gen, module_items) {
+        | (Some(g), _) => Some(Inference.poly_of(g, ty_p_ana))
+        | (None, None) =>
+          Inference.generalize_let(
+            ~let_id,
+            ~generalize=
+              switch (IdTagged.term_of(p)) {
+              | Var(_) => def_is_value
+              | _ => false
+              },
+            ~ctx=ctx_written,
+            ~def=def.user_term,
+            ~def_ty=ty_p_ana,
+            m,
+          )
+        | (None, Some(_)) => None
+        };
+      let scheme =
+        written.tvars == []
+          ? scheme
+          : Some(
+              Inference.poly_of(
+                written,
+                Option.value(~default=ty_p_ana, scheme),
+              ),
+            );
+      let ty_mono = ty_p_ana;
+      let (p_ana_ctx, ty_p_ana) =
+        switch (scheme, IdTagged.term_of(p)) {
+        /* `let f : a -> a = …`: the annotation stays the monotype; the name
+           gets the scheme */
+        | (Some(scheme), Asc({term: Var(x), _} as v, _)) => (
+            Ctx.extend(
+              ctx,
+              VarEntry({
+                name: x,
+                id: Pat.rep_id(v),
+                typ: scheme,
+                custom_statics: None,
+              }),
+            ),
+            scheme,
+          )
+        | (Some(scheme), _) =>
+          let (p_gen, _, _) =
+            go_pat(
+              ~is_synswitch=false,
+              ~co_ctx=CoCtx.empty,
+              ~ana=scheme,
+              p,
+              m,
+            );
+          (p_gen.ctx, scheme);
+        | (None, _) => (p_ana_ctx, ty_p_ana)
         };
       /* Inject module type exports into body context */
       let p_ana_ctx =
@@ -2152,7 +2305,36 @@ and uexp_to_info_map =
       let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
+        switch (written.tvars, IdTagged.term_of(p)) {
+        /* The annotation is checked as the monotype; the name, elaborated
+           without it, gets the scheme */
+        | ([_, ..._], Asc(v, _)) =>
+          let (p_ana, _, m) =
+            go_pat_def(
+              ~is_synswitch=false,
+              ~co_ctx=body.co_ctx,
+              ~ana=ty_mono,
+              p,
+              m,
+            );
+          let (_, v_elab, m) =
+            go_pat(
+              ~is_synswitch=false,
+              ~co_ctx=body.co_ctx,
+              ~ana=ty_p_ana,
+              v,
+              m,
+            );
+          (p_ana, v_elab, m);
+        | _ =>
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=body.co_ctx,
+            ~ana=ty_p_ana,
+            p,
+            m,
+          )
+        };
       let syn_ty_let = body.elab_syn_ty;
       let p_constraint = Info.pat_constraint(p_ana);
       let marks_let =
@@ -2179,12 +2361,20 @@ and uexp_to_info_map =
              ]),
              Pat.bound_vars(p),
            );
+      let generalize = elab =>
+        (
+          switch (gen) {
+          | Some(g) => Inference.wrap_typfuns(~let_id, g, elab)
+          | None => elab
+          }
+        )
+        |> Inference.wrap_typfuns(~let_id, written);
       let (elab_term, m) =
         if (!requires_fixf) {
           let def_elab =
             LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
             |> Exp.add_name(Pat.get_var(p));
-          (Let(p_elab, def_elab, body_elab) |> rewrap, m);
+          (Let(p_elab, generalize(def_elab), body_elab) |> rewrap, m);
         } else {
           let def_elab =
             LabeledTupleHelpers.align_exp_if_needed(ctx, p_syn.ty, def_elab)
@@ -2226,7 +2416,7 @@ and uexp_to_info_map =
               )
             | _ => m
             };
-          (Let(p_elab, fixf, body_elab) |> rewrap, m);
+          (Let(p_elab, generalize(fixf), body_elab) |> rewrap, m);
         };
       add(
         ~elab_term,
@@ -2336,6 +2526,12 @@ and uexp_to_info_map =
       let (cond, cond_elab, m) = go(~ana=Atom(Bool) |> Typ.temp, e0, m);
       let (cons, cons_elab, m) = go(~ana, e1, m);
       let (alt, alt_elab, m) = go(~ana, e2, m);
+      /* Branches must meet whatever the mode (see cms_if). */
+      Inference.record_join(
+        ~site=Exp.rep_id(uexp),
+        ~ctx,
+        [cons.elab_syn_ty, alt.elab_syn_ty],
+      );
       let (syn_if, cms_if) =
         ConstructorStaticsHelpers.syn_marks_match(
           ctx,
@@ -2421,6 +2617,7 @@ and uexp_to_info_map =
 
       let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
       let e_co_ctxs = List.map(Info.exp_co_ctx, es);
+      Inference.record_join(~site=Exp.rep_id(uexp), ~ctx, e_syn_tys);
       let (syn_ty_match, marks_match) =
         ConstructorStaticsHelpers.syn_marks_match(ctx, e_syn_tys, branch_ids);
       let (constraints, ps_elabs, m) =
@@ -2827,11 +3024,12 @@ and upat_to_info_map =
         m: Id.Map.t(Info.t),
       )
       : (Info.pat, Pat.t, Map.t) => {
+    let sub = subsume(ctx, ana, elab_syn_ty);
     let marks =
       if (marks != []) {
         marks;
       } else {
-        switch (expectation_mismatch_mark(ctx, ana, elab_syn_ty)) {
+        switch (sub.mismatch) {
         | None => marks
         | Some(m) => marks @ [m]
         };
@@ -2842,11 +3040,11 @@ and upat_to_info_map =
         : Message.Pat(
             switch (ana) {
             | {term: Unknown(SynSwitch), _} => Message.Default
-            | _ => Message.Common(syn_ana_ok_common(ctx, ana, elab_syn_ty))
+            | _ => Message.Common(sub.ok)
             },
           );
     let cls = Cls.Pat(Pat.cls_of_term(user_term.term));
-    let ty = fixed_typ(ctx, ana, elab_syn_ty);
+    let ty = sub.ty;
     let warning_acc =
       warnings
       @ (
@@ -2916,6 +3114,20 @@ and upat_to_info_map =
     );
   };
   let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
+  /* An unannotated binder's type: inferred if inference has one, else
+     `unknown` for its own type and `default` in the ctx. */
+  let binder_typ = default => {
+    let site = Pat.rep_id(upat);
+    let marks =
+      switch (Inference.conflict_at(site)) {
+      | Some(tys) => [Mark.InferenceConflict(tys)]
+      | None => []
+      };
+    switch (Inference.binder_type(~ctx, ~is_synswitch, ~site, ~ana)) {
+    | Some(ty) => (ty, ty, marks)
+    | None => (unknown, default, marks)
+    };
+  };
 
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) =>
     LabeledTupleHelpers.autolabel_singleton_pat(
@@ -3154,18 +3366,20 @@ and upat_to_info_map =
         m,
       );
     | Wild =>
+      let (unknown, _, binder_marks) = binder_typ(unknown);
       add(
         ~elab_syn_ty=unknown,
-        ~marks=[],
+        ~marks=binder_marks,
         ~ctx,
         ~constraint_=Coverage.Constraint.Truth,
         m,
-      )
+      );
     | Var(name) =>
       /* NOTE: The self type assigned to pattern variables (Unknown)
          may be SynSwitch, but SynSwitch is never added to the context;
          Unknown(Internal) is used in this case */
-      let ctx_typ = fixed_typ(ctx, ana, Unknown(Internal) |> Typ.temp);
+      let (unknown, ctx_typ, binder_marks) =
+        binder_typ(fixed_typ(ctx, ana, Unknown(Internal) |> Typ.temp));
       let entry =
         Ctx.VarEntry({
           name,
@@ -3186,7 +3400,7 @@ and upat_to_info_map =
         }
         : add(
             ~elab_syn_ty=unknown,
-            ~marks=[],
+            ~marks=binder_marks,
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
             m,
@@ -4350,15 +4564,22 @@ and mpat_to_info_map =
 let mk =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids)) => {
-      let (_, elab, m) =
-        uexp_to_info_map(
-          ~ana,
-          ~ctx,
-          ~ancestors=[],
-          ~probe_ids,
-          e,
-          Id.Map.empty,
+    ((ana, ctx, e, probe_ids, inference)) => {
+      let (elab, m) =
+        Inference.run(
+          ~enabled=inference,
+          () => {
+            let (_, elab, m) =
+              uexp_to_info_map(
+                ~ana,
+                ~ctx,
+                ~ancestors=[],
+                ~probe_ids,
+                e,
+                Id.Map.empty,
+              );
+            (elab, m);
+          },
         );
       /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
          Ensure they all resolve to the same info entry for cursor features. */
@@ -4389,4 +4610,5 @@ let mk =
       exp,
     ) =>
   core.statics
-    ? mk((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+    ? mk((ana, ctx, exp, probe_ids, core.inference))
+    : (Id.Map.empty, Exp.fresh(Tuple([])));

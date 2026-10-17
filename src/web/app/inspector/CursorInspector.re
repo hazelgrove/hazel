@@ -230,6 +230,10 @@ let core_mark_err_view =
         label_view(name),
       ]
     | CompareFun(ty) => [text("values cannot be compared:"), view_type(ty)]
+    | InferenceConflict(tys) => [
+        text("Inferred conflicting types:"),
+        ...List.map(view_type, tys),
+      ]
     | ExpectationMismatch({ana, syn}) => expectation_view(~ana, ~syn)
     | NoMeet(PolyEq, tys)
     | NoMeet(_, tys) when ana.term == Unknown(SynSwitch) => [
@@ -763,9 +767,44 @@ let exp_mark_err_view =
   | DuplicateVar(_, _)
   | ExpectationMismatch(_)
   | NoMeet(_)
+  | InferenceConflict(_)
   | CompareFun(_) => common_from_core()
   };
 };
+
+/* An implicitly instantiated `poly`: which scheme, and what the hidden
+   type arguments were inferred to be. */
+let instance_view = (~globals, instance: option(Message.instance)) =>
+  switch (instance) {
+  | None => []
+  | Some({poly, args}) =>
+    let rec binders = (ty: Typ.t) =>
+      switch (Typ.term_of(ty)) {
+      | Poly(tp, body) =>
+        [TPat.tyvar_of_utpat(tp) |> Option.value(~default="?")]
+        @ binders(body)
+      | Parens(t) => binders(t)
+      | _ => []
+      };
+    let names = binders(poly);
+    [text("instance of"), view_type(~globals, poly)]
+    @ (
+      List.length(names) == List.length(args)
+        ? [text("with")]
+          @ List.concat(
+              ListUtil.join(
+                [text(",")],
+                List.map2(
+                  (a, ty) =>
+                    [code(a), text("="), view_type(~globals, ty)],
+                  names,
+                  args,
+                ),
+              ),
+            )
+        : []
+    );
+  };
 
 let exp_view =
     (
@@ -825,7 +864,8 @@ let exp_view =
           ~label_sort=info.label_sort,
           cls,
           ok,
-        ),
+        )
+        @ instance_view(~globals, info.instance),
       )
     | Pat(_)
     | TypOk(_)
