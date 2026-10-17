@@ -29,6 +29,7 @@ module Model = {
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    show_action_explorer: bool,
     cap_undo_stack: bool,
     show_row_lines: bool,
     show_incremental_deco: bool,
@@ -106,6 +107,7 @@ module Model = {
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
     relative_line_numbers: false,
+    show_action_explorer: false,
     cap_undo_stack: false,
     show_row_lines: false,
     show_incremental_deco: false,
@@ -176,6 +178,7 @@ module Update = {
     | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
+    | ToggleActionExplorer
     | CapUndoStack
     | ShowRowLines
     | ShowIncrementalDeco
@@ -504,6 +507,10 @@ module Update = {
       | ToggleRelativeLineNumbers => {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
+        }
+      | ToggleActionExplorer => {
+          ...settings,
+          show_action_explorer: !settings.show_action_explorer,
         }
       | CapUndoStack => {
           ...settings,
