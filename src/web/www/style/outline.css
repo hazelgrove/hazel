@@ -1,0 +1,704 @@
+/* Outline sidebar: a real grid panel in
+   column 1, spanning the focus-bar + main rows — it takes space from
+   the editor rather than hovering over it. Collapsed, it is just its
+   thin vertical tab (fit-content column). */
+
+#outline-sidebar {
+  grid-row: 2 / span 2;
+  grid-column: 1 / span 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  font-family: var(--code-font, monospace);
+  font-size: 12px;
+  color: var(--text-accent);
+  background: var(--ui-bkg);
+  /* the panel edge: the sidebar owns the divider (editor cells are
+     borderless in outline modes — a cell-side border stopped where
+     the cell content did) */
+  border-right: 0.6px solid var(--border-default);
+  /* the row holding the editor's caret (OutlineFollow): the full brown,
+     darker than an open cell's tint */
+  --ol-mark-bg: var(--surface-shard);
+}
+
+#outline-sidebar[open] {
+  width: var(--outline-w, 210px);
+}
+
+/* keyboard focus: the cursor row fills with the selection yellow (the
+   editor-caret mark hides meanwhile), no browser focus ring */
+#outline-sidebar .outline-body:focus {
+  outline: none;
+}
+#outline-sidebar .outline-body:focus-within .outline-label.outline-cursor,
+#outline-sidebar:has(.outline-body:focus-within) > summary.outline-cursor {
+  background: var(--surface-highlight);
+}
+
+/* Chrome slots details content into an internal ::details-content
+   box; without this the flex sizing never reaches .outline-body and
+   the sidebar can't scroll */
+#outline-sidebar[open]::details-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Browsers older than ::details-content (Chrome < 131, Firefox < 143)
+   lay the content out as a plain block, so .outline-body grows to its
+   full height, is clipped by the sidebar, and never scrolls. There the
+   body is pinned between the title row and the sidebar's bottom
+   instead; the title row gets a fixed height so the body knows where
+   to start */
+@supports not selector(::details-content) {
+  #outline-sidebar {
+    --outline-title-h: 25px;
+  }
+  #outline-sidebar[open] > summary.outline-title {
+    box-sizing: border-box;
+    height: var(--outline-title-h);
+  }
+  #outline-sidebar[open] .outline-body {
+    position: absolute;
+    top: var(--outline-title-h);
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+}
+
+/* the resize handle is an invisible grab strip with the resize
+   cursor, straddling the border */
+#outline-sidebar .outline-resize {
+  position: absolute;
+  top: 0;
+  right: -4px;
+  width: 8px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 5;
+}
+
+#outline-sidebar .outline-resize:hover {
+  background: color-mix(in srgb, var(--surface-shard-strong) 25%, transparent);
+}
+
+#outline-sidebar:not([open]) .outline-resize {
+  pointer-events: none;
+}
+
+#outline-sidebar > summary.outline-title {
+  cursor: pointer;
+  user-select: none;
+  writing-mode: vertical-rl;
+  padding: 10px 4px;
+  opacity: 0.75;
+  list-style: none;
+}
+
+#outline-sidebar > summary.outline-title::-webkit-details-marker {
+  display: none;
+}
+
+#outline-sidebar[open] > summary.outline-title {
+  writing-mode: horizontal-tb;
+  opacity: 1;
+  padding: 4px 10px;
+  border-bottom: 0.6px solid var(--border-default);
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+/* header row: ☰ collapses the sidebar; open, the rest is a breadcrumb
+   (the program, then each zoomed module) */
+#outline-sidebar > summary .outline-crumbs {
+  display: none;
+}
+#outline-sidebar[open] > summary .outline-crumbs {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+}
+#outline-sidebar[open] > summary .outline-word {
+  display: none;
+}
+#outline-sidebar .outline-menu-glyph {
+  opacity: 0.7;
+}
+/* held to the header's line: ☰'s fallback font is taller than ✎'s, and
+   text mode's switch would move every row */
+#outline-sidebar[open] > summary .outline-menu-glyph {
+  height: 1lh;
+}
+#outline-sidebar .outline-crumb {
+  cursor: pointer;
+  opacity: 0.65;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+  min-width: 2ch;
+}
+#outline-sidebar .outline-crumb-sep,
+#outline-sidebar .outline-crumb-count,
+#outline-sidebar .outline-crumb-btn,
+#outline-sidebar .outline-crumb-chip,
+#outline-sidebar .outline-crumb.outline-crumb-here {
+  flex-shrink: 0;
+}
+#outline-sidebar .outline-crumb.outline-crumb-here {
+  opacity: 1;
+  font-weight: bold;
+}
+#outline-sidebar .outline-crumb-sep {
+  opacity: 0.4;
+}
+#outline-sidebar .outline-crumb-count {
+  opacity: 0.6;
+}
+#outline-sidebar .outline-crumb-btn {
+  cursor: pointer;
+  opacity: 0.55;
+}
+#outline-sidebar .outline-crumb-chip {
+  cursor: pointer;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--surface-shard) 55%, transparent);
+  opacity: 0.8;
+}
+#outline-sidebar .outline-crumb:hover,
+#outline-sidebar .outline-crumb-btn:hover,
+#outline-sidebar .outline-crumb-chip:hover {
+  opacity: 1;
+}
+
+#outline-sidebar .outline-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 6px 8px 12px 8px;
+}
+
+/* a row's tint starts at its entry and runs out through the body's
+   right padding to the panel edge; the right padding is the cell
+   button's column */
+#outline-sidebar .outline-label {
+  position: relative;
+  cursor: pointer;
+  padding: 1px 4px;
+  padding-right: 22px;
+  margin-right: -8px;
+  border-radius: 3px 0 0 3px;
+  white-space: nowrap;
+  display: block;
+  min-width: max-content;
+  /* the body's padding: the first and last rows scroll fully home */
+  scroll-margin-block: 6px 12px;
+  /* rows a change leaves in error turn red over a moment */
+  transition: color 0.4s ease-out;
+}
+
+/* brown tints, lightest to strongest: hover, open as a cell, the editor's
+   caret row; the keyboard cursor takes the selection yellow */
+#outline-sidebar .outline-label:hover {
+  background: color-mix(in srgb, var(--surface-shard) 28%, transparent);
+}
+
+/* one 13px column per depth, centered at 18.5px, 31.5px, …: a leaf's
+   sigil, or a branch's arrow (its sigil then sits in the next column,
+   over its members); without arrows every sigil takes the column */
+#outline-sidebar .outline-glyph {
+  display: inline-block;
+  width: 13px;
+  margin-right: 2px;
+  text-align: center;
+  opacity: 0.7;
+}
+
+/* children start one column in; the guide runs down the parent's column
+   center, 2.5px left of the kids' box. A drawn 1px line, not a border: a
+   0.6px border rounds to 1px in layout and paints off-center */
+#outline-sidebar .outline-kids {
+  position: relative;
+  margin-left: 13px;
+}
+
+#outline-sidebar .outline-kids::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -3px;
+  width: 1px;
+  background: color-mix(
+    in srgb,
+    var(--border-default) 35%,
+    transparent
+  );
+}
+
+#outline-sidebar summary.outline-summary {
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+}
+
+#outline-sidebar summary.outline-summary > .outline-label {
+  flex: 1 0 auto;
+}
+
+#outline-sidebar summary.outline-summary::-webkit-details-marker {
+  display: none;
+}
+
+/* one drawn chevron, turned: open and folded match exactly (a font's
+   arrow rotated off its own center did not). Turned, the box's corner is
+   its tip, so each turn shifts back by half the tip's reach to keep the
+   arrow centered on the column */
+#outline-sidebar summary.outline-summary::before {
+  content: "";
+  display: inline-block;
+  box-sizing: border-box;
+  width: 5px;
+  height: 5px;
+  flex: none;
+  margin: 0 0 1px 8px;
+  border-right: 1.3px solid currentColor;
+  border-bottom: 1.3px solid currentColor;
+  opacity: 0.55;
+  transform: translateX(-1.5px) rotate(-45deg);
+  transition: transform 0.12s ease-out;
+}
+
+#outline-sidebar details[open] > summary.outline-summary::before {
+  transform: translateY(-1.8px) rotate(45deg);
+}
+
+/* without arrows a branch's sigil folds it, turning on its side; a run's
+   ✓/✗ stays upright (turned, it reads as broken) */
+#outline-sidebar.no-arrows summary.outline-summary::before {
+  display: none;
+}
+
+#outline-sidebar.no-arrows summary.outline-summary .outline-glyph {
+  cursor: pointer;
+  transition: transform 0.15s ease-out;
+}
+
+#outline-sidebar.no-arrows
+  details:not([open])
+  > summary
+  .outline-label:not(.ol-tests)
+  .outline-glyph {
+  transform: rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #outline-sidebar summary.outline-summary::before,
+  #outline-sidebar.no-arrows summary.outline-summary .outline-glyph {
+    transition: none;
+  }
+}
+
+#outline-sidebar .ol-module {
+  font-weight: bold;
+}
+
+#outline-sidebar .ol-type {
+  color: var(--token-typ);
+}
+
+/* statement / test / trailing-expression rows (symbolic, no name) */
+#outline-sidebar .ol-trail,
+#outline-sidebar .ol-stmt {
+  opacity: 0.85;
+}
+
+#outline-sidebar .ol-trail .outline-glyph,
+#outline-sidebar .ol-stmt .outline-glyph {
+  opacity: 0.9;
+  font-weight: bold;
+}
+
+#outline-sidebar .ol-tests {
+  font-style: italic;
+}
+
+/* a run's label keeps to its line in the panel: only its tally gives
+   way */
+#outline-sidebar .outline-label.ol-tests {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+#outline-sidebar summary.outline-summary > .outline-label.ol-tests {
+  flex-shrink: 1;
+}
+#outline-sidebar .outline-label.ol-tests > * {
+  flex-shrink: 0;
+}
+#outline-sidebar .outline-label.ol-tests > .outline-tally {
+  flex-shrink: 1;
+}
+/* text mode's caret there, at the text's bottom as on other lines */
+#outline-sidebar .ol-tests .outline-ghost-caret {
+  align-self: flex-end;
+}
+
+/* a run's tally: small, in its word's faded ink; red when a test fails */
+#outline-sidebar .outline-tally {
+  margin-left: 1ch;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.92em;
+  font-style: italic;
+  color: var(--ol-faded);
+  opacity: 0.85;
+}
+#outline-sidebar .outline-tally.outline-tally-fail {
+  color: var(--text-error);
+  opacity: 1;
+}
+
+/* rows with no name to type (the ⇒ result, the "tests" label, numbered
+   tests, `use` rows): one faded ink, italic. Faded from the outline's own
+   ink, as --text-muted is brighter than it in dark themes. The ⇒ row's
+   own opacity fades its word; the others match it */
+#outline-sidebar {
+  --ol-faded: color-mix(in srgb, var(--text-accent) 75%, transparent);
+}
+#outline-sidebar .outline-synthetic,
+#outline-sidebar .ol-test:not(.outline-has-err) .outline-name,
+#outline-sidebar .ol-use:not(.outline-has-err) .outline-name {
+  font-style: italic;
+  color: var(--ol-faded);
+}
+#outline-sidebar .ol-tests .outline-synthetic,
+#outline-sidebar .ol-test .outline-name,
+#outline-sidebar .ol-use .outline-name,
+#outline-sidebar .ol-use .outline-synthetic {
+  opacity: 0.85;
+}
+
+/* live test status: glyph carries the ✓/✗/? */
+#outline-sidebar .ol-pass .outline-glyph {
+  color: var(--test-pass);
+  opacity: 1;
+}
+
+#outline-sidebar .ol-fail .outline-glyph {
+  color: var(--test-fail);
+  opacity: 1;
+}
+
+#outline-sidebar .ol-indet .outline-glyph {
+  color: var(--text-accent);
+}
+
+#outline-sidebar .outline-empty {
+  opacity: 0.6;
+  padding: 6px;
+}
+
+/* the cell button: a tiny cell, empty to open (on hover), filled
+   while open, dashed while pinned but not shown (parked, or outside
+   the zoom); in a column at the panel's right edge, the outline's own
+   ink whatever the row's color */
+#outline-sidebar .outline-focus-btn {
+  display: none;
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  box-sizing: border-box;
+  width: 10px;
+  height: 8px;
+  margin-top: -4px;
+  border: 1.2px solid currentColor;
+  border-radius: 2px;
+  color: var(--text-accent);
+  opacity: 0.5;
+  cursor: pointer;
+}
+
+#outline-sidebar .outline-label:hover .outline-focus-btn {
+  display: inline-block;
+}
+
+#outline-sidebar .outline-focus-btn.outline-btn-parked {
+  display: inline-block;
+  border-style: dashed;
+  opacity: 0.45;
+}
+
+#outline-sidebar .outline-focus-btn:hover {
+  opacity: 1;
+}
+
+#outline-sidebar .outline-focus-btn.outline-btn-disabled,
+#outline-sidebar .outline-focus-btn.outline-btn-disabled:hover {
+  opacity: 0.25;
+  cursor: default;
+}
+
+/* open as a cell: a light tint from the entry itself, not the
+   column's edge */
+#outline-sidebar .outline-label.outline-focused {
+  background: color-mix(in srgb, var(--surface-shard) 45%, transparent);
+  font-weight: bold;
+}
+
+#outline-sidebar .outline-focus-btn.outline-btn-on {
+  display: inline-block;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+/* error badge on outline rows whose definition carries type errors */
+#outline-sidebar .outline-err-badge {
+  margin-left: 5px;
+  font-size: 7px;
+  vertical-align: 1px;
+  color: var(--text-error);
+  opacity: 0.85;
+}
+
+/* erroring rows also tint the name itself (the dot stays) */
+#outline-sidebar .outline-label.outline-has-err {
+  color: var(--text-error);
+}
+
+/* roll-up badge: an ancestor row shows the dot only while COLLAPSED
+   (expanded, the deepest containing row carries it instead) */
+#outline-sidebar .outline-err-roll {
+  display: none;
+}
+#outline-sidebar details:not([open]) > summary .outline-err-roll {
+  display: inline;
+}
+
+/* the right-click menu is the editor's .context-menu; it keeps the
+   editor menu's type, over the backdrop */
+.outline-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: calc(var(--outline-menu-z) - 1);
+}
+#outline-sidebar .outline-menu {
+  z-index: var(--outline-menu-z);
+  font-family: var(--ui-font);
+  font-size: 1rem;
+  font-weight: normal;
+}
+
+/* a name typed in place: the row's fill gives way to the editor's
+   selection yellow behind the name, softened, with a caret to match (the
+   caret's own red reads as an error) */
+#outline-sidebar .outline-body:focus-within .outline-label.outline-editing,
+#outline-sidebar
+  .outline-body:focus-within:has(.outline-editing)
+  .outline-label.outline-cursor {
+  background: transparent;
+}
+/* the name's text stays where the row draws it: the tint's padding takes
+   no room, and the box is the row's line */
+#outline-sidebar .outline-edit-input {
+  font: inherit;
+  color: inherit;
+  box-sizing: border-box;
+  height: 1lh;
+  margin: 0 -3px;
+  border: none;
+  outline: none;
+  min-width: 3ch;
+  padding: 0 3px;
+  vertical-align: baseline;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--shard-selected) 70%, transparent);
+  caret-color: var(--text-warning);
+  field-sizing: content;
+}
+/* a new definition's name, typed into the program: the field's look,
+   the caret at the editor's place in it */
+#outline-sidebar .outline-live {
+  display: inline-block;
+  box-sizing: border-box;
+  height: 1lh;
+  min-width: 3ch;
+  margin: 0 -3px;
+  padding: 0 3px;
+  vertical-align: baseline;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--shard-selected) 70%, transparent);
+  white-space: pre;
+}
+#outline-sidebar .outline-live-caret {
+  display: inline-block;
+  width: 0;
+  height: 1.2em;
+  margin: 0 -0.75px;
+  vertical-align: text-bottom;
+  border-left: 1.5px solid var(--text-warning);
+}
+/* the editor's selection in the name, in the colors a field's own
+   selection takes */
+#outline-sidebar .outline-live-sel {
+  background: Highlight;
+  color: HighlightText;
+}
+/* a new definition's keyword, beside its name */
+#outline-sidebar .outline-edit-kw {
+  font-weight: bold;
+  opacity: 0.7;
+  white-space: pre;
+}
+/* a name that won't do, underlined as it's typed */
+#outline-sidebar .outline-edit-input.outline-invalid,
+#outline-sidebar .outline-live.outline-invalid {
+  box-shadow: inset 0 -1.5px 0 var(--text-error);
+}
+/* why a save was refused: a bubble just under the line, over the rows
+   below, so nothing moves; or over the line when the list would clip it
+   there. It starts where the line's text does (its static position) and
+   wraps to show the reason whole */
+#outline-sidebar .outline-edit-hint {
+  display: none;
+}
+#outline-sidebar .outline-edit-hint.outline-hint-on {
+  display: inline-block;
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 1px);
+  width: max-content;
+  max-width: calc(100% - 28px);
+  padding: 1px 7px 2px;
+  font-size: 10.5px;
+  font-style: italic;
+  font-weight: normal;
+  color: var(--text-error);
+  white-space: normal;
+  cursor: default;
+  background: var(--surface-default);
+  border: 1px solid color-mix(in srgb, var(--text-error) 45%, transparent);
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.14);
+}
+#outline-sidebar .outline-edit-hint.outline-hint-on[data-above] {
+  top: auto;
+  bottom: calc(100% + 1px);
+  box-shadow: 0 -2px 6px rgb(0 0 0 / 0.1);
+}
+
+/* text mode, said quietly: the menu glyph turns into a pencil in the
+   field caret's color */
+#outline-sidebar .outline-mode-glyph {
+  color: var(--text-warning);
+  opacity: 1;
+}
+
+/* text mode: a ghost line's one caret position, at its start, in the
+   field caret's color; it takes no room, clear of italic text */
+#outline-sidebar .outline-ghost-caret {
+  display: inline-block;
+  width: 0;
+  height: 1.2em;
+  margin: 0 -0.5px 0 -1px;
+  vertical-align: text-bottom;
+  border-left: 1.5px solid var(--text-warning);
+}
+
+/* a refused key: its line pulses once, over the row's own fill. Two names
+   alternate so each refusal replays it */
+#outline-sidebar {
+  --ol-flash: color-mix(in srgb, var(--text-error) 16%, transparent);
+}
+@keyframes ol-flash-a {
+  from {
+    box-shadow: inset 0 0 0 100vmax var(--ol-flash);
+  }
+  to {
+    box-shadow: inset 0 0 0 100vmax transparent;
+  }
+}
+@keyframes ol-flash-b {
+  from {
+    box-shadow: inset 0 0 0 100vmax var(--ol-flash);
+  }
+  to {
+    box-shadow: inset 0 0 0 100vmax transparent;
+  }
+}
+#outline-sidebar .outline-label.outline-flash-a {
+  animation: ol-flash-a 160ms ease-out;
+}
+#outline-sidebar .outline-label.outline-flash-b {
+  animation: ol-flash-b 160ms ease-out;
+}
+
+/* the keyword that made a new definition a type or module leaves */
+#outline-sidebar .outline-kw-leaving {
+  display: inline-block;
+  overflow: hidden;
+  white-space: pre;
+  vertical-align: bottom;
+  font-weight: bold;
+  opacity: 0;
+  max-width: 0;
+}
+@keyframes ol-kw-leave {
+  from {
+    max-width: 8ch;
+    opacity: 0.7;
+  }
+  to {
+    max-width: 0;
+    opacity: 0;
+  }
+}
+
+@keyframes ol-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ol-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* held at its start till it runs: a save's work can delay that by a
+     frame, which showed the row without the keyword */
+  #outline-sidebar .outline-kw-leaving {
+    animation: ol-kw-leave 220ms ease-in backwards;
+  }
+  /* an error badge fades in with its row's red */
+  #outline-sidebar .outline-err-badge {
+    animation: ol-fade-in 0.4s ease-out;
+  }
+  #outline-sidebar .outline-ghost-caret,
+  #outline-sidebar .outline-live-caret {
+    animation: ol-caret-blink 1s steps(1) infinite;
+  }
+}
+
+/* reduced motion: the refusal's tint holds, then goes, without fading */
+@media (prefers-reduced-motion: reduce) {
+  #outline-sidebar .outline-label.outline-flash-a,
+  #outline-sidebar .outline-label.outline-flash-b {
+    animation-timing-function: steps(1, end);
+  }
+}

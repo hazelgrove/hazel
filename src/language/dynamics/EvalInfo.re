@@ -56,19 +56,35 @@ let of_targets = (targets: Sample.targets): t => {
 let of_info_map =
     (~probe_all: bool, ~targets: Sample.targets, info_map: StaticsBase.Map.t)
     : t => {
-  statics:
-    Id.Map.filter_map(
-      (_id, info) =>
-        switch (info) {
-        | Info.InfoExp({elab_term, co_ctx, probe_targets, _}) =>
-          Some({
-            elab_term,
-            co_ctx,
-            probe_targets: probe_all ? ProbeAll : ProbeTargets(probe_targets),
-          })
-        | _ => None
-        },
-      info_map,
-    ),
-  targets,
+  let full =
+    Id.Map.fold(
+      (id, spec: Sample.capture_spec, acc) => spec.full ? [id, ...acc] : acc,
+      targets,
+      [],
+    );
+  /* a term holding a full-capture probe gets a witness of its own, so
+     its samples are retaken rather than replayed with elided values */
+  let witness = (pt: SubexpProbeTargets.t) =>
+    if (List.exists(id => MerkleSet.mem(id, pt.probe_ids), full)) {
+      ProbeTargets(SubexpProbeTargets.mark_full(pt));
+    } else {
+      probe_all ? ProbeAll : ProbeTargets(pt);
+    };
+  {
+    statics:
+      Id.Map.filter_map(
+        (_id, info) =>
+          switch (info) {
+          | Info.InfoExp({elab_term, co_ctx, probe_targets, _}) =>
+            Some({
+              elab_term,
+              co_ctx,
+              probe_targets: witness(probe_targets),
+            })
+          | _ => None
+          },
+        info_map,
+      ),
+    targets,
+  };
 };

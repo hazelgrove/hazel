@@ -473,6 +473,8 @@ let mk_info = (elaborated: option(Exp.t)): ProjectorBase.info => {
   statics: None,
   dynamics: None,
   elaborated,
+  stepping: None,
+  program_value: false,
   utility: ProjectorInfo.utility,
 };
 

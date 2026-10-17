@@ -10,6 +10,9 @@ open Virtual_dom.Vdom;
  *   allowing the parent to navigate to the next cell/projector.
  *   NOTE: direction means "which side to escape TO", not "which key
  *   was pressed". Left arrow at start → escape(Left).
+ * - escape_vertical: Up on the first row or Down on the last escapes at
+ *   once, carrying the caret's column (no snap to line start/end); at a
+ *   stack edge the host re-dispatches the plain move.
  * - take_focus: accept focus from a parent (e.g. keyboard handoff
  *   from an adjacent projector)
  * - focus: current focus state, None if this editor is not active */
@@ -18,6 +21,8 @@ type t('action, 'focus) =
   | Editable({
       inject: 'action => Effect.t(unit),
       escape: Util.Direction.t => Effect.t(unit),
+      escape_vertical:
+        option((Haz3lcore.Action.vertical, int) => Effect.t(unit)),
       take_focus: 'focus => Effect.t(unit),
       focus: option('focus),
     });

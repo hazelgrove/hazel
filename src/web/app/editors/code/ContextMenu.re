@@ -340,6 +340,7 @@ module Projectors = {
     | Keybinding => "Keybinding"
     | Color => "Color"
     | Probe => "Probe" /* shouldn't appear in menu */
+    | Proof => "Proof" /* nor this */
     };
 
   let applicable_kinds =

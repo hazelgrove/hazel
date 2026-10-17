@@ -28,7 +28,7 @@ module Model = {
       zipper,
       col_target: None,
     },
-    syntax: CachedSyntax.init(zipper),
+    syntax: CachedSyntax.init(~root, zipper),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -107,6 +107,7 @@ module Update = {
   let clear_buffer =
       (
         ~settings: Language.CoreSettings.t,
+        ~root: Sort.t,
         ~old_zipper: Zipper.t,
         ~old_statics: CachedStatics.t,
         ~old_dynamics: Dynamics.Map.t,
@@ -123,6 +124,7 @@ module Update = {
              will be looking for tiles inside the buffer, for example if we try
              to click or move down to dismiss a completion.*/
           CachedSyntax.calculate(
+            ~root,
             state.zipper,
             old_statics.info_map,
             old_dynamics,
@@ -158,6 +160,7 @@ module Update = {
     let (state, syntax) =
       clear_buffer(
         ~settings,
+        ~root,
         ~old_zipper=state.zipper,
         ~old_statics,
         ~old_dynamics,
@@ -172,6 +175,7 @@ module Update = {
     /* 3. Update the zipper */
     let+ zipper =
       Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
+    let zipper = ProbePerform.settle_stepping(a, zipper);
 
     Model.{
       root,
@@ -187,6 +191,10 @@ module Update = {
       (
         ~settings: Language.CoreSettings.t,
         ~autoprobe_mode: AutoProbe.t,
+        /* the ⇓ toggle's probe on the program's last expression */
+        ~tail_probe=false,
+        /* drawers holding theorems' proofs */
+        ~proofs=AutoProbePerform.NoProofs,
         ~is_edited,
         statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
@@ -216,6 +224,7 @@ module Update = {
     let syntax =
       PerfTimer.time("editor-syntax", () =>
         CachedSyntax.calculate(
+          ~root,
           zipper,
           statics.info_map,
           new_dynamics,
@@ -263,6 +272,14 @@ module Update = {
           z,
         );
       };
+    let zipper =
+      AutoProbePerform.update_tail(
+        ~on=tail_probe,
+        ~syntax,
+        ~info_map=statics.info_map,
+        zipper,
+      )
+      |> AutoProbePerform.update_proofs(~proofs, ~syntax);
 
     Model.{
       root,

@@ -7,7 +7,13 @@ type t('a) = {
   recalculate: bool, // Should the editor recalculate after this action?
   scroll_active: bool, // Should the editor scroll to the cursor after this action?
   logged: bool, // Should this action be logged?
-  historic: bool // Should this action be undoable? (consumed by History.re to gate undo-stack pushes)
+  historic: bool, // Should this action be undoable? (consumed by History.re to gate undo-stack pushes)
+  /* a historic step that a later update may retract: a new definition's
+     insertion, dropped if it's never named */
+  tentative: bool,
+  /* takes back the tentative step on top of the undo history, as if it
+     had never been made */
+  retract: bool,
 };
 
 let ( let* ) = (updated: t('a), f) => {
@@ -24,6 +30,8 @@ let return =
       ~scroll_active=true,
       ~logged=true,
       ~historic=true,
+      ~tentative=false,
+      ~retract=false,
       model: 'a,
     ) => {
   {
@@ -33,6 +41,8 @@ let return =
     scroll_active,
     logged,
     historic,
+    tentative,
+    retract,
   };
 };
 
@@ -52,6 +62,8 @@ let return_quiet =
     scroll_active,
     logged,
     historic,
+    tentative: false,
+    retract: false,
   };
 };
 

@@ -241,6 +241,13 @@ let add_ids_from_multi_term =
         && !Id.Map.mem(id, z.refractors.multis.suppressed),
       all_ids,
     );
+  /* the ⇓ toggle's probe outlives the rebuild; a manual probe on the
+     same term wins */
+  let tail =
+    switch (z.refractors.tail_target) {
+    | Some(id) when !List.mem(id, manual_ids) => [id]
+    | _ => []
+    };
   let manual_end_rows =
     List.filter_map(
       ((id, _)) =>
@@ -263,6 +270,7 @@ let add_ids_from_multi_term =
         },
       ids,
     );
+  let ids = ids @ List.filter(id => !List.mem(id, ids), tail);
   let old_ephemerals = z.refractors.multis.ephemerals;
   /* Preserve surviving ephemeral entries; a fresh mk_entry per id would wipe per-probe state (e.g. drawer_mode). */
   let new_ephemeral_map =
@@ -270,7 +278,10 @@ let add_ids_from_multi_term =
       (map, id) =>
         switch (Id.Map.find_opt(id, old_ephemerals)) {
         | Some(existing) => Id.Map.add(id, existing, map)
-        | None => Id.Map.add(id, Refractors.mk_entry(Probe), map)
+        | None =>
+          /* the ⇓ probe opens as a drawer */
+          let model = List.mem(id, tail) ? Some(ProbeProj.tail_model) : None;
+          Id.Map.add(id, Refractors.mk_entry(~model?, Probe), map);
         },
       Id.Map.empty,
       ids,
@@ -286,8 +297,13 @@ let add_ids_from_multi_term =
     } else {
       Zipper.update_ephemerals(_ => new_ephemeral_map, z);
     };
-  /* Gated on auto_focus: in manual focus mode, don't auto-capture new ephemerals. */
-  let new_ids = List.filter(id => !Id.Map.mem(id, old_ephemerals), ids);
+  /* Gated on auto_focus: in manual focus mode, don't auto-capture new
+     ephemerals; the tail probe never takes the focus. */
+  let new_ids =
+    List.filter(
+      id => !Id.Map.mem(id, old_ephemerals) && !List.mem(id, tail),
+      ids,
+    );
   switch (new_ids) {
   | [] => z
   | _ when !auto_focus(z) => z
@@ -659,6 +675,14 @@ let remove_statics_at =
   );
 };
 
+let hide_steps = (z: Zipper.t): Zipper.t =>
+  Zipper.update_refractors(z, r =>
+    {
+      ...r,
+      stepping: None,
+    }
+  );
+
 let go =
     (
       ~statics as {info_map, _}: CachedStatics.t,
@@ -732,6 +756,38 @@ let go =
          }
        )
     |> SampleFocusPerform.reset
+    |> hide_steps
+  | ShowSteps(span) =>
+    DrawerFit.forget(span.probe_id);
+    Zipper.update_refractors(z, r =>
+      {
+        ...r,
+        stepping:
+          Some({
+            span,
+            rows: 1,
+          }),
+      }
+    );
+  | HideSteps => hide_steps(z)
+  };
+
+/* an edit to the program closes a stepping drawer, as does losing its
+   probe; probe actions on other probes leave it open */
+let settle_stepping = (a: Action.t, z: Zipper.t): Zipper.t =>
+  switch (z.refractors.stepping) {
+  | Some(st)
+      when
+        !has_probe(st.span.probe_id, z)
+        || Action.is_edit(a)
+        && (
+          switch (a) {
+          | Probe(_) => false
+          | _ => true
+          }
+        ) =>
+    hide_steps(z)
+  | _ => z
   };
 
 let refractor_kind = (id: Id.t, z: Zipper.t): option(ProjectorCore.Kind.t) => {
