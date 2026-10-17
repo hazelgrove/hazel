@@ -972,6 +972,35 @@ let solve = (st: infer_state, m: StaticsBase.Map.t): apply_state => {
   };
 };
 
+/* Value restriction: only a definition that evaluates without running
+   anything is generalized. Its hidden typfun would otherwise delay the
+   definition to each use and repeat it there. */
+let rec is_value = (e: Exp.t): bool =>
+  switch (Exp.term_of(e)) {
+  | Fun(_)
+  | TypFun(_)
+  | FixF(_)
+  | Var(_)
+  | Atom(_)
+  | Constructor(_)
+  | Label(_)
+  | BuiltinFun(_)
+  | EmptyHole => true
+  | ListLit(es)
+  | Tuple(es) => List.for_all(is_value, es)
+  | TupLabel(_, e)
+  | Parens(e)
+  | Asc(e, _)
+  | Projector(_, e)
+  | TyAlias(_, _, e) => is_value(e)
+  | Cons(e1, e2)
+  | Let(_, e1, e2) => is_value(e1) && is_value(e2)
+  | Ap(_, {term: Constructor(_), _}, arg) => is_value(arg)
+  /* `f(_, x)` makes a closure without running f */
+  | DeferredAp(f, args) => is_value(f) && List.for_all(is_value, args)
+  | _ => false
+  };
+
 /* Type variables written in a variable let's annotations that nothing in
    scope binds: the let binds them, rigid and scoped over its definition.
    Only names like `a`, `b1` or `a'`, so a misspelled type name (`int`)

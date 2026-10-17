@@ -129,6 +129,27 @@ let tests = (
       Some(poly("a", T.arrow(a, a))),
     ),
     fully_consistent_typecheck(
+      "Value restriction: a computed definition is not generalized",
+      {|let id(x) = x in
+let compose(f, g) = fun x -> f(g(x)) in
+let both = compose(id, id) in both|},
+      Some(T.arrow(unknown(), unknown())),
+    ),
+    fully_consistent_typecheck(
+      "Value restriction: values built from values are generalized",
+      {|let pair = (fun x -> x, fun y -> y) in pair|},
+      Some(poly("a", poly("b", T.prod([T.arrow(a, a), T.arrow(b, b)])))),
+    ),
+    test_case(
+      "Value restriction: written type variables need a value", `Quick, () =>
+      check(
+        bool,
+        "marked",
+        true,
+        all_marks({|let x : a = (fun y -> y)(1) in x|}) != [],
+      )
+    ),
+    fully_consistent_typecheck(
       "Written type variables are bound by the definition",
       {|let id(x : a) = x in id|},
       Some(poly("a", T.arrow(a, a))),

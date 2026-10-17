@@ -124,6 +124,14 @@ in (map(fun x -> x + 1)([1, 2]), map(fun b -> !b)([true]))|},
         {|let id(x : a) = x in (id(1), id(true))|},
       )
     ),
+    test_case("A computed definition runs once and stays gradual", `Quick, () =>
+      parse_and_evaluate_test(
+        "(1, true)",
+        {|let id(x) = x in
+let compose(f, g) = fun x -> f(g(x)) in
+let both = compose(id, id) in (both(1), both(true))|},
+      )
+    ),
     test_case("Annotated name with a written type variable", `Quick, () =>
       parse_and_evaluate_test(
         {|(1, "s")|},

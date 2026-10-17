@@ -2120,11 +2120,12 @@ and uexp_to_info_map =
       let gen = Inference.let_gen(~let_id);
       /* Type variables the definition's annotations use without binding
          are bound by this let (Inference.written_tvars). */
+      let def_is_value = Inference.is_value(def);
       let written: Inference.gen = {
         tvars:
           switch (IdTagged.term_of(p)) {
           | Var(_)
-          | Asc({term: Var(_), _}, _) =>
+          | Asc({term: Var(_), _}, _) when def_is_value =>
             Inference.written_tvars(~ctx, p, def)
           | _ => []
           },
@@ -2225,7 +2226,7 @@ and uexp_to_info_map =
             ~let_id,
             ~generalize=
               switch (IdTagged.term_of(p)) {
-              | Var(_) => true
+              | Var(_) => def_is_value
               | _ => false
               },
             ~ctx=ctx_written,
