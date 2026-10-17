@@ -61,6 +61,21 @@ include Metrics.Make({
   let limit = 30;
 });
 
+/* A benchmark's hook (plans/perf-bench): when the page defines
+   `hazelBenchFrames` (an array), every frame is measured, panels open or
+   not, and appended there as {perform, statics, total} in ms. */
+let bench_frames = (): option(Js_of_ocaml.Js.Unsafe.any) => {
+  let a =
+    Js_of_ocaml.Js.Unsafe.get(
+      Js_of_ocaml.Js.Unsafe.global,
+      "hazelBenchFrames",
+    );
+  Js_of_ocaml.Js.Optdef.test(a) ? Some(a) : None;
+};
+
+let sync = (~enabled as e: bool): unit =>
+  sync(~enabled=e || bench_frames() != None);
+
 /* The frame under construction: stage timings accumulate here and the counts
  * are refreshed as each editor recalculates, until `time_frame` commits it. */
 let current: ref(frame) = ref(empty_frame);
@@ -186,6 +201,34 @@ let time_frame: 'a. (unit => 'a) => 'a =
         ...frame,
         total: Some(total),
       });
+      Option.iter(
+        frames => {
+          let ms = span =>
+            Js_of_ocaml.Js.number_of_float(Core.Time_ns.Span.to_ms(span));
+          let opt = o =>
+            Option.fold(
+              ~none=Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js.null),
+              ~some=s => Js_of_ocaml.Js.Unsafe.inject(ms(s)),
+              o,
+            );
+          ignore(
+            Js_of_ocaml.Js.Unsafe.meth_call(
+              frames,
+              "push",
+              [|
+                Js_of_ocaml.Js.Unsafe.inject(
+                  Js_of_ocaml.Js.Unsafe.obj([|
+                    ("perform", opt(Option.map(snd, frame.perform))),
+                    ("statics", opt(frame.statics)),
+                    ("total", Js_of_ocaml.Js.Unsafe.inject(ms(total))),
+                  |]),
+                ),
+              |],
+            ),
+          );
+        },
+        bench_frames(),
+      );
       current :=
         {
           ...frame,
