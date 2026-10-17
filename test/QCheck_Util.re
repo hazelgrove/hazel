@@ -12,7 +12,7 @@ open MenhirParser;
 let show_core_exp = exp =>
   exp
   |> ExpToSegment.exp_to_segment(
-       ~settings=ExpToSegment.Settings.editable(~inline=true),
+       ~settings=ExpToSegment.Settings.editable(~inline=Inline),
        _,
      )
   |> Printer.of_segment(~holes="?", _);
@@ -48,7 +48,7 @@ let show_core_typ = typ =>
   typ
   |> TypToSegment.typ_to_segment(
        ~settings=
-         ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+         ExpToSegment.Settings.of_core(~inline=Inline, CoreSettings.off),
        _,
      )
   |> Printer.of_segment(~holes="?", _);

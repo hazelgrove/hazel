@@ -582,7 +582,7 @@ module View = {
                           ~globals,
                           ~settings=
                             ExpToSegment.Settings.of_core(
-                              ~inline=false,
+                              ~inline=Block,
                               ~fold_fn_bodies=`Text,
                               globals.settings.core,
                             ),

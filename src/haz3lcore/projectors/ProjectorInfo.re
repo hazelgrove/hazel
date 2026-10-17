@@ -5,7 +5,8 @@ open Language;
 
 /* The settings every projector converts with, so two segments cannot end up
    with ids that came from different configurations. */
-let seg_settings = (~inline: bool): ExpToSegment.Settings.t => {
+let seg_settings = (~inline: Inline.t): ExpToSegment.Settings.t => {
+  //TODO(andrew): ExpandElements
   ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
   show_unknown_as_hole: false,
   use_literal_lexemes: false,
@@ -18,9 +19,9 @@ let seg_settings = (~inline: bool): ExpToSegment.Settings.t => {
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility = {
   let seg_to_term = MakeTerm.for_projection;
-  let term_to_seg = (inline, any) =>
+  let term_to_seg = (inline: Inline.t, any) =>
     ExpToSegment.any_to_segment(~settings=seg_settings(~inline), any);
-  let typ_to_seg_with_diff_ids = (inline, ctx, against, typ) =>
+  let typ_to_seg_with_diff_ids = (inline: Inline.t, ctx, against, typ) =>
     TypToSegment.typ_to_segment_with_diff_ids(
       ~settings=seg_settings(~inline),
       ~ctx,
@@ -28,7 +29,8 @@ let utility: ProjectorBase.utility = {
       typ,
     );
   let lift_syntax =
-      (inline, fn: Any.t => Any.t, seg: Base.segment): option(Base.segment) => {
+      (fn: Any.t => Any.t, inline: Inline.t, seg: Base.segment)
+      : option(Base.segment) =>
     switch (seg |> seg_to_term) {
     | None => None
     | Some(s) =>
@@ -36,7 +38,7 @@ let utility: ProjectorBase.utility = {
       /* When not inline (projector syntax rewrites like table operations),
          append a trailing newline so the expression doesn't extend to
          the edge of the screen, leaving room for probe values */
-      if (!inline) {
+      if (inline != Inline.Inline) {
         let newline: Base.piece =
           Secondary({
             content: Whitespace(Token.linebreak),
@@ -47,16 +49,21 @@ let utility: ProjectorBase.utility = {
         Some(result);
       };
     };
-  };
   /* NOTE: Setting indent to anything other than "" has serious
    * perf implications when there are lots of probes on the screen */
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
   {
-    term_to_seg: (~inline, any) => term_to_seg(inline, any),
+    term_to_seg: (~inline, any) =>
+      term_to_seg(inline ? Inline.Inline : Inline.Block, any),
     typ_to_seg_with_diff_ids: (~inline, ~ctx, ~against, typ) =>
-      typ_to_seg_with_diff_ids(inline, ctx, against, typ),
+      typ_to_seg_with_diff_ids(
+        inline ? Inline.Inline : Inline.Block,
+        ctx,
+        against,
+        typ,
+      ),
     seg_to_term,
-    lift_syntax: (~inline) => lift_syntax(inline),
+    lift_syntax,
     seg_to_string,
   };
 };

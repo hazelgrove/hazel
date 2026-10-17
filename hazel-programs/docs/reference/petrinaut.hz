@@ -1,0 +1,32 @@
+let net = 
+^^Petrinaut((netDefinition=(nodes=[(id="place__617c6960-06e4-4a23-97c5-8a8398ec2f92",
+type__="place",
+position=(x=105,
+y=180),
+width=130,
+height=130,
+data=(label="place 1",
+type__="place")),
+(id="transition__40825cbc-0a12-4d43-98be-67c7fb60bcae",
+type__="transition",
+position=(x=270,
+y=270),
+width=160,
+height=80,
+data=(label="transition 2",
+type__="transition"))],
+arcs=[],
+tokenTypes=[(id="default",
+name="Default",
+color="#3498db")]),
+simulationState=[[(placeId="place__617c6960-06e4-4a23-97c5-8a8398ec2f92",
+marking=[("default",
+0)],
+placeLabel="place 1")]])) in
+
+let labels = net.netDefinition.nodes
+|> map(_, fun node -> node.data)
+|> map(_, fun data -> data.label)
+|> string_join(", ", _)
+
+in labels

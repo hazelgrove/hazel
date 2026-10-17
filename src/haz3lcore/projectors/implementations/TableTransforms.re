@@ -122,13 +122,13 @@ let to_segment =
   let ok = ref(true);
   let lifted =
     info.utility.lift_syntax(
-      ~inline=false,
       fun
       | Exp(exp) => Exp(apply_transforms(exp, transforms))
       | other => {
           ok := false;
           other;
         },
+      Inline.Block,
       info.syntax,
     );
   ok^ ? lifted : None;
