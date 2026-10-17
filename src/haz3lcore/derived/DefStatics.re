@@ -276,6 +276,19 @@ let export_delta =
   let vars =
     List.concat_map(e => is_type_entry(e) ? [] : [entry_name(e)], changed);
   let tnames = List.concat_map(tnames_of_entry, changed);
+  /* an unchanged constructor of a changed sum means something else now
+     (`A : Int -> t` names t), and a use mentions the constructor only */
+  let tnames =
+    tnames
+    @ List.concat_map(
+        fun
+        | Ctx.ConstructorEntry({name, typ, _})
+            when List.exists(v => List.mem(v, tnames), Typ.free_vars(typ)) => [
+            ctor_key(name),
+          ]
+        | _ => [],
+        old @ new_,
+      );
   vars == [] && tnames == []
     ? Unchanged
     : Changed({
