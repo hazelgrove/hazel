@@ -15,9 +15,15 @@ let key = "stdlib:text";
 /* the source as last applied */
 let source: ref(string) = ref("");
 
+/* the code that runs is the seeded parse of this text (LibraryBake.parse:
+   the shipped blob, or an applied text), so an editor fresh from that parse
+   shows it, ids and all */
+let running_parse: ref(option(string)) = ref(None);
+
 let ship = (text: string): unit => {
   shipped := text;
   source := text;
+  running_parse := Some(text);
 };
 
 /* bumped by each install after boot: a slide shown again re-checks and
@@ -32,10 +38,10 @@ let segment = (text: string): Segment.t =>
   | Some((t, seg)) when t == text => seg
   | _ =>
     let seg =
-      switch (FastParse.of_text(~root=Mod, text)) {
-      | Some(seg) => seg
+      switch (LibraryBake.parse(text)) {
+      | Ok({segment, _}) => segment
       /* an edit the fast path refuses: the editor's own parser */
-      | None => Parser.to_segment(text, ~root=Mod) |> Option.get
+      | Error(_) => Parser.to_segment(text, ~root=Mod) |> Option.get
       };
     parsed := Some((text, seg));
     seg;
@@ -45,11 +51,24 @@ let segment = (text: string): Segment.t =>
    it), one for every slide as the library is */
 let kept: ref(option(CellEditor.Model.t)) = ref(None);
 
-/* the kept editor, or one over the applied source, caret at the start */
+/* the segment installed with its own ids, by an apply (None: only the
+   running parse, if any) */
+let installed: ref(option(Segment.t)) = ref(None);
+
+/* the library's editor changed since the code that runs was installed */
+let dirty: ref(bool) = ref(false);
+
+/* the kept editor, or one over the applied source, caret at the start:
+   fresh from the running parse, it is the code that runs */
 let editor = (): CellEditor.Model.t =>
   switch (kept^) {
   | Some(ed) => ed
-  | None => ScratchFocus.cell_of_seg(~root=Mod, segment(source^))
+  | None =>
+    let ed = ScratchFocus.cell_of_seg(~root=Mod, segment(source^));
+    if (running_parse^ == Some(source^)) {
+      installed := Some(ed.editor.editor.syntax.segment);
+    };
+    ed;
   };
 
 let text_of = (ed: CellEditor.Model.t): string =>
@@ -64,10 +83,7 @@ let install = (baked: Language.Library.baked): unit => {
    with errors runs */
 let errors: ref(int) = ref(0);
 
-/* the segment installed with its own ids (None: the shipped blob, whose
-   ids no editor has), and that bake's analysis, so the next is
-   incremental */
-let installed: ref(option(Segment.t)) = ref(None);
+/* the last bake's analysis, so the next is incremental */
 let last_statics: ref(option(DefStatics.t)) = ref(None);
 
 /* [seg], whose text is [text], baked with its own ids and installed here
@@ -84,7 +100,6 @@ let apply_segment_now = (text: string, seg: Segment.t): result(bool, string) =>
       switch (
         LibraryBake.of_items(
           ~strict=false,
-          ~compact=false,
           ~prev=?last_statics^,
           ~hash=Digest.to_hex(Digest.string(text)),
           items,
@@ -96,6 +111,14 @@ let apply_segment_now = (text: string, seg: Segment.t): result(bool, string) =>
         errors := n;
         last_statics := Some(statics);
         installed := Some(seg);
+        dirty := false;
+        running_parse :=
+          (
+            switch (parsed^) {
+            | Some((t, s)) when t == text && s === seg => Some(text)
+            | _ => None
+            }
+          );
         /* the editor made next shows this parse, and these ids */
         parsed := Some((text, seg));
         if (text != source^) {
@@ -141,6 +164,7 @@ let cancel_apply = () => {
 
 /* [fire] (which applies) once no edit has come for apply_after_ms */
 let apply_when_idle = (~fire: unit => unit): unit => {
+  dirty := true;
   cancel_apply();
   apply_timer :=
     Some(
@@ -154,9 +178,11 @@ let apply_when_idle = (~fire: unit => unit): unit => {
     );
 };
 
-/* the library as [ed] holds it */
+/* the library as [ed] holds it, if edited since the last install */
 let apply_editor = (ed: CellEditor.Model.t): result(bool, string) =>
-  apply_segment(text_of(ed), ed.editor.editor.syntax.segment);
+  ! dirty^ && installed^ != None
+    ? Ok(false)
+    : apply_segment(text_of(ed), ed.editor.editor.syntax.segment);
 
 let reset = (): unit => {
   kept := None;

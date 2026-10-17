@@ -301,9 +301,8 @@ let show_library = (shown: bool, code: code): Updated.t(code) =>
   switch (shown, code.lib) {
   | (true, _) =>
     let ed = Option.value(code.lib, ~default=LibraryDoc.editor());
-    if (LibraryDoc.installed^ == None) {
-      ignore(LibraryDoc.apply_editor(ed));
-    };
+    /* a no-op unless the code that runs isn't this editor's */
+    ignore(LibraryDoc.apply_editor(ed));
     Updated.return(
       ~is_edit=false,
       {
@@ -362,6 +361,22 @@ let update =
     )
     : Updated.t(code) => {
   open Updated;
+  /* a step into a function that isn't the slide's (the library's): out to
+     the library, which steps in there, its samples the slide's run's */
+  let to_library = (a: CellEditor.Update.t) =>
+    switch (a) {
+    | MainEditor(Perform(Probe(StepInto(_, {fn_def_id: Some(def), _})))) =>
+      Haz3lcore.ProbePerform.fn_def_in(
+        Program.statics(code.program).info_map,
+        def,
+      )
+      == None
+    | _ => false
+    };
+  let library_step = (a: CellEditor.Update.t) => {
+    schedule_action(LibraryAction(a));
+    show_library(true, code);
+  };
   let cell_update = (id, side, a) =>
     switch (code.program) {
     | Divided(d) =>
@@ -598,6 +613,8 @@ let update =
       };
     | Divided(_) => code |> return_quiet
     };
+  | Stack(_, _, a)
+  | CellAction(a) when to_library(a) => library_step(a)
   | Stack(id, side, a) => cell_update(id, side, a)
   | CellAction(a) =>
     switch (code.program) {

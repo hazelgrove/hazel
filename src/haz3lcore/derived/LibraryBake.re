@@ -41,42 +41,6 @@ let rec chain = (items: list(Mod.t), tail: Exp.t): option(Exp.t) =>
     )
   };
 
-/* every annotation one shared id and no secondary, and without a lexeme
-   one shared record (Marshal stores a shared value once): install re-ids
-   the elab, as evaluation results are */
-let compact: Exp.t => Exp.t = {
-  let shared = IdTagged.IdTag.mk_internal([Id.mk()]);
-  let f:
-    'a.
-    (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
-   =
-    (continue, x) =>
-      {
-        ...x,
-        annotation:
-          switch (x.annotation.lexeme) {
-          | None => shared
-          | lexeme => {
-              ...shared,
-              lexeme,
-            }
-          },
-      }
-      |> continue;
-  e =>
-    Exp.map_term(
-      ~f_exp=f,
-      ~f_pat=f,
-      ~f_typ=f,
-      ~f_tpat=f,
-      ~f_rul=f,
-      ~f_mod=f,
-      ~f_sig=f,
-      ~f_mpat=f,
-      e,
-    );
-};
-
 /* the elaborated chain's definitions in order: a loop, not recursion,
    down a chain as long as the library */
 let defs = (elab: Exp.t): result(list((Var.t, Exp.t)), string) => {
@@ -95,9 +59,8 @@ let defs = (elab: Exp.t): result(list((Var.t, Exp.t)), string) => {
 };
 
 /* each definition with the earlier ones it mentions (the latest of each
-   name), compacted unless it keeps its source's ids */
-let baked_defs =
-    (~compact as c: bool, defs: list((Var.t, Exp.t))): array(Library.def) => {
+   name), keeping its source's ids */
+let baked_defs = (defs: list((Var.t, Exp.t))): array(Library.def) => {
   let latest = Hashtbl.create(64);
   defs
   |> List.mapi((i, (name, def)) => {
@@ -109,7 +72,7 @@ let baked_defs =
        Library.{
          name,
          deps,
-         elab: Marshal.to_string(c ? compact(def) : def, []),
+         elab: Marshal.to_string(def, []),
        };
      })
   |> Array.of_list;
@@ -126,13 +89,11 @@ type baked = {
 /* [items] checked against the builtins alone (the library never sees
    itself). Static errors refuse it when [strict] (the shipped library);
    otherwise it applies with them, as any program with errors runs (an
-   edit in the app). [compact] shares one id throughout (the shipped
-   blob); without it the definitions keep the items' ids, so the code
-   that runs is the code an editor of [items] shows */
+   edit in the app). The definitions keep the items' ids, so the code that
+   runs is the code an editor of [items] shows */
 let of_items =
     (
       ~strict: bool,
-      ~compact: bool,
       ~prev: option(DefStatics.t)=?,
       ~hash: string,
       items: list(Mod.t),
@@ -172,8 +133,7 @@ let of_items =
                baked: {
                  hash,
                  entries: Marshal.to_string(added.entries, []),
-                 defs: baked_defs(~compact, defs),
-                 own_ids: !compact,
+                 defs: baked_defs(defs),
                },
                errors: List.length(errors),
                statics: ds,
@@ -184,21 +144,22 @@ let of_items =
   };
 };
 
-/* the source text parsed on the fast path, then baked */
+/* the library's text parsed on the fast path with ids seeded by the text:
+   the same text gets the same ids at build time and in the app, so the
+   shipped library's code is the code its editor shows */
+let parse = (text: string) =>
+  Id.with_seed(text, () => FastParse.parsed_of_text(~root=Mod, text));
+
+/* the source text parsed, then baked */
 let of_text =
     (~strict: bool, text: string)
     : result((Library.baked, int, Segment.t), string) =>
-  switch (FastParse.parsed_of_text(~root=Mod, text)) {
+  switch (parse(text)) {
   | Error(note) => Error("the library is off the fast parser: " ++ note)
   | Ok({segment, _}) =>
     switch (MakeTerm.Incr.term_of_mod(segment).term) {
     | Module(items) =>
-      of_items(
-        ~strict,
-        ~compact=true,
-        ~hash=Digest.to_hex(Digest.string(text)),
-        items,
-      )
+      of_items(~strict, ~hash=Digest.to_hex(Digest.string(text)), items)
       |> Result.map(({baked, errors, _}) => (baked, errors, segment))
     | _ => Error("the library did not parse as module items")
     }

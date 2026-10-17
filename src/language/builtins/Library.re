@@ -2,9 +2,9 @@
    elaborated at build time by src/stdlib/bake; each entry point installs
    the result at startup. */
 
-/* a top-level definition: its elaboration Marshal'd with one shared id
-   throughout (install re-ids it), decoded and evaluated only when a
-   program first needs it */
+/* a top-level definition: its elaboration Marshal'd, with its source's
+   ids (the editor's: plans/stdlib.md §9b), decoded and evaluated only when
+   a program first needs it */
 type def = {
   name: Var.t,
   /* the earlier definitions it mentions, by index */
@@ -21,10 +21,6 @@ type baked = {
   entries: string,
   /* in order */
   defs: array(def),
-  /* the definitions carry their source's ids, installed as they are (an
-     editor's library); otherwise one shared id, re-ided at install (the
-     shipped blob) */
-  own_ids: bool,
 };
 
 /* [blob]: Marshal'd, not base64 */
@@ -33,9 +29,7 @@ let decode = (blob: string): baked => Marshal.from_string(blob, 0);
 /* evaluated on demand, each definition once and against only the
    definitions it mentions; an env per set of names asked for, so a
    program's stays the same object across its runs */
-let env_for_of =
-    (~own_ids: bool, defs: array(def))
-    : (list(Var.t) => Environment.t(Exp.t)) => {
+let env_for_of = (defs: array(def)): (list(Var.t) => Environment.t(Exp.t)) => {
   let values = Array.make(Array.length(defs), None);
   let rec extend = (env, i) =>
     Environment.extend(env, (defs[i].name, value(i)))
@@ -45,13 +39,7 @@ let env_for_of =
     | None =>
       let env = List.fold_left(extend, Builtins.env_base, defs[i].deps);
       let v =
-        Evaluator.evaluate_raw(
-          ~env,
-          {
-            let elab = Marshal.from_string(defs[i].elab, 0);
-            own_ids ? elab : Exp.replace_all_ids(elab);
-          },
-        );
+        Evaluator.evaluate_raw(~env, Marshal.from_string(defs[i].elab, 0));
       switch (v.term) {
       | Module([item, ..._]) =>
         Builtins.library_modules :=
@@ -85,7 +73,7 @@ let install_baked = (b: baked): unit =>
   Builtins.install_library(
     ~entries=lazy(Marshal.from_string(b.entries, 0)),
     ~names=Array.to_list(Array.map(d => d.name, b.defs)),
-    ~env_for=env_for_of(~own_ids=b.own_ids, b.defs),
+    ~env_for=env_for_of(b.defs),
   );
 
 let install = (blob: string): unit => install_baked(decode(blob));

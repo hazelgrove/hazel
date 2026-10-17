@@ -149,9 +149,7 @@ let tests = (
             Exp.fresh(Module(items)),
           );
         let call = Option.get(call^);
-        switch (
-          LibraryBake.of_items(~strict=true, ~compact=false, ~hash="t", items)
-        ) {
+        switch (LibraryBake.of_items(~strict=true, ~hash="t", items)) {
         | Error(msg) => fail(msg)
         | Ok({baked, _}) =>
           Library.install_baked(baked);

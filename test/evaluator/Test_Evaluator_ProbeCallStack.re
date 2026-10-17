@@ -501,38 +501,92 @@ in apply(add(_, 10), 5)|},
     },
   ),
   test_case(
-    "Step into is offered on a user call, not on a library call",
+    /* the library's code is its editor's (plans/stdlib.md §9b); a
+       primitive has no code to step into */
+
+      "Step into is offered on user and library calls, not on a primitive",
+      `Quick,
+      () => {
+        let offered = code => {
+          let (_, elaborated, info_map, targets) = parse_with_probes(code);
+          let (_, state) =
+            Evaluator.evaluate(
+              ~eval_info=EvalInfo.of_targets(targets),
+              ~env=Builtins.env_init(),
+              elaborated,
+            );
+          switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
+          | [(id, [s, ..._])] =>
+            Haz3lcore.ProbeProj.can_step_into(
+              Option.get(Statics.Map.lookup(id, info_map)),
+              s,
+            )
+          | _ => fail("Expected one probe with samples")
+          };
+        };
+        check(
+          bool,
+          "user call",
+          true,
+          offered({|let inc = fun n -> n + 1 in ^^probe(inc(1))|}),
+        );
+        check(
+          bool,
+          "library call",
+          true,
+          offered({|^^probe(List.map([1, 2, 3], fun n -> n + 1))|}),
+        );
+        check(
+          bool,
+          "primitive",
+          false,
+          offered({|^^probe($prim.string_length("abc"))|}),
+        );
+      },
+    ),
+  /* a recursive function's closure carries its inner Fun's derived id
+     (its FixF keeps the surface Fun's): step into resolves it back */
+  test_case(
+    "A recursive closure's definition resolves to its function",
     `Quick,
     () => {
-      let offered = code => {
-        let (_, elaborated, info_map, targets) = parse_with_probes(code);
-        let (_, state) =
-          Evaluator.evaluate(
-            ~eval_info=EvalInfo.of_targets(targets),
-            ~env=Builtins.env_init(),
-            elaborated,
+      let (_, elaborated, info_map, targets) =
+        parse_with_probes(
+          {|let f = fun n -> if n == 0 then 0 else f(n - 1) in ^^probe(f(2))|},
+        );
+      let (_, state) =
+        Evaluator.evaluate(
+          ~eval_info=EvalInfo.of_targets(targets),
+          ~env=Builtins.env_init(),
+          elaborated,
+        );
+      switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
+      | [(_, [s, ..._])] =>
+        let def =
+          Option.get(
+            Option.bind(s.frame, (f: CallStack.frame) => f.fn_def_id),
           );
-        switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
-        | [(id, [s, ..._])] =>
-          Haz3lcore.ProbeProj.can_step_into(
-            Option.get(Statics.Map.lookup(id, info_map)),
-            s,
-          )
-        | _ => fail("Expected one probe with samples")
-        };
+        check(
+          bool,
+          "not the function's own id",
+          false,
+          Id.Map.mem(def, info_map),
+        );
+        check(
+          bool,
+          "resolves to a function",
+          true,
+          switch (
+            Option.bind(Haz3lcore.ProbePerform.fn_def_in(info_map, def), id =>
+              Statics.Map.lookup(id, info_map)
+            )
+          ) {
+          | Some(InfoExp({user_term: {term: Fun(_), _}, _})) => true
+          | _ => false
+          },
+        );
+      | _ => fail("Expected one probe with samples")
       };
-      check(
-        bool,
-        "user call",
-        true,
-        offered({|let inc = fun n -> n + 1 in ^^probe(inc(1))|}),
-      );
-      check(
-        bool,
-        "library call",
-        false,
-        offered({|^^probe(List.map([1, 2, 3], fun n -> n + 1))|}),
-      );
     },
   ),
 ];

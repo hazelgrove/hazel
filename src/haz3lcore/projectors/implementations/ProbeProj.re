@@ -979,7 +979,10 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
       Some(name)
     | _ => None
     };
-  let is_builtin = name => Builtins.predefined(name);
+  /* OCaml builtins have no code to step into; the standard library's
+     functions do (its code is its editor's: plans/stdlib.md §9b) */
+  let is_builtin = name =>
+    Language.Environment.lookup(Builtins.env_base, name) != None;
   let static_ok =
     switch (fn_var_name) {
     | Some(name) => !is_builtin(name)
@@ -994,8 +997,8 @@ let can_step_into = (statics: Language.Statics.Info.t, sample: Sample.t): bool =
     | Parens(e) => root_name(e)
     | _ => None
     };
-  /* Suppress the dynamic offer for direct builtin and library call sites:
-     their fn_def_id points to library code with nowhere to step. */
+  /* Suppress the dynamic offer for direct builtin call sites: there is no
+     code to step to. */
   let static_fn_is_builtin =
     switch (statics) {
     | InfoExp({user_term: {term: Ap(_, fn, _), _}, _}) =>
