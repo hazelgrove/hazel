@@ -1042,26 +1042,40 @@ module View = {
         | None => []
         },
       );
-    /* the program level: the slide's name, its outline the library's */
-    let program_level =
-      switch (deck) {
-      | Some((_, m)) =>
-        let sp = List.nth(m.scratchpads, m.current);
-        switch (sp.kind) {
-        | Code({lib: Some(_), _}) => Some(sp.name)
-        | _ => None
-        };
-      | None => None
+    /* the program level, above every code slide: the standard library,
+       shown in the slide's place while [lib] holds it */
+    let workspace = a => inject(Editors(Scratch(Workspace(a))));
+    let enclosing: option(OutlineControl.enclosing) =
+      switch (Option.bind(deck, OutlineControl.current)) {
+      | Some({kind: Code({lib, _}), _}) =>
+        Some({
+          e_above: {
+            a_label: "program",
+            a_out: "zoom out to the program: the standard library",
+            a_here: "the standard library",
+            a_chip:
+              LibraryDoc.edited()
+                ? Some((
+                    {js|edited ↺|js},
+                    "the library is edited: back to the shipped one",
+                  ))
+                : None,
+          },
+          e_shown: lib != None,
+          e_go: shown => workspace(ShowLibrary(shown)),
+          e_chip: workspace(ResetLibrary),
+        })
+      | _ => None
       };
     let outline =
       OutlineControl.view(
         ~arrows=globals.settings.outline_arrows,
-        ~deck=program_level == None ? deck : None,
-        ~program_level?,
+        ~deck,
+        ~enclosing?,
         ~statics=current_editor.statics,
         ~segment=current_editor.editor.syntax.segment,
         ~inject=a => inject(Editors(Scratch(Outline(a)))),
-        ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
+        ~inject_workspace=workspace,
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
         ~statics_on=globals.settings.core.statics,

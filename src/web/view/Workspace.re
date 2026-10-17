@@ -515,8 +515,6 @@ let update =
     outline_view((term, _, v) => SlideView.discard(~term, v), code)
   | ZoomIn(fid) =>
     outline_view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)
-  /* out of the slide's top: the program level */
-  | ZoomOut when code.view.zoom == [] => show_library(true, code)
   | ZoomOut => outline_view((_, _, v) => SlideView.zoom_out(v), code)
   | ShowLibrary(shown) => show_library(shown, code)
   | LibraryAction(a) =>
