@@ -1905,8 +1905,8 @@ let drag_tests = [
     "drag candidates: multiline chain sink is a downward track",
     `Quick,
     () => {
-      /* both downward states are offered (no arrow-key preemption):
-         sink one rung, or feed the use two rows down */
+      /* the let's handles move the LINE; feeding is the value's own
+         move (grab the definition) */
       let cs = drag_cands("¦let x = 2 in\nlet a = 1 in\nx + a");
       let sink =
         cs |> List.find((c: Refactor.DragCandidate.t) => c.kind == SinkLet);
@@ -1914,20 +1914,34 @@ let drag_tests = [
       check(bool, "one row down", true, r1 == r0 + 1);
       check(
         bool,
-        "feed offered too",
-        true,
+        "no feed from the let",
+        false,
         List.exists((c: Refactor.DragCandidate.t) => c.kind == FeedLet, cs),
+      );
+      check(
+        bool,
+        "feed from the definition",
+        true,
+        drag_cands("let x = ¦2 in\nlet a = 1 in\nx + a")
+        |> List.exists((c: Refactor.DragCandidate.t) => c.kind == FeedLet),
       );
     },
   ),
   test_case(
-    "drag candidates: mid-chain offers hoist up and feed down",
+    "drag candidates: a mid-chain let moves its line, its value feeds",
     `Quick,
     () => {
       let cs = drag_cands("let a = 1 in\n¦let x = 2 in\nx + a");
       let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
       check(bool, "hoist", true, List.mem(Action.HoistLet, kinds));
-      check(bool, "feed", true, List.mem(Action.FeedLet, kinds));
+      check(bool, "no feed", false, List.mem(Action.FeedLet, kinds));
+      check(
+        bool,
+        "value feeds",
+        true,
+        drag_cands("let a = 1 in\nlet x = ¦2 in\nx + a")
+        |> List.exists((c: Refactor.DragCandidate.t) => c.kind == FeedLet),
+      );
       let hoist =
         cs |> List.find((c: Refactor.DragCandidate.t) => c.kind == HoistLet);
       let ((r0, _), (r1, _)) = track_of(hoist);
@@ -2060,7 +2074,7 @@ let drag_tests = [
     "drag candidates: two-stage feed targets the LIVE use position",
     `Quick,
     () => {
-      let cs = drag_cands("¦let x = 2 in\nx + a");
+      let cs = drag_cands("let x = ¦2 in\nx + a");
       let feed =
         cs
         |> List.find_opt((c: Refactor.DragCandidate.t) => c.kind == FeedLet);
@@ -2099,7 +2113,7 @@ let drag_tests = [
     "drag candidates: feed track runs def -> use",
     `Quick,
     () => {
-      let cs = drag_cands("¦let k = 3 in k + k");
+      let cs = drag_cands("let k = ¦3 in k + k");
       let feed =
         cs
         |> List.find_opt((c: Refactor.DragCandidate.t) => c.kind == FeedLet);
@@ -4115,12 +4129,12 @@ let tyalias_tests = [
   }),
 ];
 
-/* comment invariants: never deleted, never duplicated; positional
-   behavior characterized (doc blocks stay with the SLOT today —
-   flips if/when comment-block attachment lands) */
+/* comment invariants: never deleted, never duplicated; own-line
+   comments are LINES — a definition crosses one as its own rung and
+   comments never travel with a definition */
 let comment_tests = [
   test_case(
-    "comment: doc block FOLLOWS its definition on hoist",
+    "comment: hoisting crosses the comment above, as its own rung",
     `Quick,
     () => {
       let z =
@@ -4132,13 +4146,13 @@ let comment_tests = [
       check(
         string,
         "hoist",
-        "# doc for b #\nlet b = 2 in\nlet a = 1 in\na + b",
+        "let a = 1 in\nlet b = 2 in\n# doc for b #\na + b",
         z,
       );
     },
   ),
   test_case(
-    "comment: doc block FOLLOWS its definition on sink",
+    "comment: sinking past a line leaves the comment above it in place",
     `Quick,
     () => {
       let z =
@@ -4150,13 +4164,13 @@ let comment_tests = [
       check(
         string,
         "sink",
-        "let z = 0 in\nlet b = 2 in\n# doc for a #\nlet a = 1 in\na + b",
+        "let z = 0 in\n# doc for a #\nlet b = 2 in\nlet a = 1 in\na + b",
         z,
       );
     },
   ),
   test_case(
-    "comment: buffer-start doc block follows its definition",
+    "comment: a buffer-start comment stays at the top",
     `Quick,
     () => {
       let z =
@@ -4168,7 +4182,7 @@ let comment_tests = [
       check(
         string,
         "sink",
-        "let b = 2 in\n# doc for a #\nlet a = 1 in\na + b",
+        "# doc for a #\nlet b = 2 in\nlet a = 1 in\na + b",
         z,
       );
     },
@@ -4192,7 +4206,7 @@ let comment_tests = [
     },
   ),
   test_case(
-    "comment: comment-fn-comment-fn style, both blocks follow",
+    "comment: sinking crosses the comment below, as its own rung",
     `Quick,
     () => {
       let z =
@@ -4204,13 +4218,13 @@ let comment_tests = [
       check(
         string,
         "sink",
-        "let z = 0 in\n# doc b #\nlet b = 2 in\n# doc a #\nlet a = 1 in\na + b",
+        "let z = 0 in\n# doc a #\n# doc b #\nlet a = 1 in\nlet b = 2 in\na + b",
         z,
       );
     },
   ),
   test_case(
-    "comment: multi-line doc block travels whole",
+    "comment: one comment line per rung",
     `Quick,
     () => {
       let z =
@@ -4222,13 +4236,13 @@ let comment_tests = [
       check(
         string,
         "hoist",
-        "# doc one #\n# doc two #\nlet b = 2 in\nlet a = 1 in\na + b",
+        "let a = 1 in\n# doc one #\nlet b = 2 in\n# doc two #\na + b",
         z,
       );
     },
   ),
   test_case(
-    "comment: doc block rides a statement crossing",
+    "comment: a statement crossing leaves comments in place",
     `Quick,
     () => {
       let z =
@@ -4240,8 +4254,73 @@ let comment_tests = [
       check(
         string,
         "sink",
-        "let z = 0 in\n1 + 1;\n# doc a #\nlet a = 1 in\na + 2",
+        "let z = 0 in\n# doc a #\n1 + 1;\nlet a = 1 in\na + 2",
         z,
+      );
+    },
+  ),
+  test_case(
+    "comment: blank lines keep their rows across a comment rung",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistLet,
+          "let a = 1 in\n\n# c #\n\nlet ¦b = 2 in\na + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "hoist",
+        "let a = 1 in\n\nlet b = 2 in\n\n# c #\na + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: a block's first line crosses the comment above it",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistLet,
+          "let f =\n  # c #\n  let ¦x = 1 in\n  x\nin\nf",
+        )
+        |> text_of;
+      check(
+        string,
+        "hoist",
+        "let f =\n  let x = 1 in\n  # c #\n  x\nin\nf",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "comment: a comment rung is offered when it is the only rung",
+    `Quick,
+    () => {
+      let src = "let f = fun y ->\n  # c #\n  let ¦x = y in\n  x\nin\nf(1)";
+      check(bool, "offered", true, offers(HoistLet, src));
+      check(
+        string,
+        "hoist",
+        "let f = fun y ->\n  let x = y in\n  # c #\n  x\nin\nf(1)",
+        inline(~kind=HoistLet, src) |> text_of,
+      );
+    },
+  ),
+  test_case(
+    "comment: up then down across a comment is the identity",
+    `Quick,
+    () => {
+      let src = "let a = 1 in\n# c #\nlet ¦b = 2 in\na + b";
+      let z1 = inline(~kind=HoistLet, src);
+      let z2 = Test_Editing.perform(z1, [Action.Refactor(SinkLet)]);
+      check(
+        string,
+        "round trip",
+        "let a = 1 in\n# c #\nlet b = 2 in\na + b",
+        text_of(z2),
       );
     },
   ),
@@ -4691,7 +4770,7 @@ let inline_alias_tests = [
 
 let doc_carry_tests = [
   test_case(
-    "comment: mid-chain doc block travels on hoist",
+    "comment: a mid-chain hoist crosses the comment first",
     `Quick,
     () => {
       let z =
@@ -4703,13 +4782,13 @@ let doc_carry_tests = [
       check(
         string,
         "h",
-        "let z = 0 in\n# doc b #\nlet b = 2 in\nlet a = 1 in\na + b",
+        "let z = 0 in\nlet a = 1 in\nlet b = 2 in\n# doc b #\na + b",
         z,
       );
     },
   ),
   test_case(
-    "comment: crossed line's doc block stays ITS doc",
+    "comment: a crossed line's comment stays on its row",
     `Quick,
     () => {
       let z =
@@ -4721,13 +4800,13 @@ let doc_carry_tests = [
       check(
         string,
         "h",
-        "let z = 0 in\nlet b = 2 in\n# doc a #\nlet a = 1 in\na + b",
+        "let z = 0 in\n# doc a #\nlet b = 2 in\nlet a = 1 in\na + b",
         z,
       );
     },
   ),
   test_case(
-    "comment: mid-chain doc block rides a sink",
+    "comment: a mid-chain sink crosses the comment first",
     `Quick,
     () => {
       let z =
@@ -4739,7 +4818,7 @@ let doc_carry_tests = [
       check(
         string,
         "s",
-        "let z = 0 in\n# doc b #\nlet b = 2 in\nlet a = 1 in\na + b",
+        "let z = 0 in\n# doc b #\nlet a = 1 in\nlet b = 2 in\na + b",
         z,
       );
     },

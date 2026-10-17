@@ -773,11 +773,8 @@ let absorbable = (~info_map, upper: Exp.t, lower: Exp.t): bool =>
   | _ => false
   };
 
-/* 4th component: rep ids of the definition lines whose attached doc
-   blocks should be re-homed after the rewrite (carry_attached_docs) */
 let hoist_step =
-    (~fixup: bool, path: list(Exp.t))
-    : option((Exp.t, Exp.t, Id.t, list(Id.t))) => {
+    (~fixup: bool, path: list(Exp.t)): option((Exp.t, Exp.t, Id.t)) => {
   let occupy =
       (slot: (list(Secondary.t), list(Secondary.t)), region: Exp.t) =>
     fixup ? Slot.occupy(slot, region) : region;
@@ -806,9 +803,9 @@ let hoist_step =
             same_node(pbody, c)
             && same_node(c, l)
             && lines_swappable(bp, bl) =>
-        /* chain swap; the two lines exchange line slots (attached
-           doc blocks are re-homed by carry_attached_docs, from the
-           textual pre-image — holders of a line's lead vary) */
+        /* chain swap; the two lines exchange line slots (own-line
+           comments stay put: crossing one is its own rung,
+           comment_rung) */
         /* end-of-line comments (after a line's `in`) travel with
            their line: the upper line's sits at the start of l's lead,
            the moving line's at the start of lbody's (invocation only:
@@ -838,7 +835,7 @@ let hoist_step =
           );
         let l': Exp.t =
           with_secondary(p.annotation.secondary, def_line_rebuild(l, m'));
-        Some((p, l', Exp.rep_id(l), [Exp.rep_id(l), Exp.rep_id(p)]));
+        Some((p, l', Exp.rep_id(l)));
       | _ => None
       };
     let seq_hoist =
@@ -862,18 +859,13 @@ let hoist_step =
           };
           let result =
             Slot.give(ss, def_line_rebuild(Slot.drop(sl, l), inner));
-          Some((
-            p,
-            result,
-            Exp.rep_id(l),
-            [Exp.rep_id(l), Exp.rep_id(s1)],
-          ));
+          Some((p, result, Exp.rep_id(l)));
         } else {
           let inner: Exp.t = {
             ...p,
             term: Seq(s1, lbody),
           };
-          Some((p, def_line_rebuild(l, inner), Exp.rep_id(l), []));
+          Some((p, def_line_rebuild(l, inner), Exp.rep_id(l)));
         }
       | _ => None
       };
@@ -944,7 +936,7 @@ let hoist_step =
                 term: Let(lp, ldef, m'),
               },
             );
-          Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
+          Some((p, l', Exp.rep_id(l)));
         | Match(scrut, rules)
             when
               same_node(c, l)
@@ -994,7 +986,7 @@ let hoist_step =
                 term: Let(lp, ldef, match'),
               },
             );
-          Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
+          Some((p, l', Exp.rep_id(l)));
         | If(cond_, t_, alt_)
             when
               same_node(c, l)
@@ -1026,7 +1018,7 @@ let hoist_step =
                 term: Let(lp, ldef, if'),
               },
             );
-          Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
+          Some((p, l', Exp.rep_id(l)));
         | Fun(fp, fbody, ft, fn)
             when
               same_node(fbody, c)
@@ -1063,7 +1055,7 @@ let hoist_step =
                 term: Let(lp, ldef, fun'),
               },
             );
-          Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
+          Some((p, l', Exp.rep_id(l)));
         | Let(_)
         | Fun(_)
         | FixF(_) => None
@@ -1145,7 +1137,7 @@ let hoist_step =
                   l',
                 )
                   ? fresh(Parens(l')) : l';
-              Some((p, l', Exp.rep_id(l), [Exp.rep_id(l)]));
+              Some((p, l', Exp.rep_id(l)));
             }
             : None
         };
@@ -1188,7 +1180,7 @@ let rec is_bare_use = (names: list(string), e: Exp.t): bool =>
   | _ => false
   };
 
-let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
+let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t)) => {
   let take_lead = (region: Exp.t): (list(Secondary.t), Exp.t) =>
     if (fixup) {
       let s = Slot.lead_of(region);
@@ -1276,7 +1268,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
             l.annotation.secondary,
             def_line_rebuild(lbody, l'),
           );
-        Some((m', Exp.rep_id(l), [Exp.rep_id(l), Exp.rep_id(lbody)]));
+        Some((m', Exp.rep_id(l)));
       | _ => None
       }
     | None => None
@@ -1298,13 +1290,13 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
             ...lbody,
             term: Seq(s1', inner),
           };
-          Some((result, Exp.rep_id(l), [Exp.rep_id(l), Exp.rep_id(s1)]));
+          Some((result, Exp.rep_id(l)));
         } else {
           let result: Exp.t = {
             ...lbody,
             term: Seq(s1, def_line_rebuild(l, rest)),
           };
-          Some((result, Exp.rep_id(l), []));
+          Some((result, Exp.rep_id(l)));
         }
       | _ => None
       }
@@ -1375,7 +1367,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
               term: Let(mp, l', mbody),
             },
           );
-        Some((m', Exp.rep_id(l), [Exp.rep_id(l)]));
+        Some((m', Exp.rep_id(l)));
       | Fun(fp, fbody, ft, fn)
           when
             disjoint_names(l_names, pat_var_names(fp))
@@ -1400,7 +1392,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
               term: Fun(fp, l', ft, fn),
             },
           );
-        Some((fun', Exp.rep_id(l), [Exp.rep_id(l)]));
+        Some((fun', Exp.rep_id(l)));
       | Match(scrut, rules) when !names_mentioned(l_names, scrut) =>
         /* into the single arm that uses the binding */
         switch (
@@ -1432,7 +1424,7 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
                 term: Match(scrut, rules'),
               },
             );
-          Some((match', Exp.rep_id(l), [Exp.rep_id(l)]));
+          Some((match', Exp.rep_id(l)));
         | _ => None
         }
       | If(c, t, alt) when !names_mentioned(l_names, c) =>
@@ -1460,7 +1452,6 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
               },
             ),
             Exp.rep_id(l),
-            [Exp.rep_id(l)],
           ));
         | (false, true) when !names_mentioned(l_names, t) =>
           let (a_lead, alt') = take_lead(alt);
@@ -1482,7 +1473,6 @@ let sink_step = (~fixup: bool, l: Exp.t): option((Exp.t, Id.t, list(Id.t))) => {
               },
             ),
             Exp.rep_id(l),
-            [Exp.rep_id(l)],
           ));
         | _ => None
         }
@@ -1592,16 +1582,6 @@ let merge_down_impl: impl = {
                   )),
               program,
             )
-            |> Option.map(((prog', f)) =>
-                 (
-                   carry_attached_docs(
-                     ~line_ids=[Exp.rep_id(lbody)],
-                     ~pre=program,
-                     prog',
-                   ),
-                   f,
-                 )
-               )
           | None => None
           }
         | _ => None
@@ -1618,21 +1598,29 @@ let hoist_let_impl: impl = {
   prepare: (~info_map as _, ~target, program) =>
     switch (find_path(~hit=hit_def_line(target), program)) {
     | Some(path) =>
-      switch (hoist_step(~fixup=true, path)) {
-      /* movement never parenthesizes, so no invocation oracle: the
-         whole-program reparse cost ~0.5s per press on a few-page
-         buffer. Reparse-safety is covered by the movement reparse
-         tests in Test_Refactor instead. */
-      | Some((pnode, result, focus, carry)) =>
-        rewrite_node(
-          ~hit=same_node(pnode),
-          ~rewrite=_ => Some((result, focus)),
-          program,
+      /* a comment line just above is the first rung */
+      switch (
+        comment_rung(
+          ~up=true,
+          ~program,
+          List.nth(path, List.length(path) - 1),
         )
-        |> Option.map(((prog', f)) =>
-             (carry_attached_docs(~line_ids=carry, ~pre=program, prog'), f)
-           )
-      | None => None
+      ) {
+      | Some(r) => Some(r)
+      | None =>
+        switch (hoist_step(~fixup=true, path)) {
+        /* movement never parenthesizes, so no invocation oracle: the
+           whole-program reparse cost ~0.5s per press on a few-page
+           buffer. Reparse-safety is covered by the movement reparse
+           tests in Test_Refactor instead. */
+        | Some((pnode, result, focus)) =>
+          rewrite_node(
+            ~hit=same_node(pnode),
+            ~rewrite=_ => Some((result, focus)),
+            program,
+          )
+        | None => None
+        }
       }
     | None => None
     },
@@ -1647,17 +1635,19 @@ let sink_let_impl: impl = {
       |> Option.map(path => List.nth(path, List.length(path) - 1))
     ) {
     | Some(l) =>
-      switch (sink_step(~fixup=true, l)) {
-      | Some((result, focus, carry)) =>
-        rewrite_node(
-          ~hit=same_node(l),
-          ~rewrite=_ => Some((result, focus)),
-          program,
-        )
-        |> Option.map(((prog', f)) =>
-             (carry_attached_docs(~line_ids=carry, ~pre=program, prog'), f)
-           )
-      | None => None
+      /* a comment line just below is the first rung */
+      switch (comment_rung(~up=false, ~program, l)) {
+      | Some(r) => Some(r)
+      | None =>
+        switch (sink_step(~fixup=true, l)) {
+        | Some((result, focus)) =>
+          rewrite_node(
+            ~hit=same_node(l),
+            ~rewrite=_ => Some((result, focus)),
+            program,
+          )
+        | None => None
+        }
       }
     | None => None
     },
@@ -1705,15 +1695,11 @@ let hoist_carry_impl: impl = {
           cbody,
           List.rev(List.combine(new_order, secs)),
         );
-      let carry = nodes |> List.map(Exp.rep_id);
       rewrite_node(
         ~hit=same_node(List.hd(nodes)),
         ~rewrite=_ => Some((result, Exp.rep_id(c))),
         program,
-      )
-      |> Option.map(((prog', f)) =>
-           (carry_attached_docs(~line_ids=carry, ~pre=program, prog'), f)
-         );
+      );
     },
 };
 

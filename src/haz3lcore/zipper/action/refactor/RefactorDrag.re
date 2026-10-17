@@ -192,9 +192,6 @@ module DragCandidate = {
 
   type t = {
     kind: Action.refactor,
-    /* where the refactor is invoked: the grab, or (for a grabbed
-       definition root) its let */
-    at: Id.t,
     label: string,
     current: Measured.Point.t, /* track start (live layout) */
     target: Measured.Point.t, /* track end (screen frame) */
@@ -285,9 +282,15 @@ let drag_kinds =
       ? [Action.HoistCarry, LiftFunction]
         |> List.filter(k => applies(k, ~info_map, ~target, term))
       : [];
+  /* one element per token: a line's handles (let, binder, =, in) move
+     the LINE; the value moves only by its own definition (grab the
+     def's root to feed) */
+  let line_handle = find_hit(~hit=hit_def_line(target), term) != None;
   [Action.Gesture.Up, Down, Left, Right]
   |> List.concat_map(gesture_options(~info_map, ~term, ~target, ~shard))
-  |> List.filter(k => k != Action.UnfoldCall)
+  |> List.filter(k =>
+       k != Action.UnfoldCall && !(line_handle && k == Action.FeedLet)
+     )
   |> (ks => ks @ insist)
   |> List.fold_left((acc, k) => List.mem(k, acc) ? acc : acc @ [k], []);
 };
@@ -307,17 +310,6 @@ let lands_elsewhere = (kind: Action.refactor): bool =>
   | LiftFunction
   | RemoveParameter
   | ExpandWildcard => true
-  | _ => false
-  };
-
-let moves_let = (kind: Action.refactor): bool =>
-  switch (kind) {
-  | HoistLet
-  | SinkLet
-  | MergeUp
-  | MergeDown
-  | HoistCarry
-  | LiftFunction => true
   | _ => false
   };
 
@@ -355,7 +347,7 @@ let drag_candidates =
     | _ => Measured.find_by_id(id, m)
     };
   let mk =
-      (~feed_pref: bool=false, ~at: Id.t, kind: Action.refactor)
+      (~feed_pref: bool=false, kind: Action.refactor)
       : option(DragCandidate.t) => {
     /* feeds drag from the BINDING side only (established rule):
        an at-use feed's clone lands where you grabbed — a
@@ -367,7 +359,7 @@ let drag_candidates =
       kind == FeedLet
       && (
         switch (
-          feed_site(~prefer_def_host=feed_pref, ~info_map, ~target=at, term)
+          feed_site(~prefer_def_host=feed_pref, ~info_map, ~target, term)
         ) {
         | Some((_, _, Some(_))) => true
         | _ => false
@@ -381,7 +373,7 @@ let drag_candidates =
         | FeedLet => feed_prepare(~prefer_def_host=feed_pref)
         | _ => impl(kind).prepare
         };
-      switch (prepare(~info_map, ~target=at, term)) {
+      switch (prepare(~info_map, ~target, term)) {
       | None => None
       | Some((term', focus)) =>
         let segment =
@@ -390,8 +382,8 @@ let drag_candidates =
         let cand_measured =
           Measured.of_segment(segment, shape_map, Id.Map.empty);
         let (from_id, to_id) =
-          drag_anchor(~feed_pref, ~info_map, ~target=at, kind, term)
-          |> Option.value(~default=(at, at));
+          drag_anchor(~feed_pref, ~info_map, ~target, kind, term)
+          |> Option.value(~default=(target, target));
         let to_pos = (id: Id.t) =>
           shard_meas(id, cand_measured)
           |> Option.map((m: Measured.measurement) => m.origin);
@@ -400,7 +392,7 @@ let drag_candidates =
            survivor rises into the vacated row — the result alone
            would show no travel) */
         let merge_drop = () =>
-          switch (merge_target(~info_map, ~target=at, kind, term)) {
+          switch (merge_target(~info_map, ~target, kind, term)) {
           | ([d, ..._], [v, ..._]) =>
             switch (
               Measured.find_by_id(d, measured),
@@ -456,7 +448,7 @@ let drag_candidates =
                  frame. (Pinning it overlapped the flyer with the
                  pinned body mid-drag — andrew.) */
               let takeover =
-                switch (extract_path(~target=at, term)) {
+                switch (extract_path(~target, term)) {
                 | Some(path) =>
                   let line = lowest_line(path);
                   same_node(line, term)
@@ -486,7 +478,7 @@ let drag_candidates =
                 feed_plan(
                   ~prefer_def_host=feed_pref,
                   ~info_map,
-                  ~target=at,
+                  ~target,
                   term,
                 )
               ) {
@@ -541,7 +533,6 @@ let drag_candidates =
           cur.origin != tgt
             ? Some({
                 DragCandidate.kind,
-                at,
                 label: impl(kind).label,
                 current: cur.origin,
                 target: tgt,
@@ -563,40 +554,8 @@ let drag_candidates =
      the grab) then contradicts (andrew hit it: preview moved y's
      def, release fed a's binding). INVARIANT: enumeration must stay
      within what the commit re-derives. */
-  /* the grab's own refactors, then — when it is a definition root's
-     leading token — its let's moves: the definition is the element,
-     and its let line travels with it (the binder-as-handle
-     convention, reversed). Later delimiters keep their own vocations
-     (a case's end adds arms, then/else flip). */
-  let own =
-    drag_kinds(~info_map, ~term, ~push, ~target, ~shard=grab_shard)
-    |> List.map(k => (k, target));
-  let via_let =
-    switch (
-      (grab_shard == None || grab_shard == Some(0))
-      /* a let-headed def's root is that inner let: its own handles */
-      && find_hit(~hit=hit_def_line(target), term) == None
-        ? find_hit(
-            ~hit=
-              e =>
-                switch (IdTagged.term_of(e)) {
-                | Let(_, def, _) => List.mem(target, IdTagged.ids(def))
-                | _ => false
-                },
-            term,
-          )
-        : None
-    ) {
-    | Some(l) =>
-      let at = Exp.rep_id(l);
-      drag_kinds(~info_map, ~term, ~push, ~target=at, ~shard=None)
-      |> List.filter(moves_let)
-      |> List.map(k => (k, at));
-    | None => []
-    };
-  own
-  @ via_let
-  |> List.filter_map(((kind, at)) => mk(~at, kind))
+  drag_kinds(~info_map, ~term, ~push, ~target, ~shard=grab_shard)
+  |> List.filter_map(kind => mk(kind))
   |> List.fold_left(
        (acc, c: DragCandidate.t) =>
          List.exists((c': DragCandidate.t) => c'.target == c.target, acc)

@@ -397,18 +397,6 @@ let lift_function_impl: impl = {
             ~rewrite=_ => Some((new_let, focus)),
             program,
           )
-          |> Option.map(((prog', f)) =>
-               (
-                 carry_attached_docs(
-                   ~line_ids=
-                     (site.ls_block |> List.map(Exp.rep_id))
-                     @ [Exp.rep_id(site.ls_outer)],
-                   ~pre=program,
-                   prog',
-                 ),
-                 f,
-               )
-             )
         };
       | _ => None
       };

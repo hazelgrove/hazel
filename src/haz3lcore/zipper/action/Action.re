@@ -14,6 +14,8 @@ type goal =
   | Hole(Direction.t)
   | NextProblem(Direction.t)
   | TileId([@equal (_, _) => true] Id.t)
+  /* one shard of a multi-shard tile (the `in` of a let, a case's end) */
+  | TileShard([@equal (_, _) => true] Id.t, int)
   | BindingSiteOfIndicatedVar;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

@@ -233,12 +233,16 @@ let applies =
     }
   | HoistLet =>
     switch (find_path(~hit=hit_def_line(target), program)) {
-    | Some(path) => Option.is_some(hoist_step(~fixup=false, path))
+    | Some(path) =>
+      comment_rung_applies(~up=true, List.nth(path, List.length(path) - 1))
+      || Option.is_some(hoist_step(~fixup=false, path))
     | None => false
     }
   | SinkLet =>
     switch (find_hit(~hit=hit_def_line(target), program)) {
-    | Some(l) => Option.is_some(sink_step(~fixup=false, l))
+    | Some(l) =>
+      comment_rung_applies(~up=false, l)
+      || Option.is_some(sink_step(~fixup=false, l))
     | None => false
     }
   | MergeUp => Option.is_some(merge_site_up(~info_map, ~target, program))

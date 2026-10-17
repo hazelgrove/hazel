@@ -76,7 +76,6 @@ type vec = {
 
 type cand = {
   kind: Action.refactor,
-  at: Id.t,
   label: string,
   cur: vec, /* text-box-local px */
   tgt: vec,
@@ -123,8 +122,11 @@ type pending =
   | AwaitChange(option(Zipper.t), option(Language.Exp.t));
 
 type session = {
-  /* commit a refactor invoked at a tile (the grab, or its let) */
+  /* commit a refactor at the grabbed tile */
   commit: (Action.refactor, Id.t) => unit,
+  /* put the caret back on the held token after a chain rung (the
+     transform's caret lands on its own focus) */
+  reseat: ((Id.t, option(int))) => unit,
   chain: Language.CoreSettings.DragChain.t,
   push: bool,
   text_box: Js.t(Dom_html.element),
@@ -145,10 +147,11 @@ type session = {
   /* the first chained commit's kind ("same kind" chaining filters to
      its family) */
   mutable chain_kind: option(Action.refactor),
-  /* the pointer in client px; after a chain commit the next tracks
-     start from wherever the hand is then */
-  mutable last_client: (float, float),
-  mutable rebase: bool,
+  /* after a chain rung, where the hand WOULD be with the element under
+     it (client px): the rung commits at snap_min_t, so the hand trails
+     the landed element — the next tracks start from the element's
+     place, not the hand's, or the gap compounds rung by rung */
+  mutable rebase_at: option(vec),
   /* after a feed rung the hand holds the copy it placed (D2's
      duplicate-and-follow), not the definition: the next feed's track
      runs from that copy to the next use */
@@ -998,9 +1001,26 @@ let resolve = (s: session, p: vec): unit => {
       if (s.chain_kind == None) {
         s.chain_kind = Some(c.kind);
       };
-      s.rebase = true;
+      let o = box_origin(s);
+      s.rebase_at =
+        Some({
+          x: o.x +. s.down_at.x +. (c.tgt.x -. c.cur.x),
+          y: o.y +. s.down_at.y +. (c.tgt.y -. c.cur.y),
+        });
       s.held_at = c.kind == FeedLet ? Some(c.tgt) : None;
-      s.commit(c.kind, c.at);
+      /* drop the lean NOW, without the rebound: its offsets sit on
+         nodes the commit re-renders, and a lean left behind shows as
+         backings sliding off their text */
+      s.local_give |> List.iter(anim => cancel_anims([anim]));
+      s.local_give = [];
+      s.local_give_g = {
+        x: 0.,
+        y: 0.,
+      };
+      switch (s.grab) {
+      | Some((id, _)) => s.commit(c.kind, id)
+      | None => ()
+      };
     };
   | _ =>
     s.winner = None;
@@ -1075,10 +1095,6 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
   | None => ()
   | Some(s) =>
     let p = local(s, e);
-    s.last_client = (
-      Js.Unsafe.coerce(e)##.clientX,
-      Js.Unsafe.coerce(e)##.clientY,
-    );
     if (!s.began) {
       let d = sqrt((p.x -. s.down_at.x) ** 2. +. (p.y -. s.down_at.y) ** 2.);
       if (d > slop) {
@@ -1092,7 +1108,7 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
     if (s.began && s.pending == Idle) {
       resolve(s, p);
       draw(s);
-    } else if (s.began) {
+    } else if (s.began && s.rebase_at == None) {
       /* nothing draggable here (zero candidates park the session in
          AwaitChange, so resolve never runs) — the token still leans
          toward the hand: refusal you can FEEL before the release
@@ -1151,7 +1167,10 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
       CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
       s.scrub_anims = [];
       s.scrub_active = None;
-      s.commit(c.kind, c.at);
+      switch (s.grab) {
+      | Some((id, _)) => s.commit(c.kind, id)
+      | None => ()
+      };
     | _ => ()
     };
     end_session();
@@ -1171,6 +1190,7 @@ let listen = (name: string, f: Js.t(Dom_html.event) => unit) =>
 let arm =
     (
       ~commit: (Action.refactor, Id.t) => unit,
+      ~reseat: ((Id.t, option(int))) => unit,
       ~chain: Language.CoreSettings.DragChain.t,
       ~push: bool,
       ~text_box: Js.t(Dom_html.element),
@@ -1183,6 +1203,7 @@ let arm =
   let r = text_box##getBoundingClientRect;
   let s = {
     commit,
+    reseat,
     chain,
     push,
     text_box,
@@ -1203,8 +1224,7 @@ let arm =
     },
     grab: None,
     chain_kind: None,
-    last_client: client,
-    rebase: false,
+    rebase_at: None,
     held_at: None,
     grab_node: None,
     grab_ids: None,
@@ -1439,15 +1459,21 @@ let sync =
       s.grab = held;
       let grab_id = Option.map(fst, held);
       let grab_shard = Option.bind(held, snd);
-      if (s.rebase) {
-        /* chain rung: the next tracks start from the hand */
-        let (cx, cy) = s.last_client;
+      switch (s.rebase_at) {
+      | Some(h) =>
         let r = s.text_box##getBoundingClientRect;
         s.down_at = {
-          x: cx -. r##.left,
-          y: cy -. r##.top,
+          x: h.x -. r##.left,
+          y: h.y -. r##.top,
         };
-        s.rebase = false;
+        s.rebase_at = None;
+        switch (held) {
+        | Some((id, shard)) when Indicated.index(z) != Some(id) =>
+          /* dispatching from inside the render: defer a tick */
+          ignore(Dom_html.setTimeout(() => s.reseat((id, shard)), 0.))
+        | _ => ()
+        };
+      | None => ()
       };
       s.grab_ids = (
         switch (grab_id) {
@@ -1519,7 +1545,6 @@ let sync =
              let moved = moved_for(c.frame, c.measured);
              {
                kind: c.kind,
-               at: c.at,
                label: c.label,
                cur:
                  switch (s.held_at, c.kind) {
@@ -1554,7 +1579,27 @@ let sync =
     switch (s.pending) {
     | Idle => ()
     | AwaitGoal(goal, stale) =>
-      let here = Zipper.Caret.point(measured, z) == goal;
+      /* landed: the caret sits at the clicked point, or on the token
+         the click was inside (a mid-token click puts the caret at
+         that token's edge — and when the editor wasn't active, the
+         first sync already sees it there, so "changed" never fires) */
+      let on_clicked_token =
+        switch (Indicated.index(z)) {
+        | Some(id) =>
+          switch (Id.Map.find_opt(id, measured.tiles)) {
+          | Some(shards) =>
+            shards
+            |> List.exists(((_, m: Measured.measurement)) =>
+                 m.origin.row == goal.row
+                 && m.last.row == goal.row
+                 && m.origin.col <= goal.col
+                 && goal.col <= m.last.col
+               )
+          | None => false
+          }
+        | None => false
+        };
+      let here = Zipper.Caret.point(measured, z) == goal || on_clicked_token;
       let changed =
         switch (stale) {
         | Some(z0) => !(z0 === z)

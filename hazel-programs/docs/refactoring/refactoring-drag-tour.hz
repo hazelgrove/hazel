@@ -7,19 +7,23 @@
 # what it depends on, or lifts out as a helper. Undo works per step. #
 
 # 1 HOIST / SINK: grab a let (its let, =, in, or binder) and pull #
-# vertically. With chaining on, keep pulling: gamma climbs past #
-# bravo, then past alpha; pull back down and it retraces. #
+# vertically - the let moves its LINE. With chaining on, keep #
+# pulling: gamma climbs past bravo, then past the comment (a line #
+# like any other: comments never ride along), then past alpha; pull #
+# back down and it retraces. #
 
 let ladder =
   let alpha = 100 in
+  # big ones below #
   let bravo = 250 in
   let gamma = 425 in
   alpha + bravo + gamma
 in
 
-# 2 FEED (inline next use): grab the DEFINITION by its root, the *, #
-# and pull DOWN. A full-size copy splits off and flies to the #
-# nearest use; the original stays while other uses remain, and the #
+# 2 FEED (inline next use): grab the DEFINITION itself, by its #
+# root the *, and pull DOWN - feeding moves the value, not the #
+# line. A full-size copy splits off and flies to the nearest use; #
+# the original stays while other uses remain, and the #
 # LAST feed moves the definition itself. With chaining on, one pull #
 # runs through all three uses. (A use never feeds itself by drag: #
 # uses mean themselves.) #
@@ -30,8 +34,8 @@ let spending = budget + budget + budget in
 
 # 3 EXTRACT: grab the + inside the first parens and pull UP - the #
 # subexpression gets its own binding on a fresh line above. With #
-# chaining on Everything, keep pulling and that binding hoists on. #
-# A definition's root (here the *) moves its whole let, too. #
+# Everything chaining, pull back down and it feeds back in. To move #
+# the new binding further, grab its let. #
 
 let volume = (ladder + 55) * (ladder - 45) in
 
@@ -87,8 +91,8 @@ let span = high - low in
 
 # 8 PASS-THROUGH: sink prize into award, then into its fun, and #
 # hoist it back out. Watch the line breaks settle at each landing. #
-# With Same Kind chaining one pull rides every rung; on Everything #
-# it goes on to feed a copy into the first arm. #
+# With chaining one pull rides every rung. Then grab its 900 and #
+# pull it down into an arm: a copy feeds the first use. #
 
 let prize = 900 in
 let award = fun place ->

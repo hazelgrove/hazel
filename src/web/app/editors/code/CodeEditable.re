@@ -1017,9 +1017,8 @@ module View = {
            tracks; candidates are enumerated by CodeDrag.sync once
            the caret lands at the grab point */
         CodeDrag.arm(
-          /* by kind, at the candidate's tile: after a chain rung the
-             caret sits on the last transform's focus, not the held
-             element */
+          /* by kind, at the grabbed tile: after a chain rung the caret
+             sits on the last transform's focus, not the held element */
           ~commit=
             (kind, at) =>
               Bonsai.Effect.Expert.handle(
@@ -1027,6 +1026,22 @@ module View = {
                   inject(Perform(Move(Goal(TileId(at))))),
                   inject(Perform(Refactor(kind))),
                 ]),
+              ),
+          ~reseat=
+            ((id, shard)) =>
+              Bonsai.Effect.Expert.handle(
+                inject(
+                  Perform(
+                    Move(
+                      Goal(
+                        switch (shard) {
+                        | Some(k) => TileShard(id, k)
+                        | None => TileId(id)
+                        },
+                      ),
+                    ),
+                  ),
+                ),
               ),
           ~chain=globals.settings.core.drag_chain,
           ~push=globals.settings.core.drag_push,

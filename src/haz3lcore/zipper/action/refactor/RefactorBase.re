@@ -258,61 +258,6 @@ let strip_comments = (e: Exp.t): Exp.t => {
   );
 };
 
-/* Split a line's lead at its ATTACHED DOC BLOCK: the trailing run
-   of comment lines touching the content below (no blank line between
-   block and content — andrew's heuristic; no blank required above,
-   so comment-fn-comment-fn style attaches each block down). The
-   attached part starts at the first comment after the last blank-
-   line boundary and carries its own line breaks + trailing indent;
-   the break separating it from what's ABOVE stays with the position.
-   Movement redistributes the two parts — pieces are only relocated,
-   never dropped or copied (comments exist once, always). */
-let split_doc_block =
-    (ws: list(Secondary.t)): (list(Secondary.t), list(Secondary.t)) => {
-  let is_break = (w: Secondary.t) =>
-    switch (w.content) {
-    | Whitespace(x) => String.contains(x, '\n')
-    | _ => false
-    };
-  let is_space = (w: Secondary.t) =>
-    switch (w.content) {
-    | Whitespace(x) => !String.contains(x, '\n')
-    | _ => false
-    };
-  let arr = Array.of_list(ws);
-  let n = Array.length(arr);
-  /* last blank-line boundary: two breaks with only spaces between */
-  let last_blank_end = ref(0);
-  let prev_break = ref(false);
-  Array.iteri(
-    (i, w) =>
-      if (is_break(w)) {
-        if (prev_break^) {
-          last_blank_end := i + 1;
-        };
-        prev_break := true;
-      } else if (!is_space(w)) {
-        prev_break := false;
-      },
-    arr,
-  );
-  let first_comment = ref(-1);
-  Array.iteri(
-    (i, w) =>
-      if (first_comment^ < 0 && i >= last_blank_end^ && is_comment_piece(w)) {
-        first_comment := i;
-      },
-    arr,
-  );
-  switch (first_comment^) {
-  | c when c >= 0 => (
-      Array.to_list(Array.sub(arr, 0, c)),
-      Array.to_list(Array.sub(arr, c, n - c)),
-    )
-  | _ => (ws, [])
-  };
-};
-
 /* strip a plain-whitespace lead; a lead containing COMMENTS is user
    content and stays put (RemoveUnusedLet once ate the next line's
    comment block via a bare strip) */
@@ -1820,78 +1765,195 @@ let rec run_before_in_seg =
   go(0, [], seg);
 };
 
-/* Re-home attached doc blocks after a line movement: read each
-   moved line's block from the TEXTUAL pre-image (holders of a
-   line's lead vary — parent after-runs, node before-runs), drop
-   those pieces from the result wherever they landed, and append
-   them to the moved line's lead. Pieces are relocated, never
-   copied or dropped; a block outside the term (buffer start)
-   never prints in the pre-image, so it stays untouched. */
-let carry_attached_docs =
-    (~line_ids: list(Id.t), ~pre: Exp.t, post: Exp.t): Exp.t => {
-  let seg = ExpToSegment.exp_to_segment(~settings=roundtrip_settings, pre);
-  let moves =
-    line_ids
-    |> List.filter_map(id =>
-         switch (run_before_in_seg(id, seg)) {
-         | Some(run) =>
-           let (_, att) = split_doc_block(run);
-           att == [] ? None : Some((id, att));
-         | None => None
-         }
-       );
-  /* a carried line must still EXIST in the result (absorption
-     dissolves lines): docs of a vanished line stay put — relocate
-     or leave, never drop */
-  let still_there = id => {
-    let found = ref(false);
-    let _ =
-      Exp.map_term(
-        ~f_exp=
-          (cont, e: Exp.t) => {
-            if (IdTagged.rep_id(e) == id) {
-              found := true;
-            };
-            cont(e);
-          },
-        post,
-      );
-    found^;
-  };
-  let moves = moves |> List.filter(((id, _)) => still_there(id));
-  if (moves == []) {
-    post;
-  } else {
-    let att_ids =
-      moves
-      |> List.concat_map(((_, att)) =>
-           att |> List.map((w: Secondary.t) => w.id)
-         );
-    let post = drop_secondary(att_ids, post);
-    moves
-    |> List.fold_left(
-         (acc, (id, att)) =>
-           Exp.map_term(
-             ~f_exp=
-               (cont, e: Exp.t) =>
-                 if (IdTagged.rep_id(e) == id) {
-                   let (b, a) = e.annotation.secondary;
-                   {
-                     ...e,
-                     annotation: {
-                       ...e.annotation,
-                       secondary: (b @ att, a),
-                     },
-                   };
-                 } else {
-                   cont(e);
-                 },
-             acc,
-           ),
-         post,
-       );
+/* === Comments are lines (andrew 2026-10-16) ===
+   An own-line comment is a line of the program, like a definition: a
+   definition moves past one as a rung of its own, and comments never
+   travel with a definition. A rung swaps only the definition and the
+   comment it crosses; blank lines keep their rows. (End-of-line
+   comments belong to their line and travel with it: split_eol.) */
+
+/* run = l0 b0 l1 b1 ... b(k-1) lk, split at breaks (pieces are atomic:
+   one " " or "\n" each). l0 ends the line before; lk is the indentation
+   of what follows. */
+let run_lines =
+    (run: list(Secondary.t))
+    : (list(list(Secondary.t)), list(Secondary.t)) => {
+  let is_break = (w: Secondary.t) =>
+    switch (w.content) {
+    | Whitespace("\n") => true
+    | _ => false
+    };
+  let rec go = (cur, lines, breaks, rest: list(Secondary.t)) =>
+    switch (rest) {
+    | [] => (List.rev([List.rev(cur), ...lines]), List.rev(breaks))
+    | [w, ...tl] when is_break(w) =>
+      go([], [List.rev(cur), ...lines], [w, ...breaks], tl)
+    | [w, ...tl] => go([w, ...cur], lines, breaks, tl)
+    };
+  go([], [], [], run);
+};
+
+/* the comment line a rung crosses: going up, the nearest one above the
+   definition; going down, the nearest below it */
+let crossed_comment_line =
+    (~up: bool, lines: list(list(Secondary.t))): option(int) => {
+  let k = List.length(lines) - 1;
+  let comment_lines =
+    lines
+    |> List.mapi((i, line) => (i, line))
+    |> List.filter(((i, line)) =>
+         i >= 1 && i < k && List.exists(is_comment_piece, line)
+       )
+    |> List.map(fst);
+  switch (up ? List.rev(comment_lines) : comment_lines) {
+  | [j, ..._] => Some(j)
+  | [] => None
   };
 };
+
+/* l0 b0 ... l(n-1) b(n-1): the first n lines with their breaks */
+let lines_prefix = (n: int, lines, breaks): list(Secondary.t) =>
+  List.init(n, i => List.nth(lines, i) @ [List.nth(breaks, i)])
+  |> List.concat;
+
+/* the definition's lead and its body's lead after the definition
+   crosses one comment line: up, the nearest comment above moves to
+   just below the definition's line; down, the nearest comment below
+   moves to just above it */
+let comment_rung_runs =
+    (~up: bool, ~lead: list(Secondary.t), ~body_lead: list(Secondary.t))
+    : option((list(Secondary.t), list(Secondary.t))) => {
+  let (e, r) = split_eol(lead);
+  let (me, m) = split_eol(body_lead);
+  let (rl, rb) = run_lines(r);
+  let (ml, mb) = run_lines(m);
+  let k = List.length(rl) - 1;
+  let mm = List.length(ml) - 1;
+  /* breaks[i] then lines[i + 1], for i in from..to_ */
+  let lines_from = (lines, breaks, from, to_) =>
+    List.init(max(0, to_ - from + 1), d =>
+      [List.nth(breaks, from + d - 1)] @ List.nth(lines, from + d)
+    )
+    |> List.concat;
+  if (up) {
+    switch (crossed_comment_line(~up=true, rl)) {
+    | Some(j) =>
+      let lead' = e @ lines_prefix(j, rl, rb) @ List.nth(rl, k);
+      /* the definition takes row j; rows j+1..k-1 (blank) stay; the
+         comment takes row k, the definition's old row */
+      let moved =
+        List.init(k - j - 1, d =>
+          [List.nth(rb, j + d)] @ List.nth(rl, j + 1 + d)
+        )
+        |> List.concat;
+      let moved = moved @ [List.nth(rb, k - 1)] @ List.nth(rl, j);
+      let body_lead' =
+        me
+        @ List.nth(ml, 0)
+        @ moved
+        @ (mm == 0 ? newline() : lines_from(ml, mb, 1, mm));
+      Some((lead', body_lead'));
+    | None => None
+    };
+  } else {
+    switch (crossed_comment_line(~up=false, ml)) {
+    | Some(j) =>
+      /* the comment takes the definition's row; rows 1..j-1 (blank)
+         stay; the definition takes the comment's row */
+      let lead' =
+        e
+        @ lines_prefix(k, rl, rb)
+        @ List.nth(ml, j)
+        @ lines_from(ml, mb, 1, j - 1)
+        @ [List.nth(mb, j - 1)]
+        @ List.nth(rl, k);
+      let body_lead' =
+        me @ List.nth(ml, 0) @ (j < mm ? lines_from(ml, mb, j + 1, mm) : []);
+      Some((lead', body_lead'));
+    | None => None
+    };
+  };
+};
+
+/* does a rung cross a comment? (gating: reads the leads where lines
+   usually hold them; the textual run decides at invocation) */
+let comment_rung_applies = (~up: bool, l: Exp.t): bool =>
+  switch (def_line_of(l)) {
+  | Some((_, lbody)) =>
+    let run =
+      up ? fst(l.annotation.secondary) : fst(lbody.annotation.secondary);
+    crossed_comment_line(~up, fst(run_lines(snd(split_eol(run))))) != None;
+  | None => false
+  };
+
+/* the definition line l crosses one comment line; runs are read from
+   the printed program (their holders vary: a block's first line's run
+   can sit on its parent) and relocated by piece id */
+let comment_rung =
+    (~up: bool, ~program: Exp.t, l: Exp.t): option((Exp.t, Id.t)) =>
+  switch (def_line_of(l)) {
+  | None => None
+  | Some((_, lbody)) =>
+    let first_piece = (e: Exp.t) =>
+      ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e)
+      |> List.find_map((pc: Piece.t) =>
+           switch (pc) {
+           | Secondary(_) => None
+           | pc => Some(Piece.id(pc))
+           }
+         );
+    let seg =
+      ExpToSegment.exp_to_segment(~settings=roundtrip_settings, program);
+    switch (
+      run_before_in_seg(Exp.rep_id(l), seg),
+      Option.bind(first_piece(lbody), id => run_before_in_seg(id, seg)),
+    ) {
+    | (Some(lead), Some(body_lead)) =>
+      switch (comment_rung_runs(~up, ~lead, ~body_lead)) {
+      | None => None
+      | Some((lead', body_lead')) =>
+        let program =
+          drop_secondary(
+            List.map((w: Secondary.t) => w.id, lead @ body_lead),
+            program,
+          );
+        let done_ = ref(false);
+        let program =
+          Exp.map_term(
+            ~f_exp=
+              (cont, e: Exp.t) =>
+                if (! done_^ && same_node(e, l)) {
+                  done_ := true;
+                  switch (def_line_of(e)) {
+                  | Some((_, b)) =>
+                    Slot.give(
+                      {
+                        lead: lead',
+                        trail: [],
+                      },
+                      def_line_rebuild(
+                        e,
+                        Slot.give(
+                          {
+                            lead: body_lead',
+                            trail: [],
+                          },
+                          b,
+                        ),
+                      ),
+                    )
+                  | None => e
+                  };
+                } else {
+                  cont(e);
+                },
+            program,
+          );
+        Some((program, Exp.rep_id(l)));
+      }
+    | _ => None
+    };
+  };
 
 let fresh_names = (k: int, program: Exp.t): list(string) => {
   let used = ref(used_names(program));
