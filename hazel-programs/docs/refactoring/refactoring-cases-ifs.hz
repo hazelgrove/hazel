@@ -1,0 +1,204 @@
+# REFACTORING: CASES AND CONDITIONALS #
+# Put the caret on a token, then (ctrl+alt on PC): #
+#   cmd+ctrl+Up / Down  on an arm (its |, pattern or =>): move it #
+#   cmd+ctrl+Down       on a case's end: add the next missing arm #
+#   cmd+ctrl+Right      on a wildcard _: expand it #
+#   cmd+ctrl+Down       on then (or Up on else): flip the if #
+# Right-click for To case / To if and the same moves by name. #
+# Arm moves need a known scrutinee type, so the funs below #
+# annotate their parameters. #
+
+type Weather = Sun + Rain + Snow + Fog in
+type Slot = Vacant + Taken(Int) in
+
+# ===== MOVING ARMS ===== #
+# Arms move only when the reorder cannot change which arm #
+# matches: overlapping patterns refuse to cross. #
+
+# M1 constructors never overlap: caret on | Snow, Up or Down #
+let icon = fun (w : Weather) ->
+  case w
+  | Sun => "sunny"
+  | Rain => "rainy"
+  | Snow => "snowy"
+  | Fog => "foggy"
+  end
+in
+
+# M2 literals reorder freely: caret on | 2, Up. The wildcard #
+# overlaps everything, so | 1 cannot move Down past it #
+let name = fun (n : Int) ->
+  case n
+  | 1 => "one"
+  | 2 => "two"
+  | _ => "many"
+  end
+in
+
+# M3 tuples with disjoint parts: caret on | (true, _), Down #
+let pick = fun (p : (Bool, Int)) ->
+  case p
+  | (true, n) => n
+  | (false, _) => 0
+  end
+in
+
+# M4 strings: caret on | "b", Up #
+let grade = fun (s : String) ->
+  case s
+  | "a" => 4
+  | "b" => 3
+  | "c" => 2
+  | _ => 0
+  end
+in
+
+# M5 list shapes never overlap either: caret on | [], Down #
+let count = fun (xs : [Int]) ->
+  case xs
+  | [] => 0
+  | _ :: _ => 1
+  end
+in
+
+# M6 overlapping tuples refuse: (0, _) and (_, 0) both match #
+# (0, 0). caret on | (_, 0), Up: dead (the press goes red) #
+let corner = fun (p : (Int, Int)) ->
+  case p
+  | (0, _) => "left edge"
+  | (_, 0) => "bottom edge"
+  | _ => "inside"
+  end
+in
+
+# ===== GROWING CASES ===== #
+# Down on end appends an arm for a pattern that is not yet #
+# handled. Keep pressing until the case is exhaustive. (These #
+# start inexhaustive on purpose: the red is the fuel.) #
+
+# G1 caret on end, Down: the first missing weather arrives and #
+# the caret moves into its hole. Put the caret back on end and #
+# press again for the next, until all are handled #
+let wear = fun (w : Weather) ->
+  case w
+  | Sun => "hat"
+  end
+in
+
+# G2 booleans: caret on end, Down #
+let bit = fun (b : Bool) ->
+  case b
+  | true => 1
+  end
+in
+
+# G3 lists: caret on end, Down: a cons arm #
+let first_or_zero = fun (xs : [Int]) ->
+  case xs
+  | [] => 0
+  end
+in
+
+# G4 payloads get wildcards: caret on end, Down #
+let held = fun (s : Slot) ->
+  case s
+  | Vacant => 0
+  end
+in
+
+# G5 an Int has no finite set of values, so Down adds a #
+# wildcard arm instead. caret on end, Down #
+let teen = fun (age : Int) ->
+  case age
+  | 13 => true
+  end
+in
+
+# ===== EXPANDING WILDCARDS ===== #
+# Right on a _ arm replaces it with the constructors it stood #
+# for, each with a copy of its body. #
+
+# X1 caret on the _, Right #
+let wet = fun (w : Weather) ->
+  case w
+  | Rain => true
+  | _ => false
+  end
+in
+
+# X2 payload constructors expand with wildcard payloads #
+let occupied = fun (s : Slot) ->
+  case s
+  | Vacant => false
+  | _ => true
+  end
+in
+
+# X3 only the constructors not already handled appear: #
+# caret on the _, Right #
+let tone = fun (w : Weather) ->
+  case w
+  | Sun => "warm"
+  | Fog => "grey"
+  | _ => "cold"
+  end
+in
+
+# X4 booleans expand into the missing literal: caret on the _, #
+# Right #
+let flag = fun (b : Bool) ->
+  case b
+  | true => "on"
+  | _ => "off"
+  end
+in
+
+# ===== FLIPPING IFS ===== #
+# Down on then (or Up on else) negates the condition and swaps #
+# the branches. Flipping twice unwraps the negation. #
+
+# F1 caret on then, Down; then Up on else (the caret is there) #
+let sign = fun (x : Int) ->
+  if x < 0 then "neg" else "pos"
+in
+
+# F2 a variable condition: caret on then, Down #
+let status = fun (done : Bool) ->
+  if done then "finished" else "working"
+in
+
+# F3 caret on else, Up #
+let cap = fun (n : Int) ->
+  if n > 100 then 100 else n
+in
+
+# ===== IF AND CASE ===== #
+# Right-click the if keyword: To case. Right-click a case on a #
+# Bool: To if. #
+
+# T1 right-click if: To case #
+let mood = fun (sunny : Bool) ->
+  if sunny then "up" else "down"
+in
+
+# T2 right-click case: To if #
+let parity = fun (even : Bool) ->
+  case even
+  | true => "even"
+  | false => "odd"
+  end
+in
+
+# T3 the arms can be in either order: right-click case, To if #
+let answer = fun (yes : Bool) ->
+  case yes
+  | false => "no"
+  | true => "yes"
+  end
+in
+
+(icon(Snow), name(2), pick((true, 5)), grade("b"), count([1]),
+  corner((0, 3)), flag(false),
+  wear(Sun), bit(true), first_or_zero([]), held(Vacant), teen(13),
+  wet(Rain), occupied(Taken(1)), tone(Snow), sign(0 - 1),
+  status(true), cap(150), mood(true), parity(true), answer(false))

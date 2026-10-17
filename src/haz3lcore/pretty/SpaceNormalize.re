@@ -20,8 +20,11 @@ let tight_before = [")", "]", ",", ";", ">", "."];
  * user code (`(a)(b)`, `f(x)`), so never treat it as synthesized */
 let self_delim = ["(", ")", "[", "]", ",", ";", "{", "}"];
 
+/* quoted literals delimit themselves: `k="s"` is ordinary user text */
 let is_symbolic = (t: Token.t): bool =>
-  !Token.is_wordish(t) && !List.mem(t, self_delim);
+  !Token.is_wordish(t)
+  && !List.mem(t, self_delim)
+  && !(String.length(t) > 0 && t.[0] == '"');
 
 /* Tokens that always deserve surrounding space when synthesized next
  * to something (keyword forms, rule delimiters) */

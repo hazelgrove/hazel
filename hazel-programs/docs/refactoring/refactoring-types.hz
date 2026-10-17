@@ -1,0 +1,82 @@
+# REFACTORING: TYPES #
+# Type annotations and type aliases refactor like values do. #
+# Put the caret on a token, then (ctrl+alt on PC): #
+#   cmd+ctrl+Up    on a parameter's type: extract an alias #
+#   cmd+ctrl+Down  on a type alias: feed its next use #
+#   cmd+ctrl+Up / Down on a type line: hoist / sink it #
+# Right-click a binder for Annotate, any type for Extract, and #
+# an alias for Inline, Remove unused, or Rename. #
+
+# ===== ANNOTATE: right-click the binder ===== #
+# Offered whenever the inferred type has no holes in it. #
+
+# A1 right-click count #
+let count = 5 in
+
+# A2 right-click title #
+let title = "Hazel" ++ "!" in
+
+# A3 a tuple: right-click pair #
+let pair = (count, true) in
+
+# A4 a list: right-click primes #
+let primes = [2, 3, 5, 7] in
+
+# A5 a function with an annotated parameter: right-click succ #
+let succ = fun (k : Int) -> k + 1 in
+
+# A6 not offered: half's parameter has no type, so its type #
+# has a hole. Annotate the n first, then try again #
+let half = fun n -> n / 2 in
+
+# ===== EXTRACT ALIAS: right-click a type, Extract ===== #
+# The type gets a name of its own on the line above. (Inside a #
+# let's own annotation, Up hoists the let, so use the menu.) #
+
+# X1 right-click the ( of (Int, Int), Extract #
+let origin : (Int, Int) = (0, 0) in
+
+# X2 a function type: right-click the inner ->, Extract #
+let twice : (Int -> Int) -> Int = fun f -> f(f(1)) in
+
+# X3 a list type inside a tuple: right-click the [, Extract #
+let roster : (String, [Int]) = ("evens", [2, 4]) in
+
+# X4 a parameter's type works by gesture: caret on the ( after #
+# p :, cmd+ctrl+Up #
+let dist = fun (p : (Int, Int)) -> fst(p) + snd(p) in
+
+# ===== INLINE ALIAS: right-click the alias name ===== #
+# Every use of the alias is replaced by its definition. #
+
+# I1 right-click Meters, Inline #
+type Meters = Float in
+let run : Meters = 5.0 in
+let swim : Meters = 1.5 in
+
+# I2 feed one use at a time: caret on Grid, Down three times: #
+# feed blank, move down past it, feed board #
+type Grid = [[Int]] in
+let blank : Grid = [] in
+let board : Grid = [[1, 0], [0, 1]] in
+
+# ===== REMOVE AND RENAME ===== #
+
+# R1 Unused is never mentioned: right-click it, Remove unused #
+type Unused = (Bool, Bool) in
+
+# R2 a typo leaves Pnt unbound: right-click Pt, Rename Pnt to #
+# Pt #
+type Pt = (Int, Int) in
+let corner : Pnt = (3, 4) in
+
+# ===== MOVING TYPE LINES ===== #
+
+# M1 caret on the type keyword, Up: a type line climbs past #
+# lines that do not mention it, like a let #
+let width = 80 in
+type Color = Red + Green + Blue in
+let paint : Color = Red in
+
+(count, title, pair, primes, succ(1), half(4), origin, twice,
+  roster, dist((1, 2)), run, swim, blank, board, corner, width, paint)
