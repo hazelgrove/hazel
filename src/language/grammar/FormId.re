@@ -278,6 +278,35 @@ let delims: list(Token.t) =
   |> List.concat_map(label_of_family)
   |> List.sort_uniq(compare);
 
+/* Could this string be one token? Character classes decide, except that a
+ * run of operator characters is one token only while it spells a prefix of
+ * some delimiter: maximal munch against the grammar, with prefixes kept so
+ * `-` can grow into `->`. So `:` typed before `,` stays two tokens, and
+ * `1--2` is `1 - -2`. Insertion, paste, and the typing parser ask this. */
+let is_operator_prefix: Token.t => bool = {
+  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
+  delims
+  |> List.filter(Token.is_potential_operator)
+  |> List.concat_map(Token.prefixes)
+  |> List.iter(t => Hashtbl.replace(tbl, t, ()));
+  t => Hashtbl.mem(tbl, t);
+};
+
+let is_potential_token = (t: Token.t): bool =>
+  if (Token.is_potential_operator(t)) {
+    /* a lone operator character has nowhere else to go */
+    Token.length(t) == 1 || is_operator_prefix(t);
+  } else {
+    Token.is_empty_tuple(t)
+    || Token.is_empty_list(t)
+    || Token.is_empty_module(t)
+    || Token.is_implicit_hole_marker(t)
+    || Token.is_potential_operand(t)
+    || Token.is_string(t)
+    || Token.is_comment(t)
+    || Token.is_quoted_label(t);
+  };
+
 /* The surface family of each binary operator; bin_op_to_string
  * below reads operator spellings off these maps and the label
  * table. The numeric classes (Int/SInt/Nat) share one surface
