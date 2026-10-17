@@ -285,7 +285,8 @@
   transform: translateY(-1.8px) rotate(45deg);
 }
 
-/* without arrows a branch's sigil folds it, turning on its side */
+/* without arrows a branch's sigil folds it, turning on its side; a run's
+   ✓/✗ stays upright (turned, it reads as broken) */
 #outline-sidebar.no-arrows summary.outline-summary::before {
   display: none;
 }
@@ -295,7 +296,11 @@
   transition: transform 0.15s ease-out;
 }
 
-#outline-sidebar.no-arrows details:not([open]) > summary .outline-glyph {
+#outline-sidebar.no-arrows
+  details:not([open])
+  > summary
+  .outline-label:not(.ol-tests)
+  .outline-glyph {
   transform: rotate(-90deg);
 }
 

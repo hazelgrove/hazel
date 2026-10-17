@@ -20,15 +20,14 @@ module Model = ScratchModel.Model;
 let content_key = (prefix: string, name: string): string =>
   prefix ++ ":" ++ name;
 
-/* outline collapse per slide, as occurrence-qualified label paths;
+/* the outline's folds per slide, by occurrence-qualified label path;
    modeled because <details> DOM state bleeds across slides and resets
    when the vdom recreates elements */
-let slide_collapse: Hashtbl.t(string, list(OutlineTree.path)) =
-  Hashtbl.create(8);
+let slide_folds: Hashtbl.t(string, OutlineTree.folds) = Hashtbl.create(8);
 
-let collapse_paths = (prefix: string, name: string): list(OutlineTree.path) =>
-  switch (Hashtbl.find_opt(slide_collapse, content_key(prefix, name))) {
-  | Some(ps) => ps
+let folds = (prefix: string, name: string): OutlineTree.folds =>
+  switch (Hashtbl.find_opt(slide_folds, content_key(prefix, name))) {
+  | Some(fs) => fs
   | None => []
   };
 
@@ -43,8 +42,9 @@ let agent_key = (prefix: string, name: string): string =>
   content_key(prefix, name) ++ ":agent";
 
 /* what a slide shows beyond its text: the caret (text saves lose it),
-   pins and zoom by outline label path, collapse, and manual probes (they
-   live in zippers, which the item store doesn't carry) */
+   pins and zoom by outline label path, the rows folded and opened by
+   hand, and manual probes (they live in zippers, which the item store
+   doesn't carry) */
 [@deriving sexp]
 type side = {
   caret: option(Point.t),
@@ -52,7 +52,23 @@ type side = {
   zoom: option(OutlineTree.path),
   parked: bool,
   collapse: list(OutlineTree.path),
+  [@sexp.default []]
+  expand: list(OutlineTree.path),
   probes: Refractors.RefractorList.t,
+};
+
+/* the folds as the side keeps them: the rows folded, the rows opened */
+let folds_of_side = (side: side): OutlineTree.folds =>
+  List.map(p => (p, true), side.collapse)
+  @ List.map(p => (p, false), side.expand);
+
+let with_folds = (folds: OutlineTree.folds, side: side): side => {
+  let paths = f => List.filter_map(((p, f')) => f' == f ? Some(p) : None);
+  {
+    ...side,
+    collapse: paths(true, folds),
+    expand: paths(false, folds),
+  };
 };
 
 let side_key = (prefix: string, name: string): string =>
@@ -90,6 +106,7 @@ let read_side = (prefix: string, name: string): side =>
       zoom: Option.bind(view, v => v.vf_zoom),
       parked: Option.fold(~none=false, ~some=v => v.vf_parked, view),
       collapse: get(":collapse", list_of_sexp(OutlineTree.path_of_sexp), []),
+      expand: [],
       probes: get(":probes", Refractors.RefractorList.t_of_sexp, []),
     };
   };
@@ -147,9 +164,10 @@ let stage_side = (prefix: string, name: string): unit => {
   side.pins == [] && side.zoom == None
     ? Hashtbl.remove(pending_pins, ck)
     : Hashtbl.replace(pending_pins, ck, side);
-  side.collapse == []
-    ? Hashtbl.remove(slide_collapse, ck)
-    : Hashtbl.replace(slide_collapse, ck, side.collapse);
+  switch (folds_of_side(side)) {
+  | [] => Hashtbl.remove(slide_folds, ck)
+  | folds => Hashtbl.replace(slide_folds, ck, folds)
+  };
 };
 
 /* the saved view against the loaded program's outline */
@@ -176,13 +194,8 @@ let resolve_view = (saved: side, term: Language.Exp.t): SlideView.t => {
   parked: saved.parked,
 };
 
-let write_collapse = (prefix: string, name: string): unit =>
-  write_side(prefix, name, side =>
-    {
-      ...side,
-      collapse: collapse_paths(prefix, name),
-    }
-  );
+let write_folds = (prefix: string, name: string): unit =>
+  write_side(prefix, name, with_folds(folds(prefix, name)));
 
 let save_meta = (prefix: string, m: slide_meta): unit =>
   HazelDB.kv_save_sexp(meta_key(prefix), sexp_of_slide_meta, m);
@@ -312,11 +325,11 @@ let forget_gates = (ck: string): unit => {
 };
 
 /* a deleted slide leaves nothing a later slide of the same name could
-   pick up: stored keys, collapse, pending restores, save gates */
+   pick up: stored keys, folds, pending restores, save gates */
 let forget_slide = (prefix: string, name: string): unit => {
   let ck = content_key(prefix, name);
   HazelDB.kv_remove_where(k => slide_suffix(ck, k) != None);
-  Hashtbl.remove(slide_collapse, ck);
+  Hashtbl.remove(slide_folds, ck);
   Hashtbl.remove(pending_pins, ck);
   Hashtbl.remove(pending_caret, ck);
   forget_gates(ck);
@@ -331,11 +344,11 @@ let rename_slide = (prefix: string, old_name: string, new_name: string): unit =>
     HazelDB.kv_rekey(k =>
       Option.map(rest => new_ck ++ rest, slide_suffix(old_ck, k))
     );
-    switch (Hashtbl.find_opt(slide_collapse, old_ck)) {
-    | Some(paths) => Hashtbl.replace(slide_collapse, new_ck, paths)
-    | None => Hashtbl.remove(slide_collapse, new_ck)
+    switch (Hashtbl.find_opt(slide_folds, old_ck)) {
+    | Some(folds) => Hashtbl.replace(slide_folds, new_ck, folds)
+    | None => Hashtbl.remove(slide_folds, new_ck)
     };
-    Hashtbl.remove(slide_collapse, old_ck);
+    Hashtbl.remove(slide_folds, old_ck);
     forget_gates(old_ck);
     forget_gates(new_ck);
   };
@@ -414,8 +427,10 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       );
     };
     let term = Program.statics(program).term;
+    /* the folds carry over: they're written as they change */
     write_side(prefix, sp.name, side =>
       {
+        ...side,
         caret:
           switch (program) {
           /* text saves lose it, so it's restored after hydration; a
@@ -447,7 +462,6 @@ let save_current' = (prefix: string, model: Model.t): unit => {
             OutlineTree.label_path(m, term)
           ),
         parked: view.parked,
-        collapse: side.collapse,
       }
     );
     /* the agent model changes on every streamed chunk, so a physical

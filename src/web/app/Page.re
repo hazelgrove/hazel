@@ -1036,7 +1036,7 @@ module View = {
       create(
         "style",
         switch (outline_mark) {
-        | Some(id) => [text(OutlineFollow.css(id))]
+        | Some(k) => [text(OutlineFollow.css(k))]
         | None => []
         },
       );

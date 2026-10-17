@@ -4,7 +4,7 @@ open Virtual_dom.Vdom;
 
 /* The outline sidebar. Its transient UI state lives in the refs below,
    which the view's handlers write at the event (keys can outrun renders);
-   its collapse state is saved with the slide. */
+   its folds are saved with the slide. */
 
 module Scratchpad = ScratchModel.Scratchpad;
 module Persist = ScratchPersist;
@@ -40,7 +40,7 @@ let owner: ref(option(string)) = ref(None);
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    /* toggle a branch's collapse */
+    /* flip a branch's fold */
     | Collapse(OutlineTree.path)
     | DefOp(E.def_op, Id.t)
     | Save(E.save, E.after)
@@ -87,11 +87,18 @@ let program_of = (deck: option(deck)): option(Program.t) =>
   | _ => None
   };
 
-let collapsed = (deck: option(deck)): list(OutlineTree.path) =>
+let folds = (deck: option(deck)): OutlineTree.folds =>
   switch (deck) {
-  | Some((prefix, _) as d) => Persist.collapse_paths(prefix, slide_name(d))
+  | Some((prefix, _) as d) => Persist.folds(prefix, slide_name(d))
   | None => []
   };
+
+/* the program's term as the outline draws it: statics compacted by undo
+   have no term until they recompute, so it's parsed then */
+let outline_term = (program: Program.t): Language.Exp.t => {
+  let term = Program.statics(program).term;
+  Workspace.named_outline(term) ? term : Workspace.fresh_term(program);
+};
 
 /* an item whose definition holds only holes (or an empty module): its
    name erased, Backspace removes it */
@@ -419,7 +426,7 @@ let create =
   | (New(anchor, place), Some(t))
       when E.same_line(t.line, line) && t.fresh == None =>
     let program = code.program;
-    let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
+    let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
     switch (
       ItemEdit.edit(
         ctx,
@@ -485,7 +492,7 @@ let remake =
   | New(anchor, place) =>
     let program = code.program;
     let doc = Program.document(program);
-    let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
+    let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
     let (pat, col) =
       switch (keep_name, live_name(program, f.f_id)) {
       | (true, Some({l_name, l_at, _})) when String.trim(l_name) != "" => (
@@ -543,17 +550,17 @@ let remake =
   | Row(_) => None
   };
 
-/* row [path] folded, or not, as the slide keeps it */
+/* row [path] folded, or not, by hand, as the slide keeps it */
 let set_folded =
     (~prefix: string, ~name: string, path: OutlineTree.path, folded: bool) => {
-  let cur = Persist.collapse_paths(prefix, name);
-  if (List.mem(path, cur) != folded) {
-    let ck = Persist.content_key(prefix, name);
-    let next = folded ? [path, ...cur] : List.filter(p => p != path, cur);
-    next == []
-      ? Hashtbl.remove(Persist.slide_collapse, ck)
-      : Hashtbl.replace(Persist.slide_collapse, ck, next);
-    Persist.write_collapse(prefix, name);
+  let cur = Persist.folds(prefix, name);
+  if (List.assoc_opt(path, cur) != Some(folded)) {
+    Hashtbl.replace(
+      Persist.slide_folds,
+      Persist.content_key(prefix, name),
+      OutlineTree.choose(path, folded, cur),
+    );
+    Persist.write_folds(prefix, name);
   };
 };
 
@@ -564,6 +571,13 @@ let unfold = (~prefix, ~name, id: Id.t, term: Language.Exp.t) =>
     OutlineTree.label_path(id, term),
   );
 
+/* the run of tests row [id] is in, unfolded: it went into it */
+let unfold_run = (~prefix, ~name, id: Id.t, term: Language.Exp.t) =>
+  Option.iter(
+    path => set_folded(~prefix, ~name, path, false),
+    OutlineTree.run_of(id, term),
+  );
+
 /* new definition [d] gone with its line [line], its insertion's step
    taken back from the history: as if it had never been made. The
    editor's caret goes beside the line's anchor */
@@ -571,7 +585,7 @@ let drop =
     (~settings: Settings.t, line: E.line, d: Id.t, code: Scratchpad.code)
     : Updated.t(Scratchpad.code) => {
   let program = code.program;
-  let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
+  let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
   switch (ItemEdit.edit(ctx, Op(Delete, d), Program.document(program))) {
   | Ok((seg, _)) =>
     let caret =
@@ -597,12 +611,22 @@ let update =
     : Updated.t(Scratchpad.code) =>
   switch (action) {
   | Redraw => code |> Updated.return_quiet
+  /* the row's fold as shown, flipped: by hand, else its kind's default */
   | Collapse(path) =>
-    set_folded(
-      ~prefix,
-      ~name,
-      path,
-      !List.mem(path, Persist.collapse_paths(prefix, name)),
+    Option.iter(
+      (n: OutlineTree.node) =>
+        set_folded(
+          ~prefix,
+          ~name,
+          path,
+          !
+            OutlineTree.folded(
+              ~folds=Persist.folds(prefix, name),
+              path,
+              n.o_kind,
+            ),
+        ),
+      OutlineTree.node_at(path, outline_term(code.program)),
     );
     code |> Updated.return_quiet;
   | DefOp(op, fid) =>
@@ -618,7 +642,7 @@ let update =
     let ctx =
       Workspace.item_ctx(
         ~settings,
-        ~collapsed=Persist.collapse_paths(prefix, name),
+        ~folds=Persist.folds(prefix, name),
         program,
       );
     /* a delete leaves the cursor where the row was: its old path names
@@ -669,12 +693,15 @@ let update =
       | (Duplicate, Some(_)) when on_row => put(~fresh=col, target)
       | _ => ()
       };
-      /* Tab into a folded row unfolds it, as the item lands there */
+      /* an item landing in a folded row unfolds it, so its row shows:
+         Tab's, in a module or value; any op's, in a run of tests (a new
+         run starts folded) */
       switch (op, Option.bind(target, ItemEdit.parent_row(new_term))) {
       | (Indent, Some((parent, _))) =>
         unfold(~prefix, ~name, parent, new_term)
       | _ => ()
       };
+      Option.iter(id => unfold_run(~prefix, ~name, id, new_term), target);
       /* a new item opens as a cell, as new definitions do */
       switch (op, target, code.program) {
       | (MoveUp | MoveDown | Indent | Outdent, _, _) => ()
@@ -704,7 +731,7 @@ let update =
       code |> Updated.return_quiet;
     };
     let program = code.program;
-    let ctx = Workspace.item_ctx(~settings, ~collapsed=[], program);
+    let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
     /* the save landed: row mode's cursor on the row, if it was left */
     let landed = (code: Scratchpad.code, id: Id.t) =>
       if (E.exits(after)) {
@@ -928,9 +955,34 @@ let update =
     code |> Updated.return_quiet;
   };
 
-/* the row holding the editor's caret, or its nearest visible ancestor
-   when collapsed away (OutlineFollow) */
-let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
+/* where row [r] shows in [term]'s outline: itself, or the outermost row
+   above it that's folded (a run of tests by its label) */
+let shown_row = (~folds: OutlineTree.folds, r: Id.t, term): E.key => {
+  let rec go = (path, chain) =>
+    switch (chain) {
+    | [(n: OutlineTree.node, seg), ...rest] =>
+      let path = path @ [seg];
+      switch (E.key_of_node(n)) {
+      | Some(k)
+          when
+            n.o_id != Some(r) && OutlineTree.folded(~folds, path, n.o_kind) => k
+      | _ => go(path, rest)
+      };
+    | [] => Item(r)
+    };
+  switch (OutlineTree.find_path(r, term)) {
+  | Some(chain) => go([], chain)
+  | None => Item(r)
+  };
+};
+
+/* the walk, kept while the term, row and folds are (this runs every
+   render) */
+let shown_memo = Util.Slot.mk();
+
+/* the row holding the editor's caret, or where it shows when folded away
+   (OutlineFollow) */
+let mark = (~deck: option(deck), ~zipper: Zipper.t): option(E.key) =>
   switch (program_of(deck)) {
   | None => None
   | Some(p) =>
@@ -954,29 +1006,25 @@ let mark = (~deck: option(deck), ~zipper: Zipper.t): option(Id.t) =>
       | (None, Divided(d)) => Option.map(fst, Divided.active(d))
       | (None, Whole(_)) => None
       };
-    let collapsed = collapsed(deck);
-    /* a folded ancestor shows the mark instead; with nothing folded the
-       row is its own, so skip the walks (this runs every render) */
+    let folds = folds(deck);
     Option.map(
       r =>
-        switch (collapsed == [] ? None : OutlineTree.find_path(r, term)) {
-        | Some(chain) =>
-          /* the outermost folded row above */
-          let rec go = (path, chain) =>
-            switch (chain) {
-            | [(n: OutlineTree.node, seg), ...rest] =>
-              let path = path @ [seg];
-              switch (n.o_id) {
-              | Some(id) when id != r && List.mem(path, collapsed) => id
-              | _ => go(path, rest)
-              };
-            | [] => r
-            };
-          go([], chain);
-        | None => r
-        },
+        Util.Slot.get(
+          ~same=
+            ((t, r, f), (t', r', f')) => t === t' && r == r' && f === f',
+          shown_memo,
+          (term, r, folds),
+          () => shown_row(~folds, r, term),
+        ),
       row,
     );
+  };
+
+/* the path of the row [k] names in [term]: a run's is its tests' parent */
+let key_path = (k: E.key, term): option(OutlineTree.path) =>
+  switch (k) {
+  | Item(id) => OutlineTree.label_path(id, term)
+  | Run(first) => OutlineTree.run_of(first, term)
   };
 
 /* single-slot vdom memo: building the outline is O(program), but its
@@ -1035,7 +1083,7 @@ let view =
     OutlineFollow.spot := spot(p, id);
   | _ => ()
   };
-  let collapsed = collapsed(deck);
+  let folds = folds(deck);
   let focused =
     switch (deck) {
     | Some((_, m)) => ScratchModel.Model.focused_names(m)
@@ -1065,7 +1113,7 @@ let view =
       focused,
       is_deck,
       name,
-      collapsed,
+      folds,
       menu^,
       menu_sel^,
       slide_view,
@@ -1082,13 +1130,11 @@ let view =
     memo,
     key,
     () => {
-      /* statics compacted by undo have no term until they recompute: parse
-         this slide's program instead (never another document's) */
+      /* this slide's program, never another document's */
       let term =
         switch (program) {
-        | Some(p) when !Workspace.named_outline(statics.term) =>
-          Workspace.fresh_term(p)
-        | _ => statics.term
+        | Some(p) => outline_term(p)
+        | None => statics.term
         };
       /* each error badges the deepest row containing it; ancestor rows
          get a roll-up badge that CSS shows only while collapsed */
@@ -1147,7 +1193,7 @@ let view =
             );
           id => Id.Map.find_opt(id, Lazy.force(refused));
         },
-        is_collapsed: path => List.mem(path, collapsed),
+        folded: (path, n) => OutlineTree.folded(~folds, path, n.o_kind),
         header: {
           h_program: name,
           h_trail:
@@ -1277,8 +1323,7 @@ let view =
             Effect.of_sync_fun(
               () =>
                 switch (OutlineFollow.mark^) {
-                | Some(id) =>
-                  cursor := OutlineTree.label_path(id, statics.term)
+                | Some(k) => cursor := key_path(k, term)
                 | None => ()
                 },
               (),
@@ -1313,11 +1358,13 @@ let view =
             /* a new member's line unfolds its module, where it lands */
             let unfold =
               switch (line) {
-              | New(m, First | Last) =>
-                switch (OutlineTree.label_path(m, term)) {
-                | Some(p) when List.mem(p, collapsed) => inject(Collapse(p))
-                | _ => Effect.Ignore
-                }
+              | New(m, First | Last)
+                  when !OutlineTree.expanded(~folds, m, term) =>
+                Option.fold(
+                  ~none=Effect.Ignore,
+                  ~some=p => inject(Collapse(p)),
+                  OutlineTree.label_path(m, term),
+                )
               | _ => Effect.Ignore
               };
             Effect.Many([req, unfold, create(line, kw), redraw]);

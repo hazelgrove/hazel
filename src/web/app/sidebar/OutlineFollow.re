@@ -5,13 +5,24 @@ open Js_of_ocaml;
    move. it scrolls into view when the mark moves, unless the outline is
    focused: then the keyboard cursor's row does */
 
-let mark: ref(option(Language.Id.t)) = ref(None);
-let last_scrolled: ref(option(Language.Id.t)) = ref(None);
+let mark: ref(option(OutlineEdit.key)) = ref(None);
+let last_scrolled: ref(option(OutlineEdit.key)) = ref(None);
 
-let css = (id: Language.Id.t): string =>
-  "#outline-sidebar .outline-body:not(:focus-within) .outline-label[data-ol-id=\""
-  ++ Language.Id.to_string(id)
-  ++ "\"] { background: var(--ol-mark-bg); }";
+/* the marked row's label, unless the outline is focused: a run's by its
+   first test */
+let marked = (k: OutlineEdit.key): string =>
+  "#outline-sidebar .outline-body:not(:focus-within) "
+  ++ (
+    switch (k) {
+    | Item(id) =>
+      ".outline-label[data-ol-id=\"" ++ Language.Id.to_string(id) ++ "\"]"
+    | Run(id) =>
+      ".outline-label[data-ol-run=\"" ++ Language.Id.to_string(id) ++ "\"]"
+    }
+  );
+
+let css = (k: OutlineEdit.key): string =>
+  marked(k) ++ " { background: var(--ol-mark-bg); }";
 
 let scroll_nearest = el =>
   Js.Unsafe.coerce(el)##scrollIntoView(
@@ -24,7 +35,14 @@ let key_of = el =>
   Js.Opt.case(
     el##getAttribute(Js.string("data-ol-id")),
     () =>
-      Js.to_string(el##.textContent |> Js.Opt.get(_, () => Js.string(""))),
+      Js.Opt.case(
+        el##getAttribute(Js.string("data-ol-run")),
+        () =>
+          Js.to_string(
+            el##.textContent |> Js.Opt.get(_, () => Js.string("")),
+          ),
+        id => "run:" ++ Js.to_string(id),
+      ),
     Js.to_string,
   );
 
@@ -215,14 +233,11 @@ let update = (): unit => {
     last_scrolled := mark^;
     switch (mark^) {
     | None => ()
-    | Some(id) =>
-      let sel =
-        Js.string(
-          "#outline-sidebar .outline-body:not(:focus-within) [data-ol-id=\""
-          ++ Language.Id.to_string(id)
-          ++ "\"]",
-        );
-      Js.Opt.iter(Dom_html.document##querySelector(sel), scroll_nearest);
+    | Some(k) =>
+      Js.Opt.iter(
+        Dom_html.document##querySelector(Js.string(marked(k))),
+        scroll_nearest,
+      )
     };
   };
 };
