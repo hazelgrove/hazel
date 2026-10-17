@@ -28,6 +28,7 @@ let mk_model = (): History.Model.t => {
     current: page,
     undo_stack: [],
     redo_stack: [],
+    tentative_redo: None,
   };
 };
 
@@ -61,7 +62,7 @@ let redo_len = (model: History.Model.t) => List.length(model.redo_stack);
 module Cells = {
   let src = "let a = 1 in\nlet b = 2 in\na + b";
 
-  let mk = (): History.Model.t => {
+  let mk = (~src=src, ()): History.Model.t => {
     let seg = CorpusUtil.seg_of(src);
     let editors: Editors.Model.t =
       Scratch(
@@ -85,6 +86,7 @@ module Cells = {
       },
       undo_stack: [],
       redo_stack: [],
+      tentative_redo: None,
     };
   };
 

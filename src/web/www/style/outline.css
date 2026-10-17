@@ -134,6 +134,11 @@
 #outline-sidebar .outline-menu-glyph {
   opacity: 0.7;
 }
+/* held to the header's line: ☰'s fallback font is taller than ✎'s, and
+   text mode's switch would move every row */
+#outline-sidebar[open] > summary .outline-menu-glyph {
+  height: 1lh;
+}
 #outline-sidebar .outline-crumb {
   cursor: pointer;
   opacity: 0.65;
@@ -464,14 +469,19 @@
   .outline-label.outline-cursor {
   background: transparent;
 }
+/* the name's text stays where the row draws it: the tint's padding takes
+   no room, and the box is the row's line */
 #outline-sidebar .outline-edit-input {
   font: inherit;
   color: inherit;
-  margin: 0;
+  box-sizing: border-box;
+  height: 1lh;
+  margin: 0 -3px;
   border: none;
   outline: none;
   min-width: 3ch;
   padding: 0 3px;
+  vertical-align: baseline;
   border-radius: 3px;
   background: color-mix(in srgb, var(--shard-selected) 70%, transparent);
   caret-color: var(--text-warning);
@@ -481,8 +491,12 @@
    the caret at the editor's place in it */
 #outline-sidebar .outline-live {
   display: inline-block;
+  box-sizing: border-box;
+  height: 1lh;
   min-width: 3ch;
+  margin: 0 -3px;
   padding: 0 3px;
+  vertical-align: baseline;
   border-radius: 3px;
   background: color-mix(in srgb, var(--shard-selected) 70%, transparent);
   white-space: pre;
@@ -495,18 +509,53 @@
   vertical-align: text-bottom;
   border-left: 1.5px solid var(--text-warning);
 }
+/* the editor's selection in the name, in the colors a field's own
+   selection takes */
+#outline-sidebar .outline-live-sel {
+  background: Highlight;
+  color: HighlightText;
+}
 /* a new definition's keyword, beside its name */
 #outline-sidebar .outline-edit-kw {
   font-weight: bold;
   opacity: 0.7;
   white-space: pre;
 }
+/* a name that won't do, underlined as it's typed */
+#outline-sidebar .outline-edit-input.outline-invalid,
+#outline-sidebar .outline-live.outline-invalid {
+  box-shadow: inset 0 -1.5px 0 var(--text-error);
+}
+/* why a save was refused: a bubble just under the line, over the rows
+   below, so nothing moves; or over the line when the list would clip it
+   there. It starts where the line's text does (its static position) and
+   wraps to show the reason whole */
 #outline-sidebar .outline-edit-hint {
-  margin-left: 22px;
+  display: none;
+}
+#outline-sidebar .outline-edit-hint.outline-hint-on {
+  display: inline-block;
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 1px);
+  width: max-content;
+  max-width: calc(100% - 28px);
+  padding: 1px 7px 2px;
   font-size: 10.5px;
   font-style: italic;
+  font-weight: normal;
   color: var(--text-error);
   white-space: normal;
+  cursor: default;
+  background: var(--surface-default);
+  border: 1px solid color-mix(in srgb, var(--text-error) 45%, transparent);
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.14);
+}
+#outline-sidebar .outline-edit-hint.outline-hint-on[data-above] {
+  top: auto;
+  bottom: calc(100% + 1px);
+  box-shadow: 0 -2px 6px rgb(0 0 0 / 0.1);
 }
 
 /* text mode, said quietly: the menu glyph turns into a pencil in the
@@ -589,8 +638,10 @@
 }
 
 @media (prefers-reduced-motion: no-preference) {
+  /* held at its start till it runs: a save's work can delay that by a
+     frame, which showed the row without the keyword */
   #outline-sidebar .outline-kw-leaving {
-    animation: ol-kw-leave 220ms ease-in;
+    animation: ol-kw-leave 220ms ease-in backwards;
   }
   /* an error badge fades in with its row's red */
   #outline-sidebar .outline-err-badge {

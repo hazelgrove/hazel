@@ -1064,6 +1064,7 @@ module View = {
         ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
+        ~statics_on=globals.settings.core.statics,
         (),
       );
     let indicated_id =

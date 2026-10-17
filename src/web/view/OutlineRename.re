@@ -42,7 +42,7 @@ let find_item = (row: Id.t, term: Exp.t): option(item) =>
   };
 
 /* tokens naming the item: its references, and `M.x` labels */
-let references = (~info_map: Statics.Map.t, it: item): list(Id.t) => {
+let find_references = (~info_map: Statics.Map.t, it: item): list(Id.t) => {
   /* a path's base in a type (`U` of `U.Meters`) names the module's value */
   let module_site = (info: Info.t) =>
     switch (info) {
@@ -89,6 +89,42 @@ let references = (~info_map: Statics.Map.t, it: item): list(Id.t) => {
   );
 };
 
+/* a rename is checked at every key typed: its item's references, and
+   each name's uses, are kept for the statics they were found in */
+let refs_memo = Util.Slot.mk();
+let references = (~info_map: Statics.Map.t, it: item): list(Id.t) =>
+  Util.Slot.get(
+    ~same=((m, it), (m', it')) => m === m' && it == it',
+    refs_memo,
+    (info_map, it),
+    () => find_references(~info_map, it),
+  );
+
+let uses_memo = Util.Slot.mk();
+/* where [name] is used, as a value or a type */
+let uses = (~info_map: Statics.Map.t, name: string): list(Info.t) =>
+  Hashtbl.find_all(
+    Util.Slot.get(
+      uses_memo,
+      info_map,
+      () => {
+        let found = Hashtbl.create(1024);
+        Id.Map.iter(
+          (_, info: Info.t) =>
+            switch (info) {
+            | InfoExp({user_term: {term: Var(x), _}, _})
+            | InfoTyp({user_term: {term: Var(x), _}, _}) =>
+              Hashtbl.add(found, x, info)
+            | _ => ()
+            },
+          info_map,
+        );
+        found;
+      },
+    ),
+    name,
+  );
+
 let bound = (kind, ctx: Ctx.t, name: string): option(Id.t) =>
   switch (kind) {
   | KType => Ctx.lookup_tvar_id(ctx, name)
@@ -112,34 +148,32 @@ let capture =
         },
       refs,
     );
-  /* an existing [name] in the item's scope would now find the item */
+  /* an existing [name] in the item's scope, not one of its own, would now
+     find the item */
   let captured =
-    Id.Map.exists(
-      (_, info: Info.t) =>
-        switch (info) {
-        | InfoExp({user_term: {term: Var(x), _}, ctx, _})
-        | InfoTyp({user_term: {term: Var(x), _}, ctx, _}) when x == name =>
-          bound(it.kind, ctx, it.old) == Some(it.binder)
-        | _ => false
-        },
-      info_map,
+    List.exists(
+      (info: Info.t) =>
+        bound(it.kind, Info.ctx_of(info), it.old) == Some(it.binder)
+        && Info.get_binding_site(info) != Some(it.binder),
+      uses(~info_map, name),
     );
-  shadowed || captured
-    ? Some(name ++ " is already used where " ++ it.old ++ " is in scope")
-    : None;
+  shadowed || captured ? Some(name ++ " is already in use here") : None;
 };
 
 /* a plain name as the language reads one: not `_`, a literal, any
-   form's keyword, `$`-prefixed or qualified */
+   form's keyword, `$`-prefixed or qualified. Short reasons: the outline
+   is narrow */
 let check_name = (kind, name: string): option(string) => {
+  let spaced = String.exists(c => String.contains(" \t\n\r", c), name);
   let plain =
     name != ""
     && name.[0] != '$'
     && !String.contains(name, '.')
-    && !Token.is_keyword(name)
     && !List.mem(name, FormId.delims);
   let (value, upper) = (Token.is_var(name), Token.is_ctr(name));
   switch (kind) {
+  | _ when spaced => Some("names have no spaces")
+  | _ when Token.is_keyword(name) => Some(name ++ " is a keyword")
   | _ when !plain || !value && !upper => Some("a name is one identifier")
   | KValue when !value => Some("value names start lowercase")
   | KType
@@ -180,20 +214,34 @@ let rec relabel = (ids: list(Id.t), name: string, seg: Segment.t): Segment.t =>
     seg,
   );
 
+/* the references to relabel as [it] is named [name], as a [kind]'s (its
+   own by default): none when nothing changes; else why not */
+let prepare =
+    (~info_map: Lazy.t(Statics.Map.t), ~kind=?, it: item, name: string)
+    : result(option(list(Id.t)), string) => {
+  let kind = Option.value(kind, ~default=it.kind);
+  switch (check_name(kind, name)) {
+  | _ when it.old == name && kind == it.kind => Ok(None)
+  | Some(why) => Error(why)
+  | None =>
+    let info_map = Lazy.force(info_map);
+    let refs = references(~info_map, it);
+    switch (capture(~info_map, it, refs, name)) {
+    | Some(why) => Error(why)
+    | None => Ok(Some(refs))
+    };
+  };
+};
+
 let rename =
     (~info_map, ~term, row: Id.t, name: string, seg: Segment.t)
     : result(Segment.t, string) =>
   switch (find_item(row, term)) {
   | None => Error("this row has no name to change")
-  | Some(it) when it.old == name => Ok(seg)
   | Some(it) =>
-    switch (check_name(it.kind, name)) {
-    | Some(why) => Error(why)
-    | None =>
-      let refs = references(~info_map, it);
-      switch (capture(~info_map, it, refs, name)) {
-      | Some(why) => Error(why)
-      | None => Ok(relabel([it.binder, ...refs], name, seg))
-      };
+    switch (prepare(~info_map=Lazy.from_val(info_map), it, name)) {
+    | Error(why) => Error(why)
+    | Ok(None) => Ok(seg)
+    | Ok(Some(refs)) => Ok(relabel([it.binder, ...refs], name, seg))
     }
   };
