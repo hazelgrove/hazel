@@ -659,7 +659,110 @@ let ci_sort_tests = (
   ],
 );
 
+/* Type the code, put the caret at ¦, type `:`, and return the
+ * inferred-annotation buffer as (shown, inserted on accept) and the program
+ * after accepting. */
+let inferred = (code: string): option((string, string, string)) => {
+  open Util.OptUtil.Syntax;
+  let z =
+    Test_Editing.perform(
+      Zipper.init(),
+      Test_Editing.mk(code) @ Test_Editing.string_to_ltr_actions(":"),
+    );
+  let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+  let statics =
+    CachedStatics.init_from_term(
+      ~settings=CoreSettings.on,
+      ~is_dynamic_term=false,
+      term,
+    );
+  let* z = TyDiInferred.set_buffer(~settings=CoreSettings.on, statics, z);
+  let shown =
+    switch (z.selection.content) {
+    | [Secondary({content: Comment(s), _})] => s
+    | _ => ""
+    };
+  let* full = TyDi.get_unparsed_buffer(z);
+  let* accepted = Buffer.buffer_accept(z);
+  Some((shown, full, Test_Editing.printer(accepted)));
+};
+
+let inferred_test = (~name, ~code, ~expect) =>
+  test_case(name, `Quick, () =>
+    check(
+      option(triple(string, string, string)),
+      name,
+      expect,
+      inferred(code),
+    )
+  );
+
+let inferred_annotation_tests = (
+  "TyDi.InferredAnnotation",
+  [
+    inferred_test(
+      ~name="Parameter of a polymorphic function",
+      ~code="let id(x¦) = x in id(1)",
+      ~expect=Some(("a", "a", "let id(x:a¦) = x in id(1)")),
+    ),
+    inferred_test(
+      ~name="Parameter in a tuple of parameters",
+      ~code=
+        "let map(f¦, xs) = case xs | [] => [] | x :: rest => f(x) :: map(f, rest) end in map",
+      ~expect=
+        Some((
+          "a -> b",
+          "a -> b",
+          "let map(f:a -> b¦, xs) = case xs | [] => [] | x :: rest => f(x) :: map(f, rest) end in map",
+        )),
+    ),
+    inferred_test(
+      ~name="Constrained parameter",
+      ~code="let f(x¦) = x + 1 in f",
+      ~expect=Some(("Int", "Int", "let f(x:Int¦) = x + 1 in f")),
+    ),
+    inferred_test(
+      ~name="Function definition result",
+      ~code="let f(x)¦ = (x, 1) in f",
+      ~expect=
+        Some(("(a, Int)", "(a, Int)", "let f(x):(a, Int)¦ = (x, 1) in f")),
+    ),
+    inferred_test(
+      ~name="Let name drops the poly",
+      ~code="let id¦ = fun x -> x in id",
+      ~expect=
+        Some(("a -> a", "a -> a", "let id:a -> a¦ = fun x -> x in id")),
+    ),
+    inferred_test(
+      ~name="Expression ascription",
+      ~code="let y = (true¦) in y",
+      ~expect=Some(("Bool", "Bool", "let y = (true:Bool¦) in y")),
+    ),
+    inferred_test(
+      ~name="Conflicting uses: no suggestion",
+      ~code={|let show(n¦) = if n then "yes" else string_of_int(n) in show|},
+      ~expect=None,
+    ),
+    inferred_test(
+      ~name="Nothing known yet: no suggestion",
+      ~code="let later(x¦) = ? in later",
+      ~expect=None,
+    ),
+    inferred_test(
+      ~name="Long types are abbreviated until accepted",
+      ~code={|let g(h¦) = h(1, true, "s", 2.0) ++ "x" in g|},
+      ~expect=
+        Some((
+          "(Int, Bool, …) -> String",
+          "(Int, Bool, String, Float) -> String",
+          {|let g(h:(Int, Bool, String, Float) -> String¦) = h(1, true, "s", 2.0) ++ "x" in g|},
+        )),
+    ),
+  ],
+);
+
 let tests = [
+  inferred_annotation_tests,
   dot_label_tests,
   variable_tests,
   constructor_tests,

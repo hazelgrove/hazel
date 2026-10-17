@@ -263,7 +263,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
 
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {
-  | Buffer(Unparsed) => {
+  | Buffer(Unparsed | Abbreviated(_)) => {
       ...z,
       selection: Selection.empty,
     }
