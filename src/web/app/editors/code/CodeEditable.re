@@ -212,6 +212,7 @@ module Selection = {
          ),
          of_shortcut(~action=action(Probe(ToggleManual)), Probe),
          of_shortcut(~action=action(Probe(ToggleStatics)), Statics),
+         of_shortcut(~action=action(Probe(TogglePlayer)), Player),
          of_shortcut(
            ~action=action(Project(SetIndicated(ChooseLivelit))),
            Livelit,
