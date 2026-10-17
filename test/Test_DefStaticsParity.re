@@ -842,6 +842,52 @@ let corpus = [
   ),
 ];
 
+/* a module exports its sum types' constructors (Test_ModuleCtors) */
+let module_ctors = [
+  test_case(
+    "a member using a constructor whose sum changes",
+    `Quick,
+    script(
+      "module M = {\n  type t = A(Int) + B;\n  let v = A(1)\n} in\nM.v",
+      [token(~at=`First, "B", "C")],
+    ),
+  ),
+  test_case(
+    "constructors used outside their module",
+    `Quick,
+    script(
+      "module M = {\n  type t = A(Int) + B;\n  let v = A(1)\n} in\nlet w = M.A(2) in\ncase w\n| M.A(x) => x\n| M.B => 0\nend",
+      [
+        token("2", "5") |> changes_value,
+        /* the pattern's M.B is gone, then back as M.C */
+        token(~at=`First, "B", "C"),
+        token(~at=`Last, "B", "C"),
+        token(~at=`First, "Int", "Bool"),
+      ],
+    ),
+  ),
+  test_case(
+    "a module only a pattern mentions",
+    `Quick,
+    script(
+      "let m = {\n  type t = A + B\n} in\nlet f = fun v -> case v\n| m.A => 1\n| _ => 2\nend in\nlet k = 3 in\nk",
+      /* m (and its type member) and f, whose only mention of m is its
+         pattern (lowercase: no constructor of its name to track); k and
+         the tail stay clean */
+      [token(~at=`First, "A", "C") |> analyzed(3)],
+    ),
+  ),
+  test_case(
+    "a module's constructors in a module root",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module M = {\n  type t = A(Int) + B\n};\nlet f = fun v -> case v\n| M.A(x) => x\n| M.B => 0\nend;\nf(M.A(4))",
+      [token(~at=`First, "Int", "Bool"), token("4", "true")],
+    ),
+  ),
+];
+
 let tests = (
   "DefStaticsParity",
   [
@@ -873,5 +919,6 @@ let tests = (
   @ type_deps
   @ literal_edits
   @ module_roots
-  @ corpus,
+  @ corpus
+  @ module_ctors,
 );
