@@ -5995,6 +5995,17 @@ let token_splitting_tests = [
     ~acts=string_to_ltr_actions("x>=.y"),
     ~goal=["x", ">=.", "y"],
   ),
+  /* formerly a `>`-only special case */
+  test_tokens(
+    ~name="type application's > stays apart from a following @<",
+    ~acts=string_to_ltr_actions("f@<A>@<B>"),
+    ~goal=["f", "@<", "A", ">", "@<", "B", ">"],
+  ),
+  test_tokens(
+    ~name="@< typed before > doesn't swallow it",
+    ~acts=mk("id¦>5") @ [Insert("@"), Insert("<")],
+    ~goal=["id", "@<", ">", "5"],
+  ),
   test_tokens(
     ~name="operator stops at its longest spelling",
     ~acts=string_to_ltr_actions("x==-1"),
