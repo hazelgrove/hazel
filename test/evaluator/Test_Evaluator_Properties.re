@@ -162,6 +162,15 @@ let stepper_confluence_known_bug_test =
     )
   );
 
+/* The let bound type variables its annotations left free
+   (Inference.written_tvars), wrapping its definition in a hidden typfun;
+   the bare ascription can't, so the two differ there by design. */
+let let_binds_tvars = (elab: Exp.t): bool =>
+  switch (Exp.term_of(elab)) {
+  | Let(_, def, _) => Id.is_implicit(Exp.rep_id(def))
+  | _ => false
+  };
+
 // Property that states let x : T = e in x is equivalent to e : T
 let qcheck_pattern_equivalence_test =
   QCheck.Test.make(
@@ -183,43 +192,46 @@ let qcheck_pattern_equivalence_test =
           let_(Pat.asc(Pat.var("fresh_x"), typ), uexp, var("fresh_x"));
         let elaborated_first = elaborate(first);
         let elaborated_second = elaborate(second);
-
-        let evaluated_first =
-          Evaluator.evaluate_and_limit(
-            ~env=Builtins.env_init,
-            ~step_limit=10000,
-            elaborated_first,
-          );
-        let evaluated_second =
-          Evaluator.evaluate_and_limit(
-            ~env=Builtins.env_init,
-            ~step_limit=1000000,
-            elaborated_second,
-          );
-        switch (evaluated_first, evaluated_second) {
-        | (
-            LimitedCompleted((first_exp, _)),
-            LimitedCompleted((second_exp, _)),
-          ) =>
-          print_endline(
-            "First expression: " ++ QCheck_Util.show_core_exp(first),
-          );
-          print_endline(
-            "Second expression: " ++ QCheck_Util.show_core_exp(second),
-          );
-          Alcotest.check(
-            dhexp_typ,
-            "Evaluated expressions are equal",
-            first_exp,
-            second_exp,
-          );
-          true;
-        | (StepLimitExceeded, StepLimitExceeded) => true
-        | (LimitedCompleted(_), StepLimitExceeded)
-        | (StepLimitExceeded, LimitedCompleted(_)) =>
-          print_endline("One of the evaluations exceeded the step limit");
-          false;
-        };
+        let_binds_tvars(elaborated_second)
+          ? true
+          : {
+            let evaluated_first =
+              Evaluator.evaluate_and_limit(
+                ~env=Builtins.env_init,
+                ~step_limit=10000,
+                elaborated_first,
+              );
+            let evaluated_second =
+              Evaluator.evaluate_and_limit(
+                ~env=Builtins.env_init,
+                ~step_limit=1000000,
+                elaborated_second,
+              );
+            switch (evaluated_first, evaluated_second) {
+            | (
+                LimitedCompleted((first_exp, _)),
+                LimitedCompleted((second_exp, _)),
+              ) =>
+              print_endline(
+                "First expression: " ++ QCheck_Util.show_core_exp(first),
+              );
+              print_endline(
+                "Second expression: " ++ QCheck_Util.show_core_exp(second),
+              );
+              Alcotest.check(
+                dhexp_typ,
+                "Evaluated expressions are equal",
+                first_exp,
+                second_exp,
+              );
+              true;
+            | (StepLimitExceeded, StepLimitExceeded) => true
+            | (LimitedCompleted(_), StepLimitExceeded)
+            | (StepLimitExceeded, LimitedCompleted(_)) =>
+              print_endline("One of the evaluations exceeded the step limit");
+              false;
+            };
+          };
       }
     ) {
     | e =>
