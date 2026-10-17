@@ -119,6 +119,64 @@ let tests = (
         };
       },
     ),
+    /* §9b: library code that keeps its editor's ids is probed like the
+       program's own; the samples come from the program's calls */
+    test_case(
+      "a probe in the library samples the program's calls",
+      `Quick,
+      () => {
+        let src = "module L = {\n  let length = fun xs -> case xs | [] => 0 | _ :: xs => 1 + length(xs) end\n};\nlet y = 1";
+        let items =
+          switch (
+            MakeTerm.Incr.term_of_mod(CorpusUtil.seg_of(~root=Mod, src)).term
+          ) {
+          | Module(items) => items
+          | _ => fail("not module items")
+          };
+        /* the recursive call, `length(xs)`, by its editor id */
+        let call = ref(None);
+        let _ =
+          Exp.map_term(
+            ~f_exp=
+              (cont, e: Exp.t) => {
+                switch (e.term) {
+                | Ap(_, {term: Var("length"), _}, _) =>
+                  call := Some(Exp.rep_id(e))
+                | _ => ()
+                };
+                cont(e);
+              },
+            Exp.fresh(Module(items)),
+          );
+        let call = Option.get(call^);
+        switch (
+          LibraryBake.of_items(~strict=true, ~compact=false, ~hash="t", items)
+        ) {
+        | Error(msg) => fail(msg)
+        | Ok({baked, _}) =>
+          Library.install_baked(baked);
+          let (_, elab) =
+            Statics.mk(
+              CoreSettings.on,
+              ctx(),
+              Test_Evaluator_Prelude.parse_exp("L.length([1, 2, 3])"),
+            );
+          let (_, state) =
+            Evaluator.evaluate(
+              ~eval_info=
+                EvalInfo.of_targets(
+                  Id.Map.singleton(call, Sample.empty_capture_spec),
+                ),
+              ~env=Builtins.env_for(elab),
+              elab,
+            );
+          let samples =
+            Option.value(~default=[], Id.Map.find_opt(call, state.probes));
+          check(int, "one per recursive call", 3, List.length(samples));
+          StdlibBaked.install();
+        };
+      },
+    ),
     test_case(
       "a new starting context re-analyzes every item",
       `Quick,

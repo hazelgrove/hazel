@@ -172,6 +172,8 @@ module Update = {
         ~ctx=?,
         ~projected: option(Haz3lcore.CachedStatics.t)=?,
         ~extra_dynamics: option(Language.Dynamics.Map.t)=?,
+        /* probes outside the program, in code it runs (the library's) */
+        ~extra_targets: option(Language.Sample.targets)=?,
         ~show_value=?,
         ~queue_worker,
         ~stitch,
@@ -213,6 +215,7 @@ module Update = {
         ~show_value?,
         ~is_edited,
         ~stepping=stepping(editor),
+        ~extra_targets?,
         editor |> CodeEditable.Model.get_statics,
         result,
       );

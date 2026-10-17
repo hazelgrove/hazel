@@ -54,6 +54,8 @@ module Action = {
     | LibraryAction(CellEditor.Update.t)
     /* the shipped library again, here and in the worker */
     | ResetLibrary
+    /* the library's pending edit, once typing pauses */
+    | ApplyLibrary
     /* park (true) or unpark the pins at this level */
     | ShowWhole(bool)
     /* open and close cells to match the view (after undo) */
@@ -291,21 +293,28 @@ let item_ctx =
   };
 };
 
-/* back into the slide applies an edited library (LibraryDoc.apply); one
-   that doesn't check keeps the program level, its errors in view */
+/* out to the library: the code that runs becomes the editor's (its
+   ids), so its probes see this slide's run. Back into the slide: the
+   library as it stands (edits apply as they're made); one that can't be
+   baked at all (its shape) keeps the program level */
 let show_library = (shown: bool, code: code): Updated.t(code) =>
   switch (shown, code.lib) {
   | (true, _) =>
+    let ed = Option.value(code.lib, ~default=LibraryDoc.editor());
+    if (LibraryDoc.installed^ == None) {
+      ignore(LibraryDoc.apply_editor(ed));
+    };
     Updated.return(
       ~is_edit=false,
       {
         ...code,
-        lib: Some(Option.value(code.lib, ~default=LibraryDoc.editor())),
+        lib: Some(ed),
       },
-    )
+    );
   | (false, None) => code |> Updated.return_quiet
   | (false, Some(ed)) =>
-    switch (LibraryDoc.apply(LibraryDoc.text_of(ed))) {
+    LibraryDoc.cancel_apply();
+    switch (LibraryDoc.apply_editor(ed)) {
     | Ok(_) =>
       Updated.return(
         ~is_edit=false,
@@ -317,7 +326,7 @@ let show_library = (shown: bool, code: code): Updated.t(code) =>
     | Error(msg) =>
       print_endline("stdlib: not applied: " ++ msg);
       code |> Updated.return_quiet;
-    }
+    };
   };
 
 /* the slide's result, run again */
@@ -527,7 +536,19 @@ let update =
       };
     | None => code |> return_quiet
     }
+  | ApplyLibrary =>
+    Option.iter(
+      ed =>
+        switch (LibraryDoc.apply_editor(ed)) {
+        | Ok(_) => ()
+        | Error(msg) => print_endline("stdlib: not applied: " ++ msg)
+        },
+      code.lib,
+    );
+    /* its slide runs again: calculate sees the new generation */
+    code |> Updated.return_quiet;
   | ResetLibrary =>
+    LibraryDoc.cancel_apply();
     LibraryDoc.reset();
     Updated.return(
       ~is_edit=false,
@@ -679,6 +700,7 @@ let calculate_slide =
           ~statics_mode,
           ~compositional=true,
           ~show_value=false,
+          ~extra_targets=LibraryDoc.targets(~settings),
           ~queue_worker,
           ~stitch=x => x,
           editor,
@@ -818,6 +840,7 @@ let calculate_slide =
                 (st: Haz3lcore.ProjectorBase.stepping) => st.span,
                 stepping,
               ),
+            ~extra_targets=LibraryDoc.targets(~settings),
             Divided.statics(d),
             Divided.result(d),
           ),
@@ -1003,9 +1026,25 @@ let calculate =
       code: code,
     )
     : code => {
+  /* the library, checked, with the slide's samples (its probes are in
+     the slide's run); edited, it applies once typing pauses */
+  let lib =
+    Option.map(
+      LibraryDoc.calculate(
+        ~settings,
+        ~is_edited,
+        ~statics_mode,
+        ~dynamics=EvalResult.Model.dynamics(Program.result(code.program)),
+      ),
+      code.lib,
+    );
+  Option.iter(ed => LibraryDoc.kept := Some(ed), lib);
+  if (is_edited && lib != None) {
+    LibraryDoc.apply_when_idle(~fire=() => schedule_action(ApplyLibrary));
+  };
   /* the library changed since this slide last ran: check and run it
-     again */
-  let stale = code.lib == None && code.lib_gen != LibraryDoc.generation^;
+     again, shown or not (its run feeds the library's probes) */
+  let stale = code.lib_gen != LibraryDoc.generation^;
   let code =
     calculate_slide(
       ~settings,
@@ -1025,6 +1064,6 @@ let calculate =
     );
   {
     ...code,
-    lib: Option.map(LibraryDoc.calculate(~settings, ~is_edited), code.lib),
+    lib,
   };
 };

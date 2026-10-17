@@ -485,10 +485,15 @@ module View = {
       ];
     } else {
       switch (current.kind) {
-      /* the program level: the library's document in the slide's place */
-      | Code({lib: Some(editor), _}) => [
+      /* the program level: the library's document in the slide's place,
+         its probes drawing the slide's samples (its run is the library's) */
+      | Code({lib: Some(editor), program, _}) => [
           CellEditor.View.view(
             ~globals,
+            ~master=(
+              Program.result(program),
+              a => inject(Workspace(CellAction(ResultAction(a)))),
+            ),
             ~signal=
               fun
               | MakeActive(selection) =>

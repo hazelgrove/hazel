@@ -19,18 +19,25 @@ let rec top_names = (items: list(Mod.t)): list(Var.t) =>
   };
 
 /* the items as the let/module/type chain a slide would write, ending in
-   [tail]; None when an item is not a definition */
+   [tail]; None when an item is not a definition. Each link takes its
+   item's id, so a chain built again after an edit keeps the unchanged
+   items' analyses (DefStatics ~prev) */
 let rec chain = (items: list(Mod.t), tail: Exp.t): option(Exp.t) =>
   switch (items) {
   | [] => Some(tail)
   | [item, ...rest] =>
-    Option.bind(chain(rest, tail), body =>
-      switch (item.term) {
-      | ModLet(p, def) => Some(Exp.fresh(Let(p, def, body)))
-      | ModType(tp, ty) => Some(Exp.fresh(TyAlias(tp, ty, body)))
-      | ModuleMod(mp, def) => Some(Exp.fresh(ModuleExp(mp, def, body)))
-      | _ => None
-      }
+    Option.bind(
+      chain(rest, tail),
+      body => {
+        let link = (term: Exp.term): Exp.t =>
+          IdTagged.mk_internal([Mod.rep_id(item)], term);
+        switch (item.term) {
+        | ModLet(p, def) => Some(link(Let(p, def, body)))
+        | ModType(tp, ty) => Some(link(TyAlias(tp, ty, body)))
+        | ModuleMod(mp, def) => Some(link(ModuleExp(mp, def, body)))
+        | _ => None
+        };
+      },
     )
   };
 
@@ -88,8 +95,9 @@ let defs = (elab: Exp.t): result(list((Var.t, Exp.t)), string) => {
 };
 
 /* each definition with the earlier ones it mentions (the latest of each
-   name), compacted */
-let baked_defs = (defs: list((Var.t, Exp.t))): array(Library.def) => {
+   name), compacted unless it keeps its source's ids */
+let baked_defs =
+    (~compact as c: bool, defs: list((Var.t, Exp.t))): array(Library.def) => {
   let latest = Hashtbl.create(64);
   defs
   |> List.mapi((i, (name, def)) => {
@@ -101,19 +109,35 @@ let baked_defs = (defs: list((Var.t, Exp.t))): array(Library.def) => {
        Library.{
          name,
          deps,
-         elab: Marshal.to_string(compact(def), []),
+         elab: Marshal.to_string(c ? compact(def) : def, []),
        };
      })
   |> Array.of_list;
 };
 
+/* a bake: the library, its static errors, and its analysis (for the next
+   bake after an edit) */
+type baked = {
+  baked: Library.baked,
+  errors: int,
+  statics: DefStatics.t,
+};
+
 /* [items] checked against the builtins alone (the library never sees
-   itself), with how many static errors they have: refused when [strict]
-   (the shipped library), applied as any program with errors is otherwise
-   (an edit in the app) */
+   itself). Static errors refuse it when [strict] (the shipped library);
+   otherwise it applies with them, as any program with errors runs (an
+   edit in the app). [compact] shares one id throughout (the shipped
+   blob); without it the definitions keep the items' ids, so the code
+   that runs is the code an editor of [items] shows */
 let of_items =
-    (~strict: bool, ~hash: string, items: list(Mod.t))
-    : result((Library.baked, int), string) => {
+    (
+      ~strict: bool,
+      ~compact: bool,
+      ~prev: option(DefStatics.t)=?,
+      ~hash: string,
+      items: list(Mod.t),
+    )
+    : result(baked, string) => {
   let names = top_names(items);
   let tail = Exp.fresh(Tuple(List.map(x => Exp.fresh(Var(x)), names)));
   let base = Builtins.ctx_base(Some(Operators.default_mode));
@@ -125,7 +149,8 @@ let of_items =
     /* per item, as a slide's statics: a monolithic pass down a chain this
        long overflows a browser's stack, and the app re-bakes an edited
        library */
-    let ds = DefStatics.calc(~settings=CoreSettings.on, ~ctx_in=base, exp);
+    let ds =
+      DefStatics.calc(~settings=CoreSettings.on, ~ctx_in=base, ~prev?, exp);
     switch (
       DefStatics.all_error_ids(ds),
       Statics.Map.lookup(Exp.rep_id(tail), ds.merged),
@@ -143,14 +168,16 @@ let of_items =
       | Some(added) =>
         defs(elab)
         |> Result.map(defs =>
-             (
-               Library.{
+             {
+               baked: {
                  hash,
                  entries: Marshal.to_string(added.entries, []),
-                 defs: baked_defs(defs),
+                 defs: baked_defs(~compact, defs),
+                 own_ids: !compact,
                },
-               List.length(errors),
-             )
+               errors: List.length(errors),
+               statics: ds,
+             }
            )
       }
     };
@@ -166,8 +193,13 @@ let of_text =
   | Ok({segment, _}) =>
     switch (MakeTerm.Incr.term_of_mod(segment).term) {
     | Module(items) =>
-      of_items(~strict, ~hash=Digest.to_hex(Digest.string(text)), items)
-      |> Result.map(((b, errors)) => (b, errors, segment))
+      of_items(
+        ~strict,
+        ~compact=true,
+        ~hash=Digest.to_hex(Digest.string(text)),
+        items,
+      )
+      |> Result.map(({baked, errors, _}) => (baked, errors, segment))
     | _ => Error("the library did not parse as module items")
     }
   };

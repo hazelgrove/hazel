@@ -53,9 +53,29 @@ let of_targets = (targets: Sample.targets): t => {
   targets,
 };
 
+/* [external_ids]: probed ids outside the program (the standard library's,
+   reached through its closures): in every entry's witness, so changing
+   them retakes samples rather than replaying cached ones */
 let of_info_map =
-    (~probe_all: bool, ~targets: Sample.targets, info_map: StaticsBase.Map.t)
+    (
+      ~probe_all: bool,
+      ~external_ids: list(Id.t)=[],
+      ~targets: Sample.targets,
+      info_map: StaticsBase.Map.t,
+    )
     : t => {
+  let outside =
+    SubexpProbeTargets.union_all(
+      List.map(
+        id =>
+          SubexpProbeTargets.add_self(
+            ~is_probed=true,
+            id,
+            SubexpProbeTargets.empty,
+          ),
+        external_ids,
+      ),
+    );
   let full =
     Id.Map.fold(
       (id, spec: Sample.capture_spec, acc) => spec.full ? [id, ...acc] : acc,
@@ -67,6 +87,8 @@ let of_info_map =
   let witness = (pt: SubexpProbeTargets.t) =>
     if (List.exists(id => MerkleSet.mem(id, pt.probe_ids), full)) {
       ProbeTargets(SubexpProbeTargets.mark_full(pt));
+    } else if (external_ids != []) {
+      ProbeTargets(SubexpProbeTargets.union(pt, outside));
     } else {
       probe_all ? ProbeAll : ProbeTargets(pt);
     };
