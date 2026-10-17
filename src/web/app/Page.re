@@ -1051,6 +1051,7 @@ module View = {
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
         ~statics_on=globals.settings.core.statics,
+        (),
       );
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
