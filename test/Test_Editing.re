@@ -2510,6 +2510,19 @@ let rec seg_has_incomplete = (seg: Segment.t): bool =>
 let zip_has_incomplete = (z: Zipper.t): bool =>
   seg_has_incomplete(Zipper.zip(z));
 
+/* Check that a tile with the given label exists (complete) anywhere
+ * in the segment, recursing into children. */
+let rec seg_has_tile = (label: Label.t, seg: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(t) =>
+      Tile.has_label(t, label)
+      && Tile.is_complete(t)
+      || List.exists(seg_has_tile(label), t.children)
+    | _ => false,
+    seg,
+  );
+
 /* Test helper that checks printer output AND absence of incomplete tiles. */
 let test_complete = (~name, ~acts, ~goal): test_case(_) =>
   test_case(
@@ -2629,6 +2642,89 @@ let rescan_tests = [
       @ mv_r(6)  /* fun (a, b) -> )¦ */
       @ [Destruct(Local(Left, ByChar))], /* delete old ) */
     ~goal={|fun (a, b) -> a¦|},
+  ),
+  /* PHASE 3 (reforge): Sort-aware child normalization.
+   * Type `x | a => 0 end` (no case context, so | and => stay standalone),
+   * then type `case ` before. Rescan matches case with end, but the
+   * child segment has standalone | and => that should form a Rule tile.
+   * This requires reforge to re-expand tokens in the new Rul sort. */
+  test_case(
+    "Reforge: case/end child remolding creates Rule tiles",
+    `Quick,
+    () => {
+      let z =
+        mk({|¦x | a => 0 end|})
+        @ string_to_ltr_actions("case ")
+        |> perform(Zipper.init());
+      let printed = printer(z);
+      check(
+        testable(Fmt.string, String.equal),
+        "printer output",
+        {|case ¦x | a => 0 end|},
+        printed,
+      );
+      if (zip_has_incomplete(z)) {
+        Alcotest.fail("Incomplete tiles remain");
+      };
+      if (!seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "No complete Rule tile [|, =>] found — "
+          ++ "| and => are standalone tokens instead of a Rule form",
+        );
+      };
+    },
+  ),
+  /* TODO: Sort demotion — the reverse of Phase 3's sort-aware expansion.
+   * When a case expression breaks, Rule tiles (|,=>) should be demoted
+   * to standalone tokens since they have no valid mold in Exp sort.
+   * Requires deciding when/how to trigger reforge after edits;
+   * see delimiter-reassociation-case branch for exploration. */
+  test_case(
+    "Reforge: breaking case demotes Rule tiles to standalone tokens",
+    `Quick,
+    () => {
+      let _ = Alcotest.skip();
+      let z =
+        mk({|¦case x | a => 0 end|})
+        @ [Destruct(Local(Right, ByChar))]
+        |> perform(Zipper.init());
+      if (seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "Complete Rule tile [|, =>] still exists — "
+          ++ "should have been demoted to standalone tokens",
+        );
+      };
+    },
+  ),
+  /* TODO: Round-trip — breaking and reforming case should be reversible.
+   * Currently Insert and Destruct have asymmetric reforge behavior,
+   * so this round-trip doesn't work yet. */
+  test_case(
+    "Reforge: breaking and reforming case round-trips Rule tiles",
+    `Quick,
+    () => {
+      let _ = Alcotest.skip();
+      /* Start with complete syntax, caret before x */
+      let z = mk({|case ¦x | a => 0 end|}) |> perform(Zipper.init());
+      /* Verify Rule tile exists initially */
+      if (!seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail("Rule tile [|, =>] should exist in initial state");
+      };
+      /* Backspace: delete space, merges case+x, breaks tile */
+      let z = [Destruct(Local(Left, ByChar))] |> perform(z);
+      if (seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "Rule tile [|, =>] should be demoted after breaking case",
+        );
+      };
+      /* Reinsert space: should split casex, reform case tile + rules */
+      let z = [Insert(" ")] |> perform(z);
+      if (!seg_has_tile(["|", "=>"], Zipper.zip(z))) {
+        Alcotest.fail(
+          "Rule tile [|, =>] should reform after reinserting space",
+        );
+      };
+    },
   ),
   /* #2446: completing `use _ in` remolds the following `-` from infix
    * back to prefix; the convex grout inserted for the infix reading must
@@ -3822,6 +3918,240 @@ let cross_boundary_paste_tests = [
         0,
         List.length(inc),
       );
+    },
+  ),
+];
+
+/* #2308: cut, then paste back, an unbalanced selection. Unbalanced text
+ * is pasted char by char, so tokens get molded in whatever sort they see
+ * mid-replay: the `(` typed after `:` pairs with the `)` the cut left
+ * behind, the rest lands inside a type, and keywords typed there become
+ * lone tokens. Reassociation restores the structure but not the sorts.
+ * Ported from the local-only branch fix/reassociate-deep-remold. */
+
+/* Cut + Paste the selection; fails on an exception, on any incomplete
+ * tile (deep), or on a `~`/`?` grout in the printed text (in textually
+ * complete code, grout means some shard doesn't fit its neighbors). */
+let assert_no_incomplete = (~skip=false, ~name, input: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      if (skip) {
+        Alcotest.skip();
+      };
+      Printexc.record_backtrace(true);
+      let z_sel = mk_zipper(input);
+      let clipboard =
+        Printer.of_segment(
+          ~holes=convex_char,
+          ~indent="",
+          z_sel.selection.content,
+        );
+      let z =
+        try(perform(z_sel, [Cut, Paste(clipboard)])) {
+        | exn =>
+          Alcotest.fail(
+            "Cut+Paste raised: "
+            ++ Printexc.to_string(exn)
+            ++ "\nbacktrace:\n"
+            ++ Printexc.get_backtrace(),
+          )
+        };
+      let inc = Segment.incomplete_tiles_deep(Zipper.unselect_and_zip(z));
+      let printed = printer(z);
+      let has_concave = String.contains(printed, concave_char.[0]);
+      let has_convex = String.contains(printed, convex_char.[0]);
+      if (inc != [] || has_concave || has_convex) {
+        let inc_str =
+          inc == []
+            ? ""
+            : "\nincomplete tiles: ["
+              ++ String.concat(
+                   "; ",
+                   List.map(
+                     (t: Tile.t) => String.concat(",", Tile.label(t)),
+                     inc,
+                   ),
+                 )
+              ++ "]";
+        Alcotest.fail(
+          "cut-paste round-trip failed:"
+          ++ inc_str
+          ++ (has_concave ? "\nconcave grout present in output" : "")
+          ++ (has_convex ? "\nconvex grout present in output" : "")
+          ++ "\nprinted: "
+          ++ printed,
+        );
+      };
+    },
+  );
+
+let partition_at_program = "¦let partition_at : ([Int], Int) -> ([Int], [Int]) =\n  fun (xs, x) ->\n    case xs\n    | [] => ([], [])\n    | hd::tl =>\n      let (s, b) = partition_at(tl§, x) in\n      (s, b)\n    end\nin partition_at";
+
+let cut_paste_sort_recovery_tests = [
+  /* andrew's repro: the let body `g(x)` comes back sorted as a type */
+  /* fails on this branch: #2308 — `g` and `( )` stay Typ-sorted */
+  test_case(
+    "Cut-paste of `let f: (Int) = g(x` keeps body in Exp sort",
+    `Quick,
+    () => {
+      let _ = Alcotest.skip();
+      let z_sel = mk_zipper({|¦let f: (Int) = g(x§) in f|});
+      let clipboard =
+        Printer.of_segment(
+          ~holes=convex_char,
+          ~indent="",
+          z_sel.selection.content,
+        );
+      let z = perform(z_sel, [Cut, Paste(clipboard)]);
+      let let_tile =
+        List.find_map(
+          fun
+          | Piece.Tile(t) when Tile.effective_label(t) == ["let", "=", "in"] =>
+            Some(t)
+          | _ => None,
+          Zipper.unselect_and_zip(z),
+        );
+      switch (let_tile) {
+      | None =>
+        Alcotest.fail(
+          "expected top-level `let _ = _ in` tile after cut-paste, got: "
+          ++ printer(z),
+        )
+      | Some(t) =>
+        /* children: [pattern, definition]; the definition is `g(x)` */
+        let bad_typ_tiles =
+          List.filter_map(
+            fun
+            | Piece.Tile(t: Tile.t) when t.sort == Sort.Typ =>
+              Some(String.concat(" ", Tile.effective_label(t)))
+            | _ => None,
+            List.nth(t.children, 1),
+          );
+        if (bad_typ_tiles != []) {
+          Alcotest.fail(
+            "let body should be Exp-sorted but contains Typ tiles: ["
+            ++ String.concat(", ", bad_typ_tiles)
+            ++ "]",
+          );
+        };
+      };
+    },
+  ),
+  /* A leading keyword pasted inside the transient type parens lands as a
+   * lone token; after reassociation it must rejoin its trailing shard. */
+  /* fails on this branch: #2308 — lone `fun`: `fun ~x -> (x` */
+  assert_no_incomplete(
+    ~skip=true,
+    ~name="Cut-paste of `let f: (Int) = fun x -> (x` re-associates fun/->",
+    {|¦let f: (Int) = fun x -> (x§) in f|},
+  ),
+  /* fails on this branch: #2308 — lone `if`: `if ~a then b else (c` */
+  assert_no_incomplete(
+    ~skip=true,
+    ~name="Cut-paste of `let f: (Int) = if a then b else (c` re-associates if",
+    {|¦let f: (Int) = if a then b else (c§) in f|},
+  ),
+  /* fails on this branch: #2308 — `case ~a`; case/end and both lets incomplete */
+  assert_no_incomplete(
+    ~skip=true,
+    ~name="Cut-paste of `let f: (Int) = case a | b => (c` re-associates case",
+    {|¦let f: (Int) = case a | b => (c§) end in f|},
+  ),
+  /* fails on this branch: #2308 — lone `fix`: `fix ~g -> (g` */
+  assert_no_incomplete(
+    ~skip=true,
+    ~name="Cut-paste of `let f: (Int) = fix g -> (g` re-associates fix/->",
+    {|¦let f: (Int) = fix g -> (g§) in f|},
+  ),
+  /* fails on this branch: #2308 — both funs lone: `fun ~a -> fun ~b -> f(c` */
+  assert_no_incomplete(
+    ~skip=true,
+    ~name="Cut-paste with nested fun/fun re-associates both",
+    {|¦let f: (Int) = fun a -> fun b -> f(c§) in f|},
+  ),
+  /* fails on this branch: #2308 — lone fun and if: `fun ~a -> if ~b then …` */
+  assert_no_incomplete(
+    ~skip=true,
+    ~name="Cut-paste with nested fun/if re-associates both",
+    {|¦let f: (Int) = fun a -> if b then c else (d§) in f|},
+  ),
+  /* fails on this branch: #2308 — both ifs lone: `if ~a then if ~b then …` */
+  assert_no_incomplete(
+    ~skip=true,
+    ~name="Cut-paste with nested if/if re-associates both",
+    {|¦let f: (Int) = if a then if b then c else d else (e§) in f|},
+  ),
+  /* fails on this branch: #2308 — all three funs lone: `fun ~a -> …` */
+  assert_no_incomplete(
+    ~skip=true,
+    ~name="Cut-paste with triply-nested fun re-associates all",
+    {|¦let f: (Int) = fun a -> fun b -> fun c -> (d§) in f|},
+  ),
+  /* two `in`s remain after the cut; each must pair with its own let */
+  /* fails on this branch: #2308 — inner let lone and incomplete: `let ~b = f(a` */
+  assert_no_incomplete(
+    ~skip=true,
+    ~name="Cut-paste with nested let re-associates inner in",
+    {|¦let f: (Int) = let b = f(a§) in b in f|},
+  ),
+  /* fails on this branch: #2308 — a let,=,in tile left incomplete (no grout) */
+  assert_no_incomplete(
+    ~skip=true,
+    ~name="Cut-paste with nested let and pat-parens",
+    {|¦let f: (Int) = let (x) = f(tl§) in x in f|},
+  ),
+  /* the original full program the bug was found in */
+  assert_no_incomplete(
+    ~name="CHALLENGE: Cut-paste of partition_at recursive-call subexpression",
+    partition_at_program,
+  ),
+  /* same, with CoreSettings.on and statics/elaboration on the result, to
+   * surface crashes the test settings don't exercise */
+  test_case(
+    "CHALLENGE: partition_at with full settings",
+    `Quick,
+    () => {
+      Printexc.record_backtrace(true);
+      let settings = Language.CoreSettings.on;
+      /* built with the test settings: indentation_ux's indent-skipping
+       * ByChar moves overshoot mk's caret walk-back (Cant_move) */
+      let z_sel = mk_zipper(partition_at_program);
+      let clipboard =
+        Printer.of_segment(
+          ~holes=convex_char,
+          ~indent="",
+          z_sel.selection.content,
+        );
+      let z =
+        try(perform(~settings, z_sel, [Cut, Paste(clipboard)])) {
+        | exn =>
+          Alcotest.fail(
+            "Cut+Paste raised: "
+            ++ Printexc.to_string(exn)
+            ++ "\n"
+            ++ Printexc.get_backtrace(),
+          )
+        };
+      try({
+        let term = MakeTerm.from_zip_for_sem(z, ~root=Sort.Exp).term;
+        let _statics =
+          CachedStatics.init_from_term(
+            ~settings,
+            ~is_dynamic_term=true,
+            term,
+          );
+        ();
+      }) {
+      | exn =>
+        Alcotest.fail(
+          "Statics/elaboration raised: "
+          ++ Printexc.to_string(exn)
+          ++ "\n"
+          ++ Printexc.get_backtrace(),
+        )
+      };
     },
   ),
 ];
@@ -5888,6 +6218,7 @@ let tests = [
   ("Editing.AncestorSort", ancestor_sort_tests),
   ("Editing.IncompleteListDump", incomplete_list_dump_tests),
   ("Editing.CrossBoundaryPaste", cross_boundary_paste_tests),
+  ("Editing.CutPasteSortRecovery (#2308)", cut_paste_sort_recovery_tests),
   ("Editing.CharSelection", char_selection_tests),
   ("Editing.MultiDelimSelectionBugs", multi_delim_selection_bug_tests),
   ("Editing.MultiDelimBackpackBugs", multi_delim_backpack_tests),
