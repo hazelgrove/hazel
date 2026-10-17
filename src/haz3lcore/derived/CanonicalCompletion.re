@@ -1854,6 +1854,39 @@ let verify_holes =
      );
 };
 
+/* Reassembly keeps the head shard's mold (Tile.reassemble); merging
+   shards onto a fallback-molded orphan (e.g. `|` typed at Exp gets
+   mk_op(Any, [])) yields a multi-shard tile whose mold.in_ can't
+   cover its children. Rebase such molds on a base form mold; the
+   sort-filtered remold still picks the final mold where one exists. */
+let heal_mold = (t: Tile.t): Tile.t =>
+  List.length(t.shards) > 1
+  && List.length(Tile.mold(t).in_) != Tile.arity(t)
+  - 1
+    ? switch (Form.base_candidates(Tile.label(t))) {
+      | [(form, m), ..._] => {
+          ...t,
+          form,
+          sort: m.out,
+        }
+      | [] => t
+      }
+    : t;
+
+let rec heal_molds_deep = (seg: Segment.t): Segment.t =>
+  seg
+  |> List.map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         let t = heal_mold(t);
+         Piece.Tile({
+           ...t,
+           children: List.map(heal_molds_deep, t.children),
+         });
+       | p => p
+       }
+     );
+
 /* SEQUENTIAL MATERIALIZATION: complete ONE tile per partition per
    pass — strongest evidence first (witness > junction > fallback),
    weak ties innermost-first — then recurse on the result. The
@@ -2161,7 +2194,10 @@ let rec complete_segment =
            | p => p
            }
          );
-    let reassembled = deep_reassemble(regrouted) |> Segment.remold(_, sort);
+    let reassembled =
+      deep_reassemble(regrouted)
+      |> heal_molds_deep
+      |> Segment.remold(_, sort);
 
     /* Regrout again: remold may have changed shapes */
     let completed_seg =

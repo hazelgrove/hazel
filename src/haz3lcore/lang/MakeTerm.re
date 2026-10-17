@@ -1804,7 +1804,13 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
     | Tile({shards, children, _} as t) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
-           let s = l + 1 == r ? List.nth(Tile.mold(t).in_, l) : Sort.Any;
+           /* a reassembled tile can keep a degenerate single-shard mold
+              (fallback-molded orphan `|`) with too few inner sorts */
+           let s =
+             l + 1 == r
+               ? List.nth_opt(Tile.mold(t).in_, l)
+                 |> Option.value(~default=Sort.Any)
+               : Sort.Any;
            go_s(s, Segment.skel(~sort=s, kid), kid);
          })
     };
