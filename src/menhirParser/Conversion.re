@@ -720,6 +720,7 @@ and Pat: {
     | LabelPat(s) => label(s)
     | TupLabelPat(p1, p2) =>
       tup_label(of_menhir_ast(p1), of_menhir_ast(p2))
+    | DotPat(p, s) => dot(of_menhir_ast(p), label(s))
     | ListPat(l) => list_lit(List.map(of_menhir_ast, l))
     | IndicationPat(p) => {
         annotation: true,
@@ -763,6 +764,8 @@ and Pat: {
     | Label(s) => LabelPat(s)
     | ExplicitNonlabel => ExplicitNonlabel
     | TupLabel(p1, p2) => TupLabelPat(of_core(p1), of_core(p2))
+    | Dot(p, {term: Label(s), _}) => DotPat(of_core(p), s)
+    | Dot(_) => raise(Failure("Dot without a label not supported"))
     | Projector(_, p) => of_core(p)
     };
   };

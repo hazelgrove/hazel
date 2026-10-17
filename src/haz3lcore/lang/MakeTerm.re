@@ -1306,6 +1306,33 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           );
         }
       | ([(_id, (F(Compound(Cons)), []))], []) => ret(Cons(l, r))
+      | ([(_id, (F(Compound(Dot)), []))], []) =>
+        /* `M.A`, as the exp Dot reads its label */
+        switch (r.term) {
+        | Var(name)
+        | Constructor(name, None) =>
+          ret(
+            Dot(
+              l,
+              {
+                annotation: r.annotation,
+                term: Label(name),
+              },
+            ),
+          )
+        | Label(_)
+        | EmptyHole => ret(Dot(l, r))
+        | _ =>
+          ret(
+            Dot(
+              l,
+              {
+                annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(r)),
+                term: MultiHole([Pat(r)]),
+              },
+            ),
+          )
+        }
       | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
         Option.iter(set_lexeme, op_lexeme(f));

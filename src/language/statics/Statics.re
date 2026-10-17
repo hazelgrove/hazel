@@ -196,6 +196,9 @@ and uexp_to_info_map =
       ~ctx: Ctx.t,
       ~ana=syn,
       ~is_in_filter=false,
+      /* the head of a projection: a member that is both a constructor and
+         a sub-module is the sub-module here (`M.N.x`) */
+      ~dot_head=false,
       ~ancestors,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
       uexp: Exp.t,
@@ -277,6 +280,7 @@ and uexp_to_info_map =
         ~ctx=ctx,
         ~ana=syn,
         ~is_in_filter=is_in_filter,
+        ~dot_head=false,
         ~ancestors=ancestors_inclusive,
         uexp: Exp.t,
         m: Map.t,
@@ -286,6 +290,7 @@ and uexp_to_info_map =
       ~ctx,
       ~ana,
       ~is_in_filter,
+      ~dot_head,
       ~ancestors,
       ~probe_ids,
       uexp,
@@ -1299,7 +1304,7 @@ and uexp_to_info_map =
           }
         | _ => e1
         };
-      let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
+      let (info_e1, e1_elab, m) = go(~ana=syn, ~dot_head=true, e1, m);
       /* Dot looks through one List level (column projection over a list
          of labeled tuples), so the element head must be resolved too. */
       let whnf_dot = ty => {
@@ -1316,6 +1321,22 @@ and uexp_to_info_map =
         | _ => ty
         };
       };
+      let e1_ctors =
+        switch (whnf_dot(info_e1.ty).term) {
+        | Sig(items) => Typ.sig_ctors(ctx, items)
+        | _ => []
+        };
+      /* `M.A`: a constructor M exports, which a sub-module of the same name
+         beats only at the head of a further projection. */
+      let sig_ctor = (items, name) =>
+        switch (List.assoc_opt(name, e1_ctors)) {
+        | Some(_)
+            when
+              dot_head
+              && List.mem(name, Typ.sig_module_member_names(ctx, items)) =>
+          None
+        | found => found
+        };
       let available_labels = {
         let ty = whnf_dot(info_e1.ty);
         switch (ty.term) {
@@ -1323,7 +1344,10 @@ and uexp_to_info_map =
           List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
         | List({term: Prod(ts), _}) =>
           List.filter_map(Typ.match_tup_label, ts) |> List.map(fst)
-        | Sig(items) => Sig.value_names(Sig.members(items))
+        | Sig(items) =>
+          Sig.dedup_names(
+            Sig.value_names(Sig.members(items)) @ List.map(fst, e1_ctors),
+          )
         | _ => []
         };
       };
@@ -1337,7 +1361,9 @@ and uexp_to_info_map =
       let label_marks =
         switch (whnf_dot(info_e1.ty).term, e2.term) {
         | (Sig(items), Label(name))
-            when Typ.sig_project_value(items, name) == None => [
+            when
+              Typ.sig_project_value(items, name) == None
+              && sig_ctor(items, name) == None => [
             Mark.ModuleMemberNotFound({
               name,
               members: available_labels,
@@ -1460,11 +1486,22 @@ and uexp_to_info_map =
       | Sig(items) =>
         /* Value member of a module. Manifest type members declared in the
            signature are substituted into the member's type. */
-        let labels = Sig.value_names(Sig.members(items));
         switch (e2.term) {
         | Label(name) =>
-          switch (Typ.sig_project_value(items, name)) {
-          | Some(typ) =>
+          switch (sig_ctor(items, name), Typ.sig_project_value(items, name)) {
+          | (Some(ctor_ty), _) =>
+            /* the constructor itself: evaluation needs no module */
+            let elab_ty = fixed_typ(ctx, ana, ctor_ty) |> Typ.normalize(ctx);
+            add(
+              ~elab_term=Constructor(name, Some(Some(elab_ty))) |> rewrap,
+              ~elab_syn_ty=ctor_ty,
+              ~marks=[],
+              ~dot_labels=available_labels,
+              ~co_ctx=dot_co_ctx,
+              ~probe_targets=dot_probe_targets,
+              m,
+            );
+          | (None, Some(typ)) =>
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=typ,
@@ -1474,7 +1511,7 @@ and uexp_to_info_map =
               ~probe_targets=dot_probe_targets,
               m,
             )
-          | None =>
+          | (None, None) =>
             add(
               ~elab_term=dot_elab,
               ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
@@ -1483,7 +1520,7 @@ and uexp_to_info_map =
                 Message.Exp(
                   ModuleMemberNotFound({
                     name,
-                    members: labels,
+                    members: available_labels,
                   }),
                 ),
               ~dot_labels=available_labels,
@@ -1512,7 +1549,7 @@ and uexp_to_info_map =
             ~probe_targets=dot_probe_targets,
             m,
           )
-        };
+        }
       | List({term: Prod(ts), _}) =>
         let labels =
           List.filter_map(Typ.match_tup_label, ts) |> List.map(fst);
@@ -2528,7 +2565,8 @@ and uexp_to_info_map =
       let co_ctx =
         CoCtx.union([
           scrut.co_ctx,
-          ...List.map2(CoCtx.mk(ctx), p_ctxs, e_co_ctxs),
+          ...List.map2(CoCtx.mk(ctx), p_ctxs, e_co_ctxs)
+             @ List.map(ModuleHelpers.collect_pat_type_refs(ctx), ps),
         ]);
       let probe_targets =
         SubexpProbeTargets.union_all(
@@ -3673,6 +3711,146 @@ and upat_to_info_map =
         ~constraint_=p.constraint_,
         m,
       );
+    | Dot(path, label) =>
+      /* `M.A`: the constructor A that module M exports, elaborated to the
+         plain constructor. The path names a module, so nothing in it binds;
+         its nodes get infos of their own, not via `go`. */
+      let path_info = (~ancestors, p: Pat.t, ty: Typ.t, marks, m) => {
+        let info: Info.pat = {
+          cls: Cls.Pat(Pat.cls_of_term(p.term)),
+          elab_syn_ty: ty,
+          marks,
+          ana: Unknown(SynSwitch) |> Typ.temp,
+          ty,
+          message: Message.Pat(Common(Syn(ty))),
+          warnings: [],
+          ctx,
+          co_ctx,
+          probe_targets: SubexpProbeTargets.empty,
+          ancestors,
+          user_term: p,
+          elab_term: p,
+          constraint_: Coverage.Constraint.Truth,
+          label_inference: None,
+          inferred_label: None,
+          label_sort: false,
+        };
+        add_info(IdTagged.ids(p), InfoPat(info), m);
+      };
+      let not_found = (items, name): Mark.t =>
+        ModuleMemberNotFound({
+          name,
+          members:
+            Sig.dedup_names(
+              Sig.value_names(Sig.members(items))
+              @ List.map(fst, Typ.sig_ctors(ctx, items)),
+            ),
+          type_member: List.mem(name, Sig.type_names(Sig.members(items))),
+        });
+      /* the signature the path denotes, if any */
+      let rec module_path = (~ancestors, p: Pat.t, m) =>
+        switch (p.term) {
+        | Var(name)
+        | Constructor(name, _) =>
+          switch (Ctx.lookup_var(ctx, name)) {
+          | Some({typ, _}) =>
+            let items = Typ.as_sig(~rec_counter=0, ctx, typ);
+            let marks =
+              items == None
+                ? [
+                  Mark.TypWantModule({
+                    name,
+                    typ,
+                  }),
+                ]
+                : [];
+            (items, path_info(~ancestors, p, typ, marks, m));
+          | None => (
+              None,
+              path_info(~ancestors, p, unknown, [Free(name)], m),
+            )
+          }
+        | Parens(inner) =>
+          let (items, m) =
+            module_path(~ancestors=[Pat.rep_id(p), ...ancestors], inner, m);
+          (items, path_info(~ancestors, p, unknown, [], m));
+        | Dot(inner, {term: Label(name), _} as l) =>
+          let ancestors' = [Pat.rep_id(p), ...ancestors];
+          let (items, m) = module_path(~ancestors=ancestors', inner, m);
+          let sub =
+            Option.bind(items, items => Typ.sig_project_value(items, name));
+          let sub_items = Option.bind(sub, Typ.as_sig(~rec_counter=0, ctx));
+          let label_marks =
+            switch (items, sub_items) {
+            | (Some(items), None) => [not_found(items, name)]
+            | _ => []
+            };
+          let ty = Option.value(sub, ~default=unknown);
+          let m =
+            path_info(
+              ~ancestors=ancestors',
+              l,
+              Label(name) |> Typ.temp,
+              label_marks,
+              m,
+            );
+          (sub_items, path_info(~ancestors, p, ty, [], m));
+        | _ =>
+          let (_, _, m) = go(~ana=unknown, p, m);
+          (None, m);
+        };
+      let (items, m) = module_path(~ancestors=ancestors_inclusive, path, m);
+      switch (label.term) {
+      | Label(name) =>
+        let ctor_ty =
+          Option.bind(items, items => Typ.sig_project_ctor(ctx, items, name));
+        let label_marks =
+          switch (items, ctor_ty) {
+          | (Some(items), None) => [not_found(items, name)]
+          | _ => []
+          };
+        let m =
+          path_info(
+            ~ancestors=ancestors_inclusive,
+            label,
+            Label(name) |> Typ.temp,
+            label_marks,
+            m,
+          );
+        switch (ctor_ty) {
+        | Some(ctor_ty) =>
+          add(
+            ~elab_term=
+              Constructor(
+                name,
+                Some(
+                  Some(fixed_typ(ctx, ana, ctor_ty) |> Typ.normalize(ctx)),
+                ),
+              )
+              |> rewrap,
+            ~elab_syn_ty=ctor_ty,
+            ~constraint_=Coverage.Constraint.Ap(name, None),
+            m,
+          )
+        | None =>
+          /* the path or the member is reported where it is wrong */
+          add(
+            ~elab_term=Constructor(name, Some(None)) |> rewrap,
+            ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+            ~constraint_=Coverage.Constraint.Hole(None),
+            m,
+          )
+        };
+      | _ =>
+        let (_, _, m) = go(~ana=unknown, label, m);
+        add(
+          ~elab_term=EmptyHole |> rewrap,
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~marks=[ExpectedConstructor],
+          ~constraint_=Coverage.Constraint.Hole(None),
+          m,
+        );
+      };
     | Constructor(ctr, ty) =>
       let (syn_ctr, cms_ctr) =
         ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);

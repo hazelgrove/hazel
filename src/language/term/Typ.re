@@ -1235,6 +1235,52 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   };
 };
 
+/* The constructors a signature exports: those of each type member whose
+   definition is a sum, typed as outside the module, where the member's
+   closed definition stands for its name. Only the last declaration of a
+   type counts, and a later type's constructor shadows an earlier one's. */
+let sig_ctors = (ctx: Ctx.t, items: list(Sig.t)): list((Constructor.t, t)) => {
+  let defs =
+    List.fold_left(
+      (acc, (m: Sig.member, def)) =>
+        switch (m) {
+        | TypeManifest(name, _) =>
+          List.remove_assoc(name, acc) @ [(name, def)]
+        | Val(_) => acc
+        },
+      [],
+      sig_members_closed(items),
+    );
+  List.fold_left(
+    (acc, (_, def)) =>
+      switch (get_sum_constructors(ctx, def)) {
+      | None => acc
+      | Some(sm) =>
+        let ctrs =
+          List.filter_map(
+            fun
+            | ConstructorMap.Variant(c, _, arg) =>
+              Some((
+                c,
+                switch (arg) {
+                | None => def
+                | Some(arg) => Arrow(arg, def) |> temp
+                },
+              ))
+            | ConstructorMap.BadEntry(_) => None,
+            sm,
+          );
+        List.filter(((c, _)) => !List.mem_assoc(c, ctrs), acc) @ ctrs;
+      },
+    [],
+    defs,
+  );
+};
+
+let sig_project_ctor =
+    (ctx: Ctx.t, items: list(Sig.t), name: Constructor.t): option(t) =>
+  List.assoc_opt(name, sig_ctors(ctx, items));
+
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)

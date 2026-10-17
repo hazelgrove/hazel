@@ -117,6 +117,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Atom(Nat) => nat(Bigint.one)
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
+      | Dot => dot(constructor("M", None), label("A"))
       | Var => var("x")
       | Tuple => tuple([])
       | Cons => cons(empty_hole(), empty_hole())
