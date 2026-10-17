@@ -479,6 +479,28 @@ let above: Web.OutlineSidebar.above = {
   a_chip: Some(("chip", "chip title")),
 };
 
+/* a slide in a deck, and a level above it, shown or not */
+let slide_deck = (): Web.OutlineControl.deck => (
+  "scratch",
+  {
+    current: 0,
+    scratchpads: [
+      Web.ScratchModel.Scratchpad.mk_code(
+        ~name="Docs / Slide",
+        ~editor=
+          Web.ScratchFocus.cell_of_seg(CorpusUtil.seg_of("let a = 1 in\na")),
+        (),
+      ),
+    ],
+  },
+);
+let enclosing = (shown): Web.OutlineControl.enclosing => {
+  e_above: above,
+  e_shown: shown,
+  e_go: _ => Virtual_dom.Vdom.Effect.Ignore,
+  e_chip: Virtual_dom.Vdom.Effect.Ignore,
+};
+
 /* what a key asked of the outline's handlers */
 type asked = {
   k_toggled: list(Id.t),
@@ -613,26 +635,7 @@ let plain_level = () => {
     press(~alt=true, "ArrowRight", "M").k_went == [],
   );
   /* OutlineControl: Plain unless a caller supplies a level above */
-  let seg = CorpusUtil.seg_of("let a = 1 in\na");
-  let deck: Web.OutlineControl.deck = (
-    "scratch",
-    {
-      current: 0,
-      scratchpads: [
-        Web.ScratchModel.Scratchpad.mk_code(
-          ~name="Docs / Slide",
-          ~editor=Web.ScratchFocus.cell_of_seg(seg),
-          (),
-        ),
-      ],
-    },
-  );
-  let enclosing = (shown): Web.OutlineControl.enclosing => {
-    e_above: above,
-    e_shown: shown,
-    e_go: _ => Virtual_dom.Vdom.Effect.Ignore,
-    e_chip: Virtual_dom.Vdom.Effect.Ignore,
-  };
+  let deck = slide_deck();
   let level = Web.OutlineControl.level;
   check(
     bool,
@@ -781,6 +784,53 @@ let enclosing_level = () => {
   );
 };
 
+/* the level above folds its own rows, for the session: the slide's folds
+   and outline are untouched */
+let above_folds = () => {
+  module C = Web.OutlineControl;
+  let term =
+    term_of_text("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
+  let statics = {
+    ...CachedStatics.empty,
+    term,
+  };
+  let deck = slide_deck();
+  let view = shown =>
+    C.view(
+      ~arrows=true,
+      ~deck=Some(deck),
+      ~statics,
+      ~segment=[],
+      ~inject=_ => Virtual_dom.Vdom.Effect.Ignore,
+      ~inject_workspace=_ => Virtual_dom.Vdom.Effect.Ignore,
+      ~jump=_ => Virtual_dom.Vdom.Effect.Ignore,
+      ~leave=Virtual_dom.Vdom.Effect.Ignore,
+      ~statics_on=true,
+      ~enclosing=enclosing(shown),
+      (),
+    );
+  let f =
+    Option.get(
+      OutlineTree.label_path(CorpusUtil.row_by_label(term, "f"), term),
+    );
+  C.above_folds := [];
+  let up = view(true);
+  check(bool, "the same folds: the same outline", true, view(true) === up);
+  C.fold_above(f);
+  check(bool, "folded", true, C.above_folds^ == [f]);
+  check(bool, "a fold: a new outline", false, view(true) === up);
+  let slide = view(false);
+  C.fold_above(f);
+  check(bool, "unfolded", true, C.above_folds^ == []);
+  check(bool, "the slide's outline: unchanged", true, view(false) === slide);
+  check(
+    bool,
+    "the slide's folds: none",
+    true,
+    Web.ScratchPersist.collapse_paths("scratch", "Docs / Slide") == [],
+  );
+};
+
 let tests = [
   (
     "OutlineLevels",
@@ -788,6 +838,7 @@ let tests = [
       test_case("no level above: as before", `Quick, plain_level),
       test_case("a slide under a level above", `Quick, in_slide_level),
       test_case("at the level above", `Quick, enclosing_level),
+      test_case("the level above's folds", `Quick, above_folds),
     ],
   ),
   (

@@ -37,6 +37,13 @@ let created: ref(option((Id.t, string))) = ref(None);
 /* the slide the state above belongs to */
 let owner: ref(option(string)) = ref(None);
 
+/* the folds of the level above the slide: its own, for the session */
+let above_folds: ref(list(OutlineTree.path)) = ref([]);
+let fold_above = (path: OutlineTree.path): unit =>
+  above_folds :=
+    List.mem(path, above_folds^)
+      ? List.filter(p => p != path, above_folds^) : [path, ...above_folds^];
+
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -1063,7 +1070,12 @@ let view =
     OutlineFollow.spot := spot(p, id);
   | _ => ()
   };
-  let collapsed = collapsed(deck);
+  let collapsed =
+    switch (level) {
+    | Enclosing(_) => above_folds^
+    | Plain
+    | InSlide(_) => collapsed(deck)
+    };
   let focused =
     switch (deck) {
     | Some((_, m)) => ScratchModel.Model.focused_names(m)
@@ -1287,7 +1299,13 @@ let view =
         toggle: id =>
           nested(id) ? jump(id) : inject_workspace(FocusToggle(id)),
         toggle_run: id => inject_workspace(FocusToggleRun(id)),
-        toggle_collapse: path => inject(Collapse(path)),
+        toggle_collapse: path =>
+          switch (level) {
+          | Enclosing(_) =>
+            Effect.Many([Effect.of_sync_fun(fold_above, path), redraw])
+          | Plain
+          | InSlide(_) => inject(Collapse(path))
+          },
         zoom_to: m => inject_workspace(ZoomTo(m)),
         go_above: up =>
           Option.fold(~none=Effect.Ignore, ~some=e => e.e_go(up), enclosing),

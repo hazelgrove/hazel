@@ -541,6 +541,11 @@ let above_shown = (props: props): bool =>
   | InSlide(_) => false
   };
 
+/* the rows have keys, and a cursor and folds the model keeps: a slide's
+   rows, or the level above's, which has no stack */
+let keyed = (props: props): bool =>
+  props.stack_controls || above_shown(props);
+
 /* a way between the levels: up, back into the slide, the chip's, or none
    (the crumb of where the outline is) */
 type level_go =
@@ -967,7 +972,7 @@ let rec node_view =
           ),
           /* a click takes the keyboard to the outline, at this row: focus
              first, so the focus event's cursor lands before this one.
-             without a stack there are no keys, so no cursor. In text mode
+             without keys there is no cursor. In text mode
              the caret goes to the click, the line it leaves saved */
           Attr.on_mousedown(evt =>
             switch (tm, caret) {
@@ -984,7 +989,7 @@ let rec node_view =
                 ),
               ])
             | (None, _) =>
-              props.stack_controls
+              keyed(props)
                 ? take_cursor(on, Some(row_path))
                 : Effect.Many([Effect.Prevent_default, take_focus])
             }
@@ -1036,7 +1041,7 @@ let rec node_view =
                 ? [
                   Attr.on_click(evt =>
                     stop(
-                      props.stack_controls
+                      keyed(props)
                         ? fold(~on, ~tm, row)
                         : Effect.of_sync_fun(
                             () => {
@@ -1166,11 +1171,11 @@ let rec node_view =
           "summary",
           ~attrs=
             [clss(["outline-summary"])]
-            /* with stack controls collapse is MODEL state (per slide,
-               persisted): the summary click dispatches the toggle and
-               suppresses the native one */
+            /* with keys collapse is MODEL state (a slide's persisted):
+               the summary click dispatches the toggle and suppresses the
+               native one */
             @ (
-              props.stack_controls
+              keyed(props)
                 ? [
                   Attr.on_click(_ =>
                     Effect.Many([
@@ -2088,7 +2093,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
     | _ => None
     };
   /* the level above has no stack, but its keys and its crumbs back */
-  let keyed = props.stack_controls || above_shown(props);
+  let keyed = keyed(props);
   create(
     "details",
     ~attrs=
@@ -2105,7 +2110,7 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
             ),
           ]
           @ (
-            props.stack_controls
+            keyed
               ? [
                 Attr.on_mousedown(_ =>
                   tm == None ? take_cursor(on, None) : Effect.Prevent_default
