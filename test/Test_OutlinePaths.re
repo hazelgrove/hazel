@@ -569,6 +569,70 @@ let opened_run_kept = () => {
   ScratchPersist.forget_slide(prefix, name);
 };
 
+/* a run's tally, from its tests' statuses as their rows show them */
+let tallies = () => {
+  module S = Web.OutlineSidebar;
+  let tally_of = (src: string) => {
+    let term = MakeTerm.go(CorpusUtil.seg_of(src)).term;
+    let (_, elab) =
+      Statics.mk(
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Operators.default_mode)),
+        term,
+      );
+    let (_, state) = Evaluator.evaluate(~env=Builtins.env_init, elab);
+    let results = EvaluatorState.get_tests(state);
+    let test_status = id =>
+      TestMap.lookup(id, results) |> Option.map(TestMap.joint_status);
+    switch (
+      List.find_opt(
+        (n: OutlineTree.node) => n.o_kind == KTests,
+        OutlineTree.flatten(OutlineTree.of_term(term)),
+      )
+    ) {
+    | Some(run) => S.run_tally(S.run_statuses(~test_status, run))
+    | None => fail("no run")
+    };
+  };
+  let run = tests =>
+    "let f = fun x -> x + 1 in\n"
+    ++ String.concat("", List.map(t => "test " ++ t ++ " end;\n", tests))
+    ++ "f(0)";
+  let tally = testable(Fmt.(option(pair(string, bool))), (==));
+  check(
+    tally,
+    "all pass",
+    Some(("3/3", false)),
+    tally_of(run(["f(1) == 2", "f(2) == 3", "f(3) == 4"])),
+  );
+  check(
+    tally,
+    "one fails: in red",
+    Some(("1 failing", true)),
+    tally_of(run(["f(1) == 2", "f(2) == 3", "f(3) == 5"])),
+  );
+  check(
+    tally,
+    "holes, none failing: those passing",
+    Some(("2/4", false)),
+    tally_of(
+      run([
+        {js|f(1) == 2|js},
+        {js|f(2) == ¿|js},
+        {js|f(¿) == 4|js},
+        "f(3) == 4",
+      ]),
+    ),
+  );
+  check(
+    tally,
+    "a failure over holes",
+    Some(("1 failing", true)),
+    tally_of(run([{js|f(1) == ¿|js}, "f(2) == 4"])),
+  );
+  check(tally, "no results yet", None, S.run_tally([None, None]));
+};
+
 /* the editor-caret mark goes where its row shows: a folded run's label,
    by its first test, as a folded module's row takes its members' */
 let mark_in_runs = () => {
@@ -631,6 +695,7 @@ let tests = [
         `Quick,
         opened_run_kept,
       ),
+      test_case("a run's tally", `Quick, tallies),
       test_case("the caret's mark in a folded run", `Quick, mark_in_runs),
     ],
   ),
