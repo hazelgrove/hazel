@@ -990,8 +990,27 @@ let same = ((statics, results, rest), (statics', results', rest')) =>
   && Option.equal((===), results, results')
   && rest == rest';
 
+/* a level above the slide (OutlineSidebar.above): whether it's shown in
+   the slide's place, the way up (true) and back, and its chip's click */
+type enclosing = {
+  e_above: OutlineSidebar.above,
+  e_shown: bool,
+  e_go: bool => Effect.t(unit),
+  e_chip: Effect.t(unit),
+};
+
+let level =
+    (~enclosing: option(enclosing), deck: option(deck))
+    : OutlineSidebar.level =>
+  switch (enclosing, deck) {
+  | (Some(e), Some(d)) when e.e_shown => Enclosing(e.e_above, slide_name(d))
+  | (Some(e), Some(_)) => InSlide(e.e_above)
+  | _ => Plain
+  };
+
 /* the outline of the slide's whole program in Scratch and Documentation,
-   else of the current editor's [statics] and [segment] */
+   else of the current editor's [statics] and [segment]: so too at a
+   level above the slide, for navigating only */
 let view =
     (
       ~arrows: bool,
@@ -1003,8 +1022,17 @@ let view =
       ~jump: Id.t => Effect.t(unit),
       ~leave: Effect.t(unit),
       ~statics_on: bool,
+      ~enclosing: option(enclosing)=?,
+      (),
     )
     : Node.t => {
+  let level = level(~enclosing, deck);
+  let deck =
+    switch (level) {
+    | Enclosing(_) => None
+    | Plain
+    | InSlide(_) => deck
+    };
   let program = program_of(deck);
   let statics =
     switch (program) {
@@ -1075,6 +1103,7 @@ let view =
       created^,
       live,
       statics_on,
+      level,
     ),
   );
   Util.Slot.get(
@@ -1149,6 +1178,7 @@ let view =
         },
         is_collapsed: path => List.mem(path, collapsed),
         header: {
+          h_level: level,
           h_program: name,
           h_trail:
             switch (slide_view) {
@@ -1259,6 +1289,10 @@ let view =
         toggle_run: id => inject_workspace(FocusToggleRun(id)),
         toggle_collapse: path => inject(Collapse(path)),
         zoom_to: m => inject_workspace(ZoomTo(m)),
+        go_above: up =>
+          Option.fold(~none=Effect.Ignore, ~some=e => e.e_go(up), enclosing),
+        above_chip:
+          Option.fold(~none=Effect.Ignore, ~some=e => e.e_chip, enclosing),
         zoom_in: id => inject_workspace(ZoomIn(id)),
         show_whole: b => inject_workspace(ShowWhole(b)),
         discard: inject_workspace(UnfocusDef),

@@ -254,6 +254,7 @@ let arrows_redraw = () => {
       ~jump=_ => Virtual_dom.Vdom.Effect.Ignore,
       ~leave=Virtual_dom.Vdom.Effect.Ignore,
       ~statics_on=true,
+      (),
     );
   let off = view(false);
   check(
@@ -470,7 +471,325 @@ let start_text = () => {
   check(bool, "F2 on a test", true, snd(press("F2", "1")) == at("1", 0));
 };
 
+/* a level above the slide, as a caller supplies it */
+let above: Web.OutlineSidebar.above = {
+  a_label: "up",
+  a_out: "out to up",
+  a_here: "up here",
+  a_chip: Some(("chip", "chip title")),
+};
+
+/* what a key asked of the outline's handlers */
+type asked = {
+  k_toggled: list(Id.t),
+  k_ops: list((Web.OutlineEdit.def_op, Id.t)),
+  k_text: bool,
+  k_menus: int,
+  k_went: list(bool),
+  k_cursor: option(OutlineTree.path),
+};
+
+/* the outline's keys over a module and two items at [level], zoomed
+   along [trail] */
+let at_level = (~trail=[], level: Web.OutlineSidebar.level) => {
+  module S = Web.OutlineSidebar;
+  let seg =
+    CorpusUtil.seg_of(
+      "module M = {\n  let a = 1\n} in\nlet b = 2 in\ntest b == 2 end;\nb",
+    );
+  let term = MakeTerm.Incr.term_of(seg);
+  let visible = OutlineHarness.visible(term);
+  let cursor = ref(None);
+  let toggled = ref([]);
+  let ops = ref([]);
+  let text = ref(None);
+  let menus = ref(0);
+  let went = ref([]);
+  let on =
+    OutlineHarness.handlers(
+      ~cursor,
+      ~text,
+      ~menus,
+      ~went,
+      ~toggle=
+        id => {
+          toggled := [id, ...toggled^];
+          Virtual_dom.Vdom.Effect.Ignore;
+        },
+      ~def_op=
+        (op, id) => {
+          ops := [(op, id), ...ops^];
+          Virtual_dom.Vdom.Effect.Ignore;
+        },
+      (),
+    );
+  let props = OutlineHarness.props(~level, ());
+  let props = {
+    ...props,
+    header: {
+      ...props.header,
+      h_trail: trail,
+    },
+  };
+  /* [key] pressed with the cursor on [label]'s row */
+  let press = (~meta=false, ~alt=false, ~shift=false, ~code=?, key, label) => {
+    cursor :=
+      Array.find_opt(
+        (r: S.visible_row) => r.r_node.o_label == label,
+        visible,
+      )
+      |> Option.map((r: S.visible_row) => r.r_path);
+    toggled := [];
+    ops := [];
+    text := None;
+    menus := 0;
+    went := [];
+    ignore(
+      S.keys(
+        ~props,
+        ~on,
+        ~visible,
+        OutlineHarness.keydown(~meta, ~alt, ~shift, ~code?, key),
+      ),
+    );
+    {
+      k_toggled: toggled^,
+      k_ops: ops^,
+      k_text: text^ != None,
+      k_menus: menus^,
+      k_went: went^,
+      k_cursor: cursor^,
+    };
+  };
+  (term, on, press);
+};
+
+/* every edit key the slide's outline takes, whether it asked for its
+   edit (the menu keys need a page: enclosing_level has them) */
+let edit_keys =
+    (
+      press:
+        (
+          ~meta: bool=?,
+          ~alt: bool=?,
+          ~shift: bool=?,
+          ~code: string=?,
+          string,
+          string
+        ) =>
+        asked,
+    ) => [
+  ("Space", press(" ", "b").k_toggled != []),
+  ("⌘D", press(~meta=true, ~code="KeyD", "d", "b").k_ops != []),
+  ("⌘⌫", press(~meta=true, "Backspace", "b").k_ops != []),
+  ("Delete", press("Delete", "b").k_ops != []),
+  ("⌥↑", press(~alt=true, "ArrowUp", "b").k_ops != []),
+  ("F2", press("F2", "b").k_text),
+  ("⌘Enter", press(~meta=true, "Enter", "b").k_text),
+];
+
+/* without a level above, the outline is as it always was: no crumbs or
+   rows of a level, edits taken, ⌥← zooms out */
+let plain_level = () => {
+  module S = Web.OutlineSidebar;
+  check(bool, "no crumbs", true, S.level_crumbs(Plain) == []);
+  check(bool, "no rows", true, S.level_rows(Plain) == []);
+  check(bool, "no chip", true, S.level_chip(Plain) == None);
+  let (_, _, press) = at_level(Plain);
+  List.iter(
+    ((name, took)) => check(bool, name ++ " edits", true, took),
+    edit_keys(press),
+  );
+  check(
+    bool,
+    "⌥← zooms out",
+    true,
+    press(~alt=true, "ArrowLeft", "b").k_went == [],
+  );
+  check(
+    bool,
+    "⌥→ zooms in",
+    true,
+    press(~alt=true, "ArrowRight", "M").k_went == [],
+  );
+  /* OutlineControl: Plain unless a caller supplies a level above */
+  let seg = CorpusUtil.seg_of("let a = 1 in\na");
+  let deck: Web.OutlineControl.deck = (
+    "scratch",
+    {
+      current: 0,
+      scratchpads: [
+        Web.ScratchModel.Scratchpad.mk_code(
+          ~name="Docs / Slide",
+          ~editor=Web.ScratchFocus.cell_of_seg(seg),
+          (),
+        ),
+      ],
+    },
+  );
+  let enclosing = (shown): Web.OutlineControl.enclosing => {
+    e_above: above,
+    e_shown: shown,
+    e_go: _ => Virtual_dom.Vdom.Effect.Ignore,
+    e_chip: Virtual_dom.Vdom.Effect.Ignore,
+  };
+  let level = Web.OutlineControl.level;
+  check(
+    bool,
+    "a slide: Plain",
+    true,
+    level(~enclosing=None, Some(deck)) == Plain,
+  );
+  check(
+    bool,
+    "no slide, a level above: Plain",
+    true,
+    level(~enclosing=Some(enclosing(true)), None) == Plain,
+  );
+  check(
+    bool,
+    "a slide under a level above",
+    true,
+    level(~enclosing=Some(enclosing(false)), Some(deck)) == InSlide(above),
+  );
+  check(
+    bool,
+    "the level above, the slide its way back",
+    true,
+    level(~enclosing=Some(enclosing(true)), Some(deck))
+    == Enclosing(above, "Docs / Slide"),
+  );
+};
+
+/* in a slide under a level above: its crumb leads, and ⌥← at the slide's
+   top goes up */
+let in_slide_level = () => {
+  module S = Web.OutlineSidebar;
+  check(
+    bool,
+    "the level's crumb, up",
+    true,
+    S.level_crumbs(InSlide(above)) == [("up", "out to up", Up)],
+  );
+  check(bool, "no rows", true, S.level_rows(InSlide(above)) == []);
+  check(bool, "no chip", true, S.level_chip(InSlide(above)) == None);
+  let (term, _, press) = at_level(InSlide(above));
+  List.iter(
+    ((name, took)) => check(bool, name ++ " edits", true, took),
+    edit_keys(press),
+  );
+  check(
+    bool,
+    "⌥← at the top: up",
+    true,
+    press(~alt=true, "ArrowLeft", "b").k_went == [true],
+  );
+  let m = CorpusUtil.row_by_label(term, "M");
+  let (_, _, press) = at_level(~trail=[(m, "M")], InSlide(above));
+  check(
+    bool,
+    "⌥← zoomed in: zooms out",
+    true,
+    press(~alt=true, "ArrowLeft", "a").k_went == [],
+  );
+};
+
+/* at the level above: its crumb, the slide's to go back, the chip; a
+   last row back; keys navigate only, ⌥→ goes back */
+let enclosing_level = () => {
+  module S = Web.OutlineSidebar;
+  let level: S.level = Enclosing(above, "Docs / Slide");
+  check(
+    bool,
+    "here, then the slide's crumb back",
+    true,
+    S.level_crumbs(level)
+    == [("up", "up here", Here), ("Slide", "back into Docs / Slide", Back)],
+  );
+  check(
+    bool,
+    "the chip",
+    true,
+    S.level_chip(level) == Some(("chip", "chip title")),
+  );
+  check(
+    bool,
+    "no chip, none drawn",
+    true,
+    S.level_chip(
+      Enclosing(
+        {
+          ...above,
+          a_chip: None,
+        },
+        "s",
+      ),
+    )
+    == None,
+  );
+  check(
+    bool,
+    "the last row: back into the slide",
+    true,
+    S.level_rows(level) == [("Slide", "back into Docs / Slide")],
+  );
+  let (term, on, press) = at_level(level);
+  List.iter(
+    ((name, took)) => check(bool, name ++ " refused", false, took),
+    edit_keys(press)
+    @ [
+      ("⌘.", press(~meta=true, ".", "b").k_menus > 0),
+      ("⇧F10", press(~shift=true, "F10", "b").k_menus > 0),
+    ],
+  );
+  check(
+    bool,
+    "⌥→ from a row: back",
+    true,
+    press(~alt=true, "ArrowRight", "b").k_went == [false],
+  );
+  check(
+    bool,
+    "⌥→ from a module: back, not into it",
+    true,
+    press(~alt=true, "ArrowRight", "M").k_went == [false],
+  );
+  check(
+    bool,
+    "⌥←: nothing above",
+    true,
+    press(~alt=true, "ArrowLeft", "b").k_went == [],
+  );
+  check(
+    bool,
+    "↓ still moves: M to its member",
+    true,
+    press("ArrowDown", "M").k_cursor
+    == OutlineTree.label_path(CorpusUtil.row_by_label(term, "a"), term),
+  );
+  /* the clicks: the back crumb and row go back, the chip is the caller's */
+  let went = ref([]);
+  let on' = OutlineHarness.handlers(~went, ());
+  ignore(S.level_effect(on', Back));
+  ignore(S.level_effect(on', Up));
+  check(bool, "back, up", true, went^ == [true, false]);
+  check(
+    bool,
+    "the chip's",
+    true,
+    S.level_effect(on, Chip) === on.above_chip,
+  );
+};
+
 let tests = [
+  (
+    "OutlineLevels",
+    [
+      test_case("no level above: as before", `Quick, plain_level),
+      test_case("a slide under a level above", `Quick, in_slide_level),
+      test_case("at the level above", `Quick, enclosing_level),
+    ],
+  ),
   (
     "OutlinePaths",
     cases
