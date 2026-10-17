@@ -285,7 +285,8 @@
   transform: translateY(-1.8px) rotate(45deg);
 }
 
-/* without arrows a branch's sigil folds it, turning on its side */
+/* without arrows a branch's sigil folds it, turning on its side; a run's
+   ✓/✗ stays upright (turned, it reads as broken) */
 #outline-sidebar.no-arrows summary.outline-summary::before {
   display: none;
 }
@@ -295,7 +296,11 @@
   transition: transform 0.15s ease-out;
 }
 
-#outline-sidebar.no-arrows details:not([open]) > summary .outline-glyph {
+#outline-sidebar.no-arrows
+  details:not([open])
+  > summary
+  .outline-label:not(.ol-tests)
+  .outline-glyph {
   transform: rotate(-90deg);
 }
 
@@ -328,6 +333,43 @@
 
 #outline-sidebar .ol-tests {
   font-style: italic;
+}
+
+/* a run's label keeps to its line in the panel: only its tally gives
+   way */
+#outline-sidebar .outline-label.ol-tests {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+#outline-sidebar summary.outline-summary > .outline-label.ol-tests {
+  flex-shrink: 1;
+}
+#outline-sidebar .outline-label.ol-tests > * {
+  flex-shrink: 0;
+}
+#outline-sidebar .outline-label.ol-tests > .outline-tally {
+  flex-shrink: 1;
+}
+/* text mode's caret there, at the text's bottom as on other lines */
+#outline-sidebar .ol-tests .outline-ghost-caret {
+  align-self: flex-end;
+}
+
+/* a run's tally: small, in its word's faded ink; red when a test fails */
+#outline-sidebar .outline-tally {
+  margin-left: 1ch;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.92em;
+  font-style: italic;
+  color: var(--ol-faded);
+  opacity: 0.85;
+}
+#outline-sidebar .outline-tally.outline-tally-fail {
+  color: var(--text-error);
+  opacity: 1;
 }
 
 /* rows with no name to type (the ⇒ result, the "tests" label, numbered

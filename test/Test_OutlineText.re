@@ -30,9 +30,10 @@ let term = MakeTerm.Incr.term_of(CorpusUtil.seg_of(src));
 let id = CorpusUtil.row_by_label(term);
 
 /* the program's lines ([of_]: another's), with [collapsed] rows folded
-   and a new definition's line if [text] has one */
-let lines = (~of_=term, ~collapsed=[], ~text=?, ()) =>
-  E.lines(~text, H.visible(~collapsed, of_));
+   (or as a slide with [folds] folds them) and a new definition's line if
+   [text] has one */
+let lines = (~of_=term, ~collapsed=[], ~folds=?, ~text=?, ()) =>
+  E.lines(~text, H.visible(~collapsed, ~folds?, of_));
 
 /* a line by what it shows: a name, a test's number, the "tests" and ";"
    rows, beta's "beta⇒" and the program's "⇒", a new line's "+" */
@@ -83,6 +84,7 @@ let press =
     (
       ~of_=term,
       ~collapsed=[],
+      ~folds=?,
       ~col=0,
       ~field=false,
       ~sel=false,
@@ -97,7 +99,7 @@ let press =
       p: E.press,
     )
     : E.outcome => {
-  let base = lines(~of_, ~collapsed, ());
+  let base = lines(~of_, ~collapsed, ~folds?, ());
   let line =
     switch (on) {
     | Some(line) => line
@@ -108,7 +110,7 @@ let press =
     col_target,
     error,
   };
-  let ls = lines(~of_, ~collapsed, ~text=t, ());
+  let ls = lines(~of_, ~collapsed, ~folds?, ~text=t, ());
   E.decide(
     ~lines=ls,
     ~at=Option.get(E.find(ls, line)),
@@ -1288,6 +1290,10 @@ let reset = () => {
   C.cursor := None;
   C.flash := 0;
   C.created := None;
+  Hashtbl.remove(
+    Web.ScratchPersist.slide_folds,
+    Web.ScratchPersist.content_key("scratch", "t"),
+  );
 };
 
 /* a new test below a test, or first of a run: the caret on it */
@@ -1576,11 +1582,9 @@ let nesting_ops = () => {
   let code = code_of(src);
   let term = Web.Workspace.fresh_term(code.program);
   let ck = Web.ScratchPersist.content_key("scratch", "t");
-  Hashtbl.replace(
-    Web.ScratchPersist.slide_collapse,
-    ck,
-    [Option.get(O.label_path(CorpusUtil.row_by_label(term, "M"), term))],
-  );
+  let m_path =
+    Option.get(O.label_path(CorpusUtil.row_by_label(term, "M"), term));
+  Hashtbl.replace(Web.ScratchPersist.slide_folds, ck, [(m_path, true)]);
   /* the caret on [label]'s row, at column 2 */
   let on = (code: Web.ScratchModel.Scratchpad.code, label) => {
     let term = Web.Workspace.fresh_term(code.program);
@@ -1622,14 +1626,18 @@ let nesting_ops = () => {
   check(
     bool,
     "M unfolded",
-    true,
-    Web.ScratchPersist.collapse_paths("scratch", "t") == [],
+    false,
+    O.folded(
+      ~folds=Web.ScratchPersist.folds("scratch", "t"),
+      m_path,
+      KModule,
+    ),
   );
   check(bool, "no cell opened", true, scheduled^ == []);
   let out = run(DefOp(Outdent, on(in_.model, "bee")), in_.model);
   check(string, {js|⇧Tab: out again|js}, printed(src), text_of(out));
   check(at_name, "the caret along", Some(("bee", 2)), caret(out));
-  Hashtbl.remove(Web.ScratchPersist.slide_collapse, ck);
+  Hashtbl.remove(Web.ScratchPersist.slide_folds, ck);
   reset();
 };
 
@@ -2300,6 +2308,175 @@ let row_mode_fold = () => {
   check(bool, "alpha has nothing to fold", true, press("alpha") == []);
 };
 
+/* a run of tests, folded by default: ⌥F, → and Enter open it, ← goes
+   to its parent, ↓ past its tests; opened, ← folds it, → and ↓ go in */
+let run_fold_keys = () => {
+  let run = Option.get(O.run_of(id("1"), term));
+  let path = label => O.label_path(id(label), term);
+  let press = (~folds, key) => {
+    let cursor = ref(Some(run));
+    let flipped = ref([]);
+    let on =
+      H.handlers(
+        ~cursor,
+        ~toggle_collapse=
+          p => {
+            flipped := [p, ...flipped^];
+            H.ignore;
+          },
+        (),
+      );
+    ignore(
+      Web.OutlineSidebar.keys(
+        ~props=H.props(),
+        ~on,
+        ~visible=H.visible(~folds, term),
+        key,
+      ),
+    );
+    (flipped^, cursor^);
+  };
+  let alt_f = H.keydown(~alt=true, ~code="KeyF", {js|ƒ|js});
+  let flips =
+    testable(
+      Fmt.of_to_string(((ps, c)) =>
+        "flipped ["
+        ++ String.concat("; ", List.map(O.show_path, ps))
+        ++ "], cursor "
+        ++ Option.fold(~none="none", ~some=O.show_path, c)
+      ),
+      (==),
+    );
+  let opens = ([run], Some(run));
+  check(flips, "⌥F opens it", opens, press(~folds=[], alt_f));
+  check(flips, "→ too", opens, press(~folds=[], H.keydown("ArrowRight")));
+  check(flips, "Enter too", opens, press(~folds=[], H.keydown("Enter")));
+  check(
+    flips,
+    "←: to its parent, the header",
+    ([], None),
+    press(~folds=[], H.keydown("ArrowLeft")),
+  );
+  check(
+    flips,
+    "↓: past its tests",
+    ([], path("blank")),
+    press(~folds=[], H.keydown("ArrowDown")),
+  );
+  let opened = [(run, false)];
+  check(
+    flips,
+    "opened, ← folds it",
+    opens,
+    press(~folds=opened, H.keydown("ArrowLeft")),
+  );
+  check(
+    flips,
+    "→ goes in",
+    ([], path("1")),
+    press(~folds=opened, H.keydown("ArrowRight")),
+  );
+  check(
+    flips,
+    "↓ too",
+    ([], path("1")),
+    press(~folds=opened, H.keydown("ArrowDown")),
+  );
+};
+
+/* in text mode a folded run is one ghost line: ↑↓ step over its tests,
+   Enter adds a test after the run, ⌥F opens it */
+let run_text = () => {
+  let ls = lines(~folds=[], ());
+  check(
+    bool,
+    "its tests aren't lines",
+    false,
+    Array.exists(
+      (e: E.entry) =>
+        switch (e) {
+        | Of_row(r) => r.r_node.o_kind == KTest
+        | Of_new(_) => false
+        },
+      ls,
+    ),
+  );
+  let go = (which, col, target) => E.Go(line_of(ls, which), col, target);
+  check(
+    outcome,
+    "↓ onto the run",
+    go("tests", 0, Some(0)),
+    press(~folds=[], "unit", k("ArrowDown")),
+  );
+  check(
+    outcome,
+    "↓ past its tests",
+    go("blank", 0, Some(0)),
+    press(~folds=[], "tests", k("ArrowDown")),
+  );
+  check(
+    outcome,
+    "↑ back onto it",
+    go("tests", 0, Some(0)),
+    press(~folds=[], "blank", k("ArrowUp")),
+  );
+  check(
+    outcome,
+    "Enter: a test after the run",
+    NewTest(NewTestBelow, id("2")),
+    press(~folds=[], "tests", k("Enter")),
+  );
+  check(
+    outcome,
+    "⌥F opens it",
+    Fold(Option.get(O.run_of(id("1"), term))),
+    press(~folds=[], "tests", k(~alt=true, ~code="KeyF", {js|ƒ|js})),
+  );
+};
+
+/* a test added in a folded run opens it, so the caret shows on the new
+   test; so does one a lone test's new neighbour makes */
+let new_test_opens_run = () => {
+  let folded = path =>
+    O.folded(~folds=Web.ScratchPersist.folds("scratch", "t"), path, KTests);
+  let label = (code: Web.ScratchModel.Scratchpad.code) =>
+    Option.map((n: O.node) => n.o_label, caret_on(code));
+  let code = code_of("let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na");
+  let term = Web.Workspace.fresh_term(code.program);
+  let row = CorpusUtil.row_by_label(term);
+  let tests = Option.get(O.run_of(row("1"), term));
+  check(bool, "folded to start", true, folded(tests));
+  C.text := Some(E.at(Row(tests, Some(Run(row("1"))))));
+  let code' = run(DefOp(NewTestBelow, row("2")), code);
+  check(bool, "Enter on it: opened", false, folded(tests));
+  check(
+    option(string),
+    "the caret on the new test",
+    Some("3"),
+    label(code'),
+  );
+  reset();
+  let code = code_of("let a = 1 in\ntest a == 1 end;\na");
+  let term = Web.Workspace.fresh_term(code.program);
+  let lone = CorpusUtil.row_by_label(term, "1");
+  C.text :=
+    Some(
+      E.at(Row(Option.get(O.label_path(lone, term)), Some(Item(lone)))),
+    );
+  let code' = run(DefOp(NewTestBelow, lone), code);
+  let term' = Web.Workspace.fresh_term(code'.program);
+  check(
+    bool,
+    "a lone test's new neighbour: their run opened",
+    false,
+    folded(
+      Option.get(O.run_of(CorpusUtil.row_by_label(term', "2"), term')),
+    ),
+  );
+  check(option(string), "the caret on it", Some("2"), label(code'));
+  reset();
+};
+
 /* a test's menu and a tests label's offer a new test: below the test,
    first of an expanded run, after a folded one */
 let test_menus = () => {
@@ -2624,6 +2801,9 @@ let tests = (
     test_case("selecting in a new definition's name", `Quick, live_selection),
     test_case("copy and delete move the caret", `Quick, copy_and_delete),
     test_case("⌥F in row mode", `Quick, row_mode_fold),
+    test_case("a folded run's keys", `Quick, run_fold_keys),
+    test_case("a folded run in text mode", `Quick, run_text),
+    test_case("a new test opens its run", `Quick, new_test_opens_run),
     test_case("menus offer a new test", `Quick, test_menus),
     test_case("a keyword typed first in a rename", `Quick, rename_keywords),
     test_case("Esc leaves in one press", `Quick, esc_leaves),

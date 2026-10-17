@@ -471,6 +471,211 @@ let start_text = () => {
   check(bool, "F2 on a test", true, snd(press("F2", "1")) == at("1", 0));
 };
 
+/* runs of tests: in a module, at the top level, and a lone test */
+let runs = "let a = 1 in\nmodule M = {\n  let x = 1;\n  test x == 1 end;\n  test x == 2 end\n} in\ntest a == 1 end;\ntest a == 2 end;\nlet b = 2 in\ntest b == 2 end;\nb";
+
+/* the rows a slide with [folds] shows, by label (the ⇒ has none) */
+let shown = (~folds, e: Exp.t): list(string) =>
+  List.map(
+    (r: Web.OutlineSidebar.visible_row) => r.r_node.o_label,
+    Array.to_list(OutlineHarness.visible(~folds, e)),
+  );
+
+/* a run starts folded, every other row open; a choice by hand wins */
+let default_fold = () => {
+  let e = term_of_text(runs);
+  let row = CorpusUtil.row_by_label(e);
+  check(
+    list(string),
+    "runs folded, the rest open",
+    ["a", "M", "x", "tests", "tests", "b", "5", ""],
+    shown(~folds=[], e),
+  );
+  let top = Option.get(OutlineTree.run_of(row("3"), e));
+  check(
+    list(string),
+    "a run opened by hand",
+    ["a", "M", "x", "tests", "tests", "3", "4", "b", "5", ""],
+    shown(~folds=[(top, false)], e),
+  );
+  let m = Option.get(OutlineTree.label_path(row("M"), e));
+  check(
+    list(string),
+    "a module folded by hand",
+    ["a", "M", "tests", "b", "5", ""],
+    shown(~folds=[(m, true)], e),
+  );
+};
+
+let code_of = (src: string): Web.ScratchModel.Scratchpad.code =>
+  switch (
+    Web.ScratchModel.Scratchpad.mk_code(
+      ~name="t",
+      ~editor=Web.ScratchFocus.cell_of_seg(CorpusUtil.seg_of(src)),
+      (),
+    ).
+      kind
+  ) {
+  | Code(code) => code
+  | Drv(_) => fail("not a code slide")
+  };
+
+/* a run opened by hand stays open through a reload, and through a test
+   added elsewhere, which renumbers its tests but leaves its path */
+let opened_run_kept = () => {
+  module C = Web.OutlineControl;
+  let (prefix, name) = ("foldtest", "t");
+  let code = code_of(runs);
+  let e = Web.Workspace.fresh_term(code.program);
+  let top =
+    Option.get(OutlineTree.run_of(CorpusUtil.row_by_label(e, "3"), e));
+  let flip = () =>
+    ignore(
+      C.update(
+        ~settings=Web.Globals.Model.init().settings,
+        ~schedule_workspace=_ => (),
+        ~prefix,
+        ~name,
+        Collapse(top),
+        code,
+      ),
+    );
+  let folded = () =>
+    OutlineTree.folded(
+      ~folds=ScratchPersist.folds(prefix, name),
+      top,
+      KTests,
+    );
+  check(bool, "folded with no choice made", true, folded());
+  flip();
+  check(bool, "opened by hand", false, folded());
+  /* a reload: the slide's folds as saved */
+  let ck = ScratchPersist.content_key(prefix, name);
+  Hashtbl.remove(ScratchPersist.slide_folds, ck);
+  ScratchPersist.forget_gates(ck);
+  ScratchPersist.stage_side(prefix, name);
+  check(bool, "still open after a reload", false, folded());
+  let added =
+    term_of_text(
+      "let a = 1 in\nmodule M = {\n  let x = 1;\n  test x == 1 end;\n  test x == 2 end;\n  test x == 3 end\n} in\ntest a == 1 end;\ntest a == 2 end;\nlet b = 2 in\ntest b == 2 end;\nb",
+    );
+  check(
+    list(string),
+    "a test added in M's run: this one still open",
+    ["a", "M", "x", "tests", "tests", "4", "5", "b", "6", ""],
+    shown(~folds=ScratchPersist.folds(prefix, name), added),
+  );
+  flip();
+  check(bool, "folded again by hand", true, folded());
+  ScratchPersist.forget_slide(prefix, name);
+};
+
+/* a run's tally, from its tests' statuses as their rows show them */
+let tallies = () => {
+  module S = Web.OutlineSidebar;
+  let tally_of = (src: string) => {
+    let term = MakeTerm.go(CorpusUtil.seg_of(src)).term;
+    let (_, elab) =
+      Statics.mk(
+        CoreSettings.on,
+        Builtins.ctx_init(Some(Operators.default_mode)),
+        term,
+      );
+    let (_, state) = Evaluator.evaluate(~env=Builtins.env_init, elab);
+    let results = EvaluatorState.get_tests(state);
+    let test_status = id =>
+      TestMap.lookup(id, results) |> Option.map(TestMap.joint_status);
+    switch (
+      List.find_opt(
+        (n: OutlineTree.node) => n.o_kind == KTests,
+        OutlineTree.flatten(OutlineTree.of_term(term)),
+      )
+    ) {
+    | Some(run) => S.run_tally(S.run_statuses(~test_status, run))
+    | None => fail("no run")
+    };
+  };
+  let run = tests =>
+    "let f = fun x -> x + 1 in\n"
+    ++ String.concat("", List.map(t => "test " ++ t ++ " end;\n", tests))
+    ++ "f(0)";
+  let tally = testable(Fmt.(option(pair(string, bool))), (==));
+  check(
+    tally,
+    "all pass",
+    Some(("3/3", false)),
+    tally_of(run(["f(1) == 2", "f(2) == 3", "f(3) == 4"])),
+  );
+  check(
+    tally,
+    "one fails: in red",
+    Some(("1 failing", true)),
+    tally_of(run(["f(1) == 2", "f(2) == 3", "f(3) == 5"])),
+  );
+  check(
+    tally,
+    "holes, none failing: those passing",
+    Some(("2/4", false)),
+    tally_of(
+      run([
+        {js|f(1) == 2|js},
+        {js|f(2) == ¿|js},
+        {js|f(¿) == 4|js},
+        "f(3) == 4",
+      ]),
+    ),
+  );
+  check(
+    tally,
+    "a failure over holes",
+    Some(("1 failing", true)),
+    tally_of(run([{js|f(1) == ¿|js}, "f(2) == 4"])),
+  );
+  check(tally, "no results yet", None, S.run_tally([None, None]));
+};
+
+/* the editor-caret mark goes where its row shows: a folded run's label,
+   by its first test, as a folded module's row takes its members' */
+let mark_in_runs = () => {
+  module C = Web.OutlineControl;
+  module E = Web.OutlineEdit;
+  let e = term_of_text(runs);
+  let row = CorpusUtil.row_by_label(e);
+  let top = Option.get(OutlineTree.run_of(row("4"), e));
+  let key = testable(Fmt.of_to_string(E.show_key), (==));
+  check(
+    key,
+    "in a folded run: its label",
+    E.Run(row("3")),
+    C.shown_row(~folds=[], row("4"), e),
+  );
+  check(
+    key,
+    "opened: the test's own row",
+    E.Item(row("4")),
+    C.shown_row(~folds=[(top, false)], row("4"), e),
+  );
+  let m = Option.get(OutlineTree.label_path(row("M"), e));
+  check(
+    key,
+    "in a run in a folded module: the module",
+    E.Item(row("M")),
+    C.shown_row(~folds=[(m, true)], row("1"), e),
+  );
+  check(
+    key,
+    "a lone test: its own row",
+    E.Item(row("5")),
+    C.shown_row(~folds=[], row("5"), e),
+  );
+  check(
+    bool,
+    "a run's label, by path: the outline's cursor there",
+    true,
+    C.key_path(E.Run(row("3")), e) == Some(top),
+  );
+};
+
 /* a level above the slide, as a caller supplies it */
 let above: Web.OutlineSidebar.above = {
   a_label: "up",
@@ -816,19 +1021,29 @@ let above_folds = () => {
   C.above_folds := [];
   let up = view(true);
   check(bool, "the same folds: the same outline", true, view(true) === up);
-  C.fold_above(f);
-  check(bool, "folded", true, C.above_folds^ == [f]);
+  C.fold_above(term, f);
+  check(bool, "folded", true, C.above_folds^ == [(f, true)]);
   check(bool, "a fold: a new outline", false, view(true) === up);
   let slide = view(false);
-  C.fold_above(f);
-  check(bool, "unfolded", true, C.above_folds^ == []);
+  C.fold_above(term, f);
+  check(bool, "unfolded", true, C.above_folds^ == [(f, false)]);
   check(bool, "the slide's outline: unchanged", true, view(false) === slide);
   check(
     bool,
     "the slide's folds: none",
     true,
-    Web.ScratchPersist.collapse_paths("scratch", "Docs / Slide") == [],
+    Web.ScratchPersist.folds("scratch", "Docs / Slide") == [],
   );
+  /* a run there starts folded too: its first flip opens it */
+  let runs = term_of_text(runs);
+  let run =
+    Option.get(
+      OutlineTree.run_of(CorpusUtil.row_by_label(runs, "3"), runs),
+    );
+  C.above_folds := [];
+  C.fold_above(runs, run);
+  check(bool, "a run: opened", true, C.above_folds^ == [(run, false)]);
+  C.above_folds := [];
 };
 
 let tests = [
@@ -854,6 +1069,14 @@ let tests = [
         space_under_projector,
       ),
       test_case("F2 and ⌘Enter start text mode", `Quick, start_text),
+      test_case("test runs start folded", `Quick, default_fold),
+      test_case(
+        "an opened run stays open: a reload, a test elsewhere",
+        `Quick,
+        opened_run_kept,
+      ),
+      test_case("a run's tally", `Quick, tallies),
+      test_case("the caret's mark in a folded run", `Quick, mark_in_runs),
     ],
   ),
 ];
