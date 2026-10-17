@@ -2992,6 +2992,7 @@ and upat_to_info_map =
       label_inference,
       inferred_label,
       label_sort,
+      dot_labels: [],
     };
     (info, elab_term, add_info(IdTagged.ids(user_term), InfoPat(info), m));
   };
@@ -3715,9 +3716,19 @@ and upat_to_info_map =
       /* `M.A`: the constructor A that module M exports, elaborated to the
          plain constructor. The path names a module, so nothing in it binds;
          its nodes get infos of their own, not via `go`. */
-      let path_info = (~ancestors, p: Pat.t, ty: Typ.t, marks, m) => {
+      let path_info =
+          (
+            ~cls=?,
+            ~label_sort=false,
+            ~dot_labels=[],
+            ~ancestors,
+            p: Pat.t,
+            ty: Typ.t,
+            marks,
+            m,
+          ) => {
         let info: Info.pat = {
-          cls: Cls.Pat(Pat.cls_of_term(p.term)),
+          cls: Option.value(cls, ~default=Cls.Pat(Pat.cls_of_term(p.term))),
           elab_syn_ty: ty,
           marks,
           ana: Unknown(SynSwitch) |> Typ.temp,
@@ -3733,25 +3744,40 @@ and upat_to_info_map =
           constraint_: Coverage.Constraint.Truth,
           label_inference: None,
           inferred_label: None,
-          label_sort: false,
+          label_sort,
+          dot_labels,
         };
         add_info(IdTagged.ids(p), InfoPat(info), m);
       };
+      /* what may follow `M.` here: a constructor, or a sub-module */
+      let members = items =>
+        Sig.dedup_names(
+          List.map(fst, Typ.sig_ctors(ctx, items))
+          @ Typ.sig_module_member_names(ctx, items),
+        );
       let not_found = (items, name): Mark.t =>
         ModuleMemberNotFound({
           name,
-          members:
-            Sig.dedup_names(
-              Sig.value_names(Sig.members(items))
-              @ List.map(fst, Typ.sig_ctors(ctx, items)),
-            ),
+          members: members(items),
           type_member: List.mem(name, Sig.type_names(Sig.members(items))),
         });
+      let label_info = (~ancestors, items, l, ty, marks, m) =>
+        path_info(
+          ~label_sort=true,
+          ~dot_labels=Option.fold(~none=[], ~some=members, items),
+          ~ancestors,
+          l,
+          ty,
+          marks,
+          m,
+        );
       /* the signature the path denotes, if any */
       let rec module_path = (~ancestors, p: Pat.t, m) =>
         switch (p.term) {
         | Var(name)
         | Constructor(name, _) =>
+          /* a reference to the module, as in an expression */
+          let path_info = path_info(~cls=Cls.Exp(Var));
           switch (Ctx.lookup_var(ctx, name)) {
           | Some({typ, _}) =>
             let items = Typ.as_sig(~rec_counter=0, ctx, typ);
@@ -3769,7 +3795,7 @@ and upat_to_info_map =
               None,
               path_info(~ancestors, p, unknown, [Free(name)], m),
             )
-          }
+          };
         | Parens(inner) =>
           let (items, m) =
             module_path(~ancestors=[Pat.rep_id(p), ...ancestors], inner, m);
@@ -3787,8 +3813,9 @@ and upat_to_info_map =
             };
           let ty = Option.value(sub, ~default=unknown);
           let m =
-            path_info(
+            label_info(
               ~ancestors=ancestors',
+              items,
               l,
               Label(name) |> Typ.temp,
               label_marks,
@@ -3810,8 +3837,9 @@ and upat_to_info_map =
           | _ => []
           };
         let m =
-          path_info(
+          label_info(
             ~ancestors=ancestors_inclusive,
+            items,
             label,
             Label(name) |> Typ.temp,
             label_marks,
@@ -3841,6 +3869,23 @@ and upat_to_info_map =
             m,
           )
         };
+      | EmptyHole =>
+        /* `M.` being typed */
+        let m =
+          label_info(
+            ~ancestors=ancestors_inclusive,
+            items,
+            label,
+            unknown,
+            [],
+            m,
+          );
+        add(
+          ~elab_term=EmptyHole |> rewrap,
+          ~elab_syn_ty=unknown,
+          ~constraint_=Coverage.Constraint.Hole(None),
+          m,
+        );
       | _ =>
         let (_, _, m) = go(~ana=unknown, label, m);
         add(

@@ -125,6 +125,27 @@ let view_type = (~globals, typ: Typ.t) =>
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
+let module_member_not_found_view = (~name, ~members, ~type_member) =>
+  if (type_member) {
+    [
+      code(name),
+      text(
+        " is a type member of the module, not a value; use it in a type position",
+      ),
+    ];
+  } else {
+    [text("Module has no member "), code(name)]
+    @ (
+      switch (members) {
+      | [] => [text("; it has no members")]
+      | _ => [
+          text("; its members are "),
+          ...ListUtil.join(text(", "), List.map(code, members)),
+        ]
+      }
+    );
+  };
+
 let core_mark_err_view =
     (
       ~globals,
@@ -250,7 +271,16 @@ let core_mark_err_view =
         }
       };
     | ExplicitNonlabel => [text("Type error")]
-    | Free(_)
+    /* a pattern's module path (`M.A`) */
+    | Free(name) => [code(name), text("not found")]
+    | ModuleMemberNotFound({name, members, type_member}) =>
+      module_member_not_found_view(~name, ~members, ~type_member)
+    | TypWantModule({name, typ}) => [
+        code(name),
+        text("is a value of type"),
+        view_type(typ),
+        text(", not a module"),
+      ]
     | InexhaustiveMatch(_)
     | IsDeferral(_)
     | IsBadPartialAp(_)
@@ -263,7 +293,6 @@ let core_mark_err_view =
     | LabelNotFound(_)
     | ModuleMissingMembers(_)
     | ModuleExtraMembers(_)
-    | ModuleMemberNotFound(_)
     | ModuleTypeMemberMismatch(_)
     | TypeMemberCapture(_)
     | BadOperator(_)
@@ -278,7 +307,6 @@ let core_mark_err_view =
     | TypWantLabel
     | TypWantProduct(_)
     | ModuleTypeMemberNotFound(_)
-    | TypWantModule(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
     | TypParseFailure
@@ -792,27 +820,7 @@ let exp_mark_err_view =
       ...ListUtil.join(text(", "), List.map(code, names)),
     ])
   | ModuleMemberNotFound({name, members, type_member}) =>
-    if (type_member) {
-      div_err([
-        code(name),
-        text(
-          " is a type member of the module, not a value; use it in a type position",
-        ),
-      ]);
-    } else {
-      div_err(
-        [text("Module has no member "), code(name)]
-        @ (
-          switch (members) {
-          | [] => [text("; it has no members")]
-          | _ => [
-              text("; its members are "),
-              ...ListUtil.join(text(", "), List.map(code, members)),
-            ]
-          }
-        ),
-      );
-    }
+    div_err(module_member_not_found_view(~name, ~members, ~type_member))
   | ModuleExtraMembers(names) =>
     div_err([
       text("Module has members its signature does not declare: "),
