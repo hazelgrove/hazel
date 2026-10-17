@@ -118,5 +118,17 @@ let g : ? = id in
 in (map(fun x -> x + 1)([1, 2]), map(fun b -> !b)([true]))|},
       )
     ),
+    test_case("Written type variables are bound by the definition", `Quick, () =>
+      parse_and_evaluate_test(
+        "(1, true)",
+        {|let id(x : a) = x in (id(1), id(true))|},
+      )
+    ),
+    test_case("Annotated name with a written type variable", `Quick, () =>
+      parse_and_evaluate_test(
+        {|(1, "s")|},
+        {|let id : a -> a = fun x -> x in (id(1), id("s"))|},
+      )
+    ),
   ],
 );

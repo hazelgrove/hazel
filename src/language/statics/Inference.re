@@ -972,6 +972,65 @@ let solve = (st: infer_state, m: StaticsBase.Map.t): apply_state => {
   };
 };
 
+/* Type variables written in a variable let's annotations that nothing in
+   scope binds: the let binds them, rigid and scoped over its definition.
+   Only names like `a`, `b1` or `a'`, so a misspelled type name (`int`)
+   stays unbound. Nested
+   variable lets bind their own. Not with inference off, as on dev. */
+let written_tvars = (~ctx: Ctx.t, p: Pat.t, def: Exp.t): list(string) =>
+  switch (mode^) {
+  | Off => []
+  | Infer(_)
+  | Apply(_) =>
+    let found = ref([]);
+    let bound = ref([]);
+    let under = (tp: TPat.t, f) => {
+      let saved = bound^;
+      switch (IdTagged.term_of(tp)) {
+      | Var(a) => bound := [a, ...bound^]
+      | _ => ()
+      };
+      let r = f();
+      bound := saved;
+      r;
+    };
+    let short = a =>
+      Util.StringUtil.match(Util.StringUtil.regexp("^[a-z][0-9']*$"), a);
+    let f_typ = (continue, t: Typ.t) =>
+      switch (Typ.term_of(t)) {
+      | Var(a)
+          when
+            short(a)
+            && !List.mem(a, bound^)
+            && !List.mem(a, found^)
+            && Ctx.lookup_tvar(ctx, a) == None =>
+        found := [a, ...found^];
+        t;
+      | Poly(tp, _)
+      | Rec(tp, _) => under(tp, () => continue(t))
+      | _ => continue(t)
+      };
+    let rec f_exp = (continue, e: Exp.t) =>
+      switch (Exp.term_of(e)) {
+      | Let(q, _, body) when binds_variable(q) =>
+        let _ = Exp.map_term(~f_exp, ~f_typ, body);
+        e;
+      | TypFun(tp, _, _)
+      | TyAlias(tp, _, _) => under(tp, () => continue(e))
+      | _ => continue(e)
+      }
+    and binds_variable = (q: Pat.t) =>
+      switch (Pat.term_of(q)) {
+      | Var(_)
+      | Ap({term: Var(_), _}, _) => true
+      | Asc(q, _) => binds_variable(q)
+      | _ => false
+      };
+    let _ = Pat.map_term(~f_typ, p);
+    let _ = Exp.map_term(~f_exp, ~f_typ, def);
+    List.rev(found^);
+  };
+
 /* Pass 2, at a generalized let: the def's ctx gains its type variables. */
 let let_gen = (~let_id: Id.t): option(gen) =>
   switch (mode^) {

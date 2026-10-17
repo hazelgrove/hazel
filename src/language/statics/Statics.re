@@ -2118,10 +2118,23 @@ and uexp_to_info_map =
          generalized type variables in scope (elaboration pass only). */
       let let_id = Exp.rep_id(uexp);
       let gen = Inference.let_gen(~let_id);
+      /* Type variables the definition's annotations use without binding
+         are bound by this let (Inference.written_tvars). */
+      let written: Inference.gen = {
+        tvars:
+          switch (IdTagged.term_of(p)) {
+          | Var(_)
+          | Asc({term: Var(_), _}, _) =>
+            Inference.written_tvars(~ctx, p, def)
+          | _ => []
+          },
+        holes: [],
+      };
+      let ctx_written = Inference.extend_with_tvars(~let_id, ctx, written);
       let ctx_def =
         switch (gen) {
-        | Some(g) => Inference.extend_with_tvars(~let_id, ctx, g)
-        | None => ctx
+        | Some(g) => Inference.extend_with_tvars(~let_id, ctx_written, g)
+        | None => ctx_written
         };
       let go_pat_def =
         upat_to_info_map(
@@ -2215,16 +2228,40 @@ and uexp_to_info_map =
               | Var(_) => true
               | _ => false
               },
-            ~ctx,
+            ~ctx=ctx_written,
             ~def=def.user_term,
             ~def_ty=ty_p_ana,
             m,
           )
         | (None, Some(_)) => None
         };
+      let scheme =
+        written.tvars == []
+          ? scheme
+          : Some(
+              Inference.poly_of(
+                written,
+                Option.value(~default=ty_p_ana, scheme),
+              ),
+            );
+      let ty_mono = ty_p_ana;
       let (p_ana_ctx, ty_p_ana) =
-        switch (scheme) {
-        | Some(scheme) =>
+        switch (scheme, IdTagged.term_of(p)) {
+        /* `let f : a -> a = …`: the annotation stays the monotype; the name
+           gets the scheme */
+        | (Some(scheme), Asc({term: Var(x), _} as v, _)) => (
+            Ctx.extend(
+              ctx,
+              VarEntry({
+                name: x,
+                id: Pat.rep_id(v),
+                typ: scheme,
+                custom_statics: None,
+              }),
+            ),
+            scheme,
+          )
+        | (Some(scheme), _) =>
           let (p_gen, _, _) =
             go_pat(
               ~is_synswitch=false,
@@ -2234,7 +2271,7 @@ and uexp_to_info_map =
               m,
             );
           (p_gen.ctx, scheme);
-        | None => (p_ana_ctx, ty_p_ana)
+        | (None, _) => (p_ana_ctx, ty_p_ana)
         };
       /* Inject module type exports into body context */
       let p_ana_ctx =
@@ -2267,7 +2304,36 @@ and uexp_to_info_map =
       let (body, body_elab, m) = go(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
+        switch (written.tvars, IdTagged.term_of(p)) {
+        /* The annotation is checked as the monotype; the name, elaborated
+           without it, gets the scheme */
+        | ([_, ..._], Asc(v, _)) =>
+          let (p_ana, _, m) =
+            go_pat_def(
+              ~is_synswitch=false,
+              ~co_ctx=body.co_ctx,
+              ~ana=ty_mono,
+              p,
+              m,
+            );
+          let (_, v_elab, m) =
+            go_pat(
+              ~is_synswitch=false,
+              ~co_ctx=body.co_ctx,
+              ~ana=ty_p_ana,
+              v,
+              m,
+            );
+          (p_ana, v_elab, m);
+        | _ =>
+          go_pat(
+            ~is_synswitch=false,
+            ~co_ctx=body.co_ctx,
+            ~ana=ty_p_ana,
+            p,
+            m,
+          )
+        };
       let syn_ty_let = body.elab_syn_ty;
       let p_constraint = Info.pat_constraint(p_ana);
       let marks_let =
@@ -2295,10 +2361,13 @@ and uexp_to_info_map =
              Pat.bound_vars(p),
            );
       let generalize = elab =>
-        switch (gen) {
-        | Some(g) => Inference.wrap_typfuns(~let_id, g, elab)
-        | None => elab
-        };
+        (
+          switch (gen) {
+          | Some(g) => Inference.wrap_typfuns(~let_id, g, elab)
+          | None => elab
+          }
+        )
+        |> Inference.wrap_typfuns(~let_id, written);
       let (elab_term, m) =
         if (!requires_fixf) {
           let def_elab =

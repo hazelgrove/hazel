@@ -129,6 +129,75 @@ let tests = (
       Some(poly("a", T.arrow(a, a))),
     ),
     fully_consistent_typecheck(
+      "Written type variables are bound by the definition",
+      {|let id(x : a) = x in id|},
+      Some(poly("a", T.arrow(a, a))),
+    ),
+    fully_consistent_typecheck(
+      "Written type variable on the let's name",
+      {|let id : a -> a = fun x -> x in id|},
+      Some(poly("a", T.arrow(a, a))),
+    ),
+    fully_consistent_typecheck(
+      "Written type variables come before inferred ones",
+      {|let pair(x : a, y) = (x, y) in pair|},
+      Some(
+        poly("a", poly("b", T.arrow(T.prod([a, b]), T.prod([a, b])))),
+      ),
+    ),
+    fully_consistent_typecheck(
+      "Nested definitions share a written type variable",
+      {|let outer(x : a) = let inner(y : a) = y in inner(x) in outer(true)|},
+      Some(T.bool()),
+    ),
+    test_case(
+      "With inference off, written type variables stay unbound",
+      `Quick,
+      () => {
+        let exp = parse_exp({|let id(x : a) = x in id|});
+        let (s, _) =
+          Statics.mk(
+            {
+              ...CoreSettings.on,
+              inference: false,
+            },
+            Builtins.ctx_init(Some(Int)),
+            exp,
+          );
+        check(bool, "marked", true, errors(s) != []);
+      },
+    ),
+    test_case("Written type variables are rigid", `Quick, () =>
+      check(
+        bool,
+        "marked",
+        true,
+        all_marks({|let f(x : a) = x + 1 in f|}) != [],
+      )
+    ),
+    test_case(
+      "Only short names are bound implicitly",
+      `Quick,
+      () => {
+        check(bool, "T", true, all_marks({|let f(x : T) = x in f|}) != []);
+        check(
+          bool,
+          "int",
+          true,
+          all_marks({|let f(x : int) = x in f|}) != [],
+        );
+      },
+    ),
+    test_case(
+      "Written type variables are not in scope in the body", `Quick, () =>
+      check(
+        bool,
+        "marked",
+        true,
+        all_marks({|let id(x : a) = x in (1 : a)|}) != [],
+      )
+    ),
+    fully_consistent_typecheck(
       "Function definition sugar is generalized",
       {|let id(x) = x in id|},
       Some(poly("a", T.arrow(a, a))),
