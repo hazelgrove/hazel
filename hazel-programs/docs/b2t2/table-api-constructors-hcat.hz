@@ -40,7 +40,7 @@ let ensures = [
 ] in
 let hcat =
   fun (t1 : [?], t2 : [?]) ->
-    zip(t1, t2) |> map(_, fun (r1, r2) -> r1 ... r2) in
+    List.zip(t1, t2) |> List.map(_, fun (r1, r2) -> r1 ... r2) in
 # Examples #
 test
   hcat(students, gradebook)
@@ -81,7 +81,7 @@ let hcat =
     typfun r2 ->
       typfun r3 ->
         fun (t1 : [r1], t2 : [r2], combine : (r1, r2) -> r3) ->
-          (zip(t1, t2) |> map(_, combine)) : [r3] in
+          (List.zip(t1, t2) |> List.map(_, combine)) : [r3] in
 # Examples #
 test
   hcat@<Student>@<GradebookEntry>@<(

@@ -114,10 +114,21 @@ let setup_worker_message_handler = worker => {
     });
 };
 
+/* the standard library the app installed after an edit (a Marshal of
+   Library.baked); a worker starts with the shipped one, so a new or
+   restarted worker gets this first */
+let library: ref(option(string)) = ref(None);
+
+let post_library = (worker, blob: string) =>
+  worker##postMessage(
+    Active.encode_request(ClientMessage.InstallLibrary(blob)),
+  );
+
 let init_worker: unit => Js.t(Worker.worker(Active.request, Active.response)) =
   () => {
     let worker = Worker.create(name);
     setup_worker_message_handler(worker);
+    Option.iter(post_library(worker), library^);
     worker;
   };
 
@@ -135,6 +146,12 @@ let get_worker = () =>
     worker_ref.contents = Some(w);
     w;
   };
+
+/* posted before any later evaluation request (postMessage is FIFO) */
+let install_library = (blob: string): unit => {
+  library := Some(blob);
+  Option.iter(w => post_library(w, blob), worker_ref.contents);
+};
 
 let restart_worker = (): unit => {
   EvalMetrics.incr_restarts();

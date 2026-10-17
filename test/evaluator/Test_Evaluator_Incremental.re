@@ -52,7 +52,7 @@ let eval_incr =
       info_map,
     );
   let (result, state) =
-    Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   (result, state, state.incr_eval);
 };
 
@@ -131,7 +131,7 @@ let reuse_plan =
     : EvaluatorState.incr_eval => {
   let (info_map, elab) = statics_and_elab(exp);
   let eval_info = eval_info_of_statics(info_map);
-  ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
 };
 
 let has_reuse = (ack_incr: EvaluatorState.incr_eval): bool =>
@@ -146,6 +146,12 @@ let visible_ids = (incr: EvaluatorState.incr_eval): list(Id.t) => {
   let acc = ref(Id.Set.empty);
   let f_exp = (continue, e: Exp.t): Exp.t => {
     acc := Id.Set.add(Exp.rep_id(e), acc^);
+    /* Module items carry surface ids of their own. */
+    switch (e.term) {
+    | Module(items) =>
+      List.iter(item => acc := Id.Set.add(Mod.rep_id(item), acc^), items)
+    | _ => ()
+    };
     continue(e);
   };
   Id.Map.iter(
@@ -194,7 +200,7 @@ let test_streaming_plan_reuses_root_without_descending = () => {
   let (info_map, elab) = statics_and_elab(exp);
   let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   let root_id = Exp.rep_id(elab);
   check(
     bool,
@@ -218,7 +224,7 @@ let test_streaming_plan_omits_misses_and_keeps_children = () => {
   let (info_map, elab) = statics_and_elab(exp2);
   let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   let root_id = Exp.rep_id(elab);
   check(
     bool,
@@ -241,7 +247,7 @@ let test_materialize_stream_state_marks_reused_entries = () => {
   let (info_map, elab) = statics_and_elab(exp);
   let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   let state =
     StreamCollector.collect_stream_state(
       IncrEval.outbox_of_completed(stream),
@@ -271,7 +277,7 @@ let eval_with_targets =
       ~targets,
       info_map,
     );
-  Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
 };
 
 let replace_first_u_plus_one = (exp: Exp.t): Exp.t => {
@@ -787,8 +793,8 @@ let test_tuple_destructuring_edit_updates = () => {
 /* List literal: same idea — editing one element shouldn't break the result.
  * We sum via a cons-accumulator-style expression to exercise Cons + fold. */
 let test_list_literal_element_edit_updates = () => {
-  /* Use length so the test is independent of fold syntax variations. */
-  let src = "length([7, 8, 9])";
+  /* Use List.length so the test is independent of fold syntax variations. */
+  let src = "List.length([7, 8, 9])";
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=8, ~to_=88, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
@@ -866,7 +872,7 @@ let test_probe_replay_on_reuse = () => {
     Evaluator.evaluate(
       ~prev=IncrEval.empty,
       ~eval_info,
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elab,
     );
   /* Second run: same elaboration, same (empty) targets. Just confirm the
@@ -875,7 +881,7 @@ let test_probe_replay_on_reuse = () => {
     Evaluator.evaluate(
       ~prev=state1.incr_eval,
       ~eval_info,
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elab,
     );
   check(
@@ -924,22 +930,19 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  * surface tile of the unrelated module `c` stays in the visible-id set.
  *
  * Background:
- *   `ModuleHelpers.lower` desugars `{ let bb = 12; let x = ... }` into
- *   a chain `Let(bb, 12, Let(x, ..., Let(...,Tuple(...))))`. The chain
- *   inverts surface nesting: the surface-outer Module M becomes the
- *   elab-innermost Tuple, and surface-sibling ModLets become elab-
- *   ancestors of one another.
+ *   A module elaborates to a `Module` whose items keep their surface ids
+ *   (`ModuleHelpers.refold_module_elab`). When the evaluator hits module
+ *   `c` on run 2 and finds its cached entry, it short-circuits via
+ *   `Evaluator.re:158-164` and marks only that one id as reused
+ *   (`IncrEval.mark_reused`). The inner items `let x = fib(b)`,
+ *   `let y = fib(b)`, `let z = x + y` are never visited during evaluation,
+ *   so the UI must derive frozen ids by walking the reuse plan rather than
+ *   visited output.
  *
- *   When the evaluator hits the OUTERMOST elab Let on run 2 and finds
- *   its cached entry, it short-circuits via `Evaluator.re:158-164` and
- *   marks only that one id as reused (`IncrEval.mark_reused`). The
- *   surface-sibling inner ModLets `let x = fib(b)`, `let y = fib(b)`,
- *   `let z = x + y` are never visited during evaluation, so clients must
- *   derive visible ids by walking the reuse plan rather than visited output.
- *
- *   The fix is to derive a visible-id set from the ACK reuse plan by walking
- *   each entry's `prev_elab` and unioning all rep_ids encountered.
- *   This test pins down the desired contents of that set. */
+ *   The visible set is derived from the ACK reuse plan by walking each
+ *   entry's `prev_elab` and unioning all rep_ids encountered, including the
+ *   ids of module items. This test pins down the desired contents of that
+ *   set. */
 let test_module_c_inner_ids_in_visible_set_after_edit_in_module_a = () => {
   let src = {|let fib = fun n ->
   if n < 2 then 1 else fib(n - 1) + fib(n - 2) in
@@ -1627,21 +1630,21 @@ let test_toplevel_cast_edit = () => {
 
 /* Regression test: builtins must participate in reuse.
  *
- * A subexpression that references a builtin (e.g. `string_length`) has that
- * builtin's name in its co_ctx. The builtin is bound in `Builtins.env_init`,
+ * A subexpression that references a builtin (e.g. `String.length`) has that
+ * builtin's name in its co_ctx. The builtin is bound in `Builtins.env_init()`,
  * never via a let/pattern, so its name has no provenance entry unless the
  * reuse_map is seeded from the environment. Before that seeding,
  * `reuse_map_for_co_ctx` returned None for any co_ctx containing a builtin,
  * so the subexpression could NEVER be reused — and neither could anything
  * downstream of it.
  *
- *   Run 1: n = string_length("hello"), _ = 55, n   -> 5
+ *   Run 1: n = String.length("hello"), _ = 55, n   -> 5
  *   Run 2: edit the unrelated `_ = 55` literal to 77.
  *
- * The `string_length("hello")` Ap is unrelated to the edited binding, so it
+ * The `String.length("hello")` Ap is unrelated to the edited binding, so it
  * must be reused on run 2. */
 let test_builtin_call_reuses_after_unrelated_edit = () => {
-  let src = {|let n = string_length("hello") in
+  let src = {|let n = String.length("hello") in
 let _ = 55 in
 n|};
   let exp1 = parse_exp(src);
@@ -1652,7 +1655,7 @@ n|};
     true,
     !Exp.fast_equal(exp1, exp2),
   );
-  /* Locate the `string_length("hello")` Ap by its string-literal argument. */
+  /* Locate the `String.length("hello")` Ap by its string-literal argument. */
   let builtin_ap_id = {
     let found = ref(None);
     let f_exp = (continue, e: Exp.t): Exp.t => {
@@ -1669,14 +1672,14 @@ n|};
     let _ = TermBase.Exp.map_term(~f_exp, exp1);
     switch (found^) {
     | Some(id) => id
-    | None => failwith("could not locate `string_length(\"hello\")` Ap node")
+    | None => failwith("could not locate `String.length(\"hello\")` Ap node")
     };
   };
   let (r1, _, incr1) = eval_incr(exp1);
   let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(
     dhexp_typ,
-    "Run 1: string_length(\"hello\") = 5",
+    "Run 1: String.length(\"hello\") = 5",
     parse_exp("5"),
     r1,
   );
@@ -1685,7 +1688,7 @@ n|};
    * builtin name in the Ap's co_ctx forces a permanent cache miss here. */
   check(
     bool,
-    "string_length(\"hello\") Ap is reused on run 2",
+    "String.length(\"hello\") Ap is reused on run 2",
     true,
     directly_reused(builtin_ap_id, plan2),
   );
@@ -1731,6 +1734,48 @@ let lexeme_edit_test =
       check(bool, "second result not stale @@", false, has_lex("@@", r2));
     },
   );
+
+/* Replace every type node [from] by [to_] in [exp], preserving every other
+ * id: an ascription edited in place. */
+let retype = (~from: Typ.term, ~to_: Typ.term, exp: Exp.t): Exp.t => {
+  let f_typ = (continue, t: Typ.t): Typ.t =>
+    Typ.fast_equal(
+      t,
+      {
+        ...t,
+        term: from,
+      },
+    )
+      ? {
+        ...t,
+        term: to_,
+      }
+      : continue(t);
+  TermBase.Exp.map_term(~f_typ, exp);
+};
+
+/* An ascription is part of a binding's value: `1` bound as `x : Int` is `1`,
+ * bound as `x : Bool` it is the failed cast, so editing the annotation must
+ * invalidate the cached use of `x` rather than hand back the old `1`. */
+let test_asc_edit_invalidates_binding = () => {
+  let exp1 = parse_exp({|let x : Int = 1 in x|});
+  let exp2 = retype(~from=Atom(Int), ~to_=Atom(Bool), exp1);
+  check(
+    bool,
+    "retype actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let (r_fresh, _, _) = eval_incr(exp2);
+  let (_, _, incr_prev) = eval_incr(exp1);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
+  check(
+    dhexp_typ,
+    "Incremental eval of edited matches fresh eval of edited",
+    r_fresh,
+    r_incr,
+  );
+};
 
 let tests = (
   "Evaluator.Incremental",
@@ -1935,6 +1980,11 @@ let tests = (
       "BUILTIN: string_length(\"hello\") reuses after unrelated _=55 edit",
       `Quick,
       test_builtin_call_reuses_after_unrelated_edit,
+    ),
+    test_case(
+      "ASCRIPTION: retyping `x : Int` as `x : Bool` in place invalidates the cached x",
+      `Quick,
+      test_asc_edit_invalidates_binding,
     ),
   ],
 );

@@ -41,10 +41,10 @@ let order_by =
             | other => other
             end
           end in
-      sort(compare(_,_,comparators), t1) : [row] in
+      List.sort(compare(_,_,comparators), t1) : [row] in
 test
   let average =
-    fun ns -> fold_left(ns, int_plus, 0) / length(ns) in
+    fun ns -> List.fold_left(ns, Int.plus, 0) / List.length(ns) in
   let midtermAndFinal =
     fun (r : GradebookEntry) -> [r.midterm, r.final] in
   let comp_int = fun a, b -> if a > b then Gt else Lt in
@@ -59,7 +59,7 @@ test
   let compare_grade =
     fun (g1, g2) -> comp_int(average(g1), average(g2)) in
   let name_length =
-    fun (r : GradebookEntry) -> string_length(r.name) in
+    fun (r : GradebookEntry) -> String.length(r.name) in
   order_by@<GradebookEntry>(
     gradebook,
     [

@@ -47,6 +47,15 @@ module Action = {
     | ZoomOut
     /* a breadcrumb: None = the program */
     | ZoomTo(option(Haz3lcore.Id.t))
+    /* the program level: the standard library shown in the slide's
+       place (true), or the slide again */
+    | ShowLibrary(bool)
+    /* the library document's editor, while shown */
+    | LibraryAction(CellEditor.Update.t)
+    /* the shipped library again, here and in the worker */
+    | ResetLibrary
+    /* the library's pending edit, once typing pauses */
+    | ApplyLibrary
     /* park (true) or unpark the pins at this level */
     | ShowWhole(bool)
     /* open and close cells to match the view (after undo) */
@@ -284,6 +293,64 @@ let item_ctx =
   };
 };
 
+/* out to the library: the code that runs becomes the editor's (its
+   ids), so its probes see this slide's run. Back into the slide: the
+   library as it stands (edits apply as they're made); one that can't be
+   baked at all (its shape) keeps the program level */
+let show_library = (shown: bool, code: code): Updated.t(code) =>
+  switch (shown, code.lib) {
+  | (true, _) =>
+    let ed = Option.value(code.lib, ~default=LibraryDoc.editor());
+    /* a no-op unless the code that runs isn't this editor's */
+    ignore(LibraryDoc.apply_editor(ed));
+    Updated.return(
+      ~is_edit=false,
+      {
+        ...code,
+        lib: Some(ed),
+      },
+    );
+  | (false, None) => code |> Updated.return_quiet
+  | (false, Some(ed)) =>
+    LibraryDoc.cancel_apply();
+    switch (LibraryDoc.apply_editor(ed)) {
+    | Ok(_) =>
+      Updated.return(
+        ~is_edit=false,
+        {
+          ...code,
+          lib: None,
+        },
+      )
+    | Error(msg) =>
+      print_endline("stdlib: not applied: " ++ msg);
+      code |> Updated.return_quiet;
+    };
+  };
+
+/* the slide's result, run again */
+let rerun = (program: Program.t): Program.t =>
+  switch (program) {
+  | Whole(ed) =>
+    Whole({
+      ...ed,
+      result: {
+        ...ed.result,
+        elab: Calc.Pending,
+      },
+    })
+  | Divided(d) =>
+    Divided(
+      Divided.with_result(
+        {
+          ...Divided.result(d),
+          elab: Calc.Pending,
+        },
+        d,
+      ),
+    )
+  };
+
 let update =
     (
       ~settings: Settings.t,
@@ -294,6 +361,22 @@ let update =
     )
     : Updated.t(code) => {
   open Updated;
+  /* a step into a function that isn't the slide's (the library's): out to
+     the library, which steps in there, its samples the slide's run's */
+  let to_library = (a: CellEditor.Update.t) =>
+    switch (a) {
+    | MainEditor(Perform(Probe(StepInto(_, {fn_def_id: Some(def), _})))) =>
+      Haz3lcore.ProbePerform.fn_def_in(
+        Program.statics(code.program).info_map,
+        def,
+      )
+      == None
+    | _ => false
+    };
+  let library_step = (a: CellEditor.Update.t) => {
+    schedule_action(LibraryAction(a));
+    show_library(true, code);
+  };
   let cell_update = (id, side, a) =>
     switch (code.program) {
     | Divided(d) =>
@@ -457,6 +540,38 @@ let update =
   | ZoomIn(fid) =>
     outline_view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)
   | ZoomOut => outline_view((_, _, v) => SlideView.zoom_out(v), code)
+  | ShowLibrary(shown) => show_library(shown, code)
+  | LibraryAction(a) =>
+    switch (code.lib) {
+    | Some(ed) =>
+      let* ed = CellEditor.Update.update(~settings, a, ed);
+      {
+        ...code,
+        lib: Some(ed),
+      };
+    | None => code |> return_quiet
+    }
+  | ApplyLibrary =>
+    Option.iter(
+      ed =>
+        switch (LibraryDoc.apply_editor(ed)) {
+        | Ok(_) => ()
+        | Error(msg) => print_endline("stdlib: not applied: " ++ msg)
+        },
+      code.lib,
+    );
+    /* its slide runs again: calculate sees the new generation */
+    code |> Updated.return_quiet;
+  | ResetLibrary =>
+    LibraryDoc.cancel_apply();
+    LibraryDoc.reset();
+    Updated.return(
+      ~is_edit=false,
+      {
+        ...code,
+        lib: Option.map(_ => LibraryDoc.editor(), code.lib),
+      },
+    );
   | ZoomTo(m) => outline_view((_, _, v) => SlideView.zoom_to(m, v), code)
   | ShowWhole(parked) =>
     outline_view((_, _, v) => SlideView.park(parked, v), code)
@@ -498,6 +613,8 @@ let update =
       };
     | Divided(_) => code |> return_quiet
     };
+  | Stack(_, _, a)
+  | CellAction(a) when to_library(a) => library_step(a)
   | Stack(id, side, a) => cell_update(id, side, a)
   | CellAction(a) =>
     switch (code.program) {
@@ -548,7 +665,7 @@ let calc_entry_memo:
   ) =
   Hashtbl.create(8);
 
-let calculate =
+let calculate_slide =
     (
       ~settings,
       ~autoprobe_mode,
@@ -600,6 +717,7 @@ let calculate =
           ~statics_mode,
           ~compositional=true,
           ~show_value=false,
+          ~extra_targets=LibraryDoc.targets(~settings),
           ~queue_worker,
           ~stitch=x => x,
           editor,
@@ -739,6 +857,7 @@ let calculate =
                 (st: Haz3lcore.ProjectorBase.stepping) => st.span,
                 stepping,
               ),
+            ~extra_targets=LibraryDoc.targets(~settings),
             Divided.statics(d),
             Divided.result(d),
           ),
@@ -909,5 +1028,59 @@ let calculate =
   {
     ...code,
     program,
+  };
+};
+
+let calculate =
+    (
+      ~settings,
+      ~autoprobe_mode,
+      ~tail_probe,
+      ~schedule_action: Action.t => unit,
+      ~is_edited,
+      ~statics_mode,
+      ~slide_key: string,
+      code: code,
+    )
+    : code => {
+  /* the library, checked, with the slide's samples (its probes are in
+     the slide's run); edited, it applies once typing pauses */
+  let lib =
+    Option.map(
+      LibraryDoc.calculate(
+        ~settings,
+        ~is_edited,
+        ~statics_mode,
+        ~dynamics=EvalResult.Model.dynamics(Program.result(code.program)),
+      ),
+      code.lib,
+    );
+  Option.iter(ed => LibraryDoc.kept := Some(ed), lib);
+  if (is_edited && lib != None) {
+    LibraryDoc.apply_when_idle(~fire=() => schedule_action(ApplyLibrary));
+  };
+  /* the library changed since this slide last ran: check and run it
+     again, shown or not (its run feeds the library's probes) */
+  let stale = code.lib_gen != LibraryDoc.generation^;
+  let code =
+    calculate_slide(
+      ~settings,
+      ~autoprobe_mode,
+      ~tail_probe,
+      ~schedule_action,
+      ~is_edited,
+      ~statics_mode=stale ? StaticsMode.Force : statics_mode,
+      ~slide_key,
+      stale
+        ? {
+          ...code,
+          program: rerun(code.program),
+          lib_gen: LibraryDoc.generation^,
+        }
+        : code,
+    );
+  {
+    ...code,
+    lib,
   };
 };

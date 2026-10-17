@@ -52,9 +52,9 @@ module EvaluatorEVMode: {
   let (let.) = (t1, s) => {
     let.trampoline (x, c) = t1;
     switch (s(x)) {
-    | Step({expr, side_effects, kind, is_value: true}) =>
+    | Step({expr, side_effects, kind, is_value: true, _}) =>
       Trampoline.return((Final, side_effects, Some(kind), expr))
-    | Step({expr, side_effects, kind, is_value: false}) =>
+    | Step({expr, side_effects, kind, is_value: false, _}) =>
       Trampoline.return((Uneval, side_effects, Some(kind), expr))
     | Constructor
     | Value
@@ -498,7 +498,7 @@ type limited_result =
   | StepLimitExceeded;
 
 let finish = (~env, e: DHExp.t): Exp.t =>
-  e |> Substitution.in_exp(env) |> Exp.replace_all_ids;
+  e |> Substitution.in_exp(~fns=Shown, env) |> Exp.replace_all_ids;
 
 /* Shared setup for all evaluation entry points: run the reuse pass to find
  * reusable cache entries, then build the (unstarted) evaluation trampoline. */
@@ -656,6 +656,18 @@ let yielding_step_count = (evaluation: yielding_evaluation): int => {
     evaluation.continuation;
   step_counter;
 };
+
+let evaluate_raw = (~env, d: DHExp.t): DHExp.t =>
+  prepare_evaluation(
+    ~prev=IncrEval.empty,
+    ~eval_info=EvalInfo.empty,
+    ~env,
+    ~reuse_map=None,
+    ~outbox=None,
+    d,
+  )
+  |> snd
+  |> Trampoline.run;
 
 let evaluate =
     (

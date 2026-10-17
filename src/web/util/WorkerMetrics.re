@@ -121,10 +121,14 @@ let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit =>
         },
         active_encodings(),
       );
-    let WorkerServer.ClientMessage.Evaluate({batch, _}) = msg;
+    let entries =
+      switch (msg) {
+      | Evaluate({batch, _}) => List.length(batch)
+      | InstallLibrary(_) => 0
+      };
     push({
       id,
-      entries: List.length(batch),
+      entries,
       request,
       response: [],
     });

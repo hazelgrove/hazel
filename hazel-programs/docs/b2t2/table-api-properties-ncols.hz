@@ -7,7 +7,7 @@ let ensures = [
 let ncols =
   fun (t : [?]) ->
     case t
-    | (x::xs) => to_lvs(x) |> length
+    | (x::xs) => to_lvs(x) |> List.length
     | _ => 0
     end in
 # Examples #

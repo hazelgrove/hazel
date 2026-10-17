@@ -133,6 +133,7 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
   | ModType(_, _)
   | ModExp(_)
   | ModuleMod(_, _)
+  | ModVal(_, _)
   | EmptyHole
   | Invalid(_) => [m]
   };
@@ -153,6 +154,7 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
     |> List.flatten
   | SigLet(_)
   | SigType(_, _)
+  | SigModule(_)
   | EmptyHole
   | Invalid(_) => [s]
   };
@@ -1304,6 +1306,33 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           );
         }
       | ([(_id, (F(Compound(Cons)), []))], []) => ret(Cons(l, r))
+      | ([(_id, (F(Compound(Dot)), []))], []) =>
+        /* `M.A`, as the exp Dot reads its label */
+        switch (r.term) {
+        | Var(name)
+        | Constructor(name, None) =>
+          ret(
+            Dot(
+              l,
+              {
+                annotation: r.annotation,
+                term: Label(name),
+              },
+            ),
+          )
+        | Label(_)
+        | EmptyHole => ret(Dot(l, r))
+        | _ =>
+          ret(
+            Dot(
+              l,
+              {
+                annotation: IdTagged.IdTag.mk_internal(IdTagged.ids(r)),
+                term: MultiHole([Pat(r)]),
+              },
+            ),
+          )
+        }
       | ([(_id, (F(f), []))], []) when op_lexeme(f) != None =>
         /* Unknown infix operator (see the exp Bin fallthrough) */
         Option.iter(set_lexeme, op_lexeme(f));
@@ -1685,6 +1714,9 @@ and sig_term: unsorted => TermBase.Sig.term = {
   /* SigType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (F(Compound(ModType)), [TPat(tp)]))], []), Typ(ty)) =>
     ret(SigType(tp, ty))
+  /* SigModule: module m : S - the module name pattern is the body */
+  | Pre(([(_id, (F(Compound(SigModule)), []))], []), MPat(mp)) =>
+    ret(SigModule(mp))
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 and mpat = unsorted => {

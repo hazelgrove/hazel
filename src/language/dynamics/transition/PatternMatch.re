@@ -49,6 +49,8 @@ let match_pattern =
   | Constructor(ctr, _) =>
     let* () = Unboxing.unbox(SumNoArg(ctr), d);
     Matches([]);
+  /* elaboration resolves `M.A` to a Constructor */
+  | Dot(_) => IndetMatch
   | Ap(c, p2) =>
     switch (Pat.ctr_name(c)) {
     | Some(ctr) =>

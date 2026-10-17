@@ -142,6 +142,8 @@ module Selection = {
     | Cell(CellEditor.Selection.t)
     /* the open cells: the one Divided.active names has the focus */
     | Stack(CellEditor.Selection.t)
+    /* the program level's library document */
+    | Library(CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
     | TextBox;
 
@@ -151,6 +153,19 @@ module Selection = {
     let scratchpad = List.nth(model.scratchpads, model.current);
     let cursor =
       switch (selection, scratchpad.kind) {
+      /* while the library is shown, the keys are its */
+      | (
+          Cell(selection) | Stack(selection) | Library(selection),
+          Code({lib: Some(editor), _}),
+        ) =>
+        let+ a =
+          CellEditor.Selection.get_cursor_info(
+            ~inject=a => inject(Workspace(LibraryAction(a))),
+            ~selection,
+            editor,
+          );
+        Update.Workspace(LibraryAction(a));
+      | (Library(_), _) => empty
       | (Cell(selection), Code({program: Whole(editor), _})) =>
         let+ a =
           CellEditor.Selection.get_cursor_info(
@@ -253,6 +268,11 @@ module Selection = {
       (~settings, tile, model: Model.t): option((Update.t, t)) => {
     let scratchpad = List.nth(model.scratchpads, model.current);
     switch (scratchpad.kind) {
+    | Code({lib: Some(editor), _}) =>
+      CellEditor.Selection.jump_to_tile(tile, editor)
+      |> Option.map(((x, y)) =>
+           (Update.Workspace(LibraryAction(x)), Library(y))
+         )
     | Code({program: Whole(editor), _}) =>
       CellEditor.Selection.jump_to_tile(tile, editor)
       |> Option.map(((x, y)) =>
@@ -465,6 +485,31 @@ module View = {
       ];
     } else {
       switch (current.kind) {
+      /* the program level: the library's document in the slide's place,
+         its probes drawing the slide's samples (its run is the library's) */
+      | Code({lib: Some(editor), program, _}) => [
+          CellEditor.View.view(
+            ~globals,
+            ~master=(
+              Program.result(program),
+              a => inject(Workspace(CellAction(ResultAction(a)))),
+            ),
+            ~signal=
+              fun
+              | MakeActive(selection) =>
+                signal(MakeActive(Library(selection))),
+            ~inject=a => inject(Workspace(LibraryAction(a))),
+            ~selected=
+              switch (selected) {
+              | Some(Selection.Cell(s) | Stack(s) | Library(s)) => Some(s)
+              | _ => None
+              },
+            ~locked=false,
+            ~lines=true,
+            ~result_kind=`NoResults,
+            editor,
+          ),
+        ]
       | Code({program, view, _}) =>
         let stack_views = (d: Divided.t) => {
           let cells = Divided.cells(d);

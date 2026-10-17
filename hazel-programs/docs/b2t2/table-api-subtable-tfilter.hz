@@ -25,8 +25,8 @@ let ensures = [
 ] in
 let tfilter =
   typfun r ->
-    fun (t : [r], f : r -> Bool) -> filter(t, f) : [r] in
+    fun (t : [r], f : r -> Bool) -> List.filter(t, f) : [r] in
 test
-  tfilter@<GradebookEntry>(gradebook, fun s -> string_length(s.name) > 3)
+  tfilter@<GradebookEntry>(gradebook, fun s -> String.length(s.name) > 3)
   == [("Alice", 17, 6, 8, 88, 8, 7, 85)]
   : [GradebookEntry] end

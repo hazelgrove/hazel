@@ -70,4 +70,4 @@ let with_totals = products in
 with_totals
 
 @test
-test nth(with_totals, 1).total ==. 24.5 end
+test List.nth(with_totals, 1).total ==. 24.5 end

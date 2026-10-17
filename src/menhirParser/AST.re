@@ -129,6 +129,8 @@ and pat =
   | InvalidPat(string) // Menhir parser doesn't actually support invalid pats
   | TupLabelPat(pat, pat)
   | LabelPat(string)
+  /* `M.A`: a constructor a module exports */
+  | DotPat(pat, string)
   | IndicationPat(pat)
   | ExplicitNonlabel
 
@@ -187,7 +189,8 @@ and mod_item =
 
 and sig_item =
   | SigItemLet(pat)
-  | SigItemType(tpat, typ);
+  | SigItemType(tpat, typ)
+  | SigItemModule(pat);
 
 /* Mixed into the generators so the MakeTerm/Menhir equivalence tests
  * exercise the name alphabet rather than only ASCII.
@@ -1299,6 +1302,7 @@ and shrink_pat: QCheck.Shrink.t(pat) =
         | LabelPat(l) =>
           shrink_non_empty_string(l) >|= ((l: string) => LabelPat(l))
         | ExplicitNonlabel => return(ExplicitNonlabel: pat)
+        | DotPat(_) => return(WildPat)
         | InvalidPat(_)
         | IndicationPat(_)
         | WildPat

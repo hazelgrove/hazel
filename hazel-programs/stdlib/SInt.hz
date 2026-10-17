@@ -1,0 +1,21 @@
+# SInt: machine integers #
+module SInt = {
+  let max = $prim.max_sint;
+  let min = $prim.min_sint;
+  let mod = $prim.sint_mod;
+  let compare = $prim.sint_compare;
+  let plus = $prim.sint_plus;
+  let minus = $prim.sint_minus;
+  let times = $prim.sint_times;
+  let power = $prim.sint_power;
+  let divide = $prim.sint_divide;
+  let lt = $prim.sint_lt;
+  let lte = $prim.sint_lte;
+  let gt = $prim.sint_gt;
+  let gte = $prim.sint_gte;
+  let of_int = $prim.sint_of_int;
+  let of_nat = $prim.sint_of_nat;
+  let of_float = $prim.sint_of_float;
+  let of_bool = $prim.sint_of_bool;
+  let of_string = $prim.sint_of_string
+}

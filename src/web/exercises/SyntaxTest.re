@@ -51,6 +51,7 @@ let rec find_in_let =
       EmptyHole | Wild | Invalid(_) | MultiHole(_) | Atom(_) | Label(_) |
       ListLit(_) |
       Constructor(_) |
+      Dot(_) |
       Cons(_, _) |
       Ap(_, _) |
       ExplicitNonlabel,
@@ -113,6 +114,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
         switch (item.term) {
         | ModLet(p, def) => acc |> find_in_let(name, p, def)
         | ModuleMod(_, def)
+        | ModVal(_, def)
         | ModExp(def) => acc |> find_fn(name, def)
         | ModType(_, _)
         | Invalid(_)
@@ -154,7 +156,8 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | Atom(_)
   | Label(_)
   | ExplicitNonlabel
-  | Constructor(_) => false
+  | Constructor(_)
+  | Dot(_) => false
   | Cons(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
   | ListLit(l)
@@ -206,6 +209,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
         switch (item.term) {
         | ModLet(_, def)
         | ModuleMod(_, def)
+        | ModVal(_, def)
         | ModExp(def) => var_mention(name, def)
         | ModType(_, _)
         | Invalid(_)
@@ -296,6 +300,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
         switch (item.term) {
         | ModLet(_, def)
         | ModuleMod(_, def)
+        | ModVal(_, def)
         | ModExp(def) => var_applied(name, def)
         | ModType(_, _)
         | Invalid(_)
@@ -418,6 +423,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
           switch (item.term) {
           | ModLet(_, def)
           | ModuleMod(_, def)
+          | ModVal(_, def)
           | ModExp(def) => var_mention(name, def)
           | ModType(_, _)
           | Invalid(_)

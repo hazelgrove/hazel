@@ -84,6 +84,8 @@ module Update = {
     let get_scratchpad_editor = (m: ScratchMode.Model.t) => {
       let sp = List.nth(m.scratchpads, m.current);
       switch (sp.kind) {
+      /* the program level: the library's document */
+      | Code({lib: Some(editor), _}) => editor.editor
       | Code({program: Whole(editor), _}) => editor.editor
       /* divided: the cell with the caret */
       | Code({program: Divided(d), _}) => Divided.active_editor(d).editor
@@ -1040,14 +1042,55 @@ module View = {
         | None => []
         },
       );
+    /* the program level, above every code slide: the standard library,
+       shown in the slide's place while [lib] holds it */
+    let workspace = a => inject(Editors(Scratch(Workspace(a))));
+    let enclosing: option(OutlineControl.enclosing) =
+      switch (Option.bind(deck, OutlineControl.current)) {
+      | Some({kind: Code({lib, _}), _}) =>
+        Some({
+          e_above: {
+            a_label: "program",
+            a_out: "zoom out to the program: the standard library",
+            a_here: "the standard library",
+            a_chip:
+              LibraryDoc.edited()
+                ? Some((
+                    {js|edited ↺|js},
+                    "the library is edited: back to the shipped one",
+                  ))
+                : None,
+            a_alarm:
+              switch (LibraryDoc.errors^) {
+              | 0 => None
+              | n =>
+                Some({
+                  al_why:
+                    Printf.sprintf(
+                      "the standard library has %d error%s",
+                      n,
+                      n == 1 ? "" : "s",
+                    ),
+                  al_act: {js|↺|js},
+                  al_act_title: "back to the shipped library",
+                })
+              },
+          },
+          e_shown: lib != None,
+          e_go: shown => workspace(ShowLibrary(shown)),
+          e_chip: workspace(ResetLibrary),
+        })
+      | _ => None
+      };
     let outline =
       OutlineControl.view(
         ~arrows=globals.settings.outline_arrows,
         ~deck,
+        ~enclosing?,
         ~statics=current_editor.statics,
         ~segment=current_editor.editor.syntax.segment,
         ~inject=a => inject(Editors(Scratch(Outline(a)))),
-        ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
+        ~inject_workspace=workspace,
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
         ~statics_on=globals.settings.core.statics,

@@ -374,8 +374,8 @@ let of_def_statics =
    set, and no whole-program recursion runs (it can overflow the browser
    stack). takes a term so callers holding a segment skip the zipper */
 let init_compositional_term =
-    (~settings: CoreSettings.t, ~probe_ids, term: Exp.t): t => {
-  let ds = DefStatics.calc_auto(~settings, ~probe_ids, term);
+    (~settings: CoreSettings.t, ~ctx_in=?, ~probe_ids, term: Exp.t): t => {
+  let ds = DefStatics.calc_auto(~settings, ~ctx_in?, ~probe_ids, term);
   of_def_statics(
     ~settings,
     ~probe_ids,
@@ -388,7 +388,15 @@ let init_compositional_term =
 };
 
 let init_compositional =
-    (~settings: CoreSettings.t, ~stitch, ~root, ~probe_ids=?, z: Zipper.t): t =>
+    (
+      ~settings: CoreSettings.t,
+      ~stitch,
+      ~root,
+      ~ctx=?,
+      ~probe_ids=?,
+      z: Zipper.t,
+    )
+    : t =>
   if (!settings.statics) {
     empty;
   } else if (root != Sort.Exp && root != Sort.Mod) {
@@ -405,7 +413,7 @@ let init_compositional =
       | None => probe_ids_of_zipper(z)
       };
     {
-      ...init_compositional_term(~settings, ~probe_ids, term),
+      ...init_compositional_term(~settings, ~ctx_in=?ctx, ~probe_ids, term),
       pins: probe_ids_of_zipper(z),
       /* what was typechecked, for the inspector's implied hole */
       completion:

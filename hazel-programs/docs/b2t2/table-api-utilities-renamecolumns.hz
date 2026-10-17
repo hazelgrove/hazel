@@ -26,14 +26,14 @@ let ensures = [
 
 let rename_columns =
   fun (t1 : [?], ccs : [(String, String)]) ->
-    map(
+    List.map(
       t1,
       fun r ->
         to_lvs(r)
-        |> map(
+        |> List.map(
           _,
           fun (label= l, value= v) ->
-            case find_opt(ccs, fun (from, _) -> from == l)
+            case List.find_opt(ccs, fun (from, _) -> from == l)
             | Some((_, to)) => (label= to, value= v)
             | None => (label= l, value= v)
             end
@@ -59,7 +59,7 @@ test
   == expected end;
 
 # (idiomatic) Idiomatic way to do this which gives better type feedback#
-map(
+List.map(
   students,
   fun r ->
     (`first name`= r.name, `preferred color`= r.favorite_color)

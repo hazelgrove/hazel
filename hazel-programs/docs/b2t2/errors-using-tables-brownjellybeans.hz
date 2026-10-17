@@ -27,10 +27,10 @@ let jellyAnon : [JellyAnon] = (
 # Version that uses string params for the column names gives no static errors #
 let get_value =
   fun (r, c : String) ->
-    (to_lvs(r) |> find_opt(_, fun label= l, value= v -> l == c))
-    |> option_map(_, fun e -> e.value) in
-let nrows = length in
-let tfilter = filter in
+    (to_lvs(r) |> List.find_opt(_, fun label= l, value= v -> l == c))
+    |> Option.map(_, fun e -> e.value) in
+let nrows = List.length in
+let tfilter = List.filter in
 let option_get =
   fun o ->
     case o
@@ -49,20 +49,20 @@ let correct =
   count_participants(jellyAnon, "brown") in
 ?;
 # Version that uses higher order functions to get static errors #
-let nrows = length in
-let tfilter = filter in
+let nrows = List.length in
+let tfilter = List.filter in
 let incorrect =
   let keep = fun (r : JellyAnon) -> r.color in
   let count_participants =
     typfun row ->
       fun (t : [row], color : row -> Bool) ->
-        length(filter(t, keep)) in
+        List.length(List.filter(t, keep)) in
   count_participants@<JellyAnon>(jellyAnon, fun r -> r.brown) in
 let correct =
   let count_participants =
     typfun row ->
       fun (t : [row], color : row -> Bool) ->
         let keep = fun (r : row) -> color(r) in
-        length(filter(t, keep)) in
+        List.length(List.filter(t, keep)) in
   count_participants@<JellyAnon>(jellyAnon, fun r -> r.brown) in
 ?

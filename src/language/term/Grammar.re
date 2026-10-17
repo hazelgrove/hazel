@@ -91,6 +91,9 @@ and pat_term('a) =
   | Tuple(list(pat_t('a)))
   | Label(string)
   | TupLabel(pat_t('a), pat_t('a))
+  /* `M.A`: a constructor a module exports. The left is the module path
+     (a name, or a `Dot` of one), the right a `Label`; nothing in it binds. */
+  | Dot(pat_t('a), pat_t('a))
   | Parens(pat_t('a))
   | Projector(projector_data, pat_t('a))
   | Ap(pat_t('a), pat_t('a))
@@ -136,6 +139,9 @@ and mod_term('a) =
   | ModType(tpat_t('a), typ_t('a))
   | ModExp(exp_t('a))
   | ModuleMod(mpat_t('a), exp_t('a))
+  /* Dynamics only: a binding whose definition has been evaluated. A module
+     whose items are all ModVal is a module value. */
+  | ModVal(Var.t, exp_t('a))
 and mod_t('a) = Annotated.t(mod_term('a), 'a)
 and sig_term('a) =
   | Invalid(string)
@@ -143,6 +149,9 @@ and sig_term('a) =
   | MultiHole(list(any_t('a)))
   | SigLet(pat_t('a))
   | SigType(tpat_t('a), typ_t('a))
+  /* `module M : S` declares a sub-module member (the MPat carries the
+     optional signature). */
+  | SigModule(mpat_t('a))
 and sig_t('a) = Annotated.t(sig_term('a), 'a)
 and mpat_term('a) =
   | Invalid(string)
@@ -342,6 +351,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | Label(l) => Label(l)
         | TupLabel(p1, p2) =>
           TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
+        | Dot(p1, p2) =>
+          Dot(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Parens(p) => Parens(map_pat_annotation(f, p))
         | Projector(data, p) => Projector(data, map_pat_annotation(f, p))
         | Ap(p1, p2) =>
@@ -452,6 +463,7 @@ and map_mod_annotation: 'a 'b. ('a => 'b, mod_t('a)) => mod_t('b) =
         | ModExp(e) => ModExp(map_exp_annotation(f, e))
         | ModuleMod(mp, e) =>
           ModuleMod(map_mpat_annotation(f, mp), map_exp_annotation(f, e))
+        | ModVal(x, e) => ModVal(x, map_exp_annotation(f, e))
         },
       annotation: new_annotation,
     };
@@ -470,6 +482,7 @@ and map_sig_annotation: 'a 'b. ('a => 'b, sig_t('a)) => sig_t('b) =
         | SigLet(p) => SigLet(map_pat_annotation(f, p))
         | SigType(tp, t) =>
           SigType(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | SigModule(mp) => SigModule(map_mpat_annotation(f, mp))
         },
       annotation: new_annotation,
     };
@@ -852,6 +865,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: TupLabel(p1, p2),
       annotation: default_annotation(ann),
     };
+    let dot = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
+      term: Dot(p1, p2),
+      annotation: default_annotation(ann),
+    };
     let parens = (~ann=?, p): pat_t(DefaultAnnotation.t) => {
       term: Parens(p),
       annotation: default_annotation(ann),
@@ -922,6 +939,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let prod = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
       term: Prod(l),
+      annotation: default_annotation(ann),
+    };
+    let sig_ = (~ann=?, items): typ_t(DefaultAnnotation.t) => {
+      term: Sig(items),
       annotation: default_annotation(ann),
     };
     let prod_projection = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
@@ -1054,6 +1075,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let sig_type = (~ann=?, tp, t): sig_t(DefaultAnnotation.t) => {
       term: SigType(tp, t),
+      annotation: default_annotation(ann),
+    };
+    let sig_module = (~ann=?, mp): sig_t(DefaultAnnotation.t) => {
+      term: SigModule(mp),
       annotation: default_annotation(ann),
     };
   };

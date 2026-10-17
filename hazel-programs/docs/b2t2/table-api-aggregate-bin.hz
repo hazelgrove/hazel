@@ -28,44 +28,44 @@ let ensures = [
 ] in
 let bin_int =
   fun (is : [Int], bin_size : Int) ->
-    let floored = map(is, fun i -> i / bin_size * bin_size) in
+    let floored = List.map(is, fun i -> i / bin_size * bin_size) in
     let grouped =
-      fold_left(
+      List.fold_left(
         floored,
         fun (
           acc,
           i
         ) ->
-          case find_opt(acc, fun (i', count) -> i == i')
+          case List.find_opt(acc, fun (i', count) -> i == i')
           | None => (i, 1) :: acc
           | Some((i, cnt)) =>
-            (i, cnt + 1) :: filter(acc, fun (i', count) -> i != i')
+            (i, cnt + 1) :: List.filter(acc, fun (i', count) -> i != i')
           end,
         []
       ) in
-    map(
+    List.map(
       grouped,
       fun (i, cnt) -> (group= (i, i + bin_size), count= cnt)
     ) in
 let bin =
   fun (t1 : [?], c : String, n : Int) ->
     let entries =
-      flat_map(t1, to_lvs)
-      |> filter(_, fun e -> e.label == c) in
+      List.flat_map(t1, to_lvs)
+      |> List.filter(_, fun e -> e.label == c) in
     let vals = entries.value in
     let bins = bin_int(vals, n) in
-    map(
+    List.map(
       bins,
       fun e ->
         e
         ... (
           group=
           let (group= (min, max), count=_) = e in
-          string_of_int(min)
+          String.of_int(min)
           ++ " <= "
           ++ c
           ++ " < "
-          ++ string_of_int(max)
+          ++ String.of_int(max)
         )
     )
     : [(group= String, count= Int)] in
@@ -90,22 +90,22 @@ let ensures = [
 ] in
 let bin_int =
   fun (is : [Int], bin_size : Int) ->
-    let floored = map(is, fun i -> i / bin_size * bin_size) in
+    let floored = List.map(is, fun i -> i / bin_size * bin_size) in
     let grouped =
-      fold_left(
+      List.fold_left(
         floored,
         fun (
           acc,
           i
         ) ->
-          case find_opt(acc, fun (i', count) -> i == i')
+          case List.find_opt(acc, fun (i', count) -> i == i')
           | None => (i, 1) :: acc
           | Some((i, cnt)) =>
-            (i, cnt + 1) :: filter(acc, fun (i', count) -> i != i')
+            (i, cnt + 1) :: List.filter(acc, fun (i', count) -> i != i')
           end,
         []
       ) in
-    map(
+    List.map(
       grouped,
       fun (i, cnt) -> (group= (i, i + bin_size), count= cnt)
     ) in
@@ -117,20 +117,20 @@ let bin =
       c_project : (row -> Int),
       n : Int
     ) ->
-      let vals = map(t1, c_project) in
+      let vals = List.map(t1, c_project) in
       let bins = bin_int(vals, n) in
-      map(
+      List.map(
         bins,
         fun e ->
           e
           ... (
             group=
             let (group= (min, max), count=_) = e in
-            string_of_int(min)
+            String.of_int(min)
             ++ " <= "
             ++ c
             ++ " < "
-            ++ string_of_int(max)
+            ++ String.of_int(max)
           )
       )
       : [(group= String, count= Int)] in

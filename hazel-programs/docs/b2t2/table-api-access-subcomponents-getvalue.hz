@@ -6,8 +6,8 @@ let ensures = [
 # This is just the projection operator `.` If you use it directly you get the requires/ensures constraints #
 let get_value =
   fun (r, c : String) ->
-    (to_lvs(r) |> find_opt(_, fun label= l, value= v -> l == c))
-    |> option_map(_, fun e -> e.value) in
+    (to_lvs(r) |> List.find_opt(_, fun label= l, value= v -> l == c))
+    |> Option.map(_, fun e -> e.value) in
 # Examples #
 test
   get_value((name="Bob", age=12), "name") == Some("Bob") end;

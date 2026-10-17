@@ -68,7 +68,7 @@
 (executable
  (name main)
  (modules Main)
- (libraries ppx_yojson_conv.expander web)
+ (libraries ppx_yojson_conv.expander web stdlibServed)
  (modes js)
  (preprocess
   (pps
@@ -82,7 +82,7 @@
 (executable
  (name worker)
  (modules Worker)
- (libraries workerServer)
+ (libraries workerServer stdlibServed)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))

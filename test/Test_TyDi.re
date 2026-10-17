@@ -83,11 +83,11 @@ let variable_tests = (
       ~code="let x = 1 in let xy = 2 in x¦",
       ~expect=None,
     ),
-    /* Builtins are included in suggestions */
+    /* The library's members are suggested through their module */
     tydi_test(
-      ~name="Builtin variable: string_of_int",
-      ~code="let x : String = st¦",
-      ~expect=Some("ring_capitalize("),
+      ~name="Library member: String.capitalize",
+      ~code="let x : String = Str¦",
+      ~expect=Some("ing.capitalize("),
     ),
   ],
 );
@@ -268,7 +268,7 @@ let golden_leading: list((string, Typ.t)) = [
 let derived_new: list((string, Typ.t)) = [
   ("()", Typ.temp(Prod([]))),
   ("[]", Typ.temp(List(unk))),
-  ("{}", Typ.temp(Prod([]))),
+  ("{}", Typ.temp(Sig([]))),
 ];
 
 /* Non-trivial leading entries the manual table lacked */
@@ -477,6 +477,11 @@ let type_tests = (
       ~expect=None,
     ),
     tydi_test(
+      ~name="Qualified type: value members are not type members",
+      ~code="module M = { type T = Int; let xylo = 1 } in let y : M.xy¦",
+      ~expect=None,
+    ),
+    tydi_test(
       ~name="Qualified type: dot label no match",
       ~code="module Mod = { type MyType = Int } in let x : Mod.Z¦",
       ~expect=None,
@@ -555,6 +560,22 @@ let qualified_tests = (
       ~code="let mm : (name=String) = (name=\"a\") in let x : Int = mm¦",
       ~expect=None,
     ),
+    tydi_test(
+      ~name="Qualified: value member of a module with a type member",
+      ~code="let m = { type T = Int; let value = 1 } in m.va¦",
+      ~expect=Some("lue"),
+    ),
+    tydi_test(
+      ~name="Qualified: a module's constructor",
+      ~code="module M = { type t = Apple(Int) + Banana } in M.Ap¦",
+      ~expect=Some("ple"),
+    ),
+    tydi_test(
+      ~name="Qualified: a module's constructor in a pattern",
+      ~code=
+        "module M = { type t = Apple(Int) + Banana } in fun x -> case x | M.Ba¦",
+      ~expect=Some("nana"),
+    ),
     /* Module keyword syntax */
     tydi_test(
       ~name="Qualified: module keyword with capitalized name",
@@ -576,7 +597,7 @@ let qualified_tests = (
     tydi_test(
       ~name="Qualified: type-name module with matching field",
       ~code=
-        "module String = {let empty = \"\"; let length = string_length} in let i : Int = Str¦",
+        "module String = {let empty = \"\"; let length = String.length} in let i : Int = Str¦",
       ~expect=Some("ing.length("),
     ),
   ],

@@ -88,7 +88,7 @@ let evaluate = (~prev=IncrEval.empty, info_map, elab) =>
         ~targets=Id.Map.empty,
         info_map,
       ),
-    ~env=Builtins.env_init,
+    ~env=Builtins.env_init(),
     elab,
   );
 
@@ -142,7 +142,7 @@ let script = (~root=Sort.Exp, ~eval=true, src: string, steps: list(step), ()) =>
       );
       if (i == 0) {
         let (mono_map, mono_elab) =
-          Statics.mk_unmemoized(settings, DefStatics.ctx0, ds.term);
+          Statics.mk_unmemoized(settings, DefStatics.ctx0(), ds.term);
         check(
           bool,
           "the graft evaluates as the monolithic elaboration",
@@ -397,7 +397,7 @@ let probe_capture_parity = (): unit => {
       CorpusUtil.seg_of("let f = fun q -> q + 1 in\nlet z = f(5) in\nz"),
     ).
       term;
-  let (map0, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, term);
+  let (map0, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0(), term);
   let q_id =
     switch (
       Id.Map.fold(
@@ -421,11 +421,11 @@ let probe_capture_parity = (): unit => {
     let eval_info =
       EvalInfo.of_info_map(~probe_all=false, ~targets, info_map);
     let (_, state) =
-      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, elab);
+      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init(), elab);
     Id.Map.cardinal(EvaluatorState.get_probes(state));
   };
   let (map_m, elab_m) =
-    Statics.mk_unmemoized(~probe_ids, settings, DefStatics.ctx0, term);
+    Statics.mk_unmemoized(~probe_ids, settings, DefStatics.ctx0(), term);
   let ds0 = DefStatics.calc(~settings, term);
   let ds = DefStatics.calc(~settings, ~prev=ds0, ~probe_ids, term);
   check(
@@ -724,6 +724,16 @@ let type_deps = [
       [token("Bool", "String") |> analyzed(4)],
     ),
   ),
+  test_case(
+    "a module type member through an alias",
+    `Quick,
+    script(
+      "module M = {\n  type T = Int;\n  let x = 1\n} in\ntype U = M.T in\nlet y : U = 2 in\ny",
+      /* M's signature changes; U's definition mentions M, so y, which
+         mentions only U, is stale too */
+      [token(~at=`First, "Int", "Bool")],
+    ),
+  ),
 ];
 
 /* a literal edit keeps its id, as typing into a token does: seeded
@@ -832,6 +842,52 @@ let corpus = [
   ),
 ];
 
+/* a module exports its sum types' constructors (Test_ModuleCtors) */
+let module_ctors = [
+  test_case(
+    "a member using a constructor whose sum changes",
+    `Quick,
+    script(
+      "module M = {\n  type t = A(Int) + B;\n  let v = A(1)\n} in\nM.v",
+      [token(~at=`First, "B", "C")],
+    ),
+  ),
+  test_case(
+    "constructors used outside their module",
+    `Quick,
+    script(
+      "module M = {\n  type t = A(Int) + B;\n  let v = A(1)\n} in\nlet w = M.A(2) in\ncase w\n| M.A(x) => x\n| M.B => 0\nend",
+      [
+        token("2", "5") |> changes_value,
+        /* the pattern's M.B is gone, then back as M.C */
+        token(~at=`First, "B", "C"),
+        token(~at=`Last, "B", "C"),
+        token(~at=`First, "Int", "Bool"),
+      ],
+    ),
+  ),
+  test_case(
+    "a module only a pattern mentions",
+    `Quick,
+    script(
+      "let m = {\n  type t = A + B\n} in\nlet f = fun v -> case v\n| m.A => 1\n| _ => 2\nend in\nlet k = 3 in\nk",
+      /* m (and its type member) and f, whose only mention of m is its
+         pattern (lowercase: no constructor of its name to track); k and
+         the tail stay clean */
+      [token(~at=`First, "A", "C") |> analyzed(3)],
+    ),
+  ),
+  test_case(
+    "a module's constructors in a module root",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module M = {\n  type t = A(Int) + B\n};\nlet f = fun v -> case v\n| M.A(x) => x\n| M.B => 0\nend;\nf(M.A(4))",
+      [token(~at=`First, "Int", "Bool"), token("4", "true")],
+    ),
+  ),
+];
+
 let tests = (
   "DefStaticsParity",
   [
@@ -863,5 +919,6 @@ let tests = (
   @ type_deps
   @ literal_edits
   @ module_roots
-  @ corpus,
+  @ corpus
+  @ module_ctors,
 );

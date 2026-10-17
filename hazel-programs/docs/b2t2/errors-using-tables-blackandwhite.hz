@@ -34,7 +34,7 @@ let build_column
     typfun r2 ->
       typfun r3 ->
         fun (table, project, build_result) ->
-          map(table, fun r : r1 -> build_result(r, project(r))) in
+          List.map(table, fun r : r1 -> build_result(r, project(r))) in
 let incorrect =
   let eat_black_and_white =
     fun r : JellyAnon -> r.`black and white` == true in

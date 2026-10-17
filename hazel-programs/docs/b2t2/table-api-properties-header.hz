@@ -7,7 +7,7 @@ let ensures = [
 let header =
   fun (t : [?]) ->
     case t
-    | (x::xs) => to_lvs(x) |> map(_, fun x -> x.label)
+    | (x::xs) => to_lvs(x) |> List.map(_, fun x -> x.label)
     | _ => []
     end in
 # Examples #

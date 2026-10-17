@@ -1,0 +1,40 @@
+; The Hazel-source standard library, baked at build time (plans/stdlib.md).
+; Sources are listed in dependency order: later modules may use earlier ones.
+
+(rule
+ (targets stdlib.blob stdlib.hz)
+ (action
+  (run
+   node
+   --stack-size=8192
+   %{dep:bake/bake.bc.js}
+   stdlib.blob
+   stdlib.hz
+   %{dep:../../hazel-programs/stdlib/String.hz}
+   %{dep:../../hazel-programs/stdlib/Int.hz}
+   %{dep:../../hazel-programs/stdlib/SInt.hz}
+   %{dep:../../hazel-programs/stdlib/Nat.hz}
+   %{dep:../../hazel-programs/stdlib/Float.hz}
+   %{dep:../../hazel-programs/stdlib/Bool.hz}
+   %{dep:../../hazel-programs/stdlib/Ord.hz}
+   %{dep:../../hazel-programs/stdlib/Color.hz}
+   %{dep:../../hazel-programs/stdlib/Option.hz}
+   %{dep:../../hazel-programs/stdlib/List.hz}
+   %{dep:../../hazel-programs/stdlib/Prelude.hz})))
+
+(library
+ (name stdlibBaked)
+ (modules StdlibBaked)
+ (libraries language)
+ (js_of_ocaml)
+ (preprocess
+  (pps ppx_blob js_of_ocaml-ppx))
+ (preprocessor_deps stdlib.blob))
+
+(library
+ (name stdlibServed)
+ (modules StdlibServed)
+ (libraries language)
+ (js_of_ocaml)
+ (preprocess
+  (pps js_of_ocaml-ppx)))

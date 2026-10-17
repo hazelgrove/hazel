@@ -72,8 +72,14 @@ module Env = {
     | Fun(_)
     | FixF(_)
     | Closure(_)
-    | BuiltinFun(_) when !full => Opaque
-    | _ => Val(d |> DHExp.strip_ascriptions |> Substitution.in_exp(env))
+    | BuiltinFun(_)
+    /* a module referenced (`List` in `List.map(xs)`): its value is every
+       member's function, the standard library's whole List */
+    | Module(_) when !full => Opaque
+    | _ =>
+      Val(
+        d |> DHExp.strip_ascriptions |> Substitution.in_exp(~fns=Shown, env),
+      )
     };
 
   let mk_entry =
@@ -446,9 +452,14 @@ module Focus = {
   /* Returns Some(ap_id) only when cursor is on an application with a variable
      in function position (enabling step-into and pinning). Excludes constructor
      applications and applications with non-variable functions (e.g. lambdas). */
+  /* a call to a named function, bare (`f(x)`) or through a module
+     (`List.map(xs, f)`) */
   let cur_var_ap = (info: Info.t): option(Id.t) =>
     switch (info) {
-    | InfoExp({user_term: {term: Ap(_, {term: Var(_), _}, _), _} as ap, _}) =>
+    | InfoExp({
+        user_term: {term: Ap(_, {term: Var(_) | Dot(_), _}, _), _} as ap,
+        _,
+      }) =>
       Some(Exp.rep_id(ap))
     | _ => None
     };

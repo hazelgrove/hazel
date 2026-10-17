@@ -98,6 +98,23 @@ let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   | None => ctx
   };
 
+/* Bind the type member declared by a signature item, if any. Signature
+   items scope sequentially: later items may mention earlier type members. */
+let extend_sig_item = (ctx: t, item: TermBase.Sig.t): t =>
+  switch (item.term) {
+  | SigType({term: Var(name), _} as tp, ty) =>
+    extend_alias(ctx, name, IdTagged.rep_id(tp), ty)
+  | SigType(_, _)
+  | SigLet(_)
+  | SigModule(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => ctx
+  };
+
+let extend_sig_items = (ctx: t, items: list(TermBase.Sig.t)): t =>
+  List.fold_left(extend_sig_item, ctx, items);
+
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     fun
@@ -133,25 +150,6 @@ let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
     fun
     | VarEntry(v) when v.name == name => Some(v)
-    | _ => None,
-    ctx.entries,
-  );
-
-/* the NEWEST binding of a capitalized name, whichever kind: a module (or
-   any variable) bound after a constructor of the same name shadows it
-   lexically, as any later binding shadows an earlier one */
-let newest_var_or_ctr =
-    (ctx: t, name: string)
-    : option(
-        [
-          | `Var(var_entry)
-          | `Ctr(var_entry)
-        ],
-      ) =>
-  List.find_map(
-    fun
-    | VarEntry(v) when v.name == name => Some(`Var(v))
-    | ConstructorEntry(c) when c.name == name => Some(`Ctr(c))
     | _ => None,
     ctx.entries,
   );
@@ -275,7 +273,9 @@ let filter_shadowed = (ctx: t): t =>
      )
   |> (((kept, _, _)) => of_entries(~use_mode=ctx.use_mode, List.rev(kept)));
 
-let filter_stepper_filter_variables = (ctx: t): t =>
+/* without `$`-names: stepper filter variables and the standard library's
+   `$prim` */
+let filter_internal = (ctx: t): t =>
   ctx.entries
   |> List.filter(entry =>
        switch (entry) {

@@ -239,6 +239,7 @@ module Namer = {
     | Ap(pat1, _) => mk_name_from_pat(pat1)
     | TupLabel(pat1, pat2) =>
       "(" ++ mk_name_from_pat(pat1) ++ " : " ++ mk_name_from_pat(pat2) ++ ")"
+    | Dot(path, l) => mk_name_from_pat(path) ++ "." ++ mk_name_from_pat(l)
     | Atom(_) => "{atom}"
     | ExplicitNonlabel => "{explicit nonlabel}"
     | Invalid(_) => "{invalid}"
@@ -524,7 +525,8 @@ let rec build_children =
             switch (item.term) {
             | ModLet(_)
             | ModType(_)
-            | ModuleMod(_) => true
+            | ModuleMod(_)
+            | ModVal(_) => true
             | ModExp(_)
             | Invalid(_)
             | EmptyHole

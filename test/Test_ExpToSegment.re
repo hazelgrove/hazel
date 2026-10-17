@@ -677,6 +677,16 @@ let roundtrip_tests = (
     roundtrip_test({|Label: backticked dot|}, {|x.`a`|}),
     roundtrip_test({|Label: backticked pat|}, {|fun (`a`=x) -> x|}),
     roundtrip_test({|Label: backticked typ|}, {|1 : (`a`=Int)|}),
+    /* a module's constructors (Test_ModuleCtors) */
+    roundtrip_test({|Module constructor|}, {|M.A(1)|}),
+    roundtrip_test(
+      {|Module constructor pattern|},
+      {|case x | M.A(y) => y | m.N.B => 0 end|},
+    ),
+    roundtrip_ids_test(
+      {|Module constructor pattern ids|},
+      {|fun M.A(y) -> M.N.B|},
+    ),
     /* Unknown infix operators survive as MultiHole + op lexeme */
     roundtrip_test({|Unknown op|}, {|1 @@@ 2|}),
     roundtrip_test({|Unknown op: chained|}, {|1 @@@ 2 @@@ 3|}),
@@ -991,6 +1001,14 @@ end|}),
     roundtrip_test(
       {|Sig: multiple lets|},
       {|let m : { let x : Int; let y : Bool } = { let x = 1; let y = true } in m|},
+    ),
+    roundtrip_test(
+      {|Sig: type member|},
+      {|let m : { type T = Int; let x : T } = { type T = Int; let x = 1 } in m|},
+    ),
+    roundtrip_test(
+      {|Sig: module member|},
+      {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
     ),
   ],
 );
@@ -1763,7 +1781,57 @@ let pad_ids_tests = (
   ],
 );
 
+/* `:` is an operator character: printed flush against a following operator
+   character the two lex as one token (`:+` is no form), so should_add_space
+   keeps them apart. `$` is a name character and still needs the gap. */
+let spacing_tests = (
+  "Ascription spacing",
+  [
+    test_case(
+      "`:` stays apart from a following operator character",
+      `Quick,
+      () => {
+        check(
+          bool,
+          ": then +",
+          true,
+          ExpToSegment.should_add_space(":", "+"),
+        );
+        check(
+          bool,
+          ": then $",
+          true,
+          ExpToSegment.should_add_space(":", "$"),
+        );
+      },
+    ),
+    test_case(
+      "printing a parenthesized bare sum is idempotent",
+      `Quick,
+      () => {
+        let src = {|type T = + Adid in ?|};
+        switch (Parser.to_term(src, ~root=Exp)) {
+        | None => fail("failed to parse " ++ src)
+        | Some(exp) =>
+          let once = print_seg(exp_to_segment(exp));
+          switch (Parser.to_term(once, ~root=Exp)) {
+          | None => fail("failed to reparse " ++ once)
+          | Some(exp') =>
+            check(
+              string,
+              "second print equals the first",
+              once,
+              print_seg(exp_to_segment(exp')),
+            )
+          };
+        };
+      },
+    ),
+  ],
+);
+
 let all = [
+  spacing_tests,
   tests,
   pad_ids_tests,
   roundtrip_tests,

@@ -9,9 +9,9 @@ let tests = (
   [
     test_case("Builtin Function application", `Quick, () =>
       evaluation_test(
-        "float_of_int(1)",
+        "Float.of_int(1)",
         float(1.0),
-        ap(Forward, var("float_of_int"), int(1)),
+        ap(Forward, dot(var("Float"), label("of_int")), int(1)),
       )
     ),
     test_case("Multi-arg builtin with ascription", `Quick, () =>
@@ -31,7 +31,7 @@ let tests = (
     test_case("String_concat builtin", `Quick, () => {
       parse_and_evaluate_test(
         {|"hazel hello world"|},
-        {|string_join(" ", ["hazel", "hello", "world"])|},
+        {|String.join(" ", ["hazel", "hello", "world"])|},
       )
     }),
     test_case("Multi arg builtin ascription", `Quick, () =>
@@ -52,19 +52,19 @@ let tests = (
       )
     ),
     test_case("string_escaped", `Quick, () =>
-      parse_and_evaluate_test({|"\\hello"|}, {|string_escaped("\hello")|})
+      parse_and_evaluate_test({|"\\hello"|}, {|String.escaped("\hello")|})
     ),
     test_case("string_uppercase", `Quick, () =>
-      parse_and_evaluate_test({|"HELLO"|}, {|string_uppercase("hello")|})
+      parse_and_evaluate_test({|"HELLO"|}, {|String.uppercase("hello")|})
     ),
     test_case("string_lowercase", `Quick, () =>
-      parse_and_evaluate_test({|"hello"|}, {|string_lowercase("HELLO")|})
+      parse_and_evaluate_test({|"hello"|}, {|String.lowercase("HELLO")|})
     ),
     test_case("string_capitalize", `Quick, () =>
-      parse_and_evaluate_test({|"Hello"|}, {|string_capitalize("hello")|})
+      parse_and_evaluate_test({|"Hello"|}, {|String.capitalize("hello")|})
     ),
     test_case("string_uncapitalize", `Quick, () =>
-      parse_and_evaluate_test({|"hello"|}, {|string_uncapitalize("Hello")|})
+      parse_and_evaluate_test({|"hello"|}, {|String.uncapitalize("Hello")|})
     ),
     test_case("string_match true", `Quick, () =>
       evaluation_test(

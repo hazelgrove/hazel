@@ -24,8 +24,8 @@ let ensures = [
 ] in
 let add_column =
   fun (t : [?], c : String, vs : [?]) ->
-    zip(t, vs)
-    |> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in
+    List.zip(t, vs)
+    |> List.map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in
 let notes = [
   ("Polymorphic type limitation stops most ensured constraints"),
   (
@@ -71,7 +71,7 @@ let add_column =
     typfun v ->
       typfun r' ->
         fun (t : [r], c : ((r, v) -> r'), vs : [v]) ->
-          (zip(t, vs) |> map(_, c)) : [r'] in
+          (List.zip(t, vs) |> List.map(_, c)) : [r'] in
 test
   let hair_color = ["brown", "red", "blonde"] in
   add_column@<Student>@<String>@<(

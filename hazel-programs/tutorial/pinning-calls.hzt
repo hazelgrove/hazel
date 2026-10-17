@@ -61,8 +61,8 @@ let make_label: (Plant, Int) -> String =
     let header = plant.icon ++ " " ++ plant.name in
     let total = plant.water * days in
     let amount =
-      string_of_int(total) ++ "ml/"
-      ++ string_of_int(days) ++ "d" in
+      String.of_int(total) ++ "ml/"
+      ++ String.of_int(days) ++ "d" in
     header ++ ": " ++ amount
 in
 

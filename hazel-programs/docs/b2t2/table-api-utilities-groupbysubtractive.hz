@@ -29,28 +29,28 @@ let ensures = [
 let group_by_subtractive =
   let get_value = (
     fun (r : ?, label : String) ->
-      find_opt(to_lvs(r), fun e -> e.label == label)
-      |> option_map(_, fun e -> e.value)
+      List.find_opt(to_lvs(r), fun e -> e.label == label)
+      |> Option.map(_, fun e -> e.value)
   ) in
   let remove_duplicates =
     fun (xs : [?]) ->
-      fold_left(
+      List.fold_left(
         xs,
-        fun (seen, x) -> if mem(seen, x) then seen else seen @ [x],
+        fun (seen, x) -> if List.mem(seen, x) then seen else seen @ [x],
         []
       )
       : [?] in
   fun (t1 : [?], c : String) ->
     let get_key = fun (r : ?) -> get_value(r, c) in
     let keys =
-      map(t1, get_key)
-      |> filter_map(_, fun opt -> opt)
+      List.map(t1, get_key)
+      |> List.filter_map(_, fun opt -> opt)
       |> remove_duplicates in
-    map(
+    List.map(
       keys,
       fun k ->
         let rows =
-          filter(
+          List.filter(
             t1,
             fun r ->
               case get_key(r)
@@ -58,10 +58,10 @@ let group_by_subtractive =
               |None => false
               end
           )
-          |> map(
+          |> List.map(
             _,
             fun r ->
-              to_lvs(r) |> filter(_, fun e -> e.label != c) |> from_lvs
+              to_lvs(r) |> List.filter(_, fun e -> e.label != c) |> from_lvs
           ) in
         (key= k) ... (groups= rows)
     ) in

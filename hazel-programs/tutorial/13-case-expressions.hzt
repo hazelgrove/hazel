@@ -21,13 +21,13 @@ Example:
 let describe_pair = fun pair : (Int, Int) ->
   case pair
   | (0, 0) => "Both zero"
-  | (0, y) => "First zero, second " ++ string_of_int(y)
-  | (x, 0) => "Second zero, first " ++ string_of_int(x)
+  | (0, y) => "First zero, second " ++ String.of_int(y)
+  | (x, 0) => "Second zero, first " ++ String.of_int(x)
   | (1, 2) => "One and two"
   | _ => "Default"
   end
 in
-map([(0,0), (0, 1), (1, 0), (1, 2), (3, 4)], describe_pair)
+List.map([(0,0), (0, 1), (1, 0), (1, 2), (3, 4)], describe_pair)
 ```
 
 
@@ -52,7 +52,7 @@ process_string_pair(("other", "hazel")) == "hazel"
 ```
 
 @hint
-Use the string_sub(str, start, len) function to get a substring
+Use the String.sub(str, start, len) function to get a substring
 
 @reference
 ### Case Expression
@@ -73,7 +73,7 @@ Use the string_sub(str, start, len) function to get a substring
    | (0, _) => "zero and something"
    | (n, s) =>
      "number "
-     ++ string_of_int(n)
+     ++ String.of_int(n)
      ++ " and string "
      ++ s
    end
@@ -82,19 +82,19 @@ Use the string_sub(str, start, len) function to get a substring
 
 ### Useful functions
 ```hazelnostatics
-string_sub : (String, Int, Int) -> String
+String.sub : (String, Int, Int) -> String
 ```
 ```hazelnostatics
-string_length : String -> Int
+String.length : String -> Int
 ```
 
 ---
 
 ```hazel
-string_sub("012345", 2, 3)
+String.sub("012345", 2, 3)
 ```
 ```hazel
-string_length("012345")
+String.length("012345")
 ```
 
 @hints

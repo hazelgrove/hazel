@@ -10,6 +10,8 @@ Printexc.register_printer(exn => {
   }
 });
 
+StdlibBaked.install();
+
 /* every edit checks sparse normalization against the global pass */
 NormalizeCheck.install();
 
@@ -42,6 +44,7 @@ let (suite, exit_with_test_status) =
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_FormId.tests,
+      Test_Form.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
@@ -51,10 +54,12 @@ let (suite, exit_with_test_status) =
       Test_Restructure.tests,
       Test_StreamCollector.tests,
       Test_MegaCorpus.tests,
+      Test_Stdlib.tests,
       Test_MeasuredChunks.tests,
       Test_MakeTermIncr.tests,
       Test_EditLocality.tests,
       Test_DefStaticsParity.tests,
+      Test_ModuleCtors.tests,
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
       Test_ModRoot.tests,

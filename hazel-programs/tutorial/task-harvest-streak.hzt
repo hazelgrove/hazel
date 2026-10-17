@@ -136,7 +136,7 @@ let processHarvest(ledger: Model, h: Harvest): Model =
   # Calculate the base value of this harvest #
   let value = harvestValue(h) in
   # Check if this is the first harvest (no streak possible) #
-  let isFirst = length(ledger.harvests) == 0 in
+  let isFirst = List.length(ledger.harvests) == 0 in
   # Prepare to update the lastQuality for next comparison #
   let newLast = h.quality in
   # Determine if the streak continues #
@@ -196,7 +196,7 @@ in
 # Run multiple actions in sequence #
 # Folds actions left-to-right, threading the ledger through #
 let run(ledger: Model, actions: [Action]): Model =
-  fold_left(actions, fun (l, a) -> update(l, a), ledger)
+  List.fold_left(actions, fun (l, a) -> update(l, a), ledger)
 in
 
 # ===== TESTS ===== #
@@ -213,7 +213,7 @@ hint "harvest is added to harvests list"
 test
   let h: Harvest = (crop = Starfruit, quality = Silver, quantity = 1) in
   let ledger = update(init, RecordHarvest(h)) in
-  length(ledger.harvests) == 1
+  List.length(ledger.harvests) == 1
 end;
 
 # Quality multiplier tests #
@@ -341,7 +341,7 @@ test
     CloseDay
   ]) in
   ledger.streakBonus == 0 &&
-  length(ledger.harvests) == 4
+  List.length(ledger.harvests) == 4
 end
 
 @test

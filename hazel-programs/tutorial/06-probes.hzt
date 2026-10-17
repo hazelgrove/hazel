@@ -26,7 +26,7 @@ Large values may be abbreviated in the probe sample. If a probe sample appears t
 
 ## Task
 
-The code below defines a function `add_tax` that adds a 50% tax to a price. It is then applied to a list of three prices using `map`.
+The code below defines a function `add_tax` that adds a 50% tax to a price. It is then applied to a list of three prices using `List.map`.
 
 1. **Add a probe** on `price` inside the function body to see the three input values.
 The probe sample will show `...` because there are multiple values. **Double-click** the `...` to expand and see all three probe samples.
@@ -50,13 +50,13 @@ Right-click a probed expression and choose **"Remove probe"**, or press **Cmd+E*
 Probing inside a function shows a probe sample for each call:
 ```hazel
 let f = fun x -> x + 1 in
-map([10, 20], f)
+List.map([10, 20], f)
 ```
 Probing `x + 1` shows probe samples: `11`, `21`
 
 @code
 let add_tax = fun price -> price +. price *. 0.5 in
-let totals = map([3.0, 7.0, 5.0], add_tax) in
+let totals = List.map([3.0, 7.0, 5.0], add_tax) in
 totals
 
 @test

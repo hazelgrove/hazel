@@ -67,7 +67,7 @@ let get_samples_by_line = (code: string): IntMap.t(list(string)) => {
     let (_, state) =
       Evaluator.evaluate(
         ~eval_info=EvalInfo.of_targets(targets),
-        ~env=Builtins.env_init,
+        ~env=Builtins.env_init(),
         elaborated,
       );
     let probes = EvaluatorState.get_probes(state);
@@ -265,7 +265,7 @@ let operator_tests = [
   ),
   probe_line_test(
     "Probe on builtin function call",
-    {|^^probe(string_length("hello"))|},
+    {|^^probe(String.length("hello"))|},
     [(0, ["5"])],
   ),
   probe_line_test(
@@ -1085,13 +1085,11 @@ let module_tests = [
     {|let m = { let x = ^^probe(1 + 2) } in m.x|},
     [(0, ["3"])],
   ),
-  /* ^^probe({ let x = 1 }) captures the module's value (x=1). The elaborator
-     places the Module's ID on the labeled tuple so the evaluator records
-     samples under the correct ID. */
+  /* ^^probe(m) captures the module's value, a module literal. */
   probe_line_test(
     "Probe on module value via variable",
     {|let m = { let x = 5 } in ^^probe(m)|},
-    [(0, ["(x=5)"])],
+    [(0, ["{ let x = 5 }"])],
   ),
   probe_line_test(
     "Probe on module dot access",
@@ -1120,7 +1118,7 @@ in m.f(5)|},
   probe_line_test(
     "Probe on module expression collects sample",
     {|let m = ^^probe({ let x = 5 }) in m.x|},
-    [(0, ["(x=5)"])],
+    [(0, ["{ let x = 5 }"])],
   ),
 ];
 

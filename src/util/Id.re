@@ -64,19 +64,35 @@ type t = Uuidm.t;
  * abbreviations stay distinct) plus 62 session-random bits in the tail
  * to keep ids unique across sessions/runtimes, packaged by Uuidm.v4
  * (which copies the scratch buffer and stamps version/variant bits). */
-let mk: unit => t = {
+/* a generator: its tail bytes, and its counter */
+type gen = {
+  scratch: Bytes.t,
+  lo: ref(int),
+  hi: ref(int),
+};
+
+let gen_of_tail = (tail: int => int): gen => {
   let scratch = Bytes.make(16, '\000');
-  let seed = Random.State.make_self_init();
   for (i in 8 to 15) {
-    Bytes.unsafe_set(
-      scratch,
-      i,
-      Char.unsafe_chr(Random.State.int(seed, 256)),
-    );
+    Bytes.unsafe_set(scratch, i, Char.unsafe_chr(tail(i)));
   };
-  let lo = ref(0);
-  let hi = ref(0);
+  {
+    scratch,
+    lo: ref(0),
+    hi: ref(0),
+  };
+};
+
+let session: gen = {
+  let seed = Random.State.make_self_init();
+  gen_of_tail(_ => Random.State.int(seed, 256));
+};
+
+let current: ref(gen) = ref(session);
+
+let mk: unit => t =
   () => {
+    let {scratch, lo, hi} = current^;
     incr(lo);
     if (lo^ >= 1073741824) {
       lo := 0;
@@ -94,6 +110,22 @@ let mk: unit => t = {
     Bytes.unsafe_set(scratch, 6, Char.unsafe_chr(h lsr 16 land 0x0f));
     Bytes.unsafe_set(scratch, 7, Char.unsafe_chr(h lsr 20 land 0xff));
     Uuidm.v4(scratch);
+  };
+
+/* [f] with ids that depend only on [seed] and the order [f] makes them: a
+   deterministic computation (a parse) gives the same ids for the same
+   seed, at build time and in the app, in any session */
+let with_seed = (seed: string, f: unit => 'a): 'a => {
+  let digest = Digest.string(seed);
+  let prev = current^;
+  current := gen_of_tail(i => Char.code(digest.[i - 8]));
+  switch (f()) {
+  | x =>
+    current := prev;
+    x;
+  | exception e =>
+    current := prev;
+    raise(e);
   };
 };
 let namespace_uuid =

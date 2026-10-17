@@ -4,6 +4,14 @@
 (rule
  (copy ../worker.bc.js worker.js))
 
+; the baked library and its source, loaded at boot (StdlibServed)
+
+(rule
+ (copy ../../stdlib/stdlib.blob stdlib.blob))
+
+(rule
+ (copy ../../stdlib/stdlib.hz stdlib.hz))
+
 (rule
  (targets bundled.js)
  (deps prebundle.js)

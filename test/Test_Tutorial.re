@@ -38,7 +38,7 @@ let test_results_with = (spec: Tutorial.spec, solution): TestResults.t => {
       Builtins.ctx_init(Some(Operators.default_mode)),
       Tutorial.stitch_term(editors).hidden_tests.term,
     );
-  let (_, state) = Evaluator.evaluate(~env=Builtins.env_init, elab);
+  let (_, state) = Evaluator.evaluate(~env=Builtins.env_init(), elab);
   TestResults.mk_results(EvaluatorState.get_tests(state));
 };
 

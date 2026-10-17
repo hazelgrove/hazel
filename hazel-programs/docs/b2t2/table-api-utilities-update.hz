@@ -32,7 +32,7 @@ let ensures = [
 let update =
   typfun row ->
     fun (t1 : [row], f : (row -> ?)) ->
-      map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?] in
+      List.map(t1, fun (r : row) -> (r : ?) ... f(r)) : [?] in
 
 test
   update@<GradebookEntry>(
@@ -56,7 +56,7 @@ test
 
 # (idiomatic) Without being polymorphic has better types #
 test
-  map(
+  List.map(
     gradebook,
     fun (r : GradebookEntry) ->
       r ... (midterm= 85 <= r.midterm, final= 85 <= r.final)

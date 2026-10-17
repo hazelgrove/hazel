@@ -63,8 +63,8 @@ let closed_exp =
   info.elab_term |> Substitution.in_exp(Environment.of_list(bindings));
 };
 
-let ctx =
-  SemanticCtx.of_ctx_and_env(Builtins.ctx_init(None), Builtins.closure_env);
+let ctx = () =>
+  SemanticCtx.of_ctx_and_env(Builtins.ctx_init(None), Builtins.env_init());
 
 /* the drawer's stepper, recalculated only when its sample, its settings
    or its own state changed; a new one redraws the probe views */
@@ -126,7 +126,7 @@ let calculate =
           stepper:
             StepperView.Update.calculate(
               ~settings,
-              ~ctx=OldValue(ctx),
+              ~ctx=OldValue(ctx()),
               same_exp && !fresh ? OldValue(e) : NewValue(e),
               ps.stepper,
             ),

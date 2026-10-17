@@ -187,7 +187,7 @@ let test_calculate =
   let settings = Calc.NewValue(CoreSettings.on);
   let exp_calc = Calc.NewValue(exp);
   let ctx_calc =
-    Calc.NewValue(SemanticCtx.of_ctx_and_env(ctx, Builtins.env_init));
+    Calc.NewValue(SemanticCtx.of_ctx_and_env(ctx, Builtins.env_init()));
   let ana_calc = Calc.NewValue(ana);
 
   StepperBase.Stepper.calculate(

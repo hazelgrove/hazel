@@ -24,6 +24,6 @@ let ensures = [
 let head =
   typfun r ->
     fun (t1 : [r], n : Int) ->
-      take(t1, if n >= 0 then n else length(t1) + n) : [r] in
+      List.take(t1, if n >= 0 then n else List.length(t1) + n) : [r] in
 test
   head@<Student>(students, - 2) == [("Bob", 12, "blue")] : [Student] end

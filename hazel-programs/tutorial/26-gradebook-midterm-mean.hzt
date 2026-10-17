@@ -30,33 +30,33 @@ t.score
 Use `_` to defer arguments:
 ```hazel
 let double =
-  map(_, fun x -> x * 2)
+  List.map(_, fun x -> x * 2)
 in
 double([1, 2, 3])
 ```
 
-### fold_left
+### List.fold_left
 ```hazel
-fold_left(
+List.fold_left(
   [1, 2, 3],
   fun (acc, x) -> acc + x,
   0
 )
 ```
 ```hazelnostatics
-fold_left : ([T], (U, T) -> U, U) -> U
+List.fold_left : ([T], (U, T) -> U, U) -> U
 ```
 
-### length
-`length : [T] -> Int` return the length of a list
+### List.length
+`List.length : [T] -> Int` return the length of a list
 ```hazel
-length([1.0, 2.0, 3.0])
+List.length([1.0, 2.0, 3.0])
 ```
 
 ### Type Conversions
-- `float_of_int : Int -> Float` converts an integer to a float
+- `Float.of_int : Int -> Float` converts an integer to a float
 ```hazel
-float_of_int(1)
+Float.of_int(1)
 ```
 
 ### Function Definition
