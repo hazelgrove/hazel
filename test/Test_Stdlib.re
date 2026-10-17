@@ -175,6 +175,37 @@ let tests = (
         };
       },
     ),
+    /* examples and tests sit in the library like any program's: checked,
+       no export, never run in a slide */
+    test_case(
+      "the library may hold examples and tests",
+      `Quick,
+      () => {
+        let bake = (~strict, src) =>
+          switch (LibraryBake.of_text(~strict, src)) {
+          | Ok((baked, errors, _)) => (baked, errors)
+          | Error(msg) => fail(msg)
+          };
+        let (baked, errors) =
+          bake(
+            ~strict=true,
+            "module A = { let x = 1 };\nA.x + 1;\ntest A.x == 1 end;\nlet y = 2",
+          );
+        check(int, "no errors", 0, errors);
+        check(
+          list(string),
+          "definitions only",
+          ["A", "y"],
+          Array.to_list(Array.map((d: Library.def) => d.name, baked.defs)),
+        );
+        let (_, errors) =
+          bake(
+            ~strict=false,
+            "module A = { let x = 1 };\n1 + true;\nlet y = 2",
+          );
+        check(int, "an example's error counts", 1, errors);
+      },
+    ),
     test_case(
       "a new starting context re-analyzes every item",
       `Quick,

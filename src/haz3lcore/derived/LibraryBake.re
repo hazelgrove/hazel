@@ -19,9 +19,11 @@ let rec top_names = (items: list(Mod.t)): list(Var.t) =>
   };
 
 /* the items as the let/module/type chain a slide would write, ending in
-   [tail]; None when an item is not a definition. Each link takes its
-   item's id, so a chain built again after an edit keeps the unchanged
-   items' analyses (DefStatics ~prev) */
+   [tail]: examples and tests (expression items) as `e; …`, checked but
+   no export and never run in a slide (definitions evaluate on demand);
+   unfinished items (holes, mid-edit) skipped. Each link takes its item's
+   id, so a chain built again after an edit keeps the unchanged items'
+   analyses (DefStatics ~prev) */
 let rec chain = (items: list(Mod.t), tail: Exp.t): option(Exp.t) =>
   switch (items) {
   | [] => Some(tail)
@@ -35,7 +37,11 @@ let rec chain = (items: list(Mod.t), tail: Exp.t): option(Exp.t) =>
         | ModLet(p, def) => Some(link(Let(p, def, body)))
         | ModType(tp, ty) => Some(link(TyAlias(tp, ty, body)))
         | ModuleMod(mp, def) => Some(link(ModuleExp(mp, def, body)))
-        | _ => None
+        | ModExp(e) => Some(link(Seq(e, body)))
+        | EmptyHole
+        | MultiHole(_)
+        | Invalid(_)
+        | ModVal(_) => Some(body)
         };
       },
     )
@@ -51,7 +57,8 @@ let defs = (elab: Exp.t): result(list((Var.t, Exp.t)), string) => {
       | [x] => go(body, [(x, def), ...acc])
       | _ => Error("a top-level definition must bind exactly one name")
       }
-    | TyAlias(_, _, body) => go(body, acc)
+    | TyAlias(_, _, body)
+    | Seq(_, body) => go(body, acc)
     | Tuple(_) => Ok(List.rev(acc))
     | _ => Error("the library elaborated to an unexpected shape")
     };
@@ -103,7 +110,7 @@ let of_items =
   let tail = Exp.fresh(Tuple(List.map(x => Exp.fresh(Var(x)), names)));
   let base = Builtins.ctx_base(Some(Operators.default_mode));
   switch (chain(items, tail)) {
-  | None => Error("the library's top level may only hold definitions")
+  | None => Error("the library did not chain")
   | Some(_) when List.length(names) < 2 =>
     Error("the library must bind at least two names")
   | Some(exp) =>
