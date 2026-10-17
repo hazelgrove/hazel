@@ -148,17 +148,20 @@ let refactor_emerge_source =
   | None => []
   };
 
-/* === Drag candidates (pointer front-end to the gesture system) ===
- * For each direction, resolve the gesture at the caret, prepare it,
- * and measure the result — measures only, no statics/eval/view
- * (dragology's isTracking, done with Measured). Each candidate
- * defines a TRACK from the anchor's current position to its position
- * in the candidate. Anchors are (from, to) id pairs: the grabbed
- * construct for movement kinds; def -> fed occurrence for feeds (the
- * value travels, the binding doesn't). Degenerate tracks (anchor
- * doesn't move) are dropped — that transform stays arrows/menu-only.
- * Coincident targets keep the first in direction order (ambiguity
- * policy v1). */
+/* === Drag candidates (D2's reachable states) ===
+ * The grabbed element's candidates are EVERY refactor it can drive
+ * (drag_kinds), not one per arrow key: each is prepared and measured
+ * — measures only, no statics/eval/view (dragology's isTracking, done
+ * with Measured) — and defines a TRACK from the anchor's current
+ * position to its position in that state. Which way you pull falls out
+ * of where the states put the element. Anchors are (from, to) id
+ * pairs: the grabbed construct for movement kinds; def -> fed
+ * occurrence for feeds (the value travels, the binding doesn't). The
+ * element must keep a place in the state (D2's model-driven rule):
+ * a candidate whose anchor vanishes drops, except the kinds whose
+ * track ends elsewhere (lands_elsewhere). Degenerate
+ * tracks (anchor doesn't move) drop too. Coincident targets keep the
+ * first in drag_kinds order. */
 
 module DragCandidate = {
   /* how the candidate layout maps onto the screen during the drag
@@ -188,8 +191,10 @@ module DragCandidate = {
       : p;
 
   type t = {
-    dir: Action.Gesture.t,
     kind: Action.refactor,
+    /* where the refactor is invoked: the grab, or (for a grabbed
+       definition root) its let */
+    at: Id.t,
     label: string,
     current: Measured.Point.t, /* track start (live layout) */
     target: Measured.Point.t, /* track end (screen frame) */
@@ -259,6 +264,63 @@ let drag_anchor =
   | _ => Some((target, target))
   };
 
+/* the refactors a grab can drive: every rung of every direction's
+   gesture zone (the zone table is the drag spec's handle map: which
+   tokens drive which transform), without the arrow keys' first-match
+   preemption; plus the insist remedies (carry the dependencies / lift
+   to a helper) when pushing through is on. Order = coincident-target
+   precedence. A use never drives its own unfolding: occurrences mean
+   themselves, and the unfolded use has no place in the result. */
+let drag_kinds =
+    (
+      ~info_map: Statics.Map.t,
+      ~term: Exp.t,
+      ~push: bool,
+      ~target: Id.t,
+      ~shard: option(int),
+    )
+    : list(Action.refactor) => {
+  let insist =
+    push
+      ? [Action.HoistCarry, LiftFunction]
+        |> List.filter(k => applies(k, ~info_map, ~target, term))
+      : [];
+  [Action.Gesture.Up, Down, Left, Right]
+  |> List.concat_map(gesture_options(~info_map, ~term, ~target, ~shard))
+  |> List.filter(k => k != Action.UnfoldCall)
+  |> (ks => ks @ insist)
+  |> List.fold_left((acc, k) => List.mem(k, acc) ? acc : acc @ [k], []);
+};
+
+/* kinds whose track ends somewhere other than the grabbed element's
+   own place in the state (the transform's focus): a fed definition
+   spawns the copy the drag follows (D2's duplicate-and-follow), an
+   extracted expression that reuses an identical definition dissolves
+   into it, a lifted definition re-forms as a helper above the
+   function, a parameter list shed to one loses the parens you held,
+   an expanded wildcard becomes the arms it stood for. (Merges drop
+   onto their live twin: merge_drop.) */
+let lands_elsewhere = (kind: Action.refactor): bool =>
+  switch (kind) {
+  | FeedLet
+  | ExtractLet
+  | LiftFunction
+  | RemoveParameter
+  | ExpandWildcard => true
+  | _ => false
+  };
+
+let moves_let = (kind: Action.refactor): bool =>
+  switch (kind) {
+  | HoistLet
+  | SinkLet
+  | MergeUp
+  | MergeDown
+  | HoistCarry
+  | LiftFunction => true
+  | _ => false
+  };
+
 let drag_candidates =
     (
       ~info_map: Statics.Map.t,
@@ -269,228 +331,300 @@ let drag_candidates =
          measuring with an empty map squeezed sliders to their token
          text and every tween target sat in the wrong geometry */
       ~shape_map: Id.Map.t(ProjectorCore.Shape.t)=Id.Map.empty,
-      z: Zipper.t,
+      ~push: bool,
+      /* the grabbed token: its tile and SHARD. The shard anchors the
+         track when known: a tile's delimiters don't move rigidly (case
+         stays, end drops a row on add-arm), so tile-level lookup shows
+         zero travel for real moves */
+      ~target: Id.t,
+      ~shard as grab_shard: option(int),
+      (),
     )
-    : list(DragCandidate.t) =>
-  switch (Indicated.index(z)) {
-  | None => []
-  | Some(target) =>
-    /* the grabbed SHARD anchors the track when known: a tile's
-       delimiters don't move rigidly (case stays, end drops a row on
-       add-arm), so tile-level lookup shows zero travel for real
-       moves */
-    let grab_shard = Indicated.shard_index(z);
-    let shard_meas = (id: Id.t, m: Measured.t) =>
-      switch (grab_shard) {
-      | Some(k) when id == target =>
-        switch (Id.Map.find_opt(id, m.tiles)) {
-        | Some(shards) =>
-          switch (List.assoc_opt(k, shards)) {
-          | Some(meas) => Some(meas)
-          | None => Measured.find_by_id(id, m)
-          }
+    : list(DragCandidate.t) => {
+  let shard_meas = (id: Id.t, m: Measured.t) =>
+    switch (grab_shard) {
+    | Some(k) when id == target =>
+      switch (Id.Map.find_opt(id, m.tiles)) {
+      | Some(shards) =>
+        switch (List.assoc_opt(k, shards)) {
+        | Some(meas) => Some(meas)
         | None => Measured.find_by_id(id, m)
         }
-      | _ => Measured.find_by_id(id, m)
-      };
-    let mk =
-        (~feed_pref: bool=false, dir: Action.Gesture.t)
-        : option(DragCandidate.t) =>
-      switch (gesture(~info_map, ~term, dir, z)) {
+      | None => Measured.find_by_id(id, m)
+      }
+    | _ => Measured.find_by_id(id, m)
+    };
+  let mk =
+      (~feed_pref: bool=false, ~at: Id.t, kind: Action.refactor)
+      : option(DragCandidate.t) => {
+    /* feeds drag from the BINDING side only (established rule):
+       an at-use feed's clone lands where you grabbed — a
+       meaningless sliver of a track (it used to drop via the
+       zero-track guard; keep_ids shifted the geometry by a
+       column and it survived). Killed explicitly; the Down
+       retry then picks up the def-host reading when one exists. */
+    let at_use_feed =
+      kind == FeedLet
+      && (
+        switch (
+          feed_site(~prefer_def_host=feed_pref, ~info_map, ~target=at, term)
+        ) {
+        | Some((_, _, Some(_))) => true
+        | _ => false
+        }
+      );
+    if (at_use_feed) {
+      None;
+    } else {
+      let prepare =
+        switch (kind) {
+        | FeedLet => feed_prepare(~prefer_def_host=feed_pref)
+        | _ => impl(kind).prepare
+        };
+      switch (prepare(~info_map, ~target=at, term)) {
       | None => None
-      | Some(kind) =>
-        /* feeds drag from the BINDING side only (established rule):
-           an at-use feed's clone lands where you grabbed — a
-           meaningless sliver of a track (it used to drop via the
-           zero-track guard; keep_ids shifted the geometry by a
-           column and it survived). Killed explicitly; the Down
-           retry then picks up the def-host reading when one exists. */
-        let at_use_feed =
-          kind == FeedLet
-          && (
+      | Some((term', focus)) =>
+        let segment =
+          ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
+          |> SpaceNormalize.go;
+        let cand_measured =
+          Measured.of_segment(segment, shape_map, Id.Map.empty);
+        let (from_id, to_id) =
+          drag_anchor(~feed_pref, ~info_map, ~target=at, kind, term)
+          |> Option.value(~default=(at, at));
+        let to_pos = (id: Id.t) =>
+          shard_meas(id, cand_measured)
+          |> Option.map((m: Measured.measurement) => m.origin);
+        /* a merge drops the grab onto its twin (D2's drop target): the
+           track ends at the twin's LIVE place (merging down, the
+           survivor rises into the vacated row — the result alone
+           would show no travel) */
+        let merge_drop = () =>
+          switch (merge_target(~info_map, ~target=at, kind, term)) {
+          | ([d, ..._], [v, ..._]) =>
             switch (
-              feed_site(~prefer_def_host=feed_pref, ~info_map, ~target, term)
-            ) {
-            | Some((_, _, Some(_))) => true
-            | _ => false
-            }
-          );
-        if (at_use_feed) {
-          None;
-        } else {
-          let prepare =
-            switch (kind) {
-            | FeedLet => feed_prepare(~prefer_def_host=feed_pref)
-            | _ => impl(kind).prepare
-            };
-          switch (prepare(~info_map, ~target, term)) {
-          | None => None
-          | Some((term', focus)) =>
-            let segment =
-              ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
-              |> SpaceNormalize.go;
-            let cand_measured =
-              Measured.of_segment(segment, shape_map, Id.Map.empty);
-            let (from_id, to_id) =
-              drag_anchor(~feed_pref, ~info_map, ~target, kind, term)
-              |> Option.value(~default=(target, target));
-            let to_pos = (id: Id.t) =>
-              shard_meas(id, cand_measured)
-              |> Option.map((m: Measured.measurement) => m.origin);
-            switch (
+              Measured.find_by_id(d, measured),
+              Measured.find_by_id(v, measured),
               shard_meas(from_id, measured),
-              /* the grabbed id can vanish in a candidate (rare); the
-                 focus is the moved content's id — try it second */
-              switch (to_pos(to_id)) {
-              | Some(p) => Some(p)
-              | None => to_pos(focus)
-              },
             ) {
-            | (Some(cur), Some(tgt)) =>
-              let live_rows = total_rows(measured);
-              let cand_rows = total_rows(cand_measured);
-              let frame =
-                switch (kind) {
-                | FeedLet when live_rows > cand_rows =>
-                  /* two-stage: the vacated lines persist as blank
-                     until release; everything at/below them holds its
-                     live position */
-                  {
-                    DragCandidate.shift_from: cur.origin.row,
-                    shift_rows: live_rows - cand_rows,
-                    scroll_rows: 0,
-                  }
-                | ExtractLet when cand_rows > live_rows =>
-                  /* two insertion geometries: a LINE-TAKEOVER extract
-                     (the slot starts a line) opens space at-or-above
-                     the origin — pin the origin, slide above-content
-                     up, bump the scroll at commit. A SUB-SLOT extract
-                     (inline fun/arm/chain body) lands the binding
-                     WHERE THE DISPLACED BODY SITS — that content's
-                     departure IS the target-space opening (duality
-                     rule), so it moves WITH the pull: plain candidate
-                     frame. (Pinning it overlapped the flyer with the
-                     pinned body mid-drag — andrew.) */
-                  let takeover =
-                    switch (extract_path(~target, term)) {
-                    | Some(path) =>
-                      let line = lowest_line(path);
-                      same_node(line, term)
-                      || has_newline(sep_like(Slot.of_exp(line).lead));
-                    | None => true
-                    };
-                  if (takeover) {
-                    {
-                      DragCandidate.shift_from: 0,
-                      shift_rows: live_rows - cand_rows,
-                      scroll_rows: cand_rows - live_rows,
-                    };
-                  } else {
-                    DragCandidate.no_frame;
-                  };
-                | _ => DragCandidate.no_frame
-                };
-              let tgt = DragCandidate.frame_point(frame, tgt);
-              /* emerge map (dragology's emergeFrom): the spawned clone's
-                 ids are exactly the FRESH ids of the candidate; both
-                 walks share traversal order, so they zip against the
-                 def's ids positionally — no clone lookup needed */
-              let emerge =
-                switch (kind) {
-                | FeedLet =>
-                  switch (
-                    feed_plan(
-                      ~prefer_def_host=feed_pref,
-                      ~info_map,
-                      ~target,
-                      term,
-                    )
-                  ) {
-                  | Some(Feed(_, def, _)) =>
-                    let live = exp_subtree_ids(term);
-                    let fresh =
-                      exp_subtree_ids(term')
-                      |> List.filter(id => !List.mem(id, live));
-                    let d = exp_subtree_ids(def);
-                    /* combine raises on length mismatch — guard FIRST
-                       (the eager-evaluation gotcha) */
-                    let zip = ids =>
-                      List.length(ids) == List.length(d)
-                        ? List.combine(ids, d) : [];
-                    switch (zip(fresh)) {
-                    | [] =>
-                      /* reparse demanded a paren wrapper: the parens
-                         are genuinely NEW material (no source) — pair
-                         the inner clone, found structurally */
-                      let fresh_parens = (e: Exp.t) =>
-                        switch (IdTagged.term_of(e)) {
-                        | Parens(_) =>
-                          IdTagged.ids(e)
-                          |> List.exists(id => List.mem(id, fresh))
-                        | _ => false
-                        };
-                      switch (find_hit(~hit=fresh_parens, term')) {
-                      | Some(p) =>
-                        switch (IdTagged.term_of(p)) {
-                        | Parens(inner) => zip(exp_subtree_ids(inner))
-                        | _ => []
-                        }
-                      | None => []
-                      };
-                    | pairs => pairs
-                    };
-                  | _ => []
-                  }
-                | _ => []
-                };
-              /* a spawned clone's track ends at the CLONE (the
-                 occurrence's ids no longer exist in the candidate) */
-              let tgt =
-                switch (emerge |> List.find_opt(((_, d)) => d == from_id)) {
-                | Some((clone_id, _)) =>
-                  switch (to_pos(clone_id)) {
-                  | Some(p) => DragCandidate.frame_point(frame, p)
-                  | None => tgt
-                  }
-                | None => tgt
-                };
-              cur.origin != tgt
-                ? Some({
-                    DragCandidate.dir,
-                    kind,
-                    label: impl(kind).label,
-                    current: cur.origin,
-                    target: tgt,
-                    frame,
-                    emerge,
-                    term: term',
-                    focus,
-                    segment,
-                    measured: cand_measured,
-                  })
-                : None;
+            | (Some(dm), Some(vm), Some(cm)) =>
+              Some(
+                {
+                  row: vm.origin.row + cm.origin.row - dm.origin.row,
+                  col: vm.origin.col + cm.origin.col - dm.origin.col,
+                }: Measured.Point.t,
+              )
             | _ => None
-            };
+            }
+          | _ => None
           };
+        switch (
+          shard_meas(from_id, measured),
+          switch (kind) {
+          | MergeUp
+          | MergeDown => merge_drop()
+          | _ =>
+            switch (to_pos(to_id)) {
+            | Some(p) => Some(p)
+            | None => lands_elsewhere(kind) ? to_pos(focus) : None
+            }
+          },
+        ) {
+        | (Some(cur), Some(tgt)) =>
+          let live_rows = total_rows(measured);
+          let cand_rows = total_rows(cand_measured);
+          let frame =
+            switch (kind) {
+            | FeedLet when live_rows > cand_rows =>
+              /* two-stage: the vacated lines persist as blank
+                 until release; everything at/below them holds its
+                 live position */
+              {
+                DragCandidate.shift_from: cur.origin.row,
+                shift_rows: live_rows - cand_rows,
+                scroll_rows: 0,
+              }
+            | ExtractLet when cand_rows > live_rows =>
+              /* two insertion geometries: a LINE-TAKEOVER extract
+                 (the slot starts a line) opens space at-or-above
+                 the origin — pin the origin, slide above-content
+                 up, bump the scroll at commit. A SUB-SLOT extract
+                 (inline fun/arm/chain body) lands the binding
+                 WHERE THE DISPLACED BODY SITS — that content's
+                 departure IS the target-space opening (duality
+                 rule), so it moves WITH the pull: plain candidate
+                 frame. (Pinning it overlapped the flyer with the
+                 pinned body mid-drag — andrew.) */
+              let takeover =
+                switch (extract_path(~target=at, term)) {
+                | Some(path) =>
+                  let line = lowest_line(path);
+                  same_node(line, term)
+                  || has_newline(sep_like(Slot.of_exp(line).lead));
+                | None => true
+                };
+              if (takeover) {
+                {
+                  DragCandidate.shift_from: 0,
+                  shift_rows: live_rows - cand_rows,
+                  scroll_rows: cand_rows - live_rows,
+                };
+              } else {
+                DragCandidate.no_frame;
+              };
+            | _ => DragCandidate.no_frame
+            };
+          let tgt = DragCandidate.frame_point(frame, tgt);
+          /* emerge map (dragology's emergeFrom): the spawned clone's
+             ids are exactly the FRESH ids of the candidate; both
+             walks share traversal order, so they zip against the
+             def's ids positionally — no clone lookup needed */
+          let emerge =
+            switch (kind) {
+            | FeedLet =>
+              switch (
+                feed_plan(
+                  ~prefer_def_host=feed_pref,
+                  ~info_map,
+                  ~target=at,
+                  term,
+                )
+              ) {
+              | Some(Feed(_, def, _)) =>
+                let live = exp_subtree_ids(term);
+                let fresh =
+                  exp_subtree_ids(term')
+                  |> List.filter(id => !List.mem(id, live));
+                let d = exp_subtree_ids(def);
+                /* combine raises on length mismatch — guard FIRST
+                   (the eager-evaluation gotcha) */
+                let zip = ids =>
+                  List.length(ids) == List.length(d)
+                    ? List.combine(ids, d) : [];
+                switch (zip(fresh)) {
+                | [] =>
+                  /* reparse demanded a paren wrapper: the parens
+                     are genuinely NEW material (no source) — pair
+                     the inner clone, found structurally */
+                  let fresh_parens = (e: Exp.t) =>
+                    switch (IdTagged.term_of(e)) {
+                    | Parens(_) =>
+                      IdTagged.ids(e)
+                      |> List.exists(id => List.mem(id, fresh))
+                    | _ => false
+                    };
+                  switch (find_hit(~hit=fresh_parens, term')) {
+                  | Some(p) =>
+                    switch (IdTagged.term_of(p)) {
+                    | Parens(inner) => zip(exp_subtree_ids(inner))
+                    | _ => []
+                    }
+                  | None => []
+                  };
+                | pairs => pairs
+                };
+              | _ => []
+              }
+            | _ => []
+            };
+          /* a spawned clone's track ends at the CLONE (the
+             occurrence's ids no longer exist in the candidate) */
+          let tgt =
+            switch (emerge |> List.find_opt(((_, d)) => d == from_id)) {
+            | Some((clone_id, _)) =>
+              switch (to_pos(clone_id)) {
+              | Some(p) => DragCandidate.frame_point(frame, p)
+              | None => tgt
+              }
+            | None => tgt
+            };
+          cur.origin != tgt
+            ? Some({
+                DragCandidate.kind,
+                at,
+                label: impl(kind).label,
+                current: cur.origin,
+                target: tgt,
+                frame,
+                emerge,
+                term: term',
+                focus,
+                segment,
+                measured: cand_measured,
+              })
+            : None;
+        | _ => None
         };
       };
-    /* NO def-host retry (reverted): the commit dispatches the plain
-       RefactorGesture, which RE-RESOLVES the position with default
-       preferences — a candidate prepared with ~prefer_def_host
-       previews a transform the commit then contradicts (andrew hit
-       it: preview moved y's def, release fed a's binding).
-       INVARIANT: enumeration must stay within what the gesture
-       dispatch re-derives. The occurrence-inside-def spot is dead
-       for drag until the commit path can carry a resolution. */
-    [Action.Gesture.Up, Down, Left, Right]
-    |> List.filter_map(dir => mk(dir))
-    |> List.fold_left(
-         (acc, c: DragCandidate.t) =>
-           List.exists((c': DragCandidate.t) => c'.target == c.target, acc)
-             ? acc : acc @ [c],
-         [],
-       );
+    };
   };
+  /* NO def-host retry (reverted): a candidate prepared with
+     ~prefer_def_host previews a transform the commit (plain go at
+     the grab) then contradicts (andrew hit it: preview moved y's
+     def, release fed a's binding). INVARIANT: enumeration must stay
+     within what the commit re-derives. */
+  /* the grab's own refactors, then — when it is a definition root's
+     leading token — its let's moves: the definition is the element,
+     and its let line travels with it (the binder-as-handle
+     convention, reversed). Later delimiters keep their own vocations
+     (a case's end adds arms, then/else flip). */
+  let own =
+    drag_kinds(~info_map, ~term, ~push, ~target, ~shard=grab_shard)
+    |> List.map(k => (k, target));
+  let via_let =
+    switch (
+      (grab_shard == None || grab_shard == Some(0))
+      /* a let-headed def's root is that inner let: its own handles */
+      && find_hit(~hit=hit_def_line(target), term) == None
+        ? find_hit(
+            ~hit=
+              e =>
+                switch (IdTagged.term_of(e)) {
+                | Let(_, def, _) => List.mem(target, IdTagged.ids(def))
+                | _ => false
+                },
+            term,
+          )
+        : None
+    ) {
+    | Some(l) =>
+      let at = Exp.rep_id(l);
+      drag_kinds(~info_map, ~term, ~push, ~target=at, ~shard=None)
+      |> List.filter(moves_let)
+      |> List.map(k => (k, at));
+    | None => []
+    };
+  own
+  @ via_let
+  |> List.filter_map(((kind, at)) => mk(~at, kind))
+  |> List.fold_left(
+       (acc, c: DragCandidate.t) =>
+         List.exists((c': DragCandidate.t) => c'.target == c.target, acc)
+           ? acc : acc @ [c],
+       [],
+     );
+};
+
+/* drag chaining's "same kind": one constructor, swap indices aside;
+   hoist and sink are one motion, and carry/lift its pushes through */
+let same_kind = (a: Action.refactor, b: Action.refactor): bool => {
+  let family = (k: Action.refactor): Action.refactor =>
+    switch (k) {
+    | HoistLet
+    | SinkLet
+    | HoistCarry
+    | LiftFunction => HoistLet
+    | MergeUp
+    | MergeDown => MergeUp
+    | AddParameter
+    | RemoveParameter => AddParameter
+    | SwapArms(_) => SwapArms(0)
+    | SwapParams(_) => SwapParams(0)
+    | SwapTuplePat(_) => SwapTuplePat(0)
+    | k => k
+    };
+  family(a) == family(b);
+};
 
 /* the INSIST tier: remedied moves a dead press escalates to on a
    second press (web tracks the pending state; menu lists these as

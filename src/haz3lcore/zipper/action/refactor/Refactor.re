@@ -37,6 +37,7 @@ let gesture_blockers = RefactorGesture.gesture_blockers;
 /* drag front-end */
 module DragCandidate = RefactorDrag.DragCandidate;
 let drag_candidates = RefactorDrag.drag_candidates;
+let same_drag_kind = RefactorDrag.same_kind;
 let gesture_merge_target = RefactorDrag.gesture_merge_target;
 let refactor_merge_target = RefactorDrag.refactor_merge_target;
 let gesture_emerge_source = RefactorDrag.gesture_emerge_source;

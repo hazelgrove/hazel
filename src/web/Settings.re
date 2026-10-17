@@ -55,6 +55,8 @@ module Model = {
       flip_animations: true,
       animate_all_edits: false,
       drag_refactor: false,
+      drag_chain: Language.CoreSettings.DragChain.SameKind,
+      drag_push: true,
       display_warnings: true,
       selection_chunkiness: false,
       evaluation: {
@@ -174,6 +176,8 @@ module Update = {
     | FlipAnimations
     | AnimateAllEdits
     | DragRefactor
+    | DragChain
+    | DragPush
     | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
@@ -272,6 +276,27 @@ module Update = {
           core: {
             ...settings.core,
             drag_refactor: !settings.core.drag_refactor,
+          },
+        }
+      | DragChain => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_chain:
+              Language.CoreSettings.DragChain.(
+                switch (settings.core.drag_chain) {
+                | Off => SameKind
+                | SameKind => Everything
+                | Everything => Off
+                }
+              ),
+          },
+        }
+      | DragPush => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_push: !settings.core.drag_push,
           },
         }
       | DisplayWarnings => {

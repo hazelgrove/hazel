@@ -47,6 +47,16 @@ module FormatShortcut = {
     | Breaks; /* full pretty print (may change linebreaks) */
 };
 
+module DragChain = {
+  /* drag chaining (D2's withSnapRadius chain): reaching a target
+     commits mid-drag and the drag continues from the new state */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Off
+    | SameKind /* only more of the first commit's kind */
+    | Everything;
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   statics: bool,
@@ -69,6 +79,12 @@ type t = {
   /* Modal drag-to-refactor: plain drag on a token pulls it along
    * candidate transform tracks (CodeDrag.re) */
   drag_refactor: bool,
+  [@sexp.default DragChain.SameKind]
+  drag_chain: DragChain.t,
+  /* a blocked drag move pushes through: carries its dependencies or
+     lifts to a helper (the keyboard's second press) */
+  [@sexp.default true]
+  drag_push: bool,
   display_warnings: bool,
   /* "Character-level mouse". When false (default), a mouse drag does
    * smart-rounded selection (char inside the starting token, whole-token
@@ -91,6 +107,8 @@ let off: t = {
   flip_animations: false,
   animate_all_edits: false,
   drag_refactor: false,
+  drag_chain: DragChain.SameKind,
+  drag_push: true,
   display_warnings: false,
   selection_chunkiness: false,
   evaluation: Evaluation.init,
@@ -108,6 +126,8 @@ let on: t = {
   flip_animations: true,
   animate_all_edits: false,
   drag_refactor: false,
+  drag_chain: DragChain.SameKind,
+  drag_push: true,
   display_warnings: true,
   selection_chunkiness: false,
   evaluation: Evaluation.init,

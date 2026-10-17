@@ -401,6 +401,34 @@ let code_display_group = (~globals: Globals.t) => {
           Some("Modal: drag a token to pull it along refactoring tracks"),
       },
       {
+        name:
+          "Drag Chaining: "
+          ++ (
+            switch (globals.settings.core.drag_chain) {
+            | Language.CoreSettings.DragChain.Off => "Off"
+            | SameKind => "Same Kind"
+            | Everything => "Everything"
+            }
+          ),
+        active:
+          globals.settings.core.drag_chain
+          != Language.CoreSettings.DragChain.Off,
+        setting: DragChain,
+        tooltip:
+          Some(
+            "Reaching a target commits and the drag continues: off, only more of the same refactoring, or any",
+          ),
+      },
+      {
+        name: "Drag Pushes Through",
+        active: globals.settings.core.drag_push,
+        setting: DragPush,
+        tooltip:
+          Some(
+            "A blocked drag carries its dependencies along or lifts to a helper",
+          ),
+      },
+      {
         name: "Line Numbers",
         active: globals.settings.line_numbers,
         setting: ToggleLineNumbers,

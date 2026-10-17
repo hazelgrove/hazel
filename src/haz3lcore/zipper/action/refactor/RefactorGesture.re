@@ -124,6 +124,182 @@ let gesture_blockers =
     }
   };
 
+/* The rungs a (zone, direction) offers, in precedence order, each
+   tried lazily. The keyboard fires the first that applies (gesture);
+   drag offers every one that applies as a reachable state
+   (gesture_options, RefactorDrag). */
+let gesture_rungs =
+    (
+      ~info_map: Statics.Map.t,
+      ~term: Exp.t,
+      ~target: Id.t,
+      ~shard: option(int),
+      g: Action.Gesture.t,
+    )
+    : list(unit => option(Action.refactor)) => {
+  let app = (k: Action.refactor, ()) =>
+    applies(k, ~info_map, ~target, term) ? Some(k) : None;
+  /* arm reorder: delta -1 = up, +1 = down */
+  let arm_swap = (delta: int, ()) =>
+    switch (find_hit(~hit=hit_arm(target), term)) {
+    | Some(m) =>
+      switch (arm_index_at(target, m)) {
+      | Some(j) =>
+        let i = delta < 0 ? j - 1 : j;
+        Option.is_some(
+          swap_arms_rewrite(~info_map, ~fixup=false, ~target, i, m),
+        )
+          ? Some(Action.SwapArms(i)) : None;
+      | None => None
+      }
+    | None => None
+    };
+  let in_arm_zone = Option.is_some(find_hit(~hit=hit_arm(target), term));
+  let in_let_zone = Option.is_some(find_hit(~hit=hit_let(target), term));
+  let in_def_zone =
+    Option.is_some(find_hit(~hit=hit_def_line(target), term));
+  let node_is = (pred: Exp.t => bool) =>
+    switch (find_hit(~hit=hit_node(target), term)) {
+    | Some(e) => pred(e)
+    | None => false
+    };
+  let is_if =
+    node_is(e =>
+      switch (IdTagged.term_of(e)) {
+      | If(_) => true
+      | _ => false
+      }
+    );
+  let is_case =
+    node_is(e =>
+      switch (IdTagged.term_of(e)) {
+      | Match(_) => true
+      | _ => false
+      }
+    );
+  let param_swap = (delta: int, ()) =>
+    switch (swap_site(~info_map, ~target, term)) {
+    | Some((l, Some(j))) =>
+      let i = delta < 0 ? j - 1 : j;
+      i >= 0 && Option.is_some(swap_params_rewrite(~fixup=false, i, l))
+        ? Some(Action.SwapParams(i)) : None;
+    | _ => None
+    };
+  /* the closing param paren: Right grows the sequence (append),
+     Left sheds the last param; the opening paren stays dead
+     (prepend, someday) */
+  let at_closing_param_paren = (target: Id.t) =>
+    shard == Some(1)
+    && (
+      switch (find_hit(~hit=hit_add_param(target), term)) {
+      | Some(l) =>
+        switch (param_paren(l)) {
+        | Some(paren) => List.mem(target, IdTagged.ids(paren))
+        | None => false
+        }
+      | None => false
+      }
+    );
+  let tuple_swap = (delta: int, ()) =>
+    switch (find_hit(~hit=hit_tuple_swap(target), term)) {
+    | Some(l) =>
+      switch (tuple_pat_index_at(target, l)) {
+      | Some(j) =>
+        let i = delta < 0 ? j - 1 : j;
+        i >= 0
+        && Option.is_some(
+             swap_tuple_pat_rewrite(~fixup=false, ~target, i, l),
+           )
+          ? Some(Action.SwapTuplePat(i)) : None;
+      | None => None
+      }
+    | None => None
+    };
+  switch (g) {
+  | Step =>
+    /* take a step of evaluation here: the reduce family, context-
+       resolved like the spatial arrows; a closed non-value with no
+       syntactic step falls through to full evaluation (reduce
+       takes priority when both apply) */
+    [
+      app(BetaReduce),
+      app(ReduceCase),
+      app(ReduceIf),
+      app(EvaluateInPlace),
+    ]
+  | Bind =>
+    /* stage the step: introduce the binding without substituting */
+    [app(BindArgument), app(BindArm)]
+  | Up =>
+    if (in_arm_zone) {
+      [arm_swap(-1)];
+    } else if (in_def_zone) {
+      [
+        /* absorption preempts the swap rung when a twin is above
+           (menu keeps both; the gesture picks the smart one) */
+        app(MergeUp),
+        app(HoistLet),
+      ];
+    } else if (is_if && shard == Some(2)) {
+      [app(NegateIf) /* the else-arm moves up */];
+    } else if (is_case && shard == Some(1)) {
+      [];
+        /* `end` has a case-specific vocation (add-arm below); a
+           whole-case extract firing from it reads as an accident —
+           extract stays on the `case` kw and in the menu */
+    } else {
+      [app(ExtractLet), app(ExtractAlias)];
+    }
+  | Down =>
+    if (in_arm_zone) {
+      [arm_swap(1)];
+    } else if (in_let_zone) {
+      [
+        /* movement rung if one exists, else the value flows: feed the
+           nearest use (the last feed consumes the let) */
+        app(MergeDown),
+        app(SinkLet),
+        app(FeedLet),
+      ];
+    } else if (in_def_zone) {
+      [
+        /* type line: movement rung, else the alias flows one use
+           at a time (the last feed consumes — let-feed parity) */
+        app(SinkLet),
+        app(FeedLet),
+      ];
+    } else if (is_if && shard == Some(1)) {
+      [app(NegateIf) /* the then-arm moves down */];
+    } else if (is_case && shard == Some(1)) {
+      [app(AddCaseArm) /* grow the sequence at its `end` */];
+    } else {
+      [
+        /* a fn-position use unfolds — feed composed with the
+           rotation, the smarter feed there (andrew); other
+           occurrences: the definition feeds THIS use */
+        app(UnfoldCall),
+        app(FeedLet),
+      ];
+    }
+  | Left =>
+    /* inverse of Right-at-`)` (append): shed the last param, gated
+       on it being unused */
+    [param_swap(-1), tuple_swap(-1)]
+    @ (at_closing_param_paren(target) ? [app(RemoveParameter)] : [])
+  | Right =>
+    [param_swap(1), tuple_swap(1)]
+    @ (
+      if (at_closing_param_paren(target)) {
+        [app(AddParameter)];
+      } else if (in_arm_zone) {
+        [app(ExpandWildcard)];
+      } else {
+        [];
+      }
+    )
+  };
+};
+
 /* === Directional gestures ===
  * Resolve (caret target zone, direction) to a refactor, first match
  * wins; None = dead press (visibly inert, never plain caret motion).
@@ -138,202 +314,28 @@ let gesture =
   switch (Indicated.index(z)) {
   | None => None
   | Some(target) =>
-    let shard = Indicated.shard_index(z);
-    let app = (k: Action.refactor) =>
-      applies(k, ~info_map, ~target, term) ? Some(k) : None;
-    /* arm reorder: delta -1 = up, +1 = down */
-    let arm_swap = (delta: int) =>
-      switch (find_hit(~hit=hit_arm(target), term)) {
-      | Some(m) =>
-        switch (arm_index_at(target, m)) {
-        | Some(j) =>
-          let i = delta < 0 ? j - 1 : j;
-          Option.is_some(
-            swap_arms_rewrite(~info_map, ~fixup=false, ~target, i, m),
-          )
-            ? Some(Action.SwapArms(i)) : None;
-        | None => None
-        }
-      | None => None
-      };
-    let in_arm_zone = Option.is_some(find_hit(~hit=hit_arm(target), term));
-    let in_let_zone = Option.is_some(find_hit(~hit=hit_let(target), term));
-    let in_def_zone =
-      Option.is_some(find_hit(~hit=hit_def_line(target), term));
-    let node_is = (pred: Exp.t => bool) =>
-      switch (find_hit(~hit=hit_node(target), term)) {
-      | Some(e) => pred(e)
-      | None => false
-      };
-    let is_if =
-      node_is(e =>
-        switch (IdTagged.term_of(e)) {
-        | If(_) => true
-        | _ => false
-        }
-      );
-    let is_case =
-      node_is(e =>
-        switch (IdTagged.term_of(e)) {
-        | Match(_) => true
-        | _ => false
-        }
-      );
-    let param_swap = (delta: int) =>
-      switch (swap_site(~info_map, ~target, term)) {
-      | Some((l, Some(j))) =>
-        let i = delta < 0 ? j - 1 : j;
-        i >= 0 && Option.is_some(swap_params_rewrite(~fixup=false, i, l))
-          ? Some(Action.SwapParams(i)) : None;
-      | _ => None
-      };
-    /* the closing param paren: Right grows the sequence (append),
-       Left sheds the last param; the opening paren stays dead
-       (prepend, someday) */
-    let at_closing_param_paren = (target: Id.t) =>
-      shard == Some(1)
-      && (
-        switch (find_hit(~hit=hit_add_param(target), term)) {
-        | Some(l) =>
-          switch (param_paren(l)) {
-          | Some(paren) => List.mem(target, IdTagged.ids(paren))
-          | None => false
-          }
-        | None => false
-        }
-      );
-    let tuple_swap = (delta: int) =>
-      switch (find_hit(~hit=hit_tuple_swap(target), term)) {
-      | Some(l) =>
-        switch (tuple_pat_index_at(target, l)) {
-        | Some(j) =>
-          let i = delta < 0 ? j - 1 : j;
-          i >= 0
-          && Option.is_some(
-               swap_tuple_pat_rewrite(~fixup=false, ~target, i, l),
-             )
-            ? Some(Action.SwapTuplePat(i)) : None;
-        | None => None
-        }
-      | None => None
-      };
-    switch (g) {
-    | Step =>
-      /* take a step of evaluation here: the reduce family, context-
-         resolved like the spatial arrows; a closed non-value with no
-         syntactic step falls through to full evaluation (reduce
-         takes priority when both apply) */
-      switch (app(BetaReduce)) {
-      | Some(k) => Some(k)
-      | None =>
-        switch (app(ReduceCase)) {
-        | Some(k) => Some(k)
-        | None =>
-          switch (app(ReduceIf)) {
-          | Some(k) => Some(k)
-          | None => app(EvaluateInPlace)
-          }
-        }
-      }
-    | Bind =>
-      /* stage the step: introduce the binding without substituting */
-      switch (app(BindArgument)) {
-      | Some(k) => Some(k)
-      | None => app(BindArm)
-      }
-    | Up =>
-      if (in_arm_zone) {
-        arm_swap(-1);
-      } else if (in_def_zone) {
-        /* absorption preempts the swap rung when a twin is above
-           (menu keeps both; the gesture picks the smart one) */
-        switch (app(MergeUp)) {
-        | Some(k) => Some(k)
-        | None => app(HoistLet)
-        };
-      } else if (is_if && shard == Some(2)) {
-        app(
-          NegateIf /* the else-arm moves up */
-        );
-      } else if (is_case && shard == Some(1)) {
-        None;
-            /* `end` has a case-specific vocation (add-arm below); a
-               whole-case extract firing from it reads as an accident —
-               extract stays on the `case` kw and in the menu */
-      } else {
-        switch (app(ExtractLet)) {
-        | Some(k) => Some(k)
-        | None => app(ExtractAlias)
-        };
-      }
-    | Down =>
-      if (in_arm_zone) {
-        arm_swap(1);
-      } else if (in_let_zone) {
-        /* movement rung if one exists, else the value flows: feed the
-           nearest use (the last feed consumes the let) */
-        switch (app(MergeDown)) {
-        | Some(k) => Some(k)
-        | None =>
-          switch (app(SinkLet)) {
-          | Some(k) => Some(k)
-          | None => app(FeedLet)
-          }
-        };
-      } else if (in_def_zone) {
-        /* type line: movement rung, else the alias flows one use
-           at a time (the last feed consumes — let-feed parity) */
-        switch (app(SinkLet)) {
-        | Some(k) => Some(k)
-        | None => app(FeedLet)
-        };
-      } else if (is_if && shard == Some(1)) {
-        app(
-          NegateIf /* the then-arm moves down */
-        );
-      } else if (is_case && shard == Some(1)) {
-        app(
-          AddCaseArm /* grow the sequence at its `end` */
-        );
-      } else {
-        /* a fn-position use unfolds — feed composed with the
-           rotation, the smarter feed there (andrew); other
-           occurrences: the definition feeds THIS use */
-        switch (app(UnfoldCall)) {
-        | Some(k) => Some(k)
-        | None => app(FeedLet)
-        };
-      }
-    | Left =>
-      switch (param_swap(-1)) {
-      | Some(k) => Some(k)
-      | None =>
-        switch (tuple_swap(-1)) {
-        | Some(k) => Some(k)
-        | None =>
-          /* inverse of Right-at-`)` (append): shed the last param,
-             gated on it being unused */
-          at_closing_param_paren(target) ? app(RemoveParameter) : None
-        }
-      }
-    | Right =>
-      switch (param_swap(1)) {
-      | Some(k) => Some(k)
-      | None =>
-        switch (tuple_swap(1)) {
-        | Some(k) => Some(k)
-        | None =>
-          if (at_closing_param_paren(target)) {
-            app(AddParameter);
-          } else if (in_arm_zone) {
-            app(ExpandWildcard);
-          } else {
-            None;
-          }
-        }
-      }
-    };
+    gesture_rungs(
+      ~info_map,
+      ~term,
+      ~target,
+      ~shard=Indicated.shard_index(z),
+      g,
+    )
+    |> List.find_map(rung => rung())
   };
+
+/* every rung of the (zone, direction) that applies, precedence order */
+let gesture_options =
+    (
+      ~info_map: Statics.Map.t,
+      ~term: Exp.t,
+      ~target: Id.t,
+      ~shard: option(int),
+      g: Action.Gesture.t,
+    )
+    : list(Action.refactor) =>
+  gesture_rungs(~info_map, ~term, ~target, ~shard, g)
+  |> List.filter_map(rung => rung());
 
 /* the def subtree a FeedLet would clone: the emergeFrom source (D2's
    emergeMode=clone — the copy departs the source full-size at full

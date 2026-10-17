@@ -2,14 +2,14 @@ open Util;
 open Js_of_ocaml;
 open Haz3lcore;
 
-/* Drag-to-refactor: a pointer front-end to the gesture system
-   (plans/refactor-drag.md). Candidates come from
-   Refactor.drag_candidates — each is a TRACK from the grabbed
-   construct's live position to its position in that candidate's
-   layout. Per pointermove we pick the min-gap track (with stickiness)
-   and, on reaching its end, dispatch the SAME RefactorGesture action
-   the arrow key would — then re-enumerate from the new state so a
-   held drag chains rung to rung.
+/* Drag-to-refactor (plans/refactor-drag.md). Candidates come from
+   Refactor.drag_candidates — every refactor the grabbed element can
+   drive, each a TRACK from its live position to its position in that
+   state (D2's reachable states; the arrow keys play no part). Per
+   pointermove we pick the min-gap track (with stickiness); release
+   commits that refactor by kind at the grab. With chaining on,
+   reaching a target commits mid-drag and the drag continues from the
+   new state with the same grabbed element.
 
    Tracks/targets render on an under-text overlay inside the app's
    fixed wrapper; labels + ghosts float above; the whole buffer
@@ -17,21 +17,24 @@ open Haz3lcore;
    commit_t. */
 
 /* tuning */
-let snap_radius = 14.; /* px: reaching a target commits (chain) */
-/* snap_min_t: the radius alone is a disc AROUND the endpoint — other
-   tracks' paths can pass through it, and near-parallel targets sit a
-   row apart. Requiring travel along the track first makes a snap
-   mean "arrived VIA this track", not "happened near its endpoint".
-   (Dragology's withSnapRadius is radius-only; their diagrams have
-   sparser targets — recorded as incidental drift.) */
-let snap_min_t = 0.7;
-/* Chaining: reaching a target via its track (radius + min progress)
-   COMMITS mid-drag and re-enumerates from the new state — multiple
-   rungs in one hold. Instant on arrival, like dragology's
-   withSnapRadius(chain:true). OFF (andrew, 2nd time): works
-   mechanically but surfaces caret/handoff complexities — parked low
-   on the ledger; one commit per drag until then. */
-let chaining = false;
+/* chain snap = "arrived VIA this track": progress past snap_min_t
+   while within snap_radius of the track line. Measured in pull
+   space (where the scrubbed element is), not against the drawn
+   endpoint: tracks are drawn at the moving construct, which sits away
+   from the hand whenever the grab is a handle (binder -> def, def ->
+   its let) or after a chain rung — a radius around the endpoint
+   asked the hand to find an invisible point. (Dragology's
+   withSnapRadius is radius-only around the element's drop position;
+   their element rides the pointer, ours is scrubbed along the track.) */
+let snap_radius = 18.;
+let snap_min_t = 0.9;
+/* Chaining (Settings: Drag Chaining): reaching a target via its track
+   (radius + min progress) COMMITS mid-drag and re-enumerates from the
+   new state — multiple rungs in one hold. Instant on arrival, like
+   dragology's withSnapRadius(chain:true). The drag keeps its grabbed
+   element across rungs (D2: the element's identity persists; its
+   spec is rebuilt from the new state), and its tracks restart from
+   the hand. */
 /* NO when_far radius (removed): the old 56px perimeter around tracks
    was a DISTANCE cliff — pulling past a track's end eventually
    dropped the winner and popped the whole preview home (andrew:
@@ -72,8 +75,8 @@ type vec = {
 };
 
 type cand = {
-  dir: Action.Gesture.t,
   kind: Action.refactor,
+  at: Id.t,
   label: string,
   cur: vec, /* text-box-local px */
   tgt: vec,
@@ -120,7 +123,10 @@ type pending =
   | AwaitChange(option(Zipper.t), option(Language.Exp.t));
 
 type session = {
-  commit: Action.Gesture.t => unit,
+  /* commit a refactor invoked at a tile (the grab, or its let) */
+  commit: (Action.refactor, Id.t) => unit,
+  chain: Language.CoreSettings.DragChain.t,
+  push: bool,
   text_box: Js.t(Dom_html.element),
   mutable cands: list(cand),
   mutable winner: option(int),
@@ -132,6 +138,21 @@ type session = {
   mutable last_z: option(Zipper.t),
   mutable last_term: option(Language.Exp.t),
   mutable down_at: vec,
+  /* the grabbed element (tile, shard), kept across chain rungs: the
+     transforms' carets land elsewhere (extract on the new name, feed
+     on the binder), but the hand still holds what it grabbed */
+  mutable grab: option((Id.t, option(int))),
+  /* the first chained commit's kind ("same kind" chaining filters to
+     its family) */
+  mutable chain_kind: option(Action.refactor),
+  /* the pointer in client px; after a chain commit the next tracks
+     start from wherever the hand is then */
+  mutable last_client: (float, float),
+  mutable rebase: bool,
+  /* after a feed rung the hand holds the copy it placed (D2's
+     duplicate-and-follow), not the definition: the next feed's track
+     runs from that copy to the next use */
+  mutable held_at: option(vec),
   /* the grabbed token: its live DOM node, its (tile, shard) for
      resolving companion decorations, the lean animations (one per
      leaning node — token + backings + caret, composite:add over any
@@ -855,6 +876,29 @@ let resolve = (s: session, p: vec): unit => {
     (t, gap -. direction_pull *. max(0., cos_sim), cos_sim);
   };
   let scored = s.cands |> List.mapi((i, c) => (i, c, track(c)));
+  /* a track pulled to its end keeps the pull against longer tracks
+     heading the same way (sink one rung vs feed a use far below):
+     the farther state is the next rung, reached by chaining — not by
+     overshooting this one */
+  let completed =
+    switch (s.winner) {
+    | Some(w) =>
+      switch (List.find_opt(((i, _, _)) => i == w, scored)) {
+      | Some((_, c, (t, _, _))) when t >= 0.999 => Some(c)
+      | _ => None
+      }
+    | None => None
+    };
+  let beyond = (c: cand) =>
+    switch (completed) {
+    | Some(w) when w !== c =>
+      let (wx, wy) = (w.tgt.x -. w.cur.x, w.tgt.y -. w.cur.y);
+      let (cx, cy) = (c.tgt.x -. c.cur.x, c.tgt.y -. c.cur.y);
+      let wl = sqrt(wx *. wx +. wy *. wy)
+      and cl = sqrt(cx *. cx +. cy *. cy);
+      wl > 0. && cl > wl && (wx *. cx +. wy *. cy) /. (wl *. cl) > 0.9;
+    | _ => false
+    };
   let best =
     scored
     |> List.fold_left(
@@ -866,7 +910,7 @@ let resolve = (s: session, p: vec): unit => {
               onto short tracks visibly). cos == 0 while the pull is
               too short to have a direction, so nothing engages
               before ~6px — the lean covers that. */
-           if (cos <= 0.25) {
+           if (cos <= 0.25 || beyond(c)) {
              acc;
            } else {
              switch (acc) {
@@ -909,14 +953,34 @@ let resolve = (s: session, p: vec): unit => {
     /* snap (dragology's withSnapRadius(chain:true), radius-only and
        INSTANT — no dwell): reaching the target via the track commits
        and re-enumerates */
-    let d =
-      sqrt(
-        (p.x -. s.down_at.x -. (c.tgt.x -. c.cur.x))
-        ** 2.
-        +. (p.y -. s.down_at.y -. (c.tgt.y -. c.cur.y))
-        ** 2.,
+    let (t_raw, off_track) = {
+      let vx = c.tgt.x -. c.cur.x
+      and vy = c.tgt.y -. c.cur.y;
+      let len2 = vx *. vx +. vy *. vy;
+      let tr =
+        len2 == 0.
+          ? 0.
+          : max(
+              0.,
+              min(
+                1.,
+                ((p.x -. s.down_at.x) *. vx +. (p.y -. s.down_at.y) *. vy)
+                /. len2,
+              ),
+            );
+      (
+        tr,
+        sqrt(
+          (p.x -. s.down_at.x -. tr *. vx)
+          ** 2.
+          +. (p.y -. s.down_at.y -. tr *. vy)
+          ** 2.,
+        ),
       );
-    if (chaining && d <= snap_radius && t >= snap_min_t) {
+    };
+    if (s.chain != Language.CoreSettings.DragChain.Off
+        && off_track <= snap_radius
+        && t_raw >= snap_min_t) {
       CodeFlip.set_drag_offsets(
         c.moved |> List.map(((k, _, dx, dy)) => (k, (dx, dy))),
       );
@@ -931,7 +995,12 @@ let resolve = (s: session, p: vec): unit => {
       s.t = 0.;
       s.cands = [];
       s.pending = AwaitChange(s.last_z, s.last_term);
-      s.commit(c.dir);
+      if (s.chain_kind == None) {
+        s.chain_kind = Some(c.kind);
+      };
+      s.rebase = true;
+      s.held_at = c.kind == FeedLet ? Some(c.tgt) : None;
+      s.commit(c.kind, c.at);
     };
   | _ =>
     s.winner = None;
@@ -1006,6 +1075,10 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
   | None => ()
   | Some(s) =>
     let p = local(s, e);
+    s.last_client = (
+      Js.Unsafe.coerce(e)##.clientX,
+      Js.Unsafe.coerce(e)##.clientY,
+    );
     if (!s.began) {
       let d = sqrt((p.x -. s.down_at.x) ** 2. +. (p.y -. s.down_at.y) ** 2.);
       if (d > slop) {
@@ -1078,7 +1151,7 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
       CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
       s.scrub_anims = [];
       s.scrub_active = None;
-      s.commit(c.dir);
+      s.commit(c.kind, c.at);
     | _ => ()
     };
     end_session();
@@ -1097,7 +1170,9 @@ let listen = (name: string, f: Js.t(Dom_html.event) => unit) =>
 
 let arm =
     (
-      ~commit: Action.Gesture.t => unit,
+      ~commit: (Action.refactor, Id.t) => unit,
+      ~chain: Language.CoreSettings.DragChain.t,
+      ~push: bool,
       ~text_box: Js.t(Dom_html.element),
       ~client: (float, float),
       ~goal: Measured.Point.t,
@@ -1108,6 +1183,8 @@ let arm =
   let r = text_box##getBoundingClientRect;
   let s = {
     commit,
+    chain,
+    push,
     text_box,
     cands: [],
     winner: None,
@@ -1124,6 +1201,11 @@ let arm =
       x: cx -. r##.left,
       y: cy -. r##.top,
     },
+    grab: None,
+    chain_kind: None,
+    last_client: client,
+    rebase: false,
+    held_at: None,
     grab_node: None,
     grab_ids: None,
     local_give: [],
@@ -1344,8 +1426,29 @@ let sync =
           };
         | _ => None
         };
-      let grab_id = Indicated.index(z);
-      let grab_shard = Indicated.shard_index(z);
+      /* the held element if it survived the last chain rung, else
+         whatever the caret indicates (the moved content's focus) */
+      let held =
+        switch (s.grab) {
+        | Some((id, shard)) when Id.Map.mem(id, measured.tiles) =>
+          Some((id, shard))
+        | _ =>
+          Indicated.index(z)
+          |> Option.map(id => (id, Indicated.shard_index(z)))
+        };
+      s.grab = held;
+      let grab_id = Option.map(fst, held);
+      let grab_shard = Option.bind(held, snd);
+      if (s.rebase) {
+        /* chain rung: the next tracks start from the hand */
+        let (cx, cy) = s.last_client;
+        let r = s.text_box##getBoundingClientRect;
+        s.down_at = {
+          x: cx -. r##.left,
+          y: cy -. r##.top,
+        };
+        s.rebase = false;
+      };
       s.grab_ids = (
         switch (grab_id) {
         | Some(tid) => Some((tid, grab_shard))
@@ -1388,15 +1491,41 @@ let sync =
           | None => moved |> List.find_map(of_key(false))
           };
         };
+      let same_kind = (k: Action.refactor) =>
+        switch (s.chain, s.chain_kind) {
+        | (Language.CoreSettings.DragChain.SameKind, Some(k0)) =>
+          Refactor.same_drag_kind(k0, k)
+        | _ => true
+        };
       let cands =
-        Refactor.drag_candidates(~info_map, ~term, ~measured, ~shape_map, z)
+        (
+          switch (grab_id) {
+          | Some(target) =>
+            Refactor.drag_candidates(
+              ~info_map,
+              ~term,
+              ~measured,
+              ~shape_map,
+              ~push=s.push,
+              ~target,
+              ~shard=grab_shard,
+              (),
+            )
+          | None => []
+          }
+        )
+        |> List.filter((c: Refactor.DragCandidate.t) => same_kind(c.kind))
         |> List.map((c: Refactor.DragCandidate.t) => {
              let moved = moved_for(c.frame, c.measured);
              {
-               dir: c.dir,
                kind: c.kind,
+               at: c.at,
                label: c.label,
-               cur: px(c.current),
+               cur:
+                 switch (s.held_at, c.kind) {
+                 | (Some(h), FeedLet) => h
+                 | _ => px(c.current)
+                 },
                tgt: px(c.target),
                scroll_rows: c.frame.scroll_rows,
                moved,

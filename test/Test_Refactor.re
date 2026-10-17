@@ -122,7 +122,8 @@ let kinds_at = (marked: string): list(Action.refactor) => {
 
 let offers = (kind, marked) => List.mem(kind, kinds_at(marked));
 
-let drag_cands = (marked: string): list(Refactor.DragCandidate.t) => {
+let drag_cands =
+    (~push=false, marked: string): list(Refactor.DragCandidate.t) => {
   let z = Test_Editing.parse_zipper(marked);
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let measured =
@@ -131,7 +132,19 @@ let drag_cands = (marked: string): list(Refactor.DragCandidate.t) => {
       ProjectorCore.Shape.Map.empty,
       Id.Map.empty,
     );
-  Refactor.drag_candidates(~info_map=info_map_of(z), ~term, ~measured, z);
+  switch (Indicated.index(z)) {
+  | Some(target) =>
+    Refactor.drag_candidates(
+      ~info_map=info_map_of(z),
+      ~term,
+      ~measured,
+      ~push,
+      ~target,
+      ~shard=Indicated.shard_index(z),
+      (),
+    )
+  | None => []
+  };
 };
 
 let track_of = (c: Refactor.DragCandidate.t) => (
@@ -1892,10 +1905,19 @@ let drag_tests = [
     "drag candidates: multiline chain sink is a downward track",
     `Quick,
     () => {
+      /* both downward states are offered (no arrow-key preemption):
+         sink one rung, or feed the use two rows down */
       let cs = drag_cands("¦let x = 2 in\nlet a = 1 in\nx + a");
-      check(int, "one candidate", 1, List.length(cs));
-      let ((r0, _), (r1, _)) = track_of(List.hd(cs));
+      let sink =
+        cs |> List.find((c: Refactor.DragCandidate.t) => c.kind == SinkLet);
+      let ((r0, _), (r1, _)) = track_of(sink);
       check(bool, "one row down", true, r1 == r0 + 1);
+      check(
+        bool,
+        "feed offered too",
+        true,
+        List.exists((c: Refactor.DragCandidate.t) => c.kind == FeedLet, cs),
+      );
     },
   ),
   test_case(
@@ -1936,13 +1958,13 @@ let drag_tests = [
     `Quick,
     () => {
       let cs = drag_cands("let f = fun (a, ¦b, c) -> a in f(1, 2, 3)");
-      let dirs = cs |> List.map((c: Refactor.DragCandidate.t) => c.dir);
+      let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
       check(
         bool,
         "left and right",
         true,
-        List.mem(Action.Gesture.Left, dirs)
-        && List.mem(Action.Gesture.Right, dirs),
+        List.mem(Action.SwapParams(0), kinds)
+        && List.mem(Action.SwapParams(1), kinds),
       );
       cs
       |> List.iter((c: Refactor.DragCandidate.t) => {
@@ -1952,9 +1974,77 @@ let drag_tests = [
              bool,
              "direction matches",
              true,
-             c.dir == Left ? c1 < c0 : c1 > c0,
+             c.kind == SwapParams(0) ? c1 < c0 : c1 > c0,
            );
          });
+    },
+  ),
+  test_case(
+    "drag candidates: a grabbed call head never unfolds (occurrences mean themselves)",
+    `Quick,
+    () => {
+      let cs = drag_cands("let f = fun x -> x + 1 in ¦f(2)");
+      let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(bool, "no unfold", false, List.mem(Action.UnfoldCall, kinds));
+      check(bool, "no feed", false, List.mem(Action.FeedLet, kinds));
+    },
+  ),
+  test_case(
+    "drag candidates: pushing through carries the dependency up",
+    `Quick,
+    () => {
+      let src = "let tip = 9 in\nlet sub = 40 in\n¦let total = sub + 2 in\ntotal + tip";
+      let kinds = (~push) =>
+        drag_cands(~push, src)
+        |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(
+        bool,
+        "stop: no carry",
+        false,
+        List.mem(Action.HoistCarry, kinds(~push=false)),
+      );
+      let carry =
+        drag_cands(~push=true, src)
+        |> List.find_opt((c: Refactor.DragCandidate.t) =>
+             c.kind == HoistCarry
+           );
+      check(bool, "push: carry offered", true, carry != None);
+      switch (carry) {
+      | Some(c) =>
+        let ((r0, _), (r1, _)) = track_of(c);
+        check(bool, "carry goes up", true, r1 < r0);
+      | None => ()
+      };
+    },
+  ),
+  test_case(
+    "drag chaining: same kind groups hoist/sink, splits feed",
+    `Quick,
+    () => {
+      check(
+        bool,
+        "hoist~sink",
+        true,
+        Refactor.same_drag_kind(HoistLet, SinkLet),
+      );
+      check(
+        bool,
+        "hoist~carry",
+        true,
+        Refactor.same_drag_kind(HoistLet, HoistCarry),
+      );
+      check(
+        bool,
+        "sink!~feed",
+        false,
+        Refactor.same_drag_kind(SinkLet, FeedLet),
+      );
+      check(
+        bool,
+        "arm swaps",
+        true,
+        Refactor.same_drag_kind(SwapArms(0), SwapArms(2)),
+      );
     },
   ),
   test_case(
@@ -2090,12 +2180,12 @@ let regression_tests = [
          the def-side nth used to fail before the guard could refuse */
       let cs = drag_cands("let (h, w) = (9, ¦16) in h * w");
       check(bool, "enumerates", true, List.length(cs) >= 1);
-      let dirs = cs |> List.map((c: Refactor.DragCandidate.t) => c.dir);
+      let kinds = cs |> List.map((c: Refactor.DragCandidate.t) => c.kind);
       check(
         bool,
         "left swap offered",
         true,
-        List.mem(Action.Gesture.Left, dirs),
+        List.mem(Action.SwapTuplePat(0), kinds),
       );
     },
   ),

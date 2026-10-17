@@ -1,37 +1,50 @@
-# DRAG TOUR: Settings > Drag Refactoring, then pull tokens. #
-# cmd+ctrl+arrows fires the same gestures from the keyboard; #
-# right-click still lists everything at the caret. Undo works. #
+# DRAG TOUR: Settings > Drag Refactoring, then pull tokens. A grab #
+# offers every refactoring that moves what you grabbed, each as a #
+# track; pull along one to preview it, release past halfway to #
+# commit. Settings > Drag Chaining: reaching a target commits and #
+# the drag goes on from there - Same Kind (more of that one) or #
+# Everything. Settings > Drag Pushes Through: a blocked move carries #
+# what it depends on, or lifts out as a helper. Undo works per step. #
 
 # 1 HOIST / SINK: grab a let (its let, =, in, or binder) and pull #
-# vertically. The ladder has no capture conflicts, so every rung #
-# moves both ways. #
-let alpha = 100 in
-let bravo = 250 in
-let gamma = 425 in
-let ladder = alpha + bravo + gamma in
+# vertically. With chaining on, keep pulling: gamma climbs past #
+# bravo, then past alpha; pull back down and it retraces. #
 
-# 2 FEED (inline next use): grab the DEFINITION - by its root, the #
-# *, or by the 24 - and pull DOWN. A full-size copy splits off and #
-# flies to the nearest use; the original stays while other uses #
-# remain, and the LAST feed moves the definition itself. Feed #
-# budget three times and watch it consume. (Grabbing rate instead #
-# targets rate's own binding - occurrences mean themselves.) #
+let ladder =
+  let alpha = 100 in
+  let bravo = 250 in
+  let gamma = 425 in
+  alpha + bravo + gamma
+in
+
+# 2 FEED (inline next use): grab the DEFINITION by its root, the *, #
+# and pull DOWN. A full-size copy splits off and flies to the #
+# nearest use; the original stays while other uses remain, and the #
+# LAST feed moves the definition itself. With chaining on, one pull #
+# runs through all three uses. (A use never feeds itself by drag: #
+# uses mean themselves.) #
+
 let rate = 365 in
 let budget = rate * 24 in
 let spending = budget + budget + budget in
 
 # 3 EXTRACT: grab the + inside the first parens and pull UP - the #
-# subexpression gets its own binding on a fresh line above. #
-let volume = (alpha + 55) * (bravo - 45) in
+# subexpression gets its own binding on a fresh line above. With #
+# chaining on Everything, keep pulling and that binding hoists on. #
+# A definition's root (here the *) moves its whole let, too. #
+
+let volume = (ladder + 55) * (ladder - 45) in
 
 # sub-slot extract: the same pull inside a body slot lands the #
 # binding where the displaced body sits, indented under the fun. #
+
 let scale = fun factor ->
-  factor * (gamma + 40) in
+  factor * (ladder + 40) in
 
 # 4 CASE: grab an arm's |, =>, or pattern and pull vertically to #
-# REORDER the arms. Push RIGHT on the wildcard _ to expand it into #
-# the missing constructors. #
+# REORDER the arms; overlapping patterns refuse to cross (nothing #
+# moves past the wildcard). Expanding the _ is right-click only. #
+
 type Meal = Soup + Salad + Combo(Int) in
 let lunch : Meal = Combo(12) in
 let dinner : Meal = Salad in
@@ -43,19 +56,24 @@ let price =
   end
 in
 
-# grab end and pull DOWN, repeatedly: the missing constructors #
-# arrive one by one; on the int case below it wildifies instead. #
+# grab end and pull it along (on a one-line case it moves RIGHT): #
+# the missing constructors arrive one by one, and with chaining one #
+# pull adds them all. On the Int case below it wildifies instead. #
 # (These two start inexhaustive on purpose - that is the fuel.) #
-let stamp = case dinner | Soup => 111 end in
-let ticket = case gamma | 425 => true end in
 
-# 5 IF: pull DOWN on then (or UP on else) to negate the guard and #
-# swap the branches; doing it twice unwraps the negation. #
+let stamp = case dinner | Soup => 111 end in
+let ticket = case ladder | 775 => true end in
+
+# 5 IF: nudge then (or else) RIGHT - the guard grows a ! and the #
+# branches swap; with chaining, nudge on to unwrap it again. #
+
 let cheap = if price < 900 then price else 900 in
 
 # 6 PARAMETERS: pull a param LEFT/RIGHT to swap neighbors (the call #
-# sites follow). Pull the closing ) RIGHT to append a parameter; #
-# pull it LEFT to shed the last one when unused (spare below). #
+# sites follow); with chaining, carry it across several. Pull the #
+# closing ) RIGHT to append a parameter, LEFT to shed the last one #
+# when unused (spare below). #
+
 let blend = fun (redx, greenx, bluex) -> redx + greenx * bluex in
 let mixture = blend(10, 20, 30) in
 let carry = fun (load, spare) -> load * 2 in
@@ -63,12 +81,15 @@ let hauled = carry(45, 99) in
 
 # 7 TUPLE PATTERN: pull low or high sideways - the components and #
 # their definition values rotate together. #
+
 let (low, high) = (100, 900) in
 let span = high - low in
 
-# 8 PASS-THROUGH: sink prize step by step into the fun and onward; #
+# 8 PASS-THROUGH: sink prize into award, then into its fun, and #
 # hoist it back out. Watch the line breaks settle at each landing. #
-# Once inside, feeding it splits a copy into the nearest arm. #
+# With Same Kind chaining one pull rides every rung; on Everything #
+# it goes on to feed a copy into the first arm. #
+
 let prize = 900 in
 let award = fun place ->
   case place
@@ -76,9 +97,40 @@ let award = fun place ->
   | _ => prize - 800
   end in
 
-# 9 TINY TARGETS: deliberately small handles, for feel. #
+# 9 PUSH THROUGH: grab let total and pull UP. total needs sub, so #
+# sub is pushed up ahead of it, past tip. Pulling back down sinks #
+# total alone - pushed lines stay where they were pushed. #
+
+let pushy =
+  let tip = 9 in
+  let sub = 40 in
+  let total = sub + 2 in
+  total + tip
+in
+
+# lift: square needs r, so it cannot leave the fun on its own. Pull #
+# let square UP and it lifts out as a helper taking r (landing above #
+# this example); the use becomes square(r). #
+
+let area = fun r ->
+  let square = r * r in
+  square * 314 / 100
+in
+
+# 10 MERGE: twins dissolve into one. Grab let fee and pull UP onto #
+# tax (every fee becomes tax), or grab tax and pull DOWN onto fee. #
+
+let twins =
+  let cost = 800 in
+  let tax = cost / 10 in
+  let fee = cost / 10 in
+  cost + tax + fee
+in
+
+# 11 TINY TARGETS: deliberately small handles, for feel. #
+
 let a = 1 in
 let b = a + a + a in
 
 (ladder, spending, volume, scale(2), price, stamp, ticket, cheap,
-  mixture, hauled, span, award(1), b)
+  mixture, hauled, span, award(1), pushy, area(10), twins, b)
