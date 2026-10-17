@@ -44,11 +44,24 @@ let find_item = (row: Id.t, term: Exp.t): option(item) =>
 /* tokens naming the item: its references, and `M.x` labels */
 let find_references = (~info_map: Statics.Map.t, it: item): list(Id.t) => {
   /* `M.x` or `U.Meters`: the label, when its module is the item's owner */
+  /* where `M` (the base) is bound: as a value or a type variable; and a
+     module named in a type's path (`U.Meters`), which Modules II binds as
+     a value only, not as a type variable too */
+  let site = base =>
+    switch (Id.Map.find_opt(base, info_map)) {
+    | Some(InfoTyp({user_term: {term: Var(name), _}, ctx, _}) as info) =>
+      switch (Info.get_binding_site(info)) {
+      | Some(s) => Some(s)
+      | None =>
+        Option.bind(Ctx.lookup_var(ctx, name), (e: Ctx.var_entry) =>
+          e.id == Id.invalid ? None : Some(e.id)
+        )
+      }
+    | Some(info) => Info.get_binding_site(info)
+    | None => None
+    };
   let qualified = (owner, base, l, label, acc) =>
-    l == it.old
-    && Option.bind(Id.Map.find_opt(base, info_map), Info.get_binding_site)
-    == Some(owner)
-      ? [label, ...acc] : acc;
+    l == it.old && site(base) == Some(owner) ? [label, ...acc] : acc;
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       switch (Info.get_binding_site(info), it.owner, info) {

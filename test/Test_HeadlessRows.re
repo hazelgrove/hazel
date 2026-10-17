@@ -465,6 +465,16 @@ let shapes = [
   ),
   ("a theorem, by its statement", "theorem t = 1 + 1 == 2 in\n0", 0),
   ("a test run", "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na", 0),
+  (
+    "a ⇒ that is a do-block, after a let",
+    "let f = fun x ->\n  let a = x in\n  do b <- a in\n  let c = b in\n  c\nin\nf(1)",
+    0,
+  ),
+  (
+    "a run of hinted tests",
+    "let a = 1 in\nhint \"one\"\ntest a == 1 end;\nhint \"two\"\ntest a > 0 end;\na",
+    0,
+  ),
   ("a use first", "use Nat in\nlet a = 1 in\na + 2", 0),
   (
     "a use among definitions and tests",

@@ -142,6 +142,11 @@ let is_def_head = (t: Tile.t): bool =>
 /* `use X in`: an item with no cell, as it has nothing of its own */
 let is_use = (t: Tile.t): bool => Tile.token(t, 0) == "use";
 
+/* `do x <- e in`: a bind, which the outline reads as an expression (it
+   rows let, type, module and use, never a bind), so it ends no item: the
+   run it starts is the block's tail, its ⇒ */
+let is_bind = (t: Tile.t): bool => Tile.token(t, 0) == "do";
+
 /* a form whose child is a module's member list: a module body's braces */
 let holds_members = (m: Mold.t): bool => List.mem(Sort.Mod, m.in_);
 
@@ -213,7 +218,7 @@ let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => 
           [sp, ...acc],
         );
       switch (arr[i]) {
-      | Tile(t) when Tile.ends_with_in(t) && !operand =>
+      | Tile(t) when Tile.ends_with_in(t) && !operand && !is_bind(t) =>
         let stop = ws_end(i + 1);
         next(stop, span(i, stop, IDef, Some(t.id)));
       | Tile(t) as p when Tile.is_semi(t) && reach <= right_operand(p) =>
@@ -768,6 +773,15 @@ let restore = (ind: ScratchCell.indent, cur: Segment.t): Segment.t =>
     Segment.ptr_eq(out, ind.orig) ? ind.orig : out;
   };
 
+/* a test statement's tile: `test … end`, or `hint … test … end`, which
+   the outline counts as a test too (OutlineTree's KTest) */
+let is_test_tile = (t: Tile.t): bool =>
+  switch (Tile.token(t, 0)) {
+  | "test"
+  | "hint" => true
+  | _ => false
+  };
+
 /* the `test` before the statement `;` [semi]: a run member's row is its
    `;`, which stays outside the run's cell */
 let test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) =>
@@ -775,7 +789,7 @@ let test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) =>
     List.find_map(
       (p: Piece.t) =>
         switch (p) {
-        | Tile(t) when Tile.token(t, 0) == "test" => Some(t.id)
+        | Tile(t) when is_test_tile(t) => Some(t.id)
         | _ => None
         },
       List.rev(ListUtil.truncate(i, level)),
@@ -787,7 +801,7 @@ let test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) =>
    (harmless: consumers test membership against outline ids) */
 let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) =>
   switch (first_tile(arr, sp.sp_start, sp.sp_stop)) {
-  | Some(t) when Tile.token(t, 0) == "test" => Some(t.id)
+  | Some(t) when is_test_tile(t) => Some(t.id)
   | _ => None
   };
 
