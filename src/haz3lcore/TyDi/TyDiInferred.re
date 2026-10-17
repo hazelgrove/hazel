@@ -4,26 +4,9 @@
    type. The empty annotation itself means `?`, as always. */
 open Util;
 open OptUtil.Syntax;
-module Whitespace = Secondary;
 open Language;
 
 let max_columns = 28;
-
-/* The empty hole beside the caret, on either side */
-let hole_at_caret = (z: Zipper.t): option(Id.t) => {
-  let rec first = (pieces: Segment.t) =>
-    switch (pieces) {
-    | [Secondary(s), ...rest] when Whitespace.is_space(s) => first(rest)
-    | [Grout(g), ..._] => Some(g.id)
-    | _ => None
-    };
-  let (left, right) = z.relatives.siblings;
-  switch (z.caret, first(right)) {
-  | (Outer, Some(hole)) => Some(hole)
-  | (Outer, None) => first(List.rev(left))
-  | _ => None
-  };
-};
 
 let is_hole = (hole: Id.t, ty: Typ.t): bool =>
   Typ.rep_id(ty) == hole
@@ -172,7 +155,7 @@ let rec shown = (budget: int, ty: Typ.t): string => {
 let set_buffer =
     (~settings: CoreSettings.t, statics: CachedStatics.t, z: Zipper.t)
     : option(Zipper.t) => {
-  let* hole = hole_at_caret(z);
+  let* hole = Zipper.hole_beside_caret(z);
   let* (stripped, annotated) = without_annotation(hole, statics.term);
   let* root =
     Statics.Map.lookup_exp(Exp.rep_id(statics.term), statics.info_map);

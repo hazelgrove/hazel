@@ -697,9 +697,45 @@ let inferred_test = (~name, ~code, ~expect) =>
     )
   );
 
+/* The hole beside an inferred-type ghost takes no column */
+let hidden_hole_test =
+  test_case(
+    "The hole beside the ghost takes no column",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Zipper.init(),
+          Test_Editing.mk("let id(x¦) = x in id(1)")
+          @ Test_Editing.string_to_ltr_actions(":"),
+        );
+      let MakeTerm.{term, _} = MakeTerm.from_zip_for_sem(z, ~root=Exp);
+      let statics =
+        CachedStatics.init_from_term(
+          ~settings=CoreSettings.on,
+          ~is_dynamic_term=false,
+          term,
+        );
+      let z =
+        TyDiInferred.set_buffer(~settings=CoreSettings.on, statics, z)
+        |> Option.get;
+      let hole = Zipper.hidden_hole(z) |> Option.get;
+      let measured =
+        Measured.of_segment(
+          ~hidden_hole=Some(hole),
+          Zipper.unselect_and_zip(z),
+          Id.Map.empty,
+          Id.Map.empty,
+        );
+      let m = Id.Map.find(hole, measured.grout);
+      check(int, "width", 0, m.last.col - m.origin.col);
+    },
+  );
+
 let inferred_annotation_tests = (
   "TyDi.InferredAnnotation",
   [
+    hidden_hole_test,
     inferred_test(
       ~name="Parameter of a polymorphic function",
       ~code="let id(x¦) = x in id(1)",
