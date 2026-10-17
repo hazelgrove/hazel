@@ -413,12 +413,7 @@ let render =
               Node.div(
                 ~attrs=[
                   Attr.id("column-menu-" ++ string_of_int(i)),
-                  Attr.classes([
-                    "context-menu",
-                    "nut-menu",
-                    "column-menu",
-                    dir_class,
-                  ]),
+                  Attr.classes(["context-menu", "column-menu", dir_class]),
                 ],
                 [
                   WebUtil.div_c(
