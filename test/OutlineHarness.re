@@ -83,6 +83,8 @@ let handlers =
       ~toggle_collapse: O.path => Virtual_dom.Vdom.Effect.t(unit)=none,
       ~def_op: (E.def_op, Id.t) => Virtual_dom.Vdom.Effect.t(unit)=(_, _) =>
                                                                     ignore,
+      ~went: ref(list(bool))=ref([]),
+      ~menus: ref(int)=ref(0),
       (),
     )
     : S.handlers => {
@@ -92,6 +94,11 @@ let handlers =
   toggle_run: none,
   toggle_collapse,
   zoom_to: none,
+  go_above: up => {
+    went := [up, ...went^];
+    ignore;
+  },
+  above_chip: ignore,
   zoom_in: none,
   show_whole: none,
   discard: ignore,
@@ -104,7 +111,10 @@ let handlers =
   focused: ignore,
   leave: ignore,
   text: text_ctl(~ops, ~edits, text),
-  menu_open: (_, _, _) => ignore,
+  menu_open: (_, _, _) => {
+    incr(menus);
+    ignore;
+  },
   menu_close: ignore,
   menu_select: none,
   get_menu: () => None,
@@ -117,14 +127,22 @@ let props =
       ~cursor: option(O.path)=None,
       ~refusal: Id.t => option(Web.ScratchFocus.refusal)=_ => None,
       ~check: E.t => option(string)=_ => None,
+      ~level: S.level=Plain,
       (),
     )
     : S.props => {
   arrows: true,
-  stack_controls: true,
+  /* the level above has no stack */
+  stack_controls:
+    switch (level) {
+    | Enclosing(_) => false
+    | Plain
+    | InSlide(_) => true
+    },
   refusal,
   folded: (_, _) => false,
   header: {
+    h_level: level,
     h_program: "",
     h_trail: [],
     h_open: 0,

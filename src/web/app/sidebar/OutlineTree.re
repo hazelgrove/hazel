@@ -433,6 +433,13 @@ let node_at = (path: path, e: Exp.t): option(node) => {
 let resolve_path = (path: path, e: Exp.t): option(Id.t) =>
   Option.bind(node_at(path, e), n => n.o_id);
 
+/* row [path]'s fold as [e] shows it, flipped; none once it's gone */
+let flipped = (~folds: folds, path: path, e: Exp.t): option(bool) =>
+  Option.map(
+    (n: node) => !folded(~folds, path, n.o_kind),
+    node_at(path, e),
+  );
+
 /* the headerless rows' ids (⇒ and `;`) */
 let headless_row_ids = (e: Exp.t): Id.Map.t(unit) =>
   List.fold_left(
