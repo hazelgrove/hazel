@@ -107,10 +107,13 @@ let baked_defs = (defs: list((Var.t, Exp.t))): array(Library.def) => {
   |> Array.of_list;
 };
 
-/* [items] checked against the builtins alone: the library never sees
-   itself */
+/* [items] checked against the builtins alone (the library never sees
+   itself), with how many static errors they have: refused when [strict]
+   (the shipped library), applied as any program with errors is otherwise
+   (an edit in the app) */
 let of_items =
-    (~hash: string, items: list(Mod.t)): result(Library.baked, string) => {
+    (~strict: bool, ~hash: string, items: list(Mod.t))
+    : result((Library.baked, int), string) => {
   let names = top_names(items);
   let tail = Exp.fresh(Tuple(List.map(x => Exp.fresh(Var(x)), names)));
   let base = Builtins.ctx_base(Some(Operators.default_mode));
@@ -128,23 +131,26 @@ let of_items =
       Statics.Map.lookup(Exp.rep_id(tail), ds.merged),
       ds.elab,
     ) {
-    | ([_, ..._] as ids, _, _) =>
+    | ([_, ..._] as ids, _, _) when strict =>
       Error(
         Printf.sprintf("%d static errors in the library", List.length(ids)),
       )
-    | ([], None, _) => Error("no statics for the library's tail")
-    | ([], _, None) => Error("the library did not elaborate")
-    | ([], Some(info), Some(elab)) =>
+    | (_, None, _) => Error("no statics for the library's tail")
+    | (_, _, None) => Error("the library did not elaborate")
+    | (errors, Some(info), Some(elab)) =>
       switch (Ctx.subtract_prefix(Info.ctx_of(info), base)) {
       | None => Error("the library's context does not extend the builtins'")
       | Some(added) =>
         defs(elab)
-        |> Result.map((defs): Library.baked =>
-             {
-               hash,
-               entries: Marshal.to_string(added.entries, []),
-               defs: baked_defs(defs),
-             }
+        |> Result.map(defs =>
+             (
+               Library.{
+                 hash,
+                 entries: Marshal.to_string(added.entries, []),
+                 defs: baked_defs(defs),
+               },
+               List.length(errors),
+             )
            )
       }
     };
@@ -152,14 +158,16 @@ let of_items =
 };
 
 /* the source text parsed on the fast path, then baked */
-let of_text = (text: string): result((Library.baked, Segment.t), string) =>
+let of_text =
+    (~strict: bool, text: string)
+    : result((Library.baked, int, Segment.t), string) =>
   switch (FastParse.parsed_of_text(~root=Mod, text)) {
   | Error(note) => Error("the library is off the fast parser: " ++ note)
   | Ok({segment, _}) =>
     switch (MakeTerm.Incr.term_of_mod(segment).term) {
     | Module(items) =>
-      of_items(~hash=Digest.to_hex(Digest.string(text)), items)
-      |> Result.map(b => (b, segment))
+      of_items(~strict, ~hash=Digest.to_hex(Digest.string(text)), items)
+      |> Result.map(((b, errors)) => (b, errors, segment))
     | _ => Error("the library did not parse as module items")
     }
   };

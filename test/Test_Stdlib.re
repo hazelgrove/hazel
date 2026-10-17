@@ -94,15 +94,30 @@ let tests = (
         );
       },
     ),
-    test_case("the bake refuses a library with static errors", `Quick, () =>
-      check(
-        bool,
-        "an error",
-        true,
-        Result.is_error(
-          LibraryBake.of_text("module A = { let x = 1 + true };\nlet y = 2"),
-        ),
-      )
+    /* the shipped library must be clean; an edit applies with its errors,
+       as any program with errors runs */
+    test_case(
+      "a library with static errors: strict refuses, edits apply",
+      `Quick,
+      () => {
+        let src = "module A = { let x = 1 + true };\nlet y = 2";
+        check(
+          bool,
+          "strict: an error",
+          true,
+          Result.is_error(LibraryBake.of_text(~strict=true, src)),
+        );
+        switch (LibraryBake.of_text(~strict=false, src)) {
+        | Error(msg) => fail("an edit with errors is refused: " ++ msg)
+        | Ok((baked, errors, _)) =>
+          check(int, "its errors, counted", 1, errors);
+          Library.install_baked(baked);
+          /* evaluates past the error, as a program's own would */
+          same("y", "y + 1", "3");
+          /* the shipped library again, for later tests */
+          StdlibBaked.install();
+        };
+      },
     ),
     test_case(
       "a new starting context re-analyzes every item",

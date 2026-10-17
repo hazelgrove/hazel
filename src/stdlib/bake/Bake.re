@@ -26,11 +26,11 @@ let () =
       |> List.map(read)
       |> List.map(String.trim)
       |> String.concat(";\n");
-    switch (LibraryBake.of_text(text)) {
+    switch (LibraryBake.of_text(~strict=true, text)) {
     | Error(msg) =>
       prerr_endline("bake: " ++ msg);
       exit(1);
-    | Ok((baked, segment)) =>
+    | Ok((baked, _, segment)) =>
       let kb = v =>
         Printf.sprintf(
           "%dKB",

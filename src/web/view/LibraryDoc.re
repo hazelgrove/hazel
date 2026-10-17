@@ -52,17 +52,22 @@ let install = (baked: Language.Library.baked): unit => {
   WorkerClient.install_library(Marshal.to_string(baked, []));
 };
 
+/* static errors in the applied source: it applies anyway, as any program
+   with errors runs */
+let errors: ref(int) = ref(0);
+
 /* [text] baked and installed, here and in the worker, and kept (or
    forgotten, if it is the shipped source): whether it changed anything, or
-   the error if it doesn't check */
+   why it can't be baked at all (its shape, not its errors) */
 let apply = (text: string): result(bool, string) =>
   if (text == source^) {
     Ok(false);
   } else {
-    switch (LibraryBake.of_text(text)) {
+    switch (LibraryBake.of_text(~strict=false, text)) {
     | Error(msg) => Error(msg)
-    | Ok((baked, _)) =>
+    | Ok((baked, n, _)) =>
       install(baked);
+      errors := n;
       source := text;
       text == shipped^ ? HazelDB.kv_remove(key) : HazelDB.kv_save(key, text);
       incr(generation);
