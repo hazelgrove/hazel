@@ -946,10 +946,11 @@ let rec node_view =
       ~attrs=[clss(["outline-err-badge", ...cls]), Attr.title(title)],
       [text({js|●|js})],
     );
-  /* a run's tally, after its word, folded or open */
+  /* a folded run's tally, after its word: it sums up the tests the fold
+     hides (open, the rows show them), so it also says the run is folded */
   let tally =
     switch (
-      n.o_kind == KTests
+      n.o_kind == KTests && !row.r_expanded
         ? run_tally(run_statuses(~test_status=props.test_status, n)) : None
     ) {
     | Some((s, failing)) => [
