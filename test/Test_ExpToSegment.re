@@ -677,6 +677,16 @@ let roundtrip_tests = (
     roundtrip_test({|Label: backticked dot|}, {|x.`a`|}),
     roundtrip_test({|Label: backticked pat|}, {|fun (`a`=x) -> x|}),
     roundtrip_test({|Label: backticked typ|}, {|1 : (`a`=Int)|}),
+    /* a module's constructors (Test_ModuleCtors) */
+    roundtrip_test({|Module constructor|}, {|M.A(1)|}),
+    roundtrip_test(
+      {|Module constructor pattern|},
+      {|case x | M.A(y) => y | m.N.B => 0 end|},
+    ),
+    roundtrip_ids_test(
+      {|Module constructor pattern ids|},
+      {|fun M.A(y) -> M.N.B|},
+    ),
     /* Unknown infix operators survive as MultiHole + op lexeme */
     roundtrip_test({|Unknown op|}, {|1 @@@ 2|}),
     roundtrip_test({|Unknown op: chained|}, {|1 @@@ 2 @@@ 3|}),

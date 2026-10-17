@@ -251,6 +251,7 @@ and in_pat =
   | EmptyHole => (env_acc, p)
   | MultiHole(_) => (env_acc, p)
   | Constructor(_, _) => (env_acc, p)
+  | Dot(_) => (env_acc, p)
   | ExplicitNonlabel => (env_acc, p)
   | Label(_) => (env_acc, p)
 

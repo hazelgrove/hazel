@@ -70,7 +70,8 @@ type pat = {
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
-  label_sort: bool /* When in the position of a label */
+  label_sort: bool, /* When in the position of a label */
+  dot_labels: list(string) /* a module's constructors, after `M.` */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -357,7 +358,14 @@ let projector_kind_of = (info: t): option(ProjectorKind.t) =>
    exists in the context, return the id where the binding occurs */
 let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
-  | InfoExp({user_term: {term: Var(name), _}, ctx, _}) =>
+  | InfoExp({user_term: {term: Var(name), _}, ctx, _})
+  /* the module path of a pattern's `M.A` */
+  | InfoPat({
+      user_term: {term: Var(name) | Constructor(name, _), _},
+      cls: Exp(Var),
+      ctx,
+      _,
+    }) =>
     let* entry = Ctx.lookup_var(ctx, name);
     entry.id == Id.invalid ? None : Some(entry.id);
   | InfoExp({user_term: {term: Constructor(name, _), _}, ctx, _})

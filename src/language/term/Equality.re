@@ -613,6 +613,26 @@ let equality =
       let* alphas2 = pat'(d1', d2');
       Some(Alphas.combine(alphas1, alphas2));
     | (TupLabel(_, _), _) => None
+    | (Dot(_), Dot(_)) =>
+      /* a module path names a module: it binds nothing */
+      let rec path = (p: Pat.t) =>
+        switch (Annotated.term_of(p)) {
+        | Parens(p) when ignore_parens => path(p)
+        | Var(x)
+        | Constructor(x, _)
+        | Label(x) => Some([x])
+        | Dot(p, l) =>
+          switch (path(p), path(l)) {
+          | (Some(xs), Some(ys)) => Some(xs @ ys)
+          | _ => None
+          }
+        | _ => None
+        };
+      switch (path(p1)) {
+      | Some(_) as names when names == path(p2) => Some(Alphas.empty)
+      | _ => None
+      };
+    | (Dot(_, _), _) => None
     | (ExplicitNonlabel, ExplicitNonlabel) => Some(Alphas.empty)
     | (ExplicitNonlabel, _) => None
     | (Ap(p1, p2), Ap(p3, p4)) =>

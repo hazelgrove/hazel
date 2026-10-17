@@ -41,7 +41,8 @@ let find_item = (row: Id.t, term: Exp.t): option(item) =>
   | _ => None
   };
 
-/* tokens naming the item: its references, and `M.x` labels */
+/* tokens naming the item: its references, and `M.x` labels (`M.N.A` in a
+   pattern too) */
 let find_references = (~info_map: Statics.Map.t, it: item): list(Id.t) => {
   /* a path's base in a type (`U` of `U.Meters`) names the module's value */
   let module_site = (info: Info.t) =>
@@ -72,6 +73,15 @@ let find_references = (~info_map: Statics.Map.t, it: item): list(Id.t) => {
           }),
         ) =>
         qualified(owner, Exp.rep_id(e1), l, Exp.rep_id(e2), acc)
+      | (
+          _,
+          Some(owner),
+          InfoPat({
+            user_term: {term: Dot(p1, {term: Label(l), _} as p2), _},
+            _,
+          }),
+        ) =>
+        qualified(owner, Pat.rep_id(p1), l, Pat.rep_id(p2), acc)
       | (
           _,
           Some(owner),

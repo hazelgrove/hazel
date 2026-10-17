@@ -1,5 +1,8 @@
 # Option: Hazel-source transcription of the BuiltinsADT.re option_* HazelFn builtins #
 module Option = {
+  # the builtin Option: bare None and Some stay builtin, for the OCaml builtins that make them #
+  type t = None + Some(?);
+
   let map : (Option, ? -> ?) -> ? = fun (opt, f) ->
     case opt
     | None => None

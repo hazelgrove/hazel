@@ -322,6 +322,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Projector(_) => Precedence.max
 
   // Other forms
+  | Dot(_) => Precedence.dot
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
   | Asc(_) => Precedence.asc
@@ -799,6 +800,8 @@ and parenthesize_pat =
   | TupLabel(l, p) =>
     TupLabel(l, parenthesize_pat(p) |> paren_pat_at(Precedence.comma))
     |> rewrap
+  | Dot(p, l) =>
+    Dot(parenthesize_pat(p) |> paren_pat_at(Precedence.dot), l) |> rewrap
   | ListLit(ps) =>
     ListLit(
       ps
@@ -2770,6 +2773,25 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         quoted_label_lexeme(~settings, pat.annotation, l),
       ),
     )
+  | Dot(path, l) =>
+    let* path = go(path)
+    and* l =
+      switch (l.term) {
+      | Label(l') =>
+        wrap(
+          l,
+          label_to_pretty(
+            ~label_format=settings.label_format,
+            ~label_only_position=true,
+            ~lexeme=settings.use_literal_lexemes ? l.annotation.lexeme : None,
+            Sort.Pat,
+            l',
+            l |> Pat.rep_id,
+          ),
+        )
+      | _ => go(l)
+      };
+    wrap(pat, path @ [mk_form(Dot, pat |> Pat.rep_id, [])] @ l);
   | Parens(p) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
