@@ -131,48 +131,21 @@ let global_missing_shards = (seg: t) =>
   seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
 
 /* per-top-level-piece memo for the above, whose deep walk is
-   O(program); a piece's result is context-free. tick-swept */
-module MissingShardsMemo = {
-  type entry = {
-    mutable m_piece: Obj.t,
-    mutable m_tiles: list(Tile.t),
-    mutable m_tick: int,
-  };
-  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(256);
-  let tick = ref(0);
-};
+   O(program); a piece's result is context-free */
+let missing_shards_memo: Expiring.t(Id.t, (Piece.t, list(Tile.t))) =
+  Expiring.mk(~size=256, ~every=128, ~ttl=32);
 
 let global_missing_shards_incr = (seg: t): list(Tile.t) => {
-  open MissingShardsMemo;
-  incr(tick);
-  if (tick^ mod 128 == 0) {
-    let dead =
-      Hashtbl.fold(
-        (id, e, acc) => e.m_tick < tick^ - 32 ? [id, ...acc] : acc,
-        cache,
-        [],
-      );
-    List.iter(Hashtbl.remove(cache), dead);
-  };
+  Expiring.tick(missing_shards_memo);
   seg
   |> List.concat_map(p => {
        let id = Piece.id(p);
-       switch (Hashtbl.find_opt(cache, id)) {
-       | Some(e) when e.m_piece === Obj.repr(p) =>
-         e.m_tick = tick^;
-         e.m_tiles;
+       switch (Expiring.find_opt(missing_shards_memo, id)) {
+       | Some((p', tiles)) when p' === p => tiles
        | _ =>
          let tiles =
            incomplete_tiles_deep([p]) |> incomplete_tiles_to_missing_shards;
-         Hashtbl.replace(
-           cache,
-           id,
-           {
-             m_piece: Obj.repr(p),
-             m_tiles: tiles,
-             m_tick: tick^,
-           },
-         );
+         Expiring.replace(missing_shards_memo, id, (p, tiles));
          tiles;
        };
      });
@@ -1877,24 +1850,16 @@ module IDs = {
 
 let to_string = Base.segment_to_string;
 
-/* top-level item slices: each ends with an `…in` tile or top-level `;`
-   (the rest is the tail); the unit of the per-item incremental layers */
-let is_top_semi = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) => Tile.label(t) == [";"]
-  | _ => false
-  };
 /* only with its `in`: an unfinished `let x =` runs on into what follows */
 let is_in_tile = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
-    let label = Tile.label(t);
-    switch (List.rev(label)) {
-    | ["in", ..._] => List.mem(List.length(label) - 1, t.shards)
-    | _ => false
-    };
+    Tile.ends_with_in(t)
+    && List.mem(List.length(Tile.label(t)) - 1, t.shards)
   | _ => false
   };
+/* top-level item slices: each ends with an `…in` tile or top-level `;`
+   (the rest is the tail); the unit of the per-item incremental layers */
 let top_items = (seg: t): list(t) => {
   let arr = Array.of_list(seg);
   let len = Array.length(arr);
@@ -1902,7 +1867,7 @@ let top_items = (seg: t): list(t) => {
   let rec walk = (i, start, acc) =>
     if (i >= len) {
       start < len ? List.rev([slice(start, len), ...acc]) : List.rev(acc);
-    } else if (is_in_tile(arr[i]) || is_top_semi(arr[i])) {
+    } else if (is_in_tile(arr[i]) || Piece.is_semi(arr[i])) {
       walk(i + 1, i + 1, [slice(start, i + 1), ...acc]);
     } else {
       walk(i + 1, start, acc);
@@ -1946,22 +1911,6 @@ let restore_identity_dirty = (old: t, neu: t): (t, Id.Set.t) =>
         neu,
       );
     (restored, dirty^);
-  };
-
-let restore_identity = (old: t, neu: t): t =>
-  if (old === neu) {
-    neu;
-  } else {
-    let tbl = Hashtbl.create(List.length(old) + 1);
-    List.iter(p => Hashtbl.replace(tbl, Piece.id(p), p), old);
-    List.map(
-      p =>
-        switch (Hashtbl.find_opt(tbl, Piece.id(p))) {
-        | Some(o) when o === p || compare(o, p) == 0 => o
-        | _ => p
-        },
-      neu,
-    );
   };
 
 /* Secondary collection for outer secondary model.

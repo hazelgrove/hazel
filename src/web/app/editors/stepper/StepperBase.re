@@ -568,6 +568,7 @@ and Stepper: {
       type action = step_action and
       type focus = step_focus;
   let get_validity: step_model => option(bool);
+  let this_step_shown: (~settings: CoreSettings.t, step_model) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_model;
@@ -612,6 +613,16 @@ and Stepper: {
     |> Calc.get_saved_exc(
          ~print="get_validity called before calculate on stepper",
        );
+
+  /* whether a trace shows [model]'s step: the current one always, earlier
+     ones with history on (skipped ones only while those show too) */
+  let this_step_shown = (~settings: CoreSettings.t, model: model): bool =>
+    StepKind.is_missing_step(model.step_kind)
+    || settings.evaluation.stepper_history
+    && (
+      model.hidden != Calc.Calculated(true)
+      || settings.evaluation.show_hidden_steps
+    );
 
   let rec update =
           (~settings, action: step_action, model: step_model)
@@ -801,12 +812,20 @@ and Stepper: {
         };
       };
 
-    // TODO: Make editor calculation more incremental
+    /* re-analyze a step's editor only when it, or what it shows, changed:
+       every step re-analyzed on every pass made each click cost the whole
+       trace's statics, several times over */
+    let is_edited =
+      Calc.is_new(editor)
+      || Calc.is_new(expr)
+      || Calc.is_new(settings)
+      || Calc.is_new(ctx)
+      || Calc.is_new(ana);
     let editor =
       CodeSelectable.Update.calculate(
         ~is_dynamic_term=true,
         ~settings=Calc.get_value(settings),
-        ~is_edited=true,
+        ~is_edited,
         ~ctx=Calc.get_value(ctx) |> SemanticCtx.get_ctx,
         ~dynamics=Dynamics.Map.empty,
         ~ana=Calc.get_value(ana),
@@ -875,17 +894,9 @@ and Stepper: {
             ~undo: option(Ui_effect.t(unit)),
             model: step_model,
           ) => {
-    let is_last_step = StepKind.is_missing_step(model.step_kind);
     let is_skipped_step = model.hidden == Calc.Calculated(true);
-    let showing_skiped_steps =
-      globals.settings.core.evaluation.show_hidden_steps;
-    let showing_history = globals.settings.core.evaluation.stepper_history;
-    let this_step_shown =
-      is_last_step
-      || showing_history
-      && (!is_skipped_step || showing_skiped_steps);
     let current_step =
-      if (!this_step_shown) {
+      if (!this_step_shown(~settings=globals.settings.core, model)) {
         [];
       } else {
         let taken_steps =

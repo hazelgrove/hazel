@@ -227,28 +227,21 @@ module Inc = {
         EvaluatorState.empty,
         inc.frontier,
       );
-    let state =
-      switch (stream.current) {
-      | Some({id, state: cur})
-          when
-            !Id.equal(id, Id.invalid)
-            && !
-                 List.exists(
-                   ((_, fe, fx, _)) =>
-                     switch (Id.Map.find_opt(id, inc.enter)) {
-                     | Some(en) => fe <= en && en <= fx
-                     | None => false
-                     },
-                   inc.frontier,
-                 ) =>
-        EvaluatorState.append(state, EvaluatorState.rebase(cur))
-      | _ => state
-      };
-    {
-      ...state,
-      incr_eval: {
-        entries: stream.completed.entries,
-      },
+    switch (stream.current) {
+    | Some({id, state: cur})
+        when
+          !Id.equal(id, Id.invalid)
+          && !
+               List.exists(
+                 ((_, fe, fx, _)) =>
+                   switch (Id.Map.find_opt(id, inc.enter)) {
+                   | Some(en) => fe <= en && en <= fx
+                   | None => false
+                   },
+                 inc.frontier,
+               ) =>
+      EvaluatorState.append(state, EvaluatorState.rebase(cur))
+    | _ => state
     };
   };
 };

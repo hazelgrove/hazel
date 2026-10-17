@@ -45,6 +45,13 @@ module Model = {
        with its types printed whole, on several lines (#2674). */
     [@sexp.default false]
     inspector_expanded: bool,
+    /* the ⇓ toggle: a Scratch or Documentation program's value in a
+       drawer after the program */
+    [@sexp.default true]
+    tail_probe: bool,
+    /* outline rows fold from a drawn arrow; off, from their sigil */
+    [@sexp.default false]
+    outline_arrows: bool,
   };
 
   let init = {
@@ -119,6 +126,8 @@ module Model = {
     shortcut_overrides: [],
     simple_indication: false,
     inspector_expanded: false,
+    tail_probe: true,
+    outline_arrows: false,
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -188,7 +197,9 @@ module Update = {
     | ShowPendingEval
     | SetShortcutOverrides(list((string, option(string))))
     | SimpleIndication
-    | InspectorExpanded;
+    | InspectorExpanded
+    | TailProbe
+    | OutlineArrows;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -535,6 +546,14 @@ module Update = {
       | InspectorExpanded => {
           ...settings,
           inspector_expanded: !settings.inspector_expanded,
+        }
+      | TailProbe => {
+          ...settings,
+          tail_probe: !settings.tail_probe,
+        }
+      | OutlineArrows => {
+          ...settings,
+          outline_arrows: !settings.outline_arrows,
         }
       }
     )

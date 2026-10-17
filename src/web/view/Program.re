@@ -67,12 +67,11 @@ let focused_names = (p: t): list((Id.t, option(string))) =>
   | Divided(d) =>
     List.concat_map(
       (e: ScratchCell.t) =>
-        if (e.e_run) {
-          List.map(id => (id, None), e.e_members);
-        } else if (e.e_sym == None) {
-          [(e.e_id, ScratchCell.header_name(e))];
-        } else {
-          [
+        switch (e.e_kind) {
+        | Run(ids) => List.map(id => (id, None), ids)
+        | Def(_)
+        | Members => [(e.e_id, ScratchCell.header_name(e))]
+        | Headless(_) => [
             (e.e_id, None),
             ...List.filter_map(
                  fun
@@ -80,7 +79,7 @@ let focused_names = (p: t): list((Id.t, option(string))) =>
                  | _ => None,
                  ScratchFocus.zip_of_cell(e.e_body),
                ),
-          ];
+          ]
         },
       Divided.cells(d),
     )
@@ -102,10 +101,28 @@ let probe_ids = (p: t): Id.Map.t(unit) =>
   switch (p) {
   | Whole(e) =>
     CachedStatics.probe_ids_of_zipper(e.editor.editor.state.zipper)
-  | Divided(d) =>
-    List.fold_left(
-      (acc, (id, _)) => Id.Map.add(id, (), acc),
-      Id.Map.empty,
-      Divided.probes(d),
-    )
+  | Divided(d) => Id.Map.map(_ => (), Id.Map.of_list(Divided.probes(d)))
   };
+
+/* the ⇓ probe's term, once placed: the program's last expression, in a
+   stack the ⇒ cell's */
+let tail_target = (p: t): option(Id.t) =>
+  switch (p) {
+  | Whole(e) => e.editor.editor.state.zipper.refractors.tail_target
+  | Divided(d) =>
+    Divided.cells(d)
+    |> List.find_opt((e: ScratchCell.t) =>
+         e.e_kind == Headless({js|⇒|js})
+       )
+    |> Option.map((e: ScratchCell.t) =>
+         e.e_body.editor.editor.state.zipper.refractors.tail_target
+       )
+    |> Option.join
+  };
+
+/* the program's ⇒ row: its last expression, which the ⇓ toggle probes */
+let tail_row = (p: t): option(Id.t) =>
+  OutlineTree.of_term(statics(p).term)
+  |> List.find_opt((n: OutlineTree.node) => n.o_kind == KTrail)
+  |> Option.map((n: OutlineTree.node) => n.o_id)
+  |> Option.join;

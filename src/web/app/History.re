@@ -52,25 +52,13 @@ let compact_program = (p: Program.t): Program.t =>
   | Divided(d) => Divided(Divided.compact(compact_cell, d))
   };
 
-let compact_scratch = (m: ScratchMode.Model.t): ScratchMode.Model.t => {
-  ...m,
-  scratchpads:
-    List.map(
-      (sp: ScratchMode.Scratchpad.t) =>
-        switch (sp.kind) {
-        | Code({program, _} as code) => {
-            ...sp,
-            kind:
-              Code({
-                ...code,
-                program: compact_program(program),
-              }),
-          }
-        | Drv(_) => sp
-        },
-      m.scratchpads,
-    ),
-};
+let compact_scratch =
+  ScratchMode.Model.map_code((_, code) =>
+    {
+      ...code,
+      program: compact_program(code.program),
+    }
+  );
 
 let compact = (m: Page.Model.t): Page.Model.t => {
   ...m,
@@ -108,6 +96,9 @@ module Model = {
     current: state,
     undo_stack: list(Updated.t(state)),
     redo_stack: list(Updated.t(state)),
+    /* while the step on top of the undo stack is tentative, the redo
+       stack it cleared: retracting the step puts that back */
+    tentative_redo: option(list(Updated.t(state))),
   };
 
   let equal = (===);
@@ -116,12 +107,14 @@ module Model = {
     current: Page.Store.load(),
     undo_stack: [],
     redo_stack: [],
+    tentative_redo: None,
   };
 
   let reset = (~font_metrics=?, ()) => {
     current: Page.Model.reset(~font_metrics?, ()),
     undo_stack: [],
     redo_stack: [],
+    tentative_redo: None,
   };
 };
 
@@ -131,9 +124,10 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Page.Update.t;
 
-  /* only slide decks have views to realize; a flag copied out of the
-     settings follows them back */
-  let realize_view = (~schedule_action: t => unit, m: Page.Model.t) => {
+  /* a snapshot restored: only slide decks have views to realize; a flag
+     copied out of the settings follows them back; keys the swap left
+     on another pane or on nothing go to the restored focus */
+  let restore = (~schedule_action: t => unit, m: Page.Model.t) => {
     Language.EvalWorklist.compute_enabled :=
       m.globals.settings.show_incremental_deco;
     switch (m.editors) {
@@ -144,6 +138,7 @@ module Update = {
     | Exercises(_)
     | Config(_) => ()
     };
+    Haz3lcore.FocusEffect.schedule_cell_if_lost();
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -163,7 +158,7 @@ module Update = {
         print_endline("Cannot undo");
         model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
-        realize_view(~schedule_action, x.model);
+        restore(~schedule_action, x.model);
         {
           ...x,
           model: {
@@ -176,6 +171,7 @@ module Update = {
               },
               ...compact_head(model.redo_stack),
             ],
+            tentative_redo: None,
           },
         };
       }
@@ -185,7 +181,7 @@ module Update = {
         print_endline("Cannot redo");
         model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
-        realize_view(~schedule_action, x.model);
+        restore(~schedule_action, x.model);
         {
           ...x,
           model: {
@@ -198,6 +194,7 @@ module Update = {
               ...compact_head(model.undo_stack),
             ],
             redo_stack: rest,
+            tentative_redo: None,
           },
         };
       }
@@ -227,16 +224,28 @@ module Update = {
             current: current.model,
             undo_stack,
             redo_stack: [],
+            tentative_redo: current.tentative ? Some(model.redo_stack) : None,
           },
         };
       } else {
-        {
-          ...current,
-          model: {
-            current: current.model,
-            undo_stack: model.undo_stack,
-            redo_stack: model.redo_stack,
-          },
+        switch (current.retract, model.tentative_redo, model.undo_stack) {
+        /* as if the tentative step had never been made */
+        | (true, Some(redo_stack), [_, ...undo_stack]) => {
+            ...current,
+            model: {
+              current: current.model,
+              undo_stack,
+              redo_stack,
+              tentative_redo: None,
+            },
+          }
+        | _ => {
+            ...current,
+            model: {
+              ...model,
+              current: current.model,
+            },
+          }
         };
       };
     };
@@ -259,9 +268,8 @@ module Update = {
       ~redo=model.redo_stack,
     );
     {
+      ...model,
       current,
-      undo_stack: model.undo_stack,
-      redo_stack: model.redo_stack,
     };
   };
 };

@@ -104,6 +104,15 @@ let item_bound_names = (item: Mod.t): list(Var.t) =>
 let collect_later_names = (items: list(Mod.t)): list(Var.t) =>
   items |> List.map(item_bound_names) |> List.flatten;
 
+/* [x], re-id'd from [stable] and [tag] when given: lowerings DefStatics
+   compares across runs (by id) mint no fresh ids */
+let stable_id =
+    (stable: option(Id.t), tag: string, x: IdTagged.t('a)): IdTagged.t('a) =>
+  switch (stable) {
+  | Some(id) => IdTagged.fast_copy(Id.mk_str(tag ++ Id.to_string(id)), x)
+  | None => x
+  };
+
 /* Names bound by [item] that no later item rebinds (last binding wins),
    each paired with the sub-pattern that binds it. */
 let item_exports = (item: Mod.t, ~later: list(Mod.t)): list((Var.t, Pat.t)) => {
@@ -250,19 +259,34 @@ let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
 };
 
 let wrap_item =
-    (~ana_labels: list((Var.t, Typ.t)), item: Mod.t, body: Exp.t): Exp.t =>
+    (
+      ~ana_labels: list((Var.t, Typ.t)),
+      ~stable=false,
+      item: Mod.t,
+      body: Exp.t,
+    )
+    : Exp.t => {
+  let rep = Mod.rep_id(item);
+  /* a non-binding item as `let _ = e in body` */
+  let wild = (tag, e) => {
+    let from = stable ? Some(rep) : None;
+    stable_id(
+      from,
+      tag ++ "let:",
+      Exp.fresh(
+        Let(stable_id(from, tag ++ "pat:", Pat.fresh(Wild)), e, body),
+      ),
+    );
+  };
   switch (item.term) {
   | ModLet(pat, def) =>
     IdTagged.fast_copy(
-      Mod.rep_id(item),
+      rep,
       Exp.fresh(Let(modlet_pat(ana_labels, pat), def, body)),
     )
   | ModType(tpat, typ) =>
-    IdTagged.fast_copy(
-      Mod.rep_id(item),
-      Exp.fresh(TyAlias(tpat, typ, body)),
-    )
-  | ModExp(e) => Exp.fresh(Let(Pat.fresh(Wild), e, body))
+    IdTagged.fast_copy(rep, Exp.fresh(TyAlias(tpat, typ, body)))
+  | ModExp(e) => wild("modexp-", e)
   | ModuleMod(mp, def) =>
     /* A sub-module gets its declared signature as expectation too, so a
        member it lacks or defines wrongly is reported inside it. */
@@ -276,18 +300,13 @@ let wrap_item =
       Exp.fresh(Let(Pat.fresh(Var(x)), def, body)),
     )
   | EmptyHole =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(EmptyHole));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    wild("modhole-", IdTagged.fast_copy(rep, Exp.fresh(EmptyHole)))
   | Invalid(s) =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(Invalid(s)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    wild("modinv-", IdTagged.fast_copy(rep, Exp.fresh(Invalid(s))))
   | MultiHole(es) =>
-    let e: Exp.t =
-      IdTagged.fast_copy(Mod.rep_id(item), Exp.fresh(MultiHole(es)));
-    Exp.fresh(Let(Pat.fresh(Wild), e, body));
+    wild("modmh-", IdTagged.fast_copy(rep, Exp.fresh(MultiHole(es))))
   };
+};
 
 /* Lower module items to nested Let/TyAlias wrappers for type checking. The
    wrappers carry the Mod item ids. The tail mentions every exported binding

@@ -925,17 +925,14 @@ module View = {
       } else {
         let refractor_data =
           RefractorView.mk_data(
-            ~refractors=
-              Id.Map.union(
-                (_, _, b) => Some(b),
-                zipper.refractors.manuals |> Id.Map.of_list,
-                zipper.refractors.multis.ephemerals,
-              ),
+            ~refractors=CachedSyntax.refractor_entries(zipper.refractors),
             ~syntax=model.editor.syntax,
             ~indicated=Indicated.for_decoration(zipper),
             ~statics=model.statics.info_map,
             ~dynamics,
             ~sample_focus=zipper.refractors.sample_focus,
+            ~stepping=zipper.refractors.stepping,
+            ~tail=zipper.refractors.tail_target,
             ~editor_active=selected,
             ~frame,
             ~visible?,
@@ -949,12 +946,14 @@ module View = {
           ~core_settings=globals.settings.core,
           ~visible?,
           ~refractor_rows=model.editor.syntax.refractor_rows,
+          ~term_data=model.editor.syntax.term_data,
           refractor_data,
           List.map(fst, zipper.refractors.manuals)
           @ List.map(
               fst,
               Id.Map.to_list(zipper.refractors.multis.ephemerals),
-            ),
+            )
+          @ List.map(fst, Id.Map.to_list(zipper.refractors.proofs)),
         );
       };
     // let t2 = JsUtil.precise_timestamp();
@@ -1306,7 +1305,8 @@ module View = {
           };
         /* escape_vertical fires on Up at the first row / Down at the last,
            before the core move snaps the caret to line start/end */
-        let caret_row_edge = (v: Haz3lcore.Action.vertical): option(int) =>
+        let caret_row_edge =
+            (key: string): option((Haz3lcore.Action.vertical, int)) =>
           switch (escape_vertical) {
           | None => None
           | Some(_) when z.selection.content != [] => None
@@ -1315,9 +1315,9 @@ module View = {
             let Util.Point.{row, col} =
               Haz3lcore.Zipper.Caret.point(measured, z);
             let last_row = max(0, measured.total_rows - 1);
-            switch (v) {
-            | Up when row == 0 => Some(col)
-            | Down when row == last_row => Some(col)
+            switch (key) {
+            | "ArrowUp" when row == 0 => Some((Up, col))
+            | "ArrowDown" when row == last_row => Some((Down, col))
             | _ => None
             };
           };
@@ -1332,30 +1332,20 @@ module View = {
            *    keystroke bursts. Enforcement happens at update time
            *    (Update.PerformConfined). */
           switch (key) {
-          | {key: D("ArrowUp"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
-              when
-                Option.is_some(escape_vertical)
-                && Option.is_some(caret_row_edge(Up)) =>
+          | {
+              key: D(("ArrowUp" | "ArrowDown") as k),
+              shift: Up,
+              meta: Up,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+              when Option.is_some(caret_row_edge(k)) =>
+            let (v, col) = Option.get(caret_row_edge(k));
             Effect.Many([
               Effect.Prevent_default,
-              Option.get(
-                escape_vertical,
-                Up,
-                Option.get(caret_row_edge(Up)),
-              ),
-            ])
-          | {key: D("ArrowDown"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
-              when
-                Option.is_some(escape_vertical)
-                && Option.is_some(caret_row_edge(Down)) =>
-            Effect.Many([
-              Effect.Prevent_default,
-              Option.get(
-                escape_vertical,
-                Down,
-                Option.get(caret_row_edge(Down)),
-              ),
-            ])
+              Option.get(escape_vertical, v, col),
+            ]);
           | {
               key: D("ArrowLeft" | "ArrowUp"),
               shift: Up,

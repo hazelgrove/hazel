@@ -246,8 +246,10 @@ let rec go =
             | (_, Some(next)) when Piece.is_comma(next) => base + 2
             | (Some(prev), _) when Piece.is_comma(prev) => base + 2
             /* module members: reset to member level, one step inside
-               the braces (their `;` has no `in` to exempt it) */
-            | (Some(prev), _) when is_module_semi(prev) => base + 2
+               the braces (their `;` has no `in` to exempt it); a
+               module-rooted editor's top level has no braces */
+            | (Some(prev), _) when is_module_semi(prev) =>
+              not_top ? base + 2 : base
             /* Incomplete case rules (just `|`) shouldn't increment.
              * An incomplete `|` is Concave on right, so would match
              * is_incrementor without this check. */

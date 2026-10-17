@@ -1393,7 +1393,13 @@ let expand_toggle = (~globals: Globals.t): Node.t => {
   );
 };
 
-let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
+/* [dynamics]: the slide program's, at the bar's right end */
+let view =
+    (
+      ~globals: Globals.t,
+      ~dynamics: option(Node.t)=?,
+      cursor: Cursor.cursor(Editors.Update.t),
+    ) => {
   let toggle = expand_toggle(~globals);
   /* the bar prints on one line, however the panel prints */
   let globals = {
@@ -1403,8 +1409,11 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
       inspector_expanded: false,
     },
   };
-  let bar_view = children =>
-    div(~attrs=[Attr.id("bottom-bar")], children @ [toggle]);
+  let bar_view = kids =>
+    div(
+      ~attrs=[Attr.id("bottom-bar")],
+      kids @ [toggle] @ Option.to_list(dynamics),
+    );
   let err_view = err =>
     bar_view([
       div(
@@ -1423,7 +1432,8 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
     | _ => None
     };
   switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
-  | _ when !globals.settings.core.statics => div_empty
+  | _ when !globals.settings.core.statics =>
+    dynamics == None ? div_empty : bar_view([])
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     /* Show projector error instead of normal status,

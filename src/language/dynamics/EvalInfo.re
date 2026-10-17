@@ -53,20 +53,40 @@ let of_targets = (targets: Sample.targets): t => {
   targets,
 };
 
-let project = (~probe_all: bool, info: Info.t): option(entry) =>
+/* The full-capture probes in [targets]: a term holding one gets a
+   witness of its own, so its samples are retaken rather than replayed with
+   elided values. With probe_all, every other term's witness is ProbeAll. */
+let full_of = (targets: Sample.targets): list(Id.t) =>
+  Id.Map.fold(
+    (id, spec: Sample.capture_spec, acc) => spec.full ? [id, ...acc] : acc,
+    targets,
+    [],
+  );
+
+let project =
+    (~probe_all: bool, ~full: list(Id.t)=[], info: Info.t): option(entry) =>
   switch (info) {
-  | Info.InfoExp({elab_term, co_ctx, probe_targets, _}) =>
+  | Info.InfoExp({elab_term, co_ctx, probe_targets: pt, _}) =>
     Some({
       elab_term,
       co_ctx,
-      probe_targets: probe_all ? ProbeAll : ProbeTargets(probe_targets),
+      probe_targets:
+        if (List.exists(id => MerkleSet.mem(id, pt.probe_ids), full)) {
+          ProbeTargets(SubexpProbeTargets.mark_full(pt));
+        } else {
+          probe_all ? ProbeAll : ProbeTargets(pt);
+        },
     })
   | _ => None
   };
 
 let project_all =
-    (~probe_all: bool, info_map: StaticsBase.Map.t): Id.Map.t(entry) =>
-  Id.Map.filter_map((_id, info) => project(~probe_all, info), info_map);
+    (~probe_all: bool, ~full: list(Id.t)=[], info_map: StaticsBase.Map.t)
+    : Id.Map.t(entry) =>
+  Id.Map.filter_map(
+    (_id, info) => project(~probe_all, ~full, info),
+    info_map,
+  );
 
 /* what an entry holds, by identity */
 let same_entry = (a: entry, b: entry): bool =>
@@ -84,8 +104,8 @@ let same_entry = (a: entry, b: entry): bool =>
 /* [acc] with [k]'s entry projected from [info]; an entry that holds what
    the old one held is kept, the object itself */
 let set_entry =
-    (~probe_all: bool, k: Id.t, info: Info.t, acc: Id.Map.t(entry)) =>
-  switch (project(~probe_all, info)) {
+    (~probe_all, ~full, k: Id.t, info: Info.t, acc: Id.Map.t(entry)) =>
+  switch (project(~probe_all, ~full, info)) {
   | None => Id.Map.remove(k, acc)
   | Some(e) =>
     switch (Id.Map.find_opt(k, acc)) {
@@ -95,19 +115,17 @@ let set_entry =
   };
 
 /* The projection of [info_map], given [prev], the projection of
-   [prev_map]: one walk over both maps in key order, comparing infos by
-   identity, and only the entries that changed are added or removed. So
-   [prev]'s entries, and its subtrees, are kept wherever nothing in them
-   changed, and the request that carries the projection hashes only what
-   did (Util.ShareCodec). The same answer as project_all; or None when
-   the maps turn out to share nothing (statics rebuilt whole, or another
-   program): once [sample] infos are compared, more than half of them
-   different. Ids are spread over the key order, so a commit's changes
-   are too (a moved item, re-analyzed downstream: 7%). */
+   [prev_map] under the same probe_all and full-capture set: one walk over
+   both maps in key order, comparing infos by identity, and only the
+   entries that changed are added or removed. The same answer as
+   project_all; or None when the maps turn out to share nothing (statics
+   rebuilt whole, or another program): once [sample] infos are compared,
+   more than half of them different. */
 exception Unshared;
 let project_from =
     (
       ~probe_all: bool,
+      ~full: list(Id.t)=[],
       ~sample=256,
       prev_map: StaticsBase.Map.t,
       prev: Id.Map.t(entry),
@@ -125,7 +143,7 @@ let project_from =
       };
     };
   };
-  let set = set_entry(~probe_all);
+  let set = set_entry(~probe_all, ~full);
   let rec go =
           (acc, a: Seq.node((Id.t, Info.t)), b: Seq.node((Id.t, Info.t))) =>
     switch (a, b) {
@@ -158,13 +176,12 @@ let project_from =
 };
 
 /* The keys at which a statics map may differ from the map it was built
-   from, as its builder says (DefStatics.calc: the items it analyzed again,
-   the ones it dropped, the spine roots it patched). Given that, a
-   projection of the old map is updated at those keys alone, where
-   project_from walks both maps whole: 13-14 ms a release on Full Body,
-   though some 180 entries change. A note is found by the identity of
-   both maps, so one about other maps is never used; without one,
-   project_from does as before. */
+   from, as its builder says (DefStatics.calc: the maps of its walk's
+   changes, and the spine roots it patched). Given that, a projection of
+   the old map is updated at those keys alone, where project_from walks
+   both maps whole. A note is found by the identity of both maps, so one
+   about other maps is never used; without one, project_from does as
+   before. */
 let deltas: ref(list((StaticsBase.Map.t, StaticsBase.Map.t, list(Id.t)))) =
   ref([]);
 let deltas_cap = 8;
@@ -196,6 +213,7 @@ let delta_hits = ref(0);
 let project_delta =
     (
       ~probe_all: bool,
+      ~full: list(Id.t),
       prev: Id.Map.t(entry),
       changed: list(Id.t),
       info_map: StaticsBase.Map.t,
@@ -205,7 +223,7 @@ let project_delta =
     (acc, k) =>
       switch (Id.Map.find_opt(k, info_map)) {
       | None => Id.Map.remove(k, acc)
-      | Some(info) => set_entry(~probe_all, k, info, acc)
+      | Some(info) => set_entry(~probe_all, ~full, k, info, acc)
       },
     prev,
     changed,
@@ -213,10 +231,11 @@ let project_delta =
 
 /* The last projection per document (LRU, as DefStatics keeps its last
    calc): a commit changes a few infos of a statics map that shares the
-   rest with the last one, so its projection is updated, not rebuilt. The
-   key only guesses which projection to start from; any one gives the
-   same answer. */
-let slots: Hashtbl.t(Id.t, (bool, StaticsBase.Map.t, Id.Map.t(entry))) =
+   rest with the last one, so its projection is updated, not rebuilt. It
+   is kept with the probe_all and the full-capture probes it was made
+   under, and updated only under the same ones. */
+let slots:
+  Hashtbl.t(Id.t, (bool, list(Id.t), StaticsBase.Map.t, Id.Map.t(entry))) =
   Hashtbl.create(8);
 let slots_mru: ref(list(Id.t)) = ref([]);
 let slots_cap = 8;
@@ -229,28 +248,29 @@ let of_info_map =
       info_map: StaticsBase.Map.t,
     )
     : t => {
+  let full = full_of(targets);
   let statics =
     switch (Option.bind(key, Hashtbl.find_opt(slots))) {
-    | Some((pa, prev_map, prev)) when pa == probe_all =>
+    | Some((pa, fl, prev_map, prev)) when pa == probe_all && fl == full =>
       if (prev_map === info_map) {
         prev;
       } else {
         switch (delta_from(prev_map, info_map)) {
         | Some(changed) =>
           incr(delta_hits);
-          project_delta(~probe_all, prev, changed, info_map);
+          project_delta(~probe_all, ~full, prev, changed, info_map);
         | None =>
-          switch (project_from(~probe_all, prev_map, prev, info_map)) {
+          switch (project_from(~probe_all, ~full, prev_map, prev, info_map)) {
           | Some(statics) => statics
-          | None => project_all(~probe_all, info_map)
+          | None => project_all(~probe_all, ~full, info_map)
           }
         };
       }
-    | _ => project_all(~probe_all, info_map)
+    | _ => project_all(~probe_all, ~full, info_map)
     };
   Option.iter(
     k => {
-      Hashtbl.replace(slots, k, (probe_all, info_map, statics));
+      Hashtbl.replace(slots, k, (probe_all, full, info_map, statics));
       slots_mru := [k, ...List.filter(k' => k' != k, slots_mru^)];
       switch (ListUtil.split_n_opt(slots_cap, slots_mru^)) {
       | Some((keep, evict)) when evict != [] =>

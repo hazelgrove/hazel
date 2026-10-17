@@ -17,107 +17,38 @@ type item = {
   owner: option(Id.t) /* the enclosing module's binder */
 };
 
-let rec pat_var = (p: Pat.t): option((string, Id.t)) =>
-  switch (p.term) {
-  | Var(x) => Some((x, Pat.rep_id(p)))
-  | Parens(p)
-  | Asc(p, _)
-  | Projector(_, p)
-  | TupLabel(_, p) => pat_var(p)
-  | Ap(f, _) => pat_var(f)
-  | Tuple([p, ..._]) => pat_var(p)
-  | _ => None
-  };
-
-let tpat_var = (tp: TPat.t): option((string, Id.t)) =>
-  switch (tp.term) {
-  | Var(x) => Some((x, TPat.rep_id(tp)))
-  | _ => None
-  };
-
-let mpat_var = (mp: MPat.t): option((string, Id.t)) =>
-  switch (mp.term) {
-  | Var(x) => Some((x, MPat.rep_id(mp)))
-  | _ => None
-  };
-
-let rec strip = (e: Exp.t): Exp.t =>
-  switch (e.term) {
-  | Parens(e)
-  | Projector(_, e)
-  | Filter(_, e) => strip(e)
-  | _ => e
-  };
-
-let module_items = (def: Exp.t): option(list(Mod.t)) =>
-  switch (strip(def).term) {
-  | Module(items) => Some(items)
-  | _ => None
-  };
-
 /* the item whose outline row is [row] */
-let find_item = (row: Id.t, term: Exp.t): option(item) => {
-  let found = ref(None);
-  let set = (kind, owner, var) =>
-    switch (found^, var) {
-    | (None, Some((old, binder))) =>
-      found :=
-        Some({
-          binder,
-          old,
-          kind,
-          owner,
-        })
-    | _ => ()
-    };
-  let members = (~owner, items: list(Mod.t)) =>
-    List.iter(
-      (m: Mod.t) =>
-        if (Mod.rep_id(m) == row) {
-          switch (m.term) {
-          | ModLet(p, _) => set(KValue, owner, pat_var(p))
-          | ModType(tp, _) => set(KType, owner, tpat_var(tp))
-          | ModuleMod(mp, _) => set(KModule, owner, mpat_var(mp))
-          | _ => ()
-          };
+let find_item = (row: Id.t, term: Exp.t): option(item) =>
+  switch (OutlineTree.find(row, term)) {
+  | Some((above, {o_binder: Some((binder, sort)), o_label: old, _})) =>
+    Some({
+      binder,
+      old,
+      kind:
+        switch (sort) {
+        | TPat => KType
+        | MPat => KModule
+        | _ => KValue
         },
-      items,
-    );
-  let f_exp = (continue, e: Exp.t) => {
-    let here = Exp.rep_id(e) == row;
-    switch (e.term) {
-    | Let(p, _, _) when here => set(KValue, None, pat_var(p))
-    | TyAlias(tp, _, _) when here => set(KType, None, tpat_var(tp))
-    | ModuleExp(mp, def, _) =>
-      if (here) {
-        set(KModule, None, mpat_var(mp));
-      };
-      switch (module_items(def)) {
-      | Some(items) => members(~owner=Option.map(snd, mpat_var(mp)), items)
-      | None => ()
-      };
-    | Module(items) => members(~owner=None, items)
-    | _ => ()
-    };
-    continue(e);
+      /* a member of `module M = {…}`: `M.x` names it too */
+      owner:
+        switch (Util.ListUtil.last_opt(above)) {
+        | Some({o_kind: OutlineTree.KModule, o_binder: Some((m, MPat)), _}) =>
+          Some(m)
+        | _ => None
+        },
+    })
+  | _ => None
   };
-  let f_mod = (continue, m: Mod.t) => {
-    switch (m.term) {
-    | ModuleMod(mp, def) =>
-      switch (module_items(def)) {
-      | Some(items) => members(~owner=Option.map(snd, mpat_var(mp)), items)
-      | None => ()
-      }
-    | _ => ()
-    };
-    continue(m);
-  };
-  ignore(TermBase.Exp.map_term(~f_exp, ~f_mod, term));
-  found^;
-};
 
 /* tokens naming the item: its references, and `M.x` labels */
-let references = (~info_map: Statics.Map.t, it: item): list(Id.t) =>
+let find_references = (~info_map: Statics.Map.t, it: item): list(Id.t) => {
+  /* `M.x` or `U.Meters`: the label, when its module is the item's owner */
+  let qualified = (owner, base, l, label, acc) =>
+    l == it.old
+    && Option.bind(Id.Map.find_opt(base, info_map), Info.get_binding_site)
+    == Some(owner)
+      ? [label, ...acc] : acc;
   Id.Map.fold(
     (id, info: Info.t, acc) =>
       switch (Info.get_binding_site(info), it.owner, info) {
@@ -125,24 +56,66 @@ let references = (~info_map: Statics.Map.t, it: item): list(Id.t) =>
           id,
           ...acc,
         ]
-      | (_, Some(owner), InfoExp({user_term: {term: Dot(e1, e2), _}, _})) =>
-        switch (e2.term) {
-        | Label(l) when l == it.old =>
-          switch (
-            Option.bind(
-              Id.Map.find_opt(Exp.rep_id(e1), info_map),
-              Info.get_binding_site,
-            )
-          ) {
-          | Some(b) when b == owner => [Exp.rep_id(e2), ...acc]
-          | _ => acc
-          }
-        | _ => acc
-        }
+      | (
+          _,
+          Some(owner),
+          InfoExp({
+            user_term: {term: Dot(e1, {term: Label(l), _} as e2), _},
+            _,
+          }),
+        ) =>
+        qualified(owner, Exp.rep_id(e1), l, Exp.rep_id(e2), acc)
+      | (
+          _,
+          Some(owner),
+          InfoTyp({
+            user_term:
+              {term: ProdProjection(t1, {term: Label(l), _} as t2), _},
+            _,
+          }),
+        ) =>
+        qualified(owner, Typ.rep_id(t1), l, Typ.rep_id(t2), acc)
       | _ => acc
       },
     info_map,
     [],
+  );
+};
+
+/* a rename is checked at every key typed: its item's references, and
+   each name's uses, are kept for the statics they were found in */
+let refs_memo = Util.Slot.mk();
+let references = (~info_map: Statics.Map.t, it: item): list(Id.t) =>
+  Util.Slot.get(
+    ~same=((m, it), (m', it')) => m === m' && it == it',
+    refs_memo,
+    (info_map, it),
+    () => find_references(~info_map, it),
+  );
+
+let uses_memo = Util.Slot.mk();
+/* where [name] is used, as a value or a type */
+let uses = (~info_map: Statics.Map.t, name: string): list(Info.t) =>
+  Hashtbl.find_all(
+    Util.Slot.get(
+      uses_memo,
+      info_map,
+      () => {
+        let found = Hashtbl.create(1024);
+        Id.Map.iter(
+          (_, info: Info.t) =>
+            switch (info) {
+            | InfoExp({user_term: {term: Var(x), _}, _})
+            | InfoTyp({user_term: {term: Var(x), _}, _}) =>
+              Hashtbl.add(found, x, info)
+            | _ => ()
+            },
+          info_map,
+        );
+        found;
+      },
+    ),
+    name,
   );
 
 let bound = (kind, ctx: Ctx.t, name: string): option(Id.t) =>
@@ -168,100 +141,90 @@ let capture =
         },
       refs,
     );
-  /* an existing [name] in the item's scope would now find the item */
+  /* an existing [name] in the item's scope, not one of its own, would now
+     find the item */
   let captured =
-    Id.Map.exists(
-      (_, info: Info.t) =>
-        switch (info) {
-        | InfoExp({user_term: {term: Var(x), _}, ctx, _})
-        | InfoTyp({user_term: {term: Var(x), _}, ctx, _}) when x == name =>
-          bound(it.kind, ctx, it.old) == Some(it.binder)
-        | _ => false
-        },
-      info_map,
+    List.exists(
+      (info: Info.t) =>
+        bound(it.kind, Info.ctx_of(info), it.old) == Some(it.binder)
+        && Info.get_binding_site(info) != Some(it.binder),
+      uses(~info_map, name),
     );
-  shadowed || captured
-    ? Some(name ++ " is already used where " ++ it.old ++ " is in scope")
-    : None;
+  shadowed || captured ? Some(name ++ " is already in use here") : None;
 };
 
-let is_ident = (s: string): bool => {
-  let ok = c =>
-    c == '_'
-    || c == '\''
-    || c >= 'a'
-    && c <= 'z'
-    || c >= 'A'
-    && c <= 'Z'
-    || c >= '0'
-    && c <= '9';
-  String.length(s) > 0
-  && s.[0] != '\''
-  && !(s.[0] >= '0' && s.[0] <= '9')
-  && String.for_all(ok, s);
-};
-
-let keywords = [
-  "let",
-  "in",
-  "fun",
-  "type",
-  "module",
-  "case",
-  "end",
-  "if",
-  "then",
-  "else",
-  "test",
-  "true",
-  "false",
-];
-
-let check_name = (kind, name: string): option(string) =>
-  if (!is_ident(name) || List.mem(name, keywords)) {
-    Some("a name is one identifier");
-  } else {
-    let upper = name.[0] >= 'A' && name.[0] <= 'Z';
-    switch (kind) {
-    | KValue when upper => Some("value names start lowercase")
-    | KType
-    | KModule when !upper =>
-      Some("type and module names start with a capital")
-    | _ => None
-    };
+/* a plain name as the language reads one: not `_`, a literal, any
+   form's keyword, `$`-prefixed or qualified. Short reasons: the outline
+   is narrow */
+let check_name = (kind, name: string): option(string) => {
+  let spaced = String.exists(c => String.contains(" \t\n\r", c), name);
+  let plain =
+    name != ""
+    && name.[0] != '$'
+    && !String.contains(name, '.')
+    && !List.mem(name, FormId.delims);
+  let (value, upper) = (Token.is_var(name), Token.is_ctr(name));
+  switch (kind) {
+  | _ when spaced => Some("names have no spaces")
+  | _ when Token.is_keyword(name) => Some(name ++ " is a keyword")
+  | _ when !plain || !value && !upper => Some("a name is one identifier")
+  | KValue when !value => Some("value names start lowercase")
+  | KType
+  | KModule when !upper => Some("type and module names start with a capital")
+  | _ => None
   };
+};
 
 /* each tile in [ids] now reads [name]; untouched subtrees stay the
    same values (the parse caches compare by identity) */
-let rec relabel = (ids: list(Id.t), name: string, seg: Segment.t): Segment.t => {
-  let changed = ref(false);
-  let out =
-    List.map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          let kids = List.map(relabel(ids, name), t.children);
-          let kids_same = List.for_all2((a, b) => a === b, kids, t.children);
-          let hit = List.mem(t.id, ids);
-          if (!hit && kids_same) {
-            p;
-          } else {
-            changed := true;
-            Piece.Tile({
-              ...t,
-              form:
-                switch (hit, t.form) {
-                | (true, Tok(_)) => Tok(name)
-                | _ => t.form
-                },
-              children: kids_same ? t.children : kids,
-            });
-          };
-        | p => p
-        },
-      seg,
-    );
-  changed^ ? out : seg;
+let rec relabel = (ids: list(Id.t), name: string, seg: Segment.t): Segment.t =>
+  ScratchFocus.map_sharing(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        let children =
+          ScratchFocus.map_sharing(relabel(ids, name), t.children);
+        switch (t.form) {
+        | Tok(_) when List.mem(t.id, ids) =>
+          Piece.Tile({
+            ...t,
+            form: Tok(name),
+            children,
+          })
+        | _ => ScratchFocus.tile_sharing(p, t, children)
+        };
+      | Projector(pr) =>
+        /* a projector's syntax is a segment (its splices' text too) */
+        switch (relabel(ids, name, pr.syntax)) {
+        | syntax when syntax !== pr.syntax =>
+          Piece.Projector({
+            ...pr,
+            syntax,
+          })
+        | _ => p
+        }
+      | p => p
+      },
+    seg,
+  );
+
+/* the references to relabel as [it] is named [name], as a [kind]'s (its
+   own by default): none when nothing changes; else why not */
+let prepare =
+    (~info_map: Lazy.t(Statics.Map.t), ~kind=?, it: item, name: string)
+    : result(option(list(Id.t)), string) => {
+  let kind = Option.value(kind, ~default=it.kind);
+  switch (check_name(kind, name)) {
+  | _ when it.old == name && kind == it.kind => Ok(None)
+  | Some(why) => Error(why)
+  | None =>
+    let info_map = Lazy.force(info_map);
+    let refs = references(~info_map, it);
+    switch (capture(~info_map, it, refs, name)) {
+    | Some(why) => Error(why)
+    | None => Ok(Some(refs))
+    };
+  };
 };
 
 let rename =
@@ -269,15 +232,10 @@ let rename =
     : result(Segment.t, string) =>
   switch (find_item(row, term)) {
   | None => Error("this row has no name to change")
-  | Some(it) when it.old == name => Ok(seg)
   | Some(it) =>
-    switch (check_name(it.kind, name)) {
-    | Some(why) => Error(why)
-    | None =>
-      let refs = references(~info_map, it);
-      switch (capture(~info_map, it, refs, name)) {
-      | Some(why) => Error(why)
-      | None => Ok(relabel([it.binder, ...refs], name, seg))
-      };
+    switch (prepare(~info_map=Lazy.from_val(info_map), it, name)) {
+    | Error(why) => Error(why)
+    | Ok(None) => Ok(seg)
+    | Ok(Some(refs)) => Ok(relabel([it.binder, ...refs], name, seg))
     }
   };

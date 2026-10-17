@@ -24,6 +24,15 @@ let get_elem_by_selector = selector => {
   );
 };
 
+let query_selector = (sel: string): option(Js.t(Dom_html.element)) =>
+  Js.Opt.to_option(Dom_html.document##querySelector(Js.string(sel)));
+
+let rect_prop = (el, prop): float =>
+  Js.Unsafe.get(
+    Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
+    prop,
+  );
+
 let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
   let rec loop = (sibling: option(Js.t(Dom_html.element))) =>
     switch (sibling) {
@@ -129,59 +138,40 @@ let focus_active_editor = () =>
 
 /* keyboard focus into the outline sidebar (its row list) */
 let focus_outline = (): unit =>
-  switch (
-    Js.Opt.to_option(
-      Dom_html.document##querySelector(
-        Js.string("#outline-sidebar .outline-body"),
-      ),
-    )
-  ) {
+  switch (query_selector("#outline-sidebar .outline-body")) {
   | Some(el) => Js.Unsafe.coerce(el)##focus
   | None => ()
   };
 
 /* where a keyboard-opened outline menu anchors: under the cursor's row */
 let outline_cursor_anchor = (): option((float, float)) =>
-  switch (
-    Js.Opt.to_option(
-      Dom_html.document##querySelector(
-        Js.string("#outline-sidebar .outline-label.outline-cursor"),
-      ),
-    )
-  ) {
-  | Some(el) =>
-    let rect = Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]);
-    let left: float = Js.Unsafe.get(rect, "left");
-    let bottom: float = Js.Unsafe.get(rect, "bottom");
-    Some((left +. 16., bottom));
-  | None => None
-  };
+  query_selector("#outline-sidebar .outline-label.outline-cursor")
+  |> Option.map(el => {
+       let rect = el##getBoundingClientRect;
+       (rect##.left +. 16., rect##.bottom);
+     });
 
 /* how many outline rows one screenful holds, for PageUp/PageDown */
 let outline_page_rows = (): int =>
   switch (
-    Js.Opt.to_option(
-      Dom_html.document##querySelector(
-        Js.string("#outline-sidebar .outline-body"),
-      ),
-    ),
-    Js.Opt.to_option(
-      Dom_html.document##querySelector(
-        Js.string("#outline-sidebar .outline-label"),
-      ),
-    ),
+    query_selector("#outline-sidebar .outline-body"),
+    query_selector("#outline-sidebar .outline-label"),
   ) {
   | (Some(body), Some(row)) when row##.offsetHeight > 0 =>
     max(1, body##.clientHeight / row##.offsetHeight - 1)
   | _ => 10
   };
 
+/* the outline's row list holds the keys: focus is on it or inside it (a
+   name's field). Only where the list takes keys (a deck's: it has a
+   tabindex); elsewhere a <summary> focused by a click would keep a jump's
+   focus from the editor */
 let outline_has_focus = (): bool =>
   switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
   | Some(el) =>
-    Js.to_bool(
-      Js.Unsafe.coerce(el)##matches(
-        Js.string("#outline-sidebar .outline-body"),
+    Js.Opt.test(
+      Js.Unsafe.coerce(el)##closest(
+        Js.string("#outline-sidebar .outline-body[tabindex]"),
       ),
     )
   | None => false
@@ -194,8 +184,8 @@ let outline_has_focus = (): bool =>
 let active_cell_id = "active-code-editor";
 
 /* Focus the active cell without scrolling it into view — scroll is handled
-   separately (scroll_cursor_into_view_if_needed), and the browser's default
-   focus scroll would fight it. */
+   separately (CaretReveal), and the browser's default focus scroll would
+   fight it. */
 let focus_active_cell = (): bool =>
   switch (get_elem_by_id_opt(active_cell_id)) {
   | Some(elem) =>
@@ -241,8 +231,7 @@ let align_active_cell_top = (): unit =>
     | Some(t) =>
       /* skip when the header is already in view with some body room
          below it: aligning a visible cell to the top is jarring */
-      let rect = Js.Unsafe.meth_call(t, "getBoundingClientRect", [||]);
-      let top: float = Js.Unsafe.get(rect, "top");
+      let top = rect_prop(t, "top");
       let vh: float = Js.Unsafe.coerce(Dom_html.window)##.innerHeight;
       let top_chrome = 48.; /* fixed top bar */
       let body_context = 140.; /* ~4 rows of body visible below */
@@ -446,21 +435,34 @@ let say = (text: string): unit =>
 let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
   Js.Unsafe.coerce(element);
 
+/* overflow auto or scroll, with content past its height. Content past
+   the height alone isn't enough: a box with visible overflow reports it
+   without scrolling (a code container does, by decorations below its
+   last row). A pixel's overflow is rounding */
+let scrolls_vertically = (el: Js.t(Dom_html.element)): bool => {
+  let overflow = el##.scrollHeight - el##.clientHeight;
+  overflow > 1
+  && {
+    let style =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "getComputedStyle",
+        [|Js.Unsafe.inject(el)|],
+      );
+    let oy = Js.to_string(Js.Unsafe.get(style, "overflowY"));
+    oy == "auto" || oy == "scroll";
+  };
+};
+
 let rec find_scroll_container_node =
         (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) =>
   switch (Js.Opt.to_option(node##.parentNode)) {
   | None => None
   | Some(parent_node) =>
     switch (Dom_html.CoerceTo.element(parent_node) |> Js.Opt.to_option) {
-    | Some(parent_element) =>
-      let scroll_height = parent_element##.scrollHeight;
-      let client_height = parent_element##.clientHeight;
-      if (scroll_height - client_height > 1) {
-        Some(parent_element);
-      } else {
-        find_scroll_container_node(parent_node);
-      };
-    | None => find_scroll_container_node(parent_node)
+    | Some(parent_element) when scrolls_vertically(parent_element) =>
+      Some(parent_element)
+    | _ => find_scroll_container_node(parent_node)
     }
   };
 
@@ -474,18 +476,7 @@ let find_scroll_container =
  * not mounted / no scroll container. Measures the first cell that has not
  * opted out of culling (CodeWithStatics `cull-scope`, CellEditor ~cull). */
 let code_viewport_geometry = (): option((float, float)) => {
-  let rect_prop = (el, prop): float =>
-    Js.Unsafe.get(
-      Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
-      prop,
-    );
-  switch (
-    Js.Opt.to_option(
-      Dom_html.document##querySelector(
-        Js.string(".code-container.cull-scope"),
-      ),
-    )
-  ) {
+  switch (query_selector(".code-container.cull-scope")) {
   | None => None
   | Some(code) =>
     switch (find_scroll_container(code)) {
@@ -589,17 +580,23 @@ let scroll_vertically_into_view_ancestors =
 
 /* find_scroll_container reads scrollHeight/clientHeight up the parent
    chain, forcing layout on dirty frames after every action; reuse the
-   found container while it is connected and still an ancestor */
+   found container while it is connected, still an ancestor and still
+   scrolls */
 let scroll_container_cache: ref(option(Js.t(Dom_html.element))) =
   ref(None);
+let connected = (el: Js.t(Dom_html.element)): bool =>
+  try(Js.to_bool(Js.Unsafe.get(el, "isConnected"))) {
+  | _ => false
+  };
 let find_scroll_container_cached =
     (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) => {
   let valid = (el: Js.t(Dom_html.element)): bool =>
-    Js.to_bool(Js.Unsafe.get(el, "isConnected"))
+    connected(el)
     /* the caret may move to an editor in another scroll container */
     && Js.to_bool(
          Js.Unsafe.meth_call(el, "contains", [|Js.Unsafe.inject(element)|]),
-       );
+       )
+    && scrolls_vertically(el);
   switch (scroll_container_cache^) {
   | Some(el) when valid(el) => Some(el)
   | _ =>
@@ -609,47 +606,12 @@ let find_scroll_container_cached =
   };
 };
 
-let scroll_cursor_into_view_if_needed = () =>
-  try({
-    let caret_elem = get_elem_by_id("caret");
-    switch (find_scroll_container_cached(caret_elem)) {
-    | Some(container) => scroll_vertically_into_view(container, caret_elem)
-    | None =>
-      caret_elem##scrollIntoView(
-        Js.Unsafe.obj([|
-          ("block", Js.Unsafe.inject(Js.string("nearest"))),
-          ("inline", Js.Unsafe.inject(Js.string("nearest"))),
-        |]),
-      )
-    };
-  }) {
-  | Assert_failure(_) => ()
-  };
-
-/* the nearest ancestor that really scrolls: overflow auto or scroll, with
-   content past its height (a box overflowing by a pixel doesn't count) */
-let rec scrolling_ancestor =
-        (el: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
-  switch (Js.Opt.to_option(Js.Unsafe.get(el, "parentElement"))) {
-  | None => None
-  | Some(p: Js.t(Dom_html.element)) =>
-    let style =
-      Js.Unsafe.meth_call(
-        Dom_html.window,
-        "getComputedStyle",
-        [|Js.Unsafe.inject(p)|],
-      );
-    let oy = Js.to_string(Js.Unsafe.get(style, "overflowY"));
-    (oy == "auto" || oy == "scroll") && p##.scrollHeight - p##.clientHeight > 1
-      ? Some(p) : scrolling_ancestor(p);
-  };
-
 /* after a jump: a caret out of comfortable view comes to a fifth of the
    way down its scroll container, with the lines above it in sight */
 let align_caret_near_top = (): unit =>
   try({
     let caret = get_elem_by_id("caret");
-    switch (scrolling_ancestor(caret)) {
+    switch (find_scroll_container(caret)) {
     | Some(container) =>
       let c = caret##getBoundingClientRect;
       let r = container##getBoundingClientRect;
@@ -677,6 +639,28 @@ let set_main_scroll_top = (top: float) =>
   try({
     let main = get_elem_by_id("main");
     main##.scrollTop := int_of_float(top);
+  }) {
+  | Assert_failure(_) => ()
+  };
+
+/* scroll #main the least that shows the last element matching sel, its
+   top first if it's taller than the view; vertical only */
+let reveal_last = (sel: string): unit =>
+  try({
+    let main = get_elem_by_id("main");
+    let nodes = Dom_html.document##querySelectorAll(Js.string(sel));
+    switch (Js.Opt.to_option(nodes##item(nodes##.length - 1))) {
+    | None => ()
+    | Some(el) =>
+      let r = el##getBoundingClientRect;
+      let m = main##getBoundingClientRect;
+      let below = r##.bottom -. m##.bottom;
+      let above = r##.top -. m##.top;
+      let by = below > 0. ? min(below, above) : min(above, 0.);
+      if (by != 0.) {
+        main##.scrollTop :=  main##.scrollTop + int_of_float(Float.ceil(by));
+      };
+    };
   }) {
   | Assert_failure(_) => ()
   };
@@ -1102,3 +1086,63 @@ let navigate_probes =
   | None => None
   };
 };
+
+/* Drawers print values at the editor's visible width: once #main exists,
+   report its width in columns (from the main code's left edge, less a
+   two-column margin) whenever it resizes, sidebars included. */
+let width_observed = ref(false);
+let observe_drawer_width = (~report: int => unit): unit =>
+  if (! width_observed^) {
+    switch (get_elem_by_id_opt("main")) {
+    | None => ()
+    | Some(main) =>
+      width_observed := true;
+      let _ =
+        ResizeObserver.observe(
+          ~node=main,
+          ~f=
+            (_, _) =>
+              switch (query_selector(".code-container")) {
+              | None => ()
+              | Some(code) =>
+                let (col_width, _) = font_metrics_from_specimen();
+                if (col_width > 0.) {
+                  let px =
+                    rect_prop(main, "right") -. rect_prop(code, "left");
+                  report(max(20, int_of_float(px /. col_width) - 2));
+                };
+              },
+          (),
+        );
+      ();
+    };
+  };
+
+/* the rows each web-filled drawer (a stepper, a proof) takes as
+   rendered: (drawer id, rows). Read after display. */
+let drawer_rows = (~row_height: float): list((string, int)) =>
+  if (row_height <= 0.) {
+    [];
+  } else {
+    let nodes =
+      Dom_html.document##querySelectorAll(Js.string("[data-drawer-id]"));
+    List.filter_map(
+      i =>
+        switch (Js.Opt.to_option(nodes##item(i))) {
+        | None => None
+        | Some(el) =>
+          switch (
+            Js.Opt.to_option(el##getAttribute(Js.string("data-drawer-id")))
+          ) {
+          | None => None
+          | Some(id) =>
+            let h: float = Js.Unsafe.get(el, "offsetHeight");
+            Some((
+              Js.to_string(id),
+              max(1, int_of_float(Float.ceil(h /. row_height -. 0.05))),
+            ));
+          }
+        },
+      List.init(nodes##.length, Fun.id),
+    );
+  };

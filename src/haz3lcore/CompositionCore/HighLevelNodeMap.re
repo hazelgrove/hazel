@@ -521,10 +521,27 @@ let rec build_children =
          like a top-level binding chain — the Let/TyAlias cases above walk
          it, making members siblings of one another. Wrapper pat/def ids
          are the members' real syntax ids, so downstream span selection
-         works unchanged. */
-      switch (items) {
-      | [] => node_map
-      | [first, ..._] =>
+         works unchanged. A non-binding item (a test) is wrapped under a
+         fresh id, so the chain is entered at the first binding item. */
+      switch (
+        List.find_opt(
+          (item: Mod.t) =>
+            switch (item.term) {
+            | ModLet(_)
+            | ModType(_)
+            | ModuleMod(_) => true
+            /* Modules II's dynamics-only value member: no row of its own */
+            | ModVal(_)
+            | ModExp(_)
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_) => false
+            },
+          items,
+        )
+      ) {
+      | None => node_map
+      | Some(first) =>
         switch (Id.Map.find_opt(Mod.rep_id(first), info_map)) {
         | Some(wrapper_info) =>
           build_children(wrapper_info, path, node_map, info_map)

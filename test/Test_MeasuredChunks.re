@@ -4,19 +4,6 @@ open Haz3lcore;
 /* chunked measurement (Measured.Incr) matches the monolithic one on every
    map, and rebuilds only changed chunks */
 
-let corpus_seg = (name: string): option(Segment.t) => {
-  let path = "hazel-programs/mega/" ++ name;
-  let path = Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
-  Option.bind(CorpusUtil.read_file(path), src =>
-    FastParse.of_text(
-      ~materialize=Triggers.invoked_projector,
-      ~collect_refractors=true,
-      ~root=Exp,
-      src,
-    )
-  );
-};
-
 let empty_shapes: Id.Map.t(ProjectorCore.Shape.t) = Id.Map.empty;
 
 /* the chunks as one flat measurement */
@@ -185,96 +172,46 @@ let check_parity = (name: string, seg: Segment.t): Measured.Incr.cache => {
   cache;
 };
 
-let corpus_case = (file: string, min_chunks: int, ()) =>
-  switch (corpus_seg(file)) {
-  | None => fail("corpus unreadable/unparseable: " ++ file)
-  | Some(seg) =>
-    let cache = check_parity(file, seg);
-    let chunked =
-      Measured.Incr.of_segment(~cache, seg, empty_shapes, Id.Map.empty);
-    check(
-      bool,
-      file ++ ": actually chunked",
-      true,
-      Array.length(chunked.chunks) >= min_chunks,
-    );
-    let b0 = Measured.Incr.built^;
-    let _ = Measured.Incr.of_segment(~cache, seg, empty_shapes, Id.Map.empty);
-    check(
-      int,
-      file ++ ": stable rebuild builds nothing",
-      b0,
-      Measured.Incr.built^,
-    );
-    /* copying one top-level piece (breaking ===) rebuilds about one chunk */
-    let n = List.length(seg);
-    let seg' =
-      List.mapi(
-        (i, p: Piece.t) =>
-          i == n / 2
-            ? switch (p) {
-              | Tile(t) =>
-                Piece.Tile({
-                  ...t,
-                  id: t.id,
-                })
-              | Grout(g) =>
-                Piece.Grout({
-                  ...g,
-                  id: g.id,
-                })
-              | Secondary(w) =>
-                Piece.Secondary({
-                  ...w,
-                  id: w.id,
-                })
-              | Projector(pr) =>
-                Piece.Projector({
-                  ...pr,
-                  id: pr.id,
-                })
-              | Splice(s) =>
-                Piece.Splice({
-                  ...s,
-                  id: s.id,
-                })
-              }
-            : p,
-        seg,
-      );
-    let b1 = Measured.Incr.built^;
-    let chunked' =
-      Measured.Incr.of_segment(~cache, seg', empty_shapes, Id.Map.empty);
-    check(
-      bool,
-      file
-      ++ ": localized rebuild (built "
-      ++ string_of_int(Measured.Incr.built^ - b1)
-      ++ ")",
-      true,
-      Measured.Incr.built^ - b1 <= 2,
-    );
-    flats_agree(file ++ ":after edit", mono(seg'), flatten(chunked'));
-  };
-
-let edge_programs = [
-  ("two defs", "let a = 1 in\nlet b = 2 in\na + b"),
-  ("blank lines", "let a = 1 in\n\n\nlet b = 2 in\na + b"),
-  ("same-line defs", "let a = 1 in let b = 2 in\na + b"),
-  ("continuation", "let a = 1 +\n2 +\n3 in\na"),
-  ("case", "let f = fun x ->\ncase x\n| 1 => 2\n| _ => 3\nend in\nf(1)"),
-  ("multiline tuple", "let t = (1,\n2,\n3) in\nt"),
-  ("trailing blanks", "let a = 1 in\na\n\n"),
-  ("leading blank", "\nlet a = 1 in\na"),
-  ("single line", "1 + 2"),
-  ("comment between", "let a = 1 in\n# note #\nlet b = 2 in\na + b"),
-];
+let corpus_case = (file: string, min_chunks: int, ()) => {
+  let seg = CorpusUtil.mega_seg(file);
+  let cache = check_parity(file, seg);
+  let chunked =
+    Measured.Incr.of_segment(~cache, seg, empty_shapes, Id.Map.empty);
+  check(
+    bool,
+    file ++ ": actually chunked",
+    true,
+    Array.length(chunked.chunks) >= min_chunks,
+  );
+  let b0 = Measured.Incr.built^;
+  let _ = Measured.Incr.of_segment(~cache, seg, empty_shapes, Id.Map.empty);
+  check(
+    int,
+    file ++ ": stable rebuild builds nothing",
+    b0,
+    Measured.Incr.built^,
+  );
+  /* copying one top-level piece (breaking ===) rebuilds about one chunk */
+  let n = List.length(seg);
+  let seg' =
+    List.mapi((i, p) => i == n / 2 ? CorpusUtil.copy_piece(p) : p, seg);
+  let b1 = Measured.Incr.built^;
+  let chunked' =
+    Measured.Incr.of_segment(~cache, seg', empty_shapes, Id.Map.empty);
+  check(
+    bool,
+    file
+    ++ ": localized rebuild (built "
+    ++ string_of_int(Measured.Incr.built^ - b1)
+    ++ ")",
+    true,
+    Measured.Incr.built^ - b1 <= 2,
+  );
+  flats_agree(file ++ ":after edit", mono(seg'), flatten(chunked'));
+};
 
 let edge_case = ((name, src), ()) =>
-  switch (ParsedCorpus.to_segment(~root=Exp, src)) {
-  | None => fail("unparseable edge program: " ++ name)
-  | Some(seg) => ignore(check_parity(name, seg))
-  };
+  ignore(check_parity(name, CorpusUtil.seg_of(src)));
 
 let incomplete_case = ((name, src), ()) =>
   switch (CorpusUtil.typed_seg(src)) {
@@ -286,7 +223,7 @@ let tests = (
   "MeasuredChunks",
   List.map(
     ((name, src)) => test_case(name, `Quick, edge_case((name, src))),
-    edge_programs,
+    CorpusUtil.edge_programs,
   )
   @ List.map(
       ((name, src)) =>

@@ -153,6 +153,8 @@ module Update = {
       (
         ~settings,
         ~autoprobe_mode=Haz3lcore.AutoProbe.Off,
+        ~tail_probe=false,
+        ~proofs=Haz3lcore.AutoProbePerform.NoProofs,
         ~is_edited,
         ~statics_mode: StaticsMode.t=Normal,
         ~compositional=false,
@@ -265,6 +267,8 @@ module Update = {
         Editor.Update.calculate(
           ~settings,
           ~autoprobe_mode,
+          ~tail_probe,
+          ~proofs,
           ~is_edited,
           statics,
           dynamics,
@@ -319,14 +323,8 @@ module View = {
      cheap "same editor, older generation" proxy; a misfire costs a
      recompute */
   let view_memo_max = 4;
-  let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool => {
-    let n = Array.length(a);
-    Array.length(b) == n
-    && {
-      let rec go = i => i >= n || a[i] === b[i] && go(i + 1);
-      go(0);
-    };
-  };
+  let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool =>
+    Array.length(a) == Array.length(b) && Array.for_all2((===), a, b);
 
   let view =
       (
@@ -360,11 +358,6 @@ module View = {
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
     let key = [|
-      Obj.repr(measured),
-      Obj.repr(refractor_rows),
-      Obj.repr(term_data),
-      Obj.repr(shape_map),
-      Obj.repr(segment),
       Obj.repr(info_map),
       /* not the whole syntax record, which is rebuilt whenever a result
          arrives: the parts of it the arms read (the rest of what they read
@@ -404,15 +397,24 @@ module View = {
         let refine_sort = (id, mold_out) =>
           Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
         let code_text_view =
-          CodeViewable.view_chunked(
-            ~globals,
-            ~measured,
-            ~term_data,
-            ~buffer_ids,
-            ~shape_map,
-            ~refractor_rows,
-            ~refine_sort,
-            ~statics_ident=Obj.repr(info_map),
+          div_c(
+            "code",
+            [
+              span_c(
+                "code-text",
+                Code.view_chunked(
+                  ~measured,
+                  ~settings=globals.settings,
+                  ~shape_map,
+                  ~refractor_rows,
+                  ~font_metrics=globals.font_metrics,
+                  ~term_data,
+                  ~refine_sort,
+                  ~statics_ident=Obj.repr(info_map),
+                  ~buffer_ids,
+                ),
+              ),
+            ],
           );
         /* shared by the error and warning arms (canonical completion
            depends on the segment, which the memo key covers) */
@@ -438,12 +440,6 @@ module View = {
           );
         // errors after warnings to prioritize errors over warnings
         let nodes = [code_text_view, warning_decos, error_decos];
-        let rec take = (n, xs) =>
-          switch (n, xs) {
-          | (0, _)
-          | (_, []) => []
-          | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
-          };
         let seg_len = List.length(segment);
         view_memo :=
           [
@@ -452,7 +448,7 @@ module View = {
               m_seg_len: seg_len,
               m_nodes: nodes,
             },
-            ...take(
+            ...Util.ListUtil.truncate(
                  view_memo_max - 1,
                  List.filter(e => e.m_seg_len != seg_len, view_memo^),
                ),

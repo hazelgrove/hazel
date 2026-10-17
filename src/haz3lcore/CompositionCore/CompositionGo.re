@@ -81,6 +81,82 @@ module Local = {
           ++ " of a module member: members end at their `;` and have no body. Target the member's definition (update_definition), the whole member (update_binding_clause / delete_binding_clause), or the enclosing module binding.",
         ),
       );
+
+    /* a test, through the wrappers the outline looks through */
+    let rec is_test = (e: Exp.t): bool =>
+      switch (e.term) {
+      | Parens(e)
+      | Projector(_, e)
+      | Filter(_, e) => is_test(e)
+      | Test(_)
+      | HintedTest(_) => true
+      | _ => false
+      };
+
+    /* the piece a new test follows in a let-in chain: [node]'s binding
+       tile, past the test statements opening its body (to the last one's
+       `;`, a Seq's id) */
+    let past_tests = (node: node): Id.t => {
+      let rec past = (after, body: Exp.t) =>
+        switch (body.term) {
+        | Seq(e, rest) when is_test(e) => past(Exp.rep_id(body), rest)
+        | _ => after
+        };
+      switch (node.info) {
+      | InfoExp({user_term, _}) =>
+        switch (user_term.term) {
+        | Let(_, _, body)
+        | TyAlias(_, _, body)
+        | ModuleExp(_, _, body) => past(id_of(node), body)
+        | _ => id_of(node)
+        }
+      | _ => id_of(node)
+      };
+    };
+
+    /* the member a new test follows: [node], past the test members
+       directly after it in its module (the nearest Module among its
+       statics ancestors) */
+    let past_test_members = (~info_map: Id.Map.t(Info.t), node: node): Id.t => {
+      let id = id_of(node);
+      let items =
+        List.find_map(
+          a =>
+            switch (Id.Map.find_opt(a, info_map)) {
+            | Some(InfoExp({user_term: {term: Module(items), _}, _})) =>
+              Some(items)
+            | _ => None
+            },
+          Info.ancestors_of(node.info),
+        );
+      let rec past = (after, items: list(Mod.t)) =>
+        switch (items) {
+        | [{term: ModExp(e), _} as m, ...rest] when is_test(e) =>
+          past(Mod.rep_id(m), rest)
+        | _ => after
+        };
+      let rec find = (items: list(Mod.t)) =>
+        switch (items) {
+        | [m, ...rest] when Mod.rep_id(m) == id => past(id, rest)
+        | [_, ...rest] => find(rest)
+        | [] => id
+        };
+      find(Option.value(items, ~default=[]));
+    };
+
+    /* the piece ending the program's last item (a binding's tile or a
+       statement's `;`), before its trailing expression */
+    let last_item = (program: Exp.t): option(Id.t) => {
+      let rec go = (last, e: Exp.t) =>
+        switch (e.term) {
+        | Let(_, _, body)
+        | TyAlias(_, _, body)
+        | ModuleExp(_, _, body)
+        | Seq(_, body) => go(Some(Exp.rep_id(e)), body)
+        | _ => last
+        };
+      go(None, program);
+    };
   };
 
   let segment_of_term =
@@ -118,7 +194,8 @@ module Local = {
       )
       : option((Segment.t, option(Segment.t))) => {
     switch (action) {
-    | Insert(_, _, _) =>
+    | Insert(_, _, _)
+    | InsertTest(_, _) =>
       let* old_segment =
         PerfTimer.time("diff/segment", () =>
           segment_of_term(old_zipper, None, old_syntax)
@@ -181,7 +258,8 @@ module Local = {
       | Update(Body, _, _) => (true, true, true)
       | Update(Pattern, _, _) => (true, false, false)
       | Update(BindingClause, _, _) => (false, true, false)
-      | Insert(_, _, _) => (false, false, false)
+      | Insert(_, _, _)
+      | InsertTest(_, _) => (false, false, false)
       | Delete(BindingClause, _) => (false, true, false)
       | Delete(Body, _) => (false, false, true)
       | Delete(Definition | Pattern, _) => (false, false, false)
@@ -1165,6 +1243,45 @@ module Local = {
       | None => Error(Action.Failure.Cant_select)
       };
     };
+
+    /* `test code end`, from the test's expression; code that already
+       opens with `test` is taken as the whole test */
+    let test_text = (code: string): string => {
+      let code = String.trim(code);
+      let code =
+        String.ends_with(~suffix=";", code)
+          ? String.trim(String.sub(code, 0, String.length(code) - 1)) : code;
+      String.starts_with(~prefix="test", code)
+      && ListUtil.hd_opt(identifier_words(code)) == Some("test")
+        ? code : "test " ++ code ++ " end";
+    };
+
+    /* [code] on its own line just after the piece [after], or first in
+       the program. The line is closed only where the old one ran on:
+       below the top level no pass collapses a doubled linebreak */
+    let insert_after_piece = (z: Zipper.t, after: option(Id.t), code: string) =>
+      switch (after) {
+      | None =>
+        introduce(
+          ~fast=true,
+          ~keep_edge_ws=true,
+          Move.to_start(z),
+          code ++ "\n",
+        )
+      | Some(id) =>
+        switch (Move.jump_to_side_of_id(Right, z, id)) {
+        | Some(z) =>
+          let rec breaks = (ps: Segment.t) =>
+            switch (ps) {
+            | [p, ...rest] when Piece.is_space(p) => breaks(rest)
+            | [p, ..._] => Piece.is_linebreak(p)
+            | [] => true
+            };
+          let close = breaks(snd(z.relatives.siblings)) ? "" : "\n";
+          introduce(~fast=true, ~keep_edge_ws=true, z, "\n" ++ code ++ close);
+        | None => Error(Action.Failure.Cant_move)
+        }
+      };
   };
 
   let edit_dispatch =
@@ -1176,6 +1293,28 @@ module Local = {
         ~syntax: CachedSyntax.t,
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
       ) => {
+    /* an insert's program, unless it adds static errors */
+    let no_new_errors = (~code, inserted: result(Zipper.t, Action.Failure.t)) =>
+      switch (inserted) {
+      | Error(e) => Error(e)
+      | Ok(new_z) =>
+        let new_info_map = mk_statics(new_z);
+        let old_errors =
+          PerfTimer.time("errors", () => ErrorPrint.all(initial_info_map));
+        let new_errors =
+          PerfTimer.time("errors", () => ErrorPrint.all(new_info_map));
+        if (List.length(new_errors) > List.length(old_errors)) {
+          Error(
+            Action.Failure.Composition_action_failure(
+              "Not applying the action you requested as it would introduce new static error(s): "
+              ++ String.concat(", ", new_errors)
+              ++ PerformUtils.reserved_word_note(code),
+            ),
+          );
+        } else {
+          Ok(new_z);
+        };
+      };
     switch (e) {
     | Update(Definition, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
@@ -1479,7 +1618,7 @@ module Local = {
       let target_id = path_to_id(initial_node_map, path);
       let is_member =
         Utils.is_module_member(path_to_node(initial_node_map, path));
-      switch (
+      (
         is_member
           ? PerformUtils.insert_member(
               initial_z,
@@ -1495,32 +1634,14 @@ module Local = {
               Direction.Left,
               syntax,
             )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        let old_errors =
-          PerfTimer.time("errors", () => ErrorPrint.all(initial_info_map));
-        let new_errors =
-          PerfTimer.time("errors", () => ErrorPrint.all(new_info_map));
-        if (List.length(new_errors) > List.length(old_errors)) {
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Not applying the action you requested as it would introduce new static error(s): "
-              ++ String.concat(", ", new_errors)
-              ++ PerformUtils.reserved_word_note(code),
-            ),
-          );
-        } else {
-          Ok(new_z);
-        };
-      };
+      )
+      |> no_new_errors(~code);
     | Insert(After, path, code) =>
       // todo: figure out a better method than magic space
       let target_id = path_to_id(initial_node_map, path);
       let is_member =
         Utils.is_module_member(path_to_node(initial_node_map, path));
-      switch (
+      (
         is_member
           ? PerformUtils.insert_member(
               initial_z,
@@ -1536,26 +1657,39 @@ module Local = {
               Direction.Right,
               syntax,
             )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        let old_errors =
-          PerfTimer.time("errors", () => ErrorPrint.all(initial_info_map));
-        let new_errors =
-          PerfTimer.time("errors", () => ErrorPrint.all(new_info_map));
-        if (List.length(new_errors) > List.length(old_errors)) {
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Not applying the action you requested as it would introduce new static error(s): "
-              ++ String.concat(", ", new_errors)
-              ++ PerformUtils.reserved_word_note(code),
+      )
+      |> no_new_errors(~code);
+    | InsertTest(path, code) =>
+      /* a member takes the test as a member (its `;` comes with the
+         insert); elsewhere it is a `…;` statement */
+      let test = PerformUtils.test_text(code);
+      (
+        switch (Option.map(path_to_node(initial_node_map), path)) {
+        | Some(node) when Utils.is_module_member(node) =>
+          PerformUtils.insert_member(
+            initial_z,
+            Utils.past_test_members(~info_map=initial_info_map, node),
+            test,
+            Direction.Right,
+            syntax,
+          )
+        | Some(node) =>
+          PerformUtils.insert_after_piece(
+            initial_z,
+            Some(Utils.past_tests(node)),
+            test ++ ";",
+          )
+        | None =>
+          PerformUtils.insert_after_piece(
+            initial_z,
+            Utils.last_item(
+              MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term,
             ),
-          );
-        } else {
-          Ok(new_z);
-        };
-      };
+            test ++ ";",
+          )
+        }
+      )
+      |> no_new_errors(~code);
     | Delete(BindingClause, path) =>
       let target_id = path_to_id(initial_node_map, path);
       PerformUtils.destruct(
@@ -1600,9 +1734,7 @@ module Local = {
       | Some(m) => m
       | None => mk_statics(z)
       };
-    switch (build(z, initial_info_map)) {
-    | None => Error(Action.Failure.Cant_derive_local_AST_information)
-    | Some(initial_node_map) =>
+    let dispatch = initial_node_map =>
       edit_dispatch(
         ~e=a,
         ~initial_z=z,
@@ -1610,7 +1742,13 @@ module Local = {
         ~initial_info_map,
         ~syntax,
         ~mk_statics,
-      )
+      );
+    /* a program without bindings has no node map: only a test without a
+       path, which addresses none, goes ahead */
+    switch (build(z, initial_info_map), a) {
+    | (Some(initial_node_map), _) => dispatch(initial_node_map)
+    | (None, InsertTest(None, _)) => dispatch(Id.Map.empty)
+    | (None, _) => Error(Action.Failure.Cant_derive_local_AST_information)
     };
   };
 

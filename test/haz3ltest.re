@@ -50,7 +50,7 @@ let (suite, exit_with_test_status) =
       Test_PatRootEditor.tests,
       Test_StackFocus.tests,
       Test_Restructure.tests,
-      Test_BenchStatics.tests,
+      Test_StreamCollector.tests,
       Test_MegaCorpus.tests,
       Test_MeasuredChunks.tests,
       Test_MakeTermIncr.tests,
@@ -58,16 +58,19 @@ let (suite, exit_with_test_status) =
       Test_DefStaticsParity.tests,
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
-      Test_LabelBench.tests,
       Test_ModRoot.tests,
-      Test_ModuleEval.tests,
       Test_ProbePersist.tests,
       Test_DividedLaws.tests,
+      Test_HeadlessRows.tests,
       Test_TermPrune.tests,
+      Test_ResultLine.tests,
+      Test_ProbeSteps.tests,
+      Test_TailProbe.tests,
+      Test_ProofDrawers.tests,
       Test_SlideView.tests,
       Test_OutlineRename.tests,
+      Test_OutlineText.tests,
       Test_ClosedJump.tests,
-      Test_TypeDeps.tests,
       Test_StaticsMemo.tests,
       Test_CaretReveal.tests,
       Test_Menhir.concave_marker_group,
@@ -125,6 +128,7 @@ let (suite, exit_with_test_status) =
     @ [
       Test_MVU.tests,
       Test_TableCore.tests,
+      Test_StepperPasses.tests,
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
@@ -187,9 +191,7 @@ let (suite, exit_with_test_status) =
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]
     @ [Test_SubEditor.tests]
-    @ [Test_CompletionItems.tests]
-    /* last: the keystroke benchmark leaves less stack for later tests */
-    @ (CorpusUtil.bench_enabled ? [Test_MegaBench.tests] : []),
+    @ [Test_CompletionItems.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

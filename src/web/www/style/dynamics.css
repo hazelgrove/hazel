@@ -25,7 +25,7 @@
   border-top: 1px dotted var(--cell-result-border);
 }
 
-.cell-result .status {
+:is(.cell-result, #dynamics) .status {
   position: relative;
   display: flex;
   align-items: center;
@@ -36,7 +36,7 @@
   font-family: var(--code-font);
 }
 
-.cell-result .status .spinner {
+:is(.cell-result, #dynamics) .status .spinner {
   height: 50%;
   width: 60%;
   background: url("../img/loading.gif");
@@ -46,23 +46,23 @@
   transition: opacity 0.2s linear;
 }
 
-.cell-result .status.pending .spinner {
+:is(.cell-result, #dynamics) .status.pending .spinner {
   opacity: 0.5;
   transition: opacity 0.2s linear var(--eval-recalc-visual-delay);
 }
 
-.cell-result .status.pending-ack .spinner {
+:is(.cell-result, #dynamics) .status.pending-ack .spinner {
   animation: eval-spinner-spin 1.6s linear var(--eval-recalc-visual-delay)
     infinite reverse;
 }
 
-.cell-result .status .eq {
+:is(.cell-result, #dynamics) .status .eq {
   position: absolute;
   opacity: 1;
   transition: opacity 0.6s cubic-bezier(0.65, 0, 0.35, 1);
 }
 
-.cell-result .status.pending .eq {
+:is(.cell-result, #dynamics) .status.pending .eq {
   opacity: 0;
   transition: opacity 0.2s cubic-bezier(0.65, 0, 0.35, 1)
     var(--eval-recalc-visual-delay);
@@ -118,6 +118,95 @@
 .cell-item.cell-result:has(.fail),
 .cell-item.cell-result:has(.exception) {
   background-color: var(--eval-exception);
+}
+
+/* the slide program's dynamics, at the bottom bar's right end
+   (EvalResult.View.dynamics), across from the inspector's gamma */
+/* its own width, up to 45%: the caret's half gives way first */
+/* mirrors the left end: a tab whose corner and outline match .ci-header,
+   then ⇓ at the edge, under the sidebar column and as wide */
+#dynamics {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  flex-shrink: 0;
+  max-width: 45%;
+  padding-left: 0.75em;
+  font-family: var(--ui-font);
+  font-size: 0.9rem;
+  color: var(--cell-result-text);
+  background-color: var(--cell-result);
+  outline: 0.6px solid var(--border-default);
+  border-radius: 1.1em 0 0 0;
+}
+
+#dynamics.fail {
+  background-color: var(--eval-exception);
+  color: var(--eval-exception-stroke);
+}
+
+#dynamics .dyn-glyph {
+  order: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  /* #persistent's width */
+  width: 2rem;
+  margin-left: 0.15em;
+  flex-shrink: 0;
+  font-family: var(--ui-font);
+  font-size: 1.35rem;
+  background-color: var(--ci-dynamics-bkg);
+  color: var(--ci-status-text);
+  border-left: 0.6px solid var(--border-default);
+  cursor: pointer;
+}
+
+/* on: the program's value shows in a drawer below its last line */
+#dynamics .dyn-glyph.on {
+  background-color: color-mix(
+    in oklch,
+    var(--ci-dynamics-bkg),
+    var(--ci-status-text) 18%
+  );
+}
+
+#dynamics .status {
+  width: 1.2em;
+  height: 1.2em;
+  flex-shrink: 0;
+}
+
+#dynamics.ok .eq {
+  color: var(--test-pass);
+}
+
+/* the run ended before the program's last line */
+#dynamics.stuck .eq {
+  color: var(--ci-status-warning-text);
+  font-weight: 600;
+}
+
+#dynamics .dyn-msg {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 0.2s linear;
+}
+
+/* a run under way dims the last one's message, after the usual delay */
+#dynamics.running .dyn-msg {
+  opacity: 0.5;
+  transition: opacity 0.2s linear var(--eval-recalc-visual-delay);
+}
+
+#dynamics .dyn-chip {
+  flex-shrink: 0;
+  padding: 0.05em 0.6em;
+  border-radius: 0.7em;
+  white-space: nowrap;
 }
 
 .cell-item.cell-result .error-msg {

@@ -127,6 +127,10 @@ let view =
       | (_, Any) => true
       | (Rul, Exp) => true
       | (Exp, Rul) => true
+      /* a module's name in its stack header: the header editor parses it
+         as a pattern, statics knows the module binder */
+      | (MPat, Pat)
+      | (Pat, MPat) => true
       /* All Drv(_) sub-sorts (Jdmt/Ctx/Prop/Exp) are treated as mutually
          consistent for highlighting purposes. term_data carries the sort
          the parser assigned (always the collapsed Drv(Exp) for these), so
@@ -269,20 +273,9 @@ module ChunkViews = {
     mutable cv_fm: Obj.t,
     mutable cv_settings: Obj.t,
     mutable cv_node: Node.t,
-    mutable cv_tick: int,
   };
-  let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
-  let tick = ref(0);
-  let sweep = () =>
-    if (tick^ mod 64 == 0) {
-      let dead =
-        Hashtbl.fold(
-          (a, e, acc) => e.cv_tick < tick^ - 16 ? [a, ...acc] : acc,
-          cache,
-          [],
-        );
-      List.iter(Hashtbl.remove(cache), dead);
-    };
+  let cache: Expiring.t(Id.t, entry) =
+    Expiring.mk(~size=64, ~every=64, ~ttl=16);
 };
 
 /* the tiles a chunk's sort probe reads (see ChunkViews.entry): its
@@ -330,8 +323,7 @@ let view_chunked =
       ~buffer_ids: list(Id.t),
     )
     : list(Node.t) => {
-  incr(ChunkViews.tick);
-  ChunkViews.sweep();
+  Expiring.tick(ChunkViews.cache);
   let n = Array.length(measured.chunks);
   /* statics refine only Drv molds (Info.refine_sort_from_mold), and the
      probes below rely on it, so no caller can refine any other sort */
@@ -377,7 +369,7 @@ let view_chunked =
          && (!e.cv_buffered || e.cv_buffer === Obj.repr(buffer_ids))
          && e.cv_fm === Obj.repr(font_metrics)
          && e.cv_settings === Obj.repr(settings);
-       switch (Hashtbl.find_opt(ChunkViews.cache, ch.c_anchor)) {
+       switch (Expiring.find_opt(ChunkViews.cache, ch.c_anchor)) {
        | Some(e)
            when
              stable(e)
@@ -391,7 +383,6 @@ let view_chunked =
              ) =>
          e.cv_td = Obj.repr(term_data);
          e.cv_info = statics_ident;
-         e.cv_tick = ChunkViews.tick^;
          e.cv_node;
        | _ =>
          let (top, drv) = chunk_probes(ch.c_pieces);
@@ -415,9 +406,8 @@ let view_chunked =
            cv_fm: Obj.repr(font_metrics),
            cv_settings: Obj.repr(settings),
            cv_node: node,
-           cv_tick: ChunkViews.tick^,
          };
-         Hashtbl.replace(ChunkViews.cache, ch.c_anchor, e);
+         Expiring.replace(ChunkViews.cache, ch.c_anchor, e);
          node;
        };
      });

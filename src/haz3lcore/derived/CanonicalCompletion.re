@@ -2641,10 +2641,6 @@ let for_make_term = (seg: Segment.t): (Segment.t, list(shard_record)) => {
  * successor and redone; one after a tile left open on the right is
  * re-molded (see [remolded]). parity with complete_segment_deep is
  * test-gated */
-type item_entry = {
-  it_pieces: Segment.t,
-  it_result: completion_result,
-};
 /* a bounded table for per-item results: at the bound, entries no recent
    pass touched go (superseded versions of edited items), and a table
    still half full doubles its bound, so a live set past it (a huge
@@ -2682,13 +2678,35 @@ module Swept = {
     };
     Hashtbl.replace(t.tbl, k, (v, ref(t.pass)));
   };
-  let length = (t: t(_)): int => Hashtbl.length(t.tbl);
 };
 
-/* (sort, first piece id) -> last completion, validated by piece
-   identity. keyed by sort since items are read at Exp for decorations
-   and at the root for semantics; shared by all editors */
-let item_cache: Swept.t((Sort.t, Id.t), item_entry) = Swept.mk();
+/* [f(item)] from [cache], keyed by (sort, first piece id) and valid while
+   the item's pieces are physically the ones it was computed for */
+let by_pieces =
+    (
+      cache: Swept.t((Sort.t, Id.t), (Segment.t, 'r)),
+      ~sort: Sort.t,
+      f: Segment.t => 'r,
+      item: Segment.t,
+    )
+    : 'r =>
+  switch (item) {
+  | [] => f(item)
+  | [p, ..._] =>
+    let key = (sort, Piece.id(p));
+    switch (Swept.find_opt(cache, key)) {
+    | Some((ps, r)) when Segment.ptr_eq(ps, item) => r
+    | _ =>
+      let r = f(item);
+      Swept.replace(cache, key, (item, r));
+      r;
+    };
+  };
+
+/* each item's last completion. keyed by sort since items are read at Exp
+   for decorations and at the root for semantics; shared by all editors */
+let item_cache: Swept.t((Sort.t, Id.t), (Segment.t, completion_result)) =
+  Swept.mk();
 let items_completed: ref(int) = ref(0); /* observability for tests */
 
 /* completing an item alone grouts an edge whose operand a neighbour
@@ -2735,25 +2753,7 @@ let complete_item_uncached = (~sort, item: Segment.t): completion_result =>
   };
 
 let complete_item = (~sort, item: Segment.t): completion_result =>
-  switch (item) {
-  | [] => complete_item_uncached(~sort, item)
-  | [p, ..._] =>
-    let key = (sort, Piece.id(p));
-    switch (Swept.find_opt(item_cache, key)) {
-    | Some(e) when Segment.ptr_eq(e.it_pieces, item) => e.it_result
-    | _ =>
-      let r = complete_item_uncached(~sort, item);
-      Swept.replace(
-        item_cache,
-        key,
-        {
-          it_pieces: item,
-          it_result: r,
-        },
-      );
-      r;
-    };
-  };
+  by_pieces(item_cache, ~sort, complete_item_uncached(~sort), item);
 
 /* did completion append past [item]'s end (a new trailing shard or piece)? */
 let ran_off_end = (item: Segment.t, completed: Segment.t): bool =>
@@ -2786,18 +2786,7 @@ let remolded = (~sort: Sort.t, item: Segment.t): option(Segment.t) => {
 let remold_cache: Swept.t((Sort.t, Id.t), (Segment.t, option(Segment.t))) =
   Swept.mk();
 let remolded_item = (~sort: Sort.t, item: Segment.t): option(Segment.t) =>
-  switch (item) {
-  | [] => None
-  | [p, ..._] =>
-    let key = (sort, Piece.id(p));
-    switch (Swept.find_opt(remold_cache, key)) {
-    | Some((ps, r)) when Segment.ptr_eq(ps, item) => r
-    | _ =>
-      let r = remolded(~sort, item);
-      Swept.replace(remold_cache, key, (item, r));
-      r;
-    };
-  };
+  by_pieces(remold_cache, ~sort, remolded(~sort), item);
 
 let leaves_open = (block: Segment.t): bool =>
   List.exists(
@@ -2816,8 +2805,8 @@ let cached_block =
   | [] => (item, rest)
   | [p, ..._] =>
     switch (Swept.find_opt(item_cache, (sort, Piece.id(p)))) {
-    | Some(e) when List.length(e.it_pieces) > List.length(item) =>
-      let n = List.length(e.it_pieces);
+    | Some((pieces, _)) when List.length(pieces) > List.length(item) =>
+      let n = List.length(pieces);
       let rec take = (acc, len, items) =>
         if (len == n) {
           Some((acc, items));
@@ -2829,7 +2818,7 @@ let cached_block =
           };
         };
       switch (take(item, List.length(item), rest)) {
-      | Some((block, rest')) when Segment.ptr_eq(e.it_pieces, block) => (
+      | Some((block, rest')) when Segment.ptr_eq(pieces, block) => (
           block,
           rest',
         )

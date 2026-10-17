@@ -801,9 +801,19 @@ module Refractors = {
       : list(Node.t) => {
     let in_frame = ((id, _)) =>
       CachedSyntax.frame_owns_id(frame, id, syntax);
+    /* the ⇓ toggle's probe shows only its drawer */
+    let armed = ((id, entry: Refractors.entry)) =>
+      !
+        ProjectorInfo.is_program_value(
+          ~tail=z.refractors.tail_target,
+          id,
+          entry.kind,
+          entry.model,
+        );
     (
       z.refractors.manuals
       |> List.filter(in_frame)
+      |> List.filter(armed)
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -819,6 +829,7 @@ module Refractors = {
       z.refractors.multis.ephemerals
       |> Id.Map.to_list
       |> List.filter(in_frame)
+      |> List.filter(armed)
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,

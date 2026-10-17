@@ -1,6 +1,9 @@
 open Haz3lcore;
 open Util;
 
+/* what a mode's saved slides are keyed under */
+let prefix = (~is_documentation) => is_documentation ? "doc" : "scratch";
+
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type code = {
@@ -44,13 +47,13 @@ module Scratchpad = {
     kind: kind_persistent,
   };
 
-  let mk_code = (~name, ~editor, ()): t => {
+  let mk_code = (~name, ~editor, ~agent=Agent.Utils.init(), ()): t => {
     name,
     kind:
       Code({
         program: Whole(editor),
         view: SlideView.init,
-        agent: Agent.Utils.init(),
+        agent,
       }),
     dormant: false,
   };
@@ -88,17 +91,54 @@ module Model = {
     scratchpads: list(Scratchpad.t),
   };
 
-  let current_program = (model: t): option(Program.t) =>
+  let current_code = (model: t): option(Scratchpad.code) =>
     switch (List.nth_opt(model.scratchpads, model.current)) {
-    | Some({kind: Code({program, _}), _}) => Some(program)
+    | Some({kind: Code(code), _}) => Some(code)
     | _ => None
     };
 
+  let current_program = (model: t): option(Program.t) =>
+    Option.map((c: Scratchpad.code) => c.program, current_code(model));
+
   let current_view = (model: t): option(SlideView.t) =>
-    switch (List.nth_opt(model.scratchpads, model.current)) {
-    | Some({kind: Code({view, _}), _}) => Some(view)
-    | _ => None
-    };
+    Option.map((c: Scratchpad.code) => c.view, current_code(model));
+
+  let map_current = (f: Scratchpad.t => Scratchpad.t, model: t): t => {
+    ...model,
+    scratchpads: ListUtil.map_nth(model.current, f, model.scratchpads),
+  };
+
+  let with_current_kind = (kind: Scratchpad.kind, model: t): t =>
+    map_current(
+      sp =>
+        {
+          ...sp,
+          kind,
+        },
+      model,
+    );
+
+  /* every Code slide's code through [f], given the slide's name */
+  let map_code =
+      (f: (string, Scratchpad.code) => Scratchpad.code, model: t): t => {
+    ...model,
+    scratchpads:
+      List.map(
+        (sp: Scratchpad.t) =>
+          switch (sp.kind) {
+          | Code(code) =>
+            let code' = f(sp.name, code);
+            code' === code
+              ? sp
+              : {
+                ...sp,
+                kind: Code(code'),
+              };
+          | Drv(_) => sp
+          },
+        model.scratchpads,
+      ),
+  };
 
   /* (id, live name) for every open cell of the current slide: outline
      labels track header renames before any splice-back */
@@ -125,25 +165,17 @@ module Model = {
           },
         from.scratchpads,
       );
-    {
-      ...m,
-      scratchpads:
-        List.map(
-          (sp: Scratchpad.t) =>
-            switch (sp.kind, view_of(sp.name)) {
-            | (Code(code), Some(view)) => {
-                ...sp,
-                kind:
-                  Code({
-                    ...code,
-                    view,
-                  }),
-              }
-            | _ => sp
-            },
-          m.scratchpads,
-        ),
-    };
+    map_code(
+      (name, code) =>
+        switch (view_of(name)) {
+        | Some(view) => {
+            ...code,
+            view,
+          }
+        | None => code
+        },
+      m,
+    );
   };
 
   let scratchpad_names = (model: t): list(string) =>

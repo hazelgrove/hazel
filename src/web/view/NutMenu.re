@@ -387,6 +387,13 @@ let code_display_group = (~globals: Globals.t) => {
         tooltip: None,
       },
       {
+        name: "Outline Arrows",
+        active: globals.settings.outline_arrows,
+        setting: OutlineArrows,
+        tooltip:
+          Some("Fold outline rows from an arrow; off, click a row's sigil"),
+      },
+      {
         name: "Simple Indication",
         active: globals.settings.simple_indication,
         setting: SimpleIndication,

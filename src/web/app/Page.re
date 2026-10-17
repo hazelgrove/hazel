@@ -122,8 +122,17 @@ module Update = {
                 Some(
                   Option.value(ScratchCell.header_name(e), ~default="cell"),
                 ),
-                /* header too: binder and signature errors live there */
-                [e.e_header.editor, e.e_body.editor],
+                /* header too: binder and signature errors live there.
+                   a ⇒ or `;` cell shows none, and its empty one is a hole */
+                (
+                  switch (e.e_kind) {
+                  | Def(_)
+                  | Members => [e.e_header.editor]
+                  | Headless(_)
+                  | Run(_) => []
+                  }
+                )
+                @ [e.e_body.editor],
               ),
             cells,
           );
@@ -172,6 +181,15 @@ module Update = {
     | Save;
 
   let equal = (===);
+
+  /* a jump into a cell that isn't open, or to another cell's binder: the
+     item opens now; once its cell is there, the caret moves into the pane
+     holding the target, which takes the focus */
+  let jump_across = (~schedule_action, (ensure, selection, caret)) => {
+    schedule_action(Editors(caret));
+    Haz3lcore.FocusEffect.schedule_cell_top();
+    (ensure, selection);
+  };
 
   let update_global =
       (
@@ -248,10 +266,8 @@ module Update = {
       |> Updated.return(~scroll_active=false);
     | JumpToTile(id) =>
       switch (Editors.Selection.closed_jump(id, model.editors)) {
-      | Some((ensure, selection, caret)) =>
-        /* outside every open cell: open its item, then move there */
-        schedule_action(Editors(caret));
-        Haz3lcore.FocusEffect.schedule_cell_top();
+      | Some(across) =>
+        let (ensure, selection) = jump_across(~schedule_action, across);
         let* editors =
           Editors.Update.update(
             ~globals,
@@ -311,6 +327,10 @@ module Update = {
             },
           }
           |> return_quiet
+    | UpdateDrawerWidth(cols) =>
+      Haz3lcore.ProbeProj.Settings.set_drawer_width(cols);
+      model |> Updated.return_quiet(~recalculate=true);
+    | RelayoutDrawers => model |> Updated.return_quiet(~recalculate=true)
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -474,36 +494,20 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
-      /* a stack cell's jump to a binder in another definition becomes:
-         stack the target, select it, then jump the caret (as JumpToTile) */
-      let (action, selection, followup) =
+      let (action, selection) =
         switch (Editors.Selection.stack_jump_override(action, model.editors)) {
-        | Some((action', selection, followup)) => (
-            action',
-            selection,
-            Some(followup),
-          )
-        | None => (action, model.selection, None)
-        };
-      switch (followup) {
-      | Some(k) =>
-        schedule_action(Editors(k));
-        Haz3lcore.FocusEffect.schedule_cell_top();
-      | None => ()
-      };
-      /* an outline add selects and focuses the new cell (focus also
-         scrolls it into view) */
-      let selection =
-        switch (followup) {
-        | Some(_) => selection
+        /* a stack cell's jump to a binder in another definition */
+        | Some(across) => jump_across(~schedule_action, across)
         | None =>
+          /* an outline add selects and focuses the new cell (focus also
+             scrolls it into view) */
           switch (
             Editors.Selection.stack_add_selection(action, model.editors)
           ) {
           | Some(s) =>
             Haz3lcore.FocusEffect.schedule_cell_top();
-            s;
-          | None => selection
+            (action, s);
+          | None => (action, model.selection)
           }
         };
       let* editors =
@@ -525,16 +529,8 @@ module Update = {
             visible_rows: None,
           }
           : model.globals;
-      /* an unchanged selection whose cell closed falls back to an open
-         one; a fresh one already names its target */
       let selection =
-        selection === model.selection
-          ? Editors.Selection.follow(
-              ~before=model.editors,
-              selection,
-              editors,
-            )
-          : selection;
+        Editors.Selection.follow(~before=model.editors, selection, editors);
       {
         ...model,
         editors,
@@ -623,12 +619,14 @@ module Update = {
         Editors.Update.calculate(
           ~settings=
             dynamics
-              ? model.globals.settings.core
+              ? model.globals.settings
               : {
-                ...model.globals.settings.core,
-                dynamics: false,
+                ...model.globals.settings,
+                core: {
+                  ...model.globals.settings.core,
+                  dynamics: false,
+                },
               },
-          ~autoprobe_mode=model.globals.settings.autoprobe_mode,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,
@@ -1019,7 +1017,41 @@ module View = {
     /* Point the core-side app bridge at this frame's store + inject, so
        inline app projectors (HTMLProj) can reach the AppStore. */
     AppBridgeInstall.install(~globals);
-    let bottom_bar = CursorInspector.view(~globals, cursor);
+    /* the slide program's dynamics, at the inspector's right end */
+    let dynamics =
+      switch (editors) {
+      | Scratch(m)
+      | Documentation(m) when globals.settings.core.dynamics =>
+        ScratchMode.Model.current_program(m)
+        |> Option.map(p => {
+             let tail = globals.settings.tail_probe;
+             /* in a stack, the value shows in the ⇒ cell: open it */
+             let open_tail =
+               switch (p, Program.tail_row(p)) {
+               | (Program.Divided(_), Some(id)) when !tail => [
+                   inject(Editors(Scratch(Workspace(FocusEnsure(id))))),
+                 ]
+               | _ => []
+               };
+             EvalResult.View.dynamics(
+               ~tail,
+               ~stopped=
+                 tail
+                 && EvalResult.Model.stopped(
+                      ~tail=Program.tail_target(p),
+                      Program.result(p),
+                    )
+                 != None,
+               ~toggle_tail=
+                 Effect.Many(
+                   [inject(Globals(Set(TailProbe)))] @ open_tail,
+                 ),
+               Program.result(p),
+             );
+           })
+      | _ => None
+      };
+    let bottom_bar = CursorInspector.view(~globals, ~dynamics?, cursor);
     let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>
@@ -1089,6 +1121,7 @@ module View = {
       );
     let outline =
       OutlineControl.view(
+        ~arrows=globals.settings.outline_arrows,
         ~deck,
         ~statics=current_editor.statics,
         ~segment=Haz3lcore.CachedSyntax.segment(current_editor.editor.syntax),
@@ -1096,6 +1129,8 @@ module View = {
         ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
+        ~statics_on=globals.settings.core.statics,
+        (),
       );
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
