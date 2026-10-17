@@ -31,12 +31,10 @@
   (pps ppx_blob js_of_ocaml-ppx))
  (preprocessor_deps stdlib.blob))
 
-; the library's source, for the app's library document (not the worker)
-
 (library
- (name stdlibSource)
- (modules StdlibSource)
+ (name stdlibServed)
+ (modules StdlibServed)
+ (libraries language)
  (js_of_ocaml)
  (preprocess
-  (pps ppx_blob))
- (preprocessor_deps stdlib.hz))
+  (pps js_of_ocaml-ppx)))

@@ -375,20 +375,34 @@ let start = default_model => {
   };
 };
 
-/* the standard library's context, before anything computes statics (its
-   definitions evaluate on first use) */
-StdlibBaked.timed("install", StdlibBaked.install);
-/* the worker now, so its load and the library's evaluation there overlap
-   this thread's boot rather than delaying the first result */
+/* the worker now, so its load overlaps this thread's boot rather than
+   delaying the first result */
 ignore(WorkerClient.get_worker());
 
+/* the standard library's files and IndexedDB load side by side; nothing
+   computes statics before both are in */
+let when_loaded = (k: unit => unit): unit => {
+  let pending = ref(2);
+  let ready = () => {
+    decr(pending);
+    if (pending^ == 0) {
+      k();
+    };
+  };
+  StdlibServed.load(text => {
+    LibraryDoc.ship(text);
+    ready();
+  });
+  HazelDB.kv_load_all(_pairs => ready());
+};
+
 switch (JsUtil.Fragment.get_current()) {
-| Some("debug") => DebugMode.go()
+| Some("debug") => when_loaded(DebugMode.go)
 | _ =>
-  /* Load all IndexedDB data, then construct model and start Bonsai.
-     The hazelnut loading spinner (in index.html) stays visible until
-     Bonsai renders its first frame. */
-  HazelDB.kv_load_all(_pairs => {
+  /* Then construct the model and start Bonsai. The hazelnut loading
+     spinner (in index.html) stays visible until Bonsai renders its first
+     frame. */
+  when_loaded(() => {
     /* The user's theme, before the first frame and whatever mode they are
        in. The inline script in index.html has already themed the loading
        screen from the same cache; this validates it and fills a miss. */

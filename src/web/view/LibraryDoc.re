@@ -5,13 +5,19 @@ open Haz3lcore;
    again (re-baked, installed here and in the worker), and is kept in the
    browser until reset. */
 
-let shipped = StdlibSource.text;
+/* the shipped source, as loaded at boot (StdlibServed) */
+let shipped: ref(string) = ref("");
 
 /* where an edited library's source is kept (HazelDB) */
 let key = "stdlib:text";
 
 /* the source as last applied */
-let source: ref(string) = ref(shipped);
+let source: ref(string) = ref("");
+
+let ship = (text: string): unit => {
+  shipped := text;
+  source := text;
+};
 
 /* bumped by each install after boot: a slide shown again re-checks and
    re-runs once per change (Workspace.calculate) */
@@ -58,21 +64,21 @@ let apply = (text: string): result(bool, string) =>
     | Ok((baked, _)) =>
       install(baked);
       source := text;
-      text == shipped ? HazelDB.kv_remove(key) : HazelDB.kv_save(key, text);
+      text == shipped^ ? HazelDB.kv_remove(key) : HazelDB.kv_save(key, text);
       incr(generation);
       Ok(true);
     };
   };
 
-let reset = (): unit => ignore(apply(shipped));
+let reset = (): unit => ignore(apply(shipped^));
 
-let edited = (): bool => source^ != shipped;
+let edited = (): bool => source^ != shipped^;
 
 /* at boot: an edit kept from an earlier session, applied over the shipped
    library */
 let restore = (): unit =>
   switch (HazelDB.kv_get(key)) {
-  | Some(text) when text != shipped =>
+  | Some(text) when text != shipped^ =>
     switch (apply(text)) {
     /* before any slide is checked: nothing to re-check */
     | Ok(_) => generation := 0

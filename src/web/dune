@@ -49,7 +49,6 @@
   b2t2
   docslides
   tutorialslides
-  stdlibSource
   omd)
  (js_of_ocaml)
  (preprocess
@@ -69,7 +68,7 @@
 (executable
  (name main)
  (modules Main)
- (libraries ppx_yojson_conv.expander web stdlibBaked)
+ (libraries ppx_yojson_conv.expander web stdlibServed)
  (modes js)
  (preprocess
   (pps
@@ -83,7 +82,7 @@
 (executable
  (name worker)
  (modules Worker)
- (libraries workerServer stdlibBaked)
+ (libraries workerServer stdlibServed)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))

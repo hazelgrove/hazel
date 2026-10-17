@@ -1,3 +1,3 @@
 /* Web worker thread */
-StdlibBaked.install();
+StdlibServed.load_sync();
 WorkerServer.install_message_handler();
