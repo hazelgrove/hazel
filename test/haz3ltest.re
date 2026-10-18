@@ -113,6 +113,7 @@ let (suite, exit_with_test_status) =
     @ Test_QuiverDisplay.tests
     @ Test_TabDispatch.tests
     @ Test_ImpliedHole.tests
+    @ Test_FrameCompletion.tests
     @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests

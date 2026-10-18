@@ -388,12 +388,17 @@ let term =
    continues past the insertion. No insertion found (e.g. witness
    consumption) falls back to the raw extent. */
 /* The lazy completion the clip consumers share: forced only when an
-   arm's root tile is actually incomplete. */
+   arm's root tile is actually incomplete. [syntax]: of the frame's
+   segment (CompletionQuery.engine_seg). */
 let lazy_completion =
-    (z: Zipper.t): Lazy.t(CanonicalCompletion.completion_result) =>
+    (~syntax: option(CachedSyntax.t)=?, z: Zipper.t)
+    : Lazy.t(CanonicalCompletion.completion_result) =>
   Lazy.from_fun(() =>
     CanonicalCompletion.for_editor(
-      Zipper.unselect_and_zip(~erase_buffer=true, z),
+      switch (syntax) {
+      | Some(syntax) => CompletionQuery.engine_seg(~syntax, z)
+      | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
+      },
     )
   );
 

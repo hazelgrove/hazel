@@ -361,6 +361,7 @@ let rec go =
     LocalReformat.around_res(~enabled=settings.auto_reindent, z, z =>
       Buffer.go(
         ~root,
+        ~seg=?CachedSyntax.semantic_source(z, syntax),
         ~ci=Indicated.ci_for_completion(z, statics.info_map),
         a,
         z,

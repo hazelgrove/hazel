@@ -25,6 +25,16 @@ let fuses_empty = (left: Segment.t, text: string): bool =>
   | [] => false
   };
 
+/* The segment to complete for [z]: the syntax's own when it was zipped
+   from [z] (CachedSyntax.semantic_source), so a frame's completions read
+   the same pieces and share CanonicalCompletion's memo. A fresh zip
+   rebuilds the caret's ancestors, whose items then miss. */
+let engine_seg = (~syntax: CachedSyntax.t, z: Zipper.t): Segment.t =>
+  switch (CachedSyntax.semantic_source(z, syntax)) {
+  | Some(seg) => seg
+  | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
+  };
+
 /* Every obligation whose insertion zone contains the caret, in ENGINE
    order — landing-site order in the completed program, which is both
    the order the quiver bubble draws them and the order Tab applies.
