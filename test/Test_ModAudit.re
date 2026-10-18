@@ -2802,17 +2802,13 @@ let paste_timing = (n: int) => {
         ms,
         switch (r) {
         | Ok(z) =>
-          string_of_int(
-            List.length(
-              rows_of(
-                MakeTerm.Incr.term_of_root(
-                  ~root,
-                  Zipper.unselect_and_zip(z),
-                ),
-              ),
-            ),
-          )
+          let rows =
+            rows_of(
+              MakeTerm.Incr.term_of_root(~root, Zipper.unselect_and_zip(z)),
+            );
+          string_of_int(List.length(rows))
           ++ " rows after"
+          ++ (verbose ? ": " ++ String.concat(" ", List.map(fst, rows)) : "");
         | Error(why) => why
         },
       );
@@ -2826,6 +2822,7 @@ let run_repros = () =>
     print_endline("ModAudit repros: skipped (MODAUDIT=1 runs it)");
   } else {
     if (selected("paste")) {
+      paste_timing(5);
       paste_timing(20);
       paste_timing(80);
     };
