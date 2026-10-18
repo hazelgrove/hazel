@@ -56,6 +56,7 @@ let (suite, exit_with_test_status) =
       Test_MegaCorpus.tests,
       Test_Stdlib.tests,
       Test_MeasuredChunks.tests,
+      Test_ChunkViews.tests,
       Test_MakeTermIncr.tests,
       Test_ItemSpans.tests,
       Test_CellsParity.tests,

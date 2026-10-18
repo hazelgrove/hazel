@@ -198,6 +198,7 @@ let mk =
     mk_refractor_rows(z, term_data, info_map, dyn_map, ~elaborated);
   let measured =
     Measured.Incr.of_segment(
+      ~root,
       ~cache=m_cache,
       segment,
       projector_shapes,
@@ -250,7 +251,7 @@ let mark_old: t => t =
 /* statics or refractor model changed but the segment didn't: reuse
  * segment/term_data, recompute only the shape-derived fields. */
 let refresh_shapes =
-    (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+    (~root, z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let (shape_map, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       old.projectors,
@@ -271,6 +272,7 @@ let refresh_shapes =
     && refractor_rows === old.refractor_rows
       ? old.measured
       : Measured.Incr.of_segment(
+          ~root,
           ~cache=old.m_cache,
           old.segment,
           shape_map,
@@ -334,7 +336,7 @@ let calculate =
     let segment = Zipper.unselect_and_zip(z);
     if (Segment.ptr_eq(segment, old.segment)) {
       {
-        ...refresh_shapes(z, info_map, dyn_map, ~elaborated, old),
+        ...refresh_shapes(~root, z, info_map, dyn_map, ~elaborated, old),
         old: false,
         selection_ids: Selection.selection_ids(z.selection),
         zipped: (z.relatives, z.selection, old.segment),
@@ -354,7 +356,7 @@ let calculate =
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)
              || refractor_inputs_changed) {
-    refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
+    refresh_shapes(~root, z, info_map, dyn_map, ~elaborated, old);
   } else {
     let selection_ids = Selection.selection_ids(z.selection);
     selection_ids == old.selection_ids

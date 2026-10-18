@@ -1,11 +1,11 @@
 open Alcotest;
 open Haz3lcore;
 
-/* ItemSpans against the rules it replaces, at every level of the corpora
-   (module members and definition bodies included): ScratchFocus.item_spans
-   for spans and cores, ItemEdit's slots for lines, ScratchFocus.line_indent
-   for base_col, Segment.top_items for the top level's cuts. Differences by
-   design are named where they are allowed */
+/* ItemSpans against the rules it replaced (Focus and IE below), at every
+   level of the corpora (module members and definition bodies included):
+   Focus.item_spans for spans and cores, IE's slots for slots and lines,
+   Focus.line_indent for base_col, Segment.top_items for the top level's
+   cuts. Differences by design are named where they are allowed */
 
 module S = ItemSpans;
 module Focus = FocusOracle;
@@ -48,8 +48,8 @@ let letin_members = [
     "a fun's let-in, then a statement",
     "let f = fun x -> let y = x + 100 in y;\nf(1);\nlet z = 2",
   ),
-  /* where ScratchFocus did cut after an `in`: a member that is a let
-     chain, whose items are a level of their own */
+  /* where Focus did cut after an `in`: a member that is a let chain,
+     whose items are a level of their own */
   ("a statement opening with a let-in", "let x = 1 in x;\nlet y = 2;\ny"),
   (
     "a module of a let chain",
@@ -97,8 +97,8 @@ let exp_shapes = [
   ),
 ];
 
-/* every piece's line indentation, as ScratchFocus.line_indent reads it, in
-   one walk */
+/* every piece's line indentation, as Focus.line_indent reads it, in one
+   walk */
 let indents = (seg: Segment.t): Hashtbl.t(Id.t, int) => {
   let tbl = Hashtbl.create(1024);
   let ind = ref(0);
@@ -141,9 +141,9 @@ type tally = {
   mutable slot_checks: int,
   mutable indent_checks: int,
   mutable diffs: list(string),
-  /* ScratchFocus cut after an `in` at a Mod level: decision 4 */
+  /* Focus cut after an `in` at a Mod level: decision 4 */
   mutable mod_in: list(string),
-  /* ScratchFocus cut after an `…in` tile missing its `in` */
+  /* Focus cut after an `…in` tile missing its `in` */
   mutable open_in: list(string),
 };
 
@@ -173,7 +173,7 @@ let sub = (arr: array(Piece.t), a: int, b: int): string =>
 let is_directive = (t: Tile.t) =>
   List.mem(Tile.token(t, 0), ["use", "hide", "eval", "pause", "debug"]);
 
-/* one level against ScratchFocus and ItemEdit */
+/* one level against Focus and IE */
 let check_level =
     (
       ~name: string,
@@ -233,8 +233,8 @@ let check_level =
         );
     go(sp.sp_start, false);
   };
-  /* ScratchFocus's last span that ItemSpans folds into the one before:
-     comments only, or at a Mod level the hole after a last `;` */
+  /* Focus's last span that ItemSpans folds into the one before: comments
+     only, or at a Mod level the hole after a last `;` */
   let kept =
     m > 0 && (!content(sf[m - 1]) || at_mod && hole_only(sf[m - 1]))
       ? m - 1 : m;
@@ -262,8 +262,8 @@ let check_level =
     );
   if (mod_in) {
     t.mod_in = [name, ...t.mod_in];
-    /* where ScratchFocus cut after an `in`, ItemSpans has one member whose
-       let chain is a level of its own, checked as one */
+    /* where Focus cut after an `in`, ItemSpans has one member whose let
+       chain is a level of its own, checked as one */
     Array.iter(
       (f: Focus.item_span) =>
         switch (Focus.first_tile(arr, f.sp_start, f.sp_stop)) {
@@ -277,7 +277,7 @@ let check_level =
                  has(c0) && S.chain(lv, k) != None;
                });
           if (!held) {
-            diff("an `in` ScratchFocus cuts at, in no let chain");
+            diff("an `in` Focus cuts at, in no let chain");
           };
         | _ => ()
         },
@@ -286,7 +286,7 @@ let check_level =
   } else if (open_in) {
     t.open_in = [name, ...t.open_in];
   } else if (kept != n) {
-    diff(Printf.sprintf("%d spans, ScratchFocus %d", n, kept));
+    diff(Printf.sprintf("%d spans, Focus %d", n, kept));
   } else {
     Array.iteri(
       (k, sp: S.span) => {
@@ -341,19 +341,33 @@ let check_level =
       },
       lv.spans,
     );
-    /* lines: ItemEdit's slots over ScratchFocus's spans */
+    /* slots and lines: IE's slots over Focus's spans */
     let b =
       IE.block(~in_module=at_mod, ~body=is_members, ~bol=lv.bol, sf, lv.seg);
     let line_start = i => i == 0 ? lv.bol : Piece.is_linebreak(arr[i - 1]);
     if (Array.length(b.sl) != n) {
-      diff(
-        Printf.sprintf("%d spans, ItemEdit %d slots", n, Array.length(b.sl)),
-      );
+      diff(Printf.sprintf("%d spans, IE %d slots", n, Array.length(b.sl)));
     } else {
       Array.iteri(
         (k, sp: S.span) => {
           t.slot_checks = t.slot_checks + 1;
           let sl = b.sl[k];
+          if ((sl.lo, sl.term, sl.hi) != sp.slot) {
+            let (lo, term, hi) = sp.slot;
+            diff(
+              Printf.sprintf(
+                "span %d `%s`: slot (%d, %d, %d), IE (%d, %d, %d)",
+                k,
+                sub(arr, fst(sp.core), snd(sp.core)),
+                lo,
+                term,
+                hi,
+                sl.lo,
+                sl.term,
+                sl.hi,
+              ),
+            );
+          };
           let whole =
             line_start(sl.lo)
             && (Piece.is_linebreak(arr[sl.hi - 1]) || sl.hi == len && lv.eol);
@@ -373,7 +387,7 @@ let check_level =
               ),
             );
           };
-          /* a module literal is ItemEdit's module definition, but `{}` */
+          /* a module literal is IE's module definition, but `{}` */
           let empty =
             switch (sp.kind, IE.module_at(b, k)) {
             | (Def, Some(head)) =>
@@ -499,7 +513,7 @@ let parse = (~root, src) =>
 
 let report = (what: string, t: tally) => {
   Printf.printf(
-    "ItemSpans %s: %d programs, %d levels, %d spans; %d ScratchFocus, %d ItemEdit, %d line_indent checks; %d diffs; ScratchFocus cuts after an `in` at a Mod level in %d levels, after an unfinished `…in` in %d\n",
+    "ItemSpans %s: %d programs, %d levels, %d spans; %d Focus, %d IE, %d line_indent checks; %d diffs; Focus cuts after an `in` at a Mod level in %d levels, after an unfinished `…in` in %d\n",
     what,
     t.programs,
     t.levels,
@@ -544,7 +558,7 @@ let shapes = () => {
   check(int, "diffs", 0, List.length(t.diffs));
   check(
     list(string),
-    "ScratchFocus cuts after an `in` at a Mod level: let chains",
+    "Focus cuts after an `in` at a Mod level: let chains",
     [
       "a let chain among members",
       "a let chain holding a module",

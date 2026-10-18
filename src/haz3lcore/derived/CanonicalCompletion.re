@@ -2666,6 +2666,7 @@ let by_pieces =
 let item_cache: Swept.t((Sort.t, Id.t), (Segment.t, completion_result)) =
   Swept.mk();
 let items_completed: ref(int) = ref(0); /* observability for tests */
+let items_by_member: ref(int) = ref(0); /* observability for tests */
 
 /* completing an item alone grouts an edge whose operand a neighbour
    supplies (the body after a trailing `in`). that grout is cut debris
@@ -2688,30 +2689,6 @@ let strip_edge_grout =
   let completed = leading ? drop(completed) : completed;
   trailing ? completed |> List.rev |> drop |> List.rev : completed;
 };
-
-let complete_item_uncached = (~sort, item: Segment.t): completion_result =>
-  switch (Segment.incomplete_tiles_deep(item)) {
-  | [] => {
-      completed_seg: item,
-      shard_records: [],
-      insertions: [],
-    }
-  | _ =>
-    incr(items_completed);
-    let result = complete_segment_deep(~sort, item);
-    {
-      ...result,
-      insertions:
-        derive_insertions(
-          ~original=item,
-          ~records=result.shard_records,
-          result.completed_seg,
-        ),
-    };
-  };
-
-let complete_item = (~sort, item: Segment.t): completion_result =>
-  by_pieces(item_cache, ~sort, complete_item_uncached(~sort), item);
 
 /* did completion append past [item]'s end (a new trailing shard or piece)? */
 let ran_off_end = (item: Segment.t, completed: Segment.t): bool =>
@@ -2786,12 +2763,82 @@ let cached_block =
     }
   };
 
-let complete_items = (~sort, seg: Segment.t): completion_result => {
-  Swept.next_pass(item_cache);
-  Swept.next_pass(remold_cache);
-  /* edge grout is cut debris only at a cut: the segment's own ends
-     keep theirs (a missing body at the end of the program is real).
-     [opened]: an earlier block left a tile open on the right */
+let rec complete_item_uncached = (~sort, item: Segment.t): completion_result =>
+  switch (Segment.incomplete_tiles_deep(item)) {
+  | [] => {
+      completed_seg: item,
+      shard_records: [],
+      insertions: [],
+    }
+  | incomplete =>
+    switch (complete_members(~sort, incomplete, item)) {
+    | Some(r) => r
+    | None =>
+      incr(items_completed);
+      let result = complete_segment_deep(~sort, item);
+      {
+        ...result,
+        insertions:
+          derive_insertions(
+            ~original=item,
+            ~records=result.shard_records,
+            result.completed_seg,
+          ),
+      };
+    }
+  }
+
+and complete_item = (~sort, item: Segment.t): completion_result =>
+  by_pieces(item_cache, ~sort, complete_item_uncached(~sort), item)
+
+/* a module literal item whose members alone are incomplete: completed
+   member by member, as items are, so complete members keep their pieces,
+   and the item rebuilt around them; likewise a member that is a let chain,
+   item by item. None (an incomplete shell, a missing `}`): complete it
+   whole */
+and complete_members =
+    (~sort, incomplete: list(Tile.t), item: Segment.t)
+    : option(completion_result) => {
+  let holds_all = (parts: list(Segment.t)) =>
+    List.length(List.concat_map(Segment.incomplete_tiles_deep, parts))
+    == List.length(incomplete);
+  let compose = (~sort, parts, put) => {
+    incr(items_by_member);
+    let results = complete_slices(~sort, parts);
+    Some({
+      completed_seg: put(List.concat_map(r => r.completed_seg, results)),
+      shard_records: List.concat_map(r => r.shard_records, results),
+      insertions: List.concat_map(r => r.insertions, results),
+    });
+  };
+  /* a member's `;` in the chain: an open tile reached past the member's
+     end, so the chain is the incompleteness's extent, not the member's */
+  let member_semi =
+    List.exists((p: Piece.t) =>
+      switch (p) {
+      | Tile(t) => Tile.is_semi(t) && t.sort == Sort.Mod
+      | _ => false
+      }
+    );
+  switch (ItemSpans.module_item(~root=sort, item)) {
+  | Some((members, put)) =>
+    holds_all(members) ? compose(~sort=Sort.Mod, members, put) : None
+  | None =>
+    switch (sort == Sort.Mod ? ItemSpans.chain_item(item) : None) {
+    | Some((items, put))
+        when holds_all(items) && !List.exists(member_semi, items) =>
+      compose(~sort=Sort.Exp, items, put)
+    | _ => None
+    }
+  };
+}
+
+/* a level's slices completed one by one. Edge grout is cut debris only at
+   a cut: the level's own ends keep theirs (a missing body at the end of
+   the program is real). [opened]: an earlier block left a tile open on
+   the right */
+and complete_slices =
+    (~sort, items: list(Segment.t)): list(completion_result) => {
   let rec go =
           (~first: bool, ~opened: bool, items: list(Segment.t))
           : list(completion_result) =>
@@ -2835,7 +2882,13 @@ let complete_items = (~sort, seg: Segment.t): completion_result => {
         }
       };
     };
-  let results = go(~first=true, ~opened=false, Segment.top_items(seg));
+  go(~first=true, ~opened=false, items);
+};
+
+let complete_items = (~sort, seg: Segment.t): completion_result => {
+  Swept.next_pass(item_cache);
+  Swept.next_pass(remold_cache);
+  let results = complete_slices(~sort, Segment.top_items(seg));
   {
     completed_seg: List.concat_map(r => r.completed_seg, results),
     shard_records: List.concat_map(r => r.shard_records, results),

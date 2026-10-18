@@ -277,14 +277,16 @@ let record_syntax_counts = (syntax: Haz3lcore.CachedSyntax.t): unit =>
       {
         ...current^,
         segment_tokens: List.length(syntax.segment),
-        /* chunked Measured: tiles live per chunk, rows are the cached total */
+        /* chunked Measured: tiles live per chunk (a split tile in two),
+           rows are the cached total */
         tiles:
           Array.fold_left(
             (n, ch: Haz3lcore.Measured.chunk) =>
               n + Haz3lcore.Id.Map.cardinal(ch.c_flat.tiles),
             0,
             syntax.measured.chunks,
-          ),
+          )
+          - Haz3lcore.Id.Map.cardinal(syntax.measured.split),
         rows: Haz3lcore.Measured.num_rows(syntax.measured),
         projectors: List.length(syntax.projector_list),
       };
