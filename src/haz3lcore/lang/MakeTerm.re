@@ -2268,12 +2268,42 @@ module Incr = {
       };
     };
 
+  type entry_full = {
+    f_pieces: Segment.t,
+    f_term: Exp.t, /* Exp mode; EmptyHole placeholder in Mod mode */
+    f_hole: option(Id.t),
+    f_mods: list(Mod.t), /* Mod mode; [] in Exp mode */
+    f_map: TermMap.t,
+    f_td: TermData.t,
+    f_proj: Id.Map.t(Base.projector),
+    f_plist: list(Id.t),
+    f_adopted: list(Id.t),
+  };
+
+  /* one per editor: the root and last build's entries, and its PRE-FIXUP
+     unions, so the next build diffs instead of re-merging */
+  type cache = {
+    mutable c_prev:
+      option(
+        (
+          Sort.t,
+          list((Id.t, entry_full)),
+          TermMap.t,
+          TermData.t,
+          Id.Map.t(Base.projector),
+        ),
+      ),
+  };
+  let mk_cache = (): cache => {c_prev: None};
+
   /* per-item parses keyed by first piece, reused while an item's pieces
      are physically the same; a table keeps only the last call's items.
      module-global, as only the master editor's statics take this path
-     (views use go_incr's cache) */
+     (views use go_incr's cache). a miss takes [seed]'s parse of the same
+     pieces, if any */
   let memoized =
       (
+        ~seed: (Id.t, Segment.t) => option('r)=(_, _) => None,
         table: ref(Id.Map.t((Segment.t, 'r))),
         parse: Segment.t => 'r,
         seg: Segment.t,
@@ -2285,8 +2315,12 @@ module Incr = {
           switch (Id.Map.find_opt(key, table^)) {
           | Some((ps', _) as e) when seg_eq(ps', ps) => (key, e)
           | _ =>
-            incr(analyzed);
-            (key, (ps, parse(ps)));
+            switch (seed(key, ps)) {
+            | Some(r) => (key, (ps, r))
+            | None =>
+              incr(analyzed);
+              (key, (ps, parse(ps)));
+            }
           },
         keyed(seg),
       );
@@ -2303,13 +2337,34 @@ module Incr = {
   let mod_memo: ref(Id.Map.t((Segment.t, list(Mod.t)))) =
     ref(Id.Map.empty);
 
+  /* [shared]'s entries by key, if it was built at [root] */
+  let shared_entries =
+      (~root: Sort.t, shared: option(cache))
+      : ((Id.t, Segment.t) => option(entry_full)) =>
+    switch (shared) {
+    | Some({c_prev: Some((r, entries, _, _, _))}) when r == root =>
+      let tbl = Hashtbl.create(List.length(entries) + 1);
+      List.iter(((k, e)) => Hashtbl.replace(tbl, k, e), entries);
+      (
+        (key, ps) =>
+          switch (Hashtbl.find_opt(tbl, key)) {
+          | Some(e) when seg_eq(e.f_pieces, ps) => Some(e)
+          | _ => None
+          }
+      );
+    | _ => ((_, _) => None)
+    };
+
   /* a Mod root's items concatenate under the stable wrapper. ~masks only
      concern items whose completion changed, and those pieces are new
-     objects, so memoized entries never carry a stale mask */
+     objects, so memoized entries never carry a stale mask; nor do
+     [shared]'s, an editor's go_incr cache, whose parses of the same
+     pieces stand in for parsing them again */
   let term_of_root =
       (
         ~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty,
         ~root: Sort.t,
+        ~shared: option(cache)=?,
         seg: Segment.t,
       )
       : Exp.t => {
@@ -2318,19 +2373,31 @@ module Incr = {
     switch (last^) {
     | Some((r, prev_seg, prev_term)) when r == root && seg_eq(prev_seg, seg) => prev_term
     | _ =>
+      let built = shared_entries(~root, shared);
       let term =
         try(
           root == Sort.Mod
             ? wrap_module(
                 List.concat(
                   memoized(
+                    ~seed=
+                      (k, ps) => Option.map(e => e.f_mods, built(k, ps)),
                     mod_memo,
                     ps => fst(parse_item_mod(~masks, ps)),
                     seg,
                   ),
                 ),
               )
-            : graft_items(memoized(memo, parse_item(~masks), seg))
+            : graft_items(
+                memoized(
+                  ~seed=
+                    (k, ps) =>
+                      Option.map(e => (e.f_term, e.f_hole), built(k, ps)),
+                  memo,
+                  parse_item(~masks),
+                  seg,
+                ),
+              )
         ) {
         | _ =>
           incr(fell_back);
@@ -2355,33 +2422,6 @@ module Incr = {
      from go only in the top-level frame, which fix_spine,
      record_top_frame and reconsolidate replay; parity with go is
      test-gated (Test_MakeTermIncr) */
-
-  type entry_full = {
-    f_pieces: Segment.t,
-    f_term: Exp.t, /* Exp mode; EmptyHole placeholder in Mod mode */
-    f_hole: option(Id.t),
-    f_mods: list(Mod.t), /* Mod mode; [] in Exp mode */
-    f_map: TermMap.t,
-    f_td: TermData.t,
-    f_proj: Id.Map.t(Base.projector),
-    f_plist: list(Id.t),
-    f_adopted: list(Id.t),
-  };
-
-  /* one per editor: last build's entries and PRE-FIXUP unions, so the
-     next build diffs instead of re-merging */
-  type cache = {
-    mutable c_prev:
-      option(
-        (
-          list((Id.t, entry_full)),
-          TermMap.t,
-          TermData.t,
-          Id.Map.t(Base.projector),
-        ),
-      ),
-  };
-  let mk_cache = (): cache => {c_prev: None};
 
   let full_analyzed = ref(0); /* observability for tests */
 
@@ -2487,8 +2527,13 @@ module Incr = {
   let go_incr' = (~root: Sort.t=Exp, ~cache: cache, seg: Segment.t): t => {
     let (prev_assoc, m_map0, m_td0, m_proj0) =
       switch (cache.c_prev) {
-      | Some(p) => p
-      | None => ([], Id.Map.empty, Id.Map.empty, Id.Map.empty)
+      | Some((r, entries, m_map, m_td, m_proj)) when r == root => (
+          entries,
+          m_map,
+          m_td,
+          m_proj,
+        )
+      | _ => ([], Id.Map.empty, Id.Map.empty, Id.Map.empty)
       };
     let prev_tbl = Hashtbl.create(List.length(prev_assoc) + 1);
     List.iter(((k, e)) => Hashtbl.replace(prev_tbl, k, e), prev_assoc);
@@ -2539,7 +2584,7 @@ module Incr = {
         (m_map, m_td, m_proj),
         entries,
       );
-    cache.c_prev = Some((entries, m_map, m_td, m_proj));
+    cache.c_prev = Some((root, entries, m_map, m_td, m_proj));
     /* every graft's rebuilt nodes, outermost first */
     let rebuilt = ref([]);
     let term =
