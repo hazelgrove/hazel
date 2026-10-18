@@ -218,7 +218,7 @@ let sort_keyed_case = () => {
 /* the per-item caches: a live set past the bound stays cached, and
    superseded versions don't grow the bound */
 let swept_live = () => {
-  module Swept = CanonicalCompletion.Swept;
+  module Swept = Util.Swept;
   let t: Swept.t(int, int) = Swept.mk(~bound=8, ());
   let pass = () => {
     Swept.next_pass(t);
@@ -239,7 +239,7 @@ let swept_live = () => {
 };
 
 let swept_stale = () => {
-  module Swept = CanonicalCompletion.Swept;
+  module Swept = Util.Swept;
   let t: Swept.t(int, int) = Swept.mk(~bound=512, ());
   for (i in 1 to 1000) {
     Swept.next_pass(t);

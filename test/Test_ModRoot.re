@@ -16,7 +16,7 @@ let parse_mod = CorpusUtil.seg_of(~root=Mod);
 
 let probe = () => {
   let seg = parse_mod(mod_src);
-  let slices = MakeTerm.Incr.slices(seg);
+  let slices = MakeTerm.Incr.slices(~root=Mod, seg);
   check(int, "4 slices", 4, List.length(slices));
   let mono = MakeTerm.go_mod_root(seg);
   switch (mono.term.term) {
@@ -183,6 +183,28 @@ let corpus = () => {
   check_parity(seg2, incr2);
 };
 
+/* a member opening with a let-in ends at its `;`, so it parses alone: no
+   whole-program fallback, before or after an edit inside it (the misread
+   cut after its `in`) */
+let letin_member = ((name, src), ()) => {
+  let seg = parse_mod(src);
+  let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
+  let incr = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg);
+  check(int, name ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+  check_parity(seg, incr);
+  MakeTerm.Incr.last := None;
+  ignore(MakeTerm.Incr.term_of_root(~root=Mod, seg));
+  check(int, name ++ ": term_of no fallback", fb, MakeTerm.Incr.fell_back^);
+  let (seg2, edited) = edit_seg(~needle="1", ~repl="2", seg);
+  check(bool, name ++ ": a 1 to edit", true, edited);
+  MakeTerm.Incr.full_analyzed := 0;
+  let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
+  check(int, name ++ ": one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
+  check(int, name ++ ": no fallback after", fb, MakeTerm.Incr.fell_back^);
+  check_parity(seg2, incr2);
+};
+
 let tests = (
   "ModRoot",
   [
@@ -193,5 +215,29 @@ let tests = (
     test_case("stray line above a member", `Quick, stray_line),
     test_case("last slot keyed by root", `Quick, last_slot_keyed_by_root),
     test_case("corpus mega-mod-1k", `Quick, corpus),
-  ],
+  ]
+  @ List.map(
+      ((name, src)) =>
+        test_case(
+          "let-in member: " ++ name,
+          `Quick,
+          letin_member((name, src)),
+        ),
+      [
+        ("let-in member", "let f = let x = 1 in x;\nf"),
+        (
+          "a fun's let-ins",
+          "let g = fun y ->\n  let z = y + 1 in\n  let w = z in\n  w;\ng(0)",
+        ),
+        (
+          "a statement opening with a let-in",
+          "let x = 1 in x;\nlet y = 2;\ny",
+        ),
+        /* the shape of List's enumerate */
+        (
+          "enumerate",
+          "let enumerate : [?] -> [(Int, ?)] = fun xs ->\n  let helper = fun (xs, index) ->\n    case xs\n    | [] => []\n    | x :: xs => (index, x) :: helper(xs, index + 1)\n    end\n  in\n  helper(xs, 0);\nenumerate([2])",
+        ),
+      ],
+    ),
 );
