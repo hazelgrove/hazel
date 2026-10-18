@@ -2693,6 +2693,20 @@ let repros: list((string, Sort.t, string, string, int)) = [
     0,
   ),
   (
+    "module deleted: a signed module",
+    Exp,
+    "module M : {let x : Int} = {let x = 1} in\nlet y = M.x in\ny",
+    "module",
+    0,
+  ),
+  (
+    "module deleted: an unsigned module",
+    Exp,
+    "module M = {let x = 1} in\nlet y = M.x in\ny",
+    "module",
+    0,
+  ),
+  (
     "let deleted v1: annotated one-liner (control)",
     Exp,
     "let digit : Int -> Int = fun d -> d in\nlet go = fun k -> digit(k) in\ngo(1)",
