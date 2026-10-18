@@ -2081,21 +2081,13 @@ let for_projection =
    identity) and grafts into a chain, as in DefStatics. a nonconvex item
    gets a convex grout body that the graft replaces */
 module Incr = {
-  /* cut after `…in` tiles and top-level `;`s, like per-item completion */
-  let slices = Segment.top_items;
+  /* the top level's items (ItemSpans), each slice keyed by its anchor */
+  let keyed = (~root: Sort.t, seg: Segment.t): list((Id.t, Segment.t)) =>
+    ItemSpans.keyed(ItemSpans.top(~root, seg));
+  let slices = (~root: Sort.t, seg: Segment.t): list(Segment.t) =>
+    List.map(snd, keyed(~root, seg));
 
   let seg_eq = Segment.ptr_eq;
-
-  /* each slice keyed by its first piece's id */
-  let keyed = (seg: Segment.t): list((Id.t, Segment.t)) =>
-    List.filter_map(
-      ps =>
-        switch (ps) {
-        | [] => None
-        | [p, ..._] => Some((Piece.id(p), ps))
-        },
-      slices(seg),
-    );
 
   /* last whole-segment term and the root it was read at: shared by
      term_of, term_of_mod and go_incr, so a hit needs both to match */
@@ -2296,14 +2288,15 @@ module Incr = {
   };
   let mk_cache = (): cache => {c_prev: None};
 
-  /* per-item parses keyed by first piece, reused while an item's pieces
-     are physically the same; a table keeps only the last call's items.
+  /* per-item parses keyed by anchor, reused while an item's pieces are
+     physically the same; a table keeps only the last call's items.
      module-global, as only the master editor's statics take this path
      (views use go_incr's cache). a miss takes [seed]'s parse of the same
      pieces, if any */
   let memoized =
       (
         ~seed: (Id.t, Segment.t) => option('r)=(_, _) => None,
+        ~root: Sort.t,
         table: ref(Id.Map.t((Segment.t, 'r))),
         parse: Segment.t => 'r,
         seg: Segment.t,
@@ -2322,7 +2315,7 @@ module Incr = {
               (key, (ps, parse(ps)));
             }
           },
-        keyed(seg),
+        keyed(~root, seg),
       );
     table :=
       List.fold_left(
@@ -2382,6 +2375,7 @@ module Incr = {
                   memoized(
                     ~seed=
                       (k, ps) => Option.map(e => e.f_mods, built(k, ps)),
+                    ~root,
                     mod_memo,
                     ps => fst(parse_item_mod(~masks, ps)),
                     seg,
@@ -2393,6 +2387,7 @@ module Incr = {
                   ~seed=
                     (k, ps) =>
                       Option.map(e => (e.f_term, e.f_hole), built(k, ps)),
+                  ~root,
                   memo,
                   parse_item(~masks),
                   seg,
@@ -2544,7 +2539,7 @@ module Incr = {
           | Some(e) when seg_eq(e.f_pieces, ps) => (key, e)
           | _ => (key, parse_item_full(~root, ps))
           },
-        keyed(seg),
+        keyed(~root, seg),
       );
     let cur_tbl = Hashtbl.create(List.length(entries) + 1);
     List.iter(((k, e)) => Hashtbl.replace(cur_tbl, k, e), entries);

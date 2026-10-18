@@ -31,7 +31,7 @@ let roster_key = "roster";
 let item_key = (id: Id.t): string => "item:" ++ Id.to_string(id);
 
 let items_of = (seg: Segment.t): list((Id.t, Segment.t)) =>
-  MakeTerm.Incr.slices(seg)
+  Segment.top_items(seg)
   |> List.filter_map(slice =>
        switch (slice) {
        | [] => None

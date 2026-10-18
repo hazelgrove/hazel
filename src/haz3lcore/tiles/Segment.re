@@ -1597,7 +1597,8 @@ let is_in_tile = (p: Piece.t): bool =>
   | _ => false
   };
 /* top-level item slices: each ends with an `…in` tile or top-level `;`
-   (the rest is the tail); the unit of the per-item incremental layers */
+   (the rest is the tail). Per-item completion's unit, and ItemPersist's,
+   whose store keys are persisted; MakeTerm cuts by ItemSpans */
 let top_items = (seg: t): list(t) => {
   let arr = Array.of_list(seg);
   let len = Array.length(arr);

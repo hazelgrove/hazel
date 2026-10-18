@@ -19,8 +19,8 @@ type item = {
   d_ctx_out: Ctx.t,
   d_elab: Exp.t, /* elaboration of the hollow item */
   d_hole: option(Id.t), /* the body hole's id (None: trailing exp) */
-  /* when the def is a module literal, its members (+ exports tail)
-     are analyzed as a nested item chain, memoized per member */
+  /* a nested item chain, memoized per item: a module literal def's
+     members (+ exports tail), or a let-chain ModExp member's links */
   d_members: list(item),
 };
 
@@ -70,6 +70,14 @@ let rec chain = (e: Exp.t): list(Exp.t) =>
    stable: wrappers that can't reuse the item's rep id, and the tail (from
    [rep]: it mentions every export, so any export delta re-analyzes it),
    get derived ids */
+let lower_item = (~ana_labels=[], item: Mod.t): Exp.t =>
+  ModuleHelpers.wrap_item(
+    ~ana_labels,
+    ~stable=true,
+    item,
+    Exp.fresh(EmptyHole),
+  );
+
 let lower_items =
     (~ana_items=None, rep: Id.t, items: list(Mod.t)): list(Exp.t) => {
   /* a signature type copied onto a member gets ids derived from the
@@ -86,13 +94,7 @@ let lower_items =
       ),
   };
   List.map2(
-    (item, ana_labels) =>
-      ModuleHelpers.wrap_item(
-        ~ana_labels,
-        ~stable=true,
-        item,
-        Exp.fresh(EmptyHole),
-      ),
+    (item, ana_labels) => lower_item(~ana_labels, item),
     items,
     ModuleHelpers.item_ana_labels(~retag, ~ana_items, items),
   )
@@ -104,6 +106,22 @@ let module_elab = (node: Exp.t, items: list(Mod.t), chain_elab: Exp.t): Exp.t =>
   ...node,
   term: Module(ModuleHelpers.refold_module_elab(items, chain_elab)),
 };
+
+/* a let chain at an item position is a level of items; one inside a
+   definition is not. so a ModExp member whose expression is a chain
+   (`{ let a = 1 in a + 1 }`) splits, and `let _ = <chain>` doesn't. the
+   two share a shape once lowered: the member's wrapper is told apart by
+   its id, which lower_item derives from the member's rep id, and MakeTerm
+   gives a ModExp(e) e's rep id (one minted around a broken parse's e has
+   its own, and stays whole) */
+let modexp_chain = (node: Exp.t): option((Pat.t, Exp.t)) =>
+  switch (node.term) {
+  | Let({term: Wild, _} as p, e, _) when Option.is_some(split_body(e)) =>
+    let member = IdTagged.fast_copy(Exp.rep_id(e), Mod.fresh(ModExp(e)));
+    Exp.rep_id(lower_item(member)) == Exp.rep_id(node)
+      ? Some((p, e)) : None;
+  | _ => None
+  };
 
 /* item equality across versions: the head only, ids included (an
    id-preserving rebuild compares equal) */
@@ -515,6 +533,17 @@ let unused_binders = (items: list(item)): list(Id.t) => {
   go(items);
 };
 
+/* a nested chain's free names as its parent item's: each item's own,
+   plus those below it that its exports don't rebind */
+let compose_free =
+    (~get: item => list(string), ~shadow, items: list(item)): list(string) =>
+  List.fold_right(
+    (m: item, below) =>
+      List.sort_uniq(compare, get(m) @ shadow(m.d_exports, below)),
+    items,
+    [],
+  );
+
 /* compute one item's statics in isolation: body swapped for a hole */
 let rec calc_item =
         (
@@ -546,7 +575,23 @@ let rec calc_item =
       ~ana_items,
       node,
     )
-  | None => calc_plain_item(~settings, ~probe_ids, ~ctx_in, node)
+  | None =>
+    switch (modexp_chain(node)) {
+    | Some((pat, def)) =>
+      calc_modexp_item(
+        ~settings,
+        ~probe_ids,
+        ~probe_dirty,
+        ~prev,
+        ~dirty_vars,
+        ~dirty_tnames,
+        ~ctx_in,
+        ~pat,
+        ~def,
+        node,
+      )
+    | None => calc_plain_item(~settings, ~probe_ids, ~ctx_in, node)
+    }
   }
 
 and calc_plain_item =
@@ -823,15 +868,9 @@ and calc_module_item =
       };
     /* the item's free names = the members' frees minus module-internal
        bindings (the surrogate def's co_ctx is empty, so compose) */
-    let compose_free = (~get, ~shadow) =>
-      List.fold_right(
-        (m: item, below) =>
-          List.sort_uniq(compare, get(m) @ shadow(m.d_exports, below)),
-        items_m,
-        [],
-      );
-    let free = compose_free(~get=m => m.d_free, ~shadow=shadow_filter);
-    let tfree = compose_free(~get=m => m.d_tfree, ~shadow=tshadow);
+    let free =
+      compose_free(~get=m => m.d_free, ~shadow=shadow_filter, items_m);
+    let tfree = compose_free(~get=m => m.d_tfree, ~shadow=tshadow, items_m);
     let d_elab =
       switch (module_value) {
       | Some(v) => ModuleHelpers.moduleexp_elab(~def_elab_direct=v, elab_sur)
@@ -861,13 +900,126 @@ and calc_module_item =
   };
 }
 
+/* a ModExp member whose expression is a chain (modexp_chain): its links
+   (+ the trailing exp) run as a nested memoized chain from the member's
+   ctx, as the top level's do, and the wrapper `let _ = e in •` on a hole
+   standing in for e (so `_`, which nothing binds or shows, types as a
+   hole). the member still exports nothing, and its map, elab and frees
+   compose to the whole member's, so the module sees no change */
+and calc_modexp_item =
+    (
+      ~settings,
+      ~probe_ids,
+      ~probe_dirty: item => bool,
+      ~prev: option(item),
+      ~dirty_vars: list(string),
+      ~dirty_tnames: list(string),
+      ~ctx_in: Ctx.t,
+      ~pat: Pat.t,
+      ~def: Exp.t,
+      node: Exp.t,
+    )
+    : item => {
+  let prev_links =
+    switch (prev) {
+    | Some(q) when q.d_id == Exp.rep_id(node) => q.d_members
+    | _ => []
+    };
+  let (links, _) =
+    calc_chain(
+      ~settings,
+      ~probe_ids,
+      ~probe_dirty,
+      ~keep_ctx=false,
+      ~prevs=prev_links,
+      ~dirty_vars,
+      ~dirty_tnames,
+      ~ctx_in,
+      chain(def),
+    );
+  /* link roots need the spine's suffix patch, as top-level roots do */
+  let (links_map, top_wit, top_co, def_elab) =
+    fix_spine_infos(~probe_ids, links, union_maps(links));
+  let sur_hole = Exp.fresh(EmptyHole);
+  let body_hole = Exp.fresh(EmptyHole);
+  let (map_sur, elab_sur) =
+    Statics.mk_unmemoized(
+      ~probe_ids,
+      settings,
+      ctx_in,
+      {
+        ...node,
+        term: Let(pat, sur_hole, body_hole),
+      }: Exp.t,
+    );
+  switch (elab_sur.term, def_elab) {
+  | (Let(p_elab, _, body_elab), Some(def_elab)) =>
+    incr(last_analyzed);
+    let d_elab: Exp.t = {
+      ...elab_sur,
+      term: Let(p_elab, def_elab, body_elab),
+    };
+    let ctx_out =
+      switch (Statics.Map.lookup_exp(Exp.rep_id(body_hole), map_sur)) {
+      | Some(info) => info.ctx
+      | None => ctx_in
+      };
+    let map_sur =
+      map_sur
+      |> Id.Map.remove(Exp.rep_id(sur_hole))
+      |> Id.Map.remove(Exp.rep_id(body_hole));
+    /* the wrapper's info as over the whole member: e's elab, uses and
+       witnesses */
+    let map_sur =
+      switch (Statics.Map.lookup_exp(Exp.rep_id(node), map_sur)) {
+      | Some(raw) =>
+        Id.Map.add(
+          Exp.rep_id(node),
+          Info.InfoExp({
+            ...raw,
+            elab_term: d_elab,
+            co_ctx: CoCtx.union([raw.co_ctx, top_co]),
+            probe_targets:
+              SubexpProbeTargets.union(raw.probe_targets, top_wit),
+          }),
+          map_sur,
+        )
+      | None => map_sur
+      };
+    {
+      d_id: Exp.rep_id(node),
+      d_node: node,
+      d_ctx_in: ctx_in,
+      d_map: map_union(links_map, map_sur),
+      d_error_ids:
+        List.concat_map((l: item) => l.d_error_ids, links)
+        @ Statics.Map.error_ids(map_sur),
+      /* the links' binders are unused_binders' call, as the top chain's */
+      d_warning_ids:
+        List.concat_map((l: item) => l.d_warning_ids, links)
+        @ unused_binders(links)
+        @ Statics.Map.warning_ids(map_sur),
+      d_exports: Ctx.added_bindings(ctx_out, ctx_in).entries,
+      d_free: compose_free(~get=l => l.d_free, ~shadow=shadow_filter, links),
+      d_tfree: compose_free(~get=l => l.d_tfree, ~shadow=tshadow, links),
+      d_ctx_out: ctx_out,
+      d_elab,
+      d_hole: Some(Exp.rep_id(body_hole)),
+      d_members: links,
+    };
+  /* an elab shape gap: the whole member, as before */
+  | _ => calc_plain_item(~settings, ~probe_ids, ~ctx_in, node)
+  };
+}
+
 /* an item chain from [ctx_in], aligned with the previous run's [prevs] BY
    ID, so a restructure costs the changed item plus downstream users of
    its exports: a deleted item's names go dirty where it was, and a moved
-   one is popped aside there and recomputed where it lands. also returns,
-   newest first, each dropped or recomputed item's old map with its new
-   one (None: dropped). [keep_ctx]: a recomputed item whose exports didn't
-   change keeps its old ctx_out, so the items below stay reusable as is */
+   one is popped aside there and recomputed whole where it lands. also
+   returns, newest first, each dropped or recomputed item's old map with
+   its new one (None: dropped). [keep_ctx]: a recomputed item whose
+   exports didn't change keeps its old ctx_out, so the items below stay
+   reusable as is */
 and calc_chain =
     (
       ~settings,
@@ -979,7 +1131,10 @@ and calc_chain =
             ~settings,
             ~probe_ids,
             ~probe_dirty,
-            ~prev=?prev_it,
+            /* a moved item's ctx gained or lost the names it crossed,
+               which the dirty sets don't hold: nothing nested in it is
+               reusable */
+            ~prev=?moved_in ? None : prev_it,
             ~dirty_vars,
             ~dirty_tnames,
             ~ctx_in=ctx,
