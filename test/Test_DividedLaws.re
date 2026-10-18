@@ -341,7 +341,7 @@ let resplit = () => {
   let d = split(seg, "a");
   let joined = Focus.zip_of_cell(Divided.join(d));
   let g = row_by_label(MakeTerm.Incr.term_of(joined), "g");
-  let edited = Focus.splice_def(g, seg_of("x * 5"), joined);
+  let edited = Focus.splice_def(~root=Exp, g, seg_of("x * 5"), joined);
   let d' = recut(edited, d);
   check(
     string,
@@ -618,9 +618,9 @@ let own_pieces = () => {
   let seg = seg_of(kinds_src);
   let info_map = info_map_of(seg);
   let kinds = [
-    ("def", id => Focus.mk_entry(~info_map, id, seg)),
-    ("members", id => Focus.mk_members_entry(~info_map, id, seg)),
-    ("run", id => Focus.mk_run_entry(~info_map, id, seg)),
+    ("def", id => Focus.mk_entry(~root=Exp, ~info_map, id, seg)),
+    ("members", id => Focus.mk_members_entry(~root=Exp, ~info_map, id, seg)),
+    ("run", id => Focus.mk_run_entry(~root=Exp, ~info_map, id, seg)),
   ];
   let opened =
     List.fold_left(
@@ -634,7 +634,7 @@ let own_pieces = () => {
                 bool,
                 kind ++ " " ++ Id.show(id),
                 true,
-                Segment.ptr_eq(Focus.splice_entry(e, seg), seg),
+                Segment.ptr_eq(Focus.splice_entry(~root=Exp, e, seg), seg),
               );
               opened + 1;
             },

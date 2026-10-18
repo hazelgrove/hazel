@@ -112,7 +112,13 @@ let outline_term = (program: Program.t): Language.Exp.t => {
 /* an item whose definition holds only holes (or an empty module): its
    name erased, Backspace removes it */
 let blank_body = (program: Program.t, id: Id.t): bool =>
-  switch (ScratchFocus.find_def(id, Program.document(program))) {
+  switch (
+    ScratchFocus.find_def(
+      ~root=Program.root(program),
+      id,
+      Program.document(program),
+    )
+  ) {
   | Some(def) => ItemEdit.blank_def(def)
   | None => false
   };
@@ -213,6 +219,7 @@ let name_refusal = (f: E.fresh, name: string): option(string) => {
 let refusal =
     (
       ~statics_on: bool,
+      ~mod_root: bool,
       ~info_map: Lazy.t(Language.Statics.Map.t),
       ~term: Language.Exp.t,
       ~seg: Lazy.t(Segment.t),
@@ -225,7 +232,9 @@ let refusal =
     Option.bind(live, (l: E.live) => name_refusal(f, l.l_name))
   | (Row(_, Some(Item(row))), _, Some(typed))
       when OutlineTree.node_of(row, term) != None =>
-    switch (ItemEdit.plan_rename(~info_map, ~term, ~seg, row, typed)) {
+    switch (
+      ItemEdit.plan_rename(~mod_root, ~info_map, ~term, ~seg, row, typed)
+    ) {
     | Error(why) => Some(why)
     | Ok(Some(_)) when !statics_on => Some("renaming needs statics on")
     | Ok(_) => None
@@ -401,7 +410,14 @@ let with_fresh =
     (~settings: Settings.t, d: Id.t, seg: Segment.t, code: Scratchpad.code)
     : Scratchpad.code => {
   let caret =
-    Option.map(id => (Direction.Left, id), ItemEdit.name_slot(d, seg));
+    Option.map(
+      id => (Direction.Left, id),
+      ItemEdit.name_slot(
+        ~mod_root=Program.root(code.program) == Sort.Mod,
+        d,
+        seg,
+      ),
+    );
   let code = Workspace.with_segment(~settings, ~caret?, code, seg);
   switch (code.program) {
   | Divided(dv) when Divided.owner(d, dv) == None =>
@@ -505,7 +521,7 @@ let remake =
     let (pat, col) =
       switch (keep_name, live_name(program, f.f_id)) {
       | (true, Some({l_name, l_at, _})) when String.trim(l_name) != "" => (
-          ScratchFocus.find_pat(f.f_id, doc),
+          ScratchFocus.find_pat(~root=Program.root(program), f.f_id, doc),
           l_at,
         )
       | _ => (None, 0)
@@ -520,7 +536,14 @@ let remake =
       let seg =
         Option.fold(
           ~none=seg,
-          ~some=p => ScratchFocus.splice_pat(d, p, seg),
+          ~some=
+            p =>
+              ScratchFocus.splice_pat(
+                ~root=Program.root(program),
+                d,
+                p,
+                seg,
+              ),
           pat,
         );
       let code =
@@ -746,6 +769,7 @@ let update =
       let seg = Program.document(program);
       switch (
         ItemEdit.plan_rename(
+          ~mod_root=ctx.mod_root,
           ~info_map=ctx.info_map,
           ~term=ctx.term,
           ~seg=Lazy.from_val(seg),
@@ -760,7 +784,7 @@ let update =
       | Ok(Some(_)) when !settings.core.statics =>
         refuse("renaming needs statics on")
       | Ok(Some(rn)) =>
-        switch (ItemEdit.apply_rename(rn, row, seg)) {
+        switch (ItemEdit.apply_rename(~mod_root=ctx.mod_root, rn, row, seg)) {
         | None => refuse("it can't be renamed")
         | Some(new_seg) =>
           let code = Workspace.with_segment(~settings, code, new_seg);
@@ -822,7 +846,11 @@ let update =
       switch (
         Option.map(
           pat => String.trim(ItemEdit.text(pat)),
-          ScratchFocus.find_pat(f.f_id, Program.document(program)),
+          ScratchFocus.find_pat(
+            ~root=Program.root(program),
+            f.f_id,
+            Program.document(program),
+          ),
         )
       ) {
       | Some(n) when after == Done && name_refusal(f, n) != None =>
@@ -1219,6 +1247,13 @@ let view =
                 (program, term),
                 () =>
                   ScratchFocus.refusals(
+                    /* outside a slide, an editor is expression-rooted */
+                    ~root=
+                      Option.fold(
+                        ~none=Sort.Exp,
+                        ~some=Program.root,
+                        program,
+                      ),
                     ~want=id => Id.Map.mem(id, OutlineTree.row_ids(term)),
                     switch (program) {
                     | Some(Divided(d)) => Divided.document(d)
@@ -1270,6 +1305,12 @@ let view =
         check:
           refusal(
             ~statics_on,
+            ~mod_root=
+              Option.fold(
+                ~none=false,
+                ~some=p => Program.root(p) == Sort.Mod,
+                program,
+              ),
             ~info_map=Lazy.from_val(statics.info_map),
             ~term,
             ~seg=
