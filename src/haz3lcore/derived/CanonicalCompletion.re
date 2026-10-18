@@ -2907,6 +2907,15 @@ let complete_items = (~sort, seg: Segment.t): completion_result => {
 
 /* Rendered per frame by every completion-aware decoration (quiver
    chips, arm curtailing) and by tab dispatch: per item, so one edit
-   recompletes one item. */
+   recompletes one item. The last segment's result is kept: a frame's
+   readers, and re-renders that change no segment, ask for the same one. */
+let last_for_editor: ref(option((Segment.t, completion_result))) =
+  ref(None);
 let for_editor = (seg: Segment.t): completion_result =>
-  complete_items(~sort=Sort.Exp, seg);
+  switch (last_for_editor^) {
+  | Some((last, r)) when last === seg => r
+  | _ =>
+    let r = complete_items(~sort=Sort.Exp, seg);
+    last_for_editor := Some((seg, r));
+    r;
+  };
