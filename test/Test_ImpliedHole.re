@@ -34,13 +34,32 @@ let expected_type = info =>
 let checked_compositional = z =>
   CachedStatics.init_compositional(~settings, ~stitch=Fun.id, ~root=Exp, z);
 
-let example = (~compositional=false, input, expected) =>
+/* as the editor runs them: on its syntax's segment and item parses */
+let checked_shared = z => {
+  let syntax = CachedSyntax.init(~root=Exp, z);
+  let source = CachedSyntax.semantic_source(z, syntax);
+  check(bool, "the syntax's segment is the source", true, source != None);
+  CachedStatics.init_compositional(
+    ~settings,
+    ~stitch=Fun.id,
+    ~root=Exp,
+    ~shared=syntax.t_cache,
+    ~source?,
+    z,
+  );
+};
+
+let example = (~compositional=false, ~shared=false, input, expected) =>
   test_case(
-    (compositional ? "compositional: " : "") ++ String.escaped(input),
+    (shared ? "shared: " : compositional ? "compositional: " : "")
+    ++ String.escaped(input),
     `Quick,
     () => {
       let z = zipper(input);
-      let statics = compositional ? checked_compositional(z) : checked(z);
+      let statics =
+        shared
+          ? checked_shared(z)
+          : compositional ? checked_compositional(z) : checked(z);
       check(
         string,
         "expected type of implied hole",
@@ -67,6 +86,38 @@ let tests = [
         ~compositional=true,
         "let x : Int = 1¦\nlet y = 2 in y",
         "none",
+      ),
+      example(~shared=true, let_input, "Int"),
+      example(
+        ~shared=true,
+        "let f(x : Int) : Bool = ¦\nlet y = 2 in y",
+        "Bool",
+      ),
+      test_case(
+        "a moved caret or an unparsed buffer reads the zipper",
+        `Quick,
+        () => {
+          let z = zipper("let x : Int = 1¦ \nlet y = 2 in y");
+          let syntax = CachedSyntax.init(~root=Exp, z);
+          let moved =
+            Test_Editing.perform(z, [Move(Local(Right, ByChar))]);
+          check(
+            bool,
+            "moved",
+            true,
+            CachedSyntax.semantic_source(moved, syntax) == None,
+          );
+          let buffered = {
+            ...z,
+            selection: Selection.mk_buffer(Unparsed, []),
+          };
+          check(
+            bool,
+            "unparsed buffer",
+            true,
+            CachedSyntax.semantic_source(buffered, syntax) == None,
+          );
+        },
       ),
       example("let x = ¦\nlet y = 2 in y", "?"),
       example("let f(x : Int) : Bool = ¦\nlet y = 2 in y", "Bool"),

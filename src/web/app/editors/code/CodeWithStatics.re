@@ -224,6 +224,12 @@ module Update = {
                             ~settings,
                             ~stitch,
                             ~root=editor.root,
+                            ~shared=editor.syntax.t_cache,
+                            ~source=?
+                              CachedSyntax.semantic_source(
+                                editor.state.zipper,
+                                editor.syntax,
+                              ),
                             editor.state.zipper,
                           )
                         : CachedStatics.init(

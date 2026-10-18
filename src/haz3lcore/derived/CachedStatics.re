@@ -387,17 +387,34 @@ let init_compositional_term =
   );
 };
 
+/* [shared]: the editor's parse cache, whose item parses stand in for
+   parsing the same pieces again; [source]: [z]'s semantic source as the
+   pieces it parsed (CachedSyntax.semantic_source) */
 let init_compositional =
-    (~settings: CoreSettings.t, ~stitch, ~root, ~probe_ids=?, z: Zipper.t): t =>
+    (
+      ~settings: CoreSettings.t,
+      ~stitch,
+      ~root,
+      ~probe_ids=?,
+      ~shared=?,
+      ~source=?,
+      z: Zipper.t,
+    )
+    : t =>
   if (!settings.statics) {
     empty;
   } else if (root != Sort.Exp && root != Sort.Mod) {
     init(~settings, ~is_dynamic_term=false, ~stitch, ~root, z);
   } else {
     /* semantics reads the caret-independent canonical completion */
-    let source = MakeTerm.semantic_source(z);
+    let source =
+      switch (source) {
+      | Some(seg) => seg
+      | None => MakeTerm.semantic_source(z)
+      };
     let (seg, masks) = MakeTerm.semantic_segment(~root, source);
-    let term = MakeTerm.Incr.term_of_root(~masks, ~root, seg) |> stitch;
+    let term =
+      MakeTerm.Incr.term_of_root(~masks, ~root, ~shared?, seg) |> stitch;
     /* stacked cells pass the union of their zippers' probes */
     let probe_ids =
       switch (probe_ids) {

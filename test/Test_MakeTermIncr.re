@@ -125,6 +125,71 @@ let independent = () =>
   | _ => fail("no leading tile")
   };
 
+/* the statics path takes an editor's item parses (its go_incr cache):
+   after the syntax build parsed an edit, building the term parses
+   nothing, and gives the unshared term */
+let shared_case = ((root, file), ()) => {
+  let seg = CorpusUtil.mega_seg(~root, file);
+  let (edited, found) =
+    CorpusUtil.edit_token(
+      ~at=`First,
+      ~keep_id=true,
+      ~needle="15",
+      ~repl="16",
+      seg,
+    );
+  check(bool, file ++ ": a 15 to edit", true, found);
+  let cache = MakeTerm.Incr.mk_cache();
+  ignore(MakeTerm.Incr.go_incr(~root, ~cache, seg));
+  ignore(MakeTerm.Incr.go_incr(~root, ~cache, edited));
+  MakeTerm.Incr.last := None;
+  let fb = MakeTerm.Incr.fell_back^;
+  let term = MakeTerm.Incr.term_of_root(~root, ~shared=cache, edited);
+  check(int, file ++ ": shared parses nothing", 0, MakeTerm.Incr.analyzed^);
+  check(int, file ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+  MakeTerm.Incr.last := None;
+  MakeTerm.Incr.memo := Id.Map.empty;
+  MakeTerm.Incr.mod_memo := Id.Map.empty;
+  let unshared = MakeTerm.Incr.term_of_root(~root, edited);
+  check(bool, file ++ ": the unshared term", true, term == unshared);
+  /* a cache built at another root goes unused */
+  MakeTerm.Incr.last := None;
+  MakeTerm.Incr.memo := Id.Map.empty;
+  MakeTerm.Incr.mod_memo := Id.Map.empty;
+  let other = root == Sort.Mod ? Sort.Exp : Sort.Mod;
+  let other_cache = MakeTerm.Incr.mk_cache();
+  ignore(MakeTerm.Incr.go_incr(~root=other, ~cache=other_cache, edited));
+  MakeTerm.Incr.last := None;
+  ignore(MakeTerm.Incr.term_of_root(~root, ~shared=other_cache, edited));
+  check(
+    bool,
+    file ++ ": no reuse across roots",
+    true,
+    MakeTerm.Incr.analyzed^ > 0,
+  );
+};
+
+/* with shards missing, semantics parses the completed items itself and
+   takes the cache's parses of the rest: the monolithic term */
+let shared_incomplete = ((name, src), ()) =>
+  switch (CorpusUtil.typed_seg(src)) {
+  | None => fail("untypeable program: " ++ name)
+  | Some(seg) =>
+    let cache = MakeTerm.Incr.mk_cache();
+    ignore(MakeTerm.Incr.go_incr(~cache, seg));
+    let (completed, masks) = MakeTerm.semantic_segment(~root=Exp, seg);
+    MakeTerm.Incr.last := None;
+    MakeTerm.Incr.memo := Id.Map.empty;
+    let term =
+      MakeTerm.Incr.term_of_root(~masks, ~root=Exp, ~shared=cache, completed);
+    check(
+      bool,
+      name ++ ": the monolithic term",
+      true,
+      term == MakeTerm.go_impl(~masks, completed).term,
+    );
+  };
+
 let tests = (
   "MakeTermIncr",
   List.map(
@@ -145,5 +210,24 @@ let tests = (
     test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz")),
     test_case("mega-4k parity", `Quick, corpus_case("mega-4k.hz")),
     test_case("independent of the previous parse", `Quick, independent),
-  ],
+    test_case(
+      "mega-1k: statics shares the syntax parses",
+      `Quick,
+      shared_case((Exp, "mega-1k.hz")),
+    ),
+    test_case(
+      "mega-mod-1k: statics shares the syntax parses",
+      `Quick,
+      shared_case((Mod, "mega-mod-1k.hz")),
+    ),
+  ]
+  @ List.map(
+      ((name, src)) =>
+        test_case(
+          "shared, incomplete: " ++ name,
+          `Quick,
+          shared_incomplete((name, src)),
+        ),
+      CorpusUtil.incomplete_programs,
+    ),
 );
