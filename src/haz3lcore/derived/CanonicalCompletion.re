@@ -2624,6 +2624,37 @@ let rec complete_segment =
            }
          );
     let reassembled = deep_reassemble(regrouted) |> Segment.remold(_, sort);
+    /* a spliced opener absorbs pieces molded at the level's sort (a
+       deleted `let` leaves its pattern read as an expression): its tile's
+       children are remolded at their slots, as typing the opener does */
+    let opened =
+      chosen_all
+      |> List.filter((t: Tile.t) => Tile.l_shard(t) > 0)
+      |> List.map((t: Tile.t) => t.id);
+    let reassembled =
+      opened == []
+        ? reassembled
+        : List.map(
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile(t) when List.mem(t.id, opened) && Tile.is_complete(t) =>
+                let in_ = Tile.mold(t).in_;
+                Piece.Tile({
+                  ...t,
+                  children:
+                    List.mapi(
+                      (i, kid) =>
+                        switch (List.nth_opt(in_, i)) {
+                        | Some(s) => Segment.remold(kid, s)
+                        | None => kid
+                        },
+                      t.children,
+                    ),
+                });
+              | p => p
+              },
+            reassembled,
+          );
 
     /* Regrout again: remold may have changed shapes */
     let completed_seg = Segment.regrout(bounds, reassembled);

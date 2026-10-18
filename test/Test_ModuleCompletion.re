@@ -677,6 +677,22 @@ let semi_deleted = ((name, root, src), ()) => {
   );
 };
 
+/* a deleted head keyword restores with its pattern read as a pattern:
+   annotated, the absorbed `x : T` was read as an expression ascription
+   and bound nothing (general, not only members) */
+let head_deleted = ((name, root, src, at, k), ()) => {
+  let z0 = Zipper.unzip(CorpusUtil.seg_of(~root, src));
+  let before = rows(~root, z0);
+  let z =
+    List.fold_left(
+      perform(~root),
+      z0,
+      [Action.Move(Point(at, None))]
+      @ List.init(k, _ => Action.Destruct(Local(Left, ByChar))),
+    );
+  check_kept(name, before, rows(~root, z));
+};
+
 /* a member's deleted `case` restores inside its definition, as a let-in
    definition's does: multi-line exactly; on one line at the definition's
    start, never before the member's `let` */
@@ -816,6 +832,37 @@ let tests = (
         ("at a Mod root", Sort.Mod, counter_members),
         ("in a module", Sort.Exp, counter),
         ("in a library-style module", Sort.Mod, option_shaped),
+      ],
+    )
+  @ List.map(
+      ((name, _, _, _, _) as c) =>
+        test_case(
+          "a deleted head keyword: " ++ name,
+          `Quick,
+          head_deleted(c),
+        ),
+      [
+        (
+          "an annotated let-in",
+          Sort.Exp,
+          "let digit : Int -> Int = fun d -> d in\nlet go = fun k -> digit(k) in\ngo(1)",
+          Util.Point.mk(~row=0, ~col=3),
+          3,
+        ),
+        (
+          "an annotated member",
+          Sort.Mod,
+          "let digit : Int -> Int = fun d -> d;\nlet go = fun k -> digit(k);\ngo(1)",
+          Util.Point.mk(~row=0, ~col=3),
+          3,
+        ),
+        (
+          "a signed module",
+          Sort.Exp,
+          "module M : {let x : Int} = {let x = 1} in\nlet y = M.x in\ny",
+          Util.Point.mk(~row=0, ~col=6),
+          6,
+        ),
       ],
     )
   @ List.map(
