@@ -485,6 +485,87 @@ let probe_capture_parity = (): unit => {
   );
 };
 
+/* a probe toggled in a ModExp chain's link re-analyzes that link (with
+   its member and module), witnesses as monolithic statics does, and
+   samples under a fresh evaluation */
+let modexp_probe_parity = (): unit => {
+  let term =
+    MakeTerm.Incr.term_of(
+      CorpusUtil.seg_of(
+        "module M = {\n  let f = fun q -> q + 1 in\n  let z = f(5) in\n  test z == 6 end;\n  let c = 3\n} in\nM.c",
+      ),
+    );
+  let ds0 = DefStatics.calc(~settings, term);
+  let q_id =
+    switch (
+      Id.Map.fold(
+        (id, info, acc) =>
+          switch (acc, info) {
+          | (None, Info.InfoExp({user_term: {term: Var("q"), _}, _})) =>
+            Some(id)
+          | _ => acc
+          },
+        ds0.merged,
+        None,
+      )
+    ) {
+    | Some(id) => id
+    | None => fail("no use of q")
+    };
+  let probe_ids = Id.Map.singleton(q_id, ());
+  let ds = DefStatics.calc(~settings, ~prev=ds0, ~probe_ids, term);
+  check(int, "M, the member and f's link", 3, DefStatics.last_analyzed^);
+  check(
+    list(string),
+    "parity",
+    [],
+    DefStaticsCheck.divergences(~settings, ds),
+  );
+  let samples = (info_map, elab) => {
+    let targets =
+      CachedStatics.compute_targets(~settings, ~info_map, ~probe_ids, ());
+    let eval_info =
+      EvalInfo.of_info_map(~probe_all=false, ~targets, info_map);
+    let (_, state) =
+      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, elab);
+    Id.Map.cardinal(EvaluatorState.get_probes(state));
+  };
+  let (map_m, elab_m) =
+    Statics.mk_unmemoized(~probe_ids, settings, DefStatics.ctx0, term);
+  let mono = samples(map_m, elab_m);
+  check(bool, "the probe samples", true, mono > 0);
+  check(int, "samples as monolithic", mono, samples(ds.merged, graft(ds)));
+};
+
+/* a ModExp chain moved below what its link reads, ids kept (the outline
+   moves its `let … in` lines apart, so the items are reordered here): its
+   links can't be reused from above the move */
+let modexp_chain_moved = (): unit => {
+  let term =
+    MakeTerm.Incr.term_of_mod(
+      CorpusUtil.seg_of(
+        ~root=Mod,
+        "let a = k + 1 in\ntest a == 2 end;\nlet k = 1;\nk",
+      ),
+    );
+  let ds0 = DefStatics.calc(~settings, term);
+  let moved: Exp.t =
+    switch (term.term) {
+    | Module([chain, k, ...rest]) => {
+        ...term,
+        term: Module([k, chain, ...rest]),
+      }
+    | _ => fail("not a module root")
+    };
+  let ds = DefStatics.calc(~settings, ~prev=ds0, moved);
+  check(
+    list(string),
+    "parity",
+    [],
+    DefStaticsCheck.divergences(~settings, ds),
+  );
+};
+
 /* small programs: outline edits, and names resolved across items */
 let small = [
   test_case(
@@ -675,6 +756,25 @@ let small = [
     ),
   ),
   test_case(
+    "a module moved past what its member reads",
+    `Quick,
+    /* k moves above M, so M now sees k, which no dirty name says: M
+       and all its members re-analyze, then the tail */
+    script(
+      "module M = {\n  let x = k + 1;\n  let y = 2\n} in\nlet k = 1 in\nM.x",
+      [op(MoveUp, ["k"]) |> analyzed(5)],
+    ),
+  ),
+  test_case(
+    "a module moved past what its member reads, at a module root",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module M = {\n  let x = k + 1;\n  let y = 2\n};\nlet k = 1;\nM.x",
+      [op(MoveUp, ["k"])],
+    ),
+  ),
+  test_case(
     "moving a member past one of the same name",
     `Quick,
     script(
@@ -779,6 +879,95 @@ let module_roots = [
   ),
 ];
 
+/* a ModExp member that is a let chain is a level of items: an edit
+   re-analyzes the module, the member's wrapper, the edited link and the
+   links that use what it changed. a let chain in a definition is one item */
+let modexp_chains = [
+  test_case(
+    "a ModExp member that is a let chain",
+    `Quick,
+    script(
+      "module Holes = {\n  let k = 10;\n  let a = 1 in\n  let b = k + 2 in\n  test a + b == 13 end;\n  let c = 3\n} in\nHoles.c",
+      [
+        noop |> analyzed(0),
+        /* Holes, the member and a's link; the test now fails */
+        token(~keep_id=true, "1", "5") |> analyzed(3),
+        token("2", "6") |> analyzed(3),
+        /* k, then b (the one link that reads it), Holes' exports tail
+           and the program's tail, which reads Holes */
+        token("10", "false") |> analyzed(6),
+        /* the tail link (b goes unused) */
+        token(~at=`Last, "b", "a") |> analyzed(3),
+        /* a retyped: its link and the tail, which reads a */
+        token("5", "true") |> analyzed(4),
+      ],
+    ),
+  ),
+  test_case(
+    "let chains in definitions stay one item",
+    `Quick,
+    script(
+      "module M = {\n  let _ = let a = 1 in let b = 2 in a + b;\n  let x = let p = 4 in p + 1;\n  let y = x\n} in\nlet _ = let q = 6 in q in\nM.y",
+      [
+        token(~at=`First, "1", "5") |> analyzed(2),
+        token("4", "8") |> analyzed(2),
+        token("6", "7") |> analyzed(1),
+      ],
+    ),
+  ),
+  test_case(
+    "module literals in a ModExp chain",
+    `Quick,
+    script(
+      "module Outer = {\n  let k = 1 in\n  module Inner = {\n    let x = k + 1;\n    let w = 7 in\n    test w == 7 end;\n    let y = 5\n  } in\n  test Inner.x == 2 end;\n  let z = 3\n} in\nOuter.z",
+      [
+        /* Outer, its member, Inner's link and Inner's y */
+        token("5", "6") |> analyzed(4),
+        /* ... and Inner's own chain member and w's link */
+        token(~at=`First, ~keep_id=true, "7", "8") |> analyzed(5),
+        /* k retyped: Inner's link and its x, which reads k */
+        token(~at=`First, "1", "true") |> analyzed(5),
+      ],
+    ),
+  ),
+  test_case(
+    "a ModExp member that isn't a chain",
+    `Quick,
+    script(
+      "module M = {\n  let a = 1;\n  test a == 1 end;\n  a + 4;\n  let b = 2\n} in\nM.b",
+      [
+        token("4", "5") |> analyzed(2),
+        token(~at=`Last, ~keep_id=true, "1", "3") |> analyzed(2),
+      ],
+    ),
+  ),
+  test_case(
+    "a ModExp chain at a module root",
+    `Quick,
+    script(
+      ~root=Mod,
+      "let a = 1 in\nlet b = a + 1 in\ntest b == 2 end;\nlet c = 3;\nc",
+      [
+        token(~at=`First, ~keep_id=true, "1", "5") |> analyzed(2),
+        token("3", "4") |> changes_value |> analyzed(1),
+      ],
+    ),
+  ),
+  test_case(
+    "mega-1k as one ModExp member",
+    `Quick,
+    /* the program inside braces: its module chain (with the first test)
+       is one ModExp member. an edit costs Mega, that member, the
+       WateringTimer link and its selfcheck member */
+    mega(
+      ~root=Mod,
+      ~wrap=src => "module Mega = {\n" ++ src ++ "\n}",
+      "mega-1k.hz",
+      [token("180", "181") |> analyzed(4)],
+    ),
+  ),
+];
+
 /* the mega programs: a few edits each, at scale */
 let corpus = [
   test_case(
@@ -858,10 +1047,13 @@ let tests = (
       spine_elab_is_whole_suffix,
     ),
     test_case("probe capture parity", `Quick, probe_capture_parity),
+    test_case("probe parity in a ModExp chain", `Quick, modexp_probe_parity),
+    test_case("a ModExp chain moved", `Quick, modexp_chain_moved),
   ]
   @ small
   @ type_deps
   @ literal_edits
   @ module_roots
+  @ modexp_chains
   @ corpus,
 );
