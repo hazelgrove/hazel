@@ -8,8 +8,8 @@ open Haz3lcore;
    design are named where they are allowed */
 
 module S = ItemSpans;
-module Focus = Web.ScratchFocus;
-module IE = Web.ItemEdit;
+module Focus = FocusOracle;
+module IE = ItemEditOracle;
 
 /* the stdlib's sources, module bodies (Mod-rooted), where the repo has
    them */
