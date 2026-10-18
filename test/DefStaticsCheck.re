@@ -1,6 +1,53 @@
 open Haz3lcore;
 open Language;
 
+/* how two infos for one id differ, if they do: type ([types]),
+   elaboration, class, runtime free variables, probe targets */
+let sorted = xs => List.sort_uniq(compare, xs);
+let runtime = co =>
+  sorted(List.filter(IncrEval.is_runtime_dependency, CoCtx.names(co)));
+let differ = (~types, a: Info.t, b: Info.t): option(string) =>
+  switch (a, b) {
+  | (InfoExp(a), InfoExp(b)) =>
+    if (types && !Typ.fast_equal(a.ty, b.ty)) {
+      Some(
+        "type " ++ Typ.pretty_print(a.ty) ++ " / " ++ Typ.pretty_print(b.ty),
+      );
+    } else if (!Exp.fast_equal(a.elab_term, b.elab_term)
+               || Exp.lexeme_trace(a.elab_term)
+               != Exp.lexeme_trace(b.elab_term)) {
+      Some("elaboration");
+    } else if (a.cls != b.cls) {
+      /* the inspector and ExplainThis read it */
+      Some(
+        "class " ++ Cls.show(a.cls) ++ " / " ++ Cls.show(b.cls),
+      );
+    } else if (runtime(a.co_ctx) != runtime(b.co_ctx)) {
+      let names = co => String.concat(" ", runtime(co));
+      Some(
+        "free variables {"
+        ++ names(a.co_ctx)
+        ++ "} / {"
+        ++ names(b.co_ctx)
+        ++ "}",
+      );
+    } else if (!SubexpProbeTargets.equal(a.probe_targets, b.probe_targets)) {
+      Some("probe targets");
+    } else {
+      None;
+    }
+  | (InfoPat(a), InfoPat(b)) =>
+    !types || Typ.fast_equal(a.ty, b.ty)
+      ? None
+      : Some(
+          "pattern type "
+          ++ Typ.pretty_print(a.ty)
+          ++ " / "
+          ++ Typ.pretty_print(b.ty),
+        )
+  | _ => Info.sort_of(a) == Info.sort_of(b) ? None : Some("sort")
+  };
+
 /* how [t] differs from a cold calc and from monolithic statics: error and
    warning ids, and per id the type, elaboration, runtime free variables
    and probe targets; from the cold calc, also its items and their exports.
@@ -53,53 +100,6 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
     );
   let spine = Hashtbl.create(64);
   List.iter(id => Hashtbl.replace(spine, id, ()), roots(t.items));
-  let sorted = xs => List.sort_uniq(compare, xs);
-  let runtime = co =>
-    sorted(List.filter(IncrEval.is_runtime_dependency, CoCtx.names(co)));
-  let differ = (~types, a: Info.t, b: Info.t): option(string) =>
-    switch (a, b) {
-    | (InfoExp(a), InfoExp(b)) =>
-      if (types && !Typ.fast_equal(a.ty, b.ty)) {
-        Some(
-          "type "
-          ++ Typ.pretty_print(a.ty)
-          ++ " / "
-          ++ Typ.pretty_print(b.ty),
-        );
-      } else if (!Exp.fast_equal(a.elab_term, b.elab_term)
-                 || Exp.lexeme_trace(a.elab_term)
-                 != Exp.lexeme_trace(b.elab_term)) {
-        Some("elaboration");
-      } else if (a.cls != b.cls) {
-        /* the inspector and ExplainThis read it */
-        Some(
-          "class " ++ Cls.show(a.cls) ++ " / " ++ Cls.show(b.cls),
-        );
-      } else if (runtime(a.co_ctx) != runtime(b.co_ctx)) {
-        let names = co => String.concat(" ", runtime(co));
-        Some(
-          "free variables {"
-          ++ names(a.co_ctx)
-          ++ "} / {"
-          ++ names(b.co_ctx)
-          ++ "}",
-        );
-      } else if (!SubexpProbeTargets.equal(a.probe_targets, b.probe_targets)) {
-        Some("probe targets");
-      } else {
-        None;
-      }
-    | (InfoPat(a), InfoPat(b)) =>
-      !types || Typ.fast_equal(a.ty, b.ty)
-        ? None
-        : Some(
-            "pattern type "
-            ++ Typ.pretty_print(a.ty)
-            ++ " / "
-            ++ Typ.pretty_print(b.ty),
-          )
-    | _ => Info.sort_of(a) == Info.sort_of(b) ? None : Some("sort")
-    };
   let out = ref([]);
   let note = s => out := [s, ...out^];
   let ids = (what, reference, got) => {
