@@ -22,8 +22,10 @@ let at_caret =
       | Some(syntax) => CompletionQuery.engine_seg(~syntax, z)
       | None => MakeTerm.semantic_source(z)
       };
-    /* Include IDs: Segment.equal deliberately ignores tile identity. */
-    if (source !== snapshot.source && source != snapshot.source) {
+    /* Include IDs: Segment.equal deliberately ignores tile identity.
+       compare, unlike (==), skips the pieces two zips share: all but the
+       caret's ancestors. */
+    if (compare(source, snapshot.source) != 0) {
       None; /* Includes annotation/context edits during the statics debounce. */
     } else {
       let* chip = CompletionQuery.chip_at_caret(~seg=source, z);

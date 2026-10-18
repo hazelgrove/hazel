@@ -36,6 +36,46 @@ let frame = (z: Zipper.t): (CachedSyntax.t, CachedStatics.t) => {
   (syntax, statics);
 };
 
+/* the frame's segment stands in for any zip of the program: zips agree,
+   ids included, wherever the caret is */
+let zips_agree_case =
+  test_case("zips agree at every caret", `Quick, () =>
+    List.iter(
+      text => {
+        let z0 = Option.get(MarkerParse.of_text(~root=Exp, text));
+        let s0 = MakeTerm.semantic_source(z0);
+        let rec walk = (z: Zipper.t, fuel) => {
+          check(bool, "the same", true, MakeTerm.semantic_source(z) == s0);
+          switch (
+            fuel > 0
+              ? Perform.go(
+                  ~settings,
+                  ~statics=CachedStatics.empty,
+                  ~syntax=CachedSyntax.init(z),
+                  ~root=Exp,
+                  Move(Local(Right, ByChar)),
+                  {
+                    zipper: z,
+                    col_target: None,
+                  },
+                )
+              : Error(Action.Failure.Cant_move)
+          ) {
+          | Ok(z) => 1 + walk(z, fuel - 1)
+          | Error(_) => 1
+          };
+        };
+        let carets = walk(Zipper.caret_to_start(z0), String.length(text));
+        check(bool, "every caret", true, 2 * carets > String.length(text));
+      },
+      [
+        "(let x : Int = 1\nlet y = 2 in y)",
+        "module M = {\n  let a = (1 + 2;\n  let b = 3\n} in M.b",
+        "if 1 < 2 then 3 el 4",
+      ],
+    )
+  );
+
 let engine_seg_cases = [
   test_case(
     "the frame's segment, not a zip",
@@ -74,6 +114,70 @@ let engine_seg_cases = [
 ];
 
 let expected_type = Test_ImpliedHole.expected_type;
+
+/* the inspector's snapshot check: ids included, whatever is shared */
+let snapshot_case =
+  test_case(
+    "the snapshot check: shared, copied, changed",
+    `Quick,
+    () => {
+      let z = zipper("(let x : Int = ¦\nlet y = 2 in y)");
+      let (syntax, statics) = frame(z);
+      let completion = Option.get(statics.completion);
+      let at = source =>
+        expected_type(
+          ImpliedHole.at_caret(
+            ~syntax,
+            ~statics={
+              ...statics,
+              completion:
+                Some({
+                  ...completion,
+                  source,
+                }),
+            },
+            z,
+          ),
+        );
+      let map = f => ZipperBase.MapPiece.of_segment(f, completion.source);
+      check(string, "the frame's own", "Int", at(completion.source));
+      check(string, "a copy, no tile shared", "Int", at(map(p => [p])));
+      check(
+        string,
+        "a changed id",
+        "none",
+        at(
+          map(
+            fun
+            | Tile({form: Tok("2"), _} as t) => [
+                Tile({
+                  ...t,
+                  id: Util.Id.mk(),
+                }),
+              ]
+            | p => [p],
+          ),
+        ),
+      );
+      check(
+        string,
+        "a changed token",
+        "none",
+        at(
+          map(
+            fun
+            | Tile({form: Tok("2"), _} as t) => [
+                Tile({
+                  ...t,
+                  form: Tok("3"),
+                }),
+              ]
+            | p => [p],
+          ),
+        ),
+      );
+    },
+  );
 
 let inspector_case = (input, expected) =>
   test_case(
@@ -258,10 +362,11 @@ let tab_case = (input, expected) =>
 let tests = [
   (
     "FrameCompletion",
-    engine_seg_cases
+    [zips_agree_case, ...engine_seg_cases]
     @ [
       inspector_case("(let x : Int = ¦\nlet y = 2 in y)", "Int"),
       inspector_case("(let f(x : Int) : Bool = ¦\nlet y = 2 in y)", "Bool"),
+      snapshot_case,
       tydi_case("(if 1 < 2 then 3 el¦ 4)", ["else"]),
       tab_case("(let x = 1¦\nx)", "(let x = 1 in|\nx)"),
     ]
