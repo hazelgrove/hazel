@@ -2102,7 +2102,7 @@ let go_mod_root_impl =
     seg,
     () => {
       let items =
-        switch (go_s(Sort.Mod, skel_of(~sort=Exp, seg), seg)) {
+        switch (go_s(Sort.Mod, skel_of(~sort=Mod, seg), seg)) {
         | Mod(m) => flatten_mod(m)
         | _ => []
         };
@@ -2253,7 +2253,10 @@ module Incr = {
   /* a mod-item slice ending in `;` is nonconvex: the appended grout
      parses to a trailing EmptyHole item, dropped here (the caller scrubs
      its id). mod items have no body, so composition is a plain concat,
-     which a `;` parsed inside an item (a stray line above a member) breaks */
+     which a `;` parsed inside an item (a stray line above a member) breaks.
+     Read Mod-sorted, as go reads a member list: a concave grout (a missing
+     `;`) separates members, where the collection's Exp-sorted skel would
+     bind it inside the first member's definition */
   let parse_item_mod =
       (~masks=Id.Map.empty, ~hooks=Id.Map.empty, pieces: Segment.t)
       : (list(Mod.t), option(Id.t)) => {
@@ -2261,7 +2264,7 @@ module Incr = {
       switch (Segment.skel(ps)) {
       | skel =>
         fresh(~masks, ~hooks, ~skel, ps, () =>
-          switch (go_s(Sort.Mod, skel, ps)) {
+          switch (go_s(Sort.Mod, skel_of(~sort=Mod, ps), ps)) {
           | Mod(m) => Some(flatten_mod(m))
           | _ => None
           }
@@ -2496,7 +2499,7 @@ module Incr = {
       root,
       switch (skel) {
       | Some(skel) => skel
-      | None => Segment.skel(seg)
+      | None => Segment.skel(~sort=root == Sort.Mod ? Mod : Exp, seg)
       },
     );
     td^;
