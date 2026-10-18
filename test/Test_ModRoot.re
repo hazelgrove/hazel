@@ -205,10 +205,54 @@ let letin_member = ((name, src), ()) => {
   check_parity(seg2, incr2);
 };
 
+/* a module body whose `;` became grout: the grout separates the members
+   as the `;` did (a Mod-sorted skel), though secondary collection reads
+   the body Exp-sorted and the parse takes its skels */
+let grout_between_members = () => {
+  let rec ungrout = (seg: Segment.t): Segment.t =>
+    List.map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when Tile.is_semi(t) =>
+          Piece.Grout({
+            id: t.id,
+            shape: Concave,
+          })
+        | Tile(t) =>
+          Tile({
+            ...t,
+            children: List.map(ungrout, t.children),
+          })
+        | p => p
+        },
+      seg,
+    );
+  let seg =
+    ungrout(
+      CorpusUtil.seg_of("module M = {\n  let x = 1;\n  let y = 2\n} in\nM.x"),
+    );
+  let members = (e: Exp.t) =>
+    switch (e.term) {
+    | ModuleExp(_, {term: Module(items), _}, _) =>
+      List.filter(
+        (m: Mod.t) =>
+          switch (m.term) {
+          | ModLet(_) => true
+          | _ => false
+          },
+        items,
+      )
+      |> List.length
+    | _ => (-1)
+    };
+  check(int, "two members", 2, members(MakeTerm.go_impl(seg).term));
+};
+
 let tests = (
   "ModRoot",
   [
     test_case("probe", `Quick, probe),
+    test_case("grout between members", `Quick, grout_between_members),
     test_case("full parity", `Quick, full_parity),
     test_case("incremental edit", `Quick, incremental_edit),
     test_case("term_of_mod", `Quick, term_of_mod_matches),

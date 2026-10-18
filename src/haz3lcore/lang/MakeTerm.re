@@ -225,14 +225,66 @@ let kids_of_unsorted =
 let map: ref(TermMap.t) = ref(Id.Map.empty);
 
 let term_data: ref(TermData.t) = ref(Id.Map.empty);
-let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
+
+/* the levels this parse reads, by first piece: secondary collection
+   records each one's pieces and skel, so the parse indexes an array and
+   doesn't build the skel again */
+let levels: ref(Segment.SecondaryCollection.levels) =
+  ref(Hashtbl.create(1));
+
+let level_of = (seg: Segment.t): option(Segment.SecondaryCollection.level) =>
+  switch (seg) {
+  | [p, ..._] =>
+    switch (Hashtbl.find_opt(levels^, Piece.id(p))) {
+    | Some(l) when l.l_seg === seg => Some(l)
+    | _ => None
+    }
+  | [] => None
+  };
+
+/* [seg] as an array, for indexing by skel position */
+let pieces_of = (seg: Segment.t): array(Piece.t) =>
+  switch (level_of(seg)) {
+  | Some(l) => l.l_arr
+  | None =>
+    let arr = Array.of_list(seg);
+    Segment.SecondaryCollection.record(levels^, seg, arr, None);
+    arr;
+  };
+
+let has_concave_grout =
+  Array.exists((p: Piece.t) =>
+    switch (p) {
+    | Grout({shape: Concave, _}) => true
+    | _ => false
+    }
+  );
+
+/* Segment.skel(~sort, seg), from collection when it read the same: its
+   skels are Exp-sorted, which only Mod and Sig read differently, at
+   concave grout */
+let skel_of = (~sort: Sort.t, seg: Segment.t): Skel.t =>
+  switch (level_of(seg)) {
+  | Some({l_skel: Some(skel), l_arr, _})
+      when sort != Mod && sort != Sig || !has_concave_grout(l_arr) => skel
+  | _ => Segment.skel(~sort, seg)
+  };
+
+let sort_of = (skel: Skel.t, seg: Segment.t): Sort.t =>
+  Piece.sort(pieces_of(seg)[Aba.first_a(Skel.root(skel))]) |> fst;
+
+let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit => {
+  let arr = pieces_of(seg);
   term_data :=
-    Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
+    Aba.get_as(Skel.root(skel))
     |> List.fold_left(
-         (map, p) =>
-           Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map),
+         (map, i) => {
+           let p = arr[i];
+           Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map);
+         },
          term_data^,
        );
+};
 
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
@@ -487,7 +539,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   | Sig => Sig(sig_(unsorted(Sig, skel, seg)))
   | MPat => MPat(mpat(unsorted(MPat, skel, seg)))
   | Any =>
-    let sort = Segment.sort_of(skel, seg);
+    let sort = sort_of(skel, seg);
     if (sort == Any) {
       Exp(exp(unsorted(Exp, skel, seg)));
     } else {
@@ -1757,7 +1809,7 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
       let _ = log_projector(pr);
       let sort = Piece.sort(syntax) |> fst;
       let seg = Piece.unparenthesize(syntax);
-      let inner = go_s(sort, Segment.skel(seg), seg);
+      let inner = go_s(sort, skel_of(~sort=Exp, seg), seg);
       /* Construct Projector term with proper annotation, preserving
        * projector metadata (kind, model) in the term for round-tripping */
       let projector_data: Grammar.projector_data = {
@@ -1803,15 +1855,16 @@ and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
            let s = l + 1 == r ? List.nth(Tile.mold(t).in_, l) : Sort.Any;
-           go_s(s, Segment.skel(~sort=s, kid), kid);
+           go_s(s, skel_of(~sort=s, kid), kid);
          })
     };
 
   /* Capture term ranges */
   record_term_data(sort, seg, skel);
 
+  let arr = pieces_of(seg);
   let root: Aba.t(Piece.t, Skel.t) =
-    Skel.root(skel) |> Aba.map_a(List.nth(seg));
+    Skel.root(skel) |> Aba.map_a(i => arr[i]);
 
   // maintaining this alternating ordered structure
   // for handling incomplete forms later
@@ -1889,6 +1942,7 @@ let consolidate_adopted = (): unit =>
 let fresh =
     (
       ~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty,
+      ~skel=?,
       seg: Segment.t,
       parse: unit => 'a,
     )
@@ -1898,7 +1952,9 @@ let fresh =
   projectors := Id.Map.empty;
   projector_list := [];
   adopted_ids := [];
-  secondary_map := Segment.SecondaryCollection.collect(seg);
+  levels := Hashtbl.create(16);
+  secondary_map :=
+    Segment.SecondaryCollection.collect(~levels=levels^, ~skel?, seg);
   shard_masks := masks;
   pending_lexeme := None;
   Fun.protect(
@@ -1921,7 +1977,7 @@ let go_impl =
     ~masks,
     seg,
     () => {
-      let term = exp(unsorted(Exp, Segment.skel(seg), seg));
+      let term = exp(unsorted(Exp, skel_of(~sort=Exp, seg), seg));
       consolidate_adopted();
       {
         term,
@@ -1960,7 +2016,7 @@ let go_mod_root_impl =
     seg,
     () => {
       let items =
-        switch (go_s(Sort.Mod, Segment.skel(seg), seg)) {
+        switch (go_s(Sort.Mod, skel_of(~sort=Exp, seg), seg)) {
         | Mod(m) => flatten_mod(m)
         | _ => []
         };
@@ -1998,7 +2054,7 @@ let for_projection =
       switch (Segment.skel(seg)) {
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
-        let sort = Segment.sort_of(skel, seg);
+        let sort = sort_of(skel, seg);
         let unsorted = unsorted(sort, skel, seg);
         switch (sort) {
         | Drv(_) =>
@@ -2093,7 +2149,8 @@ module Incr = {
       (~masks=Id.Map.empty, pieces: Segment.t): (Exp.t, option(Id.t)) => {
     let attempt = (ps: Segment.t) =>
       switch (Segment.skel(ps)) {
-      | skel => Some(fresh(~masks, ps, () => exp(unsorted(Exp, skel, ps))))
+      | skel =>
+        Some(fresh(~masks, ~skel, ps, () => exp(unsorted(Exp, skel, ps))))
       | exception _ => None
       };
     switch (with_body_grout(attempt, pieces)) {
@@ -2111,7 +2168,7 @@ module Incr = {
     let attempt = (ps: Segment.t): option(list(Mod.t)) =>
       switch (Segment.skel(ps)) {
       | skel =>
-        fresh(~masks, ps, () =>
+        fresh(~masks, ~skel, ps, () =>
           switch (go_s(Sort.Mod, skel, ps)) {
           | Mod(m) => Some(flatten_mod(m))
           | _ => None
@@ -2437,17 +2494,18 @@ module Incr = {
   let record_top_frame =
       (~root: Sort.t=Exp, td0: TermData.t, seg: Segment.t): TermData.t => {
     let td = ref(td0);
+    let arr = Array.of_list(seg);
     let resolve = (s: Sort.t, skel: Skel.t): Sort.t =>
       switch (s) {
       | Any =>
-        let so = Segment.sort_of(skel, seg);
+        let so = Piece.sort(arr[Aba.first_a(Skel.root(skel))]) |> fst;
         so == Any ? root : so;
       | Drv(Jdmt | Ctx | Prop | Exp) => Drv(Exp)
       | s => s
       };
     let rec sim = (s: Sort.t, skel: Skel.t): unit => {
       let s = resolve(s, skel);
-      let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
+      let root = Skel.root(skel) |> Aba.map_a(i => arr[i]);
       Aba.get_as(root)
       |> List.iter(p =>
            td := Id.Map.add(Piece.id(p), TermData.mk(p, s, skel, seg), td^)
@@ -2643,7 +2701,7 @@ let from_zip_at =
     : 'a => {
   let (seg, _) = semantic_segment(~root, semantic_source(z));
   fresh(seg, () =>
-    switch (Segment.skel(seg)) {
+    switch (skel_of(~sort=Exp, seg)) {
     | exception _ => default()
     | skel => term(unsorted(root, skel, seg))
     }
@@ -2668,7 +2726,7 @@ let from_zip_for_tpat =
 let sorted_syntax_data_memo =
   Core.Memo.general(~cache_size_bound=8, ((root: Sort.t, seg: Segment.t)) =>
     fresh(seg, () =>
-      switch (Segment.skel(seg)) {
+      switch (skel_of(~sort=Exp, seg)) {
       | exception _ => (TermMap.empty, Id.Map.empty, Id.Map.empty, [])
       | skel =>
         ignore(go_s(root, skel, seg));
