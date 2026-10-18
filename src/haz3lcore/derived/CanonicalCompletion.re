@@ -1483,13 +1483,11 @@ let member_at = (~floor=0, arr: array(Piece.t), i: int): (int, int) => {
   (c, indent_at(~floor, arr, c));
 };
 
-/* what follows [head]'s line ends the member opened at [indent]: a member
-   line, or a member head */
-let ends_member = (~indent: int, ~slot: option(Piece.t), f: follows): bool =>
-  is_member_head(f.head)
-  || f.indent <= indent
-  && !continues(f.head)
-  && !Option.fold(~none=false, ~some=is_body_slot, slot);
+/* the line [f] opens is a member line for the member opened at [indent],
+   whose [slot] ends the line before it (an open `in` takes it as its
+   body) */
+let member_line = (~indent: int, ~slot: Piece.t, f: follows): bool =>
+  f.indent <= indent && !continues(f.head) && !is_body_slot(slot);
 
 /* per partition of [seg]: what follows it (the next partition with
    content's lead, [follows] after the last), and, where it ends a member
@@ -1593,7 +1591,7 @@ let open_slots = (~follows: option(follows)=None, seg: Segment.t): list(int) => 
          && (
            switch (snd(Tile.nibs(t))) {
            | {shape: Concave(_), sort} =>
-             sort != Sort.Mod && sort != Sort.Sig && sort != Sort.Any
+             !at_members(sort) && sort != Sort.Any
            | _ => false
            }
          )
@@ -1610,11 +1608,7 @@ let open_slots = (~follows: option(follows)=None, seg: Segment.t): list(int) => 
            | Some(f) =>
              is_member_head(f.head)
              || (lb || k >= n)
-             && ends_member(
-                  ~indent=snd(member_at(arr, j)),
-                  ~slot=Some(arr[j]),
-                  f,
-                )
+             && member_line(~indent=snd(member_at(arr, j)), ~slot=arr[j], f)
            | None => false
            };
          }
