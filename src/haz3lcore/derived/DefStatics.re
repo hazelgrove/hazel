@@ -91,7 +91,7 @@ and field = {
 and sur = {
   u_settings: CoreSettings.t,
   u_ctx: Ctx.t,
-  u_node: Exp.t,
+  u_hollow: Exp.t, /* the item's head on the surrogate */
   u_def: Id.t,
   u_ty: Typ.t,
   u_probes: Id.Map.t(unit),
@@ -1071,7 +1071,7 @@ let surrogate =
         && u.u_ctx === ctx_in
         && (u.u_settings === settings || u.u_settings == settings)
         && Id.equal(u.u_def, Exp.rep_id(def))
-        && same_binding(u.u_node, node)
+        && same_binding(u.u_hollow, node)
         && Id.Map.equal((_, _) => true, u.u_probes, probe_ids) => u
   | _ =>
     let sur_hole = Exp.fresh(EmptyHole);
@@ -1083,16 +1083,12 @@ let surrogate =
       | ModuleExp(mp, _, _) => ModuleExp(mp, sur_def, body_hole)
       | _ => Let(bind_pat, sur_def, body_hole)
       };
+    let hollow = {
+      ...node,
+      term: hollow_term,
+    };
     let (map, elab) =
-      Statics.mk_unmemoized(
-        ~probe_ids,
-        settings,
-        ctx_in,
-        {
-          ...node,
-          term: hollow_term,
-        },
-      );
+      Statics.mk_unmemoized(~probe_ids, settings, ctx_in, hollow);
     /* surrogate scaffolding ids (inner hole, synthesized annotation),
        minus the def's rep id, whose entry stands in for the module node */
     let sur_ids = {
@@ -1121,7 +1117,7 @@ let surrogate =
     {
       u_settings: settings,
       u_ctx: ctx_in,
-      u_node: node,
+      u_hollow: hollow,
       u_def: Exp.rep_id(def),
       u_ty: ty,
       u_probes: probe_ids,
