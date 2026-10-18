@@ -73,6 +73,8 @@ type project =
   | SampleFocus(sample_focus)
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
+  | NewlineInString /* Convert a string to an editable text projector */
+  | JoinTextLines(int, int, int, Direction.t) /* Projector index, UTF-16 selection, deletion direction */
   | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
@@ -235,6 +237,8 @@ let is_edit: t => bool =
     switch (p) {
     | SetSyntax(_)
     | SetIndicated(_)
+    | NewlineInString
+    | JoinTextLines(_)
     | RemoveIndicated => true
     | SetModel(_)
     /* SetModel isn't an edit: CachedSyntax detects shape-affecting model
@@ -272,6 +276,8 @@ let is_historic: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
+    | NewlineInString
+    | JoinTextLines(_)
     | RemoveIndicated => true
     | Focus(_)
     | SampleFocus(_)
@@ -315,6 +321,8 @@ let should_animate: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
+    | NewlineInString
+    | JoinTextLines(_)
     | RemoveIndicated
     | Focus(_)
     | SampleFocus(_)

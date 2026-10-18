@@ -273,6 +273,9 @@ module Selection = {
       None
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.TAB)
+    | {key: D("Enter"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
+        when ProjectorPerform.can_newline_in_string(model.editor.state.zipper) =>
+      Some(Update.Perform(Project(NewlineInString)))
     /* Cmd+Enter (Mac) / Ctrl+Enter (PC) focuses indicated probe */
     | {
         key: D("Enter"),

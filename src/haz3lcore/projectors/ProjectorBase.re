@@ -24,6 +24,7 @@ type external_action =
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
   | EscapeToLineEnd(ProjectorCore.Kind.t) /* Pass focus to parent editor, move to end of line */
   | SetSyntax(Base.segment) /* Set underlying syntax */
+  | JoinTextLines(int, int, Direction.t) /* Delete the final linebreak and return to a string */
   | FocusById(Util.Id.t); /* Focus a projector by its term id */
 
 /* Syntax utility functions/values for projector use,

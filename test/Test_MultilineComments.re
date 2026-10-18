@@ -200,7 +200,11 @@ let tests = (
               let z =
                 Move.to_point(
                   ~measured,
-                  ~goal=Point.{row: row + extra_rows, col: 80},
+                  ~goal=
+                    Point.{
+                      row: row + extra_rows,
+                      col: 80,
+                    },
                   initial,
                 )
                 |> Option.get;
@@ -302,6 +306,21 @@ let tests = (
       check(string, "indent all", "  # a\n    b #\n  1", printed(z));
       let z = perform(z, [AdjustIndent(Left, Always)]);
       check(string, "dedent all", text, printed(z));
+    }),
+    run("whole-block indentation preserves list layout and blank lines", () => {
+      let text = "# Notes\n  - first\n    detail\n\n  - second\n#";
+      let z =
+        parse(text)
+        |> Select.all
+        |> perform(_, [AdjustIndent(Right, Always)]);
+      check(
+        string,
+        "relative indentation",
+        "  # Notes\n    - first\n      detail\n  \n    - second\n  #",
+        printed(z),
+      );
+      let z = perform(z, [AdjustIndent(Left, Always)]);
+      check(string, "exact reversal including blank line", text, printed(z));
     }),
     run("indent keeps a partial selection inside a comment", () => {
       let text = "# a\n  second\nthird # 1";

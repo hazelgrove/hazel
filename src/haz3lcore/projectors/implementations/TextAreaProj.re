@@ -38,14 +38,55 @@ let put = (info, s: string): Base.segment =>
   };
 
 let focus_parent_editor = (id): unit => {
+  FocusEffect.expect_blur();
   let el = JsUtil.get_elem_by_id(Id.cls(id));
   el##blur;
   /* After blur, give DOM focus to the parent code-editor so it
    * receives subsequent key events. Without this, focus goes to
    * <body> and the editor stops responding to keys. */
+  JsUtil.projector_holds_focus := true;
   switch (JsUtil.find_ancestor_with_class(el, "code-editor")) {
   | Some(editor_el) => editor_el##focus
   | None => JsUtil.focus_clipboard_shim()
+  };
+  JsUtil.projector_holds_focus := false;
+};
+
+/* Only the deletion that makes multiline text single-line changes its
+ * presentation. Existing single-line projectors and ordinary edits stay put.
+ * Browser selection offsets are UTF-16; the resulting code caret is graphemes. */
+let joined_string = (text: string, start: int, finish: int, d: Direction.t) => {
+  open Js_of_ocaml;
+  let value = Js.string(text);
+  let len = value##.length;
+  let (left, right) =
+    start == finish
+      ? switch (d) {
+        | Left => (start - 1, finish)
+        | Right => (start, finish + 1)
+        }
+      : (start, finish);
+  if (left < 0 || right > len || left >= right) {
+    None;
+  } else {
+    let removed = Js.to_string(value##substring(left, right));
+    let joined =
+      Js.to_string(value##substring(0, left))
+      ++ Js.to_string(value##substring(right, len));
+    if (String.contains(removed, '\n')
+        && !String.contains(joined, '\n')
+        && Token.is_string(Token.string_quote(joined))
+        && StringUtil.unescape_linebreaks(joined) == joined) {
+      let caret = HazelString.grapheme_of_utf16(joined, left);
+      /* Joining can form a new cluster (e.g. a + combining acute). Snap to
+       * its end rather than leaving a caret inside the resulting grapheme. */
+      let caret =
+        HazelString.utf16_of_grapheme(joined, caret) < left
+          ? caret + 1 : caret;
+      Some((joined, caret));
+    } else {
+      None;
+    };
   };
 };
 
@@ -54,17 +95,45 @@ let key_handler = (id, ~parent, evt) => {
   let key = Key.mk(KeyDown, evt);
 
   switch (key.key) {
+  | D(("Backspace" | "Delete") as deletion)
+      when key.meta == Up && key.ctrl == Up && key.alt == Up =>
+    let area = WebUtil.TextArea.get(Id.cls(id));
+    let start = area##.selectionStart;
+    let finish = area##.selectionEnd;
+    let d = deletion == "Backspace" ? Direction.Left : Right;
+    switch (
+      joined_string(Js_of_ocaml.Js.to_string(area##.value), start, finish, d)
+    ) {
+    | Some(_) =>
+      Many([
+        Prevent_default,
+        Stop_propagation,
+        parent(JoinTextLines(start, finish, d)),
+      ])
+    | None => Stop_propagation
+    };
   | D("ArrowRight" | "ArrowDown")
-      when WebUtil.TextArea.is_last_pos(Id.cls(id)) =>
+      when
+        key.shift == Up
+        && key.alt == Up
+        && key.ctrl == Up
+        && key.meta == Up
+        && WebUtil.TextArea.is_last_pos(Id.cls(id)) =>
     focus_parent_editor(id);
     Many([parent(Escape(Right)), Stop_propagation]);
   | D("ArrowLeft" | "ArrowUp")
-      when WebUtil.TextArea.is_first_pos(Id.cls(id)) =>
+      when
+        key.shift == Up
+        && key.alt == Up
+        && key.ctrl == Up
+        && key.meta == Up
+        && WebUtil.TextArea.is_first_pos(Id.cls(id)) =>
     focus_parent_editor(id);
     Many([parent(Escape(Left)), Stop_propagation]);
   /* Defer to parent editor undo for now */
   | D("z" | "Z" | "y" | "Y") when Key.ctrl_held(evt) || Key.meta_held(evt) =>
-    Many([Prevent_default])
+    FocusEffect.schedule_editor_if_missing(id);
+    Many([Prevent_default]);
   | D("z" | "Z")
       when Key.shift_held(evt) && (Key.ctrl_held(evt) || Key.meta_held(evt)) =>
     Many([Prevent_default])
@@ -80,10 +149,37 @@ let textarea =
   Node.textarea(
     ~attrs=[
       Attr.id(Id.cls(info.id)),
+      Attr.classes(["text-projector-input"]),
+      /* Reserve focus before the old element blurs: Page otherwise redirects
+       * it to the clipboard shim. Keep pointer events inside the textarea. */
+      Attr.on_pointerdown(_ => {
+        JsUtil.projector_holds_focus := true;
+        Effect.Stop_propagation;
+      }),
+      Attr.on_focus(_ => {
+        JsUtil.projector_holds_focus := true;
+        Effect.Stop_propagation;
+      }),
+      Attr.on_blur(_ => {
+        JsUtil.projector_holds_focus := false;
+        Effect.Stop_propagation;
+      }),
       Attr.on_keydown(key_handler(info.id, ~parent)),
-      Attr.on_input((_, str) =>
-        Effect.(Many([parent(SetSyntax(str |> put(info)))]))
+      /* Capture the pre-edit native selection for undo, including IME,
+       * paste and cut (which need not originate from a keydown). */
+      Attr.property(
+        "onbeforeinput",
+        Js_of_ocaml.Js.Unsafe.inject(
+          Js_of_ocaml.Js.wrap_callback(_ =>
+            FocusEffect.before_textarea_input(info.id)
+          ),
+        ),
       ),
+      Attr.on_input((_, str) => {
+        FocusEffect.after_textarea_input();
+        FocusEffect.remember_textarea(info.id);
+        Effect.(Many([parent(SetSyntax(str |> put(info)))]));
+      }),
       /* Note: adding these handlers below because
        * currently these are handled on page level.
        * unnecesary maybe if we move handling down */
@@ -108,6 +204,7 @@ module M: Projector = {
     };
 
   let focus_keyboard = (id: Id.t, d: Direction.t) => {
+    JsUtil.projector_holds_focus := true;
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
     switch (d) {
     | Left =>
@@ -118,6 +215,7 @@ module M: Projector = {
   };
 
   let focus_pointer = (id: Id.t) => {
+    JsUtil.projector_holds_focus := true;
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
   };
 

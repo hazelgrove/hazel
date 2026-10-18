@@ -370,6 +370,23 @@ let rec go =
          Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
        )
     |> return(CantIntroduce)
+  | Paste(clipboard)
+      when
+        String.contains(clipboard, '\n')
+        && Option.is_some(ProjectorPerform.string_range(z)) =>
+    let clipboard = StringUtil.plain_replace("\r\n", clipboard, "\n");
+    switch (
+      ProjectorPerform.insert_text_in_string(
+        z,
+        clipboard,
+        ~elaborated=statics.elaborated,
+      )
+    ) {
+    | Some((z, id, offset)) =>
+      FocusEffect.schedule_textarea(id, offset);
+      Ok(z);
+    | None => Error(CantPaste)
+    };
   | Paste(clipboard) =>
     let clipboard = Unicode.nfc_outside_strings(clipboard);
     /* pasted material can complete enclosing tiles (the completion

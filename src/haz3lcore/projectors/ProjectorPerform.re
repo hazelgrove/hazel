@@ -98,6 +98,125 @@ let update =
     : ZipperBase.t =>
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
+/* Contextual text edits are separate from parsing literal source. Inner
+ * offsets count graphemes after the quote; native selections count UTF-16. */
+let string_range = (z: Zipper.t) => {
+  let candidate =
+    switch (z.caret, z.selection.content, z.selection.anchor_caret) {
+    | (Inner(idx), [], _) =>
+      Option.map(
+        piece => (piece, idx, idx),
+        Zipper.generalized_neighbor(Right, z),
+      )
+    | (Inner(focus), [piece], Inner(anchor))
+        when !z.selection.smart_rounded =>
+      Some((piece, min(focus, anchor), max(focus, anchor)))
+    | _ => None
+    };
+  switch (candidate) {
+  | Some((Tile({form: Tok(token), _} as tile), start, finish))
+      when Token.is_string(token) =>
+    let body = Token.strip_quotes(token);
+    if (start >= 0 && finish <= Token.length(body)) {
+      let* term = MakeTerm.for_projection([Tile(tile)]);
+      let* _ = TextAreaProj.string_of(term);
+      Some((tile, body, start, finish));
+    } else {
+      None;
+    };
+  | _ => None
+  };
+};
+
+let can_newline_in_string = (z: Zipper.t) =>
+  Selection.is_empty(z.selection) && Option.is_some(string_range(z));
+
+let insert_text_in_string = (z: Zipper.t, text: string, ~elaborated) => {
+  let* (tile, body, start, finish) = string_range(z);
+  /* Snap an endpoint inside an existing \n escape after the escape. */
+  let split = idx => {
+    let (prefix, suffix) = Token.split_nth(body, idx);
+    if (String.ends_with(~suffix="\\", prefix)
+        && String.starts_with(~prefix="n", suffix)) {
+      (prefix ++ "n", String.sub(suffix, 1, String.length(suffix) - 1));
+    } else {
+      (prefix, suffix);
+    };
+  };
+  let prefix = fst(split(start));
+  let suffix = snd(split(finish));
+  let inserted = StringUtil.escape_linebreaks(text);
+  let source = prefix ++ inserted ++ suffix;
+  let token = Token.string_quote(source);
+  /* Until general escaping lands, some text (quotes and literal backslash-n)
+   * cannot round-trip through this representation. Refuse a lossy paste. */
+  let expected =
+    StringUtil.unescape_linebreaks(prefix)
+    ++ text
+    ++ StringUtil.unescape_linebreaks(suffix);
+  let* () =
+    Token.is_string(token)
+    && StringUtil.unescape_linebreaks(source) == expected
+      ? Some() : None;
+  let offset =
+    HazelString.utf16_length(
+      StringUtil.unescape_linebreaks(prefix ++ inserted),
+    );
+  let* piece =
+    init(
+      TextArea,
+      [
+        Tile({
+          ...tile,
+          form: Tok(token),
+        }),
+      ],
+      ~elaborated,
+    );
+  switch (piece) {
+  | Projector(pr) =>
+    let z = Zipper.unselect(z);
+    let* z = Move.jump_to_side_of_id(Left, z, tile.id);
+    let+ z = Zipper.select(Right, z);
+    let z = migrate_refractor(tile.id, pr.id, z);
+    (replace_selection_and_unselect(piece, Left, z), pr.id, offset);
+  | _ => None
+  };
+};
+
+let newline_in_string = (z, ~elaborated) =>
+  can_newline_in_string(z)
+    ? insert_text_in_string(z, "\n", ~elaborated) : None;
+
+/* One action updates the string, removes the projector, and restores its
+ * inner caret, so joining is a single undo step. Resolve by projector ID even
+ * if the code caret has moved since the textarea received focus. */
+let join_text_lines = (z: Zipper.t, id: Id.t, start, finish, d) => {
+  let* z = Move.jump_to_side_of_id(Left, z, id);
+  switch (Zipper.generalized_neighbor(Right, z)) {
+  | Some(Projector(pr)) when pr.id == id && pr.kind == TextArea =>
+    let seg = Piece.unparenthesize(pr.syntax);
+    let* any = MakeTerm.for_projection(seg);
+    let* text = TextAreaProj.string_of(any);
+    let* (joined, caret) =
+      TextAreaProj.joined_string(text, start, finish, d);
+    switch (seg) {
+    | [Tile(tile)] =>
+      let* z = Zipper.select(Right, z);
+      let piece =
+        Base.Tile({
+          ...tile,
+          form: Tok(Token.string_quote(joined)),
+        });
+      let z = migrate_refractor(pr.id, tile.id, z);
+      let z = replace_selection_and_unselect(piece, Left, z);
+      Some(Zipper.Caret.set(Inner(caret), z));
+    | _ => None
+    };
+  | _ => None
+  };
+};
+
 let go =
     (
       term_data: TermData.t,
@@ -190,6 +309,24 @@ let go =
   };
 
   switch (a) {
+  | JoinTextLines(idx, start, finish, d) =>
+    let result = {
+      let* id = projector_idx_to_id(idx);
+      let+ z = join_text_lines(z, id, start, finish, d);
+      FocusEffect.schedule_editor_if_missing(id);
+      z;
+    };
+    switch (result) {
+    | Some(z) => Ok(z)
+    | None => Error(Cant_project)
+    };
+  | NewlineInString =>
+    switch (newline_in_string(z, ~elaborated)) {
+    | Some((z, id, offset)) =>
+      FocusEffect.schedule_textarea(id, offset);
+      Ok(z);
+    | None => Error(Cant_project)
+    }
   | SetIndicated(Specific(kind)) =>
     switch (set_indicated(z, kind)) {
     | Some(z) => Ok(z)
