@@ -277,6 +277,31 @@ let rerenders = () => {
   );
 };
 
+/* two editors drawing one program (a stack cell shares its program's
+   ids) keep their own chunk views: rendering one doesn't evict the other */
+let two_editors = () => {
+  let root = Sort.Mod;
+  let seg = CorpusUtil.seg_of(~root, Test_MeasuredChunks.mod_program);
+  let term_data = term_data(~root, seg);
+  let (shapes, rows) = (Id.Map.empty, Id.Map.empty);
+  let editor = () => {
+    let cache = M.Incr.mk_cache();
+    () =>
+      chunked_view(
+        ~shapes,
+        ~rows,
+        ~term_data,
+        M.Incr.of_segment(~root, ~cache, seg, shapes, rows),
+      );
+  };
+  let (a, b) = (editor(), editor());
+  let (a0, b0) = (a(), b());
+  let (a1, b1) = (a(), b());
+  let same = (xs, ys) => List.for_all2((===), xs, ys);
+  check(bool, "the first editor's nodes kept", true, same(a0, a1));
+  check(bool, "the second editor's nodes kept", true, same(b0, b1));
+};
+
 let corpus = (~root=Sort.Exp, file, ()) =>
   same_html(~root, file, CorpusUtil.mega_seg(~root, file));
 
@@ -324,6 +349,7 @@ let tests = (
     test_case("incomplete programs", `Quick, incomplete),
     test_case("drawers and projectors in members", `Quick, drawers),
     test_case("a member edit re-renders one chunk", `Quick, rerenders),
+    test_case("two editors on one program", `Quick, two_editors),
     test_case("mega-1k", `Quick, corpus("mega-1k.hz")),
     test_case("mega-mod-1k", `Quick, corpus(~root=Mod, "mega-mod-1k.hz")),
     test_case("mega-4k", `Slow, corpus("mega-4k.hz")),

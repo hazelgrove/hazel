@@ -281,6 +281,10 @@ let view =
    refractor shapes */
 module ChunkViews = {
   type entry = {
+    /* the measuring editor (Measured.t.owner) */
+    cv_owner: int,
+    /* the last render that reached it */
+    mutable cv_seen: int,
     mutable cv_flat: Obj.t, /* Measured.flat identity */
     mutable cv_final: bool,
     mutable cv_tiles: list(Tile.t), /* chunk tiles, cached off cv_flat */
@@ -302,8 +306,43 @@ module ChunkViews = {
     mutable cv_settings: Obj.t,
     mutable cv_node: Node.t,
   };
-  let cache: Expiring.t(Id.t, entry) =
-    Expiring.mk(~size=64, ~every=64, ~ttl=16);
+  /* by anchor, an entry per editor drawing it: editors sharing ids (a
+     stack cell and its program) keep their own views. Every 64 renders,
+     entries no render reached in the last 16 go */
+  let cache: Measured.IdTbl.t(list(entry)) = Measured.IdTbl.create(256);
+  let renders = ref(0);
+  let tick = () => {
+    incr(renders);
+    if (renders^ mod 64 == 0) {
+      Measured.IdTbl.filter_map_inplace(
+        (_, es) =>
+          switch (List.filter(e => e.cv_seen >= renders^ - 16, es)) {
+          | [] => None
+          | es => Some(es)
+          },
+        cache,
+      );
+    };
+  };
+  let find = (owner: int, anchor: Id.t): option(entry) =>
+    switch (Measured.IdTbl.find_opt(cache, anchor)) {
+    | Some(es) =>
+      switch (List.find_opt(e => e.cv_owner == owner, es)) {
+      | Some(e) as found =>
+        e.cv_seen = renders^;
+        found;
+      | None => None
+      }
+    | None => None
+    };
+  let replace = (anchor: Id.t, e: entry) => {
+    let others =
+      switch (Measured.IdTbl.find_opt(cache, anchor)) {
+      | Some(es) => List.filter(o => o.cv_owner != e.cv_owner, es)
+      | None => []
+      };
+    Measured.IdTbl.replace(cache, anchor, [e, ...others]);
+  };
 };
 
 /* every tile in the chunk subtree (of_delim consults term_data and
@@ -374,7 +413,7 @@ let view_chunked =
       ~buffer_ids: list(Id.t),
     )
     : list(Node.t) => {
-  Expiring.tick(ChunkViews.cache);
+  ChunkViews.tick();
   let n = Array.length(measured.chunks);
   let sorts_of = (tiles: list(Tile.t)) =>
     tiles
@@ -414,7 +453,7 @@ let view_chunked =
          && (!e.cv_buffered || e.cv_buffer === Obj.repr(buffer_ids))
          && e.cv_fm === Obj.repr(font_metrics)
          && e.cv_settings === Obj.repr(settings);
-       switch (Expiring.find_opt(ChunkViews.cache, ch.c_anchor)) {
+       switch (ChunkViews.find(measured.owner, ch.c_anchor)) {
        | Some(e)
            when
              stable(e)
@@ -435,7 +474,9 @@ let view_chunked =
          let top = ch.c_nested ? [] : top_tiles(ch.c_tokens);
          let node = render(ch, final);
          let e = {
-           ChunkViews.cv_flat: Obj.repr(ch.c_flat),
+           ChunkViews.cv_owner: measured.owner,
+           cv_seen: ChunkViews.renders^,
+           cv_flat: Obj.repr(ch.c_flat),
            cv_final: final,
            cv_tiles: tiles,
            cv_sorts: sorts_of(tiles),
@@ -454,7 +495,7 @@ let view_chunked =
            cv_settings: Obj.repr(settings),
            cv_node: node,
          };
-         Expiring.replace(ChunkViews.cache, ch.c_anchor, e);
+         ChunkViews.replace(ch.c_anchor, e);
          node;
        };
      });

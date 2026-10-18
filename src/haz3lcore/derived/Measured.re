@@ -528,6 +528,9 @@ type chunk = {
 };
 
 type t = {
+  /* the incremental cache that built it (0: none), so per-chunk views can
+     be kept per editor: a stack cell shares its program's ids */
+  owner: int,
   chunks: array(chunk),
   /* piece id -> owning chunk's anchor (stable across repartitions,
      unlike indices); persistent, so old generations stay valid. A split
@@ -568,6 +571,7 @@ let shift_m = (s: int, m: measurement): measurement => {
    it is nested in a module body */
 let mk_chunked =
     (
+      ~owner,
       ~chunk_of_id,
       ~split,
       flats: list((Id.t, list(token), flat, int, bool)),
@@ -600,6 +604,7 @@ let mk_chunked =
     );
   let chunks = Array.of_list(List.rev(chunks_rev));
   {
+    owner,
     chunks,
     chunk_of_id,
     split,
@@ -783,6 +788,7 @@ let of_segment =
       ids_of_flat(f),
     );
   mk_chunked(
+    ~owner=0,
     ~chunk_of_id,
     ~split=Id.Map.empty,
     [(anchor, tokens, f, flat_height(f), false)],
@@ -1190,17 +1196,23 @@ module Incr = {
      outside the current partition are dropped each build (old Measured.t
      values never consult the cache) */
   type cache = {
+    id: int,
     mutable gen: int,
     mutable prev: option((Id.Map.t(Id.t), IdTbl.t(entry))),
     bodies: Partition.memo,
     /* the last split tiles and their map */
     mutable split: (list((Id.t, (Id.t, Id.t))), Id.Map.t((Id.t, Id.t))),
   };
+  let caches = ref(0);
   let mk_cache = (): cache => {
-    gen: 0,
-    prev: None,
-    bodies: Partition.mk_memo(),
-    split: ([], Id.Map.empty),
+    incr(caches);
+    {
+      id: caches^,
+      gen: 0,
+      prev: None,
+      bodies: Partition.mk_memo(),
+      split: ([], Id.Map.empty),
+    };
   };
 
   /* test hook: chunks re-measured, cumulative */
@@ -1378,6 +1390,7 @@ module Incr = {
       cache.split = (splits, Id.Map.of_list(splits));
     };
     mk_chunked(
+      ~owner=cache.id,
       ~chunk_of_id,
       ~split=snd(cache.split),
       List.map(
