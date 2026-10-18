@@ -121,7 +121,13 @@ module Update = {
                the quiver draws at the caret), whether or not an inline
                buffer is showing (buffers only appear on edits; the
                chip is always live) */
-            switch (CompletionQuery.tab_action(z)) {
+            switch (
+              CompletionQuery.tab_action(
+                ~seg=
+                  CompletionQuery.engine_seg(~syntax=model.editor.syntax, z),
+                z,
+              )
+            ) {
             | Some(a) => a
             | None =>
               Zipper.can_put_down(z)

@@ -236,13 +236,15 @@ let chip_at_caret =
 
 /* Whether an existing operand hole can remain after this delimiter.
    Closers with convex right nibs consume trailing grout instead. */
-let accepts_right_hole = (z: Zipper.t): bool =>
-  switch (chip_at_caret(z)) {
+let accepts_right_hole = (~seg: option(Segment.t)=?, z: Zipper.t): bool => {
+  let seg =
+    switch (seg) {
+    | Some(seg) => seg
+    | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
+    };
+  switch (chip_at_caret(~seg, z)) {
   | Some({delimiters: [{of_shard: Some((id, shard)), _}, ..._], _}) =>
-    let result =
-      CanonicalCompletion.for_editor(
-        Zipper.unselect_and_zip(~erase_buffer=true, z),
-      );
+    let result = CanonicalCompletion.for_editor(seg);
     switch (Segment.find_ctx(result.completed_seg, id)) {
     | Some((_, _, Tile(t))) =>
       let (_, rn) = Mold.nibs(~index=shard, Tile.mold(t));
@@ -254,6 +256,7 @@ let accepts_right_hole = (z: Zipper.t): bool =>
     };
   | _ => false
   };
+};
 
 let obligation_at_caret = (z: Zipper.t): option(Id.t) =>
   chip_at_caret(z)

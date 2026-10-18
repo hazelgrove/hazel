@@ -208,6 +208,53 @@ let edit_cases = [
   ),
 ];
 
+/* Tab's query and its ApplyCompletion(Next) read the frame's segment */
+let tab_case = (input, expected) =>
+  test_case(
+    "Tab: " ++ String.escaped(input),
+    `Quick,
+    () => {
+      let z = zipper(input);
+      let (syntax, statics) = frame(z);
+      let seg = CompletionQuery.engine_seg(~syntax, z);
+      ignore(CanonicalCompletion.for_editor(seg));
+      let apply = syntax =>
+        switch (
+          Perform.go(
+            ~settings,
+            ~statics,
+            ~syntax,
+            ApplyCompletion(Next),
+            {
+              zipper: z,
+              col_target: None,
+            },
+            ~root=Exp,
+          )
+        ) {
+        | Ok(z) => Printer.of_zipper(~holes="?", ~caret="|", z)
+        | Error(e) => Action.Failure.show(e)
+        };
+      let (a, n) = misses(() => CompletionQuery.tab_action(~seg, z));
+      check(int, "tab_action: no misses", 0, n);
+      let (applied, n) = misses(() => apply(syntax));
+      check(int, "ApplyCompletion(Next): no misses", 0, n);
+      check(string, "applied", expected, applied);
+      /* the zipper's own zips (they miss, so they go last) */
+      check(
+        bool,
+        "the same action",
+        true,
+        a == CompletionQuery.tab_action(z),
+      );
+      /* a syntax zipped from another zipper: Perform zips [z] itself */
+      let stale = CachedSyntax.init(~root=Exp, Zipper.init());
+      let (applied', n') = misses(() => apply(stale));
+      check(bool, "a fresh zip misses", true, n' > 0);
+      check(string, "the same edit", applied, applied');
+    },
+  );
+
 let tests = [
   (
     "FrameCompletion",
@@ -216,6 +263,7 @@ let tests = [
       inspector_case("(let x : Int = ¦\nlet y = 2 in y)", "Int"),
       inspector_case("(let f(x : Int) : Bool = ¦\nlet y = 2 in y)", "Bool"),
       tydi_case("(if 1 < 2 then 3 el¦ 4)", ["else"]),
+      tab_case("(let x = 1¦\nx)", "(let x = 1 in|\nx)"),
     ]
     @ edit_cases,
   ),
