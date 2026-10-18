@@ -278,11 +278,7 @@ let delims: list(Token.t) =
   |> List.concat_map(label_of_family)
   |> List.sort_uniq(compare);
 
-/* Could this string be one token? Character classes decide, except that a
- * run of operator characters is one token only while it spells a prefix of
- * some delimiter: maximal munch against the grammar, with prefixes kept so
- * `-` can grow into `->`. So `:` typed before `,` stays two tokens, and
- * `1--2` is `1 - -2`. Insertion, paste, and the typing parser ask this. */
+/* Prefixes of the grammar's operator delimiters, the operators included */
 let is_operator_prefix: Token.t => bool = {
   let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
   delims
@@ -292,10 +288,29 @@ let is_operator_prefix: Token.t => bool = {
   t => Hashtbl.mem(tbl, t);
 };
 
+/* Could this string be one token? Character classes decide, except for a
+ * run of two or more operator characters, which is one token iff:
+ * - it contains no separator (`,` `;` join nothing), and
+ * - it spells an operator or the start of one (so `-` grows into `->`),
+ *   or else it has no `-`/`!` after its first character: those can start
+ *   the next operand, so `+-1` and `!!b` split, while an unknown run like
+ *   `===` or `@@@` stays one token rather than splitting into operators
+ *   with holes between them (except around type application brackets).
+ * The answer depends only on the characters, never on typing order.
+ * Insertion, deletion, paste, and the typing parser ask this. */
 let is_potential_token = (t: Token.t): bool =>
   if (Token.is_potential_operator(t)) {
-    /* a lone operator character has nowhere else to go */
-    Token.length(t) == 1 || is_operator_prefix(t);
+    let n = String.length(t);
+    let rec prefix_op_after = i =>
+      i < n && (t.[i] == '-' || t.[i] == '!' || prefix_op_after(i + 1));
+    /* Type application's `@<` and `>` act as brackets (`>` closes one),
+       so a run around them never clumps: `f@<A>@<B>` keeps `>` `@<`. */
+    let bracket_like =
+      t.[0] == '>' || Util.StringUtil.match(Util.StringUtil.regexp("@<"), t);
+    Token.length(t) == 1
+    || !String.contains(t, ',')
+    && !String.contains(t, ';')
+    && (is_operator_prefix(t) || !bracket_like && !prefix_op_after(1));
   } else {
     Token.is_empty_tuple(t)
     || Token.is_empty_list(t)

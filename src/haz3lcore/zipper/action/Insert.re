@@ -328,6 +328,18 @@ let split =
     : option(t) => {
   let insert_shard = insert_shard(~root);
   let (l, r) = Token.split_nth(t, idx);
+  /* The typed character joins the left part, else the right part, when
+     that spells a token: `<` typed into `@>` gives `@<` `>`, and `!`
+     typed into `!=` gives `!` `!=`, rather than three tokens. */
+  let joins = t => Token.space != char && Form.is_potential_token(t);
+  let (l, char, r, caret_in_r) =
+    if (joins(Token.append(l, char))) {
+      (Token.append(l, char), "", r, false);
+    } else if (joins(Token.append(char, r))) {
+      (l, "", Token.append(char, r), true);
+    } else {
+      (l, char, r, false);
+    };
   let id = Zipper.adjacent_monotile_or_new_id(Right, z);
   let+ z = z |> Caret.set(Outer) |> Zipper.delete(Right);
   let z =
@@ -347,6 +359,8 @@ let split =
     | Some(g) =>
       Grout.mark_space_owed(g.id);
       Zipper.put_down_seg(Left, [Grout(g)], z);
+    | None when caret_in_r => Caret.set(Inner(0), z)
+    | None when char == "" => z
     | None =>
       z
       |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Left, char)

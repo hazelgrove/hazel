@@ -5971,9 +5971,24 @@ let token_splitting_tests = [
     ~goal=["!", "!", "true"],
   ),
   test_tokens(
-    ~name="colon equals is not an operator",
+    ~name="an unknown operator stays one token",
     ~acts=string_to_ltr_actions("x:=y"),
-    ~goal=["x", ":", "=", "y"],
+    ~goal=["x", ":=", "y"],
+  ),
+  test_tokens(
+    ~name="unknown runs stay one token",
+    ~acts=string_to_ltr_actions("a===b<>c@@@d"),
+    ~goal=["a", "===", "b", "<>", "c", "@@@", "d"],
+  ),
+  test_tokens(
+    ~name="inserting into a run gives what typing it would",
+    ~acts=mk("x ¦== y") @ [Insert("=")],
+    ~goal=["x", "===", "y"],
+  ),
+  test_tokens(
+    ~name="a character typed inside an operator joins the right part",
+    ~acts=mk("x !¦= y") @ [Insert("!")],
+    ~goal=["x", "!", "!=", "y"],
   ),
   test_tokens(
     ~name="cons still merges",
@@ -6012,9 +6027,9 @@ let token_splitting_tests = [
     ~goal=["x", "==", "-", "1"],
   ),
   test_tokens(
-    ~name="- typed inside -> splits it",
+    ~name="- typed inside -> splits off, keeping ->",
     ~acts=mk("x -¦> y") @ [Insert("-")],
-    ~goal=["x", "-", "-", ">", "y"],
+    ~goal=["x", "-", "->", "y"],
   ),
   test_tokens(
     ~name="= typed inside => makes ==>",
@@ -6057,9 +6072,16 @@ let token_splitting_tests = [
         t => check(bool, t, true, Form.is_potential_token(t)),
         ["%", "~", "&", "\\", "≠"],
       );
+      /* separators, a following `-`/`!`, and type application's
+         brackets split a run */
       List.iter(
         t => check(bool, t, false, Form.is_potential_token(t)),
-        [":,", "+-", "=-", "--", "!!", ":=", ">==", "->>", ",,"],
+        [":,", "+-", "=-", "--", "!!", ">==", ",,", ";;", ">@<", "@<>"],
+      );
+      /* other unrecognized runs stay one (unknown) token */
+      List.iter(
+        t => check(bool, t, true, Form.is_potential_token(t)),
+        [":=", "===", "<>", "@@@", "->>", "**"],
       );
     },
   ),
