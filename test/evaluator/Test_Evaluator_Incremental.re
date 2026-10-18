@@ -1777,6 +1777,51 @@ let test_asc_edit_invalidates_binding = () => {
   );
 };
 
+/* A module's last binding step yields its value; evaluating the members
+ * again inside the step's closure recorded cache entries for them that
+ * relied on that closure, so after an edit elsewhere the reused member
+ * lost its environment (`f` came back as a bare function) or saw names
+ * the closure didn't bind. */
+let incremental_matches_fresh = (exp1: Exp.t, exp2: Exp.t) => {
+  check(
+    bool,
+    "the edit changed the expression",
+    false,
+    Exp.fast_equal(exp1, exp2),
+  );
+  let (r_fresh, _, _) = eval_incr(exp2);
+  let (_, _, incr_prev) = eval_incr(exp1);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
+  check(dhexp_typ, "incremental matches fresh", r_fresh, r_incr);
+};
+
+let test_module_function_member_reused = () => {
+  let exp1 =
+    parse_exp(
+      {|module W = { let f = fun m -> m; let check = fun _ -> f(180) } in W.check(())|},
+    );
+  incremental_matches_fresh(
+    exp1,
+    replace_int_lit(~from=180, ~to_=181, exp1),
+  );
+};
+
+let test_module_member_moved_above_dependency = () => {
+  let exp1 = parse_exp({|module M = { let x = 1; let y = x + 1 } in M.y|});
+  let reorder = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Module(items) => {
+        ...e,
+        term: Module(List.rev(items)),
+      }
+    | _ => continue(e)
+    };
+  incremental_matches_fresh(
+    exp1,
+    TermBase.Exp.map_term(~f_exp=reorder, exp1),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1985,6 +2030,16 @@ let tests = (
       "ASCRIPTION: retyping `x : Int` as `x : Bool` in place invalidates the cached x",
       `Quick,
       test_asc_edit_invalidates_binding,
+    ),
+    test_case(
+      "MODULE: an edit beside a function member keeps the member's closure",
+      `Quick,
+      test_module_function_member_reused,
+    ),
+    test_case(
+      "MODULE: a member moved above its dependency doesn't reuse its value",
+      `Quick,
+      test_module_member_moved_above_dependency,
     ),
   ],
 );
