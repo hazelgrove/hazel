@@ -2,8 +2,9 @@ open Util;
 
 /* A program's items by piece structure alone (plans/hierarchical-spans.md):
    the one division the per-item layers and the cells share. A level is the
-   program's top level or a module literal's member list, and on demand a
-   definition's body; its spans are its items, whose slices partition it.
+   program's top level, a module literal's member list or a member that is
+   a let chain, and on demand a definition's body; its spans are its items,
+   whose slices partition it. Split down to definitions, never inside one.
    Pure: no parse, no statics. Levels are memoized on their pieces. */
 
 type kind =
@@ -19,7 +20,8 @@ type kind =
 
 type span = {
   /* the join key: a definition's or directive's head tile, a statement's
-     `;`, else the item's first piece of content */
+     `;`, else the item's first piece of content (an id derived from it for
+     a last member that is a let chain, whose first item anchors there) */
   anchor: Id.t,
   /* the item's first tile: the outline names a member test by its `test` */
   first: option(Id.t),
@@ -43,6 +45,9 @@ type owner =
   | Top
   /* a module literal's members: the child of this brace tile */
   | Members(Id.t)
+  /* a module member that is a let chain: its core, under the member's
+     anchor */
+  | Chain(Id.t)
   /* a definition's body, under this head tile: an `…in` tile's last child,
      or a member's run between its head and `;` */
   | Block(Id.t);
@@ -55,8 +60,11 @@ type level = {
   spans: array(span),
   /* the indentation of the line the level starts on */
   indent: int,
+  /* the level starts / ends a line */
+  bol: bool,
+  eol: bool,
   /* where pieces[0] sits in the segment holding the level: 0 but for a
-     member's body run, which lies in its member level */
+     let chain or a member's body run, which lie in their member level */
   offset: int,
   /* anchors and first tiles to span indices, made on first use (not a
      lazy value, so levels stay comparable) */
@@ -395,6 +403,15 @@ let brace_of = (arr: array(Piece.t), s: site): option((int, Tile.t)) =>
     )
   };
 
+/* a module member that is a let chain: its core [c0, c1) opens with an
+   `…in` item, which the expression rule cuts */
+let opens_chain = (arr: array(Piece.t), c0: int, c1: int): bool => {
+  let rec content = i =>
+    i < c1 && Piece.is_secondary(arr[i]) ? content(i + 1) : i;
+  let i = content(c0);
+  i < c1 && Segment.is_in_tile(arr[i]);
+};
+
 /* ---- levels ---- */
 
 let index_of = (spans: array(span)): Id.Map.t(int) => {
@@ -496,6 +513,10 @@ let build =
           switch (r.r_kind, r.r_head, r.r_semi) {
           | (Def | Use, Some(h), _) => Piece.id(arr[h])
           | (_, _, Some(s)) => Piece.id(arr[s])
+          /* a last member that is a let chain: its first piece anchors the
+             chain's first item */
+          | (Stmt, _, None) when sort == Sort.Mod && opens_chain(arr, c0, c1) =>
+            Id.derive(~salt="chain", Piece.id(arr[f]))
           | _ => Piece.id(arr[f])
           };
         /* ItemEdit's slot: from its first line's start, with comment lines
@@ -577,6 +598,8 @@ let build =
       | Some(n) => n
       | None => spaces_after(arr, -1, len)
       },
+    bol,
+    eol,
     offset,
     index: None,
   };
@@ -596,20 +619,30 @@ let index = (lv: level): Id.Map.t(int) =>
    piece too, so editors don't evict each other */
 type key =
   | KTop(Sort.t, Id.t)
-  | KMembers(Id.t);
+  | KMembers(Id.t)
+  | KChain(Id.t);
 
 let cache: Swept.t(key, level) = Swept.mk();
 /* levels built, cumulative: observability for tests */
 let built = ref(0);
 
 let memo =
-    (key: key, ~indent: option(int), seg: Segment.t, mk: unit => level)
+    (
+      key: key,
+      ~indent: option(int),
+      ~bol: bool,
+      ~eol: bool,
+      seg: Segment.t,
+      mk: unit => level,
+    )
     : level =>
   switch (Swept.find_opt(cache, key)) {
   | Some(lv)
       when
         Segment.ptr_eq(lv.seg, seg)
-        && Option.fold(~none=true, ~some=n => lv.indent == n, indent) => lv
+        && Option.fold(~none=true, ~some=n => lv.indent == n, indent)
+        && lv.bol == bol
+        && lv.eol == eol => lv
   | _ =>
     incr(built);
     let lv = mk();
@@ -626,7 +659,7 @@ let top = (~root: Sort.t, seg: Segment.t): level => {
     | [p, ..._] => Piece.id(p)
     | [] => Id.invalid
     };
-  memo(KTop(sort, first), ~indent=None, seg, () =>
+  memo(KTop(sort, first), ~indent=None, ~bol=true, ~eol=true, seg, () =>
     build(
       ~sort,
       ~owner=Top,
@@ -645,6 +678,7 @@ let outer = (lv: level): option(int) =>
   switch (lv.owner) {
   | Top => None
   | Members(_)
+  | Chain(_)
   | Block(_) => Some(lv.indent)
   };
 
@@ -684,7 +718,13 @@ let members = (lv: level, k: int): option(level) =>
         };
       let seg = List.hd(brace.children);
       Some(
-        memo(KMembers(brace.id), ~indent=Some(indent), seg, () =>
+        memo(
+          KMembers(brace.id),
+          ~indent=Some(indent),
+          ~bol=false,
+          ~eol=false,
+          seg,
+          () =>
           build(
             ~sort=Sort.Mod,
             ~owner=Members(brace.id),
@@ -699,6 +739,45 @@ let members = (lv: level, k: int): option(level) =>
       );
     | _ => None
     };
+  };
+
+/* span [k]'s let chain, if it is a module member that is one (its core
+   opens with an `…in` item): an expression level over its core, cut by the
+   expression rule, its items in place of the one member */
+let chain = (lv: level, k: int): option(level) => {
+  let sp = lv.spans[k];
+  let (c0, c1) = sp.core;
+  let arr = lv.pieces;
+  switch (lv.sort, sp.kind) {
+  | (Mod, Stmt) when opens_chain(arr, c0, c1) =>
+    let bol = c0 == 0 ? lv.bol : Piece.is_linebreak(arr[c0 - 1]);
+    let eol = c1 == Array.length(arr) ? lv.eol : Piece.is_linebreak(arr[c1]);
+    let indent = Some(sp.base_col);
+    let seg = Array.to_list(Array.sub(arr, c0, c1 - c0));
+    Some(
+      memo(KChain(sp.anchor), ~indent, ~bol, ~eol, seg, () =>
+        build(
+          ~sort=Sort.Exp,
+          ~owner=Chain(sp.anchor),
+          ~nested=false,
+          ~bol,
+          ~eol,
+          ~indent,
+          ~offset=c0,
+          seg,
+        )
+      ),
+    );
+  | _ => None
+  };
+};
+
+/* the level under span [k]: a module literal's members, or the items of a
+   member that is a let chain */
+let children = (lv: level, k: int): option(level) =>
+  switch (members(lv, k)) {
+  | Some(_) as m => m
+  | None => chain(lv, k)
   };
 
 /* span [k]'s body as a level of its own items (a function body, a let
@@ -761,8 +840,8 @@ let keyed = (lv: level): list((Id.t, Segment.t)) =>
 
 let slices = (lv: level): list(Segment.t) => List.map(snd, keyed(lv));
 
-/* depth first, members included: [f] sees each span's path from [lv],
-   outermost first */
+/* depth first, child levels included: [f] sees each span's path from
+   [lv], outermost first */
 let fold = (f: ('a, list((level, int))) => 'a, acc: 'a, lv: level): 'a => {
   let rec go = (acc, path, lv) => {
     let acc = ref(acc);
@@ -770,7 +849,7 @@ let fold = (f: ('a, list((level, int))) => 'a, acc: 'a, lv: level): 'a => {
       (k, _) => {
         let here = [(lv, k), ...path];
         acc := f(acc^, List.rev(here));
-        switch (members(lv, k)) {
+        switch (children(lv, k)) {
         | Some(m) => acc := go(acc^, here, m)
         | None => ()
         };
@@ -783,19 +862,26 @@ let fold = (f: ('a, list((level, int))) => 'a, acc: 'a, lv: level): 'a => {
 };
 
 /* the path to the span with this anchor (or first tile), outermost first,
-   through member levels: one probe per module level searched */
+   through child levels: one probe per level searched. An anchor below a
+   first tile is the closer match: a let chain's first item */
 let find =
     (~root: Sort.t, id: Id.t, seg: Segment.t): option(list((level, int))) => {
   let rec go = (path, lv) =>
     switch (Id.Map.find_opt(id, index(lv))) {
-    | Some(k) => Some(List.rev([(lv, k), ...path]))
+    | Some(k) when lv.spans[k].anchor == id =>
+      Some(List.rev([(lv, k), ...path]))
+    | Some(k) =>
+      switch (Option.bind(children(lv, k), go([(lv, k), ...path]))) {
+      | Some(_) as below => below
+      | None => Some(List.rev([(lv, k), ...path]))
+      }
     | None =>
       let n = Array.length(lv.spans);
       let rec each = k =>
         k >= n
           ? None
           : (
-            switch (members(lv, k)) {
+            switch (children(lv, k)) {
             | Some(m) =>
               switch (go([(lv, k), ...path], m)) {
               | Some(_) as r => r

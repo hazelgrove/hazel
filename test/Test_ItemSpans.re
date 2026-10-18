@@ -48,9 +48,21 @@ let letin_members = [
     "a fun's let-in, then a statement",
     "let f = fun x -> let y = x + 100 in y;\nf(1);\nlet z = 2",
   ),
-  /* where ScratchFocus did cut after an `in`: a statement opening with
-     one */
+  /* where ScratchFocus did cut after an `in`: a member that is a let
+     chain, whose items are a level of their own */
   ("a statement opening with a let-in", "let x = 1 in x;\nlet y = 2;\ny"),
+  (
+    "a module of a let chain",
+    "module Holes = {\n  let a = 1 in\n  let b = 2 in\n  a + b\n};\nHoles",
+  ),
+  (
+    "a let chain holding a module",
+    "module H = {\n  let a = 1 in\n  module N = {\n    let c = 3\n  } in\n  a + N.c\n};\nH",
+  ),
+  (
+    "a let chain among members",
+    "module M = {\n  let x = 1;\n  let a = x in\n  a + 1;\n  let y = 2\n};\nM.y",
+  ),
   (
     "a module of let-in members",
     "module M = {\n  let f = let x = 1 in x;\n  let g = fun y ->\n    let z = y in\n    z\n};\nM.f",
@@ -74,6 +86,10 @@ let exp_shapes = [
     "module M = {\n  let x = 1;\n  module N = {\n    let y = 2\n  };\n  test x == 1 end\n} in\nlet m = { let a = 3 } in\nmodule E = {} in\nmodule S : T = {\n  let z = 4\n} in\nM.x",
   ),
   ("one-line module", "module M = { let x = 1; let y = 2 } in\nM.x"),
+  (
+    "a module of a let chain",
+    "module Holes = {\n  let a = 1 in\n  a\n} in\nHoles",
+  ),
   ("trailing comment", "let a = 1 in\na\n# end #"),
   (
     "a function body's lets",
@@ -170,11 +186,12 @@ let check_level =
   let arr = lv.pieces;
   let len = Array.length(arr);
   let at_mod = lv.sort == Sort.Mod;
-  let (is_top, is_members) =
+  let is_members =
     switch (lv.owner) {
-    | Top => (true, false)
-    | Members(_) => (false, true)
-    | Block(_) => (false, false)
+    | Members(_) => true
+    | Top
+    | Chain(_)
+    | Block(_) => false
     };
   let n = Array.length(lv.spans);
   t.spans = t.spans + n;
@@ -245,6 +262,27 @@ let check_level =
     );
   if (mod_in) {
     t.mod_in = [name, ...t.mod_in];
+    /* where ScratchFocus cut after an `in`, ItemSpans has one member whose
+       let chain is a level of its own, checked as one */
+    Array.iter(
+      (f: Focus.item_span) =>
+        switch (Focus.first_tile(arr, f.sp_start, f.sp_stop)) {
+        | Some(tl) when f.sp_kind == IDef && Tile.ends_with_in(tl) =>
+          let at = i => Piece.id(arr[i]) == tl.id;
+          let held =
+            List.init(n, k => k)
+            |> List.exists(k => {
+                 let (c0, c1) = lv.spans[k].core;
+                 let rec has = i => i < c1 && (at(i) || has(i + 1));
+                 has(c0) && S.chain(lv, k) != None;
+               });
+          if (!held) {
+            diff("an `in` ScratchFocus cuts at, in no let chain");
+          };
+        | _ => ()
+        },
+      sf,
+    );
   } else if (open_in) {
     t.open_in = [name, ...t.open_in];
   } else if (kept != n) {
@@ -305,8 +343,8 @@ let check_level =
     );
     /* lines: ItemEdit's slots over ScratchFocus's spans */
     let b =
-      IE.block(~in_module=at_mod, ~body=is_members, ~bol=is_top, sf, lv.seg);
-    let line_start = i => i == 0 ? is_top : Piece.is_linebreak(arr[i - 1]);
+      IE.block(~in_module=at_mod, ~body=is_members, ~bol=lv.bol, sf, lv.seg);
+    let line_start = i => i == 0 ? lv.bol : Piece.is_linebreak(arr[i - 1]);
     if (Array.length(b.sl) != n) {
       diff(
         Printf.sprintf("%d spans, ItemEdit %d slots", n, Array.length(b.sl)),
@@ -318,7 +356,7 @@ let check_level =
           let sl = b.sl[k];
           let whole =
             line_start(sl.lo)
-            && (Piece.is_linebreak(arr[sl.hi - 1]) || sl.hi == len && is_top);
+            && (Piece.is_linebreak(arr[sl.hi - 1]) || sl.hi == len && lv.eol);
           let want = whole ? Some((sl.lo, sl.hi)) : None;
           if (want != sp.lines) {
             diff(
@@ -390,7 +428,7 @@ let check_program = (t: tally, ~name: string, ~root: Sort.t, seg: Segment.t) => 
     check_level(~name, ~indent_of, ~nested, t, lv);
     Array.iteri(
       (k, _) => {
-        Option.iter(walk(~nested=false), S.members(lv, k));
+        Option.iter(walk(~nested=false), S.children(lv, k));
         Option.iter(walk(~nested=true), S.block(lv, k));
       },
       lv.spans,
@@ -416,21 +454,34 @@ let check_program = (t: tally, ~name: string, ~root: Sort.t, seg: Segment.t) => 
       top.spans,
     );
   };
-  /* find reaches every span fold does, by anchor and by first tile */
+  /* find reaches every span fold does by its anchor, and by its first
+     tile it or the item below anchored there (a let chain's first) */
   ignore(
     S.fold(
       ((), path) => {
         let (lv, k) = Util.ListUtil.last(path);
         let sp = lv.spans[k];
-        let lands = id =>
+        let lands = (~below, id) =>
           switch (S.find(~root, id, seg)) {
           | Some(p) =>
             let (lv', k') = Util.ListUtil.last(p);
-            lv' === lv && k' == k && List.length(p) == List.length(path);
+            let here = List.length(p) == List.length(path);
+            here
+            && lv' === lv
+            && k' == k
+            || below
+            && List.length(p) > List.length(path)
+            && lv'.spans[k'].anchor == id
+            && (
+              switch (List.nth_opt(p, List.length(path) - 1)) {
+              | Some((l, j)) => l === lv && j == k
+              | None => false
+              }
+            );
           | None => false
           };
-        if (!lands(sp.anchor)
-            || !Option.fold(~none=true, ~some=lands, sp.first)) {
+        if (!lands(~below=false, sp.anchor)
+            || !Option.fold(~none=true, ~some=lands(~below=true), sp.first)) {
           t.diffs = [name ++ ": find misses a span", ...t.diffs];
         };
       },
@@ -493,9 +544,14 @@ let shapes = () => {
   check(int, "diffs", 0, List.length(t.diffs));
   check(
     list(string),
-    "ScratchFocus cuts after an `in` at a Mod level",
-    ["a statement opening with a let-in"],
-    t.mod_in,
+    "ScratchFocus cuts after an `in` at a Mod level: let chains",
+    [
+      "a let chain among members",
+      "a let chain holding a module",
+      "a module of a let chain",
+      "a statement opening with a let-in",
+    ],
+    List.sort_uniq(compare, t.mod_in),
   );
   /* there the item runs to its `;`, a statement */
   let seg = CorpusUtil.seg_of(~root=Mod, "let x = 1 in x;\nlet y = 2;\ny");
@@ -522,6 +578,79 @@ let shapes = () => {
     Piece.is_semi(top.pieces[snd(stmt.core)])
     && stmt.anchor == Piece.id(top.pieces[snd(stmt.core)])
     && stmt.first == Some(Piece.id(top.pieces[0])),
+  );
+};
+
+/* a member that is a let chain is a level of its items; a definition's
+   let chain stays one item */
+let chains = () => {
+  let kinds = (lv: S.level) =>
+    Array.to_list(Array.map((sp: S.span) => kind_name(sp.kind), lv.spans));
+  let seg =
+    CorpusUtil.seg_of(
+      ~root=Mod,
+      "module Holes = {\n  let a = 1 in\n  let b = 2 in\n  a + b\n};\nHoles",
+    );
+  let top = S.top(~root=Mod, seg);
+  let members = Option.get(S.children(top, 0));
+  check(list(string), "one member", ["stmt"], kinds(members));
+  let chain = Option.get(S.children(members, 0));
+  check(bool, "an expression level", true, chain.sort == Sort.Exp);
+  check(
+    bool,
+    "under the member",
+    true,
+    chain.owner == Chain(members.spans[0].anchor),
+  );
+  check(list(string), "its items", ["def", "def", "tail"], kinds(chain));
+  check(
+    list(string),
+    "its slices",
+    ["let a = 1 in", "\n  let b = 2 in", "\n  a + b"],
+    List.map(CorpusUtil.text_of, S.slices(chain)),
+  );
+  check(
+    bool,
+    "a plain statement has none",
+    true,
+    S.children(top, 1) == None,
+  );
+  let let_b = chain.spans[1].anchor;
+  check(
+    int,
+    "find reaches a chain's item",
+    3,
+    Option.fold(~none=0, ~some=List.length, S.find(~root=Mod, let_b, seg)),
+  );
+  /* a module literal in a let chain has its members */
+  let seg =
+    CorpusUtil.seg_of(
+      ~root=Mod,
+      "module H = {\n  let a = 1 in\n  module N = {\n    let c = 3\n  } in\n  a + N.c\n};\nH",
+    );
+  let members = Option.get(S.children(S.top(~root=Mod, seg), 0));
+  let chain = Option.get(S.children(members, 0));
+  check(list(string), "the chain", ["def", "def", "tail"], kinds(chain));
+  check(
+    list(string),
+    "the module in it",
+    ["def"],
+    kinds(Option.get(S.children(chain, 1))),
+  );
+  /* a definition's body is not split: its lets are a block, on demand */
+  let seg =
+    CorpusUtil.seg_of(
+      ~root=Mod,
+      "module M = {\n  let summarize = fun xs ->\n    let total = 1 in\n    total;\n  let k = 2\n};\nM.k",
+    );
+  let members = Option.get(S.children(S.top(~root=Mod, seg), 0));
+  check(list(string), "members", ["def", "def"], kinds(members));
+  check(bool, "no child level", true, S.children(members, 0) == None);
+  check(
+    list(string),
+    "its block",
+    ["def", "tail"],
+    kinds(Option.get(S.block(members, 0))),
   );
 };
 
@@ -600,6 +729,7 @@ let tests = (
   "ItemSpans",
   [
     test_case("shapes", `Quick, shapes),
+    test_case("let chains", `Quick, chains),
     test_case("incomplete programs", `Quick, incomplete),
     test_case("memoized on pieces", `Quick, memo),
     test_case("corpus", `Slow, corpus),
