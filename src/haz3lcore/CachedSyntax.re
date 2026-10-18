@@ -50,6 +50,9 @@ type t = {
      editor keeps its own */
   m_cache: Measured.Incr.cache,
   t_cache: MakeTerm.Incr.cache,
+  /* the zipper relatives and selection [segment] was zipped from, with
+     [segment] itself: an update replacing [segment] voids the pair */
+  zipped: (Relatives.t, Selection.t, Segment.t),
 };
 
 // should not be serializing
@@ -224,6 +227,7 @@ let mk =
     shape_elaborated: elaborated,
     m_cache,
     t_cache,
+    zipped: (z.relatives, z.selection, segment),
   };
 };
 
@@ -290,6 +294,19 @@ let refresh_shapes =
   };
 };
 
+/* [z]'s program as semantics reads it (MakeTerm.semantic_source), as this
+   syntax's own segment when that was zipped from [z]'s relatives and
+   selection: the pieces t_cache parsed. None under an unparsed buffer,
+   which semantics drops */
+let semantic_source = (z: Zipper.t, s: t): option(Segment.t) => {
+  let (relatives, selection, segment) = s.zipped;
+  relatives === z.relatives
+  && selection === z.selection
+  && segment === s.segment
+  && z.selection.mode != Buffer(Unparsed)
+    ? Some(segment) : None;
+};
+
 /* phys-eq on option(Exp.t): None===None holds but Some(x)===Some(y) is
  * always false (new box), so compare the inner Exp ref. */
 let elaborated_phys_eq =
@@ -320,6 +337,7 @@ let calculate =
         ...refresh_shapes(z, info_map, dyn_map, ~elaborated, old),
         old: false,
         selection_ids: Selection.selection_ids(z.selection),
+        zipped: (z.relatives, z.selection, old.segment),
       };
     } else {
       mk(
