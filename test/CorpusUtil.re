@@ -283,6 +283,51 @@ let tile = (label: string, seg: Segment.t): Id.t => {
   };
 };
 
+/* the last tile of the one token [label], in document order */
+let last_tile = (label: string, seg: Segment.t): Id.t => {
+  let rec find = (acc, seg: Segment.t) =>
+    List.fold_left(
+      (acc, p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          List.fold_left(
+            find,
+            Tile.label(t) == [label] ? Some(t.id) : acc,
+            t.children,
+          )
+        | _ => acc
+        },
+      acc,
+      seg,
+    );
+  switch (find(None, seg)) {
+  | Some(id) => id
+  | None => Alcotest.fail("no tile " ++ label)
+  };
+};
+
+/* the parses an edit at piece [id] costs the per-item parse: its item's,
+   and the shell of each enclosing module literal or let-chain member
+   (ItemSpans' child levels) */
+let parses_for = (~root: Sort.t=Exp, seg: Segment.t, id: Id.t): int => {
+  let holds = (ps: Segment.t) => List.mem(id, Segment.IDs.all(ps));
+  let rec go = (lv: ItemSpans.level) =>
+    switch (
+      List.find_opt(
+        k => holds(ItemSpans.slice(lv, k)),
+        List.init(Array.length(lv.spans), k => k),
+      )
+    ) {
+    | Some(k) =>
+      switch (ItemSpans.children(lv, k)) {
+      | Some(cl) when holds(cl.seg) => 1 + go(cl)
+      | _ => 1
+      }
+    | None => 1
+    };
+  go(ItemSpans.top(~root, seg));
+};
+
 /* the first outline row labeled [label], depth first */
 let row_by_label = (term: Language.Exp.t, label: string): Id.t =>
   switch (

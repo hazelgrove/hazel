@@ -98,7 +98,12 @@ let incremental_edit = () => {
   MakeTerm.Incr.full_analyzed := 0;
   let fb = MakeTerm.Incr.fell_back^;
   let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
-  check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
+  check(
+    int,
+    "the member and its module's shell reparsed",
+    2,
+    MakeTerm.Incr.full_analyzed^,
+  );
   check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
   check_parity(seg2, incr2);
 };
@@ -179,7 +184,12 @@ let corpus = () => {
   check(bool, "edit found the literal", true, edited);
   MakeTerm.Incr.full_analyzed := 0;
   let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
-  check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
+  check(
+    int,
+    "the member and its module's shell reparsed",
+    CorpusUtil.parses_for(~root=Mod, seg2, CorpusUtil.tile("181", seg2)),
+    MakeTerm.Incr.full_analyzed^,
+  );
   check_parity(seg2, incr2);
 };
 
@@ -200,21 +210,165 @@ let letin_member = ((name, src), ()) => {
   check(bool, name ++ ": a 1 to edit", true, edited);
   MakeTerm.Incr.full_analyzed := 0;
   let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
-  check(int, name ++ ": one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
+  check(
+    int,
+    name ++ ": its item reparsed, and its let chain's shell",
+    CorpusUtil.parses_for(~root=Mod, seg2, CorpusUtil.tile("2", seg2)),
+    MakeTerm.Incr.full_analyzed^,
+  );
   check(int, name ++ ": no fallback after", fb, MakeTerm.Incr.fell_back^);
   check_parity(seg2, incr2);
 };
+
+/* a module body whose `;` became grout: the grout separates the members
+   as the `;` did (a Mod-sorted skel), though secondary collection reads
+   the body Exp-sorted and the parse takes its skels */
+let grout_between_members = () => {
+  let rec ungrout = (seg: Segment.t): Segment.t =>
+    List.map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when Tile.is_semi(t) =>
+          Piece.Grout({
+            id: t.id,
+            shape: Concave,
+          })
+        | Tile(t) =>
+          Tile({
+            ...t,
+            children: List.map(ungrout, t.children),
+          })
+        | p => p
+        },
+      seg,
+    );
+  let seg =
+    ungrout(
+      CorpusUtil.seg_of("module M = {\n  let x = 1;\n  let y = 2\n} in\nM.x"),
+    );
+  let members = (e: Exp.t) =>
+    switch (e.term) {
+    | ModuleExp(_, {term: Module(items), _}, _) =>
+      List.filter(
+        (m: Mod.t) =>
+          switch (m.term) {
+          | ModLet(_) => true
+          | _ => false
+          },
+        items,
+      )
+      |> List.length
+    | _ => (-1)
+    };
+  check(int, "two members", 2, members(MakeTerm.go_impl(seg).term));
+};
+
+/* a member edit inside a module, at depth 1 and 2, at a Mod root */
+let nested_src = "module A = {\n  let a1 = 11;\n  module B = {\n    let b1 = 21;\n    let b2 = fun x ->\n      let y = x + 22 in\n      y\n  };\n  let a2 = 12\n};\nlet top = 41;\nA.a1 + top";
+
+let member_edit = ((needle, repl), ()) => {
+  let seg = parse_mod(nested_src);
+  let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
+  check_parity(seg, MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg));
+  let (edited, found) =
+    CorpusUtil.edit_token(~keep_id=true, ~needle, ~repl, seg);
+  check(bool, needle ++ " to edit", true, found);
+  let a0 = MakeTerm.Incr.full_analyzed^;
+  let r = MakeTerm.Incr.go_incr(~root=Mod, ~cache, edited);
+  check(
+    int,
+    needle ++ ": its member and its modules' shells",
+    CorpusUtil.parses_for(~root=Mod, edited, CorpusUtil.tile(repl, edited)),
+    MakeTerm.Incr.full_analyzed^ - a0,
+  );
+  check(int, needle ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+  check_parity(edited, r);
+};
+
+/* members that are let chains: each chain item parses alone */
+let chain_src = "module H = {\n  let a = 1 in\n  let b = a + 51 in\n  module N = {\n    let c = 52;\n    let d = 53 in\n    d + c\n  } in\n  a + b + N.c + 54\n};\nlet x = 55 in\nx + 56;\nH";
+
+let chain_edit = ((needle, repl), ()) => {
+  let seg = parse_mod(chain_src);
+  let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
+  check_parity(seg, MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg));
+  let (edited, found) =
+    CorpusUtil.edit_token(~keep_id=true, ~needle, ~repl, seg);
+  check(bool, needle ++ " to edit", true, found);
+  let a0 = MakeTerm.Incr.full_analyzed^;
+  let r = MakeTerm.Incr.go_incr(~root=Mod, ~cache, edited);
+  check(
+    int,
+    needle ++ ": its item and the shells around it",
+    CorpusUtil.parses_for(~root=Mod, edited, CorpusUtil.tile(repl, edited)),
+    MakeTerm.Incr.full_analyzed^ - a0,
+  );
+  check(int, needle ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+  check_parity(edited, r);
+  let (renewed, _) =
+    CorpusUtil.edit_token(~needle=repl, ~repl=needle, edited);
+  check_parity(renewed, MakeTerm.Incr.go_incr(~root=Mod, ~cache, renewed));
+};
+
+/* the stdlib's sources, where the repo has them */
+let stdlib = () =>
+  List.iter(
+    ((path, src)) => {
+      let seg = parse_mod(src);
+      let fb = MakeTerm.Incr.fell_back^;
+      check_parity(
+        seg,
+        MakeTerm.Incr.go_incr(
+          ~root=Mod,
+          ~cache=MakeTerm.Incr.mk_cache(),
+          seg,
+        ),
+      );
+      check(int, path ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+    },
+    Test_ItemSpans.stdlib_corpus(),
+  );
 
 let tests = (
   "ModRoot",
   [
     test_case("probe", `Quick, probe),
+    test_case("grout between members", `Quick, grout_between_members),
     test_case("full parity", `Quick, full_parity),
     test_case("incremental edit", `Quick, incremental_edit),
     test_case("term_of_mod", `Quick, term_of_mod_matches),
     test_case("stray line above a member", `Quick, stray_line),
     test_case("last slot keyed by root", `Quick, last_slot_keyed_by_root),
     test_case("corpus mega-mod-1k", `Quick, corpus),
+    test_case("a member edit at depth 1", `Quick, member_edit(("11", "13"))),
+    test_case("a member edit at depth 2", `Quick, member_edit(("21", "23"))),
+    test_case(
+      "an edit in a depth-2 member's let-in",
+      `Quick,
+      member_edit(("22", "24")),
+    ),
+    test_case("an edit after the module", `Quick, member_edit(("41", "43"))),
+    test_case("stdlib sources", `Quick, stdlib),
+    test_case("a chain's middle item", `Quick, chain_edit(("51", "57"))),
+    test_case(
+      "a member of a module in a chain",
+      `Quick,
+      chain_edit(("52", "58")),
+    ),
+    test_case(
+      "a chain in a module in a chain",
+      `Quick,
+      chain_edit(("53", "59")),
+    ),
+    test_case("a chain's tail", `Quick, chain_edit(("54", "60"))),
+    test_case("a chain at the root", `Quick, chain_edit(("55", "61"))),
+    test_case(
+      "a chain's tail at the root",
+      `Quick,
+      chain_edit(("56", "62")),
+    ),
   ]
   @ List.map(
       ((name, src)) =>
