@@ -2429,6 +2429,29 @@ let probes = (): list(probe) => [
     expect: "M M/a M/b M/z ⇒ :: module M = { ⏎ ··let a = 1; ⏎ ··let b = 2; ⏎ ··let z = 3 ⏎ }; ⏎ M.a",
   },
   {
+    /* outline ops on an unfinished member that swallowed the one below */
+
+    what: "delete an unfinished member's row (`let q =` above `next`)",
+    root: Mod,
+    src: "module Counter = {\n  let start = 0;\n  let q =\n  let next = start + 1;\n  let after = next + 1\n};\nCounter.after",
+    run: outline_op(Delete, "q"),
+    expect: "it can't go here",
+  },
+  {
+    what: "move an unfinished member's row down",
+    root: Mod,
+    src: "module Counter = {\n  let start = 0;\n  let q =\n  let next = start + 1;\n  let after = next + 1\n};\nCounter.after",
+    run: outline_op(MoveDown, "q"),
+    expect: "it can't move there",
+  },
+  {
+    what: "duplicate an unfinished member's row",
+    root: Mod,
+    src: "module Counter = {\n  let start = 0;\n  let q =\n  let next = start + 1;\n  let after = next + 1\n};\nCounter.after",
+    run: outline_op(Duplicate, "q"),
+    expect: "it can't go here",
+  },
+  {
     /* outline Tab with a doc comment above the item */
 
     what: "Tab on a doc-commented member",
