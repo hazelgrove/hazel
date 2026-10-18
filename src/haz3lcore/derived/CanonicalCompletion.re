@@ -3141,6 +3141,7 @@ let item_cache:
   Swept.mk();
 let items_completed: ref(int) = ref(0); /* observability for tests */
 let items_by_member: ref(int) = ref(0); /* observability for tests */
+let items_missed: ref(int) = ref(0); /* observability for tests */
 
 /* completing an item alone grouts an edge whose operand a neighbour
    supplies (the body after a trailing `in`). that grout is cut debris
@@ -3191,13 +3192,18 @@ let remolded = (~sort: Sort.t, item: Segment.t): option(Segment.t) => {
     : Some(Segment.regrout((Nib.Shape.concave(), Nib.Shape.concave()), r));
 };
 
-/* the editor re-mints the pieces an open tile reaches on every key (a
-   regrout rewraps their secondaries): an item equal to the one a memo
-   entry was made for, piece for piece, takes the entry */
+/* the editor rewraps the secondaries an open tile reaches on every key
+   (a regrout): an item whose tiles are the ones a memo entry was made for,
+   and whose secondaries equal its, takes the entry */
 let same_pieces = (a: Segment.t, b: Segment.t): bool =>
   Segment.ptr_eq(a, b)
   || List.length(a) == List.length(b)
-  && List.for_all2((p: Piece.t, q: Piece.t) => p === q || p == q, a, b);
+  && List.for_all2(
+       (p: Piece.t, q: Piece.t) =>
+         p === q || Piece.is_secondary(p) && Piece.is_secondary(q) && p == q,
+       a,
+       b,
+     );
 
 /* [remolded], memoized like items (only items after an open tile ask).
    A miss keeps the last reading's pieces where the new ones equal them,
@@ -3364,6 +3370,7 @@ and complete_item = (~sort, ~follows=None, item: Segment.t): completion_result =
         }
         : r
     | _ =>
+      incr(items_missed);
       let r = complete_item_uncached(~sort, ~follows, item);
       Swept.replace(item_cache, key, (item, follows, r));
       r;
@@ -3508,6 +3515,15 @@ let root_of = (seg: Segment.t): Sort.t =>
 
 /* Rendered per frame by every completion-aware decoration (quiver
    chips, arm curtailing) and by tab dispatch: per item, so one edit
-   recompletes one item. */
+   recompletes one item. The last segment's result is kept: a frame's
+   readers, and re-renders that change no segment, ask for the same one. */
+let last_for_editor: ref(option((Segment.t, completion_result))) =
+  ref(None);
 let for_editor = (seg: Segment.t): completion_result =>
-  complete_items(~sort=root_of(seg), seg);
+  switch (last_for_editor^) {
+  | Some((last, r)) when last === seg => r
+  | _ =>
+    let r = complete_items(~sort=root_of(seg), seg);
+    last_for_editor := Some((seg, r));
+    r;
+  };
