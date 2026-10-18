@@ -1273,13 +1273,20 @@ let sites =
     );
 };
 
-/* the first module literal, depth first */
-let rec find_braces = (seg: Segment.t): option(Tile.t) =>
+/* the first module literal, depth first; [inner]: the first one holding
+   no other */
+let rec find_braces = (~inner=false, seg: Segment.t): option(Tile.t) =>
   List.find_map(
     (p: Piece.t) =>
       switch (p) {
-      | Tile(t) when is_braces(t) => Some(t)
-      | Tile(t) => List.find_map(find_braces, t.children)
+      | Tile(t) when is_braces(t) =>
+        switch (
+          inner ? List.find_map(find_braces(~inner), t.children) : None
+        ) {
+        | Some(_) as deeper => deeper
+        | None => Some(t)
+        }
+      | Tile(t) => List.find_map(find_braces(~inner), t.children)
       | _ => None
       },
     seg,
@@ -1292,6 +1299,7 @@ let sweep_typing =
       ~root: Sort.t,
       ~chain: bool,
       ~lit: bool,
+      ~inner=false,
       ~sample=1,
       name: string,
       src: string,
@@ -1306,7 +1314,7 @@ let sweep_typing =
     switch (lit) {
     | false => (seg, None, [])
     | true =>
-      switch (find_braces(seg)) {
+      switch (find_braces(~inner, seg)) {
       | Some(t) =>
         let op =
           Option.bind(
@@ -1316,9 +1324,20 @@ let sweep_typing =
               Util.ListUtil.hd_opt(shards),
             )
           );
-        /* the literal's own row: the first top-level row */
+        /* the rows holding the literal: the first top-level row, and for
+           an inner literal the first module row in it */
         let scope =
           switch (base.ids) {
+          | [(k, _), ..._] when inner => [
+              k,
+              ...List.filter_map(
+                   ((r, fp: fp)) =>
+                     fp.kind == KModule && is_prefix(k, r) && r != k
+                       ? Some(r) : None,
+                   base.rows,
+                 )
+                 |> Util.ListUtil.take(1),
+            ]
           | [(k, _), ..._] => [k]
           | [] => []
           };
@@ -1430,6 +1449,9 @@ let typing_sweep = ((name, src)) =>
     run("literal@Exp", Sort.Exp, ~chain=false, ~lit=true, tw.exp_lit);
   };
 
+/* a module inside a module, typed into the inner one */
+let nested_src = "module Outer = {\n  module Inner = {\n    type T = Bool;\n    let value = true\n  };\n  let w = 1\n};\nOuter.w";
+
 let typing = () =>
   if (!enabled) {
     print_endline("ModAudit typing: skipped (MODAUDIT=1 runs it)");
@@ -1438,6 +1460,19 @@ let typing = () =>
       ((name, _) as s) => selected(name) ? typing_sweep(s) : (),
       module_sources,
     );
+    if (selected("nested")) {
+      typing_report(
+        "nested (inner literal)",
+        sweep_typing(
+          ~root=Mod,
+          ~chain=false,
+          ~lit=true,
+          ~inner=true,
+          "nested",
+          nested_src,
+        ),
+      );
+    };
   };
 
 /* ---- outline ops (Alt-arrows, Tab/⇧Tab, duplicate, delete, new) on
@@ -2106,6 +2141,27 @@ let probes = (): list(probe) => [
     src: m_src,
     run: text_after(~off=15, ~lines=3, "let c : T = b", [Insert("\n")]),
     expect: "··let c : T = b ⏎ ·· ⏎ };",
+  },
+  {
+    what: "Enter after a nested module's `{`",
+    root: Mod,
+    src: nested_src,
+    run: text_after(~off=16, ~lines=3, "module Inner = {", [Insert("\n")]),
+    expect: "··module Inner = { ⏎ ···· ⏎ ····type T = Bool;",
+  },
+  {
+    what: "Enter after a nested member's `;`",
+    root: Mod,
+    src: nested_src,
+    run: text_after(~off=14, ~lines=3, "type T = Bool;", [Insert("\n")]),
+    expect: "····type T = Bool; ⏎ ···· ⏎ ····let value = true",
+  },
+  {
+    what: "Enter after a nested module's last member",
+    root: Mod,
+    src: nested_src,
+    run: text_after(~off=16, ~lines=3, "let value = true", [Insert("\n")]),
+    expect: "····let value = true ⏎ ···· ⏎ ··};",
   },
   {
     what: "Enter after a chain definition's `in` (control)",
