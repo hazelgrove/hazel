@@ -1091,24 +1091,74 @@ module Caret = {
       /* Always use the first shard to get origin */
       let p = List.hd(seg);
       let m = Measured.find_p(~msg="caret_point_charsel", p, measured);
-      let offset =
-        switch (Piece.token_of(focus_piece)) {
-        | Some(tok) => inner_offset_for_token(idx, tok)
-        | None => idx + 1
-        };
-      {
-        row: m.origin.row,
-        col: m.origin.col + offset,
+      switch (Piece.token_of(focus_piece)) {
+      | Some(tok) => Measured.point_in_token(m, tok, idx + 1)
+      | None => Point.add(m.origin, Point.mk(~row=0, ~col=idx + 1))
       };
-    | _ =>
-      let Point.{row, col} = base_point(measured, z);
-      {
-        row,
-        col: col + offset(z),
-      };
+    | (Inner(idx), []) =>
+      switch (generalized_neighbor(Right, z)) {
+      | Some(p) =>
+        switch (Piece.token_of(p)) {
+        | Some(tok) =>
+          Measured.point_in_token(Measured.find_p(p, measured), tok, idx + 1)
+        | None =>
+          Point.add(
+            base_point(measured, z),
+            Point.mk(~row=0, ~col=offset(z)),
+          )
+        }
+      | None =>
+        Point.add(
+          base_point(measured, z),
+          Point.mk(~row=0, ~col=offset(z)),
+        )
+      }
+    | (Outer, _) => base_point(measured, z)
     };
 
   type t = ZipperBase.caret;
+};
+
+/* The token containing an Inner caret, including a partial selection. */
+let caret_token = (z: t): option(Token.t) =>
+  switch (Selection.focus_piece(z.selection)) {
+  | Some(p) => Piece.token_of(p)
+  | None => neighbor_token(Right, z)
+  };
+
+let text_linebreak_on = (d: Direction.t, z: t): bool =>
+  switch (z.caret, caret_token(z)) {
+  | (Inner(idx), Some(token)) when String.contains(token, '\n') =>
+    let (before, after) = Token.split_nth(token, idx + 1);
+    switch (d) {
+    | Left => String.ends_with(~suffix="\n", before)
+    | Right => String.starts_with(~prefix="\n", after)
+    };
+  | _ => linebreak_on(d, generalized_neighbors(z))
+  };
+
+/* Token-wise Home/End remains cheap on code; within multiline comments
+   the caller steps by grapheme so internal line boundaries are reachable. */
+let rec do_until_text_linebreak = (step, d: Direction.t, z: t): option(t) =>
+  if (text_linebreak_on(d, z)) {
+    Some(z);
+  } else {
+    switch (step(d, z)) {
+    | None => Some(z)
+    | Some(next) => do_until_text_linebreak(step, d, next)
+    };
+  };
+
+let multiline_step = (d: Direction.t, z: t): bool => {
+  let token =
+    switch (z.caret) {
+    | Inner(_) => caret_token(z)
+    | Outer => neighbor_token(d, z)
+    };
+  switch (token) {
+  | Some(token) => String.contains(token, '\n') && Token.is_comment(token)
+  | None => false
+  };
 };
 
 /* Compute character offsets to trim from the left and right ends
@@ -1204,7 +1254,11 @@ let do_towards_point =
 
   let is_at_side_of_row = (d: Direction.t, z: t) => {
     let Point.{row, col} = caret_point(z);
-    switch (move(d, z)) {
+    /* Use the same caret step as the search. A structural move preserves
+     * Inner's character offset while changing its token, which can both
+     * miss a comment's internal row boundary and index past the next token
+     * when clicking beyond a short or blank continuation line. */
+    switch (f(d, z)) {
     | None => true
     | Some(z) =>
       let Point.{row: rowp, col: colp} = caret_point(z);
@@ -1322,15 +1376,12 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
       switch (anchor_caret) {
       | CaretBase.Outer => Some(m.origin)
       | CaretBase.Inner(idx) =>
-        let offset =
-          switch (Piece.token_of(anchor_piece)) {
-          | Some(tok) => Caret.inner_offset_for_token(idx, tok)
-          | None => idx + 1
-          };
-        Some({
-          row: m.origin.row,
-          col: m.origin.col + offset,
-        });
+        Some(
+          switch (Piece.token_of(p)) {
+          | Some(tok) => Measured.point_in_token(m, tok, idx + 1)
+          | None => Point.add(m.origin, Point.mk(~row=0, ~col=idx + 1))
+          },
+        )
       };
     | Left =>
       /* Anchor is at the RIGHT end */
@@ -1339,11 +1390,6 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
       switch (anchor_caret) {
       | CaretBase.Outer => Some(m.last)
       | CaretBase.Inner(idx) =>
-        let offset =
-          switch (Piece.token_of(anchor_piece)) {
-          | Some(tok) => Caret.inner_offset_for_token(idx, tok)
-          | None => idx + 1
-          };
         let p_first = List.hd(seg);
         let m_first =
           Measured.find_p(
@@ -1351,10 +1397,12 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
             p_first,
             measured,
           );
-        Some({
-          row: m_first.origin.row,
-          col: m_first.origin.col + offset,
-        });
+        Some(
+          switch (Piece.token_of(p_first)) {
+          | Some(tok) => Measured.point_in_token(m_first, tok, idx + 1)
+          | None => Point.add(m_first.origin, Point.mk(~row=0, ~col=idx + 1))
+          },
+        );
       };
     };
   };

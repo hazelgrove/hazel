@@ -6,6 +6,14 @@ open Util.OptUtil.Syntax;
    reparsing. Cache is set from Page.re on copy/cut. */
 let segment_cache: ref(option((string, Segment.t))) = ref(None);
 
+/* Clipboard preprocessing must retain indentation in comment bodies,
+   including fragments pasted at an existing comment's inner caret. */
+let prepare_clipboard = (z: Zipper.t, text: string): string =>
+  switch (z.caret, Zipper.caret_token(z)) {
+  | (Inner(_), Some(token)) when Token.is_comment(token) => text
+  | _ => Token.trim_leading_code_whitespace(text)
+  };
+
 let set_segment_cache = (seg: option(Segment.t), str: string): unit =>
   switch (seg) {
   | Some(seg) when Segment.deep_tile_complete(seg) =>
@@ -42,7 +50,7 @@ let boundary_merges = (text: string, z: Zipper.t): bool => {
    The segment gets fresh IDs to support multiple pastes. */
 let try_segment_paste =
     (clipboard: string, z: Zipper.t, ~root): option(Zipper.t) => {
-  let trim = Util.StringUtil.trim_leading;
+  let trim = Token.trim_leading_code_whitespace;
   switch (segment_cache^) {
   | Some((cached, seg)) when trim(cached) == trim(clipboard) =>
     if (z.caret != Outer) {

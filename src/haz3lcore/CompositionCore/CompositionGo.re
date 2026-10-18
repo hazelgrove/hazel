@@ -841,7 +841,9 @@ module Local = {
               code: string,
             )
             : result(Zipper.t, Action.Failure.t) => {
-      let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
+      let code =
+        Token.trim_leading_code_whitespace(code)
+        |> Unicode.nfc_outside_strings;
       /* module-member chunks carry their `;` separator (insert_member:
          `;\n` ++ m / m ++ `;\n`); the wrap parse cannot take a bare
          separator, so it is split off here and spliced back as a tile

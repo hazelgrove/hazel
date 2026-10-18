@@ -101,13 +101,33 @@ let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
 (* Same name alphabet as `identifier`, minus `'`, matching Token.is_livelit:
    `^é` is a livelit in the editor, so it must be one token here too. *)
 let livelit_ident = '^' name_start name_rest*
-let comment = '#' [^ '#' '\n']* '#'
+let comment = '#' [^ '#']* '#'
 
 rule token = 
     parse 
     | "undef" { UNDEF}
     | whitespace {token lexbuf }
-    | comment { token lexbuf }
+    | comment as text {
+        (* The lexer consumes the whole block at once. Keep diagnostics for
+           the following token on the correct line (including CRLF input). *)
+        let n = String.length text in
+        let rec lines i count bol =
+          if i >= n then (count, bol) else
+          match text.[i] with
+          | '\r' when i + 1 < n && text.[i + 1] = '\n' ->
+              lines (i + 2) (count + 1) (i + 2)
+          | '\r' | '\n' -> lines (i + 1) (count + 1) (i + 1)
+          | _ -> lines (i + 1) count bol
+        in
+        let count, bol = lines 0 0 0 in
+        if count > 0 then begin
+          let pos = lexbuf.lex_curr_p in
+          lexbuf.lex_curr_p <- { pos with
+            pos_lnum = pos.pos_lnum + count;
+            pos_bol = pos.pos_cnum - n + bol }
+        end;
+        token lexbuf
+      }
     | newline { advance_line lexbuf; token lexbuf}
     | ints as i { INT (Bigint.of_string i) }
     | float as f { FLOAT (parse_float_string f )}

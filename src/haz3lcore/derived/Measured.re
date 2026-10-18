@@ -14,6 +14,26 @@ let mk_measurement = (origin: Point.t, last: Point.t): measurement => {
   last,
 };
 
+/* Internal comment newlines reset the column, unlike Point.add. Deferred
+   projector rows belong at the first newline and are included in m.last. */
+let point_in_token = (m: measurement, token: string, count: int): Point.t =>
+  if (!String.contains(token, '\n')) {
+    Point.add(
+      m.origin,
+      Point.mk(~row=0, ~col=Token.prefix_columns(token, count)),
+    );
+  } else {
+    let (prefix, _) = Token.split_nth(token, count);
+    let lines = String.split_on_char('\n', prefix);
+    let row = List.length(lines) - 1;
+    let extra = m.last.row - m.origin.row - StringUtil.num_linebreaks(token);
+    {
+      row: m.origin.row + row + (row == 0 ? 0 : max(0, extra)),
+      col:
+        (row == 0 ? m.origin.col : 0) + Token.columns(ListUtil.last(lines)),
+    };
+  };
+
 module Rows = {
   include IntMap;
   /* content_start: column of first non-whitespace piece on row
@@ -407,14 +427,49 @@ let of_segment_inner =
         row_content: acc.row_content,
       };
     } else {
-      /* Comment or other secondary: counts as content */
-      let size = Point.mk(~row=0, ~col=Secondary.columns(w));
-      let (measure, map) = calc_inline(acc.pos, acc.map, size);
+      /* A comment contributes real content on every line it spans. Keep
+         the same piece in each row so row consumers can see the comment. */
+      let lines =
+        String.split_on_char('\n', Secondary.get_string(w.content));
+      let rec add_lines = (acc: measure_acc, lines) =>
+        switch (lines) {
+        | [] => acc
+        | [line, ...rest] =>
+          let size = Point.mk(~row=0, ~col=Token.columns(line));
+          let pos = Point.add(acc.pos, size);
+          let row_content =
+            update_row_content_(acc.row_content, acc.pos, size);
+          let seg = [Piece.Secondary(w), ...acc.seg];
+          switch (rest) {
+          | [] => {
+              ...acc,
+              pos,
+              row_content,
+              seg,
+            }
+          | _ =>
+            let num_rows = DeferredLinebreaks.of_secondary();
+            let shape = shape_of_row_content_(row_content, pos.col);
+            let map =
+              acc.map
+              |> add_n_rows(pos, shape, num_rows)
+              |> add_piece_row(pos.row, seg)
+              |> add_n_empty_piece_rows(num_rows - 1);
+            add_lines(
+              {
+                seg: [],
+                pos: Point.mk(~row=pos.row + num_rows, ~col=0),
+                map,
+                row_content: empty_row_content_,
+              },
+              rest,
+            );
+          };
+        };
+      let result = add_lines(acc, lines);
       {
-        seg: [Piece.Secondary(w), ...acc.seg],
-        pos: measure.last,
-        map: add_w(w, measure, map),
-        row_content: update_row_content_(acc.row_content, acc.pos, size),
+        ...result,
+        map: add_w(w, mk_measurement(acc.pos, result.pos), result.map),
       };
     };
 
