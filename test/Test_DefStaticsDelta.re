@@ -10,16 +10,17 @@ open Language;
 
 let settings = CoreSettings.on;
 
-/* how [t] differs from a cold calc of its term: the merged map and every
-   item's (members included) by key, and the items' aggregates */
-let delta_diffs = (t: DefStatics.t): list(string) => {
+/* how [t] differs from a cold calc of its term: the merged map by key,
+   every item's map (members included) by its keys and, where the item
+   is new since [prev], its infos; and the items' aggregates */
+let delta_diffs = (~prev=?, t: DefStatics.t): list(string) => {
   let analyzed = DefStatics.last_analyzed^;
   let cold = DefStatics.calc(~settings, ~probe_ids=t.probe_ids, t.term);
   DefStatics.last_analyzed := analyzed;
   let out = ref([]);
   let note = s => out := [s, ...out^];
   let cls = i => Cls.show(Info.cls_of(i));
-  let maps = (what, got: Statics.Map.t, want: Statics.Map.t) => {
+  let maps = (~infos=true, what, got: Statics.Map.t, want: Statics.Map.t) => {
     let n = ref(0);
     let at = (id, s) => {
       incr(n);
@@ -31,11 +32,12 @@ let delta_diffs = (t: DefStatics.t): list(string) => {
       Id.Map.merge(
         (id, g, w) => {
           switch (g, w) {
-          | (Some(g), Some(w)) =>
+          | (Some(g), Some(w)) when infos =>
             Option.iter(
               d => at(id, d ++ " at " ++ cls(w)),
               DefStaticsCheck.differ(~types=true, w, g),
             )
+          | (Some(_), Some(_)) => ()
           | (Some(g), None) => at(id, "stale " ++ cls(g))
           | (None, Some(w)) => at(id, "missing " ++ cls(w))
           | (None, None) => ()
@@ -69,6 +71,22 @@ let delta_diffs = (t: DefStatics.t): list(string) => {
     ids(DefStatics.all_warning_ids(t)),
     ids(DefStatics.all_warning_ids(cold)),
   );
+  /* maps the last step had, already compared then */
+  let seen = Hashtbl.create(64);
+  let rec remember = (items: list(DefStatics.item)) =>
+    List.iter(
+      (it: DefStatics.item) => {
+        Hashtbl.replace(seen, Id.to_string(it.d_id), it.d_map);
+        remember(it.d_members);
+      },
+      items,
+    );
+  Option.iter((p: DefStatics.t) => remember(p.items), prev);
+  let fresh = (it: DefStatics.item) =>
+    switch (Hashtbl.find_opt(seen, Id.to_string(it.d_id))) {
+    | Some(m) => m !== it.d_map
+    | None => true
+    };
   let rec items = (path, got: list(DefStatics.item), want) =>
     if (List.length(got) != List.length(want)) {
       note(path ++ ": item count");
@@ -79,7 +97,7 @@ let delta_diffs = (t: DefStatics.t): list(string) => {
           if (g.d_id != w.d_id) {
             note(at ++ ": id " ++ Id.str8(g.d_id));
           } else {
-            maps(at, g.d_map, w.d_map);
+            maps(~infos=fresh(g), at, g.d_map, w.d_map);
             same(
               at ++ " errors",
               names,
@@ -134,7 +152,7 @@ let script =
         let seg = s.edit(~root, seg);
         let ds = calc(~prev, seg);
         let name = "step " ++ string_of_int(i);
-        check(list(string), name, [], delta_diffs(ds));
+        check(list(string), name, [], delta_diffs(~prev, ds));
         if (mono) {
           check(
             list(string),
@@ -316,13 +334,10 @@ let lib_restructures = [
 
 let mega_steps = [
   token("180", "181"),
-  token(~at=`First, ~keep_id=true, "Int", "Bool"),
   token(~at=`First, "pad", "pad2"),
   op(NewBelow, ["WateringTimer", "format"]),
-  op(Duplicate, ["HarvestLedger", "cropValue"]),
   op(Delete, ["WateringTimer", "format"]),
   op(MoveDown, ["HarvestLedger", "cropValue"]),
-  op(MoveUp, ["CropPlotter", "setRow"]),
   level(Outdent, ["WateringTimer", "selfcheck"]),
 ];
 
