@@ -1409,6 +1409,10 @@ module Transition = (EV: EV_MODE) => {
       | (prefix, Some((item, suffix))) =>
         let rebuild = (item: Mod.t) =>
           Module(prefix @ [item] @ suffix) |> rewrap;
+        /* After the last item the module is a value. Evaluating its final
+           bindings again, inside a closure they weren't evaluated in,
+           would record cache entries that are wrong to reuse. */
+        let last = snd(Mod.split_pending(suffix)) == None;
         switch (item.term) {
         | ModType(_, _) =>
           let. _ = otherwise(env, d);
@@ -1416,7 +1420,7 @@ module Transition = (EV: EV_MODE) => {
             expr: Module(prefix @ suffix) |> rewrap,
             side_effects: [],
             kind: ModuleDiscardType,
-            is_value: false,
+            is_value: last,
             at: Some(Mod.rep_id(item)),
           });
         | ModExp(d1) =>
@@ -1431,7 +1435,7 @@ module Transition = (EV: EV_MODE) => {
             expr: Module(prefix @ suffix) |> rewrap,
             side_effects: [],
             kind: ModuleDiscardExp,
-            is_value: false,
+            is_value: last,
             /* A bare expression item prints as its expression alone, so the
                item has no syntax to point at, and the expression's is taken
                by the expression's own steps. */
@@ -1477,9 +1481,9 @@ module Transition = (EV: EV_MODE) => {
             /* The continuation gets a fresh id: it is evaluated as a
                sub-expression of this module, and a probe on the module
                must sample its value once, at this level. */
+            let rest = Module(prefix' @ suffix) |> DHExp.fresh;
             Step({
-              expr:
-                subst_env(env'', Module(prefix' @ suffix) |> DHExp.fresh),
+              expr: last ? rest : subst_env(env'', rest),
               side_effects: [
                 RecordPatMatch({
                   pat: dp,
@@ -1489,7 +1493,7 @@ module Transition = (EV: EV_MODE) => {
               ],
               kind:
                 ModuleBind(bound |> List.map(fst) |> String.concat(", ")),
-              is_value: false,
+              is_value: last,
               at: Some(Mod.rep_id(item)),
             });
           };
