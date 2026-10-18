@@ -196,8 +196,13 @@ let both = compose(id, id) in both|},
         all_marks({|let f(x : a) = x + 1 in f|}) != [],
       )
     ),
+    fully_consistent_typecheck(
+      "Any lowercase name can be a written type variable",
+      {|let f(x : elem) = x in f|},
+      Some(poly("elem", T.arrow(T.var("elem"), T.var("elem")))),
+    ),
     test_case(
-      "Only short names are bound implicitly",
+      "Uppercase names and misspelled built-in types aren't bound",
       `Quick,
       () => {
         check(bool, "T", true, all_marks({|let f(x : T) = x in f|}) != []);
@@ -206,6 +211,12 @@ let both = compose(id, id) in both|},
           "int",
           true,
           all_marks({|let f(x : int) = x in f|}) != [],
+        );
+        check(
+          bool,
+          "string",
+          true,
+          all_marks({|let f(x : string) = x in f|}) != [],
         );
       },
     ),

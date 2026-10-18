@@ -1003,8 +1003,8 @@ let rec is_value = (e: Exp.t): bool =>
 
 /* Type variables written in a variable let's annotations that nothing in
    scope binds: the let binds them, rigid and scoped over its definition.
-   Only names like `a`, `b1` or `a'`, so a misspelled type name (`int`)
-   stays unbound. Nested
+   Lowercase names only, and not a built-in type's name in the wrong case
+   (`int`), so those typos stay "not bound". Nested
    variable lets bind their own. Not with inference off, as on dev. */
 let written_tvars = (~ctx: Ctx.t, p: Pat.t, def: Exp.t): list(string) =>
   switch (mode^) {
@@ -1023,13 +1023,21 @@ let written_tvars = (~ctx: Ctx.t, p: Pat.t, def: Exp.t): list(string) =>
       bound := saved;
       r;
     };
-    let short = a =>
-      Util.StringUtil.match(Util.StringUtil.regexp("^[a-z][0-9']*$"), a);
+    let bindable = a =>
+      Util.StringUtil.match(
+        Util.StringUtil.regexp("^[a-z][A-Za-z0-9_']*$"),
+        a,
+      )
+      && !
+           List.exists(
+             t => String.lowercase_ascii(t) == String.lowercase_ascii(a),
+             Token.base_typs,
+           );
     let f_typ = (continue, t: Typ.t) =>
       switch (Typ.term_of(t)) {
       | Var(a)
           when
-            short(a)
+            bindable(a)
             && !List.mem(a, bound^)
             && !List.mem(a, found^)
             && Ctx.lookup_tvar(ctx, a) == None =>
