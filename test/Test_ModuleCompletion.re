@@ -557,11 +557,11 @@ let kinds = "module M = {\n  type T = Int;\n  let f = fun x -> x + 1;\n  let g =
 let kinds_members = "type T = Int;\nlet f = fun x -> x + 1;\nlet g = if true then 1 else 2;\nlet h = (1, 2);\nlet l = [1, 2];\ntest 1 == 1 end;\nlet c = case 1 | 1 => 2 | _ => 3 end;\nmodule N = {\n  let a = 1;\n  let b = 2\n};\nlet k = let a = 1 in a + 1;\nlet a = 1 in\nlet b = a + 2 in\na + b;\nlet z = 0";
 
 /* (name, root, program, full, prefix): restored/destroyed/total, pinned.
-   The misses are deleted openers (`if`, `(`, `[`, `case`, `{`) and `h`'s
-   `=` (`let h (1, 2)` reads as an ap-pattern) */
+   The one miss is `h`'s `=`: `let h (1, 2)` reads as an ap-pattern, as at
+   the top level (CompletionScoreboard's tuple-list) */
 let round_trip_pins = [
-  ("in a module", Sort.Exp, kinds, "48/0/55", "30/0/30"),
-  ("at a Mod root", Sort.Mod, kinds_members, "44/0/50", "28/0/28"),
+  ("in a module", Sort.Exp, kinds, "54/0/55", "30/0/30"),
+  ("at a Mod root", Sort.Mod, kinds_members, "49/0/50", "28/0/28"),
 ];
 
 let round_trip = ((name, root, src, full, prefix), ()) => {

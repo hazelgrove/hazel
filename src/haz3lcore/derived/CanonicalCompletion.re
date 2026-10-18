@@ -20,7 +20,8 @@
  *   witness > junction > sort frontier > wall > partition > append
  *
  * PIPELINE
- * 1. PARTITION by layout. A blank line always splits; a line indented
+ * 1. PARTITION by layout. A blank line splits (but inside an unclosed
+ *    module `{`, whose members it parts); a line indented
  *    at-or-left-of the partition's first incomplete tile starts a new
  *    partition:  `let x = 1 ⏎ f(3)` — `in` completes on line one and
  *    f(3) is the let's BODY, not its definition. Continuation
@@ -28,6 +29,10 @@
  *    (`| p => 2` under a broken case), a line starting concave-left
  *    (`+ 2` needs a left operand), a bare token prefixing a delimiter
  *    the partition still expects (`en` under a case missing `end`).
+ *    At a member level (a module body, a Mod root) the boundary before
+ *    a MEMBER LINE ends the member with a synthesized `;`, the member
+ *    level's `in`: `let q ⏎ let next = …` -> `let q = ?; let next = …`
+ *    (Member boundaries, below).
  * 2. SEQUENTIAL MATERIALIZATION, per partition: complete ONE tile per
  *    pass — strongest evidence first, weak ties innermost (the old
  *    backpack's stack order) — recursing on the regrouted result.
@@ -67,6 +72,10 @@
  *   definition), a SORT CLAMP (a clippable interior slot shrinks to
  *   a fitting span: `let a = 1 in let b = 2 in b` with the second
  *   `let` deleted restores at `b`), and unmatched-opener crossing.
+ *   A member's definition (its head's operand, not a child) is bounded
+ *   as a let-in's child is: openers stay after the member head, whose
+ *   first definition tile opens a line. A module's `{` opens after the
+ *   slot holding the literal (an open slot before a member head).
  * - RULE MACHINERY (the variadic-emulation family — dissolves if
  *   case ever becomes one n-ary form): a NAKED rule tile only exists
  *   once a case is broken, so rules wall placement for shards whose
@@ -97,9 +106,10 @@
  * deeply complete (no incomplete tile survives); print∘parse closes
  * (ExpToSegment strips exactly the synthesized shards via the masks).
  * Perf: for_editor memoizes on the segment; no-incomplete segments
- * take a regrout-only fast path. Zipper-facing queries (chip/tab)
- * live in CompletionQuery; insertion-record derivation for the
- * display sits at the bottom of this file. */
+ * take a regrout-only fast path; an unfinished member completes alone,
+ * cut at its member line (member_parts). Zipper-facing queries
+ * (chip/tab) live in CompletionQuery; insertion-record derivation for
+ * the display sits at the bottom of this file. */
 
 open Util;
 
@@ -503,6 +513,24 @@ let complete_middle_shards = (t: Tile.t): Tile.t => {
 let leading_from_incomplete = (incomplete: list(Tile.t)): list(Piece.t) =>
   List.rev(incomplete) |> List.concat_map(leading_shards);
 
+let at_members = (sort: Sort.t) => sort == Sort.Mod || sort == Sort.Sig;
+
+/* a form only a member level holds (every mold of its label is Mod or
+   Sig sorted) */
+let is_member_head = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    switch (Form.base_molds(Tile.label(t))) {
+    | [] => false
+    | molds =>
+      List.for_all(
+        (m: Mold.t) => m.out == Sort.Mod || m.out == Sort.Sig,
+        molds,
+      )
+    }
+  | _ => false
+  };
+
 /* === Opener placement ===
  * An opener's position is the start of its closer's LEFT-OPERAND SPAN in
  * the partition skel: the maximal span the completed form absorbs
@@ -632,6 +660,25 @@ let opener_schedule =
         : rule_walls
           |> List.filter(w => w >= at && w < idx)
           |> List.fold_left((acc, w) => max(acc, w + 1), at);
+    /* Member heads: at a member level a definition is its head's
+       operand in the head's own segment, where a let-in's definition is
+       a child the let bounds. So the definition's first tile opens a
+       line as a child's first would, and an opener inside it stays
+       after the head (member_floor) */
+    let arr = Array.of_list(subseg);
+    let member_head = (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) =>
+        is_member_head(p)
+        && Tile.is_complete(t)
+        && (
+          switch (Tile.shapes(t)) {
+          | (_, Concave(_)) => true
+          | _ => false
+          }
+        )
+      | _ => false
+      };
     /* Line walls: an opener must not hoist above a line starting
        with a complete prefix-form tile (statement-shaped: convex-
        left, concave-right, multi-shard). Applies only across a
@@ -658,10 +705,66 @@ let opener_schedule =
                 | _ => false
                 }
               );
-            go(i + 1, rest, false, wall ? [i, ...acc] : acc);
+            go(i + 1, rest, member_head(p), wall ? [i, ...acc] : acc);
           }
         };
       go(0, subseg, true, []);
+    };
+    /* the start of the definition of the member holding [idx]: after
+       its head, if no `;` comes between */
+    let member_floor = (idx: int): option(int) => {
+      let rec back = j =>
+        if (j < 0 || Piece.is_semi(arr[j])) {
+          None;
+        } else if (member_head(arr[j])) {
+          let rec skip = k =>
+            k < idx && Piece.is_secondary(arr[k]) ? skip(k + 1) : k;
+          Some(skip(j + 1));
+        } else {
+          back(j - 1);
+        };
+      back(idx - 1);
+    };
+    /* an opener whose interior is a member list (a module's `{`) takes
+       member heads as its content, not as walls or floors */
+    let member_interior = (t: Tile.t) =>
+      at_members(
+        snd(Mold.nibs(~index=Tile.l_shard(t) - 1, Tile.mold(t))).sort,
+      );
+    /* such an opener's place: after the slot that holds the literal, the
+       nearest earlier open slot whose next content is a member head (no
+       definition is one); else the segment's start, a slot's content */
+    let holder = (idx: int): int => {
+      let rec skip = k =>
+        k < idx && Piece.is_secondary(arr[k]) ? skip(k + 1) : k;
+      let rec next = k =>
+        k < idx && (Piece.is_secondary(arr[k]) || Piece.is_grout(arr[k]))
+          ? next(k + 1) : k;
+      let rec back = j =>
+        if (j < 0) {
+          skip(0);
+        } else {
+          switch (arr[j]) {
+          | Tile(t)
+              when
+                !Tile.is_semi(t)
+                && Tile.is_complete(t)
+                && (
+                  switch (snd(Tile.nibs(t))) {
+                  | {shape: Concave(_), sort} =>
+                    !at_members(sort) && sort != Sort.Any
+                  | _ => false
+                  }
+                )
+                && {
+                  let k = next(j + 1);
+                  k < idx && is_member_head(arr[k]);
+                } =>
+            skip(j + 1)
+          | _ => back(j - 1)
+          };
+        };
+      back(idx - 1);
     };
     let lb_between = (a, b) => {
       let rec go = j =>
@@ -854,14 +957,20 @@ let opener_schedule =
          index_of(t)
          |> Option.map(idx => {
               let at =
-                clamp_sort(
-                  t,
-                  clamp(
-                    clamp_lines(clamp_walls(t, at_of(idx), idx), idx),
+                if (member_interior(t)) {
+                  clamp(holder(idx), idx);
+                } else {
+                  let at =
+                    switch (member_floor(idx)) {
+                    | Some(floor) => max(at_of(idx), floor)
+                    | None => at_of(idx)
+                    };
+                  clamp_sort(
+                    t,
+                    clamp(clamp_lines(clamp_walls(t, at, idx), idx), idx),
                     idx,
-                  ),
-                  idx,
-                );
+                  );
+                };
               switch (witness_for(t, at, idx)) {
               | Some((j, sp)) => (j, idx, t, ReplaceWitness(sp))
               | None =>
@@ -1127,6 +1236,11 @@ let line_has_content = (rest: Segment.t): bool => {
   scan(rest);
 };
 
+/* an unclosed tile whose open interior is a member list (a module's `{`) */
+let opens_members = (t: Tile.t): bool =>
+  !Tile.has_end(Right, t)
+  && at_members(snd(Mold.nibs(~index=Tile.r_shard(t), Tile.mold(t))).sort);
+
 let partition_segment =
     (~use_indent_heuristic=true, ~absorb_empty_lines=false, seg: Segment.t)
     : list((Segment.t, list(Tile.t))) => {
@@ -1144,7 +1258,24 @@ let partition_segment =
     switch (seg) {
     | [] => [(List.rev(acc), List.rev(incomplete_acc))]
 
-    /* Heuristic 1: blank line (two consecutive linebreaks) */
+    /* Heuristic 1: blank line (two consecutive linebreaks), except in a
+       member list (an unclosed `{`), whose members blank lines part; the
+       indent rule still ends it */
+    | [Secondary(w1), Secondary(w2), ...rest]
+        when
+          Secondary.is_linebreak(w1)
+          && Secondary.is_linebreak(w2)
+          && incomplete_before
+          && opens_members(ListUtil.last(incomplete_acc)) =>
+      go(
+        [Secondary(w2), ...rest],
+        [Secondary(w1), ...acc],
+        incomplete_acc,
+        incomplete_before,
+        0,
+        false,
+        incomplete_indent,
+      )
     | [Secondary(w1), Secondary(w2), ...rest]
         when Secondary.is_linebreak(w1) && Secondary.is_linebreak(w2) =>
       if (incomplete_before) {
@@ -1266,8 +1397,6 @@ let partition_segment =
  * members already apart by grout (a missing `;`) read apart as they
  * are, and are left alone. */
 
-let at_members = (sort: Sort.t) => sort == Sort.Mod || sort == Sort.Sig;
-
 /* what follows a part of a level: its first content, and the
    indentation of that content's line */
 type follows = {
@@ -1302,22 +1431,6 @@ let lead = (seg: Segment.t): option(follows) => {
     };
   go(0, false, seg);
 };
-
-/* a form only a member level holds (every mold of its label is Mod or
-   Sig sorted) */
-let is_member_head = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) =>
-    switch (Form.base_molds(Tile.label(t))) {
-    | [] => false
-    | molds =>
-      List.for_all(
-        (m: Mold.t) => m.out == Sort.Mod || m.out == Sort.Sig,
-        molds,
-      )
-    }
-  | _ => false
-  };
 
 /* a line opening with [head] continues the line above */
 let continues = (head: Piece.t): bool =>
@@ -3179,6 +3292,21 @@ let member_parts = (~sort: Sort.t, item: Segment.t): list(unit_) =>
     go([], parts, ends);
   };
 
+/* a `}` that lost its `{`: the members it held spilled into the level,
+   whose units were cut at their `;`s, so the slot holding the literal is
+   in a unit before it */
+let spilled_closer = (seg: Segment.t): bool =>
+  List.exists(
+    fun
+    | Piece.Tile(t) =>
+      !Tile.has_end(Left, t)
+      && at_members(
+           snd(Mold.nibs(~index=Tile.l_shard(t) - 1, Tile.mold(t))).sort,
+         )
+    | _ => false,
+    seg,
+  );
+
 /* a member part's completion ends its member: its last content is a `;` */
 let closes_member = (seg: Segment.t): bool => {
   let rec go = (rev: Segment.t) =>
@@ -3291,6 +3419,16 @@ and complete_slices =
     at_members(sort)
       ? List.concat_map(member_parts(~sort), items)
       : List.map(item => (item, None), items);
+  /* a spilled closer completes with the level up to it */
+  let units =
+    List.fold_left(
+      (acc, (seg, f) as u) =>
+        spilled_closer(seg)
+          ? [(List.concat_map(fst, List.rev(acc)) @ seg, f)] : [u, ...acc],
+      [],
+      units,
+    )
+    |> List.rev;
   let rec go =
           (~first: bool, ~opened: bool, units: list(unit_))
           : list(completion_result) =>
@@ -3356,8 +3494,20 @@ let complete_items = (~sort, seg: Segment.t): completion_result => {
   };
 };
 
+/* the sort a program's top level reads at: a member level when it holds
+   Mod-molded tiles (a Mod-rooted editor), as semantics reads it, so the
+   chips show the `;`s semantics synthesizes */
+let root_of = (seg: Segment.t): Sort.t =>
+  List.exists(
+    fun
+    | Piece.Tile(t) => Tile.mold(t).out == Sort.Mod
+    | _ => false,
+    seg,
+  )
+    ? Sort.Mod : Sort.Exp;
+
 /* Rendered per frame by every completion-aware decoration (quiver
    chips, arm curtailing) and by tab dispatch: per item, so one edit
    recompletes one item. */
 let for_editor = (seg: Segment.t): completion_result =>
-  complete_items(~sort=Sort.Exp, seg);
+  complete_items(~sort=root_of(seg), seg);
