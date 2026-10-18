@@ -48,6 +48,7 @@ module CaretReveal = CaretReveal;
 module SvgUtil = SvgUtil;
 module Slot = Slot;
 module Expiring = Expiring;
+module Swept = Swept;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;
