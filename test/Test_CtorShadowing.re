@@ -2,12 +2,10 @@ open Alcotest;
 open Haz3lcore;
 open Language;
 
-/* A capitalized name parses as a constructor; when a MODULE (a variable
-   binding) of that name is bound more recently than a constructor of the
-   same name, the module must win at its use sites — the most recent
-   binding, whichever kind. Before this rule, `module Text = … in Text.f`
-   typed `Text` as the constructor whenever any constructor `Text` was in
-   scope (found by modular-editors' corpus against an HTML builtin). */
+/* A capitalized name parses as a constructor; projected (`Text.f`), it
+   names the module of that name when one is in scope, even with a
+   constructor `Text` in scope too (found by modular-editors' corpus
+   against an HTML builtin). */
 let error_count = (code: string): int =>
   switch (Parser.to_zipper(~root=Exp, code)) {
   | None => fail("parse failed: " ++ code)
