@@ -202,6 +202,15 @@ let both = compose(id, id) in both|},
       Some(poly("elem", T.arrow(T.var("elem"), T.var("elem")))),
     ),
     test_case(
+      "An unbound type name is one error, not also a conflict", `Quick, () =>
+      check(
+        int,
+        "marks",
+        1,
+        List.length(all_marks({|let x : Strnig = (fun y -> y)(1) in x|})),
+      )
+    ),
+    test_case(
       "Uppercase names and misspelled built-in types aren't bound",
       `Quick,
       () => {

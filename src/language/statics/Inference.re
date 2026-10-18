@@ -513,13 +513,22 @@ module Solver = {
       n;
     };
 
-  let rec of_typ = (s: t, ctx: Ctx.t, ty: Typ.t): node => {
+  /* `settled`: a type a definition already decided, resolved in its own
+     scope and passed without that ctx, so its names all stay rigid */
+  let rec of_typ = (~settled=false, s: t, ctx: Ctx.t, ty: Typ.t): node => {
     let ty = strip(ty);
     switch (hole_of(s.st, ty)) {
     | Some(id) => of_hole(s, id)
     | None =>
-      /* A type variable that isn't an alias here is rigid, whether or not
-         it is in scope (generalized ones are bound only in pass 2). */
+      /* A type variable that isn't an alias here is rigid if it is bound
+         or one inference generalized (those are bound only in pass 2). A
+         name nothing binds is already an error, so it constrains nothing. */
+      let generalized = x =>
+        Hashtbl.fold(
+          (_, g: gen, found) => found || List.mem(x, g.tvars),
+          s.st.gens,
+          false,
+        );
       let whnf =
         switch (Typ.term_of(ty)) {
         | Var(x) when !is_alias(ctx, x) => ty
@@ -527,12 +536,19 @@ module Solver = {
         };
       switch (Typ.term_of(whnf)) {
       | Unknown(_) => fresh(s)
+      | Var(x)
+          when !settled && Ctx.lookup_tvar(ctx, x) == None && !generalized(x) =>
+        fresh(s)
       | Arrow(t1, t2) =>
-        structure(s, Arrow(of_typ(s, ctx, t1), of_typ(s, ctx, t2)))
-      | Prod(ts) => structure(s, Prod(List.map(of_typ(s, ctx), ts)))
-      | List(t) => structure(s, List(of_typ(s, ctx, t)))
+        structure(
+          s,
+          Arrow(of_typ(~settled, s, ctx, t1), of_typ(~settled, s, ctx, t2)),
+        )
+      | Prod(ts) =>
+        structure(s, Prod(List.map(of_typ(~settled, s, ctx), ts)))
+      | List(t) => structure(s, List(of_typ(~settled, s, ctx, t)))
       | TupLabel({term: Label(l), _}, t) =>
-        structure(s, Label(l, of_typ(s, ctx, t)))
+        structure(s, Label(l, of_typ(~settled, s, ctx, t)))
       | _ => structure(s, Leaf(ty, ctx))
       };
     };
@@ -941,7 +957,7 @@ let solve = (st: infer_state, m: StaticsBase.Map.t): apply_state => {
     (id, _) => {
       let n =
         switch (Hashtbl.find_opt(st.decided, id)) {
-        | Some(Decided(ty)) => Solver.of_typ(s, Ctx.empty, ty)
+        | Some(Decided(ty)) => Solver.of_typ(~settled=true, s, Ctx.empty, ty)
         | Some(Conflicted(_))
         | None => Solver.of_hole(s, id)
         };
