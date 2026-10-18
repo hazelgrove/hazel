@@ -182,11 +182,12 @@ module Update = {
 
   let equal = (===);
 
-  /* a jump into a cell that isn't open, or to another cell's binder: the
-     item opens now; once its cell is there, the caret moves into the pane
-     holding the target, which takes the focus */
-  let jump_across = (~schedule_action, (ensure, selection, caret)) => {
-    schedule_action(Editors(caret));
+  /* a jump into a cell that isn't open, or to another cell's binder or
+     function: the item opens now; once its cell is there, the follow-ups
+     run in the pane holding the target (the caret's move, or the step
+     into), which takes the focus */
+  let jump_across = (~schedule_action, (ensure, selection, then_)) => {
+    List.iter(a => schedule_action(Editors(a)), then_);
     Haz3lcore.FocusEffect.schedule_cell_top();
     (ensure, selection);
   };
@@ -438,7 +439,8 @@ module Update = {
     | Editors(action) =>
       let (action, selection) =
         switch (Editors.Selection.stack_jump_override(action, model.editors)) {
-        /* a stack cell's jump to a binder in another definition */
+        /* a stack cell's jump to a binder, or step into a function, in
+           another definition */
         | Some(across) => jump_across(~schedule_action, across)
         | None =>
           /* an outline add selects and focuses the new cell (focus also
