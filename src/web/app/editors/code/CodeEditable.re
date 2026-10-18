@@ -172,6 +172,14 @@ module Selection = {
            GoToDefinition,
          ),
          of_shortcut(
+           ~action=action(Move(Goal(NextUsage(Right)))),
+           GoToNextUsage,
+         ),
+         of_shortcut(
+           ~action=action(Move(Goal(NextUsage(Left)))),
+           GoToPreviousUsage,
+         ),
+         of_shortcut(
            ~action=action(Move(Goal(NextProblem(Left)))),
            GoToPreviousProblem,
          ),

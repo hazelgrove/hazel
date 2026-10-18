@@ -409,13 +409,17 @@ let to_linebreak = (d: Direction.t, z: t): option(t) => {
   skip_spaces(Direction.toggle(d), z);
 };
 
-let to_next_problem =
-    (~measured: Measured.t, ~problem_ids: Seq.t(Id.t), d: Direction.t, z: t)
+/* Move the caret to the first of `ids` after it (Right) or before it
+ * (Left) in document order, wrapping around at the ends. Ids with no
+ * on-screen position (e.g. hidden in a collapsed projector) are
+ * skipped. Shared by Go to Next Problem and Go to Next Usage. */
+let to_next_in_doc_order =
+    (~measured: Measured.t, ~ids: Seq.t(Id.t), d: Direction.t, z: t)
     : option(t) => {
   let cursor_pos = Zipper.Caret.point(measured, z);
-  /* Sort problem IDs by measured position */
+  /* Sort target IDs by measured position */
   let sorted =
-    problem_ids
+    ids
     |> Seq.filter_map(id =>
          switch (Measured.find_by_id(id, measured)) {
          | Some({origin, _}) => Some((id, origin))
@@ -477,7 +481,17 @@ let move_dispatch =
   | Vertical(d, _) => vertical(~measured, ~refractor_rows, ~col_target, d, z)
   | Point(goal, _) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
-  | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
+  | Goal(NextProblem(d)) =>
+    to_next_in_doc_order(~measured, ~ids=problem_ids, d, z)
+  | Goal(NextUsage(d)) =>
+    /* Like BindingSiteOfIndicatedVar below, start from the term under
+     * the caret (`let*` gives up if there isn't one). Collect every use
+     * of that variable and move to the next one after the caret,
+     * wrapping back to the first after the last. If the variable is
+     * never used, there is nowhere to go and the move fails. */
+    let* ci = Indicated.ci_of(z, statics);
+    let ids = Language.Statics.Map.usage_ids(statics, ci);
+    to_next_in_doc_order(~measured, ~ids=List.to_seq(ids), d, z);
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
   | Goal(BindingSiteOfIndicatedVar) =>
     let* ci = Indicated.ci_of(z, statics);

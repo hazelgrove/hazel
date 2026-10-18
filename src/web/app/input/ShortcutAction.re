@@ -73,6 +73,8 @@ type t =
   | Redo
   | TydiAssistant
   | GoToDefinition
+  | GoToNextUsage
+  | GoToPreviousUsage
   | GoToPreviousProblem
   | GoToNextProblem
   | SelectCurrentTerm
@@ -157,6 +159,21 @@ let meta = (a: t): action_meta =>
       section: Navigation,
       mdIcon: "arrow_forward",
       default_binding: Bound([], "F12"),
+    }
+  /* Cycle through the uses of the variable under the caret. Only "next"
+     has a default key; "previous" is palette-only, like
+     GoToNextProblem below. */
+  | GoToNextUsage => {
+      label: "Go to Next Usage",
+      section: Navigation,
+      mdIcon: "arrow_forward",
+      default_binding: Bound([Shift], "F12"),
+    }
+  | GoToPreviousUsage => {
+      label: "Go to Previous Usage",
+      section: Navigation,
+      mdIcon: "arrow_back",
+      default_binding: Unbound,
     }
   | GoToPreviousProblem => {
       label: "Go to Previous Problem",
