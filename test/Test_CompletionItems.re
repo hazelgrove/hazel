@@ -14,6 +14,12 @@ let records_sorted = (rs: list(CanonicalCompletion.shard_record)) =>
     rs,
   );
 
+/* nothing to complete: no incomplete tile, and no open slot before a
+   member head (whose member completion ends with a `;`) */
+let complete = (~sort: Sort.t, item: Segment.t): bool =>
+  Segment.incomplete_tiles_deep(item) == []
+  && !CanonicalCompletion.has_open_slot(~sort, item);
+
 let check_parity = (~sort=Sort.Exp, name: string, seg: Segment.t): unit => {
   let whole = CanonicalCompletion.complete_segment_deep(~sort, seg);
   let w0 = CanonicalCompletion.items_widened^;
@@ -49,13 +55,13 @@ let check_parity = (~sort=Sort.Exp, name: string, seg: Segment.t): unit => {
     records_sorted(whole.shard_records)
     == records_sorted(items.shard_records),
   );
-  /* items without incomplete tiles keep their pieces, except the ones a
+  /* items needing no completion keep their pieces, except the ones a
      widening merged into an incomplete predecessor's block, or that an
      open tile above molded into its slot */
   let complete_items =
     Segment.top_items(seg)
     |> List.filter(item =>
-         Segment.incomplete_tiles_deep(item) == []
+         complete(~sort, item)
          && Option.is_none(CanonicalCompletion.remolded(~sort, item))
        );
   let kept =
@@ -195,7 +201,7 @@ let insertions_sorted = (is: list(CanonicalCompletion.insertion)) =>
 /* an incomplete item that may read per member: a module literal, or at a
    Mod level a member that is a let chain */
 let per_member = (~sort: Sort.t, item: Segment.t): bool =>
-  Segment.incomplete_tiles_deep(item) != []
+  !complete(~sort, item)
   && (
     ItemSpans.module_item(~root=sort, item) != None
     || sort == Sort.Mod
@@ -252,7 +258,7 @@ let rec check_item = (name: string, ~sort: Sort.t, item: Segment.t): int => {
       0,
       List.mapi(
         (k, part) =>
-          if (Segment.incomplete_tiles_deep(part) == []) {
+          if (complete(~sort, part)) {
             check(
               bool,
               Printf.sprintf(
