@@ -3504,16 +3504,19 @@ let complete_items = (~sort, seg: Segment.t): completion_result => {
 };
 
 /* the sort a program's top level reads at: a member level when it holds
-   Mod-molded tiles (a Mod-rooted editor), as semantics reads it, so the
-   chips show the `;`s semantics synthesizes */
-let root_of = (seg: Segment.t): Sort.t =>
-  List.exists(
-    fun
-    | Piece.Tile(t) => Tile.mold(t).out == Sort.Mod
-    | _ => false,
-    seg,
-  )
-    ? Sort.Mod : Sort.Exp;
+   Mod-molded tiles of its own (a Mod-rooted editor), as semantics reads
+   it, so the chips show the `;`s semantics synthesizes. The members an
+   unclosed module literal spills into it are the literal's */
+let root_of = (seg: Segment.t): Sort.t => {
+  let rec go = (spilled: bool, ps: Segment.t) =>
+    switch (ps) {
+    | [] => Sort.Exp
+    | [Piece.Tile(t), ..._] when !spilled && Tile.mold(t).out == Sort.Mod => Sort.Mod
+    | [Piece.Tile(t), ...ps] => go(spilled || opens_members(t), ps)
+    | [_, ...ps] => go(spilled, ps)
+    };
+  go(false, seg);
+};
 
 /* Rendered per frame by every completion-aware decoration (quiver
    chips, arm curtailing) and by tab dispatch: per item, so one edit

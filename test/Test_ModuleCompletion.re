@@ -810,6 +810,48 @@ let reads_as_written = ((name, root, src), ()) => {
   };
 };
 
+/* ---- the chips read as semantics does: the display's completion reads
+   a program's top level at its root, members an unclosed module literal
+   spills into it aside ---- */
+
+let display_cases = [
+  (
+    "a module typed into a let-in chain",
+    Sort.Exp,
+    "let start = 0 in\nlet next = start + 1 in\nnext",
+    "let start = 0 in",
+    "module N = { let z = 2 } in",
+  ),
+  (
+    "a member typed at a Mod root",
+    Sort.Mod,
+    counter_members,
+    "let start = 0;",
+    "let q = (1 + 2",
+  ),
+  (
+    "a module typed at a Mod root",
+    Sort.Mod,
+    counter_members,
+    "let start = 0;",
+    "module N = { let z = 2 };",
+  ),
+];
+
+let display_agrees = ((name, root, src, after, keys), ()) =>
+  List.iteri(
+    (k, z) => {
+      let source = MakeTerm.semantic_source(z);
+      check(
+        list(string),
+        Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
+        tokens(fst(MakeTerm.semantic_segment(~root, source))),
+        tokens(CanonicalCompletion.for_editor(source).completed_seg),
+      );
+    },
+    type_line(~root, at_line(~root, src, after), keys),
+  );
+
 /* ---- the corpus sweep, behind HAZEL_COMPLETION_SWEEP=1 (minutes):
    every delimiter of mega-mod-1k, the Modules slide and mega-1k ---- */
 
@@ -958,6 +1000,15 @@ let tests = (
       ((name, _, _) as c) =>
         test_case("reads as written: " ++ name, `Quick, reads_as_written(c)),
       as_written,
+    )
+  @ List.map(
+      ((name, _, _, _, _) as c) =>
+        test_case(
+          "the display reads as semantics: " ++ name,
+          `Quick,
+          display_agrees(c),
+        ),
+      display_cases,
     )
   @ [
     test_case("corpus sweep (HAZEL_COMPLETION_SWEEP=1)", `Slow, corpus_sweep),
