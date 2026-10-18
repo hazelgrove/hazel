@@ -75,6 +75,7 @@ let (suite, exit_with_test_status) =
       Test_OutlineRename.tests,
       Test_OutlineText.tests,
       Test_ClosedJump.tests,
+      Test_StackStepInto.tests,
       Test_StaticsMemo.tests,
       Test_CaretReveal.tests,
       Test_Menhir.concave_marker_group,

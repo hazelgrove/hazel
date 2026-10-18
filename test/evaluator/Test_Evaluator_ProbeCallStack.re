@@ -500,50 +500,57 @@ in apply(add(_, 10), 5)|},
       };
     },
   ),
+  /* the probe's menu offers step into on a call it names (cur_var_ap)
+     whose function has code: the library's is its editor's (plans/stdlib.md
+     §9b); a primitive has none */
   test_case(
-    /* the library's code is its editor's (plans/stdlib.md §9b); a
-       primitive has no code to step into */
-
-      "Step into is offered on user and library calls, not on a primitive",
-      `Quick,
-      () => {
-        let offered = code => {
-          let (_, elaborated, info_map, targets) = parse_with_probes(code);
-          let (_, state) =
-            Evaluator.evaluate(
-              ~eval_info=EvalInfo.of_targets(targets),
-              ~env=Builtins.env_init(),
-              elaborated,
-            );
-          switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
-          | [(id, [s, ..._])] =>
-            Haz3lcore.ProbeProj.can_step_into(
-              Option.get(Statics.Map.lookup(id, info_map)),
-              s,
-            )
-          | _ => fail("Expected one probe with samples")
-          };
+    "Step into is offered on user and library calls, not on a primitive",
+    `Quick,
+    () => {
+      let offered = code => {
+        let (_, elaborated, info_map, targets) = parse_with_probes(code);
+        let (_, state) =
+          Evaluator.evaluate(
+            ~eval_info=EvalInfo.of_targets(targets),
+            ~env=Builtins.env_init(),
+            elaborated,
+          );
+        switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
+        | [(id, [s, ..._])] =>
+          let info = Option.get(Statics.Map.lookup(id, info_map));
+          Sample.Focus.cur_var_ap(info) == Some(id)
+          && Haz3lcore.ProbeProj.can_step_into(info, s);
+        | _ => fail("Expected one probe with samples")
         };
-        check(
-          bool,
-          "user call",
-          true,
-          offered({|let inc = fun n -> n + 1 in ^^probe(inc(1))|}),
-        );
-        check(
-          bool,
-          "library call",
-          true,
-          offered({|^^probe(List.map([1, 2, 3], fun n -> n + 1))|}),
-        );
-        check(
-          bool,
-          "primitive",
-          false,
-          offered({|^^probe($prim.string_length("abc"))|}),
-        );
-      },
-    ),
+      };
+      check(
+        bool,
+        "bare call",
+        true,
+        offered({|let inc = fun n -> n + 1 in ^^probe(inc(1))|}),
+      );
+      check(
+        bool,
+        "call through a module",
+        true,
+        offered(
+          {|module M = { let inc = fun n -> n + 1 } in ^^probe(M.inc(1))|},
+        ),
+      );
+      check(
+        bool,
+        "library call",
+        true,
+        offered({|^^probe(List.map([1, 2, 3], fun n -> n + 1))|}),
+      );
+      check(
+        bool,
+        "primitive",
+        false,
+        offered({|^^probe($prim.string_length("abc"))|}),
+      );
+    },
+  ),
   /* a recursive function's closure carries its inner Fun's derived id
      (its FixF keeps the surface Fun's): step into resolves it back */
   test_case(
@@ -562,10 +569,7 @@ in apply(add(_, 10), 5)|},
         );
       switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
       | [(_, [s, ..._])] =>
-        let def =
-          Option.get(
-            Option.bind(s.frame, (f: CallStack.frame) => f.fn_def_id),
-          );
+        let def = Option.get(frame_fn_def_id(s));
         check(
           bool,
           "not the function's own id",

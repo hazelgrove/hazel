@@ -11,31 +11,20 @@ module O = Web.OutlineTree;
 let ignore = Virtual_dom.Vdom.Effect.Ignore;
 let none = _ => ignore;
 
-/* [src]'s rows, every one shown unless [collapsed], as the sidebar lists
-   them */
+/* [src]'s rows as the sidebar lists them: every one shown unless
+   [collapsed] (by label), or, given [folds], as a slide folds them */
 let visible =
-    (~collapsed: list(string)=[], term: Language.Exp.t)
-    : array(S.visible_row) => {
-  let rec walk = (parent, prefix, ns: list(O.node)) =>
-    List.concat_map(
-      ((n: O.node, seg)) => {
-        let path = prefix @ [seg];
-        let expanded = n.o_children != [] && !List.mem(n.o_label, collapsed);
-        [
-          S.{
-            r_path: path,
-            r_node: n,
-            r_name: n.o_label,
-            r_parent: parent,
-            r_expanded: expanded,
-          },
-        ]
-        @ (expanded ? walk(Some(path), path, n.o_children) : []);
-      },
-      O.segs(ns),
-    );
-  Array.of_list(walk(None, [], O.of_term(term)));
-};
+    (~collapsed: list(string)=[], ~folds=?, term: Language.Exp.t)
+    : array(S.visible_row) =>
+  S.visible_rows(
+    ~folded=
+      (path, n) =>
+        switch (folds) {
+        | Some(folds) => O.folded(~folds, path, n.o_kind)
+        | None => List.mem(n.o_label, collapsed)
+        },
+    O.of_term(term),
+  );
 
 /* text mode's state kept as OutlineControl keeps it, minus the program;
    the ops it asks for go to [ops], a new definition's keys to [edits] */
@@ -151,7 +140,7 @@ let props =
     | InSlide(_) => true
     },
   refusal,
-  is_collapsed: _ => false,
+  folded: (_, _) => false,
   header: {
     h_level: level,
     h_program: "",

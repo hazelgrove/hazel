@@ -97,11 +97,28 @@ let probes = (p: t): Refractors.RefractorList.t =>
   | Divided(d) => Divided.probes(d)
   };
 
+/* the probes the program's run samples: a stack's cells', expanded multis
+   too, as a whole editor's, and the manual probes its shell keeps */
 let probe_ids = (p: t): Id.Map.t(unit) =>
   switch (p) {
   | Whole(e) =>
     CachedStatics.probe_ids_of_zipper(e.editor.editor.state.zipper)
-  | Divided(d) => Id.Map.map(_ => (), Id.Map.of_list(Divided.probes(d)))
+  | Divided(d) =>
+    List.fold_left(
+      (acc, e: ScratchCell.t) =>
+        List.fold_left(
+          (acc, c: CellEditor.Model.t) =>
+            Id.Map.union(
+              (_, (), ()) => Some(),
+              acc,
+              CachedStatics.probe_ids_of_zipper(c.editor.editor.state.zipper),
+            ),
+          acc,
+          [e.e_header, e.e_body],
+        ),
+      Id.Map.map(_ => (), Id.Map.of_list(Divided.probes(d))),
+      Divided.cells(d),
+    )
   };
 
 /* the ⇓ probe's term, once placed: the program's last expression, in a

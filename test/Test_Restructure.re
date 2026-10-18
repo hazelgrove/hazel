@@ -21,8 +21,7 @@ let edit =
     mod_root: root == Sort.Mod,
     term,
     info_map: lazy(Language.Statics.Map.empty),
-    is_open: id =>
-      !closed && Web.OutlineTree.expanded(~collapsed=[], id, term),
+    is_open: id => !closed && Web.OutlineTree.expanded(~folds=[], id, term),
   };
   Result.to_option(R.edit(ctx, e(row_by_label(term, label)), seg));
 };
@@ -1030,8 +1029,8 @@ let unshown_module = () => {
     "expanded: a, not _",
     (true, false),
     (
-      Web.OutlineTree.expanded(~collapsed=[], head("a"), term),
-      Web.OutlineTree.expanded(~collapsed=[], head("_"), term),
+      Web.OutlineTree.expanded(~folds=[], head("a"), term),
+      Web.OutlineTree.expanded(~folds=[], head("_"), term),
     ),
   );
   cases([

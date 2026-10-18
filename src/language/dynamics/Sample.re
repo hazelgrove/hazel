@@ -449,11 +449,10 @@ module Focus = {
     Some(CallStack.extend(ap_id, sample.call_stack));
   };
 
-  /* Returns Some(ap_id) only when cursor is on an application with a variable
-     in function position (enabling step-into and pinning). Excludes constructor
-     applications and applications with non-variable functions (e.g. lambdas). */
-  /* a call to a named function, bare (`f(x)`) or through a module
-     (`List.map(xs, f)`) */
+  /* Returns Some(ap_id) only when cursor is on a call to a named function,
+     bare (`f(x)`) or through a module (`M.f(x)`), enabling step-into and
+     pinning. Excludes constructor applications and applications with
+     unnamed functions (e.g. lambdas). */
   let cur_var_ap = (info: Info.t): option(Id.t) =>
     switch (info) {
     | InfoExp({

@@ -118,6 +118,7 @@ let legacy_side_keys = () => {
       zoom: Some(ab_y),
       parked: true,
       collapse: [x, ab_y],
+      expand: [],
       probes,
     };
   let read = () => Persist.read_side("legacytest", "s");

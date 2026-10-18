@@ -285,12 +285,12 @@ module Selection = {
     };
   };
 
-  /* a jump to a whole-program id across open cells: (open the item
-     holding it, select the stack, focus the pane holding it and move its
-     caret there) */
-  let cross_cell_target =
+  /* the item holding whole-program id [target_id], across open cells:
+     (open it unless an open cell holds it, select the stack, the pane
+     holding [target_id]) */
+  let cross_cell =
       (~target_id: Haz3lcore.Id.t, ~d: Divided.t)
-      : option((Update.t, t, Update.t)) => {
+      : option((Update.t, t, (Haz3lcore.Id.t, ScratchCell.side))) => {
     Util.OptUtil.Syntax.(
       {
         let statics = Divided.statics(d);
@@ -320,30 +320,111 @@ module Selection = {
                Option.value(Focus.find_pat(fid, doc), ~default=[]),
              )
             ? Header : Body;
-        let caret: CellEditor.Update.t =
-          MainEditor(Perform(Move(Goal(TileId(target_id)))));
         Some((
           Update.Workspace(FocusEnsure(fid)),
           Stack(MainEditor),
-          Update.Workspace(Stack(j, side, caret)),
+          (j, side),
         ));
       }
     );
   };
 
+  /* a jump to a whole-program id across open cells: (open the item
+     holding it, select the stack, then move the caret there) */
+  let cross_cell_target =
+      (~target_id: Haz3lcore.Id.t, ~d: Divided.t)
+      : option((Update.t, t, list(Update.t))) =>
+    cross_cell(~target_id, ~d)
+    |> Option.map(((ensure, selection, (j, side))) => {
+         let caret: CellEditor.Update.t =
+           MainEditor(Perform(Move(Goal(TileId(target_id)))));
+         (ensure, selection, [Update.Workspace(Stack(j, side, caret))]);
+       });
+
   /* a jump (problems, inspector, agent results) to a tile outside every
      open cell: open the item holding it, then move there */
   let closed_jump =
       (tile: Haz3lcore.Id.t, model: Model.t)
-      : option((Update.t, t, Update.t)) =>
+      : option((Update.t, t, list(Update.t))) =>
     switch (Model.current_program(model)) {
     | Some(Divided(d)) when Divided.owner(tile, d) == None =>
       cross_cell_target(~target_id=tile, ~d)
     | _ => None
     };
 
+  /* a step into a function pane [i, side] doesn't hold: open the item
+     holding its body and step in there */
+  let step_across =
+      (
+        ~i: Haz3lcore.Id.t,
+        ~side: ScratchCell.side,
+        ~call_stack: Language.CallStack.t,
+        ~frame: Language.CallStack.frame,
+        d: Divided.t,
+      )
+      : option((Update.t, t, list(Update.t))) => {
+    Util.OptUtil.Syntax.(
+      {
+        let* entry = Divided.cell(i, d);
+        let pane_map = ScratchCell.pane(side, entry).editor.statics.info_map;
+        if (Option.is_some(ProbePerform.step_into_target(frame, pane_map))) {
+          None; /* the pane holds the function: its own step works */
+        } else {
+          let info_map = Divided.statics(d).info_map;
+          let* body = ProbePerform.step_into_target(frame, info_map);
+          let* info = Id.Map.find_opt(body, info_map);
+          /* function sugar's Fun is in no cell's text; its definition is */
+          let written =
+            switch (info) {
+            | Language.Info.InfoExp({user_term, _}) =>
+              Option.map(
+                Language.Exp.rep_id,
+                Language.FunctionSugar.written(user_term),
+              )
+            | _ => None
+            };
+          /* the item holding the body, found from its parent: a let
+             chain body is a row itself */
+          let above =
+            switch (Language.Info.ancestors_of(info)) {
+            | [parent, ..._] => parent
+            | [] => body
+            };
+          let+ (ensure, selection, (j, _)) =
+            cross_cell(~target_id=above, ~d);
+          let step: CellEditor.Update.t =
+            MainEditor(
+              Perform(
+                Probe(
+                  StepIntoBody(
+                    call_stack,
+                    frame,
+                    Option.value(written, ~default=body),
+                  ),
+                ),
+              ),
+            );
+          /* a cell just opened has no statics until they refresh */
+          let fresh =
+            switch (Divided.cell(j, d)) {
+            | Some(e) => !Id.Map.is_empty(e.e_body.editor.statics.info_map)
+            | None => false
+            };
+          (
+            ensure,
+            selection,
+            (fresh ? [] : [Update.RefreshStatics])
+            @ [Update.Workspace(Stack(j, Body, step))],
+          );
+        };
+      }
+    );
+  };
+
+  /* cross-cell jumps to definitions and steps into functions */
   let stack_jump_override =
-      (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) => {
+      (action: Update.t, model: Model.t)
+      : option((Update.t, t, list(Update.t))) => {
     Util.OptUtil.Syntax.(
       switch (action, Model.current_program(model)) {
       | (
@@ -366,6 +447,17 @@ module Selection = {
         } else {
           cross_cell_target(~target_id=binding_id, ~d);
         };
+      | (
+          Workspace(
+            Stack(
+              i,
+              side,
+              MainEditor(Perform(Probe(StepInto(call_stack, frame)))),
+            ),
+          ),
+          Some(Divided(d)),
+        ) =>
+        step_across(~i, ~side, ~call_stack, ~frame, d)
       | _ => None
       }
     );

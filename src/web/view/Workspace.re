@@ -283,13 +283,13 @@ let with_segment =
 /* the program as an item edit sees it: parsed from the current
    document, which the statics may lag */
 let item_ctx =
-    (~settings: Settings.t, ~collapsed, program: Program.t): ItemEdit.ctx => {
+    (~settings: Settings.t, ~folds, program: Program.t): ItemEdit.ctx => {
   let term = fresh_term(program);
   {
     mod_root: Program.root(program) == Haz3lcore.Sort.Mod,
     term,
     info_map: lazy(fresh_info_map(~settings, program, term)),
-    is_open: id => OutlineTree.expanded(~collapsed, id, term),
+    is_open: id => OutlineTree.expanded(~folds, id, term),
   };
 };
 
