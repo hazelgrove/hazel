@@ -956,10 +956,11 @@ and calc_modexp_item =
 /* an item chain from [ctx_in], aligned with the previous run's [prevs] BY
    ID, so a restructure costs the changed item plus downstream users of
    its exports: a deleted item's names go dirty where it was, and a moved
-   one is popped aside there and recomputed where it lands. also returns,
-   newest first, each dropped or recomputed item's old map with its new
-   one (None: dropped). [keep_ctx]: a recomputed item whose exports didn't
-   change keeps its old ctx_out, so the items below stay reusable as is */
+   one is popped aside there and recomputed whole where it lands. also
+   returns, newest first, each dropped or recomputed item's old map with
+   its new one (None: dropped). [keep_ctx]: a recomputed item whose
+   exports didn't change keeps its old ctx_out, so the items below stay
+   reusable as is */
 and calc_chain =
     (
       ~settings,
@@ -1069,7 +1070,10 @@ and calc_chain =
             ~settings,
             ~probe_ids,
             ~probe_dirty,
-            ~prev=?prev_it,
+            /* a moved item's ctx gained or lost the names it crossed,
+               which the dirty sets don't hold: nothing nested in it is
+               reusable */
+            ~prev=?moved_in ? None : prev_it,
             ~dirty_vars,
             ~dirty_tnames,
             ~ctx_in=ctx,

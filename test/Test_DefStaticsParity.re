@@ -537,6 +537,35 @@ let modexp_probe_parity = (): unit => {
   check(int, "samples as monolithic", mono, samples(ds.merged, graft(ds)));
 };
 
+/* a ModExp chain moved below what its link reads, ids kept (the outline
+   moves its `let … in` lines apart, so the items are reordered here): its
+   links can't be reused from above the move */
+let modexp_chain_moved = (): unit => {
+  let term =
+    MakeTerm.Incr.term_of_mod(
+      CorpusUtil.seg_of(
+        ~root=Mod,
+        "let a = k + 1 in\ntest a == 2 end;\nlet k = 1;\nk",
+      ),
+    );
+  let ds0 = DefStatics.calc(~settings, term);
+  let moved: Exp.t =
+    switch (term.term) {
+    | Module([chain, k, ...rest]) => {
+        ...term,
+        term: Module([k, chain, ...rest]),
+      }
+    | _ => fail("not a module root")
+    };
+  let ds = DefStatics.calc(~settings, ~prev=ds0, moved);
+  check(
+    list(string),
+    "parity",
+    [],
+    DefStaticsCheck.divergences(~settings, ds),
+  );
+};
+
 /* small programs: outline edits, and names resolved across items */
 let small = [
   test_case(
@@ -724,6 +753,25 @@ let small = [
     script(
       "module M = {\n  let (y, x) = (1, 2);\n  let x = true;\n  let w = x\n} in\nM.w",
       [op(Delete, ["M", "x"])],
+    ),
+  ),
+  test_case(
+    "a module moved past what its member reads",
+    `Quick,
+    /* k moves above M, so M now sees k, which no dirty name says: M
+       and all its members re-analyze, then the tail */
+    script(
+      "module M = {\n  let x = k + 1;\n  let y = 2\n} in\nlet k = 1 in\nM.x",
+      [op(MoveUp, ["k"]) |> analyzed(5)],
+    ),
+  ),
+  test_case(
+    "a module moved past what its member reads, at a module root",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module M = {\n  let x = k + 1;\n  let y = 2\n};\nlet k = 1;\nM.x",
+      [op(MoveUp, ["k"])],
     ),
   ),
   test_case(
@@ -1000,6 +1048,7 @@ let tests = (
     ),
     test_case("probe capture parity", `Quick, probe_capture_parity),
     test_case("probe parity in a ModExp chain", `Quick, modexp_probe_parity),
+    test_case("a ModExp chain moved", `Quick, modexp_chain_moved),
   ]
   @ small
   @ type_deps
