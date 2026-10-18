@@ -260,7 +260,14 @@ module Selection = {
     /* a run member's row is its `;`, outside the run's cell: go to its
        `test` */
     | None =>
-      Option.bind(Focus.test_before_semi(tile, Divided.document(d)), find)
+      Option.bind(
+        Focus.test_before_semi(
+          ~root=Divided.root(d),
+          tile,
+          Divided.document(d),
+        ),
+        find,
+      )
     };
   };
 
@@ -310,14 +317,15 @@ module Selection = {
         /* def binders live in the header cell, all else in the body;
            statements, tails and test runs have no header */
         let doc = Divided.document(d);
+        let root = Divided.root(d);
         let headless =
-          Focus.headless_content_deep(fid, doc) != None
-          || Focus.test_run_deep(fid, doc) != None;
+          Focus.headless_content_deep(~root, fid, doc) != None
+          || Focus.test_run_deep(~root, fid, doc) != None;
         let side: ScratchCell.side =
           !headless
           && Focus.seg_contains_id(
                target_id,
-               Option.value(Focus.find_pat(fid, doc), ~default=[]),
+               Option.value(Focus.find_pat(~root, fid, doc), ~default=[]),
              )
             ? Header : Body;
         Some((

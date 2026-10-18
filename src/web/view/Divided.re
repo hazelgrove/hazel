@@ -55,11 +55,11 @@ let with_statics = (s: CachedStatics.t, d: t): t => {
   statics: Some(s),
 };
 
-/* [seg] with [cells]' text in their slots */
-let spliced = (seg: Segment.t, cells: list(Cell.t)): Segment.t =>
-  List.fold_left((seg, e) => Focus.splice_entry(e, seg), seg, cells);
+/* [seg] (at [root]) with [cells]' text in their slots */
+let spliced = (~root: Sort.t, seg: Segment.t, cells: list(Cell.t)): Segment.t =>
+  List.fold_left((seg, e) => Focus.splice_entry(~root, e, seg), seg, cells);
 
-let document = (d: t): Segment.t => spliced(d.base, d.cells);
+let document = (d: t): Segment.t => spliced(~root=root(d), d.base, d.cells);
 
 /* in program coordinates: the indentation the cell cut is its own too */
 let cell_ids = (e: Cell.t): list(Id.t) =>
@@ -160,10 +160,11 @@ let of_whole = (editor: CellEditor.Model.t): t => {
 
 /* a cell for [id]: its header and body, or with [inner], a module's
    members alone */
-let entry = (~info_map, ~sym=?, ~inner=false, id: Id.t, base: Segment.t) =>
+let entry =
+    (~root, ~info_map, ~sym=?, ~inner=false, id: Id.t, base: Segment.t) =>
   inner
-    ? Focus.mk_members_entry(~info_map, id, base)
-    : Focus.mk_entry(~info_map, ~sym?, id, base);
+    ? Focus.mk_members_entry(~root, ~info_map, id, base)
+    : Focus.mk_entry(~root, ~info_map, ~sym?, id, base);
 
 let active = (d: t): option((Id.t, side)) => d.active;
 
@@ -334,7 +335,7 @@ let close = (id: Id.t, d: t): after_close =>
           {
             ...d,
             cells: rest,
-            base: Focus.splice_entry(closing, d.base),
+            base: Focus.splice_entry(~root=root(d), closing, d.base),
             /* closing the focused cell hands the focus to the first body */
             active:
               switch (focused(d)) {
@@ -352,7 +353,7 @@ let close = (id: Id.t, d: t): after_close =>
 let open_among =
     (~term, mk: Segment.t => option(Cell.t), closing, keeping, d: t)
     : option(t) => {
-  let base = spliced(d.base, closing);
+  let base = spliced(~root=root(d), d.base, closing);
   mk(base)
   |> Option.map((entry: Cell.t) =>
        settle(
@@ -380,7 +381,7 @@ let open_ =
       List.partition((e: Cell.t) => List.mem(e.e_id, desc), d.cells);
     open_among(
       ~term,
-      entry(~info_map, ~sym?, ~inner, id),
+      entry(~root=root(d), ~info_map, ~sym?, ~inner, id),
       closing,
       keeping,
       d,
@@ -391,7 +392,7 @@ let open_ =
    another open cell holds it */
 let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
   let members =
-    switch (Focus.test_run_deep(fid, d.base)) {
+    switch (Focus.test_run_deep(~root=root(d), fid, d.base)) {
     | Some((_, ms, _)) => ms
     | None => [fid]
     };
@@ -404,7 +405,7 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
     ? None
     : open_among(
         ~term,
-        Focus.mk_run_entry(~info_map, fid),
+        Focus.mk_run_entry(~root=root(d), ~info_map, fid),
         alone,
         keeping,
         d,
@@ -416,6 +417,7 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
 let resplit =
     (~info_map, ~term, editor: CellEditor.Model.t, d: t): after_close => {
   let base = Focus.zip_of_cell(editor);
+  let root = root(d);
   /* a cell the edit didn't touch keeps its editor (caret, selection); a
      rename keeps its tokens' ids, so compare their labels too */
   let rec labels = (s: Segment.t): list(string) =>
@@ -430,7 +432,7 @@ let resplit =
     Segment.ids(a) == Segment.ids(b) && labels(a) == labels(b);
   };
   let untouched = (e: Cell.t): bool =>
-    switch (Focus.cell_content(e, base)) {
+    switch (Focus.cell_content(~root, e, base)) {
     | None => false
     | Some(slice) =>
       same(slice, Focus.body_text(e))
@@ -440,7 +442,7 @@ let resplit =
         | Headless(_) => true
         | Def(_)
         | Members =>
-          switch (Focus.find_pat(e.e_id, base)) {
+          switch (Focus.find_pat(~root, e.e_id, base)) {
           | Some(pat) => same(pat, Focus.header_text(e))
           | None => false
           }
@@ -454,10 +456,12 @@ let resplit =
           ? Some(e)
           : (
             switch (e.e_kind) {
-            | Run(_) => Focus.mk_run_entry(~info_map, e.e_id, base)
-            | Members => Focus.mk_members_entry(~info_map, e.e_id, base)
-            | Headless(sym) => Focus.mk_entry(~info_map, ~sym, e.e_id, base)
-            | Def(_) => Focus.mk_entry(~info_map, e.e_id, base)
+            | Run(_) => Focus.mk_run_entry(~root, ~info_map, e.e_id, base)
+            | Members =>
+              Focus.mk_members_entry(~root, ~info_map, e.e_id, base)
+            | Headless(sym) =>
+              Focus.mk_entry(~root, ~info_map, ~sym, e.e_id, base)
+            | Def(_) => Focus.mk_entry(~root, ~info_map, e.e_id, base)
             }
           ),
       d.cells,
@@ -602,7 +606,7 @@ let follow_headless =
             /* the base takes the cell's text first, so its slot holds
                the new root: splices by that id must find it, or the
                cell's later edits never reach the program */
-            base := Focus.splice_entry(e, base^);
+            base := Focus.splice_entry(~root=root(d), e, base^);
             {
               ...e,
               e_id: id,

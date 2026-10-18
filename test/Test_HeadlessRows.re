@@ -255,7 +255,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
   let broken = ref([]);
   /* the outline's verdict, from the cell code in one walk */
   let refused =
-    Focus.refusals(~want=id => Id.Map.mem(id, O.row_ids(term)), seg);
+    Focus.refusals(~root, ~want=id => Id.Map.mem(id, O.row_ids(term)), seg);
   let note = (row, whys) =>
     if (whys != []) {
       broken :=
