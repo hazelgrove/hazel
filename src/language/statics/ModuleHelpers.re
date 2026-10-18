@@ -296,7 +296,8 @@ let rec exported_names = (items: list(Mod.t)): list(Var.t) =>
 
 /* The lowering's tail: a tuple mentioning every exported binding, so that
    exports count as used. [stable] as in `stable_id`. */
-let lower_tail = (~stable: option(Id.t)=?, items: list(Mod.t)): Exp.t =>
+let lower_tail_of_names =
+    (~stable: option(Id.t)=?, names: list(Var.t)): Exp.t =>
   stable_id(
     stable,
     "modtail:",
@@ -309,11 +310,14 @@ let lower_tail = (~stable: option(Id.t)=?, items: list(Mod.t)): Exp.t =>
               "modtail-" ++ string_of_int(i) ++ ":",
               Exp.fresh(Var(name)),
             ),
-          exported_names(items),
+          names,
         ),
       ),
     ),
   );
+
+let lower_tail = (~stable: option(Id.t)=?, items: list(Mod.t)): Exp.t =>
+  lower_tail_of_names(~stable?, exported_names(items));
 
 /* Each item's expectations from the analyzed signature, aligned with
    [items]. Only the binders an item exports get one: a definition a later
@@ -327,33 +331,36 @@ let item_ana_labels =
       ~ana_items: option(list(Sig.t)),
       items: list(Mod.t),
     )
-    : list(list((Var.t, Typ.t))) => {
-  let defined =
-    List.concat_map(
-      (item: Mod.t) =>
-        switch (item.term) {
-        | ModType({term: Var(n), _}, _) => [n]
-        | _ => List.map(fst, item_exports(item, ~later=[]))
-        },
-      items,
-    );
-  let ana_labels = ana_value_types(~defined, ana_items);
-  let rec go = (items: list(Mod.t)) =>
-    switch (items) {
-    | [] => []
-    | [item, ...rest] =>
-      let exported_here = List.map(fst, item_exports(item, ~later=rest));
-      [
-        ana_labels
-        |> List.filter(((name, _)) => List.mem(name, exported_here))
-        |> List.map(((name, ty)) =>
-             (name, Grammar.map_typ_annotation(retag(item), ty))
-           ),
-        ...go(rest),
-      ];
-    };
-  go(items);
-};
+    : list(list((Var.t, Typ.t))) =>
+  switch (ana_items) {
+  | None => List.map(_ => [], items)
+  | Some(_) =>
+    let defined =
+      List.concat_map(
+        (item: Mod.t) =>
+          switch (item.term) {
+          | ModType({term: Var(n), _}, _) => [n]
+          | _ => List.map(fst, item_exports(item, ~later=[]))
+          },
+        items,
+      );
+    let ana_labels = ana_value_types(~defined, ana_items);
+    let rec go = (items: list(Mod.t)) =>
+      switch (items) {
+      | [] => []
+      | [item, ...rest] =>
+        let exported_here = List.map(fst, item_exports(item, ~later=rest));
+        [
+          ana_labels
+          |> List.filter(((name, _)) => List.mem(name, exported_here))
+          |> List.map(((name, ty)) =>
+               (name, Grammar.map_typ_annotation(retag(item), ty))
+             ),
+          ...go(rest),
+        ];
+      };
+    go(items);
+  };
 
 /* Lower module items to nested Let/TyAlias wrappers for type checking. The
    wrappers carry the Mod item ids. The tail's type is irrelevant: the

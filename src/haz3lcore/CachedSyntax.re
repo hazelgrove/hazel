@@ -164,18 +164,24 @@ let mk_refractor_rows =
   );
 };
 
+/* [segment]: [z]'s zip, when the caller has it */
 let mk =
     (
       ~root=Sort.Exp,
       ~m_cache=Measured.Incr.mk_cache(),
       ~t_cache=MakeTerm.Incr.mk_cache(),
+      ~segment=?,
       ~info_map,
       ~dyn_map,
       ~elaborated=None,
       z,
     )
     : t => {
-  let segment = Zipper.unselect_and_zip(z);
+  let segment =
+    switch (segment) {
+    | Some(seg) => seg
+    | None => Zipper.unselect_and_zip(z)
+    };
   /* only Exp/Mod roots parse incrementally; other (small) roots parse
      once at their own sort, which the Exp-rooted [go] would misparse */
   let (terms, term_data, projectors, projector_list) =
@@ -320,9 +326,18 @@ let elaborated_phys_eq =
   };
 
 /* cost follows the change: new segment → full `mk`; new statics,
- * dynamics or refractor inputs → refresh_shapes; else just selection_ids */
+ * dynamics or refractor inputs → refresh_shapes; else just selection_ids.
+ * [segment]: [z]'s zip, when the caller has it */
 let calculate =
-    (~root=Sort.Exp, z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+    (
+      ~root=Sort.Exp,
+      ~segment=?,
+      z: Zipper.t,
+      info_map,
+      dyn_map,
+      ~elaborated=None,
+      old: t,
+    ) => {
   let refractor_inputs_changed =
     z.refractors.manuals !== old.cached_manuals
     || z.refractors.multis.ephemerals !== old.cached_ephemerals
@@ -333,7 +348,11 @@ let calculate =
   if (old.old) {
     /* [old] marks caret moves too; an unchanged segment keeps its
        measured/terms/term_data */
-    let segment = Zipper.unselect_and_zip(z);
+    let segment =
+      switch (segment) {
+      | Some(seg) => seg
+      | None => Zipper.unselect_and_zip(z)
+      };
     if (Segment.ptr_eq(segment, old.segment)) {
       {
         ...refresh_shapes(~root, z, info_map, dyn_map, ~elaborated, old),
@@ -346,6 +365,7 @@ let calculate =
         ~root,
         ~m_cache=old.m_cache,
         ~t_cache=old.t_cache,
+        ~segment,
         z,
         ~info_map,
         ~dyn_map,

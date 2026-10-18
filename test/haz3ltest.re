@@ -63,6 +63,7 @@ let (suite, exit_with_test_status) =
       Test_EditLocality.tests,
       Test_DefStaticsParity.tests,
       Test_ModuleCtors.tests,
+      Test_DefStaticsDelta.tests,
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
       Test_ModRoot.tests,
@@ -114,10 +115,12 @@ let (suite, exit_with_test_status) =
     @ Test_DynamicTypInfer.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionScoreboard.tests
+    @ [Test_ModAudit.tests]
     @ Test_CompletionVisualization.tests
     @ Test_QuiverDisplay.tests
     @ Test_TabDispatch.tests
     @ Test_ImpliedHole.tests
+    @ Test_FrameCompletion.tests
     @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests

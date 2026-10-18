@@ -2667,6 +2667,7 @@ let item_cache: Swept.t((Sort.t, Id.t), (Segment.t, completion_result)) =
   Swept.mk();
 let items_completed: ref(int) = ref(0); /* observability for tests */
 let items_by_member: ref(int) = ref(0); /* observability for tests */
+let items_missed: ref(int) = ref(0); /* observability for tests */
 
 /* completing an item alone grouts an edge whose operand a neighbour
    supplies (the body after a trailing `in`). that grout is cut debris
@@ -2789,7 +2790,15 @@ let rec complete_item_uncached = (~sort, item: Segment.t): completion_result =>
   }
 
 and complete_item = (~sort, item: Segment.t): completion_result =>
-  by_pieces(item_cache, ~sort, complete_item_uncached(~sort), item)
+  by_pieces(
+    item_cache,
+    ~sort,
+    item => {
+      incr(items_missed);
+      complete_item_uncached(~sort, item);
+    },
+    item,
+  )
 
 /* a module literal item whose members alone are incomplete: completed
    member by member, as items are, so complete members keep their pieces,
@@ -2898,6 +2907,15 @@ let complete_items = (~sort, seg: Segment.t): completion_result => {
 
 /* Rendered per frame by every completion-aware decoration (quiver
    chips, arm curtailing) and by tab dispatch: per item, so one edit
-   recompletes one item. */
+   recompletes one item. The last segment's result is kept: a frame's
+   readers, and re-renders that change no segment, ask for the same one. */
+let last_for_editor: ref(option((Segment.t, completion_result))) =
+  ref(None);
 let for_editor = (seg: Segment.t): completion_result =>
-  complete_items(~sort=Sort.Exp, seg);
+  switch (last_for_editor^) {
+  | Some((last, r)) when last === seg => r
+  | _ =>
+    let r = complete_items(~sort=Sort.Exp, seg);
+    last_for_editor := Some((seg, r));
+    r;
+  };

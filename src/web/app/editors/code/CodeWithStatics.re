@@ -406,7 +406,7 @@ module View = {
           );
         /* shared by the error and warning arms (canonical completion
            depends on the segment, which the memo key covers) */
-        let completion = Arms.lazy_completion(z);
+        let completion = Arms.lazy_completion(~syntax=model.editor.syntax, z);
         let error_decos =
           Arms.Errors.of_ids(
             ~refine_sort,
