@@ -847,6 +847,106 @@ let keyed = (lv: level): list((Id.t, Segment.t)) =>
 
 let slices = (lv: level): list(Segment.t) => List.map(snd, keyed(lv));
 
+/* a lone module literal item, for a layer that redoes its members: its
+   member slices, and the item with a new member list in their place (the
+   brace and the spine above it rebuilt, its other pieces its own).
+   Unmemoized: the item is a slice, not a program */
+let module_item =
+    (~root: Sort.t, item: Segment.t)
+    : option((list(Segment.t), Segment.t => Segment.t)) => {
+  let lv =
+    build(
+      ~sort=root == Sort.Mod ? Sort.Mod : Sort.Exp,
+      ~owner=Top,
+      ~nested=false,
+      ~bol=true,
+      ~eol=true,
+      ~indent=None,
+      ~offset=0,
+      item,
+    );
+  switch (lv.spans) {
+  | [|{body: Some(_), _}|] =>
+    Option.bind(site_of(lv, 0), s =>
+      Option.map(
+        ((m, brace: Tile.t)) => {
+          let members =
+            build(
+              ~sort=Sort.Mod,
+              ~owner=Members(brace.id),
+              ~nested=false,
+              ~bol=false,
+              ~eol=false,
+              ~indent=Some(0),
+              ~offset=0,
+              List.hd(brace.children),
+            );
+          let put = (seg: Segment.t): Segment.t => {
+            let brace' =
+              Piece.Tile({
+                ...brace,
+                children: [seg],
+              });
+            switch (s) {
+            | Kid(h, t) =>
+              let (init, kid) = ListUtil.split_last(t.children);
+              ListUtil.put_nth(
+                h,
+                Piece.Tile({
+                  ...t,
+                  children: init @ [ListUtil.put_nth(m, brace', kid)],
+                }),
+                item,
+              );
+            | Run(_) => ListUtil.put_nth(m, brace', item)
+            };
+          };
+          (slices(members), put);
+        },
+        brace_of(lv.pieces, s),
+      )
+    )
+  | _ => None
+  };
+};
+
+/* a lone module member that is a let chain, for a layer that redoes its
+   items: the chain's slices, and the member with new pieces for them (its
+   trivia, `;` and what follows its own). Unmemoized */
+let chain_item =
+    (item: Segment.t): option((list(Segment.t), Segment.t => Segment.t)) => {
+  let lv =
+    build(
+      ~sort=Sort.Mod,
+      ~owner=Top,
+      ~nested=false,
+      ~bol=true,
+      ~eol=true,
+      ~indent=None,
+      ~offset=0,
+      item,
+    );
+  switch (lv.spans) {
+  | [|{kind: Stmt, core: (c0, c1), anchor, _}|]
+      when opens_chain(lv.pieces, c0, c1) =>
+    let sub = (a, b) => Array.to_list(Array.sub(lv.pieces, a, b - a));
+    let chain =
+      build(
+        ~sort=Sort.Exp,
+        ~owner=Chain(anchor),
+        ~nested=false,
+        ~bol=false,
+        ~eol=false,
+        ~indent=Some(0),
+        ~offset=c0,
+        sub(c0, c1),
+      );
+    let (pre, post) = (sub(0, c0), sub(c1, Array.length(lv.pieces)));
+    Some((slices(chain), (seg => pre @ seg @ post)));
+  | _ => None
+  };
+};
+
 /* depth first, child levels included: [f] sees each span's path from
    [lv], outermost first */
 let fold = (f: ('a, list((level, int))) => 'a, acc: 'a, lv: level): 'a => {
