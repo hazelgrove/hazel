@@ -2069,6 +2069,20 @@ let probes = (): list(probe) => [
     expect: "1:6 \"let a = 1;\"",
   },
   {
+    what: "F12 from a member to a definition outside its module",
+    root: Mod,
+    src: "let base = 1;\nmodule M = {\n  let a = base + 1\n};\nM.a",
+    run: f12("base + 1"),
+    expect: "0:4 \"let base = 1;\"",
+  },
+  {
+    what: "F12 from a member to a definition outside its module",
+    root: Exp,
+    src: "let base = 1 in\nmodule M = {\n  let a = base + 1\n} in\nM.a",
+    run: f12("base + 1"),
+    expect: "0:4 \"let base = 1 in\"",
+  },
+  {
     what: "F12 on M.a's M",
     root: Mod,
     src: m_src,
