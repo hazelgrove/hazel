@@ -126,7 +126,16 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
          fun
          | Grammar.Mod(m) => flatten_mod(m)
          | Grammar.Exp(e) => [Mod.fresh(ModExp(e))]
-         | other => [Mod.fresh(ModExp(Exp.fresh(MultiHole([other]))))],
+         | other => [
+             Mod.fresh(
+               ModExp(
+                 IdTagged.mk_internal(
+                   [Id.derive(~salt="mod-other", Any.rep_id(other))],
+                   MultiHole([other]): Exp.term,
+                 ),
+               ),
+             ),
+           ],
        )
     |> List.flatten
   | ModLet(_, _)
@@ -516,6 +525,22 @@ let is_pat_kid: Any.t => bool =
   | Pat(_) => true
   | _ => false;
 
+/* a term the parse makes itself (a singleton labeled tuple, a cross-sort
+   hole) gets an id derived from the piece it wraps, not a fresh one, so
+   two parses of the same pieces agree */
+let derived = (~salt: string, ids: list(Id.t), term: 'a): IdTagged.t('a) =>
+  IdTagged.mk_internal(
+    [
+      switch (ids) {
+      | [id, ..._] => Id.derive(~salt, id)
+      | [] => Id.mk()
+      },
+    ],
+    term,
+  );
+let derived_hole = (hole: list(Any.t) => 'a, kid: Any.t): IdTagged.t('a) =>
+  derived(~salt="cross-sort", [Any.rep_id(kid)], hole([kid]));
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Any.t =>
   switch (s) {
   | Drv(drv) =>
@@ -808,7 +833,7 @@ and exp = unsorted => {
     | TupLabel(_) =>
       // The tile id is the id of the tuple not the tuplabel
       let (e_term, rewrap) = IdTagged.unwrap(e);
-      rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
+      rewrap(Tuple([derived(~salt="tuplabel", ids, e_term)]): Exp.term);
     | _ => e
     };
   };
@@ -864,11 +889,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         /* Cross-sort parens (orphan-closer completion): the kid parses
            at the tile's sort, not Exp; hole() would drop the tile and
            strand its shard mask. */
-        ret(Parens(IdTagged.mk_internal([Id.mk()], Exp.hole([kid]))))
+        ret(Parens(derived_hole(Exp.hole, kid)))
       | (ProjWrap, [Exp(body)]) => ret(body.term)
       | (F(Compound(ListLit)), [kid]) when !is_exp_kid(kid) =>
         /* Cross-sort list brackets (see the cross-sort parens case) */
-        ret(ListLit([IdTagged.mk_internal([Id.mk()], Exp.hole([kid]))]))
+        ret(ListLit([derived_hole(Exp.hole, kid)]))
       | (F(Compound(ListLit)), [Exp(body)]) =>
         /* ListLit absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -896,7 +921,15 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                   let (e, rewrap) = IdTagged.unwrap(list_item);
                   switch (e) {
                   | TupLabel(_) =>
-                    rewrap(Tuple([e |> Exp.fresh]): TermBase.exp_term)
+                    rewrap(
+                      Tuple([
+                        derived(
+                          ~salt="tuplabel-item",
+                          list_item.annotation.ids,
+                          e,
+                        ),
+                      ]): TermBase.exp_term,
+                    )
                   | _ => list_item
                   };
                 },
@@ -1208,7 +1241,7 @@ and pat = unsorted => {
 
   let p = return(p => Pat(p), ~lexeme, ids, term);
   switch (term) {
-  | TupLabel(_) => Tuple([p]) |> Pat.fresh
+  | TupLabel(_) => derived(~salt="tuplabel-pat", ids, Tuple([p]): Pat.term)
   | _ => p
   };
 }
@@ -1244,11 +1277,11 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | (F(Compound(Parens)), [Pat(body)]) => ret(Parens(body))
       | (F(Compound(Parens)), [kid]) =>
         /* Cross-sort parens (see the exp case) */
-        ret(Parens(IdTagged.mk_internal([Id.mk()], Pat.hole([kid]))))
+        ret(Parens(derived_hole(Pat.hole, kid)))
       | (ProjWrap, [Pat(body)]) => ret(body.term)
       | (F(Compound(ListLit)), [kid]) when !is_pat_kid(kid) =>
         /* Cross-sort list brackets (see the cross-sort parens case) */
-        ret(ListLit([IdTagged.mk_internal([Id.mk()], Pat.hole([kid]))]))
+        ret(ListLit([derived_hole(Pat.hole, kid)]))
       | (F(Compound(ListLit)), [Pat(body)]) =>
         /* ListLit pattern absorption: inner Tuple's comma IDs become part of ListLit.
            ID order: [bracket_id] @ comma_ids (outer first, then adopted).
@@ -1350,7 +1383,11 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           let (e_term, rewrap) = IdTagged.unwrap(l);
           ret(
             TupLabel(
-              rewrap(MultiHole([Pat(e_term |> Pat.fresh)]): Pat.term),
+              rewrap(
+                MultiHole([
+                  Pat(derived(~salt="label-hole", l.annotation.ids, e_term)),
+                ]): Pat.term,
+              ),
               r,
             ),
           );
@@ -1413,7 +1450,7 @@ and typ = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   let t = return(ty => Typ(ty), ~lexeme, ids, term);
   switch (term) {
-  | TupLabel(_) => Prod([t]) |> Typ.fresh
+  | TupLabel(_) => derived(~salt="tuplabel-typ", ids, Prod([t]): Typ.term)
   | _ => t
   };
 }
@@ -1459,12 +1496,12 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (_, (F(Compound(Parens)), [Typ(body)])) => Parens(body)
         | (_, (F(Compound(Parens)), [kid])) =>
           /* Cross-sort parens (see the exp case) */
-          Parens(IdTagged.mk_internal([Id.mk()], Typ.hole([kid])))
+          Parens(derived_hole(Typ.hole, kid))
         | (_, (ProjWrap, [Typ(body)])) => body.term
         | (_, (F(Compound(ListLit)), [Typ(body)])) => List(body)
         | (_, (F(Compound(ListLit)), [kid])) =>
           /* Cross-sort list brackets (see the cross-sort parens case) */
-          List(IdTagged.mk_internal([Id.mk()], Typ.hole([kid])))
+          List(derived_hole(Typ.hole, kid))
         | (_, (F(Tok(t)), [])) when is_hole_label(t) =>
           set_lexeme(t);
           hole(tm);
@@ -1487,13 +1524,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       let t =
         switch (l) {
         | Typ(t) => t
-        | _ => IdTagged.mk_internal([Id.mk()], Typ.hole([l]))
+        | _ => derived_hole(Typ.hole, l)
         };
 
       let arg =
         switch (kid) {
         | Typ(arg) => arg
-        | _ => IdTagged.mk_internal([Id.mk()], Typ.hole([kid]))
+        | _ => derived_hole(Typ.hole, kid)
         };
       ret(
         Unknown(

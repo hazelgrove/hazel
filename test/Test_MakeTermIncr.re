@@ -190,6 +190,21 @@ let shared_incomplete = ((name, src), ()) =>
     );
   };
 
+/* a parse makes its singleton labeled tuple's ids from its pieces, so two
+   parses of the same pieces agree */
+let labeled_singletons = () => {
+  let seg =
+    CorpusUtil.seg_of(
+      "let t = (a=1) in\nlet f = fun (b=x) -> x in\nlet ty : (c=Int) = (c=2) in\n[d=3]",
+    );
+  check(
+    bool,
+    "two parses agree",
+    true,
+    MakeTerm.go_impl(seg).term == MakeTerm.go_impl(seg).term,
+  );
+};
+
 let tests = (
   "MakeTermIncr",
   List.map(
@@ -210,6 +225,7 @@ let tests = (
     test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz")),
     test_case("mega-4k parity", `Quick, corpus_case("mega-4k.hz")),
     test_case("independent of the previous parse", `Quick, independent),
+    test_case("labeled singletons", `Quick, labeled_singletons),
     test_case(
       "mega-1k: statics shares the syntax parses",
       `Quick,
