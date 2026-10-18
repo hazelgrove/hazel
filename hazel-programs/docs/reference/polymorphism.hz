@@ -7,23 +7,17 @@
 # Put the cursor on a definition to see its type, and on a use #
 # to see which instance that use is. #
 
-
-
-# 1. Inferred polymorphism #
-
+# INFERRED POLYMORPHISM #
 
 # id gets the type poly a -> a -> a: for any type a, it takes #
 # an a and gives back an a. #
-
 let id(x) = x in
 
 let ex1 = (id(1), id("one"), id(true)) in
 # (1, "one", true) #
 
-
 # Each use is applied to the types it needs behind the scenes: #
 # id(1) runs as id@<Int>(1). Results and the stepper hide this. #
-
 let pair(x, y) = (x, y) in
 
 let swap(a, b) = (b, a) in
@@ -34,17 +28,12 @@ let ex2 = (
 ) in
 # ((1, "one"), (2.5, true)) #
 
-
-
-# 2. Functions that take or return functions #
-
+# FUNCTIONS THAT TAKE OR RETURN FUNCTIONS #
 
 # twice : poly a -> (a -> a, a) -> a #
-
 let twice(f, x) = f(f(x)) in
 
 # compose : poly a -> poly b -> poly c -> (a -> b, c -> a) -> c -> b #
-
 let compose(f, g) = fun x -> f(g(x)) in
 
 let ex3 = (
@@ -53,14 +42,10 @@ let ex3 = (
 ) in
 # (2, "10") #
 
-
-
-# 3. Recursive polymorphic functions #
-
+# RECURSIVE POLYMORPHIC FUNCTIONS #
 
 # Inside its own definition, a recursive call uses the same types; #
 # the definition is generalized once it is done. #
-
 let map(f, xs) =
   case xs
   | [] => []
@@ -93,15 +78,11 @@ let ex4 = (
 ) in
 # ([10, 20, 30], ["4", "5"], ["bb", "ccc"], 6, 2) #
 
-
-
-# 4. Writing the types yourself #
-
+# WRITING THE TYPES YOURSELF #
 
 # A lowercase name in an annotation is a type variable. The definition #
 # that mentions it binds it, so it can stand for any type, and the #
 # definition has to work for every type. Pick any lowercase name. #
-
 let zip(xs : [a], ys : [b]) : [(a, b)] =
   case (xs, ys)
   | (x :: xt, y :: yt) => (x, y) :: zip(xt, yt)
@@ -123,41 +104,29 @@ let ex5 = (
 ) in
 # ([(1, "one"), (2, "two")], [true, true]) #
 
-
 # An annotation with a specific type makes a definition less general. #
-
 let sum(xs : [Int]) = fold(fun (s, n) -> s + n, 0, xs) in
 
 # Try: put the cursor just after x in id(x) above and type a colon. #
 # The type inference found shows in the hole; Tab writes it in. #
 
-
-
-# 5. What isn't generalized #
-
+# WHAT ISN'T GENERALIZED #
 
 # Constraints still apply: succ is Int -> Int, not polymorphic. #
-
 let succ(n) = n + 1 in
-
 
 # A definition that has to run to produce its value isn't generalized, #
 # so both is ? -> ?: it works, but isn't checked. Written as a function, #
 # both_fn is poly a -> a -> a. #
-
 let both = compose(id, id) in
 
 let both_fn(x) = compose(id, id)(x) in
 
-
 # An unfinished definition isn't generalized: the hole might still use #
 # x at some type. Try: fill the hole with x + 1. #
-
 let later(x) = ? in
 
-
 # A type hole you write yourself stays gradual. #
-
 let anything(x : ?) = x in
 
 let ex6 = (
@@ -169,66 +138,49 @@ let ex6 = (
 ) in
 # (6, 42, 1, true, "any") #
 
-
-
-# 6. Type errors #
-
+# TYPE ERRORS #
 
 # 1. succ is not polymorphic, so a String argument is an error. #
-
 let error1 = succ("one") in
-
 
 # 2. When one use of a polymorphic function needs two different types, #
 # the error goes on the function, not on whichever argument came last. #
 # Put the cursor on id to see both types. #
-
 let error2 = id(1) ++ "!" in
-
 
 # 3. A parameter used as two different types is marked where it is #
 # defined, with both types listed. Try: annotate n with one of them #
 # and watch the error move to the use that disagrees. #
-
 let show(n) =
   if n
   then "yes"
   else string_of_int(n)
 in
 
-
 # 4. A written type variable has to stay general: x : a can't be #
 # added to 1, because a might not be Int. #
-
 let bump(x : a) = x + 1 in
 
-
-
-# 7. Explicit polymorphism #
-
+# EXPLICIT POLYMORPHISM #
 
 # Type parameters can also be written out: poly binds a type variable #
 # in a type, typfun binds one in an expression, and @<...> applies a #
 # type function to a type. Each binder works like fun: any name works, #
 # as long as every use matches its binder. #
-
 let const : poly A -> poly B -> (A, B) -> A =
   typfun A -> typfun B -> fun (x, _) -> x
 in
 
 # Explicitly polymorphic functions can be called either way. #
-
 let ex7 = (
   const(2, "two"),
   const@<Int>@<String>(2, "two")
 ) in
 # (2, 2) #
 
-
 # Writing the poly out is still necessary when an argument must itself #
 # be polymorphic. Any polymorphic function can be passed, including #
 # inferred ones like id. Try: pass succ instead of id. #
-
 let apply_both : poly A -> poly B -> (poly D -> D -> D, A, B) -> (A, B) =
   typfun A -> typfun B -> fun (f, x, y) -> (f@<A>(x), f@<B>(y))
 in
@@ -236,14 +188,10 @@ in
 let ex8 = apply_both(id, 3, "three") in
 # (3, "three") #
 
-
-
-# 8. Recursive types #
-
+# RECURSIVE TYPES #
 
 # A type alias can refer to itself. When a sum is the alias's top-level #
 # operator, the alias is the least fixed point of its own definition. #
-
 type IntList = Nil + Cons(Int, IntList) in
 
 let ints : IntList = Cons(1, Cons(2, Cons(3, Nil))) in
@@ -257,13 +205,10 @@ let to_list(l : IntList) : [Int] =
 let ex9 = to_list(ints) in
 # [1, 2, 3] #
 
-
 # Type aliases can't take type parameters yet, so IntList can't be #
 # made into a list of any element type. #
 
-
-
-# All output from examples #
+# ALL OUTPUT FROM EXAMPLES #
 
 (
   ex1,
