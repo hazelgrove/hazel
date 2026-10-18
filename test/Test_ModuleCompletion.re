@@ -89,9 +89,22 @@ type row = {
   kids: bool,
 };
 
-/* the rows by id; an error badges the deepest row containing it, as
-   OutlineControl places it */
-let rows = (~root: Sort.t, z: Zipper.t): list((Id.t, row)) => {
+let kind_name = (k: Web.OutlineTree.kind): string =>
+  switch (k) {
+  | KModule => "module"
+  | KFn => "fn"
+  | KConst => "const"
+  | KType => "type"
+  | KTest => "test"
+  | KTests => "tests"
+  | KStmt => "stmt"
+  | KUse => "use"
+  | KTrail => "trail"
+  };
+
+/* the rows, each under its parent's label path; an error badges the
+   deepest row containing it, as OutlineControl places it */
+let rows = (~root: Sort.t, z: Zipper.t): list((string, row)) => {
   module O = Web.OutlineTree;
   let st =
     CachedStatics.init_compositional(~settings, ~stitch=Fun.id, ~root, z);
@@ -109,26 +122,25 @@ let rows = (~root: Sort.t, z: Zipper.t): list((Id.t, row)) => {
         ),
       st.error_ids,
     );
-  let rec go = (ns: list(O.node)) =>
+  let ty_of = (n: O.node) =>
+    switch (
+      Option.bind(n.o_binder, ((b, _)) => Id.Map.find_opt(b, st.info_map))
+    ) {
+    | Some(InfoPat({ty, _})) => Typ.pretty_print(ty)
+    | _ => ""
+    };
+  let rec go = (parent, ns: list(O.node)) =>
     List.concat_map(
       (n: O.node) =>
         (
           switch (n.o_id) {
           | Some(id) => [
               (
-                id,
+                parent,
                 {
                   label: n.o_label,
                   kind: n.o_kind,
-                  ty:
-                    switch (
-                      Option.bind(n.o_binder, ((b, _)) =>
-                        Id.Map.find_opt(b, st.info_map)
-                      )
-                    ) {
-                    | Some(InfoPat({ty, _})) => Typ.pretty_print(ty)
-                    | _ => ""
-                    },
+                  ty: ty_of(n),
                   err: List.mem(id, badged),
                   kids: n.o_children != [],
                 },
@@ -137,59 +149,64 @@ let rows = (~root: Sort.t, z: Zipper.t): list((Id.t, row)) => {
           | None => []
           }
         )
-        @ go(n.o_children),
+        @ go(parent ++ "/" ++ n.o_label, n.o_children),
       ns,
     );
-  go(nodes);
+  go("", nodes);
 };
 
 let show_row = (r: row) =>
-  Printf.sprintf("%s%s : %s", r.label, r.err ? " [error]" : "", r.ty);
-
-/* every row of [before] is in [after] as it was */
-let check_kept = (name: string, before, after) =>
-  List.iter(
-    ((id, r)) =>
-      switch (List.assoc_opt(id, after)) {
-      | None => fail(name ++ ": lost row " ++ show_row(r))
-      | Some(r') =>
-        check(
-          string,
-          name ++ ": row " ++ r.label,
-          show_row(
-            r.kids
-              ? {
-                ...r,
-                ty: "",
-              }
-              : r,
-          ),
-          show_row(
-            r'.kids
-              ? {
-                ...r',
-                ty: "",
-              }
-              : r',
-          ),
-        )
-      },
-    before,
+  Printf.sprintf(
+    "%s%s : %s",
+    r.label == "" ? kind_name(r.kind) : r.label,
+    r.err ? " [error]" : "",
+    r.kids ? "" : r.ty,
   );
 
-let labels = (rs: list((Id.t, row))): list(string) =>
-  List.map(
-    ((_, r)) =>
-      show_row(
-        r.kids
-          ? {
-            ...r,
-            ty: "",
+/* every row of [before] is in [after] as it was: a named row under the
+   same label path, an unnamed one (a statement, a result) among its
+   parent's unnamed rows; [after] may have more */
+let check_kept = (name: string, before, after) => {
+  let key = ((parent, r)) => parent ++ "/" ++ show_row(r);
+  let rec take = (k, rs) =>
+    switch (rs) {
+    | [] => None
+    | [r, ...rs] when key(r) == k => Some(rs)
+    | [r, ...rs] => Option.map(rs => [r, ...rs], take(k, rs))
+    };
+  ignore(
+    List.fold_left(
+      (left, (parent, r: row) as b) =>
+        switch (take(key(b), left)) {
+        | Some(left) => left
+        | None =>
+          /* a named row changed in place: say how */
+          switch (
+            List.find_opt(
+              ((p, r': row)) =>
+                p == parent && r.label != "" && r'.label == r.label,
+              left,
+            )
+          ) {
+          | Some((_, r')) =>
+            check(
+              string,
+              name ++ ": row " ++ r.label,
+              show_row(r),
+              show_row(r'),
+            );
+            left;
+          | None => fail(name ++ ": lost row " ++ key(b))
           }
-          : r,
-      ),
-    rs,
+        },
+      after,
+      before,
+    ),
   );
+};
+
+let labels = (rs: list((string, row))): list(string) =>
+  List.map(((_, r)) => show_row(r), rs);
 
 /* ---- the Modules slide's shapes ---- */
 
@@ -221,7 +238,7 @@ let browser_cases = [
       "q : ?",
       "next : Int",
       "after : Int",
-      " : ",
+      "trail : ",
     ],
   ),
   (
@@ -238,7 +255,7 @@ let browser_cases = [
       "manhattan : Point -> Int",
       "pt : Geometry.Point",
       "dist : Geometry.Distance",
-      " : ",
+      "trail : ",
     ],
   ),
   /* finished but for its `;`: the grout between the members separates
@@ -257,7 +274,7 @@ let browser_cases = [
       "manhattan : Point -> Int",
       "pt : Geometry.Point",
       "dist : Geometry.Distance",
-      " : ",
+      "trail : ",
     ],
   ),
 ];
@@ -556,13 +573,109 @@ let kinds = "module M = {\n  type T = Int;\n  let f = fun x -> x + 1;\n  let g =
 
 let kinds_members = "type T = Int;\nlet f = fun x -> x + 1;\nlet g = if true then 1 else 2;\nlet h = (1, 2);\nlet l = [1, 2];\ntest 1 == 1 end;\nlet c = case 1 | 1 => 2 | _ => 3 end;\nmodule N = {\n  let a = 1;\n  let b = 2\n};\nlet k = let a = 1 in a + 1;\nlet a = 1 in\nlet b = a + 2 in\na + b;\nlet z = 0";
 
+/* a module laid out as the standard library's are: multi-line members,
+   blank lines between them, comments */
+let option_shaped = "module Option = {\n  # the type #\n  type t = None + Some(?);\n\n  let map : (Option, ? -> ?) -> ? = fun (opt, f) ->\n    case opt\n    | None => None\n    | Some(x) => Some(f(x))\n    end;\n\n  let to_list : Option -> [?] = fun opt ->\n    if opt == None then [] else [1]\n};\nOption.to_list(None)";
+
+/* the same definitions as a let-in chain: the control */
+let option_chain = "# the type #\ntype t = None + Some(?) in\n\nlet map : (Option, ? -> ?) -> ? = fun (opt, f) ->\n  case opt\n  | None => None\n  | Some(x) => Some(f(x))\n  end in\n\nlet to_list : Option -> [?] = fun opt ->\n  if opt == None then [] else [1] in\nto_list(None)";
+
+let option_members = "# the type #\ntype t = None + Some(?);\n\nlet map : (Option, ? -> ?) -> ? = fun (opt, f) ->\n  case opt\n  | None => None\n  | Some(x) => Some(f(x))\n  end;\n\nlet to_list : Option -> [?] = fun opt ->\n  if opt == None then [] else [1]";
+
 /* (name, root, program, full, prefix): restored/destroyed/total, pinned.
-   The one miss is `h`'s `=`: `let h (1, 2)` reads as an ap-pattern, as at
-   the top level (CompletionScoreboard's tuple-list) */
+   `kinds` misses only `h`'s `=`: `let h (1, 2)` reads as an ap-pattern, as
+   at the top level (CompletionScoreboard's tuple-list). The library-style
+   module misses what its let-in control misses (a type annotation's `(`,
+   `)` or `[`, and `typ` for `type`): general, not member structure */
 let round_trip_pins = [
   ("in a module", Sort.Exp, kinds, "54/0/55", "30/0/30"),
   ("at a Mod root", Sort.Mod, kinds_members, "49/0/50", "28/0/28"),
+  (
+    "in a library-style module",
+    Sort.Mod,
+    option_shaped,
+    "32/5/41",
+    "14/0/15",
+  ),
+  ("library-style members", Sort.Mod, option_members, "27/4/35", "13/0/14"),
+  (
+    "library-style let-in control",
+    Sort.Exp,
+    option_chain,
+    "31/5/40",
+    "16/0/17",
+  ),
 ];
+
+/* a deleted `;` between finished members: the grout it leaves parts them
+   (a member slice read Mod-sorted), so no other row changes */
+let semi_deleted = ((name, root, src), ()) => {
+  let z0 = Zipper.unzip(CorpusUtil.seg_of(~root, src));
+  let before = rows(~root, z0);
+  let syntax = CachedSyntax.init(~root, z0);
+  let rec semis = (sg: Segment.t): list(Id.t) =>
+    List.concat_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when Tile.is_semi(t) => [t.id]
+        | Tile(t) => List.concat_map(semis, t.children)
+        | _ => []
+        },
+      sg,
+    );
+  List.iter(
+    id =>
+      switch (Measured.find_by_id(id, syntax.measured)) {
+      | Some(m) =>
+        let z =
+          List.fold_left(
+            perform(~root),
+            z0,
+            [
+              Action.Move(Point(m.last, None)),
+              Action.Destruct(Local(Left, ByChar)),
+            ],
+          );
+        check_kept(
+          Printf.sprintf("%s, `;` at %d:%d", name, m.last.row, m.last.col),
+          before,
+          rows(~root, z),
+        );
+      | None => ()
+      },
+    semis(Zipper.unselect_and_zip(z0)),
+  );
+};
+
+/* a member's deleted `case` restores inside its definition, as a let-in
+   definition's does: multi-line exactly; on one line at the definition's
+   start, never before the member's `let` */
+let case_deleted = ((name, src, at, expect), ()) => {
+  let root = Sort.Mod;
+  let z0 = Zipper.unzip(CorpusUtil.seg_of(~root, src));
+  let z =
+    List.fold_left(
+      perform(~root),
+      z0,
+      [Action.Move(Point(at, None))]
+      @ List.init(4, _ => Action.Destruct(Local(Left, ByChar))),
+    );
+  let got =
+    Printer.of_segment(
+      ~holes="?",
+      ~concave_holes="~",
+      CanonicalCompletion.complete_items(
+        ~sort=root,
+        MakeTerm.semantic_source(z),
+      ).
+        completed_seg,
+    );
+  let squash = s =>
+    String.concat("", String.split_on_char(' ', s))
+    |> String.split_on_char('\n')
+    |> String.concat("");
+  check(string, name, squash(expect), squash(got));
+};
 
 let round_trip = ((name, root, src, full, prefix), ()) => {
   let seg = CorpusUtil.seg_of(~root, src);
@@ -658,6 +771,37 @@ let tests = (
       ((name, _, _, _, _) as c) =>
         test_case("deletion round-trips " ++ name, `Quick, round_trip(c)),
       round_trip_pins,
+    )
+  @ List.map(
+      ((name, _, _) as c) =>
+        test_case(
+          "a deleted `;` is quiet " ++ name,
+          `Quick,
+          semi_deleted(c),
+        ),
+      [
+        ("at a Mod root", Sort.Mod, counter_members),
+        ("in a module", Sort.Exp, counter),
+        ("in a library-style module", Sort.Mod, option_shaped),
+      ],
+    )
+  @ List.map(
+      ((name, _, _, _) as c) =>
+        test_case("a deleted `case`: " ++ name, `Quick, case_deleted(c)),
+      [
+        (
+          "multi-line",
+          "let f = fun x ->\n  case x\n  | 1 => 2\n  | _ => 3\n  end;\nlet g = 1;\ng",
+          Util.Point.mk(~row=1, ~col=6),
+          "let f = fun x ->\n  case x\n  | 1 => 2\n  | _ => 3\n  end;\nlet g = 1;\ng",
+        ),
+        (
+          "one line",
+          "let f = fun x -> case x | 1 => 2 | _ => 3 end;\nlet g = 1;\ng",
+          Util.Point.mk(~row=0, ~col=21),
+          "let f = case fun x -> x | 1 => 2 | _ => 3 end;\nlet g = 1;\ng",
+        ),
+      ],
     )
   @ [
     test_case("corpus sweep (HAZEL_COMPLETION_SWEEP=1)", `Slow, corpus_sweep),
