@@ -8,8 +8,9 @@ let buffer_clear = (z: Zipper.t): Zipper.t =>
   | Normal => z
   };
 
-let set_tydi_buffer = (ci: option(Language.Info.t), z: Zipper.t): Zipper.t =>
-  switch (TyDi.set_buffer(~ci, z)) {
+let set_tydi_buffer =
+    (~seg=?, ci: option(Language.Info.t), z: Zipper.t): Zipper.t =>
+  switch (TyDi.set_buffer(~seg?, ~ci, z)) {
   | None => z
   | Some(z) => z
   };
@@ -61,13 +62,14 @@ let buffer_accept = (~root: Sort.t=Exp, z: Zipper.t): option(Zipper.t) =>
 let go =
     (
       ~root: Sort.t=Exp,
+      ~seg=?,
       ~ci: option(Language.Info.t),
       a: Action.buffer,
       z: Zipper.t,
     )
     : Result.t(Zipper.t, Action.Failure.t) =>
   switch (a) {
-  | Set(TyDi) => Ok(set_tydi_buffer(ci, z))
+  | Set(TyDi) => Ok(set_tydi_buffer(~seg?, ci, z))
   | Set(LLM(response)) => Ok(set_llm_buffer(z, response))
   | Accept =>
     buffer_accept(~root, z)

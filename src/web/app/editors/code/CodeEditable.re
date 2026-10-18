@@ -121,7 +121,13 @@ module Update = {
                the quiver draws at the caret), whether or not an inline
                buffer is showing (buffers only appear on edits; the
                chip is always live) */
-            switch (CompletionQuery.tab_action(z)) {
+            switch (
+              CompletionQuery.tab_action(
+                ~seg=
+                  CompletionQuery.engine_seg(~syntax=model.editor.syntax, z),
+                z,
+              )
+            ) {
             | Some(a) => a
             | None =>
               Zipper.can_put_down(z)
@@ -164,6 +170,7 @@ module Selection = {
       implied_hole:
         Lazy.from_fun(() =>
           ImpliedHole.at_caret(
+            ~syntax=model.editor.syntax,
             ~statics=model.statics,
             model.editor.state.zipper,
           )
@@ -426,11 +433,11 @@ module View = {
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
       ) => {
-    /* one flatten + one completion shared by every completion-aware
-       decoration; lazy so healthy-code renders with quiver off never
-       pay them */
+    /* one segment + one completion shared by every completion-aware
+       decoration (the frame's segment: the inspector's and statics' too);
+       lazy so healthy-code renders with quiver off never pay them */
     let engine_seg =
-      Lazy.from_fun(() => Zipper.unselect_and_zip(~erase_buffer=true, z));
+      Lazy.from_fun(() => CompletionQuery.engine_seg(~syntax, z));
     let completion =
       Lazy.from_fun(() =>
         CanonicalCompletion.for_editor(Lazy.force(engine_seg))
@@ -651,7 +658,11 @@ module View = {
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
               ~syntax=model.editor.syntax,
-              ~completion=Arms.lazy_completion(model.editor.state.zipper),
+              ~completion=
+                Arms.lazy_completion(
+                  ~syntax=model.editor.syntax,
+                  model.editor.state.zipper,
+                ),
               model.editor.state.zipper,
             ),
           ]

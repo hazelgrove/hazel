@@ -205,16 +205,21 @@ module Update = {
      * Uses ci_for_completion (which prefers the left-neighbor tile,
      * falling back to ci_of) so that the automatic post-edit buffer
      * recompute is consistent with Perform.go's explicit
-     * Buffer(Set(TyDi)) path. */
+     * Buffer(Set(TyDi)) path. TyDi reads the zip the syntax then takes,
+     * when it sets no buffer, so their completions share the memo. */
+    let tydi = settings.assist && settings.statics && is_edited;
+    let segment =
+      tydi && state.zipper.selection.mode != Buffer(Unparsed)
+        ? Some(Zipper.unselect_and_zip(state.zipper)) : None;
     let zipper =
-      if (settings.assist && settings.statics && is_edited) {
-        Buffer.set_tydi_buffer(
-          Indicated.ci_for_completion(state.zipper, statics.info_map),
-          state.zipper,
-        );
-      } else {
-        state.zipper;
-      };
+      tydi
+        ? Buffer.set_tydi_buffer(
+            ~seg=?segment,
+            Indicated.ci_for_completion(state.zipper, statics.info_map),
+            state.zipper,
+          )
+        : state.zipper;
+    let segment = zipper === state.zipper ? segment : None;
 
     /* 2. Recalculate syntax cache. `CachedSyntax.calculate` detects
      * input changes (info_map/dyn_map/elaborated refs) and chooses
@@ -225,6 +230,7 @@ module Update = {
       PerfTimer.time("editor-syntax", () =>
         CachedSyntax.calculate(
           ~root,
+          ~segment?,
           zipper,
           statics.info_map,
           new_dynamics,
