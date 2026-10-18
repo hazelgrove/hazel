@@ -1591,6 +1591,13 @@ module SecondaryCollection = {
   };
   type levels = Hashtbl.t(Id.t, level);
 
+  /* a collection: where it records levels, and tiles whose children it
+     leaves out (module bodies parsed per member, collected there) */
+  type ctx = {
+    levels,
+    skip: Id.t => bool,
+  };
+
   let record = (levels: levels, seg: t, arr: array(Piece.t), skel) =>
     switch (seg) {
     | [p, ..._] =>
@@ -1653,8 +1660,7 @@ module SecondaryCollection = {
      This handles segments with embedded Secondary pieces (like projector children)
      where skel() would throw Input_contains_secondary. */
   let rec collect_from_seg_direct =
-          (levels: levels, arr: array(Piece.t), acc: secondary_map)
-          : secondary_map => {
+          (ctx: ctx, arr: array(Piece.t), acc: secondary_map): secondary_map => {
     let acc = ref(acc);
     Array.iteri(
       (idx, piece: Piece.t) =>
@@ -1666,16 +1672,16 @@ module SecondaryCollection = {
             /* Add secondary for this tile and recurse into children */
             acc :=
               List.fold_left(
-                (acc, child_seg) => collect_from_seg(levels, child_seg, acc),
+                (acc, child_seg) => collect_from_seg(ctx, child_seg, acc),
                 Id.Map.add(id, (before, after), acc^),
-                children,
+                ctx.skip(id) ? [] : children,
               )
           | Piece.Projector({id, syntax, _}) =>
             /* Add secondary for projector and recurse into its content */
             let inner_seg = Piece.unparenthesize(syntax);
             acc :=
               collect_from_seg(
-                levels,
+                ctx,
                 inner_seg,
                 Id.Map.add(id, (before, after), acc^),
               );
@@ -1692,19 +1698,19 @@ module SecondaryCollection = {
   /* Recursively collect secondary from a segment (for compound tile children).
      Falls back to direct collection when the segment contains Secondary pieces. */
   and collect_from_seg =
-      (levels: levels, child_seg: t, acc: secondary_map): secondary_map => {
+      (ctx: ctx, child_seg: t, acc: secondary_map): secondary_map => {
     let arr = Array.of_list(child_seg);
     switch (skel(child_seg)) {
     | sk =>
-      record(levels, child_seg, arr, Some(sk));
-      collect_from_skel(levels, arr, sk, acc);
+      record(ctx.levels, child_seg, arr, Some(sk));
+      collect_from_skel(ctx, arr, sk, acc);
     | exception Skel.Nonconvex_segment =>
-      record(levels, child_seg, arr, None);
+      record(ctx.levels, child_seg, arr, None);
       acc;
     | exception Skel.Input_contains_secondary =>
       /* Segment has embedded Secondary pieces, use direct collection */
-      record(levels, child_seg, arr, None);
-      collect_from_seg_direct(levels, arr, acc);
+      record(ctx.levels, child_seg, arr, None);
+      collect_from_seg_direct(ctx, arr, acc);
     };
   }
   /* Recursively collect secondary for all terms in the skeleton.
@@ -1722,7 +1728,7 @@ module SecondaryCollection = {
 
      This ensures each piece of secondary is collected exactly once. */
   and collect_from_skel =
-      (levels: levels, arr: array(Piece.t), skel: Skel.t, acc: secondary_map)
+      (ctx: ctx, arr: array(Piece.t), skel: Skel.t, acc: secondary_map)
       : secondary_map => {
     let (start_idx, end_idx) = Skel.range(skel);
 
@@ -1762,9 +1768,9 @@ module SecondaryCollection = {
           switch (
             idx < 0 || idx >= Array.length(arr) ? None : Some(arr[idx])
           ) {
-          | Some(Piece.Tile({children, _})) =>
+          | Some(Piece.Tile({id, children, _})) when !ctx.skip(id) =>
             List.fold_left(
-              (acc, child_seg) => collect_from_seg(levels, child_seg, acc),
+              (acc, child_seg) => collect_from_seg(ctx, child_seg, acc),
               acc,
               children,
             )
@@ -1772,7 +1778,7 @@ module SecondaryCollection = {
             /* Projectors wrap their content in parentheses. Extract the inner
                segment and recursively collect secondary from it. */
             let inner_seg = Piece.unparenthesize(syntax);
-            collect_from_seg(levels, inner_seg, acc);
+            collect_from_seg(ctx, inner_seg, acc);
           | _ => acc
           },
         acc,
@@ -1783,7 +1789,7 @@ module SecondaryCollection = {
     let children = Aba.get_bs(root);
     let acc =
       List.fold_left(
-        (acc, child) => collect_from_skel(levels, arr, child, acc),
+        (acc, child) => collect_from_skel(ctx, arr, child, acc),
         acc,
         children,
       );
@@ -1791,20 +1797,29 @@ module SecondaryCollection = {
     /* Process left/right sub-skeletons for Pre/Post/Bin */
     switch (skel) {
     | Skel.Op(_) => acc
-    | Skel.Pre(_, right) => collect_from_skel(levels, arr, right, acc)
-    | Skel.Post(left, _) => collect_from_skel(levels, arr, left, acc)
+    | Skel.Pre(_, right) => collect_from_skel(ctx, arr, right, acc)
+    | Skel.Post(left, _) => collect_from_skel(ctx, arr, left, acc)
     | Skel.Bin(left, _, right) =>
-      let acc = collect_from_skel(levels, arr, left, acc);
-      collect_from_skel(levels, arr, right, acc);
+      let acc = collect_from_skel(ctx, arr, left, acc);
+      collect_from_skel(ctx, arr, right, acc);
     };
   };
 
   /* Main entry point: collect outer secondary for all terms in segment.
      [levels] receives every level read on the way; [skel] is the top
-     level's, if the caller has it */
+     level's, if the caller has it; [skip]'s tiles' children are left out */
   let collect =
-      (~levels: levels=Hashtbl.create(1), ~skel as top=?, seg: t)
+      (
+        ~levels: levels=Hashtbl.create(1),
+        ~skip: Id.t => bool=_ => false,
+        ~skel as top=?,
+        seg: t,
+      )
       : secondary_map => {
+    let ctx = {
+      levels,
+      skip,
+    };
     let arr = Array.of_list(seg);
     switch (
       switch (top) {
@@ -1814,7 +1829,7 @@ module SecondaryCollection = {
     ) {
     | sk =>
       record(levels, seg, arr, Some(sk));
-      collect_from_skel(levels, arr, sk, Id.Map.empty);
+      collect_from_skel(ctx, arr, sk, Id.Map.empty);
     | exception Skel.Nonconvex_segment
     | exception Skel.Input_contains_secondary =>
       record(levels, seg, arr, None);

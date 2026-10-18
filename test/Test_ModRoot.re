@@ -98,7 +98,12 @@ let incremental_edit = () => {
   MakeTerm.Incr.full_analyzed := 0;
   let fb = MakeTerm.Incr.fell_back^;
   let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
-  check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
+  check(
+    int,
+    "the member and its module's shell reparsed",
+    2,
+    MakeTerm.Incr.full_analyzed^,
+  );
   check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
   check_parity(seg2, incr2);
 };
@@ -179,7 +184,12 @@ let corpus = () => {
   check(bool, "edit found the literal", true, edited);
   MakeTerm.Incr.full_analyzed := 0;
   let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
-  check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
+  check(
+    int,
+    "the member and its module's shell reparsed",
+    CorpusUtil.parses_for(~root=Mod, seg2, CorpusUtil.tile("181", seg2)),
+    MakeTerm.Incr.full_analyzed^,
+  );
   check_parity(seg2, incr2);
 };
 
@@ -248,6 +258,48 @@ let grout_between_members = () => {
   check(int, "two members", 2, members(MakeTerm.go_impl(seg).term));
 };
 
+/* a member edit inside a module, at depth 1 and 2, at a Mod root */
+let nested_src = "module A = {\n  let a1 = 11;\n  module B = {\n    let b1 = 21;\n    let b2 = fun x ->\n      let y = x + 22 in\n      y\n  };\n  let a2 = 12\n};\nlet top = 41;\nA.a1 + top";
+
+let member_edit = ((needle, repl), ()) => {
+  let seg = parse_mod(nested_src);
+  let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
+  check_parity(seg, MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg));
+  let (edited, found) =
+    CorpusUtil.edit_token(~keep_id=true, ~needle, ~repl, seg);
+  check(bool, needle ++ " to edit", true, found);
+  let a0 = MakeTerm.Incr.full_analyzed^;
+  let r = MakeTerm.Incr.go_incr(~root=Mod, ~cache, edited);
+  check(
+    int,
+    needle ++ ": its member and its modules' shells",
+    CorpusUtil.parses_for(~root=Mod, edited, CorpusUtil.tile(repl, edited)),
+    MakeTerm.Incr.full_analyzed^ - a0,
+  );
+  check(int, needle ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+  check_parity(edited, r);
+};
+
+/* the stdlib's sources, where the repo has them */
+let stdlib = () =>
+  List.iter(
+    ((path, src)) => {
+      let seg = parse_mod(src);
+      let fb = MakeTerm.Incr.fell_back^;
+      check_parity(
+        seg,
+        MakeTerm.Incr.go_incr(
+          ~root=Mod,
+          ~cache=MakeTerm.Incr.mk_cache(),
+          seg,
+        ),
+      );
+      check(int, path ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+    },
+    Test_ItemSpans.stdlib_corpus(),
+  );
+
 let tests = (
   "ModRoot",
   [
@@ -259,6 +311,15 @@ let tests = (
     test_case("stray line above a member", `Quick, stray_line),
     test_case("last slot keyed by root", `Quick, last_slot_keyed_by_root),
     test_case("corpus mega-mod-1k", `Quick, corpus),
+    test_case("a member edit at depth 1", `Quick, member_edit(("11", "13"))),
+    test_case("a member edit at depth 2", `Quick, member_edit(("21", "23"))),
+    test_case(
+      "an edit in a depth-2 member's let-in",
+      `Quick,
+      member_edit(("22", "24")),
+    ),
+    test_case("an edit after the module", `Quick, member_edit(("41", "43"))),
+    test_case("stdlib sources", `Quick, stdlib),
   ]
   @ List.map(
       ((name, src)) =>
