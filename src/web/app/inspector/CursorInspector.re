@@ -168,6 +168,14 @@ let core_mark_err_view =
         text("but expected label"),
         code(an_label),
       ]
+    | _ when Option.is_some(Typ.coercion(ctx, ~from=syn, ~to_=ana)) =>
+      colon_prefix(show_type_colon)
+      @ [
+        view_type(syn) |> code_box_container,
+        text("is wider than expected type"),
+        view_type(ana) |> code_box_container,
+        text("; an ascription seals the extra members"),
+      ]
     | _ =>
       colon_prefix(show_type_colon)
       @ [
@@ -292,7 +300,6 @@ let core_mark_err_view =
     | TupleExtensionRequiresTuples
     | LabelNotFound(_)
     | ModuleMissingMembers(_)
-    | ModuleExtraMembers(_)
     | ModuleTypeMemberMismatch(_)
     | TypeMemberCapture(_)
     | BadOperator(_)
@@ -821,11 +828,6 @@ let exp_mark_err_view =
     ])
   | ModuleMemberNotFound({name, members, type_member}) =>
     div_err(module_member_not_found_view(~name, ~members, ~type_member))
-  | ModuleExtraMembers(names) =>
-    div_err([
-      text("Module has members its signature does not declare: "),
-      ...ListUtil.join(text(", "), List.map(code, names)),
-    ])
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     div_err(type_member_mismatch_view(~view_type, name, ~expected, ~actual))
   | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
