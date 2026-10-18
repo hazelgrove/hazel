@@ -959,8 +959,11 @@ let modexp_chains = [
     /* the program inside braces: its module chain (with the first test)
        is one ModExp member. an edit costs Mega, that member, the
        WateringTimer link and its selfcheck member */
+    /* seeded evaluation at this size costs ~13s; the smaller chain cases
+       check it */
     mega(
       ~root=Mod,
+      ~eval=false,
       ~wrap=src => "module Mega = {\n" ++ src ++ "\n}",
       "mega-1k.hz",
       [token("180", "181") |> analyzed(4)],
