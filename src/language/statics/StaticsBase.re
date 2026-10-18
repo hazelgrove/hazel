@@ -276,6 +276,18 @@ let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
     }
   };
 
+/* The type an expression gives its tuple or label: its expected type once
+   it is marked as not matching it, so the parent isn't marked again for
+   the same error. */
+let contributed_typ = (info: Info.exp): Typ.t =>
+  List.exists(
+    fun
+    | Mark.ExpectationMismatch(_) => true
+    | _ => false,
+    info.marks,
+  )
+    ? info.ty : info.elab_syn_ty;
+
 let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
   | Some(Info.InfoExp(info)) =>

@@ -187,27 +187,10 @@ module ExplicitlyUnlabeledTuples = {
         FIError.(
           Exp.(
             asc(
-              tuple(
-                ~ann=
-                  Some(
-                    FTemp.Typ.(
-                      Marks([
-                        ExpectationMismatch({
-                          ana:
-                            parens(
-                              prod([
-                                tup_label(explicit_non_label(), string()),
-                              ]),
-                            ),
-                          syn:
-                            prod([tup_label(explicit_non_label(), int())]),
-                        }),
-                      ])
-                    ),
-                  ),
-                [
-                  tup_label(
-                    explicit_non_label(),
+              tuple([
+                tup_label(
+                  explicit_non_label(),
+                  int(
                     ~ann=
                       Some(
                         FTemp.Typ.(
@@ -219,23 +202,10 @@ module ExplicitlyUnlabeledTuples = {
                           ])
                         ),
                       ),
-                    int(
-                      ~ann=
-                        Some(
-                          FTemp.Typ.(
-                            Marks([
-                              ExpectationMismatch({
-                                ana: string(),
-                                syn: int(),
-                              }),
-                            ])
-                          ),
-                        ),
-                      1,
-                    ),
+                    1,
                   ),
-                ],
-              ),
+                ),
+              ]),
               Typ.(
                 parens(prod([tup_label(explicit_non_label(), string())]))
               ),
@@ -252,9 +222,37 @@ module ExplicitlyUnlabeledTuples = {
     ),
   ];
 };
+/* One bad element is one error: the tuple, its label, and the pattern it's
+   bound to aren't marked again for it. */
+let one_error = (name, program) =>
+  test_case(name, `Quick, () =>
+    check(
+      Alcotest.int,
+      "errors",
+      1,
+      List.length(errors(statics(parse_exp(program)))),
+    )
+  );
+
 let tests = (
   "Statics.Tuples",
   [
+    one_error(
+      "One bad argument in a call's tuple is one error",
+      {|let f : (Int -> Int, Int) -> Int = fun (g, x) -> g(x) in f(true, 3)|},
+    ),
+    one_error(
+      "One bad element of an annotated tuple is one error",
+      {|let p : (Int, Int) = (true, 3) in p|},
+    ),
+    one_error(
+      "One bad labeled element is one error",
+      {|let p : (a=Int, b=Int) = (a=true, b=3) in p|},
+    ),
+    one_error(
+      "One bad element inside parentheses is one error",
+      {|let f : ((Int, Int)) -> Int = fun (x, y) -> x in f((1, "s"))|},
+    ),
     test_case(
       "Typechecking fails for unlabeled variable being assigned to labeled tuple",
       `Quick,

@@ -1048,7 +1048,7 @@ and uexp_to_info_map =
                   ~lab_name,
                   ~label_invalid,
                   ~duplicate_labels,
-                  ~value_ty=value_info.elab_syn_ty,
+                  ~value_ty=contributed_typ(value_info),
                   ~label_is_empty_hole=label.term == EmptyHole,
                   ~malformed_source=Exp(label),
                 );
@@ -1094,7 +1094,7 @@ and uexp_to_info_map =
           List.combine(inferred, es),
         );
 
-      let ty_list = List.map((e: Info.exp) => e.elab_syn_ty, es');
+      let ty_list = List.map(contributed_typ, es');
 
       let malformed_labels =
         LabeledTupleStaticsHelpers.collect_malformed_labels(
@@ -1171,7 +1171,8 @@ and uexp_to_info_map =
       add(
         ~elab_term=TupLabel(elab_label, elab_inner) |> rewrap,
         ~elab_syn_ty=
-          TupLabel(ExplicitNonlabel |> Typ.temp, e.elab_syn_ty) |> Typ.temp,
+          TupLabel(ExplicitNonlabel |> Typ.temp, contributed_typ(e))
+          |> Typ.temp,
         ~marks=[],
         ~co_ctx=e.co_ctx,
         ~probe_targets=e.probe_targets,
@@ -1233,7 +1234,7 @@ and uexp_to_info_map =
       let (syn_tl, cms_tl) =
         LabeledTupleStaticsHelpers.standalone_tup_label_self_type(
           ~lab_name,
-          ~value_ty=e.elab_syn_ty,
+          ~value_ty=contributed_typ(e),
           ~label_is_empty_hole=label.term == EmptyHole,
           ~malformed_source=Exp(label),
         );
