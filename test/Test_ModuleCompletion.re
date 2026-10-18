@@ -291,6 +291,16 @@ let sibling_keys = [
     "let q = if true then 1",
     "let q = if true then 1 else ?;",
   ),
+  (
+    "`if` missing `then`",
+    "let q = if true",
+    "let q = if true then ? else ?;",
+  ),
+  (
+    "`case` missing `end`",
+    "let q = case 1 | 1 => 2",
+    "let q = case 1 | 1 => 2 end;",
+  ),
   ("`[` missing `]`", "let q = [1, 2", "let q = [1, 2];"),
   ("`type T` missing `=`", "type T", "type T = ?;"),
   ("`module N` missing `=`", "module N", "module N = ?;"),
@@ -331,6 +341,26 @@ let sibling = ((name, keys, expect), ()) => {
     squash(completed_line(z)),
   );
   check_kept(name, before, rows(~root=Exp, z));
+};
+
+/* an unfinished nested module: its `}` closes before the outer module's
+   next member line, which stays the outer module's */
+let nested_unfinished = () => {
+  let z0 = at_line(~root=Exp, counter, "  let start = 0;");
+  let before = rows(~root=Exp, z0);
+  let z =
+    Util.ListUtil.last(type_line(~root=Exp, z0, "module N = {\nlet z = 2"));
+  let after = rows(~root=Exp, z);
+  check_kept("a nested module typed", before, after);
+  check(
+    bool,
+    "N holds z: " ++ String.concat(", ", labels(after)),
+    true,
+    List.exists(
+      ((parent, r: row)) => parent == "/Counter/N" && r.label == "z",
+      after,
+    ),
+  );
 };
 
 /* ---- feedback preservation: a member typed key by key at a module's
@@ -757,7 +787,10 @@ let tests = (
         ),
       typing_cases,
     )
-  @ [test_case("a new let-chain link", `Quick, chain_link)]
+  @ [
+    test_case("a new let-chain link", `Quick, chain_link),
+    test_case("an unfinished nested module", `Quick, nested_unfinished),
+  ]
   @ List.map(
       ((name, _) as c) =>
         test_case("rows kept at a Mod root: " ++ name, `Quick, mod_root(c)),
