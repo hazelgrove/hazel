@@ -290,6 +290,30 @@ let block = (~in_module: bool, lv: S.level): block => {
 let movable = (b: block, k: int): bool =>
   k >= 0 && k < Array.length(b.sl) && (b.body || !Focus.is_tail(b.lv, k));
 
+/* item [k] holds an unfinished definition, an `…in` form without its
+   `in`, that runs on into the items after it: an `…in` form or a `;` past
+   it. Taking the item whole (deleting, duplicating, moving it) would take
+   those too */
+let runs_on = (b: block, k: int): bool => {
+  let (c0, c1) = b.lv.spans[k].core;
+  let starts_item = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) => Tile.ends_with_in(t) || Tile.is_semi(t)
+    | _ => false
+    };
+  let rec past = i => i < c1 && (starts_item(b.arr[i]) || past(i + 1));
+  let rec go = i =>
+    i < c1
+    && (
+      switch (b.arr[i]) {
+      | Tile(t) as p when Tile.ends_with_in(t) && !Segment.is_in_tile(p) =>
+        past(i + 1)
+      | _ => go(i + 1)
+      }
+    );
+  go(c0);
+};
+
 /* item [k]'s head, when it is a definition (or a directive): its index
    and tile */
 let head = (b: block, k: int): option((int, Tile.t)) => {
@@ -464,6 +488,9 @@ let apply_at =
   let named = placeholder => Option.value(name, ~default=placeholder);
   let n = Array.length(b.sl);
   let movable = movable(b);
+  /* what an op may take whole: an item that runs on stays put, and
+     nothing trades places with it */
+  let whole = k => movable(k) && !runs_on(b, k);
   /* below the trailing expression would strand it above the new item:
      the new item goes above it. A member block has no trailing
      expression: its last member, `;` or not, takes new items after it */
@@ -476,12 +503,10 @@ let apply_at =
     None;
   } else {
     switch (op) {
-    | Delete when movable(j) => Some((remove(b, j), None))
+    | Delete when whole(j) => Some((remove(b, j), None))
     | Delete => None
-    | MoveUp when movable(j - 1) && movable(j) =>
-      Some((swap(b, j - 1), None))
-    | MoveDown when movable(j) && movable(j + 1) =>
-      Some((swap(b, j), None))
+    | MoveUp when whole(j - 1) && whole(j) => Some((swap(b, j - 1), None))
+    | MoveDown when whole(j) && whole(j + 1) => Some((swap(b, j), None))
     | MoveUp
     | MoveDown
     /* across levels: [indent] and [outdent] */
@@ -509,7 +534,7 @@ let apply_at =
           ? member_core(test_template) : letin_core(test_template ++ ";"),
         new_item(~above=op == NewTestAbove, ~member),
       );
-    | Duplicate when movable(j) =>
+    | Duplicate when whole(j) =>
       let member = b.in_module;
       let txt = text_of(bare(b, j));
       Option.bind(

@@ -691,6 +691,9 @@ let shapes = () => {
   );
 };
 
+/* an unfinished definition with items after it, which it runs on into */
+let unfinished_before_others = "let a = 1 in\nlet b = 2\nlet c = 3 in\nc";
+
 let incomplete = () => {
   let t =
     run(
@@ -698,17 +701,24 @@ let incomplete = () => {
       ~edits=true,
       List.map(
         ((n, s)) => (n, Sort.Exp, s),
-        CorpusUtil.incomplete_programs,
+        CorpusUtil.incomplete_programs
+        @ [("unfinished before others", unfinished_before_others)],
       ),
     );
   report("incomplete", t);
   check(list(string), "unexplained diffs", [], unexplained(t));
   /* by design: an `…in` tile cuts only with its `in`, so an unfinished
-     `let x =` runs on into what follows, as the parser reads it */
+     `let x =` runs on into what follows, as the parser reads it; ops that
+     would take what it runs into refuse */
   check(
     list(string),
     "only unfinished definitions",
-    ["bare keyword", "def without body", "unfinished last def"],
+    [
+      "bare keyword",
+      "def without body",
+      "unfinished before others",
+      "unfinished last def",
+    ],
     differing(t),
   );
 };
@@ -824,14 +834,74 @@ let by_design = () => {
       row("c"),
     ),
   );
-  /* an unfinished `let x =` runs on into what follows */
+  /* an unfinished `let x =` runs on into what follows: alone, it deletes
+     as one item */
+  let unfinished = (_, seg) =>
+    List.hd(Segment.incomplete_tiles_deep(seg)).id;
   check(
     option(string),
-    "an unfinished definition is its whole run",
+    "a lone unfinished definition deletes",
     Some("let a = 1 in\n"),
-    op(Delete, "let a = 1 in\nlet b = 2", (_, seg) =>
-      List.hd(Segment.incomplete_tiles_deep(seg)).id
-    ),
+    op(Delete, "let a = 1 in\nlet b = 2", unfinished),
+  );
+  /* but nothing takes it whole once it runs on into items after it: they
+     would go with it */
+  let first_in = (_, seg) =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(tl) when Segment.is_in_tile(p) => Some(tl.id)
+        | _ => None
+        },
+      seg,
+    )
+    |> Option.get;
+  let swallowed = (_, seg) =>
+    List.filter_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(tl) when Segment.is_in_tile(p) => Some(tl.id)
+        | _ => None
+        },
+      seg,
+    )
+    |> List.rev
+    |> List.hd;
+  List.iter(
+    ((what, o, pick)) =>
+      check(
+        option(string),
+        what ++ " refuses",
+        None,
+        op(o, unfinished_before_others, pick),
+      ),
+    [
+      ("deleting it", Web.OutlineEdit.Delete, unfinished),
+      ("duplicating it", Duplicate, unfinished),
+      ("moving it up", MoveUp, unfinished),
+      ("moving it down", MoveDown, unfinished),
+      ("moving the one above down past it", MoveDown, first_in),
+      ("deleting a definition it runs into", Delete, swallowed),
+    ],
+  );
+  /* Alt-arrows too */
+  let seg = CorpusUtil.seg_of(unfinished_before_others);
+  let term = MakeTerm.Incr.term_of_root(~root=Exp, seg);
+  let ctx: IE.ctx = {
+    mod_root: false,
+    term,
+    info_map: lazy(Statics.Map.empty),
+    is_open: _ => true,
+  };
+  List.iter(
+    o =>
+      check(
+        bool,
+        "Alt-arrow refuses",
+        true,
+        Result.is_error(IE.edit(ctx, Op(o, unfinished((), seg)), seg)),
+      ),
+    [Web.OutlineEdit.MoveUp, MoveDown],
   );
   /* a member that is a let chain is one item */
   check(
