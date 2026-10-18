@@ -306,7 +306,8 @@ let last_tile = (label: string, seg: Segment.t): Id.t => {
 };
 
 /* the parses an edit at piece [id] costs the per-item parse: its item's,
-   and each enclosing module literal's shell (ItemSpans' member levels) */
+   and the shell of each enclosing module literal or let-chain member
+   (ItemSpans' child levels) */
 let parses_for = (~root: Sort.t=Exp, seg: Segment.t, id: Id.t): int => {
   let holds = (ps: Segment.t) => List.mem(id, Segment.IDs.all(ps));
   let rec go = (lv: ItemSpans.level) =>
@@ -317,8 +318,8 @@ let parses_for = (~root: Sort.t=Exp, seg: Segment.t, id: Id.t): int => {
       )
     ) {
     | Some(k) =>
-      switch (ItemSpans.members(lv, k)) {
-      | Some(ml) when holds(ml.seg) => 1 + go(ml)
+      switch (ItemSpans.children(lv, k)) {
+      | Some(cl) when holds(cl.seg) => 1 + go(cl)
       | _ => 1
       }
     | None => 1

@@ -210,7 +210,12 @@ let letin_member = ((name, src), ()) => {
   check(bool, name ++ ": a 1 to edit", true, edited);
   MakeTerm.Incr.full_analyzed := 0;
   let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
-  check(int, name ++ ": one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
+  check(
+    int,
+    name ++ ": its item reparsed, and its let chain's shell",
+    CorpusUtil.parses_for(~root=Mod, seg2, CorpusUtil.tile("2", seg2)),
+    MakeTerm.Incr.full_analyzed^,
+  );
   check(int, name ++ ": no fallback after", fb, MakeTerm.Incr.fell_back^);
   check_parity(seg2, incr2);
 };
@@ -281,6 +286,32 @@ let member_edit = ((needle, repl), ()) => {
   check_parity(edited, r);
 };
 
+/* members that are let chains: each chain item parses alone */
+let chain_src = "module H = {\n  let a = 1 in\n  let b = a + 51 in\n  module N = {\n    let c = 52;\n    let d = 53 in\n    d + c\n  } in\n  a + b + N.c + 54\n};\nlet x = 55 in\nx + 56;\nH";
+
+let chain_edit = ((needle, repl), ()) => {
+  let seg = parse_mod(chain_src);
+  let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
+  check_parity(seg, MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg));
+  let (edited, found) =
+    CorpusUtil.edit_token(~keep_id=true, ~needle, ~repl, seg);
+  check(bool, needle ++ " to edit", true, found);
+  let a0 = MakeTerm.Incr.full_analyzed^;
+  let r = MakeTerm.Incr.go_incr(~root=Mod, ~cache, edited);
+  check(
+    int,
+    needle ++ ": its item and the shells around it",
+    CorpusUtil.parses_for(~root=Mod, edited, CorpusUtil.tile(repl, edited)),
+    MakeTerm.Incr.full_analyzed^ - a0,
+  );
+  check(int, needle ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+  check_parity(edited, r);
+  let (renewed, _) =
+    CorpusUtil.edit_token(~needle=repl, ~repl=needle, edited);
+  check_parity(renewed, MakeTerm.Incr.go_incr(~root=Mod, ~cache, renewed));
+};
+
 /* the stdlib's sources, where the repo has them */
 let stdlib = () =>
   List.iter(
@@ -320,6 +351,24 @@ let tests = (
     ),
     test_case("an edit after the module", `Quick, member_edit(("41", "43"))),
     test_case("stdlib sources", `Quick, stdlib),
+    test_case("a chain's middle item", `Quick, chain_edit(("51", "57"))),
+    test_case(
+      "a member of a module in a chain",
+      `Quick,
+      chain_edit(("52", "58")),
+    ),
+    test_case(
+      "a chain in a module in a chain",
+      `Quick,
+      chain_edit(("53", "59")),
+    ),
+    test_case("a chain's tail", `Quick, chain_edit(("54", "60"))),
+    test_case("a chain at the root", `Quick, chain_edit(("55", "61"))),
+    test_case(
+      "a chain's tail at the root",
+      `Quick,
+      chain_edit(("56", "62")),
+    ),
   ]
   @ List.map(
       ((name, src)) =>

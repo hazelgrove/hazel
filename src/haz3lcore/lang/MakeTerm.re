@@ -2603,16 +2603,21 @@ module Incr = {
 
   /* a level's entries, reusing [prev]'s by anchor while their pieces are
      physically the same, then [shared]'s (another cache's parses of the
-     same pieces); a changed module literal reuses its members likewise.
-     [member]: a module literal's member level. [count] counts parses */
+     same pieces); a changed module literal or let chain reuses its items
+     likewise. [member]: a level whose frame its parent supplies (module
+     members, and a let chain among them); [graft]: one whose spine its
+     parent grafts (a let chain); [keyed]: its slices, if not ItemSpans';
+     [count] counts parses */
   let rec parse_level =
           (
             ~root: Sort.t,
             ~member: bool,
+            ~graft=false,
             ~masks,
             ~count: ref(int),
             ~prev: list((Id.t, entry_full)),
             ~shared: list((Id.t, entry_full)),
+            ~keyed=?,
             lv: ItemSpans.level,
           )
           : (list((Id.t, entry_full)), delta) => {
@@ -2641,6 +2646,7 @@ module Incr = {
               parse_item_full(
                 ~root,
                 ~member,
+                ~graft,
                 ~masks,
                 ~count,
                 ~prev=p,
@@ -2654,7 +2660,7 @@ module Incr = {
             (key, e);
           };
         },
-        ItemSpans.keyed(lv),
+        Option.value(keyed, ~default=ItemSpans.keyed(lv)),
       );
     let cur = table(entries);
     let vanished =
@@ -2671,12 +2677,61 @@ module Incr = {
     );
   }
 
-  /* an item alone; a module literal as its shell around its members,
-     each parsed alone (Recompose: its module parses whole, a fallback) */
+  /* an item alone; a module literal as its shell around its members, and
+     a member that is a let chain as its items, each parsed alone (if they
+     won't compose, the item parses whole: a fallback) */
   and parse_item_full =
       (
         ~root: Sort.t,
         ~member: bool,
+        ~graft: bool,
+        ~masks,
+        ~count: ref(int),
+        ~prev: option(entry_full),
+        ~shared: option(entry_full),
+        lv: ItemSpans.level,
+        k: int,
+        ps: Segment.t,
+      )
+      : (entry_full, delta) =>
+    switch (
+      root == Sort.Mod
+        ? Option.bind(ItemSpans.chain(lv, k), cl =>
+            parse_chain(
+              ~member,
+              ~masks,
+              ~count,
+              ~prev,
+              ~shared,
+              lv,
+              k,
+              ps,
+              cl,
+            )
+          )
+        : None
+    ) {
+    | Some(r) => r
+    | None =>
+      parse_whole(
+        ~root,
+        ~member,
+        ~graft,
+        ~masks,
+        ~count,
+        ~prev,
+        ~shared,
+        lv,
+        k,
+        ps,
+      )
+    }
+
+  and parse_whole =
+      (
+        ~root: Sort.t,
+        ~member: bool,
+        ~graft: bool,
         ~masks,
         ~count: ref(int),
         ~prev: option(entry_full),
@@ -2686,11 +2741,6 @@ module Incr = {
         ps: Segment.t,
       )
       : (entry_full, delta) => {
-    let kids_of = (e: option(entry_full), brace: Id.t) =>
-      switch (e) {
-      | Some({f_kids: Some((b, kids)), _}) when b == brace => Some(kids)
-      | _ => None
-      };
     let body =
       k < Array.length(lv.spans)
         ? Option.bind(lv.spans[k].body, brace =>
@@ -2754,6 +2804,22 @@ module Incr = {
     let (m, td) = scrub_hole(hole, (map^, term_data^));
     let (f_map, f_td, f_adopted) =
       localize(~member, ps, m, td, adopted_ids^);
+    /* the spine its parent grafts supplies the nodes down to its hole */
+    let f_map =
+      switch (graft, f_hole) {
+      | (true, Some(h)) =>
+        List.fold_left(
+          (m, node: Exp.t) =>
+            List.fold_left(
+              (m, id) => Id.Map.remove(id, m),
+              m,
+              node.annotation.ids,
+            ),
+          f_map,
+          snd(graft_at(h, Exp.fresh(EmptyHole), f_term)),
+        )
+      | _ => f_map
+      };
     let e = {
       f_pieces: ps,
       f_term,
@@ -2786,7 +2852,143 @@ module Incr = {
         }
       };
     (e, delta);
-  };
+  }
+
+  /* a member that is a let chain: its items parsed at Exp (the first with
+     the member's leading trivia, the last with its trailing whitespace, as
+     their nodes own them), grafted, under a shell that parses the rest of
+     the member around a placeholder. None: it parses whole */
+  and parse_chain =
+      (
+        ~member: bool,
+        ~masks,
+        ~count: ref(int),
+        ~prev: option(entry_full),
+        ~shared: option(entry_full),
+        lv: ItemSpans.level,
+        k: int,
+        ps: Segment.t,
+        cl: ItemSpans.level,
+      )
+      : option((entry_full, delta)) =>
+    switch (
+      {
+        let sp = lv.spans[k];
+        let (c0, c1) = sp.core;
+        let arr = lv.pieces;
+        let rec semi_at = i =>
+          i >= sp.hi ? sp.hi : Piece.is_semi(arr[i]) ? i : semi_at(i + 1);
+        let stop = semi_at(c1);
+        let sub = (a, b) => Array.to_list(Array.sub(arr, a, b - a));
+        let keyed = ItemSpans.keyed(cl);
+        let last = List.length(keyed) - 1;
+        let keyed =
+          List.mapi(
+            (i, (key, s)) =>
+              (
+                key,
+                (i == 0 ? sub(sp.lo, c0) : [])
+                @ s
+                @ (i == last ? sub(c1, stop) : []),
+              ),
+            keyed,
+          );
+        let pk = kids_of(prev, sp.anchor);
+        let (kids, kd) =
+          parse_level(
+            ~root=Exp,
+            ~member,
+            ~graft=true,
+            ~masks,
+            ~count,
+            ~prev=Option.value(pk, ~default=[]),
+            ~shared=Option.value(kids_of(shared, sp.anchor), ~default=[]),
+            ~keyed,
+            cl,
+          );
+        let rebuilt = ref([]);
+        let e =
+          graft_items(
+            ~on_path=path => rebuilt := path @ rebuilt^,
+            List.map(((_, e)) => (e.f_term, e.f_hole), kids),
+          );
+        let ph = Id.derive(~salt="chain-shell", sp.anchor);
+        incr(count);
+        let (items, hole) =
+          parse_item_mod(
+            ~masks,
+            [
+              Piece.Grout({
+                id: ph,
+                shape: Convex,
+              }),
+              ...sub(stop, sp.hi),
+            ],
+          );
+        /* as mod_ reads the chain: ModExp under its head's ids */
+        let modexp: Mod.t =
+          IdTagged.mk(
+            ~incomplete=e.annotation.incomplete,
+            e.annotation.ids,
+            e.annotation.secondary,
+            ModExp(e): TermBase.Mod.term,
+          );
+        let f_mods =
+          switch (items) {
+          | [{annotation: {ids: [id], _}, _}, ...rest] when id == ph => [
+              modexp,
+              ...rest,
+            ]
+          | _ => raise(Recompose)
+          };
+        consolidate_adopted();
+        let (m, td) = scrub_hole(hole, (map^, term_data^));
+        let m =
+          fix_spine(Id.Map.remove(ph, m), rebuilt^)
+          |> TermMap.add_all(e.annotation.ids, Mod(modexp));
+        let (f_map, f_td, f_adopted) =
+          localize(~member, ps, m, Id.Map.remove(ph, td), adopted_ids^);
+        let entry = {
+          f_pieces: ps,
+          f_term: Exp.fresh(EmptyHole),
+          f_hole: None,
+          f_mods,
+          f_map,
+          f_td,
+          f_proj: projectors^,
+          f_plist:
+            projector_list^
+            @ List.concat_map(((_, e)) => e.f_plist, List.rev(kids)),
+          f_adopted:
+            f_adopted @ List.concat_map(((_, e)) => e.f_adopted, kids),
+          f_kids: Some((sp.anchor, kids)),
+        };
+        (
+          entry,
+          switch (pk, prev) {
+          | (Some(_), Some(p)) => {
+              gone: [p, ...kd.gone],
+              come: [entry, ...kd.come],
+            }
+          | (_, p) => {
+              gone: Option.fold(~none=[], ~some=subtree, p),
+              come: [entry, ...kd.come],
+            }
+          },
+        );
+      }
+    ) {
+    | r => Some(r)
+    | exception _ =>
+      incr(fell_back);
+      None;
+    }
+
+  and kids_of = (e: option(entry_full), id: Id.t) =>
+    switch (e) {
+    | Some({f_kids: Some((b, kids)), _}) when b == id => Some(kids)
+    | _ => None
+    };
 
   /* a level's term: a Mod root's items concatenate under the stable
      wrapper; an expression level's graft */

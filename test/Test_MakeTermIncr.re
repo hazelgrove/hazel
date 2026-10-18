@@ -190,7 +190,7 @@ let shared_incomplete = ((name, src), ()) =>
 
 /* a member edit inside a module, at depth 1 and 2: the member and its
    modules' shells parse, nothing else, and the record is go's */
-let nested_src = "module A = {\n  let a1 = 11;\n  module B = {\n    let b1 = 21;\n    let b2 = fun x ->\n      let y = x + 22 in\n      y\n  };\n  let m = { let c = 31 };\n  let a2 = 12\n} in\nlet top = 41 in\nA.a1 + top";
+let nested_src = "module A = {\n  let a1 = 11;\n  module B = {\n    let b1 = 21;\n    let b2 = fun x ->\n      let y = x + 22 in\n      y\n  };\n  let m = { let c = 31 };\n  let a2 = 12;\n  let e = 61 in\n  e + 62\n} in\nlet top = 41 in\nA.a1 + top";
 
 let member_edit = ((needle, repl), ()) => {
   let seg = CorpusUtil.seg_of(nested_src);
@@ -276,6 +276,16 @@ let tests = (
       "an edit after the modules",
       `Quick,
       member_edit(("41", "43")),
+    ),
+    test_case(
+      "a let-chain member's item",
+      `Quick,
+      member_edit(("61", "63")),
+    ),
+    test_case(
+      "a let-chain member's tail",
+      `Quick,
+      member_edit(("62", "64")),
     ),
     test_case("labeled singletons", `Quick, labeled_singletons),
     test_case(
