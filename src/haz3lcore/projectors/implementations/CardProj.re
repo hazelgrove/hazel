@@ -44,8 +44,8 @@ let update = ((sort, collection): state, update: update): state =>
 module SyntaxTerm = {
   let put = (info, syntax): option(Base.segment) =>
     info.utility.lift_syntax(
-      ~inline=true,
       _ => CardSyntax.state_to_any(syntax),
+      Inline.Block,
       info.syntax,
     );
 

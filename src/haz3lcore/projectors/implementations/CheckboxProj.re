@@ -31,7 +31,6 @@ module M: Projector = {
   let toggle = (info): Base.segment =>
     switch (
       info.utility.lift_syntax(
-        ~inline=true,
         fun
         | Exp({term: Atom(Bool(b)), _} as t) =>
           Exp({
@@ -39,6 +38,7 @@ module M: Projector = {
             term: Atom(Bool(!b)),
           })
         | _ => failwith("Checkbox: Toggle: not boolean literal"),
+        Inline.Block,
         info.syntax,
       )
     ) {

@@ -22,7 +22,6 @@ let get = (info: info): string =>
 let put = (info, s: string): Base.segment =>
   switch (
     info.utility.lift_syntax(
-      ~inline=true,
       fun
       | Exp(any) =>
         Exp({
@@ -30,6 +29,7 @@ let put = (info, s: string): Base.segment =>
           term: Atom(String(StringUtil.escape_linebreaks(s))),
         })
       | _any => failwith("TextArea: put: not string literal"),
+      Inline.Block,
       info.syntax,
     )
   ) {

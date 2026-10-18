@@ -2,6 +2,14 @@
  * This module exists to break the dependency cycle between
  * the language and haz3lcore libraries. */
 
+[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
+type exo =
+  | ExoSlider
+  | ExoBuilder
+  | ExoNool
+  | Petrinaut
+  | CatColLab;
+
 /* The different kinds of projector. New projector
  * types need to be registered here in order to be
  * able to create and update their instances */
@@ -18,22 +26,30 @@ type t =
   | TextArea
   | Table
   | Csv
+  | Graph
+  | ObservablePlot
+  | Exo(exo)
   | Keybinding
   | Color;
 
-let livelit_projectors: list(t) = [
-  Csv, /* Competes with Card for empty list */
-  Card, /* Competes with Csv for empty list */
-  Checkbox,
-  Slider,
-  SliderF,
-  TextArea,
-  Table,
-  Card,
-  Livelit,
-  Keybinding,
-  Color,
-];
+let livelit_projectors: list(t) =
+  [
+    Csv, /* Competes with Card for empty list */
+    Card, /* Competes with Csv for empty list */
+    Checkbox,
+    Slider,
+    SliderF,
+    TextArea,
+    Table,
+    Card,
+    Livelit,
+    Keybinding,
+    Color,
+  ]
+  @ List.map(x => Exo(x), all_of_exo);
+
+/* Note: Probe intentionally excluded - probes use separate action path */
+let projectors: list(t) = livelit_projectors @ [Fold, Graph, ObservablePlot];
 
 /* Refractors are like probes - additive decorations, not syntax-replacing */
 let refractors: list(t) = [Probe, Statics];
@@ -55,6 +71,9 @@ let name = (p: t): string =>
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
+  | Graph => "graph"
+  | ObservablePlot => "ObservablePlot"
+  | Exo(exo_kind) => show_exo(exo_kind)
   | Keybinding => "keybinding"
   | Color => "color"
   };

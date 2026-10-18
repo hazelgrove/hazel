@@ -43,10 +43,30 @@ jobs:
 
       - uses: ./.github/actions/setup-hazel-toolchain
 
+      - name: Build in-repo external apps (simple-slider)
+        run: |
+          npm ci
+          npm run build -- --base=./
+        working-directory: ./external-apps/simple-slider
+
+      - name: Build in-repo external apps (value-builder)
+        run: |
+          npm ci
+          npm run build -- --base=./
+        working-directory: ./external-apps/value-builder
+
       - name: Build Release
         run: |
           export DUNE_CACHE=enabled
           opam exec -- dune build src --profile release
+
+      # Livelits load these from www/external/<app>; dune does not build them.
+      - name: Stage external apps into Hazel www
+        run: |
+          mkdir -p "./_build/default/src/web/www/external/exoslider"
+          mkdir -p "./_build/default/src/web/www/external/exovaluebuilder"
+          cp -r "./external-apps/simple-slider/dist/"* "./_build/default/src/web/www/external/exoslider/"
+          cp -r "./external-apps/value-builder/dist/"* "./_build/default/src/web/www/external/exovaluebuilder/"
 
       - name: Checkout the website build artifacts repo
         uses: actions/checkout@v4
