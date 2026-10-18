@@ -170,12 +170,7 @@ let ana_value_types =
            items,
            name,
          )
-         |> Option.map(ty =>
-              (
-                name,
-                Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty),
-              )
-            )
+         |> Option.map(ty => (name, ty))
        )
   };
 
@@ -186,8 +181,9 @@ let ana_value_types =
    its annotation. The function shorthand `let f(x) = ...` is annotated at
    its name: the `Let` case of statics then desugars it as it does any other
    shorthand. */
-let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
-  let go = modlet_pat(ana_labels);
+let rec modlet_pat =
+        (~stable=false, ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
+  let go = modlet_pat(~stable, ana_labels);
   let rewrap = (term: Pat.term): Pat.t => {
     ...pat,
     term,
@@ -198,7 +194,14 @@ let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
     switch (pat.term) {
     | Var(name) =>
       switch (List.assoc_opt(name, ana_labels)) {
-      | Some(expected_type) => Pat.fresh(Asc(pat, expected_type))
+      | Some(expected_type) =>
+        let asc = Pat.fresh(Asc(pat, expected_type));
+        stable
+          ? IdTagged.fast_copy(
+              Id.mk_str("modlet-asc:" ++ Id.to_string(Pat.rep_id(pat))),
+              asc,
+            )
+          : asc;
       | None => pat
       }
     | Tuple(ps) => rewrap(Tuple(List.map(go, ps)))
@@ -254,7 +257,7 @@ let wrap_item =
   | ModLet(pat, def) =>
     IdTagged.fast_copy(
       rep,
-      Exp.fresh(Let(modlet_pat(ana_labels, pat), def, body)),
+      Exp.fresh(Let(modlet_pat(~stable, ana_labels, pat), def, body)),
     )
   | ModType(tpat, typ) =>
     IdTagged.fast_copy(rep, Exp.fresh(TyAlias(tpat, typ, body)))
@@ -264,7 +267,9 @@ let wrap_item =
        member it lacks or defines wrongly is reported inside it. */
     IdTagged.fast_copy(
       rep,
-      Exp.fresh(Let(modlet_pat(ana_labels, mpat_to_pat(mp)), def, body)),
+      Exp.fresh(
+        Let(modlet_pat(~stable, ana_labels, mpat_to_pat(mp)), def, body),
+      ),
     )
   | ModVal(x, def) =>
     IdTagged.fast_copy(
@@ -310,13 +315,19 @@ let lower_tail = (~stable: option(Id.t)=?, items: list(Mod.t)): Exp.t =>
     ),
   );
 
-/* Lower module items to nested Let/TyAlias wrappers for type checking. The
-   wrappers carry the Mod item ids. The tail's type is irrelevant: the
-   module's type is computed by `module_sig_type` and its elaboration is
-   refolded by `refold_module_elab`. Only the binders an item exports are
-   annotated with the signature's expectation: a definition a later item
-   shadows is synthesized, not checked against the signature. */
-let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
+/* Each item's expectations from the analyzed signature, aligned with
+   [items]. Only the binders an item exports get one: a definition a later
+   item shadows is synthesized, not checked against the signature. [retag]
+   re-ids each copy of a signature type (fresh by default: the signature's
+   own nodes are in the map already). */
+let item_ana_labels =
+    (
+      ~retag: (Mod.t, IdTagged.IdTag.t) => IdTagged.IdTag.t=(_, _) =>
+                                                              IdTagged.IdTag.fresh(),
+      ~ana_items: option(list(Sig.t)),
+      items: list(Mod.t),
+    )
+    : list(list((Var.t, Typ.t))) => {
   let defined =
     List.concat_map(
       (item: Mod.t) =>
@@ -327,21 +338,34 @@ let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
       items,
     );
   let ana_labels = ana_value_types(~defined, ana_items);
-  let tail = lower_tail(items);
-  let rec wrap = (items: list(Mod.t)): Exp.t =>
+  let rec go = (items: list(Mod.t)) =>
     switch (items) {
-    | [] => tail
+    | [] => []
     | [item, ...rest] =>
       let exported_here = List.map(fst, item_exports(item, ~later=rest));
-      let ana_labels =
-        List.filter(
-          ((name, _)) => List.mem(name, exported_here),
-          ana_labels,
-        );
-      wrap_item(~ana_labels, item, wrap(rest));
+      [
+        ana_labels
+        |> List.filter(((name, _)) => List.mem(name, exported_here))
+        |> List.map(((name, ty)) =>
+             (name, Grammar.map_typ_annotation(retag(item), ty))
+           ),
+        ...go(rest),
+      ];
     };
-  wrap(items);
+  go(items);
 };
+
+/* Lower module items to nested Let/TyAlias wrappers for type checking. The
+   wrappers carry the Mod item ids. The tail's type is irrelevant: the
+   module's type is computed by `module_sig_type` and its elaboration is
+   refolded by `refold_module_elab`. */
+let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t =>
+  List.fold_right2(
+    (item, ana_labels, body) => wrap_item(~ana_labels, item, body),
+    items,
+    item_ana_labels(~ana_items, items),
+    lower_tail(items),
+  );
 
 /* Rewrite InfoExp cls for expanded module items to keep cursor inspector labels. */
 let reclassify_expanded_module_items =

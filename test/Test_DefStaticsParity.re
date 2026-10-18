@@ -888,6 +888,77 @@ let module_ctors = [
   ),
 ];
 
+/* a module ascribed with a signature keeps member granularity: its members
+   are analyzed against the signature, as the monolithic lowering does */
+let sealed_modules = [
+  test_case(
+    "a sealed module's member edit",
+    `Quick,
+    script(
+      "module M : {} = {\n  let x = 180;\n  let a = 1;\n  let y = x + 1\n} in\n()",
+      /* the module and `x`: `a` and `y` reuse their maps */
+      [token("180", "181") |> analyzed(2)],
+    ),
+  ),
+  test_case(
+    "a signature's member, used outside",
+    `Quick,
+    script(
+      "module M : { let y : Int } = {\n  let x = 180;\n  let y = x + 1\n} in\nM.y",
+      [token("180", "181") |> changes_value],
+    ),
+  ),
+  test_case(
+    "a member the signature types differently",
+    `Quick,
+    script(
+      "module M : { let y : Bool } = {\n  let x = 1;\n  let y = x + 180\n} in\nM.y",
+      [token("180", "181")],
+    ),
+  ),
+  test_case(
+    "a member the signature requires and the module lacks",
+    `Quick,
+    script(
+      "module M : { let z : Int } = {\n  let x = 180\n} in\nM.z",
+      [token("180", "181")],
+    ),
+  ),
+  test_case(
+    "a member's own annotation against the signature",
+    `Quick,
+    script(
+      "module M : { let x : Int } = {\n  let x : Bool = true;\n  let w = 180\n} in\nM.x",
+      [token("180", "181")],
+    ),
+  ),
+  test_case(
+    "retyping the signature",
+    `Quick,
+    script(
+      "module M : { let x : Int } = {\n  let x = 180\n} in\nM.x",
+      [token(~at=`First, ~keep_id=true, "Int", "Bool")],
+    ),
+  ),
+  test_case(
+    "a signature's type member",
+    `Quick,
+    script(
+      "module M : { type T = Int; let x : T } = {\n  type T = Int;\n  let x = 180\n} in\nM.x",
+      [token("180", "181") |> changes_value],
+    ),
+  ),
+  test_case(
+    "a sealed slide at a module root",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module Holes : {} = {\n  let target = 42;\n  let other = 180;\n  target == 20 + 22\n};\n()",
+      [token("180", "181") |> analyzed(2)],
+    ),
+  ),
+];
+
 let tests = (
   "DefStaticsParity",
   [
@@ -919,6 +990,7 @@ let tests = (
   @ type_deps
   @ literal_edits
   @ module_roots
+  @ sealed_modules
   @ corpus
   @ module_ctors,
 );
