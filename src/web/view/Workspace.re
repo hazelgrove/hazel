@@ -412,7 +412,13 @@ let update =
     outline_view(
       (term, program, v) => {
         let (members, size) =
-          switch (Focus.test_run_deep(fid, Program.document(program))) {
+          switch (
+            Focus.test_run_deep(
+              ~root=Program.root(program),
+              fid,
+              Program.document(program),
+            )
+          ) {
           | Some((_, ms, n)) => (ms, Some(n))
           | None => ([fid], None)
           };
@@ -669,7 +675,9 @@ let calculate =
             |> Divided.map_cells((e: ScratchCell.t) =>
                  switch (item_of(ds, e)) {
                  | Some(it) when fresh(it) =>
-                   switch (Focus.cell_content(e, spliced)) {
+                   switch (
+                     Focus.cell_content(~root=Divided.root(d), e, spliced)
+                   ) {
                    | Some(def_seg) =>
                      switch (
                        Focus.captured_ctx(~info_map=it.d_map, e.e_id, def_seg)

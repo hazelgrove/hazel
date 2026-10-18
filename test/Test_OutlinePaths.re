@@ -404,7 +404,7 @@ let sidebar = (src: string) => {
   module S = Web.OutlineSidebar;
   let seg = CorpusUtil.seg_of(src);
   let term = MakeTerm.Incr.term_of(seg);
-  let refused = Web.ScratchFocus.refusals(~want=_ => true, seg);
+  let refused = Web.ScratchFocus.refusals(~root=Exp, ~want=_ => true, seg);
   let visible = OutlineHarness.visible(term);
   let cursor = ref(None);
   let toggled = ref([]);

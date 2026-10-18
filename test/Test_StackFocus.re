@@ -33,7 +33,7 @@ let check_focus =
   let master = seg_of(src);
   let (term, info_map) = statics_of(master);
   let fid = row_by_label(term, label);
-  switch (Focus.mk_entry(~info_map, fid, master)) {
+  switch (Focus.mk_entry(~root=Exp, ~info_map, fid, master)) {
   | None => failwith("mk_entry failed for " ++ label)
   | Some(e) =>
     check(
@@ -62,7 +62,7 @@ let check_focus =
       string,
       label ++ ": splice round-trip",
       text_of(master),
-      text_of(Focus.splice_entry(e, master)),
+      text_of(Focus.splice_entry(~root=Exp, e, master)),
     );
   };
 };
@@ -72,7 +72,7 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
   let master = seg_of(src);
   let (term, info_map) = statics_of(master);
   let fid = row_by_label(term, label);
-  switch (Focus.mk_entry(~info_map, fid, master)) {
+  switch (Focus.mk_entry(~root=Exp, ~info_map, fid, master)) {
   | None => failwith("mk_entry failed for " ++ label)
   | Some(e) =>
     check(bool, label ++ ": headless", true, e.e_kind == Headless(sym));
@@ -86,7 +86,7 @@ let check_headless = (~src, ~label, ~sym, ~body, ()): unit => {
       string,
       label ++ ": splice round-trip",
       text_of(master),
-      text_of(Focus.splice_entry(e, master)),
+      text_of(Focus.splice_entry(~root=Exp, e, master)),
     );
     check(
       bool,
@@ -105,8 +105,11 @@ let unfinished_let = () => {
     let (_, info_map) = statics_of(seg);
     let first = Option.get(List.find_map(Piece.is_tile, seg));
     (
-      Focus.mk_entry(~info_map, first.id, seg) != None,
-      Id.Map.find_opt(first.id, Focus.refusals(~want=_ => true, seg)),
+      Focus.mk_entry(~root=Exp, ~info_map, first.id, seg) != None,
+      Id.Map.find_opt(
+        first.id,
+        Focus.refusals(~root=Exp, ~want=_ => true, seg),
+      ),
     );
   };
   check(
@@ -132,7 +135,12 @@ let use_boundary = () => {
   let (term, info_map) = statics_of(master);
   let mode = label =>
     Option.bind(
-      Focus.mk_entry(~info_map, row_by_label(term, label), master),
+      Focus.mk_entry(
+        ~root=Exp,
+        ~info_map,
+        row_by_label(term, label),
+        master,
+      ),
       (e: Web.ScratchCell.t) =>
       e.e_ctx.use_mode
     );
@@ -147,13 +155,13 @@ let use_boundary = () => {
     bool,
     "its row opens no cell",
     true,
-    Focus.mk_entry(~info_map, use, master) == None,
+    Focus.mk_entry(~root=Exp, ~info_map, use, master) == None,
   );
   check(
     bool,
     "and the outline knows why",
     true,
-    Id.Map.find_opt(use, Focus.refusals(~want=_ => true, master))
+    Id.Map.find_opt(use, Focus.refusals(~root=Exp, ~want=_ => true, master))
     == Some(Focus.Directive),
   );
 };
@@ -163,7 +171,9 @@ let use_boundary = () => {
 let names_and_keys = () => {
   let master = seg_of("let add(x: Int, y: Int): Int = x + y in add(1, 2)");
   let (term, info_map) = statics_of(master);
-  switch (Focus.mk_entry(~info_map, row_by_label(term, "add"), master)) {
+  switch (
+    Focus.mk_entry(~root=Exp, ~info_map, row_by_label(term, "add"), master)
+  ) {
   | None => fail("no cell for add")
   | Some(e) =>
     check(
@@ -181,7 +191,7 @@ let names_and_keys = () => {
     Some(3),
     Option.map(
       ((_, _, n)) => n,
-      Focus.test_run_deep(row_by_label(rterm, "1"), run),
+      Focus.test_run_deep(~root=Exp, row_by_label(rterm, "1"), run),
     ),
   );
   let own = Web.ScratchPersist.slide_suffix("scratch:Week 1");
@@ -232,7 +242,7 @@ let header_symbols = () => {
             switch (
               Option.bind(n.o_id, id => Web.SlideView.sym_of(id, term)),
               Option.bind(n.o_id, id =>
-                Option.map(snd, Focus.headless_content_deep(id, seg))
+                Option.map(snd, Focus.headless_content_deep(~root, id, seg))
               ),
             ) {
             | (Some(o), Some(s)) when o != s =>
@@ -361,7 +371,12 @@ let tests = (
         let master = seg_of("let café = 1 in café");
         let (term, info_map) = statics_of(master);
         switch (
-          Focus.mk_entry(~info_map, row_by_label(term, "café"), master)
+          Focus.mk_entry(
+            ~root=Exp,
+            ~info_map,
+            row_by_label(term, "café"),
+            master,
+          )
         ) {
         | Some(e) =>
           check(
