@@ -106,6 +106,21 @@ let rewrite =
   rewrap(Let(f_name, fun_exp, body));
 };
 
+/* [rewrite]'s Fun back to the definition as written, whose ids the text
+   holds; None for any other expression */
+let written = (e: Exp.t): option(Exp.t) =>
+  switch (e.term) {
+  | Fun(args, def, _, _)
+      when Id.equal(Exp.rep_id(e), Id.next(Pat.rep_id(args))) =>
+    switch (def.term) {
+    | Asc(inner, ty)
+        when Id.equal(Exp.rep_id(def), Id.next(Typ.rep_id(ty))) =>
+      Some(inner)
+    | _ => Some(def)
+    }
+  | _ => None
+  };
+
 /* After statics has processed the desugared `Let`, the info map is
    missing entries for ids that only exist in the original binder
    pattern -- the `Ap(f, args)` wrapper and the optional outer

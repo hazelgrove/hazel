@@ -536,31 +536,34 @@ module Selection = {
       |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
     };
 
-  /* cross-cell jump-to-definition in stacks: (ensure-entry action, new
-     selection, follow-up caret jump) */
+  /* a stack's (ensure-entry action, new selection, follow-ups) */
+  let scratch_across = ((a, s, ks)) => (
+    Update.Scratch(a),
+    Scratch(s),
+    List.map(k => Update.Scratch(k), ks),
+  );
+
+  /* cross-cell jump-to-definition and step into in stacks */
   let stack_jump_override =
-      (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) =>
+      (action: Update.t, model: Model.t)
+      : option((Update.t, t, list(Update.t))) =>
     switch (action, model) {
     | (Scratch(sa), Scratch(m))
     | (Scratch(sa), Documentation(m)) =>
       ScratchMode.Selection.stack_jump_override(sa, m)
-      |> Option.map(((a, s, k)) =>
-           (Update.Scratch(a), Scratch(s), Update.Scratch(k))
-         )
+      |> Option.map(scratch_across)
     | _ => None
     };
 
   /* a jump to a tile in no open cell */
   let closed_jump =
       (tile: Haz3lcore.Id.t, model: Model.t)
-      : option((Update.t, t, Update.t)) =>
+      : option((Update.t, t, list(Update.t))) =>
     switch (model) {
     | Scratch(m)
     | Documentation(m) =>
       ScratchMode.Selection.closed_jump(tile, m)
-      |> Option.map(((a, s, k)) =>
-           (Update.Scratch(a), Scratch(s), Update.Scratch(k))
-         )
+      |> Option.map(scratch_across)
     | _ => None
     };
 

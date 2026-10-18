@@ -134,6 +134,9 @@ type probe =
   | ToggleAuto
   | ToggleStatics
   | StepInto(Language.CallStack.t, Language.CallStack.frame)
+  /* the same step, into the body given: a stack steps into another
+     cell's function there */
+  | StepIntoBody(Language.CallStack.t, Language.CallStack.frame, Id.t)
   | Pin(Language.CallStack.t, Id.t)
   | RemoveAll
   /* the drawer steps this sample in place of the samples */

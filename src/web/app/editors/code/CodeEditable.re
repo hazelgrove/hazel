@@ -65,7 +65,7 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | Probe(StepInto(_))
+             | Probe(StepInto(_) | StepIntoBody(_))
              | Format(_)
              | AdjustIndent(_, _)
              | ApplyCompletion(_)

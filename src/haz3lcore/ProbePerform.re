@@ -531,22 +531,12 @@ let fn_def_in = {
   );
 };
 
-/* Step-into is sample-level: a sample with call_stack [a,b,c] gives the body
- * stack [ap_id,a,b,c]. Sets pending_focus; CellEditor's second calculate pass
- * (once worker dynamics land) resolves it and FocusEffect schedules DOM focus. */
-let step_into_call_stack =
-    (
-      ~syntax: CachedSyntax.t,
-      ~call_stack: CallStack.t,
-      ~frame: CallStack.frame,
-      info_map: Statics.Map.t,
-      z: Zipper.t,
-    )
-    : option(Zipper.t) => {
-  let ap_id = frame.id;
+/* the function a step into [frame]'s call enters, in [info_map] */
+let step_into_target =
+    (frame: CallStack.frame, info_map: Statics.Map.t): option(Id.t) => {
   /* Tier 1 (static): resolve the fn via its name's let-binding (fn position is a let-bound var). */
   let static_body_id = {
-    let* ci_ap = Statics.Map.lookup(ap_id, info_map);
+    let* ci_ap = Statics.Map.lookup(frame.id, info_map);
     let* binding_id =
       switch (ci_ap) {
       | InfoExp({
@@ -561,23 +551,43 @@ let step_into_call_stack =
     Statics.Map.enclosing_let_of_binding(~statics=info_map, ~binding_id);
   };
   /* Tier 2 (dynamic): fall back to the frame's recorded fn_def_id, for higher-order calls where the static binding site is only a parameter. */
-  let* body_id =
-    switch (static_body_id) {
-    | Some(id) => Some(id)
-    | None => Option.bind(frame.fn_def_id, fn_def_in(info_map))
-    };
+  switch (static_body_id) {
+  | Some(id) => Some(id)
+  | None => Option.bind(frame.fn_def_id, fn_def_in(info_map))
+  };
+};
+
+/* Step-into is sample-level: a sample with call_stack [a,b,c] gives the body
+ * stack [ap_id,a,b,c]. Sets pending_focus; CellEditor's second calculate pass
+ * (once worker dynamics land) resolves it and FocusEffect schedules DOM focus. */
+let step_into_body =
+    (
+      ~syntax: CachedSyntax.t,
+      ~call_stack: CallStack.t,
+      ~frame: CallStack.frame,
+      body_id: Id.t,
+      info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
+    : option(Zipper.t) => {
+  let ap_id = frame.id;
   let* ci_body = Statics.Map.lookup(body_id, info_map);
 
-  /* Promote any multi probe on ap_id to manual so it persists across the jump. */
+  /* Promote any multi probe on ap_id to manual so it persists across the
+     jump; a call another editor holds (a stack cell's) keeps its own. */
   let z =
-    switch (probe_status(ap_id, info_map, z.refractors)) {
-    | Manual(_)
-    | Statics(_) => z
-    | Multi
-    | Ephemeral(_)
-    | Suppressed(_)
-    | Non => promote_to_manual(ap_id, z)
-    };
+    !Id.Map.mem(ap_id, info_map)
+      ? z
+      : (
+        switch (probe_status(ap_id, info_map, z.refractors)) {
+        | Manual(_)
+        | Statics(_) => z
+        | Multi
+        | Ephemeral(_)
+        | Suppressed(_)
+        | Non => promote_to_manual(ap_id, z)
+        }
+      );
 
   let z =
     switch (probe_status(body_id, info_map, z.refractors)) {
@@ -639,6 +649,19 @@ let step_into_call_stack =
   FocusEffect.schedule_editor();
 
   Move.jump_to_id_indicated(z, jump_target);
+};
+
+let step_into_call_stack =
+    (
+      ~syntax: CachedSyntax.t,
+      ~call_stack: CallStack.t,
+      ~frame: CallStack.frame,
+      info_map: Statics.Map.t,
+      z: Zipper.t,
+    )
+    : option(Zipper.t) => {
+  let* body_id = step_into_target(frame, info_map);
+  step_into_body(~syntax, ~call_stack, ~frame, body_id, info_map, z);
 };
 
 let can_statics = (id: Id.t, info_map: Statics.Map.t): bool =>
@@ -757,6 +780,13 @@ let go =
     }
   | StepInto(call_stack, frame) =>
     switch (step_into_call_stack(~syntax, ~call_stack, ~frame, info_map, z)) {
+    | Some(z) => z
+    | None => z
+    }
+  | StepIntoBody(call_stack, frame, body_id) =>
+    switch (
+      step_into_body(~syntax, ~call_stack, ~frame, body_id, info_map, z)
+    ) {
     | Some(z) => z
     | None => z
     }
