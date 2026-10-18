@@ -1,0 +1,45 @@
+/* Sample Picker Projector Styles */
+
+.sample-picker {
+  display: inline-flex;
+  padding: 0.3em;
+  background: var(--surface-raised);
+  border-radius: 0.3em;
+  border: 1px solid var(--border-default);
+  transition: border-color 0.15s;
+}
+
+.sample-picker:hover {
+  border-color: var(--border-strong);
+}
+
+.sample-picker .sample-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.2em;
+  width: 100%;
+}
+
+.sample-picker .sample-option {
+  font-family: var(--code-font);
+  font-size: 0.7em;
+  padding: 0.25em 0.3em;
+  background: var(--surface-default);
+  border: 1px solid var(--border-default);
+  border-radius: 0.2em;
+  color: var(--text-default);
+  cursor: pointer;
+  transition: background-color 0.1s, border-color 0.1s, color 0.1s;
+  text-align: center;
+}
+
+.sample-picker .sample-option:hover {
+  background: var(--surface-sunken);
+  border-color: var(--border-strong);
+}
+
+.sample-picker .sample-option.selected {
+  background: var(--surface-success-soft);
+  border-color: var(--border-success);
+  color: white;
+}

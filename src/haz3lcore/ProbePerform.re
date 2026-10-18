@@ -203,7 +203,10 @@ let toggle_manual =
   switch (probe_status(id, info_map, z.refractors)) {
   | Multi =>
     rm_multi(~syntax, ~info_map, id, z) |> add_manual(~syntax, id, info_map)
-  | Statics(ids) => rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
+  | Statics(ids)
+  | Player(ids) =>
+    /* Switch from statics/player to manual probe */
+    rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
   | Manual(ids) => rm_manual(ids, z)
   | Ephemeral(_)
   | Suppressed(_)
@@ -343,7 +346,8 @@ let toggle_multi =
   switch (probe_status(id, info_map, z.refractors)) {
   | Multi => rm_multi(~syntax, ~info_map, id, z)
   | Manual(ids)
-  | Statics(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
+  | Statics(ids)
+  | Player(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
   | Ephemeral(_)
   | Suppressed(_)
   | Non =>
@@ -376,7 +380,8 @@ let toggle_probe =
     switch (probe_status(id, info_map, z.refractors)) {
     | Multi => rm_multi(~syntax, ~info_map, id, z)
     | Manual(ids) => rm_manual(ids, z)
-    | Statics(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
+    | Statics(ids)
+    | Player(ids) => rm_manual(ids, z) |> add_multi(id, ~syntax, ~info_map)
     | Ephemeral(ids) => add_suppression(ids, z)
     | Suppressed(ids) => rm_suppression(ids, z)
     | Non =>
@@ -390,7 +395,8 @@ let toggle_probe =
     switch (probe_status(id, info_map, z.refractors)) {
     | Manual(ids) => rm_manual(ids, z) |> add_suppression(ids)
     | Multi => rm_multi(~syntax, ~info_map, id, z)
-    | Statics(ids) => rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
+    | Statics(ids)
+    | Player(ids) => rm_manual(ids, z) |> add_manual(~syntax, id, info_map)
     | Ephemeral(ids) => add_suppression(ids, z)
     | Suppressed(ids) => rm_suppression(ids, z)
     | Non => add_manual(~syntax, id, info_map, z)
@@ -524,7 +530,8 @@ let step_into_call_stack =
   let z =
     switch (probe_status(ap_id, info_map, z.refractors)) {
     | Manual(_)
-    | Statics(_) => z
+    | Statics(_)
+    | Player(_) => z
     | Multi
     | Ephemeral(_)
     | Suppressed(_)
@@ -536,6 +543,7 @@ let step_into_call_stack =
     | Multi
     | Manual(_)
     | Statics(_)
+    | Player(_)
     | Ephemeral(_) => z
     | Suppressed(_)
     | Non => add_multi(body_id, ~syntax, ~info_map, z)
@@ -551,6 +559,7 @@ let step_into_call_stack =
       | Multi
       | Manual(_)
       | Statics(_)
+      | Player(_)
       | Ephemeral(_) => z
       | Suppressed(_)
       | Non => add_multi(args_id, ~syntax, ~info_map, z)
@@ -612,11 +621,72 @@ let toggle_statics =
       );
     switch (probe_status(id, info_map, z.refractors)) {
     | Statics(ids) => rm_manual(ids, z)
-    | Manual(ids) => rm_manual(ids, z) |> add_statics
+    | Manual(ids)
+    | Player(ids) =>
+      /* manual probe or player -> statics */
+      rm_manual(ids, z) |> add_statics
     | Multi => rm_multi(~syntax, ~info_map, id, z) |> add_statics
     | Ephemeral(_)
     | Suppressed(_)
     | Non => add_statics(z)
+    };
+  };
+
+/* Check if type is Sound (handles parens and type aliases).
+   Sound type is represented as Var("Sound"). */
+let rec is_sound_type = (ty: Typ.t): bool =>
+  switch (ty.term) {
+  | Var("Sound") => true
+  | Parens(inner) => is_sound_type(inner)
+  | _ => false
+  };
+
+/* Check if player refractor is allowed for the given id.
+   Player can only be applied to expressions with type Sound. */
+let can_player = (id: Id.t, info_map: Statics.Map.t): bool => {
+  let target_ids = target_subterm_ids(id, info_map);
+  if (target_ids == []) {
+    false;
+  } else {
+    /* Check if the expression has type Sound */
+    switch (Statics.Map.lookup(id, info_map)) {
+    | Some(InfoExp({ty, _})) => is_sound_type(ty)
+    | _ => false
+    };
+  };
+};
+
+/* Toggle player refractor on the indicated term. */
+let toggle_player =
+    (~syntax: CachedSyntax.t, id: Id.t, info_map: Statics.Map.t, z: Zipper.t)
+    : Zipper.t =>
+  if (!can_player(id, info_map)) {
+    z;
+  } else {
+    let target_ids = target_subterm_ids(id, info_map);
+    let add_player = z =>
+      List.fold_left(
+        (z, id) => Zipper.add_manual(id, Player, z),
+        z,
+        target_ids,
+      );
+    switch (probe_status(id, info_map, z.refractors)) {
+    | Player(ids) =>
+      /* Remove player - stop playback if this player was playing */
+      Strudel.PlayState.stop_if_playing_any(ids);
+      rm_manual(ids, z);
+    | Manual(ids)
+    | Statics(ids) =>
+      /* Switch from manual probe/statics to player */
+      rm_manual(ids, z) |> add_player
+    | Multi =>
+      /* Switch from multi probe to player */
+      rm_multi(~syntax, ~info_map, id, z) |> add_player
+    | Ephemeral(_)
+    | Suppressed(_)
+    | Non =>
+      /* Add player */
+      add_player(z)
     };
   };
 
@@ -636,7 +706,8 @@ let place_statics_at =
       );
     switch (probe_status(id, info_map, z.refractors)) {
     | Statics(_) => z
-    | Manual(ids) => rm_manual(ids, z) |> add_statics
+    | Manual(ids)
+    | Player(ids) => rm_manual(ids, z) |> add_statics
     | Multi => rm_multi(~syntax, ~info_map, id, z) |> add_statics
     | Ephemeral(_)
     | Suppressed(_)
@@ -658,7 +729,6 @@ let remove_statics_at =
     z,
   );
 };
-
 let go =
     (
       ~statics as {info_map, _}: CachedStatics.t,
@@ -699,6 +769,11 @@ let go =
     | Some(id) => toggle_statics(~syntax, id, info_map, z)
     | None => z
     }
+  | TogglePlayer =>
+    switch (Indicated.index(z)) {
+    | Some(id) => toggle_player(~syntax, id, info_map, z)
+    | None => z
+    }
   | StepInto(call_stack, frame) =>
     switch (step_into_call_stack(~syntax, ~call_stack, ~frame, info_map, z)) {
     | Some(z) => z
@@ -709,7 +784,8 @@ let go =
     let z =
       switch (probe_status(ap_id, info_map, z.refractors)) {
       | Manual(_)
-      | Statics(_) => z
+      | Statics(_)
+      | Player(_) => z
       | Multi
       | Ephemeral(_)
       | Suppressed(_)
