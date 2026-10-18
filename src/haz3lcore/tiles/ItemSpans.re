@@ -32,8 +32,15 @@ type span = {
   hi: int,
   /* the item without edge whitespace or its `;`: what a cell holds */
   core: (int, int),
-  /* whole lines: from its first line's start (comment lines directly above
-     attach) through its last linebreak; None when it shares a line */
+  /* its place by line, (lo, term, hi): from its first line's start, with
+     that line's indentation and the comment lines directly above it,
+     through the last linebreak after its terminator and what shares that
+     line (from its first piece of content when it shares its first line).
+     [term]: its terminator's end (its `in` or `;`, or the hole the parser
+     leaves after a module's last `;`), else its content's */
+  slot: (int, int, int),
+  /* the slot's [lo, hi) when it is whole lines; None when it shares a
+     line */
   lines: option((int, int)),
   /* the indentation of the line its core starts on */
   base_col: int,
@@ -138,9 +145,8 @@ let module_body = (p: Piece.t): option(Tile.t) =>
   | _ => None
   };
 
-/* ---- line indentation, as ScratchFocus.line_indent reads it: a line's
-   leading spaces, where only a linebreak starts a line. Projectors are
-   opaque ---- */
+/* ---- line indentation: a line's leading spaces, where only a linebreak
+   starts a line. Projectors are opaque ---- */
 
 /* the spaces right after [j] (a linebreak, or -1 for the start), before
    [stop] */
@@ -236,9 +242,8 @@ let kid_indent =
 
 /* ---- the cut rule ---- */
 
-/* an item before trimming: ScratchFocus.item_spans' span [r_start,
-   r_stop) (with its trailing whitespace), plus where its slice ends
-   (after its `in` or `;`) */
+/* an item before trimming: its run [r_start, r_stop), with its trailing
+   whitespace, and where its slice ends (after its `in` or `;`) */
 type raw = {
   r_start: int,
   r_stop: int,
@@ -248,11 +253,11 @@ type raw = {
   r_semi: option(int),
 };
 
-/* ScratchFocus.item_spans' rule, total. An `…in` tile not in an operand's
-   place ends a definition or directive (with its `in`: an unfinished
-   `let x =` runs on); a `;` ends a statement unless a form before it in
-   the item takes it into its right operand. At a Mod level an item ends
-   only at a member `;` or the level's end, never after an `in`. [nested]:
+/* An `…in` tile not in an operand's place ends a definition or directive
+   (with its `in`: an unfinished `let x =` runs on); a `;` ends a
+   statement unless a form before it in the item takes it into its right
+   operand. At a Mod level an item ends only at a member `;` or the
+   level's end, never after an `in`. Total: any segment divides. [nested]:
    a definition's body, which has items only if it is divided */
 let raw_spans =
     (~sort: Sort.t, ~nested: bool, arr: array(Piece.t)): list(raw) => {
@@ -489,7 +494,7 @@ let build =
       k => {
         let r = raws[k];
         let last = k == count - 1;
-        /* the core: ScratchFocus's span without edge whitespace or `;` */
+        /* the core: the run without edge whitespace or `;` */
         let rec skip_ws = i =>
           i < r.r_stop && is_ws(arr[i]) ? skip_ws(i + 1) : i;
         let c0 = skip_ws(r.r_start);
@@ -519,9 +524,8 @@ let build =
             Id.derive(~salt="chain", Piece.id(arr[f]))
           | _ => Piece.id(arr[f])
           };
-        /* ItemEdit's slot: from its first line's start, with comment lines
-           directly above, through the last linebreak after its terminator
-           and what shares that line */
+        /* the slot's start: its first line's, with the comment lines
+           directly above */
         let rec back_spaces = i =>
           i > floor^ && Piece.is_space(arr[i - 1]) ? back_spaces(i - 1) : i;
         let i = back_spaces(f);
@@ -545,6 +549,8 @@ let build =
               i > f && Piece.is_secondary(arr[i - 1]) ? back(i - 1) : i;
             back(r.r_stop);
           };
+        /* what shares its last line, then whitespace through its last
+           linebreak (the next line's indentation is the next item's) */
         let rec same_line = i =>
           i < len && (Piece.is_space(arr[i]) || is_comment(arr[i]))
             ? same_line(i + 1) : i;
@@ -581,6 +587,7 @@ let build =
           lo: k == 0 ? 0 : raws[k - 1].r_cut,
           hi: last ? len : r.r_cut,
           core: (c0, c1),
+          slot: (lo, term, hi),
           lines,
           base_col,
           body,
