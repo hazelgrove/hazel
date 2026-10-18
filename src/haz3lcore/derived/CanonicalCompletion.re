@@ -1379,23 +1379,24 @@ let partition_segment =
 /* === Member boundaries (Mod, Sig levels) ===
  * A member level's `;` is what an `in` is at an expression level: it
  * ends a definition. Completion synthesizes it where a member ends
- * without one, before a MEMBER LINE (one at-or-left of the member's
- * first line that doesn't continue it: not concave-left, not a rule):
- * - after an unfinished member: the partition rule's boundary, as
- *   `let x = 1 ⏎ f(3)` starts a body at an expression level:
- *   `let q ⏎ let next = …` -> `let q = ?; let next = …`;
- * - after an open slot ending its line (`let q =`, `1 +`, `fun x ->`;
- *   nothing incomplete), once the level's tiles are complete.
- * An open `in` takes the line below as its body (a let-chain member's
- * link, as at an expression level), unless that line starts a member
- * head. Apart from layout, an open slot meeting a MEMBER HEAD (`let … =`,
- * `type … =`, `module … =`; a signature's `let`), which no other slot
- * holds, is ended there too. The `;` is fully synthetic (no original
- * shards: printing drops it), its id derived from the member's first
- * content. A grout can't separate here: the regrout deletes a hole
- * between an open slot and a convex head, their shapes fit. Finished
- * members already apart by grout (a missing `;`) read apart as they
- * are, and are left alone. */
+ * without one:
+ * - after an unfinished member, before a MEMBER LINE (one at-or-left of
+ *   the member's first line that doesn't continue it: not concave-left,
+ *   not a rule): the partition rule's boundary, as `let x = 1 ⏎ f(3)`
+ *   starts a body at an expression level:
+ *   `let q ⏎ let next = …` -> `let q = ?; let next = …`. An open `in`
+ *   takes the line below as its body (a let-chain member's link, as at
+ *   an expression level), unless that line starts a member head;
+ * - after an open slot (`let q =`, `1 +`, `fun x ->`; nothing
+ *   unfinished) meeting a MEMBER HEAD (`let … =`, `type … =`,
+ *   `module … =`; a signature's `let`), which no slot holds.
+ * Layout alone never ends a finished member, as it never ends a finished
+ * definition at an expression level: `let f = ⏎ fun x -> x;` is one
+ * member. The `;` is fully synthetic (no original shards: printing drops
+ * it), its id derived from the member's first content. A grout can't
+ * separate here: the regrout deletes a hole between an open slot and a
+ * convex head, their shapes fit. Finished members already apart by grout
+ * (a missing `;`) read apart as they are, and are left alone. */
 
 /* what follows a part of a level: its first content, and the
    indentation of that content's line */
@@ -1483,12 +1484,6 @@ let member_at = (~floor=0, arr: array(Piece.t), i: int): (int, int) => {
   (c, indent_at(~floor, arr, c));
 };
 
-/* the line [f] opens is a member line for the member opened at [indent],
-   whose [slot] ends the line before it (an open `in` takes it as its
-   body) */
-let member_line = (~indent: int, ~slot: Piece.t, f: follows): bool =>
-  f.indent <= indent && !continues(f.head) && !is_body_slot(slot);
-
 /* per partition of [seg]: what follows it (the next partition with
    content's lead, [follows] after the last), and, where it ends a member
    (its next line a member line), the id of the member's first content.
@@ -1566,23 +1561,15 @@ let seal =
   go(List.rev(seg), []);
 };
 
-/* open right slots (not a `;`, nor a `{`'s member list) that end their
-   member: before a member head, or ending a line before a member line
-   ([follows] past the end) */
+/* open right slots (not a `;`, nor a `{`'s member list) before a member
+   head ([follows] past the end), which no slot holds: the member ends
+   there */
 let open_slots = (~follows: option(follows)=None, seg: Segment.t): list(int) => {
   let arr = Array.of_list(seg);
   let n = Array.length(arr);
-  /* the next content after [j], and whether a linebreak comes first */
-  let rec next = (j, lb) =>
-    if (j >= n) {
-      (j, lb);
-    } else if (Piece.is_linebreak(arr[j])) {
-      next(j + 1, true);
-    } else if (Piece.is_secondary(arr[j]) || Piece.is_grout(arr[j])) {
-      next(j + 1, lb);
-    } else {
-      (j, lb);
-    };
+  let rec next = j =>
+    j < n && (Piece.is_secondary(arr[j]) || Piece.is_grout(arr[j]))
+      ? next(j + 1) : j;
   List.init(n, j => j)
   |> List.filter(j =>
        switch (arr[j]) {
@@ -1596,19 +1583,9 @@ let open_slots = (~follows: option(follows)=None, seg: Segment.t): list(int) => 
            }
          )
          && {
-           let (k, lb) = next(j + 1, false);
-           let f =
-             k < n
-               ? Some({
-                   indent: indent_at(arr, k),
-                   head: arr[k],
-                 })
-               : follows;
-           switch (f) {
-           | Some(f) =>
-             is_member_head(f.head)
-             || (lb || k >= n)
-             && member_line(~indent=snd(member_at(arr, j)), ~slot=arr[j], f)
+           let k = next(j + 1);
+           switch (k < n ? Some(arr[k]) : Option.map(f => f.head, follows)) {
+           | Some(head) => is_member_head(head)
            | None => false
            };
          }
@@ -2351,8 +2328,8 @@ let rec complete_segment =
          wraps |> List.map(((_, _, id)) => synthetic(id))
        );
 
-  /* once its tiles are complete, a member left open on a line that ends
-     it gets its `;` (materialize_one leaves other members as typed) */
+  /* once its tiles are complete, a member whose open slot meets a member
+     head gets its `;` (materialize_one leaves other members as typed) */
   let seal_slots = (seg: Segment.t): (Segment.t, list(shard_record)) =>
     switch (
       only_tile == None ? seal_open_slots(~sort, ~follows, seg) : (seg, [])

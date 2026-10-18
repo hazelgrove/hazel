@@ -364,34 +364,50 @@ let nested_unfinished = () => {
 };
 
 /* ---- feedback preservation: a member typed key by key at a module's
-   top, middle and end leaves every other row as it was ---- */
+   top, middle and end leaves every other row as it was, but at the keys
+   where the program is finished: then it reads as written. `let q =`
+   above a let chain (no member head) takes the chain as its definition,
+   as the language reads it ---- */
 
 let typing_cases = [
-  ("Counter, top", counter, "module Counter = {"),
-  ("Counter, middle", counter, "  let start = 0;"),
-  ("Counter, end", counter, "  let after = next + 1"),
-  ("Geometry, top", geometry, "module Geometry = {"),
-  ("Geometry, middle", geometry, "  type Distance = Int;"),
-  ("Geometry, end", geometry, "    fun (x, y) : Point -> x + y"),
-  ("nested, inner top", nested, "  module Inner = {"),
-  ("nested, inner end", nested, "    let value = true"),
-  ("nested, outer middle", nested, "  };"),
-  ("let chain, before the chain", chained, "  let x = 1;"),
-  ("let chain, after the chain", chained, "  a + b;"),
+  ("Counter, top", counter, "module Counter = {", []),
+  ("Counter, middle", counter, "  let start = 0;", []),
+  ("Counter, end", counter, "  let after = next + 1", []),
+  ("Geometry, top", geometry, "module Geometry = {", []),
+  ("Geometry, middle", geometry, "  type Distance = Int;", []),
+  ("Geometry, end", geometry, "    fun (x, y) : Point -> x + y", []),
+  ("nested, inner top", nested, "  module Inner = {", []),
+  ("nested, inner end", nested, "    let value = true", []),
+  ("nested, outer middle", nested, "  };", []),
+  ("let chain, before the chain", chained, "  let x = 1;", [7, 8]),
+  ("let chain, after the chain", chained, "  a + b;", []),
 ];
 
 let typed_keys = "let q = (1 + 2";
 
-let preserved = ((name, src, after), ()) => {
+let preserved = ((name, src, after, finished), ()) => {
   let z0 = at_line(~root=Exp, src, after);
   let before = rows(~root=Exp, z0);
   List.iteri(
-    (k, z) =>
-      check_kept(
-        Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
-        before,
-        rows(~root=Exp, z),
-      ),
+    (k, z) => {
+      let at = Printf.sprintf("%s, key %d (%S)", name, k, text(z));
+      if (List.mem(k, finished)) {
+        check(
+          int,
+          at ++ ": finished, read as written",
+          0,
+          List.length(
+            CanonicalCompletion.complete_items(
+              ~sort=Exp,
+              MakeTerm.semantic_source(z),
+            ).
+              shard_records,
+          ),
+        );
+      } else {
+        check_kept(at, before, rows(~root=Exp, z));
+      };
+    },
     type_line(~root=Exp, z0, typed_keys),
   );
 };
@@ -739,6 +755,61 @@ let round_trip = ((name, root, src, full, prefix), ()) => {
   );
 };
 
+/* ---- a finished level reads as written: layout never ends a finished
+   member, as it never ends a finished definition at the top level ---- */
+
+let as_written = [
+  (
+    "a definition on the line below, at the member's indentation",
+    Sort.Exp,
+    "module M = {\n  let f =\n  fun x -> x;\n  let g = f(1)\n} in\nM.g",
+  ),
+  ("an operator ending a line", Sort.Mod, "let total = 1 +\n2;\ntotal"),
+  (
+    "a sum type's variants below it",
+    Sort.Mod,
+    "type T =\n+ A\n+ B;\nlet t : T = A;\nt",
+  ),
+  /* MenhirFuzz's case: the fuzz broke the line before the sum's `+` */
+  (
+    "a sum, its line broken, ending a module",
+    Sort.Exp,
+    "let m = ({ type U = (); type V =\n+ Gx }) in [1]",
+  ),
+];
+
+let reads_as_written = ((name, root, src), ()) => {
+  let seg = CorpusUtil.seg_of(~root, src);
+  let done_ = CanonicalCompletion.complete_items(~sort=root, seg);
+  let print = Printer.of_segment(~holes="?", ~concave_holes="~");
+  check(
+    int,
+    name ++ ": nothing synthesized",
+    0,
+    List.length(done_.shard_records),
+  );
+  check(
+    string,
+    name ++ ": as written",
+    print(seg),
+    print(done_.completed_seg),
+  );
+  if (root == Sort.Exp) {
+    check(
+      bool,
+      name ++ ": MakeTerm agrees with Menhir",
+      true,
+      switch (
+        Test_MenhirFuzz.make_term_parse(src),
+        Test_MenhirFuzz.menhir_parse(src),
+      ) {
+      | (Some(mk), Some(mh)) => Test_MenhirFuzz.equal_terms(mk, mh)
+      | _ => false
+      },
+    );
+  };
+};
+
 /* ---- the corpus sweep, behind HAZEL_COMPLETION_SWEEP=1 (minutes):
    every delimiter of mega-mod-1k, the Modules slide and mega-1k ---- */
 
@@ -795,7 +866,7 @@ let tests = (
       sibling_keys,
     )
   @ List.map(
-      ((name, _, _) as c) =>
+      ((name, _, _, _) as c) =>
         test_case(
           "rows kept typing a member: " ++ name,
           `Quick,
@@ -882,6 +953,11 @@ let tests = (
           "let f = case fun x -> x | 1 => 2 | _ => 3 end;\nlet g = 1;\ng",
         ),
       ],
+    )
+  @ List.map(
+      ((name, _, _) as c) =>
+        test_case("reads as written: " ++ name, `Quick, reads_as_written(c)),
+      as_written,
     )
   @ [
     test_case("corpus sweep (HAZEL_COMPLETION_SWEEP=1)", `Slow, corpus_sweep),
