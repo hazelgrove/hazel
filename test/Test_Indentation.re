@@ -984,7 +984,84 @@ let mod_root_indent = (~name, ~init, ~goal): test_case(_) =>
     )
   );
 
+/* [init] at [root] (the caret at ¦), then Enter: where the new line's
+   caret lands */
+let enter_at = (~root, ~name, ~init, ~goal): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let (before, after) =
+        switch (StringUtil.plain_split(init, caret_char)) {
+        | [before, after] => (before, after)
+        | _ => fail("one caret: " ++ init)
+        };
+      let lines = String.split_on_char('\n', before);
+      let pt: Point.t = {
+        row: List.length(lines) - 1,
+        col: String.length(ListUtil.last(lines)),
+      };
+      let go = (z: Zipper.t, a: Action.t) =>
+        switch (
+          Perform.go(
+            ~settings=default_settings,
+            ~statics=CachedStatics.empty,
+            ~syntax=CachedSyntax.init(~root, z),
+            ~root,
+            a,
+            {
+              zipper: z,
+              col_target: None,
+            },
+          )
+        ) {
+        | Ok(z) => z
+        | Error(e) => fail(Action.Failure.show(e))
+        };
+      let z = Zipper.unzip(CorpusUtil.seg_of(~root, before ++ after));
+      let z = go(go(z, Move(Point(pt, None))), Insert("\n"));
+      check(
+        string,
+        name,
+        goal,
+        Printer.of_zipper(~holes=convex_char, ~caret=caret_char, z),
+      );
+    },
+  );
+
 let module_indentation_tests = [
+  enter_at(
+    ~root=Sort.Exp,
+    ~name="Enter after a module's last member: member level",
+    ~init="module M = {\n  let a = 1;\n  let b = 2¦\n} in\nM.a",
+    ~goal="module M = {\n  let a = 1;\n  let b = 2\n  ¦\n} in\nM.a",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after a module's last member at a Mod root",
+    ~init="module M = {\n  let a = 1¦\n};\nM.a",
+    ~goal="module M = {\n  let a = 1\n  ¦\n};\nM.a",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after a nested module's last member",
+    ~init=
+      "module Outer = {\n  module Inner = {\n    let value = true¦\n  };\n  let w = 1\n};\nOuter.w",
+    ~goal=
+      "module Outer = {\n  module Inner = {\n    let value = true\n    ¦\n  };\n  let w = 1\n};\nOuter.w",
+  ),
+  enter_at(
+    ~root=Sort.Exp,
+    ~name="Enter after a signature's last member",
+    ~init="module M : {\n  let x : Int¦\n} = {\n  let x = 1\n} in\nM.x",
+    ~goal="module M : {\n  let x : Int\n  ¦\n} = {\n  let x = 1\n} in\nM.x",
+  ),
+  enter_at(
+    ~root=Sort.Exp,
+    ~name="Enter before a module's `}`: the `}` line at the braces",
+    ~init="module M = {\n  let a = 1¦} in\nM.a",
+    ~goal="module M = {\n  let a = 1\n¦} in\nM.a",
+  ),
   mod_root_indent(
     ~name="Mod root: members after a multi-line member stay at the top",
     ~init={|let f = fun x ->

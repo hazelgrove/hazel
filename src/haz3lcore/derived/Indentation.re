@@ -187,6 +187,10 @@ let is_module_semi = (p: Piece.t): bool =>
   | _ => false
   };
 
+/* a `{`'s member list: a module's members, or a signature's */
+let is_member_body = (t: Tile.t): bool =>
+  List.exists(s => s == Sort.Mod || s == Sort.Sig, Tile.mold(t).in_);
+
 /* Check if piece is convex grout (hole for missing expression/pattern) */
 let is_convex_grout = (p: Piece.t): bool =>
   switch (p) {
@@ -212,7 +216,13 @@ let is_incrementor = (p: Piece.t): bool =>
 exception Found_indent(int);
 
 let rec go =
-        (~not_top, ~target_id: option(Id.t)=?, base: int, seg: Segment.t)
+        (
+          ~not_top,
+          ~members=false,
+          ~target_id: option(Id.t)=?,
+          base: int,
+          seg: Segment.t,
+        )
         : Id.Map.t(int) => {
   let complete_trimmed_seg = complete_segment(trim_non_content(seg));
   let context = compute_context(complete_trimmed_seg);
@@ -269,6 +279,9 @@ let rec go =
                   == Some(true) => base
             | (_, Some(next)) when Piece.is_case_rule(next) => base
             | (_, None) => base
+            /* a fresh line past a member list's last member is the next
+               member's; only the `}` line goes back to the braces */
+            | _ when members && effective_next == None => base + 2
             /* If next is linebreak but eff_next is None, effectively at end */
             | _ when effective_next == None => base
             | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
@@ -292,11 +305,15 @@ let rec go =
         | Grout(_)
         | Projector(_) => (level, map)
         | Tile(t) =>
+          let members = is_member_body(t);
           switch (target_id) {
           | Some(_) =>
             /* target mode: just recurse, don't accumulate */
             List.iter(
-              child => ignore(go(~not_top=true, ~target_id?, level, child)),
+              child =>
+                ignore(
+                  go(~not_top=true, ~members, ~target_id?, level, child),
+                ),
               t.children,
             );
             (level, map);
@@ -306,14 +323,14 @@ let rec go =
                 (acc, child) =>
                   Id.Map.union(
                     (_, a, _) => Some(a),
-                    go(~not_top=true, level, child),
+                    go(~not_top=true, ~members, level, child),
                     acc,
                   ),
                 map,
                 t.children,
               );
             (level, map);
-          }
+          };
         };
       },
       (base, Id.Map.empty),
