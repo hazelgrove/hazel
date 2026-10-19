@@ -126,6 +126,16 @@ let palette: list(string) = seeds @ derived;
    rather than where it happens to be plumbed. A color a scheme only states,
    such as the probe fills, is a palette entry rather than a role that would
    just forward it. */
+/* The block behind every term, one fill and one edge per type head. */
+let type_block_roles: list(string) =
+  List.concat_map(
+    head => {
+      let name = Typ.head_name(head);
+      [name, name ++ "-edge"];
+    },
+    Typ.all_of_head,
+  );
+
 let role_groups: list((string, list(string))) = [
   ("menu", ["nut", "background", "hover", "divider", "shadow"]),
   (
@@ -224,7 +234,7 @@ let role_groups: list((string, list(string))) = [
   ("completion", ["chip-text", "later-text", "later-text-at-caret"]),
   ("projector", ["textarea-text", "fold-background", "statics-arm"]),
   ("agent", ["banner", "banner-edge"]),
-  ("type-block", List.map(Typ.head_name, Typ.all_of_head)),
+  ("type-block", type_block_roles),
 ];
 
 /* Declared, not inferred: low-contrast seeds could otherwise flip polarity
