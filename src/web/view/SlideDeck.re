@@ -333,6 +333,7 @@ let update =
             agent,
             lib: None,
             lib_gen: 0,
+            world: None,
           }),
           model,
         );
@@ -370,6 +371,7 @@ let update =
               agent,
               lib: None,
               lib_gen: 0,
+              world: None,
             }),
             model,
           )

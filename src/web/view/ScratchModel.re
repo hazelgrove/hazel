@@ -17,6 +17,9 @@ module Scratchpad = {
     /* the library generation this slide was last checked and run against
        (LibraryDoc.generation) */
     lib_gen: int,
+    /* in the library's world (WorldSlide): the slide's module, whose
+       members are what the slide stores */
+    world: option(Id.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -53,7 +56,7 @@ module Scratchpad = {
     kind: kind_persistent,
   };
 
-  let mk_code = (~name, ~editor, ~agent=Agent.Utils.init(), ()): t => {
+  let mk_code = (~name, ~editor, ~agent=Agent.Utils.init(), ~world=?, ()): t => {
     name,
     kind:
       Code({
@@ -62,6 +65,7 @@ module Scratchpad = {
         agent,
         lib: None,
         lib_gen: 0,
+        world,
       }),
     dormant: false,
   };

@@ -190,6 +190,8 @@ module Update = {
         ~extra_dynamics: option(Language.Dynamics.Map.t)=?,
         /* probes outside the program, in code it runs (the library's) */
         ~extra_targets: option(Language.Sample.targets)=?,
+        /* the statics the run reads (a world slide's: its own item) */
+        ~run: Haz3lcore.CachedStatics.t => Haz3lcore.CachedStatics.t=s => s,
         ~show_value=?,
         ~queue_worker,
         ~stitch,
@@ -232,7 +234,7 @@ module Update = {
         ~is_edited,
         ~stepping=stepping(editor),
         ~extra_targets?,
-        editor |> CodeEditable.Model.get_statics,
+        run(editor |> CodeEditable.Model.get_statics),
         result,
       );
     let (cell, steps_resized) =

@@ -56,6 +56,9 @@ module Action = {
     | ResetLibrary
     /* the library's pending edit, once typing pauses */
     | ApplyLibrary
+    /* a world's library replaced by the one that runs (an edit applied
+       elsewhere) */
+    | JoinLibrary
     /* park (true) or unpark the pins at this level */
     | ShowWhole(bool)
     /* open and close cells to match the view (after undo) */
@@ -196,12 +199,23 @@ let fresh_term = (program: Program.t): Language.Exp.t =>
     | Divided(d) => Divided.document(d)
     },
   );
+/* the context a slide's program is checked in: a world's sees the
+   library as its own items (WorldSlide.ctx) */
+let ctx_in = (code: code): option(Language.Ctx.t) =>
+  Option.map(_ => WorldSlide.ctx(), code.world);
+
 let fresh_info_map =
-    (~settings: Settings.t, program: Program.t, term: Language.Exp.t)
+    (
+      ~settings: Settings.t,
+      ~ctx_in=?,
+      program: Program.t,
+      term: Language.Exp.t,
+    )
     : Language.Statics.Map.t =>
   settings.core.statics
     ? CachedStatics.init_compositional_term(
         ~settings=settings.core,
+        ~ctx_in?,
         ~probe_ids=Program.probe_ids(program),
         term,
       ).
@@ -237,6 +251,7 @@ let with_segment =
     settings.core.statics
       ? Haz3lcore.CachedStatics.init_compositional_term(
           ~settings=settings.core,
+          ~ctx_in=?ctx_in(code),
           ~probe_ids=
             CachedStatics.probe_ids_of_zipper(
               fresh.editor.editor.state.zipper,
@@ -287,12 +302,13 @@ let with_segment =
 /* the program as an item edit sees it: parsed from the current
    document, which the statics may lag */
 let item_ctx =
-    (~settings: Settings.t, ~folds, program: Program.t): ItemEdit.ctx => {
+    (~settings: Settings.t, ~ctx_in=?, ~folds, program: Program.t)
+    : ItemEdit.ctx => {
   let term = fresh_term(program);
   {
     mod_root: Program.root(program) == Haz3lcore.Sort.Mod,
     term,
-    info_map: lazy(fresh_info_map(~settings, program, term)),
+    info_map: lazy(fresh_info_map(~settings, ~ctx_in?, program, term)),
     is_open: id => OutlineTree.expanded(~folds, id, term),
   };
 };
@@ -550,6 +566,15 @@ let update =
   | ZoomIn(fid) =>
     outline_view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)
   | ZoomOut => outline_view((_, _, v) => SlideView.zoom_out(v), code)
+  /* a world's library is its own items: the program level */
+  | ShowLibrary(shown) when code.world != None =>
+    outline_view(
+      (term, _, v) =>
+        shown
+          ? SlideView.zoom_to(None, v)
+          : SlideView.zoom_in(~term, Option.get(code.world), v),
+      code,
+    )
   | ShowLibrary(shown) => show_library(shown, code)
   | LibraryAction(a) =>
     switch (code.lib) {
@@ -562,16 +587,41 @@ let update =
     | None => code |> return_quiet
     }
   | ApplyLibrary =>
-    Option.iter(
-      ed =>
-        switch (LibraryDoc.apply_editor(ed)) {
-        | Ok(_) => ()
-        | Error(msg) => print_endline("stdlib: not applied: " ++ msg)
-        },
-      code.lib,
-    );
+    let applied =
+      switch (code.world, code.lib) {
+      | (Some(slide), _) =>
+        Option.map(
+          lib =>
+            LibraryDoc.apply_segment(
+              Printer.of_segment(~holes="?", lib),
+              lib,
+            ),
+          WorldSlide.library_edit(~slide, Program.document(code.program)),
+        )
+      | (None, Some(ed)) => Some(LibraryDoc.apply_editor(ed))
+      | (None, None) => None
+      };
+    switch (applied) {
+    | Some(Error(msg)) => print_endline("stdlib: not applied: " ++ msg)
+    | _ => ()
+    };
     /* its slide runs again: calculate sees the new generation */
     code |> Updated.return_quiet;
+  | JoinLibrary =>
+    switch (code.world) {
+    | Some(slide) =>
+      switch (
+        WorldSlide.with_running_library(
+          ~slide,
+          Program.document(code.program),
+        )
+      ) {
+      | Some(doc) =>
+        with_segment(~settings, code, doc) |> return(~historic=false)
+      | None => code |> return_quiet
+      }
+    | None => code |> return_quiet
+    }
   | ResetLibrary =>
     LibraryDoc.cancel_apply();
     LibraryDoc.reset();
@@ -590,7 +640,8 @@ let update =
        away, so the view is realized against fresh ones */
     let term = fresh_term(code.program);
     realize(
-      ~info_map=fresh_info_map(~settings, code.program, term),
+      ~info_map=
+        fresh_info_map(~settings, ~ctx_in=?ctx_in(code), code.program, term),
       ~term,
       code.view,
       code,
@@ -605,6 +656,15 @@ let update =
       view((term, _, _) => Persist.resolve_view(saved, term), code);
     | None => code |> return_quiet /* statics not ready: retry */
     }
+  | RestoreCaret(p) when code.world != None =>
+    /* a world slide's caret is in its members' cell, once it opens */
+    let slide = Option.get(code.world);
+    switch (code.program) {
+    | Divided(d) when Divided.cell(slide, d) != None =>
+      Hashtbl.remove(Persist.pending_caret, slide_key);
+      cell_update(slide, Body, MainEditor(Perform(Move(Point(p, None)))));
+    | _ => code |> return_quiet
+    };
   | RestoreCaret(p) =>
     /* cleared here, not when scheduled: boot's calculate has a no-op
        scheduler, so the entry must survive until a real loop runs it */
@@ -692,9 +752,16 @@ let calculate_slide =
   let program = code.program;
   /* restore a loaded slide's saved caret: the Move runs as its own
      follow-up action, after this calculate builds measured */
-  switch (Hashtbl.find_opt(Persist.pending_caret, slide_key)) {
-  | Some(p) => schedule_action(RestoreCaret(p))
-  | None => ()
+  switch (Hashtbl.find_opt(Persist.pending_caret, slide_key), code.world) {
+  /* a world slide's, once its members' cell is open */
+  | (Some(p), Some(slide)) =>
+    switch (program) {
+    | Divided(d) when Divided.cell(slide, d) != None =>
+      schedule_action(RestoreCaret(p))
+    | _ => ()
+    }
+  | (Some(p), None) => schedule_action(RestoreCaret(p))
+  | (None, _) => ()
   };
   if (Option.is_some(saved_view(~slide_key, code))) {
     schedule_action(RestorePins);
@@ -712,6 +779,12 @@ let calculate_slide =
       statics: false,
       dynamics: false,
     };
+  /* a world runs its slide's item, the library from the bake; the
+     library's probes are its own items' */
+  let run = Option.map(slide => WorldSlide.run_statics(~slide), code.world);
+  let library_targets =
+    code.world == None
+      ? LibraryDoc.targets(~settings) : Language.Sample.no_targets;
   let program =
     switch (program) {
     | Whole(editor) =>
@@ -725,8 +798,10 @@ let calculate_slide =
           ~is_edited,
           ~statics_mode,
           ~compositional=true,
+          ~ctx=?ctx_in(code),
+          ~run?,
           ~show_value=false,
-          ~extra_targets=LibraryDoc.targets(~settings),
+          ~extra_targets=library_targets,
           ~queue_worker,
           ~stitch=x => x,
           editor,
@@ -769,12 +844,17 @@ let calculate_slide =
           let term =
             Haz3lcore.MakeTerm.semantic_term(~root=Divided.root(d), spliced);
           let prev_items =
-            switch (Haz3lcore.DefStatics.cached(term)) {
+            switch (Haz3lcore.DefStatics.cached(~ctx_in=?ctx_in(code), term)) {
             | Some(p) => p.items
             | None => []
             };
           let ds =
-            Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
+            Haz3lcore.DefStatics.calc_auto(
+              ~settings,
+              ~ctx_in=?ctx_in(code),
+              ~probe_ids,
+              term,
+            );
           let statics = {
             ...
               Haz3lcore.CachedStatics.of_def_statics(
@@ -865,8 +945,8 @@ let calculate_slide =
                 (st: Haz3lcore.ProjectorBase.stepping) => st.span,
                 stepping,
               ),
-            ~extra_targets=LibraryDoc.targets(~settings),
-            Divided.statics(d),
+            ~extra_targets=library_targets,
+            Option.fold(~none=s => s, ~some=f => f, run, Divided.statics(d)),
             Divided.result(d),
           ),
           d,
@@ -1070,6 +1150,19 @@ let calculate =
   /* the library changed since this slide last ran: check and run it
      again, shown or not (its run feeds the library's probes) */
   let stale = code.lib_gen != LibraryDoc.generation^;
+  /* a world holding a library that isn't the one that runs: edited here
+     (it applies once typing pauses), or applied elsewhere since (this
+     world takes it) */
+  switch (code.world) {
+  | Some(slide) when is_edited || stale =>
+    switch (WorldSlide.library_edit(~slide, Program.document(code.program))) {
+    | Some(_) when stale => schedule_action(JoinLibrary)
+    | Some(_) =>
+      LibraryDoc.apply_when_idle(~fire=() => schedule_action(ApplyLibrary))
+    | None => ()
+    }
+  | _ => ()
+  };
   let code =
     calculate_slide(
       ~settings,

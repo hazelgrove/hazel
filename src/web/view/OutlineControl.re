@@ -90,6 +90,13 @@ let slide_name = (deck: deck): string =>
   | None => ""
   };
 
+/* the slide's module, if its program is the library's world */
+let world_of = (deck: option(deck)): option(Id.t) =>
+  switch (Option.bind(deck, current)) {
+  | Some({kind: Code({world, _}), _}) => world
+  | _ => None
+  };
+
 let program_of = (deck: option(deck)): option(Program.t) =>
   switch (Option.bind(deck, current)) {
   | Some({kind: Code({program, _}), _}) => Some(program)
@@ -451,7 +458,13 @@ let create =
   | (New(anchor, place), Some(t))
       when E.same_line(t.line, line) && t.fresh == None =>
     let program = code.program;
-    let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
+    let ctx =
+      Workspace.item_ctx(
+        ~settings,
+        ~ctx_in=?Workspace.ctx_in(code),
+        ~folds=[],
+        program,
+      );
     switch (
       ItemEdit.edit(
         ctx,
@@ -517,7 +530,13 @@ let remake =
   | New(anchor, place) =>
     let program = code.program;
     let doc = Program.document(program);
-    let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
+    let ctx =
+      Workspace.item_ctx(
+        ~settings,
+        ~ctx_in=?Workspace.ctx_in(code),
+        ~folds=[],
+        program,
+      );
     let (pat, col) =
       switch (keep_name, live_name(program, f.f_id)) {
       | (true, Some({l_name, l_at, _})) when String.trim(l_name) != "" => (
@@ -617,7 +636,13 @@ let drop =
     (~settings: Settings.t, line: E.line, d: Id.t, code: Scratchpad.code)
     : Updated.t(Scratchpad.code) => {
   let program = code.program;
-  let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
+  let ctx =
+    Workspace.item_ctx(
+      ~settings,
+      ~ctx_in=?Workspace.ctx_in(code),
+      ~folds=[],
+      program,
+    );
   switch (ItemEdit.edit(ctx, Op(Delete, d), Program.document(program))) {
   | Ok((seg, _)) =>
     let caret =
@@ -667,6 +692,7 @@ let update =
     let ctx =
       Workspace.item_ctx(
         ~settings,
+        ~ctx_in=?Workspace.ctx_in(code),
         ~folds=Persist.folds(prefix, name),
         program,
       );
@@ -756,7 +782,13 @@ let update =
       code |> Updated.return_quiet;
     };
     let program = code.program;
-    let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
+    let ctx =
+      Workspace.item_ctx(
+        ~settings,
+        ~ctx_in=?Workspace.ctx_in(code),
+        ~folds=[],
+        program,
+      );
     /* the save landed: row mode's cursor on the row, if it was left */
     let landed = (code: Scratchpad.code, id: Id.t) =>
       if (E.exits(after)) {
@@ -888,7 +920,13 @@ let update =
                      ) =>
             let term = Lazy.force(term);
             Workspace.realize(
-              ~info_map=Workspace.fresh_info_map(~settings, program, term),
+              ~info_map=
+                Workspace.fresh_info_map(
+                  ~settings,
+                  ~ctx_in=?Workspace.ctx_in(code),
+                  program,
+                  term,
+                ),
               ~term,
               SlideView.pin(~term, f.f_id, code.view),
               code,
@@ -1206,8 +1244,12 @@ let view =
           ~rows=OutlineTree.collect(OutlineTree.of_term(term)),
           statics.error_ids,
         );
+      /* in the library's world, the slide's module goes by the slide's
+         name, and the program by the level above's crumb */
+      let world = world_of(deck);
       let label = id =>
         switch (OutlineTree.node_of(id, term)) {
+        | _ when world == Some(id) => name
         | Some(n) => n.o_label
         | None => ""
         };
@@ -1252,7 +1294,7 @@ let view =
         folded: (path, n) => OutlineTree.folded(~folds, path, n.o_kind),
         header: {
           h_level: level,
-          h_program: name,
+          h_program: world == None ? name : "",
           h_trail:
             switch (slide_view) {
             | Some(v) => List.map(id => (id, label(id)), v.zoom)

@@ -2011,8 +2011,8 @@ let calc_auto =
 
 /* the last calc of [whole]'s document, if still cached and against the
    current library */
-let cached = (whole: Exp.t): option(t) =>
+let cached = (~ctx_in=ctx0(), whole: Exp.t): option(t) =>
   switch (List.assoc_opt(Exp.rep_id(whole), slots^)) {
-  | Some(t) when t.ctx_in === ctx0() => Some(t)
+  | Some(t) when t.ctx_in === ctx_in => Some(t)
   | _ => None
   };

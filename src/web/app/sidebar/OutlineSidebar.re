@@ -1966,8 +1966,12 @@ let keys =
    crumb zooms out to it; the last one shows its level's whole */
 let header_view =
     (~on: handlers, ~typing: bool, header: header): list(Node.t) => {
+  /* no program crumb: the level above's crumb is the program (a world) */
   let crumbs =
-    [(Option.none, short_name(header.h_program))]
+    (
+      header.h_program == ""
+        ? [] : [(Option.none, short_name(header.h_program))]
+    )
     @ List.map(((id, l)) => (Option.some(id), l), header.h_trail);
   let n = List.length(crumbs);
   let sep =
