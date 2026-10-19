@@ -259,7 +259,7 @@ let rec go =
                the braces (their `;` has no `in` to exempt it); a
                module-rooted editor's top level has no braces */
             | (Some(prev), _) when is_module_semi(prev) =>
-              not_top ? base + 2 : base
+              not_top ? MemberLines.member_level(base) : base
             /* Incomplete case rules (just `|`) shouldn't increment.
              * An incomplete `|` is Concave on right, so would match
              * is_incrementor without this check. */
@@ -281,7 +281,8 @@ let rec go =
             | (_, None) => base
             /* a fresh line past a member list's last member is the next
                member's; only the `}` line goes back to the braces */
-            | _ when members && effective_next == None => base + 2
+            | _ when members && effective_next == None =>
+              MemberLines.member_level(base)
             /* If next is linebreak but eff_next is None, effectively at end */
             | _ when effective_next == None => base
             | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
@@ -335,7 +336,7 @@ let rec go =
       },
       /* a member started on the `{` line sits at member level, as one
          on a line of its own does */
-      (members ? base + 2 : base, Id.Map.empty),
+      (members ? MemberLines.member_level(base) : base, Id.Map.empty),
       complete_trimmed_seg,
       context,
     );

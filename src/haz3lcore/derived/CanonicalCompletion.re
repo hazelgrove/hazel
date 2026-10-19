@@ -1906,17 +1906,17 @@ let rec complete_segment =
           ~use_indent_heuristic=true,
           ~only_tile: option(Id.t)=None,
           ~follows: option(follows)=None,
-          ~col=0,
+          ~line: option(int)=None,
           sort: Sort.t,
           seg: Segment.t,
         )
         : completion_result => {
   let n_incomplete_in = List.length(Segment.incomplete_tiles_deep(seg));
-  /* a member list's first line starts at its column (past the `{`); any
-     other level's lines by their own indentation */
-  let col = at_members(sort) ? col : 0;
-  let partitioned = partition_segment(~use_indent_heuristic, ~col, seg);
-  let ends = member_ends(~col, ~sort, ~follows, seg, partitioned);
+  /* a member level started mid-line counts its first line at [line] (past
+     a `{`, the member level); any other level by its own indentation */
+  let line = at_members(sort) ? line : None;
+  let partitioned = partition_segment(~use_indent_heuristic, ~line, seg);
+  let ends = member_ends(~line, ~sort, ~follows, seg, partitioned);
   /* [follows]: [seg] is a prefix of its level, cut where a member ends;
      the regrout meets what follows as it is */
   let bounds = (
@@ -2295,7 +2295,7 @@ let rec complete_segment =
         complete_segment_deep(
           ~use_indent_heuristic,
           ~follows,
-          ~col,
+          ~line,
           ~sort,
           completed_seg,
         );
@@ -2419,42 +2419,35 @@ let rec complete_segment =
 }
 
 /* Complete a segment recursively (descends into tile children).
- * Collects insertions from all levels for visualization. [col]: the
- * column [seg] starts at (a module's members past its `{`) */
+ * Collects insertions from all levels for visualization. [line]: the
+ * level of [seg]'s first line, when it starts mid-line */
 and complete_segment_deep =
     (
       ~use_indent_heuristic=true,
       ~only_tile: option(Id.t)=None,
       ~follows: option(follows)=None,
-      ~col=0,
+      ~line: option(int)=None,
       ~sort,
       seg: Segment.t,
     )
     : completion_result => {
-  /* each child from the column it starts at, the tile at [col] */
+  /* each child on the line of its tile, at [level]; a member list at its
+     module's member level */
   let complete_tile_children =
-      (~col, t: Tile.t)
-      : (list(Segment.t), list(insertion), list(shard_record)) => {
-    let rec with_starts = (kids, starts) =>
-      switch (kids, starts) {
-      | ([], _) => []
-      | ([kid, ...kids], [c, ...starts]) => [
-          (kid, c),
-          ...with_starts(kids, starts),
-        ]
-      | ([kid, ...kids], []) => [(kid, col), ...with_starts(kids, [])]
-      };
-    with_starts(
-      Tile.sorted_children(t),
-      fst(MemberLines.tile_layout(col, t)),
-    )
+      (~level, t: Tile.t)
+      : (list(Segment.t), list(insertion), list(shard_record)) =>
+    Tile.sorted_children(t)
     |> List.fold_left(
-         ((segs_acc, ins_acc, rec_acc), ((child_sort, child), col)) => {
+         ((segs_acc, ins_acc, rec_acc), (child_sort, child)) => {
            let result =
              complete_segment_deep(
                ~use_indent_heuristic,
                ~only_tile,
-               ~col,
+               ~line=
+                 Some(
+                   at_members(child_sort)
+                     ? MemberLines.member_level(level) : level,
+                 ),
                ~sort=child_sort,
                child,
              );
@@ -2466,16 +2459,20 @@ and complete_segment_deep =
          },
          ([], [], []),
        );
-  };
 
+  /* the level of the line so far, and whether its indentation still runs */
   let (seg_with_completed_children, child_insertions, child_records, _) =
     List.fold_left(
-      ((seg_acc, ins_acc, rec_acc, col), piece) => {
-        let col' = MemberLines.col_after_piece(col, piece);
+      ((seg_acc, ins_acc, rec_acc, (level, run)), piece) => {
+        let at =
+          Piece.is_linebreak(piece)
+            ? (0, true)
+            : run && Piece.is_space(piece)
+                ? (level + 1, true) : (level, false);
         switch (piece) {
         | Piece.Tile(t) =>
           let (completed_children, tile_insertions, tile_records) =
-            complete_tile_children(~col, t);
+            complete_tile_children(~level, t);
           let new_tile =
             Piece.Tile({
               ...t,
@@ -2485,12 +2482,20 @@ and complete_segment_deep =
             seg_acc @ [new_tile],
             ins_acc @ tile_insertions,
             rec_acc @ tile_records,
-            col',
+            at,
           );
-        | p => (seg_acc @ [p], ins_acc, rec_acc, col')
+        | p => (seg_acc @ [p], ins_acc, rec_acc, at)
         };
       },
-      ([], [], [], col),
+      (
+        [],
+        [],
+        [],
+        switch (line) {
+        | Some(l) => (l, false)
+        | None => (0, true)
+        },
+      ),
       seg,
     );
 
@@ -2499,7 +2504,7 @@ and complete_segment_deep =
       ~use_indent_heuristic,
       ~only_tile,
       ~follows,
-      ~col,
+      ~line,
       sort,
       seg_with_completed_children,
     );
@@ -2810,7 +2815,7 @@ let by_pieces =
 let item_cache:
   Swept.t(
     (Sort.t, Id.t),
-    (Segment.t, option(follows), int, completion_result),
+    (Segment.t, option(follows), option(int), completion_result),
   ) =
   Swept.mk();
 let items_completed: ref(int) = ref(0); /* observability for tests */
@@ -2970,7 +2975,7 @@ let closes_member = (seg: Segment.t): bool => {
 };
 
 let rec complete_item_uncached =
-        (~col=0, ~sort, ~follows=None, item: Segment.t): completion_result =>
+        (~line=None, ~sort, ~follows=None, item: Segment.t): completion_result =>
   switch (Segment.incomplete_tiles_deep(item)) {
   | [] when !has_open_slot(~sort, ~follows, item) => {
       completed_seg: item,
@@ -2979,12 +2984,13 @@ let rec complete_item_uncached =
     }
   | incomplete =>
     switch (
-      follows == None ? complete_members(~col, ~sort, incomplete, item) : None
+      follows == None
+        ? complete_members(~line, ~sort, incomplete, item) : None
     ) {
     | Some(r) => r
     | None =>
       incr(items_completed);
-      let result = complete_segment_deep(~col, ~sort, ~follows, item);
+      let result = complete_segment_deep(~line, ~sort, ~follows, item);
       {
         ...result,
         insertions:
@@ -2997,19 +3003,20 @@ let rec complete_item_uncached =
     }
   }
 
-/* [col]: the column [item] starts at */
+/* [line]: the level of [item]'s first line, when it starts mid-line */
 and complete_item =
-    (~col=0, ~sort, ~follows=None, item: Segment.t): completion_result =>
+    (~line=None, ~sort, ~follows=None, item: Segment.t): completion_result =>
   switch (item) {
-  | [] => complete_item_uncached(~col, ~sort, ~follows, item)
+  | [] => complete_item_uncached(~line, ~sort, ~follows, item)
   | [p, ..._] =>
     let key = (sort, Piece.id(p));
     switch (Swept.find_opt(item_cache, key)) {
-    | Some((ps, f, c, r))
-        when Segment.ptr_eq(ps, item) && same_follows(f, follows) && c == col => r
+    | Some((ps, f, l, r))
+        when
+          Segment.ptr_eq(ps, item) && same_follows(f, follows) && l == line => r
     /* an untouched item comes back as itself, not as the entry's pieces */
-    | Some((ps, f, c, r))
-        when same_pieces(ps, item) && same_follows(f, follows) && c == col =>
+    | Some((ps, f, l, r))
+        when same_pieces(ps, item) && same_follows(f, follows) && l == line =>
       r.completed_seg === ps
         ? {
           ...r,
@@ -3018,8 +3025,8 @@ and complete_item =
         : r
     | _ =>
       incr(items_missed);
-      let r = complete_item_uncached(~col, ~sort, ~follows, item);
-      Swept.replace(item_cache, key, (item, follows, col, r));
+      let r = complete_item_uncached(~line, ~sort, ~follows, item);
+      Swept.replace(item_cache, key, (item, follows, line, r));
       r;
     };
   }
@@ -3030,14 +3037,14 @@ and complete_item =
    item by item. None (an incomplete shell, a missing `}`): complete it
    whole */
 and complete_members =
-    (~col, ~sort, incomplete: list(Tile.t), item: Segment.t)
+    (~line, ~sort, incomplete: list(Tile.t), item: Segment.t)
     : option(completion_result) => {
   let holds_all = (parts: list(Segment.t)) =>
     List.length(List.concat_map(Segment.incomplete_tiles_deep, parts))
     == List.length(incomplete);
-  let compose = (~sort, ~col, parts, put) => {
+  let compose = (~sort, ~line, parts, put) => {
     incr(items_by_member);
-    let results = complete_slices(~col, ~sort, parts);
+    let results = complete_slices(~line, ~sort, parts);
     Some({
       completed_seg: put(List.concat_map(r => r.completed_seg, results)),
       shard_records: List.concat_map(r => r.shard_records, results),
@@ -3050,16 +3057,16 @@ and complete_members =
   let mod_semi = List.exists(Piece.is_semi);
   /* an open slot at the item's own member level is not its parts' */
   let own_open = at_members(sort) && open_slots(item) != [];
-  switch (own_open ? None : ItemSpans.module_item(~root=sort, ~col, item)) {
-  | Some((members, put, col)) =>
-    holds_all(members) ? compose(~sort=Sort.Mod, ~col, members, put) : None
+  switch (own_open ? None : ItemSpans.module_item(~root=sort, ~line, item)) {
+  | Some((members, put, line)) =>
+    holds_all(members) ? compose(~sort=Sort.Mod, ~line, members, put) : None
   | None =>
     switch (
-      sort == Sort.Mod && !own_open ? ItemSpans.chain_item(~col, item) : None
+      sort == Sort.Mod && !own_open ? ItemSpans.chain_item(~line, item) : None
     ) {
-    | Some((items, put, col))
+    | Some((items, put, line))
         when holds_all(items) && !List.exists(mod_semi, items) =>
-      compose(~sort=Sort.Exp, ~col, items, put)
+      compose(~sort=Sort.Exp, ~line, items, put)
     | _ => None
     }
   };
@@ -3068,18 +3075,19 @@ and complete_members =
 /* a level's slices completed one by one. Edge grout is cut debris only at
    a cut: the level's own ends keep theirs (a missing body at the end of
    the program is real). [opened]: an earlier block left a tile open on
-   the right. [col]: the column the level starts at */
+   the right. [line]: the level of the level's first line, when it starts
+   mid-line */
 and complete_slices =
-    (~col=0, ~sort, items: list(Segment.t)): list(completion_result) => {
+    (~line=None, ~sort, items: list(Segment.t)): list(completion_result) => {
   let units =
     at_members(sort)
       ? List.fold_left(
-          ((acc, col), item) =>
+          ((acc, line), item) =>
             (
-              List.rev_append(member_parts(~col, ~sort, item), acc),
-              MemberLines.col_after(col, item),
+              List.rev_append(member_parts(~line, ~sort, item), acc),
+              MemberLines.line_after(~line, item),
             ),
-          ([], col),
+          ([], line),
           items,
         )
         |> fst
@@ -3096,13 +3104,18 @@ and complete_slices =
     )
     |> List.rev;
   let rec go =
-          (~first: bool, ~opened: bool, ~col: int, units: list(unit_))
+          (
+            ~first: bool,
+            ~opened: bool,
+            ~line: option(int),
+            units: list(unit_),
+          )
           : list(completion_result) =>
     switch (units) {
     | [] => []
     | [unit, ...rest] =>
       let ((block, follows), rest) = cached_block(~sort, unit, rest);
-      let r = complete_item(~col, ~sort, ~follows, block);
+      let r = complete_item(~line, ~sort, ~follows, block);
       /* only a complete item comes back without records */
       let r =
         switch (
@@ -3142,7 +3155,7 @@ and complete_slices =
           go(
             ~first,
             ~opened,
-            ~col,
+            ~line,
             [(block @ next, next_follows), ...more],
           );
         } else {
@@ -3152,14 +3165,14 @@ and complete_slices =
             ...go(
                  ~first=false,
                  ~opened,
-                 ~col=MemberLines.col_after(col, block),
+                 ~line=MemberLines.line_after(~line, block),
                  rest,
                ),
           ];
         };
       };
     };
-  go(~first=true, ~opened=false, ~col, units);
+  go(~first=true, ~opened=false, ~line, units);
 };
 
 let complete_items = (~sort, seg: Segment.t): completion_result => {

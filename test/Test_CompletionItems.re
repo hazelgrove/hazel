@@ -293,10 +293,10 @@ let rec check_item = (name: string, ~sort: Sort.t, item: Segment.t): int => {
   if (!by_member) {
     0;
   } else {
-    switch (split(ItemSpans.module_item(~root=sort, ~col=0))) {
+    switch (split(ItemSpans.module_item(~root=sort, ~line=None))) {
     | Some((before, after)) => 1 + parts(~sort=Mod, "member", before, after)
     | None =>
-      switch (split(ItemSpans.chain_item(~col=0))) {
+      switch (split(ItemSpans.chain_item(~line=None))) {
       | Some((before, after)) =>
         1 + parts(~sort=Exp, "chain item", before, after)
       | None => fail(name ++ ": read per member, but has no members")
