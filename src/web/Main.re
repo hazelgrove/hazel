@@ -294,8 +294,8 @@ let start = default_model => {
         /* Update floating elements (probe menus) to viewport coordinates */
         FloatingElement.setup_scroll_listener();
         FloatingElement.update_all();
-        let editor =
-          Page.Update.get_editor(model.model.current.current).editor;
+        let code = Page.Update.get_editor(model.model.current.current);
+        let editor = code.editor;
         let zipper = editor.state.zipper;
         let measured = editor.syntax.measured;
         let font_metrics = model.model.current.current.globals.font_metrics;
@@ -309,7 +309,12 @@ let start = default_model => {
         RefractorShift.update(
           ~editor_key=
             Editors.Model.editor_key(model.model.current.current.editors),
-          ~font_metrics,
+          ~grid=
+            CodeWithStatics.layout(
+              ~globals=model.model.current.current.globals,
+              code,
+            ).
+              grid,
           ~refractor_rows=editor.syntax.refractor_rows,
           ~measured,
           zipper,
