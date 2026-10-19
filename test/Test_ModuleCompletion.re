@@ -1654,6 +1654,70 @@ let outer_member = ((name, root, src, after), ()) => {
   );
 };
 
+/* a decoration of a tile the syntax lacks draws nothing */
+let arms_without_term = () => {
+  let root = Sort.Exp;
+  let z = at_line(~root, counter, "  let next = start + 1;");
+  let syntax = CachedSyntax.init(~root, z);
+  let t =
+    List.find(
+      (t: Tile.t) => Tile.label(t) == ["next"],
+      tiles(Zipper.unselect_and_zip(z)),
+    );
+  let syntax = {
+    ...syntax,
+    terms: Id.Map.remove(t.id, syntax.terms),
+  };
+  let font_metrics = Web.FontMetrics.init;
+  let completion = Web.Arms.lazy_completion(~root, ~syntax, z);
+  check(
+    int,
+    "the term's arms",
+    0,
+    List.length(Web.Arms.term(~syntax, ~font_metrics, t)),
+  );
+  ignore(
+    Web.Arms.Errors.of_ids(~font_metrics, ~syntax, ~completion, [t.id]),
+  );
+  /* the caret on the tile, after "  let next" */
+  let z =
+    perform(
+      ~root,
+      z,
+      Move(
+        Point(
+          {
+            row: 2,
+            col: 10,
+          },
+          None,
+        ),
+      ),
+    );
+  check(
+    bool,
+    "the caret on the tile",
+    true,
+    switch (Haz3lcore.Indicated.for_decoration(z)) {
+    | Some({piece, _}) => Piece.id(piece) == t.id
+    | None => false
+    },
+  );
+  List.iter(
+    simple_indication =>
+      ignore(
+        Web.Arms.Indicated.term(
+          ~simple_indication,
+          ~font_metrics,
+          ~syntax,
+          ~completion,
+          z,
+        ),
+      ),
+    [false, true],
+  );
+};
+
 let tests = (
   "ModuleCompletion",
   List.map(
@@ -1727,6 +1791,13 @@ let tests = (
         ),
       outer_member_cases,
     )
+  @ [
+    test_case(
+      "the arms draw nothing for a tile the syntax lacks",
+      `Quick,
+      arms_without_term,
+    ),
+  ]
   @ List.map(
       ((name, c)) =>
         test_case(
