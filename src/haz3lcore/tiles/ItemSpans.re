@@ -243,24 +243,27 @@ let kid_indent =
 /* ---- the cut rule ---- */
 
 /* an item before trimming: its run [r_start, r_stop), with its trailing
-   whitespace, and where its slice ends (after its `in` or `;`) */
+   whitespace, and where its slice ends (after its `in` or separator) */
 type raw = {
   r_start: int,
   r_stop: int,
   r_cut: int,
   r_kind: kind,
   r_head: option(int),
+  /* the `;` (or a missing `;`'s grout) it ends with */
   r_semi: option(int),
 };
 
 /* An `…in` tile not in an operand's place ends a definition or directive
    (with its `in`: an unfinished `let x =` runs on); a `;` ends a
    statement unless a form before it in the item takes it into its right
-   operand. At a Mod level an item ends only at a member `;` or the
-   level's end, never after an `in`. Total: any segment divides. [nested]:
-   a definition's body, which has items only if it is divided */
+   operand. At a Mod level an item ends only at a member `;` (or, with
+   [grout], a concave grout: a missing `;`) or the level's end, never
+   after an `in`. Total: any segment divides. [nested]: a definition's
+   body, which has items only if it is divided */
 let raw_spans =
-    (~sort: Sort.t, ~nested: bool, arr: array(Piece.t)): list(raw) => {
+    (~sort: Sort.t, ~nested: bool, ~grout=false, arr: array(Piece.t))
+    : list(raw) => {
   let len = Array.length(arr);
   let at_mod = sort == Sort.Mod;
   let rec ws_end = i => i < len && is_ws(arr[i]) ? ws_end(i + 1) : i;
@@ -310,6 +313,21 @@ let raw_spans =
         upto := stop;
         walk(stop, stop, ~operand=false, [r, ...acc]);
       };
+      /* a statement or member ending with the separator at [i] */
+      let ends_at = i => {
+        let head = run_head(start, i);
+        next(
+          ws_end(i + 1),
+          {
+            r_start: start,
+            r_stop: ws_end(i + 1),
+            r_cut: i + 1,
+            r_kind: head != None ? Def : Stmt,
+            r_head: head,
+            r_semi: Some(i),
+          },
+        );
+      };
       switch (arr[i]) {
       | Tile(t) as p when !at_mod && !operand && Segment.is_in_tile(p) =>
         let stop = ws_end(i + 1);
@@ -329,18 +347,11 @@ let raw_spans =
             Tile.is_semi(t)
             && (!at_mod || t.sort == Sort.Mod)
             && reach_before(i) <= right_operand(p) =>
-        let head = run_head(start, i);
-        next(
-          ws_end(i + 1),
-          {
-            r_start: start,
-            r_stop: ws_end(i + 1),
-            r_cut: i + 1,
-            r_kind: head != None ? Def : Stmt,
-            r_head: head,
-            r_semi: Some(i),
-          },
-        );
+        ends_at(i)
+      /* a Mod skel reads a concave grout as a member `;` */
+      | Grout({shape: Concave, _})
+          when at_mod && grout && reach_before(i) <= Precedence.mod_seq =>
+        ends_at(i)
       | p =>
         walk(i + 1, start, ~operand=operand || !Piece.is_secondary(p), acc)
       };
@@ -429,6 +440,17 @@ let index_of = (spans: array(span)): Id.Map.t(int) => {
     spans,
   );
   m^;
+};
+
+/* the member separators of a member level's run: its `;`s and missing
+   `;`s' grouts that no open form before them takes, as a Mod skel reads
+   them */
+let separators = (seg: Segment.t): list(Id.t) => {
+  let arr = Array.of_list(seg);
+  List.filter_map(
+    (r: raw) => Option.map(i => Piece.id(arr[i]), r.r_semi),
+    raw_spans(~sort=Mod, ~nested=false, ~grout=true, arr),
+  );
 };
 
 /* [bol]/[eol]: the level starts/ends a line (a program does) */
