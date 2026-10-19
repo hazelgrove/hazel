@@ -129,6 +129,42 @@ let tests = (
       Some(poly("a", T.arrow(a, a))),
     ),
     fully_consistent_typecheck(
+      "List builtins are polymorphic",
+      {|map|},
+      Some(
+        poly(
+          "a",
+          poly(
+            "b",
+            T.arrow(T.prod([T.list(a), T.arrow(a, b)]), T.list(b)),
+          ),
+        ),
+      ),
+    ),
+    fully_consistent_typecheck(
+      "A builtin call gets its instance",
+      {|map([1, 2], fun x -> x + 1)|},
+      Some(T.list(T.int())),
+    ),
+    has_conflict({|append([1], ["a"])|}),
+    test_case(
+      "With inference off, a builtin call gets ? type arguments",
+      `Quick,
+      () => {
+        let exp = parse_exp({|map([1, 2], string_of_int)|});
+        let (s, _) =
+          Statics.mk(
+            {
+              ...CoreSettings.on,
+              inference: false,
+            },
+            Builtins.ctx_init(Some(Int)),
+            exp,
+          );
+        check(bool, "no errors", true, errors(s) == []);
+      },
+    ),
+    fully_consistent_typecheck(
       "Value restriction: a computed definition is not generalized",
       {|let id(x) = x in
 let compose(f, g) = fun x -> f(g(x)) in

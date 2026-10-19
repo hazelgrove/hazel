@@ -69,14 +69,17 @@ let fold(f, acc, xs) =
 
 let length(xs) = fold(fun (n, _) -> n + 1, 0, xs) in
 
+# The list builtins are polymorphic the same way: put the cursor on #
+# reverse below to see poly a -> [a] -> [a]. #
 let ex4 = (
   map(fun n -> n * 10, [1, 2, 3]),
   map(string_of_int, [4, 5]),
   filter(fun s -> string_length(s) > 1, ["a", "bb", "ccc"]),
   fold(fun (sum, n) -> sum + n, 0, [1, 2, 3]),
-  length([true, false])
+  length([true, false]),
+  reverse(["x", "y", "z"])
 ) in
-# ([10, 20, 30], ["4", "5"], ["bb", "ccc"], 6, 2) #
+# ([10, 20, 30], ["4", "5"], ["bb", "ccc"], 6, 2, ["z", "y", "x"]) #
 
 # WRITING THE TYPES YOURSELF #
 

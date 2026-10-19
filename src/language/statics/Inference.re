@@ -235,13 +235,15 @@ let rec poly_binders = (ctx: Ctx.t, ty: Typ.t): option((TPat.t, Typ.t)) =>
   };
 
 /* A `poly`-typed expression used where a non-`poly` type is expected is
-   implicitly applied to one type argument per leading binder. */
+   implicitly applied to one type argument per leading binder. With
+   inference off the arguments are `?`, so polymorphic builtins stay usable
+   exactly as gradual ones were. */
 let instantiate =
     (~ctx: Ctx.t, ~site: Id.t, ~ana: Typ.t, elab: Exp.t, syn: Typ.t)
     : (Exp.t, Typ.t, option(Message.instance)) =>
   switch (mode^) {
-  | Off => (elab, syn, None)
   | _ when poly_binders(ctx, syn) == None => (elab, syn, None)
+  | Off when !wants_instance(ctx, ana) => (elab, syn, None)
   /* Expected to be an inference hole: instantiate as ML would, so the
      hole is solved to the instance (the elaboration pass replays this). */
   | Infer(st) when !wants_instance(ctx, ana) && hole_of(st, ana) == None => (
@@ -621,10 +623,17 @@ module Solver = {
 
   /* The incompatible heads a conflicted class was asked to be. */
   let conflict_typs = (r: node): list(Typ.t) =>
-    switch (r.shape) {
-    | Some(sh) => List.map(shape_typ, [sh, ...r.conflict])
-    | None => List.map(shape_typ, r.conflict)
-    };
+    (
+      switch (r.shape) {
+      | Some(sh) => List.map(shape_typ, [sh, ...r.conflict])
+      | None => List.map(shape_typ, r.conflict)
+      }
+    )
+    |> List.fold_left(
+         (seen, t) =>
+           List.exists(Typ.fast_equal(t), seen) ? seen : seen @ [t],
+         [],
+       );
 };
 
 /* ===== Collecting constraints from the info map ===== */
