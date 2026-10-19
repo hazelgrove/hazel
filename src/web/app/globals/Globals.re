@@ -68,6 +68,7 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | UpdateVisibleRows(VisibleRows.t)
+    | ToggleContextUnfold(string)
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -82,6 +83,10 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
+    /* Gamma's entries shown whole, on several lines, by
+       ContextInspector.entry_key; not saved, as the keys hold a session's
+       ids */
+    context_unfolded: list(string),
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -107,6 +112,7 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
+    context_unfolded: [],
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),
