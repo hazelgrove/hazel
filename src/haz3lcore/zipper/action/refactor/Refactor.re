@@ -38,6 +38,12 @@ let gesture_blockers = RefactorGesture.gesture_blockers;
 module DragCandidate = RefactorDrag.DragCandidate;
 let drag_candidates = RefactorDrag.drag_candidates;
 let same_drag_kind = RefactorDrag.same_kind;
+let go_path = RefactorRegistry.go_path;
+let next_rung = RefactorDrag.next_rung;
+let path_emerge_source = (~info_map, ~term, kind, target) =>
+  RefactorDrag.emerge_source(~info_map, ~target, kind, term);
+let path_merge_target = (~info_map, ~term, kind, target) =>
+  RefactorDrag.merge_target(~info_map, ~target, kind, term);
 let gesture_merge_target = RefactorDrag.gesture_merge_target;
 let refactor_merge_target = RefactorDrag.refactor_merge_target;
 let gesture_emerge_source = RefactorDrag.gesture_emerge_source;

@@ -14,8 +14,6 @@ type goal =
   | Hole(Direction.t)
   | NextProblem(Direction.t)
   | TileId([@equal (_, _) => true] Id.t)
-  /* one shard of a multi-shard tile (the `in` of a let, a case's end) */
-  | TileShard([@equal (_, _) => true] Id.t, int)
   | BindingSiteOfIndicatedVar;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -242,6 +240,9 @@ type t =
   | Introduce
   | Refactor(refactor)
   | RefactorGesture(Gesture.t)
+  /* a drag ladder's commit: refactors in sequence, each at its own
+     target in the state the previous left; one undo step */
+  | RefactorPath(list((refactor, Id.t)))
   | Probe(probe)
   | Format(format)
   /* indent/dedent the caret's line (or all selected lines) one level */
@@ -286,6 +287,7 @@ let is_edit: t => bool =
   | Introduce
   | Refactor(_)
   | RefactorGesture(_)
+  | RefactorPath(_)
   | Buffer(Accept | Clear | Set(_))
   | Format(_)
   | AdjustIndent(_, _)
@@ -329,6 +331,7 @@ let is_historic: t => bool =
   | Introduce
   | Refactor(_)
   | RefactorGesture(_)
+  | RefactorPath(_)
   | Format(_)
   | AdjustIndent(_, _)
   | Structural(_)
@@ -375,6 +378,7 @@ let should_animate: t => bool =
   | Probe(_)
   | Refactor(_)
   | RefactorGesture(_)
+  | RefactorPath(_)
   | Format(_)
   | AdjustIndent(_, _)
   | ToggleLineComment => true

@@ -514,11 +514,6 @@ let move_dispatch =
   | Goal(Hole(d)) => to_next_grout(d, z)
   | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
-  | Goal(TileShard(id, shard)) =>
-    switch (jump_to_shard(z, id, shard)) {
-    | Some(z) => Some(z)
-    | None => jump_to_id_indicated(z, id)
-    }
   | Goal(BindingSiteOfIndicatedVar) =>
     let* ci = Indicated.ci_of(z, statics);
     let* binding_id = Language.Info.get_binding_site(ci);

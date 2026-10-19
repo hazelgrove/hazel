@@ -1,16 +1,17 @@
 # DRAG TOUR: Settings > Drag Refactoring, then pull tokens. A grab #
 # offers every refactoring that moves what you grabbed, each as a #
-# track; pull along one to preview it, release past halfway to #
-# commit. Settings > Drag Chaining: reaching a target commits and #
-# the drag goes on from there - Same Kind (more of that one) or #
-# Everything. Settings > Drag Pushes Through: a blocked move carries #
-# what it depends on, or lifts out as a helper. Undo works per step. #
+# track. With Settings > Drag Ladders on, a track runs on through #
+# that refactoring repeated, one dot per step. Nothing changes until #
+# you let go; release lands on the nearest dot as ONE undo step (Esc, #
+# or letting go short of the first dot, changes nothing). Settings > #
+# Drag Pushes Through: a blocked move carries what it depends on, or #
+# lifts out as a helper. #
 
 # 1 HOIST / SINK: grab a let (its let, =, in, or binder) and pull #
-# vertically - the let moves its LINE. With chaining on, keep #
-# pulling: gamma climbs past bravo, then past the comment (a line #
-# like any other: comments never ride along), then past alpha; pull #
-# back down and it retraces. #
+# vertically - the let moves its LINE. Keep pulling: gamma climbs #
+# past bravo, then past the comment (a line like any other: comments #
+# and blank lines never ride along), then past alpha; pull back down #
+# and it retraces. #
 
 let ladder =
   let alpha = 100 in
@@ -23,18 +24,16 @@ in
 # 2 FEED (inline next use): grab the DEFINITION itself, by its #
 # root the *, and pull DOWN - feeding moves the value, not the #
 # line. A full-size copy splits off and flies to the nearest use; #
-# the original stays while other uses remain, and the #
-# LAST feed moves the definition itself. With chaining on, one pull #
-# runs through all three uses. (A use never feeds itself by drag: #
-# uses mean themselves.) #
+# the original stays while other uses remain, and the LAST feed #
+# moves the definition itself. One pull runs through all three uses. #
+# (A use never feeds itself by drag: uses mean themselves.) #
 
 let rate = 365 in
 let budget = rate * 24 in
 let spending = budget + budget + budget in
 
 # 3 EXTRACT: grab the + inside the first parens and pull UP - the #
-# subexpression gets its own binding on a fresh line above. With #
-# Everything chaining, pull back down and it feeds back in. To move #
+# subexpression gets its own binding on a fresh line above. To move #
 # the new binding further, grab its let. #
 
 let volume = (ladder + 55) * (ladder - 45) in
@@ -61,20 +60,20 @@ let price =
 in
 
 # grab end and pull it along (on a one-line case it moves RIGHT): #
-# the missing constructors arrive one by one, and with chaining one #
-# pull adds them all. On the Int case below it wildifies instead. #
+# the missing constructors arrive one by one, one per dot, so one #
+# pull can add them all. On the Int case below it wildifies instead. #
 # (These two start inexhaustive on purpose - that is the fuel.) #
 
 let stamp = case dinner | Soup => 111 end in
 let ticket = case ladder | 775 => true end in
 
 # 5 IF: nudge then (or else) RIGHT - the guard grows a ! and the #
-# branches swap; with chaining, nudge on to unwrap it again. #
+# branches swap; nudge again (a new grab) to unwrap it. #
 
 let cheap = if price < 900 then price else 900 in
 
 # 6 PARAMETERS: pull a param LEFT/RIGHT to swap neighbors (the call #
-# sites follow); with chaining, carry it across several. Pull the #
+# sites follow); keep pulling to carry it across several. Pull the #
 # closing ) RIGHT to append a parameter, LEFT to shed the last one #
 # when unused (spare below). #
 
@@ -91,8 +90,8 @@ let span = high - low in
 
 # 8 PASS-THROUGH: sink prize into award, then into its fun, and #
 # hoist it back out. Watch the line breaks settle at each landing. #
-# With chaining one pull rides every rung. Then grab its 900 and #
-# pull it down into an arm: a copy feeds the first use. #
+# One pull rides every rung. Then grab its 900 and pull it down into #
+# an arm: a copy feeds the first use. #
 
 let prize = 900 in
 let award = fun place ->

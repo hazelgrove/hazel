@@ -401,22 +401,14 @@ let code_display_group = (~globals: Globals.t) => {
           Some("Modal: drag a token to pull it along refactoring tracks"),
       },
       {
-        name:
-          "Drag Chaining: "
-          ++ (
-            switch (globals.settings.core.drag_chain) {
-            | Language.CoreSettings.DragChain.Off => "Off"
-            | SameKind => "Same Kind"
-            | Everything => "Everything"
-            }
-          ),
+        name: "Drag Ladders",
         active:
           globals.settings.core.drag_chain
           != Language.CoreSettings.DragChain.Off,
         setting: DragChain,
         tooltip:
           Some(
-            "Reaching a target commits and the drag continues: off, only more of the same refactoring, or any",
+            "A drag runs through its refactoring repeated, landing on the nearest step at release",
           ),
       },
       {

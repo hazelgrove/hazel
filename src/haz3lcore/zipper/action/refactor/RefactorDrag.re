@@ -366,12 +366,7 @@ let drag_candidates =
     if (at_use_feed) {
       None;
     } else {
-      let prepare =
-        switch (kind) {
-        | FeedLet => feed_prepare(~prefer_def_host=feed_pref)
-        | _ => impl(kind).prepare
-        };
-      switch (prepare(~info_map, ~target, term)) {
+      switch (impl(kind).prepare(~info_map, ~target, term)) {
       | None => None
       | Some((term', focus)) =>
         let segment =
@@ -581,6 +576,48 @@ let same_kind = (a: Action.refactor, b: Action.refactor): bool => {
     | k => k
     };
   family(a) == family(b);
+};
+
+/* A drag LADDER's next rung — D2's list reorder: every position of
+   one drag is a state of it, nothing committed until release. From
+   the state the last rung left, the move of the ladder's family that
+   keeps the held element going the way the ladder goes. The held
+   element is the grab while it survives, else the last rung's focus
+   (a consumed feed's value). Statics are recomputed for that state. */
+let next_rung =
+    (
+      ~settings: CoreSettings.t,
+      ~info_map: Statics.Map.t,
+      ~root: Exp.t,
+      ~shape_map: Id.Map.t(ProjectorCore.Shape.t)=Id.Map.empty,
+      ~push: bool,
+      ~family: Action.refactor,
+      ~held: (Id.t, option(int)),
+      prev: DragCandidate.t,
+    )
+    : option((DragCandidate.t, (Id.t, option(int)))) => {
+  let held =
+    Id.Map.mem(fst(held), prev.measured.tiles) ? held : (prev.focus, None);
+  let dr = prev.target.row - prev.current.row
+  and dc = prev.target.col - prev.current.col;
+  drag_candidates(
+    ~info_map=statics_of(~settings, ~info_map, ~root, prev.term),
+    ~term=prev.term,
+    ~measured=prev.measured,
+    ~shape_map,
+    ~push,
+    ~target=fst(held),
+    ~shard=snd(held),
+    (),
+  )
+  |> List.find_opt((c: DragCandidate.t) =>
+       same_kind(family, c.kind)
+       && (c.target.row - c.current.row)
+       * dr
+       + (c.target.col - c.current.col)
+       * dc > 0
+     )
+  |> Option.map(c => (c, held));
 };
 
 /* the INSIST tier: remedied moves a dead press escalates to on a

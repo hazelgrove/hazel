@@ -44,6 +44,7 @@ module Update = {
         Format(_) |
         Refactor(_) |
         RefactorGesture(_) |
+        RefactorPath(_) |
         AdjustIndent(_, _) |
         ApplyCompletion(_) |
         Introduce |

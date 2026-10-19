@@ -48,8 +48,10 @@ module FormatShortcut = {
 };
 
 module DragChain = {
-  /* drag chaining (D2's withSnapRadius chain): reaching a target
-     commits mid-drag and the drag continues from the new state */
+  /* drag ladders: each drag track runs through its refactor repeated
+     (D2's list reorder — every position a state of one drag), landing
+     on the nearest rung at release. Off = one rung. (Everything is
+     reserved for mixing kinds in one pull; it acts as SameKind.) */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Off

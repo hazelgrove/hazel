@@ -1994,6 +1994,57 @@ let drag_tests = [
     },
   ),
   test_case(
+    "ladder: a path of steps lands as one action",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.parse_zipper(
+          "let a = 1 in\nlet b = 2 in\nlet ¦c = 3 in\na + b + c",
+        );
+      let id = Option.get(Indicated.index(z));
+      let z' =
+        Test_Editing.perform(
+          z,
+          [Action.RefactorPath([(HoistLet, id), (HoistLet, id)])],
+        );
+      check(
+        string,
+        "two rungs up",
+        "let c = 3 in\nlet a = 1 in\nlet b = 2 in\na + b + c",
+        text_of(z'),
+      );
+    },
+  ),
+  test_case(
+    "ladder: the next rung keeps going the ladder's way",
+    `Quick,
+    () => {
+      let marked = "let a = 1 in\nlet b = 2 in\nlet ¦c = 3 in\na + b + c";
+      let z = Test_Editing.parse_zipper(marked);
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let id = Option.get(Indicated.index(z));
+      let hoist =
+        drag_cands(marked)
+        |> List.find((c: Refactor.DragCandidate.t) => c.kind == HoistLet);
+      switch (
+        Refactor.next_rung(
+          ~settings=Test_Editing.default_settings,
+          ~info_map=info_map_of(z),
+          ~root=term,
+          ~push=false,
+          ~family=HoistLet,
+          ~held=(id, Indicated.shard_index(z)),
+          hoist,
+        )
+      ) {
+      | Some((c, _)) =>
+        check(bool, "a hoist", true, c.kind == HoistLet);
+        check(int, "to the top row", 0, c.target.row);
+      | None => check(bool, "a second rung", true, false)
+      };
+    },
+  ),
+  test_case(
     "drag candidates: a grabbed call head never unfolds (occurrences mean themselves)",
     `Quick,
     () => {

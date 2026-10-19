@@ -579,6 +579,18 @@ let rec go =
          LocalReformat.go_refactor(~enabled=settings.auto_reindent),
        )
     |> return(Cant_refactor)
+  | RefactorPath(steps) =>
+    Refactor.go_path(
+      ~settings,
+      ~info_map=statics.info_map,
+      ~term=statics.term,
+      steps,
+      z,
+    )
+    |> Option.map(
+         LocalReformat.go_refactor(~enabled=settings.auto_reindent),
+       )
+    |> return(Cant_refactor)
   | RefactorGesture(g) =>
     switch (
       Refactor.gesture(~info_map=statics.info_map, ~term=statics.term, g, z)

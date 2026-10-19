@@ -7,7 +7,7 @@
 #            on PC) move the construct spatially #
 #   DRAG     Settings > Drag Refactoring, then grab a token with #
 #            the mouse and pull toward any move it offers; with #
-#            Drag Chaining on, one pull runs through several #
+#            Drag Ladders on, one pull can take several steps #
 # A press that does not apply does nothing (refusals turn the #
 # blocking tokens red). Undo (cmd+z) reverses any refactoring. #
 
@@ -31,7 +31,7 @@
 #   Functions + Tuples   signatures and destructuring #
 #   Evaluation Steps     computing by hand, in the buffer #
 #   Types                annotations and type aliases #
-#   Drag Tour            the moves with the mouse, chained #
+#   Drag Tour            the moves with the mouse #
 
 # ===== WARMUP ===== #
 

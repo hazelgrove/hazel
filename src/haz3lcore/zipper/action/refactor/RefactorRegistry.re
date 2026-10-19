@@ -505,6 +505,93 @@ let applies =
     }
   };
 
+/* statics for a hypothetical program (a ladder rung, a path step's
+   intermediate state): the root context is the live program's */
+let statics_of =
+    (
+      ~settings: CoreSettings.t,
+      ~info_map: Statics.Map.t,
+      ~root: Exp.t,
+      term: Exp.t,
+    )
+    : Statics.Map.t =>
+  switch (Id.Map.find_opt(Exp.rep_id(root), info_map)) {
+  | Some(r) => fst(Statics.mk(settings, Info.ctx_of(r), term))
+  | None => info_map
+  };
+
+/* put a prepared result in the buffer: judge what lands (the spliced
+   segment, read back the way the editor reads it — a structure the
+   print doesn't keep, a let extending over a comma, is refused — then
+   statics checks the read-back against the program as it was before
+   whatever produced the result), and place the caret */
+let land_result =
+    (
+      ~settings: CoreSettings.t,
+      ~info_map: Statics.Map.t,
+      ~term: Exp.t,
+      ~target: Id.t,
+      z: Zipper.t,
+      (term': Exp.t, focus: Id.t),
+    )
+    : option(Zipper.t) => {
+  let seg =
+    ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
+    |> SpaceNormalize.go;
+  let lands =
+    ! RefactorCheck.enabled^
+    || {
+      let read = MakeTerm.go(seg).term;
+      Exp.fast_equal(read, term')
+      && RefactorCheck.preserves(~settings, ~info_map, ~before=term, read);
+    };
+  if (!lands) {
+    None;
+  } else {
+    let mk = (zp: Zipper.t) => {
+      ...zp,
+      refractors: z.refractors,
+    };
+    /* caret fallback chain: the transform's focus id, else where
+       the user was (target), else its statics ancestors — a
+       vanished focus must not dump the caret at the document end */
+    let ancestors =
+      switch (Id.Map.find_opt(target, info_map)) {
+      | Some(InfoExp({ancestors, _}))
+      | Some(InfoPat({ancestors, _})) => ancestors
+      | _ => []
+      };
+    /* structural caret placement (O(depth) splits); Move's token-walk
+       jump costs ~90ms on a few-page buffer, so it's only the last
+       resort */
+    let place = (id: Id.t): option(Zipper.t) => {
+      let try_side = side =>
+        switch (Zipper.unzip_to_id(~side, id, seg)) {
+        | Some(zp) =>
+          let zp = mk(zp);
+          Indicated.index(zp) == Some(id) ? Some(zp) : None;
+        | None => None
+        };
+      switch (try_side(Util.Direction.Left)) {
+      | Some(zp) => Some(zp)
+      | None => try_side(Util.Direction.Right)
+      };
+    };
+    let candidates = [focus, target] @ ancestors;
+    switch (List.find_map(place, candidates)) {
+    | Some(z'') => Some(z'')
+    | None =>
+      let z' = mk(Zipper.unzip(seg));
+      Some(
+        switch (Move.jump_to_first_indicated(z', candidates)) {
+        | Some(z'') => z''
+        | None => z'
+        },
+      );
+    };
+  };
+};
+
 let go =
     (
       ~settings: CoreSettings.t,
@@ -519,68 +606,40 @@ let go =
   | Some(target) =>
     id_origin := Id.Map.empty;
     binder_redirect := Id.Map.empty;
-    let printed = term' =>
-      ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
-      |> SpaceNormalize.go;
-    /* judge what lands in the buffer: the spliced segment, read back
-       the way the editor reads it. A structure the print doesn't keep
-       (a let extending over a comma) is refused, then statics checks
-       the read-back program */
-    let lands = (term', seg) => {
-      ! RefactorCheck.enabled^
-      || {
-        let read = MakeTerm.go(seg).term;
-        Exp.fast_equal(read, term')
-        && RefactorCheck.preserves(~settings, ~info_map, ~before=term, read);
-      };
-    };
-    switch (
-      impl(kind).prepare(~info_map, ~target, term)
-      |> Option.map(((term', focus)) => (term', focus, printed(term')))
-    ) {
-    | None => None
-    | Some((term', _, seg)) when !lands(term', seg) => None
-    | Some((_, focus, seg)) =>
-      let mk = (zp: Zipper.t) => {
-        ...zp,
-        refractors: z.refractors,
-      };
-      /* caret fallback chain: the transform's focus id, else where
-         the user was (target), else its statics ancestors — a
-         vanished focus must not dump the caret at the document end */
-      let ancestors =
-        switch (Id.Map.find_opt(target, info_map)) {
-        | Some(InfoExp({ancestors, _}))
-        | Some(InfoPat({ancestors, _})) => ancestors
-        | _ => []
-        };
-      /* structural caret placement (O(depth) splits); Move's token-walk
-         jump costs ~90ms on a few-page buffer, so it's only the last
-         resort */
-      let place = (id: Id.t): option(Zipper.t) => {
-        let try_side = side =>
-          switch (Zipper.unzip_to_id(~side, id, seg)) {
-          | Some(zp) =>
-            let zp = mk(zp);
-            Indicated.index(zp) == Some(id) ? Some(zp) : None;
-          | None => None
-          };
-        switch (try_side(Util.Direction.Left)) {
-        | Some(zp) => Some(zp)
-        | None => try_side(Util.Direction.Right)
-        };
-      };
-      let candidates = [focus, target] @ ancestors;
-      switch (List.find_map(place, candidates)) {
-      | Some(z'') => Some(z'')
-      | None =>
-        let z' = mk(Zipper.unzip(seg));
-        Some(
-          switch (Move.jump_to_first_indicated(z', candidates)) {
-          | Some(z'') => z''
-          | None => z'
-          },
-        );
-      };
-    };
+    impl(kind).prepare(~info_map, ~target, term)
+    |> Option.bind(_, land_result(~settings, ~info_map, ~term, ~target, z));
   };
+
+/* a drag ladder's commit: refactors in sequence, each at its own
+   target in the state the previous one left (statics recomputed
+   between steps), landed ONCE — one undo step, judged against the
+   program before the first */
+let go_path =
+    (
+      ~settings: CoreSettings.t,
+      ~info_map: Statics.Map.t,
+      ~term: Exp.t,
+      steps: list((Action.refactor, Id.t)),
+      z: Zipper.t,
+    )
+    : option(Zipper.t) => {
+  id_origin := Id.Map.empty;
+  binder_redirect := Id.Map.empty;
+  let rec run = (t: Exp.t, im, steps) =>
+    switch (steps) {
+    | [] => None
+    | [(k, at)] => impl(k).prepare(~info_map=im, ~target=at, t)
+    | [(k, at), ...rest] =>
+      switch (impl(k).prepare(~info_map=im, ~target=at, t)) {
+      | Some((t', _)) =>
+        run(t', statics_of(~settings, ~info_map, ~root=term, t'), rest)
+      | None => None
+      }
+    };
+  switch (steps) {
+  | [] => None
+  | [(_, target), ..._] =>
+    run(term, info_map, steps)
+    |> Option.bind(_, land_result(~settings, ~info_map, ~term, ~target, z))
+  };
+};

@@ -290,7 +290,7 @@ module Update = {
               Language.CoreSettings.DragChain.(
                 switch (settings.core.drag_chain) {
                 | Off => SameKind
-                | SameKind => Everything
+                | SameKind
                 | Everything => Off
                 }
               ),

@@ -96,6 +96,7 @@ module Update = {
                | Introduce
                | Refactor(_)
                | RefactorGesture(_)
+               | RefactorPath(_)
                | Probe(StepInto(_))
                | Format(_)
                | AdjustIndent(_, _)
@@ -193,7 +194,8 @@ module Update = {
         );
         switch (action) {
         | Refactor(_)
-        | RefactorGesture(_) =>
+        | RefactorGesture(_)
+        | RefactorPath(_) =>
           /* feed's clone flies from the def it splits off (D2
              emergeMode=clone) — stage the source ids for the flight
              pairing; non-feed kinds stage [] (no-op) */
@@ -207,6 +209,10 @@ module Update = {
                 Refactor.gesture_emerge_source(~info_map, ~term, g, z)
               | Refactor(kind) =>
                 Refactor.refactor_emerge_source(~info_map, ~term, kind, z)
+              /* one step: its own source; a run (several feeds) has
+                 no unique pairing */
+              | RefactorPath([(kind, target)]) =>
+                Refactor.path_emerge_source(~info_map, ~term, kind, target)
               | _ => []
               },
             );
@@ -216,6 +222,8 @@ module Update = {
                 Refactor.gesture_merge_target(~info_map, ~term, g, z)
               | Refactor(kind) =>
                 Refactor.refactor_merge_target(~info_map, ~term, kind, z)
+              | RefactorPath([(kind, target)]) =>
+                Refactor.path_merge_target(~info_map, ~term, kind, target)
               | _ => ([], [])
               },
             );
@@ -792,6 +800,7 @@ module View = {
     );
     if (selected) {
       CodeDrag.sync(
+        ~settings=globals.settings.core,
         ~info_map=model.statics.info_map,
         ~term=model.statics.term,
         ~measured=model.editor.syntax.measured,
@@ -1017,33 +1026,15 @@ module View = {
            tracks; candidates are enumerated by CodeDrag.sync once
            the caret lands at the grab point */
         CodeDrag.arm(
-          /* by kind, at the grabbed tile: after a chain rung the caret
-             sits on the last transform's focus, not the held element */
+          /* the path to the rung reached, one undo step */
           ~commit=
-            (kind, at) =>
+            steps =>
               Bonsai.Effect.Expert.handle(
-                Effect.Many([
-                  inject(Perform(Move(Goal(TileId(at))))),
-                  inject(Perform(Refactor(kind))),
-                ]),
+                inject(Perform(RefactorPath(steps))),
               ),
-          ~reseat=
-            ((id, shard)) =>
-              Bonsai.Effect.Expert.handle(
-                inject(
-                  Perform(
-                    Move(
-                      Goal(
-                        switch (shard) {
-                        | Some(k) => TileShard(id, k)
-                        | None => TileId(id)
-                        },
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-          ~chain=globals.settings.core.drag_chain,
+          ~ladders=
+            globals.settings.core.drag_chain
+            != Language.CoreSettings.DragChain.Off,
           ~push=globals.settings.core.drag_push,
           ~show_labels=globals.settings.core.drag_labels,
           ~show_tracks=globals.settings.core.drag_tracks,
