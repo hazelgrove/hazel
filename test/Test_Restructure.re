@@ -1531,6 +1531,15 @@ let gaps = () => {
     "g",
     "module M = {\n  let f = fun x ->\n    let g = 2 in\n    x;\n\n  let h = 3\n};\nM.h",
   );
+  /* a blank line holding spaces, as a paste leaves it, comes back so */
+  law(
+    ~root=Mod,
+    "a blank line with spaces on it",
+    "module M = {\n  let a = 1;\n  \n  let b = 2\n};\nlet c = 3;\nc",
+    (MoveDown, MoveUp),
+    "b",
+    "module M = {\n  let a = 1\n};\n  \nlet b = 2;\nlet c = 3;\nc",
+  );
   /* a module-rooted program's last member: back on a line of its own */
   law(
     ~root=Mod,

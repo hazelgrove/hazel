@@ -533,15 +533,30 @@ let fn_body = (b: block): bool =>
   Array.length(b.sl) > 0
   && Array.exists(is_fun_head, Array.sub(b.arr, 0, b.sl[0].lo));
 
-/* where an item was in its block: the spacing it takes along, and its
+/* where an item was in its block: the gap it takes along, and its
    indentation's offset */
 type place = {
-  /* linebreaks between it and its neighbour, 0 on one line. None when
-     it has none to take: it was alone, or opened a body before the
-     result, whose spacing a move sets */
-  sep: option(int),
+  /* the whitespace between it and its neighbour, through the last
+     linebreak (none: they shared a line). None when it has none to take:
+     it was alone, or opened a body before the result, whose spacing a
+     move sets */
+  gap: option(Segment.t),
   offset: int,
 };
+
+/* a gap of whitespace holds a linebreak */
+let has_lb = (gap: Segment.t): bool => List.exists(Piece.is_linebreak, gap);
+
+/* a copy of [b]'s gap above item [k]'s place, fresh pieces */
+let gap_copy = (b: block, k: int): option(Segment.t) =>
+  Option.map(
+    w =>
+      List.map(
+        p => Piece.is_linebreak(p) ? linebreak() : space(),
+        ListUtil.slice(w, b.sl[k].lo - w, b.seg),
+      ),
+    above(b, k),
+  );
 
 /* item [k] taken out of [b]: the block's pieces without it, and its
    place. A member block's last member hands its terminator to the one
@@ -569,7 +584,7 @@ let take = (b: block, k: int): (Segment.t, place) => {
     (
       seg,
       {
-        sep: Some(breaks(b, w, sl.lo)),
+        gap: Some(ListUtil.slice(w, sl.lo - w, b.seg)),
         offset: k > 0 ? offset(k - 1) : 0,
       },
     );
@@ -617,8 +632,16 @@ let take = (b: block, k: int): (Segment.t, place) => {
         /* before the result, only a gap on a line of its own was the
            item's: on the head's line, or where the result had to move
            onto a line of its own, the item had none */
-        sep:
-          next == None || result && (lbs == 0 || to_head) ? None : Some(lbs),
+        gap:
+          next == None || result && (lbs == 0 || to_head)
+            ? None
+            : Some(
+                ListUtil.slice(
+                  sl.eol,
+                  line_start(b, sl.eol, x) - sl.eol,
+                  b.seg,
+                ),
+              ),
         /* a result on its last line: past the head's, as it was put */
         offset:
           rejoin && lbs == 0
@@ -640,17 +663,17 @@ type landing =
   /* just below item [k], before any comments set apart below it */
   | Below(int);
 
-/* [item] (bare, in the block's form) moved into [b] [at]. [sep]
-   linebreaks (0: a space) part it from the item above when it lands
-   right below one, else from the item below; its first line is indented
-   [offset] past that item's, its other lines shifted to match from
-   [src_indent]. In a member block it takes `;`, or the last member's
-   terminator when it lands last */
+/* [item] (bare, in the block's form) moved into [b] [at]. [gap] (a
+   space where it has no linebreak) parts it from the item above when it
+   lands right below one, else from the item below; its first line is
+   indented [offset] past that item's, its other lines shifted to match
+   from [src_indent]. In a member block it takes `;`, or the last
+   member's terminator when it lands last */
 let put =
     (
       b: block,
       ~at: landing,
-      ~sep: int,
+      ~gap: Segment.t,
       ~offset: int,
       ~src_indent: option(int),
       ~member: bool,
@@ -658,7 +681,7 @@ let put =
     )
     : Segment.t => {
   let n = Array.length(b.sl);
-  let lines = k => List.init(k, _ => linebreak());
+  let lines = has_lb(gap);
   let spaces = k => List.init(max(0, k), _ => space());
   let moved = line =>
     shift_by(
@@ -669,8 +692,8 @@ let put =
   /* below item [j], after the content ending at [w] */
   let below = (j, w) => {
     let ind = max(0, item_indent(b, j) + offset);
-    let lead = sep > 0 ? lines(sep) @ spaces(ind) : [space()];
-    let item = moved(sep > 0 ? ind : line_indent(b, w));
+    let lead = lines ? gap @ spaces(ind) : [space()];
+    let item = moved(lines ? ind : line_indent(b, w));
     let l = b.sl[j];
     j == n - 1 && member && b.in_module
       ? ListUtil.truncate(l.core, b.seg)
@@ -699,22 +722,21 @@ let put =
     @ (own ? spaces(ind) : [])
     @ moved(own ? ind : line_indent(b, lo))
     @ semi
-    @ (sep > 0 ? lines(sep) @ (own ? [] : spaces(ind)) : [space()])
+    @ (lines ? gap @ (own ? [] : spaces(ind)) : [space()])
     @ ListUtil.remove_first_n(lo, b.seg);
   };
 };
 
-/* the spacing for an item that takes none along, landing beside item
-   [j] (just above it, or [below]), as a new item is spaced: the gap it
-   lands in, or, before the result or at the end, the gap above [j] */
-let spacing_at = (b: block, ~below: bool, j: int): int => {
-  let gap_above = k =>
-    Option.map(w => breaks(b, w, b.sl[k].lo), above(b, k));
+/* the gap for an item that takes none along, landing beside item [j]
+   (just above it, or [below]), as a new item is spaced: a copy of the
+   gap it lands in, or, before the result or at the end, of the gap
+   above [j] */
+let gap_at = (b: block, ~below: bool, j: int): Segment.t => {
   let next = j + 1;
   let landing =
     below && next < Array.length(b.sl) && movable(b, next)
-      ? gap_above(next) : gap_above(j);
-  Option.value(landing, ~default=1);
+      ? gap_copy(b, next) : gap_copy(b, j);
+  Option.value(landing, ~default=[linebreak()]);
 };
 
 type pos =
@@ -985,7 +1007,7 @@ let into_members =
               put(
                 b,
                 ~at=Above(first ? 0 : n),
-                ~sep=Option.value(place.sep, ~default=1),
+                ~gap=Option.value(place.gap, ~default=[linebreak()]),
                 ~offset=place.offset,
                 ~src_indent,
                 ~member=true,
@@ -1131,12 +1153,12 @@ let body_last =
           None
         | Fresh => insert(b, ~pos=Before(g), ~member=false, item)
         | Moved(place, src_indent) =>
-          let put = (~sep) =>
+          let put = (~gap) =>
             Some(
               put(
                 b,
                 ~at=Above(g),
-                ~sep,
+                ~gap,
                 ~offset=place.offset,
                 ~src_indent,
                 ~member=false,
@@ -1144,9 +1166,9 @@ let body_last =
               ),
             );
           if (g > 0 || starts_line(b, g)) {
-            put(~sep=Option.value(place.sep, ~default=1));
+            put(~gap=Option.value(place.gap, ~default=[linebreak()]));
           } else if (!spans_lines(item)) {
-            put(~sep=0);
+            put(~gap=[]);
           } else {
             let r = b.sl[g];
             let head = item_indent(b, g);
@@ -1367,17 +1389,17 @@ let beside =
     Option.bind(locate(~mod_root, target, tk.rest), ((b, j, rebuild)) =>
       switch (in_form(~member=b.in_module, ~was_member=s.s_member, s.s_item)) {
       | Some(item) when j < Array.length(b.sl) && (b.stmts || !tk.stmt) =>
-        let sep =
-          switch (tk.place.sep) {
-          | Some(sep) => sep
-          | None => spacing_at(b, ~below=!up, j)
+        let gap =
+          switch (tk.place.gap) {
+          | Some(gap) => gap
+          | None => gap_at(b, ~below=!up, j)
           };
         Some((
           rebuild(
             put(
               b,
               ~at=up ? Above(j) : Below(j),
-              ~sep,
+              ~gap,
               ~offset=tk.place.offset,
               ~src_indent=start_indent(~mod_root, s, seg),
               ~member=b.in_module,

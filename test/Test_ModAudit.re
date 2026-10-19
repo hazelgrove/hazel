@@ -1710,6 +1710,12 @@ let ops = () =>
           Sort.Exp,
           "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x -> x in\n\n# doc for g #\nlet g = 2 in\nf",
         ),
+        /* blank lines holding indentation, as a paste leaves them */
+        (
+          "doc comments (pasted)",
+          Sort.Mod,
+          "module M = {\n  let init = (1, 2);\n  \n  # doc for f #\n  let f = fun x -> x;\n  \n  # doc for g #\n  let g = 2\n};\nM.f",
+        ),
       ],
     );
     /* one row in 3 unless MODAUDIT_SAMPLE says */
