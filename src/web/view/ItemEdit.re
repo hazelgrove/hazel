@@ -296,10 +296,11 @@ let block = (~in_module: bool, ~stmts=true, lv: S.level): block => {
 let movable = (b: block, k: int): bool =>
   k >= 0 && k < Array.length(b.sl) && (b.body || !Focus.is_tail(b.lv, k));
 
-/* item [k] holds an unfinished definition, an `…in` form without its
-   `in`, that runs on into the items after it: an `…in` form or a `;` past
-   it. Taking the item whole (deleting, duplicating, moving it) would take
-   those too */
+/* item [k] holds an unfinished definition that runs on into the items
+   after it: an `…in` form without its `in`, with an `…in` form or a `;`
+   past it; or a member whose open form takes the members after its member
+   line. Taking the item whole (deleting, duplicating, moving it) would
+   take those too */
 let runs_on = (b: block, k: int): bool => {
   let (c0, c1) = b.lv.spans[k].core;
   let starts_item = (p: Piece.t) =>
@@ -317,7 +318,7 @@ let runs_on = (b: block, k: int): bool => {
       | _ => go(i + 1)
       }
     );
-  go(c0);
+  go(c0) || S.runs_past_line(b.lv, k);
 };
 
 /* item [k]'s head, when it is a definition (or a directive): its index

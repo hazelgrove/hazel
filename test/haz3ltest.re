@@ -31,6 +31,7 @@ let (suite, exit_with_test_status) =
     [
       Test_LazyHydration.tests,
       Test_Undo.tests,
+      Test_OpenMember.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
       Test_MenhirFuzz.tests,

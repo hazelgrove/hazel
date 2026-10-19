@@ -3346,6 +3346,18 @@ let semantic_segment =
   );
 };
 
+/* [source] as semantics reads it: its completion, and that parsed per
+   item. Raw, an unfinished member's open form takes the members after it
+   into one item, one recursion through the rest of its module. [shared]:
+   an editor's parse cache */
+let semantic_parse =
+    (~root: Sort.t, ~shared=?, source: Segment.t): (Segment.t, Exp.t) => {
+  let (seg, masks) = semantic_segment(~root, source);
+  (seg, Incr.term_of_root(~masks, ~ends=Read, ~root, ~shared?, seg));
+};
+let semantic_term = (~root: Sort.t, ~shared=?, source: Segment.t): Exp.t =>
+  snd(semantic_parse(~root, ~shared?, source));
+
 let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
   /* Semantic terms come from the canonical completion of the visible
    * segment (caret-independent, provenance-recorded), replacing the

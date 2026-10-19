@@ -988,6 +988,27 @@ let slice = (lv: level, k: int): Segment.t => {
   Array.to_list(Array.sub(lv.pieces, sp.lo, sp.hi - sp.lo));
 };
 
+/* span [k] of a member level is an unfinished member whose open form
+   takes the members after its member line: Read cuts it there */
+let runs_past_line = (lv: level, k: int): bool =>
+  lv.sort == Sort.Mod
+  && {
+    let lo = lv.spans[k].lo;
+    let item = slice(lv, k);
+    Segment.incomplete_tiles(item) != []
+    && List.length(
+         MemberLines.member_parts(
+           ~line=
+             lo == 0
+               ? lv.line
+               : Some(MemberLines.level_at(~line=lv.line, lv.pieces, lo)),
+           ~sort=Mod,
+           item,
+         ),
+       )
+    > 1;
+  };
+
 /* the level's partition, each slice keyed by its span's anchor; a level
    with no item (only trivia) is one slice, keyed by its first piece */
 let keyed = (lv: level): list((Id.t, Segment.t)) =>
