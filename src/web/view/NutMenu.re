@@ -7,6 +7,8 @@ type setting_item = {
   active: bool,
   setting: Settings.Update.t,
   tooltip: option(string),
+  /* a caution drawn beside the name, e.g. that a feature is experimental */
+  warning: option(string),
 };
 
 // COMPONENTS
@@ -76,12 +78,13 @@ type section = {
   s_rows: list(row),
 };
 
-let toggle = (name, active, setting, tooltip) =>
+let toggle = (~warning=?, name, active, setting, tooltip) =>
   Toggle({
     name,
     active,
     setting,
     tooltip: Some(tooltip),
+    warning,
   });
 
 let semantics = (~globals: Globals.t): section => {
@@ -106,10 +109,11 @@ let semantics = (~globals: Globals.t): section => {
       "Evaluate the program and enable probes",
     ),
     toggle(
+      ~warning="Experimental: may slow down the editor",
       "Live typing",
       globals.settings.core.live_typing,
       LiveTyping,
-      "Enrich static types with information from evaluation; may slow down the editor",
+      "Enrich static types with information from evaluation",
     ),
   ],
 };
