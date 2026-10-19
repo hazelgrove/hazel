@@ -39,7 +39,8 @@ let round_trip = () => {
     );
   let doc =
     Option.get(World.assemble(~library, ~name="Scratchpad 1", members));
-  switch (World.split(~name="Scratchpad 1", doc)) {
+  let slide = Option.get(World.slide_id("Scratchpad 1"));
+  switch (World.split(~slide, doc)) {
   | None => fail("the slide's module is lost")
   | Some(parts) =>
     check(
@@ -58,11 +59,56 @@ let round_trip = () => {
     );
   };
   check(
+    bool,
+    "a new library in place, the slide's module as it was",
+    true,
+    switch (
+      Option.bind(
+        World.with_library(~slide, ~library, doc),
+        World.split(~slide),
+      )
+    ) {
+    | Some(parts) =>
+      let same = (a, b) =>
+        List.length(a) == List.length(b) && List.for_all2((===), a, b);
+      same(parts.library, library) && same(parts.members, members);
+    | None => false
+    },
+  );
+  check(
     option(string),
     "another slide's module isn't this one",
     None,
-    Option.map(_ => "split", World.split(~name="Other", doc)),
+    Option.map(
+      _ => "split",
+      World.split(~slide=Option.get(World.slide_id("Other")), doc),
+    ),
   );
+};
+
+/* the tests [doc] (a world for the slide "Slide") has when only the
+   slide's item runs, the library's definitions coming from the bake */
+let run_alone = (doc: Segment.t) => {
+  let term = MakeTerm.Incr.term_of_root(~root=Mod, doc);
+  let (map, elab) =
+    Statics.mk_unmemoized(P.settings, DefStatics.ctx0(), term);
+  let elab =
+    World.run_elab(~slide=Option.get(World.slide_id("Slide")), elab);
+  switch (
+    Evaluator.evaluate(
+      ~eval_info=
+        EvalInfo.of_info_map(
+          ~probe_all=P.settings.probe_all,
+          ~targets=Id.Map.empty,
+          map,
+        ),
+      ~env=Builtins.env_for(elab),
+      elab,
+    )
+  ) {
+  | (_, state) => P.tests_of(state)
+  | exception _ => [("evaluation", "raised")]
+  };
 };
 
 /* a corpus slide in the library's world: its own errors and tests, as on
@@ -87,6 +133,12 @@ let corpus = () => {
           path ++ ": the slide's tests",
           t0,
           List.filter(((id, _)) => mine(id), t1),
+        );
+        check(
+          list(pair(string, string)),
+          path ++ ": the slide's tests, run against the bake",
+          t0,
+          run_alone(doc),
         );
       };
     },

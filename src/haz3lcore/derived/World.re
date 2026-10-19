@@ -97,6 +97,19 @@ let last_content = (seg: Segment.t): option(Piece.t) =>
     List.rev(seg),
   );
 
+/* [library]'s items, ended and spaced for the slide's module after them */
+let prefix = (~anchor: Id.t, library: Segment.t): Segment.t => {
+  let sep =
+    switch (last_content(library)) {
+    | Some(p) when Piece.is_semi(p) => []
+    | Some(_) => [library_end(anchor)]
+    | None => []
+    };
+  library
+  @ sep
+  @ [newline(anchor, "world-gap-1"), newline(anchor, "world-gap-2")];
+};
+
 /* the document: [library]'s items, then [name]'s members as its sealed
    module */
 let assemble =
@@ -104,23 +117,14 @@ let assemble =
     : option(Segment.t) =>
   Option.bind(wrapper(name), w =>
     Option.map(
-      anchor => {
-        let sep =
-          switch (last_content(library)) {
-          | Some(p) when Piece.is_semi(p) => []
-          | Some(_) => [library_end(anchor)]
-          | None => []
-          };
-        library
-        @ sep
-        @ [newline(anchor, "world-gap-1"), newline(anchor, "world-gap-2")]
+      anchor =>
+        prefix(~anchor, library)
         @ with_body(
             w,
             [newline(anchor, "world-open")]
             @ members
             @ [newline(anchor, "world-close")],
-          );
-      },
+          ),
       slide_id(name),
     )
   );
@@ -130,58 +134,93 @@ type parts = {
   members: Segment.t,
 };
 
-/* [seg] split back into the library's items and [name]'s members, if
-   the slide's module is still [seg]'s last item */
-let split = (~name: string, seg: Segment.t): option(parts) =>
-  Option.bind(
-    slide_id(name),
-    anchor => {
-      let derived = salt => Id.derive(~salt, anchor);
-      let ours = [
-        derived("world-library-end"),
-        derived("world-gap-1"),
-        derived("world-gap-2"),
-      ];
-      let rec go = (before: Segment.t, rest: Segment.t) =>
-        switch (rest) {
-        | [Tile(t) as p, ...after] when t.id == anchor =>
-          let body =
-            List.find_map(
-              (p: Piece.t) =>
-                switch (p) {
-                | Tile(t) when is_brace(t) =>
-                  switch (t.children) {
-                  | [body] => Some(body)
-                  | _ => None
-                  }
-                | _ => None
-                },
-              [p, ...after],
-            );
-          Option.map(
-            body => {
-              let mine = [derived("world-open"), derived("world-close")];
-              {
-                library:
-                  List.filter(
-                    (p: Piece.t) => !List.mem(Piece.id(p), ours),
-                    List.rev(before),
-                  ),
-                members:
-                  List.filter(
-                    (p: Piece.t) => !List.mem(Piece.id(p), mine),
-                    body,
-                  ),
-              };
-            },
-            body,
-          );
-        | [p, ...rest] => go([p, ...before], rest)
-        | [] => None
-        };
-      go([], seg);
-    },
+/* [seg] at the slide's module (its tile's id [slide]): the pieces before
+   it, and it with the pieces after */
+let at_slide =
+    (~slide: Id.t, seg: Segment.t): option((Segment.t, Segment.t)) => {
+  let rec go = (before: Segment.t, rest: Segment.t) =>
+    switch (rest) {
+    | [Piece.Tile(t), ..._] when t.id == slide =>
+      Some((List.rev(before), rest))
+    | [p, ...rest] => go([p, ...before], rest)
+    | [] => None
+    };
+  go([], seg);
+};
+
+let body_of = (from_slide: Segment.t): option(Segment.t) =>
+  List.find_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) when is_brace(t) =>
+        switch (t.children) {
+        | [body] => Some(body)
+        | _ => None
+        }
+      | _ => None
+      },
+    from_slide,
   );
+
+/* [seg] split back into the library's items and the slide's members, if
+   the slide's module (its tile's id [slide]) is still there */
+let split = (~slide: Id.t, seg: Segment.t): option(parts) => {
+  let derived = salt => Id.derive(~salt, slide);
+  let ours = [
+    derived("world-library-end"),
+    derived("world-gap-1"),
+    derived("world-gap-2"),
+  ];
+  let mine = [derived("world-open"), derived("world-close")];
+  Option.bind(at_slide(~slide, seg), ((before, from_slide)) =>
+    Option.map(
+      body =>
+        {
+          library:
+            List.filter(
+              (p: Piece.t) => !List.mem(Piece.id(p), ours),
+              before,
+            ),
+          members:
+            List.filter(
+              (p: Piece.t) => !List.mem(Piece.id(p), mine),
+              body,
+            ),
+        },
+      body_of(from_slide),
+    )
+  );
+};
+
+/* [seg] with [library] in place of its library's items: the slide's
+   module as it is */
+let with_library =
+    (~slide: Id.t, ~library: Segment.t, seg: Segment.t): option(Segment.t) =>
+  Option.map(
+    ((_, from_slide)) => prefix(~anchor=slide, library) @ from_slide,
+    at_slide(~slide, seg),
+  );
+
+/* a world's elaboration (its module's items) cut to the slide's own
+   item: what runs, the library's definitions coming from the bake
+   (Builtins.env_for) */
+let run_elab = (~slide: Id.t, elab: Language.Exp.t): Language.Exp.t =>
+  switch (elab.term) {
+  | Module(items) =>
+    switch (
+      List.find_opt(
+        (item: Language.Mod.t) => Language.Mod.rep_id(item) == slide,
+        items,
+      )
+    ) {
+    | Some(item) => {
+        ...elab,
+        term: Module([item]),
+      }
+    | None => elab
+    }
+  | _ => elab
+  };
 
 /* a stored slide's members: as stored at a module root, or converted from
    an expression root (MemberForm); None when it has no member form */
