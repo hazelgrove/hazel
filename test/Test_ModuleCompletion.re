@@ -1264,14 +1264,14 @@ let member_head_deeper = () => {
   );
 };
 
-/* members typed into a new module, its `}` not yet typed: a `let` at
-   its member level is its member */
+/* members typed into a new module, its `}` not yet typed: a `let` where
+   Enter puts it, its member level, is its member */
 let new_module_members = () => {
   let z0 = at_line(~root=Exp, counter, "  let start = 0;");
   let before = rows(~root=Exp, z0);
   let z =
     Util.ListUtil.last(
-      type_line(~root=Exp, z0, "module N = {\nlet y = 1\n  let z = 2"),
+      type_line(~root=Exp, z0, "module N = {\nlet y = 1\nlet z = 2"),
     );
   let after = rows(~root=Exp, z);
   check_kept("a new module typed", before, after);
@@ -1285,6 +1285,286 @@ let new_module_members = () => {
       after,
     ),
   );
+};
+
+/* ---- a module typed whose `}` isn't typed yet: Enter starts each line of
+   its body at its member level, nested modules included, so a member
+   typed there is its own; completion closes it after its last member, and
+   the members below stay outside. A literal is typed into: the text
+   parser would pair its `}` with the unclosed `{` ---- */
+
+/* [keys] typed at [z] */
+let typed = (~root: Sort.t, z: Zipper.t, keys: string): Zipper.t =>
+  String.fold_left(
+    (z, c) => perform(~root, z, Insert(String.make(1, c))),
+    z,
+    keys,
+  );
+
+/* the caret's column */
+let caret_col = (z: Zipper.t): int => {
+  let printed =
+    Printer.of_zipper(~holes="?", ~concave_holes="~", ~caret="¦", z);
+  let line =
+    List.find(
+      l => CorpusUtil.contains("¦", l),
+      String.split_on_char('\n', printed),
+    );
+  Str.search_forward(Str.regexp_string("¦"), line, 0);
+};
+
+let counter_mod = Test_ModAudit.counter_mod;
+
+let unclosed_enter_cases = [
+  /* name, root, program, the line typed after, keys, the caret's column */
+  (
+    "in a literal",
+    Sort.Exp,
+    counter,
+    "  let start = 0;",
+    "\nmodule N = {\nlet a = 1\n",
+    4,
+  ),
+  (
+    "in a literal at a Mod root",
+    Sort.Mod,
+    counter_mod,
+    "  let start = 0;",
+    "\nmodule N = {\nlet a = 1\n",
+    4,
+  ),
+  (
+    "nested, in a literal",
+    Sort.Exp,
+    counter,
+    "  let start = 0;",
+    "\nmodule N = {\nmodule O = {\nlet a = 1\n",
+    6,
+  ),
+  (
+    "after a blank line, in a literal",
+    Sort.Exp,
+    counter,
+    "  let start = 0;",
+    "\nmodule N = {\nlet a = 1\n\n",
+    4,
+  ),
+];
+
+let unclosed_enter = ((name, root, src, after, keys, col), ()) =>
+  check(
+    int,
+    name,
+    col,
+    caret_col(typed(~root, at_line(~root, src, after), keys)),
+  );
+
+/* [n] lines of [text] from the one starting `module N` */
+let n_lines = (n: int, text: string): list(string) => {
+  let rec from = ls =>
+    switch (ls) {
+    | [] => []
+    | [l, ..._] when CorpusUtil.contains("module N", l) =>
+      Util.ListUtil.take(n, ls)
+    | [_, ...ls] => from(ls)
+    };
+  from(String.split_on_char('\n', text));
+};
+
+let unclosed_flow =
+    ((name, root, at, keys, lines, expect_rows, completed), ()) => {
+  let z =
+    typed(
+      ~root,
+      switch (at) {
+      | None => Zipper.init()
+      | Some((src, after)) => at_line(~root, src, after)
+      },
+      keys,
+    );
+  check(
+    list(string),
+    name ++ ": typed",
+    lines,
+    n_lines(List.length(lines), text(z)),
+  );
+  check(
+    list(string),
+    name ++ ": rows",
+    expect_rows,
+    paths(rows(~root, z)),
+  );
+  check(
+    list(string),
+    name ++ ": completed",
+    completed,
+    n_lines(
+      List.length(completed),
+      Printer.of_segment(
+        ~holes="?",
+        ~concave_holes="~",
+        CanonicalCompletion.complete_items(
+          ~sort=root,
+          MakeTerm.semantic_source(z),
+        ).
+          completed_seg,
+      ),
+    ),
+  );
+};
+
+/* the missing `;` between members typed without it is grout (`~`), as
+   when a `;` is deleted */
+let counter_with_n = (~root: Sort.t) =>
+  ["/Counter : ", "/Counter/start : Int"]
+  @ ["/Counter/N : ", "/Counter/N/a : Int", "/Counter/N/b : Int"]
+  @ ["/Counter/next : Int", "/Counter/after : Int"]
+  @ [root == Sort.Mod ? "/stmt : " : "/trail : "];
+
+let unclosed_flow_cases = [
+  /* name, root, the program and the line typed after (none: an empty
+     editor), keys; then N's lines as typed, the rows, N completed */
+  (
+    "at a Mod root",
+    Sort.Mod,
+    None,
+    "module N = {\nlet a = 1\nlet b = 2;",
+    ["module N = {", "  let a = 1", "  ~let b = 2;?"],
+    ["/N : ", "/N/a : Int", "/N/b : Int"],
+    ["module N = {", "  let a = 1", "  ~let b = 2;?}"],
+  ),
+  (
+    "at a Mod root, members below",
+    Sort.Mod,
+    Some((counter_members, "let start = 0;")),
+    "\nmodule N = {\nlet a = 1\nlet b = 2;",
+    ["module N = {", "  let a = 1", "  ~let b = 2;", "let next = start + 1;"],
+    [
+      "/start : Int",
+      "/N : ",
+      "/N/a : Int",
+      "/N/b : Int",
+      "/next : Int",
+      "/after : Int",
+    ],
+    [
+      "module N = {",
+      "  let a = 1",
+      "  ~let b = 2};",
+      "let next = start + 1;",
+    ],
+  ),
+  (
+    "in a literal",
+    Sort.Exp,
+    Some((counter, "  let start = 0;")),
+    "\nmodule N = {\nlet a = 1\nlet b = 2;",
+    [
+      "  module N = {",
+      "    let a = 1",
+      "    ~let b = 2;",
+      "  let next = start + 1;",
+    ],
+    counter_with_n(~root=Exp),
+    [
+      "  module N = {",
+      "    let a = 1",
+      "    ~let b = 2};",
+      "  let next = start + 1;",
+    ],
+  ),
+  (
+    "in a literal at a Mod root",
+    Sort.Mod,
+    Some((counter_mod, "  let start = 0;")),
+    "\nmodule N = {\nlet a = 1\nlet b = 2;",
+    [
+      "  module N = {",
+      "    let a = 1",
+      "    ~let b = 2;",
+      "  let next = start + 1;",
+    ],
+    counter_with_n(~root=Mod),
+    [
+      "  module N = {",
+      "    let a = 1",
+      "    ~let b = 2};",
+      "  let next = start + 1;",
+    ],
+  ),
+  (
+    "a blank line between members",
+    Sort.Mod,
+    None,
+    "module N = {\nlet a = 1;\n\nlet b = 2;",
+    ["module N = {", "  let a = 1;", "  ", "  let b = 2;?"],
+    ["/N : ", "/N/a : Int", "/N/b : Int"],
+    ["module N = {", "  let a = 1;", "  ", "  let b = 2;?}"],
+  ),
+  (
+    "a blank line between members, in a literal",
+    Sort.Exp,
+    Some((counter, "  let start = 0;")),
+    "\nmodule N = {\nlet a = 1;\n\nlet b = 2;",
+    [
+      "  module N = {",
+      "    let a = 1;",
+      "    ",
+      "    let b = 2;",
+      "  let next = start + 1;",
+    ],
+    counter_with_n(~root=Exp),
+    [
+      "  module N = {",
+      "    let a = 1;",
+      "    ",
+      "    let b = 2};",
+      "  let next = start + 1;",
+    ],
+  ),
+  /* a member's `;` already put the line after it at the member level */
+  (
+    "`;` after each member",
+    Sort.Mod,
+    None,
+    "module N = {\nlet a = 1;\nlet b = 2;",
+    ["module N = {", "  let a = 1;", "  let b = 2;?"],
+    ["/N : ", "/N/a : Int", "/N/b : Int"],
+    ["module N = {", "  let a = 1;", "  let b = 2;?}"],
+  ),
+  (
+    "`;` after each member, in a literal",
+    Sort.Exp,
+    Some((counter, "  let start = 0;")),
+    "\nmodule N = {\nlet a = 1;\nlet b = 2;",
+    [
+      "  module N = {",
+      "    let a = 1;",
+      "    let b = 2;",
+      "  let next = start + 1;",
+    ],
+    counter_with_n(~root=Exp),
+    [
+      "  module N = {",
+      "    let a = 1;",
+      "    let b = 2};",
+      "  let next = start + 1;",
+    ],
+  ),
+];
+
+/* Format reads N's end as completion does: the members below stay outside
+   it, and the literal's `}` at its braces */
+let unclosed_format = () => {
+  let root = Sort.Exp;
+  let z =
+    typed(
+      ~root,
+      at_line(~root, counter, "  let start = 0;"),
+      "\nmodule N = {\nlet a = 1;\nlet b = 2;",
+    );
+  let formatted = perform(~root, z, Format(Indent));
+  check(string, "formatted", text(z), text(formatted));
 };
 
 let tests = (
@@ -1324,6 +1604,31 @@ let tests = (
       member_head_deeper,
     ),
     test_case("members of a new module", `Quick, new_module_members),
+  ]
+  @ List.map(
+      ((name, _, _, _, _, _) as c) =>
+        test_case(
+          "Enter in a module whose `}` isn't typed: " ++ name,
+          `Quick,
+          unclosed_enter(c),
+        ),
+      unclosed_enter_cases,
+    )
+  @ List.map(
+      ((name, _, _, _, _, _, _) as c) =>
+        test_case(
+          "a module typed, its `}` not yet: " ++ name,
+          `Quick,
+          unclosed_flow(c),
+        ),
+      unclosed_flow_cases,
+    )
+  @ [
+    test_case(
+      "Format keeps the members below a module whose `}` isn't typed",
+      `Quick,
+      unclosed_format,
+    ),
   ]
   @ List.map(
       ((name, c)) =>

@@ -15,7 +15,6 @@
 
 (rule
  (alias runtest)
- ; fixtures read at run time, from _build/default/test
  (deps
   (glob_files modaudit/*.hz))
  (action
@@ -29,7 +28,6 @@
 
 (rule
  (alias test-quick)
- ; fixtures read at run time, from _build/default/test
  (deps
   (glob_files modaudit/*.hz))
  (action
