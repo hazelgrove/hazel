@@ -846,11 +846,38 @@ let display_agrees = ((name, root, src, after, keys), ()) =>
         list(string),
         Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
         tokens(fst(MakeTerm.semantic_segment(~root, source))),
-        tokens(CanonicalCompletion.for_editor(source).completed_seg),
+        tokens(CanonicalCompletion.for_editor(~root, source).completed_seg),
       );
     },
     type_line(~root, at_line(~root, src, after), keys),
   );
+
+/* the caret's chips, as the quiver draws them, at the end of [line]: read
+   at the editor's [root], which the code alone doesn't tell when the top
+   holds no member-level tile */
+let chips_after = ((root, src, line, expect), ()) =>
+  check(
+    string,
+    Sort.show(root) ++ ": " ++ String.escaped(src),
+    expect,
+    CompletionQuery.chips_at_caret(~root, at_line(~root, src, line))
+    |> List.map((i: CanonicalCompletion.insertion) =>
+         String.concat(
+           " ",
+           List.map(
+             (d: CanonicalCompletion.delimiter_info) => d.text,
+             i.delimiters,
+           ),
+         )
+       )
+    |> String.concat(" | "),
+  );
+
+let chip_cases = [
+  (Sort.Mod, "f(1\nlet y = 2", "f(1", ") ;"),
+  (Sort.Exp, "f(1\nlet y = 2", "f(1", ")"),
+  (Sort.Mod, "test 1 ==\nlet y = 2", "test 1 ==", "end ;"),
+];
 
 /* ---- the corpus sweep, behind HAZEL_COMPLETION_SWEEP=1 (minutes):
    every delimiter of mega-mod-1k, the Modules slide and mega-1k ---- */
@@ -1009,6 +1036,18 @@ let tests = (
           display_agrees(c),
         ),
       display_cases,
+    )
+  @ List.map(
+      ((root, src, _, _) as c) =>
+        test_case(
+          "the chips read at the editor's root: "
+          ++ Sort.show(root)
+          ++ " "
+          ++ String.escaped(src),
+          `Quick,
+          chips_after(c),
+        ),
+      chip_cases,
     )
   @ [
     test_case("corpus sweep (HAZEL_COMPLETION_SWEEP=1)", `Slow, corpus_sweep),

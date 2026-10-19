@@ -119,7 +119,7 @@ let mark_names = (info: Info.t): list(string) =>
 let snapshot = (~root: Sort.t, z: Zipper.t): snap => {
   let source = MakeTerm.semantic_source(z);
   let (completed, masks) = MakeTerm.semantic_segment(~root, source);
-  let display = CanonicalCompletion.for_editor(source).completed_seg;
+  let display = CanonicalCompletion.for_editor(~root, source).completed_seg;
   let term = MakeTerm.Incr.term_of_root(~masks, ~root, completed);
   let st =
     CachedStatics.init_compositional_term(
@@ -1934,7 +1934,9 @@ let tydi = (~k=0, needle, root, src) =>
   | (Error(why), _) => why
   | (Ok(z), st) =>
     let ci = Indicated.ci_for_completion(z, st.info_map);
-    switch (Option.bind(TyDi.set_buffer(~ci, z), TyDi.get_unparsed_buffer)) {
+    switch (
+      Option.bind(TyDi.set_buffer(~root, ~ci, z), TyDi.get_unparsed_buffer)
+    ) {
     | Some(b) => "suggests " ++ b
     | None => "no suggestion"
     };

@@ -1435,7 +1435,7 @@ let probe_tydi = (acts: list(Action.t)): string => {
     | Some(i) => "ci:" ++ (Language.Info.cls_of(i) |> Language.Cls.show)
     };
   let buf =
-    switch (TyDi.set_buffer(~ci, z)) {
+    switch (TyDi.set_buffer(~root=Exp, ~ci, z)) {
     | None => "buf:NONE"
     | Some(z') =>
       switch (TyDi.get_unparsed_buffer(z')) {
@@ -1534,7 +1534,7 @@ let move_r = Action.Move(Local(Right, ByChar));
    chunk through the normal pipeline. Output is the CARET-MARKED
    printer (¦), so these pin text, spacing, AND caret together. */
 let tab_once = (z: Zipper.t): option(Zipper.t) =>
-  CompletionQuery.tab_action(z)
+  CompletionQuery.tab_action(~root=Exp, z)
   |> Option.map(a => Test_Editing.perform(z, [a]));
 
 let tab_dispatch = (~tabs=1, acts: list(Action.t)): string => {

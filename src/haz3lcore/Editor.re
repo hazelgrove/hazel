@@ -214,6 +214,7 @@ module Update = {
     let zipper =
       tydi
         ? Buffer.set_tydi_buffer(
+            ~root,
             ~seg=?segment,
             Indicated.ci_for_completion(state.zipper, statics.info_map),
             state.zipper,

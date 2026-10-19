@@ -266,7 +266,7 @@ let no_arms = () => {
     Web.Arms.Refractors.of_zipper(
       ~font_metrics=Web.FontMetrics.init,
       ~syntax,
-      ~completion=Web.Arms.lazy_completion(z),
+      ~completion=Web.Arms.lazy_completion(~root=Exp, z),
       z,
     )
     |> List.length;
