@@ -82,6 +82,9 @@ type level = {
   spans: array(span),
   /* the indentation of the line the level starts on */
   indent: int,
+  /* the column pieces[0] starts at: past a module's `{` on its line, its
+     members start mid-line */
+  col: int,
   /* the level starts / ends a line */
   bol: bool,
   eol: bool,
@@ -468,7 +471,8 @@ let index_of = (spans: array(span)): Id.Map.t(int) => {
 /* a Read member level's raws: each Written item cut where completion
    ends an unfinished member (its units), each part divided as written;
    and whether a member line cut one */
-let read_raws = (~nested: bool, arr: array(Piece.t)): (list(raw), bool) => {
+let read_raws =
+    (~nested: bool, ~col: int, arr: array(Piece.t)): (list(raw), bool) => {
   let len = Array.length(arr);
   let written = Array.of_list(raw_spans(~sort=Mod, ~nested, arr));
   let n = Array.length(written);
@@ -479,11 +483,15 @@ let read_raws = (~nested: bool, arr: array(Piece.t)): (list(raw), bool) => {
       k => {
         let lo = k == 0 ? 0 : written[k - 1].r_cut;
         let hi = k >= n - 1 ? len : written[k].r_cut;
+        let slice = Array.to_list(Array.sub(arr, lo, hi - lo));
         switch (
-          MemberLines.member_parts(
-            ~sort=Mod,
-            Array.to_list(Array.sub(arr, lo, hi - lo)),
-          )
+          Segment.incomplete_tiles(slice) == []
+            ? []
+            : MemberLines.member_parts(
+                ~col=MemberLines.col_at(~col, arr, lo),
+                ~sort=Mod,
+                slice,
+              )
         ) {
         | []
         | [_] => [(lo, hi)]
@@ -529,6 +537,7 @@ let separators = (seg: Segment.t): list(Id.t) => {
 let build =
     (
       ~ends=Written,
+      ~col=0,
       ~sort: Sort.t,
       ~owner: owner,
       ~nested: bool,
@@ -543,7 +552,8 @@ let build =
   let len = Array.length(arr);
   let (raws, cut) =
     ends == Read && sort == Sort.Mod
-      ? read_raws(~nested, arr) : (raw_spans(~sort, ~nested, arr), false);
+      ? read_raws(~nested, ~col, arr)
+      : (raw_spans(~sort, ~nested, arr), false);
   let raws = Array.of_list(raws);
   let first_content = (r: raw) => {
     let rec go = i =>
@@ -706,6 +716,7 @@ let build =
       | Some(n) => n
       | None => spaces_after(arr, -1, len)
       },
+    col,
     bol,
     eol,
     offset,
@@ -738,6 +749,7 @@ let memo =
     (
       key: key,
       ~indent: option(int),
+      ~col: int,
       ~bol: bool,
       ~eol: bool,
       seg: Segment.t,
@@ -749,6 +761,7 @@ let memo =
       when
         Segment.ptr_eq(lv.seg, seg)
         && Option.fold(~none=true, ~some=n => lv.indent == n, indent)
+        && lv.col == col
         && lv.bol == bol
         && lv.eol == eol => lv
   | _ =>
@@ -768,7 +781,14 @@ let top = (~ends=Written, ~root: Sort.t, seg: Segment.t): level => {
     | [p, ..._] => Piece.id(p)
     | [] => Id.invalid
     };
-  memo(KTop(ends, sort, first), ~indent=None, ~bol=true, ~eol=true, seg, () =>
+  memo(
+    KTop(ends, sort, first),
+    ~indent=None,
+    ~col=0,
+    ~bol=true,
+    ~eol=true,
+    seg,
+    () =>
     build(
       ~ends,
       ~sort,
@@ -807,6 +827,25 @@ let site_of = (lv: level, k: int): option(site) => {
   };
 };
 
+/* the column a module literal's members start at, past its `{`, in a
+   level starting at [col] whose site [s] holds the brace at [m] */
+let members_col =
+    (~col: int, arr: array(Piece.t), s: site, m: int, brace: Tile.t): int => {
+  let at_brace =
+    switch (s) {
+    | Kid(h, t) =>
+      let starts =
+        fst(MemberLines.tile_layout(MemberLines.col_at(~col, arr, h), t));
+      MemberLines.col_at(
+        ~col=ListUtil.last(starts),
+        Array.of_list(ListUtil.last(t.children)),
+        m,
+      );
+    | Run(_) => MemberLines.col_at(~col, arr, m)
+    };
+  List.hd(fst(MemberLines.tile_layout(at_brace, brace)));
+};
+
 /* span [k]'s member level, if it is a module literal */
 let members = (lv: level, k: int): option(level) =>
   switch (lv.spans[k].body) {
@@ -827,16 +866,19 @@ let members = (lv: level, k: int): option(level) =>
         | Run(_) => indent_at(~outer=outer(lv), lv.pieces, m)
         };
       let seg = List.hd(brace.children);
+      let col = members_col(~col=lv.col, lv.pieces, s, m, brace);
       Some(
         memo(
           KMembers(lv.ends, brace.id),
           ~indent=Some(indent),
+          ~col,
           ~bol=false,
           ~eol=false,
           seg,
           () =>
           build(
             ~ends=lv.ends,
+            ~col,
             ~sort=Sort.Mod,
             ~owner=Members(brace.id),
             ~nested=false,
@@ -865,10 +907,12 @@ let chain = (lv: level, k: int): option(level) => {
     let eol = c1 == Array.length(arr) ? lv.eol : Piece.is_linebreak(arr[c1]);
     let indent = Some(sp.base_col);
     let seg = Array.to_list(Array.sub(arr, c0, c1 - c0));
+    let col = MemberLines.col_at(~col=lv.col, arr, c0);
     Some(
-      memo(KChain(lv.ends, sp.anchor), ~indent, ~bol, ~eol, seg, () =>
+      memo(KChain(lv.ends, sp.anchor), ~indent, ~col, ~bol, ~eol, seg, () =>
         build(
           ~ends=lv.ends,
+          ~col,
           ~sort=Sort.Exp,
           ~owner=Chain(sp.anchor),
           ~nested=false,
@@ -897,9 +941,10 @@ let children = (lv: level, k: int): option(level) =>
    for module literals (they have members) or type definitions */
 let block = (lv: level, k: int): option(level) => {
   let sp = lv.spans[k];
-  let mk = (~indent, ~offset, seg) => {
+  let mk = (~indent, ~col, ~offset, seg) => {
     let b =
       build(
+        ~col,
         ~sort=Sort.Exp,
         ~owner=Block(sp.anchor),
         ~nested=true,
@@ -917,6 +962,15 @@ let block = (lv: level, k: int): option(level) => {
     let c = List.length(t.children) - 1;
     mk(
       ~indent=kid_indent(~outer=outer(lv), lv.pieces, h, t, c),
+      ~col=
+        ListUtil.last(
+          fst(
+            MemberLines.tile_layout(
+              MemberLines.col_at(~col=lv.col, lv.pieces, h),
+              t,
+            ),
+          ),
+        ),
       ~offset=0,
       ListUtil.last(t.children),
     );
@@ -925,6 +979,7 @@ let block = (lv: level, k: int): option(level) => {
     | Tile(t) when !is_type(t) =>
       mk(
         ~indent=indent_at(~outer=outer(lv), lv.pieces, a),
+        ~col=MemberLines.col_at(~col=lv.col, lv.pieces, a),
         ~offset=a,
         Array.to_list(Array.sub(lv.pieces, a, b - a)),
       )
@@ -953,14 +1008,16 @@ let keyed = (lv: level): list((Id.t, Segment.t)) =>
 let slices = (lv: level): list(Segment.t) => List.map(snd, keyed(lv));
 
 /* a lone module literal item, for a layer that redoes its members: its
-   member slices, and the item with a new member list in their place (the
-   brace and the spine above it rebuilt, its other pieces its own).
-   Unmemoized: the item is a slice, not a program */
+   member slices, the item with a new member list in their place (the
+   brace and the spine above it rebuilt, its other pieces its own), and the
+   column its members start at, the item starting at [col]. Unmemoized:
+   the item is a slice, not a program */
 let module_item =
-    (~root: Sort.t, item: Segment.t)
-    : option((list(Segment.t), Segment.t => Segment.t)) => {
+    (~root: Sort.t, ~col=0, item: Segment.t)
+    : option((list(Segment.t), Segment.t => Segment.t, int)) => {
   let lv =
     build(
+      ~col,
       ~sort=root == Sort.Mod ? Sort.Mod : Sort.Exp,
       ~owner=Top,
       ~nested=false,
@@ -1006,7 +1063,7 @@ let module_item =
             | Run(_) => ListUtil.put_nth(m, brace', item)
             };
           };
-          (slices(members), put);
+          (slices(members), put, members_col(~col, lv.pieces, s, m, brace));
         },
         brace_of(lv.pieces, s),
       )
@@ -1016,12 +1073,15 @@ let module_item =
 };
 
 /* a lone module member that is a let chain, for a layer that redoes its
-   items: the chain's slices, and the member with new pieces for them (its
-   trivia, `;` and what follows its own). Unmemoized */
+   items: the chain's slices, the member with new pieces for them (its
+   trivia, `;` and what follows its own), and the column the chain starts
+   at, the member starting at [col]. Unmemoized */
 let chain_item =
-    (item: Segment.t): option((list(Segment.t), Segment.t => Segment.t)) => {
+    (~col=0, item: Segment.t)
+    : option((list(Segment.t), Segment.t => Segment.t, int)) => {
   let lv =
     build(
+      ~col,
       ~sort=Sort.Mod,
       ~owner=Top,
       ~nested=false,
@@ -1047,7 +1107,11 @@ let chain_item =
         sub(c0, c1),
       );
     let (pre, post) = (sub(0, c0), sub(c1, Array.length(lv.pieces)));
-    Some((slices(chain), (seg => pre @ seg @ post)));
+    Some((
+      slices(chain),
+      (seg => pre @ seg @ post),
+      MemberLines.col_at(~col, lv.pieces, c0),
+    ));
   | _ => None
   };
 };

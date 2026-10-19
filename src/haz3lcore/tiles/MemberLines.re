@@ -4,7 +4,10 @@
    before its MEMBER LINE, the next line at-or-left of its first that
    doesn't continue it. Completion cuts its units there (and synthesizes
    the member's `;`); ItemSpans' Read levels cut the parse and the layout
-   there too, so an open form stays in its member. Pure piece structure. */
+   there too, so an open form stays in its member. A member that starts
+   mid-line (on its module's `{` line) takes its start column as its first
+   line's indentation, given as [~col], the column the segment starts at.
+   Pure piece structure. */
 
 open Util;
 
@@ -25,6 +28,46 @@ let is_member_head = (p: Piece.t): bool =>
     }
   | _ => false
   };
+
+/* the column after [seg] laid out from [col], as the editor lays it out (a
+   hole is one column); a linebreak at any depth starts a line */
+let rec col_after = (col: int, seg: Segment.t): int =>
+  List.fold_left(col_after_piece, col, seg)
+and col_after_piece = (col: int, p: Piece.t): int =>
+  switch (p) {
+  | Secondary(w) when Secondary.is_linebreak(w) => 0
+  | Secondary(w) => col + Secondary.length(w)
+  | Grout(_) => col + 1
+  | Projector(pr) => col_after_piece(col, pr.syntax)
+  | Tile(t) => snd(tile_layout(col, t))
+  }
+/* tile [t] laid out from [col]: where each child starts, and the column
+   after it */
+and tile_layout = (col: int, t: Tile.t): (list(int), int) => {
+  let rec go = (col, shards, children, starts) =>
+    switch (shards) {
+    | [] => (List.rev(starts), col)
+    | [s, ...shards] =>
+      let col = col + Token.length(Tile.token(t, s));
+      switch (children, shards) {
+      | ([child, ...children], [_, ..._]) =>
+        go(col_after(col, child), shards, children, [col, ...starts])
+      | _ => (List.rev(starts), col)
+      };
+    };
+  go(col, t.shards, t.children, []);
+};
+
+/* the column [arr]'s piece [i] starts at, [arr] starting at column [col]:
+   laid out from the line it is on */
+let col_at = (~col: int, arr: array(Piece.t), i: int): int => {
+  let rec bol = j =>
+    j > 0 && !Piece.is_linebreak(arr[j - 1]) ? bol(j - 1) : j;
+  let rec fwd = (j, c) =>
+    j >= i ? c : fwd(j + 1, col_after_piece(c, arr[j]));
+  let b = bol(i);
+  fwd(b, b == 0 ? col : 0);
+};
 
 let count_leading_spaces = (seg: Segment.t): int =>
   List.length(fst(Segment.split_space_run(seg)));
@@ -100,7 +143,12 @@ let opens_members = (t: Tile.t): bool =>
   && at_members(snd(Mold.nibs(~index=Tile.r_shard(t), Tile.mold(t))).sort);
 
 let partition_segment =
-    (~use_indent_heuristic=true, ~absorb_empty_lines=false, seg: Segment.t)
+    (
+      ~use_indent_heuristic=true,
+      ~absorb_empty_lines=false,
+      ~col=0,
+      seg: Segment.t,
+    )
     : list((Segment.t, list(Tile.t))) => {
   let rec go =
           (
@@ -231,7 +279,7 @@ let partition_segment =
       )
     };
   };
-  go(seg, [], [], false, 0, false, None);
+  go(seg, [], [], false, col, false, None);
 };
 
 /* what follows a part of a level: its first content, and the
@@ -299,25 +347,27 @@ let is_member_sep = (p: Piece.t): bool =>
   };
 
 /* the indentation of the line holding [arr]'s piece [i], which starts at
-   or after [floor] */
-let indent_at = (~floor=0, arr: array(Piece.t), i: int): int => {
+   or after [floor]; on [arr]'s first line, which starts at column [col],
+   the column its content starts at */
+let indent_at = (~col=0, ~floor=0, arr: array(Piece.t), i: int): int => {
   let rec bol = j =>
     j <= floor || Piece.is_linebreak(arr[j - 1]) ? j : bol(j - 1);
   let rec spaces = (j, n) =>
     j < i && Piece.is_space(arr[j]) ? spaces(j + 1, n + 1) : n;
-  spaces(bol(i), 0);
+  let b = bol(i);
+  (b == 0 ? col : 0) + spaces(b, 0);
 };
 
 /* the member holding piece [i] of a member level, which starts at or
    after [floor]: its first content's index, and the indentation of the
    line that content is on */
-let member_at = (~floor=0, arr: array(Piece.t), i: int): (int, int) => {
+let member_at = (~col=0, ~floor=0, arr: array(Piece.t), i: int): (int, int) => {
   let rec start = j =>
     j <= floor || is_member_sep(arr[j - 1]) ? j : start(j - 1);
   let rec content = j =>
     j < i && Piece.is_secondary(arr[j]) ? content(j + 1) : j;
   let c = content(start(i));
-  (c, indent_at(~floor, arr, c));
+  (c, indent_at(~col, ~floor, arr, c));
 };
 
 /* per partition of [seg]: what follows it (the next partition with
@@ -327,6 +377,7 @@ let member_at = (~floor=0, arr: array(Piece.t), i: int): (int, int) => {
    it, so a part cut there reads it alike */
 let member_ends =
     (
+      ~col=0,
       ~sort: Sort.t,
       ~follows: option(follows),
       seg: Segment.t,
@@ -355,7 +406,7 @@ let member_ends =
           Option.bind(
             index(first.id, offset, sub),
             i => {
-              let (c, indent) = member_at(~floor, arr, i);
+              let (c, indent) = member_at(~col, ~floor, arr, i);
               f.indent <= indent && !continues(f.head)
                 ? Some(Piece.id(arr[c])) : None;
             },
@@ -376,13 +427,14 @@ type unit_ = (Segment.t, option(follows));
    member's end, from layout, so an unfinished member's unit stops at the
    next member line instead of running on through every `;` its open form
    reaches. Each part but the last carries what follows it; complete_slices
-   verifies each against its completion */
-let member_parts = (~sort: Sort.t, item: Segment.t): list(unit_) =>
+   verifies each against its completion. [col]: the column [item] starts
+   at */
+let member_parts = (~col=0, ~sort: Sort.t, item: Segment.t): list(unit_) =>
   switch (Segment.incomplete_tiles(item)) {
   | [] => [(item, None)]
   | _ =>
-    let parts = partition_segment(item);
-    let ends = member_ends(~sort, ~follows=None, item, parts);
+    let parts = partition_segment(~col, item);
+    let ends = member_ends(~col, ~sort, ~follows=None, item, parts);
     let rec go = (acc, parts, ends) =>
       switch (parts, ends) {
       | ([(sub, _), ...parts], [(next, Some(_)), ...ends])

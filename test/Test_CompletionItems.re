@@ -284,19 +284,19 @@ let rec check_item = (name: string, ~sort: Sort.t, item: Segment.t): int => {
       ),
     );
   };
-  let split = (f: Segment.t => option((list(Segment.t), _))) =>
+  let split = (f: Segment.t => option((list(Segment.t), _, _))) =>
     switch (f(item), f(per.completed_seg)) {
-    | (Some((before, _)), Some((after, _))) => Some((before, after))
+    | (Some((before, _, _)), Some((after, _, _))) => Some((before, after))
     | (Some(_), None) => fail(name ++ ": completion lost its parts")
     | (None, _) => None
     };
   if (!by_member) {
     0;
   } else {
-    switch (split(ItemSpans.module_item(~root=sort))) {
+    switch (split(ItemSpans.module_item(~root=sort, ~col=0))) {
     | Some((before, after)) => 1 + parts(~sort=Mod, "member", before, after)
     | None =>
-      switch (split(ItemSpans.chain_item)) {
+      switch (split(ItemSpans.chain_item(~col=0))) {
       | Some((before, after)) =>
         1 + parts(~sort=Exp, "chain item", before, after)
       | None => fail(name ++ ": read per member, but has no members")
@@ -434,7 +434,7 @@ let member_case = ((name, root, src, read), ()) =>
     );
     /* its module's members as a Mod root's items */
     switch (ItemSpans.module_item(~root, seg)) {
-    | Some((members, _)) =>
+    | Some((members, _, _)) =>
       ignore(
         check_members(
           name ++ " at a Mod root",
