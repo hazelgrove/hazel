@@ -353,12 +353,15 @@ let consumers = ((name, root, src), ()) => {
         )
       ) {
       | Some(z) when String.trim(line) != "" =>
+        let at = name ++ ": node map at line " ++ string_of_int(row);
+        let got = nodes(editor, z);
         check(
-          string,
-          name ++ ": node map at line " ++ string_of_int(row),
-          nodes(whole, z),
-          nodes(editor, z),
-        )
+          bool,
+          at ++ " builds",
+          false,
+          String.starts_with(~prefix="raised", got),
+        );
+        check(string, at, nodes(whole, z), got);
       | _ => ()
       };
     },
