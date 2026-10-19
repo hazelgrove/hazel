@@ -85,6 +85,20 @@ let focused_names = (p: t): list((Id.t, option(string))) =>
     )
   };
 
+/* [p]'s editors with the parse and measure caches of [from]'s in the same
+   place: the whole program's editor (a stack's shell is the one it was cut
+   from) and each open cell's panes. Undo restores a program that shares
+   [from]'s pieces wherever the step changed nothing, so they hit there */
+let with_caches_of = (~from: t, p: t): t =>
+  switch (from, p) {
+  | (Whole(f), Whole(e)) =>
+    Whole(CellEditor.Model.with_caches_of(~from=f, e))
+  | (Whole(f), Divided(d)) =>
+    Divided(Divided.with_shell_caches_of(~from=f, d))
+  | (Divided(f), Whole(e)) => Whole(Divided.shell_caches_into(f, e))
+  | (Divided(f), Divided(d)) => Divided(Divided.with_caches_of(~from=f, d))
+  };
+
 let of_close = (c: Divided.after_close): t =>
   switch (c) {
   | Still(d) => Divided(d)

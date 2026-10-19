@@ -63,19 +63,25 @@ module Store = {
   };
 };
 
-/* undo and redo restore programs; what each slide shows stays */
-let carry_views = (~from: Model.t, m: Model.t): Model.t =>
+/* undo and redo restore programs; what each slide shows stays, and so do
+   its editors' incremental caches, which hit for what the step didn't
+   change (snapshots drop theirs: History.compact) */
+let carry_over = (~from: Model.t, m: Model.t): Model.t => {
+  let carry = (a, b) =>
+    ScratchMode.Model.with_views_of(~from=a, b)
+    |> ScratchMode.Model.with_caches_of(~from=a);
   switch (from.editors, m.editors) {
   | (Scratch(a), Scratch(b)) => {
       ...m,
-      editors: Scratch(ScratchMode.Model.with_views_of(~from=a, b)),
+      editors: Scratch(carry(a, b)),
     }
   | (Documentation(a), Documentation(b)) => {
       ...m,
-      editors: Documentation(ScratchMode.Model.with_views_of(~from=a, b)),
+      editors: Documentation(carry(a, b)),
     }
   | _ => m
   };
+};
 
 module Update = {
   open Updated;

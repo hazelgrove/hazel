@@ -320,13 +320,17 @@ let close = (id: Id.t, d: t): after_close =>
   | ([], _) => Still(d)
   | ([closing, ..._], rest) =>
     switch (rest) {
-    /* join's document splices it: splicing here too doubled its edge text */
+    /* join's document splices it: splicing here too doubled its edge
+       text. The shell's caches hit for the items no cell changed */
     | [] =>
       Joined(
-        join({
-          ...d,
-          cells: [closing],
-        }),
+        join(
+          ~prev=d.shell,
+          {
+            ...d,
+            cells: [closing],
+          },
+        ),
       )
     | [first, ..._] =>
       Still(
@@ -711,3 +715,36 @@ let compact = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
   ...map_editors(f, d),
   statics: None,
 };
+
+/* [d]'s editors with the caches of [from]'s in the same place
+   (CellEditor.Model.with_caches_of): the shell's, and each open cell's
+   panes from [from]'s cell of the same item */
+let with_caches_of = (~from: t, d: t): t => {
+  let carry = (from, c) => CellEditor.Model.with_caches_of(~from, c);
+  {
+    ...d,
+    shell: carry(from.shell, d.shell),
+    cells:
+      List.map(
+        (e: Cell.t) =>
+          switch (cell(e.e_id, from)) {
+          | Some(c) => {
+              ...e,
+              e_header: carry(c.e_header, e.e_header),
+              e_body: carry(c.e_body, e.e_body),
+            }
+          | None => e
+          },
+        d.cells,
+      ),
+  };
+};
+
+/* the shell is the whole editor [d] was cut from: its caches to and from
+   a whole editor */
+let with_shell_caches_of = (~from: CellEditor.Model.t, d: t): t => {
+  ...d,
+  shell: CellEditor.Model.with_caches_of(~from, d.shell),
+};
+let shell_caches_into = (d: t, e: CellEditor.Model.t): CellEditor.Model.t =>
+  CellEditor.Model.with_caches_of(~from=d.shell, e);

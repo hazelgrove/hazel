@@ -52,6 +52,22 @@ module Model = {
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
 
+  /* [model] with [from]'s incremental caches (CachedSyntax.with_caches_of) */
+  let with_caches_of = (~from: t, model: t): t => {
+    ...model,
+    editor: {
+      ...model.editor,
+      editor: {
+        ...model.editor.editor,
+        syntax:
+          CachedSyntax.with_caches_of(
+            ~from=from.editor.editor.syntax,
+            model.editor.editor.syntax,
+          ),
+      },
+    },
+  };
+
   let map_zipper = (f: Zipper.t => Zipper.t, model: t): t => {
     ...model,
     editor: {
