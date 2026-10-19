@@ -732,12 +732,26 @@ module Selection = {
 };
 
 module View = {
+  /* the Cmd state a key event gives the model, when it may change it. The
+     listener's model is the last render's, which hasn't seen a press in
+     this frame: a press or release of Cmd always gives it (a release
+     dropped there left the Cmd-hover underline on), other keys a change */
+  let meta_change = (~rendered: bool, key: Key.t): option(bool) => {
+    let down = key.meta == Down;
+    switch (key.key) {
+    | D("Meta")
+    | U("Meta") => Some(down)
+    | _ => rendered == down ? None : Some(down)
+    };
+  };
+
   let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-      let meta_down = key.meta == Down;
       let meta_effects =
-        model.globals.meta_down == meta_down
-          ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+        switch (meta_change(~rendered=model.globals.meta_down, key)) {
+        | Some(down) => [inject(Globals(SetMetaDown(down)))]
+        | None => []
+        };
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
        * (they call Stop_propagation). */
@@ -837,9 +851,8 @@ module View = {
         if (! JsUtil.projector_holds_focus^) {
           JsUtil.focus_clipboard_shim();
         };
-        model.globals.meta_down
-          ? Effect.Many([inject(Globals(SetMetaDown(false)))])
-          : Effect.Ignore;
+        /* whatever the last render saw: a press may not have rendered */
+        inject(Globals(SetMetaDown(false)));
       }),
       Attr.on_focus(_ => {
         /* Focus events bubble here, so without this guard focusing a

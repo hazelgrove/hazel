@@ -293,10 +293,10 @@ let rec check_item = (name: string, ~sort: Sort.t, item: Segment.t): int => {
   if (!by_member) {
     0;
   } else {
-    switch (split(ItemSpans.module_item(~root=sort, ~col=0))) {
+    switch (split(ItemSpans.module_item(~root=sort, ~line=None))) {
     | Some((before, after)) => 1 + parts(~sort=Mod, "member", before, after)
     | None =>
-      switch (split(ItemSpans.chain_item(~col=0))) {
+      switch (split(ItemSpans.chain_item(~line=None))) {
       | Some((before, after)) =>
         1 + parts(~sort=Exp, "chain item", before, after)
       | None => fail(name ++ ": read per member, but has no members")
@@ -339,10 +339,22 @@ let member_programs = [
     `Typed("module M = {\n  let x = 1;\n  let y\n  let z = 4\n} in\nM.x"),
     1,
   ),
+  /* a `let` typed at a member line is a member's: the missing `;` is a
+     grout, and nothing is unfinished */
   (
     "a missing `;`",
     Sort.Exp,
     `Typed("module M = {\n  let x = 1\n  let y = 2;\n  let z = 4\n} in\nM.x"),
+    0,
+  ),
+  /* one typed on a line indented past the member continues it: an
+     expression's `let`, missing its `in` */
+  (
+    "a `let` continuing a member",
+    Sort.Exp,
+    `Typed(
+      "module M = {\n  let x = 1\n    let y = 2;\n  let z = 4\n} in\nM.x",
+    ),
     1,
   ),
   (
