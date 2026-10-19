@@ -42,36 +42,34 @@ let run_agent_action = (code: string, a: Action.Structural.t) => {
 };
 
 /** Runs a no-path insert_before / insert_after (the InsertAtProgramBoundary
-    action). Before → prepend at program start; After → append at program end. */
+    action) as AgentToolCallHandler does. Before → prepend at program start;
+    After → append at program end (at a Mod root, members after the last). */
 let run_insert_at_program_boundary =
     (
+      ~root=Sort.Exp,
       code: string,
       direction: Action.Structural.insert_target,
       new_code: string,
     ) => {
-  let z = mk_zipper(code);
-  let initial_info_map = mk_statics(z);
-  let z_at_boundary =
-    switch (direction) {
-    | Before => Move.to_start(z)
-    | After => Move.to_end(z)
-    };
+  let z =
+    root == Sort.Exp
+      ? mk_zipper(code) : Zipper.unzip(CorpusUtil.seg_of(~root, code));
+  let statics = z => CompositionGo.Public.mk_statics(~root, z);
+  let initial_info_map = statics(z);
   let before_pieces =
-    LocalReformat.snapshot_pieces(
-      ~enabled=CoreSettings.on.auto_reindent,
-      z_at_boundary,
-    );
+    LocalReformat.snapshot_pieces(~enabled=CoreSettings.on.auto_reindent, z);
   switch (
-    CompositionGo.Local.PerformUtils.introduce(
-      ~fast=true,
-      ~keep_edge_ws=true,
-      z_at_boundary,
-      "\n" ++ new_code ++ "\n",
+    CompositionGo.Public.insert_at_boundary(
+      ~root,
+      ~info_map=initial_info_map,
+      direction,
+      z,
+      new_code,
     )
   ) {
   | Error(e) => Error(e)
   | Ok(new_z) =>
-    let new_statics = mk_statics(new_z);
+    let new_statics = statics(new_z);
     let old_errors = ErrorPrint.all(initial_info_map);
     let new_errors = ErrorPrint.all(new_statics);
     if (List.length(new_errors) > List.length(old_errors)) {
@@ -85,8 +83,9 @@ let run_insert_at_program_boundary =
          re-indent like the dispatch path. */
       Ok(
         CompositionGo.Local.PerformUtils.normalize_top_level(
+          ~root,
           ~before=z,
-          Materialize.all(new_z, ~root=Exp),
+          Materialize.all(new_z, ~root),
         )
         |> LocalReformat.go_region(~before_pieces),
       );
@@ -5519,6 +5518,49 @@ let mod_root_tests = (
             ["let d : M.T = M.a + a;", "test d == 6 end;"],
           ),
           apply_at_mod_root(InsertTest(None, "d == 6")),
+        );
+      },
+    ),
+    test_case(
+      "insert_after and insert_before with no path place members",
+      `Quick,
+      () => {
+        let boundary = (d, code) =>
+          switch (
+            run_insert_at_program_boundary(
+              ~root=Mod,
+              mod_root_program,
+              d,
+              code,
+            )
+          ) {
+          | Ok(z) => render_zipper(z)
+          | Error(err) =>
+            Alcotest.fail(
+              "boundary insert failed: " ++ Action.Failure.show(err),
+            )
+          };
+        /* after the last member, before the trailing expression */
+        check_rendered(
+          "mod_root_boundary_after",
+          mod_root_with(
+            "let d : M.T = M.a + a;",
+            ["let d : M.T = M.a + a;", "let z = 3;"],
+          ),
+          boundary(After, "let z = 3"),
+        );
+        check_rendered(
+          "mod_root_boundary_after_several",
+          mod_root_with(
+            "let d : M.T = M.a + a;",
+            ["let d : M.T = M.a + a;", "let y = 2;", "let z = y + 1;"],
+          ),
+          boundary(After, "let y = 2;\nlet z = y + 1;"),
+        );
+        check_rendered(
+          "mod_root_boundary_before",
+          "let z = 3;\n" ++ mod_root_program,
+          boundary(Before, "let z = 3"),
         );
       },
     ),

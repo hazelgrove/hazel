@@ -175,11 +175,11 @@ let update =
   | LanguageServerAction(_) =>
     Error(Failure.Info("LanguageServerAction is not implemented yet"))
   | InsertAtProgramBoundary(direction, code) =>
-    /* No-path variant of insert_before/insert_after.
-       - Before: move caret to program start, then paste code (prepend).
-       - After: move caret to program end, then paste code (append).
-       For an empty program (just `?`), either boundary effectively
-       seeds the program with the provided code. */
+    /* No-path variant of insert_before/insert_after: the code at the
+       program's start (Before) or end (After), at a Mod root as members
+       (CompositionGo.Public.insert_at_boundary). For an empty program
+       (just `?`), either boundary effectively seeds the program with the
+       provided code. */
     let z = editor.editor.state.zipper;
     let root = editor.editor.root;
     /* the editor's statics for this program when it has them; the new
@@ -214,26 +214,17 @@ let update =
       | Some(st) when st.info_map != Id.Map.empty => st.info_map
       | _ => statics_of(~offer=false, z)
       };
-    let z_at_boundary =
-      switch ((direction: Action.Structural.insert_target)) {
-      | Before => Move.to_start(z)
-      | After => Move.to_end(z)
-      };
     /* inserted code arrives indentation-stripped; re-indent its new
        lines like user Paste */
     let before_pieces =
-      LocalReformat.snapshot_pieces(
-        ~enabled=settings.core.auto_reindent,
-        z_at_boundary,
-      );
+      LocalReformat.snapshot_pieces(~enabled=settings.core.auto_reindent, z);
     switch (
-      CompositionGo.Local.PerformUtils.introduce(
+      CompositionGo.Public.insert_at_boundary(
         ~root,
-        ~splice_root=root,
-        ~fast=true,
-        ~keep_edge_ws=true,
-        z_at_boundary,
-        "\n" ++ code ++ "\n",
+        ~info_map=initial_info_map,
+        direction,
+        z,
+        code,
       )
     ) {
     | Error(Action.Failure.Composition_action_failure(msg)) =>
