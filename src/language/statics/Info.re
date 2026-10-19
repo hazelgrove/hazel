@@ -575,6 +575,23 @@ let access_member = (m: member_access): option(Id.t) =>
 let member_binding_site = (~info_map: Id.Map.t(t), info: t): option(Id.t) =>
   Option.bind(member_access(~info_map, info), access_member);
 
+/* the name binder [info] binds: a variable's, type's or module's */
+let binder_name = (info: t): option(string) =>
+  switch (info) {
+  | InfoPat({user_term: {term: Var(x), _}, _})
+  | InfoTPat({user_term: {term: Var(x), _}, _})
+  | InfoMPat({user_term: {term: Var(x), _}, _}) => Some(x)
+  | _ => None
+  };
+
+/* a label's name: `x` in `M.x`, `(x = 1)` or `M.x` in a type */
+let label_name = (info: t): option(string) =>
+  switch (info) {
+  | InfoExp({user_term: {term: Label(x), _}, _})
+  | InfoTyp({user_term: {term: Label(x), _}, _}) => Some(x)
+  | _ => None
+  };
+
 /* the binder [info] names: a variable's, constructor's or type
    variable's, or a member access's member */
 let binding_site = (~info_map: Id.Map.t(t), info: t): option(Id.t) =>
