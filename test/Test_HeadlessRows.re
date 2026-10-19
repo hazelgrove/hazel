@@ -109,7 +109,9 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
     switch (O.pat_var(pat)) {
     | Some(_) =>
       def_row(id, Pat.rep_id(pat), def);
-      def_kids(def);
+      /* `let f(x) = …`: [def] is the function's body */
+      Option.is_some(FunctionSugar.detect(pat))
+        ? of_block(def) : def_kids(def);
       1;
     | None => 0
     }

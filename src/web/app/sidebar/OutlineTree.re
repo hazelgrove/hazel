@@ -141,17 +141,32 @@ and mk_def =
 
 and let_row = (id: Id.t, pat: Pat.t, def: Exp.t): list(node) =>
   switch (pat_var(pat)) {
+  /* `let f(x) = …` keeps its parameters in the pattern: [def] is the
+     function's body, as `fun x -> …`'s is */
+  | Some((name, binder)) when Option.is_some(FunctionSugar.detect(pat)) => [
+      row(
+        ~id,
+        ~label=name,
+        ~binder=(binder, Sort.Pat),
+        ~kids=of_block(def),
+        KFn,
+      ),
+    ]
   | Some((name, binder)) => [
       mk_def(~id, ~binder=(binder, Sort.Pat), name, def),
     ]
   | None => []
   }
 
-/* `module M = …`, or `module M : S = …`: the name under its signature */
+/* `module M = …`, or `module M : S = …`: the name under its signature.
+   A module whatever its definition, an alias (`module Db = Base`) too */
 and module_row = (id: Id.t, mpat: MPat.t, def: Exp.t): list(node) =>
   switch (mpat.term) {
   | Var(name) => [
-      mk_def(~id, ~binder=(MPat.rep_id(mpat), Sort.MPat), name, def),
+      {
+        ...mk_def(~id, ~binder=(MPat.rep_id(mpat), Sort.MPat), name, def),
+        o_kind: KModule,
+      },
     ]
   | Asc(inner, _) => module_row(id, inner, def)
   | _ => []

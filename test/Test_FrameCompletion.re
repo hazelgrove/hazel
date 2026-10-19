@@ -127,6 +127,7 @@ let snapshot_case =
       let at = source =>
         expected_type(
           ImpliedHole.at_caret(
+            ~root=Exp,
             ~syntax,
             ~statics={
               ...statics,
@@ -187,11 +188,12 @@ let inspector_case = (input, expected) =>
       let z = zipper(input);
       let (syntax, statics) = frame(z);
       let (info, n) =
-        misses(() => ImpliedHole.at_caret(~syntax, ~statics, z));
+        misses(() => ImpliedHole.at_caret(~root=Exp, ~syntax, ~statics, z));
       check(int, "no misses on the frame's segment", 0, n);
       check(string, "implied hole", expected, expected_type(info));
       /* the zipper's own zip misses: the counter sees a re-zip */
-      let (info', n') = misses(() => ImpliedHole.at_caret(~statics, z));
+      let (info', n') =
+        misses(() => ImpliedHole.at_caret(~root=Exp, ~statics, z));
       check(bool, "a fresh zip misses", true, n' > 0);
       let id = Option.map(Language.Info.id_of);
       check(bool, "the same hole", true, id(info) == id(info'));
@@ -212,8 +214,9 @@ let tydi_case = (input, expected) =>
       let z = zipper(input);
       let (syntax, _) = frame(z);
       let seg = CompletionQuery.engine_seg(~syntax, z);
-      ignore(CanonicalCompletion.for_editor(seg));
-      let (suggestions, n) = misses(() => TyDi.suggest_witnesses(~seg, z));
+      ignore(CanonicalCompletion.for_editor(~root=Exp, seg));
+      let (suggestions, n) =
+        misses(() => TyDi.suggest_witnesses(~root=Exp, ~seg, z));
       check(int, "no misses on the frame's segment", 0, n);
       check(
         list(string),
@@ -221,7 +224,8 @@ let tydi_case = (input, expected) =>
         expected,
         List.map((s: TyDiSuggestion.t) => s.content, suggestions),
       );
-      let (suggestions', n') = misses(() => TyDi.suggest_witnesses(z));
+      let (suggestions', n') =
+        misses(() => TyDi.suggest_witnesses(~root=Exp, z));
       check(bool, "a fresh zip misses", true, n' > 0);
       check(bool, "same suggestions", true, suggestions == suggestions');
     },
@@ -321,7 +325,7 @@ let tab_case = (input, expected) =>
       let z = zipper(input);
       let (syntax, statics) = frame(z);
       let seg = CompletionQuery.engine_seg(~syntax, z);
-      ignore(CanonicalCompletion.for_editor(seg));
+      ignore(CanonicalCompletion.for_editor(~root=Exp, seg));
       let apply = syntax =>
         switch (
           Perform.go(
@@ -339,7 +343,8 @@ let tab_case = (input, expected) =>
         | Ok(z) => Printer.of_zipper(~holes="?", ~caret="|", z)
         | Error(e) => Action.Failure.show(e)
         };
-      let (a, n) = misses(() => CompletionQuery.tab_action(~seg, z));
+      let (a, n) =
+        misses(() => CompletionQuery.tab_action(~root=Exp, ~seg, z));
       check(int, "tab_action: no misses", 0, n);
       let (applied, n) = misses(() => apply(syntax));
       check(int, "ApplyCompletion(Next): no misses", 0, n);
@@ -349,7 +354,7 @@ let tab_case = (input, expected) =>
         bool,
         "the same action",
         true,
-        a == CompletionQuery.tab_action(z),
+        a == CompletionQuery.tab_action(~root=Exp, z),
       );
       /* a syntax zipped from another zipper: Perform zips [z] itself */
       let stale = CachedSyntax.init(~root=Exp, Zipper.init());

@@ -782,12 +782,32 @@ let parent_of_indicated = (z: t, term_data, info_map) => {
   select_as_parent(id, z, term_data, info_map);
 };
 
+/* A module member grows to the member list holding it: its module's
+ * `{…}`, or a Mod root's members, first to last. By the zipper, not by
+ * statics: a member's statics parent is the member before it (items
+ * elaborate as nested Lets), and compositional statics gives a member
+ * none at all. */
+let enclosing_members = (z: t, term_data: TermData.t, info_map) =>
+  switch (Zipper.parent(z)) {
+  | Some(p) => select_as_parent(Piece.id(p), z, term_data, info_map)
+  | None =>
+    let (l, r) = z.relatives.siblings;
+    switch (List.filter(p => !Piece.is_secondary(p), l @ r)) {
+    | [] => None
+    | [first, ..._] as content =>
+      shard_range(
+        Piece.l_shard_of(first),
+        Piece.r_shard_of(ListUtil.last(content)),
+        z,
+      )
+    };
+  };
+
 /* Escalate from a fully-matched selection to its parent.
  * Priority order:
  * 1. Def body → parent def (include body in selection)
- * 2. Module item → enclosing module tile {…}
- * 3. Inside case rule → enclosing rule tile |=>
- * 4. Default → parent term from info_map ancestors */
+ * 2. Inside case rule → enclosing rule tile |=>
+ * 3. Default → parent term from info_map ancestors */
 let escalate_from_term =
     (root_id: Id.t, parent_id: Id.t, z: t, term_data: TermData.t, info_map) =>
   if (is_def_body(root_id, parent_id, info_map)) {
@@ -798,9 +818,6 @@ let escalate_from_term =
       parent_id,
       z,
     );
-  } else if (has_mod_cls(root_id, info_map)) {
-    let* p = Zipper.parent(z);
-    select_as_parent(Piece.id(p), z, term_data, info_map);
   } else {
     /* Find the closest enclosing rule tile in left siblings.
      * Left siblings are in document order, so reverse to
@@ -833,7 +850,13 @@ let select_enclosing_term =
     current_term(term_data, ~defs_exclude_bodies=true, ~case_rules=true, z)
   | sel =>
     let z0 = Zipper.unselect(z);
-    if (List.exists(is_rule_tile, sel)) {
+    let (l, r) = z.relatives.siblings;
+    /* the whole program: nothing encloses it */
+    let whole =
+      z.relatives.ancestors == [] && List.for_all(Piece.is_secondary, l @ r);
+    if (whole) {
+      None;
+    } else if (List.exists(is_rule_tile, sel)) {
       /* Rule → case: rules aren't terms in term_data,
        * so escalate to the parent case expression */
       let* p = Zipper.parent(z0);
@@ -854,7 +877,9 @@ let select_enclosing_term =
         | Some(z') => z'.selection.content == sel
         | None => false
         };
-      if (sel_matches) {
+      if (sel_matches && has_mod_cls(root_id, info_map)) {
+        enclosing_members(z0, term_data, info_map);
+      } else if (sel_matches) {
         let* info = Id.Map.find_opt(root_id, info_map);
         let* parent_id = Language.Info.ancestors_of(info) |> ListUtil.hd_opt;
         escalate_from_term(root_id, parent_id, z0, term_data, info_map);

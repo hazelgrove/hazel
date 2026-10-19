@@ -317,9 +317,8 @@ let lib_edits = [
   token("Float", "String"),
 ];
 
-/* adds, removes and moves (a duplicated member's shadowed binder is
-   flagged unused where monolithic statics doesn't flag it, cold or not,
-   so these compare with a cold calc only) */
+/* adds, removes and moves (a duplicated member included: its copy's
+   recursive call is a use of the member above, as monolithically) */
 let lib_restructures = [
   op(NewBelow, ["List", "map"]),
   op(Duplicate, ["List", "filter"]),
@@ -483,7 +482,7 @@ let tests = (
     test_case(
       "a lib-like module, adds, removes and moves",
       `Quick,
-      script(~root=Mod, lib, lib_edits @ lib_restructures),
+      script(~root=Mod, ~mono=true, lib, lib_edits @ lib_restructures),
     ),
     test_case(
       "the lib-like module at an Exp root",

@@ -64,7 +64,7 @@ let example = (~compositional=false, ~shared=false, input, expected) =>
         string,
         "expected type of implied hole",
         expected,
-        ImpliedHole.at_caret(~statics, z) |> expected_type,
+        ImpliedHole.at_caret(~root=Exp, ~statics, z) |> expected_type,
       );
     },
   );
@@ -151,13 +151,18 @@ let tests = [
             string,
             "stale type is suppressed",
             "none",
-            ImpliedHole.at_caret(~statics, changed) |> expected_type,
+            ImpliedHole.at_caret(~root=Exp, ~statics, changed)
+            |> expected_type,
           );
           check(
             string,
             "fresh type becomes visible",
             "Bool",
-            ImpliedHole.at_caret(~statics=checked(changed), changed)
+            ImpliedHole.at_caret(
+              ~root=Exp,
+              ~statics=checked(changed),
+              changed,
+            )
             |> expected_type,
           );
         },
@@ -174,7 +179,7 @@ let tests = [
             string,
             "same hole after moving across space",
             "Int",
-            ImpliedHole.at_caret(~statics, moved) |> expected_type,
+            ImpliedHole.at_caret(~root=Exp, ~statics, moved) |> expected_type,
           );
         },
       ),
@@ -199,7 +204,8 @@ let tests = [
             string,
             "no implied hole for selection",
             "none",
-            ImpliedHole.at_caret(~statics, selected) |> expected_type,
+            ImpliedHole.at_caret(~root=Exp, ~statics, selected)
+            |> expected_type,
           );
         },
       ),
@@ -215,7 +221,7 @@ let tests = [
                 string,
                 "no speculative information",
                 "none",
-                ImpliedHole.at_caret(~statics, z) |> expected_type,
+                ImpliedHole.at_caret(~root=Exp, ~statics, z) |> expected_type,
               ),
             [
               {
@@ -256,7 +262,7 @@ let tests = [
             string,
             "pending analysis is not used",
             "none",
-            ImpliedHole.at_caret(~statics=deferred.statics, z)
+            ImpliedHole.at_caret(~root=Exp, ~statics=deferred.statics, z)
             |> expected_type,
           );
           let refreshed =
@@ -265,7 +271,7 @@ let tests = [
             string,
             "feedback returns after refresh",
             "Int",
-            ImpliedHole.at_caret(~statics=refreshed.statics, z)
+            ImpliedHole.at_caret(~root=Exp, ~statics=refreshed.statics, z)
             |> expected_type,
           );
         },
@@ -281,7 +287,9 @@ let tests = [
             ...Cursor.empty,
             info: normal,
             implied_hole:
-              Lazy.from_fun(() => ImpliedHole.at_caret(~statics, z)),
+              Lazy.from_fun(() =>
+                ImpliedHole.at_caret(~root=Exp, ~statics, z)
+              ),
             editor_read_only: false,
           };
           check(
