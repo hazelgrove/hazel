@@ -2,21 +2,10 @@
  * ~ everything below the main panel, but above the code
  * display in the hierarchy */
 
-#clipboard-shim {
-  /* probably overkill for hiding it... */
-  position: fixed;
-  opacity: 0.01;
-  width: 1em;
-  height: 1em;
-  top: -1em;
-  left: -1em;
-}
-
 /* The hidden input every editable editor types through: keystrokes and
    `input` events originate here, and it is what a phone raises its keyboard
    for. Zero-sized so the editor row is unaffected; 16px because iOS zooms
-   into smaller inputs; user-select overrides #page's none, which iOS applies
-   to inputs too. */
+   into smaller inputs. */
 .code-editor-input {
   width: 0;
   height: 0;
@@ -26,7 +15,6 @@
   opacity: 0;
   resize: none;
   overflow: hidden;
-  user-select: text;
   font-size: 16px;
 }
 
@@ -305,14 +293,6 @@
 
 .prompt-content {
   font-size: 1rem;
-}
-
-/* Allow selecting the prompt prose (overrides #page { user-select: none }).
-   Selecting prompt text also moves DOM focus off the editor, which
-   correctly drops the active-cell accent back to its idle pale state. */
-.prompt-content,
-.prompt-content * {
-  user-select: text;
 }
 
 /* Markdown paragraphs inside a prompt. Each blank line in the source

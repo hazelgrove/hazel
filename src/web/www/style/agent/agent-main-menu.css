@@ -1,15 +1,5 @@
 /* Agent Main Menu Styles */
 
-/* Force text selection/copy everywhere inside the agent main menu, overriding
-   any per-element `user-select: none` declarations. */
-.agent-main-menu,
-.agent-main-menu * {
-  user-select: text !important;
-  -webkit-user-select: text !important;
-  -moz-user-select: text !important;
-  -ms-user-select: text !important;
-}
-
 .agent-main-menu {
   display: flex;
   flex-direction: column;
@@ -292,6 +282,7 @@
   display: inline-flex;
   align-items: center;
   cursor: pointer;
+  user-select: none;
   padding: 0;
   border-radius: 0;
   background: none;
