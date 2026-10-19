@@ -369,6 +369,17 @@ let aliases: list(((string, string), list(string))) = [
   (("palette", "surface-4"), ["surface-deep"]),
 ];
 
+/* The type-block roles are derived from Typ.head, so their rows are too. */
+let aliases =
+  aliases
+  @ List.map(
+      head => {
+        let name = Typ.head_name(head);
+        (("type-block", name), ["type-block-" ++ name]);
+      },
+      Typ.all_of_head,
+    );
+
 /* Every field a themer can set, as (group, name). The pair is the key: short
    names are the point -- `menu.background` and `chrome.background` are two
    different colors and should not have to be spelled apart. */

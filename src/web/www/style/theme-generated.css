@@ -267,6 +267,15 @@
   --token-string-lit: oklch(71% 0.2 95);
   --token-tpat: oklch(60% 0.2 225);
   --token-typ: oklch(60% 0.2 300);
+  --type-block-arrow: color-mix(in oklch, oklch(93.4% 0.09 300) 55%, transparent);
+  --type-block-bool: color-mix(in oklch, oklch(93.4% 0.09 0) 55%, transparent);
+  --type-block-float: color-mix(in oklch, oklch(93.4% 0.09 215) 55%, transparent);
+  --type-block-int: color-mix(in oklch, oklch(93.4% 0.09 250) 55%, transparent);
+  --type-block-list: color-mix(in oklch, oklch(93.4% 0.09 140) 55%, transparent);
+  --type-block-string: color-mix(in oklch, oklch(93.4% 0.09 95) 55%, transparent);
+  --type-block-sum: color-mix(in oklch, oklch(93.4% 0.09 175) 55%, transparent);
+  --type-block-tuple: color-mix(in oklch, oklch(93.4% 0.09 50) 55%, transparent);
+  --type-block-unknown: color-mix(in oklch, oklch(93.4% 0 0) 55%, transparent);
   --ui-bkg: oklch(97% 0.025 90);
   --ui-header-text: oklch(60% 0.07 90);
   --warning-hole-fill: oklch(97% 0.04 95);
