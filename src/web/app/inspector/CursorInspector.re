@@ -168,6 +168,10 @@ let view_any = (~globals, any: Any.t) =>
    through; None elsewhere, so the bar never expands. */
 let expansion_ctx: ref(option(Ctx.t)) = ref(Option.None);
 
+/* The expansions the full view has shown while drawing, so that one
+   showing twice ("Picture is equal to [Shape]") shows once */
+let expansions_shown: ref(list(string)) = ref([]);
+
 /* The bar's toggle while the bar is drawn: the first type the bar prints
    takes it, so it sits beside the type it shows whole. `view` puts it at
    the bar's end when no type took it. */
@@ -194,13 +198,19 @@ let alias_expansion = (~globals: Globals.t, typ: Typ.t): list(Node.t) =>
   switch (expansion_ctx^) {
   | Some(ctx) when globals.settings.inspector_expanded =>
     switch (Typ.normalize(ctx, typ)) {
-    | expanded when type_text(expanded) != type_text(typ) => [
-        div(
-          ~attrs=[clss(["ci-alias-expansion"])],
-          [text("="), print_type(~globals, expanded)],
-        ),
-      ]
-    | _ => []
+    | expanded =>
+      let shown = type_text(expanded);
+      shown == type_text(typ) || List.mem(shown, expansions_shown^)
+        ? []
+        : {
+          expansions_shown := [shown, ...expansions_shown^];
+          [
+            div(
+              ~attrs=[clss(["ci-alias-expansion"])],
+              [text("="), print_type(~globals, expanded)],
+            ),
+          ];
+        };
     | exception _ => []
     }
   | _ => []
@@ -1343,6 +1353,7 @@ let expanded_view =
          which the bar still shows */
       bar_toggle := Option.None;
       expansion_ctx := Some(Info.ctx_of(ci));
+      expansions_shown := [];
       let status =
         Fun.protect(
           ~finally=() => expansion_ctx := Option.None,
