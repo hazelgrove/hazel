@@ -1864,12 +1864,16 @@ let f12 = (~k=0, ~off=1, needle, root, src) =>
   | Ok(z) => landing(~root, src, Some(z))
   };
 
-/* the indicated term's class and type, as the inspector reads them */
+/* the indicated term's class and type, as the inspector reads them (the
+   cursor's info: CodeWithStatics.get_cursor_info) */
 let inspect = (~k=0, ~off=1, needle, root, src) => {
   switch (act_st(~root, ~k, ~off, src, needle, [])) {
   | (Error(why), _) => why
   | (Ok(z), st) =>
-    switch (Indicated.ci_of(z, st.info_map)) {
+    switch (
+      Indicated.ci_of(z, st.info_map)
+      |> Option.map(Info.as_member_reference(~info_map=st.info_map))
+    ) {
     | None => "no info"
     | Some(InfoExp(e)) =>
       Info.cls_label(InfoExp(e))

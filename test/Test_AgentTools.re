@@ -5311,26 +5311,21 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "renaming an exported member used outside is rejected", `Quick, () => {
-      switch (
-        run_agent_action(
-          "module M = { let x = 1; let y = 2 } in M.x",
-          Update(Pattern, "M/x", "z"),
-        )
-      ) {
-      | Ok(_) =>
-        Alcotest.fail("expected rename breaking external M.x to be rejected")
-      | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(
-          bool,
-          "member_rename_external_rejected",
-          true,
-          StringUtil.match(StringUtil.regexp("static error"), msg),
-        )
-      | Error(e) =>
-        Alcotest.fail("unexpected failure kind: " ++ Action.Failure.show(e))
-      }
-    }),
+      "renaming a member used outside relabels its M.x",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "module M = { let x = 1; let y = 2 } in M.x",
+            Update(Pattern, "M/x", "z"),
+          );
+        check_rendered(
+          "member_rename_external",
+          "module M = { let z = 1; let y = 2 } in M.z",
+          result,
+        );
+      },
+    ),
     test_case(
       "oversized chunk on the fast path succeeds",
       `Quick,
@@ -5408,6 +5403,228 @@ let module_member_tests = (
           result,
         );
       },
+    ),
+  ],
+);
+
+/* The assistant on a Mod-rooted program (stdlib files, Mega-Mod): its top
+   level is a module body, so top-level bindings are members too. */
+let mod_root_program = "module M = {\n  let a = 1;\n  let b = a + 1;\n  type T = Int;\n  let c : T = b\n};\nlet a = 5;\nlet d : M.T = M.a + a;\nd";
+
+let run_at_mod_root = (code: string, a: Action.Structural.t) => {
+  let z = Zipper.unzip(CorpusUtil.seg_of(~root=Mod, code));
+  Perform.go(
+    ~settings=CoreSettings.on,
+    ~statics=CachedStatics.empty,
+    ~syntax=CachedSyntax.init(~root=Mod, z),
+    ~root=Mod,
+    Structural(a),
+    {
+      zipper: z,
+      col_target: None,
+    },
+  );
+};
+
+let apply_at_mod_root = (~code=mod_root_program, a: Action.Structural.t) =>
+  switch (run_at_mod_root(code, a)) {
+  | Ok(z) => render_zipper(z)
+  | Error(err) =>
+    Alcotest.fail("Agent action failed: " ++ Action.Failure.show(err))
+  };
+
+/* [mod_root_program] with [line] replaced by [by] (a list: none deletes) */
+let mod_root_with = (line: string, by: list(string)): string =>
+  String.split_on_char('\n', mod_root_program)
+  |> List.concat_map(l => l == line ? by : [l])
+  |> String.concat("\n");
+
+let mod_root_tests = (
+  "AgentTools.ModRoot",
+  [
+    test_case("update_definition on a member", `Quick, () =>
+      check_rendered(
+        "mod_root_update_member_def",
+        mod_root_with("  let b = a + 1;", ["  let b = a + 2;"]),
+        apply_at_mod_root(Update(Definition, "M/b", "a + 2")),
+      )
+    ),
+    test_case("update_definition on a top-level binding", `Quick, () =>
+      check_rendered(
+        "mod_root_update_top_def",
+        mod_root_with("let a = 5;", ["let a = 6;"]),
+        apply_at_mod_root(Update(Definition, "a", "6")),
+      )
+    ),
+    test_case("update_binding_clause on a member", `Quick, () =>
+      check_rendered(
+        "mod_root_update_clause",
+        mod_root_with("  let c : T = b", ["  let c : T = 7"]),
+        apply_at_mod_root(Update(BindingClause, "M/c", "let c : T = 7")),
+      )
+    ),
+    test_case("update_body on a top-level binding is refused", `Quick, () =>
+      switch (run_at_mod_root(mod_root_program, Update(Body, "a", "1"))) {
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "mod_root_body_refused",
+          true,
+          StringUtil.match(StringUtil.regexp("module member"), msg),
+        )
+      | Ok(_) => Alcotest.fail("expected the body update to be refused")
+      | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
+      }
+    ),
+    test_case(
+      "insert_after a member and a top-level binding",
+      `Quick,
+      () => {
+        check_rendered(
+          "mod_root_insert_after_member",
+          mod_root_with("  let a = 1;", ["  let a = 1;", "  let z = 3;"]),
+          apply_at_mod_root(Insert(After, "M/a", "let z = 3")),
+        );
+        check_rendered(
+          "mod_root_insert_after_top",
+          mod_root_with("let a = 5;", ["let a = 5;", "let z = 3;"]),
+          apply_at_mod_root(Insert(After, "a", "let z = 3")),
+        );
+      },
+    ),
+    test_case("insert_before the first top-level binding", `Quick, () =>
+      check_rendered(
+        "mod_root_insert_before_top",
+        "let z = 3;\n" ++ mod_root_program,
+        apply_at_mod_root(Insert(Before, "M", "let z = 3")),
+      )
+    ),
+    test_case(
+      "insert_test after a member, and with no path",
+      `Quick,
+      () => {
+        check_rendered(
+          "mod_root_insert_test_member",
+          mod_root_with(
+            "  let b = a + 1;",
+            ["  let b = a + 1;", "  test b == 2 end;"],
+          ),
+          apply_at_mod_root(InsertTest(Some("M/b"), "b == 2")),
+        );
+        /* after the last binding, before the trailing expression */
+        check_rendered(
+          "mod_root_insert_test_no_path",
+          mod_root_with(
+            "let d : M.T = M.a + a;",
+            ["let d : M.T = M.a + a;", "test d == 6 end;"],
+          ),
+          apply_at_mod_root(InsertTest(None, "d == 6")),
+        );
+      },
+    ),
+    test_case(
+      "delete_binding_clause on a member and a top level",
+      `Quick,
+      () => {
+        check_rendered(
+          "mod_root_delete_member",
+          mod_root_with("  let b = a + 1;", []),
+          apply_at_mod_root(Delete(BindingClause, "M/b")),
+        );
+        check_rendered(
+          "mod_root_delete_top",
+          mod_root_with("let a = 5;", []),
+          apply_at_mod_root(Delete(BindingClause, "a")),
+        );
+      },
+    ),
+    test_case("update_pattern on a member relabels M.a", `Quick, () =>
+      check_rendered(
+        "mod_root_rename_member",
+        mod_root_program
+        |> StringUtil.replace(
+             StringUtil.regexp("let a = 1"),
+             _,
+             "let aa = 1",
+           )
+        |> StringUtil.replace(StringUtil.regexp("= a [+] 1"), _, "= aa + 1")
+        |> StringUtil.replace(StringUtil.regexp("M[.]a"), _, "M.aa"),
+        apply_at_mod_root(Update(Pattern, "M/a", "aa")),
+      )
+    ),
+    test_case("update_pattern on a top-level binding leaves M.a", `Quick, () =>
+      check_rendered(
+        "mod_root_rename_top",
+        mod_root_with("let a = 5;", ["let z = 5;"])
+        |> StringUtil.replace(StringUtil.regexp("M[.]a [+] a"), _, "M.a + z"),
+        apply_at_mod_root(Update(Pattern, "a", "z")),
+      )
+    ),
+  ],
+);
+
+/* update_pattern on a module member: its `M.x` labels follow, and a name
+   another member of the module has is refused */
+let member_rename_tests = (
+  "AgentTools.MemberRename",
+  [
+    test_case("a nested member's Outer.Inner.x", `Quick, () =>
+      check_rendered(
+        "nested_member_rename",
+        "module Outer = { module Inner = { let y = 1 }; let w = 1 } in Outer.Inner.y",
+        apply_and_render(
+          "module Outer = { module Inner = { let x = 1 }; let w = 1 } in Outer.Inner.x",
+          Update(Pattern, "Outer/Inner/x", "y"),
+        ),
+      )
+    ),
+    test_case("a let-bound module's m.x", `Quick, () =>
+      check_rendered(
+        "let_module_member_rename",
+        "let m = { let z = 1; let y = 2 } in m.z + m.y",
+        apply_and_render(
+          "let m = { let x = 1; let y = 2 } in m.x + m.y",
+          Update(Pattern, "m/x", "z"),
+        ),
+      )
+    ),
+    test_case("a function member's M.f(…)", `Quick, () =>
+      check_rendered(
+        "fn_member_rename",
+        "module M = { let g(n) = n + 1 } in M.g(2)",
+        apply_and_render(
+          "module M = { let f(n) = n + 1 } in M.f(2)",
+          Update(Pattern, "M/f", "g(n)"),
+        ),
+      )
+    ),
+    test_case("another member's name is refused", `Quick, () =>
+      switch (
+        run_agent_action(
+          "module M = { let x = 1; let y = 2 } in M.x + M.y",
+          Update(Pattern, "M/y", "x"),
+        )
+      ) {
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "member_clash_refused",
+          true,
+          StringUtil.match(StringUtil.regexp("already has a member"), msg),
+        )
+      | Ok(z) => Alcotest.fail("renamed: " ++ render_zipper(z))
+      | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
+      }
+    ),
+    test_case("a member delete leaves no lone `;`", `Quick, () =>
+      check_rendered_exact(
+        "member_delete_multiline",
+        "let m = {\n  let x = 1;\n  \n  let z = 3\n} in m",
+        apply_and_render(
+          "let m = {\n  let x = 1;\n  let y = 2;\n  let z = 3\n} in m",
+          Delete(BindingClause, "m/y"),
+        ),
+      )
     ),
   ],
 );
@@ -5553,6 +5770,8 @@ let tests = [
   update_pattern_tests,
   update_binding_clause_tests,
   module_member_tests,
+  mod_root_tests,
+  member_rename_tests,
   insert_tests,
   insert_test_tests,
   delete_tests,

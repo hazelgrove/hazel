@@ -57,7 +57,14 @@ module Model = {
   let get_statics = (model: t) => model.statics;
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
-    info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+    /* a member access's label (`a` in `M.a`) reads as the member reference */
+    info:
+      Indicated.ci_of(model.editor.state.zipper, model.statics.info_map)
+      |> Option.map(
+           Language.Info.as_member_reference(
+             ~info_map=model.statics.info_map,
+           ),
+         ),
     implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
