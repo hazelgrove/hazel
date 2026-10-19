@@ -305,6 +305,18 @@ module Update = {
            ),
          )
       |> return_quiet
+    | ToggleContextUnfold(key) =>
+      let unfolded = model.globals.context_unfolded;
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          context_unfolded:
+            List.mem(key, unfolded)
+              ? List.filter(k => k != key, unfolded) : [key, ...unfolded],
+        },
+      }
+      |> return_quiet;
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(
