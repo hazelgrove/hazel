@@ -1077,8 +1077,13 @@ module View = {
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors
       @ refractors_model;
+    /* ~frame keeps a splice sub-editor's memo entry apart from the root
+       editor's (their other key parts are the same objects), and limits
+       error and warning arms to the frame that owns them. Without it, the
+       sub-editor of a revealed livelit model, drawn first, left its few
+       rows in the entry the root then drew: the editor went blank. */
     let code_view =
-      CodeWithStatics.View.view(~globals, ~overlays, ~cull, model);
+      CodeWithStatics.View.view(~globals, ~overlays, ~cull, ~frame, model);
 
     let loc = (e: Pointer.Event.t) => {
       let raw =
