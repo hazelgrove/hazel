@@ -75,9 +75,6 @@ let with_folds = (folds: OutlineTree.folds, side: side): side => {
    stores is the slide's own, its paths below this one */
 let world_roots: Hashtbl.t(string, OutlineTree.path) = Hashtbl.create(8);
 
-let into_world = (root: OutlineTree.path, path: OutlineTree.path) =>
-  root @ path;
-
 /* [path] as the slide's own: None when it's outside the slide */
 let out_of_world =
     (root: OutlineTree.path, path: OutlineTree.path)
@@ -231,29 +228,26 @@ let write_folds = (prefix: string, name: string): unit =>
     ),
   );
 
-/* a loaded world slide's staged view in the world's paths, zoomed to the
-   slide's module at least: the side stores the slide's own */
-let stage_world = (prefix: string, name: string, root: OutlineTree.path) => {
-  let ck = content_key(prefix, name);
-  Hashtbl.replace(world_roots, ck, root);
-  let side = read_side(prefix, name);
-  Hashtbl.replace(
-    pending_pins,
-    ck,
-    {
-      ...side,
-      pins: List.map(((p, run)) => (into_world(root, p), run), side.pins),
-      zoom: Some(into_world(root, Option.value(side.zoom, ~default=[]))),
-    },
-  );
-  switch (folds_of_side(side)) {
-  | [] => Hashtbl.remove(slide_folds, ck)
-  | folds =>
-    Hashtbl.replace(
-      slide_folds,
-      ck,
-      List.map(((p, f)) => (into_world(root, p), f), folds),
-    )
+/* a world slide's staged view in the world's paths, under [root] (the
+   slide's module) and zoomed to it at least: the side stores the slide's
+   own. Its folds go there too, once */
+let into_world = (ck: string, root: OutlineTree.path, side: side): side => {
+  if (!Hashtbl.mem(world_roots, ck)) {
+    Hashtbl.replace(world_roots, ck, root);
+    switch (Hashtbl.find_opt(slide_folds, ck)) {
+    | Some(folds) =>
+      Hashtbl.replace(
+        slide_folds,
+        ck,
+        List.map(((p, f)) => (root @ p, f), folds),
+      )
+    | None => ()
+    };
+  };
+  {
+    ...side,
+    pins: List.map(((p, run)) => (root @ p, run), side.pins),
+    zoom: Some(root @ Option.value(side.zoom, ~default=[])),
   };
 };
 
@@ -658,13 +652,18 @@ let open_slide =
        );
   switch (WorldSlide.enter(~name, ~root, seg)) {
   | Some((doc, slide)) =>
-    Option.iter(
-      stage_world(prefix, name),
-      OutlineTree.label_path(slide, MakeTerm.semantic_term(~root=Mod, doc)),
+    /* its view restores once its outline is known, zoomed to its module
+       at least (into_world) */
+    Hashtbl.replace(
+      pending_pins,
+      content_key(prefix, name),
+      read_side(prefix, name),
     );
     (
       CellEditor.Model.unpersist_with(
         ~settings,
+        ~t_cache=WorldSlide.parse_cache,
+        ~m_cache=WorldSlide.layout_cache,
         ~zipper=zipper(doc, Mod),
         {
           ...persisted,

@@ -653,7 +653,21 @@ let update =
     switch (saved_view(~slide_key, code)) {
     | Some(saved) =>
       Hashtbl.remove(Persist.pending_pins, slide_key);
-      view((term, _, _) => Persist.resolve_view(saved, term), code);
+      view(
+        (term, _, _) =>
+          Persist.resolve_view(
+            switch (
+              Option.bind(code.world, slide =>
+                OutlineTree.label_path(slide, term)
+              )
+            ) {
+            | Some(root) => Persist.into_world(slide_key, root, saved)
+            | None => saved
+            },
+            term,
+          ),
+        code,
+      );
     | None => code |> return_quiet /* statics not ready: retry */
     }
   | RestoreCaret(p) when code.world != None =>
@@ -734,6 +748,10 @@ let calc_entry_memo:
     ),
   ) =
   Hashtbl.create(8);
+
+/* the assembled document's parse, its unchanged items reused (a world
+   slide's library items across slides too) */
+let spliced_parse = Haz3lcore.MakeTerm.Incr.mk_cache();
 
 let calculate_slide =
     (
@@ -848,7 +866,11 @@ let calculate_slide =
           /* read as a whole editor's statics read it: an open form in a
              cell takes none of the items after it */
           let term =
-            Haz3lcore.MakeTerm.semantic_term(~root=Divided.root(d), spliced);
+            Haz3lcore.MakeTerm.semantic_term(
+              ~root=Divided.root(d),
+              ~shared=spliced_parse,
+              spliced,
+            );
           let prev_items =
             switch (Haz3lcore.DefStatics.cached(~ctx_in=?ctx_in(code), term)) {
             | Some(p) => p.items
@@ -1018,8 +1040,23 @@ let calculate_slide =
              cells read their item's analysis instead of re-running a
              private one */
           let item =
-            statics_mode == StaticsMode.Force
-              ? Option.bind(ds, ds => item_of(ds, e)) : None;
+            switch (statics_mode, ds) {
+            | (Force, Some(ds)) => item_of(ds, e)
+            /* a world slide's members read the world's analysis, the
+               last one if this frame has none: a private analysis of
+               the whole slide is the slide's own cost again */
+            | (_, Some(ds)) when is_world_cell(e) => item_of(ds, e)
+            | (_, None) when is_world_cell(e) =>
+              Option.bind(
+                Haz3lcore.DefStatics.cached(
+                  ~ctx_in=?ctx_in(code),
+                  Divided.statics(d).term,
+                ),
+                ds =>
+                item_of(ds, e)
+              )
+            | _ => None
+            };
           let project = (c: CellEditor.Model.t) =>
             Option.map(
               item =>

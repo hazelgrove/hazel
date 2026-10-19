@@ -38,8 +38,21 @@ module Model = {
   };
 
   let unpersist_with =
-      (~settings as _=?, ~zipper, {editor, result}: persistent): t => {
-    editor: CodeEditable.Model.unpersist_with(~zipper, editor),
+      (
+        ~settings as _=?,
+        ~t_cache=?,
+        ~m_cache=?,
+        ~zipper,
+        {editor, result}: persistent,
+      )
+      : t => {
+    editor:
+      CodeEditable.Model.unpersist_with(
+        ~t_cache?,
+        ~m_cache?,
+        ~zipper,
+        editor,
+      ),
     result: EvalResult.Model.unpersist(result),
   };
 

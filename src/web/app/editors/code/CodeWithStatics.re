@@ -97,8 +97,15 @@ module Model = {
   let unpersist = p => p |> Editor.Model.unpersist |> mk;
   /* per-item persistence rebuilds the zipper directly (no text or
      sexp parse); the persistent record still supplies the root */
-  let unpersist_with = (~zipper: Haz3lcore.Zipper.t, p: persistent) =>
-    Haz3lcore.Editor.Model.mk(zipper, ~root=p.root) |> mk;
+  let unpersist_with =
+      (~t_cache=?, ~m_cache=?, ~zipper: Haz3lcore.Zipper.t, p: persistent) =>
+    Haz3lcore.Editor.Model.mk_shared(
+      ~t_cache?,
+      ~m_cache?,
+      zipper,
+      ~root=p.root,
+    )
+    |> mk;
 };
 
 /* Debounce statics computation during rapid typing. Only one mode is
@@ -303,10 +310,19 @@ module Update = {
 
     /* Editor.calculate may add/remove probes (autoprobe); re-init statics so
      * probe_targets match. Compared against the statics computed above, so
-     * this fires only when calculate itself changed the probe set. */
+     * this fires only when calculate itself changed the probe set. A
+     * projected cell takes the new probes as they are: the program's run,
+     * not the cell's, samples them, and the program's next statics frame
+     * analyzes with them (a private init is the item's cost again) */
     let statics =
-      probes_differ(editor.state.zipper, statics)
-        ? do_init(editor) : statics;
+      switch (probes_differ(editor.state.zipper, statics), projected) {
+      | (false, _) => statics
+      | (true, Some(_)) => {
+          ...statics,
+          pins: CachedStatics.probe_ids_of_zipper(editor.state.zipper),
+        }
+      | (true, None) => do_init(editor)
+      };
 
     /* refresh only statics.targets against the new refractors (cheap; rest of
      * statics stays valid) */

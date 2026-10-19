@@ -42,6 +42,11 @@ let enter =
         )
       );
 
+/* one parse and layout cache for every world's editor: a slide opened
+   after another reuses the library's items as the last one left them */
+let parse_cache = MakeTerm.Incr.mk_cache();
+let layout_cache = Measured.Incr.mk_cache();
+
 /* a world's statics see the library as its items, not as the bake's
    context: a name deleted from it is unbound */
 let ctx = (): Language.Ctx.t =>
