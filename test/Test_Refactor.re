@@ -4385,6 +4385,87 @@ let comment_tests = [
     },
   ),
   test_case(
+    "sink carry: the lines that use it are pushed down ahead",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkCarry,
+          "type ¦Meal = A + B in\nlet lunch : Meal = A in\nlet x = 7 in\n(lunch, x)",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "let x = 7 in\ntype Meal = A + B in\nlet lunch : Meal = A in\n(lunch, x)",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "sink carry: the block crosses the blank line below it first",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SinkCarry,
+          "let ¦a = 1 in\nlet c = a + 1 in\n\nlet x = 7 in\nc * x",
+        )
+        |> text_of;
+      check(
+        string,
+        "sink",
+        "\nlet a = 1 in\nlet c = a + 1 in\nlet x = 7 in\nc * x",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "sink carry: a drag on the type line offers pushing its users down",
+    `Quick,
+    () => {
+      let src = "type ¦Meal = A + B in\nlet lunch : Meal = A in\nlet dinner : Meal = B in\nlet x = 7 in\n(lunch, dinner, x)";
+      let carry =
+        drag_cands(~push=true, src)
+        |> List.find_opt((c: Refactor.DragCandidate.t) => c.kind == SinkCarry);
+      check(bool, "offered", true, carry != None);
+      switch (carry) {
+      | Some(c) =>
+        let ((r0, _), (r1, _)) = track_of(c);
+        check(bool, "goes down", true, r1 > r0);
+      | None => ()
+      };
+      check(
+        bool,
+        "not without push",
+        false,
+        drag_cands(~push=false, src)
+        |> List.exists((c: Refactor.DragCandidate.t) => c.kind == SinkCarry),
+      );
+    },
+  ),
+  test_case(
+    "sink carry: offered only when something is pushed",
+    `Quick,
+    () => {
+      check(
+        bool,
+        "pushes",
+        true,
+        offers(
+          SinkCarry,
+          "let ¦a = 1 in\nlet c = a + 1 in\nlet x = 7 in\nc * x",
+        ),
+      );
+      check(
+        bool,
+        "plain sink owns it",
+        false,
+        offers(SinkCarry, "let ¦a = 1 in\nlet x = 7 in\na * x"),
+      );
+    },
+  ),
+  test_case(
     "lift: the helper is the lifted line, moved (its let travels)",
     `Quick,
     () => {

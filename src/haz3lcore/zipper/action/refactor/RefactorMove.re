@@ -1687,6 +1687,53 @@ let hoist_carry_impl: impl = {
     },
 };
 
+/* the block a sink pushes: the grabbed line and the lines just below
+   it that depend on it (transitively), and the line after them that
+   they can all cross. Only offered when something is pushed (plain
+   sink owns the no-dependents case). */
+let sink_carry_site =
+    (~target: Id.t, program: Exp.t): option((list(Exp.t), Exp.t)) =>
+  switch (find_hit(~hit=hit_def_line(target), program)) {
+  | None => None
+  | Some(x) =>
+    switch (def_line_of(x)) {
+    | None => None
+    | Some((x_dl, xbody)) =>
+      let rec walk = (block_dls, block, cur) =>
+        switch (def_line_of(cur)) {
+        | Some((dl, body)) =>
+          if (block_dls |> List.exists(m => line_depends_on(dl, m))) {
+            walk([dl, ...block_dls], block @ [cur], body);
+          } else if (List.length(block) >= 2
+                     && block_dls
+                     |> List.for_all(m => lines_swappable(dl, m))) {
+            Some((block, cur));
+          } else {
+            None;
+          }
+        | None => None
+        };
+      walk([x_dl], [x], xbody);
+    }
+  };
+
+let sink_carry_impl: impl = {
+  label: "Sink with dependents",
+  tooltip: "Move this binding down, pushing the definitions that use it down ahead of it",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (sink_carry_site(~target, program)) {
+    | Some(([top, ...rest], y)) =>
+      let bottom = List.nth([top, ...rest], List.length(rest));
+      /* the block crosses the comment and blank lines below it first,
+         one per rung, then the line y crosses it */
+      switch (comment_rung(~up=false, ~program, ~bottom, top)) {
+      | Some(r) => Some(r)
+      | None => block_swap_down(~program, ~top, ~bottom, ~y)
+      };
+    | _ => None
+    },
+};
+
 /* === Expand Wildcard ===
  * Replace a `_` arm with one arm per unhandled variant of the
  * scrutinee's (normalized) sum type, each with a copy of the wildcard

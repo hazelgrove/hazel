@@ -180,6 +180,7 @@ type refactor =
   | BindArgument
   | UnfoldCall
   | HoistCarry
+  | SinkCarry
   | LiftFunction
   | BetaReduce
   | SplitLet

@@ -357,6 +357,7 @@ let gesture_insist =
       | Some(k) => Some(k)
       | None => app(LiftFunction)
       }
+    | Down => app(SinkCarry)
     | _ => None
     };
   };

@@ -42,6 +42,7 @@ let impl: Action.refactor => impl =
   | BetaReduce => beta_reduce_impl
   | UnfoldCall => unfold_call_impl
   | HoistCarry => hoist_carry_impl
+  | SinkCarry => sink_carry_impl
   | LiftFunction => lift_function_impl
   | SplitLet => split_let_impl
   | ReduceCase => reduce_case_impl
@@ -61,6 +62,7 @@ let all: list(Action.refactor) = [
   BindArgument,
   UnfoldCall,
   HoistCarry,
+  SinkCarry,
   LiftFunction,
   SplitLet,
   ReduceCase,
@@ -438,6 +440,7 @@ let applies =
     | None => false
     }
   | HoistCarry => Option.is_some(hoist_carry_site(~target, program))
+  | SinkCarry => Option.is_some(sink_carry_site(~target, program))
   | LiftFunction => Option.is_some(lift_site(~target, program))
   | BetaReduce =>
     switch (find_hit(~hit=hit_beta(target), program)) {

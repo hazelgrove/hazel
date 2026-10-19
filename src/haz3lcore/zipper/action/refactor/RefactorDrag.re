@@ -279,7 +279,7 @@ let drag_kinds =
     : list(Action.refactor) => {
   let insist =
     push
-      ? [Action.HoistCarry, LiftFunction]
+      ? [Action.HoistCarry, SinkCarry, LiftFunction]
         |> List.filter(k => applies(k, ~info_map, ~target, term))
       : [];
   /* one element per token: a line's handles (let, binder, =, in) move
@@ -565,6 +565,7 @@ let same_kind = (a: Action.refactor, b: Action.refactor): bool => {
     | HoistLet
     | SinkLet
     | HoistCarry
+    | SinkCarry
     | LiftFunction => HoistLet
     | MergeUp
     | MergeDown => MergeUp

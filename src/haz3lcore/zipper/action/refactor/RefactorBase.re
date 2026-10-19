@@ -2010,6 +2010,82 @@ let block_swap_up =
     };
   };
 
+/* the line y just below the block top..bottom swaps above it (the
+   block sinks one line). Each line keeps its own runs: y takes the
+   block's lead, the run that separated bottom from y now separates y
+   from top, and end-of-line comments stay on their lines. */
+let block_swap_down =
+    (~program: Exp.t, ~top: Exp.t, ~bottom: Exp.t, ~y: Exp.t)
+    : option((Exp.t, Id.t)) =>
+  switch (def_line_of(y)) {
+  | None => None
+  | Some((_, ybody)) =>
+    let seg =
+      ExpToSegment.exp_to_segment(~settings=roundtrip_settings, program);
+    switch (
+      run_before_node(seg, top),
+      run_before_node(seg, y),
+      run_before_node(seg, ybody),
+    ) {
+    | (Some(lt), Some(ly), Some(lb)) =>
+      let (eol_b, ry) = split_eol(ly);
+      let (eol_y, rb) = split_eol(lb);
+      let program =
+        drop_secondary(
+          List.map((w: Secondary.t) => w.id, lt @ ly @ lb),
+          program,
+        );
+      let give = (run, e) =>
+        Slot.give(
+          {
+            lead: run,
+            trail: [],
+          },
+          e,
+        );
+      /* the lines from top down to bottom, then the line after */
+      let rec block = (e: Exp.t, acc) =>
+        switch (def_line_of(e)) {
+        | Some((_, b)) when same_node(e, bottom) =>
+          Some((List.rev([e, ...acc]), b))
+        | Some((_, b)) => block(b, [e, ...acc])
+        | None => None
+        };
+      let done_ = ref(false);
+      let program =
+        Exp.map_term(
+          ~f_exp=
+            (cont, e: Exp.t) =>
+              if (! done_^ && same_node(e, top)) {
+                done_ := true;
+                switch (block(e, [])) {
+                | Some((lines, yline)) =>
+                  switch (def_line_of(yline)) {
+                  | Some((_, ybody)) =>
+                    let top' =
+                      List.fold_right(
+                        (line, inner) => def_line_rebuild(line, inner),
+                        lines,
+                        give(eol_b @ rb, ybody),
+                      );
+                    give(
+                      lt,
+                      def_line_rebuild(yline, give(eol_y @ ry, top')),
+                    );
+                  | None => e
+                  }
+                | None => e
+                };
+              } else {
+                cont(e);
+              },
+          program,
+        );
+      done_^ ? Some((program, Exp.rep_id(top))) : None;
+    | _ => None
+    };
+  };
+
 let fresh_names = (k: int, program: Exp.t): list(string) => {
   let used = ref(used_names(program));
   List.init(
