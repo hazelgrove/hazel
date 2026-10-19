@@ -553,8 +553,11 @@ let outside_editor = (d: t): CodeEditable.Model.t =>
           syntax: {
             ...d.shell.editor.editor.syntax,
             segment,
+            /* Read, as an editor's syntax: an unfinished member ends at
+               its member line */
             term_data:
               MakeTerm.Incr.go_incr(
+                ~ends=Read,
                 ~root=root(d),
                 ~cache=outside_cache,
                 segment,

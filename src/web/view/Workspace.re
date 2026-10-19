@@ -122,11 +122,6 @@ let item_of =
     ds.items,
   );
 
-/* incremental-parse cache for a divided program's statics frames:
-   only the edited item re-parses */
-let stacked_incr_cache: ref(Haz3lcore.MakeTerm.Incr.cache) =
-  ref(Haz3lcore.MakeTerm.Incr.mk_cache());
-
 /* [code] showing [v]: its cells opened and closed to match */
 let realize = (~info_map, ~term, v: SlideView.t, code: code): code => {
   let (view, program) = SlideView.realize(~info_map, ~term, v, code.program);
@@ -176,12 +171,21 @@ let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
   );
 };
 
-/* [program]'s document parsed and analyzed now: its statics may lag it,
-   or be compacted away by undo */
+/* [program]'s term as its statics read it, now: they may lag it, or be
+   compacted away by undo. A whole editor's without an unparsed buffer,
+   from its syntax's pieces when they're current */
 let fresh_term = (program: Program.t): Language.Exp.t =>
-  MakeTerm.Incr.term_of_root(
+  MakeTerm.semantic_term(
     ~root=Program.root(program),
-    Program.document(program),
+    switch (program) {
+    | Whole(e) =>
+      let z = e.editor.editor.state.zipper;
+      switch (CachedSyntax.semantic_source(z, e.editor.editor.syntax)) {
+      | Some(seg) => seg
+      | None => MakeTerm.semantic_source(z)
+      };
+    | Divided(d) => Divided.document(d)
+    },
   );
 let fresh_info_map =
     (~settings: Settings.t, program: Program.t, term: Language.Exp.t)
@@ -228,7 +232,7 @@ let with_segment =
             CachedStatics.probe_ids_of_zipper(
               fresh.editor.editor.state.zipper,
             ),
-          MakeTerm.Incr.term_of_root(~root, new_seg),
+          MakeTerm.semantic_term(~root, new_seg),
         )
       : Haz3lcore.CachedStatics.empty;
   let editor: CellEditor.Model.t = {
@@ -594,7 +598,6 @@ let calculate =
   let program =
     switch (program) {
     | Whole(editor) =>
-      stacked_incr_cache := Haz3lcore.MakeTerm.Incr.mk_cache();
       Hashtbl.reset(calc_entry_memo);
       Program.Whole(
         CellEditor.Update.calculate(
@@ -643,13 +646,10 @@ let calculate =
             || !Divided.has_fresh_statics(d)
             || !Id.Map.equal((==), probe_ids, Divided.statics(d).pins)) {
           let spliced = Divided.document(d);
+          /* read as a whole editor's statics read it: an open form in a
+             cell takes none of the items after it */
           let term =
-            Haz3lcore.MakeTerm.Incr.go_incr(
-              ~root=Divided.root(d),
-              ~cache=stacked_incr_cache^,
-              spliced,
-            ).
-              term;
+            Haz3lcore.MakeTerm.semantic_term(~root=Divided.root(d), spliced);
           let prev_items =
             switch (Haz3lcore.DefStatics.cached(term)) {
             | Some(p) => p.items
