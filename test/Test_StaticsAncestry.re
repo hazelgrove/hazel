@@ -42,7 +42,8 @@ let statics = (~root, z: Zipper.t): (CachedStatics.t, CachedStatics.t) => {
       ~probe_ids=Id.Map.empty,
       z,
     );
-  let (mono, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, st.term);
+  let (mono, _) =
+    Statics.mk_unmemoized(settings, DefStatics.ctx0(), st.term);
   (
     st,
     {

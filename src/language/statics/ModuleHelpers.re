@@ -363,15 +363,24 @@ let item_ana_labels =
   };
 
 /* Lower module items to nested Let/TyAlias wrappers for type checking. The
-   wrappers carry the Mod item ids. The tail's type is irrelevant: the
-   module's type is computed by `module_sig_type` and its elaboration is
-   refolded by `refold_module_elab`. */
-let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t =>
+   wrappers carry the Mod item ids, and ids derived from [stable] (the
+   module literal's) where an item can't lend its own, so two analyses of
+   one module agree, as the per-item analysis's lowering does. The tail's
+   type is irrelevant: the module's type is computed by `module_sig_type`
+   and its elaboration is refolded by `refold_module_elab`. */
+let lower =
+    (
+      ~stable: option(Id.t)=?,
+      ~ana_items: option(list(Sig.t)),
+      items: list(Mod.t),
+    )
+    : Exp.t =>
   List.fold_right2(
-    (item, ana_labels, body) => wrap_item(~ana_labels, item, body),
+    (item, ana_labels, body) =>
+      wrap_item(~ana_labels, ~stable=Option.is_some(stable), item, body),
     items,
     item_ana_labels(~ana_items, items),
-    lower_tail(items),
+    lower_tail(~stable?, items),
   );
 
 /* Rewrite InfoExp cls for expanded module items to keep cursor inspector labels. */

@@ -119,6 +119,27 @@ let tests = (
         };
       },
     ),
+    /* an edit applies as statics reads it: an open form in one member
+       (`let q = (1 + 2`) closes on its line, so the members after it are
+       still the library's, and their names still run */
+    test_case(
+      "an edit with an open form keeps the members after it",
+      `Quick,
+      () => {
+        let src = "module A = {\n  let q = (1 + 2\n  let y = 3\n};\nlet z = 4";
+        switch (
+          Web.LibraryDoc.apply_segment(
+            src,
+            CorpusUtil.seg_of(~root=Mod, src),
+          )
+        ) {
+        | Error(msg) => fail("the edit is refused: " ++ msg)
+        | Ok(_) =>
+          same("A.y", "A.y + z", "7");
+          StdlibBaked.install();
+        };
+      },
+    ),
     /* §9b: library code that keeps its editor's ids is probed like the
        program's own; the samples come from the program's calls */
     test_case(

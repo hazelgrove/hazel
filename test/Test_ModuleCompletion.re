@@ -1214,7 +1214,8 @@ let member_head_cases = [
     counter,
     "  let after = next + 1",
     "module N = {}",
-    counter_rows(~root=Exp, ["N : ()"]),
+    /* Modules II prints an empty module's type as a signature */
+    counter_rows(~root=Exp, ["N : {  }"]),
     0,
     "~module N = {}",
   ),

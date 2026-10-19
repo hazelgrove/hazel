@@ -95,7 +95,10 @@ let apply_segment_now = (text: string, seg: Segment.t): result(bool, string) =>
   switch (installed^) {
   | Some(i) when i === seg => Ok(false)
   | _ =>
-    switch (MakeTerm.Incr.term_of_mod(seg).term) {
+    /* read through completion, as statics reads a program: an open form
+       (`let q = (1 + 2`) closes on its line instead of taking every later
+       member, which would vanish from the library (or overflow the stack) */
+    switch (MakeTerm.semantic_term(~root=Mod, seg).term) {
     | Module(items) =>
       switch (
         LibraryBake.of_items(
