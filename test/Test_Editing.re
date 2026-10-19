@@ -6074,6 +6074,68 @@ let splice_tests = [
       check_in_splice(~name="still in splice", id, z);
     },
   ),
+  test_case(
+    "drag resize across tokens in a splice rounds to whole tiles",
+    `Quick,
+    () => {
+      /* as a drag in the editor does (^ticket(387): a drag over a revealed
+         livelit model selected by character); "Character-level mouse"
+         keeps it by character */
+      let drag = (~settings=default_settings, ()) => {
+        let (z, splice_ids) = mk_splice_projector_zipper(["aa + bbb"]);
+        let id = List.nth(splice_ids, 0);
+        let z =
+          perform(
+            ~settings,
+            z,
+            [
+              Move(
+                SplicePoint(
+                  id,
+                  Point.{
+                    row: 0,
+                    col: 1,
+                  },
+                ),
+              ),
+              Select(
+                Resize(
+                  SplicePoint(
+                    id,
+                    Point.{
+                      row: 0,
+                      col: 6,
+                    },
+                  ),
+                ),
+              ),
+            ],
+          );
+        check_in_splice(~name="still in splice", id, z);
+        z;
+      };
+      Alcotest.check(
+        Alcotest.bool,
+        "smart: rounded to whole tiles",
+        true,
+        drag().selection.smart_rounded,
+      );
+      Alcotest.check(
+        Alcotest.bool,
+        "character-level mouse: not rounded",
+        false,
+        drag(
+          ~settings={
+            ...default_settings,
+            selection_chunkiness: true,
+          },
+          (),
+        ).
+          selection.
+          smart_rounded,
+      );
+    },
+  ),
 ];
 
 /* ---------- Table projector splices ----------

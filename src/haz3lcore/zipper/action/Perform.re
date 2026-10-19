@@ -295,9 +295,19 @@ let go_unguarded =
     | None => Error(Cant_select)
     | Some(splice) when Zipper.splice_context(z) == Some(splice_id) =>
       /* Drag within the splice the caret is already in: resolve against
-       * the splice's own frame. Char-level; smart rounding would need
-       * splice-aware token spans. */
-      Select.to_point(~chunkiness=ByChar, ~measured=splice.measured, ~goal, z)
+       * the splice's own frame, with the same chunkiness as a drag in
+       * the editor (smart unless "Character-level mouse" is on), so a
+       * drag over a revealed livelit model selects whole tiles too.
+       * local_smart steps the zipper, which cannot leave the splice;
+       * only the goal comparison reads the layout, the splice's own.
+       * (SplicePoint carries no override, so Alt/Ctrl+drag is not
+       * honoured here.) */
+      Select.to_point(
+        ~chunkiness=settings.selection_chunkiness ? ByChar : BySmart,
+        ~measured=splice.measured,
+        ~goal,
+        z,
+      )
       |> return(Cant_select)
     | Some(splice) =>
       /* Drag/shift-click that starts outside this splice: land the caret
