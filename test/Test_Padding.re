@@ -139,4 +139,25 @@ let test_leading =
     },
   );
 
-let tests = ("Padding", [test_nested_ranks, test_gaps, test_leading]);
+/* `1`'s block ends on row 0 above the `p` on row 1, which starts no block
+   of its own (p's type is the let's), yet is in the way. */
+let test_leading_over_text =
+  test_case(
+    "of_blocks: a bottom over plain text asks for its own rank", `Quick, () =>
+    check(
+      list(leading),
+      "let p = (1, true) in / p under the 1",
+      [
+        {
+          above: 0,
+          demand: 1,
+        },
+      ],
+      padding("let p = (1, true) in\n        p").leading,
+    )
+  );
+
+let tests = (
+  "Padding",
+  [test_nested_ranks, test_gaps, test_leading, test_leading_over_text],
+);

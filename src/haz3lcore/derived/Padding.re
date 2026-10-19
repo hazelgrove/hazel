@@ -178,7 +178,7 @@ let of_blocks =
        );
   let pieces = Measured.row_pieces(measured);
   let content = row =>
-    row < Array.length(pieces)
+    row >= 0 && row < Array.length(pieces)
       ? List.filter_map(Measured.content_span(_, measured), pieces[row]) : [];
   let gaps =
     IntMap.fold(
@@ -208,38 +208,49 @@ let of_blocks =
        );
   let bottoms = ends(ListUtil.last_opt);
   let tops = ends(ListUtil.hd_opt);
+  let on = (map, row) =>
+    Option.value(IntMap.find_opt(row, map), ~default=[]);
+  /* An edge against the row across the leading: its rank plus that of the
+     deepest edge there it overlaps, or its rank alone over that row's text;
+     nothing where there is neither, since nothing is in the way. */
+  let against = (edge: block_row, others: list(block_row), text) => {
+    let other =
+      List.fold_left(
+        (acc, o: block_row) => overlap(edge, o) ? max(acc, o.rank) : acc,
+        0,
+        others,
+      );
+    let over_text =
+      List.exists(
+        ((start, end_)) => edge.left.col <= end_ && start <= edge.right.col,
+        text,
+      );
+    other > 0 || over_text ? edge.rank + other : 0;
+  };
+  let demand_between = (row: int): int => {
+    let (bs, ts) = (on(bottoms, row), on(tops, row + 1));
+    let most = (edges, others, text) =>
+      List.fold_left(
+        (acc, e) => max(acc, against(e, others, text)),
+        0,
+        edges,
+      );
+    max(most(bs, ts, content(row + 1)), most(ts, bs, content(row)));
+  };
   let leading =
-    IntMap.fold(
-      (row, bs, acc) =>
-        switch (IntMap.find_opt(row + 1, tops)) {
-        | None => acc
-        | Some(ts) =>
-          let demand =
-            List.fold_left(
-              (acc, b: block_row) =>
-                List.fold_left(
-                  (acc, t: block_row) =>
-                    overlap(b, t) ? max(acc, b.rank + t.rank) : acc,
-                  acc,
-                  ts,
-                ),
-              0,
-              bs,
-            );
-          demand > 0
-            ? [
-              {
-                above: row,
-                demand,
-              },
-              ...acc,
-            ]
-            : acc;
-        },
-      bottoms,
-      [],
-    )
-    |> List.rev;
+    List.map(fst, IntMap.bindings(bottoms))
+    @ List.map(((row, _)) => row - 1, IntMap.bindings(tops))
+    |> List.sort_uniq(Int.compare)
+    |> List.filter_map(row =>
+         switch (demand_between(row)) {
+         | 0 => None
+         | demand =>
+           Some({
+             above: row,
+             demand,
+           })
+         }
+       );
   {
     blocks,
     gaps,

@@ -12,7 +12,8 @@
    or between a row's start and its first fragment; its demand is the number
    of block edges at its ends. The demand between two rows is the most edges
    that have to fit between them at any column: the bottoms of blocks ending
-   on the upper row against the tops of blocks starting on the lower one. */
+   on the upper row and the tops of blocks starting on the lower one, each
+   against the other row's text and against each other where they overlap. */
 
 [@deriving show({with_path: false})]
 type edge = {
