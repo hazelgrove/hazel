@@ -184,6 +184,70 @@ let script =
   );
 };
 
+/* typed key by key into [src] after its line [after], each key's program
+   as semantics reads it (its completion), each calc from the last key's */
+let typed = (~root, src, after, keys, ()) => {
+  module MC = Test_ModuleCompletion;
+  let term_of = z =>
+    MakeTerm.semantic_term(~root, MakeTerm.semantic_source(z));
+  let z0 = MC.at_line(~root, src, after);
+  ignore(
+    List.fold_left(
+      ((z, prev, typed), c) => {
+        let z = MC.perform(~root, z, Insert(c));
+        let typed = typed ++ c;
+        let ds = DefStatics.calc(~settings, ~prev, term_of(z));
+        let name = String.escaped(typed);
+        check(list(string), name, [], delta_diffs(~prev, ds));
+        check(
+          list(string),
+          name ++ " vs monolithic",
+          [],
+          DefStaticsCheck.divergences(~settings, ~cold=false, ds),
+        );
+        (z, ds, typed);
+      },
+      (z0, DefStatics.calc(~settings, term_of(z0)), ""),
+      List.map(String.make(1), List.of_seq(String.to_seq(keys))),
+    ),
+  );
+};
+
+/* an id that moves from a module's own entries into a member: a `;`
+   typed after the member of a module whose `}` isn't typed separates the
+   outer module's members until a member follows it there, and the grout
+   a missing `;` leaves is the `+` typed in its place */
+let moved_ids = [
+  (
+    "a `;` into a module whose `}` isn't typed",
+    Sort.Exp,
+    Test_ModuleCompletion.counter,
+    "  let start = 0;",
+    "\nmodule N = {\nlet a = 1;\nl",
+  ),
+  (
+    "a `;` into a module whose `}` isn't typed, at a Mod root",
+    Sort.Mod,
+    Test_ModAudit.counter_mod,
+    "  let start = 0;",
+    "\nmodule N = {\nlet a = 1;\nl",
+  ),
+  (
+    "a missing `;` typed over as a `+`",
+    Sort.Exp,
+    Test_ModuleCompletion.counter,
+    "module Counter = {",
+    "\nlet q = fun x -> x +",
+  ),
+  (
+    "a missing `;` typed over as a `+`, at a Mod root",
+    Sort.Mod,
+    Test_ModAudit.counter_mod,
+    "module Counter = {",
+    "\nlet q = fun x -> x +",
+  ),
+];
+
 let mega = (~root, file, steps, ()) =>
   switch (CorpusUtil.mega_src(file)) {
   | Some(src) => script(~root, src, steps, ())
@@ -528,6 +592,17 @@ let tests = (
         ],
       ),
     ),
+  ]
+  @ List.map(
+      ((name, root, src, after, keys)) =>
+        test_case(
+          "typed, an id moved into a member: " ++ name,
+          `Quick,
+          typed(~root, src, after, keys),
+        ),
+      moved_ids,
+    )
+  @ [
     test_case("mega-1k", `Quick, mega(~root=Exp, "mega-1k.hz", mega_steps)),
     test_case(
       "mega-mod-1k",
