@@ -71,11 +71,13 @@
 }
 
 /* the resize handle is an invisible grab strip with the resize
-   cursor, straddling the border */
+   cursor, just inside the border: overlapping the code scroller, it
+   made Chrome re-layerize the whole program on every repaint (~250ms a
+   frame at 4k lines, and on every caret blink) */
 #outline-sidebar .outline-resize {
   position: absolute;
   top: 0;
-  right: -4px;
+  right: 0;
   width: 8px;
   height: 100%;
   cursor: col-resize;
