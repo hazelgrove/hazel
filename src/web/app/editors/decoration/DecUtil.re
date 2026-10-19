@@ -20,7 +20,7 @@ type fdims = {
 let px_of_cell =
     (~grid: Grid.t, ~lo: Point.t, ~hi: Point.t, {x, y}: SvgUtil.Point.t)
     : SvgUtil.Point.t => {
-  let {col_width, row_height}: FontMetrics.t = Grid.font_metrics(grid);
+  let {col_width, row_height, _}: FontMetrics.t = Grid.font_metrics(grid);
   let row_offset =
     min(max(0, int_of_float(Float.floor(y))), hi.row - lo.row);
   let row = lo.row + row_offset;
@@ -128,7 +128,7 @@ let svg =
       paths: SvgUtil.Path.t,
     )
     : Node.t => {
-  let {col_width, row_height}: FontMetrics.t = Grid.font_metrics(grid);
+  let {col_width, row_height, _}: FontMetrics.t = Grid.font_metrics(grid);
   let offset: SvgUtil.Point.t =
     switch (relative_to) {
     | None => {

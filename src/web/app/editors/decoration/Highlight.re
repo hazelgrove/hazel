@@ -844,8 +844,8 @@ let padded_boxes =
           ({row, left, right, rank}: Padding.block_row) =>
             SvgUtil.Rows.{
               row,
-              top: Grid.y_top(grid, row) -. out(rank),
-              bottom: Grid.y_bottom(grid, row) +. out(rank),
+              top: Grid.text_top(grid, row) -. out(rank),
+              bottom: Grid.text_bottom(grid, row) +. out(rank),
               left: Grid.x_start(grid, ~row, left.col) -. out(left.rank),
               right: Grid.x_end(grid, ~row, right.col) +. out(right.rank),
             },

@@ -125,7 +125,8 @@ let rest_position =
    as source text. Literal spaces are retained by the chip's white-space CSS. */
 let padding_nodes =
     (~grid: Grid.t, ~shape=Grout.Convex, text: string): list(Node.t) => {
-  let {col_width, row_height}: FontMetrics.t = Grid.font_metrics(grid);
+  let {col_width, row_height, text_height}: FontMetrics.t =
+    Grid.font_metrics(grid);
   Token.to_list(text)
   |> List.map(c =>
        c == Token.implicit_hole_marker
@@ -133,6 +134,7 @@ let padding_nodes =
              FontMetrics.{
                col_width: col_width *. chip_font_scale,
                row_height: row_height *. chip_font_scale,
+               text_height: text_height *. chip_font_scale,
              },
              shape,
            )

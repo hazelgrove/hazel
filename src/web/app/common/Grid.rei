@@ -21,7 +21,8 @@ type t;
 let flat: FontMetrics.t => t;
 
 /* A gadget for every gap whose demand, at `pad` pixels per edge, exceeds
-   the whitespace already there. */
+   the whitespace already there, and pixels below every row whose leading
+   demand exceeds the leading between its text box and the next row's. */
 let of_padding: (~font_metrics: FontMetrics.t, ~pad: float, Padding.t) => t;
 
 let font_metrics: t => FontMetrics.t;
@@ -46,6 +47,16 @@ let gadget_before: (t, ~row: int, int) => option(float);
 let y_top: (t, int) => float;
 
 let y_bottom: (t, int) => float;
+
+/* The pixels inserted below `row`, for the gadget the text layer puts
+   before its line break. */
+let row_gap: (t, int) => float;
+
+/* The text box of a row: the row less its leading, half above and half
+   below. */
+let text_top: (t, int) => float;
+
+let text_bottom: (t, int) => float;
 
 /* The cell under a pixel position relative to the editor's text box: the
    row whose box holds the y, and the nearest column boundary at the x. */

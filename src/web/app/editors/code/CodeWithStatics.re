@@ -408,10 +408,32 @@ module View = {
           ),
         ]
       };
+    let row_lines =
+      globals.settings.show_row_lines
+        ? [
+          div_c(
+            "row-lines",
+            List.init(Measured.total_rows(measured), row =>
+              Node.div(
+                ~attrs=[
+                  Attr.classes(["row-line"]),
+                  Attr.create(
+                    "style",
+                    Printf.sprintf(
+                      "top: %fpx;",
+                      Grid.y_bottom(grid, row) -. 1.,
+                    ),
+                  ),
+                ],
+                [],
+              )
+            ),
+          ),
+        ]
+        : [];
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
-      @ (globals.settings.show_row_lines ? ["show-row-lines"] : [])
       /* the cell the viewport-culling range is measured on
          (JsUtil.code_viewport_geometry) */
       @ (cull ? ["cull-scope"] : []);
@@ -422,7 +444,10 @@ module View = {
         ProbeStagger.row_ends_attr(measured),
       ],
       // errors after warnings to prioritize errors over warnings
-      type_blocks @ [code_text_view, warning_decos, error_decos] @ overlays,
+      row_lines
+      @ type_blocks
+      @ [code_text_view, warning_decos, error_decos]
+      @ overlays,
     );
   };
 };

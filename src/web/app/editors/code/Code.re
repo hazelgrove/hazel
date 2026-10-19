@@ -73,11 +73,6 @@ let comment_text = (~font_metrics: FontMetrics.t, cls, str) =>
     ? secondary_text(cls, str)
     : span_c(cls, GraphemeView.render(~font_metrics, str));
 
-let whitespace_token =
-  Core.Memo.general(~cache_size_bound=10000, (row, col) =>
-    String.make(row, '\n') ++ String.make(col, ' ')
-  );
-
 /* The extra classes a tile carries, by id. */
 let no_classes = (_: Id.t) => [];
 
@@ -159,16 +154,16 @@ let view =
       )
     ) {
     | None => []
-    | Some(px) => [
-        span(
-          ~attrs=[
-            Attr.classes(["gadget"]),
-            Attr.create("style", Printf.sprintf("width: %fpx", px)),
-          ],
-          [],
-        ),
-      ]
+    | Some(px) => [Gadgets.before_piece(px)]
     };
+  /* `n` line breaks ending `row`, then the indent of the row after them. */
+  let newlines = (~row: int, ~indent: int, n: int): list(Node.t) =>
+    List.concat(
+      List.init(n, i =>
+        Gadgets.below_row(~grid, row + i) @ [Node.text("\n")]
+      ),
+    )
+    @ [Node.text(String.make(indent, ' '))];
   let gadget_before = (p: Piece.t) => gadget(Some(measure_of(p).origin));
   let gadget_before_shard = (t: Tile.t, i: int) =>
     gadget(
@@ -177,17 +172,23 @@ let view =
       |> Option.map((m: Measured.measurement) => m.origin),
     );
 
-  let of_secondary = (secondary: Secondary.t) =>
+  let of_secondary = (secondary: Secondary.t): list(Node.t) =>
     switch (secondary.content) {
     | Whitespace(str) when str == Token.linebreak =>
-      let indent = measure_of(Secondary(secondary)).last.col;
-      let token = whitespace_token(DeferredLinebreaks.of_secondary(), indent);
-      Node.text(lb_icon ++ token);
-    | Whitespace(str) when str == Token.space => Node.text(ws_icon)
+      let {origin, last}: Measured.measurement =
+        measure_of(Secondary(secondary));
+      (lb_icon == "" ? [] : [Node.text(lb_icon)])
+      @ newlines(
+          ~row=origin.row,
+          ~indent=last.col,
+          DeferredLinebreaks.of_secondary(),
+        );
+    | Whitespace(str) when str == Token.space => [Node.text(ws_icon)]
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
-    | Comment(str) when List.mem(secondary.id, buffer_ids) =>
-      comment_text(~font_metrics, "in-unparsed-buffer", str)
-    | Comment(str) => comment_text(~font_metrics, "comment", str)
+    | Comment(str) when List.mem(secondary.id, buffer_ids) => [
+        comment_text(~font_metrics, "in-unparsed-buffer", str),
+      ]
+    | Comment(str) => [comment_text(~font_metrics, "comment", str)]
     };
 
   let of_projector = (pr: Base.projector) => {
@@ -200,11 +201,11 @@ let view =
         [text({|⋱|})],
       )
     | _ =>
-      let indent = measure_of(Projector(pr)).last.col;
+      let {origin, last}: Measured.measurement = measure_of(Projector(pr));
       let size = DeferredLinebreaks.of_projector(pr, shape_map);
-      let token =
-        whitespace_token(size.row, size.row == 0 ? size.col : indent);
-      Node.text(token);
+      size.row == 0
+        ? Node.text(String.make(size.col, ' '))
+        : span(newlines(~row=origin.row, ~indent=last.col, size.row));
     };
   };
 
@@ -234,7 +235,7 @@ let view =
           };
         }
       | Grout(g) as p => gadget_before(p) @ [of_grout(g)]
-      | Secondary(s) as p => gadget_before(p) @ [of_secondary(s)]
+      | Secondary(s) as p => gadget_before(p) @ of_secondary(s)
       | Projector(pr) as p => gadget_before(p) @ [of_projector(pr)],
       seg,
     );

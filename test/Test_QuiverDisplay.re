@@ -13,6 +13,7 @@ open Web;
 let font_metrics: FontMetrics.t = {
   row_height: 20.0,
   col_width: 10.0,
+  text_height: 16.0,
 };
 
 let chips_of = (input: string): list((int, int, string)) => {
@@ -120,6 +121,7 @@ let flagpole_edges =
         FontMetrics.{
           row_height: 25.135,
           col_width: 10.405,
+          text_height: 21.5,
         },
       ],
     )

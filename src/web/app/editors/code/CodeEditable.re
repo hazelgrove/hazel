@@ -687,6 +687,7 @@ module View = {
         ? globals.visible_rows : None;
     let refractor_data =
       RefractorView.mk_data(
+        ~grid,
         ~refractors=
           Id.Map.union(
             (_, _, b) => Some(b),
@@ -1113,6 +1114,7 @@ module View = {
       ],
       display_line_numbers
         ? LineNumbers.View.view(
+            ~grid,
             model,
             globals.settings.relative_line_numbers,
             selected,

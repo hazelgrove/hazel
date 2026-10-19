@@ -4,6 +4,7 @@ open Web;
 let font_metrics: FontMetrics.t = {
   row_height: 20.0,
   col_width: 10.0,
+  text_height: 16.0,
 };
 
 let grid = Grid.flat(font_metrics);
@@ -116,7 +117,12 @@ let padded =
           demand: 2,
         },
       ],
-      leading: [],
+      leading: [
+        {
+          above: 0,
+          demand: 2,
+        },
+      ],
     },
   );
 
@@ -219,6 +225,29 @@ let point_of_px_snaps =
     },
   );
 
+let leading_gaps =
+  test_case(
+    "of_padding: leading demand past the font's leading opens the row",
+    `Quick,
+    () => {
+      check(close, "row 0 unmoved", 0., Grid.y_top(padded, 0));
+      check(close, "row 1 opens by the excess", 22., Grid.y_top(padded, 1));
+      check(close, "later rows follow", 42., Grid.y_top(padded, 2));
+      check(close, "the gap below row 0", 2., Grid.row_gap(padded, 0));
+      check(close, "none below row 1", 0., Grid.row_gap(padded, 1));
+      check(close, "text box top", 2., Grid.text_top(padded, 0));
+      check(close, "text box bottom", 18., Grid.text_bottom(padded, 0));
+      let at = (y: float) => Grid.point_of_px(padded, ~x=0., ~y);
+      let p = (row): Util.Point.t => {
+        row,
+        col: 0,
+      };
+      check(point, "a pixel in the gap is still row 0", p(0), at(21.));
+      check(point, "the row after", p(1), at(22.));
+      check(point, "well below the table", p(4), at(85.));
+    },
+  );
+
 let tests = (
   "Grid",
   [
@@ -229,5 +258,6 @@ let tests = (
     whitespace_absorbs,
     row_start,
     point_of_px_snaps,
+    leading_gaps,
   ],
 );

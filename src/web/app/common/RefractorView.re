@@ -44,6 +44,7 @@ let mk_data =
     (
       ~refractors: Zipper.Refractor.Map.t,
       ~syntax: CachedSyntax.t,
+      ~grid: Grid.t,
       ~indicated: option(Indicated.piece),
       ~statics: Language.Statics.Map.t,
       ~dynamics: Language.Dynamics.Map.t,
@@ -62,7 +63,8 @@ let mk_data =
        measurement_of_term(id, term_data, measured)
        |> Option.map(measurement => (id, entry, measurement))
      )
-  |> ProjectorView.filter_by_visibility(visible, _, ((id, _, measurement)) =>
+  |> ProjectorView.filter_by_visibility(
+       ~grid, visible, _, ((id, _, measurement)) =>
        row_range(~refractor_rows, id, measurement)
      )
   |> List.map(((id, entry, measurement)) => {
@@ -135,7 +137,7 @@ let all =
     row_range(~refractor_rows, d.p.id, d.measurement);
   let (base_views, overlay_views) =
     refractor_data
-    |> ProjectorView.filter_by_visibility(visible, _, get_row_range)
+    |> ProjectorView.filter_by_visibility(~grid, visible, _, get_row_range)
     |> List.sort(ProjectorView.by_measurement)
     |> List.map(data =>
          ProjectorView.split_views(

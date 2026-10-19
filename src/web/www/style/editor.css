@@ -4,14 +4,14 @@
   position: relative;
 }
 
-.code-container.show-row-lines {
-  background: repeating-linear-gradient(
-    to bottom,
-    transparent 0,
-    transparent calc(var(--row-height-px) - 1px),
-    var(--border-error) calc(var(--row-height-px) - 1px),
-    var(--border-error) var(--row-height-px)
-  );
+/* Row lines (settings: show row lines): one per row, at its bottom. */
+.row-lines .row-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: var(--border-error);
+  pointer-events: none;
 }
 
 /* Use this style for all text that should
@@ -167,6 +167,10 @@
  * meeting there. */
 .code .gadget {
   display: inline-block;
+}
+.code .gadget.vertical {
+  width: 0;
+  vertical-align: top;
 }
 
 .code .grapheme-cell {

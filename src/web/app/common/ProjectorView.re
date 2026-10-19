@@ -97,6 +97,7 @@ module ViewCache = {
  * of the projector overlaps with the visible range, not just the origin. */
 let filter_by_visibility =
     (
+      ~grid: Grid.t,
       visible: option(visible_rows),
       data: list('a),
       get_row_range: 'a => (int, int),
@@ -104,15 +105,9 @@ let filter_by_visibility =
     : list('a) =>
   switch (visible) {
   | None => data
-  | Some({first, last}) =>
+  | Some(band) =>
     List.filter(
-      item => {
-        let (origin_row, last_row) = get_row_range(item);
-        /* Projector is visible if it overlaps with visible range:
-         * - Starts before visible area ends: origin_row <= last
-         * - Ends after visible area starts: last_row >= first */
-        origin_row <= last && last_row >= first;
-      },
+      item => Globals.VisibleRows.overlaps(~grid, band, get_row_range(item)),
       data,
     )
   };
@@ -639,7 +634,7 @@ let all =
   );
   let (base_views, overlay_views) =
     projector_data
-    |> filter_by_visibility(visible, _, get_row_range)
+    |> filter_by_visibility(~grid, visible, _, get_row_range)
     |> List.sort(by_measurement)
     |> List.map(
          split_views(

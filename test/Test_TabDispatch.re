@@ -28,6 +28,7 @@ open Web;
 let font_metrics: FontMetrics.t = {
   row_height: 20.0,
   col_width: 10.0,
+  text_height: 16.0,
 };
 
 /* char-exact movement (indentation_ux skips leading whitespace on

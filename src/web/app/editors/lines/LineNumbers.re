@@ -9,7 +9,13 @@ open WebUtil;
 module Model = CodeWithStatics.Model;
 
 module View = {
-  let view = (model: Model.t, show_relative_numbers: bool, selected: bool) => {
+  let view =
+      (
+        ~grid: Grid.t,
+        model: Model.t,
+        show_relative_numbers: bool,
+        selected: bool,
+      ) => {
     let {editor: {syntax: {measured, _}, state: {zipper, _}, _}, _}: Model.t = model;
     let num_rows = List.length(measured.piece_rows);
     let empty_row = row => {
@@ -59,33 +65,31 @@ module View = {
         );
       };
     let (processed_list, cursor_line_number) = processed_line_numbers(0, 1);
-    /*
-     Converts a row index to its display text.
-     Returns "\n" for empty rows, or the line number (absolute or relative) with newline.
-     */
+    /* A row's label: nothing for a row to skip, else its line number
+       (absolute or relative). */
     let index_to_text = (i): string => {
       let line_number = List.nth(processed_list, i);
-      line_number == 0
-        ? "\n"  // if this is a line we want to skip
-        : {
-          (
-            if (show_relative_numbers && selected) {
-              string_of_int(
-                abs(line_number - cursor_line_number) == 0
-                  ? line_number : abs(line_number - cursor_line_number),
-              );
-            } else {
-              string_of_int(line_number);
-            }
-          )
-          ++ (i == num_rows ? "" : "\n"); // Add a line break if this is not the last row
-        };
+      if (line_number == 0) {
+        "";
+      } else if (show_relative_numbers && selected) {
+        string_of_int(
+          abs(line_number - cursor_line_number) == 0
+            ? line_number : abs(line_number - cursor_line_number),
+        );
+      } else {
+        string_of_int(line_number);
+      };
     };
+    /* the row's line break carries the gap block padding opens below it */
     let index_to_span = (i): Node.t => {
       Node.span(
         ~attrs=
           i == row && selected ? [Attr.classes(["line-numbers-bold"])] : [],
-        [Text(index_to_text(i))],
+        [Node.text(index_to_text(i))]
+        @ (
+          i == num_rows
+            ? [] : Gadgets.below_row(~grid, i) @ [Node.text("\n")]
+        ),
       );
     };
     [
