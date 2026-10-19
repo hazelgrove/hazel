@@ -1710,13 +1710,21 @@ let ops = () =>
           Sort.Exp,
           "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x -> x in\n\n# doc for g #\nlet g = 2 in\nf",
         ),
+        /* blank lines holding indentation, as a paste leaves them */
+        (
+          "doc comments (pasted)",
+          Sort.Mod,
+          "module M = {\n  let init = (1, 2);\n  \n  # doc for f #\n  let f = fun x -> x;\n  \n  # doc for g #\n  let g = 2\n};\nM.f",
+        ),
       ],
     );
+    /* one row in 3 unless MODAUDIT_SAMPLE says */
+    let sample = Sys.getenv_opt("MODAUDIT_SAMPLE") == None ? 3 : sample;
     List.iter(
       ((name, root, file)) =>
         if (selected(name)) {
           switch (CorpusUtil.mega_src(file)) {
-          | Some(src) => ops_sweep(~root, ~sample=3, name, src)
+          | Some(src) => ops_sweep(~root, ~sample, name, src)
           | None => print_endline(name ++ ": missing")
           };
         },
