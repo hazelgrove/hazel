@@ -10,20 +10,24 @@ open Web;
 
 module Cells = Test_Undo.Cells;
 
-/* the audit's copy: a stdlib tree's List.hz may differ */
-let src = () =>
-  Option.get(
-    Test_ModAudit.read_any([
-      "test/modaudit/List.hz",
-      "../test/modaudit/List.hz",
-    ]),
-  );
+/* the audit's copy (a stdlib tree's List.hz may differ); at an Exp root,
+   its module bound by `in` */
+let src = (~root: Haz3lcore.Sort.t) => {
+  let list =
+    Option.get(
+      Test_ModAudit.read_any([
+        "test/modaudit/List.hz",
+        "../test/modaudit/List.hz",
+      ]),
+    );
+  root == Mod ? list : String.trim(list) ++ " in\n\nList.length([1, 2, 3])";
+};
 
-let mk = (src: string): History.Model.t => {
+let mk = (~root: Haz3lcore.Sort.t, src: string): History.Model.t => {
   let editor =
-    CorpusUtil.seg_of(~root=Mod, src)
+    CorpusUtil.seg_of(~root, src)
     |> Haz3lcore.Zipper.unzip(~direction=Left)
-    |> Haz3lcore.Editor.Model.mk(~root=Mod)
+    |> Haz3lcore.Editor.Model.mk(~root)
     |> CellEditor.Model.mk;
   let editors: Editors.Model.t =
     Scratch(
@@ -64,9 +68,9 @@ let after = (text: string, needle: string): Util.Point.t =>
   );
 
 /* the caret after List.length's `end;` */
-let loaded = () => {
-  let src = src();
-  let m = Cells.run(mk(src), Refresh);
+let loaded = (~root=Haz3lcore.Sort.Mod, ()) => {
+  let src = src(~root);
+  let m = Cells.run(mk(~root, src), Refresh);
   Cells.run(
     m,
     Globals(ActiveEditor(Move(Point(after(src, "    end;"), None)))),
@@ -74,10 +78,12 @@ let loaded = () => {
 };
 
 let typed = "\nlet q = (1 + 2";
-/* models are values: the tests share one */
+/* models are values: the tests share one per root */
 let with_q = {
-  let m = lazy(refresh(type_(loaded(), typed)));
-  () => Lazy.force(m);
+  let at_mod = lazy(refresh(type_(loaded(~root=Mod, ()), typed)));
+  let at_exp = lazy(refresh(type_(loaded(~root=Exp, ()), typed)));
+  (~root=Haz3lcore.Sort.Mod, ()) =>
+    Lazy.force(root == Mod ? at_mod : at_exp);
 };
 
 let term = m => Program.statics(Cells.program(m)).term;
@@ -102,8 +108,9 @@ let rows = (term: Language.Exp.t): list(string) =>
   };
 
 /* each member its own row, as the editor's statics show them with q */
-let per_member = (what: string, term: Language.Exp.t) => {
-  let want = rows(Program.statics(Cells.program(with_q())).term);
+let per_member =
+    (~root=Haz3lcore.Sort.Mod, what: string, term: Language.Exp.t) => {
+  let want = rows(Program.statics(Cells.program(with_q(~root, ()))).term);
   check(
     bool,
     "q and the members below it are rows",
@@ -127,13 +134,13 @@ let member_items = (term: Language.Exp.t): option(int) =>
 
 /* undo compacts the statics away: the outline and the view's realize read
    a term parsed then */
-let undo_redo = () => {
-  let m = with_q();
+let undo_redo = (~root, ()) => {
+  let m = with_q(~root, ());
   let typed_text = Test_Undo.text_of(m);
   let m = Cells.run(m, Test_Undo.undo);
   check(bool, "the key undone", true, Test_Undo.text_of(m) != typed_text);
   let fresh = OutlineControl.outline_term(Cells.program(m));
-  per_member("undo", fresh);
+  per_member(~root, "undo", fresh);
   check(
     option(int),
     "the view's analysis: an item per member, and the exports",
@@ -142,7 +149,7 @@ let undo_redo = () => {
   );
   let m = Cells.run(m, Test_Undo.redo);
   check(string, "the key redone", typed_text, Test_Undo.text_of(m));
-  per_member("redo", OutlineControl.outline_term(Cells.program(m)));
+  per_member(~root, "redo", OutlineControl.outline_term(Cells.program(m)));
 };
 
 let pin_kept = () => {
@@ -332,7 +339,16 @@ let crash_saves_whole = () => {
 let tests = (
   "OpenMember",
   [
-    test_case("undo and redo read the members per item", `Quick, undo_redo),
+    test_case(
+      "undo and redo read the members per item",
+      `Quick,
+      undo_redo(~root=Mod),
+    ),
+    test_case(
+      "the same at an Exp root, the module bound by `in`",
+      `Quick,
+      undo_redo(~root=Exp),
+    ),
     test_case("undo keeps a pin below the open form", `Quick, pin_kept),
     test_case("a zoomed module's statics, per item", `Quick, zoomed),
     test_case("outline ops refuse the open form's item", `Quick, ops_refuse),
