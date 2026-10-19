@@ -328,7 +328,7 @@ let code_display = (~globals: Globals.t): section => {
               sl_name: "Block padding",
               sl_tooltip: "How far each block edge stands out from its text",
               sl_min: 0,
-              sl_max: 10,
+              sl_max: 16,
               sl_value: globals.settings.block_pad,
               sl_unit: "px",
               sl_set: px =>
