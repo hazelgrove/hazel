@@ -160,6 +160,7 @@ type slot = {
   lo: int,
   core: int, /* the item's end */
   term: int, /* its terminator's end */
+  eol: int, /* past what shares its last line */
   hi: int,
 };
 
@@ -174,6 +175,9 @@ type block = {
   /* a module body's: its last item, a statement without its `;`, is a
      member like the rest, not a result */
   body: bool,
+  /* a `…;` statement can be an item: not in a member's let chain or
+     body run, where its `;` would end the member */
+  stmts: bool,
   /* the segment starts a line */
   bol: bool,
   sl: array(slot),
@@ -187,7 +191,7 @@ let is_hole = (p: Piece.t): bool =>
 
 /* [lv]'s items as places, each slot by the line rule of ItemSpans'
    [lines] (which keeps whole lines only) */
-let block = (~in_module: bool, lv: S.level): block => {
+let block = (~in_module: bool, ~stmts=true, lv: S.level): block => {
   let arr = lv.pieces;
   let len = Array.length(arr);
   let n = Array.length(lv.spans);
@@ -270,6 +274,7 @@ let block = (~in_module: bool, lv: S.level): block => {
           lo,
           core,
           term,
+          eol: s,
           hi,
         };
       },
@@ -280,6 +285,7 @@ let block = (~in_module: bool, lv: S.level): block => {
     arr,
     in_module,
     body: Focus.is_members(lv),
+    stmts,
     bol: lv.bol,
     sl,
   };
@@ -390,62 +396,346 @@ let swap = (b: block, k: int): Segment.t =>
   @ trail(b, k + 1)
   @ ListUtil.remove_first_n(b.sl[k + 1].hi, b.seg);
 
-/* item [k] gone; a module's last member hands its terminator to the one
-   before it */
-let remove = (b: block, k: int): Segment.t =>
-  if (k > 0 && k == Array.length(b.sl) - 1 && b.in_module) {
-    ListUtil.truncate(b.sl[k - 1].core, b.seg)
-    @ term(b, k)
-    @ (
-      gap(b, k - 1) == [] ? trail(b, k) : trail(b, k - 1) @ gap(b, k - 1)
-    )
-    @ ListUtil.remove_first_n(b.sl[k].hi, b.seg);
-  } else {
-    ListUtil.truncate(b.sl[k].lo, b.seg)
-    @ ListUtil.remove_first_n(b.sl[k].hi, b.seg);
+/* ---- taking an item out and putting it in elsewhere ----
+
+   The trivia rule. An item's doc comment (the comment lines directly
+   above it) is part of it. Spacing belongs to the gaps between items: a
+   swap leaves it in place. An item taken out of its block takes one gap
+   along: the one above it when it sits right below an item (or nothing
+   follows it), else the one below; where it lands it puts that gap on
+   the same side, keeping the gap that was there on the other. Its first
+   line keeps its indentation's offset from that side's item. Comments
+   set apart from the items (by a blank line) stay put and stay apart:
+   an item lands on its own side of them, and goes into its neighbour
+   only with none between. */
+
+let is_comment_at = (b: block, i: int): bool =>
+  switch (b.arr[i]) {
+  | Secondary(w) => Secondary.is_comment(w)
+  | _ => false
   };
+
+/* the linebreaks among [b]'s pieces [i, j) */
+let breaks = (b: block, i: int, j: int): int => {
+  let rec go = (x, n) =>
+    x >= j ? n : go(x + 1, Piece.is_linebreak(b.arr[x]) ? n + 1 : n);
+  go(i, 0);
+};
+
+/* back from [i] past whitespace */
+let ws_back = (b: block, i: int): int => {
+  let rec go = j => j > 0 && Focus.is_edge_ws(b.arr[j - 1]) ? go(j - 1) : j;
+  go(i);
+};
+
+/* on from [i] past whitespace */
+let ws_on = (b: block, i: int): int => {
+  let rec go = j =>
+    j < Array.length(b.arr) && Focus.is_edge_ws(b.arr[j]) ? go(j + 1) : j;
+  go(i);
+};
+
+/* past the last linebreak in [lo, i) */
+let line_start = (b: block, lo: int, i: int): int => {
+  let rec go = j =>
+    j > lo && !Piece.is_linebreak(b.arr[j - 1]) ? go(j - 1) : j;
+  go(i);
+};
+
+/* where the content above item [k]'s place ends, if the block has any
+   there: the item above, or comments set apart from it. A function's
+   head opens the block: it is no content */
+let above = (b: block, k: int): option(int) => {
+  let w = ws_back(b, b.sl[k].lo);
+  k > 0 || w > 0 && is_comment_at(b, w - 1) ? Some(w) : None;
+};
+
+/* item [k]'s place is right below the item above, no comment between */
+let under_item = (b: block, k: int): bool =>
+  k > 0 && ws_back(b, b.sl[k].lo) <= b.sl[k - 1].eol;
+
+/* the indentation of the line holding [b]'s piece [i] (or ending just
+   before it) */
+let line_indent = (b: block, i: int): int =>
+  S.indent_at(~outer=S.outer(b.lv), b.arr, i);
+
+let item_indent = (b: block, k: int): int =>
+  line_indent(b, indent_end(b, k));
+
+let rec spans_lines = (seg: Segment.t): bool =>
+  List.exists(
+    (p: Piece.t) =>
+      switch (p) {
+      | Secondary(w) => Secondary.is_linebreak(w)
+      | Tile(t) => List.exists(spans_lines, t.children)
+      | Projector(pr) => spans_lines([pr.syntax])
+      | Grout(_) => false
+      },
+    seg,
+  );
+
+/* [seg]'s lines moved [delta] columns; blank lines stay blank */
+let shift_by = (delta: int, seg: Segment.t): Segment.t =>
+  delta == 0
+    ? seg
+    : Segment.map_deep(
+        level => {
+          let rec go = (ps: Segment.t) =>
+            switch (ps) {
+            | [] => []
+            | [Piece.Secondary(w) as lb, ...rest]
+                when Secondary.is_linebreak(w) =>
+              let (sps, rest) = Segment.split_space_run(rest);
+              let blank =
+                switch (rest) {
+                | [p, ..._] => Piece.is_linebreak(p)
+                | [] => false
+                };
+              let n = List.length(sps);
+              let m = blank ? n : max(0, n + delta);
+              [lb]
+              @ (
+                m <= n
+                  ? ListUtil.truncate(m, sps)
+                  : sps @ List.init(m - n, _ => space())
+              )
+              @ go(rest);
+            | [p, ...rest] => [p, ...go(rest)]
+            };
+          go(level);
+        },
+        seg,
+      );
+
+/* a function's head: `fun … ->` or `typfun … ->` */
+let is_fun_head = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    switch (Tile.label(t)) {
+    | ["fun", "->"]
+    | ["typfun", "->"] => true
+    | _ => false
+    }
+  | _ => false
+  };
+
+/* a value's body: a definition's level, not a member list or chain */
+let is_body = (b: block): bool =>
+  switch (b.lv.owner) {
+  | Block(_) => !b.in_module
+  | Top
+  | Members(_)
+  | Chain(_) => false
+  };
+
+/* a function's body: a function's head opens it */
+let fn_body = (b: block): bool =>
+  Array.length(b.sl) > 0
+  && Array.exists(is_fun_head, Array.sub(b.arr, 0, b.sl[0].lo));
+
+/* where an item was in its block: the spacing it takes along, and its
+   indentation's offset */
+type place = {
+  /* linebreaks between it and its neighbour, 0 on one line. None when
+     it has none to take: it was alone, or opened a body before the
+     result, whose spacing a move sets */
+  sep: option(int),
+  offset: int,
+};
+
+/* item [k] taken out of [b]: the block's pieces without it, and its
+   place. A member block's last member hands its terminator to the one
+   above. A body's first item, before the result: a result on its last
+   line goes back onto the head's line, as does a constant's value when
+   the item spanned lines (it was put on a line of its own for it) */
+let take = (b: block, k: int): (Segment.t, place) => {
+  let n = Array.length(b.sl);
+  let sl = b.sl[k];
+  let offset = j => item_indent(b, k) - item_indent(b, j);
+  /* the next content, past the gap below */
+  let x = ws_on(b, sl.eol);
+  switch (above(b, k)) {
+  | Some(w) when under_item(b, k) || x == Array.length(b.arr) =>
+    /* what shares its last line goes with it, but the spaces before
+       content that follows there */
+    let e = x == sl.eol ? max(sl.term, ws_back(b, sl.eol)) : sl.eol;
+    let seg =
+      b.in_module && k > 0 && k == n - 1
+        ? ListUtil.truncate(b.sl[k - 1].core, b.seg)
+          @ term(b, k)
+          @ ListUtil.slice(b.sl[k - 1].term, w - b.sl[k - 1].term, b.seg)
+          @ ListUtil.remove_first_n(e, b.seg)
+        : ListUtil.truncate(w, b.seg) @ ListUtil.remove_first_n(e, b.seg);
+    (
+      seg,
+      {
+        sep: Some(breaks(b, w, sl.lo)),
+        offset: k > 0 ? offset(k - 1) : 0,
+      },
+    );
+  | content =>
+    /* the gap below goes with it, the next content takes its place */
+    let lbs = breaks(b, sl.eol, x);
+    let next = k + 1 < n ? Some(k + 1) : None;
+    let result =
+      switch (next) {
+      | Some(j) => !b.in_module && !movable(b, j)
+      | None => false
+      };
+    let own = starts_line(b, k);
+    let rejoin = result && own && is_body(b) && content == None;
+    let head = line_indent(b, ws_back(b, sl.lo));
+    let onto_head = (rest: Segment.t) =>
+      ListUtil.truncate(ws_back(b, sl.lo), b.seg) @ [space()] @ rest;
+    /* a constant's value it put on the line below it */
+    let to_head =
+      rejoin && lbs == 1 && n == 2 && !fn_body(b) && spans_lines(bare(b, k));
+    let seg =
+      if (rejoin && lbs == 0) {
+        onto_head(ListUtil.remove_first_n(x, b.seg));
+      } else if (to_head) {
+        let r = b.sl[k + 1];
+        let i = indent_end(b, k + 1);
+        onto_head(
+          shift_by(
+            head - item_indent(b, k + 1),
+            ListUtil.slice(i, r.eol - i, b.seg),
+          )
+          @ ListUtil.remove_first_n(r.eol, b.seg),
+        );
+      } else if (lbs > 0 && own) {
+        ListUtil.truncate(sl.lo, b.seg)
+        @ ListUtil.remove_first_n(line_start(b, sl.eol, x), b.seg);
+      } else {
+        ListUtil.truncate(sl.lo, b.seg)
+        @ indent(b, k)
+        @ ListUtil.remove_first_n(x, b.seg);
+      };
+    (
+      seg,
+      {
+        /* before the result, only a gap on a line of its own was the
+           item's: on the head's line, or where the result had to move
+           onto a line of its own, the item had none */
+        sep:
+          next == None || result && (lbs == 0 || to_head) ? None : Some(lbs),
+        /* a result on its last line: past the head's, as it was put */
+        offset:
+          rejoin && lbs == 0
+            ? item_indent(b, k) - (head + 2)
+            : Option.fold(~none=0, ~some=offset, next),
+      },
+    );
+  };
+};
+
+/* item [k] gone, as a move takes it */
+let remove = (b: block, k: int): Segment.t => fst(take(b, k));
+
+/* where a moved item lands in a block */
+type landing =
+  /* just above item [k], after any comments set apart above it; k = n:
+     after the last */
+  | Above(int)
+  /* just below item [k], before any comments set apart below it */
+  | Below(int);
+
+/* [item] (bare, in the block's form) moved into [b] [at]. [sep]
+   linebreaks (0: a space) part it from the item above when it lands
+   right below one, else from the item below; its first line is indented
+   [offset] past that item's, its other lines shifted to match from
+   [src_indent]. In a member block it takes `;`, or the last member's
+   terminator when it lands last */
+let put =
+    (
+      b: block,
+      ~at: landing,
+      ~sep: int,
+      ~offset: int,
+      ~src_indent: option(int),
+      ~member: bool,
+      item: Segment.t,
+    )
+    : Segment.t => {
+  let n = Array.length(b.sl);
+  let lines = k => List.init(k, _ => linebreak());
+  let spaces = k => List.init(max(0, k), _ => space());
+  let moved = line =>
+    shift_by(
+      Option.fold(~none=0, ~some=src => line - src, src_indent),
+      item,
+    );
+  let semi = member ? [fresh_semi()] : [];
+  /* below item [j], after the content ending at [w] */
+  let below = (j, w) => {
+    let ind = max(0, item_indent(b, j) + offset);
+    let lead = sep > 0 ? lines(sep) @ spaces(ind) : [space()];
+    let item = moved(sep > 0 ? ind : line_indent(b, w));
+    let l = b.sl[j];
+    j == n - 1 && member && b.in_module
+      ? ListUtil.truncate(l.core, b.seg)
+        @ [fresh_semi()]
+        @ ListUtil.slice(l.term, w - l.term, b.seg)
+        @ lead
+        @ item
+        @ term(b, j)
+        @ ListUtil.remove_first_n(w, b.seg)
+      : ListUtil.truncate(w, b.seg)
+        @ lead
+        @ item
+        @ semi
+        @ ListUtil.remove_first_n(w, b.seg);
+  };
+  switch (at) {
+  | Below(j) => below(j, max(b.sl[j].term, ws_back(b, b.sl[j].eol)))
+  | Above(g) when g == n => below(n - 1, ws_back(b, Array.length(b.arr)))
+  | Above(g) when under_item(b, g) => below(g - 1, ws_back(b, b.sl[g].lo))
+  | Above(g) =>
+    /* where item [g] starts, the gap below it */
+    let lo = b.sl[g].lo;
+    let own = starts_line(b, g);
+    let ind = max(0, item_indent(b, g) + offset);
+    ListUtil.truncate(lo, b.seg)
+    @ (own ? spaces(ind) : [])
+    @ moved(own ? ind : line_indent(b, lo))
+    @ semi
+    @ (sep > 0 ? lines(sep) @ (own ? [] : spaces(ind)) : [space()])
+    @ ListUtil.remove_first_n(lo, b.seg);
+  };
+};
+
+/* the spacing for an item that takes none along, landing beside item
+   [j] (just above it, or [below]), as a new item is spaced: the gap it
+   lands in, or, before the result or at the end, the gap above [j] */
+let spacing_at = (b: block, ~below: bool, j: int): int => {
+  let gap_above = k =>
+    Option.map(w => breaks(b, w, b.sl[k].lo), above(b, k));
+  let next = j + 1;
+  let landing =
+    below && next < Array.length(b.sl) && movable(b, next)
+      ? gap_above(next) : gap_above(j);
+  Option.value(landing, ~default=1);
+};
 
 type pos =
   | Before(int)
   | After(int);
 
 /* [item] (bare, in the block's form) as a new item at [pos], laid out
-   like its neighbours: the indentation where it lands, with its other
-   lines shifted to match from [src_indent], then [trail] (else the
-   spacing that follows its neighbour). In a member block it takes `;`,
-   or the last member's terminator when it lands last */
+   like its neighbours: the indentation where it lands, then the spacing
+   that follows its neighbour. In a member block it takes `;`, or the
+   last member's terminator when it lands last */
 let insert =
-    (
-      b: block,
-      ~pos: pos,
-      ~member: bool,
-      ~src_indent: option(int)=?,
-      ~trail as given: option(Segment.t)=?,
-      item: Segment.t,
-    )
-    : option(Segment.t) => {
+    (b: block, ~pos: pos, ~member: bool, item: Segment.t): option(Segment.t) => {
   let n = Array.length(b.sl);
-  let shifted = like => {
-    let ind = List.length(indent(b, like));
-    switch (src_indent) {
-    | Some(src) when starts_line(b, like) && ind != src =>
-      LocalReformat.shift(ind - src, item)
-    | _ => item
-    };
-  };
   let spaces = like => List.map(_ => space(), indent(b, like));
-  let trail_or = default =>
-    switch (given) {
-    | Some(t) when t != [] => t
-    | _ => default
-    };
-  /* at [at], laid out like item [like], then [default] spacing */
-  let splice = (at, like, default) =>
+  /* at [at], laid out like item [like], then [after] */
+  let splice = (at, like, after) =>
     ListUtil.truncate(at, b.seg)
     @ spaces(like)
-    @ shifted(like)
+    @ item
     @ (member ? [fresh_semi()] : [])
-    @ trail_or(default)
+    @ after
     @ ListUtil.remove_first_n(at, b.seg);
   switch (pos) {
   | After(k) when k == n - 1 =>
@@ -459,9 +749,9 @@ let insert =
           @ [fresh_semi()]
           @ sep
           @ spaces(k)
-          @ shifted(k)
+          @ item
           @ term(b, k)
-          @ trail_or(spacing(trail(b, k)))
+          @ spacing(trail(b, k))
           @ ListUtil.remove_first_n(b.sl[k].hi, b.seg),
         );
       }
@@ -527,13 +817,15 @@ let apply_at =
         new_item(~member),
       );
     | NewTestBelow
-    | NewTestAbove =>
+    | NewTestAbove when b.stmts =>
       let member = b.in_module;
       Option.bind(
         member
           ? member_core(test_template) : letin_core(test_template ++ ";"),
         new_item(~above=op == NewTestAbove, ~member),
       );
+    | NewTestBelow
+    | NewTestAbove => None
     | Duplicate when whole(j) =>
       let member = b.in_module;
       let txt = text_of(bare(b, j));
@@ -589,8 +881,15 @@ let locate =
             | Sub
             | Syntax => Focus.is_members(st.lv)
             };
+          let stmts =
+            switch (st.from) {
+            | Sub => false
+            | Top
+            | Kid(_)
+            | Syntax => true
+            };
           Some((
-            block(~in_module, st.lv),
+            block(~in_module, ~stmts, st.lv),
             j,
             rebuild(~seg, List.rev(rev)),
           ));
@@ -646,14 +945,19 @@ let members_of =
   | None => None
   };
 
+/* how an item comes into a block: new, spaced as its neighbours are, or
+   moved, with its place and the indentation of the line it was on */
+type arrival =
+  | Fresh
+  | Moved(place, option(int));
+
 /* [item] (member form) into module [m]'s members: after the last, or
    ([first]) before the first */
 let into_members =
     (
       ~mod_root: bool,
       ~first=false,
-      ~src_indent: option(int)=?,
-      ~trail: option(Segment.t)=?,
+      ~arrival=Fresh,
       m: Id.t,
       item: Segment.t,
       seg: Segment.t,
@@ -664,24 +968,41 @@ let into_members =
   | Some((def_seg, members)) =>
     let b = block(~in_module=true, members);
     let n = Array.length(b.sl);
-    n == 0
-      ? None
-      : insert(
-          b,
-          ~pos=first ? Before(0) : After(n - 1),
-          ~member=true,
-          ~src_indent?,
-          ~trail?,
-          item,
+    (
+      n == 0
+        ? None
+        : (
+          switch (arrival) {
+          | Fresh =>
+            insert(
+              b,
+              ~pos=first ? Before(0) : After(n - 1),
+              ~member=true,
+              item,
+            )
+          | Moved(place, src_indent) =>
+            Some(
+              put(
+                b,
+                ~at=Above(first ? 0 : n),
+                ~sep=Option.value(place.sep, ~default=1),
+                ~offset=place.offset,
+                ~src_indent,
+                ~member=true,
+                item,
+              ),
+            )
+          }
         )
-        |> Option.map(members =>
-             Focus.splice_def(
-               ~root=root_of(mod_root),
-               m,
-               Focus.with_brace_child(def_seg, members),
-               seg,
-             )
-           );
+    )
+    |> Option.map(members =>
+         Focus.splice_def(
+           ~root=root_of(mod_root),
+           m,
+           Focus.with_brace_child(def_seg, members),
+           seg,
+         )
+       );
   };
 
 /* [item] (member form) as the only member of module [m], whose body is
@@ -707,10 +1028,10 @@ let into_empty =
     let outer = Option.value(Focus.line_indent(~root, m, seg), ~default=0);
     let inner = outer + 2;
     let item =
-      switch (src_indent) {
-      | Some(src) when src != inner => LocalReformat.shift(inner - src, item)
-      | _ => item
-      };
+      shift_by(
+        Option.fold(~none=0, ~some=src => inner - src, src_indent),
+        item,
+      );
     let brace =
       brace_of(
         [linebreak()]
@@ -732,18 +1053,6 @@ let into_empty =
   };
 };
 
-/* a function's head: `fun … ->` or `typfun … ->` */
-let is_fun_head = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) =>
-    switch (Tile.label(t)) {
-    | ["fun", "->"]
-    | ["typfun", "->"] => true
-    | _ => false
-    }
-  | _ => false
-  };
-
 /* a function only inside parentheses or a projector: a local definition
    in front of it would land outside its lambda */
 let wrapped_fun = (def: Segment.t): bool => {
@@ -764,11 +1073,17 @@ let wrapped_fun = (def: Segment.t): bool => {
 
 /* [item] (in let-in form) as value [d]'s last local definition: just
    before its body's result, inside a function's lambda, spaced as the
-   body is (on its line when it's one line) */
+   body is (on its line when it's one line). A statement can't go into a
+   member's body, where its `;` would end the member. Moved before a
+   lone result: above a result on its own line, the gap it takes along
+   between them; on the head's line when it's one line; else on lines of
+   its own past the head's, and a constant's value with it (a function's
+   result stays on its last line) */
 let body_last =
     (
       ~mod_root: bool,
-      ~src_indent: option(int)=?,
+      ~arrival=Fresh,
+      ~stmt=false,
       d: Id.t,
       item: Segment.t,
       seg: Segment.t,
@@ -807,12 +1122,57 @@ let body_last =
           ~offset=kid ? 0 : i + 1,
           body,
         );
-      let b = block(~in_module=false, body_lv);
+      let b = block(~in_module=false, ~stmts=kid, body_lv);
       let n = Array.length(b.sl);
-      n > 0 && Focus.is_tail(body_lv, n - 1)
-        ? insert(b, ~pos=Before(n - 1), ~member=false, ~src_indent?, item)
-          |> Option.map(body => Focus.splice_def(~root, d, body, seg))
-        : None;
+      let g = n - 1;
+      let placed =
+        switch (arrival) {
+        | _ when n == 0 || !Focus.is_tail(body_lv, g) || stmt && !b.stmts =>
+          None
+        | Fresh => insert(b, ~pos=Before(g), ~member=false, item)
+        | Moved(place, src_indent) =>
+          let put = (~sep) =>
+            Some(
+              put(
+                b,
+                ~at=Above(g),
+                ~sep,
+                ~offset=place.offset,
+                ~src_indent,
+                ~member=false,
+                item,
+              ),
+            );
+          if (g > 0 || starts_line(b, g)) {
+            put(~sep=Option.value(place.sep, ~default=1));
+          } else if (!spans_lines(item)) {
+            put(~sep=0);
+          } else {
+            let r = b.sl[g];
+            let head = item_indent(b, g);
+            let lead = ind => [
+              linebreak(),
+              ...List.init(max(0, ind), _ => space()),
+            ];
+            let ind = head + 2 + place.offset;
+            Some(
+              ListUtil.truncate(ws_back(b, r.lo), b.seg)
+              @ lead(ind)
+              @ shift_by(
+                  Option.fold(~none=0, ~some=src => ind - src, src_indent),
+                  item,
+                )
+              @ (
+                fn_body(b)
+                  ? [space(), ...ListUtil.remove_first_n(r.lo, b.seg)]
+                  : lead(head + 2)
+                    @ shift_by(2, ListUtil.slice(r.lo, r.eol - r.lo, b.seg))
+                    @ ListUtil.remove_first_n(r.eol, b.seg)
+              ),
+            );
+          };
+        };
+      Option.map(body => Focus.splice_def(~root, d, body, seg), placed);
     }
   | _ => None
   };
@@ -903,35 +1263,8 @@ let spot = (~mod_root, ~up: bool, fid: Id.t, seg: Segment.t): option(spot) =>
     },
   );
 
-/* [item] placed just above ([up]) or below the item holding [target],
-   in that block's form */
-let insert_near =
-    (
-      ~mod_root,
-      ~up: bool,
-      ~src_indent: option(int)=?,
-      ~trail: Segment.t,
-      target: Id.t,
-      item: Segment.t,
-      seg: Segment.t,
-    )
-    : option(Segment.t) =>
-  Option.bind(locate(~mod_root, target, seg), ((b, j, rebuild)) =>
-    j < Array.length(b.sl)
-      ? insert(
-          b,
-          ~pos=up ? Before(j) : After(j),
-          ~member=b.in_module,
-          ~src_indent?,
-          ~trail,
-          item,
-        )
-        |> Option.map(rebuild)
-      : None
-  );
-
 /* The item [s] holding [fid] moved across a level's edge: each way below
-   takes it out of [seg], puts it in where it lands, reindented, and
+   takes it out of [seg] with its place, puts it in where it lands, and
    gives back the row it lands on */
 
 /* the indentation of the line item [s] starts on */
@@ -942,10 +1275,35 @@ let start_indent = (~mod_root: bool, s: spot, seg: Segment.t): option(int) =>
   | [] => None
   };
 
-/* the spacing item [s] takes along: its lines, not a space it had on a
-   line it shared (the spacing where it lands then follows it) */
-let own_lines = (s: spot): Segment.t =>
-  List.exists(Piece.is_linebreak, s.s_trail) ? s.s_trail : [];
+/* the item holding [fid] taken out of [seg] */
+type taken = {
+  /* the program without it */
+  rest: Segment.t,
+  place,
+  /* a `…;` statement (a test), or a member that would be one */
+  stmt: bool,
+  /* no comment set apart lies between it and the item above, or below:
+     it can go into that item and come back to where it was */
+  near_above: bool,
+  near_below: bool,
+};
+
+/* None for an item a delete refuses */
+let take_out = (~mod_root, fid: Id.t, seg: Segment.t): option(taken) =>
+  Option.bind(locate(~mod_root, fid, seg), ((b, j, rebuild)) =>
+    j < Array.length(b.sl) && movable(b, j) && !runs_on(b, j)
+      ? {
+        let (level, place) = take(b, j);
+        Some({
+          rest: rebuild(level),
+          place,
+          stmt: b.lv.spans[j].kind == Stmt,
+          near_above: under_item(b, j),
+          near_below: j + 1 < Array.length(b.sl) && under_item(b, j + 1),
+        });
+      }
+      : None
+  );
 
 /* into module [m]'s members: last, or [first]; an empty body takes it as
    its only member */
@@ -953,25 +1311,24 @@ let into_module =
     (~mod_root, ~first: bool, s: spot, fid: Id.t, m: Id.t, seg: Segment.t)
     : option((Segment.t, option(Id.t))) =>
   switch (
-    apply(~mod_root, Delete, fid, seg),
+    take_out(~mod_root, fid, seg),
     in_form(~member=true, ~was_member=s.s_member, s.s_item),
   ) {
-  | (Some((seg1, _)), Some(item)) =>
+  | (Some(tk), Some(item)) when first ? tk.near_below : tk.near_above =>
     let src_indent = start_indent(~mod_root, s, seg);
     (
       switch (
         into_members(
           ~mod_root,
           ~first,
-          ~src_indent?,
-          ~trail=own_lines(s),
+          ~arrival=Moved(tk.place, src_indent),
           m,
           item,
-          seg1,
+          tk.rest,
         )
       ) {
       | Some(_) as r => r
-      | None => into_empty(~mod_root, ~src_indent?, m, item, seg1)
+      | None => into_empty(~mod_root, ~src_indent?, m, item, tk.rest)
       }
     )
     |> Option.map(seg2 => (seg2, row_id(item)));
@@ -983,53 +1340,63 @@ let into_body =
     (~mod_root, s: spot, fid: Id.t, d: Id.t, seg: Segment.t)
     : option((Segment.t, option(Id.t))) =>
   switch (
-    apply(~mod_root, Delete, fid, seg),
+    take_out(~mod_root, fid, seg),
     in_form(~member=false, ~was_member=s.s_member, s.s_item),
   ) {
-  | (Some((seg1, _)), Some(item)) =>
+  | (Some(tk), Some(item)) when tk.near_above =>
     body_last(
       ~mod_root,
-      ~src_indent=?start_indent(~mod_root, s, seg),
+      ~arrival=Moved(tk.place, start_indent(~mod_root, s, seg)),
+      ~stmt=tk.stmt,
       d,
       item,
-      seg1,
+      tk.rest,
     )
     |> Option.map(seg2 => (seg2, row_id(item)))
   | _ => None
   };
 
-/* just above or below the item holding [target], in that block's form */
+/* just above or below the item holding [target], in that block's form.
+   An item that takes no spacing along is spaced as [target] is */
 let beside =
     (~mod_root, ~up: bool, s: spot, fid: Id.t, target: Id.t, seg: Segment.t)
     : option((Segment.t, option(Id.t))) =>
-  switch (
-    apply(~mod_root, Delete, fid, seg),
-    spot(~mod_root, ~up, target, seg),
-  ) {
-  | (Some((seg1, _)), Some(ts)) =>
-    switch (in_form(~member=ts.s_member, ~was_member=s.s_member, s.s_item)) {
-    | Some(item) =>
-      insert_near(
-        ~mod_root,
-        ~up,
-        ~src_indent=?start_indent(~mod_root, s, seg),
-        ~trail=own_lines(s),
-        target,
-        item,
-        seg1,
-      )
-      |> Option.map(seg2 => (seg2, row_id(item)))
-    | None => None
-    }
-  | _ => None
+  switch (take_out(~mod_root, fid, seg)) {
+  | None => None
+  | Some(tk) =>
+    Option.bind(locate(~mod_root, target, tk.rest), ((b, j, rebuild)) =>
+      switch (in_form(~member=b.in_module, ~was_member=s.s_member, s.s_item)) {
+      | Some(item) when j < Array.length(b.sl) && (b.stmts || !tk.stmt) =>
+        let sep =
+          switch (tk.place.sep) {
+          | Some(sep) => sep
+          | None => spacing_at(b, ~below=!up, j)
+          };
+        Some((
+          rebuild(
+            put(
+              b,
+              ~at=up ? Above(j) : Below(j),
+              ~sep,
+              ~offset=tk.place.offset,
+              ~src_indent=start_indent(~mod_root, s, seg),
+              ~member=b.in_module,
+              item,
+            ),
+          ),
+          row_id(item),
+        ));
+      | _ => None
+      }
+    )
   };
 
 /* Alt↑↓: into an expanded module beside the item, bound by `module` or
    `let` (its end going up, its start going down); from a module's first
    or last member, out to just above or below it. Modules not [is_open]
    are stepped over, as is any module by an item with no member form (a
-   `use`), and function bodies keep their items. [owner]: the item's
-   module */
+   `use`) or across a comment set apart, and function bodies keep their
+   items. [owner]: the item's module */
 let move =
     (
       ~mod_root: bool,
@@ -1061,7 +1428,8 @@ let move =
 
 /* Tab: the item holding [fid] into the item just above it, in place, a
    level deeper: a module's last member, or a value's last local
-   definition. Only into a row the outline [shown]s */
+   definition. Only into a row the outline [shown]s, with no comment set
+   apart between them */
 let indent =
     (~mod_root: bool, ~shown: Id.t => bool, fid: Id.t, seg: Segment.t)
     : option((Segment.t, option(Id.t))) =>

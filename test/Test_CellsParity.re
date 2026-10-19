@@ -41,6 +41,42 @@ let row_key = (~before: Id.Map.t(unit), row: option(Id.t)) =>
   | Some(_) => "fresh"
   };
 
+/* the same, whitespace aside: text and kept ids */
+let solid_key = (~before: Id.Map.t(unit), s: Segment.t) => {
+  let rec solid = (seg: Segment.t) =>
+    List.concat_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) when !Haz3lcore.Secondary.is_comment(w) => []
+        | Tile(t) => [t.id, ...List.concat_map(solid, t.children)]
+        | p => [Piece.id(p)]
+        },
+      seg,
+    );
+  Str.global_replace(Str.regexp("[ \n]+"), "", text_of(s))
+  ++ "\n@"
+  ++ String.concat(
+       ",",
+       List.filter_map(
+         id => Id.Map.mem(id, before) ? Some(Id.show(id)) : None,
+         solid(s),
+       ),
+     );
+};
+
+/* ItemEdit's rules that read differently by design: moves and deletes
+   carry spacing by the trivia rule (which gap an item takes along, and
+   its indentation's offset), so results may differ in whitespace alone;
+   and a statement doesn't go into a member's body, where its `;` would
+   end the member */
+let trivia_rule = "the trivia rule";
+let stmt_rule = "no statement into a member's body";
+/* and an item goes into the item beside it (Tab, Alt into a module) only
+   with no comment set apart between them: it couldn't come back to its
+   side of the comment */
+let apart_rule = "nothing goes in across a comment set apart";
+let item_rules = [trivia_rule, stmt_rule, apart_rule];
+
 type tally = {
   mutable programs: int,
   mutable checks: int,
@@ -57,12 +93,14 @@ let tally = () => {
 };
 
 /* old and new, each run caught: equal or a diff. [what] is counted,
-   [at] names the row in a diff, [why] says if it differs by design */
+   [at] names the row in a diff, [why] says if it differs by design, as
+   does [design] from the two results */
 let same =
     (
       t: tally,
       ~name: string,
       ~why: unit => option(string),
+      ~design=(_, _) => None,
       ~at="",
       what: string,
       old_f,
@@ -77,15 +115,29 @@ let same =
   );
   let run = f =>
     switch (f()) {
-    | v => key(v)
-    | exception e => "raised " ++ Printexc.to_string(e)
+    | v => Ok(v)
+    | exception e => Error("raised " ++ Printexc.to_string(e))
     };
-  let (a, b) = (run(old_f), run(new_f));
+  let (va, vb) = (run(old_f), run(new_f));
+  let keyed =
+    fun
+    | Ok(v) => key(v)
+    | Error(e) => e;
+  let (a, b) = (keyed(va), keyed(vb));
   if (a != b) {
+    let why =
+      switch (va, vb) {
+      | (Ok(va), Ok(vb)) =>
+        switch (design(va, vb)) {
+        | Some(_) as d => d
+        | None => why()
+        }
+      | _ => why()
+      };
     t.diffs = [
       (
         name,
-        why(),
+        why,
         Printf.sprintf("%s %s\n  old: %s\n  new: %s", what, at, a, b),
       ),
       ...t.diffs,
@@ -269,8 +321,8 @@ let check_program =
       Some("a member's body run is a level")
     | _ => None
     };
-  let same = (~at=?, ~id=?, what, a, b, key) =>
-    same(t, ~name, ~why=why(id), ~at?, what, a, b, key);
+  let same = (~at=?, ~id=?, ~design=?, what, a, b, key) =>
+    same(t, ~name, ~why=why(id), ~design?, ~at?, what, a, b, key);
   let row_ids = O.row_ids(term);
   same(
     "refusals",
@@ -465,6 +517,42 @@ let check_program =
         made_key(~before, s) ++ " -> " ++ row_key(~before, row)
       | None => "refused"
       };
+    let trivia = ((sa, ra), (sb, rb)) =>
+      solid_key(~before, sa) == solid_key(~before, sb)
+      && row_key(~before, ra) == row_key(~before, rb)
+        ? Some(trivia_rule) : None;
+    let stmt_row = id =>
+      switch (O.kind_of(id, term)) {
+      | Some(KTest | KStmt) => true
+      | _ => false
+      };
+    let design_opt = (op: Web.OutlineEdit.def_op, a, b) =>
+      switch (op, a, b) {
+      | (_, Some(a), Some(b)) => trivia(a, b)
+      | (NewTestBelow | NewTestAbove, Some(_), None) => Some(stmt_rule)
+      | _ => None
+      };
+    /* a comment set apart lies between row [id]'s item and the item
+       above it, or below */
+    let apart = (~up, id) =>
+      switch (IE.locate(~mod_root, id, seg)) {
+      | Some((b, j, _)) =>
+        let k = up ? j : j + 1;
+        k > 0 && k < Array.length(b.sl) && !IE.under_item(b, k);
+      | None => false
+      };
+    let design = (~op=?, id, a, b) =>
+      switch (op, a, b) {
+      | (_, Ok(a), Ok(b)) when trivia(a, b) != None => trivia(a, b)
+      | (Some(Web.OutlineEdit.Indent), Ok(_), Error(_)) when stmt_row(id) =>
+        Some(stmt_rule)
+      | (Some(Web.OutlineEdit.Indent | MoveUp), _, _)
+          when apart(~up=true, id) =>
+        Some(apart_rule)
+      | (Some(MoveDown), _, _) when apart(~up=false, id) =>
+        Some(apart_rule)
+      | _ => None
+      };
     List.iter(
       id => {
         let sid = Id.show(id);
@@ -474,6 +562,7 @@ let check_program =
             same(
               ~at=what,
               ~id,
+              ~design=design_opt(op),
               "apply " ++ Web.OutlineEdit.show_def_op(op),
               () => IE0.apply(~mod_root, op, id, seg),
               () => IE.apply(~mod_root, op, id, seg),
@@ -487,6 +576,7 @@ let check_program =
               same(
                 ~at=what,
                 ~id,
+                ~design=design(~op, id),
                 "edit " ++ Web.OutlineEdit.show_def_op(op),
                 () => IE0.edit(ctx, Op(op, id), seg),
                 () => IE.edit(ctx, Op(op, id), seg),
@@ -603,9 +693,19 @@ let unexplained = (t: tally): list(string) =>
     t.diffs,
   );
 
-/* the programs that differ */
-let differing = (t: tally): list(string) =>
-  List.sort_uniq(compare, List.map(((name, _, _)) => name, t.diffs));
+/* the programs that differ, but by [except]'s rules */
+let differing = (~except=[], t: tally): list(string) =>
+  List.sort_uniq(
+    compare,
+    List.filter_map(
+      ((name, why, _)) =>
+        switch (why) {
+        | Some(w) when List.mem(w, except) => None
+        | _ => Some(name)
+        },
+      t.diffs,
+    ),
+  );
 
 let run = (~deep, ~edits, ~sample=?, programs) => {
   let t = tally();
@@ -687,7 +787,7 @@ let shapes = () => {
       "a statement opening with a let-in",
       {js|a ⇒ in parentheses|js},
     ],
-    differing(t),
+    differing(~except=item_rules, t),
   );
 };
 
@@ -719,7 +819,7 @@ let incomplete = () => {
       "unfinished before others",
       "unfinished last def",
     ],
-    differing(t),
+    differing(~except=item_rules, t),
   );
 };
 
@@ -745,7 +845,12 @@ let corpus = () =>
           ),
       );
     report("corpus", t);
-    check(list(string), "programs that differ", [], differing(t));
+    check(
+      list(string),
+      "programs that differ",
+      [],
+      differing(~except=item_rules, t),
+    );
   };
 
 /* every fourth row of mega-1k and mega-mod-1k */
@@ -835,13 +940,13 @@ let by_design = () => {
     ),
   );
   /* an unfinished `let x =` runs on into what follows: alone, it deletes
-     as one item */
+     as one item, with the gap above it */
   let unfinished = (_, seg) =>
     List.hd(Segment.incomplete_tiles_deep(seg)).id;
   check(
     option(string),
     "a lone unfinished definition deletes",
-    Some("let a = 1 in\n"),
+    Some("let a = 1 in"),
     op(Delete, "let a = 1 in\nlet b = 2", unfinished),
   );
   /* but nothing takes it whole once it runs on into items after it: they
