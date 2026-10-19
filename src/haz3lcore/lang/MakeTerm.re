@@ -2174,24 +2174,34 @@ module Incr = {
     List.map(snd, keyed(~root, seg));
 
   let seg_eq = Segment.ptr_eq;
+  /* an item's pieces as an entry's: physically, but whitespace an open
+     tile reaches is rewrapped each key */
+  let same_item = Segment.same_pieces;
 
-  /* last whole-segment term and the root it was read at: shared by
-     term_of, term_of_mod and go_incr, so a hit needs both to match */
-  let last: ref(option((Sort.t, Segment.t, Exp.t))) = ref(None);
+  /* last whole-segment term, and the root and division it was read at:
+     shared by term_of, term_of_mod and go_incr, so a hit needs all to
+     match */
+  let last: ref(option((Sort.t, ItemSpans.ends, Segment.t, Exp.t))) =
+    ref(None);
   let analyzed: ref(int) = ref(0); /* observability for tests */
   /* per-item parses that gave up for a whole parse; parity tests assert 0 */
   let fell_back = ref(0);
 
   /* [attempt] on an item's pieces; if they're nonconvex (the item's body
      operand was the next item), on them plus a convex grout standing in,
-     whose id is returned for the graft to replace */
+     whose id is returned for the graft to replace. Derived from the last
+     piece, so two parses of the same pieces agree */
   let with_body_grout =
       (attempt: Segment.t => option('a), pieces: Segment.t)
       : option(('a, option(Id.t))) =>
     switch (attempt(pieces)) {
     | Some(r) => Some((r, None))
     | None =>
-      let hole_id = Id.mk();
+      let hole_id =
+        switch (ListUtil.last_opt(pieces)) {
+        | Some(p) => Id.derive(~salt="body-grout", Piece.id(p))
+        | None => Id.mk()
+        };
       attempt(
         pieces
         @ [
@@ -2232,9 +2242,16 @@ module Incr = {
      which a `;` parsed inside an item (a stray line above a member) breaks.
      Read Mod-sorted, as go reads a member list: a concave grout (a missing
      `;`) separates members, where the collection's Exp-sorted skel would
-     bind it inside the first member's definition */
+     bind it inside the first member's definition. [cut]: the slice is an
+     unfinished member cut at its member line, whose open form takes the
+     grout */
   let parse_item_mod =
-      (~masks=Id.Map.empty, ~hooks=Id.Map.empty, pieces: Segment.t)
+      (
+        ~masks=Id.Map.empty,
+        ~hooks=Id.Map.empty,
+        ~cut=false,
+        pieces: Segment.t,
+      )
       : (list(Mod.t), option(Id.t)) => {
     let attempt = (ps: Segment.t): option(list(Mod.t)) =>
       switch (Segment.skel(ps)) {
@@ -2253,6 +2270,7 @@ module Incr = {
       let is_hole = (m: Mod.t) => List.mem(hole_id, m.annotation.ids);
       switch (ListUtil.split_last_opt(items)) {
       | Some((items, hole)) when is_hole(hole) => (items, Some(hole_id))
+      | Some(_) when cut => (items, Some(hole_id))
       | _ => failwith("MakeTerm.Incr: mod item absorbed its `;`")
       };
     | None => ([], None)
@@ -2396,14 +2414,15 @@ module Incr = {
     | None => []
     };
 
-  /* one per editor: the root and last build's entries, and its PRE-FIXUP
-     unions (every entry's own bindings, members' included), so the next
-     build applies a delta instead of re-merging */
+  /* one per editor: the root, division and last build's entries, and its
+     PRE-FIXUP unions (every entry's own bindings, members' included), so
+     the next build applies a delta instead of re-merging */
   type cache = {
     mutable c_prev:
       option(
         (
           Sort.t,
+          ItemSpans.ends,
           list((Id.t, entry_full)),
           TermMap.t,
           TermData.t,
@@ -2523,7 +2542,9 @@ module Incr = {
   /* a member list composed as go_s(Mod, …) composes it: go's tree over
      the members' separators, each node read by mod_ (a `;` chain over Mod
      members; members around a missing `;`'s grout each at its own sort),
-     the nodes below the root returned for the level's map */
+     the nodes below the root returned for the level's map. A Read level
+     cut at a member line, where no skel splits: a flat MultiHole of the
+     members carrying the root's separators */
   exception Recompose;
 
   type seps =
@@ -2569,6 +2590,7 @@ module Incr = {
       };
     let t = tree(skel);
     let (leaves, tree_ends) = walk(t);
+    let mod_items = () => List.map(m => Grammar.Mod(m), items);
     if (leaves == List.length(items) && tree_ends == ends) {
       let rest = ref(items);
       let below = ref(TermMap.empty);
@@ -2615,6 +2637,38 @@ module Incr = {
       | Node(ps, ks) =>
         let top = node(~is_below=false, ps, ks);
         (top, skel, below^);
+      };
+    } else if (ml.cut) {
+      /* the module adopts what it adopts read whole, so extents stay as
+         written; each other separator's term is the member list */
+      let root_ids =
+        switch (t) {
+        | Node(ps, _) => List.map(Piece.id, ps)
+        | Leaf(_) => []
+        };
+      let flat = (ids: list(Id.t)): Any.t =>
+        Mod(
+          IdTagged.mk(
+            ~incomplete=[],
+            ids,
+            IdTagged.IdTag.empty_secondary,
+            MultiHole(mod_items()): TermBase.Mod.term,
+          ),
+        );
+      switch (items) {
+      | [] => raise(Recompose)
+      | [m] when ends == [] => (Mod(m), skel, TermMap.empty)
+      | _ => (
+          flat(root_ids),
+          skel,
+          List.fold_left(
+            (map, id) =>
+              List.mem(id, root_ids)
+                ? map : Id.Map.add(id, flat([id]), map),
+            TermMap.empty,
+            ends,
+          ),
+        )
       };
     } else {
       raise(Recompose);
@@ -2696,8 +2750,8 @@ module Incr = {
           let p = Hashtbl.find_opt(prev_tbl, key);
           let s = Hashtbl.find_opt(shared_tbl, key);
           switch (p, s) {
-          | (Some(e), _) when seg_eq(e.f_pieces, ps) => (key, e)
-          | (_, Some(e)) when seg_eq(e.f_pieces, ps) =>
+          | (Some(e), _) when same_item(e.f_pieces, ps) => (key, e)
+          | (_, Some(e)) when same_item(e.f_pieces, ps) =>
             Option.iter(p => gone := subtree(p) @ gone^, p);
             come := subtree(e) @ come^;
             (key, e);
@@ -2847,9 +2901,12 @@ module Incr = {
         Id.Map.singleton(brace, (term, plist))
       | None => Id.Map.empty
       };
+    /* an unfinished member cut at its member line: no separator ends it */
+    let cut =
+      lv.cut && k < Array.length(lv.spans) - 1 && lv.spans[k].sep == None;
     let (f_term, f_hole, f_mods, hole) =
       if (root == Sort.Mod) {
-        let (items, hole) = parse_item_mod(~masks, ~hooks, ps);
+        let (items, hole) = parse_item_mod(~masks, ~hooks, ~cut, ps);
         (Exp.fresh(EmptyHole), None, items, hole);
       } else {
         let (term, hole) = parse_item(~masks, ~hooks, ps);
@@ -3069,12 +3126,17 @@ module Incr = {
      entries never carry a stale mask; nor do [shared]'s, an editor's
      go_incr cache, whose parses of the same pieces stand in for parsing
      them again (members included) */
-  let term_cache: ref(option((Sort.t, list((Id.t, entry_full))))) =
+  let term_cache:
+    ref(option((Sort.t, ItemSpans.ends, list((Id.t, entry_full))))) =
     ref(None);
 
+  /* [ends]: the division read (ItemSpans); complete programs read alike
+     either way, so semantics, which reads completed ones, takes Read to
+     share the editor's parses */
   let term_of_root =
       (
         ~masks: Id.Map.t(IdTagged.IdTag.incomplete_mask)=Id.Map.empty,
+        ~ends=ItemSpans.Written,
         ~root: Sort.t,
         ~shared: option(cache)=?,
         seg: Segment.t,
@@ -3083,16 +3145,18 @@ module Incr = {
     let root = root == Sort.Mod ? Sort.Mod : Sort.Exp;
     analyzed := 0;
     switch (last^) {
-    | Some((r, prev_seg, prev_term)) when r == root && seg_eq(prev_seg, seg) => prev_term
+    | Some((r, e, prev_seg, prev_term))
+        when r == root && e == ends && seg_eq(prev_seg, seg) => prev_term
     | _ =>
       let prev =
         switch (term_cache^) {
-        | Some((r, entries)) when r == root => entries
+        | Some((r, e, entries)) when r == root && e == ends => entries
         | _ => []
         };
       let shared =
         switch (shared) {
-        | Some({c_prev: Some((r, entries, _, _, _))}) when r == root => entries
+        | Some({c_prev: Some((r, e, entries, _, _, _))})
+            when r == root && e == ends => entries
         | _ => []
         };
       let term =
@@ -3105,9 +3169,9 @@ module Incr = {
               ~count=analyzed,
               ~prev,
               ~shared,
-              ItemSpans.top(~root, seg),
+              ItemSpans.top(~ends, ~root, seg),
             );
-          term_cache := Some((root, entries));
+          term_cache := Some((root, ends, entries));
           compose(~root, entries);
         }) {
         | _ =>
@@ -3122,17 +3186,24 @@ module Incr = {
           ).
             term;
         };
-      last := Some((root, seg, term));
+      last := Some((root, ends, seg, term));
       term;
     };
   };
   let term_of = (~masks=?, seg) => term_of_root(~masks?, ~root=Exp, seg);
   let term_of_mod = (~masks=?, seg) => term_of_root(~masks?, ~root=Mod, seg);
 
-  let go_incr' = (~root: Sort.t=Exp, ~cache: cache, seg: Segment.t): t => {
+  let go_incr' =
+      (
+        ~ends=ItemSpans.Written,
+        ~root: Sort.t=Exp,
+        ~cache: cache,
+        seg: Segment.t,
+      )
+      : t => {
     let (prev, m_map0, m_td0, m_proj0) =
       switch (cache.c_prev) {
-      | Some((r, entries, m_map, m_td, m_proj)) when r == root => (
+      | Some((r, e, entries, m_map, m_td, m_proj)) when r == root && e == ends => (
           entries,
           m_map,
           m_td,
@@ -3148,7 +3219,7 @@ module Incr = {
         ~count=full_analyzed,
         ~prev,
         ~shared=[],
-        ItemSpans.top(~root, seg),
+        ItemSpans.top(~ends, ~root, seg),
       );
     /* the pre-fixup unions: drop the bindings of entries gone, add those
        of entries come */
@@ -3173,12 +3244,12 @@ module Incr = {
         (m_map, m_td, m_proj),
         d.come,
       );
-    cache.c_prev = Some((root, entries, m_map, m_td, m_proj));
+    cache.c_prev = Some((root, ends, entries, m_map, m_td, m_proj));
     /* every graft's rebuilt nodes, outermost first */
     let rebuilt = ref([]);
     let term =
       compose(~root, ~on_path=path => rebuilt := path @ rebuilt^, entries);
-    last := Some((root, seg, term)); /* share with term_of (statics path) */
+    last := Some((root, ends, seg, term)); /* share with term_of (statics path) */
     let terms =
       fix_spine(
         TermMap.add_all(term.annotation.ids, Exp(term), m_map),
@@ -3199,8 +3270,18 @@ module Incr = {
     };
   };
 
-  let go_incr = (~root: Sort.t=Exp, ~cache: cache, seg: Segment.t): t =>
-    switch (go_incr'(~root, ~cache, seg)) {
+  /* [ends]: the division read (ItemSpans): the editor's syntax reads
+     Read, so an unfinished member's open form stops at its member line
+     and the members below keep their parses */
+  let go_incr =
+      (
+        ~ends=ItemSpans.Written,
+        ~root: Sort.t=Exp,
+        ~cache: cache,
+        seg: Segment.t,
+      )
+      : t =>
+    switch (go_incr'(~ends, ~root, ~cache, seg)) {
     | r => r
     | exception _ =>
       incr(fell_back);

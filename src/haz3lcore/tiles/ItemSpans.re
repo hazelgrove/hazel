@@ -46,7 +46,19 @@ type span = {
   base_col: int,
   /* a module literal's brace tile, whose child is the member level */
   body: option(Id.t),
+  /* the index of the `;` that ends it, if one */
+  sep: option(int),
 };
+
+/* where a member level's items end. Written: at its member `;`s that no
+   open form before takes. Read: also where an unfinished member meets its
+   member line (MemberLines, where completion ends it), so an open form
+   stays in its member. The parse and the layout divide by Read; cells,
+   outline edits and completion by Written. They differ only at a member
+   level holding an unfinished member */
+type ends =
+  | Written
+  | Read;
 
 type owner =
   | Top
@@ -62,6 +74,9 @@ type owner =
 type level = {
   sort: Sort.t,
   owner,
+  ends,
+  /* a Read level whose unfinished member ended at its member line */
+  cut: bool,
   seg: Segment.t,
   pieces: array(Piece.t),
   spans: array(span),
@@ -258,13 +273,21 @@ type raw = {
    (with its `in`: an unfinished `let x =` runs on); a `;` ends a
    statement unless a form before it in the item takes it into its right
    operand. At a Mod level an item ends only at a member `;` (or, with
-   [grout], a concave grout: a missing `;`) or the level's end, never
+   [grout], a concave grout: a missing `;`) or the range's end, never
    after an `in`. Total: any segment divides. [nested]: a definition's
-   body, which has items only if it is divided */
+   body, which has items only if it is divided. Over [arr]'s pieces
+   [from, until) */
 let raw_spans =
-    (~sort: Sort.t, ~nested: bool, ~grout=false, arr: array(Piece.t))
+    (
+      ~sort: Sort.t,
+      ~nested: bool,
+      ~grout=false,
+      ~from=0,
+      ~until=?,
+      arr: array(Piece.t),
+    )
     : list(raw) => {
-  let len = Array.length(arr);
+  let len = Option.value(until, ~default=Array.length(arr));
   let at_mod = sort == Sort.Mod;
   let rec ws_end = i => i < len && is_ws(arr[i]) ? ws_end(i + 1) : i;
   let rec run_head = (i, stop) =>
@@ -362,8 +385,8 @@ let raw_spans =
     j < len && is_fun_head(arr[j]) ? after_heads(j + 1) : i;
   };
   let first =
-    switch (at_mod ? 0 : after_heads(0)) {
-    | 0 => 0
+    switch (at_mod ? from : after_heads(from)) {
+    | i when i == from => from
     | i => ws_end(i)
     };
   upto := first;
@@ -442,6 +465,55 @@ let index_of = (spans: array(span)): Id.Map.t(int) => {
   m^;
 };
 
+/* a Read member level's raws: each Written item cut where completion
+   ends an unfinished member (its units), each part divided as written;
+   and whether a member line cut one */
+let read_raws = (~nested: bool, arr: array(Piece.t)): (list(raw), bool) => {
+  let len = Array.length(arr);
+  let written = Array.of_list(raw_spans(~sort=Mod, ~nested, arr));
+  let n = Array.length(written);
+  let cut = ref(false);
+  let parts =
+    List.init(
+      max(n, 1),
+      k => {
+        let lo = k == 0 ? 0 : written[k - 1].r_cut;
+        let hi = k >= n - 1 ? len : written[k].r_cut;
+        switch (
+          MemberLines.member_parts(
+            ~sort=Mod,
+            Array.to_list(Array.sub(arr, lo, hi - lo)),
+          )
+        ) {
+        | []
+        | [_] => [(lo, hi)]
+        | parts =>
+          cut := true;
+          List.rev(
+            snd(
+              List.fold_left(
+                ((at, acc), (part, _)) => {
+                  let next = at + List.length(part);
+                  (next, [(at, next), ...acc]);
+                },
+                (lo, []),
+                parts,
+              ),
+            ),
+          );
+        };
+      },
+    )
+    |> List.concat;
+  (
+    List.concat_map(
+      ((from, until)) => raw_spans(~sort=Mod, ~nested, ~from, ~until, arr),
+      parts,
+    ),
+    cut^,
+  );
+};
+
 /* the member separators of a member level's run: its `;`s and missing
    `;`s' grouts that no open form before them takes, as a Mod skel reads
    them */
@@ -456,6 +528,7 @@ let separators = (seg: Segment.t): list(Id.t) => {
 /* [bol]/[eol]: the level starts/ends a line (a program does) */
 let build =
     (
+      ~ends=Written,
       ~sort: Sort.t,
       ~owner: owner,
       ~nested: bool,
@@ -468,7 +541,10 @@ let build =
     : level => {
   let arr = Array.of_list(seg);
   let len = Array.length(arr);
-  let raws = Array.of_list(raw_spans(~sort, ~nested, arr));
+  let (raws, cut) =
+    ends == Read && sort == Sort.Mod
+      ? read_raws(~nested, arr) : (raw_spans(~sort, ~nested, arr), false);
+  let raws = Array.of_list(raws);
   let first_content = (r: raw) => {
     let rec go = i =>
       i < r.r_stop && Piece.is_secondary(arr[i]) ? go(i + 1) : i;
@@ -613,12 +689,15 @@ let build =
           lines,
           base_col,
           body,
+          sep: r.r_semi,
         };
       },
     );
   {
     sort,
     owner,
+    ends,
+    cut,
     seg,
     pieces: arr,
     spans,
@@ -647,9 +726,9 @@ let index = (lv: level): Id.Map.t(int) =>
    they start at the same indentation. The top level is keyed by its first
    piece too, so editors don't evict each other */
 type key =
-  | KTop(Sort.t, Id.t)
-  | KMembers(Id.t)
-  | KChain(Id.t);
+  | KTop(ends, Sort.t, Id.t)
+  | KMembers(ends, Id.t)
+  | KChain(ends, Id.t);
 
 let cache: Swept.t(key, level) = Swept.mk();
 /* levels built, cumulative: observability for tests */
@@ -679,8 +758,9 @@ let memo =
     lv;
   };
 
-/* the top level of a program rooted at [root] (Mod, else Exp) */
-let top = (~root: Sort.t, seg: Segment.t): level => {
+/* the top level of a program rooted at [root] (Mod, else Exp); its
+   member levels end their items as it does */
+let top = (~ends=Written, ~root: Sort.t, seg: Segment.t): level => {
   Swept.next_pass(cache);
   let sort = root == Sort.Mod ? Sort.Mod : Sort.Exp;
   let first =
@@ -688,8 +768,9 @@ let top = (~root: Sort.t, seg: Segment.t): level => {
     | [p, ..._] => Piece.id(p)
     | [] => Id.invalid
     };
-  memo(KTop(sort, first), ~indent=None, ~bol=true, ~eol=true, seg, () =>
+  memo(KTop(ends, sort, first), ~indent=None, ~bol=true, ~eol=true, seg, () =>
     build(
+      ~ends,
       ~sort,
       ~owner=Top,
       ~nested=false,
@@ -748,13 +829,14 @@ let members = (lv: level, k: int): option(level) =>
       let seg = List.hd(brace.children);
       Some(
         memo(
-          KMembers(brace.id),
+          KMembers(lv.ends, brace.id),
           ~indent=Some(indent),
           ~bol=false,
           ~eol=false,
           seg,
           () =>
           build(
+            ~ends=lv.ends,
             ~sort=Sort.Mod,
             ~owner=Members(brace.id),
             ~nested=false,
@@ -784,8 +866,9 @@ let chain = (lv: level, k: int): option(level) => {
     let indent = Some(sp.base_col);
     let seg = Array.to_list(Array.sub(arr, c0, c1 - c0));
     Some(
-      memo(KChain(sp.anchor), ~indent, ~bol, ~eol, seg, () =>
+      memo(KChain(lv.ends, sp.anchor), ~indent, ~bol, ~eol, seg, () =>
         build(
+          ~ends=lv.ends,
           ~sort=Sort.Exp,
           ~owner=Chain(sp.anchor),
           ~nested=false,

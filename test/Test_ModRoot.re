@@ -381,11 +381,17 @@ let missing_semi = ((root: Sort.t, src, semi, keys), ()) => {
     let seg = Zipper.unselect_and_zip(z);
     let fb = MakeTerm.Incr.fell_back^;
     let a0 = MakeTerm.Incr.full_analyzed^;
-    let r = MakeTerm.Incr.go_incr(~root, ~cache, seg);
+    let r = MakeTerm.Incr.go_incr(~ends=Read, ~root, ~cache, seg);
     let parsed = MakeTerm.Incr.full_analyzed^ - a0;
     let (completed, masks) = MakeTerm.semantic_segment(~root, seg);
     let term =
-      MakeTerm.Incr.term_of_root(~masks, ~root, ~shared=cache, completed);
+      MakeTerm.Incr.term_of_root(
+        ~masks,
+        ~ends=Read,
+        ~root,
+        ~shared=cache,
+        completed,
+      );
     check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
     if (root == Sort.Mod) {
       check_parity(seg, r);
@@ -417,7 +423,12 @@ let missing_semi = ((root: Sort.t, src, semi, keys), ()) => {
         check(
           int,
           typed ++ ": its item and its modules' shells",
-          CorpusUtil.parses_for(~root, seg, CorpusUtil.tile(typed, seg)),
+          CorpusUtil.parses_for(
+            ~ends=Read,
+            ~root,
+            seg,
+            CorpusUtil.tile(typed, seg),
+          ),
           parsed,
         );
         check(

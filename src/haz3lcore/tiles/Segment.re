@@ -1549,6 +1549,19 @@ let ptr_eq = (a: t, b: t): bool => {
   a === b || go(a, b);
 };
 
+/* [ptr_eq], but a secondary may be a new record equal to the old: the
+   editor rewraps the whitespace an open tile reaches on every key */
+let same_pieces = (a: t, b: t): bool => {
+  let rec go = (xs, ys) =>
+    switch (xs, ys) {
+    | ([], []) => true
+    | ([x, ...xs], [y, ...ys]) =>
+      (x === y || Piece.is_secondary(x) && x == y) && go(xs, ys)
+    | _ => false
+    };
+  a === b || go(a, b);
+};
+
 /* restore piece identity after a whole-segment rebuild: a rebuilt piece
    equal to [old]'s same-id piece becomes that old object. remold/regrout
    re-mint every piece, which would make pointer-keyed incremental layers
