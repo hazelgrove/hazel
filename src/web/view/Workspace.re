@@ -868,7 +868,9 @@ let calculate_slide =
           let term =
             Haz3lcore.MakeTerm.semantic_term(
               ~root=Divided.root(d),
-              ~shared=spliced_parse,
+              /* a world's pieces are its editor's: one parse */
+              ~shared=
+                code.world == None ? spliced_parse : WorldSlide.parse_cache,
               spliced,
             );
           let prev_items =
