@@ -12,9 +12,14 @@
    whose Html views are trees of such applications, the answers were 88% of
    a click on a drawing editor in Firefox.
 
-   Two independent 30-bit hashes make the key, about 60 bits: two different
-   types sharing one is negligible at the sizes involved, and the price of
+   Three independent 30-bit hashes make the key, about 90 bits: two
+   different types sharing one is negligible at any size, and the price of
    it would be one wrong cached answer to a question about those two types.
+   Each lane runs its own finalizer after every step, so a difference in
+   any bit of a part reaches every bit of the lane, and two parts that
+   differ the same way cannot cancel. (With a multiply alone, a difference
+   only moved toward the high bits: two of three parts flipped in bit 28 or
+   29 hashed alike.)
 
    A type holding an expression, a signature or projector data gets no hash
    (None), and callers then compute as if there were no cache. Binder names
@@ -23,17 +28,37 @@
    depends on it must not use this. */
 open Js_of_ocaml;
 
-type t = (int, int);
+type t = (int, int, int);
 
 let mask = 0x3FFFFFFF;
-let mix = ((a, b): t, (x, y): t): t => (
-  (a * 31 + x) land mask,
-  b lxor y * 1000003 land mask,
+/* A 30-bit finalizer, the shape of Murmur3's fmix32: the xor-shifts bring
+   the high bits down and the odd multiplies carry them up. Every step is
+   invertible, so no two inputs meet. The products are taken mod 2^30, the
+   same in native code and under js_of_ocaml, whose ints are 32 bits. */
+let fin = (k1: int, k2: int, h: int): int => {
+  let h = h lxor h lsr 15;
+  let h = h * k1 land mask;
+  let h = h lxor h lsr 13;
+  let h = h * k2 land mask;
+  h lxor h lsr 16;
+};
+let fin0 = fin(0x05ebca6b, 0x02b2ae35);
+let fin1 = fin(0x3feb352d, 0x046ca68b);
+let fin2 = fin(0x27d4eb2d, 0x165667b1);
+let mix = ((a, b, c): t, (x, y, z): t): t => (
+  fin0(a lxor x),
+  fin1(b lxor y),
+  fin2(c lxor z),
 );
-let of_int = (n: int): t => (n land mask, (n * 2654435 + 97) land mask);
+let of_int = (n: int): t => (
+  fin0(n land mask),
+  fin1(n lxor 0x2545f491 land mask),
+  fin2(n lxor 0x1e3779b9 land mask),
+);
 let of_string = (s: string): t => (
   Hashtbl.hash(s) land mask,
   Hashtbl.seeded_hash(7919, s) land mask,
+  Hashtbl.seeded_hash(104729, s) land mask,
 );
 let tag = (n: int): t => of_int(n * 1009 + 17);
 let combine = (n: int, parts: list(t)): t =>

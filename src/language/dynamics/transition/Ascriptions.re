@@ -24,12 +24,12 @@
    objects, so only their hashes recognize them. The context here is always
    Ctx.empty, and is_consistent ignores an Unknown's provenance, as the hash
    does, so the answer depends only on the two hashes. */
-let consistent_memo: Hashtbl.t((int, int, int, int), bool) =
+let consistent_memo: Hashtbl.t((TypHash.t, TypHash.t), bool) =
   Hashtbl.create(64);
 let consistent_by_hash = (a: Typ.t, b: Typ.t, compute: unit => bool): bool =>
   switch (TypHash.hash(a), TypHash.hash(b)) {
-  | (Some((a1, a2)), Some((b1, b2))) =>
-    let key = (a1, a2, b1, b2);
+  | (Some(ha), Some(hb)) =>
+    let key = (ha, hb);
     switch (Hashtbl.find_opt(consistent_memo, key)) {
     | Some(r) => r
     | None =>
@@ -70,7 +70,7 @@ let unchanged = (ds: list(DHExp.t), ds': list(DHExp.t)): bool =>
    cells, and when a list has the type, so has every tail of it. The
    context is always Ctx.empty, as for consistent_memo, so the answer
    depends only on the value and the type's hash. */
-let has_type: Util.IdentityTable.t(Obj.t, list((int, int))) =
+let has_type: Util.IdentityTable.t(Obj.t, list(TypHash.t)) =
   Util.IdentityTable.create();
 /* Only values with parts are remembered: an atom or a bare constructor
    is checked in one match, cheaper than a lookup, and remembering every
@@ -93,7 +93,7 @@ let known_to_have = (d: DHExp.t, t: Typ.t): bool =>
     }
   | _ => false
   };
-let remember_has = (key: Obj.t, h: (int, int)): unit => {
+let remember_has = (key: Obj.t, h: TypHash.t): unit => {
   let hs =
     Util.IdentityTable.find_opt(has_type, key) |> Option.value(~default=[]);
   if (!List.mem(h, hs)) {
