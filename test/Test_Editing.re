@@ -7138,12 +7138,16 @@ let table_decoration_tests = [
     `Quick,
     () => {
       /* User-reported crash state:
-         let x : [(a=Int, bc=Int)] = ^^table([(1256121, [ )]) in x */
+         let x : [(a=Int, bc=Int)] = ^^table([(1256121, [ )]) in x
+         The row's second label is wrong (c, not bc): an error on table
+         syntax the projector hides. The stray bracket used to make that
+         error itself, but canonical completion now closes it where it is
+         typed, so its error lands in the cell, where it can be seen. */
       let settings = Language.CoreSettings.on;
       let z =
         mk_zipper(
           ~settings,
-          "let x : [(a=Int, bc=Int)] = [(1256121, 2)]¦ in x",
+          "let x : [(a=Int, bc=Int)] = [(a=1256121, c=2)]¦ in x",
         );
       let z =
         perform(~settings, z, [Project(SetIndicated(Specific(Table)))]);
@@ -7167,8 +7171,8 @@ let table_decoration_tests = [
           ],
         );
       render_decorations(~settings, ~tag="typed auto-labeled", z);
-      /* The error is anchored on the row tuple's comma — hidden table
-       * syntax — so the projector chrome must report it. */
+      /* The label error is on hidden table syntax, so the projector
+       * chrome must report it. */
       Alcotest.check(
         Alcotest.bool,
         "projector chrome reports the hidden row error",
