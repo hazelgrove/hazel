@@ -53,6 +53,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (_, "Delete") => now(Destruct(Local(Right, ByChar)))
     | (Up, "Escape") => now(Unselect(None))
     | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
+    /* Shift+F12: next usage, the counterpart to F12 above */
+    | (Down, "F12") => now(Move(Goal(NextUsage(Right))))
     | (Down, "Tab") => now(Move(Goal(NextProblem(Left))))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, def))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right, def))))

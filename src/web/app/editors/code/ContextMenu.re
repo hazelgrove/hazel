@@ -65,6 +65,7 @@ let pos_style =
 module Shortcuts = {
   let manual_probe = () => Os.is_mac^ ? "⌘E" : "Ctrl+E";
   let goto_definition = "F12";
+  let next_usage = "Shift+F12";
   let fold = () => Os.is_mac^ ? "⌥F" : "Alt+F";
   let type_annotation = () => Os.is_mac^ ? "⌥T" : "Alt+T";
   let livelit = () => Os.is_mac^ ? "⌥L" : "Alt+L";
@@ -171,6 +172,23 @@ let jump_to_binding_data =
         ~shortcut=Shortcuts.goto_definition,
         "Goto definition",
         Action.Move(Goal(BindingSiteOfIndicatedVar)),
+      ),
+    ]
+  | _ => []
+  };
+
+/* Right-click "Next usage" item. Shown when the caret is on a variable
+ * (its binding or a use) that is used at least once, so the menu never
+ * offers a jump that would do nothing. */
+let next_usage_data =
+    (info_map: Language.Statics.Map.t, ci: option(Language.Info.t))
+    : list(Menu.item(command)) =>
+  switch (ci) {
+  | Some(ci) when Language.Statics.Map.usage_ids(info_map, ci) != [] => [
+      action_item(
+        ~shortcut=Shortcuts.next_usage,
+        "Next usage",
+        Action.Move(Goal(NextUsage(Right))),
       ),
     ]
   | _ => []
@@ -433,7 +451,9 @@ let get_sections =
   let ci = Indicated.ci_of(z, info_map);
   [
     /* Section 1: Navigation & Selection */
-    jump_to_binding_data(ci) @ select_current_term_data(),
+    jump_to_binding_data(ci)
+    @ next_usage_data(info_map, ci)
+    @ select_current_term_data(),
     /* Section 2: Clipboard */
     clipboard_data(z),
     /* Section 3: Refactoring */
