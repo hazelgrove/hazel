@@ -2861,8 +2861,9 @@ module Incr = {
         ps: Segment.t,
       )
       : (entry_full, delta) =>
+    /* a level of only trivia or a hole (`{ }`) is one slice, no span */
     switch (
-      root == Sort.Mod
+      root == Sort.Mod && k < Array.length(lv.spans)
         ? Option.bind(ItemSpans.chain(lv, k), cl =>
             parse_chain(
               ~member,
