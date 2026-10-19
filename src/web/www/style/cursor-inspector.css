@@ -471,3 +471,34 @@
   gap: 0.5em;
   white-space: normal;
 }
+/* The bar's toggle sits beside the type it shows whole: the first type
+   the bar prints (CursorInspector.bar_toggle). A long type is cut off
+   before the toggle is, so the toggle stays in reach. */
+#cursor-inspector .status:has(.ci-type-with-expand) {
+  min-width: 0;
+}
+#bottom-bar .ci-type-with-expand {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+#bottom-bar .ci-type-with-expand > .code-box-container {
+  min-width: 0;
+  overflow: hidden;
+}
+#bottom-bar .ci-type-with-expand .ci-expand {
+  align-self: stretch;
+  padding: 0 0.35em;
+}
+/* The full view: a type, and under it what its aliases stand for */
+#page > .ci-expanded .ci-type-expanded {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+}
+#page > .ci-expanded .ci-alias-expansion {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em;
+  color: var(--text-muted);
+}
