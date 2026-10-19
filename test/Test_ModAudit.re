@@ -1989,6 +1989,28 @@ let paste_rows = (~k=0, ~off=1, needle, clip, root, src) =>
     rows ++ " :: " ++ show_lines(String.split_on_char('\n', text_of(z)));
   };
 
+/* the selection after Cmd+D [n] times from [needle] */
+let grow = (~n, ~k=0, ~off=1, needle, root, src) =>
+  switch (
+    fst(
+      act_st(
+        ~root,
+        ~k,
+        ~off,
+        src,
+        needle,
+        List.init(n, _ => Action.Select(Term(Current))),
+      ),
+    )
+  ) {
+  | Error(why) => why
+  | Ok(z) =>
+    Printer.of_segment(~holes="?", ~refractors=[], z.selection.content)
+    |> String.split_on_char('\n')
+    |> List.map(String.trim)
+    |> String.concat(" ⏎ ")
+  };
+
 /* an outline op on row [label]'s result, whole */
 let outline_op = (o: Web.OutlineEdit.def_op, label: string, root, src) => {
   let seg = CorpusUtil.seg_of(~root, src);
@@ -2197,6 +2219,36 @@ let probes = (): list(probe) => [
     src: chain_src,
     run: text_after(~off=7, ~lines=3, "let b = a + 1", [Insert("\n")]),
     expect: "let b = ⏎ ···a + 1 in ⏎ type T = Int in",
+  },
+  {
+    /* Cmd+D grows a member to its module, as a definition to its body */
+
+    what: "Cmd+D x4 from a member's definition",
+    root: Mod,
+    src: m_src,
+    run: grow(~n=4, ~off=0, "a + 1"),
+    expect: "{ ⏎ let a = 1; ⏎ let b = a + 1; ⏎ type T = Int; ⏎ let c : T = b ⏎ }",
+  },
+  {
+    what: "Cmd+D x4 from a member's definition",
+    root: Exp,
+    src: e_src,
+    run: grow(~n=4, ~off=0, "a + 1"),
+    expect: "{ ⏎ let a = 1; ⏎ let b = a + 1; ⏎ type T = Int; ⏎ let c : T = b ⏎ }",
+  },
+  {
+    what: "Cmd+D x5 from a member's definition",
+    root: Exp,
+    src: e_src,
+    run: grow(~n=5, ~off=0, "a + 1"),
+    expect: "module M = { ⏎ let a = 1; ⏎ let b = a + 1; ⏎ type T = Int; ⏎ let c : T = b ⏎ } in",
+  },
+  {
+    what: "Cmd+D x4 from a chain definition (control)",
+    root: Exp,
+    src: chain_src,
+    run: grow(~n=4, ~off=0, "a + 1"),
+    expect: "let b = a + 1 in ⏎ type T = Int in ⏎ let c : T = b in ⏎ c",
   },
   {
     /* the formatter */
