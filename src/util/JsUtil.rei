@@ -16,13 +16,12 @@ let read_file:
   (Js_of_ocaml.Js.t(#Js_of_ocaml.File.blob), option(string) => unit) => unit;
 let reset_file_input: string => unit;
 let confirm: string => bool;
-let focus_clipboard_shim: unit => unit;
+let focus_page: unit => unit;
+let install_text_selection_guards: unit => unit;
 let active_cell_id: string;
 let focus_active_cell: unit => bool;
-let projector_holds_focus: ref(bool);
 let focus_active_editor: unit => unit;
-let clipboard_shim: Virtual_dom__Node.t;
-let copy_via_shim: string => unit;
+let copy_text: string => unit;
 let show_copy_toast: unit => unit;
 let write_clipboard: string => Ui_effect.t(unit);
 let read_clipboard: unit => Ui_effect.t(string);
