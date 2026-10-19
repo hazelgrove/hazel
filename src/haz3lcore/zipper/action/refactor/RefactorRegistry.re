@@ -44,6 +44,9 @@ let impl: Action.refactor => impl =
   | HoistCarry => hoist_carry_impl
   | SinkCarry => sink_carry_impl
   | LiftFunction => lift_function_impl
+  | UnliftFunction => unlift_function_impl
+  | SplitComponent => split_component_impl
+  | JoinLet => join_let_impl
   | SplitLet => split_let_impl
   | ReduceCase => reduce_case_impl
   | BindArm => bind_arm_impl
@@ -64,6 +67,9 @@ let all: list(Action.refactor) = [
   HoistCarry,
   SinkCarry,
   LiftFunction,
+  UnliftFunction,
+  SplitComponent,
+  JoinLet,
   SplitLet,
   ReduceCase,
   BindArm,
@@ -413,7 +419,8 @@ let applies =
     | Some(e) =>
       switch (IdTagged.term_of(e)) {
       | If(_) => true
-      | _ => false
+      /* a branch's root flips its if (drag holds the branch) */
+      | _ => Option.is_some(if_of_branch(~target, program))
       }
     | None => false
     }
@@ -442,6 +449,14 @@ let applies =
   | HoistCarry => Option.is_some(hoist_carry_site(~target, program))
   | SinkCarry => Option.is_some(sink_carry_site(~target, program))
   | LiftFunction => Option.is_some(lift_site(~target, program))
+  | UnliftFunction => Option.is_some(unlift_site(~target, program))
+  | SplitComponent =>
+    switch (split_component_site(~target, program)) {
+    | Some((l, i)) =>
+      Option.is_some(split_component_rewrite(~program, l, i))
+    | None => false
+    }
+  | JoinLet => Option.is_some(join_site(~target, program))
   | BetaReduce =>
     switch (find_hit(~hit=hit_beta(target), program)) {
     | Some(e) =>

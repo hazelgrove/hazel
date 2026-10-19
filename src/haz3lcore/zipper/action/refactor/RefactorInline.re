@@ -268,7 +268,12 @@ let feed_site =
     : option((Exp.t, string, option(Id.t))) => {
   let of_let = (l: Exp.t, occ: option(Id.t)) =>
     switch (IdTagged.term_of(l)) {
-    | Let(p, _, _) => let_head_name(p) |> Option.map(x => (l, x, occ))
+    | Let(p, _, _) =>
+      switch (let_head_name(p)) {
+      | Some(x) => Some((l, x, occ))
+      /* a sugar function `let f(x) = body` feeds the lambda it binds */
+      | None => sugar_fn_name(p) |> Option.map(f => (l, f, occ))
+      }
     | _ => None
     };
   /* the innermost let whose DEF subtree holds the target: grabbing
@@ -361,7 +366,20 @@ let feed_plan =
   | None => None
   | Some((l, x, occ_pref)) =>
     switch (IdTagged.term_of(l)) {
-    | Let(_, def, body) =>
+    | Let(p, def, body) =>
+      /* sugar binds the function `fun x -> def`: that is the value a
+         copy carries (Inline's own sugar rule) */
+      let def =
+        switch (let_head_name(p), IdTagged.term_of(p)) {
+        | (None, Ap(_, argp)) =>
+          let param: Pat.t =
+            switch (IdTagged.term_of(argp)) {
+            | Tuple(_) => pad(fresh_pat(Parens(argp)))
+            | _ => pad(argp)
+            };
+          fresh(Fun(param, def, None, None));
+        | _ => def
+        };
       let occs = occurrences_of(x, body);
       switch (occs) {
       | [] => None

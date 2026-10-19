@@ -258,6 +258,8 @@ let gesture_rungs =
         /* movement rung if one exists, else the value flows: feed the
            nearest use (the last feed consumes the let) */
         app(MergeDown),
+        /* a helper its one caller can take back (inverse of lift) */
+        app(UnliftFunction),
         app(SinkLet),
         app(FeedLet),
       ];

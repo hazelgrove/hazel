@@ -67,15 +67,27 @@ in
 let stamp = case dinner | Soup => 111 end in
 let ticket = case ladder | 775 => true end in
 
-# 5 IF: nudge then (or else) RIGHT - the guard grows a ! and the #
-# branches swap; nudge again (a new grab) to unwrap it. #
+# 5 IF: grab a whole BRANCH and pull it onto the other: grab the 900 #
+# and pull it LEFT onto price's slot - the guard negates and the #
+# branches trade places (do it again to unwrap the !). The same grab #
+# pulled UP extracts the 900 instead: two tracks, two directions. #
 
 let cheap = if price < 900 then price else 900 in
+
+# a multi-line if: grab "cool" and pull it UP-RIGHT onto the then #
+# slot. Extract pulls up-right too, to a fresh line above the if: #
+# the two targets sit a few columns apart (a crowding case). #
+
+let feel = fun (t : Int) ->
+  if t < 10 then "cold"
+  else "cool"
+in
 
 # 6 PARAMETERS: pull a param LEFT/RIGHT to swap neighbors (the call #
 # sites follow); keep pulling to carry it across several. Pull the #
 # closing ) RIGHT to append a parameter, LEFT to shed the last one #
-# when unused (spare below). #
+# when unused (spare below) - the ) itself moves either way, so the #
+# parens stay even with one parameter left. #
 
 let blend = fun (redx, greenx, bluex) -> redx + greenx * bluex in
 let mixture = blend(10, 20, 30) in
@@ -130,10 +142,59 @@ let twins =
   cost + tax + fee
 in
 
-# 11 TINY TARGETS: deliberately small handles, for feel. #
+# 11 MOVE INTO CALLER (the inverse of the lift in 9): sq was lifted #
+# out of disk. Grab let sq and pull DOWN: it moves back inside disk #
+# as a local let, and the call sq(r) becomes plain sq. Crowded: up #
+# to three tracks point down here (move in, sink into disk's #
+# definition, push disk down ahead of it). #
+
+let sq(r) = r * r in
+let disk = fun r ->
+  sq(r) * 314 / 100
+in
+
+# two parameters move back the same way (grab let hyp2, DOWN). But #
+# twice_sq has two callers, so neither can take it: DOWN on it only #
+# sinks or pushes its users along - compare the tracks offered. #
+
+let hyp2(a, b) = a * a + b * b in
+let norm = fun (a, b) ->
+  hyp2(a, b) / 2
+in
+let twice_sq(x) = x * x * 2 in
+let one = fun x -> twice_sq(x) + 1 in
+let two = fun x -> twice_sq(x) - 1 in
+
+# 12 SPLIT OUT and JOIN: grab bb in the pattern and pull it DOWN onto #
+# its own line; grab let bb there and pull it back UP into the tuple. #
+# The same grab of bb also swaps it LEFT and hoists/sinks the whole #
+# line - the busiest grab on the slide. #
+
+let (rr, gg, bb) = (255, 128, 0) in
+let shade = rr + gg + bb in
+
+# two plain lets join into a pair: grab let tall and pull UP-RIGHT #
+# into wide's pattern (hoist pulls straight up, past wide's line). #
+# Join is offered between ANY two neighboring plain lets that don't #
+# depend on each other - notice it on lets all over this slide. #
+
+let wide = 16 in
+let tall = 9 in
+let ratio = wide * 100 / tall in
+
+# 13 FEED A FUNCTION: grab the SECOND * of cube's definition (the #
+# root of n * n * n) and pull DOWN: a copy of fun n -> n * n * n #
+# lands on the first call (Enter on that fun reduces it); one pull #
+# runs through every call, the last one consuming cube. #
+
+let cube(n) = n * n * n in
+let vol = cube(3) + cube(4) in
+
+# 14 TINY TARGETS: deliberately small handles, for feel. #
 
 let a = 1 in
 let b = a + a + a in
 
 (ladder, spending, volume, scale(2), price, stamp, ticket, cheap,
-  mixture, hauled, span, award(1), pushy, area(10), twins, b)
+  feel(5), mixture, hauled, span, award(1), pushy, area(10), twins,
+  disk(10), norm((3, 4)), one(2), two(2), shade, ratio, vol, b)

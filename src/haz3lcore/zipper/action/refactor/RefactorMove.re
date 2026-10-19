@@ -94,10 +94,31 @@ let case_to_if_impl: impl = {
     ),
 };
 
+/* the if whose then or else branch is rooted at target: a drag holds
+   the branch itself, and the flip carries it to the other slot */
+let if_of_branch = (~target: Id.t, program: Exp.t): option(Exp.t) =>
+  switch (find_path(~hit=hit_node(target), program)) {
+  | Some(path) when List.length(path) >= 2 =>
+    let n = List.length(path);
+    let b = List.nth(path, n - 1);
+    let p = List.nth(path, n - 2);
+    switch (IdTagged.term_of(p)) {
+    | If(_, t, alt) when same_node(t, b) || same_node(alt, b) => Some(p)
+    | _ => None
+    };
+  | _ => None
+  };
+
 let negate_if_impl: impl = {
   label: "Flip branches",
   tooltip: "Flip this if: negate the condition, swap then/else",
   prepare: (~info_map as _, ~target, program) => {
+    /* invoked on the if itself, or on a branch's root */
+    let target =
+      switch (if_of_branch(~target, program)) {
+      | Some(i) => Exp.rep_id(i)
+      | None => target
+      };
     let attempt = (~parens: bool) =>
       rewrite_node(
         ~hit=hit_node(target),
@@ -2566,6 +2587,278 @@ let swap_tuple_pat_impl = (i: int): impl => {
     ),
 };
 
+/* === Split out / join (a tuple binding, one component at a time) ===
+ * `let (r, g, b) = (1, 2, 3) in` + split out b => `let (r, g) =
+ * (1, 2) in let b = 3 in`; join is the inverse, pulling the line below
+ * into the tuple. A drag holds the component's variable, which moves
+ * either way. Gated: plain variable components, a literal tuple def of
+ * the same arity, and no capture — a split-out value now sees the
+ * other components, a joined value must not mention the line it joins
+ * (the binding becomes simultaneous). */
+let simple_var = (p: Pat.t): option(string) =>
+  switch (IdTagged.term_of(p)) {
+  | Var(x) => Some(x)
+  | _ => None
+  };
+
+let split_component_site =
+    (~target: Id.t, program: Exp.t): option((Exp.t, int)) =>
+  find_hit(
+    ~hit=
+      e =>
+        switch (IdTagged.term_of(e)) {
+        | Let(p, d, _) =>
+          let ps = tuple_pat_items(p);
+          List.length(ps) >= 2
+          && List.length(ps) == List.length(tuple_def_items(d))
+          && List.for_all(it => simple_var(it) != None, ps)
+          && List.exists(it => List.mem(target, IdTagged.ids(it)), ps);
+        | _ => false
+        },
+    program,
+  )
+  |> Option.bind(_, l =>
+       switch (IdTagged.term_of(l)) {
+       | Let(p, _, _) =>
+         tuple_pat_items(p)
+         |> List.mapi((i, it) => (i, it))
+         |> List.find_opt(((_, it)) => List.mem(target, IdTagged.ids(it)))
+         |> Option.map(((i, _)) => (l, i))
+       | _ => None
+       }
+     );
+
+let split_component_rewrite =
+    (~program: Exp.t, l: Exp.t, i: int): option((Exp.t, Id.t)) =>
+  switch (IdTagged.term_of(l)) {
+  | Let(p, d, body) =>
+    let ps = tuple_pat_items(p);
+    let ds = tuple_def_items(d);
+    let pi = List.nth(ps, i);
+    let vi = List.nth(ds, i);
+    let other_names =
+      ps |> List.filteri((j, _) => j != i) |> List.filter_map(simple_var);
+    if (names_mentioned(other_names, vi)) {
+      None;
+    } else {
+      /* the tuple without component i, keeping its nodes; down to one,
+         the component stands alone */
+      let rec drop_p = (q: Pat.t): Pat.t =>
+        switch (IdTagged.term_of(q)) {
+        | Parens(inner) =>
+          switch (IdTagged.term_of(inner)) {
+          | Tuple(items) when List.length(items) == 2 =>
+            pad(
+              with_secondary_pat(
+                ([], []),
+                List.hd(drop_pat_item(i, items)),
+              ),
+            )
+          | _ => {
+              ...q,
+              term: Parens(drop_p(inner)),
+            }
+          }
+        | Tuple(items) when List.length(items) == 2 =>
+          pad(
+            with_secondary_pat(([], []), List.hd(drop_pat_item(i, items))),
+          )
+        | Tuple(items) => {
+            ...q,
+            term: Tuple(drop_pat_item(i, items)),
+          }
+        | _ => q
+        };
+      let rec drop_d = (q: Exp.t): Exp.t =>
+        switch (IdTagged.term_of(q)) {
+        | Parens(inner) =>
+          switch (IdTagged.term_of(inner)) {
+          | Tuple(items) when List.length(items) == 2 =>
+            pad(
+              List.hd(drop_exp_item(i, items))
+              |> strip_leading
+              |> strip_trailing,
+            )
+          | _ => {
+              ...q,
+              term: Parens(drop_d(inner)),
+            }
+          }
+        | Tuple(items) when List.length(items) == 2 =>
+          pad(
+            List.hd(drop_exp_item(i, items))
+            |> strip_leading
+            |> strip_trailing,
+          )
+        | Tuple(items) => {
+            ...q,
+            term: Tuple(drop_exp_item(i, items)),
+          }
+        | _ => q
+        };
+      let split_out =
+        with_secondary(
+          (intro_sep(~program, ~at=Exp.rep_id(l)), []),
+          fresh(
+            Let(
+              pad(with_secondary_pat(([], []), pi)),
+              pad(vi |> strip_leading |> strip_trailing),
+              body,
+            ),
+          ),
+        );
+      Some((
+        {
+          ...l,
+          term: Let(drop_p(p), drop_d(d), split_out),
+        },
+        Pat.rep_id(pi),
+      ));
+    };
+  | _ => None
+  };
+
+let split_component_impl: impl = {
+  label: "Split out",
+  tooltip: "Move this component of a tuple binding onto its own line below",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (split_component_site(~target, program)) {
+    | Some((l, i)) =>
+      switch (split_component_rewrite(~program, l, i)) {
+      | Some((l', focus)) =>
+        rewrite_node(
+          ~hit=same_node(l),
+          ~rewrite=_ => Some((l', focus)),
+          program,
+        )
+      | None => None
+      }
+    | None => None
+    },
+};
+
+/* the line to join and the binding above it */
+let join_site = (~target: Id.t, program: Exp.t): option((Exp.t, Exp.t)) =>
+  switch (find_path(~hit=hit_def_line(target), program)) {
+  | Some(path) when List.length(path) >= 2 =>
+    let n = List.length(path);
+    let lower = List.nth(path, n - 1);
+    let upper = List.nth(path, n - 2);
+    switch (IdTagged.term_of(upper), IdTagged.term_of(lower)) {
+    | (Let(up, ud, ub), Let(lp, ld, _)) when same_node(ub, lower) =>
+      let upper_names =
+        switch (simple_var(up)) {
+        | Some(x) => Some([x])
+        | None =>
+          let ps = tuple_pat_items(up);
+          ps != []
+          && List.for_all(it => simple_var(it) != None, ps)
+          && List.length(ps) == List.length(tuple_def_items(ud))
+            ? Some(List.filter_map(simple_var, ps)) : None;
+        };
+      switch (upper_names, simple_var(lp)) {
+      | (Some(names), Some(q))
+          when
+            !List.mem(q, names)
+            && !names_mentioned(names, ld)
+            && !
+                 List.exists(
+                   is_comment_piece,
+                   fst(lower.annotation.secondary),
+                 ) =>
+        Some((upper, lower))
+      | _ => None
+      };
+    | _ => None
+    };
+  | _ => None
+  };
+
+let join_rewrite = (upper: Exp.t, lower: Exp.t): option((Exp.t, Id.t)) =>
+  switch (IdTagged.term_of(upper), IdTagged.term_of(lower)) {
+  | (Let(up, ud, _), Let(lp, ld, lbody)) =>
+    let q_pat = with_secondary_pat((space(), []), lp);
+    let q_val =
+      with_secondary((space(), []), ld |> strip_leading |> strip_trailing);
+    let p' =
+      switch (simple_var(up)) {
+      | Some(_) =>
+        pad(
+          fresh_pat(
+            Parens(
+              fresh_pat(Tuple([with_secondary_pat(([], []), up), q_pat])),
+            ),
+          ),
+        )
+      | None =>
+        let rec app = (q: Pat.t): Pat.t =>
+          switch (IdTagged.term_of(q)) {
+          | Parens(inner) => {
+              ...q,
+              term: Parens(app(inner)),
+            }
+          | Tuple(items) => {
+              ...q,
+              term: Tuple(items @ [q_pat]),
+            }
+          | _ => q
+          };
+        app(up);
+      };
+    let d' =
+      switch (simple_var(up)) {
+      | Some(_) =>
+        pad(
+          fresh(
+            Parens(
+              fresh(Tuple([ud |> strip_leading |> strip_trailing, q_val])),
+            ),
+          ),
+        )
+      | None =>
+        let rec app = (q: Exp.t): Exp.t =>
+          switch (IdTagged.term_of(q)) {
+          | Parens(inner) => {
+              ...q,
+              term: Parens(app(inner)),
+            }
+          | Tuple(items) => {
+              ...q,
+              term: Tuple(items @ [q_val]),
+            }
+          | _ => q
+          };
+        app(ud);
+      };
+    Some((
+      {
+        ...upper,
+        term: Let(p', d', lbody),
+      },
+      Pat.rep_id(lp),
+    ));
+  | _ => None
+  };
+
+let join_let_impl: impl = {
+  label: "Join into tuple",
+  tooltip: "Fold this binding into the binding above it, as one more tuple component",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (join_site(~target, program)) {
+    | Some((upper, lower)) =>
+      switch (join_rewrite(upper, lower)) {
+      | Some((upper', focus)) =>
+        rewrite_node(
+          ~hit=same_node(upper),
+          ~rewrite=_ => Some((upper', focus)),
+          program,
+        )
+      | None => None
+      }
+    | None => None
+    },
+};
+
 let swap_arms_impl = (i: int): impl => {
   label: "Move arm",
   tooltip: "Swap this arm with its neighbor (patterns must not overlap)",
@@ -2684,7 +2977,13 @@ let drop_fun_pat = (i: int, fp: Pat.t): option(Pat.t) =>
     switch (IdTagged.term_of(inner)) {
     | Tuple(items) when List.length(items) > 1 =>
       switch (drop_pat_item(i, items)) {
-      | [single] => Some(pad(with_secondary_pat(([], []), single)))
+      /* down to one: the parens stay, so the `)` a drag holds keeps
+         its place in the result (fun (load) ->) */
+      | [single] =>
+        Some({
+          ...fp,
+          term: Parens(with_secondary_pat(([], []), single)),
+        })
       | items' =>
         Some({
           ...fp,

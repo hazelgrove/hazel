@@ -712,7 +712,7 @@ let remove_param_tests = [
       check(
         string,
         "dropped everywhere",
-        "let f = fun a -> a + 1 in f(1) + f(3)",
+        "let f = fun (a) -> a + 1 in f(1) + f(3)",
         got,
       );
     },
@@ -740,7 +740,7 @@ let remove_param_tests = [
       check(
         string,
         "prod dropped",
-        "let f : Int -> Int = fun a -> a in f(1)",
+        "let f : Int -> Int = fun (a) -> a in f(1)",
         got,
       );
     },
@@ -3201,7 +3201,7 @@ let tuple_swap_tests = [
       let got =
         inline(~kind=RemoveParameter, "let f = fun (a, b)¦ -> a in f(1, 2)")
         |> text_of;
-      check(string, "removed", "let f = fun a -> a in f(1)", got);
+      check(string, "removed", "let f = fun (a) -> a in f(1)", got);
     },
   ),
 ];
@@ -3310,7 +3310,7 @@ let audit_round_tests = [
       let got =
         inline(~kind=RemoveParameter, "let f = fun (a, ¦?) -> a in f(1, 2)")
         |> text_of;
-      check(string, "removed", "let f = fun a -> a in f(1)", got);
+      check(string, "removed", "let f = fun (a) -> a in f(1)", got);
     },
   ),
   check_gesture(
@@ -4463,6 +4463,217 @@ let comment_tests = [
         false,
         offers(SinkCarry, "let ¦a = 1 in\nlet x = 7 in\na * x"),
       );
+    },
+  ),
+  test_case(
+    "flip: invoked from a branch's root",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=NegateIf,
+          "let s = fun (x : Int) -> if x < 0 then ¦\"neg\" else \"pos\" in s(1)",
+        )
+        |> text_of;
+      check(
+        string,
+        "flip",
+        "let s = fun (x : Int) -> if !(x < 0) then \"pos\" else \"neg\" in s(1)",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "flip: a drag holds the branch; then/else no longer flip by drag",
+    `Quick,
+    () => {
+      let kinds = marked =>
+        drag_cands(marked)
+        |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(
+        bool,
+        "branch",
+        true,
+        List.mem(
+          Action.NegateIf,
+          kinds(
+            "let s = fun (x : Int) -> if x < 0 then ¦\"neg\" else \"pos\" in s(1)",
+          ),
+        ),
+      );
+      check(
+        bool,
+        "keyword",
+        false,
+        List.mem(
+          Action.NegateIf,
+          kinds(
+            "let s = fun (x : Int) -> if x < 0 ¦then \"neg\" else \"pos\" in s(1)",
+          ),
+        ),
+      );
+    },
+  ),
+  test_case(
+    "remove param: one left keeps its parens",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=RemoveParameter,
+          "let carry = fun (load, ¦spare) -> load * 2 in carry(45, 99)",
+        )
+        |> text_of;
+      check(
+        string,
+        "remove",
+        "let carry = fun (load) -> load * 2 in carry(45)",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "move into caller: the inverse of lift",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=UnliftFunction,
+          "let ¦square(r) = r * r in\nlet area = fun r ->\n  square(r) * 314 / 100\nin\narea(10)",
+        )
+        |> text_of;
+      check(
+        string,
+        "unlift",
+        "let area = fun r ->\n  let square = r * r in\n  square * 314 / 100\nin\narea(10)",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "move into caller: lift then move back is the identity",
+    `Quick,
+    () => {
+      let src = "let area = fun r ->\n  ¦let square = r * r in\n  square * 314 / 100\nin\narea(10)";
+      let z1 = inline(~kind=LiftFunction, src);
+      let z2 = Test_Editing.perform(z1, [Action.Refactor(UnliftFunction)]);
+      check(
+        string,
+        "round trip",
+        "let area = fun r ->\n  let square = r * r in\n  square * 314 / 100\nin\narea(10)",
+        text_of(z2),
+      );
+    },
+  ),
+  test_case("move into caller: not when used outside its caller", `Quick, () =>
+    check(
+      bool,
+      "offered",
+      false,
+      offers(
+        UnliftFunction,
+        "let ¦square(r) = r * r in\nlet area = fun r -> square(r) in\narea(1) + square(2)",
+      ),
+    )
+  ),
+  test_case(
+    "split out: a component moves onto its own line",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SplitComponent,
+          "let (r, g, ¦b) = (255, 128, 0) in r + g + b",
+        )
+        |> text_of;
+      check(
+        string,
+        "split",
+        "let (r, g) = (255, 128) in\nlet b = 0 in r + g + b",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "split out: a pair leaves a plain let",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=SplitComponent,
+          "let (low, ¦high) = (100, 900) in low + high",
+        )
+        |> text_of;
+      check(
+        string,
+        "split",
+        "let low = 100 in\nlet high = 900 in low + high",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "split out: refused when the value would see a sibling", `Quick, () =>
+    check(
+      bool,
+      "offered",
+      false,
+      offers(SplitComponent, "let a = 7 in let (a, ¦b) = (1, a) in a + b"),
+    )
+  ),
+  test_case(
+    "join: the line below folds into the tuple",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=JoinLet,
+          "let (r, g) = (255, 128) in\nlet ¦b = 0 in\nr + g + b",
+        )
+        |> text_of;
+      check(string, "join", "let (r, g, b) = (255, 128, 0) in\nr + g + b", z);
+    },
+  ),
+  test_case(
+    "join: two plain lets make a pair",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=JoinLet,
+          "let low = 100 in\nlet ¦high = 900 in\nlow + high",
+        )
+        |> text_of;
+      check(string, "join", "let (low, high) = (100, 900) in\nlow + high", z);
+    },
+  ),
+  test_case("join: refused when the value mentions the line above", `Quick, () =>
+    check(
+      bool,
+      "offered",
+      false,
+      offers(JoinLet, "let a = 1 in\nlet ¦b = a + 1 in\nb"),
+    )
+  ),
+  test_case(
+    "feed: a sugar function feeds the lambda it binds",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=FeedLet,
+          "let square(r) = r ¦* r in\nlet area = fun r ->\n  square(r) * 314 / 100\nin\narea(10) + square(2)",
+        )
+        |> text_of;
+      let needle = "(fun r -> r * r)(r)";
+      let n = String.length(needle);
+      let found = ref(false);
+      for (i in 0 to String.length(z) - n) {
+        if (String.sub(z, i, n) == needle) {
+          found := true;
+        };
+      };
+      check(bool, "fed: " ++ z, true, found^);
     },
   ),
   test_case(

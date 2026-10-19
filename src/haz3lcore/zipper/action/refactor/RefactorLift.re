@@ -389,3 +389,251 @@ let lift_function_impl: impl = {
       };
     },
 };
+
+/* === Move into caller (the inverse of Lift to helper) ===
+ * `let g(xs) = d in let o = fun ps -> b in r` (o's def possibly
+ * parenthesized, or o itself sugar `let o(ps) = b`): when every use of
+ * g is a call g(xs) inside b, with xs among ps, g moves back into o as
+ * `let g = d in` and each call becomes plain g. The helper keeps its
+ * let (ids): a drag holds it as it moves in. References to the
+ * helper's parameters now mean o's parameters (the calls passed
+ * exactly those): binder_redirect tells the scope check so. */
+
+/* the variable names a parameter pattern binds, in order: a variable
+   or a (parenthesized) tuple of variables; with their binder ids */
+let rec param_vars = (p: Pat.t): option(list((string, Id.t))) =>
+  switch (IdTagged.term_of(p)) {
+  | Var(x) => Some([(x, Pat.rep_id(p))])
+  | Parens(inner) => param_vars(inner)
+  | Tuple(items) =>
+    List.fold_right(
+      (it: Pat.t, acc) =>
+        switch (IdTagged.term_of(it), acc) {
+        | (Var(x), Some(rest)) => Some([(x, Pat.rep_id(it)), ...rest])
+        | _ => None
+        },
+      items,
+      Some([]),
+    )
+  | _ => None
+  };
+
+/* the argument variables of a call g(args) */
+let rec arg_vars = (a: Exp.t): option(list(string)) =>
+  switch (IdTagged.term_of(a)) {
+  | Var(x) => Some([x])
+  | Parens(inner) => arg_vars(inner)
+  | Tuple(items) =>
+    List.fold_right(
+      (it: Exp.t, acc) =>
+        switch (IdTagged.term_of(it), acc) {
+        | (Var(x), Some(rest)) => Some([x, ...rest])
+        | _ => None
+        },
+      items,
+      Some([]),
+    )
+  | _ => None
+  };
+
+type unlift_site = {
+  helper: Exp.t, /* the let g(xs) = d line */
+  name_pat: Pat.t, /* g's own binder, reused by the local let */
+  helper_params: list((string, Id.t)),
+  body: Exp.t, /* d */
+  caller: Exp.t, /* the let o = fun ps -> b line */
+  caller_params: list((string, Id.t)),
+  fun_body: Exp.t, /* b */
+  rebuild: Exp.t => Exp.t /* o's def with a new b */,
+};
+
+let unlift_site = (~target: Id.t, program: Exp.t): option(unlift_site) =>
+  switch (find_hit(~hit=hit_def_line(target), program)) {
+  | None => None
+  | Some(h) =>
+    switch (IdTagged.term_of(h)) {
+    | Let(hp, hd, o) =>
+      let helper =
+        switch (IdTagged.term_of(hp), IdTagged.term_of(hd)) {
+        | (Ap(fv, argp), _) =>
+          switch (var_pat_name(fv), param_vars(argp)) {
+          | (Some(g), Some(xs)) => Some((g, fv, xs, hd))
+          | _ => None
+          }
+        | (Var(g), Fun(fp, fbody, _, _)) =>
+          param_vars(fp) |> Option.map(xs => (g, hp, xs, fbody))
+        | _ => None
+        };
+      let caller =
+        switch (IdTagged.term_of(o)) {
+        | Let(op, odef, orest) =>
+          let rec in_fun = (d: Exp.t) =>
+            switch (IdTagged.term_of(d)) {
+            | Parens(inner) =>
+              in_fun(inner)
+              |> Option.map(((ps, b, rb)) =>
+                   (
+                     ps,
+                     b,
+                     (
+                       (b') => (
+                         {
+                           ...d,
+                           term: Parens(rb(b')),
+                         }: Exp.t
+                       )
+                     ),
+                   )
+                 )
+            | Fun(fp, fb, ft, fname) =>
+              param_vars(fp)
+              |> Option.map(ps =>
+                   (
+                     ps,
+                     fb,
+                     (
+                       (b') => (
+                         {
+                           ...d,
+                           term: Fun(fp, b', ft, fname),
+                         }: Exp.t
+                       )
+                     ),
+                   )
+                 )
+            | _ => None
+            };
+          let shape =
+            switch (IdTagged.term_of(op)) {
+            | Ap(_, argp) =>
+              param_vars(argp) |> Option.map(ps => (ps, odef, (b' => b')))
+            | _ => in_fun(odef)
+            };
+          shape |> Option.map(((ps, b, rb)) => (o, ps, b, rb, orest));
+        | _ => None
+        };
+      switch (helper, caller) {
+      | (Some((g, name_pat, xs, d)), Some((o, ps, b, rebuild, orest))) =>
+        let names = List.map(fst, xs);
+        let calls = ref(0);
+        let _ =
+          Exp.map_term(
+            ~f_exp=
+              (cont, e: Exp.t) => {
+                switch (IdTagged.term_of(e)) {
+                | Ap(_, f, a)
+                    when
+                      IdTagged.term_of(f) == Var(g)
+                      && arg_vars(a) == Some(names) =>
+                  incr(calls)
+                | _ => ()
+                };
+                cont(e);
+              },
+            b,
+          );
+        names != []
+        && List.for_all(x => List.mem_assoc(x, ps), names)
+        && !free_in(g, orest)
+        && !free_in(g, d)
+        && calls^ >= 1
+        && calls^ == List.length(occurrences_of(g, b))
+          ? Some({
+              helper: h,
+              name_pat,
+              helper_params: xs,
+              body: d,
+              caller: o,
+              caller_params: ps,
+              fun_body: b,
+              rebuild,
+            })
+          : None;
+      | _ => None
+      };
+    | _ => None
+    }
+  };
+
+let unlift_rewrite = (site: unlift_site): option((Exp.t, Id.t)) => {
+  let g = var_pat_name(site.name_pat) |> Option.value(~default="");
+  let names = List.map(fst, site.helper_params);
+  /* each call g(xs) becomes g, taking the call's place */
+  let b =
+    Exp.map_term(
+      ~f_exp=
+        (cont, e: Exp.t) =>
+          switch (IdTagged.term_of(e)) {
+          | Ap(_, f, a)
+              when
+                IdTagged.term_of(f) == Var(g) && arg_vars(a) == Some(names) => {
+              ...f,
+              annotation: {
+                ...f.annotation,
+                secondary: e.annotation.secondary,
+              },
+            }
+          | _ => cont(e)
+          },
+      site.fun_body,
+    );
+  /* the local let opens the body on its own line: it takes the body's
+     line break, the body gets a fresh one */
+  let b_lead = Slot.lead_of(b).lead;
+  let sep =
+    has_newline(b_lead)
+      ? sep_like(b_lead)
+      : {
+        let h_lead = sep_like(fst(site.helper.annotation.secondary));
+        (has_newline(h_lead) ? h_lead : newline()) @ space() @ space();
+      };
+  let b = Slot.drop(Slot.lead_of(b), b);
+  let local: Exp.t = {
+    annotation: {
+      ...site.helper.annotation,
+      secondary: (has_newline(b_lead) ? b_lead : sep, []),
+    },
+    term:
+      Let(
+        pad(with_secondary_pat(([], []), site.name_pat)),
+        pad(site.body |> strip_leading |> strip_trailing),
+        with_secondary((sep_copy(sep), snd(b.annotation.secondary)), b),
+      ),
+  };
+  switch (IdTagged.term_of(site.caller)) {
+  | Let(op, _, orest) =>
+    List.iter(
+      ((x, hb)) =>
+        switch (List.assoc_opt(x, site.caller_params)) {
+        | Some(pb) => binder_redirect := Id.Map.add(hb, pb, binder_redirect^)
+        | None => ()
+        },
+      site.helper_params,
+    );
+    let caller': Exp.t = {
+      ...site.caller,
+      term: Let(op, site.rebuild(local), orest),
+    };
+    Some((strip_leading_ws(caller'), Exp.rep_id(site.helper)));
+  | _ => None
+  };
+};
+
+let unlift_function_impl: impl = {
+  label: "Move into caller",
+  tooltip: "Move this helper back into the one function that calls it, as a local definition (the inverse of Lift to helper)",
+  prepare: (~info_map as _, ~target, program) =>
+    switch (unlift_site(~target, program)) {
+    | Some(site) =>
+      switch (unlift_rewrite(site)) {
+      | Some((caller', focus)) =>
+        rewrite_node(
+          ~hit=same_node(site.helper),
+          ~rewrite=_ => Some((caller', focus)),
+          program,
+        )
+      | None => None
+      }
+    | None => None
+    },
+};

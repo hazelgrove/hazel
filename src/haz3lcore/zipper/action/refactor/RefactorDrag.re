@@ -242,6 +242,17 @@ let drag_anchor =
       }
     | None => None
     }
+  /* a joined line's variable moves into the tuple, whichever of the
+     line's handles was grabbed */
+  | JoinLet =>
+    switch (join_site(~target, term)) {
+    | Some((_, lower)) =>
+      switch (IdTagged.term_of(lower)) {
+      | Let(lp, _, _) => Some((Pat.rep_id(lp), Pat.rep_id(lp)))
+      | _ => None
+      }
+    | None => None
+    }
   | FeedLet =>
     switch (feed_site(~prefer_def_host=feed_pref, ~info_map, ~target, term)) {
     /* grabbed AT the use: a def->use track would start at its end
@@ -286,12 +297,25 @@ let drag_kinds =
      the LINE; the value moves only by its own definition (grab the
      def's root to feed) */
   let line_handle = find_hit(~hit=hit_def_line(target), term) != None;
+  /* an if flips by its BRANCH (the thing that moves), not by nudging
+     then/else (the keyboard keeps those) */
+  let branch_root = if_of_branch(~target, term) != None;
+  /* drag-first moves no arrow key reaches: a tuple component splits
+     out onto its own line, a line joins the tuple above it */
+  let extra =
+    [Action.NegateIf, SplitComponent, JoinLet]
+    |> List.filter(k =>
+         (k != Action.NegateIf || branch_root)
+         && applies(k, ~info_map, ~target, term)
+       );
   [Action.Gesture.Up, Down, Left, Right]
   |> List.concat_map(gesture_options(~info_map, ~term, ~target, ~shard))
   |> List.filter(k =>
-       k != Action.UnfoldCall && !(line_handle && k == Action.FeedLet)
+       k != Action.UnfoldCall
+       && !(line_handle && k == Action.FeedLet)
+       && (k != Action.NegateIf || branch_root)
      )
-  |> (ks => ks @ insist)
+  |> (ks => ks @ extra @ insist)
   |> List.fold_left((acc, k) => List.mem(k, acc) ? acc : acc @ [k], []);
 };
 
@@ -299,14 +323,13 @@ let drag_kinds =
    own place in the state (the transform's focus): a fed definition
    spawns the copy the drag follows (D2's duplicate-and-follow), an
    extracted expression that reuses an identical definition dissolves
-   into it, a parameter list shed to one loses the parens you held,
+   into it,
    an expanded wildcard becomes the arms it stood for. (Merges drop
    onto their live twin: merge_drop.) */
 let lands_elsewhere = (kind: Action.refactor): bool =>
   switch (kind) {
   | FeedLet
   | ExtractLet
-  | RemoveParameter
   | ExpandWildcard => true
   | _ => false
   };
@@ -566,7 +589,8 @@ let same_kind = (a: Action.refactor, b: Action.refactor): bool => {
     | SinkLet
     | HoistCarry
     | SinkCarry
-    | LiftFunction => HoistLet
+    | LiftFunction
+    | UnliftFunction => HoistLet
     | MergeUp
     | MergeDown => MergeUp
     | AddParameter

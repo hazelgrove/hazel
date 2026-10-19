@@ -182,6 +182,9 @@ type refactor =
   | HoistCarry
   | SinkCarry
   | LiftFunction
+  | UnliftFunction
+  | SplitComponent
+  | JoinLet
   | BetaReduce
   | SplitLet
   | ReduceCase
