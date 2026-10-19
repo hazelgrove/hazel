@@ -86,7 +86,11 @@ let entry_name = (e: Ctx.entry): string =>
   | VarEntry({name, _})
   | ConstructorEntry({name, _}) => name
   | TVarEntry({name, _}) => name
-  | LivelitEntry({name, _}) => name
+  /* a use records the livelit it applies as `^name` in its co_ctx (the
+     LivelitName case of Statics), so a changed livelit must dirty that
+     name: as `name` it dirtied nothing, and a use kept the expansion of
+     the definition it was last analyzed with */
+  | LivelitEntry({name, _}) => "^" ++ name
   };
 
 /* the names an export binds as values, the namespace co_ctx tracks
