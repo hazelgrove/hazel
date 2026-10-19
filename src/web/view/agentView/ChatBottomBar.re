@@ -136,6 +136,7 @@ let view =
   let send_message = _ => {
     let message_content = String.trim(current_text);
     if (String.length(message_content) > 0) {
+      ChatScrollPin.request := true; /* a sent prompt re-pins the list */
       let user_message = Message.Utils.mk_user_message(message_content);
       Effect.Many([
         agent_inject(

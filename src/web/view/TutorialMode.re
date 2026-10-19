@@ -315,6 +315,7 @@ module Update = {
             ),
           hints: model.editors.hidden_tests.hints,
         },
+        solution: model.editors.solution,
         wrapper: model.editors.wrapper,
         show_report: model.editors.show_report,
         // syntax_tests: model.editors.syntax_tests,
@@ -593,7 +594,18 @@ module View = {
       Always(
         div(
           ~attrs=[Attr.class_("your-impl-wrapper")], // 🆕 Add this wrapper
-          [editor_view(YourImpl, user_impl, ~result_kind=`EvalResults)],
+          /* Probes-tutorial lessons show no bottom result -- probes are how
+             those lessons surface values -- but keep the pass/fail sigils on
+             test forms. Every other lesson keeps the result row. */
+          [
+            editor_view(
+              YourImpl,
+              user_impl,
+              ~result_kind=
+                Tutorial.is_probes_lesson(eds)
+                  ? `TestSigilsOnly : `EvalResults,
+            ),
+          ],
         ),
       );
     };

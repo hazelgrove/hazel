@@ -967,6 +967,35 @@ if true then 1|});
 
 let module_indentation_tests = [
   test_indent(
+    ~name="Members after a multi-line member stay at member level",
+    ~init={|let m = {
+let f = fun x ->
+x + 1;
+let g = 2;
+let h = 3
+} in m|},
+    ~goal=
+      {|let m = {
+  let f = fun x ->
+    x + 1;
+  let g = 2;
+  let h = 3
+} in m|},
+  ),
+  test_indent(
+    ~name="Member after a wrapped definition stays at member level",
+    ~init={|{
+let x =
+1;
+let y = 2
+}|},
+    ~goal={|{
+  let x =
+    1;
+  let y = 2
+}|},
+  ),
+  test_indent(
     ~name="Module body indents inside braces",
     ~init={|{
 let x = 1
