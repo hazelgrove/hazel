@@ -1712,11 +1712,13 @@ let ops = () =>
         ),
       ],
     );
+    /* one row in 3 unless MODAUDIT_SAMPLE says */
+    let sample = Sys.getenv_opt("MODAUDIT_SAMPLE") == None ? 3 : sample;
     List.iter(
       ((name, root, file)) =>
         if (selected(name)) {
           switch (CorpusUtil.mega_src(file)) {
-          | Some(src) => ops_sweep(~root, ~sample=3, name, src)
+          | Some(src) => ops_sweep(~root, ~sample, name, src)
           | None => print_endline(name ++ ": missing")
           };
         },
