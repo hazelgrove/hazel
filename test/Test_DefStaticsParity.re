@@ -668,6 +668,33 @@ let small = [
       [move(~up=false, ["M", "x"])],
     ),
   ),
+  /* a recursive call in a copy counts as a use of the binding above, as
+     monolithic statics reads the copy's Let */
+  test_case(
+    "duplicating a recursive member",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module M = {\n  let f = fun n -> if n == 0 then 0 else f(n - 1);\n  let g = 2\n};\nM.f(3) + M.g",
+      [op(Duplicate, ["M", "f"])],
+    ),
+  ),
+  test_case(
+    "duplicating a recursive definition",
+    `Quick,
+    script(
+      "let f = fun n -> if n == 0 then 0 else f(n - 1) in\nlet g = 2 in\nf(3) + g",
+      [op(Duplicate, ["f"])],
+    ),
+  ),
+  test_case(
+    "a recursive member below its namesake",
+    `Quick,
+    script(
+      "module M = {\n  let f(x : Int) : Int = x;\n  let f(x : Int) : Int = if x == 0 then 0 else f(x - 1)\n} in\nM.f(1)",
+      [],
+    ),
+  ),
   test_case(
     "unused binders with a hole in scope",
     `Quick,

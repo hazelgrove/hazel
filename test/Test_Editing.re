@@ -2918,6 +2918,112 @@ let module_tests = [
   ),
 ];
 
+/* Cmd+D [n] times from ¦ in [init] at [root], with the editor's
+   (compositional) statics, which give members no statics parent: the
+   selection, or why the last press failed */
+let select_term = (~root, ~n, init: string): string => {
+  let (before, after) =
+    switch (StringUtil.plain_split(init, caret_char)) {
+    | [before, after] => (before, after)
+    | _ => Alcotest.fail("one caret: " ++ init)
+    };
+  let z = Zipper.unzip(CorpusUtil.seg_of(~root, before ++ after));
+  let statics =
+    CachedStatics.init_compositional(
+      ~settings=default_settings,
+      ~stitch=Fun.id,
+      ~root,
+      z,
+    );
+  let go = (z: Zipper.t, a: Action.t) =>
+    Perform.go(
+      ~settings=default_settings,
+      ~statics,
+      ~syntax=CachedSyntax.init(~root, z),
+      ~root,
+      a,
+      {
+        zipper: z,
+        col_target: None,
+      },
+    );
+  let lines = String.split_on_char('\n', before);
+  let pt: Point.t = {
+    row: List.length(lines) - 1,
+    col: String.length(ListUtil.last(lines)),
+  };
+  switch (
+    List.fold_left(
+      (z, a) => Stdlib.Result.bind(z, z => go(z, a)),
+      go(z, Move(Point(pt, None))),
+      List.init(n, _ => Action.Select(Term(Current))),
+    )
+  ) {
+  | Ok(z) => printer(z)
+  | Error(f) => Action.Failure.show(f)
+  };
+};
+
+let cmd_d = (~root, ~name, ~n, ~init, ~goal) =>
+  test_case(name, `Quick, () =>
+    check(string, name, goal, select_term(~root, ~n, init))
+  );
+
+let counter = (~root) =>
+  "module Counter = {\n  let start = 0;\n  let next = ¦start + 1;\n  let after = next + 1\n}"
+  ++ (root == Sort.Mod ? ";\n" : " in\n")
+  ++ "Counter.after";
+
+/* a member grows to its module, as a definition grows to its body */
+let module_select_tests = [
+  cmd_d(
+    ~root=Exp,
+    ~name="Module Cmd+D (editor statics): member to its module",
+    ~n=4,
+    ~init=counter(~root=Exp),
+    ~goal=
+      "module Counter = §{\n  let start = 0;\n  let next = start + 1;\n  let after = next + 1\n}¦ in\nCounter.after",
+  ),
+  cmd_d(
+    ~root=Exp,
+    ~name="Module Cmd+D (editor statics): module to its definition",
+    ~n=5,
+    ~init=counter(~root=Exp),
+    ~goal=
+      "§module Counter = {\n  let start = 0;\n  let next = start + 1;\n  let after = next + 1\n} in¦\nCounter.after",
+  ),
+  cmd_d(
+    ~root=Mod,
+    ~name="Module Cmd+D at a Mod root: member to its module",
+    ~n=4,
+    ~init=counter(~root=Mod),
+    ~goal=
+      "module Counter = §{\n  let start = 0;\n  let next = start + 1;\n  let after = next + 1\n}¦;\nCounter.after",
+  ),
+  cmd_d(
+    ~root=Mod,
+    ~name="Module Cmd+D at a Mod root: module member to the program",
+    ~n=6,
+    ~init=counter(~root=Mod),
+    ~goal=
+      "§module Counter = {\n  let start = 0;\n  let next = start + 1;\n  let after = next + 1\n};\nCounter.after¦",
+  ),
+  cmd_d(
+    ~root=Mod,
+    ~name="Module Cmd+D at a Mod root: nothing encloses the program",
+    ~n=7,
+    ~init=counter(~root=Mod),
+    ~goal="Cant_select",
+  ),
+  cmd_d(
+    ~root=Mod,
+    ~name="Module Cmd+D at a Mod root: top-level member to the program",
+    ~n=4,
+    ~init="let start = 0;\nlet next = ¦start + 1;\nnext",
+    ~goal="§let start = 0;\nlet next = start + 1;\nnext¦",
+  ),
+];
+
 /* ===== SHARD THEFT / PREPEND EDITING TESTS =====
    These test scenarios where typing new code directly before existing
    multi-delimiter forms (let/=/in, fun/->, if/then/else) causes delimiter
@@ -6131,7 +6237,7 @@ let tests = [
   ("Editing.Selection", selection_tests),
   ("Editing.Rescan", rescan_tests),
   ("Editing.Paste", paste_tests),
-  ("Editing.Module", module_tests),
+  ("Editing.Module", module_tests @ module_select_tests),
   ("Editing.ShardTheft", shard_theft_tests),
   ("Editing.SegmentCache", segment_cache_tests),
   ("Editing.RemoldSort", remold_sort_tests),

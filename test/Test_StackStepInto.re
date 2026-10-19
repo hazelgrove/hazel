@@ -20,10 +20,11 @@ module M = {
 } in
 f(1) + g(2) + w(1) + r(2) + t + M.h(3) + M.k(4) + M.u|};
 
+/* the program's ⇒ row (a function's body has one of its own) */
 let trail = (m: History.Model.t): Id.t =>
   List.find_map(
     (n: OutlineTree.node) => n.o_kind == KTrail ? n.o_id : None,
-    OutlineTree.(flatten(of_term(Program.statics(Cells.program(m)).term))),
+    OutlineTree.of_term(Program.statics(Cells.program(m)).term),
   )
   |> Option.get;
 

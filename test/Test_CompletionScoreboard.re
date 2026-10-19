@@ -131,7 +131,7 @@ let completed_tokens = (z: Zipper.t): list(string) => {
     z
     |> Zipper.clear_unparsed_buffer
     |> Zipper.unselect_and_zip(~erase_buffer=true);
-  let result = CanonicalCompletion.for_editor(seg);
+  let result = CanonicalCompletion.for_editor(~root=Exp, seg);
   tokens(result.completed_seg);
 };
 
@@ -340,7 +340,7 @@ let run_pairs = (name: string, text: string): joint_outcome => {
           z'
           |> Zipper.clear_unparsed_buffer
           |> Zipper.unselect_and_zip(~erase_buffer=true);
-        let result = CanonicalCompletion.for_editor(seg);
+        let result = CanonicalCompletion.for_editor(~root=Exp, seg);
         let got = tokens(result.completed_seg);
         let ok = got == original;
         let inc =
@@ -389,7 +389,7 @@ type accept_outcome = {
 
 let entries_of =
     (seg: Segment.t): list((Id.t, Util.Direction.t, string, Id.t)) =>
-  CanonicalCompletion.for_editor(seg).insertions
+  CanonicalCompletion.for_editor(~root=Exp, seg).insertions
   |> List.concat_map((i: CanonicalCompletion.insertion) =>
        i.delimiters
        |> List.filter_map((d: CanonicalCompletion.delimiter_info) =>

@@ -12,7 +12,7 @@ let tydi_suggest = (code: string): option(string) => {
   let (info_map, _) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
   let ci = Indicated.ci_for_completion(z, info_map);
-  let* z = TyDi.set_buffer(~ci, z);
+  let* z = TyDi.set_buffer(~root=Exp, ~ci, z);
   TyDi.get_unparsed_buffer(z);
 };
 

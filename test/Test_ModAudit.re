@@ -119,7 +119,7 @@ let mark_names = (info: Info.t): list(string) =>
 let snapshot = (~root: Sort.t, z: Zipper.t): snap => {
   let source = MakeTerm.semantic_source(z);
   let (completed, masks) = MakeTerm.semantic_segment(~root, source);
-  let display = CanonicalCompletion.for_editor(source).completed_seg;
+  let display = CanonicalCompletion.for_editor(~root, source).completed_seg;
   let term = MakeTerm.Incr.term_of_root(~masks, ~root, completed);
   let st =
     CachedStatics.init_compositional_term(
@@ -1938,7 +1938,9 @@ let tydi = (~k=0, needle, root, src) =>
   | (Error(why), _) => why
   | (Ok(z), st) =>
     let ci = Indicated.ci_for_completion(z, st.info_map);
-    switch (Option.bind(TyDi.set_buffer(~ci, z), TyDi.get_unparsed_buffer)) {
+    switch (
+      Option.bind(TyDi.set_buffer(~root, ~ci, z), TyDi.get_unparsed_buffer)
+    ) {
     | Some(b) => "suggests " ++ b
     | None => "no suggestion"
     };
@@ -1992,6 +1994,38 @@ let paste_rows = (~k=0, ~off=1, needle, clip, root, src) =>
       |> String.concat(" ");
     rows ++ " :: " ++ show_lines(String.split_on_char('\n', text_of(z)));
   };
+
+/* the selection after Cmd+D [n] times from [needle] */
+let grow = (~n, ~k=0, ~off=1, needle, root, src) =>
+  switch (
+    fst(
+      act_st(
+        ~root,
+        ~k,
+        ~off,
+        src,
+        needle,
+        List.init(n, _ => Action.Select(Term(Current))),
+      ),
+    )
+  ) {
+  | Error(why) => why
+  | Ok(z) =>
+    Printer.of_segment(~holes="?", ~refractors=[], z.selection.content)
+    |> String.split_on_char('\n')
+    |> List.map(String.trim)
+    |> String.concat(" ⏎ ")
+  };
+
+/* outline row [label]'s kind */
+let row_kind = (label, root, src) => {
+  let term =
+    MakeTerm.Incr.term_of_root(~root, CorpusUtil.seg_of(~root, src));
+  switch (O.kind_of(CorpusUtil.row_by_label(term, label), term)) {
+  | Some(k) => kind_name(k)
+  | None => "no row"
+  };
+};
 
 /* an outline op on row [label]'s result, whole */
 let outline_op = (o: Web.OutlineEdit.def_op, label: string, root, src) => {
@@ -2201,6 +2235,45 @@ let probes = (): list(probe) => [
     src: chain_src,
     run: text_after(~off=7, ~lines=3, "let b = a + 1", [Insert("\n")]),
     expect: "let b = ⏎ ···a + 1 in ⏎ type T = Int in",
+  },
+  {
+    /* Cmd+D grows a member to its module, as a definition to its body */
+
+    what: "Cmd+D x4 from a member's definition",
+    root: Mod,
+    src: m_src,
+    run: grow(~n=4, ~off=0, "a + 1"),
+    expect: "{ ⏎ let a = 1; ⏎ let b = a + 1; ⏎ type T = Int; ⏎ let c : T = b ⏎ }",
+  },
+  {
+    what: "Cmd+D x4 from a member's definition",
+    root: Exp,
+    src: e_src,
+    run: grow(~n=4, ~off=0, "a + 1"),
+    expect: "{ ⏎ let a = 1; ⏎ let b = a + 1; ⏎ type T = Int; ⏎ let c : T = b ⏎ }",
+  },
+  {
+    what: "Cmd+D x5 from a member's definition",
+    root: Exp,
+    src: e_src,
+    run: grow(~n=5, ~off=0, "a + 1"),
+    expect: "module M = { ⏎ let a = 1; ⏎ let b = a + 1; ⏎ type T = Int; ⏎ let c : T = b ⏎ } in",
+  },
+  {
+    what: "Cmd+D x4 from a chain definition (control)",
+    root: Exp,
+    src: chain_src,
+    run: grow(~n=4, ~off=0, "a + 1"),
+    expect: "let b = a + 1 in ⏎ type T = Int in ⏎ let c : T = b in ⏎ c",
+  },
+  {
+    /* the outline */
+
+    what: "outline: a module alias's row",
+    root: Mod,
+    src: "module Base = {\n  type Id = Int\n};\nmodule App = {\n  module Db = Base;\n  type UserId = Db.Id\n};\nlet uid : App.Db.Id = 42;\nuid",
+    run: row_kind("Db"),
+    expect: "module",
   },
   {
     /* the formatter */

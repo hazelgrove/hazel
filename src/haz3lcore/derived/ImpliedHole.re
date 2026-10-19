@@ -6,6 +6,7 @@ open OptUtil.Syntax;
    neither mint new IDs nor typecheck a speculative program here. */
 let at_caret =
     (
+      ~root: Sort.t,
       ~syntax: option(CachedSyntax.t)=?,
       ~statics: CachedStatics.t,
       z: Zipper.t,
@@ -28,7 +29,7 @@ let at_caret =
     if (compare(source, snapshot.source) != 0) {
       None; /* Includes annotation/context edits during the statics debounce. */
     } else {
-      let* chip = CompletionQuery.chip_at_caret(~seg=source, z);
+      let* chip = CompletionQuery.chip_at_caret(~root, ~seg=source, z);
       switch (chip.delimiters) {
       | [
           {

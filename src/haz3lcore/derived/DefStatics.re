@@ -1206,6 +1206,21 @@ and calc_plain_item =
         | _ => CoCtx.empty
         },
       );
+  let exports = Ctx.added_bindings(ctx_out, ctx_in).entries;
+  /* a recursive definition's info drops its own name (the FixF patch),
+     but the Let's co_ctx keeps it, and monolithic statics reads that one
+     from above: a copy's recursive call uses the binding above it */
+  let free =
+    switch (node.term, Statics.Map.lookup_exp(Exp.rep_id(node), map)) {
+    | (Let(_), Some(root)) =>
+      let bound = var_names(exports);
+      free
+      @ List.filter(
+          n => List.mem(n, bound) && !List.mem(n, free),
+          CoCtx.names(root.co_ctx),
+        );
+    | _ => free
+    };
   /* the hole is scaffolding, not program: keep it out of the merged
      whole-program view (ctx_out was already read above) */
   let map = is_tail ? map : Id.Map.remove(Exp.rep_id(hole), map);
@@ -1216,7 +1231,7 @@ and calc_plain_item =
     d_map: map,
     d_error_ids: Statics.Map.error_ids(map),
     d_warning_ids: Statics.Map.warning_ids(map),
-    d_exports: Ctx.added_bindings(ctx_out, ctx_in).entries,
+    d_exports: exports,
     d_free: free,
     d_tfree: tfree_of_item(hollow, map),
     d_ctx_out: ctx_out,

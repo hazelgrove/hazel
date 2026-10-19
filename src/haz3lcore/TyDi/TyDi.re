@@ -11,7 +11,8 @@ let min_prefix_len = 2;
    recognizing that token, so ghost and quiver share one recognition
    source. Syntax-derived; needs no statics. [seg]: [z]'s zip, when the
    caller has the frame's (CompletionQuery.engine_seg). */
-let suggest_witnesses = (~seg: option(Segment.t)=?, z: Zipper.t): list(t) =>
+let suggest_witnesses =
+    (~root: Sort.t, ~seg: option(Segment.t)=?, z: Zipper.t): list(t) =>
   switch (z.caret, z.relatives.siblings |> fst |> List.rev) {
   | (Outer, [Tile({id, _} as t), ..._]) when Tile.arity(t) == 1 =>
     let tok = Tile.token(t, 0);
@@ -20,7 +21,7 @@ let suggest_witnesses = (~seg: option(Segment.t)=?, z: Zipper.t): list(t) =>
       | Some(seg) => seg
       | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
       };
-    let result = CanonicalCompletion.for_editor(seg);
+    let result = CanonicalCompletion.for_editor(~root, seg);
     result.insertions
     |> List.filter_map((i: CanonicalCompletion.insertion) =>
          Id.equal(i.adjacent_id, id) && i.side == Util.Direction.Right
@@ -50,7 +51,7 @@ let has_unknown_expectation = (ci: Info.t): bool =>
   | _ => false
   };
 
-let suggest = (~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
+let suggest = (~root: Sort.t, ~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
   /* NOTE: Sorting ensures that if we have an exact match already,
    * we won't suggest extending it, but straight-up lexical sorting
    * may not be desirable in other ways, for example maybe we want
@@ -122,10 +123,10 @@ let suggest = (~seg=?, ci: Info.t, z: Zipper.t): list(t) => {
       TyDiForms.suggest_operator(ci) |> List.sort(TyDiSuggestion.compare);
     if (has_unknown_expectation(ci)) {
       /* Unknown type: keywords first, then context, then operators */
-      suggest_witnesses(~seg?, z) @ forms @ ctx_suggestions @ operators;
+      suggest_witnesses(~root, ~seg?, z) @ forms @ ctx_suggestions @ operators;
     } else {
       /* Known type: context variables first (type-directed), then forms */
-      suggest_witnesses(~seg?, z) @ ctx_suggestions @ forms @ operators;
+      suggest_witnesses(~root, ~seg?, z) @ ctx_suggestions @ forms @ operators;
     };
   };
 };
@@ -177,7 +178,8 @@ let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
 
 /* Populates the suggestion buffer with a type-directed suggestion */
 let set_buffer =
-    (~seg=?, ~ci: option(Info.t), z: Zipper.t): option(Zipper.t) => {
+    (~root: Sort.t, ~seg=?, ~ci: option(Info.t), z: Zipper.t)
+    : option(Zipper.t) => {
   let* _ =
     switch (z.selection.mode) {
     /* Make sure not to populate the completion buffer if there is a non-empty
@@ -191,8 +193,8 @@ let set_buffer =
      states they serve (completion consumed the prefix token) */
   let suggestions =
     switch (ci) {
-    | Some(ci) => suggest(~seg?, ci, z)
-    | None => suggest_witnesses(~seg?, z)
+    | Some(ci) => suggest(~root, ~seg?, ci, z)
+    | None => suggest_witnesses(~root, ~seg?, z)
     };
   let suggestions =
     suggestions

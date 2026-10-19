@@ -123,6 +123,7 @@ module Update = {
                chip is always live) */
             switch (
               CompletionQuery.tab_action(
+                ~root=model.editor.root,
                 ~seg=
                   CompletionQuery.engine_seg(~syntax=model.editor.syntax, z),
                 z,
@@ -170,6 +171,7 @@ module Selection = {
       implied_hole:
         Lazy.from_fun(() =>
           ImpliedHole.at_caret(
+            ~root=model.editor.root,
             ~syntax=model.editor.syntax,
             ~statics=model.statics,
             model.editor.state.zipper,
@@ -427,6 +429,7 @@ module View = {
   let deco =
       (
         ~expand_selection=false,
+        ~root: Sort.t,
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
@@ -440,7 +443,7 @@ module View = {
       Lazy.from_fun(() => CompletionQuery.engine_seg(~syntax, z));
     let completion =
       Lazy.from_fun(() =>
-        CanonicalCompletion.for_editor(Lazy.force(engine_seg))
+        CanonicalCompletion.for_editor(~root, Lazy.force(engine_seg))
       );
     [
       CaretDec.view(
@@ -484,9 +487,14 @@ module View = {
       globals.settings.quiver
         ? [
           QuiverDec.view(
+            ~root,
             ~flagpole=globals.settings.quiver_flagpole,
             ~head_padding=
-              CompletionQuery.chip_at_caret(~seg=Lazy.force(engine_seg), z)
+              CompletionQuery.chip_at_caret(
+                ~root,
+                ~seg=Lazy.force(engine_seg),
+                z,
+              )
               |> Option.bind(_, (i: CanonicalCompletion.insertion) =>
                    List.nth_opt(i.delimiters, 0)
                  )
@@ -512,7 +520,11 @@ module View = {
                 : None,
             /* the caret's chips — the same query Tab dispatches */
             ~owned=
-              CompletionQuery.chips_at_caret(~seg=Lazy.force(engine_seg), z),
+              CompletionQuery.chips_at_caret(
+                ~root,
+                ~seg=Lazy.force(engine_seg),
+                z,
+              ),
             Lazy.force(engine_seg),
           ),
         ]
@@ -647,6 +659,7 @@ module View = {
       selected
         ? deco(
             ~expand_selection?,
+            ~root=model.editor.root,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
             ~globals,
@@ -660,6 +673,7 @@ module View = {
               ~syntax=model.editor.syntax,
               ~completion=
                 Arms.lazy_completion(
+                  ~root=model.editor.root,
                   ~syntax=model.editor.syntax,
                   model.editor.state.zipper,
                 ),

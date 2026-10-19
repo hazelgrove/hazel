@@ -576,7 +576,7 @@ let rec go =
   | ApplyCompletion(Next) =>
     let seg = CachedSyntax.semantic_source(z, syntax);
     switch (
-      CompletionQuery.chip_at_caret(~seg?, z)
+      CompletionQuery.chip_at_caret(~root, ~seg?, z)
       |> Option.bind(_, CompletionQuery.tab_text(z))
     ) {
     | None => Error(Cant_put_down)
@@ -601,7 +601,7 @@ let rec go =
         );
       /* Preserve the positions of existing operand holes and their spaces
          on both sides of the caret while the parser reassembles the tile. */
-      let protect_right = CompletionQuery.accepts_right_hole(~seg?, z);
+      let protect_right = CompletionQuery.accepts_right_hole(~root, ~seg?, z);
       let protect =
         List.map(
           fun

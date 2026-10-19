@@ -391,10 +391,11 @@ let term =
    arm's root tile is actually incomplete. [syntax]: of the frame's
    segment (CompletionQuery.engine_seg). */
 let lazy_completion =
-    (~syntax: option(CachedSyntax.t)=?, z: Zipper.t)
+    (~root: Sort.t, ~syntax: option(CachedSyntax.t)=?, z: Zipper.t)
     : Lazy.t(CanonicalCompletion.completion_result) =>
   Lazy.from_fun(() =>
     CanonicalCompletion.for_editor(
+      ~root,
       switch (syntax) {
       | Some(syntax) => CompletionQuery.engine_seg(~syntax, z)
       | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
