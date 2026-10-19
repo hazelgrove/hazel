@@ -46,6 +46,14 @@ let view_segment = (~globals: Globals.t, segment: Segment.t) => {
   );
 };
 
+/* A segment laid out to a width, broken over lines and indented, so it
+   reads down and not across. A layout that fails leaves the segment as it
+   was, on one line, rather than losing the view. */
+let lay_out = (~width: int, segment: Segment.t): Segment.t =>
+  try(PrettySegment.prettify(~width, segment)) {
+  | _ => segment
+  };
+
 let view_typ = (~globals: Globals.t, ~settings, typ: Language.Typ.t) =>
   typ |> TypToSegment.typ_to_segment(~settings) |> view_segment(~globals);
 

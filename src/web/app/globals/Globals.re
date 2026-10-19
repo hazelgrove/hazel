@@ -91,6 +91,7 @@ module Action = {
     | UpdateDrawerWidth(int)
     /* a drawer's rendered height changed: lay the editors out again */
     | RelayoutDrawers
+    | ToggleContextUnfold(string)
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -114,6 +115,10 @@ module Model = {
     slide_name: option(string),
     /* the settings panel's filter text; not saved */
     settings_filter: string,
+    /* Gamma's entries shown whole, on several lines, by
+       ContextInspector.entry_key; not saved, as the keys hold a session's
+       ids */
+    context_unfolded: list(string),
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -142,6 +147,7 @@ module Model = {
     apps: AppStore.empty,
     slide_name: None,
     settings_filter: "",
+    context_unfolded: [],
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),
