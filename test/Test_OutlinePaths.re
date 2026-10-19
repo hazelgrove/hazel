@@ -121,12 +121,48 @@ let use_above_test = () => {
 
 let uses_and_signatures = "type S = {\n  let x : Int\n} in\nuse Nat in\nmodule M : S = {\n  let x = 1\n} in\nuse Nat in\ntest M.x == 1 end;\nM.x";
 
+/* rows as their kinds and labels, children bracketed */
+let rec kinds = (ns: list(OutlineTree.node)): string =>
+  ns
+  |> List.map((n: OutlineTree.node) =>
+       (
+         switch (n.o_kind) {
+         | KModule => "module"
+         | KFn => "fn"
+         | KConst => "const"
+         | KType => "type"
+         | KTest => "test"
+         | KTests => "tests"
+         | KStmt => "stmt"
+         | KUse => "use"
+         | KTrail => "trail"
+         }
+       )
+       ++ (n.o_label == "" ? "" : " " ++ n.o_label)
+       ++ (n.o_children == [] ? "" : " [" ++ kinds(n.o_children) ++ "]")
+     )
+  |> String.concat(", ");
+
+let kinds_of = (text: string): string =>
+  kinds(OutlineTree.of_term(term_of_text(text)));
+
+let alias_kinds = () =>
+  check(
+    string,
+    "an alias is a module",
+    "module Base [type Id], module App [module Db, type UserId], trail",
+    kinds_of(
+      "module Base = {\n  type Id = Int\n} in\nmodule App = {\n  module Db = Base;\n  type UserId = Db.Id\n} in\nApp.Db",
+    ),
+  );
+
 let cases = [
   test_case(
     "a test added elsewhere leaves a test's path",
     `Quick,
     test_elsewhere,
   ),
+  test_case("a module alias's row is a module", `Quick, alias_kinds),
   test_case("a use above a test leaves its path", `Quick, use_above_test),
   test_case("use rows and a module with a signature", `Quick, () =>
     check_self_resolution("uses and signatures", uses_and_signatures)

@@ -2011,6 +2011,16 @@ let grow = (~n, ~k=0, ~off=1, needle, root, src) =>
     |> String.concat(" ⏎ ")
   };
 
+/* outline row [label]'s kind */
+let row_kind = (label, root, src) => {
+  let term =
+    MakeTerm.Incr.term_of_root(~root, CorpusUtil.seg_of(~root, src));
+  switch (O.kind_of(CorpusUtil.row_by_label(term, label), term)) {
+  | Some(k) => kind_name(k)
+  | None => "no row"
+  };
+};
+
 /* an outline op on row [label]'s result, whole */
 let outline_op = (o: Web.OutlineEdit.def_op, label: string, root, src) => {
   let seg = CorpusUtil.seg_of(~root, src);
@@ -2249,6 +2259,15 @@ let probes = (): list(probe) => [
     src: chain_src,
     run: grow(~n=4, ~off=0, "a + 1"),
     expect: "let b = a + 1 in ⏎ type T = Int in ⏎ let c : T = b in ⏎ c",
+  },
+  {
+    /* the outline */
+
+    what: "outline: a module alias's row",
+    root: Mod,
+    src: "module Base = {\n  type Id = Int\n};\nmodule App = {\n  module Db = Base;\n  type UserId = Db.Id\n};\nlet uid : App.Db.Id = 42;\nuid",
+    run: row_kind("Db"),
+    expect: "module",
   },
   {
     /* the formatter */
