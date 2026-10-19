@@ -2061,6 +2061,58 @@ module M: Projector = {
           Node.span(~attrs=[Attr.class_("livelit-eye-glyph")], []),
         ],
       );
+    /* Full screen for a picture (^ticket(401)): any view that draws an
+       <svg> gets a button by the eye (proj-livelit.css shows it only then,
+       by :has, so nothing here inspects the view). It asks the browser to
+       show the view's largest <svg> full screen, which skips the backing
+       shapes of livelits nested in its splices; Esc leaves, as for any
+       full-screen element. */
+    let fullscreen =
+      Node.div(
+        ~attrs=[
+          Attr.class_("livelit-fullscreen"),
+          Attr.title("show this picture full screen (Esc to leave)"),
+          Attr.on_pointerdown(evt => {
+            open Js_of_ocaml;
+            let call = (o, m, args) => Js.Unsafe.meth_call(o, m, args);
+            let s = x => Js.Unsafe.inject(Js.string(x));
+            switch (Js.Opt.to_option(evt##.target)) {
+            | Some(target) =>
+              let proj = call(target, "closest", [|s(".projector")|]);
+              if (Js.Opt.test(proj)) {
+                let svgs =
+                  call(
+                    proj,
+                    "querySelectorAll",
+                    [|
+                      s(":scope > :not(svg):not(.livelit-syntax-layer) svg"),
+                    |],
+                  );
+                let best = ref(None);
+                for (i in 0 to svgs##.length - 1) {
+                  let el = call(svgs, "item", [|Js.Unsafe.inject(i)|]);
+                  let r = call(el, "getBoundingClientRect", [||]);
+                  let area =
+                    Js.float_of_number(r##.width)
+                    *. Js.float_of_number(r##.height);
+                  switch (best^) {
+                  | Some((a, _)) when a >= area => ()
+                  | _ => best := Some((area, el))
+                  };
+                };
+                switch (best^) {
+                | Some((_, el)) =>
+                  ignore(call(el, "requestFullscreen", [||]))
+                | None => ()
+                };
+              };
+            | None => ()
+            };
+            Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
+          }),
+        ],
+        [Node.text("⛶")],
+      );
     let pane =
       switch (shown) {
       | Some(s) =>
@@ -2129,7 +2181,10 @@ module M: Projector = {
     View.mk(
       ~overlay=
         Some(
-          Node.div(~attrs=[Attr.class_("livelit-syntax-layer")], [toggle]),
+          Node.div(
+            ~attrs=[Attr.class_("livelit-syntax-layer")],
+            [toggle, fullscreen],
+          ),
         ),
       node,
     );
