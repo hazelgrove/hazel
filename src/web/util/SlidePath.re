@@ -104,3 +104,44 @@ let breadcrumb = (~current: int, paths: list(t)): list(crumb) => {
        })
   };
 };
+
+[@deriving (show({with_path: false}), eq)]
+type tree =
+  | Folder(string, list(tree))
+  | Leaf(int, string);
+
+/* Each entry is a position and the segments still to be placed beneath the
+   current folder. */
+let rec forest = (entries: list((int, list(string)))): list(tree) => {
+  let beneath = name =>
+    entries
+    |> List.filter_map(((i, segs)) =>
+         switch (segs) {
+         | [first, second, ...more] when String.equal(first, name) =>
+           Some((i, [second, ...more]))
+         | _ => None
+         }
+       );
+  let (_, rev_trees) =
+    List.fold_left(
+      ((seen, trees), (i, segs)) =>
+        switch (segs) {
+        | [] => (seen, trees)
+        | [leaf] => (seen, [Leaf(i, leaf), ...trees])
+        | [name, ..._] when List.exists(String.equal(name), seen) => (
+            seen,
+            trees,
+          )
+        | [name, ..._] => (
+            [name, ...seen],
+            [Folder(name, forest(beneath(name))), ...trees],
+          )
+        },
+      ([], []),
+      entries,
+    );
+  List.rev(rev_trees);
+};
+
+let tree = (paths: list(t)): list(tree) =>
+  paths |> List.mapi((i, p) => (i, segments(p))) |> forest;

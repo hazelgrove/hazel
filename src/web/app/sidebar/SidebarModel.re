@@ -9,6 +9,7 @@ module Settings = {
     | LogControl
     | Problems
     | TaskReference
+    | SlideTree
     | DebugInfo;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
@@ -176,6 +177,10 @@ module Settings = {
                                               [WorkerServer.Marshal]
                                             ]
     worker_encodings: list(WorkerServer.encoding),
+    /* Folders the slide tree shows closed, each as its SlidePath folder
+       segments. Defaulted on load like worker_encodings. */
+    [@sexp.default []] [@yojson.default []]
+    slide_tree_collapsed: list(list(string)),
   };
 
   let is_debug_expanded = (key: string, settings: t) =>
@@ -193,6 +198,23 @@ module Settings = {
         debug_expanded: [key, ...settings.debug_expanded],
       };
     };
+
+  let is_slide_folder_collapsed = (folders: list(string), settings: t) =>
+    List.exists(
+      List.equal(String.equal, folders),
+      settings.slide_tree_collapsed,
+    );
+
+  let toggle_slide_folder = (folders: list(string), settings: t): t => {
+    ...settings,
+    slide_tree_collapsed:
+      is_slide_folder_collapsed(folders, settings)
+        ? List.filter(
+            f => !List.equal(String.equal, f, folders),
+            settings.slide_tree_collapsed,
+          )
+        : [folders, ...settings.slide_tree_collapsed],
+  };
 
   let is_encoding_enabled = (e: WorkerServer.encoding, settings: t) =>
     List.mem(e, settings.worker_encodings);
@@ -217,5 +239,6 @@ module Settings = {
     | Problems(problems_action)
     | ToggleDebugRaw
     | ToggleDebugExpanded(string)
+    | ToggleSlideFolder(list(string))
     | ToggleWorkerEncoding(WorkerServer.encoding);
 };

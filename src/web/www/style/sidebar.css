@@ -151,6 +151,49 @@
   pointer-events: auto;
 }
 
+/* Slide Tree Panel */
+
+.slide-tree {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5em;
+  overflow-y: auto;
+  color: var(--text-accent);
+}
+
+.slide-tree-folder-name,
+.slide-tree-leaf {
+  padding: 0.3em 0.5em;
+  border-radius: 4px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.slide-tree-folder-name {
+  font-weight: bold;
+}
+
+.slide-tree-leaf {
+  /* line up with the folder name after its chevron */
+  padding-left: 1.5em;
+}
+
+.slide-tree-children {
+  margin-left: 0.75em;
+  border-left: 1px solid var(--border-soft);
+}
+
+.slide-tree-folder-name:hover,
+.slide-tree-leaf:hover {
+  background-color: color-mix(in srgb, var(--surface-highlight-soft) 50%, transparent);
+}
+
+.slide-tree-leaf.current,
+.slide-tree-folder-name.holds-current {
+  background-color: var(--surface-highlight-soft);
+  color: var(--text-strong);
+}
+
 /* Problems Panel */
 
 .problems-panel {

@@ -51,6 +51,13 @@ module Model = {
     };
   };
 
+  let paths = (model: t): list(SlidePath.t) =>
+    List.map(
+      ((config_type, _)) =>
+        SlidePath.of_string(config_name_of_type(config_type)),
+      model.configs,
+    );
+
   /* The key a slide is persisted under, deliberately separate from the name
      it displays under: one is storage, the other is UI text, and coupling
      them is how a rename becomes a silent data migration.
@@ -584,11 +591,7 @@ module View = {
         EditorModeView.indicator_select(
           ~signal=i => inject(SwitchConfig(i)),
           model.current,
-          List.map(
-            ((config_type, _)) =>
-              SlidePath.of_string(Model.config_name_of_type(config_type)),
-            model.configs,
-          ),
+          Model.paths(model),
         ),
       (),
     );

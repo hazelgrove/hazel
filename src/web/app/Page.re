@@ -867,6 +867,8 @@ module View = {
         ~log_count,
         ~cursor,
         ~tutorial_reference,
+        ~slide_tree=
+          Editors.View.slide_tree(~inject=a => inject(Editors(a)), editors),
       );
     /* culling bounds apply only where the mode supports them (one
        cull-scope cell); elsewhere every cell renders unculled */

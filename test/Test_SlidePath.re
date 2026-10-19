@@ -469,6 +469,67 @@ let breadcrumb_tests = [
   ),
 ];
 
+let tree =
+  testable(Fmt.of_to_string(SlidePath.show_tree), SlidePath.equal_tree);
+let tree_of = (space: list(string)) => SlidePath.tree(paths_of(space));
+
+let tree_tests = [
+  test_case("an empty space has no tree", `Quick, () =>
+    check(list(tree), "tree of []", [], tree_of([]))
+  ),
+  test_case("names with no folder are leaves in order", `Quick, () =>
+    check(
+      list(tree),
+      "tree of [Holes, Functions]",
+      [Leaf(0, "Holes"), Leaf(1, "Functions")],
+      tree_of(["Holes", "Functions"]),
+    )
+  ),
+  test_case("a folder holds its slides, folders in space order", `Quick, () =>
+    check(
+      list(tree),
+      "tree of nav_space",
+      [
+        Folder("Basics", [Leaf(0, "Holes"), Leaf(1, "Functions")]),
+        Folder(
+          "Tables",
+          [Leaf(2, "Filtering"), Leaf(3, "Column Projection")],
+        ),
+        Folder("Rich Probes", [Leaf(4, "Sampling")]),
+      ],
+      tree_of(nav_space),
+    )
+  ),
+  test_case("nested folders nest", `Quick, () =>
+    check(
+      list(tree),
+      "tree of [a / b / c, a / d]",
+      [Folder("a", [Folder("b", [Leaf(0, "c")]), Leaf(1, "d")])],
+      tree_of(["a / b / c", "a / d"]),
+    )
+  ),
+  test_case("a folder whose slides are not adjacent is one node", `Quick, () =>
+    check(
+      list(tree),
+      "tree of scattered",
+      [
+        Folder("A", [Leaf(0, "x"), Leaf(2, "z")]),
+        Folder("B", [Leaf(1, "y")]),
+      ],
+      tree_of(scattered),
+    )
+  ),
+  test_case(
+    "a name that is a prefix of another is a leaf and a folder", `Quick, () =>
+    check(
+      list(tree),
+      "tree of [Tables, Tables / Tables]",
+      [Leaf(0, "Tables"), Folder("Tables", [Leaf(1, "Tables")])],
+      tree_of(["Tables", "Tables / Tables"]),
+    )
+  ),
+];
+
 let tests = [
   ("SlidePath.of_string", of_string_tests),
   ("SlidePath.mk", mk_tests),
@@ -481,4 +542,5 @@ let tests = [
   ("SlidePath.step_in_folder", step_in_folder_tests),
   ("SlidePath folder traversal", traversal_tests),
   ("SlidePath.breadcrumb", breadcrumb_tests),
+  ("SlidePath.tree", tree_tests),
 ];

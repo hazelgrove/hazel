@@ -683,6 +683,33 @@ module View = {
       )
     };
 
+  /* None for a mode whose slides have no names to arrange (Exercises). */
+  let slide_tree =
+      (~inject: Update.t => Ui_effect.t(unit), editors: Model.t)
+      : option(SlideTreePanel.context) =>
+    switch (editors) {
+    | Scratch(m)
+    | Documentation(m) =>
+      Some({
+        current: m.current,
+        paths: ScratchMode.Model.paths(m),
+        select: i => inject(Update.Scratch(SwitchSlide(i))),
+      })
+    | Config(m) =>
+      Some({
+        current: m.current,
+        paths: ConfigurationMode.Model.paths(m),
+        select: i => inject(Update.Configuration(SwitchConfig(i))),
+      })
+    | Tutorial(m) =>
+      Some({
+        current: m.current,
+        paths: TutorialsMode.Model.paths(m),
+        select: i => inject(Update.Tutorial(SwitchExercise(i))),
+      })
+    | Exercises(_) => None
+    };
+
   let top_bar =
       (~globals: Globals.t, ~inject: Update.t => 'a, ~editors: Model.t) => {
     let mode_menu = {

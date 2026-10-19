@@ -418,6 +418,20 @@ let solid_circle =
     ],
   );
 
+/* A folder node with two children hanging off its trunk. */
+let slide_tree =
+  simple_icon(
+    ~view="0 0 24 24",
+    [
+      "M3 3h8v5H3z",
+      "M6 8h1.5v11H6z",
+      "M6 11h6v1.5H6z",
+      "M12 9.5h9V14h-9z",
+      "M6 17.5h6V19H6z",
+      "M12 16h9v4.5h-9z",
+    ],
+  );
+
 let library =
   simple_icon(
     ~view="0 0 36 36",

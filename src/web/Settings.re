@@ -99,6 +99,7 @@ module Model = {
       /* Only the active encoding (Marshal) is benchmarked by default; Direct
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
+      slide_tree_collapsed: [],
     },
     quiver_flagpole: false,
     quiver: true, /* On by default (andrew 2026-07-09) */
@@ -405,6 +406,14 @@ module Update = {
           sidebar:
             SidebarModel.Settings.toggle_debug_expanded(
               key,
+              settings.sidebar,
+            ),
+        }
+      | Sidebar(ToggleSlideFolder(folders)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_slide_folder(
+              folders,
               settings.sidebar,
             ),
         }

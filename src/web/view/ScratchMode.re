@@ -142,6 +142,9 @@ module Model = {
 
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
+
+  let paths = (model: t): list(SlidePath.t) =>
+    List.map(SlidePath.of_string, scratchpad_names(model));
 };
 
 /* Per-slide IndexedDB persistence. Each scratchpad's editor and agent
@@ -1330,10 +1333,7 @@ module View = {
         EditorModeView.indicator_select(
           ~signal=i => inject(SwitchSlide(i)),
           model.current,
-          List.map(
-            (s: Scratchpad.t) => SlidePath.of_string(s.name),
-            model.scratchpads,
-          ),
+          Model.paths(model),
         ),
       (),
     );

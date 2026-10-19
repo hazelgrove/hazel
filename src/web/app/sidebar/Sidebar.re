@@ -158,11 +158,21 @@ let task_reference_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let slide_tree_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=SlideTree,
+    ~cls=["slide-tree-button"],
+    ~icon=Icons.slide_tree,
+    ~tooltip="Switch to Slide Tree",
+    ~globals,
+  );
+
 let persistent_view =
     (
       ~globals: Globals.t,
       ~counts: list((SidebarModel.Settings.problem_category, int)),
       ~tutorial_reference: option(TutorialReferencePanel.context),
+      ~slide_tree: option(SlideTreePanel.context),
     ) =>
   div(
     ~attrs=[Attr.id("persistent")],
@@ -173,6 +183,7 @@ let persistent_view =
           Option.is_some(tutorial_reference)
             ? [task_reference_tab(~globals)] : []
         )
+        @ (Option.is_some(slide_tree) ? [slide_tree_tab(~globals)] : [])
         @ [
           explain_this_tab(~globals),
           assistant_tab(~globals),
@@ -291,6 +302,7 @@ let view =
          list((option(string), list(CodeWithStatics.Model.t))),
       ~signal,
       ~tutorial_reference: option(TutorialReferencePanel.context),
+      ~slide_tree: option(SlideTreePanel.context),
     ) => {
   let problem_collection =
     Haz3lcore.ProblemCollection.make(
@@ -317,13 +329,15 @@ let view =
      doesn't show up as "in a derivation" via the stale model.pos. */
   let derivation_info =
     Editors.Selection.get_derivation_info(~selection, editors);
-  /* If the user left tutorial mode while the TaskReference panel was
-     active, fall back to LanguageDocumentation so they don't stare at
-     an empty panel for a tab that no longer exists. */
+  /* If the user switched to a mode without the active panel's tab (the
+     TaskReference outside a tutorial, the SlideTree in Exercises), fall back
+     to LanguageDocumentation so they don't stare at an empty panel for a tab
+     that no longer exists. */
   let active_panel: SidebarModel.Settings.panel =
-    switch (globals.settings.sidebar.panel, tutorial_reference) {
-    | (TaskReference, None) => LanguageDocumentation
-    | (p, _) => p
+    switch (globals.settings.sidebar.panel, tutorial_reference, slide_tree) {
+    | (TaskReference, None, _)
+    | (SlideTree, _, None) => LanguageDocumentation
+    | (p, _, _) => p
     };
   let sub =
     globals.settings.sidebar.show
@@ -374,6 +388,11 @@ let view =
                 )
               | None => div([text("No task reference available.")])
               }
+            | SlideTree =>
+              switch (slide_tree) {
+              | Some(context) => SlideTreePanel.view(~globals, context)
+              | None => div([text("No slides in this mode.")])
+              }
             | DebugInfo => DebugSidebar.view(~globals, ~cursor)
             },
           ],
@@ -384,6 +403,9 @@ let view =
       };
   div(
     ~attrs=[Attr.id("sidebars")],
-    [sub, persistent_view(~globals, ~counts, ~tutorial_reference)],
+    [
+      sub,
+      persistent_view(~globals, ~counts, ~tutorial_reference, ~slide_tree),
+    ],
   );
 };

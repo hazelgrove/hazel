@@ -4,22 +4,17 @@
  * that knows the encoding.
  *
  * A list of paths, in display order, also defines a navigation space. The
- * operations at the bottom answer the two questions a slide picker asks of
- * it: where the arrows may move within a folder, and which sibling segments
- * to offer at each depth of a breadcrumb. Positions are indices into that
- * list, since that is how a picker identifies a slide. Each of those
+ * operations at the bottom answer the questions a slide picker asks of it:
+ * where the arrows may move within a folder, which sibling segments to offer
+ * at each depth of a breadcrumb, and how the whole space looks as a tree of
+ * folders. Positions are indices into that list, since that is how a picker
+ * identifies a slide; the tree carries them at its leaves. Each of those
  * operations is illustrated against one example space:
  *
  *     0  "Basics / Holes"
  *     1  "Basics / Functions"
  *     2  "Tables / Filtering"
- *     3  "Tables / Column Projection"
- *
- * Should this grow more navigation operations, the alternative worth
- * revisiting is an explicit tree of folders with slides at its leaves,
- * expressing those operations as walks over it. That was weighed and set
- * aside here: both callers identify a slide by its index in the flat list, so
- * a tree would have to carry those indices at its leaves anyway. */
+ *     3  "Tables / Column Projection" */
 
 [@deriving (show({with_path: false}), eq)]
 type t;
@@ -103,3 +98,26 @@ type crumb = {
    for ["Tables", "Tables / Tables"], the depth-1 crumb offers only the
    second. */
 let breadcrumb: (~current: int, list(t)) => list(crumb);
+
+/* The space as a tree: each folder segment becomes a Folder holding the
+   paths beneath it, and each path ends in a Leaf carrying its position.
+   Folders appear where their first path does, so paths of one folder need
+   not be adjacent.
+
+     tree(space) == [
+       Folder("Basics", [Leaf(0, "Holes"), Leaf(1, "Functions")]),
+       Folder(
+         "Tables",
+         [Leaf(2, "Filtering"), Leaf(3, "Column Projection")],
+       ),
+     ]
+
+   A name that is a prefix of another is both a leaf and a folder:
+   tree(["Tables", "Tables / Tables"]) is
+   [Leaf(0, "Tables"), Folder("Tables", [Leaf(1, "Tables")])]. */
+[@deriving (show({with_path: false}), eq)]
+type tree =
+  | Folder(string, list(tree))
+  | Leaf(int, string);
+
+let tree: list(t) => list(tree);
