@@ -598,11 +598,10 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
-    /* Editor-level clipboard helpers. Bypass the page-level
-       on_copy/on_paste path because Firefox refuses to dispatch
-       native clipboard events to non-editable focused elements
-       (the editor div has tabindex(0) but is not contenteditable).
-       Shared by the keyboard shortcuts and the context menu. */
+    /* Editor-level clipboard helpers: Firefox won't dispatch native
+       clipboard events to a focused non-editable element (the editor
+       div has tabindex(0) but is not contenteditable). Shared by the
+       keyboard shortcuts and the context menu. */
     let selection_has_refractors =
         (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
       if (List.is_empty(refractors.manuals)) {
@@ -875,12 +874,14 @@ module View = {
       };
     };
 
-    /* A click inside the selection keeps it (so the menu's Cut/Copy apply
-       to it); outside, the caret moves to the click location as a plain
-       click would before the menu opens. */
+    /* The menu acts on this editor, so it becomes the active one. A click
+       inside the selection keeps it (so the menu's Cut/Copy apply to it);
+       outside, the caret moves to the click location as a plain click
+       would before the menu opens. */
     let open_context_menu = (mouse: Pointer.Event.t) =>
       Effect.Many(
-        (
+        [signal(MakeActive)]
+        @ (
           click_in_selection(loc(mouse))
             ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
         )
@@ -1126,9 +1127,7 @@ module View = {
                 && z.relatives.ancestors == []
                 && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
-          /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
-             on_copy/on_paste handlers, so they keep working in
-             Firefox when focus is on a non-editable editor div. */
+          /* 2. Cmd/Ctrl + C/X/V, via the clipboard helpers above. */
           | {
               key: D("c" | "C"),
               sys: Mac,
@@ -1261,6 +1260,12 @@ module View = {
         Attr.classes(
           ["cell-item", "code-editor"]
           @ (selected ? ["selected"] : [])
+          @ (
+            switch (edit_mode) {
+            | ReadOnly => ["read-only"]
+            | Editable(_) => []
+            }
+          )
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         /* always focusable so a click gives DOM focus, which on_focus hands to
