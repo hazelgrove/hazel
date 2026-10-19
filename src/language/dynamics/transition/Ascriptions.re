@@ -24,12 +24,12 @@
    objects, so only their hashes recognize them. The context here is always
    Ctx.empty, and is_consistent ignores an Unknown's provenance, as the hash
    does, so the answer depends only on the two hashes. */
-let consistent_memo: Hashtbl.t((int, int, int, int), bool) =
+let consistent_memo: Hashtbl.t((TypHash.t, TypHash.t), bool) =
   Hashtbl.create(64);
 let consistent_by_hash = (a: Typ.t, b: Typ.t, compute: unit => bool): bool =>
   switch (TypHash.hash(a), TypHash.hash(b)) {
-  | (Some((a1, a2)), Some((b1, b2))) =>
-    let key = (a1, a2, b1, b2);
+  | (Some(ha), Some(hb)) =>
+    let key = (ha, hb);
     switch (Hashtbl.find_opt(consistent_memo, key)) {
     | Some(r) => r
     | None =>
