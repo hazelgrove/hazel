@@ -65,6 +65,43 @@ let tests = (
       },
     ),
     test_case(
+      "parts that differ only in the same bit do not cancel", `Quick, () => {
+      /* Each step of the hash used to be an xor and a multiply, which
+         carries a difference only toward the high bits: one in bit 30 or
+         31 stayed in bits 30 and 31, and a second such difference undid
+         it, so (1, 1, 1) and (1 lxor 1 lsl 30, 1 lxor 1 lsl 30, 1) hashed
+         alike, as did any two of the three fields, at bit 30 or 31. Every
+         bit, and every two of three fields. */
+      for (k in 0 to 31) {
+        let f = x => x lxor 1 lsl k;
+        let name = what => Printf.sprintf("bit %d, %s", k, what);
+        check(
+          bool,
+          name("fields 1, 2"),
+          false,
+          Util.ValueHash.same((1, 1, 1), (f(1), f(1), 1)),
+        );
+        check(
+          bool,
+          name("fields 1, 3"),
+          false,
+          Util.ValueHash.same((1, 1, 1), (f(1), 1, f(1))),
+        );
+        check(
+          bool,
+          name("fields 2, 3"),
+          false,
+          Util.ValueHash.same((1, 1, 1), (1, f(1), f(1))),
+        );
+        check(
+          bool,
+          name("nested"),
+          false,
+          Util.ValueHash.same(((1, 1), 1), ((f(1), 1), f(1))),
+        );
+      }
+    }),
+    test_case(
       "a function has no hash: never the same",
       `Quick,
       () => {

@@ -31,9 +31,25 @@ let impl: Lazy.t(Js.Unsafe.any) =
     }
     return [a >>> 0, b >>> 0];
   };
+  /* A finalizer per lane after each step. An xor and a multiply alone
+     carry a difference only toward the high bits, so two parts that
+     differ in the same high bit could cancel: (1, 1, 1) and
+     (1 lxor 1 lsl 30, 1 lxor 1 lsl 30, 1) hashed alike. The shifts bring
+     the high bits back down, so every bit of a part reaches every bit of
+     the state. (Murmur3's fmix32, and lowbias32 for the second lane.) */
+  const fin0 = h => {
+    h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b);
+    h ^= h >>> 13; h = Math.imul(h, 0xc2b2ae35);
+    return (h ^ (h >>> 16)) >>> 0;
+  };
+  const fin1 = h => {
+    h ^= h >>> 16; h = Math.imul(h, 0x7feb352d);
+    h ^= h >>> 15; h = Math.imul(h, 0x846ca68b);
+    return (h ^ (h >>> 16)) >>> 0;
+  };
   const mix = (h, x, y) => {
-    h[0] = Math.imul(h[0] ^ x, 16777619) >>> 0;
-    h[1] = (Math.imul(h[1] ^ y, 2246822519) + 0x9e3779b9) >>> 0;
+    h[0] = fin0(Math.imul(h[0] ^ x, 16777619));
+    h[1] = fin1(Math.imul(h[1] ^ y, 2246822519) + 0x9e3779b9);
   };
   const hash = v => {
     switch (typeof v) {
