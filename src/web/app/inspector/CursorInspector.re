@@ -142,15 +142,7 @@ let panel_columns = (globals: Globals.t): int => {
 let view_segment = (~globals: Globals.t, seg) => {
   let seg =
     globals.settings.inspector_expanded
-      ? try(
-          Haz3lcore.PrettySegment.prettify(
-            ~width=panel_columns(globals),
-            seg,
-          )
-        ) {
-        | _ => seg
-        }
-      : seg;
+      ? CodeViewable.lay_out(~width=panel_columns(globals), seg) : seg;
   CodeViewable.view_segment(~globals, seg);
 };
 
