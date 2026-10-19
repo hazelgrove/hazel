@@ -965,15 +965,14 @@ if true then 1|});
   //   ),
 ];
 
-/* a module-rooted editor (a module's cell) has its members at the top,
-   with no braces to step inside */
-let mod_root_indent = (~name, ~init, ~goal): test_case(_) =>
+/* [init] at [root], reindented as Format(Indent) does */
+let reindent_at = (~root, ~name, ~init, ~goal): test_case(_) =>
   test_case(name, `Quick, () =>
     check(
       string,
       name,
       goal,
-      switch (FastParse.of_text(~root=Sort.Mod, init)) {
+      switch (FastParse.of_text(~root, init)) {
       | Some(seg) =>
         seg
         |> Indentation.reindent_segment
@@ -983,6 +982,10 @@ let mod_root_indent = (~name, ~init, ~goal): test_case(_) =>
       },
     )
   );
+
+/* a module-rooted editor (a module's cell) has its members at the top,
+   with no braces to step inside */
+let mod_root_indent = reindent_at(~root=Sort.Mod);
 
 /* [init] at [root] (the caret at ¦), then Enter: where the new line's
    caret lands */
@@ -1061,6 +1064,35 @@ let module_indentation_tests = [
     ~name="Enter before a module's `}`: the `}` line at the braces",
     ~init="module M = {\n  let a = 1¦} in\nM.a",
     ~goal="module M = {\n  let a = 1\n¦} in\nM.a",
+  ),
+  /* a member started on the `{` line indents as one on its own line */
+  reindent_at(
+    ~root=Sort.Mod,
+    ~name="A list member on the `{` line",
+    ~init="module M = {let xs = [\n1,\n2\n];\nlet g = 2\n};\nM.g",
+    ~goal="module M = {let xs = [\n    1,\n    2\n  ];\n  let g = 2\n};\nM.g",
+  ),
+  reindent_at(
+    ~root=Sort.Mod,
+    ~name="A list member on a nested module's `{` line",
+    ~init=
+      "module Outer = {\nmodule Inner = {let xs = [\n1,\n2\n];\nlet g = 2\n};\nlet w = 1\n};\nOuter.w",
+    ~goal=
+      "module Outer = {\n  module Inner = {let xs = [\n      1,\n      2\n    ];\n    let g = 2\n  };\n  let w = 1\n};\nOuter.w",
+  ),
+  reindent_at(
+    ~root=Sort.Exp,
+    ~name="Case rules of a member on the `{` line",
+    ~init=
+      "let m = {let f = fun x -> case x\n| 1 => 2\n| _ => 3\nend;\nlet g = 2\n} in\nm.g",
+    ~goal=
+      "let m = {let f = fun x -> case x\n  | 1 => 2\n  | _ => 3\n  end;\n  let g = 2\n} in\nm.g",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after a `{` line member's `->`",
+    ~init="module M = {let f = fun x ->¦\n  let g = 2\n};\nM.g",
+    ~goal="module M = {let f = fun x ->\n    ¦\n  let g = 2\n};\nM.g",
   ),
   mod_root_indent(
     ~name="Mod root: members after a multi-line member stay at the top",

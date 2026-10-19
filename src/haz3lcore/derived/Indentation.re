@@ -333,7 +333,9 @@ let rec go =
           };
         };
       },
-      (base, Id.Map.empty),
+      /* a member started on the `{` line sits at member level, as one
+         on a line of its own does */
+      (members ? base + 2 : base, Id.Map.empty),
       complete_trimmed_seg,
       context,
     );
