@@ -2,10 +2,11 @@ open Alcotest;
 open Web;
 open Haz3lcore;
 
-/* An outline op builds a new editor for its program. It takes the live
-   editor's caches, which hit for every piece the op didn't change, so the
-   parse, the measure and the analysis redo only the items it changed
-   (UndoCaches) */
+/* An outline op builds a new editor for its program, and a paste
+   rebuilds every tile when it re-indents its lines. The editor takes the
+   live one's caches, and the pieces the edit didn't change stay the live
+   program's objects, so the parse, the measure and the analysis redo only
+   what it changed, and so does the undo of a paste (UndoCaches) */
 
 module Cells = Test_Undo.Cells;
 module OM = Test_OpenMember;
@@ -106,6 +107,140 @@ let op_context = (~root: Sort.t, ()) => {
   check(int, "items parsed", 0, MakeTerm.Incr.analyzed^);
 };
 
+let block =
+  List.init(20, i =>
+    i == 0
+      ? "let pa01 = fun (x: Int) -> x + 1;"
+      : Printf.sprintf(
+          "let pa%02d = fun (x: Int) -> pa%02d(x) * 2 + %d;",
+          i + 1,
+          i,
+          i,
+        )
+  )
+  |> String.concat("\n");
+
+/* List before and after 20 definitions pasted on a line of their own
+   after List.length's `end;`: its member parses before (the cache is the
+   editor's, updated in place), and what the paste redid */
+let pasted = (~root: Sort.t) => {
+  let src = OM.src(~root);
+  let m = OM.refresh(Cells.run(OM.mk(~root, src), Refresh));
+  let m =
+    OM.refresh(
+      Cells.run(
+        m,
+        Globals(
+          ActiveEditor(Move(Point(OM.after(src, "    end;"), None))),
+        ),
+      ),
+    );
+  let m = OM.refresh(Cells.run(m, Test_Undo.insert("\n")));
+  let parses = UC.member_parses(UC.editor(m));
+  let (m', w) = UC.step(m, Globals(ActiveEditor(Paste(block))));
+  (m, parses, m', w);
+};
+
+/* the definitions parse, and List.map after them (its leading lines
+   changed), of 85 members */
+let paste = (~root: Sort.t, ()) => {
+  let (m, parses, m', w) = pasted(~root);
+  check(
+    bool,
+    "the definitions land at the members' indentation",
+    true,
+    CorpusUtil.contains(
+      "  let pa01 = fun (x: Int) -> x + 1;\n  let pa02",
+      Test_Undo.text_of(m'),
+    ),
+  );
+  check(bool, "the members were parsed", true, List.length(parses) >= 65);
+  UC.at_most(
+    "members parsed again",
+    21,
+    List.length(
+      UC.reparsed(~before=parses, UC.member_parses(UC.editor(m'))),
+    ),
+  );
+  UC.at_most("items parsed", 22, w.parsed);
+  UC.at_most("chunks measured", 22, w.measured);
+  check(
+    int,
+    "the view keeps its chunks",
+    UC.owner(UC.editor(m)),
+    UC.owner(UC.editor(m')),
+  );
+};
+
+/* its undo parses List.map again, and the module around it */
+let paste_undo = (~root: Sort.t, ()) => {
+  let (m, _, m', _) = pasted(~root);
+  let m' = OM.refresh(m');
+  let parses = UC.member_parses(UC.editor(m'));
+  let (u, w) = UC.step(m', Test_Undo.undo);
+  check(
+    string,
+    "undo restores the program",
+    Test_Undo.text_of(m),
+    Test_Undo.text_of(u),
+  );
+  UC.at_most(
+    "members parsed again",
+    1,
+    List.length(
+      UC.reparsed(~before=parses, UC.member_parses(UC.editor(u))),
+    ),
+  );
+  UC.at_most("items parsed", 2 * w.frames, w.parsed);
+  UC.at_most("chunks measured", 2 * w.frames, w.measured);
+  UC.at_most("item heads compared", 8, w.compared);
+  check(
+    int,
+    "the view keeps its chunks",
+    UC.owner(UC.editor(m')),
+    UC.owner(UC.editor(u)),
+  );
+};
+
+/* the restore only gives back objects: an editor's program with every tile
+   rebuilt (as re-indenting a paste's lines rebuilds them) comes back as
+   its own pieces, the same program */
+let restore_content = () => {
+  let src = OM.src(~root=Mod);
+  let m = Cells.run(OM.mk(~root=Mod, src), Refresh);
+  let m =
+    Cells.run(
+      m,
+      Globals(ActiveEditor(Move(Point(OM.after(src, "    end;"), None)))),
+    );
+  let z = UC.editor(m).editor.editor.state.zipper;
+  let rebuilt = ZipperBase.MapSegment.go(seg => seg, z);
+  check(
+    bool,
+    "rebuilt",
+    false,
+    Segment.ptr_eq(
+      fst(rebuilt.relatives.siblings),
+      fst(z.relatives.siblings),
+    ),
+  );
+  let restored = Zipper.restore_identity(~old=z, rebuilt);
+  check(bool, "the same zipper", true, compare(restored, z) == 0);
+  check(
+    bool,
+    "its own pieces",
+    true,
+    Segment.ptr_eq(
+      fst(restored.relatives.siblings),
+      fst(z.relatives.siblings),
+    )
+    && Segment.ptr_eq(
+         snd(restored.relatives.siblings),
+         snd(z.relatives.siblings),
+       ),
+  );
+};
+
 let tests = (
   "EditCaches",
   [
@@ -126,5 +261,18 @@ let tests = (
       op_context(~root=Mod),
     ),
     test_case("the same at an Exp root", `Quick, op_context(~root=Exp)),
+    test_case("a paste parses what it changed", `Quick, paste(~root=Mod)),
+    test_case("the same at an Exp root", `Quick, paste(~root=Exp)),
+    test_case(
+      "the undo of a paste parses what it changed",
+      `Quick,
+      paste_undo(~root=Mod),
+    ),
+    test_case("the same at an Exp root", `Quick, paste_undo(~root=Exp)),
+    test_case(
+      "restoring identity keeps the program",
+      `Quick,
+      restore_content,
+    ),
   ],
 );
