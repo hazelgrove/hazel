@@ -80,4 +80,154 @@ let point_of_px_inverts =
     },
   );
 
-let tests = ("Grid", [flat_edges, flat_rows, point_of_px_inverts]);
+/* Three pads per edge: a touching boundary at col 5 on row 0 with two
+   edges needs 6px and has no whitespace; row 1's two-column indent holds
+   its three edges; row 2's one-column gap holds its one; row 3 starts with
+   two edges at col 0. */
+let padded =
+  Grid.of_padding(
+    ~font_metrics,
+    ~pad=3.,
+    {
+      blocks: [],
+      gaps: [
+        {
+          row: 0,
+          before: Some(5),
+          hi: 5,
+          demand: 2,
+        },
+        {
+          row: 1,
+          before: None,
+          hi: 2,
+          demand: 3,
+        },
+        {
+          row: 2,
+          before: Some(3),
+          hi: 4,
+          demand: 1,
+        },
+        {
+          row: 3,
+          before: None,
+          hi: 0,
+          demand: 2,
+        },
+      ],
+      leading: [],
+    },
+  );
+
+let gadget_sides =
+  test_case(
+    "of_padding: a touching boundary's gadget has two sides",
+    `Quick,
+    () => {
+      check(close, "x_end is before it", 50., Grid.x_end(padded, ~row=0, 5));
+      check(
+        close,
+        "x_start is after it",
+        56.,
+        Grid.x_start(padded, ~row=0, 5),
+      );
+      check(
+        close,
+        "a point before rides left",
+        49.,
+        Grid.x(padded, ~row=0, 4.9),
+      );
+      check(
+        close,
+        "a point after rides right",
+        59.,
+        Grid.x(padded, ~row=0, 5.3),
+      );
+      check(
+        option(close),
+        "the text layer inserts it before col 5",
+        Some(6.),
+        Grid.gadget_before(padded, ~row=0, 5),
+      );
+    },
+  );
+
+let whitespace_absorbs =
+  test_case(
+    "of_padding: whitespace already there is used first",
+    `Quick,
+    () => {
+      check(
+        close,
+        "an indent wide enough",
+        20.,
+        Grid.x_start(padded, ~row=1, 2),
+      );
+      check(
+        close,
+        "a gap wide enough",
+        40.,
+        Grid.x_start(padded, ~row=2, 4),
+      );
+      check(
+        option(close),
+        "no gadget",
+        None,
+        Grid.gadget_before(padded, ~row=1, 0),
+      );
+    },
+  );
+
+let row_start =
+  test_case(
+    "of_padding: a row-start gadget moves the whole row",
+    `Quick,
+    () => {
+      check(close, "col 0 after it", 6., Grid.x_start(padded, ~row=3, 0));
+      check(
+        close,
+        "an overhang left of col 0 too",
+        3.,
+        Grid.x(padded, ~row=3, -0.3),
+      );
+      check(
+        point,
+        "a click at the overhang lands on col 0",
+        {
+          row: 3,
+          col: 0,
+        },
+        Grid.point_of_px(padded, ~x=3., ~y=70.),
+      );
+    },
+  );
+
+let point_of_px_snaps =
+  test_case(
+    "point_of_px: a pixel inside a gadget is its boundary",
+    `Quick,
+    () => {
+      let at = (x: float) => Grid.point_of_px(padded, ~x, ~y=5.);
+      let p = (col): Util.Point.t => {
+        row: 0,
+        col,
+      };
+      check(point, "inside", p(5), at(52.));
+      check(point, "just after", p(5), at(58.));
+      check(point, "past the next cell's midpoint", p(6), at(62.));
+    },
+  );
+
+let tests = (
+  "Grid",
+  [
+    flat_edges,
+    flat_rows,
+    point_of_px_inverts,
+    gadget_sides,
+    whitespace_absorbs,
+    row_start,
+    point_of_px_snaps,
+  ],
+);

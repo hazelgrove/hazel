@@ -432,10 +432,10 @@ module View = {
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
+        ~grid: Grid.t,
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
       ) => {
-    let grid = Grid.flat(globals.font_metrics);
     /* one flatten + one completion shared by every completion-aware
        decoration; lazy so healthy-code renders with quiver off never
        pay them */
@@ -530,7 +530,7 @@ module View = {
         ~expand_selection=?,
         model: Model.t,
       ) => {
-    let grid = Grid.flat(globals.font_metrics);
+    let grid = CodeWithStatics.layout(~globals, model).grid;
     let selected = EditMode.is_active(edit_mode);
     let inject =
       switch (edit_mode) {
@@ -636,6 +636,7 @@ module View = {
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
             ~globals,
+            ~grid,
             ~on_apply=
               Some(id => inject(Perform(ApplyCompletion(One(id))))),
             model.editor.state.zipper,

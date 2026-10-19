@@ -252,6 +252,78 @@ module Update = {
   };
 };
 
+/* The editor's grid, and its block padding when the blocks are laid out
+   padded. Memoized on the identity of the measured map and the block list
+   and on the settings that enter it, so a frame that changes none of them
+   pays nothing; a few entries, since a page shows a few editors at once. */
+type layout = {
+  grid: Grid.t,
+  padding: option(Padding.t),
+};
+
+let block_pad = 2.; /* px per block edge */
+
+type layout_key = {
+  measured: Measured.t,
+  blocks: list(Language.TypeBlocks.block),
+  font_metrics: FontMetrics.t,
+  show: Settings.Blocks.t,
+  how: Settings.Blocks.layout,
+};
+
+let layout_cache: ref(list((layout_key, layout))) = ref([]);
+let layout_cache_size = 8;
+
+let layout = (~globals: Globals.t, model: Model.t): layout => {
+  let key = {
+    measured: model.editor.syntax.measured,
+    blocks: model.statics.type_blocks,
+    font_metrics: globals.font_metrics,
+    show: globals.settings.blocks,
+    how: globals.settings.block_layout,
+  };
+  let same = (k: layout_key) =>
+    k.measured === key.measured
+    && k.blocks === key.blocks
+    && FontMetrics.equal(k.font_metrics, key.font_metrics)
+    && Settings.Blocks.equal(k.show, key.show)
+    && Settings.Blocks.equal_layout(k.how, key.how);
+  switch (List.find_opt(((k, _)) => same(k), layout_cache^)) {
+  | Some((_, layout)) => layout
+  | None =>
+    let layout =
+      switch (key.show, key.how) {
+      | (Types, Padded) =>
+        let padding =
+          Padding.of_blocks(
+            ~measured=key.measured,
+            ~term_data=model.editor.syntax.term_data,
+            key.blocks,
+          );
+        {
+          grid:
+            Grid.of_padding(
+              ~font_metrics=key.font_metrics,
+              ~pad=block_pad,
+              padding,
+            ),
+          padding: Some(padding),
+        };
+      | (Off, _)
+      | (Types, Inset) => {
+          grid: Grid.flat(key.font_metrics),
+          padding: None,
+        }
+      };
+    layout_cache :=
+      List.filteri(
+        (i, _) => i < layout_cache_size,
+        [(key, layout), ...layout_cache^],
+      );
+    layout;
+  };
+};
+
 module View = {
   // There are no events for a read-only editor
   type event;
@@ -281,13 +353,14 @@ module View = {
         },
       _,
     }: Model.t = model;
-    let grid = Grid.flat(globals.font_metrics);
+    let {grid, padding} = layout(~globals, model);
     let info_map = model.statics.info_map;
     let refine_sort = (id, mold_out) =>
       Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
     let code_text_view =
       CodeViewable.view(
         ~globals,
+        ~grid,
         ~measured,
         ~term_data,
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
@@ -320,13 +393,18 @@ module View = {
         warning_ids,
       );
     let type_blocks =
-      switch (globals.settings.blocks) {
-      | Settings.Blocks.Off => []
-      | Settings.Blocks.Types => [
+      switch (globals.settings.blocks, padding) {
+      | (Off, _) => []
+      | (Types, Some(padding)) => [
+          Highlight.type_blocks(Highlight.padded_boxes(~grid, padding)),
+        ]
+      | (Types, None) => [
           Highlight.type_blocks(
-            ~grid,
-            ~syntax=model.editor.syntax,
-            model.statics.type_blocks,
+            Highlight.inset_boxes(
+              ~grid,
+              ~syntax=model.editor.syntax,
+              model.statics.type_blocks,
+            ),
           ),
         ]
       };

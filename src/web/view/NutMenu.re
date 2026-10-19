@@ -202,6 +202,18 @@ let code_display = (~globals: Globals.t): section => {
     c_set:
       globals.inject_global(Set(Settings.Update.CompletionDisplay(mode))),
   };
+  let blocks_on =
+    switch (globals.settings.blocks) {
+    | Settings.Blocks.Off => false
+    | Settings.Blocks.Types => true
+    };
+  let block_layout = (c_label, c_tooltip, mode) => {
+    c_label,
+    c_tooltip,
+    c_active:
+      Settings.Blocks.equal_layout(globals.settings.block_layout, mode),
+    c_set: globals.inject_global(Set(Settings.Update.SetBlockLayout(mode))),
+  };
   {
     s_name: "Code display",
     s_rows:
@@ -265,20 +277,35 @@ let code_display = (~globals: Globals.t): section => {
           SimpleIndication,
           "Indicate the caret's term with a minimal arm instead of shard backings",
         ),
-        {
-          let active =
-            switch (globals.settings.blocks) {
-            | Settings.Blocks.Off => false
-            | Settings.Blocks.Types => true
-            };
-          toggle(
-            "Type blocks",
-            active,
-            SetBlocks(active ? Settings.Blocks.Off : Settings.Blocks.Types),
-            "Shade each term by its type, nested like ragged blocks",
-          );
-        },
-      ],
+        toggle(
+          "Type blocks",
+          blocks_on,
+          SetBlocks(blocks_on ? Settings.Blocks.Off : Settings.Blocks.Types),
+          "Shade each term by its type, nested like ragged blocks",
+        ),
+      ]
+      @ (
+        blocks_on
+          ? [
+            Choice(
+              "Block layout",
+              "How the blocks make room for their edges",
+              [
+                block_layout(
+                  "Inset",
+                  "Draw each block inside its own text, nested blocks a little further in",
+                  Settings.Blocks.Inset,
+                ),
+                block_layout(
+                  "Padded",
+                  "Pad each block out from its text, moving the text to make room",
+                  Settings.Blocks.Padded,
+                ),
+              ],
+            ),
+          ]
+          : []
+      ),
   };
 };
 

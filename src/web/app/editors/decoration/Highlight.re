@@ -770,64 +770,88 @@ let incr_eval =
   );
 };
 
-/* Type blocks (settings: Type blocks): nesting is shown by insetting each
-   block a little more than its parent, up to `inset_levels` deep; deeper
-   blocks share edges with their parent. */
-let inset_per_level = 1.5; /* px */
-let inset_levels = 3;
-
+/* Type blocks (settings: Type blocks): a box per block per row, one shape per
+   run of rows (SvgUtil.Rows). */
 let type_blocks =
-    (
-      ~grid: Grid.t,
-      ~syntax: CachedSyntax.t,
-      blocks: list(Language.TypeBlocks.block),
-    ) =>
+    (blocks: list((Language.Typ.head, list(SvgUtil.Rows.box)))): Node.t =>
   div_c(
     "type-blocks",
     List.concat_map(
-      ({id, head, level}: Language.TypeBlocks.block) => {
-        let inset_px =
-          inset_per_level *. float_of_int(min(level, inset_levels));
-        let {col_width, row_height}: FontMetrics.t = Grid.font_metrics(grid);
-        let inset_x = inset_px /. col_width;
-        let inset_y = inset_px /. row_height;
+      ((head, boxes)) => {
         let base_cls = [
           "shard",
           "type-block",
           "type-block-" ++ Language.Typ.head_name(head),
         ];
-        switch (TermData.row_extents(id, syntax.term_data, syntax.measured)) {
-        | None => []
-        | Some(extents) =>
-          extents
-          |> List.map(({row, start_col, end_col}: TermData.row_extent) =>
-               SvgUtil.Rows.{
-                 row,
-                 left: start_col,
-                 right: end_col,
-               }
-             )
-          |> SvgUtil.Rows.split(~inset_x)
-          |> List.filter_map(group =>
-               SvgUtil.Rows.bbox(group)
-               |> Option.map((bb: SvgUtil.Rows.bbox) =>
-                    DecUtil.svg(
-                      ~grid,
-                      ~lo={
-                        row: bb.top,
-                        col: bb.left,
-                      },
-                      ~hi={
-                        row: bb.bottom,
-                        col: bb.right,
-                      },
-                      ~base_cls,
-                      SvgUtil.Rows.inset_outline(~inset_x, ~inset_y, group),
-                    )
-                  )
-             )
-        };
+        boxes
+        |> SvgUtil.Rows.split
+        |> List.map(group =>
+             DecUtil.svg_px(~base_cls, SvgUtil.Rows.outline(group))
+           );
       },
       blocks,
     ),
   );
+
+/* Inset layout: nesting shown by insetting each block a little more than
+   its parent, up to `inset_levels` deep (deeper blocks share edges). A row
+   narrower than twice its inset collapses to its midline rather than
+   crossing itself. */
+let inset_per_level = 1.5; /* px */
+let inset_levels = 3;
+
+let inset_boxes =
+    (
+      ~grid: Grid.t,
+      ~syntax: CachedSyntax.t,
+      blocks: list(Language.TypeBlocks.block),
+    )
+    : list((Language.Typ.head, list(SvgUtil.Rows.box))) =>
+  List.filter_map(
+    ({id, head, level}: Language.TypeBlocks.block) => {
+      let inset = inset_per_level *. float_of_int(min(level, inset_levels));
+      TermData.row_extents(id, syntax.term_data, syntax.measured)
+      |> Option.map(
+           List.map(({row, start_col, end_col}: TermData.row_extent) => {
+             let left = Grid.x_start(grid, ~row, start_col);
+             let right = Grid.x_end(grid, ~row, end_col);
+             let mid = (left +. right) /. 2.;
+             SvgUtil.Rows.{
+               row,
+               top: Grid.y_top(grid, row) +. inset,
+               bottom: Grid.y_bottom(grid, row) -. inset,
+               left: min(left +. inset, mid),
+               right: max(right -. inset, mid),
+             };
+           }),
+         )
+      |> Option.map(boxes => (head, boxes));
+    },
+    blocks,
+  );
+
+/* Padded layout: each box stands as many pads out from its text as block
+   edges stack there (Padding). */
+let padded_boxes =
+    (~grid: Grid.t, padding: Padding.t)
+    : list((Language.Typ.head, list(SvgUtil.Rows.box))) => {
+  let out = (rank: int) => float_of_int(rank) *. Grid.pad(grid);
+  List.map(
+    ({block: {head, _}, rows}: Padding.block) =>
+      (
+        head,
+        List.map(
+          ({row, left, right, rank}: Padding.block_row) =>
+            SvgUtil.Rows.{
+              row,
+              top: Grid.y_top(grid, row) -. out(rank),
+              bottom: Grid.y_bottom(grid, row) +. out(rank),
+              left: Grid.x_start(grid, ~row, left.col) -. out(left.rank),
+              right: Grid.x_end(grid, ~row, right.col) +. out(right.rank),
+            },
+          rows,
+        ),
+      ),
+    padding.blocks,
+  );
+};

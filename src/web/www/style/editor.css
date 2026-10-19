@@ -163,6 +163,12 @@
 }
 
 /* For emoji rendering in code */
+/* Block padding (Grid gadgets): room before a piece for the block edges
+ * meeting there. */
+.code .gadget {
+  display: inline-block;
+}
+
 .code .grapheme-cell {
   display: inline-flex;
   align-items: center;

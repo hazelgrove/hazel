@@ -1,10 +1,13 @@
 open Alcotest;
 open Util.SvgUtil;
 
-let row = (row, left, right): Rows.row => {
+/* A row's box between its grid lines, `inset` moved inward on every side. */
+let box = (~inset=0., row, left, right): Rows.box => {
   row,
-  left,
-  right,
+  top: float_of_int(row) +. inset /. 2.,
+  bottom: float_of_int(row + 1) -. inset /. 2.,
+  left: float_of_int(left) +. inset,
+  right: float_of_int(right) -. inset,
 };
 
 let close = (a: float, b: float) => Float.abs(a -. b) < 1e-9;
@@ -39,17 +42,14 @@ let m = (x, y) =>
 let h = x => Path.H({x: x});
 let v = y => Path.V({y: y});
 
-let check_outline = (name, ~inset_x, ~inset_y, rows, expected) =>
-  check(path, name, expected, Rows.inset_outline(~inset_x, ~inset_y, rows));
+let check_outline = (name, boxes, expected) =>
+  check(path, name, expected, Rows.outline(boxes));
 
-let test_step_without_inset =
-  test_case(
-    "inset_outline: zero inset is the plain stepped outline", `Quick, () =>
+let test_step =
+  test_case("outline: a narrower row steps in at the row boundary", `Quick, () =>
     check_outline(
       "[0,10] over [4,8]",
-      ~inset_x=0.,
-      ~inset_y=0.,
-      [row(0, 0, 10), row(1, 4, 8)],
+      [box(0, 0, 10), box(1, 4, 8)],
       [
         m(0., 0.),
         h(10.),
@@ -65,14 +65,14 @@ let test_step_without_inset =
     )
   );
 
-let test_step_edges_move_inward =
+let test_inset_steps =
   test_case(
-    "inset_outline: every edge, steps included, moves inward", `Quick, () =>
+    "outline: a narrowing step sits at the upper box's bottom, a widening one at the lower box's top",
+    `Quick,
+    () =>
     check_outline(
-      "[0,10] over [4,8]",
-      ~inset_x=0.5,
-      ~inset_y=0.25,
-      [row(0, 0, 10), row(1, 4, 8)],
+      "[0,10] over [4,8], inset",
+      [box(~inset=0.5, 0, 0, 10), box(~inset=0.5, 1, 4, 8)],
       [
         m(0.5, 0.25),
         h(9.5),
@@ -88,14 +88,11 @@ let test_step_edges_move_inward =
     )
   );
 
-let test_origin_is_leftmost_row =
-  test_case(
-    "inset_outline: coordinates are relative to the leftmost row", `Quick, () =>
+let test_wider_row =
+  test_case("outline: a wider row steps out at its own top", `Quick, () =>
     check_outline(
       "[4,10] over [0,8]",
-      ~inset_x=0.,
-      ~inset_y=0.,
-      [row(0, 4, 10), row(1, 0, 8)],
+      [box(0, 4, 10), box(1, 0, 8)],
       [
         m(4., 0.),
         h(10.),
@@ -111,23 +108,9 @@ let test_origin_is_leftmost_row =
     )
   );
 
-let test_narrow_row_collapses =
-  test_case(
-    "inset_outline: a row narrower than twice the inset collapses to its midline",
-    `Quick,
-    () =>
-    check_outline(
-      "[3,4] inset 1",
-      ~inset_x=1.,
-      ~inset_y=0.,
-      [row(0, 3, 4)],
-      [m(0.5, 0.), h(0.5), v(1.), h(0.5), v(0.), Z],
-    )
-  );
-
 let groups = list(list(int));
-let rows_of = (gs: list(list(Rows.row))) =>
-  List.map(List.map((r: Rows.row) => r.row), gs);
+let rows_of = (gs: list(list(Rows.box))) =>
+  List.map(List.map((b: Rows.box) => b.row), gs);
 
 let test_split_disjoint =
   test_case(
@@ -138,7 +121,7 @@ let test_split_disjoint =
       groups,
       "[40,45] over [2,5]",
       [[0], [1]],
-      rows_of(Rows.split(~inset_x=0., [row(0, 40, 45), row(1, 2, 5)])),
+      rows_of(Rows.split([box(0, 40, 45), box(1, 2, 5)])),
     )
   );
 
@@ -148,7 +131,7 @@ let test_split_overlapping =
       groups,
       "[0,10] over [4,8]",
       [[0, 1]],
-      rows_of(Rows.split(~inset_x=0., [row(0, 0, 10), row(1, 4, 8)])),
+      rows_of(Rows.split([box(0, 0, 10), box(1, 4, 8)])),
     )
   );
 
@@ -158,7 +141,7 @@ let test_split_gap =
       groups,
       "rows 0 and 2",
       [[0], [2]],
-      rows_of(Rows.split(~inset_x=0., [row(0, 0, 10), row(2, 0, 10)])),
+      rows_of(Rows.split([box(0, 0, 10), box(2, 0, 10)])),
     )
   );
 
@@ -275,10 +258,9 @@ let tests = (
     test_transform_resolves_relative,
     test_transform_keeps_edges_straight,
     test_bbox,
-    test_step_without_inset,
-    test_step_edges_move_inward,
-    test_origin_is_leftmost_row,
-    test_narrow_row_collapses,
+    test_step,
+    test_inset_steps,
+    test_wider_row,
     test_split_disjoint,
     test_split_overlapping,
     test_split_gap,

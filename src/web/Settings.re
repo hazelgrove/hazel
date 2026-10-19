@@ -10,10 +10,17 @@ module CompletionDisplay = {
 
 /* Which blocks decoration, if any, is drawn behind the code. */
 module Blocks = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Off
     | Types;
+
+  /* How the blocks make room for their edges: inset into their own cells,
+     or padded out into the text, which moves to make room (Padding). */
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type layout =
+    | Inset
+    | Padded;
 };
 
 module Model = {
@@ -48,6 +55,8 @@ module Model = {
     simple_indication: bool,
     [@sexp.default Blocks.Off]
     blocks: Blocks.t,
+    [@sexp.default Blocks.Inset]
+    block_layout: Blocks.layout,
   };
 
   let init = {
@@ -123,6 +132,7 @@ module Model = {
     shortcut_overrides: [],
     simple_indication: false,
     blocks: Blocks.Off,
+    block_layout: Blocks.Inset,
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -193,7 +203,8 @@ module Update = {
     | ShowIncrementalDeco
     | SetShortcutOverrides(list((string, option(string))))
     | SimpleIndication
-    | SetBlocks(Blocks.t);
+    | SetBlocks(Blocks.t)
+    | SetBlockLayout(Blocks.layout);
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -549,6 +560,10 @@ module Update = {
       | SetBlocks(blocks) => {
           ...settings,
           blocks,
+        }
+      | SetBlockLayout(block_layout) => {
+          ...settings,
+          block_layout,
         }
       }
     )

@@ -25,23 +25,17 @@ let exp_show =
       ~is_dynamic_term=false,
       DrvQuote(Exp(syntax), Jdmt) |> Exp.fresh,
     );
+  let model: CodeWithStatics.Model.t = {
+    editor,
+    statics,
+    dynamics: Dynamics.Map.empty,
+    context_menu: None,
+  };
+  let grid = CodeWithStatics.layout(~globals, model).grid;
   let highlight_deco = [
-    Highlight.colors(
-      ~grid=Grid.flat(globals.font_metrics),
-      ~syntax=editor.syntax,
-      Some(fst(color_map)),
-    ),
+    Highlight.colors(~grid, ~syntax=editor.syntax, Some(fst(color_map))),
   ];
-  CodeWithStatics.View.view(
-    ~globals,
-    ~overlays=highlight_deco,
-    {
-      editor,
-      statics,
-      dynamics: Dynamics.Map.empty,
-      context_menu: None,
-    },
-  );
+  CodeWithStatics.View.view(~globals, ~overlays=highlight_deco, model);
 };
 
 let test_show =
@@ -59,23 +53,17 @@ let test_show =
         test |> ExpToSegment.drv_formula_to_pretty(_, Jdmt) |> Zipper.unzip,
         ~root=Drv(Jdmt),
       );
+    let model: CodeWithStatics.Model.t = {
+      editor,
+      statics: CachedStatics.empty,
+      dynamics: Dynamics.Map.empty,
+      context_menu: None,
+    };
+    let grid = CodeWithStatics.layout(~globals, model).grid;
     let highlight_deco = [
-      Highlight.colors(
-        ~grid=Grid.flat(globals.font_metrics),
-        ~syntax=editor.syntax,
-        Some(fst(color_map)),
-      ),
+      Highlight.colors(~grid, ~syntax=editor.syntax, Some(fst(color_map))),
     ];
-    CodeWithStatics.View.view(
-      ~globals,
-      ~overlays=highlight_deco,
-      {
-        editor,
-        statics: CachedStatics.empty,
-        dynamics: Dynamics.Map.empty,
-        context_menu: None,
-      },
-    );
+    CodeWithStatics.View.view(~globals, ~overlays=highlight_deco, model);
   };
 };
 

@@ -364,11 +364,13 @@ let simple_code =
       ~background=false,
       ~classes=?,
       ~is_single_line=false,
-      grid,
+      font_metrics: FontMetrics.t,
       _sort,
       segment,
     )
     : Node.t => {
+  /* measured on its own, so laid out on its own flat grid */
+  let grid = Grid.flat(font_metrics);
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
   let refractor_rows = Id.Map.empty; /* Assume this doesn't contain refractors (probes) */
   let measured =
@@ -380,7 +382,8 @@ let simple_code =
       ~settings=Settings.Model.init,
       ~shape_map,
       ~refractor_rows,
-      ~font_metrics=Grid.font_metrics(grid),
+      ~grid,
+      ~font_metrics,
       ~term_data=Id.Map.empty,
       ~buffer_ids=[],
       segment,
@@ -436,7 +439,7 @@ let text_code = (segment): Node.t =>
 
 let flex_code =
     (
-      ~grid,
+      ~font_metrics: FontMetrics.t,
       ~single_line=false, /* Perf optimization if you promise it's single-line */
       ~background=?,
       ~text_only=false,
@@ -450,7 +453,7 @@ let flex_code =
         ~background?,
         ~classes?,
         ~is_single_line=single_line,
-        grid,
+        font_metrics,
         sort,
         segment,
       );
@@ -523,7 +526,7 @@ let mk_view =
             segment,
           ) =>
           flex_code(
-            ~grid,
+            ~font_metrics=Grid.font_metrics(grid),
             ~single_line?,
             ~background?,
             ~classes?,

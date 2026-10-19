@@ -312,139 +312,92 @@ module Path = {
   };
 };
 
-/* Outlines of spans of text laid out on a monospace grid: a row is a run of
-   columns, a span is a list of rows. */
+/* Outlines of a span of text laid out in rows: a box per row, stacked top
+   to bottom, in pixels or any other unit. */
 module Rows = {
-  type row = {
+  type box = {
     row: int,
-    left: int,
-    right: int /* exclusive */
+    top: float,
+    bottom: float,
+    left: float,
+    right: float,
   };
 
-  type bbox = {
-    top: int,
-    bottom: int, /* inclusive */
-    left: int,
-    right: int /* exclusive */
-  };
-
-  let bbox = (rows: list(row)): option(bbox) =>
-    switch (rows) {
-    | [] => None
-    | [first, ...rest] =>
-      Some(
-        List.fold_left(
-          (bb, r) =>
-            {
-              top: min(bb.top, r.row),
-              bottom: max(bb.bottom, r.row),
-              left: min(bb.left, r.left),
-              right: max(bb.right, r.right),
-            },
-          {
-            top: first.row,
-            bottom: first.row,
-            left: first.left,
-            right: first.right,
-          },
-          rest,
-        ),
-      )
-    };
-
-  /* A row's columns moved `inset_x` inward on both sides; a row narrower than
-     twice the inset collapses to its midline rather than crossing itself. */
-  let inset_cols = (~inset_x: float, {left, right, _}: row): (float, float) => {
-    let (left, right) = (float_of_int(left), float_of_int(right));
-    let mid = (left +. right) /. 2.;
-    (min(left +. inset_x, mid), max(right -. inset_x, mid));
-  };
-
-  /* Consecutive rows whose inset columns overlap, as groups. A step between
-     rows that share no columns would make the outline cross itself. */
-  let split = (~inset_x: float, rows: list(row)): list(list(row)) => {
-    let joins = (a: row, b: row) => {
-      let (al, ar) = inset_cols(~inset_x, a);
-      let (bl, br) = inset_cols(~inset_x, b);
-      b.row == a.row + 1 && al < br && bl < ar;
-    };
+  /* Consecutive rows whose boxes overlap horizontally, as groups: a step
+     between boxes sharing no columns would make the outline cross itself. */
+  let split = (boxes: list(box)): list(list(box)) =>
     List.fold_left(
-      (groups, r) =>
+      (groups, b) =>
         switch (groups) {
-        | [[prev, ...group], ...rest] when joins(prev, r) => [
-            [r, prev, ...group],
+        | [[prev, ...group], ...rest]
+            when
+              b.row == prev.row
+              + 1
+              && prev.left < b.right
+              && b.left < prev.right => [
+            [b, prev, ...group],
             ...rest,
           ]
-        | _ => [[r], ...groups]
+        | _ => [[b], ...groups]
         },
       [],
-      rows,
+      boxes,
     )
     |> List.rev_map(List.rev);
-  };
 
-  let sign = (a: float, b: float) => a > b ? 1. : a < b ? (-1.) : 0.;
-
-  /* The outline of one group from `split`, every edge moved `inset_x` or
-     `inset_y` toward the interior, traced clockwise from the top-left in
-     units of columns and rows relative to the group's bounding box. A step
-     between two rows sits on their shared boundary, moved into whichever row
-     the step cuts into, so insetting a child by more than its parent keeps
-     all of their edges apart. */
-  let inset_outline =
-      (~inset_x: float, ~inset_y: float, rows: list(row)): Path.t =>
-    switch (bbox(rows)) {
-    | None => []
-    | Some(bb) =>
-      let origin = float_of_int(bb.left);
-      let cols =
-        rows
-        |> List.map(r => {
-             let (l, r) = inset_cols(~inset_x, r);
-             (l -. origin, r -. origin);
-           })
-        |> Array.of_list;
-      let n = Array.length(cols);
-      let (left, right) = ((i => fst(cols[i])), (i => snd(cols[i])));
-      let y = i => float_of_int(i);
-      let top =
-        Path.[
-          M({
-            x: left(0),
-            y: inset_y,
-          }),
-          H({x: right(0)}),
-        ];
-      let right_side =
-        List.init(n, i =>
-          if (i == n - 1) {
-            Path.[V({y: y(n) -. inset_y})];
-          } else if (right(i) != right(i + 1)) {
-            Path.[
-              V({y: y(i + 1) -. inset_y *. sign(right(i), right(i + 1))}),
-              H({x: right(i + 1)}),
-            ];
-          } else {
-            [];
-          }
-        )
-        |> List.concat;
-      let bottom = Path.[H({x: left(n - 1)})];
-      let left_side =
-        List.init(n, j => n - 1 - j)
-        |> List.map(i =>
-             if (i == 0) {
-               Path.[V({y: inset_y})];
-             } else if (left(i) != left(i - 1)) {
-               Path.[
-                 V({y: y(i) -. inset_y *. sign(left(i), left(i - 1))}),
-                 H({x: left(i - 1)}),
-               ];
-             } else {
-               [];
-             }
-           )
-        |> List.concat;
-      top @ right_side @ bottom @ left_side @ [Path.Z];
+  /* One closed path, clockwise from the top-left, around a group's boxes.
+     Where a row is narrower than the one above it the step sits at the
+     upper box's bottom, where wider at the lower box's top: boxes that
+     overlap vertically outline their union, and boxes inset from their rows
+     keep every edge of a child apart from its parent's. */
+  let outline = (boxes: list(box)): Path.t =>
+    switch (boxes) {
+    | [] => []
+    | [first, ...rest] =>
+      let last = List.fold_left((_, b) => b, first, rest);
+      let rec down = (boxes: list(box)) =>
+        switch (boxes) {
+        | []
+        | [_] => []
+        | [a, b, ...rest] =>
+          (
+            if (b.right < a.right) {
+              Path.[V({y: a.bottom}), H({x: b.right})];
+            } else if (b.right > a.right) {
+              Path.[V({y: b.top}), H({x: b.right})];
+            } else {
+              [];
+            }
+          )
+          @ down([b, ...rest])
+        };
+      /* `a` is the box above `b` */
+      let rec up = (boxes: list(box)) =>
+        switch (boxes) {
+        | []
+        | [_] => []
+        | [b, a, ...rest] =>
+          (
+            if (a.left > b.left) {
+              Path.[V({y: b.top}), H({x: a.left})];
+            } else if (a.left < b.left) {
+              Path.[V({y: a.bottom}), H({x: a.left})];
+            } else {
+              [];
+            }
+          )
+          @ up([a, ...rest])
+        };
+      Path.[
+        M({
+          x: first.left,
+          y: first.top,
+        }),
+        H({x: first.right}),
+      ]
+      @ down(boxes)
+      @ Path.[V({y: last.bottom}), H({x: last.left})]
+      @ up(List.rev(boxes))
+      @ Path.[V({y: first.top}), Z];
     };
 };

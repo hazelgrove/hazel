@@ -146,7 +146,7 @@ module View = {
         overlays
         @ deco(
             ~syntax=model.editor.editor.syntax,
-            ~grid=Grid.flat(globals.font_metrics),
+            ~grid=CodeWithStatics.layout(~globals, model.editor).grid,
             ~inject,
             ~selected_id,
             signal,

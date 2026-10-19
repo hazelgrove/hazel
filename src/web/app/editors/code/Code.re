@@ -88,6 +88,7 @@ let view =
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~refractor_rows: Id.Map.t(_),
+      ~grid: Grid.t,
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       /* `refine_sort` lets the caller refine a tile's syntactic mold-out sort
@@ -150,6 +151,32 @@ let view =
 
   let measure_of = p => Measured.find_p(~msg="Text", p, measured);
 
+  /* The room block padding (Grid) makes before a piece. */
+  let gadget = (origin: option(Point.t)): list(Node.t) =>
+    switch (
+      Option.bind(origin, (o: Point.t) =>
+        Grid.gadget_before(grid, ~row=o.row, o.col)
+      )
+    ) {
+    | None => []
+    | Some(px) => [
+        span(
+          ~attrs=[
+            Attr.classes(["gadget"]),
+            Attr.create("style", Printf.sprintf("width: %fpx", px)),
+          ],
+          [],
+        ),
+      ]
+    };
+  let gadget_before = (p: Piece.t) => gadget(Some(measure_of(p).origin));
+  let gadget_before_shard = (t: Tile.t, i: int) =>
+    gadget(
+      Measured.find_shards(~msg="Code", t, measured)
+      |> List.assoc_opt(i)
+      |> Option.map((m: Measured.measurement) => m.origin),
+    );
+
   let of_secondary = (secondary: Secondary.t) =>
     switch (secondary.content) {
     | Whitespace(str) when str == Token.linebreak =>
@@ -187,10 +214,11 @@ let view =
       | Piece.Tile(t) => {
           /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
            * side effects fire in document order, matching Measured.of_segment */
+          let delim = i => gadget_before_shard(t, i) @ [of_delim(t, i)];
           let nodes =
             Aba.fold_left(
-              i => [of_delim(t, i)],
-              (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
+              delim,
+              (acc, seg, i) => acc @ of_segment(seg) @ delim(i),
               Aba.mk(t.shards, t.children),
             );
           let _ =
@@ -205,9 +233,9 @@ let view =
           | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
           };
         }
-      | Grout(g) => [of_grout(g)]
-      | Secondary(s) => [of_secondary(s)]
-      | Projector(pr) => [of_projector(pr)],
+      | Grout(g) as p => gadget_before(p) @ [of_grout(g)]
+      | Secondary(s) as p => gadget_before(p) @ [of_secondary(s)]
+      | Projector(pr) as p => gadget_before(p) @ [of_projector(pr)],
       seg,
     );
 

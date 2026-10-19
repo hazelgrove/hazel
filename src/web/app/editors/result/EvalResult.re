@@ -738,11 +738,11 @@ module View = {
       let result =
         result_kind == `JustTheorems
           ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (~grid: Grid.t, editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
-              ~grid=Grid.flat(globals.font_metrics),
+              ~grid,
               ~measured=editor.syntax.measured,
               result,
             ),
@@ -787,15 +787,15 @@ module View = {
         | None => text("No elaboration found")
         },
       ];
-      (result, (_ => []));
+      (result, ((~grid as _, _) => []));
 
     // test forms keep pass/fail sigils but no result footer (tutorial mode)
     | `TestSigilsOnly when globals.settings.core.dynamics =>
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (~grid: Grid.t, editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
-              ~grid=Grid.flat(globals.font_metrics),
+              ~grid,
               ~measured=editor.syntax.measured,
               result,
             ),
@@ -809,16 +809,16 @@ module View = {
     | `NoTheorems
     | `JustTheorems
     | `TestSigilsOnly
-    | `NoResults => ([], (_ => []))
+    | `NoResults => ([], ((~grid as _, _) => []))
 
     | `Custom(node) => (
         [node],
         (
-          (editor: Haz3lcore.Editor.t) =>
+          (~grid: Grid.t, editor: Haz3lcore.Editor.t) =>
             switch (Model.test_results(model)) {
             | Some(result) => [
                 test_result_layer(
-                  ~grid=Grid.flat(globals.font_metrics),
+                  ~grid,
                   ~measured=editor.syntax.measured,
                   result,
                 ),
@@ -831,11 +831,11 @@ module View = {
     // Just showing test results (school mode)
     | `TestResults =>
       let test_results = Model.test_results(model);
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (~grid: Grid.t, editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
-              ~grid=Grid.flat(globals.font_metrics),
+              ~grid,
               ~measured=editor.syntax.measured,
               result,
             ),
