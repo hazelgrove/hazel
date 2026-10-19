@@ -2759,11 +2759,25 @@ and uexp_to_info_map =
          (add records exactly the elab_term it returns), not analyzed a
          second time. The second analysis was the whole module again, so
          every module binding cost twice what it should. The direct
-         analysis remains only as a fallback, for when no info was
-         recorded. */
+         analysis remains only as a fallback: for when no info was
+         recorded, and for the one case below. */
+      /* Unless the definition names the module itself: the Let then
+         analyzed it recursively, with that name in scope (so no error),
+         and wrapped it in a fixpoint that the elaboration read back would
+         drop. The Let also removes the name from the info's co_ctx, so the
+         fixpoint is the sign to look for. The direct analysis, as before,
+         reports the name as unbound. */
+      let names_itself =
+        switch (expanded_elab.term) {
+        | Let(_, {term: FixF(_), _}, _) => true
+        | _ => false
+        };
       let (def_elab_direct, m) =
         switch (Id.Map.find_opt(Exp.rep_id(def), m)) {
-        | Some(Info.InfoExp({elab_term, _})) => (elab_term, m)
+        | Some(Info.InfoExp({elab_term, _})) when !names_itself => (
+            elab_term,
+            m,
+          )
         | _ =>
           let def_ana =
             switch (pat.term) {
