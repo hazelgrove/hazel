@@ -429,6 +429,154 @@ let chain_link = () => {
   );
 };
 
+/* ---- a member started on its module's `{` line takes its start column
+   as its first line's indentation: a member line below, at-or-left of
+   it, ends it as it ends a member on a line of its own, and a line
+   indented past it continues it. The syntax parse's cut follows ---- */
+
+let brace_line = (name, (root, src, own, lines), ()) => {
+  let typed = src =>
+    switch (CorpusUtil.typed_seg(~root, src)) {
+    | Some(seg) => seg
+    | None => fail("untypeable: " ++ src)
+    };
+  let seg = typed(src);
+  let completed =
+    Printer.of_segment(
+      ~holes="?",
+      ~concave_holes="~",
+      CanonicalCompletion.complete_items(~sort=root, seg).completed_seg,
+    );
+  let squash = s => String.concat("", String.split_on_char(' ', s));
+  check(
+    list(string),
+    name ++ ": completed",
+    lines,
+    Util.ListUtil.take(
+      List.length(lines),
+      List.map(squash, String.split_on_char('\n', completed)),
+    ),
+  );
+  check(
+    list(string),
+    name ++ ": the rows of a member on a line of its own",
+    labels(rows(~root, Zipper.unzip(typed(own)))),
+    labels(rows(~root, Zipper.unzip(seg))),
+  );
+  /* the member's slice in the syntax parse: its own lines */
+  let top = ItemSpans.top(~ends=Read, ~root, seg);
+  let members = Option.get(ItemSpans.children(top, 0));
+  check(
+    int,
+    name ++ ": the syntax parse's member ends with its lines",
+    List.length(lines),
+    List.length(
+      String.split_on_char(
+        '\n',
+        String.trim(CorpusUtil.text_of(ItemSpans.slice(members, 0))),
+      ),
+    ),
+  );
+};
+
+let brace_line_cases = [
+  (
+    "at a Mod root",
+    (
+      Sort.Mod,
+      "module M = {let q = (1\n  let next = 1;\n  let after = 2\n};\nM.next",
+      "module M = {\n  let q = (1\n  let next = 1;\n  let after = 2\n};\nM.next",
+      ["moduleM={letq=(1);"],
+    ),
+  ),
+  (
+    "in an expression",
+    (
+      Sort.Exp,
+      "module M = {let q = (1\n  let next = 1;\n  let after = 2\n} in\nM.next",
+      "module M = {\n  let q = (1\n  let next = 1;\n  let after = 2\n} in\nM.next",
+      ["moduleM={letq=(1);"],
+    ),
+  ),
+  (
+    "a line past its start column continues it",
+    (
+      Sort.Mod,
+      "module M = {let q = (1 +\n               2\n  let next = 1\n};\nM.next",
+      "module M = {\n  let q = (1 +\n    2\n  let next = 1\n};\nM.next",
+      ["moduleM={letq=(1+", "2);"],
+    ),
+  ),
+];
+
+/* the start columns, read from a piece's last line, agree with laying out
+   all of it, for every piece of the corpora */
+let columns = () => {
+  let rec laid = (col, seg: Segment.t) =>
+    List.fold_left(laid_piece, col, seg)
+  and laid_piece = (col, p: Piece.t) =>
+    switch (p) {
+    | Secondary(w) when Haz3lcore.Secondary.is_linebreak(w) => 0
+    | Secondary(w) => col + Haz3lcore.Secondary.length(w)
+    | Grout(_) => col + 1
+    | Projector(pr) => laid_piece(col, pr.syntax)
+    | Tile(t) =>
+      let rec go = (col, shards, children) =>
+        switch (shards) {
+        | [] => col
+        | [s, ...shards] =>
+          let col = col + Token.length(Tile.token(t, s));
+          switch (children, shards) {
+          | ([child, ...children], [_, ..._]) =>
+            go(laid(col, child), shards, children)
+          | _ => col
+          };
+        };
+      go(col, t.shards, t.children);
+    };
+  let rec pieces = (seg: Segment.t) =>
+    List.concat_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => [p, ...List.concat_map(pieces, t.children)]
+        | _ => [p]
+        },
+      seg,
+    );
+  /* the audit's modules (List, Option, counter) and the mega corpora */
+  let sources =
+    List.filter_map(
+      ((name, src)) => Option.map(s => (name, Sort.Mod, s), src()),
+      Test_ModAudit.module_sources,
+    )
+    @ List.map(
+        ((f, root)) => (f, root, Option.get(CorpusUtil.mega_src(f))),
+        [("mega-mod-1k.hz", Sort.Mod), ("mega-1k.hz", Sort.Exp)],
+      );
+  check(int, "sources read", 5, List.length(sources));
+  List.iter(
+    ((name, root, src)) => {
+      let ps = pieces(CorpusUtil.seg_of(~root, src));
+      let off =
+        List.filter(
+          p =>
+            List.exists(
+              c => MemberLines.col_after_piece(c, p) != laid_piece(c, p),
+              [0, 5],
+            ),
+          ps,
+        );
+      check(
+        int,
+        name ++ ": pieces whose column after differs",
+        0,
+        List.length(off),
+      );
+    },
+    sources,
+  );
+};
+
 /* ---- a Mod root: the same, its members at the top level ---- */
 
 let counter_members = "let start = 0;\nlet next = start + 1;\nlet after = next + 1";
@@ -947,6 +1095,16 @@ let tests = (
     test_case("a new let-chain link", `Quick, chain_link),
     test_case("an unfinished nested module", `Quick, nested_unfinished),
   ]
+  @ List.map(
+      ((name, c)) =>
+        test_case(
+          "a member on the `{` line: " ++ name,
+          `Quick,
+          brace_line(name, c),
+        ),
+      brace_line_cases,
+    )
+  @ [test_case("start columns from the last line", `Quick, columns)]
   @ List.map(
       ((name, _) as c) =>
         test_case("rows kept at a Mod root: " ++ name, `Quick, mod_root(c)),

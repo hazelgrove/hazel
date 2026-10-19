@@ -739,6 +739,201 @@ let memo = () => {
   );
 };
 
+/* the Read division leaves a finished program as written: every level
+   (members and let chains, recursively) has the same spans, and the parse
+   gives the same record. Programs with an unfinished form are counted
+   apart: there Read may cut */
+let read_finished = () => {
+  let programs =
+    List.map(((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
+    @ List.map(
+        ((f, root)) => (f, root, Option.get(CorpusUtil.mega_src(f))),
+        [
+          ("mega-1k.hz", Sort.Exp),
+          ("mega-2k.hz", Sort.Exp),
+          ("mega-4k.hz", Sort.Exp),
+          ("mega-mod-1k.hz", Sort.Mod),
+        ],
+      )
+    @ List.map(((p, s)) => (p, Sort.Mod, s), stdlib_corpus())
+    @ List.filter_map(
+        name =>
+          Option.map(
+            s => ("modaudit " ++ name, Sort.Mod, s),
+            Test_ModAudit.stdlib(name),
+          ),
+        ["List.hz", "Option.hz"],
+      )
+    @ List.map(((n, s)) => (n, Sort.Mod, s), letin_members)
+    @ List.map(((n, s)) => (n, Sort.Exp, s), exp_shapes)
+    @ List.map(((n, s)) => (n, Sort.Exp, s), CorpusUtil.edge_programs);
+  let levels = ref(0);
+  let unfinished = ref(0);
+  List.iter(
+    ((name, root, src)) =>
+      switch (parse(~root, src)) {
+      | None => fail(name ++ ": unparseable")
+      | Some(seg) when Segment.incomplete_tiles_deep(seg) != [] =>
+        incr(unfinished)
+      | Some(seg) =>
+        let rec same = (w: S.level, r: S.level) => {
+          incr(levels);
+          check(
+            bool,
+            name ++ ": the same spans",
+            true,
+            w.spans == r.spans && w.owner == r.owner && !r.cut,
+          );
+          Array.iteri(
+            (k, _) =>
+              switch (S.children(w, k), S.children(r, k)) {
+              | (Some(w), Some(r)) => same(w, r)
+              | (None, None) => ()
+              | _ => fail(name ++ ": a child level in one division only")
+              },
+            w.spans,
+          );
+        };
+        same(S.top(~root, seg), S.top(~ends=Read, ~root, seg));
+        let fb = MakeTerm.Incr.fell_back^;
+        let read = ends =>
+          MakeTerm.Incr.go_incr(
+            ~ends,
+            ~root,
+            ~cache=MakeTerm.Incr.mk_cache(),
+            seg,
+          );
+        Test_MakeTermIncr.records_agree(name, read(Written), read(Read));
+        check(int, name ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+      },
+    programs,
+  );
+  Printf.printf(
+    "Read division: %d finished programs, %d levels alike; %d unfinished skipped\n",
+    List.length(programs) - unfinished^,
+    levels^,
+    unfinished^,
+  );
+};
+
+/* a member typed near the top of List, key by key as the editor types it:
+   at the Read division its open form stops at its member line, where
+   completion ends it, so the members below keep their parses (no module
+   parses whole) and its term no longer holds them; extents (TermData) read
+   as at the Written division, so selections and probes don't move */
+let read_typing = () => {
+  module MA = Test_ModAudit;
+  let root = Sort.Mod;
+  let src = Option.get(MA.stdlib("List.hz"));
+  let z0 = MA.load(~root, src);
+  let statics = MA.statics_of(~root, z0);
+  let step = (z, a) =>
+    switch (
+      MA.perform_why(
+        ~root,
+        ~syntax=CachedSyntax.init(~root, z),
+        ~statics,
+        z,
+        a,
+      )
+    ) {
+    | Ok(z) => z
+    | Error(why) => fail(why)
+    };
+  let z =
+    step(
+      z0,
+      Move(
+        Point(
+          Option.get(
+            MA.point_of(
+              ~k=0,
+              ~off=String.length("    end;"),
+              src,
+              "    end;",
+            ),
+          ),
+          None,
+        ),
+      ),
+    );
+  let cache = MakeTerm.Incr.mk_cache();
+  /* List's member level */
+  let members = (lv: S.level) =>
+    List.init(Array.length(lv.spans), k => k)
+    |> List.find_map(k =>
+         lv.spans[k].body == None ? None : S.children(lv, k)
+       )
+    |> Option.get;
+  let typed = "\nlet q = (1 + 2";
+  let parses = ref([]);
+  ignore(
+    List.fold_left(
+      (z, i) => {
+        let c = String.sub(typed, i, 1);
+        let z = step(z, Insert(c));
+        let seg = Zipper.unselect_and_zip(z);
+        let fb = MakeTerm.Incr.fell_back^;
+        let a0 = MakeTerm.Incr.full_analyzed^;
+        let r = MakeTerm.Incr.go_incr(~ends=Read, ~root, ~cache, seg);
+        parses := [MakeTerm.Incr.full_analyzed^ - a0, ...parses^];
+        check(int, c ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+        let w =
+          MakeTerm.Incr.go_incr(~root, ~cache=MakeTerm.Incr.mk_cache(), seg);
+        check(
+          bool,
+          c ++ ": the extents as written",
+          true,
+          Id.Map.equal((==), w.term_data, r.term_data),
+        );
+        let wl = members(S.top(~root, seg));
+        let rl = members(S.top(~ends=Read, ~root, seg));
+        if (Segment.incomplete_tiles(wl.seg) != []) {
+          /* an open form: Written runs it to the module's end, Read ends
+             it at its member line, as completion does */
+          check(bool, c ++ ": cut", true, rl.cut);
+          /* the slice typed into, after List.length's */
+          let q_text = (lv: S.level) =>
+            Util.StringUtil.trim_leading(
+              CorpusUtil.text_of(S.slice(lv, 1)),
+            );
+          check(
+            bool,
+            c ++ ": Written runs on",
+            true,
+            String.length(q_text(wl)) > 1000,
+          );
+          check(
+            bool,
+            c ++ ": Read stops at the member line",
+            false,
+            String.contains(String.trim(q_text(rl)), '\n'),
+          );
+        };
+        z;
+      },
+      z,
+      List.init(String.length(typed), i => i),
+    ),
+  );
+  /* once the first open form stands, each key parses its member and
+     List's shell */
+  let per_key = List.rev(parses^);
+  Printf.printf(
+    "typing a member near List's top, parses per key at Read: %s\n",
+    String.concat(" ", List.map(string_of_int, per_key)),
+  );
+  check(
+    list(int),
+    "the open paren's keys",
+    [2, 2, 2, 2],
+    Util.ListUtil.sublist(
+      (List.length(per_key) - 4, List.length(per_key)),
+      per_key,
+    ),
+  );
+};
+
 let tests = (
   "ItemSpans",
   [
@@ -747,5 +942,7 @@ let tests = (
     test_case("incomplete programs", `Quick, incomplete),
     test_case("memoized on pieces", `Quick, memo),
     test_case("corpus", `Slow, corpus),
+    test_case("Read: a finished program as written", `Slow, read_finished),
+    test_case("Read: typing a member near List's top", `Quick, read_typing),
   ],
 );
