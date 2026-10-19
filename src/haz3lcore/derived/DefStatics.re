@@ -741,9 +741,12 @@ and calc_plain_item =
 and module_literal_members =
     (~ctx: Ctx.t, node: Exp.t)
     : option((Pat.t, Exp.t, list(Mod.t), option(list(Sig.t)))) => {
+  /* not a livelit binder: `let ^name = { ... }` is a livelit definition,
+     which Statics reads whole (UserLivelit.detect), so it stays a plain
+     item */
   let simple = (p: Pat.t): bool =>
     switch (p.term) {
-    | Var(_)
+    | Var(name) => !UserLivelit.is_livelit_name(name)
     | Wild => true
     | _ => false
     };
