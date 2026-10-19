@@ -162,13 +162,65 @@ let view_any = (~globals, any: Any.t) =>
   |> view_segment(~globals)
   |> code_box_container;
 
-let view_type = (~globals, typ: Typ.t) =>
+/* The context the full view expands aliases in: the inspected term's,
+   set by expanded_view while it draws. view_type has many callers, all
+   drawn inside a view, so the view sets this rather than threading it
+   through; None elsewhere, so the bar never expands. */
+let expansion_ctx: ref(option(Ctx.t)) = ref(Option.None);
+
+/* The bar's toggle while the bar is drawn: the first type the bar prints
+   takes it, so it sits beside the type it shows whole. `view` puts it at
+   the bar's end when no type took it. */
+let bar_toggle: ref(option(Node.t)) = ref(Option.None);
+
+let print_type = (~globals, typ: Typ.t) =>
   typ
   |> Haz3lcore.TypToSegment.typ_to_segment(
        ~settings=print_settings(globals),
      )
-  |> view_segment(~globals)
-  |> code_box_container;
+  |> view_segment(~globals);
+
+/* A type on one line, to tell whether expanding its aliases changed it */
+let type_text = (typ: Typ.t): string =>
+  typ
+  |> Haz3lcore.TypToSegment.typ_to_segment(~settings=code_view_settings)
+  |> Haz3lcore.Printer.of_segment(~is_single_line=true);
+
+/* In the full view, a type that names an alias also shows what it stands
+   for: each alias replaced by its definition, and the aliases in that, and
+   so on (Typ.normalize). A recursive alias stops at its own name, which
+   its definition's `rec` binds. */
+let alias_expansion = (~globals: Globals.t, typ: Typ.t): list(Node.t) =>
+  switch (expansion_ctx^) {
+  | Some(ctx) when globals.settings.inspector_expanded =>
+    switch (Typ.normalize(ctx, typ)) {
+    | expanded when type_text(expanded) != type_text(typ) => [
+        div(
+          ~attrs=[clss(["ci-alias-expansion"])],
+          [text("="), print_type(~globals, expanded)],
+        ),
+      ]
+    | _ => []
+    | exception _ => []
+    }
+  | _ => []
+  };
+
+let view_type = (~globals, typ: Typ.t) => {
+  let box = code_box_container(print_type(~globals, typ));
+  let box =
+    switch (alias_expansion(~globals, typ)) {
+    | [] => box
+    | expansion =>
+      div(~attrs=[clss(["ci-type-expanded"])], [box, ...expansion])
+    };
+  switch (bar_toggle^) {
+  | Some(toggle) =>
+    bar_toggle := Option.None;
+    div(~attrs=[clss(["ci-type-with-expand"])], [box, toggle]);
+  | None => box
+  };
+};
 
 let core_mark_err_view =
     (
@@ -1173,6 +1225,7 @@ let expand_toggle = (~globals: Globals.t): Node.t => {
 
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let toggle = expand_toggle(~globals);
+  bar_toggle := Some(toggle);
   /* the bar prints on one line, however the panel prints */
   let globals = {
     ...globals,
@@ -1181,8 +1234,18 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
       inspector_expanded: false,
     },
   };
-  let bar_view = children =>
-    div(~attrs=[Attr.id("bottom-bar")], children @ [toggle]);
+  /* children are built first, so a type among them has taken the toggle;
+     if none did, it goes at the bar's end */
+  let bar_view = children => {
+    let rest =
+      switch (bar_toggle^) {
+      | Some(toggle) =>
+        bar_toggle := Option.None;
+        [toggle];
+      | None => []
+      };
+    div(~attrs=[Attr.id("bottom-bar")], children @ rest);
+  };
   let err_view = err =>
     bar_view([
       div(
@@ -1278,11 +1341,17 @@ let expanded_view =
     | Some(ci) =>
       /* the status -- the types, and what is wrong -- not the header,
          which the bar still shows */
+      bar_toggle := Option.None;
+      expansion_ctx := Some(Info.ctx_of(ci));
       let status =
-        switch (view_of_info(~globals, ci)) {
-        | [_term, status] => [status]
-        | parts => parts
-        };
+        Fun.protect(
+          ~finally=() => expansion_ctx := Option.None,
+          () =>
+            switch (view_of_info(~globals, ci)) {
+            | [_term, status] => [status]
+            | parts => parts
+            },
+        );
       let height =
         switch (panel_height^) {
         | Some(h) => [
