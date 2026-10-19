@@ -155,7 +155,17 @@ let to_segment_with_manuals =
   let final_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let all_segments = List.rev([final_seg, ...segments^]);
   let combined = List.concat(all_segments);
-  (Segment.regrout(Nib.Shape.(concave(), concave()), combined), manuals);
+  /* Each piece after the first was typed as if it began the program, so a
+     token whose mold depends on what is left of it (`-` unary or binary,
+     `(` parentheses or an application) was molded without it, and a split
+     just after an operand loaded `x - y` as `x ¿ -y`. One remold of the
+     joined sequence (linear: no character is inserted) puts those right
+     before the regrout. */
+  let joined =
+    Zipper.unzip(combined)
+    |> Zipper.remold_regrout(Left, ~root)
+    |> Zipper.unselect_and_zip(~erase_buffer=true);
+  (joined, manuals);
 };
 
 let to_segment = (str: string, ~root): option(Segment.t) =>

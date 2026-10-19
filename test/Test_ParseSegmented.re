@@ -37,6 +37,28 @@ let same_as_to_zipper = text => {
   check(option(string), "the same zipper as to_zipper", by_char, segmented);
 };
 
+/* With the implicit holes kept: a piece molded without its left neighbour
+   shows as an extra hole (`x ¿ -y`), which `printed` strips. */
+let same_as_to_zipper_with_holes = text => {
+  let show = Option.map(Haz3lcore.MarkerParse.to_text);
+  let by_char = show(Haz3lcore.Parser.to_zipper(~root=Exp, text));
+  let segmented =
+    show(Haz3lcore.Parser.to_zipper_segmented(~root=Exp, text));
+  check(
+    option(string),
+    "the same zipper as to_zipper, holes and all",
+    by_char,
+    segmented,
+  );
+};
+
+/* A split lands just after the operand: 100 characters, then a space. The
+   next piece begins with a token whose mold depends on its left neighbour. */
+let split_case = (name, after) =>
+  test_case("a split before " ++ name, `Quick, () =>
+    same_as_to_zipper_with_holes(String.make(100, 'a') ++ " " ++ after)
+  );
+
 let file_case = file =>
   test_case(Filename.basename(file), `Slow, () =>
     same_as_to_zipper(read(file))
@@ -77,6 +99,9 @@ let tests = (
   "Parser.Segmented",
   [
     test_case("fresh prose", `Quick, fresh_prose),
+    split_case("a binary minus", "- b"),
+    split_case("an application's parentheses", "(b)"),
+    split_case("an ascription", ": Int"),
     file_case("hazel-programs/docs/reference/probes.hz"),
     file_case("hazel-programs/docs/reference/cards.hz"),
     file_case("hazel-programs/docs/reference/tables.hz"),
