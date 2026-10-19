@@ -448,18 +448,18 @@
   height: 16px;
   border-radius: 50%;
   font-weight: 600;
-  color: white;
+  color: var(--text-inverse);
   transition: background-color 0.2s ease;
   scale: 0.8;
 }
 
 .status-indicator.no-errors span {
-  background-color: oklch(70% 0.15 150);
+  background-color: var(--surface-success);
   font-size: 11px;
 }
 
 .status-indicator.has-errors span {
-  background-color: oklch(40% 0.3 30);
+  background-color: var(--surface-error-strong);
 }
 
 /* Font size adjustments based on digit count */
