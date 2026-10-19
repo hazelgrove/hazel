@@ -83,4 +83,4 @@ and in CI.
 - `src/web/util/WorkerClient.re` - Client-side worker communication
 - `src/web/util/WorkerServer.re` - Worker-side message handling
 - `Makefile` - `setup-zarith` target
-- `.github/workflows/deploy_branches.yml` - CI setup-zarith step
+- `.github/actions/setup-hazel-toolchain/action.yml` - CI setup-zarith step

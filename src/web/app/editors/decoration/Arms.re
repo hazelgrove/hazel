@@ -37,11 +37,24 @@ let rep_tips = (tiles: tile_data) => {
   );
 };
 
+/* Find the leftmost column for decoration paths.
+ * Uses content_start (first non-whitespace) instead of absolute left edge. */
 let min_col = (~first: Point.t, ~last: Point.t, ~rows: Rows.t): int =>
   min(
     first.col,
-    Rows.min_col(ListUtil.range(~lo=first.row, last.row + 1), rows),
+    Rows.min_content_start(
+      ListUtil.range(~lo=first.row, last.row + 1),
+      rows,
+    ),
   );
+
+/* Truncate a term extent's right edge at a completion clip point
+   (see completion_clip below). */
+let apply_clip = (clip: option(Point.t), r: Point.t): Point.t =>
+  switch (clip) {
+  | Some(c) when Point.compare(c, r) < 0 => c
+  | _ => r
+  };
 
 let m_horizontal = (~hx, ~first: Point.t, ~last: Point.t): path => [
   m(~x=0, ~y=1) |> cmdfudge(~x=hx),
@@ -282,7 +295,7 @@ let tiles_data =
   let of_tile = (id: Id.t) => {
     open OptUtil.Syntax;
     let+ tile = TermData.root_tile(id, term_data);
-    (id, tile.mold, Measured.find_shards(~msg, tile, measured));
+    (id, Tile.mold(tile), Measured.find_shards(~msg, tile, measured));
   };
   Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
 };
@@ -295,6 +308,7 @@ let term =
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~attr: option(list(Attr.t))=?,
+      ~clip_right: option(Point.t)=None,
       tile: Tile.t,
     )
     : list(Node.t) => {
@@ -309,10 +323,10 @@ let term =
     | Typ({term: Sig(_), _}) => true
     | _ => false
     };
-  let is_semi = tile.label == [";"];
+  let is_semi = Tile.is_semi(tile);
   let is_not_semi_tile = ((tid, _, _)) =>
     switch (TermData.root_tile(tid, term_data)) {
-    | Some(t) => t.label != [";"]
+    | Some(t) => !Tile.is_semi(t)
     | None => true
     };
 
@@ -325,13 +339,14 @@ let term =
         ~attr?,
         ~font_metrics,
         ~base_clss=None,
-        [(tile.id, t.mold, Measured.find_shards(~msg, t, measured))],
+        [(tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured))],
       )
     | None => []
     };
   } else {
     switch (TermData.extreme_measures(id, term_data, measured)) {
     | Some((l, r)) =>
+      let r = apply_clip(clip_right, r);
       let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
       let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
       term(
@@ -352,6 +367,7 @@ let term =
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~syntax: CachedSyntax.t,
       ~font_metrics: FontMetrics.t,
+      ~clip_right: option(Point.t)=None,
     ) =>
   term(
     ~refine_sort,
@@ -359,7 +375,81 @@ let term =
     ~terms=syntax.terms,
     ~measured=syntax.measured,
     ~font_metrics,
+    ~clip_right,
   );
+
+/* Completion-curtailed extent: an incomplete tile's raw term runs to
+   wherever the parse absorbed material, but the semantic reading
+   (statics, quiver, errors) closes it where the synthesized closer
+   lands. When the indicated tile's final missing shard is a true
+   closer (convex right), the arm ends at that insertion point — the
+   spot the quiver chip marks — instead of the raw extent. A concave-
+   right final (in, ->) keeps the raw extent: its term legitimately
+   continues past the insertion. No insertion found (e.g. witness
+   consumption) falls back to the raw extent. */
+/* The lazy completion the clip consumers share: forced only when an
+   arm's root tile is actually incomplete. */
+let lazy_completion =
+    (z: Zipper.t): Lazy.t(CanonicalCompletion.completion_result) =>
+  Lazy.from_fun(() =>
+    CanonicalCompletion.for_editor(
+      Zipper.unselect_and_zip(~erase_buffer=true, z),
+    )
+  );
+
+let completion_clip =
+    (
+      ~syntax: CachedSyntax.t,
+      ~completion: Lazy.t(CanonicalCompletion.completion_result),
+      t: Tile.t,
+    )
+    : option(Point.t) =>
+  if (Tile.is_complete(t)) {
+    None;
+  } else {
+    switch (ListUtil.last_opt(Tile.right_missing_shards(t))) {
+    | None => None
+    | Some(sh) =>
+      let i = Tile.r_shard(sh);
+      switch (snd(Mold.nibs(~index=i, Tile.mold(t))).shape) {
+      | Concave(_) => None
+      | Convex =>
+        let result = Lazy.force(completion);
+        let has_shard = (ins: CanonicalCompletion.insertion) =>
+          ins.delimiters
+          |> List.exists((d: CanonicalCompletion.delimiter_info) =>
+               switch (d.of_shard) {
+               | Some((id, j)) => Id.equal(id, t.id) && j == i
+               | None => false
+               }
+             );
+        switch (List.find_opt(has_shard, result.insertions)) {
+        | None => None
+        | Some(ins) =>
+          switch (CanonicalCompletion.anchor_point(syntax.measured, ins)) {
+          | None => None
+          | Some(p) =>
+            /* the viz anchor walks left past same-tile pieces, so it
+               can sit before the tile's own shards; the extent never
+               shrinks inside the tile's present material */
+            let own_last =
+              Measured.find_shards(
+                ~msg="Arms.completion_clip",
+                t,
+                syntax.measured,
+              )
+              |> List.map(((_, sm): Shards.shard) => sm.last)
+              |> List.fold_left(
+                   (acc, pt: Point.t) =>
+                     Point.compare(pt, acc) > 0 ? pt : acc,
+                   p,
+                 );
+            Some(own_last);
+          }
+        };
+      };
+    };
+  };
 
 let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   switch (p) {
@@ -372,6 +462,28 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   };
 };
 
+/* Draws a single simplified arm: a left-convex C/L-shaped bracket spanning
+ * the whole term from its first to last point, hooked on both ends, with no
+ * shard backing. Used by the refractor decoration and, when the simplified
+ * indication setting is on, by the regular term indication. */
+let simple_arm =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~rows: Rows.t,
+      ~path_cls: list(string),
+      (first, last): (Point.t, Point.t),
+    )
+    : list(Node.t) => {
+  let hx = abs_float(ShardDec.offset_of(Some(Left))); // always left-convex
+  let min_col = min_col(~first, ~last, ~rows);
+  switch (l_path(~flip=true, ~hx, ~min_col, ~first, ~last)) {
+  | Some((orig, path)) => [
+      svg(~font_metrics, ~path_cls, (orig, path @ [hook(hx, 1, -1)])),
+    ]
+  | None => []
+  };
+};
+
 open Util.WebUtil;
 
 module Errors = {
@@ -379,8 +491,10 @@ module Errors = {
       (
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~is_warning=false,
+        ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         id: Id.t,
       ) =>
     div_c(
@@ -408,7 +522,42 @@ module Errors = {
         }
       | None =>
         switch (TermData.root_tile(id, syntax.term_data)) {
-        | Some(t) => term(~refine_sort, ~syntax, ~font_metrics, t)
+        /* Simplified style: bare term arm (like indication) in the
+         * error/warning color, over a strokeless term-shaped backing (the
+         * red/orange analog of the probe refractor backing). */
+        | Some(t) when simple_indication =>
+          let backing =
+            switch (TermData.segment(id, syntax.term_data)) {
+            | Some(seg) =>
+              Highlight.of_segment(
+                ~measured=syntax.measured,
+                ~shape_map=syntax.shape_map,
+                ~font_metrics,
+                ~shape_init=Some(Convex),
+                ~clss=["simple-backing", is_warning ? "warning" : "error"],
+                seg,
+              )
+            | None => []
+            };
+          let arm =
+            switch (term_range(~syntax, Piece.Tile(t))) {
+            | Some(range) =>
+              simple_arm(
+                ~font_metrics,
+                ~rows=syntax.measured.rows,
+                ~path_cls=[
+                  "child-line",
+                  "simple",
+                  is_warning ? "warning" : "error",
+                ],
+                range,
+              )
+            | None => []
+            };
+          backing @ arm;
+        | Some(t) =>
+          let clip_right = completion_clip(~syntax, ~completion, t);
+          term(~refine_sort, ~syntax, ~font_metrics, ~clip_right, t);
         | None => []
         }
       },
@@ -418,14 +567,23 @@ module Errors = {
       (
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~is_warning=false,
+        ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         error_ids,
       ) =>
     div_c(
       is_warning ? "warnings" : "errors",
       List.map(
-        of_id(~refine_sort, ~is_warning, ~font_metrics, ~syntax),
+        of_id(
+          ~refine_sort,
+          ~is_warning,
+          ~simple_indication,
+          ~font_metrics,
+          ~syntax,
+          ~completion,
+        ),
         error_ids,
       ),
     );
@@ -437,6 +595,7 @@ module Indicated = {
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
+        ~clip_right: option(Point.t)=None,
         p: Piece.t,
       )
       : list(Node.t) => {
@@ -465,7 +624,7 @@ module Indicated = {
       if (Piece.is_infix_delimiter_op_prefix(p)) {
         [];
       } else {
-        term(~refine_sort, ~font_metrics, ~syntax, t);
+        term(~refine_sort, ~font_metrics, ~syntax, ~clip_right, t);
       }
     };
   };
@@ -475,21 +634,59 @@ module Indicated = {
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
       )
       : list(Node.t) =>
     switch (Indicated.for_decoration(z)) {
     | _ when z.selection.content != [] => []
+    | Some({piece: Tile(t) as p, _}) =>
+      let clip_right = completion_clip(~syntax, ~completion, t);
+      of_piece(~refine_sort, ~font_metrics, ~syntax, ~clip_right, p);
     | Some({piece: p, _}) =>
       of_piece(~refine_sort, ~font_metrics, ~syntax, p)
+    | _ => []
+    };
+
+  /* Simplified indication: just the bare term arm (no shard backing), in the
+   * same sort-based color as the regular indication arms. */
+  let simple_indicated_arm =
+      (
+        ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+        ~font_metrics: FontMetrics.t,
+        ~syntax: CachedSyntax.t,
+        z: Zipper.t,
+      )
+      : list(Node.t) =>
+    switch (Indicated.for_decoration(z)) {
+    | _ when z.selection.content != [] => []
+    | Some({piece: p, _}) when !Piece.is_infix_delimiter_op_prefix(p) =>
+      let rep_id =
+        Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
+      switch (
+        term_range(~syntax, p),
+        TermData.root_piece(rep_id, syntax.term_data),
+      ) {
+      | (Some(range), Some(root)) =>
+        let sort = refine_sort(rep_id, Piece.sort(root) |> fst);
+        simple_arm(
+          ~font_metrics,
+          ~rows=syntax.measured.rows,
+          ~path_cls=["child-line", Sort.class_of(sort)],
+          range,
+        );
+      | _ => []
+      };
     | _ => []
     };
 
   let term =
       (
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
+        ~simple_indication=false,
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
       ) => {
     let id = Indicated.index(z) |> Option.value(~default=Id.invalid);
@@ -502,72 +699,52 @@ module Indicated = {
       |> Option.map(ProjectorCore.Kind.name)
       |> Option.value(~default="");
     let cls = kind_cls == "" ? base_cls : base_cls ++ " " ++ kind_cls;
-    div_c(cls, indicated_piece(~refine_sort, ~font_metrics, ~syntax, z));
+    /* Simplified style suppresses the shard hexagons: regular terms get just
+     * the bare arm; refractor terms get nothing here, leaving only the
+     * simplified arm and backing drawn by Arms.Refractors. */
+    let contents =
+      switch (simple_indication, refractor_kind) {
+      | (false, _) =>
+        indicated_piece(~refine_sort, ~font_metrics, ~syntax, ~completion, z)
+      | (true, Some(_)) => []
+      | (true, None) =>
+        simple_indicated_arm(~refine_sort, ~font_metrics, ~syntax, z)
+      };
+    div_c(cls, contents);
   };
 };
 
 module Refractors = {
-  let paths =
-      (
-        hx: float,
-        ~dashed: bool,
-        sort: Sort.t,
-        font_metrics: FontMetrics.t,
-        rows: Rows.t,
-        ~cls: string,
-        (first, last): (Point.t, Point.t),
-      )
-      : list(Node.t) => {
-    let min_col = min_col(~first, ~last, ~rows);
-    let (orig, path) =
-      l_path(~flip=true, ~hx, ~min_col, ~first, ~last) |> Option.get;
-    let dashed_length =
-      IntMap.find(last.row, rows).max_col
-      - last.col
-      + ProjectorView.offside_offset;
-    [
-      svg(
-        ~font_metrics,
-        ~path_cls=["child-line", cls, Sort.to_string(sort)],
-        (orig, path @ [hook(hx, 1, -1)]),
-      ),
-    ]
-    @ (
-      dashed
-        ? [
-          svg(
-            ~font_metrics,
-            ~path_cls=["child-line", cls, Sort.to_string(sort), "dashed"],
-            (last, [m(~x=0, ~y=1), h(~x=dashed_length)]),
-          ),
-        ]
-        : []
-    );
-  };
-
   let refractor_arms =
       (
         ~id: Id.t,
         ~kind: ProjectorCore.Kind.t,
         ~syntax: CachedSyntax.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         ~font_metrics: FontMetrics.t,
         ~cls: string,
-        ~dynamics: Language.Dynamics.Map.t,
       ) =>
     switch (Id.Map.find_opt(id, syntax.term_data)) {
     | Some(t) =>
       switch (term_range(~syntax, t.root_piece)) {
-      | Some(range) =>
-        let hx = abs_float(ShardDec.offset_of(Some(Left))); // Always left-convex
+      | Some((first, last)) =>
+        let last =
+          switch (t.root_piece) {
+          | Tile(rt) =>
+            apply_clip(completion_clip(~syntax, ~completion, rt), last)
+          | _ => last
+          };
+        let range = (first, last);
         let sort = Piece.sort(t.root_piece) |> fst;
         let kind_cls = ProjectorCore.Kind.name(kind);
-        paths(
-          hx,
-          ~dashed=Id.Map.mem(id, dynamics),
-          ~cls=cls ++ " " ++ kind_cls,
-          sort,
-          font_metrics,
-          syntax.measured.rows,
+        simple_arm(
+          ~font_metrics,
+          ~rows=syntax.measured.rows,
+          ~path_cls=[
+            "child-line",
+            cls ++ " " ++ kind_cls,
+            Sort.to_string(sort),
+          ],
           range,
         );
       | _ => []
@@ -579,7 +756,7 @@ module Refractors = {
       (
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
-        ~dynamics: Language.Dynamics.Map.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
       )
       : list(Node.t) =>
@@ -590,9 +767,9 @@ module Refractors = {
              ~id,
              ~kind=entry.kind,
              ~syntax,
+             ~completion,
              ~font_metrics,
              ~cls="manual",
-             ~dynamics,
            )
          )
     )
@@ -604,11 +781,11 @@ module Refractors = {
              ~id,
              ~kind=entry.kind,
              ~syntax,
+             ~completion,
              ~font_metrics,
              ~cls=
                Haz3lcore.Indicated.index(z) == Some(id)
                  ? "repl-indicated" : "repl",
-             ~dynamics,
            )
            @ (
              Haz3lcore.Indicated.index(z) == Some(id)
@@ -631,8 +808,8 @@ module Refractors = {
       (
         ~font_metrics: FontMetrics.t,
         ~syntax: CachedSyntax.t,
-        ~dynamics: Language.Dynamics.Map.t,
+        ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
       ) =>
-    div_c("refractors", of_zipper(~font_metrics, ~syntax, ~dynamics, z));
+    div_c("refractors", of_zipper(~font_metrics, ~syntax, ~completion, z));
 };

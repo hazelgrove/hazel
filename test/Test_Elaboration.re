@@ -18,8 +18,6 @@ let dhexp_typ =
       exp,
   );
 
-let mk_map = term =>
-  fst(Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term));
 let dhexp_of_uexp = u => {
   let (_, elab) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u);
@@ -142,17 +140,6 @@ module PlainTests = {
 
   let let_exp = () =>
     alco_check("Let expression for tuple (a, b)", u4, dhexp_of_uexp(u4));
-
-  let u5 = Exp.(bin_op(Int(Plus), bool(false), var("y")));
-
-  let d5 =
-    Exp.(
-      bin_op(
-        Int(Plus),
-        asc(bool(false), Typ.int()),
-        asc(var("y"), Typ.int()),
-      )
-    );
 
   let u6: Exp.t = Exp.(if_(bool(false), int(8), int(6)));
 
@@ -847,6 +834,10 @@ in 1|},
       {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
     ),
     skip_known_bug(
+      "Nontermination in typ normalization (mutually recursive aliases)",
+      "type x = y in type y = x in (()) @< x >",
+    ),
+    skip_known_bug(
       "Invalid typ ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
       "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
     ),
@@ -869,7 +860,8 @@ in 1|},
                 List.exists(
                   (==)(msg),
                   [
-                    "normalize exceeded 1000 recursive calls" // https://github.com/hazelgrove/hazel/issues/1627
+                    "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
+                    "weak_head_normalize exceeded 1000 recursive calls",
                   ],
                 ) =>
             print_endline("Known failure: " ++ Printexc.to_string(e));

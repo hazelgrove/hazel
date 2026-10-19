@@ -76,13 +76,13 @@ let deferred_funapp_exp_form = [
   exp_fun,
   mk_ap_exp([
     [
-      exp("..."),
+      exp("…"),
       deferred_funapp_exp_comma,
       space(),
       exp_deferral,
       deferred_funapp_exp_comma,
       space(),
-      exp("..."),
+      exp("…"),
     ],
   ]),
 ];

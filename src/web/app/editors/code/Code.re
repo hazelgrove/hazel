@@ -154,7 +154,10 @@ let of_delim' =
         | _ when Token.is_explicit_hole(token) => "explicit-hole"
         | _ when Token.is_string(token) => "string-lit"
         | _ when Token.is_raw_string(token) => "raw-string-lit"
-        | _ when is_infix_var => "Any" /* Budget error deco */
+        /* operator-in-progress (`=` toward `=>`): an obligation
+           mid-entry, not an inconsistency — same color as other
+           incomplete delimiters (was error-red via "Any") */
+        | _ when is_infix_var => "incomplete"
         | _ => Sort.class_of(sort)
         };
       let plurality = plurality == 1 ? "mono" : "poly";
@@ -208,12 +211,16 @@ let whitespace_token =
     String.make(row, '\n') ++ String.make(col, ' ')
   );
 
+/* The extra classes a tile carries, by id. */
+let no_classes = (_: Id.t) => [];
+
 let view =
     (
+      ~classes=no_classes,
       ~measured: Measured.t,
       ~settings: Settings.Model.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
-      ~refractor_shape_map: Id.Map.t(_),
+      ~refractor_rows: Id.Map.t(_),
       ~font_metrics: FontMetrics.t,
       ~term_data: TermData.t,
       /* `refine_sort` lets the caller refine a tile's syntactic mold-out sort
@@ -239,7 +246,7 @@ let view =
   let lb_icon = settings.secondary_icons ? "⏎" : "";
   let ws_icon = settings.secondary_icons ? "·" : " ";
 
-  let sort = (t: Tile.t): Sort.t => refine_sort(t.id, t.mold.out);
+  let sort = (t: Tile.t): Sort.t => refine_sort(t.id, Tile.mold(t).out);
 
   let is_consistent = (sort: Sort.t, t: Tile.t) =>
     switch (Id.Map.find_opt(t.id, term_data)) {
@@ -263,14 +270,13 @@ let view =
   let of_delim = (t: Piece.tile, i: int): t => {
     let sort = sort(t);
     of_delim'(
-      List.nth(t.label, i),
-      List.length(t.label),
+      Tile.token(t, i),
+      Tile.arity(t),
       sort,
       is_consistent(sort, t),
       List.mem(t.id, buffer_ids),
       Tile.is_complete(t),
-      Mold.is_infix_op(t.mold)
-      && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
+      Piece.is_infix_delimiter_op_prefix(Tile(t)),
       font_metrics,
     );
   };
@@ -312,16 +318,25 @@ let view =
     List.concat_map(
       fun
       | Piece.Tile(t) => {
+          /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
+           * side effects fire in document order, matching Measured.of_segment */
+          let nodes =
+            Aba.fold_left(
+              i => [of_delim(t, i)],
+              (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
+              Aba.mk(t.shards, t.children),
+            );
           let _ =
-            switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
-            | Some(_) =>
-              DeferredLinebreaks.update(2) |> ignore;
+            switch (Id.Map.find_opt(t.id, refractor_rows)) {
+            | Some(n) =>
+              DeferredLinebreaks.update(n) |> ignore;
               ();
             | None => ()
             };
-          Aba.mk(t.shards, t.children)
-          |> Aba.join(i => [of_delim(t, i)], of_segment)
-          |> List.concat;
+          switch (classes(t.id)) {
+          | [] => nodes
+          | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
+          };
         }
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
@@ -329,5 +344,10 @@ let view =
       seg,
     );
 
-  of_segment(segment);
+  /* Trailing filler: a text layer ending in a linebreak gets no
+     final line box from HTML, so an empty last line left the editor
+     one row short (caret overhanging into the result area). The
+     zero-width space forces the line box and is invisible (and
+     harmless mid-line) otherwise. */
+  of_segment(segment) @ [Node.text("\xe2\x80\x8b")];
 };

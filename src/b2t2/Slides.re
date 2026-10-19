@@ -41,24 +41,108 @@ let text_slides: list((string, Haz3lcore.PersistentZipper.t)) =
       "B2T2 / Table API / Constructors / leftJoin",
       [%blob "table-api-constructors-leftjoin.hz"],
     ),
-    ("B2T2 / Table API / Properties", [%blob "table-api-properties.hz"]),
     (
-      "B2T2 / Table API / Access Subcomponents",
-      [%blob "table-api-access-subcomponents.hz"],
-    ),
-    ("B2T2 / Table API / Subtable", [%blob "table-api-subtable.hz"]),
-    ("B2T2 / Table API / Ordering", [%blob "table-api-ordering.hz"]),
-    ("B2T2 / Table API / Aggregate", [%blob "table-api-aggregate.hz"]),
-    (
-      "B2T2 / Table API / Missing Values",
-      [%blob "table-api-missing-values.hz"],
+      "B2T2 / Table API / Properties / nrows",
+      [%blob "table-api-properties-nrows.hz"],
     ),
     (
-      "B2T2 / Table API / Data Cleaning",
-      [%blob "table-api-data-cleaning.hz"],
+      "B2T2 / Table API / Properties / ncols",
+      [%blob "table-api-properties-ncols.hz"],
     ),
     (
-      "B2T2 / Table API / Utilities / Flatten",
+      "B2T2 / Table API / Properties / header",
+      [%blob "table-api-properties-header.hz"],
+    ),
+    (
+      "B2T2 / Table API / Access Subcomponents / getRow",
+      [%blob "table-api-access-subcomponents-getrow.hz"],
+    ),
+    (
+      "B2T2 / Table API / Access Subcomponents / getValue",
+      [%blob "table-api-access-subcomponents-getvalue.hz"],
+    ),
+    (
+      "B2T2 / Table API / Access Subcomponents / getColumn",
+      [%blob "table-api-access-subcomponents-getcolumn.hz"],
+    ),
+    (
+      "B2T2 / Table API / Subtable / selectRows",
+      [%blob "table-api-subtable-selectrows.hz"],
+    ),
+    (
+      "B2T2 / Table API / Subtable / selectColumns",
+      [%blob "table-api-subtable-selectcolumns.hz"],
+    ),
+    (
+      "B2T2 / Table API / Subtable / head",
+      [%blob "table-api-subtable-head.hz"],
+    ),
+    (
+      "B2T2 / Table API / Subtable / distinct",
+      [%blob "table-api-subtable-distinct.hz"],
+    ),
+    (
+      "B2T2 / Table API / Subtable / dropColumn",
+      [%blob "table-api-subtable-dropcolumn.hz"],
+    ),
+    (
+      "B2T2 / Table API / Subtable / dropColumns",
+      [%blob "table-api-subtable-dropcolumns.hz"],
+    ),
+    (
+      "B2T2 / Table API / Subtable / tfilter",
+      [%blob "table-api-subtable-tfilter.hz"],
+    ),
+    (
+      "B2T2 / Table API / Ordering / tsort",
+      [%blob "table-api-ordering-tsort.hz"],
+    ),
+    (
+      "B2T2 / Table API / Ordering / sortByColumns",
+      [%blob "table-api-ordering-sortbycolumns.hz"],
+    ),
+    (
+      "B2T2 / Table API / Ordering / orderBy",
+      [%blob "table-api-ordering-orderby.hz"],
+    ),
+    (
+      "B2T2 / Table API / Aggregate / count",
+      [%blob "table-api-aggregate-count.hz"],
+    ),
+    (
+      "B2T2 / Table API / Aggregate / bin",
+      [%blob "table-api-aggregate-bin.hz"],
+    ),
+    (
+      "B2T2 / Table API / Aggregate / pivotTable",
+      [%blob "table-api-aggregate-pivottable.hz"],
+    ),
+    (
+      "B2T2 / Table API / Aggregate / groupBy",
+      [%blob "table-api-aggregate-groupby.hz"],
+    ),
+    (
+      "B2T2 / Table API / Missing Values / completeCases",
+      [%blob "table-api-missing-values-completecases.hz"],
+    ),
+    (
+      "B2T2 / Table API / Missing Values / dropna",
+      [%blob "table-api-missing-values-dropna.hz"],
+    ),
+    (
+      "B2T2 / Table API / Missing Values / fillna",
+      [%blob "table-api-missing-values-fillna.hz"],
+    ),
+    (
+      "B2T2 / Table API / Data Cleaning / pivotLonger",
+      [%blob "table-api-data-cleaning-pivotlonger.hz"],
+    ),
+    (
+      "B2T2 / Table API / Data Cleaning / pivotWider",
+      [%blob "table-api-data-cleaning-pivotwider.hz"],
+    ),
+    (
+      "B2T2 / Table API / Utilities / flatten",
       [%blob "table-api-utilities-flatten.hz"],
     ),
     (
@@ -134,16 +218,36 @@ let text_slides: list((string, Haz3lcore.PersistentZipper.t)) =
       [%blob "errors-malformed-tables.hz"],
     ),
     (
-      "B2T2 / Errors / Using Tables / Part 1",
-      [%blob "errors-using-tables-part-1.hz"],
+      "B2T2 / Errors / Using Tables / midFinal",
+      [%blob "errors-using-tables-midfinal.hz"],
     ),
     (
-      "B2T2 / Errors / Using Tables / Part 2",
-      [%blob "errors-using-tables-part-2.hz"],
+      "B2T2 / Errors / Using Tables / blackAndWhite",
+      [%blob "errors-using-tables-blackandwhite.hz"],
     ),
     (
-      "B2T2 / Errors / Using Tables / Part 3",
-      [%blob "errors-using-tables-part-3.hz"],
+      "B2T2 / Errors / Using Tables / pieCount",
+      [%blob "errors-using-tables-piecount.hz"],
+    ),
+    (
+      "B2T2 / Errors / Using Tables / brownGetAcne",
+      [%blob "errors-using-tables-browngetacne.hz"],
+    ),
+    (
+      "B2T2 / Errors / Using Tables / favoriteColor",
+      [%blob "errors-using-tables-favoritecolor.hz"],
+    ),
+    (
+      "B2T2 / Errors / Using Tables / brownJellybeans",
+      [%blob "errors-using-tables-brownjellybeans.hz"],
+    ),
+    (
+      "B2T2 / Errors / Using Tables / employeeToDepartment",
+      [%blob "errors-using-tables-employeetodepartment.hz"],
+    ),
+    (
+      "B2T2 / Errors / Using Tables / getOnlyRow",
+      [%blob "errors-using-tables-getonlyrow.hz"],
     ),
   ]
   |> List.map(((name, text)) =>

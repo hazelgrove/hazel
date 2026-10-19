@@ -299,10 +299,19 @@ nonAscriptingPat:
     | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { ParenPat(TuplePat(p :: pats)) }
     |  P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
+    | UNIT { TuplePat([]) }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
+    (* Base-type keywords are ordinary constructors in pat position too
+       (JSON's Int/Float/Bool/String cases) — MakeTerm parity. *)
+    | INT_TYPE { ConstructorPat("Int", None) }
+    | SINT_TYPE { ConstructorPat("SInt", None) }
+    | NAT_TYPE { ConstructorPat("Nat", None) }
+    | FLOAT_TYPE { ConstructorPat("Float", None) }
+    | BOOL_TYPE { ConstructorPat("Bool", None) }
+    | STRING_TYPE { ConstructorPat("String", None) }
     | p = IDENT { VarPat(p) }
     | i = INT { AtomPat (Int i) }
     | f = FLOAT { AtomPat (Float f) }
@@ -321,6 +330,10 @@ nonAscriptingPat:
 funAscElem:
     | p = funConsPat; { p }
     | p = funConsPat; COLON; t = ascTyp; { AscPat(p, t) }
+    (* Ascribed unit parameter: fun () : T -> e. UNIT lives at the funPat
+       level (not nonAscriptingPat), so without this the ascribed form is
+       a parse error the editor parser accepts. *)
+    | UNIT; COLON; t = ascTyp; { AscPat(TuplePat([]), t) }
     (* Labeled parameter: fun label=l, value=v -> ... *)
     | l = label; SINGLE_EQUAL; p = funAscElem; { TupLabelPat(LabelPat(l), p) }
 
@@ -332,6 +345,9 @@ funAscElem:
       shift continues the inner exp, which is MakeTerm parity.
    3. One r/r between the two no-leading-plus sum productions (bare-ctor
       head vs general head) — identical semantic actions, either wins.
+   4. Two r/r states from funConsPat/funConsTail sharing nonAscriptingPat
+      and UNIT completions across head/tail contexts — identical
+      semantic actions, either wins.
    Adding grammar rules? Rerun the three suites; do not trust silence. *)
 (* KNOWN CONFLICT (one s/r + one r/r state, resolved by default): after
    `FUN nonAscriptingPat`, CONS/COLON could continue at the parameter
@@ -343,7 +359,6 @@ funConsPat:
     | p = nonAscriptingPat; CONS; rest = funConsPat; { ConsPat(p, rest) }
 
 funPat:
-    | UNIT { TuplePat([]) }
     | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { ParenPat(AscPat(p1, t1)) }
     | p = funAscElem; { p }
     (* Multi-parameter sugar: fun a, b -> e binds a tuple pattern *)
@@ -354,7 +369,6 @@ pat:
     | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
-    | UNIT { TuplePat([]) }
     | p = nonAscriptingPat; { p }
 
 

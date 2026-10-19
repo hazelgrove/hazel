@@ -142,14 +142,6 @@ module Model = {
 
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
-
-  let get_derivation_info = (model: t) => {
-    let current = List.nth(model.scratchpads, model.current);
-    switch (current.kind) {
-    | Code(_) => None
-    | Drv(m) => DerivationExerciseMode.Model.get_derivation_info(m)
-    };
-  };
 };
 
 /* Per-slide IndexedDB persistence. Each scratchpad's editor and agent
@@ -220,11 +212,6 @@ module Persist = {
       };
     };
 
-  let delete_slide = (prefix: string, name: string): unit => {
-    HazelDB.kv_delete(slide_key(prefix, name));
-    HazelDB.kv_delete(agent_key(prefix, name));
-  };
-
   let save_agent =
       (prefix: string, name: string, agent: Agent.Persistent.t): unit => {
     let key = agent_key(prefix, name);
@@ -247,6 +234,7 @@ module Persist = {
      model is physically unchanged (edits rebuild the scratchpad record
      but reuse the agent field). */
   let last_saved_agent: Hashtbl.t(string, Agent.Model.t) = Hashtbl.create(8);
+  let last_agent_save_ts: Hashtbl.t(string, float) = Hashtbl.create(8);
 
   let save_current = (prefix: string, model: Model.t): unit => {
     let names = Model.scratchpad_names(model);
@@ -276,14 +264,34 @@ module Persist = {
         )
       };
       let agent_key_str = prefix ++ ":" ++ sp.name;
+      /* the agent model changes on every streamed chunk, so a physical
+         equality gate saved (and serialized, several MB) many times a
+         second while the model spoke; gate on the fields that persist */
       let unchanged =
         switch (Hashtbl.find_opt(last_saved_agent, agent_key_str)) {
-        | Some(prev) => prev === agent
+        | Some(prev) =>
+          let prev: Agent.Model.t = prev;
+          prev === agent
+          || prev.chat_system === agent.chat_system
+          && prev.prompting === agent.prompting
+          && prev.active_timeline_node == agent.active_timeline_node
+          && prev.awaiting_response == agent.awaiting_response;
         | None => false
         };
-      if (!unchanged) {
+      /* while the agent works (tools landing every few hundred ms) one save
+         per 10 s is enough; the final save comes when it goes idle */
+      let busy =
+        agent.awaiting_response != None || agent.pending_dispatch_send != None;
+      let now = JsUtil.timestamp();
+      let recently =
+        switch (Hashtbl.find_opt(last_agent_save_ts, agent_key_str)) {
+        | Some(t) => now -. t < 10000.
+        | None => false
+        };
+      if (!unchanged && !(busy && recently)) {
         save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
         Hashtbl.replace(last_saved_agent, agent_key_str, agent);
+        Hashtbl.replace(last_agent_save_ts, agent_key_str, now);
       };
     | (false, Drv(_)) =>
       switch (Scratchpad.persist(sp).kind) {
@@ -695,7 +703,7 @@ module Update = {
         ~schedule_action,
         ~settings: Settings.t,
         ~is_documentation: bool,
-        action,
+        action: t,
         model: Model.t,
       ) => {
     switch (action) {
@@ -1033,6 +1041,7 @@ module Update = {
       let new_m =
         DerivationExerciseMode.Update.calculate(
           ~settings,
+          ~autoprobe_mode,
           ~is_edited,
           ~schedule_action=a => schedule_action(DrvAction(a)),
           m,
@@ -1091,41 +1100,29 @@ module Selection = {
       };
     cursor
     |> Cursor.with_actions([
-         ContextualAction.mk(
-           ~mdIcon="download",
-           ~section="Export",
+         ContextualAction.of_shortcut(
            ~action=inject(Export),
-           "Export Current Scratchpad",
+           ExportCurrentScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="download",
-           ~section="Export",
+         ContextualAction.of_shortcut(
            ~action=inject(Encode),
-           "Encode Current Scratchpad in URL",
+           EncodeCurrentScratchpadInUrl,
          ),
-         ContextualAction.mk(
-           ~mdIcon="add",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(AddSlide),
-           "Add New Code Scratchpad",
+           AddNewCodeScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="rule",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(AddDrvSlide),
-           "Add New Derivation Scratchpad",
+           AddNewDerivationScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="edit",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(RenameSlide),
-           "Rename Current Scratchpad",
+           RenameCurrentScratchpad,
          ),
-         ContextualAction.mk(
-           ~mdIcon="delete",
-           ~section="Scratchpads",
+         ContextualAction.of_shortcut(
            ~action=inject(DeleteSlide),
-           "Delete Current Scratchpad",
+           DeleteCurrentScratchpad,
          ),
        ]);
   };
@@ -1244,7 +1241,6 @@ module View = {
 
     let file_group_scratch =
       NutMenu.item_group(
-        ~inject,
         "File",
         [export_button, export_button_for_init, encode_button, import_button],
       );
@@ -1291,11 +1287,7 @@ module View = {
       );
 
     let reset_group_scratch =
-      NutMenu.item_group(
-        ~inject,
-        "Reset",
-        [reset_button, reparse, reset_hazel],
-      );
+      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
 
     [file_group_scratch, reset_group_scratch];
   };
@@ -1327,19 +1319,10 @@ module View = {
       ~add_tooltip,
       ~signal=
         fun
-        | Previous =>
-          inject(
-            SwitchSlide(
-              (model.current + List.length(model.scratchpads) - 1)
-              mod List.length(model.scratchpads),
-            ),
-          )
-        | Next =>
-          inject(
-            SwitchSlide(
-              (model.current + 1) mod List.length(model.scratchpads),
-            ),
-          )
+        /* No arrows in these modes (~nav_buttons=false above): slides are
+           reached through the breadcrumb dropdowns. */
+        | Previous
+        | Next => Virtual_dom.Vdom.Effect.Ignore
         | Add => inject(AddSlide)
         | Rename => inject(RenameSlide)
         | Delete => inject(DeleteSlide),
@@ -1347,7 +1330,10 @@ module View = {
         EditorModeView.indicator_select(
           ~signal=i => inject(SwitchSlide(i)),
           model.current,
-          List.map((s: Scratchpad.t) => s.name, model.scratchpads),
+          List.map(
+            (s: Scratchpad.t) => SlidePath.of_string(s.name),
+            model.scratchpads,
+          ),
         ),
       (),
     );

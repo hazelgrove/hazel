@@ -1,5 +1,3 @@
-let cat = String.concat("");
-
 /* NOTE: there are deliberately no byte-indexed nth/split/to_list helpers
    here. Text in the editor is indexed by grapheme cluster (see Unicode);
    a byte-indexed `to_list` in particular is indistinguishable at the call
@@ -67,9 +65,12 @@ let plain_match: (string, string) => bool =
 let plain_replace: (string, string, string) => string =
   regexp => replace(Js_of_ocaml.Regexp.regexp(regexp));
 
+/* a LITERAL substring search: the needle is quoted, not compiled as a
+   pattern — the insert tools search for the code they were given, and
+   `let count : [Monster] -> Int =` as a regexp is a syntax error */
 let plain_search: (string, string, int) => int =
-  (regexp, str, idx) =>
-    switch (search(Js_of_ocaml.Regexp.regexp(regexp), str, idx)) {
+  (needle, str, idx) =>
+    switch (search(Js_of_ocaml.Regexp.regexp_string(needle), str, idx)) {
     | Some((idx, _)) => idx
     | None => (-1)
     };
@@ -84,8 +85,6 @@ let line_widths = (s: string): list(int) =>
 
 let max_line_width = (s: string): int =>
   s |> line_widths |> List.fold_left(max, 0);
-
-let num_lines = (s: string): int => s |> to_lines |> List.length;
 
 let num_linebreaks = (s: string) => {
   s |> String.to_seq |> Seq.filter((==)('\n')) |> Seq.length;

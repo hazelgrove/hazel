@@ -72,6 +72,12 @@ module ServerMessage = {
   type result = {
     request_id: int,
     response: Response.t,
+    /* Time the worker spent inside the evaluator for this batch, so the
+     * Evaluation panel can separate evaluation from the queue + result
+     * serialization + transfer that the client's round trip also covers.
+     * A TimeUtil.span rather than a Core one so the derived converters resolve;
+     * see TimeUtil. */
+    eval_time: TimeUtil.span,
   };
 
   [@deriving (show, sexp, yojson)]
@@ -231,7 +237,10 @@ let evaluate_sync = (req_value: Request.value): Response.value => {
     )
   ) {
   | exception exn => error_response(exn)
-  | (result, state) => Ok((result, state))
+  | (result, state) =>
+    /* Drop transient eval-only data (probe enter-data can hold large arg
+     * values) before serializing over postMessage. */
+    Ok((result, Language.EvaluatorState.clear_transient(state)))
   };
 };
 
@@ -282,30 +291,82 @@ let initial_model = {
  * 3. Eval slices — `Stream` updates, then `Result`.
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
+/* Incremental reuse pays for itself only past a certain program size:
+   the reuse pre-pass is a full evaluation-shaped walk and every
+   evaluated node runs a reuse check, which for a demo-sized program
+   (a few hundred statics entries) cost 2-3x the evaluation itself.
+   Below the threshold, evaluate from scratch. (Measured 2026-09-08 on
+   the graph livelit slide: 2.0s -> see the commit message.) */
+let incremental_min_statics = 2500;
+
+let wants_incremental = (req_value: Request.value): bool =>
+  Util.Id.Map.cardinal(req_value.eval_info_map.statics)
+  >= incremental_min_statics;
+
+/* the reuse plan computed for a batch item, handed to its evaluation so
+   the pre-pass runs once per request (keyed by the item's expr identity:
+   the plan and the evaluation see the same decoded request) */
+let planned_reuse:
+  ref(
+    list((Language.Exp.t, Language.IncrEval.t(Language.EvaluatorState.t))),
+  ) =
+  ref([]);
+
 let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
   let Request.{expr, eval_info_map, prev} = req_value;
   let stream =
-    switch (
-      Language.ReusePass.reuse_pass(
-        ~prev,
-        ~eval_info=eval_info_map,
-        ~env=Language.Builtins.env_init,
-        expr,
-      )
-    ) {
-    | exception _ => Language.IncrEval.empty
-    | stream => stream
+    if (!wants_incremental(req_value)) {
+      Language.IncrEval.empty;
+    } else {
+      switch (
+        Language.ReusePass.reuse_pass(
+          ~prev,
+          ~eval_info=eval_info_map,
+          ~env=Language.Builtins.env_init,
+          expr,
+        )
+      ) {
+      | exception _ => Language.IncrEval.empty
+      | stream => stream
+      };
     };
+  /* a superseded request's plan is never taken: keep only the newest
+     few so abandoned plans (whole reuse streams) don't accumulate */
+  planned_reuse :=
+    [(expr, stream), ...Util.ListUtil.take(3, planned_reuse^)];
   (key, stream);
 };
 
+let take_planned_reuse =
+    (expr: Language.Exp.t)
+    : option(Language.IncrEval.t(Language.EvaluatorState.t)) => {
+  let found = List.find_opt(((e, _)) => e === expr, planned_reuse^);
+  planned_reuse := List.filter(((e, _)) => e !== expr, planned_reuse^);
+  Option.map(snd, found);
+};
+
+/* Evaluator time accumulated for the request in flight, reported back in the
+ * result. Timed unconditionally — the worker cannot see whether the Evaluation
+ * panel is open, and two clock reads per slice (5000 trampoline steps) is noise
+ * against the slice itself. */
+let eval_total = ref(Core.Time_ns.Span.zero);
+
+let timed_eval: 'a. (unit => 'a) => 'a =
+  f => {
+    let (span, x) = TimeUtil.timed(f);
+    eval_total := Core.Time_ns.Span.(eval_total^ + span);
+    x;
+  };
+
 let start_evaluation = (req_value: Request.value): evaluation_start => {
   let Request.{expr, eval_info_map, prev} = req_value;
+  let planned = take_planned_reuse(expr);
   switch (
     Language.Evaluator.start_yielding_evaluation(
-      ~prev,
+      ~prev=wants_incremental(req_value) ? prev : Language.IncrEval.empty,
       ~eval_info=eval_info_map,
       ~env=Language.Builtins.env_init,
+      ~reuse_stream=?planned,
       expr,
     )
   ) {
@@ -333,6 +394,7 @@ let post_batch_result = (model, request_id, completed) =>
       ServerMessage.Result({
         request_id,
         response: List.rev(completed),
+        eval_time: eval_total^,
       }),
     );
   };
@@ -391,7 +453,7 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
     post_batch_result(model, request_id, completed);
     model;
   | [(key, req_value), ...remaining] =>
-    switch (start_evaluation(req_value)) {
+    switch (timed_eval(() => start_evaluation(req_value))) {
     | CompletedImmediately(response) =>
       evaluate_next_batch_item(
         model,
@@ -456,9 +518,11 @@ and run_scheduled_slice = model => {
     plan_latest_batch(model)
   | Running(running) =>
     switch (
-      Language.Evaluator.run_yielding_slice(
-        ~step_budget=slice_step_budget,
-        running.evaluation,
+      timed_eval(() =>
+        Language.Evaluator.run_yielding_slice(
+          ~step_budget=slice_step_budget,
+          running.evaluation,
+        )
       )
     ) {
     | exception exn =>
@@ -521,6 +585,7 @@ let install_message_handler = () => {
   let on_request = (req: Active.request): unit => {
     let ClientMessage.Evaluate(request) = Active.decode_request(req);
     post_ack(request);
+    eval_total := Core.Time_ns.Span.zero;
     commit({
       ...model^,
       latest_request: Some(request),

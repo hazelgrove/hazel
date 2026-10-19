@@ -56,18 +56,6 @@ module Utils = {
     };
   };
 
-  let mpat_to_info = (term: MPat.t, info_map: Id.Map.t(Info.t)): Info.t => {
-    let e = MPat.rep_id(term);
-    Id.Map.find(e, info_map);
-  };
-
-  let mpat_to_mpat = (term: MPat.t, info_map: Id.Map.t(Info.t)): Info.mpat => {
-    switch (mpat_to_info(term, info_map)) {
-    | InfoMPat(mpat_info) => mpat_info
-    | _ => raise(Failure("No mpat info found"))
-    };
-  };
-
   let child_expressions_of_exp = (term: TermBase.exp_t): list(TermBase.exp_t) => {
     /*
      Returns the child expressions within the given expression.
@@ -340,10 +328,6 @@ let id_of = (node: node) => {
   Info.id_of(node.info);
 };
 
-let unwrap = (t: option(t)): t => {
-  Option.get(t);
-};
-
 let find = (node_map: t, id: Id.t) => {
   switch (Id.Map.find_opt(id, node_map)) {
   | Some(node) => node
@@ -523,6 +507,25 @@ let rec build_children =
         build_children(exp_to_info(def), new_path, node_map, info_map);
       // 2. Find siblings (continuation after "in")
       build_children(exp_to_info(body), path, node_map, info_map);
+    | Module(items) =>
+      /* Module literal: members become nodes at this path (children of the
+         enclosing binding). Statics checks module literals by expansion
+         into nested Let/TyAlias wrappers KEYED BY THE MOD ITEM IDS
+         (ModuleHelpers.lower; reclassify only rewrites cls), so the first
+         item's wrapper info chains through the remaining members exactly
+         like a top-level binding chain — the Let/TyAlias cases above walk
+         it, making members siblings of one another. Wrapper pat/def ids
+         are the members' real syntax ids, so downstream span selection
+         works unchanged. */
+      switch (items) {
+      | [] => node_map
+      | [first, ..._] =>
+        switch (Id.Map.find_opt(Mod.rep_id(first), info_map)) {
+        | Some(wrapper_info) =>
+          build_children(wrapper_info, path, node_map, info_map)
+        | None => node_map
+        }
+      }
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
       let es_mapped = List.map(exp_to_info, es);
@@ -598,8 +601,11 @@ let gather_top_level = (node_map: t): list(Id.t) => {
      });
 };
 
+/* Paths are slash-delimited ("M/helper"); a dotted form ("M.helper", the
+   language's own member-access syntax, which a model reaches for first) is
+   accepted as the same path. Identifiers cannot contain either character. */
 let split_path = (path: string): list(string) => {
-  String.split_on_char('/', path);
+  String.split_on_char('/', String.map(c => c == '.' ? '/' : c, path));
 };
 
 let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {
@@ -950,36 +956,6 @@ module Public = {
   let id_of =
     // Gets the id of a node
     id_of;
-  let unwrap =
-    // Unwraps the result of building the tree
-    unwrap;
-  let find =
-    // Finds a node in the tree by its id
-    find;
-  let id_to_name =
-    // Gets the name of a node given its id
-    id_to_name;
-  let parent_of =
-    // Gets the parent of a node
-    parent_of;
-  let children_of =
-    // Gets the children of a node
-    children_of;
-  let descendants_of =
-    // Gets all of the descendants of a node
-    descendants_of;
-  let siblings_of =
-    // Gets the siblings of a node
-    siblings_of;
-  let next_sibling_of =
-    // Gets the next sibling of a node
-    next_sibling_of;
-  let prev_sibling_of =
-    // Gets the previous sibling of a node
-    prev_sibling_of;
-  let gather_top_level =
-    // Gathers the top-level nodes from the tree
-    gather_top_level;
   let path_to_id =
     // Gets the node id from a path
     path_to_id;

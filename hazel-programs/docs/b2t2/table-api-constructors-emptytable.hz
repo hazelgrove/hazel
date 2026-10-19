@@ -1,5 +1,9 @@
-let _requires = [] in
-let _ensures = [(enforced=^^check(true), "schema(t) is equal to []"), (enforced = ^^check(false), "nrows(t) is equal to 0")] in
+# (benchmark) emptyTable #
+let requires = [] in
+let ensures = [
+  (enforced=("static"), "schema(t) is equal to []"),
+  (enforced=("no"), "nrows(t) is equal to 0")
+] in
 # Hazel tables are lists; the empty table is the empty list of unit rows #
 let empty_table : [()] = [] in
 

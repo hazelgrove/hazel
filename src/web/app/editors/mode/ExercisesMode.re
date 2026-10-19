@@ -57,22 +57,6 @@ module Model = {
     | Theorem(s) => s.id
     };
 
-  let persist = (~instructor_mode, model): persistent => {
-    {
-      cur_exercise:
-        List.nth(model.exercises, model.current) |> get_exercise_id,
-      exercise_data:
-        List.map(
-          (exercise: exercise) =>
-            (
-              get_exercise_id(exercise),
-              persist_exercise(~instructor_mode, exercise),
-            ),
-          model.exercises,
-        ),
-    };
-  };
-
   let unpersist_exercise =
       (
         ~settings,
@@ -138,13 +122,6 @@ module Model = {
 
   let get_current = (m: t) => List.nth(m.exercises, m.current);
 
-  let get_exercise_name = (e: exercise): string =>
-    switch (e) {
-    | Code(e) => e.editors.title
-    | Derivation(e) => e.spec.title
-    | Theorem(e) => e.title
-    };
-
   let get_exercise_module_name = (e: exercise): string =>
     switch (e) {
     | Code(e) => e.editors.module_name
@@ -174,21 +151,6 @@ module Model = {
     | Theorem(_) => "(* Theorem exercises do not have an exportable transitionary module *)\n"
     };
 
-  let export_grading_module = (e: exercise): string =>
-    switch (e) {
-    | Code(e) =>
-      CodeExercise.export_grading_module(
-        e.editors.module_name,
-        {eds: e.editors},
-      )
-    | Derivation(e) =>
-      DerivationExercise.export_grading_module(
-        e.spec.module_name,
-        {eds: e.editors},
-      )
-    | Theorem(_) => "(* Theorem exercises do not have an exportable grading module *)\n"
-    };
-
   // Used for the assistant or something
   let get_editor = (model: t): CodeEditable.Model.t => {
     let current = List.nth(model.exercises, model.current);
@@ -201,16 +163,6 @@ module Model = {
        since this cell's measured only covers setup content. */
     | Derivation(e) => e.cells.setup.editor
     | Theorem(e) => e.cells.theorem.editor
-    };
-  };
-
-  /* Only used within ExercisesMode.re; exposed via the Model module signature
-     for the derivation-specific UI bindings below. */
-  let get_derivation_info = (eds: t) => {
-    let model = get_current(eds);
-    switch (model) {
-    | Derivation(e) => DerivationExerciseMode.Model.get_derivation_info(e)
-    | _ => None
     };
   };
 
@@ -241,10 +193,6 @@ module StoreExerciseKey =
   });
 
 module Store = {
-  let keystring_of_key = key => {
-    key |> Haz3lcore.Id.to_string;
-  };
-
   let save_exercise = (exercise: Model.exercise, ~instructor_mode) => {
     let key = Model.get_exercise_id(exercise);
     let value = Model.persist_exercise(exercise, ~instructor_mode);
@@ -489,7 +437,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (
+        ~settings,
+        ~autoprobe_mode,
+        ~is_edited,
+        ~schedule_action,
+        model: Model.t,
+      )
+      : Model.t => {
     let current_exercise = Model.get_current(model);
     let current_exercise =
       switch (current_exercise) {
@@ -497,6 +452,7 @@ module Update = {
         Model.Code(
           CodeExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(Exercise(a)),
             ex,
@@ -506,6 +462,7 @@ module Update = {
         Model.Derivation(
           DerivationExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(Derivation(a)),
             ex,
@@ -515,6 +472,7 @@ module Update = {
         Model.Theorem(
           TheoremExerciseMode.Update.calculate(
             ~settings,
+            ~autoprobe_mode,
             ~is_edited,
             ~schedule_action=a => schedule_action(TheoremExercise(a)),
             ex,
@@ -575,27 +533,21 @@ module Selection = {
     cursor
     |> Cursor.with_actions(
          [
-           ContextualAction.mk(
-             ~mdIcon="download",
-             ~section="Export",
+           ContextualAction.of_shortcut(
              ~action=inject(ExportSubmission),
-             "Export Submission",
+             ExportSubmission,
            ),
          ]
          @ (
            if (ExerciseSettings.show_instructor) {
              [
-               ContextualAction.mk(
-                 ~mdIcon="download",
-                 ~section="Export",
+               ContextualAction.of_shortcut(
                  ~action=inject(ExportModule),
-                 "Export Exercise Module",
+                 ExportExerciseModule,
                ),
-               ContextualAction.mk(
-                 ~mdIcon="download",
-                 ~section="Export",
+               ContextualAction.of_shortcut(
                  ~action=inject(ExportTransitionary),
-                 "Export Transitionary Exercise Module",
+                 ExportTransitionaryExerciseModule,
                ),
              ];
            } else {
@@ -784,21 +736,15 @@ module View = {
 
     let file_group_exercises = () =>
       NutMenu.item_group(
-        ~inject,
         "File",
         [export_submission, import_submission, import_logs],
       );
 
     let reset_group_exercises = () =>
-      NutMenu.item_group(
-        ~inject,
-        "Reset",
-        [reset_button, reparse, reset_hazel],
-      );
+      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
 
     let dev_group_exercises = () =>
       NutMenu.item_group(
-        ~inject,
         "Developer Export",
         [instructor_export, instructor_transitionary_export],
       );

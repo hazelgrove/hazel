@@ -61,9 +61,14 @@ let parse_text = (~source: string, ~root, text: string): option(Zipper.t) => {
     /* Caret starts at the TOP: unzip's default direction (Right) leaves
        the caret after the whole program, and the editor scrolls the caret
        into view on display — a freshly loaded slide would open at the
-       bottom. */
+       bottom.
+
+       Regrout as edits do: the append-a-hole retry strips the trailing
+       hole, and printing a hole-less fragment drops its refractors
+       (Segment.skel fails). First save adds the final marker. */
     Some(
       Zipper.unzip(~direction=Left, segment)
+      |> Zipper.remold_regrout(Left, ~root)
       |> Triggers.apply_refractors(refractors),
     )
   | Error(why) =>

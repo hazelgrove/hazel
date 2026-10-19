@@ -1,10 +1,9 @@
-open Haz3lcore;
 open ExplainThisForm;
 open Example;
 
 let labelled_sum_typ: form = {
   let explanation = "Sum types describe a finite set of labeled choices. Values of this type consist of one of the specified constructors applied to a parameter of the corresponding parameter type, if specified. Constructor names must be unique within a sum.";
-  let divider = Example.mk_monotile(Form.get(TypPlus));
+  let divider = Example.mk_monotile(Plus, Typ);
   {
     id: LabelledSumTyp,
     syntactic_form: [
@@ -13,20 +12,9 @@ let labelled_sum_typ: form = {
       space(),
       divider,
       space(),
-      typ("..."),
+      typ("…"),
       space(),
     ],
-    colorings: [],
-    expandable_id: None,
-    explanation,
-    examples: [],
-  };
-};
-let sum_typ_unary_constructor_def = (c: string): form => {
-  let explanation = "This specifies one possible way of constructing the parent sum type, when applied to a parameter of the specified parameter type.";
-  {
-    id: SumTypUnaryConstructorDef,
-    syntactic_form: [c ++ "(Type)" |> abbreviate |> typ],
     colorings: [],
     expandable_id: None,
     explanation,
@@ -50,9 +38,6 @@ let labelled_sum_typs: group = {
   id: LabelledSumTyp,
   forms: [labelled_sum_typ],
 };
-
-let sum_typ_unary_constructor_defs = (c: string): group =>
-  singleton(sum_typ_unary_constructor_def(c));
 
 let sum_typ_nullary_constructor_defs = (c: string): group =>
   singleton(sum_typ_nullary_constructor_def(c));
