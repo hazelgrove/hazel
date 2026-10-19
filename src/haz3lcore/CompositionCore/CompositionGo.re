@@ -73,6 +73,25 @@ module Local = {
       | _ => false
       };
 
+    /* the items of the module literal member [node] is in, its parent
+       binding's: none at a Mod root's top level, which no `M.x` names */
+    let member_items =
+        (~info_map: Id.Map.t(Info.t), node_map: node_map, node: node)
+        : option(list(Mod.t)) =>
+      if (!is_module_member(node)) {
+        None;
+      } else {
+        let* parent = HighLevelNodeMap.parent_of(node_map, node);
+        switch (parent.info) {
+        | InfoExp({
+            user_term: {term: Let(_, def, _) | ModuleExp(_, def, _), _},
+            _,
+          }) =>
+          Info.module_items(~info_map, def)
+        | _ => None
+        };
+      };
+
     let member_body_error = (what: string) =>
       Error(
         Action.Failure.Composition_action_failure(
@@ -1565,6 +1584,36 @@ module Local = {
               let added_names =
                 List.filter(n => !List.mem(n, old_names), new_names);
               let scope_root = id_of(initial_node);
+              /* each old binder and its new name (counts match above) */
+              let renamed =
+                old_names == []
+                  ? []
+                  : List.combine(
+                      List.map(
+                        snd,
+                        GeneralTreeUtils.var_binders_of_info(old_pat),
+                      ),
+                      new_names,
+                    );
+              /* another member so named: `M.name` would read one of the two */
+              let member_clash =
+                switch (
+                  Utils.member_items(
+                    ~info_map=initial_info_map,
+                    initial_node_map,
+                    initial_node,
+                  )
+                ) {
+                | Some(items) =>
+                  List.find_map(
+                    ((binder, name)) =>
+                      List.mem(name, added_names)
+                      && Rename.member_clash(~typ=false, items, binder, name)
+                        ? Some(name) : None,
+                    renamed,
+                  )
+                | None => None
+                };
               let taken_name =
                 List.find_opt(
                   GeneralTreeUtils.name_occurs_within(
@@ -1573,8 +1622,18 @@ module Local = {
                   ),
                   added_names,
                 );
-              switch (taken_name) {
-              | Some(name) =>
+              switch (member_clash, taken_name) {
+              | (Some(name), _) =>
+                Error(
+                  Action.Failure.Composition_action_failure(
+                    "Not renaming to \""
+                    ++ name
+                    ++ "\": the module already has a member of that name, so qualified uses (M."
+                    ++ name
+                    ++ ") would read only one of the two. Choose a name no other member of this module has.",
+                  ),
+                )
+              | (None, Some(name)) =>
                 Error(
                   Action.Failure.Composition_action_failure(
                     "Not renaming to \""
@@ -1582,7 +1641,7 @@ module Local = {
                     ++ "\": that name already occurs as a binder or variable reference within this binding's scope, so the rename could silently change which binding existing references point to. Choose a name that is unused in this scope.",
                   ),
                 )
-              | None =>
+              | (None, None) =>
                 /* Hybrid refs: pre-edit [[co_ctx]] for the filter, post-edit
                    term + [[new_info_map]] for the body, so renames see stale
                    spellings but paths stay consistent after follow-up edits
@@ -1602,6 +1661,25 @@ module Local = {
                         ~old_names,
                         ~new_names,
                       );
+                /* a member's `M.x` labels: they resolve to it in the old
+                   program, and keep their ids through the edit */
+                let final_z =
+                  List.fold_left(
+                    (z, (binder, name)) =>
+                      Rename.relabel_zipper(
+                        Rename.qualified(
+                          ~info_map=initial_info_map,
+                          Rename.references(
+                            ~info_map=initial_info_map,
+                            binder,
+                          ),
+                        ),
+                        name,
+                        z,
+                      ),
+                    final_z,
+                    renamed,
+                  );
                 /* Belt-and-suspenders: re-validate after the use-site rewrite;
                    anything the pre-checks missed must not grow the error count. */
                 let initial_errors =

@@ -5311,26 +5311,21 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "renaming an exported member used outside is rejected", `Quick, () => {
-      switch (
-        run_agent_action(
-          "module M = { let x = 1; let y = 2 } in M.x",
-          Update(Pattern, "M/x", "z"),
-        )
-      ) {
-      | Ok(_) =>
-        Alcotest.fail("expected rename breaking external M.x to be rejected")
-      | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(
-          bool,
-          "member_rename_external_rejected",
-          true,
-          StringUtil.match(StringUtil.regexp("static error"), msg),
-        )
-      | Error(e) =>
-        Alcotest.fail("unexpected failure kind: " ++ Action.Failure.show(e))
-      }
-    }),
+      "renaming a member used outside relabels its M.x",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "module M = { let x = 1; let y = 2 } in M.x",
+            Update(Pattern, "M/x", "z"),
+          );
+        check_rendered(
+          "member_rename_external",
+          "module M = { let z = 1; let y = 2 } in M.z",
+          result,
+        );
+      },
+    ),
     test_case(
       "oversized chunk on the fast path succeeds",
       `Quick,
@@ -5527,6 +5522,20 @@ let mod_root_tests = (
         );
       },
     ),
+    test_case("update_pattern on a member relabels M.a", `Quick, () =>
+      check_rendered(
+        "mod_root_rename_member",
+        mod_root_program
+        |> StringUtil.replace(
+             StringUtil.regexp("let a = 1"),
+             _,
+             "let aa = 1",
+           )
+        |> StringUtil.replace(StringUtil.regexp("= a [+] 1"), _, "= aa + 1")
+        |> StringUtil.replace(StringUtil.regexp("M[.]a"), _, "M.aa"),
+        apply_at_mod_root(Update(Pattern, "M/a", "aa")),
+      )
+    ),
     test_case("update_pattern on a top-level binding leaves M.a", `Quick, () =>
       check_rendered(
         "mod_root_rename_top",
@@ -5534,6 +5543,62 @@ let mod_root_tests = (
         |> StringUtil.replace(StringUtil.regexp("M[.]a [+] a"), _, "M.a + z"),
         apply_at_mod_root(Update(Pattern, "a", "z")),
       )
+    ),
+  ],
+);
+
+/* update_pattern on a module member: its `M.x` labels follow, and a name
+   another member of the module has is refused */
+let member_rename_tests = (
+  "AgentTools.MemberRename",
+  [
+    test_case("a nested member's Outer.Inner.x", `Quick, () =>
+      check_rendered(
+        "nested_member_rename",
+        "module Outer = { module Inner = { let y = 1 }; let w = 1 } in Outer.Inner.y",
+        apply_and_render(
+          "module Outer = { module Inner = { let x = 1 }; let w = 1 } in Outer.Inner.x",
+          Update(Pattern, "Outer/Inner/x", "y"),
+        ),
+      )
+    ),
+    test_case("a let-bound module's m.x", `Quick, () =>
+      check_rendered(
+        "let_module_member_rename",
+        "let m = { let z = 1; let y = 2 } in m.z + m.y",
+        apply_and_render(
+          "let m = { let x = 1; let y = 2 } in m.x + m.y",
+          Update(Pattern, "m/x", "z"),
+        ),
+      )
+    ),
+    test_case("a function member's M.f(…)", `Quick, () =>
+      check_rendered(
+        "fn_member_rename",
+        "module M = { let g(n) = n + 1 } in M.g(2)",
+        apply_and_render(
+          "module M = { let f(n) = n + 1 } in M.f(2)",
+          Update(Pattern, "M/f", "g(n)"),
+        ),
+      )
+    ),
+    test_case("another member's name is refused", `Quick, () =>
+      switch (
+        run_agent_action(
+          "module M = { let x = 1; let y = 2 } in M.x + M.y",
+          Update(Pattern, "M/y", "x"),
+        )
+      ) {
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "member_clash_refused",
+          true,
+          StringUtil.match(StringUtil.regexp("already has a member"), msg),
+        )
+      | Ok(z) => Alcotest.fail("renamed: " ++ render_zipper(z))
+      | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
+      }
     ),
   ],
 );
@@ -5680,6 +5745,7 @@ let tests = [
   update_binding_clause_tests,
   module_member_tests,
   mod_root_tests,
+  member_rename_tests,
   insert_tests,
   insert_test_tests,
   delete_tests,

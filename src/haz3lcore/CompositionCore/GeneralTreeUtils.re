@@ -233,16 +233,17 @@ let get_refs_to = (curr: Info.t, info_map: Id.Map.t(Info.t)): CoCtx.t => {
   };
 };
 
-let rec var_names_of_pat = (pat: Pat.t): list(string) => {
+/* a pattern's vars, each with its binder */
+let rec var_binders_of_pat = (pat: Pat.t): list((string, Id.t)) => {
   switch (pat.term) {
-  | Var(name) => [name]
+  | Var(name) => [(name, Pat.rep_id(pat))]
   | Ap(pat1, pat2)
   | TupLabel(pat1, pat2)
-  | Cons(pat1, pat2) => var_names_of_pat(pat1) @ var_names_of_pat(pat2)
+  | Cons(pat1, pat2) => var_binders_of_pat(pat1) @ var_binders_of_pat(pat2)
   | Parens(pat)
-  | Asc(pat, _) => var_names_of_pat(pat)
+  | Asc(pat, _) => var_binders_of_pat(pat)
   | ListLit(pats)
-  | Tuple(pats) => List.concat_map(var_names_of_pat, pats)
+  | Tuple(pats) => List.concat_map(var_binders_of_pat, pats)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_)
@@ -254,6 +255,9 @@ let rec var_names_of_pat = (pat: Pat.t): list(string) => {
   | ExplicitNonlabel => []
   };
 };
+
+let var_names_of_pat = (pat: Pat.t): list(string) =>
+  List.map(fst, var_binders_of_pat(pat));
 
 /** After a pattern edit, the post-edit [[Let]]'s [[co_ctx]] can already treat
     stale body spellings (old pattern name) as outer/free, so they wrongly
@@ -341,12 +345,15 @@ let get_refs_to_after_pattern_edit =
   };
 };
 
-let get_var_names_from_pat = (curr: Info.t): list(string) => {
+let var_binders_of_info = (curr: Info.t): list((string, Id.t)) => {
   switch (curr) {
-  | InfoPat({user_term: term, _}) => var_names_of_pat(term)
+  | InfoPat({user_term: term, _}) => var_binders_of_pat(term)
   | _ => raise(Failure("Pat is not a pattern"))
   };
 };
+
+let get_var_names_from_pat = (curr: Info.t): list(string) =>
+  List.map(fst, var_binders_of_info(curr));
 
 /** True iff [name] occurs as an expression variable or a pattern binder
     within the subtree rooted at the term with [root_id] (per statics ancestor
