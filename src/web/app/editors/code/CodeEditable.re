@@ -369,6 +369,19 @@ module View = {
   type event =
     | MakeActive;
 
+  /* The cell under a pointer event: its client position relative to the
+     text box it landed in. */
+  let goal_of =
+      (~grid: Grid.t, text_box: Js.t(Dom_html.element), loc: Point.t)
+      : Point.t => {
+    let rect = text_box##getBoundingClientRect;
+    Grid.point_of_px(
+      grid,
+      ~x=float_of_int(loc.col) -. rect##.left,
+      ~y=float_of_int(loc.row) -. rect##.top,
+    );
+  };
+
   let container_target = (current_target: Js.opt(Js.t(Dom_html.element))) =>
     current_target
     |> Js.Opt.get(_, _ => failwith(""))
@@ -422,6 +435,7 @@ module View = {
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
       ) => {
+    let grid = Grid.flat(globals.font_metrics);
     /* one flatten + one completion shared by every completion-aware
        decoration; lazy so healthy-code renders with quiver off never
        pay them */
@@ -432,17 +446,13 @@ module View = {
         CanonicalCompletion.for_editor(Lazy.force(engine_seg))
       );
     [
-      CaretDec.view(
-        ~measured=syntax.measured,
-        ~font_metrics=globals.font_metrics,
-        z,
-      ),
+      CaretDec.view(~measured=syntax.measured, ~grid, z),
       Arms.Indicated.term(
         ~refine_sort=
           (id, mold_out) =>
             Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
         ~simple_indication=globals.settings.simple_indication,
-        ~font_metrics=globals.font_metrics,
+        ~grid,
         ~syntax,
         ~completion,
         z,
@@ -454,20 +464,11 @@ module View = {
       )(
         ~measured=syntax.measured,
         ~shape_map=syntax.shape_map,
-        ~font_metrics=globals.font_metrics,
+        ~grid,
         z,
       ),
-      Highlight.colors(
-        ~font_metrics=globals.font_metrics,
-        ~syntax,
-        globals.color_highlights,
-      ),
-      VarHighlight.view(
-        ~measured=syntax.measured,
-        ~font_metrics=globals.font_metrics,
-        ~info_map,
-        z,
-      ),
+      Highlight.colors(~grid, ~syntax, globals.color_highlights),
+      VarHighlight.view(~measured=syntax.measured, ~grid, ~info_map, z),
     ]
     @ (
       globals.settings.quiver
@@ -484,7 +485,7 @@ module View = {
                      ? Some(CompletionQuery.padding(z, d)) : None
                  ),
             ~measured=syntax.measured,
-            ~font_metrics=globals.font_metrics,
+            ~grid,
             ~caret_pos={
               let p = Zipper.Caret.point(syntax.measured, z);
               Some((p.row, p.col));
@@ -529,6 +530,7 @@ module View = {
         ~expand_selection=?,
         model: Model.t,
       ) => {
+    let grid = Grid.flat(globals.font_metrics);
     let selected = EditMode.is_active(edit_mode);
     let inject =
       switch (edit_mode) {
@@ -640,7 +642,7 @@ module View = {
           )
           @ [
             Arms.Refractors.all(
-              ~font_metrics=globals.font_metrics,
+              ~grid,
               ~syntax=model.editor.syntax,
               ~completion=Arms.lazy_completion(model.editor.state.zipper),
               model.editor.state.zipper,
@@ -666,7 +668,7 @@ module View = {
                   ~syntax=model.editor.syntax,
                   ~info_map=model.statics.info_map,
                   ~elaborated=model.statics.elaborated,
-                  ~font_metrics=globals.font_metrics,
+                  ~grid,
                   ~model=model.context_menu,
                   model.editor.state.zipper,
                 ),
@@ -704,7 +706,7 @@ module View = {
       RefractorView.all(
         x => inject(Perform(x)),
         signal(MakeActive),
-        globals.font_metrics,
+        grid,
         ~core_settings=globals.settings.core,
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
@@ -716,7 +718,7 @@ module View = {
       ProjectorView.all(
         x => inject(Perform(x)),
         signal(MakeActive),
-        globals.font_metrics,
+        grid,
         ~core_settings=globals.settings.core,
         ~visible?,
         ProjectorView.Model.mk(
@@ -744,7 +746,7 @@ module View = {
             ~attrs=[Attr.classes(["code-deco", "incremental-deco"])],
             [
               Highlight.incr_eval(
-                ~font_metrics=globals.font_metrics,
+                ~grid,
                 ~syntax=model.editor.syntax,
                 ~pending_eval_ids,
                 ~show_active_eval,
@@ -767,11 +769,7 @@ module View = {
       CodeWithStatics.View.view(~globals, ~overlays, ~cull, model);
 
     let loc = (e: Pointer.Event.t) =>
-      FontMetrics.get_goal(
-        ~font_metrics=globals.font_metrics,
-        container_target(e.current_target),
-        e.loc,
-      );
+      goal_of(~grid, container_target(e.current_target), e.loc);
 
     /* Pointer modifier → optional chunkiness override for
      * Select(Resize(Point(...))). Alt on Mac / Ctrl on PC swaps to the
@@ -933,12 +931,7 @@ module View = {
           EdgeScroll.update(
             ~client_y=float_of_int(pointer.loc.row),
             ~on_scroll=() => {
-              let goal =
-                FontMetrics.get_goal(
-                  ~font_metrics=globals.font_metrics,
-                  container,
-                  pixel_loc,
-                );
+              let goal = goal_of(~grid, container, pixel_loc);
               Bonsai.Effect.Expert.handle(
                 inject(
                   Perform(Select(Resize(Point(goal, chunk_override)))),

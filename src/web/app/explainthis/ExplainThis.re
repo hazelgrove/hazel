@@ -327,6 +327,7 @@ let expander_deco =
       ~doc: ExplainThisForm.form,
       editor: Editor.Model.t,
     ) => {
+  let grid = Grid.flat(font_metrics);
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
   | (_, 0 | 1) => div([])
@@ -394,19 +395,14 @@ let expander_deco =
     let expandable_deco =
       div_c(
         "color-highlights",
-        Highlight.color(
-          ~syntax=editor.syntax,
-          ~font_metrics,
-          ["expandable"],
-          id,
-        ),
+        Highlight.color(~syntax=editor.syntax, ~grid, ["expandable"], id),
       );
 
     let expander =
       div(
         ~attrs=[
           clss(["expandable-target"]),
-          DecUtil.abs_position(~font_metrics, origin),
+          DecUtil.abs_position(~grid, origin),
         ],
         [specificity_menu] @ (docs.specificity_open ? [] : [expand_arrow]),
       );
@@ -1694,7 +1690,7 @@ let view_doc =
       );
     let highlight_deco = [
       Highlight.colors(
-        ~font_metrics=globals.font_metrics,
+        ~grid=Grid.flat(globals.font_metrics),
         ~syntax=editor.syntax,
         highlights,
       ),

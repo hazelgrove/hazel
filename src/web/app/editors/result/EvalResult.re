@@ -682,11 +682,11 @@ module View = {
     };
 
   let test_status_icon_view =
-      (~font_metrics, insts, ms: Haz3lcore.Measured.Shards.t): option(Node.t) =>
+      (~grid, insts, ms: Haz3lcore.Measured.Shards.t): option(Node.t) =>
     switch (ms) {
     | [(_, {origin: _, last}), ..._] =>
       let status = insts |> TestMap.joint_status |> TestStatus.to_string;
-      let pos = DecUtil.abs_position(~font_metrics, last);
+      let pos = DecUtil.abs_position(~grid, last);
       Some(
         Node.div(~attrs=[Attr.classes(["test-result", status]), pos], []),
       );
@@ -695,7 +695,7 @@ module View = {
 
   let test_result_layer =
       (
-        ~font_metrics,
+        ~grid: Grid.t,
         ~measured: Haz3lcore.Measured.t,
         test_results: TestResults.t,
       )
@@ -705,7 +705,7 @@ module View = {
       List.filter_map(
         ((id, insts)) =>
           switch (Id.Map.find_opt(id, measured.tiles)) {
-          | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+          | Some(ms) => test_status_icon_view(~grid, insts, ms)
           | None => None
           },
         test_results.test_map,
@@ -742,7 +742,7 @@ module View = {
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
-              ~font_metrics=globals.font_metrics,
+              ~grid=Grid.flat(globals.font_metrics),
               ~measured=editor.syntax.measured,
               result,
             ),
@@ -795,7 +795,7 @@ module View = {
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
-              ~font_metrics=globals.font_metrics,
+              ~grid=Grid.flat(globals.font_metrics),
               ~measured=editor.syntax.measured,
               result,
             ),
@@ -818,7 +818,7 @@ module View = {
             switch (Model.test_results(model)) {
             | Some(result) => [
                 test_result_layer(
-                  ~font_metrics=globals.font_metrics,
+                  ~grid=Grid.flat(globals.font_metrics),
                   ~measured=editor.syntax.measured,
                   result,
                 ),
@@ -835,7 +835,7 @@ module View = {
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
-              ~font_metrics=globals.font_metrics,
+              ~grid=Grid.flat(globals.font_metrics),
               ~measured=editor.syntax.measured,
               result,
             ),

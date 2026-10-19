@@ -118,6 +118,157 @@ module Path = {
 
   let reverse = List.rev_map(scale_cmd(~scale_x=-1., ~scale_y=-1.));
 
+  /* The point a command sequence has reached, with the current subpath's
+     first point for Z. */
+  type cursor = {
+    at: Point.t,
+    start: Point.t,
+  };
+
+  let cursor_origin: cursor = {
+    at: {
+      x: 0.,
+      y: 0.,
+    },
+    start: {
+      x: 0.,
+      y: 0.,
+    },
+  };
+
+  let step = ({at, start}: cursor, cmd: cmd): cursor =>
+    switch (cmd) {
+    | Z => {
+        at: start,
+        start,
+      }
+    | M(p) => {
+        at: p,
+        start: p,
+      }
+    | M_({dx, dy}) =>
+      let p =
+        Point.{
+          x: at.x +. dx,
+          y: at.y +. dy,
+        };
+      {
+        at: p,
+        start: p,
+      };
+    | L(p) => {
+        at: p,
+        start,
+      }
+    | L_({dx, dy})
+    | A_({dx, dy, _}) => {
+        at: {
+          x: at.x +. dx,
+          y: at.y +. dy,
+        },
+        start,
+      }
+    | H({x}) => {
+        at: {
+          ...at,
+          x,
+        },
+        start,
+      }
+    | H_({dx}) => {
+        at: {
+          ...at,
+          x: at.x +. dx,
+        },
+        start,
+      }
+    | V({y}) => {
+        at: {
+          ...at,
+          y,
+        },
+        start,
+      }
+    | V_({dy}) => {
+        at: {
+          ...at,
+          y: at.y +. dy,
+        },
+        start,
+      }
+    };
+
+  /* Re-express a path through `pt`, a map on absolute points. Relative
+     commands are resolved against the point reached so far, so the result
+     is absolute. `H` keeps the y it had reached and `V` the x, so a
+     horizontal or vertical edge stays one when `pt` translates each cell
+     differently. Arc radii are scaled by `scale`. */
+  let transform = (~pt: Point.t => Point.t, ~scale: Vector.t, path: t): t => {
+    let (_, cmds) =
+      List.fold_left(
+        ((cur, acc), cmd) => {
+          let next = step(cur, cmd);
+          let mapped =
+            switch (cmd) {
+            | Z => Z
+            | M(_)
+            | M_(_) => M(pt(next.at))
+            | L(_)
+            | L_(_) => L(pt(next.at))
+            | H(_)
+            | H_(_) => H({x: pt(next.at).x})
+            | V(_)
+            | V_(_) => V({y: pt(next.at).y})
+            | A_({rx, ry, x_axis_rotation, large_arc_flag, sweep_flag, _}) =>
+              let (from, to_) = (pt(cur.at), pt(next.at));
+              A_({
+                rx: rx *. scale.dx,
+                ry: ry *. scale.dy,
+                x_axis_rotation,
+                large_arc_flag,
+                sweep_flag,
+                dx: to_.x -. from.x,
+                dy: to_.y -. from.y,
+              });
+            };
+          (next, [mapped, ...acc]);
+        },
+        (cursor_origin, []),
+        path,
+      );
+    List.rev(cmds);
+  };
+
+  /* The extent of a path's points; an arc may bulge past it. */
+  let bbox = (path: t): option(Rect.t) =>
+    switch (path) {
+    | [] => None
+    | _ =>
+      let (_, points) =
+        List.fold_left(
+          ((cur, acc), cmd) => {
+            let next = step(cur, cmd);
+            (next, [next.at, ...acc]);
+          },
+          (cursor_origin, []),
+          path,
+        );
+      let xs = List.map((p: Point.t) => p.x, points);
+      let ys = List.map((p: Point.t) => p.y, points);
+      let lo = List.fold_left(min, infinity);
+      let hi = List.fold_left(max, neg_infinity);
+      Some(
+        Rect.{
+          min: {
+            x: lo(xs),
+            y: lo(ys),
+          },
+          width: hi(xs) -. lo(xs),
+          height: hi(ys) -. lo(ys),
+        },
+      );
+    };
+
   let string_of_flag =
     fun
     | false => "0"

@@ -27,7 +27,7 @@ let exp_show =
     );
   let highlight_deco = [
     Highlight.colors(
-      ~font_metrics=globals.font_metrics,
+      ~grid=Grid.flat(globals.font_metrics),
       ~syntax=editor.syntax,
       Some(fst(color_map)),
     ),
@@ -61,7 +61,7 @@ let test_show =
       );
     let highlight_deco = [
       Highlight.colors(
-        ~font_metrics=globals.font_metrics,
+        ~grid=Grid.flat(globals.font_metrics),
         ~syntax=editor.syntax,
         Some(fst(color_map)),
       ),

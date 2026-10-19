@@ -507,7 +507,7 @@ module View = {
             DecUtil.position(
               ~width=right - left,
               ~height=bottom - top,
-              ~font_metrics=globals.font_metrics,
+              ~grid=Grid.flat(globals.font_metrics),
               Point.{
                 col: left,
                 row: top,

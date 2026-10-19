@@ -123,7 +123,7 @@ let all =
     (
       inject: Action.t => Ui_effect.t(unit),
       make_active,
-      font_metrics: FontMetrics.t,
+      grid: Grid.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(Globals.VisibleRows.t)=?,
       ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
@@ -141,7 +141,7 @@ let all =
          ProjectorView.split_views(
            inject,
            make_active,
-           font_metrics,
+           grid,
            ~core_settings,
            ~skip_inline=true,
            data,

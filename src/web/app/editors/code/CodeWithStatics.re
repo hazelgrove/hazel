@@ -257,7 +257,12 @@ module View = {
   type event;
 
   let view =
-      (~globals, ~overlays: list(Node.t)=[], ~cull=false, model: Model.t) => {
+      (
+        ~globals: Globals.t,
+        ~overlays: list(Node.t)=[],
+        ~cull=false,
+        model: Model.t,
+      ) => {
     let {
       editor:
         {
@@ -276,6 +281,7 @@ module View = {
         },
       _,
     }: Model.t = model;
+    let grid = Grid.flat(globals.font_metrics);
     let info_map = model.statics.info_map;
     let refine_sort = (id, mold_out) =>
       Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
@@ -296,7 +302,7 @@ module View = {
       Arms.Errors.of_ids(
         ~refine_sort,
         ~simple_indication=globals.settings.simple_indication,
-        ~font_metrics=globals.font_metrics,
+        ~grid,
         ~syntax=model.editor.syntax,
         ~completion,
         model.statics.error_ids,
@@ -308,7 +314,7 @@ module View = {
         ~refine_sort,
         ~is_warning=true,
         ~simple_indication=globals.settings.simple_indication,
-        ~font_metrics=globals.font_metrics,
+        ~grid,
         ~syntax=model.editor.syntax,
         ~completion,
         warning_ids,
@@ -318,7 +324,7 @@ module View = {
       | Settings.Blocks.Off => []
       | Settings.Blocks.Types => [
           Highlight.type_blocks(
-            ~font_metrics=globals.font_metrics,
+            ~grid,
             ~syntax=model.editor.syntax,
             model.statics.type_blocks,
           ),

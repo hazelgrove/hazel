@@ -201,7 +201,7 @@ let display_broken = (z: Zipper.t): option(string) => {
   let bs =
     QuiverDec.bubbles(
       ~measured=syntax.measured,
-      ~font_metrics,
+      ~grid=Grid.flat(font_metrics),
       ~caret_pos,
       ~owned,
       seg,
