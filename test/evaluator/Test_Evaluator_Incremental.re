@@ -1780,11 +1780,64 @@ let one_walk_lexemes_test =
     },
   );
 
+/* Where the one-walk check and the trace check it replaced disagree. Both
+ * corners are safe: a stricter answer only loses a reuse, and a laxer one
+ * pairs (e) with e, which evaluate to the same value (a replayed step count
+ * can differ by the parentheses' one step). Pinned so that a change to
+ * either check is noticed, and the PR's description kept true. */
+let one_walk_corners_test =
+  test_case(
+    "where the one-walk check and the trace check disagree",
+    `Quick,
+    () => {
+      let parse = text =>
+        switch (Haz3lcore.Parser.to_segment(text, ~root=Exp)) {
+        | Some(seg) => Haz3lcore.MakeTerm.go(seg).term
+        | None => Alcotest.fail("parse failed")
+        };
+      let paren = parse("let z = (1) in z");
+      let cases = [
+        (
+          "a parenthesized literal under new ids",
+          paren,
+          Exp.replace_all_ids(paren),
+          true,
+          false,
+        ),
+        (
+          "(e) against e",
+          parse("let y = 1 in (y)"),
+          parse("let y = 1 in y"),
+          false,
+          true,
+        ),
+      ];
+      List.iter(
+        ((name, e1, e2, trace, one_walk)) => {
+          check(
+            bool,
+            name ++ ": the trace check",
+            trace,
+            Exp.fast_equal_with_lexemes(e1, e2),
+          );
+          check(
+            bool,
+            name ++ ": the one-walk check",
+            one_walk,
+            Exp.fast_equal_hashed_with_lexemes(e1, e2),
+          );
+        },
+        cases,
+      );
+    },
+  );
+
 let tests = (
   "Evaluator.Incremental",
   [
     lexeme_edit_test,
     one_walk_lexemes_test,
+    one_walk_corners_test,
     test_case(
       "Top-level cast call: incremental reuse preserves result",
       `Quick,
