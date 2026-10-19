@@ -259,8 +259,16 @@ let editor_of =
       seg: Segment.t,
     )
     : CellEditor.Model.t => {
-  let present = Id.Map.of_list(List.map(id => (id, ()), Segment.ids(seg)));
-  let manuals = List.filter(((id, _)) => Id.Map.mem(id, present), probes);
+  /* a set of the probes' ids, not of [seg]'s: it's a whole program */
+  let manuals =
+    switch (probes) {
+    | [] => []
+    | _ =>
+      let ids = Id.Map.of_list(List.map(((id, _)) => (id, ()), probes));
+      let present =
+        List.filter(id => Id.Map.mem(id, ids), Segment.ids(seg));
+      List.filter(((id, _)) => List.mem(id, present), probes);
+    };
   let z =
     Zipper.unzip(~direction=Left, seg)
     |> ZipperBase.update_refractors(_, r =>
@@ -294,6 +302,11 @@ let editor_of =
     },
   );
 };
+
+/* [editor_of] for an edit of [d]'s program made whole (outline ops), with
+   the caches of its shell, the whole editor it was cut from */
+let shell_editor_of = (~probes, ~anchor, seg: Segment.t, d: t) =>
+  editor_of(~prev=d.shell, ~root=root(d), ~probes, ~anchor, seg);
 
 /* one editor again: root, probes and the result carry over, and the
    caret lands where it was in the active cell */
