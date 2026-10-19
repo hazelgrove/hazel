@@ -7,6 +7,59 @@ let alias_view = (s: string): Node.t =>
 
 let jump_to = entry => Globals.Update.JumpToTile(Language.Ctx.get_id(entry));
 
+/* Γ prints each entry's type whole, as tiles, at every redraw. On the
+   Scenes slide one entry, a module of livelit definitions, printed to
+   474,304 characters (91,567 type nodes; every member spells out Html.T
+   and the command types): 6 s to print and measure, and then the page
+   froze laying it out (^ticket(396)). The next largest entry on the
+   playground slides is 693 nodes. So past a budget an entry shows an
+   outline instead: a module's member names, else an ellipsis. */
+let typ_budget = 2000;
+
+let typ_within = (budget: int, ty: Language.Typ.t): bool => {
+  let count = ref(0);
+  let f = (cont, x: Language.Typ.t) => {
+    incr(count);
+    count^ > budget ? x : cont(x);
+  };
+  switch (Language.Typ.map_term(~f_typ=f, ty)) {
+  | _ => count^ <= budget
+  | exception _ => false
+  };
+};
+
+let outline_text = (ty: Language.Typ.t): string =>
+  switch (ty.term) {
+  | Sig(items) =>
+    "{ "
+    ++ (
+      Language.Sig.members(items)
+      |> List.map((m: Language.Sig.member) =>
+           switch (m) {
+           | Val(x, _) => "let " ++ x
+           | TypeManifest(x, _)
+           | TypeAbstract(x) => "type " ++ x
+           }
+         )
+      |> String.concat("; ")
+    )
+    ++ " }"
+  | _ => "…"
+  };
+
+let too_large_view = (ty: Language.Typ.t): Node.t =>
+  div(
+    ~attrs=[
+      clss(["typ-too-large"]),
+      Attr.title(
+        "This type has more than "
+        ++ string_of_int(typ_budget)
+        ++ " parts, too many to show here; click to go to its definition",
+      ),
+    ],
+    [text(outline_text(ty))],
+  );
+
 let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
   let view_type =
     CodeViewable.view_typ(
@@ -27,6 +80,8 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
         project_tables: false,
       },
     );
+  let view_type = ty =>
+    typ_within(typ_budget, ty) ? view_type(ty) : too_large_view(ty);
   let div_name = div(~attrs=[clss(["name"])]);
   switch (entry) {
   | VarEntry({name, typ, _})
