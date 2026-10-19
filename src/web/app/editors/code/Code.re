@@ -28,6 +28,9 @@ let render_string_with_escapes =
   let is_hex = (c: char): bool =>
     c >= '0' && c <= '9' || c >= 'a' && c <= 'f' || c >= 'A' && c <= 'F';
 
+  /* Helper to check for valid decimal digits */
+  let is_digit = (c: char): bool => c >= '0' && c <= '9';
+
   /* For raw strings, don't parse escape sequences */
   if (is_raw) {
     let open_q = text("r\"");
@@ -79,6 +82,17 @@ let render_string_with_escapes =
                  && is_hex(body.[i + 3])) {
         let esc = String.sub(body, i, 4); /* Valid \xNN */
         split(i + 4, [(true, esc), ...acc]);
+      } else if (is_digit(body.[i + 1])) {
+        /* handle escapes in the form \ddd e.g. \123 -> { */
+        let j = ref(i + 2);
+        while (j.contents < len
+               && is_digit(body.[j.contents])
+               && j.contents < i
+               + 4) {
+          j := j.contents + 1;
+        };
+        let esc = String.sub(body, i, j.contents - i);
+        split(j.contents, [(true, esc), ...acc]);
       } else {
         /* Check against a whitelist of valid single-character escapes */
         switch (body.[i + 1]) {
