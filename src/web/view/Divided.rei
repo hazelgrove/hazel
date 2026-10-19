@@ -95,3 +95,9 @@ let stepping: t => option(ProjectorBase.stepping);
 /* one stepping drawer per program: opening one closes the others */
 let keep_stepping: (Language.Sample.span_ref, t) => t;
 let compact: (CellEditor.Model.t => CellEditor.Model.t, t) => t;
+/* [d]'s editors with the parse and measure caches of [from]'s in the
+   same place: the shell's, and each open cell's panes by item and side */
+let with_caches_of: (~from: t, t) => t;
+/* the shell's caches from, and into, a whole editor */
+let with_shell_caches_of: (~from: CellEditor.Model.t, t) => t;
+let shell_caches_into: (t, CellEditor.Model.t) => CellEditor.Model.t;

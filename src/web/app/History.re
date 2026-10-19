@@ -7,7 +7,9 @@ let capped_undo_stack_size = 250;
 /* snapshots drop derived caches (syntax, statics, eval states), which
    would pin memory per edit; restore rebuilds them from the zipper:
    syntax via the mark_old dummy, statics on the next edited calculate,
-   results by re-evaluating */
+   results by re-evaluating. The syntax rebuilds incrementally: restore
+   hands it the live editors' parse and measure caches (Page.carry_over),
+   which hit for every piece the step didn't change */
 let dummy_syntax =
   lazy(
     Haz3lcore.CachedSyntax.mark_old(
@@ -29,8 +31,9 @@ let compact_cell = (c: CellEditor.Model.t): CellEditor.Model.t => {
   editor: {
     editor: {
       ...c.editor.editor,
-      /* its own incremental caches: restored editors sharing the dummy's
-         would keep evicting each other's */
+      /* its own incremental caches, for a restore with no live editor in
+         its place: restored editors sharing the dummy's would keep
+         evicting each other's */
       syntax: {
         ...Lazy.force(dummy_syntax),
         m_cache: Haz3lcore.Measured.Incr.mk_cache(),
@@ -145,7 +148,7 @@ module Update = {
         {
           ...x,
           model: {
-            current: Page.carry_views(~from=model.current, x.model),
+            current: Page.carry_over(~from=model.current, x.model),
             undo_stack: rest,
             redo_stack: [
               {
@@ -168,7 +171,7 @@ module Update = {
         {
           ...x,
           model: {
-            current: Page.carry_views(~from=model.current, x.model),
+            current: Page.carry_over(~from=model.current, x.model),
             undo_stack: [
               {
                 ...x,
