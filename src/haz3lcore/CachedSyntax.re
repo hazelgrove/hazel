@@ -255,6 +255,16 @@ let mark_old: t => t =
     old: true,
   };
 
+/* [s] with [from]'s incremental caches. Their entries are keyed by anchor
+   and checked against the pieces, so they serve any program, and hit for
+   the pieces it shares with [from]'s; the measure cache's id is the code
+   view's key (ChunkViews), so its chunks hit too */
+let with_caches_of = (~from: t, s: t): t => {
+  ...s,
+  m_cache: from.m_cache,
+  t_cache: from.t_cache,
+};
+
 /* statics or refractor model changed but the segment didn't: reuse
  * segment/term_data, recompute only the shape-derived fields. */
 let refresh_shapes =

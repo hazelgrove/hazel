@@ -178,6 +178,31 @@ module Model = {
     );
   };
 
+  /* [m]'s programs with the incremental caches of [from]'s programs for
+     the same slides (Program.with_caches_of) */
+  let with_caches_of = (~from: t, m: t): t => {
+    let program_of = name =>
+      List.find_map(
+        (sp: Scratchpad.t) =>
+          switch (sp.kind) {
+          | Code({program, _}) when sp.name == name => Some(program)
+          | _ => None
+          },
+        from.scratchpads,
+      );
+    map_code(
+      (name, code) =>
+        switch (program_of(name)) {
+        | Some(live) => {
+            ...code,
+            program: Program.with_caches_of(~from=live, code.program),
+          }
+        | None => code
+        },
+      m,
+    );
+  };
+
   let scratchpad_names = (model: t): list(string) =>
     List.map((s: Scratchpad.t) => s.name, model.scratchpads);
 };
