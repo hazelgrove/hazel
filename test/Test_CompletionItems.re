@@ -339,10 +339,22 @@ let member_programs = [
     `Typed("module M = {\n  let x = 1;\n  let y\n  let z = 4\n} in\nM.x"),
     1,
   ),
+  /* a `let` typed at a member line is a member's: the missing `;` is a
+     grout, and nothing is unfinished */
   (
     "a missing `;`",
     Sort.Exp,
     `Typed("module M = {\n  let x = 1\n  let y = 2;\n  let z = 4\n} in\nM.x"),
+    0,
+  ),
+  /* one typed on a line indented past the member continues it: an
+     expression's `let`, missing its `in` */
+  (
+    "a `let` continuing a member",
+    Sort.Exp,
+    `Typed(
+      "module M = {\n  let x = 1\n    let y = 2;\n  let z = 4\n} in\nM.x",
+    ),
     1,
   ),
   (

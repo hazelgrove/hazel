@@ -1108,6 +1108,178 @@ let corpus_sweep = () =>
     );
   };
 
+/* ---- a member head typed at a member line after a member that isn't
+   open on the right starts a member, as after the member's `;`: the
+   missing `;` is the grout deleting one leaves, and nothing is
+   synthesized ---- */
+
+let counter_unfinished = "module Counter = {\n  let start = 0;\n  let next = (start + 1\n  let after = next + 1\n} in\nCounter.after";
+
+/* the rows are kept from the head keyword on (a prefix of one, `t` of
+   `then`, reads as an operator meanwhile, as at the top level); the last
+   state reads as [expect], with [synth] shards synthesized (an unfinished
+   member's), and the line [marked] holding the missing `;`'s grout */
+let member_head = ((name, root, src, after, keys, expect, synth, marked), ()) => {
+  let z0 = at_line(~root, src, after);
+  let before = rows(~root, z0);
+  let zs = type_line(~root, z0, keys);
+  let head = String.index(keys, ' ');
+  List.iteri(
+    (k, z) =>
+      if (k >= head) {
+        check_kept(
+          Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
+          before,
+          rows(~root, z),
+        );
+      },
+    zs,
+  );
+  let z = Util.ListUtil.last(zs);
+  check(list(string), name ++ ": rows", expect, paths(rows(~root, z)));
+  check(
+    int,
+    name ++ ": synthesized",
+    synth,
+    List.length(
+      CanonicalCompletion.complete_items(
+        ~sort=root,
+        MakeTerm.semantic_source(z),
+      ).
+        shard_records,
+    ),
+  );
+  check(
+    bool,
+    name ++ ": the missing `;` marked",
+    true,
+    List.mem(
+      marked,
+      List.map(String.trim, String.split_on_char('\n', text(z))),
+    ),
+  );
+};
+
+let counter_rows = (~root: Sort.t, typed: list(string)) => {
+  let (parent, trail) =
+    root == Sort.Mod ? ("", []) : ("/Counter", ["/trail : "]);
+  (root == Sort.Mod ? [] : ["/Counter : "])
+  @ List.map(
+      r => parent ++ "/" ++ r,
+      ["start : Int", "next : Int", "after : Int"] @ typed,
+    )
+  @ trail;
+};
+
+let member_head_cases = [
+  (
+    "`let` after the last member",
+    Sort.Exp,
+    counter,
+    "  let after = next + 1",
+    "let z = 1",
+    counter_rows(~root=Exp, ["z : Int"]),
+    0,
+    "~let z = 1",
+  ),
+  (
+    "`let` after the last member at a Mod root",
+    Sort.Mod,
+    counter_members,
+    "let after = next + 1",
+    "let z = 1",
+    counter_rows(~root=Mod, ["z : Int"]),
+    0,
+    "~let z = 1",
+  ),
+  (
+    "`type` after the last member",
+    Sort.Exp,
+    counter,
+    "  let after = next + 1",
+    "type T = Int",
+    counter_rows(~root=Exp, ["T : "]),
+    0,
+    "~type T = Int",
+  ),
+  (
+    "`module` after the last member",
+    Sort.Exp,
+    counter,
+    "  let after = next + 1",
+    "module N = {}",
+    counter_rows(~root=Exp, ["N : ()"]),
+    0,
+    "~module N = {}",
+  ),
+  /* the unfinished member gets its `)` and `;`; z and after are apart by
+     the missing `;`'s grout */
+  (
+    "`let` between members, after an unfinished one",
+    Sort.Exp,
+    counter_unfinished,
+    "  let next = (start + 1",
+    "let z = 1",
+    [
+      "/Counter : ",
+      "/Counter/start : Int",
+      "/Counter/next : Int",
+      "/Counter/z : Int",
+      "/Counter/after : Int",
+      "/trail : ",
+    ],
+    2,
+    "~let z = 1~",
+  ),
+];
+
+/* a line indented past the member continues it: the `let` there is an
+   expression's, its `in` synthesized, no member */
+let member_head_deeper = () => {
+  let z0 = at_line(~root=Exp, counter, "  let after = next + 1");
+  let z = Util.ListUtil.last(type_line(~root=Exp, z0, "  let z = 1"));
+  check(
+    bool,
+    "no member z",
+    false,
+    List.exists(((_, r: row)) => r.label == "z", rows(~root=Exp, z)),
+  );
+  check(
+    bool,
+    "its `in` synthesized",
+    true,
+    CanonicalCompletion.complete_items(
+      ~sort=Exp,
+      MakeTerm.semantic_source(z),
+    ).
+      shard_records
+    != [],
+  );
+};
+
+/* members typed into a new module, its `}` not yet typed: a `let` at
+   its member level is its member */
+let new_module_members = () => {
+  let z0 = at_line(~root=Exp, counter, "  let start = 0;");
+  let before = rows(~root=Exp, z0);
+  let z =
+    Util.ListUtil.last(
+      type_line(~root=Exp, z0, "module N = {\nlet y = 1\n  let z = 2"),
+    );
+  let after = rows(~root=Exp, z);
+  check_kept("a new module typed", before, after);
+  check(
+    list(string),
+    "N holds y and z",
+    ["y : Int", "z : Int"],
+    List.filter_map(
+      ((parent, r: row)) =>
+        parent == "/Counter/N" ? Some(show_row(r)) : None,
+      after,
+    ),
+  );
+};
+
 let tests = (
   "ModuleCompletion",
   List.map(
@@ -1132,6 +1304,19 @@ let tests = (
   @ [
     test_case("a new let-chain link", `Quick, chain_link),
     test_case("an unfinished nested module", `Quick, nested_unfinished),
+  ]
+  @ List.map(
+      ((name, _, _, _, _, _, _, _) as c) =>
+        test_case("a member head: " ++ name, `Quick, member_head(c)),
+      member_head_cases,
+    )
+  @ [
+    test_case(
+      "a member head on a line past its member",
+      `Quick,
+      member_head_deeper,
+    ),
+    test_case("members of a new module", `Quick, new_module_members),
   ]
   @ List.map(
       ((name, c)) =>

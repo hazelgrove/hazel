@@ -2844,6 +2844,19 @@ let strip_edge_grout =
   trailing ? completed |> List.rev |> drop |> List.rev : completed;
 };
 
+/* a unit cut where a member ended opens with the grout the regrout put
+   between that member and the next for their missing `;`, which the
+   member's `;` now is: drop it */
+let drop_cut_grout = (seg: Segment.t): Segment.t => {
+  let rec go = (pre, sg: Segment.t) =>
+    switch (sg) {
+    | [Piece.Secondary(_) as p, ...tl] => go([p, ...pre], tl)
+    | [Piece.Grout({shape: Concave, _}), ...tl] => List.rev_append(pre, tl)
+    | _ => seg
+    };
+  go([], seg);
+};
+
 /* did completion append past [item]'s end (a new trailing shard or piece)? */
 let ran_off_end = (item: Segment.t, completed: Segment.t): bool =>
   switch (ListUtil.last_opt(item), ListUtil.last_opt(completed)) {
@@ -3103,10 +3116,12 @@ and complete_slices =
       units,
     )
     |> List.rev;
+  /* [cut]: the unit starts where a member part ended its member */
   let rec go =
           (
             ~first: bool,
             ~opened: bool,
+            ~cut: bool,
             ~line: option(int),
             units: list(unit_),
           )
@@ -3136,6 +3151,7 @@ and complete_slices =
           ~original=block,
           r.completed_seg,
         );
+      let completed_seg = cut ? drop_cut_grout(completed_seg) : completed_seg;
       let r = {
         ...r,
         completed_seg,
@@ -3155,6 +3171,7 @@ and complete_slices =
           go(
             ~first,
             ~opened,
+            ~cut,
             ~line,
             [(block @ next, next_follows), ...more],
           );
@@ -3165,6 +3182,7 @@ and complete_slices =
             ...go(
                  ~first=false,
                  ~opened,
+                 ~cut=follows != None,
                  ~line=MemberLines.line_after(~line, block),
                  rest,
                ),
@@ -3172,7 +3190,7 @@ and complete_slices =
         };
       };
     };
-  go(~first=true, ~opened=false, ~line, units);
+  go(~first=true, ~opened=false, ~cut=false, ~line, units);
 };
 
 let complete_items = (~sort, seg: Segment.t): completion_result => {

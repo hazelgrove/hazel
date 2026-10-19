@@ -16,17 +16,19 @@ let at_members = (sort: Sort.t) => sort == Sort.Mod || sort == Sort.Sig;
 
 /* a form only a member level holds (every mold of its label is Mod or
    Sig sorted) */
+let is_member_label = (label: Label.t): bool =>
+  switch (Form.base_molds(label)) {
+  | [] => false
+  | molds =>
+    List.for_all(
+      (m: Mold.t) => m.out == Sort.Mod || m.out == Sort.Sig,
+      molds,
+    )
+  };
+
 let is_member_head = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) =>
-    switch (Form.base_molds(Tile.label(t))) {
-    | [] => false
-    | molds =>
-      List.for_all(
-        (m: Mold.t) => m.out == Sort.Mod || m.out == Sort.Sig,
-        molds,
-      )
-    }
+  | Tile(t) => is_member_label(Tile.label(t))
   | _ => false
   };
 
@@ -456,3 +458,77 @@ let member_parts =
       };
     go([], parts, ends);
   };
+
+/* ---- typing at a member line ---- */
+
+/* a member list's closer whose `{` is gone */
+let closes_members = (t: Tile.t): bool =>
+  !Tile.has_end(Left, t)
+  && at_members(fst(Mold.nibs(~index=Tile.l_shard(t), Tile.mold(t))).sort);
+
+/* a piece whose right operand is still to come: `=`, `in`, `+`, `(` */
+let open_right = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    switch (Tile.shapes(t)) {
+    | (_, Concave(_)) => true
+    | _ => false
+    }
+  | _ => false
+  };
+
+/* The member level whose member line the caret after [pre] starts, if it
+   does: [pre] is the caret's level's pieces before it, that level at
+   [sort] starting at [line]. The caret has only indentation before it on
+   its line, at-or-left of the first line of the member above, which isn't
+   open on the right (an open slot or a let chain's `in` takes the line).
+   The member level is [pre]'s own, or an unclosed `{`'s members in it. A
+   member head typed there starts a member, as after the member's `;`, so
+   its sort is the member level's */
+let member_line_sort =
+    (~sort: Sort.t, ~line: unit => option(int), pre: Segment.t)
+    : option(Sort.t) => {
+  let arr = Array.of_list(pre);
+  /* the caret's line before it: indentation, and the grout a missing `;`
+     leaves */
+  let rec indent_from = (j, n) =>
+    j > 0 && (Piece.is_space(arr[j - 1]) || Piece.is_grout(arr[j - 1]))
+      ? indent_from(j - 1, Piece.is_space(arr[j - 1]) ? n + 1 : n) : (j, n);
+  let (b, indent) = indent_from(Array.length(arr), 0);
+  let rec last = j =>
+    j < 0
+      ? None
+      : Piece.is_secondary(arr[j]) || Piece.is_grout(arr[j])
+          ? last(j - 1) : Some(j);
+  switch (b > 0 && Piece.is_linebreak(arr[b - 1]) ? last(b - 2) : None) {
+  | None => None
+  | Some(j) when is_member_sep(arr[j]) || open_right(arr[j]) => None
+  | Some(j) =>
+    let rec opener = k =>
+      k < 0
+        ? None
+        : (
+          switch (arr[k]) {
+          | Tile(t) when opens_members(t) => Some((k, t))
+          | Tile(t) when closes_members(t) => None
+          | _ => opener(k - 1)
+          }
+        );
+    let level =
+      switch (opener(j)) {
+      | Some((k, t)) =>
+        Some((
+          snd(Mold.nibs(~index=Tile.r_shard(t), Tile.mold(t))).sort,
+          k + 1,
+          Some(member_level(level_at(~line=line(), arr, k))),
+        ))
+      | None => at_members(sort) ? Some((sort, 0, line())) : None
+      };
+    switch (level) {
+    | Some((sort, from, line)) =>
+      let (_, first) = member_at(~line, ~floor=from, arr, j);
+      indent <= first ? Some(sort) : None;
+    | None => None
+    };
+  };
+};
