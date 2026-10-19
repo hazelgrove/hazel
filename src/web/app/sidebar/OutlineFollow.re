@@ -8,6 +8,13 @@ open Js_of_ocaml;
 let mark: ref(option(OutlineEdit.key)) = ref(None);
 let last_scrolled: ref(option(OutlineEdit.key)) = ref(None);
 
+/* scrolls wait for the frame's layout (AfterLayout), so none forces one */
+let scroll_after_layout = (scroll: unit => unit): unit =>
+  Util.AfterLayout.schedule(() => {
+    scroll();
+    () => ();
+  });
+
 /* the marked row's label, unless the outline is focused: a run's by its
    first test */
 let marked = (k: OutlineEdit.key): string =>
@@ -64,14 +71,15 @@ let follow_cursor = (): unit => {
   /* a new definition being named, below the cursor's row */
   | (Some(el), _, _) =>
     follow("+" ++ Option.fold(~none="", ~some=key_of, cursor), _ =>
-      scroll_nearest(el)
+      scroll_after_layout(() => scroll_nearest(el))
     )
-  | (None, Some(el), _) => follow(key_of(el), _ => scroll_nearest(el))
+  | (None, Some(el), _) =>
+    follow(key_of(el), _ => scroll_after_layout(() => scroll_nearest(el)))
   /* up onto the header: the list back to its top */
   | (None, None, Some(body)) =>
     follow("", moved =>
       if (moved) {
-        body##.scrollTop := 0;
+        scroll_after_layout(() => body##.scrollTop := 0);
       }
     )
   | (None, None, None) => last_cursor := None
@@ -226,7 +234,7 @@ let update = (): unit => {
   switch (spot^) {
   | Some(s) =>
     spot := None;
-    reveal(s);
+    scroll_after_layout(() => reveal(s));
   | None => ()
   };
   if (mark^ != last_scrolled^) {
@@ -235,8 +243,8 @@ let update = (): unit => {
     | None => ()
     | Some(k) =>
       Js.Opt.iter(
-        Dom_html.document##querySelector(Js.string(marked(k))),
-        scroll_nearest,
+        Dom_html.document##querySelector(Js.string(marked(k))), el =>
+        scroll_after_layout(() => scroll_nearest(el))
       )
     };
   };
