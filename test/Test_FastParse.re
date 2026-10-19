@@ -98,6 +98,129 @@ let rejected = (name, txt) =>
     )
   });
 
+/* a segment's structure, ids aside: tiles' forms, molds and shards,
+   grout shapes, secondaries' contents */
+let rec shape = (seg: Segment.t): string =>
+  String.concat(
+    "",
+    List.map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          "<"
+          ++ Form.show(t.form)
+          ++ ":"
+          ++ Mold.show(Tile.mold(t))
+          ++ ":"
+          ++ String.concat(",", List.map(string_of_int, t.shards))
+          ++ String.concat(
+               "",
+               List.map(c => "[" ++ shape(c) ++ "]", t.children),
+             )
+          ++ ">"
+        | Grout(g) => Grout.show_shape(g.shape)
+        | Secondary(w) => Language.Secondary.show_secondary_content(w.content)
+        | Projector(pr) => "P" ++ shape([pr.syntax])
+        },
+      seg,
+    ),
+  );
+
+/* a paste among a module's members takes the fast path (FastParse at
+   Mod) and gives the slow path's (typed char by char) segment, ids aside,
+   with the caret after it */
+let mod_paste = ((root, src, needle, clip), ()) => {
+  module MA = Test_ModAudit;
+  let z0 = MA.load(~root, src);
+  let z =
+    switch (
+      MA.perform_why(
+        ~root,
+        ~syntax=CachedSyntax.init(~root, z0),
+        ~statics=MA.statics_of(~root, z0),
+        z0,
+        Move(
+          Point(
+            Option.get(
+              MA.point_of(~off=String.length(needle), src, needle),
+            ),
+            None,
+          ),
+        ),
+      )
+    ) {
+    | Ok(z) => z
+    | Error(why) => fail(why)
+    };
+  check(
+    bool,
+    "a member caret",
+    true,
+    Relatives.sort(~root, z.relatives) == Sort.Mod,
+  );
+  switch (
+    Parser.fast_paste(clip, z, ~root),
+    Parser.to_zipper(~root, ~zipper_init=z, clip),
+  ) {
+  | (Error(why), _) => fail("fast path refused: " ++ why)
+  | (_, None) => fail("slow path failed")
+  | (Ok(fast), Some(slow)) =>
+    let seg = z => Zipper.unselect_and_zip(z);
+    check(string, "the segment", shape(seg(slow)), shape(seg(fast)));
+    check(
+      bool,
+      "the caret",
+      true,
+      MA.caret_at(~root, slow) == MA.caret_at(~root, fast),
+    );
+  };
+};
+
+let mod_paste_cases = {
+  let lit = "module M = {\n  let a = 1;\n  let b = 2\n};\nM.a";
+  let top = "let a = 1;\nlet b = 2;\na";
+  let defs =
+    String.concat(
+      "",
+      List.init(5, i => Printf.sprintf("\nlet x%d = %d + 1;", i, i)),
+    );
+  [
+    ("definitions into a module body", (Sort.Mod, lit, "let a = 1;", defs)),
+    ("definitions at a Mod root", (Sort.Mod, top, "let a = 1;", defs)),
+    (
+      "into a literal in an expression",
+      (
+        Sort.Exp,
+        "module M = {\n  let a = 1;\n  let b = 2\n} in\nM.a",
+        "let a = 1;",
+        defs,
+      ),
+    ),
+    (
+      "a partial member into a module body",
+      (Sort.Mod, lit, "let a = 1;", "\nlet z ="),
+    ),
+    (
+      "a partial member at a Mod root",
+      (Sort.Mod, top, "let a = 1;", "\nlet z ="),
+    ),
+    (
+      "a member without its `;`",
+      (Sort.Mod, top, "let a = 1;", "\nlet z = 3"),
+    ),
+    (
+      "a type, a module and a test",
+      (
+        Sort.Mod,
+        lit,
+        "let a = 1;",
+        "\ntype T = Int;\nmodule N = { let c = 3 };\ntest 1 == 1 end;",
+      ),
+    ),
+    ("a trailing newline", (Sort.Mod, top, "let a = 1;", "\nlet z = 3;\n")),
+  ];
+};
+
 let tests = (
   "FastParse",
   [
@@ -440,5 +563,10 @@ let tests = (
         };
       }
     }),
-  ],
+  ]
+  @ List.map(
+      ((name, case)) =>
+        test_case("Mod paste: " ++ name, `Quick, mod_paste(case)),
+      mod_paste_cases,
+    ),
 );
