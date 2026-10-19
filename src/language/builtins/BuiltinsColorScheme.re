@@ -224,6 +224,7 @@ let role_groups: list((string, list(string))) = [
   ("completion", ["chip-text", "later-text", "later-text-at-caret"]),
   ("projector", ["textarea-text", "fold-background", "statics-arm"]),
   ("agent", ["banner", "banner-edge"]),
+  ("type-block", List.map(Typ.head_name, Typ.all_of_head)),
 ];
 
 /* Declared, not inferred: low-contrast seeds could otherwise flip polarity

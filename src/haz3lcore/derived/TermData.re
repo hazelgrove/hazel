@@ -78,6 +78,33 @@ let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
   | None => None
   };
 
+type row_extent = {
+  row: int,
+  start_col: int,
+  end_col: int /* exclusive */
+};
+
+/* The columns the `id` term occupies on each of its rows, less leading and
+   trailing whitespace. Rows the term spans without content (blank lines,
+   rows reserved under a refractor) are left out. */
+let row_extents =
+    (id: Id.t, data: t, measured: Measured.t): option(list(row_extent)) => {
+  let+ (start, last) = extreme_measures(id, data, measured);
+  List.init(last.row - start.row + 1, i => start.row + i)
+  |> List.filter_map(row => {
+       let* shape = Measured.Rows.find_opt(row, measured.rows);
+       let start_col = row == start.row ? start.col : shape.content_start;
+       let end_col = row == last.row ? last.col : shape.content_end;
+       start_col < end_col
+         ? Some({
+             row,
+             start_col,
+             end_col,
+           })
+         : None;
+     });
+};
+
 /* The segment corresponding to the `id` term */
 let segment = (id: Id.t, data: t): option(Segment.t) => {
   let+ {base_seg, skel, _} = Id.Map.find_opt(id, data);

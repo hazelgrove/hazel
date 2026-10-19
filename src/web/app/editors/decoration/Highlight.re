@@ -824,3 +824,66 @@ let incr_eval =
       ),
   );
 };
+
+/* Type blocks (settings: Type blocks): nesting is shown by insetting each
+   block a little more than its parent, up to `inset_levels` deep; deeper
+   blocks share edges with their parent. */
+let inset_per_level = 1.5; /* px */
+let inset_levels = 3;
+
+let type_blocks =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~syntax: CachedSyntax.t,
+      blocks: list(Language.TypeBlocks.block),
+    ) =>
+  div_c(
+    "type-blocks",
+    List.concat_map(
+      ({id, head, level}: Language.TypeBlocks.block) => {
+        let inset_px =
+          inset_per_level *. float_of_int(min(level, inset_levels));
+        let inset_x = inset_px /. font_metrics.col_width;
+        let inset_y = inset_px /. font_metrics.row_height;
+        let base_cls = [
+          "shard",
+          "type-block",
+          "type-block-" ++ Language.Typ.head_name(head),
+        ];
+        switch (TermData.row_extents(id, syntax.term_data, syntax.measured)) {
+        | None => []
+        | Some(extents) =>
+          extents
+          |> List.map(({row, start_col, end_col}: TermData.row_extent) =>
+               SvgUtil.Rows.{
+                 row,
+                 left: start_col,
+                 right: end_col,
+               }
+             )
+          |> SvgUtil.Rows.split(~inset_x)
+          |> List.filter_map(group =>
+               SvgUtil.Rows.bbox(group)
+               |> Option.map((bb: SvgUtil.Rows.bbox) =>
+                    DecUtil.code_svg_sized(
+                      ~font_metrics,
+                      ~measurement={
+                        origin: {
+                          row: bb.top,
+                          col: bb.left,
+                        },
+                        last: {
+                          row: bb.bottom,
+                          col: bb.right,
+                        },
+                      },
+                      ~base_cls,
+                      SvgUtil.Rows.inset_outline(~inset_x, ~inset_y, group),
+                    )
+                  )
+             )
+        };
+      },
+      blocks,
+    ),
+  );

@@ -224,6 +224,21 @@ let sort_plate(c) =
     agent = (
       `banner` = Fade(wash(p.`pattern`, 0.9333, 0.4), 12.),
       `banner-edge` = Fade(wash(p.`pattern`, 0.9333, 0.4), 35.)
+    ),
+    # the block behind every term, one hue per type head, translucent so #
+    # nested blocks compose. The hues are fixed rather than taken from the #
+    # palette so a type keeps its color across schemes; only the lightness #
+    # follows the axis. #
+    `type-block` = (
+      `int` = Fade(at(Oklch(0., 0.09, 250.), 0.08), 55.),
+      `float` = Fade(at(Oklch(0., 0.09, 215.), 0.08), 55.),
+      `bool` = Fade(at(Oklch(0., 0.09, 0.), 0.08), 55.),
+      `string` = Fade(at(Oklch(0., 0.09, 95.), 0.08), 55.),
+      `list` = Fade(at(Oklch(0., 0.09, 140.), 0.08), 55.),
+      `arrow` = Fade(at(Oklch(0., 0.09, 300.), 0.08), 55.),
+      `tuple` = Fade(at(Oklch(0., 0.09, 50.), 0.08), 55.),
+      `sum` = Fade(at(Oklch(0., 0.09, 175.), 0.08), 55.),
+      `unknown` = Fade(at(Oklch(0., 0., 0.), 0.08), 55.)
     )
   ),
   # declared, not inferred -- low-contrast seeds could flip polarity #

@@ -265,6 +265,19 @@ let code_display = (~globals: Globals.t): section => {
           SimpleIndication,
           "Indicate the caret's term with a minimal arm instead of shard backings",
         ),
+        {
+          let active =
+            switch (globals.settings.blocks) {
+            | Settings.Blocks.Off => false
+            | Settings.Blocks.Types => true
+            };
+          toggle(
+            "Type blocks",
+            active,
+            SetBlocks(active ? Settings.Blocks.Off : Settings.Blocks.Types),
+            "Shade each term by its type, nested like ragged blocks",
+          );
+        },
       ],
   };
 };

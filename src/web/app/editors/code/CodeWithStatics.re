@@ -313,6 +313,17 @@ module View = {
         ~completion,
         warning_ids,
       );
+    let type_blocks =
+      switch (globals.settings.blocks) {
+      | Settings.Blocks.Off => []
+      | Settings.Blocks.Types => [
+          Highlight.type_blocks(
+            ~font_metrics=globals.font_metrics,
+            ~syntax=model.editor.syntax,
+            model.statics.type_blocks,
+          ),
+        ]
+      };
     let container_classes =
       ["code-container"]
       @ (globals.meta_down ? ["meta-down"] : [])
@@ -327,7 +338,7 @@ module View = {
         ProbeStagger.row_ends_attr(measured),
       ],
       // errors after warnings to prioritize errors over warnings
-      [code_text_view, warning_decos, error_decos] @ overlays,
+      type_blocks @ [code_text_view, warning_decos, error_decos] @ overlays,
     );
   };
 };

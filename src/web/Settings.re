@@ -8,6 +8,14 @@ module CompletionDisplay = {
     | Hidden;
 };
 
+/* Which blocks decoration, if any, is drawn behind the code. */
+module Blocks = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Off
+    | Types;
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -38,6 +46,8 @@ module Model = {
        (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
     shortcut_overrides: list((string, option(string))),
     simple_indication: bool,
+    [@sexp.default Blocks.Off]
+    blocks: Blocks.t,
   };
 
   let init = {
@@ -112,6 +122,7 @@ module Model = {
     show_incremental_deco: false,
     shortcut_overrides: [],
     simple_indication: false,
+    blocks: Blocks.Off,
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -181,7 +192,8 @@ module Update = {
     | ShowRowLines
     | ShowIncrementalDeco
     | SetShortcutOverrides(list((string, option(string))))
-    | SimpleIndication;
+    | SimpleIndication
+    | SetBlocks(Blocks.t);
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -533,6 +545,10 @@ module Update = {
       | SimpleIndication => {
           ...settings,
           simple_indication: !settings.simple_indication,
+        }
+      | SetBlocks(blocks) => {
+          ...settings,
+          blocks,
         }
       }
     )
