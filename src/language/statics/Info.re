@@ -233,6 +233,9 @@ let ctx_of: t => Ctx.t =
   | InfoMPat({ctx, _})
   | Secondary({ctx, _}) => ctx;
 
+/* the ancestors [info] records: all of them from a whole-program
+   analysis, but under DefStatics only those up to its item's root (whose
+   own are its parent in the item chain). [ancestors] has them all */
 let ancestors_of: t => ancestors =
   fun
   | InfoDrv(drv) => DrvInfo.ancestors_of(drv)
@@ -259,6 +262,96 @@ let id_of: t => Id.t =
   | InfoSig({id, _})
   | InfoMPat({id, _}) => id
   | Secondary(s) => s.id;
+
+/* [info]'s ancestors, innermost first, as a whole-program analysis lists
+   them: where the recorded ones end at an item's root, that root's go on
+   (its parent, the item above it or what holds its chain), and so on up.
+   an id listed twice in a row (a `module` binding above its body, a
+   function definition's) counts once */
+let ancestors = (~info_map: Id.Map.t(t), info: t): ancestors => {
+  let rec go = (segs, seen, seg) =>
+    switch (ListUtil.last_opt(seg)) {
+    | Some(root) when !Id.Set.mem(root, seen) =>
+      switch (Option.map(ancestors_of, Id.Map.find_opt(root, info_map))) {
+      | Some([_, ..._] as above) =>
+        go([seg, ...segs], Id.Set.add(root, seen), above)
+      | _ => [seg, ...segs]
+      }
+    | _ => [seg, ...segs]
+    };
+  let rec repeats =
+    fun
+    | [a, b, ..._] when Id.equal(a, b) => true
+    | [_, ...rest] => repeats(rest)
+    | [] => false;
+  let rec dedup =
+    fun
+    | [a, b, ...rest] when Id.equal(a, b) => dedup([b, ...rest])
+    | [a, ...rest] => [a, ...dedup(rest)]
+    | [] => [];
+  let all =
+    switch (go([], Id.Set.empty, ancestors_of(info))) {
+    | [whole] => whole
+    | segs => List.concat(List.rev(segs))
+    };
+  repeats(all) ? dedup(all) : all;
+};
+
+/* [info]'s ancestors within its item: the innermost definition or
+   statement of an item chain (the top level's, a module's members) that
+   holds it, and those between. a module statement's let chain is one
+   item, as the outline shows it */
+let within_item = (~info_map: Id.Map.t(t), info: t): ancestors => {
+  let body_of = (a: option(t)): option(Id.t) =>
+    switch (a) {
+    | Some(
+        InfoExp({
+          user_term:
+            {
+              term:
+                Let(_, _, b) | TyAlias(_, _, b) | ModuleExp(_, _, b) |
+                Seq(_, b) |
+                Filter(_, b) |
+                Use(_, b),
+              _,
+            },
+          _,
+        }),
+      ) =>
+      Some(Exp.rep_id(b))
+    | _ => None
+    };
+  let holds_items = (a: option(t)): bool =>
+    switch (a) {
+    | Some(InfoExp({user_term: {term: Module(_), _}, _})) => true
+    | _ => false
+    };
+  let all = ancestors(~info_map, info);
+  /* outermost first, each with its child on the way down. on a chain an
+     item's body is the items after it; the path leaves the chain at the
+     item holding the term, and a module's members are a chain again */
+  let steps =
+    List.rev(
+      List.combine(
+        all,
+        ListUtil.take(List.length(all), [id_of(info), ...all]),
+      ),
+    );
+  let (_, within) =
+    List.fold_left(
+      ((on_chain, within), (a, child)) => {
+        let info_a = Id.Map.find_opt(a, info_map);
+        if (on_chain && Option.equal(Id.equal, body_of(info_a), Some(child))) {
+          (true, within);
+        } else {
+          (holds_items(info_a), on_chain ? [a] : [a, ...within]);
+        };
+      },
+      (true, []),
+      steps,
+    );
+  within;
+};
 
 let marks_of: t => list(Mark.t) =
   fun

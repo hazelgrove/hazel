@@ -37,6 +37,8 @@ type item = {
 and sum = {
   s_item: item, /* as it was when summed */
   s_src: option(Mod.t), /* a module member's source, reclassified */
+  /* the root's parent: the item above, or what holds the chain */
+  s_parent: list(Id.t),
   s_wit: SubexpProbeTargets.t,
   s_co: CoCtx.t,
   s_elab: option(Exp.t), /* None on an unexpected elab shape */
@@ -577,9 +579,20 @@ let own_unused = (it: item, ~used: list(string), ~holes: bool): list(Id.t) =>
    so a spine root's info misses later items. the evaluator's reuse
    gating reads a root's elab_term, probe_targets and co_ctx, so each
    non-tail root gets them extended over the suffix (its co_ctx minus the
-   root's value bindings), or cached runs replay stale */
+   root's value bindings), or cached runs replay stale. and every root
+   reads as in a whole-program analysis: its term continues into the item
+   below, and its ancestors are its [parent] (the item above, or what
+   holds the chain), whose own ancestors go on from there
+   (Info.ancestors) */
 let summarize =
-    (~probe_ids, ~src: option(Mod.t), it: item, below: option(sum)): sum => {
+    (
+      ~probe_ids,
+      ~src: option(Mod.t),
+      ~parent: list(Id.t),
+      it: item,
+      below: option(sum),
+    )
+    : sum => {
   incr(summed);
   let (wit, co, elab, free, tfree, holes, errors, warnings, unused) =
     switch (below) {
@@ -628,21 +641,43 @@ let summarize =
             co,
           ),
     );
-  /* a tail item is already accurate, and a module form has no InfoExp
-     at the root: those thread upward without patching */
+  /* the item's node over the item below, as the program holds it */
+  let node =
+    switch (split_body(it.d_node), below) {
+    | (Some((_, rebuild)), Some(s)) => {
+        ...it.d_node,
+        term: rebuild(s.s_item.d_node),
+      }
+    | _ => it.d_node
+    };
+  /* at each of the root's ids (a case has several); a tail item's suffix
+     is itself */
   let overlay =
-    switch (it.d_hole, raw) {
-    | (Some(_), Some(raw)) =>
-      Id.Map.singleton(
-        it.d_id,
-        Info.InfoExp({
-          ...raw,
-          elab_term: Option.value(~default=raw.elab_term, s_elab),
-          probe_targets: SubexpProbeTargets.union(raw.probe_targets, wit),
-          co_ctx: s_co,
-        }),
-      )
-    | _ => Id.Map.empty
+    switch (raw) {
+    | Some(raw) =>
+      let raw = {
+        ...raw,
+        user_term: node,
+        ancestors: parent,
+      };
+      let info =
+        Info.InfoExp(
+          switch (it.d_hole) {
+          | Some(_) => {
+              ...raw,
+              elab_term: Option.value(~default=raw.elab_term, s_elab),
+              probe_targets: SubexpProbeTargets.union(raw.probe_targets, wit),
+              co_ctx: s_co,
+            }
+          | None => raw
+          },
+        );
+      List.fold_left(
+        (m, id) => Id.Map.add(id, info, m),
+        Id.Map.empty,
+        IdTagged.ids(it.d_node),
+      );
+    | None => Id.Map.empty
     };
   /* a module's items read as module items, as monolithically */
   let overlay =
@@ -663,6 +698,7 @@ let summarize =
   {
     s_item: it,
     s_src: src,
+    s_parent: parent,
     s_wit: SubexpProbeTargets.union(probes_in(~probe_ids, it), wit),
     s_co,
     s_elab,
@@ -685,9 +721,11 @@ let summarize =
 };
 
 /* whether [s] still sums [it]: nothing it read has changed */
-let sums_still = (s: sum, it: item, src: option(Mod.t)): bool => {
+let sums_still =
+    (s: sum, it: item, src: option(Mod.t), parent: list(Id.t)): bool => {
   let q = s.s_item;
-  (
+  List.equal(Id.equal, s.s_parent, parent)
+  && (
     q === it
     || Id.equal(q.d_id, it.d_id)
     && q.d_map === it.d_map
@@ -720,12 +758,15 @@ let top_sum = (sums: list(sum)): option(sum) =>
 
 /* [items]' sums and merged map after a walk's [changes]: from the last
    run's ([prev]: its sums, and a map that holds its merged map), or
-   afresh. sums below the lowest changed item are kept and the rest are
-   summed again, their overlays rewritten. also returns the keys where
-   the map may have changed (None: built afresh) */
+   afresh. sums below the lowest changed item are kept, unless the item
+   above one changed (its root's parent did), and the rest are summed
+   again, their overlays rewritten. [container]: the first item's parent.
+   also returns the keys where the map may have changed (None: built
+   afresh) */
 let step_chain =
     (
       ~probe_ids,
+      ~container: list(Id.t),
       ~srcs: list(option(Mod.t)),
       ~prev: option((list(sum), Statics.Map.t)),
       items: list(item),
@@ -738,24 +779,25 @@ let step_chain =
       Id.Set.empty,
       changes,
     );
-  /* bottom first */
-  let rec pair = (items, srcs, acc) =>
+  /* bottom first, each with its source and its parent */
+  let rec pair = (items, srcs, parent, acc) =>
     switch (items, srcs) {
     | ([], _) => acc
     | ([it, ...items], [src, ...srcs]) =>
-      pair(items, srcs, [(it, src), ...acc])
-    | ([it, ...items], []) => pair(items, [], [(it, None), ...acc])
+      pair(items, srcs, [it.d_id], [(it, src, parent), ...acc])
+    | ([it, ...items], []) =>
+      pair(items, [], [it.d_id], [(it, None, parent), ...acc])
     };
   let rec keep = (up, old, kept) =>
     switch (up, old) {
-    | ([(it, src), ...up'], [s, ...old'])
-        when !Id.Set.mem(it.d_id, changed) && sums_still(s, it, src) =>
+    | ([(it, src, parent), ...up'], [s, ...old'])
+        when !Id.Set.mem(it.d_id, changed) && sums_still(s, it, src, parent) =>
       keep(up', old', [s, ...kept])
     | _ => (up, old, kept)
     };
   let (up, replaced, kept) =
     keep(
-      pair(items, srcs, []),
+      pair(items, srcs, container, []),
       switch (prev) {
       | Some((sums, _)) => List.rev(sums)
       | None => []
@@ -764,8 +806,8 @@ let step_chain =
     );
   let (fresh, _) =
     List.fold_left(
-      ((acc, below), (it, src)) => {
-        let s = summarize(~probe_ids, ~src, it, below);
+      ((acc, below), (it, src, parent)) => {
+        let s = summarize(~probe_ids, ~src, ~parent, it, below);
         ([s, ...acc], Some(s));
       },
       ([], top_sum(kept)),
@@ -788,7 +830,7 @@ let step_chain =
        them */
     let owners =
       List.fold_left(
-        (m, (it, _)) => Id.Map.add(it.d_id, it, m),
+        (m, (it, _, _)) => Id.Map.add(it.d_id, it, m),
         Id.Map.empty,
         up,
       );
@@ -1357,6 +1399,7 @@ and calc_module_item =
   let (sums, chain_map, touched) =
     step_chain(
       ~probe_ids,
+      ~container=[rep],
       ~srcs=List.map(Option.some, members),
       ~prev=Option.map(n => (n.n_sums, prev_map), prev_nest),
       items_m,
@@ -1528,6 +1571,7 @@ and calc_modexp_item =
   let (sums, chain_map, touched) =
     step_chain(
       ~probe_ids,
+      ~container=[Exp.rep_id(node)],
       ~srcs=[],
       ~prev=Option.map(n => (n.n_sums, prev_map), prev_nest),
       links,
@@ -1892,10 +1936,12 @@ let calc =
       ~ctx_in=ctx0,
       nodes,
     );
-  /* a Module root's items read as module items, as monolithically */
+  /* a Module root's items read as module items, as monolithically. the
+     root has no info of its own here, so its first item lists no parent */
   let (sums, merged, _) =
     step_chain(
       ~probe_ids,
+      ~container=[],
       ~srcs=
         switch (root) {
         | Some((_, members, _, _)) => List.map(Option.some, members)
