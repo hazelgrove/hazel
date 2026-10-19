@@ -396,9 +396,97 @@ let member_autoprobe = () =>
     [(Sort.Exp, e_src), (Sort.Mod, m_src)],
   );
 
+/* an error badges its row, and rolls up into the rows holding it,
+   modules included, but not into the items before it */
+let error_rollup = (~root, src, ~own, ~rolls, ~not_rolls, ()) => {
+  module O = Web.OutlineTree;
+  let z = Zipper.unzip(CorpusUtil.seg_of(~root, src));
+  let (editor, whole) = statics(~root, z);
+  List.iter(
+    ((what, st: CachedStatics.t)) => {
+      let nodes = O.flatten(O.of_term(st.term));
+      let id_of = label =>
+        switch (List.find_opt((n: O.node) => n.o_label == label, nodes)) {
+        | Some({o_id: Some(id), _}) => id
+        | _ => fail("no row " ++ label)
+        };
+      let (direct, roll) =
+        O.error_rows(
+          ~info_map=st.info_map,
+          ~rows=O.collect(O.of_term(st.term)),
+          st.error_ids,
+        );
+      check(
+        bool,
+        what ++ ": " ++ own ++ " owns the error",
+        true,
+        List.mem(id_of(own), direct),
+      );
+      List.iter(
+        r =>
+          check(
+            bool,
+            what ++ ": " ++ r ++ " rolls it up",
+            true,
+            List.mem(id_of(r), roll),
+          ),
+        rolls,
+      );
+      List.iter(
+        r =>
+          check(
+            bool,
+            what ++ ": " ++ r ++ " has no badge",
+            false,
+            List.mem(id_of(r), roll) || List.mem(id_of(r), direct),
+          ),
+        not_rolls,
+      );
+    },
+    [("compositional", editor), ("monolithic", whole)],
+  );
+};
+
+let rollup_tests = [
+  test_case(
+    "an error rolls up into its module",
+    `Quick,
+    error_rollup(
+      ~root=Mod,
+      "module M = {\n  let a = true;\n  let b = a + 1;\n  let c = b\n};\nlet x = 5;\nx",
+      ~own="b",
+      ~rolls=["M"],
+      ~not_rolls=["a", "c", "x"],
+    ),
+  ),
+  test_case(
+    "an error rolls up into nested modules",
+    `Quick,
+    error_rollup(
+      ~root=Mod,
+      "module Outer = {\n  module Inner = {\n    let v = 1;\n    let x = v + true\n  };\n  let w = 1\n};\nlet y = Outer.Inner.x;\ny",
+      ~own="x",
+      ~rolls=["Inner", "Outer"],
+      ~not_rolls=["v", "w", "y"],
+    ),
+  ),
+  test_case(
+    "an error in a let chain stays on its item",
+    `Quick,
+    error_rollup(
+      ~root=Exp,
+      "let a = 1 in\nlet b = true + 1 in\nlet c = b in\nc",
+      ~own="b",
+      ~rolls=[],
+      ~not_rolls=["a", "c"],
+    ),
+  ),
+];
+
 let tests = (
   "StaticsAncestry",
   cmd_d_tests
+  @ rollup_tests
   @ [test_case("a member's autoprobe target", `Quick, member_autoprobe)]
   @ List.map(
       ((name, _, _) as p) =>

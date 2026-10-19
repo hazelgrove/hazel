@@ -258,6 +258,37 @@ let rec flatten = (ns: list(node)): list(node) =>
 let collect = (ns: list(node)): list(Id.t) =>
   List.filter_map(n => n.o_id, flatten(ns));
 
+/* the rows [errors] badge, among [rows]: each error's deepest row in its
+   item, and the rows holding it past that, modules included, whose
+   roll-up badge shows while they are collapsed */
+let error_rows =
+    (~info_map: Id.Map.t(Info.t), ~rows: list(Id.t), errors: list(Id.t))
+    : (list(Id.t), list(Id.t)) => {
+  let in_rows = id => List.mem(id, rows);
+  List.fold_left(
+    ((direct, roll), err) => {
+      let (own, held) =
+        switch (Id.Map.find_opt(err, info_map)) {
+        | Some(info) => (
+            [err, ...Info.within_item(~info_map, info)],
+            [err, ...Info.containers(~info_map, info)],
+          )
+        | None => ([err], [err])
+        };
+      let holders = List.filter(in_rows, held);
+      switch (List.filter(in_rows, own)) {
+      | [] => (direct, holders @ roll)
+      | [deepest, ..._] => (
+          [deepest, ...direct],
+          List.filter(id => !Id.equal(id, deepest), holders) @ roll,
+        )
+      };
+    },
+    ([], []),
+    errors,
+  );
+};
+
 /* the row with id [fid], and the rows above it outermost first */
 let find = (fid: Id.t, e: Exp.t): option((list(node), node)) => {
   let rec go = (above, ns: list(node)) =>

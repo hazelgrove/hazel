@@ -430,6 +430,22 @@ let find_within_item =
   );
 };
 
+/* the terms holding [info], innermost first, past its item to the
+   modules and definitions around it: its ancestors but for the items it
+   follows on an item chain, whose bodies hold the items after them */
+let containers = (~info_map: Id.Map.t(t), info: t): ancestors =>
+  climb(
+    ~info_map,
+    info,
+    [],
+    (held, a, child) =>
+      Up(
+        item_continues(Id.Map.find_opt(a, info_map), child)
+          ? held : [a, ...held],
+      ),
+    List.rev,
+  );
+
 let marks_of: t => list(Mark.t) =
   fun
   | InfoExp({marks, _})
