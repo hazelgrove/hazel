@@ -56,7 +56,13 @@ let all_ids_temp = {
         annotation: IdTagged.IdTag.temp(),
       }
       |> continue;
-  map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
+  /* A type hole's id is its identity (Inference solves holes by id). */
+  let f_typ = (continue, ty: t): t =>
+    switch (ty.term) {
+    | Unknown(Hole(EmptyHole)) => ty
+    | _ => f(continue, ty)
+    };
+  map_term(~f_exp=f, ~f_pat=f, ~f_typ, ~f_tpat=f, ~f_rul=f);
 };
 
 let (replace_temp, replace_temp_exp) = {
@@ -779,6 +785,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Projector(_, ty1), _) => meet'(ty1, ty2)
   | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => meet'(ty1', ty2)
   | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => meet'(ty1, ty2')
+  /* A type hole with an id is a hole somebody can fill (the user, or
+     Inference for implicit ones): keep it rather than a nameless copy. */
+  | (Unknown(Hole(EmptyHole)), Unknown(_)) when rep_id(ty1) != Id.invalid =>
+    Some(ty1)
+  | (Unknown(_), Unknown(Hole(EmptyHole))) when rep_id(ty2) != Id.invalid =>
+    Some(ty2)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(meet_type_provenance(p1, p2)) |> temp)
   | (Unknown(_), _) => Some(ty2)

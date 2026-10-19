@@ -96,6 +96,35 @@ let analyze_hazel =
         term,
       );
 
+    /* HAZEL_STATICS_BENCH=n: time n more statics runs on fresh parses
+       (fresh ids, so no memo hits), as an editor re-running statics would. */
+    switch (
+      Option.bind(Sys.getenv_opt("HAZEL_STATICS_BENCH"), int_of_string_opt)
+    ) {
+    | Some(runs) when runs > 0 =>
+      let time = _ =>
+        switch (parse_to_zipper(program)) {
+        | Some(z) =>
+          let term = Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+          let t0 = Unix.gettimeofday();
+          let _ =
+            Statics.mk(
+              CoreSettings.on,
+              Builtins.ctx_init(Some(Operators.default_mode)),
+              term,
+            );
+          1000. *. (Unix.gettimeofday() -. t0);
+        | None => 0.
+        };
+      let times = List.sort(compare, List.init(runs, time));
+      Printf.printf(
+        "statics_ms min %.1f median %.1f\n",
+        List.hd(times),
+        List.nth(times, runs / 2),
+      );
+    | _ => ()
+    };
+
     /* Get errors with their infos for line numbers */
     let formatted_errors =
       Id.Map.fold(

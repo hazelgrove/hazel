@@ -694,9 +694,7 @@ module PlainTests = {
             fn(
               Pat.(tuple([tup_label(label("a"), var("x"))])),
               var("x"),
-              Some(
-                Typ.(prod([tup_label(label("a"), unknown(Internal))])),
-              ),
+              Some(Typ.(prod([tup_label(label("a"), int())]))),
               None,
             ),
             tuple([tup_label(label("a"), int(1))]),
@@ -1108,7 +1106,8 @@ x
   let seq_menhir = () =>
     alco_check_menhir("Sequence test (menhir)", seq_str, seq_uexp);
 
-  let fixf_str = "fix x -> (1 : ?)";
+  /* x's type is inferred from its definition (Inference). */
+  let fixf_str = "fix x -> (1 : Int)";
   let fixf_uexp: Exp.t = Exp.(fix_f(Pat.var("x"), int(1), None));
   let fixf_menhir = () =>
     alco_check_menhir("FixF test (menhir)", fixf_str, fixf_uexp);

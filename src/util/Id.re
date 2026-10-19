@@ -109,6 +109,32 @@ let mk_str: string => t = s => Uuidm.v5(namespace_uuid, s);
 let derive = (~salt: string, x: t): t =>
   Uuidm.v5(namespace_uuid, salt ++ ":" ++ Uuidm.to_string(x));
 
+/* Ids of nodes the elaboration adds that the program never shows (the
+   type applications and abstractions of implicit polymorphism): derived as
+   above, with a fixed six-byte prefix so they can be told apart later
+   (2^-48 chance per id of a false match). */
+let implicit_prefix = "\x1a\xa1\x1a\xa1\x1a\xa1";
+let derive_implicit = (~salt: string, x: t): t => {
+  let b = Bytes.of_string(Uuidm.to_bytes(derive(~salt, x)));
+  Bytes.blit_string(implicit_prefix, 0, b, 0, 6);
+  Uuidm.v4(b);
+};
+/* Allocation-free: re-iding a stepper frame asks this of every node. */
+let is_implicit = (x: t): bool => {
+  let s = Uuidm.to_bytes(x);
+  let rec go = i => i == 6 || s.[i] == implicit_prefix.[i] && go(i + 1);
+  go(0);
+};
+/* A fresh implicit id, for re-iding an implicit node: mk's unique counter
+   bytes moved behind the prefix. */
+let mk_implicit = (): t => {
+  let src = Uuidm.to_bytes(mk());
+  let b = Bytes.of_string(src);
+  Bytes.blit_string(implicit_prefix, 0, b, 0, 6);
+  Bytes.blit_string(src, 0, b, 9, 6);
+  Uuidm.v4(b);
+};
+
 let compare: (t, t) => int = Uuidm.compare;
 let to_string: (~upper: bool=?, t) => string = Uuidm.to_string;
 let of_string: (~pos: int=?, string) => option(t) = Uuidm.of_string;

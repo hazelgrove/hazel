@@ -263,7 +263,7 @@ let rescan_reassemble = (~with_parent=false, d: Direction.t, z: t, ~root): t => 
 
 let clear_unparsed_buffer = (z: t) =>
   switch (z.selection.mode) {
-  | Buffer(Unparsed) => {
+  | Buffer(Unparsed | Abbreviated(_)) => {
       ...z,
       selection: Selection.empty,
     }
@@ -1359,6 +1359,30 @@ let selection_anchor_point = (measured, z: t): option(Point.t) => {
     };
   };
 };
+
+/* The empty hole beside the caret, on either side */
+let hole_beside_caret = (z: t): option(Id.t) => {
+  let rec first = (pieces: Segment.t) =>
+    switch (pieces) {
+    | [Secondary(s), ...rest] when Secondary.is_space(s) => first(rest)
+    | [Grout(g), ..._] => Some(g.id)
+    | _ => None
+    };
+  let (left, right) = z.relatives.siblings;
+  switch (z.caret, first(right)) {
+  | (Outer, Some(hole)) => Some(hole)
+  | (Outer, None) => first(List.rev(left))
+  | _ => None
+  };
+};
+
+/* An inferred-type ghost stands in for the hole beside it, which is then
+   neither drawn nor given a column */
+let hidden_hole = (z: t): option(Id.t) =>
+  switch (z.selection.mode) {
+  | Buffer(Abbreviated(_)) => hole_beside_caret(z)
+  | _ => None
+  };
 
 let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
   ...z,

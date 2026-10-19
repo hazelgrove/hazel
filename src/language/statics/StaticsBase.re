@@ -352,6 +352,54 @@ let expectation_mismatch_mark =
   };
 };
 
+/* What `add` needs from checking a synthesized type against an expectation,
+   from one meet: expectation_mismatch_mark, syn_ana_ok_common and fixed_typ
+   each meet the same pair (meet sees through explicit-nonlabel wrappers,
+   so stripping them first doesn't change it). */
+type subsumption = {
+  mismatch: option(Mark.t),
+  ok: Message.ok_common,
+  ty: Typ.t,
+};
+
+let subsume = (ctx: Ctx.t, ana: Typ.t, syn: Typ.t): subsumption => {
+  let ana' = ana_skip_explicit_nonlabel(ana);
+  switch (ana'.term) {
+  | Unknown(SynSwitch) => {
+      mismatch: None,
+      ok: Message.Syn(syn),
+      ty: fixed_typ(ctx, ana, syn),
+    }
+  | _ =>
+    let syn' = ana_skip_explicit_nonlabel(syn);
+    switch (Typ.meet(ctx, ana', syn')) {
+    | Some(meet) => {
+        mismatch: None,
+        ok:
+          Message.Ana(
+            Message.Consistent({
+              ana: ana',
+              syn,
+              meet,
+            }),
+          ),
+        ty: meet,
+      }
+    | None => {
+        mismatch:
+          Some(
+            Mark.ExpectationMismatch({
+              ana: ana',
+              syn: syn',
+            }),
+          ),
+        ok: Message.Syn(syn),
+        ty: Typ.is_syn_plus(ana) ? syn : ana,
+      }
+    };
+  };
+};
+
 /* Lightweight pat update: prepend a mark and update dependent fields. */
 let prepend_pat_mark =
     (

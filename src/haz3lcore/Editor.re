@@ -207,12 +207,25 @@ module Update = {
       } else {
         state.zipper;
       };
+    /* An empty type annotation at the caret shows its inferred type, also
+       when the caret arrives without an edit */
+    let (zipper, inferred_buffer) =
+      if (settings.assist
+          && settings.statics
+          && !Selection.is_buffer(zipper.selection)) {
+        let z = Buffer.set_inferred_buffer(~settings, statics, zipper);
+        (z, Selection.is_buffer(z.selection));
+      } else {
+        (zipper, false);
+      };
 
     /* 2. Recalculate syntax cache. `CachedSyntax.calculate` detects
      * input changes (info_map/dyn_map/elaborated refs) and chooses
      * between full `mk`, shape-only refresh, or cheap selection-only
      * update — so callers don't need to plumb "statics changed" signals. */
-    let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
+    /* The new buffer piece needs measuring, edit or not */
+    let syntax =
+      is_edited || inferred_buffer ? CachedSyntax.mark_old(syntax) : syntax;
     let syntax =
       PerfTimer.time("editor-syntax", () =>
         CachedSyntax.calculate(
