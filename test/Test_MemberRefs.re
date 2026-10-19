@@ -268,6 +268,21 @@ let inspector = () =>
         },
         roots,
       );
+      /* through a nested module */
+      let z = at(~off=12, ~root=Mod, nested_src, "Outer.Inner.x");
+      check(
+        string,
+        "Outer.Inner.x's x " ++ what,
+        "Variable reference : Bool",
+        inspect(~info_map=mk(~root=Sort.Mod, z), z),
+      );
+      let z = at(~off=12, ~root=Mod, nested_src, "Outer.Inner.T");
+      check(
+        string,
+        "Outer.Inner.T's T " ++ what,
+        "Type variable = Bool",
+        inspect(~info_map=mk(~root=Sort.Mod, z), z),
+      );
       /* a tuple's label stays a label */
       let src = "let t = (x = 1) in\nt.x";
       let z = at(~off=2, ~root=Exp, src, "t.x");
