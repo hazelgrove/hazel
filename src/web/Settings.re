@@ -57,6 +57,9 @@ module Model = {
     blocks: Blocks.t,
     [@sexp.default Blocks.Inset]
     block_layout: Blocks.layout,
+    /* pixels each block edge stands out from its text, in the padded layout */
+    [@sexp.default 2]
+    block_pad: int,
   };
 
   let init = {
@@ -133,6 +136,7 @@ module Model = {
     simple_indication: false,
     blocks: Blocks.Off,
     block_layout: Blocks.Inset,
+    block_pad: 2,
   };
 
   /* Keep the persisted fields compatible with existing preferences, while
@@ -204,7 +208,8 @@ module Update = {
     | SetShortcutOverrides(list((string, option(string))))
     | SimpleIndication
     | SetBlocks(Blocks.t)
-    | SetBlockLayout(Blocks.layout);
+    | SetBlockLayout(Blocks.layout)
+    | SetBlockPad(int);
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -564,6 +569,10 @@ module Update = {
       | SetBlockLayout(block_layout) => {
           ...settings,
           block_layout,
+        }
+      | SetBlockPad(block_pad) => {
+          ...settings,
+          block_pad,
         }
       }
     )

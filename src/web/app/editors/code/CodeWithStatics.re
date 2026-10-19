@@ -261,14 +261,13 @@ type layout = {
   padding: option(Padding.t),
 };
 
-let block_pad = 2.; /* px per block edge */
-
 type layout_key = {
   measured: Measured.t,
   blocks: list(Language.TypeBlocks.block),
   font_metrics: FontMetrics.t,
   show: Settings.Blocks.t,
   how: Settings.Blocks.layout,
+  pad: int,
 };
 
 let layout_cache: ref(list((layout_key, layout))) = ref([]);
@@ -281,13 +280,15 @@ let layout = (~globals: Globals.t, model: Model.t): layout => {
     font_metrics: globals.font_metrics,
     show: globals.settings.blocks,
     how: globals.settings.block_layout,
+    pad: globals.settings.block_pad,
   };
   let same = (k: layout_key) =>
     k.measured === key.measured
     && k.blocks === key.blocks
     && FontMetrics.equal(k.font_metrics, key.font_metrics)
     && Settings.Blocks.equal(k.show, key.show)
-    && Settings.Blocks.equal_layout(k.how, key.how);
+    && Settings.Blocks.equal_layout(k.how, key.how)
+    && k.pad == key.pad;
   switch (List.find_opt(((k, _)) => same(k), layout_cache^)) {
   | Some((_, layout)) => layout
   | None =>
@@ -304,7 +305,7 @@ let layout = (~globals: Globals.t, model: Model.t): layout => {
           grid:
             Grid.of_padding(
               ~font_metrics=key.font_metrics,
-              ~pad=block_pad,
+              ~pad=float_of_int(key.pad),
               padding,
             ),
           padding: Some(padding),
