@@ -6,14 +6,17 @@
  * the child or complete the form — so indentation is conservative while
  * typing and corrected on Format, when following content is known. */
 
+/* spaces and concave grout: the walk reads past them */
+let is_non_content = (p: Piece.t): bool =>
+  switch (p) {
+  | Grout({shape: Concave, _}) => true
+  | Secondary(s) => Secondary.is_space(s)
+  | _ => false
+  };
+
 /* Remove non-contentful items (whitespace and concave grout) */
 let trim_non_content: Segment.t => Segment.t =
-  List.filter_map(
-    fun
-    | Piece.Grout({shape: Concave, _}) => None
-    | Secondary(s) when Secondary.is_space(s) => None
-    | p => Some(p),
-  );
+  List.filter(p => !is_non_content(p));
 
 /* Context (effective_prev, next, effective_next) per piece, one pass;
  * the effective_* fields skip linebreaks. Convex grout counts as
@@ -88,40 +91,56 @@ let rec shallow_complete_segment = (seg: Segment.t): Segment.t => {
   go([], seg);
 };
 
-/* Find the shortest prefix of the segment containing all incomplete tiles
- * followed by two consecutive linebreaks (aka a blank line) */
+/* [seg]'s first incomplete tile, a case rule aside, completed as
+   shallow_complete_segment completes it, with the rest of [seg] as is for
+   its last child: the walk completes each level's open tile as it reaches
+   the level, so it knows which closers aren't typed */
+let complete_first = (seg: Segment.t): (Segment.t, option(Id.t)) => {
+  let rec go = (acc, seg: Segment.t) =>
+    switch (seg) {
+    | [] => (List.rev(acc), None)
+    | [Tile(t), ...rest] when !Tile.is_complete(t) && !Tile.is_case_rule(t) => (
+        List.rev([
+          Piece.Tile({
+            ...t,
+            shards: List.init(Tile.arity(t), i => i),
+            children: t.children @ [rest],
+          }),
+          ...acc,
+        ]),
+        Some(t.id),
+      )
+    | [p, ...rest] => go([p, ...acc], rest)
+    };
+  go([], seg);
+};
+
+/* [seg] split at its first blank line after an incomplete tile (a line of
+   spaces and concave grout is blank), one linebreak on each side. A
+   member list whose `}` isn't typed reads on through blank lines, which
+   part its members, as the layout partition reads it */
 let incomplete_subseg_before_blank_line =
     (seg: Segment.t): option((Segment.t, Segment.t)) => {
-  let rec find_split_point =
-          (seg: Segment.t, acc: Segment.t, incomplete_before: bool)
-          : option((Segment.t, Segment.t)) => {
+  let rec blank = (seg: Segment.t) =>
     switch (seg) {
-    | [] => None
-    | [Secondary(w1) as p, Secondary(w2), ...rest]
-        when Secondary.is_linebreak(w1) && Secondary.is_linebreak(w2) =>
-      let incomplete_before = incomplete_before || !Piece.is_complete(p);
-      if (incomplete_before) {
-        /* Note: Leaves one linebreak in and one out (empty line) */
-        Some((
-          List.rev([Piece.Secondary(w1), ...acc]),
-          [Secondary(w2), ...rest],
-        ));
-      } else {
-        find_split_point(
-          rest,
-          [Secondary(w2), Secondary(w1), ...acc],
-          incomplete_before,
-        );
-      };
-    | [p, ...rest] =>
-      find_split_point(
-        rest,
-        [p, ...acc],
-        incomplete_before || !Piece.is_complete(p),
-      )
+    | [p, ...rest] when is_non_content(p) => blank(rest)
+    | [p, ..._] => Piece.is_linebreak(p)
+    | [] => false
     };
-  };
-  find_split_point(seg, [], false);
+  let rec go = (first: option(Tile.t), acc, seg: Segment.t) =>
+    switch (seg, first) {
+    | ([], _) => None
+    | ([p, ...rest], Some(t))
+        when
+          Piece.is_linebreak(p)
+          && blank(rest)
+          && !MemberLines.opens_members(t) =>
+      Some((List.rev([p, ...acc]), rest))
+    | ([Tile(t) as p, ...rest], None) when !Tile.is_complete(t) =>
+      go(Some(t), [p, ...acc], rest)
+    | ([p, ...rest], _) => go(first, [p, ...acc], rest)
+    };
+  go(None, [], seg);
 };
 
 /* When a segment is incomplete, we try to complete it before calculating
@@ -136,13 +155,22 @@ let incomplete_subseg_before_blank_line =
  * ensure non-janky left-to-right entry of a new definition seperated
  * from the rest of the existing below bidelimited context by an empty line,
  * assuming that the below bidelimited context doesn't contain incomplete
- * tiles at the top level. */
-let complete_segment = (seg: Segment.t): Segment.t => {
-  switch (incomplete_subseg_before_blank_line(seg)) {
-  | None => shallow_complete_segment(seg)
-  | Some((before, after)) => shallow_complete_segment(before) @ after
+ * tiles at the top level.
+ * Returns the open tile completed at this level, if any, and whether a
+ * blank line ends its body. */
+let complete_segment = (seg: Segment.t): (Segment.t, option(Id.t), bool) =>
+  if (List.for_all(Piece.is_complete, seg)) {
+    (seg, None, false);
+  } else {
+    switch (incomplete_subseg_before_blank_line(seg)) {
+    | None =>
+      let (seg, open_tile) = complete_first(seg);
+      (seg, open_tile, false);
+    | Some((before, after)) =>
+      let (before, open_tile) = complete_first(before);
+      (before @ after, open_tile, true);
+    };
   };
-};
 
 /* An incomplete case rule is just the `|` without the `=>`.
  * This has shards [0] instead of [0, 1]. */
@@ -215,16 +243,77 @@ let is_incrementor = (p: Piece.t): bool =>
 /* Exception for short-circuit lookup of single linebreak's indentation */
 exception Found_indent(int);
 
+/* The walk consumes the canonical completion's partitioner — the same
+   layout-intent reading that decides what the surfaced completion
+   absorbs — so indent suggestions agree with the completion about
+   which lines belong to an unclosed construct. Lines with content
+   partition by their actual layout; a contentless line is no evidence
+   (~absorb_empty_lines): the fresh line Enter just made stays inside
+   the open construct, where typing will land. Within a partition the
+   walk keeps its shallow absorb-reading rather than the completed
+   geometry: an owed closer's position is flexible, so it is not a
+   wall for next-line typing. A member list partitions alike, as
+   completion reads each member level: an unfinished member, or an
+   unclosed module, ends at its member line. [line]: the level of
+   [seg]'s first line, when it starts mid-line */
+let partitions = (~line=None, seg: Segment.t): list(Segment.t) =>
+  CanonicalCompletion.partition_segment(~absorb_empty_lines=true, ~line, seg)
+  |> List.map(fst);
+
+/* [closer]: a typed closer ends [seg] (its tile's next shard), so its last
+   line goes back to the tile's level; else that line is a fresh one, at
+   the end of a partition or of an open tile's body */
 let rec go =
         (
           ~not_top,
           ~members=false,
+          ~closer: bool,
+          ~line: option(int)=None,
           ~target_id: option(Id.t)=?,
           base: int,
           seg: Segment.t,
         )
-        : Id.Map.t(int) => {
-  let complete_trimmed_seg = complete_segment(trim_non_content(seg));
+        : Id.Map.t(int) =>
+  switch (
+    members && !List.for_all(Piece.is_complete, seg)
+      ? partitions(~line, seg) : [seg]
+  ) {
+  | [part] =>
+    walk(~not_top, ~members, ~closer, ~line, ~target_id?, base, part)
+  | parts =>
+    /* only the last part ends where the list does */
+    let last = List.length(parts) - 1;
+    parts
+    |> List.mapi((i, part) =>
+         walk(
+           ~not_top,
+           ~members,
+           ~closer=closer && i == last,
+           ~line=i == 0 ? line : None,
+           ~target_id?,
+           base,
+           part,
+         )
+       )
+    |> List.fold_left(
+         (acc, map) => Id.Map.union((_, a, _) => Some(a), map, acc),
+         Id.Map.empty,
+       );
+  }
+/* one partition's lines */
+and walk =
+    (
+      ~not_top,
+      ~members,
+      ~closer,
+      ~line,
+      ~target_id: option(Id.t)=?,
+      base: int,
+      seg: Segment.t,
+    )
+    : Id.Map.t(int) => {
+  let (completed, open_tile, blank_end) = complete_segment(seg);
+  let complete_trimmed_seg = trim_non_content(completed);
   let context = compute_context(complete_trimmed_seg);
   /* Mark pieces whose immediate predecessor (in the trimmed segment)
      is a linebreak: a run of linebreaks must share one indent, not
@@ -245,117 +334,131 @@ let rec go =
   /* stack-safe zip (List.combine is not tail-recursive) */
   let context =
     List.rev(List.rev_map2((ctx, lb) => (ctx, lb), context, prev_is_lb));
-  let (_, map) =
-    List.fold_left2(
-      ((level: int, map: Id.Map.t(int)), p: Piece.t, ctx) => {
-        let ((prev, next, effective_next), prev_is_lb) = ctx;
-        switch (p) {
-        | Secondary(w) when Secondary.is_linebreak(w) =>
-          let indent =
-            switch (prev, next) {
-            | (_, Some(next)) when Piece.is_comma(next) => base + 2
-            | (Some(prev), _) when Piece.is_comma(prev) => base + 2
-            /* module members: reset to member level, one step inside
-               the braces (their `;` has no `in` to exempt it); a
-               module-rooted editor's top level has no braces */
-            | (Some(prev), _) when is_module_semi(prev) =>
-              not_top ? MemberLines.member_level(base) : base
-            /* Incomplete case rules (just `|`) shouldn't increment.
-             * An incomplete `|` is Concave on right, so would match
-             * is_incrementor without this check. */
-            | (Some(prev), _) when is_incomplete_case_rule(prev) => base
-            /* After a complete case rule WITH a body, we expect the next
-             * rule at the same level. Don't indent for "next rule" position. */
-            | (Some(prev), _) when is_complete_case_rule_with_body(prev) => base
-            /* only the FIRST linebreak after an incrementor takes
-               the +2; consecutive linebreaks inherit its level */
-            | (Some(prev), _) when is_incrementor(prev) =>
-              prev_is_lb ? level : level + 2
-            | (None, _) when not_top => base + 2
-            /* Check effective_next (skipping linebreaks) for case rule */
-            | _
-                when
-                  Option.map(Piece.is_case_rule, effective_next)
-                  == Some(true) => base
-            | (_, Some(next)) when Piece.is_case_rule(next) => base
-            | (_, None) => base
-            /* a fresh line past a member list's last member is the next
-               member's; only the `}` line goes back to the braces */
-            | _ when members && effective_next == None =>
-              MemberLines.member_level(base)
-            /* If next is linebreak but eff_next is None, effectively at end */
-            | _ when effective_next == None => base
-            | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
-              /* Special case for kw prefixes */
-              base
-            /* Continuation lines in children: with content before and
-             * after the linebreak, use child indentation. Only fires
-             * after Format (at typing time next is unknown). max, not
-             * base + 2: an incrementor earlier in the child (fun ->)
-             * may have raised the running level, which sibling lines
-             * must inherit. */
-            | (_, Some(_)) when not_top => max(level, base + 2)
-            | (_, Some(_)) => level
-            };
-          switch (target_id) {
-          | Some(id) when Id.equal(w.id, id) => raise(Found_indent(indent))
-          | Some(_) => (indent, map) /* target mode: skip map add */
-          | None => (indent, Id.Map.add(w.id, indent, map))
-          };
-        | Secondary(_)
-        | Grout(_)
-        | Projector(_) => (level, map)
-        | Tile(t) =>
-          let members = is_member_body(t);
-          switch (target_id) {
-          | Some(_) =>
-            /* target mode: just recurse, don't accumulate */
-            List.iter(
-              child =>
-                ignore(
-                  go(~not_top=true, ~members, ~target_id?, level, child),
-                ),
-              t.children,
-            );
-            (level, map);
-          | None =>
-            let map =
-              List.fold_left(
-                (acc, child) =>
-                  Id.Map.union(
-                    (_, a, _) => Some(a),
-                    go(~not_top=true, ~members, level, child),
-                    acc,
-                  ),
-                map,
-                t.children,
-              );
-            (level, map);
-          };
+  let step =
+      ((level: int, map: Id.Map.t(int)), p: Piece.t, ctx, line_level: int) => {
+    let ((prev, next, effective_next), prev_is_lb) = ctx;
+    switch (p) {
+    | Secondary(w) when Secondary.is_linebreak(w) =>
+      let indent =
+        switch (prev, next) {
+        | (_, Some(next)) when Piece.is_comma(next) => base + 2
+        | (Some(prev), _) when Piece.is_comma(prev) => base + 2
+        /* module members: reset to member level, one step inside
+           the braces (their `;` has no `in` to exempt it); a
+           module-rooted editor's top level has no braces */
+        | (Some(prev), _) when is_module_semi(prev) =>
+          not_top ? MemberLines.member_level(base) : base
+        /* Incomplete case rules (just `|`) shouldn't increment.
+         * An incomplete `|` is Concave on right, so would match
+         * is_incrementor without this check. */
+        | (Some(prev), _) when is_incomplete_case_rule(prev) => base
+        /* After a complete case rule WITH a body, we expect the next
+         * rule at the same level. Don't indent for "next rule" position. */
+        | (Some(prev), _) when is_complete_case_rule_with_body(prev) => base
+        /* only the FIRST linebreak after an incrementor takes
+           the +2; consecutive linebreaks inherit its level */
+        | (Some(prev), _) when is_incrementor(prev) =>
+          prev_is_lb ? level : level + 2
+        | (None, _) when not_top => base + 2
+        /* Check effective_next (skipping linebreaks) for case rule */
+        | _ when Option.map(Piece.is_case_rule, effective_next) == Some(true) => base
+        | (_, Some(next)) when Piece.is_case_rule(next) => base
+        /* a fresh line past a member list's last member is the next
+           member's; only the `}` line goes back to the braces, and a
+           list whose `}` isn't typed has none */
+        | (_, None) =>
+          members && !closer ? MemberLines.member_level(base) : base
+        | _ when members && effective_next == None =>
+          MemberLines.member_level(base)
+        /* If next is linebreak but eff_next is None, effectively at end */
+        | _ when effective_next == None => base
+        | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
+          /* Special case for kw prefixes */
+          base
+        /* Continuation lines in children: with content before and
+         * after the linebreak, use child indentation. Only fires
+         * after Format (at typing time next is unknown). max, not
+         * base + 2: an incrementor earlier in the child (fun ->)
+         * may have raised the running level, which sibling lines
+         * must inherit. */
+        | (_, Some(_)) when not_top => max(level, base + 2)
+        | (_, Some(_)) => level
         };
-      },
+      switch (target_id) {
+      | Some(id) when Id.equal(w.id, id) => raise(Found_indent(indent))
+      | Some(_) => (indent, map) /* target mode: skip map add */
+      | None => (indent, Id.Map.add(w.id, indent, map))
+      };
+    | Secondary(_)
+    | Grout(_)
+    | Projector(_) => (level, map)
+    | Tile(t) =>
+      let members = is_member_body(t);
+      let line =
+        Some(members ? MemberLines.member_level(line_level) : line_level);
+      /* a typed shard closes each child but an open tile's last, which
+         ends where this level does, or at a blank line */
+      let open_ =
+        switch (open_tile) {
+        | Some(id) => Id.equal(id, t.id)
+        | None => false
+        };
+      let last = List.length(t.children) - 1;
+      let child = (j, c) =>
+        go(
+          ~not_top=true,
+          ~members,
+          ~closer=!open_ || j < last || closer && !blank_end,
+          ~line,
+          ~target_id?,
+          level,
+          c,
+        );
+      switch (target_id) {
+      | Some(_) =>
+        /* target mode: just recurse, don't accumulate */
+        List.iteri((j, c) => ignore(child(j, c)), t.children);
+        (level, map);
+      | None =>
+        let (_, map) =
+          List.fold_left(
+            ((j, acc), c) =>
+              (
+                j + 1,
+                Id.Map.union((_, a, _) => Some(a), child(j, c), acc),
+              ),
+            (0, map),
+            t.children,
+          );
+        (level, map);
+      };
+    };
+  };
+  /* the pieces read, each with its context; the spaces between give each
+     line's level, as completion reads levels: its indentation, or [line]
+     on a first line begun mid-line */
+  let rec read = (acc, line_level, run, ctxs, ps: Segment.t) =>
+    switch (ps, ctxs) {
+    | ([p, ...ps], [ctx, ...ctxs]) when !is_non_content(p) =>
+      let lb = Piece.is_linebreak(p);
+      read(step(acc, p, ctx, line_level), lb ? 0 : line_level, lb, ctxs, ps);
+    | ([p, ...ps], _) =>
+      let run = run && Piece.is_space(p);
+      read(acc, run ? line_level + 1 : line_level, run, ctxs, ps);
+    | ([], _) => acc
+    };
+  let (_, map) =
+    read(
       /* a member started on the `{` line sits at member level, as one
          on a line of its own does */
       (members ? MemberLines.member_level(base) : base, Id.Map.empty),
-      complete_trimmed_seg,
+      Option.value(line, ~default=0),
+      line == None,
       context,
+      completed,
     );
   map;
 };
-
-/* The walk consumes the canonical completion's partitioner — the same
-   layout-intent reading that decides what the surfaced completion
-   absorbs — so indent suggestions agree with the completion about
-   which lines belong to an unclosed construct. Lines with content
-   partition by their actual layout; a contentless line is no evidence
-   (~absorb_empty_lines): the fresh line Enter just made stays inside
-   the open construct, where typing will land. Within a partition the
-   walk keeps its shallow absorb-reading rather than the completed
-   geometry: an owed closer's position is flexible, so it is not a
-   wall for next-line typing. */
-let partitions = (seg: Segment.t): list(Segment.t) =>
-  CanonicalCompletion.partition_segment(~absorb_empty_lines=true, seg)
-  |> List.map(fst);
 
 let level_map = (seg: Segment.t): Id.Map.t(int) =>
   seg
@@ -364,7 +467,7 @@ let level_map = (seg: Segment.t): Id.Map.t(int) =>
        (map, part) =>
          Id.Map.union(
            (_, a, _) => Some(a),
-           go(~not_top=false, 0, part),
+           go(~not_top=false, ~closer=false, 0, part),
            map,
          ),
        Id.Map.empty,
@@ -377,7 +480,9 @@ let level_of = (~target_id: Id.t, seg: Segment.t): int =>
     {
       seg
       |> partitions
-      |> List.iter(part => ignore(go(~not_top=false, ~target_id, 0, part)));
+      |> List.iter(part =>
+           ignore(go(~not_top=false, ~closer=false, ~target_id, 0, part))
+         );
       0;
     }
   ) {

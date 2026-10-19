@@ -3,7 +3,7 @@ open Alcotest;
 open Haz3lcore;
 open Test_Editing;
 
-let test_indent = (~name, ~init, ~goal): test_case(_) => {
+let typed_indent = (~settings, ~name, ~init, ~goal): test_case(_) => {
   /* Here, we trim trailing whitespace as current regrouting may
      introduce extraneous trailing whitespace during entry */
   test_case(name, `Quick, () =>
@@ -18,7 +18,7 @@ let test_indent = (~name, ~init, ~goal): test_case(_) => {
       goal,
       init
       |> string_to_ltr_actions
-      |> perform(Zipper.init())
+      |> perform(~settings, Zipper.init())
       |> Printer.of_zipper(
            ~holes=convex_char,
            ~concave_holes=concave_char,
@@ -27,6 +27,8 @@ let test_indent = (~name, ~init, ~goal): test_case(_) => {
     )
   );
 };
+
+let test_indent = typed_indent(~settings=default_settings);
 
 /* Test indentation after Format action (Cmd+S).
    Use this for cases where auto-indent at typing time can't know
@@ -1065,6 +1067,41 @@ let module_indentation_tests = [
     ~init="module M = {\n  let a = 1¦} in\nM.a",
     ~goal="module M = {\n  let a = 1\n¦} in\nM.a",
   ),
+  /* a module whose `}` isn't typed yet: a fresh line in its body is at its
+     member level too, nested modules included (typed into a module
+     literal, test/Test_ModuleCompletion.re: the text parser would pair
+     the literal's `}` with the unclosed `{`). A missing `;` prints as a
+     space */
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after an unclosed module's member at a Mod root",
+    ~init="module N = {\n  let a = 1¦",
+    ~goal="module N = {\n  let a = 1\n  ¦",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after an unclosed module's member, members below",
+    ~init="let x = 0;\nmodule N = {\n  let a = 1¦\nlet c = 3",
+    ~goal="let x = 0;\nmodule N = {\n  let a = 1\n  ¦\n let c = 3",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter in an unclosed module in an unclosed module",
+    ~init="module N = {\n  module O = {\n    let a = 1¦",
+    ~goal="module N = {\n  module O = {\n    let a = 1\n    ¦",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after a blank line in an unclosed module",
+    ~init="module N = {\n  let a = 1;\n¦",
+    ~goal="module N = {\n  let a = 1;\n\n  ¦?",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after a blank line in an unclosed module, no `;`",
+    ~init="module N = {\n  let a = 1\n¦",
+    ~goal="module N = {\n  let a = 1\n\n  ¦",
+  ),
   /* a member started on the `{` line indents as one on its own line */
   reindent_at(
     ~root=Sort.Mod,
@@ -1105,6 +1142,9 @@ let h = 3|},
 let g = 2;
 let h = 3|},
   ),
+  /* typed with reindent off: a `}` typed on the fresh line after the last
+     member stays at the member level Enter gave the line, as after a
+     member's `;`; the editor's reindent takes it to the braces (below) */
   test_indent(
     ~name="Members after a multi-line member stay at member level",
     ~init={|let m = {
@@ -1119,7 +1159,7 @@ let h = 3
     x + 1;
   let g = 2;
   let h = 3
-} in m|},
+  } in m|},
   ),
   test_indent(
     ~name="Member after a wrapped definition stays at member level",
@@ -1132,7 +1172,7 @@ let y = 2
   let x =
     1;
   let y = 2
-}|},
+  }|},
   ),
   test_indent(
     ~name="Module body indents inside braces",
@@ -1141,7 +1181,7 @@ let x = 1
 }|},
     ~goal={|{
   let x = 1
-}|},
+  }|},
   ),
   test_indent(
     ~name="Module with multiple items indents",
@@ -1152,7 +1192,7 @@ let y = 2
     ~goal={|{
   let x = 1;
   let y = 2
-}|},
+  }|},
   ),
   test_indent(
     ~name="Module in let binding indents",
@@ -1163,7 +1203,7 @@ let y = 2
     ~goal={|let m = {
   let x = 1;
   let y = 2
-} in 1|},
+  } in 1|},
   ),
   test_indent(
     ~name="Nested module double indents",
@@ -1175,11 +1215,26 @@ let x = 1
     ~goal={|{
   let inner = {
     let x = 1
-  }
-}|},
+    }
+  }|},
   ),
   test_indent(
     ~name="Module keyword indents",
+    ~init={|module m = {
+let x = 1
+} in
+m.x|},
+    ~goal={|module m = {
+  let x = 1
+  } in
+m.x|},
+  ),
+  typed_indent(
+    ~settings={
+      ...default_settings,
+      auto_reindent: true,
+    },
+    ~name="With reindent on, a typed `}` goes to the braces",
     ~init={|module m = {
 let x = 1
 } in
