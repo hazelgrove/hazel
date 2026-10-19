@@ -66,9 +66,21 @@ type choice = {
   c_set: Effect.t(unit),
 };
 
+/* a numeric setting on a range, bound to its update */
+type slider = {
+  sl_name: string,
+  sl_tooltip: string,
+  sl_min: int,
+  sl_max: int,
+  sl_value: int,
+  sl_unit: string,
+  sl_set: int => Effect.t(unit),
+};
+
 type row =
   | Toggle(setting_item)
   | Choice(string, string, list(choice)) /* name, description, choices */
+  | Slider(slider)
   | Action(string, string, Effect.t(unit)); /* label, description, effect */
 
 type section = {
@@ -217,12 +229,6 @@ let code_display = (~globals: Globals.t): section => {
   let padded =
     blocks_on
     && Settings.Blocks.equal_layout(globals.settings.block_layout, Padded);
-  let block_pad = (px: int) => {
-    c_label: string_of_int(px) ++ " px",
-    c_tooltip: Printf.sprintf("%d pixels per block edge", px),
-    c_active: globals.settings.block_pad == px,
-    c_set: globals.inject_global(Set(Settings.Update.SetBlockPad(px))),
-  };
   {
     s_name: "Code display",
     s_rows:
@@ -318,11 +324,16 @@ let code_display = (~globals: Globals.t): section => {
       @ (
         padded
           ? [
-            Choice(
-              "Block padding",
-              "How far each block edge stands out from its text",
-              List.map(block_pad, [1, 2, 3, 4]),
-            ),
+            Slider({
+              sl_name: "Block padding",
+              sl_tooltip: "How far each block edge stands out from its text",
+              sl_min: 0,
+              sl_max: 10,
+              sl_value: globals.settings.block_pad,
+              sl_unit: "px",
+              sl_set: px =>
+                globals.inject_global(Set(Settings.Update.SetBlockPad(px))),
+            }),
           ]
           : []
       ),

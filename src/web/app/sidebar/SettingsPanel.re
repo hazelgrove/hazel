@@ -50,6 +50,7 @@ let row_text = (row: NutMenu.row): string =>
          " ",
          List.map((c: NutMenu.choice) => c.c_label, choices),
        )
+  | Slider({sl_name, sl_tooltip, _}) => sl_name ++ " " ++ sl_tooltip
   | Action(label, desc, _) => label ++ " " ++ desc
   };
 
@@ -113,6 +114,36 @@ let row_view = (~globals: Globals.t, row: NutMenu.row): Node.t =>
           ),
         ),
         desc(description),
+      ],
+    )
+  | Slider({sl_name, sl_tooltip, sl_min, sl_max, sl_value, sl_unit, sl_set}) =>
+    /* no keep_focus: a mousedown default is the drag */
+    div(
+      ~attrs=[clss(["settings-row", "settings-slider"])],
+      [
+        span(~attrs=[clss(["settings-name"])], [Node.text(sl_name)]),
+        span(
+          ~attrs=[clss(["settings-value"])],
+          [Node.text(string_of_int(sl_value) ++ " " ++ sl_unit)],
+        ),
+        Node.input(
+          ~attrs=[
+            Attr.create("type", "range"),
+            Attr.create("min", string_of_int(sl_min)),
+            Attr.create("max", string_of_int(sl_max)),
+            Attr.create("step", "1"),
+            Attr.string_property("value", string_of_int(sl_value)),
+            Attr.create("aria-label", sl_name),
+            Attr.on_input((_, v) =>
+              switch (int_of_string_opt(v)) {
+              | Some(n) => sl_set(n)
+              | None => Effect.Ignore
+              }
+            ),
+          ],
+          (),
+        ),
+        desc(sl_tooltip),
       ],
     )
   | Action(label, description, effect) =>
