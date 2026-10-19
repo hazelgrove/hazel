@@ -377,7 +377,13 @@ let name_occurs_within =
 };
 
 let update_use_sites_of_var =
-    (z: Zipper.t, co_ctx: CoCtx.t, old_name: string, new_name: string)
+    (
+      ~root=Sort.Exp,
+      z: Zipper.t,
+      co_ctx: CoCtx.t,
+      old_name: string,
+      new_name: string,
+    )
     : Zipper.t => {
   /*
    Updates the use sites of the given variables in the co-context.
@@ -393,7 +399,7 @@ let update_use_sites_of_var =
             let id = entry.CoCtx.id;
             switch (Select.tile(id, acc_z')) {
             | Some(z') =>
-              switch (Parser.to_zipper(~root=Exp, ~zipper_init=z', new_name)) {
+              switch (Parser.to_zipper(~root, ~zipper_init=z', new_name)) {
               | Some(z'') => z''
               | None => z'
               }
@@ -413,6 +419,7 @@ let update_use_sites_of_var =
 
 let update_use_sites_of_pat =
     (
+      ~root: Sort.t,
       ~z: Zipper.t,
       ~co_ctx: CoCtx.t,
       ~old_names: list(string),
@@ -441,7 +448,7 @@ let update_use_sites_of_pat =
   | Some(pairs) =>
     List.fold_left(
       (acc_z, (old_name, new_name)) =>
-        update_use_sites_of_var(acc_z, co_ctx, old_name, new_name),
+        update_use_sites_of_var(~root, acc_z, co_ctx, old_name, new_name),
       z,
       pairs,
     )

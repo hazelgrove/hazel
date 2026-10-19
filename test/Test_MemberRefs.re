@@ -4,7 +4,8 @@ open Haz3lcore;
 open Language;
 
 /* `M.x` and `M.T` as references to the member (Info.binding_site): F12,
-   the inspector's reading and highlights */
+   the inspector's reading and highlights, on the editor's compositional
+   statics and the assistant's monolithic ones */
 
 let m_src = "module M = {\n  let a = 1;\n  let b = a + 1;\n  type T = Int;\n  let c : T = b\n};\nlet a = 5;\nlet d : M.T = M.a + a;\nd";
 let e_src = "module M = {\n  let a = 1;\n  let b = a + 1;\n  type T = Int;\n  let c : T = b\n} in\nlet a = 5 in\nlet d : M.T = M.a + a in\nd";
@@ -23,7 +24,11 @@ let compositional = (~root, z: Zipper.t): Statics.Map.t =>
   ).
     info_map;
 
-let both = [("compositional", compositional)];
+/* the assistant's */
+let monolithic = (~root, z: Zipper.t): Statics.Map.t =>
+  CompositionGo.Public.mk_statics(~root, z);
+
+let both = [("compositional", compositional), ("monolithic", monolithic)];
 
 /* the row and column of the first [needle] in [src], [off] columns in */
 let point = (~off=0, src: string, needle: string): Point.t => {

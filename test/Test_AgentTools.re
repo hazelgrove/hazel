@@ -5412,6 +5412,132 @@ let module_member_tests = (
   ],
 );
 
+/* The assistant on a Mod-rooted program (stdlib files, Mega-Mod): its top
+   level is a module body, so top-level bindings are members too. */
+let mod_root_program = "module M = {\n  let a = 1;\n  let b = a + 1;\n  type T = Int;\n  let c : T = b\n};\nlet a = 5;\nlet d : M.T = M.a + a;\nd";
+
+let run_at_mod_root = (code: string, a: Action.Structural.t) => {
+  let z = Zipper.unzip(CorpusUtil.seg_of(~root=Mod, code));
+  Perform.go(
+    ~settings=CoreSettings.on,
+    ~statics=CachedStatics.empty,
+    ~syntax=CachedSyntax.init(~root=Mod, z),
+    ~root=Mod,
+    Structural(a),
+    {
+      zipper: z,
+      col_target: None,
+    },
+  );
+};
+
+let apply_at_mod_root = (~code=mod_root_program, a: Action.Structural.t) =>
+  switch (run_at_mod_root(code, a)) {
+  | Ok(z) => render_zipper(z)
+  | Error(err) =>
+    Alcotest.fail("Agent action failed: " ++ Action.Failure.show(err))
+  };
+
+/* [mod_root_program] with [line] replaced by [by] (a list: none deletes) */
+let mod_root_with = (line: string, by: list(string)): string =>
+  String.split_on_char('\n', mod_root_program)
+  |> List.concat_map(l => l == line ? by : [l])
+  |> String.concat("\n");
+
+let mod_root_tests = (
+  "AgentTools.ModRoot",
+  [
+    test_case("update_definition on a member", `Quick, () =>
+      check_rendered(
+        "mod_root_update_member_def",
+        mod_root_with("  let b = a + 1;", ["  let b = a + 2;"]),
+        apply_at_mod_root(Update(Definition, "M/b", "a + 2")),
+      )
+    ),
+    test_case("update_definition on a top-level binding", `Quick, () =>
+      check_rendered(
+        "mod_root_update_top_def",
+        mod_root_with("let a = 5;", ["let a = 6;"]),
+        apply_at_mod_root(Update(Definition, "a", "6")),
+      )
+    ),
+    test_case("update_binding_clause on a member", `Quick, () =>
+      check_rendered(
+        "mod_root_update_clause",
+        mod_root_with("  let c : T = b", ["  let c : T = 7"]),
+        apply_at_mod_root(Update(BindingClause, "M/c", "let c : T = 7")),
+      )
+    ),
+    test_case("update_body on a top-level binding is refused", `Quick, () =>
+      switch (run_at_mod_root(mod_root_program, Update(Body, "a", "1"))) {
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "mod_root_body_refused",
+          true,
+          StringUtil.match(StringUtil.regexp("module member"), msg),
+        )
+      | Ok(_) => Alcotest.fail("expected the body update to be refused")
+      | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
+      }
+    ),
+    test_case(
+      "insert_after a member and a top-level binding",
+      `Quick,
+      () => {
+        check_rendered(
+          "mod_root_insert_after_member",
+          mod_root_with("  let a = 1;", ["  let a = 1;", "  let z = 3;"]),
+          apply_at_mod_root(Insert(After, "M/a", "let z = 3")),
+        );
+        check_rendered(
+          "mod_root_insert_after_top",
+          mod_root_with("let a = 5;", ["let a = 5;", "let z = 3;"]),
+          apply_at_mod_root(Insert(After, "a", "let z = 3")),
+        );
+      },
+    ),
+    test_case("insert_before the first top-level binding", `Quick, () =>
+      check_rendered(
+        "mod_root_insert_before_top",
+        "let z = 3;\n" ++ mod_root_program,
+        apply_at_mod_root(Insert(Before, "M", "let z = 3")),
+      )
+    ),
+    test_case(
+      "insert_test after a member, and with no path",
+      `Quick,
+      () => {
+        check_rendered(
+          "mod_root_insert_test_member",
+          mod_root_with(
+            "  let b = a + 1;",
+            ["  let b = a + 1;", "  test b == 2 end;"],
+          ),
+          apply_at_mod_root(InsertTest(Some("M/b"), "b == 2")),
+        );
+        /* after the last binding, before the trailing expression */
+        check_rendered(
+          "mod_root_insert_test_no_path",
+          mod_root_with(
+            "let d : M.T = M.a + a;",
+            ["let d : M.T = M.a + a;", "test d == 6 end;"],
+          ),
+          apply_at_mod_root(InsertTest(None, "d == 6")),
+        );
+      },
+    ),
+    test_case("update_pattern on a top-level binding leaves M.a", `Quick, () =>
+      check_rendered(
+        "mod_root_rename_top",
+        mod_root_with("let a = 5;", ["let z = 5;"])
+        |> StringUtil.replace(StringUtil.regexp("M[.]a [+] a"), _, "M.a + z"),
+        apply_at_mod_root(Update(Pattern, "a", "z")),
+      )
+    ),
+  ],
+);
+
 /* insert_test: after the binding and the tests directly following it,
    so tests keep source order in one run; with no path, after the last
    item, before the trailing expression */
@@ -5553,6 +5679,7 @@ let tests = [
   update_pattern_tests,
   update_binding_clause_tests,
   module_member_tests,
+  mod_root_tests,
   insert_tests,
   insert_test_tests,
   delete_tests,
