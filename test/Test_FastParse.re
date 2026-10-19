@@ -126,10 +126,11 @@ let rec shape = (seg: Segment.t): string =>
     ),
   );
 
-/* a paste among a module's members takes the fast path (FastParse at
-   Mod) and gives the slow path's (typed char by char) segment, ids aside,
-   with the caret after it */
-let mod_paste = ((root, src, needle, clip), ()) => {
+/* a paste takes the fast path and gives the slow path's (typed char by
+   char) segment, ids aside, its edge whitespace kept, with the caret
+   after it: among a module's members (FastParse at Mod, [sort] Mod), and
+   in an expression ([sort] Exp) */
+let paste_parity = (~sort: Sort.t, (root, src, needle, clip), ()) => {
   module MA = Test_ModAudit;
   let z0 = MA.load(~root, src);
   let z =
@@ -154,9 +155,9 @@ let mod_paste = ((root, src, needle, clip), ()) => {
     };
   check(
     bool,
-    "a member caret",
+    "the caret's sort",
     true,
-    Relatives.sort(~root, z.relatives) == Sort.Mod,
+    Relatives.sort(~root, z.relatives) == sort,
   );
   switch (
     Parser.fast_paste(clip, z, ~root),
@@ -175,6 +176,7 @@ let mod_paste = ((root, src, needle, clip), ()) => {
     );
   };
 };
+let mod_paste = paste_parity(~sort=Mod);
 
 let mod_paste_cases = {
   let lit = "module M = {\n  let a = 1;\n  let b = 2\n};\nM.a";
@@ -218,6 +220,31 @@ let mod_paste_cases = {
       ),
     ),
     ("a trailing newline", (Sort.Mod, top, "let a = 1;", "\nlet z = 3;\n")),
+  ];
+};
+
+/* pastes into a let-in chain, their edge newlines kept */
+let exp_paste_cases = {
+  let chain = "let a = 1 in\na";
+  let defs =
+    String.concat(
+      "",
+      List.init(3, i => Printf.sprintf("\nlet x%d = %d + 1 in", i, i)),
+    );
+  [
+    (
+      "a definition after `in`, a newline before it",
+      (Sort.Exp, chain, "let a = 1 in", "\nlet x0 = 0 + 1 in"),
+    ),
+    (
+      "and a newline after it",
+      (Sort.Exp, chain, "let a = 1 in", "\nlet x0 = 0 + 1 in\n"),
+    ),
+    ("definitions", (Sort.Exp, chain, "let a = 1 in", defs)),
+    (
+      "into a Mod root's member",
+      (Sort.Mod, "let a = 1;\nlet b = (a);\nb", "= (", "\n2 +\n"),
+    ),
   ];
 };
 
@@ -568,5 +595,14 @@ let tests = (
       ((name, case)) =>
         test_case("Mod paste: " ++ name, `Quick, mod_paste(case)),
       mod_paste_cases,
+    )
+  @ List.map(
+      ((name, case)) =>
+        test_case(
+          "Exp paste: " ++ name,
+          `Quick,
+          paste_parity(~sort=Exp, case),
+        ),
+      exp_paste_cases,
     ),
 );

@@ -217,17 +217,17 @@ let fast_paste =
   switch (fast_paste_blocker(clipboard, z, ~root)) {
   | Some(why) => Error("gate refused — " ++ why)
   | None =>
-    /* among a module's members the clipboard is a chunk of members, read
-       at Mod whatever the editor's root, its edge whitespace kept as
-       typing keeps it */
+    /* read at the caret's sort, whatever the editor's root: among a
+       module's members a chunk of members, else an expression. Its edge
+       whitespace is kept, as typing keeps it */
     let members = Relatives.sort(~root, z.relatives) == Sort.Mod;
     switch (
       FastParse.parsed_of_text(
         ~materialize=Triggers.invoked_projector,
         ~collect_refractors=true,
         ~chunk=members,
-        ~root=members ? Sort.Mod : root,
-        members ? clipboard : String.trim(clipboard),
+        ~root=members ? Sort.Mod : Sort.Exp,
+        clipboard,
       )
     ) {
     | Error(why) => Error("parse bailed — " ++ why)
