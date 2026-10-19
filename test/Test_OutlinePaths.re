@@ -146,6 +146,26 @@ let rec kinds = (ns: list(OutlineTree.node)): string =>
 let kinds_of = (text: string): string =>
   kinds(OutlineTree.of_term(term_of_text(text)));
 
+/* `let f(x) = …` keeps its parameters in its pattern */
+let sugar_kinds = () => {
+  check(
+    string,
+    "a sugared function is a function, with its ⇒ row",
+    "fn sum [const total, trail], fn sum2 [const total, trail], const k [const total], trail",
+    kinds_of(
+      "let sum = fun xs ->\n  let total = xs + 1 in\n  total\nin\nlet sum2(xs) =\n  let total = xs + 1 in\n  total\nin\nlet k =\n  let total = 1 + 2 in\n  total\nin\nk",
+    ),
+  );
+  check(
+    string,
+    "annotated, nullary, and as module members",
+    "fn f, fn g, module M [fn h, fn i], trail",
+    kinds_of(
+      "let f(x : Int) : Int = x in\nlet g() = 1 in\nmodule M = {\n  let h(y) = y;\n  let i = fun y -> y\n} in\nf(g())",
+    ),
+  );
+};
+
 let alias_kinds = () =>
   check(
     string,
@@ -163,6 +183,7 @@ let cases = [
     test_elsewhere,
   ),
   test_case("a module alias's row is a module", `Quick, alias_kinds),
+  test_case("a sugared function's row is a function", `Quick, sugar_kinds),
   test_case("a use above a test leaves its path", `Quick, use_above_test),
   test_case("use rows and a module with a signature", `Quick, () =>
     check_self_resolution("uses and signatures", uses_and_signatures)
