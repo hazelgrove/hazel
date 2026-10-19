@@ -5522,6 +5522,22 @@ let mod_root_tests = (
         );
       },
     ),
+    test_case(
+      "delete_binding_clause on a member and a top level",
+      `Quick,
+      () => {
+        check_rendered(
+          "mod_root_delete_member",
+          mod_root_with("  let b = a + 1;", []),
+          apply_at_mod_root(Delete(BindingClause, "M/b")),
+        );
+        check_rendered(
+          "mod_root_delete_top",
+          mod_root_with("let a = 5;", []),
+          apply_at_mod_root(Delete(BindingClause, "a")),
+        );
+      },
+    ),
     test_case("update_pattern on a member relabels M.a", `Quick, () =>
       check_rendered(
         "mod_root_rename_member",
@@ -5599,6 +5615,16 @@ let member_rename_tests = (
       | Ok(z) => Alcotest.fail("renamed: " ++ render_zipper(z))
       | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
       }
+    ),
+    test_case("a member delete leaves no lone `;`", `Quick, () =>
+      check_rendered_exact(
+        "member_delete_multiline",
+        "let m = {\n  let x = 1;\n  \n  let z = 3\n} in m",
+        apply_and_render(
+          "let m = {\n  let x = 1;\n  let y = 2;\n  let z = 3\n} in m",
+          Delete(BindingClause, "m/y"),
+        ),
+      )
     ),
   ],
 );

@@ -646,7 +646,8 @@ module Local = {
             switch (prev_tok, next_tok(rest)) {
             | (None, _) => true /* leading */
             | (_, None) => true /* trailing */
-            | (_, Some(r)) => is_semi(r) /* doubled */
+            /* doubled: the second goes, so the first stays on its member */
+            | (Some(l), _) => is_semi(l)
             };
           dangling && !unchanged(prev_tok, p, rest)
             ? go(prev_tok, rest) : [p, ...go(Some(p), rest)];
