@@ -459,11 +459,11 @@ let basic_tests = [
     ~acts=mk("!¦! X") @ [Insert(" ")],
     ~goal={|! ¦! X|},
   ),
-  //wrong caret placement (and its in weird escapee mode...)
+  /* `!!` is no operator, so the two prefix ops stay apart */
   test(
-    ~name="Merge 2 prefix ops ! into infix op !!",
+    ~name="Deleting the space between prefix ops ! keeps them apart",
     ~acts=mk("! ! X¦") @ mv_l(3) @ [Destruct(Local(Left, ByChar))],
-    ~goal={|?!¦! X|},
+    ~goal={|!¦! X|},
   ),
   // wrong caret placement (and its in weird escapee mode...)
   test(
@@ -5857,7 +5857,239 @@ let delim_prefix_class_tests = [
   ),
 ];
 
+/* A run of operator characters is one token only while it spells a prefix
+ * of a grammar operator. Checked on token lists, since the printed text
+ * can't show where `:,` breaks. */
+let tokens_of = (z: Zipper.t): list(string) =>
+  Reassociate.tokens_of_segment(Zipper.unselect_and_zip(z));
+
+let test_tokens = (~name, ~acts, ~goal: list(string)): test_case(_) =>
+  test_case(name, `Quick, () =>
+    check(
+      list(string),
+      name,
+      goal,
+      acts |> perform(Zipper.init()) |> tokens_of,
+    )
+  );
+
+/* Text parsing must split exactly as typing does, and print back
+ * (`printed` marks the holes of incomplete text). */
+let test_parse_tokens =
+    (~printed=?, text: string, goal: list(string)): test_case(_) =>
+  test_case("parse " ++ text, `Quick, () =>
+    switch (Parser.to_zipper(~root=Exp, text)) {
+    | None => Alcotest.fail("parse failed: " ++ text)
+    | Some(z) =>
+      check(list(string), "tokens", goal, tokens_of(z));
+      check(
+        string,
+        "round-trip",
+        Option.value(printed, ~default=text),
+        Printer.of_zipper(~holes=convex_char, z),
+      );
+    }
+  );
+
+/* A saved buffer holding a token the current rule would split (`:,`, from
+   before the rule) must still load and mold as an infix operator. */
+let legacy_token_test =
+  test_case(
+    "saved legacy :, token still loads and molds",
+    `Quick,
+    () => {
+      let rec seg = (s: Segment.t): Segment.t => List.map(piece, s)
+      and piece = (p: Piece.t): Piece.t =>
+        switch (p) {
+        | Tile(t) when Tile.label(t) == ["%"] =>
+          Tile({
+            ...t,
+            form: Form.Tok(":,"),
+          })
+        | Tile(t) =>
+          Tile({
+            ...t,
+            children: List.map(seg, t.children),
+          })
+        | p => p
+        };
+      let z =
+        switch (Parser.to_zipper(~root=Exp, "a % b")) {
+        | Some(z) => Zipper.unzip(seg(Zipper.unselect_and_zip(z)))
+        | None => Alcotest.fail("parse failed")
+        };
+      let z =
+        PersistentZipper.unpersist(PersistentZipper.persist(z), ~root=Exp)
+        |> Zipper.remold_regrout(Left, ~root=Exp);
+      check(list(string), "tokens", ["a", ":,", "b"], tokens_of(z));
+      /* infix: no grout either side */
+      check(
+        string,
+        "text",
+        "a :, b",
+        Printer.of_zipper(~holes=convex_char, ~concave_holes=concave_char, z),
+      );
+      ignore(MakeTerm.from_zip_for_sem(z, ~root=Exp).term);
+    },
+  );
+
+let token_splitting_tests = [
+  /* annotating `f` in `map(f, xs)` */
+  test_tokens(
+    ~name=": typed before , stays two tokens",
+    ~acts=mk("map(f¦, xs)") @ [Insert(":")],
+    ~goal=["map", "(", "f", ":", ",", "xs", ")"],
+  ),
+  test_tokens(
+    ~name=", typed after : stays two tokens",
+    ~acts=string_to_ltr_actions("(f:,xs)"),
+    ~goal=["(", "f", ":", ",", "xs", ")"],
+  ),
+  test_tokens(
+    ~name="binary then unary minus",
+    ~acts=string_to_ltr_actions("1--2"),
+    ~goal=["1", "-", "-", "2"],
+  ),
+  test_tokens(
+    ~name="plus then unary minus",
+    ~acts=string_to_ltr_actions("x+-1"),
+    ~goal=["x", "+", "-", "1"],
+  ),
+  test_tokens(
+    ~name="let = then unary minus",
+    ~acts=string_to_ltr_actions("let x =-1 in x"),
+    ~goal=["let", "x", "=", "-", "1", "in", "x"],
+  ),
+  test_tokens(
+    ~name="comma then unary minus",
+    ~acts=string_to_ltr_actions("[1,-2]"),
+    ~goal=["[", "1", ",", "-", "2", "]"],
+  ),
+  test_tokens(
+    ~name="double not",
+    ~acts=string_to_ltr_actions("!!true"),
+    ~goal=["!", "!", "true"],
+  ),
+  test_tokens(
+    ~name="an unknown operator stays one token",
+    ~acts=string_to_ltr_actions("x:=y"),
+    ~goal=["x", ":=", "y"],
+  ),
+  test_tokens(
+    ~name="unknown runs stay one token",
+    ~acts=string_to_ltr_actions("a===b<>c@@@d"),
+    ~goal=["a", "===", "b", "<>", "c", "@@@", "d"],
+  ),
+  test_tokens(
+    ~name="inserting into a run gives what typing it would",
+    ~acts=mk("x ¦== y") @ [Insert("=")],
+    ~goal=["x", "===", "y"],
+  ),
+  test_tokens(
+    ~name="a character typed inside an operator joins the right part",
+    ~acts=mk("x !¦= y") @ [Insert("!")],
+    ~goal=["x", "!", "!=", "y"],
+  ),
+  test_tokens(
+    ~name="cons still merges",
+    ~acts=string_to_ltr_actions("x::xs"),
+    ~goal=["x", "::", "xs"],
+  ),
+  test_tokens(
+    ~name="arrow grows through its - prefix",
+    ~acts=string_to_ltr_actions("fun x->x"),
+    ~goal=["fun", "x", "->", "x"],
+  ),
+  test_tokens(
+    ~name="pipeline grows through its | prefix",
+    ~acts=string_to_ltr_actions("x|>f"),
+    ~goal=["x", "|>", "f"],
+  ),
+  test_tokens(
+    ~name="three-character float operator",
+    ~acts=string_to_ltr_actions("x>=.y"),
+    ~goal=["x", ">=.", "y"],
+  ),
+  /* formerly a `>`-only special case */
+  test_tokens(
+    ~name="type application's > stays apart from a following @<",
+    ~acts=string_to_ltr_actions("f@<A>@<B>"),
+    ~goal=["f", "@<", "A", ">", "@<", "B", ">"],
+  ),
+  test_tokens(
+    ~name="@< typed before > doesn't swallow it",
+    ~acts=mk("id¦>5") @ [Insert("@"), Insert("<")],
+    ~goal=["id", "@<", ">", "5"],
+  ),
+  test_tokens(
+    ~name="operator stops at its longest spelling",
+    ~acts=string_to_ltr_actions("x==-1"),
+    ~goal=["x", "==", "-", "1"],
+  ),
+  test_tokens(
+    ~name="- typed inside -> splits off, keeping ->",
+    ~acts=mk("x -¦> y") @ [Insert("-")],
+    ~goal=["x", "-", "->", "y"],
+  ),
+  test_tokens(
+    ~name="= typed inside => makes ==>",
+    ~acts=mk("x =¦> y") @ [Insert("=")],
+    ~goal=["x", "==>", "y"],
+  ),
+  test_tokens(
+    ~name="deleting the space between + and - keeps them apart",
+    ~acts=mk("x + ¦-1") @ [Destruct(Local(Left, ByChar))],
+    ~goal=["x", "+", "-", "1"],
+  ),
+  test_tokens(
+    ~name="pasted : before , stays two tokens",
+    ~acts=mk("map(f¦, xs)") @ [Paste(":")],
+    ~goal=["map", "(", "f", ":", ",", "xs", ")"],
+  ),
+  test_tokens(
+    ~name="pasted text splits as typed",
+    ~acts=mk("¦") @ [Paste("x+-1")],
+    ~goal=["x", "+", "-", "1"],
+  ),
+  test_parse_tokens(
+    ~printed="(f:?,xs)",
+    "(f:,xs)",
+    ["(", "f", ":", ",", "xs", ")"],
+  ),
+  test_parse_tokens("1--2", ["1", "-", "-", "2"]),
+  test_parse_tokens("x::xs|>f", ["x", "::", "xs", "|>", "f"]),
+  test_parse_tokens("[1,-2]", ["[", "1", ",", "-", "2", "]"]),
+  test_case(
+    "every operator prefix is a token; other runs aren't",
+    `Quick,
+    () => {
+      Form.delims
+      |> List.filter(Token.is_potential_operator)
+      |> List.concat_map(Token.prefixes)
+      |> List.iter(t => check(bool, t, true, Form.is_potential_token(t)));
+      /* any single operator character is a token by itself */
+      List.iter(
+        t => check(bool, t, true, Form.is_potential_token(t)),
+        ["%", "~", "&", "\\", "≠"],
+      );
+      /* separators, a following `-`/`!`, and type application's
+         brackets split a run */
+      List.iter(
+        t => check(bool, t, false, Form.is_potential_token(t)),
+        [":,", "+-", "=-", "--", "!!", ">==", ",,", ";;", ">@<", "@<>"],
+      );
+      /* other unrecognized runs stay one (unknown) token */
+      List.iter(
+        t => check(bool, t, true, Form.is_potential_token(t)),
+        [":=", "===", "<>", "@@@", "->>", "**"],
+      );
+    },
+  ),
+  legacy_token_test,
+];
+
 let tests = [
+  ("Editing.TokenSplitting", token_splitting_tests),
   ("Editing.PendingDelim", pending_delim_tests),
   ("Editing.DelimPrefixClass", delim_prefix_class_tests),
   ("Editing.DragToZeroWidth", drag_to_zero_width_tests),

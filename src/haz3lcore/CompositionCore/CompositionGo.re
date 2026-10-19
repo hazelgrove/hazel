@@ -278,7 +278,7 @@ module Local = {
       };
       let fuses = (l: option(Token.t), r: option(Token.t)): bool =>
         switch (l, r) {
-        | (Some(l), Some(r)) => Token.is_potential_token(Token.append(l, r))
+        | (Some(l), Some(r)) => Form.is_potential_token(Token.append(l, r))
         | _ => false
         };
       let space = () =>

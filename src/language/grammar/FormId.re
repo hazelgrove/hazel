@@ -278,6 +278,50 @@ let delims: list(Token.t) =
   |> List.concat_map(label_of_family)
   |> List.sort_uniq(compare);
 
+/* Prefixes of the grammar's operator delimiters, the operators included */
+let is_operator_prefix: Token.t => bool = {
+  let tbl: Hashtbl.t(Token.t, unit) = Hashtbl.create(64);
+  delims
+  |> List.filter(Token.is_potential_operator)
+  |> List.concat_map(Token.prefixes)
+  |> List.iter(t => Hashtbl.replace(tbl, t, ()));
+  t => Hashtbl.mem(tbl, t);
+};
+
+/* Could this string be one token? Character classes decide, except for a
+ * run of two or more operator characters, which is one token iff:
+ * - it contains no separator (`,` `;` join nothing), and
+ * - it spells an operator or the start of one (so `-` grows into `->`),
+ *   or else it has no `-`/`!` after its first character: those can start
+ *   the next operand, so `+-1` and `!!b` split, while an unknown run like
+ *   `===` or `@@@` stays one token rather than splitting into operators
+ *   with holes between them (except around type application brackets).
+ * The answer depends only on the characters, never on typing order.
+ * Insertion, deletion, paste, and the typing parser ask this. */
+let is_potential_token = (t: Token.t): bool =>
+  if (Token.is_potential_operator(t)) {
+    let n = String.length(t);
+    let rec prefix_op_after = i =>
+      i < n && (t.[i] == '-' || t.[i] == '!' || prefix_op_after(i + 1));
+    /* Type application's `@<` and `>` act as brackets (`>` closes one),
+       so a run around them never clumps: `f@<A>@<B>` keeps `>` `@<`. */
+    let bracket_like =
+      t.[0] == '>' || Util.StringUtil.match(Util.StringUtil.regexp("@<"), t);
+    Token.length(t) == 1
+    || !String.contains(t, ',')
+    && !String.contains(t, ';')
+    && (is_operator_prefix(t) || !bracket_like && !prefix_op_after(1));
+  } else {
+    Token.is_empty_tuple(t)
+    || Token.is_empty_list(t)
+    || Token.is_empty_module(t)
+    || Token.is_implicit_hole_marker(t)
+    || Token.is_potential_operand(t)
+    || Token.is_string(t)
+    || Token.is_comment(t)
+    || Token.is_quoted_label(t);
+  };
+
 /* The surface family of each binary operator; bin_op_to_string
  * below reads operator spellings off these maps and the label
  * table. The numeric classes (Int/SInt/Nat) share one surface
