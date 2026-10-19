@@ -509,6 +509,74 @@ let brace_line_cases = [
   ),
 ];
 
+/* the start columns, read from a piece's last line, agree with laying out
+   all of it, for every piece of the corpora */
+let columns = () => {
+  let rec laid = (col, seg: Segment.t) =>
+    List.fold_left(laid_piece, col, seg)
+  and laid_piece = (col, p: Piece.t) =>
+    switch (p) {
+    | Secondary(w) when Haz3lcore.Secondary.is_linebreak(w) => 0
+    | Secondary(w) => col + Haz3lcore.Secondary.length(w)
+    | Grout(_) => col + 1
+    | Projector(pr) => laid_piece(col, pr.syntax)
+    | Tile(t) =>
+      let rec go = (col, shards, children) =>
+        switch (shards) {
+        | [] => col
+        | [s, ...shards] =>
+          let col = col + Token.length(Tile.token(t, s));
+          switch (children, shards) {
+          | ([child, ...children], [_, ..._]) =>
+            go(laid(col, child), shards, children)
+          | _ => col
+          };
+        };
+      go(col, t.shards, t.children);
+    };
+  let rec pieces = (seg: Segment.t) =>
+    List.concat_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => [p, ...List.concat_map(pieces, t.children)]
+        | _ => [p]
+        },
+      seg,
+    );
+  /* the audit's modules (List, Option, counter) and the mega corpora */
+  let sources =
+    List.filter_map(
+      ((name, src)) => Option.map(s => (name, Sort.Mod, s), src()),
+      Test_ModAudit.module_sources,
+    )
+    @ List.map(
+        ((f, root)) => (f, root, Option.get(CorpusUtil.mega_src(f))),
+        [("mega-mod-1k.hz", Sort.Mod), ("mega-1k.hz", Sort.Exp)],
+      );
+  check(int, "sources read", 5, List.length(sources));
+  List.iter(
+    ((name, root, src)) => {
+      let ps = pieces(CorpusUtil.seg_of(~root, src));
+      let off =
+        List.filter(
+          p =>
+            List.exists(
+              c => MemberLines.col_after_piece(c, p) != laid_piece(c, p),
+              [0, 5],
+            ),
+          ps,
+        );
+      check(
+        int,
+        name ++ ": pieces whose column after differs",
+        0,
+        List.length(off),
+      );
+    },
+    sources,
+  );
+};
+
 /* ---- a Mod root: the same, its members at the top level ---- */
 
 let counter_members = "let start = 0;\nlet next = start + 1;\nlet after = next + 1";
@@ -1009,6 +1077,7 @@ let tests = (
         ),
       brace_line_cases,
     )
+  @ [test_case("start columns from the last line", `Quick, columns)]
   @ List.map(
       ((name, _) as c) =>
         test_case("rows kept at a Mod root: " ++ name, `Quick, mod_root(c)),

@@ -29,21 +29,58 @@ let is_member_head = (p: Piece.t): bool =>
   | _ => false
   };
 
-/* the column after [seg] laid out from [col], as the editor lays it out (a
-   hole is one column); a linebreak at any depth starts a line */
-let rec col_after = (col: int, seg: Segment.t): int =>
-  List.fold_left(col_after_piece, col, seg)
-and col_after_piece = (col: int, p: Piece.t): int =>
+/* a piece's last line, as the editor lays it out (a hole is one column):
+   whether it breaks a line at any depth, and its width after the last
+   break (all of it, if none). Read right to left, so a long multi-line
+   piece costs its last line */
+let rec piece_tail = (p: Piece.t): (bool, int) =>
   switch (p) {
-  | Secondary(w) when Secondary.is_linebreak(w) => 0
-  | Secondary(w) => col + Secondary.length(w)
-  | Grout(_) => col + 1
-  | Projector(pr) => col_after_piece(col, pr.syntax)
-  | Tile(t) => snd(tile_layout(col, t))
+  | Secondary(w) when Secondary.is_linebreak(w) => (true, 0)
+  | Secondary(w) => (false, Secondary.length(w))
+  | Grout(_) => (false, 1)
+  | Projector(pr) => piece_tail(pr.syntax)
+  | Tile(t) =>
+    /* its shards and the children between them, right to left */
+    let rec go = (shards, children, w) =>
+      switch (shards) {
+      | [] => (false, w)
+      | [s, ...shards] =>
+        let w = w + Token.length(Tile.token(t, s));
+        switch (children, shards) {
+        | ([child, ...children], [_, ..._]) =>
+          let (broken, cw) = tail(child);
+          broken ? (true, w + cw) : go(shards, children, w + cw);
+        | _ => (false, w)
+        };
+      };
+    go(List.rev(t.shards), List.rev(t.children), 0);
   }
+and tail = (seg: Segment.t): (bool, int) => {
+  let rec go = (rev, w) =>
+    switch (rev) {
+    | [] => (false, w)
+    | [p, ...rev] =>
+      let (broken, pw) = piece_tail(p);
+      broken ? (true, w + pw) : go(rev, w + pw);
+    };
+  go(List.rev(seg), 0);
+};
+
+/* the column after [seg] / [p] laid out from [col] */
+let col_after = (col: int, seg: Segment.t): int =>
+  switch (tail(seg)) {
+  | (true, w) => w
+  | (false, w) => col + w
+  };
+let col_after_piece = (col: int, p: Piece.t): int =>
+  switch (piece_tail(p)) {
+  | (true, w) => w
+  | (false, w) => col + w
+  };
+
 /* tile [t] laid out from [col]: where each child starts, and the column
    after it */
-and tile_layout = (col: int, t: Tile.t): (list(int), int) => {
+let tile_layout = (col: int, t: Tile.t): (list(int), int) => {
   let rec go = (col, shards, children, starts) =>
     switch (shards) {
     | [] => (List.rev(starts), col)
