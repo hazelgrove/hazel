@@ -814,11 +814,17 @@ let calculate_slide =
       /* the ⇒ cell's tail probe anchors its expression's current root
          (its key, e_id, follows only on view changes): counted before
          the cell calculates, so this frame's run samples it */
+      /* a world slide's members cell is its program's tail */
+      let is_world_cell = (e: ScratchCell.t) =>
+        e.e_kind == Members && code.world == Some(e.e_id);
       let is_tail_cell = (e: ScratchCell.t) =>
-        tail_probe && e.e_kind == Headless({js|⇒|js});
+        tail_probe && (e.e_kind == Headless({js|⇒|js}) || is_world_cell(e));
       let tail_root = (e: ScratchCell.t) =>
         switch (Focus.zip_of_cell(e.e_body)) {
         | [] => None
+        /* its last expression, as the cell last read it */
+        | _ when is_world_cell(e) =>
+          Haz3lcore.AutoProbePerform.tail_id(e.e_body.editor.editor.syntax)
         | seg =>
           try(Some(Segment.root_id(Segment.skel(seg), seg))) {
           | _ => None

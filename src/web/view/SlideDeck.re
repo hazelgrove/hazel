@@ -44,19 +44,23 @@ let integrate_share =
       zipper: "",
       backup_text: shared_text,
     };
+    /* a world's link carries its members, at a module root */
     let shared: CellEditor.Model.persistent = {
       editor: {
-        root: Exp,
+        root:
+          JsUtil.QueryParams.get_param("root") == Some("mod") ? Mod : Exp,
         zipper: shared,
       },
       result: EvalResult.Model.init |> EvalResult.Model.persist,
     };
-    let new_sp =
-      Scratchpad.mk_code(
+    let (editor, world) =
+      Persist.open_text(
+        ~settings,
+        ~prefix=ScratchModel.prefix(~is_documentation=false),
         ~name=share_name,
-        ~editor=CellEditor.Model.unpersist(~settings, shared),
-        (),
+        shared,
       );
+    let new_sp = Scratchpad.mk_code(~name=share_name, ~editor, ~world?, ());
     Model.{
       current: List.length(model.scratchpads),
       scratchpads: model.scratchpads @ [new_sp],
@@ -67,8 +71,8 @@ let integrate_share =
 let export_scratch_slide = (model: Model.t): unit => {
   let scratchpad = List.nth(model.scratchpads, model.current);
   switch (scratchpad.kind) {
-  | Code({program, _}) =>
-    let persistent = CellEditor.Model.persist(Program.whole(program));
+  | Code(code) =>
+    let persistent = CellEditor.Model.persist(WorldSlide.own_editor(code));
     let data =
       persistent
       |> CellEditor.Model.sexp_of_persistent
@@ -88,8 +92,9 @@ let encode_scratch_slide = (model: Model.t): unit => {
   let scratchpad = List.nth(model.scratchpads, model.current);
   JsUtil.QueryParams.set_param("name", scratchpad.name);
   switch (scratchpad.kind) {
-  | Code({program, _}) =>
-    let c = Program.whole(program) |> CellEditor.Model.to_string;
+  | Code(code) =>
+    let c = WorldSlide.own_editor(code) |> CellEditor.Model.to_string;
+    JsUtil.QueryParams.set_param("root", code.world == None ? "exp" : "mod");
     JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
   | Drv(_) => ()
   };
@@ -325,7 +330,14 @@ let update =
             |> CellEditor.Model.persist
           | true => Init.default_documentation_slide_name(scratchpad.name)
           };
-        let* data = source |> CellEditor.Model.unpersist |> Updated.return;
+        let* (data, world) =
+          Persist.open_text(
+            ~settings=settings.core,
+            ~prefix=ScratchModel.prefix(~is_documentation),
+            ~name=scratchpad.name,
+            source,
+          )
+          |> Updated.return;
         Model.with_current_kind(
           Code({
             program: Whole(data),
@@ -333,7 +345,7 @@ let update =
             agent,
             lib: None,
             lib_gen: 0,
-            world: None,
+            world,
           }),
           model,
         );
@@ -358,11 +370,15 @@ let update =
         let scratchpad = List.nth(model.scratchpads, model.current);
         switch (scratchpad.kind) {
         | Code({agent, _}) =>
-          let new_data =
+          let (new_data, world) =
             data
             |> Sexplib.Sexp.of_string
             |> CellEditor.Model.persistent_of_sexp
-            |> CellEditor.Model.unpersist(~settings=settings.core);
+            |> Persist.open_text(
+                 ~settings=settings.core,
+                 ~prefix=ScratchModel.prefix(~is_documentation),
+                 ~name=scratchpad.name,
+               );
 
           Model.with_current_kind(
             Code({
@@ -371,7 +387,7 @@ let update =
               agent,
               lib: None,
               lib_gen: 0,
-              world: None,
+              world,
             }),
             model,
           )

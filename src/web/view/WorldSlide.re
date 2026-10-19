@@ -9,13 +9,29 @@ open Util;
 /* the library a world assembles with: the code that runs, ids and all */
 let library = (): Segment.t => LibraryDoc.segment(LibraryDoc.source^);
 
+/* off with `noworld` in the page's query, to compare a build with and
+   without worlds (benchmarks, while step 1 settles) */
+let enabled: Lazy.t(bool) =
+  lazy(
+    try(
+      !
+        Js_of_ocaml.Js.to_bool(
+          Js_of_ocaml.Js.Unsafe.global##.location##.search##includes(
+            Js_of_ocaml.Js.string("noworld"),
+          ),
+        )
+    ) {
+    | _ => true
+    }
+  );
+
 /* [seg], the slide [name] as stored at [root], in the world: the
    document and the slide's module id; None when no library is shipped or
    the slide has no member form (it stays as it is) */
 let enter =
     (~name: string, ~root: Sort.t, seg: Segment.t)
     : option((Segment.t, Id.t)) =>
-  LibraryDoc.shipped^ == ""
+  LibraryDoc.shipped^ == "" || !Lazy.force(enabled)
     ? None
     : Option.bind(World.members_of(~root, seg), members =>
         Option.bind(World.slide_id(name), slide =>
@@ -108,3 +124,16 @@ let run_statics = (~slide: Id.t, s: CachedStatics.t): CachedStatics.t =>
       };
     },
   );
+
+/* what a slide is on its own (export, a share link): a world's members,
+   at a module root */
+let own_editor = (code: ScratchModel.Scratchpad.code): CellEditor.Model.t =>
+  switch (
+    Option.bind(code.world, slide =>
+      World.split(~slide, Program.document(code.program))
+    )
+  ) {
+  | Some({members, _}) =>
+    CellEditor.Model.mk(Editor.Model.mk(Zipper.unzip(members), ~root=Mod))
+  | None => Program.whole(code.program)
+  };
