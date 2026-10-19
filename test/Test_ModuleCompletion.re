@@ -116,7 +116,10 @@ let rows = (~root: Sort.t, z: Zipper.t): list((string, row)) => {
         List.find_opt(
           id => List.mem(id, ids),
           switch (Id.Map.find_opt(err, st.info_map)) {
-          | Some(info) => [err, ...Info.ancestors_of(info)]
+          | Some(info) => [
+              err,
+              ...Info.within_item(~info_map=st.info_map, info),
+            ]
           | None => [err]
           },
         ),

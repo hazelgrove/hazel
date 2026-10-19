@@ -1209,7 +1209,13 @@ let view =
           ((direct, roll), err_id) => {
             let path =
               switch (Id.Map.find_opt(err_id, statics.info_map)) {
-              | Some(info) => [err_id, ...Language.Info.ancestors_of(info)]
+              | Some(info) => [
+                  err_id,
+                  ...Language.Info.within_item(
+                       ~info_map=statics.info_map,
+                       info,
+                     ),
+                ]
               | None => [err_id]
               };
             switch (List.filter(in_outline, path)) {

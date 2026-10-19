@@ -132,6 +132,12 @@ module Utils = {
               ~nominee: option(Info.t),
             ) => {
       switch (candidates) {
+      | [candidate, ...rest] when !Id.Map.mem(candidate, info_map) =>
+        search_for_top_level_node(
+          ~candidates=rest,
+          ~departure_point,
+          ~nominee,
+        )
       | [candidate, ...rest] =>
         let candidate = Id.Map.find(candidate, info_map);
         let nominee =
@@ -193,7 +199,7 @@ module Utils = {
     };
 
     search_for_top_level_node(
-      ~candidates=Info.ancestors_of(start_point),
+      ~candidates=Info.ancestors(~info_map, start_point),
       ~departure_point=start_point,
       ~nominee=initial_nominee,
     );
@@ -203,7 +209,7 @@ module Utils = {
       (info: Info.t, info_map: Id.Map.t(Info.t)): Info.t => {
     switch (
       {
-        let* id = ListUtil.hd_opt(List.rev(Info.ancestors_of(info)));
+        let* id = ListUtil.last_opt(Info.ancestors(~info_map, info));
         Id.Map.find_opt(id, info_map);
       }
     ) {
@@ -419,11 +425,12 @@ let prev_sibling_of = (node: node): option(Id.t) => {
   };
 };
 
-let lowest_enclosing_node_of = (info: Info.t, node_map: t): option(node) => {
+let lowest_enclosing_node_of =
+    (~info_map: Id.Map.t(Info.t), info: Info.t, node_map: t): option(node) => {
   switch (Id.Map.find_opt(Info.id_of(info), node_map)) {
   | Some(node) => Some(node)
   | None =>
-    let ancestors = Info.ancestors_of(info);
+    let ancestors = Info.ancestors(~info_map, info);
     List.find_map(
       (ancestor: Id.t) => Id.Map.find_opt(ancestor, node_map),
       ancestors,
@@ -481,6 +488,16 @@ let rec build_children =
   switch (candidate) {
   | InfoExp({user_term: term, _}) =>
     switch (Exp.term_of(term)) {
+    /* a module statement as its chain holds it (`let _ = e in`, from a
+       Mod root's items, which have no Module info to read them from):
+       not a binding, as the Module case below skips it */
+    | Let(_, def, body)
+        when
+          switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
+          | Some(InfoExp({cls: Mod(_), _})) => true
+          | _ => false
+          } =>
+      build_children(exp_to_info(body), path, node_map, info_map)
     | Let(_, _, body)
     | TyAlias(_, _, body)
     | ModuleExp(_, _, body) =>
@@ -910,7 +927,7 @@ let node_of_cursor =
       ),
     )
   | Some(info) =>
-    switch (lowest_enclosing_node_of(info, node_map)) {
+    switch (lowest_enclosing_node_of(~info_map, info, node_map)) {
     | Some(node) => node
     | None => raise(Failure("No lowest enclosing node found for cursor"))
     }

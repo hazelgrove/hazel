@@ -146,7 +146,7 @@ module Local = {
               Some(items)
             | _ => None
             },
-          Info.ancestors_of(node.info),
+          Info.ancestors(~info_map, node.info),
         );
       let rec past = (after, items: list(Mod.t)) =>
         switch (items) {
@@ -183,7 +183,7 @@ module Local = {
     let last_member =
         (~info_map: Id.Map.t(Info.t), node_map: node_map): option(Id.t) => {
       let* (_, node) = Id.Map.min_binding_opt(node_map);
-      let* root = ListUtil.last_opt(Info.ancestors_of(node.info));
+      let* root = ListUtil.last_opt(Info.ancestors(~info_map, node.info));
       let* items =
         switch (Id.Map.find_opt(root, info_map)) {
         | Some(InfoExp({user_term: {term: Module(items), _}, _})) =>
