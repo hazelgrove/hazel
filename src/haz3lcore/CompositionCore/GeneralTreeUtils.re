@@ -28,10 +28,10 @@ let subtree_of =
         Id.Map.filter(
           (id, child) =>
             List.mem(id, roots)
-            || List.exists(
-                 root => List.mem(root, Info.ancestors_of(child)),
-                 roots,
-               ),
+            || {
+              let above = Info.ancestors(~info_map=orig_info_map, child);
+              List.exists(root => List.mem(root, above), roots);
+            },
           orig_info_map,
         );
       | Let(pat, def, body) =>
@@ -363,7 +363,7 @@ let name_occurs_within =
     (~root_id: Id.t, ~info_map: Id.Map.t(Info.t), name: string): bool => {
   Id.Map.exists(
     (_id, info: Info.t) =>
-      List.mem(root_id, Info.ancestors_of(info))
+      List.mem(root_id, Info.ancestors(~info_map, info))
       && (
         switch (info) {
         | InfoExp({user_term, _}) =>

@@ -479,15 +479,14 @@ let row_ids = (e: Exp.t): Id.Map.t(unit) =>
     )
   );
 
-/* the row holding [id]: its own, else its nearest ancestor's */
+/* the row holding [id]: its own, else its nearest ancestor's in its item */
 let enclosing_row =
     (~info_map: Statics.Map.t, id: Id.t, e: Exp.t): option(Id.t) =>
   switch (Id.Map.find_opt(id, info_map)) {
   | Some(info) =>
     let rows = row_ids(e);
-    List.find_opt(
-      x => Id.Map.mem(x, rows),
-      [id, ...Info.ancestors_of(info)],
-    );
+    Id.Map.mem(id, rows)
+      ? Some(id)
+      : Info.find_within_item(~info_map, info, x => Id.Map.mem(x, rows));
   | None => None
   };

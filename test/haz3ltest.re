@@ -59,6 +59,7 @@ let (suite, exit_with_test_status) =
       Test_EditLocality.tests,
       Test_DefStaticsParity.tests,
       Test_DefStaticsDelta.tests,
+      Test_StaticsAncestry.tests,
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
       Test_ModRoot.tests,

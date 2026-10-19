@@ -233,6 +233,9 @@ let ctx_of: t => Ctx.t =
   | InfoMPat({ctx, _})
   | Secondary({ctx, _}) => ctx;
 
+/* the ancestors [info] records: all of them from a whole-program
+   analysis, but under DefStatics only those up to its item's root (whose
+   own are its parent in the item chain). [ancestors] has them all */
 let ancestors_of: t => ancestors =
   fun
   | InfoDrv(drv) => DrvInfo.ancestors_of(drv)
@@ -259,6 +262,173 @@ let id_of: t => Id.t =
   | InfoSig({id, _})
   | InfoMPat({id, _}) => id
   | Secondary(s) => s.id;
+
+/* [info]'s ancestors, innermost first, as a whole-program analysis lists
+   them: where the recorded ones end at an item's root, that root's go on
+   (its parent, the item above it or what holds its chain), and so on up.
+   an id listed twice in a row (a `module` binding above its body, a
+   function definition's) counts once */
+let ancestors = (~info_map: Id.Map.t(t), info: t): ancestors => {
+  /* [hops] bounds a cycle, which only an inconsistent map could have */
+  let rec go = (segs, hops, seg) =>
+    switch (ListUtil.last_opt(seg)) {
+    | Some(root) when hops > 0 =>
+      switch (Option.map(ancestors_of, Id.Map.find_opt(root, info_map))) {
+      | Some([_, ..._] as above) => go([seg, ...segs], hops - 1, above)
+      | _ => [seg, ...segs]
+      }
+    | _ => [seg, ...segs]
+    };
+  let rec repeats =
+    fun
+    | [a, b, ..._] when Id.equal(a, b) => true
+    | [_, ...rest] => repeats(rest)
+    | [] => false;
+  let rec dedup =
+    fun
+    | [a, b, ...rest] when Id.equal(a, b) => dedup([b, ...rest])
+    | [a, ...rest] => [a, ...dedup(rest)]
+    | [] => [];
+  let all =
+    switch (go([], 100_000, ancestors_of(info))) {
+    | [whole] => whole
+    | segs => List.concat(List.rev(segs))
+    };
+  repeats(all) ? dedup(all) : all;
+};
+
+/* a walk up a term's ancestors: on to the next, or done */
+type climb('s, 'r) =
+  | Up('s)
+  | Stop('r);
+
+/* [f] on [info]'s ancestors innermost first, as [ancestors] lists them,
+   each with its child on the way up, until it stops; [top] takes what
+   is left at the top */
+let climb =
+    (
+      ~info_map: Id.Map.t(t),
+      info: t,
+      init: 's,
+      f: ('s, Id.t, Id.t) => climb('s, 'r),
+      top: 's => 'r,
+    )
+    : 'r => {
+  /* [hops] bounds a cycle, which only an inconsistent map could have */
+  let rec go = (seg, child, hops, s) =>
+    switch (seg) {
+    | [] => top(s)
+    | [a, ...rest] =>
+      let (rest, hops) =
+        switch (rest) {
+        | [] when hops > 0 =>
+          switch (Id.Map.find_opt(a, info_map)) {
+          | Some(i) => (ancestors_of(i), hops - 1)
+          | None => ([], hops)
+          }
+        | _ => (rest, hops)
+        };
+      if (Id.equal(a, child)) {
+        go(rest, child, hops, s);
+      } else {
+        switch (f(s, a, child)) {
+        | Up(s) => go(rest, a, hops, s)
+        | Stop(r) => r
+        };
+      };
+    };
+  go(ancestors_of(info), id_of(info), 100_000, init);
+};
+
+/* where a term is in its item. on an item chain (the top level's, a
+   module's members) an item's body is the items after it; going up, the
+   step out of a definition's pattern or definition is a candidate item,
+   which the next such step settles: an item if it leaves a module's
+   members or there is none, inside a definition otherwise */
+let item_continues = (a: option(t), child: Id.t): bool =>
+  switch (a) {
+  | Some(
+      InfoExp({
+        user_term:
+          {
+            term:
+              Let(_, _, b) | TyAlias(_, _, b) | ModuleExp(_, _, b) |
+              Seq(_, b) |
+              Filter(_, b) |
+              Use(_, b),
+            _,
+          },
+        _,
+      }),
+    ) =>
+    Id.equal(Exp.rep_id(b), child)
+  | _ => false
+  };
+let holds_members = (a: option(t)): bool =>
+  switch (a) {
+  | Some(InfoExp({user_term: {term: Module(_), _}, _})) => true
+  | _ => false
+  };
+
+/* [info]'s ancestors within its item, innermost first: up to the
+   innermost definition or statement of an item chain that holds it, none
+   if the term is an item. a module statement's let chain is one item, as
+   the outline shows it */
+let within_item = (~info_map: Id.Map.t(t), info: t): ancestors => {
+  /* the ancestors so far (outermost first), how many, and how many are
+     the candidate item's */
+  let settle = ((seen, _, cand)) => ListUtil.take(cand, List.rev(seen));
+  climb(
+    ~info_map,
+    info,
+    ([], 0, 0),
+    ((seen, n, cand), a, child) => {
+      let n = n + 1;
+      let seen = [a, ...seen];
+      let i = Id.Map.find_opt(a, info_map);
+      if (item_continues(i, child)) {
+        Up((seen, n, cand));
+      } else if (holds_members(i)) {
+        Stop(settle((seen, n, cand)));
+      } else {
+        Up((seen, n, n));
+      };
+    },
+    settle,
+  );
+};
+
+/* the innermost of [within_item] satisfying [p], climbing no further
+   than settling it takes */
+let find_within_item =
+    (~info_map: Id.Map.t(t), info: t, p: Id.t => bool): option(Id.t) => {
+  let settled = (found, cand) =>
+    switch (found) {
+    | Some((a, k)) when k <= cand => Some(a)
+    | _ => None
+    };
+  climb(
+    ~info_map,
+    info,
+    (0, 0, None),
+    ((n, cand, found), a, child) => {
+      let n = n + 1;
+      let found = found == None && p(a) ? Some((a, n)) : found;
+      let i = Id.Map.find_opt(a, info_map);
+      if (item_continues(i, child)) {
+        Up((n, cand, found));
+      } else if (holds_members(i)) {
+        Stop(settled(found, cand));
+      } else {
+        switch (settled(found, n)) {
+        | Some(_) as r => Stop(r)
+        | None => Up((n, n, found))
+        };
+      };
+    },
+    ((_, cand, found)) => settled(found, cand),
+  );
+};
 
 let marks_of: t => list(Mark.t) =
   fun
