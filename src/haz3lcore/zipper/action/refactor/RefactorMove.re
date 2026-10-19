@@ -1675,31 +1675,15 @@ let hoist_carry_impl: impl = {
   prepare: (~info_map as _, ~target, program) =>
     switch (hoist_carry_site(~target, program)) {
     | None => None
-    | Some(nodes) =>
-      let c = List.nth(nodes, List.length(nodes) - 1);
-      let cbody =
-        switch (def_line_of(c)) {
-        | Some((_, body)) => body
-        | None => c /* unreachable: site checked */
-        };
-      /* the lines rotate one slot: [X, T1..Tm, C] -> [T1..Tm, C, X];
-         each line takes the SECONDARY of the old occupant of its new
-         position (chain_swap generalized — every run used once, no
-         piece duplication) */
-      let secs = nodes |> List.map((nd: Exp.t) => nd.annotation.secondary);
-      let new_order = List.tl(nodes) @ [List.hd(nodes)];
-      let result =
-        List.fold_left(
-          (inner, (node, sec)) =>
-            with_secondary(sec, def_line_rebuild(node, inner)),
-          cbody,
-          List.rev(List.combine(new_order, secs)),
-        );
-      rewrite_node(
-        ~hit=same_node(List.hd(nodes)),
-        ~rewrite=_ => Some((result, Exp.rep_id(c))),
-        program,
-      );
+    | Some([x, top, ...rest]) =>
+      let bottom = List.nth([top, ...rest], List.length(rest));
+      /* the block crosses the comment and blank lines above it first,
+         one per rung, then swaps with x */
+      switch (comment_rung(~up=true, ~program, ~bottom, top)) {
+      | Some(r) => Some(r)
+      | None => block_swap_up(~program, ~x, ~top, ~bottom)
+      };
+    | Some(_) => None
     },
 };
 

@@ -57,6 +57,8 @@ module Model = {
       drag_refactor: false,
       drag_chain: Language.CoreSettings.DragChain.SameKind,
       drag_push: true,
+      drag_labels: true,
+      drag_tracks: true,
       display_warnings: true,
       selection_chunkiness: false,
       evaluation: {
@@ -178,6 +180,8 @@ module Update = {
     | DragRefactor
     | DragChain
     | DragPush
+    | DragLabels
+    | DragTracks
     | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
@@ -297,6 +301,20 @@ module Update = {
           core: {
             ...settings.core,
             drag_push: !settings.core.drag_push,
+          },
+        }
+      | DragLabels => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_labels: !settings.core.drag_labels,
+          },
+        }
+      | DragTracks => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_tracks: !settings.core.drag_tracks,
           },
         }
       | DisplayWarnings => {

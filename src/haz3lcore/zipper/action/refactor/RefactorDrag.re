@@ -299,15 +299,13 @@ let drag_kinds =
    own place in the state (the transform's focus): a fed definition
    spawns the copy the drag follows (D2's duplicate-and-follow), an
    extracted expression that reuses an identical definition dissolves
-   into it, a lifted definition re-forms as a helper above the
-   function, a parameter list shed to one loses the parens you held,
+   into it, a parameter list shed to one loses the parens you held,
    an expanded wildcard becomes the arms it stood for. (Merges drop
    onto their live twin: merge_drop.) */
 let lands_elsewhere = (kind: Action.refactor): bool =>
   switch (kind) {
   | FeedLet
   | ExtractLet
-  | LiftFunction
   | RemoveParameter
   | ExpandWildcard => true
   | _ => false

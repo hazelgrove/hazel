@@ -314,36 +314,17 @@ let lift_function_impl: impl = {
         /* the vacated region: C's body takes the BLOCK TOP's slot */
         let top = List.hd(site.ls_block);
         let cbody'' = Slot.occupy(top.annotation.secondary, cbody');
-        let (helper_pat, helper_def) =
-          switch (site.ls_enc) {
-          | LiftFun(_) =>
-            let param: Pat.t =
-              switch (var_pats()) {
-              | [v] => pad(v)
-              | vs => pad(fresh_pat(Parens(fresh_pat(Tuple(vs)))))
-              };
-            let fun_helper = fresh(Fun(param, interior, None, None));
-            (
-              cp,
-              carried == []
-                ? pad(fun_helper)
-                : with_secondary((space(), []), fun_helper),
-            );
-          | LiftSugar =>
-            /* the source used sugar; the helper does too:
-               let g(args) = interior */
-            let args: Pat.t =
-              switch (var_pats()) {
-              | [v] => v
-              | vs => fresh_pat(Tuple(vs))
-              };
-            let sugar_pat = {
-              let bare =
-                fresh_pat(Ap(with_secondary_pat(([], []), cp), args));
-              with_secondary_pat(cp.annotation.secondary, bare);
+        /* the helper is written with definition sugar, let g(args) =
+           interior (andrew), whatever form the source function had */
+        let (helper_pat, helper_def) = {
+          let args: Pat.t =
+            switch (var_pats()) {
+            | [v] => v
+            | vs => fresh_pat(Tuple(vs))
             };
-            (sugar_pat, interior);
-          };
+          let bare = fresh_pat(Ap(with_secondary_pat(([], []), cp), args));
+          (with_secondary_pat(cp.annotation.secondary, bare), interior);
+        };
         let rebuild_outer = (odef_new: Exp.t): option((Exp.t, Id.t)) =>
           switch (IdTagged.term_of(site.ls_outer)) {
           | Let(op, _, obody) =>
@@ -358,10 +339,16 @@ let lift_function_impl: impl = {
               term: Let(op, odef_new, obody),
             };
             let outer' = with_secondary((sep, o_after), outer_rebuilt);
+            /* the helper IS the lifted line, moved: it keeps that
+               line's let (ids), so it travels rather than vanishing
+               and reappearing */
             let new_let =
               with_secondary(
                 (o_lead, []),
-                fresh(Let(helper_pat, helper_def, outer')),
+                {
+                  ...c,
+                  term: Let(helper_pat, helper_def, outer'),
+                },
               );
             Some((new_let, Pat.rep_id(cp)));
           | _ => None

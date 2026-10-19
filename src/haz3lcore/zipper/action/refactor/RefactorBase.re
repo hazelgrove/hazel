@@ -1765,12 +1765,12 @@ let rec run_before_in_seg =
   go(0, [], seg);
 };
 
-/* === Comments are lines (andrew 2026-10-16) ===
-   An own-line comment is a line of the program, like a definition: a
-   definition moves past one as a rung of its own, and comments never
-   travel with a definition. A rung swaps only the definition and the
-   comment it crosses; blank lines keep their rows. (End-of-line
-   comments belong to their line and travel with it: split_eol.) */
+/* === Comments and blank lines are lines (andrew 2026-10-16/18) ===
+   An own-line comment or a blank line is a line of the program, like
+   a definition: a definition moves past one as a rung of its own, one
+   line at a time, and neither ever travels with a definition. (End-
+   of-line comments belong to their line and travel with it:
+   split_eol.) */
 
 /* run = l0 b0 l1 b1 ... b(k-1) lk, split at breaks (pieces are atomic:
    one " " or "\n" each). l0 ends the line before; lk is the indentation
@@ -1793,33 +1793,24 @@ let run_lines =
   go([], [], [], run);
 };
 
-/* the comment line a rung crosses: going up, the nearest one above the
-   definition; going down, the nearest below it */
-let crossed_comment_line =
-    (~up: bool, lines: list(list(Secondary.t))): option(int) => {
-  let k = List.length(lines) - 1;
-  let comment_lines =
-    lines
-    |> List.mapi((i, line) => (i, line))
-    |> List.filter(((i, line)) =>
-         i >= 1 && i < k && List.exists(is_comment_piece, line)
-       )
-    |> List.map(fst);
-  switch (up ? List.rev(comment_lines) : comment_lines) {
-  | [j, ..._] => Some(j)
-  | [] => None
-  };
-};
-
 /* l0 b0 ... l(n-1) b(n-1): the first n lines with their breaks */
 let lines_prefix = (n: int, lines, breaks): list(Secondary.t) =>
   List.init(n, i => List.nth(lines, i) @ [List.nth(breaks, i)])
   |> List.concat;
 
+/* b(from-1) l(from) ... b(to_-1) l(to_): lines from..to_, each after
+   its break */
+let lines_from = (lines, breaks, from: int, to_: int): list(Secondary.t) =>
+  List.init(max(0, to_ - from + 1), d =>
+    [List.nth(breaks, from + d - 1)] @ List.nth(lines, from + d)
+  )
+  |> List.concat;
+
 /* the definition's lead and its body's lead after the definition
-   crosses one comment line: up, the nearest comment above moves to
-   just below the definition's line; down, the nearest comment below
-   moves to just above it */
+   swaps with the adjacent line (every line strictly inside a run is a
+   comment or blank line): up, the line just above moves to just below
+   the definition's line; down, the line just below moves to just
+   above. None when no such line is there. */
 let comment_rung_runs =
     (~up: bool, ~lead: list(Secondary.t), ~body_lead: list(Secondary.t))
     : option((list(Secondary.t), list(Secondary.t))) => {
@@ -1829,85 +1820,67 @@ let comment_rung_runs =
   let (ml, mb) = run_lines(m);
   let k = List.length(rl) - 1;
   let mm = List.length(ml) - 1;
-  /* breaks[i] then lines[i + 1], for i in from..to_ */
-  let lines_from = (lines, breaks, from, to_) =>
-    List.init(max(0, to_ - from + 1), d =>
-      [List.nth(breaks, from + d - 1)] @ List.nth(lines, from + d)
-    )
-    |> List.concat;
-  if (up) {
-    switch (crossed_comment_line(~up=true, rl)) {
-    | Some(j) =>
-      let lead' = e @ lines_prefix(j, rl, rb) @ List.nth(rl, k);
-      /* the definition takes row j; rows j+1..k-1 (blank) stay; the
-         comment takes row k, the definition's old row */
-      let moved =
-        List.init(k - j - 1, d =>
-          [List.nth(rb, j + d)] @ List.nth(rl, j + 1 + d)
-        )
-        |> List.concat;
-      let moved = moved @ [List.nth(rb, k - 1)] @ List.nth(rl, j);
-      let body_lead' =
-        me
-        @ List.nth(ml, 0)
-        @ moved
-        @ (mm == 0 ? newline() : lines_from(ml, mb, 1, mm));
-      Some((lead', body_lead'));
-    | None => None
-    };
+  if (up && k >= 2) {
+    Some((
+      e @ lines_prefix(k - 1, rl, rb) @ List.nth(rl, k),
+      me
+      @ List.nth(ml, 0)
+      @ [List.nth(rb, k - 1)]
+      @ List.nth(rl, k - 1)
+      /* an inline body gets its own line under the crossed one */
+      @ (mm == 0 ? newline() : lines_from(ml, mb, 1, mm)),
+    ));
+  } else if (!up && mm >= 2) {
+    Some((
+      e
+      @ lines_prefix(k, rl, rb)
+      @ List.nth(ml, 1)
+      @ [List.nth(mb, 0)]
+      @ List.nth(rl, k),
+      me @ List.nth(ml, 0) @ lines_from(ml, mb, 2, mm),
+    ));
   } else {
-    switch (crossed_comment_line(~up=false, ml)) {
-    | Some(j) =>
-      /* the comment takes the definition's row; rows 1..j-1 (blank)
-         stay; the definition takes the comment's row */
-      let lead' =
-        e
-        @ lines_prefix(k, rl, rb)
-        @ List.nth(ml, j)
-        @ lines_from(ml, mb, 1, j - 1)
-        @ [List.nth(mb, j - 1)]
-        @ List.nth(rl, k);
-      let body_lead' =
-        me @ List.nth(ml, 0) @ (j < mm ? lines_from(ml, mb, j + 1, mm) : []);
-      Some((lead', body_lead'));
-    | None => None
-    };
+    None;
   };
 };
 
-/* does a rung cross a comment? (gating: reads the leads where lines
-   usually hold them; the textual run decides at invocation) */
+/* does a rung cross a comment or blank line? (gating: reads the leads
+   where lines usually hold them; the textual run decides at
+   invocation) */
 let comment_rung_applies = (~up: bool, l: Exp.t): bool =>
   switch (def_line_of(l)) {
   | Some((_, lbody)) =>
     let run =
       up ? fst(l.annotation.secondary) : fst(lbody.annotation.secondary);
-    crossed_comment_line(~up, fst(run_lines(snd(split_eol(run))))) != None;
+    List.length(fst(run_lines(snd(split_eol(run))))) >= 3;
   | None => false
   };
 
-/* the definition line l crosses one comment line; runs are read from
-   the printed program (their holders vary: a block's first line's run
-   can sit on its parent) and relocated by piece id */
+/* the textual run before a node's first piece, read from a printed
+   program (holders vary: a block's first line's run can sit on its
+   parent, a body's on its leftmost leaf) */
+let run_before_node = (seg: Segment.t, e: Exp.t): option(list(Secondary.t)) =>
+  ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e)
+  |> List.find_map((pc: Piece.t) =>
+       switch (pc) {
+       | Secondary(_) => None
+       | pc => Some(Piece.id(pc))
+       }
+     )
+  |> Option.bind(_, id => run_before_in_seg(id, seg));
+
+/* the block of definition lines top..bottom (one line: top = bottom)
+   crosses one comment or blank line; runs are relocated by piece id */
 let comment_rung =
-    (~up: bool, ~program: Exp.t, l: Exp.t): option((Exp.t, Id.t)) =>
-  switch (def_line_of(l)) {
+    (~up: bool, ~program: Exp.t, ~bottom: option(Exp.t)=?, top: Exp.t)
+    : option((Exp.t, Id.t)) => {
+  let bottom = Option.value(~default=top, bottom);
+  switch (def_line_of(bottom)) {
   | None => None
-  | Some((_, lbody)) =>
-    let first_piece = (e: Exp.t) =>
-      ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e)
-      |> List.find_map((pc: Piece.t) =>
-           switch (pc) {
-           | Secondary(_) => None
-           | pc => Some(Piece.id(pc))
-           }
-         );
+  | Some((_, bbody)) =>
     let seg =
       ExpToSegment.exp_to_segment(~settings=roundtrip_settings, program);
-    switch (
-      run_before_in_seg(Exp.rep_id(l), seg),
-      Option.bind(first_piece(lbody), id => run_before_in_seg(id, seg)),
-    ) {
+    switch (run_before_node(seg, top), run_before_node(seg, bbody)) {
     | (Some(lead), Some(body_lead)) =>
       switch (comment_rung_runs(~up, ~lead, ~body_lead)) {
       | None => None
@@ -1917,40 +1890,122 @@ let comment_rung =
             List.map((w: Secondary.t) => w.id, lead @ body_lead),
             program,
           );
-        let done_ = ref(false);
         let program =
           Exp.map_term(
             ~f_exp=
-              (cont, e: Exp.t) =>
-                if (! done_^ && same_node(e, l)) {
-                  done_ := true;
-                  switch (def_line_of(e)) {
-                  | Some((_, b)) =>
-                    Slot.give(
+              (cont, e: Exp.t) => {
+                let e' = cont(e);
+                let e' =
+                  same_node(e, bottom)
+                    ? switch (def_line_of(e')) {
+                      | Some((_, b)) =>
+                        def_line_rebuild(
+                          e',
+                          Slot.give(
+                            {
+                              lead: body_lead',
+                              trail: [],
+                            },
+                            b,
+                          ),
+                        )
+                      | None => e'
+                      }
+                    : e';
+                same_node(e, top)
+                  ? Slot.give(
                       {
                         lead: lead',
                         trail: [],
                       },
-                      def_line_rebuild(
-                        e,
-                        Slot.give(
-                          {
-                            lead: body_lead',
-                            trail: [],
-                          },
-                          b,
-                        ),
-                      ),
+                      e',
                     )
-                  | None => e
-                  };
-                } else {
-                  cont(e);
-                },
+                  : e';
+              },
             program,
           );
-        Some((program, Exp.rep_id(l)));
+        Some((program, Exp.rep_id(top)));
       }
+    | _ => None
+    };
+  };
+};
+
+/* the block top..bottom swaps with the definition line x just above
+   it: x lands between bottom and bottom's body. Runs are relocated by
+   id, each line keeping its own: top takes x's lead, x takes the run
+   that separated it from top, and end-of-line comments stay on their
+   lines (x's rides to x's new place, bottom's stays after bottom). */
+let block_swap_up =
+    (~program: Exp.t, ~x: Exp.t, ~top: Exp.t, ~bottom: Exp.t)
+    : option((Exp.t, Id.t)) =>
+  switch (def_line_of(bottom)) {
+  | None => None
+  | Some((_, bbody)) =>
+    let seg =
+      ExpToSegment.exp_to_segment(~settings=roundtrip_settings, program);
+    switch (
+      run_before_node(seg, x),
+      run_before_node(seg, top),
+      run_before_node(seg, bbody),
+    ) {
+    | (Some(lx), Some(lt), Some(lb)) =>
+      let (eol_x, rt) = split_eol(lt);
+      let (eol_b, rb) = split_eol(lb);
+      let program =
+        drop_secondary(
+          List.map((w: Secondary.t) => w.id, lx @ lt @ lb),
+          program,
+        );
+      let give = (run, e) =>
+        Slot.give(
+          {
+            lead: run,
+            trail: [],
+          },
+          e,
+        );
+      /* the lines from x's body down to bottom, then bottom's body */
+      let rec block = (e: Exp.t, acc) =>
+        switch (def_line_of(e)) {
+        | Some((_, b)) when same_node(e, bottom) =>
+          Some((List.rev([e, ...acc]), b))
+        | Some((_, b)) => block(b, [e, ...acc])
+        | None => None
+        };
+      let done_ = ref(false);
+      let program =
+        Exp.map_term(
+          ~f_exp=
+            (cont, e: Exp.t) =>
+              if (! done_^ && same_node(e, x)) {
+                done_ := true;
+                switch (def_line_of(e)) {
+                | Some((_, xbody)) =>
+                  switch (block(xbody, [])) {
+                  | Some((lines, body)) =>
+                    let x' =
+                      give(
+                        eol_b @ rt,
+                        def_line_rebuild(e, give(eol_x @ rb, body)),
+                      );
+                    let rebuilt =
+                      List.fold_right(
+                        (line, inner) => def_line_rebuild(line, inner),
+                        lines,
+                        x',
+                      );
+                    give(lx, rebuilt);
+                  | None => e
+                  }
+                | None => e
+                };
+              } else {
+                cont(e);
+              },
+          program,
+        );
+      done_^ ? Some((program, Exp.rep_id(bottom))) : None;
     | _ => None
     };
   };

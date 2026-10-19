@@ -85,6 +85,12 @@ type t = {
      lifts to a helper (the keyboard's second press) */
   [@sexp.default true]
   drag_push: bool,
+  /* drag overlay: the refactoring names, and the tracks + target dots
+     (both off = no decoration beyond the moving code itself) */
+  [@sexp.default true]
+  drag_labels: bool,
+  [@sexp.default true]
+  drag_tracks: bool,
   display_warnings: bool,
   /* "Character-level mouse". When false (default), a mouse drag does
    * smart-rounded selection (char inside the starting token, whole-token
@@ -109,6 +115,8 @@ let off: t = {
   drag_refactor: false,
   drag_chain: DragChain.SameKind,
   drag_push: true,
+  drag_labels: true,
+  drag_tracks: true,
   display_warnings: false,
   selection_chunkiness: false,
   evaluation: Evaluation.init,
@@ -128,6 +136,8 @@ let on: t = {
   drag_refactor: false,
   drag_chain: DragChain.SameKind,
   drag_push: true,
+  drag_labels: true,
+  drag_tracks: true,
   display_warnings: true,
   selection_chunkiness: false,
   evaluation: Evaluation.init,

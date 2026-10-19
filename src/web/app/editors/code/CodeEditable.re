@@ -1045,6 +1045,8 @@ module View = {
               ),
           ~chain=globals.settings.core.drag_chain,
           ~push=globals.settings.core.drag_push,
+          ~show_labels=globals.settings.core.drag_labels,
+          ~show_tracks=globals.settings.core.drag_tracks,
           ~text_box=container_target(mouse.current_target),
           ~client=(
             float_of_int(mouse.loc.col),

@@ -4260,7 +4260,17 @@ let comment_tests = [
     },
   ),
   test_case(
-    "comment: blank lines keep their rows across a comment rung",
+    "blank: a blank line is a rung of its own",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=HoistLet, "let a = 1 in\n\nlet ¦b = 2 in\na + b")
+        |> text_of;
+      check(string, "hoist", "let a = 1 in\nlet b = 2 in\n\na + b", z);
+    },
+  ),
+  test_case(
+    "blank: one line per rung through blank and comment lines",
     `Quick,
     () => {
       let z =
@@ -4272,9 +4282,76 @@ let comment_tests = [
       check(
         string,
         "hoist",
-        "let a = 1 in\n\nlet b = 2 in\n\n# c #\na + b",
+        "let a = 1 in\n\n# c #\nlet b = 2 in\n\na + b",
         z,
       );
+    },
+  ),
+  test_case(
+    "blank: sinking crosses the blank line below",
+    `Quick,
+    () => {
+      let z =
+        inline(~kind=SinkLet, "let ¦a = 1 in\n\nlet b = 2 in\na + b")
+        |> text_of;
+      check(string, "sink", "\nlet a = 1 in\nlet b = 2 in\na + b", z);
+    },
+  ),
+  test_case(
+    "carry: the block crosses the blank line above it first",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistCarry,
+          "let x = 7 in\n\nlet a = 1 in\nlet ¦c = a + 1 in\nc * x",
+        )
+        |> text_of;
+      check(
+        string,
+        "carry",
+        "let x = 7 in\nlet a = 1 in\nlet c = a + 1 in\n\nc * x",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "carry: lines inside the block keep their places",
+    `Quick,
+    () => {
+      let z =
+        inline(
+          ~kind=HoistCarry,
+          "let x = 7 in\nlet a = 1 in\n# a feeds c #\nlet ¦c = a + 1 in\nc * x",
+        )
+        |> text_of;
+      check(
+        string,
+        "carry",
+        "let a = 1 in\n# a feeds c #\nlet c = a + 1 in\nlet x = 7 in\nc * x",
+        z,
+      );
+    },
+  ),
+  test_case(
+    "lift: the helper is the lifted line, moved (its let travels)",
+    `Quick,
+    () => {
+      let lift =
+        drag_cands(
+          ~push=true,
+          "let area = fun r ->\n  ¦let square = r * r in\n  square * 3\nin\narea(1)",
+        )
+        |> List.find_opt((c: Refactor.DragCandidate.t) =>
+             c.kind == LiftFunction
+           );
+      check(bool, "offered", true, lift != None);
+      switch (lift) {
+      | Some(c) =>
+        let ((r0, _), (r1, _)) = track_of(c);
+        check(bool, "the let goes up", true, r1 < r0);
+      | None => ()
+      };
     },
   ),
   test_case(
@@ -5328,7 +5405,7 @@ let remedied_move_tests = [
       check(
         string,
         "lifted",
-        "let scaled = fun x -> x * 3 in\nlet outer =\n  fun x ->\n    scaled(x) + x\nin\nouter(5)",
+        "let scaled(x) = x * 3 in\nlet outer =\n  fun x ->\n    scaled(x) + x\nin\nouter(5)",
         got,
       );
     },
@@ -5346,7 +5423,7 @@ let remedied_move_tests = [
       check(
         string,
         "tuple lift",
-        "let s = fun (a, b) -> a + b in\nlet f =\n  fun (a, b) ->\n    s(a, b) * 2\nin\nf((1, 2))",
+        "let s(a, b) = a + b in\nlet f =\n  fun (a, b) ->\n    s(a, b) * 2\nin\nf((1, 2))",
         got,
       );
     },
@@ -5390,7 +5467,7 @@ let lift_shape_tests = [
       check(
         string,
         "out",
-        "let pad = fun w -> w / 4 in\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
+        "let pad(w) = w / 4 in\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
         got,
       );
     },
@@ -5419,7 +5496,7 @@ let lift_shape_tests = [
       check(
         string,
         "out",
-        "let margin = 4 in\nlet pad = fun w -> w / margin in\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
+        "let margin = 4 in\nlet pad(w) = w / margin in\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
         got,
       );
     },
@@ -5481,7 +5558,7 @@ let sugar_lift_tests = [
       check(
         string,
         "absorbed",
-        "let pad = fun w ->\n  let margin = 4 in\n  w / margin\nin\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
+        "let pad(w) =\n  let margin = 4 in\n  w / margin\nin\nlet render =\n  fun w ->\n    let inner = w - pad(w) * 2 in\n    inner + pad(w)\nin\nrender(3)",
         got,
       );
     },

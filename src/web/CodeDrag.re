@@ -129,6 +129,8 @@ type session = {
   reseat: ((Id.t, option(int))) => unit,
   chain: Language.CoreSettings.DragChain.t,
   push: bool,
+  show_labels: bool,
+  show_tracks: bool,
   text_box: Js.t(Dom_html.element),
   mutable cands: list(cand),
   mutable winner: option(int),
@@ -577,8 +579,10 @@ let draw = (s: session) => {
   let parts = s.cands |> List.mapi(seg);
   let mk_svg = body =>
     Printf.sprintf({|<svg width="100%%" height="100%%">%s</svg>|}, body);
-  let tracks = parts |> List.map(fst) |> String.concat("\n");
-  let labels = parts |> List.map(snd) |> String.concat("\n");
+  let tracks =
+    s.show_tracks ? parts |> List.map(fst) |> String.concat("\n") : "";
+  let labels =
+    s.show_labels ? parts |> List.map(snd) |> String.concat("\n") : "";
   overlay_under_el(s)##.innerHTML := Js.string(mk_svg(tracks));
   overlay_el()##.innerHTML := Js.string(mk_svg(labels) ++ ghosts);
 };
@@ -1193,6 +1197,8 @@ let arm =
       ~reseat: ((Id.t, option(int))) => unit,
       ~chain: Language.CoreSettings.DragChain.t,
       ~push: bool,
+      ~show_labels: bool,
+      ~show_tracks: bool,
       ~text_box: Js.t(Dom_html.element),
       ~client: (float, float),
       ~goal: Measured.Point.t,
@@ -1206,6 +1212,8 @@ let arm =
     reseat,
     chain,
     push,
+    show_labels,
+    show_tracks,
     text_box,
     cands: [],
     winner: None,

@@ -429,6 +429,18 @@ let code_display_group = (~globals: Globals.t) => {
           ),
       },
       {
+        name: "Drag Labels",
+        active: globals.settings.core.drag_labels,
+        setting: DragLabels,
+        tooltip: Some("Name each drag track's refactoring"),
+      },
+      {
+        name: "Drag Tracks",
+        active: globals.settings.core.drag_tracks,
+        setting: DragTracks,
+        tooltip: Some("Draw drag tracks and their target dots"),
+      },
+      {
         name: "Line Numbers",
         active: globals.settings.line_numbers,
         setting: ToggleLineNumbers,
