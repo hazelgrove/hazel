@@ -56,12 +56,13 @@ module Map = {
     | _ => []
     };
 
-  /* Collect all infos whose binding site is `binding_id`, plus `binding_id`
-     itself. Deduplication is handled by accumulating into an `Id.Set`. */
+  /* Collect all infos whose binding site is `binding_id` (`M.x` labels
+     of a member included), plus `binding_id` itself. Deduplication is
+     handled by accumulating into an `Id.Set`. */
   let ids_referencing_binding = (m: t, binding_id: Id.t): Id.Set.t =>
     Id.Map.fold(
       (id, info, acc) =>
-        switch (Info.get_binding_site(info)) {
+        switch (Info.binding_site(~info_map=m, info)) {
         | Some(id') when Id.equal(id', binding_id) => Id.Set.add(id, acc)
         | _ => acc
         },
@@ -73,7 +74,7 @@ module Map = {
    * all infos that resolve to the same binding site id, plus the binding id. */
   let var_highlight_ids = (m: t, ci: Info.t): list(Id.t) => {
     let binding_id =
-      switch (Info.get_binding_site(ci)) {
+      switch (Info.binding_site(~info_map=m, ci)) {
       | Some(_) as b => b
       | None =>
         switch (ci) {
