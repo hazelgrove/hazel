@@ -35,9 +35,21 @@ let semi_ids = (seg: Segment.t): list(Id.t) =>
     seg,
   );
 
-/* go_incr's record is go_mod_root's, except that top-level `;` entries in
-   terms may differ: the per-slice parse records a partial MultiHole
-   there, the monolithic one the full item list */
+/* the top level's separators: its `;`s, and grouts standing in for them */
+let sep_ids = (seg: Segment.t): list(Id.t) =>
+  semi_ids(seg)
+  @ List.filter_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Grout({shape: Concave, id}) => Some(id)
+        | _ => None
+        },
+      seg,
+    );
+
+/* go_incr's record is go_mod_root's, except that top-level separator
+   entries in terms may differ: the per-slice parse records a partial
+   MultiHole there, the monolithic one the full item list */
 let check_parity = (seg: Segment.t, incr: MakeTerm.t) => {
   let mono = MakeTerm.go_mod_root(seg);
   if (compare(incr.term, mono.term) != 0) {
@@ -73,8 +85,8 @@ let check_parity = (seg: Segment.t, incr: MakeTerm.t) => {
     };
   };
   agree("term_data", incr.term_data, mono.term_data);
-  let semis = semi_ids(seg);
-  agree(~skip=id => List.mem(id, semis), "terms", incr.terms, mono.terms);
+  let seps = sep_ids(seg);
+  agree(~skip=id => List.mem(id, seps), "terms", incr.terms, mono.terms);
 };
 
 let full_parity = () => {
@@ -136,6 +148,47 @@ let stray_line = () => {
       )
       == 0,
     );
+  };
+};
+
+/* the semantic term with its completion reads a Mod root as its members,
+   finished or not (an open paren typed into the first) */
+let sem_at_root = () => {
+  let src = "let a = 1;\nlet b = a + 1;\nb";
+  let items = (z: Zipper.t) =>
+    switch (
+      fst(MakeTerm.from_zip_for_sem_with_completion(z, ~root=Mod)).term.term
+    ) {
+    | Module(items) =>
+      List.map(
+        (m: Mod.t) =>
+          switch (m.term) {
+          | ModLet(_) => "let"
+          | ModExp(_) => "exp"
+          | _ => "other"
+          },
+        items,
+      )
+    | _ => []
+    };
+  check(
+    list(string),
+    "finished",
+    ["let", "let", "exp"],
+    items(Zipper.unzip(parse_mod(src))),
+  );
+  switch (
+    Test_ModAudit.act(
+      ~root=Mod,
+      ~off=String.length("let a = "),
+      src,
+      "let a = ",
+      [Insert("(")],
+    )
+  ) {
+  | Some(z) =>
+    check(list(string), "unfinished", ["let", "let", "exp"], items(z))
+  | None => fail("could not type the paren")
   };
 };
 
@@ -331,6 +384,156 @@ let stdlib = () =>
     Test_ItemSpans.stdlib_corpus(),
   );
 
+/* a `;` between two finished members deleted as the editor deletes it
+   (a grout stands in): while it is missing, keys typed in one of the pair
+   or in another member parse that member's item and its modules' shells,
+   never a module whole, the parse is go's, and every outline row keeps
+   its id */
+let missing_semi = ((root: Sort.t, src, semi, keys), ()) => {
+  module MA = Test_ModAudit;
+  let z0 = MA.load(~root, src);
+  let statics = MA.statics_of(~root, z0);
+  let step = (z, a) =>
+    switch (
+      MA.perform_why(
+        ~root,
+        ~syntax=CachedSyntax.init(~root, z),
+        ~statics,
+        z,
+        a,
+      )
+    ) {
+    | Ok(z) => z
+    | Error(why) => fail(why)
+    };
+  let at = (needle: string) =>
+    switch (MA.point_of(~off=String.length(needle), src, needle)) {
+    | Some(pt) => pt
+    | None => fail("no " ++ needle)
+    };
+  let z =
+    step(
+      step(z0, Move(Point(at(semi), None))),
+      Destruct(Local(Left, ByChar)),
+    );
+  let cache = MakeTerm.Incr.mk_cache();
+  /* the editor's frames: the syntax's parse, then semantics' */
+  let read = (z: Zipper.t) => {
+    let seg = Zipper.unselect_and_zip(z);
+    let fb = MakeTerm.Incr.fell_back^;
+    let a0 = MakeTerm.Incr.full_analyzed^;
+    let r = MakeTerm.Incr.go_incr(~ends=Read, ~root, ~cache, seg);
+    let parsed = MakeTerm.Incr.full_analyzed^ - a0;
+    let (completed, masks) = MakeTerm.semantic_segment(~root, seg);
+    let term =
+      MakeTerm.Incr.term_of_root(
+        ~masks,
+        ~ends=Read,
+        ~root,
+        ~shared=cache,
+        completed,
+      );
+    check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
+    if (root == Sort.Mod) {
+      check_parity(seg, r);
+    } else {
+      Test_MakeTermIncr.records_agree("go", MakeTerm.go(seg), r);
+    };
+    (seg, parsed, MA.rows_of(term));
+  };
+  let (seg, _, rows) = read(z);
+  let rec grouted = (seg: Segment.t) =>
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Grout({shape: Concave, _}) => true
+        | Tile(t) => List.exists(grouted, t.children)
+        | _ => false
+        },
+      seg,
+    );
+  check(bool, "a grout stands in for the `;`", true, grouted(seg));
+  ignore(
+    List.fold_left(
+      (z, (needle, key, typed)) => {
+        /* a move can rebuild the pieces it crosses: read once before */
+        let z = step(z, Move(Point(at(needle), None)));
+        ignore(read(z));
+        let z = step(z, Insert(key));
+        let (seg, parsed, rows') = read(z);
+        check(
+          int,
+          typed ++ ": its item and its modules' shells",
+          CorpusUtil.parses_for(
+            ~ends=Read,
+            ~root,
+            seg,
+            CorpusUtil.tile(typed, seg),
+          ),
+          parsed,
+        );
+        check(
+          list(pair(string, string)),
+          typed ++ ": every row keeps its id",
+          List.map(((k, id)) => (k, Id.to_string(id)), rows),
+          List.map(((k, id)) => (k, Id.to_string(id)), rows'),
+        );
+        z;
+      },
+      z,
+      keys,
+    ),
+  );
+};
+
+let missing_semi_cases = {
+  let lit = "module M = {\n  let a = 1;\n  let b = a + 2;\n  test 1 == 1 end;\n  let c = b + 3\n} in\nM.c";
+  let top = "let a = 1;\nlet b = a + 2;\ntest 1 == 1 end;\nlet c = b + 3;\nc";
+  /* a key in each of the pair, then one in another member */
+  [
+    (
+      "between two definitions, in a literal",
+      (
+        Sort.Exp,
+        lit,
+        "let a = 1;",
+        [
+          ("let a = 1", "5", "15"),
+          ("let b = a + 2", "6", "26"),
+          ("let c = b + 3", "7", "37"),
+        ],
+      ),
+    ),
+    (
+      "after a test, in a literal",
+      (
+        Sort.Exp,
+        lit,
+        "test 1 == 1 end;",
+        [("let c = b + 3", "7", "37"), ("let a = 1", "5", "15")],
+      ),
+    ),
+    (
+      "after a test, at a Mod root",
+      (
+        Sort.Mod,
+        top,
+        "test 1 == 1 end;",
+        [("let c = b + 3", "7", "37"), ("let a = 1", "5", "15")],
+      ),
+    ),
+    (
+      "between two definitions, in a literal at a Mod root",
+      (
+        Sort.Mod,
+        "module M = {\n  let a = 1;\n  let b = a + 2;\n  let c = b + 3\n};\nM.c",
+        "let a = 1;",
+        [("let b = a + 2", "6", "26"), ("let c = b + 3", "7", "37")],
+      ),
+    ),
+  ];
+};
+
 let tests = (
   "ModRoot",
   [
@@ -341,6 +544,7 @@ let tests = (
     test_case("term_of_mod", `Quick, term_of_mod_matches),
     test_case("stray line above a member", `Quick, stray_line),
     test_case("last slot keyed by root", `Quick, last_slot_keyed_by_root),
+    test_case("the semantic term at a Mod root", `Quick, sem_at_root),
     test_case("corpus mega-mod-1k", `Quick, corpus),
     test_case("a member edit at depth 1", `Quick, member_edit(("11", "13"))),
     test_case("a member edit at depth 2", `Quick, member_edit(("21", "23"))),
@@ -370,6 +574,11 @@ let tests = (
       chain_edit(("56", "62")),
     ),
   ]
+  @ List.map(
+      ((name, case)) =>
+        test_case("a missing `;`: " ++ name, `Quick, missing_semi(case)),
+      missing_semi_cases,
+    )
   @ List.map(
       ((name, src)) =>
         test_case(

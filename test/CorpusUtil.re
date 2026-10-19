@@ -309,7 +309,9 @@ let last_tile = (label: string, seg: Segment.t): Id.t => {
 /* the parses an edit at piece [id] costs the per-item parse: its item's,
    and the shell of each enclosing module literal or let-chain member
    (ItemSpans' child levels) */
-let parses_for = (~root: Sort.t=Exp, seg: Segment.t, id: Id.t): int => {
+let parses_for =
+    (~ends=ItemSpans.Written, ~root: Sort.t=Exp, seg: Segment.t, id: Id.t)
+    : int => {
   let holds = (ps: Segment.t) => List.mem(id, Segment.IDs.all(ps));
   let rec go = (lv: ItemSpans.level) =>
     switch (
@@ -325,7 +327,7 @@ let parses_for = (~root: Sort.t=Exp, seg: Segment.t, id: Id.t): int => {
       }
     | None => 1
     };
-  go(ItemSpans.top(~root, seg));
+  go(ItemSpans.top(~ends, ~root, seg));
 };
 
 /* the first outline row labeled [label], depth first */

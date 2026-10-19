@@ -116,7 +116,10 @@ let rows = (~root: Sort.t, z: Zipper.t): list((string, row)) => {
         List.find_opt(
           id => List.mem(id, ids),
           switch (Id.Map.find_opt(err, st.info_map)) {
-          | Some(info) => [err, ...Info.ancestors_of(info)]
+          | Some(info) => [
+              err,
+              ...Info.within_item(~info_map=st.info_map, info),
+            ]
           | None => [err]
           },
         ),
@@ -207,6 +210,10 @@ let check_kept = (name: string, before, after) => {
 
 let labels = (rs: list((string, row))): list(string) =>
   List.map(((_, r)) => show_row(r), rs);
+
+/* the rows under their parents' label paths */
+let paths = (rs: list((string, row))): list(string) =>
+  List.map(((parent, r)) => parent ++ "/" ++ show_row(r), rs);
 
 /* ---- the Modules slide's shapes ---- */
 
@@ -426,6 +433,188 @@ let chain_link = () => {
     "the link's `in` synthesized, no `;`",
     true,
     List.length(done_.shard_records) == 1,
+  );
+};
+
+/* ---- a member started on its module's `{` line counts as indented at
+   the module's member level, where Enter indents its own-line members: a
+   member line below, at-or-left of it, ends it as it ends a member on a
+   line of its own, and a line indented past it continues it. The syntax
+   parse's cut follows ---- */
+
+let brace_line = (name, (root, src, own, lines), ()) => {
+  let typed = src =>
+    switch (CorpusUtil.typed_seg(~root, src)) {
+    | Some(seg) => seg
+    | None => fail("untypeable: " ++ src)
+    };
+  let seg = typed(src);
+  let completed =
+    Printer.of_segment(
+      ~holes="?",
+      ~concave_holes="~",
+      CanonicalCompletion.complete_items(~sort=root, seg).completed_seg,
+    );
+  let squash = s => String.concat("", String.split_on_char(' ', s));
+  check(
+    list(string),
+    name ++ ": completed",
+    lines,
+    Util.ListUtil.take(
+      List.length(lines),
+      List.map(squash, String.split_on_char('\n', completed)),
+    ),
+  );
+  check(
+    list(string),
+    name ++ ": the rows of a member on a line of its own",
+    labels(rows(~root, Zipper.unzip(typed(own)))),
+    labels(rows(~root, Zipper.unzip(seg))),
+  );
+  /* the member's slice in the syntax parse: its own lines */
+  let top = ItemSpans.top(~ends=Read, ~root, seg);
+  let members = Option.get(ItemSpans.children(top, 0));
+  check(
+    int,
+    name ++ ": the syntax parse's member ends with its lines",
+    List.length(lines),
+    List.length(
+      String.split_on_char(
+        '\n',
+        String.trim(CorpusUtil.text_of(ItemSpans.slice(members, 0))),
+      ),
+    ),
+  );
+};
+
+let brace_line_cases = [
+  (
+    "at a Mod root",
+    (
+      Sort.Mod,
+      "module M = {let q = (1\n  let next = 1;\n  let after = 2\n};\nM.next",
+      "module M = {\n  let q = (1\n  let next = 1;\n  let after = 2\n};\nM.next",
+      ["moduleM={letq=(1);"],
+    ),
+  ),
+  (
+    "in an expression",
+    (
+      Sort.Exp,
+      "module M = {let q = (1\n  let next = 1;\n  let after = 2\n} in\nM.next",
+      "module M = {\n  let q = (1\n  let next = 1;\n  let after = 2\n} in\nM.next",
+      ["moduleM={letq=(1);"],
+    ),
+  ),
+  (
+    "a line past the member level continues it",
+    (
+      Sort.Mod,
+      "module M = {let q = (1 +\n    2\n  let next = 1\n};\nM.next",
+      "module M = {\n  let q = (1 +\n    2\n  let next = 1\n};\nM.next",
+      ["moduleM={letq=(1+", "2);"],
+    ),
+  ),
+  (
+    "a line past its start column continues it",
+    (
+      Sort.Mod,
+      "module M = {let q = (1 +\n               2\n  let next = 1\n};\nM.next",
+      "module M = {\n  let q = (1 +\n    2\n  let next = 1\n};\nM.next",
+      ["moduleM={letq=(1+", "2);"],
+    ),
+  ),
+];
+
+/* a nested module started on the outer `{` line, its `}` deleted: its
+   members below, at its member level, stay its own, as when it starts a
+   line of its own; the outer module's next member line ends it */
+let brace_nested = () => {
+  let root = Sort.Mod;
+  let deleted = (src: string) => {
+    let z0 = Zipper.unzip(CorpusUtil.seg_of(~root, src));
+    switch (Test_ModAudit.point_of(~off=3, src, "  };")) {
+    | Some(pt) =>
+      List.fold_left(
+        perform(~root),
+        z0,
+        [
+          Action.Move(Point(pt, None)),
+          Action.Destruct(Local(Left, ByChar)),
+        ],
+      )
+    | None => fail("no `}`")
+    };
+  };
+  let on_brace =
+    deleted(
+      "module M = {module N = {let a = 1;\n    let b = 2\n  };\n  let c = 3\n};\nM.c",
+    );
+  let own_line =
+    deleted(
+      "module M = {\n  module N = {let a = 1;\n    let b = 2\n  };\n  let c = 3\n};\nM.c",
+    );
+  check(
+    list(string),
+    "N holds a and b",
+    [
+      "/M : ",
+      "/M/N : ",
+      "/M/N/a : Int",
+      "/M/N/b : Int",
+      "/M/c : Int",
+      "/stmt : ",
+    ],
+    paths(rows(~root, on_brace)),
+  );
+  check(
+    list(string),
+    "as on a line of its own",
+    paths(rows(~root, own_line)),
+    paths(rows(~root, on_brace)),
+  );
+  /* N's `}` closes after b, before the `;` */
+  let completed =
+    Printer.of_segment(
+      ~holes="?",
+      ~concave_holes="~",
+      CanonicalCompletion.complete_items(
+        ~sort=root,
+        MakeTerm.semantic_source(on_brace),
+      ).
+        completed_seg,
+    );
+  check(
+    list(string),
+    "completed",
+    ["module M = {module N = {let a = 1;", "let b = 2}", ";", "let c = 3"],
+    Util.ListUtil.take(
+      4,
+      List.map(String.trim, String.split_on_char('\n', completed)),
+    ),
+  );
+  /* the syntax parse cuts M's members alike: N through its `;`, then c */
+  let top =
+    ItemSpans.top(~ends=Read, ~root, Zipper.unselect_and_zip(on_brace));
+  let members = Option.get(ItemSpans.children(top, 0));
+  check(
+    list(string),
+    "the syntax parse's members",
+    ["module N = {let a = 1; let b = 2 ;", "let c = 3"],
+    List.map(
+      s =>
+        String.concat(
+          " ",
+          List.filter(
+            l => l != "",
+            List.map(
+              String.trim,
+              String.split_on_char('\n', CorpusUtil.text_of(s)),
+            ),
+          ),
+        ),
+      ItemSpans.slices(members),
+    ),
   );
 };
 
@@ -925,6 +1114,178 @@ let corpus_sweep = () =>
     );
   };
 
+/* ---- a member head typed at a member line after a member that isn't
+   open on the right starts a member, as after the member's `;`: the
+   missing `;` is the grout deleting one leaves, and nothing is
+   synthesized ---- */
+
+let counter_unfinished = "module Counter = {\n  let start = 0;\n  let next = (start + 1\n  let after = next + 1\n} in\nCounter.after";
+
+/* the rows are kept from the head keyword on (a prefix of one, `t` of
+   `then`, reads as an operator meanwhile, as at the top level); the last
+   state reads as [expect], with [synth] shards synthesized (an unfinished
+   member's), and the line [marked] holding the missing `;`'s grout */
+let member_head = ((name, root, src, after, keys, expect, synth, marked), ()) => {
+  let z0 = at_line(~root, src, after);
+  let before = rows(~root, z0);
+  let zs = type_line(~root, z0, keys);
+  let head = String.index(keys, ' ');
+  List.iteri(
+    (k, z) =>
+      if (k >= head) {
+        check_kept(
+          Printf.sprintf("%s, key %d (%S)", name, k, text(z)),
+          before,
+          rows(~root, z),
+        );
+      },
+    zs,
+  );
+  let z = Util.ListUtil.last(zs);
+  check(list(string), name ++ ": rows", expect, paths(rows(~root, z)));
+  check(
+    int,
+    name ++ ": synthesized",
+    synth,
+    List.length(
+      CanonicalCompletion.complete_items(
+        ~sort=root,
+        MakeTerm.semantic_source(z),
+      ).
+        shard_records,
+    ),
+  );
+  check(
+    bool,
+    name ++ ": the missing `;` marked",
+    true,
+    List.mem(
+      marked,
+      List.map(String.trim, String.split_on_char('\n', text(z))),
+    ),
+  );
+};
+
+let counter_rows = (~root: Sort.t, typed: list(string)) => {
+  let (parent, trail) =
+    root == Sort.Mod ? ("", []) : ("/Counter", ["/trail : "]);
+  (root == Sort.Mod ? [] : ["/Counter : "])
+  @ List.map(
+      r => parent ++ "/" ++ r,
+      ["start : Int", "next : Int", "after : Int"] @ typed,
+    )
+  @ trail;
+};
+
+let member_head_cases = [
+  (
+    "`let` after the last member",
+    Sort.Exp,
+    counter,
+    "  let after = next + 1",
+    "let z = 1",
+    counter_rows(~root=Exp, ["z : Int"]),
+    0,
+    "~let z = 1",
+  ),
+  (
+    "`let` after the last member at a Mod root",
+    Sort.Mod,
+    counter_members,
+    "let after = next + 1",
+    "let z = 1",
+    counter_rows(~root=Mod, ["z : Int"]),
+    0,
+    "~let z = 1",
+  ),
+  (
+    "`type` after the last member",
+    Sort.Exp,
+    counter,
+    "  let after = next + 1",
+    "type T = Int",
+    counter_rows(~root=Exp, ["T : "]),
+    0,
+    "~type T = Int",
+  ),
+  (
+    "`module` after the last member",
+    Sort.Exp,
+    counter,
+    "  let after = next + 1",
+    "module N = {}",
+    counter_rows(~root=Exp, ["N : ()"]),
+    0,
+    "~module N = {}",
+  ),
+  /* the unfinished member gets its `)` and `;`; z and after are apart by
+     the missing `;`'s grout */
+  (
+    "`let` between members, after an unfinished one",
+    Sort.Exp,
+    counter_unfinished,
+    "  let next = (start + 1",
+    "let z = 1",
+    [
+      "/Counter : ",
+      "/Counter/start : Int",
+      "/Counter/next : Int",
+      "/Counter/z : Int",
+      "/Counter/after : Int",
+      "/trail : ",
+    ],
+    2,
+    "~let z = 1~",
+  ),
+];
+
+/* a line indented past the member continues it: the `let` there is an
+   expression's, its `in` synthesized, no member */
+let member_head_deeper = () => {
+  let z0 = at_line(~root=Exp, counter, "  let after = next + 1");
+  let z = Util.ListUtil.last(type_line(~root=Exp, z0, "  let z = 1"));
+  check(
+    bool,
+    "no member z",
+    false,
+    List.exists(((_, r: row)) => r.label == "z", rows(~root=Exp, z)),
+  );
+  check(
+    bool,
+    "its `in` synthesized",
+    true,
+    CanonicalCompletion.complete_items(
+      ~sort=Exp,
+      MakeTerm.semantic_source(z),
+    ).
+      shard_records
+    != [],
+  );
+};
+
+/* members typed into a new module, its `}` not yet typed: a `let` at
+   its member level is its member */
+let new_module_members = () => {
+  let z0 = at_line(~root=Exp, counter, "  let start = 0;");
+  let before = rows(~root=Exp, z0);
+  let z =
+    Util.ListUtil.last(
+      type_line(~root=Exp, z0, "module N = {\nlet y = 1\n  let z = 2"),
+    );
+  let after = rows(~root=Exp, z);
+  check_kept("a new module typed", before, after);
+  check(
+    list(string),
+    "N holds y and z",
+    ["y : Int", "z : Int"],
+    List.filter_map(
+      ((parent, r: row)) =>
+        parent == "/Counter/N" ? Some(show_row(r)) : None,
+      after,
+    ),
+  );
+};
+
 let tests = (
   "ModuleCompletion",
   List.map(
@@ -949,6 +1310,35 @@ let tests = (
   @ [
     test_case("a new let-chain link", `Quick, chain_link),
     test_case("an unfinished nested module", `Quick, nested_unfinished),
+  ]
+  @ List.map(
+      ((name, _, _, _, _, _, _, _) as c) =>
+        test_case("a member head: " ++ name, `Quick, member_head(c)),
+      member_head_cases,
+    )
+  @ [
+    test_case(
+      "a member head on a line past its member",
+      `Quick,
+      member_head_deeper,
+    ),
+    test_case("members of a new module", `Quick, new_module_members),
+  ]
+  @ List.map(
+      ((name, c)) =>
+        test_case(
+          "a member on the `{` line: " ++ name,
+          `Quick,
+          brace_line(name, c),
+        ),
+      brace_line_cases,
+    )
+  @ [
+    test_case(
+      "a module on the outer `{` line, its `}` deleted",
+      `Quick,
+      brace_nested,
+    ),
   ]
   @ List.map(
       ((name, _) as c) =>

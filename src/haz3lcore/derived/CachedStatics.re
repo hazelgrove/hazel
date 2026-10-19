@@ -415,7 +415,8 @@ let init_compositional =
       };
     let (seg, masks) = MakeTerm.semantic_segment(~root, source);
     let term =
-      MakeTerm.Incr.term_of_root(~masks, ~root, ~shared?, seg) |> stitch;
+      MakeTerm.Incr.term_of_root(~masks, ~ends=Read, ~root, ~shared?, seg)
+      |> stitch;
     /* stacked cells pass the union of their zippers' probes */
     let probe_ids =
       switch (probe_ids) {

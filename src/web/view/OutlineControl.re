@@ -1200,27 +1200,12 @@ let view =
         | Some(p) => outline_term(p)
         | None => statics.term
         };
-      /* each error badges the deepest row containing it; ancestor rows
-         get a roll-up badge that CSS shows only while collapsed */
-      let (error_items, error_subtree) = {
-        let outline_ids = OutlineTree.collect(OutlineTree.of_term(term));
-        let in_outline = id => List.mem(id, outline_ids);
-        List.fold_left(
-          ((direct, roll), err_id) => {
-            let path =
-              switch (Id.Map.find_opt(err_id, statics.info_map)) {
-              | Some(info) => [err_id, ...Language.Info.ancestors_of(info)]
-              | None => [err_id]
-              };
-            switch (List.filter(in_outline, path)) {
-            | [] => (direct, roll)
-            | [deepest, ...above] => ([deepest, ...direct], above @ roll)
-            };
-          },
-          ([], []),
+      let (error_items, error_subtree) =
+        OutlineTree.error_rows(
+          ~info_map=statics.info_map,
+          ~rows=OutlineTree.collect(OutlineTree.of_term(term)),
           statics.error_ids,
         );
-      };
       let label = id =>
         switch (OutlineTree.node_of(id, term)) {
         | Some(n) => n.o_label

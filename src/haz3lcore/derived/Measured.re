@@ -101,10 +101,11 @@ let token_id = (tok: token): Id.t =>
   };
 
 /* a shard is the same while its tile is, children aside: a member edit
-   rebuilds the tiles around it but keeps their shells */
+   rebuilds the tiles around it but keeps their shells; a secondary while
+   it reads the same (an open tile's whitespace is rewrapped each key) */
 let token_eq = (a: token, b: token): bool =>
   switch (a, b) {
-  | (Whole(p), Whole(q)) => p === q
+  | (Whole(p), Whole(q)) => p === q || Piece.is_secondary(p) && p == q
   | (Shard(t, i), Shard(u, j)) =>
     i == j
     && (
@@ -803,7 +804,7 @@ let start_row_width = (measurement: measurement, measured: t): int =>
   };
 
 /* the layout's chunks (plans/hierarchical-spans.md §4.3): items' line
-   slots (ItemSpans), merged where items share a line, with the trivia
+   slots (ItemSpans, Read), merged where items share a line, with the trivia
    between slots a chunk of its own. A module literal whose members start
    on their own lines splits into a head, its members' chunks and a foot;
    a member that is a let chain, into its items' chunks. Every cut follows
@@ -1149,7 +1150,7 @@ module Partition = {
         [],
       )
     | _ =>
-      let top = S.top(~root, seg);
+      let top = S.top(~ends=Read, ~root, seg);
       Swept.next_pass(names);
       let b = builder(~nested=false, memo);
       level(b, top, 0, Array.length(top.pieces));

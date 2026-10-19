@@ -183,11 +183,12 @@ let mk =
     | None => Zipper.unselect_and_zip(z)
     };
   /* only Exp/Mod roots parse incrementally; other (small) roots parse
-     once at their own sort, which the Exp-rooted [go] would misparse */
+     once at their own sort, which the Exp-rooted [go] would misparse. Read
+     ends an unfinished member at its member line, as completion does */
   let (terms, term_data, projectors, projector_list) =
     if (root == Sort.Exp || root == Sort.Mod) {
       let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
-        MakeTerm.Incr.go_incr(~root, ~cache=t_cache, segment);
+        MakeTerm.Incr.go_incr(~ends=Read, ~root, ~cache=t_cache, segment);
       (terms, term_data, projectors, projector_list);
     } else {
       MakeTerm.sorted_syntax_data(~root, segment);

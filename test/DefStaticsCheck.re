@@ -48,11 +48,59 @@ let differ = (~types, a: Info.t, b: Info.t): option(string) =>
   | _ => Info.sort_of(a) == Info.sort_of(b) ? None : Some("sort")
   };
 
+let rec dedup_adjacent = (ids: list(Id.t)): list(Id.t) =>
+  switch (ids) {
+  | [x, y, ...rest] when Id.equal(x, y) => dedup_adjacent([y, ...rest])
+  | [x, ...rest] => [x, ...dedup_adjacent(rest)]
+  | [] => []
+  };
+
+/* a binding form's parts, which say what its body is */
+let parts = (e: Exp.t): list(Id.t) =>
+  switch (e.term) {
+  | Let(p, d, b) => [Pat.rep_id(p), Exp.rep_id(d), Exp.rep_id(b)]
+  | TyAlias(tp, ty, b) => [TPat.rep_id(tp), Typ.rep_id(ty), Exp.rep_id(b)]
+  | ModuleExp(mp, d, b) => [MPat.rep_id(mp), Exp.rep_id(d), Exp.rep_id(b)]
+  | Seq(e, b) => [Exp.rep_id(e), Exp.rep_id(b)]
+  | Filter(_, b) => [Exp.rep_id(b)]
+  | _ => []
+  };
+
+/* how [a]'s and [b]'s places in their programs differ, if they do: all
+   their ancestors (Info.ancestors) and a binding form's parts, both
+   among [own]'s ids when given. a monolithic analysis lists the id of a
+   `module` binding twice above its body: adjacent repeats count once */
+let place_differs =
+    (~own=?, ~a_map, a: Info.t, ~b_map, b: Info.t): option(string) => {
+  let mine = ids =>
+    switch (own) {
+    | Some(own) => List.filter(id => Hashtbl.mem(own, id), ids)
+    | None => ids
+    };
+  let ancestors = (map, i) =>
+    dedup_adjacent(mine(Info.ancestors(~info_map=map, i)));
+  let parts_of = (i: Info.t) =>
+    switch (i) {
+    | InfoExp({user_term, _}) => mine(parts(user_term))
+    | _ => []
+    };
+  let show = ids => "[" ++ String.concat(" ", List.map(Id.str8, ids)) ++ "]";
+  let (aa, ba) = (ancestors(a_map, a), ancestors(b_map, b));
+  let (ap, bp) = (parts_of(a), parts_of(b));
+  if (aa != ba) {
+    Some("ancestors " ++ show(aa) ++ " / " ++ show(ba));
+  } else if (ap != bp) {
+    Some("parts " ++ show(ap) ++ " / " ++ show(bp));
+  } else {
+    None;
+  };
+};
+
 /* how [t] differs from a cold calc and from monolithic statics: error and
-   warning ids, and per id the type, elaboration, runtime free variables
-   and probe targets; from the cold calc, also its items and their exports.
-   spine roots keep their hollow item's type, so their types are compared
-   only against the cold calc */
+   warning ids, and per id the type, elaboration, runtime free variables,
+   probe targets and place in the program; from the cold calc, also its
+   items and their exports. spine roots keep their hollow item's type, so
+   their types are compared only against the cold calc */
 let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
   let analyzed = DefStatics.last_analyzed^;
   let cold =
@@ -207,6 +255,10 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
             d => at(d ++ " vs monolithic"),
             differ(~types=!Hashtbl.mem(spine, id), m, got),
           );
+          Option.iter(
+            d => at(d ++ " vs monolithic"),
+            place_differs(~own, ~a_map=mono, m, ~b_map=t.merged, got),
+          );
           switch (c) {
           | None => ()
           | Some(None) => at("no cold info")
@@ -214,7 +266,16 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
             Option.iter(
               d => at(d ++ " vs cold"),
               differ(~types=true, c, got),
-            )
+            );
+            Option.iter(
+              d => at(d ++ " vs cold"),
+              place_differs(
+                ~a_map=Option.get(cold).merged,
+                c,
+                ~b_map=t.merged,
+                got,
+              ),
+            );
           };
         };
       },

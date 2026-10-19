@@ -7,8 +7,10 @@ open Language;
 
 /* Walk ancestors outermost-to-innermost, picking the def of the
  * enclosing Let / first component of a Seq / the bare expression at the cursor
- * (types aren't probeable); fall back to the cursor's own piece. A Test target
- * is rewritten to its body (unwrap_test) to probe the boolean condition. */
+ * (types aren't probeable); fall back to the cursor's own piece. Modules are
+ * walked into, so a member's def is picked as a top-level one is. A Test
+ * target is rewritten to its body (unwrap_test) to probe the boolean
+ * condition. */
 let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) => {
   open Language;
 
@@ -35,26 +37,43 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
     | _ => None
     };
 
+  /* a definition with items of its own, which the walk goes into: a
+     module literal, or a module statement's let chain */
+  let holds_items = (def: Exp.t): bool =>
+    switch (def.term) {
+    | Module(_) => true
+    | Let(_)
+    | TyAlias(_)
+    | ModuleExp(_)
+    | Seq(_) =>
+      switch (Statics.Map.lookup(IdTagged.rep_id(def), statics)) {
+      | Some(InfoExp({cls: Mod(ModExp), _})) => true
+      | _ => false
+      }
+    | _ => false
+    };
+
   let find_target = (starting_id: Id.t, ancestors: list(Id.t)): option(Id.t) => {
-    let len = List.length(ancestors);
+    let ancestors = Array.of_list(ancestors);
     let rec walk = (idx: int): option(Id.t) =>
       if (idx < 0) {
         None;
       } else {
-        let anc_id = List.nth(ancestors, idx);
-        let child_id =
-          if (idx == 0) {
-            starting_id;
-          } else {
-            List.nth(ancestors, idx - 1);
-          };
+        let anc_id = ancestors[idx];
+        let child_id = idx == 0 ? starting_id : ancestors[idx - 1];
+        /* the item after this one, or the items a definition holds */
+        let into = (def: Exp.t, body: Exp.t) =>
+          Id.equal(child_id, IdTagged.rep_id(body))
+          || Id.equal(child_id, IdTagged.rep_id(def))
+          && holds_items(def);
         switch (Statics.Map.lookup(anc_id, statics)) {
         | Some(InfoExp({user_term: {term: Let(_, def, body), _}, _})) =>
-          if (Id.equal(child_id, IdTagged.rep_id(body))) {
-            walk(idx - 1);
-          } else {
-            Some(IdTagged.rep_id(def));
-          }
+          into(def, body) ? walk(idx - 1) : Some(IdTagged.rep_id(def))
+        | Some(InfoExp({user_term: {term: ModuleExp(_, def, body), _}, _}))
+            when into(def, body) =>
+          walk(idx - 1)
+        | Some(InfoExp({user_term: {term: Module(_), _}, _})) =>
+          walk(idx - 1)
         | Some(InfoExp({user_term: {term: Seq(e1, e2), _}, _})) =>
           let e1_id = IdTagged.rep_id(e1);
           let e2_id = IdTagged.rep_id(e2);
@@ -72,25 +91,13 @@ let toplevel_def_body_id = (~statics: Statics.Map.t, ~id: Id.t): option(Id.t) =>
         | _ => Some(anc_id)
         };
       };
-    walk(len - 1);
+    walk(Array.length(ancestors) - 1);
   };
-
-  /* WORKAROUND: function-sugar reuses the surface Let's id, so it appears twice
-   * in `ancestors`; the positional walk would then misread a cursor in the let
-   * body as being in the def. Dedup adjacent ids. Remove once fixed in statics. */
-  let rec dedup_adjacent = (ids: list(Id.t)): list(Id.t) =>
-    switch (ids) {
-    | []
-    | [_] => ids
-    | [x, y, ...rest] =>
-      Id.equal(x, y)
-        ? dedup_adjacent([y, ...rest])
-        : [x, ...dedup_adjacent([y, ...rest])]
-    };
 
   switch (Statics.Map.lookup(id, statics)) {
   | Some(info) =>
-    let ancestors = dedup_adjacent(Info.ancestors_of(info));
+    /* all of them, a function definition's id once */
+    let ancestors = Info.ancestors(~info_map=statics, info);
     let target =
       switch (find_target(id, ancestors)) {
       | Some(_) as result => result

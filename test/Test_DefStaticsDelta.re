@@ -20,7 +20,16 @@ let delta_diffs = (~prev=?, t: DefStatics.t): list(string) => {
   let out = ref([]);
   let note = s => out := [s, ...out^];
   let cls = i => Cls.show(Info.cls_of(i));
-  let maps = (~infos=true, what, got: Statics.Map.t, want: Statics.Map.t) => {
+  /* [places]: the merged map, whose roots read as in the whole program
+     (an item's own map holds its hollow analysis) */
+  let maps =
+      (
+        ~infos=true,
+        ~places=false,
+        what,
+        got: Statics.Map.t,
+        want: Statics.Map.t,
+      ) => {
     let n = ref(0);
     let at = (id, s) => {
       incr(n);
@@ -36,7 +45,13 @@ let delta_diffs = (~prev=?, t: DefStatics.t): list(string) => {
             Option.iter(
               d => at(id, d ++ " at " ++ cls(w)),
               DefStaticsCheck.differ(~types=true, w, g),
-            )
+            );
+            if (places) {
+              Option.iter(
+                d => at(id, d ++ " at " ++ cls(w)),
+                DefStaticsCheck.place_differs(~a_map=want, w, ~b_map=got, g),
+              );
+            };
           | (Some(_), Some(_)) => ()
           | (Some(g), None) => at(id, "stale " ++ cls(g))
           | (None, Some(w)) => at(id, "missing " ++ cls(w))
@@ -58,7 +73,7 @@ let delta_diffs = (~prev=?, t: DefStatics.t): list(string) => {
       note(what ++ ": " ++ show(b) ++ " / " ++ show(a));
     };
   let names = String.concat(" ");
-  maps("merged", t.merged, cold.merged);
+  maps(~places=true, "merged", t.merged, cold.merged);
   same(
     "errors",
     names,
@@ -495,6 +510,21 @@ let tests = (
           token("reverse", "rev"),
           op(Delete, ["Wrap", "List", "flat_map"]),
           op(MoveDown, ["Wrap", "List", "length"]),
+        ],
+      ),
+    ),
+    /* an item the rest don't use: the items below stay clean, and only
+       the root after it gets a new parent */
+    test_case(
+      "a let chain, adds and removes",
+      `Quick,
+      script(
+        ~mono=true,
+        "let a = 1 in\nlet b = a + 1 in\ntype T = Int in\nlet c : T = b in\nc",
+        [
+          op(NewBelow, ["a"]),
+          op(Delete, ["new_def"]),
+          op(NewTestBelow, ["b"]),
         ],
       ),
     ),

@@ -190,9 +190,10 @@ module Map = {
     | None => None
     };
 
+  /* all of [id]'s ancestors (Info.ancestors) */
   let ancestors_of = (id: Id.t, m: t): list(Id.t) =>
     switch (lookup(id, m)) {
-    | Some(info) => Info.ancestors_of(info)
+    | Some(info) => Info.ancestors(~info_map=m, info)
     | None => []
     };
 };

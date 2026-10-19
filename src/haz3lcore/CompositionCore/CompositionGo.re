@@ -146,7 +146,7 @@ module Local = {
               Some(items)
             | _ => None
             },
-          Info.ancestors_of(node.info),
+          Info.ancestors(~info_map, node.info),
         );
       let rec past = (after, items: list(Mod.t)) =>
         switch (items) {
@@ -183,7 +183,7 @@ module Local = {
     let last_member =
         (~info_map: Id.Map.t(Info.t), node_map: node_map): option(Id.t) => {
       let* (_, node) = Id.Map.min_binding_opt(node_map);
-      let* root = ListUtil.last_opt(Info.ancestors_of(node.info));
+      let* root = ListUtil.last_opt(Info.ancestors(~info_map, node.info));
       let* items =
         switch (Id.Map.find_opt(root, info_map)) {
         | Some(InfoExp({user_term: {term: Module(items), _}, _})) =>
@@ -1269,6 +1269,30 @@ module Local = {
       };
     };
 
+    /* [code]'s members, each with its `;` on a line of its own, first in
+       a Mod-rooted program, one at a time as insert_member splices them */
+    let insert_members_first = (z: Zipper.t, code: string) =>
+      List.fold_left(
+        (acc, m) =>
+          switch (acc) {
+          | Error(e) => Error(e)
+          | Ok(z) =>
+            introduce(
+              ~root=Sort.Mod,
+              ~splice_root=Sort.Mod,
+              ~fast=true,
+              ~keep_edge_ws=true,
+              z,
+              m ++ ";\n",
+            )
+          },
+        Ok(Move.to_start(z)),
+        switch (split_members(code)) {
+        | [] => [code]
+        | ms => ms
+        },
+      );
+
     let insert_term =
         (
           ~splice_root=Sort.Exp,
@@ -1974,9 +1998,12 @@ module Local = {
 };
 
 module Public = {
-  /* the program's statics, read at its editor's root: a Mod root's term
-     as its editor reads it (from_zip_for_sem reads at Exp), analyzed whole
-     so the node map can walk its chain of members */
+  /* the program's statics, read at its editor's root, analyzed whole so
+     the node map can walk a Mod root's chain of members. A Mod root's term
+     comes from Incr, which keeps it physically stable: from_zip_for_sem
+     reads the same term but builds it anew per call, so Statics.mk (memoized
+     on the term) reruns and its module lowering mints fresh ids for the
+     members' synthesized tail, and two calls' maps disagree */
   let mk_statics_with =
       (~root=Sort.Exp, settings: Language.CoreSettings.t, z: Zipper.t) => {
     let term =
@@ -1999,6 +2026,46 @@ module Public = {
   };
   let mk_statics = (~root=Sort.Exp, z: Zipper.t): Language.StaticsBase.Map.t =>
     mk_statics_with(~root, Language.CoreSettings.on, z);
+  /* a no-path insert_before / insert_after: [code] at the program's start
+     or end. A Mod root's top level is a module body, so there [code]'s
+     members go in as members, each with its `;`: first, or after the last
+     member, before the trailing expression, as insert_test places a test */
+  let insert_at_boundary =
+      (
+        ~root: Sort.t,
+        ~info_map: Language.StaticsBase.Map.t,
+        d: Action.Structural.insert_target,
+        z: Zipper.t,
+        code: string,
+      )
+      : result(Zipper.t, Action.Failure.t) =>
+    switch (root, d) {
+    | (Mod, After) =>
+      switch (
+        Option.bind(build(z, info_map), Local.Utils.last_member(~info_map))
+      ) {
+      | Some(item) =>
+        Local.PerformUtils.insert_member(
+          ~splice_root=root,
+          z,
+          item,
+          code,
+          Direction.Right,
+          CachedSyntax.init(~root, z),
+        )
+      | None => Local.PerformUtils.insert_members_first(z, code)
+      }
+    | (Mod, Before) => Local.PerformUtils.insert_members_first(z, code)
+    | _ =>
+      Local.PerformUtils.introduce(
+        ~root,
+        ~splice_root=root,
+        ~fast=true,
+        ~keep_edge_ws=true,
+        d == Before ? Move.to_start(z) : Move.to_end(z),
+        "\n" ++ code ++ "\n",
+      )
+    };
   let go = (~root: Sort.t) =>
     Local.go(
       ~root,

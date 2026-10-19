@@ -1477,6 +1477,202 @@ let nesting_values = () => {
   ]);
 };
 
+/* ---- an op and its inverse give the program back exactly ---- */
+
+/* [steps] (an op and its row's label each) in turn from [src]: the text
+   after each, None where one is refused */
+let walk = (~root=Sort.Exp, src: string, steps) => {
+  let rec go = (seg, steps) =>
+    switch (steps) {
+    | [] => []
+    | [(o, label), ...rest] =>
+      switch (edit(~root, op(o), label, seg)) {
+      | Some((seg, _)) => [Some(text_of(seg)), ...go(seg, rest)]
+      | None => [None]
+      }
+    };
+  go(seg_of(~root, src), steps);
+};
+
+/* [o] on [label] makes [mid], and [back] there gives [src] again */
+let law = (~root=Sort.Exp, desc, src, (o, back), label, mid) =>
+  check(
+    list(option(string)),
+    desc,
+    [Some(mid), Some(src)],
+    walk(~root, src, [(o, label), (back, label)]),
+  );
+
+/* an item takes the gap above it along (below it, first in its block),
+   and brings it back: blank lines stay where they were */
+let gaps = () => {
+  law(
+    ~root=Mod,
+    "a last member out and back",
+    "module M = {\n  let a = 1;\n\n  let b = 2\n};\nlet c = 3;\nc",
+    (MoveDown, MoveUp),
+    "b",
+    "module M = {\n  let a = 1\n};\n\nlet b = 2;\nlet c = 3;\nc",
+  );
+  /* blank lines inside a moved item stay blank */
+  law(
+    ~root=Mod,
+    "a module into the module above and out",
+    "module A = {\n  let a = 1\n};\n\nmodule B = {\n  let b = 2;\n\n  let c = 3\n};\nA.a",
+    (MoveUp, MoveDown),
+    "B",
+    "module A = {\n  let a = 1;\n\n  module B = {\n    let b = 2;\n\n    let c = 3\n  }\n};\nA.a",
+  );
+  law(
+    ~root=Mod,
+    "into a body and out, the gap below it kept",
+    "module M = {\n  let f = fun x ->\n    x;\n  let g = 2;\n\n  let h = 3\n};\nM.h",
+    (Indent, Outdent),
+    "g",
+    "module M = {\n  let f = fun x ->\n    let g = 2 in\n    x;\n\n  let h = 3\n};\nM.h",
+  );
+  /* a blank line holding spaces, as a paste leaves it, comes back so */
+  law(
+    ~root=Mod,
+    "a blank line with spaces on it",
+    "module M = {\n  let a = 1;\n  \n  let b = 2\n};\nlet c = 3;\nc",
+    (MoveDown, MoveUp),
+    "b",
+    "module M = {\n  let a = 1\n};\n  \nlet b = 2;\nlet c = 3;\nc",
+  );
+  /* a module-rooted program's last member: back on a line of its own */
+  law(
+    ~root=Mod,
+    "the last member of a module-rooted program",
+    "let start = 0;\nlet next = start + 1;\nlet after = next + 1",
+    (Indent, Outdent),
+    "after",
+    "let start = 0;\nlet next = let after = next + 1 in start + 1",
+  );
+};
+
+/* a doc comment starts a line: an item with one goes into a one-line
+   body on lines of its own, a constant's value on its own line below,
+   a function's result after it; and comes back out whole */
+let doc_comments = () => {
+  let src = "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x -> x in\n\n# doc for g #\nlet g = 2 in\nf";
+  law(
+    "into a constant",
+    src,
+    (Indent, Outdent),
+    "f",
+    "let init =\n  # doc for f #\n  let f = fun x -> x in\n  (1, 2) in\n\n# doc for g #\nlet g = 2 in\nf",
+  );
+  law(
+    "into a function",
+    src,
+    (Indent, Outdent),
+    "g",
+    "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x ->\n  # doc for g #\n  let g = 2 in x in\nf",
+  );
+};
+
+/* an item's first line keeps its offset from its neighbour's: an oddly
+   indented one stays so, and one landing by an odd one isn't */
+let offsets = () => {
+  law(
+    ~root=Mod,
+    "an oddly indented member out and back",
+    "module M = {\n  let a = 1;\n\n    let b = 2\n};\n\nlet c = 3;\nc",
+    (MoveDown, MoveUp),
+    "b",
+    "module M = {\n  let a = 1\n};\n\n  let b = 2;\n\nlet c = 3;\nc",
+  );
+  law(
+    ~root=Mod,
+    "out beside its owner, above an oddly indented one",
+    "module M = {\n  let f = fun x ->\n    x;\n\n  let g = 1;\n\n    let h = 2\n};\nM.f",
+    (Indent, Outdent),
+    "g",
+    "module M = {\n  let f = fun x ->\n    let g = 1 in\n\n    x;\n\n    let h = 2\n};\nM.f",
+  );
+};
+
+/* a `;` statement doesn't go into a member's body, where its `;` would
+   end the member: Tab refuses it, and no new test goes there. A let-in
+   definition's body takes one */
+let member_statements = () => {
+  expect(
+    "a test into a member's function",
+    None,
+    run(
+      op(Indent),
+      "1",
+      "module M = {\n  let f = fun x ->\n    x;\n  test 1 == 1 end\n} in\nM.f",
+    ),
+  );
+  expect(
+    "a new test in a member's body",
+    None,
+    run(
+      op(NewTestBelow),
+      "y",
+      "module M = {\n  let f = fun x ->\n    let y = x in\n    y;\n  let g = 1\n} in\nM.f",
+    ),
+  );
+  expect(
+    "a new test in a let-in definition's body",
+    Some(
+      {js|module M = {
+  let f = fun x ->
+    let g = fun z ->
+      let y = z in
+      test ¿ end;
+      y
+    in
+    g(x);
+  let h = 1
+} in
+M.f|js},
+    ),
+    run(
+      op(NewTestBelow),
+      "y",
+      "module M = {\n  let f = fun x ->\n    let g = fun z ->\n      let y = z in\n      y\n    in\n    g(x);\n  let h = 1\n} in\nM.f",
+    ),
+  );
+};
+
+/* comments set apart from the items stay on their side: an item leaving
+   its owner lands right beside it, and nothing goes into an item across
+   such a comment (it couldn't come back to its side) */
+let set_apart = () => {
+  let src = "module H = {\n  let q = fun x ->\n    x;\n\n  let v = 1;\n\n  # ===== STATE ===== #\n\n  let init = 0\n};\nH.v";
+  law(
+    ~root=Mod,
+    "out beside its owner, above the comment",
+    src,
+    (Indent, Outdent),
+    "v",
+    "module H = {\n  let q = fun x ->\n    let v = 1 in\n\n    x;\n\n  # ===== STATE ===== #\n\n  let init = 0\n};\nH.v",
+  );
+  expect(
+    ~root=Mod,
+    "no Tab across it",
+    None,
+    run(~root=Mod, op(Indent), "init", src),
+  );
+  /* Alt↑ steps over the module instead of going in */
+  expect(
+    ~root=Mod,
+    "no Alt into a module across it",
+    Some(
+      "let b = 2;\n\n# ===== B ===== #\n\nmodule A = {\n  let a = 1\n};\nA.a",
+    ),
+    run(
+      ~root=Mod,
+      op(MoveUp),
+      "b",
+      "module A = {\n  let a = 1\n};\n\n# ===== B ===== #\n\nlet b = 2;\nA.a",
+    ),
+  );
+};
+
 /* ⌘⌫ on a row the outline refuses to delete leaves its cursor there */
 let refused_delete_cursor = (): unit => {
   let seg = seg_of("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
@@ -1551,5 +1747,10 @@ let tests = (
       `Quick,
       nesting_values,
     ),
+    test_case("ops and their inverses keep blank lines", `Quick, gaps),
+    test_case("a doc comment goes in and out whole", `Quick, doc_comments),
+    test_case("an item keeps its indentation's offset", `Quick, offsets),
+    test_case("no statement into a member's body", `Quick, member_statements),
+    test_case("comments set apart stay on their side", `Quick, set_apart),
   ],
 );

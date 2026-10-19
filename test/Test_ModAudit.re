@@ -1062,8 +1062,10 @@ type typed = {
   item: string,
   /* each disturbing state: the keys so far, what moved */
   bad: list((string, ripple, string)),
-  /* the final state's rows changed, or its item missing */
+  /* the final state's rows unchanged, and a definition item's row a
+     definition's */
   final_ok: bool,
+  reads_def: bool,
   states: int,
   /* the keys, and under each `.` (quiet), `X` (disturbed), `!` (refused) */
   typed: string,
@@ -1072,7 +1074,8 @@ type typed = {
 
 /* [steps] from [z], each state snapshot against [base]: the disturbing
    states (keys so far, the ripple, the reading around [around]), the
-   state count, and whether the last state is quiet */
+   state count, whether the last state is quiet, the keys and marks, and
+   the last state's snapshot */
 let run_steps =
     (
       ~root,
@@ -1085,14 +1088,21 @@ let run_steps =
       z: Zipper.t,
       steps: list(step),
     )
-    : (list((string, ripple, string)), int, bool, string, string) => {
+    : (
+        list((string, ripple, string)),
+        int,
+        bool,
+        string,
+        string,
+        option(snap),
+      ) => {
   let typed = Stdlib.Buffer.create(16);
   let marks = Stdlib.Buffer.create(16);
-  let (bad, n, _, last_quiet) =
+  let (bad, n, _, last_quiet, last) =
     List.fold_left(
-      ((bad, n, z, last_quiet), st) =>
+      ((bad, n, z, last_quiet, last), st) =>
         switch (z) {
-        | None => (bad, n, None, last_quiet)
+        | None => (bad, n, None, last_quiet, last)
         | Some(z) =>
           let a =
             switch (st) {
@@ -1106,7 +1116,7 @@ let run_steps =
           switch (perform(~root, ~syntax, ~statics, z, a)) {
           | None =>
             Stdlib.Buffer.add_string(marks, "!");
-            (bad, n, Some(z), last_quiet);
+            (bad, n, Some(z), last_quiet, last);
           | Some(z') =>
             let s = snapshot(~root, z');
             let r = typing_ripple(~scope, ~fresh, base, s);
@@ -1133,10 +1143,10 @@ let run_steps =
               | (false, true) => "D"
               },
             );
-            (bad, n + 1, Some(z'), quiet(r));
+            (bad, n + 1, Some(z'), quiet(r), Some(s));
           };
         },
-      ([], 0, Some(z), true),
+      ([], 0, Some(z), true, None),
       steps,
     );
   (
@@ -1145,8 +1155,26 @@ let run_steps =
     last_quiet,
     Stdlib.Buffer.contents(typed),
     Stdlib.Buffer.contents(marks),
+    last,
   );
 };
+
+/* a definition item reads as one: its row is a definition's, not a
+   statement's (a test is a statement) */
+let reads_as_def = (~fresh: string, last: option(snap)): bool =>
+  fresh == "test"
+  || (
+    switch (last) {
+    | Some(s) =>
+      List.exists(
+        ((k, fp: fp)) =>
+          Util.ListUtil.last(String.split_on_char('/', k)) == fresh
+          && fp.kind != KStmt,
+        s.rows,
+      )
+    | None => false
+    }
+  );
 
 /* the items typed, as a member and as a chain definition */
 let typed_items: list((string, string, string, string)) = [
@@ -1219,11 +1247,14 @@ type site = {
 
 /* where a new item goes among a level's items: before the first, after
    each, and after the last. [chain]: let-in spelling (its last item is the
-   body, which keeps its place). [opener]: after a module literal's `{` */
+   body, which keeps its place). [opener]: after a module literal's `{`.
+   [open_end]: the last member has no `;`, so a member also goes after it
+   without one, on a line of its own */
 let sites =
     (
       ~chain: bool,
       ~opener: option(Point.t),
+      ~open_end=false,
       spans: list((Point.t, Point.t)),
     )
     : list(site) => {
@@ -1270,7 +1301,20 @@ let sites =
             post: sep,
           },
       spans,
-    );
+    )
+  @ (
+    switch (open_end, Util.ListUtil.last_opt(spans)) {
+    | (true, Some((_, e))) => [
+        {
+          label: "end, no ;",
+          at: e,
+          pre: keys("\n"),
+          post: [],
+        },
+      ]
+    | _ => []
+    }
+  );
 };
 
 /* the first module literal, depth first; [inner]: the first one holding
@@ -1346,12 +1390,20 @@ let sweep_typing =
       }
     };
   let spans = item_spans(syntax.measured, level);
+  let open_end =
+    !chain
+    && (
+      switch (List.rev(List.filter(p => !Piece.is_secondary(p), level))) {
+      | [p, ..._] => !Piece.is_semi(p)
+      | [] => false
+      }
+    );
   List.concat_map(
     ((item, fresh, member, letin)) => {
       let text = chain ? letin : member;
-      sites(~chain, ~opener, spans)
+      sites(~chain, ~opener, ~open_end, spans)
       |> List.filteri((i, _) =>
-           i mod sample == 0 || i == List.length(spans)
+           i mod sample == 0 || i >= List.length(spans)
          )
       |> List.filter_map((st: site) =>
            switch (
@@ -1360,7 +1412,7 @@ let sweep_typing =
            | None => None
            | Some(z) =>
              let steps = st.pre @ keys(text) @ st.post;
-             let (bad, n, last_quiet, typed, marks) =
+             let (bad, n, last_quiet, typed, marks, last) =
                run_steps(
                  ~root,
                  ~syntax,
@@ -1376,7 +1428,8 @@ let sweep_typing =
                site: st.label,
                item,
                bad,
-               final_ok: last_quiet,
+               final_ok: last_quiet && reads_as_def(~fresh, last),
+               reads_def: reads_as_def(~fresh, last),
                states: n,
                typed,
                marks,
@@ -1431,6 +1484,17 @@ let typing_report = (name: string, outs: list(typed)) => {
       );
     },
     disturbed,
+  );
+  List.iter(
+    (t: typed) =>
+      Printf.printf(
+        "   %-6s at %-10s %s\n      at the end: %s\n",
+        t.item,
+        t.site,
+        t.typed,
+        t.reads_def ? "a row disturbed" : "reads as a statement",
+      ),
+    List.filter((t: typed) => !t.final_ok, outs),
   );
 };
 
@@ -1710,13 +1774,21 @@ let ops = () =>
           Sort.Exp,
           "let init = (1, 2) in\n\n# doc for f #\nlet f = fun x -> x in\n\n# doc for g #\nlet g = 2 in\nf",
         ),
+        /* blank lines holding indentation, as a paste leaves them */
+        (
+          "doc comments (pasted)",
+          Sort.Mod,
+          "module M = {\n  let init = (1, 2);\n  \n  # doc for f #\n  let f = fun x -> x;\n  \n  # doc for g #\n  let g = 2\n};\nM.f",
+        ),
       ],
     );
+    /* one row in 3 unless MODAUDIT_SAMPLE says */
+    let sample = Sys.getenv_opt("MODAUDIT_SAMPLE") == None ? 3 : sample;
     List.iter(
       ((name, root, file)) =>
         if (selected(name)) {
           switch (CorpusUtil.mega_src(file)) {
-          | Some(src) => ops_sweep(~root, ~sample=3, name, src)
+          | Some(src) => ops_sweep(~root, ~sample, name, src)
           | None => print_endline(name ++ ": missing")
           };
         },
