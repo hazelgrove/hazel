@@ -85,6 +85,21 @@ let probe_text(c, t, sat) =
 let sort_plate(c) =
   color_with_lightness(
     color_saturate(c, role.`cursor-tint`), role.`cursor-level`) in
+# the block behind every term of one type head: a translucent fill, so #
+# nested blocks compose, and its edge. The hue is fixed rather than taken #
+# from the palette so a type keeps its color across schemes; only the #
+# lightness follows the axis. #
+let type_block(c, h) =
+  (Fade(at(Oklch(0., c, h), 0.08), 55.), at(Oklch(0., c, h), 0.35)) in
+let (int_fill, int_edge) = type_block(0.1, 250.) in
+let (float_fill, float_edge) = type_block(0.1, 215.) in
+let (bool_fill, bool_edge) = type_block(0.1, 0.) in
+let (string_fill, string_edge) = type_block(0.1, 95.) in
+let (list_fill, list_edge) = type_block(0.1, 140.) in
+let (arrow_fill, arrow_edge) = type_block(0.1, 300.) in
+let (tuple_fill, tuple_edge) = type_block(0.1, 50.) in
+let (sum_fill, sum_edge) = type_block(0.1, 175.) in
+let (unknown_fill, unknown_edge) = type_block(0., 0.) in
 (
   palette = p,
   roles = (
@@ -225,20 +240,16 @@ let sort_plate(c) =
       `banner` = Fade(wash(p.`pattern`, 0.9333, 0.4), 12.),
       `banner-edge` = Fade(wash(p.`pattern`, 0.9333, 0.4), 35.)
     ),
-    # the block behind every term, one hue per type head, translucent so #
-    # nested blocks compose. The hues are fixed rather than taken from the #
-    # palette so a type keeps its color across schemes; only the lightness #
-    # follows the axis. #
     `type-block` = (
-      `int` = Fade(at(Oklch(0., 0.09, 250.), 0.08), 55.),
-      `float` = Fade(at(Oklch(0., 0.09, 215.), 0.08), 55.),
-      `bool` = Fade(at(Oklch(0., 0.09, 0.), 0.08), 55.),
-      `string` = Fade(at(Oklch(0., 0.09, 95.), 0.08), 55.),
-      `list` = Fade(at(Oklch(0., 0.09, 140.), 0.08), 55.),
-      `arrow` = Fade(at(Oklch(0., 0.09, 300.), 0.08), 55.),
-      `tuple` = Fade(at(Oklch(0., 0.09, 50.), 0.08), 55.),
-      `sum` = Fade(at(Oklch(0., 0.09, 175.), 0.08), 55.),
-      `unknown` = Fade(at(Oklch(0., 0., 0.), 0.08), 55.)
+      `int` = int_fill, `int-edge` = int_edge,
+      `float` = float_fill, `float-edge` = float_edge,
+      `bool` = bool_fill, `bool-edge` = bool_edge,
+      `string` = string_fill, `string-edge` = string_edge,
+      `list` = list_fill, `list-edge` = list_edge,
+      `arrow` = arrow_fill, `arrow-edge` = arrow_edge,
+      `tuple` = tuple_fill, `tuple-edge` = tuple_edge,
+      `sum` = sum_fill, `sum-edge` = sum_edge,
+      `unknown` = unknown_fill, `unknown-edge` = unknown_edge
     )
   ),
   # declared, not inferred -- low-contrast seeds could flip polarity #

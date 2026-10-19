@@ -373,11 +373,8 @@ let aliases: list(((string, string), list(string))) = [
 let aliases =
   aliases
   @ List.map(
-      head => {
-        let name = Typ.head_name(head);
-        (("type-block", name), ["type-block-" ++ name]);
-      },
-      Typ.all_of_head,
+      name => (("type-block", name), ["type-block-" ++ name]),
+      CS.type_block_roles,
     );
 
 /* Every field a themer can set, as (group, name). The pair is the key: short
