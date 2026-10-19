@@ -3317,14 +3317,16 @@ let semantic_segment =
 let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
   /* Semantic terms come from the canonical completion of the visible
    * segment (caret-independent, provenance-recorded), replacing the
-   * old caret-sensitive missing-shard dump. The ~root parameter matches the
-   * dev signature; completion is invoked at Exp. */
-  let _ = root;
+   * old caret-sensitive missing-shard dump. A Mod root completes and
+   * reads as a member list; every other root at Exp. */
   let seg = semantic_source(z);
-  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+  let sort = root == Sort.Mod ? Sort.Mod : Sort.Exp;
+  let result = CanonicalCompletion.complete_segment_deep(~sort, seg);
   let masks = CanonicalCompletion.masks_of_records(result.shard_records);
   (
-    go_impl(~masks, result.completed_seg),
+    sort == Sort.Mod
+      ? go_mod_root_impl(~masks, result.completed_seg)
+      : go_impl(~masks, result.completed_seg),
     {
       source: seg,
       completed: result.completed_seg,

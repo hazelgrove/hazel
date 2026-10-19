@@ -151,6 +151,47 @@ let stray_line = () => {
   };
 };
 
+/* the semantic term with its completion reads a Mod root as its members,
+   finished or not (an open paren typed into the first) */
+let sem_at_root = () => {
+  let src = "let a = 1;\nlet b = a + 1;\nb";
+  let items = (z: Zipper.t) =>
+    switch (
+      fst(MakeTerm.from_zip_for_sem_with_completion(z, ~root=Mod)).term.term
+    ) {
+    | Module(items) =>
+      List.map(
+        (m: Mod.t) =>
+          switch (m.term) {
+          | ModLet(_) => "let"
+          | ModExp(_) => "exp"
+          | _ => "other"
+          },
+        items,
+      )
+    | _ => []
+    };
+  check(
+    list(string),
+    "finished",
+    ["let", "let", "exp"],
+    items(Zipper.unzip(parse_mod(src))),
+  );
+  switch (
+    Test_ModAudit.act(
+      ~root=Mod,
+      ~off=String.length("let a = "),
+      src,
+      "let a = ",
+      [Insert("(")],
+    )
+  ) {
+  | Some(z) =>
+    check(list(string), "unfinished", ["let", "let", "exp"], items(z))
+  | None => fail("could not type the paren")
+  };
+};
+
 /* Incr's last-result slot serves both roots: each gets its own reading */
 let last_slot_keyed_by_root = () => {
   let seg = parse_mod(mod_src);
@@ -503,6 +544,7 @@ let tests = (
     test_case("term_of_mod", `Quick, term_of_mod_matches),
     test_case("stray line above a member", `Quick, stray_line),
     test_case("last slot keyed by root", `Quick, last_slot_keyed_by_root),
+    test_case("the semantic term at a Mod root", `Quick, sem_at_root),
     test_case("corpus mega-mod-1k", `Quick, corpus),
     test_case("a member edit at depth 1", `Quick, member_edit(("11", "13"))),
     test_case("a member edit at depth 2", `Quick, member_edit(("21", "23"))),
