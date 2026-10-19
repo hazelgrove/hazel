@@ -485,9 +485,8 @@ let enclosing_row =
   switch (Id.Map.find_opt(id, info_map)) {
   | Some(info) =>
     let rows = row_ids(e);
-    List.find_opt(
-      x => Id.Map.mem(x, rows),
-      [id, ...Info.within_item(~info_map, info)],
-    );
+    Id.Map.mem(id, rows)
+      ? Some(id)
+      : Info.find_within_item(~info_map, info, x => Id.Map.mem(x, rows));
   | None => None
   };

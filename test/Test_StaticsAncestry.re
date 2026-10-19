@@ -286,6 +286,27 @@ let consumers = ((name, root, src), ()) => {
       Web.OutlineTree.enclosing_row(~info_map=st.info_map, id, st.term)
     ),
   );
+  /* the row search climbs no further than it must: the row the item's
+     whole ancestry gives, on either statics */
+  let row = (st: CachedStatics.t, id) =>
+    Web.OutlineTree.enclosing_row(~info_map=st.info_map, id, st.term);
+  let row_of_item = (st: CachedStatics.t, id) => {
+    let rows = Web.OutlineTree.row_ids(st.term);
+    switch (Id.Map.find_opt(id, st.info_map)) {
+    | Some(info) =>
+      List.find_opt(
+        x => Id.Map.mem(x, rows),
+        [id, ...Info.within_item(~info_map=st.info_map, info)],
+      )
+    | None => None
+    };
+  };
+  let ((r_editor, r_whole), (w_editor, w_whole)) = (
+    per_id(both, row),
+    per_id(both, row_of_item),
+  );
+  same(name ++ ": the row search", (r_editor, w_editor));
+  same(name ++ ": the row search, monolithic", (r_whole, w_whole));
   let pending = (st: CachedStatics.t) =>
     EvalWorklist.pending_ids_uncached(st.info_map)
     |> List.filter(id => List.mem(id, own_ids(st.term)))
