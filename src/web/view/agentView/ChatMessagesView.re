@@ -114,6 +114,7 @@ module ViewComponents = {
     let static_error_lines =
       ErrorPrint.all(
         CompositionGo.Public.mk_statics(
+          ~root=code_with_statics.editor.root,
           code_with_statics.editor.state.zipper,
         ),
       );
@@ -850,7 +851,8 @@ let view =
   // for stale-path detection and cmd/ctrl-click jump targets.
   let node_map: option(HighLevelNodeMap.t) = {
     let z = code_with_statics.editor.state.zipper;
-    let info_map = CompositionGo.Public.mk_statics(z);
+    let info_map =
+      CompositionGo.Public.mk_statics(~root=code_with_statics.editor.root, z);
     HighLevelNodeMap.build(z, info_map);
   };
 

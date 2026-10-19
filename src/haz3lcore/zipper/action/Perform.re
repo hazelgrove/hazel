@@ -674,9 +674,10 @@ let rec go =
        program's statics are computed once and offered to the editor */
     let run =
       switch (CachedStatics.for_zipper(~settings, z, statics)) {
-      | Some(initial) when initial.info_map != Language.Id.Map.empty =>
+      | Some(initial)
+          when initial.info_map != Language.Id.Map.empty && root == Sort.Exp =>
         CompositionGo.Public.go_with_editor_statics(~settings, ~initial)
-      | _ => CompositionGo.Public.go
+      | _ => CompositionGo.Public.go(~root)
       };
     /* agent edits funnel pasted code through introduce with indentation
        stripped; re-indent new lines like user Paste */

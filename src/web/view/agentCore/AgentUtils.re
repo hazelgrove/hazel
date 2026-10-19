@@ -95,7 +95,12 @@ let llm_context_snapshot_text =
       chat.agent_view,
     );
   let static_errors_info_string =
-    ErrorPrint.all(CompositionGo.Public.mk_statics(cws.editor.state.zipper))
+    ErrorPrint.all(
+      CompositionGo.Public.mk_statics(
+        ~root=cws.editor.root,
+        cws.editor.state.zipper,
+      ),
+    )
     |> String.concat("\n");
   let test_results_info_string =
     test_results_for_context(EvalResult.Model.test_results(cell_result));
