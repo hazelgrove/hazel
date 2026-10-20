@@ -95,9 +95,153 @@ let fresh_prose = () => {
   );
 };
 
+/* (^report(21), ^ticket(411)) As terms too, not only as printed text: a
+   binary and a unary minus print the same `-`. Ids, parentheses and
+   projectors aside (Exp.fast_equal). */
+let term_of = (z: option(Haz3lcore.Zipper.t)) =>
+  Option.map(z => Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp).term, z);
+let same_terms = (text, by_char, segmented) =>
+  check(
+    bool,
+    "the same term as to_zipper: "
+    ++ String.sub(text, 0, min(60, String.length(text))),
+    true,
+    switch (term_of(by_char), term_of(segmented)) {
+    | (Some(a), Some(b)) => Language.Exp.fast_equal(a, b)
+    | (None, None) => true
+    | _ => false
+    },
+  );
+
+/* Inputs only the load fallback reads: an unfinished form at the end, a
+   concave hole, and the confirmed split cases after one (the fast parser
+   rejects the text before them, so the whole program goes to the
+   fallback). Compared with the holes kept, and as terms. */
+let fallback_shaped = [
+  "let x = 1 in",
+  "let f = fun x -> x + in f(1)",
+  "case x | 1 => 2 | ",
+  "(1 + 2",
+  "[1, 2,",
+  "1 + + 2",
+  "1 + + 2\n" ++ String.make(100, 'a') ++ " - b",
+  "1 + + 2\n" ++ String.make(100, 'f') ++ " (b)",
+  "1 + + 2\n" ++ String.make(100, 'e') ++ " : Int",
+];
+let fallback_case = text =>
+  test_case(
+    "fallback-shaped: " ++ String.sub(text, 0, min(24, String.length(text))),
+    `Quick,
+    () => {
+      same_as_to_zipper_with_holes(text);
+      same_terms(
+        text,
+        Haz3lcore.Parser.to_zipper(~root=Exp, text),
+        Haz3lcore.Parser.to_zipper_segmented(~root=Exp, text),
+      );
+    },
+  );
+
+/* Every split position: the segmented parser splits at a top-level space,
+   so 0 to 99 spaces of padding in front move every top-level space of a
+   program through a split. Each program is parsed once by to_zipper (it is
+   quadratic, so programs under sweep_cap bytes) and its 100 padded copies
+   by the segmented parser, compared with the holes kept (the padding, a
+   leading run of spaces, aside): a piece molded without its left neighbour
+   shows as an extra hole there. As text, not terms: 100 terms of every
+   program would take most of a minute and a gigabyte; the fallback-shaped
+   cases above compare terms. */
+let sweep_cap = 1500;
+let rec hz_files = dir =>
+  Sys.readdir(dir)
+  |> Array.to_list
+  |> List.sort(compare)
+  |> List.concat_map(f => {
+       let path = Filename.concat(dir, f);
+       Sys.is_directory(path)
+         ? hz_files(path) : Filename.check_suffix(f, ".hz") ? [path] : [];
+     });
+let corpus_root =
+  List.find_opt(
+    Sys.file_exists,
+    ["hazel-programs", "../../../hazel-programs"],
+  );
+/* Every padding of every program is a few thousand parses, minutes of
+   them: so CI sweeps three programs of 800 to 1,100 bytes, and
+   HAZEL_SPLIT_SWEEP=all sweeps every program under sweep_cap bytes. */
+let sweep_default = [
+  "example-programs-dot-product.hz",
+  "table-api-utilities-select.hz",
+  "errors-using-tables-midfinal.hz",
+];
+let sweep_files =
+  switch (corpus_root) {
+  | None => []
+  | Some(root) =>
+    let all = Sys.getenv_opt("HAZEL_SPLIT_SWEEP") == Some("all");
+    hz_files(root)
+    |> List.filter(f =>
+         if (all) {
+           let ic = open_in_bin(f);
+           let n = in_channel_length(ic);
+           close_in(ic);
+           n < sweep_cap;
+         } else {
+           List.mem(Filename.basename(f), sweep_default);
+         }
+       );
+  };
+let sweep = () => {
+  let show = Option.map(Haz3lcore.MarkerParse.to_text);
+  let drop_pad = (pad, s) =>
+    String.length(s) >= pad
+    && String.sub(s, 0, pad) == String.make(pad, ' ')
+      ? String.sub(s, pad, String.length(s) - pad) : s;
+  let bad =
+    sweep_files
+    |> List.concat_map(file => {
+         let text = read(file);
+         let expect = show(Haz3lcore.Parser.to_zipper(~root=Exp, text));
+         List.init(100, pad => pad)
+         |> List.filter_map(pad => {
+              let got =
+                show(
+                  Haz3lcore.Parser.to_zipper_segmented(
+                    ~root=Exp,
+                    String.make(pad, ' ') ++ text,
+                  ),
+                )
+                |> Option.map(drop_pad(pad));
+              got == expect
+                ? None
+                : Some(
+                    Printf.sprintf(
+                      "%s with %d spaces in front",
+                      Filename.basename(file),
+                      pad,
+                    ),
+                  );
+            });
+       });
+  check(
+    list(string),
+    Printf.sprintf(
+      "corpus programs under %d bytes (%d), each split position, holes kept",
+      sweep_cap,
+      List.length(sweep_files),
+    ),
+    [],
+    bad |> List.filteri((i, _) => i < 10),
+  );
+};
+
 let tests = (
   "Parser.Segmented",
   [
+    test_case("every split position of the corpus", `Slow, sweep),
+    ...List.map(fallback_case, fallback_shaped),
+  ]
+  @ [
     test_case("fresh prose", `Quick, fresh_prose),
     split_case("a binary minus", "- b"),
     split_case("an application's parentheses", "(b)"),
