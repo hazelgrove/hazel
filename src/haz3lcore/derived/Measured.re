@@ -507,18 +507,22 @@ let of_segment_inner =
        * as zero width, every caret, click and outline after it on its
        * row landed that many columns short. Its size is still recorded,
        * for the GUI's splice_size. */
-      let (_, _, start, _) = acc;
-      let (seg, indent, last, map) = go(~top_level=false, acc, s.content);
+      let start = acc.pos;
+      let acc = go(~top_level=false, acc, s.content);
+      let last = acc.pos;
       let size =
         Point.{
           row: last.row - start.row,
           col: last.row == start.row ? last.col - start.col : last.col,
         };
       let map = {
-        ...map,
-        grout: Id.Map.add(s.id, mk_measurement(start, last), map.grout),
+        ...acc.map,
+        grout: Id.Map.add(s.id, mk_measurement(start, last), acc.map.grout),
       };
-      (seg, indent, last, add_splice_info(s, {size: size}, map));
+      {
+        ...acc,
+        map: add_splice_info(s, {size: size}, map),
+      };
     | Splice(s) =>
       /* A Splice appearing directly in the outer segment (not inside a
        * projector) consumes zero width at its position. Its interior is

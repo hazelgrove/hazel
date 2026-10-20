@@ -97,7 +97,7 @@ let tests = (
           List.find_map(
             (p: Piece.t) =>
               switch (p) {
-              | Tile(t) when t.label == ["x"] => Some(t)
+              | Tile(t) when Tile.label(t) == ["x"] => Some(t)
               | Tile(t) => List.find_map(find_x, t.children)
               | Splice(s) => find_x(s.content)
               | _ => None
