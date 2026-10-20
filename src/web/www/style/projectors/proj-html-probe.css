@@ -109,7 +109,7 @@
 .html-probe-message {
   padding: 0.5em;
   font-style: italic;
-  color: var(--BR3);
+  color: var(--text-muted);
 }
 
 /* A docked rich probe is rendered in the panel with the same class list its
@@ -140,8 +140,8 @@
   font-family: var(--code-font);
   text-align: right;
   padding: 0.2em 0.45em;
-  border-radius: var(--BR2);
-  background: var(--T4);
+  border-radius: 0.3em;
+  background: var(--surface-deep);
   overflow: hidden;
 }
 
@@ -149,7 +149,7 @@
 .calc-pending {
   font-size: 0.75em;
   min-height: 1.1em;
-  color: var(--BR3);
+  color: var(--text-muted);
   white-space: pre;
 }
 
