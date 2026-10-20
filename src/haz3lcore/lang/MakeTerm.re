@@ -2329,37 +2329,8 @@ module Incr = {
     };
   };
 
-  /* [e] with [acc] in its body hole, if the hole is down the
-     binding-form spine; [rebuilt] sees each rebuilt node, innermost first */
-  let graft_spine =
-      (~rebuilt=(e: Exp.t) => e, hole_id: Id.t, acc: Exp.t, e: Exp.t)
-      : option(Exp.t) => {
-    let rec spine = (e: Exp.t): option(Exp.t) =>
-      if (List.mem(hole_id, e.annotation.ids)) {
-        Some(acc);
-      } else {
-        let re = (term: Exp.term) =>
-          rebuilt({
-            ...e,
-            term,
-          });
-        switch (e.term) {
-        | Let(p, d, b) => spine(b) |> Option.map(b => re(Let(p, d, b)))
-        | Theorem(p, d, b) =>
-          spine(b) |> Option.map(b => re(Theorem(p, d, b)))
-        | Use(t, b) => spine(b) |> Option.map(b => re(Use(t, b)))
-        | Seq(a, b) => spine(b) |> Option.map(b => re(Seq(a, b)))
-        | TyAlias(tp, ty, b) =>
-          spine(b) |> Option.map(b => re(TyAlias(tp, ty, b)))
-        | ModuleExp(mp, d, b) =>
-          spine(b) |> Option.map(b => re(ModuleExp(mp, d, b)))
-        | Filter(f, b) => spine(b) |> Option.map(b => re(Filter(f, b)))
-        | Parens(b) => spine(b) |> Option.map(b => re(Parens(b)))
-        | _ => None
-        };
-      };
-    spine(e);
-  };
+  /* in the language library, as the eval worker grafts too */
+  let graft_spine = Exp.graft_spine;
 
   /* [e] with [acc] in its synthetic body hole, plus the hole's rebuilt
      ancestors, outermost first (the term map must hold them grafted).
