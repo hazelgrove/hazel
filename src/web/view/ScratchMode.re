@@ -610,10 +610,26 @@ module View = {
             editor,
           ),
         ]
-      | Code({program, view, _}) =>
+      | Code({program, view, world, _}) =>
         let stack_views = (d: Divided.t) => {
           let cells = Divided.cells(d);
           let term = Divided.statics(d).term;
+          /* a cell's qualifier: the modules it's in, below a world
+             slide's own (its folders and itself are the slide's place) */
+          let qualifier_of = id => {
+            let path = OutlineTree.path_of(id, term);
+            switch (
+              Option.bind(world, slide =>
+                Option.bind(OutlineTree.trail_of(id, term), trail =>
+                  ListUtil.findi_opt(m => m == slide, trail)
+                )
+              )
+            ) {
+            | Some((i, _)) =>
+              snd(ListUtil.split_n(min(i + 1, List.length(path)), path))
+            | None => path
+            };
+          };
           /* the zoomed module as one cell: the breadcrumb names it */
           let zoom_cell = SlideView.showing_zoom_cell(~term, view);
           let tests = EvalResult.Model.test_results(Divided.result(d));
@@ -670,7 +686,7 @@ module View = {
                   )
                 | _ =>
                   let qualifier =
-                    switch (OutlineTree.path_of(e.e_id, term)) {
+                    switch (qualifier_of(e.e_id)) {
                     | [] => []
                     | path => [
                         span(
@@ -736,7 +752,7 @@ module View = {
                   let qual_cols = idx =>
                     switch (List.nth_opt(cells, idx)) {
                     | Some(e) =>
-                      switch (OutlineTree.path_of(e.ScratchCell.e_id, term)) {
+                      switch (qualifier_of(e.ScratchCell.e_id)) {
                       | [] => 0
                       | path => String.length(String.concat(".", path)) + 1
                       }

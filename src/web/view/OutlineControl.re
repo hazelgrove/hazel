@@ -1358,6 +1358,17 @@ let view =
           }
         | _ => false
         };
+      /* the toggle's: inside a zoomed module's members view an item still
+         opens its own cell (a world slide is always one) */
+      let nested_in_item = id =>
+        switch (program) {
+        | Some(Divided(d)) =>
+          switch (Divided.owner(id, d)) {
+          | Some(e) => e.e_id != id && e.e_kind != Members
+          | None => false
+          }
+        | _ => false
+        };
       let redraw = inject(Redraw);
       /* row mode's cursor for a line: its row's, or a new definition's
          anchor */
@@ -1407,7 +1418,8 @@ let view =
         focus: id =>
           nested(id) ? jump(id) : inject_workspace(FocusEnsure(id)),
         toggle: id =>
-          nested(id) ? jump(id) : inject_workspace(FocusToggle(id)),
+          nested_in_item(id)
+            ? jump(id) : inject_workspace(FocusToggle(id)),
         toggle_run: id => inject_workspace(FocusToggleRun(id)),
         toggle_collapse: path =>
           switch (level) {
