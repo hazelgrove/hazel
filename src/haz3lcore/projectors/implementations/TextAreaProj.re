@@ -44,12 +44,10 @@ let focus_parent_editor = (id): unit => {
   /* After blur, give DOM focus to the parent code-editor so it
    * receives subsequent key events. Without this, focus goes to
    * <body> and the editor stops responding to keys. */
-  JsUtil.projector_holds_focus := true;
   switch (JsUtil.find_ancestor_with_class(el, "code-editor")) {
   | Some(editor_el) => editor_el##focus
-  | None => JsUtil.focus_clipboard_shim()
+  | None => JsUtil.focus_page()
   };
-  JsUtil.projector_holds_focus := false;
 };
 
 /* Only the deletion that makes multiline text single-line changes its
@@ -150,20 +148,10 @@ let textarea =
     ~attrs=[
       Attr.id(Id.cls(info.id)),
       Attr.classes(["text-projector-input"]),
-      /* Reserve focus before the old element blurs: Page otherwise redirects
-       * it to the clipboard shim. Keep pointer events inside the textarea. */
-      Attr.on_pointerdown(_ => {
-        JsUtil.projector_holds_focus := true;
-        Effect.Stop_propagation;
-      }),
-      Attr.on_focus(_ => {
-        JsUtil.projector_holds_focus := true;
-        Effect.Stop_propagation;
-      }),
-      Attr.on_blur(_ => {
-        JsUtil.projector_holds_focus := false;
-        Effect.Stop_propagation;
-      }),
+      /* Keep pointer and focus events inside the textarea. */
+      Attr.on_pointerdown(_ => Effect.Stop_propagation),
+      Attr.on_focus(_ => Effect.Stop_propagation),
+      Attr.on_blur(_ => Effect.Stop_propagation),
       Attr.on_keydown(key_handler(info.id, ~parent)),
       /* Capture the pre-edit native selection for undo, including IME,
        * paste and cut (which need not originate from a keydown). */
@@ -204,7 +192,6 @@ module M: Projector = {
     };
 
   let focus_keyboard = (id: Id.t, d: Direction.t) => {
-    JsUtil.projector_holds_focus := true;
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
     switch (d) {
     | Left =>
@@ -215,7 +202,6 @@ module M: Projector = {
   };
 
   let focus_pointer = (id: Id.t) => {
-    JsUtil.projector_holds_focus := true;
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
   };
 
