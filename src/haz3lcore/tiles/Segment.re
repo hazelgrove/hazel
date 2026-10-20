@@ -202,15 +202,13 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   let children =
     List.fold_right(
       ((l, child, r), children) => {
-        /* skip the child remold only if the inner sort is unchanged; a
-           reassembled tile can carry a stale single-shard mold (e.g. a
-           fallback-molded orphan `|`) whose in_ is too short for the
-           merged shards — a missing old inner sort is not "unchanged" */
         let child =
-          switch (l + 1 == r ? List.nth_opt(remolded_mold.in_, l) : None) {
-          | Some(s) when List.nth_opt(orig_mold.in_, l) != Some(s) =>
-            remold(child, s)
-          | _ => child
+          if (l
+              + 1 == r
+              && List.nth(remolded_mold.in_, l) != List.nth(orig_mold.in_, l)) {
+            remold(child, List.nth(remolded_mold.in_, l));
+          } else {
+            child;
           };
         [child, ...children];
       },

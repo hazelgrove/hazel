@@ -1033,13 +1033,9 @@ let edit_case = (~name, ~acts, ~expected) =>
     check(string_testable, name, expected, edit_complete(acts))
   );
 
-/* Regression: a keyword-interleave (`case fun in ` then `|`) leaves an
-   orphan `|` at Exp with a degenerate fallback mold (mk_op(Any, []),
-   no in_) under a multi-token label after completion merges its
-   missing shards. remold_tile's inner-sort check then indexed past
-   mold.in_ with List.nth and MakeTerm's kid sorts escaped label
-   bounds, raising Failure("nth") on the live statics path
-   (MakeTerm.from_zip_for_sem at Sort.Exp). */
+/* `case fun in |` leaves an orphan `|` at a sort where Rule has no row.
+   With a childless mold there, completion's remold and MakeTerm indexed
+   past its inner sorts: Failure("nth"). */
 let nth_crash_acts = () =>
   Test_Editing.string_to_ltr_actions("case fun in ")
   @ Test_Editing.string_to_ltr_actions("|");
@@ -1084,8 +1080,6 @@ let nth_crash_tests = [
     "case fun in bar: typing on through the rule does not crash",
     `Quick,
     () => {
-      /* `=>` reassembles onto the degenerate `|`, whose mold then has too
-         few inner sorts for MakeTerm's kid sorts on the next insert */
       let z =
         Test_Editing.perform(
           Zipper.init(),
@@ -1094,7 +1088,7 @@ let nth_crash_tests = [
       check(
         string_testable,
         "buffer",
-        "case fun in ~| x => 1 end¦",
+        "case fun in | x => 1 end¦",
         Test_Editing.printer(z),
       );
     },
