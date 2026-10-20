@@ -483,6 +483,23 @@ module LivelitShape = {
     ]);
 };
 
+// The optional second argument of a livelit's `view`: whether it is
+// editable, that is, whether its actions rewrite the program (only at its
+// literal), and its room: Free, where the view sizes itself by its shape
+// (at its literal, in a probe's drawer), or Lines(lines, columns), a probe
+// sample on the line. See UserLivelit.room.
+//   type Room = + Free + Lines(Int, Int)
+//   type ViewContext = (editable=Bool, room=Room)
+module ViewContext = {
+  let room: Typ.t =
+    sum_type([("Free", None), ("Lines", Some(prod([int(), int()])))]);
+  let t: Typ.t =
+    prod([
+      tup_label(label("editable"), bool()),
+      tup_label(label("room"), var("Room")),
+    ]);
+};
+
 /* Keyboard shortcuts, used as the analyzed type of the Shortcuts config
  * slide (see ShortcutConfiguration / ConfigurationMode).
  *
@@ -1015,6 +1032,8 @@ let type_aliases: list((string, Typ.t)) = [
   ("ColorValue", Color.typ),
   ("$Meta", meta_type),
   ("LivelitShape", LivelitShape.t),
+  ("Room", ViewContext.room),
+  ("ViewContext", ViewContext.t),
 ];
 
 let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>

@@ -23,6 +23,36 @@ let commit_decision =
       ] =>
   MvuShape.is_checkpointable(new_model) ? `Commit : `Ephemeral;
 
+/* The update redex an action commits, `^name.update(model, action)`: over
+   the newest model value, or, while the syntax model is a commit still
+   evaluating (`^toggle.update(true, Flip)`, no value yet), over that
+   term. Updating the term here instead would come back stuck (its ^name
+   is free outside the program) and commit `!^toggle.update(true, Flip)`. */
+let update_redex =
+    (
+      ~ll_name: string,
+      ~base_value: option(TermBase.Exp.t),
+      ~model: TermBase.Exp.t,
+      action: TermBase.Exp.t,
+    )
+    : option(TermBase.Exp.t) => {
+  let over = mv =>
+    MvuShape.is_checkpointable(mv) && MvuShape.is_checkpointable(action)
+      ? Some(
+          UserLivelit.mk_update_redex(
+            ~name=ll_name,
+            ~model_value=mv,
+            ~action,
+          ),
+        )
+      : None;
+  switch (base_value) {
+  | Some(mv) => over(mv)
+  | None when !MvuShape.is_settled(model) => over(model)
+  | None => None
+  };
+};
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -298,11 +328,21 @@ module M: Projector = {
     |> Seq.filter(c => c != ' ' && c != '\n' && c != '\t')
     |> String.of_seq;
 
+  /* A literal's view is editable, with Free room: its shape's size */
+  let view_arg = (~takes_ctx, model) =>
+    UserLivelit.view_arg(
+      ~takes_ctx,
+      ~editable=true,
+      ~room=UserLivelit.Free,
+      model,
+    );
+
   let event_inject =
       (
         ~id: Id.t,
         ~print_term: TermBase.Exp.t => string,
         ~ll_name: string,
+        ~view_takes_ctx: bool,
         ~def_elab: TermBase.Exp.t,
         ~model: TermBase.Exp.t,
         ~model_value: option(TermBase.Exp.t),
@@ -328,32 +368,28 @@ module M: Projector = {
       | None => model_value
       };
     let base = Option.value(base_value, ~default=model);
-    /* What goes in the syntax: the update redex when the base model is a
-       committable value (keeps the interaction visible to probes and the
-       stepper), independent of whether the optimistic path succeeds. */
-    let redex =
-      switch (base_value) {
-      | Some(mv)
-          when
-            MvuShape.is_checkpointable(mv)
-            && MvuShape.is_checkpointable(action) =>
-        Some(
-          UserLivelit.mk_update_redex(
-            ~name=ll_name,
-            ~model_value=mv,
-            ~action,
-          ),
-        )
-      | _ => None
-      };
+    /* What goes in the syntax: the update redex (keeps the interaction
+       visible to probes and the stepper), independent of whether the
+       optimistic path succeeds. */
+    let redex = update_redex(~ll_name, ~base_value, ~model, action);
     /* ~committed=None: an ephemeral store — the syntax is not changing
        (uncommittable model), so like a transient event it leaves the
        set of "ours" syntax states alone. */
     let store_entry = (new_model, record, ~committed) =>
       switch (record_field(record, "view", 2)) {
       | Some(view_fn) =>
-        switch (MvuShape.safe_evaluate(ap(Forward, view_fn, new_model))) {
-        | Ok(html) when MvuShape.is_html(html) =>
+        switch (
+          MvuShape.safe_evaluate(
+            ap(
+              Forward,
+              view_fn,
+              view_arg(~takes_ctx=view_takes_ctx, new_model),
+            ),
+          )
+        ) {
+        /* a stuck view (over a model with no value yet) is no newer
+           truth to draw: drop the entry and wait for the sample */
+        | Ok(html) when MvuShape.is_html(html) && MvuShape.is_settled(html) =>
           let prior = Hashtbl.find_opt(optimistic, id);
           /* Transient and ephemeral events change nothing in the syntax,
              so the set of syntax states that count as "ours" is
@@ -503,6 +539,7 @@ module M: Projector = {
         ~id: Id.t,
         ~print_term: TermBase.Exp.t => string,
         ~ll_name: string,
+        ~view_takes_ctx: bool,
         ~def_elab: TermBase.Exp.t,
         ~model: TermBase.Exp.t,
         ~model_value: option(TermBase.Exp.t),
@@ -532,6 +569,7 @@ module M: Projector = {
           ~id,
           ~print_term,
           ~ll_name,
+          ~view_takes_ctx,
           ~def_elab,
           ~model,
           ~model_value,
@@ -605,10 +643,21 @@ module M: Projector = {
         switch (record_field(record, "view", 2)) {
         | None => err("livelit definition is missing view")
         | Some(view_fn) =>
-          switch (MvuShape.safe_evaluate(ap(Forward, view_fn, model))) {
+          switch (
+            MvuShape.safe_evaluate(
+              ap(
+                Forward,
+                view_fn,
+                view_arg(~takes_ctx=view_takes_ctx, model),
+              ),
+            )
+          ) {
           | Error(e) => err("livelit view error: " ++ e)
-          | Ok(html) when MvuShape.is_html(html) =>
+          | Ok(html)
+              when MvuShape.is_html(html) && MvuShape.is_settled(html) =>
             ok(HazelDOM.go(seed(~model, ~model_value), html))
+          /* stuck: a committed update still evaluating (its ^name is free
+             here) draws as the last good view, pending */
           | Ok(_) => err("livelit view did not produce HTML")
           }
         }
@@ -646,7 +695,7 @@ module M: Projector = {
         };
 
         switch (ll) {
-        | Some({user_def: Some(def_elab), _}) =>
+        | Some({user_def: Some(def_elab), view_takes_ctx, _}) =>
           let view_term = term =>
             Exp(term)
             |> info.utility.term_to_seg(~inline=true)
@@ -662,6 +711,7 @@ module M: Projector = {
               user_view(
                 ~id=info.id,
                 ~ll_name,
+                ~view_takes_ctx,
                 ~print_term=
                   term =>
                     /* Model terms contain no projectors or refractors, so
