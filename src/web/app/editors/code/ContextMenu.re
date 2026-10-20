@@ -82,10 +82,9 @@ module Shortcuts = {
 type command =
   | Perform(Action.t)
   | PasteFromClipboard
-  /* A link to what is under the cursor. Like Paste, not an editor action:
-     the URL is assembled from things the editor does not know -- which slide
-     this is and what the sidebar is showing -- and written to the system
-     clipboard (see CodeEditable.perform_from_menu). */
+  /* A link to here. Not an editor action: the page builds the link, from
+     what the editor does not know (the mode, the slide, the sidebar), as
+     Globals' CopyDeepLink (see CodeEditable.perform_from_menu). */
   | CopyDeepLink;
 
 let action_item = (~shortcut=?, ~tooltip=?, ~enabled=true, label, action) =>
@@ -235,8 +234,7 @@ let introduce_data =
  * would prompt on every right-click. Rich web editors (Google Docs, VS
  * Code for the Web) leave Paste enabled for the same reason and only
  * find out at click time. */
-let clipboard_data =
-    (~linkable: bool, z: Zipper.t): list(Menu.item(command)) => {
+let clipboard_data = (z: Zipper.t): list(Menu.item(command)) => {
   let has_selection = !Selection.is_empty(z.selection);
   [
     action_item(
@@ -252,22 +250,13 @@ let clipboard_data =
       Action.Copy,
     ),
     command_item(~shortcut=Shortcuts.paste(), "Paste", PasteFromClipboard),
-  ]
-  /* Only where a link can name where it lands: the documentation deck
-     addresses its slides by name, and nothing else does yet, so elsewhere
-     the row would copy a link back to whatever the follower had open. */
-  @ (
-    linkable
-      ? [
-        command_item(
-          ~tooltip=
-            "Copy a link to this term, on this slide, with the sidebar as it is",
-          "Copy URL",
-          CopyDeepLink,
-        ),
-      ]
-      : []
-  );
+    command_item(
+      ~tooltip=
+        "Copy a link to here: on a documentation slide, the slide; anywhere else, a copy of this code",
+      "Copy URL",
+      CopyDeepLink,
+    ),
+  ];
 };
 
 let select_current_term_data = (): list(Menu.item(command)) => [
@@ -446,7 +435,6 @@ let refractor_actions_data =
 
 let get_sections =
     (
-      ~linkable: bool,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
@@ -457,7 +445,7 @@ let get_sections =
     /* Section 1: Navigation & Selection */
     jump_to_binding_data(ci) @ select_current_term_data(),
     /* Section 2: Clipboard */
-    clipboard_data(~linkable, z),
+    clipboard_data(z),
     /* Section 3: Refactoring */
     introduce_data(ci),
     /* Section 4: Probes/Statics (refractors) */
@@ -484,13 +472,12 @@ let flatten_sections =
 
 let get_all_items =
     (
-      ~linkable: bool,
       ~info_map: Language.Statics.Map.t,
       ~elaborated: Language.Exp.t,
       z: Zipper.t,
     )
     : list(Menu.item(command)) =>
-  flatten_sections(get_sections(~linkable, ~info_map, ~elaborated, z));
+  flatten_sections(get_sections(~info_map, ~elaborated, z));
 
 /* ============================================================
  * Update + keyboard
@@ -514,7 +501,6 @@ module WithContext = {
    * `Some(effect)` for handled keys, `None` to let the editor see them. */
   let handle_listener_key =
       (
-        ~linkable: bool,
         ~info_map: Language.Statics.Map.t,
         ~elaborated: Language.Exp.t,
         ~zipper: Zipper.t,
@@ -524,7 +510,7 @@ module WithContext = {
         key_str: string,
       )
       : option(Ui_effect.t(unit)) => {
-    let items = get_all_items(~linkable, ~info_map, ~elaborated, zipper);
+    let items = get_all_items(~info_map, ~elaborated, zipper);
     Menu.key_dispatcher(
       ~items,
       ~dispatch_menu,
@@ -576,7 +562,6 @@ let get_direction =
 
 let view =
     (
-      ~linkable: bool,
       ~inject: command => Ui_effect.t(unit),
       ~inject_menu: Menu.action => Ui_effect.t(unit),
       ~syntax: Haz3lcore.CachedSyntax.t,
@@ -588,7 +573,7 @@ let view =
     )
     : Node.t => {
   let caret_point = Zipper.Caret.point(syntax.measured, z);
-  let items = get_all_items(~linkable, ~info_map, ~elaborated, z);
+  let items = get_all_items(~info_map, ~elaborated, z);
   let menu_items =
     Menu.render(
       ~inject_action=inject,

@@ -68,6 +68,14 @@ module Action = {
     | Log(log)
     | SetMetaDown(bool)
     | SetSettingsFilter(string)
+    /* At load: the link's panel, and its caret or selection */
+    | FollowDeepLink(DeepLink.request)
+    /* Copy a link to here: this caret or selection, in an editor with this
+       text (the text is what the link carries where there is no slide) */
+    | CopyDeepLink({
+        position: DeepLink.position,
+        text: string,
+      })
     | UpdateVisibleRows(VisibleRows.t)
     | RethrowException
     | ClearException
@@ -83,11 +91,6 @@ module Model = {
     font_metrics: FontMetrics.t,
     meta_down: bool,
     visible_rows: option(VisibleRows.t),
-    /* The documentation slide showing, when one is: what a copied link names,
-       and the only deck `?slide=` can address. Assembled per frame in
-       `Page.main_view`, which is the first place that knows both the mode and
-       the slide -- an editor does not know it is on a slide at all. */
-    slide_name: option(string),
     /* the settings panel's filter text; not saved */
     settings_filter: string,
     // Calculated:
@@ -115,7 +118,6 @@ module Model = {
     font_metrics,
     meta_down: false,
     visible_rows: None,
-    slide_name: None,
     settings_filter: "",
     color_highlights: None,
     inject_global: _ =>
@@ -139,10 +141,7 @@ module Model = {
   };
 
   let load = () => {
-    /* A link's `?panel=` and the rest sit over the stored settings: the
-       reader arriving is shown what the link is about, and everything they
-       have not been sent to stays as they left it. */
-    let settings = Settings.Store.load() |> DeepLink.settings;
+    let settings = Settings.Store.load();
     init(~settings, ());
   };
 

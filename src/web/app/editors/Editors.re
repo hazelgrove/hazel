@@ -141,8 +141,7 @@ module Store = {
       ~settings,
       ~default_names,
       ~default_current,
-    )
-    |> ScratchMode.integrate_share(~settings);
+    );
   };
 
   let load_documentation = (~settings) => {
@@ -159,65 +158,55 @@ module Store = {
     ConfigurationMode.StoreConfig.load()
     |> ConfigurationMode.Model.unpersist(~settings);
 
-  /* A `?slide=` names a documentation slide, so open the deck there instead
-     of wherever this browser left it. Matching against the deck as loaded
-     rather than the shipped names is what survives a slide added, removed or
-     renamed since this browser last visited. A name that matches nothing is
-     ignored rather than opening the deck somewhere arbitrary: a link that has
-     gone stale should be no worse than no link at all.
+  /* A link's slide, if the deck has it. A name that matches nothing is
+     ignored, so a stale link is no worse than none. The slide is hydrated
+     because `load_all` reads only the slide it opens on and leaves the rest
+     as placeholders. */
+  let linked_slide = (~settings, slide: string): option(ScratchMode.Model.t) => {
+    let m = load_documentation(~settings);
+    DeepLink.slide_index(~slide, ScratchMode.Model.scratchpad_names(m))
+    |> Option.map(current =>
+         ScratchMode.Persist.hydrate_current(
+           ~settings,
+           "doc",
+           {
+             ...m,
+             current,
+           },
+         )
+       );
+  };
 
-     `hydrate_current` is not optional: `load_all` reads only the slide it
-     opens on and leaves every other one dormant, so moving `current` without
-     it lands on a placeholder -- the deck names the right slide, the
-     breadcrumb agrees, and the editor is empty. */
-  let linked_slide = (~settings): option(ScratchMode.Model.t) =>
-    switch (DeepLink.slide()) {
-    | None => None
-    | Some(_) =>
-      let m = load_documentation(~settings);
-      switch (DeepLink.slide_index(ScratchMode.Model.scratchpad_names(m))) {
-      | None => None
-      | Some(current) =>
-        Some(
-          ScratchMode.Persist.hydrate_current(
-            ~settings,
-            "doc",
-            {
-              ...m,
-              current,
-            },
-          ),
+  /* Where this browser was last, unless a link says where to land. */
+  let load = (~settings, ~instructor_mode, ~link: option(DeepLink.place)) => {
+    let stored = () =>
+      switch (StoreMode.load()) {
+      | Scratch => Model.Scratch(load_scratch(~settings))
+      | Documentation => Model.Documentation(load_documentation(~settings))
+      | Tutorial =>
+        Model.Tutorial(
+          TutorialsMode.Store.load(~settings, ~instructor_mode)
+          |> TutorialsMode.Model.unpersist(~settings, ~instructor_mode),
         )
+      | Exercises =>
+        Model.Exercises(
+          ExercisesMode.Store.load(~settings, ~instructor_mode)
+          |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
+        )
+      | Config => Model.Config(load_config(~settings))
       };
-    };
-
-  let load = (~settings, ~instructor_mode) => {
-    let has_share_params =
-      JsUtil.QueryParams.get_param("name") != None
-      && JsUtil.QueryParams.get_param("share") != None;
-
-    if (has_share_params) {
-      Model.Scratch(load_scratch(~settings));
-    } else {
-      switch (linked_slide(~settings)) {
+    switch (link) {
+    | None => stored()
+    | Some({target: Scratchpad({name, text}), _}) =>
+      Model.Scratch(
+        load_scratch(~settings)
+        |> ScratchMode.integrate_share(~settings, ~name, ~text),
+      )
+    | Some({target: Documentation(slide), _}) =>
+      switch (linked_slide(~settings, slide)) {
       | Some(m) => Model.Documentation(m)
-      | None =>
-        switch (StoreMode.load()) {
-        | Scratch => Model.Scratch(load_scratch(~settings))
-        | Documentation => Model.Documentation(load_documentation(~settings))
-        | Tutorial =>
-          Model.Tutorial(
-            TutorialsMode.Store.load(~settings, ~instructor_mode)
-            |> TutorialsMode.Model.unpersist(~settings, ~instructor_mode),
-          )
-        | Exercises =>
-          Model.Exercises(
-            ExercisesMode.Store.load(~settings, ~instructor_mode)
-            |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
-          )
-        | Config => Model.Config(load_config(~settings))
-        }
-      };
+      | None => stored()
+      }
     };
   };
 
@@ -246,7 +235,7 @@ module Store = {
     HazelDB.kv_clear();
     let _ = TutorialsMode.Store.reset(~settings, ~instructor_mode);
     let _ = ExercisesMode.Store.reset(~settings, ~instructor_mode);
-    load(~settings, ~instructor_mode);
+    load(~settings, ~instructor_mode, ~link=None);
   };
 };
 

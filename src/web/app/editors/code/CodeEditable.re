@@ -581,46 +581,21 @@ module View = {
           : Effect.Ignore;
       Effect.Many([cache_for_paste, JsUtil.write_clipboard(str)]);
     };
-    /* The span a copied link should carry: the selection if there is one, and
-       otherwise the term the cursor is in -- the same unit "Select term"
-       selects, computed the same way, so the link selects what the reader
-       would have got by asking for it. Somewhere with no term (whitespace
-       between two of them) falls back to the caret. */
-    let deep_link_span = (): option((Point.t, Point.t)) => {
+    /* Where a copied link puts the reader: this selection, or else the
+       caret. */
+    let deep_link_position = (): DeepLink.position => {
       let z = model.editor.state.zipper;
-      let syntax = model.editor.syntax;
-      let selected =
-        Haz3lcore.Selection.is_empty(z.selection)
-          ? Select.select_enclosing_term(
-              syntax.term_data,
-              syntax.measured,
-              model.statics.info_map,
-              z,
-            )
-          : Some(z);
-      let caret = () => {
-        let p = Zipper.Caret.point(syntax.measured, z);
-        Some((p, p));
-      };
-      switch (selected) {
-      | None => caret()
-      | Some(z') =>
-        switch (z'.selection.content) {
-        | [] => caret()
-        | [first, ..._] as content =>
-          switch (
-            try(
-              Some((
-                Measured.find_p(first, syntax.measured),
-                Measured.find_p(ListUtil.last(content), syntax.measured),
-              ))
-            ) {
-            | _ => None
-            }
-          ) {
-          | None => caret()
-          | Some((head, tail)) => Some((head.origin, tail.last))
-          }
+      let measured = model.editor.syntax.measured;
+      let caret = () => DeepLink.Caret(Zipper.Caret.point(measured, z));
+      switch (z.selection.content) {
+      | [] => caret()
+      | [first, ..._] as content =>
+        switch (
+          Measured.find_p(first, measured),
+          Measured.find_p(ListUtil.last(content), measured),
+        ) {
+        | (head, tail) => DeepLink.position_of_span((head.origin, tail.last))
+        | exception _ => caret()
         }
       };
     };
@@ -651,12 +626,11 @@ module View = {
         ])
       | CopyDeepLink =>
         Effect.Many([
-          JsUtil.write_clipboard(
-            DeepLink.url(
-              ~slide=globals.slide_name,
-              ~sidebar=globals.settings.sidebar,
-              ~span=deep_link_span(),
-            ),
+          globals.inject_global(
+            CopyDeepLink({
+              position: deep_link_position(),
+              text: Model.to_string(model),
+            }),
           ),
           inject(ContextMenu(ContextMenu.Model.Close)),
         ])
@@ -671,7 +645,6 @@ module View = {
       ~handle_key=
         key_str =>
           ContextMenu.WithContext.handle_listener_key(
-            ~linkable=globals.slide_name != None,
             ~info_map=model.statics.info_map,
             ~elaborated=model.statics.elaborated,
             ~zipper=model.editor.state.zipper,
@@ -716,7 +689,6 @@ module View = {
                   [],
                 ),
                 ContextMenu.view(
-                  ~linkable=globals.slide_name != None,
                   ~inject=perform_from_menu,
                   ~inject_menu=a => inject(ContextMenu(a)),
                   ~syntax=model.editor.syntax,

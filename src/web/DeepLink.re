@@ -4,136 +4,180 @@ open OptUtil.Syntax;
 module Action = Haz3lcore.Action;
 module Sidebar = SidebarModel.Settings;
 
-/* Where a link lands.
+/* A link that says where to land, read once at load:
  *
- * Hazel opens wherever this browser was last: the mode and the slide come
- * back out of IndexedDB, and so does the sidebar. That is right for someone
- * returning and wrong for someone arriving, who follows a link about one
- * particular thing and lands in the tutorial, or in a scratchpad, or on
- * whichever slide they happened to leave open months ago. These parameters
- * say where to land instead. They are read once, at load.
- *
- *   ?slide=livelits-builtins       a documentation slide, by name
- *   ?panel=probes                  which sidebar panel is open (none: closed)
- *   ?caret=12,4                    the caret, at line 12 column 4
+ *   ?slide=livelits-builtins       a documentation slide, by name (a pointer)
+ *   ?name=Demo&share=<text>        a new scratchpad with this text (a snapshot)
+ *   ?panel=probes                  the sidebar panel to open; `none` closes it
+ *   ?caret=12,4                    the caret at line 12, column 4
  *   ?select=12,1-14,20             that span selected, instead of a caret
  *
- * Lines and columns are 1-based, the way the gutter numbers them, and a
- * column past the end of its line lands at the end of the line -- so
- * `select=12-14` selects three whole lines.
- *
- * Names are matched loosely: everything but letters and digits is dropped
- * from both sides, so `livelits-builtins`, `Livelits / Builtins` and
- * `LivelitsBuiltins` all name the same slide. A link can carry a slug
- * instead of a title with spaces and slashes in it, which is what a link
- * someone hand-writes will look like.
- *
- * `url` builds one of these, for the context menu's "Copy URL": the slide, the
- * panel's view state, and the span the reader was pointing at. What the panel
- * is SHOWING is not in the link, and cannot be: it is whatever running the
- * slide's program produces.
- *
- * Nothing here writes to the URL, and nothing here is a mode of its own: a
- * deep link sets where you are, and from then on it is ordinary state, saved
- * like any other. Reloading without the parameters leaves you where the link
- * put you, not where you were before it.
- */
+ * Lines and columns are 1-based, as the gutter numbers them. A caret or a
+ * selection needs a slide or a share to be in: without one it is ignored.
+ * After landing, everything is ordinary state, saved as usual. */
 
-/* Letters and digits, lowercased. Both sides of every name comparison go
-   through this, so spacing, case and punctuation cost nothing. */
-let key = (s: string): string =>
+[@deriving (show({with_path: false}), sexp, yojson)]
+type target =
+  /* A slide in the documentation deck, by name. It follows later edits to
+     the slide, in whatever build the link is opened in. */
+  | Documentation(string)
+  /* A scratchpad made from this text. It shows exactly what was sent. */
+  | Scratchpad({
+      name: string,
+      text: string,
+    });
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type position =
+  | Caret(Point.t)
+  | Select({
+      from: Point.t,
+      to_: Point.t,
+    });
+
+/* A position only means something inside a target, so it lives here and
+   nowhere else. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type place = {
+  target,
+  position: option(position),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type panel_request =
+  | Closed
+  | Open(Sidebar.panel);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type request = {
+  place: option(place),
+  panel: option(panel_request),
+};
+
+let none: request = {
+  place: None,
+  panel: None,
+};
+
+/* --- Parsing --- */
+
+/* Lowercase letters and digits only, for comparing names loosely:
+   `livelits-builtins`, `Livelits / Builtins` and `LivelitsBuiltins` are the
+   same slide. */
+let loose_name = (s: string): string =>
   String.to_seq(s)
   |> Seq.filter_map(c =>
        switch (Char.lowercase_ascii(c)) {
-       | 'a' .. 'z' as c
-       | '0' .. '9' as c => Some(c)
+       | ('a' .. 'z' | '0' .. '9') as c => Some(c)
        | _ => None
        }
      )
   |> String.of_seq;
 
-/* An empty parameter is the same as none: `?slide=` in a hand-written link
-   should not override anything. */
-let param = (name: string): option(string) =>
-  switch (JsUtil.QueryParams.get_param(name)) {
-  | Some("")
-  | None => None
-  | Some(value) => Some(value)
-  };
+/* Past the end of any real line. Moving to a column past the end of a line
+   lands at its end, so `select=12-14` selects three whole lines. */
+let line_end = 10_000;
 
-/* Pick the variant a parameter names, comparing against the constructor
-   names themselves: a panel or a view added later is linkable without
-   anything here changing. `aliases` shortens the ones whose constructor name
-   is not what a reader would write. */
-let variant =
-    (
-      ~all: list('a),
-      ~show: 'a => string,
-      ~aliases: list((string, 'a))=[],
-      name: string,
-    )
-    : option('a) => {
-  let* wanted = param(name) |> Option.map(key);
-  switch (List.find_opt(((alias, _)) => key(alias) == wanted, aliases)) {
-  | Some((_, value)) => Some(value)
-  | None => List.find_opt(value => key(show(value)) == wanted, all)
+/* `<line>` or `<line>,<column>`, 1-based. */
+let point = (~default_col: int, s: string): option(Point.t) => {
+  let zero_based = n => max(n - 1, 0);
+  let int = s => int_of_string_opt(String.trim(s));
+  switch (String.split_on_char(',', String.trim(s))) {
+  | [row] =>
+    let+ row = int(row);
+    Point.{
+      row: zero_based(row),
+      col: zero_based(default_col),
+    };
+  | [row, col] =>
+    let* row = int(row);
+    let+ col = int(col);
+    Point.{
+      row: zero_based(row),
+      col: zero_based(col),
+    };
+  | _ => None
   };
 };
 
-/* --- The slide --- */
-
-let slide = (): option(string) => param("slide");
-
-/* Which of `names` the `?slide=` names, if any. Matching against the deck
-   as loaded -- not against the shipped list -- is what makes this survive a
-   slide being added, removed or renamed in a browser that has been here
-   before. */
-let slide_index = (names: list(string)): option(int) => {
-  let* wanted = slide() |> Option.map(key);
-  names
-  |> List.mapi((i, name) => (i, key(name)))
-  |> List.find_opt(((_, name)) => name == wanted)
-  |> Option.map(fst);
-};
-
-/* --- The sidebar --- */
-
-/* The shorter spellings, and the only place they are written down: `url`
-   reads this backwards to pick what to put in a link. */
-let panel_aliases =
-  Sidebar.[
-    ("docs", LanguageDocumentation),
-    ("assistant", HelpfulAssistant),
-    ("log", LogControl),
-    ("task", TaskReference),
-    ("debug", DebugInfo),
-  ];
-
-/* A closed sidebar is a view state like any other, so a link can ask for it:
-   `panel=none`. Without this a copied link could only ever open something. */
-type panel_request =
-  | Closed
-  | Open(Sidebar.panel);
-
-let panel = (): option(panel_request) =>
-  switch (param("panel") |> Option.map(key)) {
-  | None => None
-  | Some("none" | "off" | "closed") => Some(Closed)
-  | Some(_) =>
-    variant(
-      ~all=Sidebar.all_of_panel,
-      ~show=Sidebar.show_panel,
-      ~aliases=panel_aliases @ [("documentation", LanguageDocumentation)],
-      "panel",
-    )
-    |> Option.map(p => Open(p))
+/* `<point>-<point>`. Without a column, the start is the head of its line and
+   the end is the end of its line. */
+let select = (s: string): option(position) =>
+  switch (String.split_on_char('-', s)) {
+  | [from, to_] =>
+    let* from = point(~default_col=1, from);
+    let+ to_ = point(~default_col=line_end, to_);
+    Select({
+      from,
+      to_,
+    });
+  | _ => None
   };
 
-/* The settings a link asks for, over the ones that were stored. */
-let settings = (settings: Settings.Model.t): Settings.Model.t => {
+/* The request in a query. `lookup` gives a parameter's value; an empty one
+   counts as missing. A share wins over a slide, and a selection over a
+   caret. */
+let parse = (lookup: string => option(string)): request => {
+  let param = name =>
+    switch (lookup(name)) {
+    | Some("")
+    | None => None
+    | Some(value) => Some(value)
+    };
+  let target =
+    switch (param("share"), param("slide")) {
+    | (Some(share), _) =>
+      Some(
+        Scratchpad({
+          name: Option.value(param("name"), ~default="Unknown Share"),
+          text: StringUtil.decompress(share),
+        }),
+      )
+    | (None, Some(slide)) => Some(Documentation(slide))
+    | (None, None) => None
+    };
+  let position =
+    switch (param("select"), param("caret")) {
+    | (Some(s), _) => select(s)
+    | (None, Some(c)) =>
+      point(~default_col=1, c) |> Option.map(p => Caret(p))
+    | (None, None) => None
+    };
+  let panel =
+    switch (param("panel") |> Option.map(loose_name)) {
+    | None => None
+    | Some("none" | "off" | "closed") => Some(Closed)
+    | Some(name) =>
+      Sidebar.panel_of_url_name(name) |> Option.map(p => Open(p))
+    };
+  {
+    place:
+      target
+      |> Option.map(target =>
+           {
+             target,
+             position,
+           }
+         ),
+    panel,
+  };
+};
+
+/* The request in this page's URL. */
+let current = (): request => parse(JsUtil.QueryParams.get_param);
+
+/* --- Applying --- */
+
+/* Which of `names` is `slide`, if any. */
+let slide_index = (~slide: string, names: list(string)): option(int) =>
+  List.find_index(name => loose_name(name) == loose_name(slide), names);
+
+/* The settings with the request's panel over them. */
+let settings =
+    (request: request, settings: Settings.Model.t): Settings.Model.t => {
   let sidebar = settings.sidebar;
   let (show, panel) =
-    switch (panel()) {
+    switch (request.panel) {
     | None => (sidebar.show, sidebar.panel)
     | Some(Closed) => (false, sidebar.panel)
     | Some(Open(p)) => (true, p)
@@ -148,123 +192,76 @@ let settings = (settings: Settings.Model.t): Settings.Model.t => {
   };
 };
 
-/* --- The caret --- */
-
-/* Past the end of any line anyone writes. `Move.to_point` walks towards its
-   goal and stops when the row runs out, so a column this large lands at the
-   end of the line -- which is what a range given as whole lines means. */
-let line_end = 10_000;
-
-/* `<line>` or `<line>,<column>`, 1-based, as the gutter numbers them. */
-let point = (~default_col: int, s: string): option(Point.t) => {
-  let clamp = n => max(n - 1, 0);
-  switch (String.split_on_char(',', String.trim(s))) {
-  | [row] =>
-    let+ row = int_of_string_opt(String.trim(row));
-    Point.{
-      row: clamp(row),
-      col: clamp(default_col),
-    };
-  | [row, col] =>
-    let* row = int_of_string_opt(String.trim(row));
-    let+ col = int_of_string_opt(String.trim(col));
-    Point.{
-      row: clamp(row),
-      col: clamp(col),
-    };
-  | _ => None
+/* The editor action for the request's position, once the target is open. */
+let action = (request: request): option(Action.t) => {
+  let* {position, _} = request.place;
+  let+ position = position;
+  switch (position) {
+  | Caret(p) => Action.Move(Action.Point(p, None))
+  | Select({from, to_}) => Action.Select(Action.PointToPoint((from, to_)))
   };
 };
 
-/* `<point>-<point>`: the first point without a column starts at the head of
-   its line, the second without one runs to the end of its line. */
-let span = (s: string): option((Point.t, Point.t)) =>
-  switch (String.split_on_char('-', s)) {
-  | [from_, to_] =>
-    let* from_ = point(~default_col=1, from_);
-    let+ to_ = point(~default_col=line_end, to_);
-    (from_, to_);
-  | _ => None
-  };
-
-/* What the link asks the editor to do once there is an editor to ask. A
-   selection wins over a caret: the two answer the same question, and saying
-   both is a mistake worth resolving the more specific way. */
-let action = (): option(Action.t) =>
-  switch (param("select"), param("caret")) {
-  | (Some(select), _) =>
-    span(select)
-    |> Option.map(points => Action.Select(Action.PointToPoint(points)))
-  | (None, Some(caret)) =>
-    point(~default_col=1, caret)
-    |> Option.map(p => Action.Move(Action.Point(p, None)))
-  | (None, None) => None
-  };
-
-/* --- Building one --- */
+/* --- Building a link --- */
 
 /* A name as it goes into a link: `Livelits / Builtins` becomes
-   `livelits-builtins`, which `key` reads back as the same thing. The
-   percent-encoded title would work too and is unreadable. */
-let slug = (s: string): string => {
-  let out = Buffer.create(String.length(s));
-  String.iter(
-    c =>
-      switch (Char.lowercase_ascii(c)) {
-      | ('a' .. 'z' | '0' .. '9') as c => Buffer.add_char(out, c)
-      | _ =>
-        if (Buffer.length(out) > 0
-            && Buffer.nth(out, Buffer.length(out) - 1) != '-') {
-          Buffer.add_char(out, '-');
-        }
-      },
-    s,
-  );
-  let out = Buffer.contents(out);
-  /* A trailing separator comes from trailing punctuation, and says nothing. */
-  String.length(out) > 0 && out.[String.length(out) - 1] == '-'
-    ? String.sub(out, 0, String.length(out) - 1) : out;
-};
+   `livelits-builtins`, which `loose_name` reads back as the same slide. */
+let slug = (s: string): string =>
+  String.to_seq(s)
+  |> Seq.map(c =>
+       switch (Char.lowercase_ascii(c)) {
+       | ('a' .. 'z' | '0' .. '9') as c => c
+       | _ => '-'
+       }
+     )
+  |> String.of_seq
+  |> String.split_on_char('-')
+  |> List.filter(part => part != "")
+  |> String.concat("-");
 
-/* The shortest spelling that reads back as this panel. */
-let panel_key = (p: Sidebar.panel): string =>
-  switch (List.find_opt(((_, q)) => q == p, panel_aliases)) {
-  | Some((alias, _)) => alias
-  | None => slug(Sidebar.show_panel(p))
-  };
-
-/* 1-based, as the gutter numbers them and as `point` reads them back. */
-let point_key = (p: Point.t): string =>
+/* 1-based, as `point` reads it back. */
+let point_param = (p: Point.t): string =>
   string_of_int(p.row + 1) ++ "," ++ string_of_int(p.col + 1);
 
-/* The link that lands someone where this reader is: the slide, the panel's
-   view state, and the span they were pointing at. A closed sidebar is stated
-   rather than omitted, since a missing parameter means "leave it alone" and
-   would hand the follower whatever panel they happened to have open. */
-let url =
-    (
-      ~slide: option(string),
-      ~sidebar: Sidebar.t,
-      ~span: option((Point.t, Point.t)),
-    )
-    : string => {
-  let slide =
-    switch (slide) {
+/* The query for a request. `parse` reads it back as the same request, except
+   that a slide's name comes back as its slug. A closed sidebar is written
+   out, because a missing `panel` means "leave it as it is". */
+let to_params = (request: request): list((string, string)) => {
+  let target =
+    switch (request.place) {
     | None => []
-    | Some(name) => [("slide", slug(name))]
+    | Some({target: Documentation(slide), _}) => [("slide", slug(slide))]
+    | Some({target: Scratchpad({name, text}), _}) => [
+        ("name", name),
+        ("share", StringUtil.compress(text)),
+      ]
     };
   let panel =
-    sidebar.show
-      ? [("panel", panel_key(sidebar.panel))] : [("panel", "none")];
-  let span =
-    switch (span) {
+    switch (request.panel) {
     | None => []
-    | Some((from_, to_)) when Point.equals(from_, to_) => [
-        ("caret", point_key(from_)),
-      ]
-    | Some((from_, to_)) => [
-        ("select", point_key(from_) ++ "-" ++ point_key(to_)),
-      ]
+    | Some(Closed) => [("panel", "none")]
+    | Some(Open(p)) => [("panel", Sidebar.url_name_of_panel(p))]
     };
-  JsUtil.QueryParams.url_with(slide @ panel @ span);
+  let position =
+    switch (request.place) {
+    | Some({position: Some(Caret(p)), _}) => [("caret", point_param(p))]
+    | Some({position: Some(Select({from, to_})), _}) => [
+        ("select", point_param(from) ++ "-" ++ point_param(to_)),
+      ]
+    | _ => []
+    };
+  target @ panel @ position;
 };
+
+/* This page's address with the request as its query. */
+let url = (request: request): string =>
+  JsUtil.QueryParams.url_with(to_params(request));
+
+/* A selection's ends, or a caret where they meet. */
+let position_of_span = ((from, to_): (Point.t, Point.t)): position =>
+  Point.equals(from, to_)
+    ? Caret(from)
+    : Select({
+        from,
+        to_,
+      });

@@ -247,15 +247,13 @@ let start = default_model => {
         ),
       );
     });
-    /* A deep link's slide and panel are settled before Bonsai starts, but its
-       caret is an action, and there is no editor to act on until the model is
-       up. `scroll_to_caret` because a Point move does not ask for a scroll --
-       it comes from a click, which is already in view -- and a link's does
-       not: the span it names is the whole reason someone followed it. */
-    switch (DeepLink.action()) {
-    | None => ()
-    | Some(action) =>
-      schedule_action(Page.Update.Globals(ActiveEditor(action)));
+    /* A deep link: its slide or scratchpad opened as the model loaded, and
+       its panel and caret are actions, now that there is an editor to act
+       on. `scroll_to_caret` because a caret moved by a click is already in
+       view, and one moved by a link is not. */
+    let link = DeepLink.current();
+    if (link != DeepLink.none) {
+      schedule_action(Page.Update.Globals(FollowDeepLink(link)));
       scroll_to_caret := true;
     };
     // Sync log count from database
