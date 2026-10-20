@@ -287,29 +287,27 @@ module Update = {
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
     let editors: Tutorial.p('a) = {
-      let calculate =
-        Editor.Update.calculate(~settings, ~autoprobe_mode, ~is_edited);
+      let calculate = (cell: CellEditor.Model.t) =>
+        Editor.Update.calculate(
+          ~settings,
+          ~autoprobe_mode,
+          ~is_edited,
+          ~dynamics_complete=EvalResult.Model.dynamics_complete(cell.result),
+          cell.editor.statics,
+          cell.editor.dynamics,
+        );
       {
         id: model.editors.id,
         title: model.editors.title,
         version: model.editors.version,
         module_name: model.editors.module_name,
         prompt: model.editors.prompt,
-        your_impl:
-          calculate(
-            cells.user_impl.editor.statics,
-            cells.user_impl.editor.dynamics,
-            model.editors.your_impl,
-          ),
+        your_impl: calculate(cells.user_impl, model.editors.your_impl),
         display_hint: model.editors.display_hint,
         task_reference: model.editors.task_reference,
         hidden_tests: {
           tests:
-            calculate(
-              cells.hidden_tests.editor.statics,
-              cells.hidden_tests.editor.dynamics,
-              model.editors.hidden_tests.tests,
-            ),
+            calculate(cells.hidden_tests, model.editors.hidden_tests.tests),
           hints: model.editors.hidden_tests.hints,
         },
         solution: model.editors.solution,
