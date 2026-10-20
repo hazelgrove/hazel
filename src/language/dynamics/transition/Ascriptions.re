@@ -82,7 +82,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           );
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       let es' =
-        List.map2_exn(es, tys, ~f=(e, ty) => recur(Asc(e, ty) |> DHExp.fresh));
+        List.map2_exn(es, tys, ~f=(e, ty) =>
+          recur(Asc(e, ty) |> DHExp.fresh)
+        );
       unchanged(es, es')
         ? Some(e)
         : Some(
