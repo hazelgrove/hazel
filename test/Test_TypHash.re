@@ -32,9 +32,146 @@ let differ = (name, a, b) =>
     check(bool, "hash apart", false, hash(a) == hash(b))
   );
 
+/* (^report(21), ^ticket(411)) Over the corpus and at random: the hash is a
+   cache key for Ascriptions.consistent_by_hash, so equal hashes must mean
+   types the consistency check cannot tell apart. */
+let rec hz_files = dir =>
+  Sys.readdir(dir)
+  |> Array.to_list
+  |> List.sort(compare)
+  |> List.concat_map(f => {
+       let path = Filename.concat(dir, f);
+       Sys.is_directory(path)
+         ? hz_files(path) : Filename.check_suffix(f, ".hz") ? [path] : [];
+     });
+/* every type in every program's info map: what each expression and
+   pattern has and is expected to have, and each type annotation */
+let corpus_types =
+  lazy(
+    switch (
+      List.find_opt(
+        Sys.file_exists,
+        ["hazel-programs", "../../../hazel-programs"],
+      )
+    ) {
+    | None => []
+    | Some(root) =>
+      hz_files(root)
+      |> List.concat_map(file => {
+           let ic = open_in_bin(file);
+           let text = really_input_string(ic, in_channel_length(ic));
+           close_in(ic);
+           switch (
+             Haz3lcore.PersistentZipper.parse_text(
+               ~source="t",
+               ~root=Exp,
+               text,
+             )
+           ) {
+           | None => []
+           | Some(z) =>
+             let Haz3lcore.MakeTerm.{term, _} =
+               Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
+             let (info_map, _) =
+               Statics.mk(
+                 CoreSettings.on,
+                 Builtins.ctx_init(Some(Int)),
+                 term,
+               );
+             Id.Map.fold(
+               (_, info: Info.t, acc) =>
+                 switch (info) {
+                 | InfoExp(e) => [e.ty, e.ana, e.elab_syn_ty, ...acc]
+                 | InfoPat(p) => [p.ty, p.ana, p.elab_syn_ty, ...acc]
+                 | InfoTyp(t) => [t.user_term, ...acc]
+                 | _ => acc
+                 },
+               info_map,
+               [],
+             );
+           };
+         })
+    }
+  );
+
+/* Same hash, the same type up to ids and provenance (Typ.fast_equal). */
+let census = () => {
+  let groups = Hashtbl.create(4096);
+  let collisions = ref([]);
+  let tys = Lazy.force(corpus_types);
+  tys
+  |> List.iter(ty =>
+       switch (TypHash.hash(ty)) {
+       | None => ()
+       | Some(h) =>
+         switch (Hashtbl.find_opt(groups, h)) {
+         | None => Hashtbl.add(groups, h, ty)
+         | Some(first) =>
+           if (!Typ.fast_equal(first, ty)) {
+             collisions := [Typ.show(ty), ...collisions^];
+           }
+         }
+       }
+     );
+  check(
+    bool,
+    Printf.sprintf(
+      "the corpus's types hashed: %d, %d distinct",
+      List.length(tys),
+      Hashtbl.length(groups),
+    ),
+    true,
+    List.length(tys) > 1000,
+  );
+  check(
+    list(string),
+    "types of one hash that are not the same type",
+    [],
+    collisions^,
+  );
+};
+
+/* A copy with every unknown's provenance changed: new objects, the same
+   hash, so a remembered answer is what it gets. */
+let twin = (ty: Typ.t): Typ.t =>
+  Typ.map_term(
+    ~f_typ=
+      (continue, t: Typ.t) =>
+        switch (t.term) {
+        | Unknown(_) => {
+            ...t,
+            term: Unknown(Internal),
+          }
+        | _ => continue(t)
+        },
+    ty,
+  );
+let remembered_is_direct =
+  QCheck_alcotest.to_alcotest(
+    QCheck.Test.make(
+      ~name="the remembered consistency answer is the direct one, both ways",
+      ~count=500,
+      QCheck.pair(
+        QCheck_Util.arb_typ(~minimal_idents=true, 5),
+        QCheck_Util.arb_typ(~minimal_idents=true, 5),
+      ),
+      ((a, b)) => {
+        let direct = (x, y) => Typ.is_consistent(Ctx.empty, x, y);
+        let memo = (x, y) =>
+          Ascriptions.consistent_by_hash(x, y, () => direct(x, y));
+        List.for_all(
+          ((x, y)) => memo(x, y) == direct(x, y),
+          [(a, b), (twin(a), twin(b)), (b, a), (twin(b), twin(a))],
+        );
+      },
+    ),
+  );
+
 let tests = (
   "TypHash",
   [
+    test_case("the corpus: one hash, one type", `Slow, census),
+    remembered_is_direct,
     same(
       "two copies of a type",
       arrow(ty_int(), ty_bool()),
