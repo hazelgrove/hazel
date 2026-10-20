@@ -778,6 +778,9 @@ and ModItem: {
       mod_let(Pat.of_menhir_ast(p), Exp.of_menhir_ast(e))
     | ModItemType(tp, t) =>
       mod_type(TPat.of_menhir_ast(tp), Typ.of_menhir_ast(t))
+    /* a bare hole in member position is a member hole, as the editor
+       reads it */
+    | ModItemExp(EmptyHole) => empty_hole()
     | ModItemExp(e) => mod_exp(Exp.of_menhir_ast(e))
     | ModItemModule(p, e) =>
       let mp = mpat_of_pat(Pat.of_menhir_ast(p));
