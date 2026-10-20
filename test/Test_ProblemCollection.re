@@ -281,6 +281,45 @@ let nearest_measured_id_inside_fold = () => {
   );
 };
 
+/* an error inside a fold has no measurements */
+let error_arms_inside_fold = () => {
+  let src = "let g = ^^fold(f) in 1";
+  let z =
+    switch (Haz3lcore.Parser.to_zipper(~root=Exp, src)) {
+    | Some(z) => z
+    | None => fail("Failed to parse: " ++ src)
+    };
+  let editor = Haz3lcore.Editor.Model.mk(z, ~root=Exp);
+  let statics =
+    Haz3lcore.CachedStatics.init(
+      ~settings=Language.CoreSettings.on,
+      ~is_dynamic_term=false,
+      ~stitch=Fun.id,
+      ~root=Exp,
+      editor.state.zipper,
+    );
+  check(
+    bool,
+    "an error id is not measured",
+    true,
+    List.exists(
+      id => Haz3lcore.Measured.find_by_id(id, editor.syntax.measured) == None,
+      statics.error_ids,
+    ),
+  );
+  let arms = (~simple_indication) =>
+    Web.Arms.Errors.of_ids(
+      ~simple_indication,
+      ~font_metrics=Web.FontMetrics.init,
+      ~syntax=editor.syntax,
+      ~completion=Web.Arms.lazy_completion(editor.state.zipper),
+      statics.error_ids,
+    )
+    |> ignore;
+  arms(~simple_indication=false);
+  arms(~simple_indication=true);
+};
+
 /* ---------- ProblemCollection.make tests ---------- */
 
 let make_empty_inputs = () => {
@@ -508,6 +547,11 @@ let nearest_measured_id_cases = [
     "nearest_measured_id resolves ids inside a fold projector",
     `Quick,
     nearest_measured_id_inside_fold,
+  ),
+  test_case(
+    "error arms skip an error inside a fold (Simple Indication)",
+    `Quick,
+    error_arms_inside_fold,
   ),
 ];
 
