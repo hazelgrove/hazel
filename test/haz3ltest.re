@@ -105,6 +105,7 @@ let (suite, exit_with_test_status) =
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
       Test_Ascriptions.tests,
+      Test_Evaluator_Evaluations.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests

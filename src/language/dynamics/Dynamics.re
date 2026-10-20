@@ -39,17 +39,25 @@ module Info = {
 };
 
 module Map = {
-  /* holds FINALIZED maps (eval order) so lookup is a plain find — see Sample.Map.finalize */
+  /* The dynamics an editor shows on its terms: the probe samples, as a
+     FINALIZED map (eval order) so lookup is a plain find — see
+     Sample.Map.finalize — and how many times each term was evaluated. */
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Sample.Map.t;
-  let empty: t = Sample.Map.empty;
-  let mk: t => t = Fun.id;
-  let lookup = (id, map: t) => Id.Map.find_opt(id, map);
+  type t = {
+    samples: Sample.Map.t,
+    evaluations: Id.Map.t(int),
+  };
+  let empty: t = {
+    samples: Sample.Map.empty,
+    evaluations: Id.Map.empty,
+  };
+  let lookup = (id, {samples, _}: t) => Id.Map.find_opt(id, samples);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  probe_map: Sample.Map.t,
+  /* one record per result, so an editor can tell a new result by identity */
+  map: Map.t,
   test_results: TestResults.t,
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
 };

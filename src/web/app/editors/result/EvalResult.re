@@ -90,7 +90,7 @@ module Model = {
   let probe_results = (model: t): option(Sample.Map.t) =>
     model.dynamics
     |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.probe_map);
+    |> Option.map((d: Dynamics.t) => d.map.samples);
 
   let test_results = (model: t): option(TestResults.t) =>
     model.dynamics
@@ -98,9 +98,9 @@ module Model = {
     |> Option.map((d: Dynamics.t) => d.test_results);
 
   let dynamics = (model: t): Dynamics.Map.t =>
-    switch (probe_results(model)) {
-    | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
-    | None => Dynamics.Map.mk(Sample.Map.empty)
+    switch (model.dynamics |> Calc.get_saved(None)) {
+    | Some(d: Dynamics.t) => d.map
+    | None => Dynamics.Map.empty
     };
 
   let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
@@ -375,7 +375,10 @@ module Update = {
     // Turn state into dynamics map
     let dynamics_of_state = (state: EvaluatorState.t) =>
       Dynamics.{
-        probe_map: state |> EvaluatorState.get_probes |> Sample.Map.finalize,
+        map: {
+          samples: state |> EvaluatorState.get_probes |> Sample.Map.finalize,
+          evaluations: EvaluatorState.get_evaluations(state),
+        },
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
         theorems: state |> EvaluatorState.get_theorems,

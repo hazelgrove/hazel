@@ -1081,7 +1081,7 @@ let context_llm_snapshot_tests = [
       let eval_result = EvalResult.Model.init;
       let prog =
         CompositionView.Public.print(
-          ~probe_map=cws.dynamics,
+          ~probe_map=cws.dynamics.samples,
           cws.editor,
           chat.agent_view,
         );
