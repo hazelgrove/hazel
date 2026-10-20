@@ -6,7 +6,8 @@
  * just editing its .hzt and rebuilding.
  *
  * The .hzt marker format (see hazel-programs/tutorial/README.md):
- * @title/@prompt/@code/@test/@hint/@reference/@hints/@flags section lines;
+ * @title/@prompt/@code/@test/@solution/@hint/@reference/@hints/@flags
+ * section lines;
  * the default (markerless) section is @code. The inverse direction
  * (spec -> text) lives in src/CLI/TutorialDecode.re.
  */
@@ -18,6 +19,7 @@ type sections = {
   prompt: string,
   code: string,
   test: string,
+  solution: option(string),
   hint: string,
   reference: option(string),
   hints: list(string),
@@ -32,6 +34,7 @@ let empty_sections = {
   prompt: "",
   code: "",
   test: "",
+  solution: None,
   hint: "",
   reference: None,
   hints: [],
@@ -86,6 +89,7 @@ type marker =
   | Prompt
   | Code
   | Test
+  | Solution
   | Hint
   | Reference
   | Hints
@@ -97,6 +101,7 @@ let marker_of_line = (line: string): option(marker) =>
   | "@prompt" => Some(Prompt)
   | "@code" => Some(Code)
   | "@test" => Some(Test)
+  | "@solution" => Some(Solution)
   | "@hint" => Some(Hint)
   | "@reference" => Some(Reference)
   | "@hints" => Some(Hints)
@@ -139,6 +144,7 @@ let parse_sections = (content: string): sections => {
     prompt: String.trim(body(Prompt)),
     code: body(Code),
     test: String.trim(body(Test)),
+    solution: trimmed_opt(body(Solution)),
     hint: String.trim(body(Hint)),
     reference: trimmed_opt(body(Reference)),
     hints:
@@ -257,6 +263,7 @@ let spec_of = (i: int, (rel, raw): (string, string)): Tutorial.spec => {
       tests: zipper_of(~label="@test", ~rel, test),
       hints: s.hints,
     },
+    solution: Option.map(zipper_of(~label="@solution", ~rel), s.solution),
     wrapper: s.wrapper,
     show_report: s.show_report,
   };
