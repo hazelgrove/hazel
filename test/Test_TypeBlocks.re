@@ -8,26 +8,30 @@ let statics = (s: string): Statics.Map.t =>
   | None => fail("Failed to parse: " ++ s)
   };
 
-let blocks = (s: string): list(TypeBlocks.block) =>
-  TypeBlocks.of_map(statics(s));
+let blocks = (s: string): list(Blocks.t) => TypeBlocks.of_map(statics(s));
 
-let head = testable(Typ.pp_head, Typ.equal_head);
-let shapes = list(pair(int, head));
+let paint = testable(Blocks.pp_paint, Blocks.equal_paint);
+let shapes = list(pair(int, paint));
 
-/* (level, head) of every block, in a fixed order: ids are random, so
-   same-level blocks are ordered by head name. */
-let shape = (bs: list(TypeBlocks.block)): list((int, Typ.head)) =>
+/* (level, paint) of every block, in a fixed order: ids are random, so
+   same-level blocks are ordered by paint name. */
+let shape = (bs: list(Blocks.t)): list((int, Blocks.paint)) =>
   bs
-  |> List.map((b: TypeBlocks.block) => (b.level, b.head))
-  |> List.sort(((l1, h1), (l2, h2)) =>
+  |> List.map((b: Blocks.t) => (b.level, b.paint))
+  |> List.sort(((l1, p1), (l2, p2)) =>
        switch (Int.compare(l1, l2)) {
-       | 0 => String.compare(Typ.head_name(h1), Typ.head_name(h2))
+       | 0 => String.compare(Blocks.paint_name(p1), Blocks.paint_name(p2))
        | c => c
        }
      );
 
 let check_shape = (program: string, expected: list((int, Typ.head))) =>
-  check(shapes, program, expected, shape(blocks(program)));
+  check(
+    shapes,
+    program,
+    List.map(((l, h)) => (l, Blocks.Type(h)), expected),
+    shape(blocks(program)),
+  );
 
 let test_same_type_merges =
   test_case("of_map: same-typed subterms share one block", `Quick, () =>
@@ -74,8 +78,7 @@ let test_sorted_by_level =
     `Quick,
     () => {
       let levels =
-        blocks("[fun x -> x + 1]")
-        |> List.map((b: TypeBlocks.block) => b.level);
+        blocks("[fun x -> x + 1]") |> List.map((b: Blocks.t) => b.level);
       check(list(int), "levels", List.sort(Int.compare, levels), levels);
     },
   );

@@ -1,6 +1,6 @@
 /* The room a set of nested blocks asks of the layout, in units of one pad.
 
-   A block (TypeBlocks) occupies a run of columns on each of its rows.
+   A block (Blocks) occupies a run of columns on each of its rows.
    Blocks nested inside one another share edges, so an edge has a rank: how
    many edges, this block's own included, meet at that boundary from this
    block inward. The outermost of three blocks closing at one column has
@@ -33,7 +33,7 @@ type block_row = {
 
 [@deriving show({with_path: false})]
 type block = {
-  block: Language.TypeBlocks.block,
+  block: Language.Blocks.t,
   rows: list(block_row),
 };
 
@@ -70,6 +70,6 @@ let of_blocks:
     ~pad_cols: float,
     ~measured: Measured.t,
     ~term_data: TermData.t,
-    list(Language.TypeBlocks.block)
+    list(Language.Blocks.t)
   ) =>
   t;

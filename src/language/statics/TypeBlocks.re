@@ -1,12 +1,5 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type block = {
-  id: Id.t,
-  head: Typ.head,
-  level: int,
-};
-
 type typed = {
   head: Typ.head,
   ancestors: Info.ancestors,
@@ -75,7 +68,7 @@ let rec level_of =
     (Id.Map.add(id, r, levels), r);
   };
 
-let of_map = (m: StaticsBase.Map.t): list(block) => {
+let of_map = (m: StaticsBase.Map.t): list(Blocks.t) => {
   let typed = typed_terms(m);
   let (_, blocks) =
     Id.Map.fold(
@@ -85,10 +78,10 @@ let of_map = (m: StaticsBase.Map.t): list(block) => {
           levels,
           is_block
             ? [
-              {
+              Blocks.{
                 id,
-                head: t.head,
                 level,
+                paint: Type(t.head),
               },
               ...blocks,
             ]
@@ -99,7 +92,7 @@ let of_map = (m: StaticsBase.Map.t): list(block) => {
       (Id.Map.empty, []),
     );
   List.stable_sort(
-    (a, b) => Int.compare(a.level, b.level),
+    (a: Blocks.t, b: Blocks.t) => Int.compare(a.level, b.level),
     List.rev(blocks),
   );
 };

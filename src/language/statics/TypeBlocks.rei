@@ -11,13 +11,6 @@
    label, ...) are neither blocks nor parents: their descendants compare
    against the next typed ancestor up. */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type block = {
-  id: Id.t,
-  head: Typ.head,
-  level: int,
-};
-
-/* Every block of the program, in ascending level, so painting them in order
-   puts children over parents. */
-let of_map: StaticsBase.Map.t => list(block);
+/* Every block of the program, painted by its head, in ascending level, so
+   painting them in order puts children over parents. */
+let of_map: StaticsBase.Map.t => list(Blocks.t);

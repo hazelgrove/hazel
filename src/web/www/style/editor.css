@@ -344,12 +344,12 @@ svg.shard.error {
   z-index: var(--warn-hole-z);
 }
 
-/* TYPE BLOCKS: the region behind every term, keyed on its type (settings:
- * Type blocks). Below every other backing. */
-svg.shard.type-block {
-  z-index: var(--type-block-z);
+/* BLOCKS: the region behind every term, keyed on its type (settings:
+ * Blocks). Below every other backing. */
+svg.shard.block {
+  z-index: var(--block-z);
 }
-svg.shard.type-block > path {
+svg.shard.block > path {
   stroke-width: 1;
 }
 svg.shard.type-block-int > path {

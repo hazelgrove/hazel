@@ -8,7 +8,7 @@ type t = {
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
   warning_ids: list(Id.t),
-  type_blocks: list(TypeBlocks.block),
+  type_blocks: list(Blocks.t),
   completion: option(MakeTerm.completion_snapshot),
   targets: Sample.targets /* Maps expr/pat IDs to capture specs for sampling */
 };

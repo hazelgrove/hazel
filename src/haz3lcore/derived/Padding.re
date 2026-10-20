@@ -16,7 +16,7 @@ type block_row = {
 
 [@deriving show({with_path: false})]
 type block = {
-  block: Language.TypeBlocks.block,
+  block: Language.Blocks.t,
   rows: list(block_row),
 };
 
@@ -216,12 +216,12 @@ let of_blocks =
       ~pad_cols: float,
       ~measured: Measured.t,
       ~term_data: TermData.t,
-      blocks: list(Language.TypeBlocks.block),
+      blocks: list(Language.Blocks.t),
     )
     : t => {
   let extents =
     blocks
-    |> List.filter_map((b: Language.TypeBlocks.block) =>
+    |> List.filter_map((b: Language.Blocks.t) =>
          switch (TermData.row_extents(b.id, term_data, measured)) {
          | None
          | Some([]) => None
@@ -230,7 +230,7 @@ let of_blocks =
        );
   let spans =
     extents
-    |> List.concat_map(((b: Language.TypeBlocks.block, extents)) =>
+    |> List.concat_map(((b: Language.Blocks.t, extents)) =>
          List.map(
            extent =>
              {
@@ -243,7 +243,7 @@ let of_blocks =
     |> by_row((s: span) => s.extent.row);
   let blocks =
     extents
-    |> List.map(((b: Language.TypeBlocks.block, extents)) =>
+    |> List.map(((b: Language.Blocks.t, extents)) =>
          {
            block: b,
            rows:

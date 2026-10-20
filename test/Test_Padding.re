@@ -32,7 +32,8 @@ let rows_of = (p: Padding.t, level: int, head: Typ.head) =>
   switch (
     List.find_opt(
       (b: Padding.block) =>
-        b.block.level == level && Typ.equal_head(b.block.head, head),
+        b.block.level == level
+        && Blocks.equal_paint(b.block.paint, Type(head)),
       p.blocks,
     )
   ) {

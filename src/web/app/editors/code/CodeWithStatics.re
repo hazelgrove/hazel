@@ -263,7 +263,7 @@ type layout = {
 
 type layout_key = {
   measured: Measured.t,
-  blocks: list(Language.TypeBlocks.block),
+  blocks: list(Language.Blocks.t),
   font_metrics: FontMetrics.t,
   show: Settings.Blocks.t,
   how: Settings.Blocks.layout,
@@ -394,14 +394,14 @@ module View = {
         ~completion,
         warning_ids,
       );
-    let type_blocks =
+    let blocks =
       switch (globals.settings.blocks, padding) {
       | (Off, _) => []
       | (Types, Some(padding)) => [
-          Highlight.type_blocks(Highlight.padded_boxes(~grid, padding)),
+          Highlight.blocks(Highlight.padded_boxes(~grid, padding)),
         ]
       | (Types, None) => [
-          Highlight.type_blocks(
+          Highlight.blocks(
             Highlight.inset_boxes(
               ~grid,
               ~syntax=model.editor.syntax,
@@ -447,7 +447,7 @@ module View = {
       ],
       // errors after warnings to prioritize errors over warnings
       row_lines
-      @ type_blocks
+      @ blocks
       @ [code_text_view, warning_decos, error_decos]
       @ overlays,
     );

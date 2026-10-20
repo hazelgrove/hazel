@@ -770,19 +770,15 @@ let incr_eval =
   );
 };
 
-/* Type blocks (settings: Type blocks): a box per block per row, one shape per
-   run of rows (SvgUtil.Rows). */
-let type_blocks =
-    (blocks: list((Language.Typ.head, list(SvgUtil.Rows.box)))): Node.t =>
+/* Blocks (settings: Blocks): a box per block per row, one shape per run of
+   rows (SvgUtil.Rows). */
+let blocks =
+    (blocks: list((Language.Blocks.paint, list(SvgUtil.Rows.box)))): Node.t =>
   div_c(
-    "type-blocks",
+    "blocks",
     List.concat_map(
-      ((head, boxes)) => {
-        let base_cls = [
-          "shard",
-          "type-block",
-          "type-block-" ++ Language.Typ.head_name(head),
-        ];
+      ((paint, boxes)) => {
+        let base_cls = ["shard", "block", Language.Blocks.paint_name(paint)];
         boxes
         |> SvgUtil.Rows.split
         |> List.map(group =>
@@ -801,14 +797,10 @@ let inset_per_level = 1.5; /* px */
 let inset_levels = 3;
 
 let inset_boxes =
-    (
-      ~grid: Grid.t,
-      ~syntax: CachedSyntax.t,
-      blocks: list(Language.TypeBlocks.block),
-    )
-    : list((Language.Typ.head, list(SvgUtil.Rows.box))) =>
+    (~grid: Grid.t, ~syntax: CachedSyntax.t, blocks: list(Language.Blocks.t))
+    : list((Language.Blocks.paint, list(SvgUtil.Rows.box))) =>
   List.filter_map(
-    ({id, head, level}: Language.TypeBlocks.block) => {
+    ({id, level, paint}: Language.Blocks.t) => {
       let inset = inset_per_level *. float_of_int(min(level, inset_levels));
       TermData.row_extents(id, syntax.term_data, syntax.measured)
       |> Option.map(
@@ -825,7 +817,7 @@ let inset_boxes =
              };
            }),
          )
-      |> Option.map(boxes => (head, boxes));
+      |> Option.map(boxes => (paint, boxes));
     },
     blocks,
   );
@@ -834,12 +826,12 @@ let inset_boxes =
    edges stack there (Padding). */
 let padded_boxes =
     (~grid: Grid.t, padding: Padding.t)
-    : list((Language.Typ.head, list(SvgUtil.Rows.box))) => {
+    : list((Language.Blocks.paint, list(SvgUtil.Rows.box))) => {
   let out = (rank: int) => float_of_int(rank) *. Grid.pad(grid);
   List.map(
-    ({block: {head, _}, rows}: Padding.block) =>
+    ({block: {paint, _}, rows}: Padding.block) =>
       (
-        head,
+        paint,
         List.map(
           ({row, left, right, rank}: Padding.block_row) =>
             SvgUtil.Rows.{
