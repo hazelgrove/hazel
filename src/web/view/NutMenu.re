@@ -217,8 +217,15 @@ let code_display = (~globals: Globals.t): section => {
   let blocks_on =
     switch (globals.settings.blocks) {
     | Settings.Blocks.Off => false
-    | Settings.Blocks.Types => true
+    | Settings.Blocks.Types
+    | Settings.Blocks.Scopes => true
     };
+  let blocks = (c_label, c_tooltip, mode) => {
+    c_label,
+    c_tooltip,
+    c_active: Settings.Blocks.equal(globals.settings.blocks, mode),
+    c_set: globals.inject_global(Set(Settings.Update.SetBlocks(mode))),
+  };
   let block_layout = (c_label, c_tooltip, mode) => {
     c_label,
     c_tooltip,
@@ -292,11 +299,22 @@ let code_display = (~globals: Globals.t): section => {
           SimpleIndication,
           "Indicate the caret's term with a minimal arm instead of shard backings",
         ),
-        toggle(
-          "Type blocks",
-          blocks_on,
-          SetBlocks(blocks_on ? Settings.Blocks.Off : Settings.Blocks.Types),
-          "Shade each term by its type, nested like ragged blocks",
+        Choice(
+          "Blocks",
+          "Shade regions of the code, nested like ragged blocks",
+          [
+            blocks("Off", "No blocks", Settings.Blocks.Off),
+            blocks(
+              "Types",
+              "Shade each term by its type",
+              Settings.Blocks.Types,
+            ),
+            blocks(
+              "Scopes",
+              "Shade each variable's scope, its binder and uses with it",
+              Settings.Blocks.Scopes,
+            ),
+          ],
         ),
       ]
       @ (

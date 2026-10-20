@@ -344,8 +344,8 @@ svg.shard.error {
   z-index: var(--warn-hole-z);
 }
 
-/* BLOCKS: the region behind every term, keyed on its type (settings:
- * Blocks). Below every other backing. */
+/* BLOCKS: the region behind every term, keyed on its type or its scope
+ * (settings: Blocks). Below every other backing. */
 svg.shard.block {
   z-index: var(--block-z);
 }
@@ -387,6 +387,30 @@ svg.shard.type-block-sum > path {
 svg.shard.type-block-unknown > path {
   fill: var(--type-block-unknown);
   stroke: var(--type-block-unknown-edge);
+}
+svg.shard.scope-block-depth-0 > path {
+  fill: var(--scope-block-depth-0);
+  stroke: var(--scope-block-depth-0-edge);
+}
+svg.shard.scope-block-depth-1 > path {
+  fill: var(--scope-block-depth-1);
+  stroke: var(--scope-block-depth-1-edge);
+}
+svg.shard.scope-block-depth-2 > path {
+  fill: var(--scope-block-depth-2);
+  stroke: var(--scope-block-depth-2-edge);
+}
+svg.shard.scope-block-depth-3 > path {
+  fill: var(--scope-block-depth-3);
+  stroke: var(--scope-block-depth-3-edge);
+}
+svg.shard.scope-block-depth-4 > path {
+  fill: var(--scope-block-depth-4);
+  stroke: var(--scope-block-depth-4-edge);
+}
+svg.shard.scope-block-depth-5 > path {
+  fill: var(--scope-block-depth-5);
+  stroke: var(--scope-block-depth-5-edge);
 }
 
 svg.shard.selected > path {

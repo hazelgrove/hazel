@@ -13,7 +13,8 @@ module Blocks = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Off
-    | Types;
+    | Types
+    | Scopes;
 
   /* How the blocks make room for their edges: inset into their own cells,
      or padded out into the text, which moves to make room (Padding). */

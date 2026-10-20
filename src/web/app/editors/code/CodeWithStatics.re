@@ -273,10 +273,18 @@ type layout_key = {
 let layout_cache: ref(list((layout_key, layout))) = ref([]);
 let layout_cache_size = 8;
 
+/* The blocks the settings ask for. */
+let blocks = (~globals: Globals.t, model: Model.t): list(Language.Blocks.t) =>
+  switch (globals.settings.blocks) {
+  | Off => []
+  | Types => model.statics.type_blocks
+  | Scopes => model.statics.scope_blocks
+  };
+
 let layout = (~globals: Globals.t, model: Model.t): layout => {
   let key = {
     measured: model.editor.syntax.measured,
-    blocks: model.statics.type_blocks,
+    blocks: blocks(~globals, model),
     font_metrics: globals.font_metrics,
     show: globals.settings.blocks,
     how: globals.settings.block_layout,
@@ -294,7 +302,7 @@ let layout = (~globals: Globals.t, model: Model.t): layout => {
   | None =>
     let layout =
       switch (key.show, key.how) {
-      | (Types, Padded) =>
+      | (Types | Scopes, Padded) =>
         let padding =
           Padding.of_blocks(
             ~pad_cols=float_of_int(key.pad) /. key.font_metrics.col_width,
@@ -312,7 +320,7 @@ let layout = (~globals: Globals.t, model: Model.t): layout => {
           padding: Some(padding),
         };
       | (Off, _)
-      | (Types, Inset) => {
+      | (Types | Scopes, Inset) => {
           grid: Grid.flat(key.font_metrics),
           padding: None,
         }
@@ -395,18 +403,14 @@ module View = {
         warning_ids,
       );
     let blocks =
-      switch (globals.settings.blocks, padding) {
-      | (Off, _) => []
-      | (Types, Some(padding)) => [
+      switch (padding, blocks(~globals, model)) {
+      | (_, []) => []
+      | (Some(padding), _) => [
           Highlight.blocks(Highlight.padded_boxes(~grid, padding)),
         ]
-      | (Types, None) => [
+      | (None, blocks) => [
           Highlight.blocks(
-            Highlight.inset_boxes(
-              ~grid,
-              ~syntax=model.editor.syntax,
-              model.statics.type_blocks,
-            ),
+            Highlight.inset_boxes(~grid, ~syntax=model.editor.syntax, blocks),
           ),
         ]
       };

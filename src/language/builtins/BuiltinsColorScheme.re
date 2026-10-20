@@ -136,6 +136,10 @@ let type_block_roles: list(string) =
     Typ.all_of_head,
   );
 
+/* The block behind every scope, one fill and one edge per scope color. */
+let scope_block_roles: list(string) =
+  List.concat_map(name => [name, name ++ "-edge"], Blocks.scope_color_names);
+
 let role_groups: list((string, list(string))) = [
   ("menu", ["nut", "background", "hover", "divider", "shadow"]),
   (
@@ -235,6 +239,7 @@ let role_groups: list((string, list(string))) = [
   ("projector", ["textarea-text", "fold-background", "statics-arm"]),
   ("agent", ["banner", "banner-edge"]),
   ("type-block", type_block_roles),
+  ("scope-block", scope_block_roles),
 ];
 
 /* Declared, not inferred: low-contrast seeds could otherwise flip polarity

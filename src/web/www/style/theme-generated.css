@@ -138,6 +138,18 @@
   --sample-off-bg: oklch(95.002% 0.03 150);
   --sample-off-shadow: oklch(84.9985% 0.06 150);
   --sample-off-text: oklch(71.998% 0.09 150);
+  --scope-block-depth-0: color-mix(in oklch, oklch(93.4% 0.1 250) 55%, transparent);
+  --scope-block-depth-0-edge: oklch(81.25% 0.1 250);
+  --scope-block-depth-1: color-mix(in oklch, oklch(93.4% 0.1 10) 55%, transparent);
+  --scope-block-depth-1-edge: oklch(81.25% 0.1 10);
+  --scope-block-depth-2: color-mix(in oklch, oklch(93.4% 0.1 130) 55%, transparent);
+  --scope-block-depth-2-edge: oklch(81.25% 0.1 130);
+  --scope-block-depth-3: color-mix(in oklch, oklch(93.4% 0.1 310) 55%, transparent);
+  --scope-block-depth-3-edge: oklch(81.25% 0.1 310);
+  --scope-block-depth-4: color-mix(in oklch, oklch(93.4% 0.1 70) 55%, transparent);
+  --scope-block-depth-4-edge: oklch(81.25% 0.1 70);
+  --scope-block-depth-5: color-mix(in oklch, oklch(93.4% 0.1 190) 55%, transparent);
+  --scope-block-depth-5-edge: oklch(81.25% 0.1 190);
   --select-text: oklch(50% 0.07 90);
   --shadow-any: oklch(85% 0.1 30);
   --shadow-error: oklch(60% 0.3 30);
