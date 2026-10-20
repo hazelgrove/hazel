@@ -235,7 +235,9 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
-    JsUtil.focus_clipboard_shim();
+    JsUtil.focus_page();
+    JsUtil.install_text_selection_guards();
+    Haz3lcore.FocusEffect.install_press_tracking();
     /* Not while the crash screen is up: that would save the state that
        crashed, and every reload would crash again. Autosave already skips
        saving then (CrashHandling drops actions during an exception). */

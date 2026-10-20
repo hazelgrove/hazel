@@ -45,7 +45,7 @@ let focus_parent_editor = (id): unit => {
    * <body> and the editor stops responding to keys. */
   switch (JsUtil.find_ancestor_with_class(el, "code-editor")) {
   | Some(editor_el) => editor_el##focus
-  | None => JsUtil.focus_clipboard_shim()
+  | None => JsUtil.focus_page()
   };
 };
 
