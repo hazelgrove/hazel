@@ -77,6 +77,43 @@ let with_body = (seg: Segment.t, body: Segment.t): Segment.t =>
 let newline = (id: Id.t, salt: string): Piece.t =>
   Secondary(Secondary.mk_newline(Id.derive(~salt, id)));
 
+/* a module body of [members]: a linebreak each side, and the hole an
+   empty body parses with (a body of nothing is no term) */
+let body = (anchor: Id.t, members: Segment.t): Segment.t => {
+  let empty =
+    List.for_all(
+      (p: Piece.t) =>
+        switch (p) {
+        | Secondary(_) => true
+        | _ => false
+        },
+      members,
+    );
+  [newline(anchor, "world-open")]
+  @ members
+  @ (
+    empty
+      ? [
+        Piece.Grout({
+          id: Id.derive(~salt="world-hole", anchor),
+          shape: Convex,
+        }),
+      ]
+      : []
+  )
+  @ [newline(anchor, "world-close")];
+};
+
+/* [kid] (a body) without what [body] added */
+let members_of_body = (anchor: Id.t, kid: Segment.t): Segment.t => {
+  let ours =
+    List.map(
+      salt => Id.derive(~salt, anchor),
+      ["world-open", "world-close", "world-hole"],
+    );
+  List.filter((p: Piece.t) => !List.mem(Piece.id(p), ours), kid);
+};
+
 /* the `;` ending the library's last member, when it has none */
 let library_end = (anchor: Id.t): Piece.t =>
   Piece.Tile({
@@ -118,13 +155,7 @@ let assemble =
   Option.bind(wrapper(name), w =>
     Option.map(
       anchor =>
-        prefix(~anchor, library)
-        @ with_body(
-            w,
-            [newline(anchor, "world-open")]
-            @ members
-            @ [newline(anchor, "world-close")],
-          ),
+        prefix(~anchor, library) @ with_body(w, body(anchor, members)),
       slide_id(name),
     )
   );
@@ -171,7 +202,6 @@ let split = (~slide: Id.t, seg: Segment.t): option(parts) => {
     derived("world-gap-1"),
     derived("world-gap-2"),
   ];
-  let mine = [derived("world-open"), derived("world-close")];
   Option.bind(at_slide(~slide, seg), ((before, from_slide)) =>
     Option.map(
       body =>
@@ -181,11 +211,7 @@ let split = (~slide: Id.t, seg: Segment.t): option(parts) => {
               (p: Piece.t) => !List.mem(Piece.id(p), ours),
               before,
             ),
-          members:
-            List.filter(
-              (p: Piece.t) => !List.mem(Piece.id(p), mine),
-              body,
-            ),
+          members: members_of_body(slide, body),
         },
       body_of(from_slide),
     )
