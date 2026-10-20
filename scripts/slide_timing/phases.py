@@ -5,13 +5,14 @@ the source file of each function, and the file to a phase.
 
   python3 scripts/slide_timing/phases.py timing.jsonl hazel.js worker.js > phases.md   (also writes phases.jsonl)
   python3 scripts/slide_timing/phases.py --self-test bundle.js                         (decode a map, print what it holds)
+  python3 scripts/slide_timing/phases.py --emit-map hazel.js worker.js > phasemap.json  (for time_slides.mjs, before timing)
 
 The bundles are the release build's, with --source-map-inline (the timing branch's src/web/dune). Phases, the first that
 matches a function's source file: parse (text to tiles and terms), statics (elaboration is part of it here), evaluation (probes too),
 projectors (livelits and the other projectors), layout (measuring, pretty-printing), view (the web app, its virtual DOM
 and Bonsai), terms (the term types every phase shares), util, runtime (js_of_ocaml's runtime, the OCaml libraries).
 Anything else is "other", and its files are listed."""
-import base64, bisect, json, re, sys
+import base64, bisect, json, os, re, sys
 from collections import defaultdict
 
 PHASES = [
@@ -106,7 +107,72 @@ def split(frames, smap):
     return by_phase, by_file
 
 
+def emit_map(paths):
+    """The phase of every generated line and column of each bundle, as runs: {"phases": [...], "bundles": {"hazel.js":
+    {line: [[column, phase index], ...]}}}, a run starting wherever the phase changes. profile.mjs looks a function's
+    start up in it the way SourceMap.source does, to charge library time to the nearest Hazel caller."""
+    phases = [n for n, _ in PHASES] + ["other", "unmapped"]
+    idx = {n: i for i, n in enumerate(phases)}
+    bundles = {}
+    for path in paths:
+        smap = load(path)
+        if not smap:
+            sys.exit(f"{path}: no inline source map")
+        lines = {}
+        for line, segs in smap.lines.items():
+            runs = []
+            for col, src in segs:
+                ph = idx[phase_of(src) if src else "unmapped"]
+                if not runs or runs[-1][1] != ph:
+                    runs.append([col, ph])
+            lines[line] = runs
+        bundles[os.path.basename(path)] = lines
+    json.dump({"phases": phases, "bundles": bundles}, sys.stdout, separators=(",", ":"))
+
+
+def charged_table(rows, maps):
+    """The same JS time, charged to the nearest Hazel caller (profile.mjs), and the Hazel functions charged with the
+    most library time, by source file."""
+    names = [n for n, _ in PHASES if n not in ("runtime", "util")] + ["other", "browser", "runtime", "util", "unmapped"]
+    if not any((r.get("main") or {}).get("charged_ms") for r in rows):
+        return
+    print("\n### The same time, charged to the nearest Hazel caller\n")
+    print("Time in js_of_ocaml's runtime, the OCaml libraries, `src/util`, unmapped code and the browser's builtins is "
+          "charged to the nearest function on its stack in one of Hazel's own phases; *browser* is time with none on its "
+          "stack (event handling, the page's own scripts), and the last three columns are time with no Hazel caller "
+          "either. Seconds; the largest phase in bold.\n")
+    print("| slide | " + " | ".join(names) + " | dominant |")
+    print("|---|" + "---:|" * len(names) + "---|")
+    callers = defaultdict(float)
+    for r in rows:
+        total = defaultdict(float)
+        for part in [r.get("main")] + list(r.get("workers") or []):
+            if not part:
+                continue
+            for k, v in (part.get("charged_ms") or {}).items():
+                total[k] += v
+            for bundle, line, col, fn, ph, ms in part.get("lib_callers") or []:
+                smap = maps.get(bundle)
+                src = smap.source(line, col) if smap else None
+                callers[(src or f"(unmapped) {bundle}", fn, ph)] += ms
+        busy = sum(total.values()) or 1
+        top = max(total.items(), key=lambda kv: kv[1]) if total else ("-", 0)
+        verdict = top[0] if top[1] >= busy / 2 else f"mixed ({top[0]} {100 * top[1] // busy:.0f}%)"
+        cells = [f"**{total[n] / 1000:.1f}**" if n == top[0] else f"{total[n] / 1000:.1f}" for n in names]
+        print(f"| {r.get('name')} | " + " | ".join(cells) + f" | {verdict} |")
+    if callers:
+        print("\nThe Hazel functions charged with the most library time, over all slides (a function by the source file "
+              "it is in, and its name in the generated script):\n")
+        print("| source file | function | phase | seconds |")
+        print("|---|---|---|---:|")
+        for (src, fn, ph), ms in sorted(callers.items(), key=lambda kv: -kv[1])[:30]:
+            print(f"| `{src}` | `{fn or '(anonymous)'}` | {ph} | {ms / 1000:.1f} |")
+
+
 def main():
+    if sys.argv[1] == "--emit-map":
+        emit_map(sys.argv[2:])
+        return
     if sys.argv[1] == "--self-test":
         smap = load(sys.argv[2])
         if not smap:
@@ -148,12 +214,18 @@ def main():
         verdict = top[0] if top[1] >= busy / 2 else f"mixed ({top[0]} {100 * top[1] // busy:.0f}%)"
         cells = [f"**{total[n] / 1000:.1f}**" if n == top[0] else f"{total[n] / 1000:.1f}" for n in names]
         print(f"| {r.get('name')} | " + " | ".join(cells) + f" | {verdict} |")
+        charged = defaultdict(float)
+        for part in [r.get("main")] + list(r.get("workers") or []):
+            for k, v in ((part or {}).get("charged_ms") or {}).items():
+                charged[k] += v
         out.write(json.dumps({"slug": r.get("slug"), "name": r.get("name"), "open_ms": r.get("open_ms"),
-                              "phases_ms": {k: round(v) for k, v in total.items()}, "dominant": verdict}) + "\n")
+                              "phases_ms": {k: round(v) for k, v in total.items()}, "dominant": verdict,
+                              "charged_ms": {k: round(v) for k, v in charged.items()}}) + "\n")
     if others:
         print("\nThe files in \"other\" and \"unmapped\", by time over all slides (for the phase table above to learn them):\n")
         for f, v in sorted(others.items(), key=lambda kv: -kv[1])[:25]:
             print(f"- `{f}`: {v / 1000:.1f} s")
+    charged_table(rows, maps)
 
 
 if __name__ == "__main__":

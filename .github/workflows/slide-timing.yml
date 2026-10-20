@@ -28,6 +28,12 @@ jobs:
           export DUNE_CACHE=enabled
           opam exec -- dune build src --profile release
 
+      - name: Which phase each function is in (the source maps), to charge library time to its Hazel caller
+        run: |
+          python3 scripts/slide_timing/phases.py --emit-map _build/default/src/web/www/hazel.js \
+            _build/default/src/web/www/worker.js > phasemap.json
+          ls -la phasemap.json
+
       - name: The slides to time
         run: |
           python3 scripts/slide_timing/slides.py --decks "${SLIDE_DECKS:-reference,livelits,playground}" > slides.tsv
@@ -46,7 +52,7 @@ jobs:
 
       - name: Open every slide, timed
         run: |
-          node scripts/slide_timing/time_slides.mjs 9222 http://localhost:8111 slides.tsv > timing.jsonl
+          PHASE_MAP=phasemap.json node scripts/slide_timing/time_slides.mjs 9222 http://localhost:8111 slides.tsv > timing.jsonl
           python3 scripts/slide_timing/summary.py timing.jsonl "${GITHUB_REF_NAME} at ${GITHUB_SHA::10}" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Where the time went, by phase (the source maps)
