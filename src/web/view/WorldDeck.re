@@ -358,7 +358,14 @@ let reassemble =
 
 /* [model] after the deck's slides changed: the live program re-assembled
    for them, on [current] */
-let rebuild = (~settings, ~current: string, model: Model.t): Model.t =>
+let rebuild =
+    (
+      ~settings,
+      ~moved: list((string, Segment.t))=[],
+      ~current: string,
+      model: Model.t,
+    )
+    : Model.t =>
   switch (
     List.find_map(
       (sp: Scratchpad.t) =>
@@ -373,11 +380,15 @@ let rebuild = (~settings, ~current: string, model: Model.t): Model.t =>
   | Some(code) =>
     let doc = Program.document(code.program);
     let fresh =
-      switch (WorldTree.body(~slide=slide_id(current), doc)) {
-      | Loaded(_) => []
-      | Unloaded
-      | Gone => [(current, fst(members(current)))]
-      };
+      moved
+      @ (
+        switch (WorldTree.body(~slide=slide_id(current), doc)) {
+        | _ when List.mem_assoc(current, moved) => []
+        | Loaded(_) => []
+        | Unloaded
+        | Gone => [(current, fst(members(current)))]
+        }
+      );
     switch (reassemble(~fresh, doc)) {
     | None => model
     | Some(doc) =>
@@ -448,5 +459,41 @@ let delete_current = (~settings, model: Model.t): Model.t => {
       rebuild(~settings, ~current, model);
     };
   | None => model
+  };
+};
+
+/* the current slide under [name] (a path in the same deck): its body as
+   the program has it, its keys and its place in its deck's list moved */
+let rename_current = (~settings, name: string, model: Model.t): Model.t => {
+  let old = List.nth(model.scratchpads, model.current).name;
+  let body =
+    List.find_map(
+      (sp: Scratchpad.t) =>
+        switch (sp.kind) {
+        | Code(code) when !sp.dormant =>
+          switch (
+            WorldTree.body(
+              ~slide=slide_id(old),
+              Program.document(code.program),
+            )
+          ) {
+          | Loaded(m) => Some(m)
+          | Unloaded
+          | Gone => None
+          }
+        | _ => None
+        },
+      model.scratchpads,
+    );
+  switch (legacy(old), legacy(name), body) {
+  | (Some((p, n)), Some((p', n')), Some(body))
+      when p == p' && name != old && !List.mem(name, names()) =>
+    set_deck_names(p, List.map(m => m == n ? n' : m, deck_names(p)));
+    Persist.rename_slide(prefix, old, name);
+    Persist.rename_slide(p, n, n');
+    Hashtbl.remove(loaded, old);
+    Hashtbl.remove(Persist.world_roots, Persist.content_key(prefix, old));
+    rebuild(~settings, ~moved=[(name, body)], ~current=name, model);
+  | _ => model
   };
 };

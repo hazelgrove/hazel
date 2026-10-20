@@ -123,10 +123,33 @@ let add_delete = () =>
     );
   });
 
+let rename = () =>
+  Test_WorldSlide.shipped(() => {
+    Web.HazelDB.kv_clear();
+    let m = Deck.add_scratch(~settings, Deck.load(~settings));
+    let m = Deck.rename_current(~settings, "Scratch / Notes", m);
+    let (name, code) = current(m);
+    check(string, "renamed, current", "Scratch / Notes", name);
+    check(string, "its body there", "loaded", body(code, name));
+    check(
+      string,
+      "nothing left at the old name",
+      "gone",
+      body(code, "Scratch / Scratchpad 2"),
+    );
+    check(
+      list(string),
+      "Scratch's deck",
+      ["Scratchpad 1", "Notes"],
+      Deck.deck_names("scratch"),
+    );
+  });
+
 let tests = (
   "WorldDeck",
   [
     test_case("load, switch, save, reload", `Quick, deck),
     test_case("adding and deleting a slide", `Quick, add_delete),
+    test_case("renaming a slide", `Quick, rename),
   ],
 );

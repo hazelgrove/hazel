@@ -250,8 +250,24 @@ let update =
           |> Updated.return;
         }
         : model |> return_quiet
+    | RenameSlide when deck == World =>
+      let current = List.nth(model.scratchpads, model.current);
+      switch (
+        prompt_slide_name(
+          ~existing_scratchpads=
+            model.scratchpads
+            |> List.to_seq
+            |> Seq.map((s: Scratchpad.t) => s.name)
+            |> Seq.filter(n => n != current.name),
+          current.name,
+        )
+      ) {
+      | Some(name) when name != current.name =>
+        WorldDeck.rename_current(~settings=settings.core, name, model)
+        |> Updated.return
+      | _ => model |> return_quiet
+      };
     | AddDrvSlide
-    | RenameSlide
     | ResetCurrent
     | InitImportScratchpad(_)
     | FinishImportScratchpad(_) when deck == World => model |> return_quiet
