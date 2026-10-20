@@ -80,24 +80,20 @@ let tests = (
                 read_file(path) |> Util.StringUtil.strip_final_newline;
               let f0 = Sys.time();
               let known_gap = List.mem(Filename.basename(path), known_gaps);
-              /* module bodies: the mod-rooted mega corpus and the
-                 standard library's sources */
-              let root =
-                String.starts_with(
-                  ~prefix="mega-mod",
-                  Filename.basename(path),
-                )
-                || Filename.basename(Filename.dirname(path)) == "stdlib"
-                  ? Sort.Mod : Sort.Exp;
+              let root = CorpusUtil.root_of(path);
+              /* an empty program has nothing to read, and the typing
+                 parser makes its hole at no cost */
               let r =
-                known_gap
-                  ? None
-                  : FastParse.of_text(
-                      ~materialize=Triggers.invoked_projector,
-                      ~collect_refractors=true,
-                      ~root,
-                      src,
-                    );
+                src == ""
+                  ? Some([])
+                  : known_gap
+                      ? None
+                      : FastParse.of_text(
+                          ~materialize=Triggers.invoked_projector,
+                          ~collect_refractors=true,
+                          ~root,
+                          src,
+                        );
               let ms = (Sys.time() -. f0) *. 1000.;
               let worst =
                 ms > snd(worst) ? (Filename.basename(path), ms) : worst;

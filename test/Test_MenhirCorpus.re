@@ -26,16 +26,16 @@ open Language;
 let known_gaps: list((string, string)) =
   [
     (
-      "tuples.hz",
+      "documentation/tuples.hz",
       "deliberate error exhibit (1=\"hello\"): MakeTerm reads a MultiHole, menhir a labeled tuple",
     ),
     /* The two Properties slides containing `[()]`; nrows is clean. */
     (
-      "table-api-properties-header.hz",
+      "table-api/properties/header.hz",
       "editor tokenizer quirk: [()] reads as [] via MakeTerm (file as editor bug)",
     ),
     (
-      "table-api-properties-ncols.hz",
+      "table-api/properties/ncols.hz",
       "editor tokenizer quirk: [()] reads as [] via MakeTerm (file as editor bug)",
     ),
   ]
@@ -58,17 +58,9 @@ let rec find_hz = (dir: string): list(string) =>
     |> List.concat_map(entry => {
          let path = Filename.concat(dir, entry);
          switch (Sys.is_directory(path)) {
-         /* the mega/bench perf corpora: composed from already-swept
-            sources and too slow here; FastParseCorpus covers them. The
-            stdlib's sources are module bodies, not programs: its bake
-            requires the fast path */
-         | true
-             when
-               List.mem(
-                 Filename.basename(path),
-                 ["mega", "bench", "stdlib"],
-               ) =>
-           []
+         /* the perf corpora: composed from already-swept sources and
+            too slow here; FastParseCorpus covers them */
+         | true when entry == "perf" => []
          | true => find_hz(path)
          | false => Filename.check_suffix(entry, ".hz") ? [path] : []
          | exception _ => []
@@ -104,6 +96,9 @@ let check_file = (path: string): unit => {
      form the editor ever sees, and it lets ParsedCorpus share the parse with
      DocSlides.ReparseBackuptext, which checks the same programs. */
   let txt = read_file(path) |> ParsedCorpus.normalize;
+  let empty = txt == "";
+  /* module members: both read as the module they are the body of */
+  let txt = CorpusUtil.root_of(path) == Mod ? "{\n" ++ txt ++ "\n}" : txt;
   let mk =
     switch (ParsedCorpus.to_segment(~root=Exp, txt)) {
     | Some(seg) => Some(MakeTerm.go(seg).term)
@@ -120,8 +115,13 @@ let check_file = (path: string): unit => {
       )
     | exception e => Error(Printexc.to_string(e))
     };
-  let gap = List.assoc_opt(path |> Filename.basename, known_gaps);
+  let gap =
+    List.find_opt(
+      ((suffix, _)) => String.ends_with(~suffix, path),
+      known_gaps,
+    );
   switch (mk, mh, gap) {
+  | _ when empty => () /* a fresh slide: nothing to compare */
   | (_, _, Some(_reason)) => () /* known gap: tolerated, tracked above */
   | (Some(mk), Ok(mh), None) =>
     check(bool, "menhir == maketerm: " ++ path, true, equal_terms(mk, mh))

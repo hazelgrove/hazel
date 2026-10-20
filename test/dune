@@ -4,6 +4,7 @@
  (name haz3ltest)
  (libraries
   web
+  worldFolder
   stdlibBaked
   menhirParser
   junit_alcotest

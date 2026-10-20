@@ -78,6 +78,20 @@ let mega_seg = (~root: Sort.t=Exp, name: string): Segment.t =>
     )
   };
 
+/* a corpus file's root: in the world tree, module members unless its
+   folder's order marks it exp (WorldFolder); elsewhere, an expression */
+let root_of = (path: string): Sort.t => {
+  let dir = Filename.dirname(path);
+  let stem = Filename.remove_extension(Filename.basename(path));
+  let exp =
+    !List.mem("world", String.split_on_char('/', dir))
+    || List.exists(
+         ((s, _, exp)) => s == stem && exp,
+         WorldFolder.order_of(dir),
+       );
+  exp ? Exp : Mod;
+};
+
 /* every .hz program under hazel-programs, as loaded: (path, root, text).
    The world tree's slides are module members (root Mod); its top-level
    files are the standard library and its perf folder the mega corpora
@@ -101,7 +115,7 @@ let slide_corpus = (): list((string, Sort.t, string)) => {
            | false when in_world && top => []
            | false =>
              Filename.check_suffix(entry, ".hz")
-               ? [(path, in_world ? Sort.Mod : Sort.Exp)] : []
+               ? [(path, root_of(path))] : []
            | exception _ => []
            };
          })

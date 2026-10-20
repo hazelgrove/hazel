@@ -51,6 +51,38 @@ let verbatim = (name, txt) =>
     }
   });
 
+/* member text: verbatim, and read as the typing parser's segment is */
+let members = (name, txt) =>
+  test_case(
+    name ++ " (members)",
+    `Quick,
+    () => {
+      let term = seg => MakeTerm.Incr.term_of_root(~root=Mod, seg);
+      switch (
+        FastParse.of_text(~root=Mod, txt),
+        Parser.to_segment(txt, ~root=Mod),
+      ) {
+      | (Some(fast), Some(slow)) =>
+        check(string, "verbatim", txt, print_seg(fast));
+        check(
+          bool,
+          "MakeTerm reads both alike",
+          true,
+          Language.Equality.(equality(syntactic_settings).exp)(
+            term(fast),
+            term(slow),
+          ),
+        );
+      | (None, _) =>
+        fail(
+          "fast path rejected: "
+          ++ Option.value(FastParse.bail_note^, ~default="no note"),
+        )
+      | (_, None) => fail("the typing parser rejects it")
+      };
+    },
+  );
+
 let semantic = (name, txt) =>
   test_case(
     name ++ " (term parity)",
@@ -261,6 +293,16 @@ let tests = (
       "let m = {\n  let a = 1;\n\n  let b = fun x, y -> x + y\n} in m",
     ),
     verbatim("hole", "let x = ? in x"),
+    members("a hole as the last member", "let a = 1;\n?"),
+    members("bare tuples at a member", "let a, b = 1, 2;\nlet c = a, b;\nc"),
+    members(
+      "a case's scrutinee in parens",
+      "let f = fun x -> case (x, x) | _ => 1 end;\ncase (f(1)) | _ => 2 end",
+    ),
+    members(
+      "a definition longer than the typing parser's pieces",
+      "let f = fun x ->\n  let a_name_long_enough_that_the_typing_parser_splits_its_text_after_it = x + 1 in\n  let b = a_name_long_enough_that_the_typing_parser_splits_its_text_after_it + 2 in\n  b;\nf(1)",
+    ),
     test_case(
       "? lands as explicit tile, \xc2\xbf as Grout",
       `Quick,
