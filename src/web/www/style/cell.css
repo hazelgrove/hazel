@@ -29,12 +29,14 @@
 
 #main.Scratch,
 #main.Documentation,
+#main.World,
 #main.Configuration {
   background-color: var(--ui-bkg);
 }
 
 :is(#main.Scratch,
 #main.Documentation,
+#main.World,
 #main.Configuration):not(.Derivations) > * > .code-editor {
   background-color: var(--cell-active);
 }
@@ -66,6 +68,7 @@
 
 :is(#main.Scratch,
 #main.Documentation,
+#main.World,
 #main.Configuration):not(.Derivations) .cell {
   flex-grow: 1;
   /* stretch background under probe overlays; --main-scroll-width set by ScrollWidth */
@@ -498,7 +501,8 @@
 /* editor panes carry no borders in outline modes — the outline
    sidebar owns the left divider, headers own the entry rules */
 #main.Scratch .cell,
-#main.Documentation .cell {
+#main.Documentation .cell,
+#main.World .cell {
   border-left: none;
 }
 
@@ -527,7 +531,7 @@
 /* stacked body cells keep the master editor's lighter surface: the
    generic cell-background rule matches `#main > * > .code-editor`,
    but stack cells sit one wrapper deeper (`.focus-body > .cell`). */
-:is(#main.Scratch, #main.Documentation)
+:is(#main.Scratch, #main.Documentation, #main.World)
   > .focus-body
   > .cell
   > .code-editor {
