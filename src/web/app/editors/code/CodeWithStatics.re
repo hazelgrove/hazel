@@ -273,12 +273,48 @@ type layout_key = {
 let layout_cache: ref(list((layout_key, layout))) = ref([]);
 let layout_cache_size = 8;
 
+/* The evaluation blocks join the statics with the last result, so they are
+   memoized on the identity of both, like the layout. */
+type eval_blocks_key = {
+  info_map: Language.Statics.Map.t,
+  evaluations: Language.Id.Map.t(int),
+};
+
+let eval_blocks_cache:
+  ref(list((eval_blocks_key, list(Language.Blocks.t)))) =
+  ref([]);
+
+let eval_blocks = (model: Model.t): list(Language.Blocks.t) => {
+  let key = {
+    info_map: model.statics.info_map,
+    evaluations: model.dynamics.evaluations,
+  };
+  let same = (k: eval_blocks_key) =>
+    k.info_map === key.info_map && k.evaluations === key.evaluations;
+  switch (List.find_opt(((k, _)) => same(k), eval_blocks_cache^)) {
+  | Some((_, blocks)) => blocks
+  | None =>
+    let blocks =
+      Language.EvalBlocks.of_evaluations(
+        ~info_map=key.info_map,
+        key.evaluations,
+      );
+    eval_blocks_cache :=
+      List.filteri(
+        (i, _) => i < layout_cache_size,
+        [(key, blocks), ...eval_blocks_cache^],
+      );
+    blocks;
+  };
+};
+
 /* The blocks the settings ask for. */
 let blocks = (~globals: Globals.t, model: Model.t): list(Language.Blocks.t) =>
   switch (globals.settings.blocks) {
   | Off => []
   | Types => model.statics.type_blocks
   | Scopes => model.statics.scope_blocks
+  | Evaluations => eval_blocks(model)
   };
 
 let layout = (~globals: Globals.t, model: Model.t): layout => {
@@ -302,7 +338,7 @@ let layout = (~globals: Globals.t, model: Model.t): layout => {
   | None =>
     let layout =
       switch (key.show, key.how) {
-      | (Types | Scopes, Padded) =>
+      | (Types | Scopes | Evaluations, Padded) =>
         let padding =
           Padding.of_blocks(
             ~pad_cols=float_of_int(key.pad) /. key.font_metrics.col_width,
@@ -320,7 +356,7 @@ let layout = (~globals: Globals.t, model: Model.t): layout => {
           padding: Some(padding),
         };
       | (Off, _)
-      | (Types | Scopes, Inset) => {
+      | (Types | Scopes | Evaluations, Inset) => {
           grid: Grid.flat(key.font_metrics),
           padding: None,
         }

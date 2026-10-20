@@ -107,6 +107,14 @@ let (scope_2_fill, scope_2_edge) = block(0.1, 130.) in
 let (scope_3_fill, scope_3_edge) = block(0.1, 310.) in
 let (scope_4_fill, scope_4_edge) = block(0.1, 70.) in
 let (scope_5_fill, scope_5_edge) = block(0.1, 190.) in
+# the block behind every evaluation count: from a faint blue, coolest, #
+# through green and yellow to a strong red, hottest. #
+let (heat_0_fill, heat_0_edge) = block(0.06, 240.) in
+let (heat_1_fill, heat_1_edge) = block(0.09, 200.) in
+let (heat_2_fill, heat_2_edge) = block(0.12, 150.) in
+let (heat_3_fill, heat_3_edge) = block(0.15, 95.) in
+let (heat_4_fill, heat_4_edge) = block(0.17, 50.) in
+let (heat_5_fill, heat_5_edge) = block(0.2, 20.) in
 (
   palette = p,
   roles = (
@@ -265,6 +273,14 @@ let (scope_5_fill, scope_5_edge) = block(0.1, 190.) in
       `depth-3` = scope_3_fill, `depth-3-edge` = scope_3_edge,
       `depth-4` = scope_4_fill, `depth-4-edge` = scope_4_edge,
       `depth-5` = scope_5_fill, `depth-5-edge` = scope_5_edge
+    ),
+    `eval-block` = (
+      `heat-0` = heat_0_fill, `heat-0-edge` = heat_0_edge,
+      `heat-1` = heat_1_fill, `heat-1-edge` = heat_1_edge,
+      `heat-2` = heat_2_fill, `heat-2-edge` = heat_2_edge,
+      `heat-3` = heat_3_fill, `heat-3-edge` = heat_3_edge,
+      `heat-4` = heat_4_fill, `heat-4-edge` = heat_4_edge,
+      `heat-5` = heat_5_fill, `heat-5-edge` = heat_5_edge
     )
   ),
   # declared, not inferred -- low-contrast seeds could flip polarity #

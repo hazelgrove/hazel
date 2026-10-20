@@ -218,7 +218,8 @@ let code_display = (~globals: Globals.t): section => {
     switch (globals.settings.blocks) {
     | Settings.Blocks.Off => false
     | Settings.Blocks.Types
-    | Settings.Blocks.Scopes => true
+    | Settings.Blocks.Scopes
+    | Settings.Blocks.Evaluations => true
     };
   let blocks = (c_label, c_tooltip, mode) => {
     c_label,
@@ -313,6 +314,11 @@ let code_display = (~globals: Globals.t): section => {
               "Scopes",
               "Shade each variable's scope, its binder and uses with it",
               Settings.Blocks.Scopes,
+            ),
+            blocks(
+              "Evaluations",
+              "Shade each term by how many times it was evaluated, cooler to hotter",
+              Settings.Blocks.Evaluations,
             ),
           ],
         ),

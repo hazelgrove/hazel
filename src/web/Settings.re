@@ -14,7 +14,8 @@ module Blocks = {
   type t =
     | Off
     | Types
-    | Scopes;
+    | Scopes
+    | Evaluations;
 
   /* How the blocks make room for their edges: inset into their own cells,
      or padded out into the text, which moves to make room (Padding). */

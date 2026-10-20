@@ -97,6 +97,7 @@ let (suite, exit_with_test_status) =
       Test_VarHighlight.tests,
       Test_TypeBlocks.tests,
       Test_ScopeBlocks.tests,
+      Test_EvalBlocks.tests,
       Test_SvgUtil.tests,
       Test_Grid.tests,
       Test_Padding.tests,

@@ -140,6 +140,10 @@ let type_block_roles: list(string) =
 let scope_block_roles: list(string) =
   List.concat_map(name => [name, name ++ "-edge"], Blocks.scope_color_names);
 
+/* The block behind every evaluation count, one fill and one edge per heat. */
+let eval_block_roles: list(string) =
+  List.concat_map(name => [name, name ++ "-edge"], Blocks.heat_color_names);
+
 let role_groups: list((string, list(string))) = [
   ("menu", ["nut", "background", "hover", "divider", "shadow"]),
   (
@@ -240,6 +244,7 @@ let role_groups: list((string, list(string))) = [
   ("agent", ["banner", "banner-edge"]),
   ("type-block", type_block_roles),
   ("scope-block", scope_block_roles),
+  ("eval-block", eval_block_roles),
 ];
 
 /* Declared, not inferred: low-contrast seeds could otherwise flip polarity

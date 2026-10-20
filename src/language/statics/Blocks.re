@@ -3,7 +3,8 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type paint =
   | Type(Typ.head)
-  | Scope(int);
+  | Scope(int)
+  | Heat(int);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
@@ -18,11 +19,29 @@ let scope_color_name = (i: int) => "depth-" ++ string_of_int(i);
 
 let scope_color_names = List.init(scope_colors, scope_color_name);
 
+let heat_colors = 6;
+
+let heat_color_name = (i: int) => "heat-" ++ string_of_int(i);
+
+let heat_color_names = List.init(heat_colors, heat_color_name);
+
+let heat = (~most: int, count: int): paint =>
+  Heat(
+    most <= 1
+      ? 0
+      : int_of_float(
+          log(float_of_int(max(count, 1)))
+          /. log(float_of_int(most))
+          *. float_of_int(heat_colors - 1),
+        ),
+  );
+
 let paint_name: paint => string =
   fun
   | Type(head) => "type-block-" ++ Typ.head_name(head)
   | Scope(depth) =>
-    "scope-block-" ++ scope_color_name(depth mod scope_colors);
+    "scope-block-" ++ scope_color_name(depth mod scope_colors)
+  | Heat(heat) => "eval-block-" ++ heat_color_name(heat);
 
 /* The nearest ancestor that is itself painted. A pattern's ancestors begin
    with the pattern itself (Statics.upat_to_info_map defaults to the

@@ -68,6 +68,18 @@
   --empty-hole-stroke: oklch(85% 0.07 90);
   --error-hole-fill: oklch(96% 0.02 47);
   --error-hole-stroke: oklch(60% 0.3 30);
+  --eval-block-heat-0: color-mix(in oklch, oklch(93.4% 0.06 240) 55%, transparent);
+  --eval-block-heat-0-edge: oklch(81.25% 0.06 240);
+  --eval-block-heat-1: color-mix(in oklch, oklch(93.4% 0.09 200) 55%, transparent);
+  --eval-block-heat-1-edge: oklch(81.25% 0.09 200);
+  --eval-block-heat-2: color-mix(in oklch, oklch(93.4% 0.12 150) 55%, transparent);
+  --eval-block-heat-2-edge: oklch(81.25% 0.12 150);
+  --eval-block-heat-3: color-mix(in oklch, oklch(93.4% 0.15 95) 55%, transparent);
+  --eval-block-heat-3-edge: oklch(81.25% 0.15 95);
+  --eval-block-heat-4: color-mix(in oklch, oklch(93.4% 0.17 50) 55%, transparent);
+  --eval-block-heat-4-edge: oklch(81.25% 0.17 50);
+  --eval-block-heat-5: color-mix(in oklch, oklch(93.4% 0.2 20) 55%, transparent);
+  --eval-block-heat-5-edge: oklch(81.25% 0.2 20);
   --eval-exception: oklch(85% 0.1 30);
   --eval-exception-stroke: oklch(40% 0.3 30);
   --exp-ap: oklch(77.98377% 0.11156 303.02104);

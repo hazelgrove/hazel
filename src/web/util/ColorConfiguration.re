@@ -369,8 +369,8 @@ let aliases: list(((string, string), list(string))) = [
   (("palette", "surface-4"), ["surface-deep"]),
 ];
 
-/* The block roles are derived (Typ.head, Blocks.scope_color_names), so
-   their rows are too. */
+/* The block roles are derived (Typ.head, Blocks.scope_color_names,
+   Blocks.heat_color_names), so their rows are too. */
 let aliases =
   aliases
   @ List.map(
@@ -380,6 +380,10 @@ let aliases =
   @ List.map(
       name => (("scope-block", name), ["scope-block-" ++ name]),
       CS.scope_block_roles,
+    )
+  @ List.map(
+      name => (("eval-block", name), ["eval-block-" ++ name]),
+      CS.eval_block_roles,
     );
 
 /* Every field a themer can set, as (group, name). The pair is the key: short
