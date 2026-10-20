@@ -317,6 +317,15 @@ module Update = {
         },
       }
       |> return_quiet;
+    | SetContextMenu(context_menu) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          context_menu,
+        },
+      }
+      |> return_quiet
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
       Export.import_all(

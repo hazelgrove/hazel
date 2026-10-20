@@ -45,6 +45,16 @@ let ^reveal = ^choice@<LivelitReveal>(
    ("nut", Nut)]) in
 let livelit_reveal = ^^livelit(^reveal(Eye)) in
 
+# How Gamma, the context at the bottom left, offers a type too long #
+# for its line in full, on several lines: a toggle at the entry's #
+# left, drawn Always, drawn OnHover while the pointer is on the #
+# entry, or not drawn, for a RightClick on the entry, whose menu has #
+# it in every case. Press one. #
+type GammaUnfold = + Always + OnHover + RightClick in
+let ^unfold = ^choice@<GammaUnfold>(
+  [("always", Always), ("hover", OnHover), ("right-click", RightClick)]) in
+let gamma_unfold = ^^livelit(^unfold(Always)) in
+
 # How far up the lightness scale each ramp step sits. Given per scheme #
 # because a light scheme's steps run darker and a dark scheme's lighter. #
 type ColorRamp = ^^fold((
@@ -552,6 +562,8 @@ let contrast_dark = ^^fold(let p = palette_of(
 | (true, false) => dark
 | (true, true) => contrast_dark
 end) ... (
-  # not a color: the livelit syntax toggle's look, chosen at the top #
-  `livelit-reveal` = livelit_reveal
+  # not colors: the livelit syntax toggle's look, and how Gamma #
+  # offers a long type in full, both chosen at the top #
+  `livelit-reveal` = livelit_reveal,
+  `gamma-unfold` = gamma_unfold
 )
