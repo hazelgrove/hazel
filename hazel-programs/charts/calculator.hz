@@ -1,0 +1,172 @@
+# CALCULATOR #
+
+# A number pad you operate through a probe. Every key press rewrites the #
+# source, so the pipeline that builds up IS the calculation — read it back, #
+# prune a step, or type one by hand: #
+
+#   calc(0)                                                                 #
+#     |> pressDigit(_, "1")                                                                 #
+#     |> pressDigit(_, "2")                                                                 #
+#     |> pressOp(_, "*")                                                              #
+#     |> pressDigit(_, "4")                                                                 #
+#     |> pressOp(_, "=")                                                             #
+
+# This started as an OCaml CalculatorRenderer that probed an Int and rewrote #
+# it to `n + 3`. Nothing here is built in: the pad is html, the keys are #
+# Html -> Html functions, and the probe commits each press as a `|>` stage. #
+
+# A key is an Html -> Html, so whatever it remembers travels in the html it #
+# is handed. Attributes carry that, and `case` reads it back — Attr is an #
+# ordinary sum type, so Create(name, value) can be matched like anything #
+# else. data-acc is the running total, data-op the pending operator, #
+# data-entry the operand being typed. #
+
+let getAttr =
+  fun (attrs, key) ->
+    case filter(attrs, fun a -> case a | Create(n, _) => n == key | _ => false end)
+    | Create(_, v) :: _ => v
+    | _ => ""
+    end
+in
+
+let stateOf =
+  fun node ->
+    case node
+    | Div(attrs, _) => (
+        getAttr(attrs, "data-acc"),
+        getAttr(attrs, "data-op"),
+        getAttr(attrs, "data-entry")
+      )
+    | _ => ("0", "", "")
+    end
+in
+
+let display =
+  fun (acc, op, entry) ->
+    Div([Class("calc-display")], [
+      Div([Class("calc-pending")], [Text(if op == "" then " " else acc ++ " " ++ op)]),
+      Div([Class("calc-value")], [Text(if entry == "" then acc else entry)])
+    ])
+in
+
+# Rebuild the state and the display; keep the pad, so a key never has to #
+# know what the keypad looks like. #
+
+let setState =
+  fun (node, acc, op, entry) ->
+    case node
+    | Div(_, _ :: pad) =>
+        Div([
+          Class("calc"),
+          Create("data-acc", acc),
+          Create("data-op", op),
+          Create("data-entry", entry)
+        ], display(acc, op, entry) :: pad)
+    | _ => node
+    end
+in
+
+# An empty operator means there is no total yet, so the entry becomes it. #
+# Dividing by zero leaves the total alone rather than failing. #
+
+let folded =
+  fun node ->
+    let (acc, op, entry) = stateOf(node) in
+    let a = int_of_string(acc) in
+    if entry == ""
+    then a
+    else
+      let b = int_of_string(entry) in
+      if op == "+" then a + b
+      else if op == "-" then a - b
+      else if op == "*" then a * b
+      else if op == "/" then (if b == 0 then a else a / b)
+      else b
+in
+
+let pressDigit =
+  fun (node, d) ->
+    let (acc, op, entry) = stateOf(node) in
+    setState(node, acc, op, entry ++ d)
+in
+
+let pressOp =
+  fun (node, newOp) ->
+    setState(
+      node,
+      string_of_int(folded(node)),
+      if newOp == "=" then "" else newOp,
+      ""
+    )
+in
+
+# Inlined handlers: a deferred application still names pressDigit. #
+
+let key =
+  fun (label, op) -> Button([OnClick(op), Class("calc-key")], [Text(label)])
+in
+
+let calc =
+  fun n ->
+    Div([
+      Class("calc"),
+      Create("data-acc", string_of_int(n)),
+      Create("data-op", ""),
+      Create("data-entry", "")
+    ], [
+      display(string_of_int(n), "", ""),
+      Div([Class("calc-keys")], [
+        key("7", pressDigit(_, "7")), key("8", pressDigit(_, "8")),
+        key("9", pressDigit(_, "9")), key("/", pressOp(_, "/")),
+        key("4", pressDigit(_, "4")), key("5", pressDigit(_, "5")),
+        key("6", pressDigit(_, "6")), key("*", pressOp(_, "*")),
+        key("1", pressDigit(_, "1")), key("2", pressDigit(_, "2")),
+        key("3", pressDigit(_, "3")), key("-", pressOp(_, "-")),
+        key("0", pressDigit(_, "0")), key("C", setState(_, "0", "", "")),
+        key("=", pressOp(_, "=")), key("+", pressOp(_, "+"))
+      ])
+    ])
+in
+
+hint "digits accumulate into one operand rather than replacing it"
+test
+  let (_, _, entry) = stateOf(calc(0) |> pressDigit(_, "1") |> pressDigit(_, "2") |> pressDigit(_, "3")) in
+  entry == "123"
+end;
+
+hint "an operator folds the pending entry into the total"
+test
+  let (acc, op, entry) = stateOf(calc(0) |> pressDigit(_, "1") |> pressDigit(_, "2") |> pressOp(_, "*")) in
+  acc == "12" && op == "*" && entry == ""
+end;
+
+hint "12 * 4 = 48"
+test
+  let (acc, _, _) =
+    stateOf(
+      calc(0)
+        |> pressDigit(_, "1")
+        |> pressDigit(_, "2")
+        |> pressOp(_, "*")
+        |> pressDigit(_, "4")
+        |> pressOp(_, "=")
+    )
+  in
+  acc == "48"
+end;
+
+hint "the pad survives every press, so keys keep working"
+test
+  case calc(0) |> pressDigit(_, "5") |> pressOp(_, "+") |> pressDigit(_, "6") |> pressOp(_, "=")
+  | Div(_, [_, Div(_, keys)]) => length(keys) == 16
+  | _ => false
+  end
+end;
+
+hint "dividing by zero leaves the total alone"
+test
+  let (acc, _, _) = stateOf(calc(0) |> pressDigit(_, "8") |> pressOp(_, "/") |> pressDigit(_, "0") |> pressOp(_, "=")) in
+  acc == "8"
+end;
+
+^^probe_html(calc(0))

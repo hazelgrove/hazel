@@ -113,6 +113,7 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   use_literal_lexemes: false,
   hole_tiles: false,
   project_tables: false,
+  project_html: false,
 };
 
 let view_any = (~globals, any: Any.t) =>

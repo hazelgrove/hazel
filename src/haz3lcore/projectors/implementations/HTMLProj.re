@@ -211,24 +211,36 @@ module M: Projector = {
     | SetCheckpoint(option(string));
 
   /* Permissive and syntactic: accept bare HTML, plus anything that could
-     evaluate to an app. `view` has the live value and makes the call. */
+     evaluate to an app. `view` has the live value and makes the call.
+     Parenthesized syntax is unwrapped first — the auto-display path in
+     ExpToSegment has to parenthesize a printed element to get the single
+     piece a projector replaces, and a user can equally well point this at
+     `(Div(...))`. */
   let init = (any: Any.t) => {
     let accept =
       Some({
         ui: default_ui,
         checkpoint: None,
       });
+    let rec unwrap = (e: Exp.t): Exp.t =>
+      switch (e.term) {
+      | Parens(inner) => unwrap(inner)
+      | _ => e
+      };
     switch (any) {
-    // HTML constructor applied to arguments: Div(...), Button(...), etc.
-    | Exp({term: Ap(_, {term: Constructor(name, _), _}, _), _})
-        when MvuShape.is_html_constructor(name) => accept
-    // Nullary HTML constructor: Br
-    | Exp({term: Constructor("Br", _), _}) => accept
-    // A literal 4-tuple, or an expression whose value we can't know yet
-    | Exp({term: Tuple([_, _, _, _]), _})
-    | Exp({term: Parens({term: Tuple([_, _, _, _]), _}), _})
-    | Exp({term: Var(_), _})
-    | Exp({term: Ap(_), _}) => accept
+    | Exp(e) =>
+      switch (unwrap(e).term) {
+      // HTML constructor applied to arguments: Div(...), Button(...), etc.
+      | Ap(_, {term: Constructor(name, _), _}, _)
+          when MvuShape.is_html_constructor(name) => accept
+      // Nullary HTML constructor: Br
+      | Constructor("Br", _) => accept
+      // A literal 4-tuple, or an expression whose value we can't know yet
+      | Tuple([_, _, _, _])
+      | Var(_)
+      | Ap(_) => accept
+      | _ => None
+      }
     | _ => None
     };
   };

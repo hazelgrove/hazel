@@ -15,6 +15,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   use_literal_lexemes: true,
   hole_tiles: false,
   project_tables: false,
+  project_html: false,
 };
 
 let segmentize =

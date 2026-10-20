@@ -24,6 +24,7 @@ let view = (~globals, kind: Language.Ctx.kind): Node.t =>
             use_literal_lexemes: false,
             hole_tiles: false,
             project_tables: false,
+            project_html: false,
           },
           ty,
         ),
