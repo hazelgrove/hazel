@@ -119,6 +119,39 @@ let parens_typed_in = (name, marked, typed) =>
     },
   );
 
+/* typed key by key at the caret (¦) of a loaded program: the editor reads
+   the result as it reads the same text loaded whole */
+let typed_in = (name, marked, typed) =>
+  test_case(
+    name ++ " (typed in place)",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Test_TabDispatch.padding_zipper(marked),
+          List.map(c => Action.Insert(c), Token.to_list(typed)),
+        );
+      let loaded =
+        Util.StringUtil.plain_split(marked, "¦") |> String.concat(typed);
+      check(
+        bool,
+        "MakeTerm reads the typed and loaded text identically: " ++ name,
+        true,
+        Language.Equality.(
+          equality({
+            ...syntactic_settings,
+            ignore_parens: false,
+          }).
+            exp
+        )(
+          MakeTerm.go(Zipper.unselect_and_zip(z)).term,
+          MakeTerm.go(Option.get(Parser.to_segment(loaded, ~root=Exp))).
+            term,
+        ),
+      );
+    },
+  );
+
 let rejected = (name, txt) =>
   test_case(name ++ " (falls back)", `Quick, () => {
     check(
@@ -405,6 +438,11 @@ let tests = (
       "a case's scrutinee in parens, among members",
       "let m = {\n  let a = 1;\n  ¦\n} in m",
       "case (a)",
+    ),
+    typed_in(
+      "a case among a module's members",
+      "let m = {\n  let a = 1;\n  ¦\n} in m",
+      "case a | _ => 1 end",
     ),
     semantic("case with ctor pats", "case a | Down(x, y) => x | Up => 0 end"),
     rejected("unbalanced brace", "let m = { let a = 1 in m"),
