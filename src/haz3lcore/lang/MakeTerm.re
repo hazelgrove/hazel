@@ -2268,15 +2268,31 @@ module Incr = {
     };
   };
 
+  /* [ps]'s leading trivia, its separator if it opens with a missing `;`'s
+     grout, and the pieces after that */
+  let lead_sep = (ps: Segment.t): option((Segment.t, Piece.t, Segment.t)) => {
+    let rec go = (trivia, ps: Segment.t) =>
+      switch (ps) {
+      | [p, ...ps] when Piece.is_secondary(p) => go([p, ...trivia], ps)
+      | [Grout({shape: Concave, _}) as sep, ...ps] =>
+        Some((List.rev(trivia), sep, ps))
+      | _ => None
+      };
+    go([], ps);
+  };
+
   /* a mod-item slice ending in `;` is nonconvex: the appended grout
-     parses to a trailing EmptyHole item, dropped here (the caller scrubs
-     its id). mod items have no body, so composition is a plain concat,
-     which a `;` parsed inside an item (a stray line above a member) breaks.
-     Read Mod-sorted, as go reads a member list: a concave grout (a missing
-     `;`) separates members, where the collection's Exp-sorted skel would
-     bind it inside the first member's definition. [cut]: the slice is an
-     unfinished member cut at its member line, whose open form takes the
-     grout */
+     parses to a trailing EmptyHole item, dropped here. One opening with its
+     separator, a missing `;`'s grout (a member line cut leaves it before
+     the member typed there), is too: a grout before it stands in for the
+     member it follows, and its item is dropped likewise. The caller scrubs
+     their ids, returned. mod items have no body, so composition is a plain
+     concat, which a `;` parsed inside an item (a stray line above a member)
+     breaks. Read Mod-sorted, as go reads a member list: a concave grout (a
+     missing `;`) separates members, where the collection's Exp-sorted skel
+     would bind it inside the first member's definition. [cut]: the slice
+     is an unfinished member cut at its member line, whose open form takes
+     the grout */
   let parse_item_mod =
       (
         ~masks=Id.Map.empty,
@@ -2284,7 +2300,7 @@ module Incr = {
         ~cut=false,
         pieces: Segment.t,
       )
-      : (list(Mod.t), option(Id.t)) => {
+      : (list(Mod.t), list(Id.t)) => {
     let attempt = (ps: Segment.t): option(list(Mod.t)) =>
       switch (Segment.skel(ps)) {
       | skel =>
@@ -2296,16 +2312,52 @@ module Incr = {
         )
       | exception _ => None
       };
+    /* derived from the separator, so two parses of the same pieces agree */
+    let (pieces, head) =
+      switch (lead_sep(pieces)) {
+      | Some((trivia, sep, rest)) =>
+        let id = Id.derive(~salt="head-grout", Piece.id(sep));
+        (
+          trivia
+          @ [
+            Piece.Grout({
+              id,
+              shape: Convex,
+            }),
+            sep,
+            ...rest,
+          ],
+          [id],
+        );
+      | None => (pieces, [])
+      };
+    /* the stand-in's item: an expression, which flatten_mod wraps */
+    let stands_in = (h: Id.t, m: Mod.t) =>
+      switch (m.term) {
+      | ModExp(e) => List.mem(h, e.annotation.ids)
+      | _ => List.mem(h, m.annotation.ids)
+      };
+    let behead = (items: list(Mod.t)) =>
+      switch (head, items) {
+      | ([], _) => items
+      | ([h], [m, ...ms]) when stands_in(h, m) => ms
+      | _ => failwith("MakeTerm.Incr: mod item lost its separator")
+      };
     switch (with_body_grout(attempt, pieces)) {
-    | Some((items, None)) => (items, None)
+    | Some((items, None)) => (behead(items), head)
     | Some((items, Some(hole_id))) =>
       let is_hole = (m: Mod.t) => List.mem(hole_id, m.annotation.ids);
-      switch (ListUtil.split_last_opt(items)) {
-      | Some((items, hole)) when is_hole(hole) => (items, Some(hole_id))
-      | Some(_) when cut => (items, Some(hole_id))
+      switch (ListUtil.split_last_opt(behead(items))) {
+      | Some((items, hole)) when is_hole(hole) => (
+          items,
+          [hole_id, ...head],
+        )
+      | Some(_) when cut => (items, [hole_id, ...head])
       | _ => failwith("MakeTerm.Incr: mod item absorbed its `;`")
       };
-    | None => ([], None)
+    /* a slice that won't read alone parses whole, never dropping its
+       tiles */
+    | None => failwith("MakeTerm.Incr: mod item won't parse alone")
     };
   };
 
@@ -2471,13 +2523,14 @@ module Incr = {
 
   let full_analyzed = ref(0); /* observability for tests */
 
-  /* strip the synthetic body hole from captured maps: go never sees
-     that grout, so nothing keyed by it may survive into the union */
-  let scrub_hole = (hole: option(Id.t), (m, td)) =>
-    switch (hole) {
-    | None => (m, td)
-    | Some(h) => (Id.Map.remove(h, m), Id.Map.remove(h, td))
-    };
+  /* strip the synthetic grouts from captured maps: go never sees them,
+     so nothing keyed by them may survive into the union */
+  let scrub = (grouts: list(Id.t), (m, td)) =>
+    List.fold_left(
+      ((m, td), g) => (Id.Map.remove(g, m), Id.Map.remove(g, td)),
+      (m, td),
+      grouts,
+    );
 
   /* replays [unsorted]'s sort propagation over a level's skel, recording
      TermData with the WHOLE level as base_seg (tile children are separate
@@ -2840,8 +2893,9 @@ module Incr = {
         ps: Segment.t,
       )
       : (entry_full, delta) =>
+    /* a level of only trivia or a hole (`{ }`) is one slice, no span */
     switch (
-      root == Sort.Mod
+      root == Sort.Mod && k < Array.length(lv.spans)
         ? Option.bind(ItemSpans.chain(lv, k), cl =>
             parse_chain(
               ~member,
@@ -2936,13 +2990,13 @@ module Incr = {
     /* an unfinished member cut at its member line: no separator ends it */
     let cut =
       lv.cut && k < Array.length(lv.spans) - 1 && lv.spans[k].sep == None;
-    let (f_term, f_hole, f_mods, hole) =
+    let (f_term, f_hole, f_mods, grouts) =
       if (root == Sort.Mod) {
-        let (items, hole) = parse_item_mod(~masks, ~hooks, ~cut, ps);
-        (Exp.fresh(EmptyHole), None, items, hole);
+        let (items, grouts) = parse_item_mod(~masks, ~hooks, ~cut, ps);
+        (Exp.fresh(EmptyHole), None, items, grouts);
       } else {
         let (term, hole) = parse_item(~masks, ~hooks, ps);
-        (term, hole, [], hole);
+        (term, hole, [], Option.to_list(hole));
       };
     Option.iter(
       ((_, _, _, _, _, (frame, level_map), _)) => {
@@ -2952,7 +3006,7 @@ module Incr = {
       members,
     );
     consolidate_adopted();
-    let (m, td) = scrub_hole(hole, (map^, term_data^));
+    let (m, td) = scrub(grouts, (map^, term_data^));
     let (f_map, f_td, f_adopted, f_seps) =
       localize(~member, ps, m, td, adopted_ids^);
     /* the spine its parent grafts supplies the nodes down to its hole */
@@ -3066,7 +3120,7 @@ module Incr = {
           );
         let ph = Id.derive(~salt="chain-shell", sp.anchor);
         incr(count);
-        let (items, hole) =
+        let (items, grouts) =
           parse_item_mod(
             ~masks,
             [
@@ -3094,7 +3148,7 @@ module Incr = {
           | _ => raise(Recompose)
           };
         consolidate_adopted();
-        let (m, td) = scrub_hole(hole, (map^, term_data^));
+        let (m, td) = scrub(grouts, (map^, term_data^));
         let m =
           fix_spine(Id.Map.remove(ph, m), rebuilt^)
           |> TermMap.add_all(e.annotation.ids, Mod(modexp));

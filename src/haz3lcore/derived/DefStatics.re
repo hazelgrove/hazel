@@ -899,13 +899,22 @@ let step_chain =
   };
 };
 
-/* [map] at [ks] from [wrap]: an item's own entries over its chain's */
-let rewrap = (map: Statics.Map.t, wrap: Statics.Map.t, ks: list(Id.t)) =>
+/* [map] at [ks] from [wrap]: an item's own entries over its chain's. A
+   key [wrap] lost stays where the chain's walk set it ([walked]): an id
+   that moved into a member, as a module's `;` does when completion
+   closes a module before it no longer */
+let rewrap =
+    (
+      ~walked: Id.t => bool,
+      map: Statics.Map.t,
+      wrap: Statics.Map.t,
+      ks: list(Id.t),
+    ) =>
   List.fold_left(
     (m, k) =>
       switch (Id.Map.find_opt(k, wrap)) {
       | Some(v) => Id.Map.add(k, v, m)
-      | None => Id.Map.remove(k, m)
+      | None => walked(k) ? m : Id.Map.remove(k, m)
       },
     map,
     ks,
@@ -925,7 +934,18 @@ let nest_map =
   switch (prev, touched) {
   | (Some(n), Some(ts)) =>
     let ks = keys(n.n_wrap, keys(wrap, []));
-    (rewrap(chain_map, wrap, ks), Some(List.rev_append(ks, ts)));
+    /* read only when a key leaves [wrap] */
+    let walked =
+      lazy(List.fold_left((s, k) => Id.Set.add(k, s), Id.Set.empty, ts));
+    (
+      rewrap(
+        ~walked=k => Id.Set.mem(k, Lazy.force(walked)),
+        chain_map,
+        wrap,
+        ks,
+      ),
+      Some(List.rev_append(ks, ts)),
+    );
   | _ => (map_union(chain_map, wrap), None)
   };
 

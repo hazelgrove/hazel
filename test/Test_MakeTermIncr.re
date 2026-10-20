@@ -260,6 +260,15 @@ let tests = (
     test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz")),
     test_case("mega-4k parity", `Quick, corpus_case("mega-4k.hz")),
     test_case("independent of the previous parse", `Quick, independent),
+    /* a member level of only trivia is one slice, with no item */
+    test_case(
+      "empty module bodies",
+      `Quick,
+      edge_case((
+        "empty module bodies",
+        "module M = { } in\nmodule N = {\n} in\n1",
+      )),
+    ),
     test_case("a member edit at depth 1", `Quick, member_edit(("11", "13"))),
     test_case("a member edit at depth 2", `Quick, member_edit(("21", "23"))),
     test_case(
