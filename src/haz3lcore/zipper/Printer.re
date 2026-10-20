@@ -44,47 +44,19 @@ let add_caret =
   };
 };
 
-let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
-  try(
-    StringUtil.repeat(
-      Measured.Rows.find(i, measured.rows).content_start,
-      indent,
-    )
-    ++ r
-  ) {
-  | Not_found =>
-    print_endline("Printer.add_indent: Not_found");
-    r;
-  };
-
-let add_indents = (segment, measured, indent: string, rows: list(string)) =>
-  if (indent == "") {
-    /* If no indentation is needed, we don't need to bother calculating measured */
-    rows;
-  } else {
-    let measured =
-      switch (measured) {
-      | Some(m) => m
-      | None => measured_no_projectors(segment)
-      };
-    List.mapi(add_indent(measured, indent), rows);
-  };
-
 /* Use this to pretty-print segments. Note that printing holes with
  * a space may result in extraneous whitespace, but printing without
- * a space may result in tokens getting glued together. You can't win */
+ * a space may result in tokens getting glued together. You can't win.
+ * Indentation is the segment's own space pieces, printed as is. */
 let of_segment =
     (
       ~holes=" ",
       ~concave_holes=" ",
       ~projector_to_segment=Triggers.projector_to_invoke,
-      ~indent="",
       ~refractors=[],
       ~refractor_seg_to_seg=Triggers.refractor_seg_to_seg,
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
-      ~measured=?,
-      ~is_single_line=false,
       segment: Segment.t,
     )
     : string =>
@@ -97,13 +69,11 @@ let of_segment =
        ~projector_to_segment,
      )
   |> String.split_on_char('\n')
-  |> (is_single_line ? Fun.id : add_indents(segment, measured, indent))
   |> add_caret(~caret, ~selection_anchor)
   |> String.concat("\n");
 
-let selected_text =
-    (~holes=" ", ~indent="", ~refractors=[], z: Zipper.t): string => {
-  let full = of_segment(~holes, ~indent, ~refractors, z.selection.content);
+let selected_text = (~holes=" ", ~refractors=[], z: Zipper.t): string => {
+  let full = of_segment(~holes, ~refractors, z.selection.content);
   Zipper.trim_selected_text(z, full);
 };
 
@@ -113,7 +83,6 @@ let of_zipper =
       ~holes=?,
       ~concave_holes=?,
       ~projector_to_segment=?,
-      ~indent=?,
       ~caret=?,
       ~selection_anchor=?,
       z: Zipper.t,
@@ -135,11 +104,9 @@ let of_zipper =
     ~holes?,
     ~concave_holes?,
     ~projector_to_segment?,
-    ~indent?,
     ~refractors=z.refractors.manuals,
     ~caret,
     ~selection_anchor,
-    ~measured,
     segment,
   );
 };

@@ -621,8 +621,7 @@ let deep_reassociate_tests = [
                 else c)
         else r)|},
         );
-      let sel_text =
-        Printer.of_segment(~holes="?", ~indent=" ", z.selection.content);
+      let sel_text = Printer.of_segment(~holes="?", z.selection.content);
       let z_cut =
         [Action.Destruct(Local(Right, ByChar))]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
@@ -643,8 +642,7 @@ let deep_reassociate_tests = [
           ~settings=deep_reassociate_settings,
           {|if true §then if false then 1¦ else 2 else 3|},
         );
-      let sel_text =
-        Printer.of_segment(~holes="?", ~indent=" ", z.selection.content);
+      let sel_text = Printer.of_segment(~holes="?", z.selection.content);
       let z_cut =
         [Action.Destruct(Local(Right, ByChar))]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
@@ -681,8 +679,7 @@ let deep_reassociate_tests = [
       let z_sel =
         sel_l(15)
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
-      let sel_text =
-        Printer.of_segment(~holes="?", ~indent=" ", z_sel.selection.content);
+      let sel_text = Printer.of_segment(~holes="?", z_sel.selection.content);
       let z_cut =
         [Action.Destruct(Local(Right, ByChar))]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
@@ -710,8 +707,7 @@ let deep_reassociate_tests = [
       let z_sel =
         sel_l(13)
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
-      let sel_text =
-        Printer.of_segment(~holes="?", ~indent=" ", z_sel.selection.content);
+      let sel_text = Printer.of_segment(~holes="?", z_sel.selection.content);
       let z_cut =
         [Action.Destruct(Local(Right, ByChar))]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
@@ -739,8 +735,7 @@ let deep_reassociate_tests = [
       let z_sel =
         sel_l(19)
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z);
-      let sel_text =
-        Printer.of_segment(~holes="?", ~indent=" ", z_sel.selection.content);
+      let sel_text = Printer.of_segment(~holes="?", z_sel.selection.content);
       let z_cut =
         [Action.Destruct(Local(Right, ByChar))]
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z_sel);
@@ -883,8 +878,7 @@ let complete_count = (label, z: Zipper.t): int =>
 
 /* Cut the current selection (Destruct), then paste the same text back. */
 let cut_and_paste = (z: Zipper.t): Zipper.t => {
-  let sel_text =
-    Printer.of_segment(~holes="?", ~indent=" ", z.selection.content);
+  let sel_text = Printer.of_segment(~holes="?", z.selection.content);
   let z =
     Test_Editing.perform(
       ~settings=deep_reassociate_settings,

@@ -27,7 +27,6 @@ let format =
   | Some(exp) =>
     let segment = segmentize(exp);
     let pretty = PrettySegment.prettify(~width, ~settings, segment);
-    /* No ~indent: PrettySegment now emits real whitespace for indent. */
     Printer.of_segment(~holes="?", pretty)
     |> Util.StringUtil.trim_trailing_whitespace;
   | None => failwith("Failed to parse: " ++ input)
