@@ -395,10 +395,16 @@ module Update = {
         // Using the webworker:
         | Some(queue_worker) =>
           /* the worker keeps its own incremental cache; shipping prev
-             would dominate the payload */
+             would dominate the payload. the program goes in pieces, so
+             only definitions that changed are encoded and posted */
           queue_worker({
-            expr: elab,
-            eval_info_map: Lazy.force(eval_info_map),
+            program:
+              EvalSplit.program(
+                ~probe_all=settings.probe_all,
+                ~external_ids=List.map(fst, Id.Map.bindings(extra_targets)),
+                ~targets=Calc.get_value(targets),
+                statics,
+              ),
             prev: UseResident,
             /* highlight off: stream only effect-bearing entries (tests,
                probes); each streamed chunk costs a main-thread render */

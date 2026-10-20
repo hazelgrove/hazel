@@ -1,0 +1,771 @@
+open Alcotest;
+open Haz3lcore;
+open Language;
+
+/* The eval request in pieces: after every edit the worker composes the
+   program a whole request would carry, posting only the changed pieces;
+   a piece it lacks or that doesn't match its hash gets the request
+   posted whole; and evaluation reads the same */
+
+module Split = Web.EvalSplit;
+module Client = Web.WorkerClient;
+module Parity = Test_DefStaticsParity;
+module Delta = Test_DefStaticsDelta;
+
+let settings = CoreSettings.on;
+
+/* structural equality, a memo of the pairs found equal so that shared
+   subterms are compared once (the whole program, and every root entry's
+   suffix of it). a pair counts as equal while its fields are compared:
+   one found unequal fails the test, so no later check reads the memo */
+type same = {same: 'a. ('a, 'a) => bool};
+let same_graph = (): same => {
+  let memo =
+    Js_of_ocaml.Js.Unsafe.new_obj(
+      Js_of_ocaml.Js.Unsafe.pure_js_expr("Map"),
+      [||],
+    );
+  let paired = (a: Obj.t, b: Obj.t): bool =>
+    Js_of_ocaml.Js.Unsafe.meth_call(
+      memo,
+      "get",
+      [|Js_of_ocaml.Js.Unsafe.inject(a)|],
+    )
+    === b;
+  let pair = (a: Obj.t, b: Obj.t): unit =>
+    ignore(
+      Js_of_ocaml.Js.Unsafe.meth_call(
+        memo,
+        "set",
+        [|
+          Js_of_ocaml.Js.Unsafe.inject(a),
+          Js_of_ocaml.Js.Unsafe.inject(b),
+        |],
+      ),
+    );
+  let rec go = (a: Obj.t, b: Obj.t): bool =>
+    a === b
+    || (
+      if (Obj.is_int(a) || Obj.is_int(b)) {
+        a == b;
+      } else if (Obj.tag(a) != Obj.tag(b)) {
+        false;
+      } else if (Obj.tag(a) >= Obj.no_scan_tag) {
+        compare(a, b) == 0;
+      } else if (Obj.size(a) != Obj.size(b)) {
+        false;
+      } else if (paired(a, b)) {
+        true;
+      } else {
+        pair(a, b);
+        let n = Obj.size(a);
+        let rec fields = i =>
+          i >= n || go(Obj.field(a, i), Obj.field(b, i)) && fields(i + 1);
+        fields(0);
+      }
+    );
+  {same: (x, y) => go(Obj.repr(x), Obj.repr(y))};
+};
+
+/* the program's last expression: the ⇓ toggle's probe */
+let tail_id = (term: Exp.t): Id.t => {
+  let rec tail_of = (e: Exp.t) =>
+    switch (AutoProbePerform.top_level_rest(e)) {
+    | Some(body) => tail_of(body)
+    | None => e
+    };
+  Exp.rep_id(tail_of(term));
+};
+
+/* statics as the editor computes them, the ⇓ probe on */
+let statics_of = (term: Exp.t): CachedStatics.t => {
+  let probe_ids = Id.Map.singleton(tail_id(term), ());
+  CachedStatics.of_def_statics(
+    ~settings,
+    ~probe_ids,
+    term,
+    DefStatics.calc_auto(~settings, ~probe_ids, term),
+  );
+};
+
+/* what the base posted: the whole program */
+let whole = (st: CachedStatics.t): (Exp.t, EvalInfo.t) => (
+  st.elaborated,
+  EvalInfo.of_info_map(
+    ~probe_all=settings.probe_all,
+    ~targets=st.targets,
+    st.info_map,
+  ),
+);
+
+let request_of = (st: CachedStatics.t): WorkerServer.Request.t => {
+  request_id: 1,
+  batch: [
+    (
+      "",
+      {
+        program:
+          Split.program(
+            ~probe_all=settings.probe_all,
+            ~targets=st.targets,
+            st,
+          ),
+        prev: UseResident,
+        stream: Full,
+      },
+    ),
+  ],
+};
+
+/* a new worker, and the client's view of it */
+let fresh_worker = () => {
+  Hashtbl.reset(WorkerServer.held);
+  Hashtbl.reset(Client.held);
+};
+
+/* posted as the client posts it, across the encoding */
+let post =
+    (~full=false, request: WorkerServer.Request.t): WorkerServer.Posted.t => {
+  let posted = Client.posted_of(~full, request);
+  Client.hold(request);
+  switch (
+    WorkerServer.Active.decode_request(
+      WorkerServer.Active.encode_request(Evaluate(posted)),
+    )
+  ) {
+  | Evaluate(posted) => posted
+  | InstallLibrary(_) => Alcotest.fail("a library install")
+  };
+};
+
+let composed = (r: WorkerServer.received): WorkerServer.Evaluation.value =>
+  switch (r) {
+  | Composed({batch: [(_, v)], _}) => v
+  | Composed(_) => fail("a batch of other than one")
+  | Missing(keys) =>
+    fail(
+      "missing " ++ String.concat(", ", List.map(EvalPieces.show_key, keys)),
+    )
+  | Malformed(why) => fail("malformed: " ++ why)
+  };
+
+/* why [st]'s program goes whole, if it does: a module's value refolds
+   from its items on stdlib, so a module root goes whole (EvalSplit) */
+let whole_because = (st: CachedStatics.t): option(string) =>
+  switch (DefStatics.strip(st.term).term) {
+  | Module(_) => Some("a module root (its value refolds from its items)")
+  | _ => None
+  };
+
+/* the worker's program is the whole request's, and the program went in
+   pieces where it can */
+let check_exact =
+    (name, st: CachedStatics.t, v: WorkerServer.Evaluation.value) => {
+  let (expr, info) = whole(st);
+  let {same} = same_graph();
+  check(
+    option(string),
+    name ++ ": in pieces",
+    whole_because(st),
+    Split.went_whole^,
+  );
+  check(bool, name ++ ": the program", true, same(expr, v.expr));
+  check(
+    int,
+    name ++ ": eval info entries",
+    Id.Map.cardinal(info.statics),
+    Id.Map.cardinal(v.eval_info_map.statics),
+  );
+  check(
+    bool,
+    name ++ ": eval info",
+    true,
+    same(
+      Id.Map.bindings(info.statics),
+      Id.Map.bindings(v.eval_info_map.statics),
+    ),
+  );
+  check(
+    bool,
+    name ++ ": targets",
+    true,
+    same(
+      Id.Map.bindings(info.targets),
+      Id.Map.bindings(v.eval_info_map.targets),
+    ),
+  );
+};
+
+/* each step's program through one worker, from a fresh one */
+let script = (~root=Sort.Exp, src: string, steps: list(Parity.step), ()) => {
+  fresh_worker();
+  let term_of = seg => MakeTerm.Incr.term_of_root(~root, seg);
+  let run = (name, seg) => {
+    let st = statics_of(term_of(seg));
+    check_exact(
+      name,
+      st,
+      composed(WorkerServer.receive(post(request_of(st)))),
+    );
+  };
+  let seg = CorpusUtil.seg_of(~root, src);
+  run("step 0", seg);
+  ignore(
+    List.fold_left(
+      ((i, seg), s: Parity.step) => {
+        let seg = s.edit(~root, seg);
+        run("step " ++ string_of_int(i), seg);
+        (i + 1, seg);
+      },
+      (1, seg),
+      steps,
+    ),
+  );
+};
+
+/* typed key by key after [after]'s line: mid-typing states */
+let typed = (~root, src, after, keys, ()) => {
+  module MC = Test_ModuleCompletion;
+  fresh_worker();
+  let run = (name, z) => {
+    let st =
+      statics_of(
+        MakeTerm.semantic_term(~root, MakeTerm.semantic_source(z)),
+      );
+    check_exact(
+      name,
+      st,
+      composed(WorkerServer.receive(post(request_of(st)))),
+    );
+  };
+  let z = MC.at_line(~root, src, after);
+  run("untyped", z);
+  ignore(
+    List.fold_left(
+      ((z, typed), c) => {
+        let z = MC.perform(~root, z, Insert(c));
+        let typed = typed ++ c;
+        run(String.escaped(typed), z);
+        (z, typed);
+      },
+      (z, ""),
+      List.map(String.make(1), List.of_seq(String.to_seq(keys))),
+    ),
+  );
+};
+
+let list_src = (~root) => Test_OpenMember.src(~root);
+
+/* [src]'s module body as the only member of [depth] modules */
+let nest = (~depth, src: string): string =>
+  List.fold_left(
+    (src, i) =>
+      "module Nest" ++ string_of_int(i) ++ " = {\n" ++ src ++ "\n}",
+    src,
+    List.init(depth, i => i),
+  );
+
+/* a literal retyped and back */
+let back_and_forth = (~at=?, needle, repl) => [
+  Parity.token(~at?, ~keep_id=true, needle, repl),
+  Parity.token(~at?, ~keep_id=true, repl, needle),
+];
+
+let mega = (~root, file, steps) =>
+  script(~root, Option.get(CorpusUtil.mega_src(file)), steps);
+
+let exact_tests =
+  [
+    test_case(
+      "Mega 1k: retypes, an insert, a delete, a move, an outdent",
+      `Quick,
+      mega(
+        ~root=Exp,
+        "mega-1k.hz",
+        Delta.mega_steps @ back_and_forth(~at=`Last, "9", "8"),
+      ),
+    ),
+    test_case(
+      "Mega-Mod 1k: the same at a Mod root",
+      `Quick,
+      mega(
+        ~root=Mod,
+        "mega-mod-1k.hz",
+        Delta.mega_steps @ back_and_forth(~at=`Last, "9", "8"),
+      ),
+    ),
+    test_case(
+      "Mega 4k: retypes top, middle and end, and back",
+      `Slow,
+      mega(
+        ~root=Exp,
+        "mega-4k.hz",
+        back_and_forth(~at=`First, "60", "61")
+        @ back_and_forth(~at=`First, "2104", "2105")
+        @ back_and_forth(~at=`Last, "87", "88"),
+      ),
+    ),
+    test_case(
+      "the List module at a Mod root",
+      `Quick,
+      script(
+        ~root=Mod,
+        list_src(~root=Mod),
+        back_and_forth(~at=`First, "0", "5")
+        @ [
+          Parity.op(NewBelow, ["List", "map"]),
+          Parity.op(Delete, ["List", "filter"]),
+          Parity.op(MoveDown, ["List", "length"]),
+          Parity.move(~up=true, ["List", "zip"]),
+          Parity.token(~at=`First, "length", "size"),
+        ],
+      ),
+    ),
+    test_case(
+      "the List module at an Exp root",
+      `Quick,
+      script(
+        ~root=Exp,
+        list_src(~root=Exp),
+        back_and_forth(~at=`First, "0", "5")
+        @ [Parity.op(Duplicate, ["List", "map"])],
+      ),
+    ),
+    test_case(
+      "a lib-like program: member edits, adds, removes, moves",
+      `Quick,
+      script(~root=Mod, Delta.lib, Delta.lib_edits @ Delta.lib_restructures),
+    ),
+    test_case(
+      "the lib-like program in a module at an Exp root",
+      `Quick,
+      script(
+        "module Wrap = {\n" ++ Delta.lib ++ "\n} in\nWrap.List.length([1])",
+        [
+          Parity.token(~at=`First, ~keep_id=true, "0", "5"),
+          Parity.token("reverse", "rev"),
+          Parity.op(Delete, ["Wrap", "List", "flat_map"]),
+          Parity.op(MoveDown, ["Wrap", "List", "length"]),
+        ],
+      ),
+    ),
+    test_case(
+      "List one and two modules deep, at a Mod root",
+      `Quick,
+      () => {
+        script(
+          ~root=Mod,
+          nest(~depth=1, list_src(~root=Mod)),
+          back_and_forth(~at=`First, "0", "5")
+          @ [Parity.op(NewBelow, ["Nest0", "List", "map"])],
+          (),
+        );
+        script(
+          ~root=Mod,
+          nest(~depth=2, list_src(~root=Mod)),
+          back_and_forth(~at=`Last, "1", "2")
+          @ [Parity.op(Delete, ["Nest1", "Nest0", "List", "zip"])],
+          (),
+        );
+      },
+    ),
+    test_case(
+      "Mega-Mod 1k's items as one module's members, two deep",
+      `Quick,
+      script(
+        ~root=Mod,
+        nest(~depth=2, Option.get(CorpusUtil.mega_src("mega-mod-1k.hz"))),
+        back_and_forth(~at=`Last, "9", "8"),
+      ),
+    ),
+    test_case(
+      "a let chain: adds and removes",
+      `Quick,
+      script(
+        "let a = 1 in\nlet b = a + 1 in\ntype T = Int in\nlet c : T = b in\nc",
+        [
+          Parity.op(NewBelow, ["a"]),
+          Parity.op(Delete, ["new_def"]),
+          Parity.op(NewTestBelow, ["b"]),
+        ],
+      ),
+    ),
+  ]
+  @ List.map(
+      ((name, root, src, after, keys)) =>
+        test_case("typed: " ++ name, `Quick, typed(~root, src, after, keys)),
+      Delta.moved_ids,
+    )
+  @ [
+    test_case("edge and mid-typing programs", `Quick, () =>
+      List.iter(
+        ((name, src)) =>
+          switch (CorpusUtil.parse(src)) {
+          | Some(seg) =>
+            fresh_worker();
+            let st = statics_of(MakeTerm.Incr.term_of_root(~root=Exp, seg));
+            check_exact(
+              name,
+              st,
+              composed(WorkerServer.receive(post(request_of(st)))),
+            );
+          | None => ()
+          },
+        CorpusUtil.edge_programs @ CorpusUtil.incomplete_programs,
+      )
+    ),
+  ];
+
+/* the tile [needle] names first: its term's id */
+let token_id = (needle: string, seg: Segment.t): Id.t => {
+  let rec go = (seg: Segment.t) =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when Tile.label(t) == [needle] => Some(t.id)
+        | Tile(t) => List.find_map(go, t.children)
+        | _ => None
+        },
+      seg,
+    );
+  switch (go(seg)) {
+  | Some(id) => id
+  | None => fail("no token " ++ needle)
+  };
+};
+
+/* the item, a member at whatever depth, whose own map has [id] */
+/* the piece holding [id]: its innermost item's, but a module literal's
+   members stay in its item's piece (EvalSplit.split_of) */
+let owner = (id: Id.t, ds: DefStatics.t): Id.t => {
+  let module_literal = (it: DefStatics.item) =>
+    switch (it.d_node.term) {
+    | Let(_, {term: Module(_), _}, _)
+    | ModuleExp(_, {term: Module(_), _}, _) => true
+    | _ => false
+    };
+  let rec find = (items: list(DefStatics.item)) =>
+    List.find_map(
+      (it: DefStatics.item) =>
+        switch (module_literal(it) ? None : find(it.d_members)) {
+        | Some(_) as found => found
+        | None => Id.Map.mem(id, it.d_map) ? Some(it.d_id) : None
+        },
+      items,
+    );
+  switch (find(ds.items)) {
+  | Some(id) => id
+  | None => fail("no item has it")
+  };
+};
+
+/* a literal retyped in a member: only that member's piece is cut again,
+   and only it is posted */
+let member_edit = (~root, src, needle, repl, ()) => {
+  fresh_worker();
+  let term_of = seg => MakeTerm.Incr.term_of_root(~root, seg);
+  let seg = CorpusUtil.seg_of(~root, src);
+  let st = statics_of(term_of(seg));
+  ignore(WorkerServer.receive(post(request_of(st))));
+  let id = token_id(needle, seg);
+  let seg =
+    fst(
+      CorpusUtil.edit_token(~at=`First, ~keep_id=true, ~needle, ~repl, seg),
+    );
+  let st = statics_of(term_of(seg));
+  let request = request_of(st);
+  let piece: EvalPieces.key =
+    switch (whole_because(st)) {
+    | Some(_) => Whole(Exp.rep_id(st.term))
+    | None => Item(owner(id, Option.get(DefStatics.cached(term_of(seg)))))
+    };
+  check(
+    list(string),
+    "re-encoded",
+    [EvalPieces.show_key(piece)],
+    List.map(EvalPieces.show_key, Split.encoded^),
+  );
+  let posted = post(request);
+  check(int, "posted pieces", 1, List.length(posted.pieces));
+  check_exact("after", st, composed(WorkerServer.receive(posted)));
+};
+
+let encoding_tests = [
+  test_case(
+    "a member's literal re-encodes only that member: List at a Mod root",
+    `Quick,
+    member_edit(~root=Mod, list_src(~root=Mod), "0", "5"),
+  ),
+  test_case(
+    "... List two modules deep",
+    `Quick,
+    member_edit(~root=Mod, nest(~depth=2, list_src(~root=Mod)), "0", "5"),
+  ),
+  test_case(
+    "... List in a module at an Exp root",
+    `Quick,
+    member_edit(
+      ~root=Exp,
+      "module Wrap = {\n"
+      ++ list_src(~root=Mod)
+      ++ "\n} in\nWrap.List.length([1])",
+      "0",
+      "5",
+    ),
+  ),
+  test_case(
+    "... Mega 4k",
+    `Slow,
+    member_edit(
+      ~root=Exp,
+      Option.get(CorpusUtil.mega_src("mega-4k.hz")),
+      "2104",
+      "2105",
+    ),
+  ),
+];
+
+/* the protocol: whatever the worker holds, it composes the request's
+   program or asks for every piece */
+let protocol = () => {
+  /* a let chain, which splits (a module root goes whole on stdlib) */
+  let term_of = seg => MakeTerm.Incr.term_of_root(~root=Exp, seg);
+  let seg0 =
+    CorpusUtil.seg_of(~root=Exp, "let a = 0 in\nlet b = 1 in\na + b");
+  let edit = (~at, seg, needle, repl) =>
+    fst(CorpusUtil.edit_token(~at, ~keep_id=true, ~needle, ~repl, seg));
+  /* two members' edits: the second request reuses the first's piece */
+  let seg1 = edit(~at=`First, seg0, "0", "5");
+  let seg2 = edit(~at=`Last, seg1, "1", "2");
+  let st0 = statics_of(term_of(seg0));
+  let r0 = request_of(st0);
+  let st1 = statics_of(term_of(seg1));
+  let r1 = request_of(st1);
+  let st2 = statics_of(term_of(seg2));
+  let r2 = request_of(st2);
+  let missing = (what, r: WorkerServer.received) =>
+    switch (r) {
+    | Missing([_, ..._]) => ()
+    | _ => fail(what ++ ": composed without the piece")
+    };
+  /* in order: each delta composes */
+  fresh_worker();
+  check_exact("first", st0, composed(WorkerServer.receive(post(r0))));
+  check_exact("delta", st1, composed(WorkerServer.receive(post(r1))));
+  /* a restarted worker holds nothing: asked, the client posts all */
+  Hashtbl.reset(WorkerServer.held);
+  missing("restarted", WorkerServer.receive(post(r2)));
+  check_exact(
+    "restarted, posted whole",
+    st2,
+    composed(WorkerServer.receive(post(~full=true, r2))),
+  );
+  /* a dropped message: the next one names its pieces */
+  fresh_worker();
+  ignore(WorkerServer.receive(post(r0)));
+  /* posted, never received */
+  ignore(post(r1));
+  missing("after a dropped one", WorkerServer.receive(post(r2)));
+  check_exact(
+    "after a dropped one, posted whole",
+    st2,
+    composed(WorkerServer.receive(post(~full=true, r2))),
+  );
+  /* out of order: the later one first */
+  fresh_worker();
+  ignore(WorkerServer.receive(post(r0)));
+  let p1 = post(r1);
+  let p2 = post(r2);
+  missing("out of order", WorkerServer.receive(p2));
+  ignore(WorkerServer.receive(p1));
+  check_exact(
+    "out of order, posted whole",
+    st2,
+    composed(WorkerServer.receive(post(~full=true, r2))),
+  );
+  /* a piece whose bytes don't match its hash isn't taken */
+  fresh_worker();
+  ignore(WorkerServer.receive(post(r0)));
+  let p1 = post(r1);
+  let corrupt = (bytes: string) =>
+    String.mapi(
+      (i, c) =>
+        i == String.length(bytes) - 1 ? Char.chr(Char.code(c) lxor 1) : c,
+      bytes,
+    );
+  missing(
+    "a mismatched piece",
+    WorkerServer.receive({
+      ...p1,
+      pieces: List.map(((h, bytes)) => (h, corrupt(bytes)), p1.pieces),
+    }),
+  );
+  check_exact(
+    "a mismatched piece, posted whole",
+    st1,
+    composed(WorkerServer.receive(post(~full=true, r1))),
+  );
+};
+
+/* evaluation reads the same from the composed program as from the
+   whole: the value (the ⇓ probe's), the tests and every probe's samples */
+let evaluate = ((expr, eval_info): (Exp.t, EvalInfo.t)) =>
+  switch (Evaluator.evaluate(~eval_info, ~env=Builtins.env_init(), expr)) {
+  | (value, state) => Ok((value, state))
+  | exception exn => Error(Printexc.to_string(exn))
+  };
+
+/* values as the worker ships them: closures without their environments
+   (which hold ids minted per evaluation) */
+let shipped = TermPrune.prune_closure_envs;
+
+/* the projection as the base made it: every use, "$hole" ones too */
+let with_holes = (st: CachedStatics.t): (Exp.t, EvalInfo.t) => {
+  let w =
+    EvalInfo.witnessing(
+      ~probe_all=settings.probe_all,
+      ~external_ids=[],
+      ~targets=st.targets,
+    );
+  (
+    st.elaborated,
+    {
+      statics:
+        Id.Map.filter_map(
+          (_, info: Info.t) =>
+            switch (info) {
+            | InfoExp({co_ctx, _}) =>
+              EvalInfo.entry_of_info(w, info)
+              |> Option.map((e: EvalInfo.entry) =>
+                   {
+                     ...e,
+                     co_ctx,
+                   }
+                 )
+            | _ => None
+            },
+          st.info_map,
+        ),
+      targets: st.targets,
+    },
+  );
+};
+
+/* two evaluations' value, tests and samples */
+let compare_results = (name, a, b) => {
+  switch (a, b) {
+  | (Ok((value, state)), Ok((value', state'))) =>
+    check(
+      bool,
+      name ++ ": value",
+      true,
+      Exp.fast_equal_with_lexemes(shipped(value), shipped(value')),
+    );
+    check(
+      list(pair(string, string)),
+      name ++ ": tests",
+      Parity.tests_of(state),
+      Parity.tests_of(state'),
+    );
+    let samples = (s: EvaluatorState.t) =>
+      Id.Map.bindings(s.probes)
+      |> List.map(((id, samples)) =>
+           (
+             Id.show(id),
+             List.map((x: Sample.t) => shipped(x.value), samples),
+           )
+         );
+    let (ps, ps') = (samples(state), samples(state'));
+    check(
+      list(string),
+      name ++ ": probes",
+      List.map(fst, ps),
+      List.map(fst, ps'),
+    );
+    List.iter2(
+      ((id, xs), (_, ys)) =>
+        check(
+          bool,
+          name ++ ": samples at " ++ id,
+          true,
+          List.length(xs) == List.length(ys)
+          && List.for_all2(Exp.fast_equal_with_lexemes, xs, ys),
+        ),
+      ps,
+      ps',
+    );
+  | (Error(e), Error(e')) => check(string, name ++ ": error", e, e')
+  | _ => fail(name ++ ": one evaluated, the other raised")
+  };
+};
+
+let same_results = (name, st: CachedStatics.t) => {
+  fresh_worker();
+  let v = composed(WorkerServer.receive(post(request_of(st))));
+  /* as before the split: the base's projection, whole */
+  compare_results(
+    name ++ " (without $hole)",
+    evaluate(with_holes(st)),
+    evaluate(whole(st)),
+  );
+  compare_results(
+    name ++ " (in pieces)",
+    evaluate(whole(st)),
+    evaluate((v.expr, v.eval_info_map)),
+  );
+};
+
+let results = () => {
+  let n = ref(0);
+  List.iter(
+    ((path, root, src)) =>
+      switch (CorpusUtil.parse(~root, src)) {
+      | Some(seg) =>
+        same_results(
+          path,
+          statics_of(MakeTerm.Incr.term_of_root(~root, seg)),
+        );
+        incr(n);
+      | None => ()
+      },
+    CorpusUtil.slide_corpus(),
+  );
+  check(bool, "the corpus was there", true, n^ >= 40);
+  List.iter(
+    ((name, root, src)) =>
+      same_results(
+        name,
+        statics_of(
+          MakeTerm.Incr.term_of_root(~root, CorpusUtil.seg_of(~root, src)),
+        ),
+      ),
+    [
+      ("List (Mod)", Sort.Mod, list_src(~root=Mod)),
+      ("lib (Mod)", Sort.Mod, Delta.lib),
+      ("Mega 1k", Sort.Exp, Option.get(CorpusUtil.mega_src("mega-1k.hz"))),
+      (
+        "Mega-Mod 1k",
+        Sort.Mod,
+        Option.get(CorpusUtil.mega_src("mega-mod-1k.hz")),
+      ),
+    ],
+  );
+};
+
+let tests = (
+  "EvalPieces",
+  exact_tests
+  @ encoding_tests
+  @ [
+    test_case(
+      "missing, restarted, dropped, out of order, mismatched",
+      `Quick,
+      protocol,
+    ),
+    test_case(
+      "evaluation reads the same: tests, probes, the value",
+      `Quick,
+      results,
+    ),
+  ],
+);

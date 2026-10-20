@@ -53,9 +53,92 @@ let of_targets = (targets: Sample.targets): t => {
   targets,
 };
 
-/* [external_ids]: probed ids outside the program (the standard library's,
-   reached through its closures): in every entry's witness, so changing
-   them retakes samples rather than replaying cached ones */
+/* `$hole` is a statics-only sentinel for unused-variable warnings. It is not
+ * a runtime dependency, so it should not participate in reuse provenance. */
+let is_runtime_dependency = (name: string): bool => name != "$hole";
+
+/* what evaluation reads of a co_ctx (its names, IncrEval) but "$hole":
+   DefStatics' per-item body holes mint a "$hole" use each analysis,
+   which would change every enclosing root's entry */
+let runtime_co_ctx = (co_ctx: CoCtx.t): CoCtx.t =>
+  List.for_all(((name, _)) => is_runtime_dependency(name), co_ctx)
+    ? co_ctx : CoCtx.filter_names(is_runtime_dependency, co_ctx);
+
+/* what an entry's witness reads besides its own probe targets.
+   [external_ids]: probed ids outside the program (the standard
+   library's, reached through its closures): in every entry's witness, so
+   changing them retakes samples rather than replaying cached ones */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type witnessing = {
+  probe_all: bool,
+  full: list(Id.t) /* full-capture probes */,
+  external_ids: list(Id.t),
+};
+
+let witnessing =
+    (~probe_all: bool, ~external_ids: list(Id.t), ~targets: Sample.targets)
+    : witnessing => {
+  probe_all,
+  full:
+    Id.Map.fold(
+      (id, spec: Sample.capture_spec, acc) => spec.full ? [id, ...acc] : acc,
+      targets,
+      [],
+    ),
+  external_ids,
+};
+
+/* the external probes as targets, for the last witnessing asked */
+let outside: list(Id.t) => SubexpProbeTargets.t = {
+  let last = ref(([], SubexpProbeTargets.empty));
+  external_ids =>
+    if (fst(last^) === external_ids) {
+      snd(last^);
+    } else {
+      let o =
+        SubexpProbeTargets.union_all(
+          List.map(
+            id =>
+              SubexpProbeTargets.add_self(
+                ~is_probed=true,
+                id,
+                SubexpProbeTargets.empty,
+              ),
+            external_ids,
+          ),
+        );
+      last := (external_ids, o);
+      o;
+    };
+};
+
+/* an expression's entry; None for other infos */
+let entry_of_info = (w: witnessing, info: Info.t): option(entry) =>
+  switch (info) {
+  | InfoExp({elab_term, co_ctx, probe_targets, _}) =>
+    Some({
+      elab_term,
+      co_ctx: runtime_co_ctx(co_ctx),
+      /* a term holding a full-capture probe gets a witness of its own,
+         so its samples are retaken rather than replayed with elided
+         values */
+      probe_targets:
+        if (List.exists(
+              id => MerkleSet.mem(id, probe_targets.probe_ids),
+              w.full,
+            )) {
+          ProbeTargets(SubexpProbeTargets.mark_full(probe_targets));
+        } else if (w.external_ids != []) {
+          ProbeTargets(
+            SubexpProbeTargets.union(probe_targets, outside(w.external_ids)),
+          );
+        } else {
+          w.probe_all ? ProbeAll : ProbeTargets(probe_targets);
+        },
+    })
+  | _ => None
+  };
+
 let of_info_map =
     (
       ~probe_all: bool,
@@ -64,49 +147,10 @@ let of_info_map =
       info_map: StaticsBase.Map.t,
     )
     : t => {
-  let outside =
-    SubexpProbeTargets.union_all(
-      List.map(
-        id =>
-          SubexpProbeTargets.add_self(
-            ~is_probed=true,
-            id,
-            SubexpProbeTargets.empty,
-          ),
-        external_ids,
-      ),
-    );
-  let full =
-    Id.Map.fold(
-      (id, spec: Sample.capture_spec, acc) => spec.full ? [id, ...acc] : acc,
-      targets,
-      [],
-    );
-  /* a term holding a full-capture probe gets a witness of its own, so
-     its samples are retaken rather than replayed with elided values */
-  let witness = (pt: SubexpProbeTargets.t) =>
-    if (List.exists(id => MerkleSet.mem(id, pt.probe_ids), full)) {
-      ProbeTargets(SubexpProbeTargets.mark_full(pt));
-    } else if (external_ids != []) {
-      ProbeTargets(SubexpProbeTargets.union(pt, outside));
-    } else {
-      probe_all ? ProbeAll : ProbeTargets(pt);
-    };
+  let w = witnessing(~probe_all, ~external_ids, ~targets);
   {
     statics:
-      Id.Map.filter_map(
-        (_id, info) =>
-          switch (info) {
-          | Info.InfoExp({elab_term, co_ctx, probe_targets, _}) =>
-            Some({
-              elab_term,
-              co_ctx,
-              probe_targets: witness(probe_targets),
-            })
-          | _ => None
-          },
-        info_map,
-      ),
+      Id.Map.filter_map((_id, info) => entry_of_info(w, info), info_map),
     targets,
   };
 };

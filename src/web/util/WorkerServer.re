@@ -18,12 +18,48 @@ module Request = {
   type stream_interest =
     | Full
     | Effects;
+  /* a cell's evaluation as the main thread queues it: its program in
+     pieces (EvalPieces), each posted once */
+  [@deriving (show, sexp, yojson)]
+  type value = {
+    program: EvalPieces.program,
+    prev: prev_source,
+    stream: stream_interest,
+  };
+  [@deriving (show, sexp, yojson)]
+  type batch = list((key, value));
+  [@deriving (show, sexp, yojson)]
+  type t = {
+    request_id: int,
+    batch,
+  };
+};
+
+/* a request as posted: every program's layout (each piece's key and
+   hash), and the pieces the worker doesn't hold */
+module Posted = {
+  [@deriving (show, sexp, yojson)]
+  type value = {
+    layout: EvalPieces.layout,
+    prev: Request.prev_source,
+    stream: Request.stream_interest,
+  };
+  [@deriving (show, sexp, yojson)]
+  type t = {
+    request_id: int,
+    batch: list((key, value)),
+    pieces: list((EvalPieces.hash, string)),
+  };
+};
+
+/* a request as the worker evaluates it: its programs composed */
+module Evaluation = {
   [@deriving (show, sexp, yojson)]
   type value = {
     expr: Language.Exp.t,
     eval_info_map: Language.EvalInfo.t,
-    prev: prev_source,
-    stream: stream_interest,
+    prev: Request.prev_source,
+    stream: Request.stream_interest,
   };
   [@deriving (show, sexp, yojson)]
   type batch = list((key, value));
@@ -51,7 +87,7 @@ module Response = {
 module ClientMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
-    | Evaluate(Request.t)
+    | Evaluate(Posted.t)
     /* a new standard library (Marshal of Library.baked), when it was
        edited: later evaluations run against it */
     | InstallLibrary(string);
@@ -97,12 +133,18 @@ module ServerMessage = {
     eval_time: TimeUtil.span,
   };
 
+  /* the request named pieces the worker doesn't hold (a restart, a
+     message lost or out of order): post it again with all of them */
+  [@deriving (show, sexp, yojson)]
+  type resend = {request_id: int};
+
   [@deriving (show, sexp, yojson)]
   type t =
     | Ack(ack)
     | ReusePlan(reuse_plan)
     | Stream(stream)
-    | Result(result);
+    | Result(result)
+    | Resend(resend);
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -289,7 +331,7 @@ type evaluation_start =
 type running = {
   request_id: int,
   key,
-  remaining: Request.batch,
+  remaining: Evaluation.batch,
   completed: Response.t,
   evaluation: Language.Evaluator.yielding_evaluation,
 };
@@ -301,7 +343,7 @@ type runtime =
   | Running(running);
 
 type model = {
-  latest_request: option(Request.t),
+  latest_request: option(Evaluation.t),
   runtime,
   slice_already_scheduled: bool,
 };
@@ -337,7 +379,7 @@ let initial_model = {
    the graph livelit slide: 2.0s -> see the commit message.) */
 let incremental_min_statics = 2500;
 
-let wants_incremental = (req_value: Request.value): bool =>
+let wants_incremental = (req_value: Evaluation.value): bool =>
   Util.Id.Map.cardinal(req_value.eval_info_map.statics)
   >= incremental_min_statics;
 
@@ -350,8 +392,8 @@ let planned_reuse:
   ) =
   ref([]);
 
-let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{expr, eval_info_map, prev, _} = req_value;
+let predict_reuse_for_request = ((key, req_value): (key, Evaluation.value)) => {
+  let Evaluation.{expr, eval_info_map, prev, _} = req_value;
   let stream =
     if (!wants_incremental(req_value)) {
       Language.IncrEval.empty;
@@ -402,8 +444,9 @@ let stream_min_interval_ms: ref(float) = ref(100.);
 let current_stream_interest: ref(Request.stream_interest) =
   ref(Request.Full);
 
-let start_evaluation = (~key: key, req_value: Request.value): evaluation_start => {
-  let Request.{expr, eval_info_map, prev, stream} = req_value;
+let start_evaluation =
+    (~key: key, req_value: Evaluation.value): evaluation_start => {
+  let Evaluation.{expr, eval_info_map, prev, stream} = req_value;
   current_stream_interest := stream;
   let planned = take_planned_reuse(expr);
   /* stream cadence scales with program size: each posted chunk costs
@@ -584,10 +627,10 @@ let flush_stream_update = (~force=false, model, request_id, key, evaluation) => 
 
 /* ACK must be cheap: the client treats missing ACK as a dead worker and will
  * terminate/respawn. ReusePass belongs in `ReusePlan`, not here. */
-let post_ack = (request: Request.t) =>
-  post_message(ServerMessage.Ack({request_id: request.request_id}));
+let post_ack = (request_id: int) =>
+  post_message(ServerMessage.Ack({request_id: request_id}));
 
-let post_reuse_plan = (model, request: Request.t) =>
+let post_reuse_plan = (model, request: Evaluation.t) =>
   if (is_latest(model, request.request_id)) {
     post_message(
       ServerMessage.ReusePlan({
@@ -758,6 +801,94 @@ and run_scheduled_slice = model => {
   };
 };
 
+/* the pieces of the last request received, by hash: what the client
+   counts on the worker holding */
+let held: Hashtbl.t(EvalPieces.hash, EvalPieces.content) =
+  Hashtbl.create(256);
+
+type received =
+  | Composed(Evaluation.t)
+  | Missing(list(EvalPieces.key))
+  | Malformed(string);
+
+/* [posted]'s programs, from the pieces it carries and those held. a
+   piece whose bytes don't hash to its listed hash isn't taken. the
+   pieces it lists are held next, whatever it composes to */
+let receive = (posted: Posted.t): received => {
+  let fresh = Hashtbl.create(16);
+  List.iter(
+    ((hash, bytes)) =>
+      if (EvalPieces.hash_of(bytes) == hash) {
+        switch (EvalPieces.decode(bytes)) {
+        | content => Hashtbl.replace(fresh, hash, content)
+        | exception _ => ()
+        };
+      },
+    posted.pieces,
+  );
+  let next = Hashtbl.create(Hashtbl.length(held) + 16);
+  List.iter(
+    ((_, v: Posted.value)) =>
+      List.iter(
+        (s: EvalPieces.slot) =>
+          switch (
+            Hashtbl.find_opt(fresh, s.hash),
+            Hashtbl.find_opt(held, s.hash),
+          ) {
+          | (Some(c), _)
+          | (None, Some(c)) => Hashtbl.replace(next, s.hash, c)
+          | (None, None) => ()
+          },
+        EvalPieces.slots(v.layout),
+      ),
+    posted.batch,
+  );
+  Hashtbl.reset(held);
+  Hashtbl.iter(Hashtbl.replace(held), next);
+  let piece = Hashtbl.find_opt(held);
+  switch (
+    List.map(
+      ((key, v: Posted.value)) =>
+        (key, v, EvalPieces.assemble(~piece, v.layout)),
+      posted.batch,
+    )
+  ) {
+  | exception (EvalPieces.Malformed(why)) => Malformed(why)
+  | composed =>
+    let missing =
+      List.concat_map(
+        ((_, _, r)) =>
+          switch (r) {
+          | Error(keys) => keys
+          | Ok(_) => []
+          },
+        composed,
+      );
+    missing != []
+      ? Missing(missing)
+      : Composed({
+          request_id: posted.request_id,
+          batch:
+            List.filter_map(
+              ((key, v: Posted.value, r)) =>
+                Stdlib.Result.to_option(r)
+                |> Option.map(((expr, eval_info_map)) =>
+                     (
+                       key,
+                       Evaluation.{
+                         expr,
+                         eval_info_map,
+                         prev: v.prev,
+                         stream: v.stream,
+                       },
+                     )
+                   ),
+              composed,
+            ),
+        });
+  };
+};
+
 let install_message_handler = () => {
   let model = ref(initial_model);
 
@@ -783,17 +914,53 @@ let install_message_handler = () => {
 
   let on_request = (req: Active.request): unit =>
     switch (Active.decode_request(req)) {
-    | Evaluate(request) =>
-      post_ack(request);
-      eval_total := Core.Time_ns.Span.zero;
-      commit({
-        ...model^,
-        latest_request: Some(request),
-        runtime: Planning,
-      });
+    | Evaluate(posted) =>
+      post_ack(posted.request_id);
+      switch (receive(posted)) {
+      | Composed(request) =>
+        eval_total := Core.Time_ns.Span.zero;
+        commit({
+          ...model^,
+          latest_request: Some(request),
+          runtime: Planning,
+        });
+      | Missing(_) =>
+        post_message(Resend({request_id: posted.request_id}));
+        commit({
+          ...model^,
+          latest_request: None,
+          runtime: Idle,
+        });
+      | Malformed(why) =>
+        post_message(
+          Result({
+            request_id: posted.request_id,
+            response:
+              List.map(
+                ((key, _)) =>
+                  (
+                    key,
+                    Error(
+                      Language.ProgramResult.UnknownException(
+                        "eval request: " ++ why,
+                      ),
+                    ),
+                  ),
+                posted.batch,
+              ),
+            eval_time: Core.Time_ns.Span.zero,
+          }),
+        );
+        commit({
+          ...model^,
+          latest_request: None,
+          runtime: Idle,
+        });
+      };
     | InstallLibrary(blob) =>
       Language.Library.install(blob);
-      /* cached results were computed against the old library */
+      /* cached results were computed against the old library; the held
+         pieces are still the program's */
       Hashtbl.reset(resident);
       planned_reuse := [];
     };
