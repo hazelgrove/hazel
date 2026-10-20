@@ -4347,9 +4347,10 @@ and mpat_to_info_map =
   };
 };
 
+/* each entry keeps a whole program's info map alive */
 let mk =
   Core.Memo.general(
-    ~cache_size_bound=1000,
+    ~cache_size_bound=8,
     ((ana, ctx, e, probe_ids)) => {
       let (_, elab, m) =
         uexp_to_info_map(
