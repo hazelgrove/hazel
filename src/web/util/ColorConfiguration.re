@@ -451,11 +451,31 @@ let reveal_vars = (style: string): list((string, string)) => {
   ];
 };
 
+/* Not a color: how Gamma offers a long type in full (BuiltinsColorScheme's
+   gamma_unfold_field, + Always + OnHover + RightClick), published as
+   always, hover or right-click. Gamma reads the applied value back
+   (gamma_unfold, set by ConfigurationMode.apply_colors) to class its box,
+   and the stylesheet branches on the class: a custom property's value is
+   not something a selector can test. An unknown name is always. */
+let gamma_unfold_target = "hazel-gamma-unfold";
+let gamma_unfold_style = (ctor: string): string =>
+  switch (String.lowercase_ascii(ctor)) {
+  | "onhover"
+  | "hover" => "hover"
+  | "rightclick"
+  | "right-click" => "right-click"
+  | _ => "always"
+  };
+let gamma_unfold_vars = (ctor: string): list((string, string)) => [
+  (gamma_unfold_target, gamma_unfold_style(ctor)),
+];
+let gamma_unfold: ref(string) = ref("always");
+
 /* Every CSS custom property the slide is responsible for. This, not
    `field_names`, is the output contract: it is what the stylesheets consume,
    what the tests check against, and what `theme_key` must be salted with. */
 let all_targets: list(string) =
-  [polarity_target, contrast_target]
+  [polarity_target, contrast_target, gamma_unfold_target]
   @ reveal_targets
   @ List.concat_map(((g, n)) => targets_of(g, n), field_names);
 
@@ -519,6 +539,11 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
             | _ => []
             }
           }
+        | Label(l) when l == CS.gamma_unfold_field =>
+          switch (body.term) {
+          | Constructor(c, _) => gamma_unfold_vars(c)
+          | _ => []
+          }
         /* roles nest one level deeper: group -> entries */
         | Label("roles") =>
           List.concat_map(
@@ -551,6 +576,10 @@ let css_vars_of_value = (value: Exp.t): list((string, string)) => {
   let vars =
     List.exists(((t, _)) => t == reveal_style_target, vars)
       ? vars : vars @ reveal_vars("eye");
+  /* ...and Gamma's unfold, a slide saved before it was a field: always. */
+  let vars =
+    List.exists(((t, _)) => t == gamma_unfold_target, vars)
+      ? vars : vars @ gamma_unfold_vars("always");
   let produced = List.sort_uniq(compare, List.map(fst, vars));
   produced == List.sort_uniq(compare, all_targets) ? vars : [];
 };

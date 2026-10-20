@@ -95,10 +95,16 @@ let plausible = s =>
   )
   && !List.exists(bad => contains(bad, s), ["nan", "inf", "e-", "e+"]);
 
-/* Two emitted properties carry flags rather than colors, and four the
-   livelit toggle's look (glyphs and a stroke width); they are the only
+/* Three emitted properties carry flags rather than colors (the polarity,
+   the contrast, and how Gamma offers a long type in full), and the rest
+   the livelit toggle's look (glyphs and a stroke width); they are the only
    ones this check does not apply to. */
-let flags = [CC.polarity_target, CC.contrast_target, ...CC.reveal_targets];
+let flags = [
+  CC.polarity_target,
+  CC.contrast_target,
+  CC.gamma_unfold_target,
+  ...CC.reveal_targets,
+];
 
 let unparseable = vars =>
   vars
@@ -663,6 +669,66 @@ let a_slide_saved_before_the_toggle_keeps_its_colors = () => {
   );
 };
 
+/* How Gamma offers a long type in full (^ticket(468)), chosen with the
+   slide's ^unfold livelit: each choice publishes its one name, and the
+   rest of the theme is unchanged. The committed slide says Always, which
+   is also what a slide saved before the field gets. */
+let unfold_literal = "let gamma_unfold = ^^livelit(^unfold(Always)) in";
+
+let unfold_choices = () => {
+  let committed = CC.vars_of_source(CC.source);
+  check(
+    option(string),
+    "the committed slide: always",
+    Some("always"),
+    List.assoc_opt(CC.gamma_unfold_target, committed),
+  );
+  List.iter(
+    ((ctor, published)) => {
+      let text =
+        switch (
+          split_on_string(~needle=unfold_literal, CC.source.backup_text)
+        ) {
+        | [before, after] =>
+          before
+          ++ "let gamma_unfold = ^^livelit(^unfold("
+          ++ ctor
+          ++ ")) in"
+          ++ after
+        | parts =>
+          failf(
+            "colors.hz: expected one %s, found %d",
+            unfold_literal,
+            List.length(parts) - 1,
+          )
+        };
+      let vars =
+        CC.vars_of_source(Haz3lcore.PersistentZipper.of_slide_text(text));
+      check(
+        int,
+        ctor ++ ": the whole theme, still",
+        List.length(CC.all_targets),
+        List.length(vars),
+      );
+      check(
+        option(string),
+        ctor ++ " publishes " ++ published,
+        Some(published),
+        List.assoc_opt(CC.gamma_unfold_target, vars),
+      );
+      check(
+        list(pair(string, string)),
+        ctor ++ ": every other property as committed",
+        List.filter(((n, _)) => n != CC.gamma_unfold_target, committed)
+        |> List.sort(compare),
+        List.filter(((n, _)) => n != CC.gamma_unfold_target, vars)
+        |> List.sort(compare),
+      );
+    },
+    [("OnHover", "hover"), ("RightClick", "right-click")],
+  );
+};
+
 let chevron_reveals = () => {
   let vars = CC.vars_of_source(source_with_reveal("Chevron"));
   check(
@@ -812,6 +878,7 @@ let tests = [
       test_case("triangle reveals", `Quick, triangle_reveals),
       test_case("chevron reveals", `Quick, chevron_reveals),
       test_case("nut reveals", `Quick, nut_reveals),
+      test_case("Gamma's unfold choices", `Quick, unfold_choices),
       test_case(
         "a slide saved with the string keeps its choice",
         `Quick,
