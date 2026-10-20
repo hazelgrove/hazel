@@ -90,7 +90,7 @@ let impl: Lazy.t(Js.Unsafe.any) =
       default: return null; /* functions, symbols */
     }
   };
-  return (a, b) => {
+  const same = (a, b) => {
     try {
       const x = hash(a), y = hash(b);
       return x !== null && y !== null && x[0] === y[0] && x[1] === y[1];
@@ -98,6 +98,9 @@ let impl: Lazy.t(Js.Unsafe.any) =
       return false; /* too deep to walk: compare as before */
     }
   };
+  /* the hash itself, for hash_of: null when the value has none */
+  same.hash = v => { try { return hash(v); } catch (_) { return null; } };
+  return same;
 })()|js},
     )
   );
@@ -112,6 +115,22 @@ let same = (a: 'a, b: 'a): bool =>
          [|Js.Unsafe.inject(a), Js.Unsafe.inject(b)|],
        ),
      );
+
+/* A value's hash, its two 32-bit lanes, or None when it has none: for the
+   census in Test_ValueHash, which groups a corpus's subterms by hash. */
+let hash_of = (a: 'a): option((int, int)) => {
+  let h: Js.Unsafe.any =
+    Js.Unsafe.fun_call(
+      Js.Unsafe.get(Lazy.force(impl), "hash"),
+      [|Js.Unsafe.inject(a)|],
+    );
+  if (Js.Unsafe.equals(h, Js.null)) {
+    None;
+  } else {
+    let lane = i => int_of_float(Js.float_of_number(Js.Unsafe.get(h, i)));
+    Some((lane(0), lane(1)));
+  };
+};
 
 /* Answers remembered for pairs of objects, by the identity of both: for a
    comparison of immutable values that would otherwise be repeated on the
