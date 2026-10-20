@@ -41,6 +41,7 @@ let tests = (
       "(x = 1, y = \"a\")",
     ),
     is("a tuple, as an array", "[1,true]", "(1, true)"),
+    is("a labeled tuple of one field, as an object", "{\"x\":1}", "(x = 1)"),
     is("unit, as null", "null", "()"),
     is(
       "a constructor, applied",

@@ -91,6 +91,8 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
       );
     List.length(labeled) == List.length(xs)
       ? js_object(labeled) : js_array(List.map(to_js, xs));
+  /* a labeled tuple of one field */
+  | TupLabel({term: Label(l), _}, x) => js_object([(l, to_js(x))])
   | Constructor(name, _) => js_object([("tag", js_string(name))])
   | Ap(_, {term: Constructor(name, _), _}, arg) =>
     js_object([("tag", js_string(name)), ("value", to_js(arg))])
