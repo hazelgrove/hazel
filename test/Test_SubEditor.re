@@ -24,19 +24,16 @@ let check_seg = (msg, expected: string, actual: option(Segment.t)) =>
   | Some(seg) => check(string, msg, expected, seg_string(seg))
   };
 
-let mold = (label: Label.t): Mold.t =>
-  Mold.mk_op(
-    Sort.Exp,
-    List.init(max(0, List.length(label) - 1), _ => Sort.Exp),
-  );
-
 let mk_tile =
     (~id=Id.mk(), label: Label.t, children: list(Segment.t)): Base.tile => {
-  id,
-  label,
-  mold: mold(label),
-  shards: List.init(List.length(label), i => i),
-  children,
+  let (form, sort) = Form.classify_label(Sort.Exp, label);
+  {
+    id,
+    form,
+    sort,
+    shards: List.init(List.length(label), i => i),
+    children,
+  };
 };
 
 let tile = (~id=?, label, children): Piece.t =>
@@ -435,7 +432,7 @@ let find_tile_by_label = (label: Label.t, seg: Segment.t): option(Base.tile) => 
         | None =>
           switch (p) {
           | Piece.Tile(t) =>
-            t.label == label
+            Tile.label(t) == label
               ? Some(t)
               : List.fold_left(
                   (found, child) => found == None ? go(child) : found,
@@ -479,7 +476,12 @@ let test_confine_rejects_edge_delete = () => {
     bool,
     "Destruct(Left) at left edge rejected",
     true,
-    SubEditor.confine_pre(~target, ~action=Destruct(Left), ed) == None,
+    SubEditor.confine_pre(
+      ~target,
+      ~action=Destruct(Local(Left, ByChar)),
+      ed,
+    )
+    == None,
   );
   let (ed_r, case_id_r) = case_editor("case x¦ | A => 1 end");
   let target_r = scrut_target(case_id_r);
@@ -487,7 +489,11 @@ let test_confine_rejects_edge_delete = () => {
     bool,
     "Destruct(Right) at right edge rejected",
     true,
-    SubEditor.confine_pre(~target=target_r, ~action=Destruct(Right), ed_r)
+    SubEditor.confine_pre(
+      ~target=target_r,
+      ~action=Destruct(Local(Right, ByChar)),
+      ed_r,
+    )
     == None,
   );
 };

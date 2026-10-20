@@ -20,6 +20,8 @@ module ViewCache = {
     statics_map: Language.Statics.Map.t,
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
+    stepping: option(ProjectorBase.stepping),
+    program_value: bool,
     elaborated: option(Language.Exp.t),
     core_settings: Language.CoreSettings.t,
     settings_version: int,
@@ -35,8 +37,15 @@ module ViewCache = {
     status: View.status,
     model: string,
     view: View.t,
+    last_used: int /* tick of the last hit or store */
   };
   let cache: Hashtbl.t(Id.t, entry) = Hashtbl.create(64);
+
+  /* jsoo has no weak refs: an id that stops rendering (autoprobe mints
+     fresh probe ids per edit) would pin its entry, and with it a whole
+     generation of statics, dynamics, elaboration and vdom closures.
+     log_frame ticks once per editor per frame and sweeps stale entries */
+  let tick: ref(int) = ref(0);
 
   let lookup =
       (
@@ -44,6 +53,8 @@ module ViewCache = {
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
+        ~stepping,
+        ~program_value,
         ~elaborated,
         ~core_settings,
         ~status,
@@ -58,6 +69,8 @@ module ViewCache = {
           e.statics_map === statics_map
           && e.dynamics_map === dynamics_map
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
+          && e.stepping == stepping
+          && e.program_value == program_value
           && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
@@ -65,7 +78,17 @@ module ViewCache = {
           && e.font_metrics == font_metrics
           && e.status == status
           && e.model == model =>
-      Some(e.view)
+      if (e.last_used != tick^) {
+        Hashtbl.replace(
+          cache,
+          id,
+          {
+            ...e,
+            last_used: tick^,
+          },
+        );
+      };
+      Some(e.view);
     | _ => None
     };
 
@@ -75,6 +98,8 @@ module ViewCache = {
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
+        ~stepping,
+        ~program_value,
         ~elaborated,
         ~core_settings,
         ~status,
@@ -90,6 +115,8 @@ module ViewCache = {
         statics_map,
         dynamics_map,
         sample_focus,
+        stepping,
+        program_value,
         elaborated,
         core_settings,
         settings_version: ProbeProj.Settings.version^,
@@ -98,6 +125,7 @@ module ViewCache = {
         status,
         model,
         view,
+        last_used: tick^,
       },
     );
 
@@ -106,6 +134,16 @@ module ViewCache = {
   let log_frame = () => {
     hits := 0;
     misses := 0;
+    incr(tick);
+    if (tick^ mod 8 == 0) {
+      let stale =
+        Hashtbl.fold(
+          (id, e, acc) => tick^ - e.last_used > 24 ? [id, ...acc] : acc,
+          cache,
+          [],
+        );
+      List.iter(Hashtbl.remove(cache), stale);
+    };
   };
 };
 
@@ -176,13 +214,21 @@ module Model = {
     | _ => None
     };
 
-  /* Find the end of row offset position in grid units */
+  /* Find the end of row offset position in grid units. Starts after
+     any quiver offside boxes on the row (RowOffsets registry; quiver
+     renders first) — the extra gap leaves room for probe controls
+     drawn left of the sample chips. */
+  let stack_gap = 2;
   let offside_base =
       (~offset: int, measurement: Measured.measurement, measured: Measured.t)
-      : int =>
-    Measured.start_row_width(measurement, measured)
-    + offset
-    - measurement.origin.col;
+      : int => {
+    let standard = Measured.start_row_width(measurement, measured) + offset;
+    let after_quiver = {
+      let c = RowOffsets.claimed(~row=measurement.origin.row);
+      c == 0 ? 0 : c + stack_gap;
+    };
+    max(standard, after_quiver) - measurement.origin.col;
+  };
 
   /* Whether a statics error is anchored in the projector's own hidden
    * syntax — pieces between its splices, like a table row's comma —
@@ -406,10 +452,12 @@ let handle = (idx, kind, action: external_action): Action.t =>
   | Remove => Project(RemoveIndicated)
   | Escape(d) => Project(Escape(idx, d))
   | EscapeToLineEnd(kind) => Project(EscapeToLineEnd(idx, kind))
+  | ToggleSyntax => Project(ToggleSyntax(idx))
   | SetSyntax(f) => Project(SetSyntax(idx, kind, f))
   | SampleFocus(sc) => Project(SampleFocus(sc))
   | SetTerm(term, preserve_splices) =>
     Project(SetTerm(idx, term, preserve_splices))
+  | Unproject(seg) => Project(Unproject(idx, seg))
   | Probe(p) => Probe(p)
   | FocusById(_) => failwith("FocusById: intercepted in parent closure")
   };
@@ -661,6 +709,8 @@ let mk_view =
           ~statics_map,
           ~dynamics_map,
           ~sample_focus,
+          ~stepping=info.stepping,
+          ~program_value=info.program_value,
           ~elaborated,
           ~core_settings,
           ~status,
@@ -758,6 +808,8 @@ let mk_view =
         ~statics_map,
         ~dynamics_map,
         ~sample_focus,
+        ~stepping=info.stepping,
+        ~program_value=info.program_value,
         ~elaborated,
         ~core_settings,
         ~status,

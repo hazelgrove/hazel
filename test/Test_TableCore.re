@@ -109,7 +109,7 @@ let rec splice_first_list = (seg: Segment.t): Segment.t =>
   List.map(
     (p: Haz3lcore.Base.piece) =>
       switch (p) {
-      | Tile({label: ["[", "]"], _}) => (
+      | Tile(t) when Haz3lcore.Tile.label(t) == ["[", "]"] => (
           switch (TableCore.splice_table_cells([p])) {
           | Some([spliced]) => spliced
           | _ => p

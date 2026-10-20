@@ -14,13 +14,14 @@ module VisibleRows = {
   };
 
   /* Compute visible row range from scroll container properties.
-   * buffer: extra rows above/below to prevent popping */
+   * buffer: extra rows above/below to prevent popping. Wide, like the
+   * change threshold below: each visible-rows change re-renders the page. */
   let compute =
       (
         ~scroll_top: float,
         ~client_height: float,
         ~row_height: float,
-        ~buffer=5,
+        ~buffer=40,
         (),
       )
       : t => {
@@ -33,13 +34,20 @@ module VisibleRows = {
     };
   };
 
-  /* Check if visible_rows changed significantly (threshold of 2 rows) */
+  /* kept only while something culls by it (auto-probe's probes, the
+     eval-progress highlight): a range kept untracked goes stale */
+  let tracked = (settings: Settings.t): bool =>
+    settings.autoprobe_mode != Haz3lcore.AutoProbe.Off
+    || settings.show_incremental_deco;
+
+  /* Re-render only once scrolled well into the buffer. [last] moves with
+     [first] (fixed span) except on resize, so both share the threshold. */
   let changed = (old: option(t), new_rows: t): bool =>
     switch (old) {
     | None => true
     | Some(old) =>
-      abs(old.first - new_rows.first) > 2
-      || abs(old.last - new_rows.last) > 2
+      abs(old.first - new_rows.first) > 16
+      || abs(old.last - new_rows.last) > 16
     };
 };
 
@@ -67,6 +75,7 @@ module Action = {
     | Redo // global actions so they can be accessed by the command palette
     | Log(log)
     | SetMetaDown(bool)
+    | SetSettingsFilter(string)
     | UpdateVisibleRows(VisibleRows.t)
     /* Which rows the Fumola panel is showing in full. Focus replaces what is
        open IN ITS OWN NAMESPACE, which is what following a pointer out of
@@ -95,6 +104,10 @@ module Action = {
         Language.DHExp.t,
         Language.DHExp.t,
       )
+    /* the editor's visible width in columns, which drawers print at */
+    | UpdateDrawerWidth(int)
+    /* a drawer's rendered height changed: lay the editors out again */
+    | RelayoutDrawers
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -144,6 +157,8 @@ module Model = {
     slide_name: option(string),
     // MVU apps, keyed by app-projector syntax id; not persisted
     apps: AppStore.t,
+    /* the settings panel's filter text; not saved */
+    settings_filter: string,
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -173,6 +188,7 @@ module Model = {
     fumola_focused: None,
     slide_name: None,
     apps: AppStore.empty,
+    settings_filter: "",
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),
@@ -199,6 +215,7 @@ module Model = {
        reader arriving is shown what the link is about, and everything they
        have not been sent to stays as they left it. */
     let settings = Settings.Store.load() |> DeepLink.settings;
+    Language.EvalWorklist.compute_enabled := settings.show_incremental_deco;
     init(~settings, ());
   };
 

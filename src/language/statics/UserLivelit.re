@@ -601,17 +601,22 @@ let expose_splice_refs =
    BadLivelitExpansion check silently stopped firing. Two tests caught
    that. Ascribing the hole keeps both arms at Expansion, which is what
    the use site is entitled to assume whichever arm ran. */
-/* The last three labelled arguments are the builtin livelits' expansion context
-   -- the occurrence's id, the expected type, and the type tools for
-   resolving constructors -- and a user-defined livelit needs none of them:
-   it expands by applying its own `expand` member to the model, and whatever
-   that member needs it takes from the program's own scope. They are accepted
-   and ignored so that user-defined and builtin livelits share one `expand`
-   contract, which is what lets a Fumola livelit (which does use all three)
-   sit in the same table. */
-let mk_expand_dot =
+/* `def.expand`, matched: a Functional livelit's use means its function
+   applied to the model; a Macro's means a hole here, filled in by the use's
+   check. `def` is what the livelit is at run time: `^name`, bound by its
+   `let`, or for a direct use with parameters, `^a(args)` itself.
+
+   The three labelled arguments after `expansion_t` are the builtin livelits'
+   expansion context -- the occurrence's id, the expected type, and the type
+   tools for resolving constructors -- and a user-defined livelit needs none
+   of them: it expands by applying its own `expand` member to the model, and
+   whatever that member needs it takes from the program's own scope. They are
+   accepted and ignored so that user-defined and builtin livelits share one
+   `expand` contract, which is what lets a Fumola livelit (which does use all
+   three) sit in the same table. */
+let mk_expand_dot_def =
     (
-      ~name: string,
+      ~def: TermBase.Exp.t,
       ~expansion_t: TermBase.Typ.t,
       ~id as _: Id.t,
       ~ana as _: TermBase.Typ.t,
@@ -621,7 +626,7 @@ let mk_expand_dot =
   IdTagged.FreshGrammar.(
     Some(
       Exp.match(
-        Exp.dot(Exp.var("^" ++ name), Exp.label("expand")),
+        Exp.dot(def, Exp.label("expand")),
         [
           (
             Pat.ap(Pat.constructor("Functional", None), Pat.var("f")),
@@ -636,6 +641,90 @@ let mk_expand_dot =
     )
   );
 };
+
+let mk_expand_dot =
+    (
+      ~name: string,
+      ~expansion_t: TermBase.Typ.t,
+      ~id: Id.t,
+      ~ana: TermBase.Typ.t,
+      ~tools: LivelitCtx.type_tools,
+      model: TermBase.Exp.t,
+    ) =>
+  mk_expand_dot_def(
+    ~def=IdTagged.FreshGrammar.Exp.var("^" ++ name),
+    ~expansion_t,
+    ~id,
+    ~ana,
+    ~tools,
+    model,
+  );
+
+/* What a livelit is at run time: the `^name` its `let` binds, or for a
+   module member the projection that reaches it. */
+let runtime_ref = (ll: LivelitCtx.raw_livelit): TermBase.Exp.t =>
+  switch (ll.runtime) {
+  | Some(e) => e
+  | None => IdTagged.FreshGrammar.Exp.var("^" ++ ll.name)
+  };
+
+/* A livelit seen from outside the module [module_name] that defines it:
+   the same livelit, keyed `M.name` in the outer context, whose expansion
+   reaches its definition through M. The path is prefixed at its head, so
+   a member of a nested module, `Inner."^f"`, becomes `Lib.Inner."^f"`.
+   Everything else -- the closed definition the projector runs, the types,
+   the model default -- carries over: it never named the livelit. */
+let requalify =
+    (~module_name: string, ll: LivelitCtx.raw_livelit): LivelitCtx.raw_livelit => {
+  let rec prefix = (e: TermBase.Exp.t): TermBase.Exp.t =>
+    switch (e.term) {
+    | Var(x) => IdTagged.FreshGrammar.Exp.(dot(var(module_name), label(x)))
+    | Dot(e1, member) => IdTagged.FreshGrammar.Exp.dot(prefix(e1), member)
+    | _ => e
+    };
+  let runtime = prefix(runtime_ref(ll));
+  {
+    ...ll,
+    name: module_name ++ "." ++ ll.name,
+    runtime: Some(runtime),
+    expand: mk_expand_dot_def(~def=runtime, ~expansion_t=ll.expansion_t),
+  };
+};
+
+/* The key a livelit use's head is looked up by: `^name` is `name`, and a
+   module member, `Lib.^name` or `A.B.^name`, is its qualified `Lib.name`,
+   as requalify keys it. None for anything that is not a livelit head. */
+let rec path_key = (e: TermBase.Exp.t): option(string) =>
+  switch (strip_parens(e).term) {
+  | Var(x)
+  | Constructor(x, _) => Some(x)
+  | Dot(p, {term: Label(l), _}) =>
+    Option.map(k => k ++ "." ++ l, path_key(p))
+  | _ => None
+  };
+let head_key = (e: TermBase.Exp.t): option(string) =>
+  switch (strip_parens(e).term) {
+  | LivelitName(n) => Some(n)
+  | Dot(p, {term: LivelitName(n), _}) =>
+    Option.map(k => k ++ "." ++ n, path_key(p))
+  | _ => None
+  };
+/* The head inside a direct use with parameters, `^a(args)(model)`, or
+   with a type argument before them, `^a@<T>(args)(model)`: its key, and
+   the type argument when there is one. */
+let ap_head = (e: TermBase.Exp.t): option((string, option(TermBase.Typ.t))) =>
+  switch (strip_parens(e).term) {
+  | Ap(_, f, _) =>
+    switch (head_key(f), strip_parens(f).term) {
+    | (Some(k), _) => Some((k, None))
+    | (None, TypAp(tf, ty)) =>
+      Option.map(k => (k, Some(ty)), head_key(tf))
+    | _ => None
+    }
+  | _ => None
+  };
+let ap_head_key = (e: TermBase.Exp.t): option(string) =>
+  Option.map(fst, ap_head(e));
 
 /* ==================== Macro expansion (Sec. 3.2.5) ====================
    A Macro livelit's use means its quoted function applied to the code of
@@ -740,23 +829,20 @@ let run_macro_expand =
     | (v, _) => Some(v)
     | exception _ => None
     };
-  let field = (record: TermBase.Exp.t, label: string) =>
-    switch (strip_value(record).term) {
-    | Module(items) =>
-      List.fold_left(
-        (acc, item: TermBase.Mod.t) =>
-          switch (item.term) {
-          | ModVal(x, v) when x == label => Some(v)
-          | _ => acc
-          },
-        None,
-        items,
-      )
-    | _ => None
-    };
   open Util.OptUtil.Syntax;
-  let* def = eval(def_elab);
-  let* expand = field(def, "expand");
+  /* Only `def.expand` is evaluated, not the whole definition: evaluate's
+     result has every variable's value substituted in, so a definition came
+     back as a module of closures, each with the code of every helper it
+     names copied into it, recursively. On Polygons that was ~370 ms of a
+     1.1 s statics run, paid at every use -- only to learn that its expand
+     is Functional and there was nothing to do. */
+  let* expand =
+    eval(
+      IdTagged.FreshGrammar.Exp.dot(
+        def_elab,
+        IdTagged.FreshGrammar.Exp.label("expand"),
+      ),
+    );
   let* g =
     switch (of_ctr(expand)) {
     | Some(("Macro", g)) => Some(g)
@@ -825,12 +911,55 @@ let member_ty = (ctx: Ctx.t, name: string, member: string): TermBase.Typ.t =>
   };
 
 /* A projected use of a user-defined livelit: (bare name, model term) */
+/* A use of a user livelit: what the livelit is at run time, and the model.
+   For `^name(model)` the livelit is `^name`; for a direct use with
+   parameters, `^a(args)(model)`, it is `^a(args)`, found in `elab` by the
+   application's id so it is the elaborated form, falling back to `^a`
+   applied to the arguments as written. */
+let rec strip_use = (e: TermBase.Exp.t): TermBase.Exp.t =>
+  switch (e.term) {
+  | Parens(e)
+  /* A use showing its syntax holds it as one splice. */
+  | Splice(e) => strip_use(e)
+  | _ => e
+  };
+
 let use_parts =
-    (ctx: Ctx.t, use: TermBase.Exp.t): option((string, TermBase.Exp.t)) =>
-  switch (strip_parens(use).term) {
-  | Ap(_, {term: LivelitName(name), _}, model) =>
-    switch (Ctx.lookup_livelit(ctx, name)) {
-    | Some({user_def: Some(_), _}) => Some((name, model))
+    (~elab: option(TermBase.Exp.t)=?, ctx: Ctx.t, use: TermBase.Exp.t)
+    : option((TermBase.Exp.t, TermBase.Exp.t)) =>
+  switch (strip_use(use).term) {
+  | Ap(_, head, model)
+      when
+        switch (Option.bind(head_key(head), Ctx.lookup_livelit(ctx))) {
+        | Some({user_def: Some(_), vparam: false, _}) => true
+        | _ => false
+        } =>
+    switch (Option.bind(head_key(head), Ctx.lookup_livelit(ctx))) {
+    | Some(ll) => Some((runtime_ref(ll), model))
+    | None => None
+    }
+  | Ap(_, fn, model) =>
+    switch (ap_head(fn), strip_parens(fn).term) {
+    | (Some((key, ty)), Ap(_, _, args)) =>
+      switch (Ctx.lookup_livelit(ctx, key)) {
+      | Some({user_def: Some(_), vparam: true, _} as ll) =>
+        /* `^a@<T>(args)`: ^a at T, then applied */
+        let head =
+          switch (ty) {
+          | Some(ty) =>
+            (TypAp(runtime_ref(ll), ty): TermBase.Exp.term) |> Exp.fresh
+          | None => runtime_ref(ll)
+          };
+        let written =
+          IdTagged.FreshGrammar.Exp.ap(Operators.Forward, head, args);
+        let def =
+          switch (Option.bind(elab, e => Exp.find_by_id(Exp.rep_id(fn), e))) {
+          | Some(d) => d
+          | None => written
+          };
+        Some((def, model));
+      | _ => None
+      }
     | _ => None
     }
   | _ => None
@@ -847,7 +976,7 @@ let use_parts =
 let instrument_view =
     (
       ~projector_id: Id.t,
-      ~name: string,
+      ~def: TermBase.Exp.t,
       ~model: TermBase.Exp.t,
       body: TermBase.Exp.t,
     )
@@ -868,7 +997,7 @@ let instrument_view =
           [projector_id],
           Grammar.Ap(
             Operators.Forward,
-            Exp.dot(Exp.var("^" ++ name), Exp.label("view")),
+            Exp.dot(def, Exp.label("view")),
             m_ref(),
           ): TermBase.Exp.term,
         );
@@ -920,6 +1049,7 @@ let mk =
         user_def: Some(def_elab),
         tparam,
         vparam,
+        runtime: None,
       }),
       /* A member whose type is wrong is reported by the second analytic
          pass, as an ordinary inconsistency where it is written, and does
@@ -955,6 +1085,7 @@ let instantiate =
       expand: mk_expand_dot(~name, ~expansion_t),
       user_def: Some((TypAp(def, ty): TermBase.Exp.term) |> Exp.fresh),
       tparam: None,
+      runtime: None,
     });
   | _ => None
   };
@@ -970,6 +1101,10 @@ let apply_args =
       ~name: string,
       ~id: Id.t,
       ~args: TermBase.Exp.t,
+      /* What the applied livelit is at run time, for a direct use with
+         parameters: `^a(args)` itself, since no `let` names it. Absent for
+         an abbreviation, whose `let ^b` binds it. */
+      ~runtime: option(TermBase.Exp.t)=?,
       ll: LivelitCtx.raw_livelit,
     )
     : option(LivelitCtx.raw_livelit) =>
@@ -979,12 +1114,33 @@ let apply_args =
       ...ll,
       name,
       id,
-      expand: mk_expand_dot(~name, ~expansion_t=ll.expansion_t),
+      expand:
+        switch (runtime) {
+        | Some(def) => mk_expand_dot_def(~def, ~expansion_t=ll.expansion_t)
+        | None => mk_expand_dot(~name, ~expansion_t=ll.expansion_t)
+        },
       user_def:
         Some((Ap(Forward, def, args): TermBase.Exp.term) |> Exp.fresh),
       vparam: false,
+      runtime,
     })
   | _ => None
+  };
+
+/* A direct use's livelit at its type argument, if it gives one
+   (`^a@<T>(args)(model)`); then apply_args applies it to the arguments.
+   No type argument: the livelit as it is. */
+let at_type =
+    (
+      ~name: string,
+      ~id: Id.t,
+      ~ty: option(TermBase.Typ.t),
+      ll: LivelitCtx.raw_livelit,
+    )
+    : option(LivelitCtx.raw_livelit) =>
+  switch (ty) {
+  | None => Some(ll)
+  | Some(ty) => instantiate(~name, ~id, ~ty, ll)
   };
 
 /* A Macro use's expansion obligation (Fig. 5 premise 5), said in terms of

@@ -68,6 +68,20 @@ let all_slides: list((string, Haz3lcore.PersistentZipper.t)) =
        one and everyone sees it (hazel-programs/docs/shared-spaces). */
     ("Shared Spaces / About", [%blob "shared-spaces-about.hz"]),
     ("Shared Spaces / Admin Controls", [%blob "shared-spaces-admin.hz"]),
+    /* perf/outline stress corpora: module-heavy programs */
+    ("Perf / Mega 1k", [%blob "mega-1k.hz"]),
+    ("Perf / Mega 2k", [%blob "mega-2k.hz"]),
+    ("Perf / Mega 4k", [%blob "mega-4k.hz"]),
+  ]
+  |> List.map(((name, text)) =>
+       (name, Haz3lcore.PersistentZipper.of_slide_text(text))
+     );
+
+/* the mega corpus with a module-body top level (root Mod) */
+let mod_slides: list((string, Haz3lcore.PersistentZipper.t)) =
+  [
+    /* one suffices here; the 2k/4k files are test-only */
+    ("Perf / Mega-Mod 1k", [%blob "mega-mod-1k.hz"]),
   ]
   |> List.map(((name, text)) =>
        (name, Haz3lcore.PersistentZipper.of_slide_text(text))

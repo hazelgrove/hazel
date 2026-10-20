@@ -156,8 +156,16 @@ client's scope (Sec. 2.4). `new_splice` is the only way to make one.
   `let ^b = ^a@<T> in` puts `T` in place of `A` in each member type.
   `typfun A -> fun p -> { ... }` is accepted, a value parameter inside a
   type parameter, but no test or slide instantiates one yet.
-- **A parameterized livelit is not used directly.** `^slider(50)` is
-  `LivelitNeedsArguments`, and a use of a type-parameterized one is
+- **A direct use gives the parameters at the use**, the paper's
+  `$slider 0 100`: `^slider(0, 100)(50)` is `^slider` applied to `(0, 100)`,
+  used with the model `50`, with no abbreviation. The arguments are closed,
+  as an abbreviation's are. At run time the applied livelit is
+  `^slider(0, 100)` itself, since no `let` names it: its `expand` and, for a
+  projected use, its `view` are reached through that expression
+  (`UserLivelit.apply_args`'s `runtime`, `use_parts`), and the projector
+  applies the same arguments to run it (`LivelitProj.lookup_use`).
+- **A parameterized livelit with no arguments is not a use.** `^slider(50)`
+  is `LivelitNeedsArguments`, and a use of a type-parameterized one is
   `LivelitNeedsTypeArgument`, the paper's "missing livelit parameter".
   Either use synthesizes the unknown type.
 - **Arguments are closed.** They are analyzed in the builtin context, as a
@@ -166,9 +174,7 @@ client's scope (Sec. 2.4). `new_splice` is the only way to make one.
 
 Not yet: partial application (the paper's `let $uslider = $slider 0`),
 since a definition takes one parameter, possibly a tuple, not a curried
-sequence; a direct use with parameters, `$slider 0 100`, which would need a
-second application slot beside the model's; and arguments that depend on
-the client's scope.
+sequence; and arguments that depend on the client's scope.
 
 The code: `UserLivelit.detect` reads `Fun` and `TypFun` around the module;
 `UserLivelit.apply_args` and `UserLivelit.instantiate` build an
@@ -549,6 +555,86 @@ and `Projector`, which is transparent to semantics, so a quotation of
 `^^fold(e)` holds `e`. Forms that occur only inside another, a tuple's
 labeled item or a partial application's `_`, have samples that contain
 them.
+
+## Revealing a use's syntax
+
+Each use of a user-defined livelit has a toggle at its top left (an eye by
+default; the Colors slide offers a triangle, a chevron or a nut). Opening it
+shows the use's own syntax, `^name(model)`, in a pane under the GUI, and, for a
+livelit that defines `params_from_model` and `init_from_params`, a line with
+the parameters that would make the current model.
+
+### The design (Cyrus, 2026-10-03)
+
+- **The model is shown as syntax**, as it is now, with an editor interface for
+  selecting sub-terms (Select term, navigation), as it is now.
+- **The model is read-only while revealed.** Editing the model as text, and in
+  particular its splice refs, does not make sense: a `SpliceRef` names a
+  splice, and text edits can only break or re-point that naming. The model is
+  changed by the GUI, which is what the GUI is for.
+- **The params, where a livelit has them, are edited, live.** Editing them
+  re-runs `init_from_params` and the GUI follows as you type.
+- **The GUI keeps working while the syntax is revealed**: dragging, clicking
+  and typing into its cells behave as with the syntax hidden, and the revealed
+  model follows each change.
+
+### Backing out of editing the model
+
+On 2026-10-03 the pane was a full editor over the model, and a run of fixes
+went into making that work. The direction above ends that exploration. What
+each piece becomes:
+
+| Piece (commit on `integration/livelits-splicerefs-full`) | With a read-only model |
+| --- | --- |
+| Long model lines reflowed for the pane (`55fcf8abbb`, `ProjectorPerform.laid_out_for_pane`) | Keep: a revealed model must still be readable |
+| Cells nested in the pane measured inline (`8d5d0806c6`, `81a0094acd`: `Measured`'s `splice_depth`, `~in_splice`) | Keep: selection and outlines still need a correct layout |
+| Right-click menu not clipped in the pane (`8bbe3b0270`) | Keep: Select term is part of the design |
+| An open use hangs as a `Tab` (`7c93006c01`), toggle columns and hover (`94644969d1`) | Keep: layout of the reveal, not of editing |
+| The toggle's looks on the Colors slide (`61c94a8170` ... `db118a14a4`) | Keep |
+| Commits while revealed regenerate the pane (`4a9d1c3f39`, `pane_syntax` in `SetTerm`) | Keep: this is how the revealed model follows the GUI |
+| A cell retyped in the pane shown read-only in the GUI, re-spliced when the eye closes (`9d961e4446`: `LivelitProj.cell_parens`, `ProjectorPerform.closed_syntax`) | Backed out (`980a1753f4`): a read-only model cannot be retyped |
+| deck_regress "retyping a cell in the open syntax hands the face to another slider", and "a cell retyped in the open syntax shows in the GUI" | Replaced (`7f2103c6e0`): the revealed model refuses each key while the face's slider drives it; a GUI cell takes typing while revealed; the params line edits live |
+
+Built in `7f2103c6e0`:
+
+- **Read-only model.** `Perform.go` refuses text edits (insert, delete, paste,
+  cut, completion, structural edits) while the caret is in the revealed syntax:
+  the innermost splice around it is the syntax splice directly under a livelit
+  showing its syntax. Moving, selecting, copying, probes and projector actions
+  (the GUI's commits, the eye) are unaffected, and so is a GUI cell, a splice
+  nested deeper.
+- **Live params.** The params line commits when typing pauses (250 ms), and
+  only params that evaluate to a value: text that parses but names something
+  unbound would otherwise run `init_from_params` around it. Focus stays in the
+  line across the re-renders a commit causes.
+
+### The head line
+
+Above the read-only model and any params line, the reveal shows the use's
+**head**: the livelit as applied, without its model, as `^percent`, `^flag`,
+or `^slider(1, 12)` for a direct use with parameters. It is editable:
+
+- the same livelit with other arguments keeps the model (the cells' splices
+  re-attached by id);
+- another livelit's name swaps the use for a new one, started from that
+  livelit's `init` with its cells spliced, as typing `^name` and a space would;
+- anything else, on Enter, turns the use back into code: the model is left in
+  its place (`Project(Unproject(index, segment))`, by index, since the caret
+  may be anywhere).
+
+A pause in typing, or leaving the line, only ever swaps or re-parameterizes;
+only Enter unprojects, so a half-typed name never does.
+
+### The GUI while revealed
+
+Buttons, sliders and drags in the GUI worked with the syntax revealed, but its
+cells did not take the keyboard: with the syntax shown the use is one splice
+and the cells are nested in it, and entering a splice by id never looked inside
+another splice, so a click in a cell found no way in. That is the likely case
+Cyrus saw. `Relatives.find_splice_descent_when` now descends into a splice to
+reach one nested in it, and `exit_splice` closes it again on the way out
+(`7f2103c6e0`). Still to do: cover the GUI with the syntax revealed on every
+deck slide, not only Kids' Choice and Color.
 
 ## Design decisions
 

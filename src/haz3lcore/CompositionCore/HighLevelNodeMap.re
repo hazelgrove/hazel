@@ -523,10 +523,27 @@ let rec build_children =
          like a top-level binding chain — the Let/TyAlias cases above walk
          it, making members siblings of one another. Wrapper pat/def ids
          are the members' real syntax ids, so downstream span selection
-         works unchanged. */
-      switch (items) {
-      | [] => node_map
-      | [first, ..._] =>
+         works unchanged. A non-binding item (a test) is wrapped under a
+         fresh id, so the chain is entered at the first binding item. */
+      switch (
+        List.find_opt(
+          (item: Mod.t) =>
+            switch (item.term) {
+            | ModLet(_)
+            | ModType(_)
+            | ModuleMod(_) => true
+            /* Modules II's dynamics-only value member: no row of its own */
+            | ModVal(_)
+            | ModExp(_)
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_) => false
+            },
+          items,
+        )
+      ) {
+      | None => node_map
+      | Some(first) =>
         switch (Id.Map.find_opt(Mod.rep_id(first), info_map)) {
         | Some(wrapper_info) =>
           build_children(wrapper_info, path, node_map, info_map)
@@ -608,8 +625,11 @@ let gather_top_level = (node_map: t): list(Id.t) => {
      });
 };
 
+/* Paths are slash-delimited ("M/helper"); a dotted form ("M.helper", the
+   language's own member-access syntax, which a model reaches for first) is
+   accepted as the same path. Identifiers cannot contain either character. */
 let split_path = (path: string): list(string) => {
-  String.split_on_char('/', path);
+  String.split_on_char('/', String.map(c => c == '.' ? '/' : c, path));
 };
 
 let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {

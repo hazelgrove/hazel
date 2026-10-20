@@ -8,6 +8,7 @@ open Language;
 let seg_settings = (~inline: bool): ExpToSegment.Settings.t => {
   ...ExpToSegment.Settings.of_core(~inline, CoreSettings.off),
   show_unknown_as_hole: false,
+  use_literal_lexemes: false,
   hole_tiles: false,
   fold_fn_bodies: `NoFold,
   project_tables: false,
@@ -54,6 +55,15 @@ let utility: ProjectorBase.utility = {
   /* NOTE: Setting indent to anything other than "" has serious
    * perf implications when there are lots of probes on the screen */
   let seg_to_string = Printer.of_segment(~holes="?", ~indent="");
+  let string_to_exp = (text: string): option(Exp.t) =>
+    switch (FastParse.of_text(~root=Exp, String.trim(text))) {
+    | None => None
+    | Some(seg) =>
+      switch (seg_to_term(seg)) {
+      | Some(Exp(e)) => Some(e)
+      | _ => None
+      }
+    };
   {
     term_to_seg: (~inline, any) => term_to_seg(inline, any),
     typ_to_seg_with_diff_ids: (~inline, ~ctx, ~against, typ) =>
@@ -62,11 +72,28 @@ let utility: ProjectorBase.utility = {
     lift_syntax: (~inline) => lift_syntax(inline),
     lift_term,
     seg_to_string,
+    string_to_exp,
   };
 };
 
+/* the ⇓ toggle's probe: the probe on [tail] (Refractors.tail_target)
+   while it keeps the bare model, as it does when a pin or step-into makes
+   it manual. its drawer is drawn after the program's last line and
+   reserves no rows */
+let is_program_value =
+    (
+      ~tail: option(Id.t),
+      id: Id.t,
+      kind: ProjectorCore.Kind.t,
+      model: string,
+    )
+    : bool =>
+  tail == Some(id) && kind == Probe && ProbeProj.is_bare(model);
+
 let mk_info =
     (
+      ~stepping: option(ProjectorBase.stepping)=None,
+      ~tail: option(Id.t)=None,
       p: Piece.projector,
       ~sample_focus: Sample.Focus.t,
       ~statics: Statics.Map.t,
@@ -112,6 +139,12 @@ let mk_info =
       None;
     };
   },
+  stepping:
+    switch (stepping) {
+    | Some(st) when st.span.probe_id == p.id => stepping
+    | _ => None
+    },
+  program_value: is_program_value(~tail, p.id, p.kind, p.model),
   utility,
 };
 

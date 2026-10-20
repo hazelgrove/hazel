@@ -219,6 +219,17 @@ let editor_positions = (eds: p('a)) =>
 let positioned_editors = state =>
   List.combine(editor_positions(state), editors(state));
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_spec = p(PersistentZipper.t);
+
+let of_persistent: persistent_spec => spec =
+  p =>
+    map(
+      p,
+      PersistentZipper.unpersist(~root=Exp),
+      PersistentZipper.unpersist(~root=Exp),
+    );
+
 let eds_of_spec =
     (
       {

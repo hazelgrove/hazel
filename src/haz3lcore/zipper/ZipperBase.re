@@ -8,7 +8,8 @@ type caret = CaretBase.t;
 /* Refractor state extracted to Refractors.re - see state location docs there */
 module Refractor = Refractors;
 
-// assuming single backpack, shards may appear in selection, backpack, or siblings
+// shards may appear in the selection or siblings; "missing" shards
+// (the derived missing-shard set) are those an incomplete tile still lacks
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,
@@ -54,6 +55,15 @@ let update_ephemerals = (f, z: t): t => {
     },
   },
 };
+
+/* same text, selection, caret and manual probes. probe passes rebuild
+   the record on every calculate, so identity alone says little */
+let same_content = (a: t, b: t): bool =>
+  a === b
+  || a.relatives === b.relatives
+  && a.selection === b.selection
+  && a.caret == b.caret
+  && a.refractors.manuals === b.refractors.manuals;
 
 let update_suppressed = (f, z: t): t => {
   ...z,
@@ -113,34 +123,66 @@ let sibs_with_sel =
 module MapPiece = {
   type updater = Piece.t => Segment.t;
 
+  /* Identity-preserving: a piece, segment or tile with nothing changed
+     beneath it comes back as the same object. Incremental layers key on
+     piece identity -- MakeTerm.Incr reuses an item only if its pieces are
+     the same objects (Segment.ptr_eq), Measured's cache likewise -- and
+     rebuilding every record re-minted the whole program: a livelit's
+     commit (ProjectorPerform.update, through fast_local_seg's general
+     case) re-parsed every item, about 30% of a Kids' Choice slider
+     release in Firefox. */
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
+    let changed = ref(false);
+    let out =
+      List.concat_map(
+        p => {
+          let ps = List.map(of_piece(f), f(p));
+          switch (ps) {
+          | [q] when q === p => ()
+          | _ => changed := true
+          };
+          ps;
+        },
+        seg,
+      );
+    changed^ ? out : seg;
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
-    | Tile(t) => Tile(of_tile(f, t))
+    | Tile(t) =>
+      let t' = of_tile(f, t);
+      t' === t ? piece : Tile(t');
     | Projector(pr) =>
       /* Projector syntax and splice contents are ordinary zipped
        * pieces: recurse so updates reach projectors/pieces nested
        * inside other projectors' splices. */
-      Projector({
-        ...pr,
-        syntax: of_segment(f, pr.syntax),
-      })
+      let syntax = of_segment(f, pr.syntax);
+      syntax === pr.syntax
+        ? piece
+        : Projector({
+            ...pr,
+            syntax,
+          });
     | Splice(s) =>
-      Splice({
-        ...s,
-        content: of_segment(f, s.content),
-      })
+      let content = of_segment(f, s.content);
+      content === s.content
+        ? piece
+        : Splice({
+            ...s,
+            content,
+          });
     | Grout(_)
     | Secondary(_) => piece
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {
-      ...t,
-      children: List.map(of_segment(f), t.children),
-    };
+    let children = List.map(of_segment(f), t.children);
+    List.for_all2((a, b) => a === b, children, t.children)
+      ? t
+      : {
+        ...t,
+        children,
+      };
   };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
@@ -234,4 +276,62 @@ module MapPiece = {
     } else {
       go(f, z);
     };
+};
+
+/* Like MapPiece but for segment-level transformations.
+   Useful when you need to see/modify sequences of pieces together
+   (e.g., linebreak followed by spaces for indentation). */
+module MapSegment = {
+  type updater = Segment.t => Segment.t;
+
+  let of_segment = (f: updater, seg: Segment.t): Segment.t =>
+    Segment.map_deep(f, seg);
+
+  let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
+    of_segment(f, fst(sibs)),
+    of_segment(f, snd(sibs)),
+  );
+
+  /* Tile ancestors only: like Segment.map_deep, this does not reach into
+     a projector's syntax or a splice's content, which Indentation also
+     leaves to their own frames. */
+  let of_ancestor = (f: updater, ancestor: Ancestor.t): Ancestor.t =>
+    switch (ancestor) {
+    | Tile(a) =>
+      Tile({
+        ...a,
+        children: (
+          List.map(of_segment(f), fst(a.children)),
+          List.map(of_segment(f), snd(a.children)),
+        ),
+      })
+    | Projector(_)
+    | Splice(_) => ancestor
+    };
+
+  let of_generation =
+      (f: updater, generation: Ancestors.generation): Ancestors.generation => (
+    of_ancestor(f, fst(generation)),
+    of_siblings(f, snd(generation)),
+  );
+
+  let of_ancestors = (f: updater, ancestors: Ancestors.t): Ancestors.t =>
+    List.map(of_generation(f), ancestors);
+
+  let of_selection = (f: updater, selection: Selection.t): Selection.t => {
+    {
+      ...selection,
+      content: of_segment(f, selection.content),
+    };
+  };
+
+  /* Maps the updater over all segments in the zipper */
+  let go = (f: updater, z: t): t => {
+    ...z,
+    selection: of_selection(f, z.selection),
+    relatives: {
+      ancestors: of_ancestors(f, z.relatives.ancestors),
+      siblings: of_siblings(f, z.relatives.siblings),
+    },
+  };
 };

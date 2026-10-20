@@ -2,10 +2,16 @@
  * processing, so focus is stashed in a ref (not model state, which would
  * loop) and applied from Main.after_display once the DOM is in place. */
 open Util;
+open Js_of_ocaml;
 
 type target =
   | Editor
   | Cell
+  | CellTop /* Cell + align its stack entry to the viewport top */
+  | CellCaretTop /* Cell + bring a caret out of view near the top */
+  /* Cell if the keys are lost: undo and redo swap the model under them,
+     and keys held outside the code stay there */
+  | CellIfLost
   | Probe(Id.t);
 
 let scheduled: ref(option(target)) = ref(None);
@@ -18,33 +24,25 @@ let schedule_editor = (): unit => {
   scheduled := Some(Editor);
 };
 
+/* don't downgrade a pending CellTop: several actions in one frame may
+   each request focus */
+let schedule_below_top = (target: target): unit =>
+  switch (scheduled^) {
+  | Some(CellTop) => ()
+  | _ => scheduled := Some(target)
+  };
+
 /* a sidebar jump moves the model selection but not DOM focus; this restores it */
-let schedule_cell = (): unit => {
-  scheduled := Some(Cell);
+let schedule_cell = (): unit => schedule_below_top(Cell);
+
+let schedule_cell_top = (): unit => {
+  scheduled := Some(CellTop);
 };
 
-let execute = (): bool =>
-  switch (scheduled^) {
-  | Some(Editor) =>
-    scheduled := None;
-    /* focus the editor itself, not the clipboard shim: the caret CSS
-       is gated on `.code-editor:focus` */
-    JsUtil.focus_active_editor();
-    true;
-  | Some(Cell) =>
-    scheduled := None;
-    JsUtil.focus_active_cell();
-  | Some(Probe(probe_id)) =>
-    scheduled := None;
-    let elem_id = Id.cls(probe_id);
-    switch (JsUtil.get_elem_by_id_opt(elem_id)) {
-    | Some(elem) =>
-      elem##focus;
-      true;
-    | None => false
-    };
-  | None => false
-  };
+/* a jump: as schedule_cell, and a caret out of view comes near the top */
+let schedule_cell_caret_top = (): unit => schedule_below_top(CellCaretTop);
+
+let schedule_cell_if_lost = (): unit => schedule_below_top(CellIfLost);
 
 /* Focus keeper: vdom's keyed reorder drops DOM focus from a moved element
  * under culling churn, so a focused probe goes dark on scroll. Each frame,
@@ -52,12 +50,53 @@ let execute = (): bool =>
  * exists, re-focus it. Deliberate blurs call `expect_blur` so this doesn't
  * fight them. */
 
-open Js_of_ocaml;
-
 let kept: ref(option(string)) = ref(None);
 let blur_expected: ref(bool) = ref(false);
 
 let expect_blur = (): unit => blur_expected := true;
+
+/* A press outside the kept probe, or outside the kept splice, since the last
+   frame (dev's #2649: text outside the editors is selectable, and a press on
+   it, which may be starting a selection, leaves focus on #page, as a vdom
+   drop does; only the press is deliberate, so the keepers let it be). */
+let pressed_elsewhere: ref(bool) = ref(false);
+let pressed_outside_splice: ref(bool) = ref(false);
+let kept_splice: ref(option(string)) = ref(None);
+
+let contains = (id: string, target: Js.t(Dom_html.element)): bool =>
+  switch (JsUtil.get_elem_by_id_opt(id)) {
+  | Some(el) =>
+    Js.to_bool(
+      Js.Unsafe.meth_call(el, "contains", [|Js.Unsafe.inject(target)|]),
+    )
+  | None => false
+  };
+
+/* Capture phase, since projectors stop pointerdown propagation. */
+let install_press_tracking = (): unit => {
+  let _: Dom_html.event_listener_id =
+    Dom_html.addEventListenerWithOptions(
+      Dom_html.document,
+      Dom_html.Event.make("pointerdown"),
+      ~capture=Js._true,
+      Dom_html.handler((evt: Js.t(Dom_html.event)) => {
+        switch (Js.Opt.to_option(evt##.target)) {
+        | Some(target) =>
+          switch (kept^) {
+          | Some(id) => pressed_elsewhere := !contains(id, target)
+          | None => ()
+          };
+          switch (kept_splice^) {
+          | Some(id) => pressed_outside_splice := !contains(id, target)
+          | None => ()
+          };
+        | None => ()
+        };
+        Js._true;
+      }),
+    );
+  ();
+};
 
 let focus_no_scroll = (elem: Js.t(Dom_html.element)): unit =>
   Js.Unsafe.meth_call(
@@ -70,42 +109,95 @@ let focus_no_scroll = (elem: Js.t(Dom_html.element)): unit =>
     |],
   );
 
+let active_element = (): option(Js.t(Dom_html.element)) =>
+  Js.Opt.to_option(Dom_html.document##.activeElement);
+
+/* focus fell to nothing: the body, or the page's own fallbacks */
+let fell_to_nothing = (active: option(Js.t(Dom_html.element))): bool =>
+  switch (active) {
+  | None => true
+  | Some(el) =>
+    Js.to_string(el##.tagName) == "BODY" || Js.to_string(el##.id) == "page"
+  };
+
+/* the remembered probe, when the keeper puts the focus back on it */
+let returning_probe = (): option(Js.t(Dom_html.element)) =>
+  switch (kept^) {
+  | Some(id)
+      when
+        ! blur_expected^
+        && ! pressed_elsewhere^
+        && fell_to_nothing(active_element()) =>
+    JsUtil.get_elem_by_id_opt(id)
+  | _ => None
+  };
+
+/* on a code pane the model doesn't select (the vdom can hand a focused
+   pane's element to another), or on nothing with no probe to take it */
+let keys_lost = (): bool => {
+  let active = active_element();
+  switch (active) {
+  | Some(el) when !fell_to_nothing(active) =>
+    Js.to_string(el##.id) != JsUtil.active_cell_id
+    && Js.to_bool(
+         Js.Unsafe.coerce(el)##matches(Js.string("#main .code-editor")),
+       )
+  | _ => Option.is_none(returning_probe())
+  };
+};
+
+let execute = (): bool => {
+  let target = scheduled^;
+  scheduled := None;
+  /* a jump from the outline keeps the keys there */
+  let focus_cell = () =>
+    JsUtil.outline_has_focus() || JsUtil.focus_active_cell();
+  switch (target) {
+  | Some(Editor) =>
+    /* focus the editor itself: the caret CSS is gated on
+       `.code-editor:focus` */
+    JsUtil.focus_active_editor();
+    true;
+  | Some(Cell) => focus_cell()
+  | Some(CellCaretTop) =>
+    let focused = focus_cell();
+    JsUtil.align_caret_near_top();
+    focused;
+  | Some(CellTop) =>
+    let focused = focus_cell();
+    JsUtil.align_active_cell_top();
+    focused;
+  | Some(CellIfLost) => keys_lost() && JsUtil.focus_active_cell()
+  | Some(Probe(probe_id)) =>
+    switch (JsUtil.get_elem_by_id_opt(Id.cls(probe_id))) {
+    | Some(elem) =>
+      elem##focus;
+      true;
+    | None => false
+    }
+  | None => false
+  };
+};
+
 let keep_focus = (): unit => {
-  let active = Js.Opt.to_option(Dom_html.document##.activeElement);
   let is_live_offside = (el: Js.t(Dom_html.element)): bool =>
     Js.to_bool(el##.classList##contains(Js.string("live-offside")));
-  switch (active) {
+  switch (active_element()) {
   | Some(el) when is_live_offside(el) =>
     let id = Js.to_string(el##.id);
     kept := id == "" ? None : Some(id);
     blur_expected := false;
   | _ =>
-    if (blur_expected^) {
+    switch (returning_probe()) {
+    | Some(elem) => focus_no_scroll(elem)
+    | None =>
+      /* a deliberate blur or press elsewhere, the probe gone (culled out
+         or deleted), or something else took focus on purpose */
       kept := None;
       blur_expected := false;
-    } else {
-      switch (kept^) {
-      | None => ()
-      | Some(id) =>
-        let fell_to_nothing =
-          switch (active) {
-          | None => true
-          | Some(el) =>
-            let tag = Js.to_string(el##.tagName);
-            let eid = Js.to_string(el##.id);
-            tag == "BODY" || eid == "page" || eid == "clipboard-shim";
-          };
-        if (fell_to_nothing) {
-          switch (JsUtil.get_elem_by_id_opt(id)) {
-          | Some(elem) => focus_no_scroll(elem)
-          | None => kept := None /* probe gone: culled out or deleted */
-          };
-        } else {
-          kept := None; /* something else took focus on purpose */
-        };
-      };
     }
   };
+  pressed_elsewhere := false;
 };
 
 /* --- Splice focus -----------------------------------------------------
@@ -119,12 +211,10 @@ let keep_focus = (): unit => {
  * A vdom key on the splice does not help: keys only match siblings under
  * a surviving parent, and here an ancestor is replaced.
  *
- * Restoring focus to the main editor's clipboard shim does NOT work
- * either -- verified: keystrokes then reach the editor but never the
- * splice. Focus has to go back to the splice's own sub-editor element,
- * which is what this does. */
-
-let kept_splice: ref(option(string)) = ref(None);
+ * Restoring focus to the main editor does NOT work either (verified, when it
+ * still went through a clipboard shim: keystrokes then reach the editor but
+ * never the splice). Focus has to go back to the splice's own sub-editor
+ * element, which is what this does. */
 
 /* The `.splice-editor` wrapper an element sits in, if any. */
 let enclosing_splice = (el: Js.t(Dom_html.element)): option(string) => {
@@ -172,22 +262,17 @@ let keep_splice_focus = (): unit => {
     switch (kept_splice^) {
     | None => ()
     | Some(id) =>
-      let fell_to_nothing =
-        switch (active) {
-        | None => true
-        | Some(el) =>
-          let tag = Js.to_string(el##.tagName);
-          let eid = Js.to_string(el##.id);
-          tag == "BODY" || eid == "page" || eid == "clipboard-shim";
-        };
-      if (fell_to_nothing) {
+      if (fell_to_nothing(active) && pressed_outside_splice^) {
+        kept_splice := None; /* a press elsewhere, deliberate */
+      } else if (fell_to_nothing(active)) {
         switch (JsUtil.get_elem_by_id_opt(id)) {
         | Some(w) => ignore(focus_inside_splice(w))
         | None => kept_splice := None /* splice gone: deleted or culled */
         };
       } else {
         kept_splice := None; /* something else took focus on purpose */
-      };
+      }
     }
   };
+  pressed_outside_splice := false;
 };

@@ -161,7 +161,8 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
   | "delete_binding_clause"
   | "delete_body" => single_path_edit(~persists=false)
   | "insert_after"
-  | "insert_before" =>
+  | "insert_before"
+  | "insert_test" =>
     let path = get_string_field(args, "path");
     Some({
       category: Edit,

@@ -8,6 +8,8 @@
 
 (copy_files ../../hazel-programs/docs/shared-spaces/*.hz)
 
+(copy_files ../../hazel-programs/mega/*.hz)
+
 (library
  (name docslides)
  (libraries haz3lcore)

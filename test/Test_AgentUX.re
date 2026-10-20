@@ -584,8 +584,8 @@ let prompt_caching_tests = [
           skipped: false,
           expanded: false,
           diff: None,
-          before_segment: None,
-          after_segment: None,
+          before_text: None,
+          after_text: None,
           content: "GUIDE_BODY_MARKER",
           content_is_payload,
         };
@@ -1267,6 +1267,29 @@ let tool_call_summary_tests = [
         "display_name='insert'",
         true,
         ToolCallSummary.display_name_for(tc) == "insert",
+      );
+    },
+  ),
+  test_case(
+    "insert_test: an edit at its path, or none without one",
+    `Quick,
+    () => {
+      let at =
+        mk_tc(
+          ~name="insert_test",
+          ~args=`Assoc([("path", `String("fib"))]),
+        );
+      let s = get_summary(at);
+      check_category("insert_test", Edit, at);
+      check_signifier("insert_test", Some("fib"), at);
+      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
+      check_bool("persists=true", true, s.persists);
+      let bare = mk_tc(~name="insert_test", ~args=`Assoc([]));
+      check_signifier("no path", None, bare);
+      check_bool(
+        "display_name keeps the tool name",
+        true,
+        ToolCallSummary.display_name_for(bare) == "insert_test",
       );
     },
   ),

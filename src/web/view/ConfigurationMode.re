@@ -100,10 +100,9 @@ module Model = {
         let name = persistence_key(config_type);
         let current_zipper = m.editor.editor.state.zipper;
         /* Built-in sources are text-backed and mint fresh ids on every
-           parse, so id-sensitive segment equality can never match (same
-           reasoning as ScratchMode.Scratchpad.persist). Compare the text
-           projection instead, and store nothing for an untouched slide
-           so a later change to the default is picked up. */
+           parse, so id-sensitive segment equality can never match.
+           Compare the text projection instead, and store nothing for an
+           untouched slide so a later change to the default is picked up. */
         let default_text =
           default_source(config_type)
           |> snd

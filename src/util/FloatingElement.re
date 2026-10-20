@@ -123,11 +123,56 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
         | Some("bottom") => rect##.bottom
         | _ => rect##.top
         };
-      let viewport_top = base_top +. local_top;
+      let raw_top = base_top +. local_top;
+      /* Raised completion flags stay in the viewport while their pole
+         still reaches a visible caret. Other floating elements opt out. */
+      let min_top =
+        get_data_string(el, "min-top") |> Option.map(float_of_string);
+      let viewport_top =
+        switch (min_top) {
+        | Some(y) => max(y, raw_top)
+        | None => raw_top
+        };
+      let shift = viewport_top -. raw_top;
+      let _ =
+        el##.style##setProperty(
+          Js.string("--float-top-shift"),
+          Js.string(Printf.sprintf("%fpx", shift)),
+          Js.undefined,
+        );
+      let visible =
+        switch (min_top, get_data_string(el, "local-bottom")) {
+        | (Some(y), Some(bottom)) =>
+          base_top +. float_of_string(bottom) >= y
+        | _ => true
+        };
       let viewport_left = rect##.left +. local_left;
-      el##.style##.top := Js.string(Float.to_string(viewport_top) ++ "px");
-      el##.style##.left := Js.string(Float.to_string(viewport_left) ++ "px");
-      el##.style##.visibility := Js.string("visible");
+      /* `flip`: open above the anchor when there's no room below in #main
+         and room above, and shift left rather than run off its right */
+      let (viewport_top, viewport_left) =
+        switch (
+          get_data_string(el, "flip"),
+          JsUtil.get_elem_by_id_opt("main"),
+        ) {
+        | (Some(_), Some(main)) =>
+          let m = main##getBoundingClientRect;
+          let h = float_of_int(el##.offsetHeight);
+          let w = float_of_int(el##.offsetWidth);
+          let up =
+            viewport_top +. h > m##.bottom && rect##.top -. h >= m##.top;
+          up
+            ? el##.classList##add(Js.string("float-up"))
+            : el##.classList##remove(Js.string("float-up"));
+          (
+            up ? rect##.top -. h : viewport_top,
+            viewport_left +. w > m##.right
+              ? Float.max(m##.left, m##.right -. w) : viewport_left,
+          );
+        | _ => (viewport_top, viewport_left)
+        };
+      el##.style##.top := Js.string(Printf.sprintf("%fpx", viewport_top));
+      el##.style##.left := Js.string(Printf.sprintf("%fpx", viewport_left));
+      el##.style##.visibility := Js.string(visible ? "visible" : "hidden");
     }
   };
 };

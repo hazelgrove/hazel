@@ -5,6 +5,46 @@
 let dark_mode = ^^check(false) in
 let high_contrast = ^^check(false) in
 
+# How a livelit shows that its syntax can be opened beneath it: the #
+# Eye, struck through while hidden; a Triangle, pointing right while #
+# hidden and down while shown; a Chevron, the same but lighter; or #
+# the Nut, whose cap lifts off while shown. Press one. #
+type LivelitReveal = + Eye + Triangle + Chevron + Nut in
+
+# ^choice: one of several values, pressed like an old car radio's #
+# buttons. It is Either, Two Versions' ^either for any number of #
+# cases: the type parameter is the values' type, and the parameter #
+# lists the cases, each a label and its value. The model IS the value #
+# chosen, so a use reads as the choice itself: ^reveal(Triangle). #
+let ^choice = typfun A -> fun cases : [(String, A)] -> {
+  type Model = A;
+  type Action = A;
+  type Expansion = A;
+  # A new use starts on the first case. #
+  let init = let (_, v) = head(cases) in Pure(v);
+  let update = fun _m : Model -> fun a : Action -> Pure(a);
+  # The pressed button is disabled: pressing it again would change #
+  # nothing. proj-livelit.css draws it inverted, so the view needs no #
+  # branch of its own. #
+  let button = fun (label, v, pressed) : (String, A, Bool) ->
+    Html.button(
+      [Attr.class("choice-button"), Attr.disabled(pressed),
+       Attr.on_click(v)],
+      [Html.text(label)]);
+  let view = fun m : Model -> Pure(
+    Html.div(
+      [Attr.class("choice")],
+      map((cases, fun (label, v) : (String, A) ->
+        button((label, v, v == m))))));
+  let expand = Functional(fun m : Model -> m);
+  let shape = Inline(27)
+} in
+
+let ^reveal = ^choice@<LivelitReveal>(
+  [("eye", Eye), ("triangle", Triangle), ("chevron", Chevron),
+   ("nut", Nut)]) in
+let livelit_reveal = ^^livelit(^reveal(Eye)) in
+
 # How far up the lightness scale each ramp step sits. Given per scheme #
 # because a light scheme's steps run darker and a dark scheme's lighter. #
 type ColorRamp = ^^fold((
@@ -35,7 +75,6 @@ type ColorOverrides = ^^fold((
   # 0. keeps the shared placement, 1. is the ink itself #
   `probe-text-toward-ink` = Float,
   `hole-empty` = ColorValue,
-  `editor-backpack-outline` = ColorValue,
   `projector-textarea-text` = ColorValue,
   `inspector-badge` = ColorValue,
   `inspector-text` = ColorValue
@@ -114,7 +153,6 @@ let sort_plate(c) =
       `buffer` = role.`frame-mark`,
       `derivation` = wash(p.`success`, 0.82, 0.67),
       `locked-cell` = role.`frame-border`,
-      `backpack-outline` = role.`editor-backpack-outline`,
       # findable aliases; each defaults to its place in the ramp #
       `string` = p.`attention-4`,
       `comment` = p.`success-muted`,
@@ -135,7 +173,7 @@ let sort_plate(c) =
       `type` = sort_plate(p.`type`),
       `type-pattern` = sort_plate(p.`type-pattern`),
       `derivation` = wash(p.`success`, 0.04, 0.25),
-      `module` = wash(p.`label`, 0.04, 0.25),
+      `module` = wash(p.`ink`, 0.04, 0.25),
       `signature` = wash(p.`type`, 0.04, 0.25),
       `module-pattern` = wash(p.`pattern`, 0.04, 0.25)
     ),
@@ -176,7 +214,9 @@ let sort_plate(c) =
     inspector = (
       `badge` = role.`inspector-badge`,
       `text` = role.`inspector-text`,
-      `separator` = role.`frame-border`
+      `separator` = role.`frame-border`,
+      # behind the program's dynamics glyph, across from the badge #
+      `dynamics` = p.`attention-2`
     ),
     # probes: live values pinned to the program #
     probe = (
@@ -206,6 +246,14 @@ let sort_plate(c) =
       # that runs past its height #
       `drawer-edge` = wash(p.`frame-1`, 0.2222, 0.5714),
       `drawer-fade` = Fade(wash(p.`frame-1`, 1., 0.8571), 40.)
+    ),
+    # completion chips: the page knocked out of the chip, and the #
+    # faded segments still to come, off the chip and on the caret's #
+    completion = (
+      `chip-text` = role.`editor-cell`,
+      `later-text` = color_mix(role.`editor-cell`, p.`attention-4`, 0.22),
+      `later-text-at-caret` =
+        color_mix(p.`attention-4`, p.`attention-2`, 0.55)
     ),
     # inline widgets: text areas, folds, the statics card #
     projector = (
@@ -248,7 +296,6 @@ let light_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `step-next-level` = 85.,
   `probe-text-toward-ink` = 0.,
   `hole-empty` = p.`attention-1`,
-  `editor-backpack-outline` = p.`code-background`,
   `projector-textarea-text` = p.`frame-3`,
   `inspector-badge` = p.`frame-3`,
   `inspector-text` = p.`frame-4`
@@ -328,7 +375,6 @@ let dark_roles(p : ColorPalette): ColorOverrides = ^^fold((
   `step-next-level` = 31.,
   `probe-text-toward-ink` = 0.,
   `hole-empty` = p.`surface-2`,
-  `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 80.),
   `projector-textarea-text` = p.`ink`,
   `inspector-badge` = p.`frame-2`,
   `inspector-text` = p.`ink`
@@ -497,15 +543,17 @@ let contrast_dark = ^^fold(let p = palette_of(
     `cursor-tint` = 0.5,
     `cursor-level` = 28.,
     `step-next-level` = 27.,
-    `editor-backpack-outline` = color_with_lightness(p.`surface-1`, 100.),
     # light text on a dark fill needs more lightness than dark text on a #
     # light one to read as well, so the shared placement falls short here #
     `probe-text-toward-ink` = 0.55
   ))) in
 
-case (dark_mode, high_contrast)
+(case (dark_mode, high_contrast)
 | (false, false) => light
 | (false, true) => contrast_light
 | (true, false) => dark
 | (true, true) => contrast_dark
-end
+end) ... (
+  # not a color: the livelit syntax toggle's look, chosen at the top #
+  `livelit-reveal` = livelit_reveal
+)

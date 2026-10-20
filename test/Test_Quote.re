@@ -75,7 +75,7 @@ let tests = (
           List.filter_map(
             (p: Piece.t) =>
               switch (p) {
-              | Tile(t) => Some(String.concat(" ", t.label))
+              | Tile(t) => Some(String.concat(" ", Tile.label(t)))
               | _ => None
               },
             seg,
@@ -171,7 +171,7 @@ let tests = (
           List.exists(
             (p: Piece.t) =>
               switch (p) {
-              | Tile(t) => t.label == ["quote", "end"]
+              | Tile(t) => Tile.label(t) == ["quote", "end"]
               | _ => false
               },
             seg,

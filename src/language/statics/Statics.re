@@ -20,6 +20,23 @@ let quote_depth = ref(0);
    is analyzed: there, applying a livelit that takes value parameters is an
    abbreviation, and anywhere else it is a use missing them. */
 let livelit_abbrev_site: ref(option(Id.t)) = ref(None);
+
+/* How many times each expression is analyzed, by its id, with the
+   expression itself. Off (None) except under `hazel analyze
+   --count-passes`. In a one-pass checker every count is 1; a count above 1
+   is a re-analysis, and re-analyses nested in one another multiply, which
+   is how a program's checking time stops being linear in its size. */
+let pass_counts: ref(option(Hashtbl.t(Id.t, (int, Exp.t)))) = ref(None);
+
+/* The livelits a module body binds, by the module expression's id: its
+   `let ^f`s, and its sub-modules' members already qualified (`Inner.f`).
+   The Module case fills it from the context at the end of the body's
+   lowering; the `let` that binds the module reads it, and puts each in
+   its body's context as `M.f` (UserLivelit.requalify). Without it they
+   never leave the body: a module's type carries values, not livelits. */
+let module_livelits: Hashtbl.t(Id.t, list(LivelitCtx.raw_livelit)) =
+  Hashtbl.create(8);
+
 let rec any_to_info_map =
         (
           ~ctx: Ctx.t,
@@ -74,16 +91,19 @@ let rec any_to_info_map =
   }
 and multi =
     (~ctx, ~ancestors, ~probe_ids: Id.Map.t(unit)=Id.Map.empty, m, tms)
-    : (list(CoCtx.t), list(Any.t), Map.t) =>
-  List.fold_left(
-    ((co_ctxs, tms_elab, m), any) => {
-      let (co_ctx, any_elab, m) =
-        any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
-      (co_ctxs @ [co_ctx], tms_elab @ [any_elab], m);
-    },
-    ([], [], m),
-    tms,
-  )
+    : (list(CoCtx.t), list(Any.t), Map.t) => {
+  let (co_ctxs, tms_elab, m) =
+    List.fold_left(
+      ((co_ctxs, tms_elab, m), any) => {
+        let (co_ctx, any_elab, m) =
+          any_to_info_map(~ctx, ~ancestors, ~probe_ids, any, m);
+        ([co_ctx, ...co_ctxs], [any_elab, ...tms_elab], m);
+      },
+      ([], [], m),
+      tms,
+    );
+  (List.rev(co_ctxs), List.rev(tms_elab), m);
+}
 /* One entry per node, carrying its syntactic class and its ancestry. The
    embedded `hazel … end` terms are deliberately not descended into here:
    uexp_to_info_map already visits them with a context and a type, and
@@ -341,6 +361,17 @@ and uexp_to_info_map =
       m: Map.t,
     )
     : (Info.exp, Exp.t, Map.t) => {
+  switch (pass_counts^) {
+  | Some(counts) =>
+    let id = Exp.rep_id(uexp);
+    let n =
+      switch (Hashtbl.find_opt(counts, id)) {
+      | Some((n, _)) => n
+      | None => 0
+      };
+    Hashtbl.replace(counts, id, (n + 1, uexp));
+  | None => ()
+  };
   let ids = IdTagged.ids(uexp);
   let (term, rewrap): (Exp.term, Exp.term => Exp.t) =
     IdTagged.unwrap_elab(uexp);
@@ -563,27 +594,56 @@ and uexp_to_info_map =
         );
       };
       closure_case(env, e);
-    | MultiHole([Exp(e1), Exp(e2)]) =>
-      let (e1, e1_elab, m) = go(~ana=syn, e1, m);
-      let (e2, e2_elab, m) = go(~ana=syn, e2, m);
-      add(
-        ~elab_term=Seq(e1_elab, e2_elab) |> rewrap,
-        ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
-        ~marks=[IsMulti],
-        ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
-        ~probe_targets=
-          SubexpProbeTargets.union_all([e1.probe_targets, e2.probe_targets]),
-        m,
-      );
     | MultiHole(tms) =>
       let multi_hole_case = tms => {
-        let (co_ctxs, tms_elab, m) =
-          multi(~ctx, ~ancestors=ancestors_inclusive, ~probe_ids, m, tms);
+        /* Elaborate MultiHole as right-associative Seq through all Exp children;
+         * non-Exp children still get info-mapped but are dropped from elaboration. */
+        let (exp_co_ctxs, exp_probe_targets, exp_elabs, m) =
+          List.fold_left(
+            ((co_ctxs, probe_targets, elabs, m), any: Any.t) =>
+              switch (any) {
+              | Exp(e) =>
+                let (e_info, e_elab, m) = go(~ana=syn, e, m);
+                (
+                  co_ctxs @ [e_info.co_ctx],
+                  probe_targets @ [e_info.probe_targets],
+                  elabs @ [e_elab],
+                  m,
+                );
+              | _ =>
+                let (co_ctx, _any_elab, m) =
+                  any_to_info_map(
+                    ~ctx,
+                    ~ancestors=ancestors_inclusive,
+                    any,
+                    m,
+                  );
+                (co_ctxs @ [co_ctx], probe_targets, elabs, m);
+              },
+            ([], [], [], m),
+            tms,
+          );
+        let rec nest_seqs = (exps: list(Exp.t)): Exp.t =>
+          switch (exps) {
+          | [] => EmptyHole |> rewrap
+          | [e] => e
+          | [e, ...rest] => Seq(e, nest_seqs(rest)) |> rewrap
+          };
+        /* An unknown-infix multihole (operator token recorded as the
+           lexeme, two exp kids) is a stuck application, not transient
+           juxtaposition: elaborate it to a MultiHole, which the dynamics
+           treats as Indet, instead of evaluating to the last kid. */
+        let elab_term =
+          switch (uexp.annotation.lexeme, exp_elabs) {
+          | (Some(_), [e1, e2]) => MultiHole([Exp(e1), Exp(e2)]) |> rewrap
+          | _ => nest_seqs(exp_elabs)
+          };
         add(
-          ~elab_term=MultiHole(tms_elab) |> rewrap,
+          ~elab_term,
           ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
           ~marks=[IsMulti],
-          ~co_ctx=CoCtx.union(co_ctxs),
+          ~co_ctx=CoCtx.union(exp_co_ctxs),
+          ~probe_targets=SubexpProbeTargets.union_all(exp_probe_targets),
           m,
         );
       };
@@ -1067,9 +1127,9 @@ and uexp_to_info_map =
           switch (
             data.kind,
             Id.Map.mem(Exp.rep_id(uexp), probe_ids),
-            UserLivelit.use_parts(ctx, e.user_term),
+            UserLivelit.use_parts(~elab=e_elab, ctx, e.user_term),
           ) {
-          | (Livelit, true, Some((name, model))) =>
+          | (Livelit, true, Some((def, model))) =>
             /* the view gets the ELABORATED model (located inside the
                expansion by the surface model's id): only there are the
                model's splices decoded into refs (expose_splice_refs); in the
@@ -1081,7 +1141,7 @@ and uexp_to_info_map =
               );
             UserLivelit.instrument_view(
               ~projector_id=Exp.rep_id(uexp),
-              ~name,
+              ~def,
               ~model,
               e_elab,
             );
@@ -1378,7 +1438,7 @@ and uexp_to_info_map =
                     e_info,
                     m,
                   );
-                (es @ [e_info], es_elab @ [elab], m);
+                ([e_info, ...es], [elab, ...es_elab], m);
               | TupLabel(label, value) =>
                 let (labmode, val_mode) =
                   LabeledTupleStaticsHelpers.decompose_label_mode(ctx, ana);
@@ -1475,7 +1535,7 @@ and uexp_to_info_map =
                     ~warnings=[],
                     m,
                   );
-                (es @ [e_info], es_elab @ [elab], m);
+                ([e_info, ...es], [elab, ...es_elab], m);
               | _ =>
                 let (e_info, elab, m) = go(~ana, ~coercible, e, m);
                 let (e_info, m) =
@@ -1484,12 +1544,13 @@ and uexp_to_info_map =
                     e_info,
                     m,
                   );
-                (es @ [e_info], es_elab @ [elab], m);
+                ([e_info, ...es], [elab, ...es_elab], m);
               },
             ([], [], m),
             ana_tys,
             List.combine(inferred, es),
           );
+        let (es', es_elab) = (List.rev(es'), List.rev(es_elab));
 
         let ty_list = List.map((e: Info.exp) => e.elab_syn_ty, es');
 
@@ -1721,6 +1782,64 @@ and uexp_to_info_map =
             info_e1.probe_targets,
             info_e2.probe_targets,
           ]),
+        m,
+      );
+    /* A livelit that is a module member, `Lib.^f`: the livelit keyed
+       `Lib.f` (UserLivelit.head_key), at run time the member itself,
+       `Lib."^f"`, of the type Lib's signature gives it -- which is what an
+       abbreviation `let ^b = Lib.^a@<T> in` takes as its definition's. As
+       a bare `^f`, a livelit taking no parameters means its expansion. */
+    | Dot(e1, {term: LivelitName(member), _} as e2)
+        when
+          Option.bind(UserLivelit.head_key(uexp), Ctx.lookup_livelit(ctx))
+          != None =>
+      let ll =
+        Option.get(
+          Option.bind(UserLivelit.head_key(uexp), Ctx.lookup_livelit(ctx)),
+        );
+      let e1 =
+        switch (Exp.term_of(e1)) {
+        | Constructor(name, _) => {
+            ...e1,
+            term: (Var(name): Exp.term),
+          }
+        | _ => e1
+        };
+      let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
+      let (_, elab_e2, m) =
+        add(
+          ~user_term=e2,
+          ~elab_term={
+            ...e2,
+            term: Label("^" ++ member),
+          },
+          ~ancestors=ancestors_inclusive,
+          ~ctx,
+          ~ana=syn,
+          ~elab_syn_ty=SynTy.unknown_internal(),
+          ~marks=[],
+          ~co_ctx=CoCtx.empty,
+          ~label_inference=None,
+          ~inferred_label=None,
+          ~dot_labels=[],
+          ~label_sort=true,
+          ~warnings=[],
+          m,
+        );
+      let def_ty =
+        switch (Typ.as_sig(~rec_counter=0, ctx, info_e1.ty)) {
+        | Some(items) =>
+          Typ.sig_project_value(items, "^" ++ member)
+          |> Option.value(~default=SynTy.unknown_internal())
+        | None => SynTy.unknown_internal()
+        };
+      let parameterized = ll.tparam != None || ll.vparam;
+      add(
+        ~elab_term=Dot(e1_elab, elab_e2) |> rewrap,
+        ~elab_syn_ty=parameterized ? def_ty : ll.expansion_t,
+        ~marks=[],
+        ~co_ctx=info_e1.co_ctx,
+        ~probe_targets=info_e1.probe_targets,
         m,
       );
     | Dot(e1, e2) =>
@@ -2283,6 +2402,11 @@ and uexp_to_info_map =
       let constructor_case = (ctr: string, ty: option(option(Typ.t))) => {
         let (syn_res, marks_res) =
           ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
+        /* A capitalized name parses as a constructor, but it may be a
+           module binding. In dot position a module wins over a constructor
+           of the same name (see the Dot case); here, in application or
+           value position, the constructor still applies, and a free
+           constructor falls back to a variable of that name. */
         switch (marks_res) {
         | [FreeConstructor(name)] =>
           /* If not a known constructor, try looking up as a variable.
@@ -2341,11 +2465,421 @@ and uexp_to_info_map =
       constructor_case(ctr, ty);
     | Ap(dir, fn, arg) =>
       let ap_case = (dir: Operators.ap_direction, fn: Exp.t, arg: Exp.t) => {
-        switch (fn.term) {
+        /* A livelit that requires an annotation expands against the type
+           expected here, and the expansion has that type. Without one it
+           cannot know what to produce -- the fumola livelit's result shape
+           depends on both its program and the type asked of it -- so it says
+           so rather than guessing. */
+        let annotated =
+          switch (Typ.normalize(ctx, ana).term) {
+          | Unknown(_) => false
+          | _ => true
+          };
+        let expansion_ty_of = (ll: LivelitCtx.raw_livelit) =>
+          ll.requires_annotation && annotated ? ana : ll.expansion_t;
+        /* A use of a livelit whose definition is `ll`, once `fn` -- the name,
+           or for a direct use with parameters `^a(args)` -- is analyzed. */
+        let livelit_use =
+            (ll: LivelitCtx.raw_livelit, fn: Info.exp, fn_elab: Exp.t, m) => {
+          let LivelitCtx.{
+            expansion_t,
+            model_t,
+            expand,
+            requires_annotation,
+            user_def,
+            _,
+          } = ll;
+          let expansion_ty = expansion_ty_of(ll);
+          /* A spliced model field carries its REF. The splice is the
+             client's code living inside the widget, and Figure 3 puts a
+             handle to it in the model (l.3-4) -- so a field the author
+             marked with parens, where Model says SpliceRef, reads as
+             `SpliceRef(("<id>", <the code>))`. The code still evaluates in
+             place, in the client's scope, and the value it had in this run
+             is what eval_splice reads. Where Model says the stopgap pair
+             (ref=SpliceRef, value=t), the field gets both.
+
+             Done as a rewrite of the argument before analysis, rather than
+             as a rule about splices, so splice transparency is untouched
+             everywhere else -- tables still see through theirs. */
+          let arg = UserLivelit.expose_splice_refs(~ctx, ~model_t, arg);
+          let arg_exposed = arg;
+          let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
+
+          /* A user-defined livelit's expansion embeds the model, so give it
+             the ELABORATED model — only there are its splices decoded into
+             refs. Builtins match on surface shapes and keep the user
+             term. */
+          let model_for_expand =
+            Option.is_some(user_def) ? arg_elab : arg.user_term;
+
+          /* What a livelit needs from the context in order to expand: resolve
+             a constructor name, and unfold aliases so an expected type
+             written as a name can be destructured. Closures rather than the
+             context itself, because Ctx depends on LivelitCtx and so the
+             livelit interface cannot name Ctx.t. */
+          let tools: LivelitCtx.type_tools = {
+            resolve_ctr: (~ana, name) =>
+              switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
+              | Some(ty) => Some(ty)
+              | None =>
+                switch (Ctx.lookup_ctr(ctx, name)) {
+                | Some({typ, _}) => Some(typ)
+                | None => None
+                }
+              },
+            normalize: ty => Typ.normalize(ctx, ty),
+          };
+
+          /* Expansion at this use site. A livelit that only expands in
+             checking mode produces nothing when no type is expected here. */
+          let try_expand = (model: Exp.t) =>
+            requires_annotation && !annotated
+              ? None
+              : expand(
+                  ~id=Exp.rep_id(uexp),
+                  ~ana=expansion_ty,
+                  ~tools,
+                  model,
+                );
+
+          /* Type the expansion — the paper's per-invocation-site validation
+             (PLDI 2021, S3.2.5). The DECLARED expansion type is still what
+             the use synthesizes — clients reason against the livelit's
+             interface, not against whatever code came out of expand — so
+             this pass runs in syn mode and throws its map away; its one
+             product is the mark owed when the expansion's own type is
+             inconsistent with the declaration. Statics traverses surface
+             syntax only, so what gets typed is the expansion of the SURFACE
+             model even where the elaborated one is what gets evaluated.
+             That re-traverses the model, so a use costs twice its model
+             subtree — small in practice, since a model is a literal, or
+             one holding splices of the client's code. */
+          let expansion_marks = (expanded: Exp.t) => {
+            let to_check =
+              Option.is_some(user_def)
+                ? try_expand(arg.user_term) : Some(expanded);
+            switch (to_check) {
+            /* mk_expand_dot always expands, so None is unreachable for a
+               user livelit; skipping the check is the safe reading if
+               that ever changes. */
+            | None => []
+            | Some(to_check) =>
+              let (checked, _, _) = go(~ana=syn, to_check, m);
+              UserLivelit.expansion_mark(
+                ctx,
+                ~declared=expansion_t,
+                ~actual=checked.elab_syn_ty,
+              );
+            };
+          };
+
+          /* A Macro livelit (Sec. 3.2.5, Fig. 5): run its expand on this
+             model, and the use means the quoted function applied to the
+             code of the splices it lists.
+
+             - The body is elaborated in the BUILTIN context and closed
+               over the builtin environment, so it cannot capture a client
+               binding -- not even one shadowing a builtin -- and the
+               splices, passed as arguments, cannot be captured by it:
+               application substitutes without capture (Sec. 2.4.3).
+             - Premise 5: the body must be a function taking each listed
+               splice, at the type its code has, to the declared
+               Expansion. The body is analyzed against that arrow, and a
+               failure is BadMacroExpansion, at the use, saying which part
+               fails: a parameter, the result against Expansion, or an
+               error in the code itself (UserLivelit.macro_expansion_mark).
+             - The body is typed on a throwaway map, with fresh ids: its
+               ids belong to the quotation in the definition, whose cursor
+               info must not be overwritten by each use. */
+          let macro =
+            switch (user_def) {
+            | Some(def_elab) =>
+              switch (
+                UserLivelit.run_macro_expand(~def_elab, ~model=arg_elab)
+              ) {
+              | Some((body, ids)) =>
+                let codes =
+                  List.map(
+                    id =>
+                      switch (
+                        UserLivelit.splice_code(arg_exposed, id),
+                        UserLivelit.splice_code(arg_elab, id),
+                      ) {
+                      | (Some(surface), Some(_)) => Some((id, surface))
+                      | _ => None
+                      },
+                    ids,
+                  );
+                Util.OptUtil.sequence(codes)
+                |> Option.map(codes => (body, codes));
+              | None => None
+              }
+            | None => None
+            };
+          switch (macro) {
+          | Some((body, codes)) =>
+            let body = Exp.replace_all_ids(body);
+            /* Each splice's code, typed where it is: in the client's
+               scope, on a throwaway map (it was analyzed with the model
+               already; this asks only for its type). */
+            let code_tys =
+              List.map(
+                ((_, surface)) => {
+                  let (info, _, _) =
+                    go(~ana=Unknown(Internal) |> Typ.temp, surface, m);
+                  info.elab_syn_ty;
+                },
+                codes,
+              );
+            let expected =
+              List.fold_right(
+                (ty, acc) => Arrow(ty, acc) |> Typ.temp,
+                code_tys,
+                expansion_t,
+              );
+            /* Analyzed, not synthesized, against the arrow the splices
+               call for: an unannotated `fun x -> fun y -> (y, x)`
+               synthesizes ? -> ? -> (?, ?), consistent with anything, so
+               only analysis gives x and y the splices' types and finds a
+               mismatch in the body. Any mark in the body means the
+               expansion is not what the use calls for. */
+            /* The expected type is the USE's: Expansion and the splices'
+               types can name the client's type aliases (Color, on the
+               Color slide, is a `type ... in` of its own), which the builtin
+               context does not have. So it is normalized here, in the use's
+               context, before the body is analyzed against it there -- the
+               body stays closed, checked against a type with no free
+               names. */
+            let (body_info, body_elab, body_m) =
+              go(
+                ~ctx=Builtins.ctx_init(ctx.use_mode),
+                ~ana=Typ.normalize(ctx, expected),
+                body,
+                m,
+              );
+            /* Every id in the body, of every sort: a parameter annotated
+               with a type its splice cannot have is marked on the
+               PATTERN, and would be missed by looking at expressions. */
+            let body_ids = {
+              let ids = ref([]);
+              let f:
+                'a.
+                (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) =>
+                IdTagged.t('a)
+               = (
+                (continue, x) => {
+                  ids := IdTagged.ids(x) @ ids^;
+                  continue(x);
+                }
+              );
+              let _ =
+                Exp.map_term(
+                  ~f_exp=f,
+                  ~f_pat=f,
+                  ~f_typ=f,
+                  ~f_tpat=f,
+                  ~f_rul=f,
+                  body,
+                );
+              ids^;
+            };
+            let body_has_error =
+              List.exists(
+                id =>
+                  switch (Id.Map.find_opt(id, body_m)) {
+                  | Some(info) => Info.marks_of(info) != []
+                  | None => false
+                  },
+                body_ids,
+              );
+            /* The model is bound once and each argument is the value its
+               splice's ref carries in it -- what the model's evaluation, in
+               the client's scope, already computed, and what eval_splice
+               reads -- so a splice's code runs once, and a probe in it
+               fires once. A projected use finds the model here by id (the
+               Projector case) to run view on it, and binds it once more
+               for the view, which this binding then reads. */
+            let m_var = "%macro_model";
+            let m_ref = () => (Var(m_var): Exp.term) |> Exp.fresh;
+            let splice_arg = id =>
+              (
+                Ap(
+                  Forward,
+                  (BuiltinFun(BuiltinsADT.splice_value_name): Exp.term)
+                  |> Exp.fresh,
+                  (
+                    Tuple([
+                      m_ref(),
+                      (Atom(String(id)): Exp.term) |> Exp.fresh,
+                    ]): Exp.term
+                  )
+                  |> Exp.fresh,
+                ): Exp.term
+              )
+              |> Exp.fresh;
+            let app =
+              List.fold_left(
+                (f, (id, _)) =>
+                  (Ap(Forward, f, splice_arg(id)): Exp.term) |> Exp.fresh,
+                /* Closed over just the builtins the body needs, not all of
+                   env_init: the same meaning, a fraction of the bytes. */
+                (Closure(Builtins.env_for(body_elab), body_elab): Exp.term)
+                |> Exp.fresh,
+                codes,
+              );
+            let elab =
+              (Let(Pat.fresh(Var(m_var)), arg_elab, app): Exp.term)
+              |> Exp.fresh;
+            let (info, elab, m) =
+              add(
+                ~elab_term=elab,
+                ~elab_syn_ty=expansion_t,
+                ~marks=
+                  body_has_error
+                  || !
+                       Typ.is_consistent(
+                         ctx,
+                         body_info.elab_syn_ty,
+                         Typ.normalize(ctx, expected),
+                       )
+                    ? UserLivelit.macro_expansion_mark(
+                        ctx,
+                        ~expansion=Typ.normalize(ctx, expansion_t),
+                        ~splices=List.map(Typ.normalize(ctx), code_tys),
+                        /* The code's type as the author wrote it: analysis
+                           against the arrow fills each parameter in with
+                           its splice's type, which would hide an annotated
+                           parameter that cannot take its splice. Only
+                           computed when there is something to report. */
+                        ~code={
+                          let (syn, _, _) =
+                            go(
+                              ~ctx=Builtins.ctx_init(ctx.use_mode),
+                              body,
+                              m,
+                            );
+                          syn.elab_syn_ty;
+                        },
+                        ~code_has_error=body_has_error,
+                      )
+                    : [],
+                ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+                ~probe_targets=
+                  SubexpProbeTargets.union_all([
+                    fn.probe_targets,
+                    arg.probe_targets,
+                  ]),
+                m,
+              );
+            (
+              info,
+              elab,
+              IdTagged.ids(elab)
+              |> add_missing_info(_, Info.InfoExp(info), m),
+            );
+          | None =>
+            // try to expand
+            switch (try_expand(model_for_expand)) {
+            | Some(expanded) =>
+              let (info, elab, m) =
+                add(
+                  ~elab_term=expanded,
+                  ~elab_syn_ty=expansion_ty,
+                  ~marks=expansion_marks(expanded),
+                  ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+                  ~probe_targets=
+                    SubexpProbeTargets.union_all([
+                      fn.probe_targets,
+                      arg.probe_targets,
+                    ]),
+                  m,
+                );
+              (
+                info,
+                elab,
+                IdTagged.ids(expanded)
+                |> add_missing_info(_, Info.InfoExp(info), m),
+              );
+            | None =>
+              // if we can't expand, flag as improper model
+              add(
+                ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
+                ~elab_syn_ty=expansion_ty,
+                ~marks=[
+                  requires_annotation && !annotated
+                    ? Mark.LivelitNeedsAnnotation(ll.name)
+                    : Mark.BadLivelitModel(expansion_t),
+                ],
+                ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+                ~probe_targets=
+                  SubexpProbeTargets.union_all([
+                    fn.probe_targets,
+                    arg.probe_targets,
+                  ]),
+                m,
+              )
+            }
+          };
+        };
+        switch (
+          fn.term,
+          UserLivelit.head_key(fn),
+          UserLivelit.ap_head_key(fn),
+        ) {
+        /* A direct use with parameters, `^a(args)(model)`: the paper's
+           `$slider 0 100`, beside the abbreviation `let ^b = ^a(args) in`.
+           `^a(args)` is analyzed as an abbreviation's definition is, its
+           arguments closed, and the use is then a use of `^a` applied to
+           them. At run time the applied livelit is `^a(args)` itself, as no
+           `let` names it (apply_args's `runtime`). */
+        | (Ap(_), _, Some(s))
+            when
+              switch (Ctx.lookup_livelit(ctx, s)) {
+              | Some({vparam: true, user_def: Some(_), _}) => true
+              | _ => false
+              } =>
+          let outer_abbrev_site = livelit_abbrev_site^;
+          livelit_abbrev_site := Some(Exp.rep_id(fn));
+          let (fn_info, fn_elab, m) =
+            go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
+          livelit_abbrev_site := outer_abbrev_site;
+          /* `^a@<T>(args)(model)`: ^a at T first, as an abbreviation
+             `let ^b = ^a@<T>(args) in` has it */
+          let ty =
+            Option.bind(UserLivelit.ap_head(fn), ((_, ty)) => ty)
+            |> Option.map(Typ.normalize(ctx));
+          switch (
+            Option.bind(Ctx.lookup_livelit(ctx, s), ll =>
+              Option.bind(
+                UserLivelit.at_type(~name=s, ~id=Exp.rep_id(fn), ~ty, ll), ll =>
+                Option.bind(UserLivelit.ap_arg(fn_elab), args =>
+                  UserLivelit.apply_args(
+                    ~name=s,
+                    ~id=Exp.rep_id(fn),
+                    ~args,
+                    ~runtime=fn_elab,
+                    ll,
+                  )
+                )
+              )
+            )
+          ) {
+          | Some(ll) => livelit_use(ll, fn_info, fn_elab, m)
+          | None =>
+            let (arg, arg_elab, m) =
+              go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
+            add(
+              ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
+              ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+              ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
+              m,
+            );
+          };
         /* A type-parameterized livelit cannot be used until it has its
            type argument: the paper's "missing livelit parameter" (Sec.
            2.4.1). The argument is still checked, and the use means a hole. */
-        | LivelitName(s)
+        | (_, Some(s), _)
             when
               switch (Ctx.lookup_livelit(ctx, s)) {
               | Some({tparam: Some(_), _}) => true
@@ -2368,7 +2902,7 @@ and uexp_to_info_map =
            run there, so an argument naming a client binding is reported
            where it is written. Anywhere else the application is a use
            missing its parameters, and means a hole. */
-        | LivelitName(s)
+        | (_, Some(s), _)
             when
               switch (Ctx.lookup_livelit(ctx, s)) {
               | Some({vparam: true, _}) => true
@@ -2394,361 +2928,12 @@ and uexp_to_info_map =
             ~co_ctx=fn.co_ctx,
             m,
           );
-        | LivelitName(s) =>
+        | (_, Some(s), _) =>
           // refer to livelit context to find types
           switch (Ctx.lookup_livelit(ctx, s)) {
-          | Some({
-              expansion_t,
-              model_t,
-              expand,
-              requires_annotation,
-              user_def,
-              _,
-            }) =>
-            /* A livelit that requires an annotation expands against the type
-               expected here, and the expansion has that type. Without one it
-               cannot know what to produce -- the fumola livelit's result shape
-               depends on both its program and the type asked of it -- so it
-               says so rather than guessing. */
-            let annotated =
-              switch (Typ.normalize(ctx, ana).term) {
-              | Unknown(_) => false
-              | _ => true
-              };
-            let expansion_ty =
-              requires_annotation && annotated ? ana : expansion_t;
-            let (fn, fn_elab, m) = go(~ana=expansion_ty, fn, m);
-            /* A spliced model field carries its REF. The splice is the
-               client's code living inside the widget, and Figure 3 puts a
-               handle to it in the model (l.3-4) -- so a field the author
-               marked with parens, where Model says SpliceRef, reads as
-               `SpliceRef(("<id>", <the code>))`. The code still evaluates in
-               place, in the client's scope, and the value it had in this run
-               is what eval_splice reads. Where Model says the stopgap pair
-               (ref=SpliceRef, value=t), the field gets both.
-
-               Done as a rewrite of the argument before analysis, rather than
-               as a rule about splices, so splice transparency is untouched
-               everywhere else -- tables still see through theirs. */
-            let arg = UserLivelit.expose_splice_refs(~ctx, ~model_t, arg);
-            let arg_exposed = arg;
-            let (arg, arg_elab, m) = go(~ana=model_t, arg, m);
-
-            /* What a livelit needs from the context in order to expand: resolve
-               a constructor name, and unfold aliases so an expected type
-               written as a name can be destructured. Closures rather than the
-               context itself, because Ctx depends on LivelitCtx and so the
-               livelit interface cannot name Ctx.t. */
-            let tools: LivelitCtx.type_tools = {
-              resolve_ctr: (~ana, name) =>
-                switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
-                | Some(ty) => Some(ty)
-                | None =>
-                  switch (Ctx.lookup_ctr(ctx, name)) {
-                  | Some({typ, _}) => Some(typ)
-                  | None => None
-                  }
-                },
-              normalize: ty => Typ.normalize(ctx, ty),
-            };
-
-            /* Expansion at this use site. A livelit that only expands in
-               checking mode produces nothing when no type is expected here. */
-            let try_expand = (model: Exp.t) =>
-              requires_annotation && !annotated
-                ? None
-                : expand(
-                    ~id=Exp.rep_id(uexp),
-                    ~ana=expansion_ty,
-                    ~tools,
-                    model,
-                  );
-
-            /* A user-defined livelit's expansion embeds the model, so give it
-               the ELABORATED model — only there are its splices decoded into
-               refs. Builtins match on surface shapes and keep the user
-               term. */
-            let model_for_expand =
-              Option.is_some(user_def) ? arg_elab : arg.user_term;
-
-            /* Type the expansion — the paper's per-invocation-site validation
-               (PLDI 2021, S3.2.5). The DECLARED expansion type is still what
-               the use synthesizes — clients reason against the livelit's
-               interface, not against whatever code came out of expand — so
-               this pass runs in syn mode and throws its map away; its one
-               product is the mark owed when the expansion's own type is
-               inconsistent with the declaration. Statics traverses surface
-               syntax only, so what gets typed is the expansion of the SURFACE
-               model even where the elaborated one is what gets evaluated.
-               That re-traverses the model, so a use costs twice its model
-               subtree — small in practice, since a model is a literal, or
-               one holding splices of the client's code. */
-            let expansion_marks = (expanded: Exp.t) => {
-              let to_check =
-                Option.is_some(user_def)
-                  ? try_expand(arg.user_term) : Some(expanded);
-              switch (to_check) {
-              /* mk_expand_dot always expands, so None is unreachable for a
-                 user livelit; skipping the check is the safe reading if
-                 that ever changes. */
-              | None => []
-              | Some(to_check) =>
-                let (checked, _, _) = go(~ana=syn, to_check, m);
-                UserLivelit.expansion_mark(
-                  ctx,
-                  ~declared=expansion_t,
-                  ~actual=checked.elab_syn_ty,
-                );
-              };
-            };
-
-            /* A Macro livelit (Sec. 3.2.5, Fig. 5): run its expand on this
-               model, and the use means the quoted function applied to the
-               code of the splices it lists.
-
-               - The body is elaborated in the BUILTIN context and closed
-                 over the builtin environment, so it cannot capture a client
-                 binding -- not even one shadowing a builtin -- and the
-                 splices, passed as arguments, cannot be captured by it:
-                 application substitutes without capture (Sec. 2.4.3).
-               - Premise 5: the body must be a function taking each listed
-                 splice, at the type its code has, to the declared
-                 Expansion. The body is analyzed against that arrow, and a
-                 failure is BadMacroExpansion, at the use, saying which part
-                 fails: a parameter, the result against Expansion, or an
-                 error in the code itself (UserLivelit.macro_expansion_mark).
-               - The body is typed on a throwaway map, with fresh ids: its
-                 ids belong to the quotation in the definition, whose cursor
-                 info must not be overwritten by each use. */
-            let macro =
-              switch (user_def) {
-              | Some(def_elab) =>
-                switch (
-                  UserLivelit.run_macro_expand(~def_elab, ~model=arg_elab)
-                ) {
-                | Some((body, ids)) =>
-                  let codes =
-                    List.map(
-                      id =>
-                        switch (
-                          UserLivelit.splice_code(arg_exposed, id),
-                          UserLivelit.splice_code(arg_elab, id),
-                        ) {
-                        | (Some(surface), Some(_)) => Some((id, surface))
-                        | _ => None
-                        },
-                      ids,
-                    );
-                  Util.OptUtil.sequence(codes)
-                  |> Option.map(codes => (body, codes));
-                | None => None
-                }
-              | None => None
-              };
-            switch (macro) {
-            | Some((body, codes)) =>
-              let body = Exp.replace_all_ids(body);
-              /* Each splice's code, typed where it is: in the client's
-                 scope, on a throwaway map (it was analyzed with the model
-                 already; this asks only for its type). */
-              let code_tys =
-                List.map(
-                  ((_, surface)) => {
-                    let (info, _, _) =
-                      go(~ana=Unknown(Internal) |> Typ.temp, surface, m);
-                    info.elab_syn_ty;
-                  },
-                  codes,
-                );
-              let expected =
-                List.fold_right(
-                  (ty, acc) => Arrow(ty, acc) |> Typ.temp,
-                  code_tys,
-                  expansion_t,
-                );
-              /* Analyzed, not synthesized, against the arrow the splices
-                 call for: an unannotated `fun x -> fun y -> (y, x)`
-                 synthesizes ? -> ? -> (?, ?), consistent with anything, so
-                 only analysis gives x and y the splices' types and finds a
-                 mismatch in the body. Any mark in the body means the
-                 expansion is not what the use calls for. */
-              /* The expected type is the USE's: Expansion and the splices'
-                 types can name the client's type aliases (Color, on the
-                 Color slide, is a `type ... in` of its own), which the builtin
-                 context does not have. So it is normalized here, in the use's
-                 context, before the body is analyzed against it there -- the
-                 body stays closed, checked against a type with no free
-                 names. */
-              let (body_info, body_elab, body_m) =
-                go(
-                  ~ctx=Builtins.ctx_init(ctx.use_mode),
-                  ~ana=Typ.normalize(ctx, expected),
-                  body,
-                  m,
-                );
-              /* Every id in the body, of every sort: a parameter annotated
-                 with a type its splice cannot have is marked on the
-                 PATTERN, and would be missed by looking at expressions. */
-              let body_ids = {
-                let ids = ref([]);
-                let f:
-                  'a.
-                  (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) =>
-                  IdTagged.t('a)
-                 = (
-                  (continue, x) => {
-                    ids := IdTagged.ids(x) @ ids^;
-                    continue(x);
-                  }
-                );
-                let _ =
-                  Exp.map_term(
-                    ~f_exp=f,
-                    ~f_pat=f,
-                    ~f_typ=f,
-                    ~f_tpat=f,
-                    ~f_rul=f,
-                    body,
-                  );
-                ids^;
-              };
-              let body_has_error =
-                List.exists(
-                  id =>
-                    switch (Id.Map.find_opt(id, body_m)) {
-                    | Some(info) => Info.marks_of(info) != []
-                    | None => false
-                    },
-                  body_ids,
-                );
-              /* The model is bound once and each argument is the value its
-                 splice's ref carries in it -- what the model's evaluation, in
-                 the client's scope, already computed, and what eval_splice
-                 reads -- so a splice's code runs once, and a probe in it
-                 fires once. A projected use finds the model here by id (the
-                 Projector case) to run view on it, and binds it once more
-                 for the view, which this binding then reads. */
-              let m_var = "%macro_model";
-              let m_ref = () => (Var(m_var): Exp.term) |> Exp.fresh;
-              let splice_arg = id =>
-                (
-                  Ap(
-                    Forward,
-                    (BuiltinFun(BuiltinsADT.splice_value_name): Exp.term)
-                    |> Exp.fresh,
-                    (
-                      Tuple([
-                        m_ref(),
-                        (Atom(String(id)): Exp.term) |> Exp.fresh,
-                      ]): Exp.term
-                    )
-                    |> Exp.fresh,
-                  ): Exp.term
-                )
-                |> Exp.fresh;
-              let app =
-                List.fold_left(
-                  (f, (id, _)) =>
-                    (Ap(Forward, f, splice_arg(id)): Exp.term) |> Exp.fresh,
-                  /* Closed over just the builtins the body needs, not all of
-                     env_init: the same meaning, a fraction of the bytes. */
-                  (Closure(Builtins.env_for(body_elab), body_elab): Exp.term)
-                  |> Exp.fresh,
-                  codes,
-                );
-              let elab =
-                (Let(Pat.fresh(Var(m_var)), arg_elab, app): Exp.term)
-                |> Exp.fresh;
-              let (info, elab, m) =
-                add(
-                  ~elab_term=elab,
-                  ~elab_syn_ty=expansion_t,
-                  ~marks=
-                    body_has_error
-                    || !
-                         Typ.is_consistent(
-                           ctx,
-                           body_info.elab_syn_ty,
-                           Typ.normalize(ctx, expected),
-                         )
-                      ? UserLivelit.macro_expansion_mark(
-                          ctx,
-                          ~expansion=Typ.normalize(ctx, expansion_t),
-                          ~splices=List.map(Typ.normalize(ctx), code_tys),
-                          /* The code's type as the author wrote it: analysis
-                             against the arrow fills each parameter in with
-                             its splice's type, which would hide an annotated
-                             parameter that cannot take its splice. Only
-                             computed when there is something to report. */
-                          ~code={
-                            let (syn, _, _) =
-                              go(
-                                ~ctx=Builtins.ctx_init(ctx.use_mode),
-                                body,
-                                m,
-                              );
-                            syn.elab_syn_ty;
-                          },
-                          ~code_has_error=body_has_error,
-                        )
-                      : [],
-                  ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-                  ~probe_targets=
-                    SubexpProbeTargets.union_all([
-                      fn.probe_targets,
-                      arg.probe_targets,
-                    ]),
-                  m,
-                );
-              (
-                info,
-                elab,
-                IdTagged.ids(elab)
-                |> add_missing_info(_, Info.InfoExp(info), m),
-              );
-            | None =>
-              // try to expand
-              switch (try_expand(model_for_expand)) {
-              | Some(expanded) =>
-                let (info, elab, m) =
-                  add(
-                    ~elab_term=expanded,
-                    ~elab_syn_ty=expansion_ty,
-                    ~marks=expansion_marks(expanded),
-                    ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-                    ~probe_targets=
-                      SubexpProbeTargets.union_all([
-                        fn.probe_targets,
-                        arg.probe_targets,
-                      ]),
-                    m,
-                  );
-                (
-                  info,
-                  elab,
-                  IdTagged.ids(expanded)
-                  |> add_missing_info(_, Info.InfoExp(info), m),
-                );
-              | None =>
-                // if we can't expand, flag as improper model
-                add(
-                  ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-                  ~elab_syn_ty=expansion_ty,
-                  ~marks=[
-                    requires_annotation && !annotated
-                      ? Mark.LivelitNeedsAnnotation(s)
-                      : Mark.BadLivelitModel(expansion_t),
-                  ],
-                  ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
-                  ~probe_targets=
-                    SubexpProbeTargets.union_all([
-                      fn.probe_targets,
-                      arg.probe_targets,
-                    ]),
-                  m,
-                )
-              }
-            };
+          | Some(ll) =>
+            let (fn, fn_elab, m) = go(~ana=expansion_ty_of(ll), fn, m);
+            livelit_use(ll, fn, fn_elab, m);
 
           | None =>
             let (fn, fn_elab, m) =
@@ -3356,7 +3541,8 @@ and uexp_to_info_map =
              is_rec, and so the elaboration (requires_fixf below), is unchanged. */
           let outer_abbrev_site = livelit_abbrev_site^;
           switch (UserLivelit.binder_name(p), UserLivelit.strip_parens(def)) {
-          | (Some(_), {term: Ap(_, {term: LivelitName(_), _}, _), _} as ap) =>
+          | (Some(_), {term: Ap(_, head, _), _} as ap)
+              when UserLivelit.head_key(head) != None =>
             livelit_abbrev_site := Some(Exp.rep_id(ap))
           | _ => ()
           };
@@ -3399,20 +3585,12 @@ and uexp_to_info_map =
             };
           let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
             if (!is_rec) {
-              let def_syntax = def;
-              let (def, def_elab, m) =
-                reuse_probe
-                  ? Lazy.force(probe)
-                  : go(~ana=p_syn.ty, ~coercible=true, def, m);
-              /* A livelit definition gets a SECOND pass, analyzed against the
-                 `Livelit` signature with its own Model, Action and Expansion
-                 made manifest (UserLivelit.livelit_ana_ty).
-
-                 The first pass is what tells us those three types, so the
-                 realized signature cannot be built before it. The second pass
-                 is the authoritative one: analyzing rather than synthesizing
-                 puts every member where the ordinary type machinery can check
-                 it, which is what makes a mismatched member an ordinary
+              /* A livelit definition is analyzed ONCE, against the `Livelit`
+                 signature with its own Model, Action and Expansion made
+                 manifest (UserLivelit.livelit_ana_ty). That pass is the
+                 authoritative one: analyzing rather than synthesizing puts
+                 every member where the ordinary type machinery can check it,
+                 which is what makes a mismatched member an ordinary
                  inconsistency at the expression rather than a livelit-specific
                  mark on the whole definition -- and what puts the `expand`
                  sum's constructors in scope, so a definition needs no type
@@ -3421,16 +3599,31 @@ and uexp_to_info_map =
                  Realized rather than as-written because the signature declares
                  those three ABSTRACT, and analyzing against it directly would
                  seal them: a use of ^name must keep synthesizing Expansion
-                 concretely for clients to reason about. */
-              let (def, def_elab, m) =
+                 concretely for clients to reason about.
+
+                 The signature is read from the definition's SYNTAX: its type
+                 members are normalized in ctx (ModuleHelpers.module_sig_type
+                 never reads the statics map for them), and whether it is a
+                 livelit at all is a matter of its shape and member names. So
+                 it is the same before any pass as after one, and there is no
+                 synthesizing first pass to learn it from. That first pass
+                 used to run anyway, doubling the cost of every livelit
+                 definition -- ~1.3 s of a playground slide's ~4 s (profiled,
+                 2026-10-05). A definition too broken to realize still gets
+                 the ordinary synthesizing pass, whose marks are then what the
+                 author gets. */
+              let livelit_sig =
                 switch (UserLivelit.binder_name(p)) {
-                | None => (def, def_elab, m)
-                | Some(_) =>
-                  switch (UserLivelit.livelit_ana_ty(~ctx, ~m, def.user_term)) {
-                  | None => (def, def_elab, m)
-                  | Some(ana_sig) =>
-                    go(~ana=ana_sig, ~coercible=true, def_syntax, m)
-                  }
+                | None => None
+                | Some(_) => UserLivelit.livelit_ana_ty(~ctx, ~m, def)
+                };
+              let (def, def_elab, m) =
+                switch (livelit_sig) {
+                | Some(ana_sig) => go(~ana=ana_sig, ~coercible=true, def, m)
+                | None =>
+                  reuse_probe
+                    ? Lazy.force(probe)
+                    : go(~ana=p_syn.ty, ~coercible=true, def, m)
                 };
               let ty_p_ana = def.ty;
               let (p_ana', _, _) =
@@ -3517,7 +3710,8 @@ and uexp_to_info_map =
             ) {
             | (Some(ll_name), Ap(_, fn, _)) =>
               switch (UserLivelit.strip_parens(fn).term) {
-              | LivelitName(a) =>
+              | _ when UserLivelit.head_key(fn) != None =>
+                let a = Option.get(UserLivelit.head_key(fn));
                 Option.bind(Ctx.lookup_livelit(ctx, a), ll =>
                   Option.bind(UserLivelit.ap_arg(def_elab), args =>
                     UserLivelit.apply_args(
@@ -3527,12 +3721,41 @@ and uexp_to_info_map =
                       ll,
                     )
                   )
-                )
+                );
+              /* Both: `let ^b = ^a@<T>(args) in`, where ^a takes a type
+                 and then values (`typfun A -> fun x -> {...}`): ^a at T,
+                 applied to them. */
+              | TypAp(tfn, ty) =>
+                switch (UserLivelit.strip_parens(tfn).term) {
+                | _ when UserLivelit.head_key(tfn) != None =>
+                  let a = Option.get(UserLivelit.head_key(tfn));
+                  Option.bind(Ctx.lookup_livelit(ctx, a), ll =>
+                    Option.bind(
+                      UserLivelit.instantiate(
+                        ~name=ll_name,
+                        ~id=Pat.rep_id(p),
+                        ~ty=Typ.normalize(ctx, ty),
+                        ll,
+                      ),
+                      ll =>
+                      Option.bind(UserLivelit.ap_arg(def_elab), args =>
+                        UserLivelit.apply_args(
+                          ~name=ll_name,
+                          ~id=Pat.rep_id(p),
+                          ~args,
+                          ll,
+                        )
+                      )
+                    )
+                  );
+                | _ => None
+                }
               | _ => None
               }
             | (Some(ll_name), TypAp(fn, ty)) =>
               switch (UserLivelit.strip_parens(fn).term) {
-              | LivelitName(a) =>
+              | _ when UserLivelit.head_key(fn) != None =>
+                let a = Option.get(UserLivelit.head_key(fn));
                 Option.bind(Ctx.lookup_livelit(ctx, a), ll =>
                   UserLivelit.instantiate(
                     ~name=ll_name,
@@ -3540,7 +3763,7 @@ and uexp_to_info_map =
                     ~ty=Typ.normalize(ctx, ty),
                     ll,
                   )
-                )
+                );
               | _ => None
               }
             | _ => None
@@ -3572,6 +3795,57 @@ and uexp_to_info_map =
               };
             | (None, _) => (p_ana_ctx, [])
             };
+          /* Binding a module, `module Lib = { let ^f = ... }`: its livelits
+             are usable outside it as `Lib.^f`. Under an annotation (a
+             signature, or a parent module's expectation) only a member the
+             signature declares gets out, as sealing keeps only those. */
+          let p_ana_ctx = {
+            let rec binder = (p: Pat.t) =>
+              switch (p.term) {
+              | Parens(p) => binder(p)
+              | Var(x) => Some((x, None))
+              | Asc({term: Var(x), _}, ty) => Some((x, Some(ty)))
+              | _ => None
+              };
+            switch (
+              binder(p),
+              Hashtbl.find_opt(
+                module_livelits,
+                Exp.rep_id(UserLivelit.strip_parens(def.user_term)),
+              ),
+            ) {
+            | (Some((module_name, sealed)), Some(lls)) =>
+              let declared = (ll: LivelitCtx.raw_livelit) =>
+                switch (sealed) {
+                | None => true
+                | Some(ty) =>
+                  let member =
+                    switch (String.index_opt(ll.name, '.')) {
+                    | Some(i) => String.sub(ll.name, 0, i)
+                    | None => "^" ++ ll.name
+                    };
+                  switch (Typ.as_sig(~rec_counter=0, ctx, ty)) {
+                  | Some(items) =>
+                    Typ.sig_project_value(items, member) != None
+                  | None => false
+                  };
+                };
+              List.fold_left(
+                (c, ll) =>
+                  declared(ll)
+                    ? Ctx.extend(
+                        c,
+                        Ctx.LivelitEntry(
+                          UserLivelit.requalify(~module_name, ll),
+                        ),
+                      )
+                    : c,
+                p_ana_ctx,
+                List.rev(lls),
+              );
+            | _ => p_ana_ctx
+            };
+          };
           (
             p_syn,
             def,
@@ -3696,9 +3970,17 @@ and uexp_to_info_map =
             ~elab_term,
             ~elab_syn_ty=syn_ty_let,
             ~marks=livelit_marks @ marks_let,
+            /* A fixpoint binds the pattern in its definition too, so the
+               names the definition uses recursively are not free in the
+               let, as they are not at fun_id above. Leaving them in made
+               every expression around a recursive let -- a module of
+               recursive helpers, a function with one inside -- read a
+               name that has no provenance in any reuse map, so none of it
+               was ever reused, nor anything that reads it. */
             ~co_ctx=
               CoCtx.union([
-                def.co_ctx,
+                requires_fixf
+                  ? CoCtx.mk(ctx, p_ana.ctx, def.co_ctx) : def.co_ctx,
                 CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
                 pat_typ_refs,
               ]),
@@ -3898,11 +4180,12 @@ and uexp_to_info_map =
           List.fold_left2(
             ((es, elabs, m), e, ctx) =>
               go(~ctx, ~ana, e, m)
-              |> (((e, elab, m)) => (es @ [e], elabs @ [elab], m)),
+              |> (((e, elab, m)) => ([e, ...es], [elab, ...elabs], m)),
             ([], [], m),
             es,
             p_ctxs,
           );
+        let (es, es_elabs) = (List.rev(es), List.rev(es_elabs));
 
         let e_syn_tys = List.map((e: Info.exp) => e.elab_syn_ty, es);
         let e_co_ctxs = List.map(Info.exp_co_ctx, es);
@@ -3926,11 +4209,12 @@ and uexp_to_info_map =
                 go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
 
               let p_constraint = Info.pat_constraint(info);
-              ([p_constraint, ...constraints], ps_elabs @ [p_elab], m);
+              ([p_constraint, ...constraints], [p_elab, ...ps_elabs], m);
             },
             ([], [], m),
             List.combine(ps, e_co_ctxs),
           );
+        let ps_elabs = List.rev(ps_elabs);
 
         let constraints = List.rev(constraints);
 
@@ -4021,7 +4305,13 @@ and uexp_to_info_map =
     | TyAlias(typat, utyp, body) =>
       let ty_alias_case = (typat: TPat.t, utyp: Typ.t, body: Exp.t) => {
         let m =
-          utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, typat, m)
+          utpat_to_info_map(
+            ~ctx,
+            ~ancestors=ancestors_inclusive,
+            ~alias_def=utyp,
+            typat,
+            m,
+          )
           |> snd;
         switch (typat.term) {
         | Var(name) when !Ctx.is_base_typ(name) =>
@@ -4199,6 +4489,42 @@ and uexp_to_info_map =
           };
         let expanded = ModuleHelpers.lower(~ana_items, items);
         let (expanded_info, expanded_elab, m) = go(expanded, m);
+        /* The livelits the body binds: the LivelitEntries its lowering
+           added in front of this context, newest first, the first of a
+           name being the one in scope at the end. */
+        let rec tail = (e: Exp.t) =>
+          switch (e.term) {
+          | Let(_, _, body)
+          | TyAlias(_, _, body) => tail(body)
+          | _ => e
+          };
+        let rec take = (n, xs) =>
+          switch (xs) {
+          | [x, ...rest] when n > 0 => [x, ...take(n - 1, rest)]
+          | _ => []
+          };
+        switch (Id.Map.find_opt(Exp.rep_id(tail(expanded)), m)) {
+        | Some(Info.InfoExp({ctx: body_ctx, _})) =>
+          let lls =
+            take(body_ctx.size - ctx.size, body_ctx.entries)
+            |> List.fold_left(
+                 (acc: list(LivelitCtx.raw_livelit), entry: Ctx.entry) =>
+                   switch (entry) {
+                   | LivelitEntry(ll)
+                       when
+                         !
+                           List.exists(
+                             (k: LivelitCtx.raw_livelit) => k.name == ll.name,
+                             acc,
+                           ) =>
+                     acc @ [ll]
+                   | _ => acc
+                   },
+                 [],
+               );
+          Hashtbl.replace(module_livelits, Exp.rep_id(uexp), lls);
+        | _ => Hashtbl.remove(module_livelits, Exp.rep_id(uexp))
+        };
         let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
         let sig_ty = ModuleHelpers.module_sig_type(~ctx, items, m);
         let (m, mismatched_types) =
@@ -4272,13 +4598,24 @@ and uexp_to_info_map =
             )
           | _ => m
           };
-        let def_ana =
-          switch (pat.term) {
-          | Asc(_, typ) => typ
-          | _ => syn
+        /* The definition's own elaboration, without what the Let wraps it
+           in: read back from the info the expanded Let just recorded for it,
+           not analyzed a second time. Analyzing it again here doubled the
+           cost of every module binding -- a module of livelits, the most
+           expensive thing a slide holds, spent ~45% of a slide's statics
+           checking its body twice (profiled, Shirt and Pants, 2026-10-05). */
+        let (def_elab_direct, m) =
+          switch (Id.Map.find_opt(Exp.rep_id(def), m)) {
+          | Some(Info.InfoExp({elab_term, _})) => (elab_term, m)
+          | _ =>
+            let def_ana =
+              switch (pat.term) {
+              | Asc(_, typ) => typ
+              | _ => syn
+              };
+            let (_, elab, m) = go(~ana=def_ana, ~coercible=true, def, m);
+            (elab, m);
           };
-        let (_, def_elab_direct, m) =
-          go(~ana=def_ana, ~coercible=true, def, m);
         let moduleexp_elab =
           ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
         add(
@@ -4892,11 +5229,11 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab],
+                [info, ...info_all],
+                [elab, ...elabs],
               );
             | TupLabel(label, value) =>
               let (labmode, val_mode) =
@@ -5017,11 +5354,11 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab_tl],
+                [info, ...info_all],
+                [elab_tl, ...elabs],
               );
             | _ =>
               let (info, elab, m) =
@@ -5041,17 +5378,23 @@ and upat_to_info_map =
                 );
               (
                 info.ctx,
-                tys @ [info.elab_syn_ty],
-                cons @ [info.constraint_],
+                [info.elab_syn_ty, ...tys],
+                [info.constraint_, ...cons],
                 m,
-                info_all @ [info],
-                elabs @ [elab],
+                [info, ...info_all],
+                [elab, ...elabs],
               );
             },
           (ctx, [], [], m, [], []),
           List.combine(inferred, ps),
           modes,
         );
+      let (tys, cons, info_pats, ps_elabs) = (
+        List.rev(tys),
+        List.rev(cons),
+        List.rev(info_pats),
+        List.rev(ps_elabs),
+      );
       let constraint_ = Coverage.Constraint.Tuple(cons);
 
       let malformed_labels =
@@ -5761,7 +6104,8 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, utpat: TPat.t, m: Map.t): (Info.tpat, Map.t) => {
+    (~ctx, ~ancestors, ~alias_def: option(Typ.t)=?, utpat: TPat.t, m: Map.t)
+    : (Info.tpat, Map.t) => {
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
   let status_for_node =
@@ -5772,7 +6116,11 @@ and utpat_to_info_map =
         [TPatShadowsType(name, BaseTyp)],
         None,
       )
-    | Var(name) => ([], Some(Message.Var(name)))
+    | Var(name) =>
+      switch (alias_def) {
+      | Some(def) => ([], Some(Message.Alias(name, def)))
+      | None => ([], Some(Message.Var(name)))
+      }
     | Invalid(_) => ([TPatNotAVar(NotCapitalized)], None)
     | MultiHole(_) => ([TPatNotAVar(Other)], None)
     };
@@ -6036,54 +6384,68 @@ and mpat_to_info_map =
  *
  * A Fumola livelit expands by asking a runtime that loads asynchronously, so
  * the same term elaborates to "the runtime is not loaded" before it arrives
- * and to a value after. The memo below is keyed on the term, which cannot
- * see that difference, so the first answer would stand for the life of the
- * page -- no edit helps, because an unedited zipper yields an equal term and
- * hits the cache.
+ * and to a value after. The cache below (mk_cache) is keyed on the term,
+ * which cannot see that difference, so the first answer would stand for the
+ * life of the page -- no edit helps, because an unedited zipper yields an
+ * equal term and hits the cache.
  *
- * Bumping this generation is how something outside the program says the
- * answer may have changed. It is part of the memo key, so a bump costs one
- * recomputation per live term and nothing after that. Core.Memo offers no
- * way to clear an entry, which is why the key carries this instead. */
-let generation = ref(0);
+ * invalidate() is how something outside the program says the answer may
+ * have changed: it empties the cache, so each live term is analyzed once
+ * more, and nothing after that. */
+let mk_impl = ((ana, ctx, e, probe_ids)) => {
+  let (_, elab, m) =
+    uexp_to_info_map(~ana, ~ctx, ~ancestors=[], ~probe_ids, e, Id.Map.empty);
+  /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
+     Ensure they all resolve to the same info entry for cursor features. */
+  let m_ref = ref(m);
+  let _ =
+    Grammar.map_exp_annotation(
+      ({ids, _}: IdTagged.IdTag.t) => {
+        let info_opt = List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
+        switch (info_opt) {
+        | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
+        | None => ()
+        };
+        ();
+      },
+      e,
+    );
+  (m_ref^, elab);
+};
 
-let invalidate = () => incr(generation);
+/* small LRU keyed on term and ctx identity: real hits are physically
+   identical terms (MakeTerm keeps them pointer-stable), and a large
+   structural memo would retain whole programs and their info maps.
+   ana and probe_ids are rebuilt per call, so compare structurally */
+let mk_cache:
+  ref(list(((Typ.t, Ctx.t, Exp.t, Id.Map.t(unit)), (Map.t, Exp.t)))) =
+  ref([]);
+let mk_cache_max = 16;
 
-let mk =
-  Core.Memo.general(
-    ~cache_size_bound=1000,
-    ((ana, ctx, e, probe_ids, _generation: int)) => {
-      let (_, elab, m) =
-        uexp_to_info_map(
-          ~ana,
-          ~ctx,
-          ~ancestors=[],
-          ~probe_ids,
-          e,
-          Id.Map.empty,
-        );
-      /* Some syntax nodes carry multiple equivalent ids (e.g. shard ids).
-         Ensure they all resolve to the same info entry for cursor features. */
-      let m_ref = ref(m);
-      let _ =
-        Grammar.map_exp_annotation(
-          ({ids, _}: IdTagged.IdTag.t) => {
-            let info_opt =
-              List.find_map(id => Id.Map.find_opt(id, m_ref^), ids);
-            switch (info_opt) {
-            | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
-            | None => ()
-            };
-            ();
-          },
-          e,
-        );
-      (m_ref^, elab);
-    },
-  );
+let invalidate = () => mk_cache := [];
 
-let mk =
+let mk = ((ana, ctx, e, probe_ids) as key) => {
+  let key_eq = ((ana', ctx', e', probe_ids')) =>
+    e' === e
+    && ctx' === ctx
+    && compare(ana', ana) == 0
+    && compare(probe_ids', probe_ids) == 0;
+  switch (List.find_opt(((k, _)) => key_eq(k), mk_cache^)) {
+  | Some((k, r)) =>
+    mk_cache :=
+      [(k, r), ...List.filter(((k', _)) => !(k' === k), mk_cache^)];
+    r;
+  | None =>
+    let r = mk_impl(key);
+    mk_cache := [(key, r), ...ListUtil.take(mk_cache_max - 1, mk_cache^)];
+    r;
+  };
+};
+
+/* [f], or nothing with statics off */
+let statics_gated =
     (
+      f,
       ~ana=Typ.temp(Unknown(SynSwitch)),
       ~probe_ids=Id.Map.empty,
       core: CoreSettings.t,
@@ -6091,8 +6453,12 @@ let mk =
       exp,
     ) =>
   core.statics
-    ? mk((ana, ctx, exp, probe_ids, generation^))
-    : (Id.Map.empty, Exp.fresh(Tuple([])));
+    ? f((ana, ctx, exp, probe_ids)) : (Id.Map.empty, Exp.fresh(Tuple([])));
+
+/* bypasses the memo, for callers that cache for themselves: per-item
+   calls would churn its small LRU */
+let mk_unmemoized = statics_gated(mk_impl);
+let mk = statics_gated(mk);
 
 /* Whether this pass saw a Fumola program. Only fumola_to_info_map writes an
    InfoFumola entry, so the question is exactly "is there a Fumola term

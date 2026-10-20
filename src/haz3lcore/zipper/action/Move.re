@@ -100,6 +100,35 @@ let by_token_with = (mv, d: Direction.t, z: t): option(t) =>
     };
   };
 
+/* === Indentation-transparent caret movement ===
+   Arrow movement never RESTS inside leading whitespace: a position is
+   skippable iff everything left of it at its level, up to a linebreak
+   (or buffer start at top level), is spaces AND its right neighbor is
+   a space. Kept positions: first content (right = content), line ends
+   (right = linebreak / nothing), and a blank line's single position —
+   every line keeps at least one reachable position. Clicks (Point
+   moves) and selection resizing are exempt: click into indentation
+   and movement is normal until the caret exits the run. */
+let in_skippable_indent = (z: t): bool =>
+  z.caret == Outer
+  && z.selection.content == []
+  && (
+    switch (z.relatives.siblings) {
+    | (l, [Piece.Secondary(w), ..._]) when Secondary.is_space(w) =>
+      let rec all_white = (ps: list(Piece.t)) =>
+        /* scanning right-to-left from the caret */
+        switch (ps) {
+        | [] => z.relatives.ancestors == [] /* buffer start */
+        | [Piece.Secondary(s), ...rest] =>
+          Secondary.is_space(s)
+            ? all_white(rest) : Secondary.is_linebreak(s)
+        | _ => false
+        };
+      all_white(List.rev(l));
+    | _ => false
+    }
+  );
+
 let local_with =
     (mv, chunkiness: Action.chunkiness, d: Direction.t, z: t): option(t) => {
   let z = unselect(z);
@@ -218,8 +247,8 @@ let relatives_beside_id =
             let anc =
               Ancestor.Tile({
                 id: t.id,
-                label: t.label,
-                mold: t.mold,
+                form: t.form,
+                sort: t.sort,
                 shards: (sh_l, sh_r),
                 children: (before, after),
               });
@@ -344,7 +373,19 @@ let canonicalize_inner_unselect =
  * then checks if it's indicated. If not, move one token
  * to the right. I believe but have not proved this
  * always results in the token being indicated  */
-let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
+/* first anchor that resolves wins; callers pass the preferred id
+   followed by fallbacks (e.g. its statics ancestors) so a vanished
+   id can never dump the caret at the document default */
+let rec jump_to_first_indicated = (z: t, ids: list(Id.t)): option(t) =>
+  switch (ids) {
+  | [] => None
+  | [id, ...rest] =>
+    switch (jump_to_id_indicated(z, id)) {
+    | Some(z') => Some(z')
+    | None => jump_to_first_indicated(z, rest)
+    }
+  }
+and jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
   let* z_l = jump_to_side_of_id(Left, z, id);
   let* indicated_id = Indicated.index(z_l);
   if (id == indicated_id) {
@@ -437,7 +478,7 @@ let splice_at_point =
       | None =>
         /* A splice's bounding box is recorded in [measured.splices].
          * Check if [goal] falls within [offset, offset + size]. */
-        switch (Id.Map.find_opt(id, measured.splices)) {
+        switch (Measured.find_splice_info_by_id(id, measured)) {
         | None => None
         | Some(info) =>
           let contains =
@@ -463,15 +504,86 @@ let splice_at_point =
   );
 };
 
-let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
-  /* If [goal] is inside a splice's on-screen box, translate to splice-
-   * local coords and resolve there. Otherwise resolve against the top-
-   * level measured grid. */
-  let _ = splice_at_point(~measured, goal);
+/* a ByToken walk to a row beside the goal, then a ByChar walk (ByChar
+   alone is O(chars)). the coarse goal is on the start's side of the
+   goal, so the approach side and inaccessible-goal tie-breaks hold */
+let to_point_walk = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  let init = Zipper.Caret.point(measured, z);
+  let z =
+    if (abs(init.row - goal.row) > 1) {
+      let coarse =
+        Point.{
+          row: init.row < goal.row ? goal.row : goal.row + 1,
+          col: 0,
+        };
+      switch (do_towards_point(~measured, local(ByToken), coarse, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    } else {
+      z;
+    };
   switch (do_towards_point(~measured, local(ByChar), goal, z)) {
   | None => Some(z)
   | Some(z) => Some(z)
   };
+};
+
+/* long jumps teleport: an unselected zipper with an Outer caret at a
+   top-level boundary is just a split of the zipped segment, so rebuild
+   it at the boundary nearest the goal, on the start's side (keeping the
+   walk's approach side), and walk from there */
+let teleport_row_threshold = 50;
+
+let teleport_to_boundary =
+    (~measured: Measured.t, ~goal: Point.t, ~from_above: bool, z: t): t => {
+  let z = unselect(z);
+  let seg = Zipper.unselect_and_zip(z);
+  /* from above: caret before the first piece reaching goal.row; from
+     below: after the last piece starting by goal.row */
+  let k =
+    List.fold_left(
+      (k, p) =>
+        switch (Measured.find_by_id(Piece.id(p), measured)) {
+        | Some(m) =>
+          let above =
+            from_above ? m.last.row < goal.row : m.origin.row <= goal.row;
+          above ? k + 1 : k;
+        | None => k
+        },
+      0,
+      seg,
+    );
+  let (pre, suf) = Util.ListUtil.split_n(k, seg);
+  {
+    ...z,
+    selection: Selection.mk([]),
+    caret: Outer,
+    relatives: {
+      siblings: (pre, suf),
+      ancestors: [],
+    },
+  };
+};
+
+let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  let init = Zipper.Caret.point(measured, z);
+  let z =
+    /* not inside a splice: the rebuild is from the whole document, which
+       the splice's own (splice-local) measured map does not describe */
+    if (abs(init.row - goal.row) > teleport_row_threshold
+        && Selection.is_empty(z.selection)
+        && Zipper.splice_context(z) == None) {
+      teleport_to_boundary(
+        ~measured,
+        ~goal,
+        ~from_above=init.row < goal.row,
+        z,
+      );
+    } else {
+      z;
+    };
+  to_point_walk(~measured, ~goal, z);
 };
 
 /* Rebuild the zipper with the caret at the far left of the fully-zipped
@@ -580,8 +692,34 @@ let to_start: t => t = do_to_extreme(local(ByToken, Left));
 
 let to_end: t => t = do_to_extreme(local(ByToken, Right));
 
-let to_linebreak = (d: Direction.t, z: t): option(t) =>
+/* Neighbor in direction d is horizontal whitespace (space, not linebreak) */
+let space_on = (d: Direction.t, z: t): bool =>
+  switch (d, Zipper.generalized_neighbors(z)) {
+  | (Right, (_, Some(Secondary(s)))) => Secondary.is_space(s)
+  | (Left, (Some(Secondary(s)), _)) => Secondary.is_space(s)
+  | _ => false
+  };
+
+let rec skip_spaces = (d: Direction.t, z: t): t =>
+  if (space_on(d, z)) {
+    switch (local(ByToken, d, z)) {
+    | Some(z') => skip_spaces(d, z')
+    | None => z
+    };
+  } else {
+    z;
+  };
+
+/* Move to the literal line boundary, without crossing it. */
+let to_linebreak_raw = (d: Direction.t, z: t): option(t) =>
   do_until_linebreak(local(ByToken, d), d, z);
+
+/* Move to the line boundary, then skip back past leading/trailing
+ * spaces to the first/last content on the line. */
+let to_linebreak = (d: Direction.t, z: t): option(t) => {
+  let+ z = to_linebreak_raw(d, z);
+  skip_spaces(Direction.toggle(d), z);
+};
 
 let to_next_problem =
     (~measured: Measured.t, ~problem_ids: Seq.t(Id.t), d: Direction.t, z: t)
@@ -687,6 +825,16 @@ let pre_unselect = (a: Action.move, z: t): t => {
   let z = Zipper.directional_unselect(d, z);
   canonicalize_inner_unselect(~locator, ~target_caret, z);
 };
+let rec skip_indent = (~fuel=10000, d: Direction.t, z: t): t =>
+  if (fuel <= 0 || !in_skippable_indent(z)) {
+    z;
+  } else {
+    switch (local(ByChar, d, z)) {
+    | Some(z) => skip_indent(~fuel=fuel - 1, d, z)
+    | None => z
+    };
+  };
+
 let go =
     (
       ~statics: Language.Statics.Map.t,

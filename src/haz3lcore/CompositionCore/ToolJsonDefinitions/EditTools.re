@@ -599,3 +599,76 @@ let insert_before: API.Json.t =
       ]),
     ),
   ]);
+
+let insert_test_description = {|
+Adds a test, `test <code> end`, after the binding at the given path and after any tests that already directly follow it, so repeated calls keep source order and the tests stay together.
+If `path` is omitted, the test goes after the program's last binding or test, before its final expression.
+At a module MEMBER path (e.g. "M/helper"), the test is added as a member of that module.
+
+Parameters:
+path: string (optional) — slash-delimited path to the binding the test follows. Omit to add it after the program's last item.
+code: string — the test's boolean expression only; `test` and `end` are added
+
+Example:
+Given the program:
+```
+let double = fun x -> 2 * x in
+test double(1) == 2 end;
+double(5)
+```
+Calling insert_test(path="double", code="double(0) == 0") produces:
+```
+let double = fun x -> 2 * x in
+test double(1) == 2 end;
+test double(0) == 0 end;
+double(5)
+```
+|};
+
+let insert_test: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("insert_test")),
+        ("description", `String(insert_test_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "path",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "Slash-delimited path to the binding the test follows. Omit to add it after the program's last item. Nested defs use outer/inner; module members use owner/member; duplicates use name#k (1-based, program order).",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The test's boolean expression, without `test` and `end`.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);

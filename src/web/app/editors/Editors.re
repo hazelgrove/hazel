@@ -50,13 +50,38 @@ module Model = {
   /* Identity of the editor Page.Update.get_editor returns: stable across
      frames of the same editor, distinct across slides/exercises/modes. For
      after-display caches (RefractorShift) and culling-range resets. */
-  let editor_key: t => string =
-    fun
-    | Scratch(m) => "scratch:" ++ string_of_int(m.current)
-    | Documentation(m) => "documentation:" ++ string_of_int(m.current)
+  let editor_key = (model: t): string => {
+    /* a divided program's editor is its active cell; its culling scope,
+       the first cell's body, moves when a cell opens above it */
+    let cell = (m: ScratchMode.Model.t) =>
+      switch (ScratchMode.Model.current_program(m)) {
+      | Some(Divided(d)) =>
+        (
+          switch (Divided.active(d)) {
+          | Some((id, side)) =>
+            ":"
+            ++ Haz3lcore.Id.to_string(id)
+            ++ (side == Divided.Header ? ":h" : ":b")
+          | None => ":cells"
+          }
+        )
+        ++ (
+          switch (Divided.cells(d)) {
+          | [first, ..._] => "@" ++ Haz3lcore.Id.to_string(first.e_id)
+          | [] => ""
+          }
+        )
+      | _ => ""
+      };
+    switch (model) {
+    | Scratch(m) => "scratch:" ++ string_of_int(m.current) ++ cell(m)
+    | Documentation(m) =>
+      "documentation:" ++ string_of_int(m.current) ++ cell(m)
     | Tutorial(m) => "tutorial:" ++ string_of_int(m.current)
     | Config(m) => "config:" ++ string_of_int(m.current)
-    | Exercises(m) => "exercises:" ++ string_of_int(m.current);
+    | Exercises(m) => "exercises:" ++ string_of_int(m.current)
+    };
+  };
 
   /* Auxiliary classes on the main div, so CSS can target derivation-kind
      scratchpads inside the unified Scratch/Documentation modes. */
@@ -146,7 +171,7 @@ module Store = {
       ~default_current,
       ~reconcile=false,
     )
-    |> ScratchMode.integrate_share(~settings);
+    |> SlideDeck.integrate_share(~settings);
   };
 
   let load_documentation = (~settings) => {
@@ -397,16 +422,18 @@ module Update = {
     };
   };
 
-  let calculate =
-      (~settings, ~autoprobe_mode, ~is_edited, ~schedule_action, model) => {
+  /* the decks read the app's settings, the other modes their core and
+     auto-probe mode */
+  let calculate = (~settings: Settings.t, ~is_edited, ~schedule_action, model) => {
+    let autoprobe_mode = settings.autoprobe_mode;
     switch (model) {
     | Model.Scratch(m) =>
       Model.Scratch(
         ScratchMode.Update.calculate(
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
-          ~autoprobe_mode,
           ~is_edited,
+          ~is_documentation=false,
           m,
         ),
       )
@@ -415,8 +442,8 @@ module Update = {
         ScratchMode.Update.calculate(
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~settings,
-          ~autoprobe_mode,
           ~is_edited,
+          ~is_documentation=true,
           m,
         ),
       )
@@ -424,7 +451,7 @@ module Update = {
       Model.Config(
         ConfigurationMode.Update.calculate(
           ~schedule_action=a => schedule_action(Configuration(a)),
-          ~settings,
+          ~settings=settings.core,
           ~autoprobe_mode,
           ~is_edited,
           m,
@@ -434,7 +461,7 @@ module Update = {
       Model.Tutorial(
         TutorialsMode.Update.calculate(
           ~schedule_action=a => schedule_action(Tutorial(a)),
-          ~settings,
+          ~settings=settings.core,
           ~autoprobe_mode,
           ~is_edited,
           m,
@@ -444,7 +471,7 @@ module Update = {
       Model.Exercises(
         ExercisesMode.Update.calculate(
           ~schedule_action=a => schedule_action(Exercises(a)),
-          ~settings,
+          ~settings=settings.core,
           ~autoprobe_mode,
           ~is_edited,
           m,
@@ -552,6 +579,54 @@ module Selection = {
     | Exercises(m) =>
       ExercisesMode.Selection.jump_to_tile(~settings, tile, m)
       |> Option.map(((x, y)) => (Update.Exercises(x), Exercises(y)))
+    };
+
+  /* cross-cell jump-to-definition in stacks: (ensure-entry action, new
+     selection, follow-up caret jump) */
+  let stack_jump_override =
+      (action: Update.t, model: Model.t): option((Update.t, t, Update.t)) =>
+    switch (action, model) {
+    | (Scratch(sa), Scratch(m))
+    | (Scratch(sa), Documentation(m)) =>
+      ScratchMode.Selection.stack_jump_override(sa, m)
+      |> Option.map(((a, s, k)) =>
+           (Update.Scratch(a), Scratch(s), Update.Scratch(k))
+         )
+    | _ => None
+    };
+
+  /* a jump to a tile in no open cell */
+  let closed_jump =
+      (tile: Haz3lcore.Id.t, model: Model.t)
+      : option((Update.t, t, Update.t)) =>
+    switch (model) {
+    | Scratch(m)
+    | Documentation(m) =>
+      ScratchMode.Selection.closed_jump(tile, m)
+      |> Option.map(((a, s, k)) =>
+           (Update.Scratch(a), Scratch(s), Update.Scratch(k))
+         )
+    | _ => None
+    };
+
+  /* the selection an outline add/ensure lands on */
+  let stack_add_selection = (action: Update.t, model: Model.t): option(t) =>
+    switch (action, model) {
+    | (Scratch(sa), Scratch(m))
+    | (Scratch(sa), Documentation(m)) =>
+      ScratchMode.Selection.stack_add_selection(sa, m)
+      |> Option.map(s => Scratch(s))
+    | _ => None
+    };
+
+  /* after an update, the selection follows the program between one
+     editor and open cells */
+  let follow = (~before: Model.t, selection: t, after: Model.t): t =>
+    switch (selection, before, after) {
+    | (Scratch(sel), Scratch(_), Scratch(a))
+    | (Scratch(sel), Documentation(_), Documentation(a)) =>
+      Scratch(ScratchMode.Selection.follow(sel, a))
+    | _ => selection
     };
 
   let default_selection =
@@ -673,26 +748,6 @@ module View = {
         m,
       )
     };
-
-  /* Links into Config mode's slides, offered from every mode. */
-  let config_links = (~inject: Update.t => 'a) =>
-    NutMenu.item_group(
-      "Configuration",
-      List.map(
-        config_type =>
-          Widgets.button_named(
-            Icons.gear,
-            evt => {
-              NutMenu.dismiss(evt);
-              inject(Update.ShowConfig(config_type));
-            },
-            ~tooltip=
-              "Edit "
-              ++ ConfigurationMode.Model.config_name_of_type(config_type),
-          ),
-        ConfigurationMode.Model.all_of_config_type,
-      ),
-    );
 
   let file_menu = (~globals, ~inject, editors: Model.t) =>
     switch (editors) {

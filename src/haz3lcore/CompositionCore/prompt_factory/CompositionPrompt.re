@@ -155,7 +155,7 @@ let program_model = [
   "**Duplicate path string:** if several bindings share the same path text (e.g. two `let n` in one chain), the bare path is **ambiguous** and tools return an error listing the disambiguated forms. Retry with `\"name#k\"` (k-th occurrence in program order, 1-based, e.g. `\"n#2\"`), or use a **nested** path when the inner binding lives inside another's **definition** (`\"outer/inner\"`).",
   "Prefer **unique binding names** so intent stays obvious.",
   "",
-  "**Module members:** paths also descend into module literals — `{ let a = ...; type T = ...; ... }` — whether bound as `module M = { ... }` or as a livelit `let ^name = { ... }`. Each member (value or type) is addressed by `owner/member`. Members end at their `;`, so they have **no body**: use `update_definition`, `update_pattern`, `update_binding_clause`, `delete_binding_clause`, `insert_before`, `insert_after` at member paths, never `update_body`/`delete_body`. Edit ONE member rather than re-emitting the whole module. Renaming a member that is referenced outside the module (`M.member`) is rejected rather than breaking those references. All path-taking tools resolve the same grammar — view/probe/statics/projector tools accept member paths too.",
+  "**Module members:** paths also descend into module literals — `{ let a = ...; type T = ...; ... }` — whether bound as `module M = { ... }` or as a livelit `let ^name = { ... }`. Each member (value or type) is addressed by `owner/member`. Members end at their `;`, so they have **no body**: use `update_definition`, `update_pattern`, `update_binding_clause`, `delete_binding_clause`, `insert_before`, `insert_after`, `insert_test` at member paths, never `update_body`/`delete_body`. Edit ONE member rather than re-emitting the whole module. Renaming a member that is referenced outside the module (`M.member`) is rejected rather than breaking those references. All path-taking tools resolve the same grammar — view/probe/statics/projector tools accept member paths too.",
   "",
   "Example program and its paths:",
   "```",
@@ -222,6 +222,7 @@ let toolkit = [
   "- `update_binding_clause(path, code)` — Replace the entire `let ... = ... in` clause (excludes the body).",
   "- `insert_before(path, code)` — Insert a new binding before the one at `path`. **If `path` is omitted**, inserts before the entire program (use this to seed an empty scratchpad).",
   "- `insert_after(path, code)` — Insert a new binding after the one at `path`. **If `path` is omitted**, inserts after the entire program.",
+  "- `insert_test(path, code)` — Add `test code end` after the binding at `path` and the tests already following it (`code` is the boolean expression only). **If `path` is omitted**, adds it after the program's last binding or test.",
   "- `delete_binding_clause(path)` — Remove the binding at path entirely.",
   "- `delete_body(path)` — Clear the body at path (replaces with hole `?`).",
   "",
@@ -264,6 +265,7 @@ let toolkit = [
   "| Change what happens after a binding | `update_body`          |",
   "| Rename a variable                   | `update_pattern`       |",
   "| Add a new function/type             | `insert_before/after`  |",
+  "| Add a test                          | `insert_test`          |",
   "| Remove a binding                    | `delete_binding_clause`|",
   "| Replace a whole let...=...in        | `update_binding_clause`|",
   "",
@@ -390,16 +392,20 @@ let session_modes = [
 ];
 
 /* Pointers only — the guides themselves are served by the read_docs tool
-   (DocPacks), so they cost context when pulled, not on every turn */
-let on_demand_docs = [
-  "## On-demand guides",
-  "",
-  "Detailed how-to guides are available through the `read_docs` tool:",
-  "",
-  DocPacks.topic_lines,
-  "",
-  "Read the relevant guide BEFORE building the kind of thing it covers; the returned guide stays in context for the rest of the session.",
-];
+   (DocPacks), so they cost context when pulled, not on every turn.
+   Empty when the registry has no packs (the tool is not offered then). */
+let on_demand_docs =
+  DocPacks.all == []
+    ? []
+    : [
+      "## On-demand guides",
+      "",
+      "Detailed how-to guides are available through the `read_docs` tool:",
+      "",
+      DocPacks.topic_lines,
+      "",
+      "Read the relevant guide BEFORE building the kind of thing it covers; the returned guide stays in context for the rest of the session.",
+    ];
 
 let self =
   identity

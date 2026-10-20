@@ -66,6 +66,71 @@ let fast_equal =
   ).
     exp;
 let equal = fast_equal;
+/* fast_equal, with Equality's hash shortcut: for comparing a term with a
+   near-copy, where identical subterms are recognized without a walk. */
+let fast_equal_hashed =
+  Equality.(
+    equality(
+      ~hash_shortcut=true,
+      {
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_projectors: true,
+      },
+    )
+  ).
+    exp;
+
+/* In-order trace of annotation lexemes. Paired with fast_equal (which
+   guarantees aligned structure), comparing traces detects lexeme-only
+   differences — e.g. editing an unknown operator @@ -> @@@ changes
+   display and stuck-application semantics but not term structure. */
+let lexeme_trace = (e: t): list(option(string)) => {
+  let acc = ref([]);
+  let f = (continue, t: IdTagged.t(_)) => {
+    acc := [t.annotation.lexeme, ...acc^];
+    continue(t);
+  };
+  let _ =
+    map_term(
+      ~f_exp=f,
+      ~f_pat=f,
+      ~f_typ=f,
+      ~f_tpat=f,
+      ~f_rul=f,
+      ~f_mod=f,
+      ~f_sig=f,
+      ~f_mpat=f,
+      e,
+    );
+  acc^;
+};
+
+/* fast_equal plus lexeme comparison. fast_equal ignores annotations, but
+   lexemes carry display and semantics (hole flavor, stuck unknown-op
+   applications), so recompute/caching gates must use this variant or
+   lexeme-only edits serve stale results (cf. IncrEval.reuse_check). */
+let fast_equal_with_lexemes = (a: t, b: t): bool =>
+  fast_equal(a, b) && lexeme_trace(a) == lexeme_trace(b);
+
+/* fast_equal_with_lexemes in one walk, with Equality's hash shortcut and
+   memo: for comparing a term with a near-copy, as the eval worker's reuse
+   check does for every node. Two terms that differ only by ids then cost
+   one visit per node in all, instead of a lexeme trace of each subterm
+   every time it is asked about. */
+let fast_equal_hashed_with_lexemes =
+  Equality.(
+    equality(
+      ~hash_shortcut=true,
+      ~lexemes=true,
+      {
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_projectors: true,
+      },
+    )
+  ).
+    exp;
 
 let temp: term => t =
   term => {
@@ -470,7 +535,14 @@ let (replace_all_ids, replace_all_ids_typ) = {
     (continue, exp) =>
       {
         ...exp,
-        annotation: IdTagged.IdTag.mk_internal([Id.mk()]),
+        annotation: {
+          /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
+             so re-idded results still display faithfully. Secondary and
+             shard provenance stay dropped: display of results is
+             AutoFormat and the tile-id references are invalidated. */
+          ...IdTagged.IdTag.mk_internal([Id.mk()]),
+          lexeme: exp.annotation.lexeme,
+        },
       }
       |> continue;
   (

@@ -4,9 +4,19 @@ Printexc.register_printer(exn => {
   switch (exn) {
   | Language.EvaluatorError.Exception(msg) =>
     Some(Language.EvaluatorError.show(msg))
+  | DefStaticsCheck.Divergence(ds) =>
+    Some("DefStatics diverges: " ++ String.concat("; ", ds))
   | _ => None
   }
 });
+
+/* every edit checks sparse normalization against the global pass */
+NormalizeCheck.install();
+
+/* and statics against a monolithic analysis, except when benchmarking */
+if (!CorpusUtil.bench_enabled) {
+  DefStaticsCheck.install();
+};
 
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
    report, and hands the exit back as a function. ~and_exit=true makes that
@@ -17,7 +27,6 @@ let (suite, exit_with_test_status) =
     ~argv=Sys.argv,
     "HazelTests",
     [
-      Test_AgentPersist.tests,
       Test_FumolaPrint.tests,
       Test_FumolaTiles.tests,
       Test_FumolaParse.tests,
@@ -37,6 +46,7 @@ let (suite, exit_with_test_status) =
       Test_Builtins_String.tests,
       Test_CsvUtil.tests,
       Test_Grammar.tests,
+      Test_FormId.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_FumolaValue.tests,
@@ -45,8 +55,36 @@ let (suite, exit_with_test_status) =
       Test_FumolaSource.tests,
       Test_MakeTerm.tests,
       Test_Menhir.tests,
+      Test_PatRootEditor.tests,
+      Test_StackFocus.tests,
+      Test_Restructure.tests,
+      Test_StreamCollector.tests,
+      Test_MegaCorpus.tests,
+      Test_MeasuredChunks.tests,
+      Test_MakeTermIncr.tests,
+      Test_EditLocality.tests,
+      Test_DefStaticsParity.tests,
+      Test_ClickTeleport.tests,
+      Test_AliasProbe.tests,
+      Test_ModRoot.tests,
+      Test_ProbePersist.tests,
+      Test_DividedLaws.tests,
+      Test_HeadlessRows.tests,
+      Test_TermPrune.tests,
+      Test_ResultLine.tests,
+      Test_ProbeSteps.tests,
+      Test_TailProbe.tests,
+      Test_ProofDrawers.tests,
+      Test_SlideView.tests,
+      Test_OutlineRename.tests,
+      Test_OutlineText.tests,
+      Test_ClosedJump.tests,
+      Test_StaticsMemo.tests,
+      Test_CaretReveal.tests,
+      Test_Menhir.concave_marker_group,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
+      Test_TutorialReferencePanel.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
@@ -54,6 +92,7 @@ let (suite, exit_with_test_status) =
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
+    @ [Test_AgentPersist.tests, Test_AgentHardening.tests]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
@@ -65,29 +104,44 @@ let (suite, exit_with_test_status) =
     @ Test_Evaluator.tests
     @ Test_Editing.tests
     @ Test_TypToSegment.tests
+    @ Test_ItemPersist.tests
+    @ Test_OutlinePaths.tests
+    @ Test_RunPin.tests
     @ Test_Reassociate.tests
     @ Test_MultiProbe.tests
     @ [Test_SampleSelection.tests]
     @ Test_Indentation.tests
     @ Test_DynamicTypInfer.tests
+    @ Test_CanonicalCompletion.tests
+    @ Test_CompletionScoreboard.tests
+    @ Test_CompletionVisualization.tests
+    @ Test_QuiverDisplay.tests
+    @ Test_TabDispatch.tests
+    @ Test_ImpliedHole.tests
+    @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
+    @ [Test_CtorShadowing.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
+    @ Test_StreamInterests.tests
     @ Test_TextRoundtrip.tests
     @ [Test_LoadPath.tests]
     @ [Test_ParseSegmented.tests]
+    @ Test_RoundtripFuzz.tests
+    @ Test_LocalReformat.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
     @ [
       Test_MVU.tests,
       Test_TableCore.tests,
+      Test_StepperPasses.tests,
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
     @ Test_UserLivelits.tests
-    @ Test_Dump.tests
+    @ [Test_LivelitMembers.tests]
     @ [Test_CtxIndex.tests]
     @ [Test_ExpansionErrors.tests]
     @ [Test_TreeCare.tests]
@@ -96,15 +150,29 @@ let (suite, exit_with_test_status) =
     @ [Test_ResultView.tests]
     @ [Test_QuoteCoverage.tests]
     @ [Test_Unproject.tests]
+    @ [Test_PaneLayout.tests]
     @ [Test_ElabSize.tests]
     @ [Test_StaticsDepth.tests]
-    @ [Test_Move.tests]
+    @ [Test_StaticsPasses.tests]
+    @ [Test_TypHash.tests]
+    @ [Test_ValueHash.tests]
+    @ [Test_IdentityMemo.tests]
+    @ [Test_ShareCodec.tests]
+    @ [Test_CopyDescendants.tests]
+    @ [Test_ContextInspector.tests]
+    @ [Test_CallMemo.tests]
+    @ [Test_IncrSlides.tests]
+    @ [Test_IncompleteTiles.tests]
+    @ [Test_ChunkProbe.tests]
+    @ [Test_EvalInfoProjection.tests]
+    @ [Test_OpenValues.tests]
     @ [Test_Quote.tests]
     @ [Test_Quote.macro_tests]
     @ [Test_Quote.unquote_tests]
     @ [Test_Quote.abs_tests]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
+    @ [Test_Move.tests]
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
     @ Test_Autoprobe.tests
@@ -114,11 +182,13 @@ let (suite, exit_with_test_status) =
       Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
+      Test_Ascriptions.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
+    @ [Test_TutorialProbeSettings.tests]
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
@@ -126,10 +196,13 @@ let (suite, exit_with_test_status) =
     @ Test_ShortcutConfiguration.tests
     @ Test_ColorConfiguration.tests
     @ Test_ConfigurationMode.tests
+    @ [Test_ApplyWorkerMessages.tests]
+    @ [Test_SettingsPanel.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]
-    @ [Test_SubEditor.tests],
+    @ [Test_SubEditor.tests]
+    @ [Test_CompletionItems.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

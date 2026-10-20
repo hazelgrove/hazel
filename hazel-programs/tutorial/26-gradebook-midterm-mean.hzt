@@ -19,8 +19,8 @@ Reminder the mean is the sum of a list of numbers divided by the size of the lis
 Access a column from a table (list of labeled tuples):
 ```hazel
 let t = [
-(name="A", score=90),
-(name="B", score=80)
+  (name="A", score=90),
+  (name="B", score=80)
 ] in
 t.score
 ```
@@ -30,7 +30,7 @@ t.score
 Use `_` to defer arguments:
 ```hazel
 let double =
-map(_, fun x -> x * 2)
+  map(_, fun x -> x * 2)
 in
 double([1, 2, 3])
 ```
@@ -67,7 +67,7 @@ fun n -> n + 1 # Increments n by 1 #
 ### Binding and Calling a Function
 ```hazel
 let inc : Int -> Int =
-fun n -> n + 1
+  fun n -> n + 1
 in
 inc(1)
 ```
@@ -86,34 +86,34 @@ Make sure you're taking the total and dividing by the length
 
 @code
 type Semester = +Spring +Fall in
-type GradebookEntry = 
-(
-student_id=Int,
-year=Int, 
-semester=Semester, 
-quiz1=Float, 
-quiz2=Float, 
-midterm=Float,
-final=Float
-)
+type GradebookEntry =
+  (
+    student_id=Int,
+    year=Int,
+    semester=Semester,
+    quiz1=Float,
+    quiz2=Float,
+    midterm=Float,
+    final=Float
+  )
 in
 
-let midterm_mean : [GradebookEntry] -> Float = fun (gradebook) -> 
-¿
+let midterm_mean : [GradebookEntry] -> Float = fun (gradebook) ->
+  ¿
 in
 
 let gradebook : [GradebookEntry] =
-^^table([(student_id=1, year=2025, semester=Spring, quiz1=7.0, quiz2=5.0, midterm=85.0, final=88.0),
-(student_id=2, year=2025, semester=Fall, quiz1=5.0, quiz2=8.0, midterm=90.0,  final=82.0), 
-(student_id=3, year=2024, semester=Fall, quiz1=8.0, quiz2=7.0, midterm=78.0, final=80.0), 
-(student_id=4, year=2025, semester=Spring, quiz1=9.0, quiz2=10.0, midterm=95.0, final=98.0),
-(student_id=5, year=2024, semester=Fall, quiz1=4.0, quiz2=3.0, midterm=60.0,  final=65.0)])
+  ^^table([(student_id=1, year=2025, semester=Spring, quiz1=7.0, quiz2=5.0, midterm=85.0, final=88.0),
+    (student_id=2, year=2025, semester=Fall, quiz1=5.0, quiz2=8.0, midterm=90.0,  final=82.0),
+    (student_id=3, year=2024, semester=Fall, quiz1=8.0, quiz2=7.0, midterm=78.0, final=80.0),
+    (student_id=4, year=2025, semester=Spring, quiz1=9.0, quiz2=10.0, midterm=95.0, final=98.0),
+    (student_id=5, year=2024, semester=Fall, quiz1=4.0, quiz2=3.0, midterm=60.0,  final=65.0)])
 in
 midterm_mean(gradebook)
 
 @test
 test midterm_mean(gradebook) == 81.6 end;
 test midterm_mean([
-(student_id=¿, year=¿, semester=¿, quiz1=¿, quiz2=¿, midterm=1., final=¿),
-(student_id=¿, year=¿, semester=¿, quiz1=¿, quiz2=¿, midterm=2., final=¿)
+  (student_id=¿, year=¿, semester=¿, quiz1=¿, quiz2=¿, midterm=1., final=¿),
+  (student_id=¿, year=¿, semester=¿, quiz1=¿, quiz2=¿, midterm=2., final=¿)
 ]) == 1.5 end

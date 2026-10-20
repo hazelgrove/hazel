@@ -215,10 +215,6 @@ let ^flag = {
 # Define a Slider  a number you drag, expanding to that number #
 # Parameters       one slider definition, its bounds as parameters #
 # Emotion          the widget IS the control: drag a face #
-# Emotion (Kids' Choice) #
-#                  a bigger face, fed by sliders and toggles: #
-#                  color, exploding, candy, eyes, teeth #
-# 1990s Face       the "Have a Day" poster: one smiley, a stamp per day #
 # Color Picker     helpers are ordinary members of the module #
 # Higher-order, Functional Expansion #
 #                  an expansion that is a curried function #
@@ -227,7 +223,6 @@ let ^flag = {
 # Color (Figure 3) the paper's own example, rebuilt line by line #
 # Editable Parameters #
 #                  a slider whose bounds are splices, not fixed #
-# Tree Care        a model that is a tree, fed by a growth style #
 # Timings          what one frame of a livelit costs #
 # Dynamic Row or Column #
 #                  a row of splices that grows and shrinks #
@@ -242,3 +237,15 @@ let ^flag = {
 #                  one livelit whose expansion type varies by use: #
 #                  Expansion = ?, or a type parameter #
 # Advanced         a folder: JavaScript, the one built-in livelit #
+
+# AND THEN, FOR FUN #
+
+# Livelit Playground, the next deck: livelits that go past the idea, #
+# made for the joy of it, each one whole on its slide. #
+
+# Emotion: 1990s Face #
+#                  the "Have a Day" poster: one smiley, a stamp per day #
+# Emotion: Kids' Choice #
+#                  a bigger face, fed by sliders and toggles: #
+#                  color, exploding, candy, eyes, teeth #
+# Tree Care        a model that is a tree, fed by a growth style #

@@ -11,13 +11,17 @@ module Profile = {
 
 let caret_width = 0.2; /* Width of editor caret */
 
-let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
-  ShardDec.chonky_path_base(
-    (shape, shape),
-    ShardDec.shape_adjust(side, shape) +. 0.5 *. caret_width,
-    caret_width,
-    float_of_int(0),
-  );
+/* The straight top edge, in character units. Decorations joining the
+   caret must use this edge, including its indication-side offset. */
+let top_edge = (side, shape): (float, float) => (
+  -. (ShardDec.shape_adjust(side, shape) +. 0.5 *. caret_width),
+  caret_width,
+);
+
+let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) => {
+  let (left, width) = top_edge(side, shape);
+  ShardDec.chonky_path_base((shape, shape), -. left, width, 0.);
+};
 
 let main =
     (
@@ -71,6 +75,11 @@ let view =
     | Some(origin) => origin
     | None => Zipper.Caret.point(measured, z)
     };
+  /* CaretReveal reads this instead of the caret's DOM rect (only the
+     selected editor renders a caret). The row is in the frame this caret
+     is drawn in (splice-local for a sub-editor); CaretReveal anchors
+     published rows against this same caret node, so that is consistent */
+  CaretReveal.publish(~row=origin.row, ~row_height=font_metrics.row_height);
   main(
     ~font_metrics,
     ~profile={

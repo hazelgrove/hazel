@@ -19,22 +19,9 @@ module Kind = Language.ProjectorKind;
 /* Where a projector instance draws its primary UI. Inline means
  * in-place in the code; Sidebar means docked in the projector panel,
  * leaving a compact chip at the code site. */
-module Placement = {
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t =
-    | Inline
-    | Sidebar;
-
-  let toggle: t => t =
-    fun
-    | Inline => Sidebar
-    | Sidebar => Inline;
-
-  let is_sidebar: t => bool =
-    fun
-    | Inline => false
-    | Sidebar => true;
-};
+/* Placement is defined in src/language/ProjectorPlacement.re, beside
+ * Kind, so that Token can parse an invoke token's placement suffix. */
+module Placement = Language.ProjectorPlacement;
 
 /* Projectors in syntax.
  * `placement` is defaulted on deserialization so documents persisted
@@ -47,14 +34,34 @@ type t('syntax) = {
   model: string,
   [@sexp.default Placement.Inline] [@yojson.default Placement.Inline]
   placement: Placement.t,
+  /* Whether the projector also shows its own syntax, editable, below its
+     GUI (a livelit's toggle). Kept here and in the invoke token, as
+     placement is, so it survives a round trip through text. Defaulted for
+     documents saved before it existed. */
+  [@sexp.default false] [@yojson.default false]
+  show_syntax: bool,
 };
 
-let mk = (~id=Id.mk(), ~placement=Placement.Inline, kind, syntax, model) => {
+let mk =
+    (
+      ~id=Id.mk(),
+      ~placement=Placement.Inline,
+      ~show_syntax=false,
+      kind,
+      syntax,
+      model,
+    ) => {
   id,
   kind,
   syntax,
   model,
   placement,
+  show_syntax,
+};
+
+let toggle_show_syntax = (p: t('syntax)): t('syntax) => {
+  ...p,
+  show_syntax: !p.show_syntax,
 };
 
 let toggle_placement = (p: t('syntax)): t('syntax) => {

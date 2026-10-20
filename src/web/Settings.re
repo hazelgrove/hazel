@@ -1,5 +1,13 @@
 open Util;
 
+module CompletionDisplay = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Quiver
+    | Flag
+    | Hidden;
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -14,12 +22,18 @@ module Model = {
     show_debug_panel: bool,
     explainThis: ExplainThisModel.Settings.t,
     sidebar: SidebarModel.Settings.t,
+    [@sexp.default false]
+    quiver_flagpole: bool,
+    quiver: bool, /* Show completion visualization (quiver arrows) */
     autoprobe_mode: Haz3lcore.AutoProbe.t,
     agent_globals: AgentGlobals.Model.t,
     line_numbers: bool,
     relative_line_numbers: bool,
+    /* unused; kept so saved settings parse */
     cap_undo_stack: bool,
     show_row_lines: bool,
+    /* grey re-evaluation-progress backings after edits ("Eval Progress") */
+    [@sexp.default false]
     show_incremental_deco: bool,
     /* Shortcut overrides derived from the Shortcuts config slide: a
        ContextualAction label to its resolved hotkey, or None for an action
@@ -27,6 +41,17 @@ module Model = {
        (NinjaKeys.initialize), so it survives palette rebuilds and reloads. */
     shortcut_overrides: list((string, option(string))),
     simple_indication: bool,
+    /* The panel over the cursor inspector that shows what it inspects
+       with its types printed whole, on several lines (#2674). */
+    [@sexp.default false]
+    inspector_expanded: bool,
+    /* the ⇓ toggle: a Scratch or Documentation program's value in a
+       drawer after the program */
+    [@sexp.default true]
+    tail_probe: bool,
+    /* outline rows fold from a drawn arrow; off, from their sigil */
+    [@sexp.default false]
+    outline_arrows: bool,
   };
 
   let init = {
@@ -38,7 +63,9 @@ module Model = {
       assist: true,
       dynamics: true,
       probe_all: false,
-      deep_reassociate: true,
+      auto_reindent: true,
+      format_shortcut: Language.CoreSettings.FormatShortcut.Spaces,
+      indentation_ux: true,
       flip_animations: true,
       display_warnings: true,
       selection_chunkiness: false,
@@ -89,7 +116,10 @@ module Model = {
       fumola_tab: Events,
       fumola_editor: Dim,
       fumola_pinned: None,
+      settings_folded: ["Stepper", "Developer"],
     },
+    quiver_flagpole: false,
+    quiver: true, /* On by default (andrew 2026-07-09) */
     autoprobe_mode: Off,
     agent_globals: AgentGlobals.init(),
     line_numbers: false,
@@ -99,7 +129,15 @@ module Model = {
     show_incremental_deco: false,
     shortcut_overrides: [],
     simple_indication: false,
+    inspector_expanded: false,
+    tail_probe: true,
+    outline_arrows: false,
   };
+
+  /* Keep the persisted fields compatible with existing preferences, while
+     presenting one mutually exclusive display choice to the user. */
+  let completion_display = (settings: t): CompletionDisplay.t =>
+    !settings.quiver ? Hidden : settings.quiver_flagpole ? Flag : Quiver;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = t;
@@ -138,7 +176,8 @@ module Update = {
     | Statics
     | Dynamics
     | ProbeAll
-    | DeepReassociate
+    | AutoReindent
+    | FormatShortcut(Language.CoreSettings.FormatShortcut.t)
     | SelectionChunkiness
     | Assist
     | Elaborate
@@ -152,16 +191,19 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | DisplayWarnings
     | FlipAnimations
+    | CompletionDisplay(CompletionDisplay.t)
     | AutoprobeMode
     | SetAutoprobe(Haz3lcore.AutoProbe.t)
     | SampleStickyInPlace
     | ToggleLineNumbers
     | ToggleRelativeLineNumbers
-    | CapUndoStack
     | ShowRowLines
-    | ShowIncrementalDeco
+    | ShowPendingEval
     | SetShortcutOverrides(list((string, option(string))))
-    | SimpleIndication;
+    | SimpleIndication
+    | InspectorExpanded
+    | TailProbe
+    | OutlineArrows;
 
   let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
@@ -201,11 +243,18 @@ module Update = {
             probe_all: !settings.core.probe_all,
           },
         }
-      | DeepReassociate => {
+      | AutoReindent => {
           ...settings,
           core: {
             ...settings.core,
-            deep_reassociate: !settings.core.deep_reassociate,
+            auto_reindent: !settings.core.auto_reindent,
+          },
+        }
+      | FormatShortcut(fs) => {
+          ...settings,
+          core: {
+            ...settings.core,
+            format_shortcut: fs,
           },
         }
       | SelectionChunkiness => {
@@ -407,6 +456,14 @@ module Update = {
           ...settings,
           sidebar: SidebarModel.Settings.toggle_encoding(e, settings.sidebar),
         }
+      | Sidebar(ToggleSettingsFolded(name)) => {
+          ...settings,
+          sidebar:
+            SidebarModel.Settings.toggle_settings_folded(
+              name,
+              settings.sidebar,
+            ),
+        }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
           explainThis: {
@@ -461,9 +518,14 @@ module Update = {
           ...settings, //TODO[Matt]: Make sure instructor mode actually makes prelude read-only
           instructor_mode: !settings.instructor_mode,
         }
+      | CompletionDisplay(mode) => {
+          ...settings,
+          quiver: mode != CompletionDisplay.Hidden,
+          quiver_flagpole: mode == CompletionDisplay.Flag,
+        }
       | AutoprobeMode =>
-        /* The keyboard toggle deliberately skips Caret, cycling Off<->All
-         * only; Caret mode is opted into via the segmented control. */
+        /* User-facing controls cycle Off<->All; Caret remains an internal
+         * mode and is not exposed by the sidebar. */
         {
           ...settings,
           autoprobe_mode:
@@ -495,18 +557,17 @@ module Update = {
           ...settings,
           relative_line_numbers: !settings.relative_line_numbers,
         }
-      | CapUndoStack => {
-          ...settings,
-          cap_undo_stack: !settings.cap_undo_stack,
-        }
       | ShowRowLines => {
           ...settings,
           show_row_lines: !settings.show_row_lines,
         }
-      | ShowIncrementalDeco => {
+      | ShowPendingEval =>
+        Language.EvalWorklist.compute_enabled :=
+          !settings.show_incremental_deco;
+        {
           ...settings,
           show_incremental_deco: !settings.show_incremental_deco,
-        }
+        };
       | SetShortcutOverrides(overrides) => {
           ...settings,
           shortcut_overrides: overrides,
@@ -514,6 +575,18 @@ module Update = {
       | SimpleIndication => {
           ...settings,
           simple_indication: !settings.simple_indication,
+        }
+      | InspectorExpanded => {
+          ...settings,
+          inspector_expanded: !settings.inspector_expanded,
+        }
+      | TailProbe => {
+          ...settings,
+          tail_probe: !settings.tail_probe,
+        }
+      | OutlineArrows => {
+          ...settings,
+          outline_arrows: !settings.outline_arrows,
         }
       }
     )

@@ -61,8 +61,15 @@ let multiline_shard =
  * shard of each segment. Ideally we could just get this info from
  * the row measurements, but we have no current way of figuring out
  * shapes for whitespace without traversing */
+/* ~trim_ws: skip leading whitespace on continuation rows (rows after a
+ * linebreak), so selection decorations hug code instead of painting
+ * indentation. Whitespace only — comments are Secondary too and stay.
+ * Whitespace-only rows keep their full extent (else the selection
+ * reads as discontinuous), and the first row is never trimmed: its
+ * left edge is the selection start, which is deliberate. */
 let rows_of_segment =
     (
+      ~trim_ws: bool=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~shape_init: ShardDec.tip,
@@ -77,22 +84,34 @@ let rows_of_segment =
               ShardDec.tip,
               list(
                 option(
-                  (Measured.measurement, (ShardDec.tip, ShardDec.tip)),
+                  (
+                    (Measured.measurement, (ShardDec.tip, ShardDec.tip)),
+                    bool,
+                  ),
                 ),
               ),
             ) => {
+    let tag = is_ws => Option.map(x => (x, is_ws));
     let shard_data =
       switch (p) {
       | Tile(t) => of_tile(~start_shape, t)
       | Projector(p) => of_projector(~start_shape, p)
       | Splice(_) => [None]
-      | Grout(g) => [Some(shard_svg(~start_shape, find_g(g), p))]
+      | Grout(g) => [
+          Some(shard_svg(~start_shape, find_g(g), p)) |> tag(false),
+        ]
       | Secondary(w) when Secondary.is_linebreak(w) => [None]
       | Secondary(w) => [
           Some((
             find_w(w),
             (start_shape |> Option.map(Nib.Shape.flip), start_shape),
-          )),
+          ))
+          |> tag(
+               switch (w.content) {
+               | Whitespace(_) => true
+               | _ => false
+               },
+             ),
         ]
       };
     let next_start_shape =
@@ -110,15 +129,20 @@ let rows_of_segment =
            List.mem(i, t.shards) ? Some((i, m)) : None
          )
       |> List.map(((index, m)) => {
-           let token = List.nth(t.label, index);
+           let token = Tile.token(t, index);
            let shard = Tile.shard_of(t, index);
            switch (StringUtil.num_linebreaks(token)) {
-           | 0 => [Some(shard_svg(~start_shape, m, Tile(shard)))]
+           | 0 => [
+               Some(shard_svg(~start_shape, m, Tile(shard)))
+               |> Option.map(x => (x, false)),
+             ]
            | num_lb =>
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
+             |> List.map(Option.map(x => (x, false)))
            };
          });
-    let shape_at = index => Some(snd(Mold.nibs(~index, t.mold)).shape);
+    let shape_at = index =>
+      Some(snd(Mold.nibs(~index, Tile.mold(t))).shape);
     let children_shards =
       t.children |> List.mapi(index => of_segment(shape_at(index)));
     if (List.length(tile_shards) != List.length(children_shards) + 1) {
@@ -152,13 +176,14 @@ let rows_of_segment =
         };
       if (num_lb == 0) {
         [
-          Some(
+          Some((
             shard_svg(
               ~start_shape,
               Measured.find_pr(p, measured),
               Projector(p),
             ),
-          ),
+            false,
+          )),
         ];
       } else {
         List.init(num_lb + 1, _ => None);
@@ -167,8 +192,21 @@ let rows_of_segment =
   and of_segment =
       (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) =>
     seg |> List.fold_left_map(of_piece, start_shape) |> snd |> List.flatten;
+  let trim_row = row => {
+    let rec drop = xs =>
+      switch (xs) {
+      | [(_, true), ...rest] => drop(rest)
+      | _ => xs
+      };
+    switch (drop(row)) {
+    | [] => row
+    | trimmed => trimmed
+    };
+  };
   of_segment(shape_init, segment)
   |> ListUtil.split_at_nones
+  |> List.mapi((i, row) => trim_ws && i > 0 ? trim_row(row) : row)
+  |> List.map(List.map(fst))
   |> ListUtil.first_and_last
   |> List.map((((m1, (l1, _)), (m2, (_, r2)))) =>
        (
@@ -548,20 +586,20 @@ let clip_char_selection =
 
 let of_segment =
     (
+      ~trim_ws: bool=false,
       ~measured: Measured.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
       ~font_metrics: FontMetrics.t,
       ~shape_init: ShardDec.tip,
       ~clss: list(string),
-      ~sweep: bool=false,
       segment: Segment.t,
     )
     : list(Node.t) => {
   let rows =
-    rows_of_segment(~measured, ~shape_map, ~shape_init, segment)
+    rows_of_segment(~trim_ws, ~measured, ~shape_map, ~shape_init, segment)
     |> List.map(((m, tips)) => row_data_of(m, tips));
   let groups = group_consecutive(rows);
-  List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep), groups);
+  List.filter_map(svg_of_group(~font_metrics, ~clss), groups);
 };
 
 let selection =
@@ -573,6 +611,7 @@ let selection =
     ) => {
   let rows =
     rows_of_segment(
+      ~trim_ws=true,
       ~measured,
       ~shape_map,
       ~shape_init=Some(fst(Siblings.shapes(z.relatives.siblings))),
@@ -622,6 +661,7 @@ let selection_expanded =
           seg,
         )
         @ of_segment(
+            ~trim_ws=true,
             ~measured,
             ~shape_map,
             ~font_metrics,
@@ -659,7 +699,6 @@ let color =
     (
       ~syntax: CachedSyntax.t,
       ~font_metrics: FontMetrics.t,
-      ~sweep: bool=false,
       clss: list(string),
       id: Id.t,
     ) =>
@@ -671,10 +710,119 @@ let color =
       ~font_metrics,
       ~shape_init=Some(Convex),
       ~clss,
-      ~sweep,
       segment,
     )
   | None => []
+  };
+
+/* per-id range memo for the pending-eval highlight: incr_eval runs on
+   every streamed chunk, but ranges change only with the measured/term_data
+   generation, so one table serves a whole evaluation */
+module RangeCache = {
+  let slot:
+    Slot.t(
+      Measured.t,
+      Hashtbl.t(Id.t, option((Measured.Point.t, Measured.Point.t))),
+    ) =
+    Slot.mk();
+  let for_gen =
+      (~measured: Measured.t, ~term_data: TermData.t)
+      : (Id.t => option((Measured.Point.t, Measured.Point.t))) => {
+    /* measured is the stricter generation proxy: term_data only
+       changes in mk, where measured is rebuilt too */
+    let tbl = Slot.get(slot, measured, () => Hashtbl.create(1024));
+    id =>
+      switch (Hashtbl.find_opt(tbl, id)) {
+      | Some(r) => r
+      | None =>
+        let r = TermData.extreme_measures(id, term_data, measured);
+        Hashtbl.replace(tbl, id, r);
+        r;
+      };
+  };
+};
+
+/* per-id node cache for the pending-eval highlight */
+module IncrEvalCache = {
+  type entry = {
+    e_meas: Obj.t,
+    e_range: (Measured.Point.t, Measured.Point.t),
+    e_fm: Obj.t,
+    e_sweep: bool,
+    e_nodes: list(Node.t),
+  };
+  let cache: Expiring.t(Id.t, entry) =
+    Expiring.mk(~size=64, ~every=64, ~ttl=16);
+  let get =
+      (~id, ~measured, ~range, ~font_metrics, ~sweep: bool, ~mk)
+      : list(Node.t) =>
+    switch (Expiring.find_opt(cache, id)) {
+    | Some(e)
+        when
+          e.e_meas === Obj.repr(measured)
+          && e.e_range == range
+          && e.e_fm === Obj.repr(font_metrics)
+          && e.e_sweep == sweep =>
+      e.e_nodes
+    | _ =>
+      let nodes = mk();
+      Expiring.replace(
+        cache,
+        id,
+        {
+          e_meas: Obj.repr(measured),
+          e_range: range,
+          e_fm: Obj.repr(font_metrics),
+          e_sweep: sweep,
+          e_nodes: nodes,
+        },
+      );
+      nodes;
+    };
+};
+
+/* one text-hugging svg per contiguous row run of a range, from measured
+   row shapes: shard-shaped at bounding-box node cost. blank rows split
+   the contour, so empty lines stay clear */
+let contour_of_range =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measured: Measured.t,
+      ~sweep: bool=false,
+      clss: list(string),
+      (origin: Point.t, final: Point.t),
+    )
+    : list(Node.t) =>
+  if (final.row < origin.row) {
+    [];
+  } else {
+    let rows =
+      List.init(final.row - origin.row + 1, i => origin.row + i)
+      |> List.filter_map(row =>
+           switch (Measured.row_shape(row, measured)) {
+           | None => None
+           | Some(shape) =>
+             /* max/min: window-clamped regions may start/end mid-range
+                with cols from a different row */
+             let left =
+               row == origin.row
+                 ? max(origin.col, shape.content_start) : shape.content_start;
+             let right =
+               row == final.row
+                 ? min(final.col, shape.max_col) : shape.max_col;
+             right <= left
+               ? None
+               : Some({
+                   row_num: row,
+                   left_col: left,
+                   right_col: right,
+                   left_tip: None,
+                   right_tip: None,
+                 });
+           }
+         );
+    group_consecutive(rows)
+    |> List.filter_map(svg_of_group(~font_metrics, ~clss, ~sweep));
   };
 
 let colors =
@@ -695,31 +843,28 @@ let colors =
     ),
   );
 
-/* `predicted_reuse` is the ReusePass plan (not the accumulating cache). */
 let incr_eval =
     (
       ~font_metrics: FontMetrics.t,
       ~syntax: CachedSyntax.t,
+      ~visible: option(Globals.VisibleRows.t)=?,
       ~pending_eval_ids: list(Id.t)=[],
       ~show_active_eval: bool=false,
-      ~show_frozen: bool=true,
-      predicted_reuse: Language.EvaluatorState.incr_eval,
+      (),
     ) => {
+  Expiring.tick(IncrEvalCache.cache);
   let range_eq = ((o1, l1), (o2, l2)) =>
     Point.equals(o1, o2) && Point.equals(l1, l2);
-  let range_contains = ((o1, l1), (o2, l2)) =>
-    Point.compare(o1, o2) <= 0 && Point.compare(l2, l1) <= 0;
+  let range_of =
+    RangeCache.for_gen(
+      ~measured=CachedSyntax.measured(syntax),
+      ~term_data=syntax.term_data,
+    );
   let ranged_ids_of = ids =>
     ids
     |> List.sort_uniq(Id.compare)
     |> List.filter_map(id =>
-         switch (
-           TermData.extreme_measures(
-             id,
-             syntax.term_data,
-             CachedSyntax.measured(syntax),
-           )
-         ) {
+         switch (range_of(id)) {
          | Some(range) => Some((id, range))
          | None => None
          }
@@ -729,23 +874,6 @@ let incr_eval =
     | 0 => Point.compare(l1, l2)
     | cmp => cmp
     };
-  let outermost = ranged_ids =>
-    List.fold_left(
-      (acc, (id, r)) =>
-        if (List.exists(
-              ((_, r2)) => range_contains(r2, r) && !range_eq(r2, r),
-              ranged_ids,
-            )
-            || List.exists(((_, r2)) => range_eq(r2, r), acc)) {
-          acc;
-        } else {
-          [(id, r), ...acc];
-        },
-      [],
-      ranged_ids,
-    );
-  let frozen_ids =
-    show_frozen ? Language.IncrEval.frozen_ids(~incr=predicted_reuse) : [];
   let pending_eval_ranges =
     pending_eval_ids |> ranged_ids_of |> List.sort(range_compare);
   let active_ids =
@@ -763,29 +891,90 @@ let incr_eval =
              active_ids,
            )
        );
-  let frozen_outermost = frozen_ids |> ranged_ids_of |> outermost;
-  div_c(
-    "incremental-highlights",
-    List.concat_map(
-      ((id, _)) =>
-        color(~syntax, ~font_metrics, ["incremental-frozen"], id),
-      frozen_outermost,
+  /* None: no range (this editor doesn't cull, or nothing tracks one):
+     draw every row */
+  let visible_bounds =
+    switch (visible) {
+    | None => (0, max_int)
+    | Some({first, last}) => (first, last)
+    };
+  let visible_ranges = (ranges: list((Id.t, (Point.t, Point.t)))) => {
+    let (first, last) = visible_bounds;
+    List.filter(
+      ((_, (origin: Point.t, final: Point.t))) =>
+        origin.row <= last && final.row >= first,
+      ranges,
+    );
+  };
+  /* the pending set shrinks on every streamed chunk: per-id node caching
+     keeps all but the popped head reference-equal, so the diff skips them.
+     pending ids are leaf-granular, so adjacent rows merge into a few
+     regions (the worklist finishes roughly in program order), clamped to
+     the visible window to bound path sizes */
+  let merge_regions = (ranges: list((Id.t, (Point.t, Point.t)))) =>
+    List.fold_left(
+      (acc, (id, (o: Point.t, f: Point.t))) =>
+        switch (acc) {
+        | [(rid, (ro: Point.t, rf: Point.t)), ...rest]
+            when o.row <= rf.row + 1 =>
+          let rf' = rf.row > f.row ? rf : f;
+          [(rid, (ro, rf')), ...rest];
+        | _ => [(id, (o, f)), ...acc]
+        },
+      [],
+      ranges,
     )
-    @ List.concat_map(
-        ((id, _)) =>
-          color(~syntax, ~font_metrics, ["incremental-pending"], id),
-        pending_inactive_ranges,
-      )
-    @ List.concat_map(
-        ((id, _)) =>
-          color(
-            ~syntax,
+    |> List.rev;
+  let clamp_region = ((id, (o: Point.t, f: Point.t))) => {
+    let (first, last) = visible_bounds;
+    let o =
+      o.row >= first
+        ? o
+        : Point.{
+            row: first,
+            col: 0,
+          };
+    let f =
+      f.row <= last
+        ? f
+        : Point.{
+            row: last,
+            col: Int.max_int,
+          };
+    (id, (o, f));
+  };
+  let regions =
+    visible_ranges(pending_inactive_ranges)
+    |> merge_regions
+    |> List.map(clamp_region);
+  let nodes_of = (~sweep, clss, regions) =>
+    List.concat_map(
+      ((id, range)) =>
+        IncrEvalCache.get(
+          ~id,
+          ~measured=CachedSyntax.measured(syntax),
+          ~range,
+          ~font_metrics,
+          ~sweep,
+          ~mk=() =>
+          contour_of_range(
             ~font_metrics,
-            ~sweep=true,
-            ["incremental-pending", "incremental-active"],
-            id,
-          ),
-        active_ids,
-      ),
-  );
+            ~measured=CachedSyntax.measured(syntax),
+            ~sweep,
+            clss,
+            range,
+          )
+        ),
+      regions,
+    );
+  let inactive_nodes =
+    nodes_of(~sweep=false, ["incremental-pending"], regions);
+  /* the active range can span thousands of rows: clamp and cache it like
+     the inactive regions (the sweep animates in CSS, so a reused node
+     keeps animating) */
+  let active_nodes =
+    visible_ranges(active_ids)
+    |> List.map(clamp_region)
+    |> nodes_of(~sweep=true, ["incremental-pending", "incremental-active"]);
+  div_c("incremental-highlights", inactive_nodes @ active_nodes);
 };

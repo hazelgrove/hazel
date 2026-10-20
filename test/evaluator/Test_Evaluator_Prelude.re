@@ -74,7 +74,10 @@ let targets_of_zipper =
           | None => []
           }
         };
-      let spec: Sample.capture_spec = {refs: refs};
+      let spec: Sample.capture_spec = {
+        refs,
+        full: false,
+      };
       Id.Map.add(id, spec, acc);
     },
     probe_ids,

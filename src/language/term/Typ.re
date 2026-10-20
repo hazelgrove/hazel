@@ -888,6 +888,9 @@ let is_stuck_path_term = (ty: t): bool =>
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let fast_equal = Equality.semantic.typ;
+/* fast_equal, with Equality's hash shortcut: for near-copies. */
+let fast_equal_hashed =
+  Equality.(equality(~hash_shortcut=true, semantic_settings)).typ;
 /* fast_equal, but an unknown's provenance counts: for shortcuts in meet,
    which must merge provenances rather than drop one. Alpha-equal types
    that are equal under this meet to themselves, exactly. */

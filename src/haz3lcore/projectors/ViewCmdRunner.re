@@ -81,14 +81,20 @@ let result_html = (r: DHExp.t, n: int): DHExp.t => {
 
 /* A command's answer, handed to its continuation: the continuation
    returns the next command, which runs in turn. */
-let rec resume = (k: DHExp.t, x: DHExp.t): result(DHExp.t, string) =>
-  switch (safe_evaluate(Exp.ap(Forward, k, x))) {
+/* Commands are evaluated and taken apart OPEN (safe_evaluate_open,
+   of_constructor_open, of_tuple_open): a continuation closes over the
+   whole view, and finishing each step copied all of it in -- most of a
+   Kids' Choice redraw in Firefox. */
+/* [call_memo]: the view's calls, reused from its last run (CallMemo) */
+let rec resume =
+        (~call_memo=?, k: DHExp.t, x: DHExp.t): result(DHExp.t, string) =>
+  switch (safe_evaluate_open(~call_memo?, Exp.ap(Forward, k, x))) {
   | Error(e) => Error("continuation: " ++ e)
-  | Ok(next) => run(next)
+  | Ok(next) => run(~call_memo?, next)
   }
 
-and run = (d: DHExp.t): result(DHExp.t, string) =>
-  switch (of_constructor_raw(d)) {
+and run = (~call_memo=?, d: DHExp.t): result(DHExp.t, string) =>
+  switch (of_constructor_open(d)) {
   | None => Error("view did not return a ViewCmd")
 
   /* The answer. */
@@ -98,11 +104,11 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
      node. Run the command, hand its answer to the continuation, and keep
      going -- the continuation returns another command, not a value. */
   | Some(("Bind", body)) =>
-    switch (of_tuple(body)) {
+    switch (of_tuple_open(body)) {
     | Some([c, k]) =>
-      switch (run(c)) {
+      switch (run(~call_memo?, c)) {
       | Error(_) as e => e
-      | Ok(x) => resume(k, x)
+      | Ok(x) => resume(~call_memo?, k, x)
       }
     | _ => Error("malformed bind: expected a command and a continuation")
     }
@@ -114,14 +120,14 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
      resolves a SpliceRef to this projector's splice -- a ref to someone
      else's splice renders as an error there, not as their code. */
   | Some(("Editor", body)) =>
-    switch (of_tuple(body)) {
+    switch (of_tuple_open(body)) {
     | Some([args, k]) =>
-      switch (of_tuple(args)) {
+      switch (of_tuple_open(args)) {
       | Some([r, dim]) =>
-        switch (of_constructor_raw(dim)) {
+        switch (of_constructor_open(dim)) {
         | Some(("FixedWidth", n)) =>
           switch (of_int(n)) {
-          | Some(n) => resume(k, editor_html(r, n))
+          | Some(n) => resume(~call_memo?, k, editor_html(r, n))
           | None => Error("editor: FixedWidth needs an Int")
           }
         | _ => Error("editor: expected a Dim, FixedWidth(n)")
@@ -132,10 +138,10 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
     }
 
   | Some(("EvalSplice", body)) =>
-    switch (of_tuple(body)) {
+    switch (of_tuple_open(body)) {
     | Some([r, k]) =>
       switch (SpliceStore.splice_ref(r)) {
-      | Some((_, v)) => resume(k, result_of(v))
+      | Some((_, v)) => resume(~call_memo?, k, result_of(v))
       | None => Error("eval_splice: expected a SpliceRef")
       }
     | _ => Error("malformed eval_splice: expected a ref and a continuation")
@@ -149,15 +155,16 @@ and run = (d: DHExp.t): result(DHExp.t, string) =>
      code, which reads as a result and is not one. The view decides what
      None looks like. */
   | Some(("ResultView", body)) =>
-    switch (of_tuple(body)) {
+    switch (of_tuple_open(body)) {
     | Some([args, k]) =>
-      switch (of_tuple(args)) {
+      switch (of_tuple_open(args)) {
       | Some([r, dim]) =>
-        switch (of_constructor_raw(dim), SpliceStore.splice_ref(r)) {
+        switch (of_constructor_open(dim), SpliceStore.splice_ref(r)) {
         | (Some(("FixedWidth", n)), Some((_, v))) =>
           switch (of_int(n)) {
           | Some(n) =>
             resume(
+              ~call_memo?,
               k,
               ValueChecker.is_value(v)
                 ? Exp.ap(

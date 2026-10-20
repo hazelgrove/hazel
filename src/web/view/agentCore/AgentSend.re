@@ -392,8 +392,11 @@ let handle_dispatch_send =
   | Some(pending_chat_id)
       when
         pending_chat_id == chat_id
-        && settings.core.dynamics
-        && !eval_settled(editor.result)
+        && (
+          CodeWithStatics.StaticsDebounce.pending()
+          || settings.core.dynamics
+          && !eval_settled(editor.result)
+        )
         && eval_wait_attempts^ < max_eval_wait_attempts^ =>
     /* keep the pending flag; look again once evaluation has had a beat */
     incr(eval_wait_attempts);

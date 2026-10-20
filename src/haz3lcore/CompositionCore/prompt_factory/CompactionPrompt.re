@@ -167,7 +167,7 @@ let preamble_sections =
     "  `remove_statics`, `toggle_statics`, `place_syntax_projector`, `remove_syntax_projector`,",
     "  `toggle_syntax_projector`.",
     "- **Edit**: `update_definition`, `update_body`, `update_pattern`, `update_binding_clause`,",
-    "  `insert_before`, `insert_after`, `delete_binding_clause`, `delete_body`, and related.",
+    "  `insert_before`, `insert_after`, `insert_test`, `delete_binding_clause`, `delete_body`, and related.",
     "- **Plan / workbench**: `create_new_task`, `mark_active_subtask_complete`, `mark_active_task_complete`,",
     "  `set_active_task`, `unset_active_task`, and related — these **do not** by themselves change the program tree.",
     "",

@@ -26,6 +26,26 @@ let read = path => {
   text;
 };
 
+/* Whether `sub` occurs in `text`, by a plain scan. (Str.search_forward
+   did this, at load, for every slide, and under js_of_ocaml Str's matcher
+   took about 22 s of every test run's start before any test ran.) */
+let contains = (text: string, sub: string): bool => {
+  let n = String.length(text)
+  and k = String.length(sub);
+  let found = ref(false)
+  and i = ref(0);
+  while (! found^ && i^ + k <= n) {
+    let j = ref(0);
+    while (j^ < k && text.[i^ + j^] == sub.[j^]) {
+      incr(j);
+    };
+    if (j^ == k) {
+      found := true;
+    };
+    incr(i);
+  };
+  found^;
+};
 /* Every .hz under the livelit slides, one folder deep, with a projected
    use in it. */
 let slides = () => {
@@ -44,12 +64,7 @@ let slides = () => {
            |> List.concat_map(hz(f))
          : hz("", f);
      })
-  |> List.filter(f => {
-       let text = read(Filename.concat(r, f));
-       try(Str.search_forward(Str.regexp_string("^^livelit("), text, 0) >= 0) {
-       | Not_found => false
-       };
-     });
+  |> List.filter(f => contains(read(Filename.concat(r, f)), "^^livelit("));
 };
 
 /* The text with each `^^livelit(e)` replaced by `e`: what removing the
@@ -178,7 +193,7 @@ let higher_order_expansion = () => {
 /* Emotion (Kids' Choice): the slide means how its face reads, and its
    view draws candy only as far as the head is exploded. */
 let kids_emotion = () => {
-  let text = read(Filename.concat(root(), "emotion-kids.hz"));
+  let text = read(Filename.concat(root(), "playground/emotion-kids.hz"));
   let (m, elab) = load(~source="emotion-kids", text);
   check(list(string), "no errors", [], messages(m));
   check(
@@ -186,7 +201,8 @@ let kids_emotion = () => {
     "means how the face reads",
     Test_UserLivelits.run(
       "(feeling = \"happy\", smile = 85, brow = 30, exploded = 0, candy = 0, "
-      ++ "eyes = \"plain\", eye_size = 50, side_lines = 0, rays = 0, teeth = 0)",
+      ++ "eyes = \"plain\", eye_size = 50, side_lines = 0, rays = 0, teeth = 0, "
+      ++ "mouth_open = 0, sickness = 0, unibrow = true)",
     ),
     Evaluator.evaluate(~env=Builtins.env_init, elab) |> fst,
   );
@@ -210,7 +226,9 @@ let kids_emotion = () => {
       ++ ")), rays = SpliceRef((\"r\", "
       ++ string_of_int(r)
       ++ ")), "
-      ++ "teeth = SpliceRef((\"t\", 0))))";
+      ++ "teeth = SpliceRef((\"t\", 0)), opening = SpliceRef((\"o\", 0)), "
+      ++ "x_eyes = SpliceRef((\"xe\", false)), sickness = 0, "
+      ++ "unibrow = SpliceRef((\"ub\", true))))";
     /* Loaded as the editor loads a slide: Test_UserLivelits.run parses
        another way, which takes ~45 s on a program this size. */
     let (_, elab) = load(~source="emotion-kids-view", program);
@@ -303,7 +321,7 @@ let lockable_cell = () => {
 /* 1990s Face: the slide means its caption, for the stamp its slider
    picks. */
 let nineties_face = () => {
-  let text = read(Filename.concat(root(), "nineties-face.hz"));
+  let text = read(Filename.concat(root(), "playground/nineties-face.hz"));
   let (m, elab) = load(~source="nineties-face", text);
   check(list(string), "no errors", [], messages(m));
   check(
@@ -336,7 +354,18 @@ let nineties_face = () => {
 let tests = (
   "Unproject",
   slides()
-  |> List.map(f => test_case(f, `Quick, check_slide(f)))
+  /* A slide too long for the per-PR corpus parses (ParsedCorpus.long_text,
+     the Dress Up slides) is checked here in the full tests only: these
+     ten were 229 s of the quick suite's 571 s, on a laptop. */
+  |> List.map(f =>
+       test_case(
+         f,
+         String.length(read(Filename.concat(root(), f)))
+         > ParsedCorpus.long_text
+           ? `Slow : `Quick,
+         check_slide(f),
+       )
+     )
   |> List.append([
        test_case("Splices in Text", `Quick, splices_in_text),
        test_case("Emotion (Kids' Choice)", `Quick, kids_emotion),

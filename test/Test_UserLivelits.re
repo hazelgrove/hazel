@@ -1515,6 +1515,42 @@ let shape_member = () => {
   );
 };
 
+/* A shape computed rather than written -- as ^choice counts its buttons'
+   rows -- is not a literal, so the static reading gives the default, and
+   the projector evaluates the definition for it (evaluated_shape). */
+let computed_shape_member = () => {
+  let ll = mk_ll(def_with(~extra="let shape = Block(18 * 2, 1 + 2)"));
+  check(
+    bool,
+    "the static reading falls back to the default",
+    true,
+    ll.shape == UserLivelit.default_shape,
+  );
+  let evaluated =
+    Option.bind(ll.user_def, Haz3lcore.LivelitProj.evaluated_shape);
+  check(
+    bool,
+    "evaluating the definition gives the shape",
+    true,
+    evaluated
+    == Some(
+         {
+           horizontal: 36,
+           vertical: Block(2),
+         }: Util.ProjectorShape.t,
+       ),
+  );
+  /* a function of the model is model_shape's, not this */
+  let by_model =
+    mk_ll(def_with(~extra="let shape = fun _m -> Inline(20)")).user_def;
+  check(
+    bool,
+    "a shape function is left alone",
+    true,
+    Option.bind(by_model, Haz3lcore.LivelitProj.evaluated_shape) == None,
+  );
+};
+
 let bad_def_marked = () => {
   let (m, _) = statics("let ^x = 5 in 1");
   check(
@@ -1740,6 +1776,7 @@ let probe_run = (text: string) => {
         ~settings=CoreSettings.on,
         ~info_map,
         ~probe_ids,
+        (),
       );
     let (_, state) =
       Evaluator.evaluate(
@@ -2181,6 +2218,7 @@ let tests = [
       test_case("module missing types", `Quick, missing_types_marked),
       test_case("module adapter", `Quick, module_adapter),
       test_case("shape member", `Quick, shape_member),
+      test_case("computed shape member", `Quick, computed_shape_member),
       test_case("multiple uses", `Quick, multiple_uses),
       test_case("members out of order", `Quick, members_out_of_order),
       test_case("helpers inside definition", `Quick, helpers_in_def),

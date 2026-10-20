@@ -674,7 +674,9 @@ let test_info_map_by_piece = () =>
       let missing =
         tiles(seg)
         |> List.filter_map((t: Haz3lcore.Tile.t) =>
-             Id.Map.mem(t.id, m) ? None : Some(String.concat("", t.label))
+             Id.Map.mem(t.id, m)
+               ? None
+               : Some(String.concat("", Haz3lcore.Form.label_of(t.form)))
            );
       Alcotest.check(
         Alcotest.(list(string)),

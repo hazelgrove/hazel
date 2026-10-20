@@ -12,49 +12,52 @@ module Local = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(API.Json.t);
 
-  let tools = [
-    ViewTools.expand,
-    ViewTools.collapse,
-    DocsTools.read_docs,
-    ProbeTools.place_probe,
-    ProbeTools.remove_probe,
-    ProbeTools.toggle_probe,
-    StaticsTools.place_statics,
-    StaticsTools.remove_statics,
-    StaticsTools.toggle_statics,
-    SyntaxProjectorTools.place_syntax_projector,
-    SyntaxProjectorTools.remove_syntax_projector,
-    SyntaxProjectorTools.toggle_syntax_projector,
-    EditTools.update_definition,
-    EditTools.update_body,
-    EditTools.update_pattern,
-    EditTools.update_binding_clause,
-    EditTools.delete_binding_clause,
-    EditTools.delete_body,
-    EditTools.insert_after,
-    EditTools.insert_before,
-    WorkbenchTools.create_new_task,
-    WorkbenchTools.set_active_task,
-    WorkbenchTools.unset_active_task,
-    WorkbenchTools.set_active_subtask,
-    WorkbenchTools.unset_active_subtask,
-    WorkbenchTools.mark_active_task_complete,
-    WorkbenchTools.mark_active_task_incomplete,
-    WorkbenchTools.mark_active_subtask_complete,
-    WorkbenchTools.mark_active_subtask_incomplete,
-    WorkbenchTools.mark_active_subtask_failed,
-    WorkbenchTools.mark_active_task_failed,
-    WorkbenchTools.add_new_subtask_to_active_task,
-    WorkbenchTools.reorder_subtasks_in_active_task,
-    WorkbenchTools.update_active_task,
-    WorkbenchTools.update_active_subtask,
-    WorkbenchTools.delete_task,
-    WorkbenchTools.delete_subtask,
-  ];
+  /* read_docs is offered only when the pack registry is non-empty */
+  let docs_tools = DocPacks.all == [] ? [] : [DocsTools.read_docs];
+  let tools =
+    [ViewTools.expand, ViewTools.collapse]
+    @ docs_tools
+    @ [
+      ProbeTools.place_probe,
+      ProbeTools.remove_probe,
+      ProbeTools.toggle_probe,
+      StaticsTools.place_statics,
+      StaticsTools.remove_statics,
+      StaticsTools.toggle_statics,
+      SyntaxProjectorTools.place_syntax_projector,
+      SyntaxProjectorTools.remove_syntax_projector,
+      SyntaxProjectorTools.toggle_syntax_projector,
+      EditTools.update_definition,
+      EditTools.update_body,
+      EditTools.update_pattern,
+      EditTools.update_binding_clause,
+      EditTools.delete_binding_clause,
+      EditTools.delete_body,
+      EditTools.insert_after,
+      EditTools.insert_before,
+      EditTools.insert_test,
+      WorkbenchTools.create_new_task,
+      WorkbenchTools.set_active_task,
+      WorkbenchTools.unset_active_task,
+      WorkbenchTools.set_active_subtask,
+      WorkbenchTools.unset_active_subtask,
+      WorkbenchTools.mark_active_task_complete,
+      WorkbenchTools.mark_active_task_incomplete,
+      WorkbenchTools.mark_active_subtask_complete,
+      WorkbenchTools.mark_active_subtask_incomplete,
+      WorkbenchTools.mark_active_subtask_failed,
+      WorkbenchTools.mark_active_task_failed,
+      WorkbenchTools.add_new_subtask_to_active_task,
+      WorkbenchTools.reorder_subtasks_in_active_task,
+      WorkbenchTools.update_active_task,
+      WorkbenchTools.update_active_subtask,
+      WorkbenchTools.delete_task,
+      WorkbenchTools.delete_subtask,
+    ];
 
   /** Read an optional string field: None when absent or empty-string, Some otherwise.
       Empty-string is treated as absent so LLMs that emit `"path": ""` still hit the
-      no-path branch of insert_before/insert_after. */
+      no-path branch of insert_before/insert_after/insert_test. */
   let get_optional_string = (args: API.Json.t, field: string): option(string) => {
     switch (API.Json.dot(field, args)) {
     | Some(`String("")) => None
@@ -179,6 +182,13 @@ module Local = {
               | Some(path) => EditorAction(Insert(Before, path, code))
               | None => InsertAtProgramBoundary(Before, code)
               };
+            | "insert_test" =>
+              EditorAction(
+                InsertTest(
+                  get_optional_string(args, "path"),
+                  get_string(args, "code"),
+                ),
+              )
             | "delete_binding_clause" =>
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>

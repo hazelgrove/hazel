@@ -73,6 +73,7 @@ type t =
   | Redo
   | TydiAssistant
   | GoToDefinition
+  | FocusOutline
   | GoToPreviousProblem
   | GoToNextProblem
   | SelectCurrentTerm
@@ -87,6 +88,8 @@ type t =
   | Statics
   | Livelit
   | Introduce
+  | ReIndent
+  | NormalizeSpacing
   | PrettyPrint
   | AddNewCodeScratchpad
   | AddNewDerivationScratchpad
@@ -102,6 +105,9 @@ type t =
   | ReparseCurrentEditor
   | ToggleStatics
   | ToggleCompletion
+  | CompletionDisplayQuiver
+  | CompletionDisplayFlag
+  | CompletionDisplayNone
   | ToggleShowWhitespace
   | ToggleCharacterLevelMouse
   | TogglePrintBenchmarks
@@ -152,6 +158,12 @@ let meta = (a: t): action_meta =>
       section: Navigation,
       mdIcon: "arrow_forward",
       default_binding: Bound([], "F12"),
+    }
+  | FocusOutline => {
+      label: "Focus the Outline",
+      section: Navigation,
+      mdIcon: "list",
+      default_binding: Bound([Alt], "o"),
     }
   | GoToPreviousProblem => {
       label: "Go to Previous Problem",
@@ -237,11 +249,23 @@ let meta = (a: t): action_meta =>
       mdIcon: "bolt",
       default_binding: Bound([Meta], "i"),
     }
+  | ReIndent => {
+      label: "Re-indent",
+      section: Formatting,
+      mdIcon: "format_indent_increase",
+      default_binding: Unbound,
+    }
+  | NormalizeSpacing => {
+      label: "Normalize Spacing",
+      section: Formatting,
+      mdIcon: "space_bar",
+      default_binding: Unbound,
+    }
   | PrettyPrint => {
       label: "Pretty Print",
       section: Formatting,
       mdIcon: "format_align_left",
-      default_binding: Bound([Meta], "s"),
+      default_binding: Bound([Meta, Shift], "s"),
     }
   | AddNewCodeScratchpad => {
       label: "Add New Code Scratchpad",
@@ -325,6 +349,24 @@ let meta = (a: t): action_meta =>
       label: "Toggle Completion",
       section: Settings,
       mdIcon: "tune",
+      default_binding: Unbound,
+    }
+  | CompletionDisplayQuiver => {
+      label: "Completion Display: Quiver",
+      section: Settings,
+      mdIcon: "quiver",
+      default_binding: Unbound,
+    }
+  | CompletionDisplayFlag => {
+      label: "Completion Display: Flag",
+      section: Settings,
+      mdIcon: "flag",
+      default_binding: Unbound,
+    }
+  | CompletionDisplayNone => {
+      label: "Completion Display: None",
+      section: Settings,
+      mdIcon: "visibility_off",
       default_binding: Unbound,
     }
   | ToggleShowWhitespace => {

@@ -1,0 +1,927 @@
+# Eyes #
+
+# The head gets eyes, as Messed Up Dress Up draws them, in its own #
+# face units: plain, stars, hearts or x eyes, with sliders for their #
+# size, the gap between them, their shape and angle, an iris and eye #
+# whites, and the shine. However big or slanted the eyes, the gap #
+# between them stays as set, and the head grows wider to hold them. #
+
+# THE PICTURE, AS TYPES #
+
+# A point in the plane, x across and y down, as the drawing has it. #
+type Point = (Float, Float) in
+
+# A vertex is a point and, if it is one, the name of its anchor. #
+type Label = + Plain + Anchor(String) in
+type Vertex = (at = Point, label = Label) in
+
+# A closed polygon has a stroke and a fill; an open path a stroke only. #
+type Stroke = (width = Float, color = String) in
+type Shape =
+  + Polygon((name = String, points = [Vertex], stroke = Stroke, fill = String))
+  + Path((name = String, points = [Vertex], stroke = Stroke))
+in
+
+# A picture is its shapes, drawn in order: the first is underneath. #
+type Picture = [Shape] in
+
+# FOUND OR MISSING #
+
+# An anchor's point, if a shape has one of that name. #
+type Found = + Found(Point) + Missing in
+
+# An eye's style, as its buttons name it. #
+type EyeStyle = + PlainEyes + StarEyes + HeartEyes + XEyes in
+
+# DRAWING, AS A LIBRARY #
+
+# The editor, the picture viewer, the radio buttons, and the functions #
+# that place pieces by their anchors: one module, so its livelits are #
+# used by member name -- Drawing.^polygons, Drawing.^picture, #
+# Drawing.^choice. #
+
+module Drawing = {
+  let ^polygons = {
+    # The picture, and where the editor is: the shape being edited, the #
+    # point chosen in it (-1 for none), and a drag, held and whether it #
+    # has moved yet -- a press that does not move only chooses. #
+    type Model =
+      (shapes = Picture, current = Int, chosen = Int, held = Bool, moved = Bool);
+    type Action =
+      + Down(Int, Int) + MoveTo(Int, Int) + Up
+      + NewPolygon + NewPath + Toggle + Remove + Next + Prev
+      + SetName(String) + SetWidth(String) + SetStroke(String) + SetFill(String)
+      + SetAnchor(String);
+    type Expansion = Picture;
+
+    let init = Pure((shapes = [], current = -1, chosen = -1, held = false, moved = false));
+
+    # LISTS #
+    let len : [Shape] -> Int =
+      fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
+    let count : [Vertex] -> Int =
+      fun xs -> case xs | [] => 0 | _ :: tl => 1 + count(tl) end;
+    let shape_at : (Picture, Int) -> Shape =
+      fun xs, i ->
+        case xs
+        | [] => Path((name = "", points = [], stroke = (width = 1., color = "black")))
+        | hd :: tl => if i <= 0 then hd else shape_at(tl, i - 1)
+        end;
+    let set_shape : (Picture, Int, Shape) -> Picture =
+      fun xs, i, s ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then s :: tl else hd :: set_shape(tl, i - 1, s)
+        end;
+    let drop_shape : (Picture, Int) -> Picture =
+      fun xs, i ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then tl else hd :: drop_shape(tl, i - 1)
+        end;
+    let vertex_at : ([Vertex], Int) -> Vertex =
+      fun xs, i ->
+        case xs
+        | [] => (at = (0., 0.), label = Plain)
+        | hd :: tl => if i <= 0 then hd else vertex_at(tl, i - 1)
+        end;
+    let set_vertex : ([Vertex], Int, Vertex) -> [Vertex] =
+      fun xs, i, v ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then v :: tl else hd :: set_vertex(tl, i - 1, v)
+        end;
+
+    # SHAPES #
+    let points_of : Shape -> [Vertex] =
+      fun s -> case s | Polygon(p) => p.points | Path(p) => p.points end;
+    let with_points : (Shape, [Vertex]) -> Shape =
+      fun s, vs ->
+        case s
+        | Polygon(p) => Polygon((name = p.name, points = vs, stroke = p.stroke, fill = p.fill))
+        | Path(p) => Path((name = p.name, points = vs, stroke = p.stroke))
+        end;
+    let name_of : Shape -> String =
+      fun s -> case s | Polygon(p) => p.name | Path(p) => p.name end;
+    let stroke_of : Shape -> Stroke =
+      fun s -> case s | Polygon(p) => p.stroke | Path(p) => p.stroke end;
+    let with_stroke : (Shape, Stroke) -> Shape =
+      fun s, k ->
+        case s
+        | Polygon(p) => Polygon((name = p.name, points = p.points, stroke = k, fill = p.fill))
+        | Path(p) => Path((name = p.name, points = p.points, stroke = k))
+        end;
+    let with_name : (Shape, String) -> Shape =
+      fun s, n ->
+        case s
+        | Polygon(p) => Polygon((name = n, points = p.points, stroke = p.stroke, fill = p.fill))
+        | Path(p) => Path((name = n, points = p.points, stroke = p.stroke))
+        end;
+    # Closing a path makes a polygon, filled white; opening a polygon #
+    # keeps its outline and drops the fill. #
+    let toggled : Shape -> Shape =
+      fun s ->
+        case s
+        | Polygon(p) => Path((name = p.name, points = p.points, stroke = p.stroke))
+        | Path(p) => Polygon((name = p.name, points = p.points, stroke = p.stroke, fill = "#ffffff"))
+        end;
+
+    # The point of the current shape within reach of a press, or -1. #
+    let near : ([Vertex], Float, Float, Int) -> Int =
+      fun vs, x, y, i ->
+        case vs
+        | [] => -1
+        | v :: tl =>
+          let (vx, vy) = v.at in
+          let dx = vx -. x in
+          let dy = vy -. y in
+          if dx *. dx +. dy *. dy <=. 64. then i else near(tl, x, y, i + 1)
+        end;
+
+    # Rebuild the model with some fields changed. #
+    let rebuild = fun (_m, shapes, current, chosen, held, moved) :
+        (Model, Picture, Int, Int, Bool, Bool) ->
+      (shapes = shapes, current = current, chosen = chosen, held = held, moved = moved);
+    let edit = fun (m, f) : (Model, Shape -> Shape) ->
+      if m.current < 0 then m
+      else rebuild((m, set_shape(m.shapes, m.current, f(shape_at(m.shapes, m.current))),
+               m.current, m.chosen, m.held, m.moved));
+
+    let update = fun m : Model -> fun a : Action -> Pure(
+      case a
+      | Down(px, py) =>
+        let x = float_of_int(px) in
+        let y = float_of_int(py) in
+        if m.current < 0 then
+          rebuild((m, m.shapes @ [Polygon((name = "shape", points = [(at = (x, y), label = Plain)],
+                                      stroke = (width = 2., color = "#333333"), fill = "#f2c94c"))],
+              len(m.shapes), 0, true, false))
+        else
+          let vs = points_of(shape_at(m.shapes, m.current)) in
+          let hit = near(vs, x, y, 0) in
+          if hit == -1 then
+            let added = with_points(shape_at(m.shapes, m.current), vs @ [(at = (x, y), label = Plain)]) in
+            rebuild((m, set_shape(m.shapes, m.current, added), m.current, count(vs), true, true))
+          else rebuild((m, m.shapes, m.current, hit, true, false))
+      | MoveTo(px, py) =>
+        if !m.held || m.chosen < 0 then m
+        else
+          let s = shape_at(m.shapes, m.current) in
+          let vs = points_of(s) in
+          let v = vertex_at(vs, m.chosen) in
+          let moved = with_points(s, set_vertex(vs, m.chosen,
+            (at = (float_of_int(px), float_of_int(py)), label = v.label))) in
+          rebuild((m, set_shape(m.shapes, m.current, moved), m.current, m.chosen, true, true))
+      | Up => rebuild((m, m.shapes, m.current, m.chosen, false, false))
+      | NewPolygon =>
+        rebuild((m, m.shapes @ [Polygon((name = "polygon", points = [], stroke = (width = 2., color = "#333333"), fill = "#9ecae1"))],
+            len(m.shapes), -1, false, false))
+      | NewPath =>
+        rebuild((m, m.shapes @ [Path((name = "path", points = [], stroke = (width = 2., color = "#333333")))],
+            len(m.shapes), -1, false, false))
+      | Toggle => edit((m, toggled))
+      | Remove =>
+        if m.current < 0 then m
+        else rebuild((m, drop_shape(m.shapes, m.current), m.current - 1, -1, false, false))
+      | Next =>
+        if len(m.shapes) == 0 then m
+        else rebuild((m, m.shapes, if m.current + 1 >= len(m.shapes) then 0 else m.current + 1, -1, false, false))
+      | Prev =>
+        if len(m.shapes) == 0 then m
+        else rebuild((m, m.shapes, if m.current <= 0 then len(m.shapes) - 1 else m.current - 1, -1, false, false))
+      | SetName(n) => edit((m, fun s -> with_name(s, n)))
+      | SetWidth(w) =>
+        edit((m, fun s -> with_stroke(s, (width = float_of_int(int_of_string(w)), color = stroke_of(s).color))))
+      | SetStroke(c) =>
+        edit((m, fun s -> with_stroke(s, (width = stroke_of(s).width, color = c))))
+      | SetFill(c) =>
+        edit((m, fun s ->
+          case s
+          | Polygon(p) => Polygon((name = p.name, points = p.points, stroke = p.stroke, fill = c))
+          | Path(_) => s
+          end))
+      | SetAnchor(n) =>
+        if m.chosen < 0 then m
+        else edit((m, fun s ->
+          let vs = points_of(s) in
+          let v = vertex_at(vs, m.chosen) in
+          with_points(s, set_vertex(vs, m.chosen,
+            (at = v.at, label = if n == "" then Plain else Anchor(n))))))
+      end);
+
+    # DRAWING #
+    let num = fun x : Float -> to_fixed(x, 1);
+    # each point followed by a space, the last too (a points list may end #
+    # with one); to_fixed itself, not num, which cost a call a number #
+    let coords : [Vertex] -> String =
+      fun vs ->
+        case vs
+        | [] => ""
+        | v :: tl =>
+          let (x, y) = v.at in
+          to_fixed(x, 1) ++ "," ++ to_fixed(y, 1) ++ " " ++ coords(tl)
+        end;
+    let shape_node = fun s : Shape ->
+      case s
+      | Polygon(p) =>
+        Html.node("polygon",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", p.fill),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round")], [])
+      | Path(p) =>
+        Html.node("polyline",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", "none"),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round"),
+           Attr.create("stroke-linecap", "round")], [])
+      end;
+    let shape_nodes : Picture -> [Html.T] =
+      fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
+    # The current shape's points: a dot each, the chosen one coral, and #
+    # an anchor a diamond with its name beside it. #
+    let handle = fun (v, i, chosen) : (Vertex, Int, Int) ->
+      let (x, y) = v.at in
+      let fill = if i == chosen then "coral" else "teal" in
+      case v.label
+      | Plain =>
+        [Html.node("circle",
+           [Attr.create("cx", num(x)), Attr.create("cy", num(y)),
+            Attr.create("r", "5"), Attr.create("fill", fill)], [])]
+      | Anchor(n) =>
+        [Html.node("rect",
+           [Attr.create("x", num(x -. 5.)), Attr.create("y", num(y -. 5.)),
+            Attr.create("width", "10"), Attr.create("height", "10"),
+            Attr.create("fill", fill),
+            Attr.create("transform", "rotate(45 " ++ num(x) ++ " " ++ num(y) ++ ")")], []),
+         Html.node("text",
+           [Attr.create("x", num(x +. 9.)), Attr.create("y", num(y -. 7.)),
+            Attr.create("font-size", "11"),
+            Attr.create("font-family", "var(--code-font)")],
+           [Html.text(n)])]
+      end;
+    let handles : ([Vertex], Int, Int) -> [Html.T] =
+      fun vs, i, chosen ->
+        case vs | [] => [] | v :: tl => handle((v, i, chosen)) @ handles(tl, i + 1, chosen) end;
+
+    let control = fun (label, input) : (String, Html.T) ->
+      Html.node("label", [Attr.style([("display", "flex"), ("gap", "0.4em"), ("align-items", "center")])],
+        [Html.text(label), input]);
+    let button = fun (label, a) : (String, Action) ->
+      Html.button([Attr.on_click(a)], [Html.text(label)]);
+
+    let view = fun m : Model -> Pure(
+      let s = shape_at(m.shapes, m.current) in
+      let editing = m.current >= 0 in
+      let chosen_label =
+        if m.chosen < 0 then ""
+        else case vertex_at(points_of(s), m.chosen).label | Plain => "" | Anchor(n) => n end in
+      Html.div([Attr.style([("font-family", "var(--code-font)"), ("font-size", "0.8em")])], [
+        Html.node("svg",
+          [Attr.create("viewBox", "0 0 320 240"), Attr.width("320"), Attr.height("240"),
+           Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")]),
+           Attr.on_mouse_down_at(fun (x, y) -> Down(x, y)),
+           Attr.on_mouse_move_at(fun (x, y) -> MoveTo(x, y)),
+           Attr.on_mouse_up_at(fun _ -> Up)],
+          shape_nodes(m.shapes) @ (if editing then handles(points_of(s), 0, m.chosen) else [])),
+        Html.div([Attr.style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "0.4em"), ("margin", "0.4em 0")])],
+          [button(("new polygon", NewPolygon)), button(("new path", NewPath)),
+           button(("< shape", Prev)), button(("shape >", Next))]
+          @ (if editing then
+               [button((case s | Polygon(_) => "open it" | Path(_) => "close it" end, Toggle)),
+                button(("remove", Remove))]
+             else [])),
+        Html.div([Attr.style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "0.8em")])],
+          if !editing then [Html.text("no shape yet: click the drawing")]
+          else
+            [control(("name", Html.input([Attr.value(name_of(s)), Attr.on_input(fun v -> SetName(v))]))),
+             control(("width", Html.input([Attr.type_("range"), Attr.min("1"), Attr.max("12"),
+                       Attr.value(to_fixed(stroke_of(s).width, 0)),
+                       Attr.on_input(fun v -> SetWidth(v))]))),
+             control(("stroke", Html.input([Attr.type_("color"), Attr.value(stroke_of(s).color),
+                       Attr.on_input(fun v -> SetStroke(v))])))]
+            @ (case s
+               | Polygon(p) =>
+                 [control(("fill", Html.input([Attr.type_("color"), Attr.value(p.fill),
+                            Attr.on_input(fun v -> SetFill(v))])))]
+               | Path(_) => []
+               end)
+            @ (if m.chosen < 0 then []
+               else [control(("anchor", Html.input([Attr.value(chosen_label),
+                        Attr.placeholder("name this point"),
+                        Attr.on_input(fun v -> SetAnchor(v))])))])),
+        Html.div([Attr.style([("margin-top", "0.4em"), ("opacity", "0.7")])],
+          [Html.text(string_of_int(len(m.shapes)) ++ " shapes"
+            ++ (if editing then ", editing " ++ name_of(s) ++ " (" ++ string_of_int(count(points_of(s))) ++ " points)" else ""))])
+      ]));
+
+    let expand = Functional(fun m : Model -> m.shapes);
+    let shape = Block(46, 20)
+  };
+
+  # ^picture shows a picture it is given: its model is one splice, #
+  # the client's code for the picture, and its use means that #
+  # picture. A livelit cannot name the slide's own functions, so it #
+  # draws with its own few. #
+  let ^picture = {
+    type Model = (picture = SpliceRef);
+    type Action = ();
+    type Expansion = Picture;
+    let init = do p <- new_splice((AnyT, None)) in Pure((picture = p));
+    let update = fun m : Model -> fun _a : Action -> Pure(m);
+    let num = fun x : Float -> to_fixed(x, 1);
+    # each point followed by a space, the last too (a points list may end #
+    # with one); to_fixed itself, not num, which cost a call a number #
+    let coords : [Vertex] -> String =
+      fun vs ->
+        case vs
+        | [] => ""
+        | v :: tl =>
+          let (x, y) = v.at in
+          to_fixed(x, 1) ++ "," ++ to_fixed(y, 1) ++ " " ++ coords(tl)
+        end;
+    let shape_node = fun s : Shape ->
+      case s
+      | Polygon(p) =>
+        Html.node("polygon",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", p.fill),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round")], [])
+      | Path(p) =>
+        Html.node("polyline",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", "none"),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round"),
+           Attr.create("stroke-linecap", "round")], [])
+      end;
+    let shape_nodes : Picture -> [Html.T] =
+      fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
+    # The frame: every point, with a margin, made the viewer's shape, #
+    # 320 by 440, about its middle. It fits the drawing, so a slide that #
+    # draws only a head shows the head large; a slide that wants its #
+    # frame to stay put while the drawing changes adds Drawing.frame. #
+    # A picture with a frame is shown framed: the box is the frame's, #
+    # whatever else it draws, and anything outside it is cut off. Its #
+    # points are not walked either: in the woods, that walk was over #
+    # half of the view's work. #
+    let vertices_of = fun s : Shape ->
+      case s | Polygon(p) => p.points | Path(p) => p.points end;
+    let grow = fun ((x0, y0, x1, y1), v) : ((Float, Float, Float, Float), Vertex) ->
+      let (x, y) = v.at in
+      ((if x -. 12. <. x0 then x -. 12. else x0),
+       (if y -. 12. <. y0 then y -. 12. else y0),
+       (if x +. 12. >. x1 then x +. 12. else x1),
+       (if y +. 12. >. y1 then y +. 12. else y1));
+    let grow_all : ((Float, Float, Float, Float), [Vertex]) -> (Float, Float, Float, Float) =
+      fun (b, vs) -> case vs | [] => b | v :: tl => grow_all((grow((b, v)), tl)) end;
+    let bounds : ((Float, Float, Float, Float), Picture) -> (Float, Float, Float, Float) =
+      fun (b, ss) ->
+        case ss | [] => b | s :: tl => bounds((grow_all((b, vertices_of(s))), tl)) end;
+    let framing : Picture -> Picture =
+      fun ss ->
+        case ss
+        | [] => []
+        | s :: tl =>
+          case s
+          | Path(p) => if p.name == "frame" then [s] else framing(tl)
+          | _ => framing(tl)
+          end
+        end;
+    let view_box = fun pic : Picture ->
+      let boxed = case framing(pic) | [] => pic | f => f end in
+      let start =
+        case boxed
+        | [] => (0., 0., 0., 0.)
+        | s :: _ =>
+          case vertices_of(s)
+          | [] => (0., 0., 0., 0.)
+          | v :: _ => let (x, y) = v.at in (x, y, x, y)
+          end
+        end in
+      let (x0, y0, x1, y1) = bounds((start, boxed)) in
+      let (w, h) = (x1 -. x0, y1 -. y0) in
+      let (w2, h2) =
+        if w *. 440. >. h *. 320. then (w, w *. 440. /. 320.) else (h *. 320. /. 440., h) in
+      num(x0 -. (w2 -. w) /. 2.) ++ " " ++ num(y0 -. (h2 -. h) /. 2.) ++ " "
+      ++ num(w2) ++ " " ++ num(h2);
+    let view = fun m : Model ->
+      do r <- eval_splice(m.picture) in
+      Pure(
+        case r
+        | Some(Val(pic)) =>
+          Html.node("svg",
+            [Attr.create("viewBox", view_box(pic)), Attr.width("320"),
+             Attr.height("440"),
+             Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")])],
+            shape_nodes(pic))
+        | _ =>
+          Html.div([Attr.style([("font-family", "var(--code-font)"), ("font-size", "0.8em")])],
+            [Html.text("no picture yet")])
+        end);
+    # A Macro: the picture is the client's code, so a use means it. #
+    let expand = Macro(fun m : Model -> (quote fun p -> p end, [m.picture]));
+    let shape = Block(34, 22)
+  };
+
+  # PLACING #
+
+  let points_of : Shape -> [Vertex] =
+    fun s -> case s | Polygon(p) => p.points | Path(p) => p.points end;
+  let with_points : (Shape, [Vertex]) -> Shape =
+    fun s, vs ->
+      case s
+      | Polygon(p) => Polygon((name = p.name, points = vs, stroke = p.stroke, fill = p.fill))
+      | Path(p) => Path((name = p.name, points = vs, stroke = p.stroke))
+      end;
+  let anchor_in : ([Vertex], String) -> Found =
+    fun vs, n ->
+      case vs
+      | [] => Missing
+      | v :: tl =>
+        case v.label
+        | Anchor(a) => if a == n then Found(v.at) else anchor_in(tl, n)
+        | Plain => anchor_in(tl, n)
+        end
+      end;
+  # The first shape in a picture with an anchor of that name has it. #
+  let anchor : (Picture, String) -> Found =
+    fun pic, n ->
+      case pic
+      | [] => Missing
+      | s :: tl =>
+        case anchor_in(points_of(s), n) | Found(p) => Found(p) | Missing => anchor(tl, n) end
+      end;
+  # Every point of every shape moved by (dx, dy). #
+  let shift_points : ([Vertex], Float, Float) -> [Vertex] =
+    fun vs, dx, dy ->
+      case vs
+      | [] => []
+      | v :: tl =>
+        let (x, y) = v.at in
+        (at = (x +. dx, y +. dy), label = v.label) :: shift_points(tl, dx, dy)
+      end;
+  let shift : (Picture, Float, Float) -> Picture =
+    fun pic, dx, dy ->
+      case pic
+      | [] => []
+      | s :: tl => with_points(s, shift_points(points_of(s), dx, dy)) :: shift(tl, dx, dy)
+      end;
+  # `under(piece, a, base, b)`: the piece moved so its anchor a lands on #
+  # the base's anchor b, drawn first, so the base is on top. Without #
+  # both anchors, the piece is left where it was drawn. #
+  let under : (Picture, String, Picture, String) -> Picture =
+    fun piece, a, base, b ->
+      case (anchor(piece, a), anchor(base, b))
+      | (Found((px, py)), Found((bx, by))) => shift(piece, bx -. px, by -. py) @ base
+      | _ => piece @ base
+      end;
+
+  # ^choice: one of several values, pressed like an old car radio's #
+  # buttons -- the configuration panel's, here as a library member. #
+  let ^choice = typfun A -> fun cases : [(String, A)] -> {
+    type Model = A;
+    type Action = A;
+    type Expansion = A;
+    let init = let (_, v) = head(cases) in Pure(v);
+    let update = fun _m : Model -> fun a : Action -> Pure(a);
+    let button = fun (label, v, pressed) : (String, A, Bool) ->
+      Html.button(
+        [Attr.class("choice-button"), Attr.disabled(pressed),
+         Attr.on_click(v)],
+        [Html.text(label)]);
+    let view = fun m : Model -> Pure(
+      Html.div(
+        [Attr.class("choice")],
+        map((cases, fun (label, v) : (String, A) ->
+          button((label, v, v == m))))));
+    let expand = Functional(fun m : Model -> m);
+    # As many lines as its buttons take, wrapped into rows 36 columns #
+    # wide: a button is about 3/4 of a column a letter, and 2 more for #
+    # its edges and the gap after it. #
+    let shape =
+      let rows = fun (cs, col, n) : ([(String, A)], Int, Int) ->
+        case cs
+        | [] => n
+        | (label, _) :: tl =>
+          let w = (3 * string_length(label) + 8) / 4 in
+          if col + w > 36 then rows((tl, w, n + 1))
+          else rows((tl, col + w, n))
+        end in
+      Block(36, rows((cases, 0, 1)))
+  };
+  # ^slider: a number in a range, set with a slider and labelled. #
+  let ^slider = fun (label, lo, hi) : (String, Int, Int) -> {
+    type Model = Int;
+    type Action = Int;
+    type Expansion = Int;
+    let init = Pure((lo + hi) / 2);
+    let update = fun _m : Model -> fun a : Action -> Pure(a);
+    let view = fun m : Model -> Pure(
+      Html.div(
+        [Attr.style([("display", "flex"), ("gap", "0.5em"), ("align-items", "center"),
+                     ("font-family", "var(--code-font)"), ("font-size", "0.8em")])],
+        [Html.span([Attr.style([("white-space", "nowrap")])], [Html.text(label)]),
+         Html.input([
+           Attr.type_("range"),
+           Attr.min(string_of_int(lo)), Attr.max(string_of_int(hi)),
+           Attr.value(string_of_int(m)),
+           Attr.style([("flex", "1"), ("min-width", "0")]),
+           Attr.on_input(fun s -> int_of_string(s))]),
+         Html.span([Attr.style([("white-space", "nowrap"), ("min-width", "3ch")])],
+           [Html.text(string_of_int(m))])]));
+    let expand = Functional(fun m : Model -> m);
+    let shape = Inline(34)
+  };
+
+  # A piece moved so its anchor a lands on the base's anchor b, or left #
+  # where it was drawn without both. Layering is up to the client: a #
+  # picture is drawn in order, so put the pieces in the order to stack. #
+  let placed : (Picture, String, Picture, String) -> Picture =
+    fun piece, a, base, b ->
+      case (anchor(piece, a), anchor(base, b))
+      | (Found((px, py)), Found((bx, by))) => shift(piece, bx -. px, by -. py)
+      | _ => piece
+      end;
+
+  # A picture mirrored left to right: a right shoe makes a left one. #
+  let mirror_points : [Vertex] -> [Vertex] =
+    fun vs ->
+      case vs
+      | [] => []
+      | v :: tl =>
+        let (x, y) = v.at in
+        (at = (0. -. x, y), label = v.label) :: mirror_points(tl)
+      end;
+  let mirrored : Picture -> Picture =
+    fun pic ->
+      case pic
+      | [] => []
+      | s :: tl => with_points(s, mirror_points(points_of(s))) :: mirrored(tl)
+      end;
+
+  # The shapes of a picture with that name. #
+  let named : (Picture, String) -> Picture =
+    fun pic, n ->
+      case pic
+      | [] => []
+      | s :: tl =>
+        let name = case s | Polygon(p) => p.name | Path(p) => p.name end in
+        if name == n then s :: named(tl, n) else named(tl, n)
+      end;
+
+  # A box for the picture: an invisible path along its diagonal, for a #
+  # slide whose frame should stay put while what it draws changes -- #
+  # the arms swinging, the eyes growing. ^picture shows exactly this #
+  # box (with its margin), and cuts off anything outside it. #
+  let frame = fun (x0, y0, x1, y1) : (Float, Float, Float, Float) ->
+    [Path((name = "frame",
+           points = [(at = (x0, y0), label = Plain), (at = (x1, y1), label = Plain)],
+           stroke = (width = 0., color = "none")))]
+} in
+
+# HELPERS #
+
+let fmin = fun (x, y) : (Float, Float) -> if x <. y then x else y in
+let fmax = fun (x, y) : (Float, Float) -> if x >. y then x else y in
+let fabs = fun x : Float -> if x <. 0. then 0. -. x else x in
+
+# Every point x-scaled about cx, and those below cy y-scaled. #
+let stretch_points : ([Vertex], Float, Float, Float, Float) -> [Vertex] =
+  fun (vs, cx, cy, sx, sy) ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      (at = (cx +. (x -. cx) *. sx, if y >. cy then cy +. (y -. cy) *. sy else y),
+       label = v.label)
+      :: stretch_points((tl, cx, cy, sx, sy))
+    end in
+let stretch : (Picture, Float, Float, Float, Float) -> Picture =
+  fun (pic, cx, cy, sx, sy) ->
+    case pic
+    | [] => []
+    | sh :: tl =>
+      Drawing.with_points(sh, stretch_points((Drawing.points_of(sh), cx, cy, sx, sy)))
+      :: stretch((tl, cx, cy, sx, sy))
+    end in
+
+let snd = fun (_, b) : (Float, Float) -> b in
+
+# THE HEAD #
+
+# A round face: its chin is the anchor that goes on the neck's top, #
+# and its crown the one the hair goes on. #
+
+let head = ^^livelit(Drawing.^polygons((
+  shapes = [
+    Polygon((
+      name = "head",
+      points = [
+        (at = (160.0, 84.0), label = Anchor("crown")),
+        (at = (178.0, 88.8), label = Plain),
+        (at = (191.2, 102.0), label = Plain),
+        (at = (196.0, 120.0), label = Plain),
+        (at = (191.2, 138.0), label = Plain),
+        (at = (178.0, 151.2), label = Plain),
+        (at = (160.0, 156.0), label = Anchor("chin")),
+        (at = (142.0, 151.2), label = Plain),
+        (at = (128.8, 138.0), label = Plain),
+        (at = (124.0, 120.0), label = Plain),
+        (at = (128.8, 102.0), label = Plain),
+        (at = (142.0, 88.8), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#8a5a44"),
+      fill = "#f1c27d"))
+  ],
+  current = 0, chosen = -1, held = false, moved = false))) in
+
+# THE FACE, IN THE GAME'S UNITS #
+
+# The game's face units on the head drawn here: its head is 160 high #
+# about (100, 110.6), and this one runs from its crown to its chin. #
+# (Found once: every point of the face goes through to_head.) #
+let (crown_x, crown_y, face_scale) =
+  case (Drawing.anchor(head, "crown"), Drawing.anchor(head, "chin"))
+  | (Found((cx, cy)), Found((_, chin))) => (cx, cy, (chin -. cy) /. 160.)
+  | _ => (100., 30.6, 1.)
+  end in
+let to_head = fun (u, v) : (Float, Float) ->
+  (crown_x +. (u -. 100.) *. face_scale, crown_y +. (v -. 30.6) *. face_scale) in
+
+# A shape made in face units, as a polygon on the head. #
+let on_head : [Point] -> [Vertex] =
+  fun ps ->
+    case ps
+    | [] => []
+    | p :: tl => (at = to_head(p), label = Plain) :: on_head(tl)
+    end in
+let face_shape = fun (name, ps, width, ink, fill) : (String, [Point], Float, String, String) ->
+  Polygon((name = name, points = on_head(ps),
+           stroke = (width = width *. face_scale, color = ink), fill = fill)) in
+
+# n points around a circle of radius r about (x, y), squashed by k top #
+# to bottom and then turned by t (radians) about its middle. #
+let round_eye : (Float, Float, Float, Float, Float, Int, Int) -> [Point] =
+  fun (x, y, r, k, t, n, i) ->
+    if i == n then []
+    else
+      let a = 2. *. pi *. float_of_int(i) /. float_of_int(n) in
+      let (px, py) = (r *. cos(a), k *. r *. sin(a)) in
+      (x +. px *. cos(t) -. py *. sin(t), y +. px *. sin(t) +. py *. cos(t))
+      :: round_eye((x, y, r, k, t, n, i + 1)) in
+# THE EYES #
+
+# Messed Up Dress Up's eye controls: the style, the iris color, the #
+# size, the gap between the eyes, their shape and angle, an iris and #
+# eye whites around the pupil, and the shine. #
+
+let eye_style = ^^livelit(Drawing.^choice@<EyeStyle>(
+  [("plain", PlainEyes), ("stars", StarEyes), ("hearts", HeartEyes), ("x eyes", XEyes)])(PlainEyes)) in
+let iris_color = ^^livelit(Drawing.^choice@<String>(
+  [("blue", "#3b82f6"), ("green", "#22c55e"), ("brown", "#8b5a2b"),
+   ("gray", "#9ca3af"), ("purple", "#8b5cf6")])("#3b82f6")) in
+let eye_size = ^^livelit(Drawing.^slider("eye size", -35, 300)(50)) in
+let eye_gap = ^^livelit(Drawing.^slider("eye gap", 0, 200)(38)) in
+let eye_shape = ^^livelit(Drawing.^slider("eye shape (round / narrow)", 0, 100)(0)) in
+let eye_angle = ^^livelit(Drawing.^slider("eye angle", -60, 60)(0)) in
+let iris_size = ^^livelit(Drawing.^slider("iris size", 0, 150)(0)) in
+let eye_whites = ^^livelit(Drawing.^slider("eye whites", 0, 150)(0)) in
+let shine_size = ^^livelit(Drawing.^slider("shine size", 0, 150)(45)) in
+
+# A star of five points, r to its points, turned by t. #
+let star_eye : (Float, Float, Float, Float, Int) -> [Point] =
+  fun (x, y, r, t, i) ->
+    if i == 10 then []
+    else
+      let a = t -. pi /. 2. +. float_of_int(i) *. pi /. 5. in
+      let rr = if i == 1 || i == 3 || i == 5 || i == 7 || i == 9 then r *. 0.45 else r in
+      (x +. rr *. cos(a), y +. rr *. sin(a)) :: star_eye((x, y, r, t, i + 1)) in
+# A heart, r across from its middle, turned by t. #
+let heart_eye : (Float, Float, Float, Float, Int) -> [Point] =
+  fun (x, y, r, t, i) ->
+    if i == 24 then []
+    else
+      let a = 2. *. pi *. float_of_int(i) /. 24. in
+      let s3 = sin(a) *. sin(a) *. sin(a) in
+      let hx = r *. s3 in
+      let hy = 0. -. r /. 16. *. (13. *. cos(a) -. 5. *. cos(2. *. a) -. 2. *. cos(3. *. a) -. cos(4. *. a)) in
+      (x +. hx *. cos(t) -. hy *. sin(t), y +. hx *. sin(t) +. hy *. cos(t))
+      :: heart_eye((x, y, r, t, i + 1)) in
+# A stroke w wide from a to b, as a polygon. #
+let stroke_eye = fun ((ax, ay), (bx, by), w) : (Point, Point, Float) ->
+  let (dx, dy) = (bx -. ax, by -. ay) in
+  let d = sqrt(dx *. dx +. dy *. dy) in
+  let (nx, ny) = (0. -. dy /. d *. w /. 2., dx /. d *. w /. 2.) in
+  [(ax +. nx, ay +. ny), (bx +. nx, by +. ny), (bx -. nx, by -. ny), (ax -. nx, ay -. ny)] in
+
+# One eye at x, in face units, slanted by deg: the game's eye(). #
+let eye = fun (x, deg) : (Float, Float) ->
+  let y = 100. in
+  let r = float_of_int(6 + eye_size / 7) in
+  let t = deg *. pi /. 180. in
+  let turn = fun (px, py) : (Float, Float) ->
+    (x +. px *. cos(t) -. py *. sin(t), y +. px *. sin(t) +. py *. cos(t)) in
+  case eye_style
+  | XEyes =>
+    [face_shape(("eye", stroke_eye((turn((0. -. r, 0. -. r)), turn((r, r)), 3. +. r /. 6.)), 0., "black", "black")),
+     face_shape(("eye", stroke_eye((turn((0. -. r, r)), turn((r, 0. -. r)), 3. +. r /. 6.)), 0., "black", "black"))]
+  | StarEyes => [face_shape(("eye", star_eye((x, y, r *. 1.5, t, 0)), 2., "#e0a800", "#ffcc33"))]
+  | HeartEyes => [face_shape(("eye", heart_eye((x, y, r *. 1.4, t, 0)), 2., "#a01040", "#e0245e"))]
+  | PlainEyes =>
+    let k = 1. -. 0.88 *. float_of_int(eye_shape) /. 100. in
+    let iris_r = if iris_size > 0 then r +. float_of_int(iris_size) *. 0.25 else 0. in
+    let white_r =
+      if iris_r >. 0. && eye_whites > 0 then iris_r +. float_of_int(eye_whites) *. 0.25 else 0. in
+    let outer = if iris_r >. 0. then iris_r else r in
+    # the shine: toward the light, up and to the left, in the picture's #
+    # own frame, kept within half the eye #
+    let (wx, wy) = (-0.3 *. outer, -0.3 *. outer) in
+    let (ux, uy0) = (cos(t) *. wx +. sin(t) *. wy, (0. -. sin(t) *. wx +. cos(t) *. wy) /. k) in
+    let len = sqrt(ux *. ux +. uy0 *. uy0) in
+    let most = outer *. 0.55 in
+    let (ux, uy) = if len >. most then (ux *. most /. len, uy0 *. most /. len) else (ux, uy0) in
+    let (dx, dy) = (cos(t) *. ux -. sin(t) *. uy *. k, sin(t) *. ux +. cos(t) *. uy *. k) in
+    let shine_r = fmin((r *. float_of_int(shine_size) /. 150., outer *. k *. 0.45)) in
+    (if white_r >. 0. then [face_shape(("eye", round_eye((x, y, white_r, k, t, 20, 0)), 2., "black", "#ffffff"))] else [])
+    @ (if iris_r >. 0. then [face_shape(("eye", round_eye((x, y, iris_r, k, t, 20, 0)), 0., iris_color, iris_color))] else [])
+    @ [face_shape(("eye", round_eye((x, y, r, k, t, 16, 0)), 0., "black", "black"))]
+    @ (if shine_r >. 0.3
+       then [face_shape(("eye", round_eye((x +. dx, y +. dy, shine_r, 1., 0., 10, 0)), 0., "white", "white"))]
+       else [])
+  end in
+
+# How far one eye reaches to either side of its middle, as drawn: a #
+# plain eye's outermost ring (eye white, iris or pupil), squashed and #
+# slanted; a star's or heart's points; an x's two strokes. #
+let eye_half_w =
+  let r = float_of_int(6 + eye_size / 7) in
+  let t = float_of_int(eye_angle) *. pi /. 180. in
+  case eye_style
+  | XEyes => r *. (fabs(cos(t)) +. fabs(sin(t)))
+  | StarEyes => r *. 1.5
+  | HeartEyes => r *. 1.4
+  | PlainEyes =>
+    let k = 1. -. 0.88 *. float_of_int(eye_shape) /. 100. in
+    let iris_r = if iris_size > 0 then r +. float_of_int(iris_size) *. 0.25 else 0. in
+    let white_r =
+      if iris_r >. 0. && eye_whites > 0 then iris_r +. float_of_int(eye_whites) *. 0.25 else 0. in
+    let ring = if white_r >. 0. then white_r else if iris_r >. 0. then iris_r else r in
+    sqrt(ring *. cos(t) *. ring *. cos(t) +. ring *. k *. sin(t) *. ring *. k *. sin(t))
+  end in
+
+# ...and how far above and below it. #
+let eye_half_h =
+  let r = float_of_int(6 + eye_size / 7) in
+  let t = float_of_int(eye_angle) *. pi /. 180. in
+  case eye_style
+  | XEyes => r *. (fabs(cos(t)) +. fabs(sin(t)))
+  | StarEyes => r *. 1.5
+  | HeartEyes => r *. 1.4
+  | PlainEyes =>
+    let k = 1. -. 0.88 *. float_of_int(eye_shape) /. 100. in
+    let iris_r = if iris_size > 0 then r +. float_of_int(iris_size) *. 0.25 else 0. in
+    let white_r =
+      if iris_r >. 0. && eye_whites > 0 then iris_r +. float_of_int(eye_whites) *. 0.25 else 0. in
+    let ring = if white_r >. 0. then white_r else if iris_r >. 0. then iris_r else r in
+    sqrt(ring *. sin(t) *. ring *. sin(t) +. ring *. k *. cos(t) *. ring *. k *. cos(t))
+  end in
+
+# The eyes keep the eye gap between them, edge to edge, however big, #
+# narrow or slanted they are: each eye's middle is half the gap and its #
+# own half-width out from the face's middle line. The default gap, 38, #
+# puts the default eyes where they always were, 32 out. They are mirror #
+# images: the left slants by the angle, the right by its opposite, so #
+# the outer corners rise together. #
+let eye_dx = float_of_int(eye_gap) /. 2. +. eye_half_w in
+let eyes =
+  eye((100. -. eye_dx, float_of_int(eye_angle)))
+  @ eye((100. +. eye_dx, 0. -. float_of_int(eye_angle))) in
+
+# The head, wide enough for its eyes: at the eye line it reaches 8 past #
+# each eye's outer edge, or it is stretched sideways about its middle #
+# until it does. Where the outline crosses that line is found edge by #
+# edge, the last point joined back to the first. #
+let reach_at : ([Vertex], Float, Float) -> Float =
+  fun (vs, cx, y) ->
+    let first = case vs | [] => (cx, y) | v :: _ => v.at end in
+    let go : ([Vertex], Float) -> Float =
+      fun (ws, best) ->
+        case ws
+        | [] => best
+        | w :: tl =>
+          let (x1, y1) = w.at in
+          let (x2, y2) = case tl | [] => first | u :: _ => u.at end in
+          if (y1 -. y) *. (y2 -. y) <=. 0. && fabs(y2 -. y1) >. 0.0001 then
+            let x = x1 +. (x2 -. x1) *. (y -. y1) /. (y2 -. y1) in
+            go((tl, fmax((best, fabs(x -. cx)))))
+          else go((tl, best))
+        end in
+    go((vs, 0.)) in
+let head_reach =
+  case head | [] => 0. | h :: _ => reach_at((Drawing.points_of(h), crown_x, snd(to_head((100., 100.))))) end in
+let head_widen =
+  if head_reach >. 0. then fmax((1., (eye_dx +. eye_half_w +. 8.) *. face_scale /. head_reach)) else 1. in
+
+# ...and tall enough, as a deep mouth makes it longer (THE MOUTH): once #
+# the eyes reach 25% higher above the head's middle than the usual eyes #
+# do (23.6), its top half grows with them, so the hair, which grows with #
+# it, keeps its fringe above them. And the eyes stay 8 inside the outline #
+# all round, which grows the bottom half too: for 24 points around the #
+# eye, grown by 8, the half-height an ellipse as wide as the head needs #
+# to have the point (px, py) inside it, |py| / sqrt(1 - (px / a)^2), #
+# above the middle (s = -1) or below it (s = 1). In face units, of a #
+# head 80 from its middle to its crown and its chin. #
+let eye_need : (Float, Int) -> Float =
+  fun (s, i) ->
+    if i == 24 then 0.
+    else
+      let t = 2. *. pi *. float_of_int(i) /. 24. in
+      let px = eye_dx +. (eye_half_w +. 8.) *. cos(t) in
+      let py = 0. -. 10.6 +. (eye_half_h +. 8.) *. sin(t) in
+      let u = fmin((0.99, fabs(px) /. (80. *. head_widen))) in
+      let here = if py *. s >. 0. then fabs(py) /. sqrt(1. -. u *. u) else 0. in
+      fmax((here, eye_need((s, i + 1)))) in
+let head_lift =
+  let forehead = 80. *. (10.6 +. eye_half_h) /. (23.6 *. 1.25) in
+  fmax((0., fmax((forehead, eye_need((-1., 0)))) -. 80.)) in
+let head_drop = fmax((0., eye_need((1., 0)) -. 80.)) in
+let (head_cy, head_ry) = (crown_y +. 80. *. face_scale, 80. *. face_scale) in
+let fit_points : [Vertex] -> [Vertex] =
+  fun vs ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      let grow = if y <. head_cy then head_lift else head_drop in
+      (at = (x, head_cy +. (y -. head_cy) *. (1. +. grow /. 80.)), label = v.label)
+      :: fit_points(tl)
+    end in
+let head =
+  case stretch((head, crown_x, 1000000., head_widen, 1.))
+  | [] => []
+  | h :: tl => Drawing.with_points(h, fit_points(Drawing.points_of(h))) :: tl
+  end in
+
+# Where the eyes reach down to, for the mouth to clear them (THE MOUTH): #
+# at x, in face units, the lowest point of the right eye's outline right #
+# above it -- and so of the left's, its mirror image -- or -1000 where #
+# no eye is. The outline is the eye's own polygon: a plain eye's #
+# outermost ring, a star's or heart's points, an x's two strokes. #
+let below_poly : ([Point], Float) -> Float =
+  fun (ps, x) ->
+    let first = case ps | [] => (x, 0.) | p :: _ => p end in
+    let go : ([Point], Float) -> Float =
+      fun (qs, best) ->
+        case qs
+        | [] => best
+        | (x1, y1) :: tl =>
+          let (x2, y2) = case tl | [] => first | q :: _ => q end in
+          if (x1 -. x) *. (x2 -. x) <=. 0. && fabs(x2 -. x1) >. 0.0001 then
+            go((tl, fmax((best, y1 +. (y2 -. y1) *. (x -. x1) /. (x2 -. x1)))))
+          else go((tl, best))
+        end in
+    go((ps, -1000.)) in
+let eye_outlines : [[Point]] =
+  let (x, y) = (100. +. eye_dx, 100.) in
+  let r = float_of_int(6 + eye_size / 7) in
+  let t = 0. -. float_of_int(eye_angle) *. pi /. 180. in
+  let turn = fun (px, py) : (Float, Float) ->
+    (x +. px *. cos(t) -. py *. sin(t), y +. px *. sin(t) +. py *. cos(t)) in
+  case eye_style
+  | XEyes =>
+    [stroke_eye((turn((0. -. r, 0. -. r)), turn((r, r)), 3. +. r /. 6.)),
+     stroke_eye((turn((0. -. r, r)), turn((r, 0. -. r)), 3. +. r /. 6.))]
+  | StarEyes => [star_eye((x, y, r *. 1.5, t, 0))]
+  | HeartEyes => [heart_eye((x, y, r *. 1.4, t, 0))]
+  | PlainEyes =>
+    let k = 1. -. 0.88 *. float_of_int(eye_shape) /. 100. in
+    let iris_r = if iris_size > 0 then r +. float_of_int(iris_size) *. 0.25 else 0. in
+    let white_r =
+      if iris_r >. 0. && eye_whites > 0 then iris_r +. float_of_int(eye_whites) *. 0.25 else 0. in
+    let ring = if white_r >. 0. then white_r else if iris_r >. 0. then iris_r else r in
+    [round_eye((x, y, ring, k, t, 20, 0))]
+  end in
+let eye_below = fun x : Float ->
+  let ax = 100. +. fabs(x -. 100.) in
+  let go : [[Point]] -> Float =
+    fun os -> case os | [] => -1000. | o :: tl => fmax((below_poly((o, ax)), go(tl))) end in
+  go(eye_outlines) in
+
+# THE PICTURE #
+
+# The head, wide enough for its eyes, and the eyes. The frame is a #
+# little more than the head's, so a head that widens is seen to. #
+
+let picture = Drawing.frame((100., 80., 220., 160.)) @ head @ eyes in
+let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (picture)))) in
+
+# How much wider and taller the eyes made the head. #
+(head_widen, head_lift, head_drop)
+
+# Press plain, stars, hearts or x eyes, and slide the eyes bigger, #
+# narrower or slanted: they keep their gap, and the head widens when #
+# they need it. Slide the gap and they move apart or together. Give #
+# them an iris, then whites around it. #

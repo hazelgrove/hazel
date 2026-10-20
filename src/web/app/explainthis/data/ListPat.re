@@ -3,7 +3,7 @@ open Example;
 open ExplainThisForm;
 
 let listlit_pat_form = [
-  mk_list_pat([[pat("p1"), comma_pat(), space(), pat("...")]]),
+  mk_list_pat([[pat("p1"), comma_pat(), space(), pat("…")]]),
 ];
 let listlit_pat = (~n: int): form => {
   id: ListLitPat,

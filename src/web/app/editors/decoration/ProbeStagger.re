@@ -1,6 +1,5 @@
 open Js_of_ocaml;
 open Haz3lcore;
-open Util;
 open Virtual_dom.Vdom;
 
 /* Offside staggering, top-down greedy: an offside display spanning K rows
@@ -29,14 +28,9 @@ let row_ends_attr_name = "data-row-ends";
 /* Dense per-row line ends ("max_col,max_col,..." indexed by row; absent
    rows read as 0), attached to a code container for `update`. */
 let row_ends_attr = (measured: Measured.t): Attr.t => {
-  let rows = measured.rows;
-  let n =
-    switch (IntMap.max_binding_opt(rows)) {
-    | Some((r, _)) => r + 1
-    | None => 0
-    };
+  let n = Measured.num_rows(measured);
   List.init(n, r =>
-    switch (IntMap.find_opt(r, rows)) {
+    switch (Measured.row_shape(r, measured)) {
     | Some(row) => string_of_int(Measured.Rows.(row.max_col))
     | None => "0"
     }
@@ -106,8 +100,11 @@ let items_of_container = (container: Js.t(Dom_html.element)): list(item) => {
 };
 
 let solve_container =
-    (~font_metrics: FontMetrics.t, container: Js.t(Dom_html.element)): unit => {
-  let items = items_of_container(container);
+    (
+      ~font_metrics: FontMetrics.t,
+      (container: Js.t(Dom_html.element), items: list(item)),
+    )
+    : unit =>
   if (items != []) {
     let row_ends = row_ends_of_container(container);
     let row_end = (r: int): int =>
@@ -150,19 +147,30 @@ let solve_container =
         );
         let left_px =
           font_metrics.col_width *. float_of_int(x^ - it.origin_col);
-        Js.Unsafe.coerce(it.el)##.style##.left :=
-          Js.string(Printf.sprintf("%.1fpx", left_px));
+        /* written only when it moves: an unchanged write still dirties
+           layout, and the next read (another container, ScrollWidth)
+           would pay for it */
+        let left = Js.string(Printf.sprintf("%.1fpx", left_px));
+        let style = Js.Unsafe.coerce(it.el)##.style;
+        if (Js.to_string(style##.left) != Js.to_string(left)) {
+          style##.left := left;
+        };
         occupied := [(it.row, last_row, x^, x^ + w_cols), ...occupied^];
       },
       items,
     );
   };
-};
 
+/* Every container's displays are measured first, then placed: measuring
+   one container after placing another forced a layout per container. */
 let update = (~font_metrics: FontMetrics.t): unit => {
   let containers =
     Dom_html.document##querySelectorAll(Js.string(".code-container"));
+  let measured = ref([]);
   for (i in 0 to containers##.length - 1) {
-    Js.Opt.iter(containers##item(i), solve_container(~font_metrics));
+    Js.Opt.iter(containers##item(i), c =>
+      measured := [(c, items_of_container(c)), ...measured^]
+    );
   };
+  List.iter(solve_container(~font_metrics), List.rev(measured^));
 };

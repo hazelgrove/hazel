@@ -1,0 +1,1698 @@
+# Shoes #
+
+# The pants and their shoes: Messed Up Dress Up's eight, chosen with #
+# buttons, and a slider for their size. Each shoe is drawn in the shoe #
+# editor around an ankle, the anchor that goes on a foot of the pants; #
+# the left shoe is the right one mirrored. The shoes go under the #
+# pants' legs, as the game draws them. #
+
+# THE PICTURE, AS TYPES #
+
+# A point in the plane, x across and y down, as the drawing has it. #
+type Point = (Float, Float) in
+
+# A vertex is a point and, if it is one, the name of its anchor. #
+type Label = + Plain + Anchor(String) in
+type Vertex = (at = Point, label = Label) in
+
+# A closed polygon has a stroke and a fill; an open path a stroke only. #
+type Stroke = (width = Float, color = String) in
+type Shape =
+  + Polygon((name = String, points = [Vertex], stroke = Stroke, fill = String))
+  + Path((name = String, points = [Vertex], stroke = Stroke))
+in
+
+# A picture is its shapes, drawn in order: the first is underneath. #
+type Picture = [Shape] in
+
+# FOUND OR MISSING #
+
+# An anchor's point, if a shape has one of that name. #
+type Found = + Found(Point) + Missing in
+
+# A shoe's style, as its buttons name it. #
+type Shoe = + Sneakers + Boots + ClownShoes + BareFeet + FiveToes + AlienFour
+  + AlienThree + Talons in
+
+# DRAWING, AS A LIBRARY #
+
+# The editor, the picture viewer, the radio buttons, and the functions #
+# that place pieces by their anchors: one module, so its livelits are #
+# used by member name -- Drawing.^polygons, Drawing.^picture, #
+# Drawing.^choice. #
+
+module Drawing = {
+  let ^polygons = {
+    # The picture, and where the editor is: the shape being edited, the #
+    # point chosen in it (-1 for none), and a drag, held and whether it #
+    # has moved yet -- a press that does not move only chooses. #
+    type Model =
+      (shapes = Picture, current = Int, chosen = Int, held = Bool, moved = Bool);
+    type Action =
+      + Down(Int, Int) + MoveTo(Int, Int) + Up
+      + NewPolygon + NewPath + Toggle + Remove + Next + Prev
+      + SetName(String) + SetWidth(String) + SetStroke(String) + SetFill(String)
+      + SetAnchor(String);
+    type Expansion = Picture;
+
+    let init = Pure((shapes = [], current = -1, chosen = -1, held = false, moved = false));
+
+    # LISTS #
+    let len : [Shape] -> Int =
+      fun xs -> case xs | [] => 0 | _ :: tl => 1 + len(tl) end;
+    let count : [Vertex] -> Int =
+      fun xs -> case xs | [] => 0 | _ :: tl => 1 + count(tl) end;
+    let shape_at : (Picture, Int) -> Shape =
+      fun xs, i ->
+        case xs
+        | [] => Path((name = "", points = [], stroke = (width = 1., color = "black")))
+        | hd :: tl => if i <= 0 then hd else shape_at(tl, i - 1)
+        end;
+    let set_shape : (Picture, Int, Shape) -> Picture =
+      fun xs, i, s ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then s :: tl else hd :: set_shape(tl, i - 1, s)
+        end;
+    let drop_shape : (Picture, Int) -> Picture =
+      fun xs, i ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then tl else hd :: drop_shape(tl, i - 1)
+        end;
+    let vertex_at : ([Vertex], Int) -> Vertex =
+      fun xs, i ->
+        case xs
+        | [] => (at = (0., 0.), label = Plain)
+        | hd :: tl => if i <= 0 then hd else vertex_at(tl, i - 1)
+        end;
+    let set_vertex : ([Vertex], Int, Vertex) -> [Vertex] =
+      fun xs, i, v ->
+        case xs
+        | [] => []
+        | hd :: tl => if i <= 0 then v :: tl else hd :: set_vertex(tl, i - 1, v)
+        end;
+
+    # SHAPES #
+    let points_of : Shape -> [Vertex] =
+      fun s -> case s | Polygon(p) => p.points | Path(p) => p.points end;
+    let with_points : (Shape, [Vertex]) -> Shape =
+      fun s, vs ->
+        case s
+        | Polygon(p) => Polygon((name = p.name, points = vs, stroke = p.stroke, fill = p.fill))
+        | Path(p) => Path((name = p.name, points = vs, stroke = p.stroke))
+        end;
+    let name_of : Shape -> String =
+      fun s -> case s | Polygon(p) => p.name | Path(p) => p.name end;
+    let stroke_of : Shape -> Stroke =
+      fun s -> case s | Polygon(p) => p.stroke | Path(p) => p.stroke end;
+    let with_stroke : (Shape, Stroke) -> Shape =
+      fun s, k ->
+        case s
+        | Polygon(p) => Polygon((name = p.name, points = p.points, stroke = k, fill = p.fill))
+        | Path(p) => Path((name = p.name, points = p.points, stroke = k))
+        end;
+    let with_name : (Shape, String) -> Shape =
+      fun s, n ->
+        case s
+        | Polygon(p) => Polygon((name = n, points = p.points, stroke = p.stroke, fill = p.fill))
+        | Path(p) => Path((name = n, points = p.points, stroke = p.stroke))
+        end;
+    # Closing a path makes a polygon, filled white; opening a polygon #
+    # keeps its outline and drops the fill. #
+    let toggled : Shape -> Shape =
+      fun s ->
+        case s
+        | Polygon(p) => Path((name = p.name, points = p.points, stroke = p.stroke))
+        | Path(p) => Polygon((name = p.name, points = p.points, stroke = p.stroke, fill = "#ffffff"))
+        end;
+
+    # The point of the current shape within reach of a press, or -1. #
+    let near : ([Vertex], Float, Float, Int) -> Int =
+      fun vs, x, y, i ->
+        case vs
+        | [] => -1
+        | v :: tl =>
+          let (vx, vy) = v.at in
+          let dx = vx -. x in
+          let dy = vy -. y in
+          if dx *. dx +. dy *. dy <=. 64. then i else near(tl, x, y, i + 1)
+        end;
+
+    # Rebuild the model with some fields changed. #
+    let rebuild = fun (_m, shapes, current, chosen, held, moved) :
+        (Model, Picture, Int, Int, Bool, Bool) ->
+      (shapes = shapes, current = current, chosen = chosen, held = held, moved = moved);
+    let edit = fun (m, f) : (Model, Shape -> Shape) ->
+      if m.current < 0 then m
+      else rebuild((m, set_shape(m.shapes, m.current, f(shape_at(m.shapes, m.current))),
+               m.current, m.chosen, m.held, m.moved));
+
+    let update = fun m : Model -> fun a : Action -> Pure(
+      case a
+      | Down(px, py) =>
+        let x = float_of_int(px) in
+        let y = float_of_int(py) in
+        if m.current < 0 then
+          rebuild((m, m.shapes @ [Polygon((name = "shape", points = [(at = (x, y), label = Plain)],
+                                      stroke = (width = 2., color = "#333333"), fill = "#f2c94c"))],
+              len(m.shapes), 0, true, false))
+        else
+          let vs = points_of(shape_at(m.shapes, m.current)) in
+          let hit = near(vs, x, y, 0) in
+          if hit == -1 then
+            let added = with_points(shape_at(m.shapes, m.current), vs @ [(at = (x, y), label = Plain)]) in
+            rebuild((m, set_shape(m.shapes, m.current, added), m.current, count(vs), true, true))
+          else rebuild((m, m.shapes, m.current, hit, true, false))
+      | MoveTo(px, py) =>
+        if !m.held || m.chosen < 0 then m
+        else
+          let s = shape_at(m.shapes, m.current) in
+          let vs = points_of(s) in
+          let v = vertex_at(vs, m.chosen) in
+          let moved = with_points(s, set_vertex(vs, m.chosen,
+            (at = (float_of_int(px), float_of_int(py)), label = v.label))) in
+          rebuild((m, set_shape(m.shapes, m.current, moved), m.current, m.chosen, true, true))
+      | Up => rebuild((m, m.shapes, m.current, m.chosen, false, false))
+      | NewPolygon =>
+        rebuild((m, m.shapes @ [Polygon((name = "polygon", points = [], stroke = (width = 2., color = "#333333"), fill = "#9ecae1"))],
+            len(m.shapes), -1, false, false))
+      | NewPath =>
+        rebuild((m, m.shapes @ [Path((name = "path", points = [], stroke = (width = 2., color = "#333333")))],
+            len(m.shapes), -1, false, false))
+      | Toggle => edit((m, toggled))
+      | Remove =>
+        if m.current < 0 then m
+        else rebuild((m, drop_shape(m.shapes, m.current), m.current - 1, -1, false, false))
+      | Next =>
+        if len(m.shapes) == 0 then m
+        else rebuild((m, m.shapes, if m.current + 1 >= len(m.shapes) then 0 else m.current + 1, -1, false, false))
+      | Prev =>
+        if len(m.shapes) == 0 then m
+        else rebuild((m, m.shapes, if m.current <= 0 then len(m.shapes) - 1 else m.current - 1, -1, false, false))
+      | SetName(n) => edit((m, fun s -> with_name(s, n)))
+      | SetWidth(w) =>
+        edit((m, fun s -> with_stroke(s, (width = float_of_int(int_of_string(w)), color = stroke_of(s).color))))
+      | SetStroke(c) =>
+        edit((m, fun s -> with_stroke(s, (width = stroke_of(s).width, color = c))))
+      | SetFill(c) =>
+        edit((m, fun s ->
+          case s
+          | Polygon(p) => Polygon((name = p.name, points = p.points, stroke = p.stroke, fill = c))
+          | Path(_) => s
+          end))
+      | SetAnchor(n) =>
+        if m.chosen < 0 then m
+        else edit((m, fun s ->
+          let vs = points_of(s) in
+          let v = vertex_at(vs, m.chosen) in
+          with_points(s, set_vertex(vs, m.chosen,
+            (at = v.at, label = if n == "" then Plain else Anchor(n))))))
+      end);
+
+    # DRAWING #
+    let num = fun x : Float -> to_fixed(x, 1);
+    # each point followed by a space, the last too (a points list may end #
+    # with one); to_fixed itself, not num, which cost a call a number #
+    let coords : [Vertex] -> String =
+      fun vs ->
+        case vs
+        | [] => ""
+        | v :: tl =>
+          let (x, y) = v.at in
+          to_fixed(x, 1) ++ "," ++ to_fixed(y, 1) ++ " " ++ coords(tl)
+        end;
+    let shape_node = fun s : Shape ->
+      case s
+      | Polygon(p) =>
+        Html.node("polygon",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", p.fill),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round")], [])
+      | Path(p) =>
+        Html.node("polyline",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", "none"),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round"),
+           Attr.create("stroke-linecap", "round")], [])
+      end;
+    let shape_nodes : Picture -> [Html.T] =
+      fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
+    # The current shape's points: a dot each, the chosen one coral, and #
+    # an anchor a diamond with its name beside it. #
+    let handle = fun (v, i, chosen) : (Vertex, Int, Int) ->
+      let (x, y) = v.at in
+      let fill = if i == chosen then "coral" else "teal" in
+      case v.label
+      | Plain =>
+        [Html.node("circle",
+           [Attr.create("cx", num(x)), Attr.create("cy", num(y)),
+            Attr.create("r", "5"), Attr.create("fill", fill)], [])]
+      | Anchor(n) =>
+        [Html.node("rect",
+           [Attr.create("x", num(x -. 5.)), Attr.create("y", num(y -. 5.)),
+            Attr.create("width", "10"), Attr.create("height", "10"),
+            Attr.create("fill", fill),
+            Attr.create("transform", "rotate(45 " ++ num(x) ++ " " ++ num(y) ++ ")")], []),
+         Html.node("text",
+           [Attr.create("x", num(x +. 9.)), Attr.create("y", num(y -. 7.)),
+            Attr.create("font-size", "11"),
+            Attr.create("font-family", "var(--code-font)")],
+           [Html.text(n)])]
+      end;
+    let handles : ([Vertex], Int, Int) -> [Html.T] =
+      fun vs, i, chosen ->
+        case vs | [] => [] | v :: tl => handle((v, i, chosen)) @ handles(tl, i + 1, chosen) end;
+
+    let control = fun (label, input) : (String, Html.T) ->
+      Html.node("label", [Attr.style([("display", "flex"), ("gap", "0.4em"), ("align-items", "center")])],
+        [Html.text(label), input]);
+    let button = fun (label, a) : (String, Action) ->
+      Html.button([Attr.on_click(a)], [Html.text(label)]);
+
+    let view = fun m : Model -> Pure(
+      let s = shape_at(m.shapes, m.current) in
+      let editing = m.current >= 0 in
+      let chosen_label =
+        if m.chosen < 0 then ""
+        else case vertex_at(points_of(s), m.chosen).label | Plain => "" | Anchor(n) => n end in
+      Html.div([Attr.style([("font-family", "var(--code-font)"), ("font-size", "0.8em")])], [
+        Html.node("svg",
+          [Attr.create("viewBox", "0 0 320 240"), Attr.width("320"), Attr.height("240"),
+           Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")]),
+           Attr.on_mouse_down_at(fun (x, y) -> Down(x, y)),
+           Attr.on_mouse_move_at(fun (x, y) -> MoveTo(x, y)),
+           Attr.on_mouse_up_at(fun _ -> Up)],
+          shape_nodes(m.shapes) @ (if editing then handles(points_of(s), 0, m.chosen) else [])),
+        Html.div([Attr.style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "0.4em"), ("margin", "0.4em 0")])],
+          [button(("new polygon", NewPolygon)), button(("new path", NewPath)),
+           button(("< shape", Prev)), button(("shape >", Next))]
+          @ (if editing then
+               [button((case s | Polygon(_) => "open it" | Path(_) => "close it" end, Toggle)),
+                button(("remove", Remove))]
+             else [])),
+        Html.div([Attr.style([("display", "flex"), ("flex-wrap", "wrap"), ("gap", "0.8em")])],
+          if !editing then [Html.text("no shape yet: click the drawing")]
+          else
+            [control(("name", Html.input([Attr.value(name_of(s)), Attr.on_input(fun v -> SetName(v))]))),
+             control(("width", Html.input([Attr.type_("range"), Attr.min("1"), Attr.max("12"),
+                       Attr.value(to_fixed(stroke_of(s).width, 0)),
+                       Attr.on_input(fun v -> SetWidth(v))]))),
+             control(("stroke", Html.input([Attr.type_("color"), Attr.value(stroke_of(s).color),
+                       Attr.on_input(fun v -> SetStroke(v))])))]
+            @ (case s
+               | Polygon(p) =>
+                 [control(("fill", Html.input([Attr.type_("color"), Attr.value(p.fill),
+                            Attr.on_input(fun v -> SetFill(v))])))]
+               | Path(_) => []
+               end)
+            @ (if m.chosen < 0 then []
+               else [control(("anchor", Html.input([Attr.value(chosen_label),
+                        Attr.placeholder("name this point"),
+                        Attr.on_input(fun v -> SetAnchor(v))])))])),
+        Html.div([Attr.style([("margin-top", "0.4em"), ("opacity", "0.7")])],
+          [Html.text(string_of_int(len(m.shapes)) ++ " shapes"
+            ++ (if editing then ", editing " ++ name_of(s) ++ " (" ++ string_of_int(count(points_of(s))) ++ " points)" else ""))])
+      ]));
+
+    let expand = Functional(fun m : Model -> m.shapes);
+    let shape = Block(46, 20)
+  };
+
+  # ^picture shows a picture it is given: its model is one splice, #
+  # the client's code for the picture, and its use means that #
+  # picture. A livelit cannot name the slide's own functions, so it #
+  # draws with its own few. #
+  let ^picture = {
+    type Model = (picture = SpliceRef);
+    type Action = ();
+    type Expansion = Picture;
+    let init = do p <- new_splice((AnyT, None)) in Pure((picture = p));
+    let update = fun m : Model -> fun _a : Action -> Pure(m);
+    let num = fun x : Float -> to_fixed(x, 1);
+    # each point followed by a space, the last too (a points list may end #
+    # with one); to_fixed itself, not num, which cost a call a number #
+    let coords : [Vertex] -> String =
+      fun vs ->
+        case vs
+        | [] => ""
+        | v :: tl =>
+          let (x, y) = v.at in
+          to_fixed(x, 1) ++ "," ++ to_fixed(y, 1) ++ " " ++ coords(tl)
+        end;
+    let shape_node = fun s : Shape ->
+      case s
+      | Polygon(p) =>
+        Html.node("polygon",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", p.fill),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round")], [])
+      | Path(p) =>
+        Html.node("polyline",
+          [Attr.create("points", coords(p.points)), Attr.create("fill", "none"),
+           Attr.create("stroke", p.stroke.color),
+           Attr.create("stroke-width", num(p.stroke.width)),
+           Attr.create("stroke-linejoin", "round"),
+           Attr.create("stroke-linecap", "round")], [])
+      end;
+    let shape_nodes : Picture -> [Html.T] =
+      fun ss -> case ss | [] => [] | s :: tl => shape_node(s) :: shape_nodes(tl) end;
+    # The frame: every point, with a margin, made the viewer's shape, #
+    # 320 by 440, about its middle. It fits the drawing, so a slide that #
+    # draws only a head shows the head large; a slide that wants its #
+    # frame to stay put while the drawing changes adds Drawing.frame. #
+    # A picture with a frame is shown framed: the box is the frame's, #
+    # whatever else it draws, and anything outside it is cut off. Its #
+    # points are not walked either: in the woods, that walk was over #
+    # half of the view's work. #
+    let vertices_of = fun s : Shape ->
+      case s | Polygon(p) => p.points | Path(p) => p.points end;
+    let grow = fun ((x0, y0, x1, y1), v) : ((Float, Float, Float, Float), Vertex) ->
+      let (x, y) = v.at in
+      ((if x -. 12. <. x0 then x -. 12. else x0),
+       (if y -. 12. <. y0 then y -. 12. else y0),
+       (if x +. 12. >. x1 then x +. 12. else x1),
+       (if y +. 12. >. y1 then y +. 12. else y1));
+    let grow_all : ((Float, Float, Float, Float), [Vertex]) -> (Float, Float, Float, Float) =
+      fun (b, vs) -> case vs | [] => b | v :: tl => grow_all((grow((b, v)), tl)) end;
+    let bounds : ((Float, Float, Float, Float), Picture) -> (Float, Float, Float, Float) =
+      fun (b, ss) ->
+        case ss | [] => b | s :: tl => bounds((grow_all((b, vertices_of(s))), tl)) end;
+    let framing : Picture -> Picture =
+      fun ss ->
+        case ss
+        | [] => []
+        | s :: tl =>
+          case s
+          | Path(p) => if p.name == "frame" then [s] else framing(tl)
+          | _ => framing(tl)
+          end
+        end;
+    let view_box = fun pic : Picture ->
+      let boxed = case framing(pic) | [] => pic | f => f end in
+      let start =
+        case boxed
+        | [] => (0., 0., 0., 0.)
+        | s :: _ =>
+          case vertices_of(s)
+          | [] => (0., 0., 0., 0.)
+          | v :: _ => let (x, y) = v.at in (x, y, x, y)
+          end
+        end in
+      let (x0, y0, x1, y1) = bounds((start, boxed)) in
+      let (w, h) = (x1 -. x0, y1 -. y0) in
+      let (w2, h2) =
+        if w *. 440. >. h *. 320. then (w, w *. 440. /. 320.) else (h *. 320. /. 440., h) in
+      num(x0 -. (w2 -. w) /. 2.) ++ " " ++ num(y0 -. (h2 -. h) /. 2.) ++ " "
+      ++ num(w2) ++ " " ++ num(h2);
+    let view = fun m : Model ->
+      do r <- eval_splice(m.picture) in
+      Pure(
+        case r
+        | Some(Val(pic)) =>
+          Html.node("svg",
+            [Attr.create("viewBox", view_box(pic)), Attr.width("320"),
+             Attr.height("440"),
+             Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")])],
+            shape_nodes(pic))
+        | _ =>
+          Html.div([Attr.style([("font-family", "var(--code-font)"), ("font-size", "0.8em")])],
+            [Html.text("no picture yet")])
+        end);
+    # A Macro: the picture is the client's code, so a use means it. #
+    let expand = Macro(fun m : Model -> (quote fun p -> p end, [m.picture]));
+    let shape = Block(34, 22)
+  };
+
+  # PLACING #
+
+  let points_of : Shape -> [Vertex] =
+    fun s -> case s | Polygon(p) => p.points | Path(p) => p.points end;
+  let with_points : (Shape, [Vertex]) -> Shape =
+    fun s, vs ->
+      case s
+      | Polygon(p) => Polygon((name = p.name, points = vs, stroke = p.stroke, fill = p.fill))
+      | Path(p) => Path((name = p.name, points = vs, stroke = p.stroke))
+      end;
+  let anchor_in : ([Vertex], String) -> Found =
+    fun vs, n ->
+      case vs
+      | [] => Missing
+      | v :: tl =>
+        case v.label
+        | Anchor(a) => if a == n then Found(v.at) else anchor_in(tl, n)
+        | Plain => anchor_in(tl, n)
+        end
+      end;
+  # The first shape in a picture with an anchor of that name has it. #
+  let anchor : (Picture, String) -> Found =
+    fun pic, n ->
+      case pic
+      | [] => Missing
+      | s :: tl =>
+        case anchor_in(points_of(s), n) | Found(p) => Found(p) | Missing => anchor(tl, n) end
+      end;
+  # Every point of every shape moved by (dx, dy). #
+  let shift_points : ([Vertex], Float, Float) -> [Vertex] =
+    fun vs, dx, dy ->
+      case vs
+      | [] => []
+      | v :: tl =>
+        let (x, y) = v.at in
+        (at = (x +. dx, y +. dy), label = v.label) :: shift_points(tl, dx, dy)
+      end;
+  let shift : (Picture, Float, Float) -> Picture =
+    fun pic, dx, dy ->
+      case pic
+      | [] => []
+      | s :: tl => with_points(s, shift_points(points_of(s), dx, dy)) :: shift(tl, dx, dy)
+      end;
+  # `under(piece, a, base, b)`: the piece moved so its anchor a lands on #
+  # the base's anchor b, drawn first, so the base is on top. Without #
+  # both anchors, the piece is left where it was drawn. #
+  let under : (Picture, String, Picture, String) -> Picture =
+    fun piece, a, base, b ->
+      case (anchor(piece, a), anchor(base, b))
+      | (Found((px, py)), Found((bx, by))) => shift(piece, bx -. px, by -. py) @ base
+      | _ => piece @ base
+      end;
+
+  # ^choice: one of several values, pressed like an old car radio's #
+  # buttons -- the configuration panel's, here as a library member. #
+  let ^choice = typfun A -> fun cases : [(String, A)] -> {
+    type Model = A;
+    type Action = A;
+    type Expansion = A;
+    let init = let (_, v) = head(cases) in Pure(v);
+    let update = fun _m : Model -> fun a : Action -> Pure(a);
+    let button = fun (label, v, pressed) : (String, A, Bool) ->
+      Html.button(
+        [Attr.class("choice-button"), Attr.disabled(pressed),
+         Attr.on_click(v)],
+        [Html.text(label)]);
+    let view = fun m : Model -> Pure(
+      Html.div(
+        [Attr.class("choice")],
+        map((cases, fun (label, v) : (String, A) ->
+          button((label, v, v == m))))));
+    let expand = Functional(fun m : Model -> m);
+    # As many lines as its buttons take, wrapped into rows 36 columns #
+    # wide: a button is about 3/4 of a column a letter, and 2 more for #
+    # its edges and the gap after it. #
+    let shape =
+      let rows = fun (cs, col, n) : ([(String, A)], Int, Int) ->
+        case cs
+        | [] => n
+        | (label, _) :: tl =>
+          let w = (3 * string_length(label) + 8) / 4 in
+          if col + w > 36 then rows((tl, w, n + 1))
+          else rows((tl, col + w, n))
+        end in
+      Block(36, rows((cases, 0, 1)))
+  };
+  # ^slider: a number in a range, set with a slider and labelled. #
+  let ^slider = fun (label, lo, hi) : (String, Int, Int) -> {
+    type Model = Int;
+    type Action = Int;
+    type Expansion = Int;
+    let init = Pure((lo + hi) / 2);
+    let update = fun _m : Model -> fun a : Action -> Pure(a);
+    let view = fun m : Model -> Pure(
+      Html.div(
+        [Attr.style([("display", "flex"), ("gap", "0.5em"), ("align-items", "center"),
+                     ("font-family", "var(--code-font)"), ("font-size", "0.8em")])],
+        [Html.span([Attr.style([("white-space", "nowrap")])], [Html.text(label)]),
+         Html.input([
+           Attr.type_("range"),
+           Attr.min(string_of_int(lo)), Attr.max(string_of_int(hi)),
+           Attr.value(string_of_int(m)),
+           Attr.style([("flex", "1"), ("min-width", "0")]),
+           Attr.on_input(fun s -> int_of_string(s))]),
+         Html.span([Attr.style([("white-space", "nowrap"), ("min-width", "3ch")])],
+           [Html.text(string_of_int(m))])]));
+    let expand = Functional(fun m : Model -> m);
+    let shape = Inline(34)
+  };
+
+  # A piece moved so its anchor a lands on the base's anchor b, or left #
+  # where it was drawn without both. Layering is up to the client: a #
+  # picture is drawn in order, so put the pieces in the order to stack. #
+  let placed : (Picture, String, Picture, String) -> Picture =
+    fun piece, a, base, b ->
+      case (anchor(piece, a), anchor(base, b))
+      | (Found((px, py)), Found((bx, by))) => shift(piece, bx -. px, by -. py)
+      | _ => piece
+      end;
+
+  # A picture mirrored left to right: a right shoe makes a left one. #
+  let mirror_points : [Vertex] -> [Vertex] =
+    fun vs ->
+      case vs
+      | [] => []
+      | v :: tl =>
+        let (x, y) = v.at in
+        (at = (0. -. x, y), label = v.label) :: mirror_points(tl)
+      end;
+  let mirrored : Picture -> Picture =
+    fun pic ->
+      case pic
+      | [] => []
+      | s :: tl => with_points(s, mirror_points(points_of(s))) :: mirrored(tl)
+      end;
+
+  # The shapes of a picture with that name. #
+  let named : (Picture, String) -> Picture =
+    fun pic, n ->
+      case pic
+      | [] => []
+      | s :: tl =>
+        let name = case s | Polygon(p) => p.name | Path(p) => p.name end in
+        if name == n then s :: named(tl, n) else named(tl, n)
+      end;
+
+  # A box for the picture: an invisible path along its diagonal, for a #
+  # slide whose frame should stay put while what it draws changes -- #
+  # the arms swinging, the eyes growing. ^picture shows exactly this #
+  # box (with its margin), and cuts off anything outside it. #
+  let frame = fun (x0, y0, x1, y1) : (Float, Float, Float, Float) ->
+    [Path((name = "frame",
+           points = [(at = (x0, y0), label = Plain), (at = (x1, y1), label = Plain)],
+           stroke = (width = 0., color = "none")))]
+} in
+
+# HELPERS #
+
+let fmin = fun (x, y) : (Float, Float) -> if x <. y then x else y in
+let fmax = fun (x, y) : (Float, Float) -> if x >. y then x else y in
+let fabs = fun x : Float -> if x <. 0. then 0. -. x else x in
+
+# Every point x-scaled about cx, and those below cy y-scaled. #
+let stretch_points : ([Vertex], Float, Float, Float, Float) -> [Vertex] =
+  fun (vs, cx, cy, sx, sy) ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      (at = (cx +. (x -. cx) *. sx, if y >. cy then cy +. (y -. cy) *. sy else y),
+       label = v.label)
+      :: stretch_points((tl, cx, cy, sx, sy))
+    end in
+let stretch : (Picture, Float, Float, Float, Float) -> Picture =
+  fun (pic, cx, cy, sx, sy) ->
+    case pic
+    | [] => []
+    | sh :: tl =>
+      Drawing.with_points(sh, stretch_points((Drawing.points_of(sh), cx, cy, sx, sy)))
+      :: stretch((tl, cx, cy, sx, sy))
+    end in
+
+# Every point moved sx times as far from (cx, cy) across, and sy #
+# times as far up or down: the picture scaled about that point. #
+let scale_points : ([Vertex], Float, Float, Float, Float) -> [Vertex] =
+  fun (vs, cx, cy, sx, sy) ->
+    case vs
+    | [] => []
+    | v :: tl =>
+      let (x, y) = v.at in
+      (at = (cx +. (x -. cx) *. sx, cy +. (y -. cy) *. sy), label = v.label)
+      :: scale_points((tl, cx, cy, sx, sy))
+    end in
+let scaled : (Picture, Float, Float, Float, Float) -> Picture =
+  fun (pic, cx, cy, sx, sy) ->
+    case pic
+    | [] => []
+    | sh :: tl =>
+      Drawing.with_points(sh, scale_points((Drawing.points_of(sh), cx, cy, sx, sy)))
+      :: scaled((tl, cx, cy, sx, sy))
+    end in
+
+# THE PANTS #
+
+# The shoes go on their feet. #
+
+let pants = ^^livelit(Drawing.^polygons((
+  shapes = [
+    Polygon((
+      name = "pants",
+      points = [
+        (at = (98., 45.), label = Anchor("left hip")),
+        (at = (222., 45.), label = Anchor("right hip")),
+        (at = (230., 195.), label = Plain),
+        (at = (202., 195.), label = Anchor("right foot")),
+        (at = (174., 195.), label = Plain),
+        (at = (160., 87.), label = Plain),
+        (at = (146., 195.), label = Plain),
+        (at = (118., 195.), label = Anchor("left foot")),
+        (at = (90., 195.), label = Plain)
+      ],
+      stroke = (width = 3., color = "#1f2a36"),
+      fill = "#34495e"))
+  ],
+  current = 0, chosen = -1, held = false, moved = false))) in
+
+# THE SHOES #
+
+# Messed Up Dress Up's eight feet, each drawn in the shoe editor and #
+# named for its button: sneakers, boots, clown shoes, bare feet, and #
+# feet with five toes, an alien's four or three, or a bird's talons. #
+# Each has an ankle, an invisible point, and that is where it goes on #
+# a foot. The left is the right one's mirror image. #
+
+let shoes = ^^livelit(Drawing.^polygons((
+  shapes = [
+    Path((
+      name = "sneakers",
+      points = [(at = (34.0, 60.0), label = Anchor("ankle"))],
+      stroke = (width = 0., color = "none"))),
+    Polygon((
+      name = "sneakers",
+      points = [
+        (at = (32.0, 60.0), label = Plain),
+        (at = (46.0, 60.0), label = Plain),
+        (at = (48.0, 72.0), label = Plain),
+        (at = (74.0, 76.0), label = Plain),
+        (at = (78.0, 86.0), label = Plain),
+        (at = (22.0, 86.0), label = Plain),
+        (at = (20.0, 70.0), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#6a1f18"),
+      fill = "#c0392b")),
+    Polygon((
+      name = "sneakers",
+      points = [
+        (at = (24.0, 83.5), label = Plain),
+        (at = (74.0, 83.5), label = Plain),
+        (at = (74.0, 80.5), label = Plain),
+        (at = (24.0, 80.5), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#ffffff"),
+      fill = "#ffffff")),
+    Path((
+      name = "boots",
+      points = [(at = (108.0, 60.0), label = Anchor("ankle"))],
+      stroke = (width = 0., color = "none"))),
+    Polygon((
+      name = "boots",
+      points = [
+        (at = (96.0, 26.0), label = Plain),
+        (at = (120.0, 26.0), label = Plain),
+        (at = (121.0, 68.0), label = Plain),
+        (at = (146.0, 72.0), label = Plain),
+        (at = (150.0, 86.0), label = Plain),
+        (at = (95.0, 86.0), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#6a1f18"),
+      fill = "#c0392b")),
+    Path((
+      name = "clown shoes",
+      points = [(at = (176.0, 60.0), label = Anchor("ankle"))],
+      stroke = (width = 0., color = "none"))),
+    Polygon((
+      name = "clown shoes",
+      points = [
+        (at = (166.0, 60.0), label = Plain),
+        (at = (186.0, 60.0), label = Plain),
+        (at = (190.0, 68.0), label = Plain),
+        (at = (238.0, 64.0), label = Plain),
+        (at = (250.0, 76.0), label = Plain),
+        (at = (240.0, 90.0), label = Plain),
+        (at = (162.0, 90.0), label = Plain),
+        (at = (158.0, 74.0), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#6a1f18"),
+      fill = "#c0392b")),
+    Polygon((
+      name = "clown shoes",
+      points = [
+        (at = (222.0, 64.0), label = Plain),
+        (at = (220.2, 68.2), label = Plain),
+        (at = (216.0, 70.0), label = Plain),
+        (at = (211.8, 68.2), label = Plain),
+        (at = (210.0, 64.0), label = Plain),
+        (at = (211.8, 59.8), label = Plain),
+        (at = (216.0, 58.0), label = Plain),
+        (at = (220.2, 59.8), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#6a1f18"),
+      fill = "#ffffff")),
+    Path((
+      name = "bare feet",
+      points = [(at = (276.0, 60.0), label = Anchor("ankle"))],
+      stroke = (width = 0., color = "none"))),
+    Polygon((
+      name = "bare feet",
+      points = [
+        (at = (310.0, 68.0), label = Plain),
+        (at = (307.8, 72.3), label = Plain),
+        (at = (301.7, 75.8), label = Plain),
+        (at = (292.9, 77.7), label = Plain),
+        (at = (283.1, 77.7), label = Plain),
+        (at = (274.3, 75.8), label = Plain),
+        (at = (268.2, 72.3), label = Plain),
+        (at = (266.0, 68.0), label = Plain),
+        (at = (268.2, 63.7), label = Plain),
+        (at = (274.3, 60.2), label = Plain),
+        (at = (283.1, 58.3), label = Plain),
+        (at = (292.9, 58.3), label = Plain),
+        (at = (301.7, 60.2), label = Plain),
+        (at = (307.8, 63.7), label = Plain)
+      ],
+      stroke = (width = 2.0, color = "#8a5a44"),
+      fill = "#f1c27d")),
+    Path((
+      name = "5 toes",
+      points = [(at = (30.0, 160.0), label = Anchor("ankle"))],
+      stroke = (width = 0., color = "none"))),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (66.5, 176.0), label = Plain),
+        (at = (64.3, 181.4), label = Plain),
+        (at = (58.0, 185.8), label = Plain),
+        (at = (49.0, 188.2), label = Plain),
+        (at = (39.0, 188.2), label = Plain),
+        (at = (30.0, 185.8), label = Plain),
+        (at = (23.7, 181.4), label = Plain),
+        (at = (21.5, 176.0), label = Plain),
+        (at = (23.7, 170.6), label = Plain),
+        (at = (30.0, 166.2), label = Plain),
+        (at = (39.0, 163.8), label = Plain),
+        (at = (49.0, 163.8), label = Plain),
+        (at = (58.0, 166.2), label = Plain),
+        (at = (64.3, 170.6), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (71.0, 160.9), label = Plain),
+        (at = (76.4, 162.8), label = Plain),
+        (at = (77.4, 168.4), label = Plain),
+        (at = (73.0, 172.1), label = Plain),
+        (at = (59.0, 174.6), label = Plain),
+        (at = (53.6, 172.7), label = Plain),
+        (at = (52.6, 167.1), label = Plain),
+        (at = (57.0, 163.4), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (72.8, 167.2), label = Plain),
+        (at = (77.5, 169.7), label = Plain),
+        (at = (77.7, 175.0), label = Plain),
+        (at = (73.2, 177.8), label = Plain),
+        (at = (59.2, 178.3), label = Plain),
+        (at = (54.5, 175.8), label = Plain),
+        (at = (54.3, 170.5), label = Plain),
+        (at = (58.8, 167.7), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (72.1, 173.0), label = Plain),
+        (at = (76.1, 176.0), label = Plain),
+        (at = (75.5, 181.0), label = Plain),
+        (at = (70.9, 183.0), label = Plain),
+        (at = (58.4, 181.5), label = Plain),
+        (at = (54.4, 178.5), label = Plain),
+        (at = (55.0, 173.5), label = Plain),
+        (at = (59.6, 171.5), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (70.3, 178.4), label = Plain),
+        (at = (73.6, 181.8), label = Plain),
+        (at = (72.4, 186.4), label = Plain),
+        (at = (67.7, 187.6), label = Plain),
+        (at = (56.7, 184.6), label = Plain),
+        (at = (53.4, 181.2), label = Plain),
+        (at = (54.6, 176.6), label = Plain),
+        (at = (59.3, 175.4), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (66.9, 182.8), label = Plain),
+        (at = (69.6, 186.5), label = Plain),
+        (at = (67.7, 190.7), label = Plain),
+        (at = (63.1, 191.2), label = Plain),
+        (at = (54.1, 187.2), label = Plain),
+        (at = (51.4, 183.5), label = Plain),
+        (at = (53.3, 179.3), label = Plain),
+        (at = (57.9, 178.8), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (64.0, 176.0), label = Plain),
+        (at = (62.0, 180.3), label = Plain),
+        (at = (56.5, 183.8), label = Plain),
+        (at = (48.5, 185.7), label = Plain),
+        (at = (39.5, 185.7), label = Plain),
+        (at = (31.5, 183.8), label = Plain),
+        (at = (26.0, 180.3), label = Plain),
+        (at = (24.0, 176.0), label = Plain),
+        (at = (26.0, 171.7), label = Plain),
+        (at = (31.5, 168.2), label = Plain),
+        (at = (39.5, 166.3), label = Plain),
+        (at = (48.5, 166.3), label = Plain),
+        (at = (56.5, 168.2), label = Plain),
+        (at = (62.0, 171.7), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (71.4, 163.3), label = Plain),
+        (at = (74.4, 164.4), label = Plain),
+        (at = (75.0, 167.6), label = Plain),
+        (at = (72.6, 169.7), label = Plain),
+        (at = (58.6, 172.2), label = Plain),
+        (at = (55.6, 171.1), label = Plain),
+        (at = (55.0, 167.9), label = Plain),
+        (at = (57.4, 165.8), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (72.9, 169.7), label = Plain),
+        (at = (75.4, 171.0), label = Plain),
+        (at = (75.5, 173.8), label = Plain),
+        (at = (73.1, 175.3), label = Plain),
+        (at = (59.1, 175.8), label = Plain),
+        (at = (56.6, 174.5), label = Plain),
+        (at = (56.5, 171.7), label = Plain),
+        (at = (58.9, 170.2), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (71.8, 175.5), label = Plain),
+        (at = (73.8, 177.0), label = Plain),
+        (at = (73.5, 179.5), label = Plain),
+        (at = (71.2, 180.5), label = Plain),
+        (at = (58.7, 179.0), label = Plain),
+        (at = (56.7, 177.5), label = Plain),
+        (at = (57.0, 175.0), label = Plain),
+        (at = (59.3, 174.0), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (69.6, 180.8), label = Plain),
+        (at = (71.2, 182.4), label = Plain),
+        (at = (70.6, 184.6), label = Plain),
+        (at = (68.4, 185.2), label = Plain),
+        (at = (57.4, 182.2), label = Plain),
+        (at = (55.8, 180.6), label = Plain),
+        (at = (56.4, 178.4), label = Plain),
+        (at = (58.6, 177.8), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "5 toes",
+      points = [
+        (at = (65.9, 185.1), label = Plain),
+        (at = (67.1, 186.8), label = Plain),
+        (at = (66.2, 188.7), label = Plain),
+        (at = (64.1, 188.9), label = Plain),
+        (at = (55.1, 184.9), label = Plain),
+        (at = (53.9, 183.2), label = Plain),
+        (at = (54.8, 181.3), label = Plain),
+        (at = (56.9, 181.1), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Path((
+      name = "alien 4 toes",
+      points = [(at = (106.0, 160.0), label = Anchor("ankle"))],
+      stroke = (width = 0., color = "none"))),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (128.5, 174.0), label = Plain),
+        (at = (126.9, 179.4), label = Plain),
+        (at = (122.3, 183.8), label = Plain),
+        (at = (115.7, 186.2), label = Plain),
+        (at = (108.3, 186.2), label = Plain),
+        (at = (101.7, 183.8), label = Plain),
+        (at = (97.1, 179.4), label = Plain),
+        (at = (95.5, 174.0), label = Plain),
+        (at = (97.1, 168.6), label = Plain),
+        (at = (101.7, 164.2), label = Plain),
+        (at = (108.3, 161.8), label = Plain),
+        (at = (115.7, 161.8), label = Plain),
+        (at = (122.3, 164.2), label = Plain),
+        (at = (126.9, 168.6), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (144.0, 153.5), label = Plain),
+        (at = (148.9, 154.1), label = Plain),
+        (at = (150.9, 158.5), label = Plain),
+        (at = (148.0, 162.5), label = Plain),
+        (at = (116.0, 176.5), label = Plain),
+        (at = (111.1, 175.9), label = Plain),
+        (at = (109.1, 171.5), label = Plain),
+        (at = (112.0, 167.5), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (152.7, 158.0), label = Plain),
+        (at = (150.7, 162.7), label = Plain),
+        (at = (146.0, 164.7), label = Plain),
+        (at = (141.3, 162.7), label = Plain),
+        (at = (139.3, 158.0), label = Plain),
+        (at = (141.3, 153.3), label = Plain),
+        (at = (146.0, 151.3), label = Plain),
+        (at = (150.7, 153.3), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (151.6, 165.1), label = Plain),
+        (at = (156.0, 167.2), label = Plain),
+        (at = (156.4, 172.1), label = Plain),
+        (at = (152.4, 174.9), label = Plain),
+        (at = (114.4, 177.9), label = Plain),
+        (at = (110.0, 175.8), label = Plain),
+        (at = (109.6, 170.9), label = Plain),
+        (at = (113.6, 168.1), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (158.7, 170.0), label = Plain),
+        (at = (156.7, 174.7), label = Plain),
+        (at = (152.0, 176.7), label = Plain),
+        (at = (147.3, 174.7), label = Plain),
+        (at = (145.3, 170.0), label = Plain),
+        (at = (147.3, 165.3), label = Plain),
+        (at = (152.0, 163.3), label = Plain),
+        (at = (156.7, 165.3), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (150.9, 176.2), label = Plain),
+        (at = (154.6, 179.4), label = Plain),
+        (at = (153.7, 184.2), label = Plain),
+        (at = (149.1, 185.8), label = Plain),
+        (at = (113.1, 178.8), label = Plain),
+        (at = (109.4, 175.6), label = Plain),
+        (at = (110.3, 170.8), label = Plain),
+        (at = (114.9, 169.2), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (156.7, 181.0), label = Plain),
+        (at = (154.7, 185.7), label = Plain),
+        (at = (150.0, 187.7), label = Plain),
+        (at = (145.3, 185.7), label = Plain),
+        (at = (143.3, 181.0), label = Plain),
+        (at = (145.3, 176.3), label = Plain),
+        (at = (150.0, 174.3), label = Plain),
+        (at = (154.7, 176.3), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (143.9, 182.5), label = Plain),
+        (at = (146.9, 186.4), label = Plain),
+        (at = (144.9, 190.9), label = Plain),
+        (at = (140.1, 191.5), label = Plain),
+        (at = (112.1, 179.5), label = Plain),
+        (at = (109.1, 175.6), label = Plain),
+        (at = (111.1, 171.1), label = Plain),
+        (at = (115.9, 170.5), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (148.7, 187.0), label = Plain),
+        (at = (146.7, 191.7), label = Plain),
+        (at = (142.0, 193.7), label = Plain),
+        (at = (137.3, 191.7), label = Plain),
+        (at = (135.3, 187.0), label = Plain),
+        (at = (137.3, 182.3), label = Plain),
+        (at = (142.0, 180.3), label = Plain),
+        (at = (146.7, 182.3), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (126.0, 174.0), label = Plain),
+        (at = (124.6, 178.3), label = Plain),
+        (at = (120.7, 181.8), label = Plain),
+        (at = (115.1, 183.7), label = Plain),
+        (at = (108.9, 183.7), label = Plain),
+        (at = (103.3, 181.8), label = Plain),
+        (at = (99.4, 178.3), label = Plain),
+        (at = (98.0, 174.0), label = Plain),
+        (at = (99.4, 169.7), label = Plain),
+        (at = (103.3, 166.2), label = Plain),
+        (at = (108.9, 164.3), label = Plain),
+        (at = (115.1, 164.3), label = Plain),
+        (at = (120.7, 166.2), label = Plain),
+        (at = (124.6, 169.7), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (145.0, 155.8), label = Plain),
+        (at = (147.4, 156.1), label = Plain),
+        (at = (148.4, 158.3), label = Plain),
+        (at = (147.0, 160.2), label = Plain),
+        (at = (115.0, 174.2), label = Plain),
+        (at = (112.6, 173.9), label = Plain),
+        (at = (111.6, 171.7), label = Plain),
+        (at = (113.0, 169.8), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (150.2, 158.0), label = Plain),
+        (at = (149.0, 161.0), label = Plain),
+        (at = (146.0, 162.2), label = Plain),
+        (at = (143.0, 161.0), label = Plain),
+        (at = (141.8, 158.0), label = Plain),
+        (at = (143.0, 155.0), label = Plain),
+        (at = (146.0, 153.8), label = Plain),
+        (at = (149.0, 155.0), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (151.8, 167.6), label = Plain),
+        (at = (154.0, 168.6), label = Plain),
+        (at = (154.2, 171.0), label = Plain),
+        (at = (152.2, 172.4), label = Plain),
+        (at = (114.2, 175.4), label = Plain),
+        (at = (112.0, 174.4), label = Plain),
+        (at = (111.8, 172.0), label = Plain),
+        (at = (113.8, 170.6), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (156.2, 170.0), label = Plain),
+        (at = (155.0, 173.0), label = Plain),
+        (at = (152.0, 174.2), label = Plain),
+        (at = (149.0, 173.0), label = Plain),
+        (at = (147.8, 170.0), label = Plain),
+        (at = (149.0, 167.0), label = Plain),
+        (at = (152.0, 165.8), label = Plain),
+        (at = (155.0, 167.0), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (150.5, 178.6), label = Plain),
+        (at = (152.3, 180.2), label = Plain),
+        (at = (151.8, 182.6), label = Plain),
+        (at = (149.5, 183.4), label = Plain),
+        (at = (113.5, 176.4), label = Plain),
+        (at = (111.7, 174.8), label = Plain),
+        (at = (112.2, 172.4), label = Plain),
+        (at = (114.5, 171.6), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (154.2, 181.0), label = Plain),
+        (at = (153.0, 184.0), label = Plain),
+        (at = (150.0, 185.2), label = Plain),
+        (at = (147.0, 184.0), label = Plain),
+        (at = (145.8, 181.0), label = Plain),
+        (at = (147.0, 178.0), label = Plain),
+        (at = (150.0, 176.8), label = Plain),
+        (at = (153.0, 178.0), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (142.9, 184.8), label = Plain),
+        (at = (144.4, 186.7), label = Plain),
+        (at = (143.4, 188.9), label = Plain),
+        (at = (141.1, 189.2), label = Plain),
+        (at = (113.1, 177.2), label = Plain),
+        (at = (111.6, 175.3), label = Plain),
+        (at = (112.6, 173.1), label = Plain),
+        (at = (114.9, 172.8), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 4 toes",
+      points = [
+        (at = (146.2, 187.0), label = Plain),
+        (at = (145.0, 190.0), label = Plain),
+        (at = (142.0, 191.2), label = Plain),
+        (at = (139.0, 190.0), label = Plain),
+        (at = (137.8, 187.0), label = Plain),
+        (at = (139.0, 184.0), label = Plain),
+        (at = (142.0, 182.8), label = Plain),
+        (at = (145.0, 184.0), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Path((
+      name = "alien 3 toes",
+      points = [(at = (178.0, 160.0), label = Anchor("ankle"))],
+      stroke = (width = 0., color = "none"))),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (200.5, 174.0), label = Plain),
+        (at = (198.9, 179.4), label = Plain),
+        (at = (194.3, 183.8), label = Plain),
+        (at = (187.7, 186.2), label = Plain),
+        (at = (180.3, 186.2), label = Plain),
+        (at = (173.7, 183.8), label = Plain),
+        (at = (169.1, 179.4), label = Plain),
+        (at = (167.5, 174.0), label = Plain),
+        (at = (169.1, 168.6), label = Plain),
+        (at = (173.7, 164.2), label = Plain),
+        (at = (180.3, 161.8), label = Plain),
+        (at = (187.7, 161.8), label = Plain),
+        (at = (194.3, 164.2), label = Plain),
+        (at = (198.9, 168.6), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (222.5, 155.1), label = Plain),
+        (at = (227.4, 156.2), label = Plain),
+        (at = (229.0, 161.1), label = Plain),
+        (at = (225.5, 164.9), label = Plain),
+        (at = (187.5, 176.9), label = Plain),
+        (at = (182.6, 175.8), label = Plain),
+        (at = (181.0, 170.9), label = Plain),
+        (at = (184.5, 167.1), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (232.5, 160.0), label = Plain),
+        (at = (230.0, 166.0), label = Plain),
+        (at = (224.0, 168.5), label = Plain),
+        (at = (218.0, 166.0), label = Plain),
+        (at = (215.5, 160.0), label = Plain),
+        (at = (218.0, 154.0), label = Plain),
+        (at = (224.0, 151.5), label = Plain),
+        (at = (230.0, 154.0), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (232.0, 168.9), label = Plain),
+        (at = (236.4, 171.4), label = Plain),
+        (at = (236.4, 176.6), label = Plain),
+        (at = (232.0, 179.1), label = Plain),
+        (at = (186.0, 179.1), label = Plain),
+        (at = (181.6, 176.6), label = Plain),
+        (at = (181.6, 171.4), label = Plain),
+        (at = (186.0, 168.9), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (240.5, 174.0), label = Plain),
+        (at = (238.0, 180.0), label = Plain),
+        (at = (232.0, 182.5), label = Plain),
+        (at = (226.0, 180.0), label = Plain),
+        (at = (223.5, 174.0), label = Plain),
+        (at = (226.0, 168.0), label = Plain),
+        (at = (232.0, 165.5), label = Plain),
+        (at = (238.0, 168.0), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (223.1, 179.0), label = Plain),
+        (at = (226.9, 182.5), label = Plain),
+        (at = (225.8, 187.4), label = Plain),
+        (at = (220.9, 189.0), label = Plain),
+        (at = (184.9, 181.0), label = Plain),
+        (at = (181.1, 177.5), label = Plain),
+        (at = (182.2, 172.6), label = Plain),
+        (at = (187.1, 171.0), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (230.5, 184.0), label = Plain),
+        (at = (228.0, 190.0), label = Plain),
+        (at = (222.0, 192.5), label = Plain),
+        (at = (216.0, 190.0), label = Plain),
+        (at = (213.5, 184.0), label = Plain),
+        (at = (216.0, 178.0), label = Plain),
+        (at = (222.0, 175.5), label = Plain),
+        (at = (228.0, 178.0), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (198.0, 174.0), label = Plain),
+        (at = (196.6, 178.3), label = Plain),
+        (at = (192.7, 181.8), label = Plain),
+        (at = (187.1, 183.7), label = Plain),
+        (at = (180.9, 183.7), label = Plain),
+        (at = (175.3, 181.8), label = Plain),
+        (at = (171.4, 178.3), label = Plain),
+        (at = (170.0, 174.0), label = Plain),
+        (at = (171.4, 169.7), label = Plain),
+        (at = (175.3, 166.2), label = Plain),
+        (at = (180.9, 164.3), label = Plain),
+        (at = (187.1, 164.3), label = Plain),
+        (at = (192.7, 166.2), label = Plain),
+        (at = (196.6, 169.7), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (223.2, 157.5), label = Plain),
+        (at = (225.8, 158.1), label = Plain),
+        (at = (226.5, 160.6), label = Plain),
+        (at = (224.8, 162.5), label = Plain),
+        (at = (186.8, 174.5), label = Plain),
+        (at = (184.2, 173.9), label = Plain),
+        (at = (183.5, 171.4), label = Plain),
+        (at = (185.2, 169.5), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (230.0, 160.0), label = Plain),
+        (at = (228.2, 164.2), label = Plain),
+        (at = (224.0, 166.0), label = Plain),
+        (at = (219.8, 164.2), label = Plain),
+        (at = (218.0, 160.0), label = Plain),
+        (at = (219.8, 155.8), label = Plain),
+        (at = (224.0, 154.0), label = Plain),
+        (at = (228.2, 155.8), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (232.0, 171.4), label = Plain),
+        (at = (234.3, 172.7), label = Plain),
+        (at = (234.3, 175.3), label = Plain),
+        (at = (232.0, 176.6), label = Plain),
+        (at = (186.0, 176.6), label = Plain),
+        (at = (183.7, 175.3), label = Plain),
+        (at = (183.7, 172.7), label = Plain),
+        (at = (186.0, 171.4), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (238.0, 174.0), label = Plain),
+        (at = (236.2, 178.2), label = Plain),
+        (at = (232.0, 180.0), label = Plain),
+        (at = (227.8, 178.2), label = Plain),
+        (at = (226.0, 174.0), label = Plain),
+        (at = (227.8, 169.8), label = Plain),
+        (at = (232.0, 168.0), label = Plain),
+        (at = (236.2, 169.8), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (222.6, 181.5), label = Plain),
+        (at = (224.5, 183.2), label = Plain),
+        (at = (223.9, 185.8), label = Plain),
+        (at = (221.4, 186.5), label = Plain),
+        (at = (185.4, 178.5), label = Plain),
+        (at = (183.5, 176.8), label = Plain),
+        (at = (184.1, 174.2), label = Plain),
+        (at = (186.6, 173.5), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "alien 3 toes",
+      points = [
+        (at = (228.0, 184.0), label = Plain),
+        (at = (226.2, 188.2), label = Plain),
+        (at = (222.0, 190.0), label = Plain),
+        (at = (217.8, 188.2), label = Plain),
+        (at = (216.0, 184.0), label = Plain),
+        (at = (217.8, 179.8), label = Plain),
+        (at = (222.0, 178.0), label = Plain),
+        (at = (226.2, 179.8), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Path((
+      name = "talons",
+      points = [(at = (268.0, 160.0), label = Anchor("ankle"))],
+      stroke = (width = 0., color = "none"))),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (300.9, 162.6), label = Plain),
+        (at = (304.3, 161.9), label = Plain),
+        (at = (307.5, 162.1), label = Plain),
+        (at = (310.5, 163.1), label = Plain),
+        (at = (313.4, 165.0), label = Plain),
+        (at = (316.2, 167.7), label = Plain),
+        (at = (312.9, 167.6), label = Plain),
+        (at = (310.0, 167.8), label = Plain),
+        (at = (307.4, 168.1), label = Plain),
+        (at = (305.1, 168.7), label = Plain),
+        (at = (303.1, 169.4), label = Plain)
+      ],
+      stroke = (width = 1.8, color = "#5c4a2e"),
+      fill = "#f4ecd6")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (308.1, 174.4), label = Plain),
+        (at = (311.5, 174.9), label = Plain),
+        (at = (314.5, 176.1), label = Plain),
+        (at = (317.0, 178.1), label = Plain),
+        (at = (319.1, 180.9), label = Plain),
+        (at = (320.8, 184.4), label = Plain),
+        (at = (317.8, 183.2), label = Plain),
+        (at = (315.0, 182.3), label = Plain),
+        (at = (312.4, 181.8), label = Plain),
+        (at = (310.0, 181.5), label = Plain),
+        (at = (307.9, 181.6), label = Plain)
+      ],
+      stroke = (width = 1.8, color = "#5c4a2e"),
+      fill = "#f4ecd6")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (300.9, 182.7), label = Plain),
+        (at = (304.1, 184.0), label = Plain),
+        (at = (306.7, 185.8), label = Plain),
+        (at = (308.7, 188.3), label = Plain),
+        (at = (310.1, 191.4), label = Plain),
+        (at = (311.0, 195.2), label = Plain),
+        (at = (308.3, 193.3), label = Plain),
+        (at = (305.8, 191.7), label = Plain),
+        (at = (303.4, 190.5), label = Plain),
+        (at = (301.2, 189.7), label = Plain),
+        (at = (299.1, 189.3), label = Plain)
+      ],
+      stroke = (width = 1.8, color = "#5c4a2e"),
+      fill = "#f4ecd6")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (255.1, 187.0), label = Plain),
+        (at = (252.0, 188.3), label = Plain),
+        (at = (249.3, 189.7), label = Plain),
+        (at = (247.1, 191.1), label = Plain),
+        (at = (245.3, 192.6), label = Plain),
+        (at = (243.9, 194.2), label = Plain),
+        (at = (245.7, 190.2), label = Plain),
+        (at = (247.5, 186.9), label = Plain),
+        (at = (249.3, 184.2), label = Plain),
+        (at = (251.1, 182.3), label = Plain),
+        (at = (252.9, 181.0), label = Plain)
+      ],
+      stroke = (width = 1.8, color = "#5c4a2e"),
+      fill = "#f4ecd6")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (284.5, 176.0), label = Plain),
+        (at = (283.3, 180.6), label = Plain),
+        (at = (279.8, 184.2), label = Plain),
+        (at = (274.8, 186.2), label = Plain),
+        (at = (269.2, 186.2), label = Plain),
+        (at = (264.2, 184.2), label = Plain),
+        (at = (260.7, 180.6), label = Plain),
+        (at = (259.5, 176.0), label = Plain),
+        (at = (260.7, 171.4), label = Plain),
+        (at = (264.2, 167.8), label = Plain),
+        (at = (269.2, 165.8), label = Plain),
+        (at = (274.8, 165.8), label = Plain),
+        (at = (279.8, 167.8), label = Plain),
+        (at = (283.3, 171.4), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (300.1, 160.2), label = Plain),
+        (at = (306.1, 161.5), label = Plain),
+        (at = (308.0, 167.3), label = Plain),
+        (at = (303.9, 171.8), label = Plain),
+        (at = (275.9, 180.8), label = Plain),
+        (at = (269.9, 179.5), label = Plain),
+        (at = (268.0, 173.7), label = Plain),
+        (at = (272.1, 169.2), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (308.2, 171.9), label = Plain),
+        (at = (313.4, 175.1), label = Plain),
+        (at = (313.2, 181.2), label = Plain),
+        (at = (307.8, 184.1), label = Plain),
+        (at = (273.8, 183.1), label = Plain),
+        (at = (268.6, 179.9), label = Plain),
+        (at = (268.8, 173.8), label = Plain),
+        (at = (274.2, 170.9), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (301.5, 180.3), label = Plain),
+        (at = (305.7, 184.5), label = Plain),
+        (at = (304.2, 190.2), label = Plain),
+        (at = (298.5, 191.7), label = Plain),
+        (at = (272.5, 184.7), label = Plain),
+        (at = (268.3, 180.5), label = Plain),
+        (at = (269.8, 174.8), label = Plain),
+        (at = (275.5, 173.3), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (256.0, 189.3), label = Plain),
+        (at = (250.4, 188.4), label = Plain),
+        (at = (248.4, 183.1), label = Plain),
+        (at = (252.0, 178.7), label = Plain),
+        (at = (268.0, 172.7), label = Plain),
+        (at = (273.6, 173.6), label = Plain),
+        (at = (275.6, 178.9), label = Plain),
+        (at = (272.0, 183.3), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#8a5a44"),
+      fill = "#8a5a44")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (282.0, 176.0), label = Plain),
+        (at = (281.0, 179.5), label = Plain),
+        (at = (278.2, 182.3), label = Plain),
+        (at = (274.2, 183.8), label = Plain),
+        (at = (269.8, 183.8), label = Plain),
+        (at = (265.8, 182.3), label = Plain),
+        (at = (263.0, 179.5), label = Plain),
+        (at = (262.0, 176.0), label = Plain),
+        (at = (263.0, 172.5), label = Plain),
+        (at = (265.8, 169.7), label = Plain),
+        (at = (269.8, 168.2), label = Plain),
+        (at = (274.2, 168.2), label = Plain),
+        (at = (278.2, 169.7), label = Plain),
+        (at = (281.0, 172.5), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (300.9, 162.6), label = Plain),
+        (at = (304.4, 163.3), label = Plain),
+        (at = (305.5, 166.8), label = Plain),
+        (at = (303.1, 169.4), label = Plain),
+        (at = (275.1, 178.4), label = Plain),
+        (at = (271.6, 177.7), label = Plain),
+        (at = (270.5, 174.2), label = Plain),
+        (at = (272.9, 171.6), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (308.1, 174.4), label = Plain),
+        (at = (311.2, 176.3), label = Plain),
+        (at = (311.1, 179.9), label = Plain),
+        (at = (307.9, 181.6), label = Plain),
+        (at = (273.9, 180.6), label = Plain),
+        (at = (270.8, 178.7), label = Plain),
+        (at = (270.9, 175.1), label = Plain),
+        (at = (274.1, 173.4), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (300.9, 182.7), label = Plain),
+        (at = (303.3, 185.1), label = Plain),
+        (at = (302.4, 188.4), label = Plain),
+        (at = (299.1, 189.3), label = Plain),
+        (at = (273.1, 182.3), label = Plain),
+        (at = (270.7, 179.9), label = Plain),
+        (at = (271.6, 176.6), label = Plain),
+        (at = (274.9, 175.7), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d")),
+    Polygon((
+      name = "talons",
+      points = [
+        (at = (255.1, 187.0), label = Plain),
+        (at = (252.0, 186.5), label = Plain),
+        (at = (250.8, 183.5), label = Plain),
+        (at = (252.9, 181.0), label = Plain),
+        (at = (268.9, 175.0), label = Plain),
+        (at = (272.0, 175.5), label = Plain),
+        (at = (273.2, 178.5), label = Plain),
+        (at = (271.1, 181.0), label = Plain)
+      ],
+      stroke = (width = 0.0, color = "#f1c27d"),
+      fill = "#f1c27d"))
+  ],
+  current = 0, chosen = -1, held = false, moved = false))) in
+
+let shoe_style = ^^livelit(Drawing.^choice@<Shoe>(
+  [("sneakers", Sneakers),
+   ("boots", Boots),
+   ("clown shoes", ClownShoes),
+   ("bare feet", BareFeet),
+   ("5 toes", FiveToes),
+   ("alien 4 toes", AlienFour),
+   ("alien 3 toes", AlienThree),
+   ("talons", Talons)])(Sneakers)) in
+let shoe_size = ^^livelit(Drawing.^slider("shoe size", 20, 310)(100)) in
+let shoe_name =
+  case shoe_style
+  | Sneakers => "sneakers"
+  | Boots => "boots"
+  | ClownShoes => "clown shoes"
+  | BareFeet => "bare feet"
+  | FiveToes => "5 toes"
+  | AlienFour => "alien 4 toes"
+  | AlienThree => "alien 3 toes"
+  | Talons => "talons"
+  end in
+# The chosen shoe, grown about its ankle by the size. #
+let shoe =
+  let one = Drawing.named(shoes, shoe_name) in
+  case Drawing.anchor(one, "ankle")
+  | Found((ax, ay)) =>
+    let k = float_of_int(shoe_size) /. 100. in scaled((one, ax, ay, k, k))
+  | Missing => one
+  end in
+
+# THE PICTURE #
+
+let right_shoe = Drawing.placed(shoe, "ankle", pants, "right foot") in
+let left_shoe = Drawing.placed(Drawing.mirrored(shoe), "ankle", pants, "left foot") in
+let picture = right_shoe @ left_shoe @ pants in
+let ^^probe(drawn) = ^^livelit(Drawing.^picture((picture = (picture)))) in
+
+# Where the shoes' ankles ended up. #
+(Drawing.anchor(right_shoe, "ankle"), Drawing.anchor(left_shoe, "ankle"))
+
+# Press a shoe style and both feet change; slide the size and they #
+# grow about their ankles. Edit a style's polygons in the shoe editor #
+# and that style changes. #

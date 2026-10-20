@@ -58,6 +58,10 @@ let rec find_hz = (dir: string): list(string) =>
     |> List.concat_map(entry => {
          let path = Filename.concat(dir, entry);
          switch (Sys.is_directory(path)) {
+         /* the mega/bench perf corpora: composed from already-swept
+            sources and too slow here; FastParseCorpus covers them */
+         | true when List.mem(Filename.basename(path), ["mega", "bench"]) =>
+           []
          | true => find_hz(path)
          | false => Filename.check_suffix(entry, ".hz") ? [path] : []
          | exception _ => []
@@ -132,7 +136,14 @@ let tests = (
     | files =>
       List.map(
         path =>
-          test_case("differential: " ++ path, `Slow, () => check_file(path)),
+          test_case(
+            "differential: " ++ path,
+            `Slow,
+            () => {
+              ParsedCorpus.skip_if_long(read_file(path));
+              check_file(path);
+            },
+          ),
         files,
       )
     };

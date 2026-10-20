@@ -25,8 +25,10 @@ type external_action =
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
   | EscapeToLineEnd(ProjectorCore.Kind.t) /* Pass focus to parent editor, move to end of line */
+  | ToggleSyntax /* Show/hide this projector's own syntax below its UI */
   | SetSyntax(Base.segment) /* Set underlying syntax */
   | SetTerm(Any.t, bool) /* Set underlying term, optionally preserving original splices */
+  | Unproject(Base.segment) /* Replace this projector with a segment: a livelit turned back into code */
   | FocusById(Util.Id.t); /* Focus a projector by its term id */
 
 /* Syntax utility functions/values for projector use,
@@ -53,6 +55,10 @@ type utility = {
     (~inline: bool, Any.t => Any.t, Base.segment) => option(Base.segment),
   /* Lifts term->term functions over the projector's syntax term. */
   lift_term: (Any.t => Any.t, Base.segment) => option(Any.t),
+  /* Parse text as an expression, with the fast parser; None when it does
+     not parse cleanly. For a projector that takes code typed into one of
+     its own inputs (a livelit's params panel). */
+  string_to_exp: string => option(Exp.t),
 };
 
 module Focusable = {
@@ -79,6 +85,14 @@ module Focusable = {
     pointer: None,
     keyboard: None,
   };
+};
+
+/* A probe drawer stepping one sample in place of the samples; rows is
+   the stepper's height, which the web layer measures */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type stepping = {
+  span: Sample.span_ref,
+  rows: int,
 };
 
 /* External info proivded to all projectors */
@@ -110,6 +124,11 @@ type info = {
    * Available when statics/elaboration is enabled. The elaborated
    * form has labels inserted/rearranged by the elaborator. */
   elaborated: option(Language.Exp.t),
+  /* Set when this probe's drawer is stepping a sample */
+  stepping: option(stepping),
+  /* Set on the ⇓ toggle's probe: its drawer shows the program's value,
+     after the program */
+  program_value: bool,
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,

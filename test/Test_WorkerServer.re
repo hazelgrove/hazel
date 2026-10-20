@@ -47,6 +47,7 @@ let response_of_exp = (e: Exp.t): WorkerServer.ServerMessage.t =>
     request_id: 1,
     response: [("cell", Ok((e, EvaluatorState.empty)))],
     eval_time,
+    final_streams: [],
   });
 
 let parse = (s: string): Exp.t =>
@@ -149,140 +150,131 @@ let test_span_yojson = (): test_case(_) =>
     },
   );
 
-/* The incremental cache stays in the worker (WorkerServer.Held): a finished
-   run's cache is kept by key and the answer leaves it out, and a request
-   with use_held_prev evaluates against what is kept. */
-let request_of = text => {
-  switch (Haz3lcore.PersistentZipper.parse_text(~source="t", ~root=Exp, text)) {
-  | None => fail("did not parse")
-  | Some(z) =>
-    let Haz3lcore.MakeTerm.{term, _} =
-      Haz3lcore.MakeTerm.from_zip_for_sem(z, ~root=Exp);
-    let (info_map, elab) =
-      Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), term);
-    WorkerServer.Request.{
-      expr: elab,
-      eval_info_map:
-        EvalInfo.of_info_map(
-          ~probe_all=false,
-          ~targets=Id.Map.empty,
-          info_map,
-        ),
-      prev: IncrEval.empty,
-      use_held_prev: true,
-    };
-  };
-};
-
-let program = n =>
-  "let f = fun n -> n * 2 in let xs = [1, 2, 3] in (f("
-  ++ string_of_int(n)
-  ++ "), xs)";
-
-/* One run as the worker does it: resolve the held cache, evaluate, keep. */
-let run = (key, v) =>
-  WorkerServer.Held.keep(
-    key,
-    WorkerServer.evaluate_sync(WorkerServer.Held.resolve(key, v)),
-  );
-
-let result_of = (r: WorkerServer.Response.value) =>
-  switch (r) {
-  | Ok((result, _)) => result
-  | Error(_) => fail("the run failed")
-  };
-
-let test_held_by_key = () =>
+/* streams and the reuse plan ship only what the main thread reads: entry
+   keys, [seq] and states; the reuse payload stays in the worker */
+let test_slim_entries = (): test_case(_) =>
   test_case(
-    "the worker keeps each key's cache",
+    "slimmed entries keep keys and order, drop the payload",
     `Quick,
     () => {
-      WorkerServer.Held.clear();
-      let v = request_of(program(10));
-      check(
-        bool,
-        "nothing is held at first",
-        true,
-        WorkerServer.Held.resolve("a", v).prev === IncrEval.empty,
-      );
-      switch (run("a", v)) {
-      | Ok((_, state)) =>
-        check(
-          bool,
-          "the answer leaves the cache out",
-          true,
-          state.incr_eval === IncrEval.empty,
-        )
-      | Error(_) => fail("the run failed")
+      let id = Util.Id.mk();
+      let entry: IncrEval.entry(EvaluatorState.t) = {
+        prev_elab: parse("1 + 2"),
+        prev_ana: Typ.fresh(Unknown(Internal)),
+        prev_reuse_map: IncrEval.empty_reuse_map,
+        prev_probe_targets: EvalInfo.ProbeTargets(SubexpProbeTargets.empty),
+        value: parse("3"),
+        state: EvaluatorState.empty,
+        seq: 7,
       };
-      check(
-        bool,
-        "the next run gets the cache",
-        false,
-        WorkerServer.Held.resolve("a", v).prev === IncrEval.empty,
-      );
-      check(
-        bool,
-        "another key gets none",
-        true,
-        WorkerServer.Held.resolve("b", v).prev === IncrEval.empty,
-      );
-      check(
-        bool,
-        "a request that passes its own prev keeps it",
-        true,
-        WorkerServer.Held.resolve(
-          "a",
-          {
-            ...v,
-            use_held_prev: false,
-          },
-        ).
-          prev
-        === IncrEval.empty,
-      );
-    },
-  );
-
-let test_held_same_result = () =>
-  test_case(
-    "a held cache gives the same result",
-    `Quick,
-    () => {
-      WorkerServer.Held.clear();
-      let _ = run("a", request_of(program(10)));
-      let edited = request_of(program(11));
-      let held = result_of(run("a", edited));
-      let fresh =
-        result_of(
-          WorkerServer.evaluate_sync({
-            ...edited,
-            use_held_prev: false,
-          }),
+      let slim =
+        WorkerServer.slim_entries(
+          IncrEval.add_entry(id, entry, IncrEval.empty),
         );
-      check(
-        bool,
-        "the same as a fresh run",
-        true,
-        Exp.fast_equal(held, fresh),
-      );
+      switch (Util.Id.Map.find_opt(id, slim.entries)) {
+      | None => fail("entry dropped")
+      | Some(e) =>
+        check(int, "seq kept", 7, e.seq);
+        check(bool, "value dropped", true, e.value.term == EmptyHole);
+        check(bool, "elab dropped", true, e.prev_elab.term == EmptyHole);
+      };
     },
   );
 
-let test_held_dropped_on_failure = () =>
+/* Responses are shared like requests (WorkerServer.share_response on the
+   worker, WorkerClient.unshare on the client), over the active encoding and
+   structuredClone as on the real boundary. The two tables live in one JS
+   runtime here. */
+let shared_rt = (msg: WorkerServer.ServerMessage.t) => {
+  module M = WorkerServer.MarshalEncoding;
+  let w = M.encode_response(WorkerServer.share_response(msg));
+  let w = structured_clone(w);
+  (String.length(Obj.magic(w): string), M.decode_response(w));
+};
+let reset_sharing = () => {
+  Util.ShareCodec.Client.reset();
+  Util.ShareCodec.Worker.reset();
+  WorkerServer.response_reset := true;
+  Web.WorkerClient.awaiting_response_reset := false;
+};
+let result_exp = (msg: WorkerServer.ServerMessage.t): Exp.t =>
+  switch (msg) {
+  | WorkerServer.ServerMessage.Result({
+      response: [("cell", Ok((e, _))), ..._],
+      _,
+    }) => e
+  | _ => fail("not a result")
+  };
+let unshared = (wire: WorkerServer.ServerMessage.t) =>
+  switch (Web.WorkerClient.unshare(wire)) {
+  | Some(Ok(msg)) => msg
+  | Some(Error ()) => fail("unshare: unknown reference")
+  | None => fail("unshare: ignored")
+  };
+let a_result = (~id: int, e: Exp.t): WorkerServer.ServerMessage.t =>
+  WorkerServer.ServerMessage.Result({
+    request_id: id,
+    response: [("cell", Ok((e, EvaluatorState.empty)))],
+    eval_time,
+    final_streams: [],
+  });
+
+let test_shared_responses = (): test_case(_) =>
   test_case(
-    "a failed run keeps nothing",
+    "Shared responses: round trip, and an unchanged result is small and shared",
     `Quick,
     () => {
-      WorkerServer.Held.clear();
-      let v = request_of(program(10));
-      let _ = run("a", v);
-      let _ = WorkerServer.Held.keep("a", Error(ProgramResult.Timeout));
+      reset_sharing();
+      let e = Test_ShareCodec.elab(Test_ShareCodec.program(40));
+      let (first, wire1) = shared_rt(a_result(~id=1, e));
+      let (second, wire2) = shared_rt(a_result(~id=2, e));
       check(
         bool,
-        "no cache after a failure",
+        "the first resets the client's table",
         true,
-        WorkerServer.Held.resolve("a", v).prev === IncrEval.empty,
+        switch (wire1) {
+        | WorkerServer.ServerMessage.Shared(true, _) => true
+        | _ => false
+        },
+      );
+      let e1 = result_exp(unshared(wire1));
+      let e2 = result_exp(unshared(wire2));
+      check(bool, "the result arrives", true, Util.ValueHash.same(e, e1));
+      check(bool, "the second is much smaller", true, second * 5 < first);
+      check(bool, "and is the very value received", true, e1 === e2);
+    },
+  );
+
+let test_shared_response_recovery = (): test_case(_) =>
+  test_case(
+    "Shared responses: a value the client lost is an error, then ignored until the worker resets",
+    `Quick,
+    () => {
+      reset_sharing();
+      let e = Test_ShareCodec.elab(Test_ShareCodec.program(10));
+      ignore(unshared(snd(shared_rt(a_result(~id=1, e)))));
+      Util.ShareCodec.Worker.reset(); /* the client's table is lost */
+      let after = snd(shared_rt(a_result(~id=2, e)));
+      check(
+        bool,
+        "an error",
+        true,
+        Web.WorkerClient.unshare(after) == Some(Error()),
+      );
+      let stale = snd(shared_rt(a_result(~id=3, e)));
+      check(
+        bool,
+        "the rest is ignored",
+        true,
+        Web.WorkerClient.unshare(stale) == None,
+      );
+      WorkerServer.response_reset := true; /* ResetResponses */
+      let fresh = snd(shared_rt(a_result(~id=4, e)));
+      check(
+        bool,
+        "after the reset, whole again",
+        true,
+        Util.ValueHash.same(e, result_exp(unshared(fresh))),
       );
     },
   );
@@ -294,17 +286,12 @@ let tests = [
       test_marshal_depth_proof(),
       test_eval_time_round_trips(),
       test_span_yojson(),
+      test_slim_entries(),
       test_isomorphic(~name="Marshal", (module WorkerServer.MarshalEncoding)),
       test_isomorphic(~name="Direct", (module WorkerServer.DirectEncoding)),
       test_isomorphic(~name="Sexp", (module WorkerServer.SexpEncoding)),
-    ],
-  ),
-  (
-    "WorkerServer held cache",
-    [
-      test_held_by_key(),
-      test_held_same_result(),
-      test_held_dropped_on_failure(),
+      test_shared_responses(),
+      test_shared_response_recovery(),
     ],
   ),
 ];

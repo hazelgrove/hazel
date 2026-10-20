@@ -113,20 +113,128 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  use_literal_lexemes: false,
   hole_tiles: false,
   project_tables: false,
 };
 
+/* The bar prints on one line, and cuts off what does not fit; the panel
+   over it (expanded_view) prints the same things whole, broken over lines
+   and indented, so a big type -- a module's, a livelit's -- can be read.
+   Which one is being drawn is the globals' inspector_expanded: the bar is
+   drawn with it off (see `view`). */
+let print_settings = (globals: Globals.t) =>
+  globals.settings.inspector_expanded
+    ? {
+      ...code_view_settings,
+      inline: false,
+    }
+    : code_view_settings;
+
+/* The panel's width in columns of code: the window's, less the panel's
+   padding and scrollbar, and a few columns for the words a type follows
+   (":", "lifted to"). */
+let panel_columns = (globals: Globals.t): int => {
+  let px = float_of_int(Js_of_ocaml.Dom_html.window##.innerWidth) -. 64.;
+  max(30, int_of_float(px /. globals.font_metrics.col_width) - 4);
+};
+
+/* In the panel, a term or type is laid out to the panel's width, broken
+   over lines and indented, so it scrolls down and never across. A layout
+   that fails leaves it on one line rather than losing the view. */
+let view_segment = (~globals: Globals.t, seg) => {
+  let seg =
+    globals.settings.inspector_expanded
+      ? try(
+          Haz3lcore.PrettySegment.prettify(
+            ~width=panel_columns(globals),
+            seg,
+          )
+        ) {
+        | _ => seg
+        }
+      : seg;
+  CodeViewable.view_segment(~globals, seg);
+};
+
 let view_any = (~globals, any: Any.t) =>
   any
-  |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
+  |> Haz3lcore.ExpToSegment.any_to_segment(
+       ~settings=print_settings(globals),
+     )
+  |> view_segment(~globals)
   |> code_box_container;
 
-let view_type = (~globals, typ: Typ.t) =>
+/* The context the full view expands aliases in: the inspected term's,
+   set by expanded_view while it draws. view_type has many callers, all
+   drawn inside a view, so the view sets this rather than threading it
+   through; None elsewhere, so the bar never expands. */
+let expansion_ctx: ref(option(Ctx.t)) = ref(Option.None);
+
+/* The expansions the full view has shown while drawing, so that one
+   showing twice ("Picture is equal to [Shape]") shows once */
+let expansions_shown: ref(list(string)) = ref([]);
+
+/* The bar's toggle while the bar is drawn: the first type the bar prints
+   takes it, so it sits beside the type it shows whole. `view` puts it at
+   the bar's end when no type took it. */
+let bar_toggle: ref(option(Node.t)) = ref(Option.None);
+
+let print_type = (~globals, typ: Typ.t) =>
   typ
   |> Typ.abstract_rec_types
-  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
-  |> code_box_container;
+  |> Haz3lcore.TypToSegment.typ_to_segment(
+       ~settings=print_settings(globals),
+     )
+  |> view_segment(~globals);
+
+/* A type on one line, to tell whether expanding its aliases changed it */
+let type_text = (typ: Typ.t): string =>
+  typ
+  |> Haz3lcore.TypToSegment.typ_to_segment(~settings=code_view_settings)
+  |> Haz3lcore.Printer.of_segment(~is_single_line=true);
+
+/* In the full view, a type that names an alias also shows what it stands
+   for: each alias replaced by its definition, and the aliases in that, and
+   so on (Typ.normalize). A recursive alias stops at its own name, which
+   its definition's `rec` binds. */
+let alias_expansion = (~globals: Globals.t, typ: Typ.t): list(Node.t) =>
+  switch (expansion_ctx^) {
+  | Some(ctx) when globals.settings.inspector_expanded =>
+    switch (Typ.normalize(ctx, typ)) {
+    | expanded =>
+      let shown = type_text(expanded);
+      shown == type_text(typ) || List.mem(shown, expansions_shown^)
+        ? []
+        : {
+          expansions_shown := [shown, ...expansions_shown^];
+          [
+            div(
+              ~attrs=[clss(["ci-alias-expansion"])],
+              [text("="), print_type(~globals, expanded)],
+            ),
+          ];
+        };
+    | exception _ => []
+    }
+  | _ => []
+  };
+
+let view_type = (~globals, typ: Typ.t) => {
+  let box = code_box_container(print_type(~globals, typ));
+  let box =
+    switch (alias_expansion(~globals, typ)) {
+    | [] => box
+    | expansion =>
+      div(~attrs=[clss(["ci-type-expanded"])], [box, ...expansion])
+    };
+  switch (bar_toggle^) {
+  | Some(toggle) =>
+    bar_toggle := Option.None;
+    div(~attrs=[clss(["ci-type-with-expand"])], [box, toggle]);
+  | None => box
+  };
+};
 
 let core_mark_err_view =
     (
@@ -1245,6 +1353,16 @@ let tpat_view =
       div_ok([text("Fillable with a new alias")])
     | Some(TPatOk(Var(name))) =>
       div_ok([ContextInspector.alias_view(name)])
+    /* The bar names the alias; the full view also prints what it is an
+       alias for, laid out like any type there. */
+    | Some(TPatOk(Alias(name, def))) =>
+      globals.settings.inspector_expanded
+        ? div_ok([
+            ContextInspector.alias_view(name),
+            text("="),
+            view_type(def),
+          ])
+        : div_ok([ContextInspector.alias_view(name)])
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])
@@ -1336,8 +1454,64 @@ let projector_error_inspector =
     ],
   );
 
-let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
-  let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
+let info_for_view = (~quiver: bool, cursor: Cursor.cursor('action)) =>
+  switch (
+    quiver && !cursor.editor_read_only
+      ? Lazy.force(cursor.implied_hole) : None
+  ) {
+  | Some(_) as info => info
+  | None => cursor.info
+  };
+
+/* The bar's toggle for the panel above it: shows the inspected item with
+   its types whole (#2674). */
+let expand_toggle = (~globals: Globals.t): Node.t => {
+  let open_ = globals.settings.inspector_expanded;
+  div(
+    ~attrs=[
+      clss(["ci-expand"] @ (open_ ? ["open"] : [])),
+      Attr.title(
+        open_
+          ? "Close the full view" : "Show the types in full, on several lines",
+      ),
+      Attr.on_click(_ => globals.inject_global(Set(InspectorExpanded))),
+    ],
+    [text(open_ ? "\u{2921}" : "\u{2922}")],
+  );
+};
+
+/* [dynamics]: the slide program's, at the bar's right end */
+let view =
+    (
+      ~globals: Globals.t,
+      ~dynamics: option(Node.t)=?,
+      cursor: Cursor.cursor(Editors.Update.t),
+    ) => {
+  let toggle = expand_toggle(~globals);
+  bar_toggle := Some(toggle);
+  /* the bar prints on one line, however the panel prints */
+  let globals = {
+    ...globals,
+    settings: {
+      ...globals.settings,
+      inspector_expanded: false,
+    },
+  };
+  /* kids are built first, so a type among them has taken the toggle; if
+     none did, it goes at the bar's end, before the dynamics */
+  let bar_view = kids => {
+    let rest =
+      switch (bar_toggle^) {
+      | Some(toggle) =>
+        bar_toggle := Option.None;
+        [toggle];
+      | None => []
+      };
+    div(
+      ~attrs=[Attr.id("bottom-bar")],
+      kids @ rest @ Option.to_list(dynamics),
+    );
+  };
   let err_view = err =>
     bar_view([
       div(
@@ -1355,8 +1529,9 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
       }
     | _ => None
     };
-  switch (cursor.info) {
-  | _ when !globals.settings.core.statics => div_empty
+  switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
+  | _ when !globals.settings.core.statics =>
+    dynamics == None ? div_empty : bar_view([])
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
     /* Show projector error instead of normal status,
@@ -1368,3 +1543,93 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
     }
   };
 };
+
+/* The panel's height once its top edge has been dragged, in pixels. Until
+   then it is as tall as what it shows, up to a limit (the CSS). Kept here,
+   not in the settings: a drag sets it many times a second. */
+let panel_height: ref(option(int)) = ref(Option.None);
+
+/* The panel's top edge: drag it to make the panel any height, up to the
+   top of the window. The drag sets the panel's style directly, as the
+   sidebar's resize handle does, and panel_height keeps it for redraws. */
+let resize_grip = (): Node.t => {
+  open Js_of_ocaml;
+  let bottom = ref(0.);
+  let rec handle_mousemove = event => {
+    let y: float = Js.Unsafe.coerce(event)##.clientY;
+    let h =
+      max(60, min(int_of_float(bottom^ -. y), int_of_float(bottom^)));
+    panel_height := Some(h);
+    switch (JsUtil.get_elem_by_id_opt("ci-expanded")) {
+    | Some(elem) =>
+      Js.Unsafe.coerce(elem)##.style##.height :=
+        Js.string(string_of_int(h) ++ "px")
+    | None => ()
+    };
+  }
+  and handle_mouseup = _ => {
+    let doc = Js.Unsafe.coerce(Dom_html.document);
+    let _ = doc##removeEventListener("mousemove", handle_mousemove);
+    let _ = doc##removeEventListener("mouseup", handle_mouseup);
+    ();
+  };
+  let handle_mousedown = _ => {
+    switch (JsUtil.get_elem_by_id_opt("ci-expanded")) {
+    | Some(elem) => bottom :=  elem##getBoundingClientRect##.bottom
+    | None => ()
+    };
+    let doc = Js.Unsafe.coerce(Dom_html.document);
+    let _ = doc##addEventListener("mousemove", handle_mousemove);
+    let _ = doc##addEventListener("mouseup", handle_mouseup);
+    /* no text selection while dragging */
+    Effect.Prevent_default;
+  };
+  div(
+    ~attrs=[
+      clss(["ci-expanded-grip"]),
+      Attr.title("Drag to resize"),
+      Attr.on_mousedown(handle_mousedown),
+    ],
+    [],
+  );
+};
+
+/* The panel over the bar, while it is open: what the bar inspects, its
+   types and terms printed whole, on several lines (#2674). It follows the
+   caret, and closes from the bar's toggle. */
+let expanded_view =
+    (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)): Node.t =>
+  switch (globals.settings.inspector_expanded, globals.settings.core.statics) {
+  | (false, _)
+  | (_, false) => div_empty
+  | (true, true) =>
+    switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
+    | None => div_empty
+    | Some(ci) =>
+      /* the status -- the types, and what is wrong -- not the header,
+         which the bar still shows */
+      bar_toggle := Option.None;
+      expansion_ctx := Some(Info.ctx_of(ci));
+      expansions_shown := [];
+      let status =
+        Fun.protect(
+          ~finally=() => expansion_ctx := Option.None,
+          () =>
+            switch (view_of_info(~globals, ci)) {
+            | [_term, status] => [status]
+            | parts => parts
+            },
+        );
+      let height =
+        switch (panel_height^) {
+        | Some(h) => [
+            Attr.create("style", "height: " ++ string_of_int(h) ++ "px"),
+          ]
+        | None => []
+        };
+      div(
+        ~attrs=[Attr.id("ci-expanded"), clss(["ci-expanded"]), ...height],
+        [resize_grip(), div(~attrs=[clss(["ci-expanded-body"])], status)],
+      );
+    }
+  };

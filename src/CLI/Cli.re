@@ -41,8 +41,9 @@ let format_hazel = (implicit_hole: string, width, path) => {
   /* Parse to a zipper (not just a segment) so we recover manual refractors
      produced by `^^probe(...)` / `^^statics(...)` triggers in the input.
      The refractors are then passed to Printer.of_segment so they round-trip
-     back to their trigger syntax. Both convex and concave Grout are rendered
-     with `implicit_hole` so the marker survives a decode|format|encode pipe. */
+     back to their trigger syntax. Convex Grout renders as `implicit_hole`;
+     concave Grout gets its own marker (an operator hole has no operand
+     spelling), so a decode|format|encode pipe stays fast-parseable. */
   switch (parse_to_zipper(program)) {
   | None => failwith("Failed to parse: " ++ path)
   | Some(zipper) =>
@@ -52,8 +53,7 @@ let format_hazel = (implicit_hole: string, width, path) => {
     let output =
       Haz3lcore.Printer.of_segment(
         ~holes=implicit_hole,
-        ~concave_holes=implicit_hole,
-        ~indent=" ",
+        ~concave_holes=Haz3lcore.Token.concave_hole_marker,
         ~refractors=zipper.refractors.manuals,
         pretty_seg,
       );
@@ -61,8 +61,78 @@ let format_hazel = (implicit_hole: string, width, path) => {
   };
 };
 
+/* The --count-passes report: how many analyses statics made of each
+   expression, as a histogram, and the most-analyzed expressions with
+   where they are in the source. */
+let report_pass_counts =
+    (
+      ~source: string,
+      measured: Haz3lcore.Measured.t,
+      counts: Hashtbl.t(Util.Id.t, (int, Language.Exp.t)),
+    ) => {
+  let entries =
+    Hashtbl.fold((id, (n, _), acc) => [(id, n), ...acc], counts, []);
+  let distinct = List.length(entries);
+  let total = List.fold_left((acc, (_, n)) => acc + n, 0, entries);
+  Printf.printf(
+    "passes: %d analyses of %d expressions (%.2f per expression)\n",
+    total,
+    distinct,
+    float_of_int(total) /. float_of_int(max(distinct, 1)),
+  );
+  let hist = Hashtbl.create(16);
+  List.iter(
+    ((_, n)) =>
+      Hashtbl.replace(
+        hist,
+        n,
+        1 + Option.value(~default=0, Hashtbl.find_opt(hist, n)),
+      ),
+    entries,
+  );
+  Hashtbl.fold((n, k, acc) => [(n, k), ...acc], hist, [])
+  |> List.sort(compare)
+  |> List.iter(((n, k)) =>
+       Printf.printf("  analyzed %4dx: %6d expressions\n", n, k)
+     );
+  let lines = Diagnostic.lines_of_string(source);
+  let top =
+    List.filter(((_, n)) => n > 1, entries)
+    |> List.sort(((_, a), (_, b)) => compare(b, a));
+  let rec take = (k, xs) =>
+    switch (xs) {
+    | [x, ...rest] when k > 0 => [x, ...take(k - 1, rest)]
+    | _ => []
+    };
+  /* Several ids share a line; show each line once, at its largest count. */
+  let seen = Hashtbl.create(16);
+  let shown =
+    List.filter_map(
+      ((id, n)) =>
+        switch (Haz3lcore.Measured.find_by_id(id, measured)) {
+        | Some({origin, _}) when !Hashtbl.mem(seen, origin.row) =>
+          Hashtbl.add(seen, origin.row, ());
+          let text =
+            origin.row < Array.length(lines)
+              ? String.trim(lines[origin.row]) : "";
+          let text =
+            String.length(text) > 70
+              ? String.sub(text, 0, 70) ++ "..." : text;
+          Some(
+            Printf.sprintf("  %4dx  line %4d  %s", n, origin.row + 1, text),
+          );
+        | _ => None
+        },
+      top,
+    );
+  if (shown != []) {
+    print_endline("most analyzed (one per line):");
+    List.iter(print_endline, take(25, shown));
+  };
+};
+
 let analyze_hazel =
-    (show_warnings: bool, path: string)
+    (show_warnings: bool, count_passes: bool, path: string)
     : [>
         | `Error(bool, string)
         | `Ok(unit)
@@ -90,12 +160,21 @@ let analyze_hazel =
       );
 
     /* Run static analysis */
+    if (count_passes) {
+      Statics.pass_counts := Some(Hashtbl.create(4096));
+    };
     let (static_map, _) =
       Statics.mk(
         CoreSettings.on,
         Builtins.ctx_init(Some(Operators.default_mode)),
         term,
       );
+    switch (Statics.pass_counts^) {
+    | Some(counts) =>
+      Statics.pass_counts := None;
+      report_pass_counts(~source=program, measured, counts);
+    | None => ()
+    };
 
     /* Get errors with their infos for line numbers */
     let formatted_errors =
@@ -409,6 +488,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
         ~settings=CoreSettings.on,
         ~info_map,
         ~probe_ids,
+        (),
       );
 
     /* Evaluate the elaboration from the same statics run (it may carry
@@ -535,8 +615,8 @@ let format_cmd = {
     structured formatting.
   |};
   let width_arg = {
-    let doc = "Target line width in columns (default: 60).";
-    Arg.(value & opt(int, 60) & info(["w", "width"], ~doc));
+    let doc = "Target line width in columns (default: 80).";
+    Arg.(value & opt(int, 80) & info(["w", "width"], ~doc));
   };
   let info = Cmd.info("format", ~doc);
   Cmd.v(
@@ -551,10 +631,18 @@ let analyze_cmd = {
     let doc = "Also report warnings (e.g. unused variables).";
     Arg.(value & flag & info(["W", "warnings"], ~doc));
   };
+  let count_passes_arg = {
+    let doc = "Report how many times statics analyzed each expression: a histogram, and the most-analyzed source lines. In a one-pass checker every count is 1.";
+    Arg.(value & flag & info(["count-passes"], ~doc));
+  };
   let info = Cmd.info("analyze", ~doc);
   Cmd.v(
     info,
-    Term.ret(Term.(const(analyze_hazel) $ warnings_arg $ input_arg)),
+    Term.ret(
+      Term.(
+        const(analyze_hazel) $ warnings_arg $ count_passes_arg $ input_arg
+      ),
+    ),
   );
 };
 

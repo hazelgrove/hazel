@@ -61,7 +61,7 @@ let split_at_label_sep =
   let rec go = (prefix, ps: Base.segment) =>
     switch (ps) {
     | [] => None
-    | [Base.Tile({label: ["="], _}) as eq, ...rest] =>
+    | [Base.Tile(t) as eq, ...rest] when Tile.label(t) == ["="] =>
       Some((List.rev([eq, ...prefix]), rest))
     | [p, ...rest] => go([p, ...prefix], rest)
     };
@@ -80,14 +80,9 @@ let map_comma_groups =
  * mold, so the nibs are what tell them apart. */
 let as_parens = (p: Base.piece): option((Base.tile, Base.segment)) =>
   switch (p) {
-  | Tile(
-      {
-        label: ["(", ")"],
-        mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-        children: [inner],
-        _,
-      } as t,
-    ) =>
+  /* The Parens family is op-shaped (convex both sides) by construction;
+     the application family that shares its label is a distinct family. */
+  | Tile({form: Form.Compound(Parens), children: [inner], _} as t) =>
     Some((t, inner))
   | _ => None
   };
@@ -113,7 +108,8 @@ let wrap_parens = (seg: Base.segment): option(Base.segment) => {
      written `((x * 10) : Int)` (SpliceStore.mk_typed_splice). */
   let looser_than_asc = (p: Base.piece) =>
     switch (p) {
-    | Tile({mold: {nibs: (l, r), _}, _}) =>
+    | Tile(t) =>
+      let (l, r) = Tile.mold(t).nibs;
       List.exists(
         (n: Nib.t) =>
           switch (n.shape) {
@@ -121,13 +117,13 @@ let wrap_parens = (seg: Base.segment): option(Base.segment) => {
           | Convex => false
           },
         [l, r],
-      )
+      );
     | _ => false
     };
   let rec last_colon = (i, found, ps: Base.segment) =>
     switch (ps) {
     | [] => found
-    | [Base.Tile({label: [":"], _}), ...rest] =>
+    | [Base.Tile(t), ...rest] when Tile.label(t) == [":"] =>
       last_colon(i + 1, Some(i), rest)
     | [_, ...rest] => last_colon(i + 1, found, rest)
     };
@@ -162,7 +158,7 @@ let wrap_parens = (seg: Base.segment): option(Base.segment) => {
 
 let as_list_lit = (p: Base.piece): option((Base.tile, Base.segment)) =>
   switch (p) {
-  | Tile({label: ["[", "]"], children: [inner], _} as t) =>
+  | Tile({children: [inner], _} as t) when Tile.label(t) == ["[", "]"] =>
     Some((t, inner))
   | _ => None
   };
@@ -273,11 +269,11 @@ let wrap_ctor_args = (arg: Base.segment): option(Base.segment) => {
     && Char.uppercase_ascii(c.[0]) == c.[0]
     && Char.lowercase_ascii(c.[0]) != c.[0];
   switch (core) {
-  | [
-      Base.Tile({label: [c], _}) as ctor,
-      Base.Tile({label: ["(", ")"], children: [inner], _} as ap),
-    ]
-      when is_ctor(c) =>
+  | [Base.Tile(c_t) as ctor, Base.Tile({children: [inner], _} as ap)]
+      when
+        Tile.arity(c_t) == 1
+        && is_ctor(Tile.token(c_t, 0))
+        && Tile.label(ap) == ["(", ")"] =>
     let wrapped = ref(false);
     let inner' =
       map_comma_groups(
@@ -311,6 +307,53 @@ let wrap_ctor_args = (arg: Base.segment): option(Base.segment) => {
  * invocation: the `^name` tile followed by the application's
  * argument tile. Returns None when nothing was marked, so an
  * unmarked livelit installs no syntax override at all. */
+/* Under Modules II a livelit's definition is analyzed against the
+   `Livelit` signature at a coercion site, so its elaboration ascribes the
+   module to the signature -- Asc(Module, Sig), under the definition's
+   type and value parameters and helper bindings -- and evaluated, that
+   seals the module to the signature's members: init, update, view and
+   expand. The members the projector reads besides them (shape,
+   params_from_model, init_from_params) are then gone. To read those,
+   evaluate the definition with that ascription removed. */
+let rec unsealed = (d: TermBase.Exp.t): TermBase.Exp.t => {
+  let re = (term: TermBase.Exp.term): TermBase.Exp.t => {
+    ...d,
+    term,
+  };
+  switch (d.term) {
+  | Asc({term: Module(_), _} as m, {term: Sig(_), _}) => m
+  | Ap(dir, f, args) => re(Ap(dir, unsealed(f), args))
+  | TypAp(f, ty) => re(TypAp(unsealed(f), ty))
+  | TypFun(tp, body, name) => re(TypFun(tp, unsealed(body), name))
+  | Fun(p, body, closure, name) =>
+    re(Fun(p, unsealed(body), closure, name))
+  | Let(p, def, body) => re(Let(p, def, unsealed(body)))
+  | TyAlias(tp, t, body) => re(TyAlias(tp, t, unsealed(body)))
+  | Parens(inner) => re(Parens(unsealed(inner)))
+  | _ => d
+  };
+};
+
+/* A livelit's `shape` member computed from its parameters -- not a
+   literal, so UserLivelit.shape_of cannot read it statically, and not a
+   function of the model (M.model_shape) -- by evaluating the use's applied
+   definition. ^choice counts the rows its buttons take this way. None
+   when the member is absent, a function, or not a shape once evaluated. */
+let evaluated_shape = (def_elab: TermBase.Exp.t): option(ProjectorShape.t) =>
+  switch (MvuShape.safe_evaluate_open(unsealed(def_elab))) {
+  | Error(_) => None
+  | Ok(record) =>
+    switch (MvuShape.record_field_open(record, "shape")) {
+    | Some(f) =>
+      switch (MvuShape.strip_wrappers(f).term) {
+      | Fun(_)
+      | FixF(_) => None
+      | _ => UserLivelit.shape_of(MvuShape.close_value(f))
+      }
+    | None => None
+    }
+  };
+
 let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
   let wrapped = ref(0);
   let wrap = (field: Base.segment) =>
@@ -346,8 +389,9 @@ let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
     List.map(
       (p: Base.piece) =>
         switch (p) {
-        | Tile({label: ["(", ")"], children: [arg], _} as t)
-            when Option.is_none(as_parens(p)) =>
+        | Tile({children: [arg], _} as t)
+            when
+              Tile.label(t) == ["(", ")"] && Option.is_none(as_parens(p)) =>
           Base.Tile({
             ...t,
             children: [rewrite_arg(arg)],
@@ -470,31 +514,105 @@ module M: Projector = {
   let rec strip_wrappers = (term: TermBase.Exp.term): TermBase.Exp.term =>
     switch (term) {
     | Parens({term, _})
+    /* A use showing its syntax holds it as one splice (show_syntax). */
+    | Splice({term, _})
     | Projector(_, {term, _}) => strip_wrappers(term)
     | term => term
     };
 
-  let get_model = (info: info) =>
+  /* A use's livelit name, its type argument and parameters if it is a
+     direct use with them (`^a(args)(model)`, `^a@<T>(args)(model)`), and
+     its model. */
+  let get_use = (info: info) =>
     switch (info.statics) {
-    | Some(InfoExp({user_term, _})) =>
+    | Some(InfoExp({user_term, elab_term, _})) =>
+      /* The name is the head's key: `^f` is "f", a module member
+         `Lib.^f` is "Lib.f" (UserLivelit.head_key). */
       switch (strip_wrappers(user_term.term)) {
-      | Ap(_dir, {term: LivelitName(llname), _}, model) =>
-        Some((llname, model))
+      | Ap(_dir, head, model) when UserLivelit.head_key(head) != None =>
+        Some((Option.get(UserLivelit.head_key(head)), None, None, model))
+      | Ap(_dir, fn, model) =>
+        let fn = {
+          ...fn,
+          term: strip_wrappers(fn.term),
+        };
+        switch (UserLivelit.ap_head(fn), fn.term) {
+        | (Some((key, ty)), Ap(_, _, args)) =>
+          /* the arguments as statics elaborated them, when the use's
+             elaboration has `^a(args)` (it is the use's runtime): a
+             constructor written in them then compares equal to the same
+             one in the model, as it does through an abbreviation */
+          let args =
+            Option.value(
+              ~default=args,
+              Option.bind(
+                Exp.find_by_id(Exp.rep_id(fn), elab_term),
+                UserLivelit.ap_arg,
+              ),
+            );
+          Some((key, ty, Some(args), model));
+        | _ => None
+        };
       | _ => None
       }
     | _ => None
     };
 
-  let init = (any: Language.Any.t, seg: Base.segment) =>
+  /* The livelit a use is of: the one its name finds, applied to the use's
+     parameters when it gives them. The arguments are the use's own terms;
+     they are closed, as statics requires, so they mean here what they
+     mean there. */
+  let lookup_use = (ctx: Ctx.t, llname: string, ty, args) =>
+    switch (Ctx.lookup_livelit(ctx, llname), args) {
+    | (Some(ll), None) => Some(ll)
+    | (Some(ll), Some(args)) =>
+      /* `^a@<T>(args)`: ^a at T, then applied; at run time the same,
+         reached through ^a's own runtime reference (instantiate drops
+         it) */
+      let head =
+        switch (ty) {
+        | Some(ty) =>
+          (TypAp(UserLivelit.runtime_ref(ll), ty): TermBase.Exp.term)
+          |> Exp.fresh
+        | None => UserLivelit.runtime_ref(ll)
+        };
+      Option.bind(
+        UserLivelit.at_type(
+          ~name=llname,
+          ~id=ll.id,
+          ~ty=Option.map(Typ.normalize(ctx), ty),
+          ll,
+        ),
+        ll =>
+        UserLivelit.apply_args(
+          ~name=llname,
+          ~id=ll.id,
+          ~args,
+          ~runtime=
+            IdTagged.FreshGrammar.Exp.ap(Operators.Forward, head, args),
+          ll,
+        )
+      );
+    | (None, _) => None
+    };
+
+  let init = (any: Language.Any.t, seg: Base.segment) => {
+    /* A use, `^f(model)` or `Lib.^f(model)`, or a direct use with
+       parameters, `^a(args)(model)`, possibly parenthesized. */
+    let rec is_use = (e: Exp.t) =>
+      switch (e.term) {
+      | Parens(e) => is_use(e)
+      | Ap(_, head, _) =>
+        UserLivelit.head_key(head) != None
+        || UserLivelit.ap_head_key(head) != None
+      | _ => false
+      };
     switch (any) {
-    | Exp({term: Ap(_dir, {term: LivelitName(_), _}, _), _})
-    | Exp({
-        term: Parens({term: Ap(_dir, {term: LivelitName(_), _}, _), _}),
-        _,
-      }) =>
+    | Exp(e) when is_use(e) =>
       Some(((), splice_marked_fields(seg) |> Option.map(s => Syntax(s))))
     | _ => None
     };
+  };
 
   /* Shape analogue of last_good_view: if statics info or the livelit
      entry is transiently unavailable (mid-commit), falling back to the
@@ -522,8 +640,45 @@ module M: Projector = {
      is why this was left out at first. That was the wrong call: reflowing
      is a visible, recoverable consequence of what you typed, and clipping
      the widget out of existence is neither. */
+  /* A use showing its own syntax holds it as one splice (show_syntax, the
+     `_syntax` invoke suffix); its model's splices are inside that one. */
+  let syntax_splice = (syntax: Base.segment): option(Base.splice) =>
+    switch (syntax) {
+    | [Splice(s)] => Some(s)
+    | _ => None
+    };
+
+  /* The rows the syntax pane takes below the GUI: one per line of the
+     syntax, at least as wide as its longest line. */
+  let with_syntax_pane =
+      (size: Util.Point.t, shape: ProjectorCore.Shape.t)
+      : ProjectorCore.Shape.t => {
+    let rows = size.row + 1;
+    {
+      /* Seven columns past the longest line: the box's padding and border
+         take about one (sized to the line alone, the pane scrolled and the
+         scroll bar hid the model), and the panel labels at the right edge
+         take about four, which would otherwise sit on the code. */
+      horizontal: max(shape.horizontal, size.col + 7),
+      vertical:
+        switch (shape.vertical) {
+        /* An inline use hangs its pane below its row, as a Tab: the rest
+           of the row stays on it, so two uses on one line keep their
+           alignment with an eye open. As a Block, everything after the
+           use on its line dropped to the pane's last row. */
+        | Inline => Tab(rows)
+        | Block(n) => Block(n + rows)
+        | Tab(n) => Tab(n + rows)
+        },
+    };
+  };
+
   let widen_for_splices =
-      (info, splice_size: View.splice_size, shape: ProjectorCore.Shape.t) => {
+      (
+        syntax: Base.segment,
+        splice_size: View.splice_size,
+        shape: ProjectorCore.Shape.t,
+      ) => {
     let (extra_cols, extra_rows) =
       List.fold_left(
         ((cols, rows), s: Base.splice) => {
@@ -534,7 +689,7 @@ module M: Projector = {
           (cols + size.col, max(rows, size.row));
         },
         (0, 0),
-        Segment.direct_splices(info.syntax),
+        Segment.direct_splices(syntax),
       );
     let vertical: ProjectorCore.Shape.vertical =
       extra_rows <= 0
@@ -586,10 +741,10 @@ module M: Projector = {
       | Some((seq, shape)) when seq == s.seq => shape
       | _ =>
         let shape =
-          switch (MvuShape.safe_evaluate(def_elab)) {
+          switch (MvuShape.safe_evaluate_open(unsealed(def_elab))) {
           | Error(_) => None
           | Ok(record) =>
-            switch (MvuShape.record_field(record, "shape")) {
+            switch (MvuShape.record_field_open(record, "shape")) {
             | Some(f) =>
               switch (MvuShape.strip_wrappers(f).term) {
               | Fun(_)
@@ -617,15 +772,65 @@ module M: Projector = {
     };
   };
 
-  let placeholder = (_model, info, splice_size) => {
+  /* Whether the use's livelit defines both params members, so the pane
+     has a params line (params_panel, below). */
+  let has_params_panel = (info: ProjectorBase.info): bool =>
+    switch (get_use(info), info.statics) {
+    | (Some((llname, ty, args, _)), Some(InfoExp(exp))) =>
+      switch (lookup_use(exp.ctx, llname, ty, args)) {
+      | Some({user_def: Some(def_elab), _}) =>
+        switch (MvuShape.safe_evaluate_open(unsealed(def_elab))) {
+        | Ok(record) =>
+          Option.is_some(
+            MvuShape.record_field_open(record, "params_from_model"),
+          )
+          && Option.is_some(
+               MvuShape.record_field_open(record, "init_from_params"),
+             )
+        | Error(_) => false
+        }
+      | _ => false
+      }
+    | _ => false
+    };
+
+  /* A livelit may also compute a constant footprint from its parameters,
+     which UserLivelit.shape_of cannot read as a literal: ^choice counts
+     the rows its buttons take, `let shape = Block(36, rows(cases))`. The
+     use's applied definition is evaluated for it, with no model sample
+     needed, and cached per projector until the definition changes. Only
+     tried when the static reading gave the default, so a literal shape
+     costs nothing. */
+  let computed_shapes:
+    Hashtbl.t(Id.t, (TermBase.Exp.t, option(ProjectorShape.t))) =
+    Hashtbl.create(16);
+  let computed_shape =
+      (info: info, def_elab: TermBase.Exp.t): option(ProjectorShape.t) =>
+    switch (Hashtbl.find_opt(computed_shapes, info.id)) {
+    | Some((d, shape)) when Exp.fast_equal(d, def_elab) => shape
+    | _ =>
+      let shape = evaluated_shape(def_elab);
+      Hashtbl.replace(computed_shapes, info.id, (def_elab, shape));
+      shape;
+    };
+
+  /* The GUI's own footprint: the definition's shape, widened for its
+     splices, before any syntax pane is added. */
+  let gui_shape = (info, splice_size): ProjectorCore.Shape.t => {
     let looked_up =
-      switch (get_model(info), info.statics) {
-      | (Some((llname, model)), Some(InfoExp(exp))) =>
-        switch (Ctx.lookup_livelit(exp.ctx, llname)) {
+      switch (get_use(info), info.statics) {
+      | (Some((llname, ty, args, model)), Some(InfoExp(exp))) =>
+        switch (lookup_use(exp.ctx, llname, ty, args)) {
         | Some(ll) =>
           let dynamic =
             switch (ll.user_def) {
-            | Some(def_elab) => model_shape(info, def_elab, model)
+            | Some(def_elab) =>
+              switch (model_shape(info, def_elab, model)) {
+              | Some(shape) => Some(shape)
+              | None when ll.shape == UserLivelit.default_shape =>
+                computed_shape(info, def_elab)
+              | None => None
+              }
             | None => None
             };
           /* A builtin draws its splices where it chooses -- ^fumola_wip
@@ -651,33 +856,110 @@ module M: Projector = {
         }
       };
     let (shape, widen) = shape;
-    widen ? widen_for_splices(info, splice_size, shape) : shape;
+    /* A builtin draws its splices where it chooses (see looked_up): only a
+       user livelit's cell is widened for them. */
+    if (!widen) {
+      shape;
+    } else {
+      switch (syntax_splice(info.syntax)) {
+      | None => widen_for_splices(info.syntax, splice_size, shape)
+      /* Widened for the model's splices as before, which are inside the
+         syntax splice. */
+      | Some(s) => widen_for_splices(s.content, splice_size, shape)
+      };
+    };
+  };
+
+  let params_min_cols = 37; /* + with_syntax_pane's 7: 44 */
+  let head_min_cols = 17; /* `^slider(1, 12)` and the line's label */
+
+  /* Columns at the livelit's left for its syntax toggle (the eye, or the
+     Colors slide's other looks), inside the livelit rather than hanging in
+     the margin to its left, where it covered the code there: the `=` of
+     `let x = ^^livelit(...)`, or a tuple's `(`. proj-livelit.css puts the
+     toggle in them and moves the GUI right by as much. */
+  let toggle_cols = 2;
+
+  let placeholder = (_model, info, splice_size) => {
+    let shape = gui_shape(info, splice_size);
+    let shape = {
+      ...shape,
+      horizontal: shape.horizontal + toggle_cols,
+    };
+    switch (syntax_splice(info.syntax)) {
+    | None => shape
+    /* Given the pane's rows, and one more for a params line. */
+    | Some(s) =>
+      let size: Util.Point.t = splice_size(s.id);
+      /* The params line is an input whose text is only known once the
+         view evaluates params_from_model; 44 columns hold a few labelled
+         fields (Kids' Choice's face: `(smile=85, brow=92, sickness=0)`)
+         and the panel's label, and a longer one scrolls in its input. */
+      let size =
+        has_params_panel(info)
+          ? Util.Point.{
+              row: size.row + 1,
+              col: max(size.col, params_min_cols),
+            }
+          : size;
+      /* and one more row for the head line, `^name(args)`, which every
+         user livelit has (use_head_panel) */
+      let size =
+        Util.Point.{
+          row: size.row + 1,
+          col: max(size.col, head_min_cols),
+        };
+      with_syntax_pane(size, shape);
+    };
   };
 
   let replace_model_term =
       (updated_model_term: TermBase.Exp.t, start_term: TermBase.Any.t)
-      : TermBase.Any.t =>
+      : TermBase.Any.t => {
+    /* The model is the argument of the outermost application, under any
+       parens and, while the use shows its syntax, its splice. For a
+       direct use with parameters, `^a(args)(model)`, that outer
+       application is the one holding the model. */
+    let rec replace = (e: TermBase.Exp.t): option(TermBase.Exp.t) =>
+      switch (e.term) {
+      | Ap(dir, name, _model) =>
+        Some({
+          ...e,
+          term: Ap(dir, name, updated_model_term),
+        })
+      | Parens(inner) =>
+        Option.map(
+          inner =>
+            {
+              ...e,
+              term: (Parens(inner): TermBase.Exp.term),
+            },
+          replace(inner),
+        )
+      | Splice(inner) =>
+        Option.map(
+          inner =>
+            {
+              ...e,
+              term: (Splice(inner): TermBase.Exp.term),
+            },
+          replace(inner),
+        )
+      | _ => None
+      };
     switch (start_term) {
-    | Exp({term: Ap(dir, name, _model), _} as rest) =>
-      Exp({
-        ...rest,
-        term: Ap(dir, name, updated_model_term),
-      })
-    | Exp(
-        {term: Parens({term: Ap(dir, name, _model), _} as inner), _} as rest,
-      ) =>
-      Exp({
-        ...rest,
-        term:
-          Parens({
-            ...inner,
-            term: Ap(dir, name, updated_model_term),
-          }),
-      })
+    | Exp(e) =>
+      switch (replace(e)) {
+      | Some(e) => Exp(e)
+      | None =>
+        print_endline("Warning - LivelitProj.replace_model_term: not an Ap");
+        start_term;
+      }
     | _ =>
       print_endline("Warning - LivelitProj.replace_model_term: not an Ap");
       start_term;
     };
+  };
   let splice_rows = (_, _, _) => Id.Map.empty;
   let update = (_model, _info, action) =>
     switch (action) {
@@ -747,11 +1029,31 @@ module M: Projector = {
   /* Absent when the projector isn't drawn at the code site (docked to the
      sidebar, or culled from the viewport) */
   /* Focus the container — but never steal focus from a control INSIDE
-     the livelit's own GUI (a text input keeps focus across the click). */
+     the livelit: its own GUI (a text input keeps focus across the click),
+     or the pane under it while its syntax shows, whose params line commits
+     on every keystroke and would otherwise lose focus after the first. */
   let focus_pointer = (id: Id.t) =>
     switch (JsUtil.get_elem_by_id_opt(Id.cls(id))) {
     | None => ()
     | Some(el) =>
+      /* the whole livelit: the GUI and, while its syntax shows, the pane */
+      let root: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element) =
+        switch (
+          Js_of_ocaml.Js.Opt.to_option(
+            Js_of_ocaml.Js.Unsafe.meth_call(
+              el,
+              "closest",
+              [|
+                Js_of_ocaml.Js.Unsafe.inject(
+                  Js_of_ocaml.Js.string(".livelit-with-syntax"),
+                ),
+              |],
+            ),
+          )
+        ) {
+        | Some(r) => r
+        | None => el
+        };
       let inside =
         switch (
           Js_of_ocaml.Js.Opt.to_option(
@@ -761,7 +1063,7 @@ module M: Projector = {
         | Some(active) =>
           Js_of_ocaml.Js.to_bool(
             Js_of_ocaml.Js.Unsafe.meth_call(
-              el,
+              root,
               "contains",
               [|Js_of_ocaml.Js.Unsafe.inject(active)|],
             ),
@@ -783,11 +1085,19 @@ module M: Projector = {
      evaluator builds the command tree and ViewCmdRunner performs it down to
      the Html. Both of this module's view sites go through here so the two
      steps cannot drift apart. */
-  let eval_view = (e: DHExp.t): result(DHExp.t, string) =>
-    switch (MvuShape.safe_evaluate(e)) {
+  /* Not finished: a view's handlers close over the whole livelit, and
+     finishing copied all of it into each, every render. */
+  /* A view is evaluated again after each change of its model, mostly
+     making the same calls with the same arguments as last time: those
+     give what they gave (CallMemo), shared by every view on the page. */
+  let view_calls = lazy(CallMemo.create());
+  let eval_view = (e: DHExp.t): result(DHExp.t, string) => {
+    let call_memo = Lazy.force(view_calls);
+    switch (MvuShape.safe_evaluate_open(~call_memo, e)) {
     | Error(_) as err => err
-    | Ok(cmd) => ViewCmdRunner.run(cmd)
+    | Ok(cmd) => ViewCmdRunner.run(~call_memo, cmd)
     };
+  };
 
   /* Dynamics on: the view fold-in (Statics' Projector case) samples the
      live HTML of a user-defined livelit at this projector's id */
@@ -832,7 +1142,7 @@ module M: Projector = {
       |> Option.map(snd)
     };
 
-  let record_field = MvuShape.record_field;
+  let record_field = MvuShape.record_field_open;
 
   /* The latest sampled value at some id (e.g. the model argument) */
   let latest_value = (samples: list(Sample.t)): option(TermBase.Exp.t) =>
@@ -1016,7 +1326,7 @@ module M: Projector = {
        unchanged) would pollute history with identity steps. A committing
        no-op still flushes when transient updates left the entry dirty. */
     let next_model =
-      switch (MvuShape.safe_evaluate(def_elab)) {
+      switch (MvuShape.safe_evaluate_open(def_elab)) {
       | Error(e) => `Error("definition error: " ++ e)
       | Ok(record) =>
         switch (record_field(record, "update")) {
@@ -1105,6 +1415,42 @@ module M: Projector = {
      render. */
   let last_good_view: Hashtbl.t(Id.t, Node.t) = Hashtbl.create(16);
 
+  /* Each use's last evaluated view: its definition, the model value it was
+     drawn from, and the Html. A view is a function of those two -- a
+     splice's value rides in the model as SpliceRef(id, value), so a changed
+     splice is a changed model -- and every redraw evaluated every use's
+     view: on a Kids' Choice slider release, the views of all its sliders,
+     toggles and the face, for one changed model, 57% of the release. The
+     definition is compared by identity first (it is the same object while
+     its item's statics are reused), then structurally; the model
+     structurally. */
+  let view_memo:
+    Hashtbl.t(Id.t, (TermBase.Exp.t, TermBase.Exp.t, TermBase.Exp.t)) =
+    Hashtbl.create(16);
+  let memo_view =
+      (
+        ~id: Id.t,
+        ~def_elab: TermBase.Exp.t,
+        ~view_model: TermBase.Exp.t,
+        compute: unit => result(TermBase.Exp.t, string),
+      )
+      : result(TermBase.Exp.t, string) =>
+    switch (Hashtbl.find_opt(view_memo, id)) {
+    | Some((d, m, html))
+        when
+          (d === def_elab || Exp.fast_equal(d, def_elab))
+          && (m === view_model || Exp.fast_equal(m, view_model)) =>
+      Ok(html)
+    | _ =>
+      let r = compute();
+      switch (r) {
+      | Ok(html) =>
+        Hashtbl.replace(view_memo, id, (def_elab, view_model, html))
+      | Error(_) => Hashtbl.remove(view_memo, id)
+      };
+      r;
+    };
+
   let user_view =
       (
         ~id: Id.t,
@@ -1170,9 +1516,21 @@ module M: Projector = {
            text it is None, and an event in that gap composes from the
            SYNTAX model, whose splices are code rather than refs. A slow
            browser lands events in the gap. */
+        /* Converged means the run has caught up with the optimistic
+           MODEL, not only its picture: a transient step that changes
+           nothing visible (a drag's Down, which only records that the
+           pointer is held) draws the same HTML as the stale sample, and
+           yielding to it then threw the step away -- the next MoveTo
+           composed from the pre-drag model, and the drag did nothing. */
         let converged =
           !entry.opt_ephemeral
-          && Option.is_some(model_value)
+          && (
+            switch (model_value) {
+            | Some(mv) =>
+              squish(print_term(mv)) == squish(print_term(entry.opt_model))
+            | None => false
+            }
+          )
           && (
             switch (live) {
             | Some(l) => Exp.fast_equal(l, entry.opt_html)
@@ -1220,35 +1578,506 @@ module M: Projector = {
       ok(HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html))
     | (None, None) =>
       let ap = IdTagged.FreshGrammar.Exp.ap;
-      switch (MvuShape.safe_evaluate(def_elab)) {
-      | Error(e) => err("livelit definition error: " ++ e)
-      | Ok(record) =>
-        switch (record_field(record, "view")) {
-        | None => err("livelit definition is missing view")
-        | Some(view_fn) =>
-          /* The run's model value when there is one: in the surface term
-             a marked field is only its code, not the ref it becomes. */
-          let model = Option.value(model_value, ~default=model);
-          switch (eval_view(ap(Forward, view_fn, model))) {
-          | Error(e) => err("livelit view error: " ++ e)
-          | Ok(html) when MvuShape.is_html(html) =>
-            ok(
-              HazelDOM.go(
-                ~elide_errors=true,
-                seed(~model, ~model_value),
-                html,
-              ),
-            )
-          | Ok(_) => err("livelit view did not produce HTML")
-          };
-        }
+      /* The run's model value when there is one: in the surface term
+         a marked field is only its code, not the ref it becomes. The
+         view is drawn from that value, but the handlers are seeded
+         with the SYNTAX model, as on the live path: a transient
+         event records the seed's print as the syntax state that is
+         "ours", and the evaluated value prints its splices as
+         SpliceRef(id, value) where the syntax prints their code. Seeded
+         with the value, that record never matched, so every preview
+         was dropped as an external edit -- and a drag, whose release
+         is a no-op on the pre-drag model, was lost entirely.
+         An unchanged definition and model draw what they drew last time,
+         without evaluating either (view_memo). */
+      let view_model = Option.value(model_value, ~default=model);
+      let evaluated =
+        memo_view(~id, ~def_elab, ~view_model, () =>
+          switch (MvuShape.safe_evaluate_open(def_elab)) {
+          | Error(e) => Error("livelit definition error: " ++ e)
+          | Ok(record) =>
+            switch (record_field(record, "view")) {
+            | None => Error("livelit definition is missing view")
+            | Some(view_fn) =>
+              switch (eval_view(ap(Forward, view_fn, view_model))) {
+              | Error(e) => Error("livelit view error: " ++ e)
+              | Ok(html) => Ok(html)
+              }
+            }
+          }
+        );
+      switch (evaluated) {
+      | Error(e) => err(e)
+      | Ok(html) when MvuShape.is_html(html) =>
+        ok(
+          HazelDOM.go(~elide_errors=true, seed(~model, ~model_value), html),
+        )
+      | Ok(_) => err("livelit view did not produce HTML")
       };
+    };
+  };
+
+  /* The params panel, shown with the model panel while a use shows its
+     syntax: EXPERIMENTAL, not in the paper. A livelit that defines
+     params_from_model (Model -> Params) and init_from_params
+     ((Params, Model) -> Model) gets a line holding its params as code;
+     editing them re-runs init_from_params, and the model it makes
+     replaces the current one. init_from_params is handed the old model
+     too, so a livelit holding splices keeps them: a params edit rebuilds
+     the livelit's own data and leaves the client's code in its cells
+     alone. So it makes no splices, and is a plain function, not a
+     command -- which also lets its body be checked: an optional member
+     has no type from the signature, so a bare Pure in it would not know
+     which command it built. Params are never stored: the text holds
+     only the model, and the panel recomputes them from it. A livelit
+     that defines neither has nothing here, its params being its model. */
+  /* A commit re-renders the livelit and its pane, and the params input is
+     made anew: the one being typed in is gone, and focus with it. After a
+     live commit, give focus back to the input under [id], with the caret
+     where it was. */
+  let refocus_params = (id: string, caret: int) =>
+    Js_of_ocaml.Js.Unsafe.eval_string(
+      Printf.sprintf(
+        /* One commit re-renders more than once (statics, then the run's
+           result), each time with a new input. For a moment after it,
+           whenever focus has fallen to the page, put it back on whichever
+           input is current; stop as soon as focus is anywhere else, so a
+           click away is never fought. */
+        {|(function () {
+          var n = 0;
+          function go() {
+            var el = document.getElementById(%S), a = document.activeElement;
+            if (a && a !== document.body && a !== el) return;
+            if (el && a !== el) {
+              el.focus();
+              try { el.setSelectionRange(%d, %d); } catch (e) {}
+            }
+            if (n++ < 60) setTimeout(go, 25);
+          }
+          setTimeout(go, 0);
+        })()|},
+        id,
+        caret,
+        caret,
+      ),
+    )
+    |> ignore;
+
+  /* The use's HEAD, the livelit applied minus its model: `^flag`,
+     `^percent`, `^slider(1, 12)`. While the syntax shows, it is the
+     editable line above the read-only model (docs/livelits.md, "Revealing
+     a use's syntax"). A pause in typing, or leaving the line, fires [live]
+     -- which acts only on text that names a livelit -- and Enter fires
+     [enter], which may also turn the use back into code: a half-typed
+     name must never do that. */
+  let head_panel =
+      (
+        ~input_id: string,
+        ~text: string,
+        ~live: string => Ui_effect.t(unit),
+        ~enter: string => Ui_effect.t(unit),
+      )
+      : Node.t => {
+    let value_of = ev =>
+      Js_of_ocaml.Js.to_string(
+        Js_of_ocaml.Js.Unsafe.get(
+          Js_of_ocaml.Js.Unsafe.get(ev, "target"),
+          "value",
+        ),
+      );
+    Node.div(
+      ~attrs=[Attr.classes(["livelit-params", "livelit-head"])],
+      [
+        Node.input(
+          ~attrs=[
+            Attr.class_("livelit-head-input"),
+            Attr.id(input_id),
+            Attr.string_property("value", text),
+            Attr.on_keyup(_ => Effect.Stop_propagation),
+            Attr.on_pointerdown(_ => Effect.Stop_propagation),
+            Attr.on_keydown(ev => {
+              let key =
+                Js_of_ocaml.Js.to_string(
+                  Js_of_ocaml.Js.Unsafe.get(ev, "key"),
+                );
+              let typed = value_of(ev);
+              Effect.Many([
+                Effect.Stop_propagation,
+                key == "Enter" && typed != text
+                  ? enter(typed) : Ui_effect.Ignore,
+              ]);
+            }),
+            Attr.on_input((ev, _) => {
+              Js_of_ocaml.Js.Unsafe.fun_call(
+                Js_of_ocaml.Js.Unsafe.js_expr(
+                  {|(function (el) {
+                      clearTimeout(el.__llHead);
+                      el.__llHead = setTimeout(function () {
+                        if (el.isConnected)
+                          el.dispatchEvent(new Event('change', {bubbles: true}));
+                      }, 250);
+                    })|},
+                ),
+                [|Js_of_ocaml.Js.Unsafe.get(ev, "target")|],
+              )
+              |> ignore;
+              Ui_effect.Ignore;
+            }),
+            /* fired by the pause timer, and by the browser on blur:
+               either way only a swap, never back to code */
+            Attr.on_change((ev, typed) =>
+              if (typed == text) {
+                Ui_effect.Ignore;
+              } else {
+                /* a swap re-renders the line: keep typing in it */
+                let target = Js_of_ocaml.Js.Unsafe.get(ev, "target");
+                if (Js_of_ocaml.Js.Unsafe.js_expr("document.activeElement")
+                    == target) {
+                  refocus_params(
+                    input_id,
+                    Js_of_ocaml.Js.Unsafe.get(target, "selectionStart"),
+                  );
+                };
+                live(typed);
+              }
+            ),
+          ],
+          (),
+        ),
+        Node.span(
+          ~attrs=[
+            Attr.class_("livelit-panel-label"),
+            Attr.title(
+              "this use's livelit: name another to swap it, change its arguments, or, with Enter, anything else turns the use back into code",
+            ),
+          ],
+          [Node.text("livelit")],
+        ),
+      ],
+    );
+  };
+
+  /* The head line for one use: its text, and what an edit to it does.
+     - A livelit's name, with the same livelit: its arguments changed, the
+       model kept (SetTerm, which re-attaches the model's splices by id).
+     - Another livelit: the use becomes a new use of it, starting from its
+       init and with its marked fields spliced, as typing ^name and a space
+       makes one.
+     - On Enter, anything else: the use is turned back into code, its model
+       left in its place (Unproject), as removing the projector would leave
+       the whole use. */
+  /* A livelit's name as a CSS class: a module member's key, "Lib.f",
+     would be two classes' worth of selector, so its dots become dashes. */
+  let css_name = (name: string) => String.map(c => c == '.' ? '-' : c, name);
+
+  let use_head_panel =
+      (
+        ~info: ProjectorBase.info,
+        ~ctx: Ctx.t,
+        ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+        ~print_term: TermBase.Exp.t => string,
+        ~ll_name: string,
+        ~ty: option(TermBase.Typ.t),
+        ~args: option(TermBase.Exp.t),
+        ~model: TermBase.Exp.t,
+      )
+      : Node.t => {
+    module F = IdTagged.FreshGrammar;
+    /* A name is a key (UserLivelit.head_key): "f" is `^f`, and a module
+       member's "Lib.Inner.f" is `Lib.Inner.^f`, its path kept on a swap. */
+    let head_of = (name: string) =>
+      switch (String.split_on_char('.', name) |> List.rev) {
+      | [base, ...rev_path] when rev_path != [] =>
+        switch (List.rev(rev_path)) {
+        | [first, ...rest] =>
+          F.Exp.dot(
+            List.fold_left(
+              (acc, m) => F.Exp.dot(acc, F.Exp.label(m)),
+              F.Exp.var(first),
+              rest,
+            ),
+            F.Exp.livelit_name(base),
+          )
+        | [] => F.Exp.livelit_name(name)
+        }
+      | _ => F.Exp.livelit_name(name)
+      };
+    let head_text = (name: string) =>
+      switch (String.rindex_opt(name, '.')) {
+      | Some(i) =>
+        String.sub(name, 0, i + 1)
+        ++ "^"
+        ++ String.sub(name, i + 1, String.length(name) - i - 1)
+      | None => "^" ++ name
+      };
+    /* `^a@<T>`, when the use gives a type argument */
+    let typed_head = (name, ty) =>
+      switch (ty) {
+      | Some(ty) =>
+        (TypAp(head_of(name), ty): TermBase.Exp.term) |> Exp.fresh
+      | None => head_of(name)
+      };
+    let head_term = (name, ty, args) =>
+      switch (args) {
+      | None => typed_head(name, ty)
+      | Some(a) => F.Exp.ap(Operators.Forward, typed_head(name, ty), a)
+      };
+    let text =
+      head_text(ll_name)
+      ++ (
+        switch (ty) {
+        | Some(ty) => "@<" ++ Typ.pretty_print(ty) ++ ">"
+        | None => ""
+        }
+      )
+      ++ (
+        switch (args) {
+        | None => ""
+        | Some(a) =>
+          let p = print_term(a);
+          String.length(p) > 0 && p.[0] == '(' ? p : "(" ++ p ++ ")";
+        }
+      );
+    /* a typed head: `^f`, `^f(args)`, or `^f@<T>(args)` */
+    let parse = (typed: string) =>
+      switch (info.utility.string_to_exp(String.trim(typed))) {
+      | Some(e) when UserLivelit.head_key(e) != None =>
+        Some((Option.get(UserLivelit.head_key(e)), None, None))
+      | Some(e) =>
+        switch (UserLivelit.ap_head(e), UserLivelit.strip_parens(e).term) {
+        | (Some((key, ty)), Ap(_, _, a)) => Some((key, ty, Some(a)))
+        | _ => None
+        }
+      | None => None
+      };
+    let revealed = seg => [Piece.mk_splice(seg)];
+    let swap = (typed: string): option(Ui_effect.t(unit)) => {
+      open OptUtil.Syntax;
+      let* (name, ty', args') = parse(typed);
+      let* ll = lookup_use(ctx, name, ty', args');
+      if (name == ll_name) {
+        Some(
+          parent(
+            SetTerm(
+              Exp(
+                F.Exp.ap(
+                  Operators.Forward,
+                  head_term(name, ty', args'),
+                  model,
+                ),
+              ),
+              true,
+            ),
+          ),
+        );
+      } else {
+        let* def = ll.user_def;
+        let* model' =
+          switch (UpdateCmdRunner.init_model(def)) {
+          | Ok(m) => Some(m)
+          | Error(_) => None
+          };
+        let seg =
+          info.utility.term_to_seg(
+            ~inline=true,
+            Exp(
+              F.Exp.ap(
+                Operators.Forward,
+                head_term(name, ty', args'),
+                model',
+              ),
+            ),
+          );
+        let seg = Option.value(~default=seg, splice_marked_fields(seg));
+        Some(parent(SetSyntax(revealed(seg))));
+      };
+    };
+    head_panel(
+      ~input_id="livelit-head-" ++ Id.to_string(info.id),
+      ~text,
+      ~live=typed => Option.value(~default=Ui_effect.Ignore, swap(typed)),
+      ~enter=
+        typed =>
+          switch (swap(typed)) {
+          | Some(e) => e
+          | None =>
+            parent(
+              Unproject(info.utility.term_to_seg(~inline=true, Exp(model))),
+            )
+          },
+    );
+  };
+
+  let params_panel =
+      (
+        ~input_id: string,
+        ~def_elab: TermBase.Exp.t,
+        ~base: TermBase.Exp.t,
+        ~print_term: TermBase.Exp.t => string,
+        ~parse: string => option(TermBase.Exp.t),
+        ~commit_model:
+           (~effects: list(SpliceStore.effect), TermBase.Exp.t) =>
+           Ui_effect.t(unit),
+      )
+      : option(Node.t) => {
+    let ap = IdTagged.FreshGrammar.Exp.ap;
+    switch (MvuShape.safe_evaluate_open(unsealed(def_elab))) {
+    | Error(_) => None
+    | Ok(record) =>
+      switch (
+        record_field(record, "params_from_model"),
+        record_field(record, "init_from_params"),
+      ) {
+      | (Some(from_model), Some(init_from)) =>
+        let text =
+          switch (MvuShape.safe_evaluate(ap(Forward, from_model, base))) {
+          | Ok(params) => print_term(params)
+          | Error(e) => "params_from_model error: " ++ e
+          };
+        /* [~quiet]: on each keystroke, text that does not parse yet is
+           half-typed, not an error -- it commits nothing and is left as
+           the reader is typing it. */
+        let params_ok = typed =>
+          switch (parse(typed)) {
+          | Some(params) =>
+            switch (MvuShape.safe_evaluate(params)) {
+            | Ok(v) => Language.ValueChecker.is_value(v)
+            | Error(_) => false
+            }
+          | None => false
+          };
+        let reinit = (~quiet=false, typed: string) =>
+          switch (parse(typed)) {
+          | None =>
+            if (!quiet) {
+              print_endline("LivelitProj: params do not parse: " ++ typed);
+            };
+            Ui_effect.Ignore;
+          /* Params must be a value: text that parses but names something
+             unbound, `x`, would otherwise run init_from_params around it
+             and write the stuck code into the model. */
+          | Some(params)
+              when
+                !(
+                  switch (MvuShape.safe_evaluate(params)) {
+                  | Ok(v) => Language.ValueChecker.is_value(v)
+                  | Error(_) => false
+                  }
+                ) =>
+            if (!quiet) {
+              print_endline("LivelitProj: params are not a value: " ++ typed);
+            };
+            Ui_effect.Ignore;
+          | Some(params) =>
+            /* A plain function: it keeps the old model's splices rather
+               than making new ones, so it needs no command. */
+            switch (
+              MvuShape.safe_evaluate(
+                ap(
+                  Forward,
+                  init_from,
+                  IdTagged.FreshGrammar.Exp.tuple([params, base]),
+                ),
+              )
+            ) {
+            | Ok(new_model) => commit_model(~effects=[], new_model)
+            | Error(e) =>
+              print_endline("LivelitProj: init_from_params error: " ++ e);
+              Ui_effect.Ignore;
+            }
+          };
+        Some(
+          Node.div(
+            ~attrs=[Attr.class_("livelit-params")],
+            [
+              Node.input(
+                ~attrs=[
+                  Attr.class_("livelit-params-input"),
+                  Attr.id(input_id),
+                  /* the property, so a commit shows its params even in an
+                     input that has been typed in */
+                  Attr.string_property("value", text),
+                  Attr.on_keydown(_ => Effect.Stop_propagation),
+                  Attr.on_keyup(_ => Effect.Stop_propagation),
+                  Attr.on_pointerdown(_ => Effect.Stop_propagation),
+                  /* Live: each edit that parses re-runs init_from_params
+                     and the GUI follows as the params are typed (Cyrus,
+                     docs/livelits.md, "Revealing a use's syntax"). */
+                  /* Live, debounced: a pause in typing commits what
+                     parses, and the GUI follows (Cyrus, docs/livelits.md,
+                     "Revealing a use's syntax"). Each keystroke restarts
+                     a short timer that fires this input's own change
+                     event, so typing stays in one element -- a commit per
+                     keystroke re-rendered the input mid-word, and keys
+                     typed meanwhile were lost. */
+                  Attr.on_input((ev, _) => {
+                    let target = Js_of_ocaml.Js.Unsafe.get(ev, "target");
+                    Js_of_ocaml.Js.Unsafe.fun_call(
+                      Js_of_ocaml.Js.Unsafe.js_expr(
+                        {|(function (el) {
+                            clearTimeout(el.__llParams);
+                            el.__llParams = setTimeout(function () {
+                              if (el.isConnected)
+                                el.dispatchEvent(new Event('change', {bubbles: true}));
+                            }, 250);
+                          })|},
+                      ),
+                      [|Js_of_ocaml.Js.Unsafe.inject(target)|],
+                    )
+                    |> ignore;
+                    Ui_effect.Ignore;
+                  }),
+                  Attr.on_change((ev, typed) =>
+                    if (typed == text) {
+                      Ui_effect.Ignore;
+                    } else {
+                      let target = Js_of_ocaml.Js.Unsafe.get(ev, "target");
+                      let focused: bool =
+                        Js_of_ocaml.Js.Unsafe.js_expr(
+                          "document.activeElement",
+                        )
+                        == target;
+                      if (focused && params_ok(typed)) {
+                        refocus_params(
+                          input_id,
+                          Js_of_ocaml.Js.Unsafe.get(target, "selectionStart"),
+                        );
+                      };
+                      reinit(~quiet=focused, typed);
+                    }
+                  ),
+                ],
+                (),
+              ),
+              Node.span(
+                ~attrs=[
+                  Attr.class_("livelit-panel-label"),
+                  Attr.title(
+                    "params_from_model of the model; each edit that parses re-runs init_from_params, live",
+                  ),
+                ],
+                [Node.text("params")],
+              ),
+            ],
+          ),
+        );
+      | _ => None
+      }
     };
   };
 
   let view =
       (
-        {info, parent, local_quiet, view_seg, splices, splice_view, _}:
+        {
+          info,
+          parent,
+          local_quiet,
+          view_seg,
+          splices,
+          splice_view,
+          splice_size,
+          _,
+        }:
           View.args(model, action),
       ) => {
     let ctx =
@@ -1260,10 +2089,13 @@ module M: Projector = {
     /* Set by a builtin whose view_below draws something: the full-width
        rows under the livelit, which its Tab(n) shape reserves. */
     let below = ref(None);
+    /* Set while drawing a user livelit's GUI, for the pane below. */
+    let params = ref(None);
+    let head = ref(None);
     let node =
-      switch (get_model(info)) {
-      | Some((ll_name, model)) =>
-        let ll = Ctx.lookup_livelit(ctx, ll_name);
+      switch (get_use(info)) {
+      | Some((ll_name, ty, args, model)) =>
+        let ll = lookup_use(ctx, ll_name, ty, args);
 
         /* Write an updated model back into the Ap's argument position,
            with its splices: SpliceStore.write_model turns each SpliceRef
@@ -1355,25 +2187,49 @@ module M: Projector = {
             }
           | None => ()
           };
+          /* Model terms contain no projectors or refractors, so trivial
+             handlers suffice (the real ones live above this module in the
+             dependency order). */
+          let print_term = term =>
+            Segment.to_string(
+              ~refractor_seg_to_seg=(rs, seg) => (rs, seg),
+              ~projector_to_segment=_ => [],
+              info.utility.term_to_seg(~inline=true, Exp(term)),
+            );
+          if (Option.is_some(syntax_splice(info.syntax))) {
+            head :=
+              Some(
+                use_head_panel(
+                  ~info,
+                  ~ctx,
+                  ~parent,
+                  ~print_term,
+                  ~ll_name,
+                  ~ty,
+                  ~args,
+                  ~model,
+                ),
+              );
+            params :=
+              params_panel(
+                ~input_id="livelit-params-" ++ Id.to_string(info.id),
+                ~def_elab,
+                ~base=Option.value(model_value, ~default=model),
+                ~print_term,
+                ~parse=info.utility.string_to_exp,
+                ~commit_model,
+              );
+          };
           Node.div(
             ~attrs=[
-              Attr.classes([ll_name, "user-livelit"]),
+              Attr.classes([css_name(ll_name), "user-livelit"]),
               Attr.id(Id.cls(info.id)),
             ],
             [
               user_view(
                 ~id=info.id,
                 ~ll_name,
-                ~print_term=
-                  term =>
-                    /* Model terms contain no projectors or refractors, so
-                       trivial handlers suffice (the real ones live above
-                       this module in the dependency order). */
-                    Segment.to_string(
-                      ~refractor_seg_to_seg=(rs, seg) => (rs, seg),
-                      ~projector_to_segment=_ => [],
-                      info.utility.term_to_seg(~inline=true, Exp(term)),
-                    ),
+                ~print_term,
                 ~def_elab,
                 ~model,
                 ~model_value,
@@ -1409,7 +2265,10 @@ module M: Projector = {
             ll.view_below(~id=info.id, ~splice, model, action_callback)
             |> Option.map(escape_below(~parent));
           Node.div(
-            ~attrs=[Attr.class_(ll_name), Attr.id(Id.cls(info.id))],
+            ~attrs=[
+              Attr.class_(css_name(ll_name)),
+              Attr.id(Id.cls(info.id)),
+            ],
             [list_contents],
           );
         | None =>
@@ -1421,6 +2280,169 @@ module M: Projector = {
         Node.text("No livelit found");
       };
 
-    View.mk(~below=below^, node);
+    /* The syntax toggle, at the livelit's top left, and while the use shows
+       its syntax, that syntax as an editor in the rows below the GUI (see
+       placeholder). An overlay, so the livelit's own markup, which CSS
+       reaches as `.livelit > ...`, is left as it was. */
+    let shown = syntax_splice(info.syntax);
+    let toggle =
+      Node.div(
+        ~attrs=[
+          Attr.classes(
+            ["livelit-syntax-toggle"]
+            @ (Option.is_some(shown) ? ["on"] : []),
+          ),
+          Attr.title(
+            Option.is_some(shown)
+              ? "hide this use's syntax" : "show this use's syntax, to edit",
+          ),
+          Attr.on_pointerdown(_ =>
+            Effect.Many([
+              Effect.Stop_propagation,
+              Effect.Prevent_default,
+              parent(ToggleSyntax),
+            ])
+          ),
+        ],
+        /* An eye (or a triangle: the Colors slide's livelit-reveal),
+           hanging in the margin to the GUI's left like a hanging indent:
+           it shows the use's syntax, which is its model. */
+        [
+          /* In its own span, so it can be dimmed and struck through
+             without the tab behind it. The glyph itself is the Colors
+             slide's choice, an eye or a disclosure triangle, drawn by
+             proj-livelit.css from --livelit-reveal-closed/-open. */
+          Node.span(~attrs=[Attr.class_("livelit-eye-glyph")], []),
+        ],
+      );
+    /* Full screen for a picture (^ticket(401)): any view that draws an
+       <svg> gets a button by the eye (proj-livelit.css shows it only then,
+       by :has, so nothing here inspects the view). It asks the browser to
+       show the view's largest <svg> full screen, which skips the backing
+       shapes of livelits nested in its splices; Esc leaves, as for any
+       full-screen element. */
+    let fullscreen =
+      Node.div(
+        ~attrs=[
+          Attr.class_("livelit-fullscreen"),
+          Attr.title("show this picture full screen (Esc to leave)"),
+          Attr.on_pointerdown(evt => {
+            open Js_of_ocaml;
+            let call = (o, m, args) => Js.Unsafe.meth_call(o, m, args);
+            let s = x => Js.Unsafe.inject(Js.string(x));
+            switch (Js.Opt.to_option(evt##.target)) {
+            | Some(target) =>
+              let proj = call(target, "closest", [|s(".projector")|]);
+              if (Js.Opt.test(proj)) {
+                let svgs =
+                  call(
+                    proj,
+                    "querySelectorAll",
+                    [|
+                      s(":scope > :not(svg):not(.livelit-syntax-layer) svg"),
+                    |],
+                  );
+                let best = ref(None);
+                for (i in 0 to svgs##.length - 1) {
+                  let el = call(svgs, "item", [|Js.Unsafe.inject(i)|]);
+                  let r = call(el, "getBoundingClientRect", [||]);
+                  let area =
+                    Js.float_of_number(r##.width)
+                    *. Js.float_of_number(r##.height);
+                  switch (best^) {
+                  | Some((a, _)) when a >= area => ()
+                  | _ => best := Some((area, el))
+                  };
+                };
+                switch (best^) {
+                | Some((_, el)) =>
+                  ignore(call(el, "requestFullscreen", [||]))
+                | None => ()
+                };
+              };
+            | None => ()
+            };
+            Effect.Many([Effect.Stop_propagation, Effect.Prevent_default]);
+          }),
+        ],
+        [Node.text("⛶")],
+      );
+    let pane =
+      switch (shown) {
+      | Some(s) =>
+        let size: Util.Point.t = splice_size(s.id);
+        let lines =
+          (Option.is_some(head^) ? 1 : 0) + (Option.is_some(params^) ? 1 : 0);
+        let rows = size.row + 1 + lines;
+        Some(
+          Node.div(
+            ~attrs=[
+              Attr.classes(
+                ["livelit-syntax"]
+                @ (Option.is_some(params^) ? ["with-params"] : []),
+              ),
+              Attr.create(
+                "style",
+                Printf.sprintf(
+                  "height: calc(%d * var(--row-height-px));",
+                  rows,
+                ),
+              ),
+            ],
+            Option.to_list(head^)
+            @ Option.to_list(params^)
+            @ [
+              Node.span(
+                ~attrs=[
+                  Attr.classes([
+                    "livelit-panel-label",
+                    "livelit-model-label",
+                  ]),
+                  Attr.create(
+                    "style",
+                    Printf.sprintf(
+                      "top: calc(%d * var(--row-height-px));",
+                      lines,
+                    ),
+                  ),
+                  Attr.title(
+                    "this use's model, read-only: change it with the livelit",
+                  ),
+                ],
+                [Node.text("model")],
+              ),
+              splice_view(s.id),
+            ],
+          ),
+        );
+      | None => None
+      };
+    /* With the syntax shown, the GUI and the pane share the livelit's
+       box, which the placeholder grew by the pane's rows: a column whose
+       GUI part takes what is left, centered as before, and whose pane
+       sits at the bottom. In flow rather than overlaid, because a Tab
+       GUI hangs below the use's row in its own box, the tab extent, and
+       centers in all of it: an overlay at a computed offset covered it. */
+    let node =
+      switch (pane) {
+      | Some(pane) =>
+        Node.div(
+          ~attrs=[Attr.class_("livelit-with-syntax")],
+          [Node.div(~attrs=[Attr.class_("livelit-gui")], [node]), pane],
+        )
+      | None => node
+      };
+    View.mk(
+      /* and the rows a builtin draws under the livelit (view_below) */
+      ~below=below^,
+      ~overlay=
+        Some(
+          Node.div(
+            ~attrs=[Attr.class_("livelit-syntax-layer")],
+            [toggle, fullscreen],
+          ),
+        ),
+      node,
+    );
   };
 };

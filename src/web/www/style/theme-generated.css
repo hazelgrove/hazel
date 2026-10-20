@@ -20,10 +20,6 @@
   --SHADOW: color-mix(in oklch, oklch(50% 0.1 90) 33%, transparent);
   --agent-banner: color-mix(in oklch, oklch(55.0015% 0.08 225) 12%, transparent);
   --agent-banner-edge: color-mix(in oklch, oklch(55.0015% 0.08 225) 35%, transparent);
-  --backpack-genie: oklch(91% 0.11 95);
-  --backpack-joiner: oklch(91% 0.11 95);
-  --backpack-selection: oklch(91% 0.11 95);
-  --backpack-selection-outline: oklch(99% 0.012 90);
   --border-black: oklch(0% 0 0);
   --border-default: oklch(70% 0.07 90);
   --border-error: oklch(60% 0.3 30);
@@ -47,11 +43,12 @@
   --cell-active: oklch(99% 0.012 90);
   --cell-exercises-border: oklch(70% 0.07 90);
   --cell-idle-accent: oklch(85% 0.07 90);
-  --cell-result: oklch(91% 0.025 90);
+  --cell-result: oklch(94% 0.025 90);
   --cell-result-border: oklch(85% 0.07 90);
   --cell-result-hidden: oklch(85% 0.07 90);
   --cell-result-text: oklch(50% 0.07 90);
   --cell-selected-accent: oklch(60% 0.3 30);
+  --ci-dynamics-bkg: oklch(91% 0.11 95);
   --ci-icon-bkg: oklch(60% 0.07 90);
   --ci-status-error-bkg: oklch(85% 0.1 30);
   --ci-status-error-text: oklch(40% 0.3 30);
@@ -83,6 +80,7 @@
   --fold-bkg: oklch(32.2% 0.034 225);
   --hazel-color-scheme: light;
   --hazel-contrast: normal;
+  --hazel-livelit-reveal: eye;
   --hole-active: oklch(50.2% 0.2 225);
   --hole-fill: oklch(92.05% 0.04 225);
   --hole-stroke: oklch(60.1% 0.15 225);
@@ -94,6 +92,11 @@
   --incremental-pending-edge: color-mix(in oklch, oklch(52% 0.03 220) 16%, transparent);
   --light-page-color: oklch(99% 0.012 90);
   --live-env-bkg: oklch(91% 0.025 90);
+  --livelit-reveal-closed: "👁️";
+  --livelit-reveal-open: "👁️";
+  --livelit-reveal-size: 1em;
+  --livelit-reveal-strike: 1.5px;
+  --livelit-reveal-turn: 0deg;
   --llm-waiting-1: oklch(52% 0.2 265);
   --llm-waiting-2: oklch(52% 0.2 300);
   --llm-waiting-3: oklch(52% 0.2 355);
@@ -124,6 +127,9 @@
   --primary-accent: oklch(70% 0.15 150);
   --probe-drawer-edge: oklch(87.001% 0.04 90);
   --probe-drawer-fade: color-mix(in oklch, oklch(52% 0.06 90) 40%, transparent);
+  --quiver-chip-text: oklch(99% 0.012 90);
+  --quiver-chip-text-faded: oklch(92.84% 0.05336 91.1);
+  --quiver-chip-text-faded-atcaret: oklch(82% 0.1505 95);
   --sample-above-bg: oklch(92.95% 0.0602 0);
   --sample-above-related-text: oklch(57.9985% 0.21 0);
   --sample-above-shadow: oklch(84.85% 0.0798 0);
@@ -153,7 +159,7 @@
   --shadow-typ: oklch(60% 0.2 300);
   --shard-any: oklch(94% 0.025 90);
   --shard-caret-exp: oklch(94% 0.025 90);
-  --shard-caret-mod: oklch(95.2% 0.05 180);
+  --shard-caret-mod: oklch(95.2% 0.0075 220);
   --shard-caret-mpat: oklch(95.2% 0.05 225);
   --shard-caret-pat: oklch(95% 0.05 225);
   --shard-caret-sig: oklch(95.2% 0.05 300);
@@ -163,7 +169,7 @@
   --shard-exp: oklch(94% 0.025 90);
   --shard-lines-exp: oklch(85% 0.07 90);
   --shard-lines-rul: oklch(85% 0.07 90);
-  --shard-mod: oklch(95.2% 0.05 180);
+  --shard-mod: oklch(95.2% 0.0075 220);
   --shard-mpat: oklch(95.2% 0.05 225);
   --shard-pat: oklch(95% 0.05 225);
   --shard-rul: oklch(94% 0.025 90);

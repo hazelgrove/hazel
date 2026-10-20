@@ -21,6 +21,8 @@ type t =
   | HTML
   | Keybinding
   | Color
+  /* a theorem's proof in a drawer below it (placed, never invoked) */
+  | Proof
   /* The reference a Fumola program returns when it produces a pointer.
      Unlike the others it is never chosen by a user: translation puts it
      there, so it does not appear in livelit_projectors below. */
@@ -64,6 +66,7 @@ let name = (p: t): string =>
   | HTML => "html"
   | Keybinding => "keybinding"
   | Color => "color"
+  | Proof => "proof"
   | FumolaPeek => "fumola-peek"
   };
 

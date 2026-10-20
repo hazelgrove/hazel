@@ -55,6 +55,7 @@ let aliases: list(((string, string), list(string))) = [
       "surface-raised",
       "df-zebra-bg",
       "table-header-bg",
+      "cell-result",
     ],
   ),
   (
@@ -149,7 +150,6 @@ let aliases: list(((string, string), list(string))) = [
     ("palette", "surface-3"),
     [
       "main-bkg",
-      "cell-result",
       "live-env-bkg",
       "surface-sunken",
       "text-sunken",
@@ -251,7 +251,6 @@ let aliases: list(((string, string), list(string))) = [
   (("editor", "buffer"), ["token-buffer"]),
   (("editor", "derivation"), ["token-drv"]),
   (("editor", "locked-cell"), ["cell-exercises-border"]),
-  (("editor", "backpack-outline"), ["backpack-selection-outline"]),
   (("cursor", "derivation"), ["shard-drv"]),
   (("cursor", "module"), ["shard-caret-mod", "shard-mod"]),
   (("cursor", "signature"), ["shard-caret-sig", "shard-sig"]),
@@ -276,6 +275,7 @@ let aliases: list(((string, string), list(string))) = [
   (("inspector", "badge"), ["ci-icon-bkg"]),
   (("inspector", "text"), ["ci-status-text"]),
   (("inspector", "separator"), ["context-inspector-colon"]),
+  (("inspector", "dynamics"), ["ci-dynamics-bkg"]),
   (("palette", "probe-value"), ["exp-base"]),
   (("palette", "probe-value-edge"), ["exp-shadow"]),
   (("palette", "probe-pattern"), ["pat-base"]),
@@ -314,20 +314,18 @@ let aliases: list(((string, string), list(string))) = [
   (("palette", "statics-background"), ["main-base"]),
   (("palette", "statics-edge"), ["main-shadow"]),
   (("projector", "fold-background"), ["fold-bkg"]),
+  (("completion", "chip-text"), ["quiver-chip-text"]),
+  (("completion", "later-text"), ["quiver-chip-text-faded"]),
+  (
+    ("completion", "later-text-at-caret"),
+    ["quiver-chip-text-faded-atcaret"],
+  ),
   (("palette", "textarea-margin"), ["textarea-v-stripe"]),
   (("palette", "textarea-rule"), ["textarea-h-stripe"]),
   (("palette", "textarea-rule-selected"), ["textarea-h-strip-selected"]),
   (("editor", "string"), ["token-string-lit", "token-incomplete"]),
   (("editor", "comment"), ["token-comment"]),
-  (
-    ("editor", "selection"),
-    [
-      "shard-selected",
-      "backpack-selection",
-      "backpack-joiner",
-      "backpack-genie",
-    ],
-  ),
+  (("editor", "selection"), ["shard-selected"]),
   (
     ("palette", "attention-1"),
     ["surface-highlight-soft", "shard-selected-expanded"],
@@ -397,18 +395,73 @@ let targets_of = (group: string, name: string): list(string) =>
 let polarity_target = "hazel-color-scheme";
 let contrast_target = "hazel-contrast";
 
+/* Not a color: the livelit syntax toggle's look (BuiltinsColorScheme's
+   reveal_field, + Eye + Triangle + Chevron + Nut). Published as the glyphs themselves, so a stylesheet draws
+   them with `content: var(...)`; [reveal_style] names the choice, for
+   anything that wants to branch on it. An unknown name is the eye. */
+let reveal_style_target = "hazel-livelit-reveal";
+let reveal_closed_target = "livelit-reveal-closed";
+let reveal_open_target = "livelit-reveal-open";
+let reveal_strike_target = "livelit-reveal-strike";
+/* How far the open glyph is turned, and how large the glyph is drawn:
+   a text glyph is smaller than the eye's emoji. */
+let reveal_turn_target = "livelit-reveal-turn";
+let reveal_size_target = "livelit-reveal-size";
+let reveal_targets = [
+  reveal_style_target,
+  reveal_closed_target,
+  reveal_open_target,
+  reveal_strike_target,
+  reveal_turn_target,
+  reveal_size_target,
+];
+let reveal_vars = (style: string): list((string, string)) => {
+  let eye = "\"\xF0\x9F\x91\x81\xEF\xB8\x8F\"";
+  let (style, closed, opened, strike, turn, size) =
+    switch (style) {
+    /* right while hidden, down while shown: the disclosure triangle */
+    | "triangle" => (
+        "triangle",
+        "\"\xE2\x96\xB8\"",
+        "\"\xE2\x96\xBE\"",
+        "0px",
+        "0deg",
+        "1.3em",
+      )
+    /* the same, lighter: one angle, turned down while shown */
+    | "chevron" => (
+        "chevron",
+        "\"\xE2\x9D\xAF\"",
+        "\"\xE2\x9D\xAF\"",
+        "0px",
+        "90deg",
+        "0.9em",
+      )
+    /* the hazelnut: shut, then its cap lifted off (RevealNut) */
+    | "nut" => ("nut", RevealNut.shut, RevealNut.open_, "0px", "0deg", "1em")
+    | _ => ("eye", eye, eye, "1.5px", "0deg", "1em")
+    };
+  [
+    (reveal_style_target, style),
+    (reveal_closed_target, closed),
+    (reveal_open_target, opened),
+    (reveal_strike_target, strike),
+    (reveal_turn_target, turn),
+    (reveal_size_target, size),
+  ];
+};
+
 /* Every CSS custom property the slide is responsible for. This, not
    `field_names`, is the output contract: it is what the stylesheets consume,
    what the tests check against, and what `theme_key` must be salted with. */
-let all_targets: list(string) = [
-  polarity_target,
-  contrast_target,
-  ...List.concat_map(((g, n)) => targets_of(g, n), field_names),
-];
+let all_targets: list(string) =
+  [polarity_target, contrast_target]
+  @ reveal_targets
+  @ List.concat_map(((g, n)) => targets_of(g, n), field_names);
 
 /* The type the editor threads in as `~ana`, so a slide that stops matching
    the contract goes red in the buffer. */
-let expected_type = CS.typ;
+let expected_type = CS.typ_with_reveal;
 
 let entries_of = (v: Exp.t): list(Exp.t) =>
   switch (v.term) {
@@ -455,6 +508,17 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
           | Matches(b) => [(contrast_target, b ? "high" : "normal")]
           | _ => []
           }
+        | Label(l) when l == CS.reveal_field =>
+          switch (body.term) {
+          /* + Eye + Triangle (CS.reveal_type) */
+          | Constructor(c, _) => reveal_vars(String.lowercase_ascii(c))
+          | _ =>
+            /* a slide saved while the choice was a string, "triangle" */
+            switch (Unboxing.unbox(Atom(String), body)) {
+            | Matches(style) => reveal_vars(style)
+            | _ => []
+            }
+          }
         /* roles nest one level deeper: group -> entries */
         | Label("roles") =>
           List.concat_map(
@@ -482,6 +546,11 @@ let decoded_vars = (value: Exp.t): list((string, string)) =>
    honest answer to a slide that cannot fill the contract. */
 let css_vars_of_value = (value: Exp.t): list((string, string)) => {
   let vars = decoded_vars(value);
+  /* The toggle's look is the one optional part: a Colors slide saved
+     before it was a field still yields its colors, with the eye. */
+  let vars =
+    List.exists(((t, _)) => t == reveal_style_target, vars)
+      ? vars : vars @ reveal_vars("eye");
   let produced = List.sort_uniq(compare, List.map(fst, vars));
   produced == List.sort_uniq(compare, all_targets) ? vars : [];
 };

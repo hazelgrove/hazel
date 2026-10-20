@@ -12,8 +12,15 @@
 #   let ^percent = ^slider(0, 100) in #
 
 # ^percent is then an ordinary livelit: type ^percent then a space #
-# for a new use. Using ^slider directly, as ^slider(50), is an #
-# error: it takes parameters. #
+# for a new use. #
+
+# Or give the parameters at the use itself, the paper's #
+# $slider 1 12, with no abbreviation: #
+
+#   ^^livelit(^slider(1, 12)(3)) #
+
+# Using ^slider with no parameters, as ^slider(50), is an error: it #
+# takes them. #
 
 # The parameters are CLOSED: literals, or expressions over builtins. #
 # init and update run when you create a use and at each event, where #
