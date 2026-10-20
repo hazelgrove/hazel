@@ -21,8 +21,9 @@ type t;
 let flat: FontMetrics.t => t;
 
 /* A gadget for every gap whose demand, at `pad` pixels per edge, exceeds
-   the whitespace already there, and pixels below every row whose leading
-   demand exceeds the leading between its text box and the next row's. */
+   the whitespace already there, and pixels above a row wherever a leading
+   demand on it exceeds the space between the two rows' text boxes, the
+   gaps opened between them included. */
 let of_padding: (~font_metrics: FontMetrics.t, ~pad: float, Padding.t) => t;
 
 let font_metrics: t => FontMetrics.t;

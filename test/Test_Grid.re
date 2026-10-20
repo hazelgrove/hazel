@@ -120,6 +120,7 @@ let padded =
       leading: [
         {
           above: 0,
+          below: 1,
           demand: 2,
         },
       ],
@@ -248,6 +249,41 @@ let leading_gaps =
     },
   );
 
+/* At pad 8: the first opens 4px below row 0; the second has the two rows'
+   text boxes 24px apart plus those 4px, so it opens the 4px short below
+   row 1. */
+let leading_spans =
+  test_case(
+    "of_padding: leading demand across a row counts the row and the gaps already open",
+    `Quick,
+    () => {
+      let grid =
+        Grid.of_padding(
+          ~font_metrics,
+          ~pad=8.,
+          {
+            blocks: [],
+            gaps: [],
+            leading: [
+              {
+                above: 0,
+                below: 1,
+                demand: 1,
+              },
+              {
+                above: 0,
+                below: 2,
+                demand: 4,
+              },
+            ],
+          },
+        );
+      check(close, "below row 0", 4., Grid.row_gap(grid, 0));
+      check(close, "below row 1", 4., Grid.row_gap(grid, 1));
+      check(close, "row 2 top", 48., Grid.y_top(grid, 2));
+    },
+  );
+
 let tests = (
   "Grid",
   [
@@ -259,5 +295,6 @@ let tests = (
     row_start,
     point_of_px_snaps,
     leading_gaps,
+    leading_spans,
   ],
 );

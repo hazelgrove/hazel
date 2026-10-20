@@ -71,16 +71,42 @@ let of_padding =
       gaps,
     )
     |> IntMap.map(List.rev);
-  /* the leading between two rows' text boxes is used first */
+  /* the space between the two rows' text boxes is used first, the gaps
+     opened between them so far included; what is short opens the gap right
+     above the lower row. Narrower spans go first so a wider one finds theirs
+     open. */
   let gaps =
-    List.fold_left(
-      (acc, {above, demand}: Padding.leading) => {
-        let px = float_of_int(demand) *. pad -. (row_height -. text_height);
-        px > 0. ? IntMap.add(above, px, acc) : acc;
-      },
-      IntMap.empty,
-      leading,
-    );
+    leading
+    |> List.stable_sort((a: Padding.leading, b: Padding.leading) =>
+         Int.compare(a.below - a.above, b.below - b.above)
+       )
+    |> List.fold_left(
+         (gaps, {above, below, demand}: Padding.leading) => {
+           let opened =
+             List.init(below - above, i => above + i)
+             |> List.fold_left(
+                  (acc, row) =>
+                    acc
+                    +. Option.value(IntMap.find_opt(row, gaps), ~default=0.),
+                  0.,
+                );
+           let px =
+             float_of_int(demand)
+             *. pad
+             -. (float_of_int(below - above) *. row_height -. text_height)
+             -. opened;
+           px > 0.
+             ? IntMap.update(
+                 below - 1,
+                 fun
+                 | None => Some(px)
+                 | Some(g) => Some(g +. px),
+                 gaps,
+               )
+             : gaps;
+         },
+         IntMap.empty,
+       );
   let tops =
     switch (IntMap.max_binding_opt(gaps)) {
     | None => [||]

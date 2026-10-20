@@ -297,6 +297,7 @@ let layout = (~globals: Globals.t, model: Model.t): layout => {
       | (Types, Padded) =>
         let padding =
           Padding.of_blocks(
+            ~pad_cols=float_of_int(key.pad) /. key.font_metrics.col_width,
             ~measured=key.measured,
             ~term_data=model.editor.syntax.term_data,
             key.blocks,

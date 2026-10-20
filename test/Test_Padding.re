@@ -3,7 +3,7 @@ open Haz3lcore;
 open Language;
 
 /* Syntax and statics of a program on the same ids, as the editor has them. */
-let padding = (program: string): Padding.t =>
+let padding = (~pad_cols=0., program: string): Padding.t =>
   switch (Parser.to_zipper(~root=Exp, program)) {
   | None => fail("Failed to parse: " ++ program)
   | Some(z) =>
@@ -16,6 +16,7 @@ let padding = (program: string): Padding.t =>
         term,
       );
     Padding.of_blocks(
+      ~pad_cols,
       ~measured=syntax.measured,
       ~term_data=syntax.term_data,
       statics.type_blocks,
@@ -55,6 +56,12 @@ let gap_ = (row, before, hi, demand): Padding.gap => {
   row,
   before,
   hi,
+  demand,
+};
+
+let lead = (above, below, demand): Padding.leading => {
+  above,
+  below,
   demand,
 };
 
@@ -125,17 +132,7 @@ let test_leading =
         ],
         rows_of(p, 0, Tuple),
       );
-      check(
-        list(leading),
-        "between the rows",
-        [
-          {
-            above: 0,
-            demand: 2,
-          },
-        ],
-        p.leading,
-      );
+      check(list(leading), "between the rows", [lead(0, 1, 2)], p.leading);
     },
   );
 
@@ -147,17 +144,78 @@ let test_leading_over_text =
     check(
       list(leading),
       "let p = (1, true) in / p under the 1",
-      [
-        {
-          above: 0,
-          demand: 1,
-        },
-      ],
-      padding("let p = (1, true) in\n        p").leading,
+      [lead(0, 1, 1)],
+      padding("let p = (1, true) in\n         p").leading,
+    )
+  );
+
+/* The same with the `p` one column left of the `1`. */
+let test_pads_stand_out =
+  test_case(
+    "of_blocks: an edge's pads stand out of its columns",
+    `Quick,
+    () => {
+      let program = "let p = (1, true) in\n        p";
+      check(list(leading), "a column apart", [], padding(program).leading);
+      check(
+        list(leading),
+        "a pad wider than the column",
+        [lead(0, 1, 1)],
+        padding(~pad_cols=1.25, program).leading,
+      );
+    },
+  );
+
+/* The tuple opens at the end of row 0 and fills row 1, so its top on row 1
+   runs under `w`, two deep against one. */
+let test_widening =
+  test_case(
+    "of_blocks: a block widening on its next row has a top edge there",
+    `Quick,
+    () =>
+    check(
+      list(leading),
+      "let w = ( / 1, 2) in 0",
+      [lead(0, 1, 3)],
+      padding("let w = (\n 1, 2) in 0").leading,
+    )
+  );
+
+/* The list fills the end of row 0 and closes early on row 1, so its bottom
+   on row 0 runs over the `+`, two deep. */
+let test_narrowing =
+  test_case(
+    "of_blocks: a block narrowing on its next row has a bottom edge there",
+    `Quick,
+    () =>
+    check(
+      list(leading),
+      "let y = [1, / 2] in 3 + 4",
+      [lead(0, 1, 2)],
+      padding("let y = [1,\n 2] in 3 + 4").leading,
+    )
+  );
+
+let test_blank_row =
+  test_case("of_blocks: edges face each other across a blank row", `Quick, () =>
+    check(
+      list(leading),
+      "(1, / / 2): the tuple's halves, two deep each",
+      [lead(0, 2, 4)],
+      padding("(1,\n\n 2)").leading,
     )
   );
 
 let tests = (
   "Padding",
-  [test_nested_ranks, test_gaps, test_leading, test_leading_over_text],
+  [
+    test_nested_ranks,
+    test_gaps,
+    test_leading,
+    test_leading_over_text,
+    test_pads_stand_out,
+    test_widening,
+    test_narrowing,
+    test_blank_row,
+  ],
 );

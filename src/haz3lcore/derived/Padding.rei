@@ -10,10 +10,11 @@
 
    A gap is the space between two neighboring fragments of text on a row,
    or between a row's start and its first fragment; its demand is the number
-   of block edges at its ends. The demand between two rows is the most edges
-   that have to fit between them at any column: the bottoms of blocks ending
-   on the upper row and the tops of blocks starting on the lower one, each
-   against the other row's text and against each other where they overlap. */
+   of block edges at its ends. A block's top or bottom edge on a row, less
+   the block's own next row where it carries on, faces the nearest text or
+   edge in its columns on the rows beyond, which may differ along it. The
+   demand between a row and one it faces something on is the edge's rank,
+   plus the deepest edge's it meets there. */
 
 [@deriving show({with_path: false})]
 type edge = {
@@ -46,9 +47,11 @@ type gap = {
   demand: int,
 };
 
+/* Between the text of rows `above` and `below`. */
 [@deriving show({with_path: false})]
 type leading = {
   above: int,
+  below: int,
   demand: int,
 };
 
@@ -60,8 +63,11 @@ type t = {
   leading: list(leading),
 };
 
+/* `pad_cols` is a pad in columns: how far an edge stands out of its block's
+   columns per rank, so edges a row apart meet where their pads do. */
 let of_blocks:
   (
+    ~pad_cols: float,
     ~measured: Measured.t,
     ~term_data: TermData.t,
     list(Language.TypeBlocks.block)
