@@ -99,6 +99,18 @@ let with_caches_of = (~from: t, p: t): t =>
   | (Divided(f), Divided(d)) => Divided(Divided.with_caches_of(~from=f, d))
   };
 
+/* [p] showing [from]'s statics and run until it's analyzed, as typing
+   leaves a program: undo and redo defer the analysis to the debounce */
+let with_statics_of = (~from: t, p: t): t =>
+  switch (from, p) {
+  | (Whole(f), Whole(e)) =>
+    Whole(CellEditor.Model.with_statics_of(~from=f, e))
+  | (Whole(f), Divided(d)) =>
+    Divided(Divided.with_shell_statics_of(~from=f, d))
+  | (Divided(f), Whole(e)) => Whole(Divided.shell_statics_into(f, e))
+  | (Divided(f), Divided(d)) => Divided(Divided.with_statics_of(~from=f, d))
+  };
+
 let of_close = (c: Divided.after_close): t =>
   switch (c) {
   | Still(d) => Divided(d)

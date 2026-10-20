@@ -65,7 +65,8 @@ module Store = {
 
 /* undo and redo restore programs; what each slide shows stays, and so do
    its editors' incremental caches, which hit for what the step didn't
-   change (snapshots drop theirs: History.compact) */
+   change (snapshots drop theirs: History.compact), and their statics and
+   runs, shown until the typing debounce analyzes the restored program */
 let carry_over = (~from: Model.t, m: Model.t): Model.t => {
   let carry = (a, b) =>
     ScratchMode.Model.with_views_of(~from=a, b)

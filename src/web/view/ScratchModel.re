@@ -203,7 +203,8 @@ module Model = {
   };
 
   /* [m]'s programs with the incremental caches of [from]'s programs for
-     the same slides (Program.with_caches_of) */
+     the same slides (Program.with_caches_of), showing their statics and
+     runs until analyzed (Program.with_statics_of) */
   let with_caches_of = (~from: t, m: t): t => {
     let program_of = name =>
       List.find_map(
@@ -219,7 +220,10 @@ module Model = {
         switch (program_of(name)) {
         | Some(live) => {
             ...code,
-            program: Program.with_caches_of(~from=live, code.program),
+            program:
+              code.program
+              |> Program.with_caches_of(~from=live)
+              |> Program.with_statics_of(~from=live),
           }
         | None => code
         },

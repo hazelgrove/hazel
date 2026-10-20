@@ -467,6 +467,10 @@ let tests =
         "module constructor pattern in a fun",
         "fun M.A(y), M.B -> y",
       ),
+      menhir_maketerm_equivalent_test(
+        "a module's last member a hole",
+        "let m = {\n  let a = 1;\n  ?\n} in m",
+      ),
       /* Gap fill 2026-08-14: ascribed unit parameter (UNIT lives at the
          funPat level, which had no ascription production). */
       menhir_maketerm_equivalent_test(

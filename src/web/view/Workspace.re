@@ -653,17 +653,26 @@ let update =
   | ShowWhole(parked) =>
     outline_view((_, _, v) => SlideView.park(parked, v), code)
   | RealizeView =>
-    /* after undo: the restored program's statics may be compacted
-       away, so the view is realized against fresh ones */
-    let term = fresh_term(code.program);
-    realize(
-      ~info_map=
-        fresh_info_map(~settings, ~ctx_in=?ctx_in(code), code.program, term),
-      ~term,
-      code.view,
-      code,
-    )
-    |> return(~historic=false);
+    /* after undo: against the statics the restored program shows (the
+       live program's, Page.carry_over), as view changes read them while
+       typing; a snapshot nothing was carried into has none */
+    let statics = Program.statics(code.program);
+    let (term, info_map) =
+      Id.Map.is_empty(statics.info_map)
+        ? {
+          let term = fresh_term(code.program);
+          (
+            term,
+            fresh_info_map(
+              ~settings,
+              ~ctx_in=?ctx_in(code),
+              code.program,
+              term,
+            ),
+          );
+        }
+        : (statics.term, statics.info_map);
+    realize(~info_map, ~term, code.view, code) |> return(~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
        slide hydrating first can't drop it */

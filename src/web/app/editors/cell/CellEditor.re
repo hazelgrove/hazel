@@ -81,6 +81,22 @@ module Model = {
     },
   };
 
+  /* [model] showing [from]'s statics and run until it's analyzed, as
+     after a keystroke: an undone or redone program waits for the typing
+     debounce. Its persisted result (stepper, theorems) stays its own */
+  let with_statics_of = (~from: t, model: t): t => {
+    editor: {
+      ...model.editor,
+      statics: from.editor.statics,
+      dynamics: from.editor.dynamics,
+    },
+    result: {
+      ...from.result,
+      display: model.result.display,
+      theorems: model.result.theorems,
+    },
+  };
+
   let map_zipper = (f: Zipper.t => Zipper.t, model: t): t => {
     ...model,
     editor: {

@@ -738,13 +738,13 @@ let span_test = (lv: S.level, k: int): option(Id.t) => {
 };
 
 /* contiguous test runs: the outline's "tests" container opens one cell
-   spanning the whole run. A test statement joins a run; among members (a
-   module body, a Mod root) a final `;`-less test does too, but an
+   spanning the whole run. A test statement joins a run; in a module body,
+   a Mod root's top level included, a final `;`-less test does too, but an
    expression block's tail is its value and never does */
 let in_run = (lv: S.level, k: int): bool => {
   let members =
     switch (lv.owner) {
-    | Top => lv.sort == Mod
+    | Top => lv.sort == Sort.Mod
     | Members(_)
     | Chain(_)
     | Block(_) => is_members(lv)
