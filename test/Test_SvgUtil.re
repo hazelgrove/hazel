@@ -12,13 +12,20 @@ let box = (~inset=0., row, left, right): Rows.box => {
 
 let close = (a: float, b: float) => Float.abs(a -. b) < 1e-9;
 
-/* Only absolute commands; a relative one is a failure. */
+/* Absolute commands, and arcs, which are only ever relative. */
 let equal_cmd = (a: Path.cmd, b: Path.cmd) =>
   switch (a, b) {
   | (M(p), M(q))
   | (L(p), L(q)) => close(p.x, q.x) && close(p.y, q.y)
   | (H({x: a}), H({x: b}))
   | (V({y: a}), V({y: b})) => close(a, b)
+  | (A_(a), A_(b)) =>
+    close(a.rx, b.rx)
+    && close(a.ry, b.ry)
+    && a.large_arc_flag == b.large_arc_flag
+    && a.sweep_flag == b.sweep_flag
+    && close(a.dx, b.dx)
+    && close(a.dy, b.dy)
   | (Z, Z) => true
   | _ => false
   };
@@ -105,6 +112,97 @@ let test_wider_row =
         v(0.),
         Z,
       ],
+    )
+  );
+
+/* an arc of radius r, turning clockwise (sweep) or not, to r along the next edge */
+let arc = (~sweep=true, r, dx, dy) =>
+  Path.A_({
+    rx: r,
+    ry: r,
+    x_axis_rotation: 0.,
+    large_arc_flag: false,
+    sweep_flag: sweep,
+    dx,
+    dy,
+  });
+
+let test_rounded_rect =
+  test_case(
+    "Path.rounded: every corner of a rectangle becomes a clockwise arc",
+    `Quick,
+    () =>
+    check(
+      path,
+      "10 by 4, radius 1",
+      [
+        m(1., 0.),
+        h(9.),
+        arc(1., 1., 1.),
+        v(3.),
+        arc(1., -1., 1.),
+        h(1.),
+        arc(1., -1., -1.),
+        v(1.),
+        arc(1., 1., -1.),
+        Z,
+      ],
+      Path.rounded(
+        ~radius=1.,
+        [m(0., 0.), h(10.), v(4.), h(0.), v(0.), Z],
+      ),
+    )
+  );
+
+let test_rounded_clamps =
+  test_case(
+    "Path.rounded: a corner's radius is at most half its shorter edge",
+    `Quick,
+    () =>
+    check(
+      path,
+      "10 by 1, radius 1",
+      [
+        m(0.5, 0.),
+        h(9.5),
+        arc(0.5, 0.5, 0.5),
+        arc(0.5, -0.5, 0.5),
+        h(0.5),
+        arc(0.5, -0.5, -0.5),
+        arc(0.5, 0.5, -0.5),
+        Z,
+      ],
+      Rows.outline(~radius=1., [box(0, 0, 10)]),
+    )
+  );
+
+let test_rounded_concave =
+  test_case(
+    "Path.rounded: a concave corner's arc turns the other way", `Quick, () =>
+    check(
+      path,
+      "[0,10] over [4,8], radius 0.25",
+      [
+        m(0.25, 0.),
+        h(9.75),
+        arc(0.25, 0.25, 0.25),
+        v(0.75),
+        arc(0.25, -0.25, 0.25),
+        h(8.25),
+        arc(~sweep=false, 0.25, -0.25, 0.25),
+        v(1.75),
+        arc(0.25, -0.25, 0.25),
+        h(4.25),
+        arc(0.25, -0.25, -0.25),
+        v(1.25),
+        arc(~sweep=false, 0.25, -0.25, -0.25),
+        h(0.25),
+        arc(0.25, -0.25, -0.25),
+        v(0.25),
+        arc(0.25, 0.25, -0.25),
+        Z,
+      ],
+      Rows.outline(~radius=0.25, [box(0, 0, 10), box(1, 4, 8)]),
     )
   );
 
@@ -261,6 +359,9 @@ let tests = (
     test_step,
     test_inset_steps,
     test_wider_row,
+    test_rounded_rect,
+    test_rounded_clamps,
+    test_rounded_concave,
     test_split_disjoint,
     test_split_overlapping,
     test_split_gap,

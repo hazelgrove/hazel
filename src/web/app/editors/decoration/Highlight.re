@@ -771,7 +771,9 @@ let incr_eval =
 };
 
 /* Blocks (settings: Blocks): a box per block per row, one shape per run of
-   rows (SvgUtil.Rows). */
+   rows (SvgUtil.Rows), with rounded corners. */
+let block_radius = 3.; /* px */
+
 let blocks =
     (blocks: list((Language.Blocks.paint, list(SvgUtil.Rows.box)))): Node.t =>
   div_c(
@@ -782,7 +784,10 @@ let blocks =
         boxes
         |> SvgUtil.Rows.split
         |> List.map(group =>
-             DecUtil.svg_px(~base_cls, SvgUtil.Rows.outline(group))
+             DecUtil.svg_px(
+               ~base_cls,
+               SvgUtil.Rows.outline(~radius=block_radius, group),
+             )
            );
       },
       blocks,

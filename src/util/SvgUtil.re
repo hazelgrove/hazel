@@ -269,6 +269,105 @@ module Path = {
       );
     };
 
+  /* A closed polygon of absolute straight edges, its corners rounded by
+     `radius`: at a corner one of whose edges is shorter than twice that,
+     by half the shorter edge. The arc at each corner turns the way the
+     polygon does there, so a concave corner is rounded too. */
+  let rounded = (~radius: float, path: t): t => {
+    let (_, vertices) =
+      List.fold_left(
+        ((cur, acc), cmd) => {
+          let next = step(cur, cmd);
+          switch (cmd) {
+          | Z => (next, acc)
+          | _ => (next, [next.at, ...acc])
+          };
+        },
+        (cursor_origin, []),
+        path,
+      );
+    /* a last vertex back at the first is the path returning to its start */
+    let vertices =
+      switch (List.rev(vertices), vertices) {
+      | ([first, ..._], [last, ...rest])
+          when Float.equal(first.x, last.x) && Float.equal(first.y, last.y) =>
+        List.rev(rest)
+      | _ => List.rev(vertices)
+      };
+    switch (vertices) {
+    | []
+    | [_]
+    | [_, _] => path
+    | _ =>
+      let v = Array.of_list(vertices);
+      let n = Array.length(v);
+      let at = i => v[(i + n) mod n];
+      let dist = (p: Point.t, q: Point.t) =>
+        Float.hypot(q.x -. p.x, q.y -. p.y);
+      let r = i =>
+        min(
+          radius,
+          min(dist(at(i - 1), at(i)), dist(at(i), at(i + 1))) /. 2.,
+        );
+      /* `d` along the edge from `p` toward `q` */
+      let toward = (p: Point.t, q: Point.t, d: float): Point.t => {
+        let len = dist(p, q);
+        len == 0.
+          ? p
+          : {
+            x: p.x +. (q.x -. p.x) /. len *. d,
+            y: p.y +. (q.y -. p.y) /. len *. d,
+          };
+      };
+      let line = (from: Point.t, to_: Point.t): cmd =>
+        if (Float.equal(from.y, to_.y)) {
+          H({x: to_.x});
+        } else if (Float.equal(from.x, to_.x)) {
+          V({y: to_.y});
+        } else {
+          L(to_);
+        };
+      let start = toward(at(0), at(1), r(0));
+      let (_, cmds) =
+        List.fold_left(
+          ((cur: Point.t, cmds), i) => {
+            let (p, q, s) = (at(i - 1), at(i), at(i + 1));
+            let ri = r(i);
+            let before = toward(q, p, ri);
+            let after = toward(q, s, ri);
+            /* no edge is left between two arcs that meet */
+            let cmds =
+              Float.equal(cur.x, before.x) && Float.equal(cur.y, before.y)
+                ? cmds : [line(cur, before), ...cmds];
+            if (ri > 0.) {
+              let cross =
+                (q.x -. p.x) *. (s.y -. q.y) -. (q.y -. p.y) *. (s.x -. q.x);
+              (
+                after,
+                [
+                  A_({
+                    rx: ri,
+                    ry: ri,
+                    x_axis_rotation: 0.,
+                    large_arc_flag: false,
+                    sweep_flag: cross > 0.,
+                    dx: after.x -. before.x,
+                    dy: after.y -. before.y,
+                  }),
+                  ...cmds,
+                ],
+              );
+            } else {
+              (before, cmds);
+            };
+          },
+          (start, []),
+          List.init(n, i => i + 1),
+        );
+      [M(start), ...List.rev(cmds)] @ [Z];
+    };
+  };
+
   let string_of_flag =
     fun
     | false => "0"
@@ -349,8 +448,9 @@ module Rows = {
      Where a row is narrower than the one above it the step sits at the
      upper box's bottom, where wider at the lower box's top: boxes that
      overlap vertically outline their union, and boxes inset from their rows
-     keep every edge of a child apart from its parent's. */
-  let outline = (boxes: list(box)): Path.t =>
+     keep every edge of a child apart from its parent's. The corners are
+     rounded by `radius` (Path.rounded). */
+  let outline = (~radius=0., boxes: list(box)): Path.t =>
     switch (boxes) {
     | [] => []
     | [first, ...rest] =>
@@ -398,6 +498,7 @@ module Rows = {
       @ down(boxes)
       @ Path.[V({y: last.bottom}), H({x: last.left})]
       @ up(List.rev(boxes))
-      @ Path.[V({y: first.top}), Z];
+      @ Path.[V({y: first.top}), Z]
+      |> (radius > 0. ? Path.rounded(~radius) : Fun.id);
     };
 };
