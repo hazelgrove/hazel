@@ -225,8 +225,10 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
         let* tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
         let+ suffix = nonascii_name_suffix;
         let ident = String.make(1, leading) ++ tail ++ suffix;
-        /* base-type names (Nat, Void, ...) don't parse as constructors */
-        if (List.mem(ident, Language.Token.base_typs)) {
+        /* every capitalized token Lexer.mll reserves; a collision lexes
+           as a type keyword and fails the parse (seed-dependent flake) */
+        let reserved = Language.Token.base_typs @ ["Unknown", "Internal"];
+        if (List.mem(ident, reserved)) {
           "Keyword";
         } else {
           ident;

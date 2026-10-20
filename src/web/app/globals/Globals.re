@@ -67,6 +67,7 @@ module Action = {
     | Redo // global actions so they can be accessed by the command palette
     | Log(log)
     | SetMetaDown(bool)
+    | SetSettingsFilter(string)
     | UpdateVisibleRows(VisibleRows.t)
     | RethrowException
     | ClearException
@@ -87,6 +88,8 @@ module Model = {
        `Page.main_view`, which is the first place that knows both the mode and
        the slide -- an editor does not know it is on a slide at all. */
     slide_name: option(string),
+    /* the settings panel's filter text; not saved */
+    settings_filter: string,
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -113,6 +116,7 @@ module Model = {
     meta_down: false,
     visible_rows: None,
     slide_name: None,
+    settings_filter: "",
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),

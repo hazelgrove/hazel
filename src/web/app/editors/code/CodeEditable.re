@@ -43,19 +43,11 @@ module Update = {
       )
       |> Updated.return(
            ~historic=Action.is_historic(action),
-           ~is_edit=
-             Action.is_edit(action)
-             /* When probe_all is on, Refractor actions don't require
-              * re-evaluation since all probes are already computed */
-             && !(
-                  settings.core.probe_all
-                  && (
-                    switch (action) {
-                    | Probe(_) => true
-                    | _ => false
-                    }
-                  )
-                ),
+           /* With probe_all on, a placed probe's samples already exist
+            * (they show instantly), but ambient samples carry no env
+            * (CachedStatics.compute_targets), so re-evaluate to give the
+            * new probe its bindings. */
+           ~is_edit=Action.is_edit(action),
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
@@ -158,8 +150,7 @@ module Selection = {
         model: Model.t,
       )
       : cursor(Update.t) => {
-    let meta = Keyboard.meta();
-    let mk = ContextualAction.mk;
+    let of_shortcut = ContextualAction.of_shortcut;
     let action = a => inject(Perform(a));
     {
       ...
@@ -176,143 +167,65 @@ module Selection = {
     }
     |> Cursor.with_actions([
          /* Navigation */
-         mk(
-           ~hotkey="F12",
-           ~mdIcon="arrow_forward",
-           ~section="Navigation",
+         of_shortcut(
            ~action=action(Move(Goal(BindingSiteOfIndicatedVar))),
-           "Go to Definition",
+           GoToDefinition,
          ),
-         mk(
-           ~hotkey="shift+tab",
-           ~mdIcon="arrow_upward",
-           ~section="Navigation",
+         of_shortcut(
            ~action=action(Move(Goal(NextProblem(Left)))),
-           "Go to Previous Problem",
+           GoToPreviousProblem,
          ),
-         mk(
-           ~mdIcon="arrow_downward",
-           ~section="Navigation",
+         of_shortcut(
            ~action=action(Move(Goal(NextProblem(Right)))),
-           "Go to Next Problem",
+           GoToNextProblem,
          ),
          /* Selection */
-         mk(
-           ~hotkey=meta ++ "+d",
-           ~mdIcon="select_all",
-           ~section="Selection",
+         of_shortcut(
            ~action=action(Select(Term(Current))),
-           "Select current term",
+           SelectCurrentTerm,
          ),
-         mk(
-           ~mdIcon="select_all",
-           ~hotkey=meta ++ "+a",
-           ~section="Selection",
-           ~action=action(Select(All)),
-           "Select All",
-         ),
-         mk(
-           ~mdIcon="flip_horizontal",
-           ~section="Selection",
+         of_shortcut(~action=action(Select(All)), SelectAll),
+         of_shortcut(
            ~action=action(Select(ToggleFocus)),
-           "Toggle Selection Focus",
+           ToggleSelectionFocus,
          ),
-         mk(
-           ~mdIcon="border_left",
-           ~section="Selection",
-           ~hotkey=meta ++ "+alt+shift+left",
+         of_shortcut(
            ~action=action(Select(SetFocus(Left))),
-           "Set Selection Focus Left",
+           SetSelectionFocusLeft,
          ),
-         mk(
-           ~mdIcon="border_right",
-           ~section="Selection",
-           ~hotkey=meta ++ "+alt+shift+right",
+         of_shortcut(
            ~action=action(Select(SetFocus(Right))),
-           "Set Selection Focus Right",
+           SetSelectionFocusRight,
          ),
-         mk(
-           ~mdIcon="chevron_left",
-           ~section="Selection",
-           ~hotkey="alt+shift+left",
+         of_shortcut(
            ~action=action(Select(Resize(Local(Left, ByToken)))),
-           "Extend Selection Left by Token",
+           ExtendSelectionLeftByToken,
          ),
-         mk(
-           ~mdIcon="chevron_right",
-           ~section="Selection",
-           ~hotkey="alt+shift+right",
+         of_shortcut(
            ~action=action(Select(Resize(Local(Right, ByToken)))),
-           "Extend Selection Right by Token",
+           ExtendSelectionRightByToken,
          ),
          /* Projection */
-         mk(
-           ~hotkey="alt+f",
-           ~mdIcon="camera",
-           ~section="Projection",
+         of_shortcut(
            ~action=action(Project(SetIndicated(Specific(Fold)))),
-           "Fold",
+           Fold,
          ),
-         mk(
-           ~hotkey=meta ++ "+e",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Probe(ToggleManual)),
-           "Probe",
-         ),
-         mk(
-           ~hotkey="alt+t",
-           ~mdIcon="camera",
-           ~section="Projection",
-           ~action=action(Probe(ToggleStatics)),
-           "Statics",
-         ),
-         mk(
-           ~hotkey="alt+l",
-           ~mdIcon="camera",
-           ~section="Projection",
+         of_shortcut(~action=action(Probe(ToggleManual)), Probe),
+         of_shortcut(~action=action(Probe(ToggleStatics)), Statics),
+         of_shortcut(
            ~action=action(Project(SetIndicated(ChooseLivelit))),
-           "Livelit",
+           Livelit,
          ),
          /* Editor tools */
-         mk(
-           ~hotkey=meta ++ "+/",
-           ~mdIcon="assistant",
-           ~action=action(Buffer(Set(TyDi))),
-           "TyDi Assistant",
-         ),
-         mk(
-           ~section="Diagnostics",
-           ~mdIcon="refresh",
+         of_shortcut(~action=action(Buffer(Set(TyDi))), TydiAssistant),
+         of_shortcut(
            ~action=inject(Perform(Reparse)),
-           "Reparse Current Editor",
+           ReparseCurrentEditor,
          ),
-         mk(
-           ~mdIcon="bolt",
-           ~section="Refactoring",
-           ~hotkey=meta ++ "+i",
-           ~action=action(Introduce),
-           "Introduce",
-         ),
-         mk(
-           ~mdIcon="format_indent_increase",
-           ~section="Formatting",
-           ~action=action(Format(Indent)),
-           "Re-indent",
-         ),
-         mk(
-           ~mdIcon="space_bar",
-           ~section="Formatting",
-           ~action=action(Format(Spacing)),
-           "Normalize Spacing",
-         ),
-         mk(
-           ~mdIcon="format_align_left",
-           ~section="Formatting",
-           ~hotkey=meta ++ "+shift+s",
-           ~action=action(Format(Pretty)),
-           "Pretty Print",
-         ),
+         of_shortcut(~action=action(Introduce), Introduce),
+         of_shortcut(~action=action(Format(Indent)), ReIndent),
+         of_shortcut(~action=action(Format(Spacing)), NormalizeSpacing),
+         of_shortcut(~action=action(Format(Pretty)), PrettyPrint),
        ]);
   };
 
@@ -627,11 +540,10 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
-    /* Editor-level clipboard helpers. Bypass the page-level
-       on_copy/on_paste path because Firefox refuses to dispatch
-       native clipboard events to non-editable focused elements
-       (the editor div has tabindex(0) but is not contenteditable).
-       Shared by the keyboard shortcuts and the context menu. */
+    /* Editor-level clipboard helpers: Firefox won't dispatch native
+       clipboard events to a focused non-editable element (the editor
+       div has tabindex(0) but is not contenteditable). Shared by the
+       keyboard shortcuts and the context menu. */
     let selection_has_refractors =
         (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
       if (List.is_empty(refractors.manuals)) {
@@ -989,9 +901,22 @@ module View = {
       | {button: Right, ctrl, _} when ctrl != Down =>
         /* Right-click inside the selection keeps it (so the menu's
            Cut/Copy apply to it); outside, move the caret to the click
-           location as a plain click would before opening the menu. */
+           location as a plain click would before opening the menu.
+           Prevent_default also skips the browser's focus-on-press, so
+           focus the editor here: keys after the menu belong to it. */
         Effect.Many(
-          [Effect.Prevent_default]
+          [
+            Effect.Prevent_default,
+            signal(MakeActive),
+            Effect.of_sync_fun(
+              () =>
+                Js.Opt.iter(
+                  mouse.current_target,
+                  Haz3lcore.FocusEffect.focus_no_scroll,
+                ),
+              (),
+            ),
+          ]
           @ (
             click_in_selection(loc(mouse))
               ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
@@ -1126,9 +1051,7 @@ module View = {
                 && z.relatives.ancestors == []
                 && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
-          /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
-             on_copy/on_paste handlers, so they keep working in
-             Firefox when focus is on a non-editable editor div. */
+          /* 2. Cmd/Ctrl + C/X/V, via the clipboard helpers above. */
           | {
               key: D("c" | "C"),
               sys: Mac,
@@ -1219,11 +1142,18 @@ module View = {
         Attr.classes(
           ["cell-item", "code-editor"]
           @ (selected ? ["selected"] : [])
+          @ (
+            switch (edit_mode) {
+            | ReadOnly => ["read-only"]
+            | Editable(_) => []
+            }
+          )
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         /* always focusable so a click gives DOM focus (caret/accent gated on :focus) */
         Attr.tabindex(0),
-        /* tag the active cell so a sidebar jump can move DOM focus to it */
+        /* Tag the active cell so a sidebar jump can move DOM focus to it
+           (see JsUtil.active_cell_id / FocusEffect). */
         selected ? Attr.id(JsUtil.active_cell_id) : Attr.empty,
         key_handler_attr,
         Attr.on_contextmenu(evt =>

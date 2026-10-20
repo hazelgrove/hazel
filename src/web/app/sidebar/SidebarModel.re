@@ -11,7 +11,8 @@ module Settings = {
     | LogControl
     | Problems
     | TaskReference
-    | DebugInfo;
+    | DebugInfo
+    | Settings;
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =
@@ -178,6 +179,12 @@ module Settings = {
                                               [WorkerServer.Marshal]
                                             ]
     worker_encodings: list(WorkerServer.encoding),
+    /* Settings panel sections folded shut, by name; defaulted on load so
+       settings saved before the panel existed still load */
+    [@sexp.default ["Stepper", "Developer"]] [@yojson.default
+                                                ["Stepper", "Developer"]
+                                              ]
+    settings_folded: list(string),
   };
 
   let is_debug_expanded = (key: string, settings: t) =>
@@ -195,6 +202,17 @@ module Settings = {
         debug_expanded: [key, ...settings.debug_expanded],
       };
     };
+
+  let is_settings_folded = (name: string, settings: t) =>
+    List.mem(name, settings.settings_folded);
+
+  let toggle_settings_folded = (name: string, settings: t): t => {
+    ...settings,
+    settings_folded:
+      is_settings_folded(name, settings)
+        ? List.filter(n => n != name, settings.settings_folded)
+        : [name, ...settings.settings_folded],
+  };
 
   let is_encoding_enabled = (e: WorkerServer.encoding, settings: t) =>
     List.mem(e, settings.worker_encodings);
@@ -219,5 +237,6 @@ module Settings = {
     | Problems(problems_action)
     | ToggleDebugRaw
     | ToggleDebugExpanded(string)
-    | ToggleWorkerEncoding(WorkerServer.encoding);
+    | ToggleWorkerEncoding(WorkerServer.encoding)
+    | ToggleSettingsFolded(string);
 };

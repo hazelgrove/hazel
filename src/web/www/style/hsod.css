@@ -9,7 +9,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--T3);
+  background: var(--surface-sunken);
   z-index: 10000;
   padding: 1em;
   font-family: var(--ui-font);
@@ -48,20 +48,20 @@
   margin: 0 0 1em 0;
   font-size: 1.8em;
   font-weight: 600;
-  color: var(--BR4);
+  color: var(--text-strong);
   font-family: var(--ui-font);
 }
 
 .hsod-body pre {
-  background: var(--T4);
-  border: 1px solid var(--T2);
+  background: var(--surface-deep);
+  border: 1px solid var(--border-raised);
   border-radius: 0.4em;
   padding: 1.2em;
   overflow-x: auto;
   font-family: var(--code-font);
   font-size: 0.9em;
   line-height: 1.5;
-  color: var(--STONE);
+  color: var(--text-default);
   margin: 0 0 1.5em 0;
 }
 
@@ -73,57 +73,57 @@
 }
 
 .hsod-link {
-  color: var(--BR4);
+  color: var(--text-strong);
   font-size: 0.9em;
   padding: 0.65em 1em;
   border-radius: 4px;
   font-weight: bold;
   cursor: pointer;
-  border: 0.75px solid var(--BR3);
-  background-color: var(--T1);
+  border: 0.75px solid var(--border-strong);
+  background-color: var(--surface-default);
   text-decoration: none;
 }
 
 .hsod-link:hover {
-  background-color: var(--Y1);
+  background-color: var(--surface-highlight);
 }
 
 .hsod-link:active {
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
 }
 
 .hsod-button {
-  color: var(--BR4);
+  color: var(--text-strong);
   font-size: 0.9em;
   padding: 0.65em 1em;
   border-radius: 4px;
   font-weight: bold;
   cursor: pointer;
-  border: 0.75px solid var(--BR3);
-  background-color: var(--T1);
+  border: 0.75px solid var(--border-strong);
+  background-color: var(--surface-default);
   font-family: var(--ui-font);
 }
 
 .hsod-button:hover {
-  background-color: var(--Y1);
+  background-color: var(--surface-highlight);
 }
 
 .hsod-button:active {
-  background-color: var(--T3);
+  background-color: var(--surface-sunken);
 }
 
 .hsod-button-primary {
-  background-color: var(--BR2);
-  border: 0.75px solid var(--BR4);
-  color: var(--SAND);
+  background-color: var(--surface-shard-strong);
+  border: 0.75px solid var(--border-stronger);
+  color: var(--text-inverse);
 }
 
 .hsod-button-primary:hover {
-  background-color: var(--Y2);
+  background-color: var(--surface-highlight-strong);
 }
 
 .hsod-button-primary:active {
-  background-color: var(--BR3);
+  background-color: var(--surface-accent);
 }
 
 /* Responsive design */

@@ -1,19 +1,19 @@
 .projector.csv .cancel-button {
     cursor: pointer;
-    color: var(--R1);
+    color: var(--text-error);
 }
 
 .projector.csv .csv-loaded-container .reset-button {
     cursor: pointer;
-    color: var(--BR3);
+    color: var(--text-accent);
     padding: 0.2em 0.3em;
     border-radius: 3px;
     transition: background-color 0.2s ease;
 }
 
 .projector.csv .csv-loaded-container .reset-button:hover {
-    background-color: var(--BR3);
-    color: var(--BLACK);
+    background-color: var(--surface-accent);
+    color: var(--text-black);
 }
 
 .projector.csv .csv-loaded-container .toggle-switch {

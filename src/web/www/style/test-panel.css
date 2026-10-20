@@ -14,7 +14,7 @@
   gap: 1em;
   padding: 1em;
   background-color: var(--test-panel-bkg);
-  border-bottom: 0.5px solid var(--BR2);
+  border-bottom: 0.5px solid var(--border-default);
 }
 
 .test-reports {
@@ -32,11 +32,11 @@
 }
 
 .test-report + .test-report {
-  border-top: 1px dotted var(--BR2);
+  border-top: 1px dotted var(--border-default);
 }
 
 .test-report:hover {
-  background-color: var(--SAND);
+  background-color: var(--surface-code);
 }
 
 .test-id.Pass {
@@ -122,7 +122,7 @@
   padding: 0 1em 0 1em;
   font-size: 0.7em;
   border-radius: 1.08em;
-  background-color: var(--BR2);
+  background-color: var(--surface-shard-strong);
   align-items: center;
 }
 

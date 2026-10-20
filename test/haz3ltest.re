@@ -38,6 +38,7 @@ let (suite, exit_with_test_status) =
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_TaskReferenceSplit.tests,
+      Test_TutorialReferencePanel.tests,
       Test_HazelJson_JsonADT.tests,
       Test_PatternMatch.tests,
       Test_Equality.tests,
@@ -45,6 +46,7 @@ let (suite, exit_with_test_status) =
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
+    @ [Test_AgentPersist.tests, Test_AgentHardening.tests]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
@@ -71,6 +73,7 @@ let (suite, exit_with_test_status) =
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
     @ [Test_TermData.tests]
+    @ [Test_CtorShadowing.tests]
     @ Test_Introduce.tests
     @ Test_ReparseDocSlides.tests
     @ Test_TextRoundtrip.tests
@@ -80,11 +83,13 @@ let (suite, exit_with_test_status) =
     @ Test_RefractorSerialization.tests
     @ [
       Test_TableCore.tests,
+      Test_StepperPasses.tests,
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
     @ Test_PrettyPrint.tests
     @ Test_TyDi.tests
+    @ [Test_Move.tests]
     @ [Test_UnusedWarnings.tests]
     @ Test_Indication.tests
     @ Test_Autoprobe.tests
@@ -94,15 +99,23 @@ let (suite, exit_with_test_status) =
       Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
+      Test_Ascriptions.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
     @ Test_Tutorial.tests
     @ Test_TutorialText.tests
+    @ [Test_TutorialProbeSettings.tests]
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
     @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests
+    @ Test_ShortcutConfiguration.tests
+    @ Test_ColorConfiguration.tests
+    @ Test_ConfigurationMode.tests
+    @ [Test_SettingsPanel.tests]
+    @ Test_ShortcutAction.tests
+    @ Test_Color.tests
     @ [Test_ExplainThis.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

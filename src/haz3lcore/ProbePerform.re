@@ -397,6 +397,65 @@ let toggle_probe =
     };
   };
 
+/* STEP-INTO: Sample-Level Navigation Through Execution Traces
+ *
+ * Step-into operates at the SAMPLE level, not the syntax level. When f(x) is
+ * called 5 times during evaluation, stepping into from a specific sample takes
+ * you to the function body while maintaining your position in that particular
+ * execution trace - you see the body's evaluation for THAT invocation, not all
+ * invocations blended together.
+ *
+ * This is why step-into lives in the sample context menu (environment dropdown)
+ * rather than the syntax context menu - being in that dropdown means you've
+ * already selected a specific sample, so step-into uses that sample's exact
+ * call_stack to maintain execution context.
+ *
+ * WHY THIS IS COMPLEX:
+ *
+ * 1. CALL STACK SEMANTICS: When stepping into ap_id from a sample with
+ *    call_stack=[a,b,c], the new stack is [ap_id,a,b,c]. This matches what
+ *    samples inside the function body will have (the evaluator adds ap_id
+ *    when RecordStackFrame is processed).
+ *
+ * 2. TIMING: Even when samples are available (probe_all on), the projector
+ *    DOM element won't exist until after a view cycle. Both probe_all on/off
+ *    cases need deferred focus - the difference is just whether we're also
+ *    waiting for the worker to return samples.
+ *
+ * 3. TWO-PASS CALCULATION: In CellEditor.calculate, Editor.calculate runs
+ *    BEFORE EvalResult.calculate. The second pass (when pending_focus is set)
+ *    ensures resolve_pending_focus sees fresh dynamics after worker results.
+ *
+ * 4. SAMPLE ID VS JUMP TARGET: For function literals, we distinguish between:
+ *    - jump_target (pattern ID): where cursor goes for UX
+ *    - sample_probe_id (inner body ID): where samples are stored in dynamics
+ *    target_subterm_ids(Fun) returns [inner_body, pattern], and samples are
+ *    stored under inner_body. pending_focus uses sample_probe_id for lookup.
+ *
+ * STEP-INTO FLOW:
+ * 1. User clicks "Step Into" on a sample in ProbeProj context menu
+ * 2. ProbeProj dispatches Probe(StepInto(sample, ap_id))
+ * 3. step_into_sample (below) sets pending_focus with probe_id and target_stack
+ * 4. If probe_all enabled, an ephemeral probe is added at target, triggering eval
+ * 5. CellEditor.calculate runs:
+ *    a. First pass: Editor.calculate → resolve_pending_focus (may have stale dynamics)
+ *    b. EvalResult.calculate processes worker results, updating dynamics
+ *    c. Second pass (if pending_focus still set): resolve_pending_focus with fresh dynamics
+ * 6. When resolve_pending_focus finds a matching sample:
+ *    a. SampleFocusPerform.resolve_pending_focus updates sample_focus, clears pending_focus
+ *    b. FocusEffect.schedule(probe_id) schedules DOM focus
+ * 7. Main.re's after_display hook calls FocusEffect.execute()
+ * 8. execute() calls elem##focus, triggering CSS :focus styles on the probe
+ *
+ * KEY FILES:
+ * - ProbeProj.re: UI, step_into_sample action dispatch
+ * - ProbePerform.re: step_into_sample, resolve_pending_focus
+ * - SampleFocusPerform.re: cursor update operations (sample matching)
+ * - CellEditor.re: Two-pass calculation for timing
+ * - Sample.re: pending_focus type in Cursor.t
+ * - Main.re: after_display calls FocusEffect.execute()
+ */
+
 /* For function-sugar (`let f(args) = body`), params live in the surface binder
    outside the body's rows, so return their pattern id to anchor separately.
    Climb to the enclosing Let (not parent_term_of: desugaring inserts a Fun parent). */
