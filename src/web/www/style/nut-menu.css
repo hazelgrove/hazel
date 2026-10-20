@@ -132,6 +132,22 @@
   border-radius: 0 0 1em 0;
 }
 
+/* A touch screen has no hover: the nut icon, the menu and its items take
+   focus instead (tabindex in Page.top_bar and NutMenu), and the menus follow
+   focus the way they follow the pointer above. */
+@media (hover: none) {
+  #top-bar .nut-menu:focus-within,
+  #top-bar *:has(.nut-icon:focus) ~ .nut-menu {
+    transform: scaleY(1);
+    display: flex;
+    border-radius: 0 0 1em 0;
+  }
+
+  #top-bar .nut-menu .top-menu-item:not(.dismissed):focus-within > .submenu {
+    display: flex;
+  }
+}
+
 #top-bar .nut-menu .top-menu-item {
   position: relative;
 }
@@ -287,6 +303,16 @@
   opacity: 1;
   pointer-events: all;
   transition-delay: 0.02s;
+}
+
+/* No hover on a touch screen: the buttons are simply there. */
+@media (hover: none) {
+  #top-bar #editor-mode #slide-navigation > #edit-buttons {
+    max-width: none;
+    margin-left: 0;
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 #top-bar #editor-mode .icon {
