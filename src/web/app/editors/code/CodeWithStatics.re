@@ -101,55 +101,10 @@ module Model = {
     Haz3lcore.Editor.Model.mk(zipper, ~root=p.root) |> mk;
 };
 
-/* Debounce statics computation during rapid typing. Only one mode is
-   active at a time, so a single timer/flag is shared across all modes. */
-module StaticsDebounce = {
-  let debounce_ms = 225.0;
-  let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
-  let force_on_next: ref(bool) = ref(false);
-
-  let pending = () => timer_id^ != None || force_on_next^;
-
-  /* Call from calculate to get the statics_mode for this cycle.
-     schedule_refresh should dispatch the mode's RefreshStatics action. */
-  let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
-    let force_now = force_on_next^;
-    force_on_next := false;
-    /* a projector commit is one discrete edit: run statics now rather
-       than after the typing debounce (livelit drag → result: -225ms) */
-    let projector_edit = Util.AgentPulse.projector_commit^;
-    Util.AgentPulse.projector_commit := false;
-    if (force_now || is_edited && projector_edit) {
-      switch (timer_id^) {
-      | Some(id) =>
-        Js_of_ocaml.Dom_html.window##clearTimeout(id);
-        timer_id := None;
-      | None => ()
-      };
-      Force;
-    } else if (is_edited && debounce_ms > 0.0) {
-      switch (timer_id^) {
-      | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
-      | None => ()
-      };
-      timer_id :=
-        Some(
-          Js_of_ocaml.Dom_html.window##setTimeout(
-            Js_of_ocaml.Js.wrap_callback(() => {
-              timer_id := None;
-              /* Keep sends waiting until the scheduled refresh is consumed. */
-              force_on_next := true;
-              schedule_refresh();
-            }),
-            debounce_ms,
-          ),
-        );
-      Defer;
-    } else {
-      Normal;
-    };
-  };
-};
+/* Debounce statics computation during rapid typing (StaticsTiming). Only
+   one mode is active at a time, so a single timer/flag is shared across
+   all modes. */
+module StaticsDebounce = StaticsTiming.Make(StaticsTiming.Browser);
 
 module Update = {
   // There are no events for a read-only editor

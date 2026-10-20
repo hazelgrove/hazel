@@ -111,3 +111,9 @@ let with_caches_of: (~from: t, t) => t;
 /* the shell's caches from, and into, a whole editor */
 let with_shell_caches_of: (~from: CellEditor.Model.t, t) => t;
 let shell_caches_into: (t, CellEditor.Model.t) => CellEditor.Model.t;
+/* [d] showing [from]'s statics and run until it's analyzed: the
+   program's, and each open cell's panes by item and side */
+let with_statics_of: (~from: t, t) => t;
+/* the same, from and into a whole editor */
+let with_shell_statics_of: (~from: CellEditor.Model.t, t) => t;
+let shell_statics_into: (t, CellEditor.Model.t) => CellEditor.Model.t;
