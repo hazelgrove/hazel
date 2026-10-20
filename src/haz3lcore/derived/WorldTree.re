@@ -132,6 +132,34 @@ let unloaded = (brace: Id.t): Segment.t => [
   World.newline(brace, "world-open"),
 ];
 
+let is_unloaded = (t: Tile.t): bool =>
+  switch (t.children) {
+  | [[Grout(g), ..._]] => g.id == Id.derive(~salt="world-unloaded", t.id)
+  | _ => false
+  };
+
+/* a slide not loaded shows folded, `⋯`: nothing to type into */
+let fold_model =
+  Sexplib.Sexp.to_string(
+    FoldProj.sexp_of_t({
+      ...FoldProj.default,
+      text: {js|⋯|js},
+    }),
+  );
+
+let stand_in = (brace: Tile.t): Piece.t =>
+  Piece.Projector(
+    ProjectorCore.mk(
+      ~id=Id.derive(~salt="world-fold", brace.id),
+      ProjectorCore.Kind.Fold,
+      Piece.Tile({
+        ...brace,
+        children: [unloaded(brace.id)],
+      }),
+      fold_model,
+    ),
+  );
+
 /* [wrapper] with [body] as its brace's: members between a linebreak
    each side, or the placeholder */
 let with_body = (wrapper: Segment.t, body: option(Segment.t)): Segment.t =>
@@ -143,11 +171,7 @@ let with_body = (wrapper: Segment.t, body: option(Segment.t)): Segment.t =>
           ...t,
           children: [World.body(t.id, members)],
         })
-      | (Tile(t), None) when is_brace(t) =>
-        Piece.Tile({
-          ...t,
-          children: [unloaded(t.id)],
-        })
+      | (Tile(t), None) when is_brace(t) => stand_in(t)
       | (p, _) => p
       },
     wrapper,
@@ -249,11 +273,11 @@ let body = (~slide: Id.t, seg: Segment.t): body =>
     /* its definition: the next brace or placeholder at its level */
     let rec go = (ps: Segment.t) =>
       switch (ps) {
-      | [Tile(t), ..._] when is_brace(t) =>
+      /* a body folded (the stand-in, or folded by hand) */
+      | [Tile(t), ..._]
+      | [Projector({syntax: Tile(t), _}), ..._] when is_brace(t) =>
         switch (t.children) {
-        | [[Grout(g), ..._]]
-            when g.id == Id.derive(~salt="world-unloaded", t.id) =>
-          Unloaded
+        | _ when is_unloaded(t) => Unloaded
         | [kid] => Loaded(World.members_of_body(t.id, kid))
         | _ => Gone
         }
@@ -269,7 +293,8 @@ let load = (~slide: Id.t, members: Segment.t, seg: Segment.t): Segment.t => {
   /* the pieces after the slide's tile, its body filled */
   let rec fill = (ps: Segment.t): Segment.t =>
     switch (ps) {
-    | [Tile(brace), ...rest] when is_brace(brace) => [
+    | [Tile(brace), ...rest]
+    | [Projector({syntax: Tile(brace), _}), ...rest] when is_brace(brace) => [
         Piece.Tile({
           ...brace,
           children: [World.body(brace.id, members)],

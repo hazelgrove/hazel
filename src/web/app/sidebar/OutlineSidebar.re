@@ -1355,7 +1355,8 @@ and rows_view =
   let fresh = fresh_id(on);
   List.concat_map(
     ((n: OutlineTree.node, seg)) =>
-      n.o_id != None && n.o_id == fresh
+      /* a bare statement (`e;`) is no definition: no row */
+      n.o_id != None && n.o_id == fresh || n.o_kind == KStmt
         ? []
         : [node_view(~props, ~on, ~tm, ~path, ~seg, n)]
           @ new_row_after(~props, ~tm, n),
@@ -2144,7 +2145,8 @@ let visible_rows =
   let rec walk = (parent, prefix, ns: list(OutlineTree.node)) =>
     List.concat_map(
       ((n: OutlineTree.node, seg)) =>
-        n.o_id != None && n.o_id == skip
+        /* a bare statement (`e;`) is no definition: no row */
+        n.o_id != None && n.o_id == skip || n.o_kind == KStmt
           ? []
           : {
             let path = prefix @ [seg];

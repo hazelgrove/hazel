@@ -169,6 +169,19 @@ let load = (~settings): Model.t => {
   };
 };
 
+/* the probes stored for the slide [name] still anchored in [members]
+   (the world's copy, else its deck's) */
+let stored_probes = (name: string, members: Segment.t) => {
+  let from = p_n =>
+    switch (p_n) {
+    | (p, n) => Persist.read_probes(p, n, members)
+    };
+  switch (from((prefix, name))) {
+  | [] => Option.fold(~none=[], ~some=from, legacy(name))
+  | probes => probes
+  };
+};
+
 /* switched to the current slide: the live program moves there, with the
    slide's members loaded if they aren't yet */
 let hydrate_current = (~settings, model: Model.t): Model.t => {
@@ -193,7 +206,17 @@ let hydrate_current = (~settings, model: Model.t): Model.t => {
       | Unloaded =>
         let (mine, own) = members(target.name);
         (WorldTree.load(~slide, mine, doc), probes @ own);
-      | Loaded(_)
+      /* loaded by a zoom-out: its stored probes weren't */
+      | Loaded(mine) =>
+        let have = List.map(fst, probes);
+        (
+          doc,
+          probes
+          @ List.filter(
+              ((id, _)) => !List.mem(id, have),
+              stored_probes(target.name, mine),
+            ),
+        );
       | Gone => (doc, probes)
       };
     Hashtbl.replace(loaded, target.name, ());
@@ -497,3 +520,43 @@ let rename_current = (~settings, name: string, model: Model.t): Model.t => {
   | _ => model
   };
 };
+
+/* the module ids from the top level down to the slide [name]'s: its
+   folders', then its own */
+let trail = (name: string): list(Id.t) => {
+  let p = path(name);
+  List.init(List.length(p) - 1, i =>
+    WorldTree.folder_id(ListUtil.take(i + 1, p))
+  )
+  @ [WorldTree.slide_id(p)];
+};
+
+/* zoomed into another slide's module (or a module inside it), that slide
+   is current: the top bar follows the outline, and its members load */
+let follow_zoom = (~settings, model: Model.t): Model.t =>
+  switch (List.nth(model.scratchpads, model.current)) {
+  | {kind: Code({world: Some(slide), view, _}), dormant: false, _} =>
+    switch (SlideView.zoom_root(view)) {
+    | Some(m) when m != slide =>
+      /* the zoom is the module rows from the top level down */
+      let above = view.zoom;
+      switch (
+        ListUtil.findi_opt(
+          (sp: Scratchpad.t) => List.mem(slide_id(sp.name), above),
+          model.scratchpads,
+        )
+      ) {
+      | Some((i, _)) when i != model.current =>
+        hydrate_current(
+          ~settings,
+          {
+            ...model,
+            current: i,
+          },
+        )
+      | _ => model
+      };
+    | _ => model
+    }
+  | _ => model
+  };

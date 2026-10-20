@@ -45,7 +45,10 @@ module Update = {
             a,
             code,
           );
-        Model.with_current_kind(Code(code), model);
+        let model = Model.with_current_kind(Code(code), model);
+        /* zoomed into another slide: it is current */
+        deck == World
+          ? WorldDeck.follow_zoom(~settings=settings.core, model) : model;
       }
     | Outline(a) =>
       switch (Model.current_code(model)) {

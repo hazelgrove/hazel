@@ -145,11 +145,37 @@ let rename = () =>
     );
   });
 
+/* zoomed into another slide's module, that slide is current, loaded */
+let zoom_follows = () =>
+  Test_WorldSlide.shipped(() => {
+    Web.HazelDB.kv_clear();
+    let m = Deck.load(~settings);
+    let (_, code) = current(m);
+    let m =
+      Model.with_current_kind(
+        Code({
+          ...code,
+          view: {
+            ...code.view,
+            zoom: [
+              WorldTree.folder_id(["Documentation"]),
+              Deck.slide_id(tables),
+            ],
+          },
+        }),
+        m,
+      );
+    let (name, code) = current(Deck.follow_zoom(~settings, m));
+    check(string, "Tables, current", tables, name);
+    check(string, "and loaded", "loaded", body(code, tables));
+  });
+
 let tests = (
   "WorldDeck",
   [
     test_case("load, switch, save, reload", `Quick, deck),
     test_case("adding and deleting a slide", `Quick, add_delete),
     test_case("renaming a slide", `Quick, rename),
+    test_case("zooming into a slide follows it", `Quick, zoom_follows),
   ],
 );

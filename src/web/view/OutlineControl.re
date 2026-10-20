@@ -97,6 +97,36 @@ let world_of = (deck: option(deck)): option(Id.t) =>
   | _ => None
   };
 
+/* a world's rows folded by default: the slides other than the one open
+   and the library's modules, so the tree reads as its folders and slides
+   (the slide open stays open) */
+let world_defaults = (deck: option(deck)) => {
+  let slides =
+    lazy(
+      switch (deck) {
+      | Some((_, m)) =>
+        List.map(
+          (sp: Scratchpad.t) => WorldDeck.slide_id(sp.name),
+          m.scratchpads,
+        )
+      | None => []
+      }
+    );
+  (current: option(Id.t), path: OutlineTree.path, n: OutlineTree.node) =>
+    switch (current, n.o_id) {
+    | (None, _)
+    | (_, None) => None
+    | (Some(open_), Some(id)) when id == open_ => Some(false)
+    | (Some(_), Some(id)) when List.mem(id, Lazy.force(slides)) =>
+      Some(true)
+    | (Some(_), Some(id)) =>
+      List.length(path) == 1
+      && n.o_kind == KModule
+      && !List.mem(id, WorldSlide.tree_heads)
+        ? Some(true) : None
+    };
+};
+
 let program_of = (deck: option(deck)): option(Program.t) =>
   switch (Option.bind(deck, current)) {
   | Some({kind: Code({program, _}), _}) => Some(program)
@@ -1179,6 +1209,7 @@ let view =
     OutlineFollow.spot := spot(p, id);
   | _ => ()
   };
+  let world_folded = world_defaults(deck, world_of(deck));
   let folds =
     switch (level) {
     | Enclosing(_) => above_folds^
@@ -1292,7 +1323,12 @@ let view =
             );
           id => Id.Map.find_opt(id, Lazy.force(refused));
         },
-        folded: (path, n) => OutlineTree.folded(~folds, path, n.o_kind),
+        folded: (path, n) =>
+          switch (List.assoc_opt(path, folds), world_folded(path, n)) {
+          | (Some(f), _) => f
+          | (None, Some(f)) => f
+          | (None, None) => OutlineTree.folded(~folds, path, n.o_kind)
+          },
         header: {
           h_level: level,
           h_program: world == None ? name : "",
