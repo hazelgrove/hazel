@@ -26,13 +26,15 @@ const RECORDER = `(() => {
 function profileSummary(profile, top = 25) {
   if (!profile || !profile.nodes) return null;
   const byId = new Map(profile.nodes.map(n => [n.id, n]));
-  const self = new Map();
+  const self = new Map(), frames = new Map();
   const dt = profile.timeDeltas || [];
   let total = 0;
   (profile.samples || []).forEach((id, i) => {
     const n = byId.get(id), ms = (dt[i] || 0) / 1000;
     total += ms;
     const f = n.callFrame, url = (f.url || "").split("/").pop();
+    // (^ticket(470)) where each function starts in its script: phases.py maps it through the bundle's source map
+    if (f.url) { const k = `${url}\t${f.lineNumber}\t${f.columnNumber}\t${f.functionName}`; frames.set(k, (frames.get(k) || 0) + ms); }
     const key = f.functionName ? `${f.functionName} ${url}` : (url ? `(anonymous) ${url}` : "(anonymous)");
     const name = ["(garbage collector)", "(program)", "(idle)", "(root)"].includes(f.functionName) ? f.functionName : key;
     self.set(name, (self.get(name) || 0) + ms);
@@ -44,6 +46,8 @@ function profileSummary(profile, top = 25) {
     program_ms: get("(program)"), idle_ms: get("(idle)"),
     top: [...self].filter(([k]) => !k.startsWith("(")).sort((a, b) => b[1] - a[1]).slice(0, top)
       .map(([k, v]) => [k, Math.round(v)]),
+    // [script, line, column, function, self ms], every function with at least a millisecond
+    frames: [...frames].filter(([, v]) => v >= 1).map(([k, v]) => { const [u, l, c, fn] = k.split("\t"); return [u, +l, +c, fn, Math.round(v * 10) / 10]; }),
   };
 }
 
