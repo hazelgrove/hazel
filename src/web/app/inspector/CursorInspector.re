@@ -677,15 +677,57 @@ let type_member_mismatch_view = (~view_type, name, ~expected, ~actual) =>
     ~actual,
   );
 
-let typ_mark_err_view = (~globals, m: Mark.t) => {
+/* What a type name that is not found may have meant (^ticket(469)): a
+   module of that name, as Html is (its type is Html.T), or one of the old
+   global aliases, which live in the builtin modules now (HTML is Html.T).
+   On the livelits slides, `type X = Html in`, the way to ask the full view
+   what Html is, said only "Html not found". */
+type free_type_hint =
+  | ModuleTypes(list(string))
+  | MovedTo(string);
+
+let free_type_hint = (ctx: Ctx.t, name: string): option(free_type_hint) =>
+  switch (Typ.path_sig(ctx, Var(name) |> Typ.temp)) {
+  | Some((items, _)) =>
+    Some(
+      ModuleTypes(
+        Sig.type_names(Sig.members(items)) |> List.map(t => name ++ "." ++ t),
+      ),
+    )
+  | None =>
+    switch (List.assoc_opt(name, BuiltinsADT.HtmlModules.homes)) {
+    | Some((m, t)) => Some(MovedTo(m ++ "." ++ t))
+    | None => None
+    }
+  };
+
+let typ_mark_err_view = (~globals, ~ctx: Ctx.t, m: Mark.t) => {
   let view_type = view_type(~globals);
   switch (m) {
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_view(~view_type, name, ~expected, ~actual)
-  | TypFreeTypeVariable(name) => [
-      view_type(Var(name) |> Typ.fresh),
-      text("not found"),
-    ]
+  | TypFreeTypeVariable(name) =>
+    switch (free_type_hint(ctx, name)) {
+    | Some(ModuleTypes([])) => [
+        code(name),
+        text("is a module, not a type"),
+      ]
+    | Some(ModuleTypes(types)) =>
+      [code(name), text("is a module, not a type; its types:")]
+      @ List.concat(
+          List.mapi(
+            (i, t) => i == 0 ? [code(t)] : [text(","), code(t)],
+            types,
+          ),
+        )
+    | Some(MovedTo(path)) => [
+        view_type(Var(name) |> Typ.fresh),
+        text("not found: it is"),
+        code(path),
+        text("now"),
+      ]
+    | None => [view_type(Var(name) |> Typ.fresh), text("not found")]
+    }
   | BadToken(token) => [code(token), text("not a type or type operator")]
   | TypWantConstructorFoundAp
   | TypWantConstructorFoundType(_) => [text("Expected a constructor")]
@@ -1308,6 +1350,7 @@ let pat_view =
 let typ_view =
     (
       ~globals,
+      ~ctx: Ctx.t,
       cls: Cls.t,
       ~marks: list(Mark.t),
       ~message: option(Message.t),
@@ -1323,13 +1366,19 @@ let typ_view =
     }
   | ms =>
     switch (Mark.highest(ms)) {
-    | Some(m) => div_err(typ_mark_err_view(~globals, m))
+    | Some(m) => div_err(typ_mark_err_view(~globals, ~ctx, m))
     | None => div_err([text("(internal) missing type mark")])
     }
   };
 
 let tpat_view =
-    (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
+    (
+      ~globals,
+      ~ctx: Ctx.t,
+      _: Cls.t,
+      ~marks: list(Mark.t),
+      ~message: option(Message.t),
+    )
     : Node.t => {
   let view_type = view_type(~globals);
   switch (marks) {
@@ -1342,13 +1391,23 @@ let tpat_view =
     /* The bar names the alias; the full view also prints what it is an
        alias for, laid out like any type there. */
     | Some(TPatOk(Alias(name, def))) =>
+      /* ...and when the definition only names a type (`type X = Html.T`),
+         what that type is (^ticket(469)) */
+      let named =
+        switch (def.term) {
+        | Var(_)
+        | ProdProjection(_) =>
+          let whole = Typ.weak_head_normalize(ctx, def);
+          Typ.fast_equal(whole, def)
+            ? [] : [text("which is"), view_type(whole)];
+        | _ => []
+        };
       globals.settings.inspector_expanded
-        ? div_ok([
-            ContextInspector.alias_view(name),
-            text("="),
-            view_type(def),
-          ])
-        : div_ok([ContextInspector.alias_view(name)])
+        ? div_ok(
+            [ContextInspector.alias_view(name), text("="), view_type(def)]
+            @ named,
+          )
+        : div_ok([ContextInspector.alias_view(name)]);
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])
@@ -1393,10 +1452,10 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
     wrapper(pat_view(~globals, cls, message, ip))
-  | InfoTyp({cls, marks, message, _}) =>
-    wrapper(typ_view(~globals, cls, ~marks, ~message))
-  | InfoTPat({cls, marks, message, _}) =>
-    wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoTyp({cls, marks, message, ctx, _}) =>
+    wrapper(typ_view(~globals, ~ctx, cls, ~marks, ~message))
+  | InfoTPat({cls, marks, message, ctx, _}) =>
+    wrapper(tpat_view(~globals, ~ctx, cls, ~marks, ~message))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };
