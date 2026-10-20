@@ -63,6 +63,7 @@ light	fold-accent	oklch(70% 0.15 150)
 light	fold-bkg	oklch(32.2% 0.034 225)
 light	hazel-color-scheme	light
 light	hazel-contrast	normal
+light	hazel-gamma-unfold	always
 light	hazel-livelit-reveal	eye
 light	hole-active	oklch(50.2% 0.2 225)
 light	hole-fill	oklch(92.05% 0.04 225)
@@ -326,6 +327,7 @@ contrast_light	fold-accent	oklch(38% 0.2 150)
 contrast_light	fold-bkg	oklch(0% 0.0425 225)
 contrast_light	hazel-color-scheme	light
 contrast_light	hazel-contrast	high
+contrast_light	hazel-gamma-unfold	always
 contrast_light	hazel-livelit-reveal	eye
 contrast_light	hole-active	oklch(0% 0.25 225)
 contrast_light	hole-fill	oklch(89% 0.05 225)
@@ -589,6 +591,7 @@ dark	fold-accent	oklch(65% 0.15 150)
 dark	fold-bkg	oklch(100% 0.0306 225)
 dark	hazel-color-scheme	dark
 dark	hazel-contrast	normal
+dark	hazel-gamma-unfold	always
 dark	hazel-livelit-reveal	eye
 dark	hole-active	oklch(77.4% 0.18 225)
 dark	hole-fill	oklch(21.6% 0.036 225)
@@ -852,6 +855,7 @@ contrast_dark	fold-accent	oklch(82% 0.17 150)
 contrast_dark	fold-bkg	oklch(100% 0.0272 225)
 contrast_dark	hazel-color-scheme	dark
 contrast_dark	hazel-contrast	high
+contrast_dark	hazel-gamma-unfold	always
 contrast_dark	hazel-livelit-reveal	eye
 contrast_dark	hole-active	oklch(100% 0.16 225)
 contrast_dark	hole-fill	oklch(11% 0.032 225)
