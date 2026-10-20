@@ -229,6 +229,15 @@ module Update = {
             },
           }
           |> return_quiet
+    | SetSettingsFilter(settings_filter) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings_filter,
+        },
+      }
+      |> return_quiet
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -342,7 +351,7 @@ module Update = {
     };
   };
 
-  let update =
+  let update_model =
       (
         ~import_log,
         ~get_log_and,
@@ -411,6 +420,30 @@ module Update = {
       Store.save(model);
       model |> return_quiet;
     };
+  };
+
+  let update = (~import_log, ~get_log_and, ~schedule_action, action, model) => {
+    let* model =
+      update_model(
+        ~import_log,
+        ~get_log_and,
+        ~schedule_action,
+        action,
+        model,
+      );
+    /* Synchronize after every update, including startup and mode changes.
+       Only Probes lessons apply overrides; leaving restores user settings. */
+    let lesson =
+      switch (model.editors) {
+      | Tutorial(t) => Some(TutorialsMode.Model.get_current(t).editors)
+      | _ => None
+      };
+    TutorialSlideInit.maybe_apply_on_change(
+      ~autoprobe=model.globals.settings.autoprobe_mode,
+      ~set_autoprobe=m => schedule_action(Globals(Set(SetAutoprobe(m)))),
+      lesson,
+    );
+    model;
   };
 
   let calculate =
@@ -705,27 +738,13 @@ module View = {
     };
     [
       Key.listener(~f=handle_key_event),
-      Attr.on_blur(_ => {
-        /* Leave focus alone when it is moving INTO a projector. An
-           interactive projector (the keybinding recorder) needs to hold
-           focus; without this guard it receives focus and has it taken back
-           in the same frame, so it can never capture a key. */
-        if (! JsUtil.projector_holds_focus^) {
-          JsUtil.focus_clipboard_shim();
-        };
+      /* A press on plain text leaves focus on #page itself. Don't move it
+         on from here: that would cancel the text selection being started. */
+      Attr.on_blur(_ =>
         model.globals.meta_down
           ? Effect.Many([inject(Globals(SetMetaDown(false)))])
-          : Effect.Ignore;
-      }),
-      Attr.on_focus(_ => {
-        /* Focus events bubble here, so without this guard focusing a
-           projector is undone immediately: an interactive projector (the
-           keybinding recorder) could never hold focus or capture a key. */
-        if (! JsUtil.projector_holds_focus^) {
-          JsUtil.focus_clipboard_shim();
-        };
-        Effect.Ignore;
-      }),
+          : Effect.Ignore
+      ),
     ];
   };
 
@@ -740,13 +759,11 @@ module View = {
         div(
           ~attrs=[Attr.class_("nut-menu")],
           [
-            submenu(
+            button(
+              Icons.gear,
+              _ =>
+                globals.inject_global(Set(Sidebar(SwitchPanel(Settings)))),
               ~tooltip="Settings",
-              ~icon=Icons.gear,
-              [
-                Editors.View.config_links(~inject),
-                ...NutMenu.settings_menu(~globals),
-              ],
             ),
             submenu(
               ~tooltip="File",
@@ -817,10 +834,12 @@ module View = {
       export_all: Export.export_all,
     };
     let bottom_bar = CursorInspector.view(~globals, cursor);
-    let task_reference: option(string) =
+    let tutorial_reference =
       switch (editors) {
       | Tutorial(t) =>
-        TutorialsMode.Model.get_current(t).editors.task_reference
+        TutorialReferencePanel.of_lesson(
+          TutorialsMode.Model.get_current(t).editors,
+        )
       | _ => None
       };
     let sidebar =
@@ -840,7 +859,7 @@ module View = {
         ~log_model,
         ~log_count,
         ~cursor,
-        ~task_reference,
+        ~tutorial_reference,
       );
     /* culling bounds apply only where the mode supports them (one
        cull-scope cell); elsewhere every cell renders unculled */
@@ -942,7 +961,7 @@ module View = {
     );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim]
+      [FontSpecimen.view]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };
