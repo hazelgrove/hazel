@@ -416,6 +416,17 @@ let rec chain =
   if (List.length(items) != List.length(sums)) {
     raise(Unsplittable("items and sums differ"));
   };
+  /* the worker finds a chain's items by id */
+  let ids = Hashtbl.create(List.length(items));
+  List.iter(
+    (it: DefStatics.item) =>
+      if (Hashtbl.mem(ids, it.d_id)) {
+        raise(Unsplittable("an item id twice in a chain"));
+      } else {
+        Hashtbl.replace(ids, it.d_id, ());
+      },
+    items,
+  );
   let cache = {
     pieces: Hashtbl.create(List.length(items) + 1),
     members: Hashtbl.create(4),
