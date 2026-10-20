@@ -134,7 +134,7 @@ let tests = (
           List.exists(
             a =>
               switch (a) {
-              | Page.Update.Globals(Set(SetAutoprobe(Off))) => true
+              | Page.Update.Globals(Set(SetAutoprobeQuiet(Off))) => true
               | _ => false
               },
             requested^,
