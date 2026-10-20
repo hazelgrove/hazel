@@ -93,6 +93,12 @@ let mk_info =
         samples,
         sample_focus,
         pinned_interval: pinned_interval(~sample_focus, dynamics),
+        below:
+          Sample.Selection.below_of(
+            ~cursor=sample_focus,
+            ~probe_id=p.id,
+            dynamics,
+          ),
       })
     | None => None
     },
