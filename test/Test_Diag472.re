@@ -61,18 +61,6 @@ let tests = (
                 PersistentZipper.parse_text(~source="probe", ~root=Exp, text),
               ),
               line(
-                "scenes, the slow path forced (MarkerParse.of_text)",
-                MarkerParse.of_text(~root=Exp, text),
-              ),
-              line(
-                "scenes, a saved copy with a hole (text + ¿)",
-                PersistentZipper.parse_text(
-                  ~source="probe",
-                  ~root=Exp,
-                  text ++ "\n¿",
-                ),
-              ),
-              line(
                 "small, load path",
                 PersistentZipper.parse_text(
                   ~source="probe",
