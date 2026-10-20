@@ -86,7 +86,7 @@ let run_insert_at_program_boundary =
       Ok(
         CompositionGo.Local.PerformUtils.normalize_top_level(
           ~before=z,
-          Materialize.all(new_z, ~root=Exp),
+          CompositionGo.Local.PerformUtils.materialize(~before=z, new_z),
         )
         |> LocalReformat.go_region(~before_pieces),
       );
@@ -182,6 +182,18 @@ let apply_chain_render =
     )
   };
 };
+
+/* each edit applied to [code] alone, compared exactly */
+let check_edits = (code: string, edits: list((Action.Structural.t, string))) =>
+  List.iter(
+    ((a, expected)) =>
+      check_rendered_exact(
+        Action.Structural.show(a),
+        expected,
+        apply_and_render(code, a),
+      ),
+    edits,
+  );
 
 let expect_composition_failure =
     (code: string, a: Action.Structural.t, name: string) => {
@@ -1019,7 +1031,7 @@ let insert_tests = (
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_indented_code",
-            "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
+            "let a = 1 in let b = 2 in let c = 3 in a + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -1043,7 +1055,7 @@ let insert_tests = (
         | Action(EditorAction(a)) =>
           check_rendered_exact(
             "insert_crlf_code",
-            "let a = 1 in let b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\na + b",
+            "let a = 1 in let b = 2 in let c = 3 in let d = 4 in a + b",
             apply_and_render("let a = 1 in let b = 2 in a + b", a),
           )
         | Action(_) => Alcotest.fail("Parsed to wrong action variant")
@@ -1052,17 +1064,18 @@ let insert_tests = (
         };
       },
     ),
-    test_case("insert_after last binding keeps line separator", `Quick, () => {
+    test_case("insert_after last binding keeps the body separated", `Quick, () => {
       check_rendered_exact(
         "insert_after_last_separator",
-        "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
+        "let a = 1 in let b = 2 in let c = 3 in a + b",
         apply_and_render(
           "let a = 1 in let b = 2 in a + b",
           Insert(After, "b", "let c = 3 in"),
         ),
       )
     }),
-    test_case("insert_after (no path) appends on its own line", `Quick, () => {
+    test_case(
+      "insert_after (no path) appends with the program's join", `Quick, () => {
       switch (
         run_insert_at_program_boundary(
           "let a = 1 in let b = 2 in",
@@ -1073,7 +1086,7 @@ let insert_tests = (
       | Ok(z) =>
         check_rendered_exact(
           "boundary_append_separator",
-          "let a = 1 in let b = 2 in\n\nlet c = 3 in\n?",
+          "let a = 1 in let b = 2 in let c = 3 in\n?",
           render_zipper(z),
         )
       | Error(err) =>
@@ -4557,7 +4570,7 @@ let paste_funnel_tests = (
          the trim must live at the paste funnel, not per tool arm */
       check_rendered_exact(
         "insert_perform_level_indented",
-        "let a = 1 in\n\nlet c = 3 in\na",
+        "let a = 1 in let c = 3 in a",
         apply_and_render(
           "let a = 1 in a",
           Insert(After, "a", "  let c = 3 in"),
@@ -4982,10 +4995,11 @@ let whitespace_normalization_tests = (
         /* Live-session symptom: blank lines grew at program end as edits
            near it repeated (each insert's magic-newline wrap left a \n).
            (update_body over a hole adds no linebreaks — space-pad only —
-           so the accumulation shape is insert-driven.) */
+           so the accumulation shape is insert-driven.) The seed is
+           multi-line: a one-line program stays on one line. */
         let rendered =
           apply_chain_render(
-            "let a = 1 in ?",
+            "let a = 1 in\n?",
             [
               Insert(After, "a", "let b = 2 in"),
               Insert(After, "b", "let c = 3 in"),
@@ -5016,16 +5030,90 @@ let whitespace_normalization_tests = (
       }
     }),
     test_case(
-      "one blank line between consecutive top-level bindings", `Quick, () => {
-      check_rendered_exact(
-        "inter-binding blank line",
-        "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
-        apply_and_render(
+      "a new top-level join copies its neighbour",
+      `Quick,
+      () => {
+        check_edits(
           "let a = 1 in let b = 2 in a + b",
-          Insert(After, "b", "let c = 3 in"),
-        ),
+          [
+            (
+              Insert(After, "b", "let c = 3 in"),
+              "let a = 1 in let b = 2 in let c = 3 in a + b",
+            ),
+          ],
+        );
+        check_edits(
+          "let a = 1 in\n\nlet b = 2 in\na + b",
+          [
+            (
+              Insert(After, "b", "let c = 3 in"),
+              "let a = 1 in\n\nlet b = 2 in\n\nlet c = 3 in\na + b",
+            ),
+          ],
+        );
+      },
+    ),
+    test_case(
+      "top-level inserts and deletes keep a compact program compact",
+      `Quick,
+      () =>
+      check_edits(
+        "let x = 1 in\nlet y = 2 in\nlet w = 3 in\nx",
+        [
+          (
+            Insert(After, "x", "let z = 9 in"),
+            "let x = 1 in\nlet z = 9 in\nlet y = 2 in\nlet w = 3 in\nx",
+          ),
+          (
+            Insert(After, "w", "let z = 9 in"),
+            "let x = 1 in\nlet y = 2 in\nlet w = 3 in\nlet z = 9 in\nx",
+          ),
+          (
+            Insert(Before, "x", "let z = 9 in"),
+            "let z = 9 in\nlet x = 1 in\nlet y = 2 in\nlet w = 3 in\nx",
+          ),
+          (Delete(BindingClause, "y"), "let x = 1 in\nlet w = 3 in\nx"),
+          (Delete(BindingClause, "x"), "let y = 2 in\nlet w = 3 in\nx"),
+          (Delete(BindingClause, "w"), "let x = 1 in\nlet y = 2 in\nx"),
+        ],
       )
-    }),
+    ),
+    test_case(
+      "top-level edits copy the local join and keep the others",
+      `Quick,
+      () => {
+        check_edits(
+          "let x = 1 in\n\nlet y = 2 in\nlet w = 3 in\nx",
+          [
+            (
+              Insert(After, "x", "let z = 9 in"),
+              "let x = 1 in\n\nlet z = 9 in\n\nlet y = 2 in\nlet w = 3 in\nx",
+            ),
+            (
+              Insert(After, "y", "let z = 9 in"),
+              "let x = 1 in\n\nlet y = 2 in\nlet z = 9 in\nlet w = 3 in\nx",
+            ),
+            (Delete(BindingClause, "y"), "let x = 1 in\n\nlet w = 3 in\nx"),
+          ],
+        );
+        check_edits(
+          "let a = 1 in let b = 2 in a + b",
+          [
+            (Delete(BindingClause, "a"), "let b = 2 in a + b"),
+            (Delete(BindingClause, "b"), "let a = 1 in a + b"),
+          ],
+        );
+        check_edits(
+          "let a = 1 in\nlet b = 2 in\n# about c #\nlet c = 3 in a",
+          [
+            (
+              Delete(BindingClause, "b"),
+              "let a = 1 in\n# about c #\nlet c = 3 in a",
+            ),
+          ],
+        );
+      },
+    ),
     test_case(
       "normalization is idempotent across edits",
       `Quick,
@@ -5088,7 +5176,7 @@ let module_member_tests = (
             "let m = { let x = 1; let y = 2 } in m",
             Update(Definition, "m/x", "5"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_update_def",
           "let m = { let x = 5; let y = 2 } in m",
           result,
@@ -5104,9 +5192,41 @@ let module_member_tests = (
             "let m = { type T = Int; let x = 1 } in m",
             Update(Definition, "m/T", "Bool"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_update_type_def",
           "let m = { type T = Bool; let x = 1 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_definition on a member after a leading test item",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "module M = { test 1 + 1 == 2 end; let x = 1 } in M.x",
+            Update(Definition, "M/x", "5"),
+          );
+        check_rendered_exact(
+          "member_after_leading_exp",
+          "module M = { test 1 + 1 == 2 end; let x = 5 } in M.x",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_definition on a member after a leading hole item",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "module M = { ?; let x = 1 } in M.x",
+            Update(Definition, "M/x", "5"),
+          );
+        check_rendered_exact(
+          "member_after_leading_hole",
+          "module M = { ?; let x = 5 } in M.x",
           result,
         );
       },
@@ -5120,7 +5240,7 @@ let module_member_tests = (
             "let m = { let x = let inner = 1 in inner; let y = 2 } in m",
             Update(Definition, "m/x/inner", "7"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_nested_inner",
           "let m = { let x = let inner = 7 in inner; let y = 2 } in m",
           result,
@@ -5136,7 +5256,7 @@ let module_member_tests = (
             "let m = { let x = 1; let y = 2 } in m",
             Insert(After, "m/x", "let z = 9"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_insert_after",
           "let m = { let x = 1; let z = 9; let y = 2 } in m",
           result,
@@ -5152,7 +5272,7 @@ let module_member_tests = (
             "let m = { let x = 1; let y = 2 } in m",
             Insert(After, "m/y", "let z = 9"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_insert_after_last",
           "let m = { let x = 1; let y = 2; let z = 9 } in m",
           result,
@@ -5168,7 +5288,7 @@ let module_member_tests = (
             "let m = { let x = 1; let y = 2 } in m",
             Insert(Before, "m/x", "let z = 9"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_insert_before_first",
           "let m = { let z = 9; let x = 1; let y = 2 } in m",
           result,
@@ -5184,7 +5304,7 @@ let module_member_tests = (
             "let m = { let x = 1; let y = 2; let z = 3 } in m",
             Delete(BindingClause, "m/y"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_delete_middle",
           "let m = { let x = 1; let z = 3 } in m",
           result,
@@ -5200,7 +5320,7 @@ let module_member_tests = (
             "let m = { let x = 1; let y = 2 } in m",
             Delete(BindingClause, "m/y"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_delete_last",
           "let m = { let x = 1 } in m",
           result,
@@ -5216,7 +5336,7 @@ let module_member_tests = (
             "let m = { let x = 1; let y = 2 } in m",
             Delete(BindingClause, "m/x"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_delete_first",
           "let m = { let y = 2 } in m",
           result,
@@ -5232,7 +5352,7 @@ let module_member_tests = (
             "let m = { let x = 1; let y = 2 } in m",
             Update(BindingClause, "m/x", "let w = 8"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_update_clause",
           "let m = { let w = 8; let y = 2 } in m",
           result,
@@ -5248,7 +5368,7 @@ let module_member_tests = (
             "let m = { let x = 1; let y = x + 2 } in m",
             Update(Pattern, "m/x", "base"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_rename",
           "let m = { let base = 1; let y = base + 2 } in m",
           result,
@@ -5275,7 +5395,7 @@ let module_member_tests = (
       }
     }),
     test_case(
-      "member blank-line policy on multiline modules",
+      "insert into a multi-line module copies its join",
       `Quick,
       () => {
         let result =
@@ -5283,12 +5403,371 @@ let module_member_tests = (
             "let m = {\n  let x = 1;\n  let y = 2\n} in m",
             Insert(After, "m/x", "let z = 9"),
           );
-        /* One blank line between members; the renderer indents every line
-           of the module body (including the blank ones) by two spaces. */
+        /* The new join copies x's old join, which now sits before y: a
+           compact module stays compact. */
         check_rendered_exact(
-          "member_blank_lines",
-          "let m = {\n  let x = 1;\n  \n  let z = 9;\n  \n  let y = 2\n} in m",
+          "member_copied_join",
+          "let m = {\n  let x = 1;\n  let z = 9;\n  let y = 2\n} in m",
           result,
+        );
+      },
+    ),
+    test_case("inserts copy the join of a compact module", `Quick, () =>
+      check_edits(
+        "module M = {\n  let x = 1;\n  let y = 2;\n  let w = 3\n} in\nM.x",
+        [
+          (
+            Insert(After, "M/x", "let z = 9"),
+            "module M = {\n  let x = 1;\n  let z = 9;\n  let y = 2;\n  let w = 3\n} in\nM.x",
+          ),
+          (
+            Insert(After, "M/w", "let z = 9"),
+            "module M = {\n  let x = 1;\n  let y = 2;\n  let w = 3;\n  let z = 9\n} in\nM.x",
+          ),
+          (
+            Insert(Before, "M/x", "let z = 9"),
+            "module M = {\n  let z = 9;\n  let x = 1;\n  let y = 2;\n  let w = 3\n} in\nM.x",
+          ),
+        ],
+      )
+    ),
+    test_case("inserts copy the join of a blank-line module", `Quick, () =>
+      check_edits(
+        "module M = {\n  let x = 1;\n  \n  let y = 2;\n  \n  let w = 3\n} in\nM.x",
+        [
+          (
+            Insert(After, "M/x", "let z = 9"),
+            "module M = {\n  let x = 1;\n  \n  let z = 9;\n  \n  let y = 2;\n  \n  let w = 3\n} in\nM.x",
+          ),
+          (
+            Insert(After, "M/w", "let z = 9"),
+            "module M = {\n  let x = 1;\n  \n  let y = 2;\n  \n  let w = 3;\n  \n  let z = 9\n} in\nM.x",
+          ),
+        ],
+      )
+    ),
+    test_case(
+      "inserts keep a one-line module on one line",
+      `Quick,
+      () => {
+        check_edits(
+          "module M = { let x = 1; let y = 2; let w = 3 } in M.x",
+          [
+            (
+              Insert(After, "M/x", "let z = 9"),
+              "module M = { let x = 1; let z = 9; let y = 2; let w = 3 } in M.x",
+            ),
+            (
+              Insert(Before, "M/w", "let z = 9"),
+              "module M = { let x = 1; let y = 2; let z = 9; let w = 3 } in M.x",
+            ),
+          ],
+        );
+        check_edits(
+          "module M = { let a = 1; let b = 2 } in M.a",
+          [
+            (
+              Insert(After, "M/b", "let c = 3;\nlet d = 4"),
+              "module M = { let a = 1; let b = 2; let c = 3; let d = 4 } in M.a",
+            ),
+          ],
+        );
+      },
+    ),
+    test_case(
+      "inserts copy the nearest join of an inconsistent module",
+      `Quick,
+      () => {
+        /* after X: X's join; before X: the join after X; old joins stay */
+        check_edits(
+          "module M = {\n  let x = 1;\n  let y = 2;\n  \n  let w = 3;\n  let v = 4\n} in\nM.x",
+          [
+            (
+              Insert(After, "M/x", "let z = 9"),
+              "module M = {\n  let x = 1;\n  let z = 9;\n  let y = 2;\n  \n  let w = 3;\n  let v = 4\n} in\nM.x",
+            ),
+            (
+              Insert(After, "M/y", "let z = 9"),
+              "module M = {\n  let x = 1;\n  let y = 2;\n  \n  let z = 9;\n  \n  let w = 3;\n  let v = 4\n} in\nM.x",
+            ),
+            (
+              Insert(Before, "M/w", "let z = 9"),
+              "module M = {\n  let x = 1;\n  let y = 2;\n  \n  let z = 9;\n  let w = 3;\n  let v = 4\n} in\nM.x",
+            ),
+          ],
+        );
+        check_edits(
+          "module M = { let x = 1 ; let y = 2 } in M.x",
+          [
+            (
+              Insert(After, "M/x", "let z = 9"),
+              "module M = { let x = 1 ; let z = 9 ; let y = 2 } in M.x",
+            ),
+          ],
+        );
+      },
+    ),
+    test_case(
+      "a one-member module falls back to the default join",
+      `Quick,
+      () => {
+        check_edits(
+          "module M = { let x = 1 } in M.x",
+          [
+            (
+              Insert(After, "M/x", "let z = 9"),
+              "module M = { let x = 1; let z = 9 } in M.x",
+            ),
+            (
+              Insert(Before, "M/x", "let z = 9"),
+              "module M = { let z = 9; let x = 1 } in M.x",
+            ),
+          ],
+        );
+        check_edits(
+          "module M = {\n  let x = 1\n} in\nM.x",
+          [
+            (
+              Insert(After, "M/x", "let z = 9"),
+              "module M = {\n  let x = 1;\n  \n  let z = 9\n} in\nM.x",
+            ),
+            (
+              Insert(Before, "M/x", "let z = 9"),
+              "module M = {\n  let z = 9;\n  \n  let x = 1\n} in\nM.x",
+            ),
+          ],
+        );
+      },
+    ),
+    test_case("last-member edits on a single-line module binding", `Quick, () =>
+      check_edits(
+        "module M = { let x = 1; let y = 2 } in M.x",
+        [
+          (
+            Insert(After, "M/y", "let z = 9"),
+            "module M = { let x = 1; let y = 2; let z = 9 } in M.x",
+          ),
+          (
+            Insert(Before, "M/y", "let z = 9"),
+            "module M = { let x = 1; let z = 9; let y = 2 } in M.x",
+          ),
+          (
+            Update(BindingClause, "M/y", "let y = 7"),
+            "module M = { let x = 1; let y = 7 } in M.x",
+          ),
+          (
+            Update(Definition, "M/y", "5"),
+            "module M = { let x = 1; let y = 5 } in M.x",
+          ),
+          (Delete(BindingClause, "M/y"), "module M = { let x = 1 } in M.x"),
+        ],
+      )
+    ),
+    test_case("last-member edits on a multi-line module binding", `Quick, () =>
+      check_edits(
+        "module M = {\n  let x = 1;\n  let y = 2\n} in\nM.x",
+        [
+          (
+            Insert(After, "M/y", "let z = 9"),
+            "module M = {\n  let x = 1;\n  let y = 2;\n  let z = 9\n} in\nM.x",
+          ),
+          (
+            Insert(Before, "M/y", "let z = 9"),
+            "module M = {\n  let x = 1;\n  let z = 9;\n  let y = 2\n} in\nM.x",
+          ),
+          (
+            Update(BindingClause, "M/y", "let y = 7"),
+            "module M = {\n  let x = 1;\n  let y = 7\n} in\nM.x",
+          ),
+          (
+            Update(Definition, "M/y", "5"),
+            "module M = {\n  let x = 1;\n  let y = 5\n} in\nM.x",
+          ),
+          (
+            Delete(BindingClause, "M/y"),
+            "module M = {\n  let x = 1\n} in\nM.x",
+          ),
+        ],
+      )
+    ),
+    test_case(
+      "members of literals outside a binding's definition insert as members",
+      `Quick,
+      () => {
+        /* the literal is not a binding's whole definition (a fun body; the
+           program body), so membership can't be read off the parent */
+        check_rendered_exact(
+          "member_in_fun_body",
+          "let f = fun u -> { let x = u; let y = 2; let z = 9 } in f",
+          apply_and_render(
+            "let f = fun u -> { let x = u; let y = 2 } in f",
+            Insert(After, "f/y", "let z = 9"),
+          ),
+        );
+        check_rendered_exact(
+          "member_in_program_body",
+          "let a = 1 in { let x = 1; let y = 2; let z = 9 }",
+          apply_and_render(
+            "let a = 1 in { let x = 1; let y = 2 }",
+            Insert(After, "y", "let z = 9"),
+          ),
+        );
+      },
+    ),
+    test_case("deletes keep a compact multi-line module compact", `Quick, () => {
+      /* the member goes with the join after it: no stranded `;` */
+      check_edits(
+        "module M = {\n  let x = 1;\n  let y = 2;\n  let w = 3\n} in\nM.x",
+        [
+          (
+            Delete(BindingClause, "M/y"),
+            "module M = {\n  let x = 1;\n  let w = 3\n} in\nM.x",
+          ),
+          (
+            Delete(BindingClause, "M/x"),
+            "module M = {\n  let y = 2;\n  let w = 3\n} in\nM.x",
+          ),
+          (
+            Delete(BindingClause, "M/w"),
+            "module M = {\n  let x = 1;\n  let y = 2\n} in\nM.x",
+          ),
+        ],
+      )
+    }),
+    test_case(
+      "deletes keep a blank-line module blank-line separated", `Quick, () =>
+      check_edits(
+        "module M = {\n  let x = 1;\n  \n  let y = 2;\n  \n  let w = 3\n} in\nM.x",
+        [
+          (
+            Delete(BindingClause, "M/y"),
+            "module M = {\n  let x = 1;\n  \n  let w = 3\n} in\nM.x",
+          ),
+          (
+            Delete(BindingClause, "M/x"),
+            "module M = {\n  let y = 2;\n  \n  let w = 3\n} in\nM.x",
+          ),
+          (
+            Delete(BindingClause, "M/w"),
+            "module M = {\n  let x = 1;\n  \n  let y = 2\n} in\nM.x",
+          ),
+        ],
+      )
+    ),
+    test_case(
+      "deletes in a one-line module leave the brace spacing",
+      `Quick,
+      () => {
+        check_edits(
+          "module M = { let x = 1; let y = 2; let w = 3 } in M.x",
+          [
+            (
+              Delete(BindingClause, "M/y"),
+              "module M = { let x = 1; let w = 3 } in M.x",
+            ),
+            (
+              Delete(BindingClause, "M/x"),
+              "module M = { let y = 2; let w = 3 } in M.x",
+            ),
+            (
+              Delete(BindingClause, "M/w"),
+              "module M = { let x = 1; let y = 2 } in M.x",
+            ),
+          ],
+        );
+        check_edits(
+          "module M = { let x = 1 } in M",
+          [(Delete(BindingClause, "M/x"), "module M = { } in M")],
+        );
+      },
+    ),
+    test_case(
+      "an edit leaves the joins it did not create as they were",
+      `Quick,
+      () => {
+        /* a delete keeps the join before the member, whatever its style */
+        check_edits(
+          "module M = {\n  let x = 1;\n  let y = 2;\n  \n  let w = 3;\n  let v = 4\n} in\nM.x",
+          [
+            (
+              Delete(BindingClause, "M/y"),
+              "module M = {\n  let x = 1;\n  let w = 3;\n  let v = 4\n} in\nM.x",
+            ),
+            (
+              Delete(BindingClause, "M/w"),
+              "module M = {\n  let x = 1;\n  let y = 2;\n  \n  let v = 4\n} in\nM.x",
+            ),
+          ],
+        );
+        check_edits(
+          "module M = { let x = 1 ; let y = 2 } in M.x",
+          [
+            (
+              Update(Definition, "M/x", "5"),
+              "module M = { let x = 5 ; let y = 2 } in M.x",
+            ),
+            (
+              Delete(BindingClause, "M/x"),
+              "module M = { let y = 2 } in M.x",
+            ),
+            (
+              Delete(BindingClause, "M/y"),
+              "module M = { let x = 1 } in M.x",
+            ),
+          ],
+        );
+      },
+    ),
+    test_case(
+      "member deletes keep comments and authored holes",
+      `Quick,
+      () => {
+        check_edits(
+          "module M = {\n  let x = 1; # one #\n  let y = 2;\n  let w = 3\n} in\nM.x",
+          [
+            (
+              Delete(BindingClause, "M/y"),
+              "module M = {\n  let x = 1; # one #\n  let w = 3\n} in\nM.x",
+            ),
+          ],
+        );
+        check_edits(
+          "module M = {\n  let x = 1;\n  let y = 2; # two #\n  let w = 3\n} in\nM.x",
+          [
+            (
+              Delete(BindingClause, "M/w"),
+              "module M = {\n  let x = 1;\n  let y = 2 # two #\n} in\nM.x",
+            ),
+          ],
+        );
+        /* a trailing `;` leaves a placeholder hole; it is not the edit's */
+        check_edits(
+          "module M = { let x = 1; let y = 2; } in M.x",
+          [
+            (
+              Delete(BindingClause, "M/y"),
+              "module M = { let x = 1; ? } in M.x",
+            ),
+          ],
+        );
+        check_edits(
+          "module M = { ?; let x = 1; let y = 2 } in M.x",
+          [
+            (
+              Delete(BindingClause, "M/x"),
+              "module M = { ?; let y = 2 } in M.x",
+            ),
+          ],
+        );
+        /* the code's own trailing `;` is the one dropped */
+        check_edits(
+          "module M = { let x = 1; let y = 2 } in M.x",
+          [
+            (
+              Update(BindingClause, "M/x", "let w = 8 ;"),
+              "module M = { let w = 8; let y = 2 } in M.x",
+            ),
+          ],
         );
       },
     ),
@@ -5368,7 +5847,7 @@ let module_member_tests = (
             "let m = { let x = 1; let x = 2 } in m",
             Update(Definition, "m/x#2", "5"),
           );
-        check_rendered(
+        check_rendered_exact(
           "member_hash_k",
           "let m = { let x = 1; let x = 5 } in m",
           result,
