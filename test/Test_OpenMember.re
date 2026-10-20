@@ -132,22 +132,22 @@ let member_items = (term: Language.Exp.t): option(int) =>
     )
   );
 
-/* undo compacts the statics away: the outline and the view's realize read
-   a term parsed then */
+/* the undone program's analysis (the debounce's, as after a key) and
+   the outline drawn from it read the members per item */
 let undo_redo = (~root, ()) => {
   let m = with_q(~root, ());
   let typed_text = Test_Undo.text_of(m);
-  let m = Cells.run(m, Test_Undo.undo);
+  let m = refresh(Cells.run(m, Test_Undo.undo));
   check(bool, "the key undone", true, Test_Undo.text_of(m) != typed_text);
-  let fresh = OutlineControl.outline_term(Cells.program(m));
-  per_member(~root, "undo", fresh);
+  let term = OutlineControl.outline_term(Cells.program(m));
+  per_member(~root, "undo", term);
   check(
     option(int),
-    "the view's analysis: an item per member, and the exports",
-    Some(List.length(rows(fresh)) + 1),
-    member_items(fresh),
+    "the analysis: an item per member, and the exports",
+    Some(List.length(rows(term)) + 1),
+    member_items(term),
   );
-  let m = Cells.run(m, Test_Undo.redo);
+  let m = refresh(Cells.run(m, Test_Undo.redo));
   check(string, "the key redone", typed_text, Test_Undo.text_of(m));
   per_member(~root, "redo", OutlineControl.outline_term(Cells.program(m)));
 };
@@ -285,11 +285,13 @@ let crash_saves_whole = () => {
     () => {
       Haz3lcore.DefStatics.after_calc :=
         Some((_, _) => raise(Stack_overflow));
-      let m = app(m, Globals(Undo));
+      /* the undo shows the live statics: the debounce analyzes */
+      let m =
+        app(app(m, Globals(Undo)), Editors(Scratch(RefreshStatics)));
       Haz3lcore.DefStatics.after_calc := hook;
       check(
         bool,
-        "the undo's analysis crashed",
+        "the undone program's analysis crashed",
         true,
         CrashHandling.current_exception^ != None,
       );
