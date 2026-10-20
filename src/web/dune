@@ -115,5 +115,6 @@
  (release
   (js_of_ocaml
    ; (^ticket(470), the timing branches only) an inline source map, without the sources: phases.py maps each profiled
-   ; function to its source file
-   (flags (:standard --source-map-inline --source-map-no-source)))))
+   ; function to its source file. Dune sets the map itself (sourcemap, since dune 3.17; a flag is overridden)
+   (flags (:standard --source-map-no-source))
+   (sourcemap inline))))
