@@ -49,11 +49,20 @@ jobs:
           node scripts/slide_timing/time_slides.mjs 9222 http://localhost:8111 slides.tsv > timing.jsonl
           python3 scripts/slide_timing/summary.py timing.jsonl "${GITHUB_REF_NAME} at ${GITHUB_SHA::10}" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Where the time went, by phase (the source maps)
+        if: always()
+        run: |
+          python3 scripts/slide_timing/phases.py --self-test _build/default/src/web/www/hazel.js
+          python3 scripts/slide_timing/phases.py timing.jsonl _build/default/src/web/www/hazel.js _build/default/src/web/www/worker.js > phases.md
+          cat phases.md >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: slide-timing
           path: |
             timing.jsonl
+            phases.jsonl
+            phases.md
             slides.tsv
             serve.log
