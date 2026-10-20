@@ -468,8 +468,14 @@ let save_current' = (prefix: string, model: Model.t): unit => {
           Program.root(program),
         ))
       | Some(slide) =>
-        World.split(~slide, Program.document(program))
-        |> Option.map(({members, _}: World.parts) => {
+        (
+          switch (WorldTree.body(~slide, Program.document(program))) {
+          | Loaded(members) => Some(members)
+          | Unloaded
+          | Gone => None
+          }
+        )
+        |> Option.map(members => {
              let ids = Segment.ids(members);
              (
                Zipper.unzip(members)
@@ -685,6 +691,27 @@ let open_slide =
     )
   };
 };
+
+/* the slide [name]'s program as stored (its segment, root and probes),
+   without an editor; None when nothing is stored */
+let stored =
+    (prefix: string, name: string)
+    : option((Segment.t, Sort.t, Refractors.RefractorList.t)) =>
+  switch (load_slide_kind(prefix, name)) {
+  | Some(CodePersist({editor: Some(e), _})) =>
+    let root = e.editor.root;
+    switch (ItemPersist.load(~store=item_store(prefix, name))) {
+    | Some(seg) => Some((seg, root, read_probes(prefix, name, seg)))
+    | None =>
+      let z = PersistentZipper.unpersist(e.editor.zipper, ~root);
+      Some((
+        Zipper.unselect_and_zip(~erase_buffer=true, z),
+        root,
+        z.refractors.manuals,
+      ));
+    };
+  | _ => None
+  };
 
 /* [open_slide] over a stored text */
 let open_text =

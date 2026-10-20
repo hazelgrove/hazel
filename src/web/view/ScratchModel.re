@@ -1,8 +1,20 @@
 open Haz3lcore;
 open Util;
 
-/* what a mode's saved slides are keyed under */
-let prefix = (~is_documentation) => is_documentation ? "doc" : "scratch";
+/* the slide decks: Scratch, Documentation, and the world tree's, which
+   holds both as one program (WorldDeck) */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type deck =
+  | Scratch
+  | Documentation
+  | World;
+
+/* what a deck's saved slides are keyed under */
+let prefix =
+  fun
+  | Scratch => "scratch"
+  | Documentation => "doc"
+  | World => "world";
 
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]

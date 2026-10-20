@@ -75,19 +75,39 @@ and same_piece = (a: Piece.t, b: Piece.t): bool =>
     }
   );
 
+/* where [doc]'s library ends: before the tree's top folders, or (one
+   slide's world) before the slide's module; and what assembling derived
+   the pieces after it from */
+let tree_heads = [
+  WorldTree.folder_id(["Documentation"]),
+  WorldTree.folder_id(["Scratch"]),
+];
+let library_end = (~slide: Id.t, doc: Segment.t): (Id.t, list(Id.t)) =>
+  List.exists(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) => List.mem(t.id, tree_heads)
+      | _ => false
+      },
+    doc,
+  )
+    ? (WorldTree.root_anchor, tree_heads) : (slide, [slide]);
+
 /* the library's items, if [doc] isn't the one that runs */
-let library_edit = (~slide: Id.t, doc: Segment.t): option(Segment.t) =>
-  switch (World.split(~slide, doc)) {
-  | Some({library: lib, _}) =>
-    let running = library();
-    same_seg(lib, running) ? None : Some(lib);
+let library_edit = (~slide: Id.t, doc: Segment.t): option(Segment.t) => {
+  let (anchor, heads) = library_end(~slide, doc);
+  switch (WorldTree.split_library(~anchor, ~heads, doc)) {
+  | Some((lib, _)) => same_seg(lib, library()) ? None : Some(lib)
   | None => None
   };
+};
 
 /* [doc] with the library that runs, if it holds another */
 let with_running_library = (~slide: Id.t, doc: Segment.t): option(Segment.t) =>
   switch (library_edit(~slide, doc)) {
-  | Some(_) => World.with_library(~slide, ~library=library(), doc)
+  | Some(_) =>
+    let (anchor, heads) = library_end(~slide, doc);
+    WorldTree.with_library(~anchor, ~heads, ~library=library(), doc);
   | None => None
   };
 
@@ -101,7 +121,11 @@ let run_statics = (~slide: Id.t, s: CachedStatics.t): CachedStatics.t =>
     run_memo,
     (slide, s),
     () => {
-      let elaborated = World.run_elab(~slide, s.elaborated);
+      /* the modules from the top level down to the slide's */
+      let trail =
+        OutlineTree.trail_of(slide, s.term)
+        |> Option.value(~default=[slide]);
+      let elaborated = WorldTree.run_elab(~trail, s.elaborated);
       let ids = ref([]);
       let _: Language.Exp.t =
         Language.Exp.map_term(

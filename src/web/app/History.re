@@ -69,6 +69,7 @@ let compact = (m: Page.Model.t): Page.Model.t => {
     switch (m.editors) {
     | Scratch(sm) => Scratch(compact_scratch(sm))
     | Documentation(sm) => Documentation(compact_scratch(sm))
+    | World(sm) => World(compact_scratch(sm))
     | (Tutorial(_) | Exercises(_) | Config(_)) as e => e
     },
 };
@@ -118,8 +119,8 @@ module Update = {
       m.globals.settings.show_incremental_deco;
     switch (m.editors) {
     | Scratch(_)
-    | Documentation(_) =>
-      schedule_action(Editors(Scratch(Workspace(RealizeView))))
+    | Documentation(_)
+    | World(_) => schedule_action(Editors(Scratch(Workspace(RealizeView))))
     | Tutorial(_)
     | Exercises(_)
     | Config(_) => ()

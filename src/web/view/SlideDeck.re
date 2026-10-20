@@ -56,7 +56,7 @@ let integrate_share =
     let (editor, world) =
       Persist.open_text(
         ~settings,
-        ~prefix=ScratchModel.prefix(~is_documentation=false),
+        ~prefix=ScratchModel.prefix(Scratch),
         ~name=share_name,
         shared,
       );
@@ -141,7 +141,7 @@ let add_new_slide =
       ~kind: new_slide_kind,
       ~settings: Language.CoreSettings.t,
       model: Model.t,
-      is_documentation: bool,
+      deck: ScratchModel.deck,
     )
     : Model.t => {
   let blank = name =>
@@ -153,8 +153,8 @@ let add_new_slide =
     current: List.length(model.scratchpads),
     scratchpads: model.scratchpads @ [blank(name)],
   };
-  switch (is_documentation) {
-  | false =>
+  switch (deck) {
+  | Scratch =>
     let prefix =
       switch (kind) {
       | NewCode => "Scratchpad"
@@ -176,7 +176,8 @@ let add_new_slide =
       |> fst;
 
     add_empty_slide(prefix ++ " " ++ string_of_int(new_number));
-  | true =>
+  | Documentation
+  | World =>
     let new_name =
       prompt_slide_name(
         ~existing_scratchpads=
@@ -196,7 +197,7 @@ let update =
     (
       ~settings: Settings.t,
       ~schedule_action: Action.t => unit,
-      ~is_documentation: bool,
+      ~deck: ScratchModel.deck,
       action: Action.t,
       model: Model.t,
     )
@@ -221,31 +222,36 @@ let update =
       |> Updated.return(~historic=false);
     | HydrateCurrent =>
       let model =
-        Persist.hydrate_current(
-          ~settings=settings.core,
-          ScratchModel.prefix(~is_documentation),
-          model,
-        );
+        switch (deck) {
+        /* one program: it moves to the slide switched to */
+        | World => WorldDeck.hydrate_current(~settings=settings.core, model)
+        | Scratch
+        | Documentation =>
+          Persist.hydrate_current(
+            ~settings=settings.core,
+            ScratchModel.prefix(deck),
+            model,
+          )
+        };
       model |> Updated.return(~historic=false);
+    /* the world tree's slides are its modules: adding, renaming, deleting
+       and resetting one are edits to the tree (not yet) */
+    | AddSlide
+    | AddDrvSlide
+    | RenameSlide
+    | DeleteSlide
+    | ResetCurrent
+    | InitImportScratchpad(_)
+    | FinishImportScratchpad(_) when deck == World => model |> return_quiet
     | AddSlide =>
       WorkerClient.cancel();
       Updated.return(
-        add_new_slide(
-          ~kind=NewCode,
-          ~settings=settings.core,
-          model,
-          is_documentation,
-        ),
+        add_new_slide(~kind=NewCode, ~settings=settings.core, model, deck),
       );
     | AddDrvSlide =>
       WorkerClient.cancel();
       Updated.return(
-        add_new_slide(
-          ~kind=NewDrv,
-          ~settings=settings.core,
-          model,
-          is_documentation,
-        ),
+        add_new_slide(~kind=NewDrv, ~settings=settings.core, model, deck),
       );
     | RenameSlide =>
       let current = List.nth(model.scratchpads, model.current);
@@ -266,7 +272,7 @@ let update =
       | Some(new_name) when new_name == current.name => model |> return_quiet
       | Some(new_name) =>
         Persist.rename_slide(
-          ScratchModel.prefix(~is_documentation),
+          ScratchModel.prefix(deck),
           current.name,
           new_name,
         );
@@ -288,7 +294,7 @@ let update =
       if (confirmed) {
         WorkerClient.cancel();
         Persist.forget_slide(
-          ScratchModel.prefix(~is_documentation),
+          ScratchModel.prefix(deck),
           List.nth(model.scratchpads, model.current).name,
         );
         let new_sp =
@@ -304,11 +310,11 @@ let update =
                   ...model,
                   scratchpads: [],
                 },
-                is_documentation,
+                deck,
               )
             : Persist.hydrate_current(
                 ~settings=settings.core,
-                ScratchModel.prefix(~is_documentation),
+                ScratchModel.prefix(deck),
                 {
                   scratchpads: new_sp,
                   current: max(model.current - 1, 0),
@@ -324,16 +330,17 @@ let update =
       switch (scratchpad.kind) {
       | Code({agent, _}) =>
         let source =
-          switch (is_documentation) {
-          | false =>
+          switch (deck) {
+          | Scratch =>
             CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp))
             |> CellEditor.Model.persist
-          | true => Init.default_documentation_slide_name(scratchpad.name)
+          | Documentation
+          | World => Init.default_documentation_slide_name(scratchpad.name)
           };
         let* (data, world) =
           Persist.open_text(
             ~settings=settings.core,
-            ~prefix=ScratchModel.prefix(~is_documentation),
+            ~prefix=ScratchModel.prefix(deck),
             ~name=scratchpad.name,
             source,
           )
@@ -376,7 +383,7 @@ let update =
             |> CellEditor.Model.persistent_of_sexp
             |> Persist.open_text(
                  ~settings=settings.core,
-                 ~prefix=ScratchModel.prefix(~is_documentation),
+                 ~prefix=ScratchModel.prefix(deck),
                  ~name=scratchpad.name,
                );
 

@@ -79,6 +79,10 @@ let carry_over = (~from: Model.t, m: Model.t): Model.t => {
       ...m,
       editors: Documentation(carry(a, b)),
     }
+  | (World(a), World(b)) => {
+      ...m,
+      editors: World(carry(a, b)),
+    }
   | _ => m
   };
 };
@@ -103,7 +107,8 @@ module Update = {
     };
     switch (model.editors) {
     | Scratch(m) => get_scratchpad_editor(m)
-    | Documentation(m) => get_scratchpad_editor(m)
+    | Documentation(m)
+    | World(m) => get_scratchpad_editor(m)
     | Tutorial(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
     | Exercises(m) => ExercisesMode.Model.get_editor(m)
     | Config(m) => (List.nth(m.configs, m.current) |> snd).editor
@@ -157,7 +162,8 @@ module Update = {
     };
     switch (model.editors) {
     | Scratch(m) => scratchpad_editors(m)
-    | Documentation(m) => scratchpad_editors(m)
+    | Documentation(m)
+    | World(m) => scratchpad_editors(m)
     | Tutorial(m) => [
         (None, [List.nth(m.exercises, m.current).cells.user_impl.editor]),
       ]
@@ -350,17 +356,19 @@ module Update = {
             persisted.backup_text,
           );
         | Scratch(model)
-        | Documentation(model) =>
+        | Documentation(model)
+        | World(model) =>
           let current = List.nth(model.scratchpads, model.current);
           let (ext, contents) =
             switch (current.kind) {
-            | Code({program, _}) =>
+            | Code(code) =>
               /* Slides are text-backed: export the committed-.hz form
                  (marker-printed content + one final newline). */
               (
                 ".hz",
+                /* a world slide's own members, not the library's */
                 Haz3lcore.PersistentZipper.persist(
-                  Program.whole(program).editor.editor.state.zipper,
+                  WorldSlide.own_editor(code).editor.editor.state.zipper,
                 ).
                   backup_text,
               )
@@ -965,7 +973,8 @@ module View = {
     let dynamics =
       switch (editors) {
       | Scratch(m)
-      | Documentation(m) when globals.settings.core.dynamics =>
+      | Documentation(m)
+      | World(m) when globals.settings.core.dynamics =>
         ScratchMode.Model.current_program(m)
         |> Option.map(p => {
              let tail = globals.settings.tail_probe;
@@ -1050,6 +1059,7 @@ module View = {
       switch (model.editors) {
       | Scratch(m) => Some(("scratch", m))
       | Documentation(m) => Some(("doc", m))
+      | World(m) => Some((ScratchModel.prefix(World), m))
       | _ => None
       };
     let outline_mark =

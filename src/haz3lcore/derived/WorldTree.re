@@ -209,11 +209,14 @@ and level = (nodes: list(node)): option(Segment.t) => {
     : None;
 };
 
+/* what the pieces between the library and the tree derive from */
+let root_anchor = Id.mk_str("world-root");
+
 /* the document: [library]'s items, then [slides] in their folders */
 let assemble =
     (~library: Segment.t, slides: list((path, option(Segment.t))))
     : option(Segment.t) => {
-  let anchor = Id.mk_str("world-root");
+  let anchor = root_anchor;
   Option.map(
     body => World.prefix(~anchor, library) @ body,
     level(nest(slides)),
@@ -350,3 +353,39 @@ let rec run_elab = (~trail: list(Id.t), elab: Language.Exp.t): Language.Exp.t =>
     }
   | _ => elab
   };
+
+/* [seg] split at its first top-level tile among [heads]: the library's
+   items (without what assembling added after them, derived from
+   [anchor]) and the rest */
+let split_library =
+    (~anchor: Id.t, ~heads: list(Id.t), seg: Segment.t)
+    : option((Segment.t, Segment.t)) => {
+  let ours =
+    List.map(
+      salt => Id.derive(~salt, anchor),
+      ["world-library-end", "world-gap-1", "world-gap-2"],
+    );
+  let rec go = (before, rest: Segment.t) =>
+    switch (rest) {
+    | [Piece.Tile(t), ..._] when List.mem(t.id, heads) =>
+      Some((
+        List.filter(
+          (p: Piece.t) => !List.mem(Piece.id(p), ours),
+          List.rev(before),
+        ),
+        rest,
+      ))
+    | [p, ...rest] => go([p, ...before], rest)
+    | [] => None
+    };
+  go([], seg);
+};
+
+/* [seg] with [library] in place of its library's items */
+let with_library =
+    (~anchor: Id.t, ~heads: list(Id.t), ~library: Segment.t, seg: Segment.t)
+    : option(Segment.t) =>
+  Option.map(
+    ((_, rest)) => World.prefix(~anchor, library) @ rest,
+    split_library(~anchor, ~heads, seg),
+  );

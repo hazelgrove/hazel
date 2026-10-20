@@ -8,9 +8,9 @@ module Model = ScratchModel.Model;
 module Focus = ScratchFocus;
 module Persist = ScratchPersist;
 
-let slide_key = (~is_documentation, model: Model.t): string =>
+let slide_key = (~deck, model: Model.t): string =>
   Persist.content_key(
-    ScratchModel.prefix(~is_documentation),
+    ScratchModel.prefix(deck),
     List.nth(model.scratchpads, model.current).name,
   );
 
@@ -28,7 +28,7 @@ module Update = {
       (
         ~schedule_action,
         ~settings: Settings.t,
-        ~is_documentation: bool,
+        ~deck: ScratchModel.deck,
         action: t,
         model: Model.t,
       ) => {
@@ -41,7 +41,7 @@ module Update = {
           Workspace.update(
             ~settings,
             ~schedule_action=a => schedule_action(Workspace(a)),
-            ~slide_key=slide_key(~is_documentation, model),
+            ~slide_key=slide_key(~deck, model),
             a,
             code,
           );
@@ -55,7 +55,7 @@ module Update = {
           OutlineControl.update(
             ~settings,
             ~schedule_workspace=a => schedule_action(Workspace(a)),
-            ~prefix=ScratchModel.prefix(~is_documentation),
+            ~prefix=ScratchModel.prefix(deck),
             ~name=List.nth(model.scratchpads, model.current).name,
             a,
             code,
@@ -83,7 +83,7 @@ module Update = {
       SlideDeck.update(
         ~settings,
         ~schedule_action=a => schedule_action(Deck(a)),
-        ~is_documentation,
+        ~deck,
         a,
         model,
       )
@@ -95,7 +95,7 @@ module Update = {
         ~settings: Settings.t,
         ~schedule_action,
         ~is_edited,
-        ~is_documentation: bool,
+        ~deck: ScratchModel.deck,
         model: Model.t,
       )
       : Model.t => {
@@ -115,7 +115,7 @@ module Update = {
             ~schedule_action=a => schedule_action(Workspace(a)),
             ~is_edited,
             ~statics_mode,
-            ~slide_key=slide_key(~is_documentation, model),
+            ~slide_key=slide_key(~deck, model),
             code,
           ),
         )
@@ -988,10 +988,16 @@ module View = {
         };
         switch (program) {
         | Divided(d) =>
-          (SlideContent.get_content(current.name) |> Option.to_list)
+          (
+            SlideContent.get_content(WorldDeck.doc_name(current.name))
+            |> Option.to_list
+          )
           @ stack_views(d)
         | Whole(editor) =>
-          (SlideContent.get_content(current.name) |> Option.to_list)
+          (
+            SlideContent.get_content(WorldDeck.doc_name(current.name))
+            |> Option.to_list
+          )
           @ [
             CellEditor.View.view(
               ~globals,
@@ -1135,10 +1141,11 @@ module View = {
     [file_group_scratch, reset_group_scratch];
   };
 
-  let add_drv_slide_button = (~is_documentation, ~inject: Update.t => 'a) =>
+  let add_drv_slide_button = (~deck, ~inject: Update.t => 'a) =>
     Widgets.button(
       ~tooltip=
-        "Add New Derivation " ++ (is_documentation ? "Slide" : "Scratchpad"),
+        "Add New Derivation "
+        ++ (deck == ScratchModel.Scratch ? "Scratchpad" : "Slide"),
       Icons.entail,
       _ =>
       inject(Deck(AddDrvSlide))
@@ -1147,16 +1154,17 @@ module View = {
   let top_bar =
       (
         ~globals as _,
-        ~is_documentation: bool,
+        ~deck: ScratchModel.deck,
         ~inject: Update.t => 'a,
         model: Model.t,
       ) => {
-    let unit_name = is_documentation ? "Slide" : "Scratchpad";
+    let unit_name = deck == ScratchModel.Scratch ? "Scratchpad" : "Slide";
     let add_tooltip =
-      is_documentation ? "Add New Slide" : "Add New Code Scratchpad";
+      deck == ScratchModel.Scratch
+        ? "Add New Code Scratchpad" : "Add New Slide";
     EditorModeView.view(
       ~edit_buttons=true,
-      ~extra_edit_buttons=[add_drv_slide_button(~is_documentation, ~inject)],
+      ~extra_edit_buttons=[add_drv_slide_button(~deck, ~inject)],
       ~nav_buttons=false,
       ~unit_name,
       ~add_tooltip,

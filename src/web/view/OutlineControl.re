@@ -1249,7 +1249,8 @@ let view =
       let world = world_of(deck);
       let label = id =>
         switch (OutlineTree.node_of(id, term)) {
-        | _ when world == Some(id) => name
+        | _ when world == Some(id) =>
+          SlidePath.leaf(SlidePath.of_string(name))
         | Some(n) => n.o_label
         | None => ""
         };
