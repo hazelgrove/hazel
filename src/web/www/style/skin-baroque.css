@@ -301,15 +301,15 @@ html.skin-baroque .live-offside .num-samples {
 html.skin-baroque #side-bar {
   font-family: var(--orn-serif);
   background:
-    var(--orn-frame-tl) left 2px top 2px / 48px no-repeat,
-    var(--orn-frame-tr) right 2px top 2px / 48px no-repeat,
-    var(--orn-frame-bl) left 2px bottom 2px / 48px no-repeat,
-    var(--orn-frame-br) right 2px bottom 2px / 48px no-repeat,
+    var(--orn-frame-tl) left 2px top 2px / 40px no-repeat,
+    var(--orn-frame-tr) right 2px top 2px / 40px no-repeat,
+    var(--orn-frame-bl) left 2px bottom 2px / 40px no-repeat,
+    var(--orn-frame-br) right 2px bottom 2px / 40px no-repeat,
     transparent;
   box-shadow: var(--orn-frame-line);
 }
 html.skin-baroque #side-bar {
-  padding: 12px 10px 12px 12px;
+  padding: 7px 4px 7px 6px;
 }
 html.skin-baroque #side-bar .resize-handle {
   background: transparent;
@@ -377,7 +377,7 @@ html.skin-baroque #probe-sidebar .quick-ref .qr-action {
   color: #4b3714;
 }
 html.skin-baroque #probe-sidebar .quick-ref {
-  font-size: 0.95em;
+  font-size: 0.9em;
 }
 
 /* segmented controls: gilt rims, the active segment burnished */
