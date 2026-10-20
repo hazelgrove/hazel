@@ -1,0 +1,36 @@
+# Hygiene 1: Capture Avoidance #
+
+# The client's x is not the expansion's x. #
+
+# The program binds x = 1. Below, the widget's editor holds the #
+# client's code, just x -- the program's x. The expansion is #
+#   fun s -> let x = 10 in s + x #
+# which binds an x of its own. Pasting the client's x in for s gives #
+# let x = 10 in x + x, which is 20: the expansion's x has captured #
+# the client's. Here the splice is passed to the expansion as an #
+# ARGUMENT, so it arrives as a value, 1, and cannot be captured: the #
+# use means 1 + 10 = 11 (Sec. 2.4.3, Fig. 5). #
+
+let x = 1 in
+
+let ^add_ten = {
+  type Model = (s = SpliceRef);
+  type Action = Int;
+  type Expansion = Int;
+  let init =
+    do s <- new_splice((IntT, Some(IntLit(0)))) in
+    Pure((s = s));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do e <- editor((m.s, FixedWidth(6))) in
+    Pure(Html.div([], [Html.text("s = "), e, Html.text(" + 10")]));
+  let expand =
+    Macro(fun m : Model ->
+      (quote fun s -> let x = 10 in s + x end, [m.s]));
+  let shape = Inline(16)
+} in
+
+let capture = ^^livelit(^add_ten((s = (x)))) in
+
+# The use means 11 (naive: 20). #
+capture

@@ -110,19 +110,57 @@ let code_view_settings: Haz3lcore.ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: false,
   show_unknown_as_hole: true,
+  use_literal_lexemes: false,
   hole_tiles: false,
   project_tables: false,
 };
 
+/* The bar prints on one line, and cuts off what does not fit; the panel
+   over it (expanded_view) prints the same things whole, broken over lines
+   and indented, so a big type -- a module's, a livelit's -- can be read.
+   Which one is being drawn is the globals' inspector_expanded: the bar is
+   drawn with it off (see `view`). */
+let print_settings = (globals: Globals.t) =>
+  globals.settings.inspector_expanded
+    ? {
+      ...code_view_settings,
+      inline: false,
+    }
+    : code_view_settings;
+
+/* The panel's width in columns of code: the window's, less the panel's
+   padding and scrollbar, and a few columns for the words a type follows
+   (":", "lifted to"). */
+let panel_columns = (globals: Globals.t): int => {
+  let px = float_of_int(Js_of_ocaml.Dom_html.window##.innerWidth) -. 64.;
+  max(30, int_of_float(px /. globals.font_metrics.col_width) - 4);
+};
+
+/* In the panel, a term or type is laid out to the panel's width, broken
+   over lines and indented, so it scrolls down and never across. A layout
+   that fails leaves it on one line rather than losing the view. */
+let view_segment = (~globals: Globals.t, seg) => {
+  let seg =
+    globals.settings.inspector_expanded
+      ? CodeViewable.lay_out(~width=panel_columns(globals), seg) : seg;
+  CodeViewable.view_segment(~globals, seg);
+};
+
 let view_any = (~globals, any: Any.t) =>
   any
-  |> CodeViewable.view_any(~globals, ~settings=code_view_settings)
+  |> Haz3lcore.ExpToSegment.any_to_segment(
+       ~settings=print_settings(globals),
+     )
+  |> view_segment(~globals)
   |> code_box_container;
 
 let view_type = (~globals, typ: Typ.t) =>
   typ
   |> Typ.abstract_rec_types
-  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
+  |> Haz3lcore.TypToSegment.typ_to_segment(
+       ~settings=print_settings(globals),
+     )
+  |> view_segment(~globals)
   |> code_box_container;
 
 let core_mark_err_view =
@@ -275,6 +313,9 @@ let core_mark_err_view =
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadLivelitExpansion(_)
+    | BadMacroExpansion(_)
+    | LivelitNeedsTypeArgument(_)
+    | LivelitNeedsArguments(_)
     | InvalidLivelitDef(_)
     | BadTheorem(_)
     | Redundant
@@ -566,15 +607,57 @@ let type_member_mismatch_view = (~view_type, name, ~expected, ~actual) =>
     ~actual,
   );
 
-let typ_mark_err_view = (~globals, m: Mark.t) => {
+/* What a type name that is not found may have meant (^ticket(469)): a
+   module of that name, as Html is (its type is Html.T), or one of the old
+   global aliases, which live in the builtin modules now (HTML is Html.T).
+   On the livelits slides, `type X = Html in`, the way to ask the full view
+   what Html is, said only "Html not found". */
+type free_type_hint =
+  | ModuleTypes(list(string))
+  | MovedTo(string);
+
+let free_type_hint = (ctx: Ctx.t, name: string): option(free_type_hint) =>
+  switch (Typ.path_sig(ctx, Var(name) |> Typ.temp)) {
+  | Some((items, _)) =>
+    Some(
+      ModuleTypes(
+        Sig.type_names(Sig.members(items)) |> List.map(t => name ++ "." ++ t),
+      ),
+    )
+  | None =>
+    switch (List.assoc_opt(name, BuiltinsADT.HtmlModules.homes)) {
+    | Some((m, t)) => Some(MovedTo(m ++ "." ++ t))
+    | None => None
+    }
+  };
+
+let typ_mark_err_view = (~globals, ~ctx: Ctx.t, m: Mark.t) => {
   let view_type = view_type(~globals);
   switch (m) {
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_view(~view_type, name, ~expected, ~actual)
-  | TypFreeTypeVariable(name) => [
-      view_type(Var(name) |> Typ.fresh),
-      text("not found"),
-    ]
+  | TypFreeTypeVariable(name) =>
+    switch (free_type_hint(ctx, name)) {
+    | Some(ModuleTypes([])) => [
+        code(name),
+        text("is a module, not a type"),
+      ]
+    | Some(ModuleTypes(types)) =>
+      [code(name), text("is a module, not a type; its types:")]
+      @ List.concat(
+          List.mapi(
+            (i, t) => i == 0 ? [code(t)] : [text(","), code(t)],
+            types,
+          ),
+        )
+    | Some(MovedTo(path)) => [
+        view_type(Var(name) |> Typ.fresh),
+        text("not found: it is"),
+        code(path),
+        text("now"),
+      ]
+    | None => [view_type(Var(name) |> Typ.fresh), text("not found")]
+    }
   | BadToken(token) => [code(token), text("not a type or type operator")]
   | TypWantConstructorFoundAp
   | TypWantConstructorFoundType(_) => [text("Expected a constructor")]
@@ -864,6 +947,68 @@ let exp_mark_err_view =
       text(" = "),
       view_type(declared),
     ])
+  | BadMacroExpansion({expansion, splices, code: code_ty, problem}) =>
+    let n = List.length(splices);
+    let of_splices =
+      n == 1 ? "its splice" : Printf.sprintf("its %d splices", n);
+    let expansion_is = [
+      code("Expansion"),
+      text(" = "),
+      view_type(expansion),
+    ];
+    div_err(
+      switch (problem) {
+      | TooFewParameters =>
+        [
+          text("The expansion's code has type "),
+          view_type(code_ty),
+          text(", but must be a function of " ++ of_splices ++ ", to "),
+        ]
+        @ expansion_is
+      | SpliceParameter({index, param}) => [
+          text("The expansion's code takes "),
+          view_type(param),
+          text(
+            Printf.sprintf(" for splice %d, whose code has type ", index + 1),
+          ),
+          view_type(List.nth(splices, index)),
+        ]
+      | Result(result) =>
+        [
+          text(
+            n == 0
+              ? "The expansion's code has type "
+              : "Applied to "
+                ++ of_splices
+                ++ ", the expansion's code has type ",
+          ),
+          view_type(result),
+          text(", but the livelit declares "),
+        ]
+        @ expansion_is
+      | ErrorInCode => [
+          text(
+            n == 0
+              ? "The expansion's code has a type error"
+              : "The expansion's code has a type error, given " ++ of_splices,
+          ),
+        ]
+      },
+    );
+  | LivelitNeedsTypeArgument(name) =>
+    div_err([
+      code("^" ++ name),
+      text(" takes a type argument: give it one with "),
+      code("let ^name = ^" ++ name ++ "@<Type> in"),
+    ])
+  | LivelitNeedsArguments(name) =>
+    div_err([
+      code("^" ++ name),
+      text(" takes parameters: give them with "),
+      code("let ^name = ^" ++ name ++ "(args) in"),
+      text(", then use "),
+      code("^name"),
+    ])
   | InvalidLivelitDef(DefNotModule) =>
     div_err([
       text("Livelit definition should be a module declaring "),
@@ -871,26 +1016,6 @@ let exp_mark_err_view =
       text(" and members "),
       code("init, update, view, expand"),
     ])
-  | InvalidLivelitDef(DefMissingMembers(missing)) =>
-    div_err([
-      text("Livelit definition is missing members: "),
-      ...List.map(code, missing),
-    ])
-  | InvalidLivelitDef(DefMissingTypes(missing)) =>
-    div_err([
-      text("Livelit definition is missing type members: "),
-      ...List.map(code, missing),
-    ])
-  | InvalidLivelitDef(DefMemberMismatch({name, expected, actual})) =>
-    div_err(
-      member_mismatch_view(
-        ~view_type,
-        ~what="Member ",
-        name,
-        ~expected,
-        ~actual,
-      ),
-    )
   | BadTheorem(typ) =>
     div_err([
       text("Theorem pattern is not of the form p : t, got "),
@@ -1155,6 +1280,7 @@ let pat_view =
 let typ_view =
     (
       ~globals,
+      ~ctx: Ctx.t,
       cls: Cls.t,
       ~marks: list(Mark.t),
       ~message: option(Message.t),
@@ -1170,13 +1296,19 @@ let typ_view =
     }
   | ms =>
     switch (Mark.highest(ms)) {
-    | Some(m) => div_err(typ_mark_err_view(~globals, m))
+    | Some(m) => div_err(typ_mark_err_view(~globals, ~ctx, m))
     | None => div_err([text("(internal) missing type mark")])
     }
   };
 
 let tpat_view =
-    (~globals, _: Cls.t, ~marks: list(Mark.t), ~message: option(Message.t))
+    (
+      ~globals,
+      ~ctx: Ctx.t,
+      _: Cls.t,
+      ~marks: list(Mark.t),
+      ~message: option(Message.t),
+    )
     : Node.t => {
   let view_type = view_type(~globals);
   switch (marks) {
@@ -1186,6 +1318,26 @@ let tpat_view =
       div_ok([text("Fillable with a new alias")])
     | Some(TPatOk(Var(name))) =>
       div_ok([ContextInspector.alias_view(name)])
+    /* The bar names the alias; the full view also prints what it is an
+       alias for, laid out like any type there. */
+    | Some(TPatOk(Alias(name, def))) =>
+      /* ...and when the definition only names a type (`type X = Html.T`),
+         what that type is (^ticket(469)) */
+      let named =
+        switch (def.term) {
+        | Var(_)
+        | ProdProjection(_) =>
+          let whole = Typ.weak_head_normalize(ctx, def);
+          Typ.fast_equal(whole, def)
+            ? [] : [text("which is"), view_type(whole)];
+        | _ => []
+        };
+      globals.settings.inspector_expanded
+        ? div_ok(
+            [ContextInspector.alias_view(name), text("="), view_type(def)]
+            @ named,
+          )
+        : div_ok([ContextInspector.alias_view(name)]);
     | Some(Pat(_) | Exp(_) | TypOk(_)) =>
       div_err([text("(internal) expected TPatOk")])
     | None => div_err([text("(internal) missing tpat ok payload")])
@@ -1230,10 +1382,10 @@ let view_of_info = (~globals, ci): list(Node.t) => {
     wrapper(exp_view(~globals, cls, message, ie))
   | InfoPat({cls, message, _} as ip) =>
     wrapper(pat_view(~globals, cls, message, ip))
-  | InfoTyp({cls, marks, message, _}) =>
-    wrapper(typ_view(~globals, cls, ~marks, ~message))
-  | InfoTPat({cls, marks, message, _}) =>
-    wrapper(tpat_view(~globals, cls, ~marks, ~message))
+  | InfoTyp({cls, marks, message, ctx, _}) =>
+    wrapper(typ_view(~globals, ~ctx, cls, ~marks, ~message))
+  | InfoTPat({cls, marks, message, ctx, _}) =>
+    wrapper(tpat_view(~globals, ~ctx, cls, ~marks, ~message))
   | InfoDrv(ci) => wrapper(DrvCursorInspector.drv_view(~globals, ci))
   };
 };
@@ -1266,8 +1418,44 @@ let projector_error_inspector =
     ],
   );
 
+let info_for_view = (~quiver: bool, cursor: Cursor.cursor('action)) =>
+  switch (
+    quiver && !cursor.editor_read_only
+      ? Lazy.force(cursor.implied_hole) : None
+  ) {
+  | Some(_) as info => info
+  | None => cursor.info
+  };
+
+/* The bar's toggle for the panel above it: shows the inspected item with
+   its types whole (#2674). */
+let expand_toggle = (~globals: Globals.t): Node.t => {
+  let open_ = globals.settings.inspector_expanded;
+  div(
+    ~attrs=[
+      clss(["ci-expand"] @ (open_ ? ["open"] : [])),
+      Attr.title(
+        open_
+          ? "Close the full view" : "Show the types in full, on several lines",
+      ),
+      Attr.on_click(_ => globals.inject_global(Set(InspectorExpanded))),
+    ],
+    [text(open_ ? "\u{2921}" : "\u{2922}")],
+  );
+};
+
 let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
-  let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
+  let toggle = expand_toggle(~globals);
+  /* the bar prints on one line, however the panel prints */
+  let globals = {
+    ...globals,
+    settings: {
+      ...globals.settings,
+      inspector_expanded: false,
+    },
+  };
+  let bar_view = children =>
+    div(~attrs=[Attr.id("bottom-bar")], children @ [toggle]);
   let err_view = err =>
     bar_view([
       div(
@@ -1285,7 +1473,7 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
       }
     | _ => None
     };
-  switch (cursor.info) {
+  switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
@@ -1298,3 +1486,86 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
     }
   };
 };
+
+/* The panel's height once its top edge has been dragged, in pixels. Until
+   then it is as tall as what it shows, up to a limit (the CSS). Kept here,
+   not in the settings: a drag sets it many times a second. */
+let panel_height: ref(option(int)) = ref(Option.None);
+
+/* The panel's top edge: drag it to make the panel any height, up to the
+   top of the window. The drag sets the panel's style directly, as the
+   sidebar's resize handle does, and panel_height keeps it for redraws. */
+let resize_grip = (): Node.t => {
+  open Js_of_ocaml;
+  let bottom = ref(0.);
+  let rec handle_mousemove = event => {
+    let y: float = Js.Unsafe.coerce(event)##.clientY;
+    let h =
+      max(60, min(int_of_float(bottom^ -. y), int_of_float(bottom^)));
+    panel_height := Some(h);
+    switch (JsUtil.get_elem_by_id_opt("ci-expanded")) {
+    | Some(elem) =>
+      Js.Unsafe.coerce(elem)##.style##.height :=
+        Js.string(string_of_int(h) ++ "px")
+    | None => ()
+    };
+  }
+  and handle_mouseup = _ => {
+    let doc = Js.Unsafe.coerce(Dom_html.document);
+    let _ = doc##removeEventListener("mousemove", handle_mousemove);
+    let _ = doc##removeEventListener("mouseup", handle_mouseup);
+    ();
+  };
+  let handle_mousedown = _ => {
+    switch (JsUtil.get_elem_by_id_opt("ci-expanded")) {
+    | Some(elem) => bottom :=  elem##getBoundingClientRect##.bottom
+    | None => ()
+    };
+    let doc = Js.Unsafe.coerce(Dom_html.document);
+    let _ = doc##addEventListener("mousemove", handle_mousemove);
+    let _ = doc##addEventListener("mouseup", handle_mouseup);
+    /* no text selection while dragging */
+    Effect.Prevent_default;
+  };
+  div(
+    ~attrs=[
+      clss(["ci-expanded-grip"]),
+      Attr.title("Drag to resize"),
+      Attr.on_mousedown(handle_mousedown),
+    ],
+    [],
+  );
+};
+
+/* The panel over the bar, while it is open: what the bar inspects, its
+   types and terms printed whole, on several lines (#2674). It follows the
+   caret, and closes from the bar's toggle. */
+let expanded_view =
+    (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)): Node.t =>
+  switch (globals.settings.inspector_expanded, globals.settings.core.statics) {
+  | (false, _)
+  | (_, false) => div_empty
+  | (true, true) =>
+    switch (info_for_view(~quiver=globals.settings.quiver, cursor)) {
+    | None => div_empty
+    | Some(ci) =>
+      /* the status -- the types, and what is wrong -- not the header,
+         which the bar still shows */
+      let status =
+        switch (view_of_info(~globals, ci)) {
+        | [_term, status] => [status]
+        | parts => parts
+        };
+      let height =
+        switch (panel_height^) {
+        | Some(h) => [
+            Attr.create("style", "height: " ++ string_of_int(h) ++ "px"),
+          ]
+        | None => []
+        };
+      div(
+        ~attrs=[Attr.id("ci-expanded"), clss(["ci-expanded"]), ...height],
+        [resize_grip(), div(~attrs=[clss(["ci-expanded-body"])], status)],
+      );
+    }
+  };

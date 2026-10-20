@@ -211,12 +211,12 @@ module Make =
 
   let already_parenthesized = (z: Zipper.t) => {
     let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
-    let parent_label =
+    (
       switch (Ancestors.parent(z.relatives.ancestors)) {
-      | Some(Ancestor.Tile(a)) => Some(a.label)
-      | _ => None
-      };
-    parent_label == Some(["(", ")"])
+      | Some(Ancestor.Tile(a)) => Form.has_label_of(a.form, Parens)
+      | _ => false
+      }
+    )
     && sibs
     |> (((l, r)) => l @ r)
     |> List.length(_) == 1;
@@ -255,6 +255,7 @@ module Make =
           hide_fixpoints: false,
           show_filters: true,
           show_unknown_as_hole: true,
+          use_literal_lexemes: true,
           hole_tiles: false,
         },
         term,

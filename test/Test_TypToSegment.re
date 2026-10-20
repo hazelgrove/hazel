@@ -56,7 +56,7 @@ and tile_fragments =
   let clss = classes(t.id);
   Aba.mk(t.shards, t.children)
   |> Aba.join(
-       shard => [(List.nth(t.label, shard), clss)],
+       shard => [(Tile.token(t, shard), clss)],
        segment_fragments(classes),
      )
   |> List.concat;
@@ -467,8 +467,111 @@ let count_tests =
       },
     ),
   ];
+/* The cursor inspector's full view (^ticket(467)) lays a type out on the
+   view's own path: CursorInspector's settings with inline off, then
+   PrettySegment.prettify to the panel's width. A module type there read as
+   a staircase: each member further right than the one before, and each
+   broken at its `=` though it fit on one line. */
+let full_view = (~width: int, src: string): string =>
+  typ(src)
+  |> Typ.abstract_rec_types
+  |> TypToSegment.typ_to_segment(
+       ~settings={
+         ...Web.CursorInspector.code_view_settings,
+         inline: false,
+       },
+     )
+  |> PrettySegment.prettify(~width)
+  |> Printer.of_segment(~holes="?")
+  |> StringUtil.trim_trailing_whitespace;
+
+/* ^slider's type, from the livelits playground's emotion slide, with its
+   members' types written out. */
+let slider_typ = "(String, Int, Int, String) -> {type Model = Int; type Action = Int; type Expansion = Int; let init : Int; let update : Int -> Int -> Int; let view : Int -> String; let expand : Int -> Int; let shape : Int}";
+
+let indent_of = (line: string): int =>
+  String.length(line) - String.length(StringUtil.trim_leading(line));
+
+let full_view_tests = (
+  "TypToSegment.FullView",
+  [
+    test_case(
+      "a module type that fits stays on one line",
+      `Quick,
+      () => {
+        let laid = full_view(~width=400, slider_typ);
+        check(
+          int,
+          "one line:\n" ++ laid,
+          1,
+          List.length(String.split_on_char('\n', laid)),
+        );
+      },
+    ),
+    test_case(
+      "a module type that does not fit: its members at one indentation, each on a line",
+      `Quick,
+      () =>
+      List.iter(
+        width => {
+          let laid = full_view(~width, slider_typ);
+          let lines = String.split_on_char('\n', laid);
+          let members =
+            List.filter(
+              l => {
+                let t = StringUtil.trim_leading(l);
+                String.starts_with(~prefix="type ", t)
+                || String.starts_with(~prefix="let ", t);
+              },
+              lines,
+            );
+          let show = Printf.sprintf("at width %d:\n%s", width, laid);
+          check(
+            int,
+            "every member starts a line, " ++ show,
+            8,
+            List.length(members),
+          );
+          check(
+            list(int),
+            "the members share one indentation, " ++ show,
+            List.map(_ => indent_of(List.hd(members)), members),
+            List.map(indent_of, members),
+          );
+          check(
+            bool,
+            "no member is broken at its = (each fits), " ++ show,
+            true,
+            List.for_all(
+              l => {
+                let t = String.trim(l);
+                t != "=" && !String.starts_with(~prefix="= ", t);
+              },
+              lines,
+            )
+            && List.for_all(
+                 l =>
+                   !String.starts_with(~prefix="type ", String.trim(l))
+                   || String.contains(l, '='),
+                 members,
+               ),
+          );
+          check(
+            bool,
+            "no line is wider than the panel, " ++ show,
+            true,
+            List.for_all(l => String.length(l) <= width, lines),
+          );
+        },
+        [60, 100],
+      )
+    ),
+  ],
+);
+
 let tests = [
   ("TypToSegment.Regions", region_tests),
+  full_view_tests,
   (
     "TypToSegment.Ids",
     count_tests

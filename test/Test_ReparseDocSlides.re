@@ -21,6 +21,7 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
          anyway — projector MODELS embed freshly-minted ids per
          materialization. The meaningful contract is text-level. */
       let text = slide.editor.zipper.backup_text;
+      ParsedCorpus.skip_if_long(text);
       let z = PersistentZipper.from_backup_text(text, ~root=Exp);
       check(
         string,

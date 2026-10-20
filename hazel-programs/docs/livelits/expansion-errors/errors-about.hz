@@ -1,0 +1,30 @@
+# Expansion Type Errors #
+
+# A livelit declares the type its uses have, Expansion, and its #
+# expand must produce something of that type. What gets checked, and #
+# where the error lands, depends on expand's kind. #
+
+# Functional: expand is an ordinary function, Model -> Expansion. It #
+# is checked where it is written, like any other function, so an #
+# error is on expand's body in the definition, as an ordinary type #
+# error, and no use is marked (the Functional slides, 1 to 3). #
+
+# Macro (Sec. 3.2.5): expand returns CODE, a quotation, and a use #
+# means that code applied to the use's splices (Fig. 5). The code #
+# must be a function taking each splice, at its declared type (or #
+# its code's type, if it declares none), to Expansion (premise 5). #
+# The splices' code is the #
+# client's, in each use, so this is checked at each use, and the #
+# error is on the use. It names what went wrong in terms the #
+# definition states -- Expansion, the splices, the code expand #
+# returned -- not the function type the check is phrased with, #
+# which appears nowhere in the program (the Macro slides, 1 to 3): #
+
+#   the code, applied to its splices, is not of type Expansion; #
+#   a parameter cannot take its splice; #
+#   the code is not a function of its splices at all. #
+
+# An error inside the quotation itself (quote 1 + "one" end) is also #
+# marked where it is written, and the use says the code has an error. #
+
+"see the six slides that follow"

@@ -51,19 +51,11 @@ module Update = {
       )
       |> Updated.return(
            ~historic=Action.is_historic(action),
-           ~is_edit=
-             Action.is_edit(action)
-             /* When probe_all is on, Refractor actions don't require
-              * re-evaluation since all probes are already computed */
-             && !(
-                  settings.core.probe_all
-                  && (
-                    switch (action) {
-                    | Probe(_) => true
-                    | _ => false
-                    }
-                  )
-                ),
+           /* With probe_all on, a placed probe's samples already exist
+            * (they show instantly), but ambient samples carry no env
+            * (CachedStatics.compute_targets), so re-evaluate to give the
+            * new probe its bindings. */
+           ~is_edit=Action.is_edit(action),
            ~recalculate=true,
            ~scroll_active={
              switch (action) {
@@ -81,9 +73,10 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | PrettyPrint
              | Probe(StepInto(_))
-             | Dump
+             | Format(_)
+             | AdjustIndent(_, _)
+             | ApplyCompletion(_)
              | ToggleLineComment => true
              | Project(_)
              | Unselect(_)
@@ -127,7 +120,7 @@ module Update = {
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
-       * of simply moving to next hole, if the backpack is non-empty
+       * of simply moving to next hole, if shards are missing
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
@@ -135,8 +128,19 @@ module Update = {
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
-          : Zipper.can_put_down(z)
-              ? Put_down : Move(Goal(NextProblem(Right)));
+          : (
+            /* caret pinned to a quiver chip: Tab dispatches that
+               obligation (CompletionQuery.tab_action — the same list
+               the quiver draws at the caret), whether or not an inline
+               buffer is showing (buffers only appear on edits; the
+               chip is always live) */
+            switch (CompletionQuery.tab_action(z)) {
+            | Some(a) => a
+            | None =>
+              Zipper.can_put_down(z)
+                ? Put_down : Move(Goal(NextProblem(Right)))
+            }
+          );
       perform(action, model);
     };
   };
@@ -182,6 +186,13 @@ module Selection = {
         CodeWithStatics.Model.get_cursor_info(model)
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
+      implied_hole:
+        Lazy.from_fun(() =>
+          ImpliedHole.at_caret(
+            ~statics=model.statics,
+            model.editor.state.zipper,
+          )
+        ),
     }
     |> Cursor.with_actions([
          /* Navigation */
@@ -241,7 +252,9 @@ module Selection = {
            ReparseCurrentEditor,
          ),
          of_shortcut(~action=action(Introduce), Introduce),
-         of_shortcut(~action=action(PrettyPrint), PrettyPrint),
+         of_shortcut(~action=action(Format(Indent)), ReIndent),
+         of_shortcut(~action=action(Format(Spacing)), NormalizeSpacing),
+         of_shortcut(~action=action(Format(Pretty)), PrettyPrint),
        ]);
   };
 
@@ -435,50 +448,100 @@ module View = {
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
+        ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
-      ) => [
-    CaretDec.view(
-      ~measured=CachedSyntax.measured(syntax),
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Arms.Indicated.term(
-      ~refine_sort=
-        (id, mold_out) =>
-          Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
-      ~simple_indication=globals.settings.simple_indication,
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      z,
-    ),
-    (
-      expand_selection
-        ? Highlight.selection_expanded(~term_data=syntax.term_data)
-        : Highlight.selection
-    )(
-      ~measured=CachedSyntax.measured(syntax),
-      ~shape_map=syntax.shape_map,
-      ~font_metrics=globals.font_metrics,
-      z,
-    ),
-    Backpack.view(
-      ~font_metrics=globals.font_metrics,
-      ~measured=CachedSyntax.measured(syntax),
-      ~cached_backpack=syntax.cached_backpack,
-      z,
-    ),
-    Highlight.colors(
-      ~font_metrics=globals.font_metrics,
-      ~syntax,
-      globals.color_highlights,
-    ),
-    VarHighlight.view(
-      ~measured=CachedSyntax.measured(syntax),
-      ~font_metrics=globals.font_metrics,
-      ~info_map,
-      z,
-    ),
-  ];
+      ) => {
+    /* one flatten + one completion shared by every completion-aware
+       decoration; lazy so healthy-code renders with quiver off never
+       pay them */
+    let engine_seg =
+      Lazy.from_fun(() => Zipper.unselect_and_zip(~erase_buffer=true, z));
+    let completion =
+      Lazy.from_fun(() =>
+        CanonicalCompletion.for_editor(Lazy.force(engine_seg))
+      );
+    [
+      CaretDec.view(
+        ~measured=CachedSyntax.measured(syntax),
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Arms.Indicated.term(
+        ~refine_sort=
+          (id, mold_out) =>
+            Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out),
+        ~simple_indication=globals.settings.simple_indication,
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        ~completion,
+        z,
+      ),
+      (
+        expand_selection
+          ? Highlight.selection_expanded(~term_data=syntax.term_data)
+          : Highlight.selection
+      )(
+        ~measured=CachedSyntax.measured(syntax),
+        ~shape_map=syntax.shape_map,
+        ~font_metrics=globals.font_metrics,
+        z,
+      ),
+      Highlight.colors(
+        ~font_metrics=globals.font_metrics,
+        ~syntax,
+        globals.color_highlights,
+      ),
+      VarHighlight.view(
+        ~measured=CachedSyntax.measured(syntax),
+        ~font_metrics=globals.font_metrics,
+        ~info_map,
+        z,
+      ),
+    ]
+    @ (
+      globals.settings.quiver
+        ? [
+          QuiverDec.view(
+            ~flagpole=globals.settings.quiver_flagpole,
+            ~head_padding=
+              CompletionQuery.chip_at_caret(~seg=Lazy.force(engine_seg), z)
+              |> Option.bind(_, (i: CanonicalCompletion.insertion) =>
+                   List.nth_opt(i.delimiters, 0)
+                 )
+              |> Option.bind(_, (d: CanonicalCompletion.delimiter_info) =>
+                   d.typed_len == None
+                     ? Some(CompletionQuery.padding(z, d)) : None
+                 ),
+            ~measured=CachedSyntax.measured(syntax),
+            ~font_metrics=globals.font_metrics,
+            ~caret_pos={
+              let p = Zipper.Caret.point(CachedSyntax.measured(syntax), z);
+              Some((p.row, p.col));
+            },
+            ~caret_form=
+              Some((CaretDec.side_of(z), Zipper.Caret.direction(z))),
+            ~on_apply,
+            ~droppable=
+              z.caret == Outer
+                ? Zipper.missing_shards_hd(z)
+                  |> Option.map((t: Haz3lcore.Tile.t) =>
+                       (t.id, Haz3lcore.Tile.l_shard(t))
+                     )
+                : None,
+            /* the caret's chips — the same query Tab dispatches */
+            ~owned=
+              CompletionQuery.chips_at_caret(~seg=Lazy.force(engine_seg), z),
+            Lazy.force(engine_seg),
+          ),
+        ]
+        /* quiver off: clear stale claims so probes don't stack
+           against phantom boxes (QuiverDec.view resets on entry) */
+        : {
+          RowOffsets.reset();
+          [];
+        }
+    );
+  };
 
   /* Recursive: a splice inside this editor renders as another instance
    * of this same view (see `render_splice` below). */
@@ -572,11 +635,10 @@ module View = {
       | ReadOnly => (_ => Ui_effect.Ignore)
       | Editable({escape, _}) => escape
       };
-    /* Editor-level clipboard helpers. Bypass the page-level
-       on_copy/on_paste path because Firefox refuses to dispatch
-       native clipboard events to non-editable focused elements
-       (the editor div has tabindex(0) but is not contenteditable).
-       Shared by the keyboard shortcuts and the context menu. */
+    /* Editor-level clipboard helpers: Firefox won't dispatch native
+       clipboard events to a focused non-editable element (the editor
+       div has tabindex(0) but is not contenteditable). Shared by the
+       keyboard shortcuts and the context menu. */
     let selection_has_refractors =
         (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
       if (List.is_empty(refractors.manuals)) {
@@ -781,6 +843,8 @@ module View = {
               ~syntax=model.editor.syntax,
               ~info_map=model.statics.info_map,
               ~globals,
+              ~on_apply=
+                Some(id => inject(Perform(ApplyCompletion(One(id))))),
               model.editor.state.zipper,
             )
             @ [
@@ -788,6 +852,7 @@ module View = {
                 ~font_metrics=globals.font_metrics,
                 ~syntax=model.editor.syntax,
                 ~frame,
+                ~completion=Arms.lazy_completion(model.editor.state.zipper),
                 model.editor.state.zipper,
               ),
             ]
@@ -1004,8 +1069,13 @@ module View = {
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors
       @ refractors_model;
+    /* ~frame keeps a splice sub-editor's memo entry apart from the root
+       editor's (their other key parts are the same objects), and limits
+       error and warning arms to the frame that owns them. Without it, the
+       sub-editor of a revealed livelit model, drawn first, left its few
+       rows in the entry the root then drew: the editor went blank. */
     let code_view =
-      CodeWithStatics.View.view(~globals, ~overlays, ~cull, model);
+      CodeWithStatics.View.view(~globals, ~overlays, ~cull, ~frame, model);
 
     let loc = (e: Pointer.Event.t) => {
       let raw =
@@ -1099,9 +1169,22 @@ module View = {
       | {button: Right, ctrl, _} when ctrl != Down =>
         /* Right-click inside the selection keeps it (so the menu's
            Cut/Copy apply to it); outside, move the caret to the click
-           location as a plain click would before opening the menu. */
+           location as a plain click would before opening the menu.
+           Prevent_default also skips the browser's focus-on-press, so
+           focus the editor here: keys after the menu belong to it. */
         Effect.Many(
-          [Effect.Prevent_default]
+          [
+            Effect.Prevent_default,
+            signal(MakeActive),
+            Effect.of_sync_fun(
+              () =>
+                Js.Opt.iter(
+                  mouse.current_target,
+                  Haz3lcore.FocusEffect.focus_no_scroll,
+                ),
+              (),
+            ),
+          ]
           @ (
             click_in_selection(loc(mouse))
               ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
@@ -1277,9 +1360,7 @@ module View = {
           | {key: D("a" | "A"), sys: Mac, meta: Down, ctrl: Up, alt: Up, _}
           | {key: D("a" | "A"), sys: PC, meta: Up, ctrl: Down, alt: Up, _}
               when is_sub => Effect.Prevent_default
-          /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
-             on_copy/on_paste handlers, so they keep working in
-             Firefox when focus is on a non-editable editor div. */
+          /* 2. Cmd/Ctrl + C/X/V, via the clipboard helpers above. */
           | {
               key: D("c" | "C"),
               sys: Mac,
@@ -1325,7 +1406,7 @@ module View = {
               copy_selection(),
               Effect.Prevent_default,
               Effect.Stop_propagation,
-              inject(Perform(Destruct(Right))),
+              inject(Perform(Destruct(Local(Right, ByChar)))),
             ])
           | {
               key: D("v" | "V"),
@@ -1371,6 +1452,12 @@ module View = {
           ["cell-item", "code-editor"]
           @ (selected ? ["selected"] : [])
           @ (is_sub ? ["sub-editor"] : [])
+          @ (
+            switch (edit_mode) {
+            | ReadOnly => ["read-only"]
+            | Editable(_) => []
+            }
+          )
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         /* always focusable so a click gives DOM focus (caret/accent gated on :focus) */

@@ -11,14 +11,13 @@ let default_settings = {
   ...Language.CoreSettings.off,
   statics: true,
   assist: true,
-  deep_reassociate: true,
 };
 
 /* Simulate the web editor's full update+calculate cycle by driving the
    Editor.Update pipeline rather than Perform.go alone. This gives us the
    same TyDi buffer clearing, update, and calculate sequence the web runs
    on each character, which is what exercises CachedSyntax.mk and
-   Dump.to_segment (the paths most likely to hit Tile.reassemble). */
+   materialization (the paths most likely to hit Tile.reassemble). */
 let init_model = (~root, z: Zipper.t): Editor.Model.t =>
   Editor.Model.mk(z, ~root);
 
@@ -253,6 +252,7 @@ let prettyprint_settings: ExpToSegment.Settings.t = {
   show_ascriptions: true,
   show_filters: true,
   show_unknown_as_hole: true,
+  use_literal_lexemes: true,
   hole_tiles: false,
   project_tables: false,
 };
@@ -336,8 +336,7 @@ let test_drv_case_insert_bar_after_complete_case = () => {
   let find_end_id = (seg: Segment.t): option(Id.t) =>
     List.find_map(
       fun
-      | Piece.Tile({label: ["case", "end"], id, _} as _t: Tile.t) =>
-        Some(id)
+      | Piece.Tile({id, _} as t: Tile.t) when Tile.is_case(t) => Some(id)
       | _ => None,
       seg,
     );

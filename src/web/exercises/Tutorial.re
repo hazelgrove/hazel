@@ -49,6 +49,9 @@ type p('code) = {
   task_reference: option(string),
   your_impl: 'code,
   hidden_tests: hidden_tests('code),
+  /* A known-good replacement for your_impl that passes every hidden test;
+     never shown to the student, only checked by Test_Tutorial. */
+  solution: option('code),
   wrapper: bool,
   show_report: bool,
 };
@@ -62,6 +65,15 @@ let id_of = p => {
    lesson "Holes" in the "Basics" folder. Keep every lesson at exactly one
    folder segment, and never let one title be a proper prefix of another. */
 let path_of = (p: p('a)): SlidePath.t => SlidePath.of_string(p.title);
+
+/* The probes tutorial's folder. Its lessons teach reading values through
+   probes, so their editor shows no result row (TutorialMode) and their Task
+   Reference panel carries the probe strip. Named here rather than in the
+   probe modules because the view layer cannot reach those: ProbeSidebar
+   depends on Editors, which depends on TutorialMode. */
+let probes_folder = "Probes";
+let is_probes_lesson = (p: p('a)): bool =>
+  SlidePath.folders(path_of(p)) == [probes_folder];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
@@ -88,6 +100,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
       tests: f_hidden(p.hidden_tests.tests),
       hints: p.hidden_tests.hints,
     },
+    solution: Option.map(f, p.solution),
     wrapper: p.wrapper,
     show_report: p.show_report,
   };
@@ -130,6 +143,30 @@ let editor_positions = [YourImpl, HiddenTests];
 
 let positioned_editors = state =>
   List.combine(editor_positions, editors(state));
+
+/* Fast-first: FastParse with pin collection; the fallback inside
+   from_backup_text logs itself (SLOW PARSE ...). */
+let zipper_of_code = code =>
+  PersistentZipper.from_backup_text(code, ~root=Exp);
+
+/* Counterpart to [export_transitionary_module] below: rebuild a spec from
+ * a transitionary (string-based) module at load time. */
+let transition: transitionary_spec => spec =
+  p => map(p, zipper_of_code, zipper_of_code);
+
+/* Persistent counterpart of [spec] (see CodeExercise.persistent_spec):
+ * serialized zippers with plaintext fallback; the shipped format for
+ * example modules. */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_spec = p(PersistentZipper.t);
+
+let of_persistent: persistent_spec => spec =
+  p =>
+    map(
+      p,
+      PersistentZipper.unpersist(~root=Exp),
+      PersistentZipper.unpersist(~root=Exp),
+    );
 
 let is_editable = (pos, ~instructor_mode) => {
   switch (pos) {
@@ -221,6 +258,8 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | DeferredAp(_)
   | If(_)
   | Test(_)
+  | Quote(_)
+  | Unquote(_)
   | HintedTest(_)
   | Parens(_)
   | Projector(_)
@@ -258,6 +297,13 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
+      annotation:
+        Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
+    };
+  | Bind(p, edef, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Bind(p, edef, ebody'),
       annotation:
         Language.IdTagged.IdTag.mk_internal(Language.IdTagged.ids(e1)),
     };
@@ -394,5 +440,6 @@ let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
       tests: hidden_tests_tests,
       hints: spec.hidden_tests.hints,
     },
+    solution: spec.solution,
   };
 };

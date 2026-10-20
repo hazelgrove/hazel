@@ -1,0 +1,44 @@
+# Hygiene 3: Generated Binders #
+
+# Names the author picks can collide. #
+
+# Dynamic Row or Column builds its expansion, a function with one #
+# parameter per cell. Here is the same idea for two splices, built by #
+# a helper, gen, that adds one binder per splice and collects the #
+# variables into a list: #
+#   fun _ -> fun _ -> [first, second] #
+# With Lambda the author names each binder, and this helper names #
+# them all x: fun x -> fun x -> [x, x]. The second x captures the #
+# first, and the use means [2, 2] where [1, 2] was meant. #
+# Lambda and Ident are the unhygienic escape hatch. Dynamic Row or #
+# Column binds with Abs instead (slide 4). #
+
+let ^two = {
+  type Model = (a = SpliceRef, b = SpliceRef);
+  type Action = Int;
+  type Expansion = [Int];
+  let init =
+    do a <- new_splice((IntT, Some(IntLit(1)))) in
+    do b <- new_splice((IntT, Some(IntLit(2)))) in
+    Pure((a = a, b = b));
+  let update = fun m : Model -> fun _a : Action -> Pure(m);
+  let view = fun m : Model ->
+    do a <- editor((m.a, FixedWidth(4))) in
+    do b <- editor((m.b, FixedWidth(4))) in
+    Pure(Html.div([], [Html.text("["), a, Html.text(", "), b, Html.text("]")]));
+  let list_of = fun vars : [Exp] ->
+    case vars
+    | [] => quote [] end
+    | v :: rest => quote unquote v end :: unquote list_of(rest) end end
+    end;
+  let gen = fun vars : [Exp] -> fun i : Int ->
+    if i == 2 then list_of(vars)
+    else Lambda(("x", gen(vars @ [Ident("x")])(i + 1)));
+  let expand = Macro(fun m : Model -> (gen([])(0), [m.a, m.b]));
+  let shape = Inline(16)
+} in
+
+let named = ^^livelit(^two((a = (1), b = (2)))) in
+
+# The use means [2, 2], where [1, 2] was meant. #
+named

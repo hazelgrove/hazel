@@ -68,6 +68,7 @@ let expands_in_typ = (word: string): bool => {
 let reserved = [
   "case",
   "debug",
+  "do",
   "eval",
   "fix",
   "forall",
@@ -121,15 +122,7 @@ let typ_reserved = ["rec", "poly"];
 let typ_usable = ["val", "valid", "consistent"];
 
 /* Near-miss words that must stay usable, so the warning doesn't overreach. */
-let usable = [
-  "of",
-  "match",
-  "switch",
-  "do",
-  "filter",
-  "evaluate",
-  "run_tests",
-];
+let usable = ["of", "match", "switch", "filter", "evaluate", "run_tests"];
 
 let check_reserved = () =>
   List.iter(

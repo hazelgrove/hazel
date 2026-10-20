@@ -64,6 +64,8 @@ module Utils = {
     | Fun(_, e, _, _)
     | UnOp(_, e)
     | Test(e)
+    | Quote(e)
+    | Unquote(e)
     | Parens(e)
     | Splice(e)
     | Filter(_, e)
@@ -76,6 +78,7 @@ module Utils = {
     | DeferredAp(e, _)
     | HintedTest(e, _) => [e]
     | Let(_, e1, e2)
+    | Bind(_, e1, e2)
     | Seq(e1, e2)
     | Ap(_, e1, e2)
     | Dot(e1, e2)
@@ -603,8 +606,11 @@ let gather_top_level = (node_map: t): list(Id.t) => {
      });
 };
 
+/* Paths are slash-delimited ("M/helper"); a dotted form ("M.helper", the
+   language's own member-access syntax, which a model reaches for first) is
+   accepted as the same path. Identifiers cannot contain either character. */
 let split_path = (path: string): list(string) => {
-  String.split_on_char('/', path);
+  String.split_on_char('/', String.map(c => c == '.' ? '/' : c, path));
 };
 
 let id_path_to_name_path = (id_path: list(Id.t), node_map: t): list(string) => {

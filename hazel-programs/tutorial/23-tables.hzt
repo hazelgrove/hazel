@@ -9,8 +9,8 @@ In Hazel, **tables** are represented as lists of labeled tuples. Each element of
 
 ```hazel
 let fruits = [
-(fruit="Apple", color="Red", qty=5),
-(fruit="Banana", color="Yellow", qty=3)
+  (fruit="Apple", color="Red", qty=5),
+  (fruit="Banana", color="Yellow", qty=3)
 ] in
 fruits
 ```
@@ -21,9 +21,9 @@ To help with tabular programming, Hazel provides a table **projector** that show
 
 ```hazel
 let leaderboard = ^^table([
-(level="forest", player="Aria", score=1200),
-(level="desert", player="Ben", score=900),
-(level="forest", player="Cleo", score=1500)
+  (level="forest", player="Aria", score=1200),
+  (level="desert", player="Ben", score=900),
+  (level="forest", player="Cleo", score=1500)
 ]) in
 leaderboard.player
 ```
@@ -36,8 +36,8 @@ Hazel can also show tables in evaluation output. Turn on **Tables** in the setti
 
 ```hazel
 let leaderboard = ^^table([
-(level="forest", player="Aria", score=1200),
-(level="desert", player="Ben", score=900)
+  (level="forest", player="Aria", score=1200),
+  (level="desert", player="Ben", score=900)
 ]) in
 leaderboard
 |> map(_, fun r -> r ... (player=r.player ++ " (Hero)"))
@@ -59,8 +59,8 @@ Write a list of two labeled tuples, then right-click the list and select "Add Ta
 A table is a list of labeled tuples — one tuple per row, one label per column:
 ```hazel
 [
-(name="A", score=90),
-(name="B", score=80)
+  (name="A", score=90),
+  (name="B", score=80)
 ]
 ```
 

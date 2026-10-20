@@ -12,6 +12,7 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
 let documentation_slides: list((string, PersistentZipper.t)) =
   Docslides.Slides.all_slides
   @ Livelitdemos.Slides.all_slides
+  @ Livelitdemos.Slides.playground_slides
   @ Mvu.Slides.all_slides
   @ B2t2.Slides.all_slides;
 

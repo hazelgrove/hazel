@@ -799,7 +799,7 @@ let sig_project_value =
    when manifest, its replacement (see abstract_replacement) when abstract. */
 /* As sig_project_value: value members are never read when extending sigma,
    so reading one TYPE member does not need the others substituted into. */
-let sig_project_type_member =
+let sig_project_type_member_uncached =
     (~self=?, ~keep_local=_ => false, items: list(Sig.t), name: Var.t)
     : option((Sig.member, t)) => {
   let (_, found) =
@@ -827,10 +827,53 @@ let sig_project_type_member =
   found;
 };
 
+/* The answer depends only on the items, self and the name, and the same
+   signature (Html's, the Livelit signature's) is projected from over and over:
+   on the Dynamic Row or Column slide this was ~20% of statics, most of it
+   re-substituting every manifest member for each projection. So the last few
+   answers are kept, keyed on the items physically -- a list that is the same
+   object is the same signature -- and on self by structure. keep_local is a closure and cannot
+   be compared, so a call that passes one is not cached. */
+let sig_project_type_member_cache:
+  ref(list((list(Sig.t), option(t), Var.t, option((Sig.member, t))))) =
+  ref([]);
+
+let sig_project_type_member =
+    (~self: option(t)=?, ~keep_local=?, items: list(Sig.t), name: Var.t)
+    : option((Sig.member, t)) =>
+  switch (keep_local) {
+  | Some(keep_local) =>
+    sig_project_type_member_uncached(~self?, ~keep_local, items, name)
+  | None =>
+    let same_self = (s: option(t)) =>
+      switch (s, self) {
+      | (None, None) => true
+      /* self is rebuilt on every call (path_sig makes `Var(n)` afresh),
+         so it is compared by structure; it is a short path. */
+      | (Some(a), Some(b)) => a === b || Equality.semantic.typ(a, b)
+      | _ => false
+      };
+    switch (
+      List.find_opt(
+        ((its, s, n, _)) => its === items && n == name && same_self(s),
+        sig_project_type_member_cache^,
+      )
+    ) {
+    | Some((_, _, _, found)) => found
+    | None =>
+      let found = sig_project_type_member_uncached(~self?, items, name);
+      sig_project_type_member_cache :=
+        [
+          (items, self, name, found),
+          ...ListUtil.take(15, sig_project_type_member_cache^),
+        ];
+      found;
+    };
+  };
+
 let sig_project_type =
-    (~self=?, ~keep_local=_ => false, items: list(Sig.t), name: Var.t)
-    : option(t) =>
-  sig_project_type_member(~self?, ~keep_local, items, name)
+    (~self=?, ~keep_local=?, items: list(Sig.t), name: Var.t): option(t) =>
+  sig_project_type_member(~self?, ~keep_local?, items, name)
   |> Option.map(snd);
 
 /* An abstract type member projected out of a module path, `M.T`, does not
@@ -845,6 +888,18 @@ let is_stuck_path_term = (ty: t): bool =>
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
 let fast_equal = Equality.semantic.typ;
+/* fast_equal, with Equality's hash shortcut: for near-copies. */
+let fast_equal_hashed =
+  Equality.(equality(~hash_shortcut=true, semantic_settings)).typ;
+/* fast_equal, but an unknown's provenance counts: for shortcuts in meet,
+   which must merge provenances rather than drop one. Alpha-equal types
+   that are equal under this meet to themselves, exactly. */
+let exact_equal =
+  Equality.equality({
+    ...Equality.semantic_settings,
+    ignore_unknown_provenance: false,
+  }).
+    typ;
 let equal = (t1: t, t2: t): bool => Equality.syntactic.typ(t1, t2);
 
 let project_type = (tys: list(t), label: string): option(t) =>
@@ -1385,6 +1440,15 @@ and meet_body = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty_meet = meet'(ty_name, ty1);
     equal(ty_name, ty_meet) ? ty2 : ty_meet;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
+  /* The same path, in the one context both are read in, is the same type,
+     and a type meets itself in itself. Normalizing first costs dearly for a
+     builtin path: Html.T expands to a sum of 100+ recursive variants, and
+     every ViewCmd type carries it (Editor's continuation), so each check
+     against a ViewCmd met two full copies. Measured: three quarters of
+     statics on the livelit slides was here. fast_equal has no false
+     positives, so this can only skip work, never change an answer. */
+  | (ProdProjection(_), ProdProjection(_)) when exact_equal(ty1, ty2) =>
+    Some(ty1)
   | (ProdProjection(_), _)
   | (_, ProdProjection(_)) =>
     /* A projection reduces to its member's type, or is stuck on an abstract
@@ -1407,10 +1471,20 @@ and meet_body = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     };
   | (ProdExtension(_), _) => meet'(weak_head_normalize(ctx, ty1), ty2)
   | (_, ProdExtension(_)) => meet'(ty1, weak_head_normalize(ctx, ty2))
+  /* Two copies of one recursive type -- the builtin HTML type, from a path
+     normalized on one side and a builtin's result on the other, met 200
+     times checking one slide -- meet to themselves. One equality pass,
+     with no normalizing and no allocation, instead of a meet that expands
+     every variant's paths. */
+  | (Rec(_), Rec(_)) when exact_equal(ty1, ty2) => Some(ty1)
   | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(tp2)) {
+      /* Same binder name: the substitution is the identity, and skipping
+         it keeps the body's shared subterms shared, so the meet below can
+         pass over them by identity (see BuiltinsADT.view_cmd_arms). */
+      | Some(x2) when TPat.tyvar_of_utpat(tp1) == Some(x2) => ty1
       | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
       | None => ty1
       };
@@ -1567,6 +1641,16 @@ let rec coercion = (ctx: Ctx.t, ~from: t, ~to_: t): option(t) =>
     | (_, TupLabel({term: ExplicitNonlabel, _}, t)) =>
       coercion(ctx, ~from, ~to_=t)
     | (Sig(f), Sig(t)) => sig_sub(ctx, ~from=f, ~to_=t) ? Some(to_) : None
+    /* forall a. F coerces to forall b. T when F does to T, b renamed to
+       a, with a in scope as an abstract type. */
+    | (Poly(pf, f), Poly(pt, t)) =>
+      switch (TPat.tyvar_of_utpat(pf), TPat.tyvar_of_utpat(pt)) {
+      | (Some(a), Some(_)) =>
+        let t = subst(Var(a) |> temp, pt, t);
+        let+ r = coercion(Ctx.extend_dummy_tvar(ctx, pf), ~from=f, ~to_=t);
+        Poly(pf, r) |> temp;
+      | _ => None
+      }
     | (Prod(fs), Prod(ts)) when List.length(fs) == List.length(ts) =>
       let+ tys =
         List.map2((f, t) => coercion(ctx, ~from=f, ~to_=t), fs, ts)

@@ -1,0 +1,19 @@
+# Expansion Type Errors, Functional 1: The Result #
+
+# A Functional expand is an ordinary function, Model -> Expansion, #
+# checked where it is written. Here Expansion = String, but expand #
+# returns m + 1, an Int. The error is on the body, m + 1, in the #
+# definition: Expecting type String but got inconsistent type Int. #
+# The use below is not marked; the definition is at fault. #
+
+let ^count = {
+  type Model = Int;
+  type Action = Int;
+  type Expansion = String;
+  let init = Pure(0);
+  let update = fun m : Model -> fun a : Action -> Pure(m + a);
+  let view = fun m : Model -> Pure(Html.text(string_of_int(m)));
+  let expand = Functional(fun m : Model -> m + 1);
+  let shape = Inline(4)
+} in
+^^livelit(^count(3))

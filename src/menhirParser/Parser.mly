@@ -25,6 +25,8 @@ open AST
 %token TYP_AP_SYMBOL
 %token CONS
 %token TEST
+%token QUOTE
+%token UNQUOTE
 %token HINT
 %token PAUSE
 %token DEBUG
@@ -39,6 +41,7 @@ open AST
 %token <Bigint.t> INT
 %token <float> FLOAT
 %token LET
+%token DO
 %token USE
 %token MODULE
 %token FUN
@@ -52,6 +55,7 @@ open AST
 %token OPEN_CURLY
 %token CLOSE_CURLY
 %token DASH_ARROW
+%token LEFT_ARROW
 %token EQUAL_ARROW
 %token SINGLE_EQUAL
 %token TURNSTILE
@@ -304,6 +308,14 @@ nonAscriptingPat:
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
+    (* Base-type keywords are ordinary constructors in pat position too
+       (JSON's Int/Float/Bool/String cases) — MakeTerm parity. *)
+    | INT_TYPE { ConstructorPat("Int", None) }
+    | SINT_TYPE { ConstructorPat("SInt", None) }
+    | NAT_TYPE { ConstructorPat("Nat", None) }
+    | FLOAT_TYPE { ConstructorPat("Float", None) }
+    | BOOL_TYPE { ConstructorPat("Bool", None) }
+    | STRING_TYPE { ConstructorPat("String", None) }
     | p = IDENT { VarPat(p) }
     | l = LIVELIT_IDENT { VarPat(l) }
     | i = INT { AtomPat (Int i) }
@@ -323,6 +335,10 @@ nonAscriptingPat:
 funAscElem:
     | p = funConsPat; { p }
     | p = funConsPat; COLON; t = ascTyp; { AscPat(p, t) }
+    (* Ascribed unit parameter: fun () : T -> e. UNIT lives at the funPat
+       level (not nonAscriptingPat), so without this the ascribed form is
+       a parse error the editor parser accepts. *)
+    | UNIT; COLON; t = ascTyp; { AscPat(TuplePat([]), t) }
     (* Labeled parameter: fun label=l, value=v -> ... *)
     | l = label; SINGLE_EQUAL; p = funAscElem; { TupLabelPat(LabelPat(l), p) }
 
@@ -465,6 +481,7 @@ exp:
     | f = exp; UNIT { ApExp(f, TupleExp([])) }
     | f = exp; OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { ApExp(f, TupleExp([TupLabel(Label(l), e)])) }
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
+    | DO; i = pat; LEFT_ARROW; e1 = exp; IN; e2 = exp { Bind (i, e1, e2) } %prec LET_EXP
     | USE; t = typ; IN; e = exp { Use(t, e) } %prec LET_EXP
     (* Bare tuples at a let: `let a, b = e in` / `let x = e1, e2 in` *)
     | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (TuplePat(p1 :: ps), e1, e2) } %prec LET_EXP
@@ -483,6 +500,8 @@ exp:
     | QUESTION { EmptyHole }
     | a = filterAction; cond = exp; IN; body = exp { Filter(a, cond, body)} %prec LET_EXP
     | TEST; e = exp; END { Test(e) }
+    | QUOTE; e = exp; END { Quote(e) }
+    | UNQUOTE; e = exp; END { Unquote(e) }
     | HINT; h = STRING; TEST; e = exp; END { HintedTest(e, Atom(Language.Atom.String(h))) }
     | e1 = exp; AT_SYMBOL; e2 = exp { ListConcat(e1, e2) }
     | e1 = exp; CONS; e2 = exp { Cons(e1, e2) }

@@ -1,0 +1,85 @@
+# Lockable Cell #
+
+# Unlocked, the cell means its code's value. Locked, it keeps the #
+# value from when it was locked, and its code does not run. #
+type Cell = + Frozen(Int, SpliceRef) + Live(SpliceRef) in
+
+type Reading = + Locked(Int) + Unlocked(Int) in
+
+let ^lockable = {
+  type Model = Cell;
+
+  # update cannot read a splice, so the click carries the value the #
+  # view read. #
+  type Action = + Lock(Int) + Unlock;
+
+  type Expansion = Reading;
+
+  let init =
+    do r <- new_splice((IntT, Some(IntLit(0)))) in
+    Pure(Live(r));
+
+  let update = fun m : Model -> fun a : Action -> Pure(
+    case (m, a)
+    | (Live(r), Lock(n)) => Frozen(n, r)
+    | (Frozen(_, r), Unlock) => Live(r)
+    | _ => m
+    end);
+
+  let row = fun items ->
+    Html.div(
+      [Attr.style([("display", "flex"), ("gap", "0.4em"),
+                   ("align-items", "center"),
+                   ("font-family", "var(--code-font)"),
+                   ("font-size", "0.8em")])],
+      items);
+
+  let lock = fun (glyph, act) : (String, Action) ->
+    Html.button([Attr.on_click(act)], [Html.text(glyph)]);
+
+  let view = fun m : Model ->
+    case m
+    | Frozen(n, _) => Pure(row([Html.text(string_of_int(n)), lock(("🔒", Unlock))]))
+    | Live(r) =>
+      do v <- eval_splice(r) in
+      Pure(
+        row(
+          [Html.splice(r),
+           case v
+           | Some(Val(n)) => lock(("🔓", Lock(n)))
+           | _ =>
+             Html.span(
+               [Attr.style([("opacity", "0.4")])],
+               [Html.text("🔓")])
+           end]))
+    end;
+
+  # Locked, the splice list is empty, so the code does not run: a #
+  # Functional expansion could say this. Unlocked needs a Macro. Were #
+  # expand a function of the model, it could choose per state. Quoted #
+  # code sees only builtins, so it declares the sum it builds. #
+  let expand = Macro(fun m : Model ->
+    case m
+    | Frozen(n, _) =>
+      (quote
+         type R = + Locked(Int) + Unlocked(Int) in
+         Locked(unquote IntLit(n) end)
+       end,
+       [])
+    | Live(r) =>
+      (quote
+         type R = + Locked(Int) + Unlocked(Int) in
+         fun x -> Unlocked(x)
+       end,
+       [r])
+    end);
+
+  let shape = Inline(12)
+} in
+
+let ^^probe(cell) = ^^livelit(^lockable(Live(((2 + 3) : Int)))) in
+
+cell
+
+# Try: lock, and the probe reads Locked(5). Unlock, change the #
+# code, and lock again. #

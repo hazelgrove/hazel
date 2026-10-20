@@ -81,11 +81,13 @@ type project =
   | RemoveIndicated /* Remove projector at caret */
   | SetSyntax(int, ProjectorCore.Kind.t, Base.segment) /* Set underlying syntax */
   | SetTerm(int, Language.Any.t, bool) /* Set underlying term, optionally preserving original splices */
+  | Unproject(int, Base.segment) /* Replace a projector with this segment, by index: a livelit turned back into code */
   | SetModel(int, ProjectorCore.Kind.t, string) /* Set serialized model (projector or refractor) */
   | SetModelQuiet(int, ProjectorCore.Kind.t, string) /* SetModel minus undo entry: for streaming
    * drag ticks (e.g. HTML projector resize). The first tick of a gesture
    * should be a normal SetModel so undo restores the pre-gesture state. */
   | TogglePlacement /* Dock/undock the indicated projector to/from the sidebar */
+  | ToggleSyntax(int) /* Show/hide a projector's own syntax, editable, below its UI */
   | Focus(int, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(int, Direction.t) /* Pass control to parent editor */
   | EscapeToLineEnd(int, ProjectorCore.Kind.t); /* Pass control to parent editor, move to end of line */
@@ -146,6 +148,35 @@ type probe =
   | RemoveAll;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type destruct =
+  | Local(Direction.t, chunkiness)
+  | Line(Direction.t);
+
+/* Shift+Backspace acts as dedent only at a line's leading-whitespace
+   boundary, falling through to plain backspace elsewhere (a held
+   shift during ordinary corrections must not dedent); Cmd+[/] are
+   position-independent. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type indent_gate =
+  | Always
+  | AtBoundary;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type format =
+  | Indent
+  /* re-indent + canonicalize within-line spacing */
+  | Spacing
+  | Pretty
+  /* the cmd+S binding: resolved by CoreSettings.format_shortcut */
+  | Preferred;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type apply_target =
+  | All
+  | One(Id.t)
+  | Next;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -156,13 +187,17 @@ type t =
   | Move(move)
   | Select(select)
   | Unselect(option(Direction.t))
-  | Destruct(Direction.t)
+  | Destruct(destruct)
   | Insert(string)
   | Put_down
+  /* Materialize canonical-completion insertions into the buffer:
+     one obligation (a tile's missing shards) or all of them */
+  | ApplyCompletion(apply_target)
   | Introduce
   | Probe(probe)
-  | PrettyPrint
-  | Dump
+  | Format(format)
+  /* indent/dedent the caret's line (or all selected lines) one level */
+  | AdjustIndent(Direction.t, indent_gate)
   | ToggleLineComment
   | Structural(Structural.t);
 
@@ -198,11 +233,12 @@ let is_edit: t => bool =
   | Insert(_)
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Introduce
-  | PrettyPrint
   | Buffer(Accept | Clear | Set(_))
+  | Format(_)
+  | AdjustIndent(_, _)
   | Structural(_)
-  | Dump
   | ToggleLineComment => true
   | Copy
   | Move(_)
@@ -213,9 +249,11 @@ let is_edit: t => bool =
     | SetModel(_)
     | SetModelQuiet(_)
     | SetSyntax(_)
+    | Unproject(_)
     | SetTerm(_)
     | SetIndicated(_)
     | TogglePlacement
+    | ToggleSyntax(_)
     | RemoveIndicated => true
     | Focus(_)
     | SampleFocus(_)
@@ -261,18 +299,21 @@ let is_historic: t => bool =
   | Insert(_)
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Introduce
-  | PrettyPrint
+  | Format(_)
+  | AdjustIndent(_, _)
   | Structural(_)
-  | Dump
   | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
+    | Unproject(_)
     | SetTerm(_)
     | SetModel(_)
     | SetIndicated(_)
     | TogglePlacement
+    | ToggleSyntax(_)
     | RemoveIndicated => true
     | SetModelQuiet(_)
     | Focus(_)
@@ -303,21 +344,24 @@ let should_animate: t => bool =
   | Introduce
   | Destruct(_)
   | Put_down
+  | ApplyCompletion(_)
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
   | Structural(_)
   | Probe(_)
-  | PrettyPrint
-  | Dump
+  | Format(_)
+  | AdjustIndent(_, _)
   | ToggleLineComment => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
+    | Unproject(_)
     | SetTerm(_)
     | SetModel(_)
     | SetIndicated(_)
     | TogglePlacement
+    | ToggleSyntax(_)
     | RemoveIndicated
     | Focus(_)
     | SampleFocus(_)
