@@ -43,6 +43,54 @@ let line = (name, z: option(Zipper.t)) =>
     );
   };
 
+let show_term = (src: string): string =>
+  switch (
+    FastParse.of_text(
+      ~materialize=Triggers.invoked_projector,
+      ~collect_refractors=true,
+      ~root=Exp,
+      src,
+    )
+  ) {
+  | None => src ++ " => no parse"
+  | Some(seg) =>
+    let t = MakeTerm.go(seg).term;
+    let s =
+      Exp.show(t)
+      |> Str.global_replace(Str.regexp("annotation = {[^}]*}"), "")
+      |> Str.global_replace(Str.regexp("[ \n]+"), " ");
+    src ++ " => " ++ String.sub(s, 0, min(400, String.length(s)));
+  };
+
+let reprint = (src: string): string =>
+  switch (Parser.to_term(src, ~root=Exp)) {
+  | None => src ++ " => no term"
+  | Some(e) =>
+    src
+    ++ " => reprinted as: "
+    ++ Printer.of_segment(
+         ~holes="?",
+         ProjectorPerform.term_to_segment(
+           ~original_syntax=[],
+           ~preserve_splices=false,
+           Exp(e),
+         ),
+       )
+  };
+
+let respaced = (text: string): string => {
+  let swap = (a, b, s) => Str.global_replace(Str.regexp_string(a), b, s);
+  text
+  |> swap("Drawing.^choice@<Scene>(", "Drawing. ^choice @< Scene > (")
+  |> swap(
+       "Drawing.^slider(\"figure size\"",
+       "Drawing. ^slider(\"figure size\"",
+     )
+  |> swap(
+       "Drawing.^slider(\"across\", -300, 300)",
+       "Drawing. ^slider(\"across\", - 300, 300)",
+     );
+};
 let tests = (
   "Diag472",
   [
@@ -56,6 +104,20 @@ let tests = (
           String.concat(
             "\n",
             [
+              show_term("Drawing.^choice"),
+              show_term("Drawing. ^choice"),
+              show_term("Drawing.^choice@<Int>(1)(2)"),
+              show_term("Drawing. ^choice @< Int > (1)(2)"),
+              reprint("Drawing.^slider(\"across\", -300, 300)(-115)"),
+              reprint("Drawing.^choice@<Int>([(\"a\", 1)])(1)"),
+              line(
+                "scenes as the saved copy spells three uses (the load path)",
+                PersistentZipper.parse_text(
+                  ~source="probe",
+                  ~root=Exp,
+                  respaced(text),
+                ),
+              ),
               line(
                 "scenes, load path (FastParse first)",
                 PersistentZipper.parse_text(~source="probe", ~root=Exp, text),
