@@ -272,9 +272,9 @@ let view =
     List.map(p => Measured.Whole(p), segment),
   );
 
-/* one inline span per measured chunk, memoized by anchor: an unchanged
-   chunk returns the same vdom node, so the diff skips it by reference
-   (inline spans in pre flow render exactly like the flat text).
+/* one block per measured chunk (editor.css), memoized by anchor: an
+   unchanged chunk returns the same vdom node, so the diff skips it by
+   reference (a chunk is whole lines, so the blocks render like the text).
    term_data and info_map are rebuilt every pass, so tiles compare by the
    sorts of_delim reads; c_flat identity covers the chunk's tokens (a split
    tile's shards by its shell, all of_delim reads of it) and projector/
