@@ -76,6 +76,7 @@ let (suite, exit_with_test_status) =
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
       Test_ModRoot.tests,
+      Test_LevelSkels.tests,
       Test_ProbePersist.tests,
       Test_DividedLaws.tests,
       Test_HeadlessRows.tests,

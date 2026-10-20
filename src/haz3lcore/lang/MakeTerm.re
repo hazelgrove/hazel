@@ -2479,6 +2479,8 @@ module Incr = {
     f_seps: list(Id.t),
     /* a module literal: its brace, and its member level per member */
     f_kids: option((Id.t, list((Id.t, entry_full)))),
+    /* a module literal: its member level's pieces and skel */
+    f_skel: option((Segment.t, Skel.t)),
   };
 
   /* what a level's union loses and gains: entries, each by its own
@@ -2513,8 +2515,13 @@ module Incr = {
           Id.Map.t(Base.projector),
         ),
       ),
+    /* the last build's top level: its sort, pieces and skel */
+    mutable c_skel: option((Sort.t, Segment.t, Skel.t)),
   };
-  let mk_cache = (): cache => {c_prev: None};
+  let mk_cache = (): cache => {
+    c_prev: None,
+    c_skel: None,
+  };
 
   /* go_incr: go's full record composed per item. per-item parses differ
      from go only in the frames of the levels cut into items, which
@@ -2532,11 +2539,93 @@ module Incr = {
       grouts,
     );
 
+  /* level skels built, and kept from the last parse: observability for
+     tests */
+  let skels_built = ref(0);
+  let skels_kept = ref(0);
+
+  /* two pieces Skel.mk reads alike: it reads a piece's shapes and how it
+     chains (Skel.is_chainable), which a tile's form, sort and shards fix.
+     A convex token chains with nothing (no compound form, not infix), so
+     its shapes are all it reads */
+  let alike = (p: Piece.t, q: Piece.t): bool => {
+    let operand = (t: Tile.t) =>
+      switch (t.form) {
+      | Tok(_) => Tile.shapes(t) == (Convex, Convex)
+      | _ => false
+      };
+    p === q
+    || (
+      switch (p, q) {
+      | (Grout(g), Grout(h)) => g.shape == h.shape
+      | (Projector(_), Projector(_)) => true
+      | (Tile(s), Tile(t)) =>
+        s.shards == t.shards
+        && (s.form == t.form && s.sort == t.sort || operand(s) && operand(t))
+      | _ => false
+      }
+    );
+  };
+
+  /* Segment.skel(~sort, seg), kept from [prev] (pieces and the skel
+     built from them at [sort]) when the pieces read alike in order,
+     secondaries aside: Skel.mk only passes indices through, so the skel
+     is prev's with each index moved to its piece's place */
+  let reskel =
+      (~sort: Sort.t, ~prev: option((Segment.t, Skel.t)), seg: Segment.t)
+      : Skel.t => {
+    let paired =
+      switch (prev) {
+      | Some((ps, sk)) when ps === seg => Some(sk)
+      | Some((ps, sk)) =>
+        /* at[i]: where old piece i is now */
+        let at = Array.make(List.length(ps), 0);
+        let rec pair = (i, j, ps: Segment.t, qs: Segment.t, moved) =>
+          switch (ps, qs) {
+          | ([p, ...ps], _) when Piece.is_secondary(p) =>
+            pair(i + 1, j, ps, qs, moved)
+          | (_, [q, ...qs]) when Piece.is_secondary(q) =>
+            pair(i, j + 1, ps, qs, moved)
+          | ([p, ...ps], [q, ...qs]) when alike(p, q) =>
+            at[i] = j;
+            pair(i + 1, j + 1, ps, qs, moved || i != j);
+          | ([], []) => Some(moved)
+          | _ => None
+          };
+        let rec move = (sk: Skel.t): Skel.t => {
+          let root = ((is, ks): Skel.root) => (
+            List.map(i => at[i], is),
+            List.map(move, ks),
+          );
+          switch (sk) {
+          | Op(r) => Op(root(r))
+          | Pre(r, k) => Pre(root(r), move(k))
+          | Post(k, r) => Post(move(k), root(r))
+          | Bin(l, r, k) => Bin(move(l), root(r), move(k))
+          };
+        };
+        switch (pair(0, 0, ps, seg, false)) {
+        | Some(false) => Some(sk)
+        | Some(true) => Some(move(sk))
+        | None => None
+        };
+      | None => None
+      };
+    switch (paired) {
+    | Some(sk) =>
+      incr(skels_kept);
+      sk;
+    | None =>
+      incr(skels_built);
+      Segment.skel(~sort, seg);
+    };
+  };
+
   /* replays [unsorted]'s sort propagation over a level's skel, recording
      TermData with the WHOLE level as base_seg (tile children are separate
      frames, so only this one differs from go) */
   let record_top_frame =
-      (~root: Sort.t=Exp, ~skel=?, td0: TermData.t, seg: Segment.t)
+      (~root: Sort.t=Exp, ~skel: Skel.t, td0: TermData.t, seg: Segment.t)
       : TermData.t => {
     let td = ref(td0);
     let arr = Array.of_list(seg);
@@ -2577,13 +2666,7 @@ module Incr = {
         sim(r_sort, r);
       };
     };
-    sim(
-      root,
-      switch (skel) {
-      | Some(skel) => skel
-      | None => Segment.skel(~sort=root == Sort.Mod ? Mod : Exp, seg)
-      },
-    );
+    sim(root, skel);
     td^;
   };
 
@@ -2637,9 +2720,13 @@ module Incr = {
     | Node(list(Piece.t), list(seps));
 
   let compose_members =
-      (~masks, ml: ItemSpans.level, kids: list((Id.t, entry_full)))
-      : (Any.t, Skel.t, TermMap.t) => {
-    let skel = Segment.skel(~sort=Mod, ml.seg);
+      (
+        ~masks,
+        ~skel: Skel.t,
+        ml: ItemSpans.level,
+        kids: list((Id.t, entry_full)),
+      )
+      : (Any.t, TermMap.t) => {
     let items = List.concat_map(((_, e)) => e.f_mods, kids);
     let ends = List.concat_map(((_, e)) => e.f_seps, kids);
     let is_sep = (p: Piece.t) =>
@@ -2718,10 +2805,10 @@ module Incr = {
         Mod(m);
       };
       switch (t) {
-      | Leaf(_) => (kid(Mod, t), skel, below^)
+      | Leaf(_) => (kid(Mod, t), below^)
       | Node(ps, ks) =>
         let top = node(~is_below=false, ps, ks);
-        (top, skel, below^);
+        (top, below^);
       };
     } else if (ml.cut) {
       /* the module adopts what it adopts read whole, so extents stay as
@@ -2742,10 +2829,9 @@ module Incr = {
         );
       switch (items) {
       | [] => raise(Recompose)
-      | [m] when ends == [] => (Mod(m), skel, TermMap.empty)
+      | [m] when ends == [] => (Mod(m), TermMap.empty)
       | _ => (
           flat(root_ids),
-          skel,
           List.fold_left(
             (map, id) =>
               List.mem(id, root_ids)
@@ -2953,6 +3039,13 @@ module Incr = {
       | None => None
       | Some((brace, ml)) =>
         let pk = kids_of(prev, brace);
+        /* the member level's last skel: this item's, else shared's */
+        let prev_skel =
+          switch (prev, shared) {
+          | (Some({f_skel: Some(l), _}), _)
+          | (_, Some({f_skel: Some(l), _})) => Some(l)
+          | _ => None
+          };
         switch (
           {
             let (kids, kd) =
@@ -2965,13 +3058,22 @@ module Incr = {
                 ~shared=Option.value(kids_of(shared, brace), ~default=[]),
                 ml,
               );
-            let (term, skel, level_map) = compose_members(~masks, ml, kids);
+            let skel = reskel(~sort=Mod, ~prev=prev_skel, ml.seg);
+            let (term, level_map) = compose_members(~masks, ~skel, ml, kids);
             let plist =
               List.concat_map(((_, e)) => e.f_plist, List.rev(kids));
             let frame =
               record_top_frame(~root=Mod, ~skel, Id.Map.empty, ml.seg)
               |> refix(List.concat_map(((_, e)) => e.f_adopted, kids));
-            (brace, kids, kd, term, plist, (frame, level_map), pk != None);
+            (
+              brace,
+              kids,
+              kd,
+              term,
+              plist,
+              (frame, level_map, (ml.seg, skel)),
+              pk != None,
+            );
           }
         ) {
         | r => Some(r)
@@ -2999,7 +3101,7 @@ module Incr = {
         (term, hole, [], Option.to_list(hole));
       };
     Option.iter(
-      ((_, _, _, _, _, (frame, level_map), _)) => {
+      ((_, _, _, _, _, (frame, level_map, _), _)) => {
         term_data := Id.Map.union((_, f, _) => Some(f), frame, term_data^);
         map := Id.Map.union((_, l, _) => Some(l), level_map, map^);
       },
@@ -3041,6 +3143,8 @@ module Incr = {
           ((brace, kids, _, _, _, _, _)) => (brace, kids),
           members,
         ),
+      f_skel:
+        Option.map(((_, _, _, _, _, (_, _, level), _)) => level, members),
     };
     let delta =
       switch (members, prev) {
@@ -3169,6 +3273,7 @@ module Incr = {
             f_adopted @ List.concat_map(((_, e)) => e.f_adopted, kids),
           f_seps,
           f_kids: Some((sp.anchor, kids)),
+          f_skel: None,
         };
         (
           entry,
@@ -3241,7 +3346,7 @@ module Incr = {
         };
       let shared =
         switch (shared) {
-        | Some({c_prev: Some((r, e, entries, _, _, _))})
+        | Some({c_prev: Some((r, e, entries, _, _, _)), _})
             when r == root && e == ends => entries
         | _ => []
         };
@@ -3341,8 +3446,20 @@ module Incr = {
         TermMap.add_all(term.annotation.ids, Exp(term), m_map),
         rebuilt^,
       );
+    let sort = root == Sort.Mod ? Sort.Mod : Sort.Exp;
+    let skel =
+      reskel(
+        ~sort,
+        ~prev=
+          switch (cache.c_skel) {
+          | Some((s, ps, sk)) when s == sort => Some((ps, sk))
+          | _ => None
+          },
+        seg,
+      );
+    cache.c_skel = Some((sort, seg, skel));
     let term_data =
-      record_top_frame(~root, m_td, seg)
+      record_top_frame(~root, ~skel, m_td, seg)
       |> refix(List.concat_map(((_, e)) => e.f_adopted, entries));
     /* go conses projector ids left to right, so later items come first */
     let projector_list =
