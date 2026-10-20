@@ -30,6 +30,16 @@ let editor_of:
     Segment.t
   ) =>
   CellEditor.Model.t;
+/* [editor_of] for an edit of [d]'s program made whole (outline ops), with
+   the caches of its shell, the whole editor it was cut from */
+let shell_editor_of:
+  (
+    ~probes: Refractors.RefractorList.t,
+    ~anchor: option((Direction.t, Id.t)),
+    Segment.t,
+    t
+  ) =>
+  CellEditor.Model.t;
 let document: t => Segment.t;
 
 let cells: t => list(ScratchCell.t);
