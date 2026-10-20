@@ -411,6 +411,77 @@
 .context-inspector .context-entry .seperator {
   color: var(--context-inspector-colon);
 }
+
+/* A long entry's toggle, which shows its type whole; a column of its own
+   on every entry, so the names stay in a column */
+.context-inspector .context-entry .unfold {
+  flex: none;
+  width: 1em;
+  text-align: center;
+  color: var(--text-muted);
+  user-select: none;
+}
+.context-inspector .context-entry .unfold:not(.none):hover {
+  color: var(--text-strong);
+}
+/* An unfolded entry: its name on a row, its type laid out below it
+   (ContextInspector.unfold_columns wide), under the name */
+.context-inspector .context-entry.unfolded {
+  flex-direction: column;
+  gap: 0.1em;
+  max-width: none;
+}
+.context-inspector .context-entry.unfolded .entry-head {
+  display: flex;
+  gap: 0.5em;
+}
+.context-inspector .context-entry.unfolded .entry-typ {
+  padding-left: 1.5em;
+}
+/* How a long entry offers its full view, chosen on the Colors slide
+   (gamma-unfold; ContextInspector.ctx_view classes the box by it). Always:
+   the toggle drawn, as above. Hover: drawn while the pointer is on the
+   entry, and on an unfolded one, to fold it back. Right-click: not drawn;
+   the entry's right-click menu has it (as it does in every mode), and the
+   empty column goes too. */
+.context-inspector.unfold-hover
+  .context-entry:not(:hover):not(.unfolded)
+  > .unfold {
+  visibility: hidden;
+}
+.context-inspector.unfold-right-click .context-entry .unfold {
+  display: none;
+}
+/* An entry's right-click menu, at the press (the backdrop under it is
+   editor.css's .context-menu-backdrop, which closes it) */
+.context-inspector .context-entry-menu {
+  position: fixed;
+  z-index: var(--context-menu-z);
+  display: flex;
+  flex-direction: column;
+  min-width: 10em;
+  padding: 0.2em;
+  background-color: var(--menu-bkg);
+  border-radius: 0 0.5em 0.5em 0.5em;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  font-family: var(--ui-font, inherit);
+  white-space: nowrap;
+}
+.context-inspector .context-entry-menu-item {
+  padding: 0.05em 0.5em 0.05em 0.7em;
+  color: var(--menu-item-text);
+  cursor: pointer;
+}
+.context-inspector .context-entry-menu-item:hover {
+  background-color: var(--surface-code);
+  border-radius: 0.2em;
+}
+/* while an entry is unfolded, Gamma grows to show more of it, up to the
+   cursor inspector's full view's limit */
+#page > .context-inspector:has(.context-entry.unfolded) {
+  max-height: 40vh;
+}
 /* The full view (#2674): a toggle at the bar's right end opens a panel
    over the bar with what the bar inspects, its types printed whole, on
    several lines. The bar stays one line, clipped as before. */
