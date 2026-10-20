@@ -88,6 +88,37 @@ let semantic = (name, txt) =>
     },
   );
 
+/* typed key by key at the caret (¦) of a loaded program: each `(` typed
+   is a paren */
+let parens_typed_in = (name, marked, typed) =>
+  test_case(
+    name ++ " (typed in place)",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Test_TabDispatch.padding_zipper(marked),
+          List.map(c => Action.Insert(c), Token.to_list(typed)),
+        );
+      let rec lone = seg =>
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Tile(t) =>
+              Tile.label(t) == ["("] || List.exists(lone, t.children)
+            | _ => false
+            },
+          seg,
+        );
+      check(
+        bool,
+        "a `(` without its paren form",
+        false,
+        lone(Zipper.unselect_and_zip(z)),
+      );
+    },
+  );
+
 let rejected = (name, txt) =>
   test_case(name ++ " (falls back)", `Quick, () => {
     check(
@@ -335,6 +366,46 @@ let tests = (
       "type T = (Int, Bool) in let x : T = (1, true) in x",
     ),
     semantic("module with members", "let m = { let a = 1; let b = 2 } in m"),
+    semantic(
+      "a module's last member a hole",
+      "let m = {\n  let a = 1;\n  ?\n} in m",
+    ),
+    semantic(
+      "bare tuples at a member",
+      "let m = {\n  let a, b = 1, 2;\n  let c = a, b\n} in m",
+    ),
+    semantic(
+      "a member destructuring a labeled tuple",
+      "let m = {\n  let (a, b=c) = (1, b=2)\n} in m",
+    ),
+    test_case(
+      "the typing parser's pieces end at a member's `;`",
+      `Quick,
+      () => {
+        let name = "a_name_long_enough_that_the_typing_parser_splits_its_text_after_it";
+        let src =
+          "let f = fun x ->\n  let "
+          ++ name
+          ++ " = x + 1 in\n  let b = "
+          ++ name
+          ++ " + 2 in\n  b;\nf(1)";
+        let members =
+          List.filter(
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile(t) => Tile.label(t) == ["let", "="]
+              | _ => false
+              },
+            Option.get(Parser.to_segment(src, ~root=Mod)),
+          );
+        check(int, "members", 1, List.length(members));
+      },
+    ),
+    parens_typed_in(
+      "a case's scrutinee in parens, among members",
+      "let m = {\n  let a = 1;\n  ¦\n} in m",
+      "case (a)",
+    ),
     semantic("case with ctor pats", "case a | Down(x, y) => x | Up => 0 end"),
     rejected("unbalanced brace", "let m = { let a = 1 in m"),
     test_case("projector trigger materializes", `Quick, () => {

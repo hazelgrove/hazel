@@ -738,19 +738,27 @@ let span_test = (lv: S.level, k: int): option(Id.t) => {
 };
 
 /* contiguous test runs: the outline's "tests" container opens one cell
-   spanning the whole run. A test statement joins a run; in a module body a
-   final `;`-less test does too, but an expression block's tail is its
-   value and never does */
-let in_run = (lv: S.level, k: int): bool =>
+   spanning the whole run. A test statement joins a run; in a module body,
+   a Mod root's top level included, a final `;`-less test does too, but an
+   expression block's tail is its value and never does */
+let in_run = (lv: S.level, k: int): bool => {
+  let members =
+    switch (lv.owner) {
+    | Top => lv.sort == Sort.Mod
+    | Members(_)
+    | Chain(_)
+    | Block(_) => is_members(lv)
+    };
   span_test(lv, k) != None
   && (
     switch (lv.spans[k].kind) {
-    | Stmt => semi_ended(lv, k) || is_members(lv)
-    | Tail => is_members(lv)
+    | Stmt => semi_ended(lv, k) || members
+    | Tail => members
     | Def
     | Use => false
     }
   );
+};
 
 /* the maximal run of tests holding [path]'s piece: the steps down to its
    level, its first and last spans, (member ids, test count). The

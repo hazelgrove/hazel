@@ -553,6 +553,10 @@ modItemExp:
 
 modItem:
     | LET; i = pat; SINGLE_EQUAL; e = modItemExp { ModItemLet(i, e) }
+    (* Bare tuples, as at an expression let *)
+    | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e = modItemExp { ModItemLet(TuplePat(p1 :: ps), e) }
+    | LET; i = pat; SINGLE_EQUAL; e1 = exp; COMMA; es = separated_nonempty_list(COMMA, exp) { ModItemLet(i, TupleExp(e1 :: es)) }
+    | LET; p1 = pat; COMMA; ps = separated_nonempty_list(COMMA, pat); SINGLE_EQUAL; e1 = exp; COMMA; es = separated_nonempty_list(COMMA, exp) { ModItemLet(TuplePat(p1 :: ps), TupleExp(e1 :: es)) }
     | MODULE; i = IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(i), e) }
     | MODULE; c = CONSTRUCTOR_IDENT; SINGLE_EQUAL; e = modItemExp { ModItemModule(VarPat(c), e) }
     | MODULE; i = IDENT; COLON; t = typ; SINGLE_EQUAL; e = modItemExp { ModItemModule(AscPat(VarPat(i), t), e) }
