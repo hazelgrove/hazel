@@ -33,6 +33,7 @@ let (suite, exit_with_test_status) =
       Test_Undo.tests,
       Test_OpenMember.tests,
       Test_UndoCaches.tests,
+      Test_EditCaches.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
       Test_MenhirFuzz.tests,

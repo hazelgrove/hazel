@@ -185,20 +185,25 @@ let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
 
 /* [program]'s term as its statics read it, now: they may lag it, or be
    compacted away by undo. A whole editor's without an unparsed buffer,
-   from its syntax's pieces when they're current */
-let fresh_term = (program: Program.t): Language.Exp.t =>
-  MakeTerm.semantic_term(
-    ~root=Program.root(program),
-    switch (program) {
-    | Whole(e) =>
-      let z = e.editor.editor.state.zipper;
-      switch (CachedSyntax.semantic_source(z, e.editor.editor.syntax)) {
+   from its syntax's pieces when they're current, with its parse cache:
+   the statics path's own holds the last program any editor analyzed */
+let fresh_term = (program: Program.t): Language.Exp.t => {
+  let root = Program.root(program);
+  switch (program) {
+  | Whole(e) =>
+    let z = e.editor.editor.state.zipper;
+    let syntax = e.editor.editor.syntax;
+    MakeTerm.semantic_term(
+      ~root,
+      ~shared=syntax.t_cache,
+      switch (CachedSyntax.semantic_source(z, syntax)) {
       | Some(seg) => seg
       | None => MakeTerm.semantic_source(z)
-      };
-    | Divided(d) => Divided.document(d)
-    },
-  );
+      },
+    );
+  | Divided(d) => MakeTerm.semantic_term(~root, Divided.document(d))
+  };
+};
 /* the context a slide's program is checked in: a world's sees the
    library as its own items (WorldSlide.ctx) */
 let ctx_in = (code: code): option(Language.Ctx.t) =>
@@ -235,18 +240,26 @@ let with_segment =
     : Scratchpad.code => {
   let program = code.program;
   let root = Program.root(program);
+  let probes = Program.probes(program);
+  /* the program's parse and measure caches: they hit for the items the
+     edit didn't change */
   let fresh =
-    Divided.editor_of(
-      ~root,
-      ~probes=Program.probes(program),
-      ~anchor=
-        switch (caret, program) {
-        | (Some(_), _) => caret
-        | (None, Whole(e)) => Divided.anchor_of(e.editor.editor.state.zipper)
-        | (None, Divided(_)) => None
-        },
-      new_seg,
-    );
+    switch (program) {
+    | Whole(e) =>
+      Divided.editor_of(
+        ~prev=e,
+        ~root,
+        ~probes,
+        ~anchor=
+          switch (caret) {
+          | Some(_) => caret
+          | None => Divided.anchor_of(e.editor.editor.state.zipper)
+          },
+        new_seg,
+      )
+    | Divided(d) =>
+      Divided.shell_editor_of(~probes, ~anchor=caret, new_seg, d)
+    };
   let statics =
     settings.core.statics
       ? Haz3lcore.CachedStatics.init_compositional_term(
@@ -256,7 +269,11 @@ let with_segment =
             CachedStatics.probe_ids_of_zipper(
               fresh.editor.editor.state.zipper,
             ),
-          MakeTerm.semantic_term(~root, new_seg),
+          MakeTerm.semantic_term(
+            ~root,
+            ~shared=fresh.editor.editor.syntax.t_cache,
+            new_seg,
+          ),
         )
       : Haz3lcore.CachedStatics.empty;
   let editor: CellEditor.Model.t = {

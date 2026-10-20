@@ -252,11 +252,15 @@ let rec go =
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     let before_pieces =
       LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
-    let finish = z =>
-      z
+    let finish = pasted =>
+      pasted
       |> maybe_reassoc_thorough
       |> LocalReformat.go(~before)
-      |> LocalReformat.go_region(~before_pieces);
+      |> LocalReformat.go_region(~before_pieces)
+      /* re-indenting the pasted lines rebuilds every tile: what the paste
+         didn't change keeps its objects, which the parse, measure and
+         analysis caches key on, for the paste and its undo */
+      |> Zipper.restore_identity(~old=z);
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(finish(z))
     | None =>

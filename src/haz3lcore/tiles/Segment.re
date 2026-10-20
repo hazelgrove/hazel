@@ -1665,6 +1665,69 @@ let restore_identity_dirty = (old: t, neu: t): (t, Id.Set.t) =>
     (restored, dirty^);
   };
 
+/* every piece of [segs] by id, at every level: [restore_deep]'s index */
+let index_deep = (segs: list(t)): Hashtbl.t(Id.t, Piece.t) => {
+  let tbl = Hashtbl.create(4096);
+  let rec go = (seg: t) =>
+    List.iter(
+      (p: Piece.t) => {
+        Hashtbl.replace(tbl, Piece.id(p), p);
+        switch (p) {
+        | Tile(t) => List.iter(go, t.children)
+        | Grout(_)
+        | Secondary(_)
+        | Projector(_) => ()
+        };
+      },
+      seg,
+    );
+  List.iter(go, segs);
+  tbl;
+};
+
+/* [restore_identity_dirty] at every level, deepest first: a piece equal to
+   [old]'s same-id piece becomes that object, and a changed tile keeps its
+   unchanged descendants. A segment all of whose pieces come back is
+   returned as is */
+let rec restore_deep = (old: Hashtbl.t(Id.t, Piece.t), seg: t): t => {
+  let restored = List.map(restore_piece_deep(old), seg);
+  ptr_eq(restored, seg) ? seg : restored;
+}
+and restore_piece_deep = (old, p: Piece.t): Piece.t =>
+  switch (Hashtbl.find_opt(old, Piece.id(p)), p) {
+  | (Some(o), _) when o === p => p
+  | (o, Tile(t)) =>
+    let children = List.map(restore_deep(old), t.children);
+    let same_fields = (o: Tile.t) =>
+      compare(
+        {
+          ...o,
+          children: [],
+        },
+        {
+          ...t,
+          children: [],
+        },
+      )
+      == 0;
+    switch (o) {
+    | Some(Tile(ot) as o)
+        when
+          same_fields(ot)
+          && List.length(ot.children) == List.length(children)
+          && List.for_all2(ptr_eq, ot.children, children) => o
+    | _ =>
+      List.for_all2((===), children, t.children)
+        ? p
+        : Piece.Tile({
+            ...t,
+            children,
+          })
+    };
+  | (Some(o), Grout(_) | Secondary(_) | Projector(_)) when compare(o, p) == 0 => o
+  | (_, Grout(_) | Secondary(_) | Projector(_)) => p
+  };
+
 /* Secondary collection for outer secondary model.
    Collects (before, after) secondary runs for each term based on skeleton structure. */
 module SecondaryCollection = {
