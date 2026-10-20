@@ -1563,6 +1563,161 @@ let unclosed_format = () => {
   check(string, "formatted", text(z), text(formatted));
 };
 
+/* ---- a member typed at the outer level, below the `;`-less member of a
+   module whose `}` isn't typed (Enter, then a dedent): the member line
+   ends the module, through the grout its missing `;` leaves, so the
+   syntax reads every part alone. Each key keeps every tile in the
+   editor's syntax, with no whole parse, and the editor's view renders
+   ---- */
+
+/* the code view and decorations of an editor at [z] */
+let render = (~root: Sort.t, z: Zipper.t): unit => {
+  let globals = Web.Globals.Model.init();
+  let statics =
+    CachedStatics.init_compositional(~settings, ~stitch=Fun.id, ~root, z);
+  let model =
+    Web.CodeWithStatics.Model.mk(~statics, Editor.Model.mk(~root, z));
+  ignore(Web.CodeWithStatics.View.view(~globals, model));
+  ignore(
+    Web.CodeEditable.View.deco(
+      ~root,
+      ~syntax=model.editor.syntax,
+      ~info_map=statics.info_map,
+      ~globals,
+      z,
+    ),
+  );
+};
+
+let rec tiles = (seg: Segment.t): list(Tile.t) =>
+  List.concat_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) => [t, ...List.concat_map(tiles, t.children)]
+      | _ => []
+      },
+    seg,
+  );
+
+/* [z]'s tiles its syntax lacks */
+let unparsed = (syntax: CachedSyntax.t, z: Zipper.t): list(string) =>
+  List.filter_map(
+    (t: Tile.t) =>
+      Id.Map.mem(t.id, syntax.terms)
+        ? None : Some(String.concat(" ", Tile.label(t))),
+    tiles(Zipper.unselect_and_zip(z)),
+  );
+
+let outer_member_cases = [
+  /* name, root, program, the line typed after */
+  ("in a literal", Sort.Exp, counter, "  let start = 0;"),
+  ("in a literal at a Mod root", Sort.Mod, counter_mod, "  let start = 0;"),
+  ("at a Mod root", Sort.Mod, counter_members, "let start = 0;"),
+];
+
+let outer_member = ((name, root, src, after), ()) => {
+  let z =
+    perform(
+      ~root,
+      typed(
+        ~root,
+        at_line(~root, src, after),
+        "\nmodule N = {\nlet a = 1\n",
+      ),
+      AdjustIndent(Left, Always),
+    );
+  ignore(
+    List.fold_left(
+      ((z, keys), c) => {
+        let z = perform(~root, z, Insert(c));
+        let keys = keys ++ c;
+        let fell = MakeTerm.Incr.fell_back^;
+        let syntax = CachedSyntax.init(~root, z);
+        check(
+          list(string),
+          name ++ ", " ++ keys ++ ": every tile parsed",
+          [],
+          unparsed(syntax, z),
+        );
+        check(
+          int,
+          name ++ ", " ++ keys ++ ": no whole parse",
+          fell,
+          MakeTerm.Incr.fell_back^,
+        );
+        render(~root, z);
+        (z, keys);
+      },
+      (z, ""),
+      List.map(String.make(1), List.of_seq(String.to_seq("let b = 2;"))),
+    ),
+  );
+};
+
+/* a decoration of a tile the syntax lacks draws nothing */
+let arms_without_term = () => {
+  let root = Sort.Exp;
+  let z = at_line(~root, counter, "  let next = start + 1;");
+  let syntax = CachedSyntax.init(~root, z);
+  let t =
+    List.find(
+      (t: Tile.t) => Tile.label(t) == ["next"],
+      tiles(Zipper.unselect_and_zip(z)),
+    );
+  let syntax = {
+    ...syntax,
+    terms: Id.Map.remove(t.id, syntax.terms),
+  };
+  let font_metrics = Web.FontMetrics.init;
+  let completion = Web.Arms.lazy_completion(~root, ~syntax, z);
+  check(
+    int,
+    "the term's arms",
+    0,
+    List.length(Web.Arms.term(~syntax, ~font_metrics, t)),
+  );
+  ignore(
+    Web.Arms.Errors.of_ids(~font_metrics, ~syntax, ~completion, [t.id]),
+  );
+  /* the caret on the tile, after "  let next" */
+  let z =
+    perform(
+      ~root,
+      z,
+      Move(
+        Point(
+          {
+            row: 2,
+            col: 10,
+          },
+          None,
+        ),
+      ),
+    );
+  check(
+    bool,
+    "the caret on the tile",
+    true,
+    switch (Haz3lcore.Indicated.for_decoration(z)) {
+    | Some({piece, _}) => Piece.id(piece) == t.id
+    | None => false
+    },
+  );
+  List.iter(
+    simple_indication =>
+      ignore(
+        Web.Arms.Indicated.term(
+          ~simple_indication,
+          ~font_metrics,
+          ~syntax,
+          ~completion,
+          z,
+        ),
+      ),
+    [false, true],
+  );
+};
+
 let tests = (
   "ModuleCompletion",
   List.map(
@@ -1624,6 +1779,23 @@ let tests = (
       "Format keeps the members below a module whose `}` isn't typed",
       `Quick,
       unclosed_format,
+    ),
+  ]
+  @ List.map(
+      ((name, _, _, _) as c) =>
+        test_case(
+          "a member typed below a module whose `}` isn't typed, dedented: "
+          ++ name,
+          `Quick,
+          outer_member(c),
+        ),
+      outer_member_cases,
+    )
+  @ [
+    test_case(
+      "the arms draw nothing for a tile the syntax lacks",
+      `Quick,
+      arms_without_term,
     ),
   ]
   @ List.map(
