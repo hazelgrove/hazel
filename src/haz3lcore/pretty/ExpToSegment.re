@@ -1179,7 +1179,14 @@ let should_add_space = (s1, s2) =>
       when
         s1 == "."
         && (
-          Token.is_quoted_label(s2) || Token.is_var(s2) || Token.is_ctr(s2)
+          Token.is_quoted_label(s2)
+          || Token.is_var(s2)
+          || Token.is_ctr(s2)
+          /* a module's livelit, `Drawing.^choice` (^ticket(472)): spaced, it
+             no longer reads back as one. A livelit's commit re-prints its
+             use, a slide is saved as text, and on reload every use whose
+             model had changed said "Malformed Label: ^choice". */
+          || Token.is_livelit(s2)
         ) =>
     false
   | _

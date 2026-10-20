@@ -110,7 +110,11 @@ let (suite, exit_with_test_status) =
     @ [Test_IdentityMemo.tests]
     @ [Test_ShareCodec.tests]
     @ [Test_CopyDescendants.tests]
-    @ [Test_ContextInspector.tests, Test_FreeTypeHint.tests]
+    @ [
+      Test_ContextInspector.tests,
+      Test_FreeTypeHint.tests,
+      Test_MemberLivelitReprint.tests,
+    ]
     @ [Test_CallMemo.tests]
     @ [Test_IncrSlides.tests]
     @ [Test_IncompleteTiles.tests]
