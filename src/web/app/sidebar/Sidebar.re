@@ -167,66 +167,11 @@ let task_reference_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
-let split_task_reference_sections = TaskReferenceSplit.split;
-
-let task_reference_view = (~globals: Globals.t, body: string) => {
-  let render_md = blocks => {
-    let (nodes, _) =
-      ExplainThis.mk_translation_doc(~globals, ~inject=_ => (), blocks);
-    nodes;
-  };
-  let sections = split_task_reference_sections(Omd.of_string(body));
-  let section_nodes =
-    List.map(
-      ((heading, content)) =>
-        switch (heading) {
-        | Option.None =>
-          div(
-            ~attrs=[clss(["task-reference-preamble"])],
-            render_md(content),
-          )
-        | Option.Some(h) =>
-          Node.details(
-            ~attrs=[
-              clss(["task-reference-section"]),
-              Attr.create("open", ""),
-            ],
-            [
-              Node.summary(
-                ~attrs=[clss(["task-reference-section-title"])],
-                [text(h)],
-              ),
-              div(
-                ~attrs=[clss(["task-reference-section-body"])],
-                render_md(content),
-              ),
-            ],
-          )
-        },
-      sections,
-    );
-  div(
-    ~attrs=[clss(["task-reference-panel"])],
-    [
-      div(
-        ~attrs=[clss(["task-reference-header"])],
-        [
-          div(
-            ~attrs=[clss(["task-reference-title"])],
-            [text("Task Reference")],
-          ),
-        ],
-      ),
-      div(~attrs=[clss(["task-reference-body"])], section_nodes),
-    ],
-  );
-};
-
 let persistent_view =
     (
       ~globals: Globals.t,
       ~counts: list((SidebarModel.Settings.problem_category, int)),
-      ~task_reference: option(string),
+      ~tutorial_reference: option(TutorialReferencePanel.context),
     ) =>
   div(
     ~attrs=[Attr.id("persistent")],
@@ -234,7 +179,7 @@ let persistent_view =
       div(
         ~attrs=[clss(["tabs"])],
         (
-          Option.is_some(task_reference)
+          Option.is_some(tutorial_reference)
             ? [task_reference_tab(~globals)] : []
         )
         @ [
@@ -355,7 +300,7 @@ let view =
       ~problem_editors:
          list((option(string), list(CodeWithStatics.Model.t))),
       ~signal,
-      ~task_reference: option(string),
+      ~tutorial_reference: option(TutorialReferencePanel.context),
     ) => {
   let problem_collection =
     Haz3lcore.ProblemCollection.make(
@@ -386,7 +331,7 @@ let view =
      active, fall back to LanguageDocumentation so they don't stare at
      an empty panel for a tab that no longer exists. */
   let active_panel: SidebarModel.Settings.panel =
-    switch (globals.settings.sidebar.panel, task_reference) {
+    switch (globals.settings.sidebar.panel, tutorial_reference) {
     | (TaskReference, None) => LanguageDocumentation
     | (p, _) => p
     };
@@ -430,8 +375,14 @@ let view =
                 ~collection=problem_collection,
               )
             | TaskReference =>
-              switch (task_reference) {
-              | Some(text) => task_reference_view(~globals, text)
+              switch (tutorial_reference) {
+              | Some(context) =>
+                TutorialReferencePanel.view(
+                  ~globals,
+                  ~explain_this_inject,
+                  ~editor,
+                  context,
+                )
               | None => div([text("No task reference available.")])
               }
             | DebugInfo => DebugSidebar.view(~globals, ~cursor)
@@ -444,6 +395,6 @@ let view =
       };
   div(
     ~attrs=[Attr.id("sidebars")],
-    [sub, persistent_view(~globals, ~counts, ~task_reference)],
+    [sub, persistent_view(~globals, ~counts, ~tutorial_reference)],
   );
 };

@@ -11,7 +11,7 @@
   align-items: center;
   justify-content: center;
   background-color: var(--ui-bkg);
-  color: var(--G0);
+  color: var(--text-success);
   font-size: 1.4em;
 }
 
@@ -67,7 +67,7 @@
 .loader {
   width: 80px;
   height: 80px;
-  border: 9px solid var(--G0);
+  border: 9px solid var(--border-success);
   border-bottom-color: transparent;
   border-radius: 50%;
   display: inline-block;

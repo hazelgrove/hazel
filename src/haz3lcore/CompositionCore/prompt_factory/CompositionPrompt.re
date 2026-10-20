@@ -155,12 +155,18 @@ let program_model = [
   "**Duplicate path string:** if several bindings share the same path text (e.g. two `let n` in one chain), the bare path is **ambiguous** and tools return an error listing the disambiguated forms. Retry with `\"name#k\"` (k-th occurrence in program order, 1-based, e.g. `\"n#2\"`), or use a **nested** path when the inner binding lives inside another's **definition** (`\"outer/inner\"`).",
   "Prefer **unique binding names** so intent stays obvious.",
   "",
+  "**Module members:** paths also descend into module literals — `{ let a = ...; type T = ...; ... }` — bound as `module M = { ... }`. Each member (value or type) is addressed by `owner/member`. Members end at their `;`, so they have **no body**: use `update_definition`, `update_pattern`, `update_binding_clause`, `delete_binding_clause`, `insert_before`, `insert_after` at member paths, never `update_body`/`delete_body`. Edit ONE member rather than re-emitting the whole module. Renaming a member that is referenced outside the module (`M.member`) is rejected rather than breaking those references. All path-taking tools resolve the same grammar — view/probe/statics/projector tools accept member paths too.",
+  "",
   "Example program and its paths:",
   "```",
   "let utils =               # path: \"utils\" #",
   "  let helper = 42 in      # path: \"utils/helper\" #",
   "  helper",
   "in",
+  "let ^pct = {              # path: \"^pct\" #",
+  "  type T = Int;           # path: \"^pct/T\" #",
+  "  let init = 50           # path: \"^pct/init\" #",
+  "} in",
   "let main = utils + 1 in   # path: \"main\" #",
   "main",
   "```",
@@ -236,6 +242,7 @@ let toolkit = [
   "- **Text box:** `^^text(\"hello\")`",
   "- **CSV editor:** `^^csv([])` — empty list only; use the UI to import a `.csv` file (non-empty lists like `[1, 2, 3]` do not accept this projector).",
   "- **Card (playing cards):** `^^card((Hearts, Ace))` or `^^card([(Spades, King), (Clubs, Two)])` — suit/rank constructors, not records or `{ let …; … }` blocks.",
+  "- **Livelit use:** `^^livelit(^name(model))` — shows the GUI of livelit `^name` at that use.",
   "- **Live HTML / app:** `^^html(expr)` — renders an HTML-valued expression live; wrapping an `(init, update, view, subs)` tuple runs it as an interactive app. Make the app tuple the program's **final expression** so the running app sits at the bottom of the program. Call `read_docs(\"mvu\")` before building an app.",
   "",
   "Use this inside `update_definition` (or any `insert_*`) when you want the editor to **persist the widget** together with the new value, instead of reverting to a bare literal and needing a separate `place_syntax_projector` afterward.",
@@ -333,7 +340,7 @@ let formatting_rules = [
   "",
   "Good (with line breaks — Hazel indents automatically):",
   "```",
-  "let f = fun x ->",
+  "let f(x) =",
   "  if x > 0",
   "    then x",
   "    else 0 - x",
@@ -343,7 +350,7 @@ let formatting_rules = [
   "",
   "Bad (no line breaks — unreadable):",
   "```",
-  "let f = fun x -> if x > 0 then x else 0 - x in f(5)",
+  "let f(x) = if x > 0 then x else 0 - x in f(5)",
   "```",
   "",
   "### Comments",
@@ -383,16 +390,20 @@ let session_modes = [
 ];
 
 /* Pointers only — the guides themselves are served by the read_docs tool
-   (DocPacks), so they cost context when pulled, not on every turn */
-let on_demand_docs = [
-  "## On-demand guides",
-  "",
-  "Detailed how-to guides are available through the `read_docs` tool:",
-  "",
-  DocPacks.topic_lines,
-  "",
-  "Read the relevant guide BEFORE building the kind of thing it covers; the returned guide stays in context for the rest of the session.",
-];
+   (DocPacks), so they cost context when pulled, not on every turn.
+   Empty when the registry has no packs (the tool is not offered then). */
+let on_demand_docs =
+  DocPacks.all == []
+    ? []
+    : [
+      "## On-demand guides",
+      "",
+      "Detailed how-to guides are available through the `read_docs` tool:",
+      "",
+      DocPacks.topic_lines,
+      "",
+      "Read the relevant guide BEFORE building the kind of thing it covers; the returned guide stays in context for the rest of the session.",
+    ];
 
 let self =
   identity

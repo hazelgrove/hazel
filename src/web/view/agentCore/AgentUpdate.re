@@ -10,6 +10,8 @@ module Action = AgentAction;
 
 /* Re-exported for external callers/tests ([Agent.Update.*]). */
 let defer_dispatch_send = AgentSend.defer_dispatch_send;
+let defer_eval_wait = AgentSend.defer_eval_wait;
+let max_eval_wait_attempts = AgentSend.max_eval_wait_attempts;
 let tool_allowed_in_mode = AgentSend.tool_allowed_in_mode;
 let backoff_ms = AgentSend.backoff_ms;
 let format_api_error_content = AgentSend.format_api_error_content;
