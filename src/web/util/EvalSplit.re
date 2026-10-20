@@ -674,7 +674,7 @@ let program =
     | exception (Unsplittable(why)) =>
       went_whole := Some(why);
       acc.chunks = [];
-      Whole(whole_piece(acc, doc, ~targets, statics));
+      P.Whole(whole_piece(acc, doc, ~targets, statics));
     };
   {
     layout,
