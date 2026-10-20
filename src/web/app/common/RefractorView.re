@@ -44,6 +44,7 @@ let mk_data =
     (
       ~refractors: Zipper.Refractor.Map.t,
       ~syntax: CachedSyntax.t,
+      ~grid: Grid.t,
       ~indicated: option(Indicated.piece),
       ~statics: Language.Statics.Map.t,
       ~dynamics: Language.Dynamics.Map.t,
@@ -62,7 +63,8 @@ let mk_data =
        measurement_of_term(id, term_data, measured)
        |> Option.map(measurement => (id, entry, measurement))
      )
-  |> ProjectorView.filter_by_visibility(visible, _, ((id, _, measurement)) =>
+  |> ProjectorView.filter_by_visibility(
+       ~grid, visible, _, ((id, _, measurement)) =>
        row_range(~refractor_rows, id, measurement)
      )
   |> List.map(((id, entry, measurement)) => {
@@ -123,7 +125,7 @@ let all =
     (
       inject: Action.t => Ui_effect.t(unit),
       make_active,
-      font_metrics: FontMetrics.t,
+      grid: Grid.t,
       ~core_settings: Language.CoreSettings.t,
       ~visible: option(Globals.VisibleRows.t)=?,
       ~refractor_rows: Id.Map.t(int)=Id.Map.empty,
@@ -135,13 +137,13 @@ let all =
     row_range(~refractor_rows, d.p.id, d.measurement);
   let (base_views, overlay_views) =
     refractor_data
-    |> ProjectorView.filter_by_visibility(visible, _, get_row_range)
+    |> ProjectorView.filter_by_visibility(~grid, visible, _, get_row_range)
     |> List.sort(ProjectorView.by_measurement)
     |> List.map(data =>
          ProjectorView.split_views(
            inject,
            make_active,
-           font_metrics,
+           grid,
            ~core_settings,
            ~skip_inline=true,
            data,

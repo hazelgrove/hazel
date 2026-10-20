@@ -206,20 +206,18 @@ let start = default_model => {
       size,
       ~callback=
         app_inject
-        |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
-             JsUtil.set_css_custom_property(
-               "--row-height-px",
-               Printf.sprintf("%fpx", rect.height),
-             );
+        |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) =>
              i(
                Page.Update.Globals(
                  SetFontMetrics({
                    row_height: rect.height,
                    col_width: rect.width,
+                   text_height:
+                     JsUtil.specimen_text_height(~default=rect.height),
                  }),
                ),
-             );
-           }),
+             )
+           ),
     );
 
   // Other Initialization
@@ -237,12 +235,14 @@ let start = default_model => {
      * but getBoundingClientRect returns different values due to
      * device-pixel rounding at different zoom levels. */
     JsUtil.on_dpr_change(() => {
-      let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
+      let (col_width, row_height, text_height) =
+        JsUtil.font_metrics_from_specimen();
       schedule_action(
         Page.Update.Globals(
           SetFontMetrics({
             row_height,
             col_width,
+            text_height,
           }),
         ),
       );
@@ -294,8 +294,8 @@ let start = default_model => {
         /* Update floating elements (probe menus) to viewport coordinates */
         FloatingElement.setup_scroll_listener();
         FloatingElement.update_all();
-        let editor =
-          Page.Update.get_editor(model.model.current.current).editor;
+        let code = Page.Update.get_editor(model.model.current.current);
+        let editor = code.editor;
         let zipper = editor.state.zipper;
         let measured = editor.syntax.measured;
         let font_metrics = model.model.current.current.globals.font_metrics;
@@ -309,7 +309,12 @@ let start = default_model => {
         RefractorShift.update(
           ~editor_key=
             Editors.Model.editor_key(model.model.current.current.editors),
-          ~font_metrics,
+          ~grid=
+            CodeWithStatics.layout(
+              ~globals=model.model.current.current.globals,
+              code,
+            ).
+              grid,
           ~refractor_rows=editor.syntax.refractor_rows,
           ~measured,
           zipper,

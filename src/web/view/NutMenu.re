@@ -66,9 +66,21 @@ type choice = {
   c_set: Effect.t(unit),
 };
 
+/* a numeric setting on a range, bound to its update */
+type slider = {
+  sl_name: string,
+  sl_tooltip: string,
+  sl_min: int,
+  sl_max: int,
+  sl_value: int,
+  sl_unit: string,
+  sl_set: int => Effect.t(unit),
+};
+
 type row =
   | Toggle(setting_item)
   | Choice(string, string, list(choice)) /* name, description, choices */
+  | Slider(slider)
   | Action(string, string, Effect.t(unit)); /* label, description, effect */
 
 type section = {
@@ -202,6 +214,29 @@ let code_display = (~globals: Globals.t): section => {
     c_set:
       globals.inject_global(Set(Settings.Update.CompletionDisplay(mode))),
   };
+  let blocks_on =
+    switch (globals.settings.blocks) {
+    | Settings.Blocks.Off => false
+    | Settings.Blocks.Types
+    | Settings.Blocks.Scopes
+    | Settings.Blocks.Evaluations => true
+    };
+  let blocks = (c_label, c_tooltip, mode) => {
+    c_label,
+    c_tooltip,
+    c_active: Settings.Blocks.equal(globals.settings.blocks, mode),
+    c_set: globals.inject_global(Set(Settings.Update.SetBlocks(mode))),
+  };
+  let block_layout = (c_label, c_tooltip, mode) => {
+    c_label,
+    c_tooltip,
+    c_active:
+      Settings.Blocks.equal_layout(globals.settings.block_layout, mode),
+    c_set: globals.inject_global(Set(Settings.Update.SetBlockLayout(mode))),
+  };
+  let padded =
+    blocks_on
+    && Settings.Blocks.equal_layout(globals.settings.block_layout, Padded);
   {
     s_name: "Code display",
     s_rows:
@@ -265,7 +300,67 @@ let code_display = (~globals: Globals.t): section => {
           SimpleIndication,
           "Indicate the caret's term with a minimal arm instead of shard backings",
         ),
-      ],
+        Choice(
+          "Blocks",
+          "Shade regions of the code, nested like ragged blocks",
+          [
+            blocks("Off", "No blocks", Settings.Blocks.Off),
+            blocks(
+              "Types",
+              "Shade each term by its type",
+              Settings.Blocks.Types,
+            ),
+            blocks(
+              "Scopes",
+              "Shade each variable's scope, its binder and uses with it",
+              Settings.Blocks.Scopes,
+            ),
+            blocks(
+              "Evaluations",
+              "Shade each term by how many times it was evaluated, cooler to hotter",
+              Settings.Blocks.Evaluations,
+            ),
+          ],
+        ),
+      ]
+      @ (
+        blocks_on
+          ? [
+            Choice(
+              "Block layout",
+              "How the blocks make room for their edges",
+              [
+                block_layout(
+                  "Inset",
+                  "Draw each block inside its own text, nested blocks a little further in",
+                  Settings.Blocks.Inset,
+                ),
+                block_layout(
+                  "Padded",
+                  "Pad each block out from its text, moving the text to make room",
+                  Settings.Blocks.Padded,
+                ),
+              ],
+            ),
+          ]
+          : []
+      )
+      @ (
+        padded
+          ? [
+            Slider({
+              sl_name: "Block padding",
+              sl_tooltip: "How far each block edge stands out from its text",
+              sl_min: 0,
+              sl_max: 16,
+              sl_value: globals.settings.block_pad,
+              sl_unit: "px",
+              sl_set: px =>
+                globals.inject_global(Set(Settings.Update.SetBlockPad(px))),
+            }),
+          ]
+          : []
+      ),
   };
 };
 

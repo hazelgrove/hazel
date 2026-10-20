@@ -14,12 +14,12 @@ type tile_data = list((Id.t, Mold.t, Shards.t));
 
 let svg =
     (
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~path_cls: list(string),
       (origin, path): positioned_path,
     )
     : Node.t =>
-  DecUtil.code_svg(~font_metrics, ~origin, ~path_cls, path);
+  DecUtil.svg(~grid, ~lo=origin, ~hi=origin, ~path_cls, path);
 
 let shards_of_tiles = (tiles: tile_data) =>
   tiles
@@ -204,7 +204,7 @@ let paths =
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       tiles: tile_data,
       line_clss: list(string),
-      font_metrics: FontMetrics.t,
+      grid: Grid.t,
       rows: Rows.t,
       (first, last): (Point.t, Point.t),
     )
@@ -232,7 +232,7 @@ let paths =
       |> Option.to_list,
       inner_lines(~hx, ~min_col, ~shard_rows),
     ])
-    |> List.map(svg(~font_metrics, ~path_cls));
+    |> List.map(svg(~grid, ~path_cls));
   };
 
 /* This draws the shards backing decorations,
@@ -241,7 +241,7 @@ let shards =
     (
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~attr: option(list(Attr.t))=?,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~base_clss: option(string),
       tiles: tile_data,
     )
@@ -254,7 +254,7 @@ let shards =
           ShardDec.simple(
             ~attr?,
             {
-              font_metrics,
+              grid,
               measurement,
               tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
             },
@@ -272,7 +272,7 @@ let term =
     (
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~attr: option(list(Attr.t))=?,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~rows: Rows.t,
       ~tiles: tile_data,
       ~line_clss: list(string)=[],
@@ -280,8 +280,8 @@ let term =
       range: (Point.t, Point.t),
     )
     : list(Node.t) =>
-  shards(~refine_sort, ~attr?, ~font_metrics, ~base_clss, tiles)
-  @ paths(~refine_sort, tiles, line_clss, font_metrics, rows, range);
+  shards(~refine_sort, ~attr?, ~grid, ~base_clss, tiles)
+  @ paths(~refine_sort, tiles, line_clss, grid, rows, range);
 
 let tiles_data =
     (
@@ -306,7 +306,7 @@ let term =
       ~term_data: TermData.t,
       ~terms: TermMap.t,
       ~measured: Measured.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~attr: option(list(Attr.t))=?,
       ~clip_right: option(Point.t)=None,
       tile: Tile.t,
@@ -337,7 +337,7 @@ let term =
       shards(
         ~refine_sort,
         ~attr?,
-        ~font_metrics,
+        ~grid,
         ~base_clss=None,
         [(tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured))],
       )
@@ -349,14 +349,7 @@ let term =
       let r = apply_clip(clip_right, r);
       let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
       let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
-      term(
-        ~refine_sort,
-        ~font_metrics,
-        ~rows=measured.rows,
-        ~tiles,
-        (l, r),
-        ~attr?,
-      );
+      term(~refine_sort, ~grid, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
     | _ => []
     };
   };
@@ -366,7 +359,7 @@ let term =
     (
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~syntax: CachedSyntax.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~clip_right: option(Point.t)=None,
     ) =>
   term(
@@ -374,7 +367,7 @@ let term =
     ~term_data=syntax.term_data,
     ~terms=syntax.terms,
     ~measured=syntax.measured,
-    ~font_metrics,
+    ~grid,
     ~clip_right,
   );
 
@@ -468,7 +461,7 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
  * indication setting is on, by the regular term indication. */
 let simple_arm =
     (
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~rows: Rows.t,
       ~path_cls: list(string),
       (first, last): (Point.t, Point.t),
@@ -478,7 +471,7 @@ let simple_arm =
   let min_col = min_col(~first, ~last, ~rows);
   switch (l_path(~flip=true, ~hx, ~min_col, ~first, ~last)) {
   | Some((orig, path)) => [
-      svg(~font_metrics, ~path_cls, (orig, path @ [hook(hx, 1, -1)])),
+      svg(~grid, ~path_cls, (orig, path @ [hook(hx, 1, -1)])),
     ]
   | None => []
   };
@@ -492,7 +485,7 @@ module Errors = {
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~is_warning=false,
         ~simple_indication=false,
-        ~font_metrics: FontMetrics.t,
+        ~grid: Grid.t,
         ~syntax: CachedSyntax.t,
         ~completion: Lazy.t(CanonicalCompletion.completion_result),
         id: Id.t,
@@ -506,7 +499,7 @@ module Errors = {
         | Some(measurement) => [
             ShardDec.simple(
               {
-                font_metrics,
+                grid,
                 tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
                 measurement,
               },
@@ -532,7 +525,7 @@ module Errors = {
               Highlight.of_segment(
                 ~measured=syntax.measured,
                 ~shape_map=syntax.shape_map,
-                ~font_metrics,
+                ~grid,
                 ~shape_init=Some(Convex),
                 ~clss=["simple-backing", is_warning ? "warning" : "error"],
                 seg,
@@ -543,7 +536,7 @@ module Errors = {
             switch (term_range(~syntax, Piece.Tile(t))) {
             | Some(range) =>
               simple_arm(
-                ~font_metrics,
+                ~grid,
                 ~rows=syntax.measured.rows,
                 ~path_cls=[
                   "child-line",
@@ -557,7 +550,7 @@ module Errors = {
           backing @ arm;
         | Some(t) =>
           let clip_right = completion_clip(~syntax, ~completion, t);
-          term(~refine_sort, ~syntax, ~font_metrics, ~clip_right, t);
+          term(~refine_sort, ~syntax, ~grid, ~clip_right, t);
         | None => []
         }
       },
@@ -568,7 +561,7 @@ module Errors = {
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~is_warning=false,
         ~simple_indication=false,
-        ~font_metrics: FontMetrics.t,
+        ~grid: Grid.t,
         ~syntax: CachedSyntax.t,
         ~completion: Lazy.t(CanonicalCompletion.completion_result),
         error_ids,
@@ -580,7 +573,7 @@ module Errors = {
           ~refine_sort,
           ~is_warning,
           ~simple_indication,
-          ~font_metrics,
+          ~grid,
           ~syntax,
           ~completion,
         ),
@@ -593,7 +586,7 @@ module Indicated = {
   let of_piece =
       (
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
-        ~font_metrics: FontMetrics.t,
+        ~grid: Grid.t,
         ~syntax: CachedSyntax.t,
         ~clip_right: option(Point.t)=None,
         p: Piece.t,
@@ -607,7 +600,7 @@ module Indicated = {
       | Some(measurement) => [
           ShardDec.simple(
             {
-              font_metrics,
+              grid,
               measurement,
               tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
             },
@@ -624,7 +617,7 @@ module Indicated = {
       if (Piece.is_infix_delimiter_op_prefix(p)) {
         [];
       } else {
-        term(~refine_sort, ~font_metrics, ~syntax, ~clip_right, t);
+        term(~refine_sort, ~grid, ~syntax, ~clip_right, t);
       }
     };
   };
@@ -632,7 +625,7 @@ module Indicated = {
   let indicated_piece =
       (
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
-        ~font_metrics: FontMetrics.t,
+        ~grid: Grid.t,
         ~syntax: CachedSyntax.t,
         ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
@@ -642,9 +635,8 @@ module Indicated = {
     | _ when z.selection.content != [] => []
     | Some({piece: Tile(t) as p, _}) =>
       let clip_right = completion_clip(~syntax, ~completion, t);
-      of_piece(~refine_sort, ~font_metrics, ~syntax, ~clip_right, p);
-    | Some({piece: p, _}) =>
-      of_piece(~refine_sort, ~font_metrics, ~syntax, p)
+      of_piece(~refine_sort, ~grid, ~syntax, ~clip_right, p);
+    | Some({piece: p, _}) => of_piece(~refine_sort, ~grid, ~syntax, p)
     | _ => []
     };
 
@@ -653,7 +645,7 @@ module Indicated = {
   let simple_indicated_arm =
       (
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
-        ~font_metrics: FontMetrics.t,
+        ~grid: Grid.t,
         ~syntax: CachedSyntax.t,
         z: Zipper.t,
       )
@@ -670,7 +662,7 @@ module Indicated = {
       | (Some(range), Some(root)) =>
         let sort = refine_sort(rep_id, Piece.sort(root) |> fst);
         simple_arm(
-          ~font_metrics,
+          ~grid,
           ~rows=syntax.measured.rows,
           ~path_cls=["child-line", Sort.class_of(sort)],
           range,
@@ -684,7 +676,7 @@ module Indicated = {
       (
         ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
         ~simple_indication=false,
-        ~font_metrics: FontMetrics.t,
+        ~grid: Grid.t,
         ~syntax: CachedSyntax.t,
         ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
@@ -705,10 +697,9 @@ module Indicated = {
     let contents =
       switch (simple_indication, refractor_kind) {
       | (false, _) =>
-        indicated_piece(~refine_sort, ~font_metrics, ~syntax, ~completion, z)
+        indicated_piece(~refine_sort, ~grid, ~syntax, ~completion, z)
       | (true, Some(_)) => []
-      | (true, None) =>
-        simple_indicated_arm(~refine_sort, ~font_metrics, ~syntax, z)
+      | (true, None) => simple_indicated_arm(~refine_sort, ~grid, ~syntax, z)
       };
     div_c(cls, contents);
   };
@@ -721,7 +712,7 @@ module Refractors = {
         ~kind: ProjectorCore.Kind.t,
         ~syntax: CachedSyntax.t,
         ~completion: Lazy.t(CanonicalCompletion.completion_result),
-        ~font_metrics: FontMetrics.t,
+        ~grid: Grid.t,
         ~cls: string,
       ) =>
     switch (Id.Map.find_opt(id, syntax.term_data)) {
@@ -738,7 +729,7 @@ module Refractors = {
         let sort = Piece.sort(t.root_piece) |> fst;
         let kind_cls = ProjectorCore.Kind.name(kind);
         simple_arm(
-          ~font_metrics,
+          ~grid,
           ~rows=syntax.measured.rows,
           ~path_cls=[
             "child-line",
@@ -754,7 +745,7 @@ module Refractors = {
 
   let of_zipper =
       (
-        ~font_metrics: FontMetrics.t,
+        ~grid: Grid.t,
         ~syntax: CachedSyntax.t,
         ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
@@ -768,7 +759,7 @@ module Refractors = {
              ~kind=entry.kind,
              ~syntax,
              ~completion,
-             ~font_metrics,
+             ~grid,
              ~cls="manual",
            )
          )
@@ -782,7 +773,7 @@ module Refractors = {
              ~kind=entry.kind,
              ~syntax,
              ~completion,
-             ~font_metrics,
+             ~grid,
              ~cls=
                Haz3lcore.Indicated.index(z) == Some(id)
                  ? "repl-indicated" : "repl",
@@ -793,7 +784,7 @@ module Refractors = {
                  Highlight.indicated_refractor(
                    ~measured=syntax.measured,
                    ~shape_map=syntax.shape_map,
-                   ~font_metrics,
+                   ~grid,
                    ~kind=entry.kind,
                    TermData.segment(id, syntax.term_data)
                    |> Option.value(~default=[Piece.mk_grout(Convex)]),
@@ -806,10 +797,10 @@ module Refractors = {
 
   let all =
       (
-        ~font_metrics: FontMetrics.t,
+        ~grid: Grid.t,
         ~syntax: CachedSyntax.t,
         ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
       ) =>
-    div_c("refractors", of_zipper(~font_metrics, ~syntax, ~completion, z));
+    div_c("refractors", of_zipper(~grid, ~syntax, ~completion, z));
 };

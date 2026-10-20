@@ -320,6 +320,7 @@ let mk_explanation =
 let expander_deco =
     (
       ~globals as {font_metrics, _} as globals: Globals.t,
+      ~grid: Grid.t,
       ~docs: ExplainThisModel.t,
       ~inject,
       ~options: list((ExplainThisForm.form_id, Segment.t)),
@@ -394,19 +395,14 @@ let expander_deco =
     let expandable_deco =
       div_c(
         "color-highlights",
-        Highlight.color(
-          ~syntax=editor.syntax,
-          ~font_metrics,
-          ["expandable"],
-          id,
-        ),
+        Highlight.color(~syntax=editor.syntax, ~grid, ["expandable"], id),
       );
 
     let expander =
       div(
         ~attrs=[
           clss(["expandable-target"]),
-          DecUtil.abs_position(~font_metrics, origin),
+          DecUtil.abs_position(~grid, origin),
         ],
         [specificity_menu] @ (docs.specificity_open ? [] : [expand_arrow]),
       );
@@ -1682,9 +1678,17 @@ let view_doc =
       |> Id.Map.of_seq
       |> Option.some;
     let editor = Editor.Model.mk(form.syntactic_form |> Zipper.unzip, ~root);
+    let model: CodeWithStatics.Model.t = {
+      editor,
+      statics: CachedStatics.empty,
+      dynamics: Dynamics.Map.empty,
+      context_menu: None,
+    };
+    let grid = CodeWithStatics.layout(~globals, model).grid;
     let expander_deco =
       expander_deco(
         ~globals,
+        ~grid,
         ~docs,
         ~inject,
         ~options,
@@ -1693,22 +1697,13 @@ let view_doc =
         editor,
       );
     let highlight_deco = [
-      Highlight.colors(
-        ~font_metrics=globals.font_metrics,
-        ~syntax=editor.syntax,
-        highlights,
-      ),
+      Highlight.colors(~grid, ~syntax=editor.syntax, highlights),
     ];
     let syntactic_form_view =
       CodeWithStatics.View.view(
         ~globals,
         ~overlays=highlight_deco @ [expander_deco],
-        {
-          editor,
-          statics: CachedStatics.empty,
-          dynamics: Dynamics.Map.empty,
-          context_menu: None,
-        },
+        model,
       );
     let example_view =
       example_view(

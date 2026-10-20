@@ -23,22 +23,28 @@ let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) => {
   ShardDec.chonky_path_base((shape, shape), -. left, width, 0.);
 };
 
-let main =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~profile as {shape, side, origin}: Profile.t,
-    ) =>
-  DecUtil.code_svg(
-    ~font_metrics,
-    ~origin,
+/* Stretched to reach over the shards' drop shadow. */
+let over_shadow = (p: SvgUtil.Point.t): SvgUtil.Point.t => {
+  ...p,
+  y: p.y *. (1. +. ShardDec.shadow_dy),
+};
+
+let main = (~grid: Grid.t, ~profile as {shape, side, origin}: Profile.t) =>
+  DecUtil.svg(
+    ~grid,
+    ~lo=origin,
+    ~hi=origin,
     ~id="caret",
     ~base_cls=["blink"],
     ~path_cls=["caret-path"],
-    /* A smaller scale causes scroll-to-caret issues */
-    ~scale=1.0,
-    /* Make caret as tall as shard + shard's shadow */
-    ~height_fudge=ShardDec.shadow_dy *. font_metrics.row_height,
-    caret_base_path(side, shape),
+    SvgUtil.Path.transform(
+      ~pt=over_shadow,
+      ~scale={
+        dx: 1.,
+        dy: 1.,
+      },
+      caret_base_path(side, shape),
+    ),
   );
 
 let side_of = (z: Haz3lcore.Zipper.t): Direction.t => {
@@ -56,16 +62,12 @@ let side_of = (z: Haz3lcore.Zipper.t): Direction.t => {
 };
 
 let view =
-    (
-      ~measured: Haz3lcore.Measured.t,
-      ~font_metrics: FontMetrics.t,
-      z: Haz3lcore.Zipper.t,
-    )
+    (~measured: Haz3lcore.Measured.t, ~grid: Grid.t, z: Haz3lcore.Zipper.t)
     : Node.t => {
   open Haz3lcore;
   let side = side_of(z);
   main(
-    ~font_metrics,
+    ~grid,
     ~profile={
       side,
       origin: Zipper.Caret.point(measured, z),

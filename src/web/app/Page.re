@@ -914,7 +914,11 @@ module View = {
               ~row_height=globals.font_metrics.row_height,
               (),
             );
-          Globals.VisibleRows.changed(globals.visible_rows, new_visible)
+          Globals.VisibleRows.changed(
+            ~row_height=globals.font_metrics.row_height,
+            globals.visible_rows,
+            new_visible,
+          )
             ? inject(Globals(UpdateVisibleRows(new_visible)))
             : Effect.Ignore;
         };

@@ -90,7 +90,7 @@ module Model = {
   let probe_results = (model: t): option(Sample.Map.t) =>
     model.dynamics
     |> Calc.get_saved(None)
-    |> Option.map((d: Dynamics.t) => d.probe_map);
+    |> Option.map((d: Dynamics.t) => d.map.samples);
 
   let test_results = (model: t): option(TestResults.t) =>
     model.dynamics
@@ -98,9 +98,9 @@ module Model = {
     |> Option.map((d: Dynamics.t) => d.test_results);
 
   let dynamics = (model: t): Dynamics.Map.t =>
-    switch (probe_results(model)) {
-    | Some(dynamics_map) => Dynamics.Map.mk(dynamics_map)
-    | None => Dynamics.Map.mk(Sample.Map.empty)
+    switch (model.dynamics |> Calc.get_saved(None)) {
+    | Some(d: Dynamics.t) => d.map
+    | None => Dynamics.Map.empty
     };
 
   let predicted_reuse = (model: t): EvaluatorState.incr_eval =>
@@ -375,7 +375,10 @@ module Update = {
     // Turn state into dynamics map
     let dynamics_of_state = (state: EvaluatorState.t) =>
       Dynamics.{
-        probe_map: state |> EvaluatorState.get_probes |> Sample.Map.finalize,
+        map: {
+          samples: state |> EvaluatorState.get_probes |> Sample.Map.finalize,
+          evaluations: EvaluatorState.get_evaluations(state),
+        },
         test_results:
           state |> EvaluatorState.get_tests |> TestResults.mk_results,
         theorems: state |> EvaluatorState.get_theorems,
@@ -682,11 +685,11 @@ module View = {
     };
 
   let test_status_icon_view =
-      (~font_metrics, insts, ms: Haz3lcore.Measured.Shards.t): option(Node.t) =>
+      (~grid, insts, ms: Haz3lcore.Measured.Shards.t): option(Node.t) =>
     switch (ms) {
     | [(_, {origin: _, last}), ..._] =>
       let status = insts |> TestMap.joint_status |> TestStatus.to_string;
-      let pos = DecUtil.abs_position(~font_metrics, last);
+      let pos = DecUtil.abs_position(~grid, last);
       Some(
         Node.div(~attrs=[Attr.classes(["test-result", status]), pos], []),
       );
@@ -695,7 +698,7 @@ module View = {
 
   let test_result_layer =
       (
-        ~font_metrics,
+        ~grid: Grid.t,
         ~measured: Haz3lcore.Measured.t,
         test_results: TestResults.t,
       )
@@ -705,7 +708,7 @@ module View = {
       List.filter_map(
         ((id, insts)) =>
           switch (Id.Map.find_opt(id, measured.tiles)) {
-          | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
+          | Some(ms) => test_status_icon_view(~grid, insts, ms)
           | None => None
           },
         test_results.test_map,
@@ -738,11 +741,11 @@ module View = {
       let result =
         result_kind == `JustTheorems
           ? [] : footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (~grid: Grid.t, editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
-              ~font_metrics=globals.font_metrics,
+              ~grid,
               ~measured=editor.syntax.measured,
               result,
             ),
@@ -787,15 +790,15 @@ module View = {
         | None => text("No elaboration found")
         },
       ];
-      (result, (_ => []));
+      (result, ((~grid as _, _) => []));
 
     // test forms keep pass/fail sigils but no result footer (tutorial mode)
     | `TestSigilsOnly when globals.settings.core.dynamics =>
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (~grid: Grid.t, editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
-              ~font_metrics=globals.font_metrics,
+              ~grid,
               ~measured=editor.syntax.measured,
               result,
             ),
@@ -809,16 +812,16 @@ module View = {
     | `NoTheorems
     | `JustTheorems
     | `TestSigilsOnly
-    | `NoResults => ([], (_ => []))
+    | `NoResults => ([], ((~grid as _, _) => []))
 
     | `Custom(node) => (
         [node],
         (
-          (editor: Haz3lcore.Editor.t) =>
+          (~grid: Grid.t, editor: Haz3lcore.Editor.t) =>
             switch (Model.test_results(model)) {
             | Some(result) => [
                 test_result_layer(
-                  ~font_metrics=globals.font_metrics,
+                  ~grid,
                   ~measured=editor.syntax.measured,
                   result,
                 ),
@@ -831,11 +834,11 @@ module View = {
     // Just showing test results (school mode)
     | `TestResults =>
       let test_results = Model.test_results(model);
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (~grid: Grid.t, editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
-              ~font_metrics=globals.font_metrics,
+              ~grid,
               ~measured=editor.syntax.measured,
               result,
             ),

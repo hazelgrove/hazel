@@ -30,7 +30,7 @@ let compute_caret_ids =
 let highlight_of_id =
     (
       ~measured: Measured.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~info_map: Language.Statics.Map.t,
       id: Id.t,
     )
@@ -46,7 +46,7 @@ let highlight_of_id =
       Node.div(
         ~attrs=[
           Attr.classes(["var-highlight", sort_cls]),
-          DecUtil.abs_style(~font_metrics, measurement),
+          DecUtil.abs_style(~grid, measurement),
         ],
         [],
       ),
@@ -59,7 +59,7 @@ let highlight_of_id =
 let view =
     (
       ~measured: Measured.t,
-      ~font_metrics: FontMetrics.t,
+      ~grid: Grid.t,
       ~info_map: Language.Statics.Map.t,
       z: Zipper.t,
     )
@@ -67,9 +67,6 @@ let view =
   let ids = compute_caret_ids(~info_map, z);
   div_c(
     "var-highlights",
-    List.concat_map(
-      highlight_of_id(~measured, ~font_metrics, ~info_map),
-      ids,
-    ),
+    List.concat_map(highlight_of_id(~measured, ~grid, ~info_map), ids),
   );
 };

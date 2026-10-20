@@ -13,6 +13,7 @@ open Web;
 let font_metrics: FontMetrics.t = {
   row_height: 20.0,
   col_width: 10.0,
+  text_height: 16.0,
 };
 
 let chips_of = (input: string): list((int, int, string)) => {
@@ -23,7 +24,7 @@ let chips_of = (input: string): list((int, int, string)) => {
   let caret = Zipper.Caret.point(syntax.measured, z);
   QuiverDec.bubbles(
     ~measured=syntax.measured,
-    ~font_metrics,
+    ~grid=Grid.flat(font_metrics),
     ~caret_pos=Some((caret.row, caret.col)),
     ~owned=CompletionQuery.chips_at_caret(~seg=engine_seg, z),
     engine_seg,
@@ -71,7 +72,7 @@ let flagpole_edges =
                       col => {
                         let geometry =
                           QuiverDec.flagpole_geometry(
-                            ~font_metrics,
+                            ~grid=Grid.flat(font_metrics),
                             ~row,
                             ~col,
                             ~caret_form=Some((side, shape)),
@@ -120,6 +121,7 @@ let flagpole_edges =
         FontMetrics.{
           row_height: 25.135,
           col_width: 10.405,
+          text_height: 21.5,
         },
       ],
     )

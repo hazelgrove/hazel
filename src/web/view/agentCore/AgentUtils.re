@@ -90,7 +90,7 @@ let llm_context_snapshot_text =
     : string => {
   let agent_editor_view_string =
     CompositionView.Public.print(
-      ~probe_map=cws.dynamics,
+      ~probe_map=cws.dynamics.samples,
       cws.editor,
       chat.agent_view,
     );
@@ -156,7 +156,7 @@ let update_context =
       let info_map = editor.statics.info_map;
       let printed =
         CompositionView.Public.print(
-          ~probe_map=editor.dynamics,
+          ~probe_map=editor.dynamics.samples,
           ~info_map,
           editor.editor,
           curr_chat.agent_view,

@@ -621,16 +621,34 @@ let prompt = (message: string, default: string): option(string) => {
   |> Option.map(Js.to_string);
 };
 
-/* Measure actual font metrics from the #font-specimen element.
+/* The height of the text box of the #font-specimen element: a range over
+ * its contents, which is the glyphs' box rather than the line box. */
+let specimen_text_height = (~default: float): float =>
+  switch (get_elem_by_id_opt("font-specimen")) {
+  | Some(specimen) =>
+    let range = Js.Unsafe.meth_call(Dom_html.document, "createRange", [||]);
+    let () =
+      Js.Unsafe.meth_call(
+        range,
+        "selectNodeContents",
+        [|Js.Unsafe.inject(specimen)|],
+      );
+    let rect = Js.Unsafe.meth_call(range, "getBoundingClientRect", [||]);
+    max(1.0, Js.Unsafe.get(rect, "height"));
+  | None => default
+  };
+
+/* Measure actual font metrics from the #font-specimen element: a column's
+ * width, a row's height and its text box's height.
  * Falls back to 10.0 if the element isn't available. */
-let font_metrics_from_specimen = (): (float, float) =>
+let font_metrics_from_specimen = (): (float, float, float) =>
   switch (get_elem_by_id_opt("font-specimen")) {
   | Some(specimen) =>
     let rect = specimen##getBoundingClientRect;
     let col_width = max(1.0, rect##.right -. rect##.left);
     let row_height = max(1.0, rect##.bottom -. rect##.top);
-    (col_width, row_height);
-  | None => (10.0, 10.0)
+    (col_width, row_height, specimen_text_height(~default=row_height));
+  | None => (10.0, 10.0, 10.0)
   };
 
 /* Listen for devicePixelRatio changes (triggered by browser zoom).

@@ -23,6 +23,12 @@ type t = {
   initial_step_count: int,
   theorems: list((Id.t, string, Environment.t(Exp.t), Exp.t)),
   tests: TestMap.t,
+  /* How many times each program node (EvalInfo.is_program_node) was
+   * evaluated: the Proper steps (Transition.provenance_of_kind) taken at
+   * its id. A value takes none, so a value cast or projected later, which
+   * the evaluator revisits under the ids of the literals it came from, is
+   * not evaluated again. */
+  evaluations: Id.Map.t(int),
   probes: Sample.Map.t,
   /* In-flight observation spans (the trace fold's bracket stack).
    * Pushed at SpanOpen, enriched by CallEnter, popped+minted into
@@ -62,6 +68,7 @@ type effect =
 let empty: t = {
   initial_step_count: 0,
   tests: TestMap.empty,
+  evaluations: Id.Map.empty,
   probes: Sample.Map.empty,
   obs_opens: [],
   obs_trace: [],
@@ -128,6 +135,12 @@ let append = (base: t, ext: t): t => {
     step_count: base.step_count + (ext.step_count - ext.initial_step_count),
     probes,
     tests,
+    evaluations:
+      Id.Map.union(
+        (_, a, b) => Some(a + b),
+        base.evaluations,
+        ext.evaluations,
+      ),
     theorems: ext.theorems @ base.theorems,
     /* ext's spans are balanced by the time it is appended (spans never
      * cross top-level segment boundaries); the base's in-flight opens
@@ -176,6 +189,20 @@ let get_tests = ({tests, _}) => tests;
 let get_probes = ({probes, _}) => probes;
 
 let get_theorems = ({theorems, _}) => theorems;
+
+let get_evaluations = ({evaluations, _}: t) => evaluations;
+
+let record_evaluation = (state: t, id: Id.t): t => {
+  ...state,
+  evaluations:
+    Id.Map.update(
+      id,
+      fun
+      | None => Some(1)
+      | Some(n) => Some(n + 1),
+      state.evaluations,
+    ),
+};
 
 let get_incr_eval = ({incr_eval, _}: t) => incr_eval;
 
