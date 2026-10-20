@@ -221,9 +221,12 @@ and step = (~recursive: bool, d: DHExp.t): option(DHExp.t) => {
         )
       | None => None //TODO  This is an impossible case since we checked consistency
       }
-    | (e, Parens(t)) =>
-      // This is an impossible case since types should be normalized before coming to transitions
-      transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
+    | (_, Parens(t)) =>
+      /* An impossible case: types are normalized before they come to
+         transitions. e as it is, not a fresh copy: its id is kept, as
+         everywhere here, and an e that already has the type comes back
+         as itself. */
+      transition(~recursive, Asc(e, t) |> DHExp.fresh)
     | (Closure(ce, d), t) =>
       transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)

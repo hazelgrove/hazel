@@ -55,6 +55,49 @@ let blur_expected: ref(bool) = ref(false);
 
 let expect_blur = (): unit => blur_expected := true;
 
+/* A press outside the kept probe, or outside the kept splice, since the last
+   frame (dev's #2649: text outside the editors is selectable, and a press on
+   it, which may be starting a selection, leaves focus on #page, as a vdom
+   drop does; only the press is deliberate, so the keepers let it be). */
+let pressed_elsewhere: ref(bool) = ref(false);
+let pressed_outside_splice: ref(bool) = ref(false);
+let kept_splice: ref(option(string)) = ref(None);
+
+let contains = (id: string, target: Js.t(Dom_html.element)): bool =>
+  switch (JsUtil.get_elem_by_id_opt(id)) {
+  | Some(el) =>
+    Js.to_bool(
+      Js.Unsafe.meth_call(el, "contains", [|Js.Unsafe.inject(target)|]),
+    )
+  | None => false
+  };
+
+/* Capture phase, since projectors stop pointerdown propagation. */
+let install_press_tracking = (): unit => {
+  let _: Dom_html.event_listener_id =
+    Dom_html.addEventListenerWithOptions(
+      Dom_html.document,
+      Dom_html.Event.make("pointerdown"),
+      ~capture=Js._true,
+      Dom_html.handler((evt: Js.t(Dom_html.event)) => {
+        switch (Js.Opt.to_option(evt##.target)) {
+        | Some(target) =>
+          switch (kept^) {
+          | Some(id) => pressed_elsewhere := !contains(id, target)
+          | None => ()
+          };
+          switch (kept_splice^) {
+          | Some(id) => pressed_outside_splice := !contains(id, target)
+          | None => ()
+          };
+        | None => ()
+        };
+        Js._true;
+      }),
+    );
+  ();
+};
+
 let focus_no_scroll = (elem: Js.t(Dom_html.element)): unit =>
   Js.Unsafe.meth_call(
     elem,
@@ -74,14 +117,17 @@ let fell_to_nothing = (active: option(Js.t(Dom_html.element))): bool =>
   switch (active) {
   | None => true
   | Some(el) =>
-    Js.to_string(el##.tagName) == "BODY"
-    || List.mem(Js.to_string(el##.id), ["page", JsUtil.clipboard_shim_id])
+    Js.to_string(el##.tagName) == "BODY" || Js.to_string(el##.id) == "page"
   };
 
 /* the remembered probe, when the keeper puts the focus back on it */
 let returning_probe = (): option(Js.t(Dom_html.element)) =>
   switch (kept^) {
-  | Some(id) when ! blur_expected^ && fell_to_nothing(active_element()) =>
+  | Some(id)
+      when
+        ! blur_expected^
+        && ! pressed_elsewhere^
+        && fell_to_nothing(active_element()) =>
     JsUtil.get_elem_by_id_opt(id)
   | _ => None
   };
@@ -108,8 +154,8 @@ let execute = (): bool => {
     JsUtil.outline_has_focus() || JsUtil.focus_active_cell();
   switch (target) {
   | Some(Editor) =>
-    /* focus the editor itself, not the clipboard shim: the caret CSS
-       is gated on `.code-editor:focus` */
+    /* focus the editor itself: the caret CSS is gated on
+       `.code-editor:focus` */
     JsUtil.focus_active_editor();
     true;
   | Some(Cell) => focus_cell()
@@ -145,12 +191,13 @@ let keep_focus = (): unit => {
     switch (returning_probe()) {
     | Some(elem) => focus_no_scroll(elem)
     | None =>
-      /* a deliberate blur, the probe gone (culled out or deleted), or
-         something else took focus on purpose */
+      /* a deliberate blur or press elsewhere, the probe gone (culled out
+         or deleted), or something else took focus on purpose */
       kept := None;
       blur_expected := false;
     }
   };
+  pressed_elsewhere := false;
 };
 
 /* --- Splice focus -----------------------------------------------------
@@ -164,12 +211,10 @@ let keep_focus = (): unit => {
  * A vdom key on the splice does not help: keys only match siblings under
  * a surviving parent, and here an ancestor is replaced.
  *
- * Restoring focus to the main editor's clipboard shim does NOT work
- * either -- verified: keystrokes then reach the editor but never the
- * splice. Focus has to go back to the splice's own sub-editor element,
- * which is what this does. */
-
-let kept_splice: ref(option(string)) = ref(None);
+ * Restoring focus to the main editor does NOT work either (verified, when it
+ * still went through a clipboard shim: keystrokes then reach the editor but
+ * never the splice). Focus has to go back to the splice's own sub-editor
+ * element, which is what this does. */
 
 /* The `.splice-editor` wrapper an element sits in, if any. */
 let enclosing_splice = (el: Js.t(Dom_html.element)): option(string) => {
@@ -217,22 +262,17 @@ let keep_splice_focus = (): unit => {
     switch (kept_splice^) {
     | None => ()
     | Some(id) =>
-      let fell_to_nothing =
-        switch (active) {
-        | None => true
-        | Some(el) =>
-          let tag = Js.to_string(el##.tagName);
-          let eid = Js.to_string(el##.id);
-          tag == "BODY" || eid == "page" || eid == "clipboard-shim";
-        };
-      if (fell_to_nothing) {
+      if (fell_to_nothing(active) && pressed_outside_splice^) {
+        kept_splice := None; /* a press elsewhere, deliberate */
+      } else if (fell_to_nothing(active)) {
         switch (JsUtil.get_elem_by_id_opt(id)) {
         | Some(w) => ignore(focus_inside_splice(w))
         | None => kept_splice := None /* splice gone: deleted or culled */
         };
       } else {
         kept_splice := None; /* something else took focus on purpose */
-      };
+      }
     }
   };
+  pressed_outside_splice := false;
 };

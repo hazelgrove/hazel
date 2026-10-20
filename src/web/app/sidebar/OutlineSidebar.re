@@ -259,7 +259,7 @@ module FieldFocus =
       if (!Js.Opt.test(active)
           || active ==
           Js.Unsafe.coerce(Dom_html.document)##.body
-          || Js.to_string(active##.id) == Util.JsUtil.clipboard_shim_id
+          || Js.to_string(active##.id) == "page"  /* where focus falls since dev's #2649 */
           || Js.Opt.test(
                active##closest(Js.string("#outline-sidebar .outline-body")),
              )

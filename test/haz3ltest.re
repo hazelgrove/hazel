@@ -175,6 +175,7 @@ let (suite, exit_with_test_status) =
       Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
+      Test_Ascriptions.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
@@ -189,6 +190,7 @@ let (suite, exit_with_test_status) =
     @ Test_ColorConfiguration.tests
     @ Test_ConfigurationMode.tests
     @ [Test_ApplyWorkerMessages.tests]
+    @ [Test_SettingsPanel.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]

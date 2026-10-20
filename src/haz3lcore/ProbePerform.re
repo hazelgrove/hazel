@@ -44,7 +44,9 @@ module FocusEffect = {
     switch (scheduled^) {
     | Some(Editor) =>
       scheduled := None;
-      JsUtil.focus_clipboard_shim();
+      /* the editor itself (dev's #2649 took out the clipboard shim this
+         used to focus): the caret CSS is gated on `.code-editor:focus` */
+      JsUtil.focus_active_editor();
       true;
     | Some(Cell) =>
       scheduled := None;

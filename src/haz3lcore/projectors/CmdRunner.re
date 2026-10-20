@@ -111,7 +111,7 @@ let rec run = (ctx: context, cmd: DHExp.t): Ui_effect.t(unit) => {
 
   | Some(("CopyToClipboard", body)) =>
     switch (of_string(body)) {
-    | Some(text) => Effect.of_sync_fun(() => {JsUtil.copy(text)}, ())
+    | Some(text) => Effect.of_sync_fun(() => {JsUtil.copy_text(text)}, ())
     | None => Effect.Ignore
     }
 
