@@ -61,6 +61,20 @@ let fast_equal =
   ).
     exp;
 let equal = fast_equal;
+/* fast_equal, with Equality's hash shortcut: for comparing a term with a
+   near-copy, where identical subterms are recognized without a walk. */
+let fast_equal_hashed =
+  Equality.(
+    equality(
+      ~hash_shortcut=true,
+      {
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_projectors: true,
+      },
+    )
+  ).
+    exp;
 
 /* In-order trace of annotation lexemes. Paired with fast_equal (which
    guarantees aligned structure), comparing traces detects lexeme-only
@@ -93,6 +107,25 @@ let lexeme_trace = (e: t): list(option(string)) => {
    lexeme-only edits serve stale results (cf. IncrEval.reuse_check). */
 let fast_equal_with_lexemes = (a: t, b: t): bool =>
   fast_equal(a, b) && lexeme_trace(a) == lexeme_trace(b);
+
+/* fast_equal_with_lexemes in one walk, with Equality's hash shortcut and
+   memo: for comparing a term with a near-copy, as the eval worker's reuse
+   check does for every node. Two terms that differ only by ids then cost
+   one visit per node in all, instead of a lexeme trace of each subterm
+   every time it is asked about. */
+let fast_equal_hashed_with_lexemes =
+  Equality.(
+    equality(
+      ~hash_shortcut=true,
+      ~lexemes=true,
+      {
+        ...syntactic_settings,
+        ignore_parens: true,
+        ignore_projectors: true,
+      },
+    )
+  ).
+    exp;
 
 let temp: term => t =
   term => {
