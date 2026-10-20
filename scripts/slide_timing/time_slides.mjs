@@ -9,47 +9,24 @@
 // (script, layout, style; the redirect page is a few ms of them), and a CPU profile of the page and of each worker
 // it starts (the eval worker), sampled every 1 ms. A profile's time is split into self time by function, and
 // into (garbage collector), (program) (the browser's own work outside JS) and (idle).
+// With PHASE_MAP set (phases.py --emit-map), each profile's time is also charged to the nearest Hazel caller
+// (profile.mjs).
 // One JSON line per slide.
 import { readFileSync } from "node:fs";
+import { profileSummary } from "./profile.mjs";
 
 const [dport, app, list] = process.argv.slice(2);
 const LIMIT = Number(process.env.SLIDE_LIMIT_MS || 180000), QUIET = 2000;
 const slides = readFileSync(list, "utf8").split("\n").filter(Boolean).map(l => l.split("\t"));
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+// which phase each function is in (phases.py --emit-map), to charge library time to the nearest Hazel caller
+const PMAP = process.env.PHASE_MAP ? JSON.parse(readFileSync(process.env.PHASE_MAP, "utf8")) : null;
 
 const RECORDER = `(() => {
   window.__lastMut = performance.now(); window.__muts = 0;
   new MutationObserver(() => { window.__lastMut = performance.now(); window.__muts++; })
     .observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
 })();`;
-
-function profileSummary(profile, top = 25) {
-  if (!profile || !profile.nodes) return null;
-  const byId = new Map(profile.nodes.map(n => [n.id, n]));
-  const self = new Map(), frames = new Map();
-  const dt = profile.timeDeltas || [];
-  let total = 0;
-  (profile.samples || []).forEach((id, i) => {
-    const n = byId.get(id), ms = (dt[i] || 0) / 1000;
-    total += ms;
-    const f = n.callFrame, url = (f.url || "").split("/").pop();
-    // (^ticket(470)) where each function starts in its script: phases.py maps it through the bundle's source map
-    if (f.url) { const k = `${url}\t${f.lineNumber}\t${f.columnNumber}\t${f.functionName}`; frames.set(k, (frames.get(k) || 0) + ms); }
-    const key = f.functionName ? `${f.functionName} ${url}` : (url ? `(anonymous) ${url}` : "(anonymous)");
-    const name = ["(garbage collector)", "(program)", "(idle)", "(root)"].includes(f.functionName) ? f.functionName : key;
-    self.set(name, (self.get(name) || 0) + ms);
-  });
-  const get = k => Math.round(self.get(k) || 0);
-  const js = total - get("(garbage collector)") - get("(program)") - get("(idle)");
-  return {
-    total_ms: Math.round(total), js_ms: Math.round(js), gc_ms: get("(garbage collector)"),
-    program_ms: get("(program)"), idle_ms: get("(idle)"),
-    top: [...self].filter(([k]) => !k.startsWith("(")).sort((a, b) => b[1] - a[1]).slice(0, top)
-      .map(([k, v]) => [k, Math.round(v)]),
-    // [script, line, column, function, self ms], every function with at least a millisecond
-    frames: [...frames].filter(([, v]) => v >= 1).map(([k, v]) => { const [u, l, c, fn] = k.split("\t"); return [u, +l, +c, fn, Math.round(v * 10) / 10]; }),
-  };
-}
 
 async function timeSlide(deck, slug, name) {
   const page = await (await fetch(`http://127.0.0.1:${dport}/json/new?about:blank`, { method: "PUT" })).json();
@@ -115,11 +92,11 @@ async function timeSlide(deck, slug, name) {
     out.metrics = { script_ms: delta("ScriptDuration"), layout_ms: delta("LayoutDuration"),
                     style_ms: delta("RecalcStyleDuration"), task_ms: delta("TaskDuration"),
                     js_heap_mb: Math.round(metric(after, "JSHeapUsedSize") / 1048576) };
-    out.main = profileSummary((await send("Profiler.stop")).result.profile);
+    out.main = profileSummary((await send("Profiler.stop")).result.profile, PMAP);
     out.workers = [];
     for (const [sid, url] of workers) {
       const r = await send("Profiler.stop", {}, sid);
-      const s = profileSummary(r.result && r.result.profile);
+      const s = profileSummary(r.result && r.result.profile, PMAP);
       if (s) out.workers.push({ url: url.split("/").pop(), ...s });
     }
     out.page_errors = errs.slice(0, 5);
