@@ -108,6 +108,12 @@ let next: t => t = x => Uuidm.v5(namespace_uuid, Uuidm.to_string(x));
 
 let mk_str: string => t = s => Uuidm.v5(namespace_uuid, s);
 
+/* Deterministic derivation from a base id. Distinct salts give
+   independent streams that can't collide with each other or with
+   `next` chains (different hash preimages). */
+let derive = (~salt: string, x: t): t =>
+  Uuidm.v5(namespace_uuid, salt ++ ":" ++ Uuidm.to_string(x));
+
 /* An id is a 16-byte string (Uuidm.unsafe_to_bytes is the identity), so
    compare it as one: the same order as Uuidm.compare, which is Stdlib's
    polymorphic compare, without its generic walk. Every Id.Map lookup
@@ -125,18 +131,16 @@ let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
 let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
 let cls = (id: t) => "id" ++ str8(id);
 
+/* OCaml-literal id constructor: pp/show render ids as
+ * Haz3lcore.Id.v("<uuid>"), consumed as compilable OCaml in generated
+ * exercise/derivation files (and as debug display). */
+let v: string => t =
+  s =>
+    Uuidm.of_string(s)
+    |> OptUtil.get(_ => failwith("Id.v: not a valid UUID: " ++ s));
 let pp: (Format.formatter, t) => unit =
-  (f, id) =>
-    Format.fprintf(
-      f,
-      "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
-      to_string(id),
-    );
-let show = id =>
-  Format.sprintf(
-    "Option.get(Haz3lcore.Id.of_string(\"%s\"))",
-    to_string(id),
-  );
+  (f, id) => Format.fprintf(f, "Haz3lcore.Id.v(\"%s\")", to_string(id));
+let show = id => Format.sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));
 
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);

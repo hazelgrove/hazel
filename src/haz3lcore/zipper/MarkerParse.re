@@ -48,18 +48,21 @@ let to_text = (~implicit_hole=default_implicit_hole, z: Zipper.t): string =>
     Zipper.unselect_and_zip(~erase_buffer=true, z),
   );
 
-/* Swap every marker tile for a convex Grout with the same id. Projector
-   contents are not entered: markers inside projector syntax (`^^fold(¿)`)
-   are a KNOWN GAP (#2455) — the fast path handles those (its weave maps
-   ¿ to Grout before materializing the projector), so only a slow-path
-   load of a projector-wrapped hole leaves a literal ¿ tile inside. */
+/* Swap every marker tile for a convex Grout with the same id. A label
+   check, not a form match: the marker is caller-configurable (CLI
+   --implicit-hole), and a non-default marker classifies as whatever
+   form its token spells. Projector contents are not entered: markers
+   inside projector syntax (`^^fold(¿)`) are a KNOWN GAP (#2455) — the
+   fast path handles those (its weave maps ¿ to Grout before
+   materializing the projector), so only a slow-path load of a
+   projector-wrapped hole leaves a literal ¿ tile inside. */
 let replace_markers = (~implicit_hole: string, seg: Segment.t): Segment.t =>
   List.map(
     Base.map_piece(~f_piece=(rec_call, p: piece) =>
       switch (p) {
-      | Tile({id, label: [marker], _}) when marker == implicit_hole =>
+      | Tile(t) when Tile.has_label(t, [implicit_hole]) =>
         Grout({
-          id,
+          id: t.id,
           shape: Convex,
         })
       | _ => rec_call(p)

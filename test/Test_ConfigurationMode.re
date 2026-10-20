@@ -23,7 +23,7 @@ let rec bad_tiles = (seg: Base.segment): list(string) =>
         let here =
           List.length(t.shards) != List.length(t.children) + 1
             ? [
-              String.concat("", t.label)
+              String.concat("", Tile.label(t))
               ++ " shards="
               ++ string_of_int(List.length(t.shards))
               ++ " children="

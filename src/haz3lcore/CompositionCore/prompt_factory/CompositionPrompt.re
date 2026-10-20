@@ -390,16 +390,20 @@ let session_modes = [
 ];
 
 /* Pointers only — the guides themselves are served by the read_docs tool
-   (DocPacks), so they cost context when pulled, not on every turn */
-let on_demand_docs = [
-  "## On-demand guides",
-  "",
-  "Detailed how-to guides are available through the `read_docs` tool:",
-  "",
-  DocPacks.topic_lines,
-  "",
-  "Read the relevant guide BEFORE building the kind of thing it covers; the returned guide stays in context for the rest of the session.",
-];
+   (DocPacks), so they cost context when pulled, not on every turn.
+   Empty when the registry has no packs (the tool is not offered then). */
+let on_demand_docs =
+  DocPacks.all == []
+    ? []
+    : [
+      "## On-demand guides",
+      "",
+      "Detailed how-to guides are available through the `read_docs` tool:",
+      "",
+      DocPacks.topic_lines,
+      "",
+      "Read the relevant guide BEFORE building the kind of thing it covers; the returned guide stays in context for the rest of the session.",
+    ];
 
 let self =
   identity

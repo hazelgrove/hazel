@@ -33,7 +33,7 @@ The function should be the max of 0 and its other input
 ### Multi-argument functions
 ```hazel
 let sum =
-fun (x, y) -> x + y
+  fun (x, y) -> x + y
 in
 sum(1, 2)
 ```
@@ -42,7 +42,7 @@ sum(1, 2)
 Use `_` to defer arguments:
 ```hazel
 let double =
-map(_, fun x -> x * 2)
+  map(_, fun x -> x * 2)
 in
 double([1, 2, 3])
 ```

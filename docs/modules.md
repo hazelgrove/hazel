@@ -395,7 +395,8 @@ used only for mispositioned items.
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |
-| `src/haz3lcore/lang/Form.re`            | Module/Sig forms, `mk_pre_c'` helper                               |
+| `src/language/grammar/FormId.re`         | Module/Sig families + labels                                       |
+| `src/haz3lcore/lang/Form.re`            | Module/Sig mold rows, `mk_pre_c'` helper                           |
 | `src/haz3lcore/zipper/action/Insert.re` | `=` upgrade of a bare `type T` signature item                      |
 | `src/haz3lcore/lang/MakeTerm.re`        | Module/Sig parsing with flattening                                 |
 | `src/haz3lcore/pretty/ExpToSegment.re`  | Module, Sig and `ModVal` printing                                  |

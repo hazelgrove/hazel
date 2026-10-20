@@ -55,6 +55,7 @@ let aliases: list(((string, string), list(string))) = [
       "surface-raised",
       "df-zebra-bg",
       "table-header-bg",
+      "cell-result",
     ],
   ),
   (
@@ -149,7 +150,6 @@ let aliases: list(((string, string), list(string))) = [
     ("palette", "surface-3"),
     [
       "main-bkg",
-      "cell-result",
       "live-env-bkg",
       "surface-sunken",
       "text-sunken",
@@ -251,7 +251,6 @@ let aliases: list(((string, string), list(string))) = [
   (("editor", "buffer"), ["token-buffer"]),
   (("editor", "derivation"), ["token-drv"]),
   (("editor", "locked-cell"), ["cell-exercises-border"]),
-  (("editor", "backpack-outline"), ["backpack-selection-outline"]),
   (("cursor", "derivation"), ["shard-drv"]),
   (("cursor", "module"), ["shard-caret-mod", "shard-mod"]),
   (("cursor", "signature"), ["shard-caret-sig", "shard-sig"]),
@@ -314,20 +313,18 @@ let aliases: list(((string, string), list(string))) = [
   (("palette", "statics-background"), ["main-base"]),
   (("palette", "statics-edge"), ["main-shadow"]),
   (("projector", "fold-background"), ["fold-bkg"]),
+  (("completion", "chip-text"), ["quiver-chip-text"]),
+  (("completion", "later-text"), ["quiver-chip-text-faded"]),
+  (
+    ("completion", "later-text-at-caret"),
+    ["quiver-chip-text-faded-atcaret"],
+  ),
   (("palette", "textarea-margin"), ["textarea-v-stripe"]),
   (("palette", "textarea-rule"), ["textarea-h-stripe"]),
   (("palette", "textarea-rule-selected"), ["textarea-h-strip-selected"]),
   (("editor", "string"), ["token-string-lit", "token-incomplete"]),
   (("editor", "comment"), ["token-comment"]),
-  (
-    ("editor", "selection"),
-    [
-      "shard-selected",
-      "backpack-selection",
-      "backpack-joiner",
-      "backpack-genie",
-    ],
-  ),
+  (("editor", "selection"), ["shard-selected"]),
   (
     ("palette", "attention-1"),
     ["surface-highlight-soft", "shard-selected-expanded"],

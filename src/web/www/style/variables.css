@@ -37,7 +37,6 @@
   --projector-z: 10;
 
   /* ABOVE CODE LEVEL */
-  --backpack-targets-z: 11;
   --projector-indicated-z: 11;
   --projector-hover-z: 12;
   --caret-z: 20;
@@ -50,7 +49,6 @@
   --bottom-bar-z: 31;
   --top-bar-z: 31;
   --explainthis-expander-z: 31;
-  --backpack-z: 32;
   --top-bar-hover-z: 33;
 
   /* HACKS */
