@@ -1,0 +1,59 @@
+# How long each documentation slide takes to open, and where the time goes (^ticket(470)).
+# On GitHub's machines, never the laptop: push a branch named timing/<anything> holding the
+# code to time plus scripts/slide_timing/ and this file; the job summary has the table, and
+# the artifact the JSON lines (one per slide) and the slide list.
+name: Slide timing
+
+on:
+  push:
+    branches:
+      - "timing/**"
+
+concurrency:
+  group: slide-timing-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  time:
+    name: Time the documentation slides
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      - name: Build the web app (release, as deployed)
+        run: |
+          export DUNE_CACHE=enabled
+          opam exec -- dune build src --profile release
+
+      - name: The slides to time
+        run: |
+          python3 scripts/slide_timing/slides.py --decks "${SLIDE_DECKS:-reference,livelits,playground}" > slides.tsv
+          wc -l slides.tsv
+
+      - name: Serve the build, and start Chrome
+        run: |
+          python3 scripts/dev_serve.py --port 8111 --dir _build/default/src/web/www > serve.log 2>&1 &
+          google-chrome --headless=new --remote-debugging-port=9222 --user-data-dir="$RUNNER_TEMP/chrome" \
+            --no-first-run --no-default-browser-check --mute-audio about:blank > chrome.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://127.0.0.1:9222/json/version > /dev/null && curl -sf http://127.0.0.1:8111/ > /dev/null && break
+            sleep 1
+          done
+          google-chrome --version
+
+      - name: Open every slide, timed
+        run: |
+          node scripts/slide_timing/time_slides.mjs 9222 http://localhost:8111 slides.tsv > timing.jsonl
+          python3 scripts/slide_timing/summary.py timing.jsonl "${GITHUB_REF_NAME} at ${GITHUB_SHA::10}" >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: slide-timing
+          path: |
+            timing.jsonl
+            slides.tsv
+            serve.log
