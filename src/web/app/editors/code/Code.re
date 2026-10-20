@@ -13,18 +13,22 @@ let is_ref = (token: string, sort: Sort.t) =>
   && !Token.is_base_typ(token)
   && Token.is_typ_var(token);
 
+/* One tuple argument, so the memo is keyed on all of it: memoizing the
+   curried version cached only its partial application on the token. */
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
     (
-      token: string,
-      plurality: int,
-      sort: Sort.t,
-      is_consistent: bool,
-      is_in_buffer: bool,
-      is_complete: bool,
-      is_infix_var: bool,
-      font_metrics: FontMetrics.t,
+      (
+        token: string,
+        plurality: int,
+        sort: Sort.t,
+        is_consistent: bool,
+        is_in_buffer: bool,
+        is_complete: bool,
+        is_infix_var: bool,
+        font_metrics: FontMetrics.t,
+      ),
     ): t => {
       let base_cls =
         switch (token) {
@@ -61,10 +65,7 @@ let of_delim' =
     },
   );
 
-let secondary_text =
-  Core.Memo.general(~cache_size_bound=10000, (cls, str) =>
-    span_c(cls, [text(str)])
-  );
+let secondary_text = (cls, str) => span_c(cls, [text(str)]);
 
 /* Comments are measured in columns like any other text, so a comment with a
    wide cluster needs the same explicit cells as a token. */
@@ -73,10 +74,8 @@ let comment_text = (~font_metrics: FontMetrics.t, cls, str) =>
     ? secondary_text(cls, str)
     : span_c(cls, GraphemeView.render(~font_metrics, str));
 
-let whitespace_token =
-  Core.Memo.general(~cache_size_bound=10000, (row, col) =>
-    String.make(row, '\n') ++ String.make(col, ' ')
-  );
+let whitespace_token = (row, col) =>
+  String.make(row, '\n') ++ String.make(col, ' ');
 
 /* The extra classes a tile carries, by id. */
 let no_classes = (_: Id.t) => [];
@@ -100,8 +99,8 @@ let view =
     ) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
 
-  let g_convex = EmptyHoleDec.view(font_metrics, Convex);
-  let g_concave = EmptyHoleDec.view(font_metrics, Concave);
+  let g_convex = EmptyHoleDec.view((font_metrics, Convex));
+  let g_concave = EmptyHoleDec.view((font_metrics, Concave));
 
   let of_grout = (g: Grout.t): t => {
     switch (g.shape) {
@@ -136,7 +135,7 @@ let view =
 
   let of_delim = (t: Piece.tile, i: int): t => {
     let sort = sort(t);
-    of_delim'(
+    of_delim'((
       Tile.token(t, i),
       Tile.arity(t),
       sort,
@@ -145,7 +144,7 @@ let view =
       Tile.is_complete(t),
       Piece.is_infix_delimiter_op_prefix(Tile(t)),
       font_metrics,
-    );
+    ));
   };
 
   let measure_of = p => Measured.find_p(~msg="Text", p, measured);

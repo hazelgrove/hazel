@@ -1994,26 +1994,47 @@ let semantic_source = (z: Zipper.t): Segment.t =>
   |> Zipper.clear_unparsed_buffer
   |> Zipper.unselect_and_zip(~erase_buffer=true);
 
+/* The semantic term depends on the caret-free source alone, so it is
+   memoized on that segment: a caret move or a selection changes the zipper
+   but not its source, and reuses the parse. (Tutorial mode restitches its
+   program on every calculate, caret moves included.) */
+let of_semantic_source =
+  Core.Memo.general(
+    ~cache_size_bound=16,
+    (seg: Segment.t) => {
+      let result =
+        CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
+      let masks = CanonicalCompletion.masks_of_records(result.shard_records);
+      (
+        go_impl(~masks, result.completed_seg),
+        {
+          source: seg,
+          completed: result.completed_seg,
+        },
+      );
+    },
+  );
+
 let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
   /* Semantic terms come from the canonical completion of the visible
    * segment (caret-independent, provenance-recorded), replacing the
    * old caret-sensitive missing-shard dump. The ~root parameter matches the
    * dev signature; completion is invoked at Exp. */
   let _ = root;
-  let seg = semantic_source(z);
-  let result = CanonicalCompletion.complete_segment_deep(~sort=Sort.Exp, seg);
-  let masks = CanonicalCompletion.masks_of_records(result.shard_records);
-  (
-    go_impl(~masks, result.completed_seg),
-    {
-      source: seg,
-      completed: result.completed_seg,
-    },
-  );
+  of_semantic_source(semantic_source(z));
 };
 
-let from_zip_for_sem_with_completion =
-  Core.Memo.general(~cache_size_bound=1000, from_zip_for_sem_with_completion);
+/* Keyed on the (zipper, root) pair. Memoizing the curried function on the
+   zipper alone cached only its partial application, so every call reran
+   completion and MakeTerm (Tutorial's stitch does, on every calculate).
+   Results are whole-program terms and maps, hence the small bound. */
+let from_zip_for_sem_with_completion = {
+  let memo =
+    Core.Memo.general(~cache_size_bound=16, ((z, root)) =>
+      from_zip_for_sem_with_completion(z, ~root)
+    );
+  (z, ~root) => memo((z, root));
+};
 
 let from_zip_for_sem = (z, ~root) =>
   fst(from_zip_for_sem_with_completion(z, ~root));
