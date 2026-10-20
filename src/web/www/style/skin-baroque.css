@@ -223,7 +223,12 @@ html.skin-baroque .indication svg path.child-line {
   vector-effect: non-scaling-stroke;
   opacity: 0.95;
 }
+/* braces linger until the editor next redraws, so hide them with the skin */
+svg.orn-brace {
+  display: none;
+}
 html.skin-baroque svg.orn-brace {
+  display: block;
   position: absolute;
   left: 0;
   top: 0;
@@ -449,4 +454,48 @@ html.skin-baroque #cursor-inspector .ci-header {
 html.skin-baroque #cursor-inspector .gamma {
   background: radial-gradient(120% 140% at 30% 20%, #4f7a5a 0, #2d5a43 55%, #1f4232 100%) !important;
   box-shadow: inset -1px 0 0 #c49a55, inset -2.2px 0 0 #f6e3ad;
+}
+
+/* ---------- projectors ---------- */
+
+/* folds keep Hazel's shape (its svg) but take the fleuron in place of the
+   ellipsis tint, so a folded term reads as a closed chapter */
+html.skin-baroque .projector.fold > svg path {
+  fill: rgba(214, 176, 106, 0.3) !important;
+  stroke: #c49a55 !important;
+  stroke-width: 0.8px !important;
+  vector-effect: non-scaling-stroke;
+}
+html.skin-baroque .projector.fold {
+  background: var(--orn-fleuron) center / 0.85em no-repeat;
+}
+/* checkboxes and sliders in brass */
+html.skin-baroque .projector.check input,
+html.skin-baroque .projector.slider input,
+html.skin-baroque .projector.sliderf input {
+  filter: none;
+  accent-color: #a97a33;
+}
+html.skin-baroque .projector.slider input[type="range"],
+html.skin-baroque .projector.sliderf input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+}
+html.skin-baroque .projector.slider input[type="range"]::-webkit-slider-runnable-track,
+html.skin-baroque .projector.sliderf input[type="range"]::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(#fff5d6, #c49a55 55%, #a4732e);
+  box-shadow: 0 0 0 0.5px #a4732e;
+}
+html.skin-baroque .projector.slider input[type="range"]::-webkit-slider-thumb,
+html.skin-baroque .projector.sliderf input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 11px;
+  height: 11px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fffbe9 0, #ecd08e 50%, #b8893d 100%);
+  box-shadow: 0 0 0 0.7px #8c6420, 0 1px 1.5px rgba(80, 50, 10, 0.4);
 }
