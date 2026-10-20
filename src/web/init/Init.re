@@ -9,13 +9,35 @@ let empty_cell_editor_persistent = (~root): CellEditor.Model.persistent => {
   result: EvalResult.Model.init |> EvalResult.Model.persist,
 };
 
-/* each slide's root sort: mod_slides are module bodies, the rest Exp */
+/* the world tree's slides (hazel-programs/world, generated as
+   WorldSlides): a slide's path below its top folder is its name in that
+   deck ("B2T2 / Errors / Malformed Tables"). Slides are module members;
+   an expression program (exp) keeps an expression root. Prose is one
+   TextArea projector holding the file's content */
+let world_slides =
+    (folder: string): list((string, Sort.t, PersistentZipper.t)) =>
+  List.filter_map(
+    (s: WorldSlides.slide) =>
+      switch (s.path) {
+      | [top, ...rest] when top == folder && rest != [] =>
+        let text =
+          switch (s.kind) {
+          | Program => s.text
+          | Prose =>
+            "^^text(\"" ++ StringUtil.escape_linebreaks(s.text) ++ "\")"
+          };
+        Some((
+          String.concat(" / ", rest),
+          s.exp ? Sort.Exp : Sort.Mod,
+          PersistentZipper.of_slide_text(text),
+        ));
+      | _ => None
+      },
+    WorldSlides.slides,
+  );
+
 let documentation_slides: list((string, Sort.t, PersistentZipper.t)) =
-  List.map(
-    ((n, z)) => (n, Sort.Exp, z),
-    Docslides.Slides.all_slides @ B2t2.Slides.all_slides,
-  )
-  @ List.map(((n, z)) => (n, Sort.Mod, z), Docslides.Slides.mod_slides);
+  world_slides("Documentation");
 
 /* LAZY: the CLI links this module (--linkall) and must not pay the
    all-slides unpersist at module init; the browser forces it on first
@@ -24,7 +46,16 @@ let startup: Lazy.t(PersistentData.t) =
   lazy({
     scratch: (
       0,
-      [("Scratchpad 1", empty_cell_editor_persistent(~root=Exp))],
+      world_slides("Scratch")
+      |> List.map(((name, root, content: PersistentZipper.t)) =>
+           (
+             name,
+             {
+               editor: content |> Editor.Model.mk_persistent(~root),
+               result: EvalResult.Model.init |> EvalResult.Model.persist,
+             }: CellEditor.Model.persistent,
+           )
+         ),
     ),
     documentation: (
       0,

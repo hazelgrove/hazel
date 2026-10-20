@@ -54,7 +54,8 @@ let rec nth_right = (n, z) =>
     );
 
 let agree = (name, text) =>
-  switch (PersistentZipper.parse_text(~source=name, ~root=Exp, text)) {
+  /* the world tree's slides are module members */
+  switch (PersistentZipper.parse_text(~source=name, ~root=Mod, text)) {
   | None => fail(name ++ ": failed to parse")
   | Some(z0) =>
     let all = ids(Zipper.zip(z0));
@@ -115,12 +116,15 @@ let tests = (
     test_case(
       "reference slides: direct jump is the walk",
       `Slow,
-      slides_agree("hazel-programs/docs/reference"),
+      slides_agree("hazel-programs/world/documentation"),
     ),
     test_case(
       "B2T2 slides (first five): direct jump is the walk",
       `Slow,
-      slides_agree(~limit=5, "hazel-programs/docs/b2t2"),
+      slides_agree(
+        ~limit=5,
+        "hazel-programs/world/documentation/b2t2/table-api/constructors",
+      ),
     ),
   ],
 );

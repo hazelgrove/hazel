@@ -34,13 +34,6 @@ let legacy = (name: string): option((string, string)) =>
   | _ => None
   };
 
-/* a Documentation slide's name there: what its prose is keyed by */
-let doc_name = (name: string): string =>
-  switch (legacy(name)) {
-  | Some(("doc", n)) => n
-  | _ => name
-  };
-
 /* the slides: Documentation's code slides, then Scratch's */
 let names = (): list(string) => {
   let deck = (p, defaults) =>

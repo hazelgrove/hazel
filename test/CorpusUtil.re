@@ -18,9 +18,11 @@ let read_file = (path: string): option(string) =>
 /* HAZEL_BENCH=1: timing the suite, so the runner skips the statics oracle */
 let bench_enabled = Sys.getenv_opt("HAZEL_BENCH") == Some("1");
 
+/* the perf corpora: the world tree's Documentation › Perf slides */
 let mega_path = (name: string): string => {
-  let path = "hazel-programs/mega/" ++ name;
-  Sys.file_exists(path) ? path : "../hazel-programs/mega/" ++ name;
+  let path = "hazel-programs/world/documentation/perf/" ++ name;
+  Sys.file_exists(path)
+    ? path : "../hazel-programs/world/documentation/perf/" ++ name;
 };
 
 let mega_src = (name: string): option(string) =>
@@ -76,10 +78,12 @@ let mega_seg = (~root: Sort.t=Exp, name: string): Segment.t =>
     )
   };
 
-/* every .hz program under hazel-programs outside mega/, as loaded:
-   (path, text) */
-let slide_corpus = (): list((string, string)) => {
-  let rec find = (dir: string): list(string) =>
+/* every .hz program under hazel-programs, as loaded: (path, root, text).
+   The world tree's slides are module members (root Mod); its top-level
+   files are the standard library and its perf folder the mega corpora
+   (mega_seg), neither among them. Elsewhere, expression programs */
+let slide_corpus = (): list((string, Sort.t, string)) => {
+  let rec find = (~in_world, ~top, dir: string): list((string, Sort.t)) =>
     switch (Sys.readdir(dir)) {
     | entries =>
       entries
@@ -87,9 +91,17 @@ let slide_corpus = (): list((string, string)) => {
       |> List.concat_map(entry => {
            let path = Filename.concat(dir, entry);
            switch (Sys.is_directory(path)) {
-           /* the stdlib's sources are module bodies, not slides */
-           | true => List.mem(entry, ["mega", "stdlib"]) ? [] : find(path)
-           | false => Filename.check_suffix(entry, ".hz") ? [path] : []
+           | true when entry == "perf" && in_world => []
+           | true =>
+             find(
+               ~in_world=in_world || entry == "world",
+               ~top=entry == "world",
+               path,
+             )
+           | false when in_world && top => []
+           | false =>
+             Filename.check_suffix(entry, ".hz")
+               ? [(path, in_world ? Sort.Mod : Sort.Exp)] : []
            | exception _ => []
            };
          })
@@ -98,13 +110,14 @@ let slide_corpus = (): list((string, string)) => {
   let root =
     Sys.file_exists("hazel-programs")
       ? "hazel-programs" : "../hazel-programs";
-  find(root)
+  find(~in_world=false, ~top=false, root)
   |> List.sort(compare)
-  |> List.filter_map(path =>
+  |> List.filter_map(((path, sort)) =>
        Option.map(
          src =>
            (
              path,
+             sort,
              src
              |> Util.StringUtil.trim_leading
              |> Util.StringUtil.strip_final_newline,

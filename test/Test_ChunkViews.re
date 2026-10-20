@@ -307,9 +307,9 @@ let corpus = (~root=Sort.Exp, file, ()) =>
 
 let slides = () =>
   List.iter(
-    ((path, src)) =>
-      switch (CorpusUtil.parse(src)) {
-      | Some(seg) => same_html(path, seg)
+    ((path, root, src)) =>
+      switch (CorpusUtil.parse(~root, src)) {
+      | Some(seg) => same_html(~root, path, seg)
       | None => ()
       },
     CorpusUtil.slide_corpus(),

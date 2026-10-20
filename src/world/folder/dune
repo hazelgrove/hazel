@@ -1,0 +1,4 @@
+; The world tree's source folder (hazel-programs/world): WorldFolder.
+
+(library
+ (name worldFolder))

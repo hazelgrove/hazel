@@ -347,7 +347,7 @@ used only for mispositioned items.
 
 | File                                         | What                                          |
 | -------------------------------------------- | --------------------------------------------- |
-| `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide (construction, type access) |
-| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide (signatures and their errors) |
-| `hazel-programs/docs/reference/module-sealing.hz` | The Module Sealing slide; the three slides were one until its `let` chain hit the evaluator stack limit in the Web Worker |
+| `hazel-programs/world/documentation/modules.hz`   | The Modules doc slide (construction, type access) |
+| `hazel-programs/world/documentation/module-signatures.hz` | The Module Signatures slide (signatures and their errors) |
+| `hazel-programs/world/documentation/module-sealing.hz` | The Module Sealing slide; the three slides were one until its `let` chain hit the evaluator stack limit in the Web Worker |
 | `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |

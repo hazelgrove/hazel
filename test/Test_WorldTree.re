@@ -148,27 +148,26 @@ let runs = () => {
 let corpus = () => {
   let library = Test_World.library();
   let slides = CorpusUtil.slide_corpus();
-  let loaded = [
-    "hazel-programs/docs/reference/basic-reference.hz",
-    "hazel-programs/docs/reference/tables.hz",
-  ];
+  let doc = "hazel-programs/world/documentation/";
+  let loaded = [doc ++ "basic-reference.hz", doc ++ "tables.hz"];
+  let place = path => {
+    let name = Filename.remove_extension(Filename.basename(path));
+    let dir = Filename.basename(Filename.dirname(path));
+    ["Documentation", dir, name];
+  };
   let entries =
-    List.filter_map(
-      ((path, src)) => {
-        let name = Filename.remove_extension(Filename.basename(path));
-        let dir = Filename.basename(Filename.dirname(path));
-        let members =
+    List.map(
+      ((path, root, src)) =>
+        (
+          place(path),
           List.mem(path, loaded)
-            ? MemberForm.of_exp_root(CorpusUtil.seg_of(~root=Exp, src))
-            : None;
-        Some((["Documentation", dir, name], members));
-      },
+            ? World.members_of(~root, CorpusUtil.seg_of(~root, src)) : None,
+        ),
       slides,
     );
   let (w, t_assemble) =
     ms(() => Option.get(WorldTree.assemble(~library, entries)));
-  let (_, t_check) =
-    ms(() => checked(~path=["Documentation", "reference", "tables"], w));
+  let (_, t_check) = ms(() => checked(~path=place(doc ++ "tables.hz"), w));
   print_endline(
     Printf.sprintf(
       "%d slides: assembled in %.0f ms; checked and ran Tables in %.0f ms",
@@ -177,20 +176,16 @@ let corpus = () => {
       t_check,
     ),
   );
-  let alone = src => {
-    let seg = CorpusUtil.seg_of(~root=Exp, src);
-    let (e, t) = Test_MemberForm.checked(~root=Exp, seg);
-    (e, List.sort(compare, List.map(snd, t)));
-  };
   List.iter(
     path => {
-      let src = List.assoc(path, slides);
-      let name = Filename.remove_extension(Filename.basename(path));
+      let (_, root, src) = List.find(((p, _, _)) => p == path, slides);
+      let (e, t) =
+        Test_MemberForm.checked(~root, CorpusUtil.seg_of(~root, src));
       check(
         pair(int, list(string)),
         path,
-        alone(src),
-        checked(~path=["Documentation", "reference", name], w),
+        (e, List.sort(compare, List.map(snd, t))),
+        checked(~path=place(path), w),
       );
     },
     loaded,

@@ -36,7 +36,7 @@ let corpus = () => {
   let converted = ref(0);
   let kept = ref([]);
   List.iter(
-    ((path, src)) => {
+    ((path, _, src)) => {
       let seg = CorpusUtil.seg_of(~root=Exp, src);
       switch (MemberForm.of_exp_root(seg)) {
       | None => kept := [path, ...kept^]
@@ -48,7 +48,11 @@ let corpus = () => {
         check(list(pair(string, string)), path ++ ": tests", t0, t1);
       };
     },
-    CorpusUtil.slide_corpus(),
+    /* the expression programs: the world's slides are members already */
+    List.filter(
+      ((_, root, _)) => root == Sort.Exp,
+      CorpusUtil.slide_corpus(),
+    ),
   );
   print_endline(
     Printf.sprintf(
@@ -101,6 +105,6 @@ let tests = (
         ),
       )
     ),
-    test_case("the slide corpus keeps errors and tests", `Quick, corpus),
+    test_case("the expression corpus keeps errors and tests", `Quick, corpus),
   ],
 );

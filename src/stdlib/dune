@@ -1,8 +1,12 @@
 ; The Hazel-source standard library, baked at build time (plans/stdlib.md).
-; Sources are listed in dependency order: later modules may use earlier ones.
+; Its sources are hazel-programs/world's top-level files, in that folder's
+; order (dependency order: later modules may use earlier ones).
 
 (rule
  (targets stdlib.blob stdlib.hz)
+ (deps
+  (glob_files ../../hazel-programs/world/*.hz)
+  ../../hazel-programs/world/order)
  (action
   (run
    node
@@ -10,17 +14,7 @@
    %{dep:bake/bake.bc.js}
    stdlib.blob
    stdlib.hz
-   %{dep:../../hazel-programs/stdlib/String.hz}
-   %{dep:../../hazel-programs/stdlib/Int.hz}
-   %{dep:../../hazel-programs/stdlib/SInt.hz}
-   %{dep:../../hazel-programs/stdlib/Nat.hz}
-   %{dep:../../hazel-programs/stdlib/Float.hz}
-   %{dep:../../hazel-programs/stdlib/Bool.hz}
-   %{dep:../../hazel-programs/stdlib/Ord.hz}
-   %{dep:../../hazel-programs/stdlib/Color.hz}
-   %{dep:../../hazel-programs/stdlib/Option.hz}
-   %{dep:../../hazel-programs/stdlib/List.hz}
-   %{dep:../../hazel-programs/stdlib/Prelude.hz})))
+   ../../hazel-programs/world)))
 
 (library
  (name stdlibBaked)

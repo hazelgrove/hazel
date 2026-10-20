@@ -17,8 +17,8 @@ let library_text = () =>
 
 let library = () => CorpusUtil.seg_of(~root=Mod, library_text());
 
-let assembled = (~library, ~name, seg) =>
-  Option.bind(MemberForm.of_exp_root(seg), members =>
+let assembled = (~root=Sort.Exp, ~library, ~name, seg) =>
+  Option.bind(World.members_of(~root, seg), members =>
     World.assemble(~library, ~name, members)
   );
 
@@ -117,15 +117,15 @@ let corpus = () => {
   let library = library();
   let n = ref(0);
   List.iter(
-    ((path, src)) => {
+    ((path, root, src)) => {
       /* one parse: a parse's ids are fresh */
-      let seg = CorpusUtil.seg_of(~root=Exp, src);
-      switch (assembled(~library, ~name="Slide", seg)) {
+      let seg = CorpusUtil.seg_of(~root, src);
+      switch (assembled(~root, ~library, ~name="Slide", seg)) {
       | None => fail(path ++ ": no world document")
       | Some(doc) =>
         incr(n);
         let mine = in_seg(seg);
-        let (e0, t0) = Test_MemberForm.checked(~root=Exp, seg);
+        let (e0, t0) = Test_MemberForm.checked(~root, seg);
         let (e1, t1) = Test_MemberForm.checked(~root=Mod, doc);
         check(int, path ++ ": type errors", e0, e1);
         check(

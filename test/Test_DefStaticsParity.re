@@ -196,8 +196,8 @@ let mega = (~root, ~eval=true, ~wrap=src => src, file, steps, ()) =>
 let corpus_through_calc_auto = () => {
   let checked = ref(0);
   List.iter(
-    ((path, src)) =>
-      switch (CorpusUtil.parse(src)) {
+    ((path, root, src)) =>
+      switch (CorpusUtil.parse(~root, src)) {
       | None => ()
       | Some(seg) =>
         let calc = seg =>
@@ -205,7 +205,7 @@ let corpus_through_calc_auto = () => {
             ignore(
               DefStatics.calc_auto(
                 ~settings=CoreSettings.on,
-                MakeTerm.Incr.term_of(seg),
+                MakeTerm.Incr.term_of_root(~root, seg),
               ),
             )
           ) {
@@ -325,10 +325,10 @@ let items_leave_binders_unflagged = () => {
     ),
   );
   List.iter(
-    ((path, src)) =>
+    ((path, root, src)) =>
       Option.iter(
-        seg => check_calc(path, MakeTerm.Incr.term_of(seg)),
-        CorpusUtil.parse(src),
+        seg => check_calc(path, MakeTerm.Incr.term_of_root(~root, seg)),
+        CorpusUtil.parse(~root, src),
       ),
     CorpusUtil.slide_corpus(),
   );

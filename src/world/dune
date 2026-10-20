@@ -1,0 +1,16 @@
+; The world tree's slides, generated from hazel-programs/world (the folder
+; is the source of truth: see src/world/folder/WorldFolder.ml).
+
+(rule
+ (targets WorldSlides.ml)
+ (deps
+  (source_tree ../../hazel-programs/world))
+ (action
+  (with-stdout-to
+   WorldSlides.ml
+   (run ./gen/gen.exe ../../hazel-programs/world))))
+
+(library
+ (name worldSlides)
+ (modules WorldSlides)
+ (js_of_ocaml))

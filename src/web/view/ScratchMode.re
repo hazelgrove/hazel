@@ -1006,18 +1006,9 @@ module View = {
           ];
         };
         switch (program) {
-        | Divided(d) =>
-          (
-            SlideContent.get_content(WorldDeck.doc_name(current.name))
-            |> Option.to_list
-          )
-          @ stack_views(d)
+        | Divided(d) => stack_views(d)
         | Whole(editor) =>
-          (
-            SlideContent.get_content(WorldDeck.doc_name(current.name))
-            |> Option.to_list
-          )
-          @ [
+          [
             CellEditor.View.view(
               ~globals,
               ~signal=

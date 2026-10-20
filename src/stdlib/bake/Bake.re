@@ -1,5 +1,7 @@
 /* Bakes the Hazel-source standard library (plans/stdlib.md §2) at build
-   time; LibraryBake does the work. usage: bake <blob> <text> <file.hz>...
+   time; LibraryBake does the work. usage: bake <blob> <text> <folder>,
+   the world tree's source folder, whose top-level files are the library
+   in its order (WorldFolder); or bake <blob> <text> <file.hz>...
    writes base64 Marshal of Library.baked, and the concatenated source the
    app shows as the library document */
 open Haz3lcore;
@@ -20,7 +22,12 @@ let write_base64 = (path, v) =>
 
 let () =
   switch (Array.to_list(Sys.argv)) {
-  | [_, out, text_out, ...files] when files != [] =>
+  | [_, out, text_out, ...args] when args != [] =>
+    let files =
+      switch (args) {
+      | [dir] when Sys.is_directory(dir) => WorldFolder.library(dir)
+      | files => files
+      };
     let text =
       files
       |> List.map(read)
@@ -55,6 +62,6 @@ let () =
       );
     };
   | _ =>
-    prerr_endline("usage: bake <blob> <text> <file.hz>...");
+    prerr_endline("usage: bake <blob> <text> <folder> | <file.hz>...");
     exit(2);
   };

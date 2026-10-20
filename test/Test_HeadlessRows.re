@@ -506,10 +506,7 @@ let shape_rows = () => {
 /* every slide's rows, mega-1k's and mega-mod-1k's */
 let corpus = () => {
   let programs =
-    List.map(
-      ((path, src)) => (path, Sort.Exp, src),
-      CorpusUtil.slide_corpus(),
-    )
+    CorpusUtil.slide_corpus()
     @ List.map(
         ((file, root)) =>
           (file, root, Option.get(CorpusUtil.mega_src(file))),
