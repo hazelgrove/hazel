@@ -1,7 +1,8 @@
 /* Blocks: the regions of a program a blocks decoration shades, after Cohen
    and Chugh's ragged blocks. Each view (TypeBlocks, ScopeBlocks) picks its
    own regions; this is what they have in common: a term, how deeply the
-   block nests among the view's other blocks, and what it is painted. */
+   block nests among the view's other blocks, and what
+   it is painted. */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type paint =
@@ -26,3 +27,12 @@ let scope_color_names: list(string);
 
 /* The CSS class and color role a paint is drawn with. */
 let paint_name: paint => string;
+
+/* The blocks of a view that paints terms: a term starts a block where its
+   paint differs from its nearest painted ancestor's, one level deeper than
+   that ancestor's block, and a term with no painted ancestor starts a root
+   block; a term painted like its parent belongs to the parent's block.
+   Terms left unpainted are neither blocks nor parents: their descendants
+   compare against the next painted ancestor up. In ascending level, so
+   painting the blocks in order puts children over parents. */
+let nest: Id.Map.t((paint, Info.ancestors)) => list(t);
