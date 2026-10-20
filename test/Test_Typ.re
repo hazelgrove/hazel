@@ -199,17 +199,18 @@ let fast_equal_tests = (
    and the aliases cycle; bound with Typ.extend_alias, A's B stays the
    unbound name it was where A was defined. */
 let alias_cycle_tests = {
-  /* fast_equal ignores unknowns' provenance, which is what is under test */
-  let unknown = Fmt.using(Typ.show, Fmt.string);
-  let internal =
-    testable(unknown, (_, ty) =>
+  let pp = Fmt.using(Typ.show, Fmt.string);
+  /* which name the cap stops on depends on its parity */
+  let stuck =
+    testable(pp, (_, ty) =>
       switch (Typ.term_of(ty)) {
-      | Unknown(Internal) => true
+      | Var("A" | "B") => true
       | _ => false
       }
     );
+  /* fast_equal ignores unknowns' provenance, which is what is under test */
   let invalid = name =>
-    testable(unknown, (_, ty) =>
+    testable(pp, (_, ty) =>
       switch (Typ.term_of(ty)) {
       | Unknown(Hole(Invalid(n))) => n == name
       | _ => false
@@ -219,17 +220,17 @@ let alias_cycle_tests = {
     "Typ alias cycles",
     [
       test_case(
-        "a raw alias cycle normalizes to unknown rather than throwing",
+        "a raw alias cycle normalizes to a stuck alias rather than throwing",
         `Quick,
         () => {
           let ctx =
             Ctx.extend_alias(Ctx.empty, "A", Id.mk(), Var("B") |> Typ.temp)
             |> Ctx.extend_alias(_, "B", Id.mk(), Var("A") |> Typ.temp);
           let var_a = Var("A") |> Typ.temp;
-          let expected = Unknown(Internal) |> Typ.temp;
-          check(internal, "normalize", expected, Typ.normalize(ctx, var_a));
+          let expected = Var("B") |> Typ.temp;
+          check(stuck, "normalize", expected, Typ.normalize(ctx, var_a));
           check(
-            internal,
+            stuck,
             "weak_head_normalize",
             expected,
             Typ.weak_head_normalize(ctx, var_a),

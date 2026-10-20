@@ -535,10 +535,9 @@ let remove_duplicate_labels =
 
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   switch (term_of(ty)) {
-  /* Aliases bound by extend_tvar form no cycles; this caps contexts built
-     raw and absurd nesting, where an unknown beats an exception escaping
-     statics. */
-  | _ when rec_counter > 1000 => Unknown(Internal) |> temp
+  /* Out of fuel the type comes back unreduced. Aliases bound by extend_tvar
+     form no cycles; this caps contexts built with raw Ctx.extend_alias. */
+  | _ when rec_counter > 1000 => ty
   | Parens(t)
   | Projector(_, t) =>
     weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
@@ -595,7 +594,7 @@ let rec normalize = (~rec_counter=0, ~expand=_ => true, ctx: Ctx.t, ty: t): t =>
   let (term, rewrap) = unwrap(ty);
   switch (term) {
   /* as in weak_head_normalize */
-  | _ when rec_counter > 1000 => Unknown(Internal) |> rewrap
+  | _ when rec_counter > 1000 => ty
   | Var(x) when expand(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => normalize(ctx, ty)
