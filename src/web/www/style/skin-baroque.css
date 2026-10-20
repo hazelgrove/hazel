@@ -1,36 +1,35 @@
 /* BAROQUE SKIN
    Everything here is scoped to html.skin-baroque, which skin/skin.js sets
-   (Ctrl+Alt+B toggles it). Ornament images arrive from skin.js as custom
-   properties (--orn-*): cartouche caps, box and frame corners, the rule,
-   the parchment texture. The theme writes its colours inline on <html>, so
-   the few theme variables overridden here need !important. */
+   (Ctrl+Alt+B toggles it). Ornament arrives from skin.js as custom
+   properties (--orn-*): whole frame images for border-image (slide pane,
+   sidebar, panel boxes, one cartouche per sample state), the rule, the
+   fleuron, the lens pedestal and the parchment. Frames are drawn as one
+   image and sliced, so corner and molding never part, and since they live
+   in the border a scrolling pane can never run over them. The theme writes
+   its colours inline on <html>, so overridden theme variables need
+   !important. */
 
 html.skin-baroque {
   --orn-ink: #2c3a40;
   --orn-ink-soft: #5a4d3a;
-  --orn-gold: #c49a55;
-  --orn-gold-mid: #d6b06a;
-  --orn-gold-hi: #fff5d6;
-  --orn-gold-dk: #a4732e;
   --orn-parch: none;
   --orn-paper: #f3e6c6;
-  --orn-paper-light: #f9f0db;
-  --orn-paper-deep: #ead8ad;
   --orn-serif: "IM Fell English", "Iowan Old Style", Georgia, serif;
   --orn-serif-sc: "IM Fell English SC", "IM Fell English", Georgia, serif;
-  /* a molding along a bottom edge, read top to bottom */
-  --orn-mold-b: linear-gradient(to bottom, #c49a55 0 0.7px, #fff5d6 0.7px 1.7px, #d4ac62 1.7px 2.5px, transparent 2.5px 3.4px, #c49a55 3.4px 4.1px, transparent 4.1px);
-  --orn-mold-t: linear-gradient(to top, #c49a55 0 0.7px, #fff5d6 0.7px 1.7px, #d4ac62 1.7px 2.5px, transparent 2.5px 3.4px, #c49a55 3.4px 4.1px, transparent 4.1px);
-  /* a framed box: thin double line */
-  --orn-box-line: 0 0 0 0.7px #c49a55, 0 0 0 2px #fbf3dc, 0 0 0 2.7px #d4ac62;
-  --orn-frame-line: inset 0 0 0 1px #b88b45, inset 0 0 0 2.5px #f3dfa8, inset 0 0 0 3.5px #fff6d8, inset 0 0 0 5px #c99d55, inset 0 0 0 6px #a4732e, inset 0 0 0 9px transparent, inset 0 0 0 9.7px #c49a55;
+  --orn-enamel: linear-gradient(#447256, #2a573f 60%, #21483a);
+  --orn-burnish: linear-gradient(#fbe8a8, #e2bd66 55%, #cc9e4a);
+  /* a molding along a bottom edge, read top to bottom; no dark lines */
+  --orn-mold-b: linear-gradient(to bottom, #d2ad66 0 0.7px, #fff5d6 0.7px 1.7px, #dbb872 1.7px 2.6px, transparent 2.6px 3.5px, #d2ad66 3.5px 4.2px, transparent 4.2px);
+  --orn-mold-t: linear-gradient(to top, #d2ad66 0 0.7px, #fff5d6 0.7px 1.7px, #dbb872 1.7px 2.6px, transparent 2.6px 3.5px, #d2ad66 3.5px 4.2px, transparent 4.2px);
+  --orn-box-line: 0 0 0 0.7px #c9a15a, 0 0 0 2px #fbf3dc, 0 0 0 2.7px #d8b46c;
+  --orn-box-image: var(--orn-box) var(--orn-box-slice) / 14px stretch;
 
   --ui-font: var(--orn-serif);
   --ui-bkg: transparent !important;
   --main-bkg: transparent !important;
-  --border-default: #c9a462 !important;
-  --border-soft: #dcc28c !important;
-  --border-strong: #a97a33 !important;
+  --border-default: #cfab68 !important;
+  --border-soft: #dfc792 !important;
+  --border-strong: #b08240 !important;
   --text-accent: #7c5a24 !important;
   --ui-header-text: #6b4a17 !important;
   /* selection as a rubricated wash; the indicated term stays gold */
@@ -39,7 +38,7 @@ html.skin-baroque {
   --shadow-selected: rgba(150, 70, 30, 0.35) !important;
 }
 
-/* ---------- ground ---------- */
+/* ---------- ground and frames ---------- */
 
 html.skin-baroque body,
 html.skin-baroque #page {
@@ -47,16 +46,25 @@ html.skin-baroque #page {
   background-image: var(--orn-parch);
 }
 
-/* the slide pane: a gilt frame that stays put while the slide scrolls */
+/* frames drawn by skin.js at each pane's exact size: slice = band width */
 html.skin-baroque #main {
-  background:
-    var(--orn-frame-tl) left 3px top 3px / 58px no-repeat,
-    var(--orn-frame-tr) right 3px top 3px / 58px no-repeat,
-    var(--orn-frame-bl) left 3px bottom 3px / 58px no-repeat,
-    var(--orn-frame-br) right 3px bottom 3px / 58px no-repeat,
-    transparent;
-  box-shadow: var(--orn-frame-line);
-  padding: 14px 18px;
+  border: var(--orn-band-main, 34px) solid transparent;
+  border-image: var(--orn-frame-main) 34 / var(--orn-band-main, 34px) stretch;
+  background: none;
+  box-shadow: none;
+  padding: 0 4px;
+}
+
+html.skin-baroque #side-bar {
+  border: var(--orn-band-side, 26px) solid transparent;
+  border-image: var(--orn-frame-side) 26 / var(--orn-band-side, 26px) stretch;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  font-family: var(--orn-serif);
+}
+html.skin-baroque #side-bar .resize-handle {
+  background: transparent;
 }
 
 /* ---------- top bar ---------- */
@@ -83,30 +91,38 @@ html.skin-baroque #top-bar select {
   color: #3a2f20;
   background: transparent;
 }
-html.skin-baroque #title {
-  font-family: var(--orn-serif);
-  letter-spacing: 0.02em;
-}
-
-/* the hazel tab: green enamel in a gilt rim; the slide tab: paper with a
-   gilt edge where Hazel draws its hairline */
+/* the hazel tab: one vertical enamel gradient across nut and title, so the
+   two tiles meet without a seam */
 html.skin-baroque #top-bar .wrap:has(.nut-icon),
 html.skin-baroque #top-bar .nut-icon,
 html.skin-baroque #top-bar #title {
-  background: radial-gradient(130% 160% at 30% 15%, #4f7a5a 0, #2d5a43 55%, #1f4232 100%);
+  background: var(--orn-enamel);
   color: #f6e7bd;
 }
 html.skin-baroque #top-bar .wrap:has(#title) {
   background: transparent;
 }
+/* the nut covers its wrap, so the rim goes on the nut itself */
+html.skin-baroque #top-bar .nut-icon,
+html.skin-baroque #top-bar .nut-icon:hover {
+  border-radius: 0;
+  box-shadow: inset 0 -1px 0 #d2ad66, inset 0 -2.2px 0 #f6e3ad, inset 0 -3px 0 #c0944a;
+}
+html.skin-baroque #top-bar .wrap:has(.nut-icon),
+html.skin-baroque #top-bar .wrap:has(.nut-icon):hover {
+  outline: none;
+}
 html.skin-baroque #top-bar #title {
-  box-shadow: inset -1px -1px 0 #c49a55, inset -2.2px -2.2px 0 #f6e3ad, inset -3px -3px 0 #a97a33;
+  font-family: var(--orn-serif);
   font-size: 1.12em;
+  letter-spacing: 0.02em;
+  border-radius: 0 0 0.9em 0;
+  box-shadow: inset -1px -1px 0 #d2ad66, inset -2.2px -2.2px 0 #f6e3ad, inset -3px -3px 0 #c0944a;
 }
 html.skin-baroque #top-bar #editor-mode {
   background: linear-gradient(#fbf3dc, #f1e3bf);
   border-right: none;
-  box-shadow: inset -0.8px -0.8px 0 #c49a55, inset -1.8px -1.8px 0 #fff5d6, inset -2.6px -2.6px 0 #d4ac62;
+  box-shadow: inset -0.8px -0.8px 0 #cfaa63, inset -1.8px -1.8px 0 #fff5d6, inset -2.6px -2.6px 0 #dbb872;
   color: #a07a3c;
 }
 
@@ -114,27 +130,20 @@ html.skin-baroque #top-bar #editor-mode {
 html.skin-baroque #sample-focus-bar {
   background: linear-gradient(#f4e7c8, #eedfba);
   border-bottom: none;
-  box-shadow: inset 0 -0.7px 0 #c49a55, inset 0 -1.7px 0 #fff5d6;
+  box-shadow: inset 0 -0.7px 0 #cfaa63, inset 0 -1.7px 0 #fff5d6;
   font-family: var(--orn-serif);
 }
 html.skin-baroque #sample-focus-bar .title {
   font-family: var(--orn-serif);
   font-size: 0.95em;
   color: #f7ecc8;
-  background: radial-gradient(120% 140% at 30% 20%, #4f7a5a 0, #2d5a43 55%, #1f4232 100%);
-  box-shadow: 0 0 0 1px #c49a55, 0 0 0 2.2px #f6e3ad, 0 0 0 3px #a97a33, inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  background: var(--orn-enamel);
+  box-shadow: 0 0 0 1px #d2ad66, 0 0 0 2.2px #f6e3ad, 0 0 0 3px #b8893f;
   border-radius: 1em;
   padding: 2px 10px;
 }
 html.skin-baroque #sample-focus-bar .breadcrumb-entry {
   color: #8a2f55;
-}
-html.skin-baroque #sample-focus-bar .clear-all {
-  font-family: var(--orn-serif);
-  border: none;
-  box-shadow: var(--orn-box-line);
-  border-radius: 3px;
-  background: linear-gradient(#fbf3dc, #efdfb6);
 }
 
 /* ---------- slide prose ---------- */
@@ -172,25 +181,38 @@ html.skin-baroque .prompt-content .code {
   border-radius: 2px;
 }
 
-/* tasks and hint: framed boxes with corner flourishes */
-html.skin-baroque details.tasks-cell,
-html.skin-baroque details.hint-cell,
+/* ---------- framed boxes ---------- */
+
+/* the fill runs under the frame to just inside its outer line, so card and
+   frame read as one object; #main raises specificity over tutorial-mode */
+html.skin-baroque #main details.tasks-cell,
+html.skin-baroque #main details.hint-cell,
+html.skin-baroque .test-panel,
 html.skin-baroque .task-reference-section,
 html.skin-baroque #probe-sidebar .panel,
-html.skin-baroque .test-panel {
-  border: none;
+html.skin-baroque #main .cell > .code-editor.cell-item {
+  --orn-card: rgba(251, 244, 224, 0.55);
+  border: 14px solid transparent;
+  border-image: var(--orn-box-image);
+  border-radius: 0;
   outline: none;
-  border-radius: 2px;
-  box-shadow: var(--orn-box-line);
-  background:
-    var(--orn-box-tl) left 1px top 1px / 22px no-repeat,
-    var(--orn-box-tr) right 1px top 1px / 22px no-repeat,
-    var(--orn-box-bl) left 1px bottom 1px / 22px no-repeat,
-    var(--orn-box-br) right 1px bottom 1px / 22px no-repeat,
-    rgba(251, 244, 224, 0.55);
+  box-shadow: none;
+  background: linear-gradient(var(--orn-card), var(--orn-card)) center / calc(100% - 3px) calc(100% - 3px) no-repeat border-box;
 }
-html.skin-baroque details.hint-cell {
-  background-color: rgba(246, 230, 180, 0.55);
+html.skin-baroque #main details.tasks-cell,
+html.skin-baroque #main details.hint-cell {
+  padding: 2px 8px;
+}
+html.skin-baroque #main details.hint-cell {
+  --orn-card: rgba(246, 230, 180, 0.55);
+}
+/* the tutorial's focus spine, in gilt when idle and rubric when focused */
+html.skin-baroque #main.Tutorial .cell.unlocked:has(.code-editor) {
+  border-left: 1px solid rgba(201, 161, 90, 0.5);
+}
+html.skin-baroque #main.Tutorial .cell.unlocked:has(.code-editor:focus-within) {
+  border-left-color: #b4452f;
+  background-color: rgba(255, 250, 236, 0.45);
 }
 html.skin-baroque summary.tasks-title,
 html.skin-baroque summary.hint-title {
@@ -198,32 +220,27 @@ html.skin-baroque summary.hint-title {
   font-size: 1.1em;
   color: #6b4a17;
 }
-
-/* ---------- code cells ---------- */
-
 html.skin-baroque #main .cell > .code-editor.cell-item {
-  background: rgba(252, 246, 230, 0.6);
-  box-shadow: var(--orn-box-line);
-  border-radius: 2px;
+  --orn-card: rgba(252, 246, 230, 0.6);
+  padding-left: 14px;
 }
-html.skin-baroque .cell-result,
 html.skin-baroque .cell-item.cell-result {
   background: linear-gradient(rgba(234, 216, 173, 0.45), rgba(234, 216, 173, 0.3));
-  box-shadow: inset 0 0.7px 0 #c49a55, inset 0 1.7px 0 #fff5d6;
+  box-shadow: inset 0 0.7px 0 #cfaa63, inset 0 1.7px 0 #fff5d6;
 }
 
 /* ---------- code decorations ---------- */
 
-/* hairline arms; the braces beside them come from skin.js */
+/* hairline arms */
 html.skin-baroque .code-deco svg path.child-line,
 html.skin-baroque .refractors svg path.child-line,
 html.skin-baroque .indication svg path.child-line {
-  stroke: #c49a55 !important;
+  stroke: #c9a15a !important;
   stroke-width: 1px !important;
   vector-effect: non-scaling-stroke;
-  opacity: 0.95;
 }
-/* braces linger until the editor next redraws, so hide them with the skin */
+/* braces beside indented blocks (SkinDec.blocks); they linger until the
+   editor next redraws, so they are hidden whenever the skin is off */
 svg.orn-brace {
   display: none;
 }
@@ -236,60 +253,55 @@ html.skin-baroque svg.orn-brace {
   height: 1px;
   overflow: visible;
   pointer-events: none;
-  filter: drop-shadow(0.3px 0.45px 0.3px rgba(110, 70, 15, 0.3));
+  filter: drop-shadow(0.3px 0.45px 0.3px rgba(110, 70, 15, 0.28));
 }
-
 /* the indicated term: a gold-leaf wash inside a fine gilt edge */
 html.skin-baroque .indication svg.shard path,
 html.skin-baroque .indication-refractored svg.shard path {
   fill: rgba(232, 200, 120, 0.28) !important;
-  stroke: #c49a55 !important;
+  stroke: #c9a15a !important;
   stroke-width: 0.8px !important;
   vector-effect: non-scaling-stroke;
 }
-
-/* caret */
 html.skin-baroque #caret .caret-path {
   fill: #8a5d1c !important;
 }
 
 /* ---------- probes ---------- */
 
-/* each sample is a cartouche: cast caps, molding runs, the state colour as
-   an inset tint so it never shows outside the caps */
+/* each sample is a one-piece cartouche, sliced so its middle stretches; the
+   image per state carries the theme's colour as the tint */
 html.skin-baroque .live-offside .sample .value {
-  --orn-tint: var(--sample-neutral-bg);
-  position: relative;
-  padding: 0 0.95em;
-  border-radius: 0;
+  background: none !important;
   box-shadow: none !important;
   outline: none !important;
-  background:
-    var(--orn-cap-l) left center / auto 100% no-repeat,
-    var(--orn-cap-r) right center / auto 100% no-repeat,
-    linear-gradient(to bottom, #c49a55 0 0.7px, #fff5d6 0.7px 1.5px, #d4ac62 1.5px 2.3px, rgba(150, 85, 40, 0.25) 2.3px 3px, transparent 3px) center top / calc(100% - 1.2em) 3px no-repeat,
-    linear-gradient(to top, #c49a55 0 0.7px, #fff5d6 0.7px 1.5px, #d4ac62 1.5px 2.3px, rgba(150, 85, 40, 0.25) 2.3px 3px, transparent 3px) center bottom / calc(100% - 1.2em) 3px no-repeat,
-    linear-gradient(var(--orn-tint), var(--orn-tint)) center / calc(100% - 1.1em) calc(100% - 3px) no-repeat !important;
+  border-radius: 0 !important;
+  border-style: solid;
+  border-color: transparent;
+  border-width: 0 0.68em;
+  border-image: var(--orn-cart-neutral) 0 var(--orn-cart-slice) fill / 0 0.68em stretch;
+  padding: 0 1px;
 }
 html.skin-baroque .live-offside .sample:has(.value.focus) .value {
-  --orn-tint: var(--exp-base);
+  border-image-source: var(--orn-cart-focus);
+}
+html.skin-baroque .projector.probe.Pat .live-offside .sample:has(.value.focus) .value {
+  border-image-source: var(--orn-cart-focus-pat);
 }
 html.skin-baroque .live-offside .sample:has(.value.related-after) .value,
 html.skin-baroque .live-offside .sample:has(.value.tangent-after) .value {
-  --orn-tint: var(--sample-below-bg);
+  border-image-source: var(--orn-cart-after);
 }
 html.skin-baroque .live-offside .sample:has(.value.related-before) .value,
 html.skin-baroque .live-offside .sample:has(.value.tangent-before) .value {
-  --orn-tint: var(--sample-above-bg);
+  border-image-source: var(--orn-cart-before);
 }
 html.skin-baroque .live-offside .sample:has(.value.off-focus) .value {
-  --orn-tint: var(--sample-off-bg);
+  border-image-source: var(--orn-cart-off);
 }
-/* the indicated probe's focused sample keeps a sign, as a deeper gilt edge */
 html.skin-baroque .projector.probe.indicated .live-offside .sample:has(.value.focus) .value {
-  filter: drop-shadow(0 0 1.2px rgba(170, 120, 30, 0.75));
+  filter: drop-shadow(0 0 1.2px rgba(170, 120, 30, 0.7));
 }
-/* sample counts as small pearls */
 html.skin-baroque .live-offside .num-samples {
   background: radial-gradient(circle at 35% 30%, #fbfff2 0, #d3e5c0 45%, #93b080 100%) !important;
   box-shadow: 0 0 0 0.6px #74905f;
@@ -298,23 +310,85 @@ html.skin-baroque .live-offside .num-samples {
 
 /* ---------- sidebar ---------- */
 
-html.skin-baroque #side-bar {
+html.skin-baroque #probe-sidebar .main-title,
+html.skin-baroque .task-reference-title {
+  font-family: var(--orn-serif-sc);
+  font-weight: normal;
+  font-size: 1.35em;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  padding-bottom: 14px;
+  background: var(--orn-rule) left bottom / 180px 14px no-repeat;
+}
+html.skin-baroque #probe-sidebar .panel {
+  border-width: 11px;
+  padding: 0.15em 0.3em;
+  color: var(--orn-ink-soft);
+}
+html.skin-baroque #probe-sidebar .quick-ref .title,
+html.skin-baroque #probe-sidebar .toggle-label,
+html.skin-baroque #probe-sidebar .legend-title {
   font-family: var(--orn-serif);
+  font-size: 1.04em;
+  color: #6b4a17;
+  white-space: nowrap;
+}
+html.skin-baroque #probe-sidebar .quick-ref .qr-action {
+  font-weight: normal;
+  color: #4b3714;
+}
+html.skin-baroque #probe-sidebar .quick-ref {
+  font-size: 0.86em;
+}
+html.skin-baroque #probe-sidebar {
+  padding: 0.6em 0.5em;
+}
+/* the lens apparatus, back at the foot of the Probearium on a carved base */
+html.skin-baroque #probe-sidebar::after {
+  content: "";
+  display: block;
+  flex: none;
+  margin-top: auto;
+  min-height: 210px;
   background:
-    var(--orn-frame-tl) left 2px top 2px / 40px no-repeat,
-    var(--orn-frame-tr) right 2px top 2px / 40px no-repeat,
-    var(--orn-frame-bl) left 2px bottom 2px / 40px no-repeat,
-    var(--orn-frame-br) right 2px bottom 2px / 40px no-repeat,
-    transparent;
-  box-shadow: var(--orn-frame-line);
+    url(/img/probe-lenses.webp) center 4px / auto 165px no-repeat,
+    var(--orn-pedestal) center bottom / 230px 56px no-repeat;
+  filter: sepia(0.25) saturate(1.2) contrast(1.02);
 }
-html.skin-baroque #side-bar {
-  padding: 7px 4px 7px 6px;
+
+/* segmented controls: gilt rims; the active segment burnished and rounded
+   like the control itself */
+html.skin-baroque .segmented-control {
+  border: none !important;
+  outline: none !important;
+  border-radius: 4px !important;
+  box-shadow: var(--orn-box-line);
+  background: linear-gradient(#fbf4e0, #f1e3bf);
+  overflow: hidden;
+  padding: 1px;
 }
-html.skin-baroque #side-bar .resize-handle {
+html.skin-baroque .segmented-control .segment {
+  font-family: var(--orn-serif);
+  color: #5a4626;
+  border-color: #dfc590 !important;
   background: transparent;
 }
-/* buttons and fields in the panels: paper inside a gilt rim */
+html.skin-baroque .segmented-control .segment.active {
+  color: #3d2a0c;
+  border-radius: 3px !important;
+  background: var(--orn-burnish) !important;
+  box-shadow: inset 0 1px 0 #fff6d4, inset 0 -1px 0 rgba(168, 122, 46, 0.6), inset 0 0 0 0.6px rgba(168, 122, 46, 0.7);
+}
+/* key caps as small brass keys */
+html.skin-baroque .kbd-badge,
+html.skin-baroque #probe-sidebar .qr-table .qr-cmd-e span,
+html.skin-baroque #probe-sidebar .qr-table .qr-when-focused span {
+  background: linear-gradient(#fdf3d2, #e9cf8f) !important;
+  box-shadow: inset 0 0.8px 0 #fffaf0, inset 0 -1px 0 #c39550, 0 0 0 0.6px #b8893f;
+  border: none !important;
+  color: #5a3d10 !important;
+}
+/* buttons and fields: paper inside a gilt rim */
 html.skin-baroque #settings-panel .settings-button,
 html.skin-baroque #probe-sidebar button,
 html.skin-baroque #sample-focus-bar button {
@@ -336,88 +410,29 @@ html.skin-baroque #side-bar input:not([type]) {
   border: none;
   border-radius: 2px;
   background: rgba(253, 248, 234, 0.85);
-  box-shadow: inset 0 0 0 0.7px #c49a55, inset 0 1px 2px rgba(120, 80, 20, 0.18);
+  box-shadow: inset 0 0 0 0.7px #c9a15a, inset 0 1px 2px rgba(120, 80, 20, 0.18);
 }
-/* switches: a gilt-rimmed track and a brass knob; on is green enamel */
+/* switches: gilt-rimmed track, brass knob; on is green enamel */
 html.skin-baroque .toggle-switch {
   background: linear-gradient(#efe2c2, #f8efd8);
-  box-shadow: inset 0 0 0 0.7px #c49a55, inset 0 1px 2px rgba(120, 80, 20, 0.25);
+  box-shadow: inset 0 0 0 0.7px #c9a15a, inset 0 1px 2px rgba(120, 80, 20, 0.25);
 }
 html.skin-baroque .toggle-switch.active {
-  background: radial-gradient(130% 160% at 30% 15%, #5d8a66 0, #2d5a43 70%);
+  background: var(--orn-enamel);
 }
 html.skin-baroque .toggle-switch .toggle-knob {
   background: radial-gradient(circle at 35% 30%, #fffbe9 0, #ecd08e 50%, #b8893d 100%);
-  border-color: #a97a33;
-}
-html.skin-baroque #probe-sidebar .main-title,
-html.skin-baroque .task-reference-title {
-  font-family: var(--orn-serif-sc);
-  font-weight: normal;
-  font-size: 1.35em;
-  letter-spacing: 0.06em;
-  text-transform: none;
-  padding-bottom: 14px;
-  background: var(--orn-rule) left bottom / 180px 14px no-repeat;
-}
-html.skin-baroque #probe-sidebar .panel {
-  padding: 0.75em 0.9em;
-  color: var(--orn-ink-soft);
-}
-html.skin-baroque #probe-sidebar .quick-ref .title,
-html.skin-baroque #probe-sidebar .toggle-label,
-html.skin-baroque #probe-sidebar .legend-title {
-  font-family: var(--orn-serif);
-  font-size: 1.04em;
-  color: #6b4a17;
-  white-space: nowrap;
-}
-html.skin-baroque #probe-sidebar .quick-ref .qr-action {
-  font-weight: normal;
-  color: #4b3714;
-}
-html.skin-baroque #probe-sidebar .quick-ref {
-  font-size: 0.9em;
-}
-
-/* segmented controls: gilt rims, the active segment burnished */
-html.skin-baroque .segmented-control {
-  border: none !important;
-  outline: none !important;
-  border-radius: 3px !important;
-  box-shadow: var(--orn-box-line);
-  background: linear-gradient(#fbf4e0, #f1e3bf);
-  overflow: hidden;
-}
-html.skin-baroque .segmented-control .segment {
-  font-family: var(--orn-serif);
-  color: #5a4626;
-  border-color: #d9bd83 !important;
-  background: transparent;
-}
-html.skin-baroque .segmented-control .segment.active {
-  color: #3d2a0c;
-  background: linear-gradient(#fbe8a8, #e2bd66 55%, #c99a45) !important;
-  box-shadow: inset 0 1px 0 #fff6d4, inset 0 -1px 0 #a87a2e, 0 0 0 0.6px #a87a2e;
-}
-/* key caps as small brass keys */
-html.skin-baroque .kbd-badge,
-html.skin-baroque #probe-sidebar .qr-table .qr-cmd-e span,
-html.skin-baroque #probe-sidebar .qr-table .qr-when-focused span {
-  background: linear-gradient(#fdf3d2, #e9cf8f) !important;
-  box-shadow: inset 0 0.8px 0 #fffaf0, inset 0 -1px 0 #b78b42, 0 0 0 0.6px #a87a2e;
-  border: none !important;
-  color: #5a3d10 !important;
+  border-color: #b8893f;
 }
 
 /* the tab rail */
 html.skin-baroque #persistent {
   border-left: none;
   background: linear-gradient(90deg, #eedfb9, #f6ebd0);
-  box-shadow: inset 0.7px 0 0 #c49a55, inset 1.7px 0 0 #fff5d6;
+  box-shadow: inset 0.7px 0 0 #cfaa63, inset 1.7px 0 0 #fff5d6;
 }
 html.skin-baroque #persistent .tab {
-  fill: #a07a3c;
+  fill: #a8823f;
 }
 html.skin-baroque #persistent .tab.active {
   border-right: none;
@@ -449,27 +464,25 @@ html.skin-baroque #bottom-bar::before {
 html.skin-baroque #cursor-inspector .ci-header {
   outline: none;
   border-radius: 0 1em 0 0;
-  box-shadow: inset -0.7px 0 0 #c49a55, inset -1.7px 0 0 #fff5d6;
+  box-shadow: inset -0.7px 0 0 #cfaa63, inset -1.7px 0 0 #fff5d6;
 }
 html.skin-baroque #cursor-inspector .gamma {
-  background: radial-gradient(120% 140% at 30% 20%, #4f7a5a 0, #2d5a43 55%, #1f4232 100%) !important;
-  box-shadow: inset -1px 0 0 #c49a55, inset -2.2px 0 0 #f6e3ad;
+  background: var(--orn-enamel) !important;
+  box-shadow: inset -1px 0 0 #d2ad66, inset -2.2px 0 0 #f6e3ad;
 }
 
 /* ---------- projectors ---------- */
 
-/* folds keep Hazel's shape (its svg) but take the fleuron in place of the
-   ellipsis tint, so a folded term reads as a closed chapter */
+/* a folded term reads as a closed chapter: a gilt chip with a fleuron */
 html.skin-baroque .projector.fold > svg path {
   fill: rgba(214, 176, 106, 0.3) !important;
-  stroke: #c49a55 !important;
+  stroke: #c9a15a !important;
   stroke-width: 0.8px !important;
   vector-effect: non-scaling-stroke;
 }
 html.skin-baroque .projector.fold {
   background: var(--orn-fleuron) center / 0.85em no-repeat;
 }
-/* checkboxes and sliders in brass */
 html.skin-baroque .projector.check input,
 html.skin-baroque .projector.slider input,
 html.skin-baroque .projector.sliderf input {
@@ -486,8 +499,8 @@ html.skin-baroque .projector.slider input[type="range"]::-webkit-slider-runnable
 html.skin-baroque .projector.sliderf input[type="range"]::-webkit-slider-runnable-track {
   height: 3px;
   border-radius: 2px;
-  background: linear-gradient(#fff5d6, #c49a55 55%, #a4732e);
-  box-shadow: 0 0 0 0.5px #a4732e;
+  background: linear-gradient(#fff5d6, #c9a15a 55%, #b08240);
+  box-shadow: 0 0 0 0.5px #b08240;
 }
 html.skin-baroque .projector.slider input[type="range"]::-webkit-slider-thumb,
 html.skin-baroque .projector.sliderf input[type="range"]::-webkit-slider-thumb {
@@ -497,5 +510,37 @@ html.skin-baroque .projector.sliderf input[type="range"]::-webkit-slider-thumb {
   margin-top: -4px;
   border-radius: 50%;
   background: radial-gradient(circle at 35% 30%, #fffbe9 0, #ecd08e 50%, #b8893d 100%);
-  box-shadow: 0 0 0 0.7px #8c6420, 0 1px 1.5px rgba(80, 50, 10, 0.4);
+  box-shadow: 0 0 0 0.7px #9a7028, 0 1px 1.5px rgba(80, 50, 10, 0.4);
+}
+
+/* ---------- scrollbars ---------- */
+
+/* Chrome ignores the -webkit- scrollbar styles below on any element that
+   sets scrollbar-color or scrollbar-width, so reset those first */
+html.skin-baroque *,
+html.skin-baroque {
+  scrollbar-color: auto !important;
+  scrollbar-width: auto !important;
+}
+html.skin-baroque ::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+  background: transparent;
+}
+html.skin-baroque ::-webkit-scrollbar-track {
+  background:
+    linear-gradient(90deg, transparent 5px, #e4cf9c 5px 5.7px, #fff4d4 5.7px 6.6px, #dfc589 6.6px 7.3px, transparent 7.3px);
+}
+html.skin-baroque ::-webkit-scrollbar-track:horizontal {
+  background:
+    linear-gradient(transparent 5px, #e4cf9c 5px 5.7px, #fff4d4 5.7px 6.6px, #dfc589 6.6px 7.3px, transparent 7.3px);
+}
+html.skin-baroque ::-webkit-scrollbar-thumb {
+  border: 2.5px solid transparent;
+  border-radius: 7px;
+  background: var(--orn-burnish) padding-box;
+  box-shadow: inset 0 0 0 0.8px rgba(168, 122, 46, 0.55), inset 0 1px 0 rgba(255, 246, 212, 0.9);
+}
+html.skin-baroque ::-webkit-scrollbar-corner {
+  background: transparent;
 }

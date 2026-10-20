@@ -20,25 +20,44 @@
   // ---------- braces beside multi-line terms ----------
 
   const braces = new Map();
-  function braceSVG(x, y0, y1, R, C, cls) {
-    const key = `${x}|${y0}|${y1}|${R}|${C}|${cls}`;
+  // x: the block's text column in px; y0..y1: its rows; kids: the y centres
+  // of its child rows; depth: how many blocks enclose it.
+  function braceSVG(x, y0, y1, R, C, kids, depth) {
+    const key = `${x}|${y0}|${y1}|${R}|${C}|${depth}|${Array.from(kids).join(",")}`;
     const hit = braces.get(key);
     if (hit !== undefined) return hit;
     const rows = Math.round((y1 - y0) / R);
-    const xa = x - 0.25 * C; // Hazel's arm runs a little left of the content column
-    const yt = y0 + 0.12 * R,
-      yb = y1 - 0.12 * R;
-    const lod = rows >= 3 ? 3 : 2;
+    const lod = depth <= 1 ? 3 : depth === 2 ? 2 : 1;
     const rnd = O.mulberry(O.hashStr(key));
     const orn = new O.Orn();
-    const xs = xa - 0.55 * R;
-    if (rows <= 4) orn.add(O.curlyBrace(xs, yt + 0.04 * R, yb - 0.04 * R, R, lod));
-    else orn.add(O.rinceau(xs, yt, yb, R, lod, rnd));
-    const kind = /indicated/.test(cls) ? " orn-indicated" : "";
-    const svg = `<g class="orn-g${kind}">${O.renderOrn(orn, { light })}</g>`;
-    if (braces.size > 600) braces.clear();
+    const yt = y0 + 0.12 * R,
+      yb = y1 - 0.12 * R;
+    if (kids.length >= 2) orn.add(O.vine(x - 0.12 * C, Array.from(kids), R, lod, rnd, -12));
+    else if (rows <= 4) orn.add(O.curlyBrace(x - 0.15 * C - 0.4 * R, yt + 0.04 * R, yb - 0.04 * R, R, lod));
+    else orn.add(O.rinceau(x - 0.15 * C - 0.42 * R, yt, yb, R, lod, rnd));
+    const svg = `<g class="orn-g">${O.renderOrn(orn, { light })}</g>`;
+    if (braces.size > 800) braces.clear();
     braces.set(key, svg);
     return svg;
+  }
+
+  // The carved base under the lens apparatus in the Probearium.
+  function pedestal(W, H) {
+    const o = new O.Orn();
+    const cx = W / 2,
+      base = H - 7;
+    for (const sg of [-1, 1]) {
+      const f = (x, y) => [cx + sg * (x - cx), y];
+      const t = new O.Turtle(cx + 9, base, -0.12);
+      t.line(W * 0.17).clothoid(W * 0.12, 0, -1 / (H * 0.45)).scroll(H * 0.2, 1.2, -1, 0.45);
+      o.stroke(O.mapPts(t.pts, f), O.wprof([[0, 3.0], [0.5, 2.4], [1, 0.8]]), "cast", "relief");
+      o.add(O.acanthus(cx + 12, base - 3, -0.55, W * 0.2, 13).map(f));
+      const v = new O.Turtle(cx + 7, base - 1, -Math.PI / 2 + 0.35);
+      v.line(3).scroll(4.5, 1.1, 1, 0.45);
+      o.stroke(O.mapPts(v.pts, f), O.wprof([[0, 1.8], [1, 0.6]]), "cast", "relief");
+    }
+    o.add(O.shell(cx, base + 1, -Math.PI / 2, 14, 9, 2.3));
+    return o;
   }
 
   // ---------- images for the stylesheet ----------
@@ -84,32 +103,114 @@
     root.style.setProperty("--orn-parch", `url(${c.toDataURL()})`);
   }
 
+  // Theme colours can be any CSS colour (oklch, color-mix); a canvas
+  // resolves them to rgb so they are safe inside SVG images.
+  const probe = document.createElement("canvas").getContext("2d", { willReadFrequently: true });
+  function resolve(varName, fallback) {
+    const el = document.createElement("span");
+    el.style.color = `var(${varName}, ${fallback})`;
+    el.style.display = "none";
+    document.documentElement.appendChild(el);
+    const c = getComputedStyle(el).color;
+    el.remove();
+    probe.clearRect(0, 0, 1, 1);
+    probe.fillStyle = fallback;
+    probe.fillStyle = c;
+    probe.fillRect(0, 0, 1, 1);
+    const [r, g, b, a] = probe.getImageData(0, 0, 1, 1).data;
+    return `rgba(${r},${g},${b},${(a / 255).toFixed(3)})`;
+  }
+
+  function setURL(name, svg) {
+    root.style.setProperty(name, O.cssURL(svg));
+  }
+
   function images() {
-    // cartouche caps for probe samples; vector, so one size serves any zoom
-    const h = 24,
-      W = h * 0.56;
-    const cap = O.capOrn(h, 3);
-    setImg("--orn-cap-l", W, h, cap);
-    setImg("--orn-cap-r", W, h, cap.map((x, y) => [W - x, y]));
-    // small corner flourishes for framed boxes, each drawn in place so the
-    // light stays put instead of being mirrored
-    const S = 22,
-      c = O.boxCorner(S, 3);
-    setImg("--orn-box-tl", S, S, c);
-    setImg("--orn-box-tr", S, S, c.map((x, y) => [S - x, y]));
-    setImg("--orn-box-bl", S, S, c.map((x, y) => [x, S - y]));
-    setImg("--orn-box-br", S, S, c.map((x, y) => [S - x, S - y]));
-    // larger cast corners for the editor and sidebar frames
-    const F = 58,
-      f = O.cornerOrn(F, 3);
-    setImg("--orn-frame-tl", F, F, f, 1.4);
-    setImg("--orn-frame-tr", F, F, f.map((x, y) => [F - x, y]), 1.4);
-    setImg("--orn-frame-bl", F, F, f.map((x, y) => [x, F - y]), 1.4);
-    setImg("--orn-frame-br", F, F, f.map((x, y) => [F - x, F - y]), 1.4);
-    // a fleuron rule for headings
+    // frames for the slide pane and the sidebar, and boxes for panels: one
+    // image each, sliced by border-image so corners and moldings never part
+    const box = O.boxImage(20, light);
+    setURL("--orn-box", box.svg);
+    root.style.setProperty("--orn-box-slice", box.slice);
+    // the old corner images still serve the sidebar headings' rule
     setImg("--orn-rule", 180, 14, O.rule(180, 14));
     setImg("--orn-fleuron", 16, 16, O.fleuron(8, 8, 13));
+    setImg("--orn-pedestal", 230, 56, pedestal(230, 56), 1.3);
+    cartouches();
   }
+
+  // One cartouche image per sample state, tinted with the theme's colours.
+  function cartouches() {
+    const states = {
+      neutral: ["--sample-neutral-bg", "#eee6d2"],
+      focus: ["--exp-base", "#d9efd2"],
+      "focus-pat": ["--pat-base", "#dcecf6"],
+      before: ["--sample-above-bg", "#f6cdd2"],
+      after: ["--sample-below-bg", "#cfe1ec"],
+      off: ["--sample-off-bg", "#ebe4d2"],
+    };
+    const tints = Object.entries(states).map(([k, [v, fb]]) => [k, resolve(v, fb)]);
+    const key = JSON.stringify(tints);
+    if (key === tintKey) return; // our own writes also wake the observer below
+    tintKey = key;
+    let slice = 13;
+    for (const [k, tint] of tints) {
+      const c = O.cartImage(24, tint, light);
+      setURL(`--orn-cart-${k}`, c.svg);
+      slice = c.slice;
+    }
+    root.style.setProperty("--orn-cart-slice", slice);
+  }
+  let tintKey = "";
+
+  // Hazel writes the colour scheme onto <html> after startup; retint then.
+  let retint = 0;
+  new MutationObserver(() => {
+    clearTimeout(retint);
+    retint = setTimeout(cartouches, 120);
+  }).observe(root, { attributes: true, attributeFilter: ["style"] });
+
+  // ---------- frames drawn at each pane's exact size ----------
+  // The slide pane and the sidebar each get one frame image matching their
+  // border box, used as border-image at slice = border width, so it is never
+  // stretched or tiled and its bead runs are regrown to fit.
+  const BAND = { main: 34, side: 26 };
+  const panes = [
+    { sel: "#main", var: "--orn-frame-main", band: BAND.main, el: null, key: "" },
+    { sel: "#side-bar", var: "--orn-frame-side", band: BAND.side, el: null, key: "" },
+  ];
+  let framePending = 0;
+  function drawFrames() {
+    framePending = 0;
+    for (const p of panes) {
+      const el = p.el;
+      if (!el || !el.isConnected) continue;
+      const w = el.offsetWidth,
+        h = el.offsetHeight;
+      if (w < 2 * p.band + 10 || h < 2 * p.band + 10) continue;
+      const key = `${w}x${h}`;
+      if (key === p.key) continue;
+      p.key = key;
+      setURL(p.var, O.frameExact(w, h, p.band, light, p.band));
+    }
+  }
+  const resizeObs = new ResizeObserver(() => {
+    if (!framePending) framePending = requestAnimationFrame(drawFrames);
+  });
+  // Hazel can replace these elements when it re-renders; re-attach then
+  function attachFrames() {
+    for (const p of panes) {
+      const el = document.querySelector(p.sel);
+      if (el && el !== p.el) {
+        if (p.el) resizeObs.unobserve(p.el);
+        p.el = el;
+        p.key = "";
+        resizeObs.observe(el);
+      }
+    }
+  }
+  setInterval(attachFrames, 700);
+  root.style.setProperty("--orn-band-main", BAND.main + "px");
+  root.style.setProperty("--orn-band-side", BAND.side + "px");
 
   // ---------- switching ----------
 

@@ -232,17 +232,7 @@ let paths =
       |> Option.to_list,
       inner_lines(~hx, ~min_col, ~shard_rows),
     ])
-    |> List.map(svg(~font_metrics, ~path_cls))
-    |> List.append(
-         _,
-         SkinDec.brace(
-           ~font_metrics,
-           ~col=min_col,
-           ~first_row=first.row,
-           ~last_row=last.row,
-           ~cls=String.concat(" ", path_cls),
-         ),
-       );
+    |> List.map(svg(~font_metrics, ~path_cls));
   };
 
 /* This draws the shards backing decorations,
@@ -489,13 +479,6 @@ let simple_arm =
   switch (l_path(~flip=true, ~hx, ~min_col, ~first, ~last)) {
   | Some((orig, path)) => [
       svg(~font_metrics, ~path_cls, (orig, path @ [hook(hx, 1, -1)])),
-      ...SkinDec.brace(
-           ~font_metrics,
-           ~col=min_col,
-           ~first_row=first.row,
-           ~last_row=last.row,
-           ~cls=String.concat(" ", path_cls),
-         ),
     ]
   | None => []
   };

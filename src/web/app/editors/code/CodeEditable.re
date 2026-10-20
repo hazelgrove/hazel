@@ -758,7 +758,13 @@ module View = {
       | (Some(_), false) => []
       };
     let overlays =
-      incr_eval_overlay
+      [
+        SkinDec.blocks(
+          ~font_metrics=globals.font_metrics,
+          model.editor.syntax.measured.rows,
+        ),
+      ]
+      @ incr_eval_overlay
       @ [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
       @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
       @ projectors

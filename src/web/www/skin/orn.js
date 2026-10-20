@@ -192,8 +192,38 @@
       }
       return out;
     };
-    const ring = [...left, ...cap(cN, true), ...right.reverse(), ...cap(c0, false)];
+    const ring = simplify([...left, ...cap(cN, true), ...right.reverse(), ...cap(c0, false)], 0.07);
     return "M" + ring.map((p) => r2(p[0]) + " " + r2(p[1])).join("L") + "Z";
+  }
+
+  // Ramer-Douglas-Peucker on a closed ring of [x, y] points.
+  function simplify(pts, tol) {
+    if (pts.length < 8) return pts;
+    const keep = new Uint8Array(pts.length);
+    keep[0] = keep[pts.length - 1] = 1;
+    const stack = [[0, pts.length - 1]];
+    while (stack.length) {
+      const [a, b] = stack.pop();
+      const [ax, ay] = pts[a],
+        [bx, by] = pts[b];
+      const dx = bx - ax,
+        dy = by - ay,
+        L = Math.hypot(dx, dy) || 1e-9;
+      let best = -1,
+        bi = -1;
+      for (let i = a + 1; i < b; i++) {
+        const d = Math.abs((pts[i][0] - ax) * dy - (pts[i][1] - ay) * dx) / L;
+        if (d > best) {
+          best = d;
+          bi = i;
+        }
+      }
+      if (best > tol) {
+        keep[bi] = 1;
+        stack.push([a, bi], [bi, b]);
+      }
+    }
+    return pts.filter((_, i) => keep[i]);
   }
   function polyline(pts) {
     return "M" + pts.map((p) => r2(p.x) + " " + r2(p.y)).join("L");
@@ -249,7 +279,7 @@
   // the darkest gold is a warm mid-brown.
   const PALETTE = {
     fil: { contour: "#bc8b42", body: "#f1dba4", hi: "#fff8de" },
-    relief: { line: "#a4732e", body: "#d8b56f", shade: "#b4853d", hi: "#fff4cf" },
+    relief: { line: "#b68c48", body: "#dcbc78", shade: "#c0924a", hi: "#fff6d6" },
     hair: "#c49b56",
   };
   const ROLE_COLORS = { cast: "#d6402b", run: "#1689a8", grow: "#2f9a45" };
@@ -258,11 +288,12 @@
     const L = opts.light || { x: -0.707, y: -0.707 };
     const P = opts.palette || PALETTE;
     const contour = opts.contour ?? 0.62;
-    const outline = opts.outline ?? 0.5;
+    const outline = opts.outline ?? 0.36;
     const facing = (nx, ny) => nx * L.x + ny * L.y;
     const F = { ul: [], body: [], hi: [] },
       R = { ul: [], body: [], sh: [], hi: [] },
-      H = [];
+      H = [],
+      Rib = [];
     const circ = (x, y, r) => `<circle cx="${r2(x)}" cy="${r2(y)}" r="${r2(r)}"/>`;
     if (opts.anatomy) {
       const out = [];
@@ -277,8 +308,8 @@
       return `<g fill-opacity=".85">${out.join("")}</g>`;
     }
     for (const s of orn.strokes) {
-      if (s.finish === "hair") {
-        H.push(`<path d="${polyline(s.pts)}" stroke-width="${r2(s.wf(0.5))}"/>`);
+      if (s.finish === "hair" || s.finish === "rib") {
+        (s.finish === "rib" ? Rib : H).push(`<path d="${polyline(s.pts)}" stroke-width="${r2(s.wf(0.5))}"/>`);
         continue;
       }
       const d = ribbon(s.pts, s.wf);
@@ -323,7 +354,8 @@
           `<g fill="${P.relief.body}">${R.body.join("")}</g>` +
           `<g fill="${P.relief.shade}" fill-opacity=".55">${R.sh.join("")}</g>` +
           `<g fill="${P.relief.hi}" fill-opacity=".95">${R.hi.join("")}</g>`
-        : "")
+        : "") +
+      (Rib.length ? `<g fill="none" stroke="${P.relief.shade}" stroke-opacity=".9" stroke-linecap="round">${Rib.join("")}</g>` : "")
     );
   }
 
@@ -473,13 +505,14 @@
   // between, each ending in a curling tendril beside its child; loop buds
   // are regrown along the arc and, on taller blocks, a second stem rises
   // inside it.
-  function vine(xt, ys, R, lod, rnd) {
+  function vine(xt, ys, R, lod, rnd, minX = -Infinity) {
     const o = new Orn();
     const yF = ys[0],
       yL = ys[ys.length - 1];
     const span = Math.max(0.5 * R, yL - yF);
     const base = xt - 0.36 * R;
-    const reach = 0.6 * R + 0.07 * span;
+    // the arc's leftmost point is base - reach; keep it right of minX
+    const reach = Math.max(0.45 * R, Math.min(0.6 * R + 0.07 * span, base - minX));
     const xc = base - reach / 0.75;
     const arc = bez([base, yL], [xc, yL], [xc, yF], [base, yF], 64);
     o.stroke(arc, wprof([[0, 0.04 * R], [0.14, 0.07 * R], [0.5, 0.085 * R], [0.86, 0.07 * R], [1, 0.04 * R]]), "run");
@@ -546,7 +579,7 @@
       ym = h / 2,
       yj = 1.5,
       xb = 0.13 * h;
-    const upper = bez([W + 1, yj], [0.3 * W, yj], [xb, ym - 0.36 * h], [xb, ym], 22);
+    const upper = bez([W - 0.6, yj], [0.3 * W, yj], [xb, ym - 0.36 * h], [xb, ym], 22);
     const lower = mapPts(upper, (x, y) => [x, h - y]);
     const wf = wprof([[0, 0.08 * h], [0.5, 0.092 * h], [1, 0.072 * h]]);
     o.stroke(upper, wf, "cast", "relief");
@@ -666,6 +699,359 @@
     return o;
   }
 
+  // ---------- nine-slice frames ----------
+  // Frame images for CSS border-image. Corners carry the ornament; edges carry
+  // moldings of constant cross-section, so stretching the edge slices shows
+  // no seam, and corner and molding are one drawing, so they never misalign.
+
+  // Molding bands as concentric rect strokes; profile lists [width, colour]
+  // from the outer edge inward, starting `inset` in from the image edge.
+  function bands(W, H, inset, profile, radius = 0) {
+    let off = inset,
+      out = "";
+    for (const [w, col] of profile) {
+      const a = off + w / 2;
+      out += `<rect x="${r2(a)}" y="${r2(a)}" width="${r2(W - 2 * a)}" height="${r2(H - 2 * a)}" rx="${r2(Math.max(0, radius - a))}" fill="none" stroke="${col}" stroke-width="${r2(w)}"/>`;
+      off += w;
+    }
+    return { svg: out, depth: off };
+  }
+
+  // Lighter, tonal molding: no dark outline, a bright arris, a soft hollow.
+  const MAIN_PROFILE = [[1.0, "#dcbf80"], [1.2, "#fff5d6"], [2.0, "#d9b46c"], [0.9, "#c79e56"], [2.6, "#efd8a0"], [0.9, "#c9a35e"], [1.4, "#f5e3b2"], [0.8, "#cfaa63"]];
+  // where the running ornament sits: the wide light band, 5th in the profile
+  const TORUS = 1.5 + 1.0 + 1.2 + 2.0 + 0.9 + 1.3;
+
+  // Scallop shell with its hinge at (hx, hy), opening along heading h.
+  function shell(hx, hy, h, rad, ribs = 7, spread = 1.75) {
+    const o = new Orn();
+    const edge = [];
+    for (let i = 0; i <= ribs * 4; i++) {
+      const t = i / (ribs * 4),
+        a = h - spread / 2 + spread * t;
+      const bump = 1 + 0.07 * Math.abs(Math.sin(t * ribs * Math.PI));
+      edge.push({ x: hx + Math.cos(a) * rad * bump, y: hy + Math.sin(a) * rad * bump, s: 0 });
+    }
+    o.fill([{ x: hx, y: hy, s: 0 }, ...edge], "cast");
+    for (let i = 1; i < ribs; i++) {
+      const a = h - spread / 2 + (spread * i) / ribs;
+      const tip = { x: hx + Math.cos(a) * rad * 0.93, y: hy + Math.sin(a) * rad * 0.93 };
+      o.stroke(bez([hx, hy], [hx + (tip.x - hx) / 3, hy + (tip.y - hy) / 3], [hx + (2 * (tip.x - hx)) / 3, hy + (2 * (tip.y - hy)) / 3], [tip.x, tip.y], 6), constW(Math.max(0.45, rad * 0.035)), "cast", "rib");
+    }
+    o.bead(hx, hy, rad * 0.14, "cast", "relief");
+    return o;
+  }
+
+  // Acanthus leaf: a curving rib with lobes that curl outward, smaller toward
+  // a tip that rolls over.
+  function acanthus(x, y, h, len, R) {
+    const o = new Orn();
+    const t = new Turtle(x, y, h);
+    t.clothoid(len * 0.8, 0, 0.6 / len).scroll(len * 0.11, 0.85, 1, 0.45);
+    const rib = t.pts;
+    o.stroke(rib, wprof([[0, 0.09 * R], [0.6, 0.07 * R], [1, 0.02 * R]]), "cast", "relief");
+    [[0.18, 0.34], [0.4, 0.27], [0.62, 0.19]].forEach(([f, l]) => {
+      const i = Math.floor(f * (rib.length - 1));
+      const p = rib[i],
+        th = tangentAt(rib, i);
+      for (const sg of [-1, 1]) {
+        const lt = new Turtle(p.x, p.y, th + sg * 0.95);
+        lt.clothoid(len * l * 0.75, 0, sg * 1.4 / (len * l)).scroll(len * l * 0.16, 0.6, sg, 0.45);
+        o.stroke(lt.pts, wprof([[0, 0.065 * R], [0.5, 0.05 * R], [1, 0.015 * R]]), "cast", "relief");
+      }
+    });
+    return o;
+  }
+
+  // A rosette: petals round a bead, centred on (cx, cy).
+  function rosette(cx, cy, r, petals = 8) {
+    const o = new Orn();
+    for (let i = 0; i < petals; i++) {
+      const a = (i / petals) * TAU + Math.PI / petals;
+      o.add(leaf(cx + Math.cos(a) * r * 0.18, cy + Math.sin(a) * r * 0.18, a, r * 0.82, r * 0.42, 0, "cast", "relief"));
+    }
+    o.bead(cx, cy, r * 0.26, "cast", "relief");
+    return o;
+  }
+
+  // Acanthus laid along a molding: the rib follows the molding's centre line
+  // from (x, y) along heading h, lobes alternate to either side and curl.
+  function leafRun(x, y, h, len, wid) {
+    const o = new Orn();
+    const c = Math.cos(h),
+      sn = Math.sin(h);
+    const rib = bez([x, y], [x + c * len * 0.33, y + sn * len * 0.33], [x + c * len * 0.66, y + sn * len * 0.66], [x + c * len, y + sn * len], 20);
+    o.stroke(rib, wprof([[0, wid * 0.55], [0.7, wid * 0.4], [1, wid * 0.12]]), "cast", "relief");
+    const n = 4;
+    for (let k = 0; k < n; k++) {
+      const f = 0.12 + (k / n) * 0.78,
+        sg = k % 2 ? 1 : -1;
+      const px = x + c * len * f,
+        py = y + sn * len * f;
+      const l = len * (0.36 - 0.05 * k);
+      const t = new Turtle(px, py, h + sg * 0.55);
+      t.clothoid(l * 0.7, 0, (-sg * 1.6) / l).scroll(l * 0.14, 0.7, -sg, 0.45);
+      o.stroke(t.pts, wprof([[0, wid * 0.5], [0.5, wid * 0.36], [1, wid * 0.08]]), "cast", "relief");
+    }
+    return o;
+  }
+
+  // Corner for the big frames (canonical top-left, slice C): a rosette block
+  // over the molding's mitre, acanthus carved along both moldings, and a
+  // pair of small scrolls turning into the mat.
+  function frameCorner(C, depth, torus) {
+    const o = new Orn();
+    const blk = depth + 4.5,
+      mid = torus ?? 1.5 + (depth - 1.5) / 2;
+    const plate = [
+      { x: 0.8, y: 0.8, s: 0 },
+      { x: blk, y: 0.8, s: 0 },
+      { x: blk, y: blk, s: 0 },
+      { x: 0.8, y: blk, s: 0 },
+    ];
+    o.fill(plate, "cast");
+    o.add(rosette(blk / 2 + 0.4, blk / 2 + 0.4, blk * 0.44, 8));
+    o.add(leafRun(blk - 0.5, mid, 0, C - blk - 2.5, 3.4));
+    o.add(leafRun(mid, blk - 0.5, Math.PI / 2, C - blk - 2.5, 3.4));
+    const a = depth + 3.2;
+    for (const sg of [0, 1]) {
+      const f = sg ? (x, y) => [y, x] : (x, y) => [x, y];
+      const t = new Turtle(blk + 1, a + 0.6, Math.PI / 2 - 0.35);
+      t.line(0.04 * C).scroll(0.075 * C, 1.15, -1, 0.42);
+      o.stroke(mapPts(t.pts, f), wprof([[0, 0.045 * C], [1, 0.016 * C]]), "cast", "relief");
+    }
+    return o;
+  }
+
+  // Bead and reel running along each edge's middle slice (period P), so with
+  // border-image-repeat: round the whole frame is carved, not just its corners.
+  function runningMotif(S, C, P, t) {
+    const o = new Orn();
+    const unit = (u, along) => {
+      // along: map (u along the edge, v across it) to image coordinates
+      o.fill(ellipse(along(u + P / 2, t), 2.6, 1.15, along === horiz ? 0 : Math.PI / 2), "grow");
+      o.bead(...along(u, t), 0.95, "grow", "relief");
+      o.bead(...along(u + P, t), 0.95, "grow", "relief");
+    };
+    const horiz = (u, v) => [u, v];
+    const vert = (u, v) => [v, u];
+    const bottom = (u, v) => [u, S - v];
+    const right = (u, v) => [S - v, u];
+    for (const f of [horiz, vert, bottom, right]) unit(C, f);
+    return o;
+  }
+  function ellipse([cx, cy], rx, ry, rot) {
+    const pts = [];
+    for (let i = 0; i < 20; i++) {
+      const a = (i / 20) * TAU,
+        x = Math.cos(a) * rx,
+        y = Math.sin(a) * ry;
+      pts.push({ x: cx + x * Math.cos(rot) - y * Math.sin(rot), y: cy + x * Math.sin(rot) + y * Math.cos(rot), s: 0 });
+    }
+    return pts;
+  }
+
+  function frameImage(C, light, P = 14) {
+    const S = 2 * C + P;
+    const b = bands(S, S, 1.5, MAIN_PROFILE);
+    const fillet = bands(S, S, b.depth + 3.2, [[0.7, "#d6b373"]]);
+    const corner = frameCorner(C, b.depth, TORUS);
+    const orn = new Orn();
+    orn.add(corner);
+    orn.add(corner.map((x, y) => [S - x, y]));
+    orn.add(corner.map((x, y) => [x, S - y]));
+    orn.add(corner.map((x, y) => [S - x, S - y]));
+    orn.add(runningMotif(S, C, P, TORUS));
+    return { svg: svgDoc(S, S, b.svg + fillet.svg + renderOrn(orn, { light, outline: 0.4 }), { dx: -light.x * 0.5, dy: -light.y * 0.7, blur: 0.45, opacity: 0.26 }), slice: C };
+  }
+
+  // An agrafe for the middle of a frame's top edge: a shell hinged on the
+  // molding opening into the mat, flanked by C-scrolls that curl outward.
+  function agrafe(cx, d, b) {
+    const o = new Orn();
+    const mat = b - d;
+    o.add(shell(cx, d - 1.2, Math.PI / 2, mat * 0.78, 9, 2.25));
+    for (const sg of [-1, 1]) {
+      const t = new Turtle(cx + sg * mat * 0.42, d + mat * 0.12, sg > 0 ? 0.25 : Math.PI - 0.25);
+      t.line(mat * 0.18).scroll(mat * 0.2, 1.15, sg > 0 ? 1 : -1, 0.42);
+      o.stroke(t.pts, wprof([[0, 0.085 * mat], [0.4, 0.07 * mat], [1, 0.025 * mat]]), "cast", "relief");
+      o.add(leaf(cx + sg * mat * 0.4, d + mat * 0.1, sg > 0 ? -0.15 : Math.PI + 0.15, mat * 0.5, mat * 0.13, sg * 0.1, "cast", "relief"));
+    }
+    return o;
+  }
+
+  // Corner of an exact-size frame (canonical top-left): a rosette block over
+  // the molding's mitre; in the mat, a C-scroll hugging the corner with both
+  // ends rolled into volutes and a fan of leaves at its middle; beyond the
+  // volutes a running vine carried along each edge for `run` pixels.
+  function exactCorner(b, d, run, rnd) {
+    const o = new Orn();
+    const blk = d + 3.4;
+    o.fill([{ x: 0.8, y: 0.8, s: 0 }, { x: blk, y: 0.8, s: 0 }, { x: blk, y: blk, s: 0 }, { x: 0.8, y: blk, s: 0 }], "cast");
+    o.add(rosette(blk / 2 + 0.4, blk / 2 + 0.4, blk * 0.42, 8));
+    const mat = b - d,
+      mc = d + mat / 2;
+    const reach = blk + 1.25 * mat;
+    const A = [reach, d + 0.32 * mat],
+      B = [d + 0.32 * mat, reach];
+    const k = d + 0.3 * mat;
+    const curve = bez(A, [k + 0.25 * mat, k - 0.05 * mat], [k - 0.05 * mat, k + 0.25 * mat], B, 30);
+    const va = new Turtle(A[0], A[1], 0).line(0.05 * mat).scroll(0.2 * mat, 1.2, 1, 0.42);
+    const vb = new Turtle(B[0], B[1], Math.PI / 2).line(0.05 * mat).scroll(0.2 * mat, 1.2, -1, 0.42);
+    o.stroke(join(reversePts(va.pts), curve, vb.pts), wprof([[0, 0.03 * mat], [0.16, 0.085 * mat], [0.5, 0.11 * mat], [0.84, 0.085 * mat], [1, 0.03 * mat]]), "cast", "relief");
+    o.bead(va.x, va.y, 0.05 * mat, "cast", "relief");
+    o.bead(vb.x, vb.y, 0.05 * mat, "cast", "relief");
+    // leaf fan from the middle of the C, opening into the content's corner
+    const hub = [k + 0.1 * mat, k + 0.1 * mat];
+    [-0.62, -0.31, 0, 0.31, 0.62].forEach((off, i) => {
+      const len = (i === 2 ? 0.62 : Math.abs(off) < 0.4 ? 0.52 : 0.4) * mat;
+      o.add(leaf(hub[0], hub[1], Math.PI / 4 + off, len, 0.17 * mat, -off * 0.12, "cast", "relief"));
+    });
+    o.bead(hub[0], hub[1], 0.07 * mat, "cast", "relief");
+    const R = mat * 0.82;
+    const v = rinceau(mc, reach + 0.55 * mat, Math.max(reach + 1.6 * mat, blk + run), R, 3, rnd);
+    o.add(v);
+    o.add(v.map((x, y) => [y, x]));
+    return o;
+  }
+
+  // A bead-and-reel strip on the molding's torus from u0 to u1, as an SVG
+  // pattern whose pitch is re-solved so a whole number of units fits.
+  function beadRun(id, horizontal, u0, u1, t, light, P0 = 13) {
+    const len = u1 - u0;
+    if (len < P0) return { defs: "", rect: "" };
+    const n = Math.max(1, Math.round(len / P0)),
+      P = len / n;
+    const unit = new Orn();
+    const at = (u, v) => (horizontal ? [u, v] : [v, u]);
+    unit.fill(ellipse(at(P / 2, 1.8), 2.5, 1.1, horizontal ? 0 : Math.PI / 2), "grow");
+    unit.bead(...at(0, 1.8), 0.95, "grow", "relief");
+    unit.bead(...at(P, 1.8), 0.95, "grow", "relief");
+    const [px, py] = horizontal ? [u0, t - 1.8] : [t - 1.8, u0];
+    const [pw, ph] = horizontal ? [P, 3.6] : [3.6, P];
+    const defs = `<pattern id="${id}" patternUnits="userSpaceOnUse" x="${r2(px)}" y="${r2(py)}" width="${r2(pw)}" height="${r2(ph)}">${renderOrn(unit, { light, outline: 0.3 })}</pattern>`;
+    const [rw, rh] = horizontal ? [len, 3.6] : [3.6, len];
+    return { defs, rect: `<rect x="${r2(px)}" y="${r2(py)}" width="${r2(rw)}" height="${r2(rh)}" fill="url(#${id})"/>` };
+  }
+
+  // A whole frame drawn for one element at its exact size W x H, with a
+  // border band b wide: molding, corners, agrafes and regrown bead runs.
+  // Used as border-image at slice b, so it is never stretched or tiled.
+  function frameExact(W, H, b, light, seed = 7) {
+    const m = bands(W, H, 1.5, MAIN_PROFILE);
+    const d = m.depth;
+    const lines = bands(W, H, d + 2, [[0.6, "#d8b878"]]).svg + bands(W, H, b - 1.6, [[0.6, "#dcc086"]]).svg;
+    const run = Math.min(0.2 * Math.min(W, H), 140);
+    const rnd = mulberry(seed);
+    const corner = exactCorner(b, d, run, rnd);
+    const orn = new Orn();
+    orn.add(corner);
+    orn.add(corner.map((x, y) => [W - x, y]));
+    orn.add(corner.map((x, y) => [x, H - y]));
+    orn.add(corner.map((x, y) => [W - x, H - y]));
+    const gap = (b - d) * 1.25;
+    const topAg = W > 320,
+      sideAg = H > 320;
+    if (topAg) {
+      const a = agrafe(W / 2, d, b);
+      orn.add(a);
+      orn.add(a.map((x, y) => [x, H - y]));
+    }
+    if (sideAg) {
+      const a = agrafe(H / 2, d, b).map((x, y) => [y, x]);
+      orn.add(a);
+      orn.add(a.map((x, y) => [W - x, y]));
+    }
+    const t = TORUS;
+    const blk = d + 3.4;
+    let defs = "",
+      rects = "";
+    const strip = (id, horizontal, len, hasAg, far) => {
+      const segs = hasAg ? [[blk, len / 2 - gap], [len / 2 + gap, len - blk]] : [[blk, len - blk]];
+      segs.forEach(([u0, u1], i) => {
+        const r = beadRun(`${id}${i}`, horizontal, u0, u1, far ? (horizontal ? H - t : W - t) : t, light);
+        defs += r.defs;
+        rects += r.rect;
+      });
+    };
+    strip("bt", true, W, topAg, false);
+    strip("bb", true, W, topAg, true);
+    strip("bl", false, H, sideAg, false);
+    strip("br", false, H, sideAg, true);
+    const body = `<defs>${defs}</defs>` + m.svg + rects + lines + renderOrn(orn, { light });
+    return svgDoc(W, H, body, { dx: -light.x * 0.45, dy: -light.y * 0.65, blur: 0.4, opacity: 0.24 });
+  }
+
+  // Box frame for panels (canonical slice C): a double line whose outer line
+  // runs into each corner and curls inward there, with a leaf between the
+  // two curls; the inner line turns the corner on a small radius.
+  function boxImage(C, light, ink = { line: "#c79e58", inner: "#dcc086" }) {
+    const S = 2 * C + 2;
+    const o0 = 1.6;
+    let svg = "";
+    // outer line, straight between the corner curls
+    const L = 0.62 * C;
+    svg += `<path d="M${r2(L)} ${o0}H${r2(S - L)}M${r2(L)} ${r2(S - o0)}H${r2(S - L)}M${o0} ${r2(L)}V${r2(S - L)}M${r2(S - o0)} ${r2(L)}V${r2(S - L)}" stroke="${ink.line}" stroke-width="1.1" fill="none"/>`;
+    const inner = bands(S, S, o0 + 2.6, [[0.65, ink.inner]], 0.45 * C);
+    svg += inner.svg;
+    const corner = new Orn();
+    const top = new Turtle(L, o0, Math.PI).line(0.1 * C).scroll(0.17 * C, 1.1, -1, 0.42);
+    const side = new Turtle(o0, L, -Math.PI / 2).line(0.1 * C).scroll(0.17 * C, 1.1, 1, 0.42);
+    corner.stroke(top.pts, wprof([[0, 1.1], [0.4, 0.075 * C], [1, 0.03 * C]]), "cast");
+    corner.stroke(side.pts, wprof([[0, 1.1], [0.4, 0.075 * C], [1, 0.03 * C]]), "cast");
+    corner.add(leaf(0.27 * C, 0.27 * C, -3 * Math.PI / 4, 0.24 * C, 0.1 * C, 0, "cast"));
+    corner.add(leaf(0.27 * C, 0.27 * C, Math.PI / 4, 0.2 * C, 0.08 * C, 0, "cast"));
+    corner.bead(0.27 * C, 0.27 * C, 0.055 * C, "cast", "relief");
+    const orn = new Orn();
+    orn.add(corner);
+    orn.add(corner.map((x, y) => [S - x, y]));
+    orn.add(corner.map((x, y) => [x, S - y]));
+    orn.add(corner.map((x, y) => [S - x, S - y]));
+    return { svg: svgDoc(S, S, svg + renderOrn(orn, { light }), { dx: -light.x * 0.35, dy: -light.y * 0.5, blur: 0.3, opacity: 0.22 }), slice: C };
+  }
+
+  // One-piece cartouche for a probe sample, height h, tinted `tint`: the tint
+  // fills to the inner edge of both brackets, moldings run unbroken between
+  // the caps, and the caps are drawn in the same image so nothing seams.
+  function cartImage(h, tint, light, lod = 3) {
+    const W = Math.round(h * 0.56),
+      S = 2 * W + 4;
+    const cap = capOrn(h, lod);
+    const right = cap.map((x, y) => [S - x, y]);
+    const upper = cap.strokes[0].pts,
+      lower = cap.strokes[1].pts;
+    const edge = (pts, f) => pts.map((p) => f(p.x, p.y));
+    // left cap top half, then its bottom half back out, then the right cap
+    // the same way round, so the tint is one simple polygon
+    const ring = [
+      ...edge(upper, (x, y) => [x, y]),
+      ...edge(lower.slice().reverse(), (x, y) => [x, y]),
+      ...edge(lower, (x, y) => [S - x, y]),
+      ...edge(upper.slice().reverse(), (x, y) => [S - x, y]),
+    ];
+    const tintPath = "M" + ring.map(([x, y]) => r2(Math.min(Math.max(x, 0), S)) + " " + r2(y)).join("L") + "Z";
+    const yj = 1.5;
+    const mold = (y, dir) => {
+      const prof = [[0.7, "#c9a15a"], [0.8, "#fff4d4"], [0.8, "#d4ac62"], [0.7, "rgba(160,95,45,0.25)"]];
+      let off = 0,
+        out = "";
+      for (const [w, col] of prof) {
+        const yy = y + dir * (off + w / 2);
+        out += `<path d="M${r2(0.3 * W)} ${r2(yy)}H${r2(S - 0.3 * W)}" stroke="${col}" stroke-width="${w}"/>`;
+        off += w;
+      }
+      return out;
+    };
+    const shade = `<defs><linearGradient id="cs" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5a3a10" stop-opacity="0.12"/><stop offset="0.3" stop-color="#5a3a10" stop-opacity="0"/><stop offset="0.75" stop-color="#ffffff" stop-opacity="0"/><stop offset="1" stop-color="#ffffff" stop-opacity="0.22"/></linearGradient></defs>`;
+    const body =
+      shade +
+      `<path d="${tintPath}" fill="${tint}"/><path d="${tintPath}" fill="url(#cs)"/>` +
+      mold(yj - 0.75, 1) +
+      mold(h - yj + 0.75, -1) +
+      renderOrn(new Orn().add(cap).add(right), { light, outline: 0.42 });
+    return { svg: svgDoc(S, h, body, { dx: -light.x * 0.3, dy: -light.y * 0.45, blur: 0.3, opacity: 0.25 }), slice: W };
+  }
+
   // An SVG document for use as a CSS background image.
   function svgDoc(w, h, body, shadow) {
     const f = shadow
@@ -680,6 +1066,6 @@
   root.Orn = {
     TAU, Turtle, Orn, bez, join, reversePts, endOf, tangentAt, mapPts, wprof, constW, ribbon, renderOrn, mulberry, hashStr,
     PALETTE, ROLE_COLORS, leaf, budTip, loopBud, spur, arm, curlyBrace, rinceau, vine, capOrn, boxCorner, cornerOrn, fleuron, rule,
-    versalFoliage, svgDoc, cssURL,
+    versalFoliage, svgDoc, cssURL, bands, shell, acanthus, rosette, leafRun, frameCorner, runningMotif, frameImage, boxImage, cartImage, agrafe, exactCorner, beadRun, frameExact,
   };
 })(typeof window !== "undefined" ? window : globalThis);
