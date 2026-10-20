@@ -247,6 +247,15 @@ let start = default_model => {
         ),
       );
     });
+    /* A deep link: its slide or scratchpad opened as the model loaded, and
+       its panel and caret are actions, now that there is an editor to act
+       on. `scroll_to_caret` because a caret moved by a click is already in
+       view, and one moved by a link is not. */
+    let link = DeepLink.current();
+    if (link != DeepLink.none) {
+      schedule_action(Page.Update.Globals(FollowDeepLink(link)));
+      scroll_to_caret := true;
+    };
     // Sync log count from database
     Log.sync_count();
   };

@@ -81,7 +81,11 @@ module Shortcuts = {
  * the view layer supplies the text (see CodeEditable.perform_from_menu). */
 type command =
   | Perform(Action.t)
-  | PasteFromClipboard;
+  | PasteFromClipboard
+  /* A link to here. Not an editor action: the page builds the link, from
+     what the editor does not know (the mode, the slide, the sidebar), as
+     Globals' CopyDeepLink (see CodeEditable.perform_from_menu). */
+  | CopyDeepLink;
 
 let action_item = (~shortcut=?, ~tooltip=?, ~enabled=true, label, action) =>
   Menu.action_item(
@@ -246,6 +250,12 @@ let clipboard_data = (z: Zipper.t): list(Menu.item(command)) => {
       Action.Copy,
     ),
     command_item(~shortcut=Shortcuts.paste(), "Paste", PasteFromClipboard),
+    command_item(
+      ~tooltip=
+        "Copy a link to here: on a documentation slide, the slide; anywhere else, a copy of this code",
+      "Copy URL",
+      CopyDeepLink,
+    ),
   ];
 };
 

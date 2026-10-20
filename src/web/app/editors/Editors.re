@@ -141,8 +141,7 @@ module Store = {
       ~settings,
       ~default_names,
       ~default_current,
-    )
-    |> ScratchMode.integrate_share(~settings);
+    );
   };
 
   let load_documentation = (~settings) => {
@@ -159,16 +158,29 @@ module Store = {
     ConfigurationMode.StoreConfig.load()
     |> ConfigurationMode.Model.unpersist(~settings);
 
-  let load = (~settings, ~instructor_mode) => {
-    let has_share_params =
-      JsUtil.QueryParams.get_param("name") != None
-      && JsUtil.QueryParams.get_param("share") != None;
+  /* A link's slide, if the deck has it. A name that matches nothing is
+     ignored, so a stale link is no worse than none. The slide is hydrated
+     because `load_all` reads only the slide it opens on and leaves the rest
+     as placeholders. */
+  let linked_slide = (~settings, slide: string): option(ScratchMode.Model.t) => {
+    let m = load_documentation(~settings);
+    DeepLink.slide_index(~slide, ScratchMode.Model.scratchpad_names(m))
+    |> Option.map(current =>
+         ScratchMode.Persist.hydrate_current(
+           ~settings,
+           "doc",
+           {
+             ...m,
+             current,
+           },
+         )
+       );
+  };
 
-    if (has_share_params) {
-      Model.Scratch(load_scratch(~settings));
-    } else {
-      let mode = StoreMode.load();
-      switch (mode) {
+  /* Where this browser was last, unless a link says where to land. */
+  let load = (~settings, ~instructor_mode, ~link: option(DeepLink.place)) => {
+    let stored = () =>
+      switch (StoreMode.load()) {
       | Scratch => Model.Scratch(load_scratch(~settings))
       | Documentation => Model.Documentation(load_documentation(~settings))
       | Tutorial =>
@@ -183,6 +195,18 @@ module Store = {
         )
       | Config => Model.Config(load_config(~settings))
       };
+    switch (link) {
+    | None => stored()
+    | Some({target: Scratchpad({name, text}), _}) =>
+      Model.Scratch(
+        load_scratch(~settings)
+        |> ScratchMode.integrate_share(~settings, ~name, ~text),
+      )
+    | Some({target: Documentation(slide), _}) =>
+      switch (linked_slide(~settings, slide)) {
+      | Some(m) => Model.Documentation(m)
+      | None => stored()
+      }
     };
   };
 
@@ -211,7 +235,7 @@ module Store = {
     HazelDB.kv_clear();
     let _ = TutorialsMode.Store.reset(~settings, ~instructor_mode);
     let _ = ExercisesMode.Store.reset(~settings, ~instructor_mode);
-    load(~settings, ~instructor_mode);
+    load(~settings, ~instructor_mode, ~link=None);
   };
 };
 

@@ -1,7 +1,7 @@
 open Util;
 
 module Settings = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type panel =
     | LanguageDocumentation
     | HelpfulAssistant
@@ -11,6 +11,22 @@ module Settings = {
     | TaskReference
     | DebugInfo
     | Settings;
+
+  /* A panel's name in a deep link, `?panel=probes` (see DeepLink). */
+  let url_name_of_panel = (p: panel): string =>
+    switch (p) {
+    | LanguageDocumentation => "docs"
+    | HelpfulAssistant => "assistant"
+    | Probes => "probes"
+    | LogControl => "log"
+    | Problems => "problems"
+    | TaskReference => "task"
+    | DebugInfo => "debug"
+    | Settings => "settings"
+    };
+
+  let panel_of_url_name = (name: string): option(panel) =>
+    List.find_opt(p => url_name_of_panel(p) == name, all_of_panel);
 
   [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
   type problem_category =
