@@ -179,6 +179,35 @@ let registry_tests = [
       );
     },
   ),
+  /* Tables › Rich Probes: a three-row table is four rows tall, within
+     the inline cap, but its column menus and + respond only in the
+     drawer (rich content in a sample chip is inert) */
+  test_case(
+    "a short table lives in the drawer",
+    `Quick,
+    () => {
+      let three =
+        mk_table([
+          [("x", G.int(1))],
+          [("x", G.int(2))],
+          [("x", G.int(3))],
+        ]);
+      let rows = Option.get(live_renderer.drawer_rows(Sort.Exp, three));
+      check(bool, "fits the cap", true, rows <= ProbeProj.inline_rows_cap);
+      check(
+        bool,
+        "the table",
+        true,
+        ProbeProj.in_drawer(~id=live_renderer.id, rows),
+      );
+      check(
+        bool,
+        "another view of that height",
+        false,
+        ProbeProj.in_drawer(~id="cards", rows),
+      );
+    },
+  ),
 ];
 
 let tests = ("RichProbeRegistry", registry_tests);
