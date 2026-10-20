@@ -1,0 +1,452 @@
+/* BAROQUE SKIN
+   Everything here is scoped to html.skin-baroque, which skin/skin.js sets
+   (Ctrl+Alt+B toggles it). Ornament images arrive from skin.js as custom
+   properties (--orn-*): cartouche caps, box and frame corners, the rule,
+   the parchment texture. The theme writes its colours inline on <html>, so
+   the few theme variables overridden here need !important. */
+
+html.skin-baroque {
+  --orn-ink: #2c3a40;
+  --orn-ink-soft: #5a4d3a;
+  --orn-gold: #c49a55;
+  --orn-gold-mid: #d6b06a;
+  --orn-gold-hi: #fff5d6;
+  --orn-gold-dk: #a4732e;
+  --orn-parch: none;
+  --orn-paper: #f3e6c6;
+  --orn-paper-light: #f9f0db;
+  --orn-paper-deep: #ead8ad;
+  --orn-serif: "IM Fell English", "Iowan Old Style", Georgia, serif;
+  --orn-serif-sc: "IM Fell English SC", "IM Fell English", Georgia, serif;
+  /* a molding along a bottom edge, read top to bottom */
+  --orn-mold-b: linear-gradient(to bottom, #c49a55 0 0.7px, #fff5d6 0.7px 1.7px, #d4ac62 1.7px 2.5px, transparent 2.5px 3.4px, #c49a55 3.4px 4.1px, transparent 4.1px);
+  --orn-mold-t: linear-gradient(to top, #c49a55 0 0.7px, #fff5d6 0.7px 1.7px, #d4ac62 1.7px 2.5px, transparent 2.5px 3.4px, #c49a55 3.4px 4.1px, transparent 4.1px);
+  /* a framed box: thin double line */
+  --orn-box-line: 0 0 0 0.7px #c49a55, 0 0 0 2px #fbf3dc, 0 0 0 2.7px #d4ac62;
+  --orn-frame-line: inset 0 0 0 1px #b88b45, inset 0 0 0 2.5px #f3dfa8, inset 0 0 0 3.5px #fff6d8, inset 0 0 0 5px #c99d55, inset 0 0 0 6px #a4732e, inset 0 0 0 9px transparent, inset 0 0 0 9.7px #c49a55;
+
+  --ui-font: var(--orn-serif);
+  --ui-bkg: transparent !important;
+  --main-bkg: transparent !important;
+  --border-default: #c9a462 !important;
+  --border-soft: #dcc28c !important;
+  --border-strong: #a97a33 !important;
+  --text-accent: #7c5a24 !important;
+  --ui-header-text: #6b4a17 !important;
+  /* selection as a rubricated wash; the indicated term stays gold */
+  --shard-selected: rgba(205, 110, 70, 0.26) !important;
+  --shard-selected-expanded: rgba(205, 110, 70, 0.34) !important;
+  --shadow-selected: rgba(150, 70, 30, 0.35) !important;
+}
+
+/* ---------- ground ---------- */
+
+html.skin-baroque body,
+html.skin-baroque #page {
+  background-color: var(--orn-paper);
+  background-image: var(--orn-parch);
+}
+
+/* the slide pane: a gilt frame that stays put while the slide scrolls */
+html.skin-baroque #main {
+  background:
+    var(--orn-frame-tl) left 3px top 3px / 58px no-repeat,
+    var(--orn-frame-tr) right 3px top 3px / 58px no-repeat,
+    var(--orn-frame-bl) left 3px bottom 3px / 58px no-repeat,
+    var(--orn-frame-br) right 3px bottom 3px / 58px no-repeat,
+    transparent;
+  box-shadow: var(--orn-frame-line);
+  padding: 14px 18px;
+}
+
+/* ---------- top bar ---------- */
+
+html.skin-baroque #top-bar {
+  background: linear-gradient(#f8edd3, #efdfb6);
+  border-bottom: none;
+  position: relative;
+  font-family: var(--orn-serif);
+}
+html.skin-baroque #top-bar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -2px;
+  height: 4.2px;
+  background: var(--orn-mold-b);
+  pointer-events: none;
+}
+html.skin-baroque #top-bar select {
+  font-family: var(--orn-serif);
+  font-size: 1.05rem;
+  color: #3a2f20;
+  background: transparent;
+}
+html.skin-baroque #title {
+  font-family: var(--orn-serif);
+  letter-spacing: 0.02em;
+}
+
+/* the hazel tab: green enamel in a gilt rim; the slide tab: paper with a
+   gilt edge where Hazel draws its hairline */
+html.skin-baroque #top-bar .wrap:has(.nut-icon),
+html.skin-baroque #top-bar .nut-icon,
+html.skin-baroque #top-bar #title {
+  background: radial-gradient(130% 160% at 30% 15%, #4f7a5a 0, #2d5a43 55%, #1f4232 100%);
+  color: #f6e7bd;
+}
+html.skin-baroque #top-bar .wrap:has(#title) {
+  background: transparent;
+}
+html.skin-baroque #top-bar #title {
+  box-shadow: inset -1px -1px 0 #c49a55, inset -2.2px -2.2px 0 #f6e3ad, inset -3px -3px 0 #a97a33;
+  font-size: 1.12em;
+}
+html.skin-baroque #top-bar #editor-mode {
+  background: linear-gradient(#fbf3dc, #f1e3bf);
+  border-right: none;
+  box-shadow: inset -0.8px -0.8px 0 #c49a55, inset -1.8px -1.8px 0 #fff5d6, inset -2.6px -2.6px 0 #d4ac62;
+  color: #a07a3c;
+}
+
+/* stack focus bar */
+html.skin-baroque #sample-focus-bar {
+  background: linear-gradient(#f4e7c8, #eedfba);
+  border-bottom: none;
+  box-shadow: inset 0 -0.7px 0 #c49a55, inset 0 -1.7px 0 #fff5d6;
+  font-family: var(--orn-serif);
+}
+html.skin-baroque #sample-focus-bar .title {
+  font-family: var(--orn-serif);
+  font-size: 0.95em;
+  color: #f7ecc8;
+  background: radial-gradient(120% 140% at 30% 20%, #4f7a5a 0, #2d5a43 55%, #1f4232 100%);
+  box-shadow: 0 0 0 1px #c49a55, 0 0 0 2.2px #f6e3ad, 0 0 0 3px #a97a33, inset 0 1px 1px rgba(255, 255, 255, 0.25);
+  border-radius: 1em;
+  padding: 2px 10px;
+}
+html.skin-baroque #sample-focus-bar .breadcrumb-entry {
+  color: #8a2f55;
+}
+html.skin-baroque #sample-focus-bar .clear-all {
+  font-family: var(--orn-serif);
+  border: none;
+  box-shadow: var(--orn-box-line);
+  border-radius: 3px;
+  background: linear-gradient(#fbf3dc, #efdfb6);
+}
+
+/* ---------- slide prose ---------- */
+
+html.skin-baroque .prompt-content,
+html.skin-baroque .title-cell {
+  font-family: var(--orn-serif);
+  color: var(--orn-ink);
+}
+html.skin-baroque .prompt-content p,
+html.skin-baroque .prompt-content li {
+  font-size: 1.08em;
+  line-height: 1.45;
+}
+html.skin-baroque .prompt-content h1,
+html.skin-baroque .title-cell .title-text {
+  font-family: var(--orn-serif);
+  font-weight: normal;
+  font-size: 2em;
+  color: #4b3714;
+  letter-spacing: 0.01em;
+}
+html.skin-baroque .prompt-content h2 {
+  font-family: var(--orn-serif-sc);
+  font-weight: normal;
+  color: #5c4317;
+  letter-spacing: 0.03em;
+  padding-bottom: 14px;
+  background: var(--orn-rule) left bottom / 180px 14px no-repeat;
+}
+html.skin-baroque .prompt-content code,
+html.skin-baroque .prompt-content .code {
+  background: rgba(214, 176, 106, 0.18);
+  box-shadow: inset 0 -0.7px 0 rgba(196, 154, 85, 0.7);
+  border-radius: 2px;
+}
+
+/* tasks and hint: framed boxes with corner flourishes */
+html.skin-baroque details.tasks-cell,
+html.skin-baroque details.hint-cell,
+html.skin-baroque .task-reference-section,
+html.skin-baroque #probe-sidebar .panel,
+html.skin-baroque .test-panel {
+  border: none;
+  outline: none;
+  border-radius: 2px;
+  box-shadow: var(--orn-box-line);
+  background:
+    var(--orn-box-tl) left 1px top 1px / 22px no-repeat,
+    var(--orn-box-tr) right 1px top 1px / 22px no-repeat,
+    var(--orn-box-bl) left 1px bottom 1px / 22px no-repeat,
+    var(--orn-box-br) right 1px bottom 1px / 22px no-repeat,
+    rgba(251, 244, 224, 0.55);
+}
+html.skin-baroque details.hint-cell {
+  background-color: rgba(246, 230, 180, 0.55);
+}
+html.skin-baroque summary.tasks-title,
+html.skin-baroque summary.hint-title {
+  font-family: var(--orn-serif);
+  font-size: 1.1em;
+  color: #6b4a17;
+}
+
+/* ---------- code cells ---------- */
+
+html.skin-baroque #main .cell > .code-editor.cell-item {
+  background: rgba(252, 246, 230, 0.6);
+  box-shadow: var(--orn-box-line);
+  border-radius: 2px;
+}
+html.skin-baroque .cell-result,
+html.skin-baroque .cell-item.cell-result {
+  background: linear-gradient(rgba(234, 216, 173, 0.45), rgba(234, 216, 173, 0.3));
+  box-shadow: inset 0 0.7px 0 #c49a55, inset 0 1.7px 0 #fff5d6;
+}
+
+/* ---------- code decorations ---------- */
+
+/* hairline arms; the braces beside them come from skin.js */
+html.skin-baroque .code-deco svg path.child-line,
+html.skin-baroque .refractors svg path.child-line,
+html.skin-baroque .indication svg path.child-line {
+  stroke: #c49a55 !important;
+  stroke-width: 1px !important;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.95;
+}
+html.skin-baroque svg.orn-brace {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+  filter: drop-shadow(0.3px 0.45px 0.3px rgba(110, 70, 15, 0.3));
+}
+
+/* the indicated term: a gold-leaf wash inside a fine gilt edge */
+html.skin-baroque .indication svg.shard path,
+html.skin-baroque .indication-refractored svg.shard path {
+  fill: rgba(232, 200, 120, 0.28) !important;
+  stroke: #c49a55 !important;
+  stroke-width: 0.8px !important;
+  vector-effect: non-scaling-stroke;
+}
+
+/* caret */
+html.skin-baroque #caret .caret-path {
+  fill: #8a5d1c !important;
+}
+
+/* ---------- probes ---------- */
+
+/* each sample is a cartouche: cast caps, molding runs, the state colour as
+   an inset tint so it never shows outside the caps */
+html.skin-baroque .live-offside .sample .value {
+  --orn-tint: var(--sample-neutral-bg);
+  position: relative;
+  padding: 0 0.95em;
+  border-radius: 0;
+  box-shadow: none !important;
+  outline: none !important;
+  background:
+    var(--orn-cap-l) left center / auto 100% no-repeat,
+    var(--orn-cap-r) right center / auto 100% no-repeat,
+    linear-gradient(to bottom, #c49a55 0 0.7px, #fff5d6 0.7px 1.5px, #d4ac62 1.5px 2.3px, rgba(150, 85, 40, 0.25) 2.3px 3px, transparent 3px) center top / calc(100% - 1.2em) 3px no-repeat,
+    linear-gradient(to top, #c49a55 0 0.7px, #fff5d6 0.7px 1.5px, #d4ac62 1.5px 2.3px, rgba(150, 85, 40, 0.25) 2.3px 3px, transparent 3px) center bottom / calc(100% - 1.2em) 3px no-repeat,
+    linear-gradient(var(--orn-tint), var(--orn-tint)) center / calc(100% - 1.1em) calc(100% - 3px) no-repeat !important;
+}
+html.skin-baroque .live-offside .sample:has(.value.focus) .value {
+  --orn-tint: var(--exp-base);
+}
+html.skin-baroque .live-offside .sample:has(.value.related-after) .value,
+html.skin-baroque .live-offside .sample:has(.value.tangent-after) .value {
+  --orn-tint: var(--sample-below-bg);
+}
+html.skin-baroque .live-offside .sample:has(.value.related-before) .value,
+html.skin-baroque .live-offside .sample:has(.value.tangent-before) .value {
+  --orn-tint: var(--sample-above-bg);
+}
+html.skin-baroque .live-offside .sample:has(.value.off-focus) .value {
+  --orn-tint: var(--sample-off-bg);
+}
+/* the indicated probe's focused sample keeps a sign, as a deeper gilt edge */
+html.skin-baroque .projector.probe.indicated .live-offside .sample:has(.value.focus) .value {
+  filter: drop-shadow(0 0 1.2px rgba(170, 120, 30, 0.75));
+}
+/* sample counts as small pearls */
+html.skin-baroque .live-offside .num-samples {
+  background: radial-gradient(circle at 35% 30%, #fbfff2 0, #d3e5c0 45%, #93b080 100%) !important;
+  box-shadow: 0 0 0 0.6px #74905f;
+  color: #2f4d2a !important;
+}
+
+/* ---------- sidebar ---------- */
+
+html.skin-baroque #side-bar {
+  font-family: var(--orn-serif);
+  background:
+    var(--orn-frame-tl) left 2px top 2px / 48px no-repeat,
+    var(--orn-frame-tr) right 2px top 2px / 48px no-repeat,
+    var(--orn-frame-bl) left 2px bottom 2px / 48px no-repeat,
+    var(--orn-frame-br) right 2px bottom 2px / 48px no-repeat,
+    transparent;
+  box-shadow: var(--orn-frame-line);
+}
+html.skin-baroque #side-bar {
+  padding: 12px 10px 12px 12px;
+}
+html.skin-baroque #side-bar .resize-handle {
+  background: transparent;
+}
+/* buttons and fields in the panels: paper inside a gilt rim */
+html.skin-baroque #settings-panel .settings-button,
+html.skin-baroque #probe-sidebar button,
+html.skin-baroque #sample-focus-bar button {
+  font-family: var(--orn-serif);
+  color: #4b3714;
+  border: none;
+  border-radius: 3px;
+  box-shadow: var(--orn-box-line);
+  background: linear-gradient(#fdf7e6, #efdfb8);
+}
+html.skin-baroque #settings-panel .settings-button:hover,
+html.skin-baroque #probe-sidebar button:hover {
+  background: linear-gradient(#fffaf0, #f3e4c0);
+}
+html.skin-baroque #side-bar input[type="text"],
+html.skin-baroque #side-bar input[type="search"],
+html.skin-baroque #side-bar input:not([type]) {
+  font-family: var(--orn-serif);
+  border: none;
+  border-radius: 2px;
+  background: rgba(253, 248, 234, 0.85);
+  box-shadow: inset 0 0 0 0.7px #c49a55, inset 0 1px 2px rgba(120, 80, 20, 0.18);
+}
+/* switches: a gilt-rimmed track and a brass knob; on is green enamel */
+html.skin-baroque .toggle-switch {
+  background: linear-gradient(#efe2c2, #f8efd8);
+  box-shadow: inset 0 0 0 0.7px #c49a55, inset 0 1px 2px rgba(120, 80, 20, 0.25);
+}
+html.skin-baroque .toggle-switch.active {
+  background: radial-gradient(130% 160% at 30% 15%, #5d8a66 0, #2d5a43 70%);
+}
+html.skin-baroque .toggle-switch .toggle-knob {
+  background: radial-gradient(circle at 35% 30%, #fffbe9 0, #ecd08e 50%, #b8893d 100%);
+  border-color: #a97a33;
+}
+html.skin-baroque #probe-sidebar .main-title,
+html.skin-baroque .task-reference-title {
+  font-family: var(--orn-serif-sc);
+  font-weight: normal;
+  font-size: 1.35em;
+  letter-spacing: 0.06em;
+  text-transform: none;
+  padding-bottom: 14px;
+  background: var(--orn-rule) left bottom / 180px 14px no-repeat;
+}
+html.skin-baroque #probe-sidebar .panel {
+  padding: 0.75em 0.9em;
+  color: var(--orn-ink-soft);
+}
+html.skin-baroque #probe-sidebar .quick-ref .title,
+html.skin-baroque #probe-sidebar .toggle-label,
+html.skin-baroque #probe-sidebar .legend-title {
+  font-family: var(--orn-serif);
+  font-size: 1.04em;
+  color: #6b4a17;
+  white-space: nowrap;
+}
+html.skin-baroque #probe-sidebar .quick-ref .qr-action {
+  font-weight: normal;
+  color: #4b3714;
+}
+html.skin-baroque #probe-sidebar .quick-ref {
+  font-size: 0.95em;
+}
+
+/* segmented controls: gilt rims, the active segment burnished */
+html.skin-baroque .segmented-control {
+  border: none !important;
+  outline: none !important;
+  border-radius: 3px !important;
+  box-shadow: var(--orn-box-line);
+  background: linear-gradient(#fbf4e0, #f1e3bf);
+  overflow: hidden;
+}
+html.skin-baroque .segmented-control .segment {
+  font-family: var(--orn-serif);
+  color: #5a4626;
+  border-color: #d9bd83 !important;
+  background: transparent;
+}
+html.skin-baroque .segmented-control .segment.active {
+  color: #3d2a0c;
+  background: linear-gradient(#fbe8a8, #e2bd66 55%, #c99a45) !important;
+  box-shadow: inset 0 1px 0 #fff6d4, inset 0 -1px 0 #a87a2e, 0 0 0 0.6px #a87a2e;
+}
+/* key caps as small brass keys */
+html.skin-baroque .kbd-badge,
+html.skin-baroque #probe-sidebar .qr-table .qr-cmd-e span,
+html.skin-baroque #probe-sidebar .qr-table .qr-when-focused span {
+  background: linear-gradient(#fdf3d2, #e9cf8f) !important;
+  box-shadow: inset 0 0.8px 0 #fffaf0, inset 0 -1px 0 #b78b42, 0 0 0 0.6px #a87a2e;
+  border: none !important;
+  color: #5a3d10 !important;
+}
+
+/* the tab rail */
+html.skin-baroque #persistent {
+  border-left: none;
+  background: linear-gradient(90deg, #eedfb9, #f6ebd0);
+  box-shadow: inset 0.7px 0 0 #c49a55, inset 1.7px 0 0 #fff5d6;
+}
+html.skin-baroque #persistent .tab {
+  fill: #a07a3c;
+}
+html.skin-baroque #persistent .tab.active {
+  border-right: none;
+  fill: #6b4a17;
+  background: var(--orn-fleuron) right 3px center / 9px no-repeat, linear-gradient(90deg, transparent, rgba(214, 176, 106, 0.25));
+}
+html.skin-baroque #persistent .tab:hover {
+  background-color: rgba(214, 176, 106, 0.18);
+}
+
+/* ---------- bottom bar ---------- */
+
+html.skin-baroque #bottom-bar {
+  outline: none;
+  background: linear-gradient(#efdfb6, #f7ecd1);
+  position: relative;
+  font-family: var(--orn-serif);
+}
+html.skin-baroque #bottom-bar::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -2px;
+  height: 4.2px;
+  background: var(--orn-mold-t);
+  pointer-events: none;
+}
+html.skin-baroque #cursor-inspector .ci-header {
+  outline: none;
+  border-radius: 0 1em 0 0;
+  box-shadow: inset -0.7px 0 0 #c49a55, inset -1.7px 0 0 #fff5d6;
+}
+html.skin-baroque #cursor-inspector .gamma {
+  background: radial-gradient(120% 140% at 30% 20%, #4f7a5a 0, #2d5a43 55%, #1f4232 100%) !important;
+  box-shadow: inset -1px 0 0 #c49a55, inset -2.2px 0 0 #f6e3ad;
+}
