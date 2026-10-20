@@ -88,7 +88,45 @@ let deck = () =>
     check(string, "reloads at the slide it was on", tables, name'');
   });
 
+let add_delete = () =>
+  Test_WorldSlide.shipped(() => {
+    Web.HazelDB.kv_clear();
+    let m = Deck.add_scratch(~settings, Deck.load(~settings));
+    let (name, code) = current(m);
+    check(
+      string,
+      "a new Scratch slide, current",
+      "Scratch / Scratchpad 2",
+      name,
+    );
+    check(string, "loaded, empty", "loaded", body(code, name));
+    check(
+      bool,
+      "in Scratch's deck too",
+      true,
+      List.mem("Scratchpad 2", Deck.deck_names("scratch")),
+    );
+    let m = Deck.delete_current(~settings, m);
+    let (name', code') = current(m);
+    check(
+      string,
+      "the slide before it, current",
+      "Scratch / Scratchpad 1",
+      name',
+    );
+    check(string, "gone from the program", "gone", body(code', name));
+    check(
+      bool,
+      "and from Scratch's deck",
+      false,
+      List.mem("Scratchpad 2", Deck.deck_names("scratch")),
+    );
+  });
+
 let tests = (
   "WorldDeck",
-  [test_case("load, switch, save, reload", `Quick, deck)],
+  [
+    test_case("load, switch, save, reload", `Quick, deck),
+    test_case("adding and deleting a slide", `Quick, add_delete),
+  ],
 );

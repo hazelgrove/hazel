@@ -292,3 +292,161 @@ let save = (model: Model.t): unit =>
     | _ => ()
     };
   });
+
+/* the slide names Documentation's or Scratch's deck keeps */
+let deck_names = (p: string): list(string) =>
+  switch (Persist.load_meta(p)) {
+  | Some(m) => m.names
+  | None =>
+    List.map(
+      fst,
+      snd(
+        p == "doc"
+          ? Lazy.force(Init.startup).documentation
+          : Lazy.force(Init.startup).scratch,
+      ),
+    )
+  };
+
+let set_deck_names = (p: string, names: list(string)): unit => {
+  let current =
+    switch (Persist.load_meta(p)) {
+    | Some(m) => min(m.current, max(0, List.length(names) - 1))
+    | None => 0
+    };
+  Persist.save_meta(
+    p,
+    {
+      current,
+      names,
+    },
+  );
+};
+
+/* [doc] for the deck's slides as they are now: each body as [doc] has it
+   (loaded or not), [fresh] ones as given, the library's items as [doc]
+   has them */
+let reassemble =
+    (~fresh: list((string, Segment.t)), doc: Segment.t): option(Segment.t) =>
+  Option.bind(
+    WorldTree.split_library(
+      ~anchor=WorldTree.root_anchor,
+      ~heads=WorldSlide.tree_heads,
+      doc,
+    ),
+    ((library, _)) =>
+    WorldTree.assemble(
+      ~library,
+      List.map(
+        n =>
+          (
+            path(n),
+            switch (List.assoc_opt(n, fresh)) {
+            | Some(m) => Some(m)
+            | None =>
+              switch (WorldTree.body(~slide=slide_id(n), doc)) {
+              | Loaded(m) => Some(m)
+              | Unloaded
+              | Gone => None
+              }
+            },
+          ),
+        names(),
+      ),
+    )
+  );
+
+/* [model] after the deck's slides changed: the live program re-assembled
+   for them, on [current] */
+let rebuild = (~settings, ~current: string, model: Model.t): Model.t =>
+  switch (
+    List.find_map(
+      (sp: Scratchpad.t) =>
+        switch (sp.kind) {
+        | Code(code) when !sp.dormant => Some(code)
+        | _ => None
+        },
+      model.scratchpads,
+    )
+  ) {
+  | None => load(~settings)
+  | Some(code) =>
+    let doc = Program.document(code.program);
+    let fresh =
+      switch (WorldTree.body(~slide=slide_id(current), doc)) {
+      | Loaded(_) => []
+      | Unloaded
+      | Gone => [(current, fst(members(current)))]
+      };
+    switch (reassemble(~fresh, doc)) {
+    | None => model
+    | Some(doc) =>
+      Hashtbl.replace(loaded, current, ());
+      stage_view(current);
+      let names = names();
+      {
+        current:
+          ListUtil.findi_opt(n => n == current, names)
+          |> Option.map(fst)
+          |> Option.value(~default=0),
+        scratchpads:
+          List.map(
+            n =>
+              n == current
+                ? Scratchpad.mk_code(
+                    ~name=n,
+                    ~editor=
+                      editor(
+                        ~settings,
+                        ~probes=Program.probes(code.program),
+                        doc,
+                      ),
+                    ~world=slide_id(n),
+                    (),
+                  )
+                : Scratchpad.dormant_code(n),
+            names,
+          ),
+      };
+    };
+  };
+
+/* a new Scratch slide, empty, the current one */
+let add_scratch = (~settings, model: Model.t): Model.t => {
+  let scratch = deck_names("scratch");
+  let used =
+    List.filter_map(
+      n =>
+        switch (String.split_on_char(' ', n)) {
+        | ["Scratchpad", k] => int_of_string_opt(k)
+        | _ => None
+        },
+      scratch,
+    );
+  let rec free = k => List.mem(k, used) ? free(k + 1) : k;
+  let name = "Scratchpad " ++ string_of_int(free(1));
+  set_deck_names("scratch", scratch @ [name]);
+  rebuild(~settings, ~current="Scratch" ++ sep ++ name, model);
+};
+
+/* the current slide gone (its keys too), the one before it current */
+let delete_current = (~settings, model: Model.t): Model.t => {
+  let name = List.nth(model.scratchpads, model.current).name;
+  switch (legacy(name)) {
+  | Some((p, n)) =>
+    set_deck_names(p, List.filter(m => m != n, deck_names(p)));
+    Persist.forget_slide(prefix, name);
+    Hashtbl.remove(loaded, name);
+    switch (names()) {
+    | [] => model
+    | names =>
+      let current =
+        List.nth(
+          names,
+          max(0, min(model.current - 1, List.length(names) - 1)),
+        );
+      rebuild(~settings, ~current, model);
+    };
+  | None => model
+  };
+};

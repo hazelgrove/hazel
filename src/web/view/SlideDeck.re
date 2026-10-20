@@ -234,12 +234,24 @@ let update =
           )
         };
       model |> Updated.return(~historic=false);
-    /* the world tree's slides are its modules: adding, renaming, deleting
-       and resetting one are edits to the tree (not yet) */
-    | AddSlide
+    /* the world tree's slides are its modules: a new one is a Scratch
+       slide, and a deleted one leaves the tree (renaming, resetting and
+       importing one: not yet) */
+    | AddSlide when deck == World =>
+      WorkerClient.cancel();
+      WorldDeck.add_scratch(~settings=settings.core, model) |> Updated.return;
+    | DeleteSlide when deck == World =>
+      JsUtil.confirm(
+        "Are you SURE you want to delete this slide? You will lose any existing code that you have written, and course staff have no way to restore it!",
+      )
+        ? {
+          WorkerClient.cancel();
+          WorldDeck.delete_current(~settings=settings.core, model)
+          |> Updated.return;
+        }
+        : model |> return_quiet
     | AddDrvSlide
     | RenameSlide
-    | DeleteSlide
     | ResetCurrent
     | InitImportScratchpad(_)
     | FinishImportScratchpad(_) when deck == World => model |> return_quiet
