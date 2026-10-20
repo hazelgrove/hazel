@@ -260,7 +260,6 @@
 }
 
 #cursor-inspector .ci-header.ok.Label {
-  background-color: var(--shard-label);
   color: var(--token-label);
 }
 #cursor-inspector .ci-header.ok.Mod {
