@@ -79,6 +79,7 @@
   --fold-bkg: oklch(32.2% 0.034 225);
   --hazel-color-scheme: light;
   --hazel-contrast: normal;
+  --hazel-gamma-unfold: always;
   --hazel-livelit-reveal: eye;
   --hole-active: oklch(50.2% 0.2 225);
   --hole-fill: oklch(92.05% 0.04 225);

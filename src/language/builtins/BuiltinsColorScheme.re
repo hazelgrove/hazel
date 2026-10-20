@@ -287,4 +287,23 @@ let reveal_type: Typ.t =
     ("Nut", None),
   ]);
 
-let typ_with_reveal: Typ.t = record(scheme @ [(reveal_field, reveal_type)]);
+/* Not part of a scheme either: how Gamma offers a type too long for its
+   line in full, on several lines (^ticket(468)). + Always + OnHover +
+   RightClick: the entry's toggle always drawn, drawn while the pointer is
+   on the entry, or not drawn at all, leaving the entry's right-click menu,
+   which has it in every case. Structural, like reveal_type; the slide
+   declares its own `type GammaUnfold = + Always + OnHover + RightClick`. */
+let gamma_unfold_field = "gamma-unfold";
+
+let gamma_unfold_type: Typ.t =
+  BuiltinsADT.sum_type([
+    ("Always", None),
+    ("OnHover", None),
+    ("RightClick", None),
+  ]);
+
+let typ_with_reveal: Typ.t =
+  record(
+    scheme
+    @ [(reveal_field, reveal_type), (gamma_unfold_field, gamma_unfold_type)],
+  );

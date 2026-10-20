@@ -173,8 +173,7 @@ let typ_entry_view =
               clss(["unfold"]),
               Attr.title(
                 unfolded
-                  ? "Show the type on one line"
-                  : "Show the whole type, on several lines",
+                  ? "Show on one line" : "Show in full, on several lines",
               ),
               Attr.on_click(_ =>
                 Effect.Many([
@@ -187,8 +186,61 @@ let typ_entry_view =
           )
         : div(~attrs=[clss(["unfold", "none"])], []);
     let sep = div(~attrs=[clss(["seperator"])], [text(sep)]);
+    /* The entry's right-click menu (^ticket(468)), in every way of offering
+       the full view the Colors slide can choose (gamma-unfold), and the only
+       one when the toggle is not drawn. Fixed at the press, over a backdrop
+       that closes it (ctx_view). */
+    let menu_item = (label, action) =>
+      div(
+        ~attrs=[
+          clss(["context-entry-menu-item"]),
+          Attr.on_click(_ =>
+            Effect.Many([
+              Effect.Stop_propagation,
+              globals.inject_global(SetContextMenu(None)),
+              globals.inject_global(action),
+            ])
+          ),
+        ],
+        [text(label)],
+      );
+    let menu =
+      switch (globals.context_menu) {
+      | Some((k, x, y)) when k == key => [
+          div(
+            ~attrs=[
+              clss(["context-entry-menu"]),
+              Attr.create(
+                "style",
+                Printf.sprintf("left: %dpx; top: %dpx;", x, y),
+              ),
+            ],
+            (
+              long
+                ? [
+                  menu_item(
+                    unfolded ? "Show on one line" : "Show in full",
+                    ToggleContextUnfold(key),
+                  ),
+                ]
+                : []
+            )
+            @ [menu_item("Go to definition", jump_to(entry))],
+          ),
+        ]
+      | _ => []
+      };
     let attrs = unfolded_class => [
       Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+      Attr.on_contextmenu(evt =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+          globals.inject_global(
+            SetContextMenu(Some((key, evt##.clientX, evt##.clientY))),
+          ),
+        ])
+      ),
       clss(["context-entry", "code"] @ classes @ unfolded_class),
     ];
     unfolded
@@ -205,11 +257,13 @@ let typ_entry_view =
                 ),
               ],
             ),
-          ],
+          ]
+          @ menu,
         )
       : div(
           ~attrs=attrs([]),
-          [toggle, name_node, sep, CodeViewable.view_segment(~globals, seg)],
+          [toggle, name_node, sep, CodeViewable.view_segment(~globals, seg)]
+          @ menu,
         );
   };
 
@@ -262,18 +316,49 @@ let context_entry_view = (~globals, entry: Language.Ctx.entry): Node.t => {
   };
 };
 
-let ctx_view = (~globals, ctx: Language.Ctx.t): Node.t =>
+let ctx_view = (~globals: Globals.t, ctx: Language.Ctx.t): Node.t => {
+  /* While an entry's menu is open, a press anywhere else closes it. */
+  let backdrop =
+    switch (globals.context_menu) {
+    | Some(_) =>
+      let close = _ =>
+        Effect.Many([
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+          globals.inject_global(SetContextMenu(None)),
+        ]);
+      [
+        div(
+          ~attrs=[
+            clss(["context-menu-backdrop"]),
+            Attr.on_pointerdown(close),
+            Attr.on_contextmenu(close),
+          ],
+          [],
+        ),
+      ];
+    | None => []
+    };
   div(
-    ~attrs=[clss(["context-inspector"])],
-    List.map(
-      context_entry_view(~globals),
-      ctx
-      |> Language.Ctx.filter_shadowed
-      |> Language.Ctx.filter_stepper_filter_variables
-      |> (x => x.entries)
-      |> List.rev,
-    ),
+    /* how a long entry offers its full view: the Colors slide's choice
+       (gamma-unfold), which cursor-inspector.css branches on */
+    ~attrs=[
+      clss([
+        "context-inspector",
+        "unfold-" ++ ColorConfiguration.gamma_unfold^,
+      ]),
+    ],
+    backdrop
+    @ List.map(
+        context_entry_view(~globals),
+        ctx
+        |> Language.Ctx.filter_shadowed
+        |> Language.Ctx.filter_stepper_filter_variables
+        |> (x => x.entries)
+        |> List.rev,
+      ),
   );
+};
 
 let ctx_sorts_view = (~globals, ci: Language.Statics.Info.t) =>
   Language.Info.ctx_of(ci)

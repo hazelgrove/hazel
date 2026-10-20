@@ -80,6 +80,9 @@ module Action = {
         Language.DHExp.t,
       )
     | ToggleContextUnfold(string)
+    /* Gamma's right-click menu: open on an entry (its key, and where the
+       press was), or closed */
+    | SetContextMenu(option((string, int, int)))
     | RethrowException
     | ClearException
     | RestoreLastKnownGood;
@@ -107,6 +110,9 @@ module Model = {
        ContextInspector.entry_key; not saved, as the keys hold a session's
        ids */
     context_unfolded: list(string),
+    /* Gamma's right-click menu, open on one entry (by entry_key) at a
+       point of the window; not saved */
+    context_menu: option((string, int, int)),
     // Calculated:
     color_highlights: option(ColorSteps.colorMap),
     // Other:
@@ -136,6 +142,7 @@ module Model = {
     slide_name: None,
     settings_filter: "",
     context_unfolded: [],
+    context_menu: None,
     color_highlights: None,
     inject_global: _ =>
       failwith("Cannot use inject_global outside of the main view function!"),
