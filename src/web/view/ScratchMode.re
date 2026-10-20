@@ -22,7 +22,10 @@ module Update = {
     | Outline(OutlineControl.Action.t)
     | RefreshStatics
     | DrvAction(DerivationExerciseMode.Update.t)
-    | Deck(SlideDeck.Action.t);
+    | Deck(SlideDeck.Action.t)
+    /* A shared deck's keys changed in its space (HazelDB.poll_shared):
+       the deck takes in slides added, changed or removed elsewhere. */
+    | SharedChanged(list(string));
 
   let update =
       (
@@ -87,6 +90,95 @@ module Update = {
         a,
         model,
       )
+    | SharedChanged(_) when !is_documentation => model |> return_quiet
+    | SharedChanged(keys) =>
+      let prefix = ScratchModel.prefix(~is_documentation);
+      let key_prefix = prefix ++ ":";
+      let changed =
+        List.filter_map(
+          k =>
+            HazelDB.Backend.has_prefix(key_prefix, k)
+              ? Some(
+                  String.sub(
+                    k,
+                    String.length(key_prefix),
+                    String.length(k) - String.length(key_prefix),
+                  ),
+                )
+              : None,
+          keys,
+        );
+      let key = n => Persist.content_key(prefix, n);
+      let present = n => HazelDB.kv_get(key(n)) != None;
+      let shared = n => HazelDB.Backend.shared_space(key(n)) != None;
+      let old_names = Model.scratchpad_names(model);
+      let removed = List.filter(n => !present(n), changed);
+      let added =
+        List.filter(n => present(n) && !List.mem(n, old_names), changed);
+      let (current, names) =
+        Persist.merge_shared_names(
+          ~shared,
+          ~in_space=
+            List.filter(n => shared(n) && !List.mem(n, removed), old_names)
+            @ added,
+          ~default_names=[],
+          (model.current, old_names),
+        );
+      if (names == []) {
+        model |> return_quiet;
+      } else {
+        /* A changed slide is read again: now if it is the one open, on
+           the way to it otherwise. Every other slide is left as it is. */
+        let scratchpads =
+          List.mapi(
+            (i, n) =>
+              if (List.mem(n, changed)) {
+                i == current
+                  ? Persist.load_scratchpad(
+                      ~settings=settings.core,
+                      prefix,
+                      n,
+                    )
+                  : Scratchpad.dormant_code(n);
+              } else {
+                switch (
+                  List.find_opt(
+                    (sp: Scratchpad.t) => sp.name == n,
+                    model.scratchpads,
+                  )
+                ) {
+                | Some(sp) => sp
+                | None => Scratchpad.dormant_code(n)
+                };
+              },
+            names,
+          );
+        /* A slide read in fresh has no statics yet, and a non-edit does
+           not recompute them, so its result would stay stale. Force them
+           when the open slide is not the one that was showing. */
+        let cur_name = List.nth(names, current);
+        if (List.mem(cur_name, changed)
+            || List.nth_opt(old_names, model.current) != Some(cur_name)) {
+          CodeWithStatics.StaticsDebounce.force_on_next := true;
+        };
+        Persist.hydrate_current(
+          ~settings=settings.core,
+          prefix,
+          {
+            current,
+            scratchpads,
+          },
+        )
+        /* Not saved: what changed came from the space, and writing it
+           back would race whoever wrote it. */
+        |> Updated.return(
+             ~is_edit=false,
+             ~save=false,
+             ~scroll_active=false,
+             ~logged=false,
+             ~historic=false,
+           );
+      };
     };
   };
 
@@ -970,25 +1062,11 @@ module View = {
         ~tooltip="Reparse Editor",
       );
 
-    let reset_hazel =
-      Widgets.button_named(
-        Icons.bomb,
-        _ => {
-          let confirmed =
-            JsUtil.confirm(
-              "Are you SURE you want to reset Hazel to its initial state? You will lose any existing code that you have written, and course staff have no way to restore it!",
-            );
-          if (confirmed) {
-            HazelDB.clear_all();
-            Js_of_ocaml.Dom_html.window##.location##reload;
-          };
-          Effect.Ignore;
-        },
-        ~tooltip="Reset Hazel (LOSE ALL DATA)",
-      );
-
     let reset_group_scratch =
-      NutMenu.item_group("Reset", [reset_button, reparse, reset_hazel]);
+      NutMenu.item_group(
+        "Reset",
+        [reset_button, reparse, ...Widgets.reset_hazel_items()],
+      );
 
     [file_group_scratch, reset_group_scratch];
   };

@@ -20,6 +20,12 @@ type entry = {
   elab_term: Exp.t,
   co_ctx: CoCtx.t,
   probe_targets,
+  /* The type the expression is analysed against. Almost nothing evaluates
+     differently under a different expected type, so this is not part of
+     the general reuse test -- see reuse_check, which consults it only for
+     a Fumola quote, whose result crosses a language boundary and takes its
+     shape from here. */
+  ana: Typ.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -66,10 +72,11 @@ let full_of = (targets: Sample.targets): list(Id.t) =>
 let project =
     (~probe_all: bool, ~full: list(Id.t)=[], info: Info.t): option(entry) =>
   switch (info) {
-  | Info.InfoExp({elab_term, co_ctx, probe_targets: pt, _}) =>
+  | Info.InfoExp({elab_term, co_ctx, probe_targets: pt, ana, _}) =>
     Some({
       elab_term,
       co_ctx,
+      ana,
       probe_targets:
         if (List.exists(id => MerkleSet.mem(id, pt.probe_ids), full)) {
           ProbeTargets(SubexpProbeTargets.mark_full(pt));
@@ -92,6 +99,7 @@ let project_all =
 let same_entry = (a: entry, b: entry): bool =>
   a.elab_term === b.elab_term
   && a.co_ctx === b.co_ctx
+  && a.ana === b.ana
   && (
     switch (a.probe_targets, b.probe_targets) {
     | (ProbeAll, ProbeAll) => true

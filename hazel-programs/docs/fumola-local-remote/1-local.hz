@@ -1,0 +1,16 @@
+# 1. Local #
+
+# The instance here is localInstance, and the switch on the head row #
+# says page: it lives in this browser tab, in Fumola's WebAssembly #
+# runtime. #
+
+# The livelit runs as the EDITOR of its instance: the code runs at #
+# the top level, with input bound to the In wire's value, here n. #
+
+# Try: change n, or change the code. Each edit sends a new program #
+# to the instance and the result arrives at once, since the runtime #
+# is in the same thread as the editor. #
+let n = 20 in
+^^livelit(^fumola_wip((instance = "localInstance", name = "", editor = true, bind_input = true, remote = false, tiles = true, input = (n), code = (fumola $graphical as localInstance in
+  (input * 2, input + 1)
+end))))

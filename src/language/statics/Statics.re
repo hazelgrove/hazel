@@ -73,6 +73,15 @@ let rec any_to_info_map =
   | Drv(drv) =>
     let m = drv_to_info_map(drv, m, ~ctx, ~ancestors, ~sort=Jdmt);
     (CoCtx.empty, Drv(drv), m);
+  /* Fumola has no statics in Hazel -- no types, one closed sort -- but the
+     info map is also what the cursor inspector reads, and an id missing from
+     it reports as whitespace. So the traversal here is for the inspector's
+     sake: it names the form at every id and says nothing else. */
+  | Fumola(f) => (
+      CoCtx.empty,
+      Fumola(f),
+      fumola_to_info_map(f, m, ~ancestors),
+    )
   | Rul(r) => rul_to_info_map(~ctx, ~ancestors, ~probe_ids, r, m)
   | Mod(m_term) => mod_to_info_map(~ctx, ~ancestors, ~probe_ids, m_term, m)
   | Sig(s_term) => sig_to_info_map(~ctx, ~ancestors, ~probe_ids, s_term, m)
@@ -95,6 +104,129 @@ and multi =
     );
   (List.rev(co_ctxs), List.rev(tms_elab), m);
 }
+/* One entry per node, carrying its syntactic class and its ancestry. The
+   embedded `hazel … end` terms are deliberately not descended into here:
+   uexp_to_info_map already visits them with a context and a type, and
+   overwriting those entries with class-only ones would lose the statics that
+   make the embedded expression worth having. */
+/* [instance_name] applies to the ROOT of this traversal only, which is how
+   the `as` slot is told apart from a Fumola variable that happens to spell
+   the same name inside the program. */
+and fumola_to_info_map =
+    (~instance_name=false, f: FumolaTermBase.t, m: Map.t, ~ancestors): Map.t => {
+  let rec go =
+          (~ancestors, ~instance_name=false, e: FumolaTermBase.t, m: Map.t)
+          : Map.t => {
+    let m =
+      add_info(
+        IdTagged.ids(e),
+        InfoFumola(FumolaInfo.of_exp(~ancestors, ~instance_name, e)),
+        m,
+      );
+    let ancestors = [IdTagged.rep_id(e), ...ancestors];
+    let go = go(~ancestors);
+    let go_ds = (ds, m) =>
+      List.fold_left((m, d) => dec(~ancestors, d, m), m, ds);
+    switch (e.term) {
+    | Hole(EmptyHole)
+    | Hole(Invalid(_))
+    | Var(_)
+    | Lit(_)
+    | QuotedId(_)
+    | Prim(_)
+    /* Descending would overwrite the statics uexp_to_info_map put there. */
+    | Hazel(_) => m
+    | Hole(MultiHole(es))
+    | Tuple(es)
+    | Array(_, es) => List.fold_left((m, e) => go(e, m), m, es)
+    | Paren(e)
+    | Proj(e, _)
+    | Bang(e)
+    | Opt(e)
+    | Un(_, e)
+    | Not(e)
+    | Unquote(e)
+    | Assert(e)
+    | Ignore(e)
+    | Force(e)
+    | Get(e) => go(e, m)
+    | Return(e) => Option.fold(~none=m, ~some=e => go(e, m), e)
+    | Variant(_, e) => Option.fold(~none=m, ~some=e => go(e, m), e)
+    | Ap(a, b)
+    | Index(a, b)
+    | Bin(a, _, b)
+    | Rel(a, _, b)
+    | And(a, b)
+    | Or(a, b)
+    | Put(a, b)
+    | DoPutForce(a, b) => m |> go(a) |> go(b)
+    | If(c, t, f) =>
+      let m = m |> go(c) |> go(t);
+      Option.fold(~none=m, ~some=e => go(e, m), f);
+    | Switch(e, cs) =>
+      List.fold_left(
+        (m, c: FumolaGrammar.case(_, _)) =>
+          m |> pat(~ancestors, c.pat) |> go(c.body),
+        go(e, m),
+        cs,
+      )
+    | Block(ds)
+    | Thunk(ds) => go_ds(ds, m)
+    | DoNav(_, d, e, ds) => m |> go(d) |> go(e) |> go_ds(ds)
+    };
+  }
+  and dec = (~ancestors, d: FumolaTermBase.dec, m: Map.t): Map.t => {
+    let m =
+      add_info(
+        IdTagged.ids(d),
+        InfoFumola(FumolaInfo.of_dec(~ancestors, d)),
+        m,
+      );
+    let ancestors = [IdTagged.rep_id(d), ...ancestors];
+    switch (d.term) {
+    | DHole(EmptyHole)
+    | DHole(Invalid(_)) => m
+    | DHole(MultiHole(es)) =>
+      List.fold_left((m, e) => go(~ancestors, e, m), m, es)
+    | DExp(e) => go(~ancestors, e, m)
+    | DLet(p, e)
+    | DVar(p, e)
+    | DCase(p, e)
+    | DImport(p, e) => m |> pat(~ancestors, p) |> go(~ancestors, e)
+    | DFunc(_, p, ds) =>
+      List.fold_left(
+        (m, d) => dec(~ancestors, d, m),
+        pat(~ancestors, p, m),
+        ds,
+      )
+    };
+  }
+  and pat = (~ancestors, p: FumolaTermBase.pat, m: Map.t): Map.t => {
+    let m =
+      add_info(
+        IdTagged.ids(p),
+        InfoFumola(FumolaInfo.of_pat(~ancestors, p)),
+        m,
+      );
+    let ancestors = [IdTagged.rep_id(p), ...ancestors];
+    switch (p.term) {
+    | PHole(EmptyHole)
+    | PHole(Invalid(_))
+    | PVar(_)
+    | PWild
+    | PLit(_) => m
+    | PHole(MultiHole(es)) =>
+      List.fold_left((m, e) => go(~ancestors, e, m), m, es)
+    | PParen(p)
+    | POpt(p) => pat(~ancestors, p, m)
+    | PTuple(ps) => List.fold_left((m, p) => pat(~ancestors, p, m), m, ps)
+    | PVariant(_, p) =>
+      Option.fold(~none=m, ~some=p => pat(~ancestors, p, m), p)
+    };
+  };
+  go(~ancestors, ~instance_name, f, m);
+}
+
 and drv_to_info_map =
     (drv: Drv.Any.t, m: Map.t, ~ctx, ~ancestors, ~sort: DrvSort.t): Map.t => {
   let rec go = (drv: Drv.Any.t, m, ~sort: DrvSort.t) => {
@@ -583,6 +715,81 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.empty,
         m,
       )
+    /* A Fumola program elaborates to itself, and runs during evaluation.
+       See Transition's FumolaQuote case for the run, and
+       src/language/fumola/README.md for why it is not here.
+
+       The short version: the program is printed with its `hazel … end`
+       escapes rendered as Fumola source, and an escape that names something
+       bound outside has no value until evaluation has reached it. Running at
+       elaboration -- as this did, and as livelit expansion does -- means
+       every escape carries an expression, so a literal crosses and a
+       variable does not.
+
+       What stays here is what statics is for: the escapes are Hazel
+       expressions and are elaborated and type-checked in this expression's
+       own context, so `hazel x end` resolves x the way any other occurrence
+       of x would. Nothing else about the program is Hazel's business. */
+    | FumolaQuote(name, mode, body) =>
+      let fumola_quote_case = () => {
+        /* The three Fumola children first: the info map is what the cursor
+           inspector reads, and an id missing from it reports as whitespace
+           rather than as the form it is. */
+        let m =
+          [(true, name), (false, mode), (false, body)]
+          |> List.fold_left(
+               (m, (instance_name, f)) =>
+                 fumola_to_info_map(
+                   ~instance_name,
+                   f,
+                   m,
+                   ~ancestors=ancestors_inclusive,
+                 ),
+               m,
+             );
+        /* Every `hazel … end` in the program, elaborated where it stands.
+           Synthetic rather than analytic: what a Fumola program expects of an
+           embedded Hazel expression is not something Hazel can see, so the
+           escape is judged on its own and the crossing is checked by
+           FumolaSource at run time. */
+        let (fumola_elabs, co_ctxs, m) =
+          List.fold_left(
+            ((elabs, co_ctxs, m), f) => {
+              let (escapes, co_ctxs, m) =
+                List.fold_left(
+                  ((escapes, co_ctxs, m), escape) => {
+                    let (info, elab, m) = go(escape, m);
+                    (escapes @ [elab], co_ctxs @ [info.co_ctx], m);
+                  },
+                  ([], co_ctxs, m),
+                  Fumola.escapes(f),
+                );
+              (elabs @ [Fumola.set_escapes(f, escapes)], co_ctxs, m);
+            },
+            ([], [], m),
+            [name, mode, body],
+          );
+        let (name, mode, body) =
+          switch (fumola_elabs) {
+          | [name, mode, body] => (name, mode, body)
+          /* Unreachable: the fold is over a three-element list. */
+          | _ => (name, mode, body)
+          };
+        add(
+          ~elab_term=FumolaQuote(name, mode, body) |> rewrap,
+          /* Unknown, because what a program produces is not decided until it
+             has run. The expected type still reaches the run -- through
+             FumolaCtx, which is how the result gets its shape -- but it is not
+             something this expression can claim to synthesize. */
+          ~elab_syn_ty=Unknown(Internal) |> Typ.temp,
+          ~marks=[],
+          /* A variable used inside an escape is used, and saying otherwise
+             would have Hazel report it unused. */
+          ~co_ctx=CoCtx.union(co_ctxs),
+          m,
+        );
+      };
+      fumola_quote_case();
     | DrvQuote(term, sort) =>
       let drv_quote_case = (term, sort) => {
         let m =
@@ -667,6 +874,32 @@ and uexp_to_info_map =
         );
       };
       livelit_name_case(name);
+    /* A reference synthesizes the type of the value it carries, which came
+       from dereferencing the cell in the runtime. So a reference to a cell
+       holding an Int is an Int, and no annotation is needed anywhere: the
+       type is established rather than asserted. */
+    | FumolaPeek({instance_id, reads, source, value, holds, info}) =>
+      let fumola_peek_case = () => {
+        let (value_info, value_elab, m) = go(~ana, value, m);
+        add(
+          ~elab_term=
+            FumolaPeek({
+              instance_id,
+              reads,
+              source,
+              value: value_elab,
+              holds,
+              info,
+            })
+            |> rewrap,
+          ~elab_syn_ty=value_info.elab_syn_ty,
+          ~marks=[],
+          ~co_ctx=value_info.co_ctx,
+          ~probe_targets=value_info.probe_targets,
+          m,
+        );
+      };
+      fumola_peek_case();
     | ListLit(es) =>
       let list_lit_case = (es: list(Exp.t)) => {
         let ids = List.map(Exp.rep_id, es);
@@ -2232,11 +2465,31 @@ and uexp_to_info_map =
       constructor_case(ctr, ty);
     | Ap(dir, fn, arg) =>
       let ap_case = (dir: Operators.ap_direction, fn: Exp.t, arg: Exp.t) => {
+        /* A livelit that requires an annotation expands against the type
+           expected here, and the expansion has that type. Without one it
+           cannot know what to produce -- the fumola livelit's result shape
+           depends on both its program and the type asked of it -- so it says
+           so rather than guessing. */
+        let annotated =
+          switch (Typ.normalize(ctx, ana).term) {
+          | Unknown(_) => false
+          | _ => true
+          };
+        let expansion_ty_of = (ll: LivelitCtx.raw_livelit) =>
+          ll.requires_annotation && annotated ? ana : ll.expansion_t;
         /* A use of a livelit whose definition is `ll`, once `fn` -- the name,
            or for a direct use with parameters `^a(args)` -- is analyzed. */
         let livelit_use =
             (ll: LivelitCtx.raw_livelit, fn: Info.exp, fn_elab: Exp.t, m) => {
-          let LivelitCtx.{expansion_t, model_t, expand, user_def, _} = ll;
+          let LivelitCtx.{
+            expansion_t,
+            model_t,
+            expand,
+            requires_annotation,
+            user_def,
+            _,
+          } = ll;
+          let expansion_ty = expansion_ty_of(ll);
           /* A spliced model field carries its REF. The splice is the
              client's code living inside the widget, and Figure 3 puts a
              handle to it in the model (l.3-4) -- so a field the author
@@ -2260,6 +2513,36 @@ and uexp_to_info_map =
           let model_for_expand =
             Option.is_some(user_def) ? arg_elab : arg.user_term;
 
+          /* What a livelit needs from the context in order to expand: resolve
+             a constructor name, and unfold aliases so an expected type
+             written as a name can be destructured. Closures rather than the
+             context itself, because Ctx depends on LivelitCtx and so the
+             livelit interface cannot name Ctx.t. */
+          let tools: LivelitCtx.type_tools = {
+            resolve_ctr: (~ana, name) =>
+              switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, name)) {
+              | Some(ty) => Some(ty)
+              | None =>
+                switch (Ctx.lookup_ctr(ctx, name)) {
+                | Some({typ, _}) => Some(typ)
+                | None => None
+                }
+              },
+            normalize: ty => Typ.normalize(ctx, ty),
+          };
+
+          /* Expansion at this use site. A livelit that only expands in
+             checking mode produces nothing when no type is expected here. */
+          let try_expand = (model: Exp.t) =>
+            requires_annotation && !annotated
+              ? None
+              : expand(
+                  ~id=Exp.rep_id(uexp),
+                  ~ana=expansion_ty,
+                  ~tools,
+                  model,
+                );
+
           /* Type the expansion — the paper's per-invocation-site validation
              (PLDI 2021, S3.2.5). The DECLARED expansion type is still what
              the use synthesizes — clients reason against the livelit's
@@ -2275,7 +2558,7 @@ and uexp_to_info_map =
           let expansion_marks = (expanded: Exp.t) => {
             let to_check =
               Option.is_some(user_def)
-                ? expand(arg.user_term) : Some(expanded);
+                ? try_expand(arg.user_term) : Some(expanded);
             switch (to_check) {
             /* mk_expand_dot always expands, so None is unreachable for a
                user livelit; skipping the check is the safe reading if
@@ -2497,12 +2780,12 @@ and uexp_to_info_map =
             );
           | None =>
             // try to expand
-            switch (expand(model_for_expand)) {
+            switch (try_expand(model_for_expand)) {
             | Some(expanded) =>
               let (info, elab, m) =
                 add(
                   ~elab_term=expanded,
-                  ~elab_syn_ty=expansion_t,
+                  ~elab_syn_ty=expansion_ty,
                   ~marks=expansion_marks(expanded),
                   ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                   ~probe_targets=
@@ -2522,8 +2805,12 @@ and uexp_to_info_map =
               // if we can't expand, flag as improper model
               add(
                 ~elab_term=Ap(dir, fn_elab, arg_elab) |> rewrap,
-                ~elab_syn_ty=expansion_t,
-                ~marks=[BadLivelitModel(expansion_t)],
+                ~elab_syn_ty=expansion_ty,
+                ~marks=[
+                  requires_annotation && !annotated
+                    ? Mark.LivelitNeedsAnnotation(ll.name)
+                    : Mark.BadLivelitModel(expansion_t),
+                ],
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 ~probe_targets=
                   SubexpProbeTargets.union_all([
@@ -2645,7 +2932,7 @@ and uexp_to_info_map =
           // refer to livelit context to find types
           switch (Ctx.lookup_livelit(ctx, s)) {
           | Some(ll) =>
-            let (fn, fn_elab, m) = go(~ana=ll.expansion_t, fn, m);
+            let (fn, fn_elab, m) = go(~ana=expansion_ty_of(ll), fn, m);
             livelit_use(ll, fn, fn_elab, m);
 
           | None =>
@@ -6093,6 +6380,18 @@ and mpat_to_info_map =
   };
 };
 
+/* Elaboration does not depend on the program alone.
+ *
+ * A Fumola livelit expands by asking a runtime that loads asynchronously, so
+ * the same term elaborates to "the runtime is not loaded" before it arrives
+ * and to a value after. The cache below (mk_cache) is keyed on the term,
+ * which cannot see that difference, so the first answer would stand for the
+ * life of the page -- no edit helps, because an unedited zipper yields an
+ * equal term and hits the cache.
+ *
+ * invalidate() is how something outside the program says the answer may
+ * have changed: it empties the cache, so each live term is analyzed once
+ * more, and nothing after that. */
 let mk_impl = ((ana, ctx, e, probe_ids)) => {
   let (_, elab, m) =
     uexp_to_info_map(~ana, ~ctx, ~ancestors=[], ~probe_ids, e, Id.Map.empty);
@@ -6122,6 +6421,8 @@ let mk_cache:
   ref(list(((Typ.t, Ctx.t, Exp.t, Id.Map.t(unit)), (Map.t, Exp.t)))) =
   ref([]);
 let mk_cache_max = 16;
+
+let invalidate = () => mk_cache := [];
 
 let mk = ((ana, ctx, e, probe_ids) as key) => {
   let key_eq = ((ana', ctx', e', probe_ids')) =>
@@ -6158,3 +6459,51 @@ let statics_gated =
    calls would churn its small LRU */
 let mk_unmemoized = statics_gated(mk_impl);
 let mk = statics_gated(mk);
+
+/* Whether this pass saw a Fumola program. Only fumola_to_info_map writes an
+   InfoFumola entry, so the question is exactly "is there a Fumola term
+   here", and the answer decides where the cell is evaluated: a Fumola
+   program runs against `window.fumola`, which exists on the main thread and
+   not in the worker. */
+/* Fumola in the cell: tiles written in it, or an expression that elaborates
+   to a Fumola quote without any being written -- ^fumola_wip, whose
+   expansion is one. */
+let has_fumola = (m: Map.t): bool =>
+  Id.Map.exists(
+    (_, info: Info.t) =>
+      switch (info) {
+      | InfoFumola(_)
+      | InfoExp({elab_term: {term: FumolaQuote(_), _}, _}) => true
+      | _ => false
+      },
+    m,
+  );
+
+/* The context a Fumola run needs, read back out of the pass that recorded
+   it. Keyed by the id of the `fumola … end` expression, which elaboration
+   preserves, so the run can ask for the type expected of it and for the two
+   type questions reading a result back raises.
+
+   This is the producing half of FumolaCtx; see there for why the context
+   travels this way rather than on the term. */
+let fumola_resolve = (m: Map.t): FumolaCtx.resolve =>
+  (id: Id.t) =>
+    switch (Map.lookup(id, m)) {
+    | Some(InfoExp({ana, ctx, _})) =>
+      Some({
+        ana,
+        tools: {
+          resolve_ctr: (~ana, ctr_name) =>
+            switch (ConstructorStaticsHelpers.ctr_ana_typ(ctx, ana, ctr_name)) {
+            | Some(ty) => Some(ty)
+            | None =>
+              switch (Ctx.lookup_ctr(ctx, ctr_name)) {
+              | Some({typ, _}) => Some(typ)
+              | None => None
+              }
+            },
+          normalize: ty => Typ.normalize(ctx, ty),
+        },
+      })
+    | _ => None
+    };

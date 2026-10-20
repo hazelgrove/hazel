@@ -539,10 +539,19 @@ let of_segment_inner =
    * Returns the outer map augmented with the splice's inner piece
    * measurements and the splice's intrinsic size. */
   and measure_splice = (s: Base.splice, outer: flat): flat => {
+    /* The splice is its own frame, so it gets its own deferred linebreaks.
+       Without this, a linebreak inside a Tab projector's multi-line splice
+       consumed the rows the projector deferred to the outer line's end:
+       the rows were never reserved, and the code after the projector ran
+       on under it. Set the outer count aside, measure, drop whatever the
+       splice left, and put the outer count back. */
+    let pending = DeferredLinebreaks.consume();
     incr(splice_depth);
     let {pos: last, map: inner, _} =
       go(~top_level=false, initial_acc, s.content);
     decr(splice_depth);
+    let _ = DeferredLinebreaks.consume();
+    DeferredLinebreaks.update(pending);
     let outer = merge_inner(inner, outer);
     /* The intrinsic size is the content's bounding box: [last] alone
      * would report the END POINT (the last line's width), understating

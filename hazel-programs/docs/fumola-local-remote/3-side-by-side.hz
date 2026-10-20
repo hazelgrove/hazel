@@ -1,0 +1,26 @@
+# 3. Side by Side #
+
+# One program, run in both places, and the results compared as Hazel #
+# values. The answer is true once the canister has replied. #
+
+# The two instances are separate: each keeps its own bindings and its #
+# own Adapton history. The ARCHIVIST below runs inside a force, so #
+# what it reads and writes is recorded, in the page for the first and #
+# on the canister for the second. #
+
+# Try: change 7, or the code of either. They agree only while their #
+# code does. #
+let n = 7 in
+let here = ^^livelit(^fumola_wip((instance = "pageSide", name = "side", editor = false, bind_input = true, remote = false, tiles = true, input = (n), code = (fumola $graphical as pageSide in
+  let square = `square` := thunk {
+    (@ input) * (@ input)
+  };
+  force square
+end)))) in
+let there = ^^livelit(^fumola_wip((instance = "canisterSide", name = "side", editor = false, bind_input = true, remote = true, tiles = true, input = (n), code = (fumola $graphical as canisterSide in
+  let square = `square` := thunk {
+    (@ input) * (@ input)
+  };
+  force square
+end)))) in
+(here, there, here == there)

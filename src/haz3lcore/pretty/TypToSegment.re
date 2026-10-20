@@ -7,6 +7,9 @@ type t = {
 
 let prepare = (~settings: ExpToSegment.Settings.t, typ: Typ.t) => {
   typ:
+    /* No desugaring step: on this branch a signature is a first-class type
+       (Modules II), so `Sig` prints as itself rather than as the labeled
+       tuple `Typ.desugar_sig` used to expand it into. */
     typ
     /* No desugar_sig step. On dev a Sig annotation was rewritten into a
        labeled tuple before printing; Modules II part 1 makes signature

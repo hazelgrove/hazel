@@ -136,5 +136,60 @@ let tests = (
         check_names("restored in shipped order", shipped, names(r));
       },
     ),
+    /* A shared deck's slides are the space's (merge_shared_names). */
+    test_case(
+      "slides others added join the shared deck, after its last slide",
+      `Quick,
+      () => {
+        let shared = n =>
+          String.length(n) > 2 && String.sub(n, 0, 2) == "S/";
+        let (current, ns) =
+          P.merge_shared_names(
+            ~shared,
+            ~in_space=["S/mine", "S/theirs"],
+            ~default_names=["a", "S/about"],
+            (2, ["a", "S/about", "S/mine", "z"]),
+          );
+        check_names(
+          "theirs after mine, before z",
+          ["a", "S/about", "S/mine", "S/theirs", "z"],
+          ns,
+        );
+        check(int, "current still on S/mine", 2, current);
+      },
+    ),
+    test_case(
+      "a shared slide the space no longer has is gone, unless shipped",
+      `Quick,
+      () => {
+        let shared = n =>
+          String.length(n) > 2 && String.sub(n, 0, 2) == "S/";
+        let (current, ns) =
+          P.merge_shared_names(
+            ~shared,
+            ~in_space=[],
+            ~default_names=["a", "S/about"],
+            (2, ["a", "S/about", "S/deleted", "z"]),
+          );
+        check_names("deleted dropped", ["a", "S/about", "z"], ns);
+        check(int, "current clamped", 2, current);
+      },
+    ),
+    test_case(
+      "with no shared slide listed yet, others' go at the end",
+      `Quick,
+      () => {
+        let shared = n =>
+          String.length(n) > 2 && String.sub(n, 0, 2) == "S/";
+        let (_, ns) =
+          P.merge_shared_names(
+            ~shared,
+            ~in_space=["S/x"],
+            ~default_names=["a"],
+            (0, ["a", "b"]),
+          );
+        check_names("appended", ["a", "b", "S/x"], ns);
+      },
+    ),
   ],
 );

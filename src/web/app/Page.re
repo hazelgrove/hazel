@@ -327,6 +327,90 @@ module Update = {
             },
           }
           |> return_quiet
+    /* Two steps, and the second is the one that is easy to get wrong. The
+       reset empties the instance; nothing in the program's syntax changes, so
+       every test evaluation makes before reusing a cached value still passes
+       and the panel would go on showing the graph that is no longer there.
+       ForceReeval is what makes evaluation forget. */
+    | FumolaReset(instance, Canister, mode) =>
+      /* On the canister: the page's programs run again once it answers. */
+      Language.FumolaRun.reset_remote(~mode, instance);
+      model |> Updated.return_quiet;
+    | FumolaPin(pinned) =>
+      /* The pin is a setting, so it is saved and a reload keeps it; the open
+         rows are not, and belong to the instance shown before. */
+      let* settings =
+        Settings.Update.update(
+          ~action=Sidebar(PinFumola(pinned)),
+          ~settings=model.globals.settings,
+        );
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings,
+          fumola_open: [],
+          fumola_focused: None,
+        },
+      };
+    | FumolaRefresh(instance) =>
+      Language.FumolaRun.refresh_remote(instance);
+      model |> Updated.return_quiet;
+    | FumolaReinitStore =>
+      Language.FumolaRun.reinit_store();
+      model |> Updated.return_quiet;
+    | FumolaReset(instance, Page, mode) =>
+      if (Language.FumolaRun.reset_instance(~mode, instance)) {
+        let* editors =
+          Editors.Update.update(
+            ~globals,
+            ~schedule_action=a => schedule_action(Editors(a)),
+            ~schedule_global=a => schedule_action(Globals(a)),
+            Scratch(Workspace(CellAction(ResultAction(ForceReeval)))),
+            model.editors,
+          );
+        {
+          ...model,
+          editors,
+        };
+      } else {
+        model |> Updated.return_quiet;
+      }
+    | FumolaToggleOpen(key) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          fumola_open:
+            List.mem(key, model.globals.fumola_open)
+              ? List.filter(k => k != key, model.globals.fumola_open)
+              : [key, ...model.globals.fumola_open],
+          /* Opening a row by hand means the reader is already looking at it. */
+          fumola_focused: None,
+        },
+      }
+      |> return_quiet
+    /* Replace what is focused among things of this kind, and leave the other
+       kinds as the reader left them: an edge followed out of a node's value
+       must not collapse the nodes that were open to find it. */
+    | FumolaFocus(key) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          fumola_open: [
+            key,
+            ...List.filter(
+                 k =>
+                   Globals.fumola_namespace(k)
+                   != Globals.fumola_namespace(key),
+                 model.globals.fumola_open,
+               ),
+          ],
+          fumola_focused: Some(key),
+        },
+      }
+      |> return_quiet
     | UpdateDrawerWidth(cols) =>
       Haz3lcore.ProbeProj.Settings.set_drawer_width(cols);
       model |> Updated.return_quiet(~recalculate=true);
@@ -1030,6 +1114,12 @@ module View = {
     /* Point the core-side app bridge at this frame's store + inject, so
        inline app projectors (HTMLProj) can reach the AppStore. */
     AppBridgeInstall.install(~globals);
+    /* And ^fumola's watch pane at this frame's panel settings. */
+    Language.FumolaWatch.instance_view :=
+      (
+        (instance, panes) =>
+          Some(FumolaSidebar.instance_view(~globals, ~panes?, instance))
+      );
     /* the slide program's dynamics, at the inspector's right end */
     let dynamics =
       switch (editors) {

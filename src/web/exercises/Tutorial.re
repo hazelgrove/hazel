@@ -260,6 +260,8 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Test(_)
   | Quote(_)
   | Unquote(_)
+  | FumolaQuote(_)
+  | FumolaPeek(_)
   | HintedTest(_)
   | Parens(_)
   | Projector(_)

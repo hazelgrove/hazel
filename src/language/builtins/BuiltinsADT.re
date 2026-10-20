@@ -41,6 +41,81 @@ module Either = {
     Pat.constructor("Right", Some(Some(arrow(unknown(SynSwitch), t))));
 };
 
+/* Adapton spaces and times, shaped as Fumola defines them.
+
+   Each is mostly just a symbol -- a name for a place, or for a moment -- with
+   one case that is not: `here` and `now` are relative to where evaluation is,
+   and name nothing. A symbol arrives in Hazel as its text, so that is what
+   the Symbol case carries.
+
+   Fumola's Space has a third case, an expression rather than a name. It is
+   left out: nothing on this side has a use for it, and a value carrying one
+   fails to translate rather than arriving mis-shapen. */
+/* Fumola symbols, as Hazel data.
+
+   A symbol is Fumola's notion of a name, and they are first-order: a number
+   is a symbol, an identifier is a symbol, and they compose. Recursive through
+   its own alias name, the way `type MyList = Nil + Cons(Int, MyList)` is.
+
+   A symbol also arrives as plain text where a String is expected. Which one
+   you get is decided by the type asked for, so the text form -- the only way
+   to produce a String from a livelit, since a Hazel string literal cannot
+   contain a quote -- stays available. */
+module Symbol = {
+  /* The alias refers to itself; a Hazel type alias is an implicit least
+     fixed point on its own name. */
+  let self: Typ.t = Typ.fresh(Var("Symbol"));
+
+  /* Wrapped in Rec, the way statics wraps a user-written recursive alias:
+     `type X = ... X ...` becomes Rec(X, ...) precisely so that unfolding it
+     terminates. Registering the bare sum instead makes Typ.normalize unfold
+     Var("Symbol") forever -- "normalize exceeded 1000 recursive calls". */
+  let t: Typ.t =
+    Typ.fresh(
+      Rec(
+        IdTagged.FreshGrammar.TPat.var("Symbol"),
+        sum_type([
+          ("Num", Some(Typ.fresh(Atom(Int)))),
+          ("Name", Some(Typ.fresh(Atom(String)))),
+          ("Call", Some(Typ.fresh(Prod([self, self])))),
+          ("Dot", Some(Typ.fresh(Prod([self, self])))),
+          /* An operator Fumola did not reduce. `1 - `element` is one, and
+             every name the library and level-tree examples mint has this
+             shape, so it is most of what those instances hold. The operator
+             is a String rather than a sum of its own: Fumola sends it as one,
+             and a closed sum here would be a claim about which operators
+             exist that would go stale the first time one was added. */
+          (
+            "BinOp",
+            Some(Typ.fresh(Prod([self, Typ.fresh(Atom(String)), self]))),
+          ),
+          /* A quoted program used as a name -- ``(1 - element)`` is one, which
+             is NOT the same symbol as `1 - `element` even though it reads
+             alike. It carries its own source text and nothing else. */
+          ("QuotedAst", Some(Typ.fresh(Atom(String)))),
+        ]),
+      ),
+    );
+};
+
+/* A place and a moment. Each is a symbol or the one distinguished case that
+   is not a symbol -- `here` and `now` name nothing, so they come across as
+   their own case rather than as a symbol of some text.
+
+   The symbol is carried as a symbol, not as its text. It was a String until
+   the runtime started putting structure in these positions and the text
+   stopped being a faithful rendering of it: a pass time is `hazel(52), whose
+   text spelling loses that it is an application of a name to a number, and
+   which cannot be compared with the symbol in an event once it is flattened.
+   Text also could not be told apart from a symbol that really is a name. */
+module Space = {
+  let t: Typ.t = sum_type([("Symbol", Some(Symbol.t)), ("Here", None)]);
+};
+
+module Time = {
+  let t: Typ.t = sum_type([("Symbol", Some(Symbol.t)), ("Now", None)]);
+};
+
 module Option = {
   let t: Typ.t =
     sum_type([
@@ -165,6 +240,86 @@ module Option = {
       },
     },
   ];
+};
+
+/* Adapton's own vocabulary, as Hazel types: what `Adapton.peekHistory()`
+   answers with, following `PeekInfo` in fumola/system/adapton.fumola. A
+   Fumola value that crosses into a program is built from these
+   constructors, so without them in scope every `AddNode` or `EdgeId` in it
+   read as an unbound constructor. The Fumola panel reads the same types
+   (FumolaAdapton), so a value means the same wherever it is shown.
+
+   The names are the runtime's, and the ones two slides already declared
+   by hand (Fumola Tiles / Inspect and Reference / Runtimes): a program that
+   declares its own shadows these, as with any builtin type. `Aligned` is
+   both a Status and a RepairOutcome, as it is in the runtime; the type a
+   value is read at says which. */
+module Adapton = {
+  let int = () => Typ.fresh(Atom(Int));
+  let unknown = () => Typ.fresh(Unknown(Internal));
+  let field = (name: string, ty: Typ.t): Typ.t =>
+    Typ.fresh(TupLabel(Typ.fresh(Label(name)), ty));
+  let record = (fields: list((string, Typ.t))): Typ.t =>
+    Typ.fresh(Prod(List.map(((name, ty)) => field(name, ty), fields)));
+  let tuple = (tys: list(Typ.t)): Typ.t => Typ.fresh(Prod(tys));
+
+  let edge_id: Typ.t = sum_type([("EdgeId", Some(int()))]);
+  let node_id: Typ.t = tuple([Space.t, Time.t, int()]);
+  let repair_outcome: Typ.t =
+    sum_type([("Aligned", None), ("Reevaluated", None)]);
+  let event: Typ.t =
+    sum_type([
+      ("AddNode", Some(node_id)),
+      ("AddEdge", Some(edge_id)),
+      ("UpdateEdge", Some(edge_id)),
+      ("RemoveEdge", Some(edge_id)),
+      ("ForceBegin", Some(tuple([edge_id, Option.t]))),
+      ("ForceEnd", Some(edge_id)),
+      ("SignalingBegin", Some(node_id)),
+      ("SignalingEnd", Some(node_id)),
+      ("EdgeSignaled", Some(edge_id)),
+      ("RepairBegin", Some(node_id)),
+      ("RepairEnd", Some(tuple([node_id, repair_outcome]))),
+      ("EdgeAligned", Some(edge_id)),
+    ]);
+  let event_row: Typ.t = record([("metaTime", int()), ("event", event)]);
+
+  /* An edge's status: aligned with the graph, or signaled that it may not
+     be (`align` before Adapton/fumola#133). */
+  let status: Typ.t = sum_type([("Aligned", None), ("Signaled", None)]);
+  /* Every payload is Any on the Fumola side: a put carries whatever was
+     put, a force the thunk and its result. */
+  let action: Typ.t =
+    sum_type([
+      ("ForceBegin", Some(unknown())),
+      ("Force_", Some(tuple([unknown(), unknown()]))),
+      ("Put", Some(unknown())),
+      ("Get", Some(unknown())),
+    ]);
+  let edge: Typ.t =
+    record([
+      ("source", node_id),
+      ("target", node_id),
+      ("action", action),
+      ("metaTimes", tuple([int(), int()])),
+      ("status", status),
+    ]);
+  let thunk_node: Typ.t =
+    record([
+      ("body", unknown()),
+      ("result", Option.t),
+      ("space", Space.t),
+      ("trace", Typ.fresh(List(edge_id))),
+    ]);
+  let node: Typ.t =
+    sum_type([
+      ("NonThunk", Some(unknown())),
+      ("Thunk_", Some(thunk_node)),
+    ]);
+  let node_row: Typ.t =
+    record([("metaTime", int()), ("node", node), ("nodeId", node_id)]);
+  let edge_row: Typ.t =
+    record([("edgeId", edge_id), ("edge", edge), ("metaTime", int())]);
 };
 
 // Event data types for keyboard and mouse events.
@@ -1311,6 +1466,24 @@ let update_cmd_arms: list((string, option(Typ.t))) = {
         ]),
       ),
     ),
+    /* new_remote : (RemoteDir, Typ, String, String, Maybe(Exp))
+                    -> UpdateCmd(RemoteRef):
+       new_splice, bound to a cell of a Fumola instance, in one direction */
+    (
+      "NewRemote",
+      Some(
+        prod([
+          prod([
+            var("RemoteDir"),
+            var("Typ"),
+            string(),
+            string(),
+            var("Option"),
+          ]),
+          arrow(var("RemoteRef"), self),
+        ]),
+      ),
+    ),
     /* set_splice : (SpliceRef, Exp) -> UpdateCmd(()) */
     (
       "SetSplice",
@@ -1760,9 +1933,49 @@ let fill_quote: BuiltinsUtil.fn = {
 let splice_ref_typ: Typ.t =
   sum_type([("SpliceRef", Some(prod([string(), unknown(Internal)])))]);
 
+/* RemoteRef (docs/remote-refs.md): a SpliceRef bound to a cell of a
+   Fumola instance, which writes that splice. A named record rather than
+   its own opaque type, so a Model says which of its refs are remote while
+   every splice command still takes the `code` field: Hazel has no
+   subtyping, and a separate type would want a twin of each command. The
+   binding is data in the model, so it persists as the model does. */
+/* Which way a RemoteRef carries data. Out: the Fumola cell writes the splice,
+   pulled after each run. In: the splice's value goes into the cell, which the
+   program does itself for now (`hazel ById(...) end`); the pull leaves an In
+   ref alone, since its cell holds what Hazel sent, not a value for the code. */
+let remote_dir_typ: Typ.t = sum_type([("In", None), ("Out", None)]);
+
+let remote_ref_typ: Typ.t =
+  prod([
+    tup_label(label("instance"), string()),
+    tup_label(label("cell"), string()),
+    tup_label(label("dir"), var("RemoteDir")),
+    tup_label(label("code"), var("SpliceRef")),
+  ]);
+
+/* ById(xs): a Hazel list sent into Fumola as (symbol, element) pairs, each
+   symbol built from the element's AST id (FumolaSource), for the collections
+   that name their cells by the caller's symbols (List.fromIter,
+   LevelTree.fromArray). Meaningful only inside `hazel ... end`. */
+let by_id_typ: Typ.t = sum_type([("ById", Some(unknown(Internal)))]);
+
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
+  ("Symbol", Symbol.t),
+  ("Space", Space.t),
+  ("Time", Time.t),
+  ("EdgeId", Adapton.edge_id),
+  ("NodeId", Adapton.node_id),
+  ("RepairOutcome", Adapton.repair_outcome),
+  ("Event", Adapton.event),
+  ("EventRow", Adapton.event_row),
+  ("Status", Adapton.status),
+  ("Action", Adapton.action),
+  ("Edge", Adapton.edge),
+  ("Node", Adapton.node),
+  ("NodeRow", Adapton.node_row),
+  ("EdgeRow", Adapton.edge_row),
   ("Either", Either.t),
   ("JSON", JSON.t),
   ("KeyMod", Shortcut.key_mod_typ),
@@ -1775,6 +1988,9 @@ let type_aliases: list((string, Typ.t)) = [
   ("Dim", dim_typ),
   ("Result", result_typ),
   ("SpliceRef", splice_ref_typ),
+  ("RemoteDir", remote_dir_typ),
+  ("RemoteRef", remote_ref_typ),
+  ("ById", by_id_typ),
   ("Livelit", livelit),
 ];
 
@@ -2022,6 +2238,25 @@ let splice_builtins: list(hazel_fn) = [
     arg: Prod([var("Typ"), var("Option")]),
     ret: Typ.term_of(update_cmd(var("SpliceRef"))),
     imp: cmd_ctor(~ctor="NewSplice", ~cmd_ty=update_cmd(var("SpliceRef"))),
+  },
+  {
+    /* new_remote : (RemoteDir, Typ, String, String, Maybe(Exp))
+                    -> UpdateCmd(RemoteRef)
+       (docs/remote-refs.md): new_splice's splice, bound to cell `cell` of
+       the Fumola instance named `instance`; Out if the cell writes it, In if
+       it is what goes into the cell. */
+    str: "fun args -> NewRemote((args, fun r -> Pure(r)))",
+    name: "new_remote",
+    arg:
+      Prod([
+        var("RemoteDir"),
+        var("Typ"),
+        string(),
+        string(),
+        var("Option"),
+      ]),
+    ret: Typ.term_of(update_cmd(var("RemoteRef"))),
+    imp: cmd_ctor(~ctor="NewRemote", ~cmd_ty=update_cmd(var("RemoteRef"))),
   },
   {
     /* set_splice : (SpliceRef, Exp) -> UpdateCmd(()) */

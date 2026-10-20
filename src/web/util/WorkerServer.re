@@ -529,6 +529,8 @@ let slim_entries =
         (e: Language.IncrEval.entry(Language.EvaluatorState.t)) =>
           Language.IncrEval.{
             prev_elab: Lazy.force(slim_hole),
+            /* a type, small: kept as it is */
+            prev_ana: e.prev_ana,
             prev_reuse_map: Language.IncrEval.empty_reuse_map,
             prev_probe_targets:
               Language.EvalInfo.ProbeTargets(

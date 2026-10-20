@@ -160,6 +160,7 @@ let test_slim_entries = (): test_case(_) =>
       let id = Util.Id.mk();
       let entry: IncrEval.entry(EvaluatorState.t) = {
         prev_elab: parse("1 + 2"),
+        prev_ana: Typ.fresh(Unknown(Internal)),
         prev_reuse_map: IncrEval.empty_reuse_map,
         prev_probe_targets: EvalInfo.ProbeTargets(SubexpProbeTargets.empty),
         value: parse("3"),

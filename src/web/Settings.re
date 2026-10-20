@@ -113,6 +113,9 @@ module Model = {
       /* Only the active encoding (Marshal) is benchmarked by default; Direct
          and Sexp start unchecked. */
       worker_encodings: [WorkerServer.Marshal],
+      fumola_tab: Events,
+      fumola_editor: Dim,
+      fumola_pinned: None,
       settings_folded: ["Stepper", "Developer"],
     },
     quiver_flagpole: false,
@@ -427,6 +430,27 @@ module Update = {
               key,
               settings.sidebar,
             ),
+        }
+      | Sidebar(SwitchFumolaTab(tab)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            fumola_tab: tab,
+          },
+        }
+      | Sidebar(SwitchFumolaEditor(mode)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            fumola_editor: mode,
+          },
+        }
+      | Sidebar(PinFumola(pinned)) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            fumola_pinned: pinned,
+          },
         }
       | Sidebar(ToggleWorkerEncoding(e)) => {
           ...settings,

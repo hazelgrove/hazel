@@ -99,32 +99,80 @@ let rows_of: family => list(row) =
       mk_infix(Exp, P.semi),
       mk_infix(Mod, P.mod_seq),
       mk_infix(Sig, P.mod_seq),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_semi),
     ]
   | Plus => [
       mk_infix(Exp, P.plus),
       mk_infix(Typ, P.type_plus),
       mk_infix(Drv(Exp), P.plus),
       mk_infix(Drv(Typ), P.type_plus),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_add),
     ]
-  | Minus => [mk_infix(Exp, P.plus), mk_infix(Drv(Exp), P.plus)]
+  | Minus => [
+      mk_infix(Exp, P.plus),
+      mk_infix(Drv(Exp), P.plus),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_add),
+    ]
   | Times => [
       mk_infix(Exp, P.mult),
       mk_infix(Drv(Exp), P.mult),
       mk_infix(Drv(Typ), P.type_prod),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_mul),
     ]
-  | Power => [mk_infix(Exp, P.power)]
+  | Power => [
+      mk_infix(Exp, P.power),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_pow),
+    ]
   | FPower => [mk_infix(Exp, P.power)]
-  | Divide => [mk_infix(Exp, P.mult)]
-  | Equals => [mk_infix(Exp, P.eqs), mk_infix(Drv(Exp), P.eqs)]
-  | StringConcat => [mk_infix(Exp, P.concat)]
-  | Lt => [mk_infix(Exp, P.eqs), mk_infix(Drv(Exp), P.eqs)]
-  | Gt => [mk_infix(Exp, P.eqs), mk_infix(Drv(Exp), P.eqs)]
-  | NotEquals => [mk_infix(Exp, P.eqs)]
-  | Gte => [mk_infix(Exp, P.eqs)]
+  | Divide => [
+      mk_infix(Exp, P.mult),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_mul),
+    ]
+  | Equals => [
+      mk_infix(Exp, P.eqs),
+      mk_infix(Drv(Exp), P.eqs),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_rel),
+    ]
+  | StringConcat => [
+      mk_infix(Exp, P.concat),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_add),
+    ]
+  | Lt => [
+      mk_infix(Exp, P.eqs),
+      mk_infix(Drv(Exp), P.eqs),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_rel),
+    ]
+  | Gt => [
+      mk_infix(Exp, P.eqs),
+      mk_infix(Drv(Exp), P.eqs),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_rel),
+    ]
+  | NotEquals => [
+      mk_infix(Exp, P.eqs),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_rel),
+    ]
+  | Gte => [
+      mk_infix(Exp, P.eqs),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_rel),
+    ]
   | Lte => [
       mk_infix(Exp, P.eqs),
       /* derivation Ana judgment */
       mk(L, Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ))),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_rel),
     ]
   | FPlus => [mk_infix(Exp, P.plus)]
   | FMinus => [mk_infix(Exp, P.plus)]
@@ -167,6 +215,8 @@ let rows_of: family => list(row) =
        * whose molds coincide) */
       mk_infix(Typ, P.dot),
       mk_infix(Drv(Exp), P.dot),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_post),
     ]
   | TupleExtension => [mk_infix(Exp, P.plus), mk_infix(Typ, P.ap)]
   | Not => [mk_prefix(Exp, P.not_), mk_pre_c(L, P.neg, Drv(Exp), [])]
@@ -176,6 +226,8 @@ let rows_of: family => list(row) =
       /* negative literal patterns */
       mk_prefix(Pat, P.neg),
       mk_pre_c(L, P.neg, Drv(Exp), []),
+      /* Fumola */
+      mk_prefix(Fumola(Exp), P.fum_un),
     ]
   | Comma => [
       mk_infix(Exp, P.comma),
@@ -183,12 +235,16 @@ let rows_of: family => list(row) =
       mk_infix(Typ, P.comma),
       mk_infix(Drv(Exp), P.comma),
       mk_infix(Drv(Pat), P.comma),
+      /* Fumola */
+      mk_infix(Fumola(Exp), P.fum_comma),
     ]
   | ListLit => [
       mk_op_c(LT, Exp, [Exp]),
       mk_op_c(LT, Pat, [Pat]),
       mk_op_c(LT, Typ, [Typ]),
       mk_op_c(LT, Drv(Exp), [Drv(Exp)]),
+      /* Fumola */
+      mk_op_c(LT, Fumola(Exp), [Fumola(Exp)]),
     ]
   | Parens => [
       mk_parens(Exp),
@@ -199,11 +255,15 @@ let rows_of: family => list(row) =
       mk_parens(Drv(Exp)),
       mk_parens(Drv(Pat)),
       mk_parens(Drv(Typ)),
+      /* Fumola */
+      mk_parens(Fumola(Exp)),
     ]
   | ApEmpty => [
       mk_post_c(LT, P.ap, Exp, []),
       mk_post_c(LT, P.ap, Pat, []),
       mk_post_c(LT, P.ap, Drv(Exp), []),
+      /* Fumola */
+      mk_post_c(LT, P.fum_post, Fumola(Exp), []),
     ]
   | Ap => [
       mk_post_c(LT, P.ap, Exp, [Exp]),
@@ -211,6 +271,8 @@ let rows_of: family => list(row) =
       mk_post_c(LT, P.type_sum_ap, Typ, [Typ]),
       mk_post_c(LT, P.ap, Drv(Exp), [Drv(Exp)]),
       mk_post_c(LT, P.ap, Drv(Pat), [Drv(Pat)]),
+      /* Fumola */
+      mk_post_c(LT, P.fum_post, Fumola(Exp), [Fumola(Exp)]),
     ]
   | ApExpTyp => [mk_post_c(L, P.ap, Exp, [Typ])]
   | Case => [mk_op_c(L, Exp, [Rul]), mk_op_c(L, Drv(Exp), [Drv(Exp)])]
@@ -289,7 +351,41 @@ let rows_of: family => list(row) =
   | If => [
       mk_pre_c(L, P.if_, Drv(Exp), [Drv(Exp), Drv(Exp)]),
       mk_pre_c(L, P.if_, Exp, [Exp, Exp]),
+      /* Fumola */
+      mk_pre_c(L, P.fum_stmt, Fumola(Exp), [Fumola(Exp), Fumola(Exp)]),
     ]
+  /* Fumola's own forms (FormId: the families spelled or shaped unlike
+   * any Hazel one). `fumola <mode> as <instance> in <program> end`: the
+   * instance is named in the text so that its store survives an edit
+   * (docs/fumola-tiles-design.md). */
+  | FumolaOf => [
+      mk_op_c(L, Exp, [Fumola(Exp), Fumola(Name), Fumola(Exp)]),
+    ]
+  /* the way back in: a Hazel expression where a Fumola term stands */
+  | FumolaHazel => [mk_op_c(L, Fumola(Exp), [Exp])]
+  | FumolaIndex => [mk_post_c(LT, P.fum_post, Fumola(Exp), [Fumola(Exp)])]
+  /* `import Seq = <path>`, shaped as `let` (Fumola's LetImport takes an
+   * optional `=`) */
+  | FumolaImport => [mk_pre_c(L, P.fum_stmt, Fumola(Exp), [Fumola(Exp)])]
+  | FumolaPut => [mk_infix(Fumola(Exp), P.fum_stmt)]
+  | FumolaOr => [mk_infix(Fumola(Exp), P.fum_or)]
+  | FumolaAnd => [mk_infix(Fumola(Exp), P.fum_and)]
+  | FumolaMod => [mk_infix(Fumola(Exp), P.fum_mul)]
+  | FumolaBitOr => [mk_infix(Fumola(Exp), P.fum_bitor)]
+  | FumolaBitAnd => [mk_infix(Fumola(Exp), P.fum_bitand)]
+  | FumolaBang => [mk_post_c(LT, P.fum_post, Fumola(Exp), [])]
+  | FumolaNot => [mk_prefix(Fumola(Exp), P.fum_un)]
+  | FumolaAssert => [mk_prefix(Fumola(Exp), P.fum_stmt)]
+  | FumolaIgnore => [mk_prefix(Fumola(Exp), P.fum_stmt)]
+  | FumolaReturn => [mk_prefix(Fumola(Exp), P.fum_stmt)]
+  | FumolaPrim => [mk_prefix(Fumola(Exp), P.fum_post)]
+  | FumolaThunk => [mk_prefix(Fumola(Exp), P.fum_stmt)]
+  | FumolaForce => [mk_prefix(Fumola(Exp), P.fum_stmt)]
+  | FumolaGet => [mk_prefix(Fumola(Exp), P.fum_stmt)]
+  /* `switch e { case p => b; ... }`; a case is shaped as a `let`, so the
+   * cases are a `;`-chain as a block's declarations are */
+  | FumolaSwitch => [mk_op_c(L, Fumola(Exp), [Fumola(Exp), Fumola(Exp)])]
+  | FumolaCase => [mk_pre_c(L, P.fum_stmt, Fumola(Exp), [Fumola(Exp)])]
   | Let => [
       mk_pre_c(L, P.let_, Drv(Exp), [Drv(Pat), Drv(Exp)]),
       mk_pre_c(L, P.let_, Exp, [Pat, Exp]),
@@ -301,8 +397,17 @@ let rows_of: family => list(row) =
   | Bind => [mk_pre_c(L, P.let_, Exp, [Pat, Exp])]
   | Theorem => [mk_pre_c(L, P.let_, Exp, [Pat, Exp])]
   | TypeAlias => [mk_pre_c(L, P.let_, Exp, [TPat, Typ])]
-  | ModBody => [mk_op_c(LT, Exp, [Mod]), mk_op_c(LT, Typ, [Sig])]
-  | ModLet => [mk_pre_c'(L, P.let_, Mod, [Pat], Exp)]
+  | ModBody => [
+      mk_op_c(LT, Exp, [Mod]),
+      mk_op_c(LT, Typ, [Sig]),
+      /* Fumola */
+      mk_op_c(LT, Fumola(Exp), [Fumola(Exp)]),
+    ]
+  | ModLet => [
+      mk_pre_c'(L, P.let_, Mod, [Pat], Exp),
+      /* Fumola */
+      mk_pre_c(L, P.fum_stmt, Fumola(Exp), [Fumola(Exp)]),
+    ]
   | SigTypeAbstract => [mk_pre_c'(L, P.let_, Sig, [], TPat)]
   | ModType => [
       mk_pre_c'(L, P.let_, Mod, [TPat], Typ),
@@ -354,12 +459,17 @@ let same_label_rank = (fam: family, out: Sort.t): int =>
   | (Parens, _) => 0
   /* ["-"]: bin Minus over prefix UnaryMinus, flipped at Drv(Exp) */
   | (Minus, Exp) => 0
+  /* and at Fumola(Exp), as at Exp */
+  | (Minus, Fumola(_)) => 0
   | (UnaryMinus, _) => 1
   | (Minus, _) => 2
   /* ["+"]: bin Plus over prefix SumSingle (the sum-type case
    * separator, reached by remold shape-fitting) */
   | (Plus, _) => 0
   | (SumSingle, _) => 1
+  /* ["[","]"] at Fumola(Exp): the array over indexing, as Parens over
+   * Ap */
+  | (FumolaIndex, _) => 1
   /* ["|-"]: bin Entail over prefix UnaryEntail */
   | (Entail, _) => 0
   | (UnaryEntail, _) => 1
@@ -485,6 +595,35 @@ let is_ambiguous_polymorph: Token.t => bool = {
   t => Hashtbl.mem(tbl, t);
 };
 
+/* Fumola's keywords: the words of its own families' labels and of the Hazel
+   families it spells its statements with, which Fumola's lexer never reads
+   as variables. A one-word prefix (`force x`) is classified per token, and
+   atomic candidates come first (base_candidates), so a keyword left in the
+   variable class would read as a variable. */
+let fumola_keywords: list(Token.t) =
+  [
+    FumolaOf,
+    FumolaHazel,
+    FumolaImport,
+    FumolaOr,
+    FumolaAnd,
+    FumolaNot,
+    FumolaAssert,
+    FumolaIgnore,
+    FumolaReturn,
+    FumolaPrim,
+    FumolaThunk,
+    FumolaForce,
+    FumolaSwitch,
+    FumolaCase,
+    ModLet,
+    If,
+  ]
+  |> List.concat_map(label_of_family)
+  |> List.filter(Token.is_var)
+  |> List.sort_uniq(compare);
+let is_fumola_keyword = (t: Token.t): bool => List.mem(t, fumola_keywords);
+
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   fun
   | Var => (Token.is_var, [op(Exp), op(Pat)])
@@ -513,12 +652,27 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
       ],
     )
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
-  | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
-  | String => (Token.is_string, [op(Exp), op(Pat)])
-  | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
+  /* `_` reaches Fumola for the same reason it reaches Drv: a case pattern
+     needs a catch-all, and the pattern slot is Fumola(Exp). */
+  | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp)), op(Fumola(Exp))])
+  /* Fumola spells strings with double quotes as Hazel does, so the token
+     carries straight through: MakeTerm reads it as Lit(Text) with its quotes
+     still on, and FumolaPrint puts it back unchanged.  No `$tag`-style
+     respelling is needed here, because the double quote collides with
+     nothing in Hazel, the way `#` does. */
+  | String => (Token.is_string, [op(Exp), op(Pat), op(Fumola(Exp))])
+  /* `` `t `` is Fumola's quoted name, which the adapton navigation forms use
+     as a dimension. Hazel's quoted-label token is spelled the same way. */
+  | QuotedLabel => (
+      Token.is_quoted_label,
+      [op(Exp), op(Pat), op(Typ), op(Fumola(Exp))],
+    )
+  /* A Fumola number is spelled as Hazel's. Without a Fumola mold it fell
+     back to an Any tile, which MakeTerm still read as Lit(Nat), but which
+     drew in the error colour. */
   | IntLit => (
       Token.is_int,
-      [op(Exp), op(Pat), op(Drv(Exp)), op(Drv(Typ))],
+      [op(Exp), op(Pat), op(Drv(Exp)), op(Drv(Typ)), op(Fumola(Exp))],
     )
   | FloatLit => (Token.is_float, [op(Exp), op(Pat)])
   | LivelitName => (Token.is_livelit, [op(Exp), op(Pat)])
@@ -529,9 +683,11 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | BoolLit => (Token.is_bool, [op(Exp), op(Pat), op(Drv(Exp))])
   | UndefinedLit => (Token.is_undefined, [op(Exp), op(Pat)])
   | EmptyList => (Token.is_empty_list, [op(Exp), op(Pat), op(Drv(Exp))])
+  /* Fumola's unit is `()` as Hazel's is, and calling a Fumola function of no
+     arguments needs it. */
   | EmptyTuple => (
       Token.is_empty_tuple,
-      [op(Exp), op(Pat), op(Typ), op(Drv(Exp))],
+      [op(Exp), op(Pat), op(Typ), op(Drv(Exp)), op(Fumola(Exp))],
     )
   | EmptyModule => (Token.is_empty_module, [op(Exp), op(Typ)])
   | Deferral => (Token.is_wild, [op(Exp)])
@@ -543,8 +699,16 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | Type => (Token.is_base_typ, [op(Typ)])
   | DrvVar => (
       Token.is_typ_var,
-      [op(Drv(Exp)), op(Drv(Pat)), op(Drv(Typ)), op(Drv(TPat))],
-    );
+      [op(Drv(Exp)), op(Drv(Pat)), op(Drv(TPat)), op(Drv(Typ))],
+    )
+  /* An identifier is a Fumola variable, and in the instance position it is
+     the name of the Fumola VM instance the program runs against. */
+  | FumolaVar => (
+      (t => Token.is_typ_var(t) && !is_fumola_keyword(t)),
+      [op(Fumola(Exp)), op(Fumola(Name))],
+    )
+  /* `$tag`, which prints as Fumola's `#tag`; see Token.is_fumola_tag. */
+  | FumolaTag => (Token.is_fumola_tag, [op(Fumola(Exp))]);
 
 module Expansion = {
   /* Sort-agnostic expansion info (for backward compatibility) */

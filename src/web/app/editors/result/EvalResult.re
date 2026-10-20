@@ -229,7 +229,12 @@ module Update = {
         list(IncrEval.outbox(EvaluatorState.t)),
         option(ProgramResult.t(ProgramResult.inner)),
       )
-    | TheoremsAction(Theorems.Update.t);
+    | TheoremsAction(Theorems.Update.t)
+    /* Throw away what evaluation remembers and run it again. For when the
+       program is unchanged but the world it ran against is not -- a Fumola
+       instance that has been reset, say. Nothing in the syntax moved, so
+       nothing else would invalidate. */
+    | ForceReeval;
 
   let with_result = (result, model: Model.t): Model.t => {
     ...model,
@@ -276,6 +281,20 @@ module Update = {
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model) {
+    /* Re-Pend exactly what Model.init pends. `elab` Pending makes Calc.set
+       answer NewValue, which is what lets the result block run at all;
+       `streaming_state` Pending drops the evaluator state the next run
+       would start from, its incr_eval the prev the reuse check consults, so
+       no subterm is reused -- including a Fumola quote, whose cached value
+       depends on a runtime Hazel cannot see. */
+    | (ForceReeval, _) =>
+      {
+        ...model,
+        elab: Calc.Pending,
+        streaming_outbox: Calc.Pending,
+        streaming_state: Calc.Pending,
+      }
+      |> Updated.return
     | (ToggleStepper, {display: Stepper(_), _}) =>
       {
         ...model,
@@ -416,6 +435,18 @@ module Update = {
           statics.info_map,
         )
       );
+    /* A cell holding a Fumola program evaluates here rather than in the
+     * worker, whatever its mode asked for. Two things the run needs exist
+     * only on this side: `window.fumola`, which is the runtime and the
+     * adapton store it owns, and the typing context, which cannot cross
+     * postMessage because Ctx holds LivelitCtx closures. Measured, not
+     * assumed -- see src/language/fumola/README.md.
+     *
+     * The cost is that such a cell is evaluated without slicing, so a Fumola
+     * program sharing a cell with a heavy Hazel computation blocks the UI
+     * for the whole of it. Cells with no Fumola in them are untouched. */
+    let queue_worker =
+      Statics.has_fumola(statics.info_map) ? None : queue_worker;
     let result =
       result
       |> {
@@ -442,9 +473,12 @@ module Update = {
         // Using the main thread:
         | None =>
           switch (
-            WorkerServer.evaluate_sync(
-              ~eval_info=Lazy.force(eval_info_map),
-              elab,
+            FumolaCtx.with_resolve(
+              Statics.fumola_resolve(statics.info_map), () =>
+              WorkerServer.evaluate_sync(
+                ~eval_info=Lazy.force(eval_info_map),
+                elab,
+              )
             )
           ) {
           | Ok((exp, state)) =>

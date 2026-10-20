@@ -22,7 +22,11 @@ type t =
   | Keybinding
   | Color
   /* a theorem's proof in a drawer below it (placed, never invoked) */
-  | Proof;
+  | Proof
+  /* The reference a Fumola program returns when it produces a pointer.
+     Unlike the others it is never chosen by a user: translation puts it
+     there, so it does not appear in livelit_projectors below. */
+  | FumolaPeek;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -63,6 +67,7 @@ let name = (p: t): string =>
   | Keybinding => "keybinding"
   | Color => "color"
   | Proof => "proof"
+  | FumolaPeek => "fumola-peek"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)

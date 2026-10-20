@@ -1,0 +1,26 @@
+# 5. The Plan for Mainnet #
+
+# Everything so far runs on a local replica. On mainnet: #
+
+# CYCLES. The canister pays for every update in cycles: each remote #
+# run and each write. A demo-sized top-up is enough to start; the #
+# canister should report its balance, and refuse remote runs below a #
+# floor rather than run dry. #
+
+# LIMITS. One update call has an instruction budget. A long Fumola #
+# run must be chunked: the runtime already has eval_top_limited and #
+# resume, which the page uses to show progress, so the canister can #
+# answer paused and the page ask again. #
+
+# CERTIFIED READS. Reads now go through update calls, which are #
+# slow but trustworthy. Fast query reads need certified responses, #
+# a hash of the state the replica signs. #
+
+# ACCESS. Open writes are for the demo. After it: writes to a space #
+# by the principals it lists, reads open or listed per space, and a #
+# rate limit on remote runs. #
+
+# UPGRADES. Spaces survive an upgrade, through a versioned snapshot. #
+# Remote instances do not: a Fumola state is not serializable, and a #
+# page rebuilds its instance by running its program again. #
+()

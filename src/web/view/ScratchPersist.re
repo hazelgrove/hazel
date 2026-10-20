@@ -241,6 +241,23 @@ let save_slide_kind =
     kind,
   );
 
+/* The agent stub a code slide's blob carries (the real conversation is
+   under :agent), as it was read, keyed by slide key. A save writes the same
+   stub back, so re-saving an unedited slide gives the bytes it was read
+   from, and a shared space is not sent a write that would undo another
+   page's edit (HazelDB.commit). A fresh stub each save would differ in its
+   ids and timestamp every time. */
+let embedded_agent: Hashtbl.t(string, Agent.Persistent.t) =
+  Hashtbl.create(8);
+let embedded_agent_for = (key: string): Agent.Persistent.t =>
+  switch (Hashtbl.find_opt(embedded_agent, key)) {
+  | Some(a) => a
+  | None =>
+    let a = Agent.Persistent.persist(Agent.Utils.init());
+    Hashtbl.replace(embedded_agent, key, a);
+    a;
+  };
+
 /* Load a slide blob. Tries the new schema first; on parse failure,
    falls back to legacy CellEditor-only blobs and wraps them as a Code kind. */
 let load_slide_kind =
@@ -250,6 +267,9 @@ let load_slide_kind =
   | Some(data) =>
     let sexp = Sexplib.Sexp.of_string(data);
     switch (Scratchpad.kind_persistent_of_sexp(sexp)) {
+    | CodePersist({agent, _}) as k =>
+      Hashtbl.replace(embedded_agent, content_key(prefix, name), agent);
+      Some(k);
     | k => Some(k)
     | exception _ =>
       switch (CellEditor.Model.persistent_of_sexp(sexp)) {
@@ -461,7 +481,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
                 result: EvalResult.Model.persist(Program.result(program)),
               },
             ),
-          agent: Agent.Persistent.persist(Agent.Utils.init()),
+          agent: embedded_agent_for(content_key(prefix, sp.name)),
         }),
       );
     };
@@ -724,6 +744,80 @@ let reconcile_names =
   };
 };
 
+/* The slides of a shared deck (HazelDB.Backend.shared_decks) are the
+   space's, not this browser's: anyone may have added one since this browser
+   last looked, or deleted one it still lists. So the names are taken from
+   the space -- loaded into the cache at startup -- and each new one goes
+   after the last of its deck this browser already has. A shipped slide is
+   kept though the space lacks it: no one has saved it yet. [current]
+   follows its slide by name. */
+let merge_shared_names =
+    (
+      ~shared: string => bool,
+      ~in_space: list(string),
+      ~default_names: list(string),
+      (current, names): (int, list(string)),
+    )
+    : (int, list(string)) => {
+  let original = names;
+  let kept =
+    List.filter(
+      n =>
+        !shared(n) || List.mem(n, in_space) || List.mem(n, default_names),
+      names,
+    );
+  let fresh = List.filter(n => !List.mem(n, kept), in_space);
+  let names =
+    if (fresh == []) {
+      kept;
+    } else {
+      switch (List.rev(kept) |> List.find_opt(shared)) {
+      | None => kept @ fresh
+      | Some(last) =>
+        List.concat_map(n => n == last ? [n, ...fresh] : [n], kept)
+      };
+    };
+  (
+    switch (
+      Option.bind(List.nth_opt(original, current), n => index_of(n, names))
+    ) {
+    | Some(i) => i
+    | None => min(current, max(List.length(names) - 1, 0))
+    },
+    names,
+  );
+};
+
+let with_shared_decks =
+    (prefix: string, ~default_names, (current, names)): (int, list(string)) =>
+  if (!HazelDB.Backend.on) {
+    (current, names);
+  } else {
+    let key_prefix = prefix ++ ":";
+    let in_space =
+      HazelDB.kv_keys()
+      |> List.filter_map(k =>
+           HazelDB.Backend.has_prefix(key_prefix, k)
+           && HazelDB.Backend.shared_space(k) != None
+             ? Some(
+                 String.sub(
+                   k,
+                   String.length(key_prefix),
+                   String.length(k) - String.length(key_prefix),
+                 ),
+               )
+             : None
+         );
+    merge_shared_names(
+      ~shared=
+        name =>
+          HazelDB.Backend.shared_space(content_key(prefix, name)) != None,
+      ~in_space,
+      ~default_names,
+      (current, names),
+    );
+  };
+
 let load_all =
     /* doc reconciles; scratch (a seed, not shipped content) does not */
     (
@@ -735,29 +829,32 @@ let load_all =
     )
     : Model.t => {
   let (current, names) =
-    switch (load_meta(prefix)) {
-    | Some(meta) when reconcile =>
-      let reconciled = reconcile_names(~default_names, meta);
-      if (reconciled != meta) {
-        save_meta(prefix, reconciled);
-      };
-      (reconciled.current, reconciled.names);
-    | Some(meta) => (meta.current, meta.names)
-    | None =>
-      /* Record the shipped list as offered now, so a slide deleted
-         later is not read back as one this browser never saw. */
-      if (reconcile) {
-        save_meta(
-          prefix,
-          {
-            current: default_current,
-            names: default_names,
-            known_defaults: default_names,
-          },
-        );
-      };
-      (default_current, default_names);
-    };
+    (
+      switch (load_meta(prefix)) {
+      | Some(meta) when reconcile =>
+        let reconciled = reconcile_names(~default_names, meta);
+        if (reconciled != meta) {
+          save_meta(prefix, reconciled);
+        };
+        (reconciled.current, reconciled.names);
+      | Some(meta) => (meta.current, meta.names)
+      | None =>
+        /* Record the shipped list as offered now, so a slide deleted
+           later is not read back as one this browser never saw. */
+        if (reconcile) {
+          save_meta(
+            prefix,
+            {
+              current: default_current,
+              names: default_names,
+              known_defaults: default_names,
+            },
+          );
+        };
+        (default_current, default_names);
+      }
+    )
+    |> with_shared_decks(prefix, ~default_names);
   Model.{
     current,
     scratchpads:

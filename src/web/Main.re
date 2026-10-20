@@ -254,6 +254,49 @@ let start = default_model => {
         ),
       );
     });
+    /* A program elaborated before the Fumola runtime arrives says so instead
+     * of showing a value, and would keep saying so until the page was
+     * reloaded -- an edit does not help, because statics are only rebuilt
+     * for an edit and the syntax did not change.
+     *
+     * So force the rebuild the way the modes do for RefreshStatics: the flag
+     * makes the next calculate pass StaticsForce, and Refresh is what makes
+     * a calculate pass happen. Setting the flag here rather than sending one
+     * mode's action keeps this working whichever mode is open. */
+    let rerun_fumola = () => {
+      /* Three things have to happen, and each is necessary: the elaboration
+       * memo has to be told its answers may have changed (it is keyed on the
+       * term, which did not change), the next calculate pass has to be told
+       * to rebuild statics (it rebuilds only for an edit, and there was no
+       * edit), and something has to make a calculate pass happen at all. */
+      Language.Statics.invalidate();
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      schedule_action(Page.Update.Refresh);
+    };
+    JsUtil.on_fumola_ready(rerun_fumola);
+    /* A remote instance's reply is the same news: a program that ran before
+       it arrived said so, and runs again to show it. */
+    JsUtil.on_fumola_remote_reply(rerun_fumola);
+    /* A side query's answer (a watch pane's history, a stats readout)
+       changes no program: redraw, and nothing more. */
+    JsUtil.on_fumola_remote_query(() => schedule_action(Page.Update.Refresh));
+    /* Shared decks, kept live: every few seconds, take in what others
+       added, changed or removed (HazelDB.poll_shared). Only with a
+       canister; the deck applies it only in Documentation mode. */
+    if (HazelDB.Backend.on) {
+      let _: Js_of_ocaml.Dom_html.interval_id =
+        Js_of_ocaml.Dom_html.window##setInterval(
+          Js_of_ocaml.Js.wrap_callback(() =>
+            HazelDB.poll_shared(keys =>
+              schedule_action(
+                Page.Update.Editors(Scratch(SharedChanged(keys))),
+              )
+            )
+          ),
+          Js_of_ocaml.Js.float(4000.),
+        );
+      ();
+    };
     /* A deep link's slide and panel are settled before Bonsai starts, but its
        caret is an action, and there is no editor to act on until the model is
        up. `scroll_to_caret` because a Point move does not ask for a scroll --

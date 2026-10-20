@@ -604,11 +604,23 @@ let expose_splice_refs =
 /* `def.expand`, matched: a Functional livelit's use means its function
    applied to the model; a Macro's means a hole here, filled in by the use's
    check. `def` is what the livelit is at run time: `^name`, bound by its
-   `let`, or for a direct use with parameters, `^a(args)` itself. */
+   `let`, or for a direct use with parameters, `^a(args)` itself.
+
+   The three labelled arguments after `expansion_t` are the builtin livelits'
+   expansion context -- the occurrence's id, the expected type, and the type
+   tools for resolving constructors -- and a user-defined livelit needs none
+   of them: it expands by applying its own `expand` member to the model, and
+   whatever that member needs it takes from the program's own scope. They are
+   accepted and ignored so that user-defined and builtin livelits share one
+   `expand` contract, which is what lets a Fumola livelit (which does use all
+   three) sit in the same table. */
 let mk_expand_dot_def =
     (
       ~def: TermBase.Exp.t,
       ~expansion_t: TermBase.Typ.t,
+      ~id as _: Id.t,
+      ~ana as _: TermBase.Typ.t,
+      ~tools as _: LivelitCtx.type_tools,
       model: TermBase.Exp.t,
     ) => {
   IdTagged.FreshGrammar.(
@@ -631,10 +643,20 @@ let mk_expand_dot_def =
 };
 
 let mk_expand_dot =
-    (~name: string, ~expansion_t: TermBase.Typ.t, model: TermBase.Exp.t) =>
+    (
+      ~name: string,
+      ~expansion_t: TermBase.Typ.t,
+      ~id: Id.t,
+      ~ana: TermBase.Typ.t,
+      ~tools: LivelitCtx.type_tools,
+      model: TermBase.Exp.t,
+    ) =>
   mk_expand_dot_def(
     ~def=IdTagged.FreshGrammar.Exp.var("^" ++ name),
     ~expansion_t,
+    ~id,
+    ~ana,
+    ~tools,
     model,
   );
 
@@ -1004,10 +1026,21 @@ let mk =
         model_default: Exp.replace_all_ids(List.assoc("init", members)),
         expansion_t,
         expand: mk_expand_dot(~name, ~expansion_t),
+        /* False: a user-defined livelit's expansion is whatever its own
+           `expand` member returns, so it has something to produce whether or
+           not an expected type is in scope. The flag exists for livelits that
+           cannot know their expansion without one -- the Fumola livelits,
+           which shape a runtime value by the type it is being read at. */
+        requires_annotation: false,
         action_t,
         update: (_action, model) => model,
-        view: (_model, _send) =>
+        /* A placeholder: a user-defined livelit's real view comes from its own
+           `view` member, rendered by LivelitProj rather than from here. `~id`
+           is the occurrence's id, which the Fumola livelits use to tell two
+           live uses apart; this one has no use for it. */
+        view: (~id as _, _model, _send) =>
           Virtual_dom.Vdom.Node.text("user-defined livelit"),
+        view_below: (~id as _, ~splice as _, _model, _send) => None,
         shape:
           switch (Option.bind(List.assoc_opt("shape", members), shape_of)) {
           | Some(shape) => shape

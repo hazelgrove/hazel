@@ -165,45 +165,98 @@ let as_list_lit = (p: Base.piece): option((Base.tile, Base.segment)) =>
 
 /* `lo=(0)` -> `lo=(<splice 0>)`, and `refs=[(1), (2)]` -> each element
  * spliced. Returns None when the field is not marked, or is already
- * spliced. */
-let wrap_marked_field = (field: Base.segment): option(Base.segment) => {
+ * spliced.
+ *
+ * A field whose value is a nested record, `input=(cell="c", code=(0))`,
+ * is descended into rather than spliced whole: its own marked fields are
+ * the splices, as a Model like `(input = RemoteRef, ...)` has them. Only
+ * when something inside is marked -- a record with no parenthesized field
+ * is still one splice, as it always was. */
+let rec wrap_marked_field = (field: Base.segment): option(Base.segment) => {
   open OptUtil.Syntax;
   let* (label_prefix, value) = split_at_label_sep(field);
-  switch (wrap_parens(value)) {
+  switch (wrap_nested_record(value)) {
   | Some(value') => Some(label_prefix @ value')
   | None =>
-    let (lead, core, trail) = split_outer_secondary(value);
-    let* (t, inner) =
-      switch (core) {
-      | [p] => as_list_lit(p)
-      | _ => None
-      };
-    let wrapped = ref(false);
-    let inner' =
-      map_comma_groups(
-        el =>
-          switch (wrap_parens(el)) {
-          | Some(el') =>
-            wrapped := true;
-            el';
-          | None => el
-          },
-        inner,
-      );
-    wrapped^
-      ? Some(
-          label_prefix
-          @ lead
-          @ [
-            Base.Tile({
-              ...t,
-              children: [inner'],
-            }),
-          ]
-          @ trail,
-        )
-      : None;
+    switch (wrap_parens(value)) {
+    | Some(value') => Some(label_prefix @ value')
+    | None =>
+      let (lead, core, trail) = split_outer_secondary(value);
+      let* (t, inner) =
+        switch (core) {
+        | [p] => as_list_lit(p)
+        | _ => None
+        };
+      let wrapped = ref(false);
+      let inner' =
+        map_comma_groups(
+          el =>
+            switch (wrap_parens(el)) {
+            | Some(el') =>
+              wrapped := true;
+              el';
+            | None => el
+            },
+          inner,
+        );
+      wrapped^
+        ? Some(
+            label_prefix
+            @ lead
+            @ [
+              Base.Tile({
+                ...t,
+                children: [inner'],
+              }),
+            ]
+            @ trail,
+          )
+        : None;
+    }
   };
+}
+
+/* `(a=..., b=(1))` -> `(a=..., b=(<splice 1>))`: a parenthesized record,
+ * every comma group a labeled field, with at least one field marked. */
+and wrap_nested_record = (value: Base.segment): option(Base.segment) => {
+  open OptUtil.Syntax;
+  let (lead, core, trail) = split_outer_secondary(value);
+  let* (t, inner) =
+    switch (core) {
+    | [p] => as_parens(p)
+    | _ => None
+    };
+  let all_labeled = ref(true);
+  let wrapped = ref(false);
+  let inner' =
+    map_comma_groups(
+      group =>
+        switch (split_at_label_sep(group)) {
+        | None =>
+          all_labeled := false;
+          group;
+        | Some(_) =>
+          switch (wrap_marked_field(group)) {
+          | Some(group') =>
+            wrapped := true;
+            group';
+          | None => group
+          }
+        },
+      inner,
+    );
+  all_labeled^ && wrapped^
+    ? Some(
+        lead
+        @ [
+          Base.Tile({
+            ...t,
+            children: [inner'],
+          }),
+        ]
+        @ trail,
+      )
+    : None;
 };
 
 /* `Live((0))` -> `Live((<splice 0>))`: a constructor's parenthesized
@@ -350,6 +403,105 @@ let splice_marked_fields = (seg: Base.segment): option(Base.segment) => {
   wrapped^ > 0 ? Some(seg') : None;
 };
 
+/* REMOTE REFS (docs/remote-refs.md), first cut: a RemoteRef is a record in
+   a livelit's model, `(instance = "i", cell = "c", code = <a SpliceRef>)`,
+   whose splice a Fumola instance writes. After a run, the view peeks the
+   cell and, when it holds something other than the ref's code, commits that
+   as a set_splice, as update's would be. Outputs only: nothing feeds back.
+
+   The refs in a model value, as (instance, cell, splice id, current value),
+   looking through tuples, fields, lists and constructor arguments. */
+let rec remote_refs = (v: DHExp.t): list((string, string, string, DHExp.t)) => {
+  let v = MvuShape.strip_wrappers(v);
+  let fields =
+    switch (MvuShape.of_tuple(v)) {
+    | Some(items) => List.filter_map(MvuShape.of_field, items)
+    | None => []
+    };
+  /* An In ref's cell holds what Hazel sent, not a value for the code, so the
+     pull leaves it alone. A record with no `dir` is read as Out, which is
+     what every RemoteRef was before the field. */
+  let inward =
+    switch (List.assoc_opt("dir", fields)) {
+    | Some(d) =>
+      switch (MvuShape.of_constructor_raw(MvuShape.strip_wrappers(d))) {
+      | Some(("In", _)) => true
+      | _ => false
+      }
+    | None => false
+    };
+  let here =
+    switch (
+      List.assoc_opt("instance", fields),
+      List.assoc_opt("cell", fields),
+      List.assoc_opt("code", fields),
+    ) {
+    | _ when inward => []
+    | (Some(i), Some(c), Some(r)) =>
+      switch (
+        MvuShape.of_string(i),
+        MvuShape.of_string(c),
+        SpliceStore.splice_ref(MvuShape.strip_wrappers(r)),
+      ) {
+      | (Some(instance), Some(cell), Some((id, current))) => [
+          (instance, cell, id, current),
+        ]
+      | _ => []
+      }
+    | _ => []
+    };
+  here != []
+    ? here
+    : (
+      switch (
+        MvuShape.of_tuple(v),
+        MvuShape.of_list(v),
+        MvuShape.of_constructor_raw(v),
+      ) {
+      | (Some(items), _, _)
+      | (None, Some(items), _) => List.concat_map(remote_refs, items)
+      | (None, None, Some((_, arg))) => remote_refs(arg)
+      | _ =>
+        switch (MvuShape.of_field(v)) {
+        | Some((_, x)) => remote_refs(x)
+        | None => []
+        }
+      }
+    );
+};
+
+/* What a pull would write, per splice id, already scheduled: a redraw while
+   the commit is on its way must not schedule it twice. */
+let remote_pending: Hashtbl.t(string, DHExp.t) = Hashtbl.create(8);
+
+/* The writes a pull finds: each ref whose cell holds something other than
+   its code, at the splice's declared type where it has one. */
+let remote_writes =
+    (~declared: list((string, TermBase.Typ.t)), v: DHExp.t)
+    : list(SpliceStore.effect) =>
+  remote_refs(v)
+  |> List.filter_map(((instance, cell, id, current)) => {
+       let ana =
+         List.assoc_opt(id, declared)
+         |> Option.value(~default=Typ.temp(Unknown(Internal)));
+       switch (FumolaRun.peek_cell(~instance, ~cell, ~ana)) {
+       | Some(written)
+           when
+             !Exp.fast_equal(written, MvuShape.strip_wrappers(current))
+             && !(
+                  switch (Hashtbl.find_opt(remote_pending, id)) {
+                  | Some(w) => Exp.fast_equal(w, written)
+                  | None => false
+                  }
+                ) =>
+         Hashtbl.replace(remote_pending, id, written);
+         Some(SpliceStore.Set(id, written));
+       | _ =>
+         Hashtbl.remove(remote_pending, id);
+         None;
+       };
+     });
+
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = unit;
@@ -466,7 +618,7 @@ module M: Projector = {
      entry is transiently unavailable (mid-commit), falling back to the
      default inline shape would collapse a Block-sized placeholder and
      jump the layout. Reuse the last known shape instead. */
-  let last_good_shape: Hashtbl.t(Id.t, ProjectorCore.Shape.t) =
+  let last_good_shape: Hashtbl.t(Id.t, (ProjectorCore.Shape.t, bool)) =
     Hashtbl.create(16);
 
   /* Widen the author's declared shape by what its splices actually hold.
@@ -681,27 +833,40 @@ module M: Projector = {
               }
             | None => None
             };
-          Some(Option.value(dynamic, ~default=ll.shape));
+          /* A builtin draws its splices where it chooses -- ^fumola_wip
+             in its full-width rows -- never inline, so its cell is not
+             widened for them. */
+          Some((
+            Option.value(dynamic, ~default=ll.shape),
+            Option.is_some(ll.user_def),
+          ));
         | None => None
         }
       | _ => None
       };
     let shape =
       switch (looked_up) {
-      | Some(shape) =>
-        Hashtbl.replace(last_good_shape, info.id, shape);
-        shape;
+      | Some((shape, widen)) =>
+        Hashtbl.replace(last_good_shape, info.id, (shape, widen));
+        (shape, widen);
       | None =>
         switch (Hashtbl.find_opt(last_good_shape, info.id)) {
-        | Some(shape) => shape
-        | None => ProjectorCore.Shape.inline(32)
+        | Some(last) => last
+        | None => (ProjectorCore.Shape.inline(32), true)
         }
       };
-    switch (syntax_splice(info.syntax)) {
-    | None => widen_for_splices(info.syntax, splice_size, shape)
-    /* Widened for the model's splices as before, which are inside the
-       syntax splice. */
-    | Some(s) => widen_for_splices(s.content, splice_size, shape)
+    let (shape, widen) = shape;
+    /* A builtin draws its splices where it chooses (see looked_up): only a
+       user livelit's cell is widened for them. */
+    if (!widen) {
+      shape;
+    } else {
+      switch (syntax_splice(info.syntax)) {
+      | None => widen_for_splices(info.syntax, splice_size, shape)
+      /* Widened for the model's splices as before, which are inside the
+         syntax splice. */
+      | Some(s) => widen_for_splices(s.content, splice_size, shape)
+      };
     };
   };
 
@@ -800,6 +965,66 @@ module M: Projector = {
     switch (action) {
     | _ => print_endline("Warning - LivelitProj.update: No action")
     };
+
+  /* The full-width rows cover the lines under the livelit's own, so a click
+     there used to land where every click on a projector lands: Focus, the
+     caret before the livelit. Then there was no way from the pane to the
+     code after it, and Enter pushed the whole livelit down a line. A click
+     on the pane's bare background now leaves the livelit the way Ctrl+Enter
+     leaves a probe, at the end of its line. A click on anything the pane
+     does something with -- a field, a button, a splice, a tab -- is its as
+     before. */
+  let below_interactive = "input, textarea, button, select, a, label, [tabindex], .splice-editor, .toggle-option, [class*=divider], [class*=reset]";
+
+  let is_background =
+      (evt: Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.pointerEvent)) => {
+    module U = Js_of_ocaml.Js.Unsafe;
+    switch (
+      Js_of_ocaml.Js.Opt.to_option(evt##.target),
+      Js_of_ocaml.Js.Opt.to_option(evt##.currentTarget),
+    ) {
+    | (Some(target), Some(pane)) =>
+      /* Only a control inside the pane counts: the editor cell around
+         the whole program has a tabindex too, and would match every
+         click. */
+      switch (
+        Js_of_ocaml.Js.Opt.to_option(
+          U.meth_call(
+            target,
+            "closest",
+            [|U.inject(Js_of_ocaml.Js.string(below_interactive))|],
+          ),
+        )
+      ) {
+      | None => true
+      | Some(control) =>
+        !Js_of_ocaml.Js.to_bool(U.meth_call(pane, "contains", [|control|]))
+      }
+    | _ => false
+    };
+  };
+
+  let escape_below = (~parent, below: Node.t): Node.t =>
+    Node.div(
+      ~attrs=[
+        Attr.class_("livelit-below"),
+        Attr.on_pointerdown(evt =>
+          if (evt##.button == 0 && is_background(evt)) {
+            /* The wrapper's handler, stopped here, is what would have
+               focused the editor; without this the caret moves and the
+               keys go wherever focus last was. */
+            FocusEffect.schedule_editor();
+            Effect.Many([
+              Effect.Stop_propagation,
+              parent(EscapeToLineEnd(Livelit)),
+            ]);
+          } else {
+            Effect.Ignore;
+          }
+        ),
+      ],
+      [below],
+    );
 
   /* Absent when the projector isn't drawn at the code site (docked to the
      sidebar, or culled from the viewport) */
@@ -1861,6 +2086,9 @@ module M: Projector = {
       | _ => Ctx.empty
       };
 
+    /* Set by a builtin whose view_below draws something: the full-width
+       rows under the livelit, which its Tab(n) shape reserves. */
+    let below = ref(None);
     /* Set while drawing a user livelit's GUI, for the pane below. */
     let params = ref(None);
     let head = ref(None);
@@ -1939,6 +2167,26 @@ module M: Projector = {
             |> view_seg(~background=false, Exp);
           let model_value =
             Option.bind(info.dynamics_at(Exp.rep_id(model)), latest_value);
+          /* A RemoteRef's pull: the run is over, so its instance has
+             settled; commit what its cell now holds, after this render. */
+          switch (model_value) {
+          | Some(v) =>
+            switch (
+              remote_writes(~declared=SpliceStore.declared_types(model), v)
+            ) {
+            | [] => ()
+            | effects =>
+              ignore(
+                Js_of_ocaml.Dom_html.window##setTimeout(
+                  Js_of_ocaml.Js.wrap_callback(() =>
+                    Ui_effect.Expert.handle(commit_model(~effects, v))
+                  ),
+                  0.,
+                ),
+              )
+            }
+          | None => ()
+          };
           /* Model terms contain no projectors or refractors, so trivial
              handlers suffice (the real ones live above this module in the
              dependency order). */
@@ -2009,7 +2257,13 @@ module M: Projector = {
           let action_callback = (action: LivelitCtx.action_exp) =>
             commit_model(~effects=[], ll.update(action, model));
 
-          let list_contents = ll.view(model, action_callback);
+          let list_contents = ll.view(~id=info.id, model, action_callback);
+          let splice = (id: Id.t) =>
+            List.find_opt((s: Base.splice) => s.id == id, splices)
+            |> Option.map((s: Base.splice) => splice_view(s.id));
+          below :=
+            ll.view_below(~id=info.id, ~splice, model, action_callback)
+            |> Option.map(escape_below(~parent));
           Node.div(
             ~attrs=[
               Attr.class_(css_name(ll_name)),
@@ -2179,6 +2433,8 @@ module M: Projector = {
       | None => node
       };
     View.mk(
+      /* and the rows a builtin draws under the livelit (view_below) */
+      ~below=below^,
       ~overlay=
         Some(
           Node.div(

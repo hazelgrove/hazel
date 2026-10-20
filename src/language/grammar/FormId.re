@@ -15,6 +15,9 @@
 type atomic_form =
   | Var
   | DrvVar
+  /* Fumola's variables and `$tag`s (see Form.get_atomic_form) */
+  | FumolaVar
+  | FumolaTag
   | ExplicitHole
   | ImplicitHoleMarker
   | ConcaveHoleMarker
@@ -149,7 +152,33 @@ type family =
   | ModuleExp
   | ModuleMod
   | SigLet
-  | SigModule;
+  | SigModule
+  /* Fumola's own forms (the sort Fumola(_), a closed sub-language). Where
+   * a Fumola form is spelled and shaped as a Hazel one (`+`, `==`, `;`,
+   * parentheses, application, `if then else`, ...), it is a row of that
+   * family at Fumola(Exp) instead (see Form.rows_of). The ladder of infix
+   * operators is fumola_parser's: see src/language/fumola/README.md. */
+  | FumolaOf
+  | FumolaHazel
+  | FumolaIndex
+  | FumolaImport
+  | FumolaPut
+  | FumolaOr
+  | FumolaAnd
+  | FumolaMod
+  | FumolaBitOr
+  | FumolaBitAnd
+  | FumolaBang
+  | FumolaNot
+  | FumolaAssert
+  | FumolaIgnore
+  | FumolaReturn
+  | FumolaPrim
+  | FumolaThunk
+  | FumolaForce
+  | FumolaGet
+  | FumolaSwitch
+  | FumolaCase;
 
 /* A form identity, sort-free: label is derived from the form alone;
  * the mold is derived from (form, sort) where sort is the tile's
@@ -271,7 +300,29 @@ let label_of_family: family => Label.t =
   | ModuleExp => ["module", "=", "in"]
   | ModuleMod => ["module", "="]
   | SigLet => ["let"]
-  | SigModule => ["module"];
+  | SigModule => ["module"]
+  /* `fumola <mode> as <instance> in <program> end`: see Form.rows_of */
+  | FumolaOf => ["fumola", "as", "in", "end"]
+  | FumolaHazel => ["hazel", "end"]
+  | FumolaIndex => Token.listlit_lbl
+  | FumolaImport => ["import", "="]
+  | FumolaPut => [":="]
+  | FumolaOr => ["or"]
+  | FumolaAnd => ["and"]
+  | FumolaMod => ["%"]
+  | FumolaBitOr => ["|"]
+  | FumolaBitAnd => ["&"]
+  | FumolaBang => ["!"]
+  | FumolaNot => ["not"]
+  | FumolaAssert => ["assert"]
+  | FumolaIgnore => ["ignore"]
+  | FumolaReturn => ["return"]
+  | FumolaPrim => ["prim"]
+  | FumolaThunk => ["thunk"]
+  | FumolaForce => ["force"]
+  | FumolaGet => ["@"]
+  | FumolaSwitch => ["switch", "{", "}"]
+  | FumolaCase => ["case", "=>"];
 
 let label_of: t => Label.t =
   fun

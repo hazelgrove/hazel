@@ -58,16 +58,35 @@ let get_and = (f: string => unit): unit =>
 let sync_count = (): unit =>
   DB.get_all(entries => LogCount.set(List.length(entries)));
 
+/* One unreadable entry used to cost the whole log.
+
+   The strict `s_of_sexp` raises on the first entry it cannot read, and the
+   database has already been cleared by the time it runs -- so a bundle
+   exported from an older build, carrying one action constructor that has
+   since been renamed, emptied the log and put nothing back. Every entry that
+   would have parsed went with it.
+
+   `s_of_sexp_opt` reads them one at a time and drops only what it cannot
+   read, which is what the replay path in Logged already uses. The count of
+   what was dropped is worth printing: a silent gap in a log is worse than a
+   noisy one. */
 let import = (data: string): unit =>
   /* Should be fine to fire saves concurrently? */
   DB.clear_and(() => {
-    try(
-      data
-      |> Sexplib.Sexp.of_string
-      |> Entry.s_of_sexp
-      |> List.iter(Entry.save)
-    ) {
-    | _ => Printf.printf("Log.Entry.import: Deserialization error")
+    switch (data |> Sexplib.Sexp.of_string |> Entry.s_of_sexp_opt) {
+    | exception _ =>
+      Printf.printf("Log.Entry.import: could not read the log at all")
+    | entries =>
+      List.iter(Option.iter(Entry.save), entries);
+      switch (List.length(List.filter(Option.is_none, entries))) {
+      | 0 => ()
+      | dropped =>
+        Printf.printf(
+          "Log.Entry.import: dropped %d unreadable of %d entries",
+          dropped,
+          List.length(entries),
+        )
+      };
     };
     // Sync count after import completes
     sync_count();

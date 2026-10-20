@@ -48,7 +48,7 @@ module M: Projector = {
     };
   };
 
-  let dynamics = false;
+  let dynamics = true;
   let elaborate_syntax = false;
   let focusable = Focusable.non;
 

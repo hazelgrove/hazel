@@ -87,6 +87,15 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let fumola_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Fumola,
+    ~cls=["fumola-button"],
+    ~icon=Icons.fumolaIcon,
+    ~tooltip="Switch to the Fumola VM instance panel",
+    ~globals,
+  );
+
 let settings_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=Settings,
@@ -197,6 +206,7 @@ let persistent_view =
           probes_tab(~globals),
           projectors_tab(~globals),
           problems_tab(~globals, ~counts),
+          fumola_tab(~globals),
           settings_tab(~globals),
         ]
         @ (
@@ -384,6 +394,7 @@ let view =
                 ~cursor,
                 ~collection=problem_collection,
               )
+            | Fumola => FumolaSidebar.view(~globals, ~cursor)
             | TaskReference =>
               switch (tutorial_reference) {
               | Some(context) =>

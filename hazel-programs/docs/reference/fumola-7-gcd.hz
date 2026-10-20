@@ -1,0 +1,44 @@
+# FUMOLA: GCD #
+# The smallest example there is, and the one that shows the least           #
+# machinery: a plain recursive function, called from Hazel.                 #
+#                                                                           #
+# The Fumola library is compiled into the runtime, and the Gcd module is    #
+# bound at the top level of every instance, so no import is needed. This    #
+# is its whole source:                                                      #
+#                                                                           #
+#   public func gcd(a : Nat, b : Nat) : Nat {                               #
+#     if (b == 0) { a } else {                                              #
+#       gcd(b, a % b)                                                       #
+#     }                                                                     #
+#   }                                                                       #
+#                                                                           #
+# Nat, not Int -- Fumola distinguishes them, and both arrive in Hazel as    #
+# Int, since Hazel has one integer type where Fumola has two.               #
+let answer : Int =
+  ^fumola_put_force(0, "`gcd", "Gcd.gcd(12, 18)") in
+
+# Edit the numbers above and the answer follows. That is the whole point    #
+# of the thunk: the livelit names a cell, puts the program in it, and       #
+# forces it, so an edit re-forces the same thunk rather than starting a     #
+# new one.                                                                  #
+#                                                                           #
+# Nothing here is incremental in an interesting way, though: gcd reads no   #
+# cells, so there is no dependency for Adapton to repair. The examples      #
+# after this one are the ones with something to reuse.                      #
+let coprime : Int =
+  ^fumola_put_force(0, "`coprime", "Gcd.gcd(9, 28)") in
+
+# A gcd of 1 means the two numbers share no factor.                         #
+# A thunk is a value in Fumola. Hazel has no value of its own for one, so   #
+# it arrives opaque, carrying the source Fumola prints for it -- and        #
+# force is what turns it into something Hazel does have a value for.        #
+#                                                                           #
+# Both in one program, so the two sit side by side:                         #
+let thunkAndValue : (?, Int) =
+  ^fumola_put_force(
+    0,
+    "`gcdPair",
+    "let t = thunk { Gcd.gcd(12, 18) }; (t, force(t))"
+  ) in
+
+(answer, coprime, thunkAndValue)

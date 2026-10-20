@@ -126,6 +126,352 @@
   overflow-y: visible;
 }
 
+/* The fumola livelit: an editable Fumola program, its current result, and the
+   id of the external Fumola runtime the model names. */
+.livelit > .fumola-livelit {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+    width: 100%;
+}
+.livelit > .fumola-livelit input {
+    flex: 1 1 auto;
+    min-width: 4em;
+    font-family: inherit;
+    outline: none;
+}
+.livelit > .fumola-livelit .fumola-result {
+    flex: 0 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    opacity: 0.85;
+}
+/* The instance id is diagnostic, not something to read while programming. */
+.livelit > .fumola-livelit .fumola-id {
+    flex: 0 0 auto;
+    opacity: 0.4;
+    font-size: 0.85em;
+}
+
+/* The fumola_new livelit: the semantics a runtime runs, and the id naming
+   it. The mode is the part worth reading; the id is diagnostic, like the one
+   above. */
+.livelit > .fumola-new {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4em;
+}
+.livelit > .fumola-new .fumola-new-mode {
+    flex: 0 0 auto;
+}
+.livelit > .fumola-new .fumola-new-id {
+    flex: 0 0 auto;
+    opacity: 0.4;
+    font-size: 0.85em;
+}
+
+/* The widget for a Fumola reference: the program that reads the cell, and
+   what it held. Produced by translation, never chosen by a user. */
+/* With a node line under it the widget is two rows, so the row of the cell
+   and the row of the node stack rather than sit side by side. The
+   placeholder reserves the second row (Block(1)); this is only the
+   direction. */
+.fumola-peek-deep {
+    /* Wrap rather than turn the column: the first line is still a row --
+       the reading, the equals, the value -- and only the node's line goes
+       below it, which flex-basis:100% on that line is what forces. Turning
+       the whole widget into a column stacks the equals sign too. */
+    flex-wrap: wrap;
+}
+
+/* One step further into the graph than the line above it, and said quietly:
+   the cell's own reading is the answer to what was asked, and this is the
+   panel volunteering what the node knows. */
+.fumola-peek-info {
+    flex-basis: 100%;
+    opacity: 0.72;
+    font-size: 0.92em;
+    padding-left: 1.2em;
+}
+
+.fumola-peek {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.15em;
+    /* The placeholder reserves columns of the CODE grid -- see
+       FumolaPeekProj.placeholder, which counts characters -- so the widget
+       has to paint on that same grid or the box is wider than its text. It
+       was inheriting the UI font, proportional and a size smaller, which
+       left a moat of a few columns down each side. */
+    font-family: var(--code-font);
+    font-size: var(--base-font-size);
+    padding: 0 0.05em;
+    border: 1px solid color-mix(in srgb, var(--text-default) 18%, transparent);
+    border-radius: 0.3em;
+    background: color-mix(in srgb, var(--text-default) 3%, transparent);
+    white-space: nowrap;
+}
+.fumola-peek-reads {
+    opacity: 0.65;
+}
+.fumola-peek-arrow {
+    opacity: 0.4;
+}
+/* Not bold: the grid the placeholder reserves is the regular weight, and
+   Source Code Pro's 600 is wider per character, which puts the box back
+   over its reservation by a column every twenty-five. The value already
+   stands out against the reference, which is at 0.65. */
+.fumola-peek-value {
+    font-weight: inherit;
+}
+
+/* ^fumola_wip. The head row sits in the livelit's own cell; the body is its
+   view_below, the full width of the notebook under it: the wires and the
+   code on the left, this instance's watch pane on the right. */
+/* The content-box rule above gives every child the cell's box. Two of
+   ^fumola_wip's children are not the cell: its full-width rows keep only
+   the top and left they are placed at, and its Tab area starts the head row
+   at the top rather than centring it in the reserved rows. */
+.livelit > .below-wrapper:has(.fumola-wip-body) {
+    display: block;
+    right: auto;
+    bottom: auto;
+    overflow: auto;
+    /* Exactly the 14 rows its Tab(14) shape reserves (Livelit.FumolaWip),
+       in the editor's measured rows, so it covers the livelit's backing
+       shard, which the Tab shape draws down through them. Shorter, and the
+       shard's foot shows beneath it; the probe drawer's cap is lifted for
+       the same reason. */
+    height: calc(14 * var(--row-height-px));
+    max-height: none;
+    /* The notebook's width exactly. The probe drawer's rule is max-content,
+       which let one long line of code widen the whole body and push the
+       right-hand pane off centre. A long line scrolls in its column now. */
+    width: var(--main-scroll-width, 100ch);
+    /* The notebook's width is measured with that variable set to
+       max-content for a moment (JsUtil.update_main_scroll_width), when this
+       pane took its content's unwrapped width: an events list on one line
+       came to 29,000px, which was then published as the notebook's width,
+       and the right column went with it. Contained, the content never
+       counts toward the pane's own width. */
+    contain: inline-size;
+}
+.livelit > .tab-extent:has(.fumola-wip-head) {
+    align-items: flex-start;
+    justify-content: flex-start;
+}
+.fumola-wip-head {
+    display: flex;
+    align-items: center;
+    gap: 0.45em;
+    width: 100%;
+}
+.fumola-wip-badge {
+    font-size: 0.75em;
+    padding: 0 0.4em;
+    border-radius: 0.3em;
+    color: var(--text-inverse);
+    background-color: var(--surface-inverse);
+    opacity: 0.7;
+}
+.fumola-wip-field {
+    display: flex;
+    align-items: center;
+    gap: 0.3em;
+    min-width: 0;
+}
+.fumola-wip-field span {
+    opacity: 0.6;
+}
+/* editor | archivist [name]. The sidebar's toggle, sized to fit the one
+   code row the head has: its padding and rule are for a panel, and here
+   they pushed the buttons past the row, which clipped them. */
+.fumola-wip-role {
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+}
+/* The two switches in the head row, editor | archivist and page |
+   canister, borrow the problem pane's toggle; compacted to sit in one
+   code row, which the head row is. */
+.fumola-wip-roles.problem-view-toggle,
+.fumola-wip-place.problem-view-toggle {
+    padding: 0;
+    border-bottom: none;
+}
+.fumola-wip-roles .toggle-option,
+.fumola-wip-place .toggle-option {
+    min-width: 0;
+    padding: 0 0.5em;
+    line-height: 1.4;
+}
+.fumola-wip-name {
+    width: 8em;
+    font-family: var(--code-font);
+    outline: none;
+}
+/* Text fields only: the rule used to size the tiles and input checkboxes
+   to 9em too, which spread the head row across 80-odd columns. */
+.fumola-wip-field input[type="text"] {
+    width: 7em;
+    font-family: var(--code-font);
+    outline: none;
+}
+.fumola-wip-body {
+    display: grid;
+    /* The columns, and the divider between them, are set inline from the
+       use's split (Livelit.FumolaWip.columns). */
+    grid-template-columns: minmax(0, 1fr) 7px minmax(0, 1fr);
+    gap: 0.5em;
+    padding-block: 0.4em;
+}
+.fumola-wip-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5em;
+    min-width: 0;
+    /* One horizontal scroller for the whole column, so the wires and the
+       code move together. Without it anything wider than the column --
+       a long code line, a cell name -- ran on under the right column,
+       which drew over it. */
+    overflow-x: auto;
+    overflow-y: hidden;
+}
+.fumola-wip-body {
+    height: 100%;
+}
+.fumola-wip-right {
+    min-width: 0;
+    max-height: calc(13 * var(--row-height-px));
+    overflow: auto;
+}
+/* A wire: Hazel | arrow | Fumola. The dashed rule down the middle is the
+   language boundary the value crosses. */
+.fumola-wip-wire {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+    align-items: center;
+    gap: 0.6em;
+}
+.fumola-wip-arrow {
+    padding-inline: 0.6em;
+    border-inline: 1px dashed var(--text-default);
+    font-size: 0.85em;
+    opacity: 0.7;
+    white-space: nowrap;
+}
+.fumola-wip-wire.out .fumola-wip-hazel {
+    opacity: 0.6;
+}
+.fumola-wip-cell {
+    font-family: var(--code-font);
+}
+.fumola-wip-code {
+    min-width: 0;
+}
+/* String mode: the body's Fumola text, wrapped to the column. */
+.fumola-wip-text {
+    width: 100%;
+    min-height: calc(6 * var(--line-height) * 1em);
+    font-family: var(--code-font);
+    font-size: inherit;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    resize: vertical;
+}
+/* The debug readout; the live count is an attribute FumolaRun writes. */
+.fumola-wip-debug {
+    font-size: 0.8em;
+    opacity: 0.6;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+}
+.fumola-wip-runs::after {
+    content: attr(data-live-runs);
+}
+/* The right-hand pane's sections above the watch pane: the outline of the
+   runs, in Adapton.IntoText's text format, and what the last run printed. */
+.fumola-wip-sub {
+    margin-bottom: 0.6em;
+}
+.fumola-wip-sub-title {
+    font-weight: 600;
+    opacity: 0.8;
+    margin-bottom: 0.2em;
+}
+/* The outline, as Fumola's web player draws it (FumolaOutline.re): each
+   level a step in and a rule down its left, so nesting reads as nesting. */
+.fumola-outline {
+    font-family: var(--code-font);
+    font-size: 0.85em;
+    white-space: pre;
+    overflow-x: auto;
+}
+.fumola-outline .outline-node {
+    margin-left: 8px;
+    padding-left: 2px;
+    border-left: 2px solid color-mix(in oklch, var(--text-default) 20%, transparent);
+}
+.fumola-outline .outline-edge,
+.fumola-outline .outline-internal-result {
+    margin-left: 8px;
+}
+.fumola-outline .outline-edge:hover {
+    background: color-mix(in oklch, var(--text-default) 7%, transparent);
+}
+.fumola-outline .outline-node-id { color: var(--token-pat); }
+.fumola-outline .outline-meta-time { opacity: 0.55; }
+.fumola-outline .outline-arrow { color: var(--token-typ); }
+.fumola-outline .outline-action-put,
+.fumola-outline .outline-action-putForce { color: var(--token-string-lit); }
+.fumola-outline .outline-action-get { color: var(--token-exp); }
+.fumola-outline .outline-result-arrow { color: var(--token-label); }
+/* Between the trees of a forest, so several read as several. */
+.fumola-outline .outline-forest-rule {
+    display: block;
+    margin: 0.5em 0 0.2em;
+    padding-top: 0.3em;
+    border-top: 1px solid color-mix(in oklch, var(--text-default) 20%, transparent);
+    font-size: 0.85em;
+    opacity: 0.6;
+}
+.fumola-wip-printed {
+    margin: 0;
+    padding-left: 2em;
+    font-family: var(--code-font);
+    font-size: 0.85em;
+    white-space: pre-wrap;
+}
+.fumola-wip-note {
+    font-size: 0.85em;
+    opacity: 0.6;
+}
+/* The divider between the columns, dragged to move them. */
+.fumola-wip-divider {
+    cursor: col-resize;
+    touch-action: none;
+    border-inline: 1px solid color-mix(in oklch, var(--text-default) 15%, transparent);
+    background: color-mix(in oklch, var(--text-default) 6%, transparent);
+    border-radius: 3px;
+}
+.fumola-wip-divider:hover {
+    background: color-mix(in oklch, var(--text-default) 18%, transparent);
+}
+/* The last run's program as sent, and its outcome on the Out wire. */
+.fumola-wip-program {
+    margin: 0;
+    font-family: var(--code-font);
+    font-size: 0.85em;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.fumola-wip-value {
+    font-family: var(--code-font);
+}
+.fumola-wip-error {
+    color: var(--text-warning);
+    font-size: 0.85em;
 /* The syntax toggle (LivelitProj: show_syntax). The layer covers the
    livelit and lets clicks through, except on the eye. */
 .livelit-syntax-layer {

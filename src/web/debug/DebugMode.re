@@ -16,12 +16,15 @@ let perform = (action: action): unit => {
         dynamics: false,
       },
     });
-  | ClearStore => HazelDB.clear_all()
+  | ClearStore => ()
   };
   Js_of_ocaml.Dom_html.window##.location##replace(
     Js_of_ocaml.Js.string("#"),
   );
-  Js_of_ocaml.Dom_html.window##.location##reload;
+  switch (action) {
+  | ClearStore => HazelDB.clear_all_and_reload()
+  | TurnOffDynamics => Js_of_ocaml.Dom_html.window##.location##reload
+  };
 };
 
 let btn = (caption, action) => {

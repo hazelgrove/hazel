@@ -44,6 +44,12 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Atom(String) => string("hello")
       | Atom(Nat) => nat(Bigint.one)
       | DrvQuote => drv_exp(DrvGrammar.placeholder(), DrvSort.Jdmt)
+      | FumolaQuote =>
+        fumola_exp(
+          FumolaGrammar.placeholder(),
+          FumolaGrammar.placeholder(),
+          FumolaGrammar.placeholder(),
+        )
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Fun => fn(Pat.var("x"), var("x"), None, None)
@@ -55,6 +61,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | TupleExtension => tuple_extension(empty_hole(), empty_hole())
       | Dot => dot(empty_hole(), empty_hole())
       | LivelitName => livelit_name("^slider")
+      | FumolaPeek => fumola_peek(~instance_id=1, ~reads="peek(1)!", int(2))
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())

@@ -19,7 +19,15 @@ module Delims = {
        })
     |> List.sort_uniq(compare);
 
-  let leading_exp = leading(Exp);
+  /* `fumola` opens a Fumola program, and it is the one Exp-sorted delimiter
+     that shadows a core Hazel keyword: it sorts before `fun`, so typing `fu`
+     would complete to `fumola` and cost a keystroke to everyone who writes a
+     function. Fumola is an opt-in sub-language and `fun` is not, so the
+     Fumola keyword stays out of Hazel's completions. Fumola's own sort keeps
+     its completions (leading_fumola). */
+  let shadows_core_hazel = (token: Token.t) => token == "fumola ";
+
+  let leading_exp = leading(Exp) |> List.filter(t => !shadows_core_hazel(t));
   let leading_pat = leading(Pat);
   let leading_typ = leading(Typ);
   /* Drv sorts: at the mold level Drv(Jdmt)/Drv(Ctx)/Drv(Prop) all collapse
@@ -29,6 +37,7 @@ module Delims = {
   let leading_drv_typ = leading(Drv(Typ));
   let leading_drv_pat = leading(Drv(Pat));
   let leading_drv_tpat = leading(Drv(TPat));
+  let leading_fumola = leading(Fumola(Exp));
 
   let leading = (sort: Sort.t): list(string) =>
     switch (sort) {
@@ -39,6 +48,7 @@ module Delims = {
     | Drv(Typ) => leading_drv_typ
     | Drv(Pat) => leading_drv_pat
     | Drv(TPat) => leading_drv_tpat
+    | Fumola(_) => leading_fumola
     | _ => []
     };
 

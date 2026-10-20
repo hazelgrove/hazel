@@ -38,6 +38,41 @@ let type_binder = 15;
 // poly t -> _____
 // rec t -> _____
 
+// ========= FUMOLA =========
+// Fumola is a closed sort, so only the order among these matters. The levels
+// are drawn from the ones Hazel leaves free, because associativity is keyed
+// by level number and is shared across sorts: reusing a level Hazel has
+// marked would silently give a Hazel operator Fumola's associativity. 11-15
+// belong to Hazel's types, which is why this ladder has a gap in it.
+//
+// The order is fumola_parser's ExpBin0..ExpBin9 chain, tightest first, and it
+// is not the order intuition suggests: `|`, `&` and `^` bind TIGHTER than `+`
+// and `*`. See src/language/fumola/FumolaPrint.re.
+// f(_____), _____.x, _____[i]
+/* Left-associative so that `a.b.c` and `f(x)(y)` chain.  Level 4 is Fumola's
+   alone, so marking it here gives no Hazel operator an associativity. */
+let fum_post = 4 |> left_associative;
+// #_____, ?_____, not _____, -_____
+let fum_un = 5;
+let fum_pow = 6 |> left_associative;
+// _____ << 1   (non-associative in the grammar)
+let fum_shift = 7;
+let fum_xor = 8 |> left_associative;
+let fum_bitand = 9 |> left_associative;
+let fum_bitor = 10 |> left_associative;
+let fum_mul = 16 |> left_associative;
+let fum_add = 17 |> left_associative;
+let fum_rel = 18 |> left_associative;
+let fum_and = 19 |> left_associative;
+let fum_or = 20 |> left_associative;
+// force _____, @ _____, thunk _____, _____ := e, let x = _____
+// Everything here is looser than every operator above, which is the grammar's
+// doing: `force x + 1` does not parse at all.
+let fum_stmt = 21;
+// let x = 1 ; _____   -- the sequence must be looser than what it separates
+let fum_semi = 38 |> right_associative;
+let fum_comma = 40;
+
 // ======== PATTERNS =========
 // ======= EXPRESSIONS =======
 

@@ -879,6 +879,38 @@ let font_metrics_from_specimen = (): (float, float) =>
   | None => (10.0, 10.0)
   };
 
+/* Listen for the Fumola runtime finishing its asynchronous load.
+ *
+ * The runtime is several megabytes of wasm, usually fetched cross-origin, so
+ * a program can be elaborated before it exists. A Fumola livelit elaborated
+ * then expands to a message saying the runtime is not loaded, and nothing
+ * would revisit that on its own -- so the shim announces itself and the
+ * editor recalculates. Dispatched once, after the outcome is settled, and on
+ * failure as well as success, so the message can settle too. */
+let on_window_event = (event: string, callback: unit => unit): unit =>
+  ignore(
+    Js.Unsafe.meth_call(
+      Dom_html.window,
+      "addEventListener",
+      [|
+        Js.Unsafe.inject(Js.string(event)),
+        Js.Unsafe.inject(Js.wrap_callback((_: Js.t({..})) => callback())),
+      |],
+    ),
+  );
+
+let on_fumola_ready = (callback: unit => unit): unit =>
+  on_window_event("fumola-runtime-ready", callback);
+
+/* A remote Fumola run answered (FumolaRun.remote_reply, ic-backend.js). */
+let on_fumola_remote_reply = (callback: unit => unit): unit =>
+  on_window_event("fumola-remote-reply", callback);
+
+/* A side query of a canister instance answered (FumolaRun.remote_query,
+   ic-backend.js): only a redraw is wanted. */
+let on_fumola_remote_query = (callback: unit => unit): unit =>
+  on_window_event("fumola-remote-query", callback);
+
 /* Listen for devicePixelRatio changes (triggered by browser zoom).
  * Uses matchMedia to detect when the current DPR no longer matches,
  * then re-registers for the next change. */

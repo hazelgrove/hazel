@@ -35,6 +35,10 @@ let rec collect_stream_state_for =
             (collect_stream_state_for(stream, child), Indet);
           },
           ~mode=`Environment,
+          /* Reassembling the state of an evaluation that ran in the worker.
+             The steps happened there; walking them again here must not
+             repeat them. */
+          ~effects=`Withhold,
           ~targets=Sample.no_targets,
           Builtins.env_init,
           d,

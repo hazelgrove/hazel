@@ -1,0 +1,70 @@
+# FUMOLA: THUNKS AND FORCING #
+# A ^fumola_put_force names a thunk and forces it. The name is a cell of    #
+# the shared runtime, so the thunk outlives the livelit that made it --     #
+# and anything else in that runtime can reach it.                           #
+#                                                                           #
+# These four make thunks; the four after them force the same thunks by      #
+# name, from a separate livelit.                                            #
+#                                                                           #
+# The four livelits, in brief:                                              #
+#                                                                           #
+#   ^fumola_new(id, mode)             declare a runtime                     #
+#   ^fumola_put_force(id, name, src)  run src in a named thunk              #
+#   ^fumola_eval(id, src)             run src on a force-free stack         #
+#   ^fumola_with(id, name, src, v)    the same, with v bound as input       #
+#                                                                           #
+# Each is annotated, and the annotation is what the translation             #
+# produces -- change one and Hazel will tell you.                           #
+
+# Four thunks, one per shape.                                               #
+type Shape = + Circle(Int) + Square(Int) in
+
+let myInt : Int =
+  ^fumola_put_force(1, "`myInt", "1 + 2") in
+
+let myPair : (Int, Bool) =
+  ^fumola_put_force(1, "`myPair", "(1, true)") in
+
+let myRecord : (x=Int, y=Bool) =
+  ^fumola_put_force(1, "`myRecord", "{x = 1; y = true}") in
+
+let myVariant : Shape =
+  ^fumola_put_force(1, "`myVariant", "#Circle(3)") in
+
+# FORCING A THUNK #
+# Every thunk livelit here runs its program inside a thunk named by its     #
+# second argument, so each of those names is a cell of the shared runtime:  #
+# `myInt names the thunk that computed 1 + 2, and pointer(`myInt) is a      #
+# pointer to that thunk.                                                    #
+#                                                                          #
+# A thunk is not a value, and it is values that have a Hazel translation -- #
+# ask a livelit for the thunk itself and there is nothing to bring across.  #
+# force is what closes the gap: force(p) runs the thunk p points at, or     #
+# reuses what it already computed, and answers with its value, which does   #
+# translate. So an editor livelit can reach back for the result of any      #
+# thunk defined above, with the type that thunk's program produced.         #
+let forcedInt : Int =
+  ^fumola_eval(1, "force(pointer(`myInt))") in
+
+# Structure survives the trip, as it did from the thunk itself. #
+let forcedPair : (Int, Bool) =
+  ^fumola_eval(1, "force(pointer(`myPair))") in
+
+# A forced variant still takes its home type from the annotation. #
+let forcedVariant : Shape =
+  ^fumola_eval(1, "force(pointer(`myVariant))") in
+
+# And a record arrives as the labeled tuple its fields describe. #
+let forcedRecord : (x=Int, y=Bool) =
+  ^fumola_eval(1, "force(pointer(`myRecord))") in
+
+(
+  myInt,
+  myPair,
+  myRecord,
+  myVariant,
+  forcedInt,
+  forcedPair,
+  forcedVariant,
+  forcedRecord
+)

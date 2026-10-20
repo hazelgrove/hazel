@@ -26,6 +26,16 @@ module Action = {
 
 open Action;
 
+/* Where the last " / " in a slide name starts: what precedes it is the
+   slide's deck. */
+let last_folder_sep = (name: string): option(int) => {
+  let sep = " / ";
+  let n = String.length(sep);
+  let rec go = i =>
+    i < 0 ? None : String.sub(name, i, n) == sep ? Some(i) : go(i - 1);
+  go(String.length(name) - n);
+};
+
 let integrate_share =
     (~settings: Language.CoreSettings.t, model: Model.t): Model.t => {
   let share_name =
@@ -178,7 +188,18 @@ let add_new_slide =
           model.scratchpads
           |> List.to_seq
           |> Seq.map((s: Scratchpad.t) => s.name),
-        "New Slide Name",
+        /* In the current slide's deck: a slide's deck is the folder its
+           name starts with, and adding one is mostly adding to the deck at
+           hand -- Shared Spaces especially, whose slides are shared because
+           of the folder they are in. */
+        switch (List.nth_opt(model.scratchpads, model.current)) {
+        | Some(sp) =>
+          switch (last_folder_sep(sp.name)) {
+          | Some(i) => String.sub(sp.name, 0, i) ++ " / New Slide Name"
+          | None => "New Slide Name"
+          }
+        | None => "New Slide Name"
+        },
       );
     switch (new_name) {
     | None => model // Prompt cancelled so no new scratchpad created

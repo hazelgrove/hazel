@@ -138,6 +138,7 @@ type secondary = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | InfoDrv(DrvInfo.t)
+  | InfoFumola(FumolaInfo.t)
   | InfoExp(exp)
   | InfoPat(pat)
   | InfoTyp(typ)
@@ -152,6 +153,8 @@ type t =
 let sort_of: t => Sort.t =
   fun
   | InfoDrv(drv) => Drv(DrvInfo.sort_of(drv))
+  /* Fumola is one closed sort, so there is no sub-sort to refine. */
+  | InfoFumola(_) => Fumola(Exp)
   | InfoExp({cls: Mod(_), _}) => Mod
   | InfoExp(_) => Exp
   | InfoPat(_) => Pat
@@ -187,6 +190,7 @@ let class_of: t => string =
 let cls_of: t => Cls.t =
   fun
   | InfoDrv(drv) => DrvInfo.cls_of(drv)
+  | InfoFumola(f) => Fumola(FumolaInfo.cls_of(f))
   | InfoExp({cls, _})
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
@@ -212,6 +216,10 @@ let cls_label = (info: t): string =>
 let any_of: t => option(Any.t) =
   fun
   | InfoDrv({term, _}) => Some(Drv(term))
+  /* The info carries the class, not the term: nothing downstream needs a
+     Fumola subterm back out of the map, and carrying one would make every
+     entry hold a whole subtree. */
+  | InfoFumola(_) => None
   | InfoExp({user_term, _}) => Some(Exp(user_term))
   | InfoPat({user_term, _}) => Some(Pat(user_term))
   | InfoTyp({user_term, _}) => Some(Typ(user_term))
@@ -224,6 +232,7 @@ let any_of: t => option(Any.t) =
 let ctx_of: t => Ctx.t =
   fun
   | InfoDrv(_) => Ctx.empty_pre_elaboration
+  | InfoFumola(_) => Ctx.empty_pre_elaboration
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
@@ -236,6 +245,7 @@ let ctx_of: t => Ctx.t =
 let ancestors_of: t => ancestors =
   fun
   | InfoDrv(drv) => DrvInfo.ancestors_of(drv)
+  | InfoFumola(f) => FumolaInfo.ancestors_of(f)
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
@@ -251,6 +261,7 @@ let parent_id_of: t => option(Id.t) =
 let id_of: t => Id.t =
   fun
   | InfoDrv(drv) => DrvInfo.id_of(drv)
+  | InfoFumola(f) => FumolaInfo.id_of(f)
   | InfoExp(i) => Exp.rep_id(i.user_term)
   | InfoPat(i) => Pat.rep_id(i.user_term)
   | InfoTyp(i) => Typ.rep_id(i.user_term)
@@ -267,6 +278,7 @@ let marks_of: t => list(Mark.t) =
   | InfoTyp({marks, _})
   | InfoTPat({marks, _}) => marks
   | InfoDrv(_) /* Drv errors are tracked separately via DrvInfo.error_of. */
+  | InfoFumola(_) /* likewise FumolaInfo.error_of */
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
@@ -287,6 +299,7 @@ let warnings_of: t => list(Warning.list_item) =
   | InfoTyp({warnings, _})
   | InfoTPat({warnings, _}) => warnings
   | InfoDrv(_)
+  | InfoFumola(_)
   | InfoMod(_)
   | InfoSig(_)
   | InfoMPat(_)
@@ -310,6 +323,7 @@ let is_typable_term: option(t) => bool =
   | Some(
       InfoTyp(_) | InfoTPat(_) | InfoMod(_) | InfoSig(_) | InfoMPat(_) |
       InfoDrv(_) |
+      InfoFumola(_) |
       Secondary(_),
     ) =>
     false

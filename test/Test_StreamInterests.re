@@ -6,6 +6,7 @@ open Language;
 
 let mk_entry = (state: EvaluatorState.t): IncrEval.entry(EvaluatorState.t) => {
   prev_elab: Exp.fresh(EmptyHole),
+  prev_ana: Typ.fresh(Unknown(Internal)),
   prev_reuse_map: IncrEval.empty_reuse_map,
   prev_probe_targets: EvalInfo.ProbeTargets(SubexpProbeTargets.empty),
   value: Exp.fresh(EmptyHole),
