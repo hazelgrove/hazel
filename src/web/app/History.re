@@ -1,6 +1,6 @@
 open Util;
 
-let capped_undo_stack_size = 1000;
+let capped_undo_stack_size = 250;
 
 /* Undo entries are whole page models. Restoring one rebuilds its syntax
    (marked stale) and statics (forced on undo/redo), so entries drop them.
