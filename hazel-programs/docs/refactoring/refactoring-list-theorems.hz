@@ -1,0 +1,53 @@
+# Lists: map, sum, and associativity. All equations work both ways. #
+let inc(n : Int) = n + 1 in
+let double(n : Int) = n * 2 in
+let sum(items : [Int]) = fold_left(items, int_plus, 0) in
+
+theorem map_fusion =
+  forall (items : [Int]) ->
+  forall (f : Int -> Int) -> forall (g : Int -> Int) ->
+    map(map(items, f), g) == map(items, fun x -> g(f(x)))
+in
+
+theorem map_append =
+  forall (left : [Int]) -> forall (right : [Int]) ->
+  forall (f : Int -> Int) ->
+    map(left @ right, f) == map(left, f) @ map(right, f)
+in
+
+theorem sum_append =
+  forall (left : [Int]) -> forall (right : [Int]) ->
+    sum(left @ right) == sum(left) + sum(right)
+in
+
+theorem list_associativity =
+  forall (a : [Int]) -> forall (b : [Int]) -> forall (c : [Int]) ->
+    (a @ b) @ c == a @ (b @ c)
+in
+
+theorem add_associativity =
+  forall (a : Int) -> forall (b : Int) -> forall (c : Int) ->
+    (a + b) + c == a + (b + c)
+in
+
+theorem sum_double =
+  forall (items : [Int]) ->
+    sum(map(items, double)) == double(sum(items))
+in
+
+let xs = [1, 2, 3] in
+let ys = [4, 5] in
+let zs = [6] in
+
+# Start with a small example, then combine the same moves below. #
+(
+  fuse_maps = map(map(xs, inc), double),
+  distribute_map = map(xs @ ys, double),
+  split_sum = sum(xs @ ys),
+  regroup_lists = (xs @ ys) @ zs,
+  regroup_sums = (sum(xs) + sum(ys)) + sum(zs),
+  pull_out_double = sum(map(xs, double)),
+
+  # Several routes: fuse maps, distribute over @, split sums, regroup. #
+  playground = sum(map(map((xs @ ys) @ zs, inc), double))
+)
