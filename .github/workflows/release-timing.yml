@@ -1,9 +1,11 @@
+# (Since ^ticket(513): the probe, release_probe.mjs, per release: the main thread's script, layout and style time, the eval
+# worker's messages and the long tasks. release_timing.mjs, the plain timing, is kept beside it.)
 # Kids' Choice slider releases on #2635, before and after merging today's #2469 (^ticket(512)), on GitHub's machines, never
 # the laptop. An orphan branch: only this workflow runs. Each of eight jobs serves two deployed builds from hazelgrove/build
 # (no compiling): BEFORE, #2635 at 9933091a99 (deploy 0b8ca9bbcf), and AFTER, at 5cb0d88a46 (deploy ff51d2ff44), then times
 # 12 releases of the eye-size slider on each, twice in turn (before, after, before, after), each in a Chrome started fresh,
 # so the runner's own speed and any drift cancel out. The first release after load is kept apart from the rest.
-name: Release timing (#2635, before and after #2469)
+name: Release probe (#2635, before and after #2469; ^ticket(513))
 
 on:
   push:
@@ -23,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job: [r1, r2, r3, r4, r5, r6, r7, r8]
+        job: [r1, r2, r3, r4, r5, r6]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
@@ -49,7 +51,7 @@ jobs:
           (cd before/$DIR && python3 -m http.server 8133 --bind 127.0.0.1 > /dev/null 2>&1 &)
           (cd after/$DIR && python3 -m http.server 8134 --bind 127.0.0.1 > /dev/null 2>&1 &)
           for i in $(seq 30); do curl -sf http://127.0.0.1:8133/ > /dev/null && curl -sf http://127.0.0.1:8134/ > /dev/null && break; sleep 1; done
-      - name: Twelve releases each, before and after, twice in turn
+      - name: Twelve releases each, probed (main thread, worker messages), before and after, twice in turn
         continue-on-error: true
         shell: bash
         run: |
@@ -60,12 +62,12 @@ jobs:
                 --remote-debugging-port=9222 --remote-allow-origins='*' \
                 --user-data-dir="$RUNNER_TEMP/chrome-$side-$round" about:blank > "out/chrome-$side-$round.log" 2>&1 &)
               for i in $(seq 60); do curl -sf http://127.0.0.1:9222/json/version > /dev/null && break; sleep 1; done
-              node scripts/release_timing.mjs 9222 "http://127.0.0.1:$port" "$side-$round" 12 | tee "out/$side-$round.json"
+              node scripts/release_probe.mjs 9222 "http://127.0.0.1:$port" "$side-$round" 12 > "out/$side-$round.json"; head -c 400 "out/$side-$round.json"; echo
               pkill -x chrome || true; pkill -x google-chrome || true; sleep 3
             done
           done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: release-timing-${{ matrix.job }}
+          name: release-probe-${{ matrix.job }}
           path: out/
