@@ -78,6 +78,15 @@ let log_control_tab = (~globals: Globals.t): Node.t =>
     ~globals,
   );
 
+let settings_tab = (~globals: Globals.t): Node.t =>
+  tab_of(
+    ~panel=Settings,
+    ~cls=["settings-button"],
+    ~icon=Icons.gear,
+    ~tooltip="Switch to Settings",
+    ~globals,
+  );
+
 let debug_info_tab = (~globals: Globals.t): Node.t =>
   tab_of(
     ~panel=DebugInfo,
@@ -178,6 +187,7 @@ let persistent_view =
           assistant_tab(~globals),
           probes_tab(~globals),
           problems_tab(~globals, ~counts),
+          settings_tab(~globals),
         ]
         @ (
           globals.settings.show_log_panel ? [log_control_tab(~globals)] : []
@@ -375,6 +385,7 @@ let view =
               | None => div([text("No task reference available.")])
               }
             | DebugInfo => DebugSidebar.view(~globals, ~cursor)
+            | Settings => SettingsPanel.view(~globals, ~editors_inject)
             },
           ],
         )
