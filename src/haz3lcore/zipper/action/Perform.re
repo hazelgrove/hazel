@@ -57,11 +57,33 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
   };
 };
 
+let text_in_string = (~elaborated, z: Zipper.t, text: string) =>
+  ProjectorPerform.insert_text_in_string(z, text, ~elaborated)
+  |> Option.map(((z, id, offset)) => {
+       FocusEffect.schedule_textarea(id, offset);
+       z;
+     });
+
+/* An Inner caret in the leading spaces of a continuation comment line. */
+let comment_indent_prefix = (z: Zipper.t) =>
+  switch (z.caret, z.selection.content, Zipper.neighbor_token(Right, z)) {
+  | (Inner(idx), [], Some(token)) when Token.is_comment(token) =>
+    let (prefix, suffix) = Token.split_nth(token, idx + 1);
+    switch (List.rev(String.split_on_char('\n', prefix))) {
+    | [spaces, ...[_, ..._] as previous]
+        when String.for_all(c => c == ' ', spaces) =>
+      Some((String.concat("\n", List.rev(previous)), spaces, suffix))
+    | _ => None
+    };
+  | _ => None
+  };
+
 /* Caret sits at its line's leading-whitespace boundary: everything
    left of it at its level, up to a linebreak (or buffer start), is
    spaces. True at first-content and inside the indentation run. */
 let at_line_leading_whitespace = (z: Zipper.t): bool =>
-  z.caret == Outer
+  comment_indent_prefix(z) != None
+  || z.caret == Outer
   && z.selection.content == []
   && {
     let rec all_white = (ps: list(Piece.t)) =>
@@ -205,6 +227,117 @@ let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
   );
 };
 
+/* Internal comment lines have no standalone newline pieces. When an indent
+   action intersects one, transform both kinds of line and restore the two
+   endpoints by their rendered row and column. Line counts and IDs stay stable. */
+let adjust_indent_with_comments = (~syntax: CachedSyntax.t, d, z: Zipper.t) => {
+  let measured = syntax.measured;
+  let focus = Zipper.Caret.point(measured, z);
+  let anchor =
+    Zipper.selection_anchor_point(measured, z)
+    |> Option.value(~default=focus);
+  let first = min(focus.row, anchor.row);
+  let last = max(focus.row, anchor.row);
+  let affected = row => row >= first && row <= last;
+  let rec contains_comment = seg =>
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Secondary(w) when Secondary.is_comment(w) =>
+          let m = Measured.find_w(w, measured);
+          m.last.row > m.origin.row
+          && m.last.row >= first
+          && m.origin.row <= last;
+        | Tile(t) => List.exists(contains_comment, t.children)
+        | _ => false
+        },
+      seg,
+    );
+  let has_comment = contains_comment(syntax.segment);
+  if (!has_comment) {
+    adjust_indent(d, z);
+  } else {
+    let deltas = ref(IntMap.empty);
+    let record = (row, delta) => deltas := IntMap.add(row, delta, deltas^);
+    let adjust_run = (row, seg) => {
+      let (spaces, rest) = Segment.split_space_run(seg);
+      let n = List.length(spaces);
+      let k = d == Direction.Right ? n + 2 : max(0, n - 2);
+      record(row, k - n);
+      Indentation.make_indent_spaces(k) @ rest;
+    };
+    let rec level = (seg: Segment.t): Segment.t =>
+      switch (seg) {
+      | [] => []
+      | [Piece.Secondary(w) as p, ...rest] when Secondary.is_linebreak(w) =>
+        let row = Measured.find_w(w, measured).last.row;
+        [p, ...level(affected(row) ? adjust_run(row, rest) : rest)];
+      | [Piece.Secondary(w), ...rest] when Secondary.is_comment(w) =>
+        let text = Secondary.get_string(w.content);
+        let m = Measured.find_w(w, measured);
+        let (_, lines) =
+          String.split_on_char('\n', text)
+          |> List.fold_left_map(
+               (offset, line) => {
+                 let row = Measured.point_in_token(m, text, offset).row;
+                 let next = offset + Token.length(line) + 1;
+                 if (offset == 0 || !affected(row)) {
+                   (next, line);
+                 } else {
+                   let n = ref(0);
+                   while (n^ < String.length(line) && line.[n^] == ' ') {
+                     incr(n);
+                   };
+                   let k = d == Direction.Right ? n^ + 2 : max(0, n^ - 2);
+                   record(row, k - n^);
+                   (
+                     next,
+                     String.make(k, ' ')
+                     ++ String.sub(line, n^, String.length(line) - n^),
+                   );
+                 };
+               },
+               0,
+             );
+        [
+          Piece.Secondary({
+            ...w,
+            content: Comment(String.concat("\n", lines)),
+          }),
+          ...level(rest),
+        ];
+      | [p, ...rest] => [p, ...level(rest)]
+      };
+    let segment = Zipper.unselect_and_zip(z);
+    let segment =
+      (affected(0) ? adjust_run(0, segment) : segment)
+      |> Segment.map_deep(level);
+    let measured =
+      Measured.of_segment(segment, syntax.shape_map, syntax.refractor_rows);
+    let shift = (p: Point.t): Point.t => {
+      ...p,
+      col:
+        max(
+          0,
+          p.col
+          + (IntMap.find_opt(p.row, deltas^) |> Option.value(~default=0)),
+        ),
+    };
+    let had_selection = z.selection.content != [];
+    let z = {
+      ...Zipper.unzip(~direction=Left, segment),
+      refractors: z.refractors,
+    };
+    let z =
+      Move.to_point(~measured, ~goal=shift(anchor), z)
+      |> Option.value(~default=z);
+    had_selection
+      ? Select.to_point(~chunkiness=ByChar, ~measured, ~goal=shift(focus), z)
+        |> Option.value(~default=z)
+      : z;
+  };
+};
+
 /* Whole-buffer re-indentation (the Format(Indent) action; also runs
  * before spacing normalization in Format(Spacing)). Lives here, not in
  * Indentation.re: PrettySegment depends on Indentation, and Zipper's
@@ -244,6 +377,18 @@ let rec go =
          Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
        )
     |> return(CantIntroduce)
+  /* A linebreak never splits a string or label: an expression string
+     becomes a text projector; anything else refuses the edit. */
+  | Paste(clipboard)
+      when
+        String.contains(clipboard, '\n') && Zipper.within_string_or_label(z) =>
+    StringUtil.plain_replace("\r\n", clipboard, "\n")
+    |> text_in_string(~elaborated=statics.elaborated, z)
+    |> return(CantPaste)
+  | Insert(char)
+      when String.contains(char, '\n') && Zipper.within_string_or_label(z) =>
+    text_in_string(~elaborated=statics.elaborated, z, char)
+    |> return(Cant_insert)
   | Paste(clipboard) =>
     let clipboard = Unicode.nfc_outside_strings(clipboard);
     /* pasted material can complete enclosing tiles (the completion
@@ -390,7 +535,7 @@ let rec go =
         },
       );
     } else {
-      Ok(adjust_indent(d, z));
+      Ok(adjust_indent_with_comments(~syntax, d, z));
     }
   | Move(d) =>
     Move.go(
@@ -555,10 +700,41 @@ let rec go =
       )
       |> return(Cant_destruct);
     | None =>
-      LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
-        Destruct.go(d, z, ~root) |> Option.map(maybe_reassoc)
-      )
-      |> return(Cant_destruct)
+      let comment_join =
+        switch (d, settings.indentation_ux, comment_indent_prefix(z)) {
+        | (Local(Left, ByChar), true, Some((prefix, spaces, suffix))) =>
+          let previous = ListUtil.last(String.split_on_char('\n', prefix));
+          let n = ref(0);
+          while (n^ < String.length(previous) && previous.[n^] == ' ') {
+            incr(n);
+          };
+          let indent =
+            if (String.contains(prefix, '\n')) {
+              n^;
+            } else {
+              switch (Zipper.generalized_neighbor(Right, z)) {
+              | Some(p) => Measured.find_p(p, syntax.measured).origin.col
+              | None => 0
+              };
+            };
+          if (String.length(spaces) <= indent) {
+            Insert.replace_shard_inplace(Right, prefix ++ suffix, z, ~root)
+            |> Option.map(
+                 Zipper.Caret.set(Inner(Token.length(prefix) - 1)),
+               );
+          } else {
+            None;
+          };
+        | _ => None
+        };
+      switch (comment_join) {
+      | Some(z) => Ok(z)
+      | None =>
+        LocalReformat.around(~enabled=settings.auto_reindent, z, z =>
+          Destruct.go(d, z, ~root) |> Option.map(maybe_reassoc)
+        )
+        |> return(Cant_destruct)
+      };
     };
   | Insert(char) =>
     LocalReformat.around(~enabled=settings.auto_reindent, z, z =>

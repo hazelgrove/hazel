@@ -273,6 +273,9 @@ module Selection = {
       None
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up, _} =>
       Some(Update.TAB)
+    | {key: D("Enter"), meta: Up, ctrl: Up, alt: Up, _}
+        when ProjectorPerform.can_newline_in_string(model.editor.state.zipper) =>
+      Some(Update.Perform(Project(NewlineInString)))
     /* Cmd+Enter (Mac) / Ctrl+Enter (PC) focuses indicated probe */
     | {
         key: D("Enter"),
@@ -585,7 +588,9 @@ module View = {
       Effect.bind(JsUtil.read_clipboard(), ~f=text =>
         inject(
           Perform(
-            Haz3lcore.Action.Paste(Util.StringUtil.trim_leading(text)),
+            Haz3lcore.Action.Paste(
+              Parser.prepare_clipboard(model.editor.state.zipper, text),
+            ),
           ),
         )
       );

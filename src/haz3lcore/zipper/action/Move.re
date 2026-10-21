@@ -240,13 +240,18 @@ let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
 /* (tile_id, shard_idx) precisely identifies a single shard of a tile.
  * Shards of a multi-shard tile share `tile_id` so id alone is
  * ambiguous; `shard_idx` is the shard's index within the tile's label. */
-let shard_locator = (p: option(Piece.t)): option((Id.t, int)) =>
+type inner_locator =
+  | Shard(Id.t, int)
+  | SecondaryId(Id.t);
+
+let inner_locator_of_piece = (p: option(Piece.t)): option(inner_locator) =>
   switch (p) {
   | Some(Tile(t)) =>
     switch (t.shards) {
-    | [idx] => Some((t.id, idx))
+    | [idx] => Some(Shard(t.id, idx))
     | _ => None
     }
+  | Some(Secondary(s)) => Some(SecondaryId(s.id))
   | _ => None
   };
 
@@ -273,16 +278,23 @@ let jump_to_shard = (z: t, tile_id: Id.t, shard_idx: int): option(t) => {
 
 /* Post-unselect canonicalization for collapsing a char-level selection
  * to an Inner caret target. Pre-unselect, capture the boundary piece
- * via `shard_locator`; pass `target_caret` and `locator` here after
+ * via `inner_locator_of_piece`; pass `target_caret` and `locator` here after
  * `Zipper.directional_unselect`. No-op for Outer targets or when the
- * boundary piece isn't a single-shard tile. */
+ * boundary piece isn't a token. Comments need the same restoration as
+ * tiles: reassembly can leave them to the left of another token while
+ * Inner still indexes the original comment. */
 let canonicalize_inner_unselect =
-    (~locator: option((Id.t, int)), ~target_caret: CaretBase.t, z: t): t =>
+    (~locator: option(inner_locator), ~target_caret: CaretBase.t, z: t): t =>
   switch (locator, target_caret) {
-  | (Some((tile_id, shard_idx)), Inner(_)) =>
+  | (Some(Shard(tile_id, shard_idx)), Inner(_)) =>
     switch (jump_to_shard(z, tile_id, shard_idx)) {
     | Some(z') => Zipper.Caret.set(target_caret, z')
     | None => Zipper.Caret.set(target_caret, z)
+    }
+  | (Some(SecondaryId(id)), Inner(_)) =>
+    switch (jump_to_side_of_id(Left, z, id)) {
+    | Some(z') => Zipper.Caret.set(target_caret, z')
+    | None => z
     }
   | _ => z
   };
@@ -400,7 +412,11 @@ let rec skip_spaces = (d: Direction.t, z: t): t =>
 
 /* Move to the literal line boundary, without crossing it. */
 let to_linebreak_raw = (d: Direction.t, z: t): option(t) =>
-  do_until_linebreak(local(ByToken, d), d, z);
+  do_until_text_linebreak(
+    (d, z) => local(multiline_step(d, z) ? ByChar : ByToken, d, z),
+    d,
+    z,
+  );
 
 /* Move to the line boundary, then skip back past leading/trailing
  * spaces to the first/last content on the line. */
@@ -501,7 +517,7 @@ let pre_unselect = (a: Action.move, z: t): t => {
   let target_caret: CaretBase.t =
     landing_at_anchor ? z.selection.anchor_caret : z.caret;
   let locator =
-    shard_locator(
+    inner_locator_of_piece(
       landing_at_anchor
         ? Selection.anchor_piece(z.selection)
         : Selection.focus_piece(z.selection),
