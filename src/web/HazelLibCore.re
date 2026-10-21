@@ -151,9 +151,11 @@ and of_js = (j: Js.Unsafe.any): Exp.t => {
          applied. Not None, the unelaborated form: an ascription to a sum
          type (a parameter `e : Event`) can only be pushed through a
          constructor with a type to check against the sum, so around an
-         untyped one it stays, and a case on the value is stuck. With ?
-         it goes through as a cast from ? does, checking the tag and the
-         payload against the sum. */
+         untyped one it stays, and a case on the value is stuck. Applied
+         (? -> ?), the ascription checks its tag and its payload against
+         the sum. With no value (?), it is only consistent with the sum,
+         so a tag the sum does not have is not caught there: a case then
+         finds no rule for it (or a wildcard's). */
       let name = Js.to_string(Js.Unsafe.coerce(tag));
       let unknown = Typ.temp(Unknown(Internal));
       let value = Js.Unsafe.get(j, "value");
