@@ -1,0 +1,60 @@
+# ^ticket(513): Kids' Choice slider releases on #2635 before and after merging today's #2469, profiled by Hazel phase and
+# function, on GitHub's machines, never the laptop. Pushed twice, on timing/2635-prof-before (the timing branch: #2635's
+# code at 9933091a99) and timing/2635-prof-after (5cb0d88a46 with the same timing commits); this branch's ci.yml,
+# deploy.yml and slide-timing.yml are removed, so only this runs. Each job builds the release with inline source maps,
+# then profiles twelve releases twice, in a fresh Chrome each time (scripts/slide_timing/release_profile.mjs).
+name: Release profile (#2635, ^ticket(513))
+
+on:
+  push:
+    branches:
+      - "timing/2635-prof-*"
+
+jobs:
+  profile:
+    name: Release profile (${{ matrix.job }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [r1, r2, r3]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      - name: Build the web app (release, as deployed, with source maps)
+        run: |
+          export DUNE_CACHE=enabled
+          opam exec -- dune build src --profile release
+
+      - name: Which phase each function is in (the source maps)
+        run: |
+          python3 scripts/slide_timing/phases.py --emit-map _build/default/src/web/www/hazel.js \
+            _build/default/src/web/www/worker.js > phasemap.json
+          ls -la phasemap.json
+
+      - name: Twelve releases, profiled, twice
+        continue-on-error: true
+        shell: bash
+        run: |
+          mkdir -p out
+          { echo "job: ${{ matrix.job }} on ${GITHUB_REF_NAME} at ${GITHUB_SHA::10}"; lscpu | grep -E 'Model name|^CPU\(s\)'; google-chrome --version; } | tee out/runner.txt
+          python3 scripts/dev_serve.py --port 8111 --dir _build/default/src/web/www > out/serve.log 2>&1 &
+          for i in $(seq 30); do curl -sf http://127.0.0.1:8111/ > /dev/null && break; sleep 1; done
+          for r in 1 2; do
+            (google-chrome --headless=new --mute-audio --no-first-run --no-default-browser-check \
+              --remote-debugging-port=9222 --remote-allow-origins='*' \
+              --user-data-dir="$RUNNER_TEMP/chrome-$r" about:blank > "out/chrome-$r.log" 2>&1 &)
+            for i in $(seq 60); do curl -sf http://127.0.0.1:9222/json/version > /dev/null && break; sleep 1; done
+            PHASE_MAP=phasemap.json node scripts/slide_timing/release_profile.mjs 9222 http://localhost:8111 "run-$r" 12 > "out/run-$r.json"
+            head -c 300 "out/run-$r.json"; echo
+            pkill -x chrome || true; pkill -x google-chrome || true; sleep 3
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-profile-${{ matrix.job }}
+          path: out/
