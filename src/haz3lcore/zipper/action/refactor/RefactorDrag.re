@@ -516,53 +516,8 @@ let drag_candidates =
              walks share traversal order, so they zip against the
              def's ids positionally — no clone lookup needed */
           let emerge =
-            switch (kind) {
-            | FeedLet =>
-              switch (
-                feed_plan(
-                  ~prefer_def_host=feed_pref,
-                  ~info_map,
-                  ~target,
-                  term,
-                )
-              ) {
-              | Some(Feed(_, def, _)) =>
-                let live = exp_subtree_ids(term);
-                let fresh =
-                  exp_subtree_ids(term')
-                  |> List.filter(id => !List.mem(id, live));
-                let d = exp_subtree_ids(def);
-                /* combine raises on length mismatch — guard FIRST
-                   (the eager-evaluation gotcha) */
-                let zip = ids =>
-                  List.length(ids) == List.length(d)
-                    ? List.combine(ids, d) : [];
-                switch (zip(fresh)) {
-                | [] =>
-                  /* reparse demanded a paren wrapper: the parens
-                     are genuinely NEW material (no source) — pair
-                     the inner clone, found structurally */
-                  let fresh_parens = (e: Exp.t) =>
-                    switch (IdTagged.term_of(e)) {
-                    | Parens(_) =>
-                      IdTagged.ids(e)
-                      |> List.exists(id => List.mem(id, fresh))
-                    | _ => false
-                    };
-                  switch (find_hit(~hit=fresh_parens, term')) {
-                  | Some(p) =>
-                    switch (IdTagged.term_of(p)) {
-                    | Parens(inner) => zip(exp_subtree_ids(inner))
-                    | _ => []
-                    }
-                  | None => []
-                  };
-                | pairs => pairs
-                };
-              | _ => []
-              }
-            | _ => []
-            };
+            kind == FeedLet
+              ? feed_copies(~feed_pref, ~info_map, ~target, term, term') : [];
           /* a spawned clone's track ends at the CLONE (the
              occurrence's ids no longer exist in the candidate) */
           let tgt =

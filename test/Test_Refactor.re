@@ -149,6 +149,21 @@ let drag_cands =
   };
 };
 
+let last_ride: ref(option(Zipper.t)) = ref(None);
+let caret_after_ride = () =>
+  switch (last_ride^) {
+  | Some(z) =>
+    let m =
+      Measured.of_segment(
+        Zipper.unselect_and_zip(z),
+        ProjectorCore.Shape.Map.empty,
+        Id.Map.empty,
+      );
+    let p = Zipper.Caret.point(m, z);
+    (p.row, p.col);
+  | None => ((-1), (-1))
+  };
+
 /* a whole drag: the first track of kind `first`, extended rung by
    rung as a pull would, committed as one path. Returns the rung kinds
    and the committed text. */
@@ -213,10 +228,9 @@ let ride =
     let cs = extend([c0], (target, shard), c0, rungs);
     let steps =
       cs |> List.map((c: Refactor.DragCandidate.t) => (c.kind, c.at));
-    (
-      cs |> List.map((c: Refactor.DragCandidate.t) => c.kind),
-      text_of(Test_Editing.perform(z, [Action.RefactorPath(steps)])),
-    );
+    let z' = Test_Editing.perform(z, [Action.RefactorPath(steps)]);
+    last_ride := Some(z');
+    (cs |> List.map((c: Refactor.DragCandidate.t) => c.kind), text_of(z'));
   };
 };
 
@@ -2609,6 +2623,15 @@ let regression_tests = [
         "let books =\n  let cost = 800 in\n  let tip = 5 in\n  cost + cost / 10 + tip + cost / 10\nin\nbooks",
         text,
       );
+      /* the last feed moved the definition itself into the second use:
+         the track ended there, and so does the caret */
+      let (row, col) = caret_after_ride();
+      check(
+        bool,
+        Printf.sprintf("caret on the second use's / (%d, %d)", row, col),
+        true,
+        row == 3 && (col == 31 || col == 32),
+      );
     },
   ),
   test_case(
@@ -2631,6 +2654,21 @@ let regression_tests = [
         kinds |> List.map(Action.show_refactor),
       );
       check(string, "fed", "let b = 1 + 1 + 1 in\nb", text);
+    },
+  ),
+  test_case(
+    "drag: the caret lands where the track ends (a feed follows its copy)",
+    `Quick,
+    () => {
+      let (_, text) = ride(~rungs=1, "let k = ¦3 in k + k", FeedLet);
+      check(string, "one feed", "let k = 3 in 3 + k", text);
+      let (row, col) = caret_after_ride();
+      check(
+        bool,
+        Printf.sprintf("caret on the copy (%d, %d)", row, col),
+        true,
+        row == 0 && (col == 13 || col == 14),
+      );
     },
   ),
   test_case(

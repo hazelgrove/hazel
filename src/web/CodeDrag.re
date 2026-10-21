@@ -1662,45 +1662,12 @@ let sync =
           };
         }
       );
-      let caret_delta_of =
-          (moved: list((CodeFlip.key, Js.t(Dom.node), float, float))) =>
-        switch (grab_id) {
-        | None => None
-        | Some(tid) =>
-          let of_key = (want_exact: bool, (k, _, dx, dy)) =>
-            switch (k) {
-            | CodeFlip.Shard(id, i) when id == tid =>
-              !want_exact || Some(i) == grab_shard ? Some((dx, dy)) : None
-            | _ => None
-            };
-          switch (moved |> List.find_map(of_key(true))) {
-          | Some(d) => Some(d)
-          | None => moved |> List.find_map(of_key(false))
-          };
-        };
       /* a rung: one state, laid out against the live layout. `at` is
          where its step is invoked; `held` the element the next rung
          moves — the grab while it survives, else the state's focus */
-      let mk_rung = (c: Refactor.DragCandidate.t, ~held) => {
+      let mk_rung = (c: Refactor.DragCandidate.t, ~origin: vec, ~held) => {
         let moved = moved_for(c.frame, c.measured);
         let exits = exits_for(c.frame, c.absorb, c.segment, c.measured);
-        /* a grab that dissolves into a survivor takes the caret with it */
-        let caret_into = () =>
-          switch (grab_id) {
-          | Some(tid) =>
-            exits
-            |> List.find_map(((k, _, into)) =>
-                 switch (k, into) {
-                 | (CodeFlip.Shard(id, i), Some(d))
-                     when
-                       id == tid
-                       && (grab_shard == None || Some(i) == grab_shard) =>
-                   Some(d)
-                 | _ => None
-                 }
-               )
-          | None => None
-          };
         {
           kind: c.kind,
           label: c.label,
@@ -1737,11 +1704,12 @@ let sync =
                     )
                ),
           emerge_src: c.emerge |> List.map(snd),
-          caret_delta:
-            switch (caret_delta_of(moved)) {
-            | Some(d) => Some(d)
-            | None => caret_into()
-            },
+          /* the caret is the hand: it rides the track from where the
+             held piece was to where this state puts it */
+          caret_delta: {
+            let t = px(c.target);
+            Some((t.x -. origin.x, t.y -. origin.y));
+          },
           cand: c,
           held:
             Id.Map.mem(fst(held), c.measured.tiles)
@@ -1779,7 +1747,7 @@ let sync =
                          Refactor.DragCandidate.frame_point(base, c.target),
                      }
                      : c;
-                 mk_rung(c, ~held=used);
+                 mk_rung(c, ~origin=lad.cur, ~held=used);
                });
           },
         );
@@ -1802,7 +1770,13 @@ let sync =
                  kind: c.kind,
                  label: c.label,
                  cur: px(c.current),
-                 rungs: [mk_rung(c, ~held=(target, grab_shard))],
+                 rungs: [
+                   mk_rung(
+                     c,
+                     ~origin=px(c.current),
+                     ~held=(target, grab_shard),
+                   ),
+                 ],
                  exhausted: !s.ladders,
                }
              )

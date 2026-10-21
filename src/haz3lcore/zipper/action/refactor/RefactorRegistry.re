@@ -544,7 +544,9 @@ let statics_of =
    statics checks the read-back against the program as it was before
    whatever produced the result), and place the caret */
 let land_result =
+    /* a drag lands the caret on what it held, when that survives */
     (
+      ~hand: option(Id.t)=?,
       ~settings: CoreSettings.t,
       ~info_map: Statics.Map.t,
       ~term: Exp.t,
@@ -595,7 +597,7 @@ let land_result =
       | None => try_side(Util.Direction.Right)
       };
     };
-    let candidates = [focus, target] @ ancestors;
+    let candidates = Option.to_list(hand) @ [focus, target] @ ancestors;
     switch (List.find_map(place, candidates)) {
     | Some(z'') => Some(z'')
     | None =>
@@ -724,6 +726,46 @@ let merge_target =
   };
 };
 
+/* a feed's copies: each fresh id of the result paired with the id of
+   the definition it was copied from (dragology's emergeFrom). Both walks
+   share traversal order, so they zip positionally. */
+let feed_copies =
+    (~feed_pref=false, ~info_map, ~target, term: Exp.t, term': Exp.t)
+    : list((Id.t, Id.t)) =>
+  switch (feed_plan(~prefer_def_host=feed_pref, ~info_map, ~target, term)) {
+  | Some(Feed(_, def, _)) =>
+    let live = exp_subtree_ids(term);
+    let fresh =
+      exp_subtree_ids(term') |> List.filter(id => !List.mem(id, live));
+    let d = exp_subtree_ids(def);
+    /* combine raises on length mismatch — guard FIRST
+       (the eager-evaluation gotcha) */
+    let zip = ids =>
+      List.length(ids) == List.length(d) ? List.combine(ids, d) : [];
+    switch (zip(fresh)) {
+    | [] =>
+      /* reparse demanded a paren wrapper: the parens
+         are genuinely NEW material (no source) — pair
+         the inner clone, found structurally */
+      let fresh_parens = (e: Exp.t) =>
+        switch (IdTagged.term_of(e)) {
+        | Parens(_) =>
+          IdTagged.ids(e) |> List.exists(id => List.mem(id, fresh))
+        | _ => false
+        };
+      switch (find_hit(~hit=fresh_parens, term')) {
+      | Some(p) =>
+        switch (IdTagged.term_of(p)) {
+        | Parens(inner) => zip(exp_subtree_ids(inner))
+        | _ => []
+        }
+      | None => []
+      };
+    | pairs => pairs
+    };
+  | _ => []
+  };
+
 /* a line move invoked on a grabbed value acts on the value's line:
    how a composite drag moves the line of the value it holds. The
    value's ids survive extract and lift (a fresh let's would not, so a
@@ -746,25 +788,36 @@ let go_path =
     : option(Zipper.t) => {
   id_origin := Id.Map.empty;
   binder_redirect := Id.Map.empty;
-  /* the held element; when a step dissolves it into an identical
-     survivor (merge, extract onto a twin), the caret follows it there */
+  /* what each step acts on (the held piece) and where it puts it (the
+     hand). The held piece survives in place or dissolves into an
+     identical survivor (merge, extract onto a twin), and the next step
+     acts on that. The hand is the held piece's place, or the copy a step
+     made of it (feed: the track follows the copy while the definition
+     stays held). The track ends at the hand; the caret lands there. */
   let held = ref(None);
-  let follow = (k, at, t, im) =>
-    switch (held^) {
-    | Some(h) =>
-      let (d, v) =
-        merge_target(~info_map=im, ~target=step_target(k, at, t), k, t);
-      if (List.length(d) == List.length(v)) {
-        switch (List.assoc_opt(h, List.combine(d, v))) {
-        | Some(h') => held := Some(h')
-        | None => ()
-        };
-      };
-    | None => ()
-    };
+  let hand = ref(None);
   let step = (t, im, (k, at)) => {
-    follow(k, at, t, im);
-    impl(k).prepare(~info_map=im, ~target=step_target(k, at, t), t);
+    let target = step_target(k, at, t);
+    let (d, v) = merge_target(~info_map=im, ~target, k, t);
+    let dissolved =
+      List.length(d) == List.length(v) ? List.combine(d, v) : [];
+    let result = impl(k).prepare(~info_map=im, ~target, t);
+    switch (held^, result) {
+    | (Some(h), Some((t', _))) =>
+      let copies =
+        k == FeedLet ? feed_copies(~info_map=im, ~target, t, t') : [];
+      let h' = List.assoc_opt(h, dissolved) |> Option.value(~default=h);
+      held := Some(h');
+      hand :=
+        Some(
+          switch (List.find_opt(((_, src)) => src == h, copies)) {
+          | Some((copy, _)) => copy
+          | None => h'
+          },
+        );
+    | _ => ()
+    };
+    result;
   };
   let rec run = (t: Exp.t, im, steps) =>
     switch (steps) {
@@ -782,15 +835,9 @@ let go_path =
   | [(_, target), ..._] =>
     held := Some(target);
     run(term, info_map, steps)
-    |> Option.map(((t', focus)) =>
-         (
-           t',
-           switch (held^) {
-           | Some(h) when h != target => h
-           | _ => focus
-           },
-         )
-       )
-    |> Option.bind(_, land_result(~settings, ~info_map, ~term, ~target, z));
+    |> Option.bind(
+         _,
+         land_result(~hand=?hand^, ~settings, ~info_map, ~term, ~target, z),
+       );
   };
 };
