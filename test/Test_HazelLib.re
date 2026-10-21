@@ -155,5 +155,36 @@ let tests = (
         );
       },
     ),
+    /* ^ticket(482): the Scripting panel's rules take the game's state and the event as one ascribed tuple,
+       fun (g, e) : (Globals, Event) -> ..., and the page calls them with two arguments */
+    test_case(
+      "a constructor inside an ascribed tuple of arguments, as the Scripting panel calls its rules",
+      `Quick,
+      () => {
+        let f =
+          value(
+            "type Cmd = + Done + Flip(String, Cmd) in\n"
+            ++ "type Event = + Pull(String) in\n"
+            ++ "type Globals = (lever_L = Bool, lever_R = Bool, wiring = String) in\n"
+            ++ "fun (g, e) : (Globals, Event) -> case e | Pull(s) => Flip(s, Done) end",
+          );
+        check(
+          string,
+          "Pull(\"L\")",
+          "{\"tag\":\"Flip\",\"value\":[\"L\",{\"tag\":\"Done\"}]}",
+          json(
+            call(
+              f,
+              [
+                as_js(
+                  "{\"lever_L\":true,\"lever_R\":false,\"wiring\":\"normal\"}",
+                ),
+                as_js("{\"tag\":\"Pull\",\"value\":\"L\"}"),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
   ],
 );
