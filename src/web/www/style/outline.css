@@ -81,6 +81,7 @@
   width: 8px;
   height: 100%;
   cursor: col-resize;
+  user-select: none;
   z-index: 5;
 }
 
@@ -197,6 +198,7 @@
 #outline-sidebar .outline-label {
   position: relative;
   cursor: pointer;
+  user-select: none;
   padding: 1px 4px;
   padding-right: 22px;
   margin-right: -8px;
@@ -251,6 +253,7 @@
 
 #outline-sidebar summary.outline-summary {
   cursor: pointer;
+  user-select: none;
   list-style: none;
   display: flex;
   align-items: center;
