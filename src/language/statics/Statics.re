@@ -1942,10 +1942,14 @@ and uexp_to_info_map =
         m,
       );
     | Forall(p, e) =>
-      let (p, p_elab, m) =
+      let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
       let (e, e_elab, m) =
-        go(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+        go(~ctx=p'.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      /* As with function parameters, check usage in the binder's own body
+         before removing bound names from the outward co-context. */
+      let (p, p_elab, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=p'.ty, p, m);
       add(
         ~elab_term=Forall(p_elab, e_elab) |> rewrap,
         ~elab_syn_ty=Atom(Bool) |> Typ.temp,
@@ -2258,9 +2262,12 @@ and uexp_to_info_map =
           m,
         );
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
-      /* add co_ctx to pattern */
+      /* Theorem declarations are useful without source references to their
+         names. Treat their bindings as used only for this pattern check. */
+      let theorem_co_ctx =
+        CoCtx.union([e2.co_ctx, p |> Pat.bindings |> CoCtx.of_bindings]);
       let (p, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+        go_pat(~is_synswitch=false, ~co_ctx=theorem_co_ctx, ~ana=syn, p, m);
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,
@@ -2286,9 +2293,11 @@ and uexp_to_info_map =
       let (p', _, _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (e2, e2_elab, m) = go(~ctx=p'.ctx, ~ana, e2, m);
-      /* add co_ctx to pattern */
+      /* Invalid theorem patterns get the same unused-binding exemption. */
+      let theorem_co_ctx =
+        CoCtx.union([e2.co_ctx, p |> Pat.bindings |> CoCtx.of_bindings]);
       let (p, p_elab, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
+        go_pat(~is_synswitch=false, ~co_ctx=theorem_co_ctx, ~ana=syn, p, m);
       add(
         ~elab_term=Theorem(p_elab, e1_elab, e2_elab) |> rewrap,
         ~elab_syn_ty=e2.elab_syn_ty,

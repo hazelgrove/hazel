@@ -31,6 +31,158 @@ let check_unused = (name, input, expected_unused) =>
 let tests = (
   "Unused Variable Warnings",
   [
+    check_unused(
+      "theorem: declaration needs no reference",
+      "theorem t = true in 0",
+      [],
+    ),
+    check_unused(
+      "theorem: referenced declaration",
+      "theorem t = true in t",
+      [],
+    ),
+    check_unused(
+      "theorem: shadowed declarations",
+      "theorem t = true in theorem t = true in 0",
+      [],
+    ),
+    check_unused(
+      "theorem: invalid pattern bindings are exempt too",
+      "theorem (x, y) = true in 0",
+      [],
+    ),
+    check_unused(
+      "theorem: ordinary bindings still warn",
+      "let x = 1 in theorem t = true in fun y -> 0",
+      ["x", "y"],
+    ),
+    check_unused(
+      "theorem: exemption does not use an outer binding",
+      "let t = 1 in theorem t = true in 0",
+      ["t"],
+    ),
+    check_unused(
+      "theorem: statement uses outer binding",
+      "let x = 1 in theorem t = x == x in 0",
+      [],
+    ),
+    check_unused("forall: used binder", "forall (x : Int) -> x == x", []),
+    check_unused("forall: unused binder", "forall (x : Int) -> true", ["x"]),
+    check_unused(
+      "forall: tuple partial use",
+      "forall (x : Int, y : Int) -> x == x",
+      ["y"],
+    ),
+    check_unused(
+      "forall: nested binders both used",
+      "forall (x : Int) -> forall (y : Int) -> x == y",
+      [],
+    ),
+    check_unused(
+      "forall: nested unused inner binder",
+      "forall (x : Int) -> forall (y : Int) -> x == x",
+      ["y"],
+    ),
+    check_unused(
+      "forall: shadowed outer binder unused",
+      "forall (x : Int) -> forall (x : Int) -> x == x",
+      ["x"],
+    ),
+    check_unused(
+      "forall: both shadowed binders unused",
+      "forall (x : Int) -> forall (x : Int) -> true",
+      ["x", "x"],
+    ),
+    check_unused(
+      "forall: let shadows binder",
+      "forall (x : Int) -> let x = 1 in x == x",
+      ["x"],
+    ),
+    check_unused(
+      "forall: bound use does not escape",
+      "let x = 1 in forall (x : Int) -> x == x",
+      ["x"],
+    ),
+    check_unused(
+      "forall: free use reaches outer binding",
+      "let x = 1 in forall (y : Int) -> x == y",
+      [],
+    ),
+    check_unused(
+      "forall: hole suppresses warning",
+      "forall (x : Int) -> ?",
+      [],
+    ),
+    test_case(
+      "list theorem example has no warnings",
+      `Quick,
+      () => {
+        /* Standalone copy of the theorem-refactor branch's list example. */
+        let input = {|# Lists: map, sum, and associativity. All equations work both ways. #
+let inc(n : Int) = n + 1 in
+let double(n : Int) = n * 2 in
+let sum(items : [Int]) = fold_left(items, int_plus, 0) in
+
+theorem map_fusion =
+  forall (items : [Int]) ->
+  forall (f : Int -> Int) -> forall (g : Int -> Int) ->
+    map(map(items, f), g) == map(items, fun x -> g(f(x)))
+in
+
+theorem map_append =
+  forall (left : [Int]) -> forall (right : [Int]) ->
+  forall (f : Int -> Int) ->
+    map(left @ right, f) == map(left, f) @ map(right, f)
+in
+
+theorem sum_append =
+  forall (left : [Int]) -> forall (right : [Int]) ->
+    sum(left @ right) == sum(left) + sum(right)
+in
+
+theorem list_associativity =
+  forall (a : [Int]) -> forall (b : [Int]) -> forall (c : [Int]) ->
+    (a @ b) @ c == a @ (b @ c)
+in
+
+theorem add_associativity =
+  forall (a : Int) -> forall (b : Int) -> forall (c : Int) ->
+    (a + b) + c == a + (b + c)
+in
+
+theorem sum_double =
+  forall (items : [Int]) ->
+    sum(map(items, double)) == double(sum(items))
+in
+
+let xs = [1, 2, 3] in
+let ys = [4, 5] in
+let zs = [6] in
+
+# Start with a small example, then combine the same moves below. #
+(
+  fuse_maps = map(map(xs, inc), double),
+  distribute_map = map(xs @ ys, double),
+  split_sum = sum(xs @ ys),
+  regroup_lists = (xs @ ys) @ zs,
+  regroup_sums = (sum(xs) + sum(ys)) + sum(zs),
+  pull_out_double = sum(map(xs, double)),
+
+  # Several routes: fuse maps, distribute over @, split sums, regroup. #
+  playground = sum(map(map((xs @ ys) @ zs, inc), double))
+)
+|};
+        let s = statics(parse_exp(input));
+        check(int, "static error count", 0, List.length(errors(s)));
+        let warnings =
+          Id.Map.fold(
+            (_id, info, acc) => Info.warnings_of(info) @ acc,
+            s,
+            [],
+          );
+        check(int, "warning count", 0, List.length(warnings));
+      },
+    ),
     /* ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
        LET BINDINGS
        ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
