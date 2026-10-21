@@ -181,10 +181,10 @@ let agent = () =>
     ),
   );
 
-let mega_2k_insert = (row, ()) => {
-  let z = corpus("mega-2k.hz");
-  let statics = statics_of(z);
-  edit(~statics, at(~statics, z, row, 6), Insert(" "));
+/* a space at [row]: Mega 2k's rows 100 and 900 are these lines too */
+let mega_insert = (row, ()) => {
+  let statics = Lazy.force(dew_statics);
+  edit(~statics, at(~statics, Lazy.force(dew), row, 6), Insert(" "));
 };
 
 /* bounds: pieces the edit may replace, and items or chunks each layer
@@ -226,7 +226,7 @@ let tests = (
     /* the two members swapped, and their module's shell */
     case("restructure", ~items=3, ~analyzed=8, restructure),
     case("agent update", agent),
-    case("mega-2k row 900", ~typing=true, mega_2k_insert(900)),
-    case("mega-2k row 100", ~typing=true, mega_2k_insert(100)),
+    case("mega-1k row 900", ~typing=true, mega_insert(900)),
+    case("mega-1k row 100", ~typing=true, mega_insert(100)),
   ],
 );

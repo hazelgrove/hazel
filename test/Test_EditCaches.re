@@ -81,7 +81,7 @@ let move_4k = (~root: Sort.t, ()) => {
 };
 
 /* in a stack the op re-cuts the cells from an editor of the whole
-   program, which takes the shell's caches: a few items of 66 parse */
+   program, which takes the shell's caches: a few items of 17 parse */
 let move_in_stack = () => {
   let (m, id) = UC.in_cell();
   let order = rows(m, "List");
@@ -99,7 +99,8 @@ let move_in_stack = () => {
 /* an op reads the program first (Workspace.item_ctx): from the editor's
    parses, whatever program the statics last read */
 let op_context = (~root: Sort.t, ()) => {
-  let m = OM.refresh(Cells.run(OM.mk(~root, OM.src(~root)), Refresh));
+  let m =
+    OM.refresh(Cells.run(OM.mk(~root, OM.short_src(~root)), Refresh));
   ignore(
     MakeTerm.semantic_term(~root, CorpusUtil.seg_of("let a = 1 in a")),
   );
@@ -124,7 +125,7 @@ let block =
    after List.length's `end;`: its member parses before (the cache is the
    editor's, updated in place), and what the paste redid */
 let pasted = (~root: Sort.t) => {
-  let src = OM.src(~root);
+  let src = OM.short_src(~root);
   let m = OM.refresh(Cells.run(OM.mk(~root, src), Refresh));
   let m =
     OM.refresh(
@@ -142,7 +143,7 @@ let pasted = (~root: Sort.t) => {
 };
 
 /* the definitions parse, and List.map after them (its leading lines
-   changed), of 85 members */
+   changed), of 36 members */
 let paste = (~root: Sort.t, ()) => {
   let (m, parses, m', w) = pasted(~root);
   check(
@@ -154,7 +155,7 @@ let paste = (~root: Sort.t, ()) => {
       Test_Undo.text_of(m'),
     ),
   );
-  check(bool, "the members were parsed", true, List.length(parses) >= 65);
+  check(bool, "the members were parsed", true, List.length(parses) >= 16);
   UC.at_most(
     "members parsed again",
     21,

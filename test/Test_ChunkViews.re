@@ -350,9 +350,9 @@ let tests = (
     test_case("drawers and projectors in members", `Quick, drawers),
     test_case("a member edit re-renders one chunk", `Quick, rerenders),
     test_case("two editors on one program", `Quick, two_editors),
+    /* Mega 2k and 4k repeat its shapes */
     test_case("mega-1k", `Quick, corpus("mega-1k.hz")),
     test_case("mega-mod-1k", `Quick, corpus(~root=Mod, "mega-mod-1k.hz")),
-    test_case("mega-4k", `Slow, corpus("mega-4k.hz")),
     test_case("slides", `Slow, slides),
   ],
 );

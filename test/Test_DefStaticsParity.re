@@ -56,8 +56,9 @@ let op = (op: Web.OutlineEdit.def_op, path) =>
     }
   );
 
-/* an outline move (Alt↑↓), which can carry a member across a module edge */
-let move = (~up, path) =>
+/* an outline op as its keys apply it (ItemEdit.edit): Alt↑↓ can carry a
+   member across a module edge, Tab and ⇧Tab move it across levels */
+let edit_op = (op: Web.OutlineEdit.def_op, path) =>
   step((~root, seg) => {
     let term = MakeTerm.Incr.term_of_root(~root, seg);
     let ctx: Web.ItemEdit.ctx = {
@@ -66,18 +67,13 @@ let move = (~up, path) =>
       info_map: lazy(Statics.Map.empty),
       is_open: _ => true,
     };
-    switch (
-      Web.ItemEdit.edit(
-        ctx,
-        Op(up ? MoveUp : MoveDown, CorpusUtil.row(term, path)),
-        seg,
-      )
-    ) {
+    switch (Web.ItemEdit.edit(ctx, Op(op, CorpusUtil.row(term, path)), seg)) {
     | Ok((seg, _)) => seg
     | Error(why) =>
-      fail("move failed at " ++ String.concat("/", path) ++ ": " ++ why)
+      fail("op failed at " ++ String.concat("/", path) ++ ": " ++ why)
     };
   });
+let move = (~up, path) => edit_op(up ? MoveUp : MoveDown, path);
 
 let evaluate = (~prev=IncrEval.empty, info_map, elab) =>
   Evaluator.evaluate(
@@ -108,7 +104,18 @@ let tests_of = (state: EvaluatorState.t) =>
     ),
   );
 
-let script = (~root=Sort.Exp, ~eval=true, src: string, steps: list(step), ()) => {
+/* [delta]: also each step's bookkeeping (DefStaticsCheck.delta_diffs: the
+   items' maps and aggregates against a cold calc's, which covers the cold
+   half of divergences) */
+let script =
+    (
+      ~root=Sort.Exp,
+      ~eval=true,
+      ~delta=false,
+      src: string,
+      steps: list(step),
+      (),
+    ) => {
   let calc = (~prev=?, seg) =>
     DefStatics.calc(
       ~settings,
@@ -116,7 +123,7 @@ let script = (~root=Sort.Exp, ~eval=true, src: string, steps: list(step), ()) =>
       MakeTerm.Incr.term_of_root(~root, seg),
     );
   /* checks step [i]'s result, threading the seeded cache and the value */
-  let exact = (i, s: step, ds: DefStatics.t, (cache, value)) => {
+  let exact = (i, s: step, ~prev=?, ds: DefStatics.t, (cache, value)) => {
     let name = "step " ++ string_of_int(i);
     Option.iter(
       n => check(int, name ++ " analyzed", n, DefStatics.last_analyzed^),
@@ -126,7 +133,10 @@ let script = (~root=Sort.Exp, ~eval=true, src: string, steps: list(step), ()) =>
       list(string),
       name,
       [],
-      DefStaticsCheck.divergences(~settings, ds),
+      delta
+        ? DefStaticsCheck.delta_diffs(~settings, ~prev?, ds)
+          @ DefStaticsCheck.divergences(~settings, ~cold=false, ds)
+        : DefStaticsCheck.divergences(~settings, ds),
     );
     if (eval) {
       let elab = graft(ds);
@@ -176,7 +186,7 @@ let script = (~root=Sort.Exp, ~eval=true, src: string, steps: list(step), ()) =>
       ((i, seg, prev, threaded), s: step) => {
         let seg = s.edit(~root, seg);
         let ds = calc(~prev, seg);
-        (i + 1, seg, ds, exact(i, s, ds, threaded));
+        (i + 1, seg, ds, exact(i, s, ~prev, ds, threaded));
       },
       (1, seg, ds, threaded),
       steps,
@@ -184,9 +194,9 @@ let script = (~root=Sort.Exp, ~eval=true, src: string, steps: list(step), ()) =>
   );
 };
 
-let mega = (~root, ~eval=true, ~wrap=src => src, file, steps, ()) =>
+let mega = (~root, ~eval=true, ~delta=false, file, steps, ()) =>
   switch (CorpusUtil.mega_src(file)) {
-  | Some(src) => script(~root, ~eval, wrap(src), steps, ())
+  | Some(src) => script(~root, ~eval, ~delta, src, steps, ())
   | None => fail("corpus unreadable: " ++ file)
   };
 
@@ -893,6 +903,17 @@ let module_roots = [
       ],
     ),
   ),
+  /* a member edit costs about one member, not the whole module: App, its
+     M member and that one's edited member */
+  test_case(
+    "a module of modules",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module App = {\n" ++ mod_root_src ++ "\n}",
+      [token("16", "17") |> analyzed(3)],
+    ),
+  ),
   test_case(
     "a recursive type export",
     `Quick,
@@ -981,30 +1002,39 @@ let modexp_chains = [
     ),
   ),
   test_case(
-    "mega-1k as one ModExp member",
+    "a module chain as one ModExp member",
     `Quick,
-    /* the program inside braces: its module chain (with the first test)
-       is one ModExp member. an edit costs Mega, that member, the
-       WateringTimer link and its selfcheck member */
-    /* seeded evaluation at this size costs ~13s; the smaller chain cases
-       check it */
-    mega(
+    /* a program of module links inside braces, as Mega 1k's: its module
+       chain (with the first test) is one ModExp member. an edit costs
+       Mega, that member, the Timer link and its selfcheck member */
+    script(
       ~root=Mod,
-      ~eval=false,
-      ~wrap=src => "module Mega = {\n" ++ src ++ "\n}",
-      "mega-1k.hz",
+      "module Mega = {\nmodule Text = {\n  let pad = fun n -> n + 1\n} in\nmodule Timer = {\n  let format = fun m -> Text.pad(m) * 2;\n  let selfcheck = fun _ -> format(180) == 362\n} in\ntest Text.pad(1) == 2 end;\ntest Timer.selfcheck(()) end;\nlet final = Timer.format(0) in\nfinal == 2\n}",
       [token("180", "181") |> analyzed(4)],
     ),
   ),
 ];
 
-/* the mega programs: a few edits each, at scale */
+/* a literal (WateringTimer and its selfcheck member re-analyze), a rename,
+   a member added, deleted, moved and outdented */
+let mega_steps = [
+  token("180", "181") |> analyzed(2),
+  token(~at=`First, "pad", "pad2"),
+  op(NewBelow, ["WateringTimer", "format"]),
+  op(Delete, ["WateringTimer", "format"]),
+  op(MoveDown, ["HarvestLedger", "cropValue"]),
+  edit_op(Outdent, ["WateringTimer", "selfcheck"]),
+];
+
+/* the mega programs at scale, a step's bookkeeping checked too (the
+   delta check DefStaticsDelta ran on its own copies of them) */
 let corpus = [
   test_case(
     "mega-1k",
     `Quick,
     mega(
       ~root=Exp,
+      ~delta=true,
       "mega-1k.hz",
       [
         /* WateringTimer and its selfcheck member, which this breaks */
@@ -1013,41 +1043,20 @@ let corpus = [
         token("morning", "evening") |> analyzed(2),
         /* the tail only */
         token(~at=`Last, ~keep_id=true, "9", "8") |> analyzed(1),
-        /* retypes a selfcheck that MetaRunner consumes downstream */
+        /* retypes a selfcheck that MetaRunner consumes downstream (the
+           small type_deps rows retype exports) */
         token(~at=`First, ~keep_id=true, "Bool", "String"),
-        /* an export's type */
-        token(~at=`First, ~keep_id=true, "Int", "Bool"),
-        token("75", "\"x\""),
+        op(NewBelow, ["WateringTimer", "format"]),
         op(Delete, ["WateringTimer", "format"]),
+        op(MoveDown, ["HarvestLedger", "cropValue"]),
+        edit_op(Outdent, ["WateringTimer", "selfcheck"]),
       ],
     ),
   ),
   test_case(
     "mega-mod-1k",
     `Quick,
-    mega(
-      ~root=Mod,
-      ~eval=false,
-      "mega-mod-1k.hz",
-      [
-        token("180", "181") |> analyzed(2),
-        token("75", "\"x\""),
-        op(Delete, ["WateringTimer", "format"]),
-      ],
-    ),
-  ),
-  test_case(
-    "mega-mod-1k in one module",
-    `Quick,
-    /* a member edit costs about one member, not the whole module: App,
-       its WateringTimer member and that one's edited member */
-    mega(
-      ~root=Mod,
-      ~eval=false,
-      ~wrap=src => "module App = {\n" ++ src ++ "\n}",
-      "mega-mod-1k.hz",
-      [token("180", "181") |> analyzed(3)],
-    ),
+    mega(~root=Mod, ~eval=false, ~delta=true, "mega-mod-1k.hz", mega_steps),
   ),
 ];
 

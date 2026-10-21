@@ -4,145 +4,12 @@ open Language;
 
 /* DefStatics updates a chain's bookkeeping where items changed: after
    member edits (literals, retypes, renames, adds, removes, moves within
-   and across modules) its maps and aggregates equal a calc from scratch.
-   and a clean member keeps its term, so its head costs no structural
-   compare */
+   and across modules) its maps and aggregates equal a calc from scratch
+   (DefStaticsCheck.delta_diffs, which DefStaticsParity's mega scripts
+   run too). and a clean member keeps its term, so its head costs no
+   structural compare */
 
 let settings = CoreSettings.on;
-
-/* how [t] differs from a cold calc of its term: the merged map by key,
-   every item's map (members included) by its keys and, where the item
-   is new since [prev], its infos; and the items' aggregates */
-let delta_diffs = (~prev=?, t: DefStatics.t): list(string) => {
-  let analyzed = DefStatics.last_analyzed^;
-  let cold = DefStatics.calc(~settings, ~probe_ids=t.probe_ids, t.term);
-  DefStatics.last_analyzed := analyzed;
-  let out = ref([]);
-  let note = s => out := [s, ...out^];
-  let cls = i => Cls.show(Info.cls_of(i));
-  /* [places]: the merged map, whose roots read as in the whole program
-     (an item's own map holds its hollow analysis) */
-  let maps =
-      (
-        ~infos=true,
-        ~places=false,
-        what,
-        got: Statics.Map.t,
-        want: Statics.Map.t,
-      ) => {
-    let n = ref(0);
-    let at = (id, s) => {
-      incr(n);
-      if (n^ <= 3) {
-        note(what ++ ": " ++ s ++ " " ++ Id.str8(id));
-      };
-    };
-    ignore(
-      Id.Map.merge(
-        (id, g, w) => {
-          switch (g, w) {
-          | (Some(g), Some(w)) when infos =>
-            Option.iter(
-              d => at(id, d ++ " at " ++ cls(w)),
-              DefStaticsCheck.differ(~types=true, w, g),
-            );
-            if (places) {
-              Option.iter(
-                d => at(id, d ++ " at " ++ cls(w)),
-                DefStaticsCheck.place_differs(~a_map=want, w, ~b_map=got, g),
-              );
-            };
-          | (Some(_), Some(_)) => ()
-          | (Some(g), None) => at(id, "stale " ++ cls(g))
-          | (None, Some(w)) => at(id, "missing " ++ cls(w))
-          | (None, None) => ()
-          };
-          None;
-        },
-        got,
-        want,
-      ),
-    );
-    if (n^ > 3) {
-      note(what ++ ": " ++ string_of_int(n^) ++ " keys in all");
-    };
-  };
-  let ids = xs => List.sort(compare, List.map(Id.str8, xs));
-  let same = (what, show, a, b) =>
-    if (a != b) {
-      note(what ++ ": " ++ show(b) ++ " / " ++ show(a));
-    };
-  let names = String.concat(" ");
-  maps(~places=true, "merged", t.merged, cold.merged);
-  same(
-    "errors",
-    names,
-    ids(DefStatics.all_error_ids(t)),
-    ids(DefStatics.all_error_ids(cold)),
-  );
-  same(
-    "warnings",
-    names,
-    ids(DefStatics.all_warning_ids(t)),
-    ids(DefStatics.all_warning_ids(cold)),
-  );
-  /* maps the last step had, already compared then */
-  let seen = Hashtbl.create(64);
-  let rec remember = (items: list(DefStatics.item)) =>
-    List.iter(
-      (it: DefStatics.item) => {
-        Hashtbl.replace(seen, Id.to_string(it.d_id), it.d_map);
-        remember(it.d_members);
-      },
-      items,
-    );
-  Option.iter((p: DefStatics.t) => remember(p.items), prev);
-  let fresh = (it: DefStatics.item) =>
-    switch (Hashtbl.find_opt(seen, Id.to_string(it.d_id))) {
-    | Some(m) => m !== it.d_map
-    | None => true
-    };
-  let rec items = (path, got: list(DefStatics.item), want) =>
-    if (List.length(got) != List.length(want)) {
-      note(path ++ ": item count");
-    } else {
-      List.iter2(
-        (g: DefStatics.item, w: DefStatics.item) => {
-          let at = path ++ "/" ++ Id.str8(w.d_id);
-          if (g.d_id != w.d_id) {
-            note(at ++ ": id " ++ Id.str8(g.d_id));
-          } else {
-            maps(~infos=fresh(g), at, g.d_map, w.d_map);
-            same(
-              at ++ " errors",
-              names,
-              ids(g.d_error_ids),
-              ids(w.d_error_ids),
-            );
-            same(
-              at ++ " warnings",
-              names,
-              ids(g.d_warning_ids),
-              ids(w.d_warning_ids),
-            );
-            same(at ++ " free", names, g.d_free, w.d_free);
-            same(at ++ " tfree", names, g.d_tfree, w.d_tfree);
-            same(
-              at ++ " exports",
-              names,
-              List.map(DefStatics.entry_name, g.d_exports),
-              List.map(DefStatics.entry_name, w.d_exports),
-            );
-            items(at, g.d_members, w.d_members);
-          };
-        },
-        got,
-        want,
-      );
-    };
-  items("", t.items, cold.items);
-  List.rev(out^);
-};
 
 /* each step's calc from the last one's equals a cold calc; [mono] also
    checks it against monolithic statics */
@@ -167,7 +34,12 @@ let script =
         let seg = s.edit(~root, seg);
         let ds = calc(~prev, seg);
         let name = "step " ++ string_of_int(i);
-        check(list(string), name, [], delta_diffs(~prev, ds));
+        check(
+          list(string),
+          name,
+          [],
+          DefStaticsCheck.delta_diffs(~settings, ~prev, ds),
+        );
         if (mono) {
           check(
             list(string),
@@ -198,7 +70,12 @@ let typed = (~root, src, after, keys, ()) => {
         let typed = typed ++ c;
         let ds = DefStatics.calc(~settings, ~prev, term_of(z));
         let name = String.escaped(typed);
-        check(list(string), name, [], delta_diffs(~prev, ds));
+        check(
+          list(string),
+          name,
+          [],
+          DefStaticsCheck.delta_diffs(~settings, ~prev, ds),
+        );
         check(
           list(string),
           name ++ " vs monolithic",
@@ -247,12 +124,6 @@ let moved_ids = [
     "\nlet q = fun x -> x +",
   ),
 ];
-
-let mega = (~root, file, steps, ()) =>
-  switch (CorpusUtil.mega_src(file)) {
-  | Some(src) => script(~root, src, steps, ())
-  | None => fail("corpus unreadable: " ++ file)
-  };
 
 /* the stdlib's shape: Option and List (cut down), a type member, a
    nested module, a let-chain member and member tests */
@@ -356,23 +227,8 @@ List.length(List.map([1, 2, 3], fun x -> x + 1))";
 module P = Test_DefStaticsParity;
 let (token, op, move) = (P.token, P.op, P.move);
 
-/* an outline op across levels (Tab, ⇧Tab), which go through
-   ItemEdit.edit */
-let level = (op: Web.OutlineEdit.def_op, path): P.step =>
-  P.step((~root, seg) => {
-    let term = MakeTerm.Incr.term_of_root(~root, seg);
-    let ctx: Web.ItemEdit.ctx = {
-      mod_root: root == Sort.Mod,
-      term,
-      info_map: lazy(Statics.Map.empty),
-      is_open: _ => true,
-    };
-    switch (Web.ItemEdit.edit(ctx, Op(op, CorpusUtil.row(term, path)), seg)) {
-    | Ok((seg, _)) => seg
-    | Error(why) =>
-      fail("op failed at " ++ String.concat("/", path) ++ ": " ++ why)
-    };
-  });
+/* an outline op across levels (Tab, ⇧Tab) */
+let level = P.edit_op;
 
 /* [token]'s edit where the program has the token */
 let token_if = (~at, needle, repl): P.step =>
@@ -408,15 +264,6 @@ let lib_restructures = [
   level(Outdent, ["List", "last"]),
   move(~up=true, ["List", "map"]),
   level(Indent, ["last"]),
-];
-
-let mega_steps = [
-  token("180", "181"),
-  token(~at=`First, "pad", "pad2"),
-  op(NewBelow, ["WateringTimer", "format"]),
-  op(Delete, ["WateringTimer", "format"]),
-  op(MoveDown, ["HarvestLedger", "cropValue"]),
-  level(Outdent, ["WateringTimer", "selfcheck"]),
 ];
 
 /* a member edit in List: MakeTerm keeps the other members' terms and
@@ -488,7 +335,7 @@ let clean_heads = () => {
     list(string),
     "and the result is a cold calc's",
     [],
-    delta_diffs(ds1),
+    DefStaticsCheck.delta_diffs(~settings, ds1),
   );
 };
 
@@ -553,11 +400,7 @@ let tests = (
   [
     test_case("clean members compare in O(1)", `Quick, clean_heads),
     test_case("co_union is CoCtx.union", `Quick, co_union_is_union),
-    test_case(
-      "a lib-like module, member edits",
-      `Quick,
-      script(~root=Mod, ~mono=true, lib, lib_edits),
-    ),
+    /* lib_edits first: their own run would be this one's prefix */
     test_case(
       "a lib-like module, adds, removes and moves",
       `Quick,
@@ -602,14 +445,6 @@ let tests = (
         ),
       moved_ids,
     )
-  @ [
-    test_case("mega-1k", `Quick, mega(~root=Exp, "mega-1k.hz", mega_steps)),
-    test_case(
-      "mega-mod-1k",
-      `Quick,
-      mega(~root=Mod, "mega-mod-1k.hz", mega_steps),
-    ),
-  ]
   @ List.map(
       ((path, src)) =>
         test_case(

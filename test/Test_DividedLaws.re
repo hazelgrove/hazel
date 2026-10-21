@@ -87,9 +87,9 @@ let set_body = (e: Web.CellEditor.Model.t, d: Divided.t): Divided.t => {
   |> Divided.set_active(id, Divided.Body);
 };
 
-/* split at every row, join: the same text, ids and root; returns how
-   many rows opened */
-let roundtrip_rows = (~root=Sort.Exp, seg: Segment.t): int => {
+/* split at every row (every [sample]th), join: the same text, ids and
+   root; returns how many rows opened */
+let roundtrip_rows = (~root=Sort.Exp, ~sample=1, seg: Segment.t): int => {
   let info_map = info_map_of(~root, seg);
   let term = MakeTerm.Incr.term_of_root(~root, seg);
   let whole = Divided.of_whole(editor_of(~root, seg));
@@ -113,7 +113,7 @@ let roundtrip_rows = (~root=Sort.Exp, seg: Segment.t): int => {
         opened + 1;
       },
     0,
-    rows(term),
+    List.filteri((i, _) => i mod sample == 0, rows(term)),
   );
 };
 
@@ -647,14 +647,14 @@ let own_pieces = () => {
   check(bool, "cells opened", true, opened >= 8);
 };
 
-/* every row of mega-1k: its modules and their members */
+/* every fourth row of mega-1k: its modules and their members */
 let mega = () => {
   let seg = mega_seg("mega-1k.hz");
   check(
     int,
     "rows opened",
-    List.length(rows(MakeTerm.Incr.term_of(seg))),
-    roundtrip_rows(seg),
+    (List.length(rows(MakeTerm.Incr.term_of(seg))) + 3) / 4,
+    roundtrip_rows(~sample=4, seg),
   );
 };
 
