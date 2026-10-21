@@ -87,7 +87,10 @@ let test_module_keyword_lowercase =
    in statics (the signature does not admit the extra member), but it still
    runs, and M.x is the member, 1, as a labeled tuple's projection gives */
 let test_module_one_member_signature =
-  test_case("A module under a one-member signature runs as itself", `Quick, () => {
+  test_case(
+    "Projecting a declared member of a module wider than its signature",
+    `Quick,
+    () => {
     parse_and_evaluate_test(
       "1",
       {|module M : { let x : Int } = { let x = 1; let y = 2 } in M.x|},
