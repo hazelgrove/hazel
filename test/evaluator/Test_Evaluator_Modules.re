@@ -103,12 +103,37 @@ let test_module_function =
     parse_and_evaluate_test("3", {|module F = fun x -> x + 1 in F(2)|})
   });
 
-/* A module's definition names the module it shadows, not itself */
+/* A module's definition can use the module it shadows. The definition's
+   elaboration runs without a fixpoint, so this result does not show which
+   F the statics bound; Statics.Modules checks that. */
 let test_module_shadows_module =
-  test_case("A module definition names the module it shadows", `Quick, () => {
+  test_case("A module definition uses the module it shadows", `Quick, () => {
     parse_and_evaluate_test(
       "4",
       {|module F = fun x -> x + 1 in module F = fun x -> F(x) * 2 in F(1)|},
+    )
+  });
+
+/* G defined in terms of G, where an outer G exists. As a `module ... in`
+   binding it is not recursive, so its G is the outer one: G(3) = 20 + 1.
+   As an item in braces it lowers to a plain Let, which is recursive, so G
+   calls itself: G(3) = 3. This pins that split as it is, until it is
+   decided whether braces items are recursive. */
+let test_module_binding_uses_outer =
+  test_case(
+    "A module binding's G is the outer G (pins the braces split)", `Quick, () => {
+    parse_and_evaluate_test(
+      "21",
+      {|module G = fun (n : Int) -> n * 10 in module G = fun (n : Int) -> if n == 0 then 0 else G(n - 1) + 1 in G(3)|},
+    )
+  });
+
+let test_module_item_calls_itself =
+  test_case(
+    "A module item's G calls itself (pins the braces split)", `Quick, () => {
+    parse_and_evaluate_test(
+      "3",
+      {|module G = fun (n : Int) -> n * 10 in module Outer = { module G = fun (n : Int) -> if n == 0 then 0 else G(n - 1) + 1 } in Outer.G(3)|},
     )
   });
 
@@ -187,6 +212,8 @@ let tests = (
     test_module_one_member_signature,
     test_module_function,
     test_module_shadows_module,
+    test_module_binding_uses_outer,
+    test_module_item_calls_itself,
     test_module_def_recursive_let,
     test_module_keyword_capitalized,
     test_module_keyword_in_mod,
