@@ -251,9 +251,8 @@ let tests = [
       test_case("edited slide round-trips", `Slow, edited_key_round_trips),
       test_case("edited slide keys differently", `Slow, edited_key_differs),
       test_case("cache format round-trips", `Quick, theme_cache_round_trips),
-      /* Slow: it analyzes the whole Colors slide (about half a second, see
-         Test_ColorConfiguration), whose contract the quick set checks
-         there */
+      /* Slow: it analyzes the whole Colors slide, about half a second (see
+         Test_ColorConfiguration) */
       test_case(
         "startup theme is complete",
         `Slow,
