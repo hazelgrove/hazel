@@ -1,8 +1,14 @@
 name: Benchmark Comparison
 
+# DISABLED: no longer triggered by a /bench-compare comment. It needs bench-<sha> artifacts, which no workflow on dev uploads (bench.yml is only on the perf-bench branch, #2161),
+# so on dev it has only failed. It also ran a PR's own code for any
+# commenter, with a token that can write to the PR. Performance regressions
+# are caught instead by counted budgets in the test suite
+# (test/evaluator/Test_PerfBudgets.re), which do not depend on runner speed.
+# Dispatching it by hand does nothing: the job's condition below needs a
+# comment. To revive it, restore the trigger along with what it needs.
 on:
-  issue_comment:
-    types: [created]
+  workflow_dispatch:
 
 jobs:
   compare:
