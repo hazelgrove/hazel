@@ -1636,8 +1636,35 @@ let sync =
         | (Some(_), None) => Some(Gone)
         | _ => None
         };
-      let grab_id = Indicated.index(z);
-      let grab_shard = Indicated.shard_index(z);
+      /* the token whose character cell the press landed in; the caret
+         (rounded to the nearer gap) would pick the left neighbour of a
+         one-character token pressed on its left half */
+      let pressed = {
+        let row = int_of_float(floor(s.down_at.y /. font_metrics.row_height))
+        and col = int_of_float(floor(s.down_at.x /. font_metrics.col_width));
+        Id.Map.fold(
+          (id, shards, found) =>
+            switch (found) {
+            | Some(_) => found
+            | None =>
+              shards
+              |> List.find_map(((i, m: Measured.measurement)) =>
+                   m.origin.row == row
+                   && m.last.row == row
+                   && m.origin.col <= col
+                   && col < m.last.col
+                     ? Some((id, i)) : None
+                 )
+            },
+          measured.tiles,
+          None,
+        );
+      };
+      let (grab_id, grab_shard) =
+        switch (pressed) {
+        | Some((id, i)) => (Some(id), Some(i))
+        | None => (Indicated.index(z), Indicated.shard_index(z))
+        };
       s.grab_ids = (
         switch (grab_id) {
         | Some(tid) => Some((tid, grab_shard))

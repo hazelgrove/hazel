@@ -226,6 +226,17 @@ let ride =
           }
         );
     let cs = extend([c0], (target, shard), c0, rungs);
+    if (Sys.getenv_opt("RIDE_DEBUG") != None) {
+      cs
+      |> List.iter((c: Refactor.DragCandidate.t) =>
+           print_endline(
+             "RIDE "
+             ++ Action.show_refactor(c.kind)
+             ++ ":\n"
+             ++ Printer.of_segment(~holes="?", ~refractors=[], c.segment),
+           )
+         );
+    };
     let steps =
       cs |> List.map((c: Refactor.DragCandidate.t) => (c.kind, c.at));
     let z' = Test_Editing.perform(z, [Action.RefactorPath(steps)]);
@@ -2649,6 +2660,83 @@ let regression_tests = [
         Printf.sprintf("caret on the copy (%d, %d)", row, col),
         true,
         row == 0 && (col == 13 || col == 14),
+      );
+    },
+  ),
+  test_case(
+    "sugar function: extract, then lift out of it (r blocks the hoist)",
+    `Quick,
+    () => {
+      let (kinds, text) =
+        ride(
+          ~rungs=3,
+          "let rim = 3 in\nlet wheel(r) =\n  r ¦* r * 314 / 100\nin\nwheel(rim)",
+          ExtractLet,
+        );
+      check(
+        list(string),
+        "rungs",
+        ["ExtractLet", "LiftFunction", "HoistLet"],
+        kinds |> List.map(Action.show_refactor),
+      );
+      check(bool, "committed: " ++ text, true, text != "");
+    },
+  ),
+  test_case(
+    "sugar function: a body line using a parameter does not hoist out",
+    `Quick,
+    () => {
+      let kinds =
+        drag_cands(
+          ~push=true,
+          ~composites=true,
+          "let area(r) =\n  ¦let square = r * r in\n  square * 314 / 100\nin\narea(1)",
+        )
+        |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(bool, "no hoist", false, List.mem(Action.HoistLet, kinds));
+      check(bool, "lifts", true, List.mem(Action.LiftFunction, kinds));
+    },
+  ),
+  test_case(
+    "sugar function: pull ) left to remove the last, unused parameter",
+    `Quick,
+    () => {
+      let kinds =
+        drag_cands("let carry(load, spare)¦ = load * 2 in\ncarry(45, 99)")
+        |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(
+        bool,
+        "remove: "
+        ++ String.concat(" ", kinds |> List.map(Action.show_refactor)),
+        true,
+        List.mem(Action.RemoveParameter, kinds),
+      );
+      check(
+        bool,
+        "the ) is not a parameter: no swap",
+        false,
+        List.exists(
+          k =>
+            switch (k) {
+            | Action.SwapParams(_) => true
+            | _ => false
+            },
+          kinds,
+        ),
+      );
+    },
+  ),
+  test_case(
+    "composite: a feed run never turns into an extract",
+    `Quick,
+    () => {
+      let (kinds, _) =
+        ride("let cube(n) = n * n ¦* n in\ncube(3) + cube(4)", FeedLet);
+      check(
+        list(string),
+        "rungs",
+        ["FeedLet", "FeedLet"],
+        kinds |> List.map(Action.show_refactor),
       );
     },
   ),

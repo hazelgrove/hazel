@@ -1485,7 +1485,12 @@ let copy_runs = (ws: list(Secondary.t)): list(Secondary.t) =>
 
 let line_child = (parent: Exp.t, child: Exp.t): bool =>
   switch (IdTagged.term_of(parent)) {
-  | Let(_, _, body) => same_node(body, child)
+  /* a sugared function's definition is its body, like a fun's: its
+     parameters are in scope there */
+  | Let(p, def, body) =>
+    same_node(body, child)
+    || FunctionSugar.detect(p) != None
+    && same_node(def, child)
   /* a statement chain's tail is a line slot: extract inserts the
      new let just above the target item, scoping over the remaining
      items (definition nature of `;` — andrew) */

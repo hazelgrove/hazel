@@ -39,11 +39,12 @@ let spending = budget + budget + budget in
 
 let volume = (ladder + 55) * (ladder - 45) in
 
-# sub-slot extract: the same pull inside a body slot lands the #
-# binding where the displaced body sits, indented under the fun. #
+# extract inside a function body: the same pull lands the binding at #
+# the top of the body, indented under the function's head. #
 
-let scale = fun factor ->
-  factor * (ladder + 40) in
+let scale(factor) =
+  factor * (ladder + 40)
+in
 
 # 4 CASE: grab an arm's |, =>, or pattern and pull vertically to #
 # REORDER the arms; overlapping patterns refuse to cross (nothing #
@@ -60,29 +61,31 @@ let price =
   end
 in
 
-# grab end and pull it along (on a one-line case it moves RIGHT): #
-# the missing constructors arrive one by one, one per dot, so one #
-# pull can add them all. On the Int case below it wildifies instead. #
-# (These two start inexhaustive on purpose - that is the fuel.) #
+# grab end and pull it DOWN: the missing constructors arrive one by #
+# one, one per dot, so one pull can add them all. The Int case below #
+# is written on one line, so its end moves RIGHT, and it adds a #
+# wildcard instead. (Both start inexhaustive on purpose.) #
 
-let stamp = case dinner | Soup => 111 end in
+let stamp =
+  case dinner
+  | Soup => 111
+  end
+in
 let ticket = case ladder | 775 => true end in
 
 # 5 IF: grab a whole BRANCH and pull it onto the other: grab the 900 #
-# and pull it LEFT onto price's slot - the guard negates and the #
-# branches trade places (do it again to unwrap the !). The same grab #
-# pulled UP extracts the 900 instead: two tracks, two directions. #
+# and pull it UP onto price's slot - the guard negates and the #
+# branches trade places (do it again to unwrap the !). #
 
-let cheap = if price < 900 then price else 900 in
-
-# a multi-line if: grab "cool" and pull it UP-RIGHT onto the then #
-# slot. Extract pulls up-right too, to a fresh line above the if: #
-# the two targets sit a few columns apart (a crowding case). #
-
-let feel = fun (t : Int) ->
-  if t < 10 then "cold"
-  else "cool"
+let cheap =
+  if price < 900
+  then price
+  else 900
 in
+
+# the same on one line: grab "cool" and pull it LEFT onto "cold". #
+
+let feel(t) = if t < 10 then "cold" else "cool" in
 
 # 6 PARAMETERS: pull a param LEFT/RIGHT to swap neighbors (the call #
 # sites follow); keep pulling to carry it across several. Pull the #
@@ -90,9 +93,9 @@ in
 # when unused (spare below) - the ) itself moves either way, so the #
 # parens stay even with one parameter left. #
 
-let blend = fun (redx, greenx, bluex) -> redx + greenx * bluex in
+let blend(redx, greenx, bluex) = redx + greenx * bluex in
 let mixture = blend(10, 20, 30) in
-let carry = fun (load, spare) -> load * 2 in
+let carry(load, spare) = load * 2 in
 let hauled = carry(45, 99) in
 
 # 7 TUPLE PATTERN: pull low or high sideways - the components and #
@@ -101,17 +104,17 @@ let hauled = carry(45, 99) in
 let (low, high) = (100, 900) in
 let span = high - low in
 
-# 8 PASS-THROUGH: sink prize into award, then into its fun, and #
-# hoist it back out. Watch the line breaks settle at each landing. #
-# One pull rides every rung. Then grab its 900 and pull it down into #
-# an arm: a copy feeds the first use. #
+# 8 PASS-THROUGH: sink prize into award's body, and hoist it back #
+# out. Watch the line breaks settle at each landing. Then grab its #
+# 900 and pull it down into an arm: a copy feeds the first use. #
 
 let prize = 900 in
-let award = fun place ->
+let award(place) =
   case place
   | 1 => prize
   | _ => prize - 800
-  end in
+  end
+in
 
 # 9 PUSH THROUGH: grab let total and pull UP. total needs sub, so #
 # sub is pushed up ahead of it, past tip; keep pulling and the pair #
@@ -125,11 +128,11 @@ let pushy =
   total + tip
 in
 
-# lift: square needs r, so it cannot leave the fun on its own. Pull #
+# lift: square needs r, so it cannot leave area on its own. Pull #
 # let square UP and it lifts out as a helper taking r (landing above #
 # this example); the use becomes square(r). #
 
-let area = fun r ->
+let area(r) =
   let square = r * r in
   square * 314 / 100
 in
@@ -146,26 +149,24 @@ in
 
 # 11 MOVE INTO CALLER (the inverse of the lift in 9): sq was lifted #
 # out of disk. Grab let sq and pull DOWN: it moves back inside disk #
-# as a local let, and the call sq(r) becomes plain sq. Crowded: up #
-# to three tracks point down here (move in, sink into disk's #
-# definition, push disk down ahead of it). #
+# as a local let, and the call sq(r) becomes plain sq. #
 
 let sq(r) = r * r in
-let disk = fun r ->
+let disk(r) =
   sq(r) * 314 / 100
 in
 
 # two parameters move back the same way (grab let hyp2, DOWN). But #
-# twice_sq has two callers, so neither can take it: DOWN on it only #
-# sinks or pushes its users along - compare the tracks offered. #
+# twice_sq has two callers, so neither can take it: DOWN on it #
+# pushes its users along instead. #
 
 let hyp2(a, b) = a * a + b * b in
-let norm = fun (a, b) ->
+let norm(a, b) =
   hyp2(a, b) / 2
 in
 let twice_sq(x) = x * x * 2 in
-let one = fun x -> twice_sq(x) + 1 in
-let two = fun x -> twice_sq(x) - 1 in
+let one(x) = twice_sq(x) + 1 in
+let two(x) = twice_sq(x) - 1 in
 
 # 12 SPLIT OUT and JOIN: grab bb in the pattern and pull it DOWN onto #
 # its own line; grab let bb there and pull it back UP into the tuple. #
@@ -202,7 +203,7 @@ let b = a + a + a in
 # the / of price * rate / 100 and pull UP: it gets its own line, keeps #
 # climbing past fee and tip, and lifts out once rate holds it in. #
 
-let checkout = fun price ->
+let checkout(price) =
   let rate = 8 in
   let tip = price / 5 in
   let fee = 3 in
@@ -210,11 +211,11 @@ let checkout = fun price ->
 in
 
 # extract a function: grab the first * (the root of r * r) and pull #
-# UP. It is bound inside the fun, lifts out as a helper taking r when #
-# r blocks it, then hoists past rim. #
+# UP. It is bound inside wheel's body, lifts out as a helper taking r #
+# when r blocks it, then hoists past rim. #
 
 let rim = 3 in
-let wheel = fun r ->
+let wheel(r) =
   r * r * 314 / 100
 in
 
@@ -231,5 +232,5 @@ in
 
 (ladder, spending, volume, scale(2), price, stamp, ticket, cheap,
   feel(5), mixture, hauled, span, award(1), pushy, area(10), twins,
-  disk(10), norm((3, 4)), one(2), two(2), shade, ratio, vol, b,
+  disk(10), norm(3, 4), one(2), two(2), shade, ratio, vol, b,
   checkout(100), wheel(rim), books)

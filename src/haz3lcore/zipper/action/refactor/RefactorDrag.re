@@ -245,6 +245,22 @@ let place_kind = (k: Action.refactor): bool =>
   | _ => false
   };
 
+/* up (-1) or down (1) a value's path of places */
+let place_way = (k: Action.refactor): option(int) =>
+  switch (k) {
+  | ExtractLet
+  | HoistLet
+  | HoistCarry
+  | LiftFunction
+  | MergeUp => Some(-1)
+  | SinkLet
+  | SinkCarry
+  | UnliftFunction
+  | MergeDown
+  | FeedLet => Some(1)
+  | _ => None
+  };
+
 /* the refactors a grab can drive: every rung of every direction's
    gesture zone (the zone table is the drag spec's handle map: which
    tokens drive which transform), without the arrow keys' first-match
@@ -654,11 +670,17 @@ let next_rung =
     )
     : option((DragCandidate.t, (Id.t, option(int)))) => {
   let composites = settings.drag_composites;
+  /* extract takes a value from inline to bound: only ever a drag's
+     first step (after a lift the value sits inline in the helper's
+     body, and extracting it again would loop) */
   let continues = (k: Action.refactor) =>
-    same_kind(family, k)
-    || composites
-    && place_kind(family)
-    && place_kind(k);
+    k != ExtractLet
+    && (
+      same_kind(family, k)
+      || composites
+      && place_kind(family)
+      && place_kind(k)
+    );
   /* a merge dissolves what the ladder held: nothing left to move */
   let ended =
     switch (prev.kind) {
@@ -668,11 +690,18 @@ let next_rung =
     };
   let held =
     Id.Map.mem(fst(held), prev.measured.tiles) ? held : (prev.focus, None);
-  /* the way a ladder goes is forward or back in reading order: a run
-     of feeds steps through uses left of and right of the definition
-     alike, which a geometric heading would cut short */
+  /* the way a ladder goes. A move of where a value lives goes up its
+     path of places (extract, hoist, lift, merge up) or down it (sink,
+     move into caller, merge down, feed), whatever the geometry: a run of
+     feeds visits uses left and right of the definition, and must not
+     turn into an extract. Other ladders go forward or back in reading
+     order. */
   let way = (c: DragCandidate.t) =>
-    compare((c.target.row, c.target.col), (c.current.row, c.current.col));
+    switch (place_way(c.kind)) {
+    | Some(w) => w
+    | None =>
+      compare((c.target.row, c.target.col), (c.current.row, c.current.col))
+    };
   ended
     ? None
     : drag_candidates(
