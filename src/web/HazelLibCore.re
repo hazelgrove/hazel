@@ -12,6 +12,8 @@
      Hazel.analyze(text)   -> { errors: [string] }
      Hazel.run(text)       -> { errors: [string], value }
      Hazel.version         -> string
+     Hazel.build           -> the commit it was built from ("local" off
+                              GitHub), as embed mode's ready message has it
 
    A program of named modules (ModuleProgram), each module's body its own
    text, as a page with an editor per module holds it:
@@ -46,6 +48,8 @@ open Haz3lcore;
 open Language;
 
 let version = "0.1 (draft, js-library)";
+
+let build = BuildStamp.commit;
 
 let ctx = () => Builtins.ctx_init(Some(Operators.default_mode));
 
@@ -316,12 +320,19 @@ let now = (): float =>
     ),
   );
 
-let program_fields =
-    (a: program_analysis, ~ms: float): list((string, Js.Unsafe.any)) => {
+/* A program's errors and holes, as analyzeProgram gives them (and embed
+   mode's status message): { ok, errors, holes, programHoles } */
+let analysis_fields =
+    (
+      ~errors: list(ModuleProgram.error),
+      ~holes: list((string, int)),
+      ~program_holes: int,
+    )
+    : list((string, Js.Unsafe.any)) => {
   let ok =
-    a.errors == []
-    && a.program_holes == 0
-    && List.for_all(((_, n)) => n == 0, a.holes);
+    errors == []
+    && program_holes == 0
+    && List.for_all(((_, n)) => n == 0, holes);
   [
     ("ok", Js.Unsafe.inject(Js.bool(ok))),
     (
@@ -340,7 +351,7 @@ let program_fields =
               ("message", js_string(e.message)),
               ("id", js_string(Id.to_string(e.id))),
             ]),
-          a.errors,
+          errors,
         ),
       ),
     ),
@@ -350,17 +361,25 @@ let program_fields =
         List.map(
           ((name, n)) =>
             (name, Js.Unsafe.inject(Js.number_of_float(float_of_int(n)))),
-          a.holes,
+          holes,
         ),
       ),
     ),
     (
       "programHoles",
-      Js.Unsafe.inject(Js.number_of_float(float_of_int(a.program_holes))),
+      Js.Unsafe.inject(Js.number_of_float(float_of_int(program_holes))),
     ),
-    ("ms", Js.Unsafe.inject(Js.number_of_float(ms))),
   ];
 };
+
+let program_fields =
+    (a: program_analysis, ~ms: float): list((string, Js.Unsafe.any)) =>
+  analysis_fields(
+    ~errors=a.errors,
+    ~holes=a.holes,
+    ~program_holes=a.program_holes,
+  )
+  @ [("ms", Js.Unsafe.inject(Js.number_of_float(ms)))];
 
 let analyze_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
   let t0 = now();

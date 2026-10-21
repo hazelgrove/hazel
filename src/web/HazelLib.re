@@ -9,6 +9,7 @@ let () =
     "Hazel",
     Js.Unsafe.obj([|
       ("version", js_string(version)),
+      ("build", js_string(build)),
       (
         "analyze",
         Js.Unsafe.inject(Js.wrap_callback(t => analyze(Js.to_string(t)))),

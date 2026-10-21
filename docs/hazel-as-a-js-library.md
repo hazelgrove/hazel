@@ -4,6 +4,7 @@
 
 ```js
 Hazel.version                    // "0.1 (draft, js-library)"
+Hazel.build                      // the commit it was built from, "local" off GitHub
 Hazel.analyze(text)              // { errors: [string] }
 Hazel.run(text)                  // { errors: [string], value }
 ```
