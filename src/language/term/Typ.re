@@ -819,6 +819,12 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty_body = meet(ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
   | (Rec(_), _) => None
+  /* TODO A variable free in ty1 is captured when it happens to share a name
+     with x2: `meet(poly y -> x, poly x -> x)` rewraps ty1's free `x` under the
+     binder `x`. The note below covers renaming x1 to x2 inside ty1, which
+     `subst` does avoid capture for; it does not cover the free variable that
+     the new binder swallows. `join` below has the same shape and the same
+     hole. Found by Typ.join's precision property, which excludes the case. */
   | (Poly(x1, ty1), Poly(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -950,6 +956,149 @@ let meet_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   meet(ctx, ty1, ty2) != None;
+
+/* Lattice join on types — returns the LEAST precise (widest) type that
+   is at least as imprecise as both inputs. Unknown dominates:
+   join(Unknown, Int) = Unknown. This is the dual of meet. */
+let rec join =
+        (~expanded_aliases: list(string)=[], ctx: Ctx.t, ty1: t, ty2: t): t => {
+  let join' = join(ctx);
+  /* As in `diff`: a cyclic alias chain (`type A = B in type B = A`) has no
+     join, so stop expanding once a name repeats on the current chain of Var
+     lookups rather than recursing forever. Only the two Var cases thread the
+     list; every other case resets it, since a structural descent consumes a
+     constructor from a finite type. */
+  /* What to join against, paired with whether handing the name back is
+     meaningful. An unbound name is not an error here -- statics reports those
+     separately as TypFreeTypeVariable -- and lookup_alias stands in an Unknown
+     hole carrying the name, which renders as the name rather than as `?`. Join
+     against that hole, as meet does, so the name survives; but never restore
+     onto it, or the restore reads it back as "the alias describes the result"
+     and resurrects the variable. */
+  let expand = name =>
+    if (List.exists(String.equal(name), expanded_aliases)) {
+      None;
+    } else {
+      switch (Ctx.lookup_tvar(ctx, name)) {
+      | Some(Singleton(ty)) => Some((ty, true))
+      | Some(Abstract) => None
+      | None => Ctx.lookup_alias(ctx, name) |> Option.map(ty => (ty, false))
+      };
+    };
+  switch (term_of(ty1), term_of(ty2)) {
+  | (_, Parens(ty2)) => join'(ty1, ty2)
+  | (Parens(ty1), _) => join'(ty1, ty2)
+  | (_, Projector(_, ty2)) => join'(ty1, ty2)
+  | (Projector(_, ty1), _) => join'(ty1, ty2)
+  | (TupLabel({term: ExplicitNonlabel, _}, ty1'), _) => join'(ty1', ty2)
+  | (_, TupLabel({term: ExplicitNonlabel, _}, ty2')) => join'(ty1, ty2')
+  | (Unknown(p1), Unknown(p2)) =>
+    Unknown(meet_type_provenance(p1, p2)) |> temp
+  | (Unknown(_), _) => ty1
+  | (_, Unknown(_)) => ty2
+  | (Var(n1), Var(n2)) when n1 == n2 => ty1
+  /* As in meet: join against the expansion, but if the result is just the
+     expansion again then the alias already describes it, so hand back the Var
+     the caller wrote rather than the definition out of the context. */
+  | (Var(name), _) =>
+    switch (expand(name)) {
+    | Some((ty_name, restorable)) =>
+      let joined =
+        join(
+          ~expanded_aliases=[name, ...expanded_aliases],
+          ctx,
+          ty_name,
+          ty2,
+        );
+      restorable && equal(ty_name, joined) ? ty1 : joined;
+    | None => Unknown(Internal) |> temp
+    }
+  | (_, Var(name)) =>
+    switch (expand(name)) {
+    | Some((ty_name, restorable)) =>
+      let joined =
+        join(
+          ~expanded_aliases=[name, ...expanded_aliases],
+          ctx,
+          ty_name,
+          ty1,
+        );
+      restorable && equal(ty_name, joined) ? ty2 : joined;
+    | None => Unknown(Internal) |> temp
+    }
+  | (ProdProjection(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdProjection(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
+  | (ProdExtension(_), _) => join'(weak_head_normalize(ctx, ty1), ty2)
+  | (_, ProdExtension(_)) => join'(ty1, weak_head_normalize(ctx, ty2))
+  | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
+    let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
+    let ty1' =
+      switch (TPat.tyvar_of_utpat(tp2)) {
+      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
+      | None => ty1
+      };
+    let ty_body = join(ctx, ty1', ty2);
+    Rec(tp1, ty_body) |> temp;
+  | (Rec(_), _) => Unknown(Internal) |> temp
+  | (Poly(x1, ty1), Poly(x2, ty2)) =>
+    let ty1' =
+      switch (TPat.tyvar_of_utpat(x2)) {
+      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+      | None => ty1
+      };
+    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
+    let ty_body = join(ctx, ty1', ty2);
+    Poly(x2, ty_body) |> temp;
+  | (Poly(_), _) => Unknown(Internal) |> temp
+  | (Atom(c1), Atom(c2)) when c1 == c2 => ty1
+  | (Atom(_), _) => Unknown(Internal) |> temp
+  | (Label(_), Label("")) => ty1
+  | (Label(""), Label(_)) => ty2
+  | (Label(name1), Label(name2))
+      when LabeledTuple.match_labels(name1, name2) => ty1
+  | (Label(_), _) => Unknown(Internal) |> temp
+  | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
+    Arrow(join'(ty1, ty1'), join'(ty2, ty2')) |> temp
+  | (Arrow(_), _) => Unknown(Internal) |> temp
+  | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
+    TupLabel(join'(lab1, lab2), join'(ty1', ty2')) |> temp
+  | (TupLabel(_), _) => Unknown(Internal) |> temp
+  | (Prod(tys1), Prod(tys2)) =>
+    /* Drop repeated labels first, as meet does: a later `g=` shadows an
+       earlier one, so the two sides only line up positionally once both have
+       been deduplicated. Comparing the raw lists made join disagree with meet
+       about the shape of a product carrying a duplicate label. */
+    let dedup = tys =>
+      remove_duplicate_labels(
+        ~duplicate_labels=
+          LabeledTuple.get_duplicate_labels(match_tup_label, tys),
+        tys,
+      );
+    let tys1 = dedup(tys1);
+    let tys2 = dedup(tys2);
+    if (List.length(tys1) != List.length(tys2)) {
+      Unknown(Internal) |> temp;
+    } else {
+      Prod(List.map2(join', tys1, tys2)) |> temp;
+    };
+  | (Prod(_), _) => Unknown(Internal) |> temp
+  | (ProofOf(e1), ProofOf(e2)) =>
+    Equality.semantic.exp(e1, e2) ? ty1 : Unknown(Internal) |> temp
+  | (ProofOf(_), _) => Unknown(Internal) |> temp
+  | (Sum(sm1), Sum(sm2)) when ConstructorMap.equal(fast_equal, sm1, sm2) =>
+    Sum(sm1) |> temp
+  | (Sum(_), _) => Unknown(Internal) |> temp
+  | (List(ty1), List(ty2)) => List(join'(ty1, ty2)) |> temp
+  | (List(_), _) => Unknown(Internal) |> temp
+  | (ExplicitNonlabel, _) => Unknown(Internal) |> temp
+  | (Sig(_), _) => Unknown(Internal) |> temp
+  | (DrvQuoteTy(s1), DrvQuoteTy(s2)) when s1 == s2 => ty1
+  | (DrvQuoteTy(_), _) => Unknown(Internal) |> temp
+  };
+};
+
+let join_all = (ctx: Ctx.t, ts: list(t)): option(t) =>
+  ListUtil.reduce((acc, ty) => join(ctx, acc, ty), ts);
 
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
