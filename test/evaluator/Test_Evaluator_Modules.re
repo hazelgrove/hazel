@@ -85,8 +85,7 @@ let test_module_keyword_lowercase =
 
 /* A module ascribed a one-member signature, with a member more: an error
    in statics (the signature does not admit the extra member), but it still
-   runs, and the module is the module: M.x is 1 (before #2651 it was the
-   whole unelaborated module) */
+   runs, and M.x is the member, 1, as a labeled tuple's projection gives */
 let test_module_one_member_signature =
   test_case("A module under a one-member signature runs as itself", `Quick, () => {
     parse_and_evaluate_test(

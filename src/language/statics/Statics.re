@@ -2754,24 +2754,22 @@ and uexp_to_info_map =
           )
         | _ => m
         };
-      /* The definition's own elaboration, without what the Let wraps it
-         in: read back from the info the expanded Let just recorded for it
-         (add records exactly the elab_term it returns), not analyzed a
-         second time. The second analysis was the whole module again, so
-         every module binding cost twice what it should. The direct
-         analysis remains only as a fallback: for when no info was
-         recorded, and for the one case below. */
-      /* Unless the definition names the module itself: the Let then
-         analyzed it recursively, with that name in scope (so no error),
-         and wrapped it in a fixpoint that the elaboration read back would
-         drop. The Let also removes the name from the info's co_ctx, so the
-         fixpoint is the sign to look for. The direct analysis, as before,
-         reports the name as unbound. */
+      /* Whether the definition names the module: the expanded Let then
+         analyzed it recursively, with the module's name in scope, and
+         wrapped it in a fixpoint. Modules are not recursive, so that
+         analysis can't be reused. (The Let removes the name from the
+         info's co_ctx, so the fixpoint is the sign.) */
       let names_itself =
         switch (expanded_elab.term) {
         | Let(_, {term: FixF(_), _}, _) => true
         | _ => false
         };
+      /* The definition's elaboration before the Let wraps it, as the Let's
+         analysis recorded it in the definition's info (under singleton-label
+         lifting, autolabel_singleton_tuple, the info holds the inner
+         elaboration, not the lifted term). Analyzed directly when the
+         definition names the module, which reports the name as unbound, or
+         when no info was recorded. */
       let (def_elab_direct, m) =
         switch (Id.Map.find_opt(Exp.rep_id(def), m)) {
         | Some(Info.InfoExp({elab_term, _})) when !names_itself => (
