@@ -494,6 +494,19 @@ let sharpen_u = (u: float): float => {
 
 let draw = (s: session) => {
   let o = box_origin(s);
+  let xml_escape = (t: string): string =>
+    t
+    |> String.to_seq
+    |> Seq.map(c =>
+         switch (c) {
+         | '&' => "&amp;"
+         | '<' => "&lt;"
+         | '>' => "&gt;"
+         | c => String.make(1, c)
+         }
+       )
+    |> List.of_seq
+    |> String.concat("");
   /* slim pill, text filling most of its height; sits BETWEEN text
      lines rather than lapping the lower one */
   let label_pill = (~win: bool, x: float, y: float, label: string) => {
@@ -512,7 +525,7 @@ let draw = (s: session) => {
       y -. 4.2,
       win ? ov_casing : ov_idle,
       win ? "1" : "0.95",
-      label,
+      xml_escape(label),
     );
   };
   let points = (pts: list(vec)) =>
@@ -636,19 +649,6 @@ let draw = (s: session) => {
       );
     };
   };
-  let xml_escape = (t: string): string =>
-    t
-    |> String.to_seq
-    |> Seq.map(c =>
-         switch (c) {
-         | '&' => "&amp;"
-         | '<' => "&lt;"
-         | '>' => "&gt;"
-         | c => String.make(1, c)
-         }
-       )
-    |> List.of_seq
-    |> String.concat("");
   /* incoming tokens: REAL-styled token spans (same classes as
      Code.view emits, inside a .code wrapper so the whole stylesheet
      pipeline applies). A token entering at rung j grows in (or flies
@@ -1936,6 +1936,7 @@ let sync =
         | Some(target) =>
           Refactor.drag_candidates(
             ~composites=settings.drag_composites,
+            ~settings,
             ~info_map,
             ~term,
             ~measured,
@@ -1957,7 +1958,14 @@ let sync =
                      ~held=(target, grab_shard),
                    ),
                  ],
-                 exhausted: !s.ladders,
+                 exhausted:
+                   !s.ladders
+                   || (
+                     switch (c.kind) {
+                     | RewriteTheorem(_) => true
+                     | _ => false
+                     }
+                   ),
                }
              )
         | None => []
