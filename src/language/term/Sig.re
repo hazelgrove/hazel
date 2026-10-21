@@ -5,6 +5,7 @@ type cls =
   | MultiHole
   | SigLet
   | SigType
+  | SigTypeAbstract
   | SigModule;
 
 include TermBase.Sig;
@@ -26,6 +27,7 @@ let cls_of_term: Grammar.sig_term('a) => cls =
   | MultiHole(_) => MultiHole
   | SigLet(_) => SigLet
   | SigType(_, _) => SigType
+  | SigTypeAbstract(_) => SigTypeAbstract
   | SigModule(_) => SigModule;
 
 let show_cls: cls => string =
@@ -35,6 +37,7 @@ let show_cls: cls => string =
   | EmptyHole => "Signature hole"
   | SigLet => "Let declaration"
   | SigType => "Type declaration"
+  | SigTypeAbstract => "Abstract type declaration"
   | SigModule => "Module declaration";
 
 let temp: term => t =
@@ -49,12 +52,14 @@ let temp: term => t =
    (holes, invalid items and non-variable patterns are skipped) so that the
    type checker can treat a `Sig` uniformly. Canonical items are
    `SigLet(Asc(Var x, τ))`, `SigModule(Asc(Var m, τ))` and
-   `SigType(Var T, τ)`. A `module m : S` member is a value member. */
+   `SigType(Var T, τ)`. A `module m : S` member is a value member; `type T`
+   with no definition is an abstract type member. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type member =
   | Val(Var.t, TermBase.Typ.t)
-  | TypeManifest(Var.t, TermBase.Typ.t);
+  | TypeManifest(Var.t, TermBase.Typ.t)
+  | TypeAbstract(Var.t);
 
 let typ_temp = (term: TermBase.Typ.term): TermBase.Typ.t => {
   term,
@@ -105,7 +110,9 @@ let member_of_item = (item: t): option(member) =>
   | SigLet(p) => val_of_pat(p)
   | SigModule(mp) => val_of_mpat(mp)
   | SigType({term: Var(name), _}, ty) => Some(TypeManifest(name, ty))
+  | SigTypeAbstract({term: Var(name), _}) => Some(TypeAbstract(name))
   | SigType(_, _)
+  | SigTypeAbstract(_)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => None
@@ -138,6 +145,12 @@ let item_of_member = (m: member): t =>
       annotation: IdTagged.IdTag.temp(),
     };
     temp(SigType(tpat, ty));
+  | TypeAbstract(name) =>
+    let tpat: TermBase.TPat.t = {
+      term: Var(name),
+      annotation: IdTagged.IdTag.temp(),
+    };
+    temp(SigTypeAbstract(tpat));
   };
 
 /* `module m : ty` — a sub-module member. */
@@ -212,6 +225,7 @@ let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
       ...item,
       term: SigModule(mpat_map(mp)),
     }
+  | SigTypeAbstract(_)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => item
@@ -230,25 +244,34 @@ let value_names = (ms: list(member)): list(Var.t) =>
   |> List.filter_map(
        fun
        | Val(x, _) => Some(x)
-       | TypeManifest(_) => None,
+       | TypeManifest(_)
+       | TypeAbstract(_) => None,
      )
   |> dedup_names;
 
+/* Names of type members, manifest or abstract. */
 let type_names = (ms: list(member)): list(Var.t) =>
   ms
   |> List.filter_map(
        fun
-       | TypeManifest(x, _) => Some(x)
+       | TypeManifest(x, _)
+       | TypeAbstract(x) => Some(x)
        | Val(_) => None,
      )
   |> dedup_names;
 
+/* Value members and type members live in separate namespaces; manifest and
+   abstract type members share one. */
 let same_kind = (a: member, b: member) =>
   switch (a, b) {
   | (Val(x, _), Val(y, _))
-  | (TypeManifest(x, _), TypeManifest(y, _)) => x == y
-  | (Val(_), TypeManifest(_))
-  | (TypeManifest(_), Val(_)) => false
+  | (
+      TypeManifest(x, _) | TypeAbstract(x),
+      TypeManifest(y, _) | TypeAbstract(y),
+    ) =>
+    x == y
+  | (Val(_), TypeManifest(_) | TypeAbstract(_))
+  | (TypeManifest(_) | TypeAbstract(_), Val(_)) => false
   };
 
 /* Keep only the last member of each name and kind (a later binding
@@ -300,13 +323,24 @@ let find_value = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
     ms,
   );
 
-let find_type_def = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
+/* The last type member named [name], manifest or abstract. */
+let find_type = (ms: list(member), name: Var.t): option(member) =>
   List.fold_left(
     (acc, m) =>
       switch (m) {
-      | TypeManifest(x, ty) when x == name => Some(ty)
+      | TypeManifest(x, _)
+      | TypeAbstract(x) when x == name => Some(m)
       | _ => acc
       },
     None,
     ms,
   );
+
+/* The definition of the last MANIFEST type member named [name]. */
+let find_type_def = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
+  switch (find_type(ms, name)) {
+  | Some(TypeManifest(_, ty)) => Some(ty)
+  | Some(TypeAbstract(_))
+  | Some(Val(_))
+  | None => None
+  };
