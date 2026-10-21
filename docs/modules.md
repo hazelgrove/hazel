@@ -67,10 +67,12 @@ A module synthesizes `module Inner : { … }` for a `module Inner = …` item an
 
 A module analyzed against a signature must define every member the signature
 declares, each value member must have the declared type (with the signature's
-own type members substituted), and each type member must be defined as the
+own type members substituted) at its last definition — one a later item
+shadows is only synthesized — and each type member must be defined as the
 declared type. A member's type error is reported on its definition; missing
 members (`ModuleMissingMembers`) are reported on the module; a differing type
-member is reported on its definition type (`ModuleTypeMemberMismatch`). When one of the items is a hole (a hole item,
+member is reported on its definition type (`ModuleTypeMemberMismatch`). When
+one of the items is a hole (a hole item,
 or a binder with a hole where a member could be bound) it may still become the
 missing members, so they are assumed rather than reported and the module has
 the signature's type.
@@ -235,8 +237,16 @@ earlier type members by name, so:
   checked against a provided one (`Typ.sig_sub`), such a path means what the
   module actually provides for the member, so `Inner` is bound to the
   provided type.
-  Member names cannot be alpha-renamed; on capture `subst` falls back to
-  substituting `?` into the remaining items.
+  Member names cannot be alpha-renamed, so a substituted type with a free
+  variable named like a member would be captured by it. `subst` degrades the
+  items after that member to `?` and `Typ.subst_captures` names the member;
+  statics substitutes only through `StaticsBase.subst_marked`, which turns
+  that into `Mark.TypeMemberCapture`, and normalizes a type argument first so
+  an alias never collides — only an abstract type variable can.
+  `UserLivelit.re` is the exception: realizing the `Livelit` signature's type
+  members and instantiating a livelit's type parameter both take
+  `fst(Typ.subst_captures(...))`, since no node there carries the mark, so a
+  capture degrades to `?` silently.
 - `Typ.sig_project_value` / `Typ.sig_project_type` return a member's type
   with the signature's earlier type members substituted, so `x : T` in
   `{ type T = Int; let x : T }` projects to `Int`. An abstract member stands
@@ -390,13 +400,13 @@ used only for mispositioned items.
 | `src/language/statics/Ctx.re`           | `extend_sig_item`                                                  |
 | `src/language/statics/ModuleHelpers.re` | Lowering for type checking, signature synthesis, refolding         |
 | `src/language/statics/Statics.re`       | Module/ModuleExp cases, `Dot` on signatures, `M.T` in types        |
-| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypAbstractMemberOfSignature` |
+| `src/language/statics/Mark.re`          | `ModuleMissingMembers`, `ModuleTypeMemberMismatch`, `ModuleMemberNotFound`, `ModuleTypeMemberNotFound`, `TypWantModule`, `TypeMemberCapture`, `TypAbstractMemberOfSignature` |
 | `src/language/statics/StaticsBase.re`   | `subsume` picks `Typ.coercion` or `Typ.meet` for the mismatch hooks |
 | `src/language/dynamics/transition/Transition.re` | Module evaluation, `Dot` on module values                 |
 | `src/language/dynamics/transition/Ascriptions.re` | Sealing a module value to a signature                    |
 | `src/language/dynamics/stepper/EvalCtx.re` | `ModuleItem`, `ModuleVal` evaluation contexts                   |
-| `src/language/grammar/FormId.re`         | Module/Sig families + labels                                       |
-| `src/haz3lcore/lang/Form.re`            | Module/Sig mold rows, `mk_pre_c'` helper                           |
+| `src/language/grammar/FormId.re`          | Module/Sig families + labels                                       |
+| `src/haz3lcore/lang/Form.re`            | Module/Sig forms, `mk_pre_c'` helper                               |
 | `src/haz3lcore/zipper/action/Insert.re` | `=` upgrade of a bare `type T` signature item                      |
 | `src/haz3lcore/lang/MakeTerm.re`        | Module/Sig parsing with flattening                                 |
 | `src/haz3lcore/pretty/ExpToSegment.re`  | Module, Sig and `ModVal` printing                                  |
@@ -407,7 +417,7 @@ used only for mispositioned items.
 | File                                       | What                                                                      |
 | ------------------------------------------ | ------------------------------------------------------------------------- |
 | `test/statics/Test_Statics_Modules.re`     | Signature synthesis, annotations, Sig/Prod distinctness, `M.T`            |
-| `test/Test_Typ.re`                         | `Typ.Sig`, `Typ.AnaMeet`, `Typ.SigPaths`: meet, subtyping, paths, strengthening |
+| `test/Test_Typ.re`                         | `Typ.Sig`, `Typ.Coercion`, `Typ.SigPaths`, `Typ.SubstCaptures`: meet, coercion, paths, strengthening, capture reporting |
 | `test/evaluator/Test_Evaluator_Modules.re` | Module values, member access, sealing at runtime                          |
 | `test/Test_Elaboration.re`                 | Modules elaborate to modules                                              |
 | `test/Test_TyDi.re`                        | Value/type member completion                                              |

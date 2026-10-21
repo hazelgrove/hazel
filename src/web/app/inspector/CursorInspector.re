@@ -372,6 +372,7 @@ let core_mark_err_view =
     | ModuleMissingMembers(_)
     | ModuleMemberNotFound(_)
     | ModuleTypeMemberMismatch(_)
+    | TypeMemberCapture(_)
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadLivelitExpansion(_)
@@ -647,6 +648,15 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
     underdetermined_typ_view(~globals, underdetermined)
   };
 };
+
+let type_member_capture_view = names =>
+  [text("Type variable ")]
+  @ ListUtil.join(text(", "), List.map(code, names))
+  @ [
+    text(
+      " collides with a type member of the same name in this signature; rename the type variable",
+    ),
+  ];
 
 /* One phrasing for "this member disagrees with its signature", whether the
    signature is a module's own or the builtin `Livelit`. [what] names the
@@ -999,6 +1009,7 @@ let exp_mark_err_view =
     }
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     div_err(type_member_mismatch_view(~view_type, name, ~expected, ~actual))
+  | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadLivelitExpansion({declared, actual}) =>
     div_err([
@@ -1427,6 +1438,7 @@ let tpat_view =
           text("Can't shadow existing type variable"),
           view_type(Var(name) |> Typ.fresh),
         ])
+      | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
       | _ => div_err([text("Type pattern error")])
       }
     }

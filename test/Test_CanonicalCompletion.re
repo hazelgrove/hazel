@@ -1440,7 +1440,7 @@ let probe_tydi = (acts: list(Action.t)): string => {
     | Some(i) => "ci:" ++ (Language.Info.cls_of(i) |> Language.Cls.show)
     };
   let buf =
-    switch (TyDi.set_buffer(~ci, z)) {
+    switch (TyDi.set_buffer(~root=Exp, ~ci, z)) {
     | None => "buf:NONE"
     | Some(z') =>
       switch (TyDi.get_unparsed_buffer(z')) {
@@ -1539,7 +1539,7 @@ let move_r = Action.Move(Local(Right, ByChar));
    chunk through the normal pipeline. Output is the CARET-MARKED
    printer (¦), so these pin text, spacing, AND caret together. */
 let tab_once = (z: Zipper.t): option(Zipper.t) =>
-  CompletionQuery.tab_action(z)
+  CompletionQuery.tab_action(~root=Exp, z)
   |> Option.map(a => Test_Editing.perform(z, [a]));
 
 let tab_dispatch = (~tabs=1, acts: list(Action.t)): string => {
@@ -1882,7 +1882,10 @@ let clippable_guard_tests = {
            backup molds (Form.symbolic_delim_prefixes = `-`, `=`) reach
            the InfixDelimiterPrefix atomic, which molds at all four
            sorts. Re-decided: both frontiers stay far from vacuous, so
-           clippable_sort stands. */
+           clippable_sort stands.
+           88 -> 93: quote, unquote, do, SigTypeAbstract's `["type"]` and
+           SigModule's `["module"]` labels enter the table. Re-decided:
+           every frontier moves, so clippable_sort stands. */
         "Exp 72/93 | Pat 12/93 | Typ 18/93 | TPat 7/93 | Rul 1/93",
         table,
       )

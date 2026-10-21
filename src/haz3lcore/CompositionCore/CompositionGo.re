@@ -73,6 +73,25 @@ module Local = {
       | _ => false
       };
 
+    /* the items of the module literal member [node] is in, its parent
+       binding's: none at a Mod root's top level, which no `M.x` names */
+    let member_items =
+        (~info_map: Id.Map.t(Info.t), node_map: node_map, node: node)
+        : option(list(Mod.t)) =>
+      if (!is_module_member(node)) {
+        None;
+      } else {
+        let* parent = HighLevelNodeMap.parent_of(node_map, node);
+        switch (parent.info) {
+        | InfoExp({
+            user_term: {term: Let(_, def, _) | ModuleExp(_, def, _), _},
+            _,
+          }) =>
+          Info.module_items(~info_map, def)
+        | _ => None
+        };
+      };
+
     let member_body_error = (what: string) =>
       Error(
         Action.Failure.Composition_action_failure(
@@ -127,7 +146,7 @@ module Local = {
               Some(items)
             | _ => None
             },
-          Info.ancestors_of(node.info),
+          Info.ancestors(~info_map, node.info),
         );
       let rec past = (after, items: list(Mod.t)) =>
         switch (items) {
@@ -156,6 +175,30 @@ module Local = {
         | _ => last
         };
       go(None, program);
+    };
+
+    /* a Mod root's last item before its trailing expression, which a test
+       with no path follows: the root's items through any node's
+       outermost ancestor */
+    let last_member =
+        (~info_map: Id.Map.t(Info.t), node_map: node_map): option(Id.t) => {
+      let* (_, node) = Id.Map.min_binding_opt(node_map);
+      let* root = ListUtil.last_opt(Info.ancestors(~info_map, node.info));
+      let* items =
+        switch (Id.Map.find_opt(root, info_map)) {
+        | Some(InfoExp({user_term: {term: Module(items), _}, _})) =>
+          Some(items)
+        | _ => None
+        };
+      let rec go = (last, items: list(Mod.t)) =>
+        switch (items) {
+        | [] => last
+        | [{term: ModExp(e), _}] when !is_test(e) => last
+        | [{term: EmptyHole | Invalid(_) | MultiHole(_), _}, ...rest] =>
+          go(last, rest)
+        | [m, ...rest] => go(Some(Mod.rep_id(m)), rest)
+        };
+      go(None, items);
     };
   };
 
@@ -607,7 +650,8 @@ module Local = {
             switch (prev_tok, next_tok(rest)) {
             | (None, _) => true /* leading */
             | (_, None) => true /* trailing */
-            | (_, Some(r)) => is_semi(r) /* doubled */
+            /* doubled: the second goes, so the first stays on its member */
+            | (Some(l), _) => is_semi(l)
             };
           dangling && !unchanged(prev_tok, p, rest)
             ? go(prev_tok, rest) : [p, ...go(Some(p), rest)];
@@ -694,15 +738,24 @@ module Local = {
 
     /* The edit's old program supplies boundary witnesses and sharing.
        Unchanged subtrees are skipped; only new joins receive formatting.
-       Unchanged results avoid reconstruction; rebuilt results retain overlays. */
-    let normalize_top_level = (~before=?, z: Zipper.t): Zipper.t => {
+       Unchanged results avoid reconstruction; rebuilt results retain overlays.
+       A Mod root's top level is a module body, and is cleaned as one. */
+    let normalize_top_level =
+        (~root=Sort.Exp, ~before=?, z: Zipper.t): Zipper.t => {
       let after = Zipper.unselect_and_zip(z);
       let old =
         Option.map(Zipper.unselect_and_zip, before)
         |> Option.value(~default=[]);
+      let top = seg =>
+        root == Sort.Mod
+          ? normalize_member_whitespace(
+              ~before=old,
+              clean_member_separators(~before=old, seg),
+            )
+          : normalize_top_level_whitespace(~before=old, seg);
       let next =
         after
-        |> normalize_top_level_whitespace(~before=old)
+        |> top
         |> normalize_module_bodies(~before=old)
         |> EditIdentity.restore(before == None ? after : old, _);
       Segment.ptr_eq(next, after)
@@ -1065,6 +1118,7 @@ module Local = {
 
     let destruct =
         (
+          ~root=Sort.Exp,
           ~defs_exclude_bodies: bool,
           z: Zipper.t,
           target_id: Id.t,
@@ -1080,7 +1134,7 @@ module Local = {
         )
       ) {
       | Some(z') =>
-        switch (Destruct.go(Local(Left, ByChar), z', ~root=Exp)) {
+        switch (Destruct.go(Local(Left, ByChar), z', ~root)) {
         | None => Error(Action.Failure.Cant_destruct)
         | Some(z'') => Ok(z'')
         }
@@ -1091,6 +1145,7 @@ module Local = {
     let overwrite_term =
         (
           ~root=Sort.Exp,
+          ~splice_root=Sort.Exp,
           z: Zipper.t,
           target_id: Id.t,
           code: string,
@@ -1109,7 +1164,7 @@ module Local = {
       ) {
       | Some(z') =>
         // Paste the code over the selected tile
-        introduce(~root, ~fast=true, z', code)
+        introduce(~root, ~splice_root, ~fast=true, z', code)
       | None => Error(Action.Failure.Cant_select)
       };
     };
@@ -1167,6 +1222,7 @@ module Local = {
     let insert_member =
         (
           ~root=Sort.Mod,
+          ~splice_root=Sort.Exp,
           ~fast=true,
           z: Zipper.t,
           target_id: Id.t,
@@ -1205,6 +1261,7 @@ module Local = {
             | Ok(z) =>
               introduce(
                 ~root,
+                ~splice_root,
                 ~fast,
                 ~keep_edge_ws=true,
                 z,
@@ -1217,8 +1274,33 @@ module Local = {
       };
     };
 
+    /* [code]'s members, each with its `;` on a line of its own, first in
+       a Mod-rooted program, one at a time as insert_member splices them */
+    let insert_members_first = (z: Zipper.t, code: string) =>
+      List.fold_left(
+        (acc, m) =>
+          switch (acc) {
+          | Error(e) => Error(e)
+          | Ok(z) =>
+            introduce(
+              ~root=Sort.Mod,
+              ~splice_root=Sort.Mod,
+              ~fast=true,
+              ~keep_edge_ws=true,
+              z,
+              m ++ ";\n",
+            )
+          },
+        Ok(Move.to_start(z)),
+        switch (split_members(code)) {
+        | [] => [code]
+        | ms => ms
+        },
+      );
+
     let insert_term =
         (
+          ~splice_root=Sort.Exp,
           z: Zipper.t,
           target_id: Id.t,
           code: string,
@@ -1237,7 +1319,8 @@ module Local = {
       ) {
       | Some(z') =>
         switch (Move.by_token(d, z')) {
-        | Some(z'') => introduce(~fast=true, ~keep_edge_ws=true, z'', code)
+        | Some(z'') =>
+          introduce(~splice_root, ~fast=true, ~keep_edge_ws=true, z'', code)
         | None => Error(Action.Failure.Cant_move)
         }
       | None => Error(Action.Failure.Cant_select)
@@ -1259,10 +1342,19 @@ module Local = {
     /* [code] on its own line just after the piece [after], or first in
        the program. The line is closed only where the old one ran on:
        below the top level no pass collapses a doubled linebreak */
-    let insert_after_piece = (z: Zipper.t, after: option(Id.t), code: string) =>
+    let insert_after_piece =
+        (
+          ~root=Sort.Exp,
+          ~splice_root=Sort.Exp,
+          z: Zipper.t,
+          after: option(Id.t),
+          code: string,
+        ) =>
       switch (after) {
       | None =>
         introduce(
+          ~root,
+          ~splice_root,
           ~fast=true,
           ~keep_edge_ws=true,
           Move.to_start(z),
@@ -1278,7 +1370,14 @@ module Local = {
             | [] => true
             };
           let close = breaks(snd(z.relatives.siblings)) ? "" : "\n";
-          introduce(~fast=true, ~keep_edge_ws=true, z, "\n" ++ code ++ close);
+          introduce(
+            ~root,
+            ~splice_root,
+            ~fast=true,
+            ~keep_edge_ws=true,
+            z,
+            "\n" ++ code ++ close,
+          );
         | None => Error(Action.Failure.Cant_move)
         }
       };
@@ -1286,6 +1385,7 @@ module Local = {
 
   let edit_dispatch =
       (
+        ~root: Sort.t,
         ~e: Action.Structural.t,
         ~initial_z: Zipper.t,
         ~initial_node_map: node_map,
@@ -1322,6 +1422,7 @@ module Local = {
       switch (
         PerfTimer.time("overwrite", () =>
           PerformUtils.overwrite_term(
+            ~splice_root=root,
             initial_z,
             target_id,
             code,
@@ -1356,7 +1457,7 @@ module Local = {
           | None =>
             let z_after_projectors =
               try({
-                let fresh_syn = CachedSyntax.init(new_z);
+                let fresh_syn = CachedSyntax.init(~root, new_z);
                 let binding_node = path_to_node(new_node_map, path);
                 let def_id = Utils.get_inner_term_id(Def, binding_node);
                 switch (
@@ -1397,6 +1498,7 @@ module Local = {
       switch (
         PerfTimer.time("overwrite", () =>
           PerformUtils.overwrite_term(
+            ~splice_root=root,
             initial_z,
             target_id,
             code,
@@ -1443,6 +1545,7 @@ module Local = {
       switch (
         PerfTimer.time("overwrite", () =>
           PerformUtils.overwrite_term(
+            ~splice_root=root,
             initial_z,
             target_id,
             code,
@@ -1511,6 +1614,36 @@ module Local = {
               let added_names =
                 List.filter(n => !List.mem(n, old_names), new_names);
               let scope_root = id_of(initial_node);
+              /* each old binder and its new name (counts match above) */
+              let renamed =
+                old_names == []
+                  ? []
+                  : List.combine(
+                      List.map(
+                        snd,
+                        GeneralTreeUtils.var_binders_of_info(old_pat),
+                      ),
+                      new_names,
+                    );
+              /* another member so named: `M.name` would read one of the two */
+              let member_clash =
+                switch (
+                  Utils.member_items(
+                    ~info_map=initial_info_map,
+                    initial_node_map,
+                    initial_node,
+                  )
+                ) {
+                | Some(items) =>
+                  List.find_map(
+                    ((binder, name)) =>
+                      List.mem(name, added_names)
+                      && Rename.member_clash(~typ=false, items, binder, name)
+                        ? Some(name) : None,
+                    renamed,
+                  )
+                | None => None
+                };
               let taken_name =
                 List.find_opt(
                   GeneralTreeUtils.name_occurs_within(
@@ -1519,8 +1652,18 @@ module Local = {
                   ),
                   added_names,
                 );
-              switch (taken_name) {
-              | Some(name) =>
+              switch (member_clash, taken_name) {
+              | (Some(name), _) =>
+                Error(
+                  Action.Failure.Composition_action_failure(
+                    "Not renaming to \""
+                    ++ name
+                    ++ "\": the module already has a member of that name, so qualified uses (M."
+                    ++ name
+                    ++ ") would read only one of the two. Choose a name no other member of this module has.",
+                  ),
+                )
+              | (None, Some(name)) =>
                 Error(
                   Action.Failure.Composition_action_failure(
                     "Not renaming to \""
@@ -1528,7 +1671,7 @@ module Local = {
                     ++ "\": that name already occurs as a binder or variable reference within this binding's scope, so the rename could silently change which binding existing references point to. Choose a name that is unused in this scope.",
                   ),
                 )
-              | None =>
+              | (None, None) =>
                 /* Hybrid refs: pre-edit [[co_ctx]] for the filter, post-edit
                    term + [[new_info_map]] for the body, so renames see stale
                    spellings but paths stay consistent after follow-up edits
@@ -1537,6 +1680,7 @@ module Local = {
                   old_names == []
                     ? new_z
                     : GeneralTreeUtils.update_use_sites_of_pat(
+                        ~root,
                         ~z=new_z,
                         ~co_ctx=
                           GeneralTreeUtils.get_refs_to_after_pattern_edit(
@@ -1547,6 +1691,25 @@ module Local = {
                         ~old_names,
                         ~new_names,
                       );
+                /* a member's `M.x` labels: they resolve to it in the old
+                   program, and keep their ids through the edit */
+                let final_z =
+                  List.fold_left(
+                    (z, (binder, name)) =>
+                      Rename.relabel_zipper(
+                        Rename.qualified(
+                          ~info_map=initial_info_map,
+                          Rename.references(
+                            ~info_map=initial_info_map,
+                            binder,
+                          ),
+                        ),
+                        name,
+                        z,
+                      ),
+                    final_z,
+                    renamed,
+                  );
                 /* Belt-and-suspenders: re-validate after the use-site rewrite;
                    anything the pre-checks missed must not grow the error count. */
                 let initial_errors =
@@ -1575,10 +1738,12 @@ module Local = {
     | Update(BindingClause, path, code) =>
       let initial_node = path_to_node(initial_node_map, path);
       let target_id = path_to_id(initial_node_map, path);
-      let root = Utils.is_module_member(initial_node) ? Sort.Mod : Sort.Exp;
+      let code_root =
+        Utils.is_module_member(initial_node) ? Sort.Mod : Sort.Exp;
       switch (
         PerformUtils.overwrite_term(
-          ~root,
+          ~root=code_root,
+          ~splice_root=root,
           initial_z,
           target_id,
           code,
@@ -1621,6 +1786,7 @@ module Local = {
       (
         is_member
           ? PerformUtils.insert_member(
+              ~splice_root=root,
               initial_z,
               target_id,
               code,
@@ -1628,6 +1794,7 @@ module Local = {
               syntax,
             )
           : PerformUtils.insert_term(
+              ~splice_root=root,
               initial_z,
               target_id,
               "\n" ++ code ++ "\n",
@@ -1644,6 +1811,7 @@ module Local = {
       (
         is_member
           ? PerformUtils.insert_member(
+              ~splice_root=root,
               initial_z,
               target_id,
               code,
@@ -1651,6 +1819,7 @@ module Local = {
               syntax,
             )
           : PerformUtils.insert_term(
+              ~splice_root=root,
               initial_z,
               target_id,
               "\n" ++ code ++ "\n",
@@ -1667,6 +1836,7 @@ module Local = {
         switch (Option.map(path_to_node(initial_node_map), path)) {
         | Some(node) when Utils.is_module_member(node) =>
           PerformUtils.insert_member(
+            ~splice_root=root,
             initial_z,
             Utils.past_test_members(~info_map=initial_info_map, node),
             test,
@@ -1675,10 +1845,33 @@ module Local = {
           )
         | Some(node) =>
           PerformUtils.insert_after_piece(
+            ~splice_root=root,
             initial_z,
             Some(Utils.past_tests(node)),
             test ++ ";",
           )
+        | None when root == Sort.Mod =>
+          switch (
+            Utils.last_member(~info_map=initial_info_map, initial_node_map)
+          ) {
+          | Some(item) =>
+            PerformUtils.insert_member(
+              ~splice_root=root,
+              initial_z,
+              item,
+              test,
+              Direction.Right,
+              syntax,
+            )
+          | None =>
+            PerformUtils.insert_after_piece(
+              ~root,
+              ~splice_root=root,
+              initial_z,
+              None,
+              test ++ ";",
+            )
+          }
         | None =>
           PerformUtils.insert_after_piece(
             initial_z,
@@ -1693,6 +1886,7 @@ module Local = {
     | Delete(BindingClause, path) =>
       let target_id = path_to_id(initial_node_map, path);
       PerformUtils.destruct(
+        ~root,
         ~defs_exclude_bodies=true,
         initial_z,
         target_id,
@@ -1705,6 +1899,7 @@ module Local = {
       let node = path_to_node(initial_node_map, path);
       let target_id = Utils.get_inner_term_id(Body, node);
       PerformUtils.destruct(
+        ~root,
         ~defs_exclude_bodies=false,
         initial_z,
         target_id,
@@ -1721,6 +1916,7 @@ module Local = {
 
   let composition_dispatch =
       (
+        ~root: Sort.t,
         ~initial_info_map: option(StaticsBase.Map.t)=None,
         a: Action.Structural.t,
         syntax: CachedSyntax.t,
@@ -1736,6 +1932,7 @@ module Local = {
       };
     let dispatch = initial_node_map =>
       edit_dispatch(
+        ~root,
         ~e=a,
         ~initial_z=z,
         ~initial_node_map,
@@ -1752,8 +1949,10 @@ module Local = {
     };
   };
 
+  /* [root]: the program's, Perform's */
   let go =
       (
+        ~root: Sort.t,
         ~mk_statics: Zipper.t => StaticsBase.Map.t,
         ~initial_info_map: option(StaticsBase.Map.t),
         ~syntax: CachedSyntax.t,
@@ -1764,14 +1963,22 @@ module Local = {
     let res =
       try(
         switch (
-          composition_dispatch(~initial_info_map, a, syntax, z, mk_statics)
+          composition_dispatch(
+            ~root,
+            ~initial_info_map,
+            a,
+            syntax,
+            z,
+            mk_statics,
+          )
         ) {
         | Ok(new_z) =>
           Ok(
             PerfTimer.time("normalize", () =>
               PerformUtils.normalize_top_level(
+                ~root,
                 ~before=z,
-                Materialize.all(new_z, ~root=Exp),
+                Materialize.all(new_z, ~root),
               )
             ),
           )
@@ -1796,21 +2003,78 @@ module Local = {
 };
 
 module Public = {
-  let mk_statics_with = (settings: Language.CoreSettings.t, z: Zipper.t) =>
+  /* the program's statics, read at its editor's root, analyzed whole so
+     the node map can walk a Mod root's chain of members. A Mod root's term
+     comes from Incr, which keeps it physically stable: from_zip_for_sem
+     reads the same term but builds it anew per call, so Statics.mk (memoized
+     on the term) reruns and its module lowering mints fresh ids for the
+     members' synthesized tail, and two calls' maps disagree */
+  let mk_statics_with =
+      (~root=Sort.Exp, settings: Language.CoreSettings.t, z: Zipper.t) => {
+    let term =
+      if (root == Sort.Mod) {
+        let (seg, masks) =
+          MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
+        MakeTerm.Incr.term_of_root(~masks, ~root, seg);
+      } else {
+        MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      };
     Language.(
       fst(
         Statics.mk(
           settings,
           Builtins.ctx_init(Some(Operators.default_mode)),
-          MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
+          term,
         ),
       )
     );
-  let mk_statics = (z: Zipper.t): Language.StaticsBase.Map.t =>
-    mk_statics_with(Language.CoreSettings.on, z);
-  let go =
+  };
+  let mk_statics = (~root=Sort.Exp, z: Zipper.t): Language.StaticsBase.Map.t =>
+    mk_statics_with(~root, Language.CoreSettings.on, z);
+  /* a no-path insert_before / insert_after: [code] at the program's start
+     or end. A Mod root's top level is a module body, so there [code]'s
+     members go in as members, each with its `;`: first, or after the last
+     member, before the trailing expression, as insert_test places a test */
+  let insert_at_boundary =
+      (
+        ~root: Sort.t,
+        ~info_map: Language.StaticsBase.Map.t,
+        d: Action.Structural.insert_target,
+        z: Zipper.t,
+        code: string,
+      )
+      : result(Zipper.t, Action.Failure.t) =>
+    switch (root, d) {
+    | (Mod, After) =>
+      switch (
+        Option.bind(build(z, info_map), Local.Utils.last_member(~info_map))
+      ) {
+      | Some(item) =>
+        Local.PerformUtils.insert_member(
+          ~splice_root=root,
+          z,
+          item,
+          code,
+          Direction.Right,
+          CachedSyntax.init(~root, z),
+        )
+      | None => Local.PerformUtils.insert_members_first(z, code)
+      }
+    | (Mod, Before) => Local.PerformUtils.insert_members_first(z, code)
+    | _ =>
+      Local.PerformUtils.introduce(
+        ~root,
+        ~splice_root=root,
+        ~fast=true,
+        ~keep_edge_ws=true,
+        d == Before ? Move.to_start(z) : Move.to_end(z),
+        "\n" ++ code ++ "\n",
+      )
+    };
+  let go = (~root: Sort.t) =>
     Local.go(
-      ~mk_statics=z => PerfTimer.time("statics", () => mk_statics(z)),
+      ~root,
+      ~mk_statics=z => PerfTimer.time("statics", () => mk_statics(~root, z)),
       ~initial_info_map=None,
     );
   /* With the editor's statics for this zipper in hand (CachedStatics.
@@ -1820,6 +2084,7 @@ module Public = {
   let go_with_editor_statics =
       (~settings: Language.CoreSettings.t, ~initial: CachedStatics.t) =>
     Local.go(
+      ~root=Sort.Exp,
       ~mk_statics=
         z =>
           PerfTimer.time("statics", () => {

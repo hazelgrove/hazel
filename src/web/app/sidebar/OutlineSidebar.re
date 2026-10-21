@@ -151,7 +151,8 @@ type props = {
   stack_controls: bool,
   /* why a row's item opens no cell, if it doesn't: the cell code's rule */
   refusal: Language.Id.t => option(ScratchFocus.refusal),
-  is_collapsed: OutlineTree.path => bool,
+  /* a branch's rows hidden: by hand, else by its kind (OutlineTree) */
+  folded: (OutlineTree.path, OutlineTree.node) => bool,
   header,
   zoom_root: option(Language.Id.t),
   cursor: option(OutlineTree.path),
@@ -242,8 +243,8 @@ let focus_without_scroll = el =>
 
 /* a line's field holds the keys while it shows: it takes focus whenever
    focus is in the row list (after a save it refused, say) or nowhere (the
-   page parks it in the clipboard shim). Its caret goes where the keys put
-   it ([col]), as it shows and as they put it there again ([seq]) */
+   body, or the page itself). Its caret goes where the keys put it ([col]),
+   as it shows and as they put it there again ([seq]) */
 module FieldFocus =
   Attr.Hooks.Make({
     module State = Unit;
@@ -458,6 +459,18 @@ let edit_field = (~props: props, ~on: handlers, t: E.t, typed: string) => {
 let flash_cls = (n: int): list(string) =>
   n == 0 ? [] : [n mod 2 == 0 ? "outline-flash-b" : "outline-flash-a"];
 
+/* a run's tests' statuses, as their rows show them */
+let run_statuses =
+    (
+      ~test_status: Language.Id.t => option(TestStatus.t),
+      n: OutlineTree.node,
+    )
+    : list(option(TestStatus.t)) =>
+  List.map(
+    (c: OutlineTree.node) => Option.bind(c.o_test, test_status),
+    n.o_children,
+  );
+
 /* live glyph + status class for test rows; the container joins its
    children's statuses (any fail => ✗) */
 let test_glyph =
@@ -475,13 +488,32 @@ let test_glyph =
   switch (n.o_kind) {
   | KTest => Option.map(of_status, Option.bind(n.o_test, test_status))
   | KTests =>
-    let sts =
-      List.filter_map(
-        (c: OutlineTree.node) => Option.bind(c.o_test, test_status),
-        n.o_children,
-      );
-    sts == [] ? None : Some(of_status(TestStatus.join_all(sts)));
+    switch (List.filter_map(Fun.id, run_statuses(~test_status, n))) {
+    | [] => None
+    | sts => Some(of_status(TestStatus.join_all(sts)))
+    }
   | _ => None
+  };
+};
+
+/* a run's tally from its tests' statuses: N/N all passing, "K failing"
+   when any fail, else P/N (some can't run yet); with it, whether any
+   fail. None: no results yet */
+let run_tally =
+    (statuses: list(option(TestStatus.t))): option((string, bool)) => {
+  let count = s => List.length(List.filter((==)(Some(s)), statuses));
+  switch (count(TestStatus.Fail)) {
+  | _ when List.for_all(Option.is_none, statuses) => None
+  | 0 =>
+    Some((
+      Printf.sprintf(
+        "%d/%d",
+        count(TestStatus.Pass),
+        List.length(statuses),
+      ),
+      false,
+    ))
+  | k => Some((Printf.sprintf("%d failing", k), true))
   };
 };
 
@@ -917,7 +949,7 @@ let rec node_view =
     r_node: n,
     r_name: name,
     r_parent: None,
-    r_expanded: n.o_children != [] && !props.is_collapsed(row_path),
+    r_expanded: n.o_children != [] && !props.folded(row_path, n),
   };
   /* text mode's caret on this row */
   let caret =
@@ -955,6 +987,25 @@ let rec node_view =
       ~attrs=[clss(["outline-err-badge", ...cls]), Attr.title(title)],
       [text({js|●|js})],
     );
+  /* a folded run's tally, after its word: it sums up the tests the fold
+     hides (open, the rows show them), so it also says the run is folded */
+  let tally =
+    switch (
+      n.o_kind == KTests && !row.r_expanded
+        ? run_tally(run_statuses(~test_status=props.test_status, n)) : None
+    ) {
+    | Some((s, failing)) => [
+        span(
+          ~attrs=[
+            clss(
+              ["outline-tally"] @ (failing ? ["outline-tally-fail"] : []),
+            ),
+          ],
+          [text(s)],
+        ),
+      ]
+    | None => []
+    };
   /* an unfinished item's button waits, disabled; a row under a projector
      has none */
   let cell_button = (~cls, ~title) =>
@@ -1037,9 +1088,13 @@ let rec node_view =
           ),
         ]
         @ (
-          switch (n.o_id) {
-          | Some(id) => [
+          switch (E.key_of_node(n)) {
+          | Some(Item(id)) => [
               Attr.create("data-ol-id", Language.Id.to_string(id)),
+            ]
+          /* a run's label, by its first test, for the caret's mark */
+          | Some(Run(first)) => [
+              Attr.create("data-ol-run", Language.Id.to_string(first)),
             ]
           | None => []
           }
@@ -1149,6 +1204,7 @@ let rec node_view =
         | _ => words(n, name_view)
         }
       )
+      @ tally
       @ (has_err ? [badge([], "contains type errors")] : [])
       @ (
         has_roll_err
@@ -1205,7 +1261,7 @@ let rec node_view =
       ~attrs=
         [clss(["outline-branch"])]
         @ (
-          props.is_collapsed(row_path) && Option.is_none(inside)
+          props.folded(row_path, n) && Option.is_none(inside)
             ? [] : [Attr.create("open", "")]
         ),
       [
@@ -2103,6 +2159,42 @@ let header_view =
   @ mode_switch;
 };
 
+/* the rows on screen under [root_path], in order: the keyboard's list.
+   [folded]: a branch's rows hidden; [skip]: a row standing aside (for a
+   new definition's line); [relabel]: a row's label as shown */
+let visible_rows =
+    (
+      ~folded: (OutlineTree.path, OutlineTree.node) => bool,
+      ~skip: option(Language.Id.t)=None,
+      ~relabel: OutlineTree.node => OutlineTree.node=n => n,
+      ~root_path: OutlineTree.path=[],
+      roots: list(OutlineTree.node),
+    )
+    : array(visible_row) => {
+  let rec walk = (parent, prefix, ns: list(OutlineTree.node)) =>
+    List.concat_map(
+      ((n: OutlineTree.node, seg)) =>
+        n.o_id != None && n.o_id == skip
+          ? []
+          : {
+            let path = prefix @ [seg];
+            let expanded = n.o_children != [] && !folded(path, n);
+            [
+              {
+                r_path: path,
+                r_node: relabel(n),
+                r_name: n.o_label,
+                r_parent: parent,
+                r_expanded: expanded,
+              },
+            ]
+            @ (expanded ? walk(Some(path), path, n.o_children) : []);
+          },
+      OutlineTree.segs(ns),
+    );
+  Array.of_list(walk(None, root_path, roots));
+};
+
 let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
   /* zoomed, the module's members are the top level; collapse paths
      stay rooted at the program */
@@ -2121,36 +2213,16 @@ let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
     | Some({line: New(a, First | Last), _}) => Some(a)
     | _ => None
     };
-  let fresh = fresh_id(on);
-  /* the rows on screen, in order: the keyboard's list */
-  let visible: array(visible_row) = {
-    let rec walk = (parent, prefix, ns: list(OutlineTree.node)) =>
-      List.concat_map(
-        ((n: OutlineTree.node, seg)) =>
-          n.o_id != None && n.o_id == fresh
-            ? []
-            : {
-              let path = prefix @ [seg];
-              let name = n.o_label;
-              let n = live_label(props, n);
-              let branch = n.o_children != [];
-              let expanded =
-                branch && (!props.is_collapsed(path) || n.o_id == opened);
-              [
-                {
-                  r_path: path,
-                  r_node: n,
-                  r_name: name,
-                  r_parent: parent,
-                  r_expanded: expanded,
-                },
-              ]
-              @ (expanded ? walk(Some(path), path, n.o_children) : []);
-            },
-        OutlineTree.segs(ns),
-      );
-    Array.of_list(walk(None, root_path, roots));
-  };
+  let visible =
+    visible_rows(
+      ~folded=
+        (path, n) =>
+          props.folded(path, n) && (opened == None || n.o_id != opened),
+      ~skip=fresh_id(on),
+      ~relabel=live_label(props),
+      ~root_path,
+      roots,
+    );
   /* text mode, where its caret is drawn */
   let tm =
     switch (on.text.current) {

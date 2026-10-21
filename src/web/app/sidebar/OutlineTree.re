@@ -141,17 +141,32 @@ and mk_def =
 
 and let_row = (id: Id.t, pat: Pat.t, def: Exp.t): list(node) =>
   switch (pat_var(pat)) {
+  /* `let f(x) = …` keeps its parameters in the pattern: [def] is the
+     function's body, as `fun x -> …`'s is */
+  | Some((name, binder)) when Option.is_some(FunctionSugar.detect(pat)) => [
+      row(
+        ~id,
+        ~label=name,
+        ~binder=(binder, Sort.Pat),
+        ~kids=of_block(def),
+        KFn,
+      ),
+    ]
   | Some((name, binder)) => [
       mk_def(~id, ~binder=(binder, Sort.Pat), name, def),
     ]
   | None => []
   }
 
-/* `module M = …`, or `module M : S = …`: the name under its signature */
+/* `module M = …`, or `module M : S = …`: the name under its signature.
+   A module whatever its definition, an alias (`module Db = Base`) too */
 and module_row = (id: Id.t, mpat: MPat.t, def: Exp.t): list(node) =>
   switch (mpat.term) {
   | Var(name) => [
-      mk_def(~id, ~binder=(MPat.rep_id(mpat), Sort.MPat), name, def),
+      {
+        ...mk_def(~id, ~binder=(MPat.rep_id(mpat), Sort.MPat), name, def),
+        o_kind: KModule,
+      },
     ]
   | Asc(inner, _) => module_row(id, inner, def)
   | _ => []
@@ -169,11 +184,11 @@ and of_mod = (items: list(Mod.t)): list(node) =>
         | EmptyHole => []
         | _ => stmt_row(Mod.rep_id(m), e)
         }
+      /* an evaluated binding: a module value, never source */
+      | ModVal(_)
       | Invalid(_)
       | EmptyHole
-      | MultiHole(_)
-      /* an evaluated binding (dynamics only): never in the source */
-      | ModVal(_) => []
+      | MultiHole(_) => []
       },
     items,
   );
@@ -244,6 +259,37 @@ let rec flatten = (ns: list(node)): list(node) =>
 /* their ids, in that order */
 let collect = (ns: list(node)): list(Id.t) =>
   List.filter_map(n => n.o_id, flatten(ns));
+
+/* the rows [errors] badge, among [rows]: each error's deepest row in its
+   item, and the rows holding it past that, modules included, whose
+   roll-up badge shows while they are collapsed */
+let error_rows =
+    (~info_map: Id.Map.t(Info.t), ~rows: list(Id.t), errors: list(Id.t))
+    : (list(Id.t), list(Id.t)) => {
+  let in_rows = id => List.mem(id, rows);
+  List.fold_left(
+    ((direct, roll), err) => {
+      let (own, held) =
+        switch (Id.Map.find_opt(err, info_map)) {
+        | Some(info) => (
+            [err, ...Info.within_item(~info_map, info)],
+            [err, ...Info.containers(~info_map, info)],
+          )
+        | None => ([err], [err])
+        };
+      let holders = List.filter(in_rows, held);
+      switch (List.filter(in_rows, own)) {
+      | [] => (direct, holders @ roll)
+      | [deepest, ..._] => (
+          [deepest, ...direct],
+          List.filter(id => !Id.equal(id, deepest), holders) @ roll,
+        )
+      };
+    },
+    ([], []),
+    errors,
+  );
+};
 
 /* the row with id [fid], and the rows above it outermost first */
 let find = (fid: Id.t, e: Exp.t): option((list(node), node)) => {
@@ -329,7 +375,7 @@ type path = list(path_seg);
 /* each row's path segment: its label and its index among same-labeled
    siblings; tests and test groups go by the named row before them
    (`tests@b`), so adding a test elsewhere leaves them put. label_path,
-   resolve_path and the sidebar's collapse paths must all count here */
+   resolve_path and the sidebar's fold paths must all count here */
 let segs = (ns: list(node)): list((node, path_seg)) => {
   let seen: Hashtbl.t(string, int) = Hashtbl.create(8);
   let prev = ref("");
@@ -381,28 +427,66 @@ let find_path = (fid: Id.t, e: Exp.t): option(list((node, path_seg))) =>
 let label_path = (fid: Id.t, e: Exp.t): option(path) =>
   Option.map(List.map(snd), find_path(fid, e));
 
-/* row [fid] shows its children: it is a row, and not [collapsed] */
-let expanded = (~collapsed: list(path), fid: Id.t, e: Exp.t): bool =>
-  switch (label_path(fid, e)) {
-  | Some(path) => !List.mem(path, collapsed)
+/* the run of tests holding row [fid], by path */
+let run_of = (fid: Id.t, e: Exp.t): option(path) =>
+  switch (Option.map(List.rev, find_path(fid, e))) {
+  | Some([_, ({o_kind: KTests, _}, _), ..._] as up) =>
+    Some(List.rev_map(snd, List.tl(up)))
+  | _ => None
+  };
+
+/* the folds chosen by hand, by path: each row's last choice (true:
+   folded). A row without one takes its kind's default */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type folds = list((path, bool));
+
+/* a run of tests starts folded, every other row open */
+let folded_by_default = (k: kind): bool => k == KTests;
+
+let folded = (~folds: folds, path: path, k: kind): bool =>
+  switch (List.assoc_opt(path, folds)) {
+  | Some(f) => f
+  | None => folded_by_default(k)
+  };
+
+/* [folds] with row [path]'s choice made */
+let choose = (path: path, f: bool, folds: folds): folds => [
+  (path, f),
+  ...List.remove_assoc(path, folds),
+];
+
+/* row [fid] shows its children: it is a row, and not folded */
+let expanded = (~folds: folds, fid: Id.t, e: Exp.t): bool =>
+  switch (find_path(fid, e)) {
+  | Some(chain) =>
+    let (n, _) = ListUtil.last(chain);
+    !folded(~folds, List.map(snd, chain), n.o_kind);
   | None => false
   };
 
-let resolve_path = (path: path, e: Exp.t): option(Id.t) => {
+/* the row at [path], if it's there still */
+let node_at = (path: path, e: Exp.t): option(node) => {
   let find = (seg: path_seg, ns: list(node)): option(node) =>
     segs(ns) |> List.find_opt(((_, s)) => s == seg) |> Option.map(fst);
   let rec go = (path, ns: list(node)) =>
     switch (path) {
     | [] => None
-    | [last] => Option.bind(find(last, ns), n => n.o_id)
+    | [last] => find(last, ns)
     | [hd, ...rest] =>
-      switch (find(hd, ns)) {
-      | Some(n) => go(rest, n.o_children)
-      | None => None
-      }
+      Option.bind(find(hd, ns), n => go(rest, n.o_children))
     };
   go(path, of_term(e));
 };
+
+let resolve_path = (path: path, e: Exp.t): option(Id.t) =>
+  Option.bind(node_at(path, e), n => n.o_id);
+
+/* row [path]'s fold as [e] shows it, flipped; none once it's gone */
+let flipped = (~folds: folds, path: path, e: Exp.t): option(bool) =>
+  Option.map(
+    (n: node) => !folded(~folds, path, n.o_kind),
+    node_at(path, e),
+  );
 
 /* the headerless rows' ids (⇒ and `;`) */
 let headless_row_ids = (e: Exp.t): Id.Map.t(unit) =>
@@ -472,15 +556,14 @@ let livelit_row_ids = (e: Exp.t): list(Id.t) =>
       List.rev(exp([], e));
     },
   );
-/* the row holding [id]: its own, else its nearest ancestor's */
+/* the row holding [id]: its own, else its nearest ancestor's in its item */
 let enclosing_row =
     (~info_map: Statics.Map.t, id: Id.t, e: Exp.t): option(Id.t) =>
   switch (Id.Map.find_opt(id, info_map)) {
   | Some(info) =>
     let rows = row_ids(e);
-    List.find_opt(
-      x => Id.Map.mem(x, rows),
-      [id, ...Info.ancestors_of(info)],
-    );
+    Id.Map.mem(id, rows)
+      ? Some(id)
+      : Info.find_within_item(~info_map, info, x => Id.Map.mem(x, rows));
   | None => None
   };

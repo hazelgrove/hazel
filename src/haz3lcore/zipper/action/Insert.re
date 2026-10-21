@@ -46,10 +46,56 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   };
 };
 
+/* [t] heads a member at [sort]: `let`, `type`, `module` at Mod */
+let heads_member = (sort: Sort.t, t: Token.t): bool =>
+  switch (Form.Expansion.try_get(sort, t)) {
+  | Some((label, _)) => MemberLines.is_member_label(label)
+  | None => false
+  };
+
+/* the level of the line the caret's level starts on, mid-line: a tile's
+   line's, and a member list's its module's member level */
+let rec line_of = (ancestors: Ancestors.t): option(int) =>
+  switch (ancestors) {
+  | [] => None
+  | [(a, (pre, _)), ...rest] =>
+    let level =
+      MemberLines.level_at(
+        ~line=line_of(rest),
+        Array.of_list(pre),
+        List.length(pre),
+      );
+    Some(
+      MemberLines.at_members(Ancestor.sort(a))
+        ? MemberLines.member_level(level) : level,
+    );
+  };
+
+/* a member head typed where a member line starts, after a member not open
+   on the right, starts a member there, as after the member's `;`: the
+   member level's sort, not the expression's the line follows */
+let member_head_sort = (t: Token.t, z: t, ~root): option(Sort.t) =>
+  if (!heads_member(Sort.Mod, t) && !heads_member(Sort.Sig, t)) {
+    None;
+  } else {
+    let ancestors = z.relatives.ancestors;
+    switch (
+      MemberLines.member_line_sort(
+        ~sort=Ancestors.sort(root, ancestors),
+        ~line=() => line_of(ancestors),
+        fst(z.relatives.siblings),
+      )
+    ) {
+    | Some(sort) when heads_member(sort, t) => Some(sort)
+    | _ => None
+    };
+  };
+
 /* Determine the effective sort for insertion, considering both local and parent sorts.
    Default: local-first (try local sort, fall back to parent).
    Special cases:
    - Semicolon with Mod parent prefers Mod (for ModSeq over CellJoin)
+   - A member head at a member line takes the member level's sort
    - Mod context falls back to Exp since bare expressions are valid module items */
 let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   let local_sort = Relatives.sort(~root, z.relatives);
@@ -59,19 +105,24 @@ let effective_sort = (t: Token.t, z: t, ~root): Sort.t => {
   if (t == ";" && (parent_sort == Sort.Mod || parent_sort == Sort.Sig)) {
     parent_sort;
   } else {
-    /* Default: local-first with parent fallback */
-    switch (Form.Expansion.try_get(local_sort, t)) {
-    | Some(_) => local_sort
+    switch (member_head_sort(t, z, ~root)) {
+    | Some(sort) => sort
     | None =>
-      /* In Mod context, try Exp since bare expressions are valid module items.
-         This mirrors remold_mod which also falls back to Exp. */
-      if (local_sort == Sort.Mod) {
-        switch (Form.Expansion.try_get(Exp, t)) {
+      /* Default: local-first with parent fallback */
+      switch (Form.Expansion.try_get(local_sort, t)) {
+      | Some(_) => local_sort
+      | None =>
+        /* In Mod context, here or the parent's, try Exp since bare
+           expressions are valid module items. This mirrors remold_mod
+           which also falls back to Exp. */
+        let in_mod =
+          local_sort == Sort.Mod
+          || parent_sort == Sort.Mod
+          && Form.Expansion.try_get(Sort.Mod, t) == None;
+        switch (in_mod ? Form.Expansion.try_get(Exp, t) : None) {
         | Some(_) => Exp
         | None => parent_sort
         };
-      } else {
-        parent_sort;
       }
     };
   };
@@ -122,39 +173,41 @@ let insert_shard_core =
 };
 
 /* `type T¦` in a signature followed by `=`: the bare abstract-member tile
-   (`["type"]`, body TPat) becomes shard 0 of `type _ = _`. Its missing `=`
-   is then the backpack head (the backpack is derived from incomplete tiles,
-   closest first), so the ordinary put-down and reassembly yield
-   `type T = ¦` with T as the child. Only the left siblings are touched. */
+   (SigTypeAbstract, body TPat) becomes shard 0 of `type _ = _`. Its missing
+   `=` is then the nearest missing shard, so the ordinary put-down and
+   reassembly yield `type T = ¦` with T as the child. Only the left siblings
+   are touched. */
 let upgrade_bare_sig_type = (z: t): option(t) => {
   let (l, r) = z.relatives.siblings;
+  let is_bare_operand = (t: Tile.t) =>
+    switch (Tile.label(t), t.shards) {
+    | ([_], [0]) =>
+      let out = Tile.mold(t).out;
+      out == Sort.TPat || out == Any;
+    | _ => false
+    };
   let rec find = (~seen_operand, acc, rev) =>
     switch (rev) {
     | [(Piece.Secondary(_) | Grout(_)) as p, ...rest] =>
       find(~seen_operand, [p, ...acc], rest)
-    | [Tile(t) as p, ...rest]
-        when
-          !seen_operand
-          && Tile.arity(t) == 1
-          && t.shards == [0]
-          && (Tile.mold(t).out == Sort.TPat || Tile.mold(t).out == Any) =>
+    | [Tile(t) as p, ...rest] when !seen_operand && is_bare_operand(t) =>
       find(~seen_operand=true, [p, ...acc], rest)
-    | [Tile(t), ...rest]
-        when Tile.label(t) == ["type"] && Tile.mold(t).out == Sig =>
+    | [Tile({form: Compound(SigTypeAbstract), _} as t), ...rest]
+        when Tile.mold(t).out == Sig =>
       Some((List.rev(rest), t, acc))
     | _ => None
     };
   switch (find(~seen_operand=false, [], List.rev(l))) {
   | None => None
   | Some((prefix, t, operand)) =>
-    /* The bare form becomes ModType's signature row, `type T = ¦`. */
-    let t': Tile.t = {
-      ...t,
-      form: Form.Compound(ModType),
-      sort: Sig,
-      shards: [0],
-      children: [],
-    };
+    let t' =
+      Tile.{
+        ...t,
+        form: Compound(ModType),
+        sort: Sig,
+        shards: [0],
+        children: [],
+      };
     Some({
       ...z,
       relatives: {

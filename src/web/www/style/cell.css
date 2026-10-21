@@ -52,6 +52,13 @@
   );
 }
 
+/* set by ScrollWidth on each element that reads it (cells, drawer
+   stripes): not inherited, so a change restyles only those */
+@property --main-scroll-width {
+  syntax: "*";
+  inherits: false;
+}
+
 :is(#main.Scratch,
 #main.Documentation,
 #main.Configuration):not(.Derivations) .cell {

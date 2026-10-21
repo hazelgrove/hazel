@@ -268,7 +268,7 @@ let no_arms = () => {
       ~font_metrics=Web.FontMetrics.init,
       ~syntax,
       ~frame=None,
-      ~completion=Web.Arms.lazy_completion(z),
+      ~completion=Web.Arms.lazy_completion(~root=Exp, z),
       z,
     )
     |> List.length;

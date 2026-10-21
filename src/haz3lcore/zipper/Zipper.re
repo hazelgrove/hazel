@@ -140,6 +140,123 @@ let restore_relatives = (o: Relatives.t, n: Relatives.t): Relatives.t => {
   relatives;
 };
 
+/* [z] with what it shares with [old] as [old]'s objects, at every level
+   (Segment.restore_deep): for edits that rebuild what they don't change */
+let restore_identity = (~old: t, z: t): t => {
+  /* a tile ancestor's children, a projector ancestor's syntax around the
+     splice the caret is in; a splice ancestor holds no segment */
+  let anc_segs = (a: Ancestor.t): list(Segment.t) =>
+    switch (a) {
+    | Tile(t) => fst(t.children) @ snd(t.children)
+    | Projector(p) => [p.before, p.after]
+    | Splice(_) => []
+    };
+  let segs = (z: t) =>
+    [
+      z.selection.content,
+      fst(z.relatives.siblings),
+      snd(z.relatives.siblings),
+    ]
+    @ List.concat_map(
+        ((a: Ancestor.t, (pre, suf))) => [pre, suf, ...anc_segs(a)],
+        z.relatives.ancestors,
+      );
+  let index = Segment.index_deep(segs(old));
+  let seg = Segment.restore_deep(index);
+  let olds = Hashtbl.create(8);
+  List.iter(
+    ((a: Ancestor.t, _)) => Hashtbl.replace(olds, Ancestor.id(a), a),
+    old.relatives.ancestors,
+  );
+  let ancestor = (a: Ancestor.t): Ancestor.t =>
+    switch (a) {
+    | Tile(t) =>
+      let (l, r) = t.children;
+      let children = (List.map(seg, l), List.map(seg, r));
+      let same = ((l, r), (l', r')) =>
+        List.length(l) == List.length(l')
+        && List.length(r) == List.length(r')
+        && List.for_all2(Segment.ptr_eq, l, l')
+        && List.for_all2(Segment.ptr_eq, r, r');
+      switch (Hashtbl.find_opt(olds, t.id)) {
+      | Some(Tile(o) as old_a)
+          when
+            same(o.children, children)
+            && compare(
+                 {
+                   ...o,
+                   children: ([], []),
+                 },
+                 {
+                   ...t,
+                   children: ([], []),
+                 },
+               )
+            == 0 => old_a
+      | _ =>
+        same(t.children, children)
+          ? a
+          : Tile({
+              ...t,
+              children,
+            })
+      };
+    | Projector(p) =>
+      let before = seg(p.before);
+      let after = seg(p.after);
+      switch (Hashtbl.find_opt(olds, p.id)) {
+      | Some(Projector(o) as old_a)
+          when
+            Segment.ptr_eq(o.before, before)
+            && Segment.ptr_eq(o.after, after)
+            && compare(
+                 {
+                   ...o,
+                   before: [],
+                   after: [],
+                 },
+                 {
+                   ...p,
+                   before: [],
+                   after: [],
+                 },
+               )
+            == 0 => old_a
+      | _ =>
+        Segment.ptr_eq(p.before, before) && Segment.ptr_eq(p.after, after)
+          ? a
+          : Projector({
+              ...p,
+              before,
+              after,
+            })
+      };
+    | Splice(s) =>
+      switch (Hashtbl.find_opt(olds, s.id)) {
+      | Some(Splice(_) as old_a) when compare(old_a, a) == 0 => old_a
+      | _ => a
+      }
+    };
+  {
+    ...z,
+    selection: {
+      ...z.selection,
+      content: seg(z.selection.content),
+    },
+    relatives: {
+      siblings: (
+        seg(fst(z.relatives.siblings)),
+        seg(snd(z.relatives.siblings)),
+      ),
+      ancestors:
+        List.map(
+          ((a, (pre, suf))) => (ancestor(a), (seg(pre), seg(suf))),
+          z.relatives.ancestors,
+        ),
+    },
+  };
+};
+
 let is_solid: Piece.t => bool =
   fun
   | Tile(_)

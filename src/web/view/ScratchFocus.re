@@ -1,8 +1,12 @@
 /* A cell's body is the definition's RHS child segment (between `=` and
    `in`/`;`), complete and grouted; slicing the whole `let…in` tile
-   leaves a prefix tile without its operand and crashes Skel. */
+   leaves a prefix tile without its operand and crashes Skel. A program's
+   items are ItemSpans' (the division the parser and the layout use): a
+   row is found through its levels, never by walking the program */
 open Haz3lcore;
 open Util;
+
+module S = ItemSpans;
 
 /* cells hold slices without edge whitespace (stray in an isolated
    cell); splicing re-wraps them in the program's own padding, so it
@@ -43,55 +47,8 @@ let rewrap_ws =
   | None => content
   };
 
-exception Indent(int);
-
-/* the indentation of the line the piece [id] is on */
-let line_indent = (id: Id.t, seg: Segment.t): option(int) => {
-  let ind = ref(0);
-  let lead = ref(true);
-  let rec go = (ps: Segment.t) =>
-    List.iter(
-      (p: Piece.t) => {
-        if (Piece.id(p) == id) {
-          raise(Indent(ind^));
-        };
-        switch (p) {
-        | Secondary(w) when Secondary.is_linebreak(w) =>
-          ind := 0;
-          lead := true;
-        | Secondary(w) when Secondary.is_space(w) =>
-          if (lead^) {
-            ind := ind^ + 1;
-          }
-        | Tile(t) =>
-          lead := false;
-          List.iter(
-            ch => {
-              go(ch);
-              lead := false;
-            },
-            t.children,
-          );
-        | _ => lead := false
-        };
-      },
-      ps,
-    );
-  switch (go(seg)) {
-  | () => None
-  | exception (Indent(n)) => Some(n)
-  };
-};
-
 let seg_contains_id = (id: Id.t, seg: Segment.t): bool =>
   Option.is_some(Segment.find_ctx(seg, id));
-
-/* the tile [fid], the segment it sits in and its index there */
-let tile_ctx = (fid: Id.t, seg: Segment.t): option((Segment.t, int, Tile.t)) =>
-  switch (Segment.find_ctx(seg, fid)) {
-  | Some((level, i, Tile(t))) => Some((level, i, t))
-  | _ => None
-  };
 
 /* split [ps] at the first `;` piece: (def run, separator + rest) */
 let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
@@ -102,23 +59,6 @@ let split_at_semi = (ps: list(Piece.t)): (list(Piece.t), list(Piece.t)) => {
     | [p, ...rest] => go([p, ...acc], rest)
     };
   go([], ps);
-};
-
-/* top-level item spans by piece structure, without parsing: an `…in`
-   tile opening its run (+ trailing ws) is a def item, the run through a
-   `;` ending it (+ ws) a statement, and what remains the trailing
-   expression. A 2-shard member's body is its sibling run, so an `…in`
-   there stays in the member */
-type item_kind =
-  | IDef /* let / type / module (header+body cells), or `use … in` */
-  | IStmt /* a `…;` statement: headerless cell */
-  | ITail; /* the trailing expression: headerless cell */
-
-type item_span = {
-  sp_id: option(Id.t), /* the def head or `;` tile; None for the tail */
-  sp_start: int,
-  sp_stop: int, /* exclusive */
-  sp_kind: item_kind,
 };
 
 /* the first tile among [arr]'s pieces [lo, hi) */
@@ -142,310 +82,8 @@ let is_def_head = (t: Tile.t): bool =>
 /* `use X in`: an item with no cell, as it has nothing of its own */
 let is_use = (t: Tile.t): bool => Tile.token(t, 0) == "use";
 
-/* `do x <- e in`: a bind, which the outline reads as an expression (it
-   rows let, type, module and use, never a bind), so it ends no item: the
-   run it starts is the block's tail, its ⇒ */
-let is_bind = (t: Tile.t): bool => Tile.token(t, 0) == "do";
-
 /* a form whose child is a module's member list: a module body's braces */
 let holds_members = (m: Mold.t): bool => List.mem(Sort.Mod, m.in_);
-
-/* [stop] moved back over edge whitespace and a `;`, not past [start]:
-   where a `…;` run's content ends */
-let before_semi = (arr: array(Piece.t), start: int, stop: int): int => {
-  let rec back = i => i > start && is_edge_ws(arr[i - 1]) ? back(i - 1) : i;
-  let stop = back(stop);
-  stop > start && Piece.is_semi(arr[stop - 1]) ? stop - 1 : stop;
-};
-
-/* the precedence of the operand a piece takes on its right, if any */
-let right_operand = (p: Piece.t): Precedence.t =>
-  switch (p) {
-  | Tile(t) =>
-    switch (snd(Tile.nibs(t)).shape) {
-    | Concave(prec) => prec
-    | Convex => Precedence.max
-    }
-  | _ => Precedence.max
-  };
-
-let item_spans = (~divided_only_tail=false, seg: Segment.t): list(item_span) => {
-  let arr = Array.of_list(seg);
-  let len = Array.length(arr);
-  let rec ws_end = i => i < len && is_edge_ws(arr[i]) ? ws_end(i + 1) : i;
-  /* module bodies have 2-shard member defs ended by `;`: a `;`-run
-     starting with a def head is a def item, not a statement */
-  let run_def_head = (start: int, stop: int): option(Id.t) =>
-    switch (first_tile(arr, start, stop)) {
-    | Some(t) when is_def_head(t) => Some(t.id)
-    | _ => None
-    };
-  let span = (sp_start, sp_stop, sp_kind, sp_id) => {
-    sp_id,
-    sp_start,
-    sp_stop,
-    sp_kind,
-  };
-  /* [operand]: the run holds more than whitespace and comments, so an
-     `…in` is inside it (`if c then a else let x = 1 in x`); [reach]: the
-     loosest operand its forms take on their right, which a `;` binding
-     tighter falls into (`if c then a else b; d` is all the if's) */
-  let rec walk = (i, start, ~operand, ~reach, acc) =>
-    if (i >= len) {
-      /* the remainder (if it has content) is the trailing expr —
-         or a trailing 2-shard member def */
-      let has_content = {
-        let rec go = j => j < len && (!is_edge_ws(arr[j]) || go(j + 1));
-        start < len && go(start);
-      };
-      let head = run_def_head(start, len);
-      /* a nested segment without boundaries is an expression, not a
-         block, so no tail item (deep containment would swallow
-         arbitrary ids); the program's top level keeps its tail */
-      let tail_ok = head != None || !divided_only_tail || acc != [];
-      List.rev(
-        has_content && tail_ok
-          ? [span(start, len, head == None ? ITail : IDef, head), ...acc]
-          : acc,
-      );
-    } else {
-      let next = (stop, sp) =>
-        walk(
-          stop,
-          stop,
-          ~operand=false,
-          ~reach=Precedence.max,
-          [sp, ...acc],
-        );
-      switch (arr[i]) {
-      | Tile(t) when Tile.ends_with_in(t) && !operand && !is_bind(t) =>
-        let stop = ws_end(i + 1);
-        next(stop, span(i, stop, IDef, Some(t.id)));
-      | Tile(t) as p when Tile.is_semi(t) && reach <= right_operand(p) =>
-        let stop = ws_end(i + 1);
-        next(
-          stop,
-          switch (run_def_head(start, i)) {
-          | Some(_) as head => span(start, stop, IDef, head)
-          | None => span(start, stop, IStmt, Some(t.id))
-          },
-        );
-      | p =>
-        walk(
-          i + 1,
-          start,
-          ~operand=operand || !Piece.is_secondary(p),
-          ~reach=max(reach, right_operand(p)),
-          acc,
-        )
-      };
-    };
-  /* a function body shares its segment with its `fun x ->` head: its
-     items start after it */
-  let is_head = (p: Piece.t) =>
-    switch (p) {
-    | Tile(t) =>
-      switch (Tile.label(t)) {
-      | ["fun", "->"]
-      | ["typfun", "->"] => true
-      | _ => false
-      }
-    | _ => false
-    };
-  let rec after_heads = i => {
-    let j = ws_end(i);
-    j < len && is_head(arr[j]) ? after_heads(j + 1) : i;
-  };
-  let first =
-    switch (after_heads(0)) {
-    | 0 => 0
-    | i => ws_end(i)
-    };
-  walk(first, first, ~operand=false, ~reach=Precedence.max, []);
-};
-
-/* a member body opening with `…in` lies flat in the member's run: it
-   is a let-in block, from that first `…in` up to the member's `;` */
-let flat_body = (arr: array(Piece.t), sp: item_span): option((int, int)) => {
-  /* the first `…in` past the head; a span opening with one is a let-in */
-  let rec first_in = (~head, i) =>
-    i >= sp.sp_stop
-      ? None
-      : (
-        switch (arr[i]) {
-        | Tile(t) when Tile.ends_with_in(t) => head ? None : Some(i)
-        | Tile(_) => first_in(~head=false, i + 1)
-        | _ => first_in(~head, i + 1)
-        }
-      );
-  sp.sp_kind == IDef
-    ? Option.map(
-        b0 => (b0, before_semi(arr, sp.sp_start, sp.sp_stop)),
-        first_in(~head=true, sp.sp_start),
-      )
-    : None;
-};
-
-/* [fid] is one of the pieces [lo, hi) themselves */
-let piece_at = (fid: Id.t, lo: int, hi: int, arr: array(Piece.t)): bool => {
-  let rec go = i => i < hi && (Piece.id(arr[i]) == fid || go(i + 1));
-  go(lo);
-};
-
-/* the flat body of one of [spans] with [fid] among its own pieces */
-let flat_body_of =
-    (fid: Id.t, arr: array(Piece.t), spans: list(item_span))
-    : option((int, int)) =>
-  List.find_map(
-    sp =>
-      switch (flat_body(arr, sp)) {
-      | Some((b0, b1)) when piece_at(fid, b0, b1, arr) => Some((b0, b1))
-      | _ => None
-      },
-    spans,
-  );
-
-/* how a level's items hold the piece on the way to a row: within a
-   statement (its run before the `;`) or the tail, with that symbol; as
-   the row's own definition; or not at all */
-type claim =
-  | Span(int, int, string)
-  | Item
-  | Pass;
-
-/* how [level]'s items hold its piece [i], on the way to the row [fid] */
-let rec claim_at = (~nested: bool, fid: Id.t, i: int, level: Segment.t): claim => {
-  let arr = Array.of_list(level);
-  switch (
-    List.find_opt(
-      sp => sp.sp_start <= i && i < sp.sp_stop,
-      item_spans(~divided_only_tail=nested, level),
-    )
-  ) {
-  | None => Pass
-  | Some({sp_kind: IStmt, sp_start, sp_stop, _}) =>
-    Span(sp_start, before_semi(arr, sp_start, sp_stop), {js|;|js})
-  | Some({sp_kind: ITail, sp_start, sp_stop, _}) =>
-    Span(sp_start, sp_stop, {js|⇒|js})
-  | Some({sp_id, _}) when sp_id == Some(fid) => Item
-  | Some(sp) =>
-    switch (flat_body(arr, sp)) {
-    | Some((b0, b1)) when b0 <= i && i < b1 =>
-      switch (
-        claim_at(
-          ~nested=true,
-          fid,
-          i - b0,
-          ListUtil.slice(b0, b1 - b0, level),
-        )
-      ) {
-      | Span(a, b, sym) => Span(b0 + a, b0 + b, sym)
-      | c => c
-      }
-    | _ => Pass
-    }
-  };
-};
-
-/* one level on the way down to a piece: the level, the index there of
-   the piece on the way, and what the level hangs from */
-type step = {
-  st_level: Segment.t,
-  st_idx: int,
-  st_from: from,
-}
-and from =
-  | Top
-  /* that child of the tile at the step above */
-  | Kid(Tile.t, int)
-  /* the syntax of the projector at the step above, which no cell cuts */
-  | Syntax;
-
-/* the levels from [seg] down to the one holding piece [fid], outermost
-   first. Through projectors too: a ⇒ row's id is its expression's root,
-   inside a projector around it */
-let path_to = (fid: Id.t, seg: Segment.t): option(list(step)) => {
-  let rec in_level = (from, level: Segment.t) => {
-    let rec go = (i, ps: Segment.t) =>
-      switch (ps) {
-      | [] => None
-      | [p, ...ps] =>
-        let step = {
-          st_level: level,
-          st_idx: i,
-          st_from: from,
-        };
-        if (Piece.id(p) == fid) {
-          Some([step]);
-        } else {
-          switch (
-            switch (p) {
-            | Tile(t) =>
-              List.find_mapi(
-                (k, kid) => in_level(Kid(t, k), kid),
-                t.children,
-              )
-            | Projector(pr) => in_level(Syntax, pr.syntax)
-            | _ => None
-            }
-          ) {
-          | Some(below) => Some([step, ...below])
-          | None => go(i + 1, ps)
-          };
-        };
-      };
-    go(0, level);
-  };
-  in_level(Top, seg);
-};
-
-/* where the headless row [fid]'s cell is cut: the path down to the level
-   holding its span, the span and its symbol. The innermost level holding
-   the row's piece decides, as OutlineTree reads a block on through the
-   parentheses or projector around its tail. None for a definition, and
-   under a projector, whose syntax no cell cuts. [path] is path_to's */
-let locate_along =
-    (fid: Id.t, path: list(step)): option((list(step), int, int, string)) => {
-  let nested = (st: step) =>
-    switch (st.st_from) {
-    | Top => false
-    /* a module's members are items, even a lone one */
-    | Kid(t, _) => !holds_members(Tile.mold(t))
-    | Syntax => true
-    };
-  let projected =
-    List.exists((st: step) =>
-      switch (st.st_from) {
-      | Syntax => true
-      | Top
-      | Kid(_) => false
-      }
-    );
-  /* innermost first */
-  let rec up = (steps: list(step)) =>
-    switch (steps) {
-    | [] => None
-    | [st, ...outer] =>
-      switch (claim_at(~nested=nested(st), fid, st.st_idx, st.st_level)) {
-      | Pass => up(outer)
-      | Item => None
-      | Span(a, b, sym) =>
-        projected(steps) ? None : Some((List.rev(steps), a, b, sym))
-      }
-    };
-  up(List.rev(path));
-};
-
-let locate_headless =
-    (fid: Id.t, seg: Segment.t): option((list(step), int, int, string)) =>
-  Option.bind(path_to(fid, seg), locate_along(fid));
-
-let headless_content_deep =
-    (fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
-  locate_headless(fid, seg)
-  |> Option.map(((path, a, b, sym)) =>
-       (ListUtil.slice(a, b - a, ListUtil.last(path).st_level), sym)
-     );
 
 /* identity-preserving map: [xs] itself when [f] changed nothing, so
    splices re-mint only the spine above the replacement and pointer-keyed
@@ -466,121 +104,824 @@ let tile_sharing =
         children,
       });
 
+/* ---- where a piece is: the levels down to it ---- */
+
+/* one level on the way down to a piece: an ItemSpans level, the index
+   there of the piece on the way, and how it hangs from the step above */
+type step = {
+  lv: S.level,
+  i: int,
+  from,
+}
+and from =
+  | Top
+  /* that child of the tile at the step above */
+  | Kid(Tile.t, int)
+  /* the step above's pieces from [lv.offset]: a member's let chain or its
+     definition's body run */
+  | Sub
+  /* the syntax of the projector at the step above, which no cell cuts */
+  | Syntax;
+
+let projected = (path: list(step)): bool =>
+  List.exists(
+    (st: step) =>
+      switch (st.from) {
+      | Syntax => true
+      | Top
+      | Kid(_)
+      | Sub => false
+      },
+    path,
+  );
+
+let step = (~from: from, lv: S.level, i: int): step => {
+  lv,
+  i,
+  from,
+};
+
+/* the span whose slice holds [lv]'s piece [i]: slices partition a level */
+let slice_at = (lv: S.level, i: int): option(int) => {
+  let rec go = (a, b) =>
+    if (a >= b) {
+      None;
+    } else {
+      let m = (a + b) / 2;
+      let sp = lv.spans[m];
+      i < sp.lo ? go(a, m) : i >= sp.hi ? go(m + 1, b) : Some(m);
+    };
+  go(0, Array.length(lv.spans));
+};
+
+/* the item holding [lv]'s piece [i]: a span holds its core and its `;` or
+   `in`. What precedes a core (a function's head, comments before an `…in`
+   item) is in no item */
+let item_at = (lv: S.level, i: int): option(int) =>
+  switch (slice_at(lv, i)) {
+  | Some(k) when fst(lv.spans[k].core) <= i => Some(k)
+  | _ => None
+  };
+
+/* span [k] of [lv] ends with its `;` */
+let semi_ended = (lv: S.level, k: int): bool => {
+  let sp = lv.spans[k];
+  let rec go = i => i < sp.hi && (Piece.is_semi(lv.pieces[i]) || go(i + 1));
+  go(snd(sp.core));
+};
+
+/* span [k] reads as its level's result: a tail, or a module's last member
+   without its `;` */
+let is_tail = (lv: S.level, k: int): bool =>
+  switch (lv.spans[k].kind) {
+  | Tail => true
+  | Stmt => !semi_ended(lv, k)
+  | Def
+  | Use => false
+  };
+
+/* a module literal's members (by braces in a program, or anywhere) */
+let is_members = (lv: S.level): bool =>
+  switch (lv.owner) {
+  | Members(_) => true
+  | Top
+  | Chain(_)
+  | Block(_) => false
+  };
+
+/* span [k]'s level over its own pieces: a member's let chain, or its
+   definition's body run */
+let sub = (lv: S.level, k: int): option(S.level) =>
+  switch (S.chain(lv, k)) {
+  | Some(_) as chain => chain
+  | None =>
+    switch (S.site_of(lv, k)) {
+    | Some(S.Run(_)) => S.block(lv, k)
+    | Some(S.Kid(_))
+    | None => None
+    }
+  };
+
+/* the sub-level holding [lv]'s piece [i] */
+let sub_at = (lv: S.level, i: int): option(S.level) =>
+  switch (Option.bind(slice_at(lv, i), sub(lv))) {
+  | Some(s) when s.offset <= i && i < s.offset + Array.length(s.pieces) =>
+    Some(s)
+  | _ => None
+  };
+
+/* the level of child [c] of tile [t], [lv]'s piece [i]. A module literal's
+   members and a definition's body are ItemSpans' levels; any other child
+   is cut by the nested rule (an undivided expression has no items), a
+   member list by the module rule */
+let kid_level = (lv: S.level, i: int, t: Tile.t, c: int): S.level => {
+  let own =
+    switch (slice_at(lv, i)) {
+    | Some(k) when lv.spans[k].body == Some(t.id) => S.members(lv, k)
+    | Some(k) =>
+      switch (S.site_of(lv, k)) {
+      | Some(S.Kid(h, _)) when h == i && c == List.length(t.children) - 1 =>
+        S.block(lv, k)
+      | _ => None
+      }
+    | None => None
+    };
+  switch (own) {
+  | Some(level) => level
+  | None =>
+    let members = holds_members(Tile.mold(t));
+    S.build(
+      ~sort=members ? Sort.Mod : Sort.Exp,
+      ~owner=members ? Members(t.id) : Block(t.id),
+      ~nested=!members,
+      ~bol=false,
+      ~eol=false,
+      ~indent=Some(S.kid_indent(~outer=S.outer(lv), lv.pieces, i, t, c)),
+      ~offset=0,
+      List.nth(t.children, c),
+    );
+  };
+};
+
+/* the syntax of the projector [pr], [lv]'s piece [i] */
+let syntax_level = (lv: S.level, i: int, pr: Base.projector): S.level =>
+  S.build(
+    ~sort=Exp,
+    ~owner=Block(pr.id),
+    ~nested=true,
+    ~bol=false,
+    ~eol=false,
+    ~indent=Some(S.indent_at(~outer=S.outer(lv), lv.pieces, i)),
+    ~offset=0,
+    pr.syntax,
+  );
+
+let rec piece_holds = (fid: Id.t, p: Piece.t): bool =>
+  Piece.id(p) == fid
+  || (
+    switch (p) {
+    | Tile(t) => List.exists(List.exists(piece_holds(fid)), t.children)
+    | Projector(pr) => List.exists(piece_holds(fid), pr.syntax)
+    | Splice(_)
+    | Grout(_)
+    | Secondary(_) => false
+    }
+  );
+
+/* every piece deep in a span's slice, to the index in the slice of the
+   piece holding it: which item holds a piece, without walking the
+   program. Memoized per span on its pieces, as ItemSpans' levels are */
+type held = {
+  h_pieces: array(Piece.t),
+  h_at: Hashtbl.t(Id.t, int),
+};
+let held_cache: Swept.t((Id.t, Id.t), held) = Swept.mk();
+
+let held = (lv: S.level, k: int): Hashtbl.t(Id.t, int) => {
+  let sp = lv.spans[k];
+  let n = sp.hi - sp.lo;
+  let same = (h: held) => {
+    let rec go = j =>
+      j >= n || h.h_pieces[j] === lv.pieces[sp.lo + j] && go(j + 1);
+    Array.length(h.h_pieces) == n && go(0);
+  };
+  let key = (sp.anchor, Piece.id(lv.pieces[sp.lo]));
+  switch (Swept.find_opt(held_cache, key)) {
+  | Some(h) when same(h) => h.h_at
+  | _ =>
+    let at = Hashtbl.create(64);
+    let rec add = (j, p: Piece.t) => {
+      Hashtbl.replace(at, Piece.id(p), j);
+      switch (p) {
+      | Tile(t) => List.iter(List.iter(add(j)), t.children)
+      | Projector(pr) => List.iter(add(j), pr.syntax)
+      | Splice(_)
+      | Grout(_)
+      | Secondary(_) => ()
+      };
+    };
+    for (j in 0 to n - 1) {
+      add(j, lv.pieces[sp.lo + j]);
+    };
+    Swept.replace(
+      held_cache,
+      key,
+      {
+        h_pieces: Array.sub(lv.pieces, sp.lo, n),
+        h_at: at,
+      },
+    );
+    at;
+  };
+};
+
+/* the index in [lv]'s pieces of [fid] itself, or of the piece it lies
+   deep in: by its spans' indexes (a level without items, an undivided
+   expression, is searched) */
+let holding = (lv: S.level, fid: Id.t): option(int) => {
+  let n = Array.length(lv.pieces);
+  let rec flat = i =>
+    i >= n ? None : Piece.id(lv.pieces[i]) == fid ? Some(i) : flat(i + 1);
+  let rec span = k =>
+    k >= Array.length(lv.spans)
+      ? None
+      : (
+        switch (Hashtbl.find_opt(held(lv, k), fid)) {
+        | Some(j) => Some(lv.spans[k].lo + j)
+        | None => span(k + 1)
+        }
+      );
+  let rec deep = i =>
+    i >= n ? None : piece_holds(fid, lv.pieces[i]) ? Some(i) : deep(i + 1);
+  switch (flat(0)) {
+  | Some(_) as found => found
+  | None => Array.length(lv.spans) > 0 ? span(0) : deep(0)
+  };
+};
+
+/* the way down inside piece [p] to [fid]: each child (or projector
+   syntax) on the way, with the index there of the next piece */
+let rec way = (fid: Id.t, p: Piece.t): option(list((from, int))) => {
+  let rec in_seg = (j, ps: Segment.t) =>
+    switch (ps) {
+    | [] => None
+    | [q, ..._] when Piece.id(q) == fid => Some((j, []))
+    | [q, ...ps] =>
+      switch (way(fid, q)) {
+      | Some(w) => Some((j, w))
+      | None => in_seg(j + 1, ps)
+      }
+    };
+  switch (p) {
+  | Tile(t) =>
+    List.find_mapi(
+      (c, kid) =>
+        Option.map(((j, w)) => [(Kid(t, c), j), ...w], in_seg(0, kid)),
+      t.children,
+    )
+  | Projector(pr) =>
+    Option.map(((j, w)) => [(Syntax, j), ...w], in_seg(0, pr.syntax))
+  | Splice(_)
+  | Grout(_)
+  | Secondary(_) => None
+  };
+};
+
+/* the steps from [lv]'s piece [i] down the way [w] */
+let rec descend =
+        (~from: from, lv: S.level, i: int, w: list((from, int)))
+        : list(step) => {
+  let st = step(~from, lv, i);
+  switch (sub_at(lv, i), w) {
+  | (Some(s), _) => [st, ...descend(~from=Sub, s, i - s.offset, w)]
+  | (None, [(Kid(t, c), j), ...w]) => [
+      st,
+      ...descend(~from=Kid(t, c), kid_level(lv, i, t, c), j, w),
+    ]
+  | (None, [(Syntax, j), ...w]) =>
+    switch (lv.pieces[i]) {
+    | Projector(pr) => [
+        st,
+        ...descend(~from=Syntax, syntax_level(lv, i, pr), j, w),
+      ]
+    | _ => [st]
+    }
+  | (None, [(Top | Sub, _), ..._])
+  | (None, []) => [st]
+  };
+};
+
+/* the steps from [lv] (reached [from]) into span [k]'s module literal:
+   its brace's piece (or the head it defines, and the definition's), then
+   [members], the member level's steps reached from the brace */
+let into_literal =
+    (~from: from, lv: S.level, k: int, members: from => option(list(step)))
+    : option(list(step)) =>
+  switch (S.site_of(lv, k)) {
+  | Some(site) =>
+    switch (S.brace_of(lv.pieces, site), site) {
+    | (Some((b, brace)), S.Run(_)) =>
+      Option.map(
+        below => [step(~from, lv, b), ...below],
+        members(Kid(brace, 0)),
+      )
+    | (Some((b, brace)), S.Kid(h, t)) =>
+      let c = List.length(t.children) - 1;
+      Option.map(
+        below =>
+          [
+            step(~from, lv, h),
+            step(~from=Kid(t, c), kid_level(lv, h, t, c), b),
+            ...below,
+          ],
+        members(Kid(brace, 0)),
+      );
+    | _ => None
+    }
+  | None => None
+  };
+
+/* the steps from [lv]'s piece [i], which is or holds [fid], down to it */
+let rec steps_at = (~from: from, lv: S.level, i: int, fid: Id.t): list(step) =>
+  switch (sub_at(lv, i)) {
+  | Some(s) => [
+      step(~from, lv, i),
+      ...steps_at(~from=Sub, s, i - s.offset, fid),
+    ]
+  | None when Piece.id(lv.pieces[i]) == fid => [step(~from, lv, i)]
+  | None =>
+    switch (literal(~from, lv, i, fid)) {
+    | Some(steps) => steps
+    | None =>
+      descend(
+        ~from,
+        lv,
+        i,
+        Option.value(way(fid, lv.pieces[i]), ~default=[]),
+      )
+    }
+  }
+/* through the module literal at [lv]'s piece [i], when its members hold
+   [fid]: their indexes find it without walking the module */
+and literal =
+    (~from: from, lv: S.level, i: int, fid: Id.t): option(list(step)) =>
+  switch (slice_at(lv, i)) {
+  | Some(k) when lv.spans[k].body != None =>
+    switch (S.members(lv, k)) {
+    | Some(m) =>
+      Option.bind(holding(m, fid), j =>
+        into_literal(~from, lv, k, from => Some(steps_at(~from, m, j, fid)))
+      )
+    | None => None
+    }
+  | _ => None
+  };
+
+/* ItemSpans.find's way to the span anchored at [fid], as steps */
+let found_steps =
+    (fid: Id.t, found: list((S.level, int))): option(list(step)) => {
+  let rec go = (~from, path) =>
+    switch (path) {
+    | [] => None
+    | [(lv, k)] =>
+      let sp = lv.spans[k];
+      let rec at = i =>
+        i >= sp.hi
+          ? None : Piece.id(lv.pieces[i]) == fid ? Some(i) : at(i + 1);
+      Option.map(i => steps_at(~from, lv, i, fid), at(sp.lo));
+    | [(lv, k), (child: S.level, _) as next, ...rest] =>
+      switch (child.owner) {
+      | Chain(_) =>
+        Option.bind(go(~from=Sub, [next, ...rest]), below =>
+          switch (below) {
+          | [st, ..._] =>
+            Some([step(~from, lv, st.i + child.offset), ...below])
+          | [] => None
+          }
+        )
+      | Members(_) =>
+        into_literal(~from, lv, k, from => go(~from, [next, ...rest]))
+      | Top
+      | Block(_) => None
+      }
+    };
+  go(~from=Top, found);
+};
+
+/* the steps from the program [seg] (at [root]) down to the piece [fid],
+   outermost first: by ItemSpans' anchors where it heads an item or a
+   statement, else through the levels' indexes. Through projectors too: a
+   ⇒ row's id is its expression's root, inside a projector around it */
+let find_path =
+    (~root: Sort.t, fid: Id.t, seg: Segment.t): option(list(step)) => {
+  Swept.next_pass(held_cache);
+  let found = Option.bind(S.find(~root, fid, seg), found_steps(fid));
+  switch (found) {
+  | Some(_) => found
+  | None =>
+    let top = S.top(~root, seg);
+    Option.map(i => steps_at(~from=Top, top, i, fid), holding(top, fid));
+  };
+};
+
+/* the whole segment holding [path]'s piece and its index there, and the
+   steps down to it: a sub-level's pieces lie in the level above */
+let rec home = (~seg, path: list(step)): (list(step), Segment.t, int) =>
+  switch (List.rev(path)) {
+  | [{from: Sub, lv, i}, ...above] =>
+    let (up, level, _) = home(~seg, List.rev(above));
+    (up, level, i + lv.offset);
+  | [{from: Top, i, _}] => (path, seg, i)
+  | [{lv, i, _}, ..._] => (path, lv.seg, i)
+  | [] => ([], seg, 0)
+  };
+
+/* a step's level's pieces, the program's own at the top */
+let pieces_of = (~seg: Segment.t, st: step): Segment.t =>
+  switch (st.from) {
+  | Top => seg
+  | Kid(_)
+  | Sub
+  | Syntax => st.lv.seg
+  };
+
+/* the program [seg] with [path]'s last level made [pieces]: only the levels
+   on the way are re-made, and nothing when nothing changed */
+let rebuild =
+    (~seg: Segment.t, path: list(step), pieces: Segment.t): Segment.t => {
+  let own = pieces_of(~seg);
+  /* innermost first */
+  let rec up = (rev: list(step), kid: Segment.t) =>
+    switch (rev) {
+    | [] => seg
+    | [top] => Segment.ptr_eq(kid, own(top)) ? seg : kid
+    | [st, ...[above, ..._] as rest] =>
+      let parent = own(above);
+      up(
+        rest,
+        Segment.ptr_eq(kid, own(st))
+          ? parent
+          : (
+            switch (st.from) {
+            | Sub =>
+              ListUtil.truncate(st.lv.offset, parent)
+              @ kid
+              @ ListUtil.remove_first_n(
+                  st.lv.offset + Array.length(st.lv.pieces),
+                  parent,
+                )
+            | Kid(t, c) =>
+              ListUtil.put_nth(
+                above.i,
+                tile_sharing(
+                  above.lv.pieces[above.i],
+                  t,
+                  ListUtil.put_nth(c, kid, t.children),
+                ),
+                parent,
+              )
+            /* no cell splices into a projector's syntax */
+            | Syntax
+            | Top => parent
+            }
+          ),
+      );
+    };
+  up(List.rev(path), pieces);
+};
+
+/* [path]'s last level with its pieces [a, b) replaced by [repl], inside
+   their edge whitespace */
+let splice_range =
+    (~seg: Segment.t, path: list(step), a: int, b: int, repl: Segment.t)
+    : Segment.t => {
+  let pieces = ListUtil.last(path).lv.seg;
+  let (pre, _, suf) = trim_ws(ListUtil.slice(a, b - a, pieces));
+  rebuild(
+    ~seg,
+    path,
+    ListUtil.truncate(a, pieces)
+    @ pre
+    @ repl
+    @ suf
+    @ ListUtil.remove_first_n(b, pieces),
+  );
+};
+
+/* span [k]'s core: the item without edge whitespace or its `;` */
+let core = (lv: S.level, k: int): Segment.t => {
+  let (c0, c1) = lv.spans[k].core;
+  Array.to_list(Array.sub(lv.pieces, c0, c1 - c0));
+};
+
+/* the indentation of the line the piece [id] is on */
+let line_indent = (~root: Sort.t, id: Id.t, seg: Segment.t): option(int) =>
+  switch (find_path(~root, id, seg)) {
+  | Some(path) when !projected(path) =>
+    let st = ListUtil.last(path);
+    Some(S.indent_at(~outer=S.outer(st.lv), st.lv.pieces, st.i));
+  | _ => None
+  };
+
+/* how a step's level holds its piece on the way to the row [fid]: in a
+   statement or the tail (span k), as the row's own definition, or not */
+type claim =
+  | Span(int)
+  | Item
+  | Pass;
+
+let claim_at = (fid: Id.t, st: step): claim =>
+  switch (item_at(st.lv, st.i)) {
+  | None => Pass
+  | Some(k) =>
+    switch (st.lv.spans[k].kind) {
+    | Stmt
+    | Tail => Span(k)
+    | Def
+    | Use => st.lv.spans[k].anchor == fid ? Item : Pass
+    }
+  };
+
+/* a headless cell's symbol: a statement's `;`, or a result's ⇒ */
+let span_sym = (lv: S.level, k: int): string =>
+  is_tail(lv, k) ? {js|⇒|js} : {js|;|js};
+
+/* where the headless row [fid]'s cell is cut: the steps down to the level
+   holding its span, and the span. The innermost level holding the row's
+   piece decides, as OutlineTree reads a block on through the parentheses
+   or projector around its tail. None for a definition, and under a
+   projector, whose syntax no cell cuts. [path] is find_path's */
+let locate_along =
+    (fid: Id.t, path: list(step)): option((list(step), int)) => {
+  /* innermost first */
+  let rec up = (steps: list(step)) =>
+    switch (steps) {
+    | [] => None
+    | [st, ...outer] =>
+      switch (claim_at(fid, st)) {
+      | Pass => up(outer)
+      | Item => None
+      | Span(k) => projected(steps) ? None : Some((List.rev(steps), k))
+      }
+    };
+  up(List.rev(path));
+};
+
+let locate_headless =
+    (~root: Sort.t, fid: Id.t, seg: Segment.t): option((list(step), int)) =>
+  Option.bind(find_path(~root, fid, seg), locate_along(fid));
+
+let headless_content_deep =
+    (~root: Sort.t, fid: Id.t, seg: Segment.t): option((Segment.t, string)) =>
+  locate_headless(~root, fid, seg)
+  |> Option.map(((path, k)) => {
+       let lv = ListUtil.last(path).lv;
+       (core(lv, k), span_sym(lv, k));
+     });
+
+/* [seg] with [repl] in place of the headless row [fid]'s span, inside its
+   edge whitespace; only the levels on the way down to it are re-made */
+let splice_headless =
+    (~root: Sort.t, fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
+  switch (locate_headless(~root, fid, seg)) {
+  | None => seg
+  | Some((path, k)) =>
+    let (c0, c1) = ListUtil.last(path).lv.spans[k].core;
+    splice_range(~seg, path, c0, c1, repl);
+  };
+
+/* the tile [fid] (not under a projector, whose syntax no cell cuts), the
+   steps down to the segment it sits in, the segment and its index there */
+let tile_at =
+    (~root: Sort.t, fid: Id.t, seg: Segment.t)
+    : option((list(step), Segment.t, int, Tile.t)) =>
+  switch (find_path(~root, fid, seg)) {
+  | Some(path) when !projected(path) =>
+    let {lv, i, _} = ListUtil.last(path);
+    switch (lv.pieces[i]) {
+    | Tile(t) =>
+      let (up, level, j) = home(~seg, path);
+      Some((up, level, j, t));
+    | _ => None
+    };
+  | _ => None
+  };
+
+/* the tile [fid], the segment it sits in and its index there */
+let tile_ctx =
+    (~root: Sort.t, fid: Id.t, seg: Segment.t)
+    : option((Segment.t, int, Tile.t)) =>
+  Option.map(
+    ((_, level, i, t)) => (level, i, t),
+    tile_at(~root, fid, seg),
+  );
+
 /* [seg] with the segment holding tile [fid] replaced by [f] of it, the
    tile's index and the tile; the program's own pieces wherever nothing
    changed */
 let splice_at =
-    (fid: Id.t, f: (Segment.t, int, Tile.t) => Segment.t, seg: Segment.t)
+    (
+      ~root: Sort.t,
+      fid: Id.t,
+      f: (Segment.t, int, Tile.t) => Segment.t,
+      seg: Segment.t,
+    )
     : Segment.t =>
-  switch (tile_ctx(fid, seg)) {
+  switch (tile_at(~root, fid, seg)) {
   | None => seg
-  | Some((level, i, t)) =>
+  | Some((path, level, i, t)) =>
     let level' = f(level, i, t);
-    let rec go = (s: Segment.t): Segment.t =>
-      s === level
-        ? level'
-        : map_sharing(
-            (p: Piece.t) =>
-              switch (p) {
-              | Tile(t) => tile_sharing(p, t, map_sharing(go, t.children))
-              | _ => p
-              },
-            s,
-          );
-    Segment.ptr_eq(level', level) ? seg : go(seg);
+    Segment.ptr_eq(level', level) ? seg : rebuild(~seg, path, level');
   };
 
-/* an item's span (start, stop, …) at any block depth: nested blocks share
-   the boundary structure, so [at] applies at each level, top down; it
-   gets the tile the level is a child of (None at the top) */
-let rec find_deep =
-        (
-          ~parent: option(Tile.t)=?,
-          at: (option(Tile.t), Segment.t) => option((int, int, 'x)),
-          seg: Segment.t,
-        )
-        : option((Segment.t, 'x)) =>
-  switch (at(parent, seg)) {
-  | Some((start, stop, x)) =>
-    Some((ListUtil.slice(start, stop - start, seg), x))
-  | None =>
+/* a test statement's tile: `test … end`, or `hint … test … end`, which
+   the outline counts as a test too (OutlineTree's KTest) */
+let is_test_tile = (t: Tile.t): bool =>
+  switch (Tile.token(t, 0)) {
+  | "test"
+  | "hint" => true
+  | _ => false
+  };
+
+/* the `test` before the statement `;` [semi]: a run member's row is its
+   `;`, which stays outside the run's cell */
+let test_before_semi =
+    (~root: Sort.t, semi: Id.t, seg: Segment.t): option(Id.t) =>
+  Option.bind(tile_ctx(~root, semi, seg), ((level, i, _)) =>
     List.find_map(
       (p: Piece.t) =>
         switch (p) {
-        | Tile(t) => List.find_map(find_deep(~parent=t, at), t.children)
+        | Tile(t) when is_test_tile(t) => Some(t.id)
         | _ => None
         },
-      seg,
+      List.rev(ListUtil.truncate(i, level)),
     )
-  };
+  );
 
-/* [seg] with [repl] in place of [at]'s span, inside its edge whitespace */
-let rec splice_deep =
-        (
-          ~parent: option(Tile.t)=?,
-          at: (option(Tile.t), Segment.t) => option((int, int, 'x)),
-          repl: Segment.t,
-          seg: Segment.t,
-        )
-        : Segment.t =>
-  switch (at(parent, seg)) {
-  | Some((start, stop, _)) =>
-    let (pre, _, suf) = trim_ws(ListUtil.slice(start, stop - start, seg));
-    let out =
-      ListUtil.truncate(start, seg)
-      @ pre
-      @ repl
-      @ suf
-      @ ListUtil.remove_first_n(stop, seg);
-    Segment.ptr_eq(out, seg) ? seg : out;
-  | None =>
-    map_sharing(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          tile_sharing(
-            p,
-            t,
-            map_sharing(splice_deep(~parent=t, at, repl), t.children),
-          )
-        | _ => p
-        },
-      seg,
-    )
+/* span [k]'s leading `test` tile: module members are repped by it,
+   top-level statements by their `;`, so run members carry both ids
+   (harmless: consumers test membership against outline ids) */
+let span_test = (lv: S.level, k: int): option(Id.t) => {
+  let sp = lv.spans[k];
+  switch (first_tile(lv.pieces, fst(sp.core), sp.hi)) {
+  | Some(t) when is_test_tile(t) => Some(t.id)
+  | _ => None
   };
+};
 
-/* [seg] with [repl] in place of the headless row [fid]'s span, inside its
-   edge whitespace; only the levels on the way down to it are re-made */
-let splice_headless = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
-  switch (locate_headless(fid, seg)) {
+/* contiguous test runs: the outline's "tests" container opens one cell
+   spanning the whole run. A test statement joins a run; in a module body,
+   a Mod root's top level included, a final `;`-less test does too, but an
+   expression block's tail is its value and never does */
+let in_run = (lv: S.level, k: int): bool => {
+  let members =
+    switch (lv.owner) {
+    | Top => lv.sort == Sort.Mod
+    | Members(_)
+    | Chain(_)
+    | Block(_) => is_members(lv)
+    };
+  span_test(lv, k) != None
+  && (
+    switch (lv.spans[k].kind) {
+    | Stmt => semi_ended(lv, k) || members
+    | Tail => members
+    | Def
+    | Use => false
+    }
+  );
+};
+
+/* the maximal run of tests holding [path]'s piece: the steps down to its
+   level, its first and last spans, (member ids, test count). The
+   outermost level whose item holding the piece is in one decides */
+let run_along =
+    (path: list(step))
+    : option((list(step), int, int, (list(Id.t), int))) => {
+  let rec down = (above, steps: list(step)) =>
+    switch (steps) {
+    | [] => None
+    | [st, ...below] =>
+      switch (item_at(st.lv, st.i)) {
+      | Some(j) when in_run(st.lv, j) =>
+        let n = Array.length(st.lv.spans);
+        let rec lo = j => j > 0 && in_run(st.lv, j - 1) ? lo(j - 1) : j;
+        let rec hi = j => j + 1 < n && in_run(st.lv, j + 1) ? hi(j + 1) : j;
+        let (a, b) = (lo(j), hi(j));
+        let members =
+          List.concat_map(
+            k =>
+              switch (span_test(st.lv, k)) {
+              | Some(t) when t != st.lv.spans[k].anchor => [
+                  t,
+                  st.lv.spans[k].anchor,
+                ]
+              | _ => [st.lv.spans[k].anchor]
+              },
+            List.init(b - a + 1, k => a + k),
+          );
+        Some((List.rev([st, ...above]), a, b, (members, b - a + 1)));
+      | _ => down([st, ...above], below)
+      }
+    };
+  down([], path);
+};
+
+let run_at =
+    (~root: Sort.t, fid: Id.t, seg: Segment.t)
+    : option((list(step), int, int, (list(Id.t), int))) =>
+  Option.bind(find_path(~root, fid, seg), run_along);
+
+/* a run's text: from its first test's start to its last's `;` */
+let run_text = (lv: S.level, a: int, b: int): Segment.t => {
+  let c0 = fst(lv.spans[a].core);
+  Array.to_list(Array.sub(lv.pieces, c0, snd(lv.spans[b].core) - c0));
+};
+
+/* the run holding [fid]: its text, its member ids and how many tests it
+   has (members carry two ids each) */
+let test_run_deep =
+    (~root: Sort.t, fid: Id.t, seg: Segment.t)
+    : option((Segment.t, list(Id.t), int)) =>
+  run_at(~root, fid, seg)
+  |> Option.map(((path, a, b, (members, n))) =>
+       (run_text(ListUtil.last(path).lv, a, b), members, n)
+     );
+
+/* [seg] with [repl] in place of the run holding [fid], inside its edge
+   whitespace */
+let splice_run =
+    (~root: Sort.t, fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
+  switch (run_at(~root, fid, seg)) {
   | None => seg
   | Some((path, a, b, _)) =>
-    let rec go = (path: list(step)): Segment.t =>
-      switch (path) {
-      | [] => seg
-      | [{st_level: level, _}] =>
-        let (pre, _, suf) = trim_ws(ListUtil.slice(a, b - a, level));
-        let out =
-          ListUtil.truncate(a, level)
-          @ pre
-          @ repl
-          @ suf
-          @ ListUtil.remove_first_n(b, level);
-        Segment.ptr_eq(out, level) ? level : out;
-      | [{st_level: level, st_idx: i, _}, ...[below, ..._] as rest] =>
-        let kid = go(rest);
-        switch (List.nth(level, i), below.st_from) {
-        | (Tile(t) as p, Kid(_, k)) when kid !== List.nth(t.children, k) =>
+    let lv = ListUtil.last(path).lv;
+    splice_range(
+      ~seg,
+      path,
+      fst(lv.spans[a].core),
+      snd(lv.spans[b].core),
+      repl,
+    );
+  };
+
+/* the definition RHS of the item [t] at [i] in [level]: a 3-shard
+   `let … = … in`'s last child, or for a 2-shard member `let … =`, the
+   sibling run after it up to the next `;` (or segment end) */
+let def_at = ((level, i, t): (Segment.t, int, Tile.t)): option(Segment.t) =>
+  Tile.ends_with_in(t)
+    ? ListUtil.last_opt(t.children)
+    : Some(fst(split_at_semi(ListUtil.remove_first_n(i + 1, level))));
+
+let find_def = (~root: Sort.t, fid: Id.t, seg: Segment.t): option(Segment.t) =>
+  Option.bind(tile_ctx(~root, fid, seg), def_at);
+
+let splice_def =
+    (~root: Sort.t, fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
+  splice_at(
+    ~root,
+    fid,
+    (level, i, t) =>
+      if (Tile.ends_with_in(t)) {
+        switch (ListUtil.split_last_opt(t.children)) {
+        /* the program's own tile when the text is its own */
+        | Some((_, last)) when Segment.ptr_eq(repl, last) => level
+        | Some((init, _)) =>
           ListUtil.put_nth(
             i,
-            tile_sharing(p, t, ListUtil.put_nth(k, kid, t.children)),
+            Piece.Tile({
+              ...t,
+              children: init @ [repl],
+            }),
             level,
           )
-        | _ => level
+        | None => level
         };
-      };
-    go(path);
-  };
+      } else {
+        ListUtil.truncate(i + 1, level)
+        @ repl
+        @ snd(split_at_semi(ListUtil.remove_first_n(i + 1, level)));
+      },
+    seg,
+  );
+
+let zip_of_cell = (cell: CellEditor.Model.t): Segment.t =>
+  Zipper.unselect_and_zip(cell.editor.editor.state.zipper);
+
+/* the caret starts at the top of a fresh cell: unzip's default
+   direction (Right) would leave it after the whole segment */
+let cell_of_seg = (~root=Sort.Exp, seg: Segment.t): CellEditor.Model.t =>
+  seg
+  |> Zipper.unzip(~direction=Left)
+  |> Editor.Model.mk(~root)
+  |> CellEditor.Model.mk;
+
+/* the header pattern is the first child of 2- and 3-shard items alike */
+let find_pat = (~root: Sort.t, fid: Id.t, seg: Segment.t): option(Segment.t) =>
+  Option.bind(tile_ctx(~root, fid, seg), ((_, _, t)) =>
+    ListUtil.hd_opt(t.children)
+  );
+
+let splice_pat =
+    (~root: Sort.t, fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
+  splice_at(
+    ~root,
+    fid,
+    (level, i, t) =>
+      switch (t.children) {
+      | [first, ...rest] when !Segment.ptr_eq(repl, first) =>
+        ListUtil.put_nth(
+          i,
+          Piece.Tile({
+            ...t,
+            children: [repl, ...rest],
+          }),
+          level,
+        )
+      | _ => level
+      },
+    seg,
+  );
 
 /* A cell shows its item from its own left edge: the indentation every
    line after the first has in the program (the [base] of the line the
@@ -621,13 +962,14 @@ let dedent = (base: int, seg: Segment.t): Segment.t =>
     go(seg);
   };
 
-/* a cell's text from [content], cut from [master] */
+/* a cell's text from [content], cut from [master] (at [root]) */
 let cut_indent =
-    (master: Segment.t, content: Segment.t): (Segment.t, ScratchCell.indent) => {
+    (~root: Sort.t, master: Segment.t, content: Segment.t)
+    : (Segment.t, ScratchCell.indent) => {
   let base =
     switch (content) {
     | [p, ..._] =>
-      Option.value(line_indent(Piece.id(p), master), ~default=0)
+      Option.value(line_indent(~root, Piece.id(p), master), ~default=0)
     | [] => 0
     };
   let cut = dedent(base, content);
@@ -773,187 +1115,6 @@ let restore = (ind: ScratchCell.indent, cur: Segment.t): Segment.t =>
     Segment.ptr_eq(out, ind.orig) ? ind.orig : out;
   };
 
-/* a test statement's tile: `test … end`, or `hint … test … end`, which
-   the outline counts as a test too (OutlineTree's KTest) */
-let is_test_tile = (t: Tile.t): bool =>
-  switch (Tile.token(t, 0)) {
-  | "test"
-  | "hint" => true
-  | _ => false
-  };
-
-/* the `test` before the statement `;` [semi]: a run member's row is its
-   `;`, which stays outside the run's cell */
-let test_before_semi = (semi: Id.t, seg: Segment.t): option(Id.t) =>
-  Option.bind(tile_ctx(semi, seg), ((level, i, _)) =>
-    List.find_map(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) when is_test_tile(t) => Some(t.id)
-        | _ => None
-        },
-      List.rev(ListUtil.truncate(i, level)),
-    )
-  );
-
-/* the span's leading `test` tile: module members are repped by it,
-   top-level statements by their `;`, so run members carry both ids
-   (harmless: consumers test membership against outline ids) */
-let span_test_tile_id = (arr: array(Piece.t), sp: item_span): option(Id.t) =>
-  switch (first_tile(arr, sp.sp_start, sp.sp_stop)) {
-  | Some(t) when is_test_tile(t) => Some(t.id)
-  | _ => None
-  };
-
-/* contiguous test runs: the outline's "tests" container opens one cell
-   spanning the whole run. The maximal run of adjacent test statements
-   holding [fid], as (start, stop, (member ids, test count)); the last `;`
-   stays outside, like a statement's. In a module body a final `;`-less test
-   parses as the tail but joins the run; an expression block's tail is
-   its value and never does. */
-let test_run =
-    (~module_body=false, fid: Id.t, seg: Segment.t)
-    : option((int, int, (list(Id.t), int))) => {
-  let arr = Array.of_list(seg);
-  let spans = Array.of_list(item_spans(seg));
-  let n = Array.length(spans);
-  let in_run = (sp: item_span): bool =>
-    switch (sp.sp_kind) {
-    | IStmt => span_test_tile_id(arr, sp) != None
-    | ITail => module_body && span_test_tile_id(arr, sp) != None
-    | IDef => false
-    };
-  let rec idx = j =>
-    j >= n
-      ? None
-      : spans[j].sp_id == Some(fid)
-        || seg_contains_id(
-             fid,
-             ListUtil.slice(
-               spans[j].sp_start,
-               spans[j].sp_stop - spans[j].sp_start,
-               seg,
-             ),
-           )
-          ? Some(j) : idx(j + 1);
-  switch (idx(0)) {
-  | Some(j) when in_run(spans[j]) =>
-    let rec lo = j => j > 0 && in_run(spans[j - 1]) ? lo(j - 1) : j;
-    let rec hi = j => j + 1 < n && in_run(spans[j + 1]) ? hi(j + 1) : j;
-    let (a, b) = (lo(j), hi(j));
-    let members =
-      List.concat_map(
-        k =>
-          List.filter_map(
-            x => x,
-            [span_test_tile_id(arr, spans[k]), spans[k].sp_id],
-          ),
-        List.init(b - a + 1, k => a + k),
-      );
-    let start = spans[a].sp_start;
-    Some((
-      start,
-      before_semi(arr, start, spans[b].sp_stop),
-      (members, b - a + 1),
-    ));
-  | _ => None
-  };
-};
-
-/* test runs at any block depth; a level is a module body when its tile
-   has a member child */
-let run_at = (fid: Id.t, parent: option(Tile.t), seg: Segment.t) =>
-  test_run(
-    ~module_body=
-      switch (parent) {
-      | Some(t) => holds_members(Tile.mold(t))
-      | None => false
-      },
-    fid,
-    seg,
-  );
-
-/* the run holding [fid]: its text, its member ids and how many tests it
-   has (members carry two ids each) */
-let test_run_deep =
-    (fid: Id.t, seg: Segment.t): option((Segment.t, list(Id.t), int)) =>
-  find_deep(run_at(fid), seg)
-  |> Option.map(((run, (members, n))) => (run, members, n));
-
-/* the definition RHS of the item [t] at [i] in [level]: a 3-shard
-   `let … = … in`'s last child, or for a 2-shard member `let … =`, the
-   sibling run after it up to the next `;` (or segment end) */
-let def_at = ((level, i, t): (Segment.t, int, Tile.t)): option(Segment.t) =>
-  Tile.ends_with_in(t)
-    ? ListUtil.last_opt(t.children)
-    : Some(fst(split_at_semi(ListUtil.remove_first_n(i + 1, level))));
-
-let find_def = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
-  Option.bind(tile_ctx(fid, seg), def_at);
-
-let splice_def = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
-  splice_at(
-    fid,
-    (level, i, t) =>
-      if (Tile.ends_with_in(t)) {
-        switch (ListUtil.split_last_opt(t.children)) {
-        /* the program's own tile when the text is its own */
-        | Some((_, last)) when Segment.ptr_eq(repl, last) => level
-        | Some((init, _)) =>
-          ListUtil.put_nth(
-            i,
-            Piece.Tile({
-              ...t,
-              children: init @ [repl],
-            }),
-            level,
-          )
-        | None => level
-        };
-      } else {
-        ListUtil.truncate(i + 1, level)
-        @ repl
-        @ snd(split_at_semi(ListUtil.remove_first_n(i + 1, level)));
-      },
-    seg,
-  );
-
-let zip_of_cell = (cell: CellEditor.Model.t): Segment.t =>
-  Zipper.unselect_and_zip(cell.editor.editor.state.zipper);
-
-/* the caret starts at the top of a fresh cell: unzip's default
-   direction (Right) would leave it after the whole segment */
-let cell_of_seg = (~root=Sort.Exp, seg: Segment.t): CellEditor.Model.t =>
-  seg
-  |> Zipper.unzip(~direction=Left)
-  |> Editor.Model.mk(~root)
-  |> CellEditor.Model.mk;
-
-/* the header pattern is the first child of 2- and 3-shard items alike */
-let find_pat = (fid: Id.t, seg: Segment.t): option(Segment.t) =>
-  Option.bind(tile_ctx(fid, seg), ((_, _, t)) =>
-    ListUtil.hd_opt(t.children)
-  );
-
-let splice_pat = (fid: Id.t, repl: Segment.t, seg: Segment.t): Segment.t =>
-  splice_at(
-    fid,
-    (level, i, t) =>
-      switch (t.children) {
-      | [first, ...rest] when !Segment.ptr_eq(repl, first) =>
-        ListUtil.put_nth(
-          i,
-          Piece.Tile({
-            ...t,
-            children: [repl, ...rest],
-          }),
-          level,
-        )
-      | _ => level
-      },
-    seg,
-  );
-
 /* the ctx inside the def, params included (funlets need them): the
    first info among the def's pieces, else the item's own */
 let captured_ctx =
@@ -992,26 +1153,33 @@ let empty_header_cell = (): CellEditor.Model.t =>
 
 /* only delimiter-complete items open as cells: an unfinished `let x =`
    has no definition slot to show */
-let unfinished = (seg: Segment.t): list(Id.t) =>
-  List.map((t: Tile.t) => t.id, Segment.incomplete_tiles_deep(seg));
+let unfinished = (path: list(step)): bool =>
+  !projected(path)
+  && (
+    switch (ListUtil.last(path)) {
+    | {lv, i, _} =>
+      switch (lv.pieces[i]) {
+      | Tile(t) => !Tile.is_complete(t)
+      | _ => false
+      }
+    }
+  );
 
-let item_complete = (fid: Id.t, seg: Segment.t): bool =>
-  !List.mem(fid, unfinished(seg));
-
-/* a module definition's members: the child of its braces */
-let brace_child = (def_seg: Segment.t): option(Segment.t) =>
-  List.find_map(
-    (p: Piece.t) =>
+/* a module definition's braces, and their index in the definition */
+let brace_at = (def_seg: Segment.t): option((int, Tile.t)) =>
+  List.find_mapi(
+    (j, p: Piece.t) =>
       switch (p) {
-      | Tile(t) when Tile.label(t) == ["{", "}"] =>
-        switch (t.children) {
-        | [kid] => Some(kid)
-        | _ => None
-        }
+      | Tile({children: [_], _} as t) when Tile.label(t) == ["{", "}"] =>
+        Some((j, t))
       | _ => None
       },
     def_seg,
   );
+
+/* a module definition's members: the child of its braces */
+let brace_child = (def_seg: Segment.t): option(Segment.t) =>
+  Option.map(((_, t: Tile.t)) => List.hd(t.children), brace_at(def_seg));
 
 let with_brace_child = (def_seg: Segment.t, kid: Segment.t): Segment.t =>
   map_sharing(
@@ -1030,14 +1198,15 @@ let with_brace_child = (def_seg: Segment.t, kid: Segment.t): Segment.t =>
     def_seg,
   );
 
-/* a [kind] cell for item [fid] showing [body], its slice of [master], at
-   [root]: under [header] (a pattern and its root) if it has one, else
-   headerless. Its ctx is the one inside [body] */
+/* a [kind] cell for item [fid] showing [body], its slice of [master] (at
+   [root]), at [cell_root]: under [header] (a pattern and its root) if it
+   has one, else headerless. Its ctx is the one inside [body] */
 let mk_cell =
     (
       ~info_map: Language.Statics.Map.t,
+      ~root: Sort.t,
       ~master: Segment.t,
-      ~root=Sort.Exp,
+      ~cell_root=Sort.Exp,
       ~header: option((Sort.t, Segment.t))=?,
       ~kind: ScratchCell.kind,
       fid: Id.t,
@@ -1046,17 +1215,17 @@ let mk_cell =
     : ScratchCell.t => {
   let (e_header, e_header_indent) =
     switch (header) {
-    | Some((root, pat)) =>
-      let (cut, indent) = cut_indent(master, core_ws(pat));
-      (cell_of_seg(~root, cut), indent);
+    | Some((cell_root, pat)) =>
+      let (cut, indent) = cut_indent(~root, master, core_ws(pat));
+      (cell_of_seg(~root=cell_root, cut), indent);
     | None => (empty_header_cell(), ScratchCell.no_indent)
     };
-  let (cut, e_body_indent) = cut_indent(master, core_ws(body));
+  let (cut, e_body_indent) = cut_indent(~root, master, core_ws(body));
   {
     e_id: fid,
     e_kind: kind,
     e_header,
-    e_body: cell_of_seg(~root, cut),
+    e_body: cell_of_seg(~root=cell_root, cut),
     e_header_indent,
     e_body_indent,
     e_ctx:
@@ -1072,98 +1241,125 @@ let pat_of = (t: Tile.t): Segment.t =>
   Option.value(ListUtil.hd_opt(t.children), ~default=[]);
 
 /* only a definition's own tile has a pattern over a definition: a let,
-   type or module, or a theorem, whose ⇒ row's cell holds its statement */
+   type or module, or a theorem, whose ⇒ row's cell holds its statement.
+   [path] is find_path's */
 let mk_def_entry =
-    (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
-    : option(ScratchCell.t) =>
-  switch (tile_ctx(fid, master_seg)) {
-  | Some((_, _, t) as at)
-      when is_def_head(t) || Tile.token(t, 0) == "theorem" =>
-    Option.map(
-      def_seg => {
-        let kw = Tile.token(t, 0);
-        /* a `type … = …` alias takes a Typ body and a TPat header */
-        let is_type = kw == "type";
-        mk_cell(
-          ~info_map,
-          ~master=master_seg,
-          ~root=is_type ? Typ : Exp,
-          ~header=(is_type ? TPat : Pat, pat_of(t)),
-          ~kind=Def({binds_module: kw == "module"}),
-          fid,
-          def_seg,
-        );
-      },
-      def_at(at),
+    (
+      ~root: Sort.t,
+      ~info_map: Language.Statics.Map.t,
+      ~master: Segment.t,
+      path: list(step),
     )
-  | _ => None
+    : option(ScratchCell.t) =>
+  switch (projected(path) ? None : Some(home(~seg=master, path))) {
+  | Some((_, level, i)) =>
+    switch (List.nth(level, i)) {
+    | Tile(t) when is_def_head(t) || Tile.token(t, 0) == "theorem" =>
+      Option.map(
+        def_seg => {
+          let kw = Tile.token(t, 0);
+          /* a `type … = …` alias takes a Typ body and a TPat header */
+          let is_type = kw == "type";
+          mk_cell(
+            ~info_map,
+            ~root,
+            ~master,
+            ~cell_root=is_type ? Typ : Exp,
+            ~header=(is_type ? TPat : Pat, pat_of(t)),
+            ~kind=Def({binds_module: kw == "module"}),
+            t.id,
+            def_seg,
+          );
+        },
+        def_at((level, i, t)),
+      )
+    | _ => None
+    }
+  | None => None
   };
 
 let mk_entry =
     (
+      ~root: Sort.t,
       ~info_map: Language.Statics.Map.t,
       ~sym: option(string)=?,
       fid: Id.t,
-      master_seg: Segment.t,
+      master: Segment.t,
     )
     : option(ScratchCell.t) =>
-  !item_complete(fid, master_seg)
-    ? None
-    : (
-      switch (headless_content_deep(fid, master_seg)) {
-      | Some((raw, span_sym)) =>
-        Some(
-          mk_cell(
-            ~info_map,
-            ~master=master_seg,
-            ~kind=Headless(Option.value(sym, ~default=span_sym)),
-            fid,
-            raw,
-          ),
-        )
-      | None => mk_def_entry(~info_map, fid, master_seg)
-      }
-    );
+  switch (find_path(~root, fid, master)) {
+  | None => None
+  | Some(path) when unfinished(path) => None
+  | Some(path) =>
+    switch (locate_along(fid, path)) {
+    | Some((at, k)) =>
+      let lv = ListUtil.last(at).lv;
+      Some(
+        mk_cell(
+          ~info_map,
+          ~root,
+          ~master,
+          ~kind=Headless(Option.value(sym, ~default=span_sym(lv, k))),
+          fid,
+          core(lv, k),
+        ),
+      );
+    | None => mk_def_entry(~root, ~info_map, ~master, path)
+    }
+  };
 
 let mk_members_entry =
-    (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
+    (
+      ~root: Sort.t,
+      ~info_map: Language.Statics.Map.t,
+      fid: Id.t,
+      master: Segment.t,
+    )
     : option(ScratchCell.t) =>
-  !item_complete(fid, master_seg)
-    ? None
-    : Option.bind(tile_ctx(fid, master_seg), ((_, _, t) as at) =>
-        Option.map(
-          mk_cell(
-            ~info_map,
-            ~master=master_seg,
-            ~root=Mod,
-            ~header=(Pat, pat_of(t)),
-            ~kind=Members,
-            fid,
-          ),
-          Option.bind(def_at(at), brace_child),
-        )
-      );
+  switch (tile_at(~root, fid, master)) {
+  | Some((up, level, i, t)) when !unfinished(up) =>
+    Option.map(
+      mk_cell(
+        ~info_map,
+        ~root,
+        ~master,
+        ~cell_root=Mod,
+        ~header=(Pat, pat_of(t)),
+        ~kind=Members,
+        fid,
+      ),
+      Option.bind(def_at((level, i, t)), brace_child),
+    )
+  | _ => None
+  };
 
 let mk_run_entry =
-    (~info_map: Language.Statics.Map.t, fid: Id.t, master_seg: Segment.t)
+    (
+      ~root: Sort.t,
+      ~info_map: Language.Statics.Map.t,
+      fid: Id.t,
+      master: Segment.t,
+    )
     : option(ScratchCell.t) =>
-  !item_complete(fid, master_seg)
-    ? None
-    : (
-      switch (test_run_deep(fid, master_seg)) {
-      | None => mk_entry(~info_map, fid, master_seg)
-      | Some((run_slice, members, _)) =>
-        Some(
-          mk_cell(
-            ~info_map,
-            ~master=master_seg,
-            ~kind=Run(members),
-            fid,
-            run_slice,
-          ),
-        )
-      }
-    );
+  switch (find_path(~root, fid, master)) {
+  | None => None
+  | Some(path) when unfinished(path) => None
+  | Some(path) =>
+    switch (run_along(path)) {
+    | None => mk_entry(~root, ~info_map, fid, master)
+    | Some((at, a, b, (members, _))) =>
+      Some(
+        mk_cell(
+          ~info_map,
+          ~root,
+          ~master,
+          ~kind=Run(members),
+          fid,
+          run_text(ListUtil.last(at).lv, a, b),
+        ),
+      )
+    }
+  };
 
 /* why an item opens no cell: unfinished, under a projector, whose
    syntax no cell cuts, or a `use`, which never opens */
@@ -1174,49 +1370,57 @@ type refusal =
 
 /* of the items [want] picks, those the entry makers above refuse for one
    of these, from one walk over [seg] rather than a search per item. Under
-   a projector only a headless span cut outside it opens: the tile, run
-   and unfinished searches stop at projectors */
-let refusals = (~want: Id.t => bool, seg: Segment.t): Id.Map.t(refusal) => {
-  let out =
-    ref(
-      List.fold_left(
-        (acc, id) => want(id) ? Id.Map.add(id, Unfinished, acc) : acc,
-        Id.Map.empty,
-        unfinished(seg),
-      ),
-    );
-  /* [above]: path_to's steps down to [level], innermost first */
-  let rec in_level = (~under, above, from, level: Segment.t) =>
-    List.iteri(
-      (i, p: Piece.t) => {
-        let path = [
-          {
-            st_level: level,
-            st_idx: i,
-            st_from: from,
-          },
-          ...above,
-        ];
+   a projector only a headless span cut outside it opens */
+let refusals =
+    (~root: Sort.t, ~want: Id.t => bool, seg: Segment.t): Id.Map.t(refusal) => {
+  let out = ref(Id.Map.empty);
+  /* the steps from the piece at [path]'s end down to [id], inside it */
+  let below = (path: list(step), id: Id.t): list(step) => {
+    let (above, st) = ListUtil.split_last(path);
+    above
+    @ descend(
+        ~from=st.from,
+        st.lv,
+        st.i,
+        Option.value(way(id, st.lv.pieces[st.i]), ~default=[]),
+      );
+  };
+  /* [under]: the steps down to the projector the walk is in */
+  let rec walk = (~under: option(list(step)), level: Segment.t) =>
+    List.iter(
+      (p: Piece.t) => {
         let id = Piece.id(p);
-        if (under && want(id) && locate_along(id, List.rev(path)) == None) {
-          out := Id.Map.add(id, Projected, out^);
+        switch (under) {
+        | Some(path)
+            when
+              want(id) && Option.is_none(locate_along(id, below(path, id))) =>
+          out := Id.Map.add(id, Projected, out^)
+        | _ => ()
         };
         switch (p) {
         | Tile(t) =>
+          if (Option.is_none(under) && want(id) && !Tile.is_complete(t)) {
+            out := Id.Map.add(id, Unfinished, out^);
+          };
           if (want(id) && is_use(t)) {
             out := Id.Map.add(id, Directive, out^);
           };
-          List.iteri(
-            (k, kid) => in_level(~under, path, Kid(t, k), kid),
-            t.children,
-          );
-        | Projector(pr) => in_level(~under=true, path, Syntax, pr.syntax)
-        | _ => ()
+          List.iter(walk(~under), t.children);
+        | Projector(pr) =>
+          let path =
+            switch (under) {
+            | Some(path) => Some(below(path, id))
+            | None => find_path(~root, id, seg)
+            };
+          walk(~under=path, pr.syntax);
+        | Splice(_)
+        | Grout(_)
+        | Secondary(_) => ()
         };
       },
       level,
     );
-  in_level(~under=false, [], Top, seg);
+  walk(~under=None, seg);
   out^;
 };
 
@@ -1228,36 +1432,50 @@ let header_text = (e: ScratchCell.t): Segment.t =>
 
 /* splice a cell's text back into [seg], keeping [seg]'s edge whitespace */
 
-let splice_entry = (e: ScratchCell.t, seg: Segment.t): Segment.t =>
+let splice_entry =
+    (~root: Sort.t, e: ScratchCell.t, seg: Segment.t): Segment.t =>
   switch (e.e_kind) {
   | Members =>
-    switch (find_def(e.e_id, seg)) {
+    switch (find_def(~root, e.e_id, seg)) {
     | Some(def_seg) =>
       let members =
         rewrap_ws(
-          (id, seg) => Option.bind(find_def(id, seg), brace_child),
+          (id, seg) => Option.bind(find_def(~root, id, seg), brace_child),
           e.e_id,
           seg,
           body_text(e),
         );
-      splice_def(e.e_id, with_brace_child(def_seg, members), seg)
+      splice_def(~root, e.e_id, with_brace_child(def_seg, members), seg)
       |> splice_pat(
+           ~root,
            e.e_id,
-           rewrap_ws(find_pat, e.e_id, seg, header_text(e)),
+           rewrap_ws(find_pat(~root), e.e_id, seg, header_text(e)),
          );
     | None => seg
     }
-  | Run(_) => splice_deep(run_at(e.e_id), body_text(e), seg)
-  | Headless(_) => splice_headless(e.e_id, body_text(e), seg)
+  | Run(_) => splice_run(~root, e.e_id, body_text(e), seg)
+  | Headless(_) => splice_headless(~root, e.e_id, body_text(e), seg)
   | Def(_) =>
-    splice_def(e.e_id, rewrap_ws(find_def, e.e_id, seg, body_text(e)), seg)
-    |> splice_pat(e.e_id, rewrap_ws(find_pat, e.e_id, seg, header_text(e)))
+    splice_def(
+      ~root,
+      e.e_id,
+      rewrap_ws(find_def(~root), e.e_id, seg, body_text(e)),
+      seg,
+    )
+    |> splice_pat(
+         ~root,
+         e.e_id,
+         rewrap_ws(find_pat(~root), e.e_id, seg, header_text(e)),
+       )
   };
 
-let cell_content = (e: ScratchCell.t, seg: Segment.t): option(Segment.t) =>
+let cell_content =
+    (~root: Sort.t, e: ScratchCell.t, seg: Segment.t): option(Segment.t) =>
   switch (e.e_kind) {
-  | Members => Option.bind(find_def(e.e_id, seg), brace_child)
-  | Run(_) => test_run_deep(e.e_id, seg) |> Option.map(((run, _, _)) => run)
-  | Headless(_) => headless_content_deep(e.e_id, seg) |> Option.map(fst)
-  | Def(_) => find_def(e.e_id, seg)
+  | Members => Option.bind(find_def(~root, e.e_id, seg), brace_child)
+  | Run(_) =>
+    test_run_deep(~root, e.e_id, seg) |> Option.map(((run, _, _)) => run)
+  | Headless(_) =>
+    headless_content_deep(~root, e.e_id, seg) |> Option.map(fst)
+  | Def(_) => find_def(~root, e.e_id, seg)
   };

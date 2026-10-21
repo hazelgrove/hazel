@@ -3,6 +3,24 @@ open Point;
 
 module Point = Point;
 
+/* tables by id, hashed by a uuid's first and last bytes: the polymorphic
+   hash of an id's string is slow under jsoo. Parsed ids count in their
+   first bytes and share their last; random ones vary in both */
+module IdTbl =
+  Hashtbl.Make({
+    type t = Id.t;
+    let equal = (a, b) => Id.compare(a, b) == 0;
+    let hash = (id: Id.t): int => {
+      let s = Uuidm.unsafe_to_bytes(id);
+      let byte = i => Char.code(String.unsafe_get(s, i));
+      let word = i =>
+        byte(i)
+        + 256
+        * (byte(i + 1) + 256 * (byte(i + 2) + 256 * (byte(i + 3) land 63)));
+      word(0) lxor word(12);
+    };
+  });
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type measurement = {
   origin: Point.t,
@@ -66,6 +84,9 @@ type flat = {
   projectors: Id.Map.t(measurement),
   /* Intrinsic size and parent info for each splice, keyed by splice id. */
   splices: Id.Map.t(splice_info),
+  /* the ids above measured in a splice's own frame (merge_inner): a
+     chunk's start row does not shift them, as it does the rest */
+  local: Id.Set.t,
   rows: Rows.t,
   piece_rows: list(list(Piece.t)) /* NOTE: sublists are reversed */
 };
@@ -76,9 +97,51 @@ let empty_flat = {
   secondary: Id.Map.empty,
   projectors: Id.Map.empty,
   splices: Id.Map.empty,
+  local: Id.Set.empty,
   rows: Rows.empty,
   piece_rows: [],
 };
+
+/* what a chunk holds, in order: whole pieces, and single shards of the
+   tiles a module item splits between its head and foot (their children
+   lie in the chunks between) */
+type token =
+  | Whole(Piece.t)
+  | Shard(Tile.t, int);
+
+let token_id = (tok: token): Id.t =>
+  switch (tok) {
+  | Whole(p) => Piece.id(p)
+  | Shard(t, _) => t.id
+  };
+
+/* a shard is the same while its tile is, children aside: a member edit
+   rebuilds the tiles around it but keeps their shells; a secondary while
+   it reads the same (an open tile's whitespace is rewrapped each key) */
+let token_eq = (a: token, b: token): bool =>
+  switch (a, b) {
+  | (Whole(p), Whole(q)) => p === q || Piece.is_secondary(p) && p == q
+  | (Shard(t, i), Shard(u, j)) =>
+    i == j
+    && (
+      t === u
+      || t.id == u.id
+      && t.form == u.form
+      && t.sort == u.sort
+      && t.shards == u.shards
+    )
+  | _ => false
+  };
+
+let rec tokens_eq = (a: list(token), b: list(token)): bool =>
+  a === b
+  || (
+    switch (a, b) {
+    | ([], []) => true
+    | ([x, ...xs], [y, ...ys]) => token_eq(x, y) && tokens_eq(xs, ys)
+    | _ => false
+    }
+  );
 
 let add_s = (id: Id.t, i: int, m, map) => {
   ...map,
@@ -121,12 +184,20 @@ let add_splice_info = (s: Base.splice, info: splice_info, map) => {
  * map are discarded (they belong to the splice's coordinate frame). */
 let merge_inner = (inner: flat, outer: flat): flat => {
   let join = (a, b) => Id.Map.union((_, _, v2) => Some(v2), a, b);
+  let mark = (m: Id.Map.t(_), set) =>
+    Id.Map.fold((id, _, set) => Id.Set.add(id, set), m, set);
   {
     tiles: join(outer.tiles, inner.tiles),
     grout: join(outer.grout, inner.grout),
     secondary: join(outer.secondary, inner.secondary),
     projectors: join(outer.projectors, inner.projectors),
     splices: join(outer.splices, inner.splices),
+    local:
+      Id.Set.union(outer.local, inner.local)
+      |> mark(inner.tiles)
+      |> mark(inner.grout)
+      |> mark(inner.secondary)
+      |> mark(inner.projectors),
     rows: outer.rows,
     piece_rows: outer.piece_rows,
   };
@@ -281,11 +352,11 @@ module MkDeferredLinebreaks = () => {
   let of_secondary = (): int => 1 + consume();
 };
 
-let of_segment_inner =
+let of_tokens_inner =
     (
       ~in_splice=false,
       ~final: bool,
-      seg: Segment.t,
+      tokens: list(token),
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
       refractor_rows: Id.Map.t(int),
     )
@@ -411,12 +482,16 @@ let of_segment_inner =
   /* How many splices' content [go] is inside: see the Splice case. */
   let splice_depth = ref(in_splice ? 1 : 0);
 
-  let rec go =
-          (~top_level: bool, acc: measure_acc, seg: Segment.t): measure_acc =>
-    switch (seg) {
-    | [] => add_top_level(~top_level, acc)
-    | [hd, ...tl] => go(~top_level, of_piece(acc, hd), tl)
-    }
+  /* a refractor's deferred rows belong at the linebreak after its tile's
+     last shard, not at any linebreak inside the tile */
+  let defer_rows = (t: Tile.t) =>
+    switch (Id.Map.find_opt(t.id, refractor_rows)) {
+    | Some(n) => DeferredLinebreaks.update(n)
+    | None => ()
+    };
+
+  let rec go = (acc: measure_acc, seg: Segment.t): measure_acc =>
+    List.fold_left(of_piece, acc, seg)
   and of_piece = (acc: measure_acc, p: Piece.t): measure_acc =>
     switch (p) {
     | Secondary(w) => add_secondary(acc, w)
@@ -432,7 +507,7 @@ let of_segment_inner =
        * row landed that many columns short. Its size is still recorded,
        * for the GUI's splice_size. */
       let start = acc.pos;
-      let acc = go(~top_level=false, acc, s.content);
+      let acc = go(acc, s.content);
       let last = acc.pos;
       let size =
         Point.{
@@ -457,21 +532,13 @@ let of_segment_inner =
         map: measure_splice(s, acc.map),
       }
     | Tile(t) =>
-      /* Fold before updating the counter: a refractor's deferred rows
-       * belong at the linebreak after the tile's last shard, not at any
-       * linebreak inside the tile. */
       let acc =
         Aba.fold_left(
           add_shard(acc, t),
-          (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
+          (acc, seg) => add_shard(go(acc, seg), t),
           Aba.mk(t.shards, t.children),
         );
-      switch (Id.Map.find_opt(t.id, refractor_rows)) {
-      | Some(n) =>
-        DeferredLinebreaks.update(n) |> ignore;
-        ();
-      | None => ()
-      };
+      defer_rows(t);
       acc;
     }
   and add_projector = (acc: measure_acc, pr: Base.projector): measure_acc => {
@@ -540,8 +607,7 @@ let of_segment_inner =
    * measurements and the splice's intrinsic size. */
   and measure_splice = (s: Base.splice, outer: flat): flat => {
     incr(splice_depth);
-    let {pos: last, map: inner, _} =
-      go(~top_level=false, initial_acc, s.content);
+    let {pos: last, map: inner, _} = go(initial_acc, s.content);
     decr(splice_depth);
     let outer = merge_inner(inner, outer);
     /* The intrinsic size is the content's bounding box: [last] alone
@@ -582,30 +648,69 @@ let of_segment_inner =
       map,
       syntax,
     );
-  go(~top_level=final, initial_acc, seg).map;
+  let of_token = (acc: measure_acc, tok: token): measure_acc =>
+    switch (tok) {
+    | Whole(p) => of_piece(acc, p)
+    | Shard(t, i) =>
+      let acc = add_shard(acc, t, i);
+      if (i == Tile.r_shard(t)) {
+        defer_rows(t);
+      };
+      acc;
+    };
+  let acc = List.fold_left(of_token, initial_acc, tokens);
+  add_top_level(~top_level=final, acc).map;
 };
 
-/* measured per chunk of whole lines (see Incr.partition) and composed
-   by row offsets; lookups translate chunk rows to absolute ones */
+let of_segment_inner =
+    (
+      ~in_splice=false,
+      ~final: bool,
+      seg: Segment.t,
+      shape_map: Id.Map.t(ProjectorCore.Shape.t),
+      refractor_rows: Id.Map.t(int),
+    )
+    : flat =>
+  of_tokens_inner(
+    ~in_splice,
+    ~final,
+    List.map(p => Whole(p), seg),
+    shape_map,
+    refractor_rows,
+  );
+
+/* measured per chunk of whole lines (see Partition) and composed by row
+   offsets; lookups translate chunk rows to absolute ones */
 
 type chunk = {
-  c_anchor: Id.t, /* first piece's id: the chunk's stable identity */
+  /* its item's anchor (ItemSpans), derived for a module's head and foot:
+     the chunk's stable identity */
+  c_anchor: Id.t,
   c_start: int, /* absolute starting row */
   c_height: int, /* cached flat_height: chunk_for_row runs per row_shape */
-  c_pieces: Segment.t, /* the chunk's top-level pieces (for chunked views) */
+  c_tokens: list(token), /* the chunk's contents (for chunked views) */
   c_flat: flat,
+  /* inside a module body: it holds no tile of the program's top level */
+  c_nested: bool,
 };
 
 type t = {
+  /* the incremental cache that built it (0: none), so per-chunk views can
+     be kept per editor: a stack cell shares its program's ids */
+  owner: int,
   chunks: array(chunk),
   /* piece id -> owning chunk's anchor (stable across repartitions,
-     unlike indices); persistent, so old generations stay valid */
+     unlike indices); persistent, so old generations stay valid. A split
+     tile maps to its foot, which applies its refractor rows */
   chunk_of_id: Id.Map.t(Id.t),
+  /* a tile split between a module's head and foot -> (head, foot) */
+  split: Id.Map.t((Id.t, Id.t)),
   /* anchor -> index in [chunks] (rebuilt O(#chunks) per generation) */
-  anchor_index: Hashtbl.t(Id.t, int),
+  anchor_index: IdTbl.t(int),
   total_rows: int,
-  /* eager: a lazy value would break structural compares of measurements */
-  all_piece_rows: list(list(Piece.t)),
+  /* every row's pieces, composed on first use: a cache, not a lazy value
+     (a closure would break structural compares of measurements) */
+  mutable all_piece_rows: option(list(list(Piece.t))),
 };
 
 let flat_height = (f: flat): int =>
@@ -630,50 +735,63 @@ let shift_m = (s: int, m: measurement): measurement => {
   last: shift_point(s, m.last),
 };
 
-let mk_chunked = (~chunk_of_id, flats: list((Id.t, Segment.t, flat))): t => {
+/* [flats]: each chunk's anchor, tokens, measurement, height and whether
+   it is nested in a module body */
+let mk_chunked =
+    (
+      ~owner,
+      ~chunk_of_id,
+      ~split,
+      flats: list((Id.t, list(token), flat, int, bool)),
+    )
+    : t => {
   let n = List.length(flats);
-  let anchor_index = Hashtbl.create(n > 0 ? n : 1);
-  let (chunks_rev, total) =
+  let anchor_index = IdTbl.create(n > 0 ? n : 1);
+  let (chunks_rev, total, _) =
     List.fold_left(
-      ((acc, row), (anchor, pieces, f)) => {
-        Hashtbl.replace(anchor_index, anchor, List.length(acc));
-        let h = flat_height(f);
+      ((acc, row, i), (anchor, tokens, f, h, nested)) => {
+        IdTbl.replace(anchor_index, anchor, i);
         (
           [
             {
               c_anchor: anchor,
               c_start: row,
               c_height: h,
-              c_pieces: pieces,
+              c_tokens: tokens,
               c_flat: f,
+              c_nested: nested,
             },
             ...acc,
           ],
           row + h,
+          i + 1,
         );
       },
-      ([], 0),
+      ([], 0, 0),
       flats,
     );
   let chunks = Array.of_list(List.rev(chunks_rev));
   {
+    owner,
     chunks,
     chunk_of_id,
+    split,
     anchor_index,
     total_rows: total,
-    all_piece_rows:
-      Array.fold_left((acc, ch) => ch.c_flat.piece_rows @ acc, [], chunks),
+    all_piece_rows: None,
   };
 };
+
+let chunk_of_anchor = (anchor: Id.t, m: t): option(chunk) =>
+  switch (IdTbl.find_opt(m.anchor_index, anchor)) {
+  | Some(i) => Some(m.chunks[i])
+  | None => None
+  };
 
 let chunk_for_id = (id: Id.t, m: t): option(chunk) =>
   switch (Id.Map.find_opt(id, m.chunk_of_id)) {
   | None => None
-  | Some(anchor) =>
-    switch (Hashtbl.find_opt(m.anchor_index, anchor)) {
-    | Some(i) => Some(m.chunks[i])
-    | None => None
-    }
+  | Some(anchor) => chunk_of_anchor(anchor, m)
   };
 
 let chunk_for_row = (row: int, m: t): option(chunk) => {
@@ -701,13 +819,20 @@ let chunk_for_row = (row: int, m: t): option(chunk) => {
 let shift_shards = (s: int, shards: Shards.t): Shards.t =>
   List.map(((i, meas)) => (i, shift_m(s, meas)), shards);
 
-/* [id]'s binding in one of its chunk's maps, in absolute rows */
+/* how far [ch]'s map is shifted at [id]: by the chunk's start row, but
+   not where it measured [id] in a splice's own frame (flat.local) */
+let shift_at = (ch: chunk, id: Id.t): int =>
+  Id.Set.mem(id, ch.c_flat.local) ? 0 : ch.c_start;
+
+/* [id]'s binding in one of its chunk's maps, in absolute rows (or, inside
+   a splice, the splice's own) */
 let find_in =
     (field: flat => Id.Map.t('a), shift: (int, 'a) => 'b, id: Id.t, m: t)
     : option('b) =>
   switch (chunk_for_id(id, m)) {
   | Some(ch) =>
-    Id.Map.find_opt(id, field(ch.c_flat)) |> Option.map(shift(ch.c_start))
+    Id.Map.find_opt(id, field(ch.c_flat))
+    |> Option.map(shift(shift_at(ch, id)))
   | None => None
   };
 
@@ -717,8 +842,26 @@ let or_fail = (what: string, msg: string, found: option('a)): 'a =>
   | None => failwith(what ++ ": " ++ msg)
   };
 
+/* a tile's shards; a split tile's from its head and its foot, whose
+   shards all follow the head's */
 let find_shards_by_id = (id: Id.t, m: t): option(Shards.t) =>
-  find_in(f => f.tiles, shift_shards, id, m);
+  switch (Id.Map.find_opt(id, m.split)) {
+  | Some((head, foot)) =>
+    let part = anchor =>
+      switch (chunk_of_anchor(anchor, m)) {
+      | Some(ch) =>
+        switch (Id.Map.find_opt(id, ch.c_flat.tiles)) {
+        | Some(shards) => shift_shards(ch.c_start, shards)
+        | None => []
+        }
+      | None => []
+      };
+    switch (part(head) @ part(foot)) {
+    | [] => None
+    | shards => Some(shards)
+    };
+  | None => find_in(f => f.tiles, shift_shards, id, m)
+  };
 let find_shards = (~msg="", t: Tile.t, m: t): Shards.t =>
   or_fail("find_shards", msg, find_shards_by_id(t.id, m));
 let find_w = (~msg="", w: Secondary.t, m: t): measurement =>
@@ -736,12 +879,8 @@ let find_p = (~msg="", p: Piece.t, m: t): measurement =>
          w => find_w(w, m),
          g => find_g(g, m),
          t =>
-           find_in(
-             f => f.tiles,
-             (s, sh) => shift_m(s, tile_span(t, sh)),
-             t.id,
-             m,
-           )
+           find_shards_by_id(t.id, m)
+           |> Option.map(tile_span(t))
            |> or_fail("find_t", msg),
          p => find_pr(p, m),
          /* a splice measured inline (nested in another splice's content:
@@ -753,7 +892,7 @@ let find_p = (~msg="", p: Piece.t, m: t): measurement =>
            switch (chunk_for_id(s.id, m)) {
            | Some(ch) =>
              shift_m(
-               ch.c_start,
+               shift_at(ch, s.id),
                Id.Map.find_opt(s.id, ch.c_flat.grout)
                |> Option.value(
                     ~default={
@@ -769,10 +908,18 @@ let find_p = (~msg="", p: Piece.t, m: t): measurement =>
   | _ => failwith("find_p: " ++ msg ++ "id: " ++ Id.to_string(p |> Piece.id))
   };
 let find_by_id = (id: Id.t, m: t): option(measurement) =>
-  switch (chunk_for_id(id, m)) {
-  | Some(ch) =>
-    find_by_id_flat(id, ch.c_flat) |> Option.map(shift_m(ch.c_start))
-  | None =>
+  switch (Id.Map.mem(id, m.split), chunk_for_id(id, m)) {
+  | (true, _) =>
+    find_shards_by_id(id, m)
+    |> Option.map(shards =>
+         {
+           origin: snd(List.hd(shards)).origin,
+           last: snd(ListUtil.last(shards)).last,
+         }
+       )
+  | (false, Some(ch)) =>
+    find_by_id_flat(id, ch.c_flat) |> Option.map(shift_m(shift_at(ch, id)))
+  | (false, None) =>
     Printf.printf("Measured.WARNING: id %s not found", Id.to_string(id));
     None;
   };
@@ -785,7 +932,7 @@ let find_shards_opt = (t: Tile.t, m: t): option(Shards.t) =>
 let find_by_id_quiet = (id: Id.t, m: t): option(measurement) =>
   switch (chunk_for_id(id, m)) {
   | Some(ch) =>
-    find_by_id_flat(id, ch.c_flat) |> Option.map(shift_m(ch.c_start))
+    find_by_id_flat(id, ch.c_flat) |> Option.map(shift_m(shift_at(ch, id)))
   | None => None
   };
 
@@ -833,7 +980,15 @@ let min_col_of_rows = (rs: list(row), m: t): col =>
      )
   |> List.fold_left(min, Int.max_int);
 
-let piece_rows = (m: t): list(list(Piece.t)) => m.all_piece_rows;
+let piece_rows = (m: t): list(list(Piece.t)) =>
+  switch (m.all_piece_rows) {
+  | Some(rows) => rows
+  | None =>
+    let rows =
+      Array.fold_left((acc, ch) => ch.c_flat.piece_rows @ acc, [], m.chunks);
+    m.all_piece_rows = Some(rows);
+    rows;
+  };
 
 let num_rows = (m: t): int => m.total_rows;
 
@@ -850,8 +1005,15 @@ let of_segment =
       refractor_rows: Id.Map.t(int),
     )
     : t => {
+  let tokens = List.map(p => Whole(p), seg);
   let f =
-    of_segment_inner(~in_splice, ~final=true, seg, shape_map, refractor_rows);
+    of_tokens_inner(
+      ~in_splice,
+      ~final=true,
+      tokens,
+      shape_map,
+      refractor_rows,
+    );
   let anchor =
     switch (seg) {
     | [p, ..._] => Piece.id(p)
@@ -863,7 +1025,12 @@ let of_segment =
       Id.Map.empty,
       ids_of_flat(f),
     );
-  mk_chunked(~chunk_of_id, [(anchor, seg, f)]);
+  mk_chunked(
+    ~owner=0,
+    ~chunk_of_id,
+    ~split=Id.Map.empty,
+    [(anchor, tokens, f, flat_height(f), false)],
+  );
 };
 
 /* Index of the last measured row (0 for empty/single-row content). */
@@ -948,83 +1115,437 @@ let splice_size_of = (sizes: Id.Map.t(Point.t), id: Id.t): Point.t =>
   | Some(p) => p
   | None => Point.zero
   };
+/* the layout's chunks (plans/hierarchical-spans.md §4.3): items' line
+   slots (ItemSpans, Read), merged where items share a line, with the trivia
+   between slots a chunk of its own. A module literal whose members start
+   on their own lines splits into a head, its members' chunks and a foot;
+   a member that is a let chain, into its items' chunks. Every cut follows
+   a linebreak: deferred linebreaks and the piece-row flush there, and
+   nothing else carries across rows (indentation is plain whitespace), so a
+   chunk measured alone matches the monolithic measurement */
+module Partition = {
+  module S = ItemSpans;
+
+  type part = {
+    p_anchor: Id.t,
+    p_tokens: list(token),
+    /* cut inside a module body */
+    p_nested: bool,
+    p_final: bool,
+  };
+
+  /* a module body's chunks between its head and foot (in order), kept
+     while ItemSpans keeps its level: an edit redoes only the bodies it
+     changed */
+  type body = {
+    b_level: S.level,
+    b_edges: option((int, int)),
+    b_parts: list(part),
+    b_splits: list((Id.t, (Id.t, Id.t))),
+  };
+
+  /* one per editor: the last partition's bodies by brace id, and the
+     current one's */
+  type memo = {
+    mutable last: IdTbl.t(body),
+    mutable this: IdTbl.t(body),
+  };
+  let mk_memo = (): memo => {
+    last: IdTbl.create(8),
+    this: IdTbl.create(8),
+  };
+
+  /* the chunks so far: the open one's tokens (reversed) and anchor once
+     known, the closed ones, and the split tiles with (head, foot) */
+  type builder = {
+    memo,
+    nested: bool,
+    mutable open_: list(token),
+    mutable name: option(Id.t),
+    mutable parts: list(part),
+    mutable splits: list((Id.t, (Id.t, Id.t))),
+  };
+
+  /* a module item's head and foot anchors by its anchor: Id.derive
+     hashes, and every partition names every split item */
+  let names: Swept.t(Id.t, (Id.t, Id.t)) = Swept.mk();
+  let names_of = (anchor: Id.t): (Id.t, Id.t) =>
+    switch (Swept.find_opt(names, anchor)) {
+    | Some(hf) => hf
+    | None =>
+      let hf = (
+        Id.derive(~salt="head", anchor),
+        Id.derive(~salt="foot", anchor),
+      );
+      Swept.replace(names, anchor, hf);
+      hf;
+    };
+
+  /* test hook: bodies partitioned, cumulative */
+  let bodies_built = ref(0);
+
+  let builder = (~nested, memo: memo): builder => {
+    memo,
+    nested,
+    open_: [],
+    name: None,
+    parts: [],
+    splits: [],
+  };
+
+  let push = (b: builder, tok: token) => b.open_ = [tok, ...b.open_];
+  let push_range = (b: builder, arr: array(Piece.t), lo: int, hi: int) =>
+    for (i in lo to hi - 1) {
+      push(b, Whole(arr[i]));
+    };
+  /* a chunk is named by the first item starting in it, else by its first
+     piece */
+  let name = (b: builder, id: Id.t) =>
+    if (b.name == None) {
+      b.name = Some(id);
+    };
+  let close = (b: builder) =>
+    switch (List.rev(b.open_)) {
+    | [] => ()
+    | [first, ..._] as toks =>
+      let anchor = Option.value(b.name, ~default=token_id(first));
+      b.parts = [
+        {
+          p_anchor: anchor,
+          p_tokens: toks,
+          p_nested: b.nested,
+          p_final: false,
+        },
+        ...b.parts,
+      ];
+      b.open_ = [];
+      b.name = None;
+    };
+
+  /* [lv]'s cut points in (a, b): its items' line slot edges that follow a
+     linebreak, ascending. A slot can end at its level's end without one:
+     a let chain's, before its member's `;` */
+  let cuts = (lv: S.level, a: int, b: int): list(int) => {
+    let ok = (x, acc) =>
+      a < x
+      && x < b
+      && Piece.is_linebreak(lv.pieces[x - 1])
+      && (
+        switch (acc) {
+        | [y, ..._] => y != x
+        | [] => true
+        }
+      );
+    Array.fold_right(
+      (sp: S.span, acc) =>
+        switch (sp.lines) {
+        | Some((lo, hi)) =>
+          let acc = ok(hi, acc) ? [hi, ...acc] : acc;
+          ok(lo, acc) ? [lo, ...acc] : acc;
+        | None => acc
+        },
+      lv.spans,
+      [],
+    );
+  };
+
+  /* a module literal: its definition's site, its brace and where the
+     brace sits there, its members, and their first and last cuts */
+  type literal = {
+    site: S.site,
+    at: int,
+    brace: Tile.t,
+    body,
+    first: int,
+    last: int,
+  };
+
+  type split =
+    | Module(literal)
+    /* a member that is a let chain: its items */
+    | Chain(S.level);
+
+  /* where a module body's head ends and its foot starts: after the `{`
+     line and at the `}` line, unless a member shares the line; then at
+     the members' first or last cut */
+  let edges = (ml: S.level): option((int, int)) => {
+    let arr = ml.pieces;
+    let len = Array.length(arr);
+    let rec trivia = (i, z) =>
+      i >= z || Piece.is_secondary(arr[i]) && trivia(i + 1, z);
+    let rec fwd = i =>
+      i < len && !Piece.is_linebreak(arr[i]) ? fwd(i + 1) : i;
+    let rec back = i =>
+      i >= 0 && !Piece.is_linebreak(arr[i]) ? back(i - 1) : i;
+    let cs = cuts(ml, 0, len + 1);
+    let (lb0, lbn) = (fwd(0), back(len - 1));
+    let first =
+      lb0 < len && trivia(0, lb0) ? Some(lb0 + 1) : ListUtil.hd_opt(cs);
+    let last =
+      lbn >= 0 && trivia(lbn + 1, len)
+        ? Some(lbn + 1) : ListUtil.last_opt(cs);
+    switch (first, last) {
+    | (Some(f), Some(l)) when f < l => Some((f, l))
+    | _ => None
+    };
+  };
+
+  /* [lv]'s pieces [a, z), cut at its cut points between; the caller
+     closes at [z] */
+  let rec level = (b: builder, lv: S.level, a: int, z: int) => {
+    let n = Array.length(lv.spans);
+    /* where item [k] starts: its first content (a core can open with a
+       comment its slot leaves out) */
+    let starts = k => {
+      let (c0, c1) = lv.spans[k].core;
+      let rec go = i =>
+        i < c1 && Piece.is_secondary(lv.pieces[i]) ? go(i + 1) : i;
+      go(c0);
+    };
+    let rec from = k => k < n && starts(k) < a ? from(k + 1) : k;
+    /* the items starting before [x], from [k] */
+    let rec upto = (k, x, acc) =>
+      k < n && starts(k) < x
+        ? upto(k + 1, x, [k, ...acc]) : (k, List.rev(acc));
+    let rec regions = (r0, pts, k) =>
+      switch (pts) {
+      | [] => ()
+      | [r1, ...pts] =>
+        let (k', ks) = upto(k, r1, []);
+        region(b, lv, r0, r1, ks);
+        if (pts != []) {
+          close(b);
+        };
+        regions(r1, pts, k');
+      };
+    regions(a, cuts(lv, a, z) @ [z], from(0));
+  }
+  /* how item [k] splits, if its children start lines of their own */
+  and split_of = (memo: memo, lv: S.level, k: int): option(split) =>
+    switch (S.members(lv, k)) {
+    | Some(members) =>
+      switch (S.site_of(lv, k)) {
+      | Some(site) =>
+        switch (S.brace_of(lv.pieces, site)) {
+        | Some((at, brace)) =>
+          let body = body_of(memo, brace.id, members);
+          Option.map(
+            ((first, last)) =>
+              Module({
+                site,
+                at,
+                brace,
+                body,
+                first,
+                last,
+              }),
+            body.b_edges,
+          );
+        | None => None
+        }
+      | None => None
+      }
+    | None =>
+      switch (S.chain(lv, k)) {
+      | Some(cl) when cuts(cl, 0, Array.length(cl.pieces)) != [] =>
+        Some(Chain(cl))
+      | _ => None
+      }
+    }
+  /* a module body's chunks, from the memo while its level is the same */
+  and body_of = (memo: memo, id: Id.t, ml: S.level): body => {
+    let body =
+      switch (IdTbl.find_opt(memo.last, id)) {
+      | Some(body) when body.b_level === ml => body
+      | _ =>
+        incr(bodies_built);
+        let edges = edges(ml);
+        let sub = builder(~nested=true, memo);
+        Option.iter(
+          ((first, last)) => {
+            level(sub, ml, first, last);
+            close(sub);
+          },
+          edges,
+        );
+        {
+          b_level: ml,
+          b_edges: edges,
+          b_parts: List.rev(sub.parts),
+          b_splits: sub.splits,
+        };
+      };
+    IdTbl.replace(memo.this, id, body);
+    body;
+  }
+  /* pieces [r0, r1) of [lv], holding items [ks]: a lone item splits if
+     it can */
+  and region = (b: builder, lv: S.level, r0: int, r1: int, ks: list(int)) =>
+    switch (ks) {
+    | [k] =>
+      switch (split_of(b.memo, lv, k)) {
+      | Some(Module(lit)) => literal(b, lv, k, r0, r1, lit)
+      | Some(Chain(cl)) =>
+        push_range(b, lv.pieces, r0, cl.offset);
+        level(b, cl, 0, Array.length(cl.pieces));
+        push_range(b, lv.pieces, cl.offset + Array.length(cl.pieces), r1);
+      | None =>
+        name(b, lv.spans[k].anchor);
+        push_range(b, lv.pieces, r0, r1);
+      }
+    | [k, ..._] =>
+      name(b, lv.spans[k].anchor);
+      push_range(b, lv.pieces, r0, r1);
+    | [] => push_range(b, lv.pieces, r0, r1)
+    }
+  /* the head runs through the brace's `{` to the first member cut, and the
+     foot from the last member cut through the `}` and the item's end; the
+     tiles around the members are split between them */
+  and literal =
+      (b: builder, lv: S.level, k: int, r0: int, r1: int, lit: literal) => {
+    let (head, foot) = names_of(lv.spans[k].anchor);
+    b.name = Some(head);
+    switch (lit.site) {
+    | Run(_) =>
+      push_range(b, lv.pieces, r0, lit.at);
+      push(b, Shard(lit.brace, 0));
+    | Kid(h, t) =>
+      push_range(b, lv.pieces, r0, h);
+      let last_kid = List.length(t.children) - 1;
+      List.iteri(
+        (j, kid) => {
+          push(b, Shard(t, j));
+          if (j < last_kid) {
+            List.iter(p => push(b, Whole(p)), kid);
+          } else {
+            push_range(b, Array.of_list(kid), 0, lit.at);
+            push(b, Shard(lit.brace, 0));
+          };
+        },
+        t.children,
+      );
+      b.splits = [(t.id, (head, foot)), ...b.splits];
+    };
+    let members = lit.body.b_level.pieces;
+    push_range(b, members, 0, lit.first);
+    close(b);
+    b.parts = List.rev_append(lit.body.b_parts, b.parts);
+    b.splits = List.rev_append(lit.body.b_splits, b.splits);
+    b.name = Some(foot);
+    push_range(b, members, lit.last, Array.length(members));
+    push(b, Shard(lit.brace, 1));
+    switch (lit.site) {
+    | Run(_) => push_range(b, lv.pieces, lit.at + 1, r1)
+    | Kid(h, t) =>
+      let kid = Array.of_list(ListUtil.last(t.children));
+      push_range(b, kid, lit.at + 1, Array.length(kid));
+      push(b, Shard(t, List.length(t.children)));
+      push_range(b, lv.pieces, h + 1, r1);
+    };
+    b.splits = [(lit.brace.id, (head, foot)), ...b.splits];
+  };
+
+  /* the program's chunks in order, the last final; and its split tiles */
+  let go =
+      (~root: Sort.t, ~memo: memo, seg: Segment.t)
+      : (list(part), list((Id.t, (Id.t, Id.t)))) =>
+    switch (seg) {
+    | [] => (
+        [
+          {
+            p_anchor: Id.invalid,
+            p_tokens: [],
+            p_nested: false,
+            p_final: true,
+          },
+        ],
+        [],
+      )
+    | _ =>
+      let top = S.top(~ends=Read, ~root, seg);
+      Swept.next_pass(names);
+      let b = builder(~nested=false, memo);
+      level(b, top, 0, Array.length(top.pieces));
+      close(b);
+      /* keep the bodies this partition reached */
+      let reached = memo.this;
+      IdTbl.reset(memo.last);
+      memo.this = memo.last;
+      memo.last = reached;
+      let parts =
+        switch (b.parts) {
+        | [last, ...parts] => [
+            {
+              ...last,
+              p_final: true,
+            },
+            ...parts,
+          ]
+        | [] => []
+        };
+      (List.rev(parts), b.splits);
+    };
+};
 
 /* incremental chunked measurement, memoized per chunk anchor: an edit
-   re-measures only chunks whose pieces or shape slices changed. parity
+   re-measures only chunks whose tokens or shape slices changed. parity
    with the monolithic build is test-gated (Test_MeasuredChunks) */
 module Incr = {
   type entry = {
-    e_pieces: Segment.t,
+    e_tokens: list(token),
     e_final: bool,
     e_flat: flat,
+    e_height: int,
     e_ids: list(Id.t),
     /* this chunk's shape/refractor bindings, descending by id (both
        writers cons over ascending iteration); a change re-measures it */
     mutable e_shape_slice: list((Id.t, ProjectorCore.Shape.t)),
     mutable e_refr_slice: list((Id.t, int)),
+    /* the last build that used it */
+    mutable e_gen: int,
   };
 
   /* one per editor: the last build's id->anchor map and entries; entries
      outside the current partition are dropped each build (old Measured.t
      values never consult the cache) */
   type cache = {
-    mutable prev: option((Id.Map.t(Id.t), Hashtbl.t(Id.t, entry))),
+    id: int,
+    mutable gen: int,
+    mutable prev: option((Id.Map.t(Id.t), IdTbl.t(entry))),
+    bodies: Partition.memo,
+    /* the last split tiles and their map */
+    mutable split: (list((Id.t, (Id.t, Id.t))), Id.Map.t((Id.t, Id.t))),
   };
-  let mk_cache = (): cache => {prev: None};
+  let caches = ref(0);
+  let mk_cache = (): cache => {
+    incr(caches);
+    {
+      id: caches^,
+      gen: 0,
+      prev: None,
+      bodies: Partition.mk_memo(),
+      split: ([], Id.Map.empty),
+    };
+  };
 
   /* test hook: chunks re-measured, cumulative */
   let built = ref(0);
 
-  /* cut after the last linebreak of a secondary run when content
-     follows: deferred linebreaks and the piece-row flush there, and
-     nothing else carries across rows (indentation is plain whitespace),
-     so a chunk measured alone matches the monolithic measurement */
-  let partition = (seg: Segment.t): list((Id.t, Segment.t, bool)) =>
-    switch (seg) {
-    | [] => [(Id.invalid, [], true)]
-    | _ =>
-      let ps = Array.of_list(seg);
-      let n = Array.length(ps);
-      let is_lb = Piece.is_linebreak;
-      let is_sec = Piece.is_secondary;
-      /* last linebreak of its secondary run, with content after? */
-      let rec run_ends_here = k =>
-        k >= n
-          ? false
-          : is_lb(ps[k])
-              ? false : is_sec(ps[k]) ? run_ends_here(k + 1) : true;
-      let cuts = ref([]);
-      for (i in 0 to n - 1) {
-        if (is_lb(ps[i]) && run_ends_here(i + 1)) {
-          cuts := [i, ...cuts^];
-        };
-      };
-      let sub = (lo, hi) => Array.to_list(Array.sub(ps, lo, hi - lo + 1));
-      let rec take = (lo, cs, acc) =>
-        switch (cs) {
-        | [] =>
-          List.rev([(Piece.id(ps[lo]), sub(lo, n - 1), true), ...acc])
-        | [c, ...cs] =>
-          take(c + 1, cs, [(Piece.id(ps[lo]), sub(lo, c), false), ...acc])
-        };
-      take(0, List.rev(cuts^), []);
-    };
-
   /* bindings grouped by owning anchor under [map], descending by id */
   let slices_of =
       (map: Id.Map.t(Id.t), bindings: list((Id.t, 'a)))
-      : Hashtbl.t(Id.t, list((Id.t, 'a))) => {
-    let h = Hashtbl.create(8);
+      : IdTbl.t(list((Id.t, 'a))) => {
+    let h = IdTbl.create(8);
     List.iter(
       ((id, v)) =>
         switch (Id.Map.find_opt(id, map)) {
         | Some(anchor) =>
           let cur =
-            switch (Hashtbl.find_opt(h, anchor)) {
+            switch (IdTbl.find_opt(h, anchor)) {
             | Some(l) => l
             | None => []
             };
-          Hashtbl.replace(h, anchor, [(id, v), ...cur]);
+          IdTbl.replace(h, anchor, [(id, v), ...cur]);
         | None => ()
         },
       bindings,
@@ -1032,102 +1553,164 @@ module Incr = {
     h;
   };
 
+  /* most chunks hold no projector or drawer */
+  let slice_for = (h: IdTbl.t(list('a)), anchor: Id.t): list('a) =>
+    IdTbl.length(h) == 0
+      ? []
+      : (
+        switch (IdTbl.find_opt(h, anchor)) {
+        | Some(l) => l
+        | None => []
+        }
+      );
+
   let of_segment =
       (
+        ~root: Sort.t=Exp,
         ~cache: cache,
         seg: Segment.t,
         shape_map: Id.Map.t(ProjectorCore.Shape.t),
         refractor_shape_map: Id.Map.t(int),
       )
       : t => {
-    let parts = partition(seg);
+    let (parts, splits) = Partition.go(~root, ~memo=cache.bodies, seg);
     let (prev_map, prev_entries) =
       switch (cache.prev) {
       | Some((m, e)) => (m, e)
-      | None => (Id.Map.empty, Hashtbl.create(1))
+      | None => (Id.Map.empty, IdTbl.create(1))
       };
+    cache.gen = cache.gen + 1;
+    let gen = cache.gen;
     let shape_bindings = Id.Map.bindings(shape_map);
     let refr_bindings = Id.Map.bindings(refractor_shape_map);
     let shape_slices = slices_of(prev_map, shape_bindings);
     let refr_slices = slices_of(prev_map, refr_bindings);
-    let slice_for = (h, anchor) =>
-      switch (Hashtbl.find_opt(h, anchor)) {
-      | Some(l) => l
-      | None => []
-      };
-    let new_entries = Hashtbl.create(List.length(parts));
+    let new_entries = IdTbl.create(List.length(parts));
     let chunks =
       List.map(
-        ((anchor, pieces, final)) => {
-          let e =
-            switch (Hashtbl.find_opt(prev_entries, anchor)) {
+        (
+          {
+            p_anchor: anchor,
+            p_tokens: tokens,
+            p_final: final,
+            p_nested: nested,
+          }: Partition.part,
+        ) => {
+          let (e, carried) =
+            switch (IdTbl.find_opt(prev_entries, anchor)) {
             | Some(e)
                 when
                   e.e_final == final
-                  && Segment.ptr_eq(e.e_pieces, pieces)
+                  && tokens_eq(e.e_tokens, tokens)
                   && e.e_shape_slice == slice_for(shape_slices, anchor)
-                  && e.e_refr_slice == slice_for(refr_slices, anchor) => e
+                  && e.e_refr_slice == slice_for(refr_slices, anchor) => (
+                e,
+                true,
+              )
             | _ =>
               incr(built);
               let f =
-                of_segment_inner(
+                of_tokens_inner(
                   ~final,
-                  pieces,
+                  tokens,
                   shape_map,
                   refractor_shape_map,
                 );
-              {
-                e_pieces: pieces,
-                e_final: final,
-                e_flat: f,
-                e_ids: ids_of_flat(f),
-                e_shape_slice: [], /* filled below from the new map */
-                e_refr_slice: [],
-              };
+              (
+                {
+                  e_tokens: tokens,
+                  e_final: final,
+                  e_flat: f,
+                  e_height: flat_height(f),
+                  e_ids: ids_of_flat(f),
+                  e_shape_slice: [], /* filled below from the new map */
+                  e_refr_slice: [],
+                  e_gen: gen,
+                },
+                false,
+              );
             };
-          Hashtbl.replace(new_entries, anchor, e);
-          (anchor, e);
+          e.e_gen = gen;
+          IdTbl.replace(new_entries, anchor, e);
+          (anchor, tokens, e, carried, nested);
         },
         parts,
       );
-    /* diff the previous chunk_of_id: drop the ids of vanished or rebuilt
-       chunks, then add the rebuilt ones' ids (O(changed), no dead ids) */
+    /* diff the previous chunk_of_id: drop the ids of the entries this
+       build didn't reach (vanished or rebuilt chunks), then add the
+       rebuilt ones' ids (O(changed), no dead ids). A chunk rebuilt under
+       its old anchor keeps most of its ids, which stay put */
     let map = ref(prev_map);
-    Hashtbl.iter(
+    let rebuilt = IdTbl.create(64);
+    List.iter(
+      ((anchor, _, e: entry, carried, _)) =>
+        if (!carried) {
+          List.iter(id => IdTbl.replace(rebuilt, id, anchor), e.e_ids);
+        },
+      chunks,
+    );
+    IdTbl.iter(
       (anchor, old_e: entry) =>
-        switch (Hashtbl.find_opt(new_entries, anchor)) {
-        | Some(e) when e === old_e => ()
-        | _ => List.iter(id => map := Id.Map.remove(id, map^), old_e.e_ids)
+        if (old_e.e_gen != gen) {
+          List.iter(
+            id =>
+              switch (IdTbl.find_opt(rebuilt, id)) {
+              | Some(a) when a === anchor => ()
+              | _ => map := Id.Map.remove(id, map^)
+              },
+            old_e.e_ids,
+          );
         },
       prev_entries,
     );
+    IdTbl.iter(
+      (id, anchor) =>
+        switch (Id.Map.find_opt(id, map^)) {
+        | Some(a) when a === anchor => ()
+        | _ => map := Id.Map.add(id, anchor, map^)
+        },
+      rebuilt,
+    );
+    /* a split tile is in two chunks: it maps to its foot */
     List.iter(
-      ((anchor, e: entry)) => {
-        let carried =
-          switch (Hashtbl.find_opt(prev_entries, anchor)) {
-          | Some(old_e) => old_e === e
-          | None => false
-          };
-        if (!carried) {
-          List.iter(id => map := Id.Map.add(id, anchor, map^), e.e_ids);
-        };
-      },
-      chunks,
+      ((id, (_, foot))) =>
+        switch (Id.Map.find_opt(id, map^)) {
+        | Some(a) when a === foot => ()
+        | _ => map := Id.Map.add(id, foot, map^)
+        },
+      splits,
     );
     let chunk_of_id = map^;
     let shape_slices = slices_of(chunk_of_id, shape_bindings);
     let refr_slices = slices_of(chunk_of_id, refr_bindings);
     List.iter(
-      ((anchor, e: entry)) => {
+      ((anchor, _, e: entry, _, _)) => {
         e.e_shape_slice = slice_for(shape_slices, anchor);
         e.e_refr_slice = slice_for(refr_slices, anchor);
       },
       chunks,
     );
     cache.prev = Some((chunk_of_id, new_entries));
+    /* the same splits hold the same ids and named pairs */
+    let rec same = (a, b) =>
+      switch (a, b) {
+      | ([], []) => true
+      | ([(i, hf), ...a], [(j, hf'), ...b]) =>
+        i === j && hf === hf' && same(a, b)
+      | _ => false
+      };
+    if (!same(fst(cache.split), splits)) {
+      cache.split = (splits, Id.Map.of_list(splits));
+    };
     mk_chunked(
+      ~owner=cache.id,
       ~chunk_of_id,
-      List.map(((a, e: entry)) => (a, e.e_pieces, e.e_flat), chunks),
+      ~split=snd(cache.split),
+      List.map(
+        ((a, tokens, e: entry, _, nested)) =>
+          (a, tokens, e.e_flat, e.e_height, nested),
+        chunks,
+      ),
     );
   };
 };

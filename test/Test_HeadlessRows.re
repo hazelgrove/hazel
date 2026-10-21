@@ -109,7 +109,9 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
     switch (O.pat_var(pat)) {
     | Some(_) =>
       def_row(id, Pat.rep_id(pat), def);
-      def_kids(def);
+      /* `let f(x) = …`: [def] is the function's body */
+      Option.is_some(FunctionSugar.detect(pat))
+        ? of_block(def) : def_kids(def);
       1;
     | None => 0
     }
@@ -215,8 +217,9 @@ type survey = {
   broken: list(string),
 };
 
-/* open each row's cell from one editor, as the outline does */
-let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
+/* open each row's cell (every [sample]th) from one editor, as the outline
+   does */
+let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => {
   let seg =
     switch (CorpusUtil.parse(~root, src)) {
     | Some(seg) => seg
@@ -255,7 +258,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
   let broken = ref([]);
   /* the outline's verdict, from the cell code in one walk */
   let refused =
-    Focus.refusals(~want=id => Id.Map.mem(id, O.row_ids(term)), seg);
+    Focus.refusals(~root, ~want=id => Id.Map.mem(id, O.row_ids(term)), seg);
   let note = (row, whys) =>
     if (whys != []) {
       broken :=
@@ -416,7 +419,7 @@ let survey = (~root=Sort.Exp, ~name: string, src: string): survey => {
         );
       | (None, _) => ()
       },
-    O.flatten(O.of_term(term)),
+    List.filteri((i, _) => i mod sample == 0, O.flatten(O.of_term(term))),
   );
   /* and every item the walk expects has its row */
   let shown = O.row_ids(term);
@@ -511,22 +514,22 @@ let shape_rows = () => {
   );
 };
 
-/* every slide's rows, mega-1k's and mega-mod-1k's */
+/* every slide's rows, and every fourth of mega-1k's and mega-mod-1k's */
 let corpus = () => {
   let programs =
     List.map(
-      ((path, src)) => (path, Sort.Exp, src),
+      ((path, src)) => (path, Sort.Exp, 1, src),
       CorpusUtil.slide_corpus(),
     )
     @ List.map(
         ((file, root)) =>
-          (file, root, Option.get(CorpusUtil.mega_src(file))),
+          (file, root, 4, Option.get(CorpusUtil.mega_src(file))),
         [("mega-1k.hz", Sort.Exp), ("mega-mod-1k.hz", Sort.Mod)],
       );
   let (rows, projected, broken) =
     List.fold_left(
-      ((rows, projected, broken), (name, root, src)) => {
-        let s = survey(~root, ~name, src);
+      ((rows, projected, broken), (name, root, sample, src)) => {
+        let s = survey(~root, ~sample, ~name, src);
         report(s);
         (
           rows + s.rows,

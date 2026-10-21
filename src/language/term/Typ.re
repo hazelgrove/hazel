@@ -522,8 +522,13 @@ let rec contains_sum_or_var = (ty: t): bool =>
    that name introduced by substituting `s` be captured by the binder. To
    avoid this, we alpha-rename the clashing binder to a fresh name (via
    `fresh_var`) before recursing. The inner subst used for renaming is itself
-   capture-avoiding, so repeated collisions are handled naturally. */
-let rec subst = (s: t, x: TPat.t, ty: t): t => {
+   capture-avoiding, so repeated collisions are handled naturally.
+
+   A signature's type members also bind, for the items after them, but they
+   are labels too and so cannot be renamed; see the `Sig` arm. [on_capture]
+   is told the name of each member that captures a free variable of `s`. */
+let rec subst_impl = (~on_capture: Var.t => unit, s: t, x: TPat.t, ty: t): t => {
+  let subst = subst_impl(~on_capture);
   let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
     switch (TPat.tyvar_of_utpat(tp2)) {
     | Some(name) when List.mem(name, free_vars(s)) =>
@@ -636,9 +641,11 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
         ProdExtension(t1', t2') |> rewrap;
       };
     | Sig(items) =>
-      /* Type members bind their name for later items and cannot be renamed
-         (member names are labels and `M.T` keys), so on capture we fall
-         back to substituting Unknown into the remaining items. */
+      /* A type member binds its name for the items after it, and that name
+         is also the member's label (`M.T`), so unlike Poly/Rec it cannot be
+         alpha-renamed. A free variable of `s` spelled like a member would be
+         captured by it: the items after that member are degraded to `?`
+         instead, and the collision is reported through [on_capture]. */
       let fv_s = free_vars(s);
       let rec go = (items: list(Sig.t)) =>
         switch (items) {
@@ -650,13 +657,24 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
               item',
               ...rest,
             ]
+          /* Only an item after the member that mentions `x` would receive a
+             captured `s`; with none, nothing is substituted or degraded. */
           | Some(TypeManifest(n, _) | TypeAbstract(n))
-              when List.mem(n, fv_s) => [
+              when
+                List.mem(n, fv_s)
+                && List.mem(str, free_vars(Sig(rest) |> temp)) =>
+            on_capture(n);
+            [
               item',
               ...List.map(
                    Sig.map_typ(subst(Unknown(Internal) |> temp, x)),
                    rest,
                  ),
+            ];
+          | Some(TypeManifest(n, _) | TypeAbstract(n))
+              when List.mem(n, fv_s) => [
+              item',
+              ...rest,
             ]
           | _ => [item', ...go(rest)]
           };
@@ -666,6 +684,19 @@ let rec subst = (s: t, x: TPat.t, ty: t): t => {
     };
   | None => ty
   };
+};
+
+let subst = (s: t, x: TPat.t, ty: t): t =>
+  subst_impl(~on_capture=ignore, s, x, ty);
+
+/* [subst], also returning the type members that captured a free variable of
+   `s`: exactly the collisions on which the result's following members were
+   degraded to `?`. Empty iff the substitution was clean. */
+let subst_captures = (s: t, x: TPat.t, ty: t): (t, list(Var.t)) => {
+  let captured = ref([]);
+  let ty' =
+    subst_impl(~on_capture=n => captured := [n, ...captured^], s, x, ty);
+  (ty', List.rev(captured^));
 };
 
 let unroll = (ty: t): t =>
@@ -1138,6 +1169,9 @@ let strengthen = (ctx: Ctx.t, ty: t, ~path: t): t => {
   | _ => ty
   };
 };
+
+/* Value members of a signature whose own type is a signature: the
+   sub-modules a type-level path may continue through (`M.P.T`). */
 let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) =>
   Sig.members(items)
   |> Sig.value_names
@@ -2138,8 +2172,23 @@ let all_ids = (ty: t): list(Id.t) => {
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
-    | ProofOf(_)
-    | Sig(_) => ()
+    | ProofOf(_) => ()
+    /* A signature's item types, a sum among which has variant ids of its own
+       -- the generic traversal reaches the items but not those. Syntactic,
+       not `Sig.members`: an item whose name is a hole still prints. */
+    | Sig(items) =>
+      List.iter(
+        item =>
+          Sig.map_typ(
+            ty => {
+              collect_ann_ids(ty);
+              ty;
+            },
+            item,
+          )
+          |> ignore,
+        items,
+      )
     };
   };
   collect_ann_ids(ty);

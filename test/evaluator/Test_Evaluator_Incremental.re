@@ -979,19 +979,13 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  *   `Evaluator.re:158-164` and marks only that one id as reused
  *   (`IncrEval.mark_reused`). The inner items `let x = fib(b)`,
  *   `let y = fib(b)`, `let z = x + y` are never visited during evaluation,
- *   so the UI must derive frozen ids by walking the reuse plan rather than
- *   visited output.
+ *   so clients must derive visible ids by walking the reuse plan rather
+ *   than visited output.
  *
- *   When the evaluator hits the OUTERMOST elab Let on run 2 and finds
- *   its cached entry, it short-circuits via `Evaluator.re:158-164` and
- *   marks only that one id as reused (`IncrEval.mark_reused`). The
- *   surface-sibling inner ModLets `let x = fib(b)`, `let y = fib(b)`,
- *   `let z = x + y` are never visited during evaluation, so clients must
- *   derive visible ids by walking the reuse plan rather than visited output.
- *
- *   The fix is to derive a visible-id set from the ACK reuse plan by walking
- *   each entry's `prev_elab` and unioning all rep_ids encountered.
- *   This test pins down the desired contents of that set. */
+ *   The visible set is derived from the ACK reuse plan by walking each
+ *   entry's `prev_elab` and unioning all rep_ids encountered, including the
+ *   ids of module items. This test pins down the desired contents of that
+ *   set. */
 let test_module_c_inner_ids_in_visible_set_after_edit_in_module_a = () => {
   let src = {|let fib = fun n ->
   if n < 2 then 1 else fib(n - 1) + fib(n - 2) in
@@ -2004,6 +1998,57 @@ let one_walk_lexemes_test =
     },
   );
 
+/* Evaluating [after] reusing the cache from evaluating [before] gives the
+ * same result as evaluating [after] from scratch. [after] must be derived
+ * from [before] by an id-preserving edit, or nothing is reused. */
+let incremental_matches_fresh = (~before: Exp.t, ~after: Exp.t) => {
+  check(
+    bool,
+    "the edit changed the expression",
+    false,
+    Exp.fast_equal(before, after),
+  );
+  let (r_fresh, _, _) = eval_incr(after);
+  let (_, _, incr_prev) = eval_incr(before);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, after);
+  check(dhexp_typ, "incremental matches fresh", r_fresh, r_incr);
+};
+
+/* A module's last binding step yields its value. Evaluating the members
+ * again inside the step's closure recorded cache entries for them that
+ * relied on that closure, so after an edit elsewhere the reused `f` came
+ * back as a bare function, without its environment. */
+let test_module_function_member_reused = () => {
+  let before =
+    parse_exp(
+      {|module W = { let f = fun m -> m; let check = fun _ -> f(180) } in W.check(())|},
+    );
+  incremental_matches_fresh(
+    ~before,
+    ~after=replace_int_lit(~from=180, ~to_=181, before),
+  );
+};
+
+/* A module's last binding step yields its value. Evaluating the members
+ * again inside the step's closure recorded cache entries for them under
+ * the names that closure bound, so `y`, moved above `x`, reused its old
+ * value instead of seeing `x` unbound. */
+let test_module_member_moved_above_dependency = () => {
+  let before = parse_exp({|module M = { let x = 1; let y = x + 1 } in M.y|});
+  let reorder = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Module(items) => {
+        ...e,
+        term: Module(List.rev(items)),
+      }
+    | _ => continue(e)
+    };
+  incremental_matches_fresh(
+    ~before,
+    ~after=TermBase.Exp.map_term(~f_exp=reorder, before),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -2233,6 +2278,16 @@ let tests = (
       "SEALING: dropping a member from a module's signature invalidates its use",
       `Quick,
       test_sig_edit_invalidates_sealed_member,
+    ),
+    test_case(
+      "MODULE: an edit beside a function member keeps the member's closure",
+      `Quick,
+      test_module_function_member_reused,
+    ),
+    test_case(
+      "MODULE: a member moved above its dependency doesn't reuse its value",
+      `Quick,
+      test_module_member_moved_above_dependency,
     ),
   ],
 );

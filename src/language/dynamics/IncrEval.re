@@ -179,9 +179,7 @@ let make_clean = (reuse_map: reuse_map): reuse_map =>
 let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
   Maps.StringMap.equal(equal_provenance, a, b);
 
-/* `$hole` is a statics-only sentinel for unused-variable warnings. It is not
- * a runtime dependency, so it should not participate in reuse provenance. */
-let is_runtime_dependency = (name: string): bool => name != "$hole";
+let is_runtime_dependency = EvalInfo.is_runtime_dependency;
 
 let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
   List.fold_left(

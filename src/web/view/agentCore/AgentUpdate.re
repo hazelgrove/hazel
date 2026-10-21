@@ -242,7 +242,8 @@ let update =
       | Some(_) => model.restore_editor_state
       };
     let new_zipper = Zipper.unzip(~direction=Right, segment);
-    let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
+    let new_editor_model =
+      Editor.Model.mk(new_zipper, ~root=editor.editor.editor.root);
     let new_code_with_statics = CodeWithStatics.Model.mk(new_editor_model);
     (
       {
@@ -260,7 +261,8 @@ let update =
     switch (model.restore_editor_state) {
     | Some(saved_segment) =>
       let new_zipper = Zipper.unzip(~direction=Right, saved_segment);
-      let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
+      let new_editor_model =
+        Editor.Model.mk(new_zipper, ~root=editor.editor.editor.root);
       let new_code_with_statics = CodeWithStatics.Model.mk(new_editor_model);
       (
         {
@@ -279,7 +281,8 @@ let update =
   | LoadSegmentIntoEditor(segment) =>
     // Replace editor with segment by converting to zipper
     let new_zipper = Zipper.unzip(~direction=Right, segment);
-    let new_editor_model = Editor.Model.mk(new_zipper, ~root=Exp);
+    let new_editor_model =
+      Editor.Model.mk(new_zipper, ~root=editor.editor.editor.root);
     let new_code_with_statics = CodeWithStatics.Model.mk(new_editor_model);
     (
       model,

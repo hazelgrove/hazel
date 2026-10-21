@@ -114,6 +114,12 @@ let value_display = (~globals: Globals.t): section => {
     s_name: "Value display",
     s_rows: [
       toggle(
+        "Program value",
+        globals.settings.tail_probe,
+        TailProbe,
+        "Show the program's value below its last line",
+      ),
+      toggle(
         "Functions",
         s.show_fn_bodies,
         Evaluation(ShowFnBodies),
@@ -265,6 +271,12 @@ let code_display = (~globals: Globals.t): section => {
           : []
       )
       @ [
+        toggle(
+          "Outline arrows",
+          globals.settings.outline_arrows,
+          OutlineArrows,
+          "Fold outline rows from an arrow; off, click a row's sigil",
+        ),
         toggle(
           "Simple indication",
           globals.settings.simple_indication,

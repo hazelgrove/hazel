@@ -52,6 +52,38 @@ module Model = {
 
   let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
 
+  /* [model] with [from]'s incremental caches (CachedSyntax.with_caches_of) */
+  let with_caches_of = (~from: t, model: t): t => {
+    ...model,
+    editor: {
+      ...model.editor,
+      editor: {
+        ...model.editor.editor,
+        syntax:
+          CachedSyntax.with_caches_of(
+            ~from=from.editor.editor.syntax,
+            model.editor.editor.syntax,
+          ),
+      },
+    },
+  };
+
+  /* [model] showing [from]'s statics and run until it's analyzed, as
+     after a keystroke: an undone or redone program waits for the typing
+     debounce. Its persisted result (stepper, theorems) stays its own */
+  let with_statics_of = (~from: t, model: t): t => {
+    editor: {
+      ...model.editor,
+      statics: from.editor.statics,
+      dynamics: from.editor.dynamics,
+    },
+    result: {
+      ...from.result,
+      display: model.result.display,
+      theorems: model.result.theorems,
+    },
+  };
+
   let map_zipper = (f: Zipper.t => Zipper.t, model: t): t => {
     ...model,
     editor: {

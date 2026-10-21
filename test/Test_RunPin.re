@@ -32,7 +32,7 @@ let check_run_pin =
     | [first, ..._] => first
     | [] => failwith("no kids")
     };
-  switch (Focus.mk_run_entry(~info_map, first, seg)) {
+  switch (Focus.mk_run_entry(~root=Exp, ~info_map, first, seg)) {
   | None => fail(label ++ ": mk_run_entry returned None")
   | Some(e) =>
     /* members carry both statement `;` and test tile ids */
@@ -51,14 +51,14 @@ let check_run_pin =
       bool,
       label ++ ": unedited splice is exact",
       true,
-      seg_equal(seg, Focus.splice_entry(e, seg)),
+      seg_equal(seg, Focus.splice_entry(~root=Exp, e, seg)),
     );
     /* ctx recapture path used on Force frames */
     check(
       bool,
       label ++ ": cell_content resolves",
       true,
-      Focus.cell_content(e, seg) != None,
+      Focus.cell_content(~root=Exp, e, seg) != None,
     );
   };
 };
@@ -141,7 +141,7 @@ let last_member_jump = () => {
     | None => fail("split_run")
     };
   let second_test =
-    switch (Focus.test_before_semi(last, seg)) {
+    switch (Focus.test_before_semi(~root=Exp, last, seg)) {
     | Some(id) => id
     | None => fail("no test before the last ;")
     };

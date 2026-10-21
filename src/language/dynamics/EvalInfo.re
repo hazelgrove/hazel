@@ -53,6 +53,57 @@ let of_targets = (targets: Sample.targets): t => {
   targets,
 };
 
+/* `$hole` is a statics-only sentinel for unused-variable warnings. It is not
+ * a runtime dependency, so it should not participate in reuse provenance. */
+let is_runtime_dependency = (name: string): bool => name != "$hole";
+
+/* what evaluation reads of a co_ctx (its names, IncrEval) but "$hole":
+   DefStatics' per-item body holes mint a "$hole" use each analysis,
+   which would change every enclosing root's entry */
+let runtime_co_ctx = (co_ctx: CoCtx.t): CoCtx.t =>
+  List.for_all(((name, _)) => is_runtime_dependency(name), co_ctx)
+    ? co_ctx : CoCtx.filter_names(is_runtime_dependency, co_ctx);
+
+/* what an entry's witness reads besides its own probe targets */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type witnessing = {
+  probe_all: bool,
+  full: list(Id.t) /* full-capture probes */
+};
+
+let witnessing = (~probe_all: bool, ~targets: Sample.targets): witnessing => {
+  probe_all,
+  full:
+    Id.Map.fold(
+      (id, spec: Sample.capture_spec, acc) => spec.full ? [id, ...acc] : acc,
+      targets,
+      [],
+    ),
+};
+
+/* an expression's entry; None for other infos */
+let entry_of_info = (w: witnessing, info: Info.t): option(entry) =>
+  switch (info) {
+  | InfoExp({elab_term, co_ctx, probe_targets, _}) =>
+    Some({
+      elab_term,
+      co_ctx: runtime_co_ctx(co_ctx),
+      /* a term holding a full-capture probe gets a witness of its own,
+         so its samples are retaken rather than replayed with elided
+         values */
+      probe_targets:
+        if (List.exists(
+              id => MerkleSet.mem(id, probe_targets.probe_ids),
+              w.full,
+            )) {
+          ProbeTargets(SubexpProbeTargets.mark_full(probe_targets));
+        } else {
+          w.probe_all ? ProbeAll : ProbeTargets(probe_targets);
+        },
+    })
+  | _ => None
+  };
+
 /* The full-capture probes in [targets]: a term holding one gets a
    witness of its own, so its samples are retaken rather than replayed with
    elided values. With probe_all, every other term's witness is ProbeAll. */
@@ -63,22 +114,17 @@ let full_of = (targets: Sample.targets): list(Id.t) =>
     [],
   );
 
+/* entry_of_info, so every path (of_info_map, project_all, set_entry and
+   EvalSplit's pieces) drops "$hole" the same way */
 let project =
     (~probe_all: bool, ~full: list(Id.t)=[], info: Info.t): option(entry) =>
-  switch (info) {
-  | Info.InfoExp({elab_term, co_ctx, probe_targets: pt, _}) =>
-    Some({
-      elab_term,
-      co_ctx,
-      probe_targets:
-        if (List.exists(id => MerkleSet.mem(id, pt.probe_ids), full)) {
-          ProbeTargets(SubexpProbeTargets.mark_full(pt));
-        } else {
-          probe_all ? ProbeAll : ProbeTargets(pt);
-        },
-    })
-  | _ => None
-  };
+  entry_of_info(
+    {
+      probe_all,
+      full,
+    },
+    info,
+  );
 
 let project_all =
     (~probe_all: bool, ~full: list(Id.t)=[], info_map: StaticsBase.Map.t)
@@ -88,10 +134,12 @@ let project_all =
     info_map,
   );
 
-/* what an entry holds, by identity */
+/* what an entry holds, by identity; a co_ctx also structurally, since
+   runtime_co_ctx allocates a fresh list whenever one holds "$hole" (as
+   EvalSplit.entries_equal compares it) */
 let same_entry = (a: entry, b: entry): bool =>
   a.elab_term === b.elab_term
-  && a.co_ctx === b.co_ctx
+  && (a.co_ctx === b.co_ctx || compare(a.co_ctx, b.co_ctx) == 0)
   && (
     switch (a.probe_targets, b.probe_targets) {
     | (ProbeAll, ProbeAll) => true
@@ -177,7 +225,7 @@ let project_from =
 
 /* The keys at which a statics map may differ from the map it was built
    from, as its builder says (DefStatics.calc: the maps of its walk's
-   changes, and the spine roots it patched). Given that, a projection of
+   changes, and the chain steps it ran again). Given that, a projection of
    the old map is updated at those keys alone, where project_from walks
    both maps whole. A note is found by the identity of both maps, so one
    about other maps is never used; without one, project_from does as

@@ -126,11 +126,6 @@ let item_of =
     ds.items,
   );
 
-/* incremental-parse cache for a divided program's statics frames:
-   only the edited item re-parses */
-let stacked_incr_cache: ref(Haz3lcore.MakeTerm.Incr.cache) =
-  ref(Haz3lcore.MakeTerm.Incr.mk_cache());
-
 /* [code] showing [v]: its cells opened and closed to match */
 let realize = (~info_map, ~term, v: SlideView.t, code: code): code => {
   let (view, program) = SlideView.realize(~info_map, ~term, v, code.program);
@@ -180,13 +175,27 @@ let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
   );
 };
 
-/* [program]'s document parsed and analyzed now: its statics may lag it,
-   or be compacted away by undo */
-let fresh_term = (program: Program.t): Language.Exp.t =>
-  MakeTerm.Incr.term_of_root(
-    ~root=Program.root(program),
-    Program.document(program),
-  );
+/* [program]'s term as its statics read it, now: they may lag it, or be
+   compacted away by undo. A whole editor's without an unparsed buffer,
+   from its syntax's pieces when they're current, with its parse cache:
+   the statics path's own holds the last program any editor analyzed */
+let fresh_term = (program: Program.t): Language.Exp.t => {
+  let root = Program.root(program);
+  switch (program) {
+  | Whole(e) =>
+    let z = e.editor.editor.state.zipper;
+    let syntax = e.editor.editor.syntax;
+    MakeTerm.semantic_term(
+      ~root,
+      ~shared=syntax.t_cache,
+      switch (CachedSyntax.semantic_source(z, syntax)) {
+      | Some(seg) => seg
+      | None => MakeTerm.semantic_source(z)
+      },
+    );
+  | Divided(d) => MakeTerm.semantic_term(~root, Divided.document(d))
+  };
+};
 let fresh_info_map =
     (~settings: Settings.t, program: Program.t, term: Language.Exp.t)
     : Language.Statics.Map.t =>
@@ -212,18 +221,26 @@ let with_segment =
     : Scratchpad.code => {
   let program = code.program;
   let root = Program.root(program);
+  let probes = Program.probes(program);
+  /* the program's parse and measure caches: they hit for the items the
+     edit didn't change */
   let fresh =
-    Divided.editor_of(
-      ~root,
-      ~probes=Program.probes(program),
-      ~anchor=
-        switch (caret, program) {
-        | (Some(_), _) => caret
-        | (None, Whole(e)) => Divided.anchor_of(e.editor.editor.state.zipper)
-        | (None, Divided(_)) => None
-        },
-      new_seg,
-    );
+    switch (program) {
+    | Whole(e) =>
+      Divided.editor_of(
+        ~prev=e,
+        ~root,
+        ~probes,
+        ~anchor=
+          switch (caret) {
+          | Some(_) => caret
+          | None => Divided.anchor_of(e.editor.editor.state.zipper)
+          },
+        new_seg,
+      )
+    | Divided(d) =>
+      Divided.shell_editor_of(~probes, ~anchor=caret, new_seg, d)
+    };
   let statics =
     settings.core.statics
       ? Haz3lcore.CachedStatics.init_compositional_term(
@@ -232,7 +249,11 @@ let with_segment =
             CachedStatics.probe_ids_of_zipper(
               fresh.editor.editor.state.zipper,
             ),
-          MakeTerm.Incr.term_of_root(~root, new_seg),
+          MakeTerm.semantic_term(
+            ~root,
+            ~shared=fresh.editor.editor.syntax.t_cache,
+            new_seg,
+          ),
         )
       : Haz3lcore.CachedStatics.empty;
   let editor: CellEditor.Model.t = {
@@ -278,13 +299,13 @@ let with_segment =
 /* the program as an item edit sees it: parsed from the current
    document, which the statics may lag */
 let item_ctx =
-    (~settings: Settings.t, ~collapsed, program: Program.t): ItemEdit.ctx => {
+    (~settings: Settings.t, ~folds, program: Program.t): ItemEdit.ctx => {
   let term = fresh_term(program);
   {
     mod_root: Program.root(program) == Haz3lcore.Sort.Mod,
     term,
     info_map: lazy(fresh_info_map(~settings, program, term)),
-    is_open: id => OutlineTree.expanded(~collapsed, id, term),
+    is_open: id => OutlineTree.expanded(~folds, id, term),
   };
 };
 
@@ -416,7 +437,13 @@ let update =
     outline_view(
       (term, program, v) => {
         let (members, size) =
-          switch (Focus.test_run_deep(fid, Program.document(program))) {
+          switch (
+            Focus.test_run_deep(
+              ~root=Program.root(program),
+              fid,
+              Program.document(program),
+            )
+          ) {
           | Some((_, ms, n)) => (ms, Some(n))
           | None => ([fid], None)
           };
@@ -469,16 +496,18 @@ let update =
   | ToggleUX(fid) =>
     outline_view((term, _, v) => SlideView.toggle_ux(~term, fid, v), code)
   | RealizeView =>
-    /* after undo: the restored program's statics may be compacted
-       away, so the view is realized against fresh ones */
-    let term = fresh_term(code.program);
-    realize(
-      ~info_map=fresh_info_map(~settings, code.program, term),
-      ~term,
-      code.view,
-      code,
-    )
-    |> return(~historic=false);
+    /* after undo: against the statics the restored program shows (the
+       live program's, Page.carry_over), as view changes read them while
+       typing; a snapshot nothing was carried into has none */
+    let statics = Program.statics(code.program);
+    let (term, info_map) =
+      Id.Map.is_empty(statics.info_map)
+        ? {
+          let term = fresh_term(code.program);
+          (term, fresh_info_map(~settings, code.program, term));
+        }
+        : (statics.term, statics.info_map);
+    realize(~info_map, ~term, code.view, code) |> return(~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
        slide hydrating first can't drop it; a deep link's outline
@@ -640,7 +669,6 @@ let calculate =
   let program =
     switch (program) {
     | Whole(editor) =>
-      stacked_incr_cache := Haz3lcore.MakeTerm.Incr.mk_cache();
       Hashtbl.reset(calc_entry_memo);
       Program.Whole(
         CellEditor.Update.calculate(
@@ -689,13 +717,10 @@ let calculate =
             || !Divided.has_fresh_statics(d)
             || !Id.Map.equal((==), probe_ids, Divided.statics(d).pins)) {
           let spliced = Divided.document(d);
-          let made =
-            Haz3lcore.MakeTerm.Incr.go_incr(
-              ~root=Divided.root(d),
-              ~cache=stacked_incr_cache^,
-              spliced,
-            );
-          let term = made.term;
+          /* read as a whole editor's statics read it: an open form in a
+             cell takes none of the items after it */
+          let term =
+            Haz3lcore.MakeTerm.semantic_term(~root=Divided.root(d), spliced);
           let prev_items =
             switch (Haz3lcore.DefStatics.cached(term)) {
             | Some(p) => p.items
@@ -704,12 +729,30 @@ let calculate =
           /* the cells' own probes, plus the projectors that ask for dynamics
              (a user livelit's view is drawn from its samples): cells are
              drawn from this whole-program run's samples, so a projector it
-             does not target never redraws */
+             does not target never redraws. Only the open cells' projectors:
+             they are all a cell view draws, and a cell editor keeps the
+             document's piece ids */
+          let open_projectors =
+            List.fold_left(
+              (acc, e: ScratchCell.t) =>
+                List.fold_left(
+                  (acc, c: CellEditor.Model.t) =>
+                    Haz3lcore.Id.Map.union(
+                      (_, p, _) => Some(p),
+                      acc,
+                      c.editor.editor.syntax.projectors,
+                    ),
+                  acc,
+                  [e.e_header, e.e_body],
+                ),
+              Haz3lcore.Id.Map.empty,
+              Divided.cells(d),
+            );
           let target_ids =
             Haz3lcore.Id.Map.union(
               (_, (), ()) => Some(),
               probe_ids,
-              Haz3lcore.CachedStatics.projector_probe_ids(made.projectors),
+              Haz3lcore.CachedStatics.projector_probe_ids(open_projectors),
             );
           let ds =
             Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
@@ -731,7 +774,9 @@ let calculate =
             |> Divided.map_cells((e: ScratchCell.t) =>
                  switch (item_of(ds, e)) {
                  | Some(it) when fresh(it) =>
-                   switch (Focus.cell_content(e, spliced)) {
+                   switch (
+                     Focus.cell_content(~root=Divided.root(d), e, spliced)
+                   ) {
                    | Some(def_seg) =>
                      switch (
                        Focus.captured_ctx(~info_map=it.d_map, e.e_id, def_seg)

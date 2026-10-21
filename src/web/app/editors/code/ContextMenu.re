@@ -170,8 +170,9 @@ let type_annotation_data =
   };
 
 let jump_to_binding_data =
-    (ci: option(Language.Info.t)): list(Menu.item(command)) =>
-  switch (OptUtil.and_then(Language.Info.get_binding_site, ci)) {
+    (~info_map: Language.Statics.Map.t, ci: option(Language.Info.t))
+    : list(Menu.item(command)) =>
+  switch (OptUtil.and_then(Language.Info.binding_site(~info_map), ci)) {
   | Some(_) => [
       action_item(
         ~shortcut=Shortcuts.goto_definition,
@@ -541,7 +542,7 @@ let get_sections =
     /* Section 0: Actions from the projector hosting the caret's splice */
     SpliceHost.data(~syntax, ~info_map, ~dynamics, ~elaborated, z),
     /* Section 1: Navigation & Selection */
-    jump_to_binding_data(ci) @ select_current_term_data(),
+    jump_to_binding_data(~info_map, ci) @ select_current_term_data(),
     /* Section 2: Clipboard */
     clipboard_data(~linkable, z),
     /* Section 3: Refactoring */

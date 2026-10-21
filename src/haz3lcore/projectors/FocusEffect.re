@@ -112,7 +112,7 @@ let focus_no_scroll = (elem: Js.t(Dom_html.element)): unit =>
 let active_element = (): option(Js.t(Dom_html.element)) =>
   Js.Opt.to_option(Dom_html.document##.activeElement);
 
-/* focus fell to nothing: the body, or the page's own fallbacks */
+/* focus fell to nothing: the body, or the page itself */
 let fell_to_nothing = (active: option(Js.t(Dom_html.element))): bool =>
   switch (active) {
   | None => true
@@ -120,7 +120,8 @@ let fell_to_nothing = (active: option(Js.t(Dom_html.element))): bool =>
     Js.to_string(el##.tagName) == "BODY" || Js.to_string(el##.id) == "page"
   };
 
-/* the remembered probe, when the keeper puts the focus back on it */
+/* the remembered probe, when the keeper puts the focus back on it: not
+   after a press elsewhere, which may be starting a text selection */
 let returning_probe = (): option(Js.t(Dom_html.element)) =>
   switch (kept^) {
   | Some(id)

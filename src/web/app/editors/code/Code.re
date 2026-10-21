@@ -81,7 +81,9 @@ let whitespace_token =
 /* The extra classes a tile carries, by id. */
 let no_classes = (_: Id.t) => [];
 
-let view =
+/* the text of [tokens]: whole pieces, and shards of tiles split across
+   chunks (Measured.token) */
+let view_tokens =
     (
       ~classes=no_classes,
       ~measured: Measured.t,
@@ -99,7 +101,7 @@ let view =
          The default leaves the mold sort unchanged. */
       ~refine_sort: (Id.t, Sort.t) => Sort.t=(_, sort) => sort,
       ~buffer_ids: list(Id.t),
-      segment: Segment.t,
+      tokens: list(Measured.token),
     ) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
 
@@ -188,44 +190,57 @@ let view =
     };
   };
 
-  let rec of_segment = (seg: Segment.t): list(Node.t) =>
-    List.concat_map(
-      fun
-      | Piece.Tile(t) => {
-          /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
-           * side effects fire in document order, matching Measured.of_segment */
-          let nodes =
-            Aba.fold_left(
-              i => [of_delim(t, i)],
-              (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
-              Aba.mk(t.shards, t.children),
-            );
-          let _ =
-            switch (Id.Map.find_opt(t.id, refractor_rows)) {
-            | Some(n) =>
-              DeferredLinebreaks.update(n) |> ignore;
-              ();
-            | None => ()
-            };
-          switch (classes(t.id)) {
-          | [] => nodes
-          | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
-          };
-        }
-      | Grout(g) => [of_grout(g)]
-      | Secondary(s) => [of_secondary(s)]
-      | Projector(pr) => [of_projector(pr)]
-      | Splice(s) => of_segment(s.content),
-      seg,
-    );
+  /* a refractor's deferred rows wait for the linebreak after its tile's
+     last shard, as in Measured */
+  let defer_rows = (t: Tile.t) =>
+    switch (Id.Map.find_opt(t.id, refractor_rows)) {
+    | Some(n) => DeferredLinebreaks.update(n)
+    | None => ()
+    };
 
-  let nodes = of_segment(segment);
+  let rec of_segment = (seg: Segment.t): list(Node.t) =>
+    List.concat_map(of_piece, seg)
+  and of_piece =
+    fun
+    | Piece.Tile(t) => {
+        /* fold_left (not Aba.join, which folds right-to-left) so DeferredLinebreaks
+         * side effects fire in document order, matching Measured.of_segment */
+        let nodes =
+          Aba.fold_left(
+            i => [of_delim(t, i)],
+            (acc, seg, i) => acc @ of_segment(seg) @ [of_delim(t, i)],
+            Aba.mk(t.shards, t.children),
+          );
+        defer_rows(t);
+        switch (classes(t.id)) {
+        | [] => nodes
+        | clss => [span(~attrs=[Attr.classes(clss)], nodes)]
+        };
+      }
+    | Grout(g) => [of_grout(g)]
+    | Secondary(s) => [of_secondary(s)]
+    | Projector(pr) => [of_projector(pr)]
+    | Splice(s) => of_segment(s.content);
+
+  /* a split tile is never projector syntax, so it takes no classes */
+  let of_token = (tok: Measured.token): list(Node.t) =>
+    switch (tok) {
+    | Whole(p) => of_piece(p)
+    | Shard(t, i) =>
+      let node = of_delim(t, i);
+      if (i == Tile.r_shard(t)) {
+        defer_rows(t);
+      };
+      [node];
+    };
+
+  let nodes = List.concat_map(of_token, tokens);
   /* A tab projector on the last line defers linebreaks that no
      following (real) linebreak ever consumes; materialize them so the
      text flow reserves the hang-below rows instead of letting the
-     projector protrude past the editor bottom. Chunks are cut after a
-     linebreak (Measured.Incr.partition), so only the final chunk can
-     end with linebreaks still deferred (Measured adds them there too). */
+     projector protrude past the editor bottom. Only the final chunk
+     reserves them (reserve_trailing_row), as Measured adds them only
+     there (add_top_level ~top_level=final). */
   let deferred =
     switch (reserve_trailing_row ? DeferredLinebreaks.consume() : 0) {
     | 0 => []
@@ -234,32 +249,67 @@ let view =
   /* a trailing linebreak (or bare deferred \n's) gets no final line box
      in pre flow, leaving the editor a row short: a zero-width space
      reserves the last row */
-  switch (deferred, List.rev(segment)) {
+  switch (deferred, List.rev(tokens)) {
   | ([_, ..._], _) => nodes @ deferred @ [Node.text("\xe2\x80\x8b")]
-  | (_, [Secondary(s), ..._])
+  | (_, [Whole(Secondary(s)), ..._])
       when reserve_trailing_row && Secondary.is_linebreak(s) =>
     nodes @ [Node.text("\xe2\x80\x8b")]
   | _ => nodes
   };
 };
 
-/* one inline span per measured chunk, memoized by anchor: an unchanged
-   chunk returns the same vdom node, so the diff skips it by reference
-   (inline spans in pre flow render exactly like the flat text).
+let view =
+    (
+      ~classes=?,
+      ~measured: Measured.t,
+      ~settings: Settings.Model.t,
+      ~shape_map: ProjectorCore.Shape.Map.t,
+      ~refractor_rows: Id.Map.t(_),
+      ~font_metrics: FontMetrics.t,
+      ~term_data: TermData.t,
+      ~reserve_trailing_row=?,
+      ~refine_sort=?,
+      ~buffer_ids: list(Id.t),
+      segment: Segment.t,
+    ) =>
+  view_tokens(
+    ~classes?,
+    ~measured,
+    ~settings,
+    ~shape_map,
+    ~refractor_rows,
+    ~font_metrics,
+    ~term_data,
+    ~reserve_trailing_row?,
+    ~refine_sort?,
+    ~buffer_ids,
+    List.map(p => Measured.Whole(p), segment),
+  );
+
+/* one block per measured chunk (editor.css), memoized by anchor: an
+   unchanged chunk returns the same vdom node, so the diff skips it by
+   reference (a chunk is whole lines, so the blocks render like the text).
    term_data and info_map are rebuilt every pass, so tiles compare by the
-   sorts of_delim reads; c_flat identity covers pieces and projector/
+   sorts of_delim reads; c_flat identity covers the chunk's tokens (a split
+   tile's shards by its shell, all of_delim reads of it) and projector/
    refractor shapes */
 module ChunkViews = {
   type entry = {
+    /* the measuring editor (Measured.t.owner) */
+    cv_owner: int,
+    /* the last render that reached it */
+    mutable cv_seen: int,
     mutable cv_flat: Obj.t, /* Measured.flat identity */
     mutable cv_final: bool,
     /* info_map and term_data identities at the last sort probe; a match
        skips that half of the probe. A tile's view reads two sorts. The
-       parser's, from term_data, can move only for top-level tiles
-       (record_top_frame reads context; below, sorts follow the pieces),
-       so a new term_data probes just cv_top. The refined mold sort reads
-       statics only for Drv molds (see view_chunked), so a new info_map
-       probes just cv_drv. Every other tile's sorts are its own. */
+       parser's, from term_data, can move only for the program's top-level
+       tiles (record_top_frame reads context; below, sorts follow the
+       pieces), so a new term_data probes just cv_top: none in a module
+       body, whose tiles take their sorts from their own member. The
+       refined mold sort reads statics only for Drv molds (see
+       view_chunked), so a new info_map probes just cv_drv. Every other
+       tile's sorts are its own. */
     mutable cv_info: Obj.t,
     mutable cv_td: Obj.t,
     mutable cv_top: list(Tile.t),
@@ -274,40 +324,118 @@ module ChunkViews = {
     mutable cv_settings: Obj.t,
     mutable cv_node: Node.t,
   };
-  let cache: Expiring.t(Id.t, entry) =
-    Expiring.mk(~size=64, ~every=64, ~ttl=16);
+  /* by anchor, an entry per editor drawing it: editors sharing ids (a
+     stack cell and its program) keep their own views. Every 64 renders,
+     entries no render reached in the last 16 go */
+  let cache: Measured.IdTbl.t(list(entry)) = Measured.IdTbl.create(256);
+  let renders = ref(0);
+  let tick = () => {
+    incr(renders);
+    if (renders^ mod 64 == 0) {
+      Measured.IdTbl.filter_map_inplace(
+        (_, es) =>
+          switch (List.filter(e => e.cv_seen >= renders^ - 16, es)) {
+          | [] => None
+          | es => Some(es)
+          },
+        cache,
+      );
+    };
+  };
+  let find = (owner: int, anchor: Id.t): option(entry) =>
+    switch (Measured.IdTbl.find_opt(cache, anchor)) {
+    | Some(es) =>
+      switch (List.find_opt(e => e.cv_owner == owner, es)) {
+      | Some(e) as found =>
+        e.cv_seen = renders^;
+        found;
+      | None => None
+      }
+    | None => None
+    };
+  let replace = (anchor: Id.t, e: entry) => {
+    let others =
+      switch (Measured.IdTbl.find_opt(cache, anchor)) {
+      | Some(es) => List.filter(o => o.cv_owner != e.cv_owner, es)
+      | None => []
+      };
+    Measured.IdTbl.replace(cache, anchor, [e, ...others]);
+  };
 };
 
 /* the tiles a chunk's sort probe reads (see ChunkViews.entry): its
    top-level tiles, and its tiles with a Drv mold sort at any depth
    (of_delim consults term_data and refine_sort per tile; grout/secondary
    render from pieces alone) */
-let chunk_probes = (seg: Segment.t): (list(Tile.t), list((Id.t, Sort.t))) => {
-  let top = ref([]);
-  let drv = ref([]);
-  let rec go = (~top_level: bool, seg: Segment.t) =>
-    List.iter(
-      (p: Piece.t) =>
-        switch (p) {
-        | Tile(t) =>
-          if (top_level) {
-            top := [t, ...top^];
-          };
-          switch (Tile.mold(t).out) {
-          | Drv(_) as s => drv := [(t.id, s), ...drv^]
-          | _ => ()
-          };
-          List.iter(go(~top_level=false), t.children);
-        /* splice content renders through of_delim like any tile; it is
-           its own frame, so its top level is probed as the chunk's is */
-        | Splice(s) => go(~top_level=true, s.content)
-        | _ => ()
-        },
-      seg,
-    );
-  go(~top_level=true, seg);
-  (List.rev(top^), List.rev(drv^));
+type probes = {
+  top: ref(list(Tile.t)),
+  drv: ref(list((Id.t, Sort.t))),
 };
+
+let probe_tile = (probes, ~top_level: bool, t: Tile.t) => {
+  if (top_level) {
+    probes.top := [t, ...probes.top^];
+  };
+  switch (Tile.mold(t).out) {
+  | Drv(_) as s => probes.drv := [(t.id, s), ...probes.drv^]
+  | _ => ()
+  };
+};
+
+let rec probe_piece = (probes, ~top_level: bool, p: Piece.t) =>
+  switch (p) {
+  | Tile(t) =>
+    probe_tile(probes, ~top_level, t);
+    List.iter(List.iter(probe_piece(probes, ~top_level=false)), t.children);
+  /* splice content renders through of_delim like any tile; it is its own
+     frame, so its top level is probed as the chunk's is */
+  | Splice(s) => List.iter(probe_piece(probes, ~top_level=true), s.content)
+  | Grout(_)
+  | Secondary(_)
+  | Projector(_) => ()
+  };
+
+let probed = probes => (List.rev(probes.top^), List.rev(probes.drv^));
+
+let chunk_probes = (seg: Segment.t): (list(Tile.t), list((Id.t, Sort.t))) => {
+  let probes = {
+    top: ref([]),
+    drv: ref([]),
+  };
+  List.iter(probe_piece(probes, ~top_level=true), seg);
+  probed(probes);
+};
+
+/* a chunk's probes from its tokens: whole pieces' subtrees, and its split
+   tiles (their children render in other chunks). Its own level is the
+   program's top level, unless the chunk is nested in a module body */
+let token_probes =
+    (~nested: bool, tokens: list(Measured.token))
+    : (list(Tile.t), list((Id.t, Sort.t))) => {
+  let probes = {
+    top: ref([]),
+    drv: ref([]),
+  };
+  List.iter(
+    (tok: Measured.token) =>
+      switch (tok) {
+      | Whole(p) => probe_piece(probes, ~top_level=!nested, p)
+      | Shard(t, _) => probe_tile(probes, ~top_level=!nested, t)
+      },
+    tokens,
+  );
+  probed(probes);
+};
+
+let token_ids = (tokens: list(Measured.token)): list(Id.t) =>
+  List.concat_map(
+    (tok: Measured.token) =>
+      switch (tok) {
+      | Whole(p) => Segment.ids_of_piece(p)
+      | Shard(t, _) => [t.id]
+      },
+    tokens,
+  );
 
 let view_chunked =
     (
@@ -323,7 +451,7 @@ let view_chunked =
       ~buffer_ids: list(Id.t),
     )
     : list(Node.t) => {
-  Expiring.tick(ChunkViews.cache);
+  ChunkViews.tick();
   let n = Array.length(measured.chunks);
   /* statics refine only Drv molds (Info.refine_sort_from_mold), and the
      probes below rely on it, so no caller can refine any other sort */
@@ -346,7 +474,7 @@ let view_chunked =
   let render = (ch: Measured.chunk, final: bool): t =>
     span(
       ~attrs=[Attr.class_("code-chunk")],
-      view(
+      view_tokens(
         ~measured,
         ~settings,
         ~shape_map,
@@ -356,7 +484,7 @@ let view_chunked =
         ~reserve_trailing_row=final,
         ~refine_sort,
         ~buffer_ids,
-        ch.c_pieces,
+        ch.c_tokens,
       ),
     );
   List.init(n, i => i)
@@ -369,7 +497,7 @@ let view_chunked =
          && (!e.cv_buffered || e.cv_buffer === Obj.repr(buffer_ids))
          && e.cv_fm === Obj.repr(font_metrics)
          && e.cv_settings === Obj.repr(settings);
-       switch (Expiring.find_opt(ChunkViews.cache, ch.c_anchor)) {
+       switch (ChunkViews.find(measured.owner, ch.c_anchor)) {
        | Some(e)
            when
              stable(e)
@@ -385,10 +513,12 @@ let view_chunked =
          e.cv_info = statics_ident;
          e.cv_node;
        | _ =>
-         let (top, drv) = chunk_probes(ch.c_pieces);
+         let (top, drv) = token_probes(~nested=ch.c_nested, ch.c_tokens);
          let node = render(ch, final);
          let e = {
-           ChunkViews.cv_flat: Obj.repr(ch.c_flat),
+           ChunkViews.cv_owner: measured.owner,
+           cv_seen: ChunkViews.renders^,
+           cv_flat: Obj.repr(ch.c_flat),
            cv_final: final,
            cv_info: statics_ident,
            cv_td: Obj.repr(term_data),
@@ -400,14 +530,14 @@ let view_chunked =
              buffer_ids != []
              && List.exists(
                   id => List.mem(id, buffer_ids),
-                  Segment.ids(ch.c_pieces),
+                  token_ids(ch.c_tokens),
                 ),
            cv_buffer: Obj.repr(buffer_ids),
            cv_fm: Obj.repr(font_metrics),
            cv_settings: Obj.repr(settings),
            cv_node: node,
          };
-         Expiring.replace(ChunkViews.cache, ch.c_anchor, e);
+         ChunkViews.replace(ch.c_anchor, e);
          node;
        };
      });

@@ -331,6 +331,36 @@ let qualified_type = () =>
     "module U = {\n  type Feet = Int;\n  let x : Feet = 1\n} in\nlet d : U.Feet = 5 in\nd",
   );
 
+/* qualified uses through nested modules, a let-bound module and at a Mod
+   root; another member's name is refused */
+let qualified_members = () => {
+  renamed(
+    "module Outer = {\n  module Inner = {\n    let x = 1\n  };\n  let w = Inner.x\n} in\nOuter.Inner.x",
+    "x",
+    "z",
+    "module Outer = {\n  module Inner = {\n    let z = 1\n  };\n  let w = Inner.z\n} in\nOuter.Inner.z",
+  );
+  renamed(
+    "let m = {\n  let x = 1\n} in\nm.x",
+    "x",
+    "z",
+    "let m = {\n  let z = 1\n} in\nm.z",
+  );
+  renamed(
+    ~root=Mod,
+    "module M = {\n  let x = 1\n};\nlet x = M.x;\nx",
+    "x",
+    "z",
+    "module M = {\n  let z = 1\n};\nlet x = M.z;\nx",
+  );
+  refused_as(
+    "module M = {\n  let x = 1;\n  let y = 2\n} in\nM.x + M.y",
+    "y",
+    "x",
+    "x is already in use here",
+  );
+};
+
 /* a use folded away by a projector is renamed with the rest */
 let folded = () => {
   let seg = seg_of("let foo = 1 in\nlet bar = foo + 1 in\nbar");
@@ -395,6 +425,7 @@ let tests = (
     test_case("a kind change keeps ids", `Quick, kind_ids),
     test_case("a signed module's kind", `Quick, signed_kinds),
     test_case("a qualified type use", `Quick, qualified_type),
+    test_case("qualified member uses", `Quick, qualified_members),
     test_case("a folded use", `Quick, folded),
   ],
 );

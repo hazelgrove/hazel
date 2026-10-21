@@ -5,13 +5,31 @@ open Js_of_ocaml;
    move. it scrolls into view when the mark moves, unless the outline is
    focused: then the keyboard cursor's row does */
 
-let mark: ref(option(Language.Id.t)) = ref(None);
-let last_scrolled: ref(option(Language.Id.t)) = ref(None);
+let mark: ref(option(OutlineEdit.key)) = ref(None);
+let last_scrolled: ref(option(OutlineEdit.key)) = ref(None);
 
-let css = (id: Language.Id.t): string =>
-  "#outline-sidebar .outline-body:not(:focus-within) .outline-label[data-ol-id=\""
-  ++ Language.Id.to_string(id)
-  ++ "\"] { background: var(--ol-mark-bg); }";
+/* scrolls wait for the frame's layout (AfterLayout), so none forces one */
+let scroll_after_layout = (scroll: unit => unit): unit =>
+  Util.AfterLayout.schedule(() => {
+    scroll();
+    () => ();
+  });
+
+/* the marked row's label, unless the outline is focused: a run's by its
+   first test */
+let marked = (k: OutlineEdit.key): string =>
+  "#outline-sidebar .outline-body:not(:focus-within) "
+  ++ (
+    switch (k) {
+    | Item(id) =>
+      ".outline-label[data-ol-id=\"" ++ Language.Id.to_string(id) ++ "\"]"
+    | Run(id) =>
+      ".outline-label[data-ol-run=\"" ++ Language.Id.to_string(id) ++ "\"]"
+    }
+  );
+
+let css = (k: OutlineEdit.key): string =>
+  marked(k) ++ " { background: var(--ol-mark-bg); }";
 
 let scroll_nearest = el =>
   Js.Unsafe.coerce(el)##scrollIntoView(
@@ -24,7 +42,14 @@ let key_of = el =>
   Js.Opt.case(
     el##getAttribute(Js.string("data-ol-id")),
     () =>
-      Js.to_string(el##.textContent |> Js.Opt.get(_, () => Js.string(""))),
+      Js.Opt.case(
+        el##getAttribute(Js.string("data-ol-run")),
+        () =>
+          Js.to_string(
+            el##.textContent |> Js.Opt.get(_, () => Js.string("")),
+          ),
+        id => "run:" ++ Js.to_string(id),
+      ),
     Js.to_string,
   );
 
@@ -46,14 +71,15 @@ let follow_cursor = (): unit => {
   /* a new definition being named, below the cursor's row */
   | (Some(el), _, _) =>
     follow("+" ++ Option.fold(~none="", ~some=key_of, cursor), _ =>
-      scroll_nearest(el)
+      scroll_after_layout(() => scroll_nearest(el))
     )
-  | (None, Some(el), _) => follow(key_of(el), _ => scroll_nearest(el))
+  | (None, Some(el), _) =>
+    follow(key_of(el), _ => scroll_after_layout(() => scroll_nearest(el)))
   /* up onto the header: the list back to its top */
   | (None, None, Some(body)) =>
     follow("", moved =>
       if (moved) {
-        body##.scrollTop := 0;
+        scroll_after_layout(() => body##.scrollTop := 0);
       }
     )
   | (None, None, None) => last_cursor := None
@@ -208,21 +234,18 @@ let update = (): unit => {
   switch (spot^) {
   | Some(s) =>
     spot := None;
-    reveal(s);
+    scroll_after_layout(() => reveal(s));
   | None => ()
   };
   if (mark^ != last_scrolled^) {
     last_scrolled := mark^;
     switch (mark^) {
     | None => ()
-    | Some(id) =>
-      let sel =
-        Js.string(
-          "#outline-sidebar .outline-body:not(:focus-within) [data-ol-id=\""
-          ++ Language.Id.to_string(id)
-          ++ "\"]",
-        );
-      Js.Opt.iter(Dom_html.document##querySelector(sel), scroll_nearest);
+    | Some(k) =>
+      Js.Opt.iter(
+        Dom_html.document##querySelector(Js.string(marked(k))), el =>
+        scroll_after_layout(() => scroll_nearest(el))
+      )
     };
   };
 };

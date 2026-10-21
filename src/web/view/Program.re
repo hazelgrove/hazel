@@ -85,6 +85,32 @@ let focused_names = (p: t): list((Id.t, option(string))) =>
     )
   };
 
+/* [p]'s editors with the parse and measure caches of [from]'s in the same
+   place: the whole program's editor (a stack's shell is the one it was cut
+   from) and each open cell's panes. Undo restores a program that shares
+   [from]'s pieces wherever the step changed nothing, so they hit there */
+let with_caches_of = (~from: t, p: t): t =>
+  switch (from, p) {
+  | (Whole(f), Whole(e)) =>
+    Whole(CellEditor.Model.with_caches_of(~from=f, e))
+  | (Whole(f), Divided(d)) =>
+    Divided(Divided.with_shell_caches_of(~from=f, d))
+  | (Divided(f), Whole(e)) => Whole(Divided.shell_caches_into(f, e))
+  | (Divided(f), Divided(d)) => Divided(Divided.with_caches_of(~from=f, d))
+  };
+
+/* [p] showing [from]'s statics and run until it's analyzed, as typing
+   leaves a program: undo and redo defer the analysis to the debounce */
+let with_statics_of = (~from: t, p: t): t =>
+  switch (from, p) {
+  | (Whole(f), Whole(e)) =>
+    Whole(CellEditor.Model.with_statics_of(~from=f, e))
+  | (Whole(f), Divided(d)) =>
+    Divided(Divided.with_shell_statics_of(~from=f, d))
+  | (Divided(f), Whole(e)) => Whole(Divided.shell_statics_into(f, e))
+  | (Divided(f), Divided(d)) => Divided(Divided.with_statics_of(~from=f, d))
+  };
+
 let of_close = (c: Divided.after_close): t =>
   switch (c) {
   | Still(d) => Divided(d)
@@ -97,11 +123,28 @@ let probes = (p: t): Refractors.RefractorList.t =>
   | Divided(d) => Divided.probes(d)
   };
 
+/* the probes the program's run samples: a stack's cells', expanded multis
+   too, as a whole editor's, and the manual probes its shell keeps */
 let probe_ids = (p: t): Id.Map.t(unit) =>
   switch (p) {
   | Whole(e) =>
     CachedStatics.probe_ids_of_zipper(e.editor.editor.state.zipper)
-  | Divided(d) => Id.Map.map(_ => (), Id.Map.of_list(Divided.probes(d)))
+  | Divided(d) =>
+    List.fold_left(
+      (acc, e: ScratchCell.t) =>
+        List.fold_left(
+          (acc, c: CellEditor.Model.t) =>
+            Id.Map.union(
+              (_, (), ()) => Some(),
+              acc,
+              CachedStatics.probe_ids_of_zipper(c.editor.editor.state.zipper),
+            ),
+          acc,
+          [e.e_header, e.e_body],
+        ),
+      Id.Map.map(_ => (), Id.Map.of_list(Divided.probes(d))),
+      Divided.cells(d),
+    )
   };
 
 /* the ⇓ probe's term, once placed: the program's last expression, in a

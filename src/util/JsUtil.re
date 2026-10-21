@@ -733,50 +733,16 @@ let delay = (delay: float, callback: unit => unit) => {
   ();
 };
 
-/* Publish #main's content width as `--main-scroll-width` (read by the cell
- * width rule). Two passes: reset the var first so the cell's own prior width
- * doesn't inflate the measurement, force layout, then read scrollWidth. */
-let published_main_scroll_width: ref(option(int)) = ref(None);
-let update_main_scroll_width = () =>
-  Js.Opt.iter(
-    Dom_html.document##getElementById(Js.string("main")),
-    main => {
-      set_css_custom_property("--main-scroll-width", "max-content");
-      let _: int = Js.Unsafe.get(main, "offsetWidth");
-      let sw: int = Js.Unsafe.get(main, "scrollWidth");
-      set_css_custom_property(
-        "--main-scroll-width",
-        string_of_int(sw) ++ "px",
-      );
-      published_main_scroll_width := Some(sw);
-    },
+/* a live collection: the browser keeps it, so asking again costs nothing
+   while the DOM under [el] is unchanged */
+let by_class =
+    (el: Js.t(Dom_html.element), cls: string)
+    : Js.t(Dom.nodeList(Dom_html.element)) =>
+  Js.Unsafe.meth_call(
+    el,
+    "getElementsByClassName",
+    [|Js.Unsafe.inject(Js.string(cls))|],
   );
-
-/* The cheap half: #main's scrollWidth as it is, published only if the
-   content grew past the published width. It cannot see the content
-   shrink (the cell is as wide as the published width), which takes the
-   exact two-pass measure above; that one rewrites a document-wide CSS
-   variable twice and forces a layout between, so it is kept off the path
-   of an edit (ScrollWidth). False when there is nothing published yet. */
-let grow_main_scroll_width = (): bool =>
-  switch (published_main_scroll_width^) {
-  | None => false
-  | Some(published) =>
-    Js.Opt.iter(
-      Dom_html.document##getElementById(Js.string("main")),
-      main => {
-        let sw: int = Js.Unsafe.get(main, "scrollWidth");
-        if (sw > published) {
-          set_css_custom_property(
-            "--main-scroll-width",
-            string_of_int(sw) ++ "px",
-          );
-          published_main_scroll_width := Some(sw);
-        };
-      },
-    );
-    true;
-  };
 
 /* Scroll compensation for sample focus bar:
  * When the bar's height changes (appearing/disappearing), adjust #main's
@@ -1132,33 +1098,4 @@ let observe_drawer_width = (~report: int => unit): unit =>
         );
       ();
     };
-  };
-
-/* the rows each web-filled drawer (a stepper, a proof) takes as
-   rendered: (drawer id, rows). Read after display. */
-let drawer_rows = (~row_height: float): list((string, int)) =>
-  if (row_height <= 0.) {
-    [];
-  } else {
-    let nodes =
-      Dom_html.document##querySelectorAll(Js.string("[data-drawer-id]"));
-    List.filter_map(
-      i =>
-        switch (Js.Opt.to_option(nodes##item(i))) {
-        | None => None
-        | Some(el) =>
-          switch (
-            Js.Opt.to_option(el##getAttribute(Js.string("data-drawer-id")))
-          ) {
-          | None => None
-          | Some(id) =>
-            let h: float = Js.Unsafe.get(el, "offsetHeight");
-            Some((
-              Js.to_string(id),
-              max(1, int_of_float(Float.ceil(h /. row_height -. 0.05))),
-            ));
-          }
-        },
-      List.init(nodes##.length, Fun.id),
-    );
   };

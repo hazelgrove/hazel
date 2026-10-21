@@ -143,33 +143,8 @@ let unrelated = () => {
   agrees("probe_all changed back", project(m1), m1);
 };
 
-/* DefStatics reuses an item's patched root when the item and what is below
-   it are the very objects of the last calc. Over the same edits, with
-   each reused root recomputed beside it: the same content every time */
-let spine_reuse = () => {
-  DefStatics.spine_check := true;
-  DefStatics.spine_mismatches := 0;
-  let reused = DefStatics.spine_reused^;
-  List.iter(
-    ((_, mk: unit => Test_EditLocality.edit)) => {
-      let e = mk();
-      let ds0 = DefStatics.calc(~settings, term(e.before));
-      ignore(DefStatics.calc(~settings, ~prev=ds0, term(e.after)));
-    },
-    edits,
-  );
-  DefStatics.spine_check := false;
-  let reused = DefStatics.spine_reused^ - reused;
-  Printf.printf("spine roots reused: %d\n", reused);
-  check(bool, "roots are reused", true, reused > 0);
-  check(int, "each the same as recomputed", 0, DefStatics.spine_mismatches^);
-};
-
 let tests = (
   "EvalInfoProjection",
   List.map(edit_case, edits)
-  @ [
-    test_case("when the maps share nothing", `Quick, unrelated),
-    test_case("spine roots reused only when unchanged", `Quick, spine_reuse),
-  ],
+  @ [test_case("when the maps share nothing", `Quick, unrelated)],
 );

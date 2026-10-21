@@ -20,6 +20,9 @@ This directory contains the test suite for the Hazel project.
     ```sh
     make test-quick
     ```
+  A quick run (alcotest's `-q` / `--quick-tests`, which `make test-quick`
+  passes) also skips the checks `haz3ltest.re` installs on every edit
+  (`NormalizeCheck`, `DefStaticsCheck`); the full suite runs them.
 
 ### 2. Using the run_tests Script
 
@@ -32,7 +35,7 @@ group or number:
     ./run_tests
     ```
 
-- **Run all tests in the "Statics" group with quick output:**
+- **Run the quick tests in the "Statics" group:**
     ```sh
     ./run_tests test 'Statics.*' -q
     ```

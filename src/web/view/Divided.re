@@ -55,11 +55,11 @@ let with_statics = (s: CachedStatics.t, d: t): t => {
   statics: Some(s),
 };
 
-/* [seg] with [cells]' text in their slots */
-let spliced = (seg: Segment.t, cells: list(Cell.t)): Segment.t =>
-  List.fold_left((seg, e) => Focus.splice_entry(e, seg), seg, cells);
+/* [seg] (at [root]) with [cells]' text in their slots */
+let spliced = (~root: Sort.t, seg: Segment.t, cells: list(Cell.t)): Segment.t =>
+  List.fold_left((seg, e) => Focus.splice_entry(~root, e, seg), seg, cells);
 
-let document = (d: t): Segment.t => spliced(d.base, d.cells);
+let document = (d: t): Segment.t => spliced(~root=root(d), d.base, d.cells);
 
 /* in program coordinates: the indentation the cell cut is its own too */
 let cell_ids = (e: Cell.t): list(Id.t) =>
@@ -160,10 +160,11 @@ let of_whole = (editor: CellEditor.Model.t): t => {
 
 /* a cell for [id]: its header and body, or with [inner], a module's
    members alone */
-let entry = (~info_map, ~sym=?, ~inner=false, id: Id.t, base: Segment.t) =>
+let entry =
+    (~root, ~info_map, ~sym=?, ~inner=false, id: Id.t, base: Segment.t) =>
   inner
-    ? Focus.mk_members_entry(~info_map, id, base)
-    : Focus.mk_entry(~info_map, ~sym?, id, base);
+    ? Focus.mk_members_entry(~root, ~info_map, id, base)
+    : Focus.mk_entry(~root, ~info_map, ~sym?, id, base);
 
 let active = (d: t): option((Id.t, side)) => d.active;
 
@@ -258,8 +259,16 @@ let editor_of =
       seg: Segment.t,
     )
     : CellEditor.Model.t => {
-  let present = Id.Map.of_list(List.map(id => (id, ()), Segment.ids(seg)));
-  let manuals = List.filter(((id, _)) => Id.Map.mem(id, present), probes);
+  /* a set of the probes' ids, not of [seg]'s: it's a whole program */
+  let manuals =
+    switch (probes) {
+    | [] => []
+    | _ =>
+      let ids = Id.Map.of_list(List.map(((id, _)) => (id, ()), probes));
+      let present =
+        List.filter(id => Id.Map.mem(id, ids), Segment.ids(seg));
+      List.filter(((id, _)) => List.mem(id, present), probes);
+    };
   let z =
     Zipper.unzip(~direction=Left, seg)
     |> ZipperBase.update_refractors(_, r =>
@@ -294,6 +303,11 @@ let editor_of =
   );
 };
 
+/* [editor_of] for an edit of [d]'s program made whole (outline ops), with
+   the caches of its shell, the whole editor it was cut from */
+let shell_editor_of = (~probes, ~anchor, seg: Segment.t, d: t) =>
+  editor_of(~prev=d.shell, ~root=root(d), ~probes, ~anchor, seg);
+
 /* one editor again: root, probes and the result carry over, and the
    caret lands where it was in the active cell */
 let join = (~prev: option(CellEditor.Model.t)=?, d: t): CellEditor.Model.t => {
@@ -319,13 +333,17 @@ let close = (id: Id.t, d: t): after_close =>
   | ([], _) => Still(d)
   | ([closing, ..._], rest) =>
     switch (rest) {
-    /* join's document splices it: splicing here too doubled its edge text */
+    /* join's document splices it: splicing here too doubled its edge
+       text. The shell's caches hit for the items no cell changed */
     | [] =>
       Joined(
-        join({
-          ...d,
-          cells: [closing],
-        }),
+        join(
+          ~prev=d.shell,
+          {
+            ...d,
+            cells: [closing],
+          },
+        ),
       )
     | [first, ..._] =>
       Still(
@@ -334,7 +352,7 @@ let close = (id: Id.t, d: t): after_close =>
           {
             ...d,
             cells: rest,
-            base: Focus.splice_entry(closing, d.base),
+            base: Focus.splice_entry(~root=root(d), closing, d.base),
             /* closing the focused cell hands the focus to the first body */
             active:
               switch (focused(d)) {
@@ -352,7 +370,7 @@ let close = (id: Id.t, d: t): after_close =>
 let open_among =
     (~term, mk: Segment.t => option(Cell.t), closing, keeping, d: t)
     : option(t) => {
-  let base = spliced(d.base, closing);
+  let base = spliced(~root=root(d), d.base, closing);
   mk(base)
   |> Option.map((entry: Cell.t) =>
        settle(
@@ -380,7 +398,7 @@ let open_ =
       List.partition((e: Cell.t) => List.mem(e.e_id, desc), d.cells);
     open_among(
       ~term,
-      entry(~info_map, ~sym?, ~inner, id),
+      entry(~root=root(d), ~info_map, ~sym?, ~inner, id),
       closing,
       keeping,
       d,
@@ -391,7 +409,7 @@ let open_ =
    another open cell holds it */
 let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
   let members =
-    switch (Focus.test_run_deep(fid, d.base)) {
+    switch (Focus.test_run_deep(~root=root(d), fid, d.base)) {
     | Some((_, ms, _)) => ms
     | None => [fid]
     };
@@ -404,7 +422,7 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
     ? None
     : open_among(
         ~term,
-        Focus.mk_run_entry(~info_map, fid),
+        Focus.mk_run_entry(~root=root(d), ~info_map, fid),
         alone,
         keeping,
         d,
@@ -416,6 +434,7 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
 let resplit =
     (~info_map, ~term, editor: CellEditor.Model.t, d: t): after_close => {
   let base = Focus.zip_of_cell(editor);
+  let root = root(d);
   /* a cell the edit didn't touch keeps its editor (caret, selection); a
      rename keeps its tokens' ids, so compare their labels too */
   let rec labels = (s: Segment.t): list(string) =>
@@ -430,7 +449,7 @@ let resplit =
     Segment.ids(a) == Segment.ids(b) && labels(a) == labels(b);
   };
   let untouched = (e: Cell.t): bool =>
-    switch (Focus.cell_content(e, base)) {
+    switch (Focus.cell_content(~root, e, base)) {
     | None => false
     | Some(slice) =>
       same(slice, Focus.body_text(e))
@@ -440,7 +459,7 @@ let resplit =
         | Headless(_) => true
         | Def(_)
         | Members =>
-          switch (Focus.find_pat(e.e_id, base)) {
+          switch (Focus.find_pat(~root, e.e_id, base)) {
           | Some(pat) => same(pat, Focus.header_text(e))
           | None => false
           }
@@ -454,10 +473,12 @@ let resplit =
           ? Some(e)
           : (
             switch (e.e_kind) {
-            | Run(_) => Focus.mk_run_entry(~info_map, e.e_id, base)
-            | Members => Focus.mk_members_entry(~info_map, e.e_id, base)
-            | Headless(sym) => Focus.mk_entry(~info_map, ~sym, e.e_id, base)
-            | Def(_) => Focus.mk_entry(~info_map, e.e_id, base)
+            | Run(_) => Focus.mk_run_entry(~root, ~info_map, e.e_id, base)
+            | Members =>
+              Focus.mk_members_entry(~root, ~info_map, e.e_id, base)
+            | Headless(sym) =>
+              Focus.mk_entry(~root, ~info_map, ~sym, e.e_id, base)
+            | Def(_) => Focus.mk_entry(~root, ~info_map, e.e_id, base)
             }
           ),
       d.cells,
@@ -552,8 +573,11 @@ let outside_editor = (d: t): CodeEditable.Model.t =>
               ...d.shell.editor.editor.syntax.main_splice,
               segment,
             },
+            /* Read, as an editor's syntax: an unfinished member ends at
+               its member line */
             term_data:
               MakeTerm.Incr.go_incr(
+                ~ends=Read,
                 ~root=root(d),
                 ~cache=outside_cache,
                 segment,
@@ -605,7 +629,7 @@ let follow_headless =
             /* the base takes the cell's text first, so its slot holds
                the new root: splices by that id must find it, or the
                cell's later edits never reach the program */
-            base := Focus.splice_entry(e, base^);
+            base := Focus.splice_entry(~root=root(d), e, base^);
             {
               ...e,
               e_id: id,
@@ -707,3 +731,79 @@ let compact = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
   ...map_editors(f, d),
   statics: None,
 };
+
+/* [d]'s editors with the caches of [from]'s in the same place
+   (CellEditor.Model.with_caches_of): the shell's, and each open cell's
+   panes from [from]'s cell of the same item */
+let with_caches_of = (~from: t, d: t): t => {
+  let carry = (from, c) => CellEditor.Model.with_caches_of(~from, c);
+  {
+    ...d,
+    shell: carry(from.shell, d.shell),
+    cells:
+      List.map(
+        (e: Cell.t) =>
+          switch (cell(e.e_id, from)) {
+          | Some(c) => {
+              ...e,
+              e_header: carry(c.e_header, e.e_header),
+              e_body: carry(c.e_body, e.e_body),
+            }
+          | None => e
+          },
+        d.cells,
+      ),
+  };
+};
+
+/* the shell is the whole editor [d] was cut from: its caches to and from
+   a whole editor */
+let with_shell_caches_of = (~from: CellEditor.Model.t, d: t): t => {
+  ...d,
+  shell: CellEditor.Model.with_caches_of(~from, d.shell),
+};
+let shell_caches_into = (d: t, e: CellEditor.Model.t): CellEditor.Model.t =>
+  CellEditor.Model.with_caches_of(~from=d.shell, e);
+
+/* [d] showing [from]'s statics and run until it's analyzed
+   (CellEditor.Model.with_statics_of): the program's, and each open
+   cell's panes from [from]'s cell of the same item */
+let with_statics_of = (~from: t, d: t): t => {
+  let carry = (from, c) => CellEditor.Model.with_statics_of(~from, c);
+  {
+    ...d,
+    shell: carry(from.shell, d.shell),
+    cells:
+      List.map(
+        (e: Cell.t) =>
+          switch (cell(e.e_id, from)) {
+          | Some(c) => {
+              ...e,
+              e_header: carry(c.e_header, e.e_header),
+              e_body: carry(c.e_body, e.e_body),
+            }
+          | None => e
+          },
+        d.cells,
+      ),
+    statics: from.statics,
+  };
+};
+
+/* the same, from and into a whole editor: its statics are the program's */
+let with_shell_statics_of = (~from: CellEditor.Model.t, d: t): t => {
+  ...d,
+  shell: CellEditor.Model.with_statics_of(~from, d.shell),
+  statics: Some(from.editor.statics),
+};
+let shell_statics_into = (d: t, e: CellEditor.Model.t): CellEditor.Model.t =>
+  CellEditor.Model.with_statics_of(
+    ~from={
+      ...d.shell,
+      editor: {
+        ...d.shell.editor,
+        statics: statics(d),
+      },
+    },
+    e,
+  );

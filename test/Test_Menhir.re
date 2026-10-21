@@ -458,6 +458,10 @@ let tests =
          ascription (arrow types need parens), single-caret livelits.
          Equivalence against MakeTerm is the contract that matters. */
       menhir_maketerm_equivalent_test("multi-param fun", "fun a, b -> a + b"),
+      menhir_maketerm_equivalent_test(
+        "a module's last member a hole",
+        "let m = {\n  let a = 1;\n  ?\n} in m",
+      ),
       /* Gap fill 2026-08-14: ascribed unit parameter (UNIT lives at the
          funPat level, which had no ascription production). */
       menhir_maketerm_equivalent_test(
@@ -559,9 +563,10 @@ let tests =
          form below diverges on its own; a signature member is only how the
          QCheck generator reaches it, which is why `Menhir and maketerm are
          equivalent` started failing per-seed from part 4 (its Sig generator)
-         and reproduces with QCHECK_SEED=803422318. Fix belongs in the
-         printer's spacing (or the lexer's token rule), both of which are
-         dev's. */
+         and reproduces with QCHECK_SEED=803422318. The printer half is in
+         this PR's history (0e6b2981a9 keeps a printed `:` apart from a
+         following operator); the lexer's `:+` token rule is still dev's,
+         and is what these two pin. */
       skip_menhir_maketerm_equivalent_test(
         "Ascription abutting a sum type (`:+` lexes as one token)",
         "let x :+ To = To in x",

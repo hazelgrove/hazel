@@ -82,7 +82,7 @@ let mk_diff =
         | Some(st) when st.info_map != Id.Map.empty => st.info_map
         | _ =>
           Util.PerfTimer.time("diff-statics", () =>
-            CompositionGo.Public.mk_statics(z)
+            CompositionGo.Public.mk_statics(~root=old_editor.root, z)
           )
         }
       };

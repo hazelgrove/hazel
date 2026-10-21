@@ -1611,26 +1611,6 @@ and uexp_to_info_map =
       );
     | Dot(e1, e2) =>
       let dot_case = (e1: Exp.t, e2: Exp.t) => {
-        /* A capitalized module name parses as a constructor, so a projection
-           off one is a module access whenever a module of that name is in
-           scope: projecting a constructor itself means nothing, and a
-           constructor of the same name still applies as before. Without this
-           a constructor shadows the module, which the JSON type's `List`,
-           `Int`, `String`, `Float` and `Bool` do for every program. */
-        let e1 =
-          switch (Exp.term_of(e1)) {
-          | Constructor(name, _)
-              when
-                Ctx.lookup_var(ctx, name)
-                |> Option.map((v: Ctx.var_entry) =>
-                     Typ.as_sig(~rec_counter=0, ctx, v.typ) != None
-                   )
-                |> Option.value(~default=false) => {
-              ...e1,
-              term: (Var(name): Exp.term),
-            }
-          | _ => e1
-          };
         let (info_e1, e1_elab, m) = go(~ana=syn, e1, m);
         /* Dot looks through one List level (column projection over a list
            of labeled tuples), so the element head must be resolved too. */
@@ -1798,9 +1778,12 @@ and uexp_to_info_map =
           let self = ModuleHelpers.path_of_exp(ctx, e1);
           /* A builtin module's member IS a constructor: elaborate to it, so
              the runtime never carries the module value (which substitution
-             would otherwise copy into every closure that names `Html`). */
+             would otherwise copy into every closure that names `Html`).
+             Read off e1's elaboration: a capitalized `Html` is a Constructor
+             in the user term, elaborated to the variable when the newest
+             binding of that name is the module. */
           let member_elab = name =>
-            switch (Exp.term_of(e1)) {
+            switch (Exp.term_of(e1_elab)) {
             | Var(m)
                 when
                   Ctx.lookup_var(ctx, m)
@@ -2169,13 +2152,21 @@ and uexp_to_info_map =
       let constructor_case = (ctr: string, ty: option(option(Typ.t))) => {
         let (syn_res, marks_res) =
           ConstructorStaticsHelpers.syn_marks_ctr(ctx, ctr, ana, ty);
-        /* A capitalized name parses as a constructor, but it may be a
-           module binding. In dot position a module wins over a constructor
-           of the same name (see the Dot case); here, in application or
-           value position, the constructor still applies, and a free
-           constructor falls back to a variable of that name. */
-        switch (marks_res) {
-        | [FreeConstructor(name)] =>
+        /* A capitalized name is parsed as a constructor, but it may be a
+           VARIABLE binding (a module: `module M = … in M.x`). Constructors
+           and variables used to be consulted in a fixed order — constructor
+           first, variable only if no constructor of that name existed — so a
+           module named like ANY constructor in scope lost to it regardless of
+           which was bound later. Resolve like every other name: the most
+           recent binding of that name wins, whichever kind it is. */
+        let shadowing_var =
+          switch (ty, Ctx.newest_var_or_ctr(ctx, ctr)) {
+          | (None, Some(`Var(v))) => Some(v)
+          | _ => None
+          };
+        switch (marks_res, shadowing_var) {
+        | ([FreeConstructor(name)], _)
+        | (_, Some({name, _})) =>
           /* If not a known constructor, try looking up as a variable.
              This supports capitalized module names like M.x where M is
              parsed as Constructor but is actually a variable binding. */
@@ -2758,19 +2749,22 @@ and uexp_to_info_map =
         let (fn, fn_elab, m) = go(~ana=typfn_ana, fn, m);
         let (_, m) =
           utyp_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utyp, m);
-        let elab_term = TypAp(fn_elab, Typ.normalize(ctx, utyp)) |> rewrap;
+        let utyp_norm = Typ.normalize(ctx, utyp);
+        let elab_term = TypAp(fn_elab, utyp_norm) |> rewrap;
         let (option_name, ty_body) =
           MatchedTyp.poly_pair_tolerant(ctx, fn.ty);
         switch (option_name) {
         | Some(name) =>
+          let (ty_syn, capture_marks) =
+            subst_marked(utyp_norm, name, ty_body);
           add(
             ~elab_term,
-            ~elab_syn_ty=Typ.subst(utyp, name, ty_body),
-            ~marks=[],
+            ~elab_syn_ty=ty_syn,
+            ~marks=capture_marks,
             ~co_ctx=fn.co_ctx,
             ~probe_targets=fn.probe_targets,
             m,
-          )
+          );
         | None =>
           add(
             ~elab_term,
@@ -2982,14 +2976,14 @@ and uexp_to_info_map =
       let typ_fun_case = (utpat: TPat.t, body: Exp.t, tfname: option(Var.t)) => {
         let (name_expected_opt, item) =
           MatchedTyp.poly_pair_tolerant(ctx, ana);
-        let (mode_body, ctx_body) =
+        let (mode_body, ctx_body, capture_marks) =
           switch (TPat.tyvar_of_utpat(utpat)) {
           | Some(name) when !Ctx.is_base_typ(name) =>
-            let mode_body = {
+            let (mode_body, capture_marks) = {
               switch (name_expected_opt) {
               | Some(name_expected) =>
-                Typ.subst(Var(name) |> Typ.temp, name_expected, item)
-              | _ => item
+                subst_marked(Var(name) |> Typ.temp, name_expected, item)
+              | _ => (item, [])
               };
             };
             let ctx_body =
@@ -3001,12 +2995,18 @@ and uexp_to_info_map =
                   kind: Abstract,
                 },
               );
-            (mode_body, ctx_body);
+            (mode_body, ctx_body, capture_marks);
           | Some(_)
-          | None => (item, ctx)
+          | None => (item, ctx, [])
           };
         let m =
-          utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m)
+          utpat_to_info_map(
+            ~ctx,
+            ~ancestors=ancestors_inclusive,
+            ~marks=capture_marks,
+            utpat,
+            m,
+          )
           |> snd;
         /* A coercion site passes through a type function: coercing
            typfun A -> e to forall A. S coerces e to S, so a module under a
@@ -4076,7 +4076,8 @@ and uexp_to_info_map =
           ) =
             go(~ctx=ctx_body, ~ana, body, m);
           /* Make sure types don't escape their scope */
-          let ty_escape = Typ.subst(ty_def, typat, ty_body);
+          let (ty_escape, capture_marks) =
+            subst_marked(ty_def, typat, ty_body);
           let m =
             utyp_to_info_map(
               ~ctx=ctx_def,
@@ -4094,7 +4095,7 @@ and uexp_to_info_map =
           add(
             ~elab_term=body_elab,
             ~elab_syn_ty=ty_escape,
-            ~marks=[],
+            ~marks=capture_marks,
             ~co_ctx=CoCtx.union([co_ctx, typ_refs]),
             ~probe_targets,
             m,
@@ -5817,7 +5818,14 @@ and utyp_to_info_map =
   };
 }
 and utpat_to_info_map =
-    (~ctx, ~ancestors, ~alias_def: option(Typ.t)=?, utpat: TPat.t, m: Map.t)
+    (
+      ~ctx,
+      ~ancestors,
+      ~alias_def: option(Typ.t)=?,
+      ~marks=[],
+      utpat: TPat.t,
+      m: Map.t,
+    )
     : (Info.tpat, Map.t) => {
   let ids = IdTagged.ids(utpat);
   let term = IdTagged.term_of(utpat);
@@ -5842,7 +5850,7 @@ and utpat_to_info_map =
     let info: Info.tpat = {
       cls: Cls.TPat(TPat.cls_of_term(utpat.term)),
       ancestors,
-      marks: fst(st),
+      marks: marks @ fst(st),
       message: Option.map(x => Message.TPatOk(x), snd(st)),
       warnings: [],
       ctx,

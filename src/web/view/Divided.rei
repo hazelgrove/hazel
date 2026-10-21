@@ -30,6 +30,16 @@ let editor_of:
     Segment.t
   ) =>
   CellEditor.Model.t;
+/* [editor_of] for an edit of [d]'s program made whole (outline ops), with
+   the caches of its shell, the whole editor it was cut from */
+let shell_editor_of:
+  (
+    ~probes: Refractors.RefractorList.t,
+    ~anchor: option((Direction.t, Id.t)),
+    Segment.t,
+    t
+  ) =>
+  CellEditor.Model.t;
 let document: t => Segment.t;
 
 let cells: t => list(ScratchCell.t);
@@ -95,3 +105,15 @@ let stepping: t => option(ProjectorBase.stepping);
 /* one stepping drawer per program: opening one closes the others */
 let keep_stepping: (Language.Sample.span_ref, t) => t;
 let compact: (CellEditor.Model.t => CellEditor.Model.t, t) => t;
+/* [d]'s editors with the parse and measure caches of [from]'s in the
+   same place: the shell's, and each open cell's panes by item and side */
+let with_caches_of: (~from: t, t) => t;
+/* the shell's caches from, and into, a whole editor */
+let with_shell_caches_of: (~from: CellEditor.Model.t, t) => t;
+let shell_caches_into: (t, CellEditor.Model.t) => CellEditor.Model.t;
+/* [d] showing [from]'s statics and run until it's analyzed: the
+   program's, and each open cell's panes by item and side */
+let with_statics_of: (~from: t, t) => t;
+/* the same, from and into a whole editor */
+let with_shell_statics_of: (~from: CellEditor.Model.t, t) => t;
+let shell_statics_into: (t, CellEditor.Model.t) => CellEditor.Model.t;

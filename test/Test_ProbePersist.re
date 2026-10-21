@@ -118,6 +118,7 @@ let legacy_side_keys = () => {
       zoom: Some(ab_y),
       parked: true,
       collapse: [x, ab_y],
+      expand: [],
       probes,
       ux: false,
       away: None,

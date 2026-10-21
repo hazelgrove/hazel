@@ -863,7 +863,7 @@ let remold_candidates = (label: Label.t, sort: Sort.t): list((t, Sort.t)) =>
 /* Like remold_candidates, but compound forms only: a single token never
  * resolves to an atomic form (a variable) here. Segment.remold_tile uses it
  * to give an incomplete tile the form its present shards spell. */
-let remold_candidates_compound =
+let compound_remold_candidates =
     (label: Label.t, sort: Sort.t): list((t, Sort.t)) =>
   compound_defs(label)
   |> List.filter(((_, m): (family, Mold.t)) => m.out == sort)

@@ -63,19 +63,26 @@ module Store = {
   };
 };
 
-/* undo and redo restore programs; what each slide shows stays */
-let carry_views = (~from: Model.t, m: Model.t): Model.t =>
+/* undo and redo restore programs; what each slide shows stays, and so do
+   its editors' incremental caches, which hit for what the step didn't
+   change (snapshots drop theirs: History.compact), and their statics and
+   runs, shown until the typing debounce analyzes the restored program */
+let carry_over = (~from: Model.t, m: Model.t): Model.t => {
+  let carry = (a, b) =>
+    ScratchMode.Model.with_views_of(~from=a, b)
+    |> ScratchMode.Model.with_caches_of(~from=a);
   switch (from.editors, m.editors) {
   | (Scratch(a), Scratch(b)) => {
       ...m,
-      editors: Scratch(ScratchMode.Model.with_views_of(~from=a, b)),
+      editors: Scratch(carry(a, b)),
     }
   | (Documentation(a), Documentation(b)) => {
       ...m,
-      editors: Documentation(ScratchMode.Model.with_views_of(~from=a, b)),
+      editors: Documentation(carry(a, b)),
     }
   | _ => m
   };
+};
 
 module Update = {
   open Updated;
@@ -182,11 +189,12 @@ module Update = {
 
   let equal = (===);
 
-  /* a jump into a cell that isn't open, or to another cell's binder: the
-     item opens now; once its cell is there, the caret moves into the pane
-     holding the target, which takes the focus */
-  let jump_across = (~schedule_action, (ensure, selection, caret)) => {
-    schedule_action(Editors(caret));
+  /* a jump into a cell that isn't open, or to another cell's binder or
+     function: the item opens now; once its cell is there, the follow-ups
+     run in the pane holding the target (the caret's move, or the step
+     into), which takes the focus */
+  let jump_across = (~schedule_action, (ensure, selection, then_)) => {
+    List.iter(a => schedule_action(Editors(a)), then_);
     Haz3lcore.FocusEffect.schedule_cell_top();
     (ensure, selection);
   };
@@ -526,7 +534,8 @@ module Update = {
     | Editors(action) =>
       let (action, selection) =
         switch (Editors.Selection.stack_jump_override(action, model.editors)) {
-        /* a stack cell's jump to a binder in another definition */
+        /* a stack cell's jump to a binder, or step into a function, in
+           another definition */
         | Some(across) => jump_across(~schedule_action, across)
         | None =>
           /* an outline add selects and focuses the new cell (focus also
@@ -820,12 +829,26 @@ module Selection = {
 };
 
 module View = {
+  /* the Cmd state a key event gives the model, when it may change it. The
+     listener's model is the last render's, which hasn't seen a press in
+     this frame: a press or release of Cmd always gives it (a release
+     dropped there left the Cmd-hover underline on), other keys a change */
+  let meta_change = (~rendered: bool, key: Key.t): option(bool) => {
+    let down = key.meta == Down;
+    switch (key.key) {
+    | D("Meta")
+    | U("Meta") => Some(down)
+    | _ => rendered == down ? None : Some(down)
+    };
+  };
+
   let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-      let meta_down = key.meta == Down;
       let meta_effects =
-        model.globals.meta_down == meta_down
-          ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+        switch (meta_change(~rendered=model.globals.meta_down, key)) {
+        | Some(down) => [inject(Globals(SetMetaDown(down)))]
+        | None => []
+        };
       /* Skip page-level shortcuts when the user is typing in a form
          element (e.g. an <input>/<textarea>/<select> rendered by a
          HazelDOM sidebar app). (dev's #2649 took out the clipboard shim,
@@ -927,12 +950,10 @@ module View = {
     [
       Key.listener(~f=handle_key_event),
       /* A press on plain text leaves focus on #page itself. Don't move it
-         on from here: that would cancel the text selection being started. */
-      Attr.on_blur(_ =>
-        model.globals.meta_down
-          ? Effect.Many([inject(Globals(SetMetaDown(false)))])
-          : Effect.Ignore
-      ),
+         on from here: that would cancel the text selection being started.
+         Cmd goes up whatever the last render saw: a press may not have
+         rendered */
+      Attr.on_blur(_ => inject(Globals(SetMetaDown(false)))),
     ];
   };
 
@@ -1128,7 +1149,7 @@ module View = {
       create(
         "style",
         switch (outline_mark) {
-        | Some(id) => [text(OutlineFollow.css(id))]
+        | Some(k) => [text(OutlineFollow.css(k))]
         | None => []
         },
       );
