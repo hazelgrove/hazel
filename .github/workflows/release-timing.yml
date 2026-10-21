@@ -1,0 +1,71 @@
+# Kids' Choice slider releases on #2635, before and after merging today's #2469 (^ticket(512)), on GitHub's machines, never
+# the laptop. An orphan branch: only this workflow runs. Each of eight jobs serves two deployed builds from hazelgrove/build
+# (no compiling): BEFORE, #2635 at 9933091a99 (deploy 0b8ca9bbcf), and AFTER, at 5cb0d88a46 (deploy ff51d2ff44), then times
+# 12 releases of the eye-size slider on each, twice in turn (before, after, before, after), each in a Chrome started fresh,
+# so the runner's own speed and any drift cancel out. The first release after load is kept apart from the rest.
+name: Release timing (#2635, before and after #2469)
+
+on:
+  push:
+    branches:
+      - "timing/2635-release"
+
+env:
+  BEFORE: 0b8ca9bbcfa694231a7f6bd77ab8f4eb54cc1a5e
+  AFTER: ff51d2ff4469ddd10ff11ec116e259e0029021ed
+  DIR: integration/livelits-modular-editors
+
+jobs:
+  pair:
+    name: Before and after (${{ matrix.job }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [r1, r2, r3, r4, r5, r6, r7, r8]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: hazelgrove/build
+          ref: ${{ env.BEFORE }}
+          path: before
+          sparse-checkout: ${{ env.DIR }}
+      - uses: actions/checkout@v4
+        with:
+          repository: hazelgrove/build
+          ref: ${{ env.AFTER }}
+          path: after
+          sparse-checkout: ${{ env.DIR }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The runner; serve both builds
+        run: |
+          mkdir -p out
+          { echo "job: ${{ matrix.job }}"; lscpu | grep -E 'Model name|^CPU\(s\)'; google-chrome --version; } | tee out/runner.txt
+          ls before/$DIR | head; ls after/$DIR | head
+          (cd before/$DIR && python3 -m http.server 8133 --bind 127.0.0.1 > /dev/null 2>&1 &)
+          (cd after/$DIR && python3 -m http.server 8134 --bind 127.0.0.1 > /dev/null 2>&1 &)
+          for i in $(seq 30); do curl -sf http://127.0.0.1:8133/ > /dev/null && curl -sf http://127.0.0.1:8134/ > /dev/null && break; sleep 1; done
+      - name: Twelve releases each, before and after, twice in turn
+        continue-on-error: true
+        shell: bash
+        run: |
+          for round in 1 2; do
+            for side in before after; do
+              port=$([ $side = before ] && echo 8133 || echo 8134)
+              (google-chrome --headless=new --mute-audio --no-first-run --no-default-browser-check \
+                --remote-debugging-port=9222 --remote-allow-origins='*' \
+                --user-data-dir="$RUNNER_TEMP/chrome-$side-$round" about:blank > "out/chrome-$side-$round.log" 2>&1 &)
+              for i in $(seq 60); do curl -sf http://127.0.0.1:9222/json/version > /dev/null && break; sleep 1; done
+              node scripts/release_timing.mjs 9222 "http://127.0.0.1:$port" "$side-$round" 12 | tee "out/$side-$round.json"
+              pkill -x chrome || true; pkill -x google-chrome || true; sleep 3
+            done
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: release-timing-${{ matrix.job }}
+          path: out/
