@@ -190,8 +190,8 @@ let mega = (~root, ~eval=true, ~wrap=src => src, file, steps, ()) =>
   | None => fail("corpus unreadable: " ++ file)
   };
 
-/* the slide corpus through calc_auto, the app's path, so the check the
-   runner installs compares each result with monolithic statics: cold,
+/* the slide corpus through calc_auto, the app's path, so the statics
+   check (armed below) compares each result with monolithic statics: cold,
    then warm after an edit to every `1` */
 let corpus_through_calc_auto = () => {
   let checked = ref(0);
@@ -1063,7 +1063,7 @@ let tests = (
     test_case(
       "the slide corpus through calc_auto",
       `Quick,
-      corpus_through_calc_auto,
+      DefStaticsCheck.armed(corpus_through_calc_auto),
     ),
     test_case(
       "items leave their binders' unused warnings to the engine",

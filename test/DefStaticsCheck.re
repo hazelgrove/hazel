@@ -301,3 +301,11 @@ let install = () =>
           };
         },
     );
+
+/* [f] with the check installed, whether or not the runner installed it
+   (a quick run doesn't): for tests whose assertion the check is */
+let armed = (f: unit => unit, ()): unit => {
+  let saved = DefStatics.after_calc^;
+  install();
+  Fun.protect(~finally=() => DefStatics.after_calc := saved, f);
+};

@@ -7,7 +7,7 @@ open Language;
    the editor's compositional statics as on a whole-program analysis of
    the same term: Cmd+D, the assistant's node map, autoprobe, outline
    rows and the evaluation worklist. DefStaticsCheck compares the
-   ancestors themselves */
+   ancestors themselves, armed for every test here */
 
 let settings = CoreSettings.on;
 
@@ -485,12 +485,15 @@ let rollup_tests = [
 
 let tests = (
   "StaticsAncestry",
-  cmd_d_tests
-  @ rollup_tests
-  @ [test_case("a member's autoprobe target", `Quick, member_autoprobe)]
-  @ List.map(
-      ((name, _, _) as p) =>
-        test_case("readers: " ++ name, `Quick, consumers(p)),
-      programs,
-    ),
+  List.map(
+    ((name, speed, f)) => (name, speed, DefStaticsCheck.armed(f)),
+    cmd_d_tests
+    @ rollup_tests
+    @ [test_case("a member's autoprobe target", `Quick, member_autoprobe)]
+    @ List.map(
+        ((name, _, _) as p) =>
+          test_case("readers: " ++ name, `Quick, consumers(p)),
+        programs,
+      ),
+  ),
 );
