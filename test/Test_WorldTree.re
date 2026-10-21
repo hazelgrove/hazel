@@ -59,7 +59,11 @@ let checked = (~path, seg) => {
     );
   let trail = folders @ [WorldTree.slide_id(path)];
   let elab =
-    WorldTree.run_elab(~trail, Option.get(DefStatics.whole_elab(ds)));
+    WorldTree.run_elab(
+      ~cached=Builtins.is_library_name,
+      ~trail,
+      Option.get(DefStatics.whole_elab(ds)),
+    );
   let (_, state) =
     Evaluator.evaluate(
       ~eval_info=
@@ -142,6 +146,93 @@ let runs = () => {
   );
 };
 
+/* a slide using a folder's definition and naming an earlier slide: its
+   run keeps them (the sealed one empty: its value has no members) and
+   drops what nothing mentions */
+let on_demand = () => {
+  let src = "let a = 1;
+module Documentation = {
+  let helper = a + 1;
+  let unused = 0;
+  module Holes : {} = {
+    test false end;
+    1
+  };
+  module Intro : {} = {
+    let y = helper;
+    test y == 2 end;
+    Holes;
+    y
+  }
+};
+module Scratch = {
+  let z = 0
+}";
+  let term = MakeTerm.Incr.term_of_root(~root=Mod, mod_seg(src));
+  let ds =
+    DefStatics.calc(
+      ~settings=P.settings,
+      ~ctx_in=Builtins.ctx_base(Some(Operators.default_mode)),
+      term,
+    );
+  check(
+    int,
+    "no type errors",
+    0,
+    List.length(DefStatics.all_error_ids(ds)),
+  );
+  let whole = Option.get(DefStatics.whole_elab(ds));
+  let items = (e: Exp.t) =>
+    switch (e.term) {
+    | Module(items) => items
+    | _ => fail("not a module")
+    };
+  let named = (name, e) =>
+    List.find(i => List.mem(name, WorldTree.binds(i)), items(e));
+  let names = e => List.concat_map(WorldTree.binds, items(e));
+  let body = i => Option.get(WorldTree.def_of(i));
+  let doc = named("Documentation", whole);
+  let trail = [Mod.rep_id(doc), Mod.rep_id(named("Intro", body(doc)))];
+  let elab =
+    WorldTree.run_elab(~cached=Builtins.is_library_name, ~trail, whole);
+  check(
+    list(string),
+    "the top level",
+    ["a", "Documentation"],
+    names(elab),
+  );
+  let doc = body(named("Documentation", elab));
+  check(
+    list(string),
+    "the folder: the slide, what it mentions",
+    ["helper", "Holes", "Intro"],
+    names(doc),
+  );
+  check(
+    int,
+    "the sealed one, empty",
+    0,
+    List.length(items(body(named("Holes", doc)))),
+  );
+  let (_, state) =
+    Evaluator.evaluate(
+      ~eval_info=
+        EvalInfo.of_info_map(
+          ~probe_all=false,
+          ~targets=Id.Map.empty,
+          ds.merged,
+        ),
+      ~env=Builtins.env_for(elab),
+      elab,
+    );
+  check(
+    list(string),
+    "the slide's tests alone, passing",
+    ["Pass"],
+    List.map(snd, P.tests_of(state)),
+  );
+};
+
 /* every corpus slide in one document with the standard library, a few
    loaded: assembling it costs little, and a loaded slide checks and runs
    as it does alone */
@@ -198,6 +289,7 @@ let tests = (
     test_case("shape", `Quick, shape),
     test_case("loading a slide", `Quick, loads),
     test_case("a slide runs alone", `Quick, runs),
+    test_case("a slide runs with what it needs", `Quick, on_demand),
     test_case("the corpus in one document", `Slow, corpus),
   ],
 );

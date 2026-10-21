@@ -347,37 +347,113 @@ let load = (~slide: Id.t, members: Segment.t, seg: Segment.t): Segment.t => {
   fst(level(seg));
 };
 
-/* a world's elaboration cut to the slide at the end of [trail] (module
-   ids from the top level down): each module on the way holds only the
-   next, so only the slide runs, the library's definitions coming from
-   the bake (Builtins.env_for) */
-let rec run_elab = (~trail: list(Id.t), elab: Language.Exp.t): Language.Exp.t =>
-  switch (trail, elab.term) {
-  | ([m, ...below], Module(items)) =>
-    switch (
-      List.find_opt(
-        (item: Language.Mod.t) => Language.Mod.rep_id(item) == m,
-        items,
-      )
-    ) {
-    | Some(item) =>
-      let item =
-        switch (below, item.term) {
-        | ([], _) => item
-        | (_, ModLet(p, def)) => {
-            ...item,
-            term: ModLet(p, run_elab(~trail=below, def)),
-          }
-        | _ => item
-        };
-      {
-        ...elab,
-        term: Module([item]),
-      };
-    | None => elab
-    }
-  | _ => elab
+/* what an item binds at run time */
+let binds = (item: Language.Mod.t): list(string) =>
+  switch (item.term) {
+  | ModLet(p, _) => Language.Pat.bound_vars(p)
+  | ModVal(x, _) => [x]
+  | _ => []
   };
+
+let def_of = (item: Language.Mod.t): option(Language.Exp.t) =>
+  switch (item.term) {
+  | ModLet(_, e)
+  | ModVal(_, e)
+  | ModExp(e) => Some(e)
+  | _ => None
+  };
+
+/* sealed to the empty signature: its value has no members */
+let sealed_empty = (item: Language.Mod.t): bool =>
+  switch (item.term) {
+  | ModLet({term: Asc(_, {term: Sig([]), _}), _}, _) => true
+  | _ => false
+  };
+
+/* what runs for the slide at the end of [trail] (module ids from the top
+   level down), on demand: on each level the module on the way, and
+   before it what the kept items mention, transitively. A module sealed
+   to `{}` kept for a mention runs empty: its sealed value has no members.
+   At the top level, what [cached] names (the bake's library) isn't kept:
+   Builtins.env_for supplies it */
+let run_elab =
+    (~cached: string => bool, ~trail: list(Id.t), elab: Language.Exp.t)
+    : Language.Exp.t => {
+  let rec cut = (~top, trail, e: Language.Exp.t): option(Language.Exp.t) =>
+    switch (trail, e.term) {
+    | ([m, ...below], Module(items)) =>
+      switch (ListUtil.findi_opt(i => Language.Mod.rep_id(i) == m, items)) {
+      | None => None
+      | Some((n, item)) =>
+        let before = ListUtil.take(n, items);
+        let item: option(Language.Mod.t) =
+          switch (below, item.term) {
+          | ([_, ..._], ModLet(p, def)) =>
+            switch (cut(~top=false, below, def)) {
+            | Some(def) =>
+              Some({
+                ...item,
+                term: ModLet(p, def),
+              })
+            | None => None
+            }
+          | _ => Some(item)
+          };
+        Option.map(
+          (item: Language.Mod.t): Language.Exp.t => {
+            let mentions = (d: Language.Exp.t) =>
+              Language.Builtins.mentioned(~keep=x => !(top && cached(x)), d);
+            let demand = Hashtbl.create(16);
+            let want = d =>
+              List.iter(x => Hashtbl.replace(demand, x, ()), mentions(d));
+            Option.iter(want, def_of(item));
+            let kept: list(Language.Mod.t) =
+              List.fold_left(
+                (kept: list(Language.Mod.t), i: Language.Mod.t) => {
+                  let names = binds(i);
+                  if (List.exists(Hashtbl.mem(demand), names)) {
+                    List.iter(Hashtbl.remove(demand), names);
+                    if (sealed_empty(i)) {
+                      switch (i.term, def_of(i)) {
+                      | (ModLet(p, _), Some(def)) => [
+                          {
+                            ...i,
+                            term:
+                              ModLet(
+                                p,
+                                {
+                                  ...def,
+                                  term: Module([]),
+                                },
+                              ),
+                          },
+                          ...kept,
+                        ]
+                      | _ => [i, ...kept]
+                      };
+                    } else {
+                      Option.iter(want, def_of(i));
+                      [i, ...kept];
+                    };
+                  } else {
+                    kept;
+                  };
+                },
+                [],
+                List.rev(before),
+              );
+            {
+              ...e,
+              term: Module(kept @ [item]),
+            };
+          },
+          item,
+        );
+      }
+    | _ => None
+    };
+  cut(~top=true, trail, elab) |> Option.value(~default=elab);
+};
 
 /* [seg] split at its first top-level tile among [heads]: the library's
    items (without what assembling added after them, derived from

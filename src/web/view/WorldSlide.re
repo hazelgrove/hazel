@@ -111,9 +111,10 @@ let with_running_library = (~slide: Id.t, doc: Segment.t): option(Segment.t) =>
   | None => None
   };
 
-/* what a world's run reads: the slide's item alone (the library's
-   definitions come from the bake), and the analysis of the expressions
-   in it, so a request carries the slide's size, not the library's */
+/* what a world's run reads: the slide's item and what it needs
+   (WorldTree.run_elab; the library's definitions come from the bake),
+   and the analysis of the expressions in it, so a request carries the
+   slide's size, not the library's */
 let run_memo: Slot.t((Id.t, CachedStatics.t), CachedStatics.t) = Slot.mk();
 let run_statics = (~slide: Id.t, s: CachedStatics.t): CachedStatics.t =>
   Slot.get(
@@ -125,7 +126,12 @@ let run_statics = (~slide: Id.t, s: CachedStatics.t): CachedStatics.t =>
       let trail =
         OutlineTree.trail_of(slide, s.term)
         |> Option.value(~default=[slide]);
-      let elaborated = WorldTree.run_elab(~trail, s.elaborated);
+      let elaborated =
+        WorldTree.run_elab(
+          ~cached=Language.Builtins.is_library_name,
+          ~trail,
+          s.elaborated,
+        );
       let ids = ref([]);
       let _: Language.Exp.t =
         Language.Exp.map_term(
