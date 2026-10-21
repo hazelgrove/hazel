@@ -4067,9 +4067,12 @@ let ascribed_binding_tests = (
         check_rendered("deleting all bindings leaves hole", "?", result);
       },
     ),
+    /* The two verbatim repros are Slow: each spends about a second and a
+       half in the typing parser on the 1.4K-character program. The
+       chess-shaped cases above keep the same shapes in the quick set. */
     test_case(
       "verbatim chess program: Piece is present in node map",
-      `Quick,
+      `Slow,
       () => {
         /* Exact program from the live-editor repro. `delete_binding_clause Piece`
            reportedly fails with "Path 'Piece' not found in node map" even though
@@ -4118,7 +4121,7 @@ let ascribed_binding_tests = (
     ),
     test_case(
       "verbatim chess program: delete_binding_clause Piece succeeds",
-      `Quick,
+      `Slow,
       () => {
         /* Single action repro of the exact user flow: send the chess program,
            ask to delete `Piece`. Should succeed (the binding exists). */
@@ -5315,10 +5318,13 @@ let module_member_tests = (
     }),
     test_case(
       "oversized chunk on the fast path succeeds",
-      `Quick,
+      `Slow,
       () => {
         /* The size cap guards only the quadratic fallback; Menhir-
-           parseable chunks of any size take the linear fast path. */
+           parseable chunks of any size take the linear fast path. Slow:
+           re-selecting the new 400-term definition to revalidate its
+           projectors (Select.term) walks it token by token, about two
+           seconds. */
         let big =
           String.concat(" + ", List.init(400, i => string_of_int(i)));
         switch (

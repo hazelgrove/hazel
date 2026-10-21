@@ -80,19 +80,23 @@ let check_family_grouping = (): unit =>
           let same_key =
             d1.label == d2.label
             && shape_role(d1.mold) == shape_role(d2.mold);
-          check(
-            bool,
-            "grouping is (label, shape-role) quotient: "
-            ++ Form.show_family(fam1)
-            ++ " "
-            ++ Label.show(d1.label)
-            ++ " vs "
-            ++ Form.show_family(fam2)
-            ++ " "
-            ++ Label.show(d2.label),
-            same_key,
-            same_family,
-          );
+          /* Checked only on a mismatch: building the message for every
+             passing pair of forms took nearly all of the test's time. */
+          if (same_key != same_family) {
+            check(
+              bool,
+              "grouping is (label, shape-role) quotient: "
+              ++ Form.show_family(fam1)
+              ++ " "
+              ++ Label.show(d1.label)
+              ++ " vs "
+              ++ Form.show_family(fam2)
+              ++ " "
+              ++ Label.show(d2.label),
+              same_key,
+              same_family,
+            );
+          };
         },
         Form.forms,
       ),
