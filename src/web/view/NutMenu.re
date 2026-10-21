@@ -251,12 +251,6 @@ let code_display = (~globals: Globals.t): section => {
           ToggleLineNumbers,
           "Show line numbers beside the code",
         ),
-        toggle(
-          "Outline arrows",
-          globals.settings.outline_arrows,
-          OutlineArrows,
-          "Fold outline rows from an arrow; off, click a row's sigil",
-        ),
       ]
       @ (
         globals.settings.line_numbers
