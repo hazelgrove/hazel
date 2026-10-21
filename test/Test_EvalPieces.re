@@ -320,7 +320,7 @@ let exact_tests =
     ),
     test_case(
       "a lib-like program: member edits, adds, removes, moves",
-      `Quick,
+      `Slow,
       script(~root=Mod, Delta.lib, Delta.lib_edits @ Delta.lib_restructures),
     ),
     test_case(
@@ -338,7 +338,7 @@ let exact_tests =
     ),
     test_case(
       "List one and two modules deep, at a Mod root",
-      `Quick,
+      `Slow,
       () => {
         script(
           ~root=Mod,
@@ -733,7 +733,7 @@ let tests = (
     ),
     test_case(
       "evaluation reads the same: tests, probes, the value",
-      `Quick,
+      `Slow,
       results,
     ),
   ],

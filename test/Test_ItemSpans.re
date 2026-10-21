@@ -935,6 +935,6 @@ let tests = (
     test_case("memoized on pieces", `Quick, memo),
     test_case("corpus", `Slow, corpus),
     test_case("Read: a finished program as written", `Slow, read_finished),
-    test_case("Read: typing a member near List's top", `Quick, read_typing),
+    test_case("Read: typing a member near List's top", `Slow, read_typing),
   ],
 );

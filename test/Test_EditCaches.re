@@ -247,10 +247,10 @@ let tests = (
   [
     test_case(
       "Alt-Down at 4k parses the two members it swaps",
-      `Quick,
+      `Slow,
       move_4k(~root=Exp),
     ),
-    test_case("the same at a Mod root", `Quick, move_4k(~root=Mod)),
+    test_case("the same at a Mod root", `Slow, move_4k(~root=Mod)),
     test_case(
       "an op beside an open cell takes the shell's caches",
       `Quick,

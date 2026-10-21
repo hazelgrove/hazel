@@ -57,5 +57,5 @@ let case = (file: string, ()) => {
 
 let tests = (
   "ClickTeleport",
-  [test_case("mega-1k landing parity", `Quick, case("mega-1k.hz"))],
+  [test_case("mega-1k landing parity", `Slow, case("mega-1k.hz"))],
 );

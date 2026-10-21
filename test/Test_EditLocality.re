@@ -189,10 +189,11 @@ let mega_insert = (row, ()) => {
 
 /* bounds: pieces the edit may replace, and items or chunks each layer
    may redo; whole-program work would be tens */
-let case = (name, ~fresh=2, ~items=2, ~analyzed=3, ~typing=false, mk) =>
+let case =
+    (name, ~speed=`Quick, ~fresh=2, ~items=2, ~analyzed=3, ~typing=false, mk) =>
   test_case(
     name,
-    `Quick,
+    speed,
     () => {
       let e = mk();
       let w = work(e.before, e.after);
@@ -225,7 +226,7 @@ let tests = (
     case("undo", undo),
     /* the two members swapped, and their module's shell */
     case("restructure", ~items=3, ~analyzed=8, restructure),
-    case("agent update", agent),
+    case("agent update", ~speed=`Slow, agent),
     case("mega-1k row 900", ~typing=true, mega_insert(900)),
     case("mega-1k row 100", ~typing=true, mega_insert(100)),
   ],

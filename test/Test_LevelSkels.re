@@ -53,7 +53,7 @@ let programs = [
     pair: ("letmap:", "letfilter:"),
     member: "let q = 1;",
     unfinished: "let q = (1 + 2",
-    speed: `Quick,
+    speed: `Slow,
   },
   {
     name: "Mega-Mod 1k",
@@ -458,6 +458,7 @@ let swaps = ((sort: Sort.t, src: string), ()) => {
 let swap_levels = [
   (
     "a Mod level",
+    `Slow,
     (
       Sort.Mod,
       "let a = 1 + 2 + 3 * 4 - 5;\nlet b = a :: [] @ [5];\ntest a == 7 end;\nlet f = fun x -> x / 2;\nf(a) > 2 || a < 1 && true;\nlet c = if a < 3 then 1 else 2;\nmodule M = { let d = 1 };\nM.d",
@@ -465,6 +466,7 @@ let swap_levels = [
   ),
   (
     "an Exp level",
+    `Quick,
     (
       Sort.Exp,
       "let a = 1 in\ntest a == 1 end;\na + 2 + 3 * 4 - 5 :: [] @ [5] == b || c && d > 2",
@@ -486,8 +488,8 @@ let edit_script = (p: program, ()) => {
 let tests = (
   "LevelSkels",
   List.map(
-    ((name, level)) =>
-      test_case(name ++ ": pieces swapped", `Quick, swaps(level)),
+    ((name, speed, level)) =>
+      test_case(name ++ ": pieces swapped", speed, swaps(level)),
     swap_levels,
   )
   @ List.map(

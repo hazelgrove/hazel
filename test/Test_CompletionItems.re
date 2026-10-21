@@ -636,15 +636,15 @@ let tests = (
     test_case("a live set past the bound stays cached", `Quick, swept_live),
     test_case("edits don't grow the bound", `Quick, swept_stale),
     /* Mega 2k and 4k repeat its shapes */
-    test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz")),
+    test_case("mega-1k parity", `Slow, corpus_case("mega-1k.hz")),
     test_case(
       "typing a member into a mega-1k module",
-      `Quick,
+      `Slow,
       typing_case(~root=Exp, "mega-1k.hz", 1, 1, "let q = (1 + 2"),
     ),
     test_case(
       "typing a member into a mega-mod-1k module",
-      `Quick,
+      `Slow,
       typing_case(~root=Mod, "mega-mod-1k.hz", 2, 0, "let q = (1 + 2"),
     ),
   ]

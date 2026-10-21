@@ -403,12 +403,12 @@ let tests = (
     /* lib_edits first: their own run would be this one's prefix */
     test_case(
       "a lib-like module, adds, removes and moves",
-      `Quick,
+      `Slow,
       script(~root=Mod, ~mono=true, lib, lib_edits @ lib_restructures),
     ),
     test_case(
       "the lib-like module at an Exp root",
-      `Quick,
+      `Slow,
       script(
         ~mono=true,
         "module Wrap = {\n" ++ lib ++ "\n} in\nWrap.List.length([1])",

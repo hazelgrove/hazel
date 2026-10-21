@@ -1031,7 +1031,7 @@ let mega_steps = [
 let corpus = [
   test_case(
     "mega-1k",
-    `Quick,
+    `Slow,
     mega(
       ~root=Exp,
       ~delta=true,
@@ -1055,7 +1055,7 @@ let corpus = [
   ),
   test_case(
     "mega-mod-1k",
-    `Quick,
+    `Slow,
     mega(~root=Mod, ~eval=false, ~delta=true, "mega-mod-1k.hz", mega_steps),
   ),
 ];
@@ -1071,12 +1071,12 @@ let tests = (
     ),
     test_case(
       "the slide corpus through calc_auto",
-      `Quick,
+      `Slow,
       DefStaticsCheck.armed(corpus_through_calc_auto),
     ),
     test_case(
       "items leave their binders' unused warnings to the engine",
-      `Quick,
+      `Slow,
       items_leave_binders_unflagged,
     ),
     test_case("a module root's items", `Quick, mod_root_items),
