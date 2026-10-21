@@ -48,7 +48,7 @@ module Posted = {
   type t = {
     request_id: int,
     batch: list((key, value)),
-    pieces: list((EvalPieces.hash, string)),
+    pieces: list((EvalPieces.hash, EvalPieces.posted)),
   };
 };
 
@@ -904,9 +904,9 @@ let receive = (posted: Posted.t): received => {
   /* in order: a piece posted shared can refer to the values of one
      before it */
   List.iter(
-    ((hash, bytes)) =>
+    ((hash, p)) =>
       switch (
-        EvalPieces.take(~resolve=Util.ShareCodec.Worker.decode, hash, bytes)
+        EvalPieces.take(~resolve=Util.ShareCodec.Worker.decode, hash, p)
       ) {
       | Some(content) => Hashtbl.replace(fresh, hash, content)
       | None => ()

@@ -667,6 +667,38 @@ let shared_pieces = () => {
   );
 };
 
+/* (^ticket(513)) a piece too deep to hash goes as its bytes, plain, and
+   the worker takes a plain piece by Marshal alone, never walking it (the
+   walks are recursive and overflow on a deep value; Marshal does not); a
+   corrupted copy is refused */
+let plain_piece = () => {
+  let one = Exp.fresh(Atom(Int(Bigint.of_int(1))));
+  let c: EvalPieces.content =
+    Whole(Exp.fresh(ListLit(List.init(1000, _ => one))), EvalInfo.empty);
+  let bytes = EvalPieces.encode(c);
+  let h = EvalPieces.hash_of(bytes);
+  let p = Client.posted_piece(~shared=true, h, Bytes(bytes));
+  let take =
+    EvalPieces.take(~resolve=_ => fail("a plain piece was walked"), h);
+  switch (p) {
+  | Plain(bytes, bh) =>
+    check(bool, "taken without a walk", true, Option.is_some(take(p)));
+    let bytes =
+      String.mapi(
+        (i, c) =>
+          i == String.length(bytes) / 2 ? Char.chr(Char.code(c) lxor 1) : c,
+        bytes,
+      );
+    check(
+      bool,
+      "corrupted, refused",
+      true,
+      Option.is_none(take(Plain(bytes, bh))),
+    );
+  | Shared(_) => fail("a piece of bytes went shared")
+  };
+};
+
 /* the protocol: whatever the worker holds, it composes the request's
    program or asks for every piece */
 let protocol = () => {
@@ -737,7 +769,18 @@ let protocol = () => {
     "a mismatched piece",
     WorkerServer.receive({
       ...p1,
-      pieces: List.map(((h, bytes)) => (h, corrupt(bytes)), p1.pieces),
+      pieces:
+        List.map(
+          ((h, p: EvalPieces.posted)) =>
+            (
+              h,
+              switch (p) {
+              | Plain(bytes, bh) => EvalPieces.Plain(corrupt(bytes), bh)
+              | Shared(bytes) => Shared(corrupt(bytes))
+              },
+            ),
+          p1.pieces,
+        ),
     }),
   );
   check_exact(
@@ -902,6 +945,11 @@ let tests = (
       "shared: composes the same, and after an edit in a large definition posts a small part of it",
       `Quick,
       shared_pieces,
+    ),
+    test_case(
+      "a piece too deep to hash goes plain, and is taken without a walk",
+      `Quick,
+      plain_piece,
     ),
     test_case(
       "evaluation reads the same: tests, probes, the value",

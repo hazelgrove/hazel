@@ -109,20 +109,26 @@ let hold = (request: Request.t): unit => {
   );
 };
 
-/* a piece's bytes: [shared], the values the worker already has go as
-   references (Util.ShareCodec), unless it is too deep to walk */
-let bytes_of = (~shared: bool, piece: EvalPieces.piece): string =>
-  switch (piece) {
-  | Bytes(bytes) => bytes
-  | Content(c) when shared =>
-    EvalPieces.encode(
-      switch (Util.ShareCodec.Client.encode(c)) {
-      | c => c
-      | exception _ => c
-      },
-    )
-  | Content(c) => EvalPieces.encode(c)
+/* a piece as posted: [shared], the values the worker already has go as
+   references (Util.ShareCodec); plain when it is not shared or is too
+   deep to walk, with its bytes' hash */
+let posted_piece =
+    (~shared: bool, hash: EvalPieces.hash, piece: EvalPieces.piece)
+    : EvalPieces.posted => {
+  let plain = c => {
+    let bytes = EvalPieces.encode(c);
+    EvalPieces.Plain(bytes, EvalPieces.hash_of(bytes));
   };
+  switch (piece) {
+  | Bytes(bytes) => Plain(bytes, hash) /* its hash is its bytes' */
+  | Content(c) when shared =>
+    switch (Util.ShareCodec.Client.encode(c)) {
+    | c => Shared(EvalPieces.encode(c))
+    | exception _ => plain(c)
+    }
+  | Content(c) => plain(c)
+  };
+};
 
 /* [request] as posted: its programs' layouts, and the pieces the worker
    doesn't hold ([full]: all of them), encoded in order ([shared]: each can
@@ -160,7 +166,9 @@ let posted_of = (~full: bool, ~shared=false, request: Request.t): Posted.t => {
         request.batch,
       )
       /* (List.map applies in order) */
-      |> List.map(((hash, piece)) => (hash, bytes_of(~shared, piece))),
+      |> List.map(((hash, piece)) =>
+           (hash, posted_piece(~shared, hash, piece))
+         ),
   };
 };
 
@@ -266,7 +274,17 @@ let setup_worker_message_handler = worker => {
         switch (msg) {
         | ServerMessage.Shared(_) => () /* unshared before here */
         | ServerMessage.Resend({request_id}) =>
-          with_latest(request_id, latest => resend^(latest))
+          /* (^ticket(513)) a superseded request was missing pieces too:
+             what the client counts the worker holding, and the share
+             table, are off, so the next request starts both over */
+          switch (latest_request^) {
+          | Some({request: {request_id: latest_id, _}, _} as latest)
+              when request_id == latest_id =>
+            resend^(latest)
+          | _ =>
+            share_reset := true;
+            Hashtbl.reset(held);
+          }
         | ServerMessage.Ack({request_id}) =>
           /* Liveness only — reuse tinting arrives next via ReusePlan. */
           with_latest(request_id, _ => clear_timer(ack_timeout_id))

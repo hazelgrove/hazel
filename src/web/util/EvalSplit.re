@@ -187,7 +187,7 @@ let project =
     (acc: acc, t: terms, ~skip: list(Id.t), infos: list((Id.t, Info.t)))
     : list(P.entry) => {
   let firsts: Hashtbl.t(Id.t, (Info.t, ref(list(Id.t)))) =
-    Hashtbl.create(64);
+    Hashtbl.create(max(8, List.length(infos)));
   let rows =
     List.filter_map(
       ((id, info)) =>

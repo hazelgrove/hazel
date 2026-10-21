@@ -132,17 +132,40 @@ let piece_of = (c: content): (hash, piece) =>
     (hash_of(bytes), Bytes(bytes));
   };
 
-/* the posted piece [hash] names, decoded, [resolve] swapping in the
-   values its references name (it raises on one it can't): None when it
-   is not that piece */
+/* a piece as posted: Shared, the values the worker already has as
+   references (Util.ShareCodec); or Plain, Marshal alone, with its bytes'
+   hash: a content too deep to hash or to share, or a post that does not
+   share. A plain piece is decoded and checked without walking it, so
+   depth does not matter (Marshal is iterative) */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type posted =
+  | Shared(string)
+  | Plain(string, hash);
+
+/* the posted piece [hash] names, decoded: a plain one checked by its
+   bytes' hash; a shared one with [resolve] swapping in the values its
+   references name (it raises on one it can't), then checked by its
+   content's hash, unless it is too deep for the worker to hash. None
+   when it is not that piece */
 let take =
-    (~resolve: content => content, hash: hash, bytes: string)
-    : option(content) =>
-  switch (resolve(decode(bytes))) {
-  | c when hash_of_content(c) == Some(hash) || hash_of(bytes) == hash =>
-    Some(c)
-  | _ => None
-  | exception _ => None
+    (~resolve: content => content, hash: hash, p: posted): option(content) =>
+  switch (p) {
+  | Plain(bytes, bytes_hash) =>
+    hash_of(bytes) == bytes_hash
+      ? switch (decode(bytes)) {
+        | c => Some(c)
+        | exception _ => None
+        }
+      : None
+  | Shared(bytes) =>
+    switch (resolve(decode(bytes))) {
+    | c =>
+      switch (hash_of_content(c)) {
+      | Some(h) => h == hash ? Some(c) : None
+      | None => Some(c)
+      }
+    | exception _ => None
+    }
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
