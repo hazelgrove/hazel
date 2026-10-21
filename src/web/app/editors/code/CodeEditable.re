@@ -844,6 +844,8 @@ module View = {
         ~sub_editor: option(SubEditor.t)=None,
         /* The host's own keys, which win over the editor's. */
         ~keys: Key.t => option(Ui_effect.t(unit))=_ => None,
+        ~refactor_drag: option(CodeDrag.handler)=?,
+        ~allow_source_refactors=true,
         model: Model.t,
       ) => {
     let is_sub = Option.is_some(sub_editor);
@@ -962,7 +964,15 @@ module View = {
         (),
       );
     };
-    if (selected) {
+    /* A host's handler offers its own drags; an editor that takes no
+       source refactors offers none, and Cmd-click still jumps. */
+    let drag_candidates =
+      switch (refactor_drag) {
+      | Some(h: CodeDrag.handler) => Some(h.candidates)
+      | None when allow_source_refactors => None
+      | None => Some((~target as _, ~shard as _) => [])
+      };
+    let sync_drag = (~at_press=false, ()) =>
       CodeDrag.sync(
         ~settings=globals.settings.core,
         ~info_map=model.statics.info_map,
@@ -971,8 +981,12 @@ module View = {
         ~segment=CachedSyntax.segment(model.editor.syntax),
         ~shape_map=model.editor.syntax.shape_map,
         ~font_metrics=globals.font_metrics,
+        ~candidates=?drag_candidates,
+        ~at_press,
         model.editor.state.zipper,
       );
+    if (selected) {
+      sync_drag();
     };
     let edit_decos =
       switch (sub_editor) {
@@ -1191,14 +1205,20 @@ module View = {
 
     /* a refactor drag grabbed at the press: candidate tracks are
        enumerated by CodeDrag.sync once the caret lands there */
-    let arm_drag = (~click, ~touch, mouse: Pointer.Event.t, pointer_id: int) =>
+    let arm_drag = (~click, ~touch, mouse: Pointer.Event.t, pointer_id: int) => {
       CodeDrag.arm(
         /* the path to the rung reached, one undo step */
         ~commit=
-          steps =>
-            Bonsai.Effect.Expert.handle(
-              inject(Perform(RefactorPath(steps))),
-            ),
+          switch (refactor_drag) {
+          | Some(h) => h.commit
+          | None => (
+              steps =>
+                Bonsai.Effect.Expert.handle(
+                  inject(Perform(RefactorPath(steps))),
+                )
+            )
+          },
+        ~source_handoff=Option.is_none(refactor_drag),
         ~focus=
           id =>
             Bonsai.Effect.Expert.handle(
@@ -1208,7 +1228,8 @@ module View = {
         ~pointer_id,
         ~readout=touch,
         ~ladders=
-          globals.settings.core.drag_chain
+          Option.is_none(refactor_drag)
+          && globals.settings.core.drag_chain
           != Language.CoreSettings.DragChain.Off,
         ~push=globals.settings.core.drag_push,
         ~show_labels=globals.settings.core.drag_labels,
@@ -1217,6 +1238,16 @@ module View = {
         ~client=(float_of_int(mouse.loc.col), float_of_int(mouse.loc.row)),
         ~goal=loc(mouse),
       );
+      if (Option.is_some(refactor_drag)) {
+        /* A handler's tracks come from the pressed token and the unchanged
+           expression: prepare them now, as a fast drag or a press at the
+           existing caret need not render again. */
+        sync_drag(
+          ~at_press=true,
+          (),
+        );
+      };
+    };
 
     let move_or_select = (~touch, mouse: Pointer.Event.t, pointer_id: int) =>
       switch (mouse) {
