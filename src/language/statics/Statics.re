@@ -193,6 +193,11 @@ and uexp_to_info_map =
       ~ctx: Ctx.t,
       ~ana=syn,
       ~is_in_filter=false,
+      /* false: if uexp is a Let, it is not recursive. Its definition is
+         analyzed once, in ctx, without the names the Let binds, and is
+         never wrapped in a fixpoint. It applies to uexp alone: `go` gives
+         subterms the default. */
+      ~check_rec: bool=true,
       ~ancestors,
       ~probe_ids: Id.Map.t(unit)=Id.Map.empty,
       uexp: Exp.t,
@@ -274,6 +279,8 @@ and uexp_to_info_map =
         ~ctx=ctx,
         ~ana=syn,
         ~is_in_filter=is_in_filter,
+        /* Not inherited: a subterm's own Let is recursive as usual. */
+        ~check_rec=true,
         ~ancestors=ancestors_inclusive,
         uexp: Exp.t,
         m: Map.t,
@@ -283,6 +290,7 @@ and uexp_to_info_map =
       ~ctx,
       ~ana,
       ~is_in_filter,
+      ~check_rec,
       ~ancestors,
       ~probe_ids,
       uexp,
@@ -315,6 +323,7 @@ and uexp_to_info_map =
         ~ctx,
         ~ana=inner_ty,
         ~is_in_filter,
+        ~check_rec,
         ~ancestors=ancestors_inclusive,
         original_expression,
         m,
@@ -2067,13 +2076,18 @@ and uexp_to_info_map =
           |> def_rewrap
         | (_, _) => def
         };
-      let (def_rec_probe, _, _) = go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
-      let rec_check_ty =
-        switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
-        | Unknown(SynSwitch) => def_rec_probe.ty
-        | _ => p_syn.ty
+      let is_rec =
+        check_rec
+        && {
+          let (def_rec_probe, _, _) =
+            go(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
+          let rec_check_ty =
+            switch (Typ.term_of(Typ.weak_head_normalize(ctx, p_syn.ty))) {
+            | Unknown(SynSwitch) => def_rec_probe.ty
+            | _ => p_syn.ty
+            };
+          is_recursive(ctx, p, def, rec_check_ty);
         };
-      let is_rec = is_recursive(ctx, p, def, rec_check_ty);
       let (def, def_elab, p_ana_ctx, m, ty_p_ana) =
         if (!is_rec) {
           let (def, def_elab, m) = go(~ana=p_syn.ty, def, m);
@@ -2724,7 +2738,8 @@ and uexp_to_info_map =
       );
     | ModuleExp(mp, def, body) =>
       /* Expand module M = def in body → let M = def in body.
-         Process the MPat for cursor info, then expand to Let and type-check. */
+         Process the MPat for cursor info, then expand to Let and type-check.
+         The Let is not recursive: M is unbound inside def. */
       let (_, _, m) =
         any_to_info_map(
           ~ctx,
@@ -2739,7 +2754,8 @@ and uexp_to_info_map =
           Exp.rep_id(uexp),
           Exp.fresh(Let(pat, def, body)),
         );
-      let (expanded_info, expanded_elab, m) = go(~ana, expanded, m);
+      let (expanded_info, expanded_elab, m) =
+        go(~ana, ~check_rec=false, expanded, m);
       /* Override cls to show "Module binding" */
       let m =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
@@ -2754,36 +2770,19 @@ and uexp_to_info_map =
           )
         | _ => m
         };
-      /* Whether the definition names the module: the expanded Let then
-         analyzed it recursively, with the module's name in scope, and
-         wrapped it in a fixpoint. Modules are not recursive, so that
-         analysis can't be reused. (The Let removes the name from the
-         info's co_ctx, so the fixpoint is the sign.) */
-      let names_itself =
-        switch (expanded_elab.term) {
-        | Let(_, {term: FixF(_), _}, _) => true
-        | _ => false
-        };
-      /* The definition's elaboration before the Let wraps it, as the Let's
-         analysis recorded it in the definition's info (under singleton-label
-         lifting, autolabel_singleton_tuple, the info holds the inner
-         elaboration, not the lifted term). Analyzed directly when the
-         definition names the module, which reports the name as unbound, or
-         when no info was recorded. */
-      let (def_elab_direct, m) =
-        switch (Id.Map.find_opt(Exp.rep_id(def), m)) {
-        | Some(Info.InfoExp({elab_term, _})) when !names_itself => (
-            elab_term,
-            m,
-          )
-        | _ =>
-          let def_ana =
-            switch (pat.term) {
-            | Asc(_, typ) => typ
-            | _ => syn
-            };
-          let (_, elab, m) = go(~ana=def_ana, def, m);
-          (elab, m);
+      /* The definition's elaboration before the Let aligns and names it:
+         the one the Let's analysis recorded in the definition's info (under
+         singleton-label lifting, autolabel_singleton_tuple, that is the
+         inner elaboration, not the lifted term). Every arm of
+         uexp_to_info_map records an InfoExp at its term's ids, so the other
+         cases only guard against an analysis that recorded none: they keep
+         the Let's own definition (moduleexp_elab ignores the definition
+         when the elaboration is not a Let). */
+      let def_elab_direct =
+        switch (Id.Map.find_opt(Exp.rep_id(def), m), expanded_elab.term) {
+        | (Some(Info.InfoExp({elab_term, _})), _) => elab_term
+        | (_, Let(_, let_def_elab, _)) => let_def_elab
+        | (_, _) => def
         };
       let moduleexp_elab =
         ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
@@ -2802,9 +2801,15 @@ and uexp_to_info_map =
 
   switch (Typ.weak_head_normalize(ctx, ana).term) {
   | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
+    /* Same term, so ~check_rec carries over. When it is false, uexp is the
+       Let a ModuleExp expands to, at the ModuleExp's ana, and this pre-pass
+       repeats the ModuleExp's own: the same type, so the same choice, and
+       the ModuleExp has already chosen not to lift. So that Let never
+       reaches autolabel_singleton_tuple, whose Tuple analysis could not
+       pass it the flag. */
     // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
     // So for performance reasons we'll just do it here.
-    let (e, _, m) = go(~ana=syn, uexp, m);
+    let (e, _, m) = go(~ana=syn, ~check_rec, uexp, m);
 
     switch (Typ.weak_head_normalize(ctx, e.ty).term) {
     | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>

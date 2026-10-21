@@ -1,4 +1,5 @@
 open Test_Statics_Prelude;
+open Language;
 open FTemp;
 open Typ;
 
@@ -403,12 +404,92 @@ let test_limitation_label_mismatch_hole =
 
 /* ===== MODULE KEYWORD TESTS ===== */
 
+/* The id of the inner F in `module F = fun x -> F(x) in 1`, with or
+   without an ascription on the module's name */
+let self_reference_id = (exp: Exp.t): Id.t =>
+  switch (IdTagged.term_of(exp)) {
+  | ModuleExp(_, {term: Fun(_, {term: Ap(_, f, _), _}, _, _), _}, _) =>
+    IdTagged.rep_id(f)
+  | _ => Alcotest.fail("expected `module F = fun x -> F(x) in ...`")
+  };
+
 /* A module definition that names its own module: modules are not
-   recursive, so the name is unbound inside it, an error */
+   recursive, so the name is unbound inside it. The one error is at the
+   inner F, which reads as a constructor that is not defined. */
+let module_names_itself = (name, source) =>
+  Alcotest.test_case(
+    name,
+    `Quick,
+    () => {
+      let exp = parse_exp(source);
+      Alcotest.(check(list(pair(string, testable_issue))))(
+        "Static errors",
+        [
+          (Id.show(self_reference_id(exp)), Marks([FreeConstructor("F")])),
+        ],
+        errors(statics(exp))
+        |> List.map(((id, ms)) => (Id.show(id), Marks(ms))),
+      );
+    },
+  );
+
 let test_module_names_itself =
-  inconsistent_typecheck(
+  module_names_itself(
     "A module definition that names its own module is an error",
-    {|module F = fun x -> F(x) in 1|} |> parse_exp,
+    {|module F = fun x -> F(x) in 1|},
+  );
+
+let test_ascribed_module_names_itself =
+  module_names_itself(
+    "An ascribed module definition that names its own module is an error",
+    {|module F : Int -> Int = fun x -> F(x) in 1|},
+  );
+
+/* Inside its own definition, a module's name is not in scope */
+let test_module_name_not_in_scope_in_def =
+  Alcotest.test_case(
+    "A module's name is not in scope in its definition",
+    `Quick,
+    () => {
+      let exp = parse_exp({|module F = fun x -> ? in 1|});
+      let hole_id =
+        switch (IdTagged.term_of(exp)) {
+        | ModuleExp(_, {term: Fun(_, hole, _, _), _}, _) =>
+          IdTagged.rep_id(hole)
+        | _ => Alcotest.fail("expected `module F = fun x -> ? in ...`")
+        };
+      let hole_ctx =
+        switch (Statics.Map.lookup(hole_id, statics(exp))) {
+        | Some(info) => Info.ctx_of(info)
+        | None => Alcotest.fail("no info at the hole")
+        };
+      Alcotest.(check(bool))(
+        "F is unbound at the hole",
+        true,
+        Option.is_none(Ctx.lookup_var(hole_ctx, "F")),
+      );
+      Alcotest.(check(bool))(
+        "x is bound at the hole",
+        true,
+        Option.is_some(Ctx.lookup_var(hole_ctx, "x")),
+      );
+    },
+  );
+
+/* A module's definition names the module it shadows */
+let test_module_shadows_module =
+  fully_consistent_typecheck(
+    "A module definition names the module it shadows",
+    {|module F = fun x -> x + 1 in module F = fun x -> F(x) * 2 in F(1)|},
+    Some(int()),
+  );
+
+/* A let inside a module's definition is recursive as usual */
+let test_module_member_recursive =
+  fully_consistent_typecheck(
+    "A module member function can call itself",
+    {|module M = { let f = fun n -> if n == 0 then 7 else f(n - 1) } in M.f(3)|},
+    Some(int()),
   );
 
 /* Test module keyword with lowercase name */
@@ -686,6 +767,10 @@ let tests = (
     test_limitation_label_mismatch_hole,
     /* Module keyword tests */
     test_module_names_itself,
+    test_ascribed_module_names_itself,
+    test_module_name_not_in_scope_in_def,
+    test_module_shadows_module,
+    test_module_member_recursive,
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,
     test_module_keyword_in_mod,

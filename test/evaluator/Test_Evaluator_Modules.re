@@ -97,6 +97,30 @@ let test_module_one_member_signature =
     )
   });
 
+/* A module bound to a function */
+let test_module_function =
+  test_case("A module bound to a function", `Quick, () => {
+    parse_and_evaluate_test("3", {|module F = fun x -> x + 1 in F(2)|})
+  });
+
+/* A module's definition names the module it shadows, not itself */
+let test_module_shadows_module =
+  test_case("A module definition names the module it shadows", `Quick, () => {
+    parse_and_evaluate_test(
+      "4",
+      {|module F = fun x -> x + 1 in module F = fun x -> F(x) * 2 in F(1)|},
+    )
+  });
+
+/* A let inside a module's definition is recursive as usual */
+let test_module_def_recursive_let =
+  test_case("A recursive let inside a module definition", `Quick, () => {
+    parse_and_evaluate_test(
+      "5",
+      {|module F = fun x -> (let g = fun n -> if n == 0 then x else g(n - 1) in g(3)) in F(5)|},
+    )
+  });
+
 /* Test module keyword with capitalized name in exp context */
 let test_module_keyword_capitalized =
   test_case("Module keyword with capitalized name", `Quick, () => {
@@ -161,6 +185,9 @@ let tests = (
     /* Module keyword tests */
     test_module_keyword_lowercase,
     test_module_one_member_signature,
+    test_module_function,
+    test_module_shadows_module,
+    test_module_def_recursive_let,
     test_module_keyword_capitalized,
     test_module_keyword_in_mod,
     test_nested_module_keyword,
