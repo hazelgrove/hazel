@@ -62,8 +62,48 @@ The program is the preamble, then `module Common = { <its text> } in` for each m
 - `ok`: no errors and no holes. A rule still being written can have holes and no errors, so a page acts on `value` only when `ok`.
 - `value` converts as `run`'s does.
 
+## Hazel in a frame (embed mode)
+
+`hazel.org/build/<branch>/index.html#embed` is Hazel's own app in a mode for another page's `<iframe>`: one read-only cell of Hazel's tiles, with statics on and Hazel's own error marks, showing a program the page posts to it. None of the app's startup runs: no saved state (IndexedDB), saved settings or theme, autosave, worker, or focus grabs. The frame's root has no tabindex, so the frame does not take focus from the page by itself (a click in it focuses it, as it does any frame). Hazel does not run the program there, and the theme is Hazel's default.
+
+```js
+const HAZEL = "https://hazel.org";
+const frame = document.createElement("iframe");
+frame.src = HAZEL + "/build/js-library/index.html#embed";
+window.addEventListener("message", e => {
+  if (e.origin !== HAZEL || e.source !== frame.contentWindow) return;
+  switch (e.data.type) {
+    case "ready":  frame.contentWindow.postMessage({type: "set", ...spec}, HAZEL); break;
+    case "size":   frame.style.height = e.data.height + "px"; break;
+    case "status": show(e.data.ok, e.data.errors, e.data.holes); break;
+    case "crash":  fallBack(e.data.message); break;
+  }
+});
+```
+
+Protocol 1. Page to frame:
+
+- `{type: "set", text}`: one program, as text.
+- `{type: "set", preamble, modules, tail}`: a program of modules, the spec `analyzeProgram` takes (`result` is taken for `tail`). The frame shows it as one text: the preamble, then `module Common = {` its text `} in` for each module, then the tail (`ModuleProgram.text_of_parts`). A module with nothing written in it shows as `module Common = {} in`. Read that way it is the program `analyzeProgram` builds, except where a module's text leaves a bracket open, which then reaches into what follows.
+- `{type: "ping"}`: answered with `ready`, for a page that missed it.
+
+A `set` of the program the frame already shows does nothing, so a page can send one on every change. The frame drops the spaces that start each line, as Hazel does for its slides: Hazel lays out indentation itself.
+
+Frame to page:
+
+- `{type: "ready", protocol: 1, build}`, after the frame's first display. `build` is the commit the frame was built from, as `Hazel.build` gives it in that build's `hazel-lib.js`, so a page can tell whether the two came from one deploy (a branch build is cached for up to 10 minutes).
+- `{type: "size", height}`: the height of the frame's content in CSS pixels, for the page to size the frame to.
+- `{type: "status", ok, errors, holes, programHoles}`: the program's errors and holes, the fields as `analyzeProgram` gives them, on the frame's own ids. For a `set` with `text`, `holes` names the modules the text defines.
+- `{type: "crash", message}`: an exception in the frame, each message once. A page can fall back to showing text.
+
+`size` and `status` are posted only when they change. The frame looks after every display, which comes every animation frame.
+
+Origins: the frame takes messages only from its parent window, and only from these origins: `https://matthewhammer.org` and `https://www.matthewhammer.org` (Messed Up Dress Up), `localhost` and `127.0.0.1` on any port over http or https (its dev servers), and the frame's own origin, so the frame opened on its own takes a program posted from its console. The list is `site_origins` and `dev_hosts` in `src/web/embed/EmbedProtocol.re`, built into the frame; to embed Hazel in another site, add its origin there. Once the frame has taken a message, it posts only to that message's origin. Before that it posts only `ready` and `crash`, which carry no program, and to any origin (`"*"`).
+
+The frame is `src/web/embed/`: `EmbedModel` (the cell, its update and what to post, free of the DOM, so a page that mounts Hazel's editor itself can reuse them), `EmbedProtocol` (the messages) and `EmbedMain` (the frame). Tests: `test/Test_Embed.re`.
+
 ## First use, and next
 
-Messed Up Dress Up's Scripting panel: a room's rules are Hazel functions from a game event to the commands to run, which the game interprets. Next here: an editor to mount in another page (`Hazel.mountEditor(element, options)`).
+Messed Up Dress Up's Scripting panel: a room's rules are Hazel functions from a game event to the commands to run, which the game interprets. Next here: editable module cells in the frame, each module's editor seeing the whole program. Later, if a frame is too heavy, an editor to mount in another page directly (`Hazel.mountEditor(element, options)`), on the same model.
 
 The working part is `src/web/HazelLibCore.re`; `src/web/HazelLib.re` puts it on the page. Tests: `test/Test_HazelLib.re`, and `test/Test_ModuleProgram.re` for the program of modules.

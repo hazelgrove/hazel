@@ -50,6 +50,8 @@
   ppx_yojson_conv.expander
   haz3lcore
   b2t2
+  hazelLibCore
+  buildStamp
   docslides
   tutorialslides
   omd)

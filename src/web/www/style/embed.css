@@ -1,0 +1,26 @@
+/* EMBED MODE (index.html#embed, src/web/embed/EmbedMain.re): one cell of
+   tiles in another page's frame. The page root is as tall as its code,
+   so the page around it can size the frame to the height it posts. */
+
+html.hazel-embed,
+html.hazel-embed body {
+  margin: 0;
+}
+
+#page.embed {
+  position: static;
+  display: block;
+  height: auto;
+  width: auto;
+}
+
+/* long lines scroll sideways inside the frame */
+#page.embed > #main {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+#page.embed .embed-note {
+  padding: 1em;
+  color: var(--text-muted);
+}

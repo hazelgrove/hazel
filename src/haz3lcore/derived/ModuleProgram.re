@@ -317,6 +317,105 @@ let of_texts =
   };
 };
 
+/* Whether a body's text has nothing written in it but whitespace and
+   closed comments (`# ... #`) */
+let nothing_written = (body: string): bool => {
+  let rec go = (i, in_comment) =>
+    i >= String.length(body)
+      ? !in_comment
+      : (
+        switch (body.[i]) {
+        | '#' => go(i + 1, !in_comment)
+        | ' '
+        | '\t'
+        | '\n'
+        | '\r' => go(i + 1, in_comment)
+        | _ => in_comment && go(i + 1, in_comment)
+        }
+      );
+  go(0, false);
+};
+
+/* The program as one text, laid out as stitch lays out its term: the
+   preamble, then `module Name = { body } in` for each module in order,
+   then the tail. A body with nothing written in it is `{}`, the empty
+   module, its comments above it, since braces around nothing read as a
+   hole. Read back as an expression, it is the program of_texts builds,
+   except where a body leaves a bracket open, which then reaches into what
+   follows. */
+let text_of_parts =
+    (~preamble: string, ~modules: list((string, string)), ~tail: string)
+    : string =>
+  String.concat(
+    "\n",
+    (String.trim(preamble) == "" ? [] : [preamble])
+    @ List.concat_map(
+        ((name, body)) =>
+          nothing_written(body)
+            ? (String.trim(body) == "" ? [] : [body])
+              @ ["module " ++ name ++ " = {} in"]
+            : ["module " ++ name ++ " = {\n" ++ body ++ "\n} in"],
+        modules,
+      )
+    @ [tail],
+  );
+
+let rec name_of_module_pat = (mp: MPat.t): option(string) =>
+  switch (mp.term) {
+  | Var(name) => Some(name)
+  | Asc(mp, _) => name_of_module_pat(mp)
+  | _ => None
+  };
+
+/* A program written out as one term (text_of_parts read back, or any
+   text): each `module Name = def in` along the chain of definitions that
+   fill_tail follows owns the ids in def and in its name, and errors and
+   holes are told per module by them, as for a stitched program. names:
+   the modules whose holes to count, in order; by default, the modules
+   found. */
+let of_term = (~names: option(list(string))=?, term: Exp.t): t => {
+  let rec chain = (e: Exp.t, found) =>
+    switch (e.term) {
+    | Let(_, _, rest)
+    | TyAlias(_, _, rest)
+    | Theorem(_, _, rest)
+    | Use(_, rest)
+    | Filter(_, rest)
+    | Seq(_, rest) => chain(rest, found)
+    | ModuleExp(mp, def, rest) =>
+      switch (name_of_module_pat(mp)) {
+      | Some(name) => chain(rest, [(name, mp, def), ...found])
+      | None => chain(rest, found)
+      }
+    | _ => List.rev(found)
+    };
+  let modules = chain(term, []);
+  let owners =
+    List.fold_left(
+      (owners, (name, mp: MPat.t, def)) =>
+        List.fold_left(
+          (owners, id) => Id.Map.add(id, name, owners),
+          owners,
+          IdTagged.ids(mp) @ ids_of(def),
+        ),
+      Id.Map.empty,
+      modules,
+    );
+  let found =
+    List.fold_left(
+      (names, (name, _, _)) =>
+        List.mem(name, names) ? names : names @ [name],
+      [],
+      modules,
+    );
+  {
+    term,
+    names: Option.value(names, ~default=found),
+    owners,
+    problems: [],
+  };
+};
+
 let module_of = (p: t, id: Id.t): option(string) =>
   Id.Map.find_opt(id, p.owners);
 
