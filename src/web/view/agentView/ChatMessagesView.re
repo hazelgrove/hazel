@@ -114,6 +114,7 @@ module ViewComponents = {
     let static_error_lines =
       ErrorPrint.all(
         CompositionGo.Public.mk_statics(
+          ~root=code_with_statics.editor.root,
           code_with_statics.editor.state.zipper,
         ),
       );
@@ -850,7 +851,8 @@ let view =
   // for stale-path detection and cmd/ctrl-click jump targets.
   let node_map: option(HighLevelNodeMap.t) = {
     let z = code_with_statics.editor.state.zipper;
-    let info_map = CompositionGo.Public.mk_statics(z);
+    let info_map =
+      CompositionGo.Public.mk_statics(~root=code_with_statics.editor.root, z);
     HighLevelNodeMap.build(z, info_map);
   };
 
@@ -1446,19 +1448,8 @@ let view =
           },
         );
 
-      let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool => {
-        switch (tool_result.tool_call.name) {
-        | "update_definition"
-        | "update_body"
-        | "update_pattern"
-        | "update_binding_clause"
-        | "delete_binding_clause"
-        | "delete_body"
-        | "insert_before"
-        | "insert_after" => true
-        | _ => false
-        };
-      };
+      let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool =>
+        List.mem(tool_result.tool_call.name, Agent.ToolUtils.edit_tool_names);
 
       let edit_tool_results =
         agent_chunk.tool_results |> List.filter(is_edit_tool_call);

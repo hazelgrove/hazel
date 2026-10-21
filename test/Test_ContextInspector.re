@@ -11,21 +11,14 @@ let slide_ctx = (file: string): Ctx.t => {
   let ic = open_in_bin(path);
   let src = really_input_string(ic, in_channel_length(ic));
   close_in(ic);
-  switch (
-    FastParse.of_text(
-      ~materialize=Triggers.invoked_projector,
-      ~collect_refractors=true,
-      ~root=Exp,
-      src,
-    )
-  ) {
+  switch (CorpusUtil.parse(src)) {
   | None => fail("could not parse " ++ file)
   | Some(seg) =>
     let (map, _) =
-      Statics.mk(
+      Statics.mk_unmemoized(
         CoreSettings.on,
-        Builtins.ctx_init(Some(Operators.default_mode)),
-        MakeTerm.go(seg).term,
+        DefStatics.ctx0,
+        MakeTerm.Incr.term_of(seg),
       );
     /* the program's innermost context: the one with the most entries */
     Id.Map.fold(

@@ -23,6 +23,8 @@ type latest = {
   request: Request.t,
   callbacks,
   ack_retries: int,
+  /* posted with every piece, after the worker asked */
+  resent: bool,
 };
 
 let next_request_id = ref(0);
@@ -90,38 +92,126 @@ let with_latest = (request_id, f) =>
   | None => ()
   };
 
+/* the pieces the worker holds: those of the last request posted to it,
+   as it keeps exactly those. a new worker holds none */
+let held: Hashtbl.t(EvalPieces.hash, unit) = Hashtbl.create(256);
+
+/* what the worker holds once it receives [request] */
+let hold = (request: Request.t): unit => {
+  Hashtbl.reset(held);
+  List.iter(
+    ((_, v: Request.value)) =>
+      List.iter(
+        ((hash, _)) => Hashtbl.replace(held, hash, ()),
+        v.program.pieces,
+      ),
+    request.batch,
+  );
+};
+
+/* a piece as posted: [shared], the values the worker already has go as
+   references (Util.ShareCodec); plain when it is not shared or is too
+   deep to walk, with its bytes' hash */
+let posted_piece =
+    (~shared: bool, hash: EvalPieces.hash, piece: EvalPieces.piece)
+    : EvalPieces.posted => {
+  let plain = c => {
+    let bytes = EvalPieces.encode(c);
+    EvalPieces.Plain(bytes, EvalPieces.hash_of(bytes));
+  };
+  switch (piece) {
+  | Bytes(bytes) => Plain(bytes, hash) /* its hash is its bytes' */
+  | Content(c) when shared =>
+    switch (Util.ShareCodec.Client.encode(c)) {
+    | c => Shared(EvalPieces.encode(c))
+    | exception _ => plain(c)
+    }
+  | Content(c) => plain(c)
+  };
+};
+
+/* [request] as posted: its programs' layouts, and the pieces the worker
+   doesn't hold ([full]: all of them), encoded in order ([shared]: each can
+   refer to the values of those before it) */
+let posted_of = (~full: bool, ~shared=false, request: Request.t): Posted.t => {
+  let seen = Hashtbl.create(64);
+  {
+    request_id: request.request_id,
+    batch:
+      List.map(
+        ((key, v: Request.value)) =>
+          (
+            key,
+            Posted.{
+              layout: v.program.layout,
+              prev: v.prev,
+              stream: v.stream,
+            },
+          ),
+        request.batch,
+      ),
+    pieces:
+      List.concat_map(
+        ((_, v: Request.value)) =>
+          List.filter(
+            ((hash, _)) =>
+              (full || !Hashtbl.mem(held, hash))
+              && !Hashtbl.mem(seen, hash)
+              && {
+                Hashtbl.replace(seen, hash, ());
+                true;
+              },
+            v.program.pieces,
+          ),
+        request.batch,
+      )
+      /* (List.map applies in order) */
+      |> List.map(((hash, piece)) =>
+           (hash, posted_piece(~shared, hash, piece))
+         ),
+  };
+};
+
 /* Both directions cross postMessage in the Active encoding, not as live
  * values, to dodge the structured-clone overflow on deep results (#2368;
  * see WorkerServer.Active). Callers still deal in Request.t/Response.t.
  *
  * Encodes once: the Evaluation panel needs the posted byte length, and records
- * the send here so its latency clock starts as close to the post as it can. */
-/* Whether the worker's table of shared values (Util.ShareCodec) must start
-   over with the next request: at first, after the worker restarts, after a
-   Resend, or after a request could not be shared. */
+ * the send here so its latency clock starts as close to the post as it can.
+ * Benchmarking the request-side encodings ([metrics]) happens before, keeping
+ * that (heavy) work outside the latency clock. */
+/* (^ticket(513)) The pieces a request posts go shared (Util.ShareCodec):
+   a changed definition is a new piece, and a livelit release changes one,
+   which in Kids' Choice was ~490 KB posted per release, against ~16 KB
+   when the whole request was shared (before #2469's pieces), and the
+   first post came ~70 ms later. Shared, its values the worker already has
+   go as references. Whether the worker's table must start over with the
+   next request: at first, after the worker restarts, for a request posted
+   in full (a Resend: a piece it could not resolve), or when the client's
+   table is full. */
 let share_reset = ref(true);
 
-let post_evaluate = (worker, request: Request.t) => {
-  if (Util.ShareCodec.Client.size() > Util.ShareCodec.max_entries) {
+let post_evaluate = (~full=false, ~metrics=false, worker, request: Request.t) => {
+  if (full || Util.ShareCodec.Client.size() > Util.ShareCodec.max_entries) {
     share_reset := true;
   };
   let reset = share_reset^;
   if (reset) {
     Util.ShareCodec.Client.reset();
   };
+  share_reset := false;
   let msg =
-    switch (Util.ShareCodec.Client.encode(request)) {
-    | shared =>
-      share_reset := false;
-      ClientMessage.EvaluateShared(reset, shared);
-    | exception _ =>
-      /* too deep to walk: send it whole, and start the tables over */
-      share_reset := true;
-      ClientMessage.Evaluate(request);
-    };
+    ClientMessage.EvaluateShared(
+      reset,
+      posted_of(~full, ~shared=true, request),
+    );
+  if (metrics) {
+    WorkerMetrics.record_request(request.request_id, msg);
+  };
   let encoded = Active.encode_request(msg);
   EvalMetrics.record_sent(~request, ~encoded);
   worker##postMessage(encoded);
+  hold(request);
 };
 
 let fail_latest = latest => {
@@ -171,6 +261,10 @@ let unshare = (msg: ServerMessage.t): option(result(ServerMessage.t, unit)) =>
   | msg => Some(Ok(msg))
   };
 
+/* the worker asked for every piece of the latest request: set below,
+   where the ack timeout is (the handler is installed before it) */
+let resend: ref(latest => unit) = ref(_ => ());
+
 let setup_worker_message_handler = worker => {
   worker##.onmessage :=
     Dom.handler(evt => {
@@ -180,13 +274,17 @@ let setup_worker_message_handler = worker => {
         switch (msg) {
         | ServerMessage.Shared(_) => () /* unshared before here */
         | ServerMessage.Resend({request_id}) =>
-          with_latest(
-            request_id,
-            latest => {
-              share_reset := true;
-              post_evaluate(worker, latest.request);
-            },
-          )
+          /* (^ticket(513)) a superseded request was missing pieces too:
+             what the client counts the worker holding, and the share
+             table, are off, so the next request starts both over */
+          switch (latest_request^) {
+          | Some({request: {request_id: latest_id, _}, _} as latest)
+              when request_id == latest_id =>
+            resend^(latest)
+          | _ =>
+            share_reset := true;
+            Hashtbl.reset(held);
+          }
         | ServerMessage.Ack({request_id}) =>
           /* Liveness only — reuse tinting arrives next via ReusePlan. */
           with_latest(request_id, _ => clear_timer(ack_timeout_id))
@@ -257,11 +355,12 @@ let get_worker = () =>
 
 let restart_worker = (): unit => {
   EvalMetrics.incr_restarts();
-  share_reset := true;
   switch (worker_ref.contents) {
   | Some(w) => w##terminate
   | None => ()
   };
+  Hashtbl.reset(held);
+  share_reset := true;
   worker_ref.contents = Some(init_worker());
 };
 
@@ -303,6 +402,25 @@ let rec start_ack_timeout = (~cold_start, latest) => {
   );
 };
 
+/* asked again after posting every piece: fail it rather than loop */
+resend :=
+  (
+    latest =>
+      if (latest.resent) {
+        print_endline("eval worker: pieces missing from a full request");
+        fail_latest(latest);
+      } else {
+        clear_timer(ack_timeout_id);
+        let latest = {
+          ...latest,
+          resent: true,
+        };
+        latest_request := Some(latest);
+        post_evaluate(~full=true, get_worker(), latest.request);
+        start_ack_timeout(~cold_start=false, latest);
+      }
+  );
+
 let request =
     (
       batch: Request.batch,
@@ -326,13 +444,6 @@ let request =
       request_id: next_request_id^,
       batch,
     };
-    /* The request id doubles as the metrics row id, so the two panels correlate.
-     * Benchmarking the request-side encodings happens before the post, keeping
-     * that (heavy) work outside the latency clock. */
-    WorkerMetrics.record_request(
-      request.request_id,
-      ClientMessage.Evaluate(request),
-    );
     let latest = {
       request,
       callbacks: {
@@ -342,9 +453,12 @@ let request =
         on_stream,
       },
       ack_retries: 0,
+      resent: false,
     };
     latest_request := Some(latest);
-    post_evaluate(get_worker(), latest.request);
+    /* The request id doubles as the metrics row id, so the two panels
+     * correlate. */
+    post_evaluate(~metrics=true, get_worker(), latest.request);
     start_eval_timeout(latest);
     start_ack_timeout(~cold_start=false, latest);
   };

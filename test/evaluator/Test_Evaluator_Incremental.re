@@ -140,9 +140,31 @@ let has_reuse = (ack_incr: EvaluatorState.incr_eval): bool =>
 let directly_reused = (id: Id.t, ack_incr: EvaluatorState.incr_eval): bool =>
   Id.Map.mem(id, ack_incr.entries);
 
-let frozen_ids_for =
+/* surface ids covered by cache entries: each entry short-circuits a
+   subtree, so expand via prev_elab rather than using only the map keys */
+let visible_ids = (incr: EvaluatorState.incr_eval): list(Id.t) => {
+  let acc = ref(Id.Set.empty);
+  let f_exp = (continue, e: Exp.t): Exp.t => {
+    acc := Id.Set.add(Exp.rep_id(e), acc^);
+    /* Module items carry surface ids of their own. */
+    switch (e.term) {
+    | Module(items) =>
+      List.iter(item => acc := Id.Set.add(Mod.rep_id(item), acc^), items)
+    | _ => ()
+    };
+    continue(e);
+  };
+  Id.Map.iter(
+    (_, entry: IncrEval.entry(_)) =>
+      ignore(TermBase.Exp.map_term(~f_exp, entry.prev_elab)),
+    incr.entries,
+  );
+  Id.Set.elements(acc^);
+};
+
+let visible_ids_for =
     (~prev: EvaluatorState.incr_eval, exp: Exp.t): list(Id.t) =>
-  IncrEval.frozen_ids(~incr=reuse_plan(~prev, exp));
+  visible_ids(reuse_plan(~prev, exp));
 
 /* Run eval_incr AND compute the reuse plan for the same (~prev, exp) pair in
  * one go, for tests that assert on both the result and the plan. */
@@ -215,6 +237,49 @@ let test_streaming_plan_omits_misses_and_keeps_children = () => {
     "streaming plan still records reusable descendants",
     true,
     !Id.Map.is_empty(stream.entries),
+  );
+};
+
+/* The page's incremental collector indexes only expressions, so its index
+   must still hold every id the stream names, with types, typed patterns
+   and match arms around them: a missing id falls back to the full walk
+   (correct, but O(program) per stream message). */
+let test_inc_collector_indexes_typed_program = () => {
+  let src = "type T = Int in let f = fun (x : T) -> x + 1 in let (a, b) : (Int, Int) = (f(1), f(2)) in let c = case a | 2 => let k : Int = b * 10 in k | _ => 0 end in test a + b == 5 end; c + 100";
+  let exp1 = parse_exp(src);
+  let exp2 = replace_int_lit(~from=100, ~to_=200, exp1);
+  let (_, _, prev) = eval_incr(exp1);
+  let (info_map, elab) = statics_and_elab(exp2);
+  let eval_info = eval_info_of_statics(info_map);
+  let stream =
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  let outbox = IncrEval.outbox_of_completed(stream);
+  check(
+    bool,
+    "the stream names reused parts",
+    true,
+    Id.Map.cardinal(stream.entries) > 1,
+  );
+  let (inc, state) =
+    StreamCollector.collect_stream_state_inc(~prev=None, outbox, elab);
+  check(
+    bool,
+    "the incremental collector finds every streamed id",
+    true,
+    Option.is_some(inc),
+  );
+  let full = StreamCollector.collect_stream_state(outbox, elab);
+  check(
+    int,
+    "same steps as the full walk",
+    full.step_count,
+    state.step_count,
+  );
+  check(
+    int,
+    "same tests as the full walk",
+    TestMap.count(full.tests),
+    TestMap.count(state.tests),
   );
 };
 
@@ -904,10 +969,8 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
   );
 };
 
-/* Cross-module incremental reuse / UI tinting: when we edit a literal
- * inside module `a`, the unrelated module `c` should be visibly frozen
- * — every surface tile inside `c` should appear in the editor's
- * "frozen" decoration set.
+/* Cross-module incremental reuse: after an edit inside module `a`, every
+ * surface tile of the unrelated module `c` stays in the visible-id set.
  *
  * Background:
  *   A module elaborates to a `Module` whose items keep their surface ids
@@ -916,14 +979,14 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  *   `Evaluator.re:158-164` and marks only that one id as reused
  *   (`IncrEval.mark_reused`). The inner items `let x = fib(b)`,
  *   `let y = fib(b)`, `let z = x + y` are never visited during evaluation,
- *   so the UI must derive frozen ids by walking the reuse plan rather than
- *   visited output.
+ *   so clients must derive visible ids by walking the reuse plan rather
+ *   than visited output.
  *
- *   The "frozen set" is derived from the ACK reuse plan by walking each
+ *   The visible set is derived from the ACK reuse plan by walking each
  *   entry's `prev_elab` and unioning all rep_ids encountered, including the
- *   ids of module items. That set is what the UI should paint as frozen.
- *   This test pins down the desired contents of that set. */
-let test_module_c_inner_ids_in_frozen_set_after_edit_in_module_a = () => {
+ *   ids of module items. This test pins down the desired contents of that
+ *   set. */
+let test_module_c_inner_ids_in_visible_set_after_edit_in_module_a = () => {
   let src = {|let fib = fun n ->
   if n < 2 then 1 else fib(n - 1) + fib(n - 2) in
 let a = {
@@ -960,7 +1023,7 @@ let c = {
     };
   /* Pull out the surface ids of the inner ModLet items: `let x = fib(b)`,
    * `let y = fib(b)`, `let z = x + y`. We assert these all end up in the
-   * frozen set after the edit. (The first item `let bb = 12` becomes the
+   * visible set after the edit. (The first item `let bb = 12` becomes the
    * elab-outermost wrapper that DOES get reused directly, so it's not the
    * interesting case here.) */
   let c_inner_modlet_ids: list(Id.t) =
@@ -987,15 +1050,15 @@ let c = {
     List.length(c_inner_modlet_ids),
   );
   let (_, _, incr1) = eval_incr(exp1);
-  /* The "frozen set" is what the UI should paint as frozen. The reuse
-   * plan can contain an ancestor that short-circuits evaluation; frozen ids
+  /* A reused ancestor can short-circuit evaluation; visible ids
    * expand that to the elab-descendant closure by walking cached prev_elab
    * (in `incr.entries`) and union all rep_ids. */
-  let frozen = frozen_ids_for(~prev=incr1, exp2);
-  let missing = List.filter(id => !List.mem(id, frozen), c_inner_modlet_ids);
+  let visible = visible_ids_for(~prev=incr1, exp2);
+  let missing =
+    List.filter(id => !List.mem(id, visible), c_inner_modlet_ids);
   check(
     int,
-    "all inner ModLet ids of module c land in the frozen set",
+    "all inner ModLet ids of module c land in the visible set",
     0,
     List.length(missing),
   );
@@ -1141,11 +1204,11 @@ let test_diag_nested_module_rhs_edit_marks_binder_dirty = () => {
  *   - `{}` (empty Module exp)
  *   - `0` (Atom)
  *   - the outer Tuple `({}, 0)` (the rhs)
- * should all land in `frozen_ids(incr2)`. Bug we're pinning: only `0`
- * tinted; `{}` and the Tuple didn't, because `SubexpProbeTargets`
+ * should all land in `visible_ids(incr2)`. Bug we're pinning: only `0`
+ * appeared; `{}` and the Tuple didn't, because `SubexpProbeTargets`
  * pulled in synthetic ids from `ModuleHelpers.lower` and the resulting
  * MerkleSet construction shape diverged across runs. */
-let test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen = () => {
+let test_diag_module_in_unchanged_rhs_tuple_lands_in_visible = () => {
   let src = {|let x = ({}, 0) in (x, 3)|};
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=3, ~to_=4, exp1);
@@ -1189,19 +1252,19 @@ let test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen = () => {
     | _ => failwith("rhs inner is not a 2-tuple")
     };
   let (_, _, incr1) = eval_incr(exp1);
-  let frozen = frozen_ids_for(~prev=incr1, exp2);
-  check(bool, "Atom 0 is in frozen set", true, List.mem(zero_id, frozen));
+  let visible = visible_ids_for(~prev=incr1, exp2);
+  check(bool, "Atom 0 is in visible set", true, List.mem(zero_id, visible));
   check(
     bool,
-    "Module {} is in frozen set",
+    "Module {} is in visible set",
     true,
-    List.mem(module_id, frozen),
+    List.mem(module_id, visible),
   );
   check(
     bool,
-    "Tuple ({}, 0) is in frozen set",
+    "Tuple ({}, 0) is in visible set",
     true,
-    List.mem(tuple_id, frozen),
+    List.mem(tuple_id, visible),
   );
 };
 
@@ -1429,12 +1492,12 @@ let test_three_run_leftmost_binop_reuses_on_run3 = () => {
   /* Sanity: on run 2, `(1+2)+3` is unchanged from run 1, so it should be
    * reused — short-circuiting the descent. That means `1+2` itself is
    * NOT directly visited on run 2 (its parent's reuse subsumed it), but
-   * its prev_elab is covered by `frozen_ids`. */
+   * its prev_elab is covered by `visible_ids`. */
   check(
     bool,
-    "Run 2: `1 + 2` is in frozen_ids (subsumed by a reused ancestor)",
+    "Run 2: `1 + 2` is in visible_ids (subsumed by a reused ancestor)",
     true,
-    List.mem(plus_1_2_id, frozen_ids_for(~prev=incr1, exp2)),
+    List.mem(plus_1_2_id, visible_ids_for(~prev=incr1, exp2)),
   );
   /* The actual bug: on run 3, `(1+2)+3` becomes `(1+2)+4` so its parent
    * (and the parent's parent) must be recalculated. The evaluator descends
@@ -1502,14 +1565,14 @@ let test_outer_edit_does_not_dirty_inner_shadowed_use = () => {
   );
   /* The body `x` is not recalculated. It's either directly in `reused`
    * or subsumed by an ancestor's reuse (in which case it appears in the
-   * frozen-ids set derived from `reused`). Without binder-id-aware dirty
+   * visible-ids set derived from `reused`). Without binder-id-aware dirty
    * propagation, this id ends up in `recalculated` because the outer
    * let's name-based dirty `x` falsely invalidates the inner `x` use. */
   check(
     bool,
-    "Body `x` is frozen on run 2 (resolves to inner let, not edited outer)",
+    "Body `x` is visible on run 2 (resolves to inner let, not edited outer)",
     true,
-    List.mem(body_x_id, frozen_ids_for(~prev=incr1, exp2)),
+    List.mem(body_x_id, visible_ids_for(~prev=incr1, exp2)),
   );
 };
 
@@ -1935,6 +1998,57 @@ let one_walk_lexemes_test =
     },
   );
 
+/* Evaluating [after] reusing the cache from evaluating [before] gives the
+ * same result as evaluating [after] from scratch. [after] must be derived
+ * from [before] by an id-preserving edit, or nothing is reused. */
+let incremental_matches_fresh = (~before: Exp.t, ~after: Exp.t) => {
+  check(
+    bool,
+    "the edit changed the expression",
+    false,
+    Exp.fast_equal(before, after),
+  );
+  let (r_fresh, _, _) = eval_incr(after);
+  let (_, _, incr_prev) = eval_incr(before);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, after);
+  check(dhexp_typ, "incremental matches fresh", r_fresh, r_incr);
+};
+
+/* A module's last binding step yields its value. Evaluating the members
+ * again inside the step's closure recorded cache entries for them that
+ * relied on that closure, so after an edit elsewhere the reused `f` came
+ * back as a bare function, without its environment. */
+let test_module_function_member_reused = () => {
+  let before =
+    parse_exp(
+      {|module W = { let f = fun m -> m; let check = fun _ -> f(180) } in W.check(())|},
+    );
+  incremental_matches_fresh(
+    ~before,
+    ~after=replace_int_lit(~from=180, ~to_=181, before),
+  );
+};
+
+/* A module's last binding step yields its value. Evaluating the members
+ * again inside the step's closure recorded cache entries for them under
+ * the names that closure bound, so `y`, moved above `x`, reused its old
+ * value instead of seeing `x` unbound. */
+let test_module_member_moved_above_dependency = () => {
+  let before = parse_exp({|module M = { let x = 1; let y = x + 1 } in M.y|});
+  let reorder = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Module(items) => {
+        ...e,
+        term: Module(List.rev(items)),
+      }
+    | _ => continue(e)
+    };
+  incremental_matches_fresh(
+    ~before,
+    ~after=TermBase.Exp.map_term(~f_exp=reorder, before),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1951,9 +2065,9 @@ let tests = (
       test_toplevel_cast_edit,
     ),
     test_case(
-      "DIAG module in unchanged rhs tuple lands in frozen",
+      "DIAG module in unchanged rhs tuple lands in visible set",
       `Quick,
-      test_diag_module_in_unchanged_rhs_tuple_lands_in_frozen,
+      test_diag_module_in_unchanged_rhs_tuple_lands_in_visible,
     ),
     test_case(
       "DIAG nested-module rhs edit marks binder dirty",
@@ -1971,9 +2085,9 @@ let tests = (
       test_tuple_elab_gives_distinct_tuplabel_ids,
     ),
     test_case(
-      "Module c inner ids land in frozen set after edit in module a",
+      "Module c inner ids land in visible set after edit in module a",
       `Quick,
-      test_module_c_inner_ids_in_frozen_set_after_edit_in_module_a,
+      test_module_c_inner_ids_in_visible_set_after_edit_in_module_a,
     ),
     test_case(
       "Populates entries on fresh run",
@@ -1994,6 +2108,11 @@ let tests = (
       "Streaming plan omits misses and keeps children",
       `Quick,
       test_streaming_plan_omits_misses_and_keeps_children,
+    ),
+    test_case(
+      "Incremental collector indexes a typed program",
+      `Quick,
+      test_inc_collector_indexes_typed_program,
     ),
     test_case(
       "Materialize streaming state marks reused entries",
@@ -2159,6 +2278,16 @@ let tests = (
       "SEALING: dropping a member from a module's signature invalidates its use",
       `Quick,
       test_sig_edit_invalidates_sealed_member,
+    ),
+    test_case(
+      "MODULE: an edit beside a function member keeps the member's closure",
+      `Quick,
+      test_module_function_member_reused,
+    ),
+    test_case(
+      "MODULE: a member moved above its dependency doesn't reuse its value",
+      `Quick,
+      test_module_member_moved_above_dependency,
     ),
   ],
 );

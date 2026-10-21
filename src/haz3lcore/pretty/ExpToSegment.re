@@ -988,7 +988,36 @@ and parenthesize_typ =
       ),
     )
     |> rewrap
-  | Sig(_) => term |> rewrap
+  /* A signature's members are types too, and need the same parentheses
+     inside them: an arrow's tuple argument printed bare reads as the
+     tuple's fields, one of them the arrow. Their outermost type is left
+     bare, as written (`type Action = + A + B`, `let f : A -> B`). */
+  | Sig(items) =>
+    let member = t =>
+      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.min);
+    Sig(
+      List.map(
+        (item: Sig.t) =>
+          switch (item.term) {
+          | SigLet({term: Asc(p, t), _} as asc) => {
+              ...item,
+              term: (
+                SigLet({
+                  ...asc,
+                  term: (Asc(p, member(t)): Pat.term),
+                }): Sig.term
+              ),
+            }
+          | SigType(tp, t) => {
+              ...item,
+              term: (SigType(tp, member(t)): Sig.term),
+            }
+          | _ => item
+          },
+        items,
+      ),
+    )
+    |> rewrap;
   };
 }
 
@@ -1885,6 +1914,24 @@ let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
     };
   };
 
+/* a member hole: its source spelling, else a `?` tile (hole_tiles), else
+   grout */
+let mod_hole_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
+  let id = item |> Mod.rep_id;
+  let seg =
+    switch (hole_lexeme(item.annotation)) {
+    | Some(tok) => text_to_pretty(id, Sort.Mod, tok)
+    | None when settings.hole_tiles => text_to_pretty(id, Sort.Mod, "?")
+    | None => [
+        Grout({
+          id,
+          shape: Convex,
+        }),
+      ]
+    };
+  p_just(wrap_with_secondary(~secondary=settings.secondary, item, seg));
+};
+
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures or DynamicErrorHoles
    */
@@ -2584,19 +2631,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                 wrap already emits it — wrapping both duplicates the runs,
                 growing whitespace on every roundtrip. */
              go(e)
-           | EmptyHole =>
-             let item_id = item |> Mod.rep_id;
-             let seg =
-               switch (hole_lexeme(item.annotation)) {
-               | Some(tok) => text_to_pretty(item_id, Sort.Mod, tok)
-               | None => [
-                   Grout({
-                     id: item_id,
-                     shape: Convex,
-                   }),
-                 ]
-               };
-             p_just(wrap_item(item, seg));
+           | EmptyHole => mod_hole_to_pretty(~settings, item)
            | Invalid(s) =>
              p_just(
                wrap_item(
@@ -3384,18 +3419,7 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
     let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
     and+ e = exp_to_pretty(~settings, e);
     wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
-  | EmptyHole =>
-    let seg =
-      switch (hole_lexeme(item.annotation)) {
-      | Some(tok) => text_to_pretty(item |> Mod.rep_id, Sort.Mod, tok)
-      | None => [
-          Grout({
-            id: item |> Mod.rep_id,
-            shape: Convex,
-          }),
-        ]
-      };
-    p_just(wrap_item(item, seg));
+  | EmptyHole => mod_hole_to_pretty(~settings, item)
   | Invalid(s) =>
     p_just(
       wrap_item(item, invalid_to_pretty(item |> Mod.rep_id, Sort.Mod, s)),

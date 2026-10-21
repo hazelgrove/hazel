@@ -60,9 +60,9 @@ module EvaluatorEVMode: {
   let (let.) = (t1, s) => {
     let.trampoline (x, c) = t1;
     switch (s(x)) {
-    | Step({expr, side_effects, kind, is_value: true}) =>
+    | Step({expr, side_effects, kind, is_value: true, _}) =>
       Trampoline.return((Final, side_effects, Some(kind), expr))
-    | Step({expr, side_effects, kind, is_value: false}) =>
+    | Step({expr, side_effects, kind, is_value: false, _}) =>
       Trampoline.return((Uneval, side_effects, Some(kind), expr))
     | Constructor
     | Value
@@ -577,6 +577,7 @@ let evaluate =
             prev_probe_targets,
             value: final_value,
             state: replay_state(state^),
+            seq: EvaluatorState.get_step_count(state^),
           };
 
           switch (outbox) {
@@ -658,11 +659,11 @@ let prepare_evaluation =
       ~eval_info: EvalInfo.t,
       ~env,
       ~reuse_map: option(IncrEval.reuse_map),
-      ~call_memo: option(CallMemo.t)=None,
       /* the reuse pre-pass for THIS request, when the caller already ran
          it (the worker posts it as the reuse plan): the pass is a full
          walk of the program and was costing as much as the evaluation */
       ~reuse_stream: option(IncrEval.t(EvaluatorState.t))=None,
+      ~call_memo: option(CallMemo.t)=None,
       ~outbox,
       d: DHExp.t,
     )

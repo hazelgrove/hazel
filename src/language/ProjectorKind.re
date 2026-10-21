@@ -20,7 +20,9 @@ type t =
   | Csv
   | HTML
   | Keybinding
-  | Color;
+  | Color
+  /* a theorem's proof in a drawer below it (placed, never invoked) */
+  | Proof;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -60,6 +62,7 @@ let name = (p: t): string =>
   | HTML => "html"
   | Keybinding => "keybinding"
   | Color => "color"
+  | Proof => "proof"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)

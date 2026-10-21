@@ -51,7 +51,7 @@ module Local = {
           Select.term(
             ~defs_exclude_bodies=false,
             ~case_rules=false,
-            CachedSyntax.init(z).term_data,
+            CachedSyntax.init(~root, z).term_data,
             id,
             z,
           )
@@ -59,7 +59,7 @@ module Local = {
         | Some(z') =>
           switch (
             ProjectorPerform.go(
-              CachedSyntax.init(z').term_data,
+              CachedSyntax.init(~root, z').term_data,
               SetIndicated(Specific(Fold)),
               z',
               [],
@@ -100,7 +100,7 @@ module Local = {
       let ids =
         List.filter_map(
           id =>
-            if (!is_term_folded(CachedSyntax.init(z).term_data, id, z)) {
+            if (!is_term_folded(CachedSyntax.init(~root, z).term_data, id, z)) {
               Some(id);
             } else {
               None;
@@ -160,7 +160,7 @@ module Local = {
       let info_map =
         switch (info_map) {
         | Some(m) => m
-        | None => CompositionGo.Public.mk_statics(z)
+        | None => CompositionGo.Public.mk_statics(~root=editor.root, z)
         };
       switch (HighLevelNodeMap.build(z, info_map)) {
       | None => z
