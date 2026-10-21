@@ -258,6 +258,28 @@ module Rewrite = {
       bindings,
     );
 
+  /* One direction of the rule's equation, matched against `exp` but not
+   * applied: the match context and the side it rewrites to. Source
+   * refactors instantiate that side themselves, so that syntax keeps its
+   * identity and unassigned binders become editable holes. */
+  let match_equality =
+      (~statics, ~env, ~direction: Direction.t, rule: t, exp: Exp.t)
+      : option((MatchExp.match_ctx, Exp.t)) =>
+    switch (rule.conclusion) {
+    | Equality(a, b) =>
+      let (from, to_) = Direction.equal(direction, Left) ? (b, a) : (a, b);
+      MatchExp.match_exp(
+        ~statics,
+        ~defs=env,
+        ~exp_r_ctx=empty_bindings(rule.bindings),
+        from,
+        exp,
+      )
+      |> Option.map(~f=mctx => (mctx, to_));
+    | BoolFact(_)
+    | Other(_) => None
+    };
+
   /* Pre-assign one of the rule's binders in a match context, for a
    * `with <var> = <exp>` clause. `None` when `name` is not a binder of the
    * rule, which the caller reports as `UnknownInstantiationVar`. */

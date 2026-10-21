@@ -83,6 +83,8 @@ let (suite, exit_with_test_status) =
     @ Test_RoundtripFuzz.tests
     @ Test_LocalReformat.tests
     @ Test_Refactor.tests
+    @ Test_TheoremRefactor.tests
+    @ Test_SyntaxCorrespondence.tests
     @ Test_MatchExp.tests
     @ Test_MatchExp.pattern_tests
     @ Test_ProofRuleMentions.tests
