@@ -83,6 +83,79 @@ let test_module_keyword_lowercase =
     parse_and_evaluate_test("1", {|module m = { let x = 1 } in m.x|})
   });
 
+/* A module ascribed a one-member signature, with a member more: an error
+   in statics (the signature does not admit the extra member), but it still
+   runs, and M.x is the member, 1, as a labeled tuple's projection gives */
+let test_module_one_member_signature =
+  test_case(
+    "Projecting a declared member of a module wider than its signature",
+    `Quick,
+    () => {
+    parse_and_evaluate_test(
+      "1",
+      {|module M : { let x : Int } = { let x = 1; let y = 2 } in M.x|},
+    )
+  });
+
+/* A module bound to a function */
+let test_module_function =
+  test_case("A module bound to a function", `Quick, () => {
+    parse_and_evaluate_test("3", {|module F = fun x -> x + 1 in F(2)|})
+  });
+
+/* A module bound to a fixpoint the user wrote: the fixpoint is how a
+   module binds a recursive function, so m(3) = 3 * 2 * 1 */
+let test_module_fix =
+  test_case("A module bound to a fixpoint", `Quick, () => {
+    parse_and_evaluate_test(
+      "6",
+      {|module m = fix f -> fun n -> if n == 0 then 1 else n * f(n - 1) in m(3)|},
+    )
+  });
+
+/* A module's definition can use the module it shadows. The definition's
+   elaboration runs without a fixpoint, so this result does not show which
+   F the statics bound; Statics.Modules checks that. */
+let test_module_shadows_module =
+  test_case("A module definition uses the module it shadows", `Quick, () => {
+    parse_and_evaluate_test(
+      "4",
+      {|module F = fun x -> x + 1 in module F = fun x -> F(x) * 2 in F(1)|},
+    )
+  });
+
+/* G defined in terms of G, where an outer G exists. As a `module ... in`
+   binding it is not recursive, so its G is the outer one: G(3) = 20 + 1.
+   As an item in braces it lowers to a plain Let, which is recursive, so G
+   calls itself: G(3) = 3. This pins that split as it is, until it is
+   decided whether braces items are recursive. */
+let test_module_binding_uses_outer =
+  test_case(
+    "A module binding's G is the outer G (pins the braces split)", `Quick, () => {
+    parse_and_evaluate_test(
+      "21",
+      {|module G = fun (n : Int) -> n * 10 in module G = fun (n : Int) -> if n == 0 then 0 else G(n - 1) + 1 in G(3)|},
+    )
+  });
+
+let test_module_item_calls_itself =
+  test_case(
+    "A module item's G calls itself (pins the braces split)", `Quick, () => {
+    parse_and_evaluate_test(
+      "3",
+      {|module G = fun (n : Int) -> n * 10 in module Outer = { module G = fun (n : Int) -> if n == 0 then 0 else G(n - 1) + 1 } in Outer.G(3)|},
+    )
+  });
+
+/* A let inside a module's definition is recursive as usual */
+let test_module_def_recursive_let =
+  test_case("A recursive let inside a module definition", `Quick, () => {
+    parse_and_evaluate_test(
+      "5",
+      {|module F = fun x -> (let g = fun n -> if n == 0 then x else g(n - 1) in g(3)) in F(5)|},
+    )
+  });
+
 /* Test module keyword with capitalized name in exp context */
 let test_module_keyword_capitalized =
   test_case("Module keyword with capitalized name", `Quick, () => {
@@ -146,6 +219,13 @@ let tests = (
     }),
     /* Module keyword tests */
     test_module_keyword_lowercase,
+    test_module_one_member_signature,
+    test_module_function,
+    test_module_fix,
+    test_module_shadows_module,
+    test_module_binding_uses_outer,
+    test_module_item_calls_itself,
+    test_module_def_recursive_let,
     test_module_keyword_capitalized,
     test_module_keyword_in_mod,
     test_nested_module_keyword,
