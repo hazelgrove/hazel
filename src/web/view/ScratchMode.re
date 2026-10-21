@@ -46,9 +46,12 @@ module Update = {
             code,
           );
         let model = Model.with_current_kind(Code(code), model);
-        /* zoomed into another slide: it is current */
+        /* zoomed into another slide: it is current; a slide's `⋯`
+           opened: it loads */
         deck == World
-          ? WorldDeck.follow_zoom(~settings=settings.core, model) : model;
+          ? WorldDeck.follow_zoom(~settings=settings.core, model)
+            |> WorldDeck.load_unfolded(~settings)
+          : model;
       }
     | Outline(a) =>
       switch (Model.current_code(model)) {

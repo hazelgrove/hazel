@@ -234,13 +234,15 @@ let with_segment =
     (
       ~settings: Settings.t,
       ~caret: option((Direction.t, Id.t))=?,
+      /* probes on pieces [new_seg] adds */
+      ~more_probes=[],
       code: Scratchpad.code,
       new_seg: Segment.t,
     )
     : Scratchpad.code => {
   let program = code.program;
   let root = Program.root(program);
-  let probes = Program.probes(program);
+  let probes = Program.probes(program) @ more_probes;
   /* the program's parse and measure caches: they hit for the items the
      edit didn't change */
   let fresh =

@@ -288,6 +288,20 @@ let body = (~slide: Id.t, seg: Segment.t): body =>
   | Some([]) => Gone
   };
 
+/* the slide's `⋯` opened by hand: its brace shows, its body not loaded */
+let opened = (~slide: Id.t, seg: Segment.t): bool =>
+  switch (from_tile(~id=slide, seg)) {
+  | Some([_, ...after]) =>
+    let rec go = (ps: Segment.t) =>
+      switch (ps) {
+      | [Tile(t), ..._] when is_brace(t) => is_unloaded(t)
+      | [Secondary(_), ...rest] => go(rest)
+      | _ => false
+      };
+    go(after);
+  | _ => false
+  };
+
 /* [seg] with the slide [slide]'s body [members] */
 let load = (~slide: Id.t, members: Segment.t, seg: Segment.t): Segment.t => {
   /* the pieces after the slide's tile, its body filled */

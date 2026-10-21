@@ -170,6 +170,63 @@ let zoom_follows = () =>
     check(string, "and loaded", "loaded", body(code, tables));
   });
 
+/* the fold right after the tile [id] undone, at whatever depth */
+let rec unfold_after = (~id, seg: Segment.t): Segment.t => {
+  let rec level = (ps: Segment.t, armed) =>
+    switch (ps) {
+    | [] => []
+    | [Piece.Tile(t) as p, ...rest] when t.id == id => [
+        p,
+        ...level(rest, true),
+      ]
+    | [Piece.Projector(pr), ...rest] when armed => [pr.syntax, ...rest]
+    | [Piece.Secondary(_) as p, ...rest] => [p, ...level(rest, armed)]
+    | [Piece.Tile(t), ...rest] => [
+        Piece.Tile({
+          ...t,
+          children: List.map(unfold_after(~id), t.children),
+        }),
+        ...level(rest, false),
+      ]
+    | [p, ...rest] => [p, ...level(rest, false)]
+    };
+  level(seg, false);
+};
+
+/* a slide's `⋯` opened in the code: it loads where it is */
+let unfold_loads = () =>
+  Test_WorldSlide.shipped(() => {
+    Web.HazelDB.kv_clear();
+    let web = Web.Settings.Model.init;
+    let m = Deck.load(~settings);
+    let (name, code) = current(m);
+    let slide = Deck.slide_id(tables);
+    let doc = Web.Program.document(code.program);
+    check(bool, "Tables folded", false, WorldTree.opened(~slide, doc));
+    let doc = unfold_after(~id=slide, doc);
+    check(bool, "Tables opened", true, WorldTree.opened(~slide, doc));
+    let m =
+      Deck.load_unfolded(
+        ~settings=web,
+        Model.with_current_kind(
+          Code(Web.Workspace.with_segment(~settings=web, code, doc)),
+          m,
+        ),
+      );
+    let (name', code) = current(m);
+    check(string, "still on its slide", name, name');
+    check(string, "Tables loaded", "loaded", body(code, tables));
+    check(
+      string,
+      "with its members",
+      Printer.of_segment(~holes="?", fst(Deck.members(tables))),
+      switch (WorldTree.body(~slide, Web.Program.document(code.program))) {
+      | Loaded(members) => Printer.of_segment(~holes="?", members)
+      | _ => "?"
+      },
+    );
+  });
+
 let tests = (
   "WorldDeck",
   [
@@ -177,5 +234,6 @@ let tests = (
     test_case("adding and deleting a slide", `Quick, add_delete),
     test_case("renaming a slide", `Quick, rename),
     test_case("zooming into a slide follows it", `Quick, zoom_follows),
+    test_case("opening a slide's ⋯ loads it", `Quick, unfold_loads),
   ],
 );

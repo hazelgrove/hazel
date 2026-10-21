@@ -238,6 +238,43 @@ let hydrate_current = (~settings, model: Model.t): Model.t => {
   };
 };
 
+/* a slide's `⋯` opened in the code: its members load in place, with
+   their probes, as if they had been there all along (no undo step) */
+let load_unfolded = (~settings: Settings.t, model: Model.t): Model.t =>
+  switch (List.nth(model.scratchpads, model.current)) {
+  | {kind: Code({world: Some(_), program, _} as code), dormant: false, _} =>
+    let doc = Program.document(program);
+    switch (
+      List.filter(
+        name => WorldTree.opened(~slide=slide_id(name), doc),
+        names(),
+      )
+    ) {
+    | [] => model
+    | opened =>
+      let (doc, probes) =
+        List.fold_left(
+          ((doc, probes), name) => {
+            let (mine, own) = members(name);
+            Hashtbl.replace(loaded, name, ());
+            (
+              WorldTree.load(~slide=slide_id(name), mine, doc),
+              probes @ own,
+            );
+          },
+          (doc, []),
+          opened,
+        );
+      Model.with_current_kind(
+        Code(
+          Workspace.with_segment(~settings, ~more_probes=probes, code, doc),
+        ),
+        model,
+      );
+    };
+  | _ => model
+  };
+
 /* per loaded slide, the members last written */
 let last_saved: Hashtbl.t(string, Segment.t) = Hashtbl.create(16);
 
