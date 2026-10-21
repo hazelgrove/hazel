@@ -25,6 +25,11 @@ let right_associative = (level: t) => {
 let max: t = 0;
 
 // ========== TYPES ==========
+// M.T: tighter than every other type operator, as in the text grammar, so
+// `A -> M.T` is `A -> (M.T)`
+let type_dot = 9 |> left_associative;
+// implicit S : SIG (binds tighter than , and ->)
+let type_implicit = 10;
 let type_sum_ap = 11;
 // _____ (Int)
 // + T1 + _____
@@ -50,6 +55,9 @@ let asc = 24 |> left_associative;
 // _____ : T
 // - _____
 let neg = 25;
+// implicit S : SIG in a pattern: looser than `:` (the annotation is the
+// binder's), tighter than `::` and `,` (the binder is one component)
+let implicit_pat = 26;
 // _____ ** 2
 let power = 26 |> right_associative;
 // 2 ** _____

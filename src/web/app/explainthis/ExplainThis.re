@@ -1019,6 +1019,7 @@ let decide =
         | Label(_)
         | ExplicitNonlabel
         | Projector(_)
+        | Implicit(_)
         | Asc(_) => NoDoc // Shouldn't get hit?
         };
       | Label(name) => get_message(LabelTerm.labels(name))
@@ -1198,6 +1199,7 @@ let decide =
         | Invalid(_) => NoDoc // Shouldn't get hit
         | Parens(_)
         | Projector(_)
+        | Implicit(_)
         | Asc(_) => NoDoc // Shouldn't get hit?
         };
       | Theorem(pat, thm, body) =>
@@ -1444,6 +1446,7 @@ let decide =
       | _ => basic(ListPat.cons(~hd_id, ~tl_id))
       };
     | Var(v) => get_message(TerminalPat.var(v))
+    | Implicit(_) => message_single(ImplicitPat.single)
     | ExplicitNonlabel => Prose("Explicitly unlabeled entry")
     | Label(name) => get_message(LabelTerm.labels(name))
     | TupLabel(l, p) =>
@@ -1578,6 +1581,7 @@ let decide =
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Unknown(Hole(Invalid(_))) => Prose("Not a type or type operator")
     | ProdProjection(_) => get_message(DotTyp.dot)
+    | Implicit(_) => message_single(ImplicitTyp.single)
     | ExplicitNonlabel
     | ProdExtension(_)
     | Parens(_)
