@@ -11,10 +11,9 @@
    blur) has nothing to focus: the frame does not take focus from the page
    by itself. A click in it focuses it, as it does any frame.
 
-   Messages are taken only from the parent window, from an origin
-   EmbedProtocol.origin_allowed allows, and the frame then posts only to
-   that origin. Before any, it posts ready and crash (which carry no
-   program) to any origin. */
+   EmbedLink has what is taken from the page and what is posted to it.
+   A page may send a program on every change: the frame shows the latest
+   one sent, set once per animation frame. */
 open Js_of_ocaml;
 open Util;
 open Virtual_dom.Vdom;
@@ -30,66 +29,65 @@ let standalone = (): bool => Js.Unsafe.equals(parent(), window);
 let own_origin = (): string =>
   Js.to_string(Js.Unsafe.get(Js.Unsafe.get(window, "location"), "origin"));
 
-/* the origin of the last message taken from the page */
-let page_origin: ref(option(string)) = ref(None);
-
-let post = (~target: string, message: EmbedModel.Outbox.message): unit =>
-  ignore(
-    Js.Unsafe.meth_call(
-      parent(),
-      "postMessage",
-      [|
-        EmbedProtocol.encode(message),
-        Js.Unsafe.inject(Js.string(target)),
-      |],
-    ): Js.Unsafe.any,
+let link = (): EmbedLink.t =>
+  EmbedLink.make(
+    ~parent=parent(), ~own_origin=own_origin(), ~post=(data, target) =>
+    ignore(
+      Js.Unsafe.meth_call(
+        parent(),
+        "postMessage",
+        [|data, Js.Unsafe.inject(Js.string(target))|],
+      ): Js.Unsafe.any,
+    )
   );
 
-let ready = (~target) => post(~target, Ready(BuildStamp.commit));
-
-/* each distinct crash is posted once */
-let crashes: ref(list(string)) = ref([]);
-
-let crash = (message: string): unit => {
+let crash = (~link, message: string): unit => {
   print_endline("ERROR (embed): " ++ message);
-  if (!List.mem(message, crashes^)) {
-    crashes := [message, ...crashes^];
-    try(
-      post(~target=Option.value(page_origin^, ~default="*"), Crash(message))
-    ) {
-    | _ => ()
-    };
-  };
+  EmbedLink.crash(link, message);
 };
 
 let model = Bonsai.Var.create(EmbedModel.Model.init);
 
-let update = (action: EmbedModel.Update.t): unit =>
+let update = (~link, action: EmbedModel.Update.t): unit =>
   Bonsai.Var.update(model, ~f=m =>
     try(EmbedModel.Update.update(action, m)) {
     | exn =>
-      crash(Printexc.to_string(exn));
+      crash(~link, Printexc.to_string(exn));
       m;
     }
   );
 
-let on_message = (event: Js.Unsafe.any): unit =>
-  try({
-    let origin = Js.to_string(Js.Unsafe.get(event, "origin"));
-    if (Js.Unsafe.equals(Js.Unsafe.get(event, "source"), parent())
-        && EmbedProtocol.origin_allowed(~own=own_origin(), origin)) {
-      switch (EmbedProtocol.decode(Js.Unsafe.get(event, "data"))) {
-      | Some(Set(program)) =>
-        page_origin := Some(origin);
-        update(Set(program));
-      | Some(Ping) =>
-        page_origin := Some(origin);
-        ready(~target=origin);
-      | None => ()
-      };
-    };
-  }) {
-  | exn => crash(Printexc.to_string(exn))
+/* The latest program sent and not yet set: one is set per animation
+   frame, so programs sent faster than they are read do not queue up */
+let pending: ref(option(EmbedModel.Program.t)) = ref(None);
+
+let set_soon = (~link, program: EmbedModel.Program.t): unit => {
+  let scheduled = Option.is_some(pending^);
+  pending := Some(program);
+  if (!scheduled) {
+    ignore(
+      Dom_html.window##requestAnimationFrame(
+        Js.wrap_callback(_ =>
+          switch (pending^) {
+          | Some(program) =>
+            pending := None;
+            update(~link, Set(program));
+          | None => ()
+          }
+        ),
+      ),
+    );
+  };
+};
+
+let on_message = (~link, event: Js.Unsafe.any): unit =>
+  try(
+    switch (EmbedLink.receive(link, event)) {
+    | Some(program) => set_soon(~link, program)
+    | None => ()
+    }
+  ) {
+  | exn => crash(~link, Printexc.to_string(exn))
   };
 
 let listen = (name: string, f: Js.Unsafe.any => unit): unit =>
@@ -105,30 +103,29 @@ let listen = (name: string, f: Js.Unsafe.any => unit): unit =>
     ): Dom.event_listener_id,
   );
 
-/* After a display, the height of the page root and the status, posted to
-   the page when they change */
-let sent = ref(EmbedModel.Outbox.nothing_sent);
-
-let report = (model: EmbedModel.Model.t): unit =>
-  switch (page_origin^, JsUtil.get_elem_by_id_opt("page")) {
-  | (Some(target), Some(page)) =>
-    let (messages, now_sent) =
-      EmbedModel.Outbox.after_display(
-        ~height=page##.scrollHeight,
-        model,
-        sent^,
+/* After a display, the height of the page root, rounded up so the
+   content always fits the frame sized to it (rows are a fraction of a
+   pixel tall), and the status, posted to the page when they change */
+let report = (~link, model: EmbedModel.Model.t): unit =>
+  switch (JsUtil.get_elem_by_id_opt("page")) {
+  | Some(page) =>
+    let rect: Js.Unsafe.any =
+      Js.Unsafe.meth_call(page, "getBoundingClientRect", [||]);
+    let height =
+      int_of_float(
+        Float.ceil(Js.float_of_number(Js.Unsafe.get(rect, "height"))),
       );
-    sent := now_sent;
-    List.iter(post(~target), messages);
-  | _ => ()
+    EmbedLink.report(link, ~height, model);
+  | None => ()
   };
 
-let set_font_metrics = (~col_width: float, ~row_height: float): unit => {
+let set_font_metrics = (~link, ~col_width: float, ~row_height: float): unit => {
   JsUtil.set_css_custom_property(
     "--row-height-px",
     Printf.sprintf("%fpx", row_height),
   );
   update(
+    ~link,
     SetFontMetrics({
       row_height,
       col_width,
@@ -167,7 +164,7 @@ let view = (~standalone: bool, model: EmbedModel.Model.t): Node.t =>
     },
   );
 
-let app = (~standalone: bool) => {
+let app = (~link, ~standalone: bool) => {
   let%sub size =
     BonsaiUtil.SizeObserver.observer(
       () => JsUtil.get_elem_by_id("font-specimen"),
@@ -186,6 +183,7 @@ let app = (~standalone: bool) => {
           Bonsai.Effect.of_sync_fun(
             () =>
               set_font_metrics(
+                ~link,
                 ~col_width=rect.width,
                 ~row_height=rect.height,
               ),
@@ -202,9 +200,9 @@ let app = (~standalone: bool) => {
             JsUtil.on_dpr_change(() => {
               let (col_width, row_height) =
                 JsUtil.font_metrics_from_specimen();
-              set_font_metrics(~col_width, ~row_height);
+              set_font_metrics(~link, ~col_width, ~row_height);
             });
-            ready(~target=Option.value(page_origin^, ~default="*"));
+            EmbedLink.ready(link);
           },
           (),
         ),
@@ -216,8 +214,8 @@ let app = (~standalone: bool) => {
         let%map model = Bonsai.Var.value(model);
         Bonsai.Effect.of_sync_fun(
           () =>
-            try(report(model)) {
-            | exn => crash(Printexc.to_string(exn))
+            try(report(~link, model)) {
+            | exn => crash(~link, Printexc.to_string(exn))
             },
           (),
         );
@@ -226,19 +224,26 @@ let app = (~standalone: bool) => {
   let%arr model = Bonsai.Var.value(model);
   try(view(~standalone, model)) {
   | exn =>
-    crash(Printexc.to_string(exn));
+    crash(~link, Printexc.to_string(exn));
     page([Node.text("This program could not be shown.")]);
   };
 };
 
 let go = () => {
-  Dom_html.document##.documentElement##.classList##add(
-    Js.string("hazel-embed"),
-  );
-  listen("message", on_message);
+  let link = link();
+  let standalone = standalone();
+  let classes = Dom_html.document##.documentElement##.classList;
+  classes##add(Js.string("hazel-embed"));
+  /* in a frame, the page sizes the frame to the height posted, so the
+     frame itself does not scroll (embed.css) */
+  if (!standalone) {
+    classes##add(Js.string("framed"));
+  };
+  listen("message", on_message(~link));
   /* an exception nothing else caught */
   listen("error", event =>
     crash(
+      ~link,
       switch (Js.Optdef.to_option(Js.Unsafe.get(event, "message"))) {
       | Some(message) => Js.to_string(message)
       | None => "an uncaught error"
@@ -246,7 +251,7 @@ let go = () => {
     )
   );
   Bonsai_web.Start.start(
-    app(~standalone=standalone()),
+    app(~link, ~standalone),
     ~bind_to_element_with_id="container",
   );
 };

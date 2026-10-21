@@ -81,6 +81,25 @@ let items = (e: Exp.t): list(string) =>
   | _ => ["not a module: " ++ Exp.show(e)]
   };
 
+/* the rules above, with a closer left out or one too many */
+let common_missing_paren = "let flip2 = fun (a, b) : (String, String) -> Flip(a, Flip(b, Done)";
+let common_stray_brace = common ++ " }";
+let trap_missing_end = "let on_event = fun (g, e) : (Globals, Event) -> case e | Pull(side) => Common.flip2(\"lever_L\", \"lever_R\")";
+let wrong_return_rule = rule("\"hi\"");
+
+/* each module's definition in a program's term, by name */
+let rec module_defs = (e: Exp.t): list((string, Exp.t)) =>
+  switch (e.term) {
+  | Let(_, _, rest)
+  | TyAlias(_, _, rest) => module_defs(rest)
+  | ModuleExp(mp, def, rest) =>
+    switch (ModuleProgram.name_of_module_pat(mp)) {
+    | Some(name) => [(name, def), ...module_defs(rest)]
+    | None => module_defs(rest)
+    }
+  | _ => []
+  };
+
 let tests = (
   "ModuleProgram",
   [
@@ -192,17 +211,208 @@ let tests = (
       },
     ),
     test_case(
-      "an error in the tail is the program's, not a module's", `Quick, () =>
-      check(
-        list(string),
-        "TrapRoom.nope",
-        ["(program)"],
-        modules_of(
-          errors(
-            program(~tail="(trap_room = TrapRoom.nope, rooms = 1)", ()),
+      "an error in the tail is the program's, unless it is on a module's member",
+      `Quick,
+      () => {
+        check(
+          list(string),
+          "1 + true",
+          ["(program)"],
+          modules_of(
+            errors(
+              program(
+                ~tail="(trap_room = TrapRoom.on_event, rooms = 1 + true)",
+                (),
+              ),
+            ),
           ),
-        ),
+        );
+        check(
+          list(string),
+          "TrapRoom.nope: TrapRoom has no nope",
+          ["TrapRoom"],
+          modules_of(
+            errors(
+              program(~tail="(trap_room = TrapRoom.nope, rooms = 1)", ()),
+            ),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "what a room's rule lacks shows in the tail, and is the room's",
+      `Quick,
+      () => {
+        List.iter(
+          trap =>
+            check(
+              list(string),
+              "TrapRoom [" ++ String.escaped(trap) ++ "] has no on_event",
+              ["TrapRoom"],
+              modules_of(errors(program(~trap, ()))),
+            ),
+          ["", "?", "1 + 2"],
+        );
+        check(
+          list(string),
+          "a rule that gives a String where the tail asks for a Cmd",
+          ["TrapRoom"],
+          modules_of(
+            errors(
+              program(~trap=wrong_return_rule, ~tail=ascribed_tail, ()),
+            ),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "a bracket or keyword left open, or closed with no opener, is incomplete in its module",
+      `Quick,
+      () => {
+        let incomplete = (~common=common, ~trap=flip2_rule, ()) =>
+          ModuleProgram.incomplete(program(~common, ~trap, ()));
+        check(
+          pair(list(pair(string, int)), int),
+          "the shipped program",
+          ([("Common", 0), ("TrapRoom", 0)], 0),
+          incomplete(),
+        );
+        List.iter(
+          ((what, common, trap, expected)) =>
+            check(
+              pair(list(pair(string, int)), int),
+              what,
+              (expected, 0),
+              incomplete(~common, ~trap, ()),
+            ),
+          [
+            (
+              "a stray } in Common",
+              common_stray_brace,
+              flip2_rule,
+              [("Common", 1), ("TrapRoom", 0)],
+            ),
+            (
+              "Common missing its last )",
+              common_missing_paren,
+              flip2_rule,
+              [("Common", 1), ("TrapRoom", 0)],
+            ),
+            (
+              "TrapRoom missing its end",
+              common,
+              trap_missing_end,
+              [("Common", 0), ("TrapRoom", 1)],
+            ),
+          ],
+        );
+        check(
+          pair(list(pair(string, int)), int),
+          "the tail missing its )",
+          ([("Common", 0), ("TrapRoom", 0)], 1),
+          ModuleProgram.incomplete(
+            program(~tail="(trap_room = TrapRoom.on_event, rooms = 1", ()),
+          ),
+        );
+      },
+    ),
+    test_case(
+      "bodies only the recovering parser reads print back, as modules",
+      `Quick,
+      () =>
+      List.iter(
+        ((text, printed)) => {
+          check(
+            bool,
+            text ++ ": not read by the fast parser",
+            true,
+            FastParse.of_text(~root=Sort.Mod, text) == None,
+          );
+          let z = zipper(~root=Sort.Mod, text);
+          check(
+            string,
+            "text, zipper, text",
+            printed,
+            PersistentZipper.to_string(z),
+          );
+          check(
+            bool,
+            text ++ ": a module",
+            true,
+            switch (MakeTerm.from_zip_for_sem(z, ~root=Sort.Mod).term.term) {
+            | Module(_) => true
+            | _ => false
+            },
+          );
+        },
+        [
+          (common_stray_brace, common_stray_brace),
+          (common_missing_paren, common_missing_paren),
+          (trap_missing_end, trap_missing_end),
+          /* the editor closes a comment it opens */
+          ("let a = 1 # todo", "let a = 1 # todo#"),
+        ],
       )
+    ),
+    test_case(
+      "a cache reads again only the parts whose text changed",
+      `Quick,
+      () => {
+        let cache = ModuleProgram.cache();
+        let read = (~common=common, ~trap=trap, ()) =>
+          module_defs(
+            ModuleProgram.of_texts_cached(
+              cache,
+              ~preamble,
+              ~modules=[("Common", common), ("TrapRoom", trap)],
+              ~tail,
+            ).
+              term,
+          );
+        let first = read();
+        let second = read(~trap=flip2_rule, ());
+        check(
+          bool,
+          "Common, unchanged, is the term read before",
+          true,
+          List.assoc("Common", first) === List.assoc("Common", second),
+        );
+        check(
+          bool,
+          "TrapRoom, changed, is read again",
+          false,
+          List.assoc("TrapRoom", first) === List.assoc("TrapRoom", second),
+        );
+        check(
+          bool,
+          "a cached program has the same errors",
+          true,
+          modules_of(
+            errors(
+              ModuleProgram.of_texts_cached(
+                cache,
+                ~preamble,
+                ~modules=[("Common", common), ("TrapRoom", error_rule)],
+                ~tail,
+              ),
+            ),
+          )
+          == modules_of(errors(program(~trap=error_rule, ()))),
+        );
+        let _ =
+          ModuleProgram.of_texts_cached(
+            cache,
+            ~preamble,
+            ~modules=[("Common", common)],
+            ~tail,
+          );
+        check(
+          int,
+          "a module gone from the program is gone from the cache",
+          3,
+          Hashtbl.length(cache),
+        );
+      },
     ),
     test_case("the tail can ascribe a room's rule its type", `Quick, () =>
       check(
@@ -372,6 +582,103 @@ let tests = (
           "an empty editor",
           [],
           items(ModuleProgram.body_of_zipper(Zipper.init())),
+        );
+      },
+    ),
+    test_case(
+      "an editor with nothing written is the empty module to its statics too",
+      `Quick,
+      () => {
+        let preamble =
+          switch (ModuleProgram.preamble_of_text(preamble)) {
+          | Some(p) => p
+          | None => fail("the preamble does not parse")
+          };
+        let tail =
+          switch (ModuleProgram.exp_of_text("(rooms = 1, other = 2)")) {
+          | Some(t) => t
+          | None => fail("the tail does not parse")
+          };
+        List.iter(
+          ((what, z)) => {
+            let stitched = ref(None);
+            let _ =
+              CachedStatics.init(
+                ~settings=CoreSettings.on,
+                ~is_dynamic_term=false,
+                ~stitch=
+                  body => {
+                    let p =
+                      ModuleProgram.stitch(
+                        ~preamble,
+                        ~modules=[("TrapRoom", body)],
+                        ~tail,
+                      );
+                    stitched := Some(p);
+                    p.term;
+                  },
+                ~ctx=ctx(),
+                ~root=Sort.Mod,
+                z,
+              );
+            switch (stitched^) {
+            | Some(p) =>
+              check(
+                list(pair(string, int)),
+                what,
+                [("TrapRoom", 0)],
+                fst(ModuleProgram.holes(p)),
+              )
+            | None => fail("not stitched")
+            };
+          },
+          [
+            ("an empty editor", Zipper.init()),
+            ("comments only", zipper(~root=Sort.Mod, "# nothing yet #")),
+          ],
+        );
+      },
+    ),
+    test_case(
+      "a comment ends on its line, so text after an unclosed one is written",
+      `Quick,
+      () => {
+        List.iter(
+          ((text, expected)) =>
+            check(
+              bool,
+              String.escaped(text),
+              expected,
+              ModuleProgram.nothing_written(text),
+            ),
+          [
+            ("", true),
+            ("  \n", true),
+            ("# nothing yet #", true),
+            ("# a #\n  # b #\n", true),
+            ("# todo", false),
+            ("# todo\nflip #", false),
+            ("# a # x", false),
+          ],
+        );
+        check(
+          bool,
+          "laid out inside its braces",
+          true,
+          switch (
+            Str.search_forward(
+              Str.regexp_string("module Common = {\n# todo\nflip #\n} in"),
+              ModuleProgram.text_of_parts(
+                ~preamble,
+                ~modules=[("Common", "# todo\nflip #")],
+                ~tail,
+              ),
+              0,
+            )
+          ) {
+          | _ => true
+          | exception Not_found => false
+          },
         );
       },
     ),

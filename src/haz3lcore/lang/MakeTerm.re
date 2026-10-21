@@ -2029,8 +2029,25 @@ let from_zip_for_sem_with_completion = (z: Zipper.t, ~root: Sort.t) => {
       | [Tile({children: [inner], _})] => inner
       | completed => completed
       };
+    let made = go_impl(~masks, result.completed_seg);
+    /* A body with nothing written in it (whitespace, comments, and the
+       empty editor's own hole) is the empty module, not a module of one
+       hole */
+    let nothing_written =
+      List.for_all(
+        (p: Piece.t) => Piece.is_secondary(p) || Piece.is_grout(p),
+        seg,
+      );
     (
-      go_impl(~masks, result.completed_seg),
+      nothing_written
+        ? {
+          ...made,
+          term: {
+            ...made.term,
+            term: Module([]),
+          },
+        }
+        : made,
       {
         source: seg,
         completed,

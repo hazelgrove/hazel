@@ -34,24 +34,29 @@ module Program = {
     | Parts({modules, _}) => Some(List.map(fst, modules));
 };
 
-/* The program's errors and holes, each with its module (None for the
-   preamble, the tail and the joins between them), as analyzeProgram gives
-   them, but on the cell's own ids */
+/* The program's errors, holes and incomplete tiles, each with its module
+   (None for the preamble, the tail and the joins between them), as
+   analyzeProgram gives them, but on the cell's own ids */
 module Status = {
   type t = {
     errors: list(ModuleProgram.error),
     holes: list((string, int)),
     program_holes: int,
+    incomplete: list((string, int)),
+    program_incomplete: int,
   };
 
   let of_statics =
       (~names: option(list(string))=?, statics: CachedStatics.t): t => {
     let p = ModuleProgram.of_term(~names?, statics.term);
     let (holes, program_holes) = ModuleProgram.holes(p);
+    let (incomplete, program_incomplete) = ModuleProgram.incomplete(p);
     {
       errors: ModuleProgram.errors(p, statics.info_map),
       holes,
       program_holes,
+      incomplete,
+      program_incomplete,
     };
   };
 };
@@ -69,6 +74,15 @@ let settings: Settings.t = {
   line_numbers: false,
 };
 
+/* A module's body as last read: its place and name, its text, and what
+   it was read as */
+type body = {
+  place: int,
+  name: string,
+  text: string,
+  read: option(Zipper.t),
+};
+
 module Model = {
   type t = {
     /* None until a page sends one */
@@ -76,6 +90,9 @@ module Model = {
     cell: CodeWithStatics.Model.t,
     status: option(Status.t),
     font_metrics: FontMetrics.t,
+    /* the bodies of the last program of parts, so a set re-reads only
+       the bodies whose text changed */
+    bodies: list(body),
   };
 
   let init: t = {
@@ -86,6 +103,7 @@ module Model = {
       ),
     status: None,
     font_metrics: FontMetrics.init,
+    bodies: [],
   };
 
   let globals = (model: t): Globals.t =>
@@ -97,22 +115,8 @@ module Update = {
     | Set(Program.t)
     | SetFontMetrics(FontMetrics.t);
 
-  /* A cell for the text, by the path a saved editor loads by, and its
-     statics. Leading spaces are dropped from each line, as for a slide's
-     source: Hazel lays out indentation itself, and draws written spaces
-     on top of it. */
-  let cell_of_text = (text: string): CodeWithStatics.Model.t => {
-    let zipper =
-      switch (
-        PersistentZipper.parse_text(
-          ~source="embed",
-          ~root=Sort.Exp,
-          StringUtil.trim_leading(text),
-        )
-      ) {
-      | Some(z) => z
-      | None => Zipper.init()
-      };
+  /* A cell holding the zipper, and its statics */
+  let cell_of_zipper = (zipper: Zipper.t): CodeWithStatics.Model.t =>
     Editor.Model.mk(zipper, ~root=Sort.Exp)
     |> CodeWithStatics.Model.mk
     |> CodeWithStatics.Update.calculate(
@@ -122,13 +126,83 @@ module Update = {
          ~dynamics=Language.Dynamics.Map.empty,
          ~is_dynamic_term=false,
        );
-  };
+
+  /* Leading spaces are dropped from each line, as for a slide's source:
+     Hazel lays out indentation itself, and draws written spaces on top
+     of it. */
+  let zipper_of_text = (text: string): Zipper.t =>
+    switch (
+      PersistentZipper.parse_text(
+        ~source="embed",
+        ~root=Sort.Exp,
+        StringUtil.trim_leading(text),
+      )
+    ) {
+    | Some(z) => z
+    | None => Zipper.init()
+    };
+
+  /* The program as one zipper, and the bodies read for it. A text is
+     read whole, by the path a saved editor loads by. A program's parts
+     are laid out as one text lays them out (Program.text), but each body
+     is read on its own, inside its own braces (ModuleProgram.
+     zipper_of_parts), and a body whose place, name and text are those of
+     a body last read is not read again. */
+  let read =
+      (~bodies: list(body), program: Program.t): (Zipper.t, list(body)) =>
+    switch (program) {
+    | Text(text) => (zipper_of_text(text), [])
+    | Parts({preamble, modules, tail}) =>
+      let bodies_read = ref([]);
+      let read_body = (place, name, text) => {
+        let body =
+          switch (
+            List.find_opt(
+              (b: body) =>
+                b.place == place && b.name == name && b.text == text,
+              bodies,
+            )
+          ) {
+          | Some(b) => b
+          | None => {
+              place,
+              name,
+              text,
+              read:
+                PersistentZipper.parse_text(
+                  ~source="embed module " ++ name,
+                  ~root=Sort.Mod,
+                  text,
+                ),
+            }
+          };
+        bodies_read := [body, ...bodies_read^];
+        body.read;
+      };
+      switch (
+        ModuleProgram.zipper_of_parts(
+          ~read_body,
+          ~preamble=StringUtil.trim_leading(preamble),
+          ~modules=
+            List.map(
+              ((name, text)) => (name, StringUtil.trim_leading(text)),
+              modules,
+            ),
+          ~tail=StringUtil.trim_leading(tail),
+          (),
+        )
+      ) {
+      | Some(z) => (z, List.rev(bodies_read^))
+      | None => (zipper_of_text(Program.text(program)), [])
+      };
+    };
 
   let update = (action: t, model: Model.t): Model.t =>
     switch (action) {
     | Set(program) when model.program == Some(program) => model
     | Set(program) =>
-      let cell = cell_of_text(Program.text(program));
+      let (zipper, bodies) = read(~bodies=model.bodies, program);
+      let cell = cell_of_zipper(zipper);
       {
         ...model,
         program: Some(program),
@@ -137,6 +211,7 @@ module Update = {
           Some(
             Status.of_statics(~names=?Program.names(program), cell.statics),
           ),
+        bodies,
       };
     | SetFontMetrics(font_metrics) => {
         ...model,

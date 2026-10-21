@@ -53,17 +53,38 @@ let spec = (~common=Panel.common, ~trap=Panel.trap, ~tail=Panel.tail, ()) =>
     ("tail", HazelLibCore.js_string(tail)),
   ]);
 
-/* The program as the panel joins it today, as text (scriptProgram) */
-let joined = (~common=Panel.common, ~trap=Panel.trap, ()) =>
+/* A body as the panel puts it in the program today (scriptBody): without a
+   last `;`, and trimmed */
+let script_body = (text: string): string => {
+  let right = Str.global_replace(Str.regexp("[ \t\n\r]+$"), "", text);
+  let n = String.length(right);
+  String.trim(
+    n > 0 && right.[n - 1] == ';' ? String.sub(right, 0, n - 1) : text,
+  );
+};
+
+/* The program as the panel joins it today, as text (scriptProgram in
+   kids-choice-games, dress-up/js/25-scripting.js): each body as
+   script_body gives it, and a blank one in its module's place */
+let joined = (~common=Panel.common, ~trap=Panel.trap, ()) => {
+  let or_else = (default, body) => body == "" ? default : body;
   String.concat(
     "\n",
     [
       Panel.preamble,
-      "module Common = {\n" ++ common ++ "\n} in",
-      "module TrapRoom = {\n" ++ trap ++ "\n} in",
+      "module Common = {\n"
+      ++ or_else("let nothing = ()", script_body(common))
+      ++ "\n} in",
+      "module TrapRoom = {\n"
+      ++ or_else(
+           "let on_event = fun (g, e) : (Globals, Event) -> Done",
+           script_body(trap),
+         )
+      ++ "\n} in",
       Panel.tail,
     ],
   );
+};
 
 /* A pull of the left lever, as the game asks a room's rule */
 let pull_left = (rules: Js.Unsafe.any): string =>
@@ -79,6 +100,18 @@ let pull_left = (rules: Js.Unsafe.any): string =>
 
 let field = (o: Js.Unsafe.any, k: string): Js.Unsafe.any =>
   Js.Unsafe.get(o, k);
+
+let is_ok = (r: Js.Unsafe.any): bool =>
+  Js.to_bool(Js.Unsafe.coerce(field(r, "ok")));
+
+/* each error's module, "(program)" for null */
+let error_modules = (r: Js.Unsafe.any): list(string) =>
+  Array.to_list(Js.to_array(Js.Unsafe.coerce(field(r, "errors"))))
+  |> List.map(e => {
+       let m = field(e, "module");
+       Js.Unsafe.equals(m, Js.null)
+         ? "(program)" : Js.to_string(Js.Unsafe.coerce(m));
+     });
 
 let tests = (
   "HazelLib",
@@ -343,6 +376,174 @@ let tests = (
         check(string, "programHoles", "0", json(field(r, "programHoles")));
         check(string, "errors", "[]", json(field(r, "errors")));
       },
+    ),
+    test_case(
+      "runProgram where it differs from today's text join, on purpose",
+      `Quick,
+      () => {
+        let both = trap => (
+          HazelLibCore.run(joined(~trap, ())),
+          HazelLibCore.run_program(spec(~trap, ())),
+        );
+        /* a last `;`: the join drops it; to runProgram, as to the tile
+           editor, the member after it is still to be written */
+        let (by_join, by_program) = both(Panel.trap ++ ";");
+        check(
+          int,
+          "a last `;`: the join has no errors",
+          0,
+          Js.Unsafe.get(field(by_join, "errors"), "length"),
+        );
+        check(
+          bool,
+          "a last `;`: runProgram is not ok",
+          false,
+          is_ok(by_program),
+        );
+        check(
+          string,
+          "a last `;`: a hole in TrapRoom",
+          "{\"Common\":0,\"TrapRoom\":1}",
+          json(field(by_program, "holes")),
+        );
+        /* a blank room: the join gives it a rule that does nothing;
+           runProgram, the empty module, which has no on_event */
+        let (by_join, by_program) = both("  \n");
+        check(
+          string,
+          "a blank room: the join's pull",
+          "{\"tag\":\"Done\"}",
+          pull_left(field(by_join, "value")),
+        );
+        check(bool, "a blank room: not ok", false, is_ok(by_program));
+        check(
+          list(string),
+          "a blank room: the error is the room's",
+          ["TrapRoom"],
+          error_modules(by_program),
+        );
+      },
+    ),
+    test_case(
+      "runProgram as today's text join: a blank Common",
+      `Quick,
+      () => {
+        let by_join =
+          HazelLibCore.run(joined(~common="", ~trap=Panel.say_rule, ()));
+        let by_program =
+          HazelLibCore.run_program(
+            spec(~common="", ~trap=Panel.say_rule, ()),
+          );
+        check(bool, "ok", true, is_ok(by_program));
+        check(
+          string,
+          "the same pull",
+          pull_left(field(by_join, "value")),
+          pull_left(field(by_program, "value")),
+        );
+      },
+    ),
+    test_case(
+      "analyzeProgram: a closer left out, or one too many, is incomplete in its module",
+      `Quick,
+      () =>
+      List.iter(
+        ((what, common, trap, expected)) => {
+          let r = HazelLibCore.analyze_program(spec(~common, ~trap, ()));
+          check(bool, what ++ ": ok", false, is_ok(r));
+          check(
+            string,
+            what ++ ": incomplete",
+            expected,
+            json(field(r, "incomplete")),
+          );
+          check(
+            string,
+            what ++ ": programIncomplete",
+            "0",
+            json(field(r, "programIncomplete")),
+          );
+        },
+        [
+          (
+            "a stray } in Common",
+            Panel.common_stray_brace,
+            Panel.flip2_rule,
+            "{\"Common\":1,\"TrapRoom\":0}",
+          ),
+          (
+            "Common missing its last )",
+            Panel.common_missing_paren,
+            Panel.flip2_rule,
+            "{\"Common\":1,\"TrapRoom\":0}",
+          ),
+          (
+            "TrapRoom missing its end",
+            Panel.common,
+            Panel.trap_missing_end,
+            "{\"Common\":0,\"TrapRoom\":1}",
+          ),
+        ],
+      )
+    ),
+    test_case(
+      "analyzeProgram: what a page leaves out or gets wrong in the spec",
+      `Quick,
+      () =>
+      List.iter(
+        ((what, spec, ok)) => {
+          let r = HazelLibCore.analyze_program(spec);
+          let typeof = k =>
+            Js.to_string(Js.typeof(Js.Unsafe.coerce(field(r, k))));
+          check(bool, what ++ ": ok", ok, is_ok(r));
+          check(
+            list(string),
+            what ++ ": the fields' types",
+            [
+              "boolean",
+              "object",
+              "object",
+              "number",
+              "object",
+              "number",
+              "number",
+            ],
+            List.map(
+              typeof,
+              [
+                "ok",
+                "errors",
+                "holes",
+                "programHoles",
+                "incomplete",
+                "programIncomplete",
+                "ms",
+              ],
+            ),
+          );
+          check(
+            bool,
+            what ++ ": errors is an array",
+            true,
+            Js.to_bool(
+              Js.Unsafe.fun_call(
+                Js.Unsafe.js_expr("Array.isArray"),
+                [|field(r, "errors")|],
+              ),
+            ),
+          );
+        },
+        [
+          ("no spec", Js.Unsafe.inject(Js.undefined), true),
+          ("null", Js.Unsafe.inject(Js.null), true),
+          ("modules null", as_js({|{"modules": null}|}), true),
+          (
+            "a module null, and one whose name is a number",
+            as_js({|{"modules": [null, {"name": 1}]}|}),
+            false,
+          ),
+        ],
+      )
     ),
     test_case(
       "runProgram: the tail can ascribe the rule its type",

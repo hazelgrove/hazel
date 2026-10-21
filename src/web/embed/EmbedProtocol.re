@@ -7,12 +7,14 @@
      { type: "set", preamble, modules, tail }     a program of named modules,
                                                   the spec analyzeProgram takes
                                                   (`result` is taken for `tail`)
-     { type: "ping" }                             answered with ready
+     { type: "ping" }                             answered with ready, and
+                                                  the size and status again
 
    Frame to page:
      { type: "ready", protocol, build }
      { type: "size", height }                     when it changes
-     { type: "status", ok, errors, holes, programHoles }   when it changes
+     { type: "status", ok, errors, holes, programHoles, incomplete,
+       programIncomplete }                        when it changes
      { type: "crash", message } */
 open Js_of_ocaml;
 
@@ -131,9 +133,15 @@ let encode = (message: EmbedModel.Outbox.message): Js.Unsafe.any => {
         ("type", string("size")),
         ("height", number(height)),
       ]
-    | Status({errors, holes, program_holes}) => [
+    | Status({errors, holes, program_holes, incomplete, program_incomplete}) => [
         ("type", string("status")),
-        ...HazelLibCore.analysis_fields(~errors, ~holes, ~program_holes),
+        ...HazelLibCore.analysis_fields(
+             ~errors,
+             ~holes,
+             ~program_holes,
+             ~incomplete,
+             ~program_incomplete,
+           ),
       ]
     | Crash(message) => [
         ("type", string("crash")),

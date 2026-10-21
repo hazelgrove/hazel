@@ -18,7 +18,8 @@
    A program of named modules (ModuleProgram), each module's body its own
    text, as a page with an editor per module holds it:
 
-     Hazel.analyzeProgram(spec) -> { ok, errors, holes, programHoles, ms }
+     Hazel.analyzeProgram(spec) -> { ok, errors, holes, programHoles,
+                                     incomplete, programIncomplete, ms }
      Hazel.runProgram(spec)     -> the same, and value
 
      spec = { preamble: "type Cmd = ... in",  (definitions every module
@@ -28,9 +29,13 @@
 
    Each module sees the preamble and the modules before it, and the tail
    sees them all. errors: [{ module, message, id }], module the module's
-   name, or null for the preamble and the tail. holes: { Common: 0,
-   TrapRoom: 1 }, each module's holes; programHoles, the preamble's and
-   the tail's. ok: no errors and no holes. ms: the time it took.
+   name, or null for the preamble and the tail (but an error on a use of
+   a module's member there, TrapRoom.on_event, is that module's). holes:
+   { Common: 0, TrapRoom: 1 }, each module's holes; programHoles, the
+   preamble's and the tail's. incomplete and programIncomplete: the same
+   for brackets and keywords left open, or closed with no opener. ok: none
+   of these. ms: the time it took. Only the parts whose text changed
+   since the last call are read again.
 
    A program's errors do not stop it running (Hazel evaluates around its
    holes and marks), so `value` is there either way; a page decides what
@@ -290,22 +295,32 @@ type program_analysis = {
   errors: list(ModuleProgram.error),
   holes: list((string, int)),
   program_holes: int,
+  incomplete: list((string, int)),
+  program_incomplete: int,
   elab: Exp.t,
 };
 
+/* The parts the last program was read from, so a page that calls again
+   as one module is edited has only that module read again */
+let parts_read = ModuleProgram.cache();
+
 let analyze_program_spec = (spec: program_spec): program_analysis => {
   let program =
-    ModuleProgram.of_texts(
+    ModuleProgram.of_texts_cached(
+      parts_read,
       ~preamble=spec.preamble,
       ~modules=spec.modules,
       ~tail=spec.tail,
     );
   let (map, elab) = Statics.mk(CoreSettings.on, ctx(), program.term);
   let (holes, program_holes) = ModuleProgram.holes(program);
+  let (incomplete, program_incomplete) = ModuleProgram.incomplete(program);
   {
     errors: ModuleProgram.errors(program, map),
     holes,
     program_holes,
+    incomplete,
+    program_incomplete,
     elab,
   };
 };
@@ -320,19 +335,37 @@ let now = (): float =>
     ),
   );
 
-/* A program's errors and holes, as analyzeProgram gives them (and embed
-   mode's status message): { ok, errors, holes, programHoles } */
+let counts_js = (counts: list((string, int))): Js.Unsafe.any =>
+  js_object(
+    List.map(
+      ((name, n)) =>
+        (name, Js.Unsafe.inject(Js.number_of_float(float_of_int(n)))),
+      counts,
+    ),
+  );
+
+let int_js = (n: int): Js.Unsafe.any =>
+  Js.Unsafe.inject(Js.number_of_float(float_of_int(n)));
+
+/* A program's errors, holes and incomplete tiles, as analyzeProgram gives
+   them (and embed mode's status message): { ok, errors, holes,
+   programHoles, incomplete, programIncomplete } */
 let analysis_fields =
     (
       ~errors: list(ModuleProgram.error),
       ~holes: list((string, int)),
       ~program_holes: int,
+      ~incomplete: list((string, int)),
+      ~program_incomplete: int,
     )
     : list((string, Js.Unsafe.any)) => {
+  let none = List.for_all(((_, n)) => n == 0);
   let ok =
     errors == []
     && program_holes == 0
-    && List.for_all(((_, n)) => n == 0, holes);
+    && none(holes)
+    && program_incomplete == 0
+    && none(incomplete);
   [
     ("ok", Js.Unsafe.inject(Js.bool(ok))),
     (
@@ -355,20 +388,10 @@ let analysis_fields =
         ),
       ),
     ),
-    (
-      "holes",
-      js_object(
-        List.map(
-          ((name, n)) =>
-            (name, Js.Unsafe.inject(Js.number_of_float(float_of_int(n)))),
-          holes,
-        ),
-      ),
-    ),
-    (
-      "programHoles",
-      Js.Unsafe.inject(Js.number_of_float(float_of_int(program_holes))),
-    ),
+    ("holes", counts_js(holes)),
+    ("programHoles", int_js(program_holes)),
+    ("incomplete", counts_js(incomplete)),
+    ("programIncomplete", int_js(program_incomplete)),
   ];
 };
 
@@ -378,6 +401,8 @@ let program_fields =
     ~errors=a.errors,
     ~holes=a.holes,
     ~program_holes=a.program_holes,
+    ~incomplete=a.incomplete,
+    ~program_incomplete=a.program_incomplete,
   )
   @ [("ms", Js.Unsafe.inject(Js.number_of_float(ms)))];
 

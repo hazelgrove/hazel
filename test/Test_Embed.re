@@ -126,6 +126,12 @@ let tests = (
             fst(ModuleProgram.holes(p)),
             s.holes,
           );
+          check(
+            pair(list(pair(string, int)), int),
+            what ++ ": the incomplete tiles",
+            ModuleProgram.incomplete(p),
+            (s.incomplete, s.program_incomplete),
+          );
         },
         [
           ("shipped", Panel.common, Panel.trap),
@@ -141,6 +147,15 @@ let tests = (
             Panel.common,
             "let on_event = fun (g, e) : (Globals, Event) -> ?",
           ),
+          ("an unclosed comment, then code", "# todo\nflip #", Panel.trap),
+          (
+            "Common missing its last )",
+            Panel.common_missing_paren,
+            Panel.flip2_rule,
+          ),
+          ("a stray } in Common", Panel.common_stray_brace, Panel.flip2_rule),
+          ("TrapRoom missing its end", Panel.common, Panel.trap_missing_end),
+          ("a blank TrapRoom", Panel.common, ""),
         ],
       )
     ),
@@ -187,6 +202,78 @@ let tests = (
           "holes",
           [("Common", 0), ("TrapRoom", 1)],
           status(set(Text(text))).holes,
+        );
+      },
+    ),
+    test_case(
+      "a bracket a module leaves open stays inside its braces",
+      `Quick,
+      () => {
+        let m = set(parts(~common=Panel.common_missing_paren, ()));
+        check(
+          bool,
+          "TrapRoom is still laid out as its own module",
+          true,
+          switch (
+            Str.search_forward(
+              Str.regexp_string("module TrapRoom = {"),
+              shown(m),
+              0,
+            )
+          ) {
+          | _ => true
+          | exception Not_found => false
+          },
+        );
+        check(
+          list(string),
+          "TrapRoom sees Common.flip2",
+          [],
+          Panel.modules_of(status(m).errors),
+        );
+        check(
+          list(pair(string, int)),
+          "the bracket is Common's",
+          [("Common", 1), ("TrapRoom", 0)],
+          status(m).incomplete,
+        );
+      },
+    ),
+    test_case(
+      "a set reads again only the bodies whose text changed",
+      `Quick,
+      () => {
+        let m = set(parts());
+        let m' =
+          EmbedModel.Update.update(Set(parts(~trap=Panel.say_rule, ())), m);
+        let read = (m: EmbedModel.Model.t, name) =>
+          List.find((b: EmbedModel.body) => b.name == name, m.bodies).read;
+        check(
+          bool,
+          "Common, unchanged, as it was read",
+          true,
+          read(m, "Common") === read(m', "Common"),
+        );
+        check(
+          bool,
+          "TrapRoom, changed, read again",
+          false,
+          read(m, "TrapRoom") === read(m', "TrapRoom"),
+        );
+        check(
+          string,
+          "and shown",
+          Util.StringUtil.trim_leading(
+            ModuleProgram.text_of_parts(
+              ~preamble=Panel.preamble,
+              ~modules=[
+                ("Common", Panel.common),
+                ("TrapRoom", Panel.say_rule),
+              ],
+              ~tail=Panel.tail,
+            ),
+          ),
+          shown(m'),
         );
       },
     ),
@@ -413,10 +500,153 @@ let tests = (
           json(field(status, "holes")),
         );
         check(
+          string,
+          "incomplete",
+          {|{"Common":0,"TrapRoom":0}|},
+          json(field(status, "incomplete")),
+        );
+        check(
+          int,
+          "programIncomplete",
+          0,
+          int_of_float(
+            Js.float_of_number(field(status, "programIncomplete")),
+          ),
+        );
+        check(
           int,
           "programHoles",
           0,
           int_of_float(Js.float_of_number(field(status, "programHoles"))),
+        );
+      },
+    ),
+    test_case(
+      "the link: what the frame takes from its page, and what it posts",
+      `Quick,
+      () => {
+        let parent = as_js("{}");
+        let posted = ref([]);
+        let link =
+          EmbedLink.make(
+            ~parent, ~own_origin="https://hazel.org", ~post=(data, target) =>
+            posted :=
+              posted^
+              @ [
+                Js.to_string(Js.Unsafe.get(data, "type")) ++ " to " ++ target,
+              ]
+          );
+        let take = () => {
+          let p = posted^;
+          posted := [];
+          p;
+        };
+        let event = (~source=parent, ~origin, data) =>
+          HazelLibCore.js_object([
+            ("origin", HazelLibCore.js_string(origin)),
+            ("source", source),
+            ("data", as_js(data)),
+          ]);
+        let page = "http://localhost:8000";
+        let a_set = {|{"type": "set", "text": "1 + 2"}|};
+        let model = set(Text("1 + 2"));
+        EmbedLink.ready(link);
+        check(
+          list(string),
+          "ready, before any message",
+          ["ready to *"],
+          take(),
+        );
+        EmbedLink.crash(link, "Not_found");
+        EmbedLink.crash(link, "Not_found");
+        check(list(string), "a crash, once", ["crash to *"], take());
+        EmbedLink.report(link, ~height=40, model);
+        check(
+          list(string),
+          "no size or status before a message",
+          [],
+          take(),
+        );
+        check(
+          bool,
+          "a set from another window is ignored",
+          true,
+          EmbedLink.receive(
+            link,
+            event(~source=as_js("{}"), ~origin=page, a_set),
+          )
+          == None
+          && link.page_origin == None,
+        );
+        check(
+          bool,
+          "a set from an origin not allowed is ignored",
+          true,
+          EmbedLink.receive(
+            link,
+            event(~origin="https://evil.example", a_set),
+          )
+          == None
+          && link.page_origin == None,
+        );
+        check(
+          bool,
+          "an origin that is not a string is ignored",
+          true,
+          EmbedLink.receive(
+            link,
+            HazelLibCore.js_object([
+              ("origin", Js.Unsafe.inject(Js.null)),
+              ("source", parent),
+              ("data", as_js(a_set)),
+            ]),
+          )
+          == None,
+        );
+        check(
+          bool,
+          "a set from the parent, from an allowed origin",
+          true,
+          EmbedLink.receive(link, event(~origin=page, a_set))
+          == Some(Text("1 + 2"))
+          && link.page_origin == Some(page),
+        );
+        check(list(string), "nothing posted for a set", [], take());
+        EmbedLink.report(link, ~height=40, model);
+        check(
+          list(string),
+          "then size and status, to the page",
+          ["size to " ++ page, "status to " ++ page],
+          take(),
+        );
+        EmbedLink.report(link, ~height=40, model);
+        check(list(string), "and not again", [], take());
+        check(
+          bool,
+          "a ping sets nothing",
+          true,
+          EmbedLink.receive(link, event(~origin=page, {|{"type": "ping"}|}))
+          == None,
+        );
+        check(
+          list(string),
+          "a ping: ready, to the page",
+          ["ready to " ++ page],
+          take(),
+        );
+        EmbedLink.report(link, ~height=40, model);
+        check(
+          list(string),
+          "and size and status again",
+          ["size to " ++ page, "status to " ++ page],
+          take(),
+        );
+        EmbedLink.crash(link, "Stack_overflow");
+        check(
+          list(string),
+          "a crash after a message, to the page",
+          ["crash to " ++ page],
+          take(),
         );
       },
     ),
