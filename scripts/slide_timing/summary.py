@@ -36,11 +36,14 @@ print("|---|---:|---:|---:|---:|---:|---:|---|---|")
 for r in rows:
     p = parts(r)
     v, busy = verdict(p)
+    # (a slide the script could not time: what went wrong, not a share of nothing)
+    if r.get("error"):
+        v = ("stuck: busy past the limit; " if r.get("stuck") else "") + "error: " + r["error"].replace("|", "/")[:80]
     top = ((r.get("main") or {}).get("top") or [["", 0]])[0]
     o = r.get("open_ms")
     open_s = "—" if o is None else f"{o / 1000:.1f}" + ("" if r.get("settled") else "+")
     print(f"| {r['name']} | {open_s} | {p['page JS']/1000:.1f} | {p['worker JS']/1000:.1f} | {p['layout+style']/1000:.1f} "
           f"| {p['GC']/1000:.1f} | {p['browser']/1000:.1f} | {v} | `{top[0][:50]}` {top[1]} ms |")
 done = [r for r in rows if r.get("open_ms") is not None]
-print(f"\n{len(rows)} slides; {sum(1 for r in rows if r.get('settled'))} settled; "
+print(f"\n{len(rows)} slides; {sum(1 for r in rows if r.get('settled'))} settled; {sum(1 for r in rows if r.get('error'))} not timed (errors); "
       f"total open time {sum(r['open_ms'] for r in done) / 1000:.0f} s. Times in seconds; \"+\": still changing at the limit.")
