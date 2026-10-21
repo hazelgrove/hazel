@@ -61,8 +61,7 @@ and nest = {
 }
 and memo = {
   m_lowering: lowering,
-  m_types: (list(Mod.t), Ctx.t, list((Var.t, Typ.t))),
-  m_actual: actual,
+  m_sig: Typ.t,
   m_sur: sur,
 }
 /* members lowered (by rep id), and the exports tail by its module id and
@@ -75,19 +74,8 @@ and lowering = {
 and lowered = {
   l_src: Mod.t,
   l_node: Exp.t,
-  l_exports: list(ModuleHelpers.value_export),
+  l_exports: list(Var.t),
   l_names: list(Var.t),
-}
-/* the module's type: per export, the pattern info read and its field */
-and actual = {
-  a_locals: list(string),
-  a_fields: list(field),
-  a_ty: Typ.t,
-}
-and field = {
-  f_pat: Id.t,
-  f_info: option(Info.t),
-  f_ty: Typ.t,
 }
 /* the module item's surrogate analysis, with its inputs */
 and sur = {
@@ -99,7 +87,7 @@ and sur = {
   u_probes: Id.Map.t(unit),
   u_map: Statics.Map.t, /* scaffolding removed */
   u_elab: Exp.t,
-  u_ctx_out: Ctx.t, /* before the M.T alias */
+  u_ctx_out: Ctx.t,
   u_hole: Id.t,
   u_errors: list(Id.t),
   u_warnings: list(Id.t),
@@ -156,6 +144,12 @@ let lower_item = (item: Mod.t): Exp.t =>
     item,
     Exp.fresh(EmptyHole),
   );
+
+/* the module value [node] elaborates to, from its lowered chain's elab */
+let module_elab = (node: Exp.t, items: list(Mod.t), chain_elab: Exp.t): Exp.t => {
+  ...node,
+  term: Module(ModuleHelpers.refold_module_elab(items, chain_elab)),
+};
 
 /* a let chain at an item position is a level of items; one inside a
    definition is not. so a ModExp member whose expression is a chain
@@ -338,8 +332,11 @@ let tshadow = (exports: list(Ctx.entry), dirty: list(string)) => {
 };
 
 /* transitive closure step: aliases exported here whose DEFINITION
-   mentions a dirty type name are dirty for everything downstream */
-let ttransit = (exports: list(Ctx.entry), dirty: list(string)) =>
+   mentions a dirty name are dirty for everything downstream. a dirty
+   value counts: `type U = M.T` reads module M's signature */
+let ttransit =
+    (exports: list(Ctx.entry), ~dirty_vars: list(string), dirty_tnames) => {
+  let dirty = dirty_tnames @ dirty_vars;
   dirty == []
     ? []
     : List.concat_map(
@@ -352,6 +349,7 @@ let ttransit = (exports: list(Ctx.entry), dirty: list(string)) =>
           },
         exports,
       );
+};
 
 type export_delta =
   | Unchanged
@@ -923,8 +921,8 @@ let nest_map =
 /* a module's members as a chain, reusing [prev]'s wrappers and own
    exports for members it holds unchanged, plus the exports tail, which
    mentions every export (any export delta re-analyzes it) and takes its
-   ids from [rep] and the export names. returns the nodes, the members'
-   lowerings and the exports (ModuleHelpers.value_exports) */
+   ids from [rep]. returns the nodes, the members' lowerings and the
+   exported names (ModuleHelpers.exported_names) */
 let lower_members =
     (~prev: option(lowering), rep: Id.t, members: list(Mod.t)) => {
   let by_id =
@@ -940,7 +938,8 @@ let lower_members =
         | _ => {
             l_src: m,
             l_node: lower_item(m),
-            l_exports: ModuleHelpers.value_exports([m]),
+            l_exports:
+              List.map(fst, ModuleHelpers.item_exports(m, ~later=[])),
             l_names: ModuleHelpers.item_bound_names(m),
           }
         },
@@ -952,21 +951,16 @@ let lower_members =
       ((later, acc), l) =>
         (
           List.fold_left((s, n) => SSet.add(n, s), later, l.l_names),
-          List.filter(
-            (e: ModuleHelpers.value_export) => !SSet.mem(e.name, later),
-            l.l_exports,
-          )
-          @ acc,
+          List.filter(n => !SSet.mem(n, later), l.l_exports) @ acc,
         ),
       (SSet.empty, []),
       List.rev(lowered),
     );
-  let names = List.map((e: ModuleHelpers.value_export) => e.name, exports);
   let tail =
     switch (prev) {
     | Some({tail: Some((r, ns, node)), _})
-        when Id.equal(r, rep) && List.equal(String.equal, ns, names) => node
-    | _ => ModuleHelpers.labeled_tuple_exp(~stable=rep, exports)
+        when Id.equal(r, rep) && List.equal(String.equal, ns, exports) => node
+    | _ => ModuleHelpers.lower_tail_of_names(~stable=rep, exports)
     };
   (List.map(l => l.l_node, lowered) @ [tail], lowered, exports);
 };
@@ -977,11 +971,10 @@ let settle =
     (
       rep: Id.t,
       lowered: list(lowered),
-      exports: list(ModuleHelpers.value_export),
+      names: list(Var.t),
       items: list(item),
     )
     : lowering => {
-  let names = List.map((e: ModuleHelpers.value_export) => e.name, exports);
   let rec go = (ls, its, acc) =>
     switch (ls, its) {
     | ([l, ...ls], [it, ...its]) =>
@@ -1009,100 +1002,27 @@ let settle =
   go(lowered, items, Id.Map.empty);
 };
 
-/* ModuleHelpers.collect_type_exports reads the type and module members
-   only, in order: unchanged while they and the ctx are */
-let type_exports = (~prev, ctx_in: Ctx.t, members: list(Mod.t)) => {
-  let typed =
-    List.filter(
-      (m: Mod.t) =>
-        switch (m.term) {
-        | ModType(_)
-        | ModuleMod(_) => true
-        | _ => false
-        },
-      members,
-    );
-  switch (prev) {
-  | Some((ms, ctx, exports))
-      when ctx === ctx_in && List.equal((===), ms, typed) => (
-      ms,
-      ctx,
-      exports,
-    )
-  | _ => (typed, ctx_in, ModuleHelpers.collect_type_exports(ctx_in, typed))
-  };
-};
-
-/* the module's type (ModuleHelpers.module_actual_type) by field: a field
-   is reused while its export reads the same pattern info, and an equal
-   one keeps the old type, so the surrogate keyed on it is reused too */
-let actual_type =
+/* the module's signature (ModuleHelpers.module_sig_type), the previous
+   object while it is syntactically equal, so the surrogate keyed on it is
+   reused too */
+let sig_type =
     (
-      ~prev: option(actual),
-      ~locals: list(string),
-      exports: list(ModuleHelpers.value_export),
+      ~prev: option(Typ.t),
+      ~ctx: Ctx.t,
+      members: list(Mod.t),
       map: Statics.Map.t,
     )
-    : actual => {
-  let old =
-    switch (prev) {
-    | Some(a) when List.equal(String.equal, a.a_locals, locals) =>
-      List.fold_left(
-        (m, f) => Id.Map.add(f.f_pat, f, m),
-        Id.Map.empty,
-        a.a_fields,
-      )
-    | _ => Id.Map.empty
-    };
-  let fields =
-    List.map(
-      (e: ModuleHelpers.value_export) => {
-        let f_pat = Pat.rep_id(e.pat);
-        let f_info = Id.Map.find_opt(f_pat, map);
-        let old = Id.Map.find_opt(f_pat, old);
-        switch (old, f_info) {
-        | (Some(f), Some(i)) when Option.equal((===), f.f_info, Some(i)) => f
-        | _ =>
-          let ty =
-            switch (
-              ModuleHelpers.module_actual_type(~local_names=locals, [e], map).
-                term
-            ) {
-            | Prod([f]) => f
-            | _ => failwith("module_actual_type: not a field")
-            };
-          {
-            f_pat,
-            f_info,
-            f_ty:
-              switch (old) {
-              | Some(f) when Equality.syntactic.typ(f.f_ty, ty) => f.f_ty
-              | _ => ty
-              },
-          };
-        };
-      },
-      exports,
-    );
+    : Typ.t => {
+  let ty = ModuleHelpers.module_sig_type(~ctx, members, map);
   switch (prev) {
-  | Some(a)
-      when List.equal((f: field, g) => f.f_ty === g.f_ty, a.a_fields, fields) => {
-      ...a,
-      a_locals: locals,
-      a_fields: fields,
-    }
-  | _ => {
-      a_locals: locals,
-      a_fields: fields,
-      a_ty: Prod(List.map(f => f.f_ty, fields)) |> Typ.temp,
-    }
+  | Some(p) when Equality.syntactic.typ(p, ty) => p
+  | _ => ty
   };
 };
 
 /* the module item's own analysis on a surrogate def (hole : ty), which
-   skips two effects replicated by the caller: the M.T type-export alias
-   and the def's co_ctx/probe view of its members. reused while its
-   inputs are the same */
+   skips the def's co_ctx/probe view of its members, replicated by the
+   caller. reused while its inputs are the same */
 let surrogate =
     (
       ~prev: option(sur),
@@ -1151,8 +1071,9 @@ let surrogate =
     };
     let (map, elab) =
       Statics.mk_unmemoized(~probe_ids, settings, ctx_in, hollow);
-    /* surrogate scaffolding ids (inner hole, synthesized annotation),
-       minus the def's rep id, whose entry stands in for the module node */
+    /* surrogate scaffolding ids (inner hole, the signature annotation,
+       which may carry member annotations' ids), minus the def's rep id,
+       whose entry stands in for the module node */
     let sur_ids = {
       let acc = ref([]);
       let grab = (cont, x) => {
@@ -1162,7 +1083,11 @@ let surrogate =
       ignore(
         Exp.map_term(
           ~f_exp=grab,
-          ~f_typ=(cont, x) => grab(cont, x),
+          ~f_pat=grab,
+          ~f_typ=grab,
+          ~f_tpat=grab,
+          ~f_sig=grab,
+          ~f_mpat=grab,
           sur_def,
         ),
       );
@@ -1426,14 +1351,11 @@ and calc_module_item =
       changes,
     );
   let top = top_sum(sums);
-  let types =
-    type_exports(~prev=Option.map(m => m.m_types, memo), ctx_in, members);
-  let (_, _, type_exports) = types;
-  let actual =
-    actual_type(
-      ~prev=Option.map(m => m.m_actual, memo),
-      ~locals=List.map(fst, type_exports),
-      exports,
+  let sig_ty =
+    sig_type(
+      ~prev=Option.map(m => m.m_sig, memo),
+      ~ctx=ctx_in,
+      members,
       chain_map,
     );
   let sur =
@@ -1444,25 +1366,13 @@ and calc_module_item =
       ~ctx_in,
       ~bind_pat,
       ~def,
-      actual.a_ty,
+      sig_ty,
       node,
     );
-  /* the M.T type-export alias the surrogate skips */
-  let ctx_out =
-    switch (
-      ModuleHelpers.single_bound_var(bind_pat),
-      ModuleHelpers.type_exports_alias_type(type_exports),
-    ) {
-    | (Some(name), Some(exports_ty)) =>
-      Ctx.extend_alias(sur.u_ctx_out, name, Pat.rep_id(bind_pat), exports_ty)
-    | _ => sur.u_ctx_out
-    };
-  /* member elabs grafted, finished like monolithic Module statics */
+  let ctx_out = sur.u_ctx_out;
+  /* member elabs grafted, refolded like monolithic Module statics */
   let module_value =
-    Option.map(
-      ModuleHelpers.module_elab(~module_exp_id=rep),
-      Option.bind(top, s => s.s_elab),
-    );
+    Option.map(module_elab(def, members), Option.bind(top, s => s.s_elab));
   /* the members' co_ctx/witnesses, which the surrogate def lacks */
   let with_members = (raw: Info.exp): Info.exp =>
     switch (top) {
@@ -1537,8 +1447,7 @@ and calc_module_item =
           n_memo:
             Some({
               m_lowering: settle(rep, lowered, exports, items_m),
-              m_types: types,
-              m_actual: actual,
+              m_sig: sig_ty,
               m_sur: sur,
             }),
         }),
@@ -1791,15 +1700,17 @@ and calc_chain =
                 ctx_out,
               );
             };
+        let incoming = shadow_filter(it.d_exports, dirty_vars);
         let incoming_t = tshadow(it.d_exports, dirty_tnames);
         go(
           ps,
           nt,
           ctx_out,
-          shadow_filter(it.d_exports, dirty_vars),
+          incoming,
           List.sort_uniq(
             compare,
-            ttransit(it.d_exports, incoming_t) @ incoming_t,
+            ttransit(it.d_exports, ~dirty_vars=incoming, incoming_t)
+            @ incoming_t,
           ),
           [it, ...acc],
           changes,
@@ -1879,7 +1790,7 @@ and calc_chain =
           let dirty_tnames =
             List.sort_uniq(
               compare,
-              ttransit(it.d_exports, dirty_tnames) @ dirty_tnames,
+              ttransit(it.d_exports, ~dirty_vars, dirty_tnames) @ dirty_tnames,
             );
           go(
             ps,
@@ -1990,13 +1901,9 @@ let calc =
 /* the whole-program elaboration; None on an unexpected elab shape */
 let whole_elab = (t: t): option(Exp.t) =>
   switch (strip(t.term).term) {
-  | Module(_) =>
-    /* mod root: the graft is the lowered expansion's elab; finish it
-       the way monolithic Module statics does (marks the module value) */
-    Option.map(
-      ModuleHelpers.module_elab(~module_exp_id=Exp.rep_id(strip(t.term))),
-      t.elab,
-    )
+  | Module(items) =>
+    /* mod root: the graft is the lowered chain's elab */
+    Option.map(module_elab(strip(t.term), items), t.elab)
   | _ => t.elab
   };
 

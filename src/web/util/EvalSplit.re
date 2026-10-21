@@ -220,15 +220,12 @@ let split_of = (it: DefStatics.item) =>
   | (Some(n), [_, ..._], Let(p, v, body)) =>
     switch (DefStatics.top_sum(n.n_sums)) {
     | Some({s_elab: Some(top), _}) =>
-      switch (DefStatics.module_literal_members(it.d_node)) {
-      | Some((_, def, _)) =>
-        let rep = Exp.rep_id(def);
-        switch (Statics.Map.lookup_exp(rep, n.n_wrap)) {
-        | Some(info) when info.elab_term === v =>
-          Some((P.ModuleValue(rep), n, v, p, body))
-        | _ => None
-        };
-      | None =>
+      switch (it.d_node.term) {
+      /* a module's value refolds from its items (Modules II), which a
+         piece doesn't carry: it stays in its item's piece */
+      | Let(_, {term: Module(_), _}, _)
+      | ModuleExp(_, {term: Module(_), _}, _) => None
+      | _ =>
         Option.is_some(DefStatics.modexp_chain(it.d_node)) && v === top
           ? Some((P.Chain, n, v, p, body)) : None
       }
@@ -618,7 +615,8 @@ let split =
   /* the program is the top chain, finished as DefStatics.whole_elab */
   let finish: P.finish =
     switch (DefStatics.strip(ds.term).term) {
-    | Module(_) => ModuleValue(Exp.rep_id(DefStatics.strip(ds.term)))
+    | Module(_) =>
+      raise(Unsplittable("a module root (its value refolds from its items)"))
     | _ => Chain
     };
   let finished =

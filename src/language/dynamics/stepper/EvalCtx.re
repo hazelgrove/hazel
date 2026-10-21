@@ -8,6 +8,11 @@ type term =
   | Seq2(DHExp.t, t)
   | Let1(Pat.t, t, DHExp.t)
   | Let2(Pat.t, DHExp.t, t)
+  /* Evaluating the definition of a pending module item: evaluated bindings
+     before it, the item itself (its definition is the hole), items after. */
+  | ModuleItem(list(Mod.t), Mod.t, t, list(Mod.t))
+  /* Evaluating one definition of a module value. */
+  | ModuleVal(list(Mod.t), t, (list(DHExp.t), list(DHExp.t)))
   | Theorem(Pat.t, DHExp.t, t)
   | Fun(Pat.t, t, option(Typ.t), option(Var.t))
   | FixF(Pat.t, t, option(Environment.t(Exp.t)))
@@ -152,6 +157,15 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Let2(dp, d1, ctx) =>
       let d = compose(ctx, d);
       Let(dp, d1, d) |> wrap;
+    | ModuleItem(prefix, item, ctx, suffix) =>
+      let d = compose(ctx, d);
+      Module(prefix @ [Mod.with_def(item, d)] @ suffix) |> wrap;
+    | ModuleVal(items, ctx, (ld, rd)) =>
+      let d = compose(ctx, d);
+      Module(
+        Mod.with_modval_defs(items, ListUtil.rev_concat(ld, [d, ...rd])),
+      )
+      |> wrap;
     | Theorem(dp, d1, ctx) =>
       let d = compose(ctx, d);
       Theorem(dp, d1, d) |> wrap;

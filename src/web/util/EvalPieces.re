@@ -131,7 +131,8 @@ exception Malformed(string);
 let finish_with = (f: finish, e: Exp.t): Exp.t =>
   switch (f) {
   | Chain => e
-  | ModuleValue(id) => ModuleHelpers.module_elab(~module_exp_id=id, e)
+  /* never posted here: a module's value refolds from its items */
+  | ModuleValue(_) => raise(Malformed("a split module value"))
   };
 
 /* a split item's elaboration: its nested value at its let's definition */

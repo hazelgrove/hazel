@@ -598,6 +598,8 @@ let item_members = (item: Mod.t): list((string, Id.t, member_kind)) => {
   | ModuleMod(mp, _) => mpat(mp)
   | ModType(_)
   | ModExp(_)
+  /* an evaluated binding: only in module values, never in syntax */
+  | ModVal(_)
   | Invalid(_)
   | EmptyHole
   | MultiHole(_) => []
@@ -692,9 +694,17 @@ let rec typ_binder =
         (~info_map: Id.Map.t(t), ~fuel=member_fuel, t: Typ.t): option(Id.t) =>
   switch (t.term) {
   | _ when fuel <= 0 => None
-  | Var(_) =>
+  | Var(name) =>
     let* info = Id.Map.find_opt(Typ.rep_id(t), info_map);
-    get_binding_site(info);
+    switch (get_binding_site(info), info) {
+    | (Some(_) as b, _) => b
+    /* Modules II binds no type alias for a module: `M` in `M.T` is the
+       module's value binding */
+    | (None, InfoTyp({ctx, _})) =>
+      let* entry = Ctx.lookup_var(ctx, name);
+      entry.id == Id.invalid ? None : Some(entry.id);
+    | (None, _) => None
+    };
   | Parens(t) => typ_binder(~info_map, ~fuel, t)
   | ProdProjection(base, {term: Label(name), _}) =>
     let* b = typ_binder(~info_map, ~fuel=fuel - 1, base);

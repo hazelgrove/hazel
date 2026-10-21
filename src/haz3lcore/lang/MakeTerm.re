@@ -150,6 +150,7 @@ let rec flatten_mod = (m: TermBase.Mod.t): list(TermBase.Mod.t) =>
   | ModType(_, _)
   | ModExp(_)
   | ModuleMod(_, _)
+  | ModVal(_, _)
   | EmptyHole
   | Invalid(_) => [m]
   };
@@ -170,6 +171,7 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
     |> List.flatten
   | SigLet(_)
   | SigType(_, _)
+  | SigModule(_)
   | EmptyHole
   | Invalid(_) => [s]
   };
@@ -1787,6 +1789,9 @@ and sig_term: unsorted => TermBase.Sig.term = {
   /* SigType: type t = T - the tpat is inside the tile, type is the body */
   | Pre(([(_id, (F(Compound(ModType)), [TPat(tp)]))], []), Typ(ty)) =>
     ret(SigType(tp, ty))
+  /* SigModule: module m : S - the module name pattern is the body */
+  | Pre(([(_id, (F(Compound(SigModule)), []))], []), MPat(mp)) =>
+    ret(SigModule(mp))
   | (Pre(_) | Post(_) | Bin(_)) as tm => ret(hole(tm));
 }
 and mpat = unsorted => {

@@ -184,6 +184,8 @@ and of_mod = (items: list(Mod.t)): list(node) =>
         | EmptyHole => []
         | _ => stmt_row(Mod.rep_id(m), e)
         }
+      /* an evaluated binding: a module value, never source */
+      | ModVal(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) => []

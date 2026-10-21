@@ -148,13 +148,26 @@ let composed = (r: WorkerServer.received): WorkerServer.Evaluation.value =>
   | Malformed(why) => fail("malformed: " ++ why)
   };
 
+/* why [st]'s program goes whole, if it does: a module's value refolds
+   from its items (Modules II), so a module root goes whole (EvalSplit) */
+let whole_because = (st: CachedStatics.t): option(string) =>
+  switch (DefStatics.strip(st.term).term) {
+  | Module(_) => Some("a module root (its value refolds from its items)")
+  | _ => None
+  };
+
 /* the worker's program is the whole request's, and the program went in
-   pieces */
+   pieces where it can */
 let check_exact =
     (name, st: CachedStatics.t, v: WorkerServer.Evaluation.value) => {
   let (expr, info) = whole(st);
   let {same} = same_graph();
-  check(option(string), name ++ ": in pieces", None, Split.went_whole^);
+  check(
+    option(string),
+    name ++ ": in pieces",
+    whole_because(st),
+    Split.went_whole^,
+  );
   check(bool, name ++ ": the program", true, same(expr, v.expr));
   check(
     int,
@@ -420,12 +433,19 @@ let token_id = (needle: string, seg: Segment.t): Id.t => {
   };
 };
 
-/* the item, a member at whatever depth, whose own map has [id] */
+/* the piece holding [id]: its innermost item's, but a module literal's
+   members stay in its item's piece (EvalSplit.split_of) */
 let owner = (id: Id.t, ds: DefStatics.t): Id.t => {
+  let module_literal = (it: DefStatics.item) =>
+    switch (it.d_node.term) {
+    | Let(_, {term: Module(_), _}, _)
+    | ModuleExp(_, {term: Module(_), _}, _) => true
+    | _ => false
+    };
   let rec find = (items: list(DefStatics.item)) =>
     List.find_map(
       (it: DefStatics.item) =>
-        switch (find(it.d_members)) {
+        switch (module_literal(it) ? None : find(it.d_members)) {
         | Some(_) as found => found
         | None => Id.Map.mem(id, it.d_map) ? Some(it.d_id) : None
         },
@@ -452,11 +472,15 @@ let member_edit = (~root, src, needle, repl, ()) => {
     );
   let st = statics_of(term_of(seg));
   let request = request_of(st);
-  let member = owner(id, Option.get(DefStatics.cached(term_of(seg))));
+  let piece: EvalPieces.key =
+    switch (whole_because(st)) {
+    | Some(_) => Whole(Exp.rep_id(st.term))
+    | None => Item(owner(id, Option.get(DefStatics.cached(term_of(seg)))))
+    };
   check(
     list(string),
     "re-encoded",
-    [EvalPieces.show_key(Item(member))],
+    [EvalPieces.show_key(piece)],
     List.map(EvalPieces.show_key, Split.encoded^),
   );
   let posted = post(request);
@@ -502,8 +526,10 @@ let encoding_tests = [
 /* the protocol: whatever the worker holds, it composes the request's
    program or asks for every piece */
 let protocol = () => {
-  let term_of = seg => MakeTerm.Incr.term_of_root(~root=Mod, seg);
-  let seg0 = CorpusUtil.seg_of(~root=Mod, list_src(~root=Mod));
+  /* a let chain, which splits (a module root goes whole) */
+  let term_of = seg => MakeTerm.Incr.term_of_root(~root=Exp, seg);
+  let seg0 =
+    CorpusUtil.seg_of(~root=Exp, "let a = 0 in\nlet b = 1 in\na + b");
   let edit = (~at, seg, needle, repl) =>
     fst(CorpusUtil.edit_token(~at, ~keep_id=true, ~needle, ~repl, seg));
   /* two members' edits: the second request reuses the first's piece */
