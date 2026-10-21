@@ -134,13 +134,11 @@ let test_live_typing = (~test_name=?, expected_exp: FError.exp) => {
   let (initial_statics, elaborated_exp) =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp_with_ids);
 
-  let original_errors =
-    StaticsBase.Map.errors(initial_statics) |> List.map(snd);
   Alcotest.check(
     Alcotest.int,
     "Expect no static errors initially",
     0,
-    List.length(original_errors),
+    List.length(StaticsBase.Map.error_ids(initial_statics)),
   );
 
   // Compute targets for expressions with unknown types (needed for live typing)
@@ -370,7 +368,7 @@ let precision_property = (exp: Exp.t): bool =>
     let ctx = Builtins.ctx_init(Some(Int));
     let (static_map, elaborated) =
       Statics.mk(CoreSettings.on, ctx, exp_with_ids);
-    if (StaticsBase.Map.has_errors(static_map)) {
+    if (!List.is_empty(StaticsBase.Map.error_ids(static_map))) {
       true;
     } else {
       let targets =

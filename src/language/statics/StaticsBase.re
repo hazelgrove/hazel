@@ -61,20 +61,6 @@ module Map = {
       [],
     );
 
-  let errors = (map: t): list((Id.t, list(Mark.t))) =>
-    Id.Map.fold(
-      (id, info: Info.t, acc) =>
-        switch (Info.marks_of(info)) {
-        | [] => acc
-        | ms => [(id, ms), ...acc]
-        },
-      map,
-      [],
-    );
-
-  let has_errors = (map: t): bool =>
-    Id.Map.exists((_: Uuidm.t, info: Info.t) => Info.is_error(info), map);
-
   /* The ids of binding sites for for all references in term with `id` */
   let refs_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
@@ -472,7 +458,6 @@ let fold_patterns_with_modes =
 module type ExpressionStatics = {
   let uexp_to_info_map:
     (
-      ~dynamics: LiveTyping.Map.t=?,
       ~ctx: Ctx.t,
       ~ana: Typ.t=?,
       ~is_in_filter: bool=?,
@@ -501,8 +486,4 @@ module type ExpressionStatics = {
       Map.t
     ) =>
     (Info.exp, Exp.t, Map.t);
-
-  let dynamics: LiveTyping.Map.t;
-
-  let calculate_dynamic_type: Exp.t => option(Typ.t);
 };

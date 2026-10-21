@@ -1766,19 +1766,9 @@ and uexp_to_info_map =
             (module
              {
                let uexp_to_info_map =
-                   (
-                     ~dynamics as _=LiveTyping.Map.empty,
-                     ~ctx,
-                     ~ana=?,
-                     ~is_in_filter=?,
-                     ~ancestors=?,
-                     exp,
-                     m,
-                   ) =>
+                   (~ctx, ~ana=?, ~is_in_filter=?, ~ancestors=?, exp, m) =>
                  go(~ctx, ~ana?, ~is_in_filter?, ~ancestors?, exp, m);
                let add = add;
-               let dynamics = dynamics;
-               let calculate_dynamic_type = calculate_dynamic_type;
              }),
             m,
             arg,
@@ -1878,19 +1868,9 @@ and uexp_to_info_map =
           (module
            {
              let uexp_to_info_map =
-                 (
-                   ~dynamics as _=LiveTyping.Map.empty,
-                   ~ctx,
-                   ~ana=?,
-                   ~is_in_filter=?,
-                   ~ancestors=?,
-                   exp,
-                   m,
-                 ) =>
+                 (~ctx, ~ana=?, ~is_in_filter=?, ~ancestors=?, exp, m) =>
                go(~ctx, ~ana?, ~is_in_filter?, ~ancestors?, exp, m);
              let add = add;
-             let dynamics = dynamics;
-             let calculate_dynamic_type = calculate_dynamic_type;
            }),
           m,
           args,
