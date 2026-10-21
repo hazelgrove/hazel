@@ -114,6 +114,7 @@ type sig_ = {
   sort: Sort.t,
   ctx: Ctx.t,
   ancestors,
+  marks: list(Mark.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -265,10 +266,10 @@ let marks_of: t => list(Mark.t) =
   | InfoExp({marks, _})
   | InfoPat({marks, _}) => marks
   | InfoTyp({marks, _})
-  | InfoTPat({marks, _}) => marks
+  | InfoTPat({marks, _})
+  | InfoSig({marks, _}) => marks
   | InfoDrv(_) /* Drv errors are tracked separately via DrvInfo.error_of. */
   | InfoMod(_)
-  | InfoSig(_)
   | InfoMPat(_)
   | Secondary(_) => [];
 
