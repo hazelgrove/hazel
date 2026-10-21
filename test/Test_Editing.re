@@ -275,22 +275,23 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
 /* Parse a string with caret position using Parser.to_zipper (no auto-indent).
  * This is useful for tests that need to start from a specific state
  * without the double-indentation issue from mk(). */
-let parse_with_caret = (init: string): Zipper.t => {
-  /* Split on caret to get before and after */
-  let parts = StringUtil.plain_split(init, caret_char);
-  switch (parts) {
-  | [before, after] =>
-    let full_str = before ++ after;
-    switch (Parser.to_zipper(~root=Exp, full_str)) {
-    | None => Alcotest.fail("Failed to parse: " ++ full_str)
-    | Some(z) =>
-      /* Move cursor to the caret position (count chars in 'after') */
-      let chars_after = List.length(Token.to_list(after));
-      /* Use mv_l to generate move actions, then perform them */
-      mv_l(chars_after) |> perform(z);
-    };
+/* Split on the one caret: the text, and how many chars follow the caret */
+let split_one_caret = (init: string): (string, int) =>
+  switch (StringUtil.plain_split(init, caret_char)) {
+  | [before, after] => (before ++ after, List.length(Token.to_list(after)))
   | _ => Alcotest.fail("Expected exactly one caret in: " ++ init)
   };
+
+let parse_text = (text: string): Zipper.t =>
+  switch (Parser.to_zipper(~root=Exp, text)) {
+  | None => Alcotest.fail("Failed to parse: " ++ text)
+  | Some(z) => z
+  };
+
+let parse_with_caret = (init: string): Zipper.t => {
+  let (text, chars_after) = split_one_caret(init);
+  /* Use mv_l to generate move actions, then perform them */
+  mv_l(chars_after) |> perform(parse_text(text));
 };
 
 /* Like mk_zipper but builds the buffer via Parser (no auto-indent), so it
@@ -321,8 +322,12 @@ let parse_zipper = (~settings=default_settings, init: string): Zipper.t => {
     /* version_b: remove §, keep ¦ */
     let version_b =
       chars |> List.filter(c => c != selection_char) |> Token.of_list;
-    let z_a = parse_with_caret(version_a);
-    let z_b = parse_with_caret(version_b);
+    /* the same text with the caret in two places: parsed once */
+    let (text, after_anchor) = split_one_caret(version_a);
+    let (_, after_focus) = split_one_caret(version_b);
+    let parsed = parse_text(text);
+    let z_a = mv_l(after_anchor) |> perform(parsed);
+    let z_b = mv_l(after_focus) |> perform(parsed);
     let measured_a = CachedSyntax.init(z_a).measured;
     let measured_b = CachedSyntax.init(z_b).measured;
     let anchor_pt = Zipper.Caret.point(measured_a, z_a);
