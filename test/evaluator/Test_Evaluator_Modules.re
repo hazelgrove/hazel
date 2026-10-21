@@ -103,6 +103,16 @@ let test_module_function =
     parse_and_evaluate_test("3", {|module F = fun x -> x + 1 in F(2)|})
   });
 
+/* A module bound to a fixpoint the user wrote: the fixpoint is how a
+   module binds a recursive function, so m(3) = 3 * 2 * 1 */
+let test_module_fix =
+  test_case("A module bound to a fixpoint", `Quick, () => {
+    parse_and_evaluate_test(
+      "6",
+      {|module m = fix f -> fun n -> if n == 0 then 1 else n * f(n - 1) in m(3)|},
+    )
+  });
+
 /* A module's definition can use the module it shadows. The definition's
    elaboration runs without a fixpoint, so this result does not show which
    F the statics bound; Statics.Modules checks that. */
@@ -211,6 +221,7 @@ let tests = (
     test_module_keyword_lowercase,
     test_module_one_member_signature,
     test_module_function,
+    test_module_fix,
     test_module_shadows_module,
     test_module_binding_uses_outer,
     test_module_item_calls_itself,

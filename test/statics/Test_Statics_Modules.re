@@ -476,6 +476,69 @@ let test_module_name_not_in_scope_in_def =
     },
   );
 
+/* A module bound to a fixpoint the user wrote (Alexander's first program
+   on #2651). Its definition elaborates to a FixF, the shape a recursive
+   Let gives a definition that names its own variable, but here f is the
+   fixpoint's own variable: no errors. The fixpoint is unannotated, so the
+   type is unknown. */
+let test_module_fix =
+  fully_consistent_typecheck(
+    "A module bound to a fixpoint has no errors",
+    {|module m = fix f -> fun n -> if n == 0 then 1 else n * f(n - 1) in m(3)|},
+    Some(unknown(Internal)),
+  );
+
+/* A fixpoint whose body names the module, not the fixpoint's variable
+   (Alexander's second program on #2651): the module's name is unbound in
+   its definition, so the one error is at the inner m, a free variable */
+let test_module_fix_names_itself =
+  Alcotest.test_case(
+    "A module bound to a fixpoint that names the module is an error",
+    `Quick,
+    () => {
+      let exp =
+        parse_exp(
+          {|module m = fix g -> fun n -> if n == 0 then 0 else m(n - 1) in m(3)|},
+        );
+      let inner_m =
+        switch (IdTagged.term_of(exp)) {
+        | ModuleExp(
+            _,
+            {
+              term:
+                FixF(
+                  _,
+                  {
+                    term:
+                      Fun(
+                        _,
+                        {term: If(_, _, {term: Ap(_, m, _), _}), _},
+                        _,
+                        _,
+                      ),
+                    _,
+                  },
+                  _,
+                ),
+              _,
+            },
+            _,
+          ) =>
+          IdTagged.rep_id(m)
+        | _ =>
+          Alcotest.fail(
+            "expected `module m = fix g -> fun n -> if ... else m(...) in ...`",
+          )
+        };
+      Alcotest.(check(list(pair(string, testable_issue))))(
+        "Static errors",
+        [(Id.show(inner_m), Marks([Free("m")]))],
+        errors(statics(exp))
+        |> List.map(((id, ms)) => (Id.show(id), Marks(ms))),
+      );
+    },
+  );
+
 /* A module whose definition names the module it shadows */
 let shadows_module_source = {|module F = fun (x : Int) -> x > 0 in module F = fun x -> F(x) in F(1)|};
 
@@ -635,6 +698,38 @@ let test_nested_labeled_function_modules =
     ~seconds=10.,
     nested_labeled_function_modules(7),
     Some(int()),
+  );
+
+/* module F0 = fix f0 -> fun x -> if x == 0 then module F1 = fix f1 ->
+   ... in F1(x) else f0(x - 1) in F0(1): n modules, each bound to a
+   fixpoint the user wrote, each holding the next in its then branch. A
+   module analyzes its definition once, so this is n analyses. Told apart
+   by its elaboration's shape, a FixF, each definition would be taken for
+   one that names its module and analyzed again: with the let's recursion
+   probe, three analyses per module, 3^n. The probe alone would be 2^n. */
+let nested_fix_modules = n => {
+  let rec go = i =>
+    i > n
+      ? "x"
+      : Printf.sprintf(
+          "module F%d = fix f%d -> fun x -> if x == 0 then %s else f%d(x - 1) in F%d(x)",
+          i,
+          i,
+          go(i + 1),
+          i,
+          i,
+        );
+  "module F0 = fix f0 -> fun x -> if x == 0 then "
+  ++ go(1)
+  ++ " else f0(x - 1) in F0(1)";
+};
+
+let test_nested_fix_modules =
+  checks_within(
+    "Twelve nested modules bound to fixpoints check in under 0.5 s",
+    ~seconds=0.5,
+    nested_fix_modules(12),
+    Some(unknown(Internal)),
   );
 
 /* A let inside a module's definition is recursive as usual */
@@ -922,12 +1017,15 @@ let tests = (
     test_module_names_itself,
     test_ascribed_module_names_itself,
     test_module_name_not_in_scope_in_def,
+    test_module_fix,
+    test_module_fix_names_itself,
     test_module_shadows_module,
     test_module_shadows_module_info,
     test_module_member_recursive,
     test_module_item_names_itself,
     test_nested_function_modules,
     test_nested_labeled_function_modules,
+    test_nested_fix_modules,
     test_module_keyword_lowercase,
     test_module_keyword_capitalized,
     test_module_keyword_in_mod,
