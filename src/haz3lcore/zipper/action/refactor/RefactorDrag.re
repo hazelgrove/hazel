@@ -192,6 +192,9 @@ module DragCandidate = {
 
   type t = {
     kind: Action.refactor,
+    /* where the step is invoked: the grab, or the let of a grabbed
+       value whose line moves (composites) */
+    at: Id.t,
     label: string,
     current: Measured.Point.t, /* track start (live layout) */
     target: Measured.Point.t, /* track end (screen frame) */
@@ -201,6 +204,10 @@ module DragCandidate = {
        fresh copy id to the live id it emerges from — the ghost
        travels from the source instead of growing in place */
     emerge: list((Id.t, Id.t)),
+    /* dissolving ids -> the survivor's (merge, extract onto an
+       identical definition): D2's emerge reversed, the copy converges
+       onto what it merges into */
+    absorb: list((Id.t, Id.t)),
     term: Exp.t,
     focus: Id.t,
     segment: Segment.t,
@@ -283,8 +290,12 @@ let rec head_name_ids = (p: Pat.t): list(Id.t) =>
   | _ => []
   };
 
-let moves_line = (k: Action.refactor): bool =>
+/* moves that change where a value lives — inline in its use, or bound
+   on some line: the composite family (Settings > Drag Composites).
+   One drag may run through any of them. */
+let place_kind = (k: Action.refactor): bool =>
   switch (k) {
+  | ExtractLet
   | HoistLet
   | SinkLet
   | HoistCarry
@@ -293,7 +304,7 @@ let moves_line = (k: Action.refactor): bool =>
   | UnliftFunction
   | MergeUp
   | MergeDown
-  | JoinLet => true
+  | FeedLet => true
   | _ => false
   };
 
@@ -306,13 +317,14 @@ let moves_line = (k: Action.refactor): bool =>
    themselves, and the unfolded use has no place in the result. */
 let drag_kinds =
     (
+      ~composites: bool,
       ~info_map: Statics.Map.t,
       ~term: Exp.t,
       ~push: bool,
       ~target: Id.t,
       ~shard: option(int),
     )
-    : list(Action.refactor) => {
+    : list((Action.refactor, Id.t)) => {
   /* one element per token: a line's handles (let, =, in, and a bare
      binder name) move the LINE; a piece of a structured pattern
      (component, parameter, annotation) drives only its own moves; the
@@ -350,14 +362,37 @@ let drag_kinds =
       ? [Action.HoistCarry, SinkCarry, LiftFunction]
         |> List.filter(k => applies(k, ~info_map, ~target, term))
       : [];
-  [Action.Gesture.Up, Down, Left, Right]
-  |> List.concat_map(gesture_options(~info_map, ~term, ~target, ~shard))
-  |> List.filter(k =>
-       k != Action.UnfoldCall && (k != Action.NegateIf || branch_root)
-     )
-  |> (ks => ks @ extra @ insist)
-  |> List.filter(drives)
-  |> List.fold_left((acc, k) => List.mem(k, acc) ? acc : acc @ [k], []);
+  /* composites: a grabbed value's line moves with it — its place is
+     bound-on-this-line until a feed puts it in a use */
+  let via_line =
+    switch (composites ? value_line(~target, term) : None) {
+    | Some(l) =>
+      [Action.MergeUp, HoistLet]
+      @ (push ? [Action.HoistCarry, LiftFunction] : [])
+      @ [Action.MergeDown, SinkLet]
+      @ (push ? [Action.SinkCarry] : [])
+      |> List.filter(k =>
+           applies(k, ~info_map, ~target=Exp.rep_id(l), term)
+         )
+      |> List.map(k => (k, target))
+    | None => []
+    };
+  via_line
+  @ (
+    [Action.Gesture.Up, Down, Left, Right]
+    |> List.concat_map(gesture_options(~info_map, ~term, ~target, ~shard))
+    |> List.filter(k =>
+         k != Action.UnfoldCall && (k != Action.NegateIf || branch_root)
+       )
+    |> (ks => ks @ extra @ insist)
+    |> List.filter(drives)
+    |> List.map(k => (k, target))
+  )
+  |> List.fold_left(
+       (acc, (k, at)) =>
+         List.exists(((k', _)) => k' == k, acc) ? acc : acc @ [(k, at)],
+       [],
+     );
 };
 
 /* kinds whose track ends somewhere other than the grabbed element's
@@ -377,6 +412,7 @@ let lands_elsewhere = (kind: Action.refactor): bool =>
 
 let drag_candidates =
     (
+      ~composites: bool=false,
       ~info_map: Statics.Map.t,
       ~term: Exp.t,
       ~measured: Measured.t,
@@ -409,7 +445,7 @@ let drag_candidates =
     | _ => Measured.find_by_id(id, m)
     };
   let mk =
-      (~feed_pref: bool=false, kind: Action.refactor)
+      (~feed_pref: bool=false, (kind: Action.refactor, at: Id.t))
       : option(DragCandidate.t) => {
     /* feeds drag from the BINDING side only (established rule):
        an at-use feed's clone lands where you grabbed — a
@@ -430,7 +466,13 @@ let drag_candidates =
     if (at_use_feed) {
       None;
     } else {
-      switch (impl(kind).prepare(~info_map, ~target, term)) {
+      switch (
+        impl(kind).prepare(
+          ~info_map,
+          ~target=step_target(kind, at, term),
+          term,
+        )
+      ) {
       | None => None
       | Some((term', focus)) =>
         let segment =
@@ -449,7 +491,14 @@ let drag_candidates =
            survivor rises into the vacated row — the result alone
            would show no travel) */
         let merge_drop = () =>
-          switch (merge_target(~info_map, ~target, kind, term)) {
+          switch (
+            merge_target(
+              ~info_map,
+              ~target=step_target(kind, at, term),
+              kind,
+              term,
+            )
+          ) {
           | ([d, ..._], [v, ..._]) =>
             switch (
               Measured.find_by_id(d, measured),
@@ -587,14 +636,31 @@ let drag_candidates =
               }
             | None => tgt
             };
+          let absorb =
+            switch (kind) {
+            | MergeUp
+            | MergeDown
+            | ExtractLet =>
+              let (d, v) =
+                merge_target(
+                  ~info_map,
+                  ~target=step_target(kind, at, term),
+                  kind,
+                  term,
+                );
+              List.length(d) == List.length(v) ? List.combine(d, v) : [];
+            | _ => []
+            };
           cur.origin != tgt
             ? Some({
                 DragCandidate.kind,
+                at,
                 label: impl(kind).label,
                 current: cur.origin,
                 target: tgt,
                 frame,
                 emerge,
+                absorb,
                 term: term',
                 focus,
                 segment,
@@ -611,8 +677,31 @@ let drag_candidates =
      the grab) then contradicts (andrew hit it: preview moved y's
      def, release fed a's binding). INVARIANT: enumeration must stay
      within what the commit re-derives. */
-  drag_kinds(~info_map, ~term, ~push, ~target, ~shard=grab_shard)
-  |> List.filter_map(kind => mk(kind))
+  /* composites: one track per direction for the place family — the
+     first that applies starts it (merge, then a plain move, then carry,
+     then lift; a value sinks before it feeds) and the ladder runs on
+     through the rest */
+  let one_place_track = (cs: list(DragCandidate.t)) =>
+    composites
+      ? cs
+        |> List.fold_left(
+             (acc, c: DragCandidate.t) => {
+               let way = (c: DragCandidate.t) =>
+                 compare(c.target.row, c.current.row);
+               place_kind(c.kind)
+               && List.exists(
+                    (c': DragCandidate.t) =>
+                      place_kind(c'.kind) && way(c') == way(c),
+                    acc,
+                  )
+                 ? acc : acc @ [c];
+             },
+             [],
+           )
+      : cs;
+  drag_kinds(~composites, ~info_map, ~term, ~push, ~target, ~shard=grab_shard)
+  |> List.filter_map(k => mk(k))
+  |> one_place_track
   |> List.fold_left(
        (acc, c: DragCandidate.t) =>
          List.exists((c': DragCandidate.t) => c'.target == c.target, acc)
@@ -662,28 +751,44 @@ let next_rung =
       prev: DragCandidate.t,
     )
     : option((DragCandidate.t, (Id.t, option(int)))) => {
+  let composites = settings.drag_composites;
+  let continues = (k: Action.refactor) =>
+    same_kind(family, k)
+    || composites
+    && place_kind(family)
+    && place_kind(k);
+  /* a merge dissolves what the ladder held: nothing left to move */
+  let ended =
+    switch (prev.kind) {
+    | MergeUp
+    | MergeDown => composites
+    | _ => false
+    };
   let held =
     Id.Map.mem(fst(held), prev.measured.tiles) ? held : (prev.focus, None);
   let dr = prev.target.row - prev.current.row
   and dc = prev.target.col - prev.current.col;
-  drag_candidates(
-    ~info_map=statics_of(~settings, ~info_map, ~root, prev.term),
-    ~term=prev.term,
-    ~measured=prev.measured,
-    ~shape_map,
-    ~push,
-    ~target=fst(held),
-    ~shard=snd(held),
-    (),
-  )
-  |> List.find_opt((c: DragCandidate.t) =>
-       same_kind(family, c.kind)
-       && (c.target.row - c.current.row)
-       * dr
-       + (c.target.col - c.current.col)
-       * dc > 0
-     )
-  |> Option.map(c => (c, held));
+  ended
+    ? None
+    : drag_candidates(
+        ~composites,
+        ~info_map=statics_of(~settings, ~info_map, ~root, prev.term),
+        ~term=prev.term,
+        ~measured=prev.measured,
+        ~shape_map,
+        ~push,
+        ~target=fst(held),
+        ~shard=snd(held),
+        (),
+      )
+      |> List.find_opt((c: DragCandidate.t) =>
+           continues(c.kind)
+           && (c.target.row - c.current.row)
+           * dr
+           + (c.target.col - c.current.col)
+           * dc > 0
+         )
+      |> Option.map(c => (c, held));
 };
 
 /* the INSIST tier: remedied moves a dead press escalates to on a

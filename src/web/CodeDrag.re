@@ -58,6 +58,7 @@ type deco_step =
 
 type rung = {
   kind: Action.refactor,
+  label: string,
   /* where this step is invoked, in the state before it */
   at: Id.t,
   tgt: vec, /* text-box-local px: the moving element's place here */
@@ -70,8 +71,9 @@ type rung = {
      whose anchor is gone here fades with it. */
   deco_delta: ((Id.t, option(int))) => option(deco_step),
   /* live tokens absent in this state: they dissolve (scale+fade) as
-     the pull reaches it */
-  exits: list((CodeFlip.key, Js.t(Dom.node))),
+     the pull reaches it — converging by the delta when they merge
+     into a survivor or trade their text (a renamed use) */
+  exits: list((CodeFlip.key, Js.t(Dom.node), option((float, float)))),
   /* tokens absent LIVE: synthetic "before" versions of the REAL
      tokens (dragology's createSyntheticBefore) at their places here
      (text, token classes, destination, emerge-origin). With an origin
@@ -79,6 +81,9 @@ type rung = {
      origin->destination full-size — D2 emergeMode=clone; without, it
      grows in place. */
   enters: list((CodeFlip.key, string, string, vec, option(vec))),
+  /* where a dissolving token lands here: its survivor's token (merge),
+     for ghosts that a merge rung drops */
+  absorb_into: list((CodeFlip.key, vec)),
   /* LIVE ids of the emerge source — handed to CodeFlip at commit */
   emerge_src: list(Id.t),
   /* the grabbed token's displacement here — the caret rides it */
@@ -584,11 +589,16 @@ let draw = (s: session) => {
                  )
             : ""
         ),
+        /* a composite ladder mixes kinds: name the step a release
+           lands on */
         label_pill(
           ~win=true,
           o.x +. first.x +. 12.,
           o.y +. first.y -. 4.,
-          c.label,
+          switch (List.nth_opt(c.rungs, max(0, k - 1))) {
+          | Some(r) => r.label
+          | None => c.label
+          },
         ),
       );
     } else {
@@ -669,11 +679,48 @@ let draw = (s: session) => {
                      switch (pos_at(i, key), pos_at(i + 1, key)) {
                      | (Some(a), Some(b)) => Some((lerp(a, b, f), 1., 1.))
                      | (Some(a), None) when i + 1 > n => Some((a, 1., 1.))
-                     | (Some(a), None) => Some((a, 1. -. f, 1.))
+                     | (Some(a), None) =>
+                       switch (List.assoc_opt(key, rungs[i].absorb_into)) {
+                       | Some(b) => Some((lerp(a, b, f), 1. -. f, 1.))
+                       | None => Some((a, 1. -. f, 1.))
+                       }
                      | _ => None
                      };
                    } else {
                      None;
+                   };
+                 /* a ghost renamed by the next rung (a merged use):
+                    its old text fades as the new one arrives */
+                 let text_at = k =>
+                   k < 1 || k > n
+                     ? None
+                     : rungs[k - 1].enters
+                       |> List.find_map(((k', t, _, _, _)) =>
+                            k' == key ? Some(t) : None
+                          );
+                 let shown =
+                   switch (shown, text_at(i), text_at(i + 1)) {
+                   | (Some((pos, op, scale)), Some(ta), Some(tb))
+                       when j <= i && ta != tb =>
+                     spans :=
+                       [
+                         Printf.sprintf(
+                           {|<span class="%s" style="position:absolute;left:%fpx;top:%fpx;opacity:%f">%s</span>|},
+                           cls,
+                           o.x +. pos.x,
+                           o.y +. pos.y,
+                           op *. f,
+                           xml_escape(tb),
+                         ),
+                         ...spans^,
+                       ];
+                     Some((pos, op *. (1. -. f), scale));
+                   | _ => shown
+                   };
+                 let text =
+                   switch (j <= i ? text_at(i) : None) {
+                   | Some(t) => t
+                   | None => text
                    };
                  switch (shown) {
                  | Some((pos, op, scale)) when op > 0.01 =>
@@ -778,7 +825,8 @@ let node_tracks =
   let keyed =
     rungs
     |> List.concat_map((r: rung) =>
-         (r.moved |> List.map(((k, node, _, _)) => (k, node))) @ r.exits
+         (r.moved |> List.map(((k, node, _, _)) => (k, node)))
+         @ (r.exits |> List.map(((k, node, _)) => (k, node)))
        )
     |> List.fold_left(
          (acc, (k, node)) =>
@@ -806,9 +854,14 @@ let node_tracks =
            Some(k),
            node,
            track_of((_, r) =>
-             switch (r.moved |> List.find_opt(((k', _, _, _)) => k' == k)) {
-             | Some((_, _, dx, dy)) => Some((dx, dy, 1.))
-             | None => List.mem_assoc(k, r.exits) ? None : Some((0., 0., 1.))
+             switch (
+               r.exits |> List.find_opt(((k', _, _)) => k' == k),
+               r.moved |> List.find_opt(((k', _, _, _)) => k' == k),
+             ) {
+             | (Some((_, _, Some((dx, dy)))), _) => Some((dx, dy, 0.))
+             | (Some((_, _, None)), _) => None
+             | (None, Some((_, _, dx, dy))) => Some((dx, dy, 1.))
+             | (None, None) => Some((0., 0., 1.))
              }
            ),
          )
@@ -1340,36 +1393,28 @@ let arm =
    enumerate them from the CURRENT model. Runs at most once per
    armed/committed state — not per frame. */
 /* The live editor's .code-text children, paired with the segment's
-   emission order (CodeFlip's correlation); located via the caret,
-   which sits in the dragged editor during a session */
-let live_pairs = (segment: Segment.t): list((CodeFlip.key, Js.t(Dom.node))) =>
-  switch (JsUtil.get_elem_by_id_opt("caret")) {
+   emission order (CodeFlip's correlation); found in the editor box the
+   grab started in (the caret is not drawn until the editor is active,
+   so locating by it left a first grab with no token motion) */
+let live_pairs =
+    (~text_box: Js.t(Dom_html.element), segment: Segment.t)
+    : list((CodeFlip.key, Js.t(Dom.node))) => {
+  let ct =
+    Js.Unsafe.meth_call(
+      text_box,
+      "querySelector",
+      [|Js.Unsafe.inject(Js.string(":scope > .code > .code-text"))|],
+    );
+  switch (Js.Opt.to_option(ct)) {
   | None => []
-  | Some(caret) =>
-    switch (
-      Js.Opt.to_option(caret##.parentNode)
-      |> Option.map(deco => Js.Opt.to_option(deco##.parentNode))
-      |> Option.join
-    ) {
+  | Some(ct) =>
+    let nodes = Dom.list_of_nodeList(ct##.childNodes);
+    switch (CodeFlip.pair(CodeFlip.entries_of_segment(segment), nodes)) {
+    | Some(pairs) => pairs
     | None => []
-    | Some(container) =>
-      let ct =
-        Js.Unsafe.meth_call(
-          container,
-          "querySelector",
-          [|Js.Unsafe.inject(Js.string(":scope > .code > .code-text"))|],
-        );
-      switch (Js.Opt.to_option(ct)) {
-      | None => []
-      | Some(ct) =>
-        let nodes = Dom.list_of_nodeList(ct##.childNodes);
-        switch (CodeFlip.pair(CodeFlip.entries_of_segment(segment), nodes)) {
-        | Some(pairs) => pairs
-        | None => []
-        };
-      };
-    }
+    };
   };
+};
 
 let sync =
     (
@@ -1395,7 +1440,7 @@ let sync =
       };
       scrub_clear(s);
       s.segment = Some(segment);
-      let pairs = live_pairs(segment);
+      let pairs = live_pairs(~text_box=s.text_box, segment);
       /* tokens this candidate displaces, in px (single-row tokens
          only, matching CodeFlip's guard); candidate positions read
          through the kind's screen frame */
@@ -1454,6 +1499,22 @@ let sync =
              | Projector(_) => []
              }
            );
+      /* a live token whose text differs in the candidate (a use
+         renamed by a merge): its old text leaves, its new text enters */
+      let live_text = Hashtbl.create(List.length(pairs));
+      pairs
+      |> List.iter(((k, node)) =>
+           Hashtbl.replace(
+             live_text,
+             k,
+             Js.to_string(Js.Unsafe.get(node, "textContent")),
+           )
+         );
+      let renamed = (k: CodeFlip.key, text: string) =>
+        switch (Hashtbl.find_opt(live_text, k)) {
+        | Some(t) => t != text
+        | None => false
+        };
       /* tokens absent live: ghost text at their (frame-adjusted)
          candidate positions */
       let enters_for =
@@ -1469,7 +1530,8 @@ let sync =
                CodeFlip.find_meas(measured, k),
                CodeFlip.find_meas(cand_m, k),
              ) {
-             | (None, Some(n)) =>
+             | (Some(_), Some(_)) when !renamed(k, text) => None
+             | (_, Some(n)) =>
                let p = Refactor.DragCandidate.frame_point(frame, n.origin);
                let px_of = (pt: Measured.Point.t) => {
                  x: float_of_int(pt.col) *. font_metrics.col_width,
@@ -1494,18 +1556,55 @@ let sync =
              | _ => None
              }
            );
-      /* tokens present live but absent in the candidate */
-      let exits_for = (cand_m: Measured.t) =>
+      /* tokens present live but absent in the candidate; a merge's
+         dissolving copy converges onto its survivor's token, and a
+         renamed token's old text fades on its way to its new place */
+      let exits_for =
+          (
+            frame: Refactor.DragCandidate.frame,
+            absorb: list((Id.t, Id.t)),
+            cand_seg: Segment.t,
+            cand_m: Measured.t,
+          ) => {
+        let texts = Hashtbl.create(256);
+        token_texts(cand_seg)
+        |> List.iter(((k, text, _)) => Hashtbl.replace(texts, k, text));
+        let delta = (o: Measured.measurement, n: Measured.measurement) => {
+          let p = Refactor.DragCandidate.frame_point(frame, n.origin);
+          (
+            float_of_int(p.col - o.origin.col) *. font_metrics.col_width,
+            float_of_int(p.row - o.origin.row) *. font_metrics.row_height,
+          );
+        };
         pairs
         |> List.filter_map(((k, node)) =>
              switch (
                CodeFlip.find_meas(measured, k),
                CodeFlip.find_meas(cand_m, k),
              ) {
-             | (Some(_), None) => Some((k, node))
+             | (Some(o), None) =>
+               let into =
+                 switch (k) {
+                 | CodeFlip.Shard(id, i) =>
+                   switch (List.assoc_opt(id, absorb)) {
+                   | Some(v) =>
+                     CodeFlip.find_meas(cand_m, Shard(v, i))
+                     |> Option.map(delta(o))
+                   | None => None
+                   }
+                 | _ => None
+                 };
+               Some((k, node, into));
+             | (Some(o), Some(n)) =>
+               switch (Hashtbl.find_opt(texts, k)) {
+               | Some(text) when renamed(k, text) =>
+                 Some((k, node, Some(delta(o, n))))
+               | _ => None
+               }
              | _ => None
              }
            );
+      };
       /* anchored-deco delta closure: same deltas as the anchor
          tokens, read from the two measured maps on demand */
       let deco_delta_for =
@@ -1582,17 +1681,43 @@ let sync =
       /* a rung: one state, laid out against the live layout. `at` is
          where its step is invoked; `held` the element the next rung
          moves — the grab while it survives, else the state's focus */
-      let mk_rung = (c: Refactor.DragCandidate.t, ~at: Id.t, ~held) => {
+      let mk_rung = (c: Refactor.DragCandidate.t, ~held) => {
         let moved = moved_for(c.frame, c.measured);
         {
           kind: c.kind,
-          at,
+          label: c.label,
+          at: c.at,
           tgt: px(c.target),
           scroll_rows: c.frame.scroll_rows,
           moved,
           deco_delta: deco_delta_for(c.frame, c.measured),
-          exits: exits_for(c.measured),
+          exits: exits_for(c.frame, c.absorb, c.segment, c.measured),
           enters: enters_for(c.frame, c.emerge, c.segment, c.measured),
+          absorb_into:
+            c.absorb
+            |> List.concat_map(((d, v)) =>
+                 List.init(4, i => i)
+                 |> List.filter_map(i =>
+                      CodeFlip.find_meas(c.measured, Shard(v, i))
+                      |> Option.map((m: Measured.measurement) => {
+                           let p =
+                             Refactor.DragCandidate.frame_point(
+                               c.frame,
+                               m.origin,
+                             );
+                           (
+                             CodeFlip.Shard(d, i),
+                             {
+                               x:
+                                 float_of_int(p.col) *. font_metrics.col_width,
+                               y:
+                                 float_of_int(p.row)
+                                 *. font_metrics.row_height,
+                             },
+                           );
+                         })
+                    )
+               ),
           emerge_src: c.emerge |> List.map(snd),
           caret_delta: caret_delta_of(moved),
           cand: c,
@@ -1615,15 +1740,32 @@ let sync =
               ~held=last.held,
               last.cand,
             )
-            |> Option.map(((c, used)) =>
-                 mk_rung(c, ~at=fst(used), ~held=used)
-               );
+            |> Option.map(((c: Refactor.DragCandidate.t, used)) => {
+                 /* a step that added a line (extract) laid its state out
+                    against the screen with a global shift; later steps
+                    are laid out against that state, so they inherit
+                    the shift */
+                 let base = last.cand.frame;
+                 let c =
+                   c.frame == Refactor.DragCandidate.no_frame
+                   && base != Refactor.DragCandidate.no_frame
+                   && base.shift_from == 0
+                     ? {
+                       ...c,
+                       frame: base,
+                       target:
+                         Refactor.DragCandidate.frame_point(base, c.target),
+                     }
+                     : c;
+                 mk_rung(c, ~held=used);
+               });
           },
         );
       let cands =
         switch (grab_id) {
         | Some(target) =>
           Refactor.drag_candidates(
+            ~composites=settings.drag_composites,
             ~info_map,
             ~term,
             ~measured,
@@ -1638,9 +1780,7 @@ let sync =
                  kind: c.kind,
                  label: c.label,
                  cur: px(c.current),
-                 rungs: [
-                   mk_rung(c, ~at=target, ~held=(target, grab_shard)),
-                 ],
+                 rungs: [mk_rung(c, ~held=(target, grab_shard))],
                  exhausted: !s.ladders,
                }
              )

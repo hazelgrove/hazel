@@ -123,7 +123,8 @@ let kinds_at = (marked: string): list(Action.refactor) => {
 let offers = (kind, marked) => List.mem(kind, kinds_at(marked));
 
 let drag_cands =
-    (~push=false, marked: string): list(Refactor.DragCandidate.t) => {
+    (~push=false, ~composites=false, marked: string)
+    : list(Refactor.DragCandidate.t) => {
   let z = Test_Editing.parse_zipper(marked);
   let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
   let measured =
@@ -135,6 +136,7 @@ let drag_cands =
   switch (Indicated.index(z)) {
   | Some(target) =>
     Refactor.drag_candidates(
+      ~composites,
       ~info_map=info_map_of(z),
       ~term,
       ~measured,
@@ -144,6 +146,77 @@ let drag_cands =
       (),
     )
   | None => []
+  };
+};
+
+/* a whole drag: the first track of kind `first`, extended rung by
+   rung as a pull would, committed as one path. Returns the rung kinds
+   and the committed text. */
+let ride =
+    (
+      ~push=true,
+      ~composites=true,
+      ~rungs=8,
+      marked: string,
+      first: Action.refactor,
+    )
+    : (list(Action.refactor), string) => {
+  let z = Test_Editing.parse_zipper(marked);
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let info_map = info_map_of(z);
+  let measured =
+    Measured.of_segment(
+      Zipper.unselect_and_zip(z),
+      ProjectorCore.Shape.Map.empty,
+      Id.Map.empty,
+    );
+  let target = Option.get(Indicated.index(z));
+  let shard = Indicated.shard_index(z);
+  let settings: Language.CoreSettings.t = {
+    ...Test_Editing.default_settings,
+    drag_composites: composites,
+  };
+  switch (
+    Refactor.drag_candidates(
+      ~composites,
+      ~info_map,
+      ~term,
+      ~measured,
+      ~push,
+      ~target,
+      ~shard,
+      (),
+    )
+    |> List.find_opt((c: Refactor.DragCandidate.t) => c.kind == first)
+  ) {
+  | None => ([], "no " ++ Action.show_refactor(first) ++ " track")
+  | Some(c0) =>
+    let rec extend = (acc, held, last, k) =>
+      k <= 1
+        ? acc
+        : (
+          switch (
+            Refactor.next_rung(
+              ~settings,
+              ~info_map,
+              ~root=term,
+              ~push,
+              ~family=first,
+              ~held,
+              last,
+            )
+          ) {
+          | Some((c, used)) => extend(acc @ [c], used, c, k - 1)
+          | None => acc
+          }
+        );
+    let cs = extend([c0], (target, shard), c0, rungs);
+    let steps =
+      cs |> List.map((c: Refactor.DragCandidate.t) => (c.kind, c.at));
+    (
+      cs |> List.map((c: Refactor.DragCandidate.t) => c.kind),
+      text_of(Test_Editing.perform(z, [Action.RefactorPath(steps)])),
+    );
   };
 };
 
@@ -2299,6 +2372,184 @@ let regression_tests = [
         "sugar parameter",
         false,
         hoists("let a = 1 in\nlet sq(¦r) = r * r in\nsq(a)"),
+      );
+    },
+  ),
+  test_case(
+    "composite: extract, then keep pulling up",
+    `Quick,
+    () => {
+      let (kinds, text) =
+        ride(
+          "let total = fun price ->\n  let rate = 8 in\n  let tip = price / 5 in\n  let fee = 3 in\n  price + tip + fee + price * rate ¦/ 100\nin\ntotal(1)",
+          ExtractLet,
+        );
+      check(
+        list(string),
+        "rungs",
+        ["ExtractLet", "HoistLet", "HoistLet"],
+        kinds |> List.map(Action.show_refactor),
+      );
+      check(
+        bool,
+        "the binding sits under rate: " ++ text,
+        true,
+        Str.string_match(
+          Str.regexp(
+            "let total = fun price ->\n  let rate = 8 in\n  let [a-z0-9]+ = price \\* rate / 100 in\n  let tip",
+          ),
+          text,
+          0,
+        ),
+      );
+    },
+  ),
+  test_case(
+    "composite: a value pulled down sinks, then inlines",
+    `Quick,
+    () => {
+      let (kinds, text) =
+        ride(
+          "let report = fun price ->\n  let rate = 8 in\n  let tax = price * rate ¦/ 100 in\n  let tip = price / 5 in\n  let fee = 3 in\n  price + tip + fee + tax\nin\nreport(1)",
+          SinkLet,
+        );
+      check(
+        list(string),
+        "rungs",
+        ["SinkLet", "SinkLet", "FeedLet"],
+        kinds |> List.map(Action.show_refactor),
+      );
+      check(
+        string,
+        "inlined",
+        "let report = fun price ->\n  let rate = 8 in\n  let tip = price / 5 in\n  let fee = 3 in\n  price + tip + fee + price * rate / 100\nin\nreport(1)",
+        text,
+      );
+    },
+  ),
+  test_case(
+    "composite: a value's first downward track is the sink, not the feed",
+    `Quick,
+    () => {
+      let src = "let report = fun price ->\n  let rate = 8 in\n  let tax = price * rate ¦/ 100 in\n  let tip = price / 5 in\n  price + tip + tax\nin\nreport(1)";
+      let kinds = composites =>
+        drag_cands(~push=true, ~composites, src)
+        |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(
+        bool,
+        "feed without composites",
+        true,
+        List.mem(Action.FeedLet, kinds(false)),
+      );
+      check(
+        bool,
+        "no sink without",
+        false,
+        List.mem(Action.SinkLet, kinds(false)),
+      );
+      check(
+        bool,
+        "sink with composites",
+        true,
+        List.mem(Action.SinkLet, kinds(true)),
+      );
+      check(
+        bool,
+        "feed rides the sink's track",
+        false,
+        List.mem(Action.FeedLet, kinds(true)),
+      );
+      check(
+        bool,
+        "up: blocked by price, it lifts",
+        true,
+        List.mem(Action.LiftFunction, kinds(true)),
+      );
+    },
+  ),
+  test_case(
+    "composite: extract a function in one pull",
+    `Quick,
+    () => {
+      let (kinds, text) =
+        ride(
+          "let rim = 3 in\nlet wheel = fun r ->\n  r ¦* r * 314 / 100\nin\nwheel(rim)",
+          ExtractLet,
+        );
+      check(
+        list(string),
+        "rungs",
+        ["ExtractLet", "LiftFunction", "HoistLet"],
+        kinds |> List.map(Action.show_refactor),
+      );
+      check(
+        bool,
+        "a helper above rim: " ++ text,
+        true,
+        Str.string_match(
+          Str.regexp("let \\([a-z0-9]+\\)(r) = r \\* r in\nlet rim = 3 in"),
+          text,
+          0,
+        ),
+      );
+    },
+  ),
+  test_case(
+    "composite: extract, climb, merge onto a twin",
+    `Quick,
+    () => {
+      let (kinds, text) =
+        ride(
+          "let books =\n  let cost = 800 in\n  let tax = cost / 10 in\n  let tip = 5 in\n  cost + tax + tip + cost ¦/ 10\nin\nbooks",
+          ExtractLet,
+        );
+      check(
+        list(string),
+        "rungs",
+        ["ExtractLet", "HoistLet", "MergeUp"],
+        kinds |> List.map(Action.show_refactor),
+      );
+      check(
+        string,
+        "merged",
+        "let books =\n  let cost = 800 in\n  let tax = cost / 10 in\n  let tip = 5 in\n  cost + tax + tip + tax\nin\nbooks",
+        text,
+      );
+    },
+  ),
+  test_case(
+    "composite: without the setting, extract stops after one rung",
+    `Quick,
+    () => {
+      let (kinds, _) =
+        ride(
+          ~composites=false,
+          "let books =\n  let cost = 800 in\n  let tax = cost / 10 in\n  let tip = 5 in\n  cost + tax + tip + cost ¦/ 10\nin\nbooks",
+          ExtractLet,
+        );
+      check(int, "one rung", 1, List.length(kinds));
+    },
+  ),
+  test_case(
+    "hoist with dependents leaves the enclosing definition",
+    `Quick,
+    () => {
+      let (kinds, text) =
+        ride(
+          "let pushy =\n  let tip = 9 in\n  let sub = 40 in\n  ¦let total = sub + 2 in\n  total + tip\nin\npushy",
+          HoistCarry,
+        );
+      check(
+        list(string),
+        "rungs",
+        ["HoistCarry", "HoistCarry"],
+        kinds |> List.map(Action.show_refactor),
+      );
+      check(
+        string,
+        "out of pushy",
+        "let sub = 40 in\nlet total = sub + 2 in\nlet pushy =\n  let tip = 9 in\n  total + tip\nin\npushy",
+        text,
       );
     },
   ),

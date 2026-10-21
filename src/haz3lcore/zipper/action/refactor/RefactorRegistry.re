@@ -632,6 +632,46 @@ let go =
    target in the state the previous one left (statics recomputed
    between steps), landed ONCE — one undo step, judged against the
    program before the first */
+let moves_line = (k: Action.refactor): bool =>
+  switch (k) {
+  | HoistLet
+  | SinkLet
+  | HoistCarry
+  | SinkCarry
+  | LiftFunction
+  | UnliftFunction
+  | MergeUp
+  | MergeDown
+  | JoinLet => true
+  | _ => false
+  };
+
+/* a grabbed VALUE: the let whose definition's root is the grab (not
+   itself a line handle, as a let-headed definition's inner let is) */
+let value_line = (~target: Id.t, term: Exp.t): option(Exp.t) =>
+  find_hit(~hit=hit_def_line(target), term) != None
+    ? None
+    : find_hit(
+        ~hit=
+          e =>
+            switch (IdTagged.term_of(e)) {
+            | Let(_, def, _) => IdTagged.ids(def) |> List.mem(target)
+            | _ => false
+            },
+        term,
+      );
+
+/* a line move invoked on a grabbed value acts on the value's line:
+   how a composite drag moves the line of the value it holds. The
+   value's ids survive extract and lift (a fresh let's would not, so a
+   re-derived path could not find it). */
+let step_target = (kind: Action.refactor, target: Id.t, term: Exp.t): Id.t =>
+  moves_line(kind)
+    ? value_line(~target, term)
+      |> Option.map(Exp.rep_id)
+      |> Option.value(~default=target)
+    : target;
+
 let go_path =
     (
       ~settings: CoreSettings.t,
@@ -646,9 +686,12 @@ let go_path =
   let rec run = (t: Exp.t, im, steps) =>
     switch (steps) {
     | [] => None
-    | [(k, at)] => impl(k).prepare(~info_map=im, ~target=at, t)
+    | [(k, at)] =>
+      impl(k).prepare(~info_map=im, ~target=step_target(k, at, t), t)
     | [(k, at), ...rest] =>
-      switch (impl(k).prepare(~info_map=im, ~target=at, t)) {
+      switch (
+        impl(k).prepare(~info_map=im, ~target=step_target(k, at, t), t)
+      ) {
       | Some((t', _)) =>
         run(t', statics_of(~settings, ~info_map, ~root=term, t'), rest)
       | None => None

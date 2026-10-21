@@ -5,7 +5,8 @@
 # you let go; release lands on the nearest dot as ONE undo step (Esc, #
 # or letting go short of the first dot, changes nothing). Settings > #
 # Drag Pushes Through: a blocked move carries what it depends on, or #
-# lifts out as a helper. #
+# lifts out as a helper. Settings > Drag Composites: one pull runs #
+# through extract, hoist, sink, merge and feed (section 15). #
 
 # 1 HOIST / SINK: grab a let (its let, =, in, or name) and pull #
 # vertically - the let moves its LINE. Keep pulling: gamma climbs #
@@ -113,8 +114,9 @@ let award = fun place ->
   end in
 
 # 9 PUSH THROUGH: grab let total and pull UP. total needs sub, so #
-# sub is pushed up ahead of it, past tip. Pulling back down sinks #
-# total alone - pushed lines stay where they were pushed. #
+# sub is pushed up ahead of it, past tip; keep pulling and the pair #
+# leaves pushy's definition. Pulling back down sinks total alone - #
+# pushed lines stay where they were pushed. #
 
 let pushy =
   let tip = 9 in
@@ -195,6 +197,52 @@ let vol = cube(3) + cube(4) in
 let a = 1 in
 let b = a + a + a in
 
+# 15 COMPOSITES (Settings > Drag Composites): one pull runs through #
+# every move that changes where a value lives. Grab the / of #
+# price * rate / 100 and pull UP: it gets its own line, keeps climbing #
+# past fee and tip, and stops below rate, which it uses. #
+
+let checkout = fun price ->
+  let rate = 8 in
+  let tip = price / 5 in
+  let fee = 3 in
+  price + tip + fee + price * rate / 100
+in
+
+# a value pulled DOWN: grab the / of tax's definition (the value, not #
+# its let) and pull down. It sinks a line at a time, and the last dot #
+# puts it back into its use. Grabbing let tax moves the line instead: #
+# it sinks, but never inlines. #
+
+let invoice = fun price ->
+  let rate = 8 in
+  let tax = price * rate / 100 in
+  let tip = price / 5 in
+  let fee = 3 in
+  price + tip + fee + tax
+in
+
+# extract a function: grab the first * (the root of r * r) and pull #
+# UP. It is bound inside the fun, lifts out as a helper taking r when #
+# r blocks it, then hoists past rim. #
+
+let rim = 3 in
+let wheel = fun r ->
+  r * r * 314 / 100
+in
+
+# extract, climb, merge: grab the / of the last cost / 10 and pull UP. #
+# It is bound, climbs past tip, and lands on tax, which already holds #
+# the same value: the two merge, and the use becomes tax. #
+
+let books =
+  let cost = 800 in
+  let tax = cost / 10 in
+  let tip = 5 in
+  cost + tax + tip + cost / 10
+in
+
 (ladder, spending, volume, scale(2), price, stamp, ticket, cheap,
   feel(5), mixture, hauled, span, award(1), pushy, area(10), twins,
-  disk(10), norm((3, 4)), one(2), two(2), shade, ratio, vol, b)
+  disk(10), norm((3, 4)), one(2), two(2), shade, ratio, vol, b,
+  checkout(100), invoice(100), wheel(rim), books)

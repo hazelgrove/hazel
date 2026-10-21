@@ -57,6 +57,7 @@ module Model = {
       drag_refactor: false,
       drag_chain: Language.CoreSettings.DragChain.SameKind,
       drag_push: true,
+      drag_composites: true,
       drag_labels: true,
       drag_tracks: true,
       display_warnings: true,
@@ -180,6 +181,7 @@ module Update = {
     | DragRefactor
     | DragChain
     | DragPush
+    | DragComposites
     | DragLabels
     | DragTracks
     | CompletionDisplay(CompletionDisplay.t)
@@ -301,6 +303,13 @@ module Update = {
           core: {
             ...settings.core,
             drag_push: !settings.core.drag_push,
+          },
+        }
+      | DragComposites => {
+          ...settings,
+          core: {
+            ...settings.core,
+            drag_composites: !settings.core.drag_composites,
           },
         }
       | DragLabels => {

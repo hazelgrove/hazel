@@ -1673,36 +1673,75 @@ let sink_let_impl: impl = {
     | None => None
     },
 };
-let hoist_carry_site = (~target: Id.t, program: Exp.t): option(list(Exp.t)) =>
+type carry_site =
+  /* the line X above the run, and the run (T1..C) that crosses it */
+  | CarrySwap(Exp.t, list(Exp.t))
+  /* the run tops a let's definition: it leaves the definition, each
+     line in turn */
+  | CarryExit(list(Exp.t));
+
+let hoist_carry_site = (~target: Id.t, program: Exp.t): option(carry_site) =>
   switch (find_path(~hit=hit_def_line(target), program)) {
   | None => None
   | Some(path) =>
     switch (dep_run_walk(path)) {
     | Some({block, block_dls, stop: StopLine(x, dl)}) =>
-      /* X = the line above the run. Only offered when something is
-         carried (plain hoist owns the no-dependency case), and every
-         block member can legally cross X */
+      /* Only offered when something is carried (plain hoist owns the
+         no-dependency case), and every block member can legally
+         cross X */
       List.length(block) >= 2
       && block_dls
       |> List.for_all(m => lines_swappable(dl, m))
-        ? Some([x, ...block]) : None
-    | _ => None /* ceiling or root: no line above in this chain */
+        ? Some(CarrySwap(x, block)) : None
+    | Some({block, stop: StopCeiling(_, anc), _})
+        when List.length(block) >= 2 =>
+      switch (IdTagged.term_of(anc)) {
+      | Let(op, odef, _)
+          when
+            same_node(odef, List.hd(block))
+            && FunctionSugar.detect(op) == None =>
+        Some(CarryExit(block))
+      | _ => None
+      }
+    | _ => None
     }
   };
 
 let hoist_carry_impl: impl = {
   label: "Hoist with dependencies",
   tooltip: "Move this binding up, carrying the definitions it depends on",
-  prepare: (~info_map as _, ~target, program) =>
+  prepare: (~info_map, ~target, program) =>
     switch (hoist_carry_site(~target, program)) {
     | None => None
-    | Some([x, top, ...rest]) =>
+    | Some(CarrySwap(x, [top, ...rest])) =>
       let bottom = List.nth([top, ...rest], List.length(rest));
       /* the block crosses the comment and blank lines above it first,
          one per rung, then swaps with x */
       switch (comment_rung(~up=true, ~program, ~bottom, top)) {
       | Some(r) => Some(r)
       | None => block_swap_up(~program, ~x, ~top, ~bottom)
+      };
+    | Some(CarryExit([top, ...rest])) =>
+      let bottom = List.nth([top, ...rest], List.length(rest));
+      switch (comment_rung(~up=true, ~program, ~bottom, top)) {
+      | Some(r) => Some(r)
+      | None =>
+        /* top first, so each line leaves with what it needs already
+           outside */
+        [top, ...rest]
+        |> List.fold_left(
+             (acc, m) =>
+               switch (acc) {
+               | Some((prog, _)) =>
+                 hoist_let_impl.prepare(
+                   ~info_map,
+                   ~target=Exp.rep_id(m),
+                   prog,
+                 )
+               | None => None
+               },
+             Some((program, target)),
+           )
       };
     | Some(_) => None
     },

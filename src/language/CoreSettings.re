@@ -87,6 +87,11 @@ type t = {
      lifts to a helper (the keyboard's second press) */
   [@sexp.default true]
   drag_push: bool,
+  /* a drag runs through every move that changes where a value lives
+     (extract, hoist, sink, merge, lift, feed), and a grabbed value
+     moves its own line */
+  [@sexp.default true]
+  drag_composites: bool,
   /* drag overlay: the refactoring names, and the tracks + target dots
      (both off = no decoration beyond the moving code itself) */
   [@sexp.default true]
@@ -117,6 +122,7 @@ let off: t = {
   drag_refactor: false,
   drag_chain: DragChain.SameKind,
   drag_push: true,
+  drag_composites: true,
   drag_labels: true,
   drag_tracks: true,
   display_warnings: false,
@@ -138,6 +144,7 @@ let on: t = {
   drag_refactor: false,
   drag_chain: DragChain.SameKind,
   drag_push: true,
+  drag_composites: true,
   drag_labels: true,
   drag_tracks: true,
   display_warnings: true,

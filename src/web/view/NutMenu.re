@@ -421,6 +421,15 @@ let code_display_group = (~globals: Globals.t) => {
           ),
       },
       {
+        name: "Drag Composites",
+        active: globals.settings.core.drag_composites,
+        setting: DragComposites,
+        tooltip:
+          Some(
+            "A drag runs on through extract, hoist, sink, merge and feed; a grabbed value moves its own line",
+          ),
+      },
+      {
         name: "Drag Labels",
         active: globals.settings.core.drag_labels,
         setting: DragLabels,
