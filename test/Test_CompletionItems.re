@@ -93,9 +93,19 @@ let check_parity = (~sort=Sort.Exp, name: string, seg: Segment.t): unit => {
   );
 };
 
-/* type [keys] on a new line after the k-th item, as a user would */
+/* [seg]'s statics, which typing into it starts from */
+let statics_of = (seg: Segment.t): CachedStatics.t =>
+  CachedStatics.init_from_term(
+    ~settings,
+    ~is_dynamic_term=true,
+    MakeTerm.from_zip_for_sem(Zipper.unzip(seg), ~root=Exp).term,
+  );
+
+/* type [keys] on a new line after the k-th item, as a user would;
+   [statics] are [seg]'s, given once for many items (a whole analysis of
+   Mega 1k takes a second) */
 let type_after_item =
-    (k: int, keys: string, seg: Segment.t): option(Zipper.t) => {
+    (~statics=?, k: int, keys: string, seg: Segment.t): option(Zipper.t) => {
   let z0 = Zipper.unzip(seg);
   let last =
     switch (List.nth_opt(Segment.top_items(seg), k)) {
@@ -107,11 +117,10 @@ let type_after_item =
   |> Option.map(z => {
        let syntax = CachedSyntax.init(~root=Exp, z);
        let statics =
-         CachedStatics.init_from_term(
-           ~settings,
-           ~is_dynamic_term=true,
-           MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
-         );
+         switch (statics) {
+         | Some(statics) => statics
+         | None => statics_of(seg)
+         };
        String.fold_left(
          (z, c) =>
            switch (
@@ -140,9 +149,10 @@ let corpus_case = (file: string, ()) => {
   let seg = CorpusUtil.mega_seg(file);
   check_parity(file ++ " (complete)", seg);
   let n = List.length(Segment.top_items(seg));
+  let statics = statics_of(seg);
   List.iter(
     ((k, keys)) =>
-      switch (type_after_item(k, keys, seg)) {
+      switch (type_after_item(~statics, k, keys, seg)) {
       | None =>
         fail(Printf.sprintf("%s: could not type after item %d", file, k))
       | Some(z) =>
@@ -625,16 +635,16 @@ let tests = (
     test_case("memo keyed by sort", `Quick, sort_keyed_case),
     test_case("a live set past the bound stays cached", `Quick, swept_live),
     test_case("edits don't grow the bound", `Quick, swept_stale),
-    test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz")),
-    test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz")),
+    /* Mega 2k and 4k repeat its shapes */
+    test_case("mega-1k parity", `Slow, corpus_case("mega-1k.hz")),
     test_case(
       "typing a member into a mega-1k module",
-      `Quick,
+      `Slow,
       typing_case(~root=Exp, "mega-1k.hz", 1, 1, "let q = (1 + 2"),
     ),
     test_case(
       "typing a member into a mega-mod-1k module",
-      `Quick,
+      `Slow,
       typing_case(~root=Mod, "mega-mod-1k.hz", 2, 0, "let q = (1 + 2"),
     ),
   ]

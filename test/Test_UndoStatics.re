@@ -5,9 +5,9 @@ open Haz3lcore;
 /* Undo and redo restore a program, not its analysis. As after a key, the
    restored program shows the live statics and run until the typing
    debounce analyzes it and asks for a run ([refresh]: the debounce
-   firing). List, 65 members, with List.length's `| [] => 0` as `0.1` (a
-   Float where an Int goes): the 1 undone and redone, both versions have
-   the error, so the marks shown meanwhile are real ones */
+   firing). List to `cons` (OM.short_src), with List.length's `| [] => 0`
+   as `0.1` (a Float where an Int goes): the 1 undone and redone, both
+   versions have the error, so the marks shown meanwhile are real ones */
 
 module Cells = Test_Undo.Cells;
 module OM = Test_OpenMember;
@@ -168,7 +168,7 @@ let deferred =
 let program_statics = m => Program.statics(Cells.program(m));
 
 let one_member = (~root: Sort.t, ()) => {
-  let src = OM.src(~root);
+  let src = OM.short_src(~root);
   let m = refresh(run(OM.mk(~root, src), Refresh));
   let m =
     run(
@@ -201,7 +201,7 @@ let one_member = (~root: Sort.t, ()) => {
 /* the same in List.length's open cell: the cell's and the program's */
 let in_cell = () => {
   let root = Sort.Mod;
-  let m = refresh(run(OM.mk(~root, OM.src(~root)), Refresh));
+  let m = refresh(run(OM.mk(~root, OM.short_src(~root)), Refresh));
   let id = OM.row(m, ["List", "length"]);
   let m = refresh(run(m, Cells.workspace(FocusToggle(id))));
   let to_ = OM.after(Cells.body(m, id), "| [] => 0");

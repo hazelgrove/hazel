@@ -36,6 +36,9 @@ type program = {
   semi: string,
   /* two adjacent members that read alike (their tokens' starts) */
   pair: (string, string),
+  /* typed on the new line and deleted: a member, then an unfinished one */
+  member: string,
+  unfinished: string,
   speed: speed_level,
 };
 
@@ -48,7 +51,9 @@ let programs = [
     line_end: "    end;",
     semi: "    fold_left(xs, fun (acc, x) -> acc @ f(x), []);",
     pair: ("letmap:", "letfilter:"),
-    speed: `Quick,
+    member: "let q = 1;",
+    unfinished: "let q = (1 + 2",
+    speed: `Slow,
   },
   {
     name: "Mega-Mod 1k",
@@ -58,17 +63,23 @@ let programs = [
     line_end: "test Text.selfcheck(()) end;",
     semi: "test DewLedger.selfcheck(()) end;",
     pair: ("testText.", "testDewLedger."),
+    member: "let q = 1;",
+    unfinished: "let q = (1 + 2",
     speed: `Quick,
   },
   {
     name: "a 4k-member level",
     src: world_src,
-    inner: ("dew = Int", 3),
+    /* in MetaRunner, near the other needles: the caret's walk across
+       World from DewLedger takes seconds */
+    inner: ("ran = Int", 3),
     token: ("final.ok == 87", 14),
     line_end: "test Text.selfcheck(()) end;",
     semi: "test DewLedger.selfcheck(()) end;",
     pair: ("testText.", "testDewLedger."),
-    /* ~40s in a dev build */
+    /* the shortest of each, as a key here costs ~0.5s */
+    member: "q;",
+    unfinished: "(1",
     speed: `Slow,
   },
 ];
@@ -287,10 +298,14 @@ let script = (p: program) => {
     |> at("to a line's end", (p.line_end, String.length(p.line_end)))
     |> type_(~same=true, "a new line", "\n")
     /* a member typed on it and deleted, then an unfinished one */
-    |> type_(~same=false, "a member", "let q = 1;")
-    |> back(~same=false, "a member, deleted", 10)
-    |> type_(~same=false, "an unfinished member", "let q = (1 + 2")
-    |> back(~same=false, "an unfinished member, deleted", 14)
+    |> type_(~same=false, "a member", p.member)
+    |> back(~same=false, "a member, deleted", String.length(p.member))
+    |> type_(~same=false, "an unfinished member", p.unfinished)
+    |> back(
+         ~same=false,
+         "an unfinished member, deleted",
+         String.length(p.unfinished),
+       )
     /* a missing `;`, and keys in a member while it is */
     |> at("to a `;`", (p.semi, String.length(p.semi)))
     |> back(~same=false, "a `;` deleted", 1);
@@ -324,7 +339,12 @@ let script = (p: program) => {
     parse(MakeTerm.Incr.mk_cache(), seg),
     read(~same=false, "as it was", seg),
   );
-  check(bool, p.name ++ ": keys read", true, keys^ > 40);
+  check(
+    int,
+    p.name ++ ": keys read",
+    21 + 2 * String.length(p.member ++ p.unfinished),
+    keys^,
+  );
 };
 
 /* a level, the same with a hole for its first token, and with a grout
@@ -438,6 +458,7 @@ let swaps = ((sort: Sort.t, src: string), ()) => {
 let swap_levels = [
   (
     "a Mod level",
+    `Slow,
     (
       Sort.Mod,
       "let a = 1 + 2 + 3 * 4 - 5;\nlet b = a :: [] @ [5];\ntest a == 7 end;\nlet f = fun x -> x / 2;\nf(a) > 2 || a < 1 && true;\nlet c = if a < 3 then 1 else 2;\nmodule M = { let d = 1 };\nM.d",
@@ -445,6 +466,7 @@ let swap_levels = [
   ),
   (
     "an Exp level",
+    `Quick,
     (
       Sort.Exp,
       "let a = 1 in\ntest a == 1 end;\na + 2 + 3 * 4 - 5 :: [] @ [5] == b || c && d > 2",
@@ -466,8 +488,8 @@ let edit_script = (p: program, ()) => {
 let tests = (
   "LevelSkels",
   List.map(
-    ((name, level)) =>
-      test_case(name ++ ": pieces swapped", `Quick, swaps(level)),
+    ((name, speed, level)) =>
+      test_case(name ++ ": pieces swapped", speed, swaps(level)),
     swap_levels,
   )
   @ List.map(

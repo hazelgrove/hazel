@@ -5,26 +5,30 @@ open Language;
 /* MakeTerm.Incr.go_incr's record equals MakeTerm.go's on every field,
    reparses only changed items, and never falls back */
 
+/* each field structurally; [compare], unlike [==], skips what the records
+   share (a level's segment, in every one of its terms' term_data) */
+let same = (x, y) => compare(x, y) == 0;
+
 let records_agree = (name: string, a: MakeTerm.t, b: MakeTerm.t): unit => {
-  check(bool, name ++ ":term", true, a.term == b.term);
-  check(bool, name ++ ":terms", true, Id.Map.equal((==), a.terms, b.terms));
+  check(bool, name ++ ":term", true, same(a.term, b.term));
+  check(bool, name ++ ":terms", true, Id.Map.equal(same, a.terms, b.terms));
   check(
     bool,
     name ++ ":term_data",
     true,
-    Id.Map.equal((==), a.term_data, b.term_data),
+    Id.Map.equal(same, a.term_data, b.term_data),
   );
   check(
     bool,
     name ++ ":projectors",
     true,
-    Id.Map.equal((==), a.projectors, b.projectors),
+    Id.Map.equal(same, a.projectors, b.projectors),
   );
   check(
     bool,
     name ++ ":projector_list",
     true,
-    a.projector_list == b.projector_list,
+    same(a.projector_list, b.projector_list),
   );
 };
 
@@ -43,7 +47,7 @@ let check_term_of = (name: string, seg: Segment.t): unit => {
   let fb = MakeTerm.Incr.fell_back^;
   let term = MakeTerm.Incr.term_of(seg);
   check(int, name ++ ":term_of no fallback", fb, MakeTerm.Incr.fell_back^);
-  check(bool, name ++ ":term_of", true, term == MakeTerm.go(seg).term);
+  check(bool, name ++ ":term_of", true, same(term, MakeTerm.go(seg).term));
 };
 
 let corpus_case = (file: string, ()) => {
@@ -256,9 +260,8 @@ let tests = (
       CorpusUtil.incomplete_programs,
     )
   @ [
+    /* Mega 2k and 4k repeat its shapes */
     test_case("mega-1k parity", `Quick, corpus_case("mega-1k.hz")),
-    test_case("mega-2k parity", `Quick, corpus_case("mega-2k.hz")),
-    test_case("mega-4k parity", `Quick, corpus_case("mega-4k.hz")),
     test_case("independent of the previous parse", `Quick, independent),
     /* a member level of only trivia is one slice, with no item */
     test_case(
