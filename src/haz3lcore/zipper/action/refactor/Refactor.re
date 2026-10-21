@@ -43,7 +43,7 @@ let next_rung = RefactorDrag.next_rung;
 let path_emerge_source = (~info_map, ~term, kind, target) =>
   RefactorDrag.emerge_source(~info_map, ~target, kind, term);
 let path_merge_target = (~info_map, ~term, kind, target) =>
-  RefactorDrag.merge_target(~info_map, ~target, kind, term);
+  RefactorRegistry.merge_target(~info_map, ~target, kind, term);
 let gesture_merge_target = RefactorDrag.gesture_merge_target;
 let refactor_merge_target = RefactorDrag.refactor_merge_target;
 let gesture_emerge_source = RefactorDrag.gesture_emerge_source;

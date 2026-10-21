@@ -53,69 +53,6 @@ let emerge_source =
   | _ => []
   };
 
-/* mergeInto targets (D2 emerge reversed): when this invocation will
-   ABSORB (identical definitions merging) or GLOM (extract reusing an
-   identical existing def), the dissolved window's ids + the
-   surviving window's ids — staged for the convergence flight. */
-let merge_target =
-    (~info_map, ~target, kind: Action.refactor, term)
-    : (list(Id.t), list(Id.t)) => {
-  let line_ids = (e: Exp.t): list(Id.t) =>
-    switch (IdTagged.term_of(e)) {
-    | Let(p, d, _) =>
-      IdTagged.ids(e) @ pat_subtree_ids(p) @ exp_subtree_ids(d)
-    | _ => IdTagged.ids(e)
-    };
-  switch (kind) {
-  | MergeUp =>
-    switch (merge_site_up(~info_map, ~target, term)) {
-    | Some((p, l)) => (line_ids(l), line_ids(p))
-    | None => ([], [])
-    }
-  | MergeDown =>
-    switch (merge_site_down(~info_map, ~target, term)) {
-    | Some(l) =>
-      switch (def_line_of(l)) {
-      | Some((_, lbody)) => (line_ids(l), line_ids(lbody))
-      | None => ([], [])
-      }
-    | None => ([], [])
-    }
-  | ExtractLet =>
-    switch (extract_path(~target, term)) {
-    | Some(path) =>
-      let t = List.nth(path, List.length(path) - 1);
-      let line = lowest_line(path);
-      let blocked =
-        crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
-      let rec host = (path: list(Exp.t)) =>
-        switch (path) {
-        | [parent, child, ..._] when same_node(child, line) => Some(parent)
-        | [_, ...rest] => host(rest)
-        | [] => None
-        };
-      switch (blocked ? None : host(path)) {
-      | Some(h) =>
-        switch (IdTagged.term_of(h)) {
-        | Let(lp, ldef, lbody)
-            when same_node(lbody, line) && eq_defs(ldef, t) =>
-          switch (let_head_name(lp)) {
-          | Some(nm) when !List.mem(nm, binders_over(Exp.rep_id(t), lbody)) => (
-              exp_subtree_ids(t),
-              exp_subtree_ids(ldef),
-            )
-          | _ => ([], [])
-          }
-        | _ => ([], [])
-        }
-      | None => ([], [])
-      };
-    | None => ([], [])
-    }
-  | _ => ([], [])
-  };
-};
-
 let gesture_merge_target =
     (~info_map, ~term, g: Action.Gesture.t, z: Zipper.t)
     : (list(Id.t), list(Id.t)) =>
@@ -367,10 +304,11 @@ let drag_kinds =
   let via_line =
     switch (composites ? value_line(~target, term) : None) {
     | Some(l) =>
+      /* no sink with dependents: a value moves toward its uses, it
+         never pushes them away */
       [Action.MergeUp, HoistLet]
       @ (push ? [Action.HoistCarry, LiftFunction] : [])
       @ [Action.MergeDown, SinkLet]
-      @ (push ? [Action.SinkCarry] : [])
       |> List.filter(k =>
            applies(k, ~info_map, ~target=Exp.rep_id(l), term)
          )
@@ -766,8 +704,11 @@ let next_rung =
     };
   let held =
     Id.Map.mem(fst(held), prev.measured.tiles) ? held : (prev.focus, None);
-  let dr = prev.target.row - prev.current.row
-  and dc = prev.target.col - prev.current.col;
+  /* the way a ladder goes is forward or back in reading order: a run
+     of feeds steps through uses left of and right of the definition
+     alike, which a geometric heading would cut short */
+  let way = (c: DragCandidate.t) =>
+    compare((c.target.row, c.target.col), (c.current.row, c.current.col));
   ended
     ? None
     : drag_candidates(
@@ -782,11 +723,7 @@ let next_rung =
         (),
       )
       |> List.find_opt((c: DragCandidate.t) =>
-           continues(c.kind)
-           && (c.target.row - c.current.row)
-           * dr
-           + (c.target.col - c.current.col)
-           * dc > 0
+           continues(c.kind) && way(c) == way(prev)
          )
       |> Option.map(c => (c, held));
 };

@@ -1683,6 +1683,24 @@ let sync =
          moves — the grab while it survives, else the state's focus */
       let mk_rung = (c: Refactor.DragCandidate.t, ~held) => {
         let moved = moved_for(c.frame, c.measured);
+        let exits = exits_for(c.frame, c.absorb, c.segment, c.measured);
+        /* a grab that dissolves into a survivor takes the caret with it */
+        let caret_into = () =>
+          switch (grab_id) {
+          | Some(tid) =>
+            exits
+            |> List.find_map(((k, _, into)) =>
+                 switch (k, into) {
+                 | (CodeFlip.Shard(id, i), Some(d))
+                     when
+                       id == tid
+                       && (grab_shard == None || Some(i) == grab_shard) =>
+                   Some(d)
+                 | _ => None
+                 }
+               )
+          | None => None
+          };
         {
           kind: c.kind,
           label: c.label,
@@ -1691,7 +1709,7 @@ let sync =
           scroll_rows: c.frame.scroll_rows,
           moved,
           deco_delta: deco_delta_for(c.frame, c.measured),
-          exits: exits_for(c.frame, c.absorb, c.segment, c.measured),
+          exits,
           enters: enters_for(c.frame, c.emerge, c.segment, c.measured),
           absorb_into:
             c.absorb
@@ -1719,7 +1737,11 @@ let sync =
                     )
                ),
           emerge_src: c.emerge |> List.map(snd),
-          caret_delta: caret_delta_of(moved),
+          caret_delta:
+            switch (caret_delta_of(moved)) {
+            | Some(d) => Some(d)
+            | None => caret_into()
+            },
           cand: c,
           held:
             Id.Map.mem(fst(held), c.measured.tiles)

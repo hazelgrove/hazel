@@ -2379,17 +2379,16 @@ let regression_tests = [
     "composite: extract, then keep pulling up",
     `Quick,
     () => {
-      let (kinds, text) =
-        ride(
-          "let total = fun price ->\n  let rate = 8 in\n  let tip = price / 5 in\n  let fee = 3 in\n  price + tip + fee + price * rate ¦/ 100\nin\ntotal(1)",
-          ExtractLet,
-        );
+      let src = "let total = fun price ->\n  let rate = 8 in\n  let tip = price / 5 in\n  let fee = 3 in\n  price + tip + fee + price * rate ¦/ 100\nin\ntotal(1)";
+      let (kinds, _) = ride(src, ExtractLet);
+      /* stuck under rate, which can't leave the fun: it lifts */
       check(
         list(string),
         "rungs",
-        ["ExtractLet", "HoistLet", "HoistLet"],
+        ["ExtractLet", "HoistLet", "HoistLet", "LiftFunction"],
         kinds |> List.map(Action.show_refactor),
       );
+      let (_, text) = ride(~rungs=3, src, ExtractLet);
       check(
         bool,
         "the binding sits under rate: " ++ text,
@@ -2515,6 +2514,123 @@ let regression_tests = [
         "let books =\n  let cost = 800 in\n  let tax = cost / 10 in\n  let tip = 5 in\n  cost + tax + tip + tax\nin\nbooks",
         text,
       );
+    },
+  ),
+  test_case(
+    "composite: after a merge the caret sits on the survivor's token",
+    `Quick,
+    () => {
+      let marked = "let books =\n  let cost = 800 in\n  let tax = cost / 10 in\n  let tip = 5 in\n  cost + tax + tip + cost ¦/ 10\nin\nbooks";
+      let z = Test_Editing.parse_zipper(marked);
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      let (kinds, _) = ride(marked, ExtractLet);
+      check(int, "three rungs", 3, List.length(kinds));
+      let target = Option.get(Indicated.index(z));
+      let measured =
+        Measured.of_segment(
+          Zipper.unselect_and_zip(z),
+          ProjectorCore.Shape.Map.empty,
+          Id.Map.empty,
+        );
+      let settings: Language.CoreSettings.t = {
+        ...Test_Editing.default_settings,
+        drag_composites: true,
+      };
+      let info_map = info_map_of(z);
+      let c0 =
+        Refactor.drag_candidates(
+          ~composites=true,
+          ~info_map,
+          ~term,
+          ~measured,
+          ~push=true,
+          ~target,
+          ~shard=Indicated.shard_index(z),
+          (),
+        )
+        |> List.find((c: Refactor.DragCandidate.t) => c.kind == ExtractLet);
+      let rec go = (acc, held, last, k) =>
+        k == 0
+          ? acc
+          : (
+            switch (
+              Refactor.next_rung(
+                ~settings,
+                ~info_map,
+                ~root=term,
+                ~push=true,
+                ~family=ExtractLet,
+                ~held,
+                last,
+              )
+            ) {
+            | Some((c, used)) => go(acc @ [c], used, c, k - 1)
+            | None => acc
+            }
+          );
+      let steps =
+        go([c0], (target, Indicated.shard_index(z)), c0, 2)
+        |> List.map((c: Refactor.DragCandidate.t) => (c.kind, c.at));
+      let z' = Test_Editing.perform(z, [Action.RefactorPath(steps)]);
+      let m' =
+        Measured.of_segment(
+          Zipper.unselect_and_zip(z'),
+          ProjectorCore.Shape.Map.empty,
+          Id.Map.empty,
+        );
+      let p = Zipper.Caret.point(m', z');
+      /* "  let tax = cost / 10 in": the / is column 17 of row 2 */
+      check(
+        bool,
+        Printf.sprintf("caret at tax's / (%d, %d)", p.row, p.col),
+        true,
+        p.row == 2 && (p.col == 17 || p.col == 18),
+      );
+    },
+  ),
+  test_case(
+    "composite: a value fed through uses on both sides of its column",
+    `Quick,
+    () => {
+      let (kinds, text) =
+        ride(
+          "let books =\n  let cost = 800 in\n  let tax = cost ¦/ 10 in\n  let tip = 5 in\n  cost + tax + tip + tax\nin\nbooks",
+          SinkLet,
+        );
+      check(
+        list(string),
+        "rungs",
+        ["SinkLet", "FeedLet", "FeedLet"],
+        kinds |> List.map(Action.show_refactor),
+      );
+      check(
+        string,
+        "both uses",
+        "let books =\n  let cost = 800 in\n  let tip = 5 in\n  cost + cost / 10 + tip + cost / 10\nin\nbooks",
+        text,
+      );
+    },
+  ),
+  test_case(
+    "composite: a value never pushes its uses away; it feeds them",
+    `Quick,
+    () => {
+      let src = "let a = ¦1 in\nlet b = a + a + a in\nb";
+      check(
+        bool,
+        "no sink with dependents",
+        false,
+        drag_cands(~push=true, ~composites=true, src)
+        |> List.exists((c: Refactor.DragCandidate.t) => c.kind == SinkCarry),
+      );
+      let (kinds, text) = ride(src, FeedLet);
+      check(
+        list(string),
+        "rungs",
+        ["FeedLet", "FeedLet", "FeedLet"],
+        kinds |> List.map(Action.show_refactor),
+      );
+      check(string, "fed", "let b = 1 + 1 + 1 in\nb", text);
     },
   ),
   test_case(

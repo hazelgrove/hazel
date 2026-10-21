@@ -661,6 +661,69 @@ let value_line = (~target: Id.t, term: Exp.t): option(Exp.t) =>
         term,
       );
 
+/* mergeInto targets (D2 emerge reversed): when this invocation will
+   ABSORB (identical definitions merging) or GLOM (extract reusing an
+   identical existing def), the dissolved window's ids + the
+   surviving window's ids — staged for the convergence flight. */
+let merge_target =
+    (~info_map, ~target, kind: Action.refactor, term)
+    : (list(Id.t), list(Id.t)) => {
+  let line_ids = (e: Exp.t): list(Id.t) =>
+    switch (IdTagged.term_of(e)) {
+    | Let(p, d, _) =>
+      IdTagged.ids(e) @ pat_subtree_ids(p) @ exp_subtree_ids(d)
+    | _ => IdTagged.ids(e)
+    };
+  switch (kind) {
+  | MergeUp =>
+    switch (merge_site_up(~info_map, ~target, term)) {
+    | Some((p, l)) => (line_ids(l), line_ids(p))
+    | None => ([], [])
+    }
+  | MergeDown =>
+    switch (merge_site_down(~info_map, ~target, term)) {
+    | Some(l) =>
+      switch (def_line_of(l)) {
+      | Some((_, lbody)) => (line_ids(l), line_ids(lbody))
+      | None => ([], [])
+      }
+    | None => ([], [])
+    }
+  | ExtractLet =>
+    switch (extract_path(~target, term)) {
+    | Some(path) =>
+      let t = List.nth(path, List.length(path) - 1);
+      let line = lowest_line(path);
+      let blocked =
+        crossed_rec_binders(line, path) |> List.exists(n => mentions(n, t));
+      let rec host = (path: list(Exp.t)) =>
+        switch (path) {
+        | [parent, child, ..._] when same_node(child, line) => Some(parent)
+        | [_, ...rest] => host(rest)
+        | [] => None
+        };
+      switch (blocked ? None : host(path)) {
+      | Some(h) =>
+        switch (IdTagged.term_of(h)) {
+        | Let(lp, ldef, lbody)
+            when same_node(lbody, line) && eq_defs(ldef, t) =>
+          switch (let_head_name(lp)) {
+          | Some(nm) when !List.mem(nm, binders_over(Exp.rep_id(t), lbody)) => (
+              exp_subtree_ids(t),
+              exp_subtree_ids(ldef),
+            )
+          | _ => ([], [])
+          }
+        | _ => ([], [])
+        }
+      | None => ([], [])
+      };
+    | None => ([], [])
+    }
+  | _ => ([], [])
+  };
+};
+
 /* a line move invoked on a grabbed value acts on the value's line:
    how a composite drag moves the line of the value it holds. The
    value's ids survive extract and lift (a fresh let's would not, so a
@@ -683,15 +746,32 @@ let go_path =
     : option(Zipper.t) => {
   id_origin := Id.Map.empty;
   binder_redirect := Id.Map.empty;
+  /* the held element; when a step dissolves it into an identical
+     survivor (merge, extract onto a twin), the caret follows it there */
+  let held = ref(None);
+  let follow = (k, at, t, im) =>
+    switch (held^) {
+    | Some(h) =>
+      let (d, v) =
+        merge_target(~info_map=im, ~target=step_target(k, at, t), k, t);
+      if (List.length(d) == List.length(v)) {
+        switch (List.assoc_opt(h, List.combine(d, v))) {
+        | Some(h') => held := Some(h')
+        | None => ()
+        };
+      };
+    | None => ()
+    };
+  let step = (t, im, (k, at)) => {
+    follow(k, at, t, im);
+    impl(k).prepare(~info_map=im, ~target=step_target(k, at, t), t);
+  };
   let rec run = (t: Exp.t, im, steps) =>
     switch (steps) {
     | [] => None
-    | [(k, at)] =>
-      impl(k).prepare(~info_map=im, ~target=step_target(k, at, t), t)
-    | [(k, at), ...rest] =>
-      switch (
-        impl(k).prepare(~info_map=im, ~target=step_target(k, at, t), t)
-      ) {
+    | [s] => step(t, im, s)
+    | [s, ...rest] =>
+      switch (step(t, im, s)) {
       | Some((t', _)) =>
         run(t', statics_of(~settings, ~info_map, ~root=term, t'), rest)
       | None => None
@@ -700,7 +780,17 @@ let go_path =
   switch (steps) {
   | [] => None
   | [(_, target), ..._] =>
+    held := Some(target);
     run(term, info_map, steps)
-    |> Option.bind(_, land_result(~settings, ~info_map, ~term, ~target, z))
+    |> Option.map(((t', focus)) =>
+         (
+           t',
+           switch (held^) {
+           | Some(h) when h != target => h
+           | _ => focus
+           },
+         )
+       )
+    |> Option.bind(_, land_result(~settings, ~info_map, ~term, ~target, z));
   };
 };
