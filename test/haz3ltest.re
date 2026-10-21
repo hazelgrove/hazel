@@ -116,7 +116,8 @@ let (suite, exit_with_test_status) =
     @ [Test_SettingsPanel.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
-    @ [Test_ExplainThis.tests],
+    @ [Test_ExplainThis.tests]
+    @ [Test_HazelLib.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

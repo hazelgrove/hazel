@@ -35,7 +35,9 @@
   \
   Worker
   WorkerServer
-  Migrate_exercises)
+  Migrate_exercises
+  HazelLib
+  HazelLibCore)
  (libraries
   ezjs_min
   ezjs_idb
@@ -83,6 +85,25 @@
  (name worker)
  (modules Worker)
  (libraries workerServer)
+ (modes js)
+ (preprocess
+  (pps js_of_ocaml-ppx)))
+
+; Hazel as a JS library (a draft): window.Hazel, to analyze and run programs
+; from any page. Served as www/hazel-lib.js. See HazelLib.re.
+
+(library
+ (name hazelLibCore)
+ (modules HazelLibCore)
+ (libraries haz3lcore language)
+ (js_of_ocaml)
+ (preprocess
+  (pps js_of_ocaml-ppx)))
+
+(executable
+ (name hazelLib)
+ (modules HazelLib)
+ (libraries hazelLibCore)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))
