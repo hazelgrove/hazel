@@ -433,6 +433,18 @@ let lands_elsewhere = (kind: Action.refactor): bool =>
   | _ => false
   };
 
+/* A proof editor can reuse target geometry with its own theorem context
+   and matcher, without enabling source-edit refactors. */
+type theorem_source = {
+  rules: list(RefactorTheorem.rule),
+  env: Environment.t(Exp.t),
+  render: Exp.t => Segment.t,
+  accepts: (~before: Exp.t, ~after: Exp.t, Segment.t) => bool,
+  prepare:
+    (~target: Id.t, ~site: Id.t, Id.t, Util.Direction.t, Exp.t) =>
+    option((Exp.t, Id.t, SyntaxCorrespondence.t)),
+};
+
 let drag_candidates =
     (
       ~settings: CoreSettings.t=CoreSettings.on,
@@ -454,6 +466,8 @@ let drag_candidates =
          zero travel for real moves */
       ~target: Id.t,
       ~shard as grab_shard: option(int),
+      ~theorems: option(theorem_source)=?,
+      ~only_theorems=false,
       (),
     )
     : list(DragCandidate.t) => {
@@ -683,13 +697,17 @@ let drag_candidates =
            )
       : cs;
   let moves =
-    drag_kinds(
-      ~climb=composites && continuing,
-      ~info_map,
-      ~term,
-      ~push,
-      ~target,
-      ~shard=grab_shard,
+    (
+      only_theorems
+        ? []
+        : drag_kinds(
+            ~climb=composites && continuing,
+            ~info_map,
+            ~term,
+            ~push,
+            ~target,
+            ~shard=grab_shard,
+          )
     )
     |> List.filter_map(~f=k => mk(k))
     |> one_place_track
@@ -711,11 +729,24 @@ let drag_candidates =
     |> Option.value(~default=[])
     |> List.rev;
   let occupied = ref(List.map(~f=(c: DragCandidate.t) => c.target, moves));
+  let theorems =
+    Option.value(
+      ~default={
+        rules: RefactorTheorem.rules_at(~info_map, ~target),
+        env: Environment.empty,
+        render: e =>
+          ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e)
+          |> SpaceNormalize.go,
+        accepts: accepts_result(~settings, ~info_map),
+        prepare: RefactorTheorem.prepare_details(~info_map),
+      },
+      theorems,
+    );
   let rewrites =
     switch (shard_meas(target, measured)) {
     | None => []
     | Some(anchor) =>
-      RefactorTheorem.rules_at(~info_map, ~target)
+      theorems.rules
       |> List.concat_map(~f=(r: RefactorTheorem.rule) =>
            [Util.Direction.Right, Left]
            |> List.concat_map(~f=direction =>
@@ -741,14 +772,7 @@ let drag_candidates =
                      let site = Exp.rep_id(site_exp);
                      let kind = Action.RewriteTheorem(r.id, direction, site);
                      switch (
-                       RefactorTheorem.prepare_details(
-                         ~info_map,
-                         ~target,
-                         ~site,
-                         r.id,
-                         direction,
-                         term,
-                       )
+                       theorems.prepare(~target, ~site, r.id, direction, term)
                      ) {
                      | None => None
                      | Some((term', focus, correspondence)) =>
@@ -773,12 +797,7 @@ let drag_candidates =
                               )
                            |> Option.value(~default="")
                          );
-                       let segment =
-                         ExpToSegment.exp_to_segment(
-                           ~settings=roundtrip_settings,
-                           term',
-                         )
-                         |> SpaceNormalize.go;
+                       let segment = theorems.render(term');
                        let cand_measured =
                          Measured.of_segment(
                            segment,
@@ -810,9 +829,7 @@ let drag_candidates =
                        if (!hit_node(target, site_exp)
                            && endpoint == None
                            || !
-                                accepts_result(
-                                  ~settings,
-                                  ~info_map,
+                                theorems.accepts(
                                   ~before=term,
                                   ~after=term',
                                   segment,
