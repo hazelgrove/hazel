@@ -227,6 +227,51 @@ let unfold_loads = () =>
     );
   });
 
+/* the unloaded slides summarized one a step: all but the perf corpora,
+   errors where a slide shows them, their rows marked in the outline */
+let summaries = () =>
+  Test_WorldSlide.shipped(() => {
+    Web.HazelDB.kv_clear();
+    Hashtbl.reset(Web.WorldSummaries.table);
+    let m = Deck.load(~settings);
+    let (_, code) = current(m);
+    let doc = Web.Program.document(code.program);
+    let rec go = n =>
+      n > 0 && Web.WorldSummaries.step(~settings, doc) ? go(n - 1) : n;
+    let left = go(200);
+    check(bool, "done in bounded steps", true, left > 0);
+    check(
+      list(string),
+      "none missing",
+      [],
+      Web.WorldSummaries.missing(doc),
+    );
+    let errs = "Documentation / B2T2 / Errors / Malformed Tables";
+    check(
+      bool,
+      "a slide showing errors has some",
+      true,
+      switch (Web.WorldSummaries.find(errs)) {
+      | Some(s) => s.errors > 0
+      | None => false
+      },
+    );
+    check(
+      bool,
+      "the perf corpora skipped",
+      true,
+      Web.WorldSummaries.find("Documentation / Perf / Mega 4k") == None,
+    );
+    let rows = Web.WorldSummaries.error_rows();
+    check(
+      bool,
+      "its row and folders marked",
+      true,
+      List.mem(Deck.slide_id(errs), rows)
+      && List.mem(WorldTree.folder_id(["Documentation", "B2T2"]), rows),
+    );
+  });
+
 let tests = (
   "WorldDeck",
   [
@@ -235,5 +280,6 @@ let tests = (
     test_case("renaming a slide", `Quick, rename),
     test_case("zooming into a slide follows it", `Quick, zoom_follows),
     test_case("opening a slide's ⋯ loads it", `Quick, unfold_loads),
+    test_case("unloaded slides summarized", `Slow, summaries),
   ],
 );

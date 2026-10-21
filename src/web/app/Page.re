@@ -192,6 +192,8 @@ module Update = {
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Refresh
+    /* one of the World's unloaded slides summarized (WorldSummaries) */
+    | Summarize
     | Start
     | Save;
 
@@ -529,6 +531,24 @@ module Update = {
       Benchmark.finish();
       model |> Updated.return_quiet;
     | Refresh => model |> Updated.return_quiet(~recalculate=true)
+    | Summarize =>
+      switch (model.editors) {
+      | World(m) when WorldSummaries.idle() =>
+        switch (ScratchModel.Model.current_code(m)) {
+        | Some(code)
+            when
+              WorldSummaries.step(
+                ~settings=model.globals.settings.core,
+                Program.document(code.program),
+              ) =>
+          model |> Updated.return_quiet(~recalculate=true)
+        | _ => model |> Updated.return_quiet
+        }
+      | World(_) => model |> Updated.return_quiet
+      | _ =>
+        WorldSummaries.wanted := false;
+        model |> Updated.return_quiet;
+      }
     | Start => model |> return(~historic=false) // Triggers recalculation at the start
     | Save =>
       print_endline("Saving...");

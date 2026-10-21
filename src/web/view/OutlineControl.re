@@ -1256,6 +1256,7 @@ let view =
       live,
       statics_on,
       level,
+      WorldSummaries.version^,
     ),
   );
   Util.Slot.get(
@@ -1275,6 +1276,13 @@ let view =
           ~rows=OutlineTree.collect(OutlineTree.of_term(term)),
           statics.error_ids,
         );
+      /* the World's unloaded slides, by their summaries */
+      let error_subtree =
+        switch (deck) {
+        | Some((prefix, _)) when prefix == WorldDeck.prefix =>
+          error_subtree @ WorldSummaries.error_rows()
+        | _ => error_subtree
+        };
       /* in the library's world, the slide's module goes by the slide's
          name, and the program by the level above's crumb */
       let world = world_of(deck);

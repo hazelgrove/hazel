@@ -249,6 +249,27 @@ module Scratch = {
   );
 };
 
+/* what a slide is, known without opening it: its errors, what it defines
+   and what it uses, in the library's context */
+let summary = () => {
+  let s =
+    WorldSummary.of_members(
+      ~settings=P.settings,
+      ~ctx_in=Builtins.ctx_init(Some(Operators.default_mode)),
+      mod_seg(
+        "let x = 1;\nlet f = fun y -> y + x;\ntest f(1) == 2 end;\nlet bad = 1 + true;\nf(List.length([1]))",
+      ),
+    );
+  check(int, "one error", 1, s.errors);
+  check(
+    list(string),
+    "what it defines",
+    ["bad", "f", "x"],
+    List.sort(compare, s.defines),
+  );
+  check(list(string), "what it uses", ["List"], s.uses);
+};
+
 /* every corpus slide in one document with the standard library, a few
    loaded: assembling it costs little, and a loaded slide checks and runs
    as it does alone */
@@ -306,6 +327,7 @@ let tests = (
     test_case("loading a slide", `Quick, loads),
     test_case("a slide runs alone", `Quick, runs),
     test_case("a slide runs with what it needs", `Quick, on_demand),
+    test_case("a slide's summary", `Quick, summary),
     test_case("the corpus in one document", `Slow, corpus),
   ],
 );

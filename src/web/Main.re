@@ -188,6 +188,24 @@ let start = default_model => {
       replay_effect,
     );
 
+  /* the World's unloaded slides summarized while the editor is idle */
+  let summarize_effect = {
+    let%map app_inject = app_inject;
+    Bonsai.Effect.of_sync_fun(
+      () =>
+        if (WorldSummaries.due()) {
+          Ui_effect.Expert.handle(app_inject(Page.Update.Summarize));
+        },
+      (),
+    );
+  };
+  let%sub () =
+    Bonsai.Clock.every(
+      ~when_to_start_next_effect=`Wait_period_after_previous_effect_finishes_blocking,
+      Core.Time_ns.Span.of_sec(0.25),
+      summarize_effect,
+    );
+
   // Update font metrics on resize
   let%sub size =
     BonsaiUtil.SizeObserver.observer(
