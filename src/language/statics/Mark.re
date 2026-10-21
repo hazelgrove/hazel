@@ -46,6 +46,16 @@ type tpat_var_err =
    `Variants.to_rank` (derived by ppx_variants_conv), which returns the
    zero-based declaration index — so reordering this type reorders priority.
    Do not reorder without understanding the impact on error selection. */
+/* Which side of a failed comparison an escaped abstract type was on: the
+   type required here, the type the expression has, or both, as two different
+   escapes of the same path, which is what two calls of one function
+   produce. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type escaped_side =
+  | Required
+  | Supplied
+  | TwoDifferent;
+
 [@deriving (show({with_path: false}), sexp, yojson, variants)]
 type t =
   | BuiltinError(error_builtin)
@@ -88,6 +98,13 @@ type t =
      of its manifest type members, which would capture it; Typ.subst degrades
      the members after that one to `?` instead. Carries the colliding names. */
   | TypeMemberCapture(list(Var.t))
+  /* An abstract type that escaped the scope of the module it came from
+     ([path], the projection it was written as) meets a type it cannot be
+     consistent with. */
+  | EscapedType({
+      path: string,
+      side: escaped_side,
+    })
   | BadToken(string)
   | BadLabel(Any.t)
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))

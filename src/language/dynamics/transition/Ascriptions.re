@@ -128,6 +128,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
             IdTagged.fast_copy(DHExp.rep_id(e), Tuple(es') |> DHExp.fresh),
           );
     | (_, Unknown(_)) => Some(e)
+    /* Elaboration normalizes manifest paths away, so a path type reaching
+       the runtime names an abstract member: there is nothing to check. */
+    | (_, ProdProjection(_)) => Some(e)
     | (Atom(value), Atom(typ)) =>
       switch (value, typ) {
       | (Int(_), Int)
