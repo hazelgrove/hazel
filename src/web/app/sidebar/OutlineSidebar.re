@@ -202,8 +202,8 @@ let focus_without_scroll = el =>
 
 /* a line's field holds the keys while it shows: it takes focus whenever
    focus is in the row list (after a save it refused, say) or nowhere (the
-   page parks it in the clipboard shim). Its caret goes where the keys put
-   it ([col]), as it shows and as they put it there again ([seq]) */
+   body, or the page itself). Its caret goes where the keys put it ([col]),
+   as it shows and as they put it there again ([seq]) */
 module FieldFocus =
   Attr.Hooks.Make({
     module State = Unit;
@@ -219,7 +219,7 @@ module FieldFocus =
       if (!Js.Opt.test(active)
           || active ==
           Js.Unsafe.coerce(Dom_html.document)##.body
-          || Js.to_string(active##.id) == Util.JsUtil.clipboard_shim_id
+          || Js.to_string(active##.id) == "page"
           || Js.Opt.test(
                active##closest(Js.string("#outline-sidebar .outline-body")),
              )
