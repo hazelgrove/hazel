@@ -114,5 +114,46 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "a constructor argument, the parameter unascribed",
+      `Quick,
+      () => {
+        let f =
+          value(
+            "type Cmd = + Done + Flip(Int, Cmd) in\n"
+            ++ "type Event = + Pull(Int) in\n"
+            ++ "fun e -> case e | Pull(l) => Flip(l, Flip(l + 1, Done)) end",
+          );
+        check(
+          string,
+          "Pull(2)",
+          "{\"tag\":\"Flip\",\"value\":[2,{\"tag\":\"Flip\",\"value\":[3,{\"tag\":\"Done\"}]}]}",
+          json(call(f, [as_js("{\"tag\":\"Pull\",\"value\":2}")])),
+        );
+      },
+    ),
+    test_case(
+      "a constructor argument with no value, the parameter ascribed",
+      `Quick,
+      () => {
+        let f =
+          value(
+            "type Event = + Tick + Pull(Int) in\n"
+            ++ "fun e : Event -> case e | Tick => 0 | Pull(l) => l end",
+          );
+        check(
+          string,
+          "Tick",
+          "0",
+          json(call(f, [as_js("{\"tag\":\"Tick\"}")])),
+        );
+        check(
+          string,
+          "Pull(5)",
+          "5",
+          json(call(f, [as_js("{\"tag\":\"Pull\",\"value\":5}")])),
+        );
+      },
+    ),
   ],
 );

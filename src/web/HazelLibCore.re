@@ -146,11 +146,31 @@ and of_js = (j: Js.Unsafe.any): Exp.t => {
   | _ =>
     let tag = Js.Unsafe.get(j, "tag");
     if (Js.to_string(Js.typeof(Js.Unsafe.coerce(tag))) == "string") {
-      let c =
-        Exp.fresh(Constructor(Js.to_string(Js.Unsafe.coerce(tag)), None));
+      /* A constructor carries its type once elaborated, and a JS one has
+         none to give, so it gets the unknown type: ?, or ? -> ? when
+         applied. Not None, the unelaborated form: an ascription to a sum
+         type (a parameter `e : Event`) can only be pushed through a
+         constructor with a type to check against the sum, so around an
+         untyped one it stays, and a case on the value is stuck. With ?
+         it goes through as a cast from ? does, checking the tag and the
+         payload against the sum. */
+      let name = Js.to_string(Js.Unsafe.coerce(tag));
+      let unknown = Typ.temp(Unknown(Internal));
       let value = Js.Unsafe.get(j, "value");
       Js.to_string(Js.typeof(Js.Unsafe.coerce(value))) == "undefined"
-        ? c : Exp.fresh(Ap(Operators.Forward, c, of_js(value)));
+        ? Exp.fresh(Constructor(name, Some(Some(unknown))))
+        : Exp.fresh(
+            Ap(
+              Operators.Forward,
+              Exp.fresh(
+                Constructor(
+                  name,
+                  Some(Some(Typ.temp(Arrow(unknown, unknown)))),
+                ),
+              ),
+              of_js(value),
+            ),
+          );
     } else {
       let keys =
         Array.to_list(Js.to_array(Js.object_keys(Js.Unsafe.coerce(j))))
