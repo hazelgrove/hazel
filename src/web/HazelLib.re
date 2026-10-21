@@ -9,6 +9,7 @@ let () =
     "Hazel",
     Js.Unsafe.obj([|
       ("version", js_string(version)),
+      ("build", js_string(build)),
       (
         "analyze",
         Js.Unsafe.inject(Js.wrap_callback(t => analyze(Js.to_string(t)))),
@@ -17,5 +18,10 @@ let () =
         "run",
         Js.Unsafe.inject(Js.wrap_callback(t => run(Js.to_string(t)))),
       ),
+      (
+        "analyzeProgram",
+        Js.Unsafe.inject(Js.wrap_callback(analyze_program)),
+      ),
+      ("runProgram", Js.Unsafe.inject(Js.wrap_callback(run_program))),
     |]),
   );

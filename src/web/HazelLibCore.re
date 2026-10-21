@@ -12,6 +12,30 @@
      Hazel.analyze(text)   -> { errors: [string] }
      Hazel.run(text)       -> { errors: [string], value }
      Hazel.version         -> string
+     Hazel.build           -> the commit it was built from ("local" off
+                              GitHub), as embed mode's ready message has it
+
+   A program of named modules (ModuleProgram), each module's body its own
+   text, as a page with an editor per module holds it:
+
+     Hazel.analyzeProgram(spec) -> { ok, errors, holes, programHoles,
+                                     incomplete, programIncomplete, ms }
+     Hazel.runProgram(spec)     -> the same, and value
+
+     spec = { preamble: "type Cmd = ... in",  (definitions every module
+                                                sees, ending in `in`)
+              modules: [{ name: "Common", text: "let flip2 = ..." }, ...],
+              tail: "(trap_room = TrapRoom.on_event, rooms = 1)" }
+
+   Each module sees the preamble and the modules before it, and the tail
+   sees them all. errors: [{ module, message, id }], module the module's
+   name, or null for the preamble and the tail (but an error on a use of
+   a module's member there, TrapRoom.on_event, is that module's). holes:
+   { Common: 0, TrapRoom: 1 }, each module's holes; programHoles, the
+   preamble's and the tail's. incomplete and programIncomplete: the same
+   for brackets and keywords left open, or closed with no opener. ok: none
+   of these. ms: the time it took. Only the parts whose text changed
+   since the last call are read again.
 
    A program's errors do not stop it running (Hazel evaluates around its
    holes and marks), so `value` is there either way; a page decides what
@@ -29,6 +53,8 @@ open Haz3lcore;
 open Language;
 
 let version = "0.1 (draft, js-library)";
+
+let build = BuildStamp.commit;
 
 let ctx = () => Builtins.ctx_init(Some(Operators.default_mode));
 
@@ -218,3 +244,179 @@ let run = (text: string): Js.Unsafe.any =>
       ("value", to_js(evaluate(elab))),
     ]);
   };
+
+/* A program of named modules, from a page's spec */
+type program_spec = {
+  preamble: string,
+  modules: list((string, string)),
+  tail: string,
+};
+
+let js_is_object = (j: Js.Unsafe.any): bool =>
+  Js.to_string(Js.typeof(Js.Unsafe.coerce(j))) == "object"
+  && !Js.Unsafe.equals(j, Js.null);
+
+/* j[key] when j is an object and that is a string, else default */
+let js_field_string = (j: Js.Unsafe.any, key: string, ~default: string) =>
+  if (js_is_object(j)) {
+    let v = Js.Unsafe.get(j, key);
+    Js.to_string(Js.typeof(Js.Unsafe.coerce(v))) == "string"
+      ? Js.to_string(Js.Unsafe.coerce(v)) : default;
+  } else {
+    default;
+  };
+
+/* What is missing is empty: no preamble, no modules, and () for the
+   tail */
+let program_spec_of_js = (j: Js.Unsafe.any): program_spec => {
+  let modules =
+    js_is_object(j)
+      ? Js.Unsafe.get(j, "modules") : Js.Unsafe.inject(Js.undefined);
+  let modules =
+    Js.to_bool(
+      Js.Unsafe.fun_call(Js.Unsafe.js_expr("Array.isArray"), [|modules|]),
+    )
+      ? Array.to_list(Js.to_array(Js.Unsafe.coerce(modules)))
+        |> List.map(m =>
+             (
+               js_field_string(m, "name", ~default=""),
+               js_field_string(m, "text", ~default=""),
+             )
+           )
+      : [];
+  {
+    preamble: js_field_string(j, "preamble", ~default=""),
+    modules,
+    tail: js_field_string(j, "tail", ~default="()"),
+  };
+};
+
+type program_analysis = {
+  errors: list(ModuleProgram.error),
+  holes: list((string, int)),
+  program_holes: int,
+  incomplete: list((string, int)),
+  program_incomplete: int,
+  elab: Exp.t,
+};
+
+/* The parts the last program was read from, so a page that calls again
+   as one module is edited has only that module read again */
+let parts_read = ModuleProgram.cache();
+
+let analyze_program_spec = (spec: program_spec): program_analysis => {
+  let program =
+    ModuleProgram.of_texts_cached(
+      parts_read,
+      ~preamble=spec.preamble,
+      ~modules=spec.modules,
+      ~tail=spec.tail,
+    );
+  let (map, elab) = Statics.mk(CoreSettings.on, ctx(), program.term);
+  let (holes, program_holes) = ModuleProgram.holes(program);
+  let (incomplete, program_incomplete) = ModuleProgram.incomplete(program);
+  {
+    errors: ModuleProgram.errors(program, map),
+    holes,
+    program_holes,
+    incomplete,
+    program_incomplete,
+    elab,
+  };
+};
+
+/* milliseconds, for timing */
+let now = (): float =>
+  Js.float_of_number(
+    Js.Unsafe.coerce(
+      Js.Unsafe.js_expr(
+        "(typeof performance === 'undefined' ? Date : performance).now()",
+      ),
+    ),
+  );
+
+let counts_js = (counts: list((string, int))): Js.Unsafe.any =>
+  js_object(
+    List.map(
+      ((name, n)) =>
+        (name, Js.Unsafe.inject(Js.number_of_float(float_of_int(n)))),
+      counts,
+    ),
+  );
+
+let int_js = (n: int): Js.Unsafe.any =>
+  Js.Unsafe.inject(Js.number_of_float(float_of_int(n)));
+
+/* A program's errors, holes and incomplete tiles, as analyzeProgram gives
+   them (and embed mode's status message): { ok, errors, holes,
+   programHoles, incomplete, programIncomplete } */
+let analysis_fields =
+    (
+      ~errors: list(ModuleProgram.error),
+      ~holes: list((string, int)),
+      ~program_holes: int,
+      ~incomplete: list((string, int)),
+      ~program_incomplete: int,
+    )
+    : list((string, Js.Unsafe.any)) => {
+  let none = List.for_all(((_, n)) => n == 0);
+  let ok =
+    errors == []
+    && program_holes == 0
+    && none(holes)
+    && program_incomplete == 0
+    && none(incomplete);
+  [
+    ("ok", Js.Unsafe.inject(Js.bool(ok))),
+    (
+      "errors",
+      js_array(
+        List.map(
+          (e: ModuleProgram.error) =>
+            js_object([
+              (
+                "module",
+                switch (e.module_) {
+                | Some(name) => js_string(name)
+                | None => Js.Unsafe.inject(Js.null)
+                },
+              ),
+              ("message", js_string(e.message)),
+              ("id", js_string(Id.to_string(e.id))),
+            ]),
+          errors,
+        ),
+      ),
+    ),
+    ("holes", counts_js(holes)),
+    ("programHoles", int_js(program_holes)),
+    ("incomplete", counts_js(incomplete)),
+    ("programIncomplete", int_js(program_incomplete)),
+  ];
+};
+
+let program_fields =
+    (a: program_analysis, ~ms: float): list((string, Js.Unsafe.any)) =>
+  analysis_fields(
+    ~errors=a.errors,
+    ~holes=a.holes,
+    ~program_holes=a.program_holes,
+    ~incomplete=a.incomplete,
+    ~program_incomplete=a.program_incomplete,
+  )
+  @ [("ms", Js.Unsafe.inject(Js.number_of_float(ms)))];
+
+let analyze_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
+  let t0 = now();
+  let a = analyze_program_spec(program_spec_of_js(spec));
+  js_object(program_fields(a, ~ms=now() -. t0));
+};
+
+/* Run whatever the errors and holes, as run does: ok says whether to
+   trust the value */
+let run_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
+  let t0 = now();
+  let a = analyze_program_spec(program_spec_of_js(spec));
+  let value = to_js(evaluate(a.elab));
+  js_object(program_fields(a, ~ms=now() -. t0) @ [("value", value)]);
+};
