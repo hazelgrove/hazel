@@ -29,6 +29,57 @@ let is = (what, expected, text) =>
     check(string, text, expected, json(value(text)))
   );
 
+/* A program of modules as the Scripting panel gives it: the preamble,
+   📚 Common, the trap room, and the tail (Test_ModuleProgram has the
+   texts) */
+module Panel = Test_ModuleProgram;
+
+let spec = (~common=Panel.common, ~trap=Panel.trap, ~tail=Panel.tail, ()) =>
+  HazelLibCore.js_object([
+    ("preamble", HazelLibCore.js_string(Panel.preamble)),
+    (
+      "modules",
+      HazelLibCore.js_array([
+        HazelLibCore.js_object([
+          ("name", HazelLibCore.js_string("Common")),
+          ("text", HazelLibCore.js_string(common)),
+        ]),
+        HazelLibCore.js_object([
+          ("name", HazelLibCore.js_string("TrapRoom")),
+          ("text", HazelLibCore.js_string(trap)),
+        ]),
+      ]),
+    ),
+    ("tail", HazelLibCore.js_string(tail)),
+  ]);
+
+/* The program as the panel joins it today, as text (scriptProgram) */
+let joined = (~common=Panel.common, ~trap=Panel.trap, ()) =>
+  String.concat(
+    "\n",
+    [
+      Panel.preamble,
+      "module Common = {\n" ++ common ++ "\n} in",
+      "module TrapRoom = {\n" ++ trap ++ "\n} in",
+      Panel.tail,
+    ],
+  );
+
+/* A pull of the left lever, as the game asks a room's rule */
+let pull_left = (rules: Js.Unsafe.any): string =>
+  json(
+    call(
+      Js.Unsafe.get(rules, "trap_room"),
+      [
+        as_js("{\"lever_L\":true,\"lever_R\":false,\"wiring\":\"normal\"}"),
+        as_js("{\"tag\":\"Pull\",\"value\":\"L\"}"),
+      ],
+    ),
+  );
+
+let field = (o: Js.Unsafe.any, k: string): Js.Unsafe.any =>
+  Js.Unsafe.get(o, k);
+
 let tests = (
   "HazelLib",
   [
@@ -183,6 +234,135 @@ let tests = (
               ],
             ),
           ),
+        );
+      },
+    ),
+    /* ^ticket(520): the panel's modules as one program, built by Hazel from
+       their texts rather than joined by the page */
+    test_case(
+      "runProgram: the panel's four rules, as through today's text join",
+      `Quick,
+      () =>
+      List.iter(
+        ((what, trap, expected)) => {
+          let joined = HazelLibCore.run(joined(~trap, ()));
+          let program = HazelLibCore.run_program(spec(~trap, ()));
+          let n = (r, k) => Js.Unsafe.get(field(r, k), "length");
+          check(
+            bool,
+            what ++ ": errors, both ways",
+            n(joined, "errors") > 0,
+            n(program, "errors") > 0,
+          );
+          check(
+            bool,
+            what ++ ": ok",
+            n(joined, "errors") == 0,
+            Js.to_bool(Js.Unsafe.coerce(field(program, "ok"))),
+          );
+          let by_join = pull_left(field(joined, "value"));
+          check(
+            string,
+            what ++ ": the joined text's pull",
+            expected,
+            by_join,
+          );
+          check(
+            string,
+            what ++ ": runProgram's pull",
+            by_join,
+            pull_left(field(program, "value")),
+          );
+        },
+        [
+          (
+            "the shipped rule",
+            Panel.trap,
+            "{\"tag\":\"Flip\",\"value\":[\"lever_L\",{\"tag\":\"Done\"}]}",
+          ),
+          (
+            "Common.flip2",
+            Panel.flip2_rule,
+            "{\"tag\":\"Flip\",\"value\":[\"lever_L\",{\"tag\":\"Flip\",\"value\":[\"lever_R\",{\"tag\":\"Done\"}]}]}",
+          ),
+          (
+            "Say",
+            Panel.say_rule,
+            "{\"tag\":\"Say\",\"value\":[\"hello from Hazel\",{\"tag\":\"Done\"}]}",
+          ),
+          (
+            "Flip(1, Done), an error",
+            Panel.error_rule,
+            "{\"tag\":\"Flip\",\"value\":[1,{\"tag\":\"Done\"}]}",
+          ),
+        ],
+      )
+    ),
+    test_case(
+      "runProgram: an error carries its module",
+      `Quick,
+      () => {
+        let r = HazelLibCore.run_program(spec(~trap=Panel.error_rule, ()));
+        let errors = Js.to_array(Js.Unsafe.coerce(field(r, "errors")));
+        check(bool, "there is one", true, Array.length(errors) > 0);
+        Array.iter(
+          e =>
+            check(
+              string,
+              "its module",
+              "TrapRoom",
+              Js.to_string(Js.Unsafe.coerce(field(e, "module"))),
+            ),
+          errors,
+        );
+      },
+    ),
+    test_case(
+      "analyzeProgram: a hole is not ok, and is counted in its module",
+      `Quick,
+      () => {
+        let r =
+          HazelLibCore.analyze_program(
+            spec(
+              ~trap="let on_event = fun (g, e) : (Globals, Event) -> ?",
+              (),
+            ),
+          );
+        check(
+          bool,
+          "ok",
+          false,
+          Js.to_bool(Js.Unsafe.coerce(field(r, "ok"))),
+        );
+        check(
+          string,
+          "holes",
+          "{\"Common\":0,\"TrapRoom\":1}",
+          json(field(r, "holes")),
+        );
+        check(string, "programHoles", "0", json(field(r, "programHoles")));
+        check(string, "errors", "[]", json(field(r, "errors")));
+      },
+    ),
+    test_case(
+      "runProgram: the tail can ascribe the rule its type",
+      `Quick,
+      () => {
+        let r =
+          HazelLibCore.run_program(
+            spec(~trap=Panel.flip2_rule, ~tail=Panel.ascribed_tail, ()),
+          );
+        check(
+          bool,
+          "ok",
+          true,
+          Js.to_bool(Js.Unsafe.coerce(field(r, "ok"))),
+        );
+        check(
+          string,
+          "the pull",
+          "{\"tag\":\"Flip\",\"value\":[\"lever_L\",{\"tag\":\"Flip\",\"value\":[\"lever_R\",{\"tag\":\"Done\"}]}]}",
+          pull_left(field(r, "value")),
         );
       },
     ),

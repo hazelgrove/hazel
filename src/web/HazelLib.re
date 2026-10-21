@@ -17,5 +17,10 @@ let () =
         "run",
         Js.Unsafe.inject(Js.wrap_callback(t => run(Js.to_string(t)))),
       ),
+      (
+        "analyzeProgram",
+        Js.Unsafe.inject(Js.wrap_callback(analyze_program)),
+      ),
+      ("runProgram", Js.Unsafe.inject(Js.wrap_callback(run_program))),
     |]),
   );
