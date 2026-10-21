@@ -121,6 +121,8 @@ let request_of = (st: CachedStatics.t): WorkerServer.Request.t => {
 let fresh_worker = () => {
   Hashtbl.reset(WorkerServer.held);
   Hashtbl.reset(Client.held);
+  Util.ShareCodec.Worker.reset();
+  Util.ShareCodec.Client.reset();
 };
 
 /* posted as the client posts it, across the encoding */
@@ -134,6 +136,7 @@ let post =
     )
   ) {
   | Evaluate(posted) => posted
+  | EvaluateShared(_) => fail("decoded an EvaluateShared")
   | ResetResponses => fail("decoded a ResetResponses")
   };
 };
@@ -545,6 +548,125 @@ let encoding_tests = [
   ),
 ];
 
+/* (^ticket(513)) posted shared, as WorkerClient.post_evaluate does: the
+   merge with #2469 posted a changed definition whole as a piece, and a
+   livelit release in Kids' Choice changes one of ~490 KB. Shared, the
+   worker composes the same program, and after an edit inside one large
+   definition (a tuple of 200 functions, one constant changed) the request
+   is a small part of the unshared one; a reference the worker can't
+   resolve (its table lost) leaves the piece missing, and posted in full,
+   the tables reset, it composes again. */
+let shared_pieces = () => {
+  let term_of = seg => MakeTerm.Incr.term_of_root(~root=Exp, seg);
+  let comps =
+    List.init(200, i =>
+      Printf.sprintf(
+        "fun x%d -> (x%d + %d) * (x%d - %d)",
+        i,
+        i,
+        1000 + i,
+        i,
+        5000 + i,
+      )
+    );
+  let src = "let big = (" ++ String.concat(", ", comps) ++ ") in big";
+  let seg0 = CorpusUtil.seg_of(~root=Exp, src);
+  let seg1 =
+    fst(
+      CorpusUtil.edit_token(
+        ~at=`First,
+        ~keep_id=true,
+        ~needle="1150",
+        ~repl="1151",
+        seg0,
+      ),
+    );
+  /* (DefStatics caches the latest analysis only: each program is analyzed
+     just before it is posted) */
+  let st0 = statics_of(term_of(seg0));
+  let bytes = (m: WorkerServer.ClientMessage.t): int =>
+    WorkerServer.Active.size_request(WorkerServer.Active.encode_request(m))
+    |> Core.Byte_units.bytes_int_exn;
+  let send = (~full=false, ~reset, r: WorkerServer.Request.t) => {
+    let whole = bytes(Evaluate(Client.posted_of(~full, r)));
+    if (reset) {
+      Util.ShareCodec.Client.reset();
+    };
+    let msg =
+      WorkerServer.ClientMessage.EvaluateShared(
+        reset,
+        Client.posted_of(~full, ~shared=true, r),
+      );
+    Client.hold(r);
+    switch (
+      WorkerServer.Active.decode_request(
+        WorkerServer.Active.encode_request(msg),
+      )
+    ) {
+    | EvaluateShared(reset, p) =>
+      if (reset) {
+        Util.ShareCodec.Worker.reset();
+      };
+      (p, bytes(msg), whole);
+    | _ => fail("not decoded as shared")
+    };
+  };
+  fresh_worker();
+  let r0 = request_of(st0);
+  let (p0, _, _) = send(~reset=true, r0);
+  check_exact("first, shared", st0, composed(WorkerServer.receive(p0)));
+  let st1 = statics_of(term_of(seg1));
+  let r1 = {
+    ...request_of(st1),
+    request_id: 2,
+  };
+  let (p1, shared, whole) = send(~reset=false, r1);
+  check_exact(
+    "after an edit, shared",
+    st1,
+    composed(WorkerServer.receive(p1)),
+  );
+  check(
+    bool,
+    Printf.sprintf(
+      "after the edit, shared %d bytes against %d unshared",
+      shared,
+      whole,
+    ),
+    true,
+    shared * 4 < whole,
+  );
+  /* the worker's table lost: the next shared request is missing its
+     piece, and posted in full, the tables reset, it composes */
+  let seg2 =
+    fst(
+      CorpusUtil.edit_token(
+        ~at=`First,
+        ~keep_id=true,
+        ~needle="1151",
+        ~repl="1152",
+        seg1,
+      ),
+    );
+  let st2 = statics_of(term_of(seg2));
+  let r2 = {
+    ...request_of(st2),
+    request_id: 3,
+  };
+  Util.ShareCodec.Worker.reset();
+  let (p2, _, _) = send(~reset=false, r2);
+  switch (WorkerServer.receive(p2)) {
+  | Missing([_, ..._]) => ()
+  | _ => fail("composed with a reference it could not resolve")
+  };
+  let (p2, _, _) = send(~full=true, ~reset=true, r2);
+  check_exact(
+    "posted in full, the tables reset",
+    st2,
+    composed(WorkerServer.receive(p2)),
+  );
+};
+
 /* the protocol: whatever the worker holds, it composes the request's
    program or asks for every piece */
 let protocol = () => {
@@ -775,6 +897,11 @@ let tests = (
       "missing, restarted, dropped, out of order, mismatched",
       `Quick,
       protocol,
+    ),
+    test_case(
+      "shared: composes the same, and after an edit in a large definition posts a small part of it",
+      `Quick,
+      shared_pieces,
     ),
     test_case(
       "evaluation reads the same: tests, probes, the value",

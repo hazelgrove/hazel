@@ -109,9 +109,25 @@ let hold = (request: Request.t): unit => {
   );
 };
 
+/* a piece's bytes: [shared], the values the worker already has go as
+   references (Util.ShareCodec), unless it is too deep to walk */
+let bytes_of = (~shared: bool, piece: EvalPieces.piece): string =>
+  switch (piece) {
+  | Bytes(bytes) => bytes
+  | Content(c) when shared =>
+    EvalPieces.encode(
+      switch (Util.ShareCodec.Client.encode(c)) {
+      | c => c
+      | exception _ => c
+      },
+    )
+  | Content(c) => EvalPieces.encode(c)
+  };
+
 /* [request] as posted: its programs' layouts, and the pieces the worker
-   doesn't hold ([full]: all of them) */
-let posted_of = (~full: bool, request: Request.t): Posted.t => {
+   doesn't hold ([full]: all of them), encoded in order ([shared]: each can
+   refer to the values of those before it) */
+let posted_of = (~full: bool, ~shared=false, request: Request.t): Posted.t => {
   let seen = Hashtbl.create(64);
   {
     request_id: request.request_id,
@@ -142,7 +158,9 @@ let posted_of = (~full: bool, request: Request.t): Posted.t => {
             v.program.pieces,
           ),
         request.batch,
-      ),
+      )
+      /* (List.map applies in order) */
+      |> List.map(((hash, piece)) => (hash, bytes_of(~shared, piece))),
   };
 };
 
@@ -154,8 +172,31 @@ let posted_of = (~full: bool, request: Request.t): Posted.t => {
  * the send here so its latency clock starts as close to the post as it can.
  * Benchmarking the request-side encodings ([metrics]) happens before, keeping
  * that (heavy) work outside the latency clock. */
+/* (^ticket(513)) The pieces a request posts go shared (Util.ShareCodec):
+   a changed definition is a new piece, and a livelit release changes one,
+   which in Kids' Choice was ~490 KB posted per release, against ~16 KB
+   when the whole request was shared (before #2469's pieces), and the
+   first post came ~70 ms later. Shared, its values the worker already has
+   go as references. Whether the worker's table must start over with the
+   next request: at first, after the worker restarts, for a request posted
+   in full (a Resend: a piece it could not resolve), or when the client's
+   table is full. */
+let share_reset = ref(true);
+
 let post_evaluate = (~full=false, ~metrics=false, worker, request: Request.t) => {
-  let msg = ClientMessage.Evaluate(posted_of(~full, request));
+  if (full || Util.ShareCodec.Client.size() > Util.ShareCodec.max_entries) {
+    share_reset := true;
+  };
+  let reset = share_reset^;
+  if (reset) {
+    Util.ShareCodec.Client.reset();
+  };
+  share_reset := false;
+  let msg =
+    ClientMessage.EvaluateShared(
+      reset,
+      posted_of(~full, ~shared=true, request),
+    );
   if (metrics) {
     WorkerMetrics.record_request(request.request_id, msg);
   };
@@ -301,6 +342,7 @@ let restart_worker = (): unit => {
   | None => ()
   };
   Hashtbl.reset(held);
+  share_reset := true;
   worker_ref.contents = Some(init_worker());
 };
 

@@ -1,8 +1,9 @@
 /* The client's half of the eval request in pieces (EvalPieces): a
    program's pieces cut from its DefStatics items, top-level items and
-   modules' members alike, each encoded once and kept while its item
-   stands; a module DefStatics kept whole keeps its members' pieces
-   without a walk. A module's value is its members' bindings, each in its
+   modules' members alike, each hashed once and kept while its item
+   stands (and encoded when it is posted, WorkerClient.posted_of); a
+   module DefStatics kept whole keeps its members' pieces without a
+   walk. A module's value is its members' bindings, each in its
    member's piece, in a node of its own. A program DefStatics didn't
    analyze, or whose pieces don't account for every entry exactly once,
    goes as one piece.
@@ -41,7 +42,7 @@ type source =
 /* [keys]: the statics map's keys the piece accounts for */
 type cached = {
   source,
-  bytes: string,
+  piece: P.piece,
   hash: P.hash,
   keys: int,
 };
@@ -57,7 +58,7 @@ and members = {
   shadowed: list(Id.t),
   cache: chain_cache,
   chain: P.chain,
-  pieces: list((P.hash, string)),
+  pieces: list((P.hash, P.piece)),
   keys: int,
 };
 
@@ -104,12 +105,12 @@ exception Unsplittable(string);
 /* a chain's cut: what it holds so far */
 type acc = {
   witnessing: EvalInfo.witnessing,
-  mutable chunks: list(list((P.hash, string))),
+  mutable chunks: list(list((P.hash, P.piece))),
   mutable keys: int,
 };
 
 let use = (acc: acc, key: P.key, c: cached): P.slot => {
-  acc.chunks = [[(c.hash, c.bytes)], ...acc.chunks];
+  acc.chunks = [[(c.hash, c.piece)], ...acc.chunks];
   acc.keys = acc.keys + c.keys;
   P.{
     key,
@@ -117,13 +118,14 @@ let use = (acc: acc, key: P.key, c: cached): P.slot => {
   };
 };
 
+/* [content] as a piece, by its hash: encoded when it is posted */
 let encode = (source, content: P.content, keys, key: P.key): cached => {
-  let bytes = P.encode(content);
+  let (hash, piece) = P.piece_of(content);
   encoded := [key, ...encoded^];
   {
     source,
-    bytes,
-    hash: P.hash_of(bytes),
+    piece,
+    hash,
     keys,
   };
 };
@@ -178,30 +180,54 @@ let elab_of = (t: terms, e: Exp.t): P.elab =>
     };
   };
 
-/* the entries of [infos] but those at [skip] */
+/* the entries of [infos] but those at [skip], one per info: the ids
+   statics filed one info under (a term's) share an entry, in the order
+   of their first id */
 let project =
     (acc: acc, t: terms, ~skip: list(Id.t), infos: list((Id.t, Info.t)))
-    : list(P.entry) =>
+    : list(P.entry) => {
+  let firsts: Hashtbl.t(Id.t, (Info.t, ref(list(Id.t)))) =
+    Hashtbl.create(64);
+  let rows =
+    List.filter_map(
+      ((id, info)) =>
+        if (List.exists(Id.equal(id), skip)) {
+          None;
+        } else {
+          let term = Info.id_of(info);
+          switch (Hashtbl.find_opt(firsts, term)) {
+          | Some((first, ids)) when first === info =>
+            ids := [id, ...ids^];
+            None;
+          | _ =>
+            let ids = ref([id]);
+            if (!Hashtbl.mem(firsts, term)) {
+              Hashtbl.replace(firsts, term, (info, ids));
+            };
+            Some((info, ids));
+          };
+        },
+      infos,
+    );
   List.filter_map(
-    ((id, info)) =>
-      List.exists(Id.equal(id), skip)
-        ? None
-        : EvalInfo.entry_of_info(acc.witnessing, info)
-          |> Option.map((e: EvalInfo.entry) =>
-               P.{
-                 id,
-                 elab: elab_of(t, e.elab_term),
-                 co_ctx: e.co_ctx,
-                 probe_targets: e.probe_targets,
-               }
-             ),
-    infos,
+    ((info, ids)) =>
+      EvalInfo.entry_of_info(acc.witnessing, info)
+      |> Option.map((e: EvalInfo.entry) =>
+           P.{
+             ids: List.rev(ids^),
+             elab: elab_of(t, e.elab_term),
+             co_ctx: e.co_ctx,
+             probe_targets: e.probe_targets,
+           }
+         ),
+    rows,
   );
+};
 
 let entries_equal = (a: list(P.entry), b: list(P.entry)): bool =>
   List.equal(
     (x: P.entry, y: P.entry) =>
-      Id.equal(x.id, y.id)
+      List.equal(Id.equal, x.ids, y.ids)
       && (
         switch (x.elab, y.elab) {
         | (Inline(e1), Inline(e2)) => e1 === e2
@@ -357,7 +383,9 @@ let roots_piece =
     | _ =>
       encode(
         Roots(skip, rows),
-        Roots(List.map(((id, _, entries)) => (id, entries), rows)),
+        Roots(
+          List.map(((id, _, entries)) => (id, P.chunk(entries)), rows),
+        ),
         List.fold_left(
           (n, (_, overlay, _)) =>
             n
@@ -433,7 +461,7 @@ let shell_piece =
         Item({
           hollow,
           hole: it.d_hole,
-          entries,
+          entries: P.chunk(entries),
           binding: Lazy.force(binding),
         }),
         keys_of(n.n_wrap, ~skip),
@@ -622,7 +650,8 @@ let rec chain =
             Item({
               hollow: it.d_elab,
               hole: it.d_hole,
-              entries: project(acc, t, ~skip, Id.Map.bindings(it.d_map)),
+              entries:
+                P.chunk(project(acc, t, ~skip, Id.Map.bindings(it.d_map))),
               binding: Lazy.force(binding),
             }),
             keys_of(it.d_map, ~skip),

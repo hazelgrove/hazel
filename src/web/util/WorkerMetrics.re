@@ -123,7 +123,8 @@ let record_request = (id: int, msg: WorkerServer.ClientMessage.t): unit =>
       );
     let batch =
       switch (msg) {
-      | WorkerServer.ClientMessage.Evaluate({batch, _}) => batch
+      | WorkerServer.ClientMessage.Evaluate({batch, _})
+      | WorkerServer.ClientMessage.EvaluateShared(_, {batch, _}) => batch
       | WorkerServer.ClientMessage.ResetResponses => []
       };
     push({

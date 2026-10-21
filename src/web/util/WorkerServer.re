@@ -88,6 +88,10 @@ module ClientMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
     | Evaluate(Posted.t)
+    /* (^ticket(513)) the same, its pieces shared: the values the worker
+       already has replaced by references (Util.ShareCodec); true: reset the
+       worker's table first */
+    | EvaluateShared(bool, Posted.t)
     /* the client could not resolve a shared response: start the responses'
        table over (the client asks for the evaluation again) */
     | ResetResponses;
@@ -893,17 +897,19 @@ type received =
   | Malformed(string);
 
 /* [posted]'s programs, from the pieces it carries and those held. a
-   piece whose bytes don't hash to its listed hash isn't taken. the
+   piece that isn't the one its listed hash names isn't taken. the
    pieces it lists are held next, whatever it composes to */
 let receive = (posted: Posted.t): received => {
   let fresh = Hashtbl.create(16);
+  /* in order: a piece posted shared can refer to the values of one
+     before it */
   List.iter(
     ((hash, bytes)) =>
-      if (EvalPieces.hash_of(bytes) == hash) {
-        switch (EvalPieces.decode(bytes)) {
-        | content => Hashtbl.replace(fresh, hash, content)
-        | exception _ => ()
-        };
+      switch (
+        EvalPieces.take(~resolve=Util.ShareCodec.Worker.decode, hash, bytes)
+      ) {
+      | Some(content) => Hashtbl.replace(fresh, hash, content)
+      | None => ()
       },
     posted.pieces,
   );
@@ -1041,6 +1047,14 @@ let install_message_handler = () => {
   let on_request = (req: Active.request): unit =>
     switch (Active.decode_request(req)) {
     | ClientMessage.Evaluate(posted) => start(posted)
+    | ClientMessage.EvaluateShared(reset, posted) =>
+      /* (a piece with a reference it cannot resolve isn't taken: the
+         request is then missing it, and the client posts it in full, the
+         tables reset) */
+      if (reset) {
+        Util.ShareCodec.Worker.reset();
+      };
+      start(posted);
     | ClientMessage.ResetResponses => response_reset := true
     };
 

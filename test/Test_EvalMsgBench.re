@@ -97,6 +97,7 @@ let receive_pieces = (encoded: WorkerServer.Active.request): unit =>
     WorkerServer.receive(
       switch (WorkerServer.Active.decode_request(encoded)) {
       | Evaluate(p) => p
+      | EvaluateShared(_) => fail("decoded an EvaluateShared")
       | ResetResponses => fail("decoded a ResetResponses")
       },
     )
