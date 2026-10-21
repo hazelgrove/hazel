@@ -231,6 +231,22 @@ module Scratch = {
     ["Pass"],
     List.map(snd, P.tests_of(state)),
   );
+  /* zoomed out: all the folder shows, or all but the library */
+  let doc = named("Documentation", whole);
+  let at = trail =>
+    WorldTree.run_elab(~cached=Builtins.is_library_name, ~trail, whole);
+  check(
+    list(string),
+    "the folder zoomed: all of it",
+    ["helper", "unused", "Holes", "Intro"],
+    names(body(named("Documentation", at([Mod.rep_id(doc)])))),
+  );
+  check(
+    list(string),
+    "the whole program",
+    ["a", "Documentation", "Scratch"],
+    names(at([])),
+  );
 };
 
 /* every corpus slide in one document with the standard library, a few

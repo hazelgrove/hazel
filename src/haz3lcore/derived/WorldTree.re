@@ -384,17 +384,25 @@ let sealed_empty = (item: Language.Mod.t): bool =>
   | _ => false
   };
 
-/* what runs for the slide at the end of [trail] (module ids from the top
-   level down), on demand: on each level the module on the way, and
-   before it what the kept items mention, transitively. A module sealed
-   to `{}` kept for a mention runs empty: its sealed value has no members.
-   At the top level, what [cached] names (the bake's library) isn't kept:
-   Builtins.env_for supplies it */
+/* what runs for a view zoomed into the module at the end of [trail]
+   (module ids from the top level down; [] the whole program), on demand:
+   the zoomed module whole, and on each level above it the module on the
+   way and before it what the kept items mention, transitively. A module
+   sealed to `{}` kept for a mention runs empty: its sealed value has no
+   members. At the top level, what [cached] names (the bake's library)
+   isn't kept: Builtins.env_for supplies it */
 let run_elab =
     (~cached: string => bool, ~trail: list(Id.t), elab: Language.Exp.t)
     : Language.Exp.t => {
+  let library = (i: Language.Mod.t) =>
+    binds(i) != [] && List.for_all(cached, binds(i));
   let rec cut = (~top, trail, e: Language.Exp.t): option(Language.Exp.t) =>
     switch (trail, e.term) {
+    | ([], Module(items)) when top =>
+      Some({
+        ...e,
+        term: Module(List.filter(i => !library(i), items)),
+      })
     | ([m, ...below], Module(items)) =>
       switch (ListUtil.findi_opt(i => Language.Mod.rep_id(i) == m, items)) {
       | None => None

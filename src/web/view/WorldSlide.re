@@ -111,21 +111,21 @@ let with_running_library = (~slide: Id.t, doc: Segment.t): option(Segment.t) =>
   | None => None
   };
 
-/* what a world's run reads: the slide's item and what it needs
+/* what a world's run reads: what its view shows and what that needs
    (WorldTree.run_elab; the library's definitions come from the bake),
    and the analysis of the expressions in it, so a request carries the
-   slide's size, not the library's */
-let run_memo: Slot.t((Id.t, CachedStatics.t), CachedStatics.t) = Slot.mk();
-let run_statics = (~slide: Id.t, s: CachedStatics.t): CachedStatics.t =>
+   view's size, not the library's */
+let run_memo: Slot.t((list(Id.t), CachedStatics.t), CachedStatics.t) =
+  Slot.mk();
+let run_statics = (~zoom: list(Id.t), s: CachedStatics.t): CachedStatics.t =>
   Slot.get(
     ~same=((a, s), (b, s')) => a == b && s === s',
     run_memo,
-    (slide, s),
+    (zoom, s),
     () => {
-      /* the modules from the top level down to the slide's */
-      let trail =
-        OutlineTree.trail_of(slide, s.term)
-        |> Option.value(~default=[slide]);
+      /* what the view shows: the modules from the top level down to the
+         zoomed one */
+      let trail = zoom;
       let elaborated =
         WorldTree.run_elab(
           ~cached=Language.Builtins.is_library_name,

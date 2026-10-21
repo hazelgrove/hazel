@@ -825,9 +825,13 @@ let calculate_slide =
       statics: false,
       dynamics: false,
     };
-  /* a world runs its slide's item, the library from the bake; the
-     library's probes are its own items' */
-  let run = Option.map(slide => WorldSlide.run_statics(~slide), code.world);
+  /* a world runs what its view shows and what that needs, the library
+     from the bake; the library's probes are its own items' */
+  let run =
+    Option.map(
+      _ => WorldSlide.run_statics(~zoom=code.view.zoom),
+      code.world,
+    );
   let library_targets =
     code.world == None
       ? LibraryDoc.targets(~settings) : Language.Sample.no_targets;
