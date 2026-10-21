@@ -2418,18 +2418,18 @@ let regression_tests = [
     },
   ),
   test_case(
-    "composite: a value pulled down sinks, then inlines",
+    "composite: a freshly grabbed value only feeds (it skips lines)",
     `Quick,
     () => {
       let (kinds, text) =
         ride(
           "let report = fun price ->\n  let rate = 8 in\n  let tax = price * rate ¦/ 100 in\n  let tip = price / 5 in\n  let fee = 3 in\n  price + tip + fee + tax\nin\nreport(1)",
-          SinkLet,
+          FeedLet,
         );
       check(
         list(string),
         "rungs",
-        ["SinkLet", "SinkLet", "FeedLet"],
+        ["FeedLet"],
         kinds |> List.map(Action.show_refactor),
       );
       check(
@@ -2441,42 +2441,23 @@ let regression_tests = [
     },
   ),
   test_case(
-    "composite: a value's first downward track is the sink, not the feed",
+    "composite: a fresh grab of a value offers no line moves",
     `Quick,
     () => {
       let src = "let report = fun price ->\n  let rate = 8 in\n  let tax = price * rate ¦/ 100 in\n  let tip = price / 5 in\n  price + tip + tax\nin\nreport(1)";
-      let kinds = composites =>
-        drag_cands(~push=true, ~composites, src)
+      let kinds =
+        drag_cands(~push=true, ~composites=true, src)
         |> List.map((c: Refactor.DragCandidate.t) => c.kind);
+      check(bool, "feeds", true, List.mem(Action.FeedLet, kinds));
       check(
         bool,
-        "feed without composites",
-        true,
-        List.mem(Action.FeedLet, kinds(false)),
-      );
-      check(
-        bool,
-        "no sink without",
+        "no line moves: "
+        ++ String.concat(" ", kinds |> List.map(Action.show_refactor)),
         false,
-        List.mem(Action.SinkLet, kinds(false)),
-      );
-      check(
-        bool,
-        "sink with composites",
-        true,
-        List.mem(Action.SinkLet, kinds(true)),
-      );
-      check(
-        bool,
-        "feed rides the sink's track",
-        false,
-        List.mem(Action.FeedLet, kinds(true)),
-      );
-      check(
-        bool,
-        "up: blocked by price, it lifts",
-        true,
-        List.mem(Action.LiftFunction, kinds(true)),
+        List.exists(
+          k => List.mem(k, kinds),
+          [Action.SinkLet, HoistLet, HoistCarry, LiftFunction, SinkCarry],
+        ),
       );
     },
   ),
@@ -2609,12 +2590,12 @@ let regression_tests = [
       let (kinds, text) =
         ride(
           "let books =\n  let cost = 800 in\n  let tax = cost ¦/ 10 in\n  let tip = 5 in\n  cost + tax + tip + tax\nin\nbooks",
-          SinkLet,
+          FeedLet,
         );
       check(
         list(string),
         "rungs",
-        ["SinkLet", "FeedLet", "FeedLet"],
+        ["FeedLet", "FeedLet"],
         kinds |> List.map(Action.show_refactor),
       );
       check(

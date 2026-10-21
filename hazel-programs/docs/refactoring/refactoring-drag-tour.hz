@@ -197,29 +197,16 @@ let vol = cube(3) + cube(4) in
 let a = 1 in
 let b = a + a + a in
 
-# 15 COMPOSITES (Settings > Drag Composites): one pull runs through #
-# every move that changes where a value lives. Grab the / of #
-# price * rate / 100 and pull UP: it gets its own line, keeps climbing #
-# past fee and tip, and stops below rate, which it uses. #
+# 15 COMPOSITES (Settings > Drag Composites): once a value is moving, #
+# one pull runs through every move that changes where it lives. Grab #
+# the / of price * rate / 100 and pull UP: it gets its own line, keeps #
+# climbing past fee and tip, and lifts out once rate holds it in. #
 
 let checkout = fun price ->
   let rate = 8 in
   let tip = price / 5 in
   let fee = 3 in
   price + tip + fee + price * rate / 100
-in
-
-# a value pulled DOWN: grab the / of tax's definition (the value, not #
-# its let) and pull down. It sinks a line at a time, and the last dot #
-# puts it back into its use. Grabbing let tax moves the line instead: #
-# it sinks, but never inlines. #
-
-let invoice = fun price ->
-  let rate = 8 in
-  let tax = price * rate / 100 in
-  let tip = price / 5 in
-  let fee = 3 in
-  price + tip + fee + tax
 in
 
 # extract a function: grab the first * (the root of r * r) and pull #
@@ -245,4 +232,4 @@ in
 (ladder, spending, volume, scale(2), price, stamp, ticket, cheap,
   feel(5), mixture, hauled, span, award(1), pushy, area(10), twins,
   disk(10), norm((3, 4)), one(2), two(2), shade, ratio, vol, b,
-  checkout(100), invoice(100), wheel(rim), books)
+  checkout(100), wheel(rim), books)

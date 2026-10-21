@@ -254,7 +254,7 @@ let place_kind = (k: Action.refactor): bool =>
    themselves, and the unfolded use has no place in the result. */
 let drag_kinds =
     (
-      ~composites: bool,
+      ~climb: bool,
       ~info_map: Statics.Map.t,
       ~term: Exp.t,
       ~push: bool,
@@ -301,14 +301,14 @@ let drag_kinds =
       : [];
   /* composites: a grabbed value's line moves with it — its place is
      bound-on-this-line until a feed puts it in a use */
+  /* a value already moving (extracted earlier in this drag) climbs with
+     its line; a fresh grab of a value only feeds, and downward a value
+     only ever feeds */
   let via_line =
-    switch (composites ? value_line(~target, term) : None) {
+    switch (climb ? value_line(~target, term) : None) {
     | Some(l) =>
-      /* no sink with dependents: a value moves toward its uses, it
-         never pushes them away */
       [Action.MergeUp, HoistLet]
       @ (push ? [Action.HoistCarry, LiftFunction] : [])
-      @ [Action.MergeDown, SinkLet]
       |> List.filter(k =>
            applies(k, ~info_map, ~target=Exp.rep_id(l), term)
          )
@@ -351,6 +351,8 @@ let lands_elsewhere = (kind: Action.refactor): bool =>
 let drag_candidates =
     (
       ~composites: bool=false,
+      /* the drag is already moving: a held value may climb with its line */
+      ~continuing: bool=false,
       ~info_map: Statics.Map.t,
       ~term: Exp.t,
       ~measured: Measured.t,
@@ -592,7 +594,14 @@ let drag_candidates =
              [],
            )
       : cs;
-  drag_kinds(~composites, ~info_map, ~term, ~push, ~target, ~shard=grab_shard)
+  drag_kinds(
+    ~climb=composites && continuing,
+    ~info_map,
+    ~term,
+    ~push,
+    ~target,
+    ~shard=grab_shard,
+  )
   |> List.filter_map(k => mk(k))
   |> one_place_track
   |> List.fold_left(
@@ -668,6 +677,7 @@ let next_rung =
     ? None
     : drag_candidates(
         ~composites,
+        ~continuing=true,
         ~info_map=statics_of(~settings, ~info_map, ~root, prev.term),
         ~term=prev.term,
         ~measured=prev.measured,

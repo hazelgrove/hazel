@@ -1111,8 +1111,10 @@ let resolve = (s: session, p: vec): unit => {
            let bonus = s.winner == Some(i) ? stickiness : 0.;
            /* ALIGNMENT GATE: a track engages only when the pull points
               along it; nothing engages before ~6px — the lean covers
-              that */
-           if (cos <= 0.25) {
+              that. Past its first dot the chosen track is followed
+              wherever it turns (a run of feeds goes left, then right) */
+           let following = s.winner == Some(i) && u >= 0.9;
+           if (cos <= 0.25 && !following) {
              acc;
            } else {
              switch (acc) {
