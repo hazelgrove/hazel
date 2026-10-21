@@ -102,6 +102,9 @@ type t = {
      depth is per item, so it fits the browser stack where a monolithic
      elaboration doesn't */
   elab: option(Exp.t),
+  /* the program's elaboration (whole_elab): [elab], a Module root's
+     refolded into its value. None on an unexpected elab shape */
+  program_elab: option(Exp.t),
   sums: list(sum), /* the top chain's */
   lowering: option(lowering) /* a Module root's */
 };
@@ -1886,12 +1889,20 @@ let calc =
       items,
       changes,
     );
+  let elab = Option.bind(top_sum(sums), s => s.s_elab);
   {
     items,
     term: whole,
     probe_ids,
     merged,
-    elab: Option.bind(top_sum(sums), s => s.s_elab),
+    elab,
+    program_elab:
+      switch (strip(whole).term) {
+      | Module(items) =>
+        /* mod root: the graft is the lowered chain's elab */
+        Option.map(module_elab(strip(whole), items), elab)
+      | _ => elab
+      },
     sums,
     lowering:
       Option.map(
@@ -1902,14 +1913,9 @@ let calc =
   };
 };
 
-/* the whole-program elaboration; None on an unexpected elab shape */
-let whole_elab = (t: t): option(Exp.t) =>
-  switch (strip(t.term).term) {
-  | Module(items) =>
-    /* mod root: the graft is the lowered chain's elab */
-    Option.map(module_elab(strip(t.term), items), t.elab)
-  | _ => t.elab
-  };
+/* the whole-program elaboration, the same object on every call; None
+   on an unexpected elab shape */
+let whole_elab = (t: t): option(Exp.t) => t.program_elab;
 
 /* whole-program views over the per-item results */
 let all_error_ids = (t: t): list(Id.t) =>

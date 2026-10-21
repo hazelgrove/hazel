@@ -2,9 +2,9 @@
    top-level item or a module's member), so the main thread encodes and
    posts only what changed and the worker composes the program the way
    DefStatics did: each item's elaboration grafted into the body hole of
-   the one above, a module's members finished into its value. The
-   client cuts the pieces (EvalSplit); this half, which the worker links,
-   is language-only */
+   the one above, and a module's value its members' bindings, in order,
+   in its node. The client cuts the pieces (EvalSplit); this half, which
+   the worker links, is language-only */
 open Util;
 open Language;
 
@@ -15,6 +15,7 @@ type key =
   | Roots(Id.t) /* the root entries of the members of the item with this id */
   | TopRoots(Id.t) /* a program's top-level root entries, by its term's id */
   | Targets(Id.t) /* a program's probe targets, by its term's id */
+  | Node(Id.t) /* a module value's node, by the module's id */
   | Whole(Id.t); /* a program in one piece, by its term's id */
 
 /* a piece's content hash: its bytes under two seeds, and their length */
@@ -46,12 +47,15 @@ type entry = {
 
 /* a definition: its elaboration, a hole for its body (and, when its
    members are pieces of their own, for its nested value), and the eval
-   info it owns */
+   info it owns. a module's member also has its binding as the module's
+   value holds it (ModuleHelpers.refold_item), the hollow's definition in
+   it; a type member, which the value drops, has none */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type item = {
   hollow: Exp.t,
   hole: option(Id.t), /* None: a chain's tail */
   entries: list(entry),
+  binding: option(Mod.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -61,22 +65,26 @@ type content =
      next one's, which only a piece of their own keeps shared */
   | Roots(list((Id.t, list(entry))))
   | Targets(Sample.targets)
+  /* a module value's node: the module's annotation (its ids) */
+  | Node(IdTagged.IdTag.t)
   | Whole(Exp.t, EvalInfo.t);
 
 let encode = (c: content): string => Marshal.to_string(c, []);
 let decode = (bytes: string): content => Marshal.from_string(bytes, 0);
-
-/* how a split item's nested value comes of its members' chain */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type finish =
-  | Chain /* the chain itself (a let-chain member) */
-  | ModuleValue(Id.t); /* a module's value (ModuleHelpers.module_elab) */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slot = {
   key,
   hash,
 };
+
+/* how a split item's nested value comes of its members' chain */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type finish =
+  | Chain /* the chain itself (a let-chain member) */
+  /* a module's value: its members' bindings in the node this piece
+     holds (DefStatics.module_elab) */
+  | ModuleValue(slot);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type node = {
@@ -106,12 +114,17 @@ type program = {
 };
 
 let slots = (layout: layout): list(slot) => {
+  let finish = (f: finish, acc) =>
+    switch (f) {
+    | Chain => acc
+    | ModuleValue(s) => [s, ...acc]
+    };
   let rec chain = (c: chain, acc) =>
     List.fold_left(
       (acc, n: node) => {
         let acc = [n.slot, ...acc];
         switch (n.members) {
-        | Some((_, c)) => chain(c, acc)
+        | Some((f, c)) => chain(c, finish(f, acc))
         | None => acc
         };
       },
@@ -119,7 +132,8 @@ let slots = (layout: layout): list(slot) => {
       c.items,
     );
   switch (layout) {
-  | Pieces({chain: c, targets, _}) => chain(c, [targets])
+  | Pieces({chain: c, finish: f, targets}) =>
+    chain(c, finish(f, [targets]))
   | Whole(s) => [s]
   };
 };
@@ -127,13 +141,6 @@ let slots = (layout: layout): list(slot) => {
 /* the worker's half: a layout's program from the pieces it holds */
 
 exception Malformed(string);
-
-let finish_with = (f: finish, e: Exp.t): Exp.t =>
-  switch (f) {
-  | Chain => e
-  /* never posted here: a module's value refolds from its items */
-  | ModuleValue(_) => raise(Malformed("a split module value"))
-  };
 
 /* a split item's elaboration: its nested value at its let's definition */
 let plug = (hollow: Exp.t, nested: Exp.t): Exp.t =>
@@ -144,6 +151,18 @@ let plug = (hollow: Exp.t, nested: Exp.t): Exp.t =>
     }
   | _ => raise(Malformed("a split item's elaboration is not a let"))
   };
+
+/* a split member's binding: its nested value as the definition */
+let plug_binding = (binding: Mod.t, nested: Exp.t): Mod.t => {
+  ...binding,
+  term:
+    switch (binding.term) {
+    | ModLet(p, _) => ModLet(p, nested)
+    | ModExp(_) => ModExp(nested)
+    | ModVal(x, _) => ModVal(x, nested)
+    | _ => raise(Malformed("a split member's binding binds nothing"))
+    },
+};
 
 /* an item's terms, which its entries refer to */
 type built = {
@@ -190,23 +209,43 @@ let assemble =
     | Some(c) => c
     | None => raise(Malformed("a piece went missing"))
     };
-  /* bottom up, as DefStatics sums a chain: the top item's graft */
+  let finish_with = (f: finish, top: Exp.t, bindings: list(Mod.t)): Exp.t =>
+    switch (f) {
+    | Chain => top
+    | ModuleValue(s) =>
+      switch (get(s)) {
+      | Node(annotation) =>
+        let value: Exp.t = {
+          annotation,
+          term: Module(bindings),
+        };
+        value;
+      | _ => raise(Malformed("a module's node piece holds no node"))
+      }
+    };
+  /* bottom up, as DefStatics sums a chain: the top item's graft, and the
+     items' bindings in order */
   let rec compose = (c: chain, map) => {
-    let (top, built, map) =
+    let (top, bindings, built, map) =
       List.fold_left(
-        ((below, built, map), n: node) => {
+        ((below, bindings, built, map), n: node) => {
           let it =
             switch (get(n.slot)) {
             | Item(it) => it
             | _ => raise(Malformed("an item's piece holds no item"))
             };
-          let (own, nested, map) =
+          let (own, nested, binding, map) =
             switch (n.members) {
-            | None => (it.hollow, None, map)
+            | None => (it.hollow, None, it.binding, map)
             | Some((f, members)) =>
-              let (top, map) = compose(members, map);
-              let v = finish_with(f, top);
-              (plug(it.hollow, v), Some(v), map);
+              let (top, inner, map) = compose(members, map);
+              let v = finish_with(f, top, inner);
+              (
+                plug(it.hollow, v),
+                Some(v),
+                Option.map(b => plug_binding(b, v), it.binding),
+                map,
+              );
             };
           let graft =
             switch (it.hole, below) {
@@ -231,11 +270,15 @@ let assemble =
             };
           (
             Some(graft),
+            switch (binding) {
+            | Some(binding) => [binding, ...bindings]
+            | None => bindings
+            },
             Id.Map.add(id, b, built),
             add_entries(b, it.entries, map),
           );
         },
-        (None, Id.Map.empty, map),
+        (None, [], Id.Map.empty, map),
         List.rev(c.items),
       );
     let map =
@@ -253,7 +296,7 @@ let assemble =
       | _ => raise(Malformed("a chain's roots piece holds no roots"))
       };
     switch (top) {
-    | Some(top) => (top, map)
+    | Some(top) => (top, bindings, map)
     | None => raise(Malformed("an empty chain"))
     };
   };
@@ -265,14 +308,14 @@ let assemble =
     | _ => raise(Malformed("a whole program's piece holds no program"))
     }
   | ([], Pieces({chain, finish, targets})) =>
-    let (top, statics) = compose(chain, Id.Map.empty);
+    let (top, bindings, statics) = compose(chain, Id.Map.empty);
     let targets =
       switch (get(targets)) {
       | Targets(t) => t
       | _ => raise(Malformed("a targets piece holds no targets"))
       };
     Ok((
-      finish_with(finish, top),
+      finish_with(finish, top, bindings),
       {
         statics,
         targets,

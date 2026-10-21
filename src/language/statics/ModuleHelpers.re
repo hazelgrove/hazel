@@ -604,76 +604,71 @@ let check_ana_type_members =
     go(items, m, []);
   };
 
+/* Walk the user's pattern and its elaboration together: an ascription the
+   elaboration has where the user wrote a bare variable is synthetic. */
+let rec strip_synthetic_asc = (user_pat: Pat.t, p_elab: Pat.t): Pat.t => {
+  let rewrap = (term: Pat.term): Pat.t => {
+    ...p_elab,
+    term,
+  };
+  let map2 = (us, es) =>
+    List.length(us) == List.length(es)
+      ? List.map2(strip_synthetic_asc, us, es) : es;
+  switch (user_pat.term, p_elab.term) {
+  | (Var(_), Asc(inner, _)) => inner
+  | (Tuple(us), Tuple(es)) => rewrap(Tuple(map2(us, es)))
+  | (ListLit(us), ListLit(es)) => rewrap(ListLit(map2(us, es)))
+  | (Cons(u1, u2), Cons(e1, e2)) =>
+    rewrap(Cons(strip_synthetic_asc(u1, e1), strip_synthetic_asc(u2, e2)))
+  | (TupLabel(_, u), TupLabel(l, e)) =>
+    rewrap(TupLabel(l, strip_synthetic_asc(u, e)))
+  | (Parens(u), Parens(e)) => rewrap(Parens(strip_synthetic_asc(u, e)))
+  | (Projector(_, u), Projector(d, e)) =>
+    rewrap(Projector(d, strip_synthetic_asc(u, e)))
+  | (Ap(_, u), Ap(ctr, e)) => rewrap(Ap(ctr, strip_synthetic_asc(u, e)))
+  | (Asc(u, _), Asc(e, ty)) => rewrap(Asc(strip_synthetic_asc(u, e), ty))
+  | _ => p_elab
+  };
+};
+
+/* One item of `refold_module_elab`: [item], not a type member, with the
+   elaborated binder [p] and definition [def] of its link. */
+let refold_item = (item: Mod.t, p: Pat.t, def: Exp.t): Mod.t => {
+  ...item,
+  term:
+    switch (item.term) {
+    | ModLet(user_pat, _) =>
+      ModLet(strip_synthetic_asc(FunctionSugar.binder(user_pat), p), def)
+    | ModuleMod(mp, _) =>
+      ModLet(strip_synthetic_asc(mpat_to_pat(mp), p), def)
+    | ModExp(_) => ModExp(def)
+    | ModVal(x, _) => ModVal(x, def)
+    | ModType(_, _)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) => item.term
+    },
+};
+
 /* Inverse of `wrap_item` over the checked chain: rebuild the module items
    with their elaborated definitions, in order. Type items have no runtime
    content (TyAlias elaborates to its body) and are dropped. The synthetic
    ascription `modlet_pat` adds to a bare variable binder is stripped; a
    `module M : S = ...` item keeps its elaborated (ascribed) binder. A
    shorthand item `let f(x) = ...` elaborates to a binding of `f`. */
-let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
-  /* Walk the user's pattern and its elaboration together: an ascription the
-     elaboration has where the user wrote a bare variable is synthetic. */
-  let rec strip_synthetic_asc = (user_pat: Pat.t, p_elab: Pat.t): Pat.t => {
-    let rewrap = (term: Pat.term): Pat.t => {
-      ...p_elab,
-      term,
-    };
-    let map2 = (us, es) =>
-      List.length(us) == List.length(es)
-        ? List.map2(strip_synthetic_asc, us, es) : es;
-    switch (user_pat.term, p_elab.term) {
-    | (Var(_), Asc(inner, _)) => inner
-    | (Tuple(us), Tuple(es)) => rewrap(Tuple(map2(us, es)))
-    | (ListLit(us), ListLit(es)) => rewrap(ListLit(map2(us, es)))
-    | (Cons(u1, u2), Cons(e1, e2)) =>
-      rewrap(
-        Cons(strip_synthetic_asc(u1, e1), strip_synthetic_asc(u2, e2)),
-      )
-    | (TupLabel(_, u), TupLabel(l, e)) =>
-      rewrap(TupLabel(l, strip_synthetic_asc(u, e)))
-    | (Parens(u), Parens(e)) => rewrap(Parens(strip_synthetic_asc(u, e)))
-    | (Projector(_, u), Projector(d, e)) =>
-      rewrap(Projector(d, strip_synthetic_asc(u, e)))
-    | (Ap(_, u), Ap(ctr, e)) =>
-      rewrap(Ap(ctr, strip_synthetic_asc(u, e)))
-    | (Asc(u, _), Asc(e, ty)) =>
-      rewrap(Asc(strip_synthetic_asc(u, e), ty))
-    | _ => p_elab
-    };
-  };
+let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) =>
   switch (items) {
   | [] => []
   | [{term: ModType(_, _), _}, ...rest] => refold_module_elab(rest, elab)
   | [item, ...rest] =>
     switch (elab.term) {
-    | Let(p, def, body) =>
-      let term: Mod.term =
-        switch (item.term) {
-        | ModLet(user_pat, _) =>
-          ModLet(
-            strip_synthetic_asc(FunctionSugar.binder(user_pat), p),
-            def,
-          )
-        | ModuleMod(mp, _) =>
-          ModLet(strip_synthetic_asc(mpat_to_pat(mp), p), def)
-        | ModExp(_) => ModExp(def)
-        | ModVal(x, _) => ModVal(x, def)
-        | ModType(_, _)
-        | Invalid(_)
-        | EmptyHole
-        | MultiHole(_) => item.term
-        };
-      [
-        {
-          ...item,
-          term,
-        },
+    | Let(p, def, body) => [
+        refold_item(item, p, def),
         ...refold_module_elab(rest, body),
-      ];
+      ]
     | _ => items
     }
   };
-};
 
 /* Rebuild ModuleExp elaboration with direct def elaboration preserved. The
    binder keeps its (normalized) signature ascription: that is what seals the
