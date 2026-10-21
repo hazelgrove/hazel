@@ -1126,6 +1126,15 @@ let caret_token = (z: t): option(Token.t) =>
   | None => neighbor_token(Right, z)
   };
 
+/* Caret (and any selection) within one string or quoted label, where an
+   inserted linebreak would split the token. */
+let within_string_or_label = (z: t): bool =>
+  switch (z.caret, z.selection.content, caret_token(z)) {
+  | (Inner(_), [] | [_], Some(t)) =>
+    Token.is_string(t) || Token.is_quoted_label(t)
+  | _ => false
+  };
+
 let text_linebreak_on = (d: Direction.t, z: t): bool =>
   switch (z.caret, caret_token(z)) {
   | (Inner(idx), Some(token)) when String.contains(token, '\n') =>

@@ -66,6 +66,35 @@ let join_roundtrip = (name, source) =>
     },
   );
 
+/* One action, reporting failure rather than failing the test. */
+let attempt = (a: Action.t, z: Zipper.t) => {
+  let settings = Test_Editing.default_settings;
+  let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let statics =
+    CachedStatics.init_from_term(~settings, ~is_dynamic_term=true, term);
+  Perform.go(
+    ~settings,
+    ~statics,
+    ~syntax=CachedSyntax.init(z),
+    a,
+    {
+      zipper: z,
+      col_target: None,
+    },
+    ~root=Exp,
+  );
+};
+
+/* Two-character selection ending at the caret. */
+let select_left = source =>
+  Test_Editing.perform(
+    parse(source),
+    [
+      Select(Resize(Local(Left, ByChar))),
+      Select(Resize(Local(Left, ByChar))),
+    ],
+  );
+
 let paste = (z, text) =>
   Test_Editing.perform(
     z,
@@ -293,6 +322,77 @@ let tests = (
         ["# a¦b #", "¦\"ab\"", "\"ab\"¦", "12¦3"],
       )
     }),
+    test_case(
+      "a linebreak in an expression string converts",
+      `Quick,
+      () => {
+        /* Shift+Enter and other Insert paths, not only the Enter shortcut. */
+        let z = Test_Editing.perform(parse("\"ab¦cd\""), [Insert("\n")]);
+        FocusEffect.scheduled := None;
+        check(string, "text value", "ab\ncd", content(z));
+      },
+    ),
+    test_case(
+      "Enter replaces a selection inside a string",
+      `Quick,
+      () => {
+        let z = select_left("\"abcd¦ef\"");
+        check(
+          bool,
+          "convertible",
+          true,
+          ProjectorPerform.can_newline_in_string(z),
+        );
+        let elaborated = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+        let (z, _, offset) =
+          ProjectorPerform.newline_in_string(z, ~elaborated) |> Option.get;
+        check(string, "text value", "ab\nef", content(z));
+        check(int, "UTF-16 caret after newline", 3, offset);
+      },
+    ),
+    test_case(
+      "labels and pattern strings refuse linebreaks",
+      `Quick,
+      () => {
+        let refused = (name, z) =>
+          List.iter(
+            a =>
+              check(
+                bool,
+                name ++ ": " ++ Action.show(a),
+                true,
+                Result.is_error(attempt(a, z)),
+              ),
+            [Action.Insert("\n"), Paste("one\ntwo")],
+          );
+        List.iter(
+          source => refused(source, parse(source)),
+          [
+            "(`my¦ label`=1, 2)",
+            "let t = (abc=1) in t.`ab¦c`",
+            "let (`ab¦c`=y) = (`abc`=1) in y",
+            "fun (x : (`a¦b`=Int)) -> x",
+            "case \"x\" | \"ab¦c\" => 1 | _ => 2 end",
+            "let \"ab¦c\" = \"abc\" in 1",
+          ],
+        );
+        refused("selection in a label", select_left("(`abcd¦e`=1)"));
+      },
+    ),
+    test_case(
+      "linebreaks next to labels are still code",
+      `Quick,
+      () => {
+        let z =
+          Test_Editing.perform(parse("(`ab`=1,¦ 2)"), [Insert("\n")]);
+        check(
+          string,
+          "source",
+          "(`ab`=1,\n   2)",
+          Printer.of_zipper(~holes="", z),
+        );
+      },
+    ),
     test_case(
       "undo retains native selection metadata",
       `Quick,

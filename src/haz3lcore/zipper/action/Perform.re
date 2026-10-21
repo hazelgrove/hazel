@@ -57,6 +57,13 @@ let space_put_down_boundary = (z: Zipper.t): Zipper.t => {
   };
 };
 
+let text_in_string = (~elaborated, z: Zipper.t, text: string) =>
+  ProjectorPerform.insert_text_in_string(z, text, ~elaborated)
+  |> Option.map(((z, id, offset)) => {
+       FocusEffect.schedule_textarea(id, offset);
+       z;
+     });
+
 /* An Inner caret in the leading spaces of a continuation comment line. */
 let comment_indent_prefix = (z: Zipper.t) =>
   switch (z.caret, z.selection.content, Zipper.neighbor_token(Right, z)) {
@@ -370,23 +377,18 @@ let rec go =
          Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
        )
     |> return(CantIntroduce)
+  /* A linebreak never splits a string or label: an expression string
+     becomes a text projector; anything else refuses the edit. */
   | Paste(clipboard)
       when
-        String.contains(clipboard, '\n')
-        && Option.is_some(ProjectorPerform.string_range(z)) =>
-    let clipboard = StringUtil.plain_replace("\r\n", clipboard, "\n");
-    switch (
-      ProjectorPerform.insert_text_in_string(
-        z,
-        clipboard,
-        ~elaborated=statics.elaborated,
-      )
-    ) {
-    | Some((z, id, offset)) =>
-      FocusEffect.schedule_textarea(id, offset);
-      Ok(z);
-    | None => Error(CantPaste)
-    };
+        String.contains(clipboard, '\n') && Zipper.within_string_or_label(z) =>
+    StringUtil.plain_replace("\r\n", clipboard, "\n")
+    |> text_in_string(~elaborated=statics.elaborated, z)
+    |> return(CantPaste)
+  | Insert(char)
+      when String.contains(char, '\n') && Zipper.within_string_or_label(z) =>
+    text_in_string(~elaborated=statics.elaborated, z, char)
+    |> return(Cant_insert)
   | Paste(clipboard) =>
     let clipboard = Unicode.nfc_outside_strings(clipboard);
     /* pasted material can complete enclosing tiles (the completion

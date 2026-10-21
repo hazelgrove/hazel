@@ -129,7 +129,7 @@ let string_range = (z: Zipper.t) => {
 };
 
 let can_newline_in_string = (z: Zipper.t) =>
-  Selection.is_empty(z.selection) && Option.is_some(string_range(z));
+  Option.is_some(string_range(z));
 
 let insert_text_in_string = (z: Zipper.t, text: string, ~elaborated) => {
   let* (tile, body, start, finish) = string_range(z);
