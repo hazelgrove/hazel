@@ -302,7 +302,8 @@ let rows_of: family => list(row) =
     ]
   | ModuleExp => [mk_pre_c'(L, P.let_, Exp, [MPat, Exp], Exp)]
   | ModuleMod => [mk_pre_c'(L, P.let_, Mod, [MPat], Exp)]
-  | SigLet => [mk_pre_c'(L, P.let_, Sig, [], Pat)];
+  | SigLet => [mk_pre_c'(L, P.let_, Sig, [], Pat)]
+  | SigModule => [mk_pre_c'(L, P.let_, Sig, [], MPat)];
 
 /* Join a family's rows with its label (FormId.label_of_family, the
  * label's single home). Failfast: a mold whose child count disagrees
@@ -838,3 +839,11 @@ let remold_candidates = (label: Label.t, sort: Sort.t): list((t, Sort.t)) =>
   base_candidates(label)
   |> List.filter(((_, m): (t, Mold.t)) => m.out == sort)
   |> List.map(((id, _)) => (id, sort));
+
+/* Like remold_candidates, but compound forms only: a single token never
+   resolves to an atomic form (a variable) here. */
+let compound_remold_candidates =
+    (label: Label.t, sort: Sort.t): list((t, Sort.t)) =>
+  compound_defs(label)
+  |> List.filter(((_, m): (family, Mold.t)) => m.out == sort)
+  |> List.map(((fam, _)) => (Compound(fam), sort));

@@ -73,5 +73,95 @@ let tests = (
         check(exp, "f -> g, g -> h in fix f. f", expected, result);
       },
     ),
+    /* A module member's name is its label, so it must not be renamed away
+       from capture the way an ordinary binder is: `M.x` would stop finding
+       it. The substitution shadows for the items that follow instead. This
+       bites through the stepper, which substitutes the whole builtin
+       environment, so a member named after any builtin would break. */
+    test_case(
+      "a module member is shadowed, not renamed",
+      `Quick,
+      () => {
+        let env =
+          Environment.of_list([("x", Exp.var("x")), ("y", Exp.var("x"))]);
+        let expr =
+          Exp.module_([
+            Mod.mod_let(Pat.var("x"), Exp.int(1)),
+            Mod.mod_let(Pat.var("z"), Exp.var("y")),
+          ]);
+        let result = Substitution.in_exp(env, expr);
+        let expected =
+          Exp.module_([
+            Mod.mod_let(Pat.var("x"), Exp.int(1)),
+            Mod.mod_let(Pat.var("z"), Exp.var("x")),
+          ]);
+        check(exp, "member x keeps its name", expected, result);
+      },
+    ),
+    /* And a later item sees the member, not the substitution. */
+    test_case(
+      "a later item sees the member it follows",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("x", Exp.int(9))]);
+        let expr =
+          Exp.module_([
+            Mod.mod_let(Pat.var("x"), Exp.int(1)),
+            Mod.mod_let(Pat.var("z"), Exp.var("x")),
+          ]);
+        let result = Substitution.in_exp(env, expr);
+        let expected =
+          Exp.module_([
+            Mod.mod_let(Pat.var("x"), Exp.int(1)),
+            Mod.mod_let(Pat.var("z"), Exp.var("x")),
+          ]);
+        check(exp, "x is the member, not 9", expected, result);
+      },
+    ),
+    /* An evaluated binding is not a binder: the step that made it already
+       substituted its value into the items that follow, so shadowing here
+       would swallow that substitution and leave them stuck. */
+    test_case(
+      "an evaluated binding does not shadow the items that follow",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("x", Exp.int(9))]);
+        let expr =
+          Exp.module_([
+            Language.Mod.fresh(ModVal("x", Exp.int(9))),
+            Mod.mod_let(Pat.var("z"), Exp.var("x")),
+          ]);
+        let expected =
+          Exp.module_([
+            Language.Mod.fresh(ModVal("x", Exp.int(9))),
+            Mod.mod_let(Pat.var("z"), Exp.int(9)),
+          ]);
+        let result = Substitution.in_exp(env, expr);
+        check(exp, "z sees the value x was bound to", expected, result);
+      },
+    ),
+    /* A signature's item types are types like any other: an expression a
+       member's type mentions is substituted. */
+    test_case(
+      "a signature member's type is substituted",
+      `Quick,
+      () => {
+        let env = Environment.of_list([("x", Exp.int(42))]);
+        let ascribed = e =>
+          Exp.asc(
+            Exp.int(1),
+            Typ.sig_([
+              Sig.sig_let(Pat.asc(Pat.var("p"), Typ.proof_of(e))),
+            ]),
+          );
+        let result = Substitution.in_exp(env, ascribed(Exp.var("x")));
+        check(
+          exp,
+          "x -> 42 in 1 : { let p : proof_of x end }",
+          ascribed(Exp.int(42)),
+          result,
+        );
+      },
+    ),
   ],
 );
