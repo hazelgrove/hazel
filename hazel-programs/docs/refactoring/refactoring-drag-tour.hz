@@ -7,7 +7,7 @@
 # Drag Pushes Through: a blocked move carries what it depends on, or #
 # lifts out as a helper. #
 
-# 1 HOIST / SINK: grab a let (its let, =, in, or binder) and pull #
+# 1 HOIST / SINK: grab a let (its let, =, in, or name) and pull #
 # vertically - the let moves its LINE. Keep pulling: gamma climbs #
 # past bravo, then past the comment (a line like any other: comments #
 # and blank lines never ride along), then past alpha; pull back down #
@@ -167,8 +167,8 @@ let two = fun x -> twice_sq(x) - 1 in
 
 # 12 SPLIT OUT and JOIN: grab bb in the pattern and pull it DOWN onto #
 # its own line; grab let bb there and pull it back UP into the tuple. #
-# The same grab of bb also swaps it LEFT and hoists/sinks the whole #
-# line - the busiest grab on the slide. #
+# The same grab of bb also swaps it LEFT. A name inside a pattern #
+# moves only itself: the whole line moves by its let, = or in. #
 
 let (rr, gg, bb) = (255, 128, 0) in
 let shade = rr + gg + bb in

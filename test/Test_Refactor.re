@@ -2255,6 +2255,54 @@ let regression_tests = [
     },
   ),
   test_case(
+    "drag handles: only let, =, in and a bare name move the line",
+    `Quick,
+    () => {
+      let hoists = marked =>
+        drag_cands(marked)
+        |> List.exists((c: Refactor.DragCandidate.t) => c.kind == HoistLet);
+      check(
+        bool,
+        "bare name",
+        true,
+        hoists("let a = 1 in\nlet ¦b = 2 in\na + b"),
+      );
+      check(
+        bool,
+        "tuple's let",
+        true,
+        hoists("let a = 1 in\n¦let (h, w) = (9, 16) in\na + h * w"),
+      );
+      check(
+        bool,
+        "component",
+        false,
+        hoists("let a = 1 in\nlet (h, ¦w) = (9, 16) in\na + h * w"),
+      );
+      check(
+        bool,
+        "component still swaps",
+        true,
+        drag_cands("let a = 1 in\nlet (h, ¦w) = (9, 16) in\na + h * w")
+        |> List.exists((c: Refactor.DragCandidate.t) =>
+             c.kind == SwapTuplePat(0)
+           ),
+      );
+      check(
+        bool,
+        "sugar name",
+        true,
+        hoists("let a = 1 in\nlet ¦sq(r) = r * r in\nsq(a)"),
+      );
+      check(
+        bool,
+        "sugar parameter",
+        false,
+        hoists("let a = 1 in\nlet sq(¦r) = r * r in\nsq(a)"),
+      );
+    },
+  ),
+  test_case(
     "arm swap draggable from the rule delimiter",
     `Quick,
     () => {

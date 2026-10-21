@@ -272,6 +272,31 @@ let drag_anchor =
   | _ => Some((target, target))
   };
 
+/* the name a let binds as a whole: a bare binder, through any
+   annotation or parens, or a sugar function's name */
+let rec head_name_ids = (p: Pat.t): list(Id.t) =>
+  switch (IdTagged.term_of(p)) {
+  | Var(_) => IdTagged.ids(p)
+  | Asc(p', _)
+  | Parens(p') => head_name_ids(p')
+  | Ap(f, _) => head_name_ids(f)
+  | _ => []
+  };
+
+let moves_line = (k: Action.refactor): bool =>
+  switch (k) {
+  | HoistLet
+  | SinkLet
+  | HoistCarry
+  | SinkCarry
+  | LiftFunction
+  | UnliftFunction
+  | MergeUp
+  | MergeDown
+  | JoinLet => true
+  | _ => false
+  };
+
 /* the refactors a grab can drive: every rung of every direction's
    gesture zone (the zone table is the drag spec's handle map: which
    tokens drive which transform), without the arrow keys' first-match
@@ -288,15 +313,27 @@ let drag_kinds =
       ~shard: option(int),
     )
     : list(Action.refactor) => {
-  let insist =
-    push
-      ? [Action.HoistCarry, SinkCarry, LiftFunction]
-        |> List.filter(k => applies(k, ~info_map, ~target, term))
-      : [];
-  /* one element per token: a line's handles (let, binder, =, in) move
-     the LINE; the value moves only by its own definition (grab the
-     def's root to feed) */
-  let line_handle = find_hit(~hit=hit_def_line(target), term) != None;
+  /* one element per token: a line's handles (let, =, in, and a bare
+     binder name) move the LINE; a piece of a structured pattern
+     (component, parameter, annotation) drives only its own moves; the
+     value moves only by its own definition (grab the def's root to
+     feed) */
+  let line_zone = find_hit(~hit=hit_def_line(target), term);
+  let line_handle =
+    switch (line_zone) {
+    | Some(l) =>
+      switch (IdTagged.term_of(l)) {
+      | Let(p, _, _) =>
+        hit_node(target, l) || List.mem(target, head_name_ids(p))
+      | _ => true
+      }
+    | None => false
+    };
+  let drives = (k: Action.refactor) =>
+    switch (line_zone) {
+    | None => true
+    | Some(_) => k != Action.FeedLet && (line_handle || !moves_line(k))
+    };
   /* an if flips by its BRANCH (the thing that moves), not by nudging
      then/else (the keyboard keeps those) */
   let branch_root = if_of_branch(~target, term) != None;
@@ -308,14 +345,18 @@ let drag_kinds =
          (k != Action.NegateIf || branch_root)
          && applies(k, ~info_map, ~target, term)
        );
+  let insist =
+    push
+      ? [Action.HoistCarry, SinkCarry, LiftFunction]
+        |> List.filter(k => applies(k, ~info_map, ~target, term))
+      : [];
   [Action.Gesture.Up, Down, Left, Right]
   |> List.concat_map(gesture_options(~info_map, ~term, ~target, ~shard))
   |> List.filter(k =>
-       k != Action.UnfoldCall
-       && !(line_handle && k == Action.FeedLet)
-       && (k != Action.NegateIf || branch_root)
+       k != Action.UnfoldCall && (k != Action.NegateIf || branch_root)
      )
   |> (ks => ks @ extra @ insist)
+  |> List.filter(drives)
   |> List.fold_left((acc, k) => List.mem(k, acc) ? acc : acc @ [k], []);
 };
 
