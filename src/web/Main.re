@@ -109,18 +109,22 @@ let apply =
       updated.model,
     );
 
-  if (updated.is_edit) {
+  switch (action) {
+  /* background work: it neither edits nor postpones the next save (a
+     summary a tick would snooze it for as long as summaries run) */
+  | Summarize => ()
+  | _ when updated.is_edit =>
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SetAlarm(
         Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
       ),
-    );
-  } else {
+    )
+  | _ =>
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SnoozeAlarm(
         Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
       ),
-    );
+    )
   };
   if (updated.scroll_active) {
     scroll_to_caret := true;
