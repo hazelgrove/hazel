@@ -52,6 +52,10 @@ type vec = {
 
 /* one rung: a state the drag can land in, laid out against the LIVE
    layout (px deltas from where things sit now) */
+type deco_step =
+  | Shift(float, float)
+  | Gone;
+
 type rung = {
   kind: Action.refactor,
   /* where this step is invoked, in the state before it */
@@ -62,8 +66,9 @@ type rung = {
   /* anchored-deco delta by (anchor id, shard). Deco ELEMENTS are
      resolved at ACTIVATION, not compute: compute runs during view
      construction (pre-patch DOM), so elements collected there can be
-     re-purposed by the patch and would ride stale deltas. */
-  deco_delta: ((Id.t, option(int))) => option((float, float)),
+     re-purposed by the patch and would ride stale deltas. A deco
+     whose anchor is gone here fades with it. */
+  deco_delta: ((Id.t, option(int))) => option(deco_step),
   /* live tokens absent in this state: they dissolve (scale+fade) as
      the pull reaches it */
   exits: list((CodeFlip.key, Js.t(Dom.node))),
@@ -817,7 +822,8 @@ let node_tracks =
                node,
                track_of((_, r) =>
                  switch (r.deco_delta((id, shard))) {
-                 | Some((dx, dy)) => Some((dx, dy, 1.))
+                 | Some(Shift(dx, dy)) => Some((dx, dy, 1.))
+                 | Some(Gone) => None
                  | None => Some((0., 0., 1.))
                  }
                ),
@@ -1508,7 +1514,7 @@ let sync =
             cand_m: Measured.t,
             (id, shard): (Id.t, option(int)),
           )
-          : option((float, float)) =>
+          : option(deco_step) =>
         switch (
           CodeFlip.anchor_meas(measured, id, shard),
           CodeFlip.anchor_meas(cand_m, id, shard),
@@ -1524,8 +1530,9 @@ let sync =
             let dy =
               float_of_int(n_origin.row - o.origin.row)
               *. font_metrics.row_height;
-            Some((dx, dy));
+            Some(Shift(dx, dy));
           };
+        | (Some(_), None) => Some(Gone)
         | _ => None
         };
       let grab_id = Indicated.index(z);
