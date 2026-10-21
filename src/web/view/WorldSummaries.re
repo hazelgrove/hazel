@@ -11,7 +11,7 @@ let version = ref(0);
 
 /* the summaries still to make, as last seen: the tick asks for a step
    only while there are some, or once the library changes */
-let wanted = ref(true);
+let wanted = ref(false);
 
 let library = () =>
   Digest.string(
@@ -27,6 +27,12 @@ let due = (): bool => {
     wanted := true;
   };
   wanted^;
+};
+
+/* the World opened: its unloaded slides want summaries */
+let on_load = (m: 'm): 'm => {
+  wanted := true;
+  m;
 };
 
 /* no input for a second and no analysis waiting */

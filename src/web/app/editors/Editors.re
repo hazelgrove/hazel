@@ -204,7 +204,8 @@ module Store = {
       switch (mode) {
       | Scratch => Model.Scratch(load_scratch(~settings))
       | Documentation => Model.Documentation(load_documentation(~settings))
-      | World => Model.World(WorldDeck.load(~settings))
+      | World =>
+        Model.World(WorldSummaries.on_load(WorldDeck.load(~settings)))
       | Tutorial =>
         Model.Tutorial(
           TutorialsMode.Store.load(~settings, ~instructor_mode)
@@ -362,7 +363,12 @@ module Update = {
       )
       |> return
     | (SwitchMode(World), _) =>
-      Model.World(WorldDeck.load(~settings=globals.settings.core)) |> return
+      Model.World(
+        WorldSummaries.on_load(
+          WorldDeck.load(~settings=globals.settings.core),
+        ),
+      )
+      |> return
     | (SwitchMode(Config), _) =>
       Model.Config(Store.load_config(~settings=globals.settings.core))
       |> return

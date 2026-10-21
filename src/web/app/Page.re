@@ -545,6 +545,7 @@ module Update = {
         | _ => model |> Updated.return_quiet
         }
       | World(_) => model |> Updated.return_quiet
+      /* not in the World: none wanted until it opens (on_load) */
       | _ =>
         WorldSummaries.wanted := false;
         model |> Updated.return_quiet;
