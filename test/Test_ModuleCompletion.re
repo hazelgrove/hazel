@@ -818,13 +818,16 @@ let option_chain = "# the type #\ntype t = None + Some(?) in\n\nlet map : (Optio
 let option_members = "# the type #\ntype t = None + Some(?);\n\nlet map : (Option, ? -> ?) -> ? = fun (opt, f) ->\n  case opt\n  | None => None\n  | Some(x) => Some(f(x))\n  end;\n\nlet to_list : Option -> [?] = fun opt ->\n  if opt == None then [] else [1]";
 
 /* (name, root, program, full, prefix): restored/destroyed/total, pinned.
-   `kinds` misses only `h`'s `=`: `let h (1, 2)` reads as an ap-pattern, as
-   at the top level (CompletionScoreboard's tuple-list). The library-style
+   `kinds` misses `h`'s `=`: `let h (1, 2)` reads as an ap-pattern, as at
+   the top level (CompletionScoreboard's tuple-list). Under Modules II it
+   also misses the `in` of the let-chain member's first link: `let a = 1`
+   is a finished member form, so completion parts it from `let b …` with a
+   member separator instead of restoring the `in`. The library-style
    module misses what its let-in control misses (a type annotation's `(`,
    `)` or `[`, and `typ` for `type`): general, not member structure */
 let round_trip_pins = [
-  ("in a module", Sort.Exp, kinds, "54/0/55", "30/0/30"),
-  ("at a Mod root", Sort.Mod, kinds_members, "49/0/50", "28/0/28"),
+  ("in a module", Sort.Exp, kinds, "53/0/55", "29/0/30"),
+  ("at a Mod root", Sort.Mod, kinds_members, "48/0/50", "27/0/28"),
   (
     "in a library-style module",
     Sort.Mod,
@@ -1211,7 +1214,8 @@ let member_head_cases = [
     counter,
     "  let after = next + 1",
     "module N = {}",
-    counter_rows(~root=Exp, ["N : ()"]),
+    /* Modules II prints an empty module's type as a signature */
+    counter_rows(~root=Exp, ["N : {  }"]),
     0,
     "~module N = {}",
   ),
