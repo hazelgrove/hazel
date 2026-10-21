@@ -862,6 +862,16 @@ let type_deps = [
     ),
   ),
   test_case(
+    "an alias retyped and back",
+    `Quick,
+    script(
+      "type T = Int in\nlet a : T = 1 in\nlet f = fun x -> x + a in\nf(1)",
+      /* f's use of a is inconsistent while T is Bool: f must still read
+         as T's user when T goes back */
+      [token(~at=`First, "Int", "Bool"), token(~at=`First, "Bool", "Int")],
+    ),
+  ),
+  test_case(
     "a module type member through an alias",
     `Quick,
     script(

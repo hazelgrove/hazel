@@ -305,11 +305,15 @@ let tfree_of_item = (node: Exp.t, map: Statics.Map.t): list(string) => {
   | _ => ()
   | exception _ => add(["*"])
   };
+  /* the synthesized type too: an inconsistent use's [ty] is what was
+     expected, and its own type is what goes stale */
   Id.Map.iter(
     (_, info: Info.t) =>
       switch (info) {
-      | InfoExp({ty, _})
-      | InfoPat({ty, _}) => add(Typ.free_vars(ty))
+      | InfoExp({ty, elab_syn_ty, _})
+      | InfoPat({ty, elab_syn_ty, _}) =>
+        add(Typ.free_vars(ty));
+        add(Typ.free_vars(elab_syn_ty));
       | _ => ()
       },
     map,
