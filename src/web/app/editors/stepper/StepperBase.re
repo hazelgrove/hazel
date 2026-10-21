@@ -72,6 +72,11 @@ and step_action =
   | AddInduction(option(Exp.t))
   | AddForall
   | AddAxiomStep(string, int, Exp.t, Direction.t, string)
+  | DragRewrite(
+      Exp.t,
+      option(Id.t),
+      list((Haz3lcore.Action.refactor, Id.t)),
+    )
   | AddAlgebriteStep(int, Exp.t, Exp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -666,6 +671,35 @@ and Stepper: {
         | None => model |> raise_invalid_action
         };
       | (StepForward(_), _, _) => model |> raise_invalid_action
+      | (DragRewrite(expected, environment_id, path), MissingStep(ms), None)
+          when
+            settings.core.drag_refactor
+            && settings.core.evaluation.enable_proof =>
+        let application = {
+          open OptUtil.Syntax;
+          let* editor = model.editor |> Calc.get_saved_opt;
+          let* env = ms.cached_env |> Calc.get_saved_opt;
+          let* () =
+            TheoremStepDrag.environment_id(env) == environment_id
+              ? Some() : None;
+          let* () = expected == editor.statics.term ? Some() : None;
+          TheoremStepDrag.release(
+            ~settings=settings.core,
+            ~editor,
+            ~env,
+            path,
+          );
+        };
+        switch (application) {
+        | None => model |> return_quiet
+        | Some({name, at_idx, at_exp, direction}) =>
+          update(
+            ~settings,
+            AddAxiomStep(name, at_idx, at_exp, direction, name),
+            model,
+          )
+        };
+      | (DragRewrite(_, _, _), _, _) => model |> return_quiet
       | (AddInduction(exp), MissingStep(_), _) =>
         {
           ...model,
@@ -740,6 +774,11 @@ and Stepper: {
             }: step_model,
           )
           : (step_model, Calc.t(Exp.t), Calc.t(option(bool))) => {
+    let settings =
+      switch (settings) {
+      | OldValue(s) => Calc.OldValue(TheoremStepDrag.for_drag(s))
+      | NewValue(s) => Calc.NewValue(TheoremStepDrag.for_drag(s))
+      };
     let editor =
       editor
       |> {
@@ -747,7 +786,12 @@ and Stepper: {
         and.calc expr = expr
         and.calc _ctx = ctx
         and.calc _ana = ana;
-        expr |> CodeWithStatics.Model.mk_from_exp(~settings, ~root=Exp);
+        expr
+        |> CodeWithStatics.Model.mk_from_exp(
+             ~settings,
+             ~fold_fn_bodies=?TheoremStepDrag.fold_mode(settings),
+             ~root=Exp,
+           );
       };
     let info_map =
       info_map
@@ -927,6 +971,41 @@ and Stepper: {
           };
         let editor =
           StepperEditor.View.view(
+            ~refactor_drag=?{
+              switch (model.step_kind, model.next_step) {
+              | (MissingStep(ms), None)
+                  when globals.settings.core.evaluation.enable_proof =>
+                let* env = ms.cached_env |> Calc.get_saved_opt;
+                let* editor = model.editor |> Calc.get_saved_opt;
+                Some(
+                  CodeDrag.{
+                    candidates: (~target, ~shard) =>
+                      TheoremStepDrag.candidates(
+                        ~settings=globals.settings.core,
+                        ~info_map=editor.statics.info_map,
+                        ~env,
+                        ~term=editor.statics.term,
+                        ~measured=editor.editor.syntax.measured,
+                        ~shape_map=editor.editor.syntax.shape_map,
+                        ~target,
+                        ~shard,
+                        (),
+                      ),
+                    commit: path =>
+                      Bonsai.Effect.Expert.handle(
+                        inject(
+                          DragRewrite(
+                            editor.statics.term,
+                            TheoremStepDrag.environment_id(env),
+                            path,
+                          ),
+                        ),
+                      ),
+                  },
+                );
+              | _ => None
+              };
+            },
             ~globals,
             ~signal=
               fun

@@ -127,10 +127,12 @@ module View = {
         ~overlays=[],
         ~selected,
         ~selected_id,
+        ~refactor_drag: option(CodeDrag.handler)=?,
         ~_dynamics: Language.Dynamics.Map.t=Language.Dynamics.Map.empty,
         model: Model.t,
       ) => {
     CodeSelectable.View.view(
+      ~refactor_drag?,
       ~expand_selection=true,
       ~dynamics=Language.Dynamics.Map.empty,
       ~signal=

@@ -2,6 +2,20 @@ open Util;
 open Calc.Syntax;
 open Language;
 
+/* Keep theorem calls available for rewriting even before dragging is
+   enabled. Otherwise hidden evaluator steps consume the original goal,
+   then become visible when drag mode changes the stepper's filters. */
+let proof_settings = (settings: CoreSettings.t): CoreSettings.t => {
+  ...settings,
+  evaluation: {
+    ...settings.evaluation,
+    enable_proof: true,
+    stepper_history: true,
+    show_lookup_steps: true,
+    show_fixpoints: true,
+  },
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type theorem = {
@@ -99,14 +113,7 @@ module Update = {
     let settings =
       Settings.Model.{
         ...settings,
-        core: {
-          ...settings.core,
-          evaluation: {
-            ...settings.core.evaluation,
-            enable_proof: true,
-            stepper_history: true,
-          },
-        },
+        core: proof_settings(settings.core),
       };
     switch (action) {
     | TheoremUpdate(n, action) =>
@@ -145,14 +152,7 @@ module Update = {
         ~dynamics: Calc.t(option(Dynamics.t)),
         {thm_map, thms}: Model.t,
       ) => {
-    let settings' = {
-      ...Calc.get_value(settings),
-      evaluation: {
-        ...Calc.get_value(settings).evaluation,
-        enable_proof: true,
-        stepper_history: true,
-      },
-    };
+    let settings' = proof_settings(Calc.get_value(settings));
     let settings =
       switch (settings) {
       | OldValue(_) => Calc.OldValue(settings')
@@ -312,14 +312,7 @@ module View = {
       ...globals,
       settings: {
         ...globals.settings,
-        core: {
-          ...globals.settings.core,
-          evaluation: {
-            ...globals.settings.core.evaluation,
-            enable_proof: true,
-            stepper_history: true,
-          },
-        },
+        core: proof_settings(globals.settings.core),
       },
     };
     switch (model.thms |> Calc.get_saved([])) {

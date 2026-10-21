@@ -696,6 +696,8 @@ module View = {
         ~pending_eval_ids: list(Id.t)=[],
         ~show_active_eval: bool=false,
         ~expand_selection=?,
+        ~refactor_drag: option(CodeDrag.handler)=?,
+        ~allow_source_refactors=true,
         model: Model.t,
       ) => {
     let selected = EditMode.is_active(edit_mode);
@@ -798,7 +800,7 @@ module View = {
           ),
       (),
     );
-    if (selected) {
+    let sync_drag = (~at_press=false, ()) =>
       CodeDrag.sync(
         ~settings=globals.settings.core,
         ~info_map=model.statics.info_map,
@@ -807,8 +809,13 @@ module View = {
         ~segment=model.editor.syntax.segment,
         ~shape_map=model.editor.syntax.shape_map,
         ~font_metrics=globals.font_metrics,
+        ~candidates=?
+          Option.map((h: CodeDrag.handler) => h.candidates, refactor_drag),
+        ~at_press,
         model.editor.state.zipper,
       );
+    if (selected) {
+      sync_drag();
     };
     let edit_decos =
       selected
@@ -1020,7 +1027,9 @@ module View = {
           ),
         ]);
       | {button: Left, shift: Up, meta: Up, ctrl: Up, alt: Up, _}
-          when globals.settings.core.drag_refactor =>
+          when
+            globals.settings.core.drag_refactor
+            && (allow_source_refactors || Option.is_some(refactor_drag)) =>
         /* modal drag-to-refactor (Settings > Drag Refactoring): a
            plain drag pulls the grabbed construct along candidate
            tracks; candidates are enumerated by CodeDrag.sync once
@@ -1028,17 +1037,24 @@ module View = {
         CodeDrag.arm(
           /* the path to the rung reached, one undo step */
           ~commit=
-            steps =>
-              Bonsai.Effect.Expert.handle(
-                inject(Perform(RefactorPath(steps))),
-              ),
+            switch (refactor_drag) {
+            | Some(h) => h.commit
+            | None => (
+                steps =>
+                  Bonsai.Effect.Expert.handle(
+                    inject(Perform(RefactorPath(steps))),
+                  )
+              )
+            },
+          ~source_handoff=Option.is_none(refactor_drag),
           ~focus=
             id =>
               Bonsai.Effect.Expert.handle(
                 inject(Perform(Move(Goal(TileId(id))))),
               ),
           ~ladders=
-            globals.settings.core.drag_chain
+            Option.is_none(refactor_drag)
+            && globals.settings.core.drag_chain
             != Language.CoreSettings.DragChain.Off,
           ~push=globals.settings.core.drag_push,
           ~show_labels=globals.settings.core.drag_labels,
@@ -1050,6 +1066,15 @@ module View = {
           ),
           ~goal=loc(mouse),
         );
+        if (Option.is_some(refactor_drag)) {
+          /* Proof handlers use this row's unchanged expression and the
+             pressed token directly. Prepare tracks now: a fast drag or
+             a press at the existing caret need not trigger a new view. */
+          sync_drag(
+            ~at_press=true,
+            (),
+          );
+        };
         Effect.Many([
           signal(MakeActive),
           inject(Perform(Move(Point(loc(mouse), None)))),

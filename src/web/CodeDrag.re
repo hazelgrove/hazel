@@ -50,6 +50,14 @@ type vec = {
   y: float,
 };
 
+/* Read-only editors can provide gesture choices and record an action at
+   release instead of applying a source RefactorPath. */
+type handler = {
+  candidates:
+    (~target: Id.t, ~shard: option(int)) => list(Refactor.DragCandidate.t),
+  commit: list((Action.refactor, Id.t)) => unit,
+};
+
 /* one rung: a state the drag can land in, laid out against the LIVE
    layout (px deltas from where things sit now) */
 type deco_step =
@@ -121,6 +129,7 @@ type pending =
 type session = {
   /* commit the path to the rung reached: (refactor, invoked at) */
   commit: list((Action.refactor, Id.t)) => unit,
+  source_handoff: bool,
   /* put the caret on a tile, so the indication marks what is held */
   focus: Id.t => unit,
   ladders: bool,
@@ -1337,35 +1346,47 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
     | Some(c) when Float.round(s.u) >= 1. =>
       let k = min(n_rungs(c), int_of_float(Float.round(s.u)));
       let landing = List.nth(c.rungs, k - 1);
-      /* handoff: the commit's FLIP starts each token from where the
-         scrub holds it; the scrub animations are adopted so they die
-         exactly when the flights take over */
-      CodeFlip.set_drag_offsets(
-        node_tracks(c)
-        |> List.filter_map(((key, _, vals)) =>
-             switch (key) {
-             | Some(key) =>
-               let (dx, dy, _) = value_at(vals, s.u);
-               Some((key, (dx, dy)));
-             | None => None
-             }
-           ),
-      );
-      if (landing.scroll_rows > 0) {
-        CodeFlip.set_scroll_bump(~rows=landing.scroll_rows, ~near=s.text_box);
-      };
-      if (landing.enters != []) {
-        CodeFlip.set_drag_enter(
-          max(0., min(1., s.u -. float_of_int(k - 1))),
+      if (s.source_handoff) {
+        /* handoff: the commit's FLIP starts each token from where the
+           scrub holds it; the scrub animations are adopted so they die
+           exactly when the flights take over */
+        CodeFlip.set_drag_offsets(
+          node_tracks(c)
+          |> List.filter_map(((key, _, vals)) =>
+               switch (key) {
+               | Some(key) =>
+                 let (dx, dy, _) = value_at(vals, s.u);
+                 Some((key, (dx, dy)));
+               | None => None
+               }
+             ),
+        );
+        if (landing.scroll_rows > 0) {
+          CodeFlip.set_scroll_bump(
+            ~rows=landing.scroll_rows,
+            ~near=s.text_box,
+          );
+        };
+        if (landing.enters != []) {
+          CodeFlip.set_drag_enter(
+            max(0., min(1., s.u -. float_of_int(k - 1))),
+          );
+        };
+        /* emerge flights pair the clone positionally against the
+           post-commit segment; several clones (a run of feeds) have no
+           unique pairing, so they grow in */
+        CodeFlip.set_emerge_src(k == 1 ? landing.emerge_src : []);
+        CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
+        s.scrub_anims = [];
+        s.scrub_active = None;
+      } else {
+        /* Appending a proof step keeps this expression as history.
+           Its scrub must end here: no source replacement will run FLIP
+           to take over and cancel the paused preview animations. */
+        scrub_clear(
+          s,
         );
       };
-      /* emerge flights pair the clone positionally against the
-         post-commit segment; several clones (a run of feeds) have no
-         unique pairing, so they grow in */
-      CodeFlip.set_emerge_src(k == 1 ? landing.emerge_src : []);
-      CodeFlip.adopt(s.scrub_anims |> List.concat_map(snd));
-      s.scrub_anims = [];
-      s.scrub_active = None;
       s.commit(
         c.rungs
         |> List.filteri((j, _) => j < k)
@@ -1390,6 +1411,7 @@ let listen = (name: string, f: Js.t(Dom_html.event) => unit) =>
 let arm =
     (
       ~commit: list((Action.refactor, Id.t)) => unit,
+      ~source_handoff: bool,
       ~focus: Id.t => unit,
       ~ladders: bool,
       ~push: bool,
@@ -1405,6 +1427,7 @@ let arm =
   let r = text_box##getBoundingClientRect;
   let s = {
     commit,
+    source_handoff,
     focus,
     ladders,
     push,
@@ -1488,6 +1511,12 @@ let sync =
       ~segment: Segment.t,
       ~shape_map: Id.Map.t(ProjectorCore.Shape.t),
       ~font_metrics: FontMetrics.t,
+      ~candidates:
+         option(
+           (~target: Id.t, ~shard: option(int)) =>
+           list(Refactor.DragCandidate.t),
+         )=?,
+      ~at_press=false,
       z: Zipper.t,
     )
     : unit =>
@@ -1748,7 +1777,7 @@ let sync =
       | Some(target) =>
         let held = Refactor.held_piece(~target, term);
         s.held = Some(held);
-        if (Indicated.index(z) != Some(held.tile)) {
+        if (!at_press && Indicated.index(z) != Some(held.tile)) {
           /* deferred: this runs while the view is being built */
           ignore(
             Dom_html.setTimeout(() => s.focus(held.tile), 0.),
@@ -1934,17 +1963,23 @@ let sync =
       let cands =
         switch (grab_id) {
         | Some(target) =>
-          Refactor.drag_candidates(
-            ~composites=settings.drag_composites,
-            ~settings,
-            ~info_map,
-            ~term,
-            ~measured,
-            ~shape_map,
-            ~push=s.push,
-            ~target,
-            ~shard=grab_shard,
-            (),
+          (
+            switch (candidates) {
+            | Some(enumerate) => enumerate(~target, ~shard=grab_shard)
+            | None =>
+              Refactor.drag_candidates(
+                ~composites=settings.drag_composites,
+                ~settings,
+                ~info_map,
+                ~term,
+                ~measured,
+                ~shape_map,
+                ~push=s.push,
+                ~target,
+                ~shard=grab_shard,
+                (),
+              )
+            }
           )
           |> List.map((c: Refactor.DragCandidate.t) =>
                {
@@ -2014,7 +2049,7 @@ let sync =
         | Some(z0) => !(z0 === z)
         | None => false
         };
-      if (here || changed) {
+      if (at_press || here || changed) {
         compute();
       } else {
         s.pending = AwaitGoal(goal, Some(z));

@@ -1,0 +1,38 @@
+# Enable Drag Refactoring, then open the three demo theorem steppers. #
+# Drag an operand in the last row; release to record a theorem step. #
+let sum(items : [Int]) = fold_left(items, int_plus, 0) in
+
+# Stated equations available to the later demo proofs. #
+theorem list_associativity =
+  forall (a : [Int]) -> forall (b : [Int]) -> forall (c : [Int]) ->
+    (a @ b) @ c == a @ (b @ c)
+in
+theorem map_fusion =
+  forall (items : [Int]) ->
+  forall (f : Int -> Int) -> forall (g : Int -> Int) ->
+    map(map(items, f), g) == map(items, fun x -> g(f(x)))
+in
+theorem sum_append =
+  forall (left : [Int]) -> forall (right : [Int]) ->
+    sum(left @ right) == sum(left) + sum(right)
+in
+
+# Regroup the left side by pulling zs toward ys. #
+theorem regroup_demo =
+  forall (xs : [Int]) -> forall (ys : [Int]) -> forall (zs : [Int]) ->
+    (xs @ ys) @ zs == xs @ (ys @ zs)
+in
+
+# Fuse the left side by pulling f toward g. #
+theorem fusion_demo =
+  forall (items : [Int]) ->
+  forall (f : Int -> Int) -> forall (g : Int -> Int) ->
+    map(map(items, f), g) == map(items, fun x -> g(f(x)))
+in
+
+# Split the sum on the left by pulling ys toward xs. #
+theorem sum_demo =
+  forall (xs : [Int]) -> forall (ys : [Int]) ->
+    sum(xs @ ys) == sum(xs) + sum(ys)
+in
+0

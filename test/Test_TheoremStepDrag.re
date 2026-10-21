@@ -1,0 +1,739 @@
+open Alcotest;
+open Util;
+open Language;
+open Haz3lcore;
+open Test_Evaluator_Prelude;
+module S = Web.StepperBase;
+module D = Web.TheoremStepDrag;
+let visual_exp =
+  testable(Fmt.using(Exp.show, Fmt.string), D.same_projection);
+
+let settings =
+  Web.Settings.Model.{
+    ...init,
+    core: {
+      ...CoreSettings.on,
+      drag_refactor: true,
+      evaluation: {
+        ...CoreSettings.on.evaluation,
+        enable_proof: true,
+      },
+    },
+  };
+let int_type = Typ.fresh(Atom(Int));
+let assoc = "forall (x : Int) -> forall (y : Int) -> forall (z : Int) -> (x + y) + z == x + (y + z)";
+let fusion = "forall (items : [Int]) -> forall (f : Int -> Int) -> forall (g : Int -> Int) -> map(map(items, f), g) == map(items, fun x -> g(f(x)))";
+let base_ctx = Builtins.ctx_init(Some(Int));
+
+let context =
+    (
+      ~law=assoc,
+      ~bindings=[("a", int_type), ("b", int_type), ("c", int_type)],
+      (),
+    ) => {
+  let ctx = SemanticCtx.of_ctx_and_env(base_ctx, Builtins.env_init);
+  let ctx =
+    List.fold_left(
+      (ctx, (name, typ)) =>
+        SemanticCtx.add_entry(ctx, Id.mk(), name, typ, None),
+      ctx,
+      bindings,
+    );
+  fst(
+    SemanticCtx.add_hypothesis(
+      ctx,
+      "law",
+      parse_exp(law) |> Substitution.in_exp(Builtins.env_init),
+    ),
+  );
+};
+let calculate = (~ctx, ~exp, model) =>
+  S.Stepper.calculate(
+    ~settings=Calc.NewValue(settings.core),
+    ~ctx=Calc.NewValue(ctx),
+    ~exp=Calc.NewValue(exp),
+    ~ana=Calc.NewValue(Typ.fresh(Unknown(Internal))),
+    model,
+  );
+
+let fixture = (~ctx=context(), marked) => {
+  let z = Test_Editing.parse_zipper(marked);
+  let target = Indicated.index(z) |> Option.get;
+  let original = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+  let grip = Exp.find_by_id(target, original) |> Option.get;
+  let idx = ProofHacks.exp_idx(grip, original);
+  let exp = original |> Substitution.in_exp(Builtins.env_init);
+  let (model, _, _) = calculate(~ctx, ~exp, S.init_step);
+  let rec frontier = (m: S.step_model) =>
+    switch (m.next_step) {
+    | Some(next) => frontier(next)
+    | None => m
+    };
+  let model = frontier(model);
+  let exp = Calc.get_saved_exc(model.expr);
+  let target = ProofHacks.nth_exp(grip, idx, exp) |> Option.get |> Exp.rep_id;
+  (ctx, exp, model, target);
+};
+let editor = (model: S.step_model) => Calc.get_saved_exc(model.editor);
+let candidates = (~ctx, model, target) => {
+  let e = editor(model);
+  D.candidates(
+    ~settings=settings.core,
+    ~info_map=e.statics.info_map,
+    ~env=SemanticCtx.get_env(ctx),
+    ~term=e.statics.term,
+    ~measured=e.editor.syntax.measured,
+    ~shape_map=e.editor.syntax.shape_map,
+    ~target,
+    ~shard=None,
+    (),
+  );
+};
+let choose = (~ctx, ~name="law", ~direction=Direction.Right, model, target) => {
+  let cs = candidates(~ctx, model, target);
+  cs
+  |> List.find((c: Refactor.DragCandidate.t) =>
+       switch (c.kind) {
+       | RewriteTheorem(_, d, _) =>
+         d == direction && String.starts_with(~prefix=name ++ " ", c.label)
+       | _ => false
+       }
+     );
+};
+let release = (~ctx, model, _target, c: Refactor.DragCandidate.t) =>
+  S.Stepper.update(
+    ~settings,
+    DragRewrite(
+      editor(model).statics.term,
+      D.environment_id(SemanticCtx.get_env(ctx)),
+      [(c.kind, c.at)],
+    ),
+    model,
+  );
+let same_exp = (label, expected, actual) =>
+  check(testable_exp(), label, parse_exp(expected), actual);
+let step = (model: S.step_model) =>
+  switch (model.step_kind) {
+  | AxiomStep(m) => m
+  | _ => fail("expected a recorded theorem step")
+  };
+
+let history_fixture = (~ctx, ~exp, before) => {
+  open Web;
+  let thm_id = Id.mk();
+  let thm =
+    Theorems.Model.{
+      ...theorem_init("demo"),
+      goal_exp: Calc.Calculated(exp),
+      sem_ctx: Calc.Calculated(ctx),
+      stepper_view: {
+        ...StepperView.Model.init,
+        root: before,
+      },
+    };
+  let source = parse_exp("theorem demo = true in 0");
+  let main =
+    CodeWithStatics.Model.mk_from_exp(
+      ~settings=settings.core,
+      ~root=Exp,
+      source,
+    );
+  let cell: CellEditor.Model.t = {
+    editor: main,
+    result: {
+      ...EvalResult.Model.init,
+      theorems: {
+        thm_map: Id.Map.singleton(thm_id, thm),
+        thms: Calc.Calculated([thm_id]),
+      },
+    },
+  };
+  let editors: Editors.Model.t =
+    Scratch({
+      current: 0,
+      scratchpads: [
+        ScratchMode.Scratchpad.mk_code(~name="drag proof", ~editor=cell, ()),
+      ],
+    });
+  let globals = {
+    ...Globals.Model.init(),
+    settings,
+  };
+  let current: Page.Model.t = {
+    globals,
+    editors,
+    explain_this: ExplainThisModel.init,
+    selection: Editors.Selection.default_selection(editors),
+  };
+  (
+    History.Model.{
+      current,
+      undo_stack: [],
+      redo_stack: [],
+    },
+    thm_id,
+  );
+};
+let proof_action = (action: S.step_action): Web.Page.Update.t =>
+  Editors(
+    Scratch(
+      CellAction(ResultAction(TheoremsAction(TheoremUpdate(0, action)))),
+    ),
+  );
+
+let tests = [
+  (
+    "Theorem Step Drag",
+    [
+      test_case(
+        "matched arguments cannot escape their lambda binder",
+        `Quick,
+        () => {
+          let ctx =
+            context(
+              ~law="forall (h : Int -> Int) -> (fun (x : Int) -> h(x)) == h",
+              (),
+            );
+          let exp = parse_exp("fun (x : Int) -> (fun (y : Int) -> x)(x)");
+          let (before, _, _) = calculate(~ctx, ~exp, S.init_step);
+          let ed = editor(before);
+          let info_map = ed.statics.info_map;
+          let env = SemanticCtx.get_env(ctx);
+          let rules = D.rules(~info_map, ~term=exp, ~env);
+          let r = List.hd(rules);
+          check(
+            bool,
+            "underlying matcher finds the escaping instantiation",
+            true,
+            ProofRule.match_equality(
+              ~info_map,
+              ~env,
+              ~direction=Right,
+              r.rule,
+              exp,
+            )
+            |> Option.is_some,
+          );
+          check(
+            bool,
+            "drag adapter rejects binder escape",
+            true,
+            D.matched(
+              ~info_map,
+              ~env,
+              ~term=exp,
+              rules,
+              r.id,
+              Right,
+              Exp.rep_id(exp),
+            )
+            |> Option.is_none,
+          );
+        },
+      ),
+      test_case(
+        "preview is read-only; release records one replayable step",
+        `Quick,
+        () => {
+          let (ctx, exp, before, target) = fixture("(a + ¦b) + c");
+          let saved = S.Stepper.persist(before);
+          let c = choose(~ctx, before, target);
+          check(
+            bool,
+            "preview does not change proof",
+            true,
+            saved == S.Stepper.persist(before),
+          );
+          check(bool, "track has displacement", true, c.current != c.target);
+          let updated = release(~ctx, before, target, c);
+          check(
+            bool,
+            "one historic action",
+            true,
+            updated.historic && updated.is_edit,
+          );
+          check(
+            string,
+            "theorem citation",
+            "law",
+            step(updated.model).equality,
+          );
+          check(
+            bool,
+            "release creates no intermediate path",
+            true,
+            updated.model.next_step == None,
+          );
+          let (after, last, _) = calculate(~ctx, ~exp, updated.model);
+          check(
+            visual_exp,
+            "preview equals replay",
+            c.term,
+            Calc.get_value(last),
+          );
+          same_exp("associated result", "a + (b + c)", Calc.get_value(last));
+          let reloaded = S.Stepper.persist(after) |> S.Stepper.unpersist;
+          let (_, replayed, _) = calculate(~ctx, ~exp, reloaded);
+          check(
+            testable_exp(),
+            "persistence replays the same step",
+            Calc.get_value(last),
+            Calc.get_value(replayed),
+          );
+          let undone = S.Stepper.update(~settings, RemoveStep, after).model;
+          let (_, last, _) = calculate(~ctx, ~exp, undone);
+          check(
+            testable_exp(),
+            "step back restores input",
+            exp,
+            Calc.get_value(last),
+          );
+        },
+      ),
+      test_case(
+        "reverse direction is persisted",
+        `Quick,
+        () => {
+          let (ctx, exp, before, target) = fixture("a + (b + ¦c)");
+          let c = choose(~ctx, ~direction=Left, before, target);
+          let updated = release(~ctx, before, target, c);
+          check(
+            bool,
+            "left citation",
+            true,
+            step(updated.model).direction == Left,
+          );
+          let (_, result, _) = calculate(~ctx, ~exp, updated.model);
+          same_exp("reverse result", "(a + b) + c", Calc.get_value(result));
+        },
+      ),
+      test_case(
+        "release targets the second identical occurrence",
+        `Quick,
+        () => {
+          let (ctx, exp, before, target) =
+            fixture("((a + b) + c, (a + ¦b) + c)");
+          let c = choose(~ctx, before, target);
+          let updated = release(~ctx, before, target, c);
+          check(int, "second occurrence", 1, step(updated.model).at_idx);
+          let (_, result, _) = calculate(~ctx, ~exp, updated.model);
+          same_exp(
+            "only second rewritten",
+            "((a + b) + c, a + (b + c))",
+            Calc.get_value(result),
+          );
+        },
+      ),
+      test_case(
+        "fusion reuses the inferred function grips",
+        `Quick,
+        () => {
+          let arrow = Typ.fresh(Arrow(int_type, int_type));
+          let ctx =
+            context(
+              ~law=fusion,
+              ~bindings=[
+                ("xs", Typ.fresh(List(int_type))),
+                ("f", arrow),
+                ("g", arrow),
+              ],
+              (),
+            );
+          ["map(map(xs, ¦f), g)", "map(map(xs, f), ¦g)"]
+          |> List.iter(marked => {
+               let (_, exp, before, target) = fixture(~ctx, marked);
+               let c = choose(~ctx, before, target);
+               let updated = release(~ctx, before, target, c);
+               let (_, result, _) = calculate(~ctx, ~exp, updated.model);
+               check(
+                 visual_exp,
+                 "fusion preview equals step",
+                 c.term,
+                 Calc.get_value(result),
+               );
+             });
+        },
+      ),
+      test_case(
+        "stale source snapshot is ignored without history",
+        `Quick,
+        () => {
+          let (ctx, _, before, target) = fixture("(a + ¦b) + c");
+          let c = choose(~ctx, before, target);
+          let u =
+            S.Stepper.update(
+              ~settings,
+              DragRewrite(
+                parse_exp("42"),
+                D.environment_id(SemanticCtx.get_env(ctx)),
+                [(c.kind, target)],
+              ),
+              before,
+            );
+          check(bool, "no change", true, u.model === before);
+          check(bool, "no undo entry", false, u.historic);
+        },
+      ),
+      test_case(
+        "removed theorem is revalidated at release",
+        `Quick,
+        () => {
+          let (ctx, _, before, target) = fixture("(a + ¦b) + c");
+          let c = choose(~ctx, before, target);
+          let ms =
+            switch (before.step_kind) {
+            | MissingStep(m) => m
+            | _ => fail("missing step")
+            };
+          let before = {
+            ...before,
+            step_kind:
+              MissingStep({
+                ...ms,
+                cached_env: Calc.Calculated(Builtins.env_init),
+              }),
+          };
+          let u = release(~ctx, before, target, c);
+          check(bool, "no change", true, u.model === before && !u.historic);
+        },
+      ),
+      test_case(
+        "cancelled, source-edit, and multi-rung paths add nothing",
+        `Quick,
+        () => {
+          let (ctx, _, before, target) = fixture("(a + ¦b) + c");
+          let c = choose(~ctx, before, target);
+          [
+            [],
+            [(Action.ExtractLet, target)],
+            [(c.kind, target), (c.kind, target)],
+          ]
+          |> List.iter(path => {
+               let u =
+                 S.Stepper.update(
+                   ~settings,
+                   DragRewrite(
+                     editor(before).statics.term,
+                     D.environment_id(SemanticCtx.get_env(ctx)),
+                     path,
+                   ),
+                   before,
+                 );
+               check(
+                 bool,
+                 "no proof or history edit",
+                 true,
+                 u.model === before && !u.historic,
+               );
+             });
+        },
+      ),
+      test_case(
+        "historical rows and non-proof steppers reject release",
+        `Quick,
+        () => {
+          let (ctx, _, before, target) = fixture("(a + ¦b) + c");
+          let c = choose(~ctx, before, target);
+          let after = release(~ctx, before, target, c).model;
+          let replay = release(~ctx, after, target, c);
+          check(
+            bool,
+            "earlier step cannot be replaced",
+            true,
+            replay.model === after && !replay.historic,
+          );
+          let off =
+            Web.Settings.Model.{
+              ...settings,
+              core: {
+                ...settings.core,
+                evaluation: {
+                  ...settings.core.evaluation,
+                  enable_proof: false,
+                },
+              },
+            };
+          let u =
+            S.Stepper.update(
+              ~settings=off,
+              DragRewrite(
+                editor(before).statics.term,
+                D.environment_id(SemanticCtx.get_env(ctx)),
+                [(c.kind, target)],
+              ),
+              before,
+            );
+          check(
+            bool,
+            "proof mode required",
+            true,
+            u.model === before && !u.historic,
+          );
+        },
+      ),
+      test_case(
+        "unspecified witnesses do not produce unreplayable choices",
+        `Quick,
+        () => {
+          let ctx =
+            context(
+              ~law="forall (x : Int) -> forall (y : Int) -> x == x + y",
+              (),
+            );
+          let (_, _, before, target) = fixture(~ctx, "¦a");
+          check(
+            int,
+            "no unresolved rule",
+            0,
+            candidates(~ctx, before, target) |> List.length,
+          );
+        },
+      ),
+      test_case(
+        "a value binding shadows a theorem with the same name",
+        `Quick,
+        () => {
+          let ctx = context();
+          let ctx =
+            SemanticCtx.add_entry(
+              ctx,
+              Id.mk(),
+              "law",
+              int_type,
+              Some(parse_exp("42")),
+            );
+          let (_, _, before, target) = fixture(~ctx, "(a + ¦b) + c");
+          check(
+            int,
+            "shadowed rule omitted",
+            0,
+            candidates(~ctx, before, target) |> List.length,
+          );
+        },
+      ),
+      test_case(
+        "changed theorem environment rejects an otherwise valid release",
+        `Quick,
+        () => {
+          let (ctx, _, before, target) = fixture("(a + ¦b) + c");
+          let c = choose(~ctx, before, target);
+          let ms =
+            switch (before.step_kind) {
+            | MissingStep(m) => m
+            | _ => fail("missing step")
+            };
+          let env =
+            Environment.extend(
+              SemanticCtx.get_env(ctx),
+              ("another", parse_exp("0")),
+            );
+          let changed = {
+            ...before,
+            step_kind:
+              MissingStep({
+                ...ms,
+                cached_env: Calc.Calculated(env),
+              }),
+          };
+          let u = release(~ctx, changed, target, c);
+          check(
+            bool,
+            "changed context adds no step or undo",
+            true,
+            u.model === changed && !u.historic,
+          );
+        },
+      ),
+      test_case(
+        "theorem release makes one page undo entry and redo restores it",
+        `Quick,
+        () => {
+          let (ctx, exp, before, target) = fixture("(a + ¦b) + c");
+          let (h0, _) = history_fixture(~ctx, ~exp, before);
+          let c = choose(~ctx, before, target);
+          check(
+            int,
+            "preview leaves history alone",
+            0,
+            Test_Undo.undo_len(h0),
+          );
+          let snapshot = editor(before).statics.term;
+          let cancelled =
+            Test_Undo.apply(
+              h0,
+              proof_action(
+                DragRewrite(
+                  snapshot,
+                  D.environment_id(SemanticCtx.get_env(ctx)),
+                  [],
+                ),
+              ),
+            );
+          check(
+            int,
+            "cancelled drag adds no undo entry",
+            0,
+            Test_Undo.undo_len(cancelled),
+          );
+          let h1 =
+            Test_Undo.apply(
+              h0,
+              proof_action(
+                DragRewrite(
+                  snapshot,
+                  D.environment_id(SemanticCtx.get_env(ctx)),
+                  [(c.kind, target)],
+                ),
+              ),
+            );
+          check(
+            int,
+            "release adds exactly one entry",
+            1,
+            Test_Undo.undo_len(h1),
+          );
+          check(
+            string,
+            "source text stays unchanged",
+            Test_Undo.text_of(h0),
+            Test_Undo.text_of(h1),
+          );
+          let h2 = Test_Undo.apply(h1, Test_Undo.undo);
+          check(
+            bool,
+            "undo restores exact proof state",
+            true,
+            h2.current === h0.current,
+          );
+          let h3 = Test_Undo.apply(h2, Test_Undo.redo);
+          check(
+            bool,
+            "redo restores exact proof state",
+            true,
+            h3.current === h1.current,
+          );
+        },
+      ),
+      test_case(
+        "demo proof goals offer and replay list, map, and sum rewrites",
+        `Quick,
+        () => {
+          let path = "hazel-programs/docs/refactoring/refactoring-proof-drags.hz";
+          let path =
+            List.find(
+              Sys.file_exists,
+              [path, "../" ++ path, "../../../" ++ path],
+            );
+          let channel = open_in_bin(path);
+          let text =
+            really_input_string(channel, in_channel_length(channel));
+          close_in(channel);
+          let source = parse_exp(text);
+          let statics =
+            CachedStatics.init_from_term(
+              ~settings=settings.core,
+              ~is_dynamic_term=false,
+              source,
+            );
+          check(
+            int,
+            "example has no static errors",
+            0,
+            List.length(statics.error_ids),
+          );
+          let (_, state) =
+            Evaluator.evaluate(~env=Builtins.env_init, statics.elaborated);
+          let dynamics: Dynamics.t = {
+            probe_map:
+              EvaluatorState.get_probes(state) |> Sample.Map.finalize,
+            test_results:
+              EvaluatorState.get_tests(state) |> TestResults.mk_results,
+            theorems: EvaluatorState.get_theorems(state),
+          };
+          let theorems =
+            Web.Theorems.Update.calculate(
+              ~settings=
+                Calc.NewValue({
+                  ...settings.core,
+                  drag_refactor: false,
+                }),
+              ~statics=Calc.NewValue(statics),
+              ~dynamics=Calc.NewValue(Some(dynamics)),
+              Web.Theorems.Model.init,
+            );
+          /* The normal UI flow loads the program before the user turns
+             dragging on. Hidden evaluator steps must not consume its grips. */
+          let theorems =
+            Web.Theorems.Update.calculate(
+              ~settings=Calc.NewValue(settings.core),
+              ~statics=Calc.OldValue(statics),
+              ~dynamics=Calc.OldValue(Some(dynamics)),
+              theorems,
+            );
+          [
+            ("regroup_demo", "list_associativity", "zs"),
+            ("fusion_demo", "map_fusion", "g"),
+            ("sum_demo", "sum_append", "ys"),
+          ]
+          |> List.iter(((demo, rule, grip)) => {
+               let (_, thm) =
+                 Id.Map.bindings(theorems.thm_map)
+                 |> List.find(((_, t: Web.Theorems.Model.theorem)) =>
+                      t.name == demo
+                    );
+               let ctx = Calc.get_saved_exc(thm.sem_ctx);
+               let rec frontier = (m: S.step_model) =>
+                 switch (m.next_step) {
+                 | None => m
+                 | Some(n) => frontier(n)
+                 };
+               let before = frontier(thm.stepper_view.root);
+               let exp = Calc.get_saved_exc(before.expr);
+               check(
+                 visual_exp,
+                 demo
+                 ++ " starts at its untouched goal when dragging is enabled",
+                 Calc.get_saved_exc(thm.goal_exp),
+                 exp,
+               );
+               let lhs =
+                 switch (Exp.term_of(exp)) {
+                 | BinOp(_, lhs, _) => lhs
+                 | _ => fail("expected equality goal")
+                 };
+               let target = ref(None);
+               let _ =
+                 Exp.map_term(
+                   ~f_exp=
+                     (cont, e) => {
+                       switch (Exp.term_of(e), target^) {
+                       | (Var(name), None) when name == grip =>
+                         target := Some(Exp.rep_id(e))
+                       | _ => ()
+                       };
+                       cont(e);
+                     },
+                   lhs,
+                 );
+               let target = Option.get(target^);
+               let c = choose(~ctx, ~name=rule, before, target);
+               let updated = release(~ctx, before, target, c);
+               check(
+                 string,
+                 "records real theorem citation",
+                 rule,
+                 step(updated.model).equality,
+               );
+               let (_, last, _) = calculate(~ctx, ~exp, updated.model);
+               check(
+                 visual_exp,
+                 "real goal preview equals replay",
+                 c.term,
+                 Calc.get_value(last),
+               );
+             });
+        },
+      ),
+    ],
+  ),
+];

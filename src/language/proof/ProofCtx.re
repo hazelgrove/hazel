@@ -35,7 +35,12 @@ let of_env = (~builtins, ~ctx: Ctx.t, env: Environment.t(Exp.t)) => {
          ((seen_vars, rules), (name, exp)) =>
            switch (Exp.term_of(exp)) {
            | Grammar.ProofObject(e) =>
-             let rule = ProofRule.exp_to_rule(e);
+             /* MatchExp expects closure-free expressions, as does the
+                theorem goal path. This also closes captured user functions. */
+             let rule =
+               ProofRule.exp_to_rule(
+                 Substitution.in_exp(Environment.empty, e),
+               );
              let typ = ProofRule.rule_to_typ(rule);
              let coctx =
                ProofRule.get_coctx(ctx, Typ.temp(Atom(Bool)), rule);
