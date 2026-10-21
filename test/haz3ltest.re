@@ -10,12 +10,18 @@ Printexc.register_printer(exn => {
   }
 });
 
-/* every edit checks sparse normalization against the global pass */
-NormalizeCheck.install();
+/* alcotest's -q (--quick-tests) runs the quick tests without the per-edit
+   checks below; the full suite runs them on every edit. A test whose own
+   assertion is the statics check arms it itself (DefStaticsCheck.armed) */
+let quick = Array.exists(a => a == "-q" || a == "--quick-tests", Sys.argv);
 
-/* and statics against a monolithic analysis, except when benchmarking */
-if (!CorpusUtil.bench_enabled) {
-  DefStaticsCheck.install();
+if (!quick) {
+  /* every edit checks sparse normalization against the global pass */
+  NormalizeCheck.install();
+  /* and statics against a monolithic analysis, except when benchmarking */
+  if (!CorpusUtil.bench_enabled) {
+    DefStaticsCheck.install();
+  };
 };
 
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a

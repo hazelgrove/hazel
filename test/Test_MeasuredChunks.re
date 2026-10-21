@@ -771,20 +771,11 @@ let tests = (
       `Quick,
       shapes_of(~root=Mod, Test_ItemSpans.letin_members),
     ),
+    /* Mega 2k and 4k repeat its shapes */
     test_case(
       "mega-1k parity",
       `Quick,
       corpus_case("mega-1k.hz", ~min_chunks=20),
-    ),
-    test_case(
-      "mega-2k parity",
-      `Quick,
-      corpus_case("mega-2k.hz", ~min_chunks=20),
-    ),
-    test_case(
-      "mega-4k parity",
-      `Quick,
-      corpus_case("mega-4k.hz", ~min_chunks=20),
     ),
     test_case(
       "mega-mod-1k parity",

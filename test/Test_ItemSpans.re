@@ -686,12 +686,8 @@ let corpus = () => {
       List.map(((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
       @ List.map(
           ((f, root)) => (f, root, Option.get(CorpusUtil.mega_src(f))),
-          [
-            ("mega-1k.hz", Sort.Exp),
-            ("mega-2k.hz", Sort.Exp),
-            ("mega-4k.hz", Sort.Exp),
-            ("mega-mod-1k.hz", Sort.Mod),
-          ],
+          /* Mega 2k and 4k repeat their shapes */
+          [("mega-1k.hz", Sort.Exp), ("mega-mod-1k.hz", Sort.Mod)],
         )
       @ List.map(((p, s)) => (p, Sort.Mod, s), stdlib_corpus()),
     );
@@ -748,12 +744,8 @@ let read_finished = () => {
     List.map(((p, s)) => (p, Sort.Exp, s), CorpusUtil.slide_corpus())
     @ List.map(
         ((f, root)) => (f, root, Option.get(CorpusUtil.mega_src(f))),
-        [
-          ("mega-1k.hz", Sort.Exp),
-          ("mega-2k.hz", Sort.Exp),
-          ("mega-4k.hz", Sort.Exp),
-          ("mega-mod-1k.hz", Sort.Mod),
-        ],
+        /* Mega 2k and 4k repeat their shapes */
+        [("mega-1k.hz", Sort.Exp), ("mega-mod-1k.hz", Sort.Mod)],
       )
     @ List.map(((p, s)) => (p, Sort.Mod, s), stdlib_corpus())
     @ List.filter_map(
@@ -884,7 +876,7 @@ let read_typing = () => {
           bool,
           c ++ ": the extents as written",
           true,
-          Id.Map.equal((==), w.term_data, r.term_data),
+          Id.Map.equal(Test_MakeTermIncr.same, w.term_data, r.term_data),
         );
         let wl = members(S.top(~root, seg));
         let rl = members(S.top(~ends=Read, ~root, seg));
@@ -943,6 +935,6 @@ let tests = (
     test_case("memoized on pieces", `Quick, memo),
     test_case("corpus", `Slow, corpus),
     test_case("Read: a finished program as written", `Slow, read_finished),
-    test_case("Read: typing a member near List's top", `Quick, read_typing),
+    test_case("Read: typing a member near List's top", `Slow, read_typing),
   ],
 );

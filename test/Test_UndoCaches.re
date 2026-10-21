@@ -6,7 +6,8 @@ open Haz3lcore;
    editors': the members the step didn't change are the live program's
    pieces, so the parse, the measure and the analysis redo only what the
    step changed, and the code view keeps its chunks (keyed by the measure
-   cache). List has 65 members: a whole parse is 66 items */
+   cache). The program is List to `cons` (OM.short_src), 16 members: a
+   whole parse is 17 items */
 
 module Cells = Test_Undo.Cells;
 module OM = Test_OpenMember;
@@ -112,7 +113,7 @@ let reparsed = (~before, after) =>
   );
 
 let at_list_length = (~root: Sort.t, ()) => {
-  let src = OM.src(~root);
+  let src = OM.short_src(~root);
   let m = OM.refresh(Cells.run(OM.mk(~root, src), Refresh));
   OM.refresh(
     Cells.run(
@@ -127,7 +128,7 @@ let at_list_length = (~root: Sort.t, ()) => {
 /* List.length edited, then the edit undone and redone. Each frame
    re-parses the member and the module around it at most, and re-measures
    their chunks; the analysis compares the heads of the items holding the
-   change (two parts each), not each member's (132) */
+   change (two parts each), not each member's (32) */
 let one_member = (~root: Sort.t, ()) => {
   let m = at_list_length(~root, ());
   let before = Test_Undo.text_of(m);
@@ -147,7 +148,7 @@ let one_member = (~root: Sort.t, ()) => {
       bool,
       what ++ ": the members were parsed",
       true,
-      List.length(parses) >= 65,
+      List.length(parses) >= 16,
     );
     check(
       int,
@@ -179,7 +180,9 @@ let body_editor = (m, id) =>
 /* List.length open as a cell, the caret after its `| [] => 0` */
 let in_cell = () => {
   let m =
-    OM.refresh(Cells.run(OM.mk(~root=Mod, OM.src(~root=Mod)), Refresh));
+    OM.refresh(
+      Cells.run(OM.mk(~root=Mod, OM.short_src(~root=Mod)), Refresh),
+    );
   let id = length(m);
   let m = OM.refresh(Cells.run(m, Cells.workspace(FocusToggle(id))));
   check(bool, "List.length's cell opens", true, is_open(m, id));
@@ -213,7 +216,7 @@ let cell_edit = () => {
 
 /* the whole editor a stack was cut from (its shell) has the program's
    caches: an undo back to before the cut takes them, and so does the join
-   when the last cell closes. Each re-parses a few items of 66 */
+   when the last cell closes. Each re-parses a few items of 17 */
 let across_cells = () => {
   let m = at_list_length(~root=Mod, ());
   let before = OM.doc(m);

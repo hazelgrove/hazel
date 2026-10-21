@@ -6,21 +6,32 @@ open Web;
    item: the undo's analysis of that item overflowed the browser's stack,
    the outline's ops on it took the rest of the module along, and the undo
    dropped pins to the members it swallowed. Every path reads the members
-   per item, as the editor's statics do */
+   per item, as the editor's statics do. Here List to `cons` (short_src):
+   the members below are 15, not 64 */
 
 module Cells = Test_Undo.Cells;
 
 /* the audit's copy (a stdlib tree's List.hz may differ); at an Exp root,
    its module bound by `in` */
-let src = (~root: Haz3lcore.Sort.t) => {
-  let list =
-    Option.get(
-      Test_ModAudit.read_any([
-        "test/modaudit/List.hz",
-        "../test/modaudit/List.hz",
-      ]),
-    );
+let list_hz = () =>
+  Option.get(
+    Test_ModAudit.read_any([
+      "test/modaudit/List.hz",
+      "../test/modaudit/List.hz",
+    ]),
+  );
+let at_root = (~root: Haz3lcore.Sort.t, list: string) =>
   root == Mod ? list : String.trim(list) ++ " in\n\nList.length([1, 2, 3])";
+let src = (~root: Haz3lcore.Sort.t) => at_root(~root, list_hz());
+
+/* List to `cons`, 16 of its 65 members: for what an edit costs per
+   member, where List's size isn't the point (the statics check costs
+   ~16x more on all 65) */
+let short_src = (~root: Haz3lcore.Sort.t) => {
+  let list = list_hz();
+  let head =
+    Str.search_forward(Str.regexp_string(";\n\n  let head "), list, 0);
+  at_root(~root, String.sub(list, 0, head) ++ "\n}");
 };
 
 let mk = (~root: Haz3lcore.Sort.t, src: string): History.Model.t => {
@@ -69,7 +80,7 @@ let after = (text: string, needle: string): Util.Point.t =>
 
 /* the caret after List.length's `end;` */
 let loaded = (~root=Haz3lcore.Sort.Mod, ()) => {
-  let src = src(~root);
+  let src = short_src(~root);
   let m = Cells.run(mk(~root, src), Refresh);
   Cells.run(
     m,

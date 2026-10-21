@@ -16,16 +16,9 @@ let case = (file: string, ()) => {
     ("from-start", Zipper.unzip(~direction=Left, seg)),
     ("from-end", Zipper.unzip(~direction=Right, seg)),
   ];
-  let goals = [
-    (3, 4),
-    (57, 12),
-    (120, 0),
-    (300, 6),
-    (452, 30),
-    (700, 2),
-    (871, 15),
-    (950, 20),
-  ];
+  /* from each end, a goal within the pure walk's 50 rows and three past
+     them, at a line's start, inside and past its end */
+  let goals = [(3, 4), (120, 0), (452, 30), (950, 20)];
   List.iter(
     ((label, z0)) =>
       List.iter(
@@ -64,5 +57,5 @@ let case = (file: string, ()) => {
 
 let tests = (
   "ClickTeleport",
-  [test_case("mega-1k landing parity", `Quick, case("mega-1k.hz"))],
+  [test_case("mega-1k landing parity", `Slow, case("mega-1k.hz"))],
 );

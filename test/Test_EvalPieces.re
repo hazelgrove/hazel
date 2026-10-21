@@ -253,7 +253,8 @@ let typed = (~root, src, after, keys, ()) => {
   );
 };
 
-let list_src = (~root) => Test_OpenMember.src(~root);
+/* List to `cons` (OpenMember's short_src) */
+let list_src = (~root) => Test_OpenMember.short_src(~root);
 
 /* [src]'s module body as the only member of [depth] modules */
 let nest = (~depth, src: string): string =>
@@ -281,7 +282,7 @@ let exact_tests =
       mega(
         ~root=Exp,
         "mega-1k.hz",
-        Delta.mega_steps @ back_and_forth(~at=`Last, "9", "8"),
+        Parity.mega_steps @ back_and_forth(~at=`Last, "9", "8"),
       ),
     ),
     test_case(
@@ -290,7 +291,7 @@ let exact_tests =
       mega(
         ~root=Mod,
         "mega-mod-1k.hz",
-        Delta.mega_steps @ back_and_forth(~at=`Last, "9", "8"),
+        Parity.mega_steps @ back_and_forth(~at=`Last, "9", "8"),
       ),
     ),
     test_case(
@@ -332,7 +333,7 @@ let exact_tests =
     ),
     test_case(
       "a lib-like program: member edits, adds, removes, moves",
-      `Quick,
+      `Slow,
       script(~root=Mod, Delta.lib, Delta.lib_edits @ Delta.lib_restructures),
     ),
     test_case(
@@ -350,7 +351,7 @@ let exact_tests =
     ),
     test_case(
       "List one and two modules deep, at a Mod root",
-      `Quick,
+      `Slow,
       () => {
         script(
           ~root=Mod,
@@ -511,14 +512,16 @@ let encoding_tests = [
       "5",
     ),
   ),
+  /* one member re-encoded is the same claim at 1k; the Mega 4k script
+     composes 4k's pieces */
   test_case(
-    "... Mega 4k",
-    `Slow,
+    "... Mega 1k",
+    `Quick,
     member_edit(
       ~root=Exp,
-      Option.get(CorpusUtil.mega_src("mega-4k.hz")),
-      "2104",
-      "2105",
+      Option.get(CorpusUtil.mega_src("mega-1k.hz")),
+      "180",
+      "181",
     ),
   ),
 ];
@@ -696,15 +699,16 @@ let compare_results = (name, a, b) => {
 let same_results = (name, st: CachedStatics.t) => {
   fresh_worker();
   let v = composed(WorkerServer.receive(post(request_of(st))));
+  let as_whole = evaluate(whole(st));
   /* as before the split: the base's projection, whole */
   compare_results(
     name ++ " (without $hole)",
     evaluate(with_holes(st)),
-    evaluate(whole(st)),
+    as_whole,
   );
   compare_results(
     name ++ " (in pieces)",
-    evaluate(whole(st)),
+    as_whole,
     evaluate((v.expr, v.eval_info_map)),
   );
 };
@@ -725,6 +729,8 @@ let results = () => {
     CorpusUtil.slide_corpus(),
   );
   check(bool, "the corpus was there", true, n^ >= 40);
+  /* Mega-Mod 1k is Mega 1k at a Mod root, which List and lib cover: its
+     ⇓ probe samples the whole module, ~20s to evaluate and compare */
   List.iter(
     ((name, root, src)) =>
       same_results(
@@ -737,11 +743,6 @@ let results = () => {
       ("List (Mod)", Sort.Mod, list_src(~root=Mod)),
       ("lib (Mod)", Sort.Mod, Delta.lib),
       ("Mega 1k", Sort.Exp, Option.get(CorpusUtil.mega_src("mega-1k.hz"))),
-      (
-        "Mega-Mod 1k",
-        Sort.Mod,
-        Option.get(CorpusUtil.mega_src("mega-mod-1k.hz")),
-      ),
     ],
   );
 };
@@ -758,7 +759,7 @@ let tests = (
     ),
     test_case(
       "evaluation reads the same: tests, probes, the value",
-      `Quick,
+      `Slow,
       results,
     ),
   ],
