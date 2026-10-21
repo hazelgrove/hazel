@@ -188,12 +188,13 @@ let start = default_model => {
       replay_effect,
     );
 
-  /* the World's unloaded slides summarized while the editor is idle */
+  /* the World's unloaded slides summarized while the editor is idle (no
+     update at all otherwise, so typing pays nothing for it) */
   let summarize_effect = {
     let%map app_inject = app_inject;
     Bonsai.Effect.of_sync_fun(
       () =>
-        if (WorldSummaries.due()) {
+        if (WorldSummaries.due() && WorldSummaries.idle()) {
           Ui_effect.Expert.handle(app_inject(Page.Update.Summarize));
         },
       (),

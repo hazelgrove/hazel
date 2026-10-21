@@ -288,6 +288,51 @@ let body = (~slide: Id.t, seg: Segment.t): body =>
   | Some([]) => Gone
   };
 
+type shown =
+  | Folded /* not loaded, behind its stand-in */
+  | Opened /* not loaded, its stand-in's fold undone */
+  | Shown; /* loaded */
+
+/* each slide's body in one walk of the tree's skeleton: into folders'
+   bodies, never a slide's members ([folder], [slide]: which module tiles
+   are which) */
+let skeleton =
+    (~folder: Id.t => bool, ~slide: Id.t => bool, seg: Segment.t)
+    : list((Id.t, shown)) => {
+  let rec brace_after = (ps: Segment.t) =>
+    switch (ps) {
+    | [Tile(b), ..._] when is_brace(b) => Some((b, false))
+    | [Projector({syntax: Tile(b), _}), ..._] when is_brace(b) =>
+      Some((b, true))
+    | [Secondary(_), ...rest] => brace_after(rest)
+    | _ => None
+    };
+  let rec level = (ps: Segment.t, found) =>
+    switch (ps) {
+    | [] => found
+    | [Tile(t), ...rest] when folder(t.id) =>
+      let found =
+        switch (brace_after(rest)) {
+        | Some((b, _)) =>
+          List.fold_left((f, k) => level(k, f), found, b.children)
+        | None => found
+        };
+      level(rest, found);
+    | [Tile(t), ...rest] when slide(t.id) =>
+      let found =
+        switch (brace_after(rest)) {
+        | Some((b, folded)) => [
+            (t.id, is_unloaded(b) ? folded ? Folded : Opened : Shown),
+            ...found,
+          ]
+        | None => found
+        };
+      level(rest, found);
+    | [_, ...rest] => level(rest, found)
+    };
+  List.rev(level(seg, []));
+};
+
 /* the slide's `⋯` opened by hand: its brace shows, its body not loaded */
 let opened = (~slide: Id.t, seg: Segment.t): bool =>
   switch (from_tile(~id=slide, seg)) {

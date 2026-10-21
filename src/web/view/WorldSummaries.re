@@ -61,12 +61,11 @@ let skipped = (name: string): bool =>
 
 /* the slides [doc] holds unloaded that have no summary yet */
 let missing = (doc: Segment.t): list(string) =>
-  List.filter(
-    name =>
-      !skipped(name)
-      && find(name) == None
-      && WorldTree.body(~slide=WorldDeck.slide_id(name), doc) == Unloaded,
-    WorldDeck.names(),
+  List.filter_map(
+    ((name, s)) =>
+      s == WorldTree.Folded && !skipped(name) && find(name) == None
+        ? Some(name) : None,
+    WorldDeck.shown(doc),
   );
 
 /* one summary made, if [doc] lacks any; whether one was */

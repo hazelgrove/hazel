@@ -34,8 +34,12 @@ let legacy = (name: string): option((string, string)) =>
   | _ => None
   };
 
-/* the slides: Documentation's code slides, then Scratch's */
-let names = (): list(string) => {
+/* the slides: Documentation's code slides, then Scratch's (the decks'
+   lists, read from storage: kept until a list changes or the World
+   loads) */
+let names_memo: ref(option(list(string))) = ref(None);
+let forget_names = () => names_memo := None;
+let read_names = (): list(string) => {
   let deck = (p, defaults) =>
     switch (Persist.load_meta(p)) {
     | Some(m) => m.names
@@ -50,6 +54,14 @@ let names = (): list(string) => {
   List.map(n => "Documentation" ++ sep ++ n, docs)
   @ List.map(n => "Scratch" ++ sep ++ n, scratch);
 };
+let names = (): list(string) =>
+  switch (names_memo^) {
+  | Some(names) => names
+  | None =>
+    let names = read_names();
+    names_memo := Some(names);
+    names;
+  };
 
 /* the slide [name]'s members as stored: the world's copy, else where its
    deck kept it, else its shipped text; a program with no member form is
@@ -118,6 +130,7 @@ let stage_view = (name: string): unit => {
 /* the deck, its program with [current]'s members loaded */
 let load = (~settings): Model.t => {
   Hashtbl.reset(loaded);
+  forget_names();
   let names = names();
   let current =
     switch (Persist.load_meta(prefix)) {
@@ -238,6 +251,49 @@ let hydrate_current = (~settings, model: Model.t): Model.t => {
   };
 };
 
+/* the slides' and folders' module ids, for the names as they are */
+let tables_memo = ref(None);
+let tables = () => {
+  let names = names();
+  switch (tables_memo^) {
+  | Some((n, t)) when n === names => t
+  | _ =>
+    let slides = Hashtbl.create(97);
+    let folders = Hashtbl.create(31);
+    List.iter(
+      name => {
+        let p = path(name);
+        Hashtbl.replace(slides, WorldTree.slide_id(p), name);
+        List.iteri(
+          (i, _) =>
+            if (i < List.length(p) - 1) {
+              Hashtbl.replace(
+                folders,
+                WorldTree.folder_id(ListUtil.take(i + 1, p)),
+                (),
+              );
+            },
+          p,
+        );
+      },
+      names,
+    );
+    tables_memo := Some((names, (slides, folders)));
+    (slides, folders);
+  };
+};
+
+/* each slide's body in [doc], by name, in one walk of the skeleton */
+let shown = (doc: Segment.t): list((string, WorldTree.shown)) => {
+  let (slides, folders) = tables();
+  WorldTree.skeleton(
+    ~folder=Hashtbl.mem(folders),
+    ~slide=Hashtbl.mem(slides),
+    doc,
+  )
+  |> List.map(((id, s)) => (Hashtbl.find(slides, id), s));
+};
+
 /* a slide's `⋯` opened in the code: its members load in place, with
    their probes, as if they had been there all along (no undo step) */
 let load_unfolded = (~settings: Settings.t, model: Model.t): Model.t =>
@@ -245,9 +301,9 @@ let load_unfolded = (~settings: Settings.t, model: Model.t): Model.t =>
   | {kind: Code({world: Some(_), program, _} as code), dormant: false, _} =>
     let doc = Program.document(program);
     switch (
-      List.filter(
-        name => WorldTree.opened(~slide=slide_id(name), doc),
-        names(),
+      List.filter_map(
+        ((name, s)) => s == WorldTree.Opened ? Some(name) : None,
+        shown(doc),
       )
     ) {
     | [] => model
@@ -362,6 +418,7 @@ let deck_names = (p: string): list(string) =>
   };
 
 let set_deck_names = (p: string, names: list(string)): unit => {
+  forget_names();
   let current =
     switch (Persist.load_meta(p)) {
     | Some(m) => min(m.current, max(0, List.length(names) - 1))
