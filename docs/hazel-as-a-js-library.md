@@ -36,6 +36,8 @@ rule({tag: "Pull", value: 2})   // {tag: "Flip", value: [2, {tag: "Done"}]}
 
 Anything else (a type, a hole) comes back as `{hazel: "<its printing>"}`.
 
+A constructor from the page has no type of its own, so Hazel checks it where a parameter is annotated (`fun e : Event -> ...`). An applied one is checked whole, tag and payload: `{tag: "Pull", value: "x"}` against `+ Pull(Int)`, or a tag the type does not have, `{tag: "Bogus", value: 3}`, stays stuck at the parameter and the call returns `{hazel: ...}`. One with no value is not checked at all: `{tag: "Bogus"}` gets through, even a parameter annotated `Int`, and a `case` then gives it to a wildcard rule if it has one, or stays stuck. With no annotation, a `case` matches constructors by name.
+
 ## First use, and next
 
 Messed Up Dress Up's Scripting panel: a room's rules are Hazel functions from a game event to the commands to run, which the game interprets. Next here: an editor to mount in another page (`Hazel.mountEditor(element, options)`).
