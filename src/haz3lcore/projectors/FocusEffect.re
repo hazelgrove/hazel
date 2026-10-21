@@ -52,8 +52,43 @@ let schedule_cell_if_lost = (): unit => schedule_below_top(CellIfLost);
 
 let kept: ref(option(string)) = ref(None);
 let blur_expected: ref(bool) = ref(false);
+/* A press outside the kept probe since the last frame. */
+let pressed_elsewhere: ref(bool) = ref(false);
 
 let expect_blur = (): unit => blur_expected := true;
+
+/* Both a vdom drop and a press on plain text leave focus on #page; only the
+   press is deliberate (it may be starting a text selection). Capture phase,
+   since projectors stop pointerdown propagation. */
+let install_press_tracking = (): unit => {
+  let _: Dom_html.event_listener_id =
+    Dom_html.addEventListenerWithOptions(
+      Dom_html.document,
+      Dom_html.Event.make("pointerdown"),
+      ~capture=Js._true,
+      Dom_html.handler((evt: Js.t(Dom_html.event)) => {
+        switch (kept^, Js.Opt.to_option(evt##.target)) {
+        | (Some(id), Some(target)) =>
+          let inside =
+            switch (JsUtil.get_elem_by_id_opt(id)) {
+            | Some(el) =>
+              Js.to_bool(
+                Js.Unsafe.meth_call(
+                  el,
+                  "contains",
+                  [|Js.Unsafe.inject(target)|],
+                ),
+              )
+            | None => false
+            };
+          pressed_elsewhere := !inside;
+        | _ => ()
+        };
+        Js._true;
+      }),
+    );
+  ();
+};
 
 let focus_no_scroll = (elem: Js.t(Dom_html.element)): unit =>
   Js.Unsafe.meth_call(
@@ -69,19 +104,23 @@ let focus_no_scroll = (elem: Js.t(Dom_html.element)): unit =>
 let active_element = (): option(Js.t(Dom_html.element)) =>
   Js.Opt.to_option(Dom_html.document##.activeElement);
 
-/* focus fell to nothing: the body, or the page's own fallbacks */
+/* focus fell to nothing: the body, or the page itself */
 let fell_to_nothing = (active: option(Js.t(Dom_html.element))): bool =>
   switch (active) {
   | None => true
   | Some(el) =>
-    Js.to_string(el##.tagName) == "BODY"
-    || List.mem(Js.to_string(el##.id), ["page", JsUtil.clipboard_shim_id])
+    Js.to_string(el##.tagName) == "BODY" || Js.to_string(el##.id) == "page"
   };
 
-/* the remembered probe, when the keeper puts the focus back on it */
+/* the remembered probe, when the keeper puts the focus back on it: not
+   after a press elsewhere, which may be starting a text selection */
 let returning_probe = (): option(Js.t(Dom_html.element)) =>
   switch (kept^) {
-  | Some(id) when ! blur_expected^ && fell_to_nothing(active_element()) =>
+  | Some(id)
+      when
+        ! blur_expected^
+        && ! pressed_elsewhere^
+        && fell_to_nothing(active_element()) =>
     JsUtil.get_elem_by_id_opt(id)
   | _ => None
   };
@@ -108,8 +147,8 @@ let execute = (): bool => {
     JsUtil.outline_has_focus() || JsUtil.focus_active_cell();
   switch (target) {
   | Some(Editor) =>
-    /* focus the editor itself, not the clipboard shim: the caret CSS
-       is gated on `.code-editor:focus` */
+    /* focus the editor itself: the caret CSS is gated on
+       `.code-editor:focus` */
     JsUtil.focus_active_editor();
     true;
   | Some(Cell) => focus_cell()
@@ -145,10 +184,11 @@ let keep_focus = (): unit => {
     switch (returning_probe()) {
     | Some(elem) => focus_no_scroll(elem)
     | None =>
-      /* a deliberate blur, the probe gone (culled out or deleted), or
-         something else took focus on purpose */
+      /* a deliberate blur or press elsewhere, the probe gone (culled out
+         or deleted), or something else took focus on purpose */
       kept := None;
       blur_expected := false;
     }
   };
+  pressed_elsewhere := false;
 };
