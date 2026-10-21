@@ -336,6 +336,8 @@ go(subst(arg, x, body)) end
           go(subst(arg, x, body)) end
       | _ => Error("Not a Function") end end in go|},
   ),
+  /* Slow: typing its 147 characters takes about half a second */
+  slow @@
   test_indent(
     ~name="Even: commas, function literals, if expression",
     ~init=

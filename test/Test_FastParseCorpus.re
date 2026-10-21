@@ -39,9 +39,11 @@ let known_gaps: list(string) = [];
 let tests = (
   "FastParseCorpus",
   [
+    /* Slow: parsing every .hz program in the repo takes about a third
+       of a second */
     test_case(
       "every corpus program fast-paths",
-      `Quick,
+      `Slow,
       () => {
         let files =
           ["hazel-programs", "../hazel-programs"]

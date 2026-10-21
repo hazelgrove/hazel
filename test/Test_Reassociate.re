@@ -755,9 +755,11 @@ let deep_reassociate_tests = [
 ];
 
 let comment_toggle_reassociate_tests = [
+  /* Slow: typing the 9-line program keystroke by keystroke takes about
+     half a second */
   test_case(
     "Comment toggle roundtrip on cross-scope selection (mapi/fun/if)",
-    `Quick,
+    `Slow,
     () => {
       /* Same cross-scope selection as the cut+paste test:
        * from §then through plant¦. Comment those lines,
@@ -931,9 +933,11 @@ let reassociate_regression_tests = [
   /* Cutting and pasting the first line `let watering_amount(` of a multi-line
    * function definition should restore the original well-formed program; the
    * pasted `let` must reassociate with the trailing `=` / `in`. */
+  /* Slow, as is the next: typing the 15-line program keystroke by
+     keystroke takes about a second */
   test_case(
     "Cut+paste first line of fn def reassociates outer let",
-    `Quick,
+    `Slow,
     () => {
       let program = {|§let watering_amount(¦
   _name: String,
@@ -971,7 +975,7 @@ in
    * `    case phase` should likewise restore the program. */
   test_case(
     "Cut+paste let/case lines reassociates outer let",
-    `Quick,
+    `Slow,
     () => {
       let program = {|let watering_amount(
   _name: String,

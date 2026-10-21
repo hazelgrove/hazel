@@ -582,9 +582,9 @@ let tests = [
          path is lost they all take the quadratic one and the suite runs for
          minutes before anything says why.
 
-         Each analysis of the slide takes about half a second, so the quick
-         set keeps one evaluation (contract, CSS, stylesheet) and the
-         type check; the cases needing further analyses are Slow. */
+         Each analysis of the slide takes about half a second, so every
+         case that analyzes it is Slow; the quick set keeps the ones that
+         only parse it or read the table. */
       test_case(
         "takes the fast parse path",
         `Quick,
@@ -592,12 +592,12 @@ let tests = [
       ),
       test_case(
         "built-in source satisfies expected type",
-        `Quick,
+        `Slow,
         source_satisfies_expected_type,
       ),
       test_case("analysis is engaged", `Slow, analysis_is_engaged),
-      test_case("slide matches its contract", `Quick, slide_matches_contract),
-      test_case("every value is valid CSS", `Quick, every_value_is_css),
+      test_case("slide matches its contract", `Slow, slide_matches_contract),
+      test_case("every value is valid CSS", `Slow, every_value_is_css),
       test_case("scheme flags read once", `Quick, flags_are_read_once),
       test_case("fan-out table is well formed", `Quick, table_is_well_formed),
       test_case(
@@ -608,7 +608,7 @@ let tests = [
       test_case("colors match golden", `Slow, colors_match_golden),
       test_case(
         "generated stylesheet is current",
-        `Quick,
+        `Slow,
         theme_css_is_current,
       ),
       test_case(
