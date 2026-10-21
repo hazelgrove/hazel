@@ -1027,7 +1027,7 @@ let by_design = () => {
 let tests = (
   "CellsParity",
   [
-    test_case("shapes", `Quick, shapes),
+    test_case("shapes", `Slow, shapes),
     test_case("incomplete programs", `Quick, incomplete),
     test_case("differences by design", `Quick, by_design),
     test_case("corpus", `Slow, corpus),

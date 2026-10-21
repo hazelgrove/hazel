@@ -284,6 +284,140 @@ let divergences = (~settings, ~cold=true, t: DefStatics.t): list(string) => {
   List.rev(out^);
 };
 
+/* how [t] differs from a cold calc of its term: the merged map by key,
+   every item's map (members included) by its keys and, where the item
+   is new since [prev], its infos; and the items' aggregates */
+let delta_diffs = (~settings, ~prev=?, t: DefStatics.t): list(string) => {
+  let analyzed = DefStatics.last_analyzed^;
+  let cold = DefStatics.calc(~settings, ~probe_ids=t.probe_ids, t.term);
+  DefStatics.last_analyzed := analyzed;
+  let out = ref([]);
+  let note = s => out := [s, ...out^];
+  let cls = i => Cls.show(Info.cls_of(i));
+  /* [places]: the merged map, whose roots read as in the whole program
+     (an item's own map holds its hollow analysis) */
+  let maps =
+      (
+        ~infos=true,
+        ~places=false,
+        what,
+        got: Statics.Map.t,
+        want: Statics.Map.t,
+      ) => {
+    let n = ref(0);
+    let at = (id, s) => {
+      incr(n);
+      if (n^ <= 3) {
+        note(what ++ ": " ++ s ++ " " ++ Id.str8(id));
+      };
+    };
+    ignore(
+      Id.Map.merge(
+        (id, g, w) => {
+          switch (g, w) {
+          | (Some(g), Some(w)) when infos =>
+            Option.iter(
+              d => at(id, d ++ " at " ++ cls(w)),
+              differ(~types=true, w, g),
+            );
+            if (places) {
+              Option.iter(
+                d => at(id, d ++ " at " ++ cls(w)),
+                place_differs(~a_map=want, w, ~b_map=got, g),
+              );
+            };
+          | (Some(_), Some(_)) => ()
+          | (Some(g), None) => at(id, "stale " ++ cls(g))
+          | (None, Some(w)) => at(id, "missing " ++ cls(w))
+          | (None, None) => ()
+          };
+          None;
+        },
+        got,
+        want,
+      ),
+    );
+    if (n^ > 3) {
+      note(what ++ ": " ++ string_of_int(n^) ++ " keys in all");
+    };
+  };
+  let ids = xs => List.sort(compare, List.map(Id.str8, xs));
+  let same = (what, show, a, b) =>
+    if (a != b) {
+      note(what ++ ": " ++ show(b) ++ " / " ++ show(a));
+    };
+  let names = String.concat(" ");
+  maps(~places=true, "merged", t.merged, cold.merged);
+  same(
+    "errors",
+    names,
+    ids(DefStatics.all_error_ids(t)),
+    ids(DefStatics.all_error_ids(cold)),
+  );
+  same(
+    "warnings",
+    names,
+    ids(DefStatics.all_warning_ids(t)),
+    ids(DefStatics.all_warning_ids(cold)),
+  );
+  /* maps the last step had, already compared then */
+  let seen = Hashtbl.create(64);
+  let rec remember = (items: list(DefStatics.item)) =>
+    List.iter(
+      (it: DefStatics.item) => {
+        Hashtbl.replace(seen, Id.to_string(it.d_id), it.d_map);
+        remember(it.d_members);
+      },
+      items,
+    );
+  Option.iter((p: DefStatics.t) => remember(p.items), prev);
+  let fresh = (it: DefStatics.item) =>
+    switch (Hashtbl.find_opt(seen, Id.to_string(it.d_id))) {
+    | Some(m) => m !== it.d_map
+    | None => true
+    };
+  let rec items = (path, got: list(DefStatics.item), want) =>
+    if (List.length(got) != List.length(want)) {
+      note(path ++ ": item count");
+    } else {
+      List.iter2(
+        (g: DefStatics.item, w: DefStatics.item) => {
+          let at = path ++ "/" ++ Id.str8(w.d_id);
+          if (g.d_id != w.d_id) {
+            note(at ++ ": id " ++ Id.str8(g.d_id));
+          } else {
+            maps(~infos=fresh(g), at, g.d_map, w.d_map);
+            same(
+              at ++ " errors",
+              names,
+              ids(g.d_error_ids),
+              ids(w.d_error_ids),
+            );
+            same(
+              at ++ " warnings",
+              names,
+              ids(g.d_warning_ids),
+              ids(w.d_warning_ids),
+            );
+            same(at ++ " free", names, g.d_free, w.d_free);
+            same(at ++ " tfree", names, g.d_tfree, w.d_tfree);
+            same(
+              at ++ " exports",
+              names,
+              List.map(DefStatics.entry_name, g.d_exports),
+              List.map(DefStatics.entry_name, w.d_exports),
+            );
+            items(at, g.d_members, w.d_members);
+          };
+        },
+        got,
+        want,
+      );
+    };
+  items("", t.items, cold.items);
+  List.rev(out^);
+};
+
 /* installed by the test runner: calc_auto results of up to [cap] infos
    are checked against monolithic statics, raising on divergence */
 let cap = 3000;
@@ -301,3 +435,11 @@ let install = () =>
           };
         },
     );
+
+/* [f] with the check installed, whether or not the runner installed it
+   (a quick run doesn't): for tests whose assertion the check is */
+let armed = (f: unit => unit, ()): unit => {
+  let saved = DefStatics.after_calc^;
+  install();
+  Fun.protect(~finally=() => DefStatics.after_calc := saved, f);
+};

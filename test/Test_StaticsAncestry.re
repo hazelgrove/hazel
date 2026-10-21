@@ -7,7 +7,7 @@ open Language;
    the editor's compositional statics as on a whole-program analysis of
    the same term: Cmd+D, the assistant's node map, autoprobe, outline
    rows and the evaluation worklist. DefStaticsCheck compares the
-   ancestors themselves */
+   ancestors themselves, armed for every test here */
 
 let settings = CoreSettings.on;
 
@@ -20,6 +20,8 @@ let st_src = "let a = 1 in\na + 1;\nlet b = a in\ntest b == 1 end;\nb";
 let mt_src = "let a = 1;\ntest a == 1 end;\nlet b = a;\nb";
 let nested_src = "module Outer = {\n  module Inner = {\n    type T = Bool;\n    let x = true\n  };\n  let w = 1\n};\nlet y : Outer.Inner.T = Outer.Inner.x;\ny";
 let let_mod_src = "let m = {\n  let a = 1;\n  let b = a + 10\n} in\nlet k = 2 in\nm.b + k";
+/* a member sealed with a signature: the module's own signature holds it */
+let sealed_src = "module M = {\n  let a = 1;\n  module S : { let e : Int } = { let e = 5 };\n  let h = S.e + a\n} in\nM.h";
 
 let programs = [
   ("a let chain", Sort.Exp, chain_src),
@@ -30,6 +32,7 @@ let programs = [
   ("a test member", Sort.Mod, mt_src),
   ("nested modules", Sort.Mod, nested_src),
   ("a let-bound module", Sort.Exp, let_mod_src),
+  ("a sealed sub-module", Sort.Exp, sealed_src),
 ];
 
 /* the editor's statics, and a whole-program analysis of its term */
@@ -486,12 +489,15 @@ let rollup_tests = [
 
 let tests = (
   "StaticsAncestry",
-  cmd_d_tests
-  @ rollup_tests
-  @ [test_case("a member's autoprobe target", `Quick, member_autoprobe)]
-  @ List.map(
-      ((name, _, _) as p) =>
-        test_case("readers: " ++ name, `Quick, consumers(p)),
-      programs,
-    ),
+  List.map(
+    ((name, speed, f)) => (name, speed, DefStaticsCheck.armed(f)),
+    cmd_d_tests
+    @ rollup_tests
+    @ [test_case("a member's autoprobe target", `Quick, member_autoprobe)]
+    @ List.map(
+        ((name, _, _) as p) =>
+          test_case("readers: " ++ name, `Quick, consumers(p)),
+        programs,
+      ),
+  ),
 );

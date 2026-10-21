@@ -2,8 +2,10 @@
    program's pieces cut from its DefStatics items, top-level items and
    modules' members alike, each encoded once and kept while its item
    stands; a module DefStatics kept whole keeps its members' pieces
-   without a walk. A program DefStatics didn't analyze, or whose pieces
-   don't account for every entry exactly once, goes as one piece.
+   without a walk. A module's value is its members' bindings, each in its
+   member's piece, in a node of its own. A program DefStatics didn't
+   analyze, or whose pieces don't account for every entry exactly once,
+   goes as one piece.
 
    Which piece has an entry follows how DefStatics merges maps: an
    item's root entries (its chain's overlay) shadow the item's own map
@@ -15,11 +17,12 @@ open Language;
 module P = EvalPieces;
 
 /* what a piece was cut from, to tell when it still holds. [skip]: the
-   keys it leaves to pieces above */
+   keys it leaves to pieces above. a module member's piece also holds its
+   binding */
 type source =
-  | Plain(Statics.Map.t, Exp.t, list(Id.t)) /* map, elab, skip */
-  /* the let's annotation, pattern and body, its own map, skip, and its
-     entries as projected */
+  | Plain(Statics.Map.t, Exp.t, list(Id.t), option(Mod.t)) /* map, elab, skip, binding */
+  /* the let's annotation, pattern and body, its own map, skip, its
+     entries as projected, and its binding */
   | Shell(
       IdTagged.IdTag.t,
       Pat.t,
@@ -27,9 +30,11 @@ type source =
       Statics.Map.t,
       list(Id.t),
       list(P.entry),
+      option(Mod.t),
     )
   /* skip; per item, its root infos and their entries as projected */
   | Roots(list(Id.t), list((Id.t, list((Id.t, Info.t)), list(P.entry))))
+  | Node(IdTagged.IdTag.t) /* a module value's annotation */
   | Targets(Sample.targets)
   | Whole(Exp.t, Statics.Map.t, Sample.targets);
 
@@ -212,6 +217,32 @@ let entries_equal = (a: list(P.entry), b: list(P.entry)): bool =>
     b,
   );
 
+/* a module member's binding as its module's value holds it
+   (ModuleHelpers.refold_item), from its source and its elaboration's
+   let, the link it makes in the module's chain. a type member makes no
+   link, and the value drops it */
+let bind = (src: Mod.t, it: DefStatics.item, elab: Exp.t): option(Mod.t) =>
+  switch (src.term, elab.term) {
+  | (ModType(_), _) =>
+    Option.equal(Id.equal, it.d_hole, Some(Exp.rep_id(elab)))
+      ? None
+      : raise(Unsplittable("a type member's elaboration is not its body"))
+  | (_, Let(p, def, _)) => Some(ModuleHelpers.refold_item(src, p, def))
+  | _ => raise(Unsplittable("a member's elaboration is not a let"))
+  };
+
+/* bindings alike. a binding's definition is its hollow's, which a kept
+   piece shares, so the comparison stops there */
+let same_binding =
+  Option.equal((a: Mod.t, b: Mod.t) => a === b || compare(a, b) == 0);
+
+/* what a split item's members are: a let-chain member's links, whose
+   chain is its value, or a module literal's members, whose bindings are
+   (DefStatics.module_elab) */
+type nested =
+  | Links
+  | Members(list(Mod.t));
+
 /* a definition's nested value is its members' chain finished, when
    DefStatics built it so: a module literal's value or a let-chain
    member's chain at its let's definition */
@@ -220,14 +251,16 @@ let split_of = (it: DefStatics.item) =>
   | (Some(n), [_, ..._], Let(p, v, body)) =>
     switch (DefStatics.top_sum(n.n_sums)) {
     | Some({s_elab: Some(top), _}) =>
-      switch (it.d_node.term) {
-      /* a module's value refolds from its items (Modules II), which a
-         piece doesn't carry: it stays in its item's piece */
-      | Let(_, {term: Module(_), _}, _)
-      | ModuleExp(_, {term: Module(_), _}, _) => None
-      | _ =>
+      switch (DefStatics.module_literal_members(~ctx=it.d_ctx_in, it.d_node)) {
+      | Some((_, def, members, _)) =>
+        switch (Statics.Map.lookup_exp(Exp.rep_id(def), n.n_wrap)) {
+        | Some(info) when info.elab_term === v =>
+          Some((Members(members), n, v, p, body))
+        | _ => None
+        }
+      | None =>
         Option.is_some(DefStatics.modexp_chain(it.d_node)) && v === top
-          ? Some((P.Chain, n, v, p, body)) : None
+          ? Some((Links, n, v, p, body)) : None
       }
     | _ => None
     }
@@ -344,9 +377,10 @@ let roots_piece =
   use(acc, key, c);
 };
 
-/* a split item's piece: its let, a hole for the nested value. the
-   module's own map is rebuilt whenever a member changes, so its entries
-   are compared as projected, as root entries are */
+/* a split item's piece: its let, a hole for the nested value (in its
+   binding too, if a member). the module's own map is rebuilt whenever a
+   member changes, so its entries are compared as projected, as root
+   entries are */
 let shell_piece =
     (
       acc: acc,
@@ -359,19 +393,34 @@ let shell_piece =
       ~p: Pat.t,
       ~body: Exp.t,
       ~skip: list(Id.t),
+      ~src: option(Mod.t),
     ) => {
+  let hollow: Exp.t = {
+    ...it.d_elab,
+    term: Let(p, placeholder, body),
+  };
+  let binding = lazy(Option.bind(src, src => bind(src, it, hollow)));
   let source = entries =>
-    Shell(it.d_elab.annotation, p, body, n.n_wrap, skip, entries);
+    Shell(
+      it.d_elab.annotation,
+      p,
+      body,
+      n.n_wrap,
+      skip,
+      entries,
+      Lazy.force(binding),
+    );
   let fresh = lazy(project(acc, t, ~skip, Id.Map.bindings(n.n_wrap)));
   let c =
     switch (Hashtbl.find_opt(old, key)) {
-    | Some({source: Shell(a, p', b, w, skip', entries), _} as c)
+    | Some({source: Shell(a, p', b, w, skip', entries, was), _} as c)
         when
           a === it.d_elab.annotation
           && p' === p
           && b === body
           && ids_equal(skip', skip)
-          && (w === n.n_wrap || entries_equal(Lazy.force(fresh), entries)) => {
+          && (w === n.n_wrap || entries_equal(Lazy.force(fresh), entries))
+          && same_binding(was, Lazy.force(binding)) => {
         ...c,
         source: source(entries),
         /* the map's other infos may come and go */
@@ -382,12 +431,10 @@ let shell_piece =
       encode(
         source(entries),
         Item({
-          hollow: {
-            ...it.d_elab,
-            term: Let(p, placeholder, body),
-          },
+          hollow,
           hole: it.d_hole,
           entries,
+          binding: Lazy.force(binding),
         }),
         keys_of(n.n_wrap, ~skip),
         key,
@@ -397,15 +444,38 @@ let shell_piece =
   use(acc, key, c);
 };
 
+/* a module value's node: its annotation, kept while it reads the same */
+let node_piece =
+    (
+      acc: acc,
+      ~old: Hashtbl.t(P.key, cached),
+      ~into: Hashtbl.t(P.key, cached),
+      key: P.key,
+      annotation: IdTagged.IdTag.t,
+    ) =>
+  piece(
+    acc,
+    ~old,
+    ~into,
+    key,
+    ~holds=
+      fun
+      | Node(a) => a === annotation || IdTagged.IdTag.equal(a, annotation)
+      | _ => false,
+    ~make=() =>
+    (Node(annotation), Node(annotation): P.content, 0)
+  );
+
 /* [items]' pieces from [old]'s, and the chain's new cache. [shadowed]:
    the root keys of the items holding the chain, whose entries sit in
-   pieces above */
+   pieces above. [srcs]: a module's members, the items but the tail */
 let rec chain =
         (
           acc: acc,
           ~old: chain_cache,
           ~roots: P.key,
           ~shadowed: list(Id.t),
+          ~srcs: list(Mod.t),
           items: list(DefStatics.item),
           sums: list(DefStatics.sum),
         )
@@ -413,6 +483,13 @@ let rec chain =
   if (List.length(items) != List.length(sums)) {
     raise(Unsplittable("items and sums differ"));
   };
+  let srcs =
+    switch (srcs) {
+    | [] => List.map(_ => None, items)
+    | _ when List.length(srcs) == List.length(items) - 1 =>
+      List.map(Option.some, srcs) @ [None]
+    | _ => raise(Unsplittable("members and items differ"))
+    };
   /* the worker finds a chain's items by id */
   let ids = Hashtbl.create(List.length(items));
   List.iter(
@@ -428,7 +505,7 @@ let rec chain =
     pieces: Hashtbl.create(List.length(items) + 1),
     members: Hashtbl.create(4),
   };
-  let cut_item = (it: DefStatics.item, s: DefStatics.sum) => {
+  let cut_item = ((it: DefStatics.item, s: DefStatics.sum), src) => {
     let graft =
       switch (s.s_elab) {
       | Some(g) => g
@@ -437,7 +514,7 @@ let rec chain =
     let skip = List.map(fst, s.s_overlay) @ shadowed;
     let key: P.key = Item(it.d_id);
     switch (split_of(it)) {
-    | Some((finish, n, v, p, body)) =>
+    | Some((nested, n, v, p, body)) =>
       let m =
         switch (Hashtbl.find_opt(old.members, it.d_id)) {
         | Some(m) when m.nest === n && ids_equal(m.shadowed, skip) => m
@@ -457,6 +534,11 @@ let rec chain =
                 },
               ~roots=Roots(it.d_id),
               ~shadowed=skip,
+              ~srcs=
+                switch (nested) {
+                | Links => []
+                | Members(members) => members
+                },
               it.d_members,
               n.n_sums,
             );
@@ -489,7 +571,22 @@ let rec chain =
           ~p,
           ~body,
           ~skip,
+          ~src,
         );
+      let finish =
+        switch (nested) {
+        | Links => P.Chain
+        | Members(_) =>
+          P.ModuleValue(
+            node_piece(
+              acc,
+              ~old=old.pieces,
+              ~into=cache.pieces,
+              Node(Exp.rep_id(v)): P.key,
+              v.annotation,
+            ),
+          )
+        };
       (
         P.{
           slot,
@@ -503,6 +600,7 @@ let rec chain =
         own: it.d_elab,
         nested: None,
       };
+      let binding = lazy(Option.bind(src, src => bind(src, it, it.d_elab)));
       let slot =
         piece(
           acc,
@@ -511,17 +609,21 @@ let rec chain =
           key,
           ~holds=(
             fun
-            | Plain(m, e, skip') =>
-              m === it.d_map && e === it.d_elab && ids_equal(skip', skip)
+            | Plain(m, e, skip', was) =>
+              m === it.d_map
+              && e === it.d_elab
+              && ids_equal(skip', skip)
+              && same_binding(was, Lazy.force(binding))
             | _ => false
           ),
           ~make=() =>
           (
-            Plain(it.d_map, it.d_elab, skip),
+            Plain(it.d_map, it.d_elab, skip, Lazy.force(binding)),
             Item({
               hollow: it.d_elab,
               hole: it.d_hole,
               entries: project(acc, t, ~skip, Id.Map.bindings(it.d_map)),
+              binding: Lazy.force(binding),
             }),
             keys_of(it.d_map, ~skip),
           )
@@ -535,7 +637,7 @@ let rec chain =
       );
     };
   };
-  let cuts = List.map2(cut_item, items, sums);
+  let cuts = List.map2(cut_item, List.combine(items, sums), srcs);
   let roots =
     roots_piece(
       acc,
@@ -608,37 +710,42 @@ let split =
     | Some(ds) when ds.merged === statics.info_map => ds
     | _ => raise(Unsplittable("no analysis of these statics"))
     };
-  let top =
-    switch (ds.elab) {
-    | Some(top) => top
-    | None => raise(Unsplittable("an elaboration gap"))
-    };
   /* the program is the top chain, finished as DefStatics.whole_elab */
-  let finish: P.finish =
-    switch (DefStatics.strip(ds.term).term) {
-    | Module(_) =>
-      raise(Unsplittable("a module root (its value refolds from its items)"))
-    | _ => Chain
-    };
-  let finished =
-    switch (finish) {
-    | Chain => statics.elaborated === top
-    | ModuleValue(_) =>
-      Id.equal(Exp.rep_id(statics.elaborated), Exp.rep_id(top))
-    };
-  if (!finished) {
-    raise(Unsplittable("an elaboration not DefStatics'"));
+  switch (DefStatics.whole_elab(ds)) {
+  | Some(e) when e === statics.elaborated => ()
+  | Some(_) => raise(Unsplittable("an elaboration not DefStatics'"))
+  | None => raise(Unsplittable("an elaboration gap"))
   };
   let id = Exp.rep_id(ds.term);
+  let root = DefStatics.strip(ds.term);
   let (chain, cache) =
     chain(
       acc,
       ~old=doc.top,
       ~roots=TopRoots(id),
       ~shadowed=[],
+      ~srcs=
+        switch (root.term) {
+        | Module(members) => members
+        | _ => []
+        },
       ds.items,
       ds.sums,
     );
+  let finish =
+    switch (root.term) {
+    | Module(_) =>
+      P.ModuleValue(
+        node_piece(
+          acc,
+          ~old=doc.singles,
+          ~into=doc.singles,
+          Node(Exp.rep_id(root)): P.key,
+          statics.elaborated.annotation,
+        ),
+      )
+    | _ => P.Chain
+    };
   let targets = targets_piece(acc, doc, id, targets);
   /* every key in exactly one piece, or the worker's map would differ */
   if (acc.keys != Id.Map.cardinal(statics.info_map)) {

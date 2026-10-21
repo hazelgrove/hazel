@@ -149,26 +149,13 @@ let composed = (r: WorkerServer.received): WorkerServer.Evaluation.value =>
   | Malformed(why) => fail("malformed: " ++ why)
   };
 
-/* why [st]'s program goes whole, if it does: a module's value refolds
-   from its items on stdlib, so a module root goes whole (EvalSplit) */
-let whole_because = (st: CachedStatics.t): option(string) =>
-  switch (DefStatics.strip(st.term).term) {
-  | Module(_) => Some("a module root (its value refolds from its items)")
-  | _ => None
-  };
-
 /* the worker's program is the whole request's, and the program went in
-   pieces where it can */
+   pieces */
 let check_exact =
     (name, st: CachedStatics.t, v: WorkerServer.Evaluation.value) => {
   let (expr, info) = whole(st);
   let {same} = same_graph();
-  check(
-    option(string),
-    name ++ ": in pieces",
-    whole_because(st),
-    Split.went_whole^,
-  );
+  check(option(string), name ++ ": in pieces", None, Split.went_whole^);
   check(bool, name ++ ": the program", true, same(expr, v.expr));
   check(
     int,
@@ -254,7 +241,8 @@ let typed = (~root, src, after, keys, ()) => {
   );
 };
 
-let list_src = (~root) => Test_OpenMember.src(~root);
+/* List to `cons` (OpenMember's short_src) */
+let list_src = (~root) => Test_OpenMember.short_src(~root);
 
 /* [src]'s module body as the only member of [depth] modules */
 let nest = (~depth, src: string): string =>
@@ -274,6 +262,38 @@ let back_and_forth = (~at=?, needle, repl) => [
 let mega = (~root, file, steps) =>
   script(~root, Option.get(CorpusUtil.mega_src(file)), steps);
 
+/* a module's members of every kind, its value their bindings: a type
+   member (none), a function, a destructuring, a sub-module, a sealed
+   one (whole in its member's piece), a let chain, a test, and a member
+   shadowing one the earlier ones read */
+let kinds = "type T = Int;
+let a : T = 1;
+let f(x) = x + a;
+let (b, c) = (2, 3);
+module N = {
+  let d = 4;
+  let g(y) = y * d
+};
+module S : { let e : Int } = { let e = 5 };
+let q = 1 in q + a;
+test f(1) == 2 end;
+let a = a + 10;
+let h = N.g(b) + S.e + a";
+
+let kinds_in_module = "module M = {\n" ++ kinds ++ "\n} in\nM.h";
+
+/* [kinds]' edits, its paths under [above] */
+let kinds_steps = (~above) =>
+  back_and_forth(~at=`First, "1", "7")
+  @ back_and_forth(~at=`First, "Int", "Bool")
+  @ [
+    Parity.token(~at=`First, ~keep_id=true, "4", "6"),
+    Parity.token(~at=`First, ~keep_id=true, "5", "8"),
+    Parity.op(NewBelow, above @ ["N", "d"]),
+    Parity.op(Delete, above @ ["f"]),
+    Parity.move(~up=true, above @ ["h"]),
+  ];
+
 let exact_tests =
   [
     test_case(
@@ -282,7 +302,7 @@ let exact_tests =
       mega(
         ~root=Exp,
         "mega-1k.hz",
-        Delta.mega_steps @ back_and_forth(~at=`Last, "9", "8"),
+        Parity.mega_steps @ back_and_forth(~at=`Last, "9", "8"),
       ),
     ),
     test_case(
@@ -291,7 +311,7 @@ let exact_tests =
       mega(
         ~root=Mod,
         "mega-mod-1k.hz",
-        Delta.mega_steps @ back_and_forth(~at=`Last, "9", "8"),
+        Parity.mega_steps @ back_and_forth(~at=`Last, "9", "8"),
       ),
     ),
     test_case(
@@ -333,7 +353,7 @@ let exact_tests =
     ),
     test_case(
       "a lib-like program: member edits, adds, removes, moves",
-      `Quick,
+      `Slow,
       script(~root=Mod, Delta.lib, Delta.lib_edits @ Delta.lib_restructures),
     ),
     test_case(
@@ -351,7 +371,7 @@ let exact_tests =
     ),
     test_case(
       "List one and two modules deep, at a Mod root",
-      `Quick,
+      `Slow,
       () => {
         script(
           ~root=Mod,
@@ -377,6 +397,16 @@ let exact_tests =
         nest(~depth=2, Option.get(CorpusUtil.mega_src("mega-mod-1k.hz"))),
         back_and_forth(~at=`Last, "9", "8"),
       ),
+    ),
+    test_case(
+      "a module's members of every kind, at a Mod root",
+      `Quick,
+      script(~root=Mod, kinds, kinds_steps(~above=[])),
+    ),
+    test_case(
+      "... in a module at an Exp root",
+      `Quick,
+      script(kinds_in_module, kinds_steps(~above=["M"])),
     ),
     test_case(
       "a let chain: adds and removes",
@@ -435,19 +465,11 @@ let token_id = (needle: string, seg: Segment.t): Id.t => {
 };
 
 /* the item, a member at whatever depth, whose own map has [id] */
-/* the piece holding [id]: its innermost item's, but a module literal's
-   members stay in its item's piece (EvalSplit.split_of) */
 let owner = (id: Id.t, ds: DefStatics.t): Id.t => {
-  let module_literal = (it: DefStatics.item) =>
-    switch (it.d_node.term) {
-    | Let(_, {term: Module(_), _}, _)
-    | ModuleExp(_, {term: Module(_), _}, _) => true
-    | _ => false
-    };
   let rec find = (items: list(DefStatics.item)) =>
     List.find_map(
       (it: DefStatics.item) =>
-        switch (module_literal(it) ? None : find(it.d_members)) {
+        switch (find(it.d_members)) {
         | Some(_) as found => found
         | None => Id.Map.mem(id, it.d_map) ? Some(it.d_id) : None
         },
@@ -474,15 +496,11 @@ let member_edit = (~root, src, needle, repl, ()) => {
     );
   let st = statics_of(term_of(seg));
   let request = request_of(st);
-  let piece: EvalPieces.key =
-    switch (whole_because(st)) {
-    | Some(_) => Whole(Exp.rep_id(st.term))
-    | None => Item(owner(id, Option.get(DefStatics.cached(term_of(seg)))))
-    };
+  let member = owner(id, Option.get(DefStatics.cached(term_of(seg))));
   check(
     list(string),
     "re-encoded",
-    [EvalPieces.show_key(piece)],
+    [EvalPieces.show_key(Item(member))],
     List.map(EvalPieces.show_key, Split.encoded^),
   );
   let posted = post(request);
@@ -513,14 +531,16 @@ let encoding_tests = [
       "5",
     ),
   ),
+  /* one member re-encoded is the same claim at 1k; the Mega 4k script
+     composes 4k's pieces */
   test_case(
-    "... Mega 4k",
-    `Slow,
+    "... Mega 1k",
+    `Quick,
     member_edit(
       ~root=Exp,
-      Option.get(CorpusUtil.mega_src("mega-4k.hz")),
-      "2104",
-      "2105",
+      Option.get(CorpusUtil.mega_src("mega-1k.hz")),
+      "180",
+      "181",
     ),
   ),
 ];
@@ -528,10 +548,8 @@ let encoding_tests = [
 /* the protocol: whatever the worker holds, it composes the request's
    program or asks for every piece */
 let protocol = () => {
-  /* a let chain, which splits (a module root goes whole on stdlib) */
-  let term_of = seg => MakeTerm.Incr.term_of_root(~root=Exp, seg);
-  let seg0 =
-    CorpusUtil.seg_of(~root=Exp, "let a = 0 in\nlet b = 1 in\na + b");
+  let term_of = seg => MakeTerm.Incr.term_of_root(~root=Mod, seg);
+  let seg0 = CorpusUtil.seg_of(~root=Mod, list_src(~root=Mod));
   let edit = (~at, seg, needle, repl) =>
     fst(CorpusUtil.edit_token(~at, ~keep_id=true, ~needle, ~repl, seg));
   /* two members' edits: the second request reuses the first's piece */
@@ -702,15 +720,16 @@ let compare_results = (name, a, b) => {
 let same_results = (name, st: CachedStatics.t) => {
   fresh_worker();
   let v = composed(WorkerServer.receive(post(request_of(st))));
+  let as_whole = evaluate(whole(st));
   /* as before the split: the base's projection, whole */
   compare_results(
     name ++ " (without $hole)",
     evaluate(with_holes(st)),
-    evaluate(whole(st)),
+    as_whole,
   );
   compare_results(
     name ++ " (in pieces)",
-    evaluate(whole(st)),
+    as_whole,
     evaluate((v.expr, v.eval_info_map)),
   );
 };
@@ -731,6 +750,8 @@ let results = () => {
     CorpusUtil.slide_corpus(),
   );
   check(bool, "the corpus was there", true, n^ >= 40);
+  /* Mega-Mod 1k is Mega 1k at a Mod root, which List and lib cover: its
+     ⇓ probe samples the whole module, ~20s to evaluate and compare */
   List.iter(
     ((name, root, src)) =>
       same_results(
@@ -742,12 +763,9 @@ let results = () => {
     [
       ("List (Mod)", Sort.Mod, list_src(~root=Mod)),
       ("lib (Mod)", Sort.Mod, Delta.lib),
+      ("members of every kind (Mod)", Sort.Mod, kinds),
+      ("members of every kind (Exp)", Sort.Exp, kinds_in_module),
       ("Mega 1k", Sort.Exp, Option.get(CorpusUtil.mega_src("mega-1k.hz"))),
-      (
-        "Mega-Mod 1k",
-        Sort.Mod,
-        Option.get(CorpusUtil.mega_src("mega-mod-1k.hz")),
-      ),
     ],
   );
 };
@@ -764,7 +782,7 @@ let tests = (
     ),
     test_case(
       "evaluation reads the same: tests, probes, the value",
-      `Quick,
+      `Slow,
       results,
     ),
   ],

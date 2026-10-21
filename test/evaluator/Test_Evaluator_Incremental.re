@@ -936,8 +936,8 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  *   `Evaluator.re:158-164` and marks only that one id as reused
  *   (`IncrEval.mark_reused`). The inner items `let x = fib(b)`,
  *   `let y = fib(b)`, `let z = x + y` are never visited during evaluation,
- *   so the UI must derive frozen ids by walking the reuse plan rather than
- *   visited output.
+ *   so clients must derive visible ids by walking the reuse plan rather
+ *   than visited output.
  *
  *   The visible set is derived from the ACK reuse plan by walking each
  *   entry's `prev_elab` and unioning all rep_ids encountered, including the
