@@ -155,6 +155,7 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
               add(Mod.rep_id(m), Headless(Exp.rep_id(e)));
               1;
             }
+          | ModVal(_)
           | Invalid(_)
           | EmptyHole
           | MultiHole(_) => 0

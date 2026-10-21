@@ -260,6 +260,7 @@ let programs = () => [
     Sort.Mod,
     Option.get(CorpusUtil.mega_src("mega-mod-1k.hz")),
   ),
+  ("list-mod", Sort.Mod, Test_OpenMember.src(~root=Mod)),
 ];
 
 let tests = (

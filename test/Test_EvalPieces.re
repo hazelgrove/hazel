@@ -261,6 +261,38 @@ let back_and_forth = (~at=?, needle, repl) => [
 let mega = (~root, file, steps) =>
   script(~root, Option.get(CorpusUtil.mega_src(file)), steps);
 
+/* a module's members of every kind, its value their bindings: a type
+   member (none), a function, a destructuring, a sub-module, a sealed
+   one (whole in its member's piece), a let chain, a test, and a member
+   shadowing one the earlier ones read */
+let kinds = "type T = Int;
+let a : T = 1;
+let f(x) = x + a;
+let (b, c) = (2, 3);
+module N = {
+  let d = 4;
+  let g(y) = y * d
+};
+module S : { let e : Int } = { let e = 5 };
+let q = 1 in q + a;
+test f(1) == 2 end;
+let a = a + 10;
+let h = N.g(b) + S.e + a";
+
+let kinds_in_module = "module M = {\n" ++ kinds ++ "\n} in\nM.h";
+
+/* [kinds]' edits, its paths under [above] */
+let kinds_steps = (~above) =>
+  back_and_forth(~at=`First, "1", "7")
+  @ back_and_forth(~at=`First, "Int", "Bool")
+  @ [
+    Parity.token(~at=`First, ~keep_id=true, "4", "6"),
+    Parity.token(~at=`First, ~keep_id=true, "5", "8"),
+    Parity.op(NewBelow, above @ ["N", "d"]),
+    Parity.op(Delete, above @ ["f"]),
+    Parity.move(~up=true, above @ ["h"]),
+  ];
+
 let exact_tests =
   [
     test_case(
@@ -364,6 +396,16 @@ let exact_tests =
         nest(~depth=2, Option.get(CorpusUtil.mega_src("mega-mod-1k.hz"))),
         back_and_forth(~at=`Last, "9", "8"),
       ),
+    ),
+    test_case(
+      "a module's members of every kind, at a Mod root",
+      `Quick,
+      script(~root=Mod, kinds, kinds_steps(~above=[])),
+    ),
+    test_case(
+      "... in a module at an Exp root",
+      `Quick,
+      script(kinds_in_module, kinds_steps(~above=["M"])),
     ),
     test_case(
       "a let chain: adds and removes",
@@ -716,6 +758,8 @@ let results = () => {
     [
       ("List (Mod)", Sort.Mod, list_src(~root=Mod)),
       ("lib (Mod)", Sort.Mod, Delta.lib),
+      ("members of every kind (Mod)", Sort.Mod, kinds),
+      ("members of every kind (Exp)", Sort.Exp, kinds_in_module),
       ("Mega 1k", Sort.Exp, Option.get(CorpusUtil.mega_src("mega-1k.hz"))),
     ],
   );

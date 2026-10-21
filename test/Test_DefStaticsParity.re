@@ -861,6 +861,26 @@ let type_deps = [
       [token("Bool", "String") |> analyzed(4)],
     ),
   ),
+  test_case(
+    "an alias retyped and back",
+    `Quick,
+    script(
+      "type T = Int in\nlet a : T = 1 in\nlet f = fun x -> x + a in\nf(1)",
+      /* f's use of a is inconsistent while T is Bool: f must still read
+         as T's user when T goes back */
+      [token(~at=`First, "Int", "Bool"), token(~at=`First, "Bool", "Int")],
+    ),
+  ),
+  test_case(
+    "a module type member through an alias",
+    `Quick,
+    script(
+      "module M = {\n  type T = Int;\n  let x = 1\n} in\ntype U = M.T in\nlet y : U = 2 in\ny",
+      /* M's signature changes; U's definition mentions M, so y, which
+         mentions only U, is stale too */
+      [token(~at=`First, "Int", "Bool")],
+    ),
+  ),
 ];
 
 /* a literal edit keeps its id, as typing into a token does: seeded

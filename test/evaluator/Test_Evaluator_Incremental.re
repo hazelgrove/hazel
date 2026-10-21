@@ -146,6 +146,12 @@ let visible_ids = (incr: EvaluatorState.incr_eval): list(Id.t) => {
   let acc = ref(Id.Set.empty);
   let f_exp = (continue, e: Exp.t): Exp.t => {
     acc := Id.Set.add(Exp.rep_id(e), acc^);
+    /* Module items carry surface ids of their own. */
+    switch (e.term) {
+    | Module(items) =>
+      List.iter(item => acc := Id.Set.add(Mod.rep_id(item), acc^), items)
+    | _ => ()
+    };
     continue(e);
   };
   Id.Map.iter(
@@ -924,22 +930,19 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  * surface tile of the unrelated module `c` stays in the visible-id set.
  *
  * Background:
- *   `ModuleHelpers.lower` desugars `{ let bb = 12; let x = ... }` into
- *   a chain `Let(bb, 12, Let(x, ..., Let(...,Tuple(...))))`. The chain
- *   inverts surface nesting: the surface-outer Module M becomes the
- *   elab-innermost Tuple, and surface-sibling ModLets become elab-
- *   ancestors of one another.
+ *   A module elaborates to a `Module` whose items keep their surface ids
+ *   (`ModuleHelpers.refold_module_elab`). When the evaluator hits module
+ *   `c` on run 2 and finds its cached entry, it short-circuits via
+ *   `Evaluator.re:158-164` and marks only that one id as reused
+ *   (`IncrEval.mark_reused`). The inner items `let x = fib(b)`,
+ *   `let y = fib(b)`, `let z = x + y` are never visited during evaluation,
+ *   so clients must derive visible ids by walking the reuse plan rather
+ *   than visited output.
  *
- *   When the evaluator hits the OUTERMOST elab Let on run 2 and finds
- *   its cached entry, it short-circuits via `Evaluator.re:158-164` and
- *   marks only that one id as reused (`IncrEval.mark_reused`). The
- *   surface-sibling inner ModLets `let x = fib(b)`, `let y = fib(b)`,
- *   `let z = x + y` are never visited during evaluation, so clients must
- *   derive visible ids by walking the reuse plan rather than visited output.
- *
- *   The fix is to derive a visible-id set from the ACK reuse plan by walking
- *   each entry's `prev_elab` and unioning all rep_ids encountered.
- *   This test pins down the desired contents of that set. */
+ *   The visible set is derived from the ACK reuse plan by walking each
+ *   entry's `prev_elab` and unioning all rep_ids encountered, including the
+ *   ids of module items. This test pins down the desired contents of that
+ *   set. */
 let test_module_c_inner_ids_in_visible_set_after_edit_in_module_a = () => {
   let src = {|let fib = fun n ->
   if n < 2 then 1 else fib(n - 1) + fib(n - 2) in
@@ -1732,6 +1735,99 @@ let lexeme_edit_test =
     },
   );
 
+/* Replace every type node [from] by [to_] in [exp], preserving every other
+ * id: an ascription edited in place. */
+let retype = (~from: Typ.term, ~to_: Typ.term, exp: Exp.t): Exp.t => {
+  let f_typ = (continue, t: Typ.t): Typ.t =>
+    Typ.fast_equal(
+      t,
+      {
+        ...t,
+        term: from,
+      },
+    )
+      ? {
+        ...t,
+        term: to_,
+      }
+      : continue(t);
+  TermBase.Exp.map_term(~f_typ, exp);
+};
+
+/* An ascription is part of a binding's value: `1` bound as `x : Int` is `1`,
+ * bound as `x : Bool` it is the failed cast, so editing the annotation must
+ * invalidate the cached use of `x` rather than hand back the old `1`. */
+let test_asc_edit_invalidates_binding = () => {
+  let exp1 = parse_exp({|let x : Int = 1 in x|});
+  let exp2 = retype(~from=Atom(Int), ~to_=Atom(Bool), exp1);
+  check(
+    bool,
+    "retype actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let (r_fresh, _, _) = eval_incr(exp2);
+  let (_, _, incr_prev) = eval_incr(exp1);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
+  check(
+    dhexp_typ,
+    "Incremental eval of edited matches fresh eval of edited",
+    r_fresh,
+    r_incr,
+  );
+};
+
+/* Evaluating [after] reusing the cache from evaluating [before] gives the
+ * same result as evaluating [after] from scratch. [after] must be derived
+ * from [before] by an id-preserving edit, or nothing is reused. */
+let incremental_matches_fresh = (~before: Exp.t, ~after: Exp.t) => {
+  check(
+    bool,
+    "the edit changed the expression",
+    false,
+    Exp.fast_equal(before, after),
+  );
+  let (r_fresh, _, _) = eval_incr(after);
+  let (_, _, incr_prev) = eval_incr(before);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, after);
+  check(dhexp_typ, "incremental matches fresh", r_fresh, r_incr);
+};
+
+/* A module's last binding step yields its value. Evaluating the members
+ * again inside the step's closure recorded cache entries for them that
+ * relied on that closure, so after an edit elsewhere the reused `f` came
+ * back as a bare function, without its environment. */
+let test_module_function_member_reused = () => {
+  let before =
+    parse_exp(
+      {|module W = { let f = fun m -> m; let check = fun _ -> f(180) } in W.check(())|},
+    );
+  incremental_matches_fresh(
+    ~before,
+    ~after=replace_int_lit(~from=180, ~to_=181, before),
+  );
+};
+
+/* A module's last binding step yields its value. Evaluating the members
+ * again inside the step's closure recorded cache entries for them under
+ * the names that closure bound, so `y`, moved above `x`, reused its old
+ * value instead of seeing `x` unbound. */
+let test_module_member_moved_above_dependency = () => {
+  let before = parse_exp({|module M = { let x = 1; let y = x + 1 } in M.y|});
+  let reorder = (continue, e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Module(items) => {
+        ...e,
+        term: Module(List.rev(items)),
+      }
+    | _ => continue(e)
+    };
+  incremental_matches_fresh(
+    ~before,
+    ~after=TermBase.Exp.map_term(~f_exp=reorder, before),
+  );
+};
+
 let tests = (
   "Evaluator.Incremental",
   [
@@ -1935,6 +2031,21 @@ let tests = (
       "BUILTIN: string_length(\"hello\") reuses after unrelated _=55 edit",
       `Quick,
       test_builtin_call_reuses_after_unrelated_edit,
+    ),
+    test_case(
+      "ASCRIPTION: retyping `x : Int` as `x : Bool` in place invalidates the cached x",
+      `Quick,
+      test_asc_edit_invalidates_binding,
+    ),
+    test_case(
+      "MODULE: an edit beside a function member keeps the member's closure",
+      `Quick,
+      test_module_function_member_reused,
+    ),
+    test_case(
+      "MODULE: a member moved above its dependency doesn't reuse its value",
+      `Quick,
+      test_module_member_moved_above_dependency,
     ),
   ],
 );
