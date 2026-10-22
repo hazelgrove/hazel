@@ -22,7 +22,7 @@
 
 (library
  (name workerServer)
- (modules WorkerServer)
+ (modules WorkerServer CoverageHook)
  (wrapped false)
  (instrumentation
   (backend bisect_ppx))
@@ -45,6 +45,7 @@
   \
   Worker
   WorkerServer
+  CoverageHook
   Migrate_exercises)
  (libraries
   ezjs_min
