@@ -44,6 +44,7 @@ let (suite, exit_with_test_status) =
       Test_Equality.tests,
       Test_ValueHash.tests,
       Test_Substitution.tests,
+      Test_MapPieceIdentity.tests,
       Test_TypHash.tests,
     ]
     @ Test_Unicode.tests
