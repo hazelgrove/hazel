@@ -100,15 +100,26 @@ let remember_has = (key: Obj.t, h: TypHash.t): unit => {
     Util.IdentityTable.replace(has_type, key, [h, ...hs]);
   };
 };
+/* Whether a list's cells, from l on, are known to have the list type
+   hashed h. Every tail of a known list is known too: tails are remembered
+   all the way down (noted), so a list built on a known one (`x :: acc`) is
+   known from its first old cell on (^ticket(548)). */
+let known_cells = (l: list(DHExp.t), h: TypHash.t): bool =>
+  switch (Util.IdentityTable.find_opt(has_type, Obj.repr(l))) {
+  | Some(hs) => List.mem(h, hs)
+  | None => false
+  };
 /* After a recursive push of Asc(e, t): if it gave e back, e has t. */
 let noted = (e: DHExp.t, t: Typ.t, r: option(DHExp.t)): option(DHExp.t) => {
   switch (r, TypHash.hash(t)) {
   | (Some(r'), Some(h)) when r' === e =>
     switch (DHExp.term_of(e)) {
     | ListLit([_, ..._] as ds) =>
+      /* down to the first tail already known: it and its tails are */
       let rec tails = (l: list(DHExp.t)) =>
         switch (l) {
         | [] => ()
+        | _ when known_cells(l, h) => ()
         | [_, ...tl] =>
           remember_has(Obj.repr(l), h);
           tails(tl);
@@ -230,15 +241,33 @@ and step = (~recursive: bool, ~depth: int, d: DHExp.t): option(DHExp.t) => {
       | (Bool(_), _) => None
       }
     | (ListLit(ds), List(ty)) =>
-      let ds' = List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds);
-      unchanged(ds, ds')
-        ? Some(e)
-        : Some(
+      /* A recursive push where has_type is kept stops at the first tail
+         known to have the list's type: those cells stay as they are. A
+         list built onto a checked one (an accumulator, `n :: acc`) costs
+         its new cells, not its length; walking all of it made such a loop
+         quadratic (^report(29), ^ticket(548)). */
+      let known =
+        switch (recursive && depth <= memo_depth, TypHash.hash(t)) {
+        | (true, Some(h)) => (l => known_cells(l, h))
+        | _ => (_ => false)
+        };
+      let rec go = (l, rev_prefix, changed) =>
+        switch (l) {
+        | [] => (rev_prefix, [], changed)
+        | _ when known(l) => (rev_prefix, l, changed)
+        | [d, ...rest] =>
+          let d' = recur(Asc(d, ty) |> DHExp.fresh);
+          go(rest, [d', ...rev_prefix], changed || d' !== d);
+        };
+      let (rev_prefix, kept, changed) = go(ds, [], false);
+      changed
+        ? Some(
             IdTagged.fast_copy(
               DHExp.rep_id(e),
-              ListLit(ds') |> DHExp.fresh,
+              ListLit(List.rev_append(rev_prefix, kept)) |> DHExp.fresh,
             ),
-          );
+          )
+        : Some(e);
     | (Cons(d1, d2), List(ty)) =>
       let d1' = recur(Asc(d1, ty) |> DHExp.fresh);
       let d2' = recur_same(Asc(d2, t) |> DHExp.fresh);

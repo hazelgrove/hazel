@@ -137,6 +137,17 @@ let tests = (
       "{\"tag\":\"A\"}",
       "type T = + A + B(Int) in A",
     ),
+    /* ^ticket(548): a push stops at a tail already known to have the type */
+    is(
+      "a list built onto an annotated accumulator keeps every value",
+      "[1,2,3,4,5]",
+      "let build = fun (n : Int, acc : [Int]) -> if n == 0 then acc else build(n - 1, n :: acc) in build(5, [])",
+    ),
+    is(
+      "and a list of pairs built the same way",
+      "[[1,true],[2,false]]",
+      "let build = fun (n : Int, acc : [(Int, Bool)]) -> if n == 0 then acc else build(n - 1, (n, n == 1) :: acc) in build(2, [])",
+    ),
     test_case(
       "errors are reported, and the program still runs",
       `Quick,

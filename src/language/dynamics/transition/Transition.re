@@ -1248,8 +1248,16 @@ module Transition = (EV: EV_MODE) => {
       | None =>
         let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
         and. d' = req_final(req(env), d => Asc(d, t) |> wrap_ctx, d');
-        switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
-        | Some(_) =>
+        /* One recursive push answers both whether there is a step and what
+           it gives: it gives back the very term when nothing can be pushed.
+           A stepwise push asked first wrapped every part of a list in a new
+           ascription with a fresh id, only to throw them all away
+           (^ticket(548)). */
+        let asc = Asc(d', t) |> rewrap;
+        let pushed = Ascriptions.transition_multiple(asc);
+        if (pushed === asc) {
+          Constructor;
+        } else {
           /* Use transition_multiple to fully resolve all Asc layers in one
            * step, and is_value: true to prevent re-evaluation. This is critical
            * because d' was already fully evaluated by req_final above — probes
@@ -1258,12 +1266,11 @@ module Transition = (EV: EV_MODE) => {
            * probe targets a second time with a different (shorter) call_stack,
            * producing duplicate samples that bypass dedup. */
           Step({
-            expr: Ascriptions.transition_multiple(Asc(d', t) |> rewrap),
+            expr: pushed,
             side_effects: [],
             kind: Ascription,
             is_value: true,
-          })
-        | None => Constructor
+          });
         };
       }
     | Undefined =>
