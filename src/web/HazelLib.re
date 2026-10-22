@@ -23,5 +23,29 @@ let () =
         Js.Unsafe.inject(Js.wrap_callback(analyze_program)),
       ),
       ("runProgram", Js.Unsafe.inject(Js.wrap_callback(run_program))),
+      /* MEASURING ONLY (^ticket(540)): evaluate calls and steps by kind since
+         the last read, then reset */
+      (
+        "stepCounts",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => {
+            let fields =
+              Hashtbl.fold(
+                (k, v, acc) =>
+                  [
+                    (
+                      k,
+                      Js.Unsafe.inject(Js.number_of_float(float_of_int(v))),
+                    ),
+                    ...acc,
+                  ],
+                Language.Evaluator.step_counts,
+                [],
+              );
+            Hashtbl.reset(Language.Evaluator.step_counts);
+            Js.Unsafe.obj(Array.of_list(fields));
+          }),
+        ),
+      ),
     |]),
   );

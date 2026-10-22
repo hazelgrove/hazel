@@ -1,5 +1,8 @@
 // INVARIANT: this evaluate function should never return an expression with closures.
 
+/* MEASURING ONLY (^ticket(540)): evaluate calls and steps by kind */
+let step_counts: Hashtbl.t(string, int);
+
 type yielding_evaluation;
 
 type yielding_result =

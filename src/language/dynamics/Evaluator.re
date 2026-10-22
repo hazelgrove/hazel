@@ -89,6 +89,29 @@ let continues_delegation =
     delegations,
   );
 
+/* MEASURING ONLY (^ticket(540), trial branch): every evaluate, and every
+   step by its kind (a final with no step is "no step"), since the counts
+   were last read; read and reset by the JS library's Hazel.stepCounts(). */
+let step_counts: Hashtbl.t(string, int) = Hashtbl.create(64);
+let count = (k: string) =>
+  Hashtbl.replace(
+    step_counts,
+    k,
+    1 + Option.value(~default=0, Hashtbl.find_opt(step_counts, k)),
+  );
+let count_step = (kind: option(step_kind)) =>
+  count(
+    switch (kind) {
+    | Some(k) =>
+      let s = show_step_kind(k);
+      switch (String.index_opt(s, '(')) {
+      | Some(i) => String.sub(s, 0, i)
+      | None => s
+      };
+    | None => "no step"
+    },
+  );
+
 let rec evaluate =
         // Constants
         (
@@ -191,6 +214,7 @@ let rec evaluate =
         env,
         exp: DHExp.t,
       ) => {
+    count("evaluate");
     let.trampoline (is_finished, effects, kind, next) =
       eval_0_main(
         ~reuse_map,
@@ -202,6 +226,7 @@ let rec evaluate =
         exp,
       );
 
+    count_step(kind);
     let (call_stack, new_state) =
       EvaluatorState.update(eval_info, state^, call_stack, env, exp, effects);
 
