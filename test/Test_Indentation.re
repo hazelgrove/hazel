@@ -297,9 +297,8 @@ in 1|},
     end
 in 1|},
   ),
-  /* Slow: typing its 284 characters, each keystroke rebuilding the term
-     and statics of the whole program with three cases open, takes about
-     three seconds */
+  /* Slow: it types 284 characters, each keystroke rebuilding the term and
+     statics of the whole program with three cases open */
   slow @@
   test_indent(
     ~name="Nested cases",
@@ -336,7 +335,8 @@ go(subst(arg, x, body)) end
           go(subst(arg, x, body)) end
       | _ => Error("Not a Function") end end in go|},
   ),
-  /* Slow: typing its 147 characters takes about half a second */
+  /* Slow: it types 147 characters, each keystroke rebuilding the term and
+     statics of the whole program */
   slow @@
   test_indent(
     ~name="Even: commas, function literals, if expression",

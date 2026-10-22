@@ -4067,9 +4067,9 @@ let ascribed_binding_tests = (
         check_rendered("deleting all bindings leaves hole", "?", result);
       },
     ),
-    /* The two verbatim repros are Slow: each spends about a second and a
-       half in the typing parser on the 1.4K-character program. The
-       chess-shaped cases above keep the same shapes in the quick set. */
+    /* The two verbatim repros are Slow: each runs the 1.4K-character
+       program through the typing parser. The chess-shaped cases above keep
+       the same shapes in the quick set. */
     test_case(
       "verbatim chess program: Piece is present in node map",
       `Slow,
@@ -5323,8 +5323,7 @@ let module_member_tests = (
         /* The size cap guards only the quadratic fallback; Menhir-
            parseable chunks of any size take the linear fast path. Slow:
            re-selecting the new 400-term definition to revalidate its
-           projectors (Select.term) walks it token by token, about two
-           seconds. */
+           projectors (Select.term) walks it token by token. */
         let big =
           String.concat(" + ", List.init(400, i => string_of_int(i)));
         switch (

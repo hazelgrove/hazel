@@ -542,8 +542,8 @@ let check_zipper = (msg: string, z: Zipper.t) => {
   };
 };
 
-/* Parsed once for every case below: the typing parser takes about a second
-   on task30, and zippers are immutable. */
+/* Parsed once for every case below: the typing parser is slow on task30,
+   and zippers are immutable. */
 let task30_zipper = lazy(Haz3lcore.Parser.to_zipper(~root=Exp, task30));
 
 let action_fidelity_case = (msg: string, edit_actions: list(Action.t)) => {
@@ -800,8 +800,8 @@ let tests = {
 };
 
 /* Slow: each replays its edits on the 56-line task30 program, evaluating it
-   with every probe on after each step, and parsing task30 with the typing
-   parser takes a further second -- about three seconds for the three */
+   with every probe on after each step, after parsing task30 with the typing
+   parser */
 let fidelity_tests = [
   test_case("task30: select row, type col (mei/P3)", `Slow, () =>
     action_fidelity_case(

@@ -582,9 +582,9 @@ let tests = [
          path is lost they all take the quadratic one and the suite runs for
          minutes before anything says why.
 
-         Each analysis of the slide takes about half a second, so every
-         case that analyzes it is Slow; the quick set keeps the ones that
-         only parse it or read the table. */
+         Analyzing the slide is slow, so every case that analyzes it is
+         Slow; the quick set keeps the ones that only parse it or read the
+         table. */
       test_case(
         "takes the fast parse path",
         `Quick,
