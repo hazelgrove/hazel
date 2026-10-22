@@ -135,7 +135,7 @@ let noted = (e: DHExp.t, t: Typ.t, r: option(DHExp.t)): option(DHExp.t) => {
    part that no later push asks about, and the hash of each part's type
    besides. A record's label and a list's tail are no deeper than the
    record or the list. */
-let memo_depth = 1;
+let memo_depth = 2;
 
 /* A recursive push through a value known to have the type gives it back
    without walking it (has_type). */
