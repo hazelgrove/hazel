@@ -1,0 +1,46 @@
+# MEASURING ONLY (^ticket(535)), on this trial branch: the woods picture's
+# ^picture view on the Scenes slide, with has_type off, limited to depth 1,
+# and whole (test/Test_PicView.re). Builds only the test runner and runs only
+# that group, from the repository's root, as the slides' tests read their
+# programs from hazel-programs/.
+name: PicView timing
+
+on:
+  push:
+    branches: ["trial/2635-memo-depth"]
+  workflow_dispatch:
+
+jobs:
+  picview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout the hazel repo
+        uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-hazel-toolchain
+
+      - name: Build the test runner
+        run: |
+          export DUNE_CACHE=enabled
+          opam exec -- make setup-zarith
+          opam exec -- dune build test/haz3ltest.bc.js test/idb_stub.js --profile dev
+
+      - name: Time the woods view
+        env:
+          PICVIEW_RUNS: "9"
+        run: |
+          lscpu | grep -m1 'Model name' | tee picview.txt
+          bash test/run_node.sh test PicView 2>&1 | tail -20
+          f="$(ls -td _build/_tests/*/ | head -1)PicView.000.output"
+          grep PICVIEW "$f" | tee -a picview.txt
+          { echo '```'; cat picview.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep the numbers
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: picview
+          path: picview.txt
