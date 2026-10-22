@@ -29,6 +29,35 @@ let is = (what, expected, text) =>
     check(string, text, expected, json(value(text)))
   );
 
+/* ^ticket(547): the value the library hands JS, as a term: the program
+   evaluated as run evaluates it */
+let evaluated = (text: string): Language.Exp.t =>
+  switch (HazelLibCore.term_of(text)) {
+  | None => fail("the program does not parse")
+  | Some(term) =>
+    HazelLibCore.evaluate(snd(HazelLibCore.analyze_term(term)))
+  };
+
+/* Whether a term is a closure whose environment binds x */
+let rec holds = (x: string, e: Language.Exp.t): bool =>
+  switch (e.term) {
+  | Parens(e) => holds(x, e)
+  | Closure(env, _) => Option.is_some(Language.Environment.lookup(env, x))
+  | _ => false
+  };
+
+/* A term's printed length: a closure's environment is left out of it
+   (Grammar's Closure, [@show.opaque]), a value written into a body is not */
+let printed = (e: Language.Exp.t): int =>
+  String.length(Language.Exp.show(e));
+
+/* A function holding a list of n it built, called with k */
+let holding = n =>
+  Printf.sprintf(
+    "let build = fun (n, acc) -> if n == 0 then acc else build(n - 1, n :: acc) in let held = build(%d, []) in fun k -> let u = held in k + 1",
+    n,
+  );
+
 /* A program of modules as the Scripting panel gives it: the preamble,
    📚 Common, the trap room, and the tail (Test_ModuleProgram has the
    texts) */
@@ -152,6 +181,69 @@ let tests = (
         let f = value("fun x -> x + 1");
         check(string, "its type", "function", Js.to_string(Js.typeof(f)));
         check(string, "called with 41", "42", json(call(f, [num(41.)])));
+      },
+    ),
+    test_case(
+      "a curried function's inner function keeps its first argument",
+      `Quick,
+      () => {
+        let f = value("fun a -> fun b -> a * 10 + b");
+        check(
+          string,
+          "called with 4, then 2",
+          "42",
+          json(call(call(f, [num(4.)]), [num(2.)])),
+        );
+      },
+    ),
+    test_case(
+      "a function made by a call keeps what it captured",
+      `Quick,
+      () => {
+        let mk =
+          value(
+            "let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) end in fun xs -> fun i -> len(xs) + i",
+          );
+        let g = call(mk, [as_js("[5, 6, 7]")]);
+        check(
+          string,
+          "len([5, 6, 7]) + 39",
+          "42",
+          json(call(g, [num(39.)])),
+        );
+      },
+    ),
+    /* ^ticket(547): a returned function holds its environment by reference,
+       so a list it captured is not written into its body, where every call
+       from JS would evaluate it again, part by part (^report(29)): the
+       function is a closure holding the list, and it is the same term
+       whatever the list's size */
+    test_case(
+      "a held list stays in the function's environment, not its body",
+      `Quick,
+      () => {
+        let (small, large) = (
+          evaluated(holding(10)),
+          evaluated(holding(400)),
+        );
+        check(
+          bool,
+          "a closure holding the list",
+          true,
+          holds("held", large),
+        );
+        check(
+          int,
+          "printed, 10 against 400",
+          printed(small),
+          printed(large),
+        );
+        check(
+          string,
+          "called from JS",
+          "42",
+          json(call(value(holding(400)), [num(41.)])),
+        );
       },
     ),
     test_case(

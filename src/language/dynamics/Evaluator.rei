@@ -20,6 +20,14 @@ let evaluate:
   ) =>
   (Exp.t, EvaluatorState.t);
 
+/* evaluate without finishing: closures keep their environments, for a host
+   that calls the value again (^ticket(547)). May contain closures. */
+let evaluate_unfinished: (~env: Environment.t(Exp.t), Exp.t) => Exp.t;
+
+/* What evaluate does to a final value: the environment written in, ids
+   replaced. */
+let finish: (~env: Environment.t(Exp.t), Exp.t) => Exp.t;
+
 let evaluate_and_limit:
   (
     ~step_limit: int,
