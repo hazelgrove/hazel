@@ -109,6 +109,11 @@ build.
 
 - To add a new test, create a new file named `Test_<Feature>.re` or add to an existing file.
 - Use the [Alcotest](https://github.com/mirage/alcotest) API for defining test cases.
+- Tag a test `` `Slow `` if it is heavy next to the rest of the quick set:
+  about half a second on CI, where the `` `Quick `` tests (CI's Fast checks)
+  should stay under a minute in all. Your own machine can be twice as fast or
+  slow, so compare with other tests rather than the clock. Full tests run
+  everything.
 - Utility functions for property-based testing are in `QCheck_Util.re`.
 
 ## Troubleshooting

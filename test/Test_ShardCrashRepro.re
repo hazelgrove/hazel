@@ -542,13 +542,17 @@ let check_zipper = (msg: string, z: Zipper.t) => {
   };
 };
 
+/* Parsed once for every case below: the typing parser is slow on task30,
+   and zippers are immutable. */
+let task30_zipper = lazy(Haz3lcore.Parser.to_zipper(~root=Exp, task30));
+
 let action_fidelity_case = (msg: string, edit_actions: list(Action.t)) => {
   let settings = {
     ...Language.CoreSettings.on,
     probe_all: true,
   };
   let z0 =
-    switch (Haz3lcore.Parser.to_zipper(~root=Exp, task30)) {
+    switch (Lazy.force(task30_zipper)) {
     | Some(z) => z
     | None => Alcotest.fail("task30 failed to parse")
     };
@@ -795,20 +799,23 @@ let tests = {
   (name, cases @ drawer_tests);
 };
 
+/* Slow: each replays its edits on the 56-line task30 program, evaluating it
+   with every probe on after each step, after parsing task30 with the typing
+   parser */
 let fidelity_tests = [
-  test_case("task30: select row, type col (mei/P3)", `Quick, () =>
+  test_case("task30: select row, type col (mei/P3)", `Slow, () =>
     action_fidelity_case(
       "select+type",
       [Action.Insert("c"), Action.Insert("o"), Action.Insert("l")],
     )
   ),
-  test_case("task30: select row, arrow right (William)", `Quick, () =>
+  test_case("task30: select row, arrow right (William)", `Slow, () =>
     action_fidelity_case(
       "select+arrow",
       [Action.Move(Local(Right, ByChar))],
     )
   ),
-  test_case("task30: select, delete, retype, rapid delete (P3)", `Quick, () =>
+  test_case("task30: select, delete, retype, rapid delete (P3)", `Slow, () =>
     action_fidelity_case(
       "select+del+retype+del",
       [
