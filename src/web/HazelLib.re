@@ -23,6 +23,8 @@ let () =
         Js.Unsafe.inject(Js.wrap_callback(analyze_program)),
       ),
       ("runProgram", Js.Unsafe.inject(Js.wrap_callback(run_program))),
+      /* a JS value converted once, as a handle to pass in its place */
+      ("value", Js.Unsafe.inject(Js.wrap_callback(handle_of))),
       /* MEASURING ONLY (^ticket(540)): evaluate calls and steps by kind since
          the last read, then reset */
       (
