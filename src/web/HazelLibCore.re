@@ -173,12 +173,12 @@ and function_of = (f: Exp.t): Js.Unsafe.any =>
          inline is stepped back into that value node by node, a cost that
          grows with the argument (^report(25)'s floor). */
       let env = Environment.extend(Builtins.env_init, (js_arg, arg));
+      /* unfinished, as evaluate: a function this call returns holds what
+         it captured by reference (^ticket(547)) */
       to_js(
-        fst(
-          Evaluator.evaluate(
-            ~env,
-            Exp.fresh(Ap(Operators.Forward, f, Exp.fresh(Var(js_arg)))),
-          ),
+        Evaluator.evaluate_unfinished(
+          ~env,
+          Exp.fresh(Ap(Operators.Forward, f, Exp.fresh(Var(js_arg)))),
         ),
       );
     }),
