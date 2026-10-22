@@ -2833,12 +2833,37 @@ and uexp_to_info_map =
           )
         | _ => m
         };
-      let def_ana =
-        switch (pat.term) {
-        | Asc(_, typ) => typ
-        | _ => syn
+      /* Whether the definition names the module: the expanded Let then
+         analyzed it recursively, with the module's name in scope, and
+         wrapped it in a fixpoint. Modules are not recursive, so that
+         analysis can't be reused. (The Let removes the name from the
+         info's co_ctx, so the fixpoint is the sign.) */
+      let names_itself =
+        switch (expanded_elab.term) {
+        | Let(_, {term: FixF(_), _}, _) => true
+        | _ => false
         };
-      let (_, def_elab_direct, m) = go(~ana=def_ana, def, m);
+      /* The definition's elaboration before the Let wraps it, as the Let's
+         analysis recorded it in the definition's info (under singleton-label
+         lifting, autolabel_singleton_tuple, the info holds the inner
+         elaboration, not the lifted term). Analyzed directly when the
+         definition names the module, which reports the name as unbound, or
+         when no info was recorded. */
+      let (def_elab_direct, m) =
+        switch (Id.Map.find_opt(Exp.rep_id(def), m)) {
+        | Some(Info.InfoExp({elab_term, _})) when !names_itself => (
+            elab_term,
+            m,
+          )
+        | _ =>
+          let def_ana =
+            switch (pat.term) {
+            | Asc(_, typ) => typ
+            | _ => syn
+            };
+          let (_, elab, m) = go(~ana=def_ana, def, m);
+          (elab, m);
+        };
       let moduleexp_elab =
         ModuleHelpers.moduleexp_elab(~def_elab_direct, expanded_elab);
       add(
