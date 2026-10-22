@@ -58,50 +58,66 @@ let case_name = (sort: Sort.t, label: Label.t): string =>
 let is_compound_label = (label: Label.t): bool =>
   Form.compound_defs(label) != [];
 
-/* The outer-nib shape-role of a mold, precedence-erased. */
-let shape_role = (m: Mold.t): (bool, bool) => {
-  let (l, r) = m.nibs;
-  let conv = (n: Nib.t) =>
-    switch (n.shape) {
-    | Convex => true
-    | Concave(_) => false
-    };
-  (conv(l), conv(r));
-};
-
 /* family construction: the family key is exactly the quotient of the
-   definition rows by (label, outer-nib shape-role). */
-let check_family_grouping = (): unit =>
-  List.iter(
-    ((fam1, d1): (Form.family, Form.def)) =>
-      List.iter(
-        ((fam2, d2): (Form.family, Form.def)) => {
-          let same_family = fam1 == fam2;
-          let same_key =
-            d1.label == d2.label
-            && shape_role(d1.mold) == shape_role(d2.mold);
-          /* Checked only on a mismatch: building the message for every
-             passing pair of forms took nearly all of the test's time. */
-          if (same_key != same_family) {
-            check(
-              bool,
-              "grouping is (label, shape-role) quotient: "
-              ++ Form.show_family(fam1)
-              ++ " "
-              ++ Label.show(d1.label)
-              ++ " vs "
-              ++ Form.show_family(fam2)
-              ++ " "
-              ++ Label.show(d2.label),
-              same_key,
-              same_family,
-            );
-          };
-        },
-        Form.forms,
-      ),
-    Form.forms,
+   definition rows by (label, outer-nib shape-role), checked both ways: no
+   family spans two keys and no key spans two families. */
+let check_family_grouping = (): unit => {
+  /* A nib's shape-role is its shape with the precedence erased */
+  let shape_role = (n: Nib.t): Grout.shape =>
+    switch (n.shape) {
+    | Convex => Convex
+    | Concave(_) => Concave
+    };
+  let shape_role_testable: testable(Grout.shape) =
+    testable(Grout.pp_shape, Grout.equal_shape);
+  let key_testable =
+    pair(label_testable, pair(shape_role_testable, shape_role_testable));
+  let key =
+      ((_, d): (Form.family, Form.def))
+      : (Label.t, (Grout.shape, Grout.shape)) => (
+    d.label,
+    Util.TupleUtil.map2(shape_role, d.mold.nibs),
   );
+  /* Fails listing each value of [by] whose rows disagree on [other] */
+  let check_determines =
+      (
+        type k,
+        type v,
+        msg: string,
+        by_t: testable(k),
+        by: ((Form.family, Form.def)) => k,
+        other_t: testable(v),
+        other: ((Form.family, Form.def)) => v,
+      )
+      : unit =>
+    check(
+      list(pair(by_t, list(other_t))),
+      msg,
+      [],
+      Form.forms
+      |> Util.ListUtil.group_by(by)
+      |> List.filter_map(((k, rows)) =>
+           switch (rows |> List.map(other) |> Util.ListUtil.dedup) {
+           | [_, _, ..._] as others => Some((k, others))
+           | _ => None
+           }
+         ),
+    );
+  check_determines(
+    "each family has one (label, shape-role) key",
+    family_testable,
+    fst,
+    key_testable,
+    key,
+  );
+  check_determines(
+    "each (label, shape-role) key has one family",
+    key_testable,
+    key,
+    family_testable,
+    fst,
+  );
+};
 
 /* family uniqueness: within a family, (out sort -> mold) is a
    function — rows sharing an out sort must have identical molds
