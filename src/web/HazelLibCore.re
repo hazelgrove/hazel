@@ -77,8 +77,23 @@ let analyze_term = (term: Exp.t): (list(string), Exp.t) => {
   (ErrorPrint.all(map), elab);
 };
 
+/* Unfinished (^ticket(547)): a function handed to JS stays a closure over
+   its environment, so a value it holds is held by reference. Finished, the
+   environment would be written into its body, and every call would
+   evaluate each captured value again, part by part (^report(29)). */
 let evaluate = (e: Exp.t): Exp.t =>
-  fst(Evaluator.evaluate(~env=Builtins.env_init, e));
+  Evaluator.evaluate_unfinished(~env=Builtins.env_init, e);
+
+/* Whether a term is a function, under any closures and parentheses */
+let rec is_function = (e: Exp.t): bool =>
+  switch (e.term) {
+  | Fun(_)
+  | FixF(_)
+  | BuiltinFun(_) => true
+  | Parens(e)
+  | Closure(_, e) => is_function(e)
+  | _ => false
+  };
 
 /* The name a JS call's argument is bound to (function_of): not one a
    program can write, so it shadows nothing. */
@@ -127,6 +142,11 @@ let rec to_js = (v: Exp.t): Js.Unsafe.any =>
   | Ap(_, {term: Constructor(name, _), _}, arg) =>
     js_object([("tag", js_string(name)), ("value", to_js(arg))])
   | Parens(e) => to_js(e)
+  /* A closure over anything but a function (a form the evaluator could not
+     finish, under its environment) reads as evaluate's finish would give
+     it: the environment written in. */
+  | Closure(env, e) when !is_function(e) =>
+    to_js(Evaluator.finish(~env, e))
   | Fun(_)
   | FixF(_)
   | Closure(_)
