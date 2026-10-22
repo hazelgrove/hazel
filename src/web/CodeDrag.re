@@ -54,6 +54,8 @@ type vec = {
    layout (px deltas from where things sit now) */
 type deco_step =
   | Shift(float, float)
+  /* its anchor merges into a survivor: converge there, fading */
+  | Into(float, float)
   | Gone;
 
 type rung = {
@@ -884,6 +886,7 @@ let node_tracks =
                track_of((_, r) =>
                  switch (r.deco_delta((id, shard))) {
                  | Some(Shift(dx, dy)) => Some((dx, dy, 1.))
+                 | Some(Into(dx, dy)) => Some((dx, dy, 0.))
                  | Some(Gone) => None
                  | None => Some((0., 0., 1.))
                  }
@@ -901,6 +904,10 @@ let node_tracks =
         s.text_box##querySelectorAll(Js.string(".indication-arm")),
       )
       |> List.map((el: Js.t(Dom_html.element)) => {
+           /* the line's svg box is positioned in px; the path inside is
+              drawn in row/column units */
+           let box =
+             Js.Opt.get(el##.parentNode, () => (el :> Js.t(Dom.node)));
            let tail =
              (
                switch (s.held) {
@@ -911,7 +918,7 @@ let node_tracks =
              && Js.to_bool(el##.classList##contains(Js.string("arm-tail")));
            (
              None,
-             (el :> Js.t(Dom.node)),
+             box,
              track_of((_, r) =>
                switch (tail, r.piece_delta) {
                | (false, Some((dx, dy))) => Some((dx, dy, 1.))
@@ -952,20 +959,31 @@ let value_at = (vals: array((float, float, float)), u: float) => {
   (x0 +. (x1 -. x0) *. f, y0 +. (y1 -. y0) *. f, o0 +. (o1 -. o0) *. f);
 };
 
-let frame_css = ((dx, dy, op)) => (
+let frame_css = (~shrink=true, (dx, dy, op)) => (
   Printf.sprintf(
     "translate(%fpx, %fpx) scale(%f)",
     dx,
     dy,
-    0.25 +. 0.75 *. op,
+    shrink ? 0.25 +. 0.75 *. op : 1.,
   ),
   Printf.sprintf("%f", op),
 );
 
+/* an indication outline line fades in place; tokens leaving shrink */
+let is_outline = (node: Js.t(Dom.node)): bool =>
+  Js.Opt.test(
+    Js.Unsafe.meth_call(
+      node,
+      "querySelector",
+      [|Js.Unsafe.inject(Js.string(".indication-arm"))|],
+    ),
+  );
+
 let make_anims = (c: cand): list(Js.Unsafe.any) =>
   node_tracks(c)
   |> List.filter_map(((_, node, vals)) => {
-       let frames = Array.to_list(vals) |> List.map(frame_css);
+       let shrink = !is_outline(node);
+       let frames = Array.to_list(vals) |> List.map(frame_css(~shrink));
        paused_anim(
          node,
          Js.Unsafe.obj([|
@@ -999,7 +1017,8 @@ let relax_from = (c: cand, u: float): unit =>
   if (u > 0.01) {
     node_tracks(c)
     |> List.iter(((_, node, vals)) => {
-         let (t0, o0) = frame_css(value_at(vals, u));
+         let (t0, o0) =
+           frame_css(~shrink=!is_outline(node), value_at(vals, u));
          let keyframes =
            Js.Unsafe.obj([|
              (
@@ -1654,10 +1673,18 @@ let sync =
       let deco_delta_for =
           (
             frame: Refactor.DragCandidate.frame,
+            absorb: list((Id.t, Id.t)),
             cand_m: Measured.t,
             (id, shard): (Id.t, option(int)),
           )
-          : option(deco_step) =>
+          : option(deco_step) => {
+        let delta = (o: Measured.measurement, n: Measured.measurement) => {
+          let p = Refactor.DragCandidate.frame_point(frame, n.origin);
+          (
+            float_of_int(p.col - o.origin.col) *. font_metrics.col_width,
+            float_of_int(p.row - o.origin.row) *. font_metrics.row_height,
+          );
+        };
         switch (
           CodeFlip.anchor_meas(measured, id, shard),
           CodeFlip.anchor_meas(cand_m, id, shard),
@@ -1675,9 +1702,19 @@ let sync =
               *. font_metrics.row_height;
             Some(Shift(dx, dy));
           };
-        | (Some(_), None) => Some(Gone)
+        | (Some(o), None) =>
+          switch (
+            List.assoc_opt(id, absorb)
+            |> Option.map(v => CodeFlip.anchor_meas(cand_m, v, shard))
+          ) {
+          | Some(Some(n)) =>
+            let (dx, dy) = delta(o, n);
+            Some(Into(dx, dy));
+          | _ => Some(Gone)
+          }
         | _ => None
         };
+      };
       /* the token whose character cell the press landed in; the caret
          (rounded to the nearer gap) would pick the left neighbour of a
          one-character token pressed on its left half */
@@ -1817,7 +1854,7 @@ let sync =
           tgt: px(c.target),
           scroll_rows: c.frame.scroll_rows,
           moved,
-          deco_delta: deco_delta_for(c.frame, c.measured),
+          deco_delta: deco_delta_for(c.frame, c.absorb, c.measured),
           exits,
           enters: enters_for(c.frame, c.emerge, c.segment, c.measured),
           absorb_into:
