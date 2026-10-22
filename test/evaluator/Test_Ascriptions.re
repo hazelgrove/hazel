@@ -76,6 +76,60 @@ let tests = (
         );
       },
     ),
+    /* has_type is asked and told only to depth 1 (Ascriptions.memo_depth):
+       a list that is a part of the pushed tuple, as in `find(rest, c, r)`,
+       is remembered with its tails; a list inside one of its parts is not,
+       as a function's argument is often new at every call and its deep
+       parts are never asked about again. */
+    test_case(
+      "only a pushed value and its parts are remembered",
+      `Quick,
+      () => {
+        let v = parse_and_evaluate("([1, 2, 3], [[4, 5], [6]])");
+        let t = typ("([Int], [[Int]])");
+        check(bool, "the same object", true, push(v, t) === v);
+        let parts =
+          switch (DHExp.term_of(v)) {
+          | Tuple(es) =>
+            List.map(
+              (e: Exp.t) =>
+                switch (DHExp.term_of(e)) {
+                | TupLabel(_, inner) => inner
+                | _ => e
+                },
+              es,
+            )
+          | _ => failf("not a tuple value")
+          };
+        let (ints, lists) =
+          switch (parts) {
+          | [a, b] => (a, b)
+          | _ => failf("not a pair")
+          };
+        let tail =
+          switch (DHExp.term_of(ints)) {
+          | ListLit([_, ...tl]) => ListLit(tl) |> DHExp.fresh
+          | _ => failf("not a list value")
+          };
+        check(
+          bool,
+          "a part's tail is known",
+          true,
+          Ascriptions.known_to_have(tail, typ("[Int]")),
+        );
+        let inner =
+          switch (DHExp.term_of(lists)) {
+          | ListLit([l, ..._]) => l
+          | _ => failf("not a list value")
+          };
+        check(
+          bool,
+          "a list inside a part is not",
+          false,
+          Ascriptions.known_to_have(inner, typ("[Int]")),
+        );
+      },
+    ),
     test_case(
       "a value without the type is not remembered as having it",
       `Quick,
