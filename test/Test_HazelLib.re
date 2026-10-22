@@ -246,6 +246,36 @@ let tests = (
         );
       },
     ),
+    /* and a function a JS call returns, holding a list the call built: the
+       call is applied unfinished too (HazelLibCore.apply, ^ticket(547)) */
+    test_case(
+      "a function a call returns keeps the list it built in its environment",
+      `Quick,
+      () => {
+        let hold = "let build = fun (n, acc) -> if n == 0 then acc else build(n - 1, n :: acc) in fun n -> let held = build(n, []) in fun k -> let u = held in k + 1";
+        let returned = n =>
+          HazelLibCore.apply(evaluated(hold), HazelLibCore.of_js(num(n)));
+        let (small, large) = (returned(10.), returned(400.));
+        check(
+          bool,
+          "a closure holding the list",
+          true,
+          holds("held", large),
+        );
+        check(
+          int,
+          "printed, 10 against 400",
+          printed(small),
+          printed(large),
+        );
+        check(
+          string,
+          "called from JS",
+          "42",
+          json(call(call(value(hold), [num(400.)]), [num(41.)])),
+        );
+      },
+    ),
     test_case(
       "several arguments go to Hazel as a tuple",
       `Quick,
