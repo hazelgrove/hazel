@@ -558,7 +558,8 @@ let unlift_site = (~target: Id.t, program: Exp.t): option(unlift_site) =>
 let unlift_rewrite = (site: unlift_site): option((Exp.t, Id.t)) => {
   let g = var_pat_name(site.name_pat) |> Option.value(~default="");
   let names = List.map(fst, site.helper_params);
-  /* each call g(xs) becomes g, taking the call's place */
+  /* each call g(xs) becomes g, taking the call's place (and keeping the
+     whitespace of both: the space before g often lives on g itself) */
   let b =
     Exp.map_term(
       ~f_exp=
@@ -566,13 +567,16 @@ let unlift_rewrite = (site: unlift_site): option((Exp.t, Id.t)) => {
           switch (IdTagged.term_of(e)) {
           | Ap(_, f, a)
               when
-                IdTagged.term_of(f) == Var(g) && arg_vars(a) == Some(names) => {
+                IdTagged.term_of(f) == Var(g) && arg_vars(a) == Some(names) =>
+            let (el, et) = e.annotation.secondary
+            and (fl, ft) = f.annotation.secondary;
+            {
               ...f,
               annotation: {
                 ...f.annotation,
-                secondary: e.annotation.secondary,
+                secondary: (el @ fl, ft @ et),
               },
-            }
+            };
           | _ => cont(e)
           },
       site.fun_body,

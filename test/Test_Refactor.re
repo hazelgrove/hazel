@@ -2741,6 +2741,29 @@ let regression_tests = [
     },
   ),
   test_case(
+    "move into caller keeps the space before the call",
+    `Quick,
+    () => {
+      let (_, text) =
+        ride(
+          ~rungs=1,
+          "¦let blorg(price) = price * 8 / 100 in\nlet checkout(price) =\n  let fee = 3 in\n  price + fee + blorg(price)\nin\ncheckout(100)",
+          UnliftFunction,
+        );
+      check(
+        bool,
+        "spaced: " ++ text,
+        true,
+        switch (
+          Str.search_forward(Str.regexp_string("fee + blorg\n"), text, 0)
+        ) {
+        | _ => true
+        | exception Not_found => false
+        },
+      );
+    },
+  ),
+  test_case(
     "composite: without the setting, extract stops after one rung",
     `Quick,
     () => {
