@@ -12,6 +12,12 @@ on:
 
 jobs:
   picview:
+    # three runners at once: one runner's timings fall in two clusters, and
+    # runners differ (AMD EPYC 9V45, 7763, ...), so read across all three
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -30,7 +36,7 @@ jobs:
 
       - name: Time the woods view
         env:
-          PICVIEW_RUNS: "9"
+          PICVIEW_RUNS: "21"
         run: |
           lscpu | grep -m1 'Model name' | tee picview.txt
           bash test/run_node.sh test PicView 2>&1 | tail -20
@@ -42,5 +48,5 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: picview
+          name: picview-${{ matrix.shard }}
           path: picview.txt

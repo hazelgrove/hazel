@@ -4,7 +4,9 @@
    program B is the same, then ^picture's view code (copied from the
    slide's own definition) applied to `pic`. B - A is the view. Each run
    times every program at every setting, in turn, after a full GC.
-   PICVIEW_RUNS sets the runs (default 7). From ~/.cache/hazel-diag's
+   PICVIEW_RUNS sets the runs (default 7). Reports the minimum, the 25th
+   percentile and the median: the runs fall in two clusters, so a median
+   of a few can land in either. From ~/.cache/hazel-diag's
    Test_PicView.timing.re of 2026-10-13, which measured #2681 at first. */
 open Alcotest;
 open Language;
@@ -108,18 +110,29 @@ let measure = () => {
     );
   };
   Ascriptions.memo_depth := 1;
-  let median = l => List.nth(List.sort(compare, l), List.length(l) / 2);
+  let sorted = l => List.sort(compare, l);
+  let at = (q, l) => {
+    let l = sorted(l);
+    List.nth(l, int_of_float(q *. float_of_int(List.length(l) - 1)));
+  };
+  let stats = [("min", at(0.)), ("p25", at(0.25)), ("median", at(0.5))];
   List.iter(
     p =>
       List.iter(
         ((name, _)) => {
           let l = Hashtbl.find(times, p ++ " " ++ name);
           Printf.printf(
-            "PICVIEW %s %s: %s ms, median %.0f\n%!",
+            "PICVIEW %s %s: %s ms; %s\n%!",
             p,
             name,
             String.concat(" ", List.rev_map(Printf.sprintf("%.0f"), l)),
-            median(l),
+            String.concat(
+              ", ",
+              List.map(
+                ((s, f)) => Printf.sprintf("%s %.0f", s, f(l)),
+                stats,
+              ),
+            ),
           );
         },
         settings,
@@ -129,10 +142,21 @@ let measure = () => {
   List.iter(
     ((name, _)) =>
       Printf.printf(
-        "PICVIEW view %s (B - A medians): %.0f ms; results equal to off: %b\n%!",
+        "PICVIEW view %s (B - A): %s; results equal to off: %b\n%!",
         name,
-        median(Hashtbl.find(times, "B " ++ name))
-        -. median(Hashtbl.find(times, "A " ++ name)),
+        String.concat(
+          ", ",
+          List.map(
+            ((s, f)) =>
+              Printf.sprintf(
+                "%s %.0f",
+                s,
+                f(Hashtbl.find(times, "B " ++ name))
+                -. f(Hashtbl.find(times, "A " ++ name)),
+              ),
+            stats,
+          ),
+        ),
         Exp.fast_equal(
           Hashtbl.find(results, "B " ++ name),
           Hashtbl.find(results, "B off"),
