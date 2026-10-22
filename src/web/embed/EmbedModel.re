@@ -1,8 +1,11 @@
 /* Embed mode's state (EmbedMain runs it in a frame): one read-only cell
    of Hazel's tiles holding the program a page sent, its statics on so the
    tiles carry Hazel's own error marks, and the status the frame reports
-   back. Free of the DOM and of Page, so a page that mounts Hazel's editor
-   itself can use the same model and update. */
+   back. The cell is selectable (CodeSelectable): a click places a caret, a
+   drag or a shifted key selects, and the arrows move, so Hazel's tile
+   shapes show, but nothing in it can be edited. Free of the DOM and of
+   Page, so a page that mounts Hazel's editor itself can use the same model
+   and update. */
 open Util;
 open Haz3lcore;
 
@@ -61,7 +64,8 @@ module Status = {
   };
 };
 
-/* Statics on, and nothing that runs the program: no dynamics, no probes */
+/* Statics on, and nothing that runs the program: no dynamics, no probes.
+   No completion arrows either: they offer edits, and the cell takes none. */
 let settings: Settings.t = {
   ...Settings.Model.init,
   core: {
@@ -72,6 +76,7 @@ let settings: Settings.t = {
   },
   autoprobe_mode: Haz3lcore.AutoProbe.Off,
   line_numbers: false,
+  quiver: false,
 };
 
 /* A module's body as last read: its place and name, its text, and what
@@ -87,7 +92,10 @@ module Model = {
   type t = {
     /* None until a page sends one */
     program: option(Program.t),
-    cell: CodeWithStatics.Model.t,
+    cell: CodeSelectable.Model.t,
+    /* whether the cell has been clicked since its program was set: until
+       then it shows no caret or selection */
+    active: bool,
     status: option(Status.t),
     font_metrics: FontMetrics.t,
     /* the bodies of the last program of parts, so a set re-reads only
@@ -101,6 +109,7 @@ module Model = {
       CodeWithStatics.Model.mk(
         Editor.Model.mk(Zipper.init(), ~root=Sort.Exp),
       ),
+    active: false,
     status: None,
     font_metrics: FontMetrics.init,
     bodies: [],
@@ -113,7 +122,11 @@ module Model = {
 module Update = {
   type t =
     | Set(Program.t)
-    | SetFontMetrics(FontMetrics.t);
+    | SetFontMetrics(FontMetrics.t)
+    /* a click in the cell */
+    | Activate
+    /* a move, a selection or a copy in the cell */
+    | Cell(CodeSelectable.Update.t);
 
   /* A cell holding the zipper, and its statics */
   let cell_of_zipper = (zipper: Zipper.t): CodeWithStatics.Model.t =>
@@ -207,6 +220,7 @@ module Update = {
         ...model,
         program: Some(program),
         cell,
+        active: false,
         status:
           Some(
             Status.of_statics(~names=?Program.names(program), cell.statics),
@@ -216,6 +230,20 @@ module Update = {
     | SetFontMetrics(font_metrics) => {
         ...model,
         font_metrics,
+      }
+    | Activate => {
+        ...model,
+        active: true,
+      }
+    /* A move that cannot be made (the caret at the program's end, say)
+       leaves the cell as it was, as in the editor */
+    | Cell(action) =>
+      switch (CodeSelectable.Update.update(~settings, action, model.cell)) {
+      | updated => {
+          ...model,
+          cell: updated.model,
+        }
+      | exception (Action.Failure.Exception(_)) => model
       }
     };
 };
@@ -262,19 +290,27 @@ module Outbox = {
 module View = {
   open Virtual_dom.Vdom;
 
-  /* The cell: the program's tiles, read-only, with its error marks */
-  let view = (model: Model.t): Node.t =>
+  /* The cell: the program's tiles with its error marks, selectable but
+     not editable. Its actions go to inject; edits never reach it, since
+     CodeSelectable drops them. */
+  let view = (~inject: Update.t => Effect.t(unit), model: Model.t): Node.t =>
     Node.div(
       ~attrs=[Attr.class_("cell")],
       [
-        Node.div(
-          ~attrs=[Attr.classes(["cell-item", "code-editor", "read-only"])],
-          [
-            CodeWithStatics.View.view(
-              ~globals=Model.globals(model),
-              model.cell,
-            ),
-          ],
+        CodeSelectable.View.view(
+          ~globals=Model.globals(model),
+          ~signal=
+            fun
+            | MakeActive => inject(Activate),
+          ~edit_mode=
+            EditMode.Editable({
+              inject: action => inject(Cell(action)),
+              escape: _ => Effect.Ignore,
+              take_focus: _ => Effect.Ignore,
+              focus: model.active ? Some() : None,
+            }),
+          ~dynamics=Language.Dynamics.Map.empty,
+          model.cell,
         ),
       ],
     );

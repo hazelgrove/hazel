@@ -67,7 +67,7 @@ Hazel remembers the texts of the last program it read, part by part, so a page t
 
 ## Hazel in a frame (embed mode)
 
-`hazel.org/build/<branch>/index.html#embed` is Hazel's own app in a mode for another page's `<iframe>`: one read-only cell of Hazel's tiles, with statics on and Hazel's own error marks, showing a program the page posts to it. None of the app's startup runs: no saved state (IndexedDB), saved settings or theme, autosave, worker, or focus grabs. The frame's root has no tabindex, so the frame does not take focus from the page by itself (a click in it focuses it, as it does any frame). Hazel does not run the program there, and the theme is Hazel's default.
+`hazel.org/build/<branch>/index.html#embed` is Hazel's own app in a mode for another page's `<iframe>`: one read-only cell of Hazel's tiles, with statics on and Hazel's own error marks, showing a program the page posts to it. None of the app's startup runs: no saved state (IndexedDB), saved settings or theme, autosave, worker, or focus grabs. The frame's root has no tabindex, so the frame does not take focus from the page by itself (a click in it focuses it, as it does any frame). Hazel does not run the program there, and the theme is Hazel's default. The cell is selectable but not editable: a click places a caret, a drag, a shift-click or a shifted arrow selects, and the arrows move, so Hazel's tile shapes show around the caret and the selection; typing, pasting and cutting change nothing. A new program resets the caret and the selection.
 
 ```js
 const HAZEL = "https://hazel.org";

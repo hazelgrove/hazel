@@ -1,6 +1,7 @@
 /* Embed mode, index.html#embed: Hazel in another page's iframe. The page
    posts a program; the frame shows it as one read-only cell of tiles with
-   statics on and Hazel's own error marks, and posts back its size and the
+   statics on and Hazel's own error marks, which a click, a drag or the
+   arrow keys select in (EmbedModel.View), and posts back its size and the
    program's errors and holes (EmbedProtocol has the messages, and
    EmbedModel the state).
 
@@ -156,11 +157,17 @@ let page = (children: list(Node.t)): Node.t =>
     [FontSpecimen.view, Node.div(~attrs=[Attr.id("main")], children)],
   );
 
-let view = (~standalone: bool, model: EmbedModel.Model.t): Node.t =>
+let view = (~link, ~standalone: bool, model: EmbedModel.Model.t): Node.t =>
   page(
     switch (model.program) {
     | None => standalone ? [note] : []
-    | Some(_) => [EmbedModel.View.view(model)]
+    | Some(_) => [
+        EmbedModel.View.view(
+          ~inject=
+            action => Effect.of_sync_fun(() => update(~link, action), ()),
+          model,
+        ),
+      ]
     },
   );
 
@@ -222,7 +229,7 @@ let app = (~link, ~standalone: bool) => {
       },
     );
   let%arr model = Bonsai.Var.value(model);
-  try(view(~standalone, model)) {
+  try(view(~link, ~standalone, model)) {
   | exn =>
     crash(~link, Printexc.to_string(exn));
     page([Node.text("This program could not be shown.")]);
