@@ -232,6 +232,37 @@ let tests = (
         );
       },
     ),
+    /* ^ticket(551): a handle carries a value converted once */
+    test_case(
+      "a handle stands for its value, in a call and in a tuple of arguments",
+      `Quick,
+      () => {
+        let h = HazelLibCore.handle_of(as_js("[5, 6, 7]"));
+        let len =
+          value(
+            "let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) end in len",
+          );
+        check(string, "len of the handle", "3", json(call(len, [h])));
+        check(string, "again", "3", json(call(len, [h])));
+        let f =
+          value("fun (xs, i) -> case xs | [] => i | x :: _ => x + i end");
+        check(
+          string,
+          "with a number beside it",
+          "42",
+          json(call(f, [h, num(37.)])),
+        );
+        let obj = as_js("{\"x\":1,\"y\":2}");
+        check(
+          string,
+          "an object without the key is converted as before",
+          "3",
+          json(
+            call(value("fun r : (x = Int, y = Int) -> r.x + r.y"), [obj]),
+          ),
+        );
+      },
+    ),
     test_case(
       "several arguments go to Hazel as a tuple",
       `Quick,

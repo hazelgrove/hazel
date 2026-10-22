@@ -99,6 +99,17 @@ let rec is_function = (e: Exp.t): bool =>
    program can write, so it shadows nothing. */
 let js_arg = "%js_arg";
 
+/* A handle (^ticket(551)): a JS object carrying a Hazel value under this
+   key, made by Hazel.value (handle_of). Given to a call, the value it
+   carries is bound as it is, with no conversion: a world that changes
+   rarely is converted once, not at every call, and is the same object at
+   every call, so what Hazel remembers about it by identity (#2681's
+   has_type) holds across calls. */
+let handle_key = "__hazelValue";
+
+let is_handle = (j: Js.Unsafe.any): bool =>
+  Js.to_string(Js.typeof(Js.Unsafe.get(j, handle_key))) != "undefined";
+
 let js_string = (s: string): Js.Unsafe.any =>
   Js.Unsafe.inject(Js.string(s));
 
@@ -196,6 +207,7 @@ and of_js = (j: Js.Unsafe.any): Exp.t => {
   | "string" => Exp.fresh(Atom(String(Js.to_string(Js.Unsafe.coerce(j)))))
   | "undefined" => Exp.fresh(Tuple([]))
   | "object" when Js.Unsafe.equals(j, Js.null) => Exp.fresh(Tuple([]))
+  | "object" when is_handle(j) => Js.Unsafe.get(j, handle_key)
   | _
       when
         Js.to_bool(
@@ -254,6 +266,11 @@ and of_js = (j: Js.Unsafe.any): Exp.t => {
     };
   };
 };
+
+/* Hazel.value(x): x as a Hazel value, converted once, in a handle a call
+   can be given in x's place (^ticket(551)) */
+let handle_of = (j: Js.Unsafe.any): Js.Unsafe.any =>
+  js_object([(handle_key, Js.Unsafe.inject(of_js(j)))]);
 
 let errors_js = (errs: list(string)): Js.Unsafe.any =>
   js_array(List.map(js_string, errs));
