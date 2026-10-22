@@ -1,5 +1,5 @@
 /* MEASURING ONLY (^ticket(535), trial branch): the woods picture's ^picture
-   view, timed with has_type off, limited to depth 1, and whole. Program A
+   view, timed with has_type off, limited to depth 1, 2 and 3, and whole. Program A
    is the Scenes slide up to its picture, ending with the picture's length;
    program B is the same, then ^picture's view code (copied from the
    slide's own definition) applied to `pic`. B - A is the view. Each run
@@ -52,7 +52,13 @@ let svg = {|Html.node("svg",
    Attr.style([("border", "1px solid #ccc"), ("background", "#fafafa")])],
   shape_nodes(pic))|};
 
-let settings = [("off", (-1)), ("depth1", 1), ("full", max_int)];
+let settings = [
+  ("off", (-1)),
+  ("depth1", 1),
+  ("depth2", 2),
+  ("depth3", 3),
+  ("full", max_int),
+];
 
 let measure = () => {
   let src = read(Test_IncrSlides.playground ++ "scenes.hz");
