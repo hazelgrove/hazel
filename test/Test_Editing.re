@@ -46,26 +46,24 @@ let last_derived: ref(option((Language.CoreSettings.t, Zipper.t, derived))) =
   ref(None);
 
 let derive = (~settings: Language.CoreSettings.t, z: Zipper.t): derived => {
+  let source = lazy(MakeTerm.semantic_source(z));
   let derived =
     switch (last_derived^) {
-    | Some((s, last_z, last)) when last_z === z && s == settings => last
-    | last =>
-      let source = MakeTerm.semantic_source(z);
-      switch (last) {
-      | Some((s, _, last)) when s == settings && last.source == source => last
-      | _ =>
-        let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-        {
-          source,
-          statics:
-            lazy(
-              CachedStatics.init_from_term(
-                ~settings,
-                ~is_dynamic_term=true,
-                term,
-              )
-            ),
-        };
+    | Some((s, last_z, last))
+        when
+          s == settings && (last_z === z || last.source == Lazy.force(source)) => last
+    | _ =>
+      let term = MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
+      {
+        source: Lazy.force(source),
+        statics:
+          lazy(
+            CachedStatics.init_from_term(
+              ~settings,
+              ~is_dynamic_term=true,
+              term,
+            )
+          ),
       };
     };
   last_derived := Some((settings, z, derived));
@@ -166,25 +164,12 @@ let move_point = (~row: int=0, ~col: int, ()): Action.t =>
     ),
   );
 
-/* A ¦-marked string's text without the caret, and how many characters
- * follow the caret. */
-let split_caret = (init: string): (string, int) => {
-  let chars = Token.to_list(init);
-  let rec split =
-          (before: list(string), rest: list(string))
-          : (list(string), list(string)) =>
-    switch (rest) {
-    | [] => Alcotest.fail("Failed to find caret in: " ++ init)
-    | [hd, ...tl] =>
-      if (hd == caret_char) {
-        (List.rev(before), tl);
-      } else {
-        split([hd, ...before], tl);
-      }
-    };
-  let (before, after) = split([], chars);
-  (Token.of_list(before @ after), List.length(after));
-};
+/* Split on the one caret: the text, and how many chars follow the caret */
+let split_one_caret = (init: string): (string, int) =>
+  switch (StringUtil.plain_split(init, caret_char)) {
+  | [before, after] => (before ++ after, List.length(Token.to_list(after)))
+  | _ => Alcotest.fail("Expected exactly one caret in: " ++ init)
+  };
 
 let mk = (init: string): list(Action.t) => {
   /* Builds actions from a string with ¦ for caret position.
@@ -192,7 +177,7 @@ let mk = (init: string): list(Action.t) => {
   if (List.exists(c => c == selection_char, Token.to_list(init))) {
     Alcotest.fail("mk() does not support §. Use mk_zipper(): " ++ init);
   };
-  let (clean, chars_after_caret) = split_caret(init);
+  let (clean, chars_after_caret) = split_one_caret(init);
   string_to_ltr_actions(clean) @ mv_l_char(chars_after_caret);
 };
 
@@ -232,8 +217,8 @@ let mk_zipper = (~settings=default_settings, init: string): Zipper.t => {
     let version_b =
       chars |> List.filter(c => c != selection_char) |> Token.of_list;
     /* Build zippers */
-    let (text, after_anchor) = split_caret(version_a);
-    let (_, after_focus) = split_caret(version_b);
+    let (text, after_anchor) = split_one_caret(version_a);
+    let (_, after_focus) = split_one_caret(version_b);
     let typed =
       string_to_ltr_actions(text) |> perform(~settings, Zipper.init());
     let z_a = mv_l_char(after_anchor) |> perform(~settings, typed);
@@ -275,13 +260,6 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
 /* Parse a string with caret position using Parser.to_zipper (no auto-indent).
  * This is useful for tests that need to start from a specific state
  * without the double-indentation issue from mk(). */
-/* Split on the one caret: the text, and how many chars follow the caret */
-let split_one_caret = (init: string): (string, int) =>
-  switch (StringUtil.plain_split(init, caret_char)) {
-  | [before, after] => (before ++ after, List.length(Token.to_list(after)))
-  | _ => Alcotest.fail("Expected exactly one caret in: " ++ init)
-  };
-
 let parse_text = (text: string): Zipper.t =>
   switch (Parser.to_zipper(~root=Exp, text)) {
   | None => Alcotest.fail("Failed to parse: " ++ text)
