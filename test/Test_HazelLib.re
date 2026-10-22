@@ -155,6 +155,62 @@ let tests = (
       },
     ),
     test_case(
+      "a curried function's inner function keeps its first argument",
+      `Quick,
+      () => {
+        let f = value("fun a -> fun b -> a * 10 + b");
+        check(
+          string,
+          "called with 4, then 2",
+          "42",
+          json(call(call(f, [num(4.)]), [num(2.)])),
+        );
+      },
+    ),
+    test_case(
+      "a function made by a call keeps what it captured",
+      `Quick,
+      () => {
+        let mk =
+          value(
+            "let len = fun xs -> case xs | [] => 0 | _ :: t => 1 + len(t) end in fun xs -> fun i -> len(xs) + i",
+          );
+        let g = call(mk, [as_js("[5, 6, 7]")]);
+        check(
+          string,
+          "len([5, 6, 7]) + 39",
+          "42",
+          json(call(g, [num(39.)])),
+        );
+      },
+    ),
+    /* ^ticket(547): a returned function holds its environment by reference,
+       so a list it captured is not evaluated again at each call: the
+       evaluator's passes for a call are the same whatever the list's size */
+    test_case(
+      "a held list's size does not change what a call costs",
+      `Quick,
+      () => {
+        let held = n =>
+          value(
+            Printf.sprintf(
+              "let build = fun (n, acc) -> if n == 0 then acc else build(n - 1, n :: acc) in let held = build(%d, []) in fun k -> let u = held in k + 1",
+              n,
+            ),
+          );
+        let passes = f => {
+          Hashtbl.reset(Language.Evaluator.step_counts);
+          check(string, "the answer", "42", json(call(f, [num(41.)])));
+          Option.value(
+            ~default=0,
+            Hashtbl.find_opt(Language.Evaluator.step_counts, "evaluate"),
+          );
+        };
+        let (small, large) = (held(10), held(400));
+        check(int, "passes, 10 against 400", passes(small), passes(large));
+      },
+    ),
+    test_case(
       "several arguments go to Hazel as a tuple",
       `Quick,
       () => {

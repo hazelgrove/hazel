@@ -703,3 +703,22 @@ let evaluate =
   let value = finish(~env, Trampoline.run(result));
   (value, state^);
 };
+
+/* The final value as the evaluator left it, for a host that calls it again
+   (HazelLibCore, ^ticket(547)): a function stays a closure, its environment
+   held by reference. finish writes the environment into the function's body
+   instead, so every value the function captured becomes a literal in it,
+   evaluated again, part by part, at every call (^report(29)). Unlike
+   evaluate's, this result may contain closures. */
+let evaluate_unfinished = (~env, d: DHExp.t): DHExp.t => {
+  let (_, result) =
+    prepare_evaluation(
+      ~prev=IncrEval.empty,
+      ~eval_info=EvalInfo.empty,
+      ~env,
+      ~reuse_map=None,
+      ~outbox=None,
+      d,
+    );
+  Trampoline.run(result);
+};
