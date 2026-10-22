@@ -228,6 +228,11 @@ body.code-dragging #caret {
 body.code-dragging .code-deco .child-line {
   opacity: 0;
 }
+/* the indication outline of the held piece is animated by the drag
+   itself (it rides, or fades where the piece changes shape) */
+body.code-dragging .code-deco .child-line.indication-arm {
+  opacity: 1;
+}
 
 .code-container.meta-down .token.ref:hover {
   text-decoration: underline;

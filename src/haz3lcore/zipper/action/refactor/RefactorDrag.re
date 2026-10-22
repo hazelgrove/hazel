@@ -261,6 +261,62 @@ let place_way = (k: Action.refactor): option(int) =>
   | _ => None
   };
 
+type held = {
+  /* the tile to indicate */
+  tile: Id.t,
+  /* the piece's own delimiters (what its indication backs) */
+  own: list(Id.t),
+  /* every token of the piece */
+  tokens: list(Id.t),
+  /* a line, whose indication runs on into a body it leaves */
+  line: bool,
+};
+
+/* what a grab holds. A line handle holds its line (delimiters, pattern,
+   definition; not the body); any other token holds its own term. */
+let held_piece = (~target: Id.t, term: Exp.t): held => {
+  let own_term = () =>
+    switch (find_hit(~hit=e => List.mem(target, IdTagged.ids(e)), term)) {
+    | Some(e) => {
+        tile: target,
+        own: IdTagged.ids(e),
+        tokens: exp_subtree_ids(e),
+        line: false,
+      }
+    | None => {
+        tile: target,
+        own: [target],
+        tokens: [target],
+        line: false,
+      }
+    };
+  switch (find_hit(~hit=hit_def_line(target), term)) {
+  | Some(l) =>
+    switch (IdTagged.term_of(l)) {
+    | Let(p, def, _)
+        when hit_node(target, l) || List.mem(target, head_name_ids(p)) => {
+        tile: Exp.rep_id(l),
+        own: IdTagged.ids(l),
+        tokens: IdTagged.ids(l) @ pat_subtree_ids(p) @ exp_subtree_ids(def),
+        line: true,
+      }
+    | TyAlias(tp, _, _) => {
+        tile: Exp.rep_id(l),
+        own: IdTagged.ids(l),
+        tokens: IdTagged.ids(l) @ IdTagged.ids(tp),
+        line: true,
+      }
+    | _ => {
+        tile: target,
+        own: [target],
+        tokens: [target],
+        line: false,
+      }
+    }
+  | None => own_term()
+  };
+};
+
 /* the refactors a grab can drive: every rung of every direction's
    gesture zone (the zone table is the drag spec's handle map: which
    tokens drive which transform), without the arrow keys' first-match

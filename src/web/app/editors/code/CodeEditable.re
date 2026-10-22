@@ -1032,6 +1032,11 @@ module View = {
               Bonsai.Effect.Expert.handle(
                 inject(Perform(RefactorPath(steps))),
               ),
+          ~focus=
+            id =>
+              Bonsai.Effect.Expert.handle(
+                inject(Perform(Move(Goal(TileId(id))))),
+              ),
           ~ladders=
             globals.settings.core.drag_chain
             != Language.CoreSettings.DragChain.Off,

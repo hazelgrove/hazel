@@ -88,6 +88,9 @@ type rung = {
   emerge_src: list(Id.t),
   /* the grabbed token's displacement here — the caret rides it */
   caret_delta: option((float, float)),
+  /* the held piece's displacement here when it moves as one block
+     (its indication outline rides along), else None (it fades) */
+  piece_delta: option((float, float)),
   /* the state itself, and the element the next rung moves */
   cand: Refactor.DragCandidate.t,
   held: (Id.t, option(int)),
@@ -116,6 +119,8 @@ type pending =
 type session = {
   /* commit the path to the rung reached: (refactor, invoked at) */
   commit: list((Action.refactor, Id.t)) => unit,
+  /* put the caret on a tile, so the indication marks what is held */
+  focus: Id.t => unit,
   ladders: bool,
   push: bool,
   show_labels: bool,
@@ -143,6 +148,9 @@ type session = {
      scrub), and the current lean vector (for the release rebound) */
   mutable grab_node: option(Js.t(Dom.node)),
   mutable grab_ids: option((Id.t, option(int))),
+  /* the held piece's tokens, and whether it is a line (whose
+     indication tail runs into the body, which the line leaves) */
+  mutable held: option(Refactor.held),
   mutable local_give: list(Js.Unsafe.any),
   mutable local_give_g: vec,
   mutable listeners: list(Dom.event_listener_id),
@@ -883,6 +891,37 @@ let node_tracks =
              ))
            : None
        );
+  /* the indication's outline rides the held piece in states where it
+     moves as one block, and fades where its shape changes; a line's
+     tail runs into the body, which the line leaves, so it fades */
+  let outline =
+    switch (session^) {
+    | Some(s) =>
+      Dom.list_of_nodeList(
+        s.text_box##querySelectorAll(Js.string(".indication-arm")),
+      )
+      |> List.map((el: Js.t(Dom_html.element)) => {
+           let tail =
+             (
+               switch (s.held) {
+               | Some(h) => h.line
+               | None => false
+               }
+             )
+             && Js.to_bool(el##.classList##contains(Js.string("arm-tail")));
+           (
+             None,
+             (el :> Js.t(Dom.node)),
+             track_of((_, r) =>
+               switch (tail, r.piece_delta) {
+               | (false, Some((dx, dy))) => Some((dx, dy, 1.))
+               | _ => None
+               }
+             ),
+           );
+         })
+    | None => []
+    };
   /* the caret rides the grabbed token (movement kinds; None = the
      caret logically stays put) */
   let caret =
@@ -901,7 +940,7 @@ let node_tracks =
       ]
     | _ => []
     };
-  tokens @ decos @ caret;
+  tokens @ decos @ outline @ caret;
 };
 
 let value_at = (vals: array((float, float, float)), u: float) => {
@@ -1332,6 +1371,7 @@ let listen = (name: string, f: Js.t(Dom_html.event) => unit) =>
 let arm =
     (
       ~commit: list((Action.refactor, Id.t)) => unit,
+      ~focus: Id.t => unit,
       ~ladders: bool,
       ~push: bool,
       ~show_labels: bool,
@@ -1346,6 +1386,7 @@ let arm =
   let r = text_box##getBoundingClientRect;
   let s = {
     commit,
+    focus,
     ladders,
     push,
     show_labels,
@@ -1368,6 +1409,7 @@ let arm =
     extending: false,
     grab_node: None,
     grab_ids: None,
+    held: None,
     local_give: [],
     local_give_g: {
       x: 0.,
@@ -1665,6 +1707,18 @@ let sync =
         | Some((id, i)) => (Some(id), Some(i))
         | None => (Indicated.index(z), Indicated.shard_index(z))
         };
+      switch (grab_id) {
+      | Some(target) =>
+        let held = Refactor.held_piece(~target, term);
+        s.held = Some(held);
+        if (Indicated.index(z) != Some(held.tile)) {
+          /* deferred: this runs while the view is being built */
+          ignore(
+            Dom_html.setTimeout(() => s.focus(held.tile), 0.),
+          );
+        };
+      | None => ()
+      };
       s.grab_ids = (
         switch (grab_id) {
         | Some(tid) => Some((tid, grab_shard))
@@ -1696,6 +1750,65 @@ let sync =
          moves — the grab while it survives, else the state's focus */
       let mk_rung = (c: Refactor.DragCandidate.t, ~origin: vec, ~held) => {
         let moved = moved_for(c.frame, c.measured);
+        /* the outline's geometry is the indication's delimiter
+           places plus the held piece's two ends; it rides when that
+           set of points is translated as a whole (arms trading rows
+           leave it where it is) and fades when it changes shape */
+        let piece_delta = {
+          let framed = (m: Measured.measurement) =>
+            Refactor.DragCandidate.frame_point(c.frame, m.origin);
+          let (own, tokens) =
+            switch (s.held) {
+            | Some(h) => (h.own, h.tokens)
+            | None => ([], [])
+            };
+          let shards_of =
+              (ids, meas: (Id.t, int) => option(Measured.Point.t)) =>
+            ids
+            |> List.concat_map(id =>
+                 switch (Id.Map.find_opt(id, measured.tiles)) {
+                 | Some(shards) =>
+                   shards |> List.filter_map(((i, _)) => meas(id, i))
+                 | None => []
+                 }
+               );
+          let ends = (meas: (Id.t, int) => option(Measured.Point.t)) => {
+            let pts = shards_of(tokens, meas) |> List.sort(compare);
+            switch (pts) {
+            | [] => []
+            | [first, ..._] => [first, ListUtil.last(pts)]
+            };
+          };
+          let points = (meas: (Id.t, int) => option(Measured.Point.t)) =>
+            shards_of(own, meas) @ ends(meas) |> List.sort(compare);
+          let live =
+            points((id, i) =>
+              CodeFlip.find_meas(measured, Shard(id, i))
+              |> Option.map((m: Measured.measurement) => m.origin)
+            );
+          let here =
+            points((id, i) =>
+              CodeFlip.find_meas(c.measured, Shard(id, i))
+              |> Option.map(framed)
+            );
+          switch (live, here) {
+          | ([l0, ..._], [h0, ..._])
+              when List.length(live) == List.length(here) =>
+            let (dr, dc) = (h0.row - l0.row, h0.col - l0.col);
+            List.for_all2(
+              (l: Measured.Point.t, h: Measured.Point.t) =>
+                h.row - l.row == dr && h.col - l.col == dc,
+              live,
+              here,
+            )
+              ? Some((
+                  float_of_int(dc) *. font_metrics.col_width,
+                  float_of_int(dr) *. font_metrics.row_height,
+                ))
+              : None;
+          | _ => None
+          };
+        };
         let exits = exits_for(c.frame, c.absorb, c.segment, c.measured);
         {
           kind: c.kind,
@@ -1739,6 +1852,7 @@ let sync =
             let t = px(c.target);
             Some((t.x -. origin.x, t.y -. origin.y));
           },
+          piece_delta,
           cand: c,
           held:
             Id.Map.mem(fst(held), c.measured.tiles)

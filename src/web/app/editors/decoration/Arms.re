@@ -219,6 +219,11 @@ let paths =
     let hx = abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
     let min_col = min_col(~first, ~last, ~rows);
     let shard_rows = Shards.split_by_row(shards);
+    /* head: term start to first delimiter; tail: last delimiter to
+       term end; inner: between delimiter rows (a drag rides or fades
+       each by role) */
+    let as_role = (role, paths) =>
+      paths |> List.map(svg(~font_metrics, ~path_cls=path_cls @ [role]));
     List.concat([
       l_path(
         ~flip=false,
@@ -227,12 +232,13 @@ let paths =
         ~first,
         ~last=snd(List.hd(shards)).origin,
       )
-      |> Option.to_list,
+      |> Option.to_list
+      |> as_role("arm-head"),
       r_path(~hx, ~min_col, ~first=snd(ListUtil.last(shards)).last, ~last)
-      |> Option.to_list,
-      inner_lines(~hx, ~min_col, ~shard_rows),
-    ])
-    |> List.map(svg(~font_metrics, ~path_cls));
+      |> Option.to_list
+      |> as_role("arm-tail"),
+      inner_lines(~hx, ~min_col, ~shard_rows) |> as_role("arm-inner"),
+    ]);
   };
 
 /* This draws the shards backing decorations,
@@ -374,6 +380,8 @@ let term =
         ~font_metrics,
         ~rows=measured.rows,
         ~tiles,
+        ~line_clss=
+          dom_prefix == Some("indication-") ? ["indication-arm"] : [],
         (l, r),
         ~attr?,
         ~dom_prefix?,
