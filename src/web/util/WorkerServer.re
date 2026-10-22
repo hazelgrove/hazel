@@ -299,9 +299,40 @@ let initial_model = {
    the graph livelit slide: 2.0s -> see the commit message.) */
 let incremental_min_statics = 2500;
 
+/* ...but a small program can still be expensive to evaluate (a naive
+   recursive `fib(19)` is ~20 statics entries and ~350k steps, ~300ms),
+   and for those the pre-pass is cheap while re-evaluating is not. So
+   also take the incremental path when the program's previous evaluation
+   took at least this many evaluator steps. Chosen between the two
+   (measured 2026-10-09 under node through `run_item_sync`): the heaviest
+   program in hazel-programs/ is ~44k steps (~65ms) and fib(19) is 350k,
+   so every in-repo program stays on the from-scratch path, as should the
+   ~70ms graph-slide program (~55k steps at the ~800 steps/ms measured
+   here). 100k steps is roughly 120ms of evaluation.
+   Steps rather than wall time because a step count survives reuse: a
+   reused entry replays its recorded steps, so an incremental run
+   reports the same cost as the cold run and the gate does not flip back
+   off on the next edit (wall time would, and would vary by machine). */
+let incremental_min_prev_steps = 100_000;
+
+/* Evaluator steps of the evaluation that produced `prev`, read off the
+   cache itself: every top-level entry carries its replay state, whose
+   step span covers its subtree, so the largest span is the root's (a
+   lower bound when the root has no entry, e.g. a cancelled run). Keyed
+   exactly like `prev` (the client keeps one per batch key) and needs no
+   worker-side state, so it survives a worker respawn. */
+let prev_steps = (prev: Language.EvaluatorState.incr_eval): int =>
+  Util.Id.Map.fold(
+    (_, entry: Language.IncrEval.entry(Language.EvaluatorState.t), acc) =>
+      max(acc, entry.state.step_count - entry.state.initial_step_count),
+    prev.entries,
+    0,
+  );
+
 let wants_incremental = (req_value: Request.value): bool =>
   Util.Id.Map.cardinal(req_value.eval_info_map.statics)
-  >= incremental_min_statics;
+  >= incremental_min_statics
+  || prev_steps(req_value.prev) >= incremental_min_prev_steps;
 
 /* the reuse plan computed for a batch item, handed to its evaluation so
    the pre-pass runs once per request (keyed by the item's expr identity:
@@ -372,6 +403,32 @@ let start_evaluation = (req_value: Request.value): evaluation_start => {
   ) {
   | exception exn => CompletedImmediately(error_response(exn))
   | evaluation => Yielding(evaluation)
+  };
+};
+
+/* One batch item through the worker's own pipeline (reuse plan, then
+   evaluation in slices of the worker's budget) run to completion without
+   posting anything: what a request costs the worker, for tests. Returns
+   the plan, the result, and how many slices it took. */
+let run_item_sync =
+    (item: (key, Request.value))
+    : (Language.IncrEval.t(Language.EvaluatorState.t), Response.value, int) => {
+  let (_, plan) = predict_reuse_for_request(item);
+  switch (start_evaluation(snd(item))) {
+  | CompletedImmediately(response) => (plan, response, 0)
+  | Yielding(evaluation) =>
+    let rec go = (slices, evaluation) =>
+      switch (
+        Language.Evaluator.run_yielding_slice(
+          ~step_budget=slice_step_budget,
+          evaluation,
+        )
+      ) {
+      | exception exn => (plan, error_response(exn), slices + 1)
+      | EvaluationCompleted(value) => (plan, Ok(value), slices + 1)
+      | EvaluationYielded(evaluation) => go(slices + 1, evaluation)
+      };
+    go(0, evaluation);
   };
 };
 
