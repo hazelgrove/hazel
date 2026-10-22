@@ -125,21 +125,40 @@ let noted = (e: DHExp.t, t: Typ.t, r: option(DHExp.t)): option(DHExp.t) => {
   r;
 };
 
+/* How deep in a pushed value has_type is asked and told: the value itself
+   (0) and its parts (1), as in `find(rest, c, r)` against
+   `([Cell], Int, Int)`, where the list is a part of a tuple that is new at
+   every call. Deeper parts are walked without it. A function's argument is
+   often new on every call (a JS argument converted by the library, a
+   record built for the call), so remembering all of it, down to every
+   field and every tail of every inner list, costs a lookup and a write per
+   part that no later push asks about, and the hash of each part's type
+   besides. A record's label and a list's tail are no deeper than the
+   record or the list. */
+let memo_depth = 1;
+
 /* A recursive push through a value known to have the type gives it back
    without walking it (has_type). */
-let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) =>
+let rec transition =
+        (~recursive=false, ~depth=0, d: DHExp.t): option(DHExp.t) =>
   switch (DHExp.term_of(d)) {
-  | Asc(e, t) when recursive && known_to_have(e, t) => Some(e)
-  | Asc(e, t) when recursive => noted(e, t, step(~recursive, d))
-  | _ => step(~recursive, d)
+  | Asc(e, t) when recursive && depth <= memo_depth && known_to_have(e, t) =>
+    Some(e)
+  | Asc(e, t) when recursive && depth <= memo_depth =>
+    noted(e, t, step(~recursive, ~depth, d))
+  | _ => step(~recursive, ~depth, d)
   }
-and step = (~recursive: bool, d: DHExp.t): option(DHExp.t) => {
-  let recur = (d: DHExp.t): DHExp.t =>
+and step = (~recursive: bool, ~depth: int, d: DHExp.t): option(DHExp.t) => {
+  let recur_at = (depth: int, d: DHExp.t): DHExp.t =>
     if (recursive) {
-      transition(~recursive, d) |> Option.value(~default=d);
+      transition(~recursive, ~depth, d) |> Option.value(~default=d);
     } else {
       d;
     };
+  /* a part of the value, one level down */
+  let recur = recur_at(depth + 1);
+  /* the same value, seen through a label or as a list's tail */
+  let recur_same = recur_at(depth);
   switch (DHExp.term_of(d)) {
   | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
@@ -149,7 +168,7 @@ and step = (~recursive: bool, d: DHExp.t): option(DHExp.t) => {
       switch (Typ.meet(Ctx.empty, Typ.unroll(t), Typ.unroll(t'))) {
       | Some(t) =>
         Some(
-          recur(
+          recur_same(
             IdTagged.fast_copy(DHExp.rep_id(e), Asc(e', t) |> DHExp.fresh),
           ),
         )
@@ -160,9 +179,9 @@ and step = (~recursive: bool, d: DHExp.t): option(DHExp.t) => {
          transitions. e as it is, not a fresh copy: its id is kept, as
          everywhere here, and an e that already has the type comes back
          as itself. */
-      transition(~recursive, Asc(e, t) |> DHExp.fresh)
+      transition(~recursive, ~depth, Asc(e, t) |> DHExp.fresh)
     | (Closure(ce, d), t) =>
-      transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
+      transition(~recursive, ~depth, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, body, closure_ty, name), Arrow(t1, t2)) =>
       Some(
@@ -174,10 +193,10 @@ and step = (~recursive: bool, d: DHExp.t): option(DHExp.t) => {
         ),
       )
     | (TupLabel({term: ExplicitNonlabel, _}, inner), _) =>
-      Some(recur(Asc(inner, t) |> DHExp.fresh))
+      Some(recur_same(Asc(inner, t) |> DHExp.fresh))
     | (TupLabel(l, inner), TupLabel(_l2, inner_ty)) =>
       // TODO Figure out what to do if the labels don't match
-      let inner' = recur(Asc(inner, inner_ty) |> DHExp.fresh);
+      let inner' = recur_same(Asc(inner, inner_ty) |> DHExp.fresh);
       inner' === inner
         ? Some(e)
         : Some(
@@ -222,7 +241,7 @@ and step = (~recursive: bool, d: DHExp.t): option(DHExp.t) => {
           );
     | (Cons(d1, d2), List(ty)) =>
       let d1' = recur(Asc(d1, ty) |> DHExp.fresh);
-      let d2' = recur(Asc(d2, t) |> DHExp.fresh);
+      let d2' = recur_same(Asc(d2, t) |> DHExp.fresh);
       d1' === d1 && d2' === d2
         ? Some(e)
         : Some(
