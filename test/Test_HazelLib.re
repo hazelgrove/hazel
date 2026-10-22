@@ -208,6 +208,17 @@ let tests = (
         };
         let (small, large) = (held(10), held(400));
         check(int, "passes, 10 against 400", passes(small), passes(large));
+        /* and a function a JS call returns, holding a list the call built */
+        let hold =
+          value(
+            "let build = fun (n, acc) -> if n == 0 then acc else build(n - 1, n :: acc) in fun n -> let held = build(n, []) in fun k -> let u = held in k + 1",
+          );
+        check(
+          int,
+          "passes, returned by a call, 10 against 400",
+          passes(call(hold, [num(10.)])),
+          passes(call(hold, [num(400.)])),
+        );
       },
     ),
     test_case(
