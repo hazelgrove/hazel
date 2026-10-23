@@ -437,22 +437,27 @@ let tests =
         "map_term reaches a nested signature's items",
         `Quick,
         () => {
-          let lets = ref(0);
-          let _ =
+          let int_to_bool = (continue, t: Language.Typ.t): Language.Typ.t =>
+            switch (t.term) {
+            | Atom(Int) => {
+                ...t,
+                term: Atom(Bool),
+              }
+            | _ => continue(t)
+            };
+          check(
+            exp_typ,
+            "Inner's `let x : Int` is retyped",
+            parse_exp(
+              {|let m : { module Inner : { let x : Bool } } = { module Inner = { let x = 1 } } in m|},
+            ),
             Language.Exp.map_term(
-              ~f_sig=
-                (continue, s: Language.Sig.t) => {
-                  switch (s.term) {
-                  | SigLet(_) => incr(lets)
-                  | _ => ()
-                  };
-                  continue(s);
-                },
+              ~f_typ=int_to_bool,
               parse_exp(
                 {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
               ),
-            );
-          check(Alcotest.int, "Inner's `let x : Int` is visited", 1, lets^);
+            ),
+          );
         },
       ),
     ],
