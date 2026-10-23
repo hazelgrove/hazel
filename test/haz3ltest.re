@@ -109,6 +109,7 @@ let (suite, exit_with_test_status) =
     @ [Test_TutorialProbeSettings.tests]
     @ [Test_Derivation.tests]
     @ Test_DerivationCase.tests
+    @ [Test_DerivationExercise.tests]
     @ [Test_ShardCrashRepro.tests]
     @ Test_PromptFactory.tests
     @ Test_ShortcutConfiguration.tests

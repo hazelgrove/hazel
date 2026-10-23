@@ -412,9 +412,9 @@ let view =
             let label = Option.value(g.label, ~default="");
             let total =
               g.counts
-              |> Stdlib.List.to_seq
-              |> Stdlib.Seq.map(snd)
-              |> Stdlib.Seq.fold_left((+), 0);
+              |> Sequence.of_list
+              |> Sequence.map(~f=snd)
+              |> Sequence.fold(~init=0, ~f=(+));
             let collapsed =
               SidebarModel.Settings.is_editor_collapsed(
                 label,

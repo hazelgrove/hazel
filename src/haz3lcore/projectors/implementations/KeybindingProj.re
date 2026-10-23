@@ -168,8 +168,7 @@ module M: Projector = {
      modifier symbols are single glyphs whose byte length would over-count,
      so anything non-ASCII counts as one column. */
   let display_len = (s: string): int =>
-    String.for_all(s, ~f=c => Stdlib.Char.code(c) < 128)
-      ? String.length(s) : 1;
+    String.for_all(s, ~f=c => Char.to_int(c) < 128) ? String.length(s) : 1;
 
   let placeholder = (model, info) => {
     let cols =

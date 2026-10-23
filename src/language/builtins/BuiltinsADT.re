@@ -664,8 +664,8 @@ module Color = {
     let s = String.strip(String.lowercase(s));
     let hex_digit = c =>
       switch (c) {
-      | '0' .. '9' => Some(Stdlib.Char.code(c) - 48)
-      | 'a' .. 'f' => Some(Stdlib.Char.code(c) - 87)
+      | '0' .. '9' => Some(Char.to_int(c) - 48)
+      | 'a' .. 'f' => Some(Char.to_int(c) - 87)
       | _ => None
       };
     /* The length check has to gate the indexing, not sit beside it in a
