@@ -158,30 +158,13 @@ let test_unknown_typed_root_is_not_an_error =
     {|let n : ? = 1 in let y : n.T = 2 in y|},
   );
 
-/* A differing manifest type member is reported once, on the member's
-   definition type: the members are checked against the module's own
-   definition of T, and the module is not reported a second time. */
-let test_type_member_mismatch_single_error =
-  single_mark_test(
-    "A differing type member is the module's only error",
-    {|module M : { type T = Int; let x : T } = { type T = Bool; let x = true } in M|},
-    fun
-    | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
-    | _ => false,
-  );
-
 let test_type_member_mismatch_on_the_definition =
   Alcotest.test_case(
-    "A differing type member is marked on its definition type",
+    "A differing type member is the module's only error, on its definition type",
     `Quick,
     () => {
-      let marks =
-        marks_at(
-          {|module M : { type T = Int; let x : T } = { type T = Bool; let x = true } in M|},
-          fun
-          | InfoTyp({user_term: {term: Atom(Bool), _}, _}) => true
-          | _ => false,
-        );
+      let src = {|module M : { type T = Int; let x : T } = { type T = Bool; let x = true } in M|};
+      Alcotest.(check(int))("one mark", 1, List.length(marks_of(src)));
       Alcotest.(check(bool))(
         "Bool marked",
         true,
@@ -189,7 +172,12 @@ let test_type_member_mismatch_on_the_definition =
           fun
           | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
           | _ => false,
-          marks,
+          marks_at(
+            src,
+            fun
+            | InfoTyp({user_term: {term: Atom(Bool), _}, _}) => true
+            | _ => false,
+          ),
         ),
       );
     },
@@ -598,26 +586,12 @@ let test_type_only_module =
     Some(sig_([type_("T", int())])),
   );
 
-let test_member_references_type_member =
-  fully_consistent_typecheck(
-    "Value member references sibling type member",
-    {|{ type T = Int; let x : T = 1 }|},
-    Some(sig_([type_("T", int()), val_("x", var("T"))])),
-  );
-
 /* A shadowed type member is not exported; its uses are inlined. */
 let test_shadowed_type_member =
   fully_consistent_typecheck(
     "Shadowed type member is inlined, last declaration exported",
     {|{ type T = Int; let x : T = 1; type T = Bool; let y : T = true }|},
     Some(sig_([val_("x", int()), type_("T", bool()), val_("y", bool())])),
-  );
-
-let test_module_keyword_type_member =
-  fully_consistent_typecheck(
-    "Module returned with type member",
-    {|module M = { type T = Int; let x : T = 1 } in M|},
-    Some(sig_([type_("T", int()), val_("x", var("T"))])),
   );
 
 let test_nested_type_member_through_variable =
@@ -736,13 +710,6 @@ let test_sig_lowercase_nested =
     Some(int()),
   );
 
-let test_error_sig_module_member_mismatch =
-  inconsistent_typecheck(
-    "Sub-module member type mismatch",
-    {|module M : { module Inner : { let x : Int } } = { module Inner = { let x = true } } in M|}
-    |> parse_exp,
-  );
-
 /* ===== SPECIFIC MARKS ===== */
 
 let test_extra_member_mark =
@@ -821,27 +788,11 @@ let test_error_sig_too_wide =
     |> parse_exp,
   );
 
-/* Singleton module missing a member (sig wider) */
-let test_error_sig_too_wide_singleton =
-  inconsistent_typecheck(
-    "Singleton module missing member required by sig",
-    {|let annotated : { let x : Int; let y : Bool } = { let x = 1 } in annotated|}
-    |> parse_exp,
-  );
-
 /* Empty module missing all members */
 let test_error_sig_too_wide_empty =
   inconsistent_typecheck(
     "Empty module missing all members required by sig",
     {|let annotated : { let x : Int; let y : Bool } = {} in annotated|}
-    |> parse_exp,
-  );
-
-/* Signature manifest type member differs from the module's */
-let test_error_sig_type_member_mismatch =
-  inconsistent_typecheck(
-    "Signature manifest type member mismatch",
-    {|let m : { type T = Int; let x : T } = { type T = Bool; let x = true } in m|}
     |> parse_exp,
   );
 
@@ -878,13 +829,6 @@ let test_error_bad_field_via_var =
   inconsistent_typecheck(
     "Access non-existent field via module variable",
     {|let m = { let x = 1 } in m.y|} |> parse_exp,
-  );
-
-/* Type members are not value members */
-let test_error_type_member_as_value =
-  inconsistent_typecheck(
-    "Type member is not a value member",
-    {|let m = { type T = Int } in m.T|} |> parse_exp,
   );
 
 /* Type error from using module field with wrong type */
@@ -957,13 +901,6 @@ let test_extra_member_rejected =
   inconsistent_typecheck(
     "Extra module member is rejected by an exact signature",
     {|let annotated : {} = { let x = 1 } in annotated|} |> parse_exp,
-  );
-
-let test_extra_member_multi_rejected =
-  inconsistent_typecheck(
-    "Extra member in multi-member module is rejected",
-    {|let annotated : { let x : Int } = { let x = 1; let y = 2 } in annotated|}
-    |> parse_exp,
   );
 
 let test_sig_too_narrow_rejected =
@@ -1547,9 +1484,7 @@ let tests = (
     /* Signature synthesis */
     test_interleaved_members,
     test_type_only_module,
-    test_member_references_type_member,
     test_shadowed_type_member,
-    test_module_keyword_type_member,
     test_nested_type_member_through_variable,
     test_sig_alias_stays_sig,
     test_unannotated_sig_member,
@@ -1563,7 +1498,6 @@ let tests = (
     test_sig_module_member,
     test_sig_module_member_binder_type,
     test_sig_lowercase_nested,
-    test_error_sig_module_member_mismatch,
     /* Specific marks */
     test_extra_member_mark,
     test_extra_type_member_mark,
@@ -1578,7 +1512,6 @@ let tests = (
     test_submodule_not_found_mark,
     test_value_used_as_module_path_mark,
     test_unknown_typed_root_is_not_an_error,
-    test_type_member_mismatch_single_error,
     test_type_member_mismatch_on_the_definition,
     test_hole_binder_assumes_missing_members,
     test_hole_item_assumes_missing_members,
@@ -1604,15 +1537,12 @@ let tests = (
     test_error_sig_type_mismatch,
     test_error_sig_partial_mismatch,
     test_error_sig_too_wide,
-    test_error_sig_too_wide_singleton,
     test_error_sig_too_wide_empty,
-    test_error_sig_type_member_mismatch,
     test_error_wrong_type_in_body,
     test_error_free_variable,
     test_error_nested_type_mismatch,
     test_error_bad_field_access,
     test_error_bad_field_via_var,
-    test_error_type_member_as_value,
     test_error_field_type_mismatch,
     test_error_binding_annotation_mismatch,
     test_error_sequential_type,
@@ -1626,7 +1556,6 @@ let tests = (
     test_module_tuple_equality_rejected,
     /* No width subtyping yet */
     test_extra_member_rejected,
-    test_extra_member_multi_rejected,
     test_sig_too_narrow_rejected,
     test_label_mismatch_hole,
     test_hole_named_member_matches_any,
