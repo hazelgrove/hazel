@@ -149,7 +149,7 @@ let add_modval = (items: list(t), name: Var.t, d: TermBase.Exp.t): list(t) =>
   List.filter(
     (item: t) =>
       switch (item.term) {
-      | ModVal(x, _) => x != name
+      | ModVal(x, _) => !String.equal(x, name)
       | _ => true
       },
     items,
