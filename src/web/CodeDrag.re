@@ -66,6 +66,45 @@ type deco_step =
   | Into(float, float)
   | Gone;
 
+/* A backing uses the same measured shard and frame as its token. Keep
+   geometry separate from DOM lookup: activation can replace the backing. */
+let decoration_step =
+    (
+      ~font_metrics: FontMetrics.t,
+      ~before,
+      ~after,
+      ~frame,
+      ~absorb,
+      (id, shard),
+    ) => {
+  let delta = (o: Measured.measurement, n: Measured.measurement) => {
+    let p = Refactor.DragCandidate.frame_point(frame, n.origin);
+    (
+      float_of_int(p.col - o.origin.col) *. font_metrics.col_width,
+      float_of_int(p.row - o.origin.row) *. font_metrics.row_height,
+    );
+  };
+  switch (
+    CodeFlip.anchor_meas(before, id, shard),
+    CodeFlip.anchor_meas(after, id, shard),
+  ) {
+  | (Some(o), Some(n)) =>
+    let (dx, dy) = delta(o, n);
+    dx == 0. && dy == 0. ? None : Some(Shift(dx, dy));
+  | (Some(o), None) =>
+    switch (
+      List.assoc_opt(id, absorb)
+      |> Option.bind(_, v => CodeFlip.anchor_meas(after, v, shard))
+    ) {
+    | Some(n) =>
+      let (dx, dy) = delta(o, n);
+      Some(Into(dx, dy));
+    | None => Some(Gone)
+    }
+  | _ => None
+  };
+};
+
 type rung = {
   kind: Action.refactor,
   label: string,
@@ -333,7 +372,7 @@ let lean_nodes = (s: session): list(Js.t(Dom.node)) => {
     switch (s.grab_ids) {
     | None => []
     | Some((tid, shard)) =>
-      CodeFlip.anchored_decos()
+      CodeFlip.anchored_decos(~scope=s.text_box, ())
       |> List.filter_map(((id, sh, node)) =>
            id == tid && (shard == None || sh == None || sh == shard)
              ? Some(node) : None
@@ -832,7 +871,7 @@ let paused_anim =
 /* each displaced node's (dx, dy, opacity) in every state of a ladder,
    state 0 = live; a token a rung drops holds its place and fades */
 let node_tracks =
-    (c: cand)
+    (~scope: Js.t(Dom_html.element), c: cand)
     : list(
         (
           option(CodeFlip.key),
@@ -887,7 +926,7 @@ let node_tracks =
          )
        );
   let decos =
-    CodeFlip.anchored_decos()
+    CodeFlip.anchored_decos(~scope, ())
     |> List.filter_map(((id, shard, node)) =>
          rungs |> List.exists((r: rung) => r.deco_delta((id, shard)) != None)
            ? Some((
@@ -989,8 +1028,8 @@ let is_outline = (node: Js.t(Dom.node)): bool =>
     ),
   );
 
-let make_anims = (c: cand): list(Js.Unsafe.any) =>
-  node_tracks(c)
+let make_anims = (~scope, c: cand): list(Js.Unsafe.any) =>
+  node_tracks(~scope, c)
   |> List.filter_map(((_, node, vals)) => {
        let shrink = !is_outline(node);
        let frames = Array.to_list(vals) |> List.map(frame_css(~shrink));
@@ -1023,9 +1062,9 @@ let make_anims = (c: cand): list(Js.Unsafe.any) =>
 
 /* ease displaced tokens back to rest from where progress u holds
    them — release/cancel/track-switch CONTINUE motion, never restart */
-let relax_from = (c: cand, u: float): unit =>
+let relax_from = (~scope, c: cand, u: float): unit =>
   if (u > 0.01) {
-    node_tracks(c)
+    node_tracks(~scope, c)
     |> List.iter(((_, node, vals)) => {
          let (t0, o0) =
            frame_css(~shrink=!is_outline(node), value_at(vals, u));
@@ -1082,7 +1121,7 @@ let scrub_to = (s: session, winner: option(int), u: float): unit => {
     switch (List.assoc_opt(prev, s.scrub_anims)) {
     | Some(anims) =>
       switch (List.nth_opt(s.cands, prev)) {
-      | Some(c) => relax_from(c, s.u)
+      | Some(c) => relax_from(~scope=s.text_box, c, s.u)
       | None => ()
       };
       cancel_anims(anims);
@@ -1100,7 +1139,7 @@ let scrub_to = (s: session, winner: option(int), u: float): unit => {
         switch (List.assoc_opt(w, s.scrub_anims)) {
         | Some(anims) => anims
         | None =>
-          let anims = make_anims(c);
+          let anims = make_anims(~scope=s.text_box, c);
           s.scrub_anims = [(w, anims), ...s.scrub_anims];
           anims;
         };
@@ -1258,7 +1297,7 @@ let end_session = () => {
     switch (s.scrub_active) {
     | Some(w) =>
       switch (List.nth_opt(s.cands, w)) {
-      | Some(c) => relax_from(c, s.u)
+      | Some(c) => relax_from(~scope=s.text_box, c, s.u)
       | None => ()
       }
     | None => ()
@@ -1271,6 +1310,7 @@ let end_session = () => {
       },
     );
     scrub_clear(s);
+    s.text_box##.classList##remove(Js.string("is-refactor-dragging"));
     s.listeners |> List.iter(Dom.removeEventListener);
   | None => ()
   };
@@ -1303,6 +1343,7 @@ let on_move = (e: Js.t(Dom_html.event)): unit =>
         Dom_html.document##.body##.classList##add(
           Js.string("code-dragging"),
         );
+        s.text_box##.classList##add(Js.string("is-refactor-dragging"));
       };
     };
     if (s.began && s.pending == Idle) {
@@ -1352,7 +1393,7 @@ let on_up = (_e: Js.t(Dom_html.event)): unit =>
            scrub holds it; the scrub animations are adopted so they die
            exactly when the flights take over */
         CodeFlip.set_drag_offsets(
-          node_tracks(c)
+          node_tracks(~scope=s.text_box, c)
           |> List.filter_map(((key, _, vals)) =>
                switch (key) {
                | Some(key) =>
@@ -1714,53 +1755,6 @@ let sync =
              }
            );
       };
-      /* anchored-deco delta closure: same deltas as the anchor
-         tokens, read from the two measured maps on demand */
-      let deco_delta_for =
-          (
-            frame: Refactor.DragCandidate.frame,
-            absorb: list((Id.t, Id.t)),
-            cand_m: Measured.t,
-            (id, shard): (Id.t, option(int)),
-          )
-          : option(deco_step) => {
-        let delta = (o: Measured.measurement, n: Measured.measurement) => {
-          let p = Refactor.DragCandidate.frame_point(frame, n.origin);
-          (
-            float_of_int(p.col - o.origin.col) *. font_metrics.col_width,
-            float_of_int(p.row - o.origin.row) *. font_metrics.row_height,
-          );
-        };
-        switch (
-          CodeFlip.anchor_meas(measured, id, shard),
-          CodeFlip.anchor_meas(cand_m, id, shard),
-        ) {
-        | (Some(o), Some(n)) =>
-          let n_origin = Refactor.DragCandidate.frame_point(frame, n.origin);
-          if (o.origin == n_origin) {
-            None;
-          } else {
-            let dx =
-              float_of_int(n_origin.col - o.origin.col)
-              *. font_metrics.col_width;
-            let dy =
-              float_of_int(n_origin.row - o.origin.row)
-              *. font_metrics.row_height;
-            Some(Shift(dx, dy));
-          };
-        | (Some(o), None) =>
-          switch (
-            List.assoc_opt(id, absorb)
-            |> Option.map(v => CodeFlip.anchor_meas(cand_m, v, shard))
-          ) {
-          | Some(Some(n)) =>
-            let (dx, dy) = delta(o, n);
-            Some(Into(dx, dy));
-          | _ => Some(Gone)
-          }
-        | _ => None
-        };
-      };
       /* the token whose character cell the press landed in; the caret
          (rounded to the nearer gap) would pick the left neighbour of a
          one-character token pressed on its left half */
@@ -1900,7 +1894,14 @@ let sync =
           tgt: px(c.target),
           scroll_rows: c.frame.scroll_rows,
           moved,
-          deco_delta: deco_delta_for(c.frame, c.absorb, c.measured),
+          deco_delta:
+            decoration_step(
+              ~font_metrics,
+              ~before=measured,
+              ~after=c.measured,
+              ~frame=c.frame,
+              ~absorb=c.absorb,
+            ),
           exits,
           enters: enters_for(c.frame, c.emerge, c.segment, c.measured),
           absorb_into:

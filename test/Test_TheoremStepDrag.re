@@ -899,6 +899,247 @@ let tests = [
         },
       ),
       test_case(
+        "proof step highlights expose per-shard animation anchors",
+        `Quick,
+        () => {
+          let (_, _, before, _) = fixture("(a + ¦b) + c");
+          let ed = editor(before);
+          let id = Exp.rep_id(ed.statics.term);
+          let decorations =
+            Web.StepperEditor.View.deco(
+              ~syntax=ed.editor.syntax,
+              ~font_metrics=Web.FontMetrics.init,
+              ~inject=_ => Ui_effect.Ignore,
+              ~selected_id=None,
+              _ => Ui_effect.Ignore,
+              Web.StepperEditor.Model.{
+                editor: ed,
+                next_steps: [id],
+                taken_steps: [id],
+                refls: [id],
+              },
+            );
+          let backing_ids =
+            Js_of_ocaml.Js.Unsafe.js_expr(
+              "(function(nodes) { const ids = []; const walk = n => { const a = (n.properties || {}).attributes || {}; if ((a.class || '').split(' ').includes('shard')) ids.push(a.id || ''); (n.children || []).forEach(walk); }; nodes.forEach(walk); return ids; })",
+            );
+          let ids =
+            Js_of_ocaml.Js.Unsafe.fun_call(
+              backing_ids,
+              [|
+                Js_of_ocaml.Js.Unsafe.inject(
+                  decorations
+                  |> List.map(Virtual_dom.Vdom.Node.to_raw)
+                  |> Array.of_list
+                  |> Js_of_ocaml.Js.array,
+                ),
+              |],
+            )
+            |> Js_of_ocaml.Js.to_array
+            |> Array.to_list
+            |> List.map(Js_of_ocaml.Js.to_string);
+          check(bool, "proof backings are rendered", true, ids != []);
+          List.iter(
+            dom_id =>
+              check(bool, "backing can follow its token", true, dom_id != ""),
+            ids,
+          );
+        },
+      ),
+      test_case(
+        "proof decoration scrubs follow the pressed shard in the current row",
+        `Quick,
+        () => {
+          let list_type = Typ.fresh(List(int_type));
+          let ctx =
+            context(
+              ~law=
+                "forall (left : [Int]) -> forall (right : [Int]) -> sum(left @ right) == sum(left) + sum(right)",
+              ~bindings=[
+                ("sum", Typ.fresh(Arrow(list_type, int_type))),
+                ("xs", list_type),
+                ("ys", list_type),
+              ],
+              (),
+            );
+          let (_, _, before, _) = fixture(~ctx, "sum(xs @ ¦ys)");
+          let ed = editor(before);
+          let target = Exp.rep_id(ed.statics.term);
+          let c = choose(~ctx, ~shard=Some(1), before, target);
+          let suffix = Id.to_string(target) ++ "-1";
+          let ids = [
+            "step-next-" ++ Id.to_string(target) ++ "-0",
+            "step-next-" ++ suffix,
+            "step-taken-" ++ suffix,
+            "step-refl-" ++ suffix,
+            "indication-" ++ suffix,
+          ];
+          /* A small DOM boundary for the actual animation builder, with
+             a nested editor and a render replacing the backing elements.
+             It does not open or control a browser. */
+          let make_scope =
+            Js_of_ocaml.Js.Unsafe.js_expr(
+              {js|
+            (function(ids) {
+              const scope = {}, nested = {};
+              const make = (id, owner) => ({
+                id, animations: [],
+                getAttribute: k => k === 'id' ? id : null,
+                closest: k => k === '.code-container' ? owner : null,
+                querySelector: () => null,
+                animate(frames) {
+                  const a = { frames, cancelled: false, pause() {},
+                    cancel() { this.cancelled = true; } };
+                  this.animations.push(a);
+                  return a;
+                }
+              });
+              scope.nodes = ids.map(id => make(id, scope));
+              scope.token = make('', scope);
+              scope.nested = make(ids[1], nested);
+              scope.querySelectorAll = selector => {
+                const prefixes = Array.from(selector.matchAll(/\[id\^="([^"]+)"\]/g), m => m[1]);
+                const found = [...scope.nodes, scope.nested].filter(n => prefixes.some(p => n.id.startsWith(p)));
+                found.item = i => found[i] || null;
+                return found;
+              };
+              scope.patch = () => {
+                scope.old = scope.nodes;
+                scope.nodes = ids.map(id => make(id, scope));
+              };
+              return scope;
+            })
+          |js},
+            );
+          let scope =
+            Js_of_ocaml.Js.Unsafe.fun_call(
+              make_scope,
+              [|
+                Js_of_ocaml.Js.Unsafe.inject(
+                  ids
+                  |> List.map(Js_of_ocaml.Js.string)
+                  |> Array.of_list
+                  |> Js_of_ocaml.Js.array,
+                ),
+              |],
+            );
+          check(
+            int,
+            "only this row's backings",
+            5,
+            List.length(Web.CodeFlip.anchored_decos(~scope, ())),
+          );
+          let metrics = Web.FontMetrics.init;
+          let close =
+            Measured.find_by_id(target, ed.editor.syntax.measured)
+            |> Option.get;
+          let token = Js_of_ocaml.Js.Unsafe.get(scope, "token");
+          let dx = (-5.) *. metrics.col_width;
+          let rung: Web.CodeDrag.rung = {
+            kind: c.kind,
+            label: c.label,
+            at: c.at,
+            tgt: {
+              x: 0.,
+              y: 0.,
+            },
+            scroll_rows: 0,
+            moved: [(Web.CodeFlip.Shard(target, 1), token, dx, 0.)],
+            deco_delta:
+              Web.CodeDrag.decoration_step(
+                ~font_metrics=metrics,
+                ~before=ed.editor.syntax.measured,
+                ~after=c.measured,
+                ~frame=c.frame,
+                ~absorb=c.absorb,
+              ),
+            exits: [],
+            enters: [],
+            absorb_into: [],
+            emerge_src: [],
+            caret_delta: None,
+            piece_delta: None,
+            cand: c,
+            held: (target, Some(1)),
+          };
+          let track: Web.CodeDrag.cand = {
+            kind: c.kind,
+            label: c.label,
+            cur: {
+              x: float_of_int(close.origin.col) *. metrics.col_width,
+              y: 0.,
+            },
+            rungs: [rung],
+            exhausted: true,
+          };
+          let tracks = Web.CodeDrag.node_tracks(~scope, track);
+          check(
+            int,
+            "token and its four backings move",
+            5,
+            List.length(tracks),
+          );
+          List.iter(
+            ((_, _, frames)) =>
+              check(
+                bool,
+                "matching token and backing displacement",
+                true,
+                frames[1] == (dx, 0., 1.),
+              ),
+            tracks,
+          );
+          Js_of_ocaml.Js.Unsafe.meth_call(scope, "patch", [||]) |> ignore;
+          let animations = Web.CodeDrag.make_anims(~scope, track);
+          check(
+            int,
+            "animations include the current backings",
+            5,
+            List.length(animations),
+          );
+          let old_animations =
+            Js_of_ocaml.Js.Unsafe.js_expr(
+              "(s => [...s.old, s.nested].reduce((n, el) => n + el.animations.length, 0))",
+            );
+          check(
+            int,
+            "history, nested and replaced nodes stay untouched",
+            0,
+            Js_of_ocaml.Js.Unsafe.fun_call(
+              old_animations,
+              [|Js_of_ocaml.Js.Unsafe.inject(scope)|],
+            ),
+          );
+          Web.CodeDrag.cancel_anims(animations);
+          List.iter(
+            a =>
+              check(
+                bool,
+                "cancellation releases the decoration",
+                true,
+                Js_of_ocaml.Js.to_bool(
+                  Js_of_ocaml.Js.Unsafe.get(a, "cancelled"),
+                ),
+              ),
+            animations,
+          );
+          check(
+            bool,
+            "removed backings dissolve",
+            true,
+            Web.CodeDrag.decoration_step(
+              ~font_metrics=metrics,
+              ~before=ed.editor.syntax.measured,
+              ~after=Measured.empty,
+              ~frame=c.frame,
+              ~absorb=[],
+              (target, Some(1)),
+            )
+            == Some(Gone),
+          );
+        },
+      ),
+      test_case(
         "triple sum stays inline and records two splits and regrouping",
         `Quick,
         () => {

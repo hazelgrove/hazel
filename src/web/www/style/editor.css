@@ -222,15 +222,15 @@ body.code-dragging #caret {
 /* shape-dependent connector lines can't ride tokens honestly —
    fade them out for the drag, back in after (the backing shards DO
    ride, per-piece) */
-.code-deco .child-line {
+.code-container .child-line {
   transition: opacity 120ms ease-out;
 }
-body.code-dragging .code-deco .child-line {
+.code-container.is-refactor-dragging .child-line {
   opacity: 0;
 }
 /* the indication outline of the held piece is animated by the drag
    itself (it rides, or fades where the piece changes shape) */
-body.code-dragging .code-deco .child-line.indication-arm {
+.code-container.is-refactor-dragging .child-line.indication-arm {
   opacity: 1;
 }
 

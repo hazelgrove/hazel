@@ -52,6 +52,7 @@ module View = {
            div_c(
              "step-next",
              Arms.term(
+               ~dom_prefix="step-next-",
                ~attr=[Attr.on_mousedown(_ => inject(i))],
                ~font_metrics,
                ~syntax,
@@ -64,7 +65,10 @@ module View = {
       taken_steps
       |> List.filter_map(TermData.root_tile(_, syntax.term_data))
       |> List.map(t =>
-           div_c("step-taken", Arms.term(~font_metrics, ~syntax, t))
+           div_c(
+             "step-taken",
+             Arms.term(~dom_prefix="step-taken-", ~font_metrics, ~syntax, t),
+           )
          );
 
     let refl_steps =
@@ -75,6 +79,7 @@ module View = {
            div_c(
              "step-refl",
              Arms.term(
+               ~dom_prefix="step-refl-",
                ~attr=[Attr.on_mousedown(_ => inject(i))],
                ~font_metrics,
                ~syntax,
