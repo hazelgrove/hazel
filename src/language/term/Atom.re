@@ -209,7 +209,7 @@ let to_literal = (e: t): string =>
   | Int(i) => i |> Bigint.to_string
   | Nat(i) => i |> Bigint.to_string
   | SInt(i) => i |> string_of_int
-  | Float(f) => Stdlib.Printf.sprintf("%f", f)
+  | Float(f) => sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
   | String(s) => "\"" ++ s ++ "\""
   };
