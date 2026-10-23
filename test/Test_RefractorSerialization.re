@@ -108,6 +108,75 @@ let probe_tests = [
     ~code=
       "let x = ^^probe(1 + 2) in let y = ^^probe(x * 3) in let z = ^^probe(y - 1) in ^^probe(x + y + z)",
   ),
+  /* The trigger's parens group the probed term (#2442) */
+  test_round_trip(
+    ~name="Probe on binop under a tighter operator",
+    ~code="^^probe(1 + 2) * 3",
+  ),
+  test_round_trip(~name="Probe on prefix form", ~code="^^probe(-1) * 3"),
+  test_round_trip(
+    ~name="Probe on fun then applied",
+    ~code="^^probe(fun x -> x)(1)",
+  ),
+  test_round_trip(
+    ~name="Probe on parenthesized binop",
+    ~code="^^probe((1 + 2)) * 3",
+  ),
+  test_round_trip(
+    ~name="Probe on probed binop",
+    ~code="^^probe(^^probe(1 + 2)) * 3",
+  ),
+  test_round_trip(
+    ~name="Probe on parenthesized operand",
+    ~code="^^probe((x))",
+  ),
+];
+
+/* A probe is a decoration: the term must be the one the probe's parens
+   spell, as the menhir parser reads it (#2442). */
+let test_same_term = (~name: string, ~code: string, ~expected: string) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let parse = s =>
+        switch (Parser.to_term(s, ~root=Exp)) {
+        | Some(e) => e
+        | None => fail("Failed to parse: " ++ s)
+        };
+      check(
+        testable(
+          Fmt.using(Language.Exp.show, Fmt.string),
+          Language.Exp.fast_equal,
+        ),
+        code,
+        parse(expected),
+        parse(code),
+      );
+    },
+  );
+
+let grouping_tests = [
+  test_same_term(
+    ~name="Probe keeps grouping under a tighter operator",
+    ~code="^^probe(1 + 2) * 3",
+    ~expected="(1 + 2) * 3",
+  ),
+  test_same_term(
+    ~name="Probe keeps grouping of an applied fun",
+    ~code="^^probe(fun x -> x)(1)",
+    ~expected="(fun x -> x)(1)",
+  ),
+  test_same_term(
+    ~name="Probe on an operand adds no parens",
+    ~code="^^probe(x) * 3",
+    ~expected="x * 3",
+  ),
+  test_same_term(
+    ~name="Probe on an application adds no parens",
+    ~code="^^probe(f(1)) * 3",
+    ~expected="f(1) * 3",
+  ),
 ];
 
 /* Module round-trip tests */
@@ -146,5 +215,6 @@ let module_tests = [
 let tests = [
   ("RoundTrip.Basic", basic_tests),
   ("RoundTrip.Probes", probe_tests),
+  ("RoundTrip.ProbeGrouping", grouping_tests),
   ("RoundTrip.Modules", module_tests),
 ];

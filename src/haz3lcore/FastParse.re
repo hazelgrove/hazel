@@ -331,14 +331,59 @@ let weave =
     | [_, ..._]
         when collect_refractors && trigger_is_refractor(toks[idx^].text) =>
       /* refractor decoration: consume the trigger, splice the wrapped
-         pieces bare, and record the target for the caller to re-pin */
-      let (trigger, trig_gap, inner, rest) = consume_trigger(seg);
-      refractors :=
-        [
-          (Segment.root_id(Segment.skel(inner), inner), trigger),
-          ...refractors^,
-        ];
-      Some((gap_pieces(trig_gap) @ inner, rest));
+         pieces bare (parenthesized where they need it, as the typing path
+         does in Triggers.expand_projector), and record the target for the
+         caller to re-pin */
+      let bare = () => {
+        let (trigger, trig_gap, inner, rest) = consume_trigger(seg);
+        refractors :=
+          [
+            (Segment.root_id(Segment.skel(inner), inner), trigger),
+            ...refractors^,
+          ];
+        let spliced =
+          Segment.refractor_needs_parens(inner)
+            ? [Segment.parenthesize(inner)] : inner;
+        Some((gap_pieces(trig_gap) @ spliced, rest));
+      };
+      switch (seg) {
+      | [
+          Tile({form: Compound(Parens), children: [target], _} as parens),
+          ...rest,
+        ]
+          when Segment.refractor_needs_parens(target) =>
+        /* The grammar keeps a refractor's parens around a target that
+           needs them (AST.refractor_target), so `^^kind(` ... `)` may spell
+           this very paren tile. Or the parens are the user's, inside the
+           trigger's (`^^statics((?, 1))`): then weave it bare. */
+        let saved = (idx^, refractors^, bail_note^);
+        switch (consume_trigger(target)) {
+        | (trigger, trig_gap, inner, []) =>
+          refractors :=
+            [
+              (Segment.root_id(Segment.skel(inner), inner), trigger),
+              ...refractors^,
+            ];
+          Some((
+            gap_pieces(trig_gap)
+            @ [
+              Tile({
+                ...parens,
+                children: [inner],
+              }),
+            ],
+            rest,
+          ));
+        | (_, _, _, [_, ..._])
+        | exception Mismatch =>
+          let (i, r, n) = saved;
+          idx := i;
+          refractors := r;
+          bail_note := n;
+          bare();
+        };
+      | _ => bare()
+      };
     | [_, ..._] when trigger_is_projector(toks[idx^].text) =>
       let (trigger, trig_gap, inner, rest) = consume_trigger(seg);
       switch (materialize(trigger, inner)) {

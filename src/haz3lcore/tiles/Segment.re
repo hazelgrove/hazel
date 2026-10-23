@@ -805,6 +805,28 @@ let skel = (~sort=Sort.Exp, seg) => {
   |> Skel.mk(~sort);
 };
 
+/* Does the target of a refractor trigger `^^kind(...)` need the
+   trigger's parens to keep its grouping? They are the only grouping the
+   source gives it, and the trigger expands before anything to its right
+   is known, so a prefix or infix target spliced bare regroups against
+   the next operator: `^^probe(1 + 2) * 3` would read as `1 + 2 * 3`
+   (#2442). Operands, postfix forms and `.` (tighter than application)
+   bind tightest and splice bare.
+     `1 + 2` / `fun x -> x` / `-1`  ==> true
+     `x` / `f(1)` / `r.x` / `(1 + 2)` ==> false */
+let refractor_needs_parens = (seg: t): bool =>
+  switch (skel(seg)) {
+  | Bin(_, root, _) =>
+    switch (List.nth(seg, Util.Aba.first_a(root))) {
+    | Tile(t) => !Tile.is_dot(t)
+    | _ => true
+    }
+  | Pre(_) => true
+  | Op(_)
+  | Post(_) => false
+  | exception _ => false
+  };
+
 module Trim = {
   type seg = t;
   type t = Aba.t(list(Secondary.t), Grout.t);
