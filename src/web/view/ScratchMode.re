@@ -625,7 +625,7 @@ module Update = {
   let rec prompt_slide_name =
           (
             ~error: option(string)=?,
-            ~existing_scratchpads: Stdlib.Seq.t(string),
+            ~existing_scratchpads: Sequence.t(string),
             default: string,
           )
           : Option.t(string) => {
@@ -642,7 +642,7 @@ module Update = {
       );
 
     if (existing_scratchpads
-        |> Stdlib.Seq.exists(name =>
+        |> Sequence.exists(~f=name =>
              Option.equal(String.equal, Some(name), new_name)
            )) {
       prompt_slide_name(
@@ -695,15 +695,12 @@ module Update = {
              | _ => None
              }
            });
-      let unused_ids =
-        Stdlib.Seq.filter(
-          i => !List.mem(used_numbers, i, ~equal=Int.equal),
-          Stdlib.Seq.ints(1),
-        );
+      /* find_exn cannot fail: the candidates are every positive int. */
       let new_number =
-        Stdlib.Seq.uncons(unused_ids)
-        |> Option.value_exn  // This is safe because unused_ids is infinite
-        |> fst;
+        Sequence.unfold(~init=1, ~f=i => Some((i, i + 1)))
+        |> Sequence.find_exn(~f=i =>
+             !List.mem(used_numbers, i, ~equal=Int.equal)
+           );
 
       add_empty_slide(prefix ++ " " ++ string_of_int(new_number));
     | true =>
@@ -711,8 +708,8 @@ module Update = {
         prompt_slide_name(
           ~existing_scratchpads=
             model.scratchpads
-            |> Stdlib.List.to_seq
-            |> Stdlib.Seq.map((s: Scratchpad.t) => s.name),
+            |> Sequence.of_list
+            |> Sequence.map(~f=(s: Scratchpad.t) => s.name),
           "New Slide Name",
         );
       switch (new_name) {
@@ -851,11 +848,9 @@ module Update = {
         prompt_slide_name(
           ~existing_scratchpads=
             model.scratchpads
-            |> Stdlib.List.to_seq
-            |> Stdlib.Seq.zip(Stdlib.Seq.ints(0))
-            |> Stdlib.Seq.filter(((idx, _)) => idx != model.current)
-            |> Stdlib.Seq.map(snd)
-            |> Stdlib.Seq.map((s: Scratchpad.t) => s.name),
+            |> Sequence.of_list
+            |> Sequence.filteri(~f=(idx, _) => idx != model.current)
+            |> Sequence.map(~f=(s: Scratchpad.t) => s.name),
           current.name,
         );
 
