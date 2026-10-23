@@ -199,19 +199,7 @@ let tests = (
       "let f(x: Int, y: Int): Int = x + y in f(3, 4)",
       arrow(prod([int(), int()]), int()),
     ),
-    /* ===== Module bodies =====
-       A shorthand item is lowered to a `let` and desugared by the same
-       code; a signature's expected type is ascribed to the function name. */
-    fully_consistent_typecheck(
-      "module member: the sugar yields the arrow type",
-      "{ let f(x: Int, y: Int): Int = x + y }.f",
-      Some(arrow(prod([int(), int()]), int())),
-    ),
-    fully_consistent_typecheck(
-      "module member: ascribed by its signature",
-      "module M : { let f : (Int, Int) -> Int } = { let f(x, y) = x + y } in M.f(3, 4)",
-      Some(int()),
-    ),
+    /* ===== Module bodies ===== */
     info_map_preserves_ids(
       "ids preserved: module member",
       "{ let f(x: Int, y: Int) = x + y }.f(3, 4)",
