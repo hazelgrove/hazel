@@ -110,17 +110,6 @@ let tests = (
         ),
       )
     ),
-    test_case("string_compare", `Quick, () =>
-      evaluation_test(
-        {|string_compare(("apple", "banana"))|},
-        int(-1),
-        ap(
-          Forward,
-          builtin_fun("string_compare"),
-          tuple([string("apple"), string("banana")]),
-        ),
-      )
-    ),
     test_case("string_search not found", `Quick, () =>
       evaluation_test(
         {|string_search(("foo", "hazel", 0))|},

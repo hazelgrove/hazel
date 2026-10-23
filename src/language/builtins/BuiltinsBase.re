@@ -532,22 +532,6 @@ let string_fns: list(BuiltinsUtil.fn) = [
       }),
     custom_statics: None,
   },
-  {
-    /* An order on strings: -1, 0 or 1 as a comes before, equals or comes
-       after b, by their bytes, which in UTF-8 is the order of their code
-       points ("B" before "a"; not by locale). With it a program can keep
-       strings in a search tree or sort them; == alone cannot. */
-    name: "string_compare",
-    arg: Prod([string(), string()]),
-    ret: Atom(Int),
-    imp:
-      binary((d1, d2) => {
-        let-unbox a = (Atom(String), d1);
-        let-unbox b = (Atom(String), d2);
-        Some(Exp.int(Int.compare(String.compare(a, b), 0)));
-      }),
-    custom_statics: None,
-  },
 ];
 
 let pair_fns: list(BuiltinsUtil.fn) = [
