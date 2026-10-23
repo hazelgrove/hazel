@@ -12,6 +12,11 @@ type module_member =
   | TypeMember
   | SubModule;
 
+let module_member_to_string =
+  fun
+  | TypeMember => "type member"
+  | SubModule => "sub-module";
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | TypeExpected

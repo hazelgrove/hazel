@@ -436,6 +436,20 @@ let common_ok_view =
   );
 };
 
+/* [what] names the sort of member, e.g. "type member". */
+let member_not_found_view =
+    (what: string, {name, members}: Mark.member_not_found) =>
+  [text("Module has no " ++ what ++ " "), label_view(name)]
+  @ (
+    switch (members) {
+    | [] => []
+    | _ => [
+        text("; its " ++ what ++ "s are "),
+        ...ListUtil.join(text(", "), List.map(label_view, members)),
+      ]
+    }
+  );
+
 let underdetermined_typ_view =
     (~globals, underdetermined: Message.underdetermined_typ) => {
   let view_type = view_type(~globals);
@@ -451,15 +465,12 @@ let underdetermined_typ_view =
       ...List.map(code, labels),
     ]
   | ModuleTypeMemberMissing(name, members) =>
-    [text("Module has no type member "), label_view(name)]
-    @ (
-      switch (members) {
-      | [] => [text("; it has no type members")]
-      | _ => [
-          text("; its type members are "),
-          ...ListUtil.join(text(", "), List.map(label_view, members)),
-        ]
-      }
+    member_not_found_view(
+      TypExpectation.module_member_to_string(TypeMember),
+      {
+        name,
+        members,
+      },
     )
   | ProdProjectionBadArgs({product, label}) =>
     let product_error =
@@ -527,13 +538,23 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
 };
 
 let type_member_capture_view = names =>
-  [text("Type variable ")]
-  @ ListUtil.join(text(", "), List.map(code, names))
-  @ [
-    text(
-      " collides with a type member of the same name in this signature; rename the type variable",
-    ),
-  ];
+  switch (names) {
+  | [name] => [
+      text("Type variable "),
+      code(name),
+      text(
+        " collides with a type member of the same name in this signature; rename the type variable",
+      ),
+    ]
+  | _ =>
+    [text("Type variables ")]
+    @ ListUtil.join(text(", "), List.map(code, names))
+    @ [
+      text(
+        " collide with type members of the same names in this signature; rename them",
+      ),
+    ]
+  };
 
 let type_member_mismatch_view = (~view_type, name, ~expected, ~actual) => [
   text("Type member "),
@@ -589,22 +610,11 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text("Expected a module or tuple type, found type"),
       view_type(ty),
     ]
-  | ModuleTypeMemberNotFound(member, {name, members}) =>
-    let what =
-      switch (member) {
-      | SubModule => "sub-module"
-      | TypeMember => "type member"
-      };
-    [text("Module has no " ++ what ++ " "), label_view(name)]
-    @ (
-      switch (members) {
-      | [] => [text("; it has no " ++ what ++ "s")]
-      | _ => [
-          text("; its " ++ what ++ "s are "),
-          ...ListUtil.join(text(", "), List.map(label_view, members)),
-        ]
-      }
-    );
+  | ModuleTypeMemberNotFound(member, not_found) =>
+    member_not_found_view(
+      TypExpectation.module_member_to_string(member),
+      not_found,
+    )
   | TypWantModule({name, typ}) => [
       code(name),
       text("is a value of type"),
@@ -796,19 +806,8 @@ let exp_mark_err_view =
       text("Module is missing members required by its signature: "),
       ...ListUtil.join(text(", "), List.map(code, names)),
     ])
-  | ModuleMemberNotFound({name, members}) =>
-    div_err(
-      [text("Module has no member "), code(name)]
-      @ (
-        switch (members) {
-        | [] => [text("; it has no members")]
-        | _ => [
-            text("; its members are "),
-            ...ListUtil.join(text(", "), List.map(code, members)),
-          ]
-        }
-      ),
-    )
+  | ModuleMemberNotFound(not_found) =>
+    div_err(member_not_found_view("member", not_found))
   | ModuleMemberIsType(name) =>
     div_err([
       code(name),
@@ -909,19 +908,8 @@ let exp_view =
       )
     | Exp(AnaDeferralConsistent(ana)) =>
       div_ok([text("Expecting type"), view_type(~globals, ana)])
-    | Exp(ModuleMemberNotFound({name, members})) =>
-      div_ok(
-        [text("Module has no member "), code(name)]
-        @ (
-          switch (members) {
-          | [] => [text("; it has no members")]
-          | _ => [
-              text("; its members are "),
-              ...ListUtil.join(text(", "), List.map(code, members)),
-            ]
-          }
-        ),
-      )
+    | Exp(ModuleMemberNotFound(not_found)) =>
+      div_ok(member_not_found_view("member", not_found))
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(

@@ -32,21 +32,34 @@ let type_member_capture_string = names =>
   switch (names) {
   | [name] =>
     prn(
-      "Type variable %s collides with a type member named %s in this signature, so %s cannot be mentioned inside it; rename the type variable",
-      name,
-      name,
+      "Type variable %s collides with a type member of the same name in this signature; rename the type variable",
       name,
     )
   | _ =>
     prn(
-      "Type variables %s collide with type members of the same names in this signature, so they cannot be mentioned inside it; rename them",
+      "Type variables %s collide with type members of the same names in this signature; rename them",
       String.concat(", ", names),
+    )
+  };
+
+/* [what] names the sort of member, e.g. "type member". */
+let member_not_found_string =
+    (what: string, {name, members}: Mark.member_not_found) =>
+  switch (members) {
+  | [] => prn("Module has no %s %s", what, name)
+  | _ =>
+    prn(
+      "Module has no %s %s; its %ss are %s",
+      what,
+      name,
+      what,
+      String.concat(", ", members),
     )
   };
 
 let type_member_mismatch_string = (name, ~expected, ~actual) =>
   prn(
-    "Type member %s is %s but its signature declares %s",
+    "Type member %s is defined as %s but its signature declares %s",
     name,
     Print.typ(actual),
     Print.typ(expected),
@@ -163,16 +176,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       "Module has members its signature does not declare: %s",
       String.concat(", ", names),
     )
-  | ModuleMemberNotFound({name, members}) =>
-    switch (members) {
-    | [] => prn("Module has no member %s; it has no members", name)
-    | _ =>
-      prn(
-        "Module has no member %s; its members are %s",
-        name,
-        String.concat(", ", members),
-      )
-    }
+  | ModuleMemberNotFound(not_found) =>
+    member_not_found_string("member", not_found)
   | ModuleMemberIsType(name) =>
     prn(
       "%s is a type member of the module, not a value; use it in a type position",
@@ -260,24 +265,11 @@ let typ_mark_string: Mark.t => string =
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
     prn("Expected a module or tuple type, found type %s", Print.typ(ty))
-  | ModuleTypeMemberNotFound(member, {name, members}) => {
-      let what =
-        switch (member) {
-        | SubModule => "sub-module"
-        | TypeMember => "type member"
-        };
-      switch (members) {
-      | [] => prn("Module has no %s %s; it has no %ss", what, name, what)
-      | _ =>
-        prn(
-          "Module has no %s %s; its %ss are %s",
-          what,
-          name,
-          what,
-          String.concat(", ", members),
-        )
-      };
-    }
+  | ModuleTypeMemberNotFound(member, not_found) =>
+    member_not_found_string(
+      TypExpectation.module_member_to_string(member),
+      not_found,
+    )
   | TypWantModule({name, typ}) =>
     prn("%s is a value of type %s, not a module", name, Print.typ(typ))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
