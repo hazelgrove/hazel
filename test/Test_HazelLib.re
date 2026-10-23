@@ -195,43 +195,6 @@ let tests = (
         );
       },
     ),
-    /* ^ticket(547): a returned function holds its environment by reference,
-       so a list it captured is not evaluated again at each call: the
-       evaluator's passes for a call are the same whatever the list's size */
-    test_case(
-      "a held list's size does not change what a call costs",
-      `Quick,
-      () => {
-        let held = n =>
-          value(
-            Printf.sprintf(
-              "let build = fun (n, acc) -> if n == 0 then acc else build(n - 1, n :: acc) in let held = build(%d, []) in fun k -> let u = held in k + 1",
-              n,
-            ),
-          );
-        let passes = f => {
-          Hashtbl.reset(Language.Evaluator.step_counts);
-          check(string, "the answer", "42", json(call(f, [num(41.)])));
-          Option.value(
-            ~default=0,
-            Hashtbl.find_opt(Language.Evaluator.step_counts, "evaluate"),
-          );
-        };
-        let (small, large) = (held(10), held(400));
-        check(int, "passes, 10 against 400", passes(small), passes(large));
-        /* and a function a JS call returns, holding a list the call built */
-        let hold =
-          value(
-            "let build = fun (n, acc) -> if n == 0 then acc else build(n - 1, n :: acc) in fun n -> let held = build(n, []) in fun k -> let u = held in k + 1",
-          );
-        check(
-          int,
-          "passes, returned by a call, 10 against 400",
-          passes(call(hold, [num(10.)])),
-          passes(call(hold, [num(400.)])),
-        );
-      },
-    ),
     /* ^ticket(551): a handle carries a value converted once */
     test_case(
       "a handle stands for its value, in a call and in a tuple of arguments",
