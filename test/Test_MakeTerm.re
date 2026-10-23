@@ -433,5 +433,27 @@ let tests =
           {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
         )
       ),
+      test_case(
+        "map_term reaches a nested signature's items",
+        `Quick,
+        () => {
+          let lets = ref(0);
+          let _ =
+            Language.Exp.map_term(
+              ~f_sig=
+                (continue, s: Language.Sig.t) => {
+                  switch (s.term) {
+                  | SigLet(_) => incr(lets)
+                  | _ => ()
+                  };
+                  continue(s);
+                },
+              parse_exp(
+                {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
+              ),
+            );
+          check(Alcotest.int, "Inner's `let x : Int` is visited", 1, lets^);
+        },
+      ),
     ],
   );
