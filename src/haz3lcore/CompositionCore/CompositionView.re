@@ -150,8 +150,7 @@ module Local = {
     let zipper_for_agent_context =
         (editor: Editor.t, agent_context: AgentContext.Model.t): Zipper.t => {
       let z = editor.state.zipper;
-      /* per-item statics, memoized per program by DefStatics (a Mod
-         root's whole) */
+      /* per-item statics, memoized per program by DefStatics */
       let info_map = CompositionGo.Public.mk_statics(~root=editor.root, z);
       switch (CompositionGo.Public.node_map_of(~root=editor.root, z)) {
       | None => z

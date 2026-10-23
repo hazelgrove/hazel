@@ -1102,37 +1102,75 @@ let build_from_items = (ds: DefStatics.t): option(t) => {
           ...rest,
         ];
       };
+    /* a module's items pair in order with the members they lower
+       (DefStatics.step_chain's srcs; the exports tail with none). A
+       member binding nothing (a test, a statement, a hole) is no node,
+       as in [build_children]'s Module case */
+    let members = (e: Exp.t): list(Mod.t) =>
+      switch (DefStatics.strip(e).term) {
+      | Module(members) => members
+      | _ => []
+      };
+    let binds = (src: option(Mod.t)): bool =>
+      switch (src) {
+      | None
+      | Some({term: ModLet(_) | ModType(_) | ModuleMod(_), _}) => true
+      | Some(_) => false
+      };
     let rec add_items =
-            (path: list(Id.t), items: list(DefStatics.item), node_map: t): t =>
-      List.fold_left(
-        (acc: t, (it: DefStatics.item, node: Exp.t)) =>
-          switch (Id.Map.find_opt(it.d_id, it.d_map)) {
-          | None => acc
-          | Some(analyzed) =>
-            let info =
-              switch (analyzed) {
-              | Info.InfoExp(e) =>
-                Info.InfoExp({
-                  ...e,
-                  user_term: node,
-                })
-              | other => other
-              };
-            switch (it.d_members) {
-            | [] => walk_root(info, path, acc, it.d_map)
-            | members =>
-              /* a module binding analyzed member-granularly: the parent
-                 map does not describe the literal's body — the node, then
-                 the members as its children, each from its own map */
-              let node_path = path @ [Info.id_of(info)];
-              let acc = init_node(info, node_path, acc);
-              add_items(node_path, members, acc);
+            (
+              path: list(Id.t),
+              srcs: list(Mod.t),
+              items: list(DefStatics.item),
+              node_map: t,
+            )
+            : t => {
+      let rec go = (srcs, items, acc) =>
+        switch (items) {
+        | [] => acc
+        | [(it, node), ...items] =>
+          let (src, srcs) =
+            switch (srcs) {
+            | [src, ...srcs] => (Some(src), srcs)
+            | [] => (None, [])
             };
-          },
-        node_map,
-        List.combine(items, respine(items)),
-      );
-    let node_map = add_items([dummy_root], ds.items, node_map);
+          go(srcs, items, binds(src) ? add_item(path, it, node, acc) : acc);
+        };
+      go(srcs, List.combine(items, respine(items)), node_map);
+    }
+    and add_item =
+        (path: list(Id.t), it: DefStatics.item, node: Exp.t, acc: t): t =>
+      switch (Id.Map.find_opt(it.d_id, it.d_map)) {
+      | None => acc
+      | Some(analyzed) =>
+        let info =
+          switch (analyzed) {
+          | Info.InfoExp(e) =>
+            Info.InfoExp({
+              ...e,
+              user_term: node,
+            })
+          | other => other
+          };
+        switch (it.d_members) {
+        | [] => walk_root(info, path, acc, it.d_map)
+        | items =>
+          /* a module binding analyzed member-granularly: the parent
+             map does not describe the literal's body — the node, then
+             the members as its children, each from its own map */
+          let node_path = path @ [Info.id_of(info)];
+          let acc = init_node(info, node_path, acc);
+          let srcs =
+            switch (node.term) {
+            | Let(_, def, _)
+            | ModuleExp(_, def, _) => members(def)
+            | _ => []
+            };
+          add_items(node_path, srcs, items, acc);
+        };
+      };
+    let node_map =
+      add_items([dummy_root], members(ds.term), ds.items, node_map);
     let node_map = build_siblings_and_trim(node_map);
     Some(Id.Map.remove(dummy_root, node_map));
   };

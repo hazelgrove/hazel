@@ -59,13 +59,7 @@ let run_insert_at_program_boundary =
   let before_pieces =
     LocalReformat.snapshot_pieces(~enabled=CoreSettings.on.auto_reindent, z);
   switch (
-    CompositionGo.Public.insert_at_boundary(
-      ~root,
-      ~info_map=initial_info_map,
-      direction,
-      z,
-      new_code,
-    )
+    CompositionGo.Public.insert_at_boundary(~root, direction, z, new_code)
   ) {
   | Error(e) => Error(e)
   | Ok(new_z) =>

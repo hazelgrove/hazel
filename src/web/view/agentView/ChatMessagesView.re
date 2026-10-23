@@ -865,7 +865,7 @@ let view =
   let node_map: option(HighLevelNodeMap.t) = {
     let z = code_with_statics.editor.state.zipper;
     let root = code_with_statics.editor.root;
-    root == Sort.Exp && !Id.Map.is_empty(code_with_statics.statics.info_map)
+    !Id.Map.is_empty(code_with_statics.statics.info_map)
       ? HighLevelNodeMap.build_for(z, code_with_statics.statics)
       : CompositionGo.Public.node_map_of(~root, z);
   };

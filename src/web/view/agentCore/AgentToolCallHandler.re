@@ -192,47 +192,34 @@ let update =
     let root = editor.editor.root;
     /* the editor's statics for this program when it has them; the new
        program's computed the editor's way, per item (the editor's
-       recompute is a DefStatics memo hit). A Mod root's are whole: the
-       boundary insert walks its module's members */
+       recompute is a DefStatics memo hit) */
     let eff_settings =
       Language.CoreSettings.{
         ...settings.core,
         probe_all: settings.core.probe_all && !Util.AgentPulse.in_burst(),
       };
-    let statics_of = (z: Zipper.t): Language.Statics.Map.t =>
-      Util.PerfTimer.time("statics", () =>
-        root == Sort.Mod
-          ? CompositionGo.Public.mk_statics_with(~root, settings.core, z)
-          : CachedStatics.init_compositional(
-              ~settings=eff_settings,
-              ~stitch=x => x,
-              ~root,
-              z,
-            ).
-              info_map
-      );
     let initial_info_map =
-      root == Sort.Exp && editor.statics.info_map != Id.Map.empty
-        ? editor.statics.info_map : statics_of(z);
+      editor.statics.info_map != Id.Map.empty
+        ? editor.statics.info_map
+        : CompositionGo.Public.statics_for(~settings=eff_settings, ~root, z);
     /* inserted code arrives indentation-stripped; re-indent its new
        lines like user Paste */
     let before_pieces =
       LocalReformat.snapshot_pieces(~enabled=settings.core.auto_reindent, z);
     switch (
-      CompositionGo.Public.insert_at_boundary(
-        ~root,
-        ~info_map=initial_info_map,
-        direction,
-        z,
-        code,
-      )
+      CompositionGo.Public.insert_at_boundary(~root, direction, z, code)
     ) {
     | Error(Action.Failure.Composition_action_failure(msg)) =>
       Error(Failure.Info(msg))
     | Error(_) =>
       Error(Failure.Info("Failed to insert code at program boundary"))
     | Ok(new_z) =>
-      let new_statics = statics_of(new_z);
+      let new_statics =
+        CompositionGo.Public.statics_for(
+          ~settings=eff_settings,
+          ~root,
+          new_z,
+        );
       let old_errors = ErrorPrint.all(initial_info_map);
       let new_errors = ErrorPrint.all(new_statics);
       if (List.length(new_errors) > List.length(old_errors)) {

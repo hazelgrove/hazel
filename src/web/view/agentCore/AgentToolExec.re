@@ -70,8 +70,7 @@ let mk_diff =
   switch (action) {
   | EditorAction(edit_action) =>
     /* per-item statics: DefStatics memoizes per program, so the passes
-       the tool path already ran for both programs are reused here (a Mod
-       root reads its programs whole) */
+       the tool path already ran for both programs are reused here */
     switch (
       CompositionGo.Public.get_diff(
         ~settings=settings.core,

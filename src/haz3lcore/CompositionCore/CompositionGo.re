@@ -7,38 +7,45 @@ open OptUtil.Syntax;
    The tool path on the per-item statics engine: the node map from the
    item chain, the maps from DefStatics (a diff-walk plus the dirty items
    instead of a whole-program pass). Set for the duration of one structural
-   action on an Exp-rooted program by Public.go; the editor keeps its own
+   action by Public.go, with the program's root; the editor keeps its own
    statics meanwhile. */
-let items_mode: ref(option(Language.CoreSettings.t)) = ref(None);
-/* the per-item analysis of an Exp-rooted program, the way the editor
-   makes it (CachedStatics.init_compositional): the semantic per-item
-   parse, so the tool path and the editor share Incr's parse cache and
-   DefStatics' memo slot for the same program. One structural action asks
-   for the same zipper several times (statics, node map, diff): memoized
-   on zipper identity. */
-let items_memo: ref(option((Zipper.t, DefStatics.t))) = ref(None);
-let items_for = (settings: Language.CoreSettings.t, z: Zipper.t): DefStatics.t =>
+let items_mode: ref(option((Language.CoreSettings.t, Sort.t))) = ref(None);
+/* the per-item analysis of a program, the way the editor makes it
+   (CachedStatics.init_compositional): the semantic per-item parse, so the
+   tool path and the editor share Incr's parse cache and DefStatics' memo
+   slot for the same program. One structural action asks for the same
+   zipper several times (statics, node map, diff): memoized on zipper
+   identity. */
+let items_memo: ref(option((Zipper.t, Sort.t, DefStatics.t))) = ref(None);
+let items_for =
+    (~root: Sort.t, settings: Language.CoreSettings.t, z: Zipper.t)
+    : DefStatics.t =>
   switch (items_memo^) {
-  | Some((z0, ds)) when z0 === z => ds
+  | Some((z0, r0, ds)) when z0 === z && r0 == root => ds
   | _ =>
-    let term =
-      MakeTerm.semantic_term(~root=Exp, MakeTerm.semantic_source(z));
     let ds =
       DefStatics.calc_auto(
         ~settings,
         ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
-        term,
+        MakeTerm.semantic_term(~root, MakeTerm.semantic_source(z)),
       );
-    items_memo := Some((z, ds));
+    items_memo := Some((z, root, ds));
     ds;
+  };
+/* the program's term at [root], as semantics reads it: the analyzed one
+   when [z]'s is memoized */
+let program_term = (~root: Sort.t, z: Zipper.t): Exp.t =>
+  switch (items_memo^) {
+  | Some((z0, r0, ds)) when z0 === z && r0 == root => ds.term
+  | _ => MakeTerm.semantic_term(~root, MakeTerm.semantic_source(z))
   };
 
 /* phase timers for the journal's perf lines */
 let build = (z, info_map) =>
   PerfTimer.time("node-map", () =>
     switch (items_mode^) {
-    | Some(settings) =>
-      HighLevelNodeMap.build_from_items(items_for(settings, z))
+    | Some((settings, root)) =>
+      HighLevelNodeMap.build_from_items(items_for(~root, settings, z))
     | None => build(z, info_map)
     }
   );
@@ -249,26 +256,29 @@ module Local = {
       };
     };
 
+    /* a Mod root's items, from its program's term */
+    let root_items = (program: Exp.t): option(list(Mod.t)) =>
+      switch (DefStatics.strip(program).term) {
+      | Module(items) => Some(items)
+      | _ => None
+      };
+
     /* the member a new test follows: [node], past the test members
-       directly after it in its module: its parent binding's literal
-       (per-item maps have no info for it), else the nearest Module among
-       its statics ancestors (a Mod root's) */
+       directly after it in its module: its parent binding's literal, else
+       (at a Mod root's top level) the program's */
     let past_test_members =
-        (~info_map: Id.Map.t(Info.t), node_map: node_map, node: node): Id.t => {
+        (
+          ~info_map: Id.Map.t(Info.t),
+          ~program: Lazy.t(Exp.t),
+          node_map: node_map,
+          node: node,
+        )
+        : Id.t => {
       let id = id_of(node);
       let items =
         switch (member_items(~info_map, node_map, node)) {
         | Some(_) as items => items
-        | None =>
-          List.find_map(
-            a =>
-              switch (Id.Map.find_opt(a, info_map)) {
-              | Some(InfoExp({user_term: {term: Module(items), _}, _})) =>
-                Some(items)
-              | _ => None
-              },
-            Info.ancestors(~info_map, node.info),
-          )
+        | None => root_items(Lazy.force(program))
         };
       let rec past = (after, items: list(Mod.t)) =>
         switch (items) {
@@ -300,18 +310,9 @@ module Local = {
     };
 
     /* a Mod root's last item before its trailing expression, which a test
-       with no path follows: the root's items through any node's
-       outermost ancestor */
-    let last_member =
-        (~info_map: Id.Map.t(Info.t), node_map: node_map): option(Id.t) => {
-      let* (_, node) = Id.Map.min_binding_opt(node_map);
-      let* root = ListUtil.last_opt(Info.ancestors(~info_map, node.info));
-      let* items =
-        switch (Id.Map.find_opt(root, info_map)) {
-        | Some(InfoExp({user_term: {term: Module(items), _}, _})) =>
-          Some(items)
-        | _ => None
-        };
+       with no path follows */
+    let last_member = (program: Exp.t): option(Id.t) => {
+      let* items = root_items(program);
       let rec go = (last, items: list(Mod.t)) =>
         switch (items) {
         | [] => last
@@ -1981,6 +1982,7 @@ module Local = {
             initial_z,
             Utils.past_test_members(
               ~info_map=initial_info_map,
+              ~program=lazy(program_term(~root, initial_z)),
               initial_node_map,
               node,
             ),
@@ -1996,9 +1998,7 @@ module Local = {
             test ++ ";",
           )
         | None when root == Sort.Mod =>
-          switch (
-            Utils.last_member(~info_map=initial_info_map, initial_node_map)
-          ) {
+          switch (Utils.last_member(program_term(~root, initial_z))) {
           | Some(item) =>
             PerformUtils.insert_member(
               ~splice_root=root,
@@ -2174,56 +2174,20 @@ module Local = {
 };
 
 module Public = {
-  /* per-item statics for a zipper: the merged map with spine ancestors */
-  let mk_statics_items =
-      (~settings: Language.CoreSettings.t, z: Zipper.t)
-      : Language.StaticsBase.Map.t =>
-    PerfTimer.time("items-statics", () =>
-      ItemsSpine.merged_with_spine(items_for(settings, z))
-    );
-  /* the program's statics, read at its editor's root, analyzed whole so
-     the node map can walk a Mod root's chain of members (per-item statics
-     hold no info for a Mod root's module). A Mod root's term comes from
-     Incr, which keeps it physically stable: from_zip_for_sem reads the
-     same term but builds it anew per call, so Statics.mk (memoized on the
-     term) reruns and its module lowering mints fresh ids for the members'
-     synthesized tail, and two calls' maps disagree */
-  let mk_statics_with =
-      (~root=Sort.Exp, settings: Language.CoreSettings.t, z: Zipper.t) => {
-    let term =
-      if (root == Sort.Mod) {
-        let (seg, masks) =
-          MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
-        MakeTerm.Incr.term_of_root(~masks, ~root, seg);
-      } else {
-        MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-      };
-    Language.(
-      fst(
-        Statics.mk(
-          settings,
-          Builtins.ctx_init(Some(Operators.default_mode)),
-          term,
-        ),
-      )
-    );
-  };
-  /* the tool path's statics: per item at an Exp root, whole at a Mod root */
+  /* the tool path's statics: per item, the merged map with spine ancestors */
   let statics_for =
       (~settings: Language.CoreSettings.t, ~root: Sort.t, z: Zipper.t)
       : Language.StaticsBase.Map.t =>
-    root == Sort.Mod
-      ? PerfTimer.time("statics", () => mk_statics_with(~root, settings, z))
-      : mk_statics_items(~settings, z);
+    PerfTimer.time("items-statics", () =>
+      ItemsSpine.merged_with_spine(items_for(~root, settings, z))
+    );
   /* display-side callers without an editor record in hand */
   let mk_statics = (~root=Sort.Exp, z: Zipper.t): Language.StaticsBase.Map.t =>
     statics_for(~settings=Language.CoreSettings.on, ~root, z);
   let node_map_of = (~root=Sort.Exp, z: Zipper.t): option(HighLevelNodeMap.t) =>
-    root == Sort.Mod
-      ? build(z, mk_statics(~root, z))
-      : HighLevelNodeMap.build_from_items(
-          items_for(Language.CoreSettings.on, z),
-        );
+    HighLevelNodeMap.build_from_items(
+      items_for(~root, Language.CoreSettings.on, z),
+    );
   /* a no-path insert_before / insert_after: [code] at the program's start
      or end. A Mod root's top level is a module body, so there [code]'s
      members go in as members, each with its `;`: first, or after the last
@@ -2231,7 +2195,6 @@ module Public = {
   let insert_at_boundary =
       (
         ~root: Sort.t,
-        ~info_map: Language.StaticsBase.Map.t,
         d: Action.Structural.insert_target,
         z: Zipper.t,
         code: string,
@@ -2239,9 +2202,7 @@ module Public = {
       : result(Zipper.t, Action.Failure.t) =>
     switch (root, d) {
     | (Mod, After) =>
-      switch (
-        Option.bind(build(z, info_map), Local.Utils.last_member(~info_map))
-      ) {
+      switch (Local.Utils.last_member(program_term(~root, z))) {
       | Some(item) =>
         Local.PerformUtils.insert_member(
           ~splice_root=root,
@@ -2264,23 +2225,20 @@ module Public = {
         "\n" ++ code ++ "\n",
       )
     };
-  /* [f] with node maps from the item chain at an Exp root */
+  /* [f] with node maps from the item chain */
   let in_items_mode =
-      (~settings: Language.CoreSettings.t, ~root: Sort.t, f: unit => 'a): 'a =>
-    if (root == Sort.Mod) {
-      f();
-    } else {
-      let saved = items_mode^;
-      items_mode := Some(settings);
-      switch (f()) {
-      | res =>
-        items_mode := saved;
-        res;
-      | exception e =>
-        items_mode := saved;
-        raise(e);
-      };
+      (~settings: Language.CoreSettings.t, ~root: Sort.t, f: unit => 'a): 'a => {
+    let saved = items_mode^;
+    items_mode := Some((settings, root));
+    switch (f()) {
+    | res =>
+      items_mode := saved;
+      res;
+    | exception e =>
+      items_mode := saved;
+      raise(e);
     };
+  };
   /* the diff of a structural action, both programs read at [root] */
   let get_diff =
       (

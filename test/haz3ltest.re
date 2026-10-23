@@ -115,6 +115,7 @@ let (suite, exit_with_test_status) =
     @ [Test_EvalPieces.tests, Test_EvalMsgBench.tests]
     @ [Test_AgentHardening.tests]
     @ Test_AgentTools.tests
+    @ Test_AgentModRoot.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
     @ [Test_AgentUX.tests]
