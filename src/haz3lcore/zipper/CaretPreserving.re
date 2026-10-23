@@ -107,9 +107,8 @@ let collect_predecessor_ids = (z: t): Id.Map.t(unit) => {
        );
   current_preds
   @ ancestor_preds
-  |> Stdlib.List.to_seq
-  |> Seq.map(id => (id, ()))
-  |> Id.Map.of_seq;
+  |> List.map(~f=id => (id, ()))
+  |> Id.Map.of_list;
 };
 
 /* Find position based on same-segment predecessors. Scans left-to-right,
