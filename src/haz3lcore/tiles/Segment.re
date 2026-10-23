@@ -185,7 +185,7 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
      keep owing its `let` instead. */
   let candidates =
     switch (Form.remold_candidates(Tile.label(t), s)) {
-    | [] when Tile.is_complete(t) || !Tile.has_end(Left, t) => []
+    | [] when !Tile.has_end(Left, t) => []
     | [] =>
       let shards = List.init(List.length(t.shards), Fun.id);
       Form.compound_remold_candidates(Tile.effective_label(t), s)
