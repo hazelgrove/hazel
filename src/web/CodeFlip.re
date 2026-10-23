@@ -686,49 +686,91 @@ let deco_prefixes = [
   "warndec-",
   "indication-",
   "projdec-",
+  "step-next-",
+  "step-taken-",
+  "step-refl-",
 ];
 
 /* anchors are PER-SHARD where the id encodes one (indication-
    <uuid>-<k>): delimiters of one tile don't move rigidly (case vs
    end), so a tile-level delta smears — each deco rides exactly its
    own token */
-let anchored_decos = (): list((Id.t, option(int), Js.t(Dom.node))) =>
-  deco_prefixes
-  |> List.concat_map(~f=prefix =>
-       JsUtil.ids_with_prefix(prefix)
-       |> List.filter_map(~f=dom_id => {
-            let rest =
-              String.sub(
-                dom_id,
-                ~pos=String.length(prefix),
-                ~len=String.length(dom_id) - String.length(prefix),
-              );
-            /* a uuid is 36 chars; an optional -<shard> follows */
-            let uuid =
-              String.length(rest) > 36
-                ? String.sub(rest, ~pos=0, ~len=36) : rest;
-            let shard =
-              if (String.length(rest) > 37) {
-                switch (
-                  int_of_string_opt(
-                    String.sub(rest, ~pos=37, ~len=String.length(rest) - 37),
-                  )
-                ) {
-                | s => s
+let anchored_decos =
+    (~scope: Js.t(Dom_html.element), ())
+    : list((Id.t, option(int), Js.t(Dom.node))) => {
+  /* Proof history can display the same syntax ids in multiple rows, and
+     overlapping step highlights can share an anchor even within a row.
+     Resolve the actual nodes in this editor, never a document-wide id. */
+  let selector =
+    deco_prefixes
+    |> List.map(~f=prefix => "[id^=\"" ++ prefix ++ "\"]")
+    |> String.concat(~sep=",");
+  let elements =
+    switch (scope##querySelectorAll(Js.string(selector))) {
+    | exception _ => []
+    | nodes => Dom.list_of_nodeList(nodes)
+    };
+  elements
+  |> List.filter_map(~f=(el: Js.t(Dom_html.element)) => {
+       let owner =
+         Js.Unsafe.meth_call(
+           el,
+           "closest",
+           [|Js.Unsafe.inject(Js.string(".code-container"))|],
+         );
+       if (!Js.Opt.test(owner)
+           || !phys_equal(Js.Opt.get(owner, () => scope), scope)) {
+         None;
+       } else {
+         el##getAttribute(Js.string("id"))
+         |> Js.Opt.to_option
+         |> Option.map(~f=Js.to_string)
+         |> Option.bind(
+              _,
+              ~f=dom_id => {
+                open OptUtil.Syntax;
+                let* prefix =
+                  List.find(
+                    ~f=prefix => String.is_prefix(dom_id, ~prefix),
+                    deco_prefixes,
+                  );
+                let rest =
+                  String.sub(
+                    dom_id,
+                    ~pos=String.length(prefix),
+                    ~len=String.length(dom_id) - String.length(prefix),
+                  );
+                /* a uuid is 36 chars; an optional -<shard> follows */
+                let uuid =
+                  String.length(rest) > 36
+                    ? String.sub(rest, ~pos=0, ~len=36) : rest;
+                let shard =
+                  if (String.length(rest) > 37) {
+                    switch (
+                      int_of_string_opt(
+                        String.sub(
+                          rest,
+                          ~pos=37,
+                          ~len=String.length(rest) - 37,
+                        ),
+                      )
+                    ) {
+                    | s => s
+                    | exception _ => None
+                    };
+                  } else {
+                    None;
+                  };
+                switch (Id.of_string(uuid)) {
                 | exception _ => None
+                | None => None
+                | Some(id) => Some((id, shard, (el :> Js.t(Dom.node))))
                 };
-              } else {
-                None;
-              };
-            switch (Id.of_string(uuid)) {
-            | exception _ => None
-            | None => None
-            | Some(id) =>
-              JsUtil.get_elem_by_id_opt(dom_id)
-              |> Option.map(~f=el => (id, shard, (el :> Js.t(Dom.node))))
-            };
-          })
-     );
+              },
+            );
+       };
+     });
+};
 
 /* a deco anchor's measurement: its exact shard when known */
 let anchor_meas =
@@ -1143,7 +1185,7 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                        elements re-found post-render (vdom may have
                        replaced them), offsets looked up by the
                        anchor's shard keys */
-                    anchored_decos()
+                    anchored_decos(~scope=Js.Unsafe.coerce(container), ())
                     |> List.iter(~f=((id, shard, node)) =>
                          switch (
                            anchor_meas(old_m, id, shard),
