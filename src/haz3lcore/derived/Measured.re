@@ -209,10 +209,7 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
         switch (Id.Map.find_opt(id, map.projectors)) {
         | Some(m) => Some(m)
         | None =>
-          Stdlib.Printf.printf(
-            "Measured.WARNING: id %s not found",
-            Id.to_string(id),
-          );
+          printf("Measured.WARNING: id %s not found", Id.to_string(id));
           None;
         }
       }

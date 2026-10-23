@@ -27,7 +27,7 @@ module Print = {
   let typ = (ty: Typ.t): string => term(Typ(ty));
 };
 
-let prn = Stdlib.Printf.sprintf;
+let prn = sprintf;
 
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
