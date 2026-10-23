@@ -187,10 +187,11 @@ let tests = [
         editor: original,
       };
       let d =
-        Web.Divided.split(
+        Web.Divided.open_(
           ~info_map=statics.info_map,
-          whole,
-          Test_StackFocus.outline_id(statics.term, "advance"),
+          ~term=statics.term,
+          CorpusUtil.row_by_label(statics.term, "advance"),
+          Web.Divided.of_whole(whole),
         )
         |> Option.get;
       let editors: Web.Editors.Model.t =

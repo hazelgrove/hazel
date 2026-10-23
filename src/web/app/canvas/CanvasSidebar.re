@@ -1569,7 +1569,7 @@ let view_impl =
       : Effect.Many([
           editors_inject(
             Editors.Update.Scratch(
-              ScratchMode.Update.Outline(DefOp(OutlineSidebar.Delete, id)),
+              ScratchMode.Update.Outline(DefOp(OutlineEdit.Delete, id)),
             ),
           ),
           globals.inject_global(Set(Sidebar(SetCanvasFocusTy(None)))),
@@ -3907,7 +3907,7 @@ let view_impl =
         | Some((title, id)) =>
           let seg = editor.editor.syntax.segment;
           let body =
-            switch (ScratchFocus.find_def(id, seg)) {
+            switch (ScratchFocus.find_def(~root=editor.editor.root, id, seg)) {
             | Some(def) => [
                 CanvasDefPreview.view(~globals, ~key=seg, ~id, def),
               ]

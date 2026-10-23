@@ -33,7 +33,8 @@ type probe_model = {
      the nav bar only while this site holds the focus anchor */
   [@default false]
   card_mode: bool,
-  /* the ⇓ toggle's probe: its drawer and nothing at the line's end */
+  /* made by the ⇓ toggle: marks its probe through a pin, step-into or
+     reload (ProjectorInfo.is_program_value) */
   [@default false]
   bare: bool,
 };
@@ -49,6 +50,7 @@ let init_probe_model: probe_model = {
   bare: false,
 };
 
+/* the ⇓ probe: an open drawer, marked bare */
 let tail_model: string =
   {
     ...init_probe_model,
@@ -267,11 +269,6 @@ module Settings = {
   let value_fallback: ref(Id.t => option(Virtual_dom.Vdom.Node.t)) =
     ref(_ => None);
 
-  /* Bumped when drawers must re-lay out (their print width or a
-   * measured height changed): CachedSyntax recomputes drawer rows when
-   * it moves. */
-  let layout = DrawerFit.layout;
-
   /* drawers print values at the editor's visible width */
   let set_drawer_width = (width: int) =>
     if (width != s^.drawer.width) {
@@ -283,7 +280,7 @@ module Settings = {
           },
         };
       version := version^ + 1;
-      layout := layout^ + 1;
+      DrawerFit.layout := DrawerFit.layout^ + 1;
     };
 
   let set_sticky = (b: bool) => {
@@ -363,8 +360,6 @@ type probe_ctx = {
   /* canvas type card: the chip's own dbl-click toggles do not apply
      (the card's dbl-click collapses it) */
   card: bool,
-  /* the ⇓ toggle's probe: a drawer only */
-  bare: bool,
   p_info: info,
 };
 
@@ -1859,7 +1854,7 @@ let key_handler =
     Many([local(ResetSettings), parent(SampleFocus(Reset))]);
   | D("Escape") when ctx.p_info.stepping != None =>
     Many([parent(Probe(HideSteps)), Stop_propagation, Prevent_default])
-  | D("Escape") when drawer_mode_active && !ctx.bare =>
+  | D("Escape") when drawer_mode_active && !ctx.p_info.program_value =>
     Many([local(SetDrawerMode(false)), Stop_propagation, Prevent_default])
   | D("Escape") =>
     blur_to_editor();
@@ -1929,6 +1924,7 @@ let key_handler =
   | D(" ") =>
     Many([local(ToggleWindowMode), Stop_propagation, Prevent_default])
   | D("p" | "P") when key.meta == Down || key.ctrl == Down => Ignore /* Defer to page-level handler for auto-probe toggle */
+  | D("k" | "K") when key.meta == Down || key.ctrl == Down => Ignore /* Command palette (document-level hotkey) */
   | D("p") =>
     /* Pin/Unpin the indicated sample, or Focus/Unfocus for non-ap probes */
     switch (indicated_sample(ctx), ap_id) {
@@ -2047,7 +2043,6 @@ let prepare_offside =
       auto_unbounded: model.auto_rich,
       card: model.card_mode,
       lengths: model.sample_lengths,
-      bare: model.bare,
       p_info: info,
     };
     let filtered_samples =
@@ -2196,7 +2191,7 @@ let live_offside_view =
     ["live-offside", settings.window |> Sample.Window.show_mode]
     @ (Settings.sticky^ ? ["sticky"] : [])
     @ (scrollable ? ["drawer-overflow"] : [])
-    @ (ctx.bare ? ["program-value"] : []);
+    @ (ctx.p_info.program_value ? ["program-value"] : []);
   /* on_close is a thunk: a bare local(SetDropdown(None)) would fire every render. */
   SampleMenuListener.sync(
     ~menu_open=Settings.open_dropdown^ != None,
@@ -2662,13 +2657,11 @@ let keep_clicks = [
   ),
 ];
 
-let steps_drawer_view = (~parent, ~overflowing: bool, info: info): Node.t =>
+let steps_drawer_view = (~parent, info: info): Node.t =>
   div(
     ~attrs=
       [
-        Attr.classes(
-          ["steps-drawer"] @ (overflowing ? ["overflowing"] : []),
-        ),
+        Attr.classes(["steps-drawer"]),
         Attr.create("data-drawer-id", Id.to_string(info.id)),
       ]
       @ keep_clicks,
@@ -2807,13 +2800,9 @@ module M: Projector = {
 
   let placeholder = (model: model, info: info) =>
     switch (info.stepping) {
-    | Some(st) =>
-      /* uncapped: steps are worked through, so the drawer opens to the
-         whole trace instead of scrolling inside itself */
-      ProjectorCore.Shape.{
-        horizontal: 0,
-        vertical: Tab(max(1, DrawerFit.rows(info.id, st.rows))),
-      }
+    /* uncapped: steps are worked through, so the drawer opens to the
+       whole trace instead of scrolling inside itself */
+    | Some(st) => DrawerFit.shape(info.id, st.rows)
     | None => placeholder_samples(model, info)
     };
 
@@ -2978,7 +2967,7 @@ module M: Projector = {
     let drawer = model.drawer_mode && !model.card_mode || stepping;
     let offside_main =
       switch (data_opt, drawer) {
-      | (_, true) when model.bare => Node.div([])
+      | (_, true) when info.program_value => Node.div([])
       | (None, _) => empty_view(~id=info.id, ~settings)
       | (Some(data), _) when model.card_mode =>
         card_view(data, local, view_seg, ~settings)
@@ -3017,9 +3006,7 @@ module M: Projector = {
      * (anchored to the nav-bar stub, it renders detached/clipped). */
     let rich_drawer =
       stepping
-        ? Some(
-            steps_drawer_view(~parent, ~overflowing=drawer_overflow, info),
-          )
+        ? Some(steps_drawer_view(~parent, info))
         : drawer
           && (
             switch (rich_drawer_rows(model, info)) {
@@ -3066,7 +3053,8 @@ module M: Projector = {
         switch (data_opt, drawer) {
         /* the program stopped short of the ⇓ probe: how far it got */
         | (_, true)
-            when model.bare && Settings.value_fallback^(info.id) != None =>
+            when
+              info.program_value && Settings.value_fallback^(info.id) != None =>
           Settings.value_fallback^(info.id)
         | (Some(data), true) =>
           Some(

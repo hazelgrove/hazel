@@ -44,6 +44,19 @@
   white-space: pre;
 }
 
+/* An editor's text, a block per chunk of whole lines (Code.view_chunked):
+   a key lays out the chunks it changed, not one inline flow of every line */
+.code-container > .code > .code-text,
+.code-text > .code-chunk {
+  display: block;
+}
+
+/* the last chunk reserves its own trailing row; an ::after here would be a
+   row of its own */
+.code-container > .code > .code-text::after {
+  content: none;
+}
+
 .line-numbers {
   background-color: var(--ui-bkg);
   left: 0;

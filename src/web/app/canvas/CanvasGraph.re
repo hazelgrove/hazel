@@ -236,7 +236,9 @@ let rec mod_members =
           };
         | _ => []
         }
+      /* ModVal: evaluated values, never in a program's term */
       | ModExp(_)
+      | ModVal(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) => []
@@ -326,6 +328,29 @@ and spine = (e: Exp.t): list((list(string), item)) => {
   | _ => [top(IResult(e))]
   };
 };
+
+/* a program's top-level items. A Mod-rooted program's term is its
+   module: the members are the top level, with its tests and its
+   trailing expression */
+let program_items = (e: Exp.t): list((list(string), item)) =>
+  switch (strip_exp(e).term) {
+  | Module(items) =>
+    List.concat_map(
+      (m: Language.Mod.t) =>
+        switch (m.term) {
+        | ModExp(t) =>
+          let t = strip_exp(t);
+          switch (t.term) {
+          | Test(b)
+          | HintedTest(b, _) => [([], ITest(t, b))]
+          | _ => [([], IResult(t))]
+          };
+        | _ => mod_members([], [m])
+        },
+      items,
+    )
+  | _ => spine(e)
+  };
 
 /* ---------- small walkers ---------- */
 
@@ -742,7 +767,7 @@ let uniquify_keys = (nodes: list(tynode)): list(tynode) => {
 let extract_impl =
     (~test_results: option(TestResults.t)=?, statics: CachedStatics.t): t => {
   let info_map = statics.info_map;
-  let items = spine(statics.term);
+  let items = program_items(statics.term);
 
   /* Type environment at the program's final expression: every top-level
      binding appears there as a VarEntry with its (ascription-respecting)

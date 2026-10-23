@@ -57,7 +57,14 @@ module Model = {
   let get_statics = (model: t) => model.statics;
 
   let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
-    info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+    /* a member access's label (`a` in `M.a`) reads as the member reference */
+    info:
+      Indicated.ci_of(model.editor.state.zipper, model.statics.info_map)
+      |> Option.map(
+           Language.Info.as_member_reference(
+             ~info_map=model.statics.info_map,
+           ),
+         ),
     implied_hole: Lazy.from_val(None),
     indicated_piece:
       Indicated.for_decoration(model.editor.state.zipper)
@@ -114,55 +121,10 @@ let masked_now = (effective: Language.CoreSettings.t): bool => {
   masked;
 };
 
-/* Debounce statics computation during rapid typing. Only one mode is
-   active at a time, so a single timer/flag is shared across all modes. */
-module StaticsDebounce = {
-  let debounce_ms = 225.0;
-  let timer_id: ref(option(Js_of_ocaml.Dom_html.timeout_id)) = ref(None);
-  let force_on_next: ref(bool) = ref(false);
-
-  let pending = () => timer_id^ != None || force_on_next^;
-
-  /* Call from calculate to get the statics_mode for this cycle.
-     schedule_refresh should dispatch the mode's RefreshStatics action. */
-  let consume = (~is_edited, ~schedule_refresh: unit => unit): StaticsMode.t => {
-    let force_now = force_on_next^;
-    force_on_next := false;
-    /* a projector commit is one discrete edit: run statics now rather
-       than after the typing debounce (livelit drag → result: -225ms) */
-    let projector_edit = Util.AgentPulse.projector_commit^;
-    Util.AgentPulse.projector_commit := false;
-    if (force_now || is_edited && projector_edit) {
-      switch (timer_id^) {
-      | Some(id) =>
-        Js_of_ocaml.Dom_html.window##clearTimeout(id);
-        timer_id := None;
-      | None => ()
-      };
-      Force;
-    } else if (is_edited && debounce_ms > 0.0) {
-      switch (timer_id^) {
-      | Some(id) => Js_of_ocaml.Dom_html.window##clearTimeout(id)
-      | None => ()
-      };
-      timer_id :=
-        Some(
-          Js_of_ocaml.Dom_html.window##setTimeout(
-            Js_of_ocaml.Js.wrap_callback(() => {
-              timer_id := None;
-              /* Keep sends waiting until the scheduled refresh is consumed. */
-              force_on_next := true;
-              schedule_refresh();
-            }),
-            debounce_ms,
-          ),
-        );
-      Defer;
-    } else {
-      Normal;
-    };
-  };
-};
+/* Debounce statics computation during rapid typing (StaticsTiming). Only
+   one mode is active at a time, so a single timer/flag is shared across
+   all modes. */
+module StaticsDebounce = StaticsTiming.Make(StaticsTiming.Browser);
 
 module Update = {
   // There are no events for a read-only editor
@@ -267,6 +229,12 @@ module Update = {
                               ~stitch,
                               ~root=editor.root,
                               ~probe_ids=zipper_probe_ids(editor),
+                              ~shared=editor.syntax.t_cache,
+                              ~source=?
+                                CachedSyntax.semantic_source(
+                                  editor.state.zipper,
+                                  editor.syntax,
+                                ),
                               editor.state.zipper,
                             )
                           : CachedStatics.init(
@@ -380,14 +348,8 @@ module View = {
      cheap "same editor, older generation" proxy; a misfire costs a
      recompute */
   let view_memo_max = 4;
-  let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool => {
-    let n = Array.length(a);
-    Array.length(b) == n
-    && {
-      let rec go = i => i >= n || a[i] === b[i] && go(i + 1);
-      go(0);
-    };
-  };
+  let key_eq = (a: array(Obj.t), b: array(Obj.t)): bool =>
+    Array.length(a) == Array.length(b) && Array.for_all2((===), a, b);
 
   let view =
       (
@@ -419,11 +381,6 @@ module View = {
     let warning_ids =
       globals.settings.core.display_warnings ? model.statics.warning_ids : [];
     let key = [|
-      Obj.repr(measured),
-      Obj.repr(refractor_rows),
-      Obj.repr(term_data),
-      Obj.repr(shape_map),
-      Obj.repr(segment),
       Obj.repr(info_map),
       Obj.repr(model.editor.syntax),
       Obj.repr(model.statics.error_ids),
@@ -441,22 +398,33 @@ module View = {
         let refine_sort = (id, mold_out) =>
           Language.Info.refine_sort_from_mold(~info_map, ~id, mold_out);
         let code_text_view =
-          /* the refractor-aware flat view (probe rows need their reserved
-             lines); the per-chunk view (view_chunked) waits on threading
-             refractor_rows through it — see the merge notes */
-          CodeViewable.view(
-            ~globals,
-            ~measured,
-            ~term_data,
-            ~buffer_ids,
-            ~shape_map,
-            ~refractor_rows,
-            ~refine_sort,
-            segment,
+          div_c(
+            "code",
+            [
+              span_c(
+                "code-text",
+                Code.view_chunked(
+                  ~measured,
+                  ~settings=globals.settings,
+                  ~shape_map,
+                  ~refractor_rows,
+                  ~font_metrics=globals.font_metrics,
+                  ~term_data,
+                  ~refine_sort,
+                  ~statics_ident=Obj.repr(info_map),
+                  ~buffer_ids,
+                ),
+              ),
+            ],
           );
         /* shared by the error and warning arms (canonical completion
            depends on the segment, which the memo key covers) */
-        let completion = Arms.lazy_completion(z);
+        let completion =
+          Arms.lazy_completion(
+            ~root=model.editor.root,
+            ~syntax=model.editor.syntax,
+            z,
+          );
         let error_decos =
           Arms.Errors.of_ids(
             ~refine_sort,
@@ -478,12 +446,6 @@ module View = {
           );
         // errors after warnings to prioritize errors over warnings
         let nodes = [code_text_view, warning_decos, error_decos];
-        let rec take = (n, xs) =>
-          switch (n, xs) {
-          | (0, _)
-          | (_, []) => []
-          | (n, [x, ...xs]) => [x, ...take(n - 1, xs)]
-          };
         let seg_len = List.length(segment);
         view_memo :=
           [
@@ -492,7 +454,7 @@ module View = {
               m_seg_len: seg_len,
               m_nodes: nodes,
             },
-            ...take(
+            ...Util.ListUtil.truncate(
                  view_memo_max - 1,
                  List.filter(e => e.m_seg_len != seg_len, view_memo^),
                ),

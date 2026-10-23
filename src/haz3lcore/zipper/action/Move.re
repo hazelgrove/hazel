@@ -589,7 +589,7 @@ let move_dispatch =
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
   | Goal(BindingSiteOfIndicatedVar) =>
     let* ci = Indicated.ci_of(z, statics);
-    let* binding_id = Language.Info.get_binding_site(ci);
+    let* binding_id = Language.Info.binding_site(~info_map=statics, ci);
     jump_to_id_indicated(z, binding_id);
   };
 

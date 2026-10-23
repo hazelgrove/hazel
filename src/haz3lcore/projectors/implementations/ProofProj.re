@@ -12,16 +12,13 @@ module Settings = {
   /* the rows each theorem's proof takes, as counted from its stepper;
      DrawerFit adds what rendering measures */
   let computed: Hashtbl.t(Id.t, int) = Hashtbl.create(8);
-  let rows = (id: Id.t): int =>
-    DrawerFit.rows(
-      id,
-      Hashtbl.find_opt(computed, id) |> Option.value(~default=1),
-    );
+  let computed_rows = (id: Id.t): int =>
+    Hashtbl.find_opt(computed, id) |> Option.value(~default=1);
   /* true when the drawer's rows changed */
   let set_computed = (id: Id.t, n: int): bool => {
-    let before = rows(id);
+    let before = DrawerFit.rows(id, computed_rows(id));
     Hashtbl.replace(computed, id, n);
-    if (rows(id) == before) {
+    if (DrawerFit.rows(id, n) == before) {
       false;
     } else {
       DrawerFit.layout := DrawerFit.layout^ + 1;
@@ -57,11 +54,10 @@ module M: Projector = {
   let dynamics = false;
   let elaborate_syntax = false;
 
-  let placeholder = (m: model, info: info) =>
-    ProjectorCore.Shape.{
-      horizontal: 0,
-      vertical: Tab(Settings.rows(theorem_of(m, info)) |> max(1)),
-    };
+  let placeholder = (m: model, info: info) => {
+    let theorem = theorem_of(m, info);
+    DrawerFit.shape(theorem, Settings.computed_rows(theorem));
+  };
   let update = (m, _, ()) => m;
   let error = (_, _): option(ProjectorBase.error) => None;
 

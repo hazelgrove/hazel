@@ -149,10 +149,30 @@ let of_list = (d: DHExp.t): option(list(DHExp.t)) => {
   };
 };
 
+/* a tuple's elements; a module value's members read as the labeled
+   tuple modules used to evaluate to (a member defined twice, its last) */
 let of_tuple = (d: DHExp.t): option(list(DHExp.t)) => {
   let d = strip_wrappers(d);
   switch (d.term) {
   | Tuple(items) => Some(items)
+  | Module(items) =>
+    let vals =
+      List.filter_map(
+        (m: Mod.t) =>
+          switch (m.term) {
+          | ModVal(x, v) => Some((x, v))
+          | _ => None
+          },
+        items,
+      );
+    let latest =
+      List.fold_right(
+        ((x, v), acc) => List.mem_assoc(x, acc) ? acc : [(x, v), ...acc],
+        vals,
+        [],
+      );
+    List.length(vals) == List.length(items)
+      ? Some(List.map(((x, v)) => field(x, v), latest)) : None;
   | _ => None
   };
 };

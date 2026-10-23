@@ -301,6 +301,16 @@ let term =
   shards(~refine_sort, ~attr?, ~dom_prefix?, ~font_metrics, ~base_clss, tiles)
   @ paths(~refine_sort, tiles, line_clss, font_metrics, rows, range);
 
+/* the rep id of [id]'s term, and that term; None when the syntax lacks
+   either (a piece its parse left out), so a decoration draws nothing */
+let rep_of = (id: Id.t, terms: TermMap.t): option((Id.t, Language.Any.t)) =>
+  switch (Id.Map.find_opt(id, terms)) {
+  | Some(t) =>
+    let rep = Language.Any.rep_id(t);
+    Option.map(t => (rep, t), Id.Map.find_opt(rep, terms));
+  | None => None
+  };
+
 let tiles_data =
     (
       ~term_data: TermData.t,
@@ -309,13 +319,15 @@ let tiles_data =
       tile: Tile.t,
     ) => {
   let msg = "Arms.tiles_data";
-  let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
   let of_tile = (id: Id.t) => {
     open OptUtil.Syntax;
     let+ tile = TermData.root_tile(id, term_data);
     (id, Tile.mold(tile), Measured.find_shards(~msg, tile, measured));
   };
-  Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
+  switch (rep_of(tile.id, terms)) {
+  | Some((_, t)) => t |> Language.Any.ids |> List.filter_map(of_tile)
+  | None => []
+  };
 };
 
 let term =
@@ -330,58 +342,60 @@ let term =
       ~clip_right: option(Point.t)=None,
       tile: Tile.t,
     )
-    : list(Node.t) => {
-  let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
-  let any_term = Id.Map.find(id, terms);
+    : list(Node.t) =>
+  switch (rep_of(tile.id, terms)) {
+  | None => []
+  | Some((id, any_term)) =>
+    /* Module decoration: semicolons render as lone shards (no arms),
+       curly braces render as a pair (arms between braces, excluding semicolons) */
+    let is_module =
+      switch (any_term) {
+      | Exp({term: Module(_), _}) => true
+      | Typ({term: Sig(_), _}) => true
+      | _ => false
+      };
+    let is_semi = Tile.is_semi(tile);
+    let is_not_semi_tile = ((tid, _, _)) =>
+      switch (TermData.root_tile(tid, term_data)) {
+      | Some(t) => !Tile.is_semi(t)
+      | None => true
+      };
 
-  /* Module decoration: semicolons render as lone shards (no arms),
-     curly braces render as a pair (arms between braces, excluding semicolons) */
-  let is_module =
-    switch (any_term) {
-    | Exp({term: Module(_), _}) => true
-    | Typ({term: Sig(_), _}) => true
-    | _ => false
-    };
-  let is_semi = Tile.is_semi(tile);
-  let is_not_semi_tile = ((tid, _, _)) =>
-    switch (TermData.root_tile(tid, term_data)) {
-    | Some(t) => !Tile.is_semi(t)
-    | None => true
-    };
-
-  if (is_module && is_semi) {
-    let msg = "Arms.term";
-    switch (TermData.root_tile(tile.id, term_data)) {
-    | Some(t) =>
-      shards(
-        ~refine_sort,
-        ~attr?,
-        ~dom_prefix?,
-        ~font_metrics,
-        ~base_clss=None,
-        [(tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured))],
-      )
-    | None => []
-    };
-  } else {
-    switch (TermData.extreme_measures(id, term_data, measured)) {
-    | Some((l, r)) =>
-      let r = apply_clip(clip_right, r);
-      let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
-      let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
-      term(
-        ~refine_sort,
-        ~font_metrics,
-        ~rows=measured,
-        ~tiles,
-        (l, r),
-        ~attr?,
-        ~dom_prefix?,
-      );
-    | _ => []
+    if (is_module && is_semi) {
+      let msg = "Arms.term";
+      switch (TermData.root_tile(tile.id, term_data)) {
+      | Some(t) =>
+        shards(
+          ~refine_sort,
+          ~attr?,
+          ~dom_prefix?,
+          ~font_metrics,
+          ~base_clss=None,
+          [
+            (tile.id, Tile.mold(t), Measured.find_shards(~msg, t, measured)),
+          ],
+        )
+      | None => []
+      };
+    } else {
+      switch (TermData.extreme_measures(id, term_data, measured)) {
+      | Some((l, r)) =>
+        let r = apply_clip(clip_right, r);
+        let tiles = tiles_data(~term_data, ~terms, ~measured, tile);
+        let tiles = is_module ? List.filter(is_not_semi_tile, tiles) : tiles;
+        term(
+          ~refine_sort,
+          ~font_metrics,
+          ~rows=measured,
+          ~tiles,
+          (l, r),
+          ~attr?,
+          ~dom_prefix?,
+        );
+      | _ => []
+      };
     };
   };
-};
 
 let term =
     (
@@ -411,12 +425,18 @@ let term =
    continues past the insertion. No insertion found (e.g. witness
    consumption) falls back to the raw extent. */
 /* The lazy completion the clip consumers share: forced only when an
-   arm's root tile is actually incomplete. */
+   arm's root tile is actually incomplete. [syntax]: of the frame's
+   segment (CompletionQuery.engine_seg). */
 let lazy_completion =
-    (z: Zipper.t): Lazy.t(CanonicalCompletion.completion_result) =>
+    (~root: Sort.t, ~syntax: option(CachedSyntax.t)=?, z: Zipper.t)
+    : Lazy.t(CanonicalCompletion.completion_result) =>
   Lazy.from_fun(() =>
     CanonicalCompletion.for_editor(
-      Zipper.unselect_and_zip(~erase_buffer=true, z),
+      ~root,
+      switch (syntax) {
+      | Some(syntax) => CompletionQuery.engine_seg(~syntax, z)
+      | None => Zipper.unselect_and_zip(~erase_buffer=true, z)
+      },
     )
   );
 
@@ -480,8 +500,13 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   | Grout(_)
   | Projector(_)
   | Tile(_) =>
-    let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
-    TermData.extreme_measures(id, syntax.term_data, syntax.measured);
+    Option.bind(Id.Map.find_opt(Piece.id(p), syntax.terms), t =>
+      TermData.extreme_measures(
+        Language.Any.rep_id(t),
+        syntax.term_data,
+        syntax.measured,
+      )
+    )
   };
 };
 
@@ -701,13 +726,19 @@ module Indicated = {
     switch (Indicated.for_decoration(z)) {
     | _ when z.selection.content != [] => []
     | Some({piece: p, _}) when !Piece.is_infix_delimiter_op_prefix(p) =>
-      let rep_id =
-        Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
-      switch (
-        term_range(~syntax, p),
-        TermData.root_piece(rep_id, syntax.term_data),
-      ) {
-      | (Some(range), Some(root)) =>
+      let root =
+        Option.bind(
+          Id.Map.find_opt(Piece.id(p), syntax.terms),
+          t => {
+            let rep_id = Language.Any.rep_id(t);
+            Option.map(
+              root => (rep_id, root),
+              TermData.root_piece(rep_id, syntax.term_data),
+            );
+          },
+        );
+      switch (term_range(~syntax, p), root) {
+      | (Some(range), Some((rep_id, root))) =>
         let sort = refine_sort(rep_id, Piece.sort(root) |> fst);
         simple_arm(
           ~font_metrics,
@@ -799,9 +830,19 @@ module Refractors = {
         ~completion: Lazy.t(CanonicalCompletion.completion_result),
         z: Zipper.t,
       )
-      : list(Node.t) =>
+      : list(Node.t) => {
+    /* the ⇓ toggle's probe shows only its drawer */
+    let armed = ((id, entry: Refractors.entry)) =>
+      !
+        ProjectorInfo.is_program_value(
+          ~tail=z.refractors.tail_target,
+          id,
+          entry.kind,
+          entry.model,
+        );
     (
       z.refractors.manuals
+      |> List.filter(armed)
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -816,8 +857,7 @@ module Refractors = {
     @ (
       z.refractors.multis.ephemerals
       |> Id.Map.to_list
-      /* the ⇓ toggle's probe shows only its drawer */
-      |> List.filter(((id, _)) => z.refractors.tail_target != Some(id))
+      |> List.filter(armed)
       |> List.concat_map(((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,
@@ -845,6 +885,7 @@ module Refractors = {
            )
          )
     );
+  };
 
   let all =
       (

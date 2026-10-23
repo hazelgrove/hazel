@@ -34,7 +34,6 @@ type t = {
      "TEXTAREA", "SELECT", "BODY". Listeners use this to skip handling
      when the user is typing into a form element. */
   target_tag: option(string),
-  target_id: option(string),
 };
 
 let get_key = evt =>
@@ -58,19 +57,17 @@ let to_held: bool => held = b => b ? Down : Up;
 let get_code = evt =>
   Js.to_string(Js.Optdef.get(evt##.code, () => Js.string("")));
 
-let get_target_tag_and_id = (evt): (option(string), option(string)) =>
+/* a target without a tag (a synthesized event's) has none */
+let get_target_tag = (evt): option(string) =>
   switch (Js.Opt.to_option(evt##.target)) {
-  | None => (None, None)
+  | None => None
   | Some(el) =>
-    let el = Js.Unsafe.coerce(el);
-    let tag = Js.to_string(el##.tagName);
-    let id =
-      Js.Optdef.case(el##.id, () => None, s => Some(Js.to_string(s)));
-    (Some(tag), id);
+    Js.Optdef.to_option(Js.Unsafe.coerce(el)##.tagName)
+    |> Option.map(Js.to_string)
   };
 
 let mk = (dir, evt): t => {
-  let (target_tag, target_id) = get_target_tag_and_id(evt);
+  let target_tag = get_target_tag(evt);
   {
     key: key_of(dir, evt),
     code: get_code(evt),
@@ -80,7 +77,6 @@ let mk = (dir, evt): t => {
     ctrl: to_held(ctrl_held(evt)),
     alt: to_held(alt_held(evt)),
     target_tag,
-    target_id,
   };
 };
 

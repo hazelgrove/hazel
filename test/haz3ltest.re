@@ -10,12 +10,18 @@ Printexc.register_printer(exn => {
   }
 });
 
-/* every edit checks sparse normalization against the global pass */
-NormalizeCheck.install();
+/* alcotest's -q (--quick-tests) runs the quick tests without the per-edit
+   checks below; the full suite runs them on every edit. A test whose own
+   assertion is the statics check arms it itself (DefStaticsCheck.armed) */
+let quick = Array.exists(a => a == "-q" || a == "--quick-tests", Sys.argv);
 
-/* and statics against a monolithic analysis, except when benchmarking */
-if (!CorpusUtil.bench_enabled) {
-  DefStaticsCheck.install();
+if (!quick) {
+  /* every edit checks sparse normalization against the global pass */
+  NormalizeCheck.install();
+  /* and statics against a monolithic analysis, except when benchmarking */
+  if (!CorpusUtil.bench_enabled) {
+    DefStaticsCheck.install();
+  };
 };
 
 /* run_and_report always runs Alcotest with and_exit=false so it can produce a
@@ -31,6 +37,11 @@ let (suite, exit_with_test_status) =
       Test_AgentLocalKey.tests,
       Test_LazyHydration.tests,
       Test_Undo.tests,
+      Test_OpenMember.tests,
+      Test_UndoCaches.tests,
+      Test_UndoStatics.tests,
+      Test_StaticsTiming.tests,
+      Test_EditCaches.tests,
       Test_FastParseCorpus.tests,
       Test_FastParse.tests,
       Test_MenhirFuzz.tests,
@@ -44,6 +55,7 @@ let (suite, exit_with_test_status) =
       Test_CsvUtil.tests,
       Test_Grammar.tests,
       Test_FormId.tests,
+      Test_Form.tests,
       Test_Abbreviate.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
@@ -57,20 +69,25 @@ let (suite, exit_with_test_status) =
       Test_EditIdentity.tests,
       Test_CanvasPresentation.tests,
       Test_Restructure.tests,
-      Test_BenchStatics.tests,
+      Test_StreamCollector.tests,
       Test_MegaCorpus.tests,
       Test_MeasuredChunks.tests,
       Test_DrawerMeasurement.tests,
+      Test_ChunkViews.tests,
       Test_MakeTermIncr.tests,
+      Test_ItemSpans.tests,
+      Test_CellsParity.tests,
       Test_EditLocality.tests,
       Test_DefStaticsParity.tests,
+      Test_DefStaticsDelta.tests,
+      Test_StaticsAncestry.tests,
       Test_ClickTeleport.tests,
       Test_AliasProbe.tests,
-      Test_LabelBench.tests,
       Test_ModRoot.tests,
-      Test_ModuleEval.tests,
+      Test_LevelSkels.tests,
       Test_ProbePersist.tests,
       Test_DividedLaws.tests,
+      Test_HeadlessRows.tests,
       Test_TermPrune.tests,
       Test_ResultLine.tests,
       Test_ProbeSteps.tests,
@@ -78,8 +95,10 @@ let (suite, exit_with_test_status) =
       Test_ProofDrawers.tests,
       Test_SlideView.tests,
       Test_OutlineRename.tests,
+      Test_MemberRefs.tests,
+      Test_OutlineText.tests,
       Test_ClosedJump.tests,
-      Test_TypeDeps.tests,
+      Test_StackStepInto.tests,
       Test_StaticsMemo.tests,
       Test_CaretReveal.tests,
       Test_Menhir.concave_marker_group,
@@ -93,6 +112,7 @@ let (suite, exit_with_test_status) =
     ]
     @ Test_Unicode.tests
     @ Test_WorkerServer.tests
+    @ [Test_EvalPieces.tests, Test_EvalMsgBench.tests]
     @ [Test_AgentHardening.tests]
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
@@ -125,10 +145,12 @@ let (suite, exit_with_test_status) =
     @ Test_DynamicTypInfer.tests
     @ Test_CanonicalCompletion.tests
     @ Test_CompletionScoreboard.tests
+    @ [Test_ModAudit.tests]
     @ Test_CompletionVisualization.tests
     @ Test_QuiverDisplay.tests
     @ Test_TabDispatch.tests
     @ Test_ImpliedHole.tests
+    @ Test_FrameCompletion.tests
     @ Test_CaretPreserving.tests
     @ [Test_Coverage.tests, Test_Unboxing.tests]
     @ Test_ProblemCollection.tests
@@ -146,6 +168,7 @@ let (suite, exit_with_test_status) =
     @ [
       Test_MVU.tests,
       Test_TableCore.tests,
+      Test_StepperPasses.tests,
       Test_TableTransforms.tests,
       Test_RichProbeRegistry.tests,
     ]
@@ -162,6 +185,7 @@ let (suite, exit_with_test_status) =
       Test_StepProvenance.tests,
       Test_ObsTraceShadow.tests,
       Test_ObsBench.tests,
+      Test_Ascriptions.tests,
     ]
     @ [Test_GradingReport.tests]
     @ Test_SlidePath.tests
@@ -175,12 +199,13 @@ let (suite, exit_with_test_status) =
     @ Test_ShortcutConfiguration.tests
     @ Test_ColorConfiguration.tests
     @ Test_ConfigurationMode.tests
+    @ [Test_SettingsPanel.tests]
     @ Test_ShortcutAction.tests
     @ Test_Color.tests
     @ [Test_ExplainThis.tests]
     @ [Test_CompletionItems.tests]
-    /* last: the keystroke benchmark leaves less stack for later tests */
-    @ (CorpusUtil.bench_enabled ? [Test_MegaBench.tests] : []),
+    @ [Test_ModuleCompletion.tests]
+    @ [Test_PageKeys.tests],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

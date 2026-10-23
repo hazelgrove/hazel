@@ -161,6 +161,7 @@
   color: var(--ci-status-text);
   border-left: 0.6px solid var(--border-default);
   cursor: pointer;
+  user-select: none;
 }
 
 /* on: the program's value shows in a drawer below its last line */

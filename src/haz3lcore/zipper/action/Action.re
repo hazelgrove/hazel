@@ -126,7 +126,10 @@ module Structural = {
   type t =
     | Update(target, path, code)
     | Delete(target, path)
-    | Insert(insert_target, path, code);
+    | Insert(insert_target, path, code)
+    /* `test code end` after the binding at path and the tests directly
+       following it; with no path, after the program's last item */
+    | InsertTest(option(path), code);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -135,6 +138,9 @@ type probe =
   | ToggleAuto
   | ToggleStatics
   | StepInto(Language.CallStack.t, Language.CallStack.frame)
+  /* the same step, into the body given: a stack steps into another
+     cell's function there */
+  | StepIntoBody(Language.CallStack.t, Language.CallStack.frame, Id.t)
   | Pin(Language.CallStack.t, Id.t)
   | RemoveAll
   /* the drawer steps this sample in place of the samples */

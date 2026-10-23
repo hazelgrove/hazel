@@ -1,7 +1,7 @@
 open Alcotest;
 open Haz3lcore;
 
-let parse = Test_Restructure.parse;
+let parse = CorpusUtil.seg_of;
 let zipper = src => Zipper.unzip(parse(src));
 let segment = Zipper.unselect_and_zip;
 let text = seg => Printer.of_zipper(~holes="?", Zipper.unzip(seg));
@@ -314,12 +314,8 @@ let tests = (
       `Quick,
       () => {
         let before = parse("let a = 1 in\nlet b = 2 in\na + b");
-        let id =
-          Test_Restructure.outline_id(
-            Test_Restructure.statics_term(before),
-            "b",
-          );
-        switch (Web.ItemEdit.apply(Web.OutlineSidebar.MoveUp, id, before)) {
+        let id = CorpusUtil.row_by_label(MakeTerm.go(before).term, "b");
+        switch (Web.ItemEdit.apply(Web.OutlineEdit.MoveUp, id, before)) {
         | None => fail("outline move failed")
         | Some((after, _)) =>
           check_survivors(before, after);

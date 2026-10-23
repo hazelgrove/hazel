@@ -26,14 +26,12 @@ let mem_store = (): (ItemPersist.store, ref(list((string, string)))) => {
 let sets = log =>
   List.filter(((op, _)) => op == "set", log^) |> List.length;
 
-let zip_of_text = (text: string): Zipper.t =>
-  switch (MarkerParse.of_text(~root=Sort.Exp, text)) {
-  | Some(z) => z
-  | None => failwith("parse failed: " ++ text)
-  };
-
+/* as typed, so incomplete tiles and grout survive */
 let seg_of_text = (text: string): Segment.t =>
-  Zipper.unselect_and_zip(~erase_buffer=true, zip_of_text(text));
+  switch (CorpusUtil.typed_seg(text)) {
+  | Some(seg) => seg
+  | None => fail("parse failed: " ++ text)
+  };
 
 let seg_equal = (a: Segment.t, b: Segment.t): bool =>
   Sexplib.Sexp.compare(Segment.sexp_of_t(a), Segment.sexp_of_t(b)) == 0;
@@ -175,16 +173,25 @@ let cases = [
       let (store, _) = mem_store();
       let seg = seg_of_text(doc);
       let _ = ItemPersist.save(~store, ~prev=[], seg);
-      let items = ItemPersist.items_of(seg);
-      switch (items) {
-      | [(id, s0), ..._] =>
-        let replacement = seg_of_text("let a : Int = 2 in");
-        if (List.length(replacement) == List.length(s0)) {
-          store.set(
-            ItemPersist.item_key(id),
-            Sexplib.Sexp.to_string(Segment.sexp_of_t(replacement)),
-          );
-          check(bool, "still loads", true, ItemPersist.load(~store) != None);
+      switch (ItemPersist.items_of(seg)) {
+      | [(id, s0), ...rest] =>
+        /* as many pieces, so the old roster's count still matches */
+        let (newer, edited) =
+          CorpusUtil.edit_token(~needle="1", ~repl="2", s0);
+        check(bool, "a newer item", true, edited);
+        store.set(
+          ItemPersist.item_key(id),
+          Sexplib.Sexp.to_string(Segment.sexp_of_t(newer)),
+        );
+        switch (ItemPersist.load(~store)) {
+        | Some(loaded) =>
+          check(
+            bool,
+            "loads the newer item",
+            true,
+            seg_equal(loaded, newer @ List.concat_map(snd, rest)),
+          )
+        | None => fail("load returned None")
         };
       | [] => fail("no items")
       };

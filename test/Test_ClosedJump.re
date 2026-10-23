@@ -7,30 +7,10 @@ open Language;
 let src = "module T = {\n  let a = 10q;\n  let b = 2\n};\n0";
 
 let jump = () => {
-  let seg =
-    switch (FastParse.of_text(~root=Mod, src)) {
-    | Some(seg) => seg
-    | None =>
-      switch (MarkerParse.of_text(~root=Mod, src)) {
-      | Some(z) => Zipper.unselect_and_zip(z)
-      | None => fail("parse")
-      }
-    };
+  let seg = CorpusUtil.seg_of(~root=Mod, src);
   let term = MakeTerm.Incr.term_of_mod(seg);
   let ds = DefStatics.calc(~settings=CoreSettings.on, term);
-  let row = label => {
-    let rec find = (ns: list(Web.OutlineTree.node)) =>
-      List.fold_left(
-        (acc, n: Web.OutlineTree.node) =>
-          switch (acc) {
-          | Some(_) => acc
-          | None => n.o_label == label ? n.o_id : find(n.o_children)
-          },
-        None,
-        ns,
-      );
-    Option.get(find(Web.OutlineTree.of_term(term)));
-  };
+  let row = CorpusUtil.row_by_label(term);
   let bad =
     switch (
       List.find_opt(
@@ -58,7 +38,14 @@ let jump = () => {
     },
   };
   let d =
-    switch (Web.Divided.split(~info_map=ds.merged, editor, row("b"))) {
+    switch (
+      Web.Divided.open_(
+        ~info_map=ds.merged,
+        ~term,
+        row("b"),
+        Web.Divided.of_whole(editor),
+      )
+    ) {
     | Some(d) => d
     | None => fail("split")
     };

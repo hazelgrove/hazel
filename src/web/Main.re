@@ -90,7 +90,7 @@ let apply =
     | Globals(_) => "Globals/other"
     | Editors(Scratch(Workspace(CellAction(MainEditor(_))))) => "Editors/CellAction/MainEditor"
     | Editors(Scratch(Workspace(CellAction(ResultAction(_))))) => "Editors/CellAction/Result"
-    | Editors(Scratch(Workspace(StackBody(_) | StackHeader(_)))) => "Editors/Stack"
+    | Editors(Scratch(Workspace(Stack(_)))) => "Editors/Stack"
     | Editors(Scratch(Workspace(AgentAction(_)))) => "Editors/AgentAction"
     | Editors(Scratch(Workspace(MasterPerform(_)))) => "Editors/MasterPerform"
     | Editors(
@@ -278,7 +278,9 @@ let start = default_model => {
         Js.string("MAC"),
       )
       >= 0;
-    JsUtil.focus_clipboard_shim();
+    JsUtil.focus_page();
+    JsUtil.install_text_selection_guards();
+    Haz3lcore.FocusEffect.install_press_tracking();
     /* canvas trajectory replay: a recorded reply's tool calls go through
        the real agent handler; the agent reads as busy for the avatar */
     CanvasTrajectory.dispatch_reply :=
@@ -472,26 +474,23 @@ let start = default_model => {
         seed_visible_rows(model, ~dispatch=a =>
           app_inject(a) |> Bonsai.Effect.Expert.handle
         );
-        /* steppers and proofs reserve at least what they rendered, which
-           catches what a count misses: no drawer runs into the code */
-        let resized =
-          List.fold_left(
-            (changed, (id, n)) =>
-              switch (Haz3lcore.Id.of_string(id)) {
-              | Some(id) => Haz3lcore.DrawerFit.set_measured(id, n) || changed
-              | None => changed
-              },
-            false,
-            JsUtil.drawer_rows(~row_height=font_metrics.row_height),
-          );
-        if (resized) {
-          app_inject(Page.Update.Globals(RelayoutDrawers))
-          |> Bonsai.Effect.Expert.handle;
-        } else if (ProbeSteps.reveal^) {
+        DrawerRows.update(
+          ~row_height=font_metrics.row_height,
+          ~relayout=
+            () =>
+              app_inject(Page.Update.Globals(RelayoutDrawers))
+              |> Bonsai.Effect.Expert.handle,
           /* a step taken: once the drawer has its rows, show the new step */
-          ProbeSteps.reveal := false;
-          JsUtil.reveal_last(".probe-stepper .step-border");
-        };
+          ~reveal=
+            ProbeSteps.reveal^
+              ? Some(
+                  () => {
+                    ProbeSteps.reveal := false;
+                    JsUtil.reveal_last(".probe-stepper .step-border");
+                  },
+                )
+              : None,
+        );
         JsUtil.observe_drawer_width(~report=cols =>
           if (cols != Haz3lcore.ProbeProj.Settings.s^.drawer.width) {
             app_inject(Page.Update.Globals(UpdateDrawerWidth(cols)))

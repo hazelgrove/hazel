@@ -460,26 +460,40 @@ let rec get_num_of_functions = (e: t) =>
   };
 
 let (replace_all_ids, replace_all_ids_typ) = {
+  let fresh: 'a. IdTagged.t('a) => IdTagged.t('a) =
+    x => {
+      ...x,
+      annotation: {
+        /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
+           so re-idded results still display faithfully. Secondary and
+           shard provenance stay dropped: display of results is
+           AutoFormat and the tile-id references are invalidated. */
+        ...IdTagged.IdTag.mk_internal([Id.mk()]),
+        lexeme: x.annotation.lexeme,
+      },
+    };
   let f:
     'a.
     (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) => IdTagged.t('a)
    =
-    (continue, exp) =>
-      {
-        ...exp,
-        annotation: {
-          /* fresh ids; keep the lexeme (hole flavor, unknown-op tokens)
-             so re-idded results still display faithfully. Secondary and
-             shard provenance stay dropped: display of results is
-             AutoFormat and the tile-id references are invalidated. */
-          ...IdTagged.IdTag.mk_internal([Id.mk()]),
-          lexeme: exp.annotation.lexeme,
+    (continue, x) => x |> fresh |> continue;
+  /* map_term has no hook for a module item, so its id is replaced with the
+     module's. */
+  let f_exp = (continue, exp: t) =>
+    switch (exp.term) {
+    | Module(items) =>
+      f(
+        continue,
+        {
+          ...exp,
+          term: (Module(List.map(fresh, items)): term),
         },
-      }
-      |> continue;
+      )
+    | _ => f(continue, exp)
+    };
   (
-    map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
-    Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    map_term(~f_exp, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
+    Typ.map_term(~f_exp, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
   );
 };
 
@@ -548,4 +562,36 @@ let add_name = (name: option(string), exp: t): t => {
   | TypFun(tpat, e, _) => TypFun(tpat, e, name) |> rewrap
   | _ => exp
   };
+};
+
+/* [e] with [acc] in its body hole, if the hole is down the binding-form
+   spine; [rebuilt] sees each rebuilt node, innermost first. how per-item
+   elaborations compose (DefStatics), and the eval worker recomposes them */
+let graft_spine =
+    (~rebuilt=(e: t) => e, hole_id: Id.t, acc: t, e: t): option(t) => {
+  let rec spine = (e: t): option(t) =>
+    if (List.mem(hole_id, e.annotation.ids)) {
+      Some(acc);
+    } else {
+      let re = (term: term) =>
+        rebuilt({
+          ...e,
+          term,
+        });
+      switch (e.term) {
+      | Let(p, d, b) => spine(b) |> Option.map(b => re(Let(p, d, b)))
+      | Theorem(p, d, b) =>
+        spine(b) |> Option.map(b => re(Theorem(p, d, b)))
+      | Use(t, b) => spine(b) |> Option.map(b => re(Use(t, b)))
+      | Seq(a, b) => spine(b) |> Option.map(b => re(Seq(a, b)))
+      | TyAlias(tp, ty, b) =>
+        spine(b) |> Option.map(b => re(TyAlias(tp, ty, b)))
+      | ModuleExp(mp, d, b) =>
+        spine(b) |> Option.map(b => re(ModuleExp(mp, d, b)))
+      | Filter(f, b) => spine(b) |> Option.map(b => re(Filter(f, b)))
+      | Parens(b) => spine(b) |> Option.map(b => re(Parens(b)))
+      | _ => None
+      };
+    };
+  spine(e);
 };

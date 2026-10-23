@@ -307,22 +307,9 @@ let same_inputs =
     (a: list(editor_group_input), b: list(editor_group_input)): bool => {
   let same_source = (x: editor_source, y: editor_source) =>
     x.statics === y.statics && x.syntax === y.syntax;
-  let rec same_sources = (xs, ys) =>
-    switch (xs, ys) {
-    | ([], []) => true
-    | ([x, ...xs], [y, ...ys]) =>
-      same_source(x, y) && same_sources(xs, ys)
-    | _ => false
-    };
   let same_group = (x: editor_group_input, y: editor_group_input) =>
-    x.label == y.label && same_sources(x.sources, y.sources);
-  let rec go = (xs, ys) =>
-    switch (xs, ys) {
-    | ([], []) => true
-    | ([x, ...xs], [y, ...ys]) => same_group(x, y) && go(xs, ys)
-    | _ => false
-    };
-  go(a, b);
+    x.label == y.label && List.equal(same_source, x.sources, y.sources);
+  List.equal(same_group, a, b);
 };
 
 /* Collect problems across several sidebar groups into a single coherent

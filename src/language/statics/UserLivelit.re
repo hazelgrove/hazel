@@ -156,8 +156,10 @@ let types_of =
   (model_t, expansion_t, action_t);
 };
 
-/* The def's type is a (labeled) product; find a member's type by label,
-   falling back to position for unlabeled tuples. */
+/* The def's type is a (labeled) product or, for a module literal, a
+   signature; find a member's type by label, falling back to position for
+   unlabeled tuples. A signature member's type is closed over the
+   signature's own type members (`type Model = …` read through). */
 let ty_member =
     (def_ty: TermBase.Typ.t, ~label: string, ~index: option(int))
     : option(TermBase.Typ.t) => {
@@ -183,6 +185,7 @@ let ty_member =
       Some(strip_ty(List.nth(tys, i)))
     | _ => None
     };
+  | Sig(items) => Typ.sig_project_value(items, label)
   | _ => None
   };
 };

@@ -114,6 +114,7 @@ module ViewComponents = {
     let static_error_lines =
       ErrorPrint.all(
         CompositionGo.Public.mk_statics(
+          ~root=code_with_statics.editor.root,
           code_with_statics.editor.state.zipper,
         ),
       );
@@ -279,7 +280,7 @@ module ViewComponents = {
                           code_with_statics,
                           current_chat,
                         );
-                      copy_via_shim(snapshot);
+                      copy_text(snapshot);
                       show_copy_toast();
                       Effect.Stop_propagation;
                     }),
@@ -863,9 +864,10 @@ let view =
   // for stale-path detection and cmd/ctrl-click jump targets.
   let node_map: option(HighLevelNodeMap.t) = {
     let z = code_with_statics.editor.state.zipper;
-    Id.Map.is_empty(code_with_statics.statics.info_map)
-      ? CompositionGo.Public.node_map_of(z)
-      : HighLevelNodeMap.build_for(z, code_with_statics.statics);
+    let root = code_with_statics.editor.root;
+    root == Sort.Exp && !Id.Map.is_empty(code_with_statics.statics.info_map)
+      ? HighLevelNodeMap.build_for(z, code_with_statics.statics)
+      : CompositionGo.Public.node_map_of(~root, z);
   };
 
   // Auto-resize textarea helper
@@ -1460,19 +1462,8 @@ let view =
           },
         );
 
-      let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool => {
-        switch (tool_result.tool_call.name) {
-        | "update_definition"
-        | "update_body"
-        | "update_pattern"
-        | "update_binding_clause"
-        | "delete_binding_clause"
-        | "delete_body"
-        | "insert_before"
-        | "insert_after" => true
-        | _ => false
-        };
-      };
+      let is_edit_tool_call = (tool_result: AgentToolResult.tool_result): bool =>
+        List.mem(tool_result.tool_call.name, Agent.ToolUtils.edit_tool_names);
 
       let edit_tool_results =
         agent_chunk.tool_results |> List.filter(is_edit_tool_call);

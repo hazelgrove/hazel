@@ -11,6 +11,7 @@
   border-radius: 4px;
   padding: 4px 8px;
   cursor: pointer;
+  user-select: none;
   white-space: nowrap;
 }
 
@@ -36,6 +37,7 @@
   font-size: 0.8em;
   color: var(--text-default);
   cursor: pointer;
+  user-select: none;
 }
 
 .agent-remember-key input {
@@ -49,16 +51,6 @@
   gap: 0.5em;
   padding-top: 0.75em;
   border-top: 1px solid var(--border-soft);
-}
-
-/* Force text selection/copy everywhere inside the agent main menu, overriding
-   any per-element `user-select: none` declarations. */
-.agent-main-menu,
-.agent-main-menu * {
-  user-select: text !important;
-  -webkit-user-select: text !important;
-  -moz-user-select: text !important;
-  -ms-user-select: text !important;
 }
 
 .agent-main-menu {
@@ -344,6 +336,7 @@
   display: inline-flex;
   align-items: center;
   cursor: pointer;
+  user-select: none;
   padding: 0;
   border-radius: 0;
   background: none;

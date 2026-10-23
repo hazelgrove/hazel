@@ -43,6 +43,15 @@ let get_elem_by_selector = selector => {
   );
 };
 
+let query_selector = (sel: string): option(Js.t(Dom_html.element)) =>
+  Js.Opt.to_option(Dom_html.document##querySelector(Js.string(sel)));
+
+let rect_prop = (el, prop): float =>
+  Js.Unsafe.get(
+    Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
+    prop,
+  );
+
 let get_child_with_class = (element: Js.t(Dom_html.element), className) => {
   let rec loop = (sibling: option(Js.t(Dom_html.element))) =>
     switch (sibling) {
@@ -119,20 +128,64 @@ let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
 };
 
-let clipboard_shim_id = "clipboard-shim";
+/* Where keyboard focus rests when nothing more specific holds it: incr_dom
+   makes the app root focusable, so page-level key handlers still see keys. */
+let focus_page = () =>
+  switch (get_elem_by_id_opt("page")) {
+  | Some(el) =>
+    Js.Unsafe.coerce(el)##focus(
+      Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
+    )
+  | None => ()
+  };
 
-let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
+/* Page text selection vs. presses, in the capture phase (projectors stop
+   pointerdown propagation):
+   - A press in an editable code editor hands selection over to the editor,
+     so drop any page selection (the browser keeps it when the press lands
+     on unselectable content).
+   - A press that selected text (a drag, a double-click) doesn't also click,
+     so selecting a row or section header doesn't jump or toggle.
+   - Code views pad lines with U+200B; keep it out of copied text. */
+let install_text_selection_guards = (): unit =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      {|(function(){
+        var sig = function(s){
+          return s.rangeCount ? [s.anchorNode, s.anchorOffset, s.focusNode, s.focusOffset] : [];
+        };
+        var at_press = [];
+        var in_field = function(t){ return t.closest('input, textarea, [contenteditable]'); };
+        document.addEventListener('pointerdown', function(e){
+          var t = e.target, s = window.getSelection();
+          if (t instanceof Element && !in_field(t)
+              && t.closest('.code-editor:not(.read-only)') && !s.isCollapsed)
+            s.removeAllRanges();
+          at_press = sig(s);
+        }, true);
+        document.addEventListener('click', function(e){
+          var t = e.target, s = window.getSelection();
+          if (!(t instanceof Element) || in_field(t) || s.isCollapsed
+              || !s.containsNode(t, true)) return;
+          var now = sig(s);
+          if (now.every(function(x, i){ return x === at_press[i]; })) return;
+          e.preventDefault();
+          e.stopPropagation();
+        }, true);
+        document.addEventListener('copy', function(e){
+          var text = String(window.getSelection());
+          if (!e.clipboardData || text.indexOf('\u200b') < 0) return;
+          e.clipboardData.setData('text/plain', text.replace(/\u200b/g, ''));
+          e.preventDefault();
+        }, true);
+      })|},
+    ),
+    [||],
+  );
 
-/* Set while an interactive projector owns DOM focus (the keybinding
-   recorder). The page pulls focus back to the clipboard shim on any bubbled
-   focus/blur, and the shim's focusout fires BEFORE the projector's focusin —
-   so a guard that inspects the event is always too late. The projector
-   raises this on pointerdown, before focus moves at all, and lowers it on
-   blur. */
-let projector_holds_focus = ref(false);
 /* The caret is CSS-gated on `.code-editor:focus`, so the .code-editor element
-   itself must hold DOM focus (not the clipboard shim). preventScroll: don't
-   fight an in-progress jump/scroll. */
+   itself must hold DOM focus. preventScroll: don't fight an in-progress
+   jump/scroll. */
 let focus_active_editor = () =>
   switch (
     Js.Opt.to_option(
@@ -143,64 +196,45 @@ let focus_active_editor = () =>
     Js.Unsafe.coerce(el)##focus(
       Js.Unsafe.obj([|("preventScroll", Js.Unsafe.inject(Js._true))|]),
     )
-  | None => focus_clipboard_shim()
+  | None => focus_page()
   };
 
 /* keyboard focus into the outline sidebar (its row list) */
 let focus_outline = (): unit =>
-  switch (
-    Js.Opt.to_option(
-      Dom_html.document##querySelector(
-        Js.string("#outline-sidebar .outline-body"),
-      ),
-    )
-  ) {
+  switch (query_selector("#outline-sidebar .outline-body")) {
   | Some(el) => Js.Unsafe.coerce(el)##focus
   | None => ()
   };
 
 /* where a keyboard-opened outline menu anchors: under the cursor's row */
 let outline_cursor_anchor = (): option((float, float)) =>
-  switch (
-    Js.Opt.to_option(
-      Dom_html.document##querySelector(
-        Js.string("#outline-sidebar .outline-label.outline-cursor"),
-      ),
-    )
-  ) {
-  | Some(el) =>
-    let rect = Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]);
-    let left: float = Js.Unsafe.get(rect, "left");
-    let bottom: float = Js.Unsafe.get(rect, "bottom");
-    Some((left +. 16., bottom));
-  | None => None
-  };
+  query_selector("#outline-sidebar .outline-label.outline-cursor")
+  |> Option.map(el => {
+       let rect = el##getBoundingClientRect;
+       (rect##.left +. 16., rect##.bottom);
+     });
 
 /* how many outline rows one screenful holds, for PageUp/PageDown */
 let outline_page_rows = (): int =>
   switch (
-    Js.Opt.to_option(
-      Dom_html.document##querySelector(
-        Js.string("#outline-sidebar .outline-body"),
-      ),
-    ),
-    Js.Opt.to_option(
-      Dom_html.document##querySelector(
-        Js.string("#outline-sidebar .outline-label"),
-      ),
-    ),
+    query_selector("#outline-sidebar .outline-body"),
+    query_selector("#outline-sidebar .outline-label"),
   ) {
   | (Some(body), Some(row)) when row##.offsetHeight > 0 =>
     max(1, body##.clientHeight / row##.offsetHeight - 1)
   | _ => 10
   };
 
+/* the outline's row list holds the keys: focus is on it or inside it (a
+   name's field). Only where the list takes keys (a deck's: it has a
+   tabindex); elsewhere a <summary> focused by a click would keep a jump's
+   focus from the editor */
 let outline_has_focus = (): bool =>
   switch (Js.Opt.to_option(Dom_html.document##.activeElement)) {
   | Some(el) =>
-    Js.to_bool(
-      Js.Unsafe.coerce(el)##matches(
-        Js.string("#outline-sidebar .outline-body"),
+    Js.Opt.test(
+      Js.Unsafe.coerce(el)##closest(
+        Js.string("#outline-sidebar .outline-body[tabindex]"),
       ),
     )
   | None => false
@@ -213,8 +247,8 @@ let outline_has_focus = (): bool =>
 let active_cell_id = "active-code-editor";
 
 /* Focus the active cell without scrolling it into view — scroll is handled
-   separately (scroll_cursor_into_view_if_needed), and the browser's default
-   focus scroll would fight it. */
+   separately (CaretReveal), and the browser's default focus scroll would
+   fight it. */
 let focus_active_cell = (): bool =>
   switch (get_elem_by_id_opt(active_cell_id)) {
   | Some(elem) =>
@@ -260,8 +294,7 @@ let align_active_cell_top = (): unit =>
     | Some(t) =>
       /* skip when the header is already in view with some body room
          below it: aligning a visible cell to the top is jarring */
-      let rect = Js.Unsafe.meth_call(t, "getBoundingClientRect", [||]);
-      let top: float = Js.Unsafe.get(rect, "top");
+      let top = rect_prop(t, "top");
       let vh: float = Js.Unsafe.coerce(Dom_html.window)##.innerHeight;
       let top_chrome = 48.; /* fixed top bar */
       let body_context = 140.; /* ~4 rows of body visible below */
@@ -282,48 +315,31 @@ let align_active_cell_top = (): unit =>
     };
   };
 
-let clipboard_shim = {
-  Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
-};
-
-let copy = (str: string) => {
-  focus_clipboard_shim();
-  Dom_html.document##execCommand(
-    Js.string("selectAll"),
-    Js.bool(false),
-    Js.Opt.empty,
+/* Without the async Clipboard API (insecure contexts), copy through a
+   throwaway textarea and hand focus back. */
+let copy_text = (str: string): unit =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      {|(function(s){
+        if (typeof navigator.clipboard !== 'undefined') {
+          navigator.clipboard.writeText(s);
+          return;
+        }
+        var prev = document.activeElement;
+        var ta = document.createElement('textarea');
+        ta.value = s;
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;top:-100px;opacity:0';
+        document.body.appendChild(ta);
+        ta.focus({preventScroll: true});
+        ta.select();
+        try { document.execCommand('copy'); } catch (e) {}
+        document.body.removeChild(ta);
+        if (prev && prev.focus) prev.focus({preventScroll: true});
+      })|},
+    ),
+    [|Js.Unsafe.inject(Js.string(str))|],
   );
-  Dom_html.document##execCommand(
-    Js.string("insertText"),
-    Js.bool(false),
-    Js.Opt.option(Some(Js.string(str))),
-  );
-  Dom_html.document##execCommand(
-    Js.string("selectAll"),
-    Js.bool(false),
-    Js.Opt.empty,
-  );
-};
-
-/** Copy [str] using the hidden textarea shim + [document.execCommand("copy")]. */
-let copy_via_shim = (str: string): unit => {
-  focus_clipboard_shim();
-  Js.Opt.iter(
-    Dom_html.document##getElementById(Js.string(clipboard_shim_id)),
-    clipboard_shim_el => {
-      let clipboard_shim = Js.Unsafe.coerce(clipboard_shim_el);
-      clipboard_shim##.value := Js.string(str);
-      ignore(clipboard_shim##select);
-      ignore(
-        Dom_html.document##execCommand(
-          Js.string("copy"),
-          Js.bool(false),
-          Js.Opt.empty,
-        ),
-      );
-    },
-  );
-};
 
 let show_copy_toast = (): unit => {
   Js.Opt.iter(
@@ -378,18 +394,7 @@ module ClipboardHandler = {
         [|Js.Unsafe.inject(cb)|],
       );
     | Write_text(str) =>
-      /* Older browsers with no Clipboard API fall through to the
-         execCommand shim. */
-      if (has_clipboard_api()) {
-        Js.Unsafe.fun_call(
-          Js.Unsafe.pure_js_expr(
-            "(function(s){navigator.clipboard.writeText(s);})",
-          ),
-          [|Js.Unsafe.inject(Js.string(str))|],
-        );
-      } else {
-        copy(str);
-      };
+      copy_text(str);
       on_response();
     };
 };
@@ -465,21 +470,34 @@ let say = (text: string): unit =>
 let element_to_node = (element: Js.t(Dom_html.element)): Js.t(Dom.node) =>
   Js.Unsafe.coerce(element);
 
+/* overflow auto or scroll, with content past its height. Content past
+   the height alone isn't enough: a box with visible overflow reports it
+   without scrolling (a code container does, by decorations below its
+   last row). A pixel's overflow is rounding */
+let scrolls_vertically = (el: Js.t(Dom_html.element)): bool => {
+  let overflow = el##.scrollHeight - el##.clientHeight;
+  overflow > 1
+  && {
+    let style =
+      Js.Unsafe.meth_call(
+        Dom_html.window,
+        "getComputedStyle",
+        [|Js.Unsafe.inject(el)|],
+      );
+    let oy = Js.to_string(Js.Unsafe.get(style, "overflowY"));
+    oy == "auto" || oy == "scroll";
+  };
+};
+
 let rec find_scroll_container_node =
         (node: Js.t(Dom.node)): option(Js.t(Dom_html.element)) =>
   switch (Js.Opt.to_option(node##.parentNode)) {
   | None => None
   | Some(parent_node) =>
     switch (Dom_html.CoerceTo.element(parent_node) |> Js.Opt.to_option) {
-    | Some(parent_element) =>
-      let scroll_height = parent_element##.scrollHeight;
-      let client_height = parent_element##.clientHeight;
-      if (scroll_height - client_height > 1) {
-        Some(parent_element);
-      } else {
-        find_scroll_container_node(parent_node);
-      };
-    | None => find_scroll_container_node(parent_node)
+    | Some(parent_element) when scrolls_vertically(parent_element) =>
+      Some(parent_element)
+    | _ => find_scroll_container_node(parent_node)
     }
   };
 
@@ -493,18 +511,7 @@ let find_scroll_container =
  * not mounted / no scroll container. Measures the first cell that has not
  * opted out of culling (CodeWithStatics `cull-scope`, CellEditor ~cull). */
 let code_viewport_geometry = (): option((float, float)) => {
-  let rect_prop = (el, prop): float =>
-    Js.Unsafe.get(
-      Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
-      prop,
-    );
-  switch (
-    Js.Opt.to_option(
-      Dom_html.document##querySelector(
-        Js.string(".code-container.cull-scope"),
-      ),
-    )
-  ) {
+  switch (query_selector(".code-container.cull-scope")) {
   | None => None
   | Some(code) =>
     switch (find_scroll_container(code)) {
@@ -608,17 +615,23 @@ let scroll_vertically_into_view_ancestors =
 
 /* find_scroll_container reads scrollHeight/clientHeight up the parent
    chain, forcing layout on dirty frames after every action; reuse the
-   found container while it is connected and still an ancestor */
+   found container while it is connected, still an ancestor and still
+   scrolls */
 let scroll_container_cache: ref(option(Js.t(Dom_html.element))) =
   ref(None);
+let connected = (el: Js.t(Dom_html.element)): bool =>
+  try(Js.to_bool(Js.Unsafe.get(el, "isConnected"))) {
+  | _ => false
+  };
 let find_scroll_container_cached =
     (element: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) => {
   let valid = (el: Js.t(Dom_html.element)): bool =>
-    Js.to_bool(Js.Unsafe.get(el, "isConnected"))
+    connected(el)
     /* the caret may move to an editor in another scroll container */
     && Js.to_bool(
          Js.Unsafe.meth_call(el, "contains", [|Js.Unsafe.inject(element)|]),
-       );
+       )
+    && scrolls_vertically(el);
   switch (scroll_container_cache^) {
   | Some(el) when valid(el) => Some(el)
   | _ =>
@@ -628,47 +641,12 @@ let find_scroll_container_cached =
   };
 };
 
-let scroll_cursor_into_view_if_needed = () =>
-  try({
-    let caret_elem = get_elem_by_id("caret");
-    switch (find_scroll_container_cached(caret_elem)) {
-    | Some(container) => scroll_vertically_into_view(container, caret_elem)
-    | None =>
-      caret_elem##scrollIntoView(
-        Js.Unsafe.obj([|
-          ("block", Js.Unsafe.inject(Js.string("nearest"))),
-          ("inline", Js.Unsafe.inject(Js.string("nearest"))),
-        |]),
-      )
-    };
-  }) {
-  | Assert_failure(_) => ()
-  };
-
-/* the nearest ancestor that really scrolls: overflow auto or scroll, with
-   content past its height (a box overflowing by a pixel doesn't count) */
-let rec scrolling_ancestor =
-        (el: Js.t(Dom_html.element)): option(Js.t(Dom_html.element)) =>
-  switch (Js.Opt.to_option(Js.Unsafe.get(el, "parentElement"))) {
-  | None => None
-  | Some(p: Js.t(Dom_html.element)) =>
-    let style =
-      Js.Unsafe.meth_call(
-        Dom_html.window,
-        "getComputedStyle",
-        [|Js.Unsafe.inject(p)|],
-      );
-    let oy = Js.to_string(Js.Unsafe.get(style, "overflowY"));
-    (oy == "auto" || oy == "scroll") && p##.scrollHeight - p##.clientHeight > 1
-      ? Some(p) : scrolling_ancestor(p);
-  };
-
 /* after a jump: a caret out of comfortable view comes to a fifth of the
    way down its scroll container, with the lines above it in sight */
 let align_caret_near_top = (): unit =>
   try({
     let caret = get_elem_by_id("caret");
-    switch (scrolling_ancestor(caret)) {
+    switch (find_scroll_container(caret)) {
     | Some(container) =>
       let c = caret##getBoundingClientRect;
       let r = container##getBoundingClientRect;
@@ -774,21 +752,15 @@ let delay = (delay: float, callback: unit => unit) => {
   ();
 };
 
-/* Publish #main's content width as `--main-scroll-width` (read by the cell
- * width rule). Two passes: reset the var first so the cell's own prior width
- * doesn't inflate the measurement, force layout, then read scrollWidth. */
-let update_main_scroll_width = () =>
-  Js.Opt.iter(
-    Dom_html.document##getElementById(Js.string("main")),
-    main => {
-      set_css_custom_property("--main-scroll-width", "max-content");
-      let _: int = Js.Unsafe.get(main, "offsetWidth");
-      let sw: int = Js.Unsafe.get(main, "scrollWidth");
-      set_css_custom_property(
-        "--main-scroll-width",
-        string_of_int(sw) ++ "px",
-      );
-    },
+/* a live collection: the browser keeps it, so asking again costs nothing
+   while the DOM under [el] is unchanged */
+let by_class =
+    (el: Js.t(Dom_html.element), cls: string)
+    : Js.t(Dom.nodeList(Dom_html.element)) =>
+  Js.Unsafe.meth_call(
+    el,
+    "getElementsByClassName",
+    [|Js.Unsafe.inject(Js.string(cls))|],
   );
 
 /* Scroll compensation for sample focus bar:
@@ -1091,67 +1063,27 @@ let navigate_probes =
 let width_observed = ref(false);
 let observe_drawer_width = (~report: int => unit): unit =>
   if (! width_observed^) {
-    switch (
-      Js.Opt.to_option(Dom_html.document##getElementById(Js.string("main")))
-    ) {
+    switch (get_elem_by_id_opt("main")) {
     | None => ()
     | Some(main) =>
       width_observed := true;
-      let rect = (el, prop): float =>
-        Js.Unsafe.get(
-          Js.Unsafe.meth_call(el, "getBoundingClientRect", [||]),
-          prop,
+      let _ =
+        ResizeObserver.observe(
+          ~node=main,
+          ~f=
+            (_, _) =>
+              switch (query_selector(".code-container")) {
+              | None => ()
+              | Some(code) =>
+                let (col_width, _) = font_metrics_from_specimen();
+                if (col_width > 0.) {
+                  let px =
+                    rect_prop(main, "right") -. rect_prop(code, "left");
+                  report(max(20, int_of_float(px /. col_width) - 2));
+                };
+              },
+          (),
         );
-      let callback =
-        Js.wrap_callback(_entries =>
-          switch (
-            Js.Opt.to_option(
-              Dom_html.document##querySelector(Js.string(".code-container")),
-            )
-          ) {
-          | None => ()
-          | Some(code) =>
-            let (col_width, _) = font_metrics_from_specimen();
-            if (col_width > 0.) {
-              let px = rect(main, "right") -. rect(code, "left");
-              report(max(20, int_of_float(px /. col_width) - 2));
-            };
-          }
-        );
-      let observer =
-        Js.Unsafe.new_obj(
-          Js.Unsafe.global##._ResizeObserver,
-          [|Js.Unsafe.inject(callback)|],
-        );
-      Js.Unsafe.meth_call(observer, "observe", [|Js.Unsafe.inject(main)|]);
+      ();
     };
-  };
-
-/* the rows each web-filled drawer (a stepper, a proof) takes as
-   rendered: (drawer id, rows). Read after display. */
-let drawer_rows = (~row_height: float): list((string, int)) =>
-  if (row_height <= 0.) {
-    [];
-  } else {
-    let nodes =
-      Dom_html.document##querySelectorAll(Js.string("[data-drawer-id]"));
-    List.filter_map(
-      i =>
-        switch (Js.Opt.to_option(nodes##item(i))) {
-        | None => None
-        | Some(el) =>
-          switch (
-            Js.Opt.to_option(el##getAttribute(Js.string("data-drawer-id")))
-          ) {
-          | None => None
-          | Some(id) =>
-            let h: float = Js.Unsafe.get(el, "offsetHeight");
-            Some((
-              Js.to_string(id),
-              max(1, int_of_float(Float.ceil(h /. row_height -. 0.05))),
-            ));
-          }
-        },
-      List.init(nodes##.length, Fun.id),
-    );
   };

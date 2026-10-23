@@ -21,6 +21,7 @@ module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
 module WebUtil = WebUtil;
 module JsUtil = JsUtil;
+module AfterLayout = AfterLayout;
 module FloatingElement = FloatingElement;
 module SampleAnchor = SampleAnchor;
 module Menu = Menu;
@@ -48,6 +49,8 @@ module CaretReveal = CaretReveal;
 module SvgUtil = SvgUtil;
 module GraphLayout = GraphLayout;
 module Slot = Slot;
+module Expiring = Expiring;
+module Swept = Swept;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

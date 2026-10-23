@@ -12,15 +12,11 @@ module M = {
 };
 x";
 
-let parse_mod = (src: string): Segment.t =>
-  switch (FastParse.of_text(~root=Mod, src)) {
-  | Some(seg) => seg
-  | None => fail("mod-root parse failed")
-  };
+let parse_mod = CorpusUtil.seg_of(~root=Mod);
 
 let probe = () => {
   let seg = parse_mod(mod_src);
-  let slices = MakeTerm.Incr.slices(seg);
+  let slices = MakeTerm.Incr.slices(~root=Mod, seg);
   check(int, "4 slices", 4, List.length(slices));
   let mono = MakeTerm.go_mod_root(seg);
   switch (mono.term.term) {
@@ -39,60 +35,58 @@ let semi_ids = (seg: Segment.t): list(Id.t) =>
     seg,
   );
 
-let check_parity = (~allow_semi_diff=true, seg: Segment.t, incr: MakeTerm.t) => {
+/* the top level's separators: its `;`s, and grouts standing in for them */
+let sep_ids = (seg: Segment.t): list(Id.t) =>
+  semi_ids(seg)
+  @ List.filter_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Grout({shape: Concave, id}) => Some(id)
+        | _ => None
+        },
+      seg,
+    );
+
+/* go_incr's record is go_mod_root's, except that top-level separator
+   entries in terms may differ: the per-slice parse records a partial
+   MultiHole there, the monolithic one the full item list */
+let check_parity = (seg: Segment.t, incr: MakeTerm.t) => {
   let mono = MakeTerm.go_mod_root(seg);
   if (compare(incr.term, mono.term) != 0) {
     fail("term mismatch incr vs mono");
   };
-  let td_diff =
-    Id.Map.merge(
-      (_, a, b) =>
-        switch (a, b) {
-        | (Some(a), Some(b)) => compare(a, b) == 0 ? None : Some("value")
-        | (Some(_), None) => Some("incr-only")
-        | (None, Some(_)) => Some("mono-only")
-        | (None, None) => None
-        },
-      incr.term_data,
-      mono.term_data,
-    );
-  if (!Id.Map.is_empty(td_diff)) {
-    Id.Map.iter(
-      (id, why) => Printf.printf("TD DIFF %s: %s\n", Id.to_string(id), why),
-      td_diff,
-    );
-    fail(
-      Printf.sprintf("term_data mismatch: %d ids", Id.Map.cardinal(td_diff)),
-    );
+  let agree = (~skip=_ => false, what, a, b) => {
+    let diff =
+      Id.Map.merge(
+        (id, a, b) =>
+          switch (a, b) {
+          | (Some(a), Some(b)) =>
+            compare(a, b) == 0 || skip(id) ? None : Some("value")
+          | (Some(_), None) => Some("incr-only")
+          | (None, Some(_)) => Some("mono-only")
+          | (None, None) => None
+          },
+        a,
+        b,
+      );
+    if (!Id.Map.is_empty(diff)) {
+      fail(
+        what
+        ++ " mismatch at "
+        ++ string_of_int(Id.Map.cardinal(diff))
+        ++ " ids, e.g. "
+        ++ String.concat(
+             ", ",
+             Id.Map.bindings(diff)
+             |> Util.ListUtil.take(5)
+             |> List.map(((id, why)) => Id.to_string(id) ++ " " ++ why),
+           ),
+      );
+    };
   };
-  /* terms: top-level `;` entries may differ (the per-slice parse records a
-     partial MultiHole there, the monolithic one the full item list) */
-  let semis = semi_ids(seg);
-  let tm_diff =
-    Id.Map.merge(
-      (id, a, b) =>
-        switch (a, b) {
-        | (Some(a), Some(b)) =>
-          compare(a, b) == 0
-            ? None
-            : allow_semi_diff && List.mem(id, semis) ? None : Some("value")
-        | (Some(_), None) => Some("incr-only")
-        | (None, Some(_)) => Some("mono-only")
-        | (None, None) => None
-        },
-      incr.terms,
-      mono.terms,
-    );
-  if (!Id.Map.is_empty(tm_diff)) {
-    Id.Map.iter(
-      (id, why) =>
-        Printf.printf("TERMS DIFF %s: %s\n", Id.to_string(id), why),
-      tm_diff,
-    );
-    fail(
-      Printf.sprintf("terms mismatch: %d ids", Id.Map.cardinal(tm_diff)),
-    );
-  };
+  agree("term_data", incr.term_data, mono.term_data);
+  let seps = sep_ids(seg);
+  agree(~skip=id => List.mem(id, seps), "terms", incr.terms, mono.terms);
 };
 
 let full_parity = () => {
@@ -116,7 +110,12 @@ let incremental_edit = () => {
   MakeTerm.Incr.full_analyzed := 0;
   let fb = MakeTerm.Incr.fell_back^;
   let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
-  check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
+  check(
+    int,
+    "the member and its module's shell reparsed",
+    2,
+    MakeTerm.Incr.full_analyzed^,
+  );
   check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
   check_parity(seg2, incr2);
 };
@@ -152,6 +151,47 @@ let stray_line = () => {
   };
 };
 
+/* the semantic term with its completion reads a Mod root as its members,
+   finished or not (an open paren typed into the first) */
+let sem_at_root = () => {
+  let src = "let a = 1;\nlet b = a + 1;\nb";
+  let items = (z: Zipper.t) =>
+    switch (
+      fst(MakeTerm.from_zip_for_sem_with_completion(z, ~root=Mod)).term.term
+    ) {
+    | Module(items) =>
+      List.map(
+        (m: Mod.t) =>
+          switch (m.term) {
+          | ModLet(_) => "let"
+          | ModExp(_) => "exp"
+          | _ => "other"
+          },
+        items,
+      )
+    | _ => []
+    };
+  check(
+    list(string),
+    "finished",
+    ["let", "let", "exp"],
+    items(Zipper.unzip(parse_mod(src))),
+  );
+  switch (
+    Test_ModAudit.act(
+      ~root=Mod,
+      ~off=String.length("let a = "),
+      src,
+      "let a = ",
+      [Insert("(")],
+    )
+  ) {
+  | Some(z) =>
+    check(list(string), "unfinished", ["let", "let", "exp"], items(z))
+  | None => fail("could not type the paren")
+  };
+};
+
 /* Incr's last-result slot serves both roots: each gets its own reading */
 let last_slot_keyed_by_root = () => {
   let seg = parse_mod(mod_src);
@@ -175,254 +215,392 @@ let last_slot_keyed_by_root = () => {
   );
 };
 
-/* ---- DefStatics over a Module root ---- */
-
-let settings = CoreSettings.on;
-let ctx0 = Builtins.ctx_init(Some(Operators.default_mode));
-
-let sorted_ids = CorpusUtil.sorted_ids;
-
-/* with a type error and a member using an earlier binding */
-let mod_src2 = "let x = 1;
-type T = Int;
-let bad : String = 42;
-module M = {
-  let y = x + 16
-};
-x + 1";
-
-let statics_parity = () => {
-  let seg = parse_mod(mod_src2);
-  let term = MakeTerm.go_mod_root(seg).term;
-  let ds = DefStatics.calc(~settings, term);
-  let (mono_map, mono_elab) = Statics.mk_unmemoized(settings, ctx0, term);
-  check(
-    Alcotest.list(string),
-    "error-id parity",
-    sorted_ids(Statics.Map.error_ids(mono_map)),
-    sorted_ids(DefStatics.all_error_ids(ds)),
-  );
-  check(
-    Alcotest.list(string),
-    "warning-id parity",
-    sorted_ids(Statics.Map.warning_ids(mono_map)),
-    sorted_ids(DefStatics.all_warning_ids(ds)),
-  );
-  switch (DefStatics.whole_elab(ds)) {
-  | None => fail("whole_elab: shape gap")
-  | Some(graft_elab) =>
-    let (v1, _) = Evaluator.evaluate(~env=Builtins.env_init, mono_elab);
-    let (v2, _) = Evaluator.evaluate(~env=Builtins.env_init, graft_elab);
-    check(bool, "eval parity", true, Exp.fast_equal(v1, v2));
-  };
-};
-
-let statics_incremental = () => {
-  let seg = parse_mod(mod_src2);
-  let term = MakeTerm.go_mod_root(seg).term;
-  let ds0 = DefStatics.calc(~settings, term);
-  let n_items = List.length(ds0.items);
-  /* 5 mod items + the exports tail */
-  check(int, "6 items", 6, n_items);
-  let (seg2, edited) = edit_seg(seg);
-  check(bool, "edit found the literal", true, edited);
-  let term2 = MakeTerm.go_mod_root(seg2).term;
-  let ds1 = DefStatics.calc(~settings, ~prev=ds0, term2);
-  /* the module item (a cheap surrogate) plus the one edited member */
-  check(int, "item + 1 member re-analyzed", 2, DefStatics.last_analyzed^);
-  let ds2 = DefStatics.calc(~settings, ~prev=ds1, term2);
-  check(int, "0 items re-analyzed", 0, DefStatics.last_analyzed^);
-  ignore(ds2);
-};
-
-/* a recursive type export gets a fresh Rec binder per analysis: a member
-   edit that keeps the exports must not re-analyze the module's users */
-let recursive_type_export = () => {
-  let seg =
-    parse_mod(
-      "module A = {\n  type L = Nil + Cons(Int, L);\n  let x = 180\n};\nlet u = A.x;\nu",
-    );
-  let ds0 = DefStatics.calc(~settings, MakeTerm.go_mod_root(seg).term);
-  let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
-  check(bool, "edit found the literal", true, edited);
-  ignore(
-    DefStatics.calc(~settings, ~prev=ds0, MakeTerm.go_mod_root(seg2).term),
-  );
-  check(int, "item + 1 member re-analyzed", 2, DefStatics.last_analyzed^);
-};
-
 /* ---- corpus scale: mega-mod-1k (build_mega.py compose_mod_root) ---- */
 
 let corpus = () => {
-  switch (CorpusUtil.mega_src("mega-mod-1k.hz")) {
-  | None => fail("mega-mod-1k.hz unreadable")
-  | Some(src) =>
-    let seg = parse_mod(src);
-    let cache = MakeTerm.Incr.mk_cache();
-    let fb = MakeTerm.Incr.fell_back^;
-    let incr = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg);
-    check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
-    check_parity(seg, incr);
-    let term = incr.term;
-    let n_items =
-      switch (term.term) {
-      | Module(items) => List.length(items)
-      | _ => (-1)
-      };
-    Printf.printf("CORPUS mod items: %d\n", n_items);
-    check(bool, "many items", true, n_items > 20);
-    let t0 = Sys.time();
-    let ds0 = DefStatics.calc(~settings, term);
-    Printf.printf(
-      "CORPUS cold calc: %.0f ms\n",
-      (Sys.time() -. t0) *. 1000.0,
-    );
-    let t0e = Sys.time();
-    switch (DefStatics.whole_elab(ds0)) {
-    | None => Printf.printf("CORPUS whole_elab: GAP\n")
-    | Some(elab) =>
-      Printf.printf(
-        "CORPUS whole_elab: %.0f ms\n",
-        (Sys.time() -. t0e) *. 1000.0,
-      );
-      let te = Sys.time();
-      let (v, _) = Evaluator.evaluate(~env=Builtins.env_init, elab);
-      Printf.printf("CORPUS eval: %.0f ms\n", (Sys.time() -. te) *. 1000.0);
-      ignore(v);
-    };
-    let (mono_map, _) = Statics.mk_unmemoized(settings, ctx0, term);
-    check(
-      Alcotest.list(string),
-      "corpus error-id parity",
-      sorted_ids(Statics.Map.error_ids(mono_map)),
-      sorted_ids(DefStatics.all_error_ids(ds0)),
-    );
-    let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
-    check(bool, "edit found the literal", true, edited);
-    MakeTerm.Incr.full_analyzed := 0;
-    let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
-    check(int, "one slice reparsed", 1, MakeTerm.Incr.full_analyzed^);
-    let ds1 = DefStatics.calc(~settings, ~prev=ds0, incr2.term);
-    ignore(ds1);
-    check(int, "item + 1 member re-analyzed", 2, DefStatics.last_analyzed^);
-  };
+  let seg = CorpusUtil.mega_seg(~root=Mod, "mega-mod-1k.hz");
+  let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
+  let incr = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg);
+  check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
+  check_parity(seg, incr);
+  check(
+    bool,
+    "many items",
+    true,
+    switch (incr.term.term) {
+    | Module(items) => List.length(items) > 20
+    | _ => false
+    },
+  );
+  let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
+  check(bool, "edit found the literal", true, edited);
+  MakeTerm.Incr.full_analyzed := 0;
+  let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
+  check(
+    int,
+    "the member and its module's shell reparsed",
+    CorpusUtil.parses_for(~root=Mod, seg2, CorpusUtil.tile("181", seg2)),
+    MakeTerm.Incr.full_analyzed^,
+  );
+  check_parity(seg2, incr2);
 };
 
-/* ---- the whole corpus in one `module App = {...}`: a member edit costs
-   about one member, not the whole module ---- */
-let big_module = () => {
-  switch (CorpusUtil.mega_src("mega-mod-1k.hz")) {
-  | None => fail("mega-mod-1k.hz unreadable")
-  | Some(src) =>
-    let seg = parse_mod(src);
-    let inner = MakeTerm.go_mod_root(seg).term; /* Module(items) */
-    let app = Mod.fresh(ModuleMod(MPat.fresh(Var("App")), inner));
-    let term = Exp.fresh(Module([app]));
-    let t0 = Sys.time();
-    let ds0 = DefStatics.calc(~settings, term);
-    let cold = (Sys.time() -. t0) *. 1000.0;
-    let (mono_map, _) = Statics.mk_unmemoized(settings, ctx0, term);
-    check(
-      Alcotest.list(string),
-      "big-module error-id parity",
-      sorted_ids(Statics.Map.error_ids(mono_map)),
-      sorted_ids(DefStatics.all_error_ids(ds0)),
+/* a member opening with a let-in ends at its `;`, so it parses alone: no
+   whole-program fallback, before or after an edit inside it (the misread
+   cut after its `in`) */
+let letin_member = ((name, src), ()) => {
+  let seg = parse_mod(src);
+  let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
+  let incr = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg);
+  check(int, name ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+  check_parity(seg, incr);
+  MakeTerm.Incr.last := None;
+  ignore(MakeTerm.Incr.term_of_root(~root=Mod, seg));
+  check(int, name ++ ": term_of no fallback", fb, MakeTerm.Incr.fell_back^);
+  let (seg2, edited) = edit_seg(~needle="1", ~repl="2", seg);
+  check(bool, name ++ ": a 1 to edit", true, edited);
+  MakeTerm.Incr.full_analyzed := 0;
+  let incr2 = MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg2);
+  check(
+    int,
+    name ++ ": its item reparsed, and its let chain's shell",
+    CorpusUtil.parses_for(~root=Mod, seg2, CorpusUtil.tile("2", seg2)),
+    MakeTerm.Incr.full_analyzed^,
+  );
+  check(int, name ++ ": no fallback after", fb, MakeTerm.Incr.fell_back^);
+  check_parity(seg2, incr2);
+};
+
+/* a module body whose `;` became grout: the grout separates the members
+   as the `;` did (a Mod-sorted skel), though secondary collection reads
+   the body Exp-sorted and the parse takes its skels */
+let grout_between_members = () => {
+  let rec ungrout = (seg: Segment.t): Segment.t =>
+    List.map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) when Tile.is_semi(t) =>
+          Piece.Grout({
+            id: t.id,
+            shape: Concave,
+          })
+        | Tile(t) =>
+          Tile({
+            ...t,
+            children: List.map(ungrout, t.children),
+          })
+        | p => p
+        },
+      seg,
     );
-    let (seg2, edited) = edit_seg(~needle="180", ~repl="181", seg);
-    check(bool, "edit found the literal", true, edited);
-    let inner2 = MakeTerm.go_mod_root(seg2).term;
-    let app2 =
-      IdTagged.fast_copy(
-        Mod.rep_id(app),
-        Mod.fresh(
-          ModuleMod(
-            IdTagged.fast_copy(
-              MPat.rep_id(
-                switch (app.term) {
-                | ModuleMod(mp, _) => mp
-                | _ => failwith("app shape")
-                },
-              ),
-              MPat.fresh(Var("App")),
-            ),
-            inner2,
-          ),
+  let seg =
+    ungrout(
+      CorpusUtil.seg_of("module M = {\n  let x = 1;\n  let y = 2\n} in\nM.x"),
+    );
+  let members = (e: Exp.t) =>
+    switch (e.term) {
+    | ModuleExp(_, {term: Module(items), _}, _) =>
+      List.filter(
+        (m: Mod.t) =>
+          switch (m.term) {
+          | ModLet(_) => true
+          | _ => false
+          },
+        items,
+      )
+      |> List.length
+    | _ => (-1)
+    };
+  check(int, "two members", 2, members(MakeTerm.go_impl(seg).term));
+};
+
+/* a member edit inside a module, at depth 1 and 2, at a Mod root */
+let nested_src = "module A = {\n  let a1 = 11;\n  module B = {\n    let b1 = 21;\n    let b2 = fun x ->\n      let y = x + 22 in\n      y\n  };\n  let a2 = 12\n};\nlet top = 41;\nA.a1 + top";
+
+let member_edit = ((needle, repl), ()) => {
+  let seg = parse_mod(nested_src);
+  let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
+  check_parity(seg, MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg));
+  let (edited, found) =
+    CorpusUtil.edit_token(~keep_id=true, ~needle, ~repl, seg);
+  check(bool, needle ++ " to edit", true, found);
+  let a0 = MakeTerm.Incr.full_analyzed^;
+  let r = MakeTerm.Incr.go_incr(~root=Mod, ~cache, edited);
+  check(
+    int,
+    needle ++ ": its member and its modules' shells",
+    CorpusUtil.parses_for(~root=Mod, edited, CorpusUtil.tile(repl, edited)),
+    MakeTerm.Incr.full_analyzed^ - a0,
+  );
+  check(int, needle ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+  check_parity(edited, r);
+};
+
+/* members that are let chains: each chain item parses alone */
+let chain_src = "module H = {\n  let a = 1 in\n  let b = a + 51 in\n  module N = {\n    let c = 52;\n    let d = 53 in\n    d + c\n  } in\n  a + b + N.c + 54\n};\nlet x = 55 in\nx + 56;\nH";
+
+let chain_edit = ((needle, repl), ()) => {
+  let seg = parse_mod(chain_src);
+  let cache = MakeTerm.Incr.mk_cache();
+  let fb = MakeTerm.Incr.fell_back^;
+  check_parity(seg, MakeTerm.Incr.go_incr(~root=Mod, ~cache, seg));
+  let (edited, found) =
+    CorpusUtil.edit_token(~keep_id=true, ~needle, ~repl, seg);
+  check(bool, needle ++ " to edit", true, found);
+  let a0 = MakeTerm.Incr.full_analyzed^;
+  let r = MakeTerm.Incr.go_incr(~root=Mod, ~cache, edited);
+  check(
+    int,
+    needle ++ ": its item and the shells around it",
+    CorpusUtil.parses_for(~root=Mod, edited, CorpusUtil.tile(repl, edited)),
+    MakeTerm.Incr.full_analyzed^ - a0,
+  );
+  check(int, needle ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+  check_parity(edited, r);
+  let (renewed, _) =
+    CorpusUtil.edit_token(~needle=repl, ~repl=needle, edited);
+  check_parity(renewed, MakeTerm.Incr.go_incr(~root=Mod, ~cache, renewed));
+};
+
+/* the stdlib's sources, where the repo has them */
+let stdlib = () =>
+  List.iter(
+    ((path, src)) => {
+      let seg = parse_mod(src);
+      let fb = MakeTerm.Incr.fell_back^;
+      check_parity(
+        seg,
+        MakeTerm.Incr.go_incr(
+          ~root=Mod,
+          ~cache=MakeTerm.Incr.mk_cache(),
+          seg,
         ),
       );
-    let term2 =
-      IdTagged.fast_copy(Exp.rep_id(term), Exp.fresh(Module([app2])));
-    let t1 = Sys.time();
-    let ds1 = DefStatics.calc(~settings, ~prev=ds0, term2);
-    let incr = (Sys.time() -. t1) *. 1000.0;
-    Printf.printf(
-      "BIGMOD cold calc: %.0f ms; member edit: %.0f ms, %d analyzed\n",
-      cold,
-      incr,
-      DefStatics.last_analyzed^,
+      check(int, path ++ ": no fallback", fb, MakeTerm.Incr.fell_back^);
+    },
+    Test_ItemSpans.stdlib_corpus(),
+  );
+
+/* a `;` between two finished members deleted as the editor deletes it
+   (a grout stands in): while it is missing, keys typed in one of the pair
+   or in another member parse that member's item and its modules' shells,
+   never a module whole, the parse is go's, and every outline row keeps
+   its id */
+let missing_semi = ((root: Sort.t, src, semi, keys), ()) => {
+  module MA = Test_ModAudit;
+  let z0 = MA.load(~root, src);
+  let statics = MA.statics_of(~root, z0);
+  let step = (z, a) =>
+    switch (
+      MA.perform_why(
+        ~root,
+        ~syntax=CachedSyntax.init(~root, z),
+        ~statics,
+        z,
+        a,
+      )
+    ) {
+    | Ok(z) => z
+    | Error(why) => fail(why)
+    };
+  let at = (needle: string) =>
+    switch (MA.point_of(~off=String.length(needle), src, needle)) {
+    | Some(pt) => pt
+    | None => fail("no " ++ needle)
+    };
+  let z =
+    step(
+      step(z0, Move(Point(at(semi), None))),
+      Destruct(Local(Left, ByChar)),
     );
-    /* depth 2: App item + WateringTimer member + its format member */
-    check(int, "3 analyzed at depth 2", 3, DefStatics.last_analyzed^);
-    check(bool, "member edit under half of cold", true, incr < cold /. 2.0);
-    ignore(ds1);
+  let cache = MakeTerm.Incr.mk_cache();
+  /* the editor's frames: the syntax's parse, then semantics' */
+  let read = (z: Zipper.t) => {
+    let seg = Zipper.unselect_and_zip(z);
+    let fb = MakeTerm.Incr.fell_back^;
+    let a0 = MakeTerm.Incr.full_analyzed^;
+    let r = MakeTerm.Incr.go_incr(~ends=Read, ~root, ~cache, seg);
+    let parsed = MakeTerm.Incr.full_analyzed^ - a0;
+    let (completed, masks) = MakeTerm.semantic_segment(~root, seg);
+    let term =
+      MakeTerm.Incr.term_of_root(
+        ~masks,
+        ~ends=Read,
+        ~root,
+        ~shared=cache,
+        completed,
+      );
+    check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
+    if (root == Sort.Mod) {
+      check_parity(seg, r);
+    } else {
+      Test_MakeTermIncr.records_agree("go", MakeTerm.go(seg), r);
+    };
+    (seg, parsed, MA.rows_of(term));
   };
+  let (seg, _, rows) = read(z);
+  let rec grouted = (seg: Segment.t) =>
+    List.exists(
+      (p: Piece.t) =>
+        switch (p) {
+        | Grout({shape: Concave, _}) => true
+        | Tile(t) => List.exists(grouted, t.children)
+        | _ => false
+        },
+      seg,
+    );
+  check(bool, "a grout stands in for the `;`", true, grouted(seg));
+  ignore(
+    List.fold_left(
+      (z, (needle, key, typed)) => {
+        /* a move can rebuild the pieces it crosses: read once before */
+        let z = step(z, Move(Point(at(needle), None)));
+        ignore(read(z));
+        let z = step(z, Insert(key));
+        let (seg, parsed, rows') = read(z);
+        check(
+          int,
+          typed ++ ": its item and its modules' shells",
+          CorpusUtil.parses_for(
+            ~ends=Read,
+            ~root,
+            seg,
+            CorpusUtil.tile(typed, seg),
+          ),
+          parsed,
+        );
+        check(
+          list(pair(string, string)),
+          typed ++ ": every row keeps its id",
+          List.map(((k, id)) => (k, Id.to_string(id)), rows),
+          List.map(((k, id)) => (k, Id.to_string(id)), rows'),
+        );
+        z;
+      },
+      z,
+      keys,
+    ),
+  );
 };
 
-/* the spine root's elab_term is the whole suffix: incremental eval reuses
-   a node whose elab_term is unchanged, so a hollow root would hide edits */
-let spine_elab_is_whole_suffix = () => {
-  let parse_exp = (src: string): Exp.t =>
-    switch (FastParse.of_text(~root=Exp, src)) {
-    | Some(seg) => MakeTerm.Incr.term_of(seg)
-    | None => fail("exp parse failed")
-    };
-  let t0 = parse_exp("let junk = 1 in\nlet x = 2 in\nx");
-  let ds0 = DefStatics.calc(~settings, t0);
-  let top_elab = (ds: DefStatics.t, t: Exp.t) =>
-    switch (
-      Statics.Map.lookup_exp(Exp.rep_id(DefStatics.strip(t)), ds.merged)
-    ) {
-    | Some({elab_term, _}) => elab_term
-    | None => fail("no root info")
-    };
-  let whole0 =
-    switch (DefStatics.whole_elab(ds0)) {
-    | Some(e) => e
-    | None => fail("whole_elab")
-    };
-  check(
-    bool,
-    "root elab_term is the whole program's elab",
-    true,
-    Exp.fast_equal(top_elab(ds0, t0), whole0),
-  );
-  let t1 = parse_exp("let junk = 1 in\nlet x = 3 in\nx");
-  let ds1 = DefStatics.calc(~settings, ~prev=ds0, t1);
-  check(
-    bool,
-    "editing item 2 changes the root's elab_term",
-    false,
-    Exp.fast_equal(top_elab(ds0, t0), top_elab(ds1, t1)),
-  );
+let missing_semi_cases = {
+  let lit = "module M = {\n  let a = 1;\n  let b = a + 2;\n  test 1 == 1 end;\n  let c = b + 3\n} in\nM.c";
+  let top = "let a = 1;\nlet b = a + 2;\ntest 1 == 1 end;\nlet c = b + 3;\nc";
+  /* a key in each of the pair, then one in another member */
+  [
+    (
+      "between two definitions, in a literal",
+      (
+        Sort.Exp,
+        lit,
+        "let a = 1;",
+        [
+          ("let a = 1", "5", "15"),
+          ("let b = a + 2", "6", "26"),
+          ("let c = b + 3", "7", "37"),
+        ],
+      ),
+    ),
+    (
+      "after a test, in a literal",
+      (
+        Sort.Exp,
+        lit,
+        "test 1 == 1 end;",
+        [("let c = b + 3", "7", "37"), ("let a = 1", "5", "15")],
+      ),
+    ),
+    (
+      "after a test, at a Mod root",
+      (
+        Sort.Mod,
+        top,
+        "test 1 == 1 end;",
+        [("let c = b + 3", "7", "37"), ("let a = 1", "5", "15")],
+      ),
+    ),
+    (
+      "between two definitions, in a literal at a Mod root",
+      (
+        Sort.Mod,
+        "module M = {\n  let a = 1;\n  let b = a + 2;\n  let c = b + 3\n};\nM.c",
+        "let a = 1;",
+        [("let b = a + 2", "6", "26"), ("let c = b + 3", "7", "37")],
+      ),
+    ),
+  ];
 };
 
 let tests = (
   "ModRoot",
   [
     test_case("probe", `Quick, probe),
+    test_case("grout between members", `Quick, grout_between_members),
     test_case("full parity", `Quick, full_parity),
     test_case("incremental edit", `Quick, incremental_edit),
     test_case("term_of_mod", `Quick, term_of_mod_matches),
     test_case("stray line above a member", `Quick, stray_line),
     test_case("last slot keyed by root", `Quick, last_slot_keyed_by_root),
-    test_case("statics parity", `Quick, statics_parity),
-    test_case("statics incremental", `Quick, statics_incremental),
-    test_case(
-      "spine elab_term is the whole suffix",
-      `Quick,
-      spine_elab_is_whole_suffix,
-    ),
+    test_case("the semantic term at a Mod root", `Quick, sem_at_root),
     test_case("corpus mega-mod-1k", `Quick, corpus),
-    test_case("big module (stage D)", `Quick, big_module),
-    test_case("recursive type export", `Quick, recursive_type_export),
-  ],
+    test_case("a member edit at depth 1", `Quick, member_edit(("11", "13"))),
+    test_case("a member edit at depth 2", `Quick, member_edit(("21", "23"))),
+    test_case(
+      "an edit in a depth-2 member's let-in",
+      `Quick,
+      member_edit(("22", "24")),
+    ),
+    test_case("an edit after the module", `Quick, member_edit(("41", "43"))),
+    test_case("stdlib sources", `Quick, stdlib),
+    test_case("a chain's middle item", `Quick, chain_edit(("51", "57"))),
+    test_case(
+      "a member of a module in a chain",
+      `Quick,
+      chain_edit(("52", "58")),
+    ),
+    test_case(
+      "a chain in a module in a chain",
+      `Quick,
+      chain_edit(("53", "59")),
+    ),
+    test_case("a chain's tail", `Quick, chain_edit(("54", "60"))),
+    test_case("a chain at the root", `Quick, chain_edit(("55", "61"))),
+    test_case(
+      "a chain's tail at the root",
+      `Quick,
+      chain_edit(("56", "62")),
+    ),
+  ]
+  @ List.map(
+      ((name, case)) =>
+        test_case("a missing `;`: " ++ name, `Quick, missing_semi(case)),
+      missing_semi_cases,
+    )
+  @ List.map(
+      ((name, src)) =>
+        test_case(
+          "let-in member: " ++ name,
+          `Quick,
+          letin_member((name, src)),
+        ),
+      [
+        ("let-in member", "let f = let x = 1 in x;\nf"),
+        (
+          "a fun's let-ins",
+          "let g = fun y ->\n  let z = y + 1 in\n  let w = z in\n  w;\ng(0)",
+        ),
+        (
+          "a statement opening with a let-in",
+          "let x = 1 in x;\nlet y = 2;\ny",
+        ),
+        /* the shape of List's enumerate */
+        (
+          "enumerate",
+          "let enumerate : [?] -> [(Int, ?)] = fun xs ->\n  let helper = fun (xs, index) ->\n    case xs\n    | [] => []\n    | x :: xs => (index, x) :: helper(xs, index + 1)\n    end\n  in\n  helper(xs, 0);\nenumerate([2])",
+        ),
+      ],
+    ),
 );

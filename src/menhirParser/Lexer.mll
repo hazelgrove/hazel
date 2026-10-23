@@ -106,7 +106,7 @@ let comment = '#' [^ '#' '\n']* '#'
 
 rule token = 
     parse 
-    | "undef" { UNDEF}
+    | "undefined" { UNDEF }
     | whitespace {token lexbuf }
     | comment { token lexbuf }
     | newline { advance_line lexbuf; token lexbuf}

@@ -115,6 +115,9 @@ type info = {
   elaborated: option(Language.Exp.t),
   /* Set when this probe's drawer is stepping a sample */
   stepping: option(stepping),
+  /* Set on the ⇓ toggle's probe: its drawer shows the program's value,
+     after the program */
+  program_value: bool,
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,

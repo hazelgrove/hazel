@@ -2,7 +2,7 @@ open Alcotest;
 open Haz3lcore;
 module B = Web.CanvasBuffer;
 let model = text => {
-  let z = Test_StackFocus.parse(text) |> Zipper.unzip;
+  let z = CorpusUtil.seg_of(text) |> Zipper.unzip;
   let statics =
     CachedStatics.init_compositional(
       ~settings=Language.CoreSettings.on,

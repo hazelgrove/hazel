@@ -101,9 +101,12 @@
   white-space: nowrap;
 }
 
+/* the board is direct manipulation (drag, pan, click), not text */
 .canvas-scroll {
   flex: 1 1 auto;
   overflow: auto;
+  -webkit-user-select: none;
+  user-select: none;
   /* free panning: constant slack all around the board (the dot field
      fades at the board edges, so the slack reads as open void); scroll
      anchoring on slide entry skips the margin (CanvasSidebar) */
@@ -191,6 +194,8 @@
   border-radius: 7px;
   padding: 0 6px;
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
   background: var(--df-bg, #fdfdf4);
   color: var(--token-typ, #9457c9);
 }
@@ -791,6 +796,8 @@
   align-items: center;
   gap: 3px;
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
   font-family: var(--code-font, monospace);
 }
 
@@ -990,6 +997,8 @@
   font-size: 11px;
   background: var(--df-bg, #fdfdf4);
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
   white-space: nowrap;
 }
 
@@ -1150,6 +1159,8 @@
   border-radius: 8px;
   padding: 1px 8px;
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
   margin-left: 8px;
 }
 
@@ -1186,6 +1197,8 @@
   font-weight: bold;
   background: var(--df-bg, #fdfdf4);
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .focus-fnbox:hover {
@@ -1590,6 +1603,8 @@
   background: var(--surface-shard, #d8c9a3);
   opacity: 0.55;
   cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
   margin: 0 3px;
 }
 .canvas-rec-dot:hover,
@@ -2427,7 +2442,13 @@
 
 /* Opt-in layout comparisons: one disclosure, rather than more toolbar buttons. */
 .canvas-layout-lab { position: relative; font: inherit; }
-.canvas-layout-lab > summary { cursor: pointer; list-style: none; padding: 2px 6px; }
+.canvas-layout-lab > summary {
+  cursor: pointer;
+  -webkit-user-select: none;
+  user-select: none;
+  list-style: none;
+  padding: 2px 6px;
+}
 .canvas-layout-lab > summary::-webkit-details-marker { display: none; }
 .canvas-layout-lab[open] > summary { background: var(--surface-raised, #e3eee8); border-radius: 3px; }
 .canvas-layout-options { position: absolute; z-index: 100; right: 0; top: calc(100% + 6px); width: 275px; padding: 14px; background: var(--BG, #faf8f0); color: var(--text-default, #34494c); border: 1px solid #aeb9af; border-radius: 5px; box-shadow: 0 4px 12px #293f4220; display: flex; flex-direction: column; gap: 12px; font: 12px/1.4 system-ui, sans-serif; }

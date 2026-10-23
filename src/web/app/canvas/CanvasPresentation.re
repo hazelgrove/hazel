@@ -51,15 +51,9 @@ let capture =
   let snapshot = seg => {
     /* an intermediate program must not take over the live document's
        DefStatics cache entry (same first item, same key) */
-    let saved_slots = Hashtbl.copy(DefStatics.slots);
-    let saved_mru = DefStatics.slots_mru^;
+    let saved_slots = DefStatics.slots^;
     Fun.protect(
-      ~finally=
-        () => {
-          Hashtbl.reset(DefStatics.slots);
-          Hashtbl.iter(Hashtbl.replace(DefStatics.slots), saved_slots);
-          DefStatics.slots_mru := saved_mru;
-        },
+      ~finally=() => DefStatics.slots := saved_slots,
       () => {
         let z = Zipper.unzip(DefinitionSteps.materialize(seg));
         let z = {

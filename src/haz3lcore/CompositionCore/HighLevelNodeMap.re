@@ -132,6 +132,12 @@ module Utils = {
               ~nominee: option(Info.t),
             ) => {
       switch (candidates) {
+      | [candidate, ...rest] when !Id.Map.mem(candidate, info_map) =>
+        search_for_top_level_node(
+          ~candidates=rest,
+          ~departure_point,
+          ~nominee,
+        )
       | [candidate, ...rest] =>
         let candidate = Id.Map.find(candidate, info_map);
         let nominee =
@@ -193,7 +199,7 @@ module Utils = {
     };
 
     search_for_top_level_node(
-      ~candidates=Info.ancestors_of(start_point),
+      ~candidates=Info.ancestors(~info_map, start_point),
       ~departure_point=start_point,
       ~nominee=initial_nominee,
     );
@@ -203,7 +209,7 @@ module Utils = {
       (info: Info.t, info_map: Id.Map.t(Info.t)): Info.t => {
     switch (
       {
-        let* id = ListUtil.hd_opt(List.rev(Info.ancestors_of(info)));
+        let* id = ListUtil.last_opt(Info.ancestors(~info_map, info));
         Id.Map.find_opt(id, info_map);
       }
     ) {
@@ -297,18 +303,25 @@ module MoveOffWhitespaceHelper = {
   };
 
   let rec move_to_non_whitespace =
-          (z: Zipper.t, d: Direction.t): option(Zipper.t) => {
+          (~info_map=?, z: Zipper.t, d: Direction.t): option(Zipper.t) => {
     /*
      Iteratively move the cursor to the left.
      If moving left becomes stagnant, try and move right.
+     With [info_map], also past pieces it has no term for (a Mod root's
+     member `;`).
      */
-    is_on_whitespace(z)
+    let off_term =
+      switch (info_map) {
+      | Some(m) => Indicated.ci_of(z, m) == None
+      | None => false
+      };
+    is_on_whitespace(z) || off_term
       ? {
         switch (Move.by_char(d, z)) {
-        | Some(z') => move_to_non_whitespace(z', d)
+        | Some(z') => move_to_non_whitespace(~info_map?, z', d)
         | None =>
           if (d == Left) {
-            move_to_non_whitespace(z, Right);
+            move_to_non_whitespace(~info_map?, z, Right);
           } else {
             None;
           }
@@ -412,11 +425,12 @@ let prev_sibling_of = (node: node): option(Id.t) => {
   };
 };
 
-let lowest_enclosing_node_of = (info: Info.t, node_map: t): option(node) => {
+let lowest_enclosing_node_of =
+    (~info_map: Id.Map.t(Info.t), info: Info.t, node_map: t): option(node) => {
   switch (Id.Map.find_opt(Info.id_of(info), node_map)) {
   | Some(node) => Some(node)
   | None =>
-    let ancestors = Info.ancestors_of(info);
+    let ancestors = Info.ancestors(~info_map, info);
     List.find_map(
       (ancestor: Id.t) => Id.Map.find_opt(ancestor, node_map),
       ancestors,
@@ -471,61 +485,44 @@ let rec build_children =
   let exp_to_info = (term: Exp.t): Info.t =>
     Utils.exp_to_info(term, info_map);
 
-  let typ_to_info = (term: Typ.t): Info.t =>
-    Utils.typ_to_info(term, info_map);
-
   switch (candidate) {
   | InfoExp({user_term: term, _}) =>
     switch (Exp.term_of(term)) {
-    | Let(_, def, body) =>
-      // Add this node to the node map
-      let new_path = path @ [Info.id_of(candidate)];
-      let node_map = init_node(candidate, new_path, node_map);
-      // 1. Find children
-      let node_map =
-        build_children(exp_to_info(def), new_path, node_map, info_map);
-      // 2. Find siblings
-      // use "old" path for siblings!!
-      build_children(exp_to_info(body), path, node_map, info_map);
-    // It is also useful to add type defintions to the def-structured AST
-    | TyAlias(_, typ, body) =>
-      // Add this node to the node map
-      let new_path = path @ [Info.id_of(candidate)];
-      let node_map = init_node(candidate, new_path, node_map);
-      // 1. Find children (although, not sure if necessary for type defs)
-      let node_map =
-        build_children(typ_to_info(typ), new_path, node_map, info_map);
-      // 2. Find siblings
-      // use "old" path for siblings!!
-      build_children(exp_to_info(body), path, node_map, info_map);
-    | ModuleExp(_, def, body) =>
-      // Add this node to the node map (module M = def in body)
-      let new_path = path @ [Info.id_of(candidate)];
-      let node_map = init_node(candidate, new_path, node_map);
-      // 1. Find children (the module body)
-      let node_map =
-        build_children(exp_to_info(def), new_path, node_map, info_map);
-      // 2. Find siblings (continuation after "in")
+    /* a module statement as its chain holds it (`let _ = e in`, from a
+       Mod root's items, which have no Module info to read them from):
+       not a binding, as the Module case below skips it */
+    | Let(_, def, body)
+        when
+          switch (Id.Map.find_opt(Exp.rep_id(def), info_map)) {
+          | Some(InfoExp({cls: Mod(_), _})) => true
+          | _ => false
+          } =>
+      build_children(exp_to_info(body), path, node_map, info_map)
+    | Let(_, _, body)
+    | TyAlias(_, _, body)
+    | ModuleExp(_, _, body) =>
+      let node_map = build_binding(candidate, path, node_map, info_map);
+      // Siblings: the continuation, at the "old" path
       build_children(exp_to_info(body), path, node_map, info_map);
     | Module(items) =>
       /* Module literal: members become nodes at this path (children of the
          enclosing binding). Statics checks module literals by expansion
          into nested Let/TyAlias wrappers KEYED BY THE MOD ITEM IDS
-         (ModuleHelpers.lower; reclassify only rewrites cls), so the first
-         item's wrapper info chains through the remaining members exactly
-         like a top-level binding chain — the Let/TyAlias cases above walk
-         it, making members siblings of one another. Wrapper pat/def ids
-         are the members' real syntax ids, so downstream span selection
-         works unchanged. */
-      switch (items) {
-      | [] => node_map
-      | [first, ..._] =>
-        switch (Id.Map.find_opt(Mod.rep_id(first), info_map)) {
-        | Some(wrapper_info) =>
-          build_children(wrapper_info, path, node_map, info_map)
-        | None => node_map
-        }
-      }
+         (ModuleHelpers.lower; reclassify only rewrites cls), whose pat/def
+         ids are the members' real syntax ids, so downstream span selection
+         works unchanged. Each binding member's wrapper is a node; other
+         items (tests, a Mod root's trailing expression) are wrapped under
+         fresh ids and make none. */
+      List.fold_left(
+        (node_map, item: Mod.t) =>
+          switch (item.term, Id.Map.find_opt(Mod.rep_id(item), info_map)) {
+          | (ModLet(_) | ModType(_) | ModuleMod(_), Some(wrapper)) =>
+            build_binding(wrapper, path, node_map, info_map)
+          | _ => node_map
+          },
+        node_map,
+        items,
+      )
     | _ =>
       let es = Utils.child_expressions_of_exp(term);
       let es_mapped = List.map(exp_to_info, es);
@@ -538,6 +535,39 @@ let rec build_children =
         es_mapped,
       );
     }
+  | _ => node_map
+  };
+}
+/* a binding's node, and the bindings in its definition below it */
+and build_binding =
+    (
+      candidate: Info.t,
+      path: list(Id.t),
+      node_map: t,
+      info_map: Id.Map.t(Info.t),
+    )
+    : t => {
+  let new_path = path @ [Info.id_of(candidate)];
+  let node_map = init_node(candidate, new_path, node_map);
+  switch (candidate) {
+  | InfoExp({
+      user_term: {term: Let(_, def, _) | ModuleExp(_, def, _), _},
+      _,
+    }) =>
+    build_children(
+      Utils.exp_to_info(def, info_map),
+      new_path,
+      node_map,
+      info_map,
+    )
+  // It is also useful to add type defintions to the def-structured AST
+  | InfoExp({user_term: {term: TyAlias(_, typ, _), _}, _}) =>
+    build_children(
+      Utils.typ_to_info(typ, info_map),
+      new_path,
+      node_map,
+      info_map,
+    )
   | _ => node_map
   };
 };
@@ -886,7 +916,7 @@ let node_of_cursor =
   switch (
     {
       let* valid_zipper =
-        MoveOffWhitespaceHelper.move_to_non_whitespace(z, Left);
+        MoveOffWhitespaceHelper.move_to_non_whitespace(~info_map, z, Left);
       Indicated.ci_of(valid_zipper, info_map);
     }
   ) {
@@ -897,7 +927,7 @@ let node_of_cursor =
       ),
     )
   | Some(info) =>
-    switch (lowest_enclosing_node_of(info, node_map)) {
+    switch (lowest_enclosing_node_of(~info_map, info, node_map)) {
     | Some(node) => node
     | None => raise(Failure("No lowest enclosing node found for cursor"))
     }
@@ -917,7 +947,11 @@ and build_whole = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(t) => {
   switch (
     {
       let* valid_zipper =
-        MoveOffWhitespaceHelper.move_to_non_whitespace(zipper, Left);
+        MoveOffWhitespaceHelper.move_to_non_whitespace(
+          ~info_map,
+          zipper,
+          Left,
+        );
       let* current_term = Indicated.ci_of(valid_zipper, info_map);
       Utils.top_level_term_of(~start_point=current_term, ~info_map);
     }

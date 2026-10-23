@@ -125,6 +125,23 @@ let prune = (~budget: int, e: Exp.t): (Exp.t, bool) => {
   (pruned, truncated^);
 };
 
+/* [prune], noted in the console when it truncates */
+let prune_noting =
+    (~prefix="", ~budget: int, ~purpose: string, e: Exp.t): Exp.t => {
+  let (pruned, truncated) = prune(~budget, e);
+  if (truncated) {
+    print_endline(
+      Printf.sprintf(
+        "%sresult value exceeds %d nodes: truncated for %s (elided parts shown as holes)",
+        prefix,
+        budget,
+        purpose,
+      ),
+    );
+  };
+  pruned;
+};
+
 /* closure environments are never displayed (the stepper re-evaluates
    from the elab) but reference most runtime state; replacing them
    before descending keeps the walk out of them */

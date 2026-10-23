@@ -500,6 +500,92 @@ in apply(add(_, 10), 5)|},
       };
     },
   ),
+  /* the probe's menu offers step into on a call it names (cur_var_ap)
+     whose function has code */
+  test_case(
+    "Step into is offered on user calls, bare or through a module, not on a builtin",
+    `Quick,
+    () => {
+      let offered = code => {
+        let (_, elaborated, info_map, targets) = parse_with_probes(code);
+        let (_, state) =
+          Evaluator.evaluate(
+            ~eval_info=EvalInfo.of_targets(targets),
+            ~env=Builtins.env_init,
+            elaborated,
+          );
+        switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
+        | [(id, [s, ..._])] =>
+          let info = Option.get(Statics.Map.lookup(id, info_map));
+          Sample.Focus.cur_var_ap(info) == Some(id)
+          && Haz3lcore.ProbeProj.can_step_into(info, s);
+        | _ => fail("Expected one probe with samples")
+        };
+      };
+      check(
+        bool,
+        "bare call",
+        true,
+        offered({|let inc = fun n -> n + 1 in ^^probe(inc(1))|}),
+      );
+      check(
+        bool,
+        "call through a module",
+        true,
+        offered(
+          {|module M = { let inc = fun n -> n + 1 } in ^^probe(M.inc(1))|},
+        ),
+      );
+      check(
+        bool,
+        "builtin",
+        false,
+        offered({|^^probe(string_length("abc"))|}),
+      );
+    },
+  ),
+  /* a recursive function's closure carries its inner Fun's derived id
+     (its FixF keeps the surface Fun's): step into resolves it back */
+  test_case(
+    "A recursive closure's definition resolves to its function",
+    `Quick,
+    () => {
+      let (_, elaborated, info_map, targets) =
+        parse_with_probes(
+          {|let f = fun n -> if n == 0 then 0 else f(n - 1) in ^^probe(f(2))|},
+        );
+      let (_, state) =
+        Evaluator.evaluate(
+          ~eval_info=EvalInfo.of_targets(targets),
+          ~env=Builtins.env_init,
+          elaborated,
+        );
+      switch (Id.Map.bindings(EvaluatorState.get_probes(state))) {
+      | [(_, [s, ..._])] =>
+        let def = Option.get(frame_fn_def_id(s));
+        check(
+          bool,
+          "not the function's own id",
+          false,
+          Id.Map.mem(def, info_map),
+        );
+        check(
+          bool,
+          "resolves to a function",
+          true,
+          switch (
+            Option.bind(Haz3lcore.ProbePerform.fn_def_in(info_map, def), id =>
+              Statics.Map.lookup(id, info_map)
+            )
+          ) {
+          | Some(InfoExp({user_term: {term: Fun(_), _}, _})) => true
+          | _ => false
+          },
+        );
+      | _ => fail("Expected one probe with samples")
+      };
+    },
+  ),
 ];
 
 /* Delegation law: an administrative same-id re-evaluation (cast

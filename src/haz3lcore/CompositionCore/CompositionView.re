@@ -51,7 +51,7 @@ module Local = {
           Select.term(
             ~defs_exclude_bodies=false,
             ~case_rules=false,
-            CachedSyntax.init(z).term_data,
+            CachedSyntax.init(~root, z).term_data,
             id,
             z,
           )
@@ -59,7 +59,7 @@ module Local = {
         | Some(z') =>
           switch (
             ProjectorPerform.go(
-              CachedSyntax.init(z').term_data,
+              CachedSyntax.init(~root, z').term_data,
               SetIndicated(Specific(Fold)),
               z',
               [],
@@ -100,7 +100,7 @@ module Local = {
       let ids =
         List.filter_map(
           id =>
-            if (!is_term_folded(CachedSyntax.init(z).term_data, id, z)) {
+            if (!is_term_folded(CachedSyntax.init(~root, z).term_data, id, z)) {
               Some(id);
             } else {
               None;
@@ -150,9 +150,10 @@ module Local = {
     let zipper_for_agent_context =
         (editor: Editor.t, agent_context: AgentContext.Model.t): Zipper.t => {
       let z = editor.state.zipper;
-      /* per-item statics, memoized per program by DefStatics */
-      let info_map = CompositionGo.Public.mk_statics(z);
-      switch (CompositionGo.Public.node_map_of(z)) {
+      /* per-item statics, memoized per program by DefStatics (a Mod
+         root's whole) */
+      let info_map = CompositionGo.Public.mk_statics(~root=editor.root, z);
+      switch (CompositionGo.Public.node_map_of(~root=editor.root, z)) {
       | None => z
       | Some(node_map) =>
         let all_top_level_ids = Id.Map.bindings(node_map) |> List.map(fst);

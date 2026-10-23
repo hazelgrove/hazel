@@ -2,6 +2,16 @@ open Util;
 open Calc.Syntax;
 open Language;
 
+/* proofs step with proof rules on, every step kept */
+let proof_core = (core: CoreSettings.t): CoreSettings.t => {
+  ...core,
+  evaluation: {
+    ...core.evaluation,
+    enable_proof: true,
+    stepper_history: true,
+  },
+};
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type theorem = {
@@ -29,6 +39,10 @@ module Model = {
   type t = {
     thm_map: Id.Map.t(theorem),
     thms: Calc.saved(list(Id.t)),
+    /* a proof drawer's step the pointer last went to, as ProbeSteps.focus:
+       its editors draw their selections and take the keys */
+    [@default None]
+    focus: option((int, StepperView.Focus.t)),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -37,6 +51,7 @@ module Model = {
   let init = {
     thm_map: Id.Map.empty,
     thms: Calc.Pending,
+    focus: None,
   };
 
   /* (proven, all), for the results' status line */
@@ -79,6 +94,7 @@ module Model = {
         p.thm_map,
       ),
     thms: Calc.Pending,
+    focus: None,
   };
 
   let get_score = (model: t): option((float, float)) => {
@@ -109,20 +125,14 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | TheoremUpdate(int, StepperView.Update.t);
+    | TheoremUpdate(int, StepperView.Update.t)
+    | TheoremFocus(option((int, StepperView.Focus.t)));
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     let settings =
       Settings.Model.{
         ...settings,
-        core: {
-          ...settings.core,
-          evaluation: {
-            ...settings.core.evaluation,
-            enable_proof: true,
-            stepper_history: true,
-          },
-        },
+        core: proof_core(settings.core),
       };
     /* a proof drawer's cached view shows the old stepper until this moves */
     Haz3lcore.ProbeProj.Settings.version :=
@@ -154,6 +164,12 @@ module Update = {
         };
       | None => model |> Updated.raise_invalid_action
       };
+    | TheoremFocus(focus) =>
+      {
+        ...model,
+        focus,
+      }
+      |> Updated.return_quiet
     };
   };
 
@@ -162,20 +178,12 @@ module Update = {
         ~settings: Calc.t(CoreSettings.t),
         ~statics: Calc.t(Haz3lcore.CachedStatics.t),
         ~dynamics: Calc.t(option(Dynamics.t)),
-        {thm_map, thms}: Model.t,
+        {thm_map, thms, focus}: Model.t,
       ) => {
-    let settings' = {
-      ...Calc.get_value(settings),
-      evaluation: {
-        ...Calc.get_value(settings).evaluation,
-        enable_proof: true,
-        stepper_history: true,
-      },
-    };
     let settings =
       switch (settings) {
-      | OldValue(_) => Calc.OldValue(settings')
-      | NewValue(_) => Calc.NewValue(settings')
+      | OldValue(s) => Calc.OldValue(proof_core(s))
+      | NewValue(s) => Calc.NewValue(proof_core(s))
       };
     let thms =
       thms
@@ -286,6 +294,7 @@ module Update = {
     Model.{
       thm_map,
       thms: thms |> Calc.save,
+      focus,
     };
   };
 };
@@ -322,14 +331,7 @@ let rows = (~settings: CoreSettings.t, model: Model.t, id: Id.t): option(int) =>
   |> Option.map((thm: Model.theorem) =>
        1
        + ProbeSteps.stepper_rows(
-           ~settings={
-             ...settings,
-             evaluation: {
-               ...settings.evaluation,
-               enable_proof: true,
-               stepper_history: true,
-             },
-           },
+           ~settings=proof_core(settings),
            thm.stepper_view,
          )
      );
@@ -353,18 +355,30 @@ module View = {
     ...globals,
     settings: {
       ...globals.settings,
-      core: {
-        ...globals.settings.core,
-        evaluation: {
-          ...globals.settings.core.evaluation,
-          enable_proof: true,
-          stepper_history: true,
-        },
-      },
+      core: proof_core(globals.settings.core),
     },
   };
 
-  /* one theorem's proof, for its drawer */
+  /* a theorem's stepper: a step taking focus goes to [take_focus] */
+  let stepper = (~globals, ~take_focus, ~inject, ~selected, idx, stepper_view) =>
+    StepperView.View.view(
+      ~globals,
+      ~signal=
+        fun
+        | MakeActive(f) => take_focus((idx, f))
+        | HideStepper => Ui_effect.Ignore,
+      ~inject=a => inject(Update.TheoremUpdate(idx, a)),
+      ~selected=
+        switch (selected) {
+        | Some((idx', s)) when idx == idx' => Some(s)
+        | _ => None
+        },
+      ~is_toplevel=false,
+      stepper_view,
+    );
+
+  /* one theorem's proof, for its drawer: the steps drawer's title bar,
+     and its focus kept in the model, as the steps drawer's is */
   let view_one =
       (
         ~globals: Globals.t,
@@ -382,28 +396,15 @@ module View = {
     | (Some(idx), Some(thm)) =>
       let proven =
         StepperView.Model.get_validity(thm.stepper_view) == Some(true);
-      let undo = StepperView.Update.undo(thm.stepper_view);
       Some(
         div_c(
           "theorem",
           [
-            /* the stepper drawer's title bar: what's proved, then undo */
-            Node.div(
-              ~attrs=[Attr.classes(["theorem-header", "steps-bar"])],
-              [
-                Node.div(
-                  ~attrs=[Attr.classes(["steps-bar-name"])],
-                  [
-                    Node.span(
-                      ~attrs=[Attr.classes(["steps-bar-label"])],
-                      [Node.text("Proof")],
-                    ),
-                    Node.span(
-                      ~attrs=[Attr.classes(["steps-bar-expr"])],
-                      [Node.text(thm.name)],
-                    ),
-                  ],
-                ),
+            ProbeSteps.bar(
+              ~classes=["theorem-header"],
+              ~label="Proof",
+              ~name=thm.name,
+              ~status=[
                 Node.div(
                   ~attrs=[
                     Attr.classes([
@@ -413,31 +414,23 @@ module View = {
                   ],
                   [Node.text(proven ? "proven" : "incomplete")],
                 ),
-                Node.div(
-                  ~attrs=[Attr.classes(["steps-bar-controls"])],
-                  [
-                    Widgets.button_d(
-                      ~tooltip="Step back",
-                      Icons.undo,
-                      switch (undo) {
-                      | Some(a) => inject(Update.TheoremUpdate(idx, a))
-                      | None => Ui_effect.Ignore
-                      },
-                      ~disabled=undo == None,
-                    ),
-                  ],
-                ),
               ],
+              ~undo=
+                Option.map(
+                  a => inject(Update.TheoremUpdate(idx, a)),
+                  StepperView.Update.undo(thm.stepper_view),
+                ),
+              [],
             ),
-          ]
-          @ StepperView.View.view(
-              ~globals,
-              ~signal=_ => Ui_effect.Ignore,
-              ~inject=a => inject(Update.TheoremUpdate(idx, a)),
-              ~selected=None,
-              ~is_toplevel=false,
-              thm.stepper_view,
-            ),
+            ...stepper(
+                 ~globals,
+                 ~take_focus=f => inject(Update.TheoremFocus(Some(f))),
+                 ~inject,
+                 ~selected=model.focus,
+                 idx,
+                 thm.stepper_view,
+               ),
+          ],
         ),
       );
     | _ => None
@@ -482,23 +475,20 @@ module View = {
                 status,
               ],
             );
-          let stepper =
-            StepperView.View.view(
-              ~globals,
-              ~signal=
-                fun
-                | MakeActive(f) => take_focus((idx, f))
-                | HideStepper => Ui_effect.Ignore,
-              ~inject=a => inject(Update.TheoremUpdate(idx, a)),
-              ~selected=
-                switch (selected) {
-                | Some((idx', s)) when idx == idx' => Some(s)
-                | _ => None
-                },
-              ~is_toplevel=false,
-              stepper_view,
-            );
-          div_c("theorem", [header, ...stepper]);
+          div_c(
+            "theorem",
+            [
+              header,
+              ...stepper(
+                   ~globals,
+                   ~take_focus,
+                   ~inject,
+                   ~selected,
+                   idx,
+                   stepper_view,
+                 ),
+            ],
+          );
         },
         xs,
       )

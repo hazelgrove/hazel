@@ -1,6 +1,6 @@
 open Alcotest;
 open Haz3lcore;
-let parse = Test_StackFocus.parse;
+let parse = CorpusUtil.seg_of;
 let check_plan = (before, after) => {
   let steps = DefinitionSteps.plan(before, after);
   let final =
@@ -75,9 +75,10 @@ let tests = (
         let before =
           parse("let f : Int -> Int = fun x -> let old = x in old in f(1)");
         let (term, _) = Test_StackFocus.statics_of(before);
-        let id = Test_StackFocus.outline_id(term, "f");
+        let id = CorpusUtil.row_by_label(term, "f");
         let after =
           Web.ScratchFocus.splice_def(
+            ~root=Exp,
             id,
             parse("fun x -> let a = x + 1 in let b = a * 2 in b"),
             before,
@@ -117,7 +118,7 @@ let tests = (
           true,
           List.exists(
             seg => {
-              let text = Test_StackFocus.text_of(seg);
+              let text = CorpusUtil.text_of(seg);
               String.contains(text, 'A') && !String.contains(text, 'B');
             },
             states,
@@ -142,7 +143,7 @@ let tests = (
           List.fold_left(
             (seg, op) => {
               let next = DefinitionSteps.apply(op, seg);
-              let text = Test_StackFocus.text_of(next);
+              let text = CorpusUtil.text_of(next);
               check(
                 bool,
                 "A remains in the module",
@@ -223,8 +224,9 @@ let tests = (
         let before = parse("let m = {type A = Int; type B = Int} in 0");
         let (term, info_map) = Test_StackFocus.statics_of(before);
         ignore(info_map);
-        let id = Test_StackFocus.outline_id(term, "m");
-        let after = Web.ScratchFocus.splice_def(id, parse("{}"), before);
+        let id = CorpusUtil.row_by_label(term, "m");
+        let after =
+          Web.ScratchFocus.splice_def(~root=Exp, id, parse("{}"), before);
         ignore(check_plan(before, after));
       },
     ),
