@@ -278,14 +278,17 @@ let output_contract_sections = [
 ];
 
 let preamble =
-  String.concat("\n", preamble_sections @ [""] @ output_contract_sections);
+  String.concat(
+    ~sep="\n",
+    preamble_sections @ [""] @ output_contract_sections,
+  );
 
 /* Sections that define the domain terms a summary will use; deliberately
    omits the toolkit, task-planning, and few-shot sections (the summarizer
    does not call tools or emit agent-formatted turns) */
 let agent_prompt_excerpt = () =>
   String.concat(
-    "\n",
+    ~sep="\n",
     CompositionPrompt.identity
     @ CompositionPrompt.session_modes
     @ CompositionPrompt.hazel_language_guide
