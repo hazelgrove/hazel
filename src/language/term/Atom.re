@@ -200,6 +200,9 @@ let convert =
   };
 };
 
+let is_valid_raw_string_body = (s: string): bool =>
+  !String.contains(s, '\n') && !String.contains(s, '\r');
+
 let to_literal = (e: t): string =>
   switch (e) {
   | Int(i) => i |> Bigint.to_string
@@ -207,7 +210,7 @@ let to_literal = (e: t): string =>
   | SInt(i) => i |> string_of_int
   | Float(f) => Printf.sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
-  | String(s) => "\"" ++ s ++ "\""
+  | String(s) => "\"" ++ String.escaped(s) ++ "\""
   };
 
 /* ========== BUILTINS ========== */

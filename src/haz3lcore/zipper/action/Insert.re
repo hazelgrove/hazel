@@ -26,6 +26,9 @@ let expansion = (sort: Sort.t, t: Token.t, z: t): (Label.t, Direction.t) => {
   | _ when Token.is_string_delim(t) || Token.is_quoted_label_delim(t) =>
     /* Special case for constructing string/label literals. */
     ([t ++ t], Left)
+  | _ when Token.is_raw_string_start(t) =>
+    /* Special case for constructing raw string literals. */
+    ([t ++ "\""], Left)
   | "|" when before_case_shard(z) || inside_case(z) =>
     /* SPECIAL CASE: Case rule delimiter.
        Inside a case, always expand | to Rule form regardless of local sort.
@@ -313,11 +316,15 @@ let grout_for_suppressed_space = (z: t, ~root): option(Grout.t) =>
 /* This is special-case logic for advancing the caret to between
  * the quotes in newly-created stringlits. This should be done
  * before regrouting to avoid annoying edge cases. */
-let move_into_string_or_comment = (char: string, z: t): t =>
+let move_into_string_or_comment =
+    (char: string, resulting_token: Token.t, z: t): t =>
   Token.is_string_or_comment_delim(char)
     ? switch (move(Left, z)) {
       | None => z
-      | Some(z) => z |> Caret.set(Inner(0))
+      | Some(z) =>
+        /* Standard strings need 0, raw strings need 1 */
+        let offset = Token.is_raw_string_start(resulting_token) ? 1 : 0;
+        z |> Caret.set(Inner(offset));
       }
     : z;
 
@@ -350,7 +357,7 @@ let split =
     | None =>
       z
       |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Left, char)
-      |> move_into_string_or_comment(char)
+      |> move_into_string_or_comment(char, char)
     };
   remold_regrout(Right, z, ~root);
 };
@@ -416,6 +423,11 @@ let insert_or_append =
     |> replace_shard_inplace(Right, t, ~root)
     |> Option.map(remold_regrout(Right, ~root))
   | appendability =>
+    let resulting_token =
+      switch (appendability) {
+      | Some((_, t)) => t
+      | None => char
+      };
     let z =
       Caret.set(
         switch (appendability) {
@@ -439,7 +451,7 @@ let insert_or_append =
       };
     let z_final =
       z_init
-      |> move_into_string_or_comment(char)
+      |> move_into_string_or_comment(char, resulting_token)
       |> remold_regrout(Left, ~root)
       |> merge_or_noop(~root);
     adjust_caret_pos(~z_final, ~z_init);
@@ -645,7 +657,15 @@ let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
      * in a comment, we are instead moved to the righthand side of
      * the operand. Note that this behavior is load-bearing for the
      * current parsing approach including Paste */
-    | (_, (_, Some(t))) when Token.closing_stringlit_or_comment(char, t) =>
+    | (Inner(idx), (_, Some(t)))
+        when
+          Token.closing_stringlit_or_comment(char, t)
+          && !(
+               String.length(t) > 0
+               && t.[0] == '"'
+               && char == "\""
+               && Token.string_quote_is_escaped(t, idx + 1)
+             ) =>
       z |> Caret.set(Outer) |> Zipper.move(Right)
     | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
       Some(z)
@@ -654,6 +674,10 @@ let go = (~auto_indent: bool, char: string, z: t, ~root): option(t) => {
       let new_token = Token.insert_nth(idx, char, t);
       let z = Caret.set(Inner(idx), z);
       Token.is_potential_token(new_token)
+      || String.length(new_token) > 0
+      && new_token.[0] == '"'
+      && char == "\""
+      && Token.string_quote_is_escaped(new_token, idx)
         ? z
           |> replace_shard_inplace(Right, new_token, ~root)
           |> Option.map(
