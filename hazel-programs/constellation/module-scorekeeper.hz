@@ -1,0 +1,27 @@
+# Module values: the {} former node on the graph, member access from #
+# ordinary functions. #
+
+module Score = {
+  let base = 10;
+  let bonus = fun n -> n * 2;
+  let cap = 50
+} in
+
+let tally : Int -> Int =
+  fun n -> Score.base + Score.bonus(n) in
+
+let capped : Int -> Int =
+  fun n ->
+    case tally(n) > Score.cap
+    | true => Score.cap
+    | false => tally(n)
+    end
+in
+
+hint "bonus doubles"
+test tally(5) == 20 end;
+
+hint "big scores cap"
+test capped(100) == 50 end;
+
+capped(7)

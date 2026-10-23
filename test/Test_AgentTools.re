@@ -42,36 +42,28 @@ let run_agent_action = (code: string, a: Action.Structural.t) => {
 };
 
 /** Runs a no-path insert_before / insert_after (the InsertAtProgramBoundary
-    action). Before → prepend at program start; After → append at program end. */
+    action) as AgentToolCallHandler does. Before → prepend at program start;
+    After → append at program end (at a Mod root, members after the last). */
 let run_insert_at_program_boundary =
     (
+      ~root=Sort.Exp,
       code: string,
       direction: Action.Structural.insert_target,
       new_code: string,
     ) => {
-  let z = mk_zipper(code);
-  let initial_info_map = mk_statics(z);
-  let z_at_boundary =
-    switch (direction) {
-    | Before => Move.to_start(z)
-    | After => Move.to_end(z)
-    };
+  let z =
+    root == Sort.Exp
+      ? mk_zipper(code) : Zipper.unzip(CorpusUtil.seg_of(~root, code));
+  let statics = z => CompositionGo.Public.mk_statics(~root, z);
+  let initial_info_map = statics(z);
   let before_pieces =
-    LocalReformat.snapshot_pieces(
-      ~enabled=CoreSettings.on.auto_reindent,
-      z_at_boundary,
-    );
+    LocalReformat.snapshot_pieces(~enabled=CoreSettings.on.auto_reindent, z);
   switch (
-    CompositionGo.Local.PerformUtils.introduce(
-      ~fast=true,
-      ~keep_edge_ws=true,
-      z_at_boundary,
-      "\n" ++ new_code ++ "\n",
-    )
+    CompositionGo.Public.insert_at_boundary(~root, direction, z, new_code)
   ) {
   | Error(e) => Error(e)
   | Ok(new_z) =>
-    let new_statics = mk_statics(new_z);
+    let new_statics = statics(new_z);
     let old_errors = ErrorPrint.all(initial_info_map);
     let new_errors = ErrorPrint.all(new_statics);
     if (List.length(new_errors) > List.length(old_errors)) {
@@ -85,8 +77,9 @@ let run_insert_at_program_boundary =
          re-indent like the dispatch path. */
       Ok(
         CompositionGo.Local.PerformUtils.normalize_top_level(
+          ~root,
           ~before=z,
-          Materialize.all(new_z, ~root=Exp),
+          Materialize.all(new_z, ~root),
         )
         |> LocalReformat.go_region(~before_pieces),
       );
@@ -2106,6 +2099,22 @@ let composition_utils_tests = (
       },
     ),
     test_case(
+      "parse insert_test tool call, with and without a path",
+      `Quick,
+      () => {
+        let parse = args =>
+          CompositionUtils.Public.action_of(~tool_name="insert_test", ~args);
+        switch (parse(mk_json_args([("path", "a"), ("code", "a == 1")]))) {
+        | Action(EditorAction(InsertTest(Some("a"), "a == 1"))) => ()
+        | _ => Alcotest.fail("insert_test with a path")
+        };
+        switch (parse(mk_json_args([("path", ""), ("code", "a == 1")]))) {
+        | Action(EditorAction(InsertTest(None, "a == 1"))) => ()
+        | _ => Alcotest.fail("insert_test with an empty path")
+        };
+      },
+    ),
+    test_case(
       "parse insert_after with empty path → InsertAtProgramBoundary",
       `Quick,
       () => {
@@ -3341,8 +3350,7 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        /* 36 while DocPacks is empty (read_docs is not offered) */
-        check(int, "tool count", 36, List.length(tools));
+        check(int, "tool count", 38, List.length(tools));
       },
     ),
     test_case(
@@ -3400,8 +3408,9 @@ let tool_json_tests = (
       "edit tools have required path parameter",
       `Quick,
       () => {
-        /* insert_after / insert_before are intentionally excluded: their
-           `path` is optional (omitting it inserts at the program boundary). */
+        /* insert_after / insert_before / insert_test are intentionally
+           excluded: their `path` is optional (omitting it inserts at the
+           program boundary, or after the last item for a test). */
         let edit_tool_names = [
           "update_definition",
           "update_body",
@@ -3554,6 +3563,7 @@ let tool_json_tests = (
             "delete_body",
             "insert_after",
             "insert_before",
+            "insert_test",
           ],
           ToolUtils.edit_tool_names,
         );
@@ -5073,7 +5083,7 @@ let whitespace_normalization_tests = (
    ============================================================ */
 
 /* Module MEMBER operations: paths descend into module literals
-   ("m/x"). The node map chains through the statics expansion
+   ("m/x", "^w/init"). The node map chains through the statics expansion
    (wrapper Let/TyAlias keyed by Mod item ids), so the same eight tools
    work at member granularity. */
 let module_member_tests = (
@@ -5091,6 +5101,22 @@ let module_member_tests = (
         check_rendered(
           "member_update_def",
           "let m = { let x = 5; let y = 2 } in m",
+          result,
+        );
+      },
+    ),
+    test_case(
+      "update_definition on a livelit member",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let ^w = { let x = 1; let y = 2 } in 3",
+            Update(Definition, "^w/y", "9"),
+          );
+        check_rendered(
+          "livelit_member_update_def",
+          "let ^w = { let x = 1; let y = 9 } in 3",
           result,
         );
       },
@@ -5293,26 +5319,21 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "renaming an exported member used outside is rejected", `Quick, () => {
-      switch (
-        run_agent_action(
-          "module M = { let x = 1; let y = 2 } in M.x",
-          Update(Pattern, "M/x", "z"),
-        )
-      ) {
-      | Ok(_) =>
-        Alcotest.fail("expected rename breaking external M.x to be rejected")
-      | Error(Action.Failure.Composition_action_failure(msg)) =>
-        check(
-          bool,
-          "member_rename_external_rejected",
-          true,
-          StringUtil.match(StringUtil.regexp("static error"), msg),
-        )
-      | Error(e) =>
-        Alcotest.fail("unexpected failure kind: " ++ Action.Failure.show(e))
-      }
-    }),
+      "renaming a member used outside relabels its M.x",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "module M = { let x = 1; let y = 2 } in M.x",
+            Update(Pattern, "M/x", "z"),
+          );
+        check_rendered(
+          "member_rename_external",
+          "module M = { let z = 1; let y = 2 } in M.z",
+          result,
+        );
+      },
+    ),
     test_case(
       "oversized chunk on the fast path succeeds",
       `Quick,
@@ -5375,6 +5396,418 @@ let module_member_tests = (
         );
       },
     ),
+    test_case(
+      "a module opening with a test keeps its member paths",
+      `Quick,
+      () => {
+        let result =
+          apply_and_render(
+            "let m = { test 1 == 1 end; let x = 1 } in m",
+            Update(Definition, "m/x", "5"),
+          );
+        check_rendered(
+          "member_after_leading_test",
+          "let m = { test 1 == 1 end; let x = 5 } in m",
+          result,
+        );
+      },
+    ),
+  ],
+);
+
+/* The assistant on a Mod-rooted program (stdlib files, Mega-Mod): its top
+   level is a module body, so top-level bindings are members too. */
+let mod_root_program = "module M = {\n  let a = 1;\n  let b = a + 1;\n  type T = Int;\n  let c : T = b\n};\nlet a = 5;\nlet d : M.T = M.a + a;\nd";
+
+let run_at_mod_root = (code: string, a: Action.Structural.t) => {
+  let z = Zipper.unzip(CorpusUtil.seg_of(~root=Mod, code));
+  Perform.go(
+    ~settings=CoreSettings.on,
+    ~statics=CachedStatics.empty,
+    ~syntax=CachedSyntax.init(~root=Mod, z),
+    ~root=Mod,
+    Structural(a),
+    {
+      zipper: z,
+      col_target: None,
+    },
+  );
+};
+
+let apply_at_mod_root = (~code=mod_root_program, a: Action.Structural.t) =>
+  switch (run_at_mod_root(code, a)) {
+  | Ok(z) => render_zipper(z)
+  | Error(err) =>
+    Alcotest.fail("Agent action failed: " ++ Action.Failure.show(err))
+  };
+
+/* [mod_root_program] with [line] replaced by [by] (a list: none deletes) */
+let mod_root_with = (line: string, by: list(string)): string =>
+  String.split_on_char('\n', mod_root_program)
+  |> List.concat_map(l => l == line ? by : [l])
+  |> String.concat("\n");
+
+let mod_root_tests = (
+  "AgentTools.ModRoot",
+  [
+    test_case("update_definition on a member", `Quick, () =>
+      check_rendered(
+        "mod_root_update_member_def",
+        mod_root_with("  let b = a + 1;", ["  let b = a + 2;"]),
+        apply_at_mod_root(Update(Definition, "M/b", "a + 2")),
+      )
+    ),
+    test_case("update_definition on a top-level binding", `Quick, () =>
+      check_rendered(
+        "mod_root_update_top_def",
+        mod_root_with("let a = 5;", ["let a = 6;"]),
+        apply_at_mod_root(Update(Definition, "a", "6")),
+      )
+    ),
+    test_case("update_binding_clause on a member", `Quick, () =>
+      check_rendered(
+        "mod_root_update_clause",
+        mod_root_with("  let c : T = b", ["  let c : T = 7"]),
+        apply_at_mod_root(Update(BindingClause, "M/c", "let c : T = 7")),
+      )
+    ),
+    test_case("update_body on a top-level binding is refused", `Quick, () =>
+      switch (run_at_mod_root(mod_root_program, Update(Body, "a", "1"))) {
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "mod_root_body_refused",
+          true,
+          StringUtil.match(StringUtil.regexp("module member"), msg),
+        )
+      | Ok(_) => Alcotest.fail("expected the body update to be refused")
+      | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
+      }
+    ),
+    test_case(
+      "insert_after a member and a top-level binding",
+      `Quick,
+      () => {
+        check_rendered(
+          "mod_root_insert_after_member",
+          mod_root_with("  let a = 1;", ["  let a = 1;", "  let z = 3;"]),
+          apply_at_mod_root(Insert(After, "M/a", "let z = 3")),
+        );
+        check_rendered(
+          "mod_root_insert_after_top",
+          mod_root_with("let a = 5;", ["let a = 5;", "let z = 3;"]),
+          apply_at_mod_root(Insert(After, "a", "let z = 3")),
+        );
+      },
+    ),
+    test_case("insert_before the first top-level binding", `Quick, () =>
+      check_rendered(
+        "mod_root_insert_before_top",
+        "let z = 3;\n" ++ mod_root_program,
+        apply_at_mod_root(Insert(Before, "M", "let z = 3")),
+      )
+    ),
+    test_case(
+      "insert_test after a member, and with no path",
+      `Quick,
+      () => {
+        check_rendered(
+          "mod_root_insert_test_member",
+          mod_root_with(
+            "  let b = a + 1;",
+            ["  let b = a + 1;", "  test b == 2 end;"],
+          ),
+          apply_at_mod_root(InsertTest(Some("M/b"), "b == 2")),
+        );
+        /* after the last binding, before the trailing expression */
+        check_rendered(
+          "mod_root_insert_test_no_path",
+          mod_root_with(
+            "let d : M.T = M.a + a;",
+            ["let d : M.T = M.a + a;", "test d == 6 end;"],
+          ),
+          apply_at_mod_root(InsertTest(None, "d == 6")),
+        );
+      },
+    ),
+    test_case(
+      "insert_after and insert_before with no path place members",
+      `Quick,
+      () => {
+        let boundary = (d, code) =>
+          switch (
+            run_insert_at_program_boundary(
+              ~root=Mod,
+              mod_root_program,
+              d,
+              code,
+            )
+          ) {
+          | Ok(z) => render_zipper(z)
+          | Error(err) =>
+            Alcotest.fail(
+              "boundary insert failed: " ++ Action.Failure.show(err),
+            )
+          };
+        /* after the last member, before the trailing expression */
+        check_rendered(
+          "mod_root_boundary_after",
+          mod_root_with(
+            "let d : M.T = M.a + a;",
+            ["let d : M.T = M.a + a;", "let z = 3;"],
+          ),
+          boundary(After, "let z = 3"),
+        );
+        check_rendered(
+          "mod_root_boundary_after_several",
+          mod_root_with(
+            "let d : M.T = M.a + a;",
+            ["let d : M.T = M.a + a;", "let y = 2;", "let z = y + 1;"],
+          ),
+          boundary(After, "let y = 2;\nlet z = y + 1;"),
+        );
+        check_rendered(
+          "mod_root_boundary_before",
+          "let z = 3;\n" ++ mod_root_program,
+          boundary(Before, "let z = 3"),
+        );
+      },
+    ),
+    test_case(
+      "delete_binding_clause on a member and a top level",
+      `Quick,
+      () => {
+        check_rendered(
+          "mod_root_delete_member",
+          mod_root_with("  let b = a + 1;", []),
+          apply_at_mod_root(Delete(BindingClause, "M/b")),
+        );
+        check_rendered(
+          "mod_root_delete_top",
+          mod_root_with("let a = 5;", []),
+          apply_at_mod_root(Delete(BindingClause, "a")),
+        );
+      },
+    ),
+    test_case("update_pattern on a member relabels M.a", `Quick, () =>
+      check_rendered(
+        "mod_root_rename_member",
+        mod_root_program
+        |> StringUtil.replace(
+             StringUtil.regexp("let a = 1"),
+             _,
+             "let aa = 1",
+           )
+        |> StringUtil.replace(StringUtil.regexp("= a [+] 1"), _, "= aa + 1")
+        |> StringUtil.replace(StringUtil.regexp("M[.]a"), _, "M.aa"),
+        apply_at_mod_root(Update(Pattern, "M/a", "aa")),
+      )
+    ),
+    test_case("update_pattern on a top-level binding leaves M.a", `Quick, () =>
+      check_rendered(
+        "mod_root_rename_top",
+        mod_root_with("let a = 5;", ["let z = 5;"])
+        |> StringUtil.replace(StringUtil.regexp("M[.]a [+] a"), _, "M.a + z"),
+        apply_at_mod_root(Update(Pattern, "a", "z")),
+      )
+    ),
+  ],
+);
+
+/* update_pattern on a module member: its `M.x` labels follow, and a name
+   another member of the module has is refused */
+let member_rename_tests = (
+  "AgentTools.MemberRename",
+  [
+    test_case("a nested member's Outer.Inner.x", `Quick, () =>
+      check_rendered(
+        "nested_member_rename",
+        "module Outer = { module Inner = { let y = 1 }; let w = 1 } in Outer.Inner.y",
+        apply_and_render(
+          "module Outer = { module Inner = { let x = 1 }; let w = 1 } in Outer.Inner.x",
+          Update(Pattern, "Outer/Inner/x", "y"),
+        ),
+      )
+    ),
+    test_case("a let-bound module's m.x", `Quick, () =>
+      check_rendered(
+        "let_module_member_rename",
+        "let m = { let z = 1; let y = 2 } in m.z + m.y",
+        apply_and_render(
+          "let m = { let x = 1; let y = 2 } in m.x + m.y",
+          Update(Pattern, "m/x", "z"),
+        ),
+      )
+    ),
+    test_case("a function member's M.f(…)", `Quick, () =>
+      check_rendered(
+        "fn_member_rename",
+        "module M = { let g(n) = n + 1 } in M.g(2)",
+        apply_and_render(
+          "module M = { let f(n) = n + 1 } in M.f(2)",
+          Update(Pattern, "M/f", "g(n)"),
+        ),
+      )
+    ),
+    test_case("another member's name is refused", `Quick, () =>
+      switch (
+        run_agent_action(
+          "module M = { let x = 1; let y = 2 } in M.x + M.y",
+          Update(Pattern, "M/y", "x"),
+        )
+      ) {
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "member_clash_refused",
+          true,
+          StringUtil.match(StringUtil.regexp("already has a member"), msg),
+        )
+      | Ok(z) => Alcotest.fail("renamed: " ++ render_zipper(z))
+      | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
+      }
+    ),
+    test_case("a member delete leaves no lone `;`", `Quick, () =>
+      check_rendered_exact(
+        "member_delete_multiline",
+        "let m = {\n  let x = 1;\n  \n  let z = 3\n} in m",
+        apply_and_render(
+          "let m = {\n  let x = 1;\n  let y = 2;\n  let z = 3\n} in m",
+          Delete(BindingClause, "m/y"),
+        ),
+      )
+    ),
+  ],
+);
+
+/* insert_test: after the binding and the tests directly following it,
+   so tests keep source order in one run; with no path, after the last
+   item, before the trailing expression */
+let insert_test_tests = (
+  "AgentTools.InsertTest",
+  [
+    test_case("after the binding at path", `Quick, () =>
+      check_rendered_exact(
+        "after_binding",
+        "let a = 1 in\ntest a == 1 end;\nlet b = 2 in\na + b",
+        apply_and_render(
+          "let a = 1 in\nlet b = 2 in\na + b",
+          InsertTest(Some("a"), "a == 1"),
+        ),
+      )
+    ),
+    test_case("after the tests already following it, in order", `Quick, () =>
+      check_rendered_exact(
+        "after_run",
+        "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\ntest a < 2 end;\ntest a != 3 end;\nlet b = 2 in\nb",
+        apply_chain_render(
+          "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\nlet b = 2 in\nb",
+          [
+            InsertTest(Some("a"), "a < 2"),
+            InsertTest(Some("a"), "a != 3"),
+          ],
+        ),
+      )
+    ),
+    test_case("in a function body, one line each", `Quick, () =>
+      check_rendered_exact(
+        "fn_body",
+        "let f = fun x ->\n  let y = x + 1 in\n  test y > x end;\n  test y != x end;\n  y * 2\nin\nf(1)",
+        apply_chain_render(
+          "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)",
+          [
+            InsertTest(Some("f/y"), "y > x"),
+            InsertTest(Some("f/y"), "y != x"),
+          ],
+        ),
+      )
+    ),
+    test_case(
+      "no path: after the last item, before the trailing expression",
+      `Quick,
+      () => {
+        check_rendered_exact(
+          "no_path",
+          "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na",
+          apply_and_render(
+            "let a = 1 in\ntest a == 1 end;\na",
+            InsertTest(None, "a > 0"),
+          ),
+        );
+        check_rendered_exact(
+          "no_path_no_bindings",
+          "test 1 + 1 == 2 end;\n1 + 1",
+          apply_and_render("1 + 1", InsertTest(None, "1 + 1 == 2")),
+        );
+      },
+    ),
+    test_case(
+      "at a member path, as a member after the member's tests",
+      `Quick,
+      () => {
+        check_rendered(
+          "member",
+          "let m = { let x = 1; test x == 1 end; test x > 0 end; let y = 2 } in m",
+          apply_and_render(
+            "let m = {\n  let x = 1;\n  test x == 1 end;\n  let y = 2\n} in m",
+            InsertTest(Some("m/x"), "x > 0"),
+          ),
+        );
+        check_rendered(
+          "member_last",
+          "let m = { let x = 1; test x == 1 end; test x > 0 end } in m",
+          apply_and_render(
+            "let m = { let x = 1; test x == 1 end } in m",
+            InsertTest(Some("m/x"), "x > 0"),
+          ),
+        );
+        check_rendered(
+          "member_after_leading_test",
+          "let m = { test 1 == 1 end; let x = 1; test x > 0 end } in m",
+          apply_and_render(
+            "let m = { test 1 == 1 end; let x = 1 } in m",
+            InsertTest(Some("m/x"), "x > 0"),
+          ),
+        );
+      },
+    ),
+    test_case("code that is already a whole test is kept", `Quick, () =>
+      check_rendered_exact(
+        "wrapped",
+        "let a = 1 in\ntest a == 1 end;\na",
+        apply_and_render(
+          "let a = 1 in\na",
+          InsertTest(Some("a"), "test a == 1 end;"),
+        ),
+      )
+    ),
+    test_case("a bad path errors with the paths there are", `Quick, () =>
+      switch (
+        run_agent_action(
+          "let a = 1 in\na",
+          InsertTest(Some("nope"), "a == 1"),
+        )
+      ) {
+      | Ok(_) => Alcotest.fail("expected a bad path to be rejected")
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          bool,
+          "names the path and the available ones",
+          true,
+          StringUtil.match(StringUtil.regexp("\"nope\" not found"), msg)
+          && StringUtil.match(StringUtil.regexp("Available paths"), msg),
+        )
+      | Error(e) =>
+        Alcotest.fail("unexpected failure kind: " ++ Action.Failure.show(e))
+      }
+    ),
+    test_case("a test that isn't a Bool is rejected", `Quick, () =>
+      expect_composition_failure(
+        "let a = 1 in\na",
+        InsertTest(Some("a"), "a + 1"),
+        "non-Bool test",
+      )
+    ),
   ],
 );
 
@@ -5388,7 +5821,10 @@ let tests = [
   update_pattern_tests,
   update_binding_clause_tests,
   module_member_tests,
+  mod_root_tests,
+  member_rename_tests,
   insert_tests,
+  insert_test_tests,
   delete_tests,
   static_error_tests,
   nested_definition_tests,

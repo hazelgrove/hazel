@@ -406,5 +406,54 @@ let tests =
           ();
         },
       ),
+      test_case("Signature with module item", `Quick, () =>
+        exp_check(
+          let_(
+            Pat.asc(
+              Pat.var("m"),
+              Typ.sig_([
+                Sig.sig_module(
+                  MPat.asc(
+                    MPat.var("Inner"),
+                    Typ.sig_([
+                      Sig.sig_let(Pat.asc(Pat.var("x"), Typ.int())),
+                    ]),
+                  ),
+                ),
+              ]),
+            ),
+            module_([
+              Mod.module_mod(
+                MPat.var("Inner"),
+                module_([Mod.mod_let(Pat.var("x"), int(1))]),
+              ),
+            ]),
+            var("m"),
+          ),
+          {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
+        )
+      ),
+      test_case(
+        "map_term reaches a nested signature's items",
+        `Quick,
+        () => {
+          let lets = ref(0);
+          let _ =
+            Language.Exp.map_term(
+              ~f_sig=
+                (continue, s: Language.Sig.t) => {
+                  switch (s.term) {
+                  | SigLet(_) => incr(lets)
+                  | _ => ()
+                  };
+                  continue(s);
+                },
+              parse_exp(
+                {|let m : { module Inner : { let x : Int } } = { module Inner = { let x = 1 } } in m|},
+              ),
+            );
+          check(Alcotest.int, "Inner's `let x : Int` is visited", 1, lets^);
+        },
+      ),
     ],
   );

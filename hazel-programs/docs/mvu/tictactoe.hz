@@ -1,0 +1,293 @@
+# Sprouts and Shrooms #
+
+# Tic-tac-toe in the night garden: sprouts race shrooms for three in a row. #
+
+type Cell = + Empty + Sprout + Shroom in
+
+# 9 cells, row-major: [0,1,2,3,4,5,6,7,8] #
+type Board = [Cell] in
+
+type Player = + PlayerSprout + PlayerShroom in
+
+type GameStatus =
+  + InProgress
+  + Won(Player)
+  + Draw
+in
+
+type Model = (
+  board = Board,
+  turn = Player,
+  status = GameStatus
+) in
+
+type Action = + ClickCell(Int) + NewGame in
+
+let emptyBoard: Board =
+  [Empty, Empty, Empty,
+   Empty, Empty, Empty,
+   Empty, Empty, Empty]
+in
+
+let init: Model = (
+  board = emptyBoard,
+  turn = PlayerSprout,
+  status = InProgress
+) in
+
+let getCell(board: Board, pos: Int): Cell = nth(board, pos) in
+
+let setCell(board: Board, pos: Int, cell: Cell): Board =
+  mapi(board, fun (i, c) -> if i == pos then cell else c)
+in
+
+let playerCell(p: Player): Cell =
+  case p
+  | PlayerSprout => Sprout
+  | PlayerShroom => Shroom
+  end
+in
+
+let cellStr(c: Cell): String =
+  case c
+  | Empty => " "
+  | Sprout => "🌱"
+  | Shroom => "🍄"
+  end
+in
+
+# Three matching non-empty cells win a line #
+let threeInRow(a: Cell, b: Cell, c: Cell): Option =
+  case (a, b, c)
+  | (Sprout, Sprout, Sprout) => Some(Sprout)
+  | (Shroom, Shroom, Shroom) => Some(Shroom)
+  | _ => None
+  end
+in
+
+let getCells3(board: Board, i: Int, j: Int, k: Int): (Cell, Cell, Cell) =
+  (getCell(board, i), getCell(board, j), getCell(board, k))
+in
+
+# The eight ways to win, as cell positions #
+let winningLines: [(Int, Int, Int)] = [
+  (0, 1, 2),
+  (3, 4, 5),
+  (6, 7, 8),
+  (0, 3, 6),
+  (1, 4, 7),
+  (2, 5, 8),
+  (0, 4, 8),
+  (2, 4, 6)
+] in
+
+# The first Some in a list, or None if there isn't one #
+let firstSome(options: [Option]): Option =
+  fold_left(
+    options,
+    fun (found, o) ->
+      case found
+      | Some(c) => Some(c)
+      | None => o
+      end,
+    None
+  )
+in
+
+let checkWinner(board: Board): Option =
+  firstSome(
+    map(winningLines, fun (i, j, k) -> threeInRow(getCells3(board, i, j, k)))
+  )
+in
+
+let isFull(board: Board): Bool = for_all(board, fun c -> c != Empty) in
+
+let cellToPlayer(c: Cell): Player =
+  case c
+  | Sprout => PlayerSprout
+  | Shroom => PlayerShroom
+  # Unreachable: only a played cell is ever converted #
+  | Empty => PlayerSprout
+  end
+in
+
+let calcStatus(board: Board): GameStatus =
+  case checkWinner(board)
+  | Some(c) => Won(cellToPlayer(c))
+  | None => if isFull(board) then Draw else InProgress
+  end
+in
+
+let nextPlayer(p: Player): Player =
+  case p
+  | PlayerSprout => PlayerShroom
+  | PlayerShroom => PlayerSprout
+  end
+in
+
+let isValidMove(model: Model, pos: Int): Bool =
+  pos >= 0
+    && pos < 9
+    && getCell(model.board, pos) == Empty
+    && model.status == InProgress
+in
+
+let move(model: Model, pos: Int): Model =
+  if isValidMove(model, pos) then
+    let newBoard = setCell(model.board, pos, playerCell(model.turn)) in
+    (
+      board = newBoard,
+      turn = nextPlayer(model.turn),
+      status = calcStatus(newBoard)
+    )
+  # An invalid move leaves the board untouched #
+  else model
+in
+
+let update(model: Model, action: Action): Model =
+  case action
+  | ClickCell(pos) => move(model, pos)
+  | NewGame => init
+  end
+in
+
+# ===== VIEW ===== #
+
+let view(model: Model): HTML =
+  let playerName(p: Player): String =
+    case p
+    | PlayerSprout => "Sprout"
+    | PlayerShroom => "Shroom"
+    end
+  in
+  let statusText: String =
+    case model.status
+    | InProgress => playerName(model.turn) ++ "'s turn"
+    | Won(p) => playerName(p) ++ " wins!"
+    | Draw => "The plot is full - a draw!"
+    end
+  in
+  let boardRow(positions: [Int]): HTML =
+    Div([Style([("display", "flex"), ("gap", "2px"), ("margin-bottom", "2px")])],
+      map(positions, fun pos ->
+        Button(
+          [
+            OnClick(ClickCell(pos)),
+            Style([
+              ("width", "72px"), ("height", "72px"), ("font-size", "1.8em"),
+              ("background", "var(--T1)"), ("border", "1px solid var(--BR1)"),
+              ("border-radius", "3px"), ("font-family", "inherit"), ("cursor", "pointer")
+            ])
+          ],
+          [Text(cellStr(getCell(model.board, pos)))]
+        )
+      )
+    )
+  in
+  Div(
+    [Style([("max-width", "300px"), ("margin", "0 auto"), ("text-align", "center"),
+            ("font-family", "var(--code-font)"), ("font-size", "0.85em"),
+            ("background", "var(--SAND)"), ("color", "var(--STONE)"),
+            ("border", "1px solid var(--BR1)"), ("border-radius", "0.4em"),
+            ("overflow", "hidden")])],
+    [
+      Div(
+        [Style([("padding", "0.9em 1em 0.8em"), ("font-size", "1.2em"),
+                ("font-weight", "bold"), ("color", "var(--BR4)")])],
+        [Text("🌱 Sprouts and Shrooms 🍄")]
+      ),
+      # The status line is the one place a decided game shows colour #
+      Div(
+        [Style([("padding", "0.7em 1em"), ("background", "var(--T2)"),
+                ("border-top", "1px solid var(--BR1)"),
+                ("border-bottom", "1px solid var(--BR1)"),
+                ("color", case model.status
+                          | Won(_) => "var(--G0)"
+                          | Draw => "var(--BR3)"
+                          | InProgress => "var(--STONE)"
+                          end)])],
+        [Text(statusText)]
+      ),
+      Div(
+        [Style([("padding", "0.7em 1em")])],
+        [
+          Div(
+            [Style([("display", "inline-block")])],
+            [boardRow([0, 1, 2]), boardRow([3, 4, 5]), boardRow([6, 7, 8])]
+          ),
+          Button(
+            [
+              OnClick(NewGame),
+              Style([("width", "100%"), ("margin-top", "0.5em"), ("padding", "0.4em"),
+                     ("background", "var(--G0)"), ("color", "var(--SAND)"),
+                     ("border", "1px solid var(--G0)"), ("border-radius", "3px"),
+                     ("cursor", "pointer"), ("font-family", "inherit"),
+                     ("font-size", "0.85em")])
+            ],
+            [Text("New Plot")]
+          )
+        ]
+      )
+    ]
+  )
+in
+
+let subs(_model: Model): Sub = SubNone in
+
+# ===== TESTS ===== #
+
+let play(m: Model, moves: [Int]): Model = fold_left(moves, move, m) in
+
+hint "the plot starts empty, with sprout to play"
+test
+  for_all(init.board, fun c -> c == Empty) &&
+  init.turn == PlayerSprout &&
+  init.status == InProgress
+end;
+
+hint "a move places a marker and passes the turn"
+test
+  let m = move(init, 0) in
+  getCell(m.board, 0) == Sprout && m.turn == PlayerShroom
+end;
+
+hint "an occupied cell can't be replayed"
+test
+  # Sprout plays 0, then Shroom tries the same cell #
+  let m = play(init, [0, 0]) in
+  getCell(m.board, 0) == Sprout
+    && m.turn == PlayerShroom
+end;
+
+hint "three in a row wins, and the plot then closes"
+test
+  let m = play(init, [0, 3, 1, 4, 2, 5]) in
+  case m.status | Won(PlayerSprout) => getCell(m.board, 5) == Empty | _ => false end
+end;
+
+hint "a full plot with no line is a draw"
+test
+  let m = play(init, [0, 1, 2, 5, 3, 6, 4, 8, 7]) in
+  case m.status | Draw => true | _ => false end
+end;
+
+hint "off-board positions are rejected"
+test
+  for_all(move(init, 9).board, fun c -> c == Empty)
+    && for_all(move(init, -1).board, fun c -> c == Empty)
+end;
+
+hint "new game resets"
+test
+  let m = update(move(init, 0), NewGame) in
+  for_all(m.board, fun c -> c == Empty) && m.turn == PlayerSprout
+end;
+
+# Nothing here issues a command, so `update` returns a bare Model and is #
+# lifted into the (Model, Cmd) shape the app tuple expects. #
+
+let noCmd(f: (Model, Action) -> Model): (Model, Action) -> (Model, Cmd) =
+  fun (model, action) -> (f(model, action), CmdNone)
+in
+
+^^html_sidebar((init, noCmd(update), view, subs))

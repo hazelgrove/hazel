@@ -28,7 +28,7 @@ module Model = {
       zipper,
       col_target: None,
     },
-    syntax: CachedSyntax.init(zipper),
+    syntax: CachedSyntax.init(~root, zipper),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -107,6 +107,7 @@ module Update = {
   let clear_buffer =
       (
         ~settings: Language.CoreSettings.t,
+        ~root: Sort.t,
         ~old_zipper: Zipper.t,
         ~old_statics: CachedStatics.t,
         ~old_dynamics: Dynamics.Map.t,
@@ -123,6 +124,7 @@ module Update = {
              will be looking for tiles inside the buffer, for example if we try
              to click or move down to dismiss a completion.*/
           CachedSyntax.calculate(
+            ~root,
             state.zipper,
             old_statics.info_map,
             old_dynamics,
@@ -158,6 +160,7 @@ module Update = {
     let (state, syntax) =
       clear_buffer(
         ~settings,
+        ~root,
         ~old_zipper=state.zipper,
         ~old_statics,
         ~old_dynamics,
@@ -172,6 +175,18 @@ module Update = {
     /* 3. Update the zipper */
     let+ zipper =
       Perform.go(~settings, ~statics=old_statics, ~syntax, a, state, ~root);
+    let zipper = ProbePerform.settle_stepping(a, zipper);
+
+    /* Layout-level edits (projector SetModel) are run through `calculate`
+     * with is_edited=false so statics/evaluation are reused, but the
+     * syntax cache must still be rebuilt: the model lives in the segment
+     * and feeds placeholder shapes/measured. Mark it old here so
+     * CachedSyntax.calculate takes the full-rebuild path. */
+    let syntax =
+      switch (Action.recompute_level(a)) {
+      | Layout => CachedSyntax.mark_old(syntax)
+      | Full => syntax
+      };
 
     Model.{
       root,
@@ -187,6 +202,10 @@ module Update = {
       (
         ~settings: Language.CoreSettings.t,
         ~autoprobe_mode: AutoProbe.t,
+        /* the ⇓ toggle's probe on the program's last expression */
+        ~tail_probe=false,
+        /* drawers holding theorems' proofs */
+        ~proofs=AutoProbePerform.NoProofs,
         ~is_edited,
         statics: CachedStatics.t,
         new_dynamics: Dynamics.Map.t,
@@ -197,16 +216,22 @@ module Update = {
      * Uses ci_for_completion (which prefers the left-neighbor tile,
      * falling back to ci_of) so that the automatic post-edit buffer
      * recompute is consistent with Perform.go's explicit
-     * Buffer(Set(TyDi)) path. */
+     * Buffer(Set(TyDi)) path. TyDi reads the zip the syntax then takes,
+     * when it sets no buffer, so their completions share the memo. */
+    let tydi = settings.assist && settings.statics && is_edited;
+    let segment =
+      tydi && state.zipper.selection.mode != Buffer(Unparsed)
+        ? Some(Zipper.unselect_and_zip(state.zipper)) : None;
     let zipper =
-      if (settings.assist && settings.statics && is_edited) {
-        Buffer.set_tydi_buffer(
-          Indicated.ci_for_completion(state.zipper, statics.info_map),
-          state.zipper,
-        );
-      } else {
-        state.zipper;
-      };
+      tydi
+        ? Buffer.set_tydi_buffer(
+            ~root,
+            ~seg=?segment,
+            Indicated.ci_for_completion(state.zipper, statics.info_map),
+            state.zipper,
+          )
+        : state.zipper;
+    let segment = zipper === state.zipper ? segment : None;
 
     /* 2. Recalculate syntax cache. `CachedSyntax.calculate` detects
      * input changes (info_map/dyn_map/elaborated refs) and chooses
@@ -216,6 +241,8 @@ module Update = {
     let syntax =
       PerfTimer.time("editor-syntax", () =>
         CachedSyntax.calculate(
+          ~root,
+          ~segment?,
           zipper,
           statics.info_map,
           new_dynamics,
@@ -263,6 +290,14 @@ module Update = {
           z,
         );
       };
+    let zipper =
+      AutoProbePerform.update_tail(
+        ~on=tail_probe,
+        ~syntax,
+        ~info_map=statics.info_map,
+        zipper,
+      )
+      |> AutoProbePerform.update_proofs(~proofs, ~syntax);
 
     Model.{
       root,

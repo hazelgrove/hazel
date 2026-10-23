@@ -318,6 +318,9 @@ let defer_follow_up_llm =
     : Model.t =>
   switch (model.compaction_in_progress) {
   | Some(_) => model
+  | None when CanvasTrajectory.replaying^ =>
+    /* a replayed reply must not call the LLM */
+    model
   | None =>
     eval_wait_attempts := 0;
     defer_dispatch_send^(() =>
@@ -329,10 +332,14 @@ let defer_follow_up_llm =
     };
   };
 
+/* Catch up holds queued prompts until the next explicit user send. The
+   text remains queued; stale FlushPendingSend callbacks cannot restart it. */
+let presentation_stopped: ref(list(Id.t)) = ref([]);
+
 let schedule_flush_pending_if_idle_for_chat =
     (model_after: Model.t, chat_id: Id.t, schedule_action: Action.t => unit)
     : unit =>
-  if (busy_for_send(model_after)) {
+  if (busy_for_send(model_after) || List.mem(chat_id, presentation_stopped^)) {
     ();
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model_after.chat_system);
@@ -358,6 +365,10 @@ let send_message =
     | User => true
     | _ => false
     };
+  if (user_trying_new_round) {
+    presentation_stopped :=
+      List.filter(id => id != chat_id, presentation_stopped^);
+  };
   if (user_trying_new_round && busy_for_send(model)) {
     (
       enqueue_while_busy(model, chat_id, message.content),
@@ -405,6 +416,14 @@ let handle_dispatch_send =
     );
     (model, editor |> Updated.return_quiet);
   | Some(pending_chat_id) when pending_chat_id == chat_id =>
+    if (eval_wait_attempts^ > 0) {
+      CanvasLog.log(
+        Printf.sprintf(
+          "eval settle: waited ~%.1fs before send",
+          float_of_int(eval_wait_attempts^) *. eval_wait_interval_ms /. 1000.,
+        ),
+      );
+    };
     eval_wait_attempts := 0;
     let model = {
       ...model,
@@ -437,11 +456,19 @@ let handle_dispatch_send =
 
 let stop_agentic_loop =
     (
+      ~flush_pending=true,
       model: Model.t,
       editor: CellEditor.Model.t,
       schedule_action: Action.t => unit,
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) => {
+  if (!flush_pending) {
+    presentation_stopped :=
+      List.sort_uniq(
+        Id.compare,
+        [model.chat_system.current, ...presentation_stopped^],
+      );
+  };
   let (m, e) =
     switch (model.awaiting_response, model.compaction_in_progress) {
     | (Some(awaiting_chat_id), _) =>
@@ -522,7 +549,7 @@ let flush_pending_send =
       schedule_action: Action.t => unit,
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) =>
-  if (busy_for_send(model)) {
+  if (busy_for_send(model) || List.mem(chat_id, presentation_stopped^)) {
     (model, editor |> Updated.return);
   } else {
     let chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);

@@ -27,14 +27,19 @@
        singleton labeled tuples,
      - `ModuleExp(mp, def, body)` (in Statics.re) which expands to
        `Let(mpat_to_pat(mp), def, body)`,
-     - `Typ.desugar_sig` which expands signature types.
+     - `ModuleHelpers.lower` (in ModuleHelpers.re) which lowers module
+       bodies to nested Let/TyAlias wrappers for type checking.
 
    All of these reuse the id (and formatting secondary) of the surface
    term for the desugared outer term by going through `Exp.unwrap`, so
    that statics on the desugared form populates the info map under the
    user's original ids. */
 
-/* Match `Ap(Var(f), args)`, the inner head of the sugar.
+/* Match `Ap(Var(f), args)`, the inner head of the sugar. The name may carry
+   an ascription, `Ap(Asc(Var(f), ty), args)`. That shape is not surface
+   syntax (a user annotates the name in parentheses); the lowering of a module
+   body annotates a member with the type its signature expects, see
+   `ModuleHelpers.modlet_pat`.
 
    For the nullary form `f()`, the parser tags the empty tuple with
    `Id.nullary_ap_flag` so it can be distinguished from a 0-tuple
@@ -45,7 +50,8 @@ let match_inner_binder = (pat: Pat.t): option((Pat.t, Pat.t)) =>
   switch (IdTagged.term_of(pat)) {
   | Ap(fn, args) =>
     switch (IdTagged.term_of(fn)) {
-    | Var(_) =>
+    | Var(_)
+    | Asc({term: Var(_), _}, _) =>
       let args =
         if (Id.is_nullary_ap_flag(IdTagged.ids(args))) {
           (Tuple([]): Pat.term)
@@ -70,6 +76,33 @@ let detect = (pat: Pat.t): option((Pat.t, Pat.t, option(Typ.t))) => {
     };
   match_inner_binder(inner_pat)
   |> Option.map(((fn, args)) => (fn, args, ret_ty));
+};
+
+/* The pattern that names the binding: the function name for the sugar, the
+   pattern itself otherwise. A module body reads its members through this. */
+let binder = (pat: Pat.t): Pat.t =>
+  switch (detect(pat)) {
+  | Some((f_name, _, _)) => f_name
+  | None => pat
+  };
+
+/* The sugar with its function name transformed by [f], keeping the argument
+   pattern and the return-type annotation; any other pattern is unchanged. */
+let map_binder = (f: Pat.t => Pat.t, pat: Pat.t): Pat.t => {
+  let rewrap = (p: Pat.t, term: Pat.term): Pat.t => {
+    ...p,
+    term,
+  };
+  let inner = (p: Pat.t): Pat.t =>
+    switch (IdTagged.term_of(p)) {
+    | Ap(fn, args) => rewrap(p, Ap(f(fn), args))
+    | _ => p
+    };
+  switch (detect(pat), IdTagged.term_of(pat)) {
+  | (None, _) => pat
+  | (Some(_), Asc(p, ret_ty)) => rewrap(pat, Asc(inner(p), ret_ty))
+  | (Some(_), _) => inner(pat)
+  };
 };
 
 /* Build the desugared expression:
@@ -105,6 +138,21 @@ let rewrite =
   let (_, rewrap) = Exp.unwrap(orig_let);
   rewrap(Let(f_name, fun_exp, body));
 };
+
+/* [rewrite]'s Fun back to the definition as written, whose ids the text
+   holds; None for any other expression */
+let written = (e: Exp.t): option(Exp.t) =>
+  switch (e.term) {
+  | Fun(args, def, _, _)
+      when Id.equal(Exp.rep_id(e), Id.next(Pat.rep_id(args))) =>
+    switch (def.term) {
+    | Asc(inner, ty)
+        when Id.equal(Exp.rep_id(def), Id.next(Typ.rep_id(ty))) =>
+      Some(inner)
+    | _ => Some(def)
+    }
+  | _ => None
+  };
 
 /* After statics has processed the desugared `Let`, the info map is
    missing entries for ids that only exist in the original binder

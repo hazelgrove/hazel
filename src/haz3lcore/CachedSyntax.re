@@ -31,6 +31,12 @@ type t = {
    * compared by physical eq in `calculate` to skip the rebuild. */
   cached_manuals: Refractors.RefractorList.t,
   cached_ephemerals: Refractors.Map.t,
+  /* the ⇓ probe's term: its drawer reserves no rows */
+  cached_tail: option(Id.t),
+  cached_stepping: option(ProjectorBase.stepping),
+  /* DrawerFit.layout when the rows were computed */
+  cached_layout: int,
+  cached_proofs: Refractors.Map.t,
   /* Errors reported by projectors (e.g. "can't render as table") */
   projector_errors: Id.Map.t(ProjectorBase.error),
   missing_shards: list(Tile.t),
@@ -40,6 +46,13 @@ type t = {
   shape_info_map: Language.Statics.Map.t,
   shape_dyn_map: Language.Dynamics.Map.t,
   shape_elaborated: option(Language.Exp.t),
+  /* incremental measure/parse memos; carried via {...old}, so each
+     editor keeps its own */
+  m_cache: Measured.Incr.cache,
+  t_cache: MakeTerm.Incr.cache,
+  /* the zipper relatives and selection [segment] was zipped from, with
+     [segment] itself: an update replacing [segment] voids the pair */
+  zipped: (Relatives.t, Selection.t, Segment.t),
 };
 
 // should not be serializing
@@ -64,6 +77,30 @@ let refractor_syntax_piece = (id: Id.t, term_data: TermData.t): Base.piece =>
       }),
   );
 
+/* a probe's drawer rows go under its term's last line. Measured and the
+   code view add a tile's rows at the linebreak after it, so they're keyed
+   by the term's last top-level tile: the anchor (an infix operator, say)
+   can sit lines above the term's end, where the drawer is drawn */
+let rows_key = (id: Id.t, term_data: TermData.t): Id.t =>
+  switch (
+    Option.bind(TermData.segment(id, term_data), seg =>
+      Util.ListUtil.last_opt(Segment.tiles(seg))
+    )
+  ) {
+  | Some(t) => t.id
+  | None => id
+  };
+
+/* every refractor by id: an ephemeral entry over a manual one, either
+   over a proof */
+let refractor_entries = (r: Refractors.t): Refractors.Map.t =>
+  Id.Map.union(
+    (_, _, b) => Some(b),
+    r.manuals |> Id.Map.of_list,
+    r.multis.ephemerals,
+  )
+  |> Id.Map.union((_, a, _) => Some(a), _, r.proofs);
+
 let mk_refractor_rows =
     (
       z: Zipper.t,
@@ -73,12 +110,32 @@ let mk_refractor_rows =
       ~elaborated: option(Language.Exp.t),
     )
     : Id.Map.t(int) => {
+  let tail = z.refractors.tail_target;
+  /* the ⇓ probe's drawer reserves no rows: it's drawn after the program's
+     last line (RefractorView), past any trailing blank lines */
   let entries =
-    Id.Map.union(
-      (_, _, b) => Some(b),
-      z.refractors.manuals |> Id.Map.of_list,
-      z.refractors.multis.ephemerals,
+    refractor_entries(z.refractors)
+    |> Id.Map.filter((id, e: Refractors.entry) =>
+         !ProjectorInfo.is_program_value(~tail, id, e.kind, e.model)
+       );
+  /* proofs keep their theorem tile: their rows go under its own line */
+  let rekey = rows =>
+    Id.Map.fold(
+      (id, n, acc) => {
+        let key =
+          Id.Map.mem(id, z.refractors.proofs) ? id : rows_key(id, term_data);
+        Id.Map.update(
+          key,
+          fun
+          | Some(m) => Some(max(m, n))
+          | None => Some(n),
+          acc,
+        );
+      },
+      rows,
+      Id.Map.empty,
     );
+  rekey @@
   Id.Map.filter_map(
     (id, entry: Refractors.entry) => {
       let syntax_piece = refractor_syntax_piece(id, term_data);
@@ -90,6 +147,8 @@ let mk_refractor_rows =
           ~statics=info_map,
           ~dynamics=dyn_map,
           ~elaborated,
+          ~stepping=z.refractors.stepping,
+          ~tail,
         );
       let (module P) = ProjectorInit.to_module(entry.kind);
       let shape = P.placeholder(entry.model, info);
@@ -105,10 +164,35 @@ let mk_refractor_rows =
   );
 };
 
-let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
-  let segment = Zipper.unselect_and_zip(z);
-  let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
-    MakeTerm.go(segment);
+/* [segment]: [z]'s zip, when the caller has it */
+let mk =
+    (
+      ~root=Sort.Exp,
+      ~m_cache=Measured.Incr.mk_cache(),
+      ~t_cache=MakeTerm.Incr.mk_cache(),
+      ~segment=?,
+      ~info_map,
+      ~dyn_map,
+      ~elaborated=None,
+      z,
+    )
+    : t => {
+  let segment =
+    switch (segment) {
+    | Some(seg) => seg
+    | None => Zipper.unselect_and_zip(z)
+    };
+  /* only Exp/Mod roots parse incrementally; other (small) roots parse
+     once at their own sort, which the Exp-rooted [go] would misparse. Read
+     ends an unfinished member at its member line, as completion does */
+  let (terms, term_data, projectors, projector_list) =
+    if (root == Sort.Exp || root == Sort.Mod) {
+      let MakeTerm.{term: _, terms, projectors, projector_list, term_data} =
+        MakeTerm.Incr.go_incr(~ends=Read, ~root, ~cache=t_cache, segment);
+      (terms, term_data, projectors, projector_list);
+    } else {
+      MakeTerm.sorted_syntax_data(~root, segment);
+    };
   let (projector_shapes, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       projectors,
@@ -120,7 +204,13 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
   let refractor_rows =
     mk_refractor_rows(z, term_data, info_map, dyn_map, ~elaborated);
   let measured =
-    Measured.of_segment(segment, projector_shapes, refractor_rows);
+    Measured.Incr.of_segment(
+      ~root,
+      ~cache=m_cache,
+      segment,
+      projector_shapes,
+      refractor_rows,
+    );
   {
     old: false,
     segment,
@@ -134,16 +224,30 @@ let mk = (~info_map, ~dyn_map, ~elaborated=None, z): t => {
     refractor_rows,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
+    cached_tail: z.refractors.tail_target,
+    cached_stepping: z.refractors.stepping,
+    cached_layout: DrawerFit.layout^,
+    cached_proofs: z.refractors.proofs,
     projector_errors,
-    missing_shards: Segment.global_missing_shards(segment),
+    missing_shards: Segment.global_missing_shards_incr(segment),
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
+    m_cache,
+    t_cache,
+    zipped: (z.relatives, z.selection, segment),
   };
 };
 
-let init = (z: Zipper.t) =>
-  mk(z, ~info_map=Id.Map.empty, ~dyn_map=Id.Map.empty);
+let init = (~root=Sort.Exp, ~m_cache=?, ~t_cache=?, z: Zipper.t) =>
+  mk(
+    ~root,
+    ~m_cache?,
+    ~t_cache?,
+    z,
+    ~info_map=Id.Map.empty,
+    ~dyn_map=Id.Map.empty,
+  );
 
 let mark_old: t => t =
   old => {
@@ -151,10 +255,20 @@ let mark_old: t => t =
     old: true,
   };
 
+/* [s] with [from]'s incremental caches. Their entries are keyed by anchor
+   and checked against the pieces, so they serve any program, and hit for
+   the pieces it shares with [from]'s; the measure cache's id is the code
+   view's key (ChunkViews), so its chunks hit too */
+let with_caches_of = (~from: t, s: t): t => {
+  ...s,
+  m_cache: from.m_cache,
+  t_cache: from.t_cache,
+};
+
 /* statics or refractor model changed but the segment didn't: reuse
  * segment/term_data, recompute only the shape-derived fields. */
 let refresh_shapes =
-    (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+    (~root, z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
   let (shape_map, projector_errors) =
     ProjectorInfo.ShapeMapSemantics.mk(
       old.projectors,
@@ -168,7 +282,27 @@ let refresh_shapes =
   let refractor_rows =
     Id.Map.equal((==), refractor_rows, old.refractor_rows)
       ? old.refractor_rows : refractor_rows;
-  let measured = Measured.of_segment(old.segment, shape_map, refractor_rows);
+  /* Measured depends only on the segment, shapes, and refractor rows;
+   * when new dynamics leave them all unchanged (the common case for a
+   * sample refresh), the whole-program re-measure is pure waste. Keep
+   * the old shape_map ref too so downstream phys-eq caches stay warm.
+   * (Re-measures go through the chunk cache: only changed chunks.) */
+  let shapes_equal =
+    Id.Map.equal((a, b) => a == b, shape_map, old.shape_map)
+    && refractor_rows === old.refractor_rows;
+  let (shape_map, measured) =
+    shapes_equal
+      ? (old.shape_map, old.measured)
+      : (
+        shape_map,
+        Measured.Incr.of_segment(
+          ~root,
+          ~cache=old.m_cache,
+          old.segment,
+          shape_map,
+          refractor_rows,
+        ),
+      );
   {
     ...old,
     shape_map,
@@ -177,10 +311,27 @@ let refresh_shapes =
     measured,
     cached_manuals: z.refractors.manuals,
     cached_ephemerals: z.refractors.multis.ephemerals,
+    cached_tail: z.refractors.tail_target,
+    cached_stepping: z.refractors.stepping,
+    cached_layout: DrawerFit.layout^,
+    cached_proofs: z.refractors.proofs,
     shape_info_map: info_map,
     shape_dyn_map: dyn_map,
     shape_elaborated: elaborated,
   };
+};
+
+/* [z]'s program as semantics reads it (MakeTerm.semantic_source), as this
+   syntax's own segment when that was zipped from [z]'s relatives and
+   selection: the pieces t_cache parsed. None under an unparsed buffer,
+   which semantics drops */
+let semantic_source = (z: Zipper.t, s: t): option(Segment.t) => {
+  let (relatives, selection, segment) = s.zipped;
+  relatives === z.relatives
+  && selection === z.selection
+  && segment === s.segment
+  && z.selection.mode != Buffer(Unparsed)
+    ? Some(segment) : None;
 };
 
 /* phys-eq on option(Exp.t): None===None holds but Some(x)===Some(y) is
@@ -193,18 +344,62 @@ let elaborated_phys_eq =
   | _ => false
   };
 
-let calculate = (z: Zipper.t, info_map, dyn_map, ~elaborated=None, old: t) => {
+/* cost follows the change: new segment → full `mk`; new statics,
+ * dynamics or refractor inputs → refresh_shapes; else just selection_ids.
+ * [segment]: [z]'s zip, when the caller has it */
+let calculate =
+    (
+      ~root=Sort.Exp,
+      ~segment=?,
+      z: Zipper.t,
+      info_map,
+      dyn_map,
+      ~elaborated=None,
+      old: t,
+    ) => {
   let refractor_inputs_changed =
     z.refractors.manuals !== old.cached_manuals
-    || z.refractors.multis.ephemerals !== old.cached_ephemerals;
+    || z.refractors.multis.ephemerals !== old.cached_ephemerals
+    || z.refractors.tail_target != old.cached_tail
+    || z.refractors.stepping != old.cached_stepping
+    || DrawerFit.layout^ != old.cached_layout
+    || z.refractors.proofs !== old.cached_proofs;
   if (old.old) {
-    mk(z, ~info_map, ~dyn_map, ~elaborated);
+    /* [old] marks caret moves too; an unchanged segment keeps its
+       measured/terms/term_data */
+    let segment =
+      switch (segment) {
+      | Some(seg) => seg
+      | None => Zipper.unselect_and_zip(z)
+      };
+    if (Segment.ptr_eq(segment, old.segment)) {
+      {
+        ...refresh_shapes(~root, z, info_map, dyn_map, ~elaborated, old),
+        old: false,
+        selection_ids: Selection.selection_ids(z.selection),
+        zipped: (z.relatives, z.selection, old.segment),
+      };
+    } else {
+      mk(
+        ~root,
+        ~m_cache=old.m_cache,
+        ~t_cache=old.t_cache,
+        ~segment,
+        z,
+        ~info_map,
+        ~dyn_map,
+        ~elaborated,
+      );
+    };
   } else if (info_map !== old.shape_info_map
              || dyn_map !== old.shape_dyn_map
              || !elaborated_phys_eq(elaborated, old.shape_elaborated)
              || refractor_inputs_changed) {
-    refresh_shapes(z, info_map, dyn_map, ~elaborated, old);
+    refresh_shapes(~root, z, info_map, dyn_map, ~elaborated, old);
   } else {
+    /* keep the record's identity when nothing changed: view memos key
+       on it, and every non-editor update (a streamed chat token) lands
+       here */
     let selection_ids = Selection.selection_ids(z.selection);
     selection_ids == old.selection_ids
       ? old

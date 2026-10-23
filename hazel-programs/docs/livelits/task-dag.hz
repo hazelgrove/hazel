@@ -1,0 +1,221 @@
+# Task Plan: tasks with durations, arrows for "must finish first".    #
+# Drag a task to move it. Click a task to select it (orange); then    #
+# click another task to add or remove the arrow between them, or      #
+# click the selected task again to bump its days (1..5). Click empty  #
+# space to deselect; "+ task" adds one. A use expands to              #
+# Plan(tasks, deps); `schedule` finds the earliest start of each task  #
+# and which ones are critical, and `gantt` draws that as a chart.     #
+
+type Plan = + Plan([(String, Int)], [(Int, Int)]) in
+type Schedule = + Schedule([(String, Int, Int, Bool)]) in
+
+let ^plan = {
+  # a task on the board is (name, days, x, y) #
+  type Task = (String, Int, Int, Int);
+  # (tasks, deps as (before, after), selected, dragging, moved since press) #
+  type Model = ([Task], [(Int, Int)], Int, Int, Bool);
+  type Action = + Down(Int, Int) + MoveTo(Int, Int) + Up + Add;
+
+  let init : Model =
+    ([("A", 2, 40, 40), ("B", 3, 120, 30), ("C", 1, 120, 110), ("D", 2, 210, 70)],
+     [(0, 1), (0, 2), (1, 3), (2, 3)], -1, -1, false);
+
+  let s : Int -> String = string_of_int;
+
+  # index of the task within 18px of (x, y), or -1 #
+  let hit(ts: [Task], x: Int, y: Int, i: Int): Int =
+    case ts
+    | [] => -1
+    | (_, _, tx, ty) :: tl =>
+      if (tx - x) * (tx - x) + (ty - y) * (ty - y) <= 324 then i
+      else hit(tl, x, y, i + 1)
+    end;
+
+  let at(ts: [Task], i: Int): (Int, Int) =
+    let (_, _, x, y) = nth(ts, i) in
+    (x, y);
+
+  let update((ts, deps, sel, drag, moved): Model, a: Action): Model =
+    case a
+    | Add =>
+      let n = length(ts) in
+      (ts @ [("T" ++ s(n + 1), 2, 40 + 60 * int_mod(n, 4), 40 + 45 * (n / 4))],
+       deps, sel, drag, moved)
+    | Down(x, y) =>
+      let h = hit(ts, x, y, 0) in
+      (ts, deps, if h == -1 then -1 else sel, h, false)
+    | MoveTo(x, y) =>
+      if drag == -1 then (ts, deps, sel, drag, moved)
+      else
+        let (tx, ty) = at(ts, drag) in
+        if !moved && (tx - x) * (tx - x) + (ty - y) * (ty - y) < 16
+        then (ts, deps, sel, drag, moved)
+        else
+          (mapi(ts, fun (i: Int, t: Task) ->
+                      let (n, d, _, _) = t in
+                      if i == drag then (n, d, x, y) else t),
+           deps, sel, drag, true)
+    | Up =>
+      if drag == -1 || moved then (ts, deps, sel, -1, false)
+      else if sel == -1 then (ts, deps, drag, -1, false)
+      else if sel == drag then
+        (mapi(ts, fun (i: Int, t: Task) ->
+                    let (n, d, x, y) = t in
+                    if i == sel then (n, int_mod(d, 5) + 1, x, y) else t),
+         deps, sel, -1, false)
+      else
+        let e = (sel, drag) in
+        let rest = filter(deps, fun (d: (Int, Int)) -> d != e) in
+        (ts, if length(rest) < length(deps) then rest else deps @ [e], -1, -1, false)
+    end;
+
+  let arrow(ts: [Task], (a, b): (Int, Int)): HTML =
+    let (x1, y1) = at(ts, a) in
+    let (x2, y2) = at(ts, b) in
+    Node("line",
+      [Create("x1", s(x1)), Create("y1", s(y1)),
+       Create("x2", s(x2)), Create("y2", s(y2)),
+       Create("stroke", "#b4c4d0"), Create("stroke-width", "2"),
+       Create("marker-end", "url(#tip)")],
+      []);
+
+  let task(i: Int, (name, days, x, y): Task, sel: Int): HTML =
+    Node("g", [], [
+      Node("circle", [Create("cx", s(x)), Create("cy", s(y + 1)), Create("r", "17"), Create("fill", "#344b60")], []),
+      Node("circle", [Create("cx", s(x)), Create("cy", s(y)), Create("r", "17"),
+                      Create("fill", if i == sel then "#b09a78" else "#647f94"), Create("stroke", "#a9becc")], []),
+      Node("path", [Create("d", "M" ++ s(x - 13) ++ " " ++ s(y + 1) ++ " h26"), Create("stroke", "#40596e"), Create("stroke-width", "0.7")], []),
+      Node("text", [Create("x", s(x)), Create("y", s(y - 3)), Create("text-anchor", "middle"), Create("font-size", "10"), Create("pointer-events", "none")], [Text(name)]),
+      Node("text", [Create("x", s(x)), Create("y", s(y + 12)), Create("text-anchor", "middle"), Create("font-size", "8"), Create("fill", "#e3e8e9"), Create("pointer-events", "none")], [Text(s(days) ++ "d")])]);
+
+  let arrowhead : HTML =
+    Node("defs", [], [
+      Node("marker",
+        [Create("id", "tip"), Create("viewBox", "0 0 10 10"), Create("refX", "27"),
+         Create("refY", "5"), Create("markerWidth", "8"), Create("markerHeight", "8"),
+         Create("orient", "auto")],
+        [Node("path",
+           [Create("d", "M0 0 L10 5 L0 10 z"), Create("fill", "#b4c4d0")],
+           [])])]);
+
+  let view((ts, deps, sel, _, _): Model): HTML =
+    Div(
+      [Class("blue-hour-view"), Create("title", s(length(ts)) ++ " tasks, " ++ s(length(deps)) ++ " links"), Style([("position", "relative"), ("width", "max-content"), ("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("display", "flex"), ("flex-direction", "column")]), Create("data-hint", "drag a task; click: select, then link or bump days")],
+      [Node("svg",
+         [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"),
+                 ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 140"), Width("260"), Height("140"),
+
+          OnMouseDownAt(fun (x: Int, y: Int) -> Down(x, y)),
+          OnMouseMoveAt(fun (x: Int, y: Int) -> MoveTo(x, y)),
+          OnMouseUpAt(fun _ -> Up)],
+         arrowhead
+         :: map(deps, fun (d: (Int, Int)) -> arrow(ts, d))
+         @ mapi(ts, fun (i: Int, t: Task) -> task(i, t, sel))),
+       Button([Class("blue-hour-action blue-hour-overlay-action"), OnClick(Add)], [Text("+ task")])]);
+
+  let expand((ts, deps, _, _, _): Model): Plan =
+    Plan(map(ts, fun (n: String, d: Int, _, _) -> (n, d)), deps);
+
+  # lay any Plan's tasks out on a grid, four to a row #
+  let wrap(v: Plan): Model =
+    case v
+    | Plan(tasks, deps) =>
+      (mapi(tasks, fun (i: Int, (n, d): (String, Int)) ->
+                     (n, d, 40 + 60 * int_mod(i, 4), 40 + 45 * (i / 4))),
+       deps, -1, -1, false)
+    end;
+
+  let shape : LivelitShape = Block(26, 6)
+} in
+
+let show(v: Plan): HTML = ^plan.view(^plan.wrap(v)) in
+
+let max(a: Int, b: Int): Int = if a > b then a else b in
+let min(a: Int, b: Int): Int = if a < b then a else b in
+
+# Earliest start of each task, then latest finish; a task is critical when it #
+# has no slack                                                                #
+let schedule(p: Plan): Schedule =
+  case p
+  | Plan(tasks, deps) =>
+    let days(i: Int): Int = snd(nth(tasks, i)) in
+    let ids : [Int] = mapi(tasks, fun (i: Int, _) -> i) in
+    # iterate a per-task rule to a fixpoint (one sweep per task is enough) #
+    let relax(f: ([Int], Int) -> Int, start: [Int]): [Int] =
+      fold_left(ids, fun (acc: [Int], _) -> map(ids, fun (i: Int) -> f(acc, i)), start)
+    in
+    let est : [Int] =
+      relax(fun (e: [Int], i: Int) ->
+              fold_left(deps,
+                        fun (m: Int, (a, b): (Int, Int)) ->
+                          if b == i then max(m, nth(e, a) + days(a)) else m,
+                        nth(e, i)),
+            map(ids, fun _ -> 0))
+    in
+    let total : Int =
+      fold_left(ids, fun (m: Int, i: Int) -> max(m, nth(est, i) + days(i)), 0)
+    in
+    let lft : [Int] =
+      relax(fun (l: [Int], i: Int) ->
+              fold_left(deps,
+                        fun (m: Int, (a, b): (Int, Int)) ->
+                          if a == i then min(m, nth(l, b) - days(b)) else m,
+                        nth(l, i)),
+            map(ids, fun _ -> total))
+    in
+    let rows : [(String, Int, Int, Bool)] =
+      mapi(tasks, fun (i: Int, (n, d): (String, Int)) ->
+                    (n, nth(est, i), nth(est, i) + d, nth(est, i) + d == nth(lft, i)))
+    in
+    Schedule(sort(fun ((_, a, _, _), (_, b, _, _)) -> int_compare(a, b), rows))
+  end
+in
+
+let critical_path(p: Plan): [String] =
+  case schedule(p)
+  | Schedule(rows) =>
+    map(filter(rows, fun (_, _, _, c: Bool) -> c), fun (n: String, _, _, _) -> n)
+  end
+in
+
+let makespan(p: Plan): Int =
+  case schedule(p)
+  | Schedule(rows) => fold_left(rows, fun (m: Int, (_, _, f, _)) -> max(m, f), 0)
+  end
+in
+
+# One row per task; critical tasks in coral #
+let gantt(sc: Schedule): HTML =
+  case sc
+  | Schedule(rows) =>
+    let s : Int -> String = string_of_int in
+    let h = 28 * length(rows) + 6 in
+    Node("svg",
+      [Class("blue-hour-view"), Style([("background", "#576e83"), ("color", "#f2f4ef"), ("fill", "#f2f4ef"), ("font-family", "Inter, system-ui, sans-serif"), ("background", "#576e83"), ("font-family", "sans-serif")]), Create("viewBox", "0 0 260 " ++ s(h)), Width("260"), Height(s(h))],
+      concat(mapi(rows, fun (i: Int, (n, a, b, c): (String, Int, Int, Bool)) ->
+        [Node("line", [Create("x1", "40"), Create("x2", "256"), Create("y1", s(28 * i + 27)), Create("y2", s(28 * i + 27)), Create("stroke", "#8298aa"), Create("stroke-opacity", "0.25")], []),
+         Node("text",
+           [Create("x", "4"), Create("y", s(28 * i + 20)), Create("font-size", "12")],
+           [Text(n)]),
+         Node("rect",
+           [Create("x", s(40 + 14 * a)), Create("y", s(28 * i + 6)),
+            Create("width", s(14 * (b - a))), Create("height", "21"), Create("rx", "3"),
+            Create("fill", if c then "#f2ab98" else "#a6d3ee")],
+           [])])))
+  end
+in
+
+let input : Plan =
+  ^^livelit(^plan(([("A", 2, 40, 40), ("B", 3, 120, 30),
+                    ("C", 1, 120, 110), ("D", 2, 210, 70)],
+                   [(0, 1), (0, 2), (1, 3), (2, 3)], -1, -1, false)))
+in
+let chart : HTML = gantt(schedule(input)) in
+
+test schedule(Plan([("A", 2), ("B", 3)], [(0, 1)]))
+     == Schedule([("A", 0, 2, true), ("B", 2, 5, true)]) end;
+test critical_path(Plan([("A", 2), ("B", 3), ("C", 1)], [(0, 1), (0, 2)]))
+     == ["A", "B"] end;
+test makespan(Plan([("A", 2), ("B", 3), ("C", 1)], [(0, 1), (0, 2)])) == 5 end;
+
+(days=makespan(input), critical=critical_path(input), chart=chart)

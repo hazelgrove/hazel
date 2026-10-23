@@ -53,22 +53,64 @@ let of_targets = (targets: Sample.targets): t => {
   targets,
 };
 
+/* `$hole` is a statics-only sentinel for unused-variable warnings. It is not
+ * a runtime dependency, so it should not participate in reuse provenance. */
+let is_runtime_dependency = (name: string): bool => name != "$hole";
+
+/* what evaluation reads of a co_ctx (its names, IncrEval) but "$hole":
+   DefStatics' per-item body holes mint a "$hole" use each analysis,
+   which would change every enclosing root's entry */
+let runtime_co_ctx = (co_ctx: CoCtx.t): CoCtx.t =>
+  List.for_all(((name, _)) => is_runtime_dependency(name), co_ctx)
+    ? co_ctx : CoCtx.filter_names(is_runtime_dependency, co_ctx);
+
+/* what an entry's witness reads besides its own probe targets */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type witnessing = {
+  probe_all: bool,
+  full: list(Id.t) /* full-capture probes */
+};
+
+let witnessing = (~probe_all: bool, ~targets: Sample.targets): witnessing => {
+  probe_all,
+  full:
+    Id.Map.fold(
+      (id, spec: Sample.capture_spec, acc) => spec.full ? [id, ...acc] : acc,
+      targets,
+      [],
+    ),
+};
+
+/* an expression's entry; None for other infos */
+let entry_of_info = (w: witnessing, info: Info.t): option(entry) =>
+  switch (info) {
+  | InfoExp({elab_term, co_ctx, probe_targets, _}) =>
+    Some({
+      elab_term,
+      co_ctx: runtime_co_ctx(co_ctx),
+      /* a term holding a full-capture probe gets a witness of its own,
+         so its samples are retaken rather than replayed with elided
+         values */
+      probe_targets:
+        if (List.exists(
+              id => MerkleSet.mem(id, probe_targets.probe_ids),
+              w.full,
+            )) {
+          ProbeTargets(SubexpProbeTargets.mark_full(probe_targets));
+        } else {
+          w.probe_all ? ProbeAll : ProbeTargets(probe_targets);
+        },
+    })
+  | _ => None
+  };
+
 let of_info_map =
     (~probe_all: bool, ~targets: Sample.targets, info_map: StaticsBase.Map.t)
     : t => {
-  statics:
-    Id.Map.filter_map(
-      (_id, info) =>
-        switch (info) {
-        | Info.InfoExp({elab_term, co_ctx, probe_targets, _}) =>
-          Some({
-            elab_term,
-            co_ctx,
-            probe_targets: probe_all ? ProbeAll : ProbeTargets(probe_targets),
-          })
-        | _ => None
-        },
-      info_map,
-    ),
-  targets,
+  let w = witnessing(~probe_all, ~targets);
+  {
+    statics:
+      Id.Map.filter_map((_id, info) => entry_of_info(w, info), info_map),
+    targets,
+  };
 };

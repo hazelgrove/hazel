@@ -58,6 +58,48 @@ Alternatively, if you would live hot reloading, you can use `make hot` instead o
 Otherwise, run `make echo-html-dir` which will echo the directory that needs 
 to be served using some other server of your choice.
 
+### Agent Canvas demos
+
+Build with `dune build src/web/www --profile dev`, then run `npm run canvas`.
+This starts the local canvas server at `http://localhost:8687` and refuses to
+silently switch ports if that address is busy.
+
+The agent composer's **Demo prompts** menu fills the prompt field for editing;
+press Send when ready. It includes the original Constellation and ARIA prompts,
+quick starts, and follow-ups that assume an existing program. Edit the catalog in
+[`src/web/demo-prompts.json`](src/web/demo-prompts.json), then rebuild.
+
+In the agent settings, **Connect OpenRouter** opens OpenRouter's authorization
+page and returns to the same Hazel URL. The flow uses PKCE (S256), a random
+state check, and a short-lived verifier kept in session storage. You can also
+paste a key manually. Connecting does not send a model request or run a prompt.
+
+**Remember in this browser** opts into a dedicated localStorage entry,
+`hazel.openrouter.credential.v1`, separate from editor settings and exports.
+New users start with this off; an existing browser-saved key is migrated once.
+With it off, the active key lasts for this page only. With it on, it survives
+reloads and **Reset Hazel**. Unchecking removes the remembered browser copy
+while leaving the current page connected. Browser data clearing can still
+remove it. Like other browser storage, this entry is readable by site scripts.
+Credentials are stripped from settings/snapshots and credential actions are
+excluded from logs and undo; imported credential actions are ignored.
+
+On a local Vite server, **Share across local servers and browsers** is an
+additional, independent opt-in. It stores an unencrypted copy in
+`~/.config/hazel/openrouter-api-key.json`, outside the checkout, with owner-only
+permissions and a path resolved from the server user's home directory. This
+copy survives browser/editor resets and can initialize other local ports and
+browser profiles. It is not automatically copied into browser storage.
+Unchecking deletes the shared file while keeping the active page connected.
+Startup reads existing remembered keys without writing them back to disk.
+
+**Forget API key** in agent settings clears the browser copy and, when available,
+the shared local copy, then disconnects the page. Already-open pages and other
+browsers may still have their own copies. This does not revoke the key at
+OpenRouter. Hosted/static builds only show the browser option. The local
+endpoint accepts same-origin requests from loopback connections only;
+credentials are never included in the build.
+
 ### Build Server
 Every branch that has been pushed to GitHub and successfully builds
 can also be accessed at the following URL (once the GitHub action is finished building and deploying it):

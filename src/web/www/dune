@@ -6,10 +6,32 @@
 
 (rule
  (targets bundled.js)
- (deps prebundle.js)
+ (deps
+  prebundle.js
+  canvas-layout-bridge.js
+  %{project_root}/package-lock.json)
  (action
   (run
    %{project_root}/node_modules/esbuild/bin/esbuild
    prebundle.js
    --bundle
    --outfile=bundled.js)))
+
+(rule
+ (targets canvas-layout-worker.js)
+ (deps
+  canvas-layout-worker-entry.js
+  canvas-layout-engines.js
+  %{project_root}/package-lock.json)
+ (action
+  (run
+   %{project_root}/node_modules/esbuild/bin/esbuild
+   canvas-layout-worker-entry.js
+   --bundle
+   --minify
+   --outfile=canvas-layout-worker.js)))
+
+(rule
+ (copy
+  %{project_root}/node_modules/elkjs/lib/elk-worker.min.js
+  elk-worker.js))

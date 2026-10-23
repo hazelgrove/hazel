@@ -64,11 +64,15 @@ let view =
     : Node.t => {
   open Haz3lcore;
   let side = side_of(z);
+  let origin = Zipper.Caret.point(measured, z);
+  /* CaretReveal reads this instead of the caret's DOM rect (only the
+     selected editor renders a caret) */
+  CaretReveal.publish(~row=origin.row, ~row_height=font_metrics.row_height);
   main(
     ~font_metrics,
     ~profile={
       side,
-      origin: Zipper.Caret.point(measured, z),
+      origin,
       shape: Zipper.Caret.direction(z),
     },
   );

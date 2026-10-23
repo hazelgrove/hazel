@@ -30,6 +30,7 @@
   --warn-hole-z: 3;
   --select-z: 4;
   --stepper-interactive-z: 5;
+  --drag-track-z: 8; /* drag tracks/targets: above backings, under text */
   --projector-underlay-z: 9;
 
   /* AT CODE LEVEL */
@@ -50,6 +51,7 @@
   --top-bar-z: 31;
   --explainthis-expander-z: 31;
   --top-bar-hover-z: 33;
+  --outline-menu-z: 41; /* its backdrop, one below, covers the bars */
 
   /* HACKS */
   --modal-back-z: 100;

@@ -20,3 +20,19 @@
     margin-left: 0.5em;
     cursor: pointer;
 }
+
+/* The import affordance is a real button (reset-button palette) */
+.projector.csv .icon {
+    display: inline-block;
+    padding: 0.05em 0.6em;
+    border: 1px solid var(--border-strong);
+    border-radius: 4px;
+    background: none;
+    color: var(--text-accent);
+    cursor: pointer;
+    user-select: none;
+}
+.projector.csv .icon:hover {
+    background: var(--surface-accent);
+    color: #fff;
+}

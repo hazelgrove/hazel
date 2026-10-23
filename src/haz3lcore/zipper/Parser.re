@@ -77,12 +77,28 @@ let to_zipper =
 /* Check if the zipper is at a "safe split point": top level with
    no incomplete tiles (empty backpack), caret between tokens,
    and we just inserted a whitespace char (ensuring we're at a real
-   token boundary, not mid-identifier like 't' before 'type'). */
-let is_split_point = (c: string, z: Zipper.t): bool =>
+   token boundary, not mid-identifier like 't' before 'type'). At a Mod
+   root a member's definition follows its `let … =` at the top level, so
+   only a member's `;` ends one there. */
+let is_split_point = (~root: Sort.t, c: string, z: Zipper.t): bool =>
   Token.is_secondary(c)
   && z.caret == Outer
   && z.relatives.ancestors == []
-  && Zipper.local_missing_shards(z) == [];
+  && Zipper.local_missing_shards(z) == []
+  && (
+    root != Sort.Mod
+    || (
+      switch (
+        Siblings.neighbor(
+          Left,
+          Siblings.trim_secondary(z.relatives.siblings),
+        )
+      ) {
+      | Some(Tile(t)) => Tile.is_semi(t)
+      | _ => false
+      }
+    )
+  );
 
 /* Strip trailing convex grout from a segment. This grout is the
    artifact of Zipper.init()'s initial placeholder that was never
@@ -131,7 +147,8 @@ let to_segment = (str: string, ~root): option(Segment.t) => {
       switch (current_z^) {
       | None => ()
       | Some(z) =>
-        if (chars_since_split^ >= min_segment_size && is_split_point(c, z)) {
+        if (chars_since_split^ >= min_segment_size
+            && is_split_point(~root, c, z)) {
           let z = Zipper.remold_regrout(Left, z, ~root);
           let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
           segments := [strip_trailing_grout(seg), ...segments^];
@@ -181,7 +198,7 @@ let has_balanced_delimiters = (s: string): bool => {
 };
 
 /* Gate for the FastParse paste attempt (segment splice at the caret).
-   Requires: caret between tokens, no incomplete tiles, Exp sort, no
+   Requires: caret between tokens, no incomplete tiles, Exp or Mod sort, no
    token merging at boundaries, and balanced delimiters in the clipboard.
    Unlike dev's can_fast_paste this does NOT require a top-level caret:
    the splice + remold doesn't depend on ancestors beyond the sort check,
@@ -196,8 +213,8 @@ let fast_paste_blocker =
     Some("caret is inside a token");
   } else if (Zipper.local_missing_shards(z) != []) {
     Some("incomplete tiles (missing shards) at the caret");
-  } else if (Relatives.sort(~root, z.relatives) != Sort.Exp) {
-    Some("caret sort is not Exp");
+  } else if (!List.mem(Relatives.sort(~root, z.relatives), [Sort.Exp, Mod])) {
+    Some("caret sort is neither Exp nor Mod");
   } else if (!has_balanced_delimiters(clipboard)) {
     Some("clipboard delimiters unbalanced");
   } else if (boundary_merges(clipboard, z)) {
@@ -217,12 +234,17 @@ let fast_paste =
   switch (fast_paste_blocker(clipboard, z, ~root)) {
   | Some(why) => Error("gate refused — " ++ why)
   | None =>
+    /* read at the caret's sort, whatever the editor's root: among a
+       module's members a chunk of members, else an expression. Its edge
+       whitespace is kept, as typing keeps it */
+    let members = Relatives.sort(~root, z.relatives) == Sort.Mod;
     switch (
       FastParse.parsed_of_text(
         ~materialize=Triggers.invoked_projector,
         ~collect_refractors=true,
-        ~root,
-        String.trim(clipboard),
+        ~chunk=members,
+        ~root=members ? Sort.Mod : Sort.Exp,
+        clipboard,
       )
     ) {
     | Error(why) => Error("parse bailed — " ++ why)
@@ -242,7 +264,7 @@ let fast_paste =
         )
         |> Triggers.apply_refractors(refractors),
       )
-    }
+    };
   };
 
 /* Typing-parser splice paste: parse the clipboard in isolation with the

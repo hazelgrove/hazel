@@ -131,7 +131,9 @@ let update' = (x: t('a), f: 'a => 'b, y: t('b)): t('b) =>
 let set = (~eq: ('a, 'a) => bool=(==), x: 'a, y: saved('a)) =>
   switch (y) {
   | Pending => NewValue(x)
-  | Calculated(x') when eq(x, x') => OldValue(x)
+  /* physical check first: callers pass whole-program values with
+     structural eq, and unchanged values are usually pointer-stable */
+  | Calculated(x') when x === x' || eq(x, x') => OldValue(x)
   | Calculated(_) => NewValue(x)
   };
 

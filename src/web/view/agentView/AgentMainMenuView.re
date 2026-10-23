@@ -9,6 +9,30 @@ let view =
     (~globals: Globals.t, ~signal: Editors.View.signal => Effect.t(unit))
     : Node.t => {
   let agent_globals = globals.settings.agent_globals;
+  let key_busy = AgentGlobals.Update.key_busy(agent_globals);
+  let set_agent = action =>
+    Effect.Many([
+      globals.inject_global(Globals.Action.SetAgentGlobals(action)),
+      Effect.Stop_propagation,
+    ]);
+  let remember_checkbox = (id, name, checked, action) =>
+    label(
+      ~attrs=[clss(["agent-remember-key"])],
+      [
+        input(
+          ~attrs=[
+            Attr.type_("checkbox"),
+            Attr.id(id),
+            Attr.bool_property("checked", checked),
+            key_busy ? Attr.disabled : Attr.empty,
+            Attr.on_input((_, _) => set_agent(action)),
+            Attr.on_click(_ => Effect.Stop_propagation),
+          ],
+          (),
+        ),
+        text(name),
+      ],
+    );
 
   let format_price_per_million = (price: string): string => {
     // OpenRouter provides price per 1K tokens; scale to per million for readability
@@ -35,7 +59,7 @@ let view =
           | input => Js.to_string(input##.value)
           },
       );
-    if (String.length(api_key_input) > 0) {
+    if (!key_busy && String.length(String.trim(api_key_input)) > 0) {
       let set_api_key_action =
         Globals.Action.SetAgentGlobals(
           AgentGlobals.Update.SetApiKey(api_key_input),
@@ -137,17 +161,47 @@ let view =
       div(
         ~attrs=[clss(["agent-main-menu-section"])],
         [
-          div(~attrs=[clss(["agent-main-menu-label"])], [text("API Key")]),
+          div(
+            ~attrs=[clss(["agent-main-menu-label"])],
+            [text("OpenRouter")],
+          ),
+          Node.button(
+            ~attrs=[
+              clss(["agent-key-button"]),
+              Attr.type_("button"),
+              key_busy ? Attr.disabled : Attr.empty,
+              Attr.on_click(_ =>
+                set_agent(AgentGlobals.Update.ConnectOpenRouter)
+              ),
+            ],
+            [
+              text(
+                agent_globals.connecting
+                  ? "Connecting…" : "Connect OpenRouter",
+              ),
+            ],
+          ),
+          switch (agent_globals.connection_error) {
+          | None => Node.none
+          | Some(error) =>
+            div(
+              ~attrs=[
+                clss(["agent-main-menu-info"]),
+                Attr.create("role", "alert"),
+              ],
+              [text(error)],
+            )
+          },
           div(
             ~attrs=[clss(["agent-main-menu-info"])],
             [
-              text("Get an OpenRouter API key "),
+              text("Or enter an API key from "),
               a(
                 ~attrs=[
                   Attr.href("https://openrouter.ai/settings/keys"),
                   Attr.target("_blank"),
                 ],
-                [text("here")],
+                [text("OpenRouter settings")],
               ),
               text("."),
             ],
@@ -156,8 +210,16 @@ let view =
             ~attrs=[clss(["agent-api-key-container"])],
             [
               input(
+                /* Keep unsaved edits in the input: a controlled value
+                   would reset them on Command-key redraws. Remount when
+                   saving/forgetting changes whether a key is present. */
+                ~key=
+                  Option.is_some(agent_globals.api_key)
+                    ? "saved-key" : "unset-key",
                 ~attrs=[
                   Attr.id("agent-api-key-input"),
+                  Attr.create("aria-label", "OpenRouter API key"),
+                  key_busy ? Attr.disabled : Attr.empty,
                   clss(["agent-api-key-input"]),
                   Attr.placeholder("Enter your OpenRouter API key"),
                   Attr.type_("password"),
@@ -184,16 +246,98 @@ let view =
                 ],
                 (),
               ),
-              div(
+              Node.button(
                 ~attrs=[
-                  clss(["named-menu-item"]),
+                  clss(["agent-key-button"]),
+                  Attr.type_("button"),
+                  key_busy ? Attr.disabled : Attr.empty,
                   Attr.on_click(submit_api_key),
                   Attr.create("data-testid", "update-api-key-btn"),
                 ],
-                [button(None, _ => Effect.Ignore), div([text("Enter")])],
+                [text("Save key")],
               ),
             ],
           ),
+          remember_checkbox(
+            "agent-remember-browser-key",
+            "Remember in this browser",
+            agent_globals.remember_browser_key,
+            AgentGlobals.Update.SetRememberBrowserKey(
+              !agent_globals.remember_browser_key,
+            ),
+          ),
+          div(
+            ~attrs=[
+              clss(["agent-main-menu-info"]),
+              Attr.create("aria-live", "polite"),
+            ],
+            [
+              text(
+                agent_globals.browser_key_error
+                  ? "Browser storage could not be updated. Check your browser settings and retry; your key is available on this page."
+                  : agent_globals.remember_browser_key
+                      ? "Kept separately from editor data, including after Reset Hazel. Use Forget API key here to remove it."
+                      : agent_globals.local_key_status == BrowserOnly
+                          ? "This page only. Your key is forgotten when you leave or reload."
+                          : "This page only, unless you enable shared local storage below.",
+              ),
+            ],
+          ),
+          agent_globals.local_key_status == BrowserOnly
+            ? Node.none
+            : div(
+                ~attrs=[clss(["agent-local-key-options"])],
+                [
+                  remember_checkbox(
+                    "agent-remember-key",
+                    "Share across local servers and browsers",
+                    agent_globals.remember_local_key,
+                    AgentGlobals.Update.SetRememberLocalKey(
+                      !agent_globals.remember_local_key,
+                    ),
+                  ),
+                  div(
+                    ~attrs=[
+                      clss(["agent-main-menu-info"]),
+                      Attr.create("aria-live", "polite"),
+                    ],
+                    [
+                      text(
+                        switch (agent_globals.local_key_status) {
+                        | BrowserOnly => ""
+                        | LocalReady => "Local development only. Saves an unencrypted copy in your computer's user account."
+                        | LocalSaved => "Shared on this computer. Uncheck to delete the unencrypted local copy."
+                        | LocalOtherKey => "A different key is shared on this computer. Enable to replace it with this key."
+                        | LocalBusy => "Updating shared local storage…"
+                        | LocalError => "Shared local storage could not be updated. Retry Save key or uncheck this option."
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+          switch (agent_globals.local_key_status, agent_globals.api_key) {
+          | (_, None) => Node.none
+          | _ =>
+            Node.button(
+              ~attrs=[
+                clss(["agent-key-button"]),
+                key_busy ? Attr.disabled : Attr.empty,
+                Attr.type_("button"),
+                Attr.on_click(_ =>
+                  Effect.Many([
+                    globals.inject_global(
+                      Globals.Action.SetAgentGlobals(
+                        AgentGlobals.Update.ForgetLocalApiKey,
+                      ),
+                    ),
+                    Effect.Stop_propagation,
+                  ])
+                ),
+              ],
+              [text("Forget API key")],
+            )
+          },
         ],
       ),
       // LLM Model Selection Section

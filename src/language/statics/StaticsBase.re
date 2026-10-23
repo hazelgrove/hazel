@@ -46,9 +46,7 @@ module Map = {
   let refs_in = (m: t, id: Id.t): Binding.s =>
     switch (lookup(id, m)) {
     | Some(InfoExp({co_ctx, ctx, _})) =>
-      co_ctx
-      |> Util.VarMap.to_list
-      |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
+      co_ctx |> CoCtx.names |> List.map(n => Ctx.binding_of(ctx, n))
     | _ => []
     };
 
@@ -58,24 +56,35 @@ module Map = {
     | _ => []
     };
 
-  /* Collect all infos whose binding site is `binding_id`, plus `binding_id`
-     itself. Deduplication is handled by accumulating into an `Id.Set`. */
-  let ids_referencing_binding = (m: t, binding_id: Id.t): Id.Set.t =>
+  /* Collect all infos whose binding site is `binding_id` (`M.x` labels
+     of a member included), plus `binding_id` itself. Deduplication is
+     handled by accumulating into an `Id.Set`. */
+  let ids_referencing_binding = (m: t, binding_id: Id.t): Id.Set.t => {
+    /* a label names the binder only when spelled alike: the others skip
+       resolving their module */
+    let name = Option.bind(lookup(binding_id, m), Info.binder_name);
     Id.Map.fold(
-      (id, info, acc) =>
-        switch (Info.get_binding_site(info)) {
+      (id, info, acc) => {
+        let site =
+          switch (Info.label_name(info)) {
+          | Some(l) when Some(l) != name => None
+          | _ => Info.binding_site(~info_map=m, info)
+          };
+        switch (site) {
         | Some(id') when Id.equal(id', binding_id) => Id.Set.add(id, acc)
         | _ => acc
-        },
+        };
+      },
       m,
       Id.Set.singleton(binding_id),
     );
+  };
 
   /* IDs to highlight for a variable/type/constructor reference:
    * all infos that resolve to the same binding site id, plus the binding id. */
   let var_highlight_ids = (m: t, ci: Info.t): list(Id.t) => {
     let binding_id =
-      switch (Info.get_binding_site(ci)) {
+      switch (Info.binding_site(~info_map=m, ci)) {
       | Some(_) as b => b
       | None =>
         switch (ci) {
@@ -181,9 +190,10 @@ module Map = {
     | None => None
     };
 
+  /* all of [id]'s ancestors (Info.ancestors) */
   let ancestors_of = (id: Id.t, m: t): list(Id.t) =>
     switch (lookup(id, m)) {
-    | Some(info) => Info.ancestors_of(info)
+    | Some(info) => Info.ancestors(~info_map=m, info)
     | None => []
     };
 };
@@ -245,20 +255,28 @@ let set_dot_labels_exp =
   | _ => m
   };
 
-let map_m = (f, xs, m: Map.t) =>
-  List.fold_left(
-    ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
-    ([], m),
-    xs,
-  );
+/* these folds (and those in Statics.re) cons then rev: [acc @ [x]] is
+   quadratic, which bites on wide n-ary forms like module bodies */
+let map_m = (f, xs, m: Map.t) => {
+  let (xs, m) =
+    List.fold_left(
+      ((xs, m), x) => f(x, m) |> (((x, m)) => ([x, ...xs], m)),
+      ([], m),
+      xs,
+    );
+  (List.rev(xs), m);
+};
 
-let map_m2 = (f, xs, ys, m: Map.t) =>
-  List.fold_left2(
-    ((zs, m), x, y) => f(x, y, m) |> (((z, m)) => (zs @ [z], m)),
-    ([], m),
-    xs,
-    ys,
-  );
+let map_m2 = (f, xs, ys, m: Map.t) => {
+  let (zs, m) =
+    List.fold_left2(
+      ((zs, m), x, y) => f(x, y, m) |> (((z, m)) => ([z, ...zs], m)),
+      ([], m),
+      xs,
+      ys,
+    );
+  (List.rev(zs), m);
+};
 
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
@@ -275,6 +293,19 @@ let fixed_typ = (ctx: Ctx.t, ana: Typ.t, elab_syn_ty: Typ.t): Typ.t =>
       ana;
     }
   };
+
+/* The one way statics substitutes into a type: a substitution Typ.subst had
+   to degrade to `?` (see its `Sig` arm) is marked here, so the degradation is
+   never silent. `make ci-check` rejects a direct Typ.subst under statics. */
+let subst_marked = (s: Typ.t, x: TPat.t, ty: Typ.t): (Typ.t, list(Mark.t)) => {
+  let (ty', captured) = Typ.subst_captures(s, x, ty);
+  let marks =
+    switch (captured) {
+    | [] => []
+    | _ => [Mark.TypeMemberCapture(captured)]
+    };
+  (ty', marks);
+};
 
 let patch_elab_syn_ty_exp = (m: Map.t, e: Exp.t, new_syn_ty: Typ.t): Map.t =>
   switch (Map.lookup(Exp.rep_id(e), m)) {
@@ -390,9 +421,10 @@ let fresh_ascription = (ctx: Ctx.t, d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
     | Some({term: Unknown(Internal), _}) => d
-    /* Settle the common case before resolving anything: equal types
-       need no ascription, and comparing normalized forms expands every
-       alias on both sides first. */
+    /* Settle the common case before resolving anything: equal types need no
+       ascription, and comparing normalized forms expands every alias on both
+       sides first (`Var("HTML")` alone expands to ~7800 nodes). In practice
+       the two sides are the same type in 85-100% of calls. */
     | Some(ty) when Typ.fast_equal(ty, t) => d
     | Some(ty) when !Typ.equal_up_to_aliases(ctx, ty, t) => asc(d, ty)
     | _ => d
@@ -417,24 +449,34 @@ let fold_patterns_with_modes =
       ps: list(Pat.t),
       modes,
       m,
-    ) =>
-  List.fold_left2(
-    ((ctx, tys, cons, m, infos, elabs), p, ana) =>
-      analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
-      |> (
-        ((info, elab, m)) => (
-          info.ctx,
-          tys @ [info.ty],
-          cons @ [info.constraint_],
-          m,
-          infos @ [info],
-          elabs @ [elab],
-        )
-      ),
-    (ctx, [], [], m, [], []),
-    ps,
-    modes,
+    ) => {
+  let (ctx, tys, cons, m, infos, elabs) =
+    List.fold_left2(
+      ((ctx, tys, cons, m, infos, elabs), p, ana) =>
+        analyze(~ctx, ~ana, ~duplicate_bindings, p, m)
+        |> (
+          ((info, elab, m)) => (
+            info.ctx,
+            [info.ty, ...tys],
+            [info.constraint_, ...cons],
+            m,
+            [info, ...infos],
+            [elab, ...elabs],
+          )
+        ),
+      (ctx, [], [], m, [], []),
+      ps,
+      modes,
+    );
+  (
+    ctx,
+    List.rev(tys),
+    List.rev(cons),
+    m,
+    List.rev(infos),
+    List.rev(elabs),
   );
+};
 
 module type ExpressionStatics = {
   let uexp_to_info_map:

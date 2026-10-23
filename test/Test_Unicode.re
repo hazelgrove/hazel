@@ -673,6 +673,7 @@ let key_action = (k: string): option(Action.t) =>
     meta: Key.Up,
     ctrl: Key.Up,
     alt: Key.Up,
+    target_tag: None,
   });
 
 let inserted = (k: string): option(string) =>

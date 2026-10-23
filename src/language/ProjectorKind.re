@@ -18,8 +18,11 @@ type t =
   | TextArea
   | Table
   | Csv
+  | HTML
   | Keybinding
-  | Color;
+  | Color
+  /* a theorem's proof in a drawer below it (placed, never invoked) */
+  | Proof;
 
 let livelit_projectors: list(t) = [
   Csv, /* Competes with Card for empty list */
@@ -31,6 +34,7 @@ let livelit_projectors: list(t) = [
   Table,
   Card,
   Livelit,
+  HTML,
   Keybinding,
   Color,
 ];
@@ -55,8 +59,10 @@ let name = (p: t): string =>
   | TextArea => "text"
   | Table => "table"
   | Csv => "csv"
+  | HTML => "html"
   | Keybinding => "keybinding"
   | Color => "color"
+  | Proof => "proof"
   };
 
 /* Inverse of `name`, derived from it and the enumerated `all` (built once)

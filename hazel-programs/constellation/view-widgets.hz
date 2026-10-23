@@ -1,0 +1,42 @@
+# View widgets: HTML-valued functions, no app. Focus an edge and the #
+# output well renders the actual DOM (auto rich view). #
+
+type Item = (String, Bool) in
+
+let badge : String -> HTML =
+  fun s ->
+    Span(
+      [Style([("background", "#e8e0f8"), ("color", "#5a3a9a"),
+              ("padding", "1px 7px"), ("border-radius", "8px"),
+              ("font-size", "0.85em")])],
+      [Text(s)]
+    )
+in
+
+let row : Item -> HTML =
+  fun (label, done) ->
+    Div(
+      [Style([("display", "flex"), ("gap", "0.4em"), ("padding", "1px 0")])],
+      [
+        Text(case done | true => "[x]" | false => "[ ]" end),
+        Text(label),
+        case done | true => badge("done") | false => badge("todo") end
+      ]
+    )
+in
+
+let checklist : [Item] -> HTML =
+  fun items ->
+    case items
+    | [] => Div([], [])
+    | hd :: tl => Div([], [row(hd), checklist(tl)])
+    end
+in
+
+let label_of : Item -> String =
+  fun (label, done) -> label in
+
+hint "labels pass through"
+test label_of(("mulch", true)) == "mulch" end;
+
+checklist([("water seedlings", true), ("fix drip line", false), ("order mulch", false)])

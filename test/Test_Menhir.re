@@ -54,7 +54,7 @@ let menhir_matches = (exp: Exp.t, actual: string) =>
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+      _: IdTagged.IdTag.t => IdTagged.IdTag.temp,
       Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
   );
@@ -118,7 +118,7 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+        _: IdTagged.IdTag.t => IdTagged.IdTag.temp,
         Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )
@@ -273,7 +273,7 @@ let qcheck_menhir_serialized_equivalent_test =
           );
         let normalize = exp =>
           Conversion.Exp.of_menhir_ast(exp)
-          |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.temp())
+          |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.temp)
           |> strip_parens
           |> Grammar.map_exp_annotation(_ => false)
           |> Conversion.Exp.of_core;
@@ -281,6 +281,174 @@ let qcheck_menhir_serialized_equivalent_test =
       };
     },
   );
+
+/* Concave-grout marker (`⧖`) parity. The editor side loads through
+   MarkerParse.of_text, which strips the marker to real grout — the
+   state a persisted document actually reaches (kept as a marker TILE,
+   as Parser.to_zipper leaves it, a chain nests to the right instead of
+   flattening). Two divergence classes are deliberately unpinned: the
+   sort tag MakeTerm gives a hole's neighbour (`let x : Int ⧖ y` sorts
+   `y` as a type; Menhir reads it as a pattern), and `Bool`/`String`
+   lexing as type keywords, so they cannot be constructor patterns
+   after a pattern-level hole (a pre-existing lexer gap). */
+let marker_term_parse = (s: string) =>
+  strip_wrap(
+    Haz3lcore.MakeTerm.from_zip_for_sem(
+      Option.get(Haz3lcore.MarkerParse.of_text(s, ~root=Exp)),
+      ~root=Exp,
+    ).
+      term,
+  );
+let concave_marker_equivalent_test = (name: string, actual: string) =>
+  test_case(name, `Quick, () => {
+    alco_check(
+      "Menhir parse matches MakeTerm parse (marker load path)",
+      marker_term_parse(actual),
+      Grammar.map_exp_annotation(
+        _: IdTagged.IdTag.t => IdTagged.IdTag.temp,
+        Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
+      ),
+    )
+  });
+
+let h = "\xe2\xa7\x96";
+let concave_marker_tests = [
+  /* Exp: looser than every operator, tighter than `;` and the
+     structural bodies (Precedence.concave_grout = 34) */
+  concave_marker_equivalent_test(
+    "exp: among operators",
+    "1 + 2 " ++ h ++ " 3 * 4",
+  ),
+  concave_marker_equivalent_test(
+    "exp: after ||",
+    "true || false " ++ h ++ " true",
+  ),
+  concave_marker_equivalent_test("exp: seq absorbs", "1; 2 " ++ h ++ " 3"),
+  concave_marker_equivalent_test(
+    "exp: let body absorbs",
+    "let x = 1 in x " ++ h ++ " 2",
+  ),
+  concave_marker_equivalent_test(
+    "exp: fun body absorbs",
+    "fun x -> x " ++ h ++ " 1",
+  ),
+  concave_marker_equivalent_test(
+    "exp: else absorbs",
+    "if true then 1 else 2 " ++ h ++ " 3",
+  ),
+  concave_marker_equivalent_test(
+    "exp: ascription tighter",
+    "1 " ++ h ++ " 2 : Int",
+  ),
+  concave_marker_equivalent_test(
+    "exp: ascription then hole",
+    "1 : Int " ++ h ++ " 2",
+  ),
+  concave_marker_equivalent_test("exp: in a tuple", "(1 " ++ h ++ " 2, 3)"),
+  concave_marker_equivalent_test(
+    "exp: rule body absorbs",
+    "case 1 | 1 => 2 " ++ h ++ " 3 end",
+  ),
+  concave_marker_equivalent_test(
+    "exp: chain is flat",
+    "1 " ++ h ++ " 2 " ++ h ++ " 3",
+  ),
+  concave_marker_equivalent_test(
+    "exp: chain of four",
+    "1 " ++ h ++ " 2 " ++ h ++ " 3 " ++ h ++ " 4",
+  ),
+  concave_marker_equivalent_test(
+    "exp: chain in let body",
+    "let x = 1 in x " ++ h ++ " 2 " ++ h ++ " 3",
+  ),
+  /* Pat (base-type keywords are constructor patterns, as in exp) */
+  concave_marker_equivalent_test("pat: let", "let x " ++ h ++ " y = 1 in 2"),
+  concave_marker_equivalent_test(
+    "pat: keyword constructor",
+    "let Bool = 1 in 2",
+  ),
+  /* An unparenthesized `x : Int ⧖ Bool` is the neighbour-sort-tag
+     class above: MarkerParse keeps the parser's molding, which lets the
+     type absorb the hole (`Bool` stays a type), while Menhir reads a
+     pattern-level hole with a constructor on its right. Parenthesizing
+     the ascription pins the pattern-level reading on both sides. */
+  concave_marker_equivalent_test(
+    "pat: parenthesized ascription, keyword constructor right",
+    "let (x : Int) " ++ h ++ " Bool = 1 in 2",
+  ),
+  concave_marker_equivalent_test(
+    "pat: parenthesized ascribed arrow, keyword constructor right",
+    "let (x : Int -> Bool) " ++ h ++ " String = 1 in 2",
+  ),
+  /* (`fun (x : Int) ⧖ Bool -> x` is a Menhir gap: the fun-parameter
+     grammar has no parenthesized-ascription-then-hole production.) */
+  concave_marker_equivalent_test(
+    "pat: fun parameter, keyword constructor right",
+    "fun x " ++ h ++ " Bool -> x",
+  ),
+  concave_marker_equivalent_test(
+    "pat: cons tighter",
+    "let x :: y " ++ h ++ " z = 1 in 2",
+  ),
+  concave_marker_equivalent_test(
+    "pat: chain is flat",
+    "let x " ++ h ++ " y " ++ h ++ " z = 1 in 2",
+  ),
+  concave_marker_equivalent_test(
+    "pat: fun parameter",
+    "fun x " ++ h ++ " y -> 1",
+  ),
+  concave_marker_equivalent_test(
+    "pat: case rule",
+    "case 1 | x " ++ h ++ " y => 2 end",
+  ),
+  concave_marker_equivalent_test(
+    "pat: list element",
+    "let [x " ++ h ++ " y] = 1 in 2",
+  ),
+  /* Typ: arrows and sums are tighter, binder bodies absorb */
+  concave_marker_equivalent_test(
+    "typ: alias",
+    "type t = Int " ++ h ++ " Bool in 2",
+  ),
+  concave_marker_equivalent_test(
+    "typ: arrow tighter (left)",
+    "type t = Int -> Bool " ++ h ++ " String in 2",
+  ),
+  concave_marker_equivalent_test(
+    "typ: arrow tighter (right)",
+    "type t = Int " ++ h ++ " Bool -> String in 2",
+  ),
+  concave_marker_equivalent_test(
+    "typ: sum tighter",
+    "type t = A + B " ++ h ++ " C in 2",
+  ),
+  concave_marker_equivalent_test(
+    "typ: poly body absorbs",
+    "type t = poly a -> a " ++ h ++ " Int in 2",
+  ),
+  concave_marker_equivalent_test(
+    "typ: chain is flat",
+    "type t = Int " ++ h ++ " Bool " ++ h ++ " String in 2",
+  ),
+  concave_marker_equivalent_test(
+    "typ: in parens under arrow",
+    "let x : (Int " ++ h ++ " Bool) -> Int = 1 in 2",
+  ),
+  concave_marker_equivalent_test(
+    "typ: in a tuple type",
+    "let x : (Int " ++ h ++ " Bool, Int) = 1 in 2",
+  ),
+  /* TPat */
+  concave_marker_equivalent_test(
+    "tpat: alias binder",
+    "type a " ++ h ++ " b = Int in 2",
+  ),
+  concave_marker_equivalent_test(
+    "tpat: poly binder",
+    "let f : poly a " ++ h ++ " b -> Int = 1 in 2",
+  ),
+];
 
 let tests =
   Fresh.(
@@ -290,6 +458,10 @@ let tests =
          ascription (arrow types need parens), single-caret livelits.
          Equivalence against MakeTerm is the contract that matters. */
       menhir_maketerm_equivalent_test("multi-param fun", "fun a, b -> a + b"),
+      menhir_maketerm_equivalent_test(
+        "a module's last member a hole",
+        "let m = {\n  let a = 1;\n  ?\n} in m",
+      ),
       /* Gap fill 2026-08-14: ascribed unit parameter (UNIT lives at the
          funPat level, which had no ascription production). */
       menhir_maketerm_equivalent_test(
@@ -319,6 +491,18 @@ let tests =
       menhir_maketerm_equivalent_test(
         "multi-param fun with ascription",
         "fun a, b : (Int, Int) -> a",
+      ),
+      menhir_maketerm_equivalent_test(
+        "livelit binder and member access",
+        "let ^p = { let init = 50; let update = fun (m, a) : (Int, Int) -> a; let view = fun m : Int -> m; let expand = fun m : Int -> m } in ^p.update((^p.init, 3))",
+      ),
+      menhir_maketerm_equivalent_test(
+        "livelit use in projector position",
+        "let ^p = { let init = 50 } in ^^livelit(^p(3))",
+      ),
+      menhir_maketerm_equivalent_test(
+        "livelit graph slice",
+        "type G = ([Int], [(Int, Int)]) in let ^g = { type Model = ([(Int, Int)], Int); type Action = + Down(Int, Int) + Up; let init : Model = ([(1, 2)], 0); let hit = fun ns, x -> case ns | [] => 0 | (i, _) :: tl => if i == x then i else hit(tl, x) end; let update = fun (m, a) : (Model, Action) -> case a | Down(x, y) => ([(x, y)], hit([(1, 2)], x)) | Up => m end; let view = fun m : Model -> Text(\"g\"); let expand = fun m : Model -> ([1], []) : G } in counts(^g.expand(^g.init))",
       ),
       full_parser_test("Integer Literal", int(8), "8"),
       full_parser_test(
@@ -368,6 +552,38 @@ let tests =
       skip_menhir_maketerm_equivalent_test(
         "Ascribed cons-chain parameter (element vs chain binding)",
         "fun x :: y : [T] -> 1",
+      ),
+      /* PRE-EXISTING divergence, printer side: an ascription immediately
+         followed by a sum prints as `:+` with no space, and the editor lexes
+         that as one operator token, so MakeTerm gives a MultiHole (the `_` as
+         a pattern, the constructor as an expression) where menhir reads
+         `Asc(_, Sum)`. Spacing it as `: +` parses the same both ways, and
+         `menhir_roundtrip_test` on the spaced form shows the printer is not
+         stable here either. Nothing to do with signatures: the expression
+         form below diverges on its own; a signature member is only how the
+         QCheck generator reaches it, which is why `Menhir and maketerm are
+         equivalent` started failing per-seed from part 4 (its Sig generator)
+         and reproduces with QCHECK_SEED=803422318. The printer half is in
+         this PR's history (0e6b2981a9 keeps a printed `:` apart from a
+         following operator); the lexer's `:+` token rule is still dev's,
+         and is what these two pin. */
+      skip_menhir_maketerm_equivalent_test(
+        "Ascription abutting a sum type (`:+` lexes as one token)",
+        "let x :+ To = To in x",
+      ),
+      skip_menhir_maketerm_equivalent_test(
+        "Ascription abutting a sum type in a signature member",
+        "(()) @< ({ let y :+ To }) >",
+      ),
+      /* The same programs, spaced: these must keep passing, and they are what
+         the printer should have produced. */
+      menhir_maketerm_equivalent_test(
+        "Ascription spaced from a sum type",
+        "let x : + To = To in x",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Ascription spaced from a sum type in a signature member",
+        "(()) @< ({ let y : + To }) >",
       ),
       full_parser_test(
         "String Literal",
@@ -1022,6 +1238,18 @@ let ex5 = list_of_mylist(x) in
         {|type S = { type T = Int; let x : Int } in 1|},
       ),
       menhir_maketerm_equivalent_test(
+        "Sig manifest type member used by a member",
+        {|let m : { type T = Int; let x : T } = { type T = Int; let x = 1 } in m|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig with module member",
+        {|let m : { module Inner : { let x : Int }; let y : Int } = { module Inner = { let x = 1 }; let y = 2 } in m.y|},
+      ),
+      menhir_maketerm_equivalent_test(
+        "Sig with unannotated module member",
+        {|type S = { module Inner; let y : Int } in 1|},
+      ),
+      menhir_maketerm_equivalent_test(
         "Sig type unannotated member",
         {|let m : { let x } = { let x = 1 } in m|},
       ),
@@ -1085,3 +1313,8 @@ let ex5 = list_of_mylist(x) in
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
     ],
   );
+
+let concave_marker_group = (
+  "MenhirParser.ConcaveMarker",
+  concave_marker_tests,
+);

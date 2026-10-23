@@ -1,0 +1,49 @@
+# User-Defined Livelits #
+
+# A livelit is a live GUI for a value in your program. Define one #
+# with a livelit name (^name) bound to a module: #
+
+# init:   the model a fresh use starts with #
+# update: (Model, Action) -> Model, run when the GUI acts #
+# view:   Model -> HTML, whose handlers emit Actions #
+# expand: Model -> value, what a use means to the program #
+# This example uses Hazel's palette; a view can choose its own style. #
+
+let ^pct = {
+  type Model = Int;
+  type Action = Int;
+
+  let init : Model = 50;
+
+  let update(_m: Model, a: Action): Model = a;
+
+  let view(m: Model): HTML =
+    Div(
+      [Style([("display", "flex"), ("gap", "0.6em"),
+              ("align-items", "center"),
+              ("color", "var(--STONE)"),
+              ("font-family", "var(--code-font)"),
+              ("font-size", "0.8em"),
+              ("font-variant-numeric", "tabular-nums")])],
+      [
+        Input([
+          Create("aria-label", "Percent"), Type("range"), Min("0"), Max("100"),
+          Style([("accent-color", "var(--BR3)"), ("margin", "0"),
+                 ("min-width", "0"), ("cursor", "pointer")]),
+          Value(string_of_int(m)),
+          OnInput(fun (s: String) -> int_of_string(s))
+        ]),
+        Span([Style([("min-width", "4ch"), ("text-align", "right")])],
+             [Text(string_of_int(m) ++ "%")])
+      ]
+    );
+
+  let expand(m: Model): Int = m;
+
+  let shape : LivelitShape = Inline(17)
+} in
+
+# Each use below carries its own model, stored right here in the #
+# text: drag a slider and watch its argument change. #
+
+^^livelit(^pct(25)) + ^^livelit(^pct(75))
