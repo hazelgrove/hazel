@@ -641,7 +641,7 @@ let decide_deduction =
                            | _ => false
                            } =>
                        let label = Tile.label(t) |> List.hd_exn;
-                       let (_, syntax) = RuleVerify.Map.find(label, map);
+                       let (_, syntax) = Map.find_exn(map, label);
                        /* display-only markdown-link label swap; only
                         * to_string reads this tile downstream */
                        Tile({
