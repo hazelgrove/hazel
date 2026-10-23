@@ -169,10 +169,21 @@ let frozen_ids = (~incr: t('state)): list(Id.t) => visible_ids(incr);
 
 let equal_projection = (a: projection, b: projection): bool =>
   switch (a, b) {
+  | (TupleIndex(i1, n1), TupleIndex(i2, n2))
+  | (ListIndex(i1, n1), ListIndex(i2, n2)) =>
+    Int.equal(i1, i2) && Int.equal(n1, n2)
+  | (ConsHead, ConsHead)
+  | (ConsTail, ConsTail) => true
+  | (ConstructorArg(c1), ConstructorArg(c2)) => String.equal(c1, c2)
+  | (TupleLabel(l1), TupleLabel(l2)) => Option.equal(String.equal, l1, l2)
   | (Ascribed(t1), Ascribed(t2)) => Typ.fast_equal(t1, t2)
-  | (Ascribed(_), _)
-  | (_, Ascribed(_)) => false
-  | _ => a == b
+  | (TupleIndex(_), _)
+  | (ListIndex(_), _)
+  | (ConsHead, _)
+  | (ConsTail, _)
+  | (ConstructorArg(_), _)
+  | (TupleLabel(_), _)
+  | (Ascribed(_), _) => false
   };
 
 let equal_provenance = (a: provenance, b: provenance): bool =>

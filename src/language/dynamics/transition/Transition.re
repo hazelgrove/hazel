@@ -1409,7 +1409,7 @@ module Transition = (EV: EV_MODE) => {
             expr: Module(prefix @ suffix) |> rewrap,
             side_effects: [],
             kind: ModuleDiscardExp,
-            is_value: suffix == [],
+            is_value: List.is_empty(suffix),
             /* A bare expression item prints as its expression alone, so the
                item has no syntax to point at, and the expression's is taken
                by the expression's own steps. */
