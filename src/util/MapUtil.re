@@ -75,10 +75,7 @@ module MakeSexpFor = (O: OrderedSexpType, S: Stdlib.Map.S with type key = O.t) =
   let sexp_of_t = (sexp_of_v, map) =>
     map |> S.bindings |> sexp_of_list(sexp_of_binding(sexp_of_v));
   let t_of_sexp = (v_of_sexp, sexp) =>
-    sexp
-    |> list_of_sexp(binding_of_sexp(v_of_sexp))
-    |> Stdlib.List.to_seq
-    |> S.of_seq;
+    sexp |> list_of_sexp(binding_of_sexp(v_of_sexp)) |> S.of_list;
 };
 
 module MakeSexp = (O: OrderedSexpType) : (SexpS with type key = O.t) => {
@@ -96,10 +93,7 @@ module MakeYojsonFor =
   let yojson_of_t = (yojson_of_v, map) =>
     map |> S.bindings |> yojson_of_list(yojson_of_binding(yojson_of_v));
   let t_of_yojson = (v_of_yojson, yojson) =>
-    yojson
-    |> list_of_yojson(binding_of_yojson(v_of_yojson))
-    |> Stdlib.List.to_seq
-    |> S.of_seq;
+    yojson |> list_of_yojson(binding_of_yojson(v_of_yojson)) |> S.of_list;
 };
 
 module MakeYojson = (O: OrderedYojsonType) : (YojsonS with type key = O.t) => {
