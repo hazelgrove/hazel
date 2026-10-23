@@ -2696,13 +2696,8 @@ and uexp_to_info_map =
         )
       };
     | Module(items) =>
-      /* Type-check the body through its lowering to nested Let/TyAlias
-         wrappers (which carry the Mod item ids), read the module's signature
-         back from the recorded pattern infos, and refold the elaboration into
-         a Module, which dynamics evaluates directly. The lowering is checked
-         in syn mode: per-member expectations are added as pattern
-         annotations by `lower` (so mismatches land on definitions), and the
-         module's own add() checks the whole signature against ana. */
+      /* Mismatches land on definitions via `lower`'s annotations; add()
+         checks the whole signature against ana. */
       let ana_items =
         switch (Typ.term_of(Typ.weak_head_normalize(ctx, ana))) {
         | Sig(items) => Some(items)
@@ -2711,42 +2706,50 @@ and uexp_to_info_map =
       let expanded = ModuleHelpers.lower(~ana_items, items);
       let (expanded_info, expanded_elab, m) = go(expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
-      let sig_ty = ModuleHelpers.module_sig_type(~ctx, items, m);
-      let (m, mismatched_types) =
-        ModuleHelpers.check_ana_type_members(~ana_items, items, m);
-      /* A hole among the items may still bind the members the signature
-         declares and the module lacks: they are assumed, not reported. Only a
-         hole where a member could be bound counts. */
-      let (sig_ty, missing_marks) =
-        switch (ModuleHelpers.missing_items(~ana_items, sig_ty)) {
-        | [] => (sig_ty, [])
-        | missing when ModuleHelpers.has_hole_binder(items) => (
-            ModuleHelpers.assume_members(sig_ty, missing),
-            [],
-          )
-        | missing => (
-            sig_ty,
-            [
-              Mark.ModuleMissingMembers(ModuleHelpers.member_names(missing)),
-            ],
-          )
+      let have = ModuleHelpers.module_sig_type(~ctx, items, m);
+      let (m, elab_syn_ty, marks) =
+        switch (ana_items) {
+        | None => (m, Sig(have) |> Typ.temp, [])
+        | Some(ana_items) =>
+          let (m, type_member_marked) =
+            ModuleHelpers.check_ana_type_members(~ana_items, items, m);
+          /* A hole among the items may bind the missing members: assume
+             them. */
+          let (have, missing_marks) =
+            switch (ModuleHelpers.missing_items(~ana_items, have)) {
+            | [] => (have, [])
+            | missing when ModuleHelpers.has_hole_binder(items) => (
+                have @ missing,
+                [],
+              )
+            | missing =>
+              let ms = Sig.members(missing);
+              (
+                have,
+                [
+                  Mark.ModuleMissingMembers(
+                    Sig.value_names(ms) @ Sig.type_names(ms),
+                  ),
+                ],
+              );
+            };
+          let extra_marks =
+            switch (ModuleHelpers.extra_members(~ana_items, have)) {
+            | [] => []
+            | names => [Mark.ModuleExtraMembers(names)]
+            };
+          /* A type-member mismatch is already marked on its definition. */
+          (
+            m,
+            type_member_marked ? ana : Sig(have) |> Typ.temp,
+            missing_marks @ extra_marks,
+          );
         };
-      let marks =
-        missing_marks
-        @ (
-          switch (ModuleHelpers.extra_members(~ana_items, sig_ty)) {
-          | [] => []
-          | names => [Mark.ModuleExtraMembers(names)]
-          }
-        );
       add(
         ~elab_term=
           Module(ModuleHelpers.refold_module_elab(items, expanded_elab))
           |> rewrap,
-        /* A type member reported on its item is not reported again as a
-           mismatch of the whole module: the module then has the declared
-           type, as its binder does. */
-        ~elab_syn_ty=mismatched_types == [] ? sig_ty : ana,
+        ~elab_syn_ty,
         ~marks,
         ~co_ctx=expanded_info.co_ctx,
         ~probe_targets=expanded_info.probe_targets,

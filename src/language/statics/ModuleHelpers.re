@@ -355,7 +355,7 @@ let shadowed_type_names = (items: list(Mod.t)): list(Var.t) => {
    members in source order. Value member types come from the pattern infos
    recorded while checking the lowered body. */
 let module_sig_type =
-    (~ctx: Ctx.t, items: list(Mod.t), m: StaticsBase.Map.t): Typ.t => {
+    (~ctx: Ctx.t, items: list(Mod.t), m: StaticsBase.Map.t): list(Sig.t) => {
   let shadowed = shadowed_type_names(items);
   let expand = n => List.mem(n, shadowed);
   let rec go = (ctx: Ctx.t, items: list(Mod.t), acc: list(Sig.t)) =>
@@ -404,31 +404,22 @@ let module_sig_type =
       | MultiHole(_) => go(ctx, rest, acc)
       }
     };
-  Sig(go(ctx, items, [])) |> Typ.temp;
+  go(ctx, items, []);
 };
 
-/* Members the analyzed signature requires that the module does not export. */
 /* The analyzed signature's items the module does not define. */
 let missing_items =
-    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Sig.t) =>
-  switch (ana_items, sig_ty.term) {
-  | (Some(ana_items), Sig(items)) =>
-    let have = Sig.members(items);
-    ana_items
-    |> List.filter(item =>
-         switch (Sig.member_of_item(item)) {
-         | Some(Val(x, _)) => Option.is_none(Sig.find_value(have, x))
-         | Some(TypeManifest(t, _)) =>
-           Option.is_none(Sig.find_type_def(have, t))
-         | None => false
-         }
-       );
-  | _ => []
-  };
-
-let member_names = (items: list(Sig.t)): list(Var.t) => {
-  let ms = Sig.members(items);
-  Sig.value_names(ms) @ Sig.type_names(ms);
+    (~ana_items: list(Sig.t), have: list(Sig.t)): list(Sig.t) => {
+  let have = Sig.members(have);
+  ana_items
+  |> List.filter(item =>
+       switch (Sig.member_of_item(item)) {
+       | Some(Val(x, _)) => Option.is_none(Sig.find_value(have, x))
+       | Some(TypeManifest(t, _)) =>
+         Option.is_none(Sig.find_type_def(have, t))
+       | None => false
+       }
+     );
 };
 
 let rec mpat_has_hole = (mp: MPat.t): bool =>
@@ -460,106 +451,81 @@ let has_hole_binder = (items: list(Mod.t)): bool =>
     items,
   );
 
-/* The module's signature with [items] appended: what the module provides
-   once a hole among its items binds them. */
-let assume_members = (sig_ty: Typ.t, items: list(Sig.t)): Typ.t =>
-  switch (sig_ty.term) {
-  | Sig(have) => {
-      ...sig_ty,
-      term: Sig(have @ items),
-    }
-  | _ => sig_ty
-  };
-
 /* Members the module exports that the analyzed signature does not declare.
    Until width subtyping lands, a signature must be precise. */
 let extra_members =
-    (~ana_items: option(list(Sig.t)), sig_ty: Typ.t): list(Var.t) =>
-  switch (ana_items, sig_ty.term) {
-  | (Some(ana_items), Sig(items)) =>
-    let have = Sig.members(items);
-    let want = Sig.members(ana_items);
-    let extra_values =
-      Sig.value_names(have)
-      |> List.filter(x => Sig.find_value(want, x) == None);
-    let extra_types =
-      Sig.type_names(have)
-      |> List.filter(t => Sig.find_type_def(want, t) == None);
-    extra_values @ extra_types;
-  | _ => []
-  };
+    (~ana_items: list(Sig.t), have: list(Sig.t)): list(Var.t) => {
+  let have = Sig.members(have);
+  let want = Sig.members(ana_items);
+  let extra_values =
+    Sig.value_names(have)
+    |> List.filter(x => Option.is_none(Sig.find_value(want, x)));
+  let extra_types =
+    Sig.type_names(have)
+    |> List.filter(t => Option.is_none(Sig.find_type_def(want, t)));
+  extra_values @ extra_types;
+};
 
 /* Mark each exported `type T = ...` whose definition differs from the
-   manifest type the analyzed signature declares for T. Definitions with
-   holes are not compared, to stay gradual. The mark lands on the item's
-   info: the TyAlias wrapper carries the Mod item id. Also returns the names
-   marked, so the module itself is not reported a second time. */
+   manifest type the analyzed signature declares for T. The mark lands on the
+   definition type, or on the item if the type has no info of its own.
+   Definitions with holes are not compared, to stay gradual. Also returns
+   whether any item was marked. */
 let check_ana_type_members =
-    (
-      ~ana_items: option(list(Sig.t)),
-      items: list(Mod.t),
-      m: StaticsBase.Map.t,
-    )
-    : (StaticsBase.Map.t, list(Var.t)) =>
-  switch (ana_items) {
-  | None => (m, [])
-  | Some(ana_items) =>
-    let rec go = (items: list(Mod.t), m, marked) =>
-      switch (items) {
-      | [] => (m, List.rev(marked))
-      | [item, ...rest] =>
-        let (m, marked) =
-          switch (item.term) {
-          | ModType({term: Var(name), _}, def)
-              when !type_declared_later(name, rest) =>
-            switch (
-              Typ.sig_project_type(ana_items, name),
-              StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m),
-            ) {
-            | (Some(expected), Some(info))
-                when
-                  Typ.count_unknowns(expected) == 0
-                  && Typ.count_unknowns(def) == 0
-                  && !Typ.equal_up_to_aliases(info.ctx, def, expected) =>
-              let mark =
-                Mark.ModuleTypeMemberMismatch({
-                  name,
-                  expected,
-                  actual: def,
-                });
-              /* The definition type carries the mark; the item only if the
-                 type has no info of its own. */
-              let m =
-                switch (StaticsBase.Map.lookup_typ(IdTagged.rep_id(def), m)) {
-                | Some(ti) =>
-                  StaticsBase.Map.add_info(
-                    IdTagged.ids(def),
-                    Info.InfoTyp({
-                      ...ti,
-                      marks: [mark, ...ti.marks],
-                      message: None,
-                    }),
-                    m,
-                  )
-                | None =>
-                  StaticsBase.Map.add_info(
-                    IdTagged.ids(item),
-                    Info.InfoExp({
-                      ...info,
-                      marks: [mark, ...info.marks],
-                    }),
-                    m,
-                  )
-                };
-              (m, [name, ...marked]);
-            | _ => (m, marked)
-            }
-          | _ => (m, marked)
-          };
-        go(rest, m, marked);
-      };
-    go(items, m, []);
-  };
+    (~ana_items: list(Sig.t), items: list(Mod.t), m: StaticsBase.Map.t)
+    : (StaticsBase.Map.t, bool) => {
+  let rec go = (items: list(Mod.t), m, marked) =>
+    switch (items) {
+    | [] => (m, marked)
+    | [item, ...rest] =>
+      switch (item.term) {
+      | ModType({term: Var(name), _}, def)
+          when !type_declared_later(name, rest) =>
+        switch (
+          Typ.sig_project_type(ana_items, name),
+          StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m),
+        ) {
+        | (Some(expected), Some(info))
+            when
+              !Typ.contains_unknown(expected)
+              && !Typ.contains_unknown(def)
+              && !Typ.equal_up_to_aliases(info.ctx, def, expected) =>
+          let mark =
+            Mark.ModuleTypeMemberMismatch({
+              name,
+              expected,
+              actual: def,
+            });
+          let m =
+            switch (StaticsBase.Map.lookup_typ(IdTagged.rep_id(def), m)) {
+            | Some(ti) =>
+              StaticsBase.Map.add_info(
+                IdTagged.ids(def),
+                Info.InfoTyp({
+                  ...ti,
+                  marks: [mark, ...ti.marks],
+                  message: None,
+                }),
+                m,
+              )
+            | None =>
+              StaticsBase.Map.add_info(
+                IdTagged.ids(item),
+                Info.InfoExp({
+                  ...info,
+                  marks: [mark, ...info.marks],
+                }),
+                m,
+              )
+            };
+          go(rest, m, true);
+        | _ => go(rest, m, marked)
+        }
+      | _ => go(rest, m, marked)
+      }
+    };
+  go(items, m, false);
+};
 
 /* Inverse of `wrap_item` over the checked chain: rebuild the module items
    with their elaborated definitions, in order. Type items have no runtime
