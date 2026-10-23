@@ -74,7 +74,14 @@ let usable_at = (~info_map, ~ctx: Ctx.t, e: Exp.t): bool =>
    id/whitespace discipline. Stage through fresh private names so replacing
    x by an expression containing y cannot be affected by y's substitution.
    Unmatched rule variables become a fresh hole at EACH occurrence. */
-let instantiate = (~program, sub: MatchExp.match_ctx, template: Exp.t): Exp.t => {
+let instantiate =
+    (
+      ~program,
+      ~normalize_template=true,
+      sub: MatchExp.match_ctx,
+      template: Exp.t,
+    )
+    : Exp.t => {
   let used = ref(used_names(program) @ used_names(template));
   let reserve = () => {
     let rec pick = i => {
@@ -88,16 +95,19 @@ let instantiate = (~program, sub: MatchExp.match_ctx, template: Exp.t): Exp.t =>
   let staged = sub |> List.map(((x, (_, value))) => (x, reserve(), value));
   /* Declaration indentation and comments stay at the declaration. New
      syntax gets normal spacing; matched source arguments retain theirs. */
+  let template = refresh_ids(template);
   let template =
-    ExpToSegment.exp_to_segment(
-      ~settings={
-        ...roundtrip_settings,
-        secondary: AutoFormat,
-      },
-      refresh_ids(template),
-    )
-    |> SpaceNormalize.go
-    |> (seg => MakeTerm.go(seg).term);
+    normalize_template
+      ? ExpToSegment.exp_to_segment(
+          ~settings={
+            ...roundtrip_settings,
+            secondary: AutoFormat,
+          },
+          template,
+        )
+        |> SpaceNormalize.go
+        |> (seg => MakeTerm.go(seg).term)
+      : template;
   let template =
     List.fold_left(
       (t, (x, private_name, _)) =>
@@ -242,9 +252,21 @@ let expression_role = (~target, e) => {
 
 /* A grip can be a participant of an enclosing rewrite. A token strictly
    inside a substituted argument is a passenger, not a handle for that rule. */
-let prepare_details = (~info_map, ~target, ~site, id, direction, program) => {
-  let* (_, e, result, sub) =
-    replacement(~info_map, ~target=site, ~program, id, direction);
+/* Shared visual preparation after matching. Proof steppers supply their
+   own rules and instantiation; source refactors retain replacement's gates. */
+let prepare_matched_details =
+    (
+      ~info_map,
+      ~target,
+      ~site,
+      ~e,
+      ~result,
+      ~sub,
+      ~render=e =>
+                ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e),
+      ~retain_semantics=false,
+      program,
+    ) => {
   let* () = grip_is_passenger(~target, sub) ? None : Some();
   let result =
     splice_parens_needed(~program, ~at=Exp.rep_id(e), result)
@@ -271,12 +293,37 @@ let prepare_details = (~info_map, ~target, ~site, id, direction, program) => {
     SyntaxCorrespondence.infer(
       ~can_match=same_identity(~info_map),
       ~grab=target,
-      ~old_seg=ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e),
-      ~new_seg=
-        ExpToSegment.exp_to_segment(~settings=roundtrip_settings, result),
+      ~old_seg=render(e),
+      ~new_seg=render(result),
       (),
     );
-  let result = MakeTerm.go(correspondence.segment).term;
+  let result =
+    if (retain_semantics) {
+      /* Proof expressions retain function names/types and other semantic
+         metadata that cannot survive a source parse. Apply only the inferred
+         ids; their renderer supplies defensive parentheses and spacing. */
+      let f:
+        'a.
+        (IdTagged.t('a) => IdTagged.t('a), IdTagged.t('a)) =>
+        IdTagged.t('a)
+       =
+        (cont, e) =>
+          cont({
+            ...e,
+            annotation: {
+              ...e.annotation,
+              ids:
+                e.annotation.ids
+                |> List.map(id =>
+                     Id.Map.find_opt(id, correspondence.retained)
+                     |> Option.value(~default=id)
+                   ),
+            },
+          });
+      Exp.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, result);
+    } else {
+      MakeTerm.go(correspondence.segment).term;
+    };
   let correspondence =
     switch (
       correspondence.destination,
@@ -296,6 +343,20 @@ let prepare_details = (~info_map, ~target, ~site, id, direction, program) => {
       program,
     );
   Some((term, focus, correspondence));
+};
+
+let prepare_details = (~info_map, ~target, ~site, id, direction, program) => {
+  let* (_, e, result, sub) =
+    replacement(~info_map, ~target=site, ~program, id, direction);
+  prepare_matched_details(
+    ~info_map,
+    ~target,
+    ~site,
+    ~e,
+    ~result,
+    ~sub,
+    program,
+  );
 };
 
 let prepare = (~info_map, ~target, ~site, id, direction, program) =>

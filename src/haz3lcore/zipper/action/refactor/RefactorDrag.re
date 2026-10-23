@@ -134,7 +134,7 @@ module DragCandidate = {
     at: Id.t,
     label: string,
     current: Measured.Point.t, /* track start (live layout) */
-    target: Measured.Point.t, /* track end (screen frame) */
+    target: Measured.Point.t, /* gesture end; proof targets can ignore soft wraps */
     frame,
     /* entering-token ORIGINS (dragology's emergeFrom): a transform
        that DUPLICATES content (feed with surviving uses) maps each
@@ -420,6 +420,23 @@ let lands_elsewhere = (kind: Action.refactor): bool =>
   | _ => false
   };
 
+/* A proof editor can reuse target geometry with its own theorem context
+   and matcher, without enabling source-edit refactors. */
+type theorem_source = {
+  rules: list(RefactorTheorem.rule),
+  env: Environment.t(Exp.t),
+  render: Exp.t => Segment.t,
+  measure: Segment.t => Measured.t,
+  /* Optional logical layout for gesture displacement. The ordinary segment
+     still describes the preview/result; soft wrapping must not redirect the
+     hand when a proof expression grows across a line boundary. */
+  gesture_layout: option(Exp.t => Measured.t),
+  accepts: (~before: Exp.t, ~after: Exp.t, Segment.t) => bool,
+  prepare:
+    (~target: Id.t, ~site: Id.t, Id.t, Util.Direction.t, Exp.t) =>
+    option((Exp.t, Id.t, SyntaxCorrespondence.t)),
+};
+
 let drag_candidates =
     (
       ~settings: CoreSettings.t=CoreSettings.on,
@@ -441,6 +458,8 @@ let drag_candidates =
          zero travel for real moves */
       ~target: Id.t,
       ~shard as grab_shard: option(int),
+      ~theorems: option(theorem_source)=?,
+      ~only_theorems=false,
       (),
     )
     : list(DragCandidate.t) => {
@@ -668,13 +687,17 @@ let drag_candidates =
            )
       : cs;
   let moves =
-    drag_kinds(
-      ~climb=composites && continuing,
-      ~info_map,
-      ~term,
-      ~push,
-      ~target,
-      ~shard=grab_shard,
+    (
+      only_theorems
+        ? []
+        : drag_kinds(
+            ~climb=composites && continuing,
+            ~info_map,
+            ~term,
+            ~push,
+            ~target,
+            ~shard=grab_shard,
+          )
     )
     |> List.filter_map(k => mk(k))
     |> one_place_track
@@ -692,11 +715,33 @@ let drag_candidates =
     |> Option.value(~default=[])
     |> List.rev;
   let occupied = ref(List.map((c: DragCandidate.t) => c.target, moves));
+  let theorems =
+    Option.value(
+      ~default={
+        rules: RefactorTheorem.rules_at(~info_map, ~target),
+        env: Environment.empty,
+        render: e =>
+          ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e)
+          |> SpaceNormalize.go,
+        measure: segment =>
+          Measured.of_segment(segment, shape_map, Id.Map.empty),
+        gesture_layout: None,
+        accepts: accepts_result(~settings, ~info_map),
+        prepare: RefactorTheorem.prepare_details(~info_map),
+      },
+      theorems,
+    );
+  let logical_grab =
+    lazy(
+      theorems.gesture_layout
+      |> Option.bind(_, layout => shard_meas(target, layout(term)))
+      |> Option.map((m: Measured.measurement) => m.origin)
+    );
   let rewrites =
     switch (shard_meas(target, measured)) {
     | None => []
     | Some(anchor) =>
-      RefactorTheorem.rules_at(~info_map, ~target)
+      theorems.rules
       |> List.concat_map((r: RefactorTheorem.rule) =>
            [Util.Direction.Right, Left]
            |> List.concat_map(direction =>
@@ -707,7 +752,7 @@ let drag_candidates =
                      switch (
                        ProofRule.match_equality(
                          ~info_map,
-                         ~env=Environment.empty,
+                         ~env=theorems.env,
                          ~direction,
                          r.rule,
                          site_exp,
@@ -722,14 +767,7 @@ let drag_candidates =
                      let site = Exp.rep_id(site_exp);
                      let kind = Action.RewriteTheorem(r.id, direction, site);
                      switch (
-                       RefactorTheorem.prepare_details(
-                         ~info_map,
-                         ~target,
-                         ~site,
-                         r.id,
-                         direction,
-                         term,
-                       )
+                       theorems.prepare(~target, ~site, r.id, direction, term)
                      ) {
                      | None => None
                      | Some((term', focus, correspondence)) =>
@@ -754,29 +792,48 @@ let drag_candidates =
                               )
                            |> Option.value(~default="")
                          );
-                       let segment =
-                         ExpToSegment.exp_to_segment(
-                           ~settings=roundtrip_settings,
-                           term',
-                         )
-                         |> SpaceNormalize.go;
-                       let cand_measured =
-                         Measured.of_segment(
-                           segment,
-                           shape_map,
-                           Id.Map.empty,
-                         );
+                       let segment = theorems.render(term');
+                       let cand_measured = theorems.measure(segment);
                        let endpoint =
                          (
                            switch (correspondence.destination) {
                            | Some(Live(id)) =>
                              Measured.find_by_id(id, measured)
+                             |> Option.map((m: Measured.measurement) =>
+                                  m.origin
+                                )
                            | Some(Result(id)) =>
-                             Measured.find_by_id(id, cand_measured)
+                             let physical = () =>
+                               Measured.find_by_id(id, cand_measured)
+                               |> Option.map((m: Measured.measurement) =>
+                                    m.origin
+                                  );
+                             switch (
+                               theorems.gesture_layout,
+                               Lazy.force(logical_grab),
+                             ) {
+                             | (Some(layout), Some(before)) =>
+                               switch (shard_meas(id, layout(term'))) {
+                               | Some(after) =>
+                                 Some(
+                                   Measured.Point.{
+                                     row:
+                                       anchor.origin.row
+                                       + after.origin.row
+                                       - before.row,
+                                     col:
+                                       anchor.origin.col
+                                       + after.origin.col
+                                       - before.col,
+                                   },
+                                 )
+                               | None => physical()
+                               }
+                             | _ => physical()
+                             };
                            | None => None
                            }
                          )
-                         |> Option.map((m: Measured.measurement) => m.origin)
                          |> (
                            pos =>
                              Option.bind(pos, p =>
@@ -789,9 +846,7 @@ let drag_candidates =
                        if (!hit_node(target, site_exp)
                            && endpoint == None
                            || !
-                                accepts_result(
-                                  ~settings,
-                                  ~info_map,
+                                theorems.accepts(
                                   ~before=term,
                                   ~after=term',
                                   segment,

@@ -39,6 +39,7 @@ module Settings = {
       | `Fold
       | `Text
       | `NoFold
+      | `Named /* Keep anonymous rewrite lambdas visible. */
     ],
     project_tables: bool,
     hide_fixpoints: bool,
@@ -1316,8 +1317,34 @@ let fold_if = (condition, pieces) =>
     pieces;
   };
 
-let fold_fun_if = (condition, f_name: string, pieces, exp) =>
+/* Generated folds are views of a function occurrence, so keep their
+   identity across live/candidate renders without colliding with its syntax. */
+let function_fold_id = id => Id.derive(~salt="function-fold", id);
+
+let rec fold_fun_if = (condition, f_name: string, pieces, exp) =>
   switch (condition) {
+  | `Named =>
+    switch (Exp.get_fn_name(exp)) {
+    | None => pieces
+    | Some(name) =>
+      /* Proof drags display ordinary call names while the projector
+         retains the complete function. Anonymous rewrite lambdas stay
+         expanded so their argument correspondences remain visible. */
+      let name =
+        String.ends_with(~suffix="+", name)
+          ? String.sub(name, 0, String.length(name) - 1) : name;
+      fold_fun_if(`Fold, name, pieces, exp)
+      |> List.map((p: Piece.t) =>
+           switch (p) {
+           | Projector(p) =>
+             Projector({
+               ...p,
+               id: function_fold_id(Exp.rep_id(exp)),
+             })
+           | p => p
+           }
+         );
+    }
   | `Fold =>
     let syntax =
       mk_form(

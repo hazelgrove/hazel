@@ -1,0 +1,20 @@
+# Prove the sum of three concatenated lists by dragging theorem rewrites. #
+# Enable Drag Refactoring, then work in the last row of sum_three_lists. #
+let sum(items : [Int]) = fold_left(items, int_plus, 0) in
+
+# These two equations are available in the goal's proof context. #
+theorem sum_append =
+  forall (left : [Int]) -> forall (right : [Int]) ->
+    sum(left @ right) == sum(left) + sum(right)
+in
+theorem add_associativity =
+  forall (a : Int) -> forall (b : Int) -> forall (c : Int) ->
+    (a + b) + c == a + (b + c)
+in
+
+# Split the outer sum, split the remaining sum, then regroup the additions. #
+theorem sum_three_lists =
+  forall (xs : [Int]) -> forall (ys : [Int]) -> forall (zs : [Int]) ->
+    sum(xs @ ys @ zs) == sum(xs) + sum(ys) + sum(zs)
+in
+0

@@ -9,6 +9,9 @@
 
 (rule
  (alias runtest)
+ (deps
+  ../hazel-programs/docs/refactoring/refactoring-proof-drags.hz
+  ../hazel-programs/docs/refactoring/refactoring-sum-proof.hz)
  (action
   (setenv
    IDB_STUB
@@ -20,6 +23,9 @@
 
 (rule
  (alias test-quick)
+ (deps
+  ../hazel-programs/docs/refactoring/refactoring-proof-drags.hz
+  ../hazel-programs/docs/refactoring/refactoring-sum-proof.hz)
  (action
   (setenv
    IDB_STUB

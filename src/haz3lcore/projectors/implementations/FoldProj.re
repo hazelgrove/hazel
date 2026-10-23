@@ -1,27 +1,9 @@
-open Util;
 open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type t = {
-  [@default "⋱"]
-  text: string,
-  expanded: bool,
-  always_render: bool,
-};
-
-let default: t = {
-  text: "⋱",
-  expanded: false,
-  always_render: false,
-};
-
-let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
-  switch (t_of_sexp(sexp)) {
-  | exception _ => default
-  | t => t
-  };
+/* Pure model/layout shared with the formatter. */
+include FoldModel;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -35,8 +17,7 @@ module M: Projector = {
   let focusable = Focusable.non;
   let elaborate_syntax = false;
 
-  let placeholder = (m, _) =>
-    ProjectorCore.Shape.inline(Unicode.Width.columns_of_string(m.text));
+  let placeholder = (m, _) => FoldModel.shape(m);
   let update = (m, _, _) => {
     ...m,
     expanded: !m.expanded,

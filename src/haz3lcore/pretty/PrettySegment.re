@@ -95,6 +95,8 @@ let rec piece_width = (p: Piece.t): int =>
     label_w + children_w;
   | Grout(_) => 1
   | Secondary(s) => Secondary.length(s)
+  | Projector(p) when p.kind == Fold =>
+    FoldModel.shape(FoldModel.of_string(p.model)).horizontal
   | Projector(_) => 10
   }
 and segment_flat_width = (seg: Segment.t): int =>

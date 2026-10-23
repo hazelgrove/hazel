@@ -81,6 +81,7 @@ let (suite, exit_with_test_status) =
     @ Test_LocalReformat.tests
     @ Test_Refactor.tests
     @ Test_TheoremRefactor.tests
+    @ Test_TheoremStepDrag.tests
     @ Test_SyntaxCorrespondence.tests
     @ Test_MatchExp.tests
     @ Test_RefractorSerialization.tests
