@@ -237,7 +237,12 @@ let summaries = () =>
     let (_, code) = current(m);
     let doc = Web.Program.document(code.program);
     let rec go = n =>
-      n > 0 && Web.WorldSummaries.step(~settings, doc) ? go(n - 1) : n;
+      if (n > 0 && Web.WorldSummaries.missing(doc) != []) {
+        ignore(Web.WorldSummaries.step(~settings, doc));
+        go(n - 1);
+      } else {
+        n;
+      };
     let left = go(200);
     check(bool, "done in bounded steps", true, left > 0);
     check(

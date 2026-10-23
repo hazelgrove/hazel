@@ -68,7 +68,8 @@ let missing = (doc: Segment.t): list(string) =>
     WorldDeck.shown(doc),
   );
 
-/* one summary made, if [doc] lacks any; whether one was */
+/* one summary made, if [doc] lacks any; whether the outline shows it
+   (error_rows: a slide with errors), so a step redraws only then */
 let step = (~settings: Language.CoreSettings.t, doc: Segment.t): bool =>
   switch (missing(doc)) {
   | [] =>
@@ -83,9 +84,12 @@ let step = (~settings: Language.CoreSettings.t, doc: Segment.t): bool =>
         fst(WorldDeck.members(name)),
       );
     Hashtbl.replace(table, name, (library(), summary));
-    incr(version);
     wanted := rest != [];
-    true;
+    let shows = summary.errors > 0;
+    if (shows) {
+      incr(version);
+    };
+    shows;
   };
 
 /* the World's slides summarized with errors, as outline rows: each slide
