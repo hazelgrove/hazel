@@ -1429,20 +1429,11 @@ module Transition = (EV: EV_MODE) => {
           | IndetMatch
           | DoesNotMatch => Indet
           | Matches(env') =>
-            /* Export the bindings in pattern order: each variable the
-               pattern binds, with the value the match gave it. */
-            let bound =
-              List.filter_map(
-                x =>
-                  List.find_opt(((y, _)) => String.equal(x, y), env')
-                  |> Option.map(((_, v)) => (x, v)),
-                Pat.bound_vars(dp),
-              );
             let prefix' =
               List.fold_left(
                 (prefix, (x, v)) => Mod.add_modval(prefix, x, v),
                 prefix,
-                bound,
+                env',
               );
             let env'' = Environment.add_bindings(env, env');
             let side_effects: list(EvaluatorState.effect) = [
@@ -1453,7 +1444,7 @@ module Transition = (EV: EV_MODE) => {
               }),
             ];
             let kind =
-              ModuleBind(bound |> List.map(fst) |> String.concat(", "));
+              ModuleBind(env' |> List.map(fst) |> String.concat(", "));
             switch (suffix) {
             | [] =>
               /* Nothing pending: the module is a value. Its bindings were
