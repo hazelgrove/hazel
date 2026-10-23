@@ -470,6 +470,28 @@ let equality =
     | _ => false
     };
   }
+  /* [pat_names_equal] for module patterns, used for SigModule. */
+  and mpat_names_equal =
+      (
+        alphas_exp: Alphas.t,
+        alphas_typ: Alphas.t,
+        mp1: TermBase.MPat.t,
+        mp2: TermBase.MPat.t,
+      )
+      : bool => {
+    let mne = mpat_names_equal(alphas_exp, alphas_typ);
+    let typ' = typ(alphas_exp, alphas_typ);
+    let any' = any(alphas_exp, alphas_typ);
+    switch (mp1 |> Annotated.term_of, mp2 |> Annotated.term_of) {
+    | (Var(x1), Var(x2)) => String.equal(x1, x2)
+    | (Asc(m1, t1), Asc(m2, t2)) => mne(m1, m2) && typ'(t1, t2)
+    | (EmptyHole, EmptyHole) => true
+    | (Invalid(s1), Invalid(s2)) => String.equal(s1, s2)
+    | (MultiHole(xs1), MultiHole(xs2)) =>
+      List.length(xs1) == List.length(xs2) && List.for_all2(any', xs1, xs2)
+    | _ => false
+    };
+  }
   and mod_ =
       (
         alphas_exp: Alphas.t,
@@ -753,20 +775,8 @@ let equality =
     | (SigType(tp1, t1), SigType(tp2, t2)) =>
       tpat'(tp1, tp2) && typ'(t1, t2)
     | (SigType(_, _), _) => false
-    /* Sub-module member names are labels too: compare literally. */
     | (SigModule(mp1), SigModule(mp2)) =>
-      let rec literal = (mp1: TermBase.MPat.t, mp2: TermBase.MPat.t) =>
-        switch (mp1 |> Annotated.term_of, mp2 |> Annotated.term_of) {
-        | (Var(x1), Var(x2)) => x1 == x2
-        | (Asc(m1, t1), Asc(m2, t2)) => literal(m1, m2) && typ'(t1, t2)
-        | (EmptyHole, EmptyHole) => true
-        | (Invalid(s1), Invalid(s2)) => s1 == s2
-        | (MultiHole(xs1), MultiHole(xs2)) =>
-          List.length(xs1) == List.length(xs2)
-          && List.for_all2(any', xs1, xs2)
-        | _ => false
-        };
-      literal(mp1, mp2);
+      mpat_names_equal(alphas_exp, alphas_typ, mp1, mp2)
     | (SigModule(_), _) => false
     };
   }
