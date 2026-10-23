@@ -249,7 +249,7 @@ let go_region =
       List.is_empty(targets)
         ? z
         : ZipperBase.MapSegment.go(
-            set_lb_indents(targets |> Stdlib.List.to_seq |> Id.Map.of_seq),
+            set_lb_indents(targets |> Id.Map.of_list),
             z,
           );
     };
@@ -280,8 +280,7 @@ let go = (~before: option(Id.Map.t(unit)), z: Zipper.t): Zipper.t =>
              )
                ? Some((t.id, child_plans)) : None;
            })
-        |> Stdlib.List.to_seq
-        |> Id.Map.of_seq;
+        |> Id.Map.of_list;
       let indent_map = lazy(Indentation.level_map(full));
       Id.Map.is_empty(plans)
         ? z : ZipperBase.MapSegment.go(apply_plans(~indent_map, plans), z);
