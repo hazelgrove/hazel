@@ -7,7 +7,7 @@ let get_child_with_class:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), string) =>
   option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
 let timestamp: unit => float;
-let precise_timestamp: unit => 'res;
+let precise_timestamp: unit => float;
 let print_timestamp: float => string;
 let download_string_file:
   (~filename: string, ~content_type: string, ~contents: string) => unit;
@@ -39,9 +39,9 @@ module Fragment: {
 let setPointerCapture:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), int) => unit;
 let releasePointerCapture:
-  (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), int) => 'a;
+  (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), int) => unit;
 let hasPointerCapture:
-  (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), int) => 'a;
+  (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), int) => bool;
 let set_css_custom_property: (string, string) => unit;
 let update_main_scroll_width: unit => unit;
 let sync_at_bottom_class:

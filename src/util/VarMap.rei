@@ -8,10 +8,10 @@
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t_('a) = list((string, 'a));
-let empty: list('a);
-let extend: (list('a), 'a) => list('a);
-let lookup: (list(('a, 'b)), 'a) => option('b);
-let contains: (list(('a, 'b)), 'a) => bool;
-let filter: ('a => bool, list('a)) => list('a);
-let to_list: 'a => 'a;
+let empty: t_('a);
+let extend: (t_('a), (string, 'a)) => t_('a);
+let lookup: (t_('a), string) => option('a);
+let contains: (t_('a), string) => bool;
+let filter: (((string, 'a)) => bool, t_('a)) => t_('a);
+let to_list: t_('a) => list((string, 'a));
 let update: (t_('a), string, 'a => 'a) => t_('a);
