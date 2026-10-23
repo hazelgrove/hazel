@@ -257,34 +257,37 @@ let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
       (item: Mod.t) =>
         switch (item.term) {
         | ModType({term: Var(n), _}, _) => [n]
-        | _ => List.map(fst, item_exports(item, ~later=[]))
+        | _ => item_bound_names(item)
         },
       items,
     );
   let ana_labels = ana_value_types(~defined, ana_items);
-  let rec exported = (items: list(Mod.t)) =>
+  let rec with_exports = (items: list(Mod.t)) =>
     switch (items) {
     | [] => []
-    | [item, ...rest] =>
-      List.map(fst, item_exports(item, ~later=rest)) @ exported(rest)
+    | [item, ...rest] => [
+        (item, List.map(fst, item_exports(item, ~later=rest))),
+        ...with_exports(rest),
+      ]
     };
+  let exports = with_exports(items);
   let tail =
     Exp.fresh(
-      Tuple(List.map(name => Exp.fresh(Var(name)), exported(items))),
+      Tuple(
+        exports
+        |> List.concat_map(snd)
+        |> List.map(name => Exp.fresh(Var(name))),
+      ),
     );
-  let rec wrap = (items: list(Mod.t)): Exp.t =>
-    switch (items) {
-    | [] => tail
-    | [item, ...rest] =>
-      let exported_here = List.map(fst, item_exports(item, ~later=rest));
+  List.fold_right(
+    ((item, exported), body) => {
       let ana_labels =
-        List.filter(
-          ((name, _)) => List.mem(name, exported_here),
-          ana_labels,
-        );
-      wrap_item(~ana_labels, item, wrap(rest));
-    };
-  wrap(items);
+        List.filter(((name, _)) => List.mem(name, exported), ana_labels);
+      wrap_item(~ana_labels, item, body);
+    },
+    exports,
+    tail,
+  );
 };
 
 /* Rewrite InfoExp cls for expanded module items to keep cursor inspector labels. */
@@ -347,7 +350,7 @@ let shadowed_type_names = (items: list(Mod.t)): list(Var.t) => {
          }
        );
   names
-  |> List.filter(n => List.length(List.filter((==)(n), names)) > 1)
+  |> List.filter(n => Util.ListUtil.count_pred(String.equal(n), names) > 1)
   |> Sig.dedup_names;
 };
 
@@ -542,8 +545,8 @@ let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
       term,
     };
     let map2 = (us, es) =>
-      List.length(us) == List.length(es)
-        ? List.map2(strip_synthetic_asc, us, es) : es;
+      Util.ListUtil.map2_opt(strip_synthetic_asc, us, es)
+      |> Option.value(~default=es);
     switch (user_pat.term, p_elab.term) {
     | (Var(_), Asc(inner, _)) => inner
     | (Tuple(us), Tuple(es)) => rewrap(Tuple(map2(us, es)))

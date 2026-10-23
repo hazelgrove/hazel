@@ -3876,7 +3876,7 @@ and utyp_to_info_map =
         | {term: Prod(_), _} as ty_prod => ok(Message.Type(ty_prod))
         | ty_n =>
           switch (utyp.term) {
-          | Var(name) when Ctx.lookup_tvar(ctx, name) == None =>
+          | Var(name) when Option.is_none(Ctx.lookup_tvar(ctx, name)) =>
             /* A value variable: a module root only if its type is a
                signature, or unknown (it may be a module). */
             switch (Ctx.lookup_var(ctx, name)) {
