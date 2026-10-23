@@ -57,7 +57,8 @@ let is_dot: Language.Info.t => bool =
   | _ => false;
 let is_label = (l: string): (Language.Info.t => bool) =>
   fun
-  | InfoExp({user_term: {term: Label(name), _}, _}) => name == l
+  | InfoExp({user_term: {term: Label(name), _}, _}) =>
+    String.equal(name, l)
   | _ => false;
 let is_module: Language.Info.t => bool =
   fun
@@ -84,7 +85,7 @@ let test_member_not_found_on_label =
       Alcotest.(check(bool))(
         "dot unmarked",
         true,
-        marks_at(src, is_dot) == [],
+        List.is_empty(marks_at(src, is_dot)),
       );
     },
   );
@@ -225,7 +226,7 @@ let is_int_vs = (syn_cls, m: Language.Mark.t) =>
   switch (m) {
   | ExpectationMismatch({ana, syn}) =>
     switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
-    | (Atom(Int), Atom(c)) => c == syn_cls
+    | (Atom(Int), Atom(c)) => Language.Atom.equal_cls(c, syn_cls)
     | _ => false
     }
   | _ => false
@@ -303,7 +304,7 @@ let component_mismatch_test = (name, source, syn_cls) =>
       Alcotest.(check(bool))(
         "module unmarked",
         true,
-        marks_at(source, is_module) == [],
+        List.is_empty(marks_at(source, is_module)),
       );
     },
   );
@@ -1175,8 +1176,8 @@ let test_shadowed_member_checked_at_last_definition =
       );
       Alcotest.(check(bool))(
         "it is on the last definition",
-        true,
-        on_last != [],
+        false,
+        List.is_empty(on_last),
       );
     },
   );
@@ -1224,7 +1225,7 @@ let test_shorthand_member_mismatch_on_definition =
       Alcotest.(check(bool))(
         "module unmarked",
         true,
-        marks_at(src, is_module) == [],
+        List.is_empty(marks_at(src, is_module)),
       );
     },
   );

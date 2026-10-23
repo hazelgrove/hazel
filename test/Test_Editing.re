@@ -3401,7 +3401,7 @@ let test_same_term_as_ltr = (~name, ~acts, ~goal): test_case(_) =>
       let ltr =
         goal
         |> Token.to_list
-        |> List.filter(c => c != caret_char)
+        |> List.filter(c => !String.equal(c, caret_char))
         |> Token.of_list
         |> string_to_ltr_actions
         |> perform(Zipper.init());

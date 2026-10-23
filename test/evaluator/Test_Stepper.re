@@ -197,7 +197,10 @@ let tests = (
                   )
                   ++ " is anchored on rendered syntax",
                   true,
-                  List.mem(EvaluatorStep.get_step_id(step), rendered),
+                  List.exists(
+                    Id.equal(EvaluatorStep.get_step_id(step)),
+                    rendered,
+                  ),
                 ),
               steps,
             );
