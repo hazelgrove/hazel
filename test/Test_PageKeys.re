@@ -1,70 +1,45 @@
 open Alcotest;
 
-/* the Cmd-hover underline follows Cmd, though the page's key listener
-   reads the model of the last render */
+/* the Cmd-hover underline follows bare Cmd: a key event's modifiers give
+   whether it shows */
 
-let key = (k: Util.Key.key, ~meta: Util.Key.held): Util.Key.t => {
-  key: k,
-  code: "",
-  sys: Mac,
-  shift: Up,
-  meta,
-  ctrl: Up,
-  alt: Up,
-  target_tag: None,
-};
+let held = (~meta=false, ~ctrl=false, ~alt=false, ~shift=false, ()) =>
+  Web.Page.MetaListener.held(~meta, ~ctrl, ~alt, ~shift);
 
-let press = key(D("Meta"), ~meta=Down);
-let release = key(U("Meta"), ~meta=Up);
-
-/* [keys] arriving before the next render: the model's Cmd state after
-   them, from [model], the listener reading [rendered] */
-let within_frame = (~rendered: bool, model: bool, keys: list(Util.Key.t)) =>
-  List.fold_left(
-    (model, k) =>
-      switch (Web.Page.View.meta_change(~rendered, k)) {
-      | Some(down) => down
-      | None => model
-      },
-    model,
-    keys,
-  );
+let shows = (name, expected, actual) =>
+  check(bool, name ++ " shows the underline", expected, actual);
 
 let tests = (
   "PageKeys",
   [
-    test_case("a Cmd tap within one frame leaves Cmd up", `Quick, () =>
-      check(
-        bool,
-        "Cmd down",
-        false,
-        within_frame(~rendered=false, false, [press, release]),
-      )
+    test_case("a Cmd press shows it", `Quick, () =>
+      shows("Cmd down", true, held(~meta=true, ()))
     ),
-    test_case("a Cmd press shows the underline", `Quick, () =>
-      check(
-        bool,
-        "Cmd down",
-        true,
-        within_frame(~rendered=false, false, [press]),
-      )
+    test_case("a Cmd release clears it", `Quick, () =>
+      shows("Cmd up", false, held())
     ),
-    test_case("a key with Cmd held, unseen, sets it", `Quick, () =>
-      check(
-        bool,
-        "Cmd down",
-        true,
-        within_frame(~rendered=false, false, [key(D("k"), ~meta=Down)]),
-      )
+    test_case(
+      "Cmd chords don't show it",
+      `Quick,
+      () => {
+        shows("Cmd+Shift", false, held(~meta=true, ~shift=true, ()));
+        shows("Cmd+Alt", false, held(~meta=true, ~alt=true, ()));
+        shows("Cmd+Ctrl", false, held(~meta=true, ~ctrl=true, ()));
+      },
     ),
-    test_case("a key changing nothing gives nothing", `Quick, () =>
-      check(
-        bool,
-        "no change",
-        true,
-        Web.Page.View.meta_change(~rendered=true, key(D("k"), ~meta=Down))
-        == None,
-      )
+    /* Cmd+C: the c's events carry Cmd alone */
+    test_case("a key under bare Cmd keeps it", `Quick, () =>
+      shows("Cmd+C", true, held(~meta=true, ()))
+    ),
+    test_case(
+      "other keys don't show it",
+      `Quick,
+      () => {
+        shows("c", false, held());
+        shows("Shift", false, held(~shift=true, ()));
+        shows("Ctrl", false, held(~ctrl=true, ()));
+        shows("Alt", false, held(~alt=true, ()));
+      },
     ),
   ],
 );
