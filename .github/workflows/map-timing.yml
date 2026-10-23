@@ -1,7 +1,8 @@
 # MEASURING ONLY (^ticket(553)): the World rule with the world's squares held in a map, on GitHub's machines, never the
 # laptop. An orphan branch: only this workflow runs.
 #
-# Second run: Hazel's map against Fumola's, like for like on one runner. Each of four jobs builds Fumola's wasm from
+# Third run: where the map's set-up goes (scripts/setup553.mjs, Common.squares whole and in parts, as written and
+# unannotated), two rounds a job. Second run (39887272978): Hazel's map against Fumola's, like for like on one runner. Each of four jobs builds Fumola's wasm from
 # 667a34d (^report(27)'s pin) and runs, in the order hazel, fumola, fumola, hazel: Hazel's map rule (scripts/map553.mjs on
 # trial/r25-553, the game's own rule texts from kids-choice-games' hazel-map-553) and ^report(27)'s Fumola driver
 # (scripts/fumola/measure.mjs, world.fum, held.fum.js: the map passed, the neighbours, held as a list, held as a HashMap).
@@ -22,7 +23,7 @@ env:
 
 jobs:
   map:
-    name: Hazel and Fumola (${{ matrix.job }})
+    name: Set-up (${{ matrix.job }})
     runs-on: ubuntu-latest
     timeout-minutes: 75
     strategy:
@@ -43,29 +44,6 @@ jobs:
           ref: ${{ env.KCG }}
           path: kcg
           sparse-checkout: dress-up/js
-      - uses: actions/checkout@v4
-        with:
-          repository: Adapton/fumola
-          ref: ${{ env.FUMOLA }}
-          path: fumola
-      - name: Install nightly with the wasm target
-        run: |
-          rustup toolchain install nightly --profile minimal
-          rustup default nightly
-          rustup target add wasm32-unknown-unknown
-      - name: Install wasm-bindgen-cli (the version the crate resolves to)
-        working-directory: fumola
-        run: |
-          set -euo pipefail
-          version=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version' | head -1)
-          test -n "$version"
-          cargo install wasm-bindgen-cli --version "$version" --force
-      - name: Build Fumola's wasm
-        working-directory: fumola
-        run: |
-          cargo build --release --target wasm32-unknown-unknown -p fumola_wasm --no-default-features
-          wasm-bindgen --target web --out-dir "$GITHUB_WORKSPACE/bindings" target/wasm32-unknown-unknown/release/fumola_wasm.wasm
-          sha256sum "$GITHUB_WORKSPACE"/bindings/*
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -73,18 +51,13 @@ jobs:
         run: |
           mkdir -p out
           { echo "${{ matrix.job }}:"; lscpu | grep -E 'Model name'; node --version; } | tee out/runner.txt
-      - name: Hazel, Fumola, Fumola, Hazel
+      - name: The set-up, twice
         run: |
           set -euo pipefail
           round=0
-          for side in hazel fumola fumola hazel; do
-            round=$((round + 1))
-            echo "== $round $side"
-            if [ "$side" = hazel ]; then
-              node --stack-size=8000 scripts/map553.mjs b/553/trial/r25-553/hazel-lib.js kcg/dress-up/js/25-scripting.js "$SIZES" "out/hazel_$round.json"
-            else
-              node scripts/fumola/measure.mjs "$GITHUB_WORKSPACE/bindings" scripts/fumola/world.fum "$SIZES" "out/fumola_$round.json"
-            fi
+          for round in 1 2; do
+            echo "== $round"
+            node --stack-size=8000 scripts/setup553.mjs b/553/trial/r25-553/hazel-lib.js kcg/dress-up/js/25-scripting.js "16,32,64" "out/setup_$round.json"
           done
       - uses: actions/upload-artifact@v4
         if: always()
@@ -103,7 +76,7 @@ jobs:
           pattern: job-*
           path: all
       - name: Summary
-        run: python3 scripts/summary553f.py all | tee summary.md >> "$GITHUB_STEP_SUMMARY"
+        run: python3 scripts/summary553s.py all | tee summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: summary
