@@ -2782,14 +2782,6 @@ x + y¦|},
    NOTE: These test basic module syntax editing behavior.
    `{` is an instant-expanding delimiter that creates `{¦}`.
    Inside braces is Mod sort, where `let` creates ModLet forms. */
-/* The delimiters each incomplete tile still owes, in document order: one
-   list per run of missing shards. */
-let owed_delimiters = (z: Zipper.t): list(list(string)) =>
-  Zipper.unselect_and_zip(~erase_buffer=true, z)
-  |> Segment.incomplete_tiles_deep
-  |> List.concat_map(Tile.missing_shards)
-  |> List.map(Tile.effective_label);
-
 let module_tests = [
   /* { is an instant expander: typing { puts } in the backpack.
      The printer shows backpack contents as missing, so } doesn't
@@ -3262,6 +3254,14 @@ let remold_sort_tests = [
   ),
 ];
 
+/* The delimiters each incomplete tile still owes, in document order: one
+   list per run of missing shards. */
+let owed_delimiters = (z: Zipper.t): list(list(string)) =>
+  Zipper.unselect_and_zip(~erase_buffer=true, z)
+  |> Segment.incomplete_tiles_deep
+  |> List.concat_map(Tile.missing_shards)
+  |> List.map(Tile.effective_label);
+
 /* The printed state, and the delimiters owed across the program. Compared
    as a set: which delimiters are owed is the property, not their order. */
 let test_owed =
@@ -3456,12 +3456,12 @@ let incomplete_child_sort_tests = [
       @ string_to_ltr_actions("in "),
     ~goal={|type T = Int in ¦let x : T = 5 in x|},
   ),
-  /* Other orders a module program is typed in reach linear typing's term. */
   test_complete(
     ~name="Module: items typed into the {} token",
     ~acts=mk({|{¦}|}) @ string_to_ltr_actions(" let x = 1 "),
     ~goal={|{ let x = 1 ¦}|},
   ),
+  /* Other orders a module program is typed in reach linear typing's term. */
   test_same_term_as_ltr(
     ~name="Signature: members typed into the {} token",
     ~acts=
