@@ -97,9 +97,9 @@ module Utils = {
 
     let find_subtask = (task: task, subtask_name: string): option(subtask) => {
       // Finds the todo item with the given name
-      Maps.StringMap.find_opt(
-        subtask_name,
+      Maps.StringMap.find(
         task.subtasks,
+        subtask_name,
       );
     };
 
@@ -183,7 +183,7 @@ module Utils = {
       // Returns the subtasks in the order specified by subtask_ordering
       task.subtask_ordering
       |> List.filter_map(~f=(title: string) =>
-           Maps.StringMap.find_opt(title, task.subtasks)
+           Maps.StringMap.find(task.subtasks, title)
          );
     };
 
@@ -200,7 +200,7 @@ module Utils = {
     };
 
     let find_task = (model: t, task_name: string): option(task) => {
-      Maps.StringMap.find_opt(task_name, model.task_dict);
+      Maps.StringMap.find(model.task_dict, task_name);
     };
 
     let is_active = (model: t, task_name: string): bool => {
@@ -274,7 +274,8 @@ module Utils = {
 
     let write_subtask = (~task: task, ~subtask: subtask): task => {
       ...task,
-      subtasks: Maps.StringMap.add(subtask.title, subtask, task.subtasks),
+      subtasks:
+        Maps.StringMap.set(task.subtasks, ~key=subtask.title, ~data=subtask),
     };
 
     let mk =
@@ -284,7 +285,7 @@ module Utils = {
         List.fold_left(
           ~f=
             (acc: Maps.StringMap.t(subtask), subtask: subtask) =>
-              Maps.StringMap.add(subtask.title, subtask, acc),
+              Maps.StringMap.set(acc, ~key=subtask.title, ~data=subtask),
           ~init=Maps.StringMap.empty,
           subtasks,
         );
@@ -332,7 +333,7 @@ module Utils = {
     let sorted_task_dict = (task_dict: task_dict): list(task) => {
       // Sorts the given todo archive by last updated time, most recent first
       task_dict
-      |> Maps.StringMap.bindings
+      |> Maps.StringMap.to_alist
       |> List.map(~f=((_, task: task)) => task)
       |> List.sort(~compare=(a: task, b: task) =>
            int_of_float(
@@ -434,7 +435,7 @@ module Utils = {
         List.for_all(
           ~f=
             (subtask_title: string) => {
-              Maps.StringMap.mem(subtask_title, task.subtasks)
+              Maps.StringMap.mem(task.subtasks, subtask_title)
             },
           task.subtask_ordering,
         )
@@ -446,12 +447,9 @@ module Utils = {
       let assert_all_subtasks_from_map_referenced_in_ordering =
           (~task: task): unit =>
         // Assert all subtasks in the subtasks map are referenced in the ordering
-        Maps.StringMap.for_all(
-          (_, subtask: subtask) => {
-            List.mem(task.subtask_ordering, subtask.title, ~equal=Poly.equal)
-          },
-          task.subtasks,
-        )
+        Maps.StringMap.for_all(task.subtasks, ~f=(subtask: subtask) => {
+          List.mem(task.subtask_ordering, subtask.title, ~equal=Poly.equal)
+        })
           ? ()
           : raise(
               Failure(
@@ -477,7 +475,12 @@ module Utils = {
           );
           Success({
             ...model,
-            task_dict: Maps.StringMap.add(task.title, task, model.task_dict),
+            task_dict:
+              Maps.StringMap.set(
+                model.task_dict,
+                ~key=task.title,
+                ~data=task,
+              ),
           });
         }
       ) {
@@ -987,14 +990,14 @@ module Update = {
             },
           };
           if (title_changed) {
-            if (Maps.StringMap.mem(new_title, model.task_dict)) {
+            if (Maps.StringMap.mem(model.task_dict, new_title)) {
               Failure(
                 "A task with the title \"" ++ new_title ++ "\" already exists",
               );
             } else {
               let model = {
                 task_dict:
-                  Maps.StringMap.remove(active_task.title, model.task_dict),
+                  Maps.StringMap.remove(model.task_dict, active_task.title),
                 active_task: Some(new_title),
                 t_ui: {
                   ...model.t_ui,
@@ -1046,7 +1049,7 @@ module Update = {
               },
             };
             if (title_changed) {
-              if (Maps.StringMap.mem(new_title, active_task.subtasks)) {
+              if (Maps.StringMap.mem(active_task.subtasks, new_title)) {
                 Failure(
                   "A subtask with the title \""
                   ++ new_title
@@ -1055,8 +1058,8 @@ module Update = {
               } else {
                 let updated_subtasks =
                   active_task.subtasks
-                  |> Maps.StringMap.remove(active_subtask.title)
-                  |> Maps.StringMap.add(new_title, updated_subtask);
+                  |> Maps.StringMap.remove(_, active_subtask.title)
+                  |> Maps.StringMap.set(~key=new_title, ~data=updated_subtask);
                 let updated_ordering =
                   List.map(
                     ~f=
@@ -1087,12 +1090,12 @@ module Update = {
          - Hard-deletes the task with the given title
          - Clears active_task and display_task if they pointed to the deleted task
          */
-        switch (Maps.StringMap.find_opt(title, model.task_dict)) {
+        switch (Maps.StringMap.find(model.task_dict, title)) {
         | None =>
           Failure("No task with title \"" ++ title ++ "\" found to delete")
         | Some(_) =>
           Success({
-            task_dict: Maps.StringMap.remove(title, model.task_dict),
+            task_dict: Maps.StringMap.remove(model.task_dict, title),
             active_task:
               switch (model.active_task) {
               | Some(t) when String.equal(t, title) => None
@@ -1116,7 +1119,7 @@ module Update = {
         switch (MainUtils.active_task(model)) {
         | None => Failure("No active task to delete subtask from")
         | Some(active_task) =>
-          switch (Maps.StringMap.find_opt(title, active_task.subtasks)) {
+          switch (Maps.StringMap.find(active_task.subtasks, title)) {
           | None =>
             Failure(
               "No subtask with title \"" ++ title ++ "\" found in active task",
@@ -1124,7 +1127,7 @@ module Update = {
           | Some(_) =>
             let updated_task = {
               ...active_task,
-              subtasks: Maps.StringMap.remove(title, active_task.subtasks),
+              subtasks: Maps.StringMap.remove(active_task.subtasks, title),
               subtask_ordering:
                 List.filter(
                   ~f=(t: string) => !String.equal(t, title),

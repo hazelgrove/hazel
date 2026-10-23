@@ -5,8 +5,6 @@
    (the Peanut paper) + we handle unknowns in scrutinee types. */
 
 open Util;
-open Util.Sets;
-open Util.Maps;
 
 module Constraint = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -98,7 +96,7 @@ module Ctr = {
     | Infinite =>
       List.init(ctr.num_args, ~f=_ => Unknown(Internal) |> Typ.temp)
     | Finite(all_ctrs) =>
-      switch (Map.find_opt(ctr, all_ctrs)) {
+      switch (Map.find(all_ctrs, ctr)) {
       | Some(arity) => arity
       | None => List.init(ctr.num_args, ~f=_ => Unknown(Internal) |> Typ.temp)
       }
@@ -122,7 +120,7 @@ module Ctr = {
                  Some((mk(ctr, 1), [arg_ty]))
                | BadEntry(_) => None,
            )
-        |> Map.of_list,
+        |> Map.of_alist_reduce(~f=(_, latest) => latest),
       )
     | Rec(_) =>
       switch (Typ.unroll_to_non_rec(ty)) {
@@ -135,12 +133,13 @@ module Ctr = {
     | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
     | List(elt_ty) =>
       Finite(
-        Map.of_list([
+        Map.of_alist_exn([
           (nil_ctr, []),
           (cons_ctr, [Prod([elt_ty, ty]) |> Typ.temp]),
         ]),
       )
-    | Atom(Bool) => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
+    | Atom(Bool) =>
+      Finite(Map.of_alist_exn([(true_ctr, []), (false_ctr, [])]))
     | Unknown(_) => Unknown
     | Atom(Int)
     | Atom(SInt) // technically sint and float are finite, but ya know
@@ -169,7 +168,7 @@ module Ctr = {
     | Unknown => false
     | Infinite => false
     | Finite(all_ctrs) =>
-      List.unzip(Map.bindings(all_ctrs))
+      List.unzip(Map.to_alist(all_ctrs))
       |> fst
       |> List.for_all(~f=ctr => Set.mem(ctr, seen_ctrs))
     };
@@ -213,10 +212,10 @@ module Matrix = {
 module Seen = {
   // [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    seen_ints: IntSet.t,
-    seen_sints: SIntSet.t,
-    seen_floats: FloatSet.t,
-    seen_strings: StringSet.t,
+    seen_ints: Bigint.Set.t,
+    seen_sints: Int.Set.t,
+    seen_floats: Float.Set.t,
+    seen_strings: String.Set.t,
     seen_ctrs: Ctr.Set.t,
     seen_all_ctrs: bool,
     seen_truth: bool,
@@ -225,10 +224,10 @@ module Seen = {
   };
 
   let init: t = {
-    seen_ints: IntSet.empty,
-    seen_sints: SIntSet.empty,
-    seen_floats: FloatSet.empty,
-    seen_strings: StringSet.empty,
+    seen_ints: Bigint.Set.empty,
+    seen_sints: Int.Set.empty,
+    seen_floats: Float.Set.empty,
+    seen_strings: String.Set.empty,
     seen_ctrs: Ctr.Set.empty,
     seen_all_ctrs: false,
     seen_truth: false,
@@ -449,7 +448,7 @@ module UnseenPatternList: UnseenPatternList = {
   let find_first_unseen_ctr = (seen_in_col: Seen.t, all_ctrs: Ctr.Map.t('a)) => {
     seen_in_col.seen_all_ctrs
       ? Ctr.default_ctr
-      : List.unzip(Ctr.Map.bindings(all_ctrs))
+      : List.unzip(Ctr.Map.to_alist(all_ctrs))
         |> fst
         |> List.find_exn(~f=ctr => !Ctr.Set.mem(ctr, seen_in_col.seen_ctrs));
   };
@@ -538,28 +537,28 @@ module UnseenPatternList: UnseenPatternList = {
     | Atom(Nat) =>
       let rec first_unused_bigint = n => {
         let big_int = Bigint.of_int(n);
-        IntSet.mem(big_int, seen_in_col.seen_ints)
+        Set.mem(seen_in_col.seen_ints, big_int)
           ? first_unused_bigint(n + 1) : Ctr.of_int(Bigint.of_int(n));
       };
 
       cons_ctr(first_unused_bigint(0), col_type, unseen_pattern);
     | Atom(SInt) =>
       let rec first_unused_sint = n => {
-        SIntSet.mem(n, seen_in_col.seen_sints)
+        Set.mem(seen_in_col.seen_sints, n)
           ? first_unused_sint(n + 1) : Ctr.of_sint(n);
       };
 
       cons_ctr(first_unused_sint(0), col_type, unseen_pattern);
     | Atom(Float) =>
       let rec first_unused_float = n => {
-        FloatSet.mem(n, seen_in_col.seen_floats)
+        Set.mem(seen_in_col.seen_floats, n)
           ? first_unused_float(n +. 1.) : Ctr.of_float(n);
       };
 
       cons_ctr(first_unused_float(0.), col_type, unseen_pattern);
     | Atom(String) =>
       let rec first_unused_str = n => {
-        StringSet.mem(n, seen_in_col.seen_strings)
+        Set.mem(seen_in_col.seen_strings, n)
           ? first_unused_str(n ++ "*") : Ctr.of_string(n);
       };
 
@@ -594,7 +593,7 @@ module UnseenPatternList: UnseenPatternList = {
       | Unknown
       | Infinite => cons_wild(unseen_pattern)
       | Finite(all_ctrs) =>
-        let new_ctr = Ctr.Map.choose(all_ctrs) |> fst;
+        let new_ctr = Ctr.Map.min_elt_exn(all_ctrs) |> fst;
         cons_sum(col_ctr, col_type, new_ctr, unseen_pattern);
       }
     | Atom(Bool) =>
@@ -671,7 +670,7 @@ module Submatrices = {
 
   let rev = (s: t): t => {
     ...s,
-    ctrs: Ctr.Map.map(Matrix.rev, s.ctrs),
+    ctrs: Ctr.Map.map(s.ctrs, ~f=Matrix.rev),
   };
 
   let empty = {
@@ -695,40 +694,40 @@ module Submatrices = {
       | [] => seen
       | [BigInt(n), ..._] => {
           ...seen,
-          seen_ints: IntSet.add(n, seen.seen_ints),
+          seen_ints: Set.add(seen.seen_ints, n),
           first_col_redundant_rows:
             add_redundant_row_if(
-              IntSet.mem(n, seen.seen_ints) || seen.seen_truth,
+              Set.mem(seen.seen_ints, n) || seen.seen_truth,
               row.idx,
               seen.first_col_redundant_rows,
             ),
         }
       | [SInt(n), ..._] => {
           ...seen,
-          seen_sints: SIntSet.add(n, seen.seen_sints),
+          seen_sints: Set.add(seen.seen_sints, n),
           first_col_redundant_rows:
             add_redundant_row_if(
-              SIntSet.mem(n, seen.seen_sints) || seen.seen_truth,
+              Set.mem(seen.seen_sints, n) || seen.seen_truth,
               row.idx,
               seen.first_col_redundant_rows,
             ),
         }
       | [Float(x), ..._] => {
           ...seen,
-          seen_floats: seen.seen_floats |> FloatSet.add(x),
+          seen_floats: seen.seen_floats |> Set.add(_, x),
           first_col_redundant_rows:
             add_redundant_row_if(
-              FloatSet.mem(x, seen.seen_floats) || seen.seen_truth,
+              Set.mem(seen.seen_floats, x) || seen.seen_truth,
               row.idx,
               seen.first_col_redundant_rows,
             ),
         }
       | [String(s), ..._] => {
           ...seen,
-          seen_strings: seen.seen_strings |> StringSet.add(s),
+          seen_strings: seen.seen_strings |> Set.add(_, s),
           first_col_redundant_rows:
             add_redundant_row_if(
-              StringSet.mem(s, seen.seen_strings) || seen.seen_truth,
+              Set.mem(seen.seen_strings, s) || seen.seen_truth,
               row.idx,
               seen.first_col_redundant_rows,
             ),
@@ -834,7 +833,7 @@ module Submatrices = {
         ctrs: Ctr.Map.t(Matrix.t),
       )
       : Ctr.Map.t(Matrix.t) => {
-    Ctr.Map.update(ctr, add_row(idx, cols), ctrs);
+    Ctr.Map.change(ctrs, ctr, ~f=add_row(idx, cols));
   };
 
   let of_matrix = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): t => {
@@ -931,25 +930,25 @@ module Submatrices = {
             |> update_ctrs_with_truth(
                  ctr_set_of_list(
                    elt => {Ctr.of_int(elt)},
-                   IntSet.to_list(seen_ints),
+                   Set.to_list(seen_ints),
                  ),
                )
             |> update_ctrs_with_truth(
                  ctr_set_of_list(
                    elt => {Ctr.of_sint(elt)},
-                   SIntSet.to_list(seen_sints),
+                   Set.to_list(seen_sints),
                  ),
                )
             |> update_ctrs_with_truth(
                  ctr_set_of_list(
                    elt => {Ctr.of_float(elt)},
-                   FloatSet.to_list(seen_floats),
+                   Set.to_list(seen_floats),
                  ),
                )
             |> update_ctrs_with_truth(
                  ctr_set_of_list(
                    elt => {Ctr.of_string(elt)},
-                   StringSet.to_list(seen_strings),
+                   Set.to_list(seen_strings),
                  ),
                );
 
@@ -1110,7 +1109,17 @@ module CheckMatrix: CheckMatrix = {
 
         let (is_exhaustive, unseen_pattern, redundant_rows) =
           Ctr.Map.fold(
-            (ctr, submatrix, (is_exhaustive, unseen_pattern, redundant_rows)) => {
+            ctrs,
+            ~init=(
+              true, // fold initialized to true regardless of current column so unseen checks work.
+              UnseenPatternList.empty,
+              first_col_redundant_rows,
+            ),
+            ~f=(
+                 ~key as ctr,
+                 ~data as submatrix,
+                 (is_exhaustive, unseen_pattern, redundant_rows),
+               ) => {
               // for each submatrix, recursively check_matrix, computing the col_tys based
               // on the first_col_ty and the constructor name.
               let arity = Ctr.arity_of(ctr, all_ctrs);
@@ -1164,12 +1173,6 @@ module CheckMatrix: CheckMatrix = {
                 (is_still_exhaustive, unseen_pattern', redundant_rows);
               };
             },
-            ctrs,
-            (
-              true, // fold initialized to true regardless of current column so unseen checks work.
-              UnseenPatternList.empty,
-              first_col_redundant_rows,
-            ),
           );
 
         {

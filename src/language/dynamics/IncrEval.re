@@ -165,13 +165,11 @@ let equal_provenance = (a: provenance, b: provenance): bool =>
   && Poly.equal(a.flag, b.flag);
 
 let make_clean = (reuse_map: reuse_map): reuse_map =>
-  Maps.StringMap.map(
-    (prov: provenance) =>
-      {
-        ...prov,
-        flag: Clean,
-      },
-    reuse_map,
+  Maps.StringMap.map(reuse_map, ~f=(prov: provenance) =>
+    {
+      ...prov,
+      flag: Clean,
+    }
   );
 
 let equal_reuse_map = (a: reuse_map, b: reuse_map): bool =>
@@ -189,8 +187,9 @@ let restrict_to_co_ctx = (reuse_map: reuse_map, co_ctx: CoCtx.t): reuse_map =>
         if (!is_runtime_dependency(name)) {
           projected;
         } else {
-          switch (Maps.StringMap.find_opt(name, reuse_map)) {
-          | Some(prov) => Maps.StringMap.add(name, prov, projected)
+          switch (Maps.StringMap.find(reuse_map, name)) {
+          | Some(prov) =>
+            Maps.StringMap.set(projected, ~key=name, ~data=prov)
           | None => projected
           };
         },
@@ -209,8 +208,9 @@ let reuse_map_for_co_ctx =
           switch (acc) {
           | None => None
           | Some(projected) =>
-            switch (Maps.StringMap.find_opt(name, reuse_map)) {
-            | Some(prov) => Some(Maps.StringMap.add(name, prov, projected))
+            switch (Maps.StringMap.find(reuse_map, name)) {
+            | Some(prov) =>
+              Some(Maps.StringMap.set(projected, ~key=name, ~data=prov))
             | None => None
             }
           };
@@ -226,21 +226,21 @@ let clean_reuse_map_of_env = (env: Environment.t(Exp.t)): reuse_map =>
   |> List.fold_left(
        ~f=
          (acc, (name, _)) =>
-           Maps.StringMap.add(
-             name,
-             {
+           Maps.StringMap.set(
+             acc,
+             ~key=name,
+             ~data={
                source: Id.invalid,
                path: [],
                flag: Clean,
              },
-             acc,
            ),
        ~init=empty_reuse_map,
      );
 
 let remove_pat_bindings = (pat: Pat.t, reuse_map: reuse_map): reuse_map =>
   List.fold_left(
-    ~f=(acc, name) => Maps.StringMap.remove(name, acc),
+    ~f=(acc, name) => Maps.StringMap.remove(acc, name),
     ~init=reuse_map,
     Pat.bound_vars(pat),
   );
@@ -295,7 +295,7 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Cons(hd, tl) =>
       go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
     };
-  go([], pat) |> Maps.StringMap.of_list;
+  go([], pat) |> Maps.StringMap.of_alist_reduce(~f=(_, latest) => latest);
 };
 
 let with_pat_provenance =
@@ -303,10 +303,11 @@ let with_pat_provenance =
     : reuse_map =>
   /* Domains are disjoint: remove_pat_bindings removes exactly the names
    * pat_provenance produces. Prefer the pattern's entry regardless. */
-  Maps.StringMap.union(
-    (_name, from_pat, _outer) => Some(from_pat),
+  Maps.StringMap.merge_skewed(
     pat_provenance(~source_id, ~flag, pat),
     remove_pat_bindings(pat, reuse_map),
+    ~combine=(~key as _, from_pat, _outer) =>
+    from_pat
   );
 
 let update_maps_after_binding =

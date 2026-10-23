@@ -27,13 +27,13 @@ let extend = (type a, ~id=Id.mk(), env: t(a), (v: Var.t, x: a)): t(a) => {
     binding: (v, x),
     prev_env: env,
     cached_search_tree:
-      Maps.StringMap.add(
-        v,
-        x,
+      Maps.StringMap.set(
         switch (env) {
         | Empty => Maps.StringMap.empty
         | E(e) => e.cached_search_tree
         },
+        ~key=v,
+        ~data=x,
       ),
   });
 };
@@ -126,8 +126,7 @@ let rec fold = (f: ((Var.t, 'a), 'b) => 'b, init: 'b, env: t('a)): 'b =>
 let lookup = (env: t('a), v: Var.t): option('a) => {
   switch (env) {
   | Empty => None
-  | E({cached_search_tree, _}) =>
-    Maps.StringMap.find_opt(v, cached_search_tree)
+  | E({cached_search_tree, _}) => Maps.StringMap.find(cached_search_tree, v)
   };
 };
 
