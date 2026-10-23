@@ -637,8 +637,8 @@ module CSSDropdown = {
   let active_id: ref(option(string)) = ref(None);
 
   /* Cached handler instances by menu ID */
-  let instances: Stdlib.Hashtbl.t(string, Handlers.instance_state) =
-    Stdlib.Hashtbl.create(50);
+  let instances: Hashtbl.t(string, Handlers.instance_state) =
+    Hashtbl.create(~size=50, (module String));
 
   /* Helper to add/remove CSS class on element by ID */
   let set_class = (elem_id: string, add: bool): unit =>
@@ -657,7 +657,7 @@ module CSSDropdown = {
 
   /* Get or create handler instance for a menu ID */
   let get_instance = (menu_id: string): Handlers.instance_state =>
-    switch (Stdlib.Hashtbl.find_opt(instances, menu_id)) {
+    switch (Hashtbl.find(instances, menu_id)) {
     | Some(inst) => inst
     | None =>
       let inst =
@@ -684,7 +684,7 @@ module CSSDropdown = {
           ~skip_delay=() => Option.is_some(active_id^),
           (),
         );
-      Stdlib.Hashtbl.add(instances, menu_id, inst);
+      Hashtbl.set(instances, ~key=menu_id, ~data=inst);
       inst;
     };
 

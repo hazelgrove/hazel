@@ -1,6 +1,5 @@
 open API;
 open OptUtil.Syntax;
-open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 
 module Reply = {
@@ -810,7 +809,7 @@ module Utils = {
       content: Buffer.t,
       reasoning: Buffer.t,
       /* Keyed by the streaming [index] on each tool_call delta. */
-      tool_calls: Stdlib.Hashtbl.t(int, partial_tool_call),
+      tool_calls: Hashtbl.t(int, partial_tool_call),
       usage: ref(option(Reply.Model.usage)),
       error: ref(option(Model.error)),
     };
@@ -818,7 +817,7 @@ module Utils = {
     let create = (): t => {
       content: Buffer.create(256),
       reasoning: Buffer.create(256),
-      tool_calls: Stdlib.Hashtbl.create(4),
+      tool_calls: Hashtbl.create(~size=4, (module Int)),
       usage: ref(None),
       error: ref(None),
     };
@@ -830,7 +829,7 @@ module Utils = {
         | _ => 0
         };
       let partial =
-        switch (Stdlib.Hashtbl.find_opt(t.tool_calls, idx)) {
+        switch (Hashtbl.find(t.tool_calls, idx)) {
         | Some(p) => p
         | None =>
           let p = {
@@ -838,7 +837,7 @@ module Utils = {
             name: ref(None),
             args_buf: Buffer.create(64),
           };
-          Stdlib.Hashtbl.replace(t.tool_calls, idx, p);
+          Hashtbl.set(t.tool_calls, ~key=idx, ~data=p);
           p;
         };
       switch (Json.dot("id", tc)) {
@@ -967,10 +966,9 @@ module Utils = {
 
     let finalize_tool_calls = (t: t): list(Reply.Model.tool_call) => {
       let entries =
-        Stdlib.Hashtbl.fold(
-          (idx, p, acc) => [(idx, p), ...acc],
-          t.tool_calls,
-          [],
+        Hashtbl.fold(
+          t.tool_calls, ~init=[], ~f=(~key as idx, ~data as p, acc) =>
+          [(idx, p), ...acc]
         );
       let sorted =
         List.sort(~compare=((a, _), (b, _)) => compare(a, b), entries);

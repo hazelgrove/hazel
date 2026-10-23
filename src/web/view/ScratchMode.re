@@ -236,10 +236,10 @@ module Persist = {
      every editor autosave is the expensive part, so skip when the agent
      model is physically unchanged (edits rebuild the scratchpad record
      but reuse the agent field). */
-  let last_saved_agent: Stdlib.Hashtbl.t(string, Agent.Model.t) =
-    Stdlib.Hashtbl.create(8);
-  let last_agent_save_ts: Stdlib.Hashtbl.t(string, float) =
-    Stdlib.Hashtbl.create(8);
+  let last_saved_agent: Hashtbl.t(string, Agent.Model.t) =
+    Hashtbl.create(~size=8, (module String));
+  let last_agent_save_ts: Hashtbl.t(string, float) =
+    Hashtbl.create(~size=8, (module String));
 
   let save_current = (prefix: string, model: Model.t): unit => {
     let names = Model.scratchpad_names(model);
@@ -273,7 +273,7 @@ module Persist = {
          equality gate saved (and serialized, several MB) many times a
          second while the model spoke; gate on the fields that persist */
       let unchanged =
-        switch (Stdlib.Hashtbl.find_opt(last_saved_agent, agent_key_str)) {
+        switch (Hashtbl.find(last_saved_agent, agent_key_str)) {
         | Some(prev) =>
           let prev: Agent.Model.t = prev;
           phys_equal(prev, agent)
@@ -298,14 +298,14 @@ module Persist = {
         || Option.is_some(agent.pending_dispatch_send);
       let now = JsUtil.timestamp();
       let recently =
-        switch (Stdlib.Hashtbl.find_opt(last_agent_save_ts, agent_key_str)) {
+        switch (Hashtbl.find(last_agent_save_ts, agent_key_str)) {
         | Some(t) => Float.(now -. t < 10000.)
         | None => false
         };
       if (!unchanged && !(busy && recently)) {
         save_agent(prefix, sp.name, Agent.Persistent.persist(agent));
-        Stdlib.Hashtbl.replace(last_saved_agent, agent_key_str, agent);
-        Stdlib.Hashtbl.replace(last_agent_save_ts, agent_key_str, now);
+        Hashtbl.set(last_saved_agent, ~key=agent_key_str, ~data=agent);
+        Hashtbl.set(last_agent_save_ts, ~key=agent_key_str, ~data=now);
       };
     | (false, Drv(_)) =>
       switch (Scratchpad.persist(sp).kind) {
