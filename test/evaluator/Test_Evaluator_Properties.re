@@ -439,9 +439,9 @@ let check_incremental_against_fresh_after_edit =
   };
 };
 
-/* Disabled: fails on any seed that draws the shape below — known bug
-   https://github.com/hazelgrove/hazel/issues/2457. The test below pins that
-   counterexample and goes red once it is fixed. */
+/* Disabled: known bug https://github.com/hazelgrove/hazel/issues/2457. Its
+   original counterexample, pinned below, is a module, and no longer
+   reproduces now that modules elaborate to modules. */
 let qcheck_incremental_matches_fresh_after_edit_disabled =
   test_case(
     "Incremental eval agrees with fresh eval after a literal edit (disabled, #2457)",
@@ -476,7 +476,6 @@ let qcheck_incremental_matches_fresh_after_edit_disabled =
     }
   });
 
-/* #2457's counterexample; the QCheck property stays disabled. */
 let incremental_literal_edit_test =
   test_case(
     "#2457 counterexample: incremental eval agrees with fresh after a literal edit",

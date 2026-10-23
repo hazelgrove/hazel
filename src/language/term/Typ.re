@@ -598,8 +598,9 @@ let remove_duplicate_labels =
   List.rev(rev_deduplicated);
 };
 
-/* Out of fuel, returns [ty] unreduced: a type like `let m : { type T = m.T }`
-   with an outer `m` has no weak head normal form. */
+/* Fuel bounds the walk, so a path with no weak head normal form, like `m.T`
+   in `let m : { type T = m.T }` with an outer `m`, normalizes to `?` (the
+   path never resolves) instead of crashing. */
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
   if (rec_counter > 1000) {
     ty;
