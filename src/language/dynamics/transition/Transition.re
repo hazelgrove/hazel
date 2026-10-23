@@ -1462,13 +1462,22 @@ module Transition = (EV: EV_MODE) => {
               })
             };
           };
-        /* Elaboration drops type items and turns `module` items into lets. */
-        | ModType(_, _)
-        | ModuleMod(_, _)
-        | ModVal(_, _)
+        /* A hole item binds nothing, as `1; ?; 2` sequences past its hole. */
         | Invalid(_)
         | EmptyHole
         | MultiHole(_) =>
+          let. _ = otherwise(env, d);
+          Step({
+            expr: Module(prefix @ suffix) |> rewrap,
+            side_effects: [],
+            kind: ModuleDiscardExp,
+            is_value: List.is_empty(suffix),
+            at: Some(Mod.rep_id(item)),
+          });
+        /* Elaboration drops type items and turns `module` items into lets. */
+        | ModType(_, _)
+        | ModuleMod(_, _)
+        | ModVal(_, _) =>
           let. _ = otherwise(env, d);
           Indet;
         };
