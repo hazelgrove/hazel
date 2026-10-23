@@ -51,14 +51,26 @@ let tests = (
         ),
       )
     ),
-    test_case("string_escaped", `Quick, () =>
-      parse_and_evaluate_test({|"\\\\hello"|}, {|string_escaped("\hello")|})
+    test_case("string literal decodes escaped backslash", `Quick, () =>
+      evaluation_test("string literal decodes escaped backslash",
+      string("\\hello"), parse_exp({|"\\hello"|})),
     ),
     test_case("string_escaped_tab", `Quick, () =>
-      parse_and_evaluate_test({|"\\t"|}, {|string_escaped("\t")|})
+      evaluation_test("string literal decodes escaped tab",
+      string("\t"), parse_exp({|"\t"|})),
     ),
-    test_case("string_unescaped_backslash_n", `Quick, () =>
-      parse_and_evaluate_test({|"\n"|}, {|string_unescaped("\\n")|})
+    test_case("string_unescaped_newline", `Quick, () =>
+      evaluation_test("string literal decodes unescaped newline",
+      string("\n"), parse_exp({|"\n"|})),
+    ),
+    test_case("escaped string comparison", `Quick, () =>
+      parse_and_evaluate_test({|"A"|}, {|"\x41"|})
+    ),
+    test_case("escaped string comparison to raw string", `Quick, () =>
+      parse_and_evaluate_test("false", {|"\x41"==r"\x41"|})
+    ),
+    test_case("escaped string comparison to raw string of the same value", `Quick, () =>
+      parse_and_evaluate_test({|r"A"|}, {|"\x41"|})
     ),
     test_case("string_uppercase", `Quick, () =>
       parse_and_evaluate_test({|"HELLO"|}, {|string_uppercase("hello")|})
@@ -172,15 +184,6 @@ let tests = (
     ),
     test_case("string_escaped multiple escapes (newline and tab)", `Quick, () =>
       parse_and_evaluate_test({|"\\n\\t"|}, {|string_escaped("\n\t")|})
-    ),
-    test_case("string_escaped single backslash", `Quick, () =>
-      parse_and_evaluate_test({|"\\\\"|}, {|string_escaped("\\")|})
-    ),
-    test_case("string_unescaped tab character", `Quick, () =>
-      parse_and_evaluate_test({|"\t"|}, {|string_unescaped("\\t")|})
-    ),
-    test_case("string_unescaped backslash", `Quick, () =>
-      parse_and_evaluate_test({|"\\"|}, {|string_unescaped("\\\\")|})
     ),
     test_case(
       "string_match regex with standard string digit escape", `Quick, () =>
