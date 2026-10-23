@@ -342,6 +342,25 @@ let rec count_unknowns = (ty: t): int =>
 
 let contains_unknown = (ty: t): bool => count_unknowns(ty) > 0;
 
+/* Whether substituting `s` for `x` continues past a signature item (see the
+   `Sig` arm of [subst]). It stops at a type member that shadows `x`, and at
+   one named like a free variable of `s`: that member captures `s` if `x`
+   occurs after it. */
+type sig_item_subst =
+  | Continue
+  | Stop
+  | Capture(Var.t);
+
+let sig_item_subst =
+    (~fv_s: list(Var.t), x: Var.t, item: Sig.t, rest: list(Sig.t))
+    : sig_item_subst =>
+  switch (Sig.member_of_item(item)) {
+  | Some(TypeManifest(n, _)) when String.equal(n, x) => Stop
+  | Some(TypeManifest(n, _)) when List.mem(n, fv_s) =>
+    List.mem(x, free_vars(Sig(rest) |> temp)) ? Capture(n) : Stop
+  | _ => Continue
+  };
+
 /* Capture-avoiding substitution of `s` for `x` in `ty`.
 
    When recursing under a type binder `Poly(tp2, body)` or `Rec(tp2, body)`
@@ -401,39 +420,23 @@ let rec subst_impl = (~on_capture: Var.t => unit, s: t, x: TPat.t, ty: t): t => 
     | Sig(items) =>
       /* A type member binds its name for the items after it, and that name
          is also the member's label (`M.T`), so unlike Poly/Rec it cannot be
-         alpha-renamed. A free variable of `s` spelled like a member would be
-         captured by it: the items after that member are degraded to `?`
-         instead, and the collision is reported through [on_capture]. */
-      let fv_s = free_vars(s);
-      let rec go = (items: list(Sig.t)) =>
+         alpha-renamed. Where it would capture a free variable of `s`, `x` is
+         replaced by `?` in the items after it instead, and the member is
+         reported through [on_capture]. */
+      let rec go = (s, fv_s, items: list(Sig.t)) =>
         switch (items) {
         | [] => []
         | [item, ...rest] =>
           let item' = Sig.map_typ(subst(s, x), item);
-          switch (Sig.member_of_item(item)) {
-          | Some(TypeManifest(n, _)) when n == str => [item', ...rest]
-          /* Only an item after the member that mentions `x` would receive a
-             captured `s`; with none, nothing is substituted or degraded. */
-          | Some(TypeManifest(n, _))
-              when
-                List.mem(n, fv_s)
-                && List.mem(str, free_vars(Sig(rest) |> temp)) =>
+          switch (sig_item_subst(~fv_s, str, item, rest)) {
+          | Continue => [item', ...go(s, fv_s, rest)]
+          | Stop => [item', ...rest]
+          | Capture(n) =>
             on_capture(n);
-            [
-              item',
-              ...List.map(
-                   Sig.map_typ(subst(Unknown(Internal) |> temp, x)),
-                   rest,
-                 ),
-            ];
-          | Some(TypeManifest(n, _)) when List.mem(n, fv_s) => [
-              item',
-              ...rest,
-            ]
-          | _ => [item', ...go(rest)]
+            [item', ...go(Unknown(Internal) |> temp, [], rest)];
           };
         };
-      Sig(go(items)) |> rewrap;
+      Sig(go(s, free_vars(s), items)) |> rewrap;
     | DrvQuoteTy(_) => ty
     };
   | None => ty

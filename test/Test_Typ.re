@@ -913,6 +913,31 @@ let subst_captures_tests = {
         sg([sv("m", sg([st("T", ti), sv("v", a_to_int)]))]),
         ["T"],
       ),
+      test_case(
+        "subst: a member rebinding x after a capture keeps its later uses",
+        `Quick,
+        () =>
+        check(
+          typ,
+          "substituted",
+          sg([
+            st("T", ti),
+            sv("u", F.Typ.arrow(F.Typ.unknown(Internal), ti)),
+            st("a", ti),
+            sv("v", a_to_int),
+          ]),
+          Typ.subst(
+            t_var,
+            a,
+            sg([
+              st("T", ti),
+              sv("u", a_to_int),
+              st("a", ti),
+              sv("v", a_to_int),
+            ]),
+          ),
+        )
+      ),
     ],
   );
 };
