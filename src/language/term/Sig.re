@@ -56,13 +56,6 @@ type member =
   | Val(Var.t, TermBase.Typ.t)
   | TypeManifest(Var.t, TermBase.Typ.t);
 
-let typ_temp = (term: TermBase.Typ.term): TermBase.Typ.t => {
-  term,
-  annotation: IdTagged.IdTag.temp(),
-};
-
-let unknown_typ = () => typ_temp(Unknown(Internal));
-
 let rec var_of_pat = (p: TermBase.Pat.t): option(Var.t) =>
   switch (p.term) {
   | Var(x) => Some(x)
@@ -73,7 +66,7 @@ let rec var_of_pat = (p: TermBase.Pat.t): option(Var.t) =>
 let rec val_of_pat = (p: TermBase.Pat.t): option(member) =>
   switch (p.term) {
   | Parens(p) => val_of_pat(p)
-  | Var(x) => Some(Val(x, unknown_typ()))
+  | Var(x) => Some(Val(x, TempGrammar.Typ.unknown(Internal)))
   | Asc(p', ty) =>
     switch (var_of_pat(p')) {
     | Some(x) => Some(Val(x, ty))
@@ -93,7 +86,7 @@ let rec name_of_mpat = (mp: TermBase.MPat.t): option(Var.t) =>
 
 let val_of_mpat = (mp: TermBase.MPat.t): option(member) =>
   switch (mp.term) {
-  | Var(x) => Some(Val(x, unknown_typ()))
+  | Var(x) => Some(Val(x, TempGrammar.Typ.unknown(Internal)))
   | Asc(inner, ty) => name_of_mpat(inner) |> Option.map(x => Val(x, ty))
   | Invalid(_)
   | EmptyHole
@@ -114,47 +107,22 @@ let member_of_item = (item: t): option(member) =>
 let members = (items: list(t)): list(member) =>
   List.filter_map(member_of_item, items);
 
-let pat_var = (x: Var.t): TermBase.Pat.t => {
-  term: Var(x),
-  annotation: IdTagged.IdTag.temp(),
-};
-
-let mpat_var = (x: Var.t): TermBase.MPat.t => {
-  term: Var(x),
-  annotation: IdTagged.IdTag.temp(),
-};
-
 let item_of_member = (m: member): t =>
   switch (m) {
-  | Val(x, ty) =>
-    let asc: TermBase.Pat.t = {
-      term: Asc(pat_var(x), ty),
-      annotation: IdTagged.IdTag.temp(),
-    };
-    temp(SigLet(asc));
-  | TypeManifest(name, ty) =>
-    let tpat: TermBase.TPat.t = {
-      term: Var(name),
-      annotation: IdTagged.IdTag.temp(),
-    };
-    temp(SigType(tpat, ty));
+  | Val(x, ty) => TempGrammar.(Sig.sig_let(Pat.asc(Pat.var(x), ty)))
+  | TypeManifest(name, ty) => TempGrammar.(Sig.sig_type(TPat.var(name), ty))
   };
 
 /* `module m : ty` — a sub-module member. */
-let module_item = (name: Var.t, ty: TermBase.Typ.t): t => {
-  let asc: TermBase.MPat.t = {
-    term: Asc(mpat_var(name), ty),
-    annotation: IdTagged.IdTag.temp(),
-  };
-  temp(SigModule(asc));
-};
+let module_item = (name: Var.t, ty: TermBase.Typ.t): t =>
+  TempGrammar.(Sig.sig_module(MPat.asc(MPat.var(name), ty)));
 
 /* Apply [f] to the type carried by a well-formed item, keeping the item's
    form (`let`, `type` or `module`). A member written without a type carries
    `?`; it gains an ascription only if [f] refines that. */
 let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
   let refined = (): option(TermBase.Typ.t) =>
-    switch (f(unknown_typ())) {
+    switch (f(TempGrammar.Typ.unknown(Internal))) {
     | {term: Unknown(_), _} => None
     | ty => Some(ty)
     };
@@ -172,7 +140,7 @@ let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
       switch (refined()) {
       | Some(ty) => {
           ...p,
-          term: (Asc(pat_var(x), ty): TermBase.Pat.term),
+          term: (Asc(TempGrammar.Pat.var(x), ty): TermBase.Pat.term),
         }
       | None => p
       }
@@ -188,7 +156,7 @@ let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
       switch (refined()) {
       | Some(ty) => {
           ...mp,
-          term: (Asc(mpat_var(x), ty): TermBase.MPat.term),
+          term: (Asc(TempGrammar.MPat.var(x), ty): TermBase.MPat.term),
         }
       | None => mp
       }
