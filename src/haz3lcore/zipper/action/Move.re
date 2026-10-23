@@ -412,7 +412,7 @@ let to_linebreak = (d: Direction.t, z: t): option(t) => {
 let to_next_problem =
     (
       ~measured: Measured.t,
-      ~problem_ids: Stdlib.Seq.t(Id.t),
+      ~problem_ids: Sequence.t(Id.t),
       d: Direction.t,
       z: t,
     )
@@ -421,13 +421,13 @@ let to_next_problem =
   /* Sort problem IDs by measured position */
   let sorted =
     problem_ids
-    |> Stdlib.Seq.filter_map(id =>
+    |> Sequence.filter_map(~f=id =>
          switch (Measured.find_by_id(id, measured)) {
          | Some({origin, _}) => Some((id, origin))
          | None => None
          }
        )
-    |> Stdlib.List.of_seq
+    |> Sequence.to_list
     |> List.sort(~compare=((_, p1), (_, p2)) => Point.compare(p1, p2));
   switch (sorted) {
   | [] => None
@@ -466,7 +466,7 @@ let to_next_problem =
 let move_dispatch =
     (
       ~statics: Language.Statics.Map.t,
-      ~problem_ids: Stdlib.Seq.t(Id.t),
+      ~problem_ids: Sequence.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
       ~refractor_rows: Id.Map.t(int),
@@ -527,7 +527,7 @@ let rec skip_indent = (~fuel=10000, d: Direction.t, z: t): t =>
 let go =
     (
       ~statics: Language.Statics.Map.t,
-      ~problem_ids: Stdlib.Seq.t(Id.t),
+      ~problem_ids: Sequence.t(Id.t),
       ~col_target: int,
       ~measured: Measured.t,
       ~refractor_rows: Id.Map.t(int),
