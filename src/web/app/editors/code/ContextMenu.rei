@@ -1,5 +1,6 @@
-/* The editor context menu, driven entirely by CodeEditable. `WithContext` is
-   the update/key-handling pair; menu construction is private. */
+/* The editor's right-click menu: what it offers for the term at the caret
+   (probes, statics, go-to, introduce, select, projectors) and where it opens.
+   The menu's state and keyboard behavior are Util.Menu's. */
 
 module Model = Util.Menu;
 
@@ -17,6 +18,7 @@ module WithContext: {
       Util.Menu.t
     ) =>
     Util.Menu.t;
+  /** `None` for keys the menu doesn't handle, so the editor sees them. */
   let handle_listener_key:
     (
       ~info_map: Language.Statics.Map.t,
