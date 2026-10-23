@@ -1,6 +1,6 @@
-/* Cursor inspector. `view` is the bar Page renders; the four sort-specific
-   views are reused by ProblemSidebar. Everything that builds their contents
-   is private. */
+/* The cursor inspector: the bar describing the term at the cursor -- its
+   class, type and any error. Each sort-specific view renders that
+   description for a given info on its own. */
 
 let exp_view:
   (
@@ -44,8 +44,7 @@ let view:
   (~globals: Globals.t, Cursor.cursor(Editors.Update.t)) =>
   Virtual_dom.Vdom.Node.t;
 
-/* The info the bar describes: the implied hole's when quiver is on, else the
-   cursor's. Exported only because Test_ImpliedHole checks it; no other
-   caller. */
+/** The info the bar describes: the implied hole's when quiver is on, else
+    the cursor's. Exported for Test_ImpliedHole. */
 let info_for_view:
   (~quiver: bool, Cursor.cursor('action)) => option(Language.Info.t);

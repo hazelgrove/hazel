@@ -1,5 +1,4 @@
-/* The sidebar shell. Page composes this; the per-panel view helpers and
-   collapse plumbing are private. */
+/* The sidebar: its tab bar and whichever panel is open. */
 
 let view:
   (

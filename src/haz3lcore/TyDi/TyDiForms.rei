@@ -9,8 +9,8 @@ let suggest_operand: Language.Info.t => list(TyDiSuggestion.t);
 
 let suggest_leading: Language.Info.t => list(TyDiSuggestion.t);
 
-/* The delimiter sets and the tables derived from them, exported only because
-   Test_TyDi checks the derivation directly; no src/ caller. */
+/* The delimiter sets and the tables derived from them. Exported for
+   Test_TyDi. */
 module Delims: {
   let leading: Language.Sort.t => list(string);
   let infix: Language.Sort.t => list(string);

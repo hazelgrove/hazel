@@ -1,6 +1,5 @@
 /* Renders a segment or zipper as plain text with each probe's recorded value
-   inlined at the probe, for consumers with no DOM: the CLI, the composition
-   agent and the debug console. `~window` selects how much of a probe's sample
+   inlined at the probe, for anywhere without a DOM. `~window` selects how much of a probe's sample
    history is shown. */
 
 let of_segment:
