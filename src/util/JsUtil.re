@@ -164,6 +164,33 @@ let install_text_selection_guards = (): unit =>
     [||],
   );
 
+/* a selection within the focused element: a drawer's text, say, whose
+   copy is the browser's, not the element's own */
+let selection_in_focus = (): bool =>
+  Js.to_bool(
+    Js.Unsafe.fun_call(
+      Js.Unsafe.pure_js_expr(
+        {|(function(){
+          var s = window.getSelection(), a = document.activeElement;
+          return !!s && !s.isCollapsed && !!a
+            && a.contains(s.anchorNode) && a.contains(s.focusNode);
+        })|},
+      ),
+      [||],
+    ),
+  );
+
+let clear_page_selection = (): unit =>
+  Js.Unsafe.fun_call(
+    Js.Unsafe.pure_js_expr(
+      {|(function(){
+          var s = window.getSelection();
+          if (s) s.removeAllRanges();
+        })|},
+    ),
+    [||],
+  );
+
 /* The caret is CSS-gated on `.code-editor:focus`, so the .code-editor element
    itself must hold DOM focus. preventScroll: don't fight an in-progress
    jump/scroll. */
