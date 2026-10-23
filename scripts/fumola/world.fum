@@ -1,0 +1,28 @@
+func no_way(kind, d) { kind == "waterfall" and d == "N" };
+func member(s, xs) { var found = false; for (x in xs.vals()) { if (x == s) { found := true } }; found };
+func opp(d) { if (d == "N") { "S" } else if (d == "NE") { "SW" } else if (d == "E") { "W" } else if (d == "SE") { "NW" } else if (d == "S") { "N" } else if (d == "SW") { "NE" } else if (d == "W") { "E" } else if (d == "NW") { "SE" } else { "" } };
+func step(c, r, d, cols, rows) {
+  let up = d == "N" or d == "NE" or d == "NW";
+  let down = d == "S" or d == "SE" or d == "SW";
+  let left = d == "W" or d == "NW" or d == "SW";
+  let right = d == "E" or d == "NE" or d == "SE";
+  if ((up and r == 0) or (left and c == 0)) { null }
+  else {
+    let c2 = if (left) { c - 1 } else if (right) { c + 1 } else { c };
+    let r2 = if (up) { r - 1 } else if (down) { r + 1 } else { r };
+    if (c2 < cols and r2 < rows) { ?(c2, r2) } else { null }
+  }
+};
+func decide(x, back, c, r) { if (member(back, x.ways) and (no_way(x.kind, back) == false)) { #GoSquare((c, r, back, #Done)) } else { #Done } };
+func find_at(cs, i, n, c, r) { if (i == n) { null } else { let x = cs[i]; if (x.col == c and x.row == r) { ?x } else { find_at(cs, i + 1, n, c, r) } } };
+func world_list(g, e) {
+  switch (e) {
+    case (#Way(d)) {
+      switch (step(g.at_col, g.at_row, d, g.cols, g.rows)) {
+        case (?(c, r)) { switch (find_at(g.cells, 0, g.cells.size(), c, r)) { case (?x) { decide(x, opp(d), c, r) }; case null { #Done } } };
+        case null { #Done }
+      }
+    };
+    case _ { #Done }
+  }
+}

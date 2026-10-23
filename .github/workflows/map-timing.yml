@@ -1,10 +1,12 @@
 # MEASURING ONLY (^ticket(553)): the World rule with the world's squares held in a map, on GitHub's machines, never the
-# laptop. An orphan branch: only this workflow runs. The rule texts are the game's own, from kids-choice-games' branch
-# hazel-map-553 (dress-up/js/25-scripting.js: Common.squares, World.with_squares, beside World.on_event as shipped). Two
-# deployed library builds from hazelgrove/build, no compiling: trial/r25-553 (trial/r25-best with ^ticket(547)'s whole
-# closures, ^ticket(548)'s list ascription and ^ticket(551)'s handles) and trial/r25-best (^report(27)'s Hazel at its
-# best). Each of four jobs runs scripts/map553.mjs on both, best, 553, 553, best, sizes 3x3 to 64x64 as ^report(27):
-# first a check (the map rule and the shipped one agree on a shuffled random world), then the times. The last job tabulates.
+# laptop. An orphan branch: only this workflow runs.
+#
+# Second run: Hazel's map against Fumola's, like for like on one runner. Each of four jobs builds Fumola's wasm from
+# 667a34d (^report(27)'s pin) and runs, in the order hazel, fumola, fumola, hazel: Hazel's map rule (scripts/map553.mjs on
+# trial/r25-553, the game's own rule texts from kids-choice-games' hazel-map-553) and ^report(27)'s Fumola driver
+# (scripts/fumola/measure.mjs, world.fum, held.fum.js: the map passed, the neighbours, held as a list, held as a HashMap).
+# The first run (39886598556, this branch's first commit) timed Hazel's map against the rule as shipped, on trial/r25-553
+# and trial/r25-best.
 name: Map timing (^ticket(553))
 
 on:
@@ -14,15 +16,15 @@ on:
 
 env:
   B553: debbc6e6877560c6296a48d85107607164dc5626
-  BEST: b34d943d73010b5f24d09ede8be4a939b9dc80b6
   KCG: dac7bc671c23fa44be97b3d6bc05c257e237c3c8
+  FUMOLA: 667a34d5f24b52c9ed1355703294ab58e7acb6fc
   SIZES: "3,4,6,8,12,16,24,32,48,64"
 
 jobs:
   map:
-    name: Map (${{ matrix.job }})
+    name: Hazel and Fumola (${{ matrix.job }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
@@ -37,16 +39,33 @@ jobs:
           sparse-checkout: trial/r25-553
       - uses: actions/checkout@v4
         with:
-          repository: hazelgrove/build
-          ref: ${{ env.BEST }}
-          path: b/best
-          sparse-checkout: trial/r25-best
-      - uses: actions/checkout@v4
-        with:
           repository: matthewhammer/kids-choice-games
           ref: ${{ env.KCG }}
           path: kcg
           sparse-checkout: dress-up/js
+      - uses: actions/checkout@v4
+        with:
+          repository: Adapton/fumola
+          ref: ${{ env.FUMOLA }}
+          path: fumola
+      - name: Install nightly with the wasm target
+        run: |
+          rustup toolchain install nightly --profile minimal
+          rustup default nightly
+          rustup target add wasm32-unknown-unknown
+      - name: Install wasm-bindgen-cli (the version the crate resolves to)
+        working-directory: fumola
+        run: |
+          set -euo pipefail
+          version=$(cargo metadata --format-version 1 | jq -r '.packages[] | select(.name == "wasm-bindgen") | .version' | head -1)
+          test -n "$version"
+          cargo install wasm-bindgen-cli --version "$version" --force
+      - name: Build Fumola's wasm
+        working-directory: fumola
+        run: |
+          cargo build --release --target wasm32-unknown-unknown -p fumola_wasm --no-default-features
+          wasm-bindgen --target web --out-dir "$GITHUB_WORKSPACE/bindings" target/wasm32-unknown-unknown/release/fumola_wasm.wasm
+          sha256sum "$GITHUB_WORKSPACE"/bindings/*
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -54,15 +73,18 @@ jobs:
         run: |
           mkdir -p out
           { echo "${{ matrix.job }}:"; lscpu | grep -E 'Model name'; node --version; } | tee out/runner.txt
-      - name: Best, 553, 553, best
+      - name: Hazel, Fumola, Fumola, Hazel
         run: |
           set -euo pipefail
           round=0
-          for side in best 553 553 best; do
+          for side in hazel fumola fumola hazel; do
             round=$((round + 1))
-            dir=$(case $side in best) echo r25-best;; 553) echo r25-553;; esac)
             echo "== $round $side"
-            node --stack-size=8000 scripts/map553.mjs "b/$side/trial/$dir/hazel-lib.js" kcg/dress-up/js/25-scripting.js "$SIZES" "out/${side}_$round.json"
+            if [ "$side" = hazel ]; then
+              node --stack-size=8000 scripts/map553.mjs b/553/trial/r25-553/hazel-lib.js kcg/dress-up/js/25-scripting.js "$SIZES" "out/hazel_$round.json"
+            else
+              node scripts/fumola/measure.mjs "$GITHUB_WORKSPACE/bindings" scripts/fumola/world.fum "$SIZES" "out/fumola_$round.json"
+            fi
           done
       - uses: actions/upload-artifact@v4
         if: always()
@@ -81,7 +103,7 @@ jobs:
           pattern: job-*
           path: all
       - name: Summary
-        run: python3 scripts/summary553.py all | tee summary.md >> "$GITHUB_STEP_SUMMARY"
+        run: python3 scripts/summary553f.py all | tee summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: summary
