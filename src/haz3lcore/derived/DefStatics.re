@@ -152,20 +152,6 @@ let lower_item = (~ana_labels=[], item: Mod.t): Exp.t =>
     Exp.fresh(EmptyHole),
   );
 
-/* a signature type copied onto a member gets ids derived from the
-   member's, so the wrapper compares equal across runs */
-let retag = (item, tag: IdTagged.IdTag.t): IdTagged.IdTag.t => {
-  ...IdTagged.IdTag.fresh(),
-  ids:
-    List.map(
-      id =>
-        Id.mk_str(
-          "ana:" ++ Id.to_string(Mod.rep_id(item)) ++ Id.to_string(id),
-        ),
-      tag.ids,
-    ),
-};
-
 /* the module value [node] elaborates to, from its lowered chain's elab */
 let module_elab = (node: Exp.t, items: list(Mod.t), chain_elab: Exp.t): Exp.t => {
   ...node,
@@ -960,8 +946,8 @@ let nest_map =
    exports for members it holds unchanged (with the same expectations from
    [ana_items], the signature it is analyzed against), plus the exports
    tail, which mentions every export (any export delta re-analyzes it) and
-   takes its ids from [rep] and the export names. returns the nodes, the
-   members' lowerings and the exported names */
+   takes its ids from [rep]. returns the nodes, the members' lowerings and
+   the exported names (ModuleHelpers.exported_names) */
 let lower_members =
     (
       ~prev: option(lowering),
@@ -978,7 +964,7 @@ let lower_members =
     List.map2(
       (m: Mod.t, ana) =>
         switch (Id.Map.find_opt(Mod.rep_id(m), by_id)) {
-        | Some(l) when l.l_src === m && l.l_ana == ana => l
+        | Some(l) when l.l_src === m && compare(l.l_ana, ana) == 0 => l
         | _ => {
             l_src: m,
             l_ana: ana,
@@ -989,7 +975,7 @@ let lower_members =
           }
         },
       members,
-      ModuleHelpers.item_ana_labels(~retag, ~ana_items, members),
+      ModuleHelpers.item_ana_labels(~ana_items, members),
     );
   /* each member's own exports, less the names a later member binds */
   let (_, exports) =
@@ -1318,8 +1304,10 @@ and calc_plain_item =
 }
 
 /* member granularity for a module literal bound to a name, plain or
-   ascribed with a signature (whose items the members are analyzed
-   against, as the monolithic lowering does) */
+   ascribed with a signature whose members it defines (and against whose
+   items the members are analyzed, as the monolithic lowering does). a
+   missing one is reported on the module and on its items, as the
+   monolithic check does: such an item is analyzed whole */
 and module_literal_members =
     (~ctx: Ctx.t, node: Exp.t)
     : option((Pat.t, Exp.t, list(Mod.t), option(list(Sig.t)))) => {
@@ -1341,8 +1329,10 @@ and module_literal_members =
     };
   let literal = (p, def: Exp.t) =>
     switch (def.term, ana(p)) {
-    | (Module(members), Some(ana_items)) =>
-      Some((p, def, members, ana_items))
+    | (Module(members), Some(None)) => Some((p, def, members, None))
+    | (Module(members), Some(Some(sig_items)))
+        when ModuleHelpers.names_meet(~ana_items=sig_items, members) =>
+      Some((p, def, members, Some(sig_items)))
     | _ => None
     };
   switch (node.term) {
@@ -1420,18 +1410,12 @@ and calc_module_item =
       members,
       chain_map,
     );
-  /* a signature the members don't meet is reported on the module and on
-     its items: the monolithic check does that, so analyze the item whole */
+  /* a type member defined otherwise than the signature's is reported on
+     the module and on its item, as the monolithic check does: analyze the
+     item whole */
   let unmet =
-    switch (ana_items) {
-    | None => false
-    | Some(_) =>
-      snd(
-        ModuleHelpers.check_ana_type_members(~ana_items, members, chain_map),
-      )
-      != []
-      || ModuleHelpers.missing_items(~ana_items, sig_ty) != []
-    };
+    snd(ModuleHelpers.check_ana_type_members(~ana_items, members, chain_map))
+    != [];
   if (unmet) {
     (calc_plain_item(~settings, ~probe_ids, ~ctx_in, node), None);
   } else {
