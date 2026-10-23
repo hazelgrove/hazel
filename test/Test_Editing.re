@@ -2758,6 +2758,20 @@ let paste_tests = [
     ~acts=mk("¦") @ [Paste("1 + 2")],
     ~goal={|1 + 2¦|},
   ),
+  /* A pasted refractor trigger keeps its target grouped (#2442) */
+  /* Compared without the caret: its column is measured on the buffer,
+     which does not hold the `^^probe` invocation text. */
+  test_case("Paste probe on binop after a tighter operator", `Quick, () =>
+    check(
+      testable(Fmt.string, String.equal),
+      "printed",
+      "2 * ^^probe(1 + 2)",
+      mk("2 * ¦")
+      @ [Paste("^^probe(1 + 2)")]
+      |> perform(Zipper.init())
+      |> Printer.of_zipper(~holes=convex_char),
+    )
+  ),
   test(
     ~name="Paste let binding at top level",
     ~acts=mk("¦") @ [Paste("let x = 1 in x")],
