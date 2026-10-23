@@ -4191,7 +4191,6 @@ and utyp_to_info_map =
       utpat_to_info_map(~ctx, ~ancestors=ancestors_inclusive, utpat, m) |> snd;
     add(m); // TODO: check with andrew
   | Sig(items) =>
-    /* Items scope sequentially: a type member is in scope for later items. */
     let (_, m) =
       List.fold_left(
         ((ctx, m), item: Sig.t) => {

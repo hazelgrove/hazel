@@ -27,8 +27,8 @@
        singleton labeled tuples,
      - `ModuleExp(mp, def, body)` (in Statics.re) which expands to
        `Let(mpat_to_pat(mp), def, body)`,
-     - `ModuleHelpers.lower` (in ModuleHelpers.re) which lowers module
-       bodies to nested Let/TyAlias wrappers for type checking.
+     - `ModuleHelpers.lower` which lowers module bodies to nested
+       Let/TyAlias wrappers for type checking.
 
    All of these reuse the id (and formatting secondary) of the surface
    term for the desugared outer term by going through `Exp.unwrap`, so
@@ -36,10 +36,8 @@
    user's original ids. */
 
 /* Match `Ap(Var(f), args)`, the inner head of the sugar. The name may carry
-   an ascription, `Ap(Asc(Var(f), ty), args)`. That shape is not surface
-   syntax (a user annotates the name in parentheses); the lowering of a module
-   body annotates a member with the type its signature expects, see
-   `ModuleHelpers.modlet_pat`.
+   an ascription, `Ap(Asc(Var(f), ty), args)`, as `ModuleHelpers.modlet_pat`
+   produces.
 
    For the nullary form `f()`, the parser tags the empty tuple with
    `Id.nullary_ap_flag` so it can be distinguished from a 0-tuple
@@ -79,7 +77,7 @@ let detect = (pat: Pat.t): option((Pat.t, Pat.t, option(Typ.t))) => {
 };
 
 /* The pattern that names the binding: the function name for the sugar, the
-   pattern itself otherwise. A module body reads its members through this. */
+   pattern itself otherwise. */
 let binder = (pat: Pat.t): Pat.t =>
   switch (detect(pat)) {
   | Some((f_name, _, _)) => f_name

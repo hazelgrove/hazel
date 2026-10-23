@@ -87,8 +87,7 @@ let rec pat_for_bound_name = (name: Var.t, pat: Pat.t): Pat.t =>
   | _ => pat
   };
 
-/* A `let f(x) = ...` item binds `f`; its binder is read through
-   `FunctionSugar.binder`, as the shorthand's parameters are not members. */
+/* `let f(x) = ...` binds only `f`. */
 let item_bound_names = (item: Mod.t): list(Var.t) =>
   switch (item.term) {
   | ModLet(pat, _) => Pat.bound_vars(FunctionSugar.binder(pat))
@@ -162,13 +161,10 @@ let ana_value_types =
        )
   };
 
-/* Annotate each bare variable binder in a pattern with the type its
-   signature expects, so a mismatch is reported on the definition (or on the
-   component of a destructured definition) rather than on the module:
-   `(a, b)` becomes `(a : Int, b : Int)`. A binder the user annotated keeps
-   its annotation. The function shorthand `let f(x) = ...` is annotated at
-   its name: the `Let` case of statics then desugars it as it does any other
-   shorthand. */
+/* Ascribe each bare variable binder its expected type from [ana_labels], so
+   a mismatch is reported on the binder: `(a, b)` becomes
+   `(a : Int, b : Int)`. User annotations are kept; for `let f(x) = ...` the
+   name is annotated. */
 let rec modlet_pat = (ana_labels: list((Var.t, Typ.t)), pat: Pat.t): Pat.t => {
   let go = modlet_pat(ana_labels);
   let rewrap = (term: Pat.term): Pat.t => {
@@ -244,13 +240,9 @@ let wrap_item =
     Exp.fresh(Let(Pat.fresh(Wild), e, body));
   };
 
-/* Lower module items to nested Let/TyAlias wrappers for type checking. The
-   wrappers carry the Mod item ids. The tail mentions every exported binding
-   so that exports count as used; its type is otherwise irrelevant: the
-   module's type is computed by `module_sig_type` and its elaboration is
-   refolded by `refold_module_elab`. Only the binders an item exports are
-   annotated with the signature's expectation: a definition a later item
-   shadows is synthesized, not checked against the signature. */
+/* The wrappers carry the Mod item ids; the tail mentions each export so it
+   counts as used. Only an item's exported binders get the signature's
+   expectation: a shadowed definition is synthesized. */
 let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
   let defined =
     List.concat_map(
@@ -290,15 +282,14 @@ let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
   );
 };
 
-/* Rewrite InfoExp cls for expanded module items to keep cursor inspector labels. */
+/* Give each item's wrapper info the item's cls and the type of the member it
+   declares; the wrapper's own type is that of the rest of the chain. */
 let reclassify_expanded_module_items =
     (items: list(Mod.t), m: StaticsBase.Map.t) =>
   List.fold_left(
     (m, item: Mod.t) => {
       let ids = IdTagged.ids(item);
       let mod_cls = Cls.Mod(Mod.cls_of_term(item.term));
-      /* The wrapper's own type is the type of the rest of the chain, which
-         is meaningless for the item; show the member it declares instead. */
       let pat_ty = id =>
         StaticsBase.Map.lookup_pat(id, m)
         |> Option.map((info: Info.pat) => info.ty);
@@ -534,8 +525,7 @@ let check_ana_type_members =
    with their elaborated definitions, in order. Type items have no runtime
    content (TyAlias elaborates to its body) and are dropped. The synthetic
    ascription `modlet_pat` adds to a bare variable binder is stripped; a
-   `module M : S = ...` item keeps its elaborated (ascribed) binder. A
-   shorthand item `let f(x) = ...` elaborates to a binding of `f`. */
+   `module M : S = ...` item keeps its elaborated (ascribed) binder. */
 let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
   /* Walk the user's pattern and its elaboration together: an ascription the
      elaboration has where the user wrote a bare variable is synthetic. */
@@ -596,6 +586,8 @@ let rec refold_module_elab = (items: list(Mod.t), elab: Exp.t): list(Mod.t) => {
         },
         ...refold_module_elab(rest, body),
       ];
+    /* Unreachable: every item but a type item lowers to a Let, which
+       elaborates to a Let. */
     | _ => items
     }
   };
