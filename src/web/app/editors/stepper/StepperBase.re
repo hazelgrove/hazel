@@ -693,11 +693,12 @@ and Stepper: {
         switch (application) {
         | None => model |> return_quiet
         | Some({name, at_idx, at_exp, direction}) =>
+          ProofStepAnimation.accept();
           update(
             ~settings,
             AddAxiomStep(name, at_idx, at_exp, direction, name),
             model,
-          )
+          );
         };
       | (DragRewrite(_, _, _), _, _) => model |> return_quiet
       | (AddInduction(exp), MissingStep(_), _) =>
@@ -1132,7 +1133,17 @@ and Stepper: {
         WebUtil.[
           Node.div(
             ~attrs=
-              [Attr.class_("step-border")]
+              [
+                Attr.class_("step-border"),
+                Attr.create(
+                  "data-proof-step",
+                  switch (model.step_kind) {
+                  | MissingStep(_) => "open"
+                  | AxiomStep(_) => "axiom"
+                  | _ => "other"
+                  },
+                ),
+              ]
               @ (is_skipped_step ? [Attr.class_("hidden")] : []),
             [
               WebUtil.div_c(

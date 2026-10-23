@@ -330,6 +330,10 @@ let start = default_model => {
         }) {
         | _ => ()
         };
+        ProofStepAnimation.go(
+          ~enabled=
+            model.model.current.current.globals.settings.core.flip_animations,
+        );
       },
       (),
     );

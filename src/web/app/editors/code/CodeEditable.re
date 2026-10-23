@@ -1047,6 +1047,7 @@ module View = {
               )
             },
           ~source_handoff=Option.is_none(refactor_drag),
+          ~animate_step=globals.settings.core.flip_animations,
           ~focus=
             id =>
               Bonsai.Effect.Expert.handle(
