@@ -182,7 +182,7 @@ let candidates =
     ) => {
   let settings = for_drag(settings);
   let rules = rules(~info_map, ~term, ~env);
-  let render = e =>
+  let render = (~width=PrettySegment.default_settings.width, e) =>
     ExpToSegment.exp_to_segment(
       ~settings=
         ExpToSegment.Settings.of_core(
@@ -192,7 +192,7 @@ let candidates =
         ),
       for_display(settings, e),
     )
-    |> PrettySegment.prettify;
+    |> PrettySegment.prettify(~width);
   let render_correspondence = e =>
     ExpToSegment.exp_to_segment(
       ~settings=
@@ -207,8 +207,15 @@ let candidates =
   let theorems: RefactorDrag.theorem_source = {
     rules,
     env,
-    render,
+    render: e => render(e),
     measure: measure(~info_map, ~shape_map),
+    /* Use unwrapped displacement relative to the live grip. Existing
+       structural line breaks remain; introducing/removing a soft wrap in
+       the preview cannot turn a rightward pull into down-and-left. */
+    gesture_layout:
+      Some(
+        e => render(~width=max_int, e) |> measure(~info_map, ~shape_map),
+      ),
     /* A proof's next expression is freshly identified on replay. Source
        binder-id preservation is not a validity criterion for this visual
        projection; require it to depict the matched proof result faithfully. */

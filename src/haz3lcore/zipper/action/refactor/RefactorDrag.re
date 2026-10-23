@@ -134,7 +134,7 @@ module DragCandidate = {
     at: Id.t,
     label: string,
     current: Measured.Point.t, /* track start (live layout) */
-    target: Measured.Point.t, /* track end (screen frame) */
+    target: Measured.Point.t, /* gesture end; proof targets can ignore soft wraps */
     frame,
     /* entering-token ORIGINS (dragology's emergeFrom): a transform
        that DUPLICATES content (feed with surviving uses) maps each
@@ -427,6 +427,10 @@ type theorem_source = {
   env: Environment.t(Exp.t),
   render: Exp.t => Segment.t,
   measure: Segment.t => Measured.t,
+  /* Optional logical layout for gesture displacement. The ordinary segment
+     still describes the preview/result; soft wrapping must not redirect the
+     hand when a proof expression grows across a line boundary. */
+  gesture_layout: option(Exp.t => Measured.t),
   accepts: (~before: Exp.t, ~after: Exp.t, Segment.t) => bool,
   prepare:
     (~target: Id.t, ~site: Id.t, Id.t, Util.Direction.t, Exp.t) =>
@@ -721,10 +725,17 @@ let drag_candidates =
           |> SpaceNormalize.go,
         measure: segment =>
           Measured.of_segment(segment, shape_map, Id.Map.empty),
+        gesture_layout: None,
         accepts: accepts_result(~settings, ~info_map),
         prepare: RefactorTheorem.prepare_details(~info_map),
       },
       theorems,
+    );
+  let logical_grab =
+    lazy(
+      theorems.gesture_layout
+      |> Option.bind(_, layout => shard_meas(target, layout(term)))
+      |> Option.map((m: Measured.measurement) => m.origin)
     );
   let rewrites =
     switch (shard_meas(target, measured)) {
@@ -788,12 +799,41 @@ let drag_candidates =
                            switch (correspondence.destination) {
                            | Some(Live(id)) =>
                              Measured.find_by_id(id, measured)
+                             |> Option.map((m: Measured.measurement) =>
+                                  m.origin
+                                )
                            | Some(Result(id)) =>
-                             Measured.find_by_id(id, cand_measured)
+                             let physical = () =>
+                               Measured.find_by_id(id, cand_measured)
+                               |> Option.map((m: Measured.measurement) =>
+                                    m.origin
+                                  );
+                             switch (
+                               theorems.gesture_layout,
+                               Lazy.force(logical_grab),
+                             ) {
+                             | (Some(layout), Some(before)) =>
+                               switch (shard_meas(id, layout(term'))) {
+                               | Some(after) =>
+                                 Some(
+                                   Measured.Point.{
+                                     row:
+                                       anchor.origin.row
+                                       + after.origin.row
+                                       - before.row,
+                                     col:
+                                       anchor.origin.col
+                                       + after.origin.col
+                                       - before.col,
+                                   },
+                                 )
+                               | None => physical()
+                               }
+                             | _ => physical()
+                             };
                            | None => None
                            }
                          )
-                         |> Option.map((m: Measured.measurement) => m.origin)
                          |> (
                            pos =>
                              Option.bind(pos, p =>

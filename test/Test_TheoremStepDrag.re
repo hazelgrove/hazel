@@ -146,7 +146,7 @@ let fixture = (~ctx=context(), marked) => {
   (ctx, exp, model, target);
 };
 let editor = (model: S.step_model) => Calc.get_saved_exc(model.editor);
-let candidates = (~ctx, model, target) => {
+let candidates = (~ctx, ~shard=None, model, target) => {
   let e = editor(model);
   D.candidates(
     ~settings=settings.core,
@@ -156,12 +156,20 @@ let candidates = (~ctx, model, target) => {
     ~measured=e.editor.syntax.measured,
     ~shape_map=e.editor.syntax.shape_map,
     ~target,
-    ~shard=None,
+    ~shard,
     (),
   );
 };
-let choose = (~ctx, ~name="law", ~direction=Direction.Right, model, target) => {
-  let cs = candidates(~ctx, model, target);
+let choose =
+    (
+      ~ctx,
+      ~name="law",
+      ~direction=Direction.Right,
+      ~shard=None,
+      model,
+      target,
+    ) => {
+  let cs = candidates(~ctx, ~shard, model, target);
   cs
   |> List.find((c: Refactor.DragCandidate.t) =>
        switch (c.kind) {
@@ -251,6 +259,61 @@ let proof_action = (action: S.step_action): Web.Page.Update.t =>
       CellAction(ResultAction(TheoremsAction(TheoremUpdate(0, action)))),
     ),
   );
+
+let load_theorems = path => {
+  let path =
+    List.find(Sys.file_exists, [path, "../" ++ path, "../../../" ++ path]);
+  let channel = open_in_bin(path);
+  let text = really_input_string(channel, in_channel_length(channel));
+  close_in(channel);
+  let source = parse_exp(text);
+  let statics =
+    CachedStatics.init_from_term(
+      ~settings=settings.core,
+      ~is_dynamic_term=false,
+      source,
+    );
+  check(
+    int,
+    "example has no static errors",
+    0,
+    List.length(statics.error_ids),
+  );
+  let (_, state) =
+    Evaluator.evaluate(~env=Builtins.env_init, statics.elaborated);
+  let dynamics: Dynamics.t = {
+    probe_map: EvaluatorState.get_probes(state) |> Sample.Map.finalize,
+    test_results: EvaluatorState.get_tests(state) |> TestResults.mk_results,
+    theorems: EvaluatorState.get_theorems(state),
+  };
+  let theorems =
+    Web.Theorems.Update.calculate(
+      ~settings=
+        Calc.NewValue({
+          ...settings.core,
+          drag_refactor: false,
+        }),
+      ~statics=Calc.NewValue(statics),
+      ~dynamics=Calc.NewValue(Some(dynamics)),
+      Web.Theorems.Model.init,
+    );
+  /* The normal UI flow loads the program before the user turns
+     dragging on. Hidden evaluator steps must not consume its grips. */
+  let theorems =
+    Web.Theorems.Update.calculate(
+      ~settings=Calc.NewValue(settings.core),
+      ~statics=Calc.OldValue(statics),
+      ~dynamics=Calc.OldValue(Some(dynamics)),
+      theorems,
+    );
+  theorems;
+};
+
+let rec frontier = (m: S.step_model) =>
+  switch (m.next_step) {
+  | Some(next) => frontier(next)
+  | None => m
+  };
 
 let tests = [
   (
@@ -398,6 +461,104 @@ let tests = [
             "only second rewritten",
             "((a + b) + c, a + (b + c))",
             Calc.get_value(result),
+          );
+        },
+      ),
+      test_case(
+        "wrapping and unwrapping do not reverse inline proof drags",
+        `Quick,
+        () => {
+          let left = String.make(34, 'l');
+          let right = String.make(34, 'r');
+          let list_type = Typ.fresh(List(int_type));
+          let ctx =
+            context(
+              ~law=
+                "forall (left : [Int]) -> forall (right : [Int]) -> sum(left @ right) == sum(left) + sum(right)",
+              ~bindings=[
+                ("sum", Typ.fresh(Arrow(list_type, int_type))),
+                (left, list_type),
+                (right, list_type),
+              ],
+              (),
+            );
+          [
+            (Direction.Right, "sum(" ++ left ++ " @ ¦" ++ right ++ ")"),
+            (Direction.Left, "sum(" ++ left ++ ") + sum(¦" ++ right ++ ")"),
+          ]
+          |> List.iter(((direction, marked)) => {
+               let (_, exp, before, target) = fixture(~ctx, marked);
+               let c = choose(~ctx, ~direction, before, target);
+               let placed =
+                 Measured.find_by_id(target, c.measured) |> Option.get;
+               check(
+                 bool,
+                 "normal result really moves the grip between lines",
+                 true,
+                 placed.origin.row != c.current.row,
+               );
+               check(
+                 int,
+                 "gesture stays on the grabbed line",
+                 c.current.row,
+                 c.target.row,
+               );
+               check(
+                 bool,
+                 "gesture follows logical inline displacement",
+                 true,
+                 direction == Right
+                   ? c.target.col > c.current.col
+                   : c.target.col < c.current.col,
+               );
+               let updated = release(~ctx, before, target, c);
+               let (_, result, _) = calculate(~ctx, ~exp, updated.model);
+               check(
+                 visual_exp,
+                 "wrapped rewrite replays",
+                 c.term,
+                 Calc.get_value(result),
+               );
+             });
+        },
+      ),
+      test_case(
+        "a call's closing handle uses its own logical displacement",
+        `Quick,
+        () => {
+          let list_type = Typ.fresh(List(int_type));
+          let ctx =
+            context(
+              ~law=
+                "forall (left : [Int]) -> forall (right : [Int]) -> sum(left @ right) == sum(left) + sum(right)",
+              ~bindings=[
+                ("sum", Typ.fresh(Arrow(list_type, int_type))),
+                ("xs", list_type),
+                ("ys", list_type),
+              ],
+              (),
+            );
+          let (_, _, before, _) = fixture(~ctx, "sum(xs @ ¦ys)");
+          let ed = editor(before);
+          let target = Exp.rep_id(ed.statics.term);
+          let c = choose(~ctx, ~shard=Some(1), before, target);
+          let close =
+            Web.CodeFlip.find_meas(
+              ed.editor.syntax.measured,
+              Shard(target, 1),
+            )
+            |> Option.get;
+          check(
+            int,
+            "the closing delimiter is the grip",
+            close.origin.col,
+            c.current.col,
+          );
+          check(
+            int,
+            "closing handle loses only the append tail",
+            -5,
+            c.target.col - c.current.col,
           );
         },
       ),
@@ -738,60 +899,143 @@ let tests = [
         },
       ),
       test_case(
+        "triple sum stays inline and records two splits and regrouping",
+        `Quick,
+        () => {
+          let theorems =
+            load_theorems(
+              "hazel-programs/docs/refactoring/refactoring-sum-proof.hz",
+            );
+          let (_, thm) =
+            Id.Map.bindings(theorems.thm_map)
+            |> List.find(((_, t: Web.Theorems.Model.theorem)) =>
+                 t.name == "sum_three_lists"
+               );
+          let ctx = Calc.get_saved_exc(thm.sem_ctx);
+          let goal = Calc.get_saved_exc(thm.goal_exp);
+          let root = ref(thm.stepper_view.root);
+          let rec to_frontier = (m: S.step_model, action) =>
+            switch (m.next_step) {
+            | None => action
+            | Some(next) => S.NextStep(to_frontier(next, action))
+            };
+          [
+            ("sum_append", Direction.Right),
+            ("sum_append", Direction.Right),
+            ("add_associativity", Direction.Left),
+          ]
+          |> List.iteri((i, (name, direction)) => {
+               let before = frontier(root^);
+               let ed = editor(before);
+               let lhs =
+                 switch (Exp.term_of(ed.statics.term)) {
+                 | BinOp(_, lhs, _) => lhs
+                 | _ => fail("expected equality goal")
+                 };
+               let ids = ref([]);
+               let _ =
+                 Exp.map_term(
+                   ~f_exp=
+                     (cont, e) => {
+                       ids := ids^ @ [Exp.rep_id(e)];
+                       cont(e);
+                     },
+                   lhs,
+                 );
+               let c =
+                 ids^
+                 |> List.find_map(target =>
+                      candidates(~ctx, before, target)
+                      |> List.find_opt((c: Refactor.DragCandidate.t) =>
+                           switch (c.kind) {
+                           | RewriteTheorem(_, d, _) =>
+                             d == direction
+                             && String.starts_with(
+                                  ~prefix=name ++ " ",
+                                  c.label,
+                                )
+                           | _ => false
+                           }
+                         )
+                    )
+                 |> Option.get;
+               check(
+                 int,
+                 "preview does not introduce a line break",
+                 1,
+                 RefactorDrag.total_rows(c.measured),
+               );
+               let path = [(c.kind, c.at)];
+               let action =
+                 S.DragRewrite(
+                   ed.statics.term,
+                   D.environment_id(SemanticCtx.get_env(ctx)),
+                   path,
+                 );
+               let updated =
+                 S.Stepper.update(
+                   ~settings,
+                   to_frontier(root^, action),
+                   root^,
+                 );
+               let (after, result, _) =
+                 calculate(~ctx, ~exp=goal, updated.model);
+               root := after;
+               check(
+                 int,
+                 "recorded row stays inline",
+                 1,
+                 RefactorDrag.total_rows(
+                   editor(frontier(after)).editor.syntax.measured,
+                 ),
+               );
+               check(
+                 visual_exp,
+                 "candidate equals recorded result",
+                 c.term,
+                 Calc.get_value(result),
+               );
+               if (i == 2) {
+                 switch (Exp.term_of(Calc.get_value(result))) {
+                 | BinOp(_, lhs, rhs) =>
+                   check(
+                     visual_exp,
+                     "both sides agree after regrouping",
+                     lhs,
+                     rhs,
+                   )
+                 | _ => fail("expected final equality")
+                 };
+               };
+             });
+          let rec citations = (m: S.step_model) => {
+            let here =
+              switch (m.step_kind) {
+              | AxiomStep(a) => [a.equality]
+              | _ => []
+              };
+            here
+            @ (
+              m.next_step
+              |> Option.map(citations)
+              |> Option.value(~default=[])
+            );
+          };
+          check(
+            list(string),
+            "three cited rewrites",
+            ["sum_append", "sum_append", "add_associativity"],
+            citations(root^),
+          );
+        },
+      ),
+      test_case(
         "demo proof goals offer and replay list, map, and sum rewrites",
         `Quick,
         () => {
-          let path = "hazel-programs/docs/refactoring/refactoring-proof-drags.hz";
-          let path =
-            List.find(
-              Sys.file_exists,
-              [path, "../" ++ path, "../../../" ++ path],
-            );
-          let channel = open_in_bin(path);
-          let text =
-            really_input_string(channel, in_channel_length(channel));
-          close_in(channel);
-          let source = parse_exp(text);
-          let statics =
-            CachedStatics.init_from_term(
-              ~settings=settings.core,
-              ~is_dynamic_term=false,
-              source,
-            );
-          check(
-            int,
-            "example has no static errors",
-            0,
-            List.length(statics.error_ids),
-          );
-          let (_, state) =
-            Evaluator.evaluate(~env=Builtins.env_init, statics.elaborated);
-          let dynamics: Dynamics.t = {
-            probe_map:
-              EvaluatorState.get_probes(state) |> Sample.Map.finalize,
-            test_results:
-              EvaluatorState.get_tests(state) |> TestResults.mk_results,
-            theorems: EvaluatorState.get_theorems(state),
-          };
           let theorems =
-            Web.Theorems.Update.calculate(
-              ~settings=
-                Calc.NewValue({
-                  ...settings.core,
-                  drag_refactor: false,
-                }),
-              ~statics=Calc.NewValue(statics),
-              ~dynamics=Calc.NewValue(Some(dynamics)),
-              Web.Theorems.Model.init,
-            );
-          /* The normal UI flow loads the program before the user turns
-             dragging on. Hidden evaluator steps must not consume its grips. */
-          let theorems =
-            Web.Theorems.Update.calculate(
-              ~settings=Calc.NewValue(settings.core),
-              ~statics=Calc.OldValue(statics),
-              ~dynamics=Calc.OldValue(Some(dynamics)),
-              theorems,
+            load_theorems(
+              "hazel-programs/docs/refactoring/refactoring-proof-drags.hz",
             );
           [
             ("regroup_demo", "list_associativity", "zs"),

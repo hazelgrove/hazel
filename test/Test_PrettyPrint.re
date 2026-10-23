@@ -1326,7 +1326,64 @@ f(2)",
   ),
 ];
 
+let projector_width_tests = [
+  test_case(
+    "folded labels use their visible width when breaking an equation",
+    `Quick,
+    () => {
+      let input = "sum(xs) + (sum(ys) + sum(zs)) == sum(xs) + sum(ys) + sum(zs)";
+      let seg = Parser.to_segment(input, ~root=Exp) |> Option.get;
+      let seg =
+        ZipperBase.MapPiece.of_segment(
+          (p: Piece.t) =>
+            switch (p) {
+            | Tile(t) when Tile.label(t) == ["sum"] =>
+              let model =
+                FoldProj.sexp_of_t({
+                  ...FoldProj.default,
+                  text: "sum",
+                  always_render: true,
+                })
+                |> Sexplib.Sexp.to_string;
+              [Projector(ProjectorCore.mk(Fold, p, model))];
+            | _ => [p]
+            },
+          seg,
+        );
+      let pretty = PrettySegment.prettify(seg);
+      check(
+        string,
+        "a 60-column equation stays on one line",
+        input,
+        Printer.of_segment(~projector_to_segment=p => [p.syntax], pretty),
+      );
+    },
+  ),
+  test_case(
+    "fold label widths count display columns",
+    `Quick,
+    () => {
+      let syntax =
+        Parser.to_segment("sum", ~root=Exp) |> Option.get |> List.hd;
+      let model =
+        FoldProj.sexp_of_t({
+          ...FoldProj.default,
+          text: "Σ🙂",
+        })
+        |> Sexplib.Sexp.to_string;
+      let p = ProjectorCore.mk(Fold, syntax, model);
+      check(
+        int,
+        "unicode fold width",
+        3,
+        PrettySegment.piece_width(Projector(p)),
+      );
+    },
+  ),
+];
+
 let tests = [
+  ("PrettyPrint.ProjectorWidths", projector_width_tests),
   ("PrettyPrint.TrailingHoles", trailing_hole_tests),
   ("PrettyPrint.BlockFormBody", block_form_body_tests),
   ("PrettyPrint.Flat", flat_tests),
