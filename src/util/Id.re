@@ -69,7 +69,7 @@ let mk: unit => t = {
     Bytes.unsafe_set(
       scratch,
       i,
-      Stdlib.Char.unsafe_chr(Random.State.int(seed, 256)),
+      Char.unsafe_of_int(Random.State.int(seed, 256)),
     );
   };
   let lo = ref(0);
@@ -82,15 +82,15 @@ let mk: unit => t = {
     };
     let l = lo^;
     let h = hi^;
-    Bytes.unsafe_set(scratch, 0, Stdlib.Char.unsafe_chr(l land 0xff));
-    Bytes.unsafe_set(scratch, 1, Stdlib.Char.unsafe_chr(l lsr 8 land 0xff));
-    Bytes.unsafe_set(scratch, 2, Stdlib.Char.unsafe_chr(l lsr 16 land 0xff));
-    Bytes.unsafe_set(scratch, 3, Stdlib.Char.unsafe_chr(l lsr 24 land 0x3f));
-    Bytes.unsafe_set(scratch, 4, Stdlib.Char.unsafe_chr(h land 0xff));
-    Bytes.unsafe_set(scratch, 5, Stdlib.Char.unsafe_chr(h lsr 8 land 0xff));
+    Bytes.unsafe_set(scratch, 0, Char.unsafe_of_int(l land 0xff));
+    Bytes.unsafe_set(scratch, 1, Char.unsafe_of_int(l lsr 8 land 0xff));
+    Bytes.unsafe_set(scratch, 2, Char.unsafe_of_int(l lsr 16 land 0xff));
+    Bytes.unsafe_set(scratch, 3, Char.unsafe_of_int(l lsr 24 land 0x3f));
+    Bytes.unsafe_set(scratch, 4, Char.unsafe_of_int(h land 0xff));
+    Bytes.unsafe_set(scratch, 5, Char.unsafe_of_int(h lsr 8 land 0xff));
     /* byte 6 high nibble and byte 8 top two bits are overwritten by v4 */
-    Bytes.unsafe_set(scratch, 6, Stdlib.Char.unsafe_chr(h lsr 16 land 0x0f));
-    Bytes.unsafe_set(scratch, 7, Stdlib.Char.unsafe_chr(h lsr 20 land 0xff));
+    Bytes.unsafe_set(scratch, 6, Char.unsafe_of_int(h lsr 16 land 0x0f));
+    Bytes.unsafe_set(scratch, 7, Char.unsafe_of_int(h lsr 20 land 0xff));
     Uuidm.v4(scratch);
   };
 };

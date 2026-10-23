@@ -26,7 +26,7 @@ let extract_line_comments = (code: string): (string, list(option(string))) => {
     | Some(first_hash) =>
       /* Look for the closing # after the first one */
       let after_first = first_hash + 1;
-      switch (Stdlib.String.index_from_opt(line, after_first, '#')) {
+      switch (String.index_from(line, after_first, '#')) {
       | Some(second_hash) =>
         let clean_line =
           String.sub(line, ~pos=0, ~len=first_hash) |> String.strip;

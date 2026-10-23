@@ -509,25 +509,15 @@ let pos_of_key = (key: string): pos =>
   | _ when String.equal(key, prelude_key) => Prelude
   | _ when String.equal(key, setup_key) => Setup
   | _ when String.is_prefix(key, ~prefix="derivation_") =>
-    let i = Stdlib.String.index(key, '_');
-    let key = String.sub(key, ~pos=i + 1, ~len=String.length(key) - i - 1);
-    try({
-      let i = Stdlib.String.index(key, '_');
-      let n = String.sub(key, ~pos=0, ~len=i) |> int_of_string;
-      let key = String.sub(key, ~pos=i + 1, ~len=String.length(key) - i - 1);
-      let rec aux = (key: string): Tree.pos =>
-        try({
-          let i = Stdlib.String.index(key, '_');
-          let n = String.sub(key, ~pos=0, ~len=i) |> int_of_string;
-          let key =
-            String.sub(key, ~pos=i + 1, ~len=String.length(key) - i - 1);
-          Children(n, aux(key));
-        }) {
-        | Stdlib.Not_found => Children(key |> int_of_string, Value)
-        };
-      Trees(n, aux(key));
-    }) {
-    | Stdlib.Not_found => Trees(key |> int_of_string, Value)
+    let rec aux = (key: string): Tree.pos =>
+      switch (String.lsplit2(key, ~on='_')) {
+      | Some((n, key)) => Children(int_of_string(n), aux(key))
+      | None => Children(int_of_string(key), Value)
+      };
+    let key = String.chop_prefix_exn(key, ~prefix="derivation_");
+    switch (String.lsplit2(key, ~on='_')) {
+    | Some((n, key)) => Trees(int_of_string(n), aux(key))
+    | None => Trees(int_of_string(key), Value)
     };
   | _ => failwith("invalid key")
   };
