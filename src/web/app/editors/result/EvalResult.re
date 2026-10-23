@@ -391,14 +391,12 @@ module Update = {
              only definitions that changed are encoded and posted */
           queue_worker({
             /* W2b flip: the worker elaborates from its resident
-               program (synced by ShadowResidency; FIFO puts the sync
-               ahead of this request), so nothing ships */
+               program (synced by ShadowResidency; the request names
+               the last sync's generation as it posts), so nothing
+               ships */
             program:
               ShadowResidency.flip_enabled^
-                ? Resident({
-                    generation: ShadowResidency.generation^,
-                    probe_all: settings.probe_all,
-                  })
+                ? Resident({probe_all: settings.probe_all})
                 : Pieces(
                     EvalSplit.program(
                       ~probe_all=settings.probe_all,

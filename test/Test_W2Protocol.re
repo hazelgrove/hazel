@@ -288,17 +288,15 @@ let tests = [
                 (
                   "k",
                   {
-                    program:
-                      Resident({
-                        generation,
-                        probe_all: false,
-                      }),
+                    program: Resident({probe_all: false}),
                     prev: UseResident,
                     stream: Full,
                   },
                 ),
               ],
             };
+            /* as if this generation's sync went out last */
+            Web.WorkerClient.synced_generation := generation;
             let posted = Web.WorkerClient.posted_of(~full=false, request);
             check(int, "no pieces posted", 0, List.length(posted.pieces));
             switch (

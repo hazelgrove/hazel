@@ -20,13 +20,9 @@ module Request = {
     | Effects;
   /* W2b, behind __w2flip: the worker-resident program (synced via
      SyncProgram), which the worker elaborates from its OWN statics, so
-     nothing of the program ships. postMessage FIFO puts the sync for a
-     generation ahead of an eval naming it */
+     nothing of the program ships */
   [@deriving (show, sexp, yojson)]
-  type resident = {
-    generation: int,
-    probe_all: bool,
-  };
+  type resident = {probe_all: bool};
   /* a cell's program: in pieces (EvalPieces), each posted once (the
      default), or the resident one */
   [@deriving (show, sexp, yojson)]
@@ -52,10 +48,17 @@ module Request = {
 /* a request as posted: every program's layout (each piece's key and
    hash) or resident reference, and the pieces the worker doesn't hold */
 module Posted = {
+  /* the resident program as of the last sync posted ahead of this
+     request, which postMessage FIFO delivers first */
+  [@deriving (show, sexp, yojson)]
+  type resident = {
+    generation: int,
+    probe_all: bool,
+  };
   [@deriving (show, sexp, yojson)]
   type program =
     | Pieces(EvalPieces.layout)
-    | Resident(Request.resident);
+    | Resident(resident);
   [@deriving (show, sexp, yojson)]
   type value = {
     program,
@@ -879,7 +882,7 @@ let resident_slot: ref(resident) = ref(None);
    error; the client's recovery resync makes the next attempt
    servable. */
 let resolve_resident =
-    (~key: key, r: Request.resident)
+    (~key: key, r: Posted.resident)
     : result((Language.Exp.t, Language.EvalInfo.t), string) =>
   switch (resident_slot^) {
   | Some((k, _, rp)) when k == key && rp.generation != r.generation =>

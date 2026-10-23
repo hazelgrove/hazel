@@ -78,6 +78,11 @@ let hold = (request: Request.t): unit => {
   );
 };
 
+/* W2: the generation of the last residency sync posted. a Resident item
+   names it as it posts: FIFO delivers that sync first, and a cell queues
+   its request before its frame's sync goes out */
+let synced_generation: ref(int) = ref(0);
+
 /* [request] as posted: its programs' layouts, and the pieces the worker
    doesn't hold ([full]: all of them) */
 let posted_of = (~full: bool, request: Request.t): Posted.t => {
@@ -93,7 +98,11 @@ let posted_of = (~full: bool, request: Request.t): Posted.t => {
               program:
                 switch (v.program) {
                 | Pieces(p) => Pieces(p.layout)
-                | Resident(r) => Resident(r)
+                | Resident({probe_all}) =>
+                  Resident({
+                    generation: synced_generation^,
+                    probe_all,
+                  })
                 },
               prev: v.prev,
               stream: v.stream,
@@ -141,8 +150,10 @@ let post_evaluate = (~full=false, ~metrics=false, worker, request: Request.t) =>
 /* W2a: segment-residency sync (fire-and-forget; the answer arrives as
    ServerMessage.Summary through on_summary) */
 let on_summary: ref(ServerMessage.summary_msg => unit) = ref(_ => ());
-let post_sync = (worker, sync: WorkerServer.SyncProgram.t) =>
+let post_sync = (worker, sync: WorkerServer.SyncProgram.t) => {
+  synced_generation := sync.generation;
   worker##postMessage(Active.encode_request(ClientMessage.Sync(sync)));
+};
 
 let fail_latest = latest => {
   clear_timeouts();
