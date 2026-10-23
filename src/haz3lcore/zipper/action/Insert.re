@@ -357,7 +357,7 @@ let split =
     | None =>
       z
       |> insert_shard(~auto_indent, ~id=Id.mk(), ~d=Left, char)
-      |> move_into_string_or_comment(char)
+      |> move_into_string_or_comment(char, char)
     };
   remold_regrout(Right, z, ~root);
 };

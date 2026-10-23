@@ -939,17 +939,17 @@ let destruct_tests = [
   ),
   test(
     ~name="Deleting raw string starting r deletes raw string",
-    ~acts=mk({|r¦""|}) @ [Destruct(Left)],
+    ~acts=mk({|r¦""|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Deleting raw string starting quote deletes raw string",
-    ~acts=mk({|r"¦"|}) @ [Destruct(Left)],
+    ~acts=mk({|r"¦"|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
     ~name="Deleting raw string ending quote deletes raw string",
-    ~acts=mk({|r""¦|}) @ [Destruct(Left)],
+    ~acts=mk({|r""¦|}) @ [Destruct(Local(Left, ByChar))],
     ~goal={|¦?|},
   ),
   test(
@@ -3468,7 +3468,7 @@ let unwrap_quote_tests = [
   ),
   test(
     ~name="Backspace raw string from right unwraps content",
-    ~acts=mk({|r"hello"¦|}) @ [Action.Destruct(Left)],
+    ~acts=mk({|r"hello"¦|}) @ [Action.Destruct(Local(Left, ByChar))],
     ~goal={|hello¦|},
   ),
   test(
