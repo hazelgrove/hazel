@@ -593,7 +593,10 @@
   font-weight: normal;
   color: var(--text-error);
   white-space: normal;
-  cursor: default;
+  /* its text selectable, unlike the row's */
+  cursor: text;
+  -webkit-user-select: text;
+  user-select: text;
   background: var(--surface-default);
   border: 1px solid color-mix(in srgb, var(--text-error) 45%, transparent);
   border-radius: 4px;

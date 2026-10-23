@@ -193,7 +193,7 @@ let leaving = evt =>
   !within_rows(evt)
   && Js_of_ocaml.(Js.to_bool(Js.Unsafe.coerce(Dom_html.document)##hasFocus));
 
-let focus_without_scroll = el =>
+let focus_without_scroll = (el): unit =>
   Js_of_ocaml.Js.Unsafe.coerce(el)##focus(
     Js_of_ocaml.Js.Unsafe.obj([|
       ("preventScroll", Js_of_ocaml.Js.Unsafe.inject(Js_of_ocaml.Js._true)),
@@ -202,8 +202,10 @@ let focus_without_scroll = el =>
 
 /* a line's field holds the keys while it shows: it takes focus whenever
    focus is in the row list (after a save it refused, say) or nowhere (the
-   body, or the page itself). Its caret goes where the keys put it ([col]),
-   as it shows and as they put it there again ([seq]) */
+   body, or the page itself), but not from a selection made in the list
+   (a refusal's text), which focus would end. Its caret goes where the
+   keys put it ([col]), as it shows and as they put it there again
+   ([seq]) */
 module FieldFocus =
   Attr.Hooks.Make({
     module State = Unit;
@@ -216,14 +218,20 @@ module FieldFocus =
     let take = el => {
       open Js_of_ocaml;
       let active = Js.Unsafe.coerce(Dom_html.document)##.activeElement;
-      if (!Js.Opt.test(active)
-          || active ==
-          Js.Unsafe.coerce(Dom_html.document)##.body
-          || Js.to_string(active##.id) == "page"
-          || Js.Opt.test(
-               active##closest(Js.string("#outline-sidebar .outline-body")),
-             )
-          && active != el) {
+      let rows = Js.Unsafe.coerce(el)##closest(Js.string(".outline-body"));
+      if ((
+            !Js.Opt.test(active)
+            || active ==
+            Js.Unsafe.coerce(Dom_html.document)##.body
+            || Js.to_string(active##.id) == "page"
+            || Js.Opt.test(
+                 active##closest(
+                   Js.string("#outline-sidebar .outline-body"),
+                 ),
+               )
+            && active != el
+          )
+          && !(Js.Opt.test(rows) && Util.JsUtil.selection_within(rows))) {
         focus_without_scroll(el);
       };
     };
@@ -325,6 +333,24 @@ let edit_hint = (t: E.t): Node.t =>
         ["outline-edit-hint"] @ (t.error == None ? [] : ["outline-hint-on"]),
       ),
       Attr.create_hook("outline-hint-place", HintPlace.create()),
+      /* its text is selectable: a press there is its own, not the line's
+         (which keeps the keys in the field) */
+      Attr.on_mousedown(_ => Effect.Stop_propagation),
+      /* a click that selected nothing gives the field the keys back */
+      Attr.on_click(evt => {
+        open Js_of_ocaml;
+        let hint = Js.Unsafe.coerce(evt)##.currentTarget;
+        let rows = hint##closest(Js.string(".outline-body"));
+        if (!(Js.Opt.test(rows) && Util.JsUtil.selection_within(rows))) {
+          Js.Opt.iter(
+            hint##.parentElement##querySelector(
+              Js.string(".outline-edit-input"),
+            ),
+            focus_without_scroll,
+          );
+        };
+        Effect.Ignore;
+      }),
     ],
     [text(Option.value(t.error, ~default=""))],
   );
@@ -1587,6 +1613,15 @@ let keys =
       () => false,
       Js_of_ocaml.Js.to_bool,
     );
+  let is_field = el =>
+    Js_of_ocaml.Js.to_bool(
+      el##.classList##contains(Js_of_ocaml.Js.string("outline-edit-input")),
+    );
+  let target = Js_of_ocaml.Js.Unsafe.coerce(evt)##.target;
+  let rows = Js_of_ocaml.Js.Unsafe.coerce(evt)##.currentTarget;
+  /* text selected in the list (a refusal's), the field lacking the keys */
+  let list_selection = () =>
+    !is_field(target) && Util.JsUtil.selection_within(rows);
   let id_of = (r: visible_row) => r.r_node.o_id;
   let is_module = (r: visible_row) => r.r_node.o_kind == OutlineTree.KModule;
   /* the context menu at a row, as the editor opens its own */
@@ -1716,13 +1751,29 @@ let keys =
       Act(Effect.Ignore);
     | (_, _, None) => Pass(Effect.Ignore)
     | (_, _, Some((lines, at, t'))) =>
-      let field = Js_of_ocaml.Js.Unsafe.coerce(evt)##.target;
-      let in_field =
-        Js_of_ocaml.Js.to_bool(
-          field##.classList##contains(
-            Js_of_ocaml.Js.string("outline-edit-input"),
-          ),
-        );
+      /* a key (not a modifier) ends a selection in the list: the field
+         takes the keys back, this one first */
+      let modifier =
+        List.mem(key, ["Shift", "Alt", "Meta", "Control", "CapsLock"]);
+      let field =
+        if (!modifier && list_selection()) {
+          Util.JsUtil.clear_page_selection();
+          switch (
+            Js_of_ocaml.Js.Opt.to_option(
+              rows##querySelector(
+                Js_of_ocaml.Js.string(".outline-edit-input"),
+              ),
+            )
+          ) {
+          | Some(f) =>
+            focus_without_scroll(f);
+            f;
+          | None => target
+          };
+        } else {
+          target;
+        };
+      let in_field = is_field(field);
       let (start, stop): (int, int) =
         in_field
           ? (field##.selectionStart, field##.selectionEnd) : (t'.col, t'.col);
@@ -1892,6 +1943,9 @@ let keys =
      keys the menu takes must not build it */
   let act = (): verdict =>
     switch (on.text.get(), key, meta, cur) {
+    /* the browser copies it */
+    | (Some(_), "c" | "C", true, _) when list_selection() =>
+      Own(Effect.Ignore)
     | (Some(t), _, _, _) => text_key(t)
     | (None, "Enter", true, _)
     | (None, "F2", _, _) when !above_shown(props) =>
