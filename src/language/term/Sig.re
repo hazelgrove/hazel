@@ -45,9 +45,8 @@ let temp: term => t =
 
 /* ==================== Member view ====================
    A signature type is a dependent record: later items may mention earlier
-   type members by their bare name. This view exposes the well-formed items
-   (holes, invalid items and non-variable patterns are skipped) so that the
-   type checker can treat a `Sig` uniformly. Canonical items are
+   type members by their bare name. A member is a well-formed item (holes,
+   invalid items and non-variable patterns are skipped). Canonical items are
    `SigLet(Asc(Var x, τ))`, `SigModule(Asc(Var m, τ))` and
    `SigType(Var T, τ)`. A `module m : S` member is a value member. */
 
@@ -118,8 +117,9 @@ let module_item = (name: Var.t, ty: TermBase.Typ.t): t =>
   TempGrammar.(Sig.sig_module(MPat.asc(MPat.var(name), ty)));
 
 /* Apply [f] to the type carried by a well-formed item, keeping the item's
-   form (`let`, `type` or `module`). A member written without a type carries
-   `?`; it gains an ascription only if [f] refines that. */
+   form (`let`, `type` or `module`). An item written without a type, `let x`,
+   is read as `let x : ?`: [f] is applied to `?`, and the item is ascribed
+   the result unless that is still `?`. */
 let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
   let refined = (): option(TermBase.Typ.t) =>
     switch (f(TempGrammar.Typ.unknown(Internal))) {
@@ -249,8 +249,8 @@ let dedup_last_items = (items: list(t)): list(t) =>
   |> dedup_last_by(fst)
   |> List.map(snd);
 
-/* Lookups take the LAST member with the name: a later binding shadows an
-   earlier one, which is also how module bodies export their bindings. */
+/* Lookups take the last member with the name: a later binding shadows an
+   earlier one. */
 let find_value = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
   List.fold_left(
     (acc, m) =>

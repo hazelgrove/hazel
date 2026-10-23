@@ -54,10 +54,9 @@ let temp: term => t =
 
 /* ==================== Evaluated bindings (dynamics) ====================
    A module evaluates item by item; each evaluated binding becomes a ModVal
-   item. A module whose items are all ModVal is a module value. */
+   item. */
 
-/* Replace the definition carried by an item (used to plug evaluation
-   contexts back in). */
+/* Replace the definition carried by an item. */
 let with_def = (item: t, d: TermBase.Exp.t): t =>
   switch (item.term) {
   | ModLet(p, _) => {
@@ -141,10 +140,8 @@ let value_member = (items: list(t), name: Var.t): option(TermBase.Exp.t) =>
     List.find_map(((x, d)) => String.equal(x, name) ? Some(d) : None),
   );
 
-/* Record an evaluated binding. A later binding of the same name replaces
-   an earlier one and is exported at its own position, so a module value
-   has one entry per exported name, in the order Sig.dedup_last gives its
-   type. */
+/* Record an evaluated binding at the end, replacing any earlier binding of
+   [name]. */
 let add_modval = (items: list(t), name: Var.t, d: TermBase.Exp.t): list(t) =>
   List.filter(
     (item: t) =>
