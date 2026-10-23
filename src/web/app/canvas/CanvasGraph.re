@@ -737,6 +737,16 @@ let rec sig_members = (t: Typ.t): list((string, Typ.t)) =>
   | Projector(_, t) => sig_members(t)
   | Prod(xs) => List.concat_map(sig_members, xs)
   | TupLabel({term: Label(l), _}, t) => [(l, t)]
+  /* a module's signature: its values, local type names kept (they resolve
+     to the module's own alias nodes) */
+  | Sig(items) =>
+    Typ.sig_members_closed(~keep_local=_ => true, items)
+    |> List.filter_map(((m: Language.Sig.member, ty)) =>
+         switch (m) {
+         | Val(x, _) => Some((x, ty))
+         | TypeManifest(_) => None
+         }
+       )
   | _ => []
   };
 
