@@ -651,9 +651,8 @@ module NinjaKeys = {
       let* copied = opt_get_copied();
       let left = ev##.clientX;
       let bottom = Dom_html.window##.innerHeight - ev##.clientY;
-      copied##.style##.left := Js.string(Stdlib.Printf.sprintf("%dpx", left));
-      copied##.style##.bottom :=
-        Js.string(Stdlib.Printf.sprintf("%dpx", bottom));
+      copied##.style##.left := Js.string(sprintf("%dpx", left));
+      copied##.style##.bottom := Js.string(sprintf("%dpx", bottom));
       Js._true;
     };
 

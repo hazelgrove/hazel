@@ -39,9 +39,7 @@ let drv_view = (~globals, status: DrvInfo.t) => {
   | Some(err) =>
     switch (err) {
     | BadToken(token) =>
-      div_err([
-        text(Stdlib.Printf.sprintf("\"%s\" isn't a valid token", token)),
-      ])
+      div_err([text(sprintf("\"%s\" isn't a valid token", token))])
     | MultiHole => div_err([text("Expecting operator or delimiter")])
     | NoJoin(expect, _) =>
       div_err([

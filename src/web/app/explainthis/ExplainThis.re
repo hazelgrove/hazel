@@ -354,10 +354,7 @@ let expander_deco =
         }
       };
     let specificity_pos =
-      Stdlib.Printf.sprintf(
-        "position: absolute; top: %fpx;",
-        font_metrics.row_height,
-      );
+      sprintf("position: absolute; top: %fpx;", font_metrics.row_height);
 
     let specificity_style =
       Attr.create(
@@ -607,7 +604,7 @@ let decide_deduction =
     | Some({res: Pending(p), _}) => DrvGrading.ExternalError.show(p)
     | Some({res: PartialCorrect(specced), _}) =>
       if (globals.settings.explainThis.highlight == All) {
-        Stdlib.Printf.sprintf(
+        sprintf(
           "❓ Correct until stop at a hole %s)",
           RuleVerify.show_linked(specced),
         );
@@ -683,7 +680,7 @@ let decide_deduction =
           )
         }
       )
-      |> Stdlib.Printf.sprintf("❌ %s")
+      |> sprintf("❌ %s")
     };
   {
     group,

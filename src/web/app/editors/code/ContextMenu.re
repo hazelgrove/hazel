@@ -55,11 +55,7 @@ let pos_style =
     | `Down => caret_bottom +. caret_menu_gap
     | `Up => caret_top -. caret_menu_gap
     };
-  Stdlib.Printf.sprintf(
-    "position: absolute; left: %fpx; top: %fpx;",
-    left,
-    top,
-  );
+  sprintf("position: absolute; left: %fpx; top: %fpx;", left, top);
 };
 
 /* ============================================================

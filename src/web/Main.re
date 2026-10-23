@@ -219,7 +219,7 @@ let start = default_model => {
         |> Bonsai.Value.map(~f=(i, rect: BonsaiUtil.SizeObserver.Size.t) => {
              JsUtil.set_css_custom_property(
                "--row-height-px",
-               Stdlib.Printf.sprintf("%fpx", rect.height),
+               sprintf("%fpx", rect.height),
              );
              i(
                Page.Update.Globals(

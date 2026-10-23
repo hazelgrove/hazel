@@ -27,7 +27,7 @@ let percent_view = (n: int, p: int): Node.t => {
     n == 0 ? 100. : 100. *. float_of_int(p) /. float_of_int(n);
   div(
     ~attrs=[clss(["test-percent", n == p ? "all-pass" : "some-fail"])],
-    [text(Stdlib.Printf.sprintf("%.0f%%", percentage))],
+    [text(sprintf("%.0f%%", percentage))],
   );
 };
 
