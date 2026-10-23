@@ -90,6 +90,8 @@ type incoming =
   | Theme(bool, bool)
   /* { type: "lines", on }: Hazel's line numbers beside the cell */
   | Lines(bool)
+  /* { type: "reveal", name }: the caret on name's definition in the cell */
+  | Reveal(string)
   | Ping;
 
 /* j[key] when it is a string */
@@ -126,6 +128,11 @@ let decode = (data: Js.Unsafe.any): option(incoming) =>
     }
   | Some("ping") => Some(Ping)
   | Some("focus") => Some(Focus(string_field(data, "module")))
+  | Some("reveal") =>
+    switch (string_field(data, "name")) {
+    | Some(name) => Some(Reveal(name))
+    | None => None
+    }
   | Some("lines") =>
     Some(
       Lines(
@@ -173,6 +180,12 @@ let encode = (message: EmbedModel.Outbox.message): Js.Unsafe.any => {
              ~incomplete,
              ~program_incomplete,
            ),
+      ]
+    | Caret(top) => [("type", string("caret")), ("top", number(top))]
+    | Goto(name, n) => [
+        ("type", string("goto")),
+        ("name", string(name)),
+        ("count", number(n)),
       ]
     | Edited(text, edits) => [
         ("type", string("edit")),

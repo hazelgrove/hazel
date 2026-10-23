@@ -126,6 +126,12 @@ let on_message = (~link, event: Js.Unsafe.any): unit =>
         update(~link, SetEditable(on));
       | None => ()
       };
+      switch (link.reveal) {
+      | Some(name) =>
+        link.reveal = None;
+        update(~link, Reveal(name));
+      | None => ()
+      };
       switch (link.lines) {
       | Some(on) =>
         link.lines = None;
@@ -174,7 +180,17 @@ let report = (~link, model: EmbedModel.Model.t): unit =>
       int_of_float(
         Float.ceil(Js.float_of_number(Js.Unsafe.get(rect, "height"))),
       );
-    EmbedLink.report(link, ~height, model);
+    /* (^ticket(587)) the caret's top, for the page to scroll to after a
+       reveal */
+    let caret =
+      switch (JsUtil.get_elem_by_id_opt("caret")) {
+      | Some(c) =>
+        let r: Js.Unsafe.any =
+          Js.Unsafe.meth_call(c, "getBoundingClientRect", [||]);
+        Some(int_of_float(Js.float_of_number(Js.Unsafe.get(r, "top"))));
+      | None => None
+      };
+    EmbedLink.report(link, ~caret?, ~height, model);
   | None => ()
   };
 

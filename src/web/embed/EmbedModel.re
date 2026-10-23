@@ -110,6 +110,13 @@ module Model = {
     /* (ticket 578) Hazel's line numbers beside the cell, when the page
        asks (Matthew: "line numbers vanished") */
     line_numbers: bool,
+    /* (^ticket(587)) reveals done, for the page to be told where the caret
+       went after each (Outbox: the frame is as tall as its code, so the
+       page scrolls); and a goto definition this cell could not answer:
+       the name under the caret, and how many, for the page to find in
+       another cell (^ticket(586)) */
+    reveals: int,
+    goto: option((string, int)),
     /* the context the focused body is read in */
     ctx: option(Language.Ctx.t),
     status: option(Status.t),
@@ -132,6 +139,8 @@ module Model = {
     focus: None,
     ctx: None,
     line_numbers: false,
+    reveals: 0,
+    goto: None,
     status: None,
     font_metrics: FontMetrics.init,
     bodies: [],
@@ -162,6 +171,8 @@ module Update = {
     | SetFocus(option(string))
     /* the page asks for Hazel's line numbers, or not */
     | SetLineNumbers(bool)
+    /* the page asks for a definition in this cell: its name */
+    | Reveal(string)
     /* an edit in a cell the page can edit, or any other action there */
     | Edit(CodeEditable.Update.t);
 
@@ -353,6 +364,57 @@ module Update = {
     };
   };
 
+  /* The tile defining a name in a cell: the name's own tile, at the top
+     of the pattern of a let or a type (its first child), found anywhere in
+     the cell's tiles, first first */
+  let rec defining = (name: string, seg: Segment.t): option(Id.t) =>
+    List.find_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          let own =
+            switch (Tile.label(t), t.children) {
+            | (["let", ..._] | ["type", ..._], [pat, ..._]) =>
+              List.find_map(
+                (q: Piece.t) =>
+                  switch (q) {
+                  | Tile(u) when Tile.label(u) == [name] => Some(u.id)
+                  | _ => None
+                  },
+                pat,
+              )
+            | _ => None
+            };
+          switch (own) {
+          | Some(id) => Some(id)
+          | None => List.find_map(defining(name), t.children)
+          };
+        | _ => None
+        },
+      seg,
+    );
+
+  /* The tokens of the tile the caret is on, joined (a name, or a dotted
+     path such as Common.flip2), for a goto definition this cell cannot
+     answer */
+  let indicated_name = (z: Zipper.t): option(string) =>
+    switch (Indicated.index(z)) {
+    | None => None
+    | Some(id) =>
+      let rec find = (seg: Segment.t): option(string) =>
+        List.find_map(
+          (p: Piece.t) =>
+            switch (p) {
+            | Tile(t) when t.id == id =>
+              Some(String.concat("", Tile.label(t)))
+            | Tile(t) => List.find_map(find, t.children)
+            | _ => None
+            },
+          seg,
+        );
+      find(Zipper.unselect_and_zip(z));
+    };
+
   let update = (action: t, model: Model.t): Model.t =>
     switch (action) {
     | Set(program) when model.program == Some(program) => model
@@ -382,6 +444,34 @@ module Update = {
     | SetLineNumbers(line_numbers) => {
         ...model,
         line_numbers,
+      }
+    /* The caret on the name's defining tile, the tile selected; nothing if
+       the name is not defined in this cell */
+    | Reveal(name) =>
+      switch (
+        defining(
+          name,
+          Zipper.unselect_and_zip(model.cell.editor.state.zipper),
+        )
+      ) {
+      | None => model
+      | Some(id) =>
+        let step = (m: CodeWithStatics.Model.t, a: Action.t) =>
+          switch (CodeEditable.Update.update(~settings, Perform(a), m)) {
+          | updated => updated.model
+          | exception (Action.Failure.Exception(_)) => m
+          };
+        let cell =
+          step(
+            step(model.cell, Move(Goal(TileId(id)))),
+            Select(Term(Current)),
+          );
+        {
+          ...model,
+          cell,
+          active: true,
+          reveals: model.reveals + 1,
+        };
       }
     | SetFocus(focus) when focus == model.focus => model
     | SetFocus(focus) =>
@@ -433,7 +523,28 @@ module Update = {
           edited: changed ? Some(text) : model.edited,
           edits: changed ? model.edits + 1 : model.edits,
         };
-      | exception (Action.Failure.Exception(_)) => model
+      /* A goto definition with its binding site outside this cell (a
+         type of the program's start, a member of another module): the
+         name under the caret, for the page */
+      | exception (Action.Failure.Exception(_)) =>
+        switch (action) {
+        | Perform(Move(Goal(BindingSiteOfIndicatedVar))) =>
+          switch (indicated_name(model.cell.editor.state.zipper)) {
+          | Some(name) => {
+              ...model,
+              goto:
+                Some((
+                  name,
+                  switch (model.goto) {
+                  | Some((_, n)) => n + 1
+                  | None => 1
+                  },
+                )),
+            }
+          | None => model
+          }
+        | _ => model
+        }
       }
     };
 };
@@ -447,24 +558,34 @@ module Outbox = {
     | Status(Status.t)
     /* (ticket 578) the program's text after an edit, and its count */
     | Edited(string, int)
+    /* (^ticket(587)) where the caret went after a reveal: its top, in the
+       frame's pixels */
+    | Caret(int)
+    /* (^ticket(586)) a goto definition for another cell: the name, its count */
+    | Goto(string, int)
     | Crash(string);
 
   type sent = {
     size: option(int),
     status: option(Status.t),
     edits: int,
+    reveals: int,
+    gotos: int,
   };
 
   let nothing_sent = {
     size: None,
     status: None,
     edits: 0,
+    reveals: 0,
+    gotos: 0,
   };
 
   /* After a display: the messages for what changed, and what has then
      been sent. No status before a program. */
   let after_display =
-      (~height: int, model: Model.t, sent: sent): (list(message), sent) => {
+      (~caret: option(int)=?, ~height: int, model: Model.t, sent: sent)
+      : (list(message), sent) => {
     let size = sent.size == Some(height) ? [] : [Size(height)];
     let status =
       switch (model.status) {
@@ -478,12 +599,28 @@ module Outbox = {
         ]
       | _ => []
       };
+    let caret =
+      switch (caret) {
+      | Some(top) when model.reveals > sent.reveals => [Caret(top)]
+      | _ => []
+      };
+    let goto =
+      switch (model.goto) {
+      | Some((name, n)) when n > sent.gotos => [Goto(name, n)]
+      | _ => []
+      };
     (
-      size @ status @ edited,
+      size @ status @ edited @ caret @ goto,
       {
         size: Some(height),
         status: Option.is_some(model.status) ? model.status : sent.status,
         edits: max(sent.edits, model.edits),
+        reveals: max(sent.reveals, model.reveals),
+        gotos:
+          switch (model.goto) {
+          | Some((_, n)) => max(sent.gotos, n)
+          | None => sent.gotos
+          },
       },
     );
   };

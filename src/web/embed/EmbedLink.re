@@ -31,6 +31,8 @@ type t = {
   mutable theme: option((bool, bool)),
   /* and whether it asked for line numbers */
   mutable lines: option(bool),
+  /* and a name it asked to see */
+  mutable reveal: option(string),
 };
 
 let make = (~parent, ~own_origin, ~post): t => {
@@ -44,6 +46,7 @@ let make = (~parent, ~own_origin, ~post): t => {
   focus: None,
   theme: None,
   lines: None,
+  reveal: None,
 };
 
 let send = (link: t, ~target: string, message: EmbedModel.Outbox.message) =>
@@ -89,6 +92,10 @@ let receive = (link: t, event: Js.Unsafe.any): option(EmbedModel.Program.t) => {
     | Some(Set(program)) =>
       link.page_origin = Some(origin);
       Some(program);
+    | Some(Reveal(name)) =>
+      link.page_origin = Some(origin);
+      link.reveal = Some(name);
+      None;
     | Some(Lines(on)) =>
       link.page_origin = Some(origin);
       link.lines = Some(on);
@@ -119,11 +126,13 @@ let receive = (link: t, event: Js.Unsafe.any): option(EmbedModel.Program.t) => {
 
 /* After a display: the size (the height of the frame's content) and the
    status, each posted when it changed, once the page has sent a message */
-let report = (link: t, ~height: int, model: EmbedModel.Model.t): unit =>
+let report =
+    (link: t, ~caret: option(int)=?, ~height: int, model: EmbedModel.Model.t)
+    : unit =>
   switch (link.page_origin) {
   | Some(target) =>
     let (messages, sent) =
-      EmbedModel.Outbox.after_display(~height, model, link.sent);
+      EmbedModel.Outbox.after_display(~caret?, ~height, model, link.sent);
     link.sent = sent;
     List.iter(send(link, ~target), messages);
   | None => ()
