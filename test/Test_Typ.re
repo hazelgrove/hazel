@@ -913,6 +913,12 @@ let subst_captures_tests = {
         sg([sv("m", sg([st("T", ti), sv("v", a_to_int)]))]),
         ["T"],
       ),
+      case(
+        "a type binder named like x shadows it: nothing to capture",
+        t_var,
+        F.Typ.poly(a, sg([st("T", ti), sv("v", a_to_int)])),
+        [],
+      ),
       test_case(
         "subst: a member rebinding x after a capture keeps its later uses",
         `Quick,

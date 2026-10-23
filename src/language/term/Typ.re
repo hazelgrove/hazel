@@ -370,9 +370,9 @@ let sig_item_subst =
    `fresh_var`) before recursing. The inner subst used for renaming is itself
    capture-avoiding, so repeated collisions are handled naturally.
 
-   A signature's type members also bind, for the items after them, but they
-   are labels too and so cannot be renamed; see the `Sig` arm. [on_capture]
-   is told the name of each member that captures a free variable of `s`. */
+   A signature's type members bind too but cannot be renamed; see the `Sig`
+   arm. [on_capture] is told each member that captures a free variable of
+   `s`. */
 let rec subst_impl = (~on_capture: Var.t => unit, s: t, x: TPat.t, ty: t): t => {
   let subst = subst_impl(~on_capture);
   let avoid_capture = (tp2: TPat.t, body: t): (TPat.t, t) =>
@@ -446,9 +446,8 @@ let rec subst_impl = (~on_capture: Var.t => unit, s: t, x: TPat.t, ty: t): t => 
 let subst = (s: t, x: TPat.t, ty: t): t =>
   subst_impl(~on_capture=ignore, s, x, ty);
 
-/* [subst], also returning the type members that captured a free variable of
-   `s`: exactly the collisions on which the result's following members were
-   degraded to `?`. Empty iff the substitution was clean. */
+/* [subst], with the type members on which it replaced `x` by `?` because
+   they would capture a free variable of `s`. */
 let subst_captures = (s: t, x: TPat.t, ty: t): (t, list(Var.t)) => {
   let captured = ref([]);
   let ty' =

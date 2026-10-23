@@ -215,6 +215,25 @@ let map_typ = (f: TermBase.Typ.t => TermBase.Typ.t, item: t): t => {
   };
 };
 
+/* The type an item is written with, the one [map_typ] maps. */
+let typ_of_item = (item: t): option(TermBase.Typ.t) => {
+  let rec of_pat = (p: TermBase.Pat.t) =>
+    switch (p.term) {
+    | Asc(_, ty) => Some(ty)
+    | Parens(p) => of_pat(p)
+    | _ => None
+    };
+  switch (item.term) {
+  | SigLet(p) => of_pat(p)
+  | SigType(_, ty) => Some(ty)
+  | SigModule({term: Asc(_, ty), _}) => Some(ty)
+  | SigModule(_)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+};
+
 let dedup_names = (names: list(Var.t)): list(Var.t) =>
   List.fold_left(
     (acc, n) => List.mem(n, acc) ? acc : acc @ [n],
