@@ -338,7 +338,7 @@ let offside_wrapper =
       Attr.create("data-ocol", string_of_int(origin_col)),
       Attr.create(
         "style",
-        Stdlib.Printf.sprintf(
+        sprintf(
           "position: absolute; left: %fpx;",
           font_metrics.col_width *. float_of_int(offside_base),
         ),

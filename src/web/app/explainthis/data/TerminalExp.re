@@ -112,8 +112,7 @@ let ctr_exp = (c: string): form => {
   syntactic_form: [c |> abbreviate |> exp],
   colorings: [],
   expandable_id: None,
-  explanation:
-    Stdlib.Printf.sprintf("`%s` is a constructor for a sum type variant.", c),
+  explanation: sprintf("`%s` is a constructor for a sum type variant.", c),
   examples: [],
 };
 let ctr = (c: string): group => singleton(ctr_exp(c));

@@ -310,13 +310,12 @@ let view =
     | (Some(n), Some(m)) when m > 0 =>
       let frac = float_of_int(n) /. float_of_int(m);
       let bar_pct = min(100, int_of_float(Stdlib.ceil(frac *. 100.0)));
-      let pct_line =
-        "(" ++ Stdlib.Printf.sprintf("%.1f%%", frac *. 100.0) ++ ")";
+      let pct_line = "(" ++ sprintf("%.1f%%", frac *. 100.0) ++ ")";
       (
         base_label,
         Some(pct_line),
         Some(bar_pct),
-        title(Some(Stdlib.Printf.sprintf("%.2f%%", frac *. 100.0))),
+        title(Some(sprintf("%.2f%%", frac *. 100.0))),
       );
     | _ => (base_label, None, None, title(None))
     };
@@ -453,7 +452,7 @@ let view =
         )
           when n > 0 && String.equal(mid, aid) => (
           true,
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Prompt cache hit on last turn (%d cached tokens). Cache is per-model; switching models invalidates it.",
             n,
           ),

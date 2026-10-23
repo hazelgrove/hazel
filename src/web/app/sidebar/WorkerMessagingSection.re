@@ -82,7 +82,7 @@ let rows_of_record =
     (r: WorkerMetrics.record)
     : list(PerfFormat.row(WorkerMetrics.dir_metric)) => {
   let req_label =
-    Stdlib.Printf.sprintf(
+    sprintf(
       "#%d · %d %s · request",
       r.id,
       r.entries,

@@ -14,7 +14,7 @@ let list_typ = (~elem_id: Id.t): form => {
   colorings: list_typ_coloring_ids(~elem_id),
   expandable_id: None,
   explanation:
-    Stdlib.Printf.sprintf(
+    sprintf(
       "The list type classifies lists with elements with the corresponding [*element type*](%s).",
       Id.to_string(elem_id),
     ),

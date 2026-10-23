@@ -416,7 +416,7 @@ let svg_of_group =
     /* Clip-path ids must be document-unique; derive one from the group's
      * bounding box (cols are fractional, so scale to tenths of a column). */
     let clip_id =
-      Stdlib.Printf.sprintf(
+      sprintf(
         "incremental-active-%d-%d-%d-%d",
         int_of_float(bb.min_col *. 10.0),
         bb.min_row,
@@ -447,14 +447,8 @@ let svg_of_group =
                   Attr.classes(["incremental-sweep"]),
                   Attr.create("x", "0"),
                   Attr.create("y", "0"),
-                  Attr.create(
-                    "width",
-                    Stdlib.Printf.sprintf("%f", sweep_width),
-                  ),
-                  Attr.create(
-                    "height",
-                    Stdlib.Printf.sprintf("%f", height_f),
-                  ),
+                  Attr.create("width", sprintf("%f", sweep_width)),
+                  Attr.create("height", sprintf("%f", height_f)),
                 ],
                 [],
               ),
@@ -472,7 +466,7 @@ let svg_of_group =
           Attr.classes(["shard"] @ clss),
           Attr.create(
             "style",
-            Stdlib.Printf.sprintf(
+            sprintf(
               "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
               bb.min_col *. font_metrics.col_width,
               float_of_int(bb.min_row) *. font_metrics.row_height,
@@ -482,7 +476,7 @@ let svg_of_group =
           ),
           Attr.create(
             "viewBox",
-            Stdlib.Printf.sprintf("%f 0 %f %d", 0.0, width_f, height),
+            sprintf("%f 0 %f %d", 0.0, width_f, height),
           ),
           Attr.create("preserveAspectRatio", "none"),
         ],

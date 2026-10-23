@@ -99,7 +99,7 @@ let var_typ = (name: string): form => {
   syntactic_form: [name |> abbreviate |> typ],
   colorings: [],
   expandable_id: None,
-  explanation: Stdlib.Printf.sprintf("`%s` is a type variable.", name),
+  explanation: sprintf("`%s` is a type variable.", name),
   examples: [],
 };
 

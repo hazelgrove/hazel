@@ -6,11 +6,11 @@ open Poly;
 /** Format a USD amount with up to 6 decimals; trims for tiny values. */
 let format_usd = (n: float): string =>
   if (n >= 1.0) {
-    Stdlib.Printf.sprintf("$%.2f", n);
+    sprintf("$%.2f", n);
   } else if (n >= 0.01) {
-    Stdlib.Printf.sprintf("$%.4f", n);
+    sprintf("$%.4f", n);
   } else if (n > 0.0) {
-    Stdlib.Printf.sprintf("$%.6f", n);
+    sprintf("$%.6f", n);
   } else {
     "$0.00";
   };
@@ -161,10 +161,7 @@ let view_credits = (p: Message.Model.credits_output): Node.t => {
         div(
           ~attrs=[
             clss(["slash-progress-fill"]),
-            Attr.create(
-              "style",
-              Stdlib.Printf.sprintf("width: %.1f%%;", pct),
-            ),
+            Attr.create("style", sprintf("width: %.1f%%;", pct)),
           ],
           [],
         ),

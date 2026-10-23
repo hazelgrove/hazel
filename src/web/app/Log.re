@@ -32,7 +32,7 @@ module Entry = {
 
   let save = ((ts, action): t) =>
     DB.add(
-      Stdlib.Printf.sprintf("%.0f", ts),
+      sprintf("%.0f", ts),
       (ts, action) |> sexp_of_t |> Sexplib.Sexp.to_string,
     );
 
@@ -68,7 +68,7 @@ let import = (data: string): unit =>
       |> Entry.s_of_sexp
       |> List.iter(~f=Entry.save)
     ) {
-    | _ => Stdlib.Printf.printf("Log.Entry.import: Deserialization error")
+    | _ => printf("Log.Entry.import: Deserialization error")
     };
     // Sync count after import completes
     sync_count();
