@@ -549,6 +549,59 @@ let test_error_qualified_type_unknown =
     {|module M = { type T = Int } in let x : M.U = 5 in x|} |> parse_exp,
   );
 
+/* ===== A MODULE'S SUM TYPES, USED OUTSIDE IT ===== */
+/* A module's type definitions are in scope after it by their own names, and
+   a sum's constructors with them, beside the qualified M.T. The examples are
+   the vocabulary of Messed Up Dress Up's game scripts, whose rules are
+   modules sharing a Common one. */
+
+/* A constructor built and matched outside the module that declares it */
+let test_module_sum_constructors_outside =
+  fully_consistent_typecheck(
+    "A module's sum constructors, outside it",
+    {|module Common = { type Dir = + N + E + S + W; let opp = fun d : Dir -> case d | N => S | S => N | E => W | W => E end } in case Common.opp(N) | S => 1 | _ => 0 end|},
+    Some(int()),
+  );
+
+/* The sum's own name, unqualified, in an annotation outside the module */
+let test_module_sum_name_outside =
+  fully_consistent_typecheck(
+    "A module's sum type by its own name, outside it",
+    {|module Common = { type Side = + L + R } in let up = fun (s : Side) -> case s | L => true | R => false end in up(L)|},
+    Some(bool()),
+  );
+
+/* ...and qualified, as before */
+let test_module_sum_qualified_name =
+  fully_consistent_typecheck(
+    "A module's sum type qualified, with its constructors",
+    {|module Common = { type Side = + L + R } in let up = fun (s : Common.Side) -> case s | L => true | R => false end in up(R)|},
+    Some(bool()),
+  );
+
+/* A constructor with a payload */
+let test_module_sum_payload =
+  fully_consistent_typecheck(
+    "A module's sum constructor with a payload, outside it",
+    {|module Common = { type Out = + Auto + Nowhere + ToRoom(Int) } in case ToRoom(3) | ToRoom(r) => r + 1 | _ => 0 end|},
+    Some(int()),
+  );
+
+/* Another module using them, as a game room's rule uses Common's */
+let test_module_sum_in_another_module =
+  fully_consistent_typecheck(
+    "A module's sum constructors in another module",
+    {|module Common = { type Dir = + N + E + S + W } in module World = { let north = fun d : Dir -> d == N } in World.north(E)|},
+    Some(bool()),
+  );
+
+/* Not before the module */
+let test_error_module_sum_before =
+  inconsistent_typecheck(
+    "A module's constructor is not in scope before it",
+    {|let x = N in module Common = { type Dir = + N + E } in x|} |> parse_exp,
+  );
+
 /* ===== QUALIFIED TYPE ACCESS: ALIASING TESTS (Phase 1b) ===== */
 
 /* Variable aliasing */
@@ -696,6 +749,13 @@ let tests = (
     test_qualified_type_lowercase,
     test_qualified_type_shadowing,
     test_error_qualified_type_unknown,
+    /* A module's sum types, used outside it */
+    test_module_sum_constructors_outside,
+    test_module_sum_name_outside,
+    test_module_sum_qualified_name,
+    test_module_sum_payload,
+    test_module_sum_in_another_module,
+    test_error_module_sum_before,
     /* Qualified type access aliasing tests (Phase 1b) */
     test_qualified_type_var_alias,
     test_qualified_type_module_alias,
