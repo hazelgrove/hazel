@@ -175,8 +175,7 @@ let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
       }
     )
     @ all_lbs_in_seg(z.selection.content)
-    |> Stdlib.List.to_seq
-    |> Id.Set.of_seq;
+    |> Id.Set.of_list;
   let line0 = first_line_lb == None;
   let indent = d == Direction.Right;
   let adjust_run = (seg: Segment.t): Segment.t =>

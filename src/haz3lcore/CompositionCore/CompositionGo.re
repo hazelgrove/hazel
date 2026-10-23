@@ -375,8 +375,7 @@ module Local = {
                  Some((Piece.id(p), (witness, run, id(r))))
                | _ => None,
            )
-        |> Stdlib.List.to_seq
-        |> Id.Map.of_seq;
+        |> Id.Map.of_list;
       runs(None, None, seg)
       |> List.concat_map(
            ~f=
