@@ -89,6 +89,12 @@ let continues_delegation =
     delegations,
   );
 
+/* Passes through the stages since a host last set it to 0: one a term
+   visited, whether it steps or not. A debug hook, an increment a pass, that
+   the JS library reads as Hazel.passes() and the library's tests use to
+   guard what a call costs (^ticket(552)). */
+let passes = ref(0);
+
 let rec evaluate =
         // Constants
         (
@@ -191,6 +197,7 @@ let rec evaluate =
         env,
         exp: DHExp.t,
       ) => {
+    incr(passes);
     let.trampoline (is_finished, effects, kind, next) =
       eval_0_main(
         ~reuse_map,

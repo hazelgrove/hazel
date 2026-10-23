@@ -24,6 +24,11 @@ let evaluate:
    that calls the value again (^ticket(547)). May contain closures. */
 let evaluate_unfinished: (~env: Environment.t(Exp.t), Exp.t) => Exp.t;
 
+/* Passes through the evaluator's stages since a host last set it to 0: one
+   a term visited. A debug hook for counting what a call costs
+   (^ticket(552)). */
+let passes: ref(int);
+
 /* What evaluate does to a final value: the environment written in, ids
    replaced. */
 let finish: (~env: Environment.t(Exp.t), Exp.t) => Exp.t;

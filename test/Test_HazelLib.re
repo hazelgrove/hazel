@@ -276,6 +276,38 @@ let tests = (
         );
       },
     ),
+    /* ^ticket(552): what a call costs does not grow with what its function
+       holds. The evaluator's passes for a call from JS, counted, are the
+       same for a held list of 100 and of 10,000, for a function the program
+       gives and for one a call returns: counts, not times, so the same on
+       any machine. */
+    test_case(
+      "a call's passes are the same whatever its function holds",
+      `Quick,
+      () => {
+        let passes = f => {
+          Language.Evaluator.passes := 0;
+          check(string, "the answer", "42", json(call(f, [num(41.)])));
+          Language.Evaluator.passes^;
+        };
+        check(
+          int,
+          "passes, 100 against 10,000",
+          passes(value(holding(100))),
+          passes(value(holding(10000))),
+        );
+        let hold =
+          value(
+            "let build = fun (n, acc) -> if n == 0 then acc else build(n - 1, n :: acc) in fun n -> let held = build(n, []) in fun k -> let u = held in k + 1",
+          );
+        check(
+          int,
+          "passes, returned by a call, 100 against 10,000",
+          passes(call(hold, [num(100.)])),
+          passes(call(hold, [num(10000.)])),
+        );
+      },
+    ),
     test_case(
       "several arguments go to Hazel as a tuple",
       `Quick,

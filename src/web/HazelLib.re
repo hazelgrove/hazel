@@ -23,5 +23,17 @@ let () =
         Js.Unsafe.inject(Js.wrap_callback(analyze_program)),
       ),
       ("runProgram", Js.Unsafe.inject(Js.wrap_callback(run_program))),
+      /* the evaluator's passes since the last read, then back to 0: a debug
+         hook for what a call costs (^ticket(552)) */
+      (
+        "passes",
+        Js.Unsafe.inject(
+          Js.wrap_callback(() => {
+            let n = Language.Evaluator.passes^;
+            Language.Evaluator.passes := 0;
+            Js.number_of_float(float_of_int(n));
+          }),
+        ),
+      ),
     |]),
   );
