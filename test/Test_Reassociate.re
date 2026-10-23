@@ -30,7 +30,7 @@ let deep_reassociate_tests = [
       let complete_parens = List.filter(~f=Tile.is_complete, parens);
       if (List.length(complete_parens) != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 2 complete paren tiles, got %d",
             List.length(complete_parens),
           ),
@@ -74,7 +74,7 @@ let deep_reassociate_tests = [
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z2);
       if (count_complete_lets(z3) != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After '2 in ': expected 2 complete lets, got %d",
             count_complete_lets(z3),
           ),
@@ -102,7 +102,7 @@ let deep_reassociate_tests = [
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z0);
       if (count_complete_lets(z1) < 1) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After ' let b = ': expected >= 1 complete let, got %d",
             count_complete_lets(z1),
           ),
@@ -113,7 +113,7 @@ let deep_reassociate_tests = [
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z1);
       if (count_complete_lets(z2) != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After '2 in': expected 2 complete lets, got %d",
             count_complete_lets(z2),
           ),
@@ -144,7 +144,7 @@ let deep_reassociate_tests = [
         );
       if (count_complete_lets(z1) < 1) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After pasting ' let b = ': expected >= 1 complete let, got %d",
             count_complete_lets(z1),
           ),
@@ -158,7 +158,7 @@ let deep_reassociate_tests = [
         );
       if (count_complete_lets(z2) != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After pasting '2 in': expected 2 complete lets, got %d",
             count_complete_lets(z2),
           ),
@@ -186,7 +186,7 @@ let deep_reassociate_tests = [
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z0);
       if (count_complete_lets(z1) < 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After 'let c = ': expected >= 2 complete lets, got %d",
             count_complete_lets(z1),
           ),
@@ -197,7 +197,7 @@ let deep_reassociate_tests = [
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z1);
       if (count_complete_lets(z2) != 3) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After '2 in ': expected 3 complete lets, got %d",
             count_complete_lets(z2),
           ),
@@ -228,7 +228,7 @@ let deep_reassociate_tests = [
       let complete = List.filter(~f=Tile.is_complete, brackets);
       if (List.length(complete) != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 2 complete bracket tiles, got %d",
             List.length(complete),
           ),
@@ -269,7 +269,7 @@ let deep_reassociate_tests = [
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z2);
       if (count_complete_ifs(z3) != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After completing inner if: expected 2, got %d",
             count_complete_ifs(z3),
           ),
@@ -303,7 +303,7 @@ let deep_reassociate_tests = [
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z1);
       if (count_complete_funs(z2) != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After completing inner fun: expected 2, got %d",
             count_complete_funs(z2),
           ),
@@ -329,7 +329,7 @@ let deep_reassociate_tests = [
       };
       if (count_complete_parens(z1) < 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After inserting (: expected >= 2 complete parens, got %d",
             count_complete_parens(z1),
           ),
@@ -341,7 +341,7 @@ let deep_reassociate_tests = [
         |> Test_Editing.perform(~settings=deep_reassociate_settings, z1);
       if (count_complete_parens(z2) != 3) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After inserting ): expected 3 complete parens, got %d",
             count_complete_parens(z2),
           ),
@@ -384,7 +384,7 @@ let deep_reassociate_tests = [
       };
       if (count_complete_lets(z2) != 1) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "After completing let: expected 1 complete let, got %d",
             count_complete_lets(z2),
           ),
@@ -438,7 +438,7 @@ let deep_reassociate_tests = [
       let complete_ifs = List.filter(~f=Tile.is_complete, ifs);
       if (List.length(complete_ifs) != 1) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 1 complete if/then/else, got %d",
             List.length(complete_ifs),
           ),
@@ -473,7 +473,7 @@ let deep_reassociate_tests = [
       let complete_ifs = List.filter(~f=Tile.is_complete, ifs);
       if (List.length(complete_ifs) != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 2 complete if/then/else, got %d",
             List.length(complete_ifs),
           ),
@@ -483,7 +483,7 @@ let deep_reassociate_tests = [
       let complete_funs = List.filter(~f=Tile.is_complete, funs);
       if (List.length(complete_funs) != 1) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 1 complete fun/->. got %d",
             List.length(complete_funs),
           ),
@@ -518,7 +518,7 @@ let deep_reassociate_tests = [
       let complete_ifs = List.filter(~f=Tile.is_complete, ifs);
       if (List.length(complete_ifs) != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 2 complete nested if/then/else tiles, got %d",
             List.length(complete_ifs),
           ),
@@ -549,7 +549,7 @@ let deep_reassociate_tests = [
       let complete_parens = List.filter(~f=Tile.is_complete, parens);
       if (List.length(complete_parens) != 3) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 3 complete paren tiles, got %d",
             List.length(complete_parens),
           ),
@@ -580,7 +580,7 @@ let deep_reassociate_tests = [
       let complete_cases = List.filter(~f=Tile.is_complete, cases);
       if (List.length(complete_cases) != 1) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 1 complete case/end tile, got %d",
             List.length(complete_cases),
           ),
@@ -590,7 +590,7 @@ let deep_reassociate_tests = [
       let complete_tests = List.filter(~f=Tile.is_complete, tests);
       if (List.length(complete_tests) != 1) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 1 complete test/end tile, got %d",
             List.length(complete_tests),
           ),
@@ -920,7 +920,7 @@ let reassociate_regression_tests = [
       let n = complete_count(["(", ")"], z);
       if (Test_Editing.zip_has_incomplete(z) || n != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 2 complete parens, no incomplete tiles; got %d complete, incomplete=%b",
             n,
             Test_Editing.zip_has_incomplete(z),
@@ -962,7 +962,7 @@ in
         );
       if (Test_Editing.zip_has_incomplete(z)) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Cut+paste of first line left incomplete tiles (complete lets=%d, expected 2)",
             complete_count(["let", "=", "in"], z),
           ),
@@ -1000,7 +1000,7 @@ in
         );
       if (Test_Editing.zip_has_incomplete(z)) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Cut+paste of let/case lines left incomplete tiles (complete lets=%d, expected 2)",
             complete_count(["let", "=", "in"], z),
           ),
@@ -1038,7 +1038,7 @@ in
       let n = complete_count(["let", "=", "in"], z3);
       if (Test_Editing.zip_has_incomplete(z3) || n != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 2 complete lets, no incomplete tiles; got %d complete, incomplete=%b",
             n,
             Test_Editing.zip_has_incomplete(z3),
@@ -1081,7 +1081,7 @@ in
       let n = complete_count(["let", "=", "in"], z3);
       if (Test_Editing.zip_has_incomplete(z3) || n != 2) {
         Alcotest.fail(
-          Stdlib.Printf.sprintf(
+          sprintf(
             "Expected 2 complete lets, no incomplete tiles; got %d complete, incomplete=%b",
             n,
             Test_Editing.zip_has_incomplete(z3),
