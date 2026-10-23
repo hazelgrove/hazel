@@ -69,11 +69,10 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
         | Module(items) =>
-          /* Items scope sequentially: a pending item binds its name for the
-             items that follow, so it shadows the substitution there. An
-             evaluated binding does not, and must not: the step that made it
-             substituted its value into the items that follow, and that is the
-             substitution this would swallow. */
+          /* A pending item shadows the substitution for the items after it;
+             it is not renamed, since its name is a member label. An evaluated
+             ModVal does not shadow: its binding step already substituted into
+             the items that follow. */
           let shadow = (env, x) =>
             Environment.extend(env, (x, Exp.fresh(Var(x))));
           let (_, rev_items) =
@@ -81,11 +80,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
               ((env, acc), item: Mod.t) => {
                 let (env', item') =
                   switch (item.term) {
-                  | ModLet(p, e) =>
-                    /* Shadow rather than rename here too: a pending binding
-                       names a member, so renaming it away from capture would
-                       rename the member and break `M.x`. */
-                    (
+                  | ModLet(p, e) => (
                       List.fold_left(shadow, env, Pat.bound_vars(p)),
                       {
                         ...item,

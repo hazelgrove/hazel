@@ -13,9 +13,8 @@ type projection =
   | ConsTail
   | ConstructorArg(string)
   | TupleLabel(option(string))
-  /* The binding went through `p : ty`. The type is part of the provenance:
-     an ascription changes the bound value (it seals a module, casts a
-     value), so a dependent computed under a different ascription is stale. */
+  /* The binding went through `p : ty`; the ascription changes the bound
+     value, so the type is part of the provenance. */
   | Ascribed(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]

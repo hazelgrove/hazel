@@ -197,11 +197,8 @@ type rule =
       side_effects: list(EvaluatorState.effect),
       kind: step_kind,
       is_value: bool,
-      /* Where the user points to take this step. A rule normally rewrites the
-         term pointed at, so `None` leaves the redex to answer for itself. A
-         rule that rewrites an enclosing form on one part's behalf names that
-         part: a module item's binding rewrites the whole module, but it is
-         the item the user clicks. */
+      /* The id the stepper anchors this step on, when it isn't the redex's:
+         a module item's binding rewrites the whole module. */
       at: option(Id.t),
     })
   | Constructor
@@ -1375,11 +1372,8 @@ module Transition = (EV: EV_MODE) => {
         at: None,
       });
     | Module(items) =>
-      /* Modules evaluate item by item with sequential scoping: the first
-         pending item's definition is evaluated, its pattern is matched, and
-         the bindings extend the environment for the remaining items.
-         Evaluated bindings become ModVal items; a module whose items are all
-         ModVal is a value once each definition is. */
+      /* Items evaluate in order, each binding scoping over the items after
+         it; a module whose items are all ModVal is a value. */
       switch (Mod.split_pending(items)) {
       | (prefix, None) =>
         let. _ =
@@ -1410,9 +1404,8 @@ module Transition = (EV: EV_MODE) => {
             side_effects: [],
             kind: ModuleDiscardExp,
             is_value: List.is_empty(suffix),
-            /* A bare expression item prints as its expression alone, so the
-               item has no syntax to point at, and the expression's is taken
-               by the expression's own steps. */
+            /* A bare expression item has no syntax of its own; the step
+               stays on the module. */
             at: None,
           });
         | ModLet(dp, d1) =>
@@ -1447,10 +1440,8 @@ module Transition = (EV: EV_MODE) => {
               ModuleBind(env' |> List.map(fst) |> String.concat(", "));
             switch (suffix) {
             | [] =>
-              /* Nothing pending: the module is a value. Its bindings were
-                 evaluated by the steps that recorded them and must not be
-                 traversed again (a probed literal keeps its id as a value
-                 and would be sampled twice). */
+              /* A value: a probed literal keeps its id, so re-traversing
+                 would sample it twice. */
               Step({
                 expr: Module(prefix') |> rewrap,
                 side_effects,
@@ -1459,9 +1450,8 @@ module Transition = (EV: EV_MODE) => {
                 at: Some(Mod.rep_id(item)),
               })
             | _ =>
-              /* The continuation gets a fresh id: it is evaluated as a
-                 sub-expression of this module, and a probe on the module
-                 must sample its value once, at this level. */
+              /* Fresh id: a probe on the module samples its value once, at
+                 this level. */
               Step({
                 expr:
                   subst_env(env'', Module(prefix' @ suffix) |> DHExp.fresh),
