@@ -691,6 +691,36 @@ let tallies = () => {
   check(tally, "no results yet", None, S.run_tally([None, None]));
 };
 
+/* a hinted test (`hint "…" test … end;`) joins its run as a plain one does */
+let hinted_run = () => {
+  let seg =
+    CorpusUtil.seg_of(
+      "let f = fun x -> x + 1 in\n"
+      ++ "hint \"one\" test f(1) == 2 end;\n"
+      ++ "test f(2) == 3 end;\n"
+      ++ "hint \"two\" test f(3) == 4 end;\n"
+      ++ "f(0)",
+    );
+  let hint =
+    switch (
+      List.find_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Tile(t) when Tile.token(t, 0) == "hint" => Some(t.id)
+          | _ => None
+          },
+        seg,
+      )
+    ) {
+    | Some(id) => id
+    | None => fail("no hint tile")
+    };
+  switch (Web.ScratchFocus.run_at(~root=Exp, hint, seg)) {
+  | Some((_, _, _, (_, n))) => check(int, "tests in the run", 3, n)
+  | None => fail("the hinted test is in no run")
+  };
+};
+
 /* the editor-caret mark goes where its row shows: a folded run's label,
    by its first test, as a folded module's row takes its members' */
 let mark_in_runs = () => {
@@ -1133,6 +1163,7 @@ let tests = [
         opened_run_kept,
       ),
       test_case("a run's tally", `Quick, tallies),
+      test_case("a hinted test joins its run", `Quick, hinted_run),
       test_case("the caret's mark in a folded run", `Quick, mark_in_runs),
     ],
   ),

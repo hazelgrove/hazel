@@ -719,7 +719,9 @@ let test_before_semi =
     List.find_map(
       (p: Piece.t) =>
         switch (p) {
-        | Tile(t) when Tile.token(t, 0) == "test" => Some(t.id)
+        | Tile(t)
+            when Tile.token(t, 0) == "test" || Tile.token(t, 0) == "hint" =>
+          Some(t.id)
         | _ => None
         },
       List.rev(ListUtil.truncate(i, level)),
@@ -732,7 +734,10 @@ let test_before_semi =
 let span_test = (lv: S.level, k: int): option(Id.t) => {
   let sp = lv.spans[k];
   switch (first_tile(lv.pieces, fst(sp.core), sp.hi)) {
-  | Some(t) when Tile.token(t, 0) == "test" => Some(t.id)
+  /* a hinted test (`hint "…" test … end`) is a test too, as the outline
+     counts it */
+  | Some(t) when Tile.token(t, 0) == "test" || Tile.token(t, 0) == "hint" =>
+    Some(t.id)
   | _ => None
   };
 };
