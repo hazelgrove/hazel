@@ -18,7 +18,7 @@ let get_probes_map = (code: string): Id.Map.t(list(Sample.t)) => {
 };
 
 let get_all_samples = (code: string): list(Sample.t) =>
-  get_probes_map(code) |> Id.Map.bindings |> List.concat_map(~f=snd);
+  get_probes_map(code) |> Id.Map.to_alist |> List.concat_map(~f=snd);
 
 let partition_by_depth =
     (samples: list(Sample.t)): (list(Sample.t), list(Sample.t)) =>
@@ -665,7 +665,7 @@ let cur_var_ap_tests = [
       let code = {|let f : (Int -> Int) = fun x -> x + 1
 in ^^probe(f(2))|};
       let (_term, _elaborated, info_map, targets) = parse_with_probes(code);
-      let probe_ids = Id.Map.bindings(targets) |> List.map(~f=fst);
+      let probe_ids = Id.Map.to_alist(targets) |> List.map(~f=fst);
       check(int, "should have 1 probe", 1, List.length(probe_ids));
       let probe_id = List.hd_exn(probe_ids);
       switch (Statics.Map.lookup(probe_id, info_map)) {
@@ -688,7 +688,7 @@ in ^^probe(f(2))|};
       let code = {|let f : (Int -> Int) = fun x -> ^^probe(x) + 1
 in f(2)|};
       let (_term, _elaborated, info_map, targets) = parse_with_probes(code);
-      let probe_ids = Id.Map.bindings(targets) |> List.map(~f=fst);
+      let probe_ids = Id.Map.to_alist(targets) |> List.map(~f=fst);
       check(int, "should have 1 probe", 1, List.length(probe_ids));
       let probe_id = List.hd_exn(probe_ids);
       switch (Statics.Map.lookup(probe_id, info_map)) {
@@ -714,7 +714,7 @@ in f(2)|};
       let code = {|let f : (Int -> Int) = fun x -> ^^probe(x)
 in ^^probe(f(42))|};
       let (term, _elaborated, info_map, targets) = parse_with_probes(code);
-      let probe_ids = Id.Map.bindings(targets) |> List.map(~f=fst);
+      let probe_ids = Id.Map.to_alist(targets) |> List.map(~f=fst);
       check(int, "should have 2 probes", 2, List.length(probe_ids));
       /* Evaluate to get samples */
       let elaborated = elaborate(term);
@@ -754,7 +754,7 @@ in ^^probe(f(42))|};
       );
       let ap_id = Option.value_exn(ap_id);
       let inner_samples =
-        switch (Id.Map.find_opt(inner_probe_id, probes_map)) {
+        switch (Id.Map.find(probes_map, inner_probe_id)) {
         | Some(samples) => samples
         | None => []
         };
@@ -795,7 +795,7 @@ let fold_pin_repro_tests = [
       let code = {|let update = fun (m, a) -> ^^probe(m + a) in
 let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
 run(0, [1, 2, 3])|};
-      let probes = get_probes_map(code) |> Id.Map.bindings;
+      let probes = get_probes_map(code) |> Id.Map.to_alist;
       check(int, "should have 2 probes", 2, List.length(probes));
       /* The body probe's samples have the deeper stacks (inside update). */
       let depth = ((_, samples)) =>
@@ -869,7 +869,7 @@ let dead_pin_tests = [
 let run = fun (m, xs) -> fold_left(xs, fun (m, a) -> ^^probe(update(m, a)), m) in
 run(0, [1, 2, 3])|};
       let dynamics = get_probes_map(code);
-      let samples = dynamics |> Id.Map.bindings |> List.concat_map(~f=snd);
+      let samples = dynamics |> Id.Map.to_alist |> List.concat_map(~f=snd);
       /* Pick a deep sample: its stack passes through fold_left's internal
        * frames, which are absent from any user statics map. Pin it the way
        * pin_call does: prepend the probed ap's syntax id. */
@@ -991,7 +991,7 @@ let interval_breadcrumb_tests = [
       let code = {|let f = fun x -> ^^probe(x + 1) in
 let g = fun y -> ^^probe(f(y)) * 2 in
 ^^probe(g(10) + 100)|};
-      let probes = get_probes_map(code) |> Id.Map.bindings;
+      let probes = get_probes_map(code) |> Id.Map.to_alist;
       /* Identify probes by their sample values: f-body → 11 (depth 2),
        * f-call → 11 (depth 1), outer +100 → 122 (depth 0). */
       let depth_of = ((_, ss)) =>
@@ -1151,7 +1151,7 @@ let fact_pin_alignment_tests = [
     () => {
       let code = {|let fact = fun x -> if x < 2 then 1 else ^^probe(x) * ^^probe(fact(x - 1))
 in fact(4)|};
-      let probes = get_probes_map(code) |> Id.Map.bindings;
+      let probes = get_probes_map(code) |> Id.Map.to_alist;
       /* The call probe sits on an Ap, so its samples carry args. */
       let (call_probes, body_probes) =
         List.partition_tf(

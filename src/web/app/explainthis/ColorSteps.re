@@ -13,15 +13,15 @@ let child_colors = ["a", "b", "c", "d", "e", "f", "g"];
 
 let empty = (Haz3lcore.Id.Map.empty, 0);
 let get_color = (id: Haz3lcore.Id.t, (mapping, index): t): (string, t) =>
-  switch (Haz3lcore.Id.Map.find_opt(id, mapping)) {
+  switch (Haz3lcore.Id.Map.find(mapping, id)) {
   | None =>
     let color =
       List.nth_exn(child_colors, index mod List.length(child_colors));
-    let mapping = Haz3lcore.Id.Map.add(id, color, mapping);
+    let mapping = Haz3lcore.Id.Map.set(mapping, ~key=id, ~data=color);
     (color, (mapping, index + 1));
   | Some(color) => (color, (mapping, index))
   };
 
 let to_list = (map: colorMap): list((Haz3lcore.Id.t, string)) => {
-  Stdlib.List.of_seq(Haz3lcore.Id.Map.to_seq(map));
+  Haz3lcore.Id.Map.to_alist(map);
 };

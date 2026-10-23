@@ -35,22 +35,23 @@ let above_locus_delta_rows =
     )
     : int =>
   Id.Map.merge(
-    (_, old_h, new_h) => {
-      let old_h = Option.value(old_h, ~default=0);
-      let new_h = Option.value(new_h, ~default=0);
-      old_h == new_h ? None : Some(new_h - old_h);
-    },
     prev,
     curr,
+    ~f=(~key as _, heights) => {
+      let (old_h, new_h) =
+        switch (heights) {
+        | `Left(old_h) => (old_h, 0)
+        | `Right(new_h) => (0, new_h)
+        | `Both(old_h, new_h) => (old_h, new_h)
+        };
+      old_h == new_h ? None : Some(new_h - old_h);
+    },
   )
-  |> Id.Map.fold(
-       (id, delta, acc) =>
-         switch (Measured.find_by_id(id, measured)) {
-         | Some({origin, _}) when origin.row < caret_row => acc + delta
-         | _ => acc
-         },
-       _,
-       0,
+  |> Id.Map.fold(_, ~init=0, ~f=(~key as id, ~data as delta, acc) =>
+       switch (Measured.find_by_id(id, measured)) {
+       | Some({origin, _}) when origin.row < caret_row => acc + delta
+       | _ => acc
+       }
      );
 
 let update =

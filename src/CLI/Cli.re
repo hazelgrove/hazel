@@ -99,10 +99,27 @@ let analyze_hazel =
 
     /* Get errors with their infos for line numbers */
     let formatted_errors =
-      Id.Map.fold(
-        (_id, info, acc) =>
+      Id.Map.fold(static_map, ~init=[], ~f=(~key as _id, ~data as info, acc) =>
+        switch (
+          Diagnostic.format_error_with_location(
+            ~source=program,
+            ~path,
+            measured,
+            info,
+          )
+        ) {
+        | None => acc
+        | Some(err) => [err, ...acc]
+        }
+      )
+      |> List.dedup_and_sort(~compare=Poly.compare);
+
+    let formatted_warnings =
+      if (show_warnings) {
+        Id.Map.fold(
+          static_map, ~init=[], ~f=(~key as _id, ~data as info, acc) =>
           switch (
-            Diagnostic.format_error_with_location(
+            Diagnostic.format_warning_with_location(
               ~source=program,
               ~path,
               measured,
@@ -110,30 +127,8 @@ let analyze_hazel =
             )
           ) {
           | None => acc
-          | Some(err) => [err, ...acc]
-          },
-        static_map,
-        [],
-      )
-      |> List.dedup_and_sort(~compare=Poly.compare);
-
-    let formatted_warnings =
-      if (show_warnings) {
-        Id.Map.fold(
-          (_id, info, acc) =>
-            switch (
-              Diagnostic.format_warning_with_location(
-                ~source=program,
-                ~path,
-                measured,
-                info,
-              )
-            ) {
-            | None => acc
-            | Some(w) => [w, ...acc]
-            },
-          static_map,
-          [],
+          | Some(w) => [w, ...acc]
+          }
         )
         |> List.dedup_and_sort(~compare=Poly.compare);
       } else {
@@ -386,7 +381,7 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
             ~f=
               (acc, id_opt) =>
                 switch (id_opt) {
-                | Some(id) => Id.Map.add(id, (), acc)
+                | Some(id) => Id.Map.set(acc, ~key=id, ~data=())
                 | None => acc
                 },
             ~init=Id.Map.empty,
@@ -400,7 +395,10 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
 
     /* Combine base (manual + projector) and auto probes */
     let probe_ids =
-      Id.Map.union((_, _, _) => Some(), base_probe_ids, auto_ids);
+      Id.Map.merge_skewed(
+        base_probe_ids, auto_ids, ~combine=(~key as _, _, _) =>
+        ()
+      );
 
     /* Build probe_map - tells evaluator which expressions to record */
     let sample_map =
@@ -431,11 +429,8 @@ let probe_hazel = (auto: bool, many: bool, path: string): unit => {
       if (auto) {
         /* Build a refractor list that includes auto IDs */
         let auto_entries =
-          Id.Map.fold(
-            (id, (), acc) =>
-              [(id, Haz3lcore.Refractors.mk_entry(Probe)), ...acc],
-            auto_ids,
-            [],
+          Id.Map.fold(auto_ids, ~init=[], ~f=(~key as id, ~data as (), acc) =>
+            [(id, Haz3lcore.Refractors.mk_entry(Probe)), ...acc]
           );
         zipper.refractors.manuals @ auto_entries;
       } else {

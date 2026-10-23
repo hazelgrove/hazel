@@ -198,7 +198,7 @@ let adjust_indent = (d: Direction.t, z: Zipper.t): Zipper.t => {
     switch (seg) {
     | [] => []
     | [Piece.Secondary(w) as p, ...rest]
-        when Secondary.is_linebreak(w) && Id.Set.mem(w.id, affected) => [
+        when Secondary.is_linebreak(w) && Id.Set.mem(affected, w.id) => [
         p,
         ...level(adjust_run(rest)),
       ]
@@ -368,7 +368,7 @@ let rec go =
   | Project(a) =>
     let refractor_list =
       List.map(~f=fst, z.refractors.manuals)
-      @ List.map(~f=fst, Id.Map.to_list(z.refractors.multis.ephemerals));
+      @ List.map(~f=fst, Id.Map.to_alist(z.refractors.multis.ephemerals));
     ProjectorPerform.go(
       syntax.term_data,
       a,

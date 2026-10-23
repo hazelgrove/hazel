@@ -172,7 +172,7 @@ let refine_sort_from_mold =
     (~info_map: Id.Map.t(t), ~id: Id.t, mold_out: Sort.t): Sort.t =>
   switch (mold_out) {
   | Drv(_) =>
-    switch (Id.Map.find_opt(id, info_map)) {
+    switch (Id.Map.find(info_map, id)) {
     | Some(InfoDrv(drv)) => Drv(DrvInfo.sort_of(drv))
     | _ => mold_out
     }

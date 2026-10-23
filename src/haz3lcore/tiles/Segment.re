@@ -1461,7 +1461,7 @@ module SecondaryCollection = {
           switch (piece) {
           | Piece.Tile({id, children, _}) =>
             /* Add secondary for this tile and recurse into children */
-            let acc = Id.Map.add(id, (before, after), acc);
+            let acc = Id.Map.set(acc, ~key=id, ~data=(before, after));
             List.fold_left(
               ~f=(acc, child_seg) => collect_from_seg(child_seg, acc),
               ~init=acc,
@@ -1469,10 +1469,11 @@ module SecondaryCollection = {
             );
           | Piece.Projector({id, syntax, _}) =>
             /* Add secondary for projector and recurse into its content */
-            let acc = Id.Map.add(id, (before, after), acc);
+            let acc = Id.Map.set(acc, ~key=id, ~data=(before, after));
             let inner_seg = Piece.unparenthesize(syntax);
             collect_from_seg(inner_seg, acc);
-          | Piece.Grout({id, _}) => Id.Map.add(id, (before, after), acc)
+          | Piece.Grout({id, _}) =>
+            Id.Map.set(acc, ~key=id, ~data=(before, after))
           | _ => acc
           };
         },
@@ -1528,7 +1529,7 @@ module SecondaryCollection = {
       switch (List.nth(root_indices, 0)) {
       | Some(first_idx) =>
         switch (piece_id(seg, first_idx)) {
-        | Some(id) => Id.Map.add(id, (before, after), acc)
+        | Some(id) => Id.Map.set(acc, ~key=id, ~data=(before, after))
         | None => acc
         }
       | None => acc

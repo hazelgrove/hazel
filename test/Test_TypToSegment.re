@@ -108,7 +108,7 @@ let classify_regions =
       ~against=static_typ,
       dynamic_typ,
     );
-  let classes = id => Id.Set.mem(id, dynamic_ids) ? ["dynamic"] : [];
+  let classes = id => Id.Set.mem(dynamic_ids, id) ? ["dynamic"] : [];
   segment_fragments(classes, segment) |> group_regions;
 };
 
@@ -371,7 +371,7 @@ let qcheck_dynamic_ids_are_emitted =
     ((static_typ, dynamic_typ)) => {
       let {dynamic_ids, emitted, _} =
         dynamic_ids_and_printed(~static_typ, ~dynamic_typ);
-      Id.Set.subset(dynamic_ids, emitted);
+      Id.Set.is_subset(dynamic_ids, ~of_=emitted);
     },
   );
 
@@ -396,7 +396,7 @@ let qcheck_fully_dynamic_colours_everything =
           ~static_typ=Typ.fresh(Unknown(Internal)),
           ~dynamic_typ,
         );
-      Id.Set.subset(tiles, dynamic_ids);
+      Id.Set.is_subset(tiles, ~of_=dynamic_ids);
     },
   );
 

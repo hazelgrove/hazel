@@ -14,18 +14,14 @@ let parse_exp = (s: string) =>
 /* Build info_map and find all InfoExp Var entries with the given name */
 let find_var_refs =
     (info_map: Statics.Map.t, name: string): list((Id.t, Info.t)) =>
-  Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      switch (info) {
-      | InfoExp({user_term: {term: Var(n), _}, _})
-          when String.equal(n, name) => [
-          (id, info),
-          ...acc,
-        ]
-      | _ => acc
-      },
-    info_map,
-    [],
+  Id.Map.fold(info_map, ~init=[], ~f=(~key as id, ~data as info: Info.t, acc) =>
+    switch (info) {
+    | InfoExp({user_term: {term: Var(n), _}, _}) when String.equal(n, name) => [
+        (id, info),
+        ...acc,
+      ]
+    | _ => acc
+    }
   );
 
 /* Find the InfoPat Var entry for a binding with the given name.
@@ -33,55 +29,47 @@ let find_var_refs =
 let find_var_binding =
     (info_map: Statics.Map.t, name: string): option((Id.t, Info.t)) =>
   Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      switch (acc) {
-      | Some(_) => acc
-      | None =>
-        switch (info) {
-        | InfoPat({user_term: {term: Var(n), _}, _})
-            when String.equal(n, name) =>
-          Some((id, info))
-        | _ => None
-        }
-      },
-    info_map,
-    None,
+    info_map, ~init=None, ~f=(~key as id, ~data as info: Info.t, acc) =>
+    switch (acc) {
+    | Some(_) => acc
+    | None =>
+      switch (info) {
+      | InfoPat({user_term: {term: Var(n), _}, _})
+          when String.equal(n, name) =>
+        Some((id, info))
+      | _ => None
+      }
+    }
   );
 
 /* Find InfoTPat Var entry for a type variable binding */
 let find_tvar_binding =
     (info_map: Statics.Map.t, name: string): option((Id.t, Info.t)) =>
   Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      switch (acc) {
-      | Some(_) => acc
-      | None =>
-        switch (info) {
-        | InfoTPat({user_term: {term: Var(n), _}, _})
-            when String.equal(n, name) =>
-          Some((id, info))
-        | _ => None
-        }
-      },
-    info_map,
-    None,
+    info_map, ~init=None, ~f=(~key as id, ~data as info: Info.t, acc) =>
+    switch (acc) {
+    | Some(_) => acc
+    | None =>
+      switch (info) {
+      | InfoTPat({user_term: {term: Var(n), _}, _})
+          when String.equal(n, name) =>
+        Some((id, info))
+      | _ => None
+      }
+    }
   );
 
 /* Find InfoTyp Var entries for type variable references */
 let find_tvar_refs =
     (info_map: Statics.Map.t, name: string): list((Id.t, Info.t)) =>
-  Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      switch (info) {
-      | InfoTyp({user_term: {term: Var(n), _}, _})
-          when String.equal(n, name) => [
-          (id, info),
-          ...acc,
-        ]
-      | _ => acc
-      },
-    info_map,
-    [],
+  Id.Map.fold(info_map, ~init=[], ~f=(~key as id, ~data as info: Info.t, acc) =>
+    switch (info) {
+    | InfoTyp({user_term: {term: Var(n), _}, _}) when String.equal(n, name) => [
+        (id, info),
+        ...acc,
+      ]
+    | _ => acc
+    }
   );
 
 let highlight_ids = (info_map, info) =>
@@ -226,17 +214,15 @@ let test_shadowing =
       /* Should highlight exactly 1 binding (the inner one) */
       let bindings =
         Id.Map.fold(
-          (id, info: Info.t, acc) =>
-            switch (info) {
-            | InfoPat({user_term: {term: Var("x"), _}, _})
-                when has_id(ids, id) => [
-                id,
-                ...acc,
-              ]
-            | _ => acc
-            },
-          info_map,
-          [],
+          info_map, ~init=[], ~f=(~key as id, ~data as info: Info.t, acc) =>
+          switch (info) {
+          | InfoPat({user_term: {term: Var("x"), _}, _})
+              when has_id(ids, id) => [
+              id,
+              ...acc,
+            ]
+          | _ => acc
+          }
         );
       check(int, "highlights exactly one binding", 1, List.length(bindings));
     },
@@ -346,46 +332,41 @@ let test_tvar_binding_to_refs =
 /* Find InfoExp or InfoPat Constructor entries with the given name */
 let find_ctr_refs =
     (info_map: Statics.Map.t, name: string): list((Id.t, Info.t)) =>
-  Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      switch (info) {
-      | InfoExp({user_term: {term: Constructor(n, _), _}, _})
-          when String.equal(n, name) => [
-          (id, info),
-          ...acc,
-        ]
-      | InfoPat({user_term: {term: Constructor(n, _), _}, _})
-          when String.equal(n, name) => [
-          (id, info),
-          ...acc,
-        ]
-      | _ => acc
-      },
-    info_map,
-    [],
+  Id.Map.fold(info_map, ~init=[], ~f=(~key as id, ~data as info: Info.t, acc) =>
+    switch (info) {
+    | InfoExp({user_term: {term: Constructor(n, _), _}, _})
+        when String.equal(n, name) => [
+        (id, info),
+        ...acc,
+      ]
+    | InfoPat({user_term: {term: Constructor(n, _), _}, _})
+        when String.equal(n, name) => [
+        (id, info),
+        ...acc,
+      ]
+    | _ => acc
+    }
   );
 
 /* Find the InfoTyp entry for a constructor definition (Var with ConstructorExpected) */
 let find_ctr_def =
     (info_map: Statics.Map.t, name: string): option((Id.t, Info.t)) =>
   Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      switch (acc) {
-      | Some(_) => acc
-      | None =>
-        switch (info) {
-        | InfoTyp({
-            user_term: {term: Var(n), _},
-            expects: ConstructorExpected(_, _),
-            _,
-          })
-            when String.equal(n, name) =>
-          Some((id, info))
-        | _ => None
-        }
-      },
-    info_map,
-    None,
+    info_map, ~init=None, ~f=(~key as id, ~data as info: Info.t, acc) =>
+    switch (acc) {
+    | Some(_) => acc
+    | None =>
+      switch (info) {
+      | InfoTyp({
+          user_term: {term: Var(n), _},
+          expects: ConstructorExpected(_, _),
+          _,
+        })
+          when String.equal(n, name) =>
+        Some((id, info))
+      | _ => None
+      }
+    }
   );
 
 let test_ctr_ref_to_def =

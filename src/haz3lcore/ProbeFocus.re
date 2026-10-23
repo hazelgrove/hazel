@@ -27,7 +27,7 @@ let cursor_is_aligned_uncached =
     true;
   } else {
     let all_probe_ids =
-      List.map(~f=fst, Id.Map.bindings(z.refractors.multis.ephemerals))
+      List.map(~f=fst, Id.Map.to_alist(z.refractors.multis.ephemerals))
       @ List.map(~f=fst, z.refractors.manuals);
     List.exists(
       ~f=
@@ -84,11 +84,11 @@ let cursor_is_aligned = (~dynamics: Dynamics.Map.t, z: Zipper.t): bool => {
 let caret_nearest_ephemeral =
     (~syntax: CachedSyntax.t, z: Zipper.t): option(Id.t) => {
   switch (Indicated.index(z)) {
-  | Some(piece_id) when Id.Map.mem(piece_id, z.refractors.multis.ephemerals) =>
+  | Some(piece_id) when Id.Map.mem(z.refractors.multis.ephemerals, piece_id) =>
     Some(piece_id)
   | _ =>
     let caret_pt = Zipper.Caret.point(syntax.measured, z);
-    Id.Map.bindings(z.refractors.multis.ephemerals)
+    Id.Map.to_alist(z.refractors.multis.ephemerals)
     |> List.find_map(~f=((id, _)) =>
          switch (
            TermData.extreme_measures(id, syntax.term_data, syntax.measured)
@@ -138,7 +138,7 @@ let resolve_pending_probe_cursor =
         (None, false);
       } else {
         let all_ids =
-          List.map(~f=fst, Id.Map.bindings(z.refractors.multis.ephemerals))
+          List.map(~f=fst, Id.Map.to_alist(z.refractors.multis.ephemerals))
           @ List.map(~f=fst, z.refractors.manuals);
         switch (all_ids) {
         | [] => (None, false)
@@ -250,10 +250,7 @@ let drop_dead_pin = (~dynamics: Dynamics.Map.t, z: Zipper.t): Zipper.t =>
         || Option.equal(Id.equal, Some(s.syntax_id), head_id)
         && List.equal(Id.equal, s_ids, tail_ids);
       };
-      Id.Map.exists(
-        (_, samples) => List.exists(~f=alive, samples),
-        dynamics,
-      )
+      Id.Map.exists(dynamics, ~f=samples => List.exists(~f=alive, samples))
         ? Some(stack) : None;
     | x => x
     }

@@ -58,7 +58,7 @@ let describe = (s: Sample.t): string =>
 
 let check_parity = (label: string, code: string) => {
   let (inline, folded) = eval_both(code);
-  let keys = m => m |> Id.Map.bindings |> List.map(~f=fst);
+  let keys = m => m |> Id.Map.to_alist |> List.map(~f=fst);
   check(
     int,
     label ++ ": same probe ids",
@@ -68,7 +68,7 @@ let check_parity = (label: string, code: string) => {
   List.iter(
     ~f=
       id => {
-        let get = m => Id.Map.find_opt(id, m) |> Option.value(~default=[]);
+        let get = m => Id.Map.find(m, id) |> Option.value(~default=[]);
         let (si, sf) = (get(inline), get(folded));
         if (List.length(si) != List.length(sf)
             || !List.for_all2_exn(si, sf, ~f=sample_eq)) {
