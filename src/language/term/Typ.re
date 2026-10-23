@@ -1071,8 +1071,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (ExplicitNonlabel, _) => None
   | (Sig(xs), Sig(ys)) =>
     /* Exact consistency: the same value-member names and the same
-       type-member names (order-insensitive), members pairwise consistent.
-       Subtyping between signatures lives in ana_meet, not here. */
+       type-member names (order-insensitive), members pairwise consistent. */
     let xs = Sig.dedup_last_items(xs);
     let mx = Sig.members(xs);
     let my = Sig.members(ys) |> Sig.dedup_last;

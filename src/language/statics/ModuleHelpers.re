@@ -445,8 +445,7 @@ let has_hole_binder = (items: list(Mod.t)): bool =>
     items,
   );
 
-/* Members the module exports that the analyzed signature does not declare.
-   Until width subtyping lands, a signature must be precise. */
+/* Members the module exports that the analyzed signature does not declare. */
 let extra_members =
     (~ana_items: list(Sig.t), have: list(Sig.t)): list(Var.t) => {
   let have = Sig.members(have);
