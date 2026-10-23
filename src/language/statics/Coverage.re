@@ -53,7 +53,7 @@ module Ctr = {
 
   include M;
   module Map = MapUtil.Make(M);
-  module Set = Stdlib.Set.Make(M);
+  module Set = Set.Make(M);
 
   let mk = (ctr, num_args) => {
     let string_key = string_of_int(num_args) ++ "~" ++ ctr;
@@ -170,7 +170,7 @@ module Ctr = {
     | Finite(all_ctrs) =>
       List.unzip(Map.to_alist(all_ctrs))
       |> fst
-      |> List.for_all(~f=ctr => Set.mem(ctr, seen_ctrs))
+      |> List.for_all(~f=ctr => Core.Set.mem(seen_ctrs, ctr))
     };
   };
 };
@@ -450,7 +450,7 @@ module UnseenPatternList: UnseenPatternList = {
       ? Ctr.default_ctr
       : List.unzip(Ctr.Map.to_alist(all_ctrs))
         |> fst
-        |> List.find_exn(~f=ctr => !Ctr.Set.mem(ctr, seen_in_col.seen_ctrs));
+        |> List.find_exn(~f=ctr => !Set.mem(seen_in_col.seen_ctrs, ctr));
   };
 
   // add a sum type constructor to the unseen pattern list
@@ -734,7 +734,7 @@ module Submatrices = {
         }
       | [Tuple(elts), ..._] =>
         let ctr = Ctr.tuple_ctr(List.length(elts));
-        let seen_ctrs = Ctr.Set.add(ctr, seen.seen_ctrs);
+        let seen_ctrs = Set.add(seen.seen_ctrs, ctr);
         let seen_all_ctrs =
           seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
         {
@@ -743,7 +743,7 @@ module Submatrices = {
           seen_all_ctrs,
           first_col_redundant_rows:
             add_redundant_row_if(
-              Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth,
+              Set.mem(seen.seen_ctrs, ctr) || seen.seen_truth,
               row.idx,
               seen.first_col_redundant_rows,
             ),
@@ -757,7 +757,7 @@ module Submatrices = {
             | None => 0
             },
           );
-        let seen_ctrs = Ctr.Set.add(ctr, seen.seen_ctrs);
+        let seen_ctrs = Set.add(seen.seen_ctrs, ctr);
         let seen_all_ctrs =
           seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
         {
@@ -766,7 +766,7 @@ module Submatrices = {
           seen_all_ctrs,
           first_col_redundant_rows:
             add_redundant_row_if(
-              Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth,
+              Set.mem(seen.seen_ctrs, ctr) || seen.seen_truth,
               row.idx,
               seen.first_col_redundant_rows,
             ),
@@ -913,15 +913,15 @@ module Submatrices = {
           // holes act like truth for the purposes of exhaustiveness checking
           // update all submatrices for seen ctrs
           let update_ctrs_with_truth = (seen_ctrs, ctrs) =>
-            Ctr.Set.fold(
-              (ctr, ctrs) => {
+            Set.fold(
+              seen_ctrs,
+              ~init=ctrs,
+              ~f=(ctrs, ctr) => {
                 let num_args = Ctr.num_args_of(ctr);
                 let cols =
                   List.init(num_args, ~f=_ => Constraint.Truth) @ cols;
                 update_ctrs(ctr, row.idx, cols, ctrs);
               },
-              seen_ctrs,
-              ctrs,
             );
 
           // update seen ctrs, ints, sints, floats, and strings to be truths
