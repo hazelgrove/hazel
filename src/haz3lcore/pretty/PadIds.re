@@ -40,15 +40,15 @@ let pad_ids =
   let rec derived = () => {
     incr(counter);
     let cand = Id.derive(~salt="pad" ++ string_of_int(counter^), base);
-    Id.Set.mem(cand, forbidden_set^) ? derived() : cand;
+    Id.Set.mem(forbidden_set^, cand) ? derived() : cand;
   };
   let replace = id =>
-    if (Id.Set.mem(id, forbidden_set^)) {
+    if (Id.Set.mem(forbidden_set^, id)) {
       let fresh = derived();
-      forbidden_set := Id.Set.add(fresh, forbidden_set^);
+      forbidden_set := Id.Set.add(forbidden_set^, fresh);
       fresh;
     } else {
-      forbidden_set := Id.Set.add(id, forbidden_set^);
+      forbidden_set := Id.Set.add(forbidden_set^, id);
       id;
     };
   let truncated =

@@ -77,7 +77,7 @@ let rec reuse_pass_for =
     | Step({expr, side_effects, is_value: false, _}) =>
       let reuse_map =
         update_reuse_map_after_effects(
-          ~rhs_reused=source_id => Id.Map.mem(source_id, req_stream.entries),
+          ~rhs_reused=source_id => Id.Map.mem(req_stream.entries, source_id),
           ~reuse_map,
           side_effects,
         );

@@ -42,26 +42,22 @@ module Model = {
 
   let persist = (model: t): persistent => {
     thm_map:
-      Id.Map.map(
-        (thm: theorem) =>
-          {stepper_view: StepperView.Model.persist(thm.stepper_view)},
-        model.thm_map,
+      Id.Map.map(model.thm_map, ~f=(thm: theorem) =>
+        {stepper_view: StepperView.Model.persist(thm.stepper_view)}
       ),
   };
 
   let unpersist = (p: persistent): t => {
     thm_map:
-      Id.Map.map(
-        (p_thm: persistent_theorem): theorem =>
-          {
-            name: "?",
-            ctx: Calc.Pending,
-            env: Calc.Pending,
-            sem_ctx: Calc.Pending,
-            goal_exp: Calc.Pending,
-            stepper_view: StepperView.Model.unpersist(p_thm.stepper_view),
-          },
-        p.thm_map,
+      Id.Map.map(p.thm_map, ~f=(p_thm: persistent_theorem): theorem =>
+        {
+          name: "?",
+          ctx: Calc.Pending,
+          env: Calc.Pending,
+          sem_ctx: Calc.Pending,
+          goal_exp: Calc.Pending,
+          stepper_view: StepperView.Model.unpersist(p_thm.stepper_view),
+        }
       ),
     thms: Calc.Pending,
   };
@@ -76,7 +72,7 @@ module Model = {
           (acc, id) =>
             acc
             +. (
-              switch (Id.Map.find_opt(id, model.thm_map)) {
+              switch (Id.Map.find(model.thm_map, id)) {
               | Some(thm) =>
                 StepperView.Model.get_validity(thm.stepper_view)
                 == Some(true)
@@ -116,7 +112,7 @@ module Update = {
       let id_and_thm = {
         open OptUtil.Syntax;
         let* id = List.nth(model.thms |> Calc.get_saved([]), n);
-        let* thm = Id.Map.find_opt(id, model.thm_map);
+        let* thm = Id.Map.find(model.thm_map, id);
         Some((id, thm));
       };
       switch (id_and_thm) {
@@ -124,13 +120,13 @@ module Update = {
         let* stepper_view =
           StepperView.Update.update(~settings, action, thm.stepper_view);
         let thm_map =
-          Id.Map.add(
-            id,
-            {
+          Id.Map.set(
+            model.thm_map,
+            ~key=id,
+            ~data={
               ...thm,
               stepper_view,
             },
-            model.thm_map,
           );
         Model.{
           ...model,
@@ -202,9 +198,10 @@ module Update = {
       |> List.fold_left(
            ~f=
              (acc, (id, name, env', rule: ProofRule.t)) =>
-               Id.Map.update(
+               Id.Map.change(
+                 acc,
                  id,
-                 (opt: option(Model.theorem)) => {
+                 ~f=(opt: option(Model.theorem)) => {
                    let Model.{
                      name: _,
                      ctx,
@@ -264,7 +261,6 @@ module Update = {
                      stepper_view,
                    });
                  },
-                 acc,
                ),
            ~init=thm_map,
          );
@@ -285,7 +281,7 @@ module Focus = {
     let id_and_thm = {
       open OptUtil.Syntax;
       let* id = List.nth(model.thms |> Calc.get_saved([]), focus |> fst);
-      let* thm = Id.Map.find_opt(id, model.thm_map);
+      let* thm = Id.Map.find(model.thm_map, id);
       Some((id, thm));
     };
     switch (id_and_thm) {
@@ -334,7 +330,7 @@ module View = {
         ~f=
           (idx, id) => {
             let Model.{stepper_view, name, _} =
-              Id.Map.find(id, model.thm_map);
+              Id.Map.find_exn(model.thm_map, id);
             let status =
               switch (StepperView.Model.get_validity(stepper_view)) {
               | Some(true) =>

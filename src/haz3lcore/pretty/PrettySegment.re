@@ -233,7 +233,8 @@ let classify_blank_lines = (seg: Segment.t): Id.Map.t(unit) => {
           } else {
             (
               0,
-              newline_count >= 2 ? Id.Map.add(Piece.id(p), (), set) : set,
+              newline_count >= 2
+                ? Id.Map.set(set, ~key=Piece.id(p), ~data=()) : set,
             );
           },
       ~init=(0, Id.Map.empty),
@@ -255,12 +256,12 @@ let reinsert_blank_lines =
         go([p, ...acc], remaining_ids, rest);
       } else {
         let pid = Piece.id(p);
-        if (Id.Map.mem(pid, remaining_ids)) {
+        if (Id.Map.mem(remaining_ids, pid)) {
           /* Insert blank line and remove ID so we don't double-insert
              for other shards of the same decomposed tile */
           go(
             [p, nl(), ...acc],
-            Id.Map.remove(pid, remaining_ids),
+            Id.Map.remove(remaining_ids, pid),
             rest,
           );
         } else {
@@ -292,7 +293,8 @@ let classify_trailing_comments = (seg: Segment.t): Id.Map.t(unit) => {
     | [Piece.Secondary(w), ...rest] when Secondary.is_space(w) =>
       go(acc, same_line, rest)
     | [Piece.Secondary(w) as pc, ...rest] when Secondary.is_comment(w) =>
-      let acc = same_line ? Id.Map.add(Piece.id(pc), (), acc) : acc;
+      let acc =
+        same_line ? Id.Map.set(acc, ~key=Piece.id(pc), ~data=()) : acc;
       go(acc, true, rest);
     | [Piece.Tile(t), ...rest] =>
       let acc =
@@ -315,7 +317,7 @@ let absorb_comments =
   let rec go = (acc, pieces) =>
     switch (pieces) {
     | [p, ...rest]
-        when is_comment(p) && Id.Map.mem(Piece.id(p), absorbable_comments^) =>
+        when is_comment(p) && Id.Map.mem(absorbable_comments^, Piece.id(p)) =>
       go([p, ...acc], rest)
     | _ => (List.rev(acc), pieces)
     };

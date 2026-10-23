@@ -150,7 +150,7 @@ type row_context = {
 };
 
 let get_term = (id: Id.t, terms: TermMap.t): option(Language.Any.t) =>
-  Id.Map.find_opt(id, terms);
+  Id.Map.find(terms, id);
 
 let term_is_hole = (term: Language.Any.t): bool =>
   switch (term) {
@@ -645,7 +645,7 @@ let rec collect_pattern_binding_ids =
 let update_state_with_candidate =
     (candidate_id: Id.t, env: selection_env, state: selection_state)
     : selection_state =>
-  switch (Id.Map.find_opt(candidate_id, env.terms)) {
+  switch (Id.Map.find(env.terms, candidate_id)) {
   | Some(Pat(pat)) =>
     let binding_ids =
       collect_pattern_binding_ids(Language.Pat.bindings(pat), []);
@@ -704,7 +704,7 @@ let rec select_rows =
  * but the evaluator stores samples keyed by the rep_id. If we probe a non-rep ID,
  * the sample lookup will fail. This ensures we always use the rep_id. */
 let normalize_to_rep_id = (id: Id.t, terms: TermMap.t): Id.t =>
-  switch (Id.Map.find_opt(id, terms)) {
+  switch (Id.Map.find(terms, id)) {
   | Some(term) => Language.Any.rep_id(term)
   | None => id
   };
