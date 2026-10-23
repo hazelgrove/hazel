@@ -334,6 +334,8 @@ module Update = {
         ~stepping: option(Sample.span_ref)=None,
         /* probes outside the program, in code it runs (the library's) */
         ~extra_targets: Sample.targets=Sample.no_targets,
+        /* how [statics] were cut from the analysis' (a world's run) */
+        ~run: option(Haz3lcore.WorldTree.run)=?,
         statics: Haz3lcore.CachedStatics.t,
         {
           cached_settings,
@@ -403,6 +405,7 @@ module Update = {
                 ~probe_all=settings.probe_all,
                 ~external_ids=List.map(fst, Id.Map.bindings(extra_targets)),
                 ~targets=Calc.get_value(targets),
+                ~run?,
                 statics,
               ),
             prev: UseResident,

@@ -991,6 +991,11 @@ let calculate_slide =
       };
       /* the whole program's result keeps evaluating the assembled
          document; requests fire only when its elaboration changed */
+      let (run_statics, run) =
+        switch (run) {
+        | Some(f) => f(Divided.statics(d))
+        | None => (Divided.statics(d), None)
+        };
       let d =
         Divided.with_result(
           EvalResult.Update.calculate(
@@ -1008,7 +1013,8 @@ let calculate_slide =
                 stepping,
               ),
             ~extra_targets=library_targets,
-            Option.fold(~none=s => s, ~some=f => f, run, Divided.statics(d)),
+            ~run?,
+            run_statics,
             Divided.result(d),
           ),
           d,

@@ -429,97 +429,232 @@ let sealed_empty = (item: Language.Mod.t): bool =>
   | _ => false
   };
 
+/* what of a module's items runs, by item id: each whole, empty (a module
+   sealed to `{}`: its sealed value has no members), or itself cut. an
+   item not listed doesn't run */
+type part =
+  | Whole
+  | Empty
+  | Inside(cut)
+and cut = Id.Map.t(part);
+
+let rec equal_part = (a: part, b: part): bool =>
+  switch (a, b) {
+  | (Whole, Whole)
+  | (Empty, Empty) => true
+  | (Inside(c), Inside(c')) => equal_cut(c, c')
+  | _ => false
+  }
+and equal_cut = (a: cut, b: cut): bool => Id.Map.equal(equal_part, a, b);
+
+/* a run: the elaboration it was cut from, and the cut */
+type run = {
+  whole: Language.Exp.t,
+  cut,
+};
+
+let with_def =
+    (f: Language.Exp.t => Language.Exp.t, item: Language.Mod.t)
+    : Language.Mod.t =>
+  switch (item.term) {
+  | ModLet(p, def) => {
+      ...item,
+      term: ModLet(p, f(def)),
+    }
+  | _ => item
+  };
+
+/* [e]'s module value with only what [c] keeps. [changed]: each module
+   value it cut, with what it runs as, or emptied (None) */
+let rec apply =
+        (
+          ~changed: ref(list((Language.Exp.t, option(Language.Exp.t))))=ref(
+                                                                    [],
+                                                                    ),
+          c: cut,
+          e: Language.Exp.t,
+        )
+        : Language.Exp.t =>
+  switch (e.term) {
+  | Module(items) => {
+      ...e,
+      term:
+        Module(
+          List.filter_map(
+            item =>
+              switch (Id.Map.find_opt(Language.Mod.rep_id(item), c)) {
+              | None => None
+              | Some(Whole) => Some(item)
+              | Some(Empty) =>
+                Some(
+                  with_def(
+                    def => {
+                      let empty: Language.Exp.t = {
+                        ...def,
+                        term: Module([]),
+                      };
+                      changed := [(def, None), ...changed^];
+                      empty;
+                    },
+                    item,
+                  ),
+                )
+              | Some(Inside(c)) =>
+                Some(
+                  with_def(
+                    def => {
+                      let cut = apply(~changed, c, def);
+                      changed := [(def, Some(cut)), ...changed^];
+                      cut;
+                    },
+                    item,
+                  ),
+                )
+              },
+            items,
+          ),
+        ),
+    }
+  | _ => e
+  };
+
 /* what runs for a view zoomed into the module at the end of [trail]
    (module ids from the top level down; [] the whole program), on demand:
    the zoomed module whole, and on each level above it the module on the
    way and before it what the kept items mention, transitively. A module
-   sealed to `{}` kept for a mention runs empty: its sealed value has no
-   members. At the top level, what [cached] names (the bake's library)
-   isn't kept: Builtins.env_for supplies it */
-let run_elab =
+   sealed to `{}` kept for a mention runs empty. At the top level, what
+   [cached] names (the bake's library) isn't kept: Builtins.env_for
+   supplies it. None: [trail] isn't a path of modules, and all runs */
+let run_cut =
     (~cached: string => bool, ~trail: list(Id.t), elab: Language.Exp.t)
-    : Language.Exp.t => {
+    : option(cut) => {
   let library = (i: Language.Mod.t) =>
     binds(i) != [] && List.for_all(cached, binds(i));
-  let rec cut = (~top, trail, e: Language.Exp.t): option(Language.Exp.t) =>
+  let rec go = (~top, trail, e: Language.Exp.t): option(cut) =>
     switch (trail, e.term) {
     | ([], Module(items)) when top =>
-      Some({
-        ...e,
-        term: Module(List.filter(i => !library(i), items)),
-      })
+      Some(
+        List.fold_left(
+          (c, i) =>
+            library(i) ? c : Id.Map.add(Language.Mod.rep_id(i), Whole, c),
+          Id.Map.empty,
+          items,
+        ),
+      )
     | ([m, ...below], Module(items)) =>
       switch (ListUtil.findi_opt(i => Language.Mod.rep_id(i) == m, items)) {
       | None => None
       | Some((n, item)) =>
-        let before = ListUtil.take(n, items);
-        let item: option(Language.Mod.t) =
+        let part =
           switch (below, item.term) {
-          | ([_, ..._], ModLet(p, def)) =>
-            switch (cut(~top=false, below, def)) {
-            | Some(def) =>
-              Some({
-                ...item,
-                term: ModLet(p, def),
-              })
-            | None => None
-            }
-          | _ => Some(item)
+          | ([_, ..._], ModLet(_, def)) =>
+            Option.map(c => Inside(c), go(~top=false, below, def))
+          | _ => Some(Whole)
           };
         Option.map(
-          (item: Language.Mod.t): Language.Exp.t => {
+          part => {
             let mentions = (d: Language.Exp.t) =>
               Language.Builtins.mentioned(~keep=x => !(top && cached(x)), d);
             let demand = Hashtbl.create(16);
             let want = d =>
               List.iter(x => Hashtbl.replace(demand, x, ()), mentions(d));
-            Option.iter(want, def_of(item));
-            let kept: list(Language.Mod.t) =
-              List.fold_left(
-                (kept: list(Language.Mod.t), i: Language.Mod.t) => {
-                  let names = binds(i);
-                  if (List.exists(Hashtbl.mem(demand), names)) {
-                    List.iter(Hashtbl.remove(demand), names);
-                    if (sealed_empty(i)) {
-                      switch (i.term, def_of(i)) {
-                      | (ModLet(p, _), Some(def)) => [
-                          {
-                            ...i,
-                            term:
-                              ModLet(
-                                p,
-                                {
-                                  ...def,
-                                  term: Module([]),
-                                },
-                              ),
-                          },
-                          ...kept,
-                        ]
-                      | _ => [i, ...kept]
-                      };
-                    } else {
-                      Option.iter(want, def_of(i));
-                      [i, ...kept];
-                    };
-                  } else {
-                    kept;
-                  };
-                },
-                [],
-                List.rev(before),
-              );
-            {
-              ...e,
-              term: Module(kept @ [item]),
+            switch (part, item.term) {
+            | (Inside(c), ModLet(_, def)) => want(apply(c, def))
+            | _ => Option.iter(want, def_of(item))
             };
+            List.fold_left(
+              (c, i: Language.Mod.t) => {
+                let names = binds(i);
+                if (List.exists(Hashtbl.mem(demand), names)) {
+                  List.iter(Hashtbl.remove(demand), names);
+                  if (sealed_empty(i)) {
+                    Id.Map.add(Language.Mod.rep_id(i), Empty, c);
+                  } else {
+                    Option.iter(want, def_of(i));
+                    Id.Map.add(Language.Mod.rep_id(i), Whole, c);
+                  };
+                } else {
+                  c;
+                };
+              },
+              Id.Map.singleton(Language.Mod.rep_id(item), part),
+              List.rev(ListUtil.take(n, items)),
+            );
           },
-          item,
+          part,
         );
       }
     | _ => None
     };
-  cut(~top=true, trail, elab) |> Option.value(~default=elab);
+  go(~top=true, trail, elab);
+};
+
+let run_elab =
+    (~cached: string => bool, ~trail: list(Id.t), elab: Language.Exp.t)
+    : Language.Exp.t =>
+  switch (run_cut(~cached, ~trail, elab)) {
+  | Some(c) => apply(c, elab)
+  | None => elab
+  };
+
+/* [s] as cut: its elaboration, and the analysis of the expressions in it,
+   so a request carries what runs. The evaluator reuses a result while
+   its entry's elab_term stays the same, so a module value the cut changed
+   has what it runs as: a cut one its cut value, an emptied one no entry
+   (its value is trivial) */
+let run_statics = (c: cut, s: CachedStatics.t): CachedStatics.t => {
+  let changed = ref([]);
+  let elaborated = apply(~changed, c, s.elaborated);
+  let ids = ref([]);
+  let _: Language.Exp.t =
+    Language.Exp.map_term(
+      ~f_exp=
+        (cont, e) => {
+          ids := Language.IdTagged.ids(e) @ ids^;
+          cont(e);
+        },
+      elaborated,
+    );
+  let info_map =
+    List.fold_left(
+      (m, id) =>
+        switch (Id.Map.find_opt(id, s.info_map)) {
+        | Some(info) => Id.Map.add(id, info, m)
+        | None => m
+        },
+      Id.Map.empty,
+      ids^,
+    );
+  let info_map =
+    List.fold_left(
+      (m, (was: Language.Exp.t, runs)) =>
+        List.fold_left(
+          (m, id) =>
+            switch (runs, Id.Map.find_opt(id, m)) {
+            | (None, _) => Id.Map.remove(id, m)
+            | (Some(runs), Some(Language.Info.InfoExp(i)))
+                when i.elab_term === was =>
+              Id.Map.add(
+                id,
+                Language.Info.InfoExp({
+                  ...i,
+                  elab_term: runs,
+                }),
+                m,
+              )
+            | _ => m
+            },
+          m,
+          Language.IdTagged.ids(was),
+        ),
+      info_map,
+      changed^,
+    );
+  {
+    ...s,
+    elaborated,
+    info_map,
+  };
 };
 
 /* [seg] split at its first top-level tile among [heads]: the library's

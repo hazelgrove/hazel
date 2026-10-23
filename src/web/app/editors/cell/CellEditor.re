@@ -219,8 +219,12 @@ module Update = {
         ~extra_dynamics: option(Language.Dynamics.Map.t)=?,
         /* probes outside the program, in code it runs (the library's) */
         ~extra_targets: option(Language.Sample.targets)=?,
-        /* the statics the run reads (a world slide's: its own item) */
-        ~run: Haz3lcore.CachedStatics.t => Haz3lcore.CachedStatics.t=s => s,
+        /* the statics the run reads, and how they were cut from these
+           (a world's: what its view needs) */
+        ~run:
+           Haz3lcore.CachedStatics.t =>
+           (Haz3lcore.CachedStatics.t, option(Haz3lcore.WorldTree.run))=s =>
+                                                                    (s, None),
         ~show_value=?,
         ~queue_worker,
         ~stitch,
@@ -252,6 +256,7 @@ module Update = {
     /* Save probe results reference before result calculation */
     let probes_before = EvalResult.Model.probe_results(result);
     /* Calculate result (may produce new dynamics from worker) */
+    let (run_statics, run) = run(editor |> CodeEditable.Model.get_statics);
     let result =
       EvalResult.Update.calculate(
         ~settings={
@@ -263,7 +268,8 @@ module Update = {
         ~is_edited,
         ~stepping=stepping(editor),
         ~extra_targets?,
-        run(editor |> CodeEditable.Model.get_statics),
+        ~run?,
+        run_statics,
         result,
       );
     let (cell, steps_resized) =

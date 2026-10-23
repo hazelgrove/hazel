@@ -112,52 +112,41 @@ let with_running_library = (~slide: Id.t, doc: Segment.t): option(Segment.t) =>
   };
 
 /* what a world's run reads: what its view shows and what that needs
-   (WorldTree.run_elab; the library's definitions come from the bake),
-   and the analysis of the expressions in it, so a request carries the
-   view's size, not the library's */
-let run_memo: Slot.t((list(Id.t), CachedStatics.t), CachedStatics.t) =
+   (WorldTree.run_cut; the library's definitions come from the bake), so
+   a request carries the view's size, not the library's; and the cut, by
+   which the request's pieces are cut alike (EvalSplit) */
+let run_memo:
+  Slot.t(
+    (list(Id.t), CachedStatics.t),
+    (CachedStatics.t, option(WorldTree.run)),
+  ) =
   Slot.mk();
-let run_statics = (~zoom: list(Id.t), s: CachedStatics.t): CachedStatics.t =>
+let run_statics =
+    (~zoom: list(Id.t), s: CachedStatics.t)
+    : (CachedStatics.t, option(WorldTree.run)) =>
   Slot.get(
     ~same=((a, s), (b, s')) => a == b && s === s',
     run_memo,
     (zoom, s),
-    () => {
+    () =>
       /* what the view shows: the modules from the top level down to the
          zoomed one */
-      let trail = zoom;
-      let elaborated =
-        WorldTree.run_elab(
+      switch (
+        WorldTree.run_cut(
           ~cached=Language.Builtins.is_library_name,
-          ~trail,
+          ~trail=zoom,
           s.elaborated,
-        );
-      let ids = ref([]);
-      let _: Language.Exp.t =
-        Language.Exp.map_term(
-          ~f_exp=
-            (cont, e) => {
-              ids := Language.IdTagged.ids(e) @ ids^;
-              cont(e);
-            },
-          elaborated,
-        );
-      let info_map =
-        List.fold_left(
-          (m, id) =>
-            switch (Id.Map.find_opt(id, s.info_map)) {
-            | Some(info) => Id.Map.add(id, info, m)
-            | None => m
-            },
-          Id.Map.empty,
-          ids^,
-        );
-      {
-        ...s,
-        elaborated,
-        info_map,
-      };
-    },
+        )
+      ) {
+      | None => (s, None)
+      | Some(cut) => (
+          WorldTree.run_statics(cut, s),
+          Some({
+            whole: s.elaborated,
+            cut,
+          }),
+        )
+      },
   );
 
 /* what a slide is on its own (export, a share link): a world's members,
