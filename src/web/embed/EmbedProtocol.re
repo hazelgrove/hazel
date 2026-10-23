@@ -92,6 +92,9 @@ type incoming =
   | Lines(bool)
   /* { type: "reveal", name }: the caret on name's definition in the cell */
   | Reveal(string)
+  /* { type: "font", size, family }: the code's font size in px and its
+     family (a CSS font list), as the page's own editors have them */
+  | Font(option(float), option(string))
   | Ping;
 
 /* j[key] when it is a string */
@@ -128,6 +131,11 @@ let decode = (data: Js.Unsafe.any): option(incoming) =>
     }
   | Some("ping") => Some(Ping)
   | Some("focus") => Some(Focus(string_field(data, "module")))
+  | Some("font") =>
+    let size =
+      Js.to_string(Js.typeof(Js.Unsafe.get(data, "size"))) == "number"
+        ? Some(Js.float_of_number(Js.Unsafe.get(data, "size"))) : None;
+    Some(Font(size, string_field(data, "family")));
   | Some("reveal") =>
     switch (string_field(data, "name")) {
     | Some(name) => Some(Reveal(name))

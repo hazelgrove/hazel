@@ -115,6 +115,43 @@ let apply_theme = (~dark: bool, ~contrast: bool): unit => {
   };
 };
 
+let set_font_metrics = (~link, ~col_width: float, ~row_height: float): unit => {
+  JsUtil.set_css_custom_property(
+    "--row-height-px",
+    Printf.sprintf("%fpx", row_height),
+  );
+  update(
+    ~link,
+    SetFontMetrics({
+      row_height,
+      col_width,
+    }),
+  );
+};
+
+/* (^ticket(587), Matthew 2026-10-23: "font size chips don't affect hazel
+   tile editor yet?") the page's font for the code: Hazel's own two
+   settings set (--base-font-size, --code-font, as variables.css has
+   them), and the font measured again from the specimen, as a zoom does */
+let apply_font =
+    (~link, ~size: option(float), ~family: option(string)): unit => {
+  switch (size) {
+  | Some(px) when px >= 6. && px <= 48. =>
+    JsUtil.set_css_custom_property(
+      "--base-font-size",
+      Printf.sprintf("%gpx", px),
+    )
+  | _ => ()
+  };
+  switch (family) {
+  | Some(f) when String.length(f) > 0 && String.length(f) < 200 =>
+    JsUtil.set_css_custom_property("--code-font", f)
+  | _ => ()
+  };
+  let (col_width, row_height) = JsUtil.font_metrics_from_specimen();
+  set_font_metrics(~link, ~col_width, ~row_height);
+};
+
 let on_message = (~link, event: Js.Unsafe.any): unit =>
   try(
     switch (EmbedLink.receive(link, event)) {
@@ -124,6 +161,12 @@ let on_message = (~link, event: Js.Unsafe.any): unit =>
       | Some(on) =>
         link.editable = None;
         update(~link, SetEditable(on));
+      | None => ()
+      };
+      switch (link.font) {
+      | Some((size, family)) =>
+        link.font = None;
+        apply_font(~link, ~size, ~family);
       | None => ()
       };
       switch (link.reveal) {
@@ -193,20 +236,6 @@ let report = (~link, model: EmbedModel.Model.t): unit =>
     EmbedLink.report(link, ~caret?, ~height, model);
   | None => ()
   };
-
-let set_font_metrics = (~link, ~col_width: float, ~row_height: float): unit => {
-  JsUtil.set_css_custom_property(
-    "--row-height-px",
-    Printf.sprintf("%fpx", row_height),
-  );
-  update(
-    ~link,
-    SetFontMetrics({
-      row_height,
-      col_width,
-    }),
-  );
-};
 
 let note =
   Node.div(

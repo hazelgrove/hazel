@@ -33,6 +33,8 @@ type t = {
   mutable lines: option(bool),
   /* and a name it asked to see */
   mutable reveal: option(string),
+  /* and the font it asked for: (size in px, family) */
+  mutable font: option((option(float), option(string))),
 };
 
 let make = (~parent, ~own_origin, ~post): t => {
@@ -47,6 +49,7 @@ let make = (~parent, ~own_origin, ~post): t => {
   theme: None,
   lines: None,
   reveal: None,
+  font: None,
 };
 
 let send = (link: t, ~target: string, message: EmbedModel.Outbox.message) =>
@@ -92,6 +95,10 @@ let receive = (link: t, event: Js.Unsafe.any): option(EmbedModel.Program.t) => {
     | Some(Set(program)) =>
       link.page_origin = Some(origin);
       Some(program);
+    | Some(Font(size, family)) =>
+      link.page_origin = Some(origin);
+      link.font = Some((size, family));
+      None;
     | Some(Reveal(name)) =>
       link.page_origin = Some(origin);
       link.reveal = Some(name);
