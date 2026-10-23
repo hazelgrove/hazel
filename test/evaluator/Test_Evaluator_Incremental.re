@@ -1734,29 +1734,6 @@ let retype = (~from: Typ.term, ~to_: Typ.term, exp: Exp.t): Exp.t => {
   TermBase.Exp.map_term(~f_typ, exp);
 };
 
-/* An ascription is part of a binding's value: `1` bound as `x : Int` is `1`,
- * bound as `x : Bool` it is the failed cast, so editing the annotation must
- * invalidate the cached use of `x` rather than hand back the old `1`. */
-let test_asc_edit_invalidates_binding = () => {
-  let exp1 = parse_exp({|let x : Int = 1 in x|});
-  let exp2 = retype(~from=Atom(Int), ~to_=Atom(Bool), exp1);
-  check(
-    bool,
-    "retype actually changed the expression",
-    true,
-    !Exp.fast_equal(exp1, exp2),
-  );
-  let (r_fresh, _, _) = eval_incr(exp2);
-  let (_, _, incr_prev) = eval_incr(exp1);
-  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
-  check(
-    dhexp_typ,
-    "Incremental eval of edited matches fresh eval of edited",
-    r_fresh,
-    r_incr,
-  );
-};
-
 /* Evaluating [after] reusing the cache from evaluating [before] gives the
  * same result as evaluating [after] from scratch. [after] must be derived
  * from [before] by an id-preserving edit, or nothing is reused. */
@@ -1771,6 +1748,17 @@ let incremental_matches_fresh = (~before: Exp.t, ~after: Exp.t) => {
   let (_, _, incr_prev) = eval_incr(before);
   let (r_incr, _, _) = eval_incr(~prev=incr_prev, after);
   check(dhexp_typ, "incremental matches fresh", r_fresh, r_incr);
+};
+
+/* An ascription is part of a binding's value: `1` bound as `x : Int` is `1`,
+ * bound as `x : Bool` it is the failed cast, so editing the annotation must
+ * invalidate the cached use of `x` rather than hand back the old `1`. */
+let test_asc_edit_invalidates_binding = () => {
+  let before = parse_exp({|let x : Int = 1 in x|});
+  incremental_matches_fresh(
+    ~before,
+    ~after=retype(~from=Atom(Int), ~to_=Atom(Bool), before),
+  );
 };
 
 /* A module's last binding step yields its value. Evaluating the members
