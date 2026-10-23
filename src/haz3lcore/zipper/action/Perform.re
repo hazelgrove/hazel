@@ -400,13 +400,14 @@ let rec go =
     Move.go(
       ~statics=statics.info_map,
       ~problem_ids=
-        Stdlib.Seq.append(
-          Stdlib.List.to_seq(statics.error_ids),
-          Stdlib.Seq.append(
-            Stdlib.List.to_seq(statics.warning_ids),
-            Stdlib.Seq.filter_map(
-              (g: Grout.t) => g.shape == Convex ? Some(g.id) : None,
-              Stdlib.List.to_seq(Segment.holes(syntax.segment)),
+        Sequence.append(
+          Sequence.of_list(statics.error_ids),
+          Sequence.append(
+            Sequence.of_list(statics.warning_ids),
+            Sequence.filter_map(
+              Sequence.of_list(Segment.holes(syntax.segment)),
+              ~f=(g: Grout.t) =>
+              g.shape == Convex ? Some(g.id) : None
             ),
           ),
         ),
