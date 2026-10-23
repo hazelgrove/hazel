@@ -44,6 +44,5 @@ module OpenRouter = OpenRouter;
 module SafeTriangle = SafeTriangle;
 module SvgUtil = SvgUtil;
 
-// Used by [@deriving sexp, yojson)]
-include Sexplib.Std;
+// Used by [@deriving yojson]
 include Ppx_yojson_conv_lib.Yojson_conv.Primitives;

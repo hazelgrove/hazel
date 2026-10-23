@@ -608,7 +608,7 @@ let chat_messages_scroll_stamp =
     )
     : int => {
   let acc = ref(0);
-  let mix = (n: int) => acc := Stdlib.Hashtbl.hash((acc^, n));
+  let mix = (n: int) => acc := Hashtbl.hash((acc^, n));
   List.iter(
     ~f=
       (chunk: ChunkedUIChat.Model.chunk) =>
@@ -616,14 +616,14 @@ let chat_messages_scroll_stamp =
         | UserMessage({content, origin_id}) =>
           mix(1);
           mix(String.length(content));
-          mix(Stdlib.Hashtbl.hash(origin_id));
+          mix(Hashtbl.hash(origin_id));
         | AgentResponseChunk({content, agent_reasoning, tool_results}) =>
           mix(2);
           List.iter(
             ~f=
               (m: Message.Model.t) => {
                 mix(String.length(m.content));
-                mix(Stdlib.Hashtbl.hash(m.id));
+                mix(Hashtbl.hash(m.id));
                 switch (m.reasoning) {
                 | Some(r) => mix(String.length(r))
                 | None => mix(0)
@@ -644,7 +644,7 @@ let chat_messages_scroll_stamp =
                 mix(String.length(tr.content));
                 mix(tr.expanded ? 1 : 0);
                 mix(tr.success ? 1 : 0);
-                mix(Stdlib.Hashtbl.hash(tr.tool_call.id));
+                mix(Hashtbl.hash(tr.tool_call.id));
               },
             tool_results,
           );
