@@ -1,55 +1,5 @@
-let print_time_prefix =
-    (name: string, start_time: float, end_time: float): unit => {
-  Printf.printf(
-    "%-32s%4.0fms",
-    name ++ ":",
-    1000.0 *. (end_time -. start_time),
-  );
-};
-
-let print_time = (name: string, start_time: float, end_time: float): unit => {
-  print_time_prefix(name, start_time, end_time);
-  Printf.printf("\n%!");
-};
-
-let print_times =
-    (name: string, start_time: float, times: list((string, float))): unit => {
-  assert(!List.is_empty(times));
-  let end_time =
-    List.fold_left(~f=(_, last) => snd(last), ~init=-1.0, times);
-  print_time_prefix(name, start_time, end_time);
-  Printf.printf(" [");
-  let rec go = (previous_time: float, times: list((string, float))): unit => {
-    switch (times) {
-    | [] => ()
-    | [(name, time), ...times] =>
-      Printf.printf(" %s: %.0fms", name, 1000.0 *. (time -. previous_time));
-      go(time, times);
-    };
-  };
-  go(start_time, times);
-  Printf.printf(" ]\n%!");
-};
-
-let measure_time = (name: string, measure: bool, f: unit => 'a): 'a =>
-  if (measure) {
-    let start_time =
-      Time_float.now()
-      |> Time_float.to_span_since_epoch
-      |> Time_float.Span.to_sec;
-    let x = f();
-    let end_time =
-      Time_float.now()
-      |> Time_float.to_span_since_epoch
-      |> Time_float.Span.to_sec;
-    print_time(name, start_time, end_time);
-    x;
-  } else {
-    f();
-  };
-
 /* Run f and return how long it took (wall-clock via performance.now) alongside
-   its result. Companion to measure_time, which prints instead of returning. */
+   its result. */
 let timed: 'a. (unit => 'a) => (Core.Time_ns.Span.t, 'a) =
   f => {
     let t0 = JsUtil.precise_timestamp();
