@@ -17,40 +17,43 @@ let pieces_of = (config_type): Base.segment => {
 /* Editor invariant: a tile has exactly one more shard than it has children. */
 let rec bad_tiles = (seg: Base.segment): list(string) =>
   List.concat_map(
-    (p: Base.piece) =>
-      switch (p) {
-      | Tile(t) =>
-        let here =
-          List.length(t.shards) != List.length(t.children) + 1
-            ? [
-              String.concat("", Tile.label(t))
-              ++ " shards="
-              ++ string_of_int(List.length(t.shards))
-              ++ " children="
-              ++ string_of_int(List.length(t.children)),
-            ]
-            : [];
-        here @ List.concat_map(bad_tiles, t.children);
-      | _ => []
-      },
+    ~f=
+      (p: Base.piece) =>
+        switch (p) {
+        | Tile(t) =>
+          let here =
+            List.length(t.shards) != List.length(t.children) + 1
+              ? [
+                String.concat(~sep="", Tile.label(t))
+                ++ " shards="
+                ++ string_of_int(List.length(t.shards))
+                ++ " children="
+                ++ string_of_int(List.length(t.children)),
+              ]
+              : [];
+          here @ List.concat_map(~f=bad_tiles, t.children);
+        | _ => []
+        },
     seg,
   );
 
 let rec ids_of = (seg: Base.segment): list(Id.t) =>
   List.concat_map(
-    (p: Base.piece) =>
-      switch (p) {
-      | Tile(t) => [t.id, ...List.concat_map(ids_of, t.children)]
-      | Grout(g) => [g.id]
-      | Secondary(s) => [s.id]
-      | Projector(pr) => [pr.id]
-      },
+    ~f=
+      (p: Base.piece) =>
+        switch (p) {
+        | Tile(t) => [t.id, ...List.concat_map(~f=ids_of, t.children)]
+        | Grout(g) => [g.id]
+        | Secondary(s) => [s.id]
+        | Projector(pr) => [pr.id]
+        },
     seg,
   );
 
 let duplicate_ids = (seg: Base.segment): int => {
   let ids = ids_of(seg);
-  List.length(ids) - List.length(List.sort_uniq(Id.compare, ids));
+  List.length(ids)
+  - List.length(List.dedup_and_sort(~compare=Id.compare, ids));
 };
 
 let well_formed = (config_type, ()) => {
@@ -103,7 +106,12 @@ let edited_source = () => {
       "^^check(true)",
       text,
     );
-  check(bool, "the edit actually changed the source", true, edited != text);
+  check(
+    bool,
+    "the edit actually changed the source",
+    true,
+    !String.equal(edited, text),
+  );
   Haz3lcore.PersistentZipper.of_slide_text(edited);
 };
 
@@ -140,8 +148,11 @@ let edited_key_differs = () =>
     bool,
     "an edited slide keys differently from the built-in one",
     true,
-    CM.theme_key(edited_persistent())
-    != CM.theme_key(CM.StoreConfig.default()),
+    !
+      String.equal(
+        CM.theme_key(edited_persistent()),
+        CM.theme_key(CM.StoreConfig.default()),
+      ),
   );
 
 /* The inline <head> script in index.html parses this format too, so the
@@ -168,7 +179,7 @@ let theme_cache_round_trips = () => {
 let startup_theme_is_complete = () => {
   let produced =
     List.map(
-      fst,
+      ~f=fst,
       Web.ColorConfiguration.vars_of_source(
         CM.colors_source(CM.StoreConfig.default()),
       ),
@@ -178,7 +189,10 @@ let startup_theme_is_complete = () => {
     list(string),
     "the startup theme defines every declared color",
     [],
-    List.filter(n => !List.mem(n, produced), declared),
+    List.filter(
+      ~f=n => !List.mem(produced, n, ~equal=String.equal),
+      declared,
+    ),
   );
 };
 
@@ -218,7 +232,7 @@ let value_read_back_matches_the_event = () => {
     "get_value returns the very value UpdateResult carried",
     true,
     switch (Web.EvalResult.Model.get_value(evaluated(result))) {
-    | Some(v) => v === result
+    | Some(v) => phys_equal(v, result)
     | None => false
     },
   );
@@ -228,13 +242,14 @@ let tests = [
   (
     "ConfigurationMode.default_source",
     List.map(
-      config_type =>
-        test_case(
-          Web.ConfigurationMode.Model.config_name_of_type(config_type)
-          ++ " source is well-formed",
-          `Quick,
-          well_formed(config_type),
-        ),
+      ~f=
+        config_type =>
+          test_case(
+            Web.ConfigurationMode.Model.config_name_of_type(config_type)
+            ++ " source is well-formed",
+            `Quick,
+            well_formed(config_type),
+          ),
       Web.ConfigurationMode.Model.all_of_config_type,
     ),
   ),
