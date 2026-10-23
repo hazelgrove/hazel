@@ -294,7 +294,9 @@ let sample_to_seg = (v: Language.Exp.t): Segment.t =>
 
 let check_sample_values = (msg: string, probes: Language.Sample.Map.t) => {
   let all: list(Language.Sample.t) =
-    Id.Map.fold((_, ss, acc) => acc @ ss, probes, []);
+    Id.Map.fold(probes, ~init=[], ~f=(~key as _, ~data as ss, acc) =>
+      acc @ ss
+    );
   List.iteri(
     ~f=
       (n, sample: Language.Sample.t) => {
@@ -621,7 +623,9 @@ let drawer_seg_of_value = (v: Language.Exp.t): Segment.t =>
 
 let check_sample_values_drawer = (msg: string, probes: Language.Sample.Map.t) => {
   let all: list(Language.Sample.t) =
-    Id.Map.fold((_, ss, acc) => acc @ ss, probes, []);
+    Id.Map.fold(probes, ~init=[], ~f=(~key as _, ~data as ss, acc) =>
+      acc @ ss
+    );
   List.iteri(
     ~f=
       (n, sample: Language.Sample.t) => {

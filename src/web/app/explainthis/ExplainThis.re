@@ -717,7 +717,9 @@ let narrow_color_map =
   switch (globals.settings.explainThis.highlight) {
   | All when globals.settings.sidebar.show => Some(harvest())
   | One(id) when globals.settings.sidebar.show =>
-    Some(Id.Map.filter((id', _) => id == id', harvest()))
+    Some(
+      Id.Map.filteri(harvest(), ~f=(~key as id', ~data as _) => id == id'),
+    )
   | _ => None
   };
 
@@ -1269,10 +1271,10 @@ let decide =
           let color_deferred = List.nth_exn(ColorSteps.child_colors, 2);
           let add = (mapping, arg: Exp.t) => {
             let arg_id = IdTagged.rep_id(arg);
-            Haz3lcore.Id.Map.add(
-              arg_id,
-              Exp.is_deferral(arg) ? color_deferred : color_supplied,
+            Haz3lcore.Id.Map.set(
               mapping,
+              ~key=arg_id,
+              ~data=Exp.is_deferral(arg) ? color_deferred : color_supplied,
             );
           };
           let mapping = Haz3lcore.Id.Map.singleton(x_id, color_fn);
@@ -1691,7 +1693,7 @@ let view_doc =
            let (color, _) = ColorSteps.get_color(code_id, color_map);
            (syntactic_form_id, color);
          })
-      |> Id.Map.of_list
+      |> Id.Map.of_alist_reduce(~f=(_, latest) => latest)
       |> Option.some;
     let editor = Editor.Model.mk(form.syntactic_form |> Zipper.unzip, ~root);
     let expander_deco =

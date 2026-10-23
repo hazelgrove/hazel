@@ -143,7 +143,7 @@ let has_reuse = (ack_incr: EvaluatorState.incr_eval): bool =>
   !Id.Map.is_empty(ack_incr.entries);
 
 let directly_reused = (id: Id.t, ack_incr: EvaluatorState.incr_eval): bool =>
-  Id.Map.mem(id, ack_incr.entries);
+  Id.Map.mem(ack_incr.entries, id);
 
 let frozen_ids_for =
     (~prev: EvaluatorState.incr_eval, exp: Exp.t): list(Id.t) =>
@@ -189,13 +189,13 @@ let test_streaming_plan_reuses_root_without_descending = () => {
     bool,
     "streaming plan records reusable root",
     true,
-    Id.Map.mem(root_id, stream.entries),
+    Id.Map.mem(stream.entries, root_id),
   );
   check(
     int,
     "streaming plan does not descend under reusable root",
     1,
-    Id.Map.cardinal(stream.entries),
+    Id.Map.length(stream.entries),
   );
 };
 
@@ -213,7 +213,7 @@ let test_streaming_plan_omits_misses_and_keeps_children = () => {
     bool,
     "streaming plan omits root cache miss",
     false,
-    Id.Map.mem(root_id, stream.entries),
+    Id.Map.mem(stream.entries, root_id),
   );
   check(
     bool,
@@ -241,13 +241,13 @@ let test_materialize_stream_state_marks_reused_entries = () => {
     bool,
     "materialized stream preserves root entry",
     true,
-    Id.Map.mem(root_id, state.incr_eval.entries),
+    Id.Map.mem(state.incr_eval.entries, root_id),
   );
   check(
     int,
     "materialized stream preserves entry count",
-    Id.Map.cardinal(stream.entries),
-    Id.Map.cardinal(state.incr_eval.entries),
+    Id.Map.length(stream.entries),
+    Id.Map.length(state.incr_eval.entries),
   );
 };
 
@@ -322,16 +322,15 @@ let check_probe_samples_survive_edit =
     check(
       int,
       count_msg,
-      Id.Map.cardinal(EvaluatorState.get_probes(fresh_state2)),
-      Id.Map.cardinal(EvaluatorState.get_probes(incr_state2)),
+      Id.Map.length(EvaluatorState.get_probes(fresh_state2)),
+      Id.Map.length(EvaluatorState.get_probes(incr_state2)),
     );
     check(
       bool,
       targets_msg,
       true,
-      Id.Map.for_all(
-        (id, _) => Id.Map.mem(id, EvaluatorState.get_probes(incr_state2)),
-        targets2,
+      Id.Map.for_alli(targets2, ~f=(~key as id, ~data as _) =>
+        Id.Map.mem(EvaluatorState.get_probes(incr_state2), id)
       ),
     );
   };
@@ -405,7 +404,7 @@ let test_nested_lets_populate_entries = () => {
   let src = "let x = 1 + 2 in let y = x + 10 in let z = y + 100 in z";
   let exp = parse_exp(src);
   let (_, _, incr) = eval_incr(exp);
-  let entry_count = Id.Map.cardinal(incr.entries);
+  let entry_count = Id.Map.length(incr.entries);
   check(
     bool,
     "At least 4 entries recorded for nested lets",

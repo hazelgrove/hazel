@@ -13,7 +13,7 @@ let rec collect_stream_state_for =
         (stream: IncrEval.outbox(EvaluatorState.t), d: DHExp.t)
         : EvaluatorState.t => {
   let id = DHExp.rep_id(d);
-  switch (Id.Map.find_opt(id, stream.completed.entries)) {
+  switch (Id.Map.find(stream.completed.entries, id)) {
   | Some(entry) =>
     let state = EvaluatorState.rebase(entry.state);
     let state = EvaluatorState.add_incr_entry(state, id, entry);
@@ -61,10 +61,11 @@ let collect_stream_state =
     ...state,
     incr_eval: {
       entries:
-        Id.Map.union(
-          (_, existing, _streamed) => Some(existing),
+        Id.Map.merge_skewed(
           state.incr_eval.entries,
           stream.completed.entries,
+          ~combine=(~key as _, existing, _streamed) =>
+          existing
         ),
     },
   };

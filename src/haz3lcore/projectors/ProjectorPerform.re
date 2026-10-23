@@ -228,7 +228,7 @@ let go =
         let manual_model =
           List.Assoc.find(z.refractors.manuals, id, ~equal=Id.equal)
           |> Option.map(~f=(pr: Refractors.entry) => pr.model);
-        let is_ephemeral = Id.Map.mem(id, z.refractors.multis.ephemerals);
+        let is_ephemeral = Id.Map.mem(z.refractors.multis.ephemerals, id);
         /* don't unselect/remold here — the normal update cycle handles that */
         let do_replace = () => {
           let* (l, r) = TermData.extremes_shards(id, term_data);

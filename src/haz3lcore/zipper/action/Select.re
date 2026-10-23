@@ -719,7 +719,7 @@ let is_rule_tile =
  * Module items are elaborated as nested Lets, so they need
  * special handling to avoid escalating between siblings. */
 let has_mod_cls = (id, info_map) =>
-  switch (Id.Map.find_opt(id, info_map)) {
+  switch (Id.Map.find(info_map, id)) {
   | Some(
       Language.Statics.Info.InfoExp({
         cls: Mod(ModLet | ModType | ModuleMod | ModExp),
@@ -848,7 +848,7 @@ let select_enclosing_term =
         | None => false
         };
       if (sel_matches) {
-        let* info = Id.Map.find_opt(root_id, info_map);
+        let* info = Id.Map.find(info_map, root_id);
         let* parent_id = Language.Info.ancestors_of(info) |> ListUtil.hd_opt;
         escalate_from_term(root_id, parent_id, z0, term_data, info_map);
       } else {

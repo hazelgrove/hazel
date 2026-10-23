@@ -707,7 +707,7 @@ module View = {
       List.filter_map(
         ~f=
           ((id, insts)) =>
-            switch (Id.Map.find_opt(id, measured.tiles)) {
+            switch (Id.Map.find(measured.tiles, id)) {
             | Some(ms) => test_status_icon_view(~font_metrics, insts, ms)
             | None => None
             },

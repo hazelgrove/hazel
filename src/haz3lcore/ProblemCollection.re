@@ -142,13 +142,13 @@ let make_problem_context =
   /* Collect projector errors with their kinds */
   let projector_errors =
     Id.Map.fold(
-      (id, err: ProjectorBase.error, acc) =>
-        switch (Id.Map.find_opt(id, syntax.projectors)) {
-        | Some(p) => [(id, p.kind, err), ...acc]
-        | None => acc
-        },
       syntax.projector_errors,
-      [],
+      ~init=[],
+      ~f=(~key as id, ~data as err: ProjectorBase.error, acc) =>
+      switch (Id.Map.find(syntax.projectors, id)) {
+      | Some(p) => [(id, p.kind, err), ...acc]
+      | None => acc
+      }
     );
   {
     info_map,
