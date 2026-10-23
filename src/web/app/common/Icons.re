@@ -300,8 +300,8 @@ let entail =
     ~attrs=
       Attr.[
         create("viewBox", "0 0 1200 1200"),
-        create("width", Printf.sprintf("%fpx", icon_size)),
-        create("height", Printf.sprintf("%fpx", icon_size)),
+        create("width", sprintf("%fpx", icon_size)),
+        create("height", sprintf("%fpx", icon_size)),
         create("preserveAspectRatio", "none"),
       ],
     [
