@@ -858,10 +858,8 @@ and parenthesize_typ =
 
   // Other forms
   | Parens(t) =>
-    /* No defensive parens on the content: the wrapper we are emitting is
-       already the protection, and adding another made printing
-       non-idempotent for every type whose precedence IS min -- a Sig, a bare
-       sum, a multihole -- which gained a paren layer on every trip. */
+    /* Already parenthesized: paren_typ_at(min) here would add a layer around
+       every min-precedence t. */
     Parens(parenthesize_typ(~already_paren=true, t)) |> rewrap
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
@@ -1124,10 +1122,8 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=":") => false
   | _ when String.ends_with(s1, ~suffix="::") => true
   | _ when String.ends_with(s1, ~suffix=":") =>
-    /* `:` is an operator character, so anything glued to it that also starts
-       with one lexes as a single operator token -- `let _ :+ T` in a sig came
-       back as `:+`, which is no form at all. `$` is a name character but still
-       needs the gap. */
+    /* After `:`, an operator character would lex into the same token (`:+`);
+       `$` also needs the gap. */
     String.starts_with(s2, ~prefix="$")
     || Token.begins_with_potential_operator(s2)
   | _ when String.ends_with(s1, ~suffix=" ") => false
@@ -3290,7 +3286,6 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
       [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
     );
   | ModVal(x, e) =>
-    /* An evaluated binding (dynamics only) displays as `let x = e`. */
     let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
     and+ e = exp_to_pretty(~settings, e);
     wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
