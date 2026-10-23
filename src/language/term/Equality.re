@@ -522,7 +522,7 @@ let equality =
     | (ModVal(x1, e1), ModLet(p2, e2))
     | (ModLet(p2, e2), ModVal(x1, e1)) =>
       switch (Annotated.term_of(p2)) {
-      | Var(x2) => x1 == x2 && exp'(e1, e2)
+      | Var(x2) => String.equal(x1, x2) && exp'(e1, e2)
       | _ => false
       }
     | (ModLet(_, _), _) => false
@@ -534,7 +534,8 @@ let equality =
     | (ModuleMod(mp1, e1), ModuleMod(mp2, e2)) =>
       mpat'(mp1, mp2) && exp'(e1, e2)
     | (ModuleMod(_, _), _) => false
-    | (ModVal(x1, e1), ModVal(x2, e2)) => x1 == x2 && exp'(e1, e2)
+    | (ModVal(x1, e1), ModVal(x2, e2)) =>
+      String.equal(x1, x2) && exp'(e1, e2)
     | (ModVal(_, _), _) => false
     };
   }

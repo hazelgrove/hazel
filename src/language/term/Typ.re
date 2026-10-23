@@ -356,8 +356,9 @@ let sig_item_subst =
     : sig_item_subst =>
   switch (Sig.member_of_item(item)) {
   | Some(TypeManifest(n, _)) when String.equal(n, x) => Stop
-  | Some(TypeManifest(n, _)) when List.mem(n, fv_s) =>
-    List.mem(x, free_vars(Sig(rest) |> temp)) ? Capture(n) : Stop
+  | Some(TypeManifest(n, _)) when List.exists(String.equal(n), fv_s) =>
+    List.exists(String.equal(x), free_vars(Sig(rest) |> temp))
+      ? Capture(n) : Stop
   | _ => Continue
   };
 
@@ -723,7 +724,7 @@ let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) => {
   Sig.value_names(closed)
   |> List.filter(x =>
        switch (Sig.find_value(closed, x)) {
-       | Some(ty) => as_sig(~rec_counter=0, ctx, ty) != None
+       | Some(ty) => Option.is_some(as_sig(~rec_counter=0, ctx, ty))
        | None => false
        }
      );
@@ -901,9 +902,11 @@ let equal_up_to_aliases = (ctx: Ctx.t, a: t, b: t): bool => {
           | ([x, ...xs], [y, ...ys]) =>
             switch (Sig.member_of_item(x), Sig.member_of_item(y)) {
             | (Some(Val(n1, t1)), Some(Val(n2, t2))) =>
-              n1 == n2 && go(ctx, t1, t2) && go_members(ctx, xs, ys)
+              String.equal(n1, n2)
+              && go(ctx, t1, t2)
+              && go_members(ctx, xs, ys)
             | (Some(TypeManifest(n1, d1)), Some(TypeManifest(n2, d2))) =>
-              n1 == n2
+              String.equal(n1, n2)
               && go(ctx, d1, d2)
               && go_members(
                    Ctx.extend_dummy_tvar(ctx, Var(n1) |> TPat.fresh),
@@ -1078,7 +1081,11 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let mx = Sig.members(xs);
     let my = Sig.members(ys) |> Sig.dedup_last;
     let same_names = (a, b) =>
-      List.sort_uniq(compare, a) == List.sort_uniq(compare, b);
+      List.equal(
+        String.equal,
+        List.sort(String.compare, a),
+        List.sort(String.compare, b),
+      );
     if (!same_names(Sig.value_names(mx), Sig.value_names(my))
         || !same_names(Sig.type_names(mx), Sig.type_names(my))) {
       None;

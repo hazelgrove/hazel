@@ -255,7 +255,7 @@ let type_names = (ms: list(member)): list(Var.t) =>
 let same_kind = (a: member, b: member) =>
   switch (a, b) {
   | (Val(x, _), Val(y, _))
-  | (TypeManifest(x, _), TypeManifest(y, _)) => x == y
+  | (TypeManifest(x, _), TypeManifest(y, _)) => String.equal(x, y)
   | (Val(_), TypeManifest(_))
   | (TypeManifest(_), Val(_)) => false
   };
@@ -287,7 +287,7 @@ let find_value = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
   List.fold_left(
     (acc, m) =>
       switch (m) {
-      | Val(x, ty) when x == name => Some(ty)
+      | Val(x, ty) when String.equal(x, name) => Some(ty)
       | _ => acc
       },
     None,
@@ -298,7 +298,7 @@ let find_type_def = (ms: list(member), name: Var.t): option(TermBase.Typ.t) =>
   List.fold_left(
     (acc, m) =>
       switch (m) {
-      | TypeManifest(x, ty) when x == name => Some(ty)
+      | TypeManifest(x, ty) when String.equal(x, name) => Some(ty)
       | _ => acc
       },
     None,
