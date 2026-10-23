@@ -1200,7 +1200,7 @@ let view =
         };
       let humanize_tokens = (n: int): string =>
         if (n >= 1000) {
-          Stdlib.Printf.sprintf("%.1fk", float_of_int(n) /. 1000.0);
+          sprintf("%.1fk", float_of_int(n) /. 1000.0);
         } else {
           string_of_int(n);
         };
@@ -1220,8 +1220,7 @@ let view =
            places as a sub-cent charge needs; this is the only number here that
            reflects what we are actually charged (see [[OpenRouter.Reply.Model.usage]]
            on why prompt_tokens is not a billing figure). */
-        let fmt_credits = (c: float): string =>
-          Stdlib.Printf.sprintf("%.6f", c) ++ " cr";
+        let fmt_credits = (c: float): string => sprintf("%.6f", c) ++ " cr";
         let new_this_turn =
           switch (prev_usage) {
           | Some(p)

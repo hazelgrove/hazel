@@ -18,7 +18,7 @@ let view =
       if (Float.equal(per_million, 0.0)) {
         "Free";
       } else {
-        "$" ++ Stdlib.Printf.sprintf("%.4f", per_million);
+        "$" ++ sprintf("%.4f", per_million);
       };
     | None => "Unknown"
     };

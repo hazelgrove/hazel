@@ -93,7 +93,7 @@ module Update = {
         };
       }) {
       | Haz3lcore.Action.Failure.Exception(t) =>
-        Stdlib.Printf.printf(
+        printf(
           "ERROR: Action.Failure: %s\n",
           t |> Haz3lcore.Action.Failure.show,
         );

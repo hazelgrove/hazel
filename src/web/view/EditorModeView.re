@@ -55,7 +55,7 @@ let view =
 };
 
 let indicator_n = (cur_slide, num_slides) => [
-  text(Stdlib.Printf.sprintf("%d / %d", cur_slide + 1, num_slides)),
+  text(sprintf("%d / %d", cur_slide + 1, num_slides)),
 ];
 
 let indicator_select =

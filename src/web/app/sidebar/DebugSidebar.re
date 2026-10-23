@@ -413,7 +413,7 @@ let label_inference_str = (li: option(Info.label_inference(_))): string =>
   | Some(SingletonLabelInference({label, _})) =>
     "SingletonLabelInference(" ++ label ++ ")"
   | Some(MultiLabelInference({reordered, introduced_labels})) =>
-    Stdlib.Printf.sprintf(
+    sprintf(
       "MultiLabelInference(reordered=%b, introduced=[%s])",
       reordered,
       String.concat(~sep=", ", introduced_labels),
@@ -665,14 +665,8 @@ let measured_fields =
   switch (Haz3lcore.Measured.find_by_id(Haz3lcore.Piece.id(p), measured)) {
   | None => [field_str("measurement", "(not measured)")]
   | Some({origin, last}) => [
-      field_str(
-        "origin",
-        Stdlib.Printf.sprintf("row %d, col %d", origin.row, origin.col),
-      ),
-      field_str(
-        "last",
-        Stdlib.Printf.sprintf("row %d, col %d", last.row, last.col),
-      ),
+      field_str("origin", sprintf("row %d, col %d", origin.row, origin.col)),
+      field_str("last", sprintf("row %d, col %d", last.row, last.col)),
     ]
   };
 

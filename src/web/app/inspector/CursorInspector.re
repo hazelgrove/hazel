@@ -180,9 +180,7 @@ let core_mark_err_view =
     | BadToken(token) =>
       switch (Haz3lcore.Token.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
-      | Other => [
-          text(Stdlib.Printf.sprintf("\"%s\" isn't a valid token", token)),
-        ]
+      | Other => [text(sprintf("\"%s\" isn't a valid token", token))]
       }
     | BadLabel(label) => [text("Malformed Label: "), view_any(label)]
     | FreeConstructor(name) => [code(name), text("not found")]

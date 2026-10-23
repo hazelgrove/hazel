@@ -24,7 +24,7 @@ let fzero: fdims = {
 };
 
 let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
-  Stdlib.Printf.sprintf(
+  sprintf(
     "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
     Float.of_int(d.left) *. font_metrics.col_width +. fudge.left,
     Float.of_int(d.top) *. font_metrics.row_height +. fudge.top,
@@ -72,10 +72,7 @@ let code_svg_sized =
       [
         Attr.classes(base_cls),
         Attr.create("style", pos_str(~d, ~fudge, font_metrics)),
-        Attr.create(
-          "viewBox",
-          Stdlib.Printf.sprintf("0 0 %d %d", d.width, d.height),
-        ),
+        Attr.create("viewBox", sprintf("0 0 %d %d", d.width, d.height)),
         Attr.create("preserveAspectRatio", "none"),
       ]
       @ attr,
@@ -97,7 +94,7 @@ let position =
     "style",
     style
     ++ ";"
-    ++ Stdlib.Printf.sprintf(
+    ++ sprintf(
          "left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
          Float.of_int(origin.col) *. font_metrics.col_width,
          Float.of_int(origin.row) *. font_metrics.row_height,
@@ -148,10 +145,7 @@ let code_svg =
         abs_pos
           ? abs_position(~font_metrics, ~height_fudge, ~scale, origin)
           : position(~font_metrics, ~height_fudge, ~scale, origin),
-        Attr.create(
-          "viewBox",
-          Stdlib.Printf.sprintf("0 0 %f %f", scale, scale),
-        ),
+        Attr.create("viewBox", sprintf("0 0 %f %f", scale, scale)),
         Attr.create("preserveAspectRatio", "none"),
       ],
     [SvgUtil.Path.view(~attrs=[Attr.classes(path_cls)], paths)],

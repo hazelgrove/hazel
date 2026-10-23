@@ -77,11 +77,11 @@ let cost_fallback_text = (p: Message.Model.cost_output): string => {
   let cost_str =
     switch (p.cost_estimated_usd) {
     | None => "(no model)"
-    | Some(c) => Stdlib.Printf.sprintf("$%.4f", c)
+    | Some(c) => sprintf("$%.4f", c)
     };
   let model_str =
     String.equal(p.cost_model, "") ? "(no model)" : p.cost_model;
-  Stdlib.Printf.sprintf(
+  sprintf(
     "Session cost: %d in / %d out tokens, est. %s (%s)",
     p.cost_input_tokens,
     p.cost_output_tokens,
@@ -97,7 +97,7 @@ let credits_payload =
 };
 
 let credits_fallback_text = (p: Message.Model.credits_output): string =>
-  Stdlib.Printf.sprintf(
+  sprintf(
     "Credits: $%.2f used of $%.2f (~$%.2f remaining)",
     p.credits_used,
     p.credits_total,
@@ -117,7 +117,7 @@ let usage_payload =
 };
 
 let usage_fallback_text = (p: Message.Model.usage_output): string =>
-  Stdlib.Printf.sprintf(
+  sprintf(
     "Key usage: $%.2f total (%s)",
     p.usage_total,
     p.usage_is_free_tier ? "free" : "paid",

@@ -53,7 +53,7 @@ let rec print_exp_for_algebrite = (~name_other, exp: Exp.t): string =>
 
 let checkEquality = (expr1, expr2): bool => {
   let algebrite = Js.Unsafe.global##.Algebrite;
-  let diffExpr = Stdlib.Printf.sprintf("simplify((%s)-(%s))", expr1, expr2);
+  let diffExpr = sprintf("simplify((%s)-(%s))", expr1, expr2);
   let algebrite_result = algebrite##run(Js.string(diffExpr));
   switch (Js.to_string(algebrite_result)) {
   | "0" => true

@@ -29,7 +29,7 @@ module ExternalError = {
     | NotAJudgment => "Conclusion is not a judgement"
     | NoResult => "No result";
 
-  let show = e => show(e) |> Stdlib.Printf.sprintf("❓ %s");
+  let show = e => show(e) |> sprintf("❓ %s");
 };
 
 open DerivationExercise;

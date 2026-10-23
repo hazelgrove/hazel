@@ -8,13 +8,13 @@ open Poly;
 let format_duration_ms = (milliseconds: float): string => {
   let total_seconds = milliseconds /. 1000.0;
   if (milliseconds < 1000.0) {
-    Stdlib.Printf.sprintf("%.0fms", milliseconds);
+    sprintf("%.0fms", milliseconds);
   } else if (milliseconds < 60000.0) {
-    Stdlib.Printf.sprintf("%.1fs", total_seconds);
+    sprintf("%.1fs", total_seconds);
   } else {
     let minutes = Stdlib.floor(total_seconds /. 60.0);
     let remaining_seconds = total_seconds -. minutes *. 60.0;
-    Stdlib.Printf.sprintf("%.0fm %.0fs", minutes, remaining_seconds);
+    sprintf("%.0fm %.0fs", minutes, remaining_seconds);
   };
 };
 

@@ -19,7 +19,7 @@ type segment =
   | Grapheme(string, Unicode.Width.t)
   | Invisible(string, Unicode.Width.t);
 
-let px = (value: float): string => Stdlib.Printf.sprintf("%.3fpx", value);
+let px = (value: float): string => sprintf("%.3fpx", value);
 
 let segments_for_token = (token: string): list(segment) => {
   let clusters = Unicode.Width.graphemes(token);

@@ -73,7 +73,7 @@ let grade_derivation =
   let (correct, total) = count_verified_tree(verified);
   let (earned, max) = score_of_verified_tree(spec, verified);
   let summary =
-    Stdlib.Printf.sprintf(
+    sprintf(
       "Derivation: %.1f/%.1f (%d/%d nodes correct)\n",
       earned,
       max,
@@ -90,7 +90,7 @@ let grade_theorem = (spec: TheoremExercise.spec, _persistent_state): report => {
   let max = float_of_int(spec.max_points);
   {
     summary:
-      Stdlib.Printf.sprintf(
+      sprintf(
         "Theorem: manual grading required (%.0f points possible)\n",
         max,
       ),

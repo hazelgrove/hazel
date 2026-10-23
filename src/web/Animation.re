@@ -190,7 +190,7 @@ let request = (transitions: list(transition)): unit => {
 module Keyframes = {
   let transform_translate = (top: float, left: float): keyframe => (
     "transform",
-    Stdlib.Printf.sprintf("translate(%fpx, %fpx)", left, top),
+    sprintf("translate(%fpx, %fpx)", left, top),
   );
 
   let translate = (init: box, final: box): list(keyframe) => {
@@ -202,7 +202,7 @@ module Keyframes = {
 
   let transform_scale_uniform = (scale: float): keyframe => (
     "transform",
-    Stdlib.Printf.sprintf("scale(%f, %f)", scale, scale),
+    sprintf("scale(%f, %f)", scale, scale),
   );
 
   let scale_from_zero: list(keyframe) = [
