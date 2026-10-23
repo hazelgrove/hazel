@@ -77,14 +77,15 @@ let tail_id = (term: Exp.t): Id.t => {
   Exp.rep_id(tail_of(term));
 };
 
-/* statics as the editor computes them, the ⇓ probe on */
-let statics_of = (term: Exp.t): CachedStatics.t => {
+/* statics as the editor computes them, the ⇓ probe on ([ctx_in]: a
+   world's, WorldSlide.ctx) */
+let statics_of = (~ctx_in=?, term: Exp.t): CachedStatics.t => {
   let probe_ids = Id.Map.singleton(tail_id(term), ());
   CachedStatics.of_def_statics(
     ~settings,
     ~probe_ids,
     term,
-    DefStatics.calc_auto(~settings, ~probe_ids, term),
+    DefStatics.calc_auto(~settings, ~ctx_in?, ~probe_ids, term),
   );
 };
 
@@ -836,12 +837,16 @@ let id_in = (path, e: Exp.t) => {
   |> List.rev;
 };
 
-/* [seg]'s world run zoomed to [zoom]: its statics as cut, and its request
-   in pieces as the worker composes it */
-let world_run = (~zoom, seg) => {
-  let st = statics_of(MakeTerm.Incr.term_of_root(~root=Mod, seg));
-  let (rs, cut) =
-    Web.WorldSlide.run_statics(~zoom=id_in(zoom, st.elaborated), st);
+/* [seg]'s world run zoomed to the module ids [zoom] gives it: its
+   statics as cut, analyzed in a world's context as the editor does, and
+   its request in pieces as the worker composes it */
+let world_run_at = (~zoom, seg) => {
+  let st =
+    statics_of(
+      ~ctx_in=Web.WorldSlide.ctx(),
+      MakeTerm.Incr.term_of_root(~root=Mod, seg),
+    );
+  let (rs, cut) = Web.WorldSlide.run_statics(~zoom=zoom(st), st);
   check(bool, "cut", true, Option.is_some(cut));
   let request: WorkerServer.Request.t = {
     request_id: 1,
@@ -865,6 +870,13 @@ let world_run = (~zoom, seg) => {
   let encoded = Split.encoded^;
   (st, rs, encoded, composed(WorkerServer.receive(post(request))));
 };
+
+/* zoomed to the modules named on [zoom], from the top level down */
+let world_run = (~zoom, seg) =>
+  world_run_at(
+    ~zoom=(st: CachedStatics.t) => id_in(zoom, st.elaborated),
+    seg,
+  );
 
 /* a world's run (WorldSlide.run_statics), its request cut alike: the
    worker composes what runs, with the eval info a whole request of it
@@ -978,12 +990,52 @@ let world_zoom_out = () => {
   );
 };
 
+/* the shipped world zoomed into its first slide: requests go in pieces,
+   an edit re-encoding a few */
+let shipped_world = () =>
+  Test_WorldSlide.shipped(() => {
+    module Deck = Web.WorldDeck;
+    Web.HazelDB.kv_clear();
+    fresh_worker();
+    let m = Deck.load(~settings);
+    let (name, code) =
+      switch (List.nth(m.scratchpads, m.current)) {
+      | {name, kind: Code(code), _} => (name, code)
+      | _ => fail("no code")
+      };
+    let path = Deck.path(name);
+    let zoom = _ =>
+      List.init(List.length(path) - 1, i =>
+        WorldTree.folder_id(Util.ListUtil.take(i + 1, path))
+      )
+      @ [Deck.slide_id(name)];
+    let run = (label, seg) => {
+      let (_, rs, encoded, v) = world_run_at(~zoom, seg);
+      let {same} = same_graph();
+      check(option(string), label ++ ": in pieces", None, Split.went_whole^);
+      check(bool, label ++ ": what runs", true, same(rs.elaborated, v.expr));
+      encoded;
+    };
+    let seg = Web.Program.document(code.program);
+    ignore(run("loaded", seg));
+    let encoded =
+      run(
+        "edited",
+        Parity.token(~at=`First, ~keep_id=true, "1", "7").edit(
+          ~root=Mod,
+          seg,
+        ),
+      );
+    check(bool, "a few pieces encoded", true, List.length(encoded) <= 8);
+  });
+
 let tests = (
   "EvalPieces",
   exact_tests
   @ encoding_tests
   @ [
     test_case("a world's run, cut alike", `Quick, world),
+    test_case("the shipped world in pieces", `Slow, shipped_world),
     test_case(
       "a world zoomed out reuses nothing it cut",
       `Quick,

@@ -824,7 +824,7 @@ let split =
     )
     : P.layout => {
   let ds =
-    switch (DefStatics.cached(statics.term)) {
+    switch (DefStatics.last(statics.term)) {
     | Some(ds) when Option.is_some(run) || ds.merged === statics.info_map => ds
     | _ => raise(Unsplittable("no analysis of these statics"))
     };

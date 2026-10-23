@@ -2029,10 +2029,15 @@ let calc_auto =
   t;
 };
 
+/* the last calc of [whole]'s document, in whatever context: for callers
+   that check it made what they hold */
+let last = (whole: Exp.t): option(t) =>
+  List.assoc_opt(Exp.rep_id(whole), slots^);
+
 /* the last calc of [whole]'s document, if still cached and against the
    current library */
 let cached = (~ctx_in=ctx0(), whole: Exp.t): option(t) =>
-  switch (List.assoc_opt(Exp.rep_id(whole), slots^)) {
+  switch (last(whole)) {
   | Some(t) when t.ctx_in === ctx_in => Some(t)
   | _ => None
   };
