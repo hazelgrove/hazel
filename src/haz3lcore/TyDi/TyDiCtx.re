@@ -111,13 +111,11 @@ let named_fields = (ctx: Ctx.t, typ: Typ.t): list((string, Typ.t)) =>
   switch (Typ.normalize(ctx, typ) |> Typ.term_of) {
   | Prod(ts) => List.filter_map(Typ.match_tup_label, ts)
   | Sig(items) =>
-    Sig.members(items)
+    Typ.sig_members_closed(items)
     |> Sig.dedup_last
     |> List.filter_map((m: Sig.member) =>
          switch (m) {
-         | Val(label, _) =>
-           Typ.sig_project_value(items, label)
-           |> Option.map(field_ty => (label, field_ty))
+         | Val(label, field_ty) => Some((label, field_ty))
          | TypeManifest(_) => None
          }
        )

@@ -144,20 +144,20 @@ let ana_value_types =
   switch (ana_items) {
   | None => []
   | Some(items) =>
-    Sig.members(items)
-    |> Sig.value_names
-    |> List.filter_map(name =>
-         Typ.sig_project_value(
-           ~keep_local=name => List.mem(name, defined),
-           items,
-           name,
-         )
-         |> Option.map(ty =>
-              (
-                name,
-                Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty),
-              )
-            )
+    Typ.sig_members_closed(
+      ~keep_local=name => List.mem(name, defined),
+      items,
+    )
+    |> Sig.dedup_last
+    |> List.filter_map((m: Sig.member) =>
+         switch (m) {
+         | Val(name, ty) =>
+           Some((
+             name,
+             Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh(), ty),
+           ))
+         | TypeManifest(_) => None
+         }
        )
   };
 

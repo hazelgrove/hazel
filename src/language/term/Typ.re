@@ -484,11 +484,7 @@ let rec unroll_to_non_rec = (ty: t): option(t) =>
   | _ => Some(ty)
   };
 
-/* ==================== Signature member projection ====================
-   Later signature items may mention earlier type members by name, so the
-   type of a member is only meaningful outside the signature once those
-   references are substituted away. The walk threads a substitution
-   (latest binder first) over the items in order. */
+/* Substitute each [(name, def)] for [name], latest binder first. */
 let apply_sig_subst = (sigma: list((Var.t, t)), ty: t): t =>
   List.fold_left(
     (ty, (name, def)) => subst(def, Var(name) |> TPat.fresh, ty),
@@ -496,25 +492,22 @@ let apply_sig_subst = (sigma: list((Var.t, t)), ty: t): t =>
     sigma,
   );
 
-/* Each well-formed member paired with its type after substituting the
-   type members declared before it. */
-/* [keep_local name]: leave type member [name] as a bare name for later
-   members instead of substituting its definition (the enclosing module body
-   binds it). */
+/* The well-formed members, each with the type members declared before it
+   substituted into its type, except those [keep_local] names. */
 let sig_members_closed =
-    (~keep_local=_ => false, items: list(Sig.t)): list((Sig.member, t)) => {
+    (~keep_local=_ => false, items: list(Sig.t)): list(Sig.member) => {
   let (_, rev) =
     List.fold_left(
       ((sigma, acc), item) =>
         switch (Sig.member_of_item(item)) {
-        | Some(Val(_, ty) as m) => (
+        | Some(Val(x, ty)) => (
             sigma,
-            [(m, apply_sig_subst(sigma, ty)), ...acc],
+            [Sig.Val(x, apply_sig_subst(sigma, ty)), ...acc],
           )
-        | Some(TypeManifest(name, def) as m) =>
+        | Some(TypeManifest(name, def)) =>
           let def = apply_sig_subst(sigma, def);
           let sigma = keep_local(name) ? sigma : [(name, def), ...sigma];
-          (sigma, [(m, def), ...acc]);
+          (sigma, [Sig.TypeManifest(name, def), ...acc]);
         | None => (sigma, acc)
         },
       ([], []),
@@ -523,31 +516,13 @@ let sig_members_closed =
   List.rev(rev);
 };
 
-/* The type of value member [name] (last declaration wins), closed with
-   respect to the signature's own type members. */
-let sig_project_value =
-    (~keep_local=_ => false, items: list(Sig.t), name: Var.t): option(t) =>
-  sig_members_closed(~keep_local, items)
-  |> List.fold_left(
-       (acc, (m: Sig.member, ty)) =>
-         switch (m) {
-         | Val(x, _) when x == name => Some(ty)
-         | _ => acc
-         },
-       None,
-     );
+/* The type of value member [name], closed as by [sig_members_closed]. */
+let sig_project_value = (items: list(Sig.t), name: Var.t): option(t) =>
+  Sig.find_value(sig_members_closed(items), name);
 
-/* The definition of type member [name] (last declaration wins). */
+/* The definition of type member [name], closed as by [sig_members_closed]. */
 let sig_project_type = (items: list(Sig.t), name: Var.t): option(t) =>
-  sig_members_closed(items)
-  |> List.fold_left(
-       (acc, (m: Sig.member, ty)) =>
-         switch (m) {
-         | TypeManifest(x, _) when x == name => Some(ty)
-         | _ => acc
-         },
-       None,
-     );
+  Sig.find_type_def(sig_members_closed(items), name);
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
@@ -741,15 +716,16 @@ and as_sig = (~rec_counter, ctx: Ctx.t, ty: t): option(list(Sig.t)) => {
 
 /* Value members of a signature whose own type is a signature: the
    sub-modules a type-level path may continue through (`M.P.T`). */
-let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) =>
-  Sig.members(items)
-  |> Sig.value_names
+let sig_module_member_names = (ctx: Ctx.t, items: list(Sig.t)): list(Var.t) => {
+  let closed = sig_members_closed(items);
+  Sig.value_names(closed)
   |> List.filter(x =>
-       switch (sig_project_value(items, x)) {
+       switch (Sig.find_value(closed, x)) {
        | Some(ty) => as_sig(~rec_counter=0, ctx, ty) != None
        | None => false
        }
      );
+};
 
 /* ~expand restricts which alias names get expanded (default: all). Used
    by module lowering to expand only module-LOCAL aliases when a member
