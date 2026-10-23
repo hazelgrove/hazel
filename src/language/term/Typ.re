@@ -1103,11 +1103,8 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
           | Some(TypeManifest(n, d1)) =>
             let* d2 = Sig.find_type_def(my, n);
             let* d = meet(ctx, d1, d2);
-            go_items(
-              Ctx.extend_alias(ctx, n, Id.invalid, d),
-              items,
-              [Sig.map_typ(_ => d, item), ...acc],
-            );
+            let item = Sig.map_typ(_ => d, item);
+            go_items(Ctx.extend_sig_item(ctx, item), items, [item, ...acc]);
           | None => go_items(ctx, items, acc)
           }
         };
