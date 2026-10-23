@@ -164,27 +164,31 @@ let install_text_selection_guards = (): unit =>
     [||],
   );
 
-/* a selection within the focused element: a drawer's text, say, whose
-   copy is the browser's, not the element's own */
-let selection_in_focus = (): bool =>
+/* a text selection (not just a caret) inside [el] */
+let selection_within = (el: Js.t(Dom_html.element)): bool =>
   Js.to_bool(
     Js.Unsafe.fun_call(
       Js.Unsafe.pure_js_expr(
-        {|(function(){
-          var s = window.getSelection(), a = document.activeElement;
-          return !!s && !s.isCollapsed && !!a
+        {|(function(a){
+          var s = a && window.getSelection && window.getSelection();
+          return !!s && !s.isCollapsed
             && a.contains(s.anchorNode) && a.contains(s.focusNode);
         })|},
       ),
-      [||],
+      [|Js.Unsafe.inject(el)|],
     ),
   );
+
+/* a selection within the focused element: a drawer's text, say, whose
+   copy is the browser's, not the element's own */
+let selection_in_focus = (): bool =>
+  selection_within(Js.Unsafe.coerce(Dom_html.document)##.activeElement);
 
 let clear_page_selection = (): unit =>
   Js.Unsafe.fun_call(
     Js.Unsafe.pure_js_expr(
       {|(function(){
-          var s = window.getSelection();
+          var s = window.getSelection && window.getSelection();
           if (s) s.removeAllRanges();
         })|},
     ),
