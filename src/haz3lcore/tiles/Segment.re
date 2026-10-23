@@ -313,10 +313,9 @@ and remold_template_uni = (sort: Sort.t, shape, seg: t): (t, Nib.Shape.t, t) => 
     }
   };
 }
-/* A tile with no form in the sort being remolded keeps its mold. While it
-   is still owed shards, what follows it is its next child and is molded in
-   that child's sort, not in this one: `x : T` typed after a `let` still
-   owed its `=` is a pattern whatever came before the `let`. */
+/* What follows t: while t still owes shards, its next child, remolded in
+   that child's sort (`x : T` typed after a `let` still owed its `=` is a
+   pattern whatever came before the `let`); otherwise more of the same sort. */
 and remold_after = (t: Tile.t, tl: t, same_sort: (Nib.Shape.t, t) => t): t =>
   if (Tile.has_end(Right, t)) {
     [Tile(t), ...same_sort(snd(Tile.shapes(t)), tl)];
@@ -735,8 +734,7 @@ and remold_mod = (shape, seg: t): t =>
         switch (remold_tile(Exp, shape, t)) {
         | None => remold_after(t, tl, remold_mod)
         | Some(t) when !Tile.has_end(Right, t) =>
-          let (_, r) = Tile.nibs(t);
-          [Tile(t), ...remold(~shape=r.shape, tl, r.sort)];
+          remold_after(t, tl, remold_mod)
         | Some(t) =>
           let (remolded, shape, rest) =
             remold_exp_uni(snd(Tile.shapes(t)), tl, [Mod]);
@@ -792,8 +790,7 @@ and remold_sig = (shape, seg: t): t =>
           let (remolded, shape, rest) = remold_typ_uni(shape, tl, [Sig]);
           [Piece.Tile(t), ...remolded] @ remold_sig(shape, rest);
         | (_, {shape, sort: MPat}) =>
-          let (remolded, shape, rest) =
-            remold_mpat_uni(shape, tl, [Sort.Sig]);
+          let (remolded, shape, rest) = remold_mpat_uni(shape, tl, [Sig]);
           [Piece.Tile(t), ...remolded] @ remold_sig(shape, rest);
         | _ => [Tile(t), ...remold_sig(snd(Tile.shapes(t)), tl)]
         }
