@@ -1,0 +1,88 @@
+# MEASURING ONLY (^ticket(553)): the World rule with the world's squares held in a map, on GitHub's machines, never the
+# laptop. An orphan branch: only this workflow runs. The rule texts are the game's own, from kids-choice-games' branch
+# hazel-map-553 (dress-up/js/25-scripting.js: Common.squares, World.with_squares, beside World.on_event as shipped). Two
+# deployed library builds from hazelgrove/build, no compiling: trial/r25-553 (trial/r25-best with ^ticket(547)'s whole
+# closures, ^ticket(548)'s list ascription and ^ticket(551)'s handles) and trial/r25-best (^report(27)'s Hazel at its
+# best). Each of four jobs runs scripts/map553.mjs on both, best, 553, 553, best, sizes 3x3 to 64x64 as ^report(27):
+# first a check (the map rule and the shipped one agree on a shuffled random world), then the times. The last job tabulates.
+name: Map timing (^ticket(553))
+
+on:
+  push:
+    branches:
+      - "timing/553-map"
+
+env:
+  B553: debbc6e6877560c6296a48d85107607164dc5626
+  BEST: b34d943d73010b5f24d09ede8be4a939b9dc80b6
+  KCG: dac7bc671c23fa44be97b3d6bc05c257e237c3c8
+  SIZES: "3,4,6,8,12,16,24,32,48,64"
+
+jobs:
+  map:
+    name: Map (${{ matrix.job }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [r1, r2, r3, r4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: hazelgrove/build
+          ref: ${{ env.B553 }}
+          path: b/553
+          sparse-checkout: trial/r25-553
+      - uses: actions/checkout@v4
+        with:
+          repository: hazelgrove/build
+          ref: ${{ env.BEST }}
+          path: b/best
+          sparse-checkout: trial/r25-best
+      - uses: actions/checkout@v4
+        with:
+          repository: matthewhammer/kids-choice-games
+          ref: ${{ env.KCG }}
+          path: kcg
+          sparse-checkout: dress-up/js
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The runner
+        run: |
+          mkdir -p out
+          { echo "${{ matrix.job }}:"; lscpu | grep -E 'Model name'; node --version; } | tee out/runner.txt
+      - name: Best, 553, 553, best
+        run: |
+          set -euo pipefail
+          round=0
+          for side in best 553 553 best; do
+            round=$((round + 1))
+            dir=$(case $side in best) echo r25-best;; 553) echo r25-553;; esac)
+            echo "== $round $side"
+            node --stack-size=8000 scripts/map553.mjs "b/$side/trial/$dir/hazel-lib.js" kcg/dress-up/js/25-scripting.js "$SIZES" "out/${side}_$round.json"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: job-${{ matrix.job }}
+          path: out
+
+  table:
+    needs: map
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: job-*
+          path: all
+      - name: Summary
+        run: python3 scripts/summary553.py all | tee summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: summary
+          path: summary.md
