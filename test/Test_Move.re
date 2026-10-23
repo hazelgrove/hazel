@@ -83,7 +83,7 @@ let agree = (name, text) =>
                         Move.jump_to_side_of_id_by_walking(d, z, id);
                       if (!Poly.equal(fast, walked)) {
                         fail(
-                          Stdlib.Printf.sprintf(
+                          sprintf(
                             "%s: %s side of %s differs",
                             name,
                             switch (d) {

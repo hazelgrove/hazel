@@ -431,10 +431,7 @@ let tests = (
         | None => fail("fast path rejected the graph program")
         | Some(seg) =>
           let ms = (Stdlib.Sys.time() -. t0) *. 1000.;
-          Stdlib.Printf.printf(
-            "FASTPARSE-PERF: graph program in %.1fms\n",
-            ms,
-          );
+          printf("FASTPARSE-PERF: graph program in %.1fms\n", ms);
           check(
             testable(Fmt.string, String.equal),
             "graph module chunk verbatim",

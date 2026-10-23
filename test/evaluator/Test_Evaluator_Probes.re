@@ -121,7 +121,7 @@ let probe_line_test =
               |> Option.value(~default=[]);
             check(
               list(string),
-              Stdlib.Printf.sprintf("Line %d", line),
+              sprintf("Line %d", line),
               expected_values,
               actual_values,
             );
@@ -149,7 +149,7 @@ let probe_count_test =
               |> Option.value(~default=[]);
             check(
               int,
-              Stdlib.Printf.sprintf("Line %d sample count", line),
+              sprintf("Line %d sample count", line),
               expected_count,
               List.length(actual_values),
             );
