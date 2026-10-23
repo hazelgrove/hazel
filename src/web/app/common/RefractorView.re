@@ -36,7 +36,7 @@ let row_range =
     )
     : (int, int) => {
   let drawer_rows =
-    Id.Map.find_opt(id, refractor_rows) |> Option.value(~default=0);
+    Id.Map.find(refractor_rows, id) |> Option.value(~default=0);
   (measurement.origin.row, measurement.last.row + drawer_rows);
 };
 
@@ -57,7 +57,7 @@ let mk_data =
   let {measured, term_data, selection_ids, _}: CachedSyntax.t = syntax;
   /* measure + cull BEFORE building per-refractor data: in All mode there are
    * hundreds of refractors but few on screen, so building all then discarding dominated cost */
-  Id.Map.bindings(refractors)
+  Id.Map.to_alist(refractors)
   |> List.filter_map(~f=((id, entry)) =>
        measurement_of_term(id, term_data, measured)
        |> Option.map(~f=measurement => (id, entry, measurement))

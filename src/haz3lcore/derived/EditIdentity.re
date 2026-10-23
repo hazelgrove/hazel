@@ -72,7 +72,7 @@ let index = (seg: Segment.t): Id.Map.t(Piece.t) => {
       ps,
       ~init=acc,
       ~f=(acc, p: Piece.t) => {
-        let acc = Id.Map.add(Piece.id(p), p, acc);
+        let acc = Id.Map.set(acc, ~key=Piece.id(p), ~data=p);
         switch (p) {
         | Tile(t) => List.fold(t.children, ~init=acc, ~f=add)
         | _ => acc
@@ -89,7 +89,7 @@ let restore = (before: Segment.t, after: Segment.t): Segment.t => {
     Segment.ptr_eq(ps, next) ? ps : next;
   }
   and piece = p =>
-    switch (Id.Map.find_opt(Piece.id(p), originals)) {
+    switch (Id.Map.find(originals, Piece.id(p))) {
     | Some(old) when phys_equal(old, p) || Poly.compare(old, p) == 0 => old
     | _ =>
       switch (p) {

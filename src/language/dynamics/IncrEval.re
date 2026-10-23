@@ -78,7 +78,7 @@ let outbox_is_empty = (outbox: outbox('state)): bool =>
 
 let add_entry =
     (id: Id.t, entry: entry('state), incr: t('state)): t('state) => {
-  entries: Id.Map.add(id, entry, incr.entries),
+  entries: Id.Map.set(incr.entries, ~key=id, ~data=entry),
 };
 
 let add_outbox_entry =
@@ -100,10 +100,9 @@ let set_outbox_current =
 
 let add_stream = (stream: t('state), incr: t('state)): t('state) => {
   entries:
-    Id.Map.union(
-      (_, _old, new_) => Some(new_),
-      incr.entries,
-      stream.entries,
+    Id.Map.merge_skewed(
+      incr.entries, stream.entries, ~combine=(~key as _, _old, new_) =>
+      new_
     ),
 };
 
@@ -127,7 +126,7 @@ let copy_descendant_entries =
   let f_exp = (continue, e: Exp.t): Exp.t => {
     let sub_id = Exp.rep_id(e);
     if (!Id.equal(sub_id, root_id)) {
-      switch (Id.Map.find_opt(sub_id, prev.entries)) {
+      switch (Id.Map.find(prev.entries, sub_id)) {
       | Some(sub_entry) => acc := add_entry(sub_id, sub_entry, acc^)
       | None => ()
       };
@@ -152,7 +151,7 @@ let visible_ids = (incr: t('state)): list(Id.t) => {
     let _ = TermBase.Exp.map_term(~f_exp, root);
     ();
   };
-  Id.Map.iter((_, entry) => collect_subtree(entry.prev_elab), incr.entries);
+  Id.Map.iter(incr.entries, ~f=entry => collect_subtree(entry.prev_elab));
   acc^;
 };
 
@@ -330,7 +329,7 @@ let reuse_check =
 
   let* () =
     OptUtil.some_if(List.is_empty(call_stack) && !is_empty(prev), ());
-  let* entry = Id.Map.find_opt(id, prev.entries);
+  let* entry = Id.Map.find(prev.entries, id);
   let* info = EvalInfo.find_opt(id, eval_info);
 
   let elab_same =

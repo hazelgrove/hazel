@@ -57,14 +57,23 @@ let targets_of_zipper =
   /* Extract probe IDs directly from zipper's refractors.
    * Map values to unit since we only need the IDs as keys. */
   let probe_ids =
-    Id.Map.union(
-      (_, _, _) => Some(),
-      Id.Map.map(_ => (), Id.Map.of_list(z.refractors.manuals)),
-      Id.Map.map(_ => (), z.refractors.multis.ephemerals),
+    Id.Map.merge_skewed(
+      Id.Map.map(
+        Id.Map.of_alist_reduce(z.refractors.manuals, ~f=(_, latest) =>
+          latest
+        ),
+        ~f=_ =>
+        ()
+      ),
+      Id.Map.map(z.refractors.multis.ephemerals, ~f=_ => ()),
+      ~combine=(~key as _, _, _) =>
+      ()
     );
   /* Build targets from probe_ids, computing refs for each */
   Id.Map.fold(
-    (id, (), acc) => {
+    probe_ids,
+    ~init=Id.Map.empty,
+    ~f=(~key as id, ~data as (), acc) => {
       let refs =
         switch (Statics.Map.lookup_exp(id, info_map)) {
         | Some(_) => Statics.Map.refs_in(info_map, id)
@@ -75,10 +84,8 @@ let targets_of_zipper =
           }
         };
       let spec: Sample.capture_spec = {refs: refs};
-      Id.Map.add(id, spec, acc);
+      Id.Map.set(acc, ~key=id, ~data=spec);
     },
-    probe_ids,
-    Id.Map.empty,
   );
 };
 

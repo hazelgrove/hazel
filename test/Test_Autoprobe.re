@@ -304,23 +304,20 @@ let step_into_resolution = (~fn: string, program: string): (string, string) => {
     | None => "<not-in-syntax>"
     };
   let binding_id =
-    Id.Map.fold(
-      (_id, info, acc) =>
-        switch (acc, info) {
-        | (Some(_), _) => acc
-        | (None, Info.InfoExp({user_term: {term: Ap(_, fexpr, _), _}, _})) =>
-          switch (IdTagged.term_of(fexpr)) {
-          | Var(n) when n == fn =>
-            switch (Statics.Map.lookup(IdTagged.rep_id(fexpr), info_map)) {
-            | Some(ci_var) => Info.get_binding_site(ci_var)
-            | None => None
-            }
-          | _ => None
+    Id.Map.fold(info_map, ~init=None, ~f=(~key as _id, ~data as info, acc) =>
+      switch (acc, info) {
+      | (Some(_), _) => acc
+      | (None, Info.InfoExp({user_term: {term: Ap(_, fexpr, _), _}, _})) =>
+        switch (IdTagged.term_of(fexpr)) {
+        | Var(n) when n == fn =>
+          switch (Statics.Map.lookup(IdTagged.rep_id(fexpr), info_map)) {
+          | Some(ci_var) => Info.get_binding_site(ci_var)
+          | None => None
           }
-        | _ => acc
-        },
-      info_map,
-      None,
+        | _ => None
+        }
+      | _ => acc
+      }
     );
   switch (binding_id) {
   | None => ("<no binding>", "<no binding>")

@@ -28,7 +28,7 @@ let print =
     switch (index) {
     | Some(index) =>
       print("id:" ++ Id.to_string(index));
-      switch (Id.Map.find_opt(index, map)) {
+      switch (Id.Map.find(map, index)) {
       | Some(ci) => print(Language.Info.show(ci))
       | None => print("DEBUG: No CI found for index")
       };
@@ -38,18 +38,15 @@ let print =
   | "F8" =>
     let collect_print_samples =
         ({probes, _}: Language.EvaluatorState.t): list(Language.Sample.t) =>
-      Id.Map.fold(
-        (_, samples, acc) =>
-          List.fold_left(
-            ~f=
-              (acc, sample) =>
-                sample.Language.Sample.origin == Language.Sample.Print
-                  ? [sample, ...acc] : acc,
-            ~init=acc,
-            samples,
-          ),
-        probes,
-        [],
+      Id.Map.fold(probes, ~init=[], ~f=(~key as _, ~data as samples, acc) =>
+        List.fold_left(
+          ~f=
+            (acc, sample) =>
+              sample.Language.Sample.origin == Language.Sample.Print
+                ? [sample, ...acc] : acc,
+          ~init=acc,
+          samples,
+        )
       );
 
     let collect_print_outputs =

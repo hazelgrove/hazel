@@ -6,42 +6,41 @@ module Map = {
   type t = Id.Map.t(Info.t);
 
   let empty = Id.Map.empty;
-  let lookup = Id.Map.find_opt;
+  let lookup = (id, m) => Id.Map.find(m, id);
   let add_info = (ids: list(Id.t), info: Info.t, m: t): t =>
-    ids |> List.fold_left(~f=(m, id) => Id.Map.add(id, info, m), ~init=m);
+    ids
+    |> List.fold_left(
+         ~f=(m, id) => Id.Map.set(m, ~key=id, ~data=info),
+         ~init=m,
+       );
 
   let add_missing_info = (ids: list(Id.t), info: Info.t, m: t): t =>
     ids
     |> List.fold_left(
          ~f=
            (m, id) =>
-             switch (Id.Map.find_opt(id, m)) {
+             switch (Id.Map.find(m, id)) {
              | Some(_) => m
-             | None => Id.Map.add(id, info, m)
+             | None => Id.Map.set(m, ~key=id, ~data=info)
              },
          ~init=m,
        );
 
   let error_ids = (info_map: t): list(Id.t) =>
-    Id.Map.fold(
-      (id, info, acc) =>
-        /* Second clause is to eliminate non-representative ids,
-         * which will not be found in the measurements map */
+    Id.Map.fold(info_map, ~init=[], ~f=(~key as id, ~data as info, acc)
+      /* Second clause is to eliminate non-representative ids,
+       * which will not be found in the measurements map */
+      =>
         Info.is_error(info) && Id.equal(id, Info.id_of(info))
-          ? [id, ...acc] : acc,
-      info_map,
-      [],
-    );
+          ? [id, ...acc] : acc
+      );
   let warning_ids = (info_map: t): list(Id.t) =>
-    Id.Map.fold(
-      (id, info, acc) =>
-        acc
-        |> (
-          Info.is_warning(info) && Id.equal(id, Info.id_of(info))
-            ? List.cons(id) : Fn.id
-        ),
-      info_map,
-      [],
+    Id.Map.fold(info_map, ~init=[], ~f=(~key as id, ~data as info, acc) =>
+      acc
+      |> (
+        Info.is_warning(info) && Id.equal(id, Info.id_of(info))
+          ? List.cons(id) : Fn.id
+      )
     );
 
   /* The ids of binding sites for for all references in term with `id` */
@@ -64,13 +63,13 @@ module Map = {
      itself. Deduplication is handled by accumulating into an `Id.Set`. */
   let ids_referencing_binding = (m: t, binding_id: Id.t): Id.Set.t =>
     Id.Map.fold(
-      (id, info, acc) =>
-        switch (Info.get_binding_site(info)) {
-        | Some(id') when Id.equal(id', binding_id) => Id.Set.add(id, acc)
-        | _ => acc
-        },
       m,
-      Id.Set.singleton(binding_id),
+      ~init=Id.Set.singleton(binding_id),
+      ~f=(~key as id, ~data as info, acc) =>
+      switch (Info.get_binding_site(info)) {
+      | Some(id') when Id.equal(id', binding_id) => Id.Set.add(acc, id)
+      | _ => acc
+      }
     );
 
   /* IDs to highlight for a variable/type/constructor reference:
@@ -97,7 +96,7 @@ module Map = {
     switch (binding_id) {
     | None => []
     | Some(binding_id) =>
-      Id.Set.elements(ids_referencing_binding(m, binding_id))
+      Id.Set.to_list(ids_referencing_binding(m, binding_id))
     };
   };
 

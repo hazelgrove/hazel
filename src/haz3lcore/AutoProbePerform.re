@@ -282,7 +282,7 @@ let update_autoprobe =
      the same-anchors short-circuit would be a permanent no-op. Self-heal. */
   let anchors_intact =
     List.for_all(
-      ~f=id => Id.Map.mem(id, z.refractors.multis.ids),
+      ~f=id => Id.Map.mem(z.refractors.multis.ids, id),
       current_anchors,
     );
   if (List.equal(Id.equal, current_anchors, prev_anchors) && anchors_intact) {

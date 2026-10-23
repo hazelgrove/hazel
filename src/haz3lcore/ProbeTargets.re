@@ -95,14 +95,14 @@ let probe_status =
       );
     all_statics ? Statics(target_ids) : Manual(target_ids);
   } else if (List.exists(
-               ~f=id => Id.Map.mem(id, refractors.multis.ids),
+               ~f=id => Id.Map.mem(refractors.multis.ids, id),
                target_ids,
              )) {
     Multi;
   } else {
     let ephemeral_ids =
       List.filter(
-        ~f=id => Id.Map.mem(id, refractors.multis.ephemerals),
+        ~f=id => Id.Map.mem(refractors.multis.ephemerals, id),
         target_ids,
       );
     if (!List.is_empty(ephemeral_ids)) {
@@ -110,7 +110,7 @@ let probe_status =
     } else {
       let suppressed_ids =
         List.filter(
-          ~f=id => Id.Map.mem(id, refractors.multis.suppressed),
+          ~f=id => Id.Map.mem(refractors.multis.suppressed, id),
           target_ids,
         );
       if (!List.is_empty(suppressed_ids)) {

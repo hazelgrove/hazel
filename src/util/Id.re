@@ -1,5 +1,3 @@
-open Ppx_yojson_conv_lib.Yojson_conv;
-
 /* ID FAQ
 
    WHATS AN ID?
@@ -128,25 +126,35 @@ let pp: (Format.formatter, t) => unit =
   (f, id) => Format.fprintf(f, "Haz3lcore.Id.v(\"%s\")", to_string(id));
 let show = id => sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));
 
-[@deriving (sexp, yojson)]
-type binding('v) = (t, 'v);
+module Key = {
+  type nonrec t = t;
+  let pp = pp;
+  let show = show;
+  let sexp_of_t = sexp_of_t;
+  let t_of_sexp = t_of_sexp;
+  let yojson_of_t = yojson_of_t;
+  let t_of_yojson = t_of_yojson;
+  let compare = compare;
+  include (val Comparator.make(~compare, ~sexp_of_t));
+};
 
-module Set = Stdlib.Set.Make(Uuidm);
+/* Tree form for the same reason as MapUtil: ids end up inside values that
+   cross the worker boundary by Marshal. Core's tree sets come without
+   accessors, so the ones Hazel uses are applied to the comparator here. */
+module Set = {
+  include Set.Make_tree(Key);
+
+  module T = Core.Set.Tree;
+  let mem = (s, id) => T.mem(~comparator=Key.comparator, s, id);
+  let add = (s, id) => T.add(~comparator=Key.comparator, s, id);
+  let is_subset = (s, ~of_) =>
+    T.is_subset(~comparator=Key.comparator, s, ~of_);
+  let is_empty = T.is_empty;
+  let to_list = T.to_list;
+};
 
 module Map = {
-  include Stdlib.Map.Make(Uuidm);
-
-  let sexp_of_t = (sexp_of_v, map) =>
-    map |> bindings |> Sexplib.Std.sexp_of_list(sexp_of_binding(sexp_of_v));
-
-  let t_of_sexp = (v_of_sexp, sexp) =>
-    sexp |> Sexplib.Std.list_of_sexp(binding_of_sexp(v_of_sexp)) |> of_list;
-
-  let yojson_of_t = (yojson_of_v, map) =>
-    map |> bindings |> yojson_of_list(yojson_of_binding(yojson_of_v));
-
-  let t_of_yojson = (v_of_yojson, json) =>
-    json |> list_of_yojson(binding_of_yojson(v_of_yojson)) |> of_list;
+  include MapUtil.Make(Key);
 
   /* Outputs valid OCaml code for empty maps only.
    * Non-empty maps will fail - this is intentional. Currently only empty maps
@@ -194,17 +202,17 @@ module Uf: {
     refs: ref(Map.empty),
     store: M.new_store(),
   };
-  let rref = (id, s) => Map.find(id, s.refs^);
+  let rref = (id, s) => Map.find_exn(s.refs^, id);
   let add = (id, a, s) =>
-    switch (Map.find_opt(id, s.refs^)) {
+    switch (Map.find(s.refs^, id)) {
     | None =>
       let r = M.make(s.store, a);
-      s.refs := Map.add(id, r, s.refs^);
+      s.refs := Map.set(s.refs^, ~key=id, ~data=r);
     | Some(_) => ()
     };
   let get = (id, s) => M.get(s.store, M.find(s.store, rref(id, s)));
   let get_opt = (id, s) =>
-    Map.find_opt(id, s.refs^) |> Option.map(~f=_ => get(id, s));
+    Map.find(s.refs^, id) |> Option.map(~f=_ => get(id, s));
   let set = (id, a, s) => M.set(s.store, M.find(s.store, rref(id, s)), a);
 
   let merge = (f, id, id', s) =>

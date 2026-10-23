@@ -108,7 +108,7 @@ let collect_predecessor_ids = (z: t): Id.Map.t(unit) => {
   current_preds
   @ ancestor_preds
   |> List.map(~f=id => (id, ()))
-  |> Id.Map.of_list;
+  |> Id.Map.of_alist_reduce(~f=(_, latest) => latest);
 };
 
 /* Find position based on same-segment predecessors. Scans left-to-right,
@@ -118,7 +118,7 @@ let move_to_predecessor = (z: t, predecessor_ids: Id.Map.t(unit)): option(t) => 
   let rec go = (z: t, best: option(t)): option(t) => {
     let is_pred =
       switch (z.relatives.siblings |> fst |> ListUtil.last_opt) {
-      | Some(p) => Id.Map.mem(Piece.id(p), predecessor_ids)
+      | Some(p) => Id.Map.mem(predecessor_ids, Piece.id(p))
       | None => false
       };
     let best = is_pred ? Some(z) : best;

@@ -37,7 +37,7 @@ module Model = {
 
 module Utils = {
   let find_message_opt = (id: Id.t, chat: Model.t): option(Message.Model.t) => {
-    Id.Map.find_opt(id, chat.message_map);
+    Id.Map.find(chat.message_map, id);
   };
 
   let find_message = (id: Id.t, chat: Model.t): Message.Model.t => {
@@ -121,7 +121,8 @@ module Utils = {
   let update_message = (message: Message.Model.t, chat: Model.t): Model.t => {
     {
       ...chat,
-      message_map: Id.Map.add(message.id, message, chat.message_map),
+      message_map:
+        Id.Map.set(chat.message_map, ~key=message.id, ~data=message),
     };
   };
 
@@ -142,7 +143,7 @@ module Utils = {
     // Like append, but instead of appending, simply overwrites the message with the new one
     // This is helpful, for example, if an api error occurs after we generate an agent response.
     let updated_message_map =
-      Id.Map.add(message_id, message, chat.message_map);
+      Id.Map.set(chat.message_map, ~key=message_id, ~data=message);
     {
       ...chat,
       message_map: updated_message_map,

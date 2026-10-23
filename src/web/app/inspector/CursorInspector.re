@@ -1116,7 +1116,7 @@ let view = (~globals: Globals.t, cursor: Cursor.cursor(Editors.Update.t)) => {
   let projector_err =
     switch (cursor.indicated_piece, cursor.editor) {
     | (Some(Projector({id, kind, _})), Some(editor)) =>
-      switch (Id.Map.find_opt(id, editor.syntax.projector_errors)) {
+      switch (Id.Map.find(editor.syntax.projector_errors, id)) {
       | Some(err) => Some((kind, err))
       | None => None
       }

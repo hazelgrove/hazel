@@ -32,7 +32,7 @@ module Model = {
 
 module Utils = {
   let find_chat = (id: Id.t, model: Model.t): Chat.Model.t => {
-    Id.Map.find_opt(id, model.chat_map)
+    Id.Map.find(model.chat_map, id)
     |> OptUtil.get_or_fail("[ChatSystem.Utils.find_chat] Chat not found");
   };
 
@@ -46,7 +46,7 @@ module Utils = {
   let update_chat = (chat: Chat.Model.t, model: Model.t): Model.t => {
     {
       ...model,
-      chat_map: Id.Map.add(chat.id, chat, model.chat_map),
+      chat_map: Id.Map.set(model.chat_map, ~key=chat.id, ~data=chat),
     };
   };
 
@@ -63,15 +63,15 @@ module Utils = {
   let delete_chat = (id: Id.t, model: Model.t): Model.t => {
     {
       ...model,
-      chat_map: Id.Map.remove(id, model.chat_map),
-      current: Id.Map.choose(model.chat_map) |> fst,
+      chat_map: Id.Map.remove(model.chat_map, id),
+      current: Id.Map.min_elt_exn(model.chat_map) |> fst,
     };
   };
 
   let chats_to_list = (model: Model.t): list(Chat.Model.t) => {
     // Converts the map of chats to a list of chats
     // ordered by the created_at timestamp
-    Id.Map.bindings(model.chat_map)
+    Id.Map.to_alist(model.chat_map)
     |> List.map(~f=((_, chat: Chat.Model.t)) => chat)
     |> List.sort(~compare=(a: Chat.Model.t, b: Chat.Model.t) =>
          Float.compare(a.created_at, b.created_at)

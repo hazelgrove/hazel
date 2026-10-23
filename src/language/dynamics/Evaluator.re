@@ -220,7 +220,7 @@ let rec evaluate =
         reuse_map;
       } else {
         ReusePass.update_reuse_map_after_effects(
-          ~rhs_reused=source_id => Id.Map.mem(source_id, reused_ids),
+          ~rhs_reused=source_id => Id.Map.mem(reused_ids, source_id),
           ~reuse_map,
           effects,
         );
@@ -262,7 +262,7 @@ let rec evaluate =
       let delegations =
         switch (Option.map(~f=provenance_of_kind, kind)) {
         | Some(Administrative({may_delegate: true}))
-            when Id.Map.mem(DHExp.rep_id(exp), eval_info.targets) => [
+            when Id.Map.mem(eval_info.targets, DHExp.rep_id(exp)) => [
             (DHExp.rep_id(exp), call_stack),
             ...delegations,
           ]
@@ -314,7 +314,7 @@ let rec evaluate =
      * heuristically by ascription dominance in Sample.Map.dominated,
      * applied by the trace fold — unifying it needs delegation markers
      * that scope over subtree re-evaluation; deferred.) */
-    let is_target = Id.Map.find_opt(expr_id, eval_info.targets);
+    let is_target = Id.Map.find(eval_info.targets, expr_id);
     let continues_delegated_span =
       switch (is_target) {
       | None => false
@@ -541,7 +541,6 @@ let prepare_evaluation =
     IncrEval.is_empty(prev) || !EvalInfo.has_statics(eval_info)
       ? Id.Map.empty
       : Id.Map.map(
-          _ => (),
           (
             switch (reuse_stream) {
             | Some(stream) => stream
@@ -550,6 +549,8 @@ let prepare_evaluation =
             }
           ).
             entries,
+          ~f=_ =>
+          ()
         );
   let result =
     evaluate(

@@ -24,13 +24,13 @@ let equal_errors_map_coverage = Id.Map.equal(equal_issue_for_coverage);
 
 let issue_map_of_marks_map =
     (m: Id.Map.t(list(Mark.t))): Id.Map.t(Test_Statics_Prelude.issue) =>
-  Id.Map.map(ms => Marks(ms), m);
+  Id.Map.map(m, ~f=ms => Marks(ms));
 
 let testable_error_map =
   testable(
     Fmt.using(
       m =>
-        Id.Map.bindings(m)
+        Id.Map.to_alist(m)
         |> List.sort(~compare=(a, b) => Id.compare(fst(a), fst(b)))
         |> List.map(~f=((id, iss)) =>
              Id.show(id) ++ " => " ++ show_issue(iss)
@@ -77,14 +77,17 @@ let has_errors =
         };
 
       let show_error_map = (m: Id.Map.t(Test_Statics_Prelude.issue)): string =>
-        Id.Map.bindings(m)
+        Id.Map.to_alist(m)
         |> List.sort(~compare=(a, b) => Id.compare(fst(a), fst(b)))
         |> List.map(~f=((id, iss)) =>
              Id.show(id) ++ " => " ++ show_issue(iss)
            )
         |> String.concat(~sep="\n");
       print_endline("Actual errors: " ++ show_error_map(actual_errors));
-      let expected_errors = Id.Map.of_list(List.zip_exn(ids, errors));
+      let expected_errors =
+        Id.Map.of_alist_reduce(List.zip_exn(ids, errors), ~f=(_, latest) =>
+          latest
+        );
 
       print_endline("Expected errors: " ++ show_error_map(expected_errors));
 

@@ -136,16 +136,17 @@ module ShapeMapSemantics = {
       : (Id.Map.t(ProjectorCore.Shape.t), Id.Map.t(ProjectorBase.error)) => {
     let both =
       Id.Map.map(
-        from_semantics(
-          refractors.sample_focus,
-          statics,
-          dynamics,
-          ~elaborated,
-        ),
         proj_map,
+        ~f=
+          from_semantics(
+            refractors.sample_focus,
+            statics,
+            dynamics,
+            ~elaborated,
+          ),
       );
-    let shapes = Id.Map.map(((shape, _)) => shape, both);
-    let errors = Id.Map.filter_map((_, (_, err)) => err, both);
+    let shapes = Id.Map.map(both, ~f=((shape, _)) => shape);
+    let errors = Id.Map.filter_map(both, ~f=((_, err)) => err);
     (shapes, errors);
   };
 };

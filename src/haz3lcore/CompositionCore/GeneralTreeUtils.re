@@ -25,13 +25,11 @@ let subtree_of =
           (of_pat ? [Pat.rep_id(pat)] : [])
           @ (of_def ? [Exp.rep_id(def)] : [])
           @ (of_body ? [Exp.rep_id(body)] : []);
-        Id.Map.filter(
-          (id, child) =>
-            List.mem(roots, id, ~equal=Id.equal)
-            || List.exists(roots, ~f=root =>
-                 List.mem(Info.ancestors_of(child), root, ~equal=Id.equal)
-               ),
-          orig_info_map,
+        Id.Map.filteri(orig_info_map, ~f=(~key as id, ~data as child) =>
+          List.mem(roots, id, ~equal=Id.equal)
+          || List.exists(roots, ~f=root =>
+               List.mem(Info.ancestors_of(child), root, ~equal=Id.equal)
+             )
         );
       | Let(pat, def, body) =>
         let pat_info = pat_to_pat(pat, orig_info_map);
@@ -356,25 +354,23 @@ let get_var_names_from_pat = (curr: Info.t): list(string) => {
     even one already shadowed locally — counts. */
 let name_occurs_within =
     (~root_id: Id.t, ~info_map: Id.Map.t(Info.t), name: string): bool => {
-  Id.Map.exists(
-    (_id, info: Info.t) =>
-      List.mem(Info.ancestors_of(info), root_id, ~equal=Poly.equal)
-      && (
-        switch (info) {
-        | InfoExp({user_term, _}) =>
-          switch (Exp.term_of(user_term)) {
-          | Var(n) => String.equal(n, name)
-          | _ => false
-          }
-        | InfoPat({user_term, _}) =>
-          switch (Pat.term_of(user_term)) {
-          | Var(n) => String.equal(n, name)
-          | _ => false
-          }
+  Id.Map.exists(info_map, ~f=(info: Info.t) =>
+    List.mem(Info.ancestors_of(info), root_id, ~equal=Poly.equal)
+    && (
+      switch (info) {
+      | InfoExp({user_term, _}) =>
+        switch (Exp.term_of(user_term)) {
+        | Var(n) => String.equal(n, name)
         | _ => false
         }
-      ),
-    info_map,
+      | InfoPat({user_term, _}) =>
+        switch (Pat.term_of(user_term)) {
+        | Var(n) => String.equal(n, name)
+        | _ => false
+        }
+      | _ => false
+      }
+    )
   );
 };
 
