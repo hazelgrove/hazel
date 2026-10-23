@@ -461,14 +461,8 @@ let bench_eval = (iterations: int, paths: list(string)): unit => {
   let now = () =>
     Js_of_ocaml.Js.Unsafe.global##.performance##now()##valueOf
     |> Js_of_ocaml.Js.float_of_number;
-  Stdlib.Printf.printf(
-    "%-40s %8s %12s %12s\n",
-    "File",
-    "Iters",
-    "Plain(ms)",
-    "Incr(ms)",
-  );
-  Stdlib.Printf.printf("%s\n", String.make(76, '-'));
+  printf("%-40s %8s %12s %12s\n", "File", "Iters", "Plain(ms)", "Incr(ms)");
+  printf("%s\n", String.make(76, '-'));
   List.iter(
     ~f=
       path => {
@@ -489,13 +483,7 @@ let bench_eval = (iterations: int, paths: list(string)): unit => {
         };
         let t3 = now();
         let incr = (t3 -. t2) /. float_of_int(iterations);
-        Stdlib.Printf.printf(
-          "%-40s %8d %12.1f %12.1f\n",
-          path,
-          iterations,
-          plain,
-          incr,
-        );
+        printf("%-40s %8d %12.1f %12.1f\n", path, iterations, plain, incr);
       },
     paths,
   );
