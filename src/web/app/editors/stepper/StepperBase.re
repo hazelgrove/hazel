@@ -787,7 +787,7 @@ and Stepper: {
         and.calc expr = expr
         and.calc _ctx = ctx
         and.calc _ana = ana;
-        expr
+        TheoremStepDrag.for_display(settings, expr)
         |> CodeWithStatics.Model.mk_from_exp(
              ~settings,
              ~fold_fn_bodies=?TheoremStepDrag.fold_mode(settings),

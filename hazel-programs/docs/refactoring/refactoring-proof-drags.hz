@@ -30,7 +30,7 @@ theorem fusion_demo =
     map(map(items, f), g) == map(items, fun x -> g(f(x)))
 in
 
-# Split the sum on the left by pulling ys toward xs. #
+# Split the sum on the left by pulling ys right into its own sum call. #
 theorem sum_demo =
   forall (xs : [Int]) -> forall (ys : [Int]) ->
     sum(xs @ ys) == sum(xs) + sum(ys)

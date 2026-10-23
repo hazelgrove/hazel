@@ -8,6 +8,70 @@ module D = Web.TheoremStepDrag;
 let visual_exp =
   testable(Fmt.using(Exp.show, Fmt.string), D.same_projection);
 
+/* The visible surface includes collapsed function labels, not their hidden
+   implementation syntax. Semantic equality alone missed these regressions. */
+let rec visible_tokens = (seg: Segment.t): list(string) =>
+  seg
+  |> List.concat_map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         Aba.mk(t.shards, t.children)
+         |> Aba.join(i => [Tile.token(t, i)], visible_tokens)
+         |> List.concat
+       | Projector(p) when p.kind == Fold => [
+           FoldProj.t_of_sexp(Sexplib.Sexp.of_string(p.model)).text,
+         ]
+       | _ => []
+       }
+     );
+let rec visible_layout = (~measured, seg: Segment.t) =>
+  seg
+  |> List.concat_map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) =>
+         Aba.mk(t.shards, t.children)
+         |> Aba.join(
+              i => {
+                let m =
+                  Web.CodeFlip.find_meas(measured, Shard(t.id, i))
+                  |> Option.get;
+                [
+                  (
+                    Tile.token(t, i),
+                    m.origin.row,
+                    m.origin.col,
+                    m.last.row,
+                    m.last.col,
+                  ),
+                ];
+              },
+              visible_layout(~measured),
+            )
+         |> List.concat
+       | Projector(p) when p.kind == Fold =>
+         let m = Measured.find_by_id(p.id, measured) |> Option.get;
+         [
+           (
+             FoldProj.t_of_sexp(Sexplib.Sexp.of_string(p.model)).text,
+             m.origin.row,
+             m.origin.col,
+             m.last.row,
+             m.last.col,
+           ),
+         ];
+       | _ => []
+       }
+     );
+let rec folds = (seg: Segment.t): list(Base.projector) =>
+  seg
+  |> List.concat_map((p: Piece.t) =>
+       switch (p) {
+       | Tile(t) => List.concat_map(folds, t.children)
+       | Projector(p) when p.kind == Fold => [p]
+       | _ => []
+       }
+     );
+
 let settings =
   Web.Settings.Model.{
     ...init,
@@ -20,6 +84,13 @@ let settings =
       },
     },
   };
+let render = exp =>
+  Web.CodeWithStatics.Model.mk_from_exp(
+    ~settings=settings.core,
+    ~fold_fn_bodies=`Named,
+    ~root=Exp,
+    D.for_display(settings.core, exp),
+  );
 let int_type = Typ.fresh(Atom(Int));
 let assoc = "forall (x : Int) -> forall (y : Int) -> forall (z : Int) -> (x + y) + z == x + (y + z)";
 let fusion = "forall (items : [Int]) -> forall (f : Int -> Int) -> forall (g : Int -> Int) -> map(map(items, f), g) == map(items, fun x -> g(f(x)))";
@@ -272,6 +343,12 @@ let tests = [
             Calc.get_value(last),
           );
           same_exp("associated result", "a + (b + c)", Calc.get_value(last));
+          check(
+            list(string),
+            "required grouping parentheses remain in preview",
+            ["a", "+", "(", "b", "+", "c", ")"],
+            visible_tokens(c.segment),
+          );
           let reloaded = S.Stepper.persist(after) |> S.Stepper.unpersist;
           let (_, replayed, _) = calculate(~ctx, ~exp, reloaded);
           check(
@@ -322,6 +399,52 @@ let tests = [
             "((a + b) + c, a + (b + c))",
             Calc.get_value(result),
           );
+        },
+      ),
+      test_case(
+        "folded function identities and widths survive preview rendering",
+        `Quick,
+        () => {
+          let arrow = Typ.fresh(Arrow(int_type, int_type));
+          let ctx =
+            context(
+              ~law=fusion,
+              ~bindings=[
+                ("xs", Typ.fresh(List(int_type))),
+                ("f", arrow),
+                ("g", arrow),
+              ],
+              (),
+            );
+          let (_, exp, before, target) =
+            fixture(~ctx, "map(map(xs, ¦f), g)");
+          let live = editor(before).editor.syntax;
+          let again = render(exp).editor.syntax;
+          check(
+            list(string),
+            "function projection identities are stable",
+            List.map(
+              (p: Base.projector) => Id.to_string(p.id),
+              folds(live.segment),
+            ),
+            List.map(
+              (p: Base.projector) => Id.to_string(p.id),
+              folds(again.segment),
+            ),
+          );
+          let c = choose(~ctx, before, target);
+          folds(c.segment)
+          |> List.iter((p: Base.projector) => {
+               let text =
+                 FoldProj.t_of_sexp(Sexplib.Sexp.of_string(p.model)).text;
+               let m = Measured.find_by_id(p.id, c.measured) |> Option.get;
+               check(
+                 int,
+                 "candidate reserves the displayed function width",
+                 Unicode.Width.columns_of_string(text),
+                 m.last.col - m.origin.col,
+               );
+             });
         },
       ),
       test_case(
@@ -717,6 +840,14 @@ let tests = [
                  );
                let target = Option.get(target^);
                let c = choose(~ctx, ~name=rule, before, target);
+               if (demo == "sum_demo") {
+                 check(
+                   bool,
+                   "sum split moves ys right into its own call",
+                   true,
+                   c.target.col > c.current.col,
+                 );
+               };
                let updated = release(~ctx, before, target, c);
                check(
                  string,
@@ -725,6 +856,52 @@ let tests = [
                  step(updated.model).equality,
                );
                let (_, last, _) = calculate(~ctx, ~exp, updated.model);
+               let actual = render(Calc.get_value(last)).editor.syntax;
+               check(
+                 bool,
+                 demo ++ " preview geometry equals recorded row",
+                 true,
+                 visible_layout(~measured=c.measured, c.segment)
+                 == visible_layout(~measured=actual.measured, actual.segment),
+               );
+               let live = editor(before).editor.syntax;
+               folds(c.segment)
+               |> List.iter((p: Base.projector) => {
+                    check(
+                      bool,
+                      "all folded function labels participate in the preview",
+                      true,
+                      Web.CodeDrag.token_texts(c.segment)
+                      |> List.exists(((k, text, _)) =>
+                           k == Web.CodeFlip.ProjectorK(p.id)
+                           && text
+                           == FoldProj.t_of_sexp(
+                                Sexplib.Sexp.of_string(p.model),
+                              ).
+                                text
+                         ),
+                    );
+                    if (!Id.Map.mem(p.id, live.measured.projectors)) {
+                      check(
+                        bool,
+                        "a new function copy retains its live origin",
+                        true,
+                        List.assoc_opt(p.id, c.emerge)
+                        |> Option.map(id =>
+                             Id.Map.mem(id, live.measured.projectors)
+                           )
+                        |> Option.value(~default=false),
+                      );
+                    };
+                  });
+               check(
+                 list(string),
+                 demo ++ " preview displays exactly the recorded row",
+                 visible_tokens(
+                   render(Calc.get_value(last)).editor.syntax.segment,
+                 ),
+                 visible_tokens(c.segment),
+               );
                check(
                  visual_exp,
                  "real goal preview equals replay",

@@ -31,7 +31,8 @@ let max_moved = 1500;
 type key =
   | Shard(Id.t, int)
   | GroutK(Id.t)
-  | CommentK(Id.t);
+  | CommentK(Id.t)
+  | ProjectorK(Id.t);
 
 /* Expected .code-text children, mirroring Code.view's emission */
 type entry =
@@ -66,6 +67,7 @@ let find_meas = (m: Measured.t, k: key): option(Measured.measurement) =>
     }
   | GroutK(id) => Id.Map.find_opt(id, m.grout)
   | CommentK(id) => Id.Map.find_opt(id, m.secondary)
+  | ProjectorK(id) => Id.Map.find_opt(id, m.projectors)
   };
 
 /* a tile's label, found anywhere in a segment */
@@ -281,6 +283,7 @@ let key_kind_match = (a: key, b: key): bool =>
   switch (a, b) {
   | (Shard(_, i), Shard(_, j)) => i == j
   | (GroutK(_), GroutK(_))
+  | (ProjectorK(_), ProjectorK(_))
   | (CommentK(_), CommentK(_)) => true
   | _ => false
   };
@@ -1142,7 +1145,8 @@ let go = (~syntax: CachedSyntax.t, ~font_metrics: FontMetrics.t): unit => {
                                   switch (k) {
                                   | Shard(kid, _)
                                   | GroutK(kid)
-                                  | CommentK(kid) => kid == id
+                                  | CommentK(kid)
+                                  | ProjectorK(kid) => kid == id
                                   }
                                 )
                              |> Option.map(snd)

@@ -38,6 +38,45 @@ let fold_mode = (settings: CoreSettings.t) =>
   && !settings.evaluation.show_fn_bodies
     ? Some(`Named) : None;
 
+/* Proof rows display semantic grouping: source parentheses are not proof
+   content. Let the defensive renderer choose necessary delimiters, as it
+   does after the stepper has consumed those surface wrappers on replay. */
+let for_display = (settings: CoreSettings.t, e: Exp.t): Exp.t => {
+  let rec unparen = (cont, e) =>
+    switch (Exp.term_of(e)) {
+    | Parens(inner) => unparen(cont, inner)
+    | _ => cont(e)
+    };
+  settings.drag_refactor && settings.evaluation.enable_proof
+    ? Exp.map_term(~f_exp=unparen, e) : e;
+};
+
+/* A renderer that introduces projections must also measure them. Reusing
+   only the live shape map gives newly created function folds zero width. */
+let measure = (~info_map, ~shape_map, segment) => {
+  let rec shapes = (map, segment: Segment.t) =>
+    List.fold_left(
+      (map, p: Piece.t) =>
+        switch (p) {
+        | Tile(t) => List.fold_left(shapes, map, t.children)
+        | Projector(p) when !Id.Map.mem(p.id, map) =>
+          let (shape, _) =
+            ProjectorInfo.ShapeMapSemantics.from_semantics(
+              Sample.Focus.init,
+              info_map,
+              Dynamics.Map.empty,
+              ~elaborated=None,
+              p,
+            );
+          Id.Map.add(p.id, shape, map);
+        | _ => map
+        },
+      map,
+      segment,
+    );
+  Measured.of_segment(segment, shapes(shape_map, segment), Id.Map.empty);
+};
+
 /* Result views can omit type annotations and add fold projectors. These
    are display differences, not changes to the expression being previewed. */
 let same_projection =
@@ -135,7 +174,7 @@ let candidates =
       ~info_map,
       ~env,
       ~term,
-      ~measured,
+      ~measured: Measured.t,
       ~shape_map=Id.Map.empty,
       ~target,
       ~shard,
@@ -151,7 +190,7 @@ let candidates =
           ~fold_fn_bodies=?fold_mode(settings),
           settings,
         ),
-      e,
+      for_display(settings, e),
     )
     |> PrettySegment.prettify;
   let render_correspondence = e =>
@@ -162,13 +201,14 @@ let candidates =
           ~fold_fn_bodies=`NoFold,
           settings,
         ),
-      e,
+      for_display(settings, e),
     )
     |> PrettySegment.prettify;
   let theorems: RefactorDrag.theorem_source = {
     rules,
     env,
     render,
+    measure: measure(~info_map, ~shape_map),
     /* A proof's next expression is freshly identified on replay. Source
        binder-id preservation is not a validity criterion for this visual
        projection; require it to depict the matched proof result faithfully. */
@@ -207,7 +247,26 @@ let candidates =
     ~only_theorems=true,
     (),
   )
-  |> List.map((c: Refactor.DragCandidate.t) =>
+  |> List.map((c: Refactor.DragCandidate.t) => {
+       /* Function folds are display nodes derived from the retained semantic
+          function ids. Carry clone/merge provenance across that projection. */
+       let project = (from, into, pairs) =>
+         pairs
+         |> List.filter_map(((a, b)) => {
+              let a = ExpToSegment.function_fold_id(a);
+              let b = ExpToSegment.function_fold_id(b);
+              Id.Map.mem(a, from) && Id.Map.mem(b, into)
+                ? Some((a, b)) : None;
+            });
+       let c = {
+         ...c,
+         emerge:
+           c.emerge
+           @ project(c.measured.projectors, measured.projectors, c.emerge),
+         absorb:
+           c.absorb
+           @ project(measured.projectors, c.measured.projectors, c.absorb),
+       };
        switch (c.kind) {
        | RewriteTheorem(id, direction, _) =>
          let r = List.find((r: RefactorTheorem.rule) => r.id == id, rules);
@@ -216,8 +275,8 @@ let candidates =
            label: r.name ++ (direction == Left ? " ←" : " →"),
          };
        | _ => c
-       }
-     );
+       };
+     });
 };
 
 /* Re-enumeration at release checks the current context, exact site and grip.

@@ -426,6 +426,7 @@ type theorem_source = {
   rules: list(RefactorTheorem.rule),
   env: Environment.t(Exp.t),
   render: Exp.t => Segment.t,
+  measure: Segment.t => Measured.t,
   accepts: (~before: Exp.t, ~after: Exp.t, Segment.t) => bool,
   prepare:
     (~target: Id.t, ~site: Id.t, Id.t, Util.Direction.t, Exp.t) =>
@@ -718,6 +719,8 @@ let drag_candidates =
         render: e =>
           ExpToSegment.exp_to_segment(~settings=roundtrip_settings, e)
           |> SpaceNormalize.go,
+        measure: segment =>
+          Measured.of_segment(segment, shape_map, Id.Map.empty),
         accepts: accepts_result(~settings, ~info_map),
         prepare: RefactorTheorem.prepare_details(~info_map),
       },
@@ -779,12 +782,7 @@ let drag_candidates =
                            |> Option.value(~default="")
                          );
                        let segment = theorems.render(term');
-                       let cand_measured =
-                         Measured.of_segment(
-                           segment,
-                           shape_map,
-                           Id.Map.empty,
-                         );
+                       let cand_measured = theorems.measure(segment);
                        let endpoint =
                          (
                            switch (correspondence.destination) {
