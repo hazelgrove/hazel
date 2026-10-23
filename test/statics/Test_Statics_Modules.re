@@ -158,60 +158,6 @@ let test_unknown_typed_root_is_not_an_error =
     {|let n : ? = 1 in let y : n.T = 2 in y|},
   );
 
-let test_type_member_mismatch_on_the_definition =
-  Alcotest.test_case(
-    "A differing type member is the module's only error, on its definition type",
-    `Quick,
-    () => {
-      let src = {|module M : { type T = Int; let x : T } = { type T = Bool; let x = true } in M|};
-      Alcotest.(check(int))("one mark", 1, List.length(marks_of(src)));
-      Alcotest.(check(bool))(
-        "Bool marked",
-        true,
-        List.exists(
-          fun
-          | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
-          | _ => false,
-          marks_at(
-            src,
-            fun
-            | InfoTyp({user_term: {term: Atom(Bool), _}, _}) => true
-            | _ => false,
-          ),
-        ),
-      );
-    },
-  );
-
-let test_type_member_mismatch_with_wrong_definition =
-  Alcotest.test_case(
-    "A differing type member and a definition wrong for the module's own T",
-    `Quick,
-    () => {
-      let marks =
-        marks_of(
-          {|module M : { type T = Int; let x : T } = { type T = Bool; let x = 1 } in M|},
-        );
-      Alcotest.(check(int))("two errors", 2, List.length(marks));
-      Alcotest.(check(bool))(
-        "type member and definition",
-        true,
-        List.exists(
-          fun
-          | Language.Mark.ModuleTypeMemberMismatch(_) => true
-          | _ => false,
-          marks,
-        )
-        && List.exists(
-             fun
-             | Language.Mark.ExpectationMismatch(_) => true
-             | _ => false,
-             marks,
-           ),
-      );
-    },
-  );
-
 /* ===== HOLE BINDERS ===== */
 
 /* A hole among the items could still become the members the signature
@@ -696,7 +642,7 @@ let test_sig_lowercase_nested =
     Some(int()),
   );
 
-/* ===== SPECIFIC MARKS ===== */
+/* ===== SIGNATURE MISMATCH MARKS ===== */
 
 let test_extra_member_mark =
   has_mark_test(
@@ -732,6 +678,60 @@ let test_type_member_mismatch_mark =
     fun
     | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
     | _ => false,
+  );
+
+let test_type_member_mismatch_on_the_definition =
+  Alcotest.test_case(
+    "A differing type member is the module's only error, on its definition type",
+    `Quick,
+    () => {
+      let src = {|module M : { type T = Int; let x : T } = { type T = Bool; let x = true } in M|};
+      Alcotest.(check(int))("one mark", 1, List.length(marks_of(src)));
+      Alcotest.(check(bool))(
+        "Bool marked",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ModuleTypeMemberMismatch({name: "T", _}) => true
+          | _ => false,
+          marks_at(
+            src,
+            fun
+            | InfoTyp({user_term: {term: Atom(Bool), _}, _}) => true
+            | _ => false,
+          ),
+        ),
+      );
+    },
+  );
+
+let test_type_member_mismatch_with_wrong_definition =
+  Alcotest.test_case(
+    "A differing type member and a definition wrong for the module's own T",
+    `Quick,
+    () => {
+      let marks =
+        marks_of(
+          {|module M : { type T = Int; let x : T } = { type T = Bool; let x = 1 } in M|},
+        );
+      Alcotest.(check(int))("two errors", 2, List.length(marks));
+      Alcotest.(check(bool))(
+        "type member and definition",
+        true,
+        List.exists(
+          fun
+          | Language.Mark.ModuleTypeMemberMismatch(_) => true
+          | _ => false,
+          marks,
+        )
+        && List.exists(
+             fun
+             | Language.Mark.ExpectationMismatch(_) => true
+             | _ => false,
+             marks,
+           ),
+      );
+    },
   );
 
 /* ===== TYPE ERROR TESTS ===== */
@@ -855,7 +855,7 @@ let test_modules_and_labeled_tuples_are_distinct =
     )
   );
 
-/* ===== NO WIDTH SUBTYPING YET (arrives with ana_meet) ===== */
+/* ===== EXTRA MEMBERS ARE AN ERROR ===== */
 let test_extra_member_rejected =
   inconsistent_typecheck(
     "Extra module member is rejected by an exact signature",
@@ -1435,11 +1435,13 @@ let tests = (
     test_sig_module_member,
     test_sig_module_member_binder_type,
     test_sig_lowercase_nested,
-    /* Specific marks */
+    /* Signature mismatch marks */
     test_extra_member_mark,
     test_extra_type_member_mark,
     test_missing_member_mark,
     test_type_member_mismatch_mark,
+    test_type_member_mismatch_on_the_definition,
+    test_type_member_mismatch_with_wrong_definition,
     /* Projection error attribution */
     test_member_not_found_on_label,
     test_type_member_as_value_mark,
@@ -1449,11 +1451,10 @@ let tests = (
     test_submodule_not_found_mark,
     test_value_used_as_module_path_mark,
     test_unknown_typed_root_is_not_an_error,
-    test_type_member_mismatch_on_the_definition,
+    /* Hole binders */
     test_holes_assume_missing_members,
     test_error_wildcard_binder_does_not_assume,
     test_error_non_binder_holes_do_not_assume,
-    test_type_member_mismatch_with_wrong_definition,
     /* Nested expectations */
     test_nested_missing_member_localized,
     test_nested_type_member_mismatch_localized,
@@ -1480,7 +1481,7 @@ let tests = (
     test_error_sequential_type,
     /* Signatures are distinct from labeled tuple types */
     test_modules_and_labeled_tuples_are_distinct,
-    /* No width subtyping yet */
+    /* Extra members are an error */
     test_extra_member_rejected,
     test_sig_too_narrow_rejected,
     test_label_mismatch_hole,
