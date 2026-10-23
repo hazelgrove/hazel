@@ -107,6 +107,9 @@ module Model = {
        one: its body alone, read in the context Hazel has at that body in
        the whole program (the preamble's types, the modules before it) */
     focus: option(string),
+    /* (ticket 578) Hazel's line numbers beside the cell, when the page
+       asks (Matthew: "line numbers vanished") */
+    line_numbers: bool,
     /* the context the focused body is read in */
     ctx: option(Language.Ctx.t),
     status: option(Status.t),
@@ -128,13 +131,21 @@ module Model = {
     edits: 0,
     focus: None,
     ctx: None,
+    line_numbers: false,
     status: None,
     font_metrics: FontMetrics.init,
     bodies: [],
   };
 
   let globals = (model: t): Globals.t =>
-    Globals.Model.init(~settings, ~font_metrics=model.font_metrics, ());
+    Globals.Model.init(
+      ~settings={
+        ...settings,
+        line_numbers: model.line_numbers,
+      },
+      ~font_metrics=model.font_metrics,
+      (),
+    );
 };
 
 module Update = {
@@ -149,6 +160,8 @@ module Update = {
     | SetEditable(bool)
     /* the page asks for one module's body alone, or the whole program */
     | SetFocus(option(string))
+    /* the page asks for Hazel's line numbers, or not */
+    | SetLineNumbers(bool)
     /* an edit in a cell the page can edit, or any other action there */
     | Edit(CodeEditable.Update.t);
 
@@ -365,6 +378,10 @@ module Update = {
     | SetEditable(editable) => {
         ...model,
         editable,
+      }
+    | SetLineNumbers(line_numbers) => {
+        ...model,
+        line_numbers,
       }
     | SetFocus(focus) when focus == model.focus => model
     | SetFocus(focus) =>

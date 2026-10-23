@@ -29,6 +29,8 @@ type t = {
   mutable focus: option(option(string)),
   /* and the theme it asked for: (dark, high contrast) */
   mutable theme: option((bool, bool)),
+  /* and whether it asked for line numbers */
+  mutable lines: option(bool),
 };
 
 let make = (~parent, ~own_origin, ~post): t => {
@@ -41,6 +43,7 @@ let make = (~parent, ~own_origin, ~post): t => {
   editable: None,
   focus: None,
   theme: None,
+  lines: None,
 };
 
 let send = (link: t, ~target: string, message: EmbedModel.Outbox.message) =>
@@ -86,6 +89,10 @@ let receive = (link: t, event: Js.Unsafe.any): option(EmbedModel.Program.t) => {
     | Some(Set(program)) =>
       link.page_origin = Some(origin);
       Some(program);
+    | Some(Lines(on)) =>
+      link.page_origin = Some(origin);
+      link.lines = Some(on);
+      None;
     | Some(Theme(dark, contrast)) =>
       link.page_origin = Some(origin);
       link.theme = Some((dark, contrast));

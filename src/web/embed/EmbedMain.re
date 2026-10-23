@@ -126,6 +126,12 @@ let on_message = (~link, event: Js.Unsafe.any): unit =>
         update(~link, SetEditable(on));
       | None => ()
       };
+      switch (link.lines) {
+      | Some(on) =>
+        link.lines = None;
+        update(~link, SetLineNumbers(on));
+      | None => ()
+      };
       switch (link.theme) {
       | Some((dark, contrast)) =>
         link.theme = None;

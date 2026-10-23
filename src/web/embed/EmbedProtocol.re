@@ -88,6 +88,8 @@ type incoming =
   /* { type: "theme", dark, contrast }: Hazel's Colors slide with its
      dark_mode and high_contrast switches set so */
   | Theme(bool, bool)
+  /* { type: "lines", on }: Hazel's line numbers beside the cell */
+  | Lines(bool)
   | Ping;
 
 /* j[key] when it is a string */
@@ -124,6 +126,13 @@ let decode = (data: Js.Unsafe.any): option(incoming) =>
     }
   | Some("ping") => Some(Ping)
   | Some("focus") => Some(Focus(string_field(data, "module")))
+  | Some("lines") =>
+    Some(
+      Lines(
+        Js.to_string(Js.typeof(Js.Unsafe.get(data, "on"))) == "boolean"
+        && Js.to_bool(Js.Unsafe.get(data, "on")),
+      ),
+    )
   | Some("theme") =>
     let flag = key =>
       Js.to_string(Js.typeof(Js.Unsafe.get(data, key))) == "boolean"
