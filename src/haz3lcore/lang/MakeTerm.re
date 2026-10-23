@@ -1195,6 +1195,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | (F(Tok(t)), [])
           when Token.is_string(t) && !Token.string_has_valid_escapes(t) =>
         ret(Invalid(t))
+      | (F(Tok(t)), []) when Token.is_raw_string(t) =>
+        ret(Atom(String(Token.strip_raw_quotes(t))))
       | (F(Tok(t)), []) when Token.is_quoted_label(t) =>
         set_lexeme(t);
         ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)));
