@@ -264,6 +264,7 @@ let core_mark_err_view =
     | ModuleMissingMembers(_)
     | ModuleExtraMembers(_)
     | ModuleMemberNotFound(_)
+    | ModuleMemberIsType(_)
     | ModuleTypeMemberMismatch(_)
     | TypeMemberCapture(_)
     | BadOperator(_)
@@ -588,8 +589,12 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
       text("Expected a module or tuple type, found type"),
       view_type(ty),
     ]
-  | ModuleTypeMemberNotFound({name, members, submodule}) =>
-    let what = submodule ? "sub-module" : "type member";
+  | ModuleTypeMemberNotFound(member, {name, members}) =>
+    let what =
+      switch (member) {
+      | SubModule => "sub-module"
+      | TypeMember => "type member"
+      };
     [text("Module has no " ++ what ++ " "), label_view(name)]
     @ (
       switch (members) {
@@ -791,28 +796,26 @@ let exp_mark_err_view =
       text("Module is missing members required by its signature: "),
       ...ListUtil.join(text(", "), List.map(code, names)),
     ])
-  | ModuleMemberNotFound({name, members, type_member}) =>
-    if (type_member) {
-      div_err([
-        code(name),
-        text(
-          " is a type member of the module, not a value; use it in a type position",
-        ),
-      ]);
-    } else {
-      div_err(
-        [text("Module has no member "), code(name)]
-        @ (
-          switch (members) {
-          | [] => [text("; it has no members")]
-          | _ => [
-              text("; its members are "),
-              ...ListUtil.join(text(", "), List.map(code, members)),
-            ]
-          }
-        ),
-      );
-    }
+  | ModuleMemberNotFound({name, members}) =>
+    div_err(
+      [text("Module has no member "), code(name)]
+      @ (
+        switch (members) {
+        | [] => [text("; it has no members")]
+        | _ => [
+            text("; its members are "),
+            ...ListUtil.join(text(", "), List.map(code, members)),
+          ]
+        }
+      ),
+    )
+  | ModuleMemberIsType(name) =>
+    div_err([
+      code(name),
+      text(
+        " is a type member of the module, not a value; use it in a type position",
+      ),
+    ])
   | ModuleExtraMembers(names) =>
     div_err([
       text("Module has members its signature does not declare: "),

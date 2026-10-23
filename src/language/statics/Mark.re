@@ -39,6 +39,14 @@ type tpat_var_err =
   | Other
   | NotCapitalized;
 
+/* A member a module path names that the module lacks, and the members of
+   that sort it has. */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type member_not_found = {
+  name: Var.t,
+  members: list(Var.t),
+};
+
 /* NOTE: Declaration order is load-bearing.
    The priority of a mark (for cursor inspector / error printer selection)
    is determined by its position in this type: earlier-declared constructors
@@ -63,12 +71,10 @@ type t =
   | ModuleMissingMembers(list(Var.t))
   | ModuleExtraMembers(list(Var.t))
   /* `M.y` where the module has no value member y: on the label, while the
-     dot carries a message. [type_member]: y is one of its type members. */
-  | ModuleMemberNotFound({
-      name: Var.t,
-      members: list(Var.t),
-      type_member: bool,
-    })
+     dot carries a message. */
+  | ModuleMemberNotFound(member_not_found)
+  /* `M.T` in an expression, where T is a type member of the module. */
+  | ModuleMemberIsType(Var.t)
   | BadOperator(string)
   | BadLivelitModel(Typ.t)
   | BadTheorem(Typ.t)
@@ -102,13 +108,9 @@ type t =
   | TypWantTypeFoundAp
   | TypWantLabel
   | TypWantProduct(Typ.t)
-  /* `M.T` where the module has no type member T, or ([submodule]) `M.P.T`
-     where it has no sub-module P: on the label. */
-  | ModuleTypeMemberNotFound({
-      name: Var.t,
-      members: list(Var.t),
-      submodule: bool,
-    })
+  /* `M.T` where the module has no type member T, or `M.P.T` where it has
+     no sub-module P: on the label. */
+  | ModuleTypeMemberNotFound(TypExpectation.module_member, member_not_found)
   /* `m.T` where m is a value that is not a module. */
   | TypWantModule({
       name: Var.t,

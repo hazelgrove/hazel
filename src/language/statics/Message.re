@@ -29,10 +29,7 @@ type exp =
   | AnaDeferralConsistent(Typ.t)
   /* `M.y` where the module has no member y: the dot's payload; the error is
      on the label. */
-  | ModuleMemberNotFound({
-      name: Var.t,
-      members: list(Var.t),
-    })
+  | ModuleMemberNotFound(Mark.member_not_found)
   | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

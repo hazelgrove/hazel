@@ -102,16 +102,15 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (LabelNotFound(l1, ls1), LabelNotFound(l2, ls2)) =>
       l1 == l2 && ls1 == ls2
     | (ModuleMissingMembers(ns1), ModuleMissingMembers(ns2)) => ns1 == ns2
+    | (ModuleMemberNotFound(nf1), ModuleMemberNotFound(nf2)) =>
+      Mark.equal_member_not_found(nf1, nf2)
+    | (ModuleMemberIsType(n1), ModuleMemberIsType(n2)) => n1 == n2
     | (
-        ModuleMemberNotFound({name: n1, members: m1, type_member: t1}),
-        ModuleMemberNotFound({name: n2, members: m2, type_member: t2}),
+        ModuleTypeMemberNotFound(mm1, nf1),
+        ModuleTypeMemberNotFound(mm2, nf2),
       ) =>
-      n1 == n2 && m1 == m2 && t1 == t2
-    | (
-        ModuleTypeMemberNotFound({name: n1, members: m1, submodule: s1}),
-        ModuleTypeMemberNotFound({name: n2, members: m2, submodule: s2}),
-      ) =>
-      n1 == n2 && m1 == m2 && s1 == s2
+      TypExpectation.equal_module_member(mm1, mm2)
+      && Mark.equal_member_not_found(nf1, nf2)
     | (
         TypWantModule({name: n1, typ: t1}),
         TypWantModule({name: n2, typ: t2}),

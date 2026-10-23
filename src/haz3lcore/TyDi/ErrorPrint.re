@@ -163,23 +163,21 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
       "Module has members its signature does not declare: %s",
       String.concat(", ", names),
     )
-  | ModuleMemberNotFound({name, members, type_member}) =>
-    if (type_member) {
+  | ModuleMemberNotFound({name, members}) =>
+    switch (members) {
+    | [] => prn("Module has no member %s; it has no members", name)
+    | _ =>
       prn(
-        "%s is a type member of the module, not a value; use it in a type position",
+        "Module has no member %s; its members are %s",
         name,
-      );
-    } else {
-      switch (members) {
-      | [] => prn("Module has no member %s; it has no members", name)
-      | _ =>
-        prn(
-          "Module has no member %s; its members are %s",
-          name,
-          String.concat(", ", members),
-        )
-      };
+        String.concat(", ", members),
+      )
     }
+  | ModuleMemberIsType(name) =>
+    prn(
+      "%s is a type member of the module, not a value; use it in a type position",
+      name,
+    )
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     type_member_mismatch_string(name, ~expected, ~actual)
   | TypeMemberCapture(names) => type_member_capture_string(names)
@@ -262,8 +260,12 @@ let typ_mark_string: Mark.t => string =
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
     prn("Expected a module or tuple type, found type %s", Print.typ(ty))
-  | ModuleTypeMemberNotFound({name, members, submodule}) => {
-      let what = submodule ? "sub-module" : "type member";
+  | ModuleTypeMemberNotFound(member, {name, members}) => {
+      let what =
+        switch (member) {
+        | SubModule => "sub-module"
+        | TypeMember => "type member"
+        };
       switch (members) {
       | [] => prn("Module has no %s %s; it has no %ss", what, name, what)
       | _ =>

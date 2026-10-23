@@ -1314,12 +1314,12 @@ and uexp_to_info_map =
         switch (whnf_dot(info_e1.ty).term, e2.term) {
         | (Sig(items), Label(name))
             when Typ.sig_project_value(items, name) == None => [
-            Mark.ModuleMemberNotFound({
-              name,
-              members: available_labels,
-              type_member:
-                List.mem(name, Sig.type_names(Sig.members(items))),
-            }),
+            List.mem(name, Sig.type_names(Sig.members(items)))
+              ? Mark.ModuleMemberIsType(name)
+              : Mark.ModuleMemberNotFound({
+                  name,
+                  members: available_labels,
+                }),
           ]
         | _ => []
         };
@@ -3957,15 +3957,17 @@ and utyp_to_info_map =
         ? ok(Message.Type(utyp)) : err(InvalidLabel(name, labels))
     | (LabelProjectionExpected(None), Label(_)) =>
       ok(Message.Type(Unknown(Internal) |> Typ.temp))
-    | (ModuleMemberExpected({members, submodule}), Label(name)) =>
+    | (ModuleMemberExpected(member, members), Label(name)) =>
       List.mem(name, members)
         ? ok(Message.Type(utyp))
         : err(
-            ModuleTypeMemberNotFound({
-              name,
-              members,
-              submodule,
-            }),
+            ModuleTypeMemberNotFound(
+              member,
+              {
+                name,
+                members,
+              },
+            ),
           )
     | (ConstructorExpected(_), Label(_))
     | (VariantExpected(_), Label(_)) =>
@@ -4057,15 +4059,15 @@ and utyp_to_info_map =
            at the end it names a type member. */
         switch (expects) {
         | ProductExpected =>
-          ModuleMemberExpected({
-            members: Typ.sig_module_member_names(ctx, items),
-            submodule: true,
-          })
+          ModuleMemberExpected(
+            SubModule,
+            Typ.sig_module_member_names(ctx, items),
+          )
         | _ =>
-          ModuleMemberExpected({
-            members: Sig.type_names(Sig.members(items)),
-            submodule: false,
-          })
+          ModuleMemberExpected(
+            TypeMember,
+            Sig.type_names(Sig.members(items)),
+          )
         }
       | None =>
         switch (Typ.weak_head_normalize(ctx, t).term) {

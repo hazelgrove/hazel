@@ -91,11 +91,7 @@ let test_member_not_found_on_label =
         true,
         List.exists(
           fun
-          | Language.Mark.ModuleMemberNotFound({
-              name: "y",
-              members: ["x"],
-              type_member: false,
-            }) =>
+          | Language.Mark.ModuleMemberNotFound({name: "y", members: ["x"]}) =>
             true
           | _ => false,
           subexp_marks(src, is_label("y")),
@@ -114,8 +110,7 @@ let test_type_member_as_value_mark =
     "Accessing a type member as a value says so",
     {|let m = { type T = Int } in m.T|},
     fun
-    | Language.Mark.ModuleMemberNotFound({name: "T", type_member: true, _}) =>
-      true
+    | Language.Mark.ModuleMemberIsType("T") => true
     | _ => false,
   );
 
@@ -133,11 +128,10 @@ let test_type_member_not_found_mark =
     "A missing type member names the module's type members",
     {|module M = { type Real = Int } in let bad : M.Fake = 1 in bad|},
     fun
-    | Language.Mark.ModuleTypeMemberNotFound({
-        name: "Fake",
-        members: ["Real"],
-        submodule: false,
-      }) =>
+    | Language.Mark.ModuleTypeMemberNotFound(
+        TypeMember,
+        {name: "Fake", members: ["Real"]},
+      ) =>
       true
     | _ => false,
   );
@@ -147,7 +141,7 @@ let test_no_type_members_mark =
     "A module without type members says so",
     {|module E = {} in let bad : E.T = 1 in bad|},
     fun
-    | Language.Mark.ModuleTypeMemberNotFound({name: "T", members: [], _}) =>
+    | Language.Mark.ModuleTypeMemberNotFound(_, {name: "T", members: []}) =>
       true
     | _ => false,
   );
@@ -157,11 +151,10 @@ let test_submodule_not_found_mark =
     "A missing sub-module in a type path says so",
     {|module M = { module P = { type S = Int } } in let bad : M.Q.S = 1 in bad|},
     fun
-    | Language.Mark.ModuleTypeMemberNotFound({
-        name: "Q",
-        members: ["P"],
-        submodule: true,
-      }) =>
+    | Language.Mark.ModuleTypeMemberNotFound(
+        SubModule,
+        {name: "Q", members: ["P"]},
+      ) =>
       true
     | _ => false,
   );
@@ -1377,8 +1370,7 @@ let test_shorthand_parameter_not_member =
     "A shorthand's parameter is not a member",
     {|{ let f(x: Int) = x }.x|},
     fun
-    | Language.Mark.ModuleMemberNotFound({name: "x", members: ["f"], _}) =>
-      true
+    | Language.Mark.ModuleMemberNotFound({name: "x", members: ["f"]}) => true
     | _ => false,
   );
 
