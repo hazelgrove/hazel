@@ -234,13 +234,6 @@ let typ_of_item = (item: t): option(TermBase.Typ.t) => {
   };
 };
 
-let dedup_names = (names: list(Var.t)): list(Var.t) =>
-  List.fold_left(
-    (acc, n) => List.mem(n, acc) ? acc : acc @ [n],
-    [],
-    names,
-  );
-
 let value_names = (ms: list(member)): list(Var.t) =>
   ms
   |> List.filter_map(
@@ -248,7 +241,7 @@ let value_names = (ms: list(member)): list(Var.t) =>
        | Val(x, _) => Some(x)
        | TypeManifest(_) => None,
      )
-  |> dedup_names;
+  |> Util.ListUtil.dedup_f(String.equal);
 
 let type_names = (ms: list(member)): list(Var.t) =>
   ms
@@ -257,7 +250,7 @@ let type_names = (ms: list(member)): list(Var.t) =>
        | TypeManifest(x, _) => Some(x)
        | Val(_) => None,
      )
-  |> dedup_names;
+  |> Util.ListUtil.dedup_f(String.equal);
 
 let same_kind = (a: member, b: member) =>
   switch (a, b) {
@@ -267,41 +260,26 @@ let same_kind = (a: member, b: member) =>
   | (TypeManifest(_), Val(_)) => false
   };
 
+let dedup_last_by = (member: 'a => member, xs: list('a)): list('a) =>
+  List.rev(
+    Util.ListUtil.dedup_f(
+      (a, b) => same_kind(member(a), member(b)),
+      List.rev(xs),
+    ),
+  );
+
 /* Keep only the last member of each name and kind (a later binding
    shadows an earlier one), preserving the order of the survivors. */
-let dedup_last = (ms: list(member)): list(member) => {
-  let rec go = (ms: list(member)) =>
-    switch (ms) {
-    | [] => []
-    | [m, ...rest] =>
-      List.exists(same_kind(m), rest) ? go(rest) : [m, ...go(rest)]
-    };
-  go(ms);
-};
+let dedup_last: list(member) => list(member) = dedup_last_by(Fun.id);
 
 /* The well-formed items, keeping only the last of each name and kind. */
-let dedup_last_items = (items: list(t)): list(t) => {
-  let rec go = (items: list(t)) =>
-    switch (items) {
-    | [] => []
-    | [item, ...rest] =>
-      switch (member_of_item(item)) {
-      | None => go(rest)
-      | Some(m) =>
-        let shadowed =
-          List.exists(
-            later =>
-              switch (member_of_item(later)) {
-              | Some(m') => same_kind(m, m')
-              | None => false
-              },
-            rest,
-          );
-        shadowed ? go(rest) : [item, ...go(rest)];
-      }
-    };
-  go(items);
-};
+let dedup_last_items = (items: list(t)): list(t) =>
+  items
+  |> List.filter_map(item =>
+       member_of_item(item) |> Option.map(m => (m, item))
+     )
+  |> dedup_last_by(fst)
+  |> List.map(snd);
 
 /* Lookups take the LAST member with the name: a later binding shadows an
    earlier one, which is also how module bodies export their bindings. */

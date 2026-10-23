@@ -342,7 +342,7 @@ let shadowed_type_names = (items: list(Mod.t)): list(Var.t) => {
        );
   names
   |> List.filter(n => Util.ListUtil.count_pred(String.equal(n), names) > 1)
-  |> Sig.dedup_names;
+  |> Util.ListUtil.dedup_f(String.equal);
 };
 
 /* The signature synthesized for a module body: its exported type and value
