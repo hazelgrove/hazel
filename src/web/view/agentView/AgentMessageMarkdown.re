@@ -31,8 +31,7 @@ let img_src_if_safe = (destination: string): option(string) => {
 
 let rec translate_inline = (inline: Omd.inline(_)): list(Node.t) => {
   switch (inline) {
-  | Omd.Concat(_, items) =>
-    List.concat(List.map(~f=translate_inline, items))
+  | Omd.Concat(_, items) => List.concat_map(~f=translate_inline, items)
   | Omd.Text(_, s) => [text(s)]
   | Omd.Code(_, s) => [
       code(~attrs=[clss(["agent-md-code"])], [text(s)]),
@@ -90,103 +89,96 @@ let heading = (level: int, children: list(Node.t)): Node.t => {
 };
 
 let rec translate_blocks = (blocks: Omd.doc): list(Node.t) => {
-  List.concat(
-    List.map(
-      ~f=
-        (elem: Omd.block(_)) => {
-          switch (elem) {
-          | Omd.Paragraph(_, d) => [
-              p(~attrs=[clss(["agent-md-p"])], translate_inline(d)),
-            ]
-          | Omd.Heading(_, level, d) => [
-              heading(level, translate_inline(d)),
-            ]
-          | Omd.List(_, typ, _, items) =>
-            let lis =
-              List.map(
-                ~f=
-                  (item_blocks: list(Omd.block(_))) => {
-                    li(
-                      ~attrs=[clss(["agent-md-li"])],
-                      translate_blocks(item_blocks),
-                    )
-                  },
-                items,
-              );
-            [
-              switch (typ) {
-              | Omd.Bullet(_) => ul(~attrs=[clss(["agent-md-ul"])], lis)
-              | Omd.Ordered(_, _) =>
-                ol(~attrs=[clss(["agent-md-ol"])], lis)
-              },
-            ];
-          | Omd.Blockquote(_, bs) => [
-              blockquote(
-                ~attrs=[clss(["agent-md-bq"])],
-                translate_blocks(bs),
-              ),
-            ]
-          | Omd.Thematic_break(_) => [
-              hr(~attrs=[clss(["agent-md-hr"])], ()),
-            ]
-          | Omd.Code_block(_, _label, code_text) => [
-              pre(
-                ~attrs=[clss(["agent-md-pre"])],
-                [
-                  code(
-                    ~attrs=[clss(["agent-md-code-block"])],
-                    [text(code_text)],
+  List.concat_map(
+    ~f=
+      (elem: Omd.block(_)) => {
+        switch (elem) {
+        | Omd.Paragraph(_, d) => [
+            p(~attrs=[clss(["agent-md-p"])], translate_inline(d)),
+          ]
+        | Omd.Heading(_, level, d) => [heading(level, translate_inline(d))]
+        | Omd.List(_, typ, _, items) =>
+          let lis =
+            List.map(
+              ~f=
+                (item_blocks: list(Omd.block(_))) => {
+                  li(
+                    ~attrs=[clss(["agent-md-li"])],
+                    translate_blocks(item_blocks),
+                  )
+                },
+              items,
+            );
+          [
+            switch (typ) {
+            | Omd.Bullet(_) => ul(~attrs=[clss(["agent-md-ul"])], lis)
+            | Omd.Ordered(_, _) => ol(~attrs=[clss(["agent-md-ol"])], lis)
+            },
+          ];
+        | Omd.Blockquote(_, bs) => [
+            blockquote(
+              ~attrs=[clss(["agent-md-bq"])],
+              translate_blocks(bs),
+            ),
+          ]
+        | Omd.Thematic_break(_) => [hr(~attrs=[clss(["agent-md-hr"])], ())]
+        | Omd.Code_block(_, _label, code_text) => [
+            pre(
+              ~attrs=[clss(["agent-md-pre"])],
+              [
+                code(
+                  ~attrs=[clss(["agent-md-code-block"])],
+                  [text(code_text)],
+                ),
+              ],
+            ),
+          ]
+        | Omd.Table(_, headers, rows) =>
+          let th_cells =
+            List.map(
+              ~f=
+                ((cell, _align)) =>
+                  th(
+                    ~attrs=[clss(["agent-md-th"])],
+                    translate_inline(cell),
                   ),
-                ],
-              ),
-            ]
-          | Omd.Table(_, headers, rows) =>
-            let th_cells =
-              List.map(
-                ~f=
-                  ((cell, _align)) =>
-                    th(
-                      ~attrs=[clss(["agent-md-th"])],
-                      translate_inline(cell),
-                    ),
-                headers,
-              );
-            let body_rows =
-              List.map(
-                ~f=
-                  (row: list(Omd.inline(_))) => {
-                    let tds =
-                      List.map(
-                        ~f=
-                          cell =>
-                            td(
-                              ~attrs=[clss(["agent-md-td"])],
-                              translate_inline(cell),
-                            ),
-                        row,
-                      );
-                    tr(~attrs=[clss(["agent-md-tr"])], tds);
-                  },
-                rows,
-              );
-            [
-              table(
-                ~attrs=[clss(["agent-md-table"])],
-                [
-                  thead(
-                    ~attrs=[clss(["agent-md-thead"])],
-                    [tr(~attrs=[], th_cells)],
-                  ),
-                  tbody(~attrs=[clss(["agent-md-tbody"])], body_rows),
-                ],
-              ),
-            ];
-          | Omd.Html_block(_, _) => []
-          | Omd.Definition_list(_, _) => []
-          }
-        },
-      blocks,
-    ),
+              headers,
+            );
+          let body_rows =
+            List.map(
+              ~f=
+                (row: list(Omd.inline(_))) => {
+                  let tds =
+                    List.map(
+                      ~f=
+                        cell =>
+                          td(
+                            ~attrs=[clss(["agent-md-td"])],
+                            translate_inline(cell),
+                          ),
+                      row,
+                    );
+                  tr(~attrs=[clss(["agent-md-tr"])], tds);
+                },
+              rows,
+            );
+          [
+            table(
+              ~attrs=[clss(["agent-md-table"])],
+              [
+                thead(
+                  ~attrs=[clss(["agent-md-thead"])],
+                  [tr(~attrs=[], th_cells)],
+                ),
+                tbody(~attrs=[clss(["agent-md-tbody"])], body_rows),
+              ],
+            ),
+          ];
+        | Omd.Html_block(_, _) => []
+        | Omd.Definition_list(_, _) => []
+        }
+      },
+    blocks,
   );
 };
 

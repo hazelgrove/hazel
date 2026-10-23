@@ -224,9 +224,9 @@ let rec bindings = (dp: t): Binding.s =>
         id: rep_id(dp),
       },
     ]
-  | Tuple(dps) => List.concat(List.map(~f=bindings, dps))
+  | Tuple(dps) => List.concat_map(~f=bindings, dps)
   | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
-  | ListLit(dps) => List.concat(List.map(~f=bindings, dps))
+  | ListLit(dps) => List.concat_map(~f=bindings, dps)
   | Ap(_, dp1) => bindings(dp1)
   };
 

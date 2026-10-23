@@ -235,14 +235,14 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
   | Wild => []
   | Atom(_) => []
   | ListLit(xs) =>
-    List.concat(List.map(~f=get_inductive_hypotheses_inner(m, t, _), xs))
+    List.concat_map(~f=get_inductive_hypotheses_inner(m, t, _), xs)
   | Constructor(_) => []
   | Cons(e1, e2) =>
     get_inductive_hypotheses_inner(m, t, e1)
     @ get_inductive_hypotheses_inner(m, t, e2)
   | Var(_) => []
   | Tuple(xs) =>
-    List.concat(List.map(~f=get_inductive_hypotheses_inner(m, t, _), xs))
+    List.concat_map(~f=get_inductive_hypotheses_inner(m, t, _), xs)
   | Parens(e)
   | Projector(_, e) => get_inductive_hypotheses_inner(m, t, e)
   | Ap(e1, e2) =>

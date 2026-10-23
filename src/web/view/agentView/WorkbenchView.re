@@ -222,7 +222,7 @@ let view =
                     )
                   | None => Node.none
                   },
-                  if (List.length(subtask.tools_used) > 0) {
+                  if (!List.is_empty(subtask.tools_used)) {
                     div(
                       ~attrs=[clss(["wb-detail-block"])],
                       [
