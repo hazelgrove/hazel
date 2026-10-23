@@ -609,14 +609,15 @@ let diff_tests = (
   ],
 );
 
+module F = IdTagged.FreshGrammar;
+let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
+let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
+let sg = items => F.Typ.sig_(items);
+
 /* Signature types: consistency is exact (same member names), normalization
    keeps the Sig constructor, and member projection substitutes the
    signature's own type members. */
 let sig_tests = {
-  module F = IdTagged.FreshGrammar;
-  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
-  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
-  let sg = items => F.Typ.sig_(items);
   let ti = F.Typ.int();
   let tb = F.Typ.bool();
   let tu = F.Typ.unknown(Internal);
@@ -633,7 +634,7 @@ let sig_tests = {
           Typ.meet(ctx, sg([sv("x", ti)]), sg([sv("x", ti)])),
         )
       ),
-      test_case("meet refines an tu member", `Quick, () =>
+      test_case("meet refines an unknown member", `Quick, () =>
         check(
           opt_typ,
           "refined",
@@ -719,7 +720,7 @@ let sig_tests = {
         },
       ),
       test_case(
-        "meet with tu",
+        "meet with unknown",
         `Quick,
         () => {
           check(
@@ -808,15 +809,9 @@ let sig_tests = {
   );
 };
 
-/* A signature that names a same-named outer binding,
-     let m = { type T = Int } in let m : { type T = m.T } = ... in ... m.T ...
-   has no weak head normal form: normalizing `m.T` asks path_sig what `m`
-   denotes, finds the inner `m`, whose signature defines `T` as `m.T`, and is
-   back where it started. Out of fuel the type has to come back unreduced so
-   statics reports a type error, instead of the whole analysis dying on
-   Failure("weak_head_normalize exceeded 1000 recursive calls"). */
+/* `m.T` in the inner `m`'s own signature resolves to the inner `m`: the
+   path has no weak head normal form. */
 let cyclic_path_tests = {
-  module F = IdTagged.FreshGrammar;
   let m_t = F.Typ.prod_projection(F.Typ.var("m"), F.Typ.label("T"));
   let self_sig = F.Typ.sig_([F.Sig.sig_type(F.TPat.var("T"), m_t)]);
   let ctx =
@@ -833,22 +828,21 @@ let cyclic_path_tests = {
     "Typ.CyclicPath",
     [
       test_case(
-        "a member path through a same-named binding normalizes without raising",
+        "a member path through a same-named binding normalizes to unknown",
         `Quick,
-        () => {
-          ignore(Typ.weak_head_normalize(ctx, m_t));
-          check(bool, "returned", true, true);
-        },
+        () =>
+        check(
+          typ,
+          "unknown",
+          F.Typ.unknown(Internal),
+          Typ.weak_head_normalize(ctx, m_t),
+        )
       ),
     ],
   );
 };
 
 let subst_captures_tests = {
-  module F = IdTagged.FreshGrammar;
-  let sv = (x, ty) => F.Sig.sig_let(F.Pat.asc(F.Pat.var(x), ty));
-  let st = (t, ty) => F.Sig.sig_type(F.TPat.var(t), ty);
-  let sg = items => F.Typ.sig_(items);
   let ti = F.Typ.int();
   let a = F.TPat.var("a");
   let t_var = F.Typ.var("T");
