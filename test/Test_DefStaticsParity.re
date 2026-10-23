@@ -947,6 +947,41 @@ let module_roots = [
   ),
 ];
 
+/* the ids a sealed module's analysis has, as the monolithic one's: the
+   lowerings agree on the ids they mint, signature copies' included */
+let keys_as_monolithic = (src, ()) => {
+  let term = MakeTerm.Incr.term_of_root(~root=Exp, CorpusUtil.seg_of(src));
+  let ds = DefStatics.calc(~settings, term);
+  let (mono, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, term);
+  let cls = (m, id) =>
+    switch (Id.Map.find_opt(id, m)) {
+    | Some(i) => Cls.show(Info.cls_of(i)) ++ " " ++ Id.str8(id)
+    | None => Id.str8(id)
+    };
+  let only = (a, b) =>
+    Id.Map.fold(
+      (id, _, acc) => Id.Map.mem(id, b) ? acc : [cls(a, id), ...acc],
+      a,
+      [],
+    );
+  check(list(string), "only monolithic", [], only(mono, ds.merged));
+  check(list(string), "only per member", [], only(ds.merged, mono));
+};
+
+let sealed_modules = [
+  test_case("a sealed module's ids, met and not", `Quick, () =>
+    List.iter(
+      src => keys_as_monolithic(src, ()),
+      [
+        "type U = Int in\nmodule M : {type T = Int; let x : (T, U); let f : T -> Bool} = {\n  type T = Int;\n  let x = (1, 2);\n  let f(t) = t == 1\n} in\nM.f(fst(M.x))",
+        /* a member missing, a type member defined otherwise */
+        "module M : {type T = Int; let x : (T, T); let y : Int} = {\n  let x = (1, 2)\n} in\nM.x",
+        "module M : {type T = Int; let x : T} = {\n  type T = Bool;\n  let x = 1\n} in\nM.x",
+      ],
+    )
+  ),
+];
+
 /* a ModExp member that is a let chain is a level of items: an edit
    re-analyzes the module, the member's wrapper, the edited link and the
    links that use what it changed. a let chain in a definition is one item */
@@ -1113,6 +1148,7 @@ let tests = (
   @ type_deps
   @ literal_edits
   @ module_roots
+  @ sealed_modules
   @ modexp_chains
   @ corpus,
 );
