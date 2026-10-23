@@ -83,7 +83,7 @@ let tests = (
                 | Some(_) => (ok + 1, bail, worst)
                 | None when known_gap => (ok, bail, worst)
                 | None =>
-                  Stdlib.Printf.printf(
+                  printf(
                     "BAIL %s: %s\n",
                     path,
                     Option.value(FastParse.bail_note^, ~default="?"),
@@ -95,7 +95,7 @@ let tests = (
             files,
           );
         let total = (Stdlib.Sys.time() -. t0) *. 1000.;
-        Stdlib.Printf.printf(
+        printf(
           "HZPROBE: %d files, %d fast-path OK, %d bail, total %.1fms, worst %s %.1fms\n",
           List.length(files),
           ok,
