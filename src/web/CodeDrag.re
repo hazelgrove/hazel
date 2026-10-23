@@ -131,6 +131,7 @@ type session = {
   /* commit the path to the rung reached: (refactor, invoked at) */
   commit: list((Action.refactor, Id.t)) => unit,
   source_handoff: bool,
+  animate_step: bool,
   /* put the caret on a tile, so the indication marks what is held */
   focus: Id.t => unit,
   /* released before the drag began */
@@ -1479,12 +1480,11 @@ let on_up = (e: Js.t(Dom_html.event)): unit =>
         s.scrub_anims = [];
         s.scrub_active = None;
       } else {
+        ProofStepAnimation.request(~enabled=s.animate_step, s.text_box);
         /* Appending a proof step keeps this expression as history.
            Its scrub must end here: no source replacement will run FLIP
            to take over and cancel the paused preview animations. */
-        scrub_clear(
-          s,
-        );
+        scrub_clear(s);
       };
       s.commit(
         c.rungs
@@ -1512,6 +1512,7 @@ let arm =
     (
       ~commit: list((Action.refactor, Id.t)) => unit,
       ~source_handoff: bool,
+      ~animate_step: bool,
       ~focus: Id.t => unit,
       ~click: unit => unit,
       ~pointer_id: int,
@@ -1526,11 +1527,13 @@ let arm =
     )
     : unit => {
   end_session();
+  ProofStepAnimation.cancel();
   let (cx, cy) = client;
   let r = text_box##getBoundingClientRect;
   let s = {
     commit,
     source_handoff,
+    animate_step,
     focus,
     click,
     pointer_id,
