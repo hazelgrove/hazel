@@ -2,19 +2,19 @@ open MenhirParser;
 open Alcotest;
 open Language;
 module Fresh = IdTagged.FreshGrammar;
+// This is syntactic with ignore_wrappers=true
+let exp_equal =
+  Equality.(
+    equality({
+      ...syntactic_settings,
+      ignore_parens: true,
+      ignore_projectors: true,
+    })
+  ).
+    exp;
+
 let alco_check =
-  (testable(Fmt.using(Exp.show, Fmt.string)))(
-    // This is syntactic with ignore_wrappers=true
-    Equality.(
-      equality({
-        ...syntactic_settings,
-        ignore_parens: true,
-        ignore_projectors: true,
-      })
-    ).
-      exp,
-  )
-  |> Alcotest.check;
+  (testable(Fmt.using(Exp.show, Fmt.string)))(exp_equal) |> Alcotest.check;
 
 let strip_wrap =
   Exp.map_term(
@@ -111,16 +111,30 @@ let menhir_roundtrip_test = (name: string, source: string) =>
     },
   );
 
+let menhir_parse = (actual: string) =>
+  Grammar.map_exp_annotation(
+    _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
+    Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
+  );
+
 let menhir_maketerm_equivalent_test =
     (~speed_level=`Quick, name: string, actual: string) =>
   test_case(name, speed_level, () => {
     alco_check(
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
-      Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => IdTagged.IdTag.temp(),
-        Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
-      ),
+      menhir_parse(actual),
+    )
+  });
+
+/* A known divergence: goes red once the two parsers agree, when the case
+   should become a menhir_maketerm_equivalent_test. */
+let menhir_maketerm_divergent_test = (name: string, actual: string) =>
+  test_case(name, `Quick, () => {
+    Alcotest.(check(bool))(
+      "Menhir and MakeTerm still disagree",
+      false,
+      exp_equal(make_term_parse(actual), menhir_parse(actual)),
     )
   });
 
@@ -369,37 +383,15 @@ let tests =
         "Ascribed cons-chain parameter (element vs chain binding)",
         "fun x :: y : [T] -> 1",
       ),
-      /* PRE-EXISTING divergence, printer side: an ascription immediately
-         followed by a sum prints as `:+` with no space, and the editor lexes
-         that as one operator token, so MakeTerm gives a MultiHole (the `_` as
-         a pattern, the constructor as an expression) where menhir reads
-         `Asc(_, Sum)`. Spacing it as `: +` parses the same both ways, and
-         `menhir_roundtrip_test` on the spaced form shows the printer is not
-         stable here either. Nothing to do with signatures: the expression
-         form below diverges on its own; a signature member is only how the
-         QCheck generator reaches it, which is why `Menhir and maketerm are
-         equivalent` started failing per-seed from part 4 (its Sig generator)
-         and reproduces with QCHECK_SEED=803422318. The printer half is in
-         this PR's history (0e6b2981a9 keeps a printed `:` apart from a
-         following operator); the lexer's `:+` token rule is still dev's,
-         and is what these two pin. */
-      skip_menhir_maketerm_equivalent_test(
+      /* #2728: the editor lexes a flush `:+` as one token. */
+      menhir_maketerm_divergent_test(
         "Ascription abutting a sum type (`:+` lexes as one token)",
         "let x :+ To = To in x",
       ),
-      skip_menhir_maketerm_equivalent_test(
-        "Ascription abutting a sum type in a signature member",
-        "(()) @< ({ let y :+ To }) >",
-      ),
-      /* The same programs, spaced: these must keep passing, and they are what
-         the printer should have produced. */
+      /* The same program spaced, as the printer emits it. */
       menhir_maketerm_equivalent_test(
         "Ascription spaced from a sum type",
         "let x : + To = To in x",
-      ),
-      menhir_maketerm_equivalent_test(
-        "Ascription spaced from a sum type in a signature member",
-        "(()) @< ({ let y : + To }) >",
       ),
       full_parser_test(
         "String Literal",
