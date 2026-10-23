@@ -269,25 +269,24 @@ let synthesized_type = (~normalize=false, static_map, exp) =>
        normalize ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fun.id,
      );
 
-let fully_consistent_typecheck =
-    (~normalize=false, name, serialized, expected) => {
-  test_case(
-    name,
-    `Quick,
-    () => {
-      let exp = parse_exp(serialized);
-      let s = statics(exp);
-      let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
-      Alcotest.check(list(testable_issue), "Static Errors", [], errors);
-      Alcotest.check(
-        Alcotest.option(testable_typ),
-        serialized,
-        expected,
-        synthesized_type(~normalize, s, exp),
-      );
-    },
+let check_fully_consistent = (~normalize=false, serialized, expected) => {
+  let exp = parse_exp(serialized);
+  let s = statics(exp);
+  let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
+  Alcotest.check(list(testable_issue), "Static Errors", [], errors);
+  Alcotest.check(
+    Alcotest.option(testable_typ),
+    serialized,
+    expected,
+    synthesized_type(~normalize, s, exp),
   );
 };
+
+let fully_consistent_typecheck =
+    (~normalize=false, name, serialized, expected) =>
+  test_case(name, `Quick, () =>
+    check_fully_consistent(~normalize, serialized, expected)
+  );
 
 /* Pins the synthesized type while leaving marks unconstrained, for programs
    that are expected to report errors. */

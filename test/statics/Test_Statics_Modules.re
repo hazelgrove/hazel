@@ -217,32 +217,18 @@ let test_type_member_mismatch_with_wrong_definition =
 /* A hole among the items could still become the members the signature
    declares and the module lacks, so they are assumed rather than reported;
    a wildcard binds nothing and assumes nothing. */
-let test_hole_binder_assumes_missing_members =
-  fully_consistent_typecheck(
-    "A hole binder stands in for the missing members",
-    {|module M : { let x : Int; let y : Int } = { let x = 1; let ? = 2 } in M.y|},
-    Some(int()),
-  );
-
-let test_hole_item_assumes_missing_members =
-  fully_consistent_typecheck(
-    "A hole item stands in for the missing members",
-    {|module M : { let x : Int; let y : Int } = { let x = 1; ? } in M.y|},
-    Some(int()),
-  );
-
-let test_hole_in_destructuring_binder_assumes_missing_members =
-  fully_consistent_typecheck(
-    "A hole inside a destructuring binder stands in for the missing members",
-    {|module M : { let x : Int; let y : Int } = { let (x, ?) = (1, 2) } in M.y|},
-    Some(int()),
-  );
-
-let test_hole_item_assumes_missing_type_member =
-  fully_consistent_typecheck(
-    "A hole item stands in for a missing type member",
-    {|module M : { type T = Int; let x : Int } = { let x = 1; ? } in let y : M.T = 3 in y + 1|},
-    Some(int()),
+let test_holes_assume_missing_members =
+  Alcotest.test_case(
+    "A hole binder or item stands in for the missing members", `Quick, () =>
+    List.iter(
+      source => check_fully_consistent(source, Some(int())),
+      [
+        {|module M : { let x : Int; let y : Int } = { let x = 1; let ? = 2 } in M.y|},
+        {|module M : { let x : Int; let y : Int } = { let x = 1; ? } in M.y|},
+        {|module M : { let x : Int; let y : Int } = { let (x, ?) = (1, 2) } in M.y|},
+        {|module M : { type T = Int; let x : Int } = { let x = 1; ? } in let y : M.T = 3 in y + 1|},
+      ],
+    )
   );
 
 let test_error_wildcard_binder_does_not_assume =
@@ -750,20 +736,6 @@ let test_type_member_mismatch_mark =
 
 /* ===== TYPE ERROR TESTS ===== */
 
-/* Labeled tuple annotations do not accept modules */
-let test_error_type_mismatch =
-  inconsistent_typecheck(
-    "Labeled tuple annotation with wrong member type rejects module",
-    {|let m : (x=Int) = { let x = "hello" } in m|} |> parse_exp,
-  );
-
-let test_error_type_mismatch_multi =
-  inconsistent_typecheck(
-    "Multi-field labeled tuple annotation rejects module",
-    {|let m : (x=Int, y=Bool) = { let x = 1; let y = "oops" } in m|}
-    |> parse_exp,
-  );
-
 /* Module member type doesn't match sig annotation */
 let test_error_sig_type_mismatch =
   inconsistent_typecheck(
@@ -854,46 +826,33 @@ let test_error_sequential_type =
 
 /* ===== SIGNATURES ARE DISTINCT FROM LABELED TUPLE TYPES ===== */
 
-let test_sig_rejects_tuple =
-  inconsistent_typecheck(
-    "Sig annotation rejects labeled tuple value",
-    {|let mt : { let x : Int } = (x=1) in mt|} |> parse_exp,
-  );
-
-let test_prod_rejects_module =
-  inconsistent_typecheck(
-    "Prod annotation rejects module value",
-    {|let tm : (x=Int) = { let x = 1 } in tm|} |> parse_exp,
-  );
-
-let test_sig_rejects_tuple_wrong_type =
-  inconsistent_typecheck(
-    "Sig annotation rejects labeled tuple with wrong member type",
-    {|let mt : { let x : Int } = (x=true) in mt|} |> parse_exp,
-  );
-
-let test_prod_rejects_module_wrong_type =
-  inconsistent_typecheck(
-    "Prod annotation rejects module with wrong member type",
-    {|let tm : (x=Int) = { let x = true } in tm|} |> parse_exp,
-  );
-
-let test_empty_module_is_not_unit =
-  inconsistent_typecheck(
-    "Empty module is not the unit tuple",
-    {|let u : () = {} in u|} |> parse_exp,
-  );
-
-let test_unit_is_not_empty_module =
-  inconsistent_typecheck(
-    "Unit tuple is not the empty module",
-    {|let e : {} = () in e|} |> parse_exp,
-  );
-
-let test_module_tuple_equality_rejected =
-  inconsistent_typecheck(
-    "Comparing a labeled tuple with a module is inconsistent",
-    {|test (x=1) == { let x = 1 } end|} |> parse_exp,
+let test_modules_and_labeled_tuples_are_distinct =
+  Alcotest.test_case(
+    "Labeled tuple types and signatures do not accept each other's values",
+    `Quick,
+    () =>
+    List.iter(
+      source =>
+        Alcotest.(check(bool))(
+          source,
+          false,
+          List.is_empty(marks_of(source)),
+        ),
+      [
+        {|let m : (x=Int) = { let x = "hello" } in m|},
+        {|let m : (x=Int, y=Bool) = { let x = 1; let y = "oops" } in m|},
+        {|let tm : (x=Int) = { let x = 1 } in tm|},
+        {|let tm : (x=Int) = { let x = true } in tm|},
+        {|module M : (x=Int) = { let x = 1 } in M.x|},
+        {|module M : (x=Int, y=Bool) = { let x = 1; let y = true } in M|},
+        {|module M : (x=Int) = { let x = "hello" } in M|},
+        {|let mt : { let x : Int } = (x=1) in mt|},
+        {|let mt : { let x : Int } = (x=true) in mt|},
+        {|let u : () = {} in u|},
+        {|let e : {} = () in e|},
+        {|test (x=1) == { let x = 1 } end|},
+      ],
+    )
   );
 
 /* ===== NO WIDTH SUBTYPING YET (arrives with ana_meet) ===== */
@@ -981,34 +940,12 @@ let test_module_shadowing_a_constructor =
     Some(int()),
   );
 
-/* Module keyword with prod annotation is rejected */
-let test_module_keyword_prod_annotation =
-  inconsistent_typecheck(
-    "Module keyword with prod annotation is rejected",
-    {|module M : (x=Int) = { let x = 1 } in M.x|} |> parse_exp,
-  );
-
 /* Test module keyword with sig annotation */
 let test_module_keyword_sig_annotation =
   fully_consistent_typecheck(
     "Module keyword with sig annotation",
     {|module M : { let x : Int } = { let x = 42 } in M.x|},
     Some(int()),
-  );
-
-/* Module keyword with multi-field prod annotation is rejected */
-let test_module_keyword_multi_annotation =
-  inconsistent_typecheck(
-    "Module keyword with multi-field prod annotation is rejected",
-    {|module M : (x=Int, y=Bool) = { let x = 1; let y = true } in M|}
-    |> parse_exp,
-  );
-
-/* Test module keyword annotation type mismatch */
-let test_error_module_keyword_annotation_mismatch =
-  inconsistent_typecheck(
-    "Module keyword annotation type mismatch",
-    {|module M : (x=Int) = { let x = "hello" } in M|} |> parse_exp,
   );
 
 /* Test module keyword sig annotation mismatch */
@@ -1513,10 +1450,7 @@ let tests = (
     test_value_used_as_module_path_mark,
     test_unknown_typed_root_is_not_an_error,
     test_type_member_mismatch_on_the_definition,
-    test_hole_binder_assumes_missing_members,
-    test_hole_item_assumes_missing_members,
-    test_hole_in_destructuring_binder_assumes_missing_members,
-    test_hole_item_assumes_missing_type_member,
+    test_holes_assume_missing_members,
     test_error_wildcard_binder_does_not_assume,
     test_error_non_binder_holes_do_not_assume,
     test_type_member_mismatch_with_wrong_definition,
@@ -1532,8 +1466,6 @@ let tests = (
     test_nested_tuple_binder_mismatch_localized,
     test_cons_binder_mismatch_localized,
     /* Type error tests */
-    test_error_type_mismatch,
-    test_error_type_mismatch_multi,
     test_error_sig_type_mismatch,
     test_error_sig_partial_mismatch,
     test_error_sig_too_wide,
@@ -1547,13 +1479,7 @@ let tests = (
     test_error_binding_annotation_mismatch,
     test_error_sequential_type,
     /* Signatures are distinct from labeled tuple types */
-    test_sig_rejects_tuple,
-    test_prod_rejects_module,
-    test_sig_rejects_tuple_wrong_type,
-    test_prod_rejects_module_wrong_type,
-    test_empty_module_is_not_unit,
-    test_unit_is_not_empty_module,
-    test_module_tuple_equality_rejected,
+    test_modules_and_labeled_tuples_are_distinct,
     /* No width subtyping yet */
     test_extra_member_rejected,
     test_sig_too_narrow_rejected,
@@ -1567,10 +1493,7 @@ let tests = (
     test_capitalized_dot_access,
     test_module_shadowing_a_constructor,
     /* Module keyword annotation tests */
-    test_module_keyword_prod_annotation,
     test_module_keyword_sig_annotation,
-    test_module_keyword_multi_annotation,
-    test_error_module_keyword_annotation_mismatch,
     test_error_module_keyword_sig_mismatch,
     /* Qualified type access tests */
     test_qualified_type_basic,
