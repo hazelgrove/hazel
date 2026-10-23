@@ -22,6 +22,9 @@ type t = {
   mutable sent: EmbedModel.Outbox.sent,
   /* the crashes already posted, each posted once */
   mutable crashes: list(string),
+  /* (ticket 578) a cell the page can edit, when it last asked: the frame
+     takes it after the message (EmbedMain) */
+  mutable editable: option(bool),
 };
 
 let make = (~parent, ~own_origin, ~post): t => {
@@ -31,6 +34,7 @@ let make = (~parent, ~own_origin, ~post): t => {
   page_origin: None,
   sent: EmbedModel.Outbox.nothing_sent,
   crashes: [],
+  editable: None,
 };
 
 let send = (link: t, ~target: string, message: EmbedModel.Outbox.message) =>
@@ -76,6 +80,10 @@ let receive = (link: t, event: Js.Unsafe.any): option(EmbedModel.Program.t) => {
     | Some(Set(program)) =>
       link.page_origin = Some(origin);
       Some(program);
+    | Some(Editable(on)) =>
+      link.page_origin = Some(origin);
+      link.editable = Some(on);
+      None;
     | Some(Ping) =>
       link.page_origin = Some(origin);
       link.sent = EmbedModel.Outbox.nothing_sent;

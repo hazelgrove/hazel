@@ -85,7 +85,13 @@ let on_message = (~link, event: Js.Unsafe.any): unit =>
   try(
     switch (EmbedLink.receive(link, event)) {
     | Some(program) => set_soon(~link, program)
-    | None => ()
+    | None =>
+      switch (link.editable) {
+      | Some(on) =>
+        link.editable = None;
+        update(~link, SetEditable(on));
+      | None => ()
+      }
     }
   ) {
   | exn => crash(~link, Printexc.to_string(exn))

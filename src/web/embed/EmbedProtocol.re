@@ -80,6 +80,8 @@ let origin_allowed = (~own: string, origin: string): bool =>
 
 type incoming =
   | Set(EmbedModel.Program.t)
+  /* (ticket 578) { type: "editable", on }: a cell the page can edit */
+  | Editable(bool)
   | Ping;
 
 /* j[key] when it is a string */
@@ -115,6 +117,14 @@ let decode = (data: Js.Unsafe.any): option(incoming) =>
       );
     }
   | Some("ping") => Some(Ping)
+  | Some("editable") =>
+    Some(
+      Editable(
+        HazelLibCore.js_is_object(data)
+        && Js.to_string(Js.typeof(Js.Unsafe.get(data, "on"))) == "boolean"
+        && Js.to_bool(Js.Unsafe.get(data, "on")),
+      ),
+    )
   | _ => None
   };
 
@@ -142,6 +152,11 @@ let encode = (message: EmbedModel.Outbox.message): Js.Unsafe.any => {
              ~incomplete,
              ~program_incomplete,
            ),
+      ]
+    | Edited(text, edits) => [
+        ("type", string("edit")),
+        ("text", string(text)),
+        ("edits", number(edits)),
       ]
     | Crash(message) => [
         ("type", string("crash")),

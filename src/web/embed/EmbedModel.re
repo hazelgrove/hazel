@@ -96,6 +96,13 @@ module Model = {
     /* whether the cell has been clicked since its program was set: until
        then it shows no caret or selection */
     active: bool,
+    /* (ticket 578) whether the page asked for a cell it can edit; then
+       every action reaches the cell, and each edit's text goes back */
+    editable: bool,
+    /* the program's text after the last edit, and how many edits there
+       have been, so the page is told each one once */
+    edited: option(string),
+    edits: int,
     status: option(Status.t),
     font_metrics: FontMetrics.t,
     /* the bodies of the last program of parts, so a set re-reads only
@@ -110,6 +117,9 @@ module Model = {
         Editor.Model.mk(Zipper.init(), ~root=Sort.Exp),
       ),
     active: false,
+    editable: false,
+    edited: None,
+    edits: 0,
     status: None,
     font_metrics: FontMetrics.init,
     bodies: [],
@@ -126,7 +136,11 @@ module Update = {
     /* a click in the cell */
     | Activate
     /* a move, a selection or a copy in the cell */
-    | Cell(CodeSelectable.Update.t);
+    | Cell(CodeSelectable.Update.t)
+    /* (ticket 578) the page asks for a cell it can edit, or not */
+    | SetEditable(bool)
+    /* an edit in a cell the page can edit, or any other action there */
+    | Edit(CodeEditable.Update.t);
 
   /* A cell holding the zipper, and its statics */
   let cell_of_zipper = (zipper: Zipper.t): CodeWithStatics.Model.t =>
@@ -245,6 +259,46 @@ module Update = {
         }
       | exception (Action.Failure.Exception(_)) => model
       }
+    | SetEditable(editable) => {
+        ...model,
+        editable,
+      }
+    | Edit(_) when !model.editable => model
+    /* An edit: the cell's statics again, the status from them, and the
+       program's text, written as Hazel lays it out (a hole as ?), for the
+       page. An action that cannot be done leaves the cell as it was. */
+    | Edit(action) =>
+      switch (CodeEditable.Update.update(~settings, action, model.cell)) {
+      | updated =>
+        let cell =
+          updated.recalculate
+            ? CodeWithStatics.Update.calculate(
+                ~settings=settings.core,
+                ~is_edited=true,
+                ~stitch=Fun.id,
+                ~dynamics=Language.Dynamics.Map.empty,
+                ~is_dynamic_term=false,
+                updated.model,
+              )
+            : updated.model;
+        let names = Option.bind(model.program, Program.names);
+        let text =
+          Printer.of_zipper(
+            ~holes="?",
+            ~indent=" ",
+            cell.editor.state.zipper,
+          );
+        let changed = model.edited != Some(text) && updated.is_edit;
+        {
+          ...model,
+          cell,
+          active: true,
+          status: Some(Status.of_statics(~names?, cell.statics)),
+          edited: changed ? Some(text) : model.edited,
+          edits: changed ? model.edits + 1 : model.edits,
+        };
+      | exception (Action.Failure.Exception(_)) => model
+      }
     };
 };
 
@@ -255,16 +309,20 @@ module Outbox = {
     | Ready(string)
     | Size(int)
     | Status(Status.t)
+    /* (ticket 578) the program's text after an edit, and its count */
+    | Edited(string, int)
     | Crash(string);
 
   type sent = {
     size: option(int),
     status: option(Status.t),
+    edits: int,
   };
 
   let nothing_sent = {
     size: None,
     status: None,
+    edits: 0,
   };
 
   /* After a display: the messages for what changed, and what has then
@@ -277,11 +335,19 @@ module Outbox = {
       | Some(status) when sent.status != Some(status) => [Status(status)]
       | _ => []
       };
+    let edited =
+      switch (model.edited) {
+      | Some(text) when model.edits > sent.edits => [
+          Edited(text, model.edits),
+        ]
+      | _ => []
+      };
     (
-      size @ status,
+      size @ status @ edited,
       {
         size: Some(height),
         status: Option.is_some(model.status) ? model.status : sent.status,
+        edits: max(sent.edits, model.edits),
       },
     );
   };
@@ -297,21 +363,38 @@ module View = {
     Node.div(
       ~attrs=[Attr.class_("cell")],
       [
-        CodeSelectable.View.view(
-          ~globals=Model.globals(model),
-          ~signal=
-            fun
-            | MakeActive => inject(Activate),
-          ~edit_mode=
-            EditMode.Editable({
-              inject: action => inject(Cell(action)),
-              escape: _ => Effect.Ignore,
-              take_focus: _ => Effect.Ignore,
-              focus: model.active ? Some() : None,
-            }),
-          ~dynamics=Language.Dynamics.Map.empty,
-          model.cell,
-        ),
+        model.editable
+          /* (ticket 578) a cell the page can edit: every action reaches it */
+          ? CodeEditable.View.view(
+              ~globals=Model.globals(model),
+              ~signal=
+                fun
+                | MakeActive => inject(Activate),
+              ~edit_mode=
+                EditMode.Editable({
+                  inject: action => inject(Edit(action)),
+                  escape: _ => Effect.Ignore,
+                  take_focus: _ => Effect.Ignore,
+                  focus: model.active ? Some() : None,
+                }),
+              ~dynamics=Language.Dynamics.Map.empty,
+              model.cell,
+            )
+          : CodeSelectable.View.view(
+              ~globals=Model.globals(model),
+              ~signal=
+                fun
+                | MakeActive => inject(Activate),
+              ~edit_mode=
+                EditMode.Editable({
+                  inject: action => inject(Cell(action)),
+                  escape: _ => Effect.Ignore,
+                  take_focus: _ => Effect.Ignore,
+                  focus: model.active ? Some() : None,
+                }),
+              ~dynamics=Language.Dynamics.Map.empty,
+              model.cell,
+            ),
       ],
     );
 };
