@@ -1761,6 +1761,41 @@ let live_pairs =
   };
 };
 
+/* Visible tokens of a candidate. Collapsed folds contribute their label,
+   not their hidden implementation; new folded functions must enter too. */
+let rec token_texts = (seg: Segment.t): list((CodeFlip.key, string, string)) =>
+  seg
+  |> List.concat_map(~f=(piece: Piece.t) =>
+       switch (piece) {
+       | Tile(t) =>
+         let plurality = Tile.arity(t) == 1 ? "mono" : "poly";
+         let sort_cls = Sort.class_of(Tile.mold(t).out);
+         (
+           t.shards
+           |> List.filter_map(~f=i =>
+                switch (List.nth(Tile.label(t), i)) {
+                | Some(txt) =>
+                  let cls =
+                    ["token", sort_cls, plurality]
+                    @ (Token.is_keyword(txt) ? ["keyword"] : [])
+                    |> String.concat(~sep=" ");
+                  Some((CodeFlip.Shard(t.id, i), txt, cls));
+                | None => None
+                }
+              )
+         )
+         @ List.concat_map(~f=token_texts, t.children);
+       | Projector(p) when p.kind == Fold =>
+         let model = FoldProj.t_of_sexp(Sexplib.Sexp.of_string(p.model));
+         !model.expanded || model.always_render
+           ? [(CodeFlip.ProjectorK(p.id), model.text, "token exp mono")]
+           : [];
+       | Grout(_)
+       | Secondary(_)
+       | Projector(_) => []
+       }
+     );
+
 let sync =
     (
       ~settings: Language.CoreSettings.t,
@@ -1821,35 +1856,6 @@ let sync =
              | _ => None
              }
            );
-      /* candidate token texts by key (order irrelevant: keyed) */
-      let rec token_texts =
-              (seg: Segment.t): list((CodeFlip.key, string, string)) =>
-        seg
-        |> List.concat_map(~f=(piece: Piece.t) =>
-             switch (piece) {
-             | Tile(t) =>
-               let plurality = Tile.arity(t) == 1 ? "mono" : "poly";
-               let sort_cls = Sort.class_of(Tile.mold(t).out);
-               (
-                 t.shards
-                 |> List.filter_map(~f=i =>
-                      switch (List.nth(Tile.label(t), i)) {
-                      | Some(txt) =>
-                        let cls =
-                          ["token", sort_cls, plurality]
-                          @ (Token.is_keyword(txt) ? ["keyword"] : [])
-                          |> String.concat(~sep=" ");
-                        Some((CodeFlip.Shard(t.id, i), txt, cls));
-                      | None => None
-                      }
-                    )
-               )
-               @ List.concat_map(~f=token_texts, t.children);
-             | Grout(_)
-             | Secondary(_)
-             | Projector(_) => []
-             }
-           );
       /* a live token whose text differs in the candidate (a use
          renamed by a merge): its old text leaves, its new text enters */
       let live_text = Stdlib.Hashtbl.create(List.length(pairs));
@@ -1901,6 +1907,14 @@ let sync =
                         )
                    | None => None
                    }
+                 | ProjectorK(id) =>
+                   List.Assoc.find(emerge, id, ~equal=Id.equal)
+                   |> Option.bind(_, ~f=from_id =>
+                        Measured.find_by_id(from_id, measured)
+                      )
+                   |> Option.map(~f=(m: Measured.measurement) =>
+                        px_of(m.origin)
+                      )
                  | _ => None
                  };
                Some((k, text, cls, px_of(p), origin));
