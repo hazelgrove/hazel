@@ -717,6 +717,15 @@
   margin-top: calc(0.5 * var(--row-height-px, 1.45em));
 }
 
+/* a drawer's text is content: selectable, though the editor around it
+   isn't (style.css); its controls stay out */
+.code-editor
+  .below-wrapper
+  :is(.live-offside .value, .value-stopped, .steps-bar-name) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* the ⇓ drawer when the program stopped before its last line: marked,
    then how far it got (EvalResult.View.stopped_view) */
 .below-wrapper .value-stopped {

@@ -782,6 +782,12 @@ let value_view =
           : ctx.auto_rich_ready
               ? local(ToggleAutoRich) : local(ToggleWindowMode)
       ),
+      /* a drawer's value is selectable: a double click is still the
+         toggle above, not a word's selection */
+      Attr.on_mousedown(evt => {
+        let clicks: int = Js.Unsafe.coerce(evt)##.detail;
+        clicks > 1 ? Effect.Prevent_default : Effect.Ignore;
+      }),
       /* Suppress the native menu (Ctrl is the escape hatch to it). */
       Attr.on_contextmenu(evt =>
         Key.ctrl_held(evt)
@@ -1948,6 +1954,12 @@ let key_handler =
   | D("/") =>
     /* Toggle sticky mode (web/Settings owns it). */
     Many([Settings.on_sticky_toggle^(), Stop_propagation, Prevent_default])
+  /* text selected in the value: the browser copies it */
+  | D("c" | "C")
+      when
+        (Key.meta_held(evt) || Key.ctrl_held(evt))
+        && JsUtil.selection_in_focus() =>
+    Stop_propagation
   | D("c" | "C") when Key.meta_held(evt) || Key.ctrl_held(evt) =>
     switch (indicated_sample(ctx)) {
     | Some(sample) =>

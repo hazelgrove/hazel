@@ -1267,9 +1267,22 @@ module View = {
             | _ => None
             };
           };
+        /* a key the editor takes ends a selection made in its drawers,
+           but for Cmd+C, which copies it (below) */
+        let keeps_selection = (key: Key.t) =>
+          switch (key) {
+          | {key: U(_), _}
+          | {key: D("Shift" | "Alt" | "Meta" | "Control" | "CapsLock"), _}
+          | {key: D("c" | "C"), meta: Down, _}
+          | {key: D("c" | "C"), ctrl: Down, _} => true
+          | _ => false
+          };
         /* Key.listener (not Key.handler): handler adds its own tabindex(0),
            duplicating this div's tabindex — vdom warns every render */
         Key.listener(~f=key => {
+          if (!keeps_selection(key) && JsUtil.selection_in_focus()) {
+            JsUtil.clear_page_selection();
+          };
           /* 1. Check for arrow key escape at boundaries FIRST.
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
@@ -1333,11 +1346,14 @@ module View = {
               alt: Up,
               _,
             } =>
-            Effect.Many([
-              copy_selection(),
-              Effect.Prevent_default,
-              Effect.Stop_propagation,
-            ])
+            /* text selected in a drawer: the browser copies it */
+            JsUtil.selection_in_focus()
+              ? Effect.Stop_propagation
+              : Effect.Many([
+                  copy_selection(),
+                  Effect.Prevent_default,
+                  Effect.Stop_propagation,
+                ])
           | {
               key: D("x" | "X"),
               sys: Mac,
@@ -1397,7 +1413,7 @@ module View = {
               ])
             | None => Effect.Ignore
             }
-          }
+          };
         });
       };
     Node.div(
