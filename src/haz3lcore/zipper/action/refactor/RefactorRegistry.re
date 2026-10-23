@@ -25,6 +25,8 @@ let impl: Action.refactor => impl =
   | RemoveParameter => remove_param_impl
   | RenameFree(x, y) => rename_free_impl(x, y)
   | RenameTypFree(x, t) => rename_typ_free_impl(x, t)
+  | RewriteTheorem(id, direction, site) =>
+    RefactorTheorem.impl(id, direction, site)
   | SwapParams(i) => swap_params_impl(i)
   | SwapArms(i) => swap_arms_impl(i)
   | SwapTuplePat(i) => swap_tuple_pat_impl(i)
@@ -118,6 +120,16 @@ let applies =
     )
     : bool =>
   switch (kind) {
+  | RewriteTheorem(id, direction, site) =>
+    Option.is_some(
+      RefactorTheorem.replacement(
+        ~info_map,
+        ~target=site,
+        ~program,
+        id,
+        direction,
+      ),
+    )
   | InlineAlias =>
     switch (find_hit(~hit=hit_tyalias(target), program)) {
     | Some(e) =>
@@ -538,6 +550,16 @@ let statics_of =
   | None => info_map
   };
 
+/* The theorem-choice frontend uses the same acceptance check as release:
+   do not preview a rewrite the scope/type or roundtrip check will refuse. */
+let accepts_result = (~settings, ~info_map, ~before, ~after, segment) =>
+  ! RefactorCheck.enabled^
+  || {
+    let read = MakeTerm.go(segment).term;
+    Exp.fast_equal(read, after)
+    && RefactorCheck.preserves(~settings, ~info_map, ~before, read);
+  };
+
 /* put a prepared result in the buffer: judge what lands (the spliced
    segment, read back the way the editor reads it — a structure the
    print doesn't keep, a let extending over a comma, is refused — then
@@ -559,12 +581,7 @@ let land_result =
     ExpToSegment.exp_to_segment(~settings=roundtrip_settings, term')
     |> SpaceNormalize.go;
   let lands =
-    ! RefactorCheck.enabled^
-    || {
-      let read = MakeTerm.go(seg).term;
-      Exp.fast_equal(read, term')
-      && RefactorCheck.preserves(~settings, ~info_map, ~before=term, read);
-    };
+    accepts_result(~settings, ~info_map, ~before=term, ~after=term', seg);
   if (!lands) {
     None;
   } else {

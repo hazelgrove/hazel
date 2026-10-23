@@ -164,6 +164,7 @@ type refactor =
   | RemoveParameter
   | RenameFree(string, string)
   | RenameTypFree(string, string)
+  | RewriteTheorem(Id.t, Direction.t, Id.t)
   | SwapParams(int)
   | SwapArms(int)
   | SwapTuplePat(int)

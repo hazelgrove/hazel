@@ -422,6 +422,7 @@ let lands_elsewhere = (kind: Action.refactor): bool =>
 
 let drag_candidates =
     (
+      ~settings: CoreSettings.t=CoreSettings.on,
       ~composites: bool=false,
       /* the drag is already moving: a held value may climb with its line */
       ~continuing: bool=false,
@@ -666,22 +667,199 @@ let drag_candidates =
              [],
            )
       : cs;
-  drag_kinds(
-    ~climb=composites && continuing,
-    ~info_map,
-    ~term,
-    ~push,
-    ~target,
-    ~shard=grab_shard,
-  )
-  |> List.filter_map(k => mk(k))
-  |> one_place_track
-  |> List.fold_left(
-       (acc, c: DragCandidate.t) =>
-         List.exists((c': DragCandidate.t) => c'.target == c.target, acc)
-           ? acc : acc @ [c],
-       [],
-     );
+  let moves =
+    drag_kinds(
+      ~climb=composites && continuing,
+      ~info_map,
+      ~term,
+      ~push,
+      ~target,
+      ~shard=grab_shard,
+    )
+    |> List.filter_map(k => mk(k))
+    |> one_place_track
+    |> List.fold_left(
+         (acc, c: DragCandidate.t) =>
+           List.exists((c': DragCandidate.t) => c'.target == c.target, acc)
+             ? acc : acc @ [c],
+         [],
+       );
+  /* Infer grips at enclosing rewrite sites. A merger pulls toward its
+     surviving occurrence's LIVE position; other movers follow their result
+     positions. Explicit choices remain for direct in-place rewrites. */
+  let sites =
+    find_path(~hit=hit_node(target), term)
+    |> Option.value(~default=[])
+    |> List.rev;
+  let occupied = ref(List.map((c: DragCandidate.t) => c.target, moves));
+  let rewrites =
+    switch (shard_meas(target, measured)) {
+    | None => []
+    | Some(anchor) =>
+      RefactorTheorem.rules_at(~info_map, ~target)
+      |> List.concat_map((r: RefactorTheorem.rule) =>
+           [Util.Direction.Right, Left]
+           |> List.concat_map(direction =>
+                sites
+                /* Reject non-matches and passengers before constructing
+                   replacement syntax or re-reading the entire program. */
+                |> List.filter(site_exp =>
+                     switch (
+                       ProofRule.match_equality(
+                         ~info_map,
+                         ~env=Environment.empty,
+                         ~direction,
+                         r.rule,
+                         site_exp,
+                       )
+                     ) {
+                     | None => false
+                     | Some((sub, _)) =>
+                       !RefactorTheorem.grip_is_passenger(~target, sub)
+                     }
+                   )
+                |> List.filter_map(site_exp => {
+                     let site = Exp.rep_id(site_exp);
+                     let kind = Action.RewriteTheorem(r.id, direction, site);
+                     switch (
+                       RefactorTheorem.prepare_details(
+                         ~info_map,
+                         ~target,
+                         ~site,
+                         r.id,
+                         direction,
+                         term,
+                       )
+                     ) {
+                     | None => None
+                     | Some((term', focus, correspondence)) =>
+                       let result = find_hit(~hit=hit_node(focus), term');
+                       let label =
+                         r.name
+                         ++ (direction == Left ? " ← " : " → ")
+                         ++ (
+                           result
+                           |> Option.map(e =>
+                                ExpToSegment.exp_to_segment(
+                                  ~settings=roundtrip_settings,
+                                  e,
+                                )
+                                |> SpaceNormalize.go
+                                |> Printer.of_segment(
+                                     ~holes="?",
+                                     ~refractors=[],
+                                   )
+                                |> String.split_on_char('\n')
+                                |> String.concat(" ")
+                              )
+                           |> Option.value(~default="")
+                         );
+                       let segment =
+                         ExpToSegment.exp_to_segment(
+                           ~settings=roundtrip_settings,
+                           term',
+                         )
+                         |> SpaceNormalize.go;
+                       let cand_measured =
+                         Measured.of_segment(
+                           segment,
+                           shape_map,
+                           Id.Map.empty,
+                         );
+                       let endpoint =
+                         (
+                           switch (correspondence.destination) {
+                           | Some(Live(id)) =>
+                             Measured.find_by_id(id, measured)
+                           | Some(Result(id)) =>
+                             Measured.find_by_id(id, cand_measured)
+                           | None => None
+                           }
+                         )
+                         |> Option.map((m: Measured.measurement) => m.origin)
+                         |> (
+                           pos =>
+                             Option.bind(pos, p =>
+                               p == anchor.origin ? None : Some(p)
+                             )
+                         );
+                       /* Ancestor rules need an actual moving grip. A direct
+                          rewrite can still be chosen when it has no spatial
+                          interpretation (e.g. replacing a constant by holes). */
+                       if (!hit_node(target, site_exp)
+                           && endpoint == None
+                           || !
+                                accepts_result(
+                                  ~settings,
+                                  ~info_map,
+                                  ~before=term,
+                                  ~after=term',
+                                  segment,
+                                )) {
+                         None;
+                       } else {
+                         Some((
+                           kind,
+                           label,
+                           term',
+                           focus,
+                           segment,
+                           cand_measured,
+                           endpoint,
+                           correspondence.copies,
+                           correspondence.merges,
+                         ));
+                       };
+                     };
+                   })
+              )
+         )
+      |> List.mapi(
+           (
+             i,
+             (
+               kind,
+               label,
+               term',
+               focus,
+               segment,
+               cand_measured,
+               endpoint,
+               emerge,
+               absorb,
+             ),
+           ) => {
+           let rec fallback = col => {
+             let p = {
+               Measured.Point.row: max(0, anchor.origin.row - 2) + 2 * i,
+               col,
+             };
+             List.mem(p, occupied^) ? fallback(col + 4) : p;
+           };
+           let endpoint =
+             switch (endpoint) {
+             | Some(p) when !List.mem(p, occupied^) => p
+             | _ => fallback(anchor.origin.col + 16)
+             };
+           occupied := [endpoint, ...occupied^];
+           {
+             DragCandidate.kind,
+             at: target,
+             label,
+             current: anchor.origin,
+             target: endpoint,
+             frame: DragCandidate.no_frame,
+             emerge,
+             absorb,
+             term: term',
+             focus,
+             segment,
+             measured: cand_measured,
+           };
+         })
+    };
+
+  moves @ rewrites;
 };
 
 /* drag chaining's "same kind": one constructor, swap indices aside;
@@ -725,57 +903,67 @@ let next_rung =
       prev: DragCandidate.t,
     )
     : option((DragCandidate.t, (Id.t, option(int)))) => {
-  let composites = settings.drag_composites;
-  /* extract takes a value from inline to bound: only ever a drag's
-     first step (after a lift the value sits inline in the helper's
-     body, and extracting it again would loop) */
-  let continues = (k: Action.refactor) =>
-    k != ExtractLet
-    && (
-      same_kind(family, k)
-      || composites
-      && place_kind(family)
-      && place_kind(k)
-    );
-  /* a merge dissolves what the ladder held: nothing left to move */
-  let ended =
-    switch (prev.kind) {
-    | MergeUp
-    | MergeDown => composites
-    | _ => false
-    };
-  let held =
-    Id.Map.mem(fst(held), prev.measured.tiles) ? held : (prev.focus, None);
-  /* the way a ladder goes. A move of where a value lives goes up its
-     path of places (extract, hoist, lift, merge up) or down it (sink,
-     move into caller, merge down, feed), whatever the geometry: a run of
-     feeds visits uses left and right of the definition, and must not
-     turn into an extract. Other ladders go forward or back in reading
-     order. */
-  let way = (c: DragCandidate.t) =>
-    switch (place_way(c.kind)) {
-    | Some(w) => w
-    | None =>
-      compare((c.target.row, c.target.col), (c.current.row, c.current.col))
-    };
-  ended
-    ? None
-    : drag_candidates(
-        ~composites,
-        ~continuing=true,
-        ~info_map=statics_of(~settings, ~info_map, ~root, prev.term),
-        ~term=prev.term,
-        ~measured=prev.measured,
-        ~shape_map,
-        ~push,
-        ~target=fst(held),
-        ~shard=snd(held),
-        (),
-      )
-      |> List.find_opt((c: DragCandidate.t) =>
-           continues(c.kind) && way(c) == way(prev)
-         )
-      |> Option.map(c => (c, held));
+  switch (family) {
+  /* A theorem choice is one rewrite, never a composite ladder. */
+  | RewriteTheorem(_) => None
+  | _ =>
+    let composites = settings.drag_composites;
+    /* extract takes a value from inline to bound: only ever a drag's
+       first step (after a lift the value sits inline in the helper's
+       body, and extracting it again would loop) */
+    let continues = (k: Action.refactor) =>
+      k != ExtractLet
+      && (
+        same_kind(family, k)
+        || composites
+        && place_kind(family)
+        && place_kind(k)
+      );
+    /* a merge dissolves what the ladder held: nothing left to move */
+    let ended =
+      switch (prev.kind) {
+      | MergeUp
+      | MergeDown => composites
+      | _ => false
+      };
+    let held =
+      Id.Map.mem(fst(held), prev.measured.tiles)
+        ? held : (prev.focus, None);
+    /* the way a ladder goes. A move of where a value lives goes up its
+       path of places (extract, hoist, lift, merge up) or down it (sink,
+       move into caller, merge down, feed), whatever the geometry: a run of
+       feeds visits uses left and right of the definition, and must not
+       turn into an extract. Other ladders go forward or back in reading
+       order. */
+    let way = (c: DragCandidate.t) =>
+      switch (place_way(c.kind)) {
+      | Some(w) => w
+      | None =>
+        compare(
+          (c.target.row, c.target.col),
+          (c.current.row, c.current.col),
+        )
+      };
+    ended
+      ? None
+      : drag_candidates(
+          ~settings,
+          ~composites,
+          ~continuing=true,
+          ~info_map=statics_of(~settings, ~info_map, ~root, prev.term),
+          ~term=prev.term,
+          ~measured=prev.measured,
+          ~shape_map,
+          ~push,
+          ~target=fst(held),
+          ~shard=snd(held),
+          (),
+        )
+        |> List.find_opt((c: DragCandidate.t) =>
+             continues(c.kind) && way(c) == way(prev)
+           )
+        |> Option.map(c => (c, held));
+  };
 };
 
 /* the INSIST tier: remedied moves a dead press escalates to on a

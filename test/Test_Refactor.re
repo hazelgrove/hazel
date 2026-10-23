@@ -137,6 +137,7 @@ let drag_cands =
   | Some(target) =>
     Refactor.drag_candidates(
       ~composites,
+      ~settings=Test_Editing.default_settings,
       ~info_map=info_map_of(z),
       ~term,
       ~measured,

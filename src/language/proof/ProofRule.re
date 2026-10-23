@@ -96,19 +96,33 @@ let rec get_empty_bindings = (ctx: list(Ctx.entry)) =>
   | [_, ...rs] => get_empty_bindings(rs)
   };
 
-let can_eq =
-    (~info_map, ~env, rule: t, exp: Exp.t): (option(Exp.t), option(Exp.t)) => {
+/* The matching part of a rewrite, shared by proof steps and source
+   refactors. Keep the substitution explicit: source refactors preserve
+   syntax identity and turn unassigned variables into editable holes. */
+let match_equality =
+    (~info_map, ~env, ~direction: Direction.t, rule: t, exp: Exp.t)
+    : option((MatchExp.match_ctx, Exp.t)) =>
   switch (rule.conclusion) {
   | Equality(a, b) =>
+    let (from, to_) = direction == Left ? (b, a) : (a, b);
     let bindings = get_empty_bindings(rule.bindings);
-    (
-      MatchExp.match_exp(~info_map, ~exp_env=env, ~exp_r_ctx=bindings, b, exp)
-      |> Option.map(MatchExp.substitute_exp(_, a)),
-      MatchExp.match_exp(~info_map, ~exp_env=env, ~exp_r_ctx=bindings, a, exp)
-      |> Option.map(MatchExp.substitute_exp(_, b)),
-    );
-  | Other(_) => (None, None)
+    MatchExp.match_exp(
+      ~info_map,
+      ~exp_env=env,
+      ~exp_r_ctx=bindings,
+      from,
+      exp,
+    )
+    |> Option.map(sub => (sub, to_));
+  | Other(_) => None
   };
+
+let can_eq =
+    (~info_map, ~env, rule: t, exp: Exp.t): (option(Exp.t), option(Exp.t)) => {
+  let apply = direction =>
+    match_equality(~info_map, ~env, ~direction, rule, exp)
+    |> Option.map(((sub, to_)) => MatchExp.substitute_exp(sub, to_));
+  (apply(Left), apply(Right));
 };
 
 let is_active = (~info_map, ~env, rule: t, exp: Exp.t): bool =>

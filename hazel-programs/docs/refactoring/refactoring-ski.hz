@@ -1,0 +1,52 @@
+# SKI combinators: drag expressions to explore the equations below. #
+# Hazel uses lowercase names for functions: s, k, i are S, K, I. #
+
+# I: identity. K: keep the first argument. S: share an argument. #
+let i = fun x -> x in
+let k = fun x -> fun y -> x in
+let s = fun f -> fun g -> fun x -> f(x)(g(x)) in
+
+# The three standard SKI equations, available in both directions. #
+theorem identity =
+  forall (x : ?) ->
+    i(x) == x
+in
+
+theorem constant =
+  forall (x : ?) -> forall (y : ?) ->
+    k(x)(y) == x
+in
+
+theorem substitution =
+  forall (f : ? -> ? -> ?) ->
+  forall (g : ? -> ?) -> forall (x : ?) ->
+    s(f)(g)(x) == f(x)(g(x))
+in
+
+let add = fun x : Int -> fun y : Int -> x + y in
+let inc = fun x : Int -> x + 1 in
+let double = fun x : Int -> x * 2 in
+
+# Each field is independent, so try a few different reduction paths. #
+# S duplicates its final argument; K erases its second argument. #
+# Expanding K backwards leaves a hole for its unspecified argument. #
+(
+  identity_example = i(7),
+  constant_example = k(7)(99),
+  duplicate_argument = s(add)(i)(7),
+
+  # S K K behaves like I, including when its argument is a function. #
+  skk = s(k)(k)(7),
+  skk_function = s(k)(k)(inc)(7),
+
+  # S (K f) g acts as composition: f after g. #
+  composition = s(k(inc))(double)(7),
+  nested_composition = s(k(inc))(s(k(double))(inc))(7),
+
+  # B = S (K S) K: composition using only S and K. #
+  composition_b = s(k(s))(k)(inc)(double)(7),
+
+  nested_identities = i(i(i(7))),
+  fork = s(add)(s(k(double))(inc))(7),
+  erased_branch = k(i(7))(s(add)(i)(100))
+)
