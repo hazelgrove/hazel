@@ -89,27 +89,115 @@ let continues_delegation =
     delegations,
   );
 
+/* The passes the stages below make on a term they find final without a
+ * step, or None if it is not such a term: an atom, a constructor (bare or
+ * applied to such a term), a function's closure, or a list, tuple or
+ * labeled entry of such terms (^ticket(559)). Each of those passes steps
+ * nothing and, unless something is probed, reused or published, records
+ * nothing but the step count. Containers are followed only so deep, so a
+ * check that fails far down, and then again at each level the stages
+ * descend through, stays linear in the term. */
+let final_depth = 16;
+let rec final_passes = (depth: int, d: DHExp.t): option(int) =>
+  switch (DHExp.term_of(d)) {
+  | Atom(_)
+  | LivelitName(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Constructor(_)
+  | BuiltinFun(_) => Some(1)
+  | Closure(_, {term: Fun(_) | TypFun(_), _}) => Some(2)
+  | Ap(_, {term: Constructor(_), _}, d2) when depth > 0 =>
+    Option.map(n => n + 2, final_passes(depth - 1, d2))
+  | TupLabel(_, d1) when depth > 0 =>
+    Option.map(n => n + 1, final_passes(depth - 1, d1))
+  | ListLit(ds)
+  | Tuple(ds) when depth > 0 => all_final_passes(depth - 1, 1, ds)
+  | _ => None
+  }
+and all_final_passes = (depth: int, acc: int, ds: list(DHExp.t)) =>
+  switch (ds) {
+  | [] => Some(acc)
+  | [d, ...ds] =>
+    switch (final_passes(depth, d)) {
+    | Some(n) => all_final_passes(depth, acc + n, ds)
+    | None => None
+    }
+  };
+
+/* With nothing probed, reused or published (the JS library's calls, an
+ * app's update), a term already final comes back as it is, and the step
+ * count goes up by the passes the stages would have made on it, so it
+ * reads the same as before (^ticket(559)). */
 let rec evaluate =
-        // Constants
         (
           ~prev: EvaluatorState.incr_eval=IncrEval.empty,
           ~track_reuse: bool,
           ~reused_ids: Id.Map.t(unit),
           ~eval_info: EvalInfo.t,
-          // Call Stack
           ~in_closure=?,
           ~call_stack: CallStack.t,
           ~delegations: list(delegation),
-          // Inputs
           ~reuse_map: IncrEval.reuse_map,
           env,
           exp: DHExp.t,
-          // Outputs
           ~parent_state: ref(EvaluatorState.t),
           ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t))),
           ~current_top_id: option(Id.t),
         )
-        : Trampoline.t(DHExp.t) => {
+        : Trampoline.t(DHExp.t) =>
+  switch (
+    !track_reuse
+    && Id.Map.is_empty(eval_info.targets)
+    && Option.is_none(outbox)
+      ? final_passes(final_depth, exp) : None
+  ) {
+  | Some(passes) =>
+    parent_state :=
+      {
+        ...parent_state^,
+        step_count: parent_state^.step_count + passes,
+      };
+    Trampoline.return(exp);
+  | None =>
+    evaluate_stages(
+      ~prev,
+      ~track_reuse,
+      ~reused_ids,
+      ~eval_info,
+      ~in_closure?,
+      ~call_stack,
+      ~delegations,
+      ~reuse_map,
+      env,
+      exp,
+      ~parent_state,
+      ~outbox,
+      ~current_top_id,
+    )
+  }
+
+and evaluate_stages =
+    // Constants
+    (
+      ~prev: EvaluatorState.incr_eval=IncrEval.empty,
+      ~track_reuse: bool,
+      ~reused_ids: Id.Map.t(unit),
+      ~eval_info: EvalInfo.t,
+      // Call Stack
+      ~in_closure=?,
+      ~call_stack: CallStack.t,
+      ~delegations: list(delegation),
+      // Inputs
+      ~reuse_map: IncrEval.reuse_map,
+      env,
+      exp: DHExp.t,
+      // Outputs
+      ~parent_state: ref(EvaluatorState.t),
+      ~outbox: option(ref(IncrEval.outbox(EvaluatorState.t))),
+      ~current_top_id: option(Id.t),
+    )
+    : Trampoline.t(DHExp.t) => {
   /* NOTE: This trampoline looks like it only returns an expression, but
    * it also mutates the parent_state and outbox references while it's
    * running. */
