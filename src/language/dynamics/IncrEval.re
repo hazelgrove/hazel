@@ -295,7 +295,7 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Cons(hd, tl) =>
       go([ConsHead, ...path], hd) @ go([ConsTail, ...path], tl)
     };
-  go([], pat) |> Stdlib.List.to_seq |> Maps.StringMap.of_seq;
+  go([], pat) |> Maps.StringMap.of_list;
 };
 
 let with_pat_provenance =
