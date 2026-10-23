@@ -448,7 +448,7 @@ let test_module_complex_expression =
   );
 
 /* Test member access on a bound module */
-let test_module_as_labeled_tuple =
+let test_bound_module_member_access =
   fully_consistent_typecheck(
     "Member access on a bound module",
     {|let point = { let x = 1; let y = 2 } in point.x + point.y|},
@@ -1000,10 +1000,9 @@ let test_qualified_type_lowercase =
     Some(int()),
   );
 
-/* Type used after non-shadowed definition */
-let test_qualified_type_shadowing =
+let test_qualified_type_also_used_inside =
   fully_consistent_typecheck(
-    "Qualified type access: type used after non-shadowed definition",
+    "Qualified type access: a type member also used inside its module",
     {|module M = { type T = Int; let x : T = 1 } in let y : M.T = 2 in y + 0|},
     Some(int()),
   );
@@ -1407,7 +1406,7 @@ let tests = (
     test_bare_expression,
     test_module_access,
     test_module_complex_expression,
-    test_module_as_labeled_tuple,
+    test_bound_module_member_access,
     test_module_in_let_def,
     test_module_two_bindings_in_let,
     test_expansion_directly,
@@ -1503,7 +1502,7 @@ let tests = (
     test_qualified_type_internal_ref,
     test_qualified_type_nested,
     test_qualified_type_lowercase,
-    test_qualified_type_shadowing,
+    test_qualified_type_also_used_inside,
     test_error_qualified_type_unknown,
     test_qualified_type_sig_alias,
     /* Qualified type access aliasing tests */

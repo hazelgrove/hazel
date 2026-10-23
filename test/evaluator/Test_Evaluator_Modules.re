@@ -56,7 +56,7 @@ let test_module_access =
   });
 
 /* Test member access on a bound module */
-let test_module_as_tuple =
+let test_bound_module_member_access =
   test_case("Member access on a bound module", `Quick, () => {
     parse_and_evaluate_test(
       "3",
@@ -238,7 +238,7 @@ let tests = (
     test_shadowing,
     test_shadowing_keeps_last_position,
     test_module_access,
-    test_module_as_tuple,
+    test_bound_module_member_access,
     test_bare_expression,
     test_module_with_function,
     test_module_with_shorthand_function,
