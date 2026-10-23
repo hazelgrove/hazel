@@ -237,19 +237,44 @@ module Update = {
   /* The context Hazel has at a module's body in the whole program (full):
      the body read for the program has the ids it has there. None without
      a body read (nothing written, or a part that did not parse). */
+  /* The context at a module's definition in the whole program: its
+     `module Name = def in` found along the program's chain of
+     definitions (as ModuleProgram.of_term walks it), in the term the whole
+     program's statics were made from, so its id is surely in their map.
+     (The body read on its own does not carry the ids the program's term
+     gives it: looked up by those, the context was not found, and the cell
+     read every type and constructor of the preamble as unbound.) */
+  let module_ctx =
+      (~full: CodeWithStatics.Model.t, name: string): option(Language.Ctx.t) => {
+    let rec find = (e: Language.Exp.t) =>
+      switch (e.term) {
+      | Let(_, _, rest)
+      | TyAlias(_, _, rest)
+      | Theorem(_, _, rest)
+      | Use(_, rest)
+      | Filter(_, rest)
+      | Seq(_, rest) => find(rest)
+      | ModuleExp(mp, def, rest) =>
+        ModuleProgram.name_of_module_pat(mp) == Some(name)
+          ? Some(def) : find(rest)
+      | _ => None
+      };
+    switch (find(full.statics.term)) {
+    | Some(def) =>
+      Language.Statics.Map.ctx_of(
+        Language.Exp.rep_id(def),
+        full.statics.info_map,
+      )
+    | None => None
+    };
+  };
+
   let focus_body =
       (~bodies: list(body), ~full: CodeWithStatics.Model.t, name: string)
       : (Zipper.t, string, option(Language.Ctx.t)) =>
     switch (List.find_opt((b: body) => b.name == name, bodies)) {
-    | Some({read: Some(z), text, _}) => (
-        z,
-        text,
-        Language.Statics.Map.ctx_of(
-          Language.Exp.rep_id(ModuleProgram.body_of_zipper(z)),
-          full.statics.info_map,
-        ),
-      )
-    | _ => (Zipper.init(), "", None)
+    | Some({read: Some(z), text, _}) => (z, text, module_ctx(~full, name))
+    | _ => (Zipper.init(), "", module_ctx(~full, name))
     };
 
   /* A cell rooted at Mod holding a module's body, its statics in ctx */
