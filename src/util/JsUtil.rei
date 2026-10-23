@@ -1,3 +1,9 @@
+/* Wrappers over browser APIs: element lookup, focus, scrolling, the
+   clipboard, file download and upload, local storage, the URL, and timing.
+   Everything here is effectful. Most of it needs a DOM; the timestamps also
+   work in the worker. */
+
+/** Raises if no element has that id; see `get_elem_by_id_opt`. */
 let get_elem_by_id: string => Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element);
 let get_elem_by_id_opt:
   string => option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
@@ -6,8 +12,12 @@ let get_elem_by_selector:
 let get_child_with_class:
   (Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element), string) =>
   option(Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.element));
+/** Wall-clock time, in milliseconds since the Unix epoch. */
 let timestamp: unit => float;
+/** `performance.now()`: milliseconds since page load, sub-millisecond and
+    monotonic. For measuring durations, not for dates. */
 let precise_timestamp: unit => float;
+/** Formats a `timestamp` in the browser's locale. */
 let print_timestamp: float => string;
 let download_string_file:
   (~filename: string, ~content_type: string, ~contents: string) => unit;
@@ -19,6 +29,7 @@ let confirm: string => bool;
 let focus_page: unit => unit;
 let install_text_selection_guards: unit => unit;
 let active_cell_id: string;
+/** Whether an active cell was found to focus. */
 let focus_active_cell: unit => bool;
 let focus_active_editor: unit => unit;
 let copy_text: string => unit;
@@ -46,6 +57,7 @@ let set_css_custom_property: (string, string) => unit;
 let update_main_scroll_width: unit => unit;
 let sync_at_bottom_class:
   Js_of_ocaml.Js.t(Js_of_ocaml.Dom_html.event) => unit;
+/** `delay(ms, f)` runs `f` after `ms` milliseconds. */
 let delay: (float, unit => unit) => unit;
 let setup_focus_bar_scroll_compensation: unit => unit;
 let set_local_storage: (string, string) => unit;

@@ -12,6 +12,7 @@
    Correctness reference is Intl.Segmenter; the ASCII and standalone-codepoint
    fast paths that avoid it are pinned against it in Test_Unicode. */
 
+/* TODO: no caller outside Unicode.re; could be private. */
 type unsafe_any = Js_of_ocaml.Js.Unsafe.any;
 let is_simple_ascii: string => bool;
 let codepoint_at: (string, int) => int;

@@ -3,7 +3,10 @@
    that invariant -- `List.length(as) == List.length(bs) + 1` -- which `mk`,
    `first_a` and `last_a` assert rather than return an option for.
 
-   Segments are the motivating shape: tiles (A) separated by trim (B). */
+   Segments are the motivating shape: tiles (A) separated by trim (B).
+
+   TODO: `t` is exposed, so nothing stops a caller building one that breaks
+   the invariant without `mk`. */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('a, 'b) = (list('a), list('b));
@@ -14,6 +17,7 @@ let rev: ('a => 'a, 'b => 'b, t('a, 'b)) => t('a, 'b);
 let cons: ('a, 'b, t('a, 'b)) => t('a, 'b);
 let get_as: t('a, 'b) => list('a);
 let get_bs: t('a, 'b) => list('b);
+/* TODO: the same as `first_a` without the assert. */
 let hd: t('a, 'b) => 'a;
 let aba_triples: t('a, 'b) => list(('a, 'b, 'a));
 let map_a: ('a => 'c, t('a, 'b)) => t('c, 'b);
