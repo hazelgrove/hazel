@@ -1721,8 +1721,7 @@ let view_doc =
            let (color, _) = ColorSteps.get_color(code_id, color_map);
            (syntactic_form_id, color);
          })
-      |> Stdlib.List.to_seq
-      |> Id.Map.of_seq
+      |> Id.Map.of_list
       |> Option.some;
     let editor = Editor.Model.mk(form.syntactic_form |> Zipper.unzip, ~root);
     let expander_deco =
