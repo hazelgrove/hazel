@@ -7,13 +7,12 @@ open Js_of_ocaml;
 
 let now = (): float => Js.Unsafe.coerce(Js.Unsafe.global)##._Date##now();
 
-let totals: Stdlib.Hashtbl.t(string, (float, int)) =
-  Stdlib.Hashtbl.create(16);
+let totals: Hashtbl.t(string, (float, int)) =
+  Hashtbl.create(~size=16, (module String));
 
 let record = (label: string, ms: float): unit => {
-  let (t, n) =
-    Option.value(Stdlib.Hashtbl.find_opt(totals, label), ~default=(0., 0));
-  Stdlib.Hashtbl.replace(totals, label, (t +. ms, n + 1));
+  let (t, n) = Option.value(Hashtbl.find(totals, label), ~default=(0., 0));
+  Hashtbl.set(totals, ~key=label, ~data=(t +. ms, n + 1));
 };
 
 let time = (label: string, f: unit => 'a): 'a => {
@@ -23,15 +22,13 @@ let time = (label: string, f: unit => 'a): 'a => {
   r;
 };
 
-let reset = (): unit => Stdlib.Hashtbl.reset(totals);
+let reset = (): unit => Hashtbl.clear(totals);
 
 /* "statics 312ms×2 | node-map 40ms×2 | edit 205ms×1", biggest first */
 let summary = (): string => {
   let rows =
-    Stdlib.Hashtbl.fold(
-      (k, (t, n), acc) => [(k, t, n), ...acc],
-      totals,
-      [],
+    Hashtbl.fold(totals, ~init=[], ~f=(~key as k, ~data as (t, n), acc) =>
+      [(k, t, n), ...acc]
     )
     |> List.sort(~compare=((_, a, _), (_, b, _)) => Float.compare(b, a));
   String.concat(

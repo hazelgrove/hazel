@@ -428,16 +428,15 @@ let symbolic_delim_prefixes: list(Token.t) =
    (so, superlinearly during text parsing), so membership is a hash set
    rather than a List.mem scan with polymorphic compare. The table is
    closure-private, built once at module init — NOT inlined into a
-   Hashtbl.mem(..., _) partial application, whose desugaring would
+   Hash_set.mem(..., _) partial application, whose desugaring would
    rebuild it on every call. */
 let is_infix_delimiter_op_prefix: Token.t => bool = {
-  let tbl: Hashtbl.t(Token.t, unit) = Stdlib.Hashtbl.create(64);
-  List.iter(
-    ~f=t => Hashtbl.replace(tbl, t, ()),
-    infix_delimiter_ops_prefixes,
-  );
-  List.iter(~f=t => Hashtbl.replace(tbl, t, ()), symbolic_delim_prefixes);
-  t => Hashtbl.mem(tbl, t);
+  let tbl =
+    Hash_set.of_list(
+      (module String),
+      infix_delimiter_ops_prefixes @ symbolic_delim_prefixes,
+    );
+  t => Hash_set.mem(tbl, t);
 };
 
 /* Backup molds handed to delimiter prefixes in operator position. Mold
@@ -478,9 +477,8 @@ let amiguous_polymorphs: list(Token.t) = {
 };
 
 let is_ambiguous_polymorph: Token.t => bool = {
-  let tbl: Stdlib.Hashtbl.t(Token.t, unit) = Stdlib.Hashtbl.create(16);
-  List.iter(~f=t => Stdlib.Hashtbl.replace(tbl, t, ()), amiguous_polymorphs);
-  t => Stdlib.Hashtbl.mem(tbl, t);
+  let tbl = Hash_set.of_list((module String), amiguous_polymorphs);
+  t => Hash_set.mem(tbl, t);
 };
 
 let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
@@ -660,13 +658,13 @@ let atomic_candidates_uncached = (t: Token.t): list((t, Mold.t)) =>
  * the predicate scan above is the expensive part. Token sets are
  * session-bounded. */
 let atomic_candidates_tbl: Hashtbl.t(Token.t, list((t, Mold.t))) =
-  Stdlib.Hashtbl.create(1024);
+  Hashtbl.create(~size=1024, (module String));
 let atomic_candidates = (t: Token.t): list((t, Mold.t)) =>
-  switch (Hashtbl.find_opt(atomic_candidates_tbl, t)) {
+  switch (Hashtbl.find(atomic_candidates_tbl, t)) {
   | Some(c) => c
   | None =>
     let c = atomic_candidates_uncached(t);
-    Hashtbl.replace(atomic_candidates_tbl, t, c);
+    Hashtbl.set(atomic_candidates_tbl, ~key=t, ~data=c);
     c;
   };
 
@@ -674,31 +672,24 @@ let atomic_candidates = (t: Token.t): list((t, Mold.t)) =>
  * first (stable, so ties keep declaration order), memoized. */
 let compound_defs: Label.t => list((family, Mold.t)) = {
   let tbl: Hashtbl.t(Label.t, list((family, Mold.t))) =
-    Stdlib.Hashtbl.create(256);
+    Hashtbl.Poly.create(~size=256, ());
   List.iter(
     ~f=
       ((fam, {label, mold, _}: def)) => {
-        let prev = Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
-        Hashtbl.replace(tbl, label, prev @ [(fam, mold)]);
+        let prev = Option.value(Hashtbl.find(tbl, label), ~default=[]);
+        Hashtbl.set(tbl, ~key=label, ~data=prev @ [(fam, mold)]);
       },
     forms,
   );
-  Hashtbl.filter_map_inplace(
-    (_, rows) =>
-      Some(
-        List.stable_sort(
-          ~compare=
-            ((f1, m1: Mold.t), (f2, m2: Mold.t)) =>
-              compare(
-                same_label_rank(f1, m1.out),
-                same_label_rank(f2, m2.out),
-              ),
-          rows,
-        ),
-      ),
-    tbl,
+  Hashtbl.map_inplace(tbl, ~f=rows =>
+    List.stable_sort(
+      ~compare=
+        ((f1, m1: Mold.t), (f2, m2: Mold.t)) =>
+          compare(same_label_rank(f1, m1.out), same_label_rank(f2, m2.out)),
+      rows,
+    )
   );
-  label => Option.value(Hashtbl.find_opt(tbl, label), ~default=[]);
+  label => Option.value(Hashtbl.find(tbl, label), ~default=[]);
 };
 
 /* Candidate order breaks ties among junction-fitting molds during
@@ -734,22 +725,23 @@ let base_molds = (label: Label.t): list(Mold.t) =>
  * startup; accessors below are single table lookups. defs_tbl groups
  * the flat table by family (rows in defs_of_rows order). */
 let defs_tbl: Hashtbl.t(family, list(def)) = {
-  let tbl = Stdlib.Hashtbl.create(128);
+  let tbl = Hashtbl.Poly.create(~size=128, ());
   List.iter(
     ~f=
       f =>
-        Hashtbl.replace(
+        Hashtbl.set(
           tbl,
-          f,
-          forms |> List.filter(~f=((g, _)) => g == f) |> List.map(~f=snd),
+          ~key=f,
+          ~data=
+            forms |> List.filter(~f=((g, _)) => g == f) |> List.map(~f=snd),
         ),
     all_of_family,
   );
   tbl;
 };
-let defs_of = (fam: family): list(def) => Hashtbl.find(defs_tbl, fam);
+let defs_of = (fam: family): list(def) => Hashtbl.find_exn(defs_tbl, fam);
 let family_mold_tbl: Hashtbl.t((family, Sort.t), Mold.t) = {
-  let tbl = Stdlib.Hashtbl.create(256);
+  let tbl = Hashtbl.Poly.create(~size=256, ());
   List.iter(
     ~f=
       f =>
@@ -757,7 +749,7 @@ let family_mold_tbl: Hashtbl.t((family, Sort.t), Mold.t) = {
           ~f=
             (def: def) =>
               if (!Hashtbl.mem(tbl, (f, def.mold.out))) {
-                Hashtbl.add(tbl, (f, def.mold.out), def.mold);
+                Hashtbl.set(tbl, ~key=(f, def.mold.out), ~data=def.mold);
               },
           defs_of(f),
         ),
@@ -786,7 +778,7 @@ let unmolded_mold = (label: Label.t, sort: Sort.t): Mold.t =>
 let mold_of = (f: t, sort: Sort.t): Mold.t =>
   switch (f) {
   | Compound(fam) =>
-    switch (Hashtbl.find_opt(family_mold_tbl, (fam, sort))) {
+    switch (Hashtbl.find(family_mold_tbl, (fam, sort))) {
     | Some(mold) => mold
     /* parens wrap one child at every sort, but the family table only
      * registers rows at the grammar's declared sorts; the childless

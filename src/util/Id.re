@@ -135,6 +135,7 @@ module Key = {
   let yojson_of_t = yojson_of_t;
   let t_of_yojson = t_of_yojson;
   let compare = compare;
+  let hash = Hashtbl.hash;
   include (val Comparator.make(~compare, ~sexp_of_t));
 };
 

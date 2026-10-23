@@ -285,17 +285,17 @@ module Cook = (C: Projector) : Cooked => {
     });
   /* Memoize the per-refractor sexp parse by exact model string (called on
    * every shape refresh, mostly with unchanged strings). Bounded cache. */
-  let placeholder_models: Stdlib.Hashtbl.t(string, C.model) =
-    Stdlib.Hashtbl.create(32);
+  let placeholder_models: Hashtbl.t(string, C.model) =
+    Hashtbl.create(~size=32, (module String));
   let parse_model_memo = (s: string): C.model =>
-    switch (Stdlib.Hashtbl.find_opt(placeholder_models, s)) {
+    switch (Hashtbl.find(placeholder_models, s)) {
     | Some(m) => m
     | None =>
-      if (Stdlib.Hashtbl.length(placeholder_models) > 512) {
-        Stdlib.Hashtbl.clear(placeholder_models);
+      if (Hashtbl.length(placeholder_models) > 512) {
+        Hashtbl.clear(placeholder_models);
       };
       let m = deserialize_m(s);
-      Stdlib.Hashtbl.add(placeholder_models, s, m);
+      Hashtbl.set(placeholder_models, ~key=s, ~data=m);
       m;
     };
   let placeholder = m => m |> parse_model_memo |> C.placeholder;
