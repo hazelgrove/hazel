@@ -1795,6 +1795,12 @@ let spacing_tests = (
         );
       },
     ),
+  ],
+);
+
+let idempotence_tests = (
+  "Print idempotence",
+  [
     test_case(
       "printing a parenthesized bare sum is idempotent",
       `Quick,
@@ -1822,6 +1828,7 @@ let spacing_tests = (
 
 let all = [
   spacing_tests,
+  idempotence_tests,
   tests,
   pad_ids_tests,
   roundtrip_tests,
