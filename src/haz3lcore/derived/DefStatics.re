@@ -70,9 +70,11 @@ and lowering = {
   by_id: Id.Map.t(lowered),
   tail: option((Id.t, list(string), Exp.t)),
 }
-/* a member, the node its item holds, its own exports and bound names */
+/* a member, the signature's expectations for it, the node its item
+   holds, its own exports and bound names */
 and lowered = {
   l_src: Mod.t,
+  l_ana: list((Var.t, Typ.t)),
   l_node: Exp.t,
   l_exports: list(Var.t),
   l_names: list(Var.t),
@@ -140,9 +142,9 @@ let rec chain = (e: Exp.t): list(Exp.t) =>
    Let/TyAlias wrapper (lower_members adds a tail tuple of the exports).
    head_equal gates cleanliness on wrapper and tail ids, so they must be
    stable: wrappers that can't reuse the item's rep id get derived ids */
-let lower_item = (item: Mod.t): Exp.t =>
+let lower_item = (~ana_labels=[], item: Mod.t): Exp.t =>
   ModuleHelpers.wrap_item(
-    ~ana_labels=[],
+    ~ana_labels,
     ~stable=true,
     item,
     Exp.fresh(EmptyHole),
@@ -926,31 +928,39 @@ let nest_map =
   };
 
 /* a module's members as a chain, reusing [prev]'s wrappers and own
-   exports for members it holds unchanged, plus the exports tail, which
-   mentions every export (any export delta re-analyzes it) and takes its
-   ids from [rep]. returns the nodes, the members' lowerings and the
-   exported names (ModuleHelpers.exported_names) */
+   exports for members it holds unchanged (with the same expectations from
+   [ana_items], the signature it is analyzed against), plus the exports
+   tail, which mentions every export (any export delta re-analyzes it) and
+   takes its ids from [rep]. returns the nodes, the members' lowerings and
+   the exported names (ModuleHelpers.exported_names) */
 let lower_members =
-    (~prev: option(lowering), rep: Id.t, members: list(Mod.t)) => {
+    (
+      ~prev: option(lowering),
+      ~ana_items: option(list(Sig.t))=None,
+      rep: Id.t,
+      members: list(Mod.t),
+    ) => {
   let by_id =
     switch (prev) {
     | Some(l) => l.by_id
     | None => Id.Map.empty
     };
   let lowered =
-    List.map(
-      (m: Mod.t) =>
+    List.map2(
+      (m: Mod.t, ana) =>
         switch (Id.Map.find_opt(Mod.rep_id(m), by_id)) {
-        | Some(l) when l.l_src === m => l
+        | Some(l) when l.l_src === m && compare(l.l_ana, ana) == 0 => l
         | _ => {
             l_src: m,
-            l_node: lower_item(m),
+            l_ana: ana,
+            l_node: lower_item(~ana_labels=ana, m),
             l_exports:
               List.map(fst, ModuleHelpers.item_exports(m, ~later=[])),
             l_names: ModuleHelpers.item_bound_names(m),
           }
         },
       members,
+      ModuleHelpers.item_ana_labels(~ana_items, members),
     );
   /* each member's own exports, less the names a later member binds */
   let (_, exports) =
@@ -1142,8 +1152,8 @@ let rec calc_item =
           node: Exp.t,
         )
         : (item, option(list(Id.t))) =>
-  switch (module_literal_members(node)) {
-  | Some((bind_pat, def, members)) =>
+  switch (module_literal_members(~ctx=ctx_in, node)) {
+  | Some((bind_pat, def, members, ana_items)) =>
     calc_module_item(
       ~settings,
       ~probe_ids,
@@ -1155,6 +1165,7 @@ let rec calc_item =
       ~bind_pat,
       ~def,
       ~members,
+      ~ana_items,
       node,
     )
   | None =>
@@ -1277,28 +1288,41 @@ and calc_plain_item =
   };
 }
 
-/* member granularity only for simple bindings of a module literal:
-   ascribed signatures push ana_labels the member path doesn't replicate */
+/* member granularity for a module literal bound to a name, plain or
+   ascribed with a signature whose members it defines (and against whose
+   items the members are analyzed, as the monolithic lowering does). one
+   missing or extra is reported on the module and on its items, as the
+   monolithic check does: such an item is analyzed whole */
 and module_literal_members =
-    (node: Exp.t): option((Pat.t, Exp.t, list(Mod.t))) => {
+    (~ctx: Ctx.t, node: Exp.t)
+    : option((Pat.t, Exp.t, list(Mod.t), option(list(Sig.t)))) => {
   let simple = (p: Pat.t): bool =>
     switch (p.term) {
     | Var(_)
     | Wild => true
     | _ => false
     };
-  switch (node.term) {
-  | Let(p, def, _) when simple(p) =>
-    switch (def.term) {
-    | Module(members) => Some((p, def, members))
-    | _ => None
-    }
-  | ModuleExp(mp, def, _) =>
-    let p = ModuleHelpers.mpat_to_pat(mp);
-    switch (def.term, simple(p)) {
-    | (Module(members), true) => Some((p, def, members))
+  let ana = (p: Pat.t): option(option(list(Sig.t))) =>
+    switch (p.term) {
+    | _ when simple(p) => Some(None)
+    | Asc(inner, ty) when simple(inner) =>
+      switch (Typ.term_of(Typ.weak_head_normalize(ctx, ty))) {
+      | Sig(items) => Some(Some(items))
+      | _ => None
+      }
     | _ => None
     };
+  let literal = (p, def: Exp.t) =>
+    switch (def.term, ana(p)) {
+    | (Module(members), Some(None)) => Some((p, def, members, None))
+    | (Module(members), Some(Some(sig_items)))
+        when ModuleHelpers.names_meet(~ana_items=sig_items, members) =>
+      Some((p, def, members, Some(sig_items)))
+    | _ => None
+    };
+  switch (node.term) {
+  | Let(p, def, _) => literal(p, def)
+  | ModuleExp(mp, def, _) => literal(ModuleHelpers.mpat_to_pat(mp), def)
   | _ => None
   };
 }
@@ -1319,6 +1343,7 @@ and calc_module_item =
       ~bind_pat: Pat.t,
       ~def: Exp.t,
       ~members: list(Mod.t),
+      ~ana_items: option(list(Sig.t)),
       node: Exp.t,
     )
     : (item, option(list(Id.t))) => {
@@ -1335,7 +1360,12 @@ and calc_module_item =
   let memo = Option.bind(prev_nest, n => n.n_memo);
   let rep = Exp.rep_id(def);
   let (nodes, lowered, exports) =
-    lower_members(~prev=Option.map(m => m.m_lowering, memo), rep, members);
+    lower_members(
+      ~prev=Option.map(m => m.m_lowering, memo),
+      ~ana_items,
+      rep,
+      members,
+    );
   let (items_m, changes) =
     calc_chain(
       ~settings,
@@ -1365,102 +1395,112 @@ and calc_module_item =
       members,
       chain_map,
     );
-  let sur =
-    surrogate(
-      ~prev=Option.map(m => m.m_sur, memo),
-      ~settings,
-      ~probe_ids,
-      ~ctx_in,
-      ~bind_pat,
-      ~def,
-      sig_ty,
-      node,
-    );
-  let ctx_out = sur.u_ctx_out;
-  /* member elabs grafted, refolded like monolithic Module statics */
-  let module_value =
-    Option.map(module_elab(def, members), Option.bind(top, s => s.s_elab));
-  /* the members' co_ctx/witnesses, which the surrogate def lacks */
-  let with_members = (raw: Info.exp): Info.exp =>
-    switch (top) {
-    | Some(s) => {
-        ...raw,
-        co_ctx: co_union(raw.co_ctx, s.s_co),
-        probe_targets: SubexpProbeTargets.union(raw.probe_targets, s.s_wit),
-      }
-    | None => raw
-    };
-  /* the literal's info must look monolithic too: the evaluator reuses
-     the module value recorded at this id while its elab is unchanged */
-  let wrap =
-    switch (module_value, Statics.Map.lookup_exp(rep, sur.u_map)) {
-    | (Some(v), Some(raw)) =>
-      let info =
-        Info.InfoExp({
-          ...with_members(raw),
-          /* the surrogate's are an ascription's */
-          user_term: def,
-          cls: Cls.Exp(Exp.cls_of_term(def.term)),
-          elab_term: v,
-        });
-      List.fold_left(
-        (m, id) => Id.Map.add(id, info, m),
-        sur.u_map,
-        IdTagged.ids(def),
+  /* a type member defined otherwise than the signature's is reported on
+     the module and on its item, as the monolithic check does: analyze the
+     item whole */
+  let unmet =
+    snd(ModuleHelpers.check_ana_type_members(~ana_items, members, chain_map))
+    != [];
+  if (unmet) {
+    (calc_plain_item(~settings, ~probe_ids, ~ctx_in, node), None);
+  } else {
+    let sur =
+      surrogate(
+        ~prev=Option.map(m => m.m_sur, memo),
+        ~settings,
+        ~probe_ids,
+        ~ctx_in,
+        ~bind_pat,
+        ~def,
+        sig_ty,
+        node,
       );
-    | _ => sur.u_map
-    };
-  /* the item root likewise (from this fresh map, so the patch stays
-     idempotent) */
-  let wrap =
-    switch (Statics.Map.lookup_exp(Exp.rep_id(node), wrap)) {
-    | Some(raw) =>
-      Id.Map.add(Exp.rep_id(node), Info.InfoExp(with_members(raw)), wrap)
-    | None => wrap
-    };
-  let (d_map, touched) =
-    nest_map(~prev=prev_nest, ~touched, chain_map, wrap);
-  let (errors, warnings, unused, free, tfree) =
-    switch (top) {
-    | Some(s) => (s.s_errors, s.s_warnings, s.s_unused, s.s_free, s.s_tfree)
-    | None => ([], [], [], [], [])
-    };
-  (
-    {
-      d_id: Exp.rep_id(node),
-      d_node: node,
-      d_ctx_in: ctx_in,
-      d_map,
-      d_error_ids: errors @ sur.u_errors,
-      /* members' unused bindings (a shadowed one), as the top chain's */
-      d_warning_ids: warnings @ unused @ sur.u_warnings,
-      d_exports: Ctx.added_bindings(ctx_out, ctx_in).entries,
-      /* the members' frees minus module-internal bindings */
-      d_free: free,
-      d_tfree: tfree,
-      d_ctx_out: ctx_out,
-      d_elab:
-        switch (module_value) {
-        | Some(v) =>
-          ModuleHelpers.moduleexp_elab(~def_elab_direct=v, sur.u_elab)
-        | None => sur.u_elab /* shape gap: keep the surrogate's */
-        },
-      d_hole: Some(sur.u_hole),
-      d_members: items_m,
-      d_nest:
-        Some({
-          n_sums: sums,
-          n_wrap: wrap,
-          n_memo:
-            Some({
-              m_lowering: settle(rep, lowered, exports, items_m),
-              m_sig: sig_ty,
-              m_sur: sur,
-            }),
-        }),
-    },
-    touched,
-  );
+    let ctx_out = sur.u_ctx_out;
+    /* member elabs grafted, refolded like monolithic Module statics */
+    let module_value =
+      Option.map(module_elab(def, members), Option.bind(top, s => s.s_elab));
+    /* the members' co_ctx/witnesses, which the surrogate def lacks */
+    let with_members = (raw: Info.exp): Info.exp =>
+      switch (top) {
+      | Some(s) => {
+          ...raw,
+          co_ctx: co_union(raw.co_ctx, s.s_co),
+          probe_targets: SubexpProbeTargets.union(raw.probe_targets, s.s_wit),
+        }
+      | None => raw
+      };
+    /* the literal's info must look monolithic too: the evaluator reuses
+       the module value recorded at this id while its elab is unchanged */
+    let wrap =
+      switch (module_value, Statics.Map.lookup_exp(rep, sur.u_map)) {
+      | (Some(v), Some(raw)) =>
+        let info =
+          Info.InfoExp({
+            ...with_members(raw),
+            /* the surrogate's are an ascription's */
+            user_term: def,
+            cls: Cls.Exp(Exp.cls_of_term(def.term)),
+            elab_term: v,
+          });
+        List.fold_left(
+          (m, id) => Id.Map.add(id, info, m),
+          sur.u_map,
+          IdTagged.ids(def),
+        );
+      | _ => sur.u_map
+      };
+    /* the item root likewise (from this fresh map, so the patch stays
+       idempotent) */
+    let wrap =
+      switch (Statics.Map.lookup_exp(Exp.rep_id(node), wrap)) {
+      | Some(raw) =>
+        Id.Map.add(Exp.rep_id(node), Info.InfoExp(with_members(raw)), wrap)
+      | None => wrap
+      };
+    let (d_map, touched) =
+      nest_map(~prev=prev_nest, ~touched, chain_map, wrap);
+    let (errors, warnings, unused, free, tfree) =
+      switch (top) {
+      | Some(s) => (s.s_errors, s.s_warnings, s.s_unused, s.s_free, s.s_tfree)
+      | None => ([], [], [], [], [])
+      };
+    (
+      {
+        d_id: Exp.rep_id(node),
+        d_node: node,
+        d_ctx_in: ctx_in,
+        d_map,
+        d_error_ids: errors @ sur.u_errors,
+        /* members' unused bindings (a shadowed one), as the top chain's */
+        d_warning_ids: warnings @ unused @ sur.u_warnings,
+        d_exports: Ctx.added_bindings(ctx_out, ctx_in).entries,
+        /* the members' frees minus module-internal bindings */
+        d_free: free,
+        d_tfree: tfree,
+        d_ctx_out: ctx_out,
+        d_elab:
+          switch (module_value) {
+          | Some(v) =>
+            ModuleHelpers.moduleexp_elab(~def_elab_direct=v, sur.u_elab)
+          | None => sur.u_elab /* shape gap: keep the surrogate's */
+          },
+        d_hole: Some(sur.u_hole),
+        d_members: items_m,
+        d_nest:
+          Some({
+            n_sums: sums,
+            n_wrap: wrap,
+            n_memo:
+              Some({
+                m_lowering: settle(rep, lowered, exports, items_m),
+                m_sig: sig_ty,
+                m_sur: sur,
+              }),
+          }),
+      },
+      touched,
+    );
+  };
 }
 
 /* a ModExp member whose expression is a chain (modexp_chain): its links
