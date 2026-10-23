@@ -912,12 +912,11 @@ let test_pbt_regression_unit_pat_dup_label_dh_let = () => {
  * Background:
  *   A module elaborates to a `Module` whose items keep their surface ids
  *   (`ModuleHelpers.refold_module_elab`). When the evaluator hits module
- *   `c` on run 2 and finds its cached entry, it short-circuits via
- *   `Evaluator.re:158-164` and marks only that one id as reused
- *   (`IncrEval.mark_reused`). The inner items `let x = fib(b)`,
- *   `let y = fib(b)`, `let z = x + y` are never visited during evaluation,
- *   so the UI must derive frozen ids by walking the reuse plan rather than
- *   visited output.
+ *   `c` on run 2 and finds its cached entry, it short-circuits and marks
+ *   only that one id as reused (`IncrEval.mark_reused`). The inner items
+ *   `let x = fib(b)`, `let y = fib(b)`, `let z = x + y` are never visited
+ *   during evaluation, so the UI must derive frozen ids by walking the
+ *   reuse plan rather than visited output.
  *
  *   The "frozen set" is derived from the ACK reuse plan by walking each
  *   entry's `prev_elab` and unioning all rep_ids encountered, including the
@@ -1761,10 +1760,6 @@ let test_asc_edit_invalidates_binding = () => {
   );
 };
 
-/* A module's last binding step yields its value. Evaluating the members
- * again inside the step's closure recorded cache entries for them that
- * relied on that closure, so after an edit elsewhere the reused `f` came
- * back as a bare function, without its environment. */
 let test_module_function_member_reused = () => {
   let before =
     parse_exp(
@@ -1776,10 +1771,6 @@ let test_module_function_member_reused = () => {
   );
 };
 
-/* A module's last binding step yields its value. Evaluating the members
- * again inside the step's closure recorded cache entries for them under
- * the names that closure bound, so `y`, moved above `x`, reused its old
- * value instead of seeing `x` unbound. */
 let test_module_member_moved_above_dependency = () => {
   let before = parse_exp({|module M = { let x = 1; let y = x + 1 } in M.y|});
   let reorder = (continue, e: Exp.t): Exp.t =>

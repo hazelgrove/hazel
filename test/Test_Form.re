@@ -1,12 +1,8 @@
 open Alcotest;
 open Haz3lcore;
 
-/* Segment.remold_tile lets an incomplete tile whose present shards, the
-   first included, spell a complete compound form take that form. The labels
-   that can happen to are the forms whose label is a proper prefix of another
-   form's label, so a new form with such a label becomes a re-forming target
-   the moment it is added. Today those are exactly the module and signature
-   items, reached from the expression forms owed their `in`. */
+/* Form labels that are a proper prefix of another form's label: the forms
+   Segment.remold_tile can re-form an incomplete tile into. */
 let prefix_forms = (): list(string) => {
   let labels =
     Form.forms

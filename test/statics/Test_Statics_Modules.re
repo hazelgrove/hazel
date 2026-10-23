@@ -50,7 +50,7 @@ let no_marks_test = (name, source) =>
 /* ===== PROJECTION ERROR ATTRIBUTION ===== */
 
 /* `m.y` with no member y: the label carries the error, the dot only a
-   message (the design the type-level `M.Fake` already follows). */
+   message. */
 let is_dot: Language.Info.t => bool =
   fun
   | InfoExp({user_term: {term: Dot(_), _}, _}) => true
@@ -187,8 +187,6 @@ let test_error_wildcard_binder_does_not_assume =
     | _ => false,
   );
 
-/* Only a hole where a member could be bound counts: not one in a definition
-   or in a type annotation. */
 let test_error_non_binder_holes_do_not_assume =
   Alcotest.test_case(
     "Holes in a definition or an annotation do not stand in for members",
@@ -288,9 +286,7 @@ let test_error_nested_module_sealed =
     |> parse_exp,
   );
 
-/* The component carries the mismatch and the module does not. The tuple
-   literal is also marked, as it is for a top-level
-   `let (a : Int, b : Int) = (1, "s")`: that cascade is not module-specific. */
+/* The tuple literal is also marked: #2561. */
 let component_mismatch_test = (name, source, syn_cls) =>
   Alcotest.test_case(
     name,
@@ -447,7 +443,6 @@ let test_module_complex_expression =
     Some(sig_([val_("f", arrow(int(), int())), val_("result", int())])),
   );
 
-/* Test member access on a bound module */
 let test_bound_module_member_access =
   fully_consistent_typecheck(
     "Member access on a bound module",
@@ -1134,9 +1129,6 @@ let test_shorthand_member_shadowed =
     Some(sig_([val_("f", int())])),
   );
 
-/* A shadowed member keeps the position of its last definition — the rule
-   Sig.dedup_last applies, and the order Mod.add_modval exports at runtime
-   (pinned in Test_Evaluator_Modules). */
 let test_shadowed_member_keeps_last_position =
   fully_consistent_typecheck(
     "A shadowed member's type is at the position of its last definition",
@@ -1144,9 +1136,6 @@ let test_shadowed_member_keeps_last_position =
     Some(sig_([val_("y", int()), val_("x", int())])),
   );
 
-/* Analyzed against a signature, a member is checked at its last definition
-   only: the definitions it shadows are not exported, so they are not held to
-   the signature's type. */
 let interleaved_shadowing = (sig_x, first_x) =>
   Printf.sprintf(
     {|module M : {let y : Int; let x : %s} = {let x = %s; let y = 2; let x = 3} in M|},
@@ -1196,8 +1185,6 @@ let test_shorthand_parameter_not_member =
     | _ => false,
   );
 
-/* The signature's type is pushed onto the definition, as for a plain
-   member: the body is marked, the module is not. */
 let test_shorthand_member_mismatch_on_definition =
   Alcotest.test_case(
     "A shorthand member's mismatch is reported on its definition",
@@ -1231,11 +1218,8 @@ let test_shorthand_member_mismatch_on_definition =
 
 /* ===== CYCLIC MEMBER PATHS ===== */
 
-/* A signature that names a same-named outer binding has no weak head normal
-   form: `m.T` inside the inner `m`'s own signature resolves to the inner `m`.
-   Normalizing it used to abort the whole analysis with
-   Failure("weak_head_normalize exceeded 1000 recursive calls"); the stuck path
-   is now an ordinary type error on the member that fails to match it. */
+/* `m.T` in the inner `m`'s own signature resolves to the inner `m`: the
+   path has no weak head normal form. */
 let is_type_member_mismatch_on_t: Language.Mark.t => bool =
   fun
   | ModuleTypeMemberMismatch({name: "T", _}) => true
@@ -1256,13 +1240,6 @@ let test_cyclic_member_path_module =
   );
 
 /* ===== SUBSTITUTING INTO A SIGNATURE ===== */
-
-/* A signature's type member binds its name for the items after it, and
-   cannot be renamed (it is the member's label). Substituting a type of that
-   name into the signature would be captured by the member. An alias argument
-   is normalized away first, so the member's name is irrelevant to the
-   result; an abstract type variable cannot be, and is marked rather than
-   silently degrading the following members to `?`. */
 
 /* `f@<T>` where the alias T names Bool and the signature declares a type
    member [member]: `m.v(1)` must report the same error whether or not the
@@ -1348,7 +1325,6 @@ let test_typfun_binder_capture_is_marked =
     | _ => false,
   );
 
-/* The collision is the binder's, so its mark is on the type variable pattern. */
 let test_typfun_binder_capture_marked_on_binder =
   Alcotest.test_case(
     "A typfun binder's capture mark is on the type variable pattern",

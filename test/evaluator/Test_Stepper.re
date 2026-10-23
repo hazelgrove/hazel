@@ -166,10 +166,8 @@ let tests = (
         };
       },
     ),
-    /* The stepper takes a step by clicking what it is anchored on, so a step
-       anchored on an id the rendered program lacks can never be taken. The
-       stepper refreshes every id before its first step, which is what parts
-       a bare expression item's id from its expression's. */
+    /* Every step's id must be in the rendered program, or it can't be
+       clicked. replace_all_ids mirrors the stepper's refresh. */
     test_case(
       "Every module step is anchored on rendered syntax",
       `Quick,

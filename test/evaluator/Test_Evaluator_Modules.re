@@ -35,9 +35,6 @@ let test_shadowing =
     )
   });
 
-/* Shadowing exports the last binding at its own position — the rule
-   Sig.dedup_last applies to the module's type (pinned in
-   Test_Statics_Modules), so statics and the runtime agree on member order. */
 let test_shadowing_keeps_last_position =
   test_case(
     "Shadowed binding is exported at the position of its last definition",
@@ -55,7 +52,6 @@ let test_module_access =
     parse_and_evaluate_test("1", {|{ let x = 1 }.x|})
   });
 
-/* Test member access on a bound module */
 let test_bound_module_member_access =
   test_case("Member access on a bound module", `Quick, () => {
     parse_and_evaluate_test(
@@ -79,7 +75,6 @@ let test_module_with_function =
     )
   });
 
-/* Test the function shorthand as a module member */
 let test_module_with_shorthand_function =
   test_case("Module with a function shorthand member", `Quick, () => {
     parse_and_evaluate_test(
@@ -88,7 +83,6 @@ let test_module_with_shorthand_function =
     )
   });
 
-/* Test a shorthand member under a signature */
 let test_module_shorthand_under_signature =
   test_case("Function shorthand member under a signature", `Quick, () => {
     parse_and_evaluate_test(
@@ -115,7 +109,6 @@ let test_type_alias =
     )
   });
 
-/* Test pattern binding inside a module */
 let test_pattern_binding =
   test_case("Pattern binding exports each variable", `Quick, () => {
     parse_and_evaluate_test(
@@ -124,7 +117,6 @@ let test_pattern_binding =
     )
   });
 
-/* Test applying a function member */
 let test_function_member_applied =
   test_case("Function member applied", `Quick, () => {
     parse_and_evaluate_test("2", {|{ let f = fun x -> x + 1 }.f(1)|})
@@ -165,7 +157,6 @@ let test_nested_module_keyword =
     )
   });
 
-/* Test module keyword with a multi-member sig annotation */
 let test_module_keyword_annotated =
   test_case("Module keyword with multi-member sig annotation", `Quick, () => {
     parse_and_evaluate_test(
@@ -183,7 +174,6 @@ let test_module_keyword_sig_annotated =
     )
   });
 
-/* Test type members in a signature annotation are erased */
 let test_sig_type_member_erased =
   test_case("Signature type members have no runtime content", `Quick, () => {
     parse_and_evaluate_test(

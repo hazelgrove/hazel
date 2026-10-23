@@ -476,9 +476,7 @@ let qcheck_incremental_matches_fresh_after_edit_disabled =
     }
   });
 
-/* #2457's counterexample no longer reproduces here, so the pin is flipped to
-   assert agreement. The QCheck property above stays disabled: whether the bug
-   is gone in general needs a longer run than CI does. */
+/* #2457's counterexample; the QCheck property stays disabled. */
 let incremental_literal_edit_test =
   test_case(
     "#2457 counterexample: incremental eval agrees with fresh after a literal edit",
