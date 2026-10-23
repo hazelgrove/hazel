@@ -1491,6 +1491,10 @@ let fold_if = (condition, pieces) =>
     pieces;
   };
 
+/* Generated folds are views of a function occurrence, so keep their
+   identity across live/candidate renders without colliding with its syntax. */
+let function_fold_id = id => Id.derive(~salt="function-fold", id);
+
 let rec fold_fun_if = (condition, f_name: string, pieces, exp) =>
   switch (condition) {
   | `Named =>
@@ -1503,7 +1507,17 @@ let rec fold_fun_if = (condition, f_name: string, pieces, exp) =>
       let name =
         String.is_suffix(name, ~suffix="+")
           ? String.sub(name, ~pos=0, ~len=String.length(name) - 1) : name;
-      fold_fun_if(`Fold, name, pieces, exp);
+      fold_fun_if(`Fold, name, pieces, exp)
+      |> List.map(~f=(p: Piece.t) =>
+           switch (p) {
+           | Projector(p) =>
+             Projector({
+               ...p,
+               id: function_fold_id(Exp.rep_id(exp)),
+             })
+           | p => p
+           }
+         );
     }
   | `Fold =>
     let syntax =
