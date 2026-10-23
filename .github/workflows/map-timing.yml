@@ -1,6 +1,7 @@
 # MEASURING ONLY (^ticket(553)): the World rule with the world's squares held in a map, on GitHub's machines, never the
 # laptop. An orphan branch: only this workflow runs.
 #
+# Fourth run: the set-up with three walks (dac7bc6) and with two (KCG2, order_count), map553.mjs, alternating.
 # Third run: where the map's set-up goes (scripts/setup553.mjs, Common.squares whole and in parts, as written and
 # unannotated), two rounds a job. Second run (39887272978): Hazel's map against Fumola's, like for like on one runner. Each of four jobs builds Fumola's wasm from
 # 667a34d (^report(27)'s pin) and runs, in the order hazel, fumola, fumola, hazel: Hazel's map rule (scripts/map553.mjs on
@@ -18,6 +19,7 @@ on:
 env:
   B553: debbc6e6877560c6296a48d85107607164dc5626
   KCG: dac7bc671c23fa44be97b3d6bc05c257e237c3c8
+  KCG2: 6de982a2397c6cde64a11a0496acb4c195cf6e9e
   FUMOLA: 667a34d5f24b52c9ed1355703294ab58e7acb6fc
   SIZES: "3,4,6,8,12,16,24,32,48,64"
 
@@ -44,6 +46,12 @@ jobs:
           ref: ${{ env.KCG }}
           path: kcg
           sparse-checkout: dress-up/js
+      - uses: actions/checkout@v4
+        with:
+          repository: matthewhammer/kids-choice-games
+          ref: ${{ env.KCG2 }}
+          path: kcg2
+          sparse-checkout: dress-up/js
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -55,9 +63,12 @@ jobs:
         run: |
           set -euo pipefail
           round=0
-          for round in 1 2; do
-            echo "== $round"
-            node --stack-size=8000 scripts/setup553.mjs b/553/trial/r25-553/hazel-lib.js kcg/dress-up/js/25-scripting.js "16,32,64" "out/setup_$round.json"
+          round=0
+          for side in three two two three; do
+            round=$((round + 1))
+            dir=$(case $side in three) echo kcg;; two) echo kcg2;; esac)
+            echo "== $round $side"
+            node --stack-size=8000 scripts/map553.mjs b/553/trial/r25-553/hazel-lib.js "$dir/dress-up/js/25-scripting.js" "16,32,64" "out/${side}_$round.json"
           done
       - uses: actions/upload-artifact@v4
         if: always()
@@ -76,7 +87,7 @@ jobs:
           pattern: job-*
           path: all
       - name: Summary
-        run: python3 scripts/summary553s.py all | tee summary.md >> "$GITHUB_STEP_SUMMARY"
+        run: python3 scripts/summary553w.py all | tee summary.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: summary
