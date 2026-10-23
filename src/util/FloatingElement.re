@@ -137,7 +137,7 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
       let _ =
         el##.style##setProperty(
           Js.string("--float-top-shift"),
-          Js.string(Stdlib.Printf.sprintf("%fpx", shift)),
+          Js.string(sprintf("%fpx", shift)),
           Js.undefined,
         );
       let visible =
@@ -147,10 +147,8 @@ let update_one = (el: Js.t(Dom_html.element)): unit => {
         | _ => true
         };
       let viewport_left = rect##.left +. local_left;
-      el##.style##.top :=
-        Js.string(Stdlib.Printf.sprintf("%fpx", viewport_top));
-      el##.style##.left :=
-        Js.string(Stdlib.Printf.sprintf("%fpx", viewport_left));
+      el##.style##.top := Js.string(sprintf("%fpx", viewport_top));
+      el##.style##.left := Js.string(sprintf("%fpx", viewport_left));
       el##.style##.visibility := Js.string(visible ? "visible" : "hidden");
     }
   };

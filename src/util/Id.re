@@ -126,8 +126,7 @@ let v: string => t =
     |> OptUtil.get(_ => failwith("Id.v: not a valid UUID: " ++ s));
 let pp: (Format.formatter, t) => unit =
   (f, id) => Format.fprintf(f, "Haz3lcore.Id.v(\"%s\")", to_string(id));
-let show = id =>
-  Stdlib.Format.sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));
+let show = id => sprintf("Haz3lcore.Id.v(\"%s\")", to_string(id));
 
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);

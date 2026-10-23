@@ -242,7 +242,7 @@ module Debug = {
     let path = create_svg_element("path");
 
     let d =
-      Stdlib.Printf.sprintf(
+      sprintf(
         "M %.1f %.1f L %.1f %.1f L %.1f %.1f Z",
         apex.x,
         apex.y,
@@ -265,23 +265,19 @@ module Debug = {
 
     rect_elem##setAttribute(
       Js.string("x"),
-      Js.string(Stdlib.Printf.sprintf("%.1f", menu_rect.left)),
+      Js.string(sprintf("%.1f", menu_rect.left)),
     );
     rect_elem##setAttribute(
       Js.string("y"),
-      Js.string(Stdlib.Printf.sprintf("%.1f", menu_rect.top)),
+      Js.string(sprintf("%.1f", menu_rect.top)),
     );
     rect_elem##setAttribute(
       Js.string("width"),
-      Js.string(
-        Stdlib.Printf.sprintf("%.1f", menu_rect.right -. menu_rect.left),
-      ),
+      Js.string(sprintf("%.1f", menu_rect.right -. menu_rect.left)),
     );
     rect_elem##setAttribute(
       Js.string("height"),
-      Js.string(
-        Stdlib.Printf.sprintf("%.1f", menu_rect.bottom -. menu_rect.top),
-      ),
+      Js.string(sprintf("%.1f", menu_rect.bottom -. menu_rect.top)),
     );
     rect_elem##setAttribute(Js.string("fill"), Js.string("none"));
     rect_elem##setAttribute(
@@ -299,11 +295,11 @@ module Debug = {
 
     circle##setAttribute(
       Js.string("cx"),
-      Js.string(Stdlib.Printf.sprintf("%.1f", apex.x)),
+      Js.string(sprintf("%.1f", apex.x)),
     );
     circle##setAttribute(
       Js.string("cy"),
-      Js.string(Stdlib.Printf.sprintf("%.1f", apex.y)),
+      Js.string(sprintf("%.1f", apex.y)),
     );
     circle##setAttribute(Js.string("r"), Js.string("5"));
     circle##setAttribute(

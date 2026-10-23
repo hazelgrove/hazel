@@ -10,8 +10,8 @@ let simple_icon = (~transform="", ~view: string, ds: list(string)) =>
     ~attrs=
       Attr.[
         create("viewBox", view),
-        create("width", Stdlib.Printf.sprintf("%fpx", icon_size)),
-        create("height", Stdlib.Printf.sprintf("%fpx", icon_size)),
+        create("width", sprintf("%fpx", icon_size)),
+        create("height", sprintf("%fpx", icon_size)),
         create("preserveAspectRatio", "none"),
       ],
     List.map(
@@ -130,16 +130,16 @@ module Path = {
   let string_of_command =
     fun
     | Z => "Z"
-    | M({x, y}) => Stdlib.Printf.sprintf("M %f %f", x, y)
-    | M_({dx, dy}) => Stdlib.Printf.sprintf("m %f %f", dx, dy)
-    | L({x, y}) => Stdlib.Printf.sprintf("L %f %f", x, y)
-    | L_({dx, dy}) => Stdlib.Printf.sprintf("l %f %f", dx, dy)
-    | H({x}) => Stdlib.Printf.sprintf("H %f", x)
-    | H_({dx}) => Stdlib.Printf.sprintf("h %f", dx)
-    | V({y}) => Stdlib.Printf.sprintf("V %f", y)
-    | V_({dy}) => Stdlib.Printf.sprintf("v %f", dy)
+    | M({x, y}) => sprintf("M %f %f", x, y)
+    | M_({dx, dy}) => sprintf("m %f %f", dx, dy)
+    | L({x, y}) => sprintf("L %f %f", x, y)
+    | L_({dx, dy}) => sprintf("l %f %f", dx, dy)
+    | H({x}) => sprintf("H %f", x)
+    | H_({dx}) => sprintf("h %f", dx)
+    | V({y}) => sprintf("V %f", y)
+    | V_({dy}) => sprintf("v %f", dy)
     | A_({rx, ry, x_axis_rotation, large_arc_flag, sweep_flag, dx, dy}) =>
-      Stdlib.Printf.sprintf(
+      sprintf(
         "a %f %f %f %s %s %f %f",
         rx,
         ry,

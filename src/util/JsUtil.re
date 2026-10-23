@@ -643,7 +643,7 @@ let on_dpr_change = (callback: unit => unit): unit => {
       Js.Unsafe.get(Dom_html.window, "devicePixelRatio")
       |> Js.float_of_number
       |> Js.to_float;
-    let query = Stdlib.Printf.sprintf("(resolution: %fdppx)", dpr);
+    let query = sprintf("(resolution: %fdppx)", dpr);
     let mql =
       Js.Unsafe.meth_call(
         Dom_html.window,
