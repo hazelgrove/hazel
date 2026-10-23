@@ -270,7 +270,7 @@ let show_elab_id_mismatch = ({info_id, elab_id}: elab_id_mismatch) =>
 let collect_user_term_ids = (exp: Language.Exp.t): Id.Set.t => {
   let acc = ref(Id.Set.empty);
   let f_exp = (continue, e: Language.Exp.t): Language.Exp.t => {
-    acc := Id.Set.add(Exp.rep_id(e), acc^);
+    acc := Id.Set.add(acc^, Exp.rep_id(e));
     continue(e);
   };
   let _ = TermBase.Exp.map_term(~f_exp, exp);
@@ -280,20 +280,17 @@ let collect_user_term_ids = (exp: Language.Exp.t): Id.Set.t => {
 let elab_ids_outside_user_term =
     (info_map: Statics.Map.t, exp: Language.Exp.t): list(elab_id_mismatch) => {
   let user_ids = collect_user_term_ids(exp);
-  Id.Map.fold(
-    (info_id, info, acc) =>
-      switch (info) {
-      | Info.InfoExp({elab_term, _}) =>
-        let elab_id = Exp.rep_id(elab_term);
-        let mismatch = {
-          info_id,
-          elab_id,
-        };
-        Id.Set.mem(elab_id, user_ids) ? acc : [mismatch, ...acc];
-      | _ => acc
-      },
-    info_map,
-    [],
+  Id.Map.fold(info_map, ~init=[], ~f=(~key as info_id, ~data as info, acc) =>
+    switch (info) {
+    | Info.InfoExp({elab_term, _}) =>
+      let elab_id = Exp.rep_id(elab_term);
+      let mismatch = {
+        info_id,
+        elab_id,
+      };
+      Id.Set.mem(user_ids, elab_id) ? acc : [mismatch, ...acc];
+    | _ => acc
+    }
   );
 };
 

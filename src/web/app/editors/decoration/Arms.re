@@ -299,13 +299,15 @@ let tiles_data =
       tile: Tile.t,
     ) => {
   let msg = "Arms.tiles_data";
-  let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
+  let id = Language.Any.rep_id(Id.Map.find_exn(terms, tile.id));
   let of_tile = (id: Id.t) => {
     open OptUtil.Syntax;
     let+ tile = TermData.root_tile(id, term_data);
     (id, Tile.mold(tile), Measured.find_shards(~msg, tile, measured));
   };
-  Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(~f=of_tile);
+  Id.Map.find_exn(terms, id)
+  |> Language.Any.ids
+  |> List.filter_map(~f=of_tile);
 };
 
 let term =
@@ -320,8 +322,8 @@ let term =
       tile: Tile.t,
     )
     : list(Node.t) => {
-  let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
-  let any_term = Id.Map.find(id, terms);
+  let id = Language.Any.rep_id(Id.Map.find_exn(terms, tile.id));
+  let any_term = Id.Map.find_exn(terms, id);
 
   /* Module decoration: semicolons render as lone shards (no arms),
      curly braces render as a pair (arms between braces, excluding semicolons) */
@@ -466,7 +468,8 @@ let term_range = (~syntax: CachedSyntax.t, p: Piece.t) => {
   | Grout(_)
   | Projector(_)
   | Tile(_) =>
-    let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
+    let id =
+      Language.Any.rep_id(Id.Map.find_exn(syntax.terms, Piece.id(p)));
     TermData.extreme_measures(id, syntax.term_data, syntax.measured);
   };
 };
@@ -508,10 +511,10 @@ module Errors = {
       ) =>
     div_c(
       is_warning ? "warnings-piece" : "errors-piece",
-      switch (Id.Map.find_opt(id, syntax.projectors)) {
+      switch (Id.Map.find(syntax.projectors, id)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        switch (Id.Map.find_opt(id, syntax.measured.projectors)) {
+        switch (Id.Map.find(syntax.measured.projectors, id)) {
         | Some(measurement) => [
             ShardDec.simple(
               {
@@ -672,7 +675,7 @@ module Indicated = {
     | _ when z.selection.content != [] => []
     | Some({piece: p, _}) when !Piece.is_infix_delimiter_op_prefix(p) =>
       let rep_id =
-        Language.Any.rep_id(Id.Map.find(Piece.id(p), syntax.terms));
+        Language.Any.rep_id(Id.Map.find_exn(syntax.terms, Piece.id(p)));
       switch (
         term_range(~syntax, p),
         TermData.root_piece(rep_id, syntax.term_data),
@@ -735,7 +738,7 @@ module Refractors = {
         ~font_metrics: FontMetrics.t,
         ~cls: string,
       ) =>
-    switch (Id.Map.find_opt(id, syntax.term_data)) {
+    switch (Id.Map.find(syntax.term_data, id)) {
     | Some(t) =>
       switch (term_range(~syntax, t.root_piece)) {
       | Some((first, last)) =>
@@ -786,7 +789,7 @@ module Refractors = {
     )
     @ (
       z.refractors.multis.ephemerals
-      |> Id.Map.to_list
+      |> Id.Map.to_alist
       |> List.concat_map(~f=((id, entry: Refractors.entry)) =>
            refractor_arms(
              ~id,

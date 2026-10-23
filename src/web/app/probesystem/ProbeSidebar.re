@@ -427,17 +427,14 @@ type print_entry = {
 let collect_print_entries =
     (probes: Sample.Map.t, measured: Measured.t): list(print_entry) => {
   let samples =
-    Id.Map.fold(
-      (_, samples, acc) =>
-        List.fold_left(
-          ~f=
-            (acc, sample) =>
-              sample.Sample.origin == Sample.Print ? [sample, ...acc] : acc,
-          ~init=acc,
-          samples,
-        ),
-      probes,
-      [],
+    Id.Map.fold(probes, ~init=[], ~f=(~key as _, ~data as samples, acc) =>
+      List.fold_left(
+        ~f=
+          (acc, sample) =>
+            sample.Sample.origin == Sample.Print ? [sample, ...acc] : acc,
+        ~init=acc,
+        samples,
+      )
     );
   samples
   |> List.sort(~compare=(a, b) => Int.compare(a.Sample.seq, b.Sample.seq))
@@ -587,7 +584,7 @@ let probearium =
     switch (indicated_id) {
     | Some(id) =>
       List.exists(~f=((rid, _)) => rid == id, z.refractors.manuals)
-      || Id.Map.mem(id, z.refractors.multis.ephemerals)
+      || Id.Map.mem(z.refractors.multis.ephemerals, id)
     | None => false
     };
   let indicated_has_manual =

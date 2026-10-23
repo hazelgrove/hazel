@@ -79,29 +79,31 @@ let add_s = (id: Id.t, i: int, m, map) => {
   ...map,
   tiles:
     map.tiles
-    |> Id.Map.update(
+    |> Id.Map.change(
+         _,
          id,
-         fun
-         | None => Some([(i, m)])
-         | Some(ms) =>
-           Some(
-             [(i, m), ...ms]
-             |> List.sort(~compare=((i, _), (j, _)) => Int.compare(i, j)),
-           ),
+         ~f=
+           fun
+           | None => Some([(i, m)])
+           | Some(ms) =>
+             Some(
+               [(i, m), ...ms]
+               |> List.sort(~compare=((i, _), (j, _)) => Int.compare(i, j)),
+             ),
        ),
 };
 
 let add_g = (g: Grout.t, m, map) => {
   ...map,
-  grout: map.grout |> Id.Map.add(g.id, m),
+  grout: map.grout |> Id.Map.set(~key=g.id, ~data=m),
 };
 let add_w = (w: Secondary.t, m, map) => {
   ...map,
-  secondary: map.secondary |> Id.Map.add(w.id, m),
+  secondary: map.secondary |> Id.Map.set(~key=w.id, ~data=m),
 };
 let add_pr = (p: Base.projector, m, map) => {
   ...map,
-  projectors: map.projectors |> Id.Map.add(p.id, m),
+  projectors: map.projectors |> Id.Map.set(~key=p.id, ~data=m),
 };
 
 let add_row = (row: int, shape: Rows.shape, map) => {
@@ -134,23 +136,23 @@ let rec add_n_empty_piece_rows = (n: int, map) =>
 let total_rows = (map: t): int => List.length(map.piece_rows);
 
 let find_shards = (~msg="", t: Tile.t, map) =>
-  try(Id.Map.find(t.id, map.tiles)) {
+  try(Id.Map.find_exn(map.tiles, t.id)) {
   | _ => failwith("find_shards: " ++ msg)
   };
 let find_w = (~msg="", w: Secondary.t, map): measurement =>
-  try(Id.Map.find(w.id, map.secondary)) {
+  try(Id.Map.find_exn(map.secondary, w.id)) {
   | _ => failwith("find_w: " ++ msg)
   };
 let find_g = (~msg="", g: Grout.t, map): measurement =>
-  try(Id.Map.find(g.id, map.grout)) {
+  try(Id.Map.find_exn(map.grout, g.id)) {
   | _ => failwith("find_g: " ++ msg)
   };
 let find_pr = (~msg="", p: Base.projector, map): measurement =>
-  try(Id.Map.find(p.id, map.projectors)) {
+  try(Id.Map.find_exn(map.projectors, p.id)) {
   | _ => failwith("find_g: " ++ msg)
   };
 let find_pr_opt = (p: Base.projector, map): option(measurement) =>
-  Id.Map.find_opt(p.id, map.projectors);
+  Id.Map.find(map.projectors, p.id);
 // returns the measurement spanning the whole tile
 let find_t = (t: Tile.t, map): measurement => {
   let shards = find_shards(t, map);
@@ -181,13 +183,13 @@ let find_p = (~msg="", p: Piece.t, map): measurement =>
   };
 
 let find_by_id = (id: Id.t, map: t): option(measurement) => {
-  switch (Id.Map.find_opt(id, map.secondary)) {
+  switch (Id.Map.find(map.secondary, id)) {
   | Some(m) => Some(m)
   | None =>
-    switch (Id.Map.find_opt(id, map.grout)) {
+    switch (Id.Map.find(map.grout, id)) {
     | Some(m) => Some(m)
     | None =>
-      switch (Id.Map.find_opt(id, map.tiles)) {
+      switch (Id.Map.find(map.tiles, id)) {
       | Some(shards) =>
         let first =
           ListUtil.assoc_err(
@@ -206,7 +208,7 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
           last: last.last,
         });
       | None =>
-        switch (Id.Map.find_opt(id, map.projectors)) {
+        switch (Id.Map.find(map.projectors, id)) {
         | Some(m) => Some(m)
         | None =>
           printf("Measured.WARNING: id %s not found", Id.to_string(id));
@@ -463,7 +465,7 @@ let of_segment_inner =
           (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
           Aba.mk(t.shards, t.children),
         );
-      switch (Id.Map.find_opt(t.id, refractor_rows)) {
+      switch (Id.Map.find(refractor_rows, t.id)) {
       | Some(n) =>
         DeferredLinebreaks.update(n) |> ignore;
         ();
