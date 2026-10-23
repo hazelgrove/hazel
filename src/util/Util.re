@@ -31,7 +31,6 @@ module Key = Key;
 module Os = Os;
 module Point = Point;
 module Calc = Calc;
-module Sets = Sets;
 module Maps = Maps;
 module MerkleSet = MerkleSet;
 module Id = Id;

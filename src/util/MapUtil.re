@@ -1,117 +1,39 @@
 open Ppx_yojson_conv_lib.Yojson_conv;
-module type OrderedShowType = {
-  include Stdlib.Map.OrderedType;
 
-  let pp: (Format.formatter, t) => unit;
+/* A Core map in tree form, plus the converters `[@deriving (show, yojson)]`
+   expects of a type that contains one.
+
+   Tree form because a map built with Core's `Map.Make` carries its
+   comparator, which is made of closures: Marshal (the worker transport)
+   rejects it, and polymorphic equality raises on it. A tree holds only keys
+   and values, and every accessor is specialised to the key here instead.
+
+   Serialized as a list of (key, value) pairs, sexp and JSON alike. */
+
+module type Key = {
+  [@deriving (show, sexp, yojson)]
+  type t;
+  let compare: (t, t) => int;
 };
 
-module type OrderedSexpType = {
-  include Stdlib.Map.OrderedType;
+module Make = (K: Key) => {
+  include Map.Make_tree({
+    include K;
+    include Comparator.Make(K);
+  });
 
-  let sexp_of_t: t => Sexplib.Sexp.t;
-  let t_of_sexp: Sexplib.Sexp.t => t;
-};
-
-module type OrderedYojsonType = {
-  include Stdlib.Map.OrderedType;
-
-  let yojson_of_t: t => Yojson.Safe.t;
-  let t_of_yojson: Yojson.Safe.t => t;
-};
-
-module type OrderedType = {
-  include OrderedShowType;
-  include OrderedSexpType with type t := t;
-  include OrderedYojsonType with type t := t;
-};
-
-module type ShowS = {
-  include Stdlib.Map.S;
-
-  let pp: ((Format.formatter, 'a) => unit, Format.formatter, t('a)) => unit;
-};
-
-module type SexpS = {
-  include Stdlib.Map.S;
-
-  let sexp_of_t: ('v => Sexplib.Sexp.t, t('v)) => Sexplib.Sexp.t;
-  let t_of_sexp: (Sexplib.Sexp.t => 'v, Sexplib.Sexp.t) => t('v);
-};
-
-module type YojsonS = {
-  include Stdlib.Map.S;
-
-  let yojson_of_t: ('v => Yojson.Safe.t, t('v)) => Yojson.Safe.t;
-  let t_of_yojson: (Yojson.Safe.t => 'v, Yojson.Safe.t) => t('v);
-};
-
-module type S = {
-  include ShowS;
-  include SexpS with type t('a) := t('a) and type key := key;
-  include YojsonS with type t('a) := t('a) and type key := key;
-};
-
-module MakeShowFor = (O: OrderedShowType, S: Stdlib.Map.S with type key = O.t) => {
   let pp = (pp_v, f, map) =>
-    S.iter(
-      (k, v) => Format.fprintf(f, "%a -> %a@\n", O.pp, k, pp_v, v),
-      map,
+    iteri(map, ~f=(~key, ~data) =>
+      Format.fprintf(f, "%a -> %a@\n", K.pp, key, pp_v, data)
     );
-};
 
-module MakeShow = (O: OrderedShowType) : (ShowS with type key = O.t) => {
-  module M = Stdlib.Map.Make(O);
-
-  include M;
-  include MakeShowFor(O, M);
-};
-
-module MakeSexpFor = (O: OrderedSexpType, S: Stdlib.Map.S with type key = O.t) => {
-  open Sexplib.Std;
-
-  [@deriving sexp]
-  type binding('v) = (O.t, 'v);
-
-  let sexp_of_t = (sexp_of_v, map) =>
-    map |> S.bindings |> sexp_of_list(sexp_of_binding(sexp_of_v));
-  let t_of_sexp = (v_of_sexp, sexp) =>
-    sexp |> list_of_sexp(binding_of_sexp(v_of_sexp)) |> S.of_list;
-};
-
-module MakeSexp = (O: OrderedSexpType) : (SexpS with type key = O.t) => {
-  module M = Stdlib.Map.Make(O);
-
-  include M;
-  include MakeSexpFor(O, M);
-};
-
-module MakeYojsonFor =
-       (O: OrderedYojsonType, S: Stdlib.Map.S with type key = O.t) => {
   [@deriving yojson]
-  type binding('v) = (O.t, 'v);
+  type binding('v) = (K.t, 'v);
 
   let yojson_of_t = (yojson_of_v, map) =>
-    map |> S.bindings |> yojson_of_list(yojson_of_binding(yojson_of_v));
+    map |> to_alist |> yojson_of_list(yojson_of_binding(yojson_of_v));
   let t_of_yojson = (v_of_yojson, yojson) =>
-    yojson |> list_of_yojson(binding_of_yojson(v_of_yojson)) |> S.of_list;
-};
-
-module MakeYojson = (O: OrderedYojsonType) : (YojsonS with type key = O.t) => {
-  module M = Stdlib.Map.Make(O);
-
-  include M;
-  include MakeYojsonFor(O, M);
-};
-
-module MakeFor = (O: OrderedType, M: Stdlib.Map.S with type key = O.t) => {
-  include MakeShowFor(O, M);
-  include MakeSexpFor(O, M);
-  include MakeYojsonFor(O, M);
-};
-
-module Make = (O: OrderedType) : (S with type key = O.t) => {
-  module M = Stdlib.Map.Make(O);
-
-  include M;
-  include MakeFor(O, M);
+    yojson
+    |> list_of_yojson(binding_of_yojson(v_of_yojson))
+    |> of_alist_reduce(~f=(_, latest) => latest);
 };
