@@ -149,9 +149,6 @@ let module_item = (name: Var.t, ty: TermBase.Typ.t): t => {
   temp(SigModule(asc));
 };
 
-let of_members = (ms: list(member)): list(t) =>
-  List.map(item_of_member, ms);
-
 /* Apply [f] to the type carried by a well-formed item, keeping the item's
    form (`let`, `type` or `module`). A member written without a type carries
    `?`; it gains an ascription only if [f] refines that. */

@@ -76,12 +76,6 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
              substitution this would swallow. */
           let shadow = (env, x) =>
             Environment.extend(env, (x, Exp.fresh(Var(x))));
-          let rec mpat_name = (mp: MPat.t) =>
-            switch (mp.term) {
-            | Var(x) => Some(x)
-            | Asc(inner, _) => mpat_name(inner)
-            | _ => None
-            };
           let (_, rev_items) =
             List.fold_left(
               ((env, acc), item: Mod.t) => {
@@ -98,19 +92,6 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
                         term: (ModLet(p, in_exp(env, e)): Mod.term),
                       },
                     )
-                  | ModuleMod(mp, e) =>
-                    let env' =
-                      switch (mpat_name(mp)) {
-                      | Some(x) => shadow(env, x)
-                      | None => env
-                      };
-                    (
-                      env',
-                      {
-                        ...item,
-                        term: (ModuleMod(mp, in_exp(env, e)): Mod.term),
-                      },
-                    );
                   | ModVal(x, e) => (
                       env,
                       {
@@ -126,6 +107,7 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
                       },
                     )
                   | ModType(_, _)
+                  | ModuleMod(_, _)
                   | Invalid(_)
                   | EmptyHole
                   | MultiHole(_) => (env, item)

@@ -97,9 +97,6 @@ let extend_sig_item = (ctx: t, item: TermBase.Sig.t): t =>
   | MultiHole(_) => ctx
   };
 
-let extend_sig_items = (ctx: t, items: list(TermBase.Sig.t)): t =>
-  List.fold_left(extend_sig_item, ctx, items);
-
 let lookup_tvar = (ctx: t, name: string): option(kind) =>
   List.find_map(
     fun

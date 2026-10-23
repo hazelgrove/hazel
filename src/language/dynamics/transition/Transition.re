@@ -132,8 +132,7 @@ type step_kind =
   | RemoveUse
   | RemoveParens
   | ModuleBind(string)
-  | ModuleDiscardExp
-  | ModuleDiscardType;
+  | ModuleDiscardExp;
 
 /* Whether a step interprets the user's program (Proper) or performs
    implementation bookkeeping that the surface semantics treats as
@@ -163,7 +162,6 @@ let provenance_of_kind: step_kind => provenance =
   | TheoremBind
   | ModuleBind(_)
   | ModuleDiscardExp
-  | ModuleDiscardType
   | UpdateTest
   | TypFunAp
   | FunAp
@@ -222,16 +220,6 @@ let (let-unbox) = ((request, v), f) => {
   f(result);
 };
 
-/* A `module M = ...` item binds its name like a let; the module name pattern
-   is a variable, optionally ascribed. */
-let rec pat_of_mpat = (mp: MPat.t): Pat.t =>
-  switch (mp.term) {
-  | Var(x) => Pat.fresh(Var(x))
-  | Asc(inner, ty) => Pat.fresh(Asc(pat_of_mpat(inner), ty))
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_) => Pat.fresh(Wild)
-  };
 module type EV_MODE = {
   type result;
   type inner_result;
@@ -1409,17 +1397,6 @@ module Transition = (EV: EV_MODE) => {
         let rebuild = (item: Mod.t) =>
           Module(prefix @ [item] @ suffix) |> rewrap;
         switch (item.term) {
-        | ModType(_, _) =>
-          let. _ = otherwise(env, d);
-          Step({
-            expr: Module(prefix @ suffix) |> rewrap,
-            side_effects: [],
-            kind: ModuleDiscardType,
-            /* Evaluated bindings are never re-traversed: once nothing is
-               pending, the module is a value. */
-            is_value: suffix == [],
-            at: Some(Mod.rep_id(item)),
-          });
         | ModExp(d1) =>
           let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
           and. _ =
@@ -1438,14 +1415,7 @@ module Transition = (EV: EV_MODE) => {
                by the expression's own steps. */
             at: None,
           });
-        | ModLet(_, _)
-        | ModuleMod(_, _) =>
-          let (dp, d1) =
-            switch (item.term) {
-            | ModLet(dp, d1) => (dp, d1)
-            | ModuleMod(mp, d1) => (pat_of_mpat(mp), d1)
-            | _ => failwith("unreachable: module item is a binding")
-            };
+        | ModLet(dp, d1) =>
           let. _ = otherwise(env, d1 => rebuild(Mod.with_def(item, d1)))
           and. d1' =
             req_final(
@@ -1511,6 +1481,9 @@ module Transition = (EV: EV_MODE) => {
               })
             };
           };
+        /* Elaboration drops type items and turns `module` items into lets. */
+        | ModType(_, _)
+        | ModuleMod(_, _)
         | ModVal(_, _)
         | Invalid(_)
         | EmptyHole
@@ -1548,7 +1521,6 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | Conditional(_)
   | ModuleBind(_)
   | ModuleDiscardExp
-  | ModuleDiscardType
   | RemoveTypeAlias
   | RemoveUse
   | InvalidStep
@@ -1616,7 +1588,6 @@ let stepper_justification: step_kind => string =
   | RemoveParens => "remove parentheses"
   | ModuleBind(s) => String.cat("module binding for ", s)
   | ModuleDiscardExp => "discard module expression"
-  | ModuleDiscardType => "define module type"
   | Dot => "member access"
   | TupleExtension => "Tuple extension"
   | MarkIncomparable => "mark equality as incomparable";
