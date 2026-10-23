@@ -44,7 +44,7 @@ let id_f = Id.mk();
 /* Make a minimal sample with the given call stack */
 let mk_sample =
     (~seq=0, ~step_start=0, ~step_end=0, stack: CallStack.t): Sample.t => {
-  id: Stdlib.Hashtbl.hash((stack, Id.invalid)),
+  id: Hashtbl.hash((stack, Id.invalid)),
   syntax_id: Id.invalid,
   value: IdTagged.FreshGrammar.Exp.empty_hole(),
   env: Sample.Env.empty,

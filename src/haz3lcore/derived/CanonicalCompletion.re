@@ -2475,12 +2475,12 @@ let derive_insertions =
       completed: Segment.t,
     )
     : list(insertion) => {
-  let orig_ids = Stdlib.Hashtbl.create(64);
+  let orig_ids = Hash_set.create((module Id.Key));
   let rec collect = (sg: Segment.t) =>
     List.iter(
       ~f=
         (p: Piece.t) => {
-          Hashtbl.replace(orig_ids, Piece.id(p), ());
+          Hash_set.add(orig_ids, Piece.id(p));
           switch (p) {
           | Tile(t) => List.iter(~f=collect, t.children)
           | _ => ()
@@ -2492,7 +2492,7 @@ let derive_insertions =
   let rec_of = (tid: Id.t) =>
     List.find(~f=(r: shard_record) => Id.equal(r.tile_id, tid), records);
   let originals_of = (t: Tile.t): list(int) =>
-    Hashtbl.mem(orig_ids, t.id)
+    Hash_set.mem(orig_ids, t.id)
       ? switch (rec_of(t.id)) {
         | Some(r) => r.original_shards
         | None => t.shards
@@ -2529,7 +2529,7 @@ let derive_insertions =
                 @ weave(rest, chrest);
               };
             weave(t.shards, t.children);
-          | p => [(LPiece(p), Hashtbl.mem(orig_ids, Piece.id(p)))]
+          | p => [(LPiece(p), Hash_set.mem(orig_ids, Piece.id(p)))]
           },
       sg,
     );
