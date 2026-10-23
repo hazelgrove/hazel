@@ -221,6 +221,14 @@ let test_pattern_binding_sealed =
     )
   });
 
+let test_member_of_pending_module =
+  test_case("A member is not read from a module still evaluating", `Quick, () => {
+    parse_and_evaluate_test(
+      {|{ let x = 1; ?; let x = 2 }.x|},
+      {|{ let x = 1; ?; let x = 2 }.x|},
+    )
+  });
+
 let tests = (
   "Evaluator.Modules",
   [
@@ -239,6 +247,7 @@ let tests = (
     test_type_alias,
     test_pattern_binding,
     test_function_member_applied,
+    test_member_of_pending_module,
     test_case("Nested modules", `Quick, () => {
       parse_and_evaluate_test(
         "{ let m = { let y = 1 } }",

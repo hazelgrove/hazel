@@ -1130,8 +1130,7 @@ module Transition = (EV: EV_MODE) => {
               at: None,
             });
           | Module(items) =>
-            /* Member of a module value; definitions are already values. */
-            switch (Mod.modval_lookup(items, name)) {
+            switch (Mod.value_member(items, name)) {
             | Some(v) =>
               Step({
                 expr: v,

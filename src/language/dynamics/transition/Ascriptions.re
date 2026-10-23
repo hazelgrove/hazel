@@ -80,11 +80,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               TupLabel(l, inner') |> DHExp.fresh,
             ),
           );
-    | (Module(items), Sig(sig_items)) when Mod.is_value_shape(items) =>
+    | (Module(items), Sig(sig_items)) =>
       /* Sealing: keep the signature's value members, in signature order,
-         ascribing each to its declared type. Type members have no runtime
-         content. A member the module lacks leaves the ascription stuck;
-         statics has already marked it. */
+         ascribing each to its declared type. A member the module lacks, or a
+         module still evaluating, leaves the ascription stuck. */
       let members =
         Sig.members(sig_items)
         |> Sig.dedup_last
@@ -97,7 +96,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       let picked =
         members
         |> List.map(((x, ty)) =>
-             Mod.modval_lookup(items, x)
+             Mod.value_member(items, x)
              |> Option.map(v =>
                   Mod.fresh(ModVal(x, recur(Asc(v, ty) |> DHExp.fresh)))
                 )

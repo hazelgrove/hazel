@@ -82,16 +82,6 @@ let with_def = (item: t, d: TermBase.Exp.t): t =>
   | MultiHole(_) => item
   };
 
-let is_value_shape = (items: list(t)): bool =>
-  List.for_all(
-    (item: t) =>
-      switch (item.term) {
-      | ModVal(_, _) => true
-      | _ => false
-      },
-    items,
-  );
-
 /* Split at the first item that is not yet an evaluated binding. */
 let split_pending = (items: list(t)): (list(t), option((t, list(t)))) => {
   let rec go = (prefix: list(t), items: list(t)) =>
@@ -132,16 +122,23 @@ let with_modval_defs =
   go(items, defs);
 };
 
-/* The value bound to [name]; the last binding wins. */
-let modval_lookup = (items: list(t), name: Var.t): option(TermBase.Exp.t) =>
-  List.fold_left(
-    (acc, item: t) =>
-      switch (item.term) {
-      | ModVal(x, d) when x == name => Some(d)
-      | _ => acc
-      },
-    None,
-    items,
+/* The bindings of a module value: None while any item is still pending. */
+let value_bindings =
+    (items: list(t)): option(list((Var.t, TermBase.Exp.t))) =>
+  items
+  |> List.map((item: t) =>
+       switch (item.term) {
+       | ModVal(x, d) => Some((x, d))
+       | _ => None
+       }
+     )
+  |> Util.OptUtil.sequence;
+
+/* Member [name] of a module value. */
+let value_member = (items: list(t), name: Var.t): option(TermBase.Exp.t) =>
+  Option.bind(
+    value_bindings(items),
+    List.find_map(((x, d)) => String.equal(x, name) ? Some(d) : None),
   );
 
 /* Record an evaluated binding. A later binding of the same name replaces
