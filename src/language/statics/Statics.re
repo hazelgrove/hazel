@@ -2127,14 +2127,31 @@ and uexp_to_info_map =
         | Some(items) =>
           switch (ModuleHelpers.single_bound_var(p)) {
           | Some(name) =>
-            let exports_ty =
-              ModuleHelpers.collect_type_exports(ctx, items)
-              |> ModuleHelpers.type_exports_alias_type;
-            switch (exports_ty) {
-            | Some(exports_ty) =>
-              Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
-            | None => p_ana_ctx
-            };
+            let exports = ModuleHelpers.collect_type_exports(ctx, items);
+            let p_ana_ctx =
+              switch (ModuleHelpers.type_exports_alias_type(exports)) {
+              | Some(exports_ty) =>
+                Ctx.extend_alias(p_ana_ctx, name, Pat.rep_id(p), exports_ty)
+              | None => p_ana_ctx
+              };
+            /* The module's type definitions are also in scope after it by
+               their own names, and a sum's constructors with them, as if
+               defined where the module is: `module Common = { type Dir = + N
+               + E + S + W; ... } in` lets the rest of the program write
+               `Dir` and `N` (and `Common.Dir`, as before). Without this a
+               sum declared in a module could not be built or matched
+               outside it. */
+            List.fold_right(
+              ((tname, ty), ctx) => {
+                let ctx = Ctx.extend_alias(ctx, tname, Pat.rep_id(p), ty);
+                switch (Typ.get_sum_constructors(ctx, ty)) {
+                | Some(sm) => Ctx.add_ctrs(ctx, tname, sm)
+                | None => ctx
+                };
+              },
+              exports,
+              p_ana_ctx,
+            );
           | None => p_ana_ctx
           }
         | None =>
