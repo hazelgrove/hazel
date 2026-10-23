@@ -65,7 +65,7 @@ let check_monotonicity = (name: string, src: string): unit => {
       if (len < prev_len && violation^ == None) {
         violation :=
           Some(
-            Stdlib.Printf.sprintf(
+            sprintf(
               "%s: monotonicity violated at budget %d: len=%d < prev_len=%d (budget %d had len %d)",
               name,
               budget,
@@ -308,7 +308,7 @@ let check_hard_cap = (name: string, src: string): unit => {
       if (len > budget && violation^ == None) {
         violation :=
           Some(
-            Stdlib.Printf.sprintf(
+            sprintf(
               "%s: hard cap violated at budget %d: len=%d rendered=%s",
               name,
               budget,

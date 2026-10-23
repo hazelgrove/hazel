@@ -561,7 +561,7 @@ in ^^probe(f(1))
               let found = List.nth_exn(inner_samples, idx);
               check(
                 bool,
-                Stdlib.Printf.sprintf(
+                sprintf(
                   "sample %d: aligned sample should match clicked call",
                   i,
                 ),
@@ -570,10 +570,7 @@ in ^^probe(f(1))
               );
             | None =>
               fail(
-                Stdlib.Printf.sprintf(
-                  "sample %d: should find an aligned inner sample",
-                  i,
-                ),
+                sprintf("sample %d: should find an aligned inner sample", i),
               )
             };
           },
