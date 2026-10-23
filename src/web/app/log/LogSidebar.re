@@ -51,7 +51,7 @@ let progress_bar = (~current, ~total) => {
           Attr.style(
             Css_gen.create(
               ~field="width",
-              ~value=Stdlib.Printf.sprintf("%d%%", percentage),
+              ~value=sprintf("%d%%", percentage),
             ),
           ),
         ],
@@ -59,14 +59,14 @@ let progress_bar = (~current, ~total) => {
       ),
       div(
         ~attrs=[Attr.class_("log-progress-text")],
-        [text(Stdlib.Printf.sprintf("%d / %d", current, total))],
+        [text(sprintf("%d / %d", current, total))],
       ),
     ],
   );
 };
 
 let message_item = (message: string) => {
-  let timestamp = Stdlib.Printf.sprintf("%.0f", Js_of_ocaml.Js.date##now);
+  let timestamp = sprintf("%.0f", Js_of_ocaml.Js.date##now);
   div(
     ~attrs=[Attr.class_("log-message")],
     [
@@ -200,14 +200,7 @@ let debug_section = (~globals: Globals.t, ~log_entries_count: int) => {
         [
           div(
             ~attrs=[Attr.class_("log-debug-info")],
-            [
-              text(
-                Stdlib.Printf.sprintf(
-                  "Current log entries: %d",
-                  log_entries_count,
-                ),
-              ),
-            ],
+            [text(sprintf("Current log entries: %d", log_entries_count))],
           ),
           div(
             ~attrs=[
@@ -240,7 +233,7 @@ let log_message = (message: string): unit => {
   // This would be called from History.re to add messages to the sidebar
   // For now, we'll use a simple print as a fallback, but in a full implementation
   // this would update the log sidebar model
-  Stdlib.Printf.printf(
+  printf(
     "[LOG SIDEBAR] %s\n",
     message,
   );

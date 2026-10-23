@@ -61,13 +61,11 @@ let start = (): unit => {
 let finish = (): unit => {
   switch (time^) {
   | (-1.0) =>
-    Stdlib.Printf.sprintf("Benchmark: Error: No benchmark running")
-    |> print_endline
+    sprintf("Benchmark: Error: No benchmark running") |> print_endline
 
   | _ =>
     let elapsed = (JsUtil.timestamp() -. time^) /. 1000.;
     time := (-1.0);
-    Stdlib.Printf.sprintf("Benchmark: Finished: time: %f seconds", elapsed)
-    |> print_endline;
+    sprintf("Benchmark: Finished: time: %f seconds", elapsed) |> print_endline;
   };
 };
