@@ -242,43 +242,61 @@ let wrap_item =
 
 /* The wrappers carry the Mod item ids; the tail mentions each export so it
    counts as used. Only an item's exported binders get the signature's
-   expectation: a shadowed definition is synthesized. */
+   expectation: a shadowed definition is synthesized. A type member the module
+   defines stays a name in that expectation only after its exported
+   definition; before it, the name is unbound or means an earlier one. */
 let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
-  let defined =
-    List.concat_map(
-      (item: Mod.t) =>
-        switch (item.term) {
-        | ModType({term: Var(n), _}, _) => [n]
-        | _ => item_bound_names(item)
-        },
-      items,
-    );
-  let ana_labels = ana_value_types(~defined, ana_items);
   let rec with_exports = (items: list(Mod.t)) =>
     switch (items) {
     | [] => []
-    | [item, ...rest] => [
-        (item, List.map(fst, item_exports(item, ~later=rest))),
+    | [item, ...rest] =>
+      let exported_type =
+        switch (item.term) {
+        | ModType({term: Var(n), _}, _) when !type_declared_later(n, rest) =>
+          Some(n)
+        | _ => None
+        };
+      [
+        (
+          item,
+          List.map(fst, item_exports(item, ~later=rest)),
+          exported_type,
+        ),
         ...with_exports(rest),
-      ]
+      ];
     };
   let exports = with_exports(items);
   let tail =
     Exp.fresh(
       Tuple(
         exports
-        |> List.concat_map(snd)
+        |> List.concat_map(((_, exported, _)) => exported)
         |> List.map(name => Exp.fresh(Var(name))),
       ),
     );
-  List.fold_right(
-    ((item, exported), body) => {
-      let ana_labels =
+  let rec go = (~defined, ~ana_labels, exports) =>
+    switch (exports) {
+    | [] => tail
+    | [(item, exported, exported_type), ...rest] =>
+      let item_labels =
         List.filter(((name, _)) => List.mem(name, exported), ana_labels);
-      wrap_item(~ana_labels, item, body);
-    },
+      let body =
+        switch (exported_type) {
+        | Some(n) =>
+          let defined = [n, ...defined];
+          go(
+            ~defined,
+            ~ana_labels=ana_value_types(~defined, ana_items),
+            rest,
+          );
+        | None => go(~defined, ~ana_labels, rest)
+        };
+      wrap_item(~ana_labels=item_labels, item, body);
+    };
+  go(
+    ~defined=[],
+    ~ana_labels=ana_value_types(~defined=[], ana_items),
     exports,
-    tail,
   );
 };
 

@@ -652,6 +652,27 @@ let test_sig_type_member_matches =
     Some(sig_([type_("T", int()), val_("x", var("T"))])),
   );
 
+/* Where the module's own definition of a type member is not yet in scope,
+   its value members expect the signature's definition. */
+let test_sig_type_member_defined_later =
+  no_marks_test(
+    "Value member before the type member its declared type names",
+    {|let m : { type T = Int; let x : T } = { let x = 1; type T = Int } in m|},
+  );
+
+let test_sig_type_member_defined_later_mismatch =
+  single_mark_test(
+    "Value member before its type member is checked against the definition",
+    {|let m : { type T = Int; let x : T } = { let x = true; type T = Int } in m|},
+    is_int_vs(Bool),
+  );
+
+let test_sig_type_member_redefined_later =
+  no_marks_test(
+    "Value member between two definitions of its type member",
+    {|let m : { type T = Int; let x : T } = { type T = Bool; let x = 1; type T = Int } in m|},
+  );
+
 /* A capitalized sub-module is declared with `module M : S` in a signature */
 let test_sig_module_member =
   fully_consistent_typecheck(
@@ -1445,6 +1466,9 @@ let tests = (
     test_matching_sig_annotation,
     test_matching_sig_multi,
     test_sig_type_member_matches,
+    test_sig_type_member_defined_later,
+    test_sig_type_member_defined_later_mismatch,
+    test_sig_type_member_redefined_later,
     test_sig_module_member,
     test_sig_module_member_binder_type,
     test_sig_lowercase_nested,
