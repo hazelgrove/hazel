@@ -209,6 +209,26 @@ module Update = {
     (ensure, selection);
   };
 
+  /* turning the program value on in a stack opens the ⇒ cell, where the
+     value shows (the ⇓ button and the settings both come here) */
+  let open_tail_cell = (editors: Editors.Model.t): option(Editors.Update.t) =>
+    switch (editors) {
+    | Scratch(m)
+    | Documentation(m)
+    | World(m) =>
+      switch (ScratchMode.Model.current_program(m)) {
+      | Some(Divided(_) as p) =>
+        Program.tail_row(p)
+        |> Option.map(id =>
+             Editors.Update.Scratch(Workspace(FocusEnsure(id)))
+           )
+      | _ => None
+      }
+    | Tutorial(_)
+    | Exercises(_)
+    | Config(_) => None
+    };
+
   let update_global =
       (
         ~import_log,
@@ -230,6 +250,14 @@ module Update = {
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);
+      switch (action) {
+      | TailProbe when settings.tail_probe =>
+        Option.iter(
+          a => schedule_action(Editors(a)),
+          open_tail_cell(model.editors),
+        )
+      | _ => ()
+      };
       {
         ...model,
         globals: {
@@ -992,14 +1020,6 @@ module View = {
         ScratchMode.Model.current_program(m)
         |> Option.map(p => {
              let tail = globals.settings.tail_probe;
-             /* in a stack, the value shows in the ⇒ cell: open it */
-             let open_tail =
-               switch (p, Program.tail_row(p)) {
-               | (Program.Divided(_), Some(id)) when !tail => [
-                   inject(Editors(Scratch(Workspace(FocusEnsure(id))))),
-                 ]
-               | _ => []
-               };
              EvalResult.View.dynamics(
                ~tail,
                ~stopped=
@@ -1009,10 +1029,7 @@ module View = {
                       Program.result(p),
                     )
                  != None,
-               ~toggle_tail=
-                 Effect.Many(
-                   [inject(Globals(Set(TailProbe)))] @ open_tail,
-                 ),
+               ~toggle_tail=inject(Globals(Set(TailProbe))),
                Program.result(p),
              );
            })
