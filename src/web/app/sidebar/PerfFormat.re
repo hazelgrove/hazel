@@ -127,16 +127,16 @@ let scale =
     (~columns: list(column('data)), rows: list(row('data)))
     : Core.Time_ns.Span.t =>
   rows
-  |> Stdlib.List.to_seq
-  |> Stdlib.Seq.concat_map((r: row('data)) =>
+  |> Sequence.of_list
+  |> Sequence.concat_map(~f=(r: row('data)) =>
        switch (r) {
-       | Group(_) => Stdlib.Seq.empty
+       | Group(_) => Sequence.empty
        | Row(data) =>
-         columns |> Stdlib.List.to_seq |> Stdlib.Seq.map(c => c.cell(data))
+         columns |> Sequence.of_list |> Sequence.map(~f=c => c.cell(data))
        }
      )
-  |> Stdlib.Seq.filter_map(heat_span)
-  |> Stdlib.Seq.fold_left(Core.Time_ns.Span.max, Core.Time_ns.Span.zero);
+  |> Sequence.filter_map(~f=heat_span)
+  |> Sequence.fold(~init=Core.Time_ns.Span.zero, ~f=Core.Time_ns.Span.max);
 
 /* --- rendering: the only part that knows about markup --- */
 
