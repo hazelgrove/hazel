@@ -68,6 +68,51 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | Forall(pat, e) =>
           let (env', pat') = in_pat(env, env, pat);
           Forall(pat', in_exp(env', e)) |> rewrap;
+        | Module(items) =>
+          /* A pending item shadows the substitution for the items after it;
+             it is not renamed, since its name is a member label. An evaluated
+             ModVal does not shadow: its binding step already substituted into
+             the items that follow. */
+          let shadow = (env, x) =>
+            Environment.extend(env, (x, Exp.fresh(Var(x))));
+          let (_, rev_items) =
+            List.fold_left(
+              ((env, acc), item: Mod.t) => {
+                let (env', item') =
+                  switch (item.term) {
+                  | ModLet(p, e) => (
+                      List.fold_left(shadow, env, Pat.bound_vars(p)),
+                      {
+                        ...item,
+                        term: (ModLet(p, in_exp(env, e)): Mod.term),
+                      },
+                    )
+                  | ModVal(x, e) => (
+                      env,
+                      {
+                        ...item,
+                        term: (ModVal(x, in_exp(env, e)): Mod.term),
+                      },
+                    )
+                  | ModExp(e) => (
+                      env,
+                      {
+                        ...item,
+                        term: (ModExp(in_exp(env, e)): Mod.term),
+                      },
+                    )
+                  | ModType(_, _)
+                  | ModuleMod(_, _)
+                  | Invalid(_)
+                  | EmptyHole
+                  | MultiHole(_) => (env, item)
+                  };
+                (env', [item', ...acc]);
+              },
+              (env, []),
+              items,
+            );
+          Module(List.rev(rev_items)) |> rewrap;
 
         // Other cases: recurse
         | Invalid(_)
@@ -107,7 +152,6 @@ let rec in_exp = (env: Environment.t(Exp.t), exp: Exp.t) =>
         | LivelitName(_)
         | ProofObject(_)
         | Undefined
-        | Module(_)
         | ModuleExp(_) => cont(e)
         };
       },
@@ -203,7 +247,7 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         failwith("patterns should be handled separately in substitution"),
     ~f_typ=
       (cont, t) => {
-        let (term, _rewrap) = Typ.unwrap(t);
+        let (term, rewrap) = Typ.unwrap(t);
         switch (term) {
         // Cases without patterns: recurse
         | Unknown(_)
@@ -223,8 +267,11 @@ and in_typ = (env: Environment.t(Exp.t), typ: Typ.t) =>
         | ProdProjection(_, _)
         | ProdExtension(_, _)
         | ProofOf(_)
-        | Sig(_)
         | DrvQuoteTy(_) => cont(t)
+        // The item types only: the generic traversal would also visit the
+        // item patterns
+        | Sig(items) =>
+          Sig(List.map(Sig.map_typ(in_typ(env)), items)) |> rewrap
         };
       },
     typ,

@@ -261,6 +261,12 @@ let core_mark_err_view =
     | DotOperatorRequiresTuple
     | TupleExtensionRequiresTuples
     | LabelNotFound(_)
+    | ModuleMissingMembers(_)
+    | ModuleExtraMembers(_)
+    | ModuleMemberNotFound(_)
+    | ModuleMemberIsType(_)
+    | ModuleTypeMemberMismatch(_)
+    | TypeMemberCapture(_)
     | BadOperator(_)
     | BadLivelitModel(_)
     | BadTheorem(_)
@@ -272,6 +278,8 @@ let core_mark_err_view =
     | TypWantTypeFoundAp
     | TypWantLabel
     | TypWantProduct(_)
+    | ModuleTypeMemberNotFound(_)
+    | TypWantModule(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
     | TypParseFailure
@@ -428,6 +436,20 @@ let common_ok_view =
   );
 };
 
+/* [what] names the sort of member, e.g. "type member". */
+let member_not_found_view =
+    (what: string, {name, members}: Mark.member_not_found) =>
+  [text("Module has no " ++ what ++ " "), label_view(name)]
+  @ (
+    switch (members) {
+    | [] => []
+    | _ => [
+        text("; its " ++ what ++ "s are "),
+        ...ListUtil.join(text(", "), List.map(label_view, members)),
+      ]
+    }
+  );
+
 let underdetermined_typ_view =
     (~globals, underdetermined: Message.underdetermined_typ) => {
   let view_type = view_type(~globals);
@@ -442,6 +464,14 @@ let underdetermined_typ_view =
       text(". Valid labels are: "),
       ...List.map(code, labels),
     ]
+  | ModuleTypeMemberMissing(name, members) =>
+    member_not_found_view(
+      TypExpectation.module_member_to_string(TypeMember),
+      {
+        name,
+        members,
+      },
+    )
   | ProdProjectionBadArgs({product, label}) =>
     let product_error =
       switch (product) {
@@ -507,9 +537,39 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Message.ok_typ) => {
   };
 };
 
+let type_member_capture_view = names =>
+  switch (names) {
+  | [name] => [
+      text("Type variable "),
+      code(name),
+      text(
+        " collides with a type member of the same name in this signature; rename the type variable",
+      ),
+    ]
+  | _ =>
+    [text("Type variables ")]
+    @ ListUtil.join(text(", "), List.map(code, names))
+    @ [
+      text(
+        " collide with type members of the same names in this signature; rename them",
+      ),
+    ]
+  };
+
+let type_member_mismatch_view = (~view_type, name, ~expected, ~actual) => [
+  text("Type member "),
+  code(name),
+  text(" is defined as "),
+  view_type(actual),
+  text(" but its signature declares "),
+  view_type(expected),
+];
+
 let typ_mark_err_view = (~globals, m: Mark.t) => {
   let view_type = view_type(~globals);
   switch (m) {
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_view(~view_type, name, ~expected, ~actual)
   | TypFreeTypeVariable(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("not found"),
@@ -547,8 +607,19 @@ let typ_mark_err_view = (~globals, m: Mark.t) => {
     ]
   | TypParseFailure => [text("Parse failure")]
   | TypWantProduct(ty) => [
-      text("Expected a tuple type, found type"),
+      text("Expected a module or tuple type, found type"),
       view_type(ty),
+    ]
+  | ModuleTypeMemberNotFound(member, not_found) =>
+    member_not_found_view(
+      TypExpectation.module_member_to_string(member),
+      not_found,
+    )
+  | TypWantModule({name, typ}) => [
+      code(name),
+      text("is a value of type"),
+      view_type(typ),
+      text(", not a module"),
     ]
   | _ => [text("Type error")]
   };
@@ -710,7 +781,7 @@ let exp_mark_err_view =
   | TupleExtensionRequiresTuples =>
     div_err([text("Tuple extension requires tuple")])
   | DotOperatorRequiresTuple =>
-    div_err([text("Requires tuple for first argument")])
+    div_err([text("Requires a module or tuple for the first argument")])
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None =>
@@ -730,6 +801,28 @@ let exp_mark_err_view =
       text(" not found in tuple's labels: "),
       ...List.map(label_view, labels),
     ])
+  | ModuleMissingMembers(names) =>
+    div_err([
+      text("Module is missing members required by its signature: "),
+      ...ListUtil.join(text(", "), List.map(code, names)),
+    ])
+  | ModuleMemberNotFound(not_found) =>
+    div_err(member_not_found_view("member", not_found))
+  | ModuleMemberIsType(name) =>
+    div_err([
+      code(name),
+      text(
+        " is a type member of the module, not a value; use it in a type position",
+      ),
+    ])
+  | ModuleExtraMembers(names) =>
+    div_err([
+      text("Module has members its signature does not declare: "),
+      ...ListUtil.join(text(", "), List.map(code, names)),
+    ])
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    div_err(type_member_mismatch_view(~view_type, name, ~expected, ~actual))
+  | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
   | BadLivelitModel(_) => div_err([text("Bad internal livelit model")])
   | BadTheorem(typ) =>
     div_err([
@@ -742,6 +835,8 @@ let exp_mark_err_view =
   | TypWantTypeFoundAp
   | TypWantLabel
   | TypWantProduct(_)
+  | ModuleTypeMemberNotFound(_)
+  | TypWantModule(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -813,6 +908,14 @@ let exp_view =
       )
     | Exp(AnaDeferralConsistent(ana)) =>
       div_ok([text("Expecting type"), view_type(~globals, ana)])
+    | Exp(ModuleMemberNotFound(not_found)) =>
+      div_ok(member_not_found_view("member", not_found))
+    | Exp(TypeMember(name, def)) =>
+      div_ok([
+        view_type(~globals, Var(name) |> Typ.fresh),
+        text("is equal to"),
+        view_type(~globals, def),
+      ])
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(
@@ -1037,6 +1140,7 @@ let tpat_view =
           text("Can't shadow existing type variable"),
           view_type(Var(name) |> Typ.fresh),
         ])
+      | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
       | _ => div_err([text("Type pattern error")])
       }
     }

@@ -858,11 +858,9 @@ and parenthesize_typ =
 
   // Other forms
   | Parens(t) =>
-    Parens(
-      parenthesize_typ(~already_paren=true, t)
-      |> paren_typ_at(Precedence.min),
-    )
-    |> rewrap
+    /* Already parenthesized: paren_typ_at(min) here would add a layer around
+       every min-precedence t. */
+    Parens(parenthesize_typ(~already_paren=true, t)) |> rewrap
   | Projector(data, t) =>
     Projector(data, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
     |> rewrap
@@ -1124,8 +1122,10 @@ let should_add_space = (s1, s2) =>
   | _ when String.starts_with(s2, ~prefix=":") => false
   | _ when String.ends_with(s1, ~suffix="::") => true
   | _ when String.ends_with(s1, ~suffix=":") =>
+    /* After `:`, an operator character would lex into the same token (`:+`);
+       `$` also needs the gap. */
     String.starts_with(s2, ~prefix="$")
-    || String.starts_with(s2, ~prefix="!")
+    || Token.begins_with_potential_operator(s2)
   | _ when String.ends_with(s1, ~suffix=" ") => false
   | _ when String.starts_with(s2, ~prefix=" ") => false
   | _ when String.ends_with(s1, ~suffix="\n") => false
@@ -2547,6 +2547,15 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                ]
                @ e,
              );
+           | ModVal(x, e) =>
+             /* An evaluated binding (dynamics only) displays as `let x = e`. */
+             let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+             and+ e = go(e);
+             wrap_item(
+               item,
+               [mk_form(~sort=Sort.Mod, ModLet, item |> Mod.rep_id, [p])]
+               @ e,
+             );
            | MultiHole(es) =>
              let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
              wrap_item(item, List.flatten(es));
@@ -3150,6 +3159,14 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
                [mk_form(~sort=Sort.Sig, ModType, item |> Sig.rep_id, [tp])]
                @ t,
              );
+           | SigModule(mp) =>
+             p_just(
+               wrap_item(
+                 item,
+                 [mk_form(~sort=Sort.Sig, SigModule, item |> Sig.rep_id, [])]
+                 @ mpat_to_seg(~settings, mp),
+               ),
+             )
            | EmptyHole =>
              let item_id = item |> Sig.rep_id;
              let seg =
@@ -3268,6 +3285,10 @@ and mod_to_pretty = (~settings: Settings.t, item: Mod.t): pretty => {
       item,
       [mk_form(ModuleMod, item |> Mod.rep_id, [mp_seg])] @ e,
     );
+  | ModVal(x, e) =>
+    let+ p = pat_to_pretty(~settings, Pat.fresh(Var(x)))
+    and+ e = exp_to_pretty(~settings, e);
+    wrap_item(item, [mk_form(ModLet, item |> Mod.rep_id, [p])] @ e);
   | EmptyHole =>
     let seg =
       switch (hole_lexeme(item.annotation)) {
@@ -3302,6 +3323,14 @@ and sig_to_pretty = (~settings: Settings.t, item: Sig.t): pretty => {
     let+ tp = tpat_to_pretty(~settings, tp)
     and+ t = typ_to_pretty(~settings, t);
     wrap_item(item, [mk_form(ModType, item |> Sig.rep_id, [tp])] @ t);
+  | SigModule(mp) =>
+    p_just(
+      wrap_item(
+        item,
+        [mk_form(SigModule, item |> Sig.rep_id, [])]
+        @ mpat_to_seg(~settings, mp),
+      ),
+    )
   | EmptyHole =>
     let seg =
       switch (hole_lexeme(item.annotation)) {

@@ -101,6 +101,34 @@ let rec equal_mark: (Mark.t, Mark.t) => bool =
     | (TupleExtensionRequiresTuples, TupleExtensionRequiresTuples) => true
     | (LabelNotFound(l1, ls1), LabelNotFound(l2, ls2)) =>
       l1 == l2 && ls1 == ls2
+    | (ModuleMissingMembers(ns1), ModuleMissingMembers(ns2)) =>
+      List.equal(String.equal, ns1, ns2)
+    | (ModuleMemberNotFound(nf1), ModuleMemberNotFound(nf2)) =>
+      Mark.equal_member_not_found(nf1, nf2)
+    | (ModuleMemberIsType(n1), ModuleMemberIsType(n2)) =>
+      String.equal(n1, n2)
+    | (
+        ModuleTypeMemberNotFound(mm1, nf1),
+        ModuleTypeMemberNotFound(mm2, nf2),
+      ) =>
+      TypExpectation.equal_module_member(mm1, mm2)
+      && Mark.equal_member_not_found(nf1, nf2)
+    | (
+        TypWantModule({name: n1, typ: t1}),
+        TypWantModule({name: n2, typ: t2}),
+      ) =>
+      String.equal(n1, n2) && Typ.fast_equal(t1, t2)
+    | (ModuleExtraMembers(ns1), ModuleExtraMembers(ns2)) =>
+      List.equal(String.equal, ns1, ns2)
+    | (TypeMemberCapture(ns1), TypeMemberCapture(ns2)) =>
+      List.equal(String.equal, ns1, ns2)
+    | (
+        ModuleTypeMemberMismatch({name: n1, expected: e1, actual: a1}),
+        ModuleTypeMemberMismatch({name: n2, expected: e2, actual: a2}),
+      ) =>
+      String.equal(n1, n2)
+      && Typ.fast_equal(e1, e2)
+      && Typ.fast_equal(a1, a2)
     | (BadOperator(s1), BadOperator(s2)) => s1 == s2
     | (BadLivelitModel(t1), BadLivelitModel(t2)) => Typ.fast_equal(t1, t2)
     | (BadTheorem(t1), BadTheorem(t2)) => Typ.fast_equal(t1, t2)
@@ -247,25 +275,24 @@ let synthesized_type = (~normalize=false, static_map, exp) =>
        normalize ? Typ.normalize(Builtins.ctx_init(Some(Int))) : Fun.id,
      );
 
-let fully_consistent_typecheck =
-    (~normalize=false, name, serialized, expected) => {
-  test_case(
-    name,
-    `Quick,
-    () => {
-      let exp = parse_exp(serialized);
-      let s = statics(exp);
-      let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
-      Alcotest.check(list(testable_issue), "Static Errors", [], errors);
-      Alcotest.check(
-        Alcotest.option(testable_typ),
-        serialized,
-        expected,
-        synthesized_type(~normalize, s, exp),
-      );
-    },
+let check_fully_consistent = (~normalize=false, serialized, expected) => {
+  let exp = parse_exp(serialized);
+  let s = statics(exp);
+  let errors = List.map(ms => Marks(ms), List.map(snd, errors(s)));
+  Alcotest.check(list(testable_issue), "Static Errors", [], errors);
+  Alcotest.check(
+    Alcotest.option(testable_typ),
+    serialized,
+    expected,
+    synthesized_type(~normalize, s, exp),
   );
 };
+
+let fully_consistent_typecheck =
+    (~normalize=false, name, serialized, expected) =>
+  test_case(name, `Quick, () =>
+    check_fully_consistent(~normalize, serialized, expected)
+  );
 
 /* Pins the synthesized type while leaving marks unconstrained, for programs
    that are expected to report errors. */

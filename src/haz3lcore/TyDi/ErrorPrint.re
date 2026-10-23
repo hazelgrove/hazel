@@ -28,6 +28,43 @@ module Print = {
 
 let prn = Printf.sprintf;
 
+let type_member_capture_string = names =>
+  switch (names) {
+  | [name] =>
+    prn(
+      "Type variable %s collides with a type member of the same name in this signature; rename the type variable",
+      name,
+    )
+  | _ =>
+    prn(
+      "Type variables %s collide with type members of the same names in this signature; rename them",
+      String.concat(", ", names),
+    )
+  };
+
+/* [what] names the sort of member, e.g. "type member". */
+let member_not_found_string =
+    (what: string, {name, members}: Mark.member_not_found) =>
+  switch (members) {
+  | [] => prn("Module has no %s %s", what, name)
+  | _ =>
+    prn(
+      "Module has no %s %s; its %ss are %s",
+      what,
+      name,
+      what,
+      String.concat(", ", members),
+    )
+  };
+
+let type_member_mismatch_string = (name, ~expected, ~actual) =>
+  prn(
+    "Type member %s is defined as %s but its signature declares %s",
+    name,
+    Print.typ(actual),
+    Print.typ(expected),
+  );
+
 let core_mark_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   let ana = Statics.ana_skip_explicit_nonlabel(ana);
   let expectation = (ana: Typ.t, syn: Typ.t) =>
@@ -125,13 +162,30 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
     )
   | BadTrivAp(ty) =>
     prn("Function argument type \"%s\" inconsistent with ()", Print.typ(ty))
-  | DotOperatorRequiresTuple => "Expected a tuple"
+  | DotOperatorRequiresTuple => "Expected a module or tuple"
   | TupleExtensionRequiresTuples => "Expected tuples for both arguments"
   | BadOperator(_) => "Invalid operator"
   | BadLivelitModel(_) => "Bad internal livelit model"
   | BadTheorem(typ) =>
     prn("Theorem pattern is not of the form p : t, got %s", Print.typ(typ))
   | LabelNotFound(_, _) => "Label not found"
+  | ModuleMissingMembers(names) =>
+    prn("Module is missing members: %s", String.concat(", ", names))
+  | ModuleExtraMembers(names) =>
+    prn(
+      "Module has members its signature does not declare: %s",
+      String.concat(", ", names),
+    )
+  | ModuleMemberNotFound(not_found) =>
+    member_not_found_string("member", not_found)
+  | ModuleMemberIsType(name) =>
+    prn(
+      "%s is a type member of the module, not a value; use it in a type position",
+      name,
+    )
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_string(name, ~expected, ~actual)
+  | TypeMemberCapture(names) => type_member_capture_string(names)
   | IsLivelitName({name, _}) =>
     switch (Ctx.lookup_livelit(ctx, name)) {
     | None => "Livelit unbound and not found"
@@ -143,6 +197,8 @@ let exp_mark_to_string = (ctx: Ctx.t, ana: Typ.t, m: Mark.t): string => {
   | TypWantTypeFoundAp
   | TypWantLabel
   | TypWantProduct(_)
+  | ModuleTypeMemberNotFound(_)
+  | TypWantModule(_)
   | TypWantConstructorFoundType(_)
   | TypWantConstructorFoundAp
   | TypParseFailure
@@ -208,13 +264,24 @@ let typ_mark_string: Mark.t => string =
     )
   | DuplicateLabel(name, _) => prn("Type %s is already defined", name)
   | TypWantProduct(ty) =>
-    prn("Expected a tuple type, found type %s", Print.typ(ty))
+    prn("Expected a module or tuple type, found type %s", Print.typ(ty))
+  | ModuleTypeMemberNotFound(member, not_found) =>
+    member_not_found_string(
+      TypExpectation.module_member_to_string(member),
+      not_found,
+    )
+  | TypWantModule({name, typ}) =>
+    prn("%s is a value of type %s, not a module", name, Print.typ(typ))
+  | ModuleTypeMemberMismatch({name, expected, actual}) =>
+    type_member_mismatch_string(name, ~expected, ~actual)
+  | TypeMemberCapture(names) => type_member_capture_string(names)
   | _ => "(static error)";
 
 let tpat_mark_string: Mark.t => string =
   fun
   | TPatNotAVar(_) => "Not a valid type name" //TODO: elaborate
   | TPatShadowsType(name, _) => "Can't shadow type " ++ name //TODO: elaborate
+  | TypeMemberCapture(names) => type_member_capture_string(names)
   | _ => "(static error)";
 
 let string_of_marks = (info: Info.t, marks: list(Mark.t)): string =>

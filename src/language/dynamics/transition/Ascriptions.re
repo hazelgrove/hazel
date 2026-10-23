@@ -80,6 +80,38 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
               TupLabel(l, inner') |> DHExp.fresh,
             ),
           );
+    | (Module(items), Sig(sig_items)) =>
+      /* Sealing: keep the signature's value members, in signature order,
+         ascribing each to its declared type. A member the module lacks, or a
+         module still evaluating, leaves the ascription stuck. */
+      let members =
+        Sig.members(sig_items)
+        |> Sig.dedup_last
+        |> List.filter_map((m: Sig.member) =>
+             switch (m) {
+             | Val(x, ty) => Some((x, ty))
+             | TypeManifest(_) => None
+             }
+           );
+      let picked =
+        members
+        |> List.map(((x, ty)) =>
+             Mod.value_member(items, x)
+             |> Option.map(v =>
+                  Mod.fresh(ModVal(x, recur(Asc(v, ty) |> DHExp.fresh)))
+                )
+           )
+        |> Util.OptUtil.sequence;
+      switch (picked) {
+      | Some(items') =>
+        Some(
+          IdTagged.fast_copy(
+            DHExp.rep_id(e),
+            Module(items') |> DHExp.fresh,
+          ),
+        )
+      | None => None
+      };
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       let es' =
         List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys);

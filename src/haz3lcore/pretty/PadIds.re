@@ -138,14 +138,14 @@ let rec pad_variant_anns = (ty: Typ.t): Typ.t => {
       ProdProjection(pad_variant_anns(t1), pad_variant_anns(t2))
     | ProdExtension(t1, t2) =>
       ProdExtension(pad_variant_anns(t1), pad_variant_anns(t2))
+    | Sig(items) => Sig(List.map(Sig.map_typ(pad_variant_anns), items))
     | Unknown(_)
     | Atom(_)
     | DrvQuoteTy(_)
     | Label(_)
     | ExplicitNonlabel
     | Var(_)
-    | ProofOf(_)
-    | Sig(_) => ty.term
+    | ProofOf(_) => ty.term
     };
   {
     ...ty,

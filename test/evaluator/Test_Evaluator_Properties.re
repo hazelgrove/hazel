@@ -439,9 +439,9 @@ let check_incremental_against_fresh_after_edit =
   };
 };
 
-/* Disabled: fails on any seed that draws the shape below — known bug
-   https://github.com/hazelgrove/hazel/issues/2457. The test below pins that
-   counterexample and goes red once it is fixed. */
+/* Disabled: known bug https://github.com/hazelgrove/hazel/issues/2457. Its
+   original counterexample, pinned below, is a module, and no longer
+   reproduces now that modules elaborate to modules. */
 let qcheck_incremental_matches_fresh_after_edit_disabled =
   test_case(
     "Incremental eval agrees with fresh eval after a literal edit (disabled, #2457)",
@@ -476,16 +476,15 @@ let qcheck_incremental_matches_fresh_after_edit_disabled =
     }
   });
 
-let incremental_literal_edit_known_bug_test =
+let incremental_literal_edit_test =
   test_case(
-    "Known bug #2457: incremental eval disagrees with fresh after a literal edit",
+    "#2457 counterexample: incremental eval agrees with fresh after a literal edit",
     `Quick,
     () =>
     check_incremental_against_fresh_after_edit(
       ~literal_index=0,
-      ~testable=neg(testable_core_exp),
-      ~msg=
-        "#2457 looks fixed: re-enable `Incremental eval agrees with fresh eval after a literal edit`, delete this test",
+      ~testable=testable_core_exp,
+      ~msg="Incremental eval and fresh eval agree",
       ~require_comparison=true,
       parse_exp("{ let x = (); let _ = 4; let true = A }"),
     )
@@ -782,7 +781,7 @@ let tests = (
     stepper_confluence_known_bug_test,
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
     qcheck_incremental_matches_fresh_after_edit_disabled,
-    incremental_literal_edit_known_bug_test,
+    incremental_literal_edit_test,
     /* Preservation does not currently hold: stepping can produce a type that
        is not more precise than the original. */
     test_case("Preservation of types (disabled)", `Quick, () => {
