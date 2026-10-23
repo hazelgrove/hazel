@@ -38,18 +38,18 @@ let format_time_diff = (prior: float): string => {
   let diff_days = round_down(diff_hours /. 24.0);
 
   if (diff_mins < 1.0) {
-    Stdlib.Printf.sprintf("<1 min ago");
+    sprintf("<1 min ago");
   } else if (diff_mins < 60.0) {
     diff_mins < 2.0
-      ? Stdlib.Printf.sprintf("%.0f min ago", diff_mins)
-      : Stdlib.Printf.sprintf("%.0f mins ago", diff_mins);
+      ? sprintf("%.0f min ago", diff_mins)
+      : sprintf("%.0f mins ago", diff_mins);
   } else if (diff_hours < 24.0) {
     diff_hours < 2.0
-      ? Stdlib.Printf.sprintf("%.0f hour ago", diff_hours)
-      : Stdlib.Printf.sprintf("%.0f hours ago", diff_hours);
+      ? sprintf("%.0f hour ago", diff_hours)
+      : sprintf("%.0f hours ago", diff_hours);
   } else {
     diff_days < 2.0
-      ? Stdlib.Printf.sprintf("%.0f day ago", diff_days)
-      : Stdlib.Printf.sprintf("%.0f days ago", diff_days);
+      ? sprintf("%.0f day ago", diff_days)
+      : sprintf("%.0f days ago", diff_days);
   };
 };

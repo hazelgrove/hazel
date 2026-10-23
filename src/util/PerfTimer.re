@@ -36,9 +36,7 @@ let summary = (): string => {
     |> List.sort(~compare=((_, a, _), (_, b, _)) => Float.compare(b, a));
   String.concat(
     ~sep=" | ",
-    List.map(rows, ~f=((k, t, n)) =>
-      Stdlib.Printf.sprintf("%s %.0fms×%d", k, t, n)
-    ),
+    List.map(rows, ~f=((k, t, n)) => sprintf("%s %.0fms×%d", k, t, n)),
   );
 };
 

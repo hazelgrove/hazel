@@ -108,10 +108,7 @@ let escaped = (s: string): string => {
     | '\r' => Buffer.add_string(buf, "\\r")
     | '\b' => Buffer.add_string(buf, "\\b")
     | c when Stdlib.Char.code(c) < 0x20 || Stdlib.Char.code(c) == 0x7F =>
-      Buffer.add_string(
-        buf,
-        Stdlib.Printf.sprintf("\\%03d", Stdlib.Char.code(c)),
-      )
+      Buffer.add_string(buf, sprintf("\\%03d", Stdlib.Char.code(c)))
     | c => Buffer.add_char(buf, c)
     }
   );

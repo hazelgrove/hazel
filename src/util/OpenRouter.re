@@ -256,7 +256,7 @@ module CacheDiag = {
       let total = total_chars(normed);
       prev_norm := normed;
       pending :=
-        Stdlib.Printf.sprintf(
+        sprintf(
           "model=%s enabled=%b breakpoints=[%s] common_prefix=%dch payload=%dch",
           model_id,
           cache_enabled,
@@ -274,7 +274,7 @@ module CacheDiag = {
         | Some(n) => string_of_int(n)
         | None => "null";
       print_endline(
-        Stdlib.Printf.sprintf(
+        sprintf(
           "CACHE_DIAG %s | cache_read=%s cache_creation=%s",
           pending^,
           show(cache_read),
@@ -728,7 +728,7 @@ module Utils = {
       ) {
       | Some(m) => m
       | None when status == 0 => "Network error: no response received"
-      | None => Stdlib.Printf.sprintf("HTTP error %d", status)
+      | None => sprintf("HTTP error %d", status)
       };
     let code =
       switch (
