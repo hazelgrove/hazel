@@ -390,7 +390,7 @@ Regardless of which case you're in:
 | `src/language/term/TermBase.re`              | `DrvQuote(drv, sort)` / `DrvQuoteTy(sort)` constructors in Exp/Typ        |
 | `src/language/statics/Statics.re`            | `drv_to_info_map` — statics for every `Drv.Any.t` node                    |
 | `src/language/statics/Info.re`               | `InfoDrv`, `refine_sort_from_mold` helper                                 |
-| `src/language/term/Typ.re`                   | `DrvQuoteTy` type, `desugar_sig`, `DrvSort.to_string` in pretty-printing  |
+| `src/language/term/Typ.re`                   | `DrvQuoteTy` type, `DrvSort.to_string` in pretty-printing                 |
 | `src/language/dynamics/transition/Transition.re` | `drv_transition`, `DrvQuote` traversal during evaluation             |
 | `src/haz3lcore/TyDi/TyDiForms.re`            | Drv-sort autocompletion (`leading_drv_exp`, `infix_drv_exp`, …)           |
 | `src/haz3lcore/pretty/ExpToSegment.re`       | `drv_exp_to_pretty`, `drv_typ_to_pretty`, `drv_formula_to_pretty`         |

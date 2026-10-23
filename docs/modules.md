@@ -70,9 +70,9 @@ signature declares, each value member must have the declared type (with the
 signature's own type members substituted) at its last definition — one a later
 item shadows is only synthesized — and each type member must be
 defined as the declared type. A member's type error is reported on its
-definition; missing members (`ModuleMissingMembers`) and, until width
-subtyping lands, extra members (`ModuleExtraMembers`) are reported on the
-module; a differing type member is reported on its definition type
+definition; missing members (`ModuleMissingMembers`) and extra members
+(`ModuleExtraMembers`) are reported on the module; a differing type member is
+reported on its definition type
 (`ModuleTypeMemberMismatch`). When one of the items is a hole (a hole item,
 or a binder with a hole where a member could be bound) it may still become the
 missing members, so they are assumed rather than reported and the module has
@@ -113,33 +113,12 @@ members (`M.P` is a module-typed member of `M`). A type alias whose
 definition is a signature also supports `S.T`. `P.x` on a labeled tuple
 *type* alias still projects the label's type.
 
-## What Works
-
-| Feature                              | Status |
-| ------------------------------------ | ------ |
-| Module syntax (`{ let ... }`)        | Works  |
-| Signature types (distinct from Prod) | Works  |
-| Type members in signatures (checked) | Works  |
-| Member access via `.`                | Works  |
-| Module values at runtime             | Works  |
-| Bare expressions (side effects)      | Works  |
-| Shadowing (last binding wins)        | Works  |
-| Nested modules                       | Works  |
-| Sequential references between items  | Works  |
-| Type-directed error attribution      | Works  |
-| Empty module `{}`                    | Works  |
-| `module` keyword, capitalized names  | Works  |
-| Menhir parser (all module forms)     | Works  |
-| TyDi completion (values and types)   | Works  |
-| Qualified type access (`M.T`, `M.P.T`) | Works |
-| Module aliasing (`module N = M`)     | Works  |
-
 ## Not Yet Supported
 
-- **Width subtyping.** A module must export exactly the members its signature
-  declares; extra members are an error. Planned: subtyping at analysis
-  positions only (a module with extra members satisfies a smaller signature
-  where it is ascribed, sealing the extras away).
+- **Sealing.** A module must export exactly the members its signature
+  declares; extra members are an error. Planned: an ascription, annotated
+  binder or application argument seals the extras away. The runtime already
+  drops them (see Dynamics).
 - **Abstract type members.** Signatures cannot yet declare `type T` without a
   definition, so there is no sealing of representations and no path types.
 - **Comparing modules with `==`** is a runtime incomparable result; statics
@@ -220,7 +199,7 @@ After checking:
 - `ModuleHelpers.check_ana_type_members` marks the definition type of a
   `type T = ...` item that differs from the signature's
   (`Mark.ModuleTypeMemberMismatch`).
-- `ModuleHelpers.missing_members` / `extra_members` produce
+- `ModuleHelpers.missing_items` / `extra_members` produce
   `Mark.ModuleMissingMembers` / `Mark.ModuleExtraMembers` on the module node.
 - `ModuleHelpers.refold_module_elab` rebuilds the elaborated `Module` from
   the checked chain: definitions keep their elaboration, synthetic binder
@@ -232,11 +211,9 @@ value member; a member the signature lacks is reported on the label
 (`ModuleMemberNotFound`, which also says when `x` names a type member) while
 the dot carries only a message, the way `M.Fake` in a type reports on `Fake`
 (`ModuleTypeMemberNotFound`). A value used as the root of a type path gets
-`TypWantModule`, and a manifest type member differing from the signature is
-reported once, on its `type` item: members are checked against the module's
-own definition and the module is not reported again. In type position, `utyp_to_info_map` threads a context through
-signature items and resolves `M.T` through `Typ.path_sig`; TyDi receives the
-type member names via `LabelProjectionExpected`.
+`TypWantModule`. In type position, `utyp_to_info_map` threads a context
+through signature items and resolves `M.T` through `Typ.path_sig`; TyDi
+receives the member names via `ModuleMemberExpected`.
 
 ### Dynamics
 
@@ -256,8 +233,7 @@ literal binding `let x = v` (`Equality.re`), and display as `let x = v`.
 
 ### Sort Fallback Patterns, Forms and Decorations
 
-Unchanged from the original implementation: Mod→Exp and Sig→Typ fallbacks in
-remolding (`Segment.re`) and insertion (`Insert.re`), the semicolon special
+Mod→Exp and Sig→Typ fallbacks in remolding (`Segment.re`) and insertion (`Insert.re`), the semicolon special
 case, the heterogeneous prefix forms (`mk_pre_c'` in `Form.re`), sort-specific
 grout precedence (`Skel.re`), module semicolon decoration (`Arms.re`), and the
 Menhir parser's `ModuleExp`/`ModItemModule` structure with `Conversion.re`'s
@@ -298,21 +274,10 @@ used only for mispositioned items.
 | `src/haz3lcore/pretty/ExpToSegment.re`  | Module, Sig and `ModVal` printing                                  |
 | `src/menhirParser/Parser.mly`, `Conversion.re` | Text parser for module forms                                |
 
-### Tests
-
-| File                                       | What                                                                      |
-| ------------------------------------------ | ------------------------------------------------------------------------- |
-| `test/statics/Test_Statics_Modules.re`     | Signature synthesis, annotations, Sig/Prod distinctness, `M.T`            |
-| `test/Test_Typ.re`                         | `Typ.Sig`: meet, normalize, free_vars, member projection, `subst_captures` |
-| `test/evaluator/Test_Evaluator_Modules.re` | Module values, member access, sealing at runtime                          |
-| `test/Test_Elaboration.re`                 | Modules elaborate to modules                                              |
-| `test/Test_TyDi.re`                        | Value/type member completion                                              |
-| `test/Test_Menhir.re`, `Test_MakeTerm.re`, `Test_ExpToSegment.re` | Parsing and round-trips                            |
-
 ### In-Editor Documentation
 
 | File                                         | What                                          |
 | -------------------------------------------- | --------------------------------------------- |
 | `hazel-programs/docs/reference/modules.hz`   | The Modules doc slide (construction, type access) |
-| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide; split off because one slide's `let` chain hit the evaluator stack limit in the Web Worker |
+| `hazel-programs/docs/reference/module-signatures.hz` | The Module Signatures slide (signatures, signature errors) |
 | `src/web/app/explainthis/data/Sig*.re`, `Mod*.re`, `DotTyp.re` | Explain-this content         |
