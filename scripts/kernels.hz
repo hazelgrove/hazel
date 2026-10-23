@@ -1,0 +1,16 @@
+let count = fun n -> if n == 0 then 0 else count(n - 1) in
+let fib = fun n -> if n < 2 then n else fib(n - 1) + fib(n - 2) in
+let build = fun (n, acc) -> if n == 0 then acc else build(n - 1, n :: acc) in
+let sum = fun l -> case l | [] => 0 | x :: t => x + sum(t) end in
+let map = fun (f, l) -> case l | [] => [] | x :: t => f(x) :: map(f, t) end in
+let len = fun l -> case l | [] => 0 | _ :: t => 1 + len(t) end in
+let sumbuild = fun n -> sum(build(n, [])) in
+let mapinc = fun n -> len(map((fun x -> x + 1), build(n, []))) in
+let skip = fun l -> 0 in
+let k_id = fun k -> k in
+let hold = fun n ->
+  let held = build(n, []) in
+  (h_id = (fun k -> k),
+   h_ref = (fun k -> let u = held in k),
+   h_walk = (fun k -> len(held))) in
+(count = count, fib = fib, sumbuild = sumbuild, mapinc = mapinc, skip = skip, k_id = k_id, hold = hold)

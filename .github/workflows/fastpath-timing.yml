@@ -1,0 +1,101 @@
+# MEASURING ONLY (^ticket(559)): the evaluator's fast path for terms already final, on GitHub's machines, never the
+# laptop. An orphan branch: only this workflow runs. Each of four jobs takes four deployed builds from hazelgrove/build
+# (no compiling) and runs report 29's kernels (scripts/kernels.mjs, scripts/kernels.hz, from the reports' 029/drivers)
+# in node: the counter build (trial/r25-stats) and the fast path on it (trial/r25-fastpath) once each, for passes;
+# then the timing build (trial/r25-best) and the fast path on it (trial/r25-fastpath-best) in the order best, fast,
+# fast, best, for times. Runners differ in speed, so times are compared within a job; the last job tabulates.
+name: Fast path timing (^ticket(559))
+
+on:
+  push:
+    branches:
+      - "timing/559-fastpath"
+
+env:
+  STATS: d657eefd3da19f8c761e58f8168e2a22d2c1fb99
+  FASTPATH: a8251779bb5ea60501d3d48782c14a077e0a25bd
+  BEST: b34d943d73010b5f24d09ede8be4a939b9dc80b6
+  FASTBEST: 61e4e4f2ff64ce7edb377a3d89fae9d9f1286b6b
+
+jobs:
+  kernels:
+    name: Kernels (${{ matrix.job }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [r1, r2, r3, r4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: hazelgrove/build
+          ref: ${{ env.STATS }}
+          path: b/stats
+          sparse-checkout: trial/r25-stats
+      - uses: actions/checkout@v4
+        with:
+          repository: hazelgrove/build
+          ref: ${{ env.FASTPATH }}
+          path: b/fastpath
+          sparse-checkout: trial/r25-fastpath
+      - uses: actions/checkout@v4
+        with:
+          repository: hazelgrove/build
+          ref: ${{ env.BEST }}
+          path: b/best
+          sparse-checkout: trial/r25-best
+      - uses: actions/checkout@v4
+        with:
+          repository: hazelgrove/build
+          ref: ${{ env.FASTBEST }}
+          path: b/fastbest
+          sparse-checkout: trial/r25-fastpath-best
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The runner and the builds
+        run: |
+          mkdir -p out
+          { echo "${{ matrix.job }}:"; lscpu | grep -E 'Model name'; node --version; } | tee out/runner.txt
+          ls -la b/stats/trial/r25-stats/hazel-lib.js b/fastpath/trial/r25-fastpath/hazel-lib.js \
+            b/best/trial/r25-best/hazel-lib.js b/fastbest/trial/r25-fastpath-best/hazel-lib.js
+          grep -c 'passes skipped' b/fastpath/trial/r25-fastpath/hazel-lib.js
+      - name: Passes, the counter build and the fast path on it
+        run: |
+          set -euo pipefail
+          node --stack-size=8000 scripts/kernels.mjs hazel b/stats/trial/r25-stats/hazel-lib.js out/stats_1.json
+          node --stack-size=8000 scripts/kernels.mjs hazel b/fastpath/trial/r25-fastpath/hazel-lib.js out/fastpath_1.json
+      - name: Times, the timing build and the fast path on it, best, fast, fast, best
+        run: |
+          set -euo pipefail
+          round=0
+          for side in best fastbest fastbest best; do
+            round=$((round + 1))
+            dir=$(case $side in best) echo r25-best;; fastbest) echo r25-fastpath-best;; esac)
+            echo "== $round $side"
+            node --stack-size=8000 scripts/kernels.mjs hazel "b/$side/trial/$dir/hazel-lib.js" "out/${side}_$round.json"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: job-${{ matrix.job }}
+          path: out
+
+  table:
+    needs: kernels
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: job-*
+          path: all
+      - name: Summary
+        run: python3 scripts/summary559.py all | tee summary.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: summary
+          path: summary.md
