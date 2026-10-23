@@ -3766,13 +3766,9 @@ and utyp_to_info_map =
         | ProductExpected => Typ.path_sig(ctx, utyp)
         | _ => None
         };
-      switch (whole_path, Typ.path_sig(ctx, pty), l.term) {
-      | (Some(items), _, _) =>
-        /* A module path (`M.P`) used as the left of a further projection. */
-        ok(Message.Type(Sig(items) |> Typ.temp))
-      | (None, Some(items), Label(l)) =>
-        /* `M.T`: a type member of a module path or signature alias. */
-        switch (Typ.sig_project_type(items, l)) {
+      /* The projected type, or [missing] when the label names nothing. */
+      let projected = (found: option(Typ.t), missing) =>
+        switch (found) {
         | Some(ty') =>
           ok(
             Message.WHNormalizedTo({
@@ -3780,16 +3776,21 @@ and utyp_to_info_map =
               whnormalized: ty',
             }),
           )
-        | None =>
-          ok(
-            Message.TypeUnderdetermined(
-              Message.ModuleTypeMemberMissing(
-                l,
-                Sig.type_names(Sig.members(items)),
-              ),
-            ),
-          )
-        }
+        | None => ok(Message.TypeUnderdetermined(missing))
+        };
+      switch (whole_path, Typ.path_sig(ctx, pty), l.term) {
+      | (Some(items), _, _) =>
+        /* A module path (`M.P`) used as the left of a further projection. */
+        ok(Message.Type(Sig(items) |> Typ.temp))
+      | (None, Some(items), Label(l)) =>
+        /* `M.T`: a type member of a module path or signature alias. */
+        projected(
+          Typ.sig_project_type(items, l),
+          Message.ModuleTypeMemberMissing(
+            l,
+            Sig.type_names(Sig.members(items)),
+          ),
+        )
       | (None, Some(_), _) =>
         ok(
           Message.TypeUnderdetermined(
@@ -3802,27 +3803,16 @@ and utyp_to_info_map =
       | (None, None, _) =>
         switch (Typ.weak_head_normalize(ctx, pty), l.term) {
         | ({term: Prod(tys), _}, Label(l)) =>
-          switch (Typ.project_type(tys, l)) {
-          | Some(ty') =>
-            ok(
-              Message.WHNormalizedTo({
-                unnormalized: utyp,
-                whnormalized: ty',
-              }),
-            )
-          | None =>
-            ok(
-              Message.TypeUnderdetermined(
-                Message.ProdProjectionMissingLabel(
-                  l,
-                  List.filter_map(
-                    t => Typ.match_tup_label(t) |> Option.map(fst),
-                    tys,
-                  ),
-                ),
+          projected(
+            Typ.project_type(tys, l),
+            Message.ProdProjectionMissingLabel(
+              l,
+              List.filter_map(
+                t => Typ.match_tup_label(t) |> Option.map(fst),
+                tys,
               ),
-            )
-          }
+            ),
+          )
         | (t1, _) =>
           ok(
             Message.TypeUnderdetermined(
