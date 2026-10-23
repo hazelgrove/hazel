@@ -20,7 +20,7 @@ let print_core = (exp: Exp.t): string =>
    4 → space, newline, space. String literals are left untouched
    (double-quote tracking with backslash escapes). */
 let fuzz_whitespace = (choices: array(int), s: string): string => {
-  let buf = Stdlib.Buffer.create(String.length(s) + 32);
+  let buf = Core.Buffer.create(String.length(s) + 32);
   let n = String.length(s);
   let n_choices = Array.length(choices);
   let rec go = (i: int, run_idx: int, in_string: bool) =>
@@ -29,10 +29,10 @@ let fuzz_whitespace = (choices: array(int), s: string): string => {
     } else {
       let c = s.[i];
       if (in_string) {
-        Stdlib.Buffer.add_char(buf, c);
+        Core.Buffer.add_char(buf, c);
         switch (c) {
         | '\\' when i + 1 < n =>
-          Stdlib.Buffer.add_char(buf, s.[i + 1]);
+          Core.Buffer.add_char(buf, s.[i + 1]);
           go(i + 2, run_idx, true);
         | '"' => go(i + 1, run_idx, false)
         | _ => go(i + 1, run_idx, true)
@@ -58,15 +58,15 @@ let fuzz_whitespace = (choices: array(int), s: string): string => {
           | 3 => "\n  "
           | _ => " \n "
           };
-        Stdlib.Buffer.add_string(buf, replacement);
+        Core.Buffer.add_string(buf, replacement);
         go(j^, run_idx + 1, false);
       } else {
-        Stdlib.Buffer.add_char(buf, c);
+        Core.Buffer.add_char(buf, c);
         go(i + 1, run_idx, Char.equal(c, '"'));
       };
     };
   go(0, 0, false);
-  Stdlib.Buffer.contents(buf);
+  Core.Buffer.contents(buf);
 };
 
 let make_term_parse = (s: string): option(Exp.t) =>
