@@ -195,6 +195,41 @@ let search_tests = {
   ];
 };
 
+let compare_tests = {
+  let cmp = (a, b) =>
+    as_int(call("string_compare", [Exp.string(a), Exp.string(b)]));
+  [
+    test_case(
+      "string_compare orders strings, -1, 0 or 1",
+      `Quick,
+      () => {
+        check(int, "before", -1, cmp("apple", "banana"));
+        check(int, "equal", 0, cmp("hazel", "hazel"));
+        check(int, "after", 1, cmp("banana", "apple"));
+        check(int, "a prefix comes first", -1, cmp("ha", "hazel"));
+        check(int, "the empty string first", -1, cmp("", "a"));
+        check(int, "by code point: B before a", -1, cmp("B", "a"));
+        check(int, "an emoji after ASCII", 1, cmp(grin, "z"));
+      },
+    ),
+    test_case(
+      "string_compare is antisymmetric",
+      `Quick,
+      () => {
+        let words = ["", "a", "ab", "b", "B", "lever_L", "lever_R", grin];
+        List.iter(
+          a =>
+            List.iter(
+              b => check(int, a ++ " / " ++ b, - cmp(b, a), cmp(a, b)),
+              words,
+            ),
+          words,
+        );
+      },
+    ),
+  ];
+};
+
 let split_tests = {
   let split = (sep, s) =>
     call("string_split", [Exp.string(sep), Exp.string(s)]);
@@ -463,6 +498,7 @@ let tests = (
   length_tests
   @ sub_tests
   @ search_tests
+  @ compare_tests
   @ split_tests
   @ case_tests
   @ regex_tests
