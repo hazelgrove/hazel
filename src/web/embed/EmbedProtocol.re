@@ -85,6 +85,9 @@ type incoming =
   /* { type: "focus", module }: one module's body alone (module absent or
      not a string: the whole program) */
   | Focus(option(string))
+  /* { type: "theme", dark, contrast }: Hazel's Colors slide with its
+     dark_mode and high_contrast switches set so */
+  | Theme(bool, bool)
   | Ping;
 
 /* j[key] when it is a string */
@@ -121,6 +124,11 @@ let decode = (data: Js.Unsafe.any): option(incoming) =>
     }
   | Some("ping") => Some(Ping)
   | Some("focus") => Some(Focus(string_field(data, "module")))
+  | Some("theme") =>
+    let flag = key =>
+      Js.to_string(Js.typeof(Js.Unsafe.get(data, key))) == "boolean"
+      && Js.to_bool(Js.Unsafe.get(data, key));
+    Some(Theme(flag("dark"), flag("contrast")));
   | Some("editable") =>
     Some(
       Editable(

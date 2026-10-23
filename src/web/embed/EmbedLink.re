@@ -27,6 +27,8 @@ type t = {
   mutable editable: option(bool),
   /* and the module it asked to see alone (Some(None): the whole program) */
   mutable focus: option(option(string)),
+  /* and the theme it asked for: (dark, high contrast) */
+  mutable theme: option((bool, bool)),
 };
 
 let make = (~parent, ~own_origin, ~post): t => {
@@ -38,6 +40,7 @@ let make = (~parent, ~own_origin, ~post): t => {
   crashes: [],
   editable: None,
   focus: None,
+  theme: None,
 };
 
 let send = (link: t, ~target: string, message: EmbedModel.Outbox.message) =>
@@ -83,6 +86,10 @@ let receive = (link: t, event: Js.Unsafe.any): option(EmbedModel.Program.t) => {
     | Some(Set(program)) =>
       link.page_origin = Some(origin);
       Some(program);
+    | Some(Theme(dark, contrast)) =>
+      link.page_origin = Some(origin);
+      link.theme = Some((dark, contrast));
+      None;
     | Some(Focus(name)) =>
       link.page_origin = Some(origin);
       link.focus = Some(name);

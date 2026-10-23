@@ -81,6 +81,40 @@ let set_soon = (~link, program: EmbedModel.Program.t): unit => {
   };
 };
 
+/* (ticket 578, Matthew 2026-10-23: dark mode and high contrast when the
+   page around is dark, "I want that default in general everywhere") the
+   theme a page asks for: Hazel's own Colors slide, its dark_mode and
+   high_contrast switches set as asked, evaluated as the app does at
+   startup, its colors put on the frame's document. Once per choice. */
+let themes: Hashtbl.t((bool, bool), list((string, string))) =
+  Hashtbl.create(4);
+let apply_theme = (~dark: bool, ~contrast: bool): unit => {
+  let vars =
+    switch (Hashtbl.find_opt(themes, (dark, contrast))) {
+    | Some(vars) => vars
+    | None =>
+      let set = (name, on, text) =>
+        StringUtil.plain_replace(
+          "let " ++ name ++ " = \\^\\^check\\((true|false)\\)",
+          text,
+          "let " ++ name ++ " = ^^check(" ++ string_of_bool(on) ++ ")",
+        );
+      let text =
+        ColorConfiguration.source.backup_text
+        |> set("dark_mode", dark)
+        |> set("high_contrast", contrast);
+      let vars =
+        ColorConfiguration.vars_of_source(
+          Haz3lcore.PersistentZipper.of_text(text),
+        );
+      Hashtbl.replace(themes, (dark, contrast), vars);
+      vars;
+    };
+  if (vars != []) {
+    ConfigurationMode.apply_colors(vars);
+  };
+};
+
 let on_message = (~link, event: Js.Unsafe.any): unit =>
   try(
     switch (EmbedLink.receive(link, event)) {
@@ -90,6 +124,12 @@ let on_message = (~link, event: Js.Unsafe.any): unit =>
       | Some(on) =>
         link.editable = None;
         update(~link, SetEditable(on));
+      | None => ()
+      };
+      switch (link.theme) {
+      | Some((dark, contrast)) =>
+        link.theme = None;
+        apply_theme(~dark, ~contrast);
       | None => ()
       };
       switch (link.focus) {
