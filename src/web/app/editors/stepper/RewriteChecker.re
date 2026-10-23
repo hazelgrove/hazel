@@ -10,7 +10,7 @@ let name_other = (): (Exp.t => string) => {
       | Some(name) => name
       | None =>
         let new_name =
-          "unknown_" ++ string_of_int(Stdlib.Hashtbl.hash(exp) mod 100000);
+          "unknown_" ++ string_of_int(Hashtbl.hash(exp) mod 100000);
         names := [(exp, new_name)] @ names^;
         new_name;
       };

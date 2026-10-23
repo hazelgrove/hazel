@@ -3667,14 +3667,15 @@ let uniquify_typ_ids = (ty: Typ.t): Typ.t => {
    tile legitimately split across pieces (distinct shard indices) is never
    touched; only true duplicates are freshened. */
 let uniquify_repeated_tiles = (seg: Segment.t): Segment.t => {
-  let seen: Hashtbl.t((Id.t, int), unit) = Stdlib.Hashtbl.create(64);
+  let seen: Hash_set.t((Id.t, int)) = Hash_set.Poly.create();
   let rec go_seg = (seg: Segment.t): Segment.t => List.map(~f=go_piece, seg)
   and go_piece = (p: Piece.t): Piece.t =>
     switch (p) {
     | Tile(t) =>
-      let dup = List.exists(~f=i => Hashtbl.mem(seen, (t.id, i)), t.shards);
+      let dup =
+        List.exists(~f=i => Hash_set.mem(seen, (t.id, i)), t.shards);
       let id = dup ? Id.mk() : t.id;
-      List.iter(~f=i => Hashtbl.replace(seen, (id, i), ()), t.shards);
+      List.iter(~f=i => Hash_set.add(seen, (id, i)), t.shards);
       Tile({
         ...t,
         id,

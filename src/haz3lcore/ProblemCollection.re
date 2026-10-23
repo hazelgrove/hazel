@@ -325,8 +325,7 @@ type problem_collection = {
 let make =
     (~display_warnings: bool, inputs: list(editor_group_input))
     : problem_collection => {
-  let seen: Stdlib.Hashtbl.t((Id.t, problem_category), unit) =
-    Stdlib.Hashtbl.create(64);
+  let seen: Hash_set.t((Id.t, problem_category)) = Hash_set.Poly.create();
   let collect_source = (source: editor_source) => {
     let ctx =
       make_problem_context(
@@ -342,10 +341,10 @@ let make =
               collect_category(ctx, cat)
               |> Stdlib.Seq.filter((p: problem) => {
                    let key = (p.id, cat);
-                   if (Stdlib.Hashtbl.mem(seen, key)) {
+                   if (Hash_set.mem(seen, key)) {
                      false;
                    } else {
-                     Stdlib.Hashtbl.add(seen, key, ());
+                     Hash_set.add(seen, key);
                      true;
                    };
                  })
