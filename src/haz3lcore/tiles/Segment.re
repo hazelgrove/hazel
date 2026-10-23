@@ -189,11 +189,11 @@ and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
     | [] =>
       let shards = List.init(List.length(t.shards), Fun.id);
       Form.compound_remold_candidates(Tile.effective_label(t), s)
-      |> List.map(((form, sort)) =>
+      |> List.map(form =>
            {
              ...t,
              form,
-             sort,
+             sort: s,
              shards,
            }
          );
