@@ -269,10 +269,11 @@ let init =
     ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, ~root, ~ana?, z)
     : empty;
 
-/* Typ-rooted cells (type-alias bodies): wrap in a TyAlias so the info
-   map gets real InfoTyp entries; the wrapper's fresh ids never render,
-   so its marks stay invisible */
-let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
+/* statics of a non-Exp cell, typed inside the Exp [wrap] builds around
+   its term; the wrapper's fresh ids never render, so its marks stay
+   invisible */
+let init_wrapped =
+    (~settings: CoreSettings.t, ~ctx=?, ~note, wrap: unit => Exp.t): t =>
   if (!settings.statics) {
     empty;
   } else {
@@ -281,13 +282,11 @@ let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
         ~default=Builtins.ctx_init(Some(Operators.default_mode)),
         ctx,
       );
-    let ty = MakeTerm.from_zip_for_typ(z);
-    let term: Exp.t =
-      Exp.fresh(TyAlias(TPat.fresh(EmptyHole), ty, Exp.fresh(Tuple([]))));
+    let term = wrap();
     let (info_map, _) = Statics.mk_unmemoized(settings, ctx, term);
     {
       term,
-      elaborated: dh_err("Type cell: no dynamics"),
+      elaborated: dh_err(note),
       info_map,
       error_ids: Statics.Map.error_ids(info_map),
       warning_ids: [],
@@ -296,45 +295,41 @@ let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
       pins: Id.Map.empty,
     };
   };
+
+/* Typ-rooted cells (type-alias bodies): wrap in a TyAlias so the info
+   map gets real InfoTyp entries */
+let init_typ = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
+  init_wrapped(
+    ~settings,
+    ~ctx?,
+    ~note="Type cell: no dynamics",
+    () => {
+      let ty = MakeTerm.from_zip_for_typ(z);
+      Exp.fresh(TyAlias(TPat.fresh(EmptyHole), ty, Exp.fresh(Tuple([]))));
+    },
+  );
 
 /* Pat-rooted cells (`name : T` headers): type the pattern as a function
    parameter; the hole body keeps its binders from reading as unused */
 let init_pat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
-  if (!settings.statics) {
-    empty;
-  } else {
-    let ctx =
-      Option.value(
-        ~default=Builtins.ctx_init(Some(Operators.default_mode)),
-        ctx,
-      );
-    let p = MakeTerm.from_zip_for_pat(z);
-    let term: Exp.t = Exp.fresh(Fun(p, Exp.fresh(EmptyHole), None, None));
-    let (info_map, _) = Statics.mk_unmemoized(settings, ctx, term);
-    {
-      term,
-      elaborated: dh_err("Header cell: no dynamics"),
-      info_map,
-      error_ids: Statics.Map.error_ids(info_map),
-      warning_ids: [],
-      targets: Sample.no_targets,
-      completion: None,
-      pins: Id.Map.empty,
-    };
-  };
+  init_wrapped(
+    ~settings,
+    ~ctx?,
+    ~note="Header cell: no dynamics",
+    () => {
+      let p = MakeTerm.from_zip_for_pat(z);
+      Exp.fresh(Fun(p, Exp.fresh(EmptyHole), None, None));
+    },
+  );
 
 /* TPat-rooted cells (type-alias headers): the binder of an unknown type */
 let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
-  if (!settings.statics) {
-    empty;
-  } else {
-    let ctx =
-      Option.value(
-        ~default=Builtins.ctx_init(Some(Operators.default_mode)),
-        ctx,
-      );
-    let tp = MakeTerm.from_zip_for_tpat(z);
-    let term: Exp.t =
+  init_wrapped(
+    ~settings,
+    ~ctx?,
+    ~note="Header cell: no dynamics",
+    () => {
+      let tp = MakeTerm.from_zip_for_tpat(z);
       Exp.fresh(
         TyAlias(
           tp,
@@ -342,22 +337,9 @@ let init_tpat = (~settings: CoreSettings.t, ~ctx=?, z: Zipper.t): t =>
           Exp.fresh(Tuple([])),
         ),
       );
-    let (info_map, _) = Statics.mk_unmemoized(settings, ctx, term);
-    {
-      term,
-      elaborated: dh_err("Header cell: no dynamics"),
-      info_map,
-      error_ids: Statics.Map.error_ids(info_map),
-      warning_ids: [],
-      targets: Sample.no_targets,
-      completion: None,
-      pins: Id.Map.empty,
-    };
-  };
+    },
+  );
 
-/* per-item statics via DefStatics: an edit re-analyzes only the dirty
-   set, and no whole-program recursion runs (it can overflow the browser
-   stack). takes a term so callers holding a segment skip the zipper */
 /* TEMP instrumentation (strip after the statics-tick decomposition):
    window.__staticsProf(true) prints per-phase ms for each tick */
 let prof: ref(bool) = ref(false);
@@ -377,6 +359,49 @@ let ptime = (label: string, f: unit => 'a): 'a =>
     f();
   };
 
+/* W2b: dynamics run worker-side from the resident program; this
+   SENTINEL is never evaluated — it exists so eval-request triggering
+   (keyed on elaborated changing) fires exactly when the statics
+   semantically changed */
+let resident_sentinel = (): DHExp.t =>
+  dh_err("w2-resident:" ++ string_of_int(DefStatics.semantic_gen^));
+
+/* statics of [term] from its DefStatics run; [elaborated] stands in for
+   the grafted elaboration */
+let of_def_statics =
+    (
+      ~settings: CoreSettings.t,
+      ~probe_ids,
+      ~elaborated=?,
+      term: Exp.t,
+      ds: DefStatics.t,
+    )
+    : t => {
+  term,
+  elaborated:
+    switch (elaborated) {
+    | Some(e) => e
+    | None =>
+      switch (ptime("whole_elab", () => DefStatics.whole_elab(ds))) {
+      | Some(elab) => elab
+      | None => dh_err("Compositional elaboration gap")
+      }
+    },
+  info_map: ds.merged,
+  error_ids: ptime("all_error_ids", () => DefStatics.all_error_ids(ds)),
+  warning_ids: ptime("all_warning_ids", () => DefStatics.all_warning_ids(ds)),
+  targets:
+    ptime("compute_targets", () =>
+      compute_targets(~settings, ~info_map=ds.merged, ~probe_ids, ())
+    ),
+  completion: None,
+  /* set by callers that have the pins */
+  pins: Id.Map.empty,
+};
+
+/* per-item statics via DefStatics: an edit re-analyzes only the dirty
+   set, and no whole-program recursion runs (it can overflow the browser
+   stack). takes a term so callers holding a segment skip the zipper */
 let init_compositional_term =
     (~settings: CoreSettings.t, ~probe_ids, term: Exp.t): t => {
   incr(ptick);
@@ -385,54 +410,51 @@ let init_compositional_term =
     ptime("calc_auto", () =>
       DefStatics.calc_auto(~settings, ~propagate=!clamped, ~probe_ids, term)
     );
-  let info_map = ds.merged;
-  let elaborated =
-    switch () {
-    | _ when clamped =>
-      /* W2b: dynamics run worker-side from the resident program; this
-         SENTINEL is never evaluated — it exists so eval-request
-         triggering (keyed on elaborated changing) fires exactly when
-         the statics semantically changed */
-      dh_err("w2-resident:" ++ string_of_int(DefStatics.semantic_gen^))
-    | _ when !settings.dynamics && !settings.elaborate =>
-      dh_err("Dynamics & Elaboration disabled")
-    | _ =>
-      switch (ptime("whole_elab", () => DefStatics.whole_elab(ds))) {
-      | Some(elab) => elab
-      | None => dh_err("Compositional elaboration gap")
-      }
-    };
-  {
+  of_def_statics(
+    ~settings,
+    ~probe_ids,
+    ~elaborated=?
+      switch () {
+      | _ when clamped => Some(resident_sentinel())
+      | _ when !settings.dynamics && !settings.elaborate =>
+        Some(dh_err("Dynamics & Elaboration disabled"))
+      | _ => None
+      },
     term,
-    elaborated,
-    info_map,
-    error_ids: ptime("all_error_ids", () => DefStatics.all_error_ids(ds)),
-    warning_ids:
-      ptime("all_warning_ids", () => DefStatics.all_warning_ids(ds)),
-    targets:
-      ptime("compute_targets", () =>
-        compute_targets(~settings, ~info_map, ~probe_ids, ())
-      ),
-    completion: None,
-    /* set by init_compositional, which has the zipper */
-    pins: Id.Map.empty,
-  };
+    ds,
+  );
 };
 
+/* [shared]: the editor's parse cache, whose item parses stand in for
+   parsing the same pieces again; [source]: [z]'s semantic source as the
+   pieces it parsed (CachedSyntax.semantic_source) */
 let init_compositional =
-    (~settings: CoreSettings.t, ~stitch, ~root, ~probe_ids=?, z: Zipper.t): t =>
+    (
+      ~settings: CoreSettings.t,
+      ~stitch,
+      ~root,
+      ~probe_ids=?,
+      ~shared=?,
+      ~source=?,
+      z: Zipper.t,
+    )
+    : t =>
   if (!settings.statics) {
     empty;
   } else if (root != Sort.Exp && root != Sort.Mod) {
     init(~settings, ~is_dynamic_term=false, ~stitch, ~root, z);
   } else {
     /* semantics reads the caret-independent canonical completion */
-    let source = MakeTerm.semantic_source(z);
-    let (seg, masks) = MakeTerm.semantic_segment(~root, source);
-    let term =
-      ptime("term_of+stitch", () =>
-        MakeTerm.Incr.term_of_root(~masks, ~root, seg) |> stitch
+    let source =
+      switch (source) {
+      | Some(seg) => seg
+      | None => MakeTerm.semantic_source(z)
+      };
+    let (seg, term) =
+      ptime("semantic_parse", () =>
+        MakeTerm.semantic_parse(~root, ~shared?, source)
       );
+    let term = ptime("stitch", () => stitch(term));
     /* stacked cells pass the union of their zippers' probes */
     let probe_ids =
       switch (probe_ids) {

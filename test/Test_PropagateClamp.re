@@ -45,8 +45,8 @@ let tests = [
              slice; downstream items keep their piece identities */
           let spliced =
             switch (
-              MakeTerm.Incr.slices(seg),
-              MakeTerm.Incr.slices(parse(src')),
+              MakeTerm.Incr.slices(~root=Exp, seg),
+              MakeTerm.Incr.slices(~root=Exp, parse(src')),
             ) {
             | ([_, ...old_rest], [fresh_first, ..._]) =>
               List.concat([fresh_first, ...old_rest])

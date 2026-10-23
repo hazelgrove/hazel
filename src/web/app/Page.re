@@ -63,19 +63,26 @@ module Store = {
   };
 };
 
-/* undo and redo restore programs; what each slide shows stays */
-let carry_views = (~from: Model.t, m: Model.t): Model.t =>
+/* undo and redo restore programs; what each slide shows stays, and so do
+   its editors' incremental caches, which hit for what the step didn't
+   change (snapshots drop theirs: History.compact), and their statics and
+   runs, shown until the typing debounce analyzes the restored program */
+let carry_over = (~from: Model.t, m: Model.t): Model.t => {
+  let carry = (a, b) =>
+    ScratchMode.Model.with_views_of(~from=a, b)
+    |> ScratchMode.Model.with_caches_of(~from=a);
   switch (from.editors, m.editors) {
   | (Scratch(a), Scratch(b)) => {
       ...m,
-      editors: Scratch(ScratchMode.Model.with_views_of(~from=a, b)),
+      editors: Scratch(carry(a, b)),
     }
   | (Documentation(a), Documentation(b)) => {
       ...m,
-      editors: Documentation(ScratchMode.Model.with_views_of(~from=a, b)),
+      editors: Documentation(carry(a, b)),
     }
   | _ => m
   };
+};
 
 module Update = {
   open Updated;
@@ -124,7 +131,14 @@ module Update = {
                 ),
                 /* header too: binder and signature errors live there.
                    a ⇒ or `;` cell shows none, and its empty one is a hole */
-                (Option.is_none(e.e_sym) ? [e.e_header.editor] : [])
+                (
+                  switch (e.e_kind) {
+                  | Def(_)
+                  | Members => [e.e_header.editor]
+                  | Headless(_)
+                  | Run(_) => []
+                  }
+                )
                 @ [e.e_body.editor],
               ),
             cells,
@@ -174,6 +188,16 @@ module Update = {
     | Save;
 
   let equal = (===);
+
+  /* a jump into a cell that isn't open, or to another cell's binder or
+     function: the item opens now; once its cell is there, the follow-ups
+     run in the pane holding the target (the caret's move, or the step
+     into), which takes the focus */
+  let jump_across = (~schedule_action, (ensure, selection, then_)) => {
+    List.iter(a => schedule_action(Editors(a)), then_);
+    Haz3lcore.FocusEffect.schedule_cell_top();
+    (ensure, selection);
+  };
 
   let update_global =
       (
@@ -225,10 +249,8 @@ module Update = {
       |> Updated.return(~scroll_active=false);
     | JumpToTile(id) =>
       switch (Editors.Selection.closed_jump(id, model.editors)) {
-      | Some((ensure, selection, caret)) =>
-        /* outside every open cell: open its item, then move there */
-        schedule_action(Editors(caret));
-        Haz3lcore.FocusEffect.schedule_cell_top();
+      | Some(across) =>
+        let (ensure, selection) = jump_across(~schedule_action, across);
         let* editors =
           Editors.Update.update(
             ~globals,
@@ -292,6 +314,15 @@ module Update = {
       Haz3lcore.ProbeProj.Settings.set_drawer_width(cols);
       model |> Updated.return_quiet(~recalculate=true);
     | RelayoutDrawers => model |> Updated.return_quiet(~recalculate=true)
+    | SetSettingsFilter(settings_filter) =>
+      {
+        ...model,
+        globals: {
+          ...model.globals,
+          settings_filter,
+        },
+      }
+      |> return_quiet
     | UpdateVisibleRows(visible_rows) =>
       {
         ...model,
@@ -422,36 +453,21 @@ module Update = {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
-      /* a stack cell's jump to a binder in another definition becomes:
-         stack the target, select it, then jump the caret (as JumpToTile) */
-      let (action, selection, followup) =
+      let (action, selection) =
         switch (Editors.Selection.stack_jump_override(action, model.editors)) {
-        | Some((action', selection, followup)) => (
-            action',
-            selection,
-            Some(followup),
-          )
-        | None => (action, model.selection, None)
-        };
-      switch (followup) {
-      | Some(k) =>
-        schedule_action(Editors(k));
-        Haz3lcore.FocusEffect.schedule_cell_top();
-      | None => ()
-      };
-      /* an outline add selects and focuses the new cell (focus also
-         scrolls it into view) */
-      let selection =
-        switch (followup) {
-        | Some(_) => selection
+        /* a stack cell's jump to a binder, or step into a function, in
+           another definition */
+        | Some(across) => jump_across(~schedule_action, across)
         | None =>
+          /* an outline add selects and focuses the new cell (focus also
+             scrolls it into view) */
           switch (
             Editors.Selection.stack_add_selection(action, model.editors)
           ) {
           | Some(s) =>
             Haz3lcore.FocusEffect.schedule_cell_top();
-            s;
-          | None => selection
+            (action, s);
+          | None => (action, model.selection)
           }
         };
       let* editors =
@@ -473,16 +489,8 @@ module Update = {
             visible_rows: None,
           }
           : model.globals;
-      /* an unchanged selection whose cell closed falls back to an open
-         one; a fresh one already names its target */
       let selection =
-        selection === model.selection
-          ? Editors.Selection.follow(
-              ~before=model.editors,
-              selection,
-              editors,
-            )
-          : selection;
+        Editors.Selection.follow(~before=model.editors, selection, editors);
       {
         ...model,
         editors,
@@ -569,13 +577,14 @@ module Update = {
         Editors.Update.calculate(
           ~settings=
             dynamics
-              ? model.globals.settings.core
+              ? model.globals.settings
               : {
-                ...model.globals.settings.core,
-                dynamics: false,
+                ...model.globals.settings,
+                core: {
+                  ...model.globals.settings.core,
+                  dynamics: false,
+                },
               },
-          ~autoprobe_mode=model.globals.settings.autoprobe_mode,
-          ~tail_probe=model.globals.settings.tail_probe,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~is_edited,
           model.editors,
@@ -739,12 +748,26 @@ module Selection = {
 };
 
 module View = {
+  /* the Cmd state a key event gives the model, when it may change it. The
+     listener's model is the last render's, which hasn't seen a press in
+     this frame: a press or release of Cmd always gives it (a release
+     dropped there left the Cmd-hover underline on), other keys a change */
+  let meta_change = (~rendered: bool, key: Key.t): option(bool) => {
+    let down = key.meta == Down;
+    switch (key.key) {
+    | D("Meta")
+    | U("Meta") => Some(down)
+    | _ => rendered == down ? None : Some(down)
+    };
+  };
+
   let handlers = (~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let handle_key_event = (key: Key.t): Effect.t(unit) => {
-      let meta_down = key.meta == Down;
       let meta_effects =
-        model.globals.meta_down == meta_down
-          ? [] : [inject(Globals(SetMetaDown(meta_down)))];
+        switch (meta_change(~rendered=model.globals.meta_down, key)) {
+        | Some(down) => [inject(Globals(SetMetaDown(down)))]
+        | None => []
+        };
       /* Page-level keys only. Editor-specific keys are handled by
        * each editor's own Key.handler and won't bubble here
        * (they call Stop_propagation). */
@@ -836,27 +859,11 @@ module View = {
     };
     [
       Key.listener(~f=handle_key_event),
-      Attr.on_blur(_ => {
-        /* Leave focus alone when it is moving INTO a projector. An
-           interactive projector (the keybinding recorder) needs to hold
-           focus; without this guard it receives focus and has it taken back
-           in the same frame, so it can never capture a key. */
-        if (! JsUtil.projector_holds_focus^) {
-          JsUtil.focus_clipboard_shim();
-        };
-        model.globals.meta_down
-          ? Effect.Many([inject(Globals(SetMetaDown(false)))])
-          : Effect.Ignore;
-      }),
-      Attr.on_focus(_ => {
-        /* Focus events bubble here, so without this guard focusing a
-           projector is undone immediately: an interactive projector (the
-           keybinding recorder) could never hold focus or capture a key. */
-        if (! JsUtil.projector_holds_focus^) {
-          JsUtil.focus_clipboard_shim();
-        };
-        Effect.Ignore;
-      }),
+      /* A press on plain text leaves focus on #page itself. Don't move it
+         on from here: that would cancel the text selection being started.
+         Cmd goes up whatever the last render saw: a press may not have
+         rendered */
+      Attr.on_blur(_ => inject(Globals(SetMetaDown(false)))),
     ];
   };
 
@@ -871,13 +878,11 @@ module View = {
         div(
           ~attrs=[Attr.class_("nut-menu")],
           [
-            submenu(
+            button(
+              Icons.gear,
+              _ =>
+                globals.inject_global(Set(Sidebar(SwitchPanel(Settings)))),
               ~tooltip="Settings",
-              ~icon=Icons.gear,
-              [
-                Editors.View.config_links(~inject),
-                ...NutMenu.settings_menu(~globals),
-              ],
             ),
             submenu(
               ~tooltip="File",
@@ -1045,7 +1050,7 @@ module View = {
       create(
         "style",
         switch (outline_mark) {
-        | Some(id) => [text(OutlineFollow.css(id))]
+        | Some(k) => [text(OutlineFollow.css(k))]
         | None => []
         },
       );
@@ -1059,6 +1064,8 @@ module View = {
         ~inject_workspace=a => inject(Editors(Scratch(Workspace(a)))),
         ~jump=id => globals.inject_global(JumpToTile(id)),
         ~leave=Effect.of_sync_fun(() => JsUtil.focus_active_editor(), ()),
+        ~statics_on=globals.settings.core.statics,
+        (),
       );
     let indicated_id =
       Haz3lcore.Indicated.index(current_editor.editor.state.zipper);
@@ -1139,7 +1146,7 @@ module View = {
     );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim]
+      [FontSpecimen.view]
       @ main_view(~log_model, ~get_log_and, ~cursor, ~inject, model),
     );
   };

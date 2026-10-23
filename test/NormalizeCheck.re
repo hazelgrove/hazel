@@ -52,6 +52,41 @@ let relatives_equiv = (a: Relatives.t, b: Relatives.t): bool => {
      );
 };
 
+let brief = (p: Piece.t): string =>
+  switch (p) {
+  | Tile(t) => "tile " ++ String.concat("", Tile.effective_label(t))
+  | Grout({shape: Convex, _}) => "convex grout"
+  | Grout({shape: Concave, _}) => "concave grout"
+  | Secondary(w) => Secondary.is_linebreak(w) ? "linebreak" : "space"
+  | Projector(_) => "projector"
+  };
+
+/* where two segments first differ, modulo grout ids */
+let first_diff = (what, a: Segment.t, b: Segment.t): option(string) => {
+  let rec go = (i, xs, ys) =>
+    switch (xs, ys) {
+    | ([], []) => None
+    | ([x, ...xs], [y, ...ys]) when compare(x, y) == 0 =>
+      go(i + 1, xs, ys)
+    | _ =>
+      let at = (
+        fun
+        | [p, ..._] => brief(p)
+        | [] => "the end"
+      );
+      Some(
+        Printf.sprintf(
+          "%s at %d: sparse %s, global %s",
+          what,
+          i,
+          at(xs),
+          at(ys),
+        ),
+      );
+    };
+  go(0, scrub_grout_ids(a), scrub_grout_ids(b));
+};
+
 let check = (d: Direction.t, z: Zipper.t, root: Sort.t): Zipper.t => {
   /* the first pass consumes the owed-space ref; replay it for the second */
   let owed = Grout.suppressed_space^;
@@ -59,79 +94,20 @@ let check = (d: Direction.t, z: Zipper.t, root: Sort.t): Zipper.t => {
   Grout.suppressed_space := owed;
   let zg = remold_regrout_global(d, z, ~root);
   if (!relatives_equiv(zs.relatives, zg.relatives)) {
-    let diff = (tag, a: Segment.t, b: Segment.t) => {
-      let (a, b) = (scrub_grout_ids(a), scrub_grout_ids(b));
-      if (compare(a, b) != 0) {
-        let rec first = (i, xs, ys) =>
-          switch (xs, ys) {
-          | ([x, ...xs], [y, ...ys]) when compare(x, y) == 0 =>
-            first(i + 1, xs, ys)
-          | _ => i
-          };
-        let i = first(0, a, b);
-        let at = (seg, i) =>
-          switch (List.nth_opt(seg, i)) {
-          | Some(p) =>
-            String.sub(
-              Piece.show(p) ++ "",
-              0,
-              min(200, String.length(Piece.show(p))),
-            )
-          | None => "<end>"
-          };
-        print_endline(
-          Printf.sprintf(
-            "[parity] %s differs at %d (lens %d vs %d)\n  sparse: %s\n  global: %s",
-            tag,
-            i,
-            List.length(a),
-            List.length(b),
-            at(a, i),
-            at(b, i),
-          ),
-        );
-      };
-    };
-    diff("pre", fst(zs.relatives.siblings), fst(zg.relatives.siblings));
-    diff("suf", snd(zs.relatives.siblings), snd(zg.relatives.siblings));
-    let brief = (p: Piece.t) =>
-      switch (p) {
-      | Tile(t) =>
-        Printf.sprintf("T(%s)", String.concat("", Tile.effective_label(t)))
-      | Grout(g) =>
-        Printf.sprintf(
-          "G(%s)",
-          switch (g.shape) {
-          | Convex => "cvx"
-          | Concave => "ccv"
-          },
-        )
-      | Secondary(w) => Secondary.is_linebreak(w) ? "LB" : "ws"
-      | Projector(_) => "Proj"
-      };
-    let dump = (tag, seg: Segment.t) =>
-      print_endline(
-        Printf.sprintf(
-          "[parity] %s: [%s]",
-          tag,
-          String.concat(" ", List.map(brief, seg)),
-        ),
-      );
-    dump("z.pre     ", fst(z.relatives.siblings));
-    dump("z.suf     ", snd(z.relatives.siblings));
-    dump("sparse.pre", fst(zs.relatives.siblings));
-    dump("global.pre", fst(zg.relatives.siblings));
-    dump("sparse.suf", snd(zs.relatives.siblings));
-    dump("global.suf", snd(zg.relatives.siblings));
-    print_endline(
-      Printf.sprintf(
-        "[parity] sel=%d anc=%d d=%s",
-        List.length(z.selection.content),
-        List.length(z.relatives.ancestors),
-        d == Left ? "L" : "R",
+    let ((sp, ss), (gp, gs)) = (
+      zs.relatives.siblings,
+      zg.relatives.siblings,
+    );
+    failwith(
+      "sparse normalization differs from the global pass: "
+      ++ (
+        switch (first_diff("prefix", sp, gp), first_diff("suffix", ss, gs)) {
+        | (Some(diff), _)
+        | (None, Some(diff)) => diff
+        | (None, None) => "in the ancestors"
+        }
       ),
     );
-    failwith("sparse normalize PARITY MISMATCH");
   };
   zs;
 };

@@ -84,7 +84,7 @@ let delta_case = (name, root, src, src') =>
          invariant), so build the post-edit state by splicing ONE
          freshly parsed slice into the ORIGINAL items */
       let seg' = parse(~root, src');
-      let items' = ResidentProgram.items_of_segment(seg');
+      let items' = ResidentProgram.items_of_segment(~root, seg');
       let changed =
         List.combine(rp.items, items')
         |> List.filter_map(
@@ -254,7 +254,10 @@ let corpus_mod_delta_case =
           None,
         );
       let items' =
-        ResidentProgram.items_of_segment(parse(~root=Sort.Mod, src));
+        ResidentProgram.items_of_segment(
+          ~root=Sort.Mod,
+          parse(~root=Sort.Mod, src),
+        );
       let changed =
         List.combine(rp.items, items')
         |> List.map(((old: ResidentProgram.item, nu: ResidentProgram.item)) =>

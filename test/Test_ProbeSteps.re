@@ -10,11 +10,7 @@ let src = {|let f = fun x -> x + 1 in
 let y = ^^probe(f(2)) in
 y|};
 
-let parsed = (): Zipper.t =>
-  switch (Parser.to_zipper(~root=Exp, src)) {
-  | Some(z) => z
-  | None => Alcotest.fail("could not parse")
-  };
+let parsed = (): Zipper.t => CorpusUtil.typed_zipper(src);
 
 let probe_id = (z: Zipper.t): Id.t =>
   switch (z.refractors.manuals) {
@@ -153,15 +149,54 @@ let retakes = () => {
   check(bool, "elided again", false, keeps_f(s3));
 };
 
+/* the drawer's stepper over the stepping probe's sample: [calc(prev)]
+   is a pass after [prev], or its start */
+let stepper = (~settings=Util.Calc.NewValue(CoreSettings.on), z: Zipper.t) => {
+  let (info_map, s) = eval(~targets=targets(~full=true, z), z);
+  let dynamics = EvaluatorState.get_probes(s);
+  prev =>
+    switch (
+      Web.ProbeSteps.calculate(
+        ~settings,
+        ~info_map,
+        ~dynamics,
+        ~stepping=Some(span(z)),
+        prev,
+      )
+    ) {
+    | Some(ps) => ps
+    | None => Alcotest.fail("no stepper")
+    };
+};
+
+/* [a] on the drawer, then the pass after it */
+let step = (calc, a, ps) =>
+  calc(
+    Some(
+      Web.ProbeSteps.update(~settings=Web.Settings.Model.init, a, ps).model,
+    ),
+  );
+
+let history = (on: bool): CoreSettings.t => {
+  ...CoreSettings.on,
+  evaluation: {
+    ...CoreSettings.on.evaluation,
+    stepper_history: on,
+  },
+};
+
 /* the stepper starts from the probed expression closed over its sample's
    values, which evaluates to the sample's value; an elided sample has
    none yet */
 let starts = () => {
   let z = parsed();
   let (info_map, s) = eval(~targets=targets(~full=true, z), z);
-  let dynamics = EvaluatorState.get_probes(s);
   switch (
-    Web.ProbeSteps.closed_exp(~info_map, ~dynamics, span(z)),
+    Web.ProbeSteps.closed_exp(
+      ~info_map,
+      ~dynamics=EvaluatorState.get_probes(s),
+      span(z),
+    ),
     samples(s),
   ) {
   | (Some(e), [sample]) =>
@@ -170,24 +205,12 @@ let starts = () => {
   | (None, _) => Alcotest.fail("no closed expression")
   | (_, _) => Alcotest.fail("expected one sample")
   };
-  switch (
-    Web.ProbeSteps.calculate(
-      ~settings=Util.Calc.NewValue(CoreSettings.on),
-      ~info_map,
-      ~dynamics,
-      ~stepping=Some(span(z)),
-      None,
-    )
-  ) {
-  | Some(ps) =>
-    check(
-      int,
-      "the title bar and the first step",
-      2,
-      Web.ProbeSteps.rows(~settings=CoreSettings.on, ps),
-    )
-  | None => Alcotest.fail("no stepper")
-  };
+  check(
+    int,
+    "the title bar and the first step",
+    2,
+    Web.ProbeSteps.rows(~settings=CoreSettings.on, stepper(z, None)),
+  );
   let (info_map, s) = eval(~targets=targets(~full=false, z), z);
   check(
     bool,
@@ -205,33 +228,8 @@ let starts = () => {
 /* the drawer's rows are its title bar and the steps it shows: with
    history off, just the current one */
 let history_rows = () => {
-  let z = parsed();
-  let (info_map, s) = eval(~targets=targets(~full=true, z), z);
-  let dynamics = EvaluatorState.get_probes(s);
-  let calc = prev =>
-    Web.ProbeSteps.calculate(
-      ~settings=Util.Calc.NewValue(CoreSettings.on),
-      ~info_map,
-      ~dynamics,
-      ~stepping=Some(span(z)),
-      prev,
-    )
-    |> Option.get;
-  let stepped =
-    Web.ProbeSteps.update(
-      ~settings=Web.Settings.Model.init,
-      StepForward(0),
-      calc(None),
-    ).
-      model;
-  let ps = calc(Some(stepped));
-  let history = (on: bool): CoreSettings.t => {
-    ...CoreSettings.on,
-    evaluation: {
-      ...CoreSettings.on.evaluation,
-      stepper_history: on,
-    },
-  };
+  let calc = stepper(parsed());
+  let ps = step(calc, StepForward(0), calc(None));
   check(
     int,
     "history off",
@@ -249,18 +247,7 @@ let history_rows = () => {
 /* the title bar's undo takes back the step: nothing to take back at the
    start */
 let undo = () => {
-  let z = parsed();
-  let (info_map, s) = eval(~targets=targets(~full=true, z), z);
-  let dynamics = EvaluatorState.get_probes(s);
-  let calc = prev =>
-    Web.ProbeSteps.calculate(
-      ~settings=Util.Calc.NewValue(CoreSettings.on),
-      ~info_map,
-      ~dynamics,
-      ~stepping=Some(span(z)),
-      prev,
-    )
-    |> Option.get;
+  let calc = stepper(parsed());
   let start = calc(None);
   check(
     bool,
@@ -268,30 +255,17 @@ let undo = () => {
     true,
     Web.StepperView.Update.undo(start.stepper) == None,
   );
-  let step = (a, ps) =>
-    calc(
-      Some(
-        Web.ProbeSteps.update(~settings=Web.Settings.Model.init, a, ps).model,
-      ),
-    );
-  let stepped = step(StepForward(0), start);
+  let stepped = step(calc, StepForward(0), start);
   let back =
     switch (Web.StepperView.Update.undo(stepped.stepper)) {
-    | Some(a) => step(a, stepped)
+    | Some(a) => step(calc, a, stepped)
     | None => Alcotest.fail("no undo after a step")
     };
-  let history: CoreSettings.t = {
-    ...CoreSettings.on,
-    evaluation: {
-      ...CoreSettings.on.evaluation,
-      stepper_history: true,
-    },
-  };
   check(
     int,
     "back to one step",
-    Web.ProbeSteps.rows(~settings=history, start),
-    Web.ProbeSteps.rows(~settings=history, back),
+    Web.ProbeSteps.rows(~settings=history(true), start),
+    Web.ProbeSteps.rows(~settings=history(true), back),
   );
 };
 
@@ -299,33 +273,21 @@ let undo = () => {
    changed: the first step's statics survive a second step and a
    selection */
 let incremental = () => {
-  let z = parsed();
-  let (info_map, s) = eval(~targets=targets(~full=true, z), z);
-  let dynamics = EvaluatorState.get_probes(s);
-  let calc = prev =>
-    Web.ProbeSteps.calculate(
-      ~settings=Util.Calc.OldValue(CoreSettings.on),
-      ~info_map,
-      ~dynamics,
-      ~stepping=Some(span(z)),
-      prev,
-    )
-    |> Option.get;
-  let step = (a, ps) =>
-    calc(
-      Some(
-        Web.ProbeSteps.update(~settings=Web.Settings.Model.init, a, ps).model,
-      ),
-    );
+  let calc =
+    stepper(~settings=Util.Calc.OldValue(CoreSettings.on), parsed());
   /* the analysis itself: a pass rebuilds the record around it (targets) */
   let first_statics = (ps: Web.ProbeSteps.t) =>
     Util.Calc.get_saved_exc(~print="first step", ps.stepper.root.editor).
       statics.
       info_map;
-  let one = step(StepForward(0), calc(None));
+  let one = step(calc, StepForward(0), calc(None));
   let before = first_statics(one);
   let again =
-    step(EditorAction(Select(All)), step(NextStep(StepForward(0)), one));
+    step(
+      calc,
+      EditorAction(Select(All)),
+      step(calc, NextStep(StepForward(0)), one),
+    );
   check(
     bool,
     "the first step's statics kept",

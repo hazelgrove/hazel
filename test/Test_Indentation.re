@@ -3,7 +3,7 @@ open Alcotest;
 open Haz3lcore;
 open Test_Editing;
 
-let test_indent = (~name, ~init, ~goal): test_case(_) => {
+let typed_indent = (~settings, ~name, ~init, ~goal): test_case(_) => {
   /* Here, we trim trailing whitespace as current regrouting may
      introduce extraneous trailing whitespace during entry */
   test_case(name, `Quick, () =>
@@ -18,7 +18,7 @@ let test_indent = (~name, ~init, ~goal): test_case(_) => {
       goal,
       init
       |> string_to_ltr_actions
-      |> perform(Zipper.init())
+      |> perform(~settings, Zipper.init())
       |> Printer.of_zipper(
            ~holes=convex_char,
            ~concave_holes=concave_char,
@@ -27,6 +27,8 @@ let test_indent = (~name, ~init, ~goal): test_case(_) => {
     )
   );
 };
+
+let test_indent = typed_indent(~settings=default_settings);
 
 /* Test indentation after Format action (Cmd+S).
    Use this for cases where auto-indent at typing time can't know
@@ -965,15 +967,14 @@ if true then 1|});
   //   ),
 ];
 
-/* a module-rooted editor (a module's cell) has its members at the top,
-   with no braces to step inside */
-let mod_root_indent = (~name, ~init, ~goal): test_case(_) =>
+/* [init] at [root], reindented as Format(Indent) does */
+let reindent_at = (~root, ~name, ~init, ~goal): test_case(_) =>
   test_case(name, `Quick, () =>
     check(
       string,
       name,
       goal,
-      switch (FastParse.of_text(~root=Sort.Mod, init)) {
+      switch (FastParse.of_text(~root, init)) {
       | Some(seg) =>
         seg
         |> Indentation.reindent_segment
@@ -984,7 +985,152 @@ let mod_root_indent = (~name, ~init, ~goal): test_case(_) =>
     )
   );
 
+/* a module-rooted editor (a module's cell) has its members at the top,
+   with no braces to step inside */
+let mod_root_indent = reindent_at(~root=Sort.Mod);
+
+/* [init] at [root] (the caret at ¦), then Enter: where the new line's
+   caret lands */
+let enter_at = (~root, ~name, ~init, ~goal): test_case(_) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let (before, after) =
+        switch (StringUtil.plain_split(init, caret_char)) {
+        | [before, after] => (before, after)
+        | _ => fail("one caret: " ++ init)
+        };
+      let lines = String.split_on_char('\n', before);
+      let pt: Point.t = {
+        row: List.length(lines) - 1,
+        col: String.length(ListUtil.last(lines)),
+      };
+      let go = (z: Zipper.t, a: Action.t) =>
+        switch (
+          Perform.go(
+            ~settings=default_settings,
+            ~statics=CachedStatics.empty,
+            ~syntax=CachedSyntax.init(~root, z),
+            ~root,
+            a,
+            {
+              zipper: z,
+              col_target: None,
+            },
+          )
+        ) {
+        | Ok(z) => z
+        | Error(e) => fail(Action.Failure.show(e))
+        };
+      let z = Zipper.unzip(CorpusUtil.seg_of(~root, before ++ after));
+      let z = go(go(z, Move(Point(pt, None))), Insert("\n"));
+      check(
+        string,
+        name,
+        goal,
+        Printer.of_zipper(~holes=convex_char, ~caret=caret_char, z),
+      );
+    },
+  );
+
 let module_indentation_tests = [
+  enter_at(
+    ~root=Sort.Exp,
+    ~name="Enter after a module's last member: member level",
+    ~init="module M = {\n  let a = 1;\n  let b = 2¦\n} in\nM.a",
+    ~goal="module M = {\n  let a = 1;\n  let b = 2\n  ¦\n} in\nM.a",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after a module's last member at a Mod root",
+    ~init="module M = {\n  let a = 1¦\n};\nM.a",
+    ~goal="module M = {\n  let a = 1\n  ¦\n};\nM.a",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after a nested module's last member",
+    ~init=
+      "module Outer = {\n  module Inner = {\n    let value = true¦\n  };\n  let w = 1\n};\nOuter.w",
+    ~goal=
+      "module Outer = {\n  module Inner = {\n    let value = true\n    ¦\n  };\n  let w = 1\n};\nOuter.w",
+  ),
+  enter_at(
+    ~root=Sort.Exp,
+    ~name="Enter after a signature's last member",
+    ~init="module M : {\n  let x : Int¦\n} = {\n  let x = 1\n} in\nM.x",
+    ~goal="module M : {\n  let x : Int\n  ¦\n} = {\n  let x = 1\n} in\nM.x",
+  ),
+  enter_at(
+    ~root=Sort.Exp,
+    ~name="Enter before a module's `}`: the `}` line at the braces",
+    ~init="module M = {\n  let a = 1¦} in\nM.a",
+    ~goal="module M = {\n  let a = 1\n¦} in\nM.a",
+  ),
+  /* a module whose `}` isn't typed yet: a fresh line in its body is at its
+     member level too, nested modules included (typed into a module
+     literal, test/Test_ModuleCompletion.re: the text parser would pair
+     the literal's `}` with the unclosed `{`). A missing `;` prints as a
+     space */
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after an unclosed module's member at a Mod root",
+    ~init="module N = {\n  let a = 1¦",
+    ~goal="module N = {\n  let a = 1\n  ¦",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after an unclosed module's member, members below",
+    ~init="let x = 0;\nmodule N = {\n  let a = 1¦\nlet c = 3",
+    ~goal="let x = 0;\nmodule N = {\n  let a = 1\n  ¦\n let c = 3",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter in an unclosed module in an unclosed module",
+    ~init="module N = {\n  module O = {\n    let a = 1¦",
+    ~goal="module N = {\n  module O = {\n    let a = 1\n    ¦",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after a blank line in an unclosed module",
+    ~init="module N = {\n  let a = 1;\n¦",
+    ~goal="module N = {\n  let a = 1;\n\n  ¦?",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after a blank line in an unclosed module, no `;`",
+    ~init="module N = {\n  let a = 1\n¦",
+    ~goal="module N = {\n  let a = 1\n\n  ¦",
+  ),
+  /* a member started on the `{` line indents as one on its own line */
+  reindent_at(
+    ~root=Sort.Mod,
+    ~name="A list member on the `{` line",
+    ~init="module M = {let xs = [\n1,\n2\n];\nlet g = 2\n};\nM.g",
+    ~goal="module M = {let xs = [\n    1,\n    2\n  ];\n  let g = 2\n};\nM.g",
+  ),
+  reindent_at(
+    ~root=Sort.Mod,
+    ~name="A list member on a nested module's `{` line",
+    ~init=
+      "module Outer = {\nmodule Inner = {let xs = [\n1,\n2\n];\nlet g = 2\n};\nlet w = 1\n};\nOuter.w",
+    ~goal=
+      "module Outer = {\n  module Inner = {let xs = [\n      1,\n      2\n    ];\n    let g = 2\n  };\n  let w = 1\n};\nOuter.w",
+  ),
+  reindent_at(
+    ~root=Sort.Exp,
+    ~name="Case rules of a member on the `{` line",
+    ~init=
+      "let m = {let f = fun x -> case x\n| 1 => 2\n| _ => 3\nend;\nlet g = 2\n} in\nm.g",
+    ~goal=
+      "let m = {let f = fun x -> case x\n  | 1 => 2\n  | _ => 3\n  end;\n  let g = 2\n} in\nm.g",
+  ),
+  enter_at(
+    ~root=Sort.Mod,
+    ~name="Enter after a `{` line member's `->`",
+    ~init="module M = {let f = fun x ->¦\n  let g = 2\n};\nM.g",
+    ~goal="module M = {let f = fun x ->\n    ¦\n  let g = 2\n};\nM.g",
+  ),
   mod_root_indent(
     ~name="Mod root: members after a multi-line member stay at the top",
     ~init={|let f = fun x ->
@@ -996,6 +1142,9 @@ let h = 3|},
 let g = 2;
 let h = 3|},
   ),
+  /* typed with reindent off: a `}` typed on the fresh line after the last
+     member stays at the member level Enter gave the line, as after a
+     member's `;`; the editor's reindent takes it to the braces (below) */
   test_indent(
     ~name="Members after a multi-line member stay at member level",
     ~init={|let m = {
@@ -1010,7 +1159,7 @@ let h = 3
     x + 1;
   let g = 2;
   let h = 3
-} in m|},
+  } in m|},
   ),
   test_indent(
     ~name="Member after a wrapped definition stays at member level",
@@ -1023,7 +1172,7 @@ let y = 2
   let x =
     1;
   let y = 2
-}|},
+  }|},
   ),
   test_indent(
     ~name="Module body indents inside braces",
@@ -1032,7 +1181,7 @@ let x = 1
 }|},
     ~goal={|{
   let x = 1
-}|},
+  }|},
   ),
   test_indent(
     ~name="Module with multiple items indents",
@@ -1043,7 +1192,7 @@ let y = 2
     ~goal={|{
   let x = 1;
   let y = 2
-}|},
+  }|},
   ),
   test_indent(
     ~name="Module in let binding indents",
@@ -1054,7 +1203,7 @@ let y = 2
     ~goal={|let m = {
   let x = 1;
   let y = 2
-} in 1|},
+  } in 1|},
   ),
   test_indent(
     ~name="Nested module double indents",
@@ -1066,11 +1215,26 @@ let x = 1
     ~goal={|{
   let inner = {
     let x = 1
-  }
-}|},
+    }
+  }|},
   ),
   test_indent(
     ~name="Module keyword indents",
+    ~init={|module m = {
+let x = 1
+} in
+m.x|},
+    ~goal={|module m = {
+  let x = 1
+  } in
+m.x|},
+  ),
+  typed_indent(
+    ~settings={
+      ...default_settings,
+      auto_reindent: true,
+    },
+    ~name="With reindent on, a typed `}` goes to the braces",
     ~init={|module m = {
 let x = 1
 } in

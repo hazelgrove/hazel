@@ -130,10 +130,7 @@ let edit = (~statics, z: Zipper.t, a: Action.t): edit => {
 };
 
 let corpus = (file: string): Zipper.t =>
-  switch (CorpusUtil.corpus_seg(~root=Exp, file)) {
-  | Some(seg) => Zipper.unzip(seg)
-  | None => fail("corpus unreadable: " ++ file)
-  };
+  Zipper.unzip(CorpusUtil.mega_seg(file));
 
 /* mega-1k, caret in DewLedger's update at `m.dew < 10|` */
 let dew = lazy(corpus("mega-1k.hz"));
@@ -155,30 +152,16 @@ let undo = () => {
   };
 };
 
-/* the outline row at [path] (labels from the top) */
-let row = (term: Language.Exp.t, path: list(string)): Id.t => {
-  let rec go = (nodes: list(Web.OutlineTree.node), path) =>
-    switch (path) {
-    | [] => None
-    | [l, ...rest] =>
-      List.find_opt((n: Web.OutlineTree.node) => n.o_label == l, nodes)
-      |> Option.map((n: Web.OutlineTree.node) =>
-           rest == [] ? n.o_id : go(n.o_children, rest)
-         )
-      |> Option.join
-    };
-  switch (go(Web.OutlineTree.of_term(term), path)) {
-  | Some(id) => id
-  | None => fail("no row " ++ String.concat("/", path))
-  };
-};
-
 /* deep in the program, so the tiles passed on the way down count */
 let restructure = () => {
   let seg = Zipper.unselect_and_zip(Lazy.force(dew));
   let term = MakeTerm.Incr.term_of(seg);
   switch (
-    Web.ItemEdit.apply(MoveDown, row(term, ["MetaRunner", "init"]), seg)
+    Web.ItemEdit.apply(
+      MoveDown,
+      CorpusUtil.row(term, ["MetaRunner", "init"]),
+      seg,
+    )
   ) {
   | Some((after, _)) => {
       before: seg,
@@ -198,40 +181,36 @@ let agent = () =>
     ),
   );
 
-let mega_2k_insert = (row, ()) => {
-  let z = corpus("mega-2k.hz");
-  let statics = statics_of(z);
-  edit(~statics, at(~statics, z, row, 6), Insert(" "));
+/* a space at [row]: Mega 2k's rows 100 and 900 are these lines too */
+let mega_insert = (row, ()) => {
+  let statics = Lazy.force(dew_statics);
+  edit(~statics, at(~statics, Lazy.force(dew), row, 6), Insert(" "));
 };
 
 /* bounds: pieces the edit may replace, and items or chunks each layer
    may redo; whole-program work would be tens */
-let case = (name, ~fresh=2, ~items=2, ~analyzed=3, ~typing=false, mk) =>
+let case =
+    (name, ~speed=`Quick, ~fresh=2, ~items=2, ~analyzed=3, ~typing=false, mk) =>
   test_case(
     name,
-    `Quick,
+    speed,
     () => {
       let e = mk();
       let w = work(e.before, e.after);
-      Printf.printf(
-        "LOCALITY %s: pieces=%d kept=%d fresh=%d reparsed=%d resliced=%d remeasured=%d analyzed=%d fallbacks=%d\n",
-        name,
-        w.pieces,
-        w.kept,
-        w.fresh,
-        w.reparsed,
-        w.resliced,
-        w.remeasured,
-        w.analyzed,
-        e.fallbacks,
-      );
-      check(bool, "pieces kept", true, w.kept >= w.pieces - fresh);
-      check(bool, "fresh pieces", true, w.fresh <= fresh);
+      let at_most = (what, bound, n) =>
+        check(
+          bool,
+          Printf.sprintf("%s: %d, at most %d", what, n, bound),
+          true,
+          n <= bound,
+        );
+      at_most("pieces not kept", fresh, w.pieces - w.kept);
+      at_most("fresh pieces", fresh, w.fresh);
       check(int, "go_incr fallbacks", 0, w.fell_back);
-      check(bool, "go_incr items", true, w.reparsed <= items);
-      check(bool, "term_of items", true, w.resliced <= items);
-      check(bool, "measured chunks", true, w.remeasured <= items);
-      check(bool, "DefStatics items", true, w.analyzed <= analyzed);
+      at_most("go_incr items", items, w.reparsed);
+      at_most("term_of items", items, w.resliced);
+      at_most("measured chunks", items, w.remeasured);
+      at_most("DefStatics items", analyzed, w.analyzed);
       if (typing) {
         check(int, "sparse normalization", 0, e.fallbacks);
       };
@@ -245,9 +224,10 @@ let tests = (
     case("delete", ~typing=true, delete),
     case("paste", paste),
     case("undo", undo),
-    case("restructure", ~analyzed=8, restructure),
-    case("agent update", agent),
-    case("mega-2k row 900", ~typing=true, mega_2k_insert(900)),
-    case("mega-2k row 100", ~typing=true, mega_2k_insert(100)),
+    /* the two members swapped, and their module's shell */
+    case("restructure", ~items=3, ~analyzed=8, restructure),
+    case("agent update", ~speed=`Slow, agent),
+    case("mega-1k row 900", ~typing=true, mega_insert(900)),
+    case("mega-1k row 100", ~typing=true, mega_insert(100)),
   ],
 );

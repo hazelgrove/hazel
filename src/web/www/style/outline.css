@@ -12,32 +12,29 @@
   min-height: 0;
   font-family: var(--code-font, monospace);
   font-size: 12px;
-  color: var(--text-accent, #6a5a3a);
-  background: var(--ui-bkg, #f6efdc);
+  color: var(--text-accent);
+  background: var(--ui-bkg);
   /* the panel edge: the sidebar owns the divider (editor cells are
      borderless in outline modes — a cell-side border stopped where
      the cell content did) */
-  border-right: 0.6px solid var(--border-default, #b5a377);
+  border-right: 0.6px solid var(--border-default);
+  /* the row holding the editor's caret (OutlineFollow): the full brown,
+     darker than an open cell's tint */
+  --ol-mark-bg: var(--surface-shard);
 }
 
 #outline-sidebar[open] {
   width: var(--outline-w, 210px);
 }
 
-/* the row holding the editor's caret: a dim edge bar (OutlineFollow) */
-#outline-sidebar {
-  --ol-mark: color-mix(in srgb, var(--caret-color, #d33) 45%, transparent);
-}
-
-/* keyboard focus: the cursor row gets the caret's full color (the
+/* keyboard focus: the cursor row fills with the selection yellow (the
    editor-caret mark hides meanwhile), no browser focus ring */
 #outline-sidebar .outline-body:focus {
   outline: none;
 }
-#outline-sidebar .outline-body:focus .outline-label.outline-cursor,
-#outline-sidebar:has(.outline-body:focus) > summary.outline-cursor {
-  box-shadow: inset 2px 0 0 var(--caret-color, #d33);
-  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 70%, transparent);
+#outline-sidebar .outline-body:focus-within .outline-label.outline-cursor,
+#outline-sidebar:has(.outline-body:focus-within) > summary.outline-cursor {
+  background: var(--surface-highlight);
 }
 
 /* Chrome slots details content into an internal ::details-content
@@ -74,19 +71,22 @@
 }
 
 /* the resize handle is an invisible grab strip with the resize
-   cursor, straddling the border */
+   cursor, just inside the border: overlapping the code scroller, it
+   made Chrome re-layerize the whole program on every repaint (~250ms a
+   frame at 4k lines, and on every caret blink) */
 #outline-sidebar .outline-resize {
   position: absolute;
   top: 0;
-  right: -4px;
+  right: 0;
   width: 8px;
   height: 100%;
   cursor: col-resize;
+  user-select: none;
   z-index: 5;
 }
 
 #outline-sidebar .outline-resize:hover {
-  background: color-mix(in srgb, var(--surface-shard-strong, #b5a377) 25%, transparent);
+  background: color-mix(in srgb, var(--surface-shard-strong) 25%, transparent);
 }
 
 #outline-sidebar:not([open]) .outline-resize {
@@ -110,7 +110,7 @@
   writing-mode: horizontal-tb;
   opacity: 1;
   padding: 4px 10px;
-  border-bottom: 0.6px solid var(--border-default, #b5a377);
+  border-bottom: 0.6px solid var(--border-default);
   display: flex;
   align-items: baseline;
   gap: 6px;
@@ -137,6 +137,11 @@
 #outline-sidebar .outline-menu-glyph {
   opacity: 0.7;
 }
+/* held to the header's line: ☰'s fallback font is taller than ✎'s, and
+   text mode's switch would move every row */
+#outline-sidebar[open] > summary .outline-menu-glyph {
+  height: 1lh;
+}
 #outline-sidebar .outline-crumb {
   cursor: pointer;
   opacity: 0.65;
@@ -152,9 +157,6 @@
 #outline-sidebar .outline-crumb.outline-crumb-here {
   flex-shrink: 0;
 }
-#outline-sidebar .outline-crumb:hover {
-  opacity: 1;
-}
 #outline-sidebar .outline-crumb.outline-crumb-here {
   opacity: 1;
   font-weight: bold;
@@ -169,17 +171,16 @@
   cursor: pointer;
   opacity: 0.55;
 }
-#outline-sidebar .outline-crumb-btn:hover {
-  opacity: 1;
-}
 #outline-sidebar .outline-crumb-chip {
   cursor: pointer;
   margin-left: 4px;
   padding: 0 5px;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 55%, transparent);
+  background: color-mix(in srgb, var(--surface-shard) 55%, transparent);
   opacity: 0.8;
 }
+#outline-sidebar .outline-crumb:hover,
+#outline-sidebar .outline-crumb-btn:hover,
 #outline-sidebar .outline-crumb-chip:hover {
   opacity: 1;
 }
@@ -192,10 +193,14 @@
 }
 
 /* a row's tint starts at its entry and runs out through the body's
-   right padding to the panel edge */
+   right padding to the panel edge; the right padding is the cell
+   button's column */
 #outline-sidebar .outline-label {
+  position: relative;
   cursor: pointer;
+  user-select: none;
   padding: 1px 4px;
+  padding-right: 22px;
   margin-right: -8px;
   border-radius: 3px 0 0 3px;
   white-space: nowrap;
@@ -203,11 +208,14 @@
   min-width: max-content;
   /* the body's padding: the first and last rows scroll fully home */
   scroll-margin-block: 6px 12px;
+  /* rows a change leaves in error turn red over a moment */
+  transition: color 0.4s ease-out;
 }
 
-/* tints, lightest to strongest: hover, open as a cell, keyboard cursor */
+/* brown tints, lightest to strongest: hover, open as a cell, the editor's
+   caret row; the keyboard cursor takes the selection yellow */
 #outline-sidebar .outline-label:hover {
-  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 28%, transparent);
+  background: color-mix(in srgb, var(--surface-shard) 28%, transparent);
 }
 
 /* one 13px column per depth, centered at 18.5px, 31.5px, …: a leaf's
@@ -238,13 +246,14 @@
   width: 1px;
   background: color-mix(
     in srgb,
-    var(--border-default, #b5a377) 35%,
+    var(--border-default) 35%,
     transparent
   );
 }
 
 #outline-sidebar summary.outline-summary {
   cursor: pointer;
+  user-select: none;
   list-style: none;
   display: flex;
   align-items: center;
@@ -281,7 +290,8 @@
   transform: translateY(-1.8px) rotate(45deg);
 }
 
-/* without arrows a branch's sigil folds it, turning on its side */
+/* without arrows a branch's sigil folds it, turning on its side; a run's
+   ✓/✗ stays upright (turned, it reads as broken) */
 #outline-sidebar.no-arrows summary.outline-summary::before {
   display: none;
 }
@@ -291,7 +301,11 @@
   transition: transform 0.15s ease-out;
 }
 
-#outline-sidebar.no-arrows details:not([open]) > summary .outline-glyph {
+#outline-sidebar.no-arrows
+  details:not([open])
+  > summary
+  .outline-label:not(.ol-tests)
+  .outline-glyph {
   transform: rotate(-90deg);
 }
 
@@ -307,7 +321,7 @@
 }
 
 #outline-sidebar .ol-type {
-  color: var(--token-typ, #9457c9);
+  color: var(--token-typ);
 }
 
 /* statement / test / trailing-expression rows (symbolic, no name) */
@@ -326,38 +340,76 @@
   font-style: italic;
 }
 
-/* words standing in for a name ("result", "tests"): lighter, italic */
-#outline-sidebar .outline-synthetic {
-  font-style: italic;
-  color: var(--text-muted, #a08f6a);
+/* a run's label keeps to its line in the panel: only its tally gives
+   way */
+#outline-sidebar .outline-label.ol-tests {
+  display: flex;
+  align-items: baseline;
+  min-width: 0;
+}
+#outline-sidebar summary.outline-summary > .outline-label.ol-tests {
+  flex-shrink: 1;
+}
+#outline-sidebar .outline-label.ol-tests > * {
+  flex-shrink: 0;
+}
+#outline-sidebar .outline-label.ol-tests > .outline-tally {
+  flex-shrink: 1;
+}
+/* text mode's caret there, at the text's bottom as on other lines */
+#outline-sidebar .ol-tests .outline-ghost-caret {
+  align-self: flex-end;
 }
 
-#main .focus-header.focus-header-sym .focus-sym-word {
-  margin-left: 0.5em;
-  font-weight: normal;
+/* a run's tally: small, in its word's faded ink; red when a test fails */
+#outline-sidebar .outline-tally {
+  margin-left: 1ch;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 0.92em;
   font-style: italic;
+  color: var(--ol-faded);
+  opacity: 0.85;
+}
+#outline-sidebar .outline-tally.outline-tally-fail {
+  color: var(--text-error);
+  opacity: 1;
 }
 
-/* the program the ⇒ result belongs to, in the named headers' ink */
-#main .focus-header.focus-header-sym .focus-sym-name {
-  margin-right: 0.5em;
-  font-weight: normal;
-  color: var(--text-default);
+/* rows with no name to type (the ⇒ result, the "tests" label, numbered
+   tests, `use` rows): one faded ink, italic. Faded from the outline's own
+   ink, as --text-muted is brighter than it in dark themes. The ⇒ row's
+   own opacity fades its word; the others match it */
+#outline-sidebar {
+  --ol-faded: color-mix(in srgb, var(--text-accent) 75%, transparent);
+}
+#outline-sidebar .outline-synthetic,
+#outline-sidebar .ol-test:not(.outline-has-err) .outline-name,
+#outline-sidebar .ol-use:not(.outline-has-err) .outline-name {
+  font-style: italic;
+  color: var(--ol-faded);
+}
+#outline-sidebar .ol-tests .outline-synthetic,
+#outline-sidebar .ol-test .outline-name,
+#outline-sidebar .ol-use .outline-name,
+#outline-sidebar .ol-use .outline-synthetic {
+  opacity: 0.85;
 }
 
 /* live test status: glyph carries the ✓/✗/? */
 #outline-sidebar .ol-pass .outline-glyph {
-  color: var(--test-pass, #2a9d3a);
+  color: var(--test-pass);
   opacity: 1;
 }
 
 #outline-sidebar .ol-fail .outline-glyph {
-  color: var(--test-fail, #c93030);
+  color: var(--test-fail);
   opacity: 1;
 }
 
 #outline-sidebar .ol-indet .outline-glyph {
-  color: var(--text-accent, #6a5a3a);
+  color: var(--text-accent);
 }
 
 #outline-sidebar .outline-empty {
@@ -367,14 +419,8 @@
 
 /* the cell button: a tiny cell, empty to open (on hover), filled
    while open, dashed while pinned but not shown (parked, or outside
-   the zoom) */
-/* in a column at the panel's right edge, the outline's own ink whatever
-   the row's color */
-#outline-sidebar .outline-label {
-  position: relative;
-  padding-right: 22px;
-}
-
+   the zoom); in a column at the panel's right edge, the outline's own
+   ink whatever the row's color */
 #outline-sidebar .outline-focus-btn {
   display: none;
   position: absolute;
@@ -386,7 +432,7 @@
   margin-top: -4px;
   border: 1.2px solid currentColor;
   border-radius: 2px;
-  color: var(--text-accent, #6a5a3a);
+  color: var(--text-accent);
   opacity: 0.5;
   cursor: pointer;
 }
@@ -414,83 +460,8 @@
 /* open as a cell: a light tint from the entry itself, not the
    column's edge */
 #outline-sidebar .outline-label.outline-focused {
-  background: color-mix(in srgb, var(--surface-shard, #d8c9a3) 45%, transparent);
+  background: color-mix(in srgb, var(--surface-shard) 45%, transparent);
   font-weight: bold;
-}
-
-/* editor panes carry no borders in outline modes — the outline
-   sidebar owns the left divider, headers own the entry rules */
-#main.Scratch .cell,
-#main.Documentation .cell {
-  border-left: none;
-}
-
-/* focused-definition header band (the `name : type` pat editor):
-   distinguished by background, not rules — top border only between
-   entries (the topmost header has no preceding body) */
-#main .focus-header {
-  background: var(--surface-raised, #f1e9d2);
-  display: flex;
-  align-items: baseline;
-}
-
-/* module-path chip; reads as one path with the name, so the header
-   cell's own inset collapses after it */
-#main .focus-header .focus-qualifier {
-  padding-left: 16px;
-  opacity: 0.5;
-  font-family: var(--code-font, monospace);
-  white-space: nowrap;
-}
-
-#main .focus-header .focus-qualifier ~ * .cell-item {
-  padding: 0 16px 0 1px;
-}
-
-/* stacked body cells keep the master editor's lighter surface: the
-   generic cell-background rule matches `#main > * > .code-editor`,
-   but stack cells sit one wrapper deeper (`.focus-body > .cell`). */
-:is(#main.Scratch, #main.Documentation)
-  > .focus-body
-  > .cell
-  > .code-editor {
-  background-color: var(--cell-active);
-}
-
-/* trailing slack below the stack: jump targets can align to the
-   viewport top even near the program's end */
-#main .stack-slack {
-  flex: 0 0 auto;
-  height: calc(100% - 6em);
-}
-
-#main .focus-body ~ .focus-header {
-  border-top: 0.6px solid var(--border-default, #b5a377);
-}
-
-#main .focus-header .cell {
-  background: transparent;
-  border: none;
-}
-
-/* the standard cell inset is 16px all around; the header keeps only
-   the horizontal share */
-#main .focus-header .cell-item {
-  padding: 0 16px;
-}
-
-/* headerless entries (statements, the trailing ⇒): a static symbol
-   chip where the header editor would be */
-/* text starts where the named headers' does: their cell-item's 16px */
-#main .focus-header.focus-header-sym .focus-sym {
-  padding: 1px 16px;
-  font-family: var(--code-font, monospace);
-}
-
-#main .focus-header.focus-header-sym .focus-sym-mark,
-#main .focus-header.focus-header-sym .focus-sym-word {
-  font-weight: bold;
-  opacity: 0.55;
 }
 
 #outline-sidebar .outline-focus-btn.outline-btn-on {
@@ -504,13 +475,13 @@
   margin-left: 5px;
   font-size: 7px;
   vertical-align: 1px;
-  color: var(--text-error, #c33);
+  color: var(--text-error);
   opacity: 0.85;
 }
 
 /* erroring rows also tint the name itself (the dot stays) */
 #outline-sidebar .outline-label.outline-has-err {
-  color: var(--text-error, #c33);
+  color: var(--text-error);
 }
 
 /* roll-up badge: an ancestor row shows the dot only while COLLAPSED
@@ -527,117 +498,157 @@
 .outline-menu-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  z-index: calc(var(--outline-menu-z) - 1);
 }
 #outline-sidebar .outline-menu {
-  z-index: 41;
+  z-index: var(--outline-menu-z);
   font-family: var(--ui-font);
   font-size: 1rem;
   font-weight: normal;
 }
 
-/* slide-loading frame (SwitchSlide paints this before hydration) */
-#main .slide-loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
-  height: 40vh;
-  color: var(--text-accent, #6a5a3a);
-  opacity: 0.7;
-  font-family: var(--code-font, monospace);
-}
-
-/* the boot-screen spinner (loading.css markup), scaled down;
-   .loader's ring rule is global, only the scoped bits need mirrors */
-#main .slide-loading .spinner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  font-size: 0.6em;
-}
-
-#main .slide-loading .spinner .loader {
-  width: 40px;
-  height: 40px;
-  border-width: 5px;
-}
-
-#main .slide-loading .spinner .nut-container {
-  background-color: var(--nut-menu);
-  border-radius: 10em;
-  width: 1.6em;
-  height: 1.6em;
-  position: fixed;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-#main .slide-loading .spinner img {
-  width: 1em;
-  animation: rotation 0.75s linear infinite;
-  animation-direction: reverse;
-}
-
-@keyframes slide-loading-pulse {
-  0%,
-  100% {
-    opacity: 0.25;
-  }
-  50% {
-    opacity: 1;
-  }
-}
-
-/* the whole-program result, live below the stack */
-#main .stack-result {
-  border-top: 0.6px solid var(--border-default, #b5a377);
-  background: var(--surface-raised, #f1e9d2);
-}
-
-/* a name typed in place: no bar, a soft rounded tint behind the name
-   and the caret's own red caret */
-#outline-sidebar .outline-body:focus .outline-label.outline-editing,
+/* a name typed in place: the row's fill gives way to the editor's
+   selection yellow behind the name, softened, with a caret to match (the
+   caret's own red reads as an error) */
+#outline-sidebar .outline-body:focus-within .outline-label.outline-editing,
 #outline-sidebar
-  .outline-body:focus:has(.outline-editing)
+  .outline-body:focus-within:has(.outline-editing)
   .outline-label.outline-cursor {
-  box-shadow: none;
   background: transparent;
 }
-#outline-sidebar .outline-edit-text {
-  display: inline-block;
+/* the name's text stays where the row draws it: the tint's padding takes
+   no room, and the box is the row's line */
+#outline-sidebar .outline-edit-input {
+  font: inherit;
+  color: inherit;
+  box-sizing: border-box;
+  height: 1lh;
+  margin: 0 -3px;
+  border: none;
+  outline: none;
   min-width: 3ch;
   padding: 0 3px;
+  vertical-align: baseline;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--caret-color, #d33) 10%, transparent);
+  background: color-mix(in srgb, var(--shard-selected) 70%, transparent);
+  caret-color: var(--text-warning);
+  field-sizing: content;
+}
+/* a new definition's name, typed into the program: the field's look,
+   the caret at the editor's place in it */
+#outline-sidebar .outline-live {
+  display: inline-block;
+  box-sizing: border-box;
+  height: 1lh;
+  min-width: 3ch;
+  margin: 0 -3px;
+  padding: 0 3px;
+  vertical-align: baseline;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--shard-selected) 70%, transparent);
   white-space: pre;
 }
-#outline-sidebar .outline-edit-caret {
+#outline-sidebar .outline-live-caret {
   display: inline-block;
-  width: 1.5px;
-  height: 1.1em;
+  width: 0;
+  height: 1.2em;
   margin: 0 -0.75px;
-  vertical-align: -0.2em;
-  background: var(--caret-color, #d33);
+  vertical-align: text-bottom;
+  border-left: 1.5px solid var(--text-warning);
 }
-/* the editor caret's blink */
-@media (prefers-reduced-motion: no-preference) {
-  #outline-sidebar .outline-edit-caret {
-    animation: 1s blink step-end infinite;
-  }
+/* the editor's selection in the name, in the colors a field's own
+   selection takes */
+#outline-sidebar .outline-live-sel {
+  background: Highlight;
+  color: HighlightText;
 }
+/* a new definition's keyword, beside its name */
 #outline-sidebar .outline-edit-kw {
   font-weight: bold;
   opacity: 0.7;
+  white-space: pre;
 }
+/* a name that won't do, underlined as it's typed */
+#outline-sidebar .outline-edit-input.outline-invalid,
+#outline-sidebar .outline-live.outline-invalid {
+  box-shadow: inset 0 -1.5px 0 var(--text-error);
+}
+/* why a save was refused: a bubble just under the line, over the rows
+   below, so nothing moves; or over the line when the list would clip it
+   there. It starts where the line's text does (its static position) and
+   wraps to show the reason whole */
 #outline-sidebar .outline-edit-hint {
-  margin-left: 22px;
+  display: none;
+}
+#outline-sidebar .outline-edit-hint.outline-hint-on {
+  display: inline-block;
+  position: absolute;
+  z-index: 6;
+  top: calc(100% + 1px);
+  width: max-content;
+  max-width: calc(100% - 28px);
+  padding: 1px 7px 2px;
   font-size: 10.5px;
   font-style: italic;
-  color: var(--text-error, #c33);
+  font-weight: normal;
+  color: var(--text-error);
   white-space: normal;
+  cursor: default;
+  background: var(--surface-default);
+  border: 1px solid color-mix(in srgb, var(--text-error) 45%, transparent);
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgb(0 0 0 / 0.14);
+}
+#outline-sidebar .outline-edit-hint.outline-hint-on[data-above] {
+  top: auto;
+  bottom: calc(100% + 1px);
+  box-shadow: 0 -2px 6px rgb(0 0 0 / 0.1);
+}
+
+/* text mode, said quietly: the menu glyph turns into a pencil in the
+   field caret's color */
+#outline-sidebar .outline-mode-glyph {
+  color: var(--text-warning);
+  opacity: 1;
+}
+
+/* text mode: a ghost line's one caret position, at its start, in the
+   field caret's color; it takes no room, clear of italic text */
+#outline-sidebar .outline-ghost-caret {
+  display: inline-block;
+  width: 0;
+  height: 1.2em;
+  margin: 0 -0.5px 0 -1px;
+  vertical-align: text-bottom;
+  border-left: 1.5px solid var(--text-warning);
+}
+
+/* a refused key: its line pulses once, over the row's own fill. Two names
+   alternate so each refusal replays it */
+#outline-sidebar {
+  --ol-flash: color-mix(in srgb, var(--text-error) 16%, transparent);
+}
+@keyframes ol-flash-a {
+  from {
+    box-shadow: inset 0 0 0 100vmax var(--ol-flash);
+  }
+  to {
+    box-shadow: inset 0 0 0 100vmax transparent;
+  }
+}
+@keyframes ol-flash-b {
+  from {
+    box-shadow: inset 0 0 0 100vmax var(--ol-flash);
+  }
+  to {
+    box-shadow: inset 0 0 0 100vmax transparent;
+  }
+}
+#outline-sidebar .outline-label.outline-flash-a {
+  animation: ol-flash-a 160ms ease-out;
+}
+#outline-sidebar .outline-label.outline-flash-b {
+  animation: ol-flash-b 160ms ease-out;
 }
 
 /* the keyword that made a new definition a type or module leaves */
@@ -650,11 +661,6 @@
   opacity: 0;
   max-width: 0;
 }
-@media (prefers-reduced-motion: no-preference) {
-  #outline-sidebar .outline-kw-leaving {
-    animation: ol-kw-leave 220ms ease-in;
-  }
-}
 @keyframes ol-kw-leave {
   from {
     max-width: 8ch;
@@ -666,17 +672,38 @@
   }
 }
 
-/* rows a change leaves in error turn red over a moment */
-#outline-sidebar .outline-label {
-  transition: color 0.4s ease-out;
-}
-@media (prefers-reduced-motion: no-preference) {
-  #outline-sidebar .outline-err-badge {
-    animation: ol-fade-in 0.4s ease-out;
-  }
-}
 @keyframes ol-fade-in {
   from {
     opacity: 0;
+  }
+}
+
+@keyframes ol-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* held at its start till it runs: a save's work can delay that by a
+     frame, which showed the row without the keyword */
+  #outline-sidebar .outline-kw-leaving {
+    animation: ol-kw-leave 220ms ease-in backwards;
+  }
+  /* an error badge fades in with its row's red */
+  #outline-sidebar .outline-err-badge {
+    animation: ol-fade-in 0.4s ease-out;
+  }
+  #outline-sidebar .outline-ghost-caret,
+  #outline-sidebar .outline-live-caret {
+    animation: ol-caret-blink 1s steps(1) infinite;
+  }
+}
+
+/* reduced motion: the refusal's tint holds, then goes, without fading */
+@media (prefers-reduced-motion: reduce) {
+  #outline-sidebar .outline-label.outline-flash-a,
+  #outline-sidebar .outline-label.outline-flash-b {
+    animation-timing-function: steps(1, end);
   }
 }

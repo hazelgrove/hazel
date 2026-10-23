@@ -125,7 +125,8 @@ let tests = [
             | Some((_, _, rp)) => rp
             | None => Alcotest.fail("no resident")
             };
-          let items' = ResidentProgram.items_of_segment(parse(src'));
+          let items' =
+            ResidentProgram.items_of_segment(~root=Exp, parse(src'));
           let changed =
             List.combine(rp.items, items')
             |> List.filter_map(
@@ -231,12 +232,12 @@ let tests = [
           expect_resync("rejected delta", "roster-mismatch", msg);
           WorkerServer.resident_slot := resident';
           let resolve = g =>
-            WorkerServer.resolve_payload(
+            WorkerServer.resolve_resident(
               ~key="k",
-              Resident({
+              {
                 generation: g,
                 probe_all: false,
-              }),
+              },
             );
           switch (resolve(2)) {
           | Error(e) =>
@@ -265,6 +266,66 @@ let tests = [
             )
           | Ok(_) => Alcotest.fail("resolved against an empty slot")
           };
+        },
+      ),
+      test_case(
+        "a Resident eval composes from the slot; a miss is refused, never resent",
+        `Quick,
+        () => {
+          /* the per-piece request and the residency protocol stay
+             apart: a Resident item names no pieces, so a worker
+             without its program answers an error for it rather than
+             a piece Resend (resending pieces can't help) */
+          let (resident, _) =
+            WorkerServer.handle_sync(None, full_sync(parse(src)));
+          WorkerServer.resident_slot := resident;
+          Hashtbl.reset(WorkerServer.held);
+          Hashtbl.reset(Web.WorkerClient.held);
+          let receive = generation => {
+            let request: WorkerServer.Request.t = {
+              request_id: generation,
+              batch: [
+                (
+                  "k",
+                  {
+                    program:
+                      Resident({
+                        generation,
+                        probe_all: false,
+                      }),
+                    prev: UseResident,
+                    stream: Full,
+                  },
+                ),
+              ],
+            };
+            let posted = Web.WorkerClient.posted_of(~full=false, request);
+            check(int, "no pieces posted", 0, List.length(posted.pieces));
+            switch (
+              WorkerServer.Active.decode_request(
+                WorkerServer.Active.encode_request(Evaluate(posted)),
+              )
+            ) {
+            | Evaluate(posted) => WorkerServer.receive(posted)
+            | Sync(_) => Alcotest.fail("decoded as a sync")
+            };
+          };
+          switch (receive(1)) {
+          | Composed({batch: [("k", _)], refused: [], _}) => ()
+          | _ => Alcotest.fail("generation 1 didn't compose")
+          };
+          switch (receive(2)) {
+          | Composed({batch: [], refused: [("k", why)], _}) =>
+            check(
+              bool,
+              "refused for its generation",
+              true,
+              has_substr("generation mismatch", why),
+            )
+          | Missing(_) => Alcotest.fail("a resident miss asked for pieces")
+          | _ => Alcotest.fail("generation 2 wasn't refused")
+          };
+          WorkerServer.resident_slot := None;
         },
       ),
       test_case(

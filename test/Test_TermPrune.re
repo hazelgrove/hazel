@@ -6,10 +6,7 @@ open Language;
    down still reads as truncated */
 
 let exp_of = (src: string): Exp.t =>
-  switch (FastParse.of_text(~root=Exp, src)) {
-  | Some(seg) => MakeTerm.Incr.term_of(seg)
-  | None => fail("parse failed: " ++ src)
-  };
+  MakeTerm.Incr.term_of(CorpusUtil.seg_of(src));
 
 let ints = n =>
   "[" ++ String.concat(", ", List.init(n, string_of_int)) ++ "]";

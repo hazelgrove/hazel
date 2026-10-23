@@ -88,6 +88,29 @@ let show_cls: cls => string =
   | ApFunc => "Function definition"
   | Asc => "Annotation";
 
+/* Whether a hole occurs in a binding position of the pattern: one a
+   variable could fill. Labels, constructors and annotations are not. */
+let rec has_hole_binder = (pat: t): bool =>
+  switch (pat.term) {
+  | EmptyHole
+  | MultiHole(_) => true
+  | Parens(pat)
+  | Projector(_, pat)
+  | Asc(pat, _)
+  | TupLabel(_, pat)
+  | Ap(_, pat) => has_hole_binder(pat)
+  | Tuple(pats)
+  | ListLit(pats) => List.exists(has_hole_binder, pats)
+  | Cons(p1, p2) => has_hole_binder(p1) || has_hole_binder(p2)
+  | Invalid(_)
+  | Wild
+  | Var(_)
+  | Atom(_)
+  | Label(_)
+  | ExplicitNonlabel
+  | Constructor(_) => false
+  };
+
 let rec is_var = (pat: t): option(Var.t) => {
   switch (pat.term) {
   | Parens(pat)

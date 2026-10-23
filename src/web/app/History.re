@@ -6,8 +6,10 @@ let capped_undo_stack_size = 250;
 
 /* snapshots drop derived caches (syntax, statics, eval states), which
    would pin memory per edit; restore rebuilds them from the zipper:
-   syntax via the mark_old dummy, statics on the next edited calculate,
-   results by re-evaluating */
+   syntax via the mark_old dummy, incrementally with the live editors'
+   parse and measure caches (Page.carry_over), which hit for every piece
+   the step didn't change. Statics and results are the live ones until
+   the typing debounce analyzes and re-evaluates, as after a keystroke */
 let dummy_syntax =
   lazy(
     Haz3lcore.CachedSyntax.mark_old(
@@ -29,8 +31,9 @@ let compact_cell = (c: CellEditor.Model.t): CellEditor.Model.t => {
   editor: {
     editor: {
       ...c.editor.editor,
-      /* its own incremental caches: restored editors sharing the dummy's
-         would keep evicting each other's */
+      /* its own incremental caches, for a restore with no live editor in
+         its place: restored editors sharing the dummy's would keep
+         evicting each other's */
       syntax: {
         ...Lazy.force(dummy_syntax),
         m_cache: Haz3lcore.Measured.Incr.mk_cache(),
@@ -52,25 +55,13 @@ let compact_program = (p: Program.t): Program.t =>
   | Divided(d) => Divided(Divided.compact(compact_cell, d))
   };
 
-let compact_scratch = (m: ScratchMode.Model.t): ScratchMode.Model.t => {
-  ...m,
-  scratchpads:
-    List.map(
-      (sp: ScratchMode.Scratchpad.t) =>
-        switch (sp.kind) {
-        | Code({program, _} as code) => {
-            ...sp,
-            kind:
-              Code({
-                ...code,
-                program: compact_program(program),
-              }),
-          }
-        | Drv(_) => sp
-        },
-      m.scratchpads,
-    ),
-};
+let compact_scratch =
+  ScratchMode.Model.map_code((_, code) =>
+    {
+      ...code,
+      program: compact_program(code.program),
+    }
+  );
 
 let compact = (m: Page.Model.t): Page.Model.t => {
   ...m,
@@ -91,6 +82,9 @@ module Model = {
     current: state,
     undo_stack: list(Updated.t(state)),
     redo_stack: list(Updated.t(state)),
+    /* while the step on top of the undo stack is tentative, the redo
+       stack it cleared: retracting the step puts that back */
+    tentative_redo: option(list(Updated.t(state))),
   };
 
   let equal = (===);
@@ -99,12 +93,14 @@ module Model = {
     current: Page.Store.load(),
     undo_stack: [],
     redo_stack: [],
+    tentative_redo: None,
   };
 
   let reset = (~font_metrics=?, ()) => {
     current: Page.Model.reset(~font_metrics?, ()),
     undo_stack: [],
     redo_stack: [],
+    tentative_redo: None,
   };
 };
 
@@ -114,9 +110,10 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Page.Update.t;
 
-  /* only slide decks have views to realize; a flag copied out of the
-     settings follows them back */
-  let realize_view = (~schedule_action: t => unit, m: Page.Model.t) => {
+  /* a snapshot restored: only slide decks have views to realize; a flag
+     copied out of the settings follows them back; keys the swap left
+     on another pane or on nothing go to the restored focus */
+  let restore = (~schedule_action: t => unit, m: Page.Model.t) => {
     Language.EvalWorklist.compute_enabled :=
       m.globals.settings.show_incremental_deco;
     switch (m.editors) {
@@ -127,6 +124,7 @@ module Update = {
     | Exercises(_)
     | Config(_) => ()
     };
+    Haz3lcore.FocusEffect.schedule_cell_if_lost();
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -146,11 +144,13 @@ module Update = {
         print_endline("Cannot undo");
         model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
-        realize_view(~schedule_action, x.model);
+        restore(~schedule_action, x.model);
         {
           ...x,
+          /* its analysis waits for the debounce (Page.carry_over) */
+          is_edit: true,
           model: {
-            current: Page.carry_views(~from=model.current, x.model),
+            current: Page.carry_over(~from=model.current, x.model),
             undo_stack: rest,
             redo_stack: [
               {
@@ -159,6 +159,7 @@ module Update = {
               },
               ...model.redo_stack,
             ],
+            tentative_redo: None,
           },
         };
       }
@@ -168,11 +169,12 @@ module Update = {
         print_endline("Cannot redo");
         model |> Updated.raise_invalid_action;
       | [x, ...rest] =>
-        realize_view(~schedule_action, x.model);
+        restore(~schedule_action, x.model);
         {
           ...x,
+          is_edit: true,
           model: {
-            current: Page.carry_views(~from=model.current, x.model),
+            current: Page.carry_over(~from=model.current, x.model),
             undo_stack: [
               {
                 ...x,
@@ -181,6 +183,7 @@ module Update = {
               ...model.undo_stack,
             ],
             redo_stack: rest,
+            tentative_redo: None,
           },
         };
       }
@@ -210,16 +213,28 @@ module Update = {
             current: current.model,
             undo_stack,
             redo_stack: [],
+            tentative_redo: current.tentative ? Some(model.redo_stack) : None,
           },
         };
       } else {
-        {
-          ...current,
-          model: {
-            current: current.model,
-            undo_stack: model.undo_stack,
-            redo_stack: model.redo_stack,
-          },
+        switch (current.retract, model.tentative_redo, model.undo_stack) {
+        /* as if the tentative step had never been made */
+        | (true, Some(redo_stack), [_, ...undo_stack]) => {
+            ...current,
+            model: {
+              current: current.model,
+              undo_stack,
+              redo_stack,
+              tentative_redo: None,
+            },
+          }
+        | _ => {
+            ...current,
+            model: {
+              ...model,
+              current: current.model,
+            },
+          }
         };
       };
     };
@@ -242,9 +257,8 @@ module Update = {
       ~redo=model.redo_stack,
     );
     {
+      ...model,
       current,
-      undo_stack: model.undo_stack,
-      redo_stack: model.redo_stack,
     };
   };
 };

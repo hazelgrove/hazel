@@ -54,8 +54,8 @@ let item_id = (seg: Segment.t): option(Id.t) =>
 let fingerprint = (seg: Segment.t): int =>
   Hashtbl.hash(Printer.of_segment(~holes="?", seg));
 
-let items_of_segment = (seg: Segment.t): list(item) =>
-  MakeTerm.Incr.slices(seg)
+let items_of_segment = (~root: Sort.t, seg: Segment.t): list(item) =>
+  MakeTerm.Incr.slices(~root, seg)
   |> List.filter_map(slice =>
        switch (item_id(slice)) {
        | None => None
@@ -91,7 +91,7 @@ let sync_full =
       prev,
     )
     : t => {
-  let items = items_of_segment(seg);
+  let items = items_of_segment(~root, seg);
   let probe_ids = probe_map(probe_ids);
   let prev_statics =
     switch (prev) {

@@ -65,7 +65,7 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | Probe(StepInto(_))
+             | Probe(StepInto(_) | StepIntoBody(_))
              | Format(_)
              | AdjustIndent(_, _)
              | ApplyCompletion(_)
@@ -121,7 +121,14 @@ module Update = {
                the quiver draws at the caret), whether or not an inline
                buffer is showing (buffers only appear on edits; the
                chip is always live) */
-            switch (CompletionQuery.tab_action(z)) {
+            switch (
+              CompletionQuery.tab_action(
+                ~root=model.editor.root,
+                ~seg=
+                  CompletionQuery.engine_seg(~syntax=model.editor.syntax, z),
+                z,
+              )
+            ) {
             | Some(a) => a
             | None =>
               Zipper.can_put_down(z)
@@ -164,6 +171,8 @@ module Selection = {
       implied_hole:
         Lazy.from_fun(() =>
           ImpliedHole.at_caret(
+            ~root=model.editor.root,
+            ~syntax=model.editor.syntax,
             ~statics=model.statics,
             model.editor.state.zipper,
           )
@@ -420,20 +429,21 @@ module View = {
   let deco =
       (
         ~expand_selection=false,
+        ~root: Sort.t,
         ~syntax: CachedSyntax.t,
         ~info_map: Language.Statics.Map.t,
         ~globals: Globals.t,
         ~on_apply: option(Id.t => Ui_effect.t(unit))=None,
         z: Zipper.t,
       ) => {
-    /* one flatten + one completion shared by every completion-aware
-       decoration; lazy so healthy-code renders with quiver off never
-       pay them */
+    /* one segment + one completion shared by every completion-aware
+       decoration (the frame's segment: the inspector's and statics' too);
+       lazy so healthy-code renders with quiver off never pay them */
     let engine_seg =
-      Lazy.from_fun(() => Zipper.unselect_and_zip(~erase_buffer=true, z));
+      Lazy.from_fun(() => CompletionQuery.engine_seg(~syntax, z));
     let completion =
       Lazy.from_fun(() =>
-        CanonicalCompletion.for_editor(Lazy.force(engine_seg))
+        CanonicalCompletion.for_editor(~root, Lazy.force(engine_seg))
       );
     [
       CaretDec.view(
@@ -477,9 +487,14 @@ module View = {
       globals.settings.quiver
         ? [
           QuiverDec.view(
+            ~root,
             ~flagpole=globals.settings.quiver_flagpole,
             ~head_padding=
-              CompletionQuery.chip_at_caret(~seg=Lazy.force(engine_seg), z)
+              CompletionQuery.chip_at_caret(
+                ~root,
+                ~seg=Lazy.force(engine_seg),
+                z,
+              )
               |> Option.bind(_, (i: CanonicalCompletion.insertion) =>
                    List.nth_opt(i.delimiters, 0)
                  )
@@ -505,7 +520,11 @@ module View = {
                 : None,
             /* the caret's chips — the same query Tab dispatches */
             ~owned=
-              CompletionQuery.chips_at_caret(~seg=Lazy.force(engine_seg), z),
+              CompletionQuery.chips_at_caret(
+                ~root,
+                ~seg=Lazy.force(engine_seg),
+                z,
+              ),
             Lazy.force(engine_seg),
           ),
         ]
@@ -548,11 +567,10 @@ module View = {
       | ReadOnly => None
       | Editable({escape_vertical, _}) => escape_vertical
       };
-    /* Editor-level clipboard helpers. Bypass the page-level
-       on_copy/on_paste path because Firefox refuses to dispatch
-       native clipboard events to non-editable focused elements
-       (the editor div has tabindex(0) but is not contenteditable).
-       Shared by the keyboard shortcuts and the context menu. */
+    /* Editor-level clipboard helpers: Firefox won't dispatch native
+       clipboard events to a focused non-editable element (the editor
+       div has tabindex(0) but is not contenteditable). Shared by the
+       keyboard shortcuts and the context menu. */
     let selection_has_refractors =
         (refractors: Haz3lcore.Zipper.Refractor.t, selection) =>
       if (List.is_empty(refractors.manuals)) {
@@ -640,6 +658,7 @@ module View = {
       selected
         ? deco(
             ~expand_selection?,
+            ~root=model.editor.root,
             ~syntax=model.editor.syntax,
             ~info_map=model.statics.info_map,
             ~globals,
@@ -651,7 +670,12 @@ module View = {
             Arms.Refractors.all(
               ~font_metrics=globals.font_metrics,
               ~syntax=model.editor.syntax,
-              ~completion=Arms.lazy_completion(model.editor.state.zipper),
+              ~completion=
+                Arms.lazy_completion(
+                  ~root=model.editor.root,
+                  ~syntax=model.editor.syntax,
+                  model.editor.state.zipper,
+                ),
               model.editor.state.zipper,
             ),
           ]
@@ -693,13 +717,7 @@ module View = {
         ? globals.visible_rows : None;
     let refractor_data =
       RefractorView.mk_data(
-        ~refractors=
-          Id.Map.union(
-            (_, _, b) => Some(b),
-            zipper.refractors.manuals |> Id.Map.of_list,
-            zipper.refractors.multis.ephemerals,
-          )
-          |> Id.Map.union((_, a, _) => Some(a), _, zipper.refractors.proofs),
+        ~refractors=CachedSyntax.refractor_entries(zipper.refractors),
         ~syntax=model.editor.syntax,
         ~indicated=Indicated.for_decoration(zipper),
         ~statics=model.statics.info_map,
@@ -721,7 +739,6 @@ module View = {
         ~visible?,
         ~refractor_rows=model.editor.syntax.refractor_rows,
         ~term_data=model.editor.syntax.term_data,
-        ~tail=zipper.refractors.tail_target,
         refractor_data,
         List.map(fst, zipper.refractors.manuals)
         @ List.map(fst, Id.Map.to_list(zipper.refractors.multis.ephemerals))
@@ -855,9 +872,22 @@ module View = {
       | {button: Right, ctrl, _} when ctrl != Down =>
         /* Right-click inside the selection keeps it (so the menu's
            Cut/Copy apply to it); outside, move the caret to the click
-           location as a plain click would before opening the menu. */
+           location as a plain click would before opening the menu.
+           Prevent_default also skips the browser's focus-on-press, so
+           focus the editor here: keys after the menu belong to it. */
         Effect.Many(
-          [Effect.Prevent_default]
+          [
+            Effect.Prevent_default,
+            signal(MakeActive),
+            Effect.of_sync_fun(
+              () =>
+                Js.Opt.iter(
+                  mouse.current_target,
+                  Haz3lcore.FocusEffect.focus_no_scroll,
+                ),
+              (),
+            ),
+          ]
           @ (
             click_in_selection(loc(mouse))
               ? [] : [inject(Perform(Move(Point(loc(mouse), None))))]
@@ -961,7 +991,8 @@ module View = {
         let z = model.editor.state.zipper;
         /* escape_vertical fires on Up at the first row / Down at the last,
            before the core move snaps the caret to line start/end */
-        let caret_row_edge = (v: Haz3lcore.Action.vertical): option(int) =>
+        let caret_row_edge =
+            (key: string): option((Haz3lcore.Action.vertical, int)) =>
           switch (escape_vertical) {
           | None => None
           | Some(_) when z.selection.content != [] => None
@@ -970,9 +1001,9 @@ module View = {
             let Util.Point.{row, col} =
               Haz3lcore.Zipper.Caret.point(measured, z);
             let last_row = max(0, measured.total_rows - 1);
-            switch (v) {
-            | Up when row == 0 => Some(col)
-            | Down when row == last_row => Some(col)
+            switch (key) {
+            | "ArrowUp" when row == 0 => Some((Up, col))
+            | "ArrowDown" when row == last_row => Some((Down, col))
             | _ => None
             };
           };
@@ -983,30 +1014,20 @@ module View = {
            *    Keyboard.handle_key_event always returns Some for arrows,
            *    so boundary escape must be checked before delegation. */
           switch (key) {
-          | {key: D("ArrowUp"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
-              when
-                Option.is_some(escape_vertical)
-                && Option.is_some(caret_row_edge(Up)) =>
+          | {
+              key: D(("ArrowUp" | "ArrowDown") as k),
+              shift: Up,
+              meta: Up,
+              ctrl: Up,
+              alt: Up,
+              _,
+            }
+              when Option.is_some(caret_row_edge(k)) =>
+            let (v, col) = Option.get(caret_row_edge(k));
             Effect.Many([
               Effect.Prevent_default,
-              Option.get(
-                escape_vertical,
-                Up,
-                Option.get(caret_row_edge(Up)),
-              ),
-            ])
-          | {key: D("ArrowDown"), shift: Up, meta: Up, ctrl: Up, alt: Up, _}
-              when
-                Option.is_some(escape_vertical)
-                && Option.is_some(caret_row_edge(Down)) =>
-            Effect.Many([
-              Effect.Prevent_default,
-              Option.get(
-                escape_vertical,
-                Down,
-                Option.get(caret_row_edge(Down)),
-              ),
-            ])
+              Option.get(escape_vertical, v, col),
+            ]);
           | {
               key: D("ArrowLeft" | "ArrowUp"),
               shift: Up,
@@ -1033,9 +1054,7 @@ module View = {
                 && z.relatives.ancestors == []
                 && snd(Siblings.neighbors(z.relatives.siblings)) == None =>
             Effect.Many([Effect.Prevent_default, escape(Right)])
-          /* 2. Cmd/Ctrl + C/X/V handled here rather than via the page
-             on_copy/on_paste handlers, so they keep working in
-             Firefox when focus is on a non-editable editor div. */
+          /* 2. Cmd/Ctrl + C/X/V, via the clipboard helpers above. */
           | {
               key: D("c" | "C"),
               sys: Mac,
@@ -1126,6 +1145,12 @@ module View = {
         Attr.classes(
           ["cell-item", "code-editor"]
           @ (selected ? ["selected"] : [])
+          @ (
+            switch (edit_mode) {
+            | ReadOnly => ["read-only"]
+            | Editable(_) => []
+            }
+          )
           @ (display_line_numbers ? ["has-line-numbers"] : []),
         ),
         /* always focusable so a click gives DOM focus (caret/accent gated on :focus) */

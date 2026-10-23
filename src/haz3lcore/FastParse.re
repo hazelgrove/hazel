@@ -528,6 +528,7 @@ let parsed_of_text =
     (
       ~materialize: materialize=(_, _) => None,
       ~collect_refractors: bool=false,
+      ~chunk: bool=false,
       ~root: Sort.t,
       text: string,
     )
@@ -540,21 +541,49 @@ let parsed_of_text =
     /* Module-member chunks (update_binding_clause on a member): parse
        as a braced module body, then unwrap the brace tile. Chunks with
        spliced separators (leading/trailing ;) fail the wrap parse and
-       fall back — they are small. */
-    switch (attempt(~materialize, "{" ++ String.trim(text) ++ "}")) {
-    | Some({segment: [Tile({children: [inner], _} as bt)], refractors})
-        when Tile.has_label(bt, ["{", "}"]) =>
-      Ok({
-        segment: inner,
-        refractors,
-      })
-    | _ =>
-      /* keep the attempt's own note when it bailed; the generic wrap
-         message only describes a successful parse of the wrong shape */
-      if (bail_note^ == None) {
-        note("mod-root wrap did not yield a single module body");
+       fall back — they are small. A [chunk] spliced among members
+       (paste) keeps its edge whitespace, and one ending with a member's
+       `;` or an open slot (`let z =`) parses with a hole after it, which
+       is then stripped */
+    let body = chunk ? text : String.trim(text);
+    let unbraced = (wrapped: string): option(parsed) =>
+      switch (attempt(~materialize, wrapped)) {
+      | Some({segment: [Tile({children: [inner], _} as bt)], refractors})
+          when Tile.has_label(bt, ["{", "}"]) =>
+        Some({
+          segment: inner,
+          refractors,
+        })
+      | _ => None
       };
-      fail();
+    switch (unbraced("{" ++ body ++ "}")) {
+    | Some(p) => Ok(p)
+    | None =>
+      let first_note = bail_note^;
+      switch (
+        chunk
+          ? Option.bind(unbraced("{" ++ body ++ " ?}"), p =>
+              Option.map(
+                segment =>
+                  {
+                    ...p,
+                    segment,
+                  },
+                strip_appended_hole(p.segment),
+              )
+            )
+          : None
+      ) {
+      | Some(p) => Ok(p)
+      | None =>
+        /* keep the attempt's own note when it bailed; the generic wrap
+           message only describes a successful parse of the wrong shape */
+        bail_note := first_note;
+        if (bail_note^ == None) {
+          note("mod-root wrap did not yield a single module body");
+        };
+        fail();
+      };
     };
   } else if (root != Sort.Exp) {
     note("root sort is not fast-parseable (Exp and Mod only)");

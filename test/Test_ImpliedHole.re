@@ -34,18 +34,37 @@ let expected_type = info =>
 let checked_compositional = z =>
   CachedStatics.init_compositional(~settings, ~stitch=Fun.id, ~root=Exp, z);
 
-let example = (~compositional=false, input, expected) =>
+/* as the editor runs them: on its syntax's segment and item parses */
+let checked_shared = z => {
+  let syntax = CachedSyntax.init(~root=Exp, z);
+  let source = CachedSyntax.semantic_source(z, syntax);
+  check(bool, "the syntax's segment is the source", true, source != None);
+  CachedStatics.init_compositional(
+    ~settings,
+    ~stitch=Fun.id,
+    ~root=Exp,
+    ~shared=syntax.t_cache,
+    ~source?,
+    z,
+  );
+};
+
+let example = (~compositional=false, ~shared=false, input, expected) =>
   test_case(
-    (compositional ? "compositional: " : "") ++ String.escaped(input),
+    (shared ? "shared: " : compositional ? "compositional: " : "")
+    ++ String.escaped(input),
     `Quick,
     () => {
       let z = zipper(input);
-      let statics = compositional ? checked_compositional(z) : checked(z);
+      let statics =
+        shared
+          ? checked_shared(z)
+          : compositional ? checked_compositional(z) : checked(z);
       check(
         string,
         "expected type of implied hole",
         expected,
-        ImpliedHole.at_caret(~statics, z) |> expected_type,
+        ImpliedHole.at_caret(~root=Exp, ~statics, z) |> expected_type,
       );
     },
   );
@@ -67,6 +86,38 @@ let tests = [
         ~compositional=true,
         "let x : Int = 1¦\nlet y = 2 in y",
         "none",
+      ),
+      example(~shared=true, let_input, "Int"),
+      example(
+        ~shared=true,
+        "let f(x : Int) : Bool = ¦\nlet y = 2 in y",
+        "Bool",
+      ),
+      test_case(
+        "a moved caret or an unparsed buffer reads the zipper",
+        `Quick,
+        () => {
+          let z = zipper("let x : Int = 1¦ \nlet y = 2 in y");
+          let syntax = CachedSyntax.init(~root=Exp, z);
+          let moved =
+            Test_Editing.perform(z, [Move(Local(Right, ByChar))]);
+          check(
+            bool,
+            "moved",
+            true,
+            CachedSyntax.semantic_source(moved, syntax) == None,
+          );
+          let buffered = {
+            ...z,
+            selection: Selection.mk_buffer(Unparsed, []),
+          };
+          check(
+            bool,
+            "unparsed buffer",
+            true,
+            CachedSyntax.semantic_source(buffered, syntax) == None,
+          );
+        },
       ),
       example("let x = ¦\nlet y = 2 in y", "?"),
       example("let f(x : Int) : Bool = ¦\nlet y = 2 in y", "Bool"),
@@ -100,13 +151,18 @@ let tests = [
             string,
             "stale type is suppressed",
             "none",
-            ImpliedHole.at_caret(~statics, changed) |> expected_type,
+            ImpliedHole.at_caret(~root=Exp, ~statics, changed)
+            |> expected_type,
           );
           check(
             string,
             "fresh type becomes visible",
             "Bool",
-            ImpliedHole.at_caret(~statics=checked(changed), changed)
+            ImpliedHole.at_caret(
+              ~root=Exp,
+              ~statics=checked(changed),
+              changed,
+            )
             |> expected_type,
           );
         },
@@ -123,7 +179,7 @@ let tests = [
             string,
             "same hole after moving across space",
             "Int",
-            ImpliedHole.at_caret(~statics, moved) |> expected_type,
+            ImpliedHole.at_caret(~root=Exp, ~statics, moved) |> expected_type,
           );
         },
       ),
@@ -148,7 +204,8 @@ let tests = [
             string,
             "no implied hole for selection",
             "none",
-            ImpliedHole.at_caret(~statics, selected) |> expected_type,
+            ImpliedHole.at_caret(~root=Exp, ~statics, selected)
+            |> expected_type,
           );
         },
       ),
@@ -164,7 +221,7 @@ let tests = [
                 string,
                 "no speculative information",
                 "none",
-                ImpliedHole.at_caret(~statics, z) |> expected_type,
+                ImpliedHole.at_caret(~root=Exp, ~statics, z) |> expected_type,
               ),
             [
               {
@@ -205,7 +262,7 @@ let tests = [
             string,
             "pending analysis is not used",
             "none",
-            ImpliedHole.at_caret(~statics=deferred.statics, z)
+            ImpliedHole.at_caret(~root=Exp, ~statics=deferred.statics, z)
             |> expected_type,
           );
           let refreshed =
@@ -214,7 +271,7 @@ let tests = [
             string,
             "feedback returns after refresh",
             "Int",
-            ImpliedHole.at_caret(~statics=refreshed.statics, z)
+            ImpliedHole.at_caret(~root=Exp, ~statics=refreshed.statics, z)
             |> expected_type,
           );
         },
@@ -230,7 +287,9 @@ let tests = [
             ...Cursor.empty,
             info: normal,
             implied_hole:
-              Lazy.from_fun(() => ImpliedHole.at_caret(~statics, z)),
+              Lazy.from_fun(() =>
+                ImpliedHole.at_caret(~root=Exp, ~statics, z)
+              ),
             editor_read_only: false,
           };
           check(

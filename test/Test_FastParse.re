@@ -88,6 +88,37 @@ let semantic = (name, txt) =>
     },
   );
 
+/* typed key by key at the caret (¦) of a loaded program: each `(` typed
+   is a paren */
+let parens_typed_in = (name, marked, typed) =>
+  test_case(
+    name ++ " (typed in place)",
+    `Quick,
+    () => {
+      let z =
+        Test_Editing.perform(
+          Test_TabDispatch.padding_zipper(marked),
+          List.map(c => Action.Insert(c), Token.to_list(typed)),
+        );
+      let rec lone = seg =>
+        List.exists(
+          (p: Piece.t) =>
+            switch (p) {
+            | Tile(t) =>
+              Tile.label(t) == ["("] || List.exists(lone, t.children)
+            | _ => false
+            },
+          seg,
+        );
+      check(
+        bool,
+        "a `(` without its paren form",
+        false,
+        lone(Zipper.unselect_and_zip(z)),
+      );
+    },
+  );
+
 let rejected = (name, txt) =>
   test_case(name ++ " (falls back)", `Quick, () => {
     check(
@@ -97,6 +128,156 @@ let rejected = (name, txt) =>
       FastParse.of_text(~root=Exp, txt) == None,
     )
   });
+
+/* a segment's structure, ids aside: tiles' forms, molds and shards,
+   grout shapes, secondaries' contents */
+let rec shape = (seg: Segment.t): string =>
+  String.concat(
+    "",
+    List.map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          "<"
+          ++ Form.show(t.form)
+          ++ ":"
+          ++ Mold.show(Tile.mold(t))
+          ++ ":"
+          ++ String.concat(",", List.map(string_of_int, t.shards))
+          ++ String.concat(
+               "",
+               List.map(c => "[" ++ shape(c) ++ "]", t.children),
+             )
+          ++ ">"
+        | Grout(g) => Grout.show_shape(g.shape)
+        | Secondary(w) => Language.Secondary.show_secondary_content(w.content)
+        | Projector(pr) => "P" ++ shape([pr.syntax])
+        },
+      seg,
+    ),
+  );
+
+/* a paste takes the fast path and gives the slow path's (typed char by
+   char) segment, ids aside, its edge whitespace kept, with the caret
+   after it: among a module's members (FastParse at Mod, [sort] Mod), and
+   in an expression ([sort] Exp) */
+let paste_parity = (~sort: Sort.t, (root, src, needle, clip), ()) => {
+  module MA = Test_ModAudit;
+  let z0 = MA.load(~root, src);
+  let z =
+    switch (
+      MA.perform_why(
+        ~root,
+        ~syntax=CachedSyntax.init(~root, z0),
+        ~statics=MA.statics_of(~root, z0),
+        z0,
+        Move(
+          Point(
+            Option.get(
+              MA.point_of(~off=String.length(needle), src, needle),
+            ),
+            None,
+          ),
+        ),
+      )
+    ) {
+    | Ok(z) => z
+    | Error(why) => fail(why)
+    };
+  check(
+    bool,
+    "the caret's sort",
+    true,
+    Relatives.sort(~root, z.relatives) == sort,
+  );
+  switch (
+    Parser.fast_paste(clip, z, ~root),
+    Parser.to_zipper(~root, ~zipper_init=z, clip),
+  ) {
+  | (Error(why), _) => fail("fast path refused: " ++ why)
+  | (_, None) => fail("slow path failed")
+  | (Ok(fast), Some(slow)) =>
+    let seg = z => Zipper.unselect_and_zip(z);
+    check(string, "the segment", shape(seg(slow)), shape(seg(fast)));
+    check(
+      bool,
+      "the caret",
+      true,
+      MA.caret_at(~root, slow) == MA.caret_at(~root, fast),
+    );
+  };
+};
+let mod_paste = paste_parity(~sort=Mod);
+
+let mod_paste_cases = {
+  let lit = "module M = {\n  let a = 1;\n  let b = 2\n};\nM.a";
+  let top = "let a = 1;\nlet b = 2;\na";
+  let defs =
+    String.concat(
+      "",
+      List.init(5, i => Printf.sprintf("\nlet x%d = %d + 1;", i, i)),
+    );
+  [
+    ("definitions into a module body", (Sort.Mod, lit, "let a = 1;", defs)),
+    ("definitions at a Mod root", (Sort.Mod, top, "let a = 1;", defs)),
+    (
+      "into a literal in an expression",
+      (
+        Sort.Exp,
+        "module M = {\n  let a = 1;\n  let b = 2\n} in\nM.a",
+        "let a = 1;",
+        defs,
+      ),
+    ),
+    (
+      "a partial member into a module body",
+      (Sort.Mod, lit, "let a = 1;", "\nlet z ="),
+    ),
+    (
+      "a partial member at a Mod root",
+      (Sort.Mod, top, "let a = 1;", "\nlet z ="),
+    ),
+    (
+      "a member without its `;`",
+      (Sort.Mod, top, "let a = 1;", "\nlet z = 3"),
+    ),
+    (
+      "a type, a module and a test",
+      (
+        Sort.Mod,
+        lit,
+        "let a = 1;",
+        "\ntype T = Int;\nmodule N = { let c = 3 };\ntest 1 == 1 end;",
+      ),
+    ),
+    ("a trailing newline", (Sort.Mod, top, "let a = 1;", "\nlet z = 3;\n")),
+  ];
+};
+
+/* pastes into a let-in chain, their edge newlines kept */
+let exp_paste_cases = {
+  let chain = "let a = 1 in\na";
+  let defs =
+    String.concat(
+      "",
+      List.init(3, i => Printf.sprintf("\nlet x%d = %d + 1 in", i, i)),
+    );
+  [
+    (
+      "a definition after `in`, a newline before it",
+      (Sort.Exp, chain, "let a = 1 in", "\nlet x0 = 0 + 1 in"),
+    ),
+    (
+      "and a newline after it",
+      (Sort.Exp, chain, "let a = 1 in", "\nlet x0 = 0 + 1 in\n"),
+    ),
+    ("definitions", (Sort.Exp, chain, "let a = 1 in", defs)),
+    (
+      "into a Mod root's member",
+      (Sort.Mod, "let a = 1;\nlet b = (a);\nb", "= (", "\n2 +\n"),
+    ),
+  ];
+};
 
 let tests = (
   "FastParse",
@@ -185,6 +366,46 @@ let tests = (
       "type T = (Int, Bool) in let x : T = (1, true) in x",
     ),
     semantic("module with members", "let m = { let a = 1; let b = 2 } in m"),
+    semantic(
+      "a module's last member a hole",
+      "let m = {\n  let a = 1;\n  ?\n} in m",
+    ),
+    semantic(
+      "bare tuples at a member",
+      "let m = {\n  let a, b = 1, 2;\n  let c = a, b\n} in m",
+    ),
+    semantic(
+      "a member destructuring a labeled tuple",
+      "let m = {\n  let (a, b=c) = (1, b=2)\n} in m",
+    ),
+    test_case(
+      "the typing parser's pieces end at a member's `;`",
+      `Quick,
+      () => {
+        let name = "a_name_long_enough_that_the_typing_parser_splits_its_text_after_it";
+        let src =
+          "let f = fun x ->\n  let "
+          ++ name
+          ++ " = x + 1 in\n  let b = "
+          ++ name
+          ++ " + 2 in\n  b;\nf(1)";
+        let members =
+          List.filter(
+            (p: Piece.t) =>
+              switch (p) {
+              | Tile(t) => Tile.label(t) == ["let", "="]
+              | _ => false
+              },
+            Option.get(Parser.to_segment(src, ~root=Mod)),
+          );
+        check(int, "members", 1, List.length(members));
+      },
+    ),
+    parens_typed_in(
+      "a case's scrutinee in parens, among members",
+      "let m = {\n  let a = 1;\n  ¦\n} in m",
+      "case (a)",
+    ),
     semantic("case with ctor pats", "case a | Down(x, y) => x | Up => 0 end"),
     rejected("unbalanced brace", "let m = { let a = 1 in m"),
     test_case("projector trigger materializes", `Quick, () => {
@@ -440,5 +661,19 @@ let tests = (
         };
       }
     }),
-  ],
+  ]
+  @ List.map(
+      ((name, case)) =>
+        test_case("Mod paste: " ++ name, `Quick, mod_paste(case)),
+      mod_paste_cases,
+    )
+  @ List.map(
+      ((name, case)) =>
+        test_case(
+          "Exp paste: " ++ name,
+          `Quick,
+          paste_parity(~sort=Exp, case),
+        ),
+      exp_paste_cases,
+    ),
 );

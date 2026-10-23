@@ -5,17 +5,31 @@ open OptUtil.Syntax;
    its owner/child slot in the completion that was actually typechecked;
    neither mint new IDs nor typecheck a speculative program here. */
 let at_caret =
-    (~statics: CachedStatics.t, z: Zipper.t): option(Language.Info.t) =>
+    (
+      ~root: Sort.t,
+      ~syntax: option(CachedSyntax.t)=?,
+      ~statics: CachedStatics.t,
+      z: Zipper.t,
+    )
+    : option(Language.Info.t) =>
   if (z.caret != Outer || !Selection.is_empty(z.selection)) {
     None;
   } else {
     let* snapshot = statics.completion;
-    let source = MakeTerm.semantic_source(z);
-    /* Include IDs: Segment.equal deliberately ignores tile identity. */
-    if (source != snapshot.source) {
+    /* [syntax]: the frame's segment, which the frame's other completions
+       (and usually statics) already read */
+    let source =
+      switch (syntax) {
+      | Some(syntax) => CompletionQuery.engine_seg(~syntax, z)
+      | None => MakeTerm.semantic_source(z)
+      };
+    /* Include IDs: Segment.equal deliberately ignores tile identity.
+       compare, unlike (==), skips the pieces two zips share: all but the
+       caret's ancestors. */
+    if (compare(source, snapshot.source) != 0) {
       None; /* Includes annotation/context edits during the statics debounce. */
     } else {
-      let* chip = CompletionQuery.chip_at_caret(~seg=source, z);
+      let* chip = CompletionQuery.chip_at_caret(~root, ~seg=source, z);
       switch (chip.delimiters) {
       | [
           {

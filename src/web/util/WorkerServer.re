@@ -7,12 +7,10 @@ type key = string;
 module Request = {
   /* the incremental cache lives in the worker, per batch key. a stale or
      missing one is safe (reuse_check re-verifies every entry), just a
-     colder eval. `Seed` is for callers that own their cache (the sync
-     path, tests) */
+     colder eval */
   [@deriving (show, sexp, yojson)]
   type prev_source =
-    | UseResident
-    | Seed(Language.EvaluatorState.incr_eval);
+    | UseResident;
   /* what to stream during this evaluation. only the pending-eval
      highlight reads effect-free entries, so with it off [Effects] ships
      just the effect-bearing ones; the completion response is unaffected */
@@ -20,24 +18,25 @@ module Request = {
   type stream_interest =
     | Full
     | Effects;
-  /* W2b: [Resident] evaluates the worker-resident program (synced via
-     SyncProgram) — the worker elaborates from its OWN statics, so the
-     request ships no program at all. postMessage FIFO guarantees the
-     sync for a generation arrives before an eval referencing it. */
+  /* W2b, behind __w2flip: the worker-resident program (synced via
+     SyncProgram), which the worker elaborates from its OWN statics, so
+     nothing of the program ships. postMessage FIFO puts the sync for a
+     generation ahead of an eval naming it */
   [@deriving (show, sexp, yojson)]
-  type payload =
-    | Ship({
-        expr: Language.Exp.t,
-        eval_info_map: Language.EvalInfo.t,
-      })
-    | Resident({
-        generation: int,
-        probe_all: bool,
-      });
-
+  type resident = {
+    generation: int,
+    probe_all: bool,
+  };
+  /* a cell's program: in pieces (EvalPieces), each posted once (the
+     default), or the resident one */
+  [@deriving (show, sexp, yojson)]
+  type program =
+    | Pieces(EvalPieces.program)
+    | Resident(resident);
+  /* a cell's evaluation as the main thread queues it */
   [@deriving (show, sexp, yojson)]
   type value = {
-    payload,
+    program,
     prev: prev_source,
     stream: stream_interest,
   };
@@ -47,6 +46,48 @@ module Request = {
   type t = {
     request_id: int,
     batch,
+  };
+};
+
+/* a request as posted: every program's layout (each piece's key and
+   hash) or resident reference, and the pieces the worker doesn't hold */
+module Posted = {
+  [@deriving (show, sexp, yojson)]
+  type program =
+    | Pieces(EvalPieces.layout)
+    | Resident(Request.resident);
+  [@deriving (show, sexp, yojson)]
+  type value = {
+    program,
+    prev: Request.prev_source,
+    stream: Request.stream_interest,
+  };
+  [@deriving (show, sexp, yojson)]
+  type t = {
+    request_id: int,
+    batch: list((key, value)),
+    pieces: list((EvalPieces.hash, string)),
+  };
+};
+
+/* a request as the worker evaluates it: its programs composed */
+module Evaluation = {
+  [@deriving (show, sexp, yojson)]
+  type value = {
+    expr: Language.Exp.t,
+    eval_info_map: Language.EvalInfo.t,
+    prev: Request.prev_source,
+    stream: Request.stream_interest,
+  };
+  [@deriving (show, sexp, yojson)]
+  type batch = list((key, value));
+  [@deriving (show, sexp, yojson)]
+  type t = {
+    request_id: int,
+    batch,
+    /* items answered with an error, not evaluated: a resident program
+       the worker doesn't have */
+    refused: list((key, string)),
   };
 };
 
@@ -68,7 +109,9 @@ module Response = {
    Main is authoritative; it syncs SEGMENTS here and this side derives
    term + per-item statics (Haz3lcore.ResidentProgram) and answers
    with a summary. Version-stamped: any schema change bumps this and
-   mismatched builds demand resync instead of mis-decoding. */
+   mismatched builds demand resync instead of mis-decoding. Separate
+   from the pieces an Evaluate carries: those compose one request's
+   program; this is a program the worker keeps across requests. */
 let w2_protocol_version = 1;
 
 module SyncProgram = {
@@ -97,7 +140,7 @@ module SyncProgram = {
 module ClientMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
-    | Evaluate(Request.t)
+    | Evaluate(Posted.t)
     | Sync(SyncProgram.t);
 };
 
@@ -141,9 +184,14 @@ module ServerMessage = {
     eval_time: TimeUtil.span,
   };
 
+  /* the request named pieces the worker doesn't hold (a restart, a
+     message lost or out of order): post it again with all of them */
+  [@deriving (show, sexp, yojson)]
+  type resend = {request_id: int};
+
   /* W2a: worker's answer to a SyncProgram — the per-item statics
      summary, or a demand for full resync (drift, missing state, or
-     protocol-version skew). */
+     protocol-version skew) */
   [@deriving (show, sexp, yojson)]
   type sync_verdict =
     | SyncOk(Haz3lcore.ResidentProgram.Summary.t)
@@ -163,6 +211,7 @@ module ServerMessage = {
     | ReusePlan(reuse_plan)
     | Stream(stream)
     | Result(result)
+    | Resend(resend)
     | Summary(summary_msg);
 };
 
@@ -309,16 +358,13 @@ let resident: Hashtbl.t(key, Language.EvaluatorState.incr_eval) =
   Hashtbl.create(4);
 
 let resolve_prev =
-    (~key: option(key)=?, prev: Request.prev_source)
-    : Language.EvaluatorState.incr_eval =>
-  switch (prev, key) {
-  | (Seed(p), _) => p
-  | (UseResident, Some(k)) =>
+    (~key: key, prev: Request.prev_source): Language.EvaluatorState.incr_eval =>
+  switch (prev) {
+  | UseResident =>
     Option.value(
-      Hashtbl.find_opt(resident, k),
+      Hashtbl.find_opt(resident, key),
       ~default=Language.IncrEval.empty,
     )
-  | (UseResident, None) => Language.IncrEval.empty
   };
 
 let store_resident = (key: key, response: Response.value): unit =>
@@ -328,18 +374,12 @@ let store_resident = (key: key, response: Response.value): unit =>
   | Error(_) => ()
   };
 
-let evaluate_sync = (req_value: Request.value): Response.value => {
-  let Request.{payload, prev, _} = req_value;
-  let (expr, eval_info_map) =
-    switch (payload) {
-    | Ship({expr, eval_info_map}) => (expr, eval_info_map)
-    | Resident(_) =>
-      failwith("evaluate_sync: Resident requests are worker-only")
-    };
+/* the main thread's evaluation: cold, with nothing to stream */
+let evaluate_sync =
+    (~eval_info: Language.EvalInfo.t, expr: Language.Exp.t): Response.value => {
   switch (
     Language.Evaluator.evaluate(
-      ~prev=resolve_prev(prev),
-      ~eval_info=eval_info_map,
+      ~eval_info,
       ~env=Language.Builtins.env_init,
       expr,
     )
@@ -359,7 +399,7 @@ type evaluation_start =
 type running = {
   request_id: int,
   key,
-  remaining: Request.batch,
+  remaining: Evaluation.batch,
   completed: Response.t,
   evaluation: Language.Evaluator.yielding_evaluation,
 };
@@ -371,7 +411,7 @@ type runtime =
   | Running(running);
 
 type model = {
-  latest_request: option(Request.t),
+  latest_request: option(Evaluation.t),
   runtime,
   slice_already_scheduled: bool,
 };
@@ -399,56 +439,6 @@ let initial_model = {
  * 3. Eval slices — `Stream` updates, then `Result`.
  * A newer request replaces `latest_request`; the next slice abandons stale work. */
 
-/* one resident program (the current slide); a sync for a different
-   key evicts (plan §4.8) */
-type resident =
-  option((key, Language.CoreSettings.t, Haz3lcore.ResidentProgram.t));
-
-let resident_slot: ref(resident) = ref(None);
-
-/* resolve a Resident payload against the slot, GENERATION included:
-   a rejected sync (roster mismatch, unknown item) retains the old
-   resident, and Sync(g)/Evaluate(Resident(g)) are FIFO — without the
-   generation gate the eval right after a rejected Sync(g) would run
-   the previous program and label its result generation g. A miss
-   surfaces as an eval error; the client's recovery resync makes the
-   next attempt servable. */
-let resolve_payload =
-    (~key: key, payload: Request.payload)
-    : result((Language.Exp.t, Language.EvalInfo.t), string) =>
-  switch (payload) {
-  | Ship({expr, eval_info_map}) => Ok((expr, eval_info_map))
-  | Resident({probe_all, generation}) =>
-    switch (resident_slot^) {
-    | Some((k, _, rp)) when k == key && rp.generation != generation =>
-      Error(
-        Printf.sprintf(
-          "resident generation mismatch: have %d, want %d",
-          rp.generation,
-          generation,
-        ),
-      )
-    | Some((k, settings, rp)) when k == key =>
-      switch (Haz3lcore.DefStatics.whole_elab(rp.statics)) {
-      | None => Error("resident elaboration gap")
-      | Some(expr) =>
-        let info_map = rp.statics.merged;
-        let targets =
-          Haz3lcore.CachedStatics.compute_targets(
-            ~settings,
-            ~info_map,
-            ~probe_ids=rp.probe_ids,
-            (),
-          );
-        Ok((
-          expr,
-          Language.EvalInfo.of_info_map(~probe_all, ~targets, info_map),
-        ));
-      }
-    | _ => Error("no resident program for key " ++ key)
-    }
-  };
-
 /* Incremental reuse pays for itself only past a certain program size:
    the reuse pre-pass is a full evaluation-shaped walk and every
    evaluated node runs a reuse check, which for a demo-sized program
@@ -457,55 +447,49 @@ let resolve_payload =
    the graph livelit slide: 2.0s -> see the commit message.) */
 let incremental_min_statics = 2500;
 
-let wants_incremental = (eval_info_map: Language.EvalInfo.t): bool =>
-  Util.Id.Map.cardinal(eval_info_map.statics) >= incremental_min_statics;
+let wants_incremental = (req_value: Evaluation.value): bool =>
+  Util.Id.Map.cardinal(req_value.eval_info_map.statics)
+  >= incremental_min_statics;
 
 /* the reuse plan computed for a batch item, handed to its evaluation so
-   the pre-pass runs once per request (keyed by the item's PAYLOAD
-   identity: the plan and the evaluation see the same decoded request,
-   but a Resident payload's expr is re-grafted on every resolve) */
+   the pre-pass runs once per request (keyed by the item's expr identity:
+   the plan and the evaluation see the same decoded request) */
 let planned_reuse:
   ref(
-    list((Request.payload, Language.IncrEval.t(Language.EvaluatorState.t))),
+    list((Language.Exp.t, Language.IncrEval.t(Language.EvaluatorState.t))),
   ) =
   ref([]);
 
-let predict_reuse_for_request = ((key, req_value): (key, Request.value)) => {
-  let Request.{payload, prev, _} = req_value;
+let predict_reuse_for_request = ((key, req_value): (key, Evaluation.value)) => {
+  let Evaluation.{expr, eval_info_map, prev, _} = req_value;
   let stream =
-    switch (resolve_payload(~key, payload)) {
-    | Error(_) => Language.IncrEval.empty
-    | Ok((expr, eval_info_map)) =>
-      let stream =
-        if (!wants_incremental(eval_info_map)) {
-          Language.IncrEval.empty;
-        } else {
-          switch (
-            Language.ReusePass.reuse_pass(
-              ~prev=resolve_prev(~key, prev),
-              ~eval_info=eval_info_map,
-              ~env=Language.Builtins.env_init,
-              expr,
-            )
-          ) {
-          | exception _ => Language.IncrEval.empty
-          | stream => stream
-          };
-        };
-      /* a superseded request's plan is never taken: keep only the newest
-         few so abandoned plans (whole reuse streams) don't accumulate */
-      planned_reuse :=
-        [(payload, stream), ...Util.ListUtil.take(3, planned_reuse^)];
-      stream;
+    if (!wants_incremental(req_value)) {
+      Language.IncrEval.empty;
+    } else {
+      switch (
+        Language.ReusePass.reuse_pass(
+          ~prev=resolve_prev(~key, prev),
+          ~eval_info=eval_info_map,
+          ~env=Language.Builtins.env_init,
+          expr,
+        )
+      ) {
+      | exception _ => Language.IncrEval.empty
+      | stream => stream
+      };
     };
+  /* a superseded request's plan is never taken: keep only the newest
+     few so abandoned plans (whole reuse streams) don't accumulate */
+  planned_reuse :=
+    [(expr, stream), ...Util.ListUtil.take(3, planned_reuse^)];
   (key, stream);
 };
 
 let take_planned_reuse =
-    (payload: Request.payload)
+    (expr: Language.Exp.t)
     : option(Language.IncrEval.t(Language.EvaluatorState.t)) => {
-  let found = List.find_opt(((p, _)) => p === payload, planned_reuse^);
-  planned_reuse := List.filter(((p, _)) => p !== payload, planned_reuse^);
+  let found = List.find_opt(((e, _)) => e === expr, planned_reuse^);
+  planned_reuse := List.filter(((e, _)) => e !== expr, planned_reuse^);
   Option.map(snd, found);
 };
 
@@ -528,40 +512,34 @@ let stream_min_interval_ms: ref(float) = ref(100.);
 let current_stream_interest: ref(Request.stream_interest) =
   ref(Request.Full);
 
-let start_evaluation = (~key: key, req_value: Request.value): evaluation_start => {
-  let Request.{payload, prev, stream} = req_value;
+let start_evaluation =
+    (~key: key, req_value: Evaluation.value): evaluation_start => {
+  let Evaluation.{expr, eval_info_map, prev, stream} = req_value;
   current_stream_interest := stream;
-  let planned = take_planned_reuse(payload);
-  switch (resolve_payload(~key, payload)) {
-  | Error(msg) =>
-    CompletedImmediately(
-      Error(Language.ProgramResult.UnknownException(msg)),
+  let planned = take_planned_reuse(expr);
+  /* stream cadence scales with program size: each posted chunk costs
+     the client a stream-collection + recalc cycle that grows with it */
+  stream_min_interval_ms :=
+    max(
+      100.,
+      min(
+        1000.,
+        float_of_int(Util.Id.Map.cardinal(eval_info_map.statics)) /. 12.,
+      ),
+    );
+  switch (
+    Language.Evaluator.start_yielding_evaluation(
+      ~prev=
+        wants_incremental(req_value)
+          ? resolve_prev(~key, prev) : Language.IncrEval.empty,
+      ~eval_info=eval_info_map,
+      ~env=Language.Builtins.env_init,
+      ~reuse_stream=?planned,
+      expr,
     )
-  | Ok((expr, eval_info_map)) =>
-    /* stream cadence scales with program size: each posted chunk costs
-       the client a stream-collection + recalc cycle that grows with it */
-    stream_min_interval_ms :=
-      max(
-        100.,
-        min(
-          1000.,
-          float_of_int(Util.Id.Map.cardinal(eval_info_map.statics)) /. 12.,
-        ),
-      );
-    switch (
-      Language.Evaluator.start_yielding_evaluation(
-        ~prev=
-          wants_incremental(eval_info_map)
-            ? resolve_prev(~key, prev) : Language.IncrEval.empty,
-        ~eval_info=eval_info_map,
-        ~env=Language.Builtins.env_init,
-        ~reuse_stream=?planned,
-        expr,
-      )
-    ) {
-    | exception exn => CompletedImmediately(error_response(exn))
-    | evaluation => Yielding(evaluation)
-    };
+  ) {
+  | exception exn => CompletedImmediately(error_response(exn))
+  | evaluation => Yielding(evaluation)
   };
 };
 
@@ -701,10 +679,10 @@ let flush_stream_update = (~force=false, model, request_id, key, evaluation) => 
 
 /* ACK must be cheap: the client treats missing ACK as a dead worker and will
  * terminate/respawn. ReusePass belongs in `ReusePlan`, not here. */
-let post_ack = (request: Request.t) =>
-  post_message(ServerMessage.Ack({request_id: request.request_id}));
+let post_ack = (request_id: int) =>
+  post_message(ServerMessage.Ack({request_id: request_id}));
 
-let post_reuse_plan = (model, request: Request.t) =>
+let post_reuse_plan = (model, request: Evaluation.t) =>
   if (is_latest(model, request.request_id)) {
     post_message(
       ServerMessage.ReusePlan({
@@ -732,35 +710,31 @@ let schedule_async = callback =>
    the budget is marshal/decode dead weight. its elisions are marked, so
    the display still notes them when what's left fits its own budget */
 let value_ship_budget = 6_000;
-let prune_value_size = (e: Language.Exp.t): Language.Exp.t => {
-  let (pruned, truncated) =
-    Language.TermPrune.prune(~budget=value_ship_budget, e);
-  if (truncated) {
-    print_endline(
-      Printf.sprintf(
-        "[worker] result value exceeds %d nodes: truncated for shipping (elided parts shown as holes)",
-        value_ship_budget,
-      ),
-    );
-  };
-  pruned;
-};
+let prune_value_size = (e: Language.Exp.t): Language.Exp.t =>
+  Language.TermPrune.prune_noting(
+    ~prefix="[worker] ",
+    ~budget=value_ship_budget,
+    ~purpose="shipping",
+    e,
+  );
 
-/* async responses drop the incremental cache (the UI never reads it:
-   prev is worker-resident, predictions come via ReusePlan); must run
-   after store_resident */
-let slim_response = (response: Response.value): Response.value =>
-  switch (response) {
-  | Ok((exp, state)) =>
-    Ok((
-      exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
-      Language.EvaluatorState.{
-        ...state,
-        incr_eval: Language.IncrEval.empty,
-      },
-    ))
-  | Error(_) as e => e
-  };
+/* a finished item's cache stays resident; its response drops it (the UI
+   never reads it: prev is worker-resident, predictions come via
+   ReusePlan) */
+let complete = (key: key, response: Response.value): (key, Response.value) => {
+  store_resident(key, response);
+  (
+    key,
+    switch (response) {
+    | Ok((exp, state)) =>
+      Ok((
+        exp |> Language.TermPrune.prune_closure_envs |> prune_value_size,
+        slim_state(state),
+      ))
+    | Error(_) as e => e
+    },
+  );
+};
 
 let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   switch (remaining) {
@@ -774,13 +748,12 @@ let rec evaluate_next_batch_item = (model, request_id, completed, remaining) =>
   | [(key, req_value), ...remaining] =>
     switch (timed_eval(() => start_evaluation(~key, req_value))) {
     | CompletedImmediately(response) =>
-      store_resident(key, response);
       evaluate_next_batch_item(
         model,
         request_id,
-        [(key, slim_response(response)), ...completed],
+        [complete(key, response), ...completed],
         remaining,
-      );
+      )
     | Yielding(evaluation) =>
       let model = {
         ...model,
@@ -802,18 +775,25 @@ and begin_latest_batch = model =>
       ...model,
       runtime: Idle,
     }
-  | Some({request_id, batch}) =>
-    evaluate_next_batch_item(model, request_id, [], batch)
+  | Some({request_id, batch, refused}) =>
+    evaluate_next_batch_item(
+      model,
+      request_id,
+      List.map(
+        ((key, why)) =>
+          (key, Error(Language.ProgramResult.UnknownException(why))),
+        refused,
+      ),
+      batch,
+    )
   }
-and finish_current_item = (model, running, response) => {
-  store_resident(running.key, response);
+and finish_current_item = (model, running, response) =>
   evaluate_next_batch_item(
     model,
     running.request_id,
-    [(running.key, slim_response(response)), ...running.completed],
+    [complete(running.key, response), ...running.completed],
     running.remaining,
-  );
-}
+  )
 and plan_latest_batch = model =>
   switch (model.latest_request) {
   | None => {
@@ -882,7 +862,57 @@ and run_scheduled_slice = model => {
   };
 };
 
-/* ===== W2a sync handling ===== */
+/* ===== W2a residency ===== */
+
+/* one resident program (the current slide); a sync for a different
+   key evicts (plan §4.8) */
+type resident =
+  option((key, Language.CoreSettings.t, Haz3lcore.ResidentProgram.t));
+
+let resident_slot: ref(resident) = ref(None);
+
+/* a Resident item's program, GENERATION included: a rejected sync
+   (roster mismatch, unknown item) retains the old resident, and
+   Sync(g)/Evaluate(Resident(g)) are FIFO — without the generation
+   gate the eval right after a rejected Sync(g) would run the previous
+   program and label its result generation g. A miss is the item's
+   error; the client's recovery resync makes the next attempt
+   servable. */
+let resolve_resident =
+    (~key: key, r: Request.resident)
+    : result((Language.Exp.t, Language.EvalInfo.t), string) =>
+  switch (resident_slot^) {
+  | Some((k, _, rp)) when k == key && rp.generation != r.generation =>
+    Error(
+      Printf.sprintf(
+        "resident generation mismatch: have %d, want %d",
+        rp.generation,
+        r.generation,
+      ),
+    )
+  | Some((k, settings, rp)) when k == key =>
+    switch (Haz3lcore.DefStatics.whole_elab(rp.statics)) {
+    | None => Error("resident elaboration gap")
+    | Some(expr) =>
+      let info_map = rp.statics.merged;
+      let targets =
+        Haz3lcore.CachedStatics.compute_targets(
+          ~settings,
+          ~info_map,
+          ~probe_ids=rp.probe_ids,
+          (),
+        );
+      Ok((
+        expr,
+        Language.EvalInfo.of_info_map(
+          ~probe_all=r.probe_all,
+          ~targets,
+          info_map,
+        ),
+      ));
+    }
+  | _ => Error("no resident program for key " ++ key)
+  };
 
 /* Pure over the slot — the loopback tests drive this directly. Runs
    synchronously in onmessage: statics are per-item incremental and the
@@ -952,6 +982,139 @@ let handle_sync =
   };
 };
 
+/* ===== the per-piece request ===== */
+
+/* the pieces of the last request received, by hash: what the client
+   counts on the worker holding */
+let held: Hashtbl.t(EvalPieces.hash, EvalPieces.content) =
+  Hashtbl.create(256);
+
+type received =
+  | Composed(Evaluation.t)
+  | Missing(list(EvalPieces.key))
+  | Malformed(string);
+
+/* one item composed: its program, the pieces it lacks, or why the
+   worker refuses it */
+type composition =
+  | Program(Language.Exp.t, Language.EvalInfo.t)
+  | Lacks(list(EvalPieces.key))
+  | Refused(string);
+
+/* [posted]'s programs, from the pieces it carries and those held (a
+   Resident item's from the resident slot). a piece whose bytes don't
+   hash to its listed hash isn't taken. the pieces it lists are held
+   next, whatever it composes to */
+let receive = (posted: Posted.t): received => {
+  let fresh = Hashtbl.create(16);
+  List.iter(
+    ((hash, bytes)) =>
+      if (EvalPieces.hash_of(bytes) == hash) {
+        switch (EvalPieces.decode(bytes)) {
+        | content => Hashtbl.replace(fresh, hash, content)
+        | exception _ => ()
+        };
+      },
+    posted.pieces,
+  );
+  let layouts =
+    List.filter_map(
+      ((_, v: Posted.value)) =>
+        switch (v.program) {
+        | Pieces(layout) => Some(layout)
+        | Resident(_) => None
+        },
+      posted.batch,
+    );
+  let next = Hashtbl.create(Hashtbl.length(held) + 16);
+  List.iter(
+    layout =>
+      List.iter(
+        (s: EvalPieces.slot) =>
+          switch (
+            Hashtbl.find_opt(fresh, s.hash),
+            Hashtbl.find_opt(held, s.hash),
+          ) {
+          | (Some(c), _)
+          | (None, Some(c)) => Hashtbl.replace(next, s.hash, c)
+          | (None, None) => ()
+          },
+        EvalPieces.slots(layout),
+      ),
+    layouts,
+  );
+  Hashtbl.reset(held);
+  Hashtbl.iter(Hashtbl.replace(held), next);
+  let piece = Hashtbl.find_opt(held);
+  let compose = (key, v: Posted.value): composition =>
+    switch (v.program) {
+    | Pieces(layout) =>
+      switch (EvalPieces.assemble(~piece, layout)) {
+      | Ok((expr, eval_info_map)) => Program(expr, eval_info_map)
+      | Error(keys) => Lacks(keys)
+      }
+    | Resident(r) =>
+      switch (resolve_resident(~key, r)) {
+      | Ok((expr, eval_info_map)) => Program(expr, eval_info_map)
+      | Error(why) => Refused(why)
+      | exception exn => Refused(Printexc.to_string(exn))
+      }
+    };
+  switch (
+    List.map(
+      ((key, v: Posted.value)) => (key, v, compose(key, v)),
+      posted.batch,
+    )
+  ) {
+  | exception (EvalPieces.Malformed(why)) => Malformed(why)
+  | composed =>
+    let missing =
+      List.concat_map(
+        ((_, _, c)) =>
+          switch (c) {
+          | Lacks(keys) => keys
+          | Program(_)
+          | Refused(_) => []
+          },
+        composed,
+      );
+    missing != []
+      ? Missing(missing)
+      : Composed({
+          request_id: posted.request_id,
+          batch:
+            List.filter_map(
+              ((key, v: Posted.value, c)) =>
+                switch (c) {
+                | Program(expr, eval_info_map) =>
+                  Some((
+                    key,
+                    Evaluation.{
+                      expr,
+                      eval_info_map,
+                      prev: v.prev,
+                      stream: v.stream,
+                    },
+                  ))
+                | Lacks(_)
+                | Refused(_) => None
+                },
+              composed,
+            ),
+          refused:
+            List.filter_map(
+              ((key, _, c)) =>
+                switch (c) {
+                | Refused(why) => Some((key, why))
+                | Program(_)
+                | Lacks(_) => None
+                },
+              composed,
+            ),
+        });
+  };
+};
+
 let install_message_handler = () => {
   let model = ref(initial_model);
 
@@ -975,16 +1138,54 @@ let install_message_handler = () => {
     };
   };
 
-  let on_request = (req: Active.request): unit =>
-    switch (Active.decode_request(req)) {
-    | ClientMessage.Evaluate(request) =>
-      post_ack(request);
+  let on_evaluate = (posted: Posted.t): unit => {
+    post_ack(posted.request_id);
+    switch (receive(posted)) {
+    | Composed(request) =>
       eval_total := Core.Time_ns.Span.zero;
       commit({
         ...model^,
         latest_request: Some(request),
         runtime: Planning,
       });
+    | Missing(_) =>
+      post_message(Resend({request_id: posted.request_id}));
+      commit({
+        ...model^,
+        latest_request: None,
+        runtime: Idle,
+      });
+    | Malformed(why) =>
+      post_message(
+        Result({
+          request_id: posted.request_id,
+          response:
+            List.map(
+              ((key, _)) =>
+                (
+                  key,
+                  Error(
+                    Language.ProgramResult.UnknownException(
+                      "eval request: " ++ why,
+                    ),
+                  ),
+                ),
+              posted.batch,
+            ),
+          eval_time: Core.Time_ns.Span.zero,
+        }),
+      );
+      commit({
+        ...model^,
+        latest_request: None,
+        runtime: Idle,
+      });
+    };
+  };
+
+  let on_request = (req: Active.request): unit =>
+    switch (Active.decode_request(req)) {
+    | ClientMessage.Evaluate(posted) => on_evaluate(posted)
     | ClientMessage.Sync(sync) =>
       let (resident, msg) = handle_sync(resident_slot^, sync);
       resident_slot := resident;

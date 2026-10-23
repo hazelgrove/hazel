@@ -219,7 +219,7 @@ let resync_now = (reason: string): unit => {
     incr(resyncs);
     incr(full_ships);
     log("recovery full sync (" ++ reason ++ ")");
-    let slices = Haz3lcore.MakeTerm.Incr.slices(a.a_seg);
+    let slices = Haz3lcore.MakeTerm.Incr.slices(~root=a.a_root, a.a_seg);
     mirror :=
       Some({
         m_key: a.a_key,
@@ -352,7 +352,7 @@ let on_master_statics =
       last_ds := Some(ds);
       let probes =
         Id.Map.bindings(ds.Haz3lcore.DefStatics.probe_ids) |> List.map(fst);
-      let slices = Haz3lcore.MakeTerm.Incr.slices(seg);
+      let slices = Haz3lcore.MakeTerm.Incr.slices(~root, seg);
       /* recovery inputs: every authoritative pass refreshes them,
          shipped or not */
       last_auth :=

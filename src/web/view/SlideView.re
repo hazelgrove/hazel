@@ -27,11 +27,7 @@ let init: t = {
   parked: false,
 };
 
-let zoom_root = (v: t): option(Id.t) =>
-  switch (List.rev(v.zoom)) {
-  | [m, ..._] => Some(m)
-  | [] => None
-  };
+let zoom_root = (v: t): option(Id.t) => ListUtil.last_opt(v.zoom);
 
 /* the header symbol of a headerless cell, from the outline's kind */
 let sym_of = (fid: Id.t, term: Language.Exp.t): option(string) =>
@@ -80,15 +76,10 @@ let showing_zoom_cell = (~term, v: t): bool =>
 let normalize = (~term, v: t): t => {
   let exists = id => OutlineTree.kind_of(id, term) != None;
   let zoom =
-    List.fold_left(
-      (found, m) =>
-        switch (found) {
-        | Some(_) => found
-        | None =>
-          OutlineTree.kind_of(m, term) == Some(OutlineTree.KModule)
-            ? OutlineTree.trail_of(m, term) : None
-        },
-      None,
+    List.find_map(
+      m =>
+        OutlineTree.kind_of(m, term) == Some(OutlineTree.KModule)
+          ? OutlineTree.trail_of(m, term) : None,
       List.rev(v.zoom),
     )
     |> Option.value(~default=[]);
@@ -103,8 +94,8 @@ let normalize = (~term, v: t): t => {
    one members cell serves the pin and the zoom alike */
 let satisfies = (e: ScratchCell.t, w: slot): bool =>
   switch (w) {
-  | Pin(p) => e.e_id == p.p_id && e.e_run == p.p_run
-  | Members(m) => e.e_id == m && e.e_inner
+  | Pin(p) => e.e_id == p.p_id && ScratchCell.is_run(e) == p.p_run
+  | Members(m) => e.e_id == m && e.e_kind == Members
   };
 
 let slot_id =
@@ -112,10 +103,6 @@ let slot_id =
   | Pin(p) => p.p_id
   | Members(m) => m;
 
-/* the program with exactly [shown] open. Opens go first, so replacing
-   the last cell doesn't join; one blocked by an open cell retries after
-   the closes. Pins that can't open drop; from one editor, the caret
-   moves into the cell holding it. */
 /* headerless cells follow an edited expression to its new root, and
    their pins with them, so normalize doesn't drop them */
 let follow_headless = (~term, v: t, p: Program.t): (t, Program.t) =>
@@ -149,8 +136,14 @@ let follow_headless = (~term, v: t, p: Program.t): (t, Program.t) =>
     };
   };
 
+/* the program with exactly [shown] open. Opens go first, so replacing
+   the last cell doesn't join; one blocked by an open cell retries after
+   the closes. Pins that can't open drop; from one editor, the caret
+   moves into the cell holding it. The focused cell keeps the focus while
+   it stays open; else the last cell to open takes it. */
 let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
   let (v, p) = follow_headless(~term, v, p);
+  let before = p;
   let v = normalize(~term, v);
   let want = shown(~term, v);
   let cells =
@@ -168,27 +161,26 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
     );
   let open_one = (p: Program.t, w: slot): option(Program.t) => {
     let id = slot_id(w);
+    let d =
+      switch (p) {
+      | Whole(e) => Divided.of_whole(e)
+      | Divided(d) => d
+      };
     let sym = sym_of(id, term);
     let open_cell = (~inner) =>
-      switch (p) {
-      | Whole(e) => Divided.split(~info_map, ~sym?, ~inner, e, id)
-      | Divided(d) => Divided.open_(~info_map, ~term, ~sym?, ~inner, id, d)
-      };
+      Divided.open_(~info_map, ~term, ~sym?, ~inner, id, d);
     (
-      switch (w, p) {
-      | (Pin({p_run: true, _}), Whole(e)) =>
-        Divided.split_run(~info_map, e, id)
-      | (Pin({p_run: true, _}), Divided(d)) =>
-        Divided.open_run(~info_map, ~term, id, d)
+      switch (w) {
+      | Pin({p_run: true, _}) => Divided.open_run(~info_map, ~term, id, d)
       /* a module row opens as its members; `{}` has none to show */
-      | (Pin(_), _)
+      | Pin(_)
           when OutlineTree.kind_of(id, term) == Some(OutlineTree.KModule) =>
         switch (open_cell(~inner=true)) {
         | Some(d) => Some(d)
         | None => open_cell(~inner=false)
         }
-      | (Pin(_), _) => open_cell(~inner=false)
-      | (Members(_), _) => open_cell(~inner=true)
+      | Pin(_) => open_cell(~inner=false)
+      | Members(_) => open_cell(~inner=true)
       }
     )
     |> Option.map(d => Program.Divided(d));
@@ -233,8 +225,10 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
     );
   let (p, failed) = open_all(p, blocked);
   let p =
-    switch (whole_caret, p) {
-    | (Some(a), Divided(d)) => Program.Divided(Divided.place_caret(a, d))
+    switch (p, whole_caret, before) {
+    | (Divided(d), Some(a), _) => Program.Divided(Divided.place_caret(a, d))
+    | (Divided(d), None, Divided(prev)) =>
+      Program.Divided(Divided.keep_focus(~prev, d))
     | _ => p
     };
   (
@@ -251,10 +245,9 @@ let realize = (~info_map, ~term, v: t, p: Program.t): (t, Program.t) => {
 /* zoom out until [id] is in view */
 let reveal = (~term, id: Id.t, v: t): t => {
   let rec go = (zoom: list(Id.t)) =>
-    switch (List.rev(zoom)) {
-    | [] => []
-    | [m, ...rest] =>
-      inside(~term, Some(m), id) ? zoom : go(List.rev(rest))
+    switch (ListUtil.split_last_opt(zoom)) {
+    | None => []
+    | Some((rest, m)) => inside(~term, Some(m), id) ? zoom : go(rest)
     };
   {
     ...v,
@@ -310,11 +303,7 @@ let zoom_in = (~term, m: Id.t, v: t): t =>
 
 let zoom_out = (v: t): t => {
   ...v,
-  zoom:
-    switch (List.rev(v.zoom)) {
-    | [] => []
-    | [_, ...rest] => List.rev(rest)
-    },
+  zoom: Option.fold(~none=[], ~some=fst, ListUtil.split_last_opt(v.zoom)),
 };
 
 /* zoom to [m], an entry of the current trail (None: the program) */

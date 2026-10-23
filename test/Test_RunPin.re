@@ -9,12 +9,6 @@ module Focus = Web.ScratchFocus;
 
 let settings = CoreSettings.on;
 
-let seg_of_text = (text: string): Segment.t =>
-  switch (MarkerParse.of_text(~root=Sort.Exp, text)) {
-  | Some(z) => Zipper.unselect_and_zip(~erase_buffer=true, z)
-  | None => failwith("parse failed: " ++ text)
-  };
-
 let seg_equal = (a: Segment.t, b: Segment.t): bool =>
   Sexplib.Sexp.compare(Segment.sexp_of_t(a), Segment.sexp_of_t(b)) == 0;
 
@@ -38,29 +32,33 @@ let check_run_pin =
     | [first, ..._] => first
     | [] => failwith("no kids")
     };
-  switch (Focus.mk_run_entry(~info_map, first, seg)) {
+  switch (Focus.mk_run_entry(~root=Exp, ~info_map, first, seg)) {
   | None => fail(label ++ ": mk_run_entry returned None")
   | Some(e) =>
-    check(bool, label ++ ": entry is a run cell", true, e.e_run);
     /* members carry both statement `;` and test tile ids */
     check(
       bool,
-      label ++ ": members cover the container's kids",
+      label ++ ": a run cell covering the container's kids",
       true,
-      List.for_all(id => List.mem(id, e.e_members), ids),
+      switch (e.e_kind) {
+      | Run(members) => List.for_all(id => List.mem(id, members), ids)
+      | Def(_)
+      | Members
+      | Headless(_) => false
+      },
     );
     check(
       bool,
       label ++ ": unedited splice is exact",
       true,
-      seg_equal(seg, Focus.splice_entry(e, seg)),
+      seg_equal(seg, Focus.splice_entry(~root=Exp, e, seg)),
     );
     /* ctx recapture path used on Force frames */
     check(
       bool,
       label ++ ": cell_content resolves",
       true,
-      Focus.cell_content(e, seg) != None,
+      Focus.cell_content(~root=Exp, e, seg) != None,
     );
   };
 };
@@ -70,7 +68,7 @@ let cases = [
     "top-level tests container pins one run cell",
     `Quick,
     () => {
-      let seg = seg_of_text(src);
+      let seg = Option.get(CorpusUtil.typed_seg(src));
       let term = MakeTerm.go(seg).term;
       switch (containers(OutlineTree.of_term(term))) {
       | [c] => check_run_pin("top", seg, c)
@@ -88,18 +86,12 @@ let cases = [
     "module tests container pins one run cell (parity with top level)",
     `Quick,
     () => {
-      let seg = seg_of_text(src);
+      let seg = Option.get(CorpusUtil.typed_seg(src));
       let term = MakeTerm.go(seg).term;
       let m =
-        switch (
-          List.find_opt(
-            (n: OutlineTree.node) => n.o_label == "m",
-            OutlineTree.of_term(term),
-          )
-        ) {
-        | Some(m) => m
-        | None => fail("no module node")
-        };
+        Option.get(
+          OutlineTree.node_of(CorpusUtil.row_by_label(term, "m"), term),
+        );
       switch (containers(m.o_children)) {
       | [c] => check_run_pin("module", seg, c)
       | cs =>
@@ -117,7 +109,12 @@ let cases = [
 /* with a run open, the outline reaches its last test too: that row is
    the test's `;`, which stays outside the run's cell */
 let last_member_jump = () => {
-  let seg = seg_of_text("let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na");
+  let seg =
+    Option.get(
+      CorpusUtil.typed_seg(
+        "let a = 1 in\ntest a == 1 end;\ntest a > 0 end;\na",
+      ),
+    );
   let term = MakeTerm.go(seg).term;
   let info_map = DefStatics.calc(~settings, term).merged;
   let ids =
@@ -132,19 +129,26 @@ let last_member_jump = () => {
     };
   let editor = Focus.cell_of_seg(seg);
   let d =
-    switch (Web.Divided.split_run(~info_map, editor, first)) {
+    switch (
+      Web.Divided.open_run(
+        ~info_map,
+        ~term,
+        first,
+        Web.Divided.of_whole(editor),
+      )
+    ) {
     | Some(d) => d
     | None => fail("split_run")
     };
   let second_test =
-    switch (Focus.test_before_semi(last, seg)) {
+    switch (Focus.test_before_semi(~root=Exp, last, seg)) {
     | Some(id) => id
     | None => fail("no test before the last ;")
     };
   switch (Web.ScratchMode.Selection.jump_in_divided(last, d)) {
   | Some((
       Workspace(
-        StackBody(_, MainEditor(Perform(Move(Goal(TileId(target)))))),
+        Stack(_, Body, MainEditor(Perform(Move(Goal(TileId(target)))))),
       ),
       _,
     )) =>

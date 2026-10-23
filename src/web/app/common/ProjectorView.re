@@ -21,6 +21,7 @@ module ViewCache = {
     dynamics_map: Language.Dynamics.Map.t,
     sample_focus: Language.Sample.Focus.t,
     stepping: option(ProjectorBase.stepping),
+    program_value: bool,
     elaborated: option(Language.Exp.t),
     core_settings: Language.CoreSettings.t,
     settings_version: int,
@@ -44,6 +45,7 @@ module ViewCache = {
         ~dynamics_map,
         ~sample_focus,
         ~stepping,
+        ~program_value,
         ~elaborated,
         ~core_settings,
         ~status,
@@ -57,6 +59,7 @@ module ViewCache = {
           && e.dynamics_map === dynamics_map
           && Language.Sample.Focus.equal(e.sample_focus, sample_focus)
           && e.stepping == stepping
+          && e.program_value == program_value
           && CachedSyntax.elaborated_phys_eq(e.elaborated, elaborated)
           && e.core_settings == core_settings
           && e.settings_version == ProbeProj.Settings.version^
@@ -83,6 +86,7 @@ module ViewCache = {
         ~dynamics_map,
         ~sample_focus,
         ~stepping,
+        ~program_value,
         ~elaborated,
         ~core_settings,
         ~status,
@@ -97,6 +101,7 @@ module ViewCache = {
         dynamics_map,
         sample_focus,
         stepping,
+        program_value,
         elaborated,
         core_settings,
         settings_version: ProbeProj.Settings.version^,
@@ -521,6 +526,7 @@ let mk_view =
       ~dynamics_map,
       ~sample_focus,
       ~stepping=info.stepping,
+      ~program_value=info.program_value,
       ~elaborated,
       ~core_settings,
       ~status,
@@ -580,6 +586,7 @@ let mk_view =
       ~dynamics_map,
       ~sample_focus,
       ~stepping=info.stepping,
+      ~program_value=info.program_value,
       ~elaborated,
       ~core_settings,
       ~status,

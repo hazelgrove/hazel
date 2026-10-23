@@ -90,7 +90,7 @@ let load = (name: string): option(Zipper.t) =>
 let cases = [
   test_case(
     "serialization cost accounting",
-    `Quick,
+    `Slow,
     () => {
       switch (load("mega-1k.hz")) {
       | None => Alcotest.skip()

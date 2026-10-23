@@ -51,7 +51,8 @@ let apply_overlay_action =
     )
     : Result.t((Model.t, CodeWithStatics.Model.t)) => {
   let z = editor.editor.state.zipper;
-  let info_map = CompositionGo.Public.mk_statics(z);
+  let root = editor.editor.root;
+  let info_map = CompositionGo.Public.mk_statics(~root, z);
   switch (HighLevelNodeMap.build(z, info_map)) {
   | None =>
     Error(
@@ -60,7 +61,7 @@ let apply_overlay_action =
       ),
     )
   | Some(node_map) =>
-    let syntax = CachedSyntax.init(z);
+    let syntax = CachedSyntax.init(~root, z);
     let (new_z, paths_to_expand, n_changed, unresolved) =
       List.fold_left(
         ((z, expanded, n_changed, unresolved), path) =>
@@ -93,8 +94,8 @@ let apply_overlay_action =
         ),
       );
     } else {
-      let new_z = Materialize.all(new_z, ~root=Exp);
-      let new_editor_model = Editor.Model.mk(new_z, ~root=Exp);
+      let new_z = Materialize.all(new_z, ~root);
+      let new_editor_model = Editor.Model.mk(new_z, ~root);
       let new_cws =
         CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
 
@@ -174,14 +175,16 @@ let update =
   | LanguageServerAction(_) =>
     Error(Failure.Info("LanguageServerAction is not implemented yet"))
   | InsertAtProgramBoundary(direction, code) =>
-    /* No-path variant of insert_before/insert_after.
-       - Before: move caret to program start, then paste code (prepend).
-       - After: move caret to program end, then paste code (append).
-       For an empty program (just `?`), either boundary effectively
-       seeds the program with the provided code. */
+    /* No-path variant of insert_before/insert_after: the code at the
+       program's start (Before) or end (After), at a Mod root as members
+       (CompositionGo.Public.insert_at_boundary). For an empty program
+       (just `?`), either boundary effectively seeds the program with the
+       provided code. */
     let z = editor.editor.state.zipper;
+    let root = editor.editor.root;
     /* the editor's statics for this program when it has them; the new
-       program's statics computed once, the editor's way, and offered to it */
+       program's statics computed once, the editor's way, and offered to it.
+       None is offered at a Mod root: its editor computes its own */
     let full_statics = (z: Zipper.t): CachedStatics.t =>
       Util.PerfTimer.time("statics", () =>
         CachedStatics.init(
@@ -192,31 +195,36 @@ let update =
           z,
         )
       );
+    let statics_of = (~offer, z: Zipper.t): Language.Statics.Map.t =>
+      if (root == Sort.Mod) {
+        Util.PerfTimer.time("statics", () =>
+          CompositionGo.Public.mk_statics_with(~root, settings.core, z)
+        );
+      } else {
+        let full = full_statics(z);
+        if (offer) {
+          CachedStatics.offer(~settings=settings.core, z, full);
+        };
+        full.info_map;
+      };
     let initial_info_map =
       switch (
         CachedStatics.for_zipper(~settings=settings.core, z, editor.statics)
       ) {
       | Some(st) when st.info_map != Id.Map.empty => st.info_map
-      | _ => full_statics(z).info_map
-      };
-    let z_at_boundary =
-      switch ((direction: Action.Structural.insert_target)) {
-      | Before => Move.to_start(z)
-      | After => Move.to_end(z)
+      | _ => statics_of(~offer=false, z)
       };
     /* inserted code arrives indentation-stripped; re-indent its new
        lines like user Paste */
     let before_pieces =
-      LocalReformat.snapshot_pieces(
-        ~enabled=settings.core.auto_reindent,
-        z_at_boundary,
-      );
+      LocalReformat.snapshot_pieces(~enabled=settings.core.auto_reindent, z);
     switch (
-      CompositionGo.Local.PerformUtils.introduce(
-        ~fast=true,
-        ~keep_edge_ws=true,
-        z_at_boundary,
-        "\n" ++ code ++ "\n",
+      CompositionGo.Public.insert_at_boundary(
+        ~root,
+        ~info_map=initial_info_map,
+        direction,
+        z,
+        code,
       )
     ) {
     | Error(Action.Failure.Composition_action_failure(msg)) =>
@@ -224,9 +232,7 @@ let update =
     | Error(_) =>
       Error(Failure.Info("Failed to insert code at program boundary"))
     | Ok(new_z) =>
-      let new_full = full_statics(new_z);
-      CachedStatics.offer(~settings=settings.core, new_z, new_full);
-      let new_statics = new_full.info_map;
+      let new_statics = statics_of(~offer=true, new_z);
       let old_errors = ErrorPrint.all(initial_info_map);
       let new_errors = ErrorPrint.all(new_statics);
       if (List.length(new_errors) > List.length(old_errors)) {
@@ -240,11 +246,12 @@ let update =
       } else {
         let final_z =
           CompositionGo.Local.PerformUtils.normalize_top_level(
+            ~root,
             ~before=z,
-            Materialize.all(new_z, ~root=Exp),
+            Materialize.all(new_z, ~root),
           )
           |> LocalReformat.go_region(~before_pieces);
-        let new_editor_model = Editor.Model.mk(final_z, ~root=Exp);
+        let new_editor_model = Editor.Model.mk(final_z, ~root);
         let new_code_with_statics =
           CodeWithStatics.Model.mk(new_editor_model);
         CodeWithStatics.StaticsDebounce.force_on_next := true;
