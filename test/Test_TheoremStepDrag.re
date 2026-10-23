@@ -1027,6 +1027,42 @@ let tests = [
             ["sum_append", "sum_append", "add_associativity"],
             citations(root^),
           );
+          let last = frontier(root^);
+          let final_exp = Calc.get_saved_exc(last.expr);
+          let refls =
+            switch (last.step_kind) {
+            | MissingStep(m) => Calc.get_saved_exc(m.refls)
+            | _ => fail("expected an unfinished final row")
+            };
+          check(
+            bool,
+            "reflexivity is offered for the final equality",
+            true,
+            List.exists(e => Exp.rep_id(e) == Exp.rep_id(final_exp), refls),
+          );
+          let from_exp =
+            List.find(e => Exp.rep_id(e) == Exp.rep_id(final_exp), refls);
+          let closed =
+            S.Stepper.update(
+              ~settings,
+              to_frontier(
+                root^,
+                S.AddAxiomStep(
+                  "reflexivity",
+                  ProofHacks.exp_idx(from_exp, final_exp),
+                  from_exp,
+                  Direction.Right,
+                  "Reflexive(==)",
+                ),
+              ),
+              root^,
+            );
+          let (_, result, _) = calculate(~ctx, ~exp=goal, closed.model);
+          same_exp(
+            "reflexivity closes the equality",
+            "true",
+            Calc.get_value(result),
+          );
         },
       ),
       test_case(
