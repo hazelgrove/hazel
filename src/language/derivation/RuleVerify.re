@@ -19,7 +19,7 @@ module Map = Stdlib.Map.Make(String);
 type specced = (Drv.Any.t, Drv.Any.t);
 
 let show_linked = ((spec, syntax): specced): string =>
-  Stdlib.Printf.sprintf(
+  sprintf(
     "[*%s*](%s)",
     switch (spec) {
     | Exp({term: Var(s), _})
