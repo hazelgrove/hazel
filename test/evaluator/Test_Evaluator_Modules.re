@@ -211,11 +211,22 @@ let test_pattern_binding_sealed =
     )
   });
 
-let test_member_of_pending_module =
-  test_case("A member is not read from a module still evaluating", `Quick, () => {
+let test_member_rebound_after_stuck_item =
+  test_case("A member rebound after a stuck item stays stuck", `Quick, () => {
     parse_and_evaluate_test(
       {|{ let x = 1; let (a, b) = ?; let x = 2 }.x|},
       {|{ let x = 1; let (a, b) = ?; let x = 2 }.x|},
+    )
+  });
+
+let test_member_before_stuck_item =
+  test_case(
+    "A member no item from the stuck one on rebinds is read from a stuck module",
+    `Quick,
+    () => {
+    parse_and_evaluate_test(
+      "1",
+      {|{ let x = 1; let (a, b) = ?; let y = 3 }.x|},
     )
   });
 
@@ -242,7 +253,8 @@ let tests = (
     test_type_alias,
     test_pattern_binding,
     test_function_member_applied,
-    test_member_of_pending_module,
+    test_member_rebound_after_stuck_item,
+    test_member_before_stuck_item,
     test_hole_item_dropped,
     test_case("Nested modules", `Quick, () => {
       parse_and_evaluate_test(

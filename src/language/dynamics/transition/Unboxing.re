@@ -99,8 +99,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       }
     | (LabeledTupleProjection(_), ListLit(_)) => Matches(expr)
     | (LabeledTupleProjection(l), Module(items)) =>
-      Option.is_some(Mod.value_member(items, l))
-        ? Matches(expr) : IndetMatch
+      Option.is_some(Mod.member(items, l)) ? Matches(expr) : IndetMatch
+    | (LabeledTupleProjection(l), Closure(_, {term: Module(items), _})) =>
+      Option.is_some(Mod.member(items, l)) ? Matches(expr) : IndetMatch
     | (TupleElementPivot(l), Tuple(ds)) =>
       let found_pivot: option((string, list(Exp.t))) =
         ListUtil.find_with_rest(

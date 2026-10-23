@@ -1114,8 +1114,10 @@ module Transition = (EV: EV_MODE) => {
               is_value: false,
               at: None,
             });
-          | Module(items) =>
-            switch (Mod.value_member(items, name)) {
+          | Module(items)
+          /* A module stuck on an item keeps its environment for the rest. */
+          | Closure(_, {term: Module(items), _}) =>
+            switch (Mod.member(items, name)) {
             | Some(v) =>
               Step({
                 expr: v,

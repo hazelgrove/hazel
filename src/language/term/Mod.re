@@ -140,6 +140,36 @@ let value_member = (items: list(t), name: Var.t): option(TermBase.Exp.t) =>
     List.find_map(((x, d)) => String.equal(x, name) ? Some(d) : None),
   );
 
+/* Member [name] of a module, which may be stuck on an item: its value, if an
+   evaluated item binds it and no item from the stuck one on binds it again. */
+let member = (items: list(t), name: Var.t): option(TermBase.Exp.t) => {
+  let (evaluated, pending) = split_pending(items);
+  let rebound =
+    switch (pending) {
+    | None => false
+    | Some((item, rest)) =>
+      List.exists(
+        (item: t) =>
+          switch (item.term) {
+          | ModLet(p, _) =>
+            List.exists(String.equal(name), Pat.bound_vars(p))
+          | _ => false
+          },
+        [item, ...rest],
+      )
+    };
+  rebound
+    ? None
+    : List.find_map(
+        (item: t) =>
+          switch (item.term) {
+          | ModVal(x, d) when String.equal(x, name) => Some(d)
+          | _ => None
+          },
+        evaluated,
+      );
+};
+
 /* Record an evaluated binding at the end, replacing any earlier binding of
    [name]. */
 let add_modval = (items: list(t), name: Var.t, d: TermBase.Exp.t): list(t) =>
