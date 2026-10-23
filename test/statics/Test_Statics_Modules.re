@@ -581,6 +581,42 @@ let test_item_types =
     },
   );
 
+/* The inspector says what a `type` item declares, not that it has a type. */
+let test_type_item_message =
+  Alcotest.test_case(
+    "A type item's message is the type member it declares",
+    `Quick,
+    () => {
+      let exp = parse_exp({|{ let x = 1; type T = Bool }|});
+      let s = statics(exp);
+      let messages =
+        switch (exp.term) {
+        | Module(items) =>
+          List.filter_map(
+            (item: Language.Mod.t) =>
+              switch (Language.Id.Map.find_opt(Language.Mod.rep_id(item), s)) {
+              | Some(InfoExp({message, _})) => Some(message)
+              | _ => None
+              },
+            items,
+          )
+        | _ => []
+        };
+      Alcotest.(check(bool))(
+        "let item has its type, type item declares T",
+        true,
+        switch (messages) {
+        | [
+            Exp(Common(Syn({term: Atom(Int), _}))),
+            Exp(TypeMember("T", {term: Atom(Bool), _})),
+          ] =>
+          true
+        | _ => false
+        },
+      );
+    },
+  );
+
 /* ===== SIGNATURE ANNOTATION TESTS (well-typed) ===== */
 
 /* Empty module with matching empty sig annotation */
@@ -1403,6 +1439,7 @@ let tests = (
     test_unannotated_sig_member,
     test_dot_on_sig_with_type_member,
     test_item_types,
+    test_type_item_message,
     /* Sig annotation tests */
     test_empty_sig_annotation,
     test_matching_sig_annotation,

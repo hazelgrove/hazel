@@ -293,11 +293,15 @@ let reclassify_expanded_module_items =
       let pat_ty = id =>
         StaticsBase.Map.lookup_pat(id, m)
         |> Option.map((info: Info.pat) => info.ty);
-      let member_ty =
+      let value_member = ty =>
+        Option.map(ty => (ty, Message.Exp(Common(Syn(ty)))), ty);
+      let member =
         switch (item.term) {
-        | ModLet(p, _) => pat_ty(Pat.rep_id(p))
-        | ModuleMod(mp, _) => pat_ty(MPat.rep_id(mp))
-        | ModType(_, ty) => Some(ty)
+        | ModLet(p, _) => value_member(pat_ty(Pat.rep_id(p)))
+        | ModuleMod(mp, _) => value_member(pat_ty(MPat.rep_id(mp)))
+        | ModType({term: Var(name), _}, ty) =>
+          Some((ty, Message.Exp(TypeMember(name, ty))))
+        | ModType(_, _)
         | ModVal(_, _)
         | ModExp(_)
         | Invalid(_)
@@ -307,13 +311,13 @@ let reclassify_expanded_module_items =
       switch (StaticsBase.Map.lookup_exp(IdTagged.rep_id(item), m)) {
       | Some(info) =>
         let info =
-          switch (member_ty) {
-          | Some(ty) => {
+          switch (member) {
+          | Some((ty, message)) => {
               ...info,
               cls: mod_cls,
               elab_syn_ty: ty,
               ty,
-              message: Message.Exp(Common(Syn(ty))),
+              message,
             }
           | None => {
               ...info,

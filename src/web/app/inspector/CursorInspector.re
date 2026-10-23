@@ -910,6 +910,12 @@ let exp_view =
       div_ok([text("Expecting type"), view_type(~globals, ana)])
     | Exp(ModuleMemberNotFound(not_found)) =>
       div_ok(member_not_found_view("member", not_found))
+    | Exp(TypeMember(name, def)) =>
+      div_ok([
+        view_type(~globals, Var(name) |> Typ.fresh),
+        text("is equal to"),
+        view_type(~globals, def),
+      ])
     | Exp(Common(ok)) =>
       div_ok(
         common_ok_view(
