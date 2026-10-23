@@ -103,6 +103,12 @@ module Model = {
        have been, so the page is told each one once */
     edited: option(string),
     edits: int,
+    /* (ticket 578) the one module the cell shows, when the page asked for
+       one: its body alone, read in the context Hazel has at that body in
+       the whole program (the preamble's types, the modules before it) */
+    focus: option(string),
+    /* the context the focused body is read in */
+    ctx: option(Language.Ctx.t),
     status: option(Status.t),
     font_metrics: FontMetrics.t,
     /* the bodies of the last program of parts, so a set re-reads only
@@ -120,6 +126,8 @@ module Model = {
     editable: false,
     edited: None,
     edits: 0,
+    focus: None,
+    ctx: None,
     status: None,
     font_metrics: FontMetrics.init,
     bodies: [],
@@ -139,6 +147,8 @@ module Update = {
     | Cell(CodeSelectable.Update.t)
     /* (ticket 578) the page asks for a cell it can edit, or not */
     | SetEditable(bool)
+    /* the page asks for one module's body alone, or the whole program */
+    | SetFocus(option(string))
     /* an edit in a cell the page can edit, or any other action there */
     | Edit(CodeEditable.Update.t);
 
@@ -224,23 +234,91 @@ module Update = {
       };
     };
 
-  let update = (action: t, model: Model.t): Model.t =>
-    switch (action) {
-    | Set(program) when model.program == Some(program) => model
-    | Set(program) =>
-      let (zipper, bodies) = read(~bodies=model.bodies, program);
-      let cell = cell_of_zipper(zipper);
+  /* The context Hazel has at a module's body in the whole program (full):
+     the body read for the program has the ids it has there. None without
+     a body read (nothing written, or a part that did not parse). */
+  let focus_body =
+      (~bodies: list(body), ~full: CodeWithStatics.Model.t, name: string)
+      : (Zipper.t, string, option(Language.Ctx.t)) =>
+    switch (List.find_opt((b: body) => b.name == name, bodies)) {
+    | Some({read: Some(z), text, _}) => (
+        z,
+        text,
+        Language.Statics.Map.ctx_of(
+          Language.Exp.rep_id(ModuleProgram.body_of_zipper(z)),
+          full.statics.info_map,
+        ),
+      )
+    | _ => (Zipper.init(), "", None)
+    };
+
+  /* A cell rooted at Mod holding a module's body, its statics in ctx */
+  let mod_cell =
+      (~ctx: option(Language.Ctx.t), editor: Editor.t)
+      : CodeWithStatics.Model.t =>
+    CodeWithStatics.Model.mk(editor)
+    |> CodeWithStatics.Update.calculate(
+         ~settings=settings.core,
+         ~is_edited=true,
+         ~ctx?,
+         ~stitch=Fun.id,
+         ~dynamics=Language.Dynamics.Map.empty,
+         ~is_dynamic_term=false,
+       );
+
+  /* A body's text as the page keeps it: trimmed, without a last ";" */
+  let body_key = (text: string): string => {
+    let t = String.trim(text);
+    let n = String.length(t);
+    n > 0 && t.[n - 1] == ';' ? String.trim(String.sub(t, 0, n - 1)) : t;
+  };
+
+  /* A program set: the whole of it read, for the status (and, without a
+     focus, for the cell). With a focus, the cell is that module's body;
+     when its text is the one the cell already has (the page sending back
+     what an edit here gave it, after its own compile), the cell keeps its
+     editor, caret and all, and only its statics are made again, in the
+     body's context now. */
+  let set = (~fresh: bool, program: Program.t, model: Model.t): Model.t => {
+    let (zipper, bodies) = read(~bodies=model.bodies, program);
+    let full = cell_of_zipper(zipper);
+    let status =
+      Some(Status.of_statics(~names=?Program.names(program), full.statics));
+    switch (model.focus) {
+    | Some(name) =>
+      let (body, text, ctx) = focus_body(~bodies, ~full, name);
+      let same =
+        !fresh && Option.map(body_key, model.edited) == Some(body_key(text));
+      let cell =
+        same
+          ? mod_cell(~ctx, model.cell.editor)
+          : mod_cell(~ctx, Editor.Model.mk(body, ~root=Sort.Mod));
       {
         ...model,
         program: Some(program),
         cell,
-        active: false,
-        status:
-          Some(
-            Status.of_statics(~names=?Program.names(program), cell.statics),
-          ),
+        active: same ? model.active : false,
+        edited: same ? model.edited : None,
+        ctx,
+        status,
         bodies,
       };
+    | None => {
+        ...model,
+        program: Some(program),
+        cell: full,
+        active: false,
+        ctx: None,
+        status,
+        bodies,
+      }
+    };
+  };
+
+  let update = (action: t, model: Model.t): Model.t =>
+    switch (action) {
+    | Set(program) when model.program == Some(program) => model
+    | Set(program) => set(~fresh=false, program, model)
     | SetFontMetrics(font_metrics) => {
         ...model,
         font_metrics,
@@ -263,6 +341,17 @@ module Update = {
         ...model,
         editable,
       }
+    | SetFocus(focus) when focus == model.focus => model
+    | SetFocus(focus) =>
+      let model = {
+        ...model,
+        focus,
+        edited: None,
+      };
+      switch (model.program) {
+      | Some(program) => set(~fresh=true, program, model)
+      | None => model
+      };
     | Edit(_) when !model.editable => model
     /* An edit: the cell's statics again, the status from them, and the
        program's text, written as Hazel lays it out (a hole as ?), for the
@@ -275,6 +364,7 @@ module Update = {
             ? CodeWithStatics.Update.calculate(
                 ~settings=settings.core,
                 ~is_edited=true,
+                ~ctx=?model.ctx,
                 ~stitch=Fun.id,
                 ~dynamics=Language.Dynamics.Map.empty,
                 ~is_dynamic_term=false,
@@ -293,7 +383,11 @@ module Update = {
           ...model,
           cell,
           active: true,
-          status: Some(Status.of_statics(~names?, cell.statics)),
+          /* (a focused body's status comes with the next program the page
+             sends, read whole) */
+          status:
+            model.focus == None
+              ? Some(Status.of_statics(~names?, cell.statics)) : model.status,
           edited: changed ? Some(text) : model.edited,
           edits: changed ? model.edits + 1 : model.edits,
         };

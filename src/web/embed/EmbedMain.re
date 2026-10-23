@@ -91,7 +91,13 @@ let on_message = (~link, event: Js.Unsafe.any): unit =>
         link.editable = None;
         update(~link, SetEditable(on));
       | None => ()
-      }
+      };
+      switch (link.focus) {
+      | Some(name) =>
+        link.focus = None;
+        update(~link, SetFocus(name));
+      | None => ()
+      };
     }
   ) {
   | exn => crash(~link, Printexc.to_string(exn))

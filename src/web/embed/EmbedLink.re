@@ -25,6 +25,8 @@ type t = {
   /* (ticket 578) a cell the page can edit, when it last asked: the frame
      takes it after the message (EmbedMain) */
   mutable editable: option(bool),
+  /* and the module it asked to see alone (Some(None): the whole program) */
+  mutable focus: option(option(string)),
 };
 
 let make = (~parent, ~own_origin, ~post): t => {
@@ -35,6 +37,7 @@ let make = (~parent, ~own_origin, ~post): t => {
   sent: EmbedModel.Outbox.nothing_sent,
   crashes: [],
   editable: None,
+  focus: None,
 };
 
 let send = (link: t, ~target: string, message: EmbedModel.Outbox.message) =>
@@ -80,6 +83,10 @@ let receive = (link: t, event: Js.Unsafe.any): option(EmbedModel.Program.t) => {
     | Some(Set(program)) =>
       link.page_origin = Some(origin);
       Some(program);
+    | Some(Focus(name)) =>
+      link.page_origin = Some(origin);
+      link.focus = Some(name);
+      None;
     | Some(Editable(on)) =>
       link.page_origin = Some(origin);
       link.editable = Some(on);

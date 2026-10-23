@@ -82,6 +82,9 @@ type incoming =
   | Set(EmbedModel.Program.t)
   /* (ticket 578) { type: "editable", on }: a cell the page can edit */
   | Editable(bool)
+  /* { type: "focus", module }: one module's body alone (module absent or
+     not a string: the whole program) */
+  | Focus(option(string))
   | Ping;
 
 /* j[key] when it is a string */
@@ -117,6 +120,7 @@ let decode = (data: Js.Unsafe.any): option(incoming) =>
       );
     }
   | Some("ping") => Some(Ping)
+  | Some("focus") => Some(Focus(string_field(data, "module")))
   | Some("editable") =>
     Some(
       Editable(
