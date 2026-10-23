@@ -25,7 +25,7 @@ let mk = (p: Piece.t, sort: Sort.t, skel: Skel.t, base_seg: Segment.t): data => 
    projectors. Useful for editor-membership checks where any piece type is
    acceptable (e.g. jumping to a hole by its grout id). */
 let root_piece = (id: Id.t, data: t): option(Piece.t) =>
-  Option.map(~f=d => d.root_piece, Id.Map.find_opt(id, data));
+  Option.map(~f=d => d.root_piece, Id.Map.find(data, id));
 
 let root_tile = (id: Id.t, data: t): option(Tile.t) =>
   switch (root_piece(id, data)) {
@@ -34,7 +34,7 @@ let root_tile = (id: Id.t, data: t): option(Tile.t) =>
   };
 
 let sort = (id: Id.t, data: t): Sort.t =>
-  switch (Id.Map.find_opt(id, data)) {
+  switch (Id.Map.find(data, id)) {
   | Some({sort, _}) => sort
   | None => Any
   };
@@ -43,7 +43,7 @@ let extremes_opt = (id: Id.t, data: t) =>
   /* This currently fails for singleton labelled tuples due
      to their maketerm hack, otherwise the extreme functions
      could be failwiths instead of options */
-  switch (Id.Map.find_opt(id, data)) {
+  switch (Id.Map.find(data, id)) {
   | Some({skel, base_seg, _}) =>
     let (l, r) = Skel.range(skel);
     switch (List.nth_exn(base_seg, l), List.nth_exn(base_seg, r)) {
@@ -80,7 +80,7 @@ let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
 
 /* The segment corresponding to the `id` term */
 let segment = (id: Id.t, data: t): option(Segment.t) => {
-  let+ {base_seg, skel, _} = Id.Map.find_opt(id, data);
+  let+ {base_seg, skel, _} = Id.Map.find(data, id);
   let (l, r) = Skel.range(skel);
   ListUtil.sublist((l, r + 1), base_seg);
 };

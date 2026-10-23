@@ -26,7 +26,7 @@ let get_all_samples = (code: string): list(Sample.t) => {
       elaborated,
     );
   let probes = EvaluatorState.get_probes(state);
-  Id.Map.bindings(probes) |> List.concat_map(~f=snd);
+  Id.Map.to_alist(probes) |> List.concat_map(~f=snd);
 };
 
 /* Show call stack for debugging */
@@ -362,7 +362,7 @@ let step_into_frame_tests = [
           );
         let samples =
           EvaluatorState.get_probes(state)
-          |> Id.Map.bindings
+          |> Id.Map.to_alist
           |> List.concat_map(~f=snd);
         let dump =
           List.map(

@@ -34,14 +34,14 @@ let empty: t = {
 };
 
 let find_opt = (id: Id.t, map: t): option(entry) =>
-  Id.Map.find_opt(id, map.statics);
+  Id.Map.find(map.statics, id);
 
 /* Observation and stream publication key only on PROPER program
  * structure — ids of the elaborated program the user wrote. Stepped
  * intermediates (administrative structure: Id.invalid temps, fresh ids
  * minted mid-evaluation) are never program nodes. */
 let is_program_node = (id: Id.t, map: t): bool =>
-  Id.Map.mem(id, map.statics);
+  Id.Map.mem(map.statics, id);
 
 /* Statics presence (not targets) is what enables incr-entry snapshots
  * and reuse_check hits. */
@@ -57,18 +57,16 @@ let of_info_map =
     (~probe_all: bool, ~targets: Sample.targets, info_map: StaticsBase.Map.t)
     : t => {
   statics:
-    Id.Map.filter_map(
-      (_id, info) =>
-        switch (info) {
-        | Info.InfoExp({elab_term, co_ctx, probe_targets, _}) =>
-          Some({
-            elab_term,
-            co_ctx,
-            probe_targets: probe_all ? ProbeAll : ProbeTargets(probe_targets),
-          })
-        | _ => None
-        },
-      info_map,
+    Id.Map.filter_map(info_map, ~f=info =>
+      switch (info) {
+      | Info.InfoExp({elab_term, co_ctx, probe_targets, _}) =>
+        Some({
+          elab_term,
+          co_ctx,
+          probe_targets: probe_all ? ProbeAll : ProbeTargets(probe_targets),
+        })
+      | _ => None
+      }
     ),
   targets,
 };

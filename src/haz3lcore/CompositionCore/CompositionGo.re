@@ -375,7 +375,7 @@ module Local = {
                  Some((Piece.id(p), (witness, run, id(r))))
                | _ => None,
            )
-        |> Id.Map.of_list;
+        |> Id.Map.of_alist_reduce(~f=(_, latest) => latest);
       runs(None, None, seg)
       |> List.concat_map(
            ~f=
@@ -384,7 +384,7 @@ module Local = {
              | `Run(left, run, right, witness) => {
                  let preserved =
                    switch (
-                     Id.Map.find_opt(Piece.id(List.hd_exn(run)), old_runs)
+                     Id.Map.find(old_runs, Piece.id(List.hd_exn(run)))
                    ) {
                    | Some((l, old, r)) =>
                      l == witness && r == id(right) && old == run
@@ -485,7 +485,11 @@ module Local = {
         | [] => acc
         | [p, ...rest] =>
           let acc =
-            Id.Map.add(Piece.id(p), (id(prev), id(next_tok(rest))), acc);
+            Id.Map.set(
+              acc,
+              ~key=Piece.id(p),
+              ~data=(id(prev), id(next_tok(rest))),
+            );
           let prev =
             switch (p) {
             | Piece.Secondary(_) => prev
@@ -495,7 +499,7 @@ module Local = {
         };
       let old_boundaries = boundaries(None, before, Id.Map.empty);
       let unchanged = (prev, p, rest) =>
-        Id.Map.find_opt(Piece.id(p), old_boundaries)
+        Id.Map.find(old_boundaries, Piece.id(p))
         == Some((id(prev), id(next_tok(rest))));
       /* Deleting a member leaves a convex grout in its slot (destruct
          replaces, it does not remove); a hole standing alone between
@@ -573,7 +577,7 @@ module Local = {
         Segment.ptr_eq(next, ps) ? ps : next;
       }
       and piece = (p: Piece.t) =>
-        switch (Id.Map.find_opt(Piece.id(p), originals)) {
+        switch (Id.Map.find(originals, Piece.id(p))) {
         | Some(old) when phys_equal(old, p) || Poly.compare(old, p) == 0 => old
         | previous =>
           switch (p) {

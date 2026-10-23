@@ -54,7 +54,7 @@ let get_all_samples = (code: string): list(Sample.t) => {
       elaborated,
     );
   let probes = EvaluatorState.get_probes(state);
-  Id.Map.bindings(probes) |> List.concat_map(~f=snd);
+  Id.Map.to_alist(probes) |> List.concat_map(~f=snd);
 };
 
 /* Basic step range tests */

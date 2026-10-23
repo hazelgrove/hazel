@@ -245,7 +245,7 @@ and uexp_to_info_map =
     let self_id = Exp.rep_id(user_term);
     let probe_targets =
       SubexpProbeTargets.add_self(
-        ~is_probed=Id.Map.mem(self_id, probe_ids),
+        ~is_probed=Id.Map.mem(probe_ids, self_id),
         self_id,
         probe_targets,
       );
@@ -2236,7 +2236,7 @@ and uexp_to_info_map =
            * because the recursive name has no provenance in any reuse_map,
            * and every transitive cache hit downstream dies with it. */
           let m =
-            switch (Id.Map.find_opt(fun_id, m)) {
+            switch (Id.Map.find(m, fun_id)) {
             | Some(Info.InfoExp(info)) =>
               add_info(
                 [fun_id],
@@ -2486,7 +2486,7 @@ and uexp_to_info_map =
           ~f=
             (m, row) => {
               let p = List.nth_exn(ps, row);
-              switch (Id.Map.find(IdTagged.rep_id(p), m)) {
+              switch (Id.Map.find_exn(m, IdTagged.rep_id(p))) {
               | Info.InfoPat(info) =>
                 let info =
                   prepend_pat_mark(info, Mark.Redundant, ~warnings=[], ());
@@ -2770,7 +2770,7 @@ and uexp_to_info_map =
       let (expanded_info, expanded_elab, m) = go(~ana, expanded, m);
       /* Override cls to show "Module binding" */
       let m =
-        switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
+        switch (Id.Map.find(m, Exp.rep_id(uexp))) {
         | Some(Info.InfoExp(info)) =>
           add_info(
             ids,
@@ -2893,7 +2893,7 @@ and upat_to_info_map =
     let self_id = Pat.rep_id(user_term);
     let probe_targets =
       SubexpProbeTargets.add_self(
-        ~is_probed=Id.Map.mem(self_id, probe_ids),
+        ~is_probed=Id.Map.mem(probe_ids, self_id),
         self_id,
         probe_targets,
       );
@@ -4403,7 +4403,7 @@ let mk =
         Grammar.map_exp_annotation(
           ({ids, _}: IdTagged.IdTag.t) => {
             let info_opt =
-              List.find_map(~f=id => Id.Map.find_opt(id, m_ref^), ids);
+              List.find_map(~f=id => Id.Map.find(m_ref^, id), ids);
             switch (info_opt) {
             | Some(info) => m_ref := add_missing_info(ids, info, m_ref^)
             | None => ()

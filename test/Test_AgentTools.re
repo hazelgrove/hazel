@@ -1748,7 +1748,7 @@ let high_level_node_map_tests = (
         let code = "type Color = + White + Black in type PieceType = + Pawn + Knight + Bishop + Rook + Queen + King in type Piece = (Color, PieceType) in type Square = + Empty + Occupied(Piece) in type Board = [[Square]] in let initial_board : Board = [[Occupied((White, Rook))]] in ?";
         let node_map = build_node_map(code);
         let all_names =
-          Id.Map.bindings(node_map)
+          Id.Map.to_alist(node_map)
           |> List.map(~f=((_, n: HighLevelNodeMap.node)) => n.name)
           |> List.sort(~compare=String.compare);
         check(
@@ -4314,7 +4314,7 @@ fib(10)|};
               bool,
               "statics rebuild on probed fib is non-empty",
               true,
-              Id.Map.cardinal(info_map2) > 0,
+              Id.Map.length(info_map2) > 0,
             );
             switch (HighLevelNodeMap.build(z2, info_map2)) {
             | None =>

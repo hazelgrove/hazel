@@ -4,14 +4,11 @@ open Test_Statics_Prelude;
 
 /* Extract the set of variable names that have UnusedVar warnings */
 let unused_warnings = (s: Statics.Map.t): list(string) =>
-  Id.Map.fold(
-    (_id, info: Info.t, acc) =>
-      switch (Info.warnings_of(info)) {
-      | [Pat(UnusedVar(name))] => [name, ...acc]
-      | _ => acc
-      },
-    s,
-    [],
+  Id.Map.fold(s, ~init=[], ~f=(~key as _id, ~data as info: Info.t, acc) =>
+    switch (Info.warnings_of(info)) {
+    | [Pat(UnusedVar(name))] => [name, ...acc]
+    | _ => acc
+    }
   )
   |> List.sort(~compare=String.compare);
 

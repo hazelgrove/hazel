@@ -142,24 +142,19 @@ let statics = term =>
 type errors_map = Id.Map.t(list(Mark.t));
 
 let errors = (map: Statics.Map.t): list((Id.t, list(Mark.t))) =>
-  Id.Map.fold(
-    (id, info: Info.t, acc) =>
-      switch (Info.marks_of(info)) {
-      | [] => acc
-      | ms => [(id, ms), ...acc]
-      },
-    map,
-    [],
+  Id.Map.fold(map, ~init=[], ~f=(~key as id, ~data as info: Info.t, acc) =>
+    switch (Info.marks_of(info)) {
+    | [] => acc
+    | ms => [(id, ms), ...acc]
+    }
   );
 
 let collect_errors = (map: Statics.Map.t): errors_map =>
-  Id.Map.filter_map(
-    (_: Uuidm.t, info: Info.t) =>
-      switch (Info.marks_of(info)) {
-      | [] => None
-      | ms => Some(ms)
-      },
-    map,
+  Id.Map.filter_map(map, ~f=(info: Info.t) =>
+    switch (Info.marks_of(info)) {
+    | [] => None
+    | ms => Some(ms)
+    }
   );
 
 let parse_exp = (s: string) => {

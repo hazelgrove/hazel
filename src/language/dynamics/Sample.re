@@ -167,28 +167,22 @@ module Map = {
 
   let empty = Id.Map.empty;
 
-  let lookup = (id, map) =>
-    Id.Map.find_opt(id, map) |> Option.map(~f=List.rev);
+  let lookup = (id, map) => Id.Map.find(map, id) |> Option.map(~f=List.rev);
 
   let fold = (f, map: t, init) =>
-    Id.Map.fold(
-      (id, samples, acc) => f(id, List.rev(samples), acc),
-      map,
-      init,
+    Id.Map.fold(map, ~init, ~f=(~key as id, ~data as samples, acc) =>
+      f(id, List.rev(samples), acc)
     );
 
   let extend = (id, report, map: t) =>
-    Id.Map.update(
-      id,
-      opt =>
-        switch (opt) {
-        | Some(a) => Some([report, ...a])
-        | None => Some([report])
-        },
-      map,
+    Id.Map.change(map, id, ~f=opt =>
+      switch (opt) {
+      | Some(a) => Some([report, ...a])
+      | None => Some([report])
+      }
     );
 
-  let finalize = (map: t): t => Id.Map.map(List.rev, map);
+  let finalize = (map: t): t => Id.Map.map(map, ~f=List.rev);
 
   /* Ascription dominance: a non-empty call_stack sample is dominated by
    * an existing empty call_stack sample for the same syntax_id. Guards
@@ -199,7 +193,7 @@ module Map = {
    * minting path and the batch fold — both go through
    * ObsTrace.fold_step. */
   let dominated = (sample: sample, map: t): bool =>
-    switch (Id.Map.find_opt(sample.syntax_id, map)) {
+    switch (Id.Map.find(map, sample.syntax_id)) {
     | Some(existing) =>
       List.exists(
         ~f=
