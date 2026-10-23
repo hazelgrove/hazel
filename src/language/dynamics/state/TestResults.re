@@ -27,9 +27,9 @@ let result_summary_str =
     (~n, ~p, ~q, ~n_str, ~ns_str, ~p_str, ~q_str, ~r_str): string => {
   let one_p = "one is " ++ p_str ++ " ";
   let one_q = "one is " ++ q_str ++ " ";
-  let mny_p = Stdlib.Printf.sprintf("%d are %s ", p, p_str);
-  let mny_q = Stdlib.Printf.sprintf("%d are %s ", q, q_str);
-  let of_n = Stdlib.Printf.sprintf("Out of %d %s, ", n, ns_str);
+  let mny_p = sprintf("%d are %s ", p, p_str);
+  let mny_q = sprintf("%d are %s ", q, q_str);
+  let of_n = sprintf("Out of %d %s, ", n, ns_str);
   switch (n, p, q) {
   | (0, _, _) => "No " ++ ns_str ++ " available."
   | (_, 0, 0) => "All " ++ ns_str ++ " " ++ r_str ++ "! "
