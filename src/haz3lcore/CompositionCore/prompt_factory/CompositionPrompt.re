@@ -144,6 +144,7 @@ let program_model = [
   "",
   "A **path** names one entry, outermost first, `/` (or `.`) between levels:",
   "- a definition, type or module by its name (`area`, `Geo/scale`; a pattern binding several names by any of them); a function by its bare name, without its parameters;",
+  "- a livelit definition `let ^pct = { … } in` by its `^pct`, and its members as a module's: `^pct/init`;",
   "- a hinted test by its hint, quotes included (`\"two\"`, `Geo/\"two\"`);",
   "- any entry by kind and place, 1-based: `test#2`, `stmt#1`, `let#1` (an unnamed `let`);",
   "- a block's result: `=>` (`total/=>`; `=>` alone is the program's);",

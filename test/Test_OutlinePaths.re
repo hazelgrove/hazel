@@ -170,6 +170,17 @@ let alias_kinds = () =>
     ),
   );
 
+/* a livelit's `^name` is a row; a literal's members are below it */
+let livelit_kinds = () =>
+  check(
+    string,
+    "a livelit is a module",
+    "module ^pct [type T, const init], module m [const a], trail",
+    kinds_of(
+      "let ^pct = {\n  type T = Int;\n  let init = 50\n} in\nlet m = { let a = 1 } in\n^pct(m.a)",
+    ),
+  );
+
 let cases = [
   test_case(
     "a test added elsewhere leaves a test's path",
@@ -177,6 +188,7 @@ let cases = [
     test_elsewhere,
   ),
   test_case("a module alias's row is a module", `Quick, alias_kinds),
+  test_case("a livelit definition's row and members", `Quick, livelit_kinds),
   test_case("a definition being typed at the end has its row", `Quick, () =>
     check(
       string,

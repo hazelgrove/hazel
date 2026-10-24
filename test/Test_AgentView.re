@@ -281,6 +281,29 @@ f(1)|},
       ),
     )
   ),
+  /* a livelit opens by its members' paths; the map lists a let-bound
+     literal's members no more than other definitions' */
+  test_case("a livelit definition's members open by path", `Quick, () =>
+    golden(
+      "livelit",
+      {|# map · 1 error #
+let ^pct = ⋯ in  # 1 error: "^pct" isn't a valid token #
+let m = ⋯ in  # 1 use #
+m.a
+
+# open: ^pct/init #
+let init = 50|},
+      render(
+        ~opened=["^pct/init"],
+        {|let ^pct = {
+  type T = Int;
+  let init = 50
+} in
+let m = { let a = 1; let b = 2 } in
+m.a|},
+      ),
+    )
+  ),
   test_case("Mega 1k, two entries open", `Quick, () =>
     golden_file(
       "agent-view-mega-1k.txt",

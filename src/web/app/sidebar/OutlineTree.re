@@ -65,7 +65,8 @@ let rec lead_var = (pat: Haz3lcore.Segment.t): option((string, Id.t)) => {
     | (Some(x), [Tile(lab), ...inner]) when Tile.is_tuple_label_eq(lab) =>
       Token.is_var(x) ? lead_var(inner) : None
     | (Some(x), [])
-    | (Some(x), [Tile(_), ..._]) when Token.is_var(x) => Some((x, v.id))
+    | (Some(x), [Tile(_), ..._]) when Haz3lcore.EntryPath.is_binder(x) =>
+      Some((x, v.id))
     | _ => None
     }
   | _ => None
