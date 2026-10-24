@@ -2342,11 +2342,10 @@
   text-align: center;
 }
 
-/* Agent Context: program block matches tool diff segment styling */
+/* Agent Context: the context the latest request sent, verbatim */
 .agent-context-body {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
   align-items: stretch;
 }
 
@@ -2355,139 +2354,31 @@
   overflow-x: auto;
 }
 
-.agent-context-section {
-  flex-shrink: 0;
-  width: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
-  padding: 0.65em 0.75em;
-  background-color: var(--surface-default);
-  border-radius: 6px;
-  border: 0.6px solid var(--border-default);
+.agent-context-sent {
+  font-family: var(--code-font);
+  font-size: 0.75em;
+  line-height: 1.4;
+  white-space: pre;
+  width: max-content;
+  min-width: 100%;
   box-sizing: border-box;
-}
-
-.agent-context-section-title {
-  font-size: 0.72em;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--text-default);
-}
-
-.agent-context-code-scroll {
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-  overflow-x: auto;
-  overflow-y: visible;
   padding: 0.5em 0.65em;
+  color: var(--text-default);
   background-color: var(--surface-raised);
   border-radius: 4px;
   border: 0.6px solid var(--border-default);
 }
 
-.agent-context-code {
-  display: block;
-  width: max-content;
-  min-width: 100%;
-}
-
-.agent-context-code.tool-call-diff-segment .code {
+.agent-context-request {
+  align-self: center;
   font-size: 0.75em;
+  color: var(--text-muted);
 }
 
 .agent-context-empty {
   font-size: 0.85em;
   color: var(--text-muted);
   font-style: italic;
-}
-
-.agent-context-static-ok {
-  font-size: 0.85em;
-  color: var(--text-success);
-}
-
-.agent-context-static-list {
-  display: flex;
-  flex-direction: column;
-  gap: 0.35em;
-}
-
-.agent-context-static-line {
-  font-family: var(--code-font);
-  font-size: 0.78em;
-  line-height: 1.35;
-  color: var(--text-error-strong);
-  padding: 0.35em 0.45em;
-  background-color: var(--surface-raised);
-  border-radius: 4px;
-  border-left: 3px solid var(--border-error);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.agent-context-muted {
-  font-size: 0.82em;
-  color: var(--text-muted);
-  line-height: 1.35;
-}
-
-.agent-context-test-summary {
-  font-size: 0.82em;
-  color: var(--text-default);
-  line-height: 1.35;
-  margin-bottom: 0.25em;
-}
-
-.agent-context-test-rows {
-  display: flex;
-  flex-direction: column;
-  gap: 0.3em;
-}
-
-.agent-context-test-row {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.45em;
-  padding: 0.35em 0.45em;
-  border-radius: 4px;
-  background-color: var(--surface-raised);
-  font-size: 0.82em;
-}
-
-.agent-context-test-icon {
-  flex-shrink: 0;
-  width: 16px;
-  height: 16px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.agent-context-test-icon svg {
-  width: 14px;
-  height: 14px;
-}
-
-.agent-context-test-pass .agent-context-test-icon svg {
-  fill: var(--text-success);
-}
-
-.agent-context-test-fail .agent-context-test-icon svg {
-  fill: var(--text-error);
-}
-
-.agent-context-test-indet .agent-context-test-icon svg {
-  fill: var(--text-muted);
-}
-
-.agent-context-test-label {
-  color: var(--text-default);
-  font-family: var(--code-font);
-  font-size: 0.92em;
 }
 
 /* Prompt and Developer Notes Display */
@@ -2990,13 +2881,6 @@
 /* Compaction summaries use Markdown (same Omd pipeline as Filbert replies). */
 .compaction-notice-body .agent-message-markdown {
   white-space: normal;
-}
-
-/* Fold marker (⋱) in read-only code / agent context */
-.agent-context-body .fold-projector {
-  font-weight: 600;
-  color: var(--text-accent);
-  padding: 0 0.1em;
 }
 
 /* Per-assistant-turn token metadata chip. Sibling of .agent-message

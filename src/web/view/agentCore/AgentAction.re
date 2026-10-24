@@ -35,6 +35,13 @@ type t =
   | RestoreOriginal
   | LoadSegmentIntoEditor(Segment.t)
   | SetActiveTimelineNode(option(int))
+  | /** Show the main editor as a request's view (None: the latest, live);
+        the workspace handles it (AgentLens) */
+    ViewAsAgent(
+      Id.t,
+      option(int),
+    )
+  | LeaveAgentView
   | SetToolEnabled(string, bool)
   | SetToolsInCategoryEnabled(string, bool)
   | ToggleToolsViewExpanded(string)

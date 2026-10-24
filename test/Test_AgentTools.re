@@ -1899,10 +1899,10 @@ let composition_view_print_tests = (
         "let a = 1 in " |> mk_zipper |> CompositionView.Public.print_zipper,
       )
     ),
-    test_case("fold renders as folded, not as invocation", `Quick, () =>
+    test_case("a fold prints as its invocation", `Quick, () =>
       check_rendered(
-        "fold as ellipsis",
-        {|let a = ⋱ in a|},
+        "fold as invocation",
+        {|let a = ^^fold(1) in a|},
         "let a = ^^fold(1) in a"
         |> mk_zipper
         |> CompositionView.Public.print_zipper,
@@ -3090,107 +3090,12 @@ let complex_program_tests = (
 );
 
 /* ============================================================
-   18. AGENT CONTEXT — expand/collapse path management
+   18. AGENT CONTEXT — node-map paths the view relies on
    ============================================================ */
 
 let agent_context_tests = (
   "AgentContext",
   [
-    test_case(
-      "init has empty expanded_paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        check(list(string), "init paths", [], ctx.expanded_paths);
-      },
-    ),
-    test_case(
-      "add_paths appends paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["a", "b"], ctx);
-        check(
-          int,
-          "paths count after add",
-          2,
-          List.length(ctx.expanded_paths),
-        );
-        check(bool, "contains a", true, List.mem("a", ctx.expanded_paths));
-        check(bool, "contains b", true, List.mem("b", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "remove_paths removes specified paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["a", "b", "c"], ctx);
-        let ctx = AgentContext.Utils.remove_paths(["b"], ctx);
-        check(
-          int,
-          "paths count after remove",
-          2,
-          List.length(ctx.expanded_paths),
-        );
-        check(
-          bool,
-          "still contains a",
-          true,
-          List.mem("a", ctx.expanded_paths),
-        );
-        check(bool, "b removed", false, List.mem("b", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "expand action adds paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Update.update(Expand(["x", "y"]), ctx);
-        check(int, "expanded count", 2, List.length(ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "collapse action removes paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Update.update(Expand(["x", "y", "z"]), ctx);
-        let ctx = AgentContext.Update.update(Collapse(["y"]), ctx);
-        check(int, "after collapse", 2, List.length(ctx.expanded_paths));
-        check(bool, "y removed", false, List.mem("y", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "freshen_paths removes stale paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["a", "nonexistent"], ctx);
-        let node_map = build_node_map("let a = 1 in a");
-        let ctx = AgentContext.Utils.freshen_paths(ctx, node_map);
-        check(
-          int,
-          "freshen removes stale",
-          1,
-          List.length(ctx.expanded_paths),
-        );
-        check(bool, "a remains", true, List.mem("a", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "freshen_paths keeps valid module path M",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["M", "nonexistent"], ctx);
-        let node_map = build_node_map("module M = { let x = 1 } in M.x");
-        let ctx = AgentContext.Utils.freshen_paths(ctx, node_map);
-        check(int, "freshen keeps M", 1, List.length(ctx.expanded_paths));
-        check(bool, "M remains", true, List.mem("M", ctx.expanded_paths));
-      },
-    ),
     test_case(
       "path M resolves for capitalized module",
       `Quick,

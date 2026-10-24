@@ -95,166 +95,33 @@ module ViewComponents = {
     );
   };
 
+  /* the context the latest request sent, as sent */
   let context_view =
       (
-        ~globals: Globals.t,
-        ~code_with_statics: CodeWithStatics.Model.t,
-        ~agent_view: AgentContext.Model.t,
-        ~eval_result: EvalResult.Model.t,
         ~current_chat: Chat.Model.t,
         ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
         ~chat_id: Id.t,
       )
       : Node.t => {
-    let segment =
-      CompositionView.Public.segment_for_agent_context(
-        code_with_statics.editor,
-        agent_view,
+    let latest = ListUtil.last_opt(current_chat.sent);
+    let button = (~title, ~on, icon) =>
+      div(
+        ~attrs=[
+          clss(["view-close-button", "icon"]),
+          Attr.title(title),
+          Attr.on_click(_ => Effect.Many([on(), Effect.Stop_propagation])),
+        ],
+        [icon],
       );
-    let static_error_lines =
-      ErrorPrint.all(
-        CompositionGo.Public.mk_statics(
-          ~root=code_with_statics.editor.root,
-          code_with_statics.editor.state.zipper,
+    let close = () =>
+      agent_inject(
+        Agent.Update.Action.ChatSystemAction(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.SwitchView(Chat.Model.Messages),
+            chat_id,
+          ),
         ),
       );
-    let static_section =
-      div(
-        ~attrs=[clss(["agent-context-section"])],
-        [
-          div(
-            ~attrs=[clss(["agent-context-section-title"])],
-            [text("Static diagnostics")],
-          ),
-          if (static_error_lines == []) {
-            div(
-              ~attrs=[clss(["agent-context-static-ok"])],
-              [text("No static errors.")],
-            );
-          } else {
-            div(
-              ~attrs=[clss(["agent-context-static-list"])],
-              List.map(
-                (line: string) =>
-                  div(
-                    ~attrs=[clss(["agent-context-static-line"])],
-                    [text(line)],
-                  ),
-                static_error_lines,
-              ),
-            );
-          },
-        ],
-      );
-    let test_section = {
-      let test_results_opt = EvalResult.Model.test_results(eval_result);
-      div(
-        ~attrs=[clss(["agent-context-section"])],
-        [
-          div(
-            ~attrs=[clss(["agent-context-section-title"])],
-            [text("Tests")],
-          ),
-          switch (test_results_opt) {
-          | None =>
-            div(
-              ~attrs=[clss(["agent-context-muted"])],
-              [
-                text(
-                  "Test results are not available yet (evaluation may still be running).",
-                ),
-              ],
-            )
-          | Some(results) when results.total == 0 =>
-            div(
-              ~attrs=[clss(["agent-context-muted"])],
-              [text("No tests in this program.")],
-            )
-          | Some(results) =>
-            let summary =
-              Language.TestResults.test_summary_str(results) |> String.trim;
-            let rows =
-              List.mapi(
-                (i, status: Language.TestStatus.t) => {
-                  let status_cls =
-                    switch (status) {
-                    | Pass => "agent-context-test-pass"
-                    | Fail => "agent-context-test-fail"
-                    | Indet => "agent-context-test-indet"
-                    };
-                  let icon =
-                    switch (status) {
-                    | Pass => Icons.confirm
-                    | Fail => Icons.cancel
-                    | Indet => Icons.circle_with_no_check
-                    };
-                  div(
-                    ~attrs=[clss(["agent-context-test-row", status_cls])],
-                    [
-                      div(
-                        ~attrs=[clss(["agent-context-test-icon"])],
-                        [icon],
-                      ),
-                      div(
-                        ~attrs=[clss(["agent-context-test-label"])],
-                        [
-                          text(
-                            "Test "
-                            ++ string_of_int(i + 1)
-                            ++ ": "
-                            ++ Language.TestStatus.to_string(status),
-                          ),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-                results.statuses,
-              );
-            div(
-              ~attrs=[clss(["agent-context-tests"])],
-              [
-                div(
-                  ~attrs=[clss(["agent-context-test-summary"])],
-                  [text(summary)],
-                ),
-                div(~attrs=[clss(["agent-context-test-rows"])], rows),
-              ],
-            );
-          },
-        ],
-      );
-    };
-    let program_section =
-      if (segment == []) {
-        div(
-          ~attrs=[clss(["agent-context-code-scroll"])],
-          [
-            div(
-              ~attrs=[clss(["agent-context-empty"])],
-              [text("No program in this scratchpad.")],
-            ),
-          ],
-        );
-      } else {
-        div(
-          ~attrs=[clss(["agent-context-code-scroll"])],
-          [
-            div(
-              ~attrs=[
-                clss(["agent-context-code", "tool-call-diff-segment"]),
-              ],
-              [
-                ToolResultView.render_segment(
-                  ~globals,
-                  ~shallow_complete=false,
-                  segment,
-                ),
-              ],
-            ),
-          ],
-        );
-      };
     div(
       ~attrs=[clss(["full-screen-view"])],
       [
@@ -264,69 +131,55 @@ module ViewComponents = {
             div(~attrs=[clss(["view-title"])], [text("Agent Context")]),
             div(
               ~attrs=[clss(["view-header-actions"])],
-              [
-                div(
-                  ~attrs=[
-                    clss(["view-close-button", "icon"]),
-                    Attr.title(
-                      "Copy the exact context snapshot text sent to the model (XML-style blocks + footer).",
+              (
+                switch (latest) {
+                | Some(r) => [
+                    div(
+                      ~attrs=[clss(["agent-context-request"])],
+                      [text("request " ++ string_of_int(r.seq))],
                     ),
-                    Attr.on_click(_ => {
-                      let snapshot =
-                        Agent.Utils.llm_context_snapshot_text(
-                          ~session_mode=
-                            globals.settings.agent_globals.session_mode,
-                          ~cell_result=eval_result,
-                          code_with_statics,
-                          current_chat,
-                        );
-                      copy_text(snapshot);
-                      show_copy_toast();
-                      Effect.Stop_propagation;
-                    }),
-                  ],
-                  [Icons.copy],
-                ),
-                div(
-                  ~attrs=[
-                    clss(["view-close-button", "icon"]),
-                    Attr.on_click(_ =>
-                      Effect.Many([
-                        agent_inject(
-                          Agent.Update.Action.ChatSystemAction(
-                            ChatSystem.Update.Action.ChatAction(
-                              Chat.Update.Action.SwitchView(
-                                Chat.Model.Messages,
-                              ),
+                    button(
+                      ~title="Copy the context as sent",
+                      ~on=
+                        () => {
+                          copy_text(r.view);
+                          show_copy_toast();
+                          Effect.Ignore;
+                        },
+                      Icons.copy,
+                    ),
+                    button(
+                      ~title="View as agent",
+                      ~on=
+                        () =>
+                          agent_inject(
+                            Agent.Update.Action.ViewAsAgent(
                               chat_id,
+                              Some(r.seq),
                             ),
                           ),
-                        ),
-                        Effect.Stop_propagation,
-                      ])
+                      Icons.agent_view,
                     ),
-                  ],
-                  [Icons.cancel],
-                ),
-              ],
+                  ]
+                | None => []
+                }
+              )
+              @ [button(~title="Close", ~on=close, Icons.cancel)],
             ),
           ],
         ),
         div(
           ~attrs=[clss(["view-content", "agent-context-body"])],
           [
-            div(
-              ~attrs=[clss(["agent-context-section"])],
-              [
-                div(
-                  ~attrs=[clss(["agent-context-section-title"])],
-                  [text("Program View")],
-                ),
-                program_section,
-              ],
-            ),
-            static_section,
-            test_section,
+            switch (latest) {
+            | Some(r) =>
+              div(~attrs=[clss(["agent-context-sent"])], [text(r.view)])
+            | None =>
+              div(
+                ~attrs=[clss(["agent-context-empty"])],
+                [text("Nothing sent in this chat yet.")],
+              )
+            },
           ],
         ),
       ],
@@ -840,7 +693,6 @@ let view =
       ~agent_inject: Agent.Update.Action.t => Effect.t(unit),
       ~signal: Editors.View.signal => Effect.t(unit),
       ~code_with_statics: CodeWithStatics.Model.t,
-      ~eval_result: EvalResult.Model.t,
     )
     : Node.t => {
   let chat_system = agent_model.chat_system;
@@ -1957,10 +1809,6 @@ let view =
   | Chat.Model.StaticErrors =>
     // Both AgentEditorView and StaticErrors now show context
     ViewComponents.context_view(
-      ~globals,
-      ~code_with_statics,
-      ~agent_view=current_chat.agent_view,
-      ~eval_result,
       ~current_chat,
       ~agent_inject,
       ~chat_id=current_chat_id,

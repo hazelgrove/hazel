@@ -310,7 +310,7 @@ let tests = (
           bool,
           "new errors appear in context",
           true,
-          Util.StringUtil.plain_search("not bound", content, 0) >= 0,
+          Util.StringUtil.plain_search("1 error", content, 0) >= 0,
         );
       },
     ),

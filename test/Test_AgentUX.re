@@ -643,8 +643,6 @@ let prompt_caching_tests = [
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
               "",
-              "",
-              "",
             ),
           ),
       };
@@ -681,8 +679,6 @@ let prompt_caching_tests = [
             Message.Utils.mk_context_message(
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
-              "",
-              "",
               "",
             ),
           ),
@@ -725,8 +721,6 @@ let prompt_caching_tests = [
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
               "",
-              "",
-              "",
             ),
           ),
       };
@@ -763,8 +757,6 @@ let prompt_caching_tests = [
             Message.Utils.mk_context_message(
               ~session_mode=AgentGlobals.Model.Converse,
               "SNAPSHOT_BODY",
-              "",
-              "",
               "",
             ),
           ),
@@ -1051,16 +1043,12 @@ let context_llm_snapshot_tests = [
         Message.Utils.context_snapshot_body_for_llm(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           "  prog  ",
-          " err ",
-          " tests ",
           " wb ",
         );
       let msg =
         Message.Utils.mk_context_message(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           "  prog  ",
-          " err ",
-          " tests ",
           " wb ",
         );
       check_string("body vs message.content", body, msg.content);
@@ -1079,20 +1067,13 @@ let context_llm_snapshot_tests = [
       let cws = CodeWithStatics.Model.mk(editor);
       let chat = Chat.Utils.init(~system_prompt="p", ~dev_notes="d");
       let eval_result = EvalResult.Model.init;
-      let prog =
-        CompositionView.Public.print(
-          ~probe_map=cws.dynamics,
-          cws.editor,
-          chat.agent_view,
-        );
-      let errs =
-        ErrorPrint.all(
-          CompositionGo.Public.mk_statics(cws.editor.state.zipper),
-        )
-        |> String.concat("\n");
-      let tests =
-        Agent.Utils.test_results_for_context(
-          EvalResult.Model.test_results(eval_result),
+      let (prog, _, _) =
+        Agent.Utils.agent_view_of(
+          ~module_depth=2,
+          ~test_results=EvalResult.Model.test_results(eval_result),
+          ~value=EvalResult.Model.get_value(eval_result),
+          cws,
+          chat,
         );
       let wb =
         AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
@@ -1102,14 +1083,13 @@ let context_llm_snapshot_tests = [
         Message.Utils.mk_context_message(
           ~session_mode=Web.AgentGlobals.Model.Edit,
           prog,
-          errs,
-          tests,
           wb,
         ).
           content;
       let actual =
         Agent.Utils.llm_context_snapshot_text(
           ~session_mode=Web.AgentGlobals.Model.Edit,
+          ~module_depth=2,
           ~cell_result=eval_result,
           cws,
           chat,

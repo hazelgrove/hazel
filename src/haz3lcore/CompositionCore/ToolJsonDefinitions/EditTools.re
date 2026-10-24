@@ -12,16 +12,16 @@ code: string — the new definition code
 Example:
 Given the program:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b = "hello" in
-let c : Int = ⋱ in
+let c : Int = ⋯ in
 ?
 ```
 Calling update_definition(path="b", code="\"world\"") produces:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b = "world" in
-let c : Int = ⋱ in
+let c : Int = ⋯ in
 ?
 ```
 Note: Only the definition changes. The pattern, body, and surrounding bindings are untouched.
@@ -90,18 +90,18 @@ code: string — the new body code
 Example:
 Given the program:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b = "hello" in
-let c : Int = ⋱ in
+let c : Int = ⋯ in
 ?
 ```
 Calling update_body(path="b", code="a * a") produces:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b = "hello" in
 a * a
 ```
-Note: The body of "b" was `let c : Int = ⋱ in ?`. It is now replaced entirely with `a * a`.
+Note: The body of "b" was `let c : Int = ⋯ in ?`. It is now replaced entirely with `a * a`.
 The definition of "b" ("hello") is unchanged.
 |};
 let update_body: API.Json.t =
@@ -169,14 +169,14 @@ The rename is rejected (with an explanatory error) if:
 Example:
 Given the program:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b = "hello" in
 let c = b ++ " world" in
 c
 ```
 Calling update_pattern(path="b", code="greeting : String") produces:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let greeting : String = "hello" in
 let c = greeting ++ " world" in
 c
@@ -250,17 +250,17 @@ code: string — the new binding clause(s), ending with `in`
 Example:
 Given the program:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b = "hello" in
-let c : Int = ⋱ in
+let c : Int = ⋯ in
 ?
 ```
 Calling update_binding_clause(path="b", code="let b : Int = 42 in let d = b + 1 in") produces:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b : Int = 42 in
 let d = b + 1 in
-let c : Int = ⋱ in
+let c : Int = ⋯ in
 ?
 ```
 Note: The body (everything after the original `in` of "b") is preserved — `let c` and `?` remain.
@@ -324,15 +324,15 @@ path: string — slash-delimited path to the binding to remove
 Example:
 Given the program:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b = "hello" in
-let c : Int = ⋱ in
+let c : Int = ⋯ in
 ?
 ```
 Calling delete_binding_clause(path="b") produces:
 ```
-let a = ⋱ in
-let c : Int = ⋱ in
+let a = ⋯ in
+let c : Int = ⋯ in
 ?
 ```
 Note: The binding `let b = "hello" in` is removed. Its body (`let c ... ?`) is preserved.
@@ -384,14 +384,14 @@ path: string — slash-delimited path to the binding whose body to clear
 Example:
 Given the program:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b = "hello" in
-let c : Int = ⋱ in
+let c : Int = ⋯ in
 some_expression
 ```
 Calling delete_body(path="b") produces:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b = "hello" in
 ?
 ```
@@ -530,13 +530,13 @@ code: string — the code to insert (typically a let...in or type...in binding)
 Example:
 Given the program:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let b = "hello" in
 ?
 ```
 Calling insert_before(path="b", code="let prefix = \"world\" in") produces:
 ```
-let a = ⋱ in
+let a = ⋯ in
 let prefix = "world" in
 let b = "hello" in
 ?

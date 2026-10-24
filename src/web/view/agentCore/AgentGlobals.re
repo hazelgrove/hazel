@@ -34,6 +34,9 @@ module Model = {
     session_mode,
     [@yojson.default false] [@sexp.default false]
     collapse_top_bar: bool,
+    /* how many levels of modules the agent's map lists members for */
+    [@yojson.default 2] [@sexp.default 2]
+    map_module_depth: int,
   };
 };
 
@@ -62,6 +65,7 @@ let init = (): Model.t => {
   show_thinking: true,
   session_mode: Edit,
   collapse_top_bar: false,
+  map_module_depth: 2,
 };
 
 let get_active_llm_id = (model: Model.t): option(string) => {

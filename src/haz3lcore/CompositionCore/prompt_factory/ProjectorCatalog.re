@@ -80,9 +80,9 @@ let blurb_for_composition_prompt: list(string) = {
   [
     "## Projectors and the agent view",
     "",
-    "### Fold (`⋱`)",
-    "A **fold** is a collapsed definition in the GUI: the definition shows as `⋱` (not source text).",
-    "Use `expand` / `collapse` (see **Paths** and **View Tools** above).",
+    "### Fold",
+    "A **fold** hides code in the user's editor; the agent view prints it as its invocation, `^^fold(code)`.",
+    "Your own view is the map and open entries (see **The view** above).",
     "",
     "### Runtime probe refractor",
     "The **probe** refractor attaches to a binding and shows evaluated values in the agent view (e.g. `expr ≡ value`).",
@@ -110,7 +110,7 @@ let blurb_for_composition_prompt: list(string) = {
 
 /** Short taxonomy for the compaction summarizer (3–6 lines). */
 let blurb_for_compaction: list(string) = [
-  "**Projectors**: **Folds** display as `⋱` (collapsed defs; expand/collapse in the full prompt).",
+  "**Projectors**: the user's **folds** print as `^^fold(…)`; the agent's view is a map with bodies as `⋯` plus the entries it opened (expand/collapse).",
   "**Refractors** overlay bindings: **probes** show runtime values (`≡` in context); **statics** add a type overlay in the GUI.",
   "**Livelits** are alternate UIs for literals (checkbox, slider/sliderf, text, card, csv, table, livelit, plus fold in the menu).",
   "**Agent tools**: `place_syntax_projector` / `remove_syntax_projector` / `toggle_syntax_projector` (see full prompt).",

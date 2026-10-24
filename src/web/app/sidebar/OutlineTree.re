@@ -193,6 +193,220 @@ and of_mod = (items: list(Mod.t)): list(node) =>
     items,
   );
 
+/* ---- rows from the program's outline (Haz3lcore.Outline) ---- */
+
+module O = Haz3lcore.Outline;
+module Piece = Haz3lcore.Piece;
+module Tile = Haz3lcore.Tile;
+module Form = Haz3lcore.Form;
+module Printer = Haz3lcore.Printer;
+
+/* a let's row name and token: its pattern's leading variable, through
+   parentheses, projectors, a function head, an ascription, a label and a
+   tuple's first part */
+let rec lead_var = (pat: Haz3lcore.Segment.t): option((string, Id.t)) => {
+  let c = O.content(pat);
+  let rec first = (ps: list(Piece.t)) =>
+    switch (ps) {
+    | [Tile(t), ..._] when Tile.is_comma(t) => []
+    | [p, ...ps] => [p, ...first(ps)]
+    | [] => []
+    };
+  let first = first(c);
+  switch (first) {
+  | [Tile({children: [inner], _} as t)] when Tile.label(t) == ["(", ")"] =>
+    lead_var(inner)
+  | [Projector(pr)] => lead_var([pr.syntax])
+  | [Tile(v), ...rest] =>
+    switch (Tile.single_token(v), rest) {
+    | (Some(x), [Tile(lab), ...inner]) when Tile.is_tuple_label_eq(lab) =>
+      Token.is_var(x) ? lead_var(inner) : None
+    | (Some(x), [])
+    | (Some(x), [Tile(_), ..._]) when Token.is_var(x) => Some((x, v.id))
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+/* the rows of a block's entries; the term walk stopped at a form that
+   isn't a binding (a theorem) or a let under a function head, which it
+   read as the block's result */
+let rec rows_of = (~top: bool, ~heads=false, es: list(O.entry)): list(node) =>
+  switch (es) {
+  | [] => []
+  | [e, ...es] =>
+    switch (opaque(~heads, e)) {
+    | Some(id) => top ? [row(~id, KTrail)] : []
+    | None => row_of(~top, e) @ rows_of(~top, es)
+    }
+  }
+
+/* [heads]: [e] is a function body's first entry, after the function's
+   own `fun x ->` */
+and opaque = (~heads, e: O.entry): option(Id.t) =>
+  switch (e.kind, O.head(e.lv, e.k)) {
+  | (Def, Some(h)) when Tile.token(h, 0) == "theorem" => Some(h.id)
+  /* `fun x ->` before it, in its slice, but a function body's own head */
+  | (Def, Some(_)) when !heads && !O.in_block(e) =>
+    let sp = e.lv.spans[e.k];
+    let pre =
+      Array.to_list(Array.sub(e.lv.pieces, sp.lo, fst(sp.core) - sp.lo));
+    switch (O.content(pre)) {
+    | [p, ..._] => Some(Piece.id(p))
+    | [] => None
+    };
+  | _ => None
+  }
+
+and row_of = (~top: bool, e: O.entry): list(node) => {
+  let id = e.id;
+  let at_mod = e.lv.sort == Sort.Mod;
+  switch (e.kind) {
+  | Def =>
+    switch (O.parts(e.lv, e.k)) {
+    | None => []
+    | Some((pat, def)) =>
+      switch (lead_var(pat)) {
+      | None => []
+      | Some((name, tok)) =>
+        let binder = (tok, Sort.Pat);
+        let below = below(e, def);
+        let (kind, kids) =
+          if (e.fn) {
+            (KFn, block_rows(below));
+          } else if (e.literal) {
+            (KModule, rows_of(~top=false, below));
+          } else if (starts_abstraction(def)) {
+            (KConst, []);
+          } else {
+            (KConst, rows_of(~top=false, below));
+          };
+        [row(~id, ~label=name, ~binder, ~kids, kind)];
+      }
+    }
+  | Type =>
+    switch (e.names) {
+    | [(name, tok), ..._] => [
+        row(~id, ~label=name, ~binder=(tok, Sort.TPat), KType),
+      ]
+    | [] => []
+    }
+  | Module =>
+    switch (e.names) {
+    | [(name, tok), ..._] => [
+        row(
+          ~id,
+          ~label=name,
+          ~binder=(tok, Sort.MPat),
+          ~kids=rows_of(~top=false, e.children),
+          KModule,
+        ),
+      ]
+    | [] => []
+    }
+  | Test => [row(~id, ~test=?e.test, KTest)]
+  | Stmt when at_mod && hole_only(e) => []
+  | Stmt => [row(~id, KStmt)]
+  | Use =>
+    switch (use_type(e)) {
+    | Some(label) => [row(~id, ~label, KUse)]
+    | None => []
+    }
+  /* a Mod root's result is a member, as the parser reads it */
+  | Tail when at_mod =>
+    switch (O.test_tile(e.lv, e.k), test_member(e)) {
+    | (Some(test), true) => [row(~id, ~test, KTest)]
+    | _ => hole_only(e) ? [] : [row(~id, KStmt)]
+    }
+  | Tail =>
+    switch (wrapped(O.core(e.lv, e.k))) {
+    | Some(inner) =>
+      switch (O.build(~root=Sort.Exp, inner).entries) {
+      | [{kind: Tail, _}] => top ? [row(~id, KTrail)] : []
+      | es => rows_of(~top, es)
+      }
+    | None => top ? [row(~id, KTrail)] : []
+    }
+  };
+}
+
+/* a definition that is a type abstraction (not over one function) */
+and starts_abstraction = (def: Haz3lcore.Segment.t): bool =>
+  switch (O.content(Option.value(wrapped(def), ~default=def))) {
+  | [p, ..._] => O.head_label(p) == Some(["typfun", "->"])
+  | [] => false
+  }
+
+/* a definition's or result's expression inside parentheses or a
+   projector (a fold), which the spine doesn't open: the term walk read
+   through them */
+and wrapped = (seg: Haz3lcore.Segment.t): option(Haz3lcore.Segment.t) => {
+  let rec strip = (seg: Haz3lcore.Segment.t) =>
+    switch (O.content(seg)) {
+    | [Tile({children: [inner], _} as t)]
+        when Tile.label(t) == ["(", ")"] =>
+      strip(inner)
+    | [Projector(pr)] => strip([pr.syntax])
+    | _ => seg
+    };
+  switch (O.content(seg)) {
+  | [Tile({children: [_], _} as t)] when Tile.label(t) == ["(", ")"] =>
+    Some(strip(seg))
+  | [Projector(_)] => Some(strip(seg))
+  | _ => None
+  };
+}
+
+/* an entry's children as the term walk saw them */
+and below = (e: O.entry, def: Haz3lcore.Segment.t): list(O.entry) =>
+  switch (wrapped(def)) {
+  | Some(inner) => O.build(~root=Sort.Exp, inner).entries
+  | None => e.children
+  }
+
+/* a function body's rows, and its result's if it has others */
+and block_rows = (es: list(O.entry)): list(node) =>
+  switch (rows_of(~top=false, ~heads=true, es)) {
+  | [] => []
+  | rows =>
+    switch (List.find_opt((e: O.entry) => e.kind == Tail, es)) {
+    | Some(t) => rows @ [row(~id=t.id, KTrail)]
+    | None => rows
+    }
+  }
+
+and hole_only = (e: O.entry): bool =>
+  switch (O.content(O.core(e.lv, e.k))) {
+  | []
+  | [Grout(_)] => true
+  | _ => false
+  }
+
+and test_member = (e: O.entry): bool =>
+  switch (O.content(O.core(e.lv, e.k))) {
+  | [Tile(t)] =>
+    t.form == Form.Compound(Test) || t.form == Form.Compound(HintedTest)
+  | _ => false
+  }
+
+/* `use M in`'s row label; none for a filter */
+and use_type = (e: O.entry): option(string) =>
+  switch (O.content(O.core(e.lv, e.k))) {
+  | [Tile({children: [typ], _} as t), ..._] when Tile.token(t, 0) == "use" =>
+    Some(
+      "use "
+      ++ (
+        Printer.of_segment(~holes="?", typ)
+        |> String.split_on_char('\n')
+        |> List.map(String.trim)
+        |> String.concat(" ")
+        |> String.trim
+      ),
+    )
+  | _ => None
+  };
+
 /* each run of ≥2 tests, at any level, goes under a container row; a lone
    test stays flat */
 let rec group_tests = (ns: list(node)): list(node) =>
@@ -242,6 +456,10 @@ let number_tests = (ns: list(node)): list(node) => {
     );
   go(ns);
 };
+
+/* the rows of a program's outline */
+let of_outline = (o: O.t): list(node) =>
+  rows_of(~top=true, o.entries) |> group_tests |> number_tests;
 
 /* memoized on the term's physical identity, which statics keeps until
    the program changes */
