@@ -69,14 +69,16 @@ let tests = (
             ((n, src)) => (n, Sort.Exp, CorpusUtil.seg_of(src)),
             CorpusUtil.edge_programs,
           )
-          /* as typed: unfinished forms and grout */
+          /* as typed: grout and holes. Not the incomplete programs: an
+             unfinished last definition (`let b =`) is a row in the term
+             walk, which completes it, and not yet an entry */
           @ List.filter_map(
               ((n, src)) =>
                 Option.map(
                   seg => ("typed " ++ n, Sort.Exp, seg),
                   CorpusUtil.typed_seg(src),
                 ),
-              CorpusUtil.edge_programs @ CorpusUtil.incomplete_programs,
+              CorpusUtil.edge_programs,
             )
           @ List.filter_map(
               ((path, src)) =>
