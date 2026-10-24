@@ -75,7 +75,10 @@ let stmt_rule = "no statement into a member's body";
    with no comment set apart between them: it couldn't come back to its
    side of the comment */
 let apart_rule = "nothing goes in across a comment set apart";
-let item_rules = [trivia_rule, stmt_rule, apart_rule];
+/* and a move between member and let-chain forms converts the item in
+   place, keeping its ids, where it went through text */
+let form_rule = "a move between forms keeps ids";
+let item_rules = [trivia_rule, stmt_rule, apart_rule, form_rule];
 
 type tally = {
   mutable programs: int,
@@ -509,7 +512,8 @@ let check_program =
       switch (r) {
       | Ok((s, row)) =>
         made_key(~before, s) ++ " -> " ++ row_key(~before, row)
-      | Error(why) => "refused: " ++ why
+      /* the kernel says why in its own words */
+      | Error(_) => "refused"
       };
     let made_opt = r =>
       switch (r) {
@@ -535,15 +539,38 @@ let check_program =
     /* a comment set apart lies between row [id]'s item and the item
        above it, or below */
     let apart = (~up, id) =>
-      switch (IE.locate(~mod_root, id, seg)) {
+      switch (EntryLayout.locate(~mod_root, id, seg)) {
       | Some((b, j, _)) =>
         let k = up ? j : j + 1;
-        k > 0 && k < Array.length(b.sl) && !IE.under_item(b, k);
+        k > 0 && k < Array.length(b.sl) && !EntryLayout.under_item(b, k);
       | None => false
       };
+    /* the same text, whitespace aside, [b] keeping the ids [a] keeps and
+       more, landing on the same row or on one [a] made afresh */
+    let kept = ((s, row)) => {
+      let key = solid_key(~before, s);
+      let at = String.index(key, '@');
+      (
+        String.sub(key, 0, at),
+        String.split_on_char(
+          ',',
+          String.sub(key, at + 1, String.length(key) - at - 1),
+        ),
+        row_key(~before, row),
+      );
+    };
+    let converted = (a, b) => {
+      let (ta, ia, ra) = kept(a);
+      let (tb, ib, rb) = kept(b);
+      ta == tb
+      && List.for_all(id => List.mem(id, ib), ia)
+      && (ra == rb || ra == "fresh")
+        ? Some(form_rule) : None;
+    };
     let design = (~op=?, id, a, b) =>
       switch (op, a, b) {
       | (_, Ok(a), Ok(b)) when trivia(a, b) != None => trivia(a, b)
+      | (_, Ok(a), Ok(b)) when converted(a, b) != None => converted(a, b)
       | (Some(Web.OutlineEdit.Indent), Ok(_), Error(_)) when stmt_row(id) =>
         Some(stmt_rule)
       | (Some(Web.OutlineEdit.Indent | MoveUp), _, _)
