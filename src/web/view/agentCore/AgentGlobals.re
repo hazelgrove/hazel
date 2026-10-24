@@ -34,6 +34,12 @@ module Model = {
     session_mode,
     [@yojson.default false] [@sexp.default false]
     collapse_top_bar: bool,
+    /* the checks on a reply's edits, switchable for ablation: no new
+       static errors; no uses left dangling by a delete */
+    [@yojson.default true] [@sexp.default true]
+    check_no_new_errors: bool,
+    [@yojson.default true] [@sexp.default true]
+    check_dangling_uses: bool,
   };
 };
 
@@ -62,6 +68,8 @@ let init = (): Model.t => {
   show_thinking: true,
   session_mode: Edit,
   collapse_top_bar: false,
+  check_no_new_errors: true,
+  check_dangling_uses: true,
 };
 
 let get_active_llm_id = (model: Model.t): option(string) => {
@@ -141,6 +149,8 @@ module Update = {
     | SetReasoningEffort(option(OpenRouter.Payload.Model.effort_level))
     | ToggleShowThinking
     | ToggleCollapseTopBar
+    | ToggleCheckNoNewErrors
+    | ToggleCheckDanglingUses
     | CycleSessionMode
     | SwitchInterface(Model.screen);
 
@@ -196,6 +206,14 @@ module Update = {
     | ToggleCollapseTopBar => {
         ...model,
         collapse_top_bar: !model.collapse_top_bar,
+      }
+    | ToggleCheckNoNewErrors => {
+        ...model,
+        check_no_new_errors: !model.check_no_new_errors,
+      }
+    | ToggleCheckDanglingUses => {
+        ...model,
+        check_dangling_uses: !model.check_dangling_uses,
       }
     | CycleSessionMode => {
         ...model,

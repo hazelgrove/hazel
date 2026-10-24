@@ -505,6 +505,10 @@ module Reply = {
       );
     let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
     CompositionGo.Reply.start(
+      ~checks={
+        no_new_errors: settings.agent_globals.check_no_new_errors,
+        dangling_uses: settings.agent_globals.check_dangling_uses,
+      },
       ~root,
       ~statics=
         lazy(

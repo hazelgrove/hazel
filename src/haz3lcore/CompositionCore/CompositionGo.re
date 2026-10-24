@@ -737,7 +737,18 @@ let diff = (~root, m: made): option((string, option(string))) =>
 /* ---- a reply ---- */
 
 module Reply = {
+  /* the checks a reply's finished change gets; rename capture always */
+  type checks = {
+    no_new_errors: bool,
+    dangling_uses: bool,
+  };
+  let all_checks = {
+    no_new_errors: true,
+    dangling_uses: true,
+  };
+
   type t = {
+    checks,
     root: Sort.t,
     start: Segment.t,
     start_statics: Lazy.t(CachedStatics.t),
@@ -750,12 +761,14 @@ module Reply = {
 
   let start =
       (
+        ~checks=all_checks,
         ~root: Sort.t,
         ~statics: Lazy.t(CachedStatics.t),
         ~statics_of: Segment.t => CachedStatics.t,
         seg: Segment.t,
       )
       : t => {
+    checks,
     root: root == Sort.Mod ? Sort.Mod : Sort.Exp,
     start: seg,
     start_statics: statics,
@@ -964,12 +977,12 @@ module Reply = {
       );
       let line = id => error_line(~root=r.root, seg, final.info_map, id);
       let checked =
-        switch (dangling(r, final)) {
+        switch (r.checks.dangling_uses ? dangling(r, final) : None) {
         | Some(f) => Error(f)
         | None =>
           switch (capture(r, final)) {
           | Some(f) => Error(f)
-          | None when n1 > n0 =>
+          | None when r.checks.no_new_errors && n1 > n0 =>
             Error({
               index: author(r, List.hd(fresh @ final.error_ids)).index,
               message:

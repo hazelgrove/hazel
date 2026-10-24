@@ -23,9 +23,12 @@ let call = (i, name, args): OpenRouter.Reply.Model.tool_call => {
 /* [calls] as one assistant reply on [code]: the program after, and the
    tool results in order */
 let reply =
-    (code: string, calls: list((string, list((string, string)))))
+    (
+      ~settings=Settings.Model.init,
+      code: string,
+      calls: list((string, list((string, string)))),
+    )
     : (string, list(AgentToolResult.tool_result)) => {
-  let settings = Settings.Model.init;
   let agent = Agent.Utils.init();
   let cell_editor =
     CellEditor.Model.mk(Editor.Model.mk(mk_zipper(code), ~root=Exp));
@@ -171,6 +174,47 @@ let transactions = [
       mentions("its result", "it would add static errors", second.content);
       mentions("its result", "a:", second.content);
       mentions("the first", "Rolled back.", List.hd(results).content);
+    },
+  ),
+  test_case(
+    "the checks switch off, for ablation",
+    `Quick,
+    () => {
+      let off = (g: AgentGlobals.Model.t => AgentGlobals.Model.t) => {
+        let s = Settings.Model.init;
+        {
+          ...s,
+          agent_globals: g(s.agent_globals),
+        };
+      };
+      let (program, results) =
+        reply(
+          ~settings=
+            off(g =>
+              {
+                ...g,
+                check_no_new_errors: false,
+              }
+            ),
+          "let a = 1 in a",
+          [("update_definition", [("path", "a"), ("code", "true + 1")])],
+        );
+      same_text("applied with its error", "let a = true + 1 in a", program);
+      mentions("result", "New:", List.hd(results).content);
+      let (program, _) =
+        reply(
+          ~settings=
+            off(g =>
+              {
+                ...g,
+                check_dangling_uses: false,
+                check_no_new_errors: false,
+              }
+            ),
+          "let a = 1 in let b = a in b",
+          [("delete_binding_clause", [("path", "a")])],
+        );
+      same_text("deleted, its use left", "let b = a in b", program);
     },
   ),
   test_case(
