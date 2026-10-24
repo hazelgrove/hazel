@@ -1,3 +1,4 @@
+# Second run: Castle too (tools/castle540.mjs, Castle.held), 4 to 256 rooms. First run (40103118398): Square only.
 # MEASURING ONLY (ticket 540): the Square rule with a square's things held in two maps (Square.held: by place, the trap doors
 # by uid), against the rule as shipped (Square.on_event, the things passed with every pull), on GitHub's machines, never the
 # laptop. An orphan branch: only this workflow runs. The driver and the rule texts are kids-choice-games' square-map-540
@@ -11,7 +12,8 @@ on:
 
 env:
   BUILD: 6fb368aeca7b5c86f7ec96b5cfe7d27f8652a677
-  KCG: 095143f84080c7fc0db1f2b842b1af371877c636
+  KCG: 4e8385421772979b0b5684d1fcf5f78aa4a086a1
+  CASTLE_SIZES: "4,8,16,32,64,128,256"
   SIZES: "4,8,16,32,64,128,256,512,1024"
 
 jobs:
@@ -50,6 +52,7 @@ jobs:
           set -euo pipefail
           for round in 1 2; do
             node --stack-size=8000 kcg/tools/square540.mjs b/trial/r25-553/hazel-lib.js kcg/dress-up/js/25-scripting.js "$SIZES" out/square-${{ matrix.job }}-$round.json
+            node --stack-size=8000 kcg/tools/castle540.mjs b/trial/r25-553/hazel-lib.js kcg/dress-up/js/25-scripting.js "$CASTLE_SIZES" out/castle-${{ matrix.job }}-$round.json
           done
       - uses: actions/upload-artifact@v4
         with:
