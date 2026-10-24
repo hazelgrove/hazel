@@ -434,6 +434,30 @@ let only_content_seg = (seg: Segment.t): option((int, Piece.t)) => {
   go(0, seg, None);
 };
 
+/* the piece of the segment holding site [s], and its index there, with
+   [members] in its module literal's brace (at [m]) */
+let with_members =
+    (s: site, (m, brace): (int, Tile.t), members: Segment.t)
+    : (int, Piece.t) => {
+  let brace' =
+    Piece.Tile({
+      ...brace,
+      children: [members],
+    });
+  switch (s) {
+  | Kid(h, t) =>
+    let (init, kid) = ListUtil.split_last(t.children);
+    (
+      h,
+      Piece.Tile({
+        ...t,
+        children: init @ [ListUtil.put_nth(m, brace', kid)],
+      }),
+    );
+  | Run(_) => (m, brace')
+  };
+};
+
 /* a module literal's brace, and its index in the segment holding it: the
    head's last child, or the member level */
 let brace_of = (arr: array(Piece.t), s: site): option((int, Tile.t)) =>
@@ -1110,24 +1134,8 @@ let module_item =
               List.hd(brace.children),
             );
           let put = (seg: Segment.t): Segment.t => {
-            let brace' =
-              Piece.Tile({
-                ...brace,
-                children: [seg],
-              });
-            switch (s) {
-            | Kid(h, t) =>
-              let (init, kid) = ListUtil.split_last(t.children);
-              ListUtil.put_nth(
-                h,
-                Piece.Tile({
-                  ...t,
-                  children: init @ [ListUtil.put_nth(m, brace', kid)],
-                }),
-                item,
-              );
-            | Run(_) => ListUtil.put_nth(m, brace', item)
-            };
+            let (i, p) = with_members(s, (m, brace), seg);
+            ListUtil.put_nth(i, p, item);
           };
           (
             slices(members),

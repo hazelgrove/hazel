@@ -66,58 +66,43 @@ let add_tool_result_to_active_subtask =
   };
 };
 
-/* an overlay tool's change: the whole program before and after */
-let mk_diff =
+/* an overlay tool's change: the program's text before and after, and
+   their diff when it changed */
+let overlay_change =
     (
       ~old_editor: Editor.t,
       ~new_editor: Editor.t,
       action: CompositionActions.action,
     )
-    : option(AgentToolResult.diff) => {
+    : (option(string), option(string), option(AgentToolResult.diff)) =>
   switch (action) {
   | SyntaxProjectorAction(_)
   | ProbeAction(_)
   | StaticsAction(_) =>
-    let old_segment =
-      Zipper.unselect_and_zip(~erase_buffer=true, old_editor.state.zipper);
-    let new_segment =
-      Zipper.unselect_and_zip(~erase_buffer=true, new_editor.state.zipper);
-    let old_s = CompositionView.Public.print_segment(old_segment);
-    let new_s = CompositionView.Public.print_segment(new_segment);
-    if (old_s == new_s) {
-      None;
-    } else {
-      Some(
-        AgentToolResult.{
-          old_text: old_s,
-          new_text: Some(new_s),
-        },
-      );
-    };
-  | _ => None
-  };
-};
-
-let mk_segment_snapshots =
-    (
-      ~old_editor: Editor.t,
-      ~new_editor: Editor.t,
-      action: CompositionActions.action,
-    )
-    : (option(string), option(string)) => {
-  switch (action) {
-  | EditorAction(_)
-  | ProbeAction(_)
-  | StaticsAction(_)
-  | SyntaxProjectorAction(_) =>
     let text = (ed: Editor.t) =>
       PersistentZipper.to_string(ed.state.zipper) ++ "\n";
-    (Some(text(old_editor)), Some(text(new_editor)));
-  | _ => (None, None)
+    let print = (ed: Editor.t) =>
+      CompositionView.Public.print_segment(
+        Zipper.unselect_and_zip(~erase_buffer=true, ed.state.zipper),
+      );
+    let (old_s, new_s) = (print(old_editor), print(new_editor));
+    (
+      Some(text(old_editor)),
+      Some(text(new_editor)),
+      old_s == new_s
+        ? None
+        : Some(
+            AgentToolResult.{
+              old_text: old_s,
+              new_text: Some(new_s),
+            },
+          ),
+    );
+  | _ => (None, None, None)
   };
-};
 
-/** Run one tool; returns chat message to append (caller batches append + one LLM request). */
+/** Run one tool, not a structural one (Reply); returns the chat message
+    to append (caller batches append + one LLM request). */
 let execute_one_tool_call =
     (
       ~tool_call: OpenRouter.Reply.Model.tool_call,
@@ -127,6 +112,8 @@ let execute_one_tool_call =
       ~chat_id: Id.t,
     )
     : (Model.t, Updated.t(CellEditor.Model.t), Message.Model.t) => {
+  let result = AgentToolResult.mk(tool_call);
+  let message = Message.Utils.mk_tool_result_message;
   switch (
     CompositionUtils.Public.action_of(
       ~tool_name=tool_call.name,
@@ -134,6 +121,13 @@ let execute_one_tool_call =
     )
   ) {
   | Action(action) =>
+    let to_subtask = (model, tool_result) =>
+      add_tool_result_to_active_subtask(
+        ~tool_result,
+        ~action,
+        ~model,
+        ~chat_id,
+      );
     switch (
       try(
         Util.PerfTimer.time("tool/handler", () =>
@@ -160,185 +154,86 @@ let execute_one_tool_call =
          (AgentSend); rebuilding it after every tool as well was most of a
          tool call's cost (statics + fold + print of the whole program) and
          nothing read it in between */
-      let success_message =
-        "The "
-        ++ tool_call.name
-        ++ " tool call was successful and has been applied to the model.";
-      let (before_text, after_text) =
-        Util.PerfTimer.time("tool/snapshots", () =>
-          mk_segment_snapshots(
+      switch (
+        Util.PerfTimer.time("tool/diff", () =>
+          overlay_change(
             ~old_editor=cell_editor.editor.editor,
             ~new_editor=editor.editor,
             action,
           )
-        );
-      let diff_result =
-        try(
-          Ok(
-            Util.PerfTimer.time("tool/diff", () =>
-              mk_diff(
-                ~old_editor=cell_editor.editor.editor,
-                ~new_editor=editor.editor,
-                action,
-              )
-            ),
-          )
-        ) {
-        | exn => Error(exn)
-        };
-      switch (diff_result) {
-      | Error(exn) =>
-        /* mk_diff can raise (e.g. path_to_id); report to agent, keep state */
-        let msg = Printexc.to_string(exn);
-        let tool_result: AgentToolResult.tool_result = {
-          tool_call,
-          success: false,
-          skipped: false,
-          expanded: false,
-          diff: None,
-          before_text:
-            Some(
-              PersistentZipper.to_string(
-                cell_editor.editor.editor.state.zipper,
-              )
-              ++ "\n",
-            ),
-          after_text: None,
-          content: msg,
-          content_is_payload: false,
-          steps: [],
-        };
-        let model =
-          add_tool_result_to_active_subtask(
-            ~tool_result,
-            ~action,
-            ~model,
-            ~chat_id,
+        )
+      ) {
+      | (before, after, diff) =>
+        let tr =
+          result(
+            ~success=true,
+            ~diff,
+            ~before,
+            ~after,
+            "The "
+            ++ tool_call.name
+            ++ " tool call was successful and has been applied to the model.",
           );
         (
-          model,
-          cell_editor |> Updated.return_quiet,
-          Message.Utils.mk_tool_result_message(tool_result),
-        );
-      | Ok(diff) =>
-        let tool_result: AgentToolResult.tool_result = {
-          tool_call,
-          success: true,
-          skipped: false,
-          expanded: false,
-          diff,
-          before_text,
-          after_text,
-          content: success_message,
-          content_is_payload: false,
-          steps: [],
-        };
-        let model =
-          add_tool_result_to_active_subtask(
-            ~tool_result,
-            ~action,
-            ~model,
-            ~chat_id,
-          );
-        (
-          model,
+          to_subtask(model, tr),
           {
             ...cell_editor,
             editor,
           }
           |> Updated.return,
-          Message.Utils.mk_tool_result_message(tool_result),
+          message(tr),
         );
-      };
-    | Error(error) =>
-      switch (error) {
-      | Failure.Info(msg) =>
-        let before_text =
-          switch (action) {
-          | EditorAction(_) =>
-            Some(
-              PersistentZipper.to_string(
-                cell_editor.editor.editor.state.zipper,
-              )
-              ++ "\n",
-            )
-          | _ => None
-          };
-        let tool_result: AgentToolResult.tool_result = {
-          tool_call,
-          success: false,
-          skipped: false,
-          expanded: false,
-          diff: None,
-          before_text,
-          after_text: None,
-          content: msg,
-          content_is_payload: false,
-          steps: [],
-        };
-        let model =
-          add_tool_result_to_active_subtask(
-            ~tool_result,
-            ~action,
-            ~model,
-            ~chat_id,
+      | exception exn =>
+        /* report to agent, keep state */
+        let tr =
+          result(
+            ~success=false,
+            ~before=
+              Some(
+                PersistentZipper.to_string(
+                  cell_editor.editor.editor.state.zipper,
+                )
+                ++ "\n",
+              ),
+            Printexc.to_string(exn),
           );
         (
-          model,
+          to_subtask(model, tr),
           cell_editor |> Updated.return_quiet,
-          Message.Utils.mk_tool_result_message(tool_result),
+          message(tr),
         );
       }
-    }
+    | Error(Failure.Info(msg)) =>
+      let tr = result(~success=false, msg);
+      (
+        to_subtask(model, tr),
+        cell_editor |> Updated.return_quiet,
+        message(tr),
+      );
+    };
   | DocsRequest(topic) =>
     /* Answered from the DocPacks registry; no editor change */
-    let (success, content) =
+    let tr =
       switch (DocPacks.lookup(topic)) {
-      | Some(pack) => (true, pack.body)
-      | None => (
-          false,
+      | Some(pack) => result(~success=true, ~payload=true, pack.body)
+      | None =>
+        result(
+          ~success=false,
+          ~payload=true,
           "Unknown docs topic \""
           ++ topic
           ++ "\". Available topics:\n"
           ++ DocPacks.topic_lines,
         )
       };
-    let tool_result: AgentToolResult.tool_result = {
-      tool_call,
-      success,
-      skipped: false,
-      expanded: false,
-      diff: None,
-      before_text: None,
-      after_text: None,
-      content,
-      content_is_payload: true,
-      steps: [],
-    };
-    (
-      model,
-      cell_editor |> Updated.return_quiet,
-      Message.Utils.mk_tool_result_message(tool_result),
-    );
+    (model, cell_editor |> Updated.return_quiet, message(tr));
   | Failure(msg) =>
-    let tool_result: AgentToolResult.tool_result = {
-      tool_call,
-      success: false,
-      skipped: false,
-      expanded: false,
-      diff: None,
-      before_text: None,
-      after_text: None,
-      content: msg,
-      content_is_payload: false,
-      steps: [],
-    };
     // Do not add unparseable tool calls to subtask tool results for now
     (
       model,
       cell_editor |> Updated.return_quiet,
-      Message.Utils.mk_tool_result_message(tool_result),
-    );
+      message(result(~success=false, msg)),
+    )
   };
 };
 
@@ -549,9 +444,6 @@ module Reply = {
     };
   };
 
-  let text_of = (seg: Segment.t): string =>
-    PersistentZipper.to_string(Zipper.unzip(seg)) ++ "\n";
-
   let result =
       (
         ~tool_call: OpenRouter.Reply.Model.tool_call,
@@ -559,41 +451,28 @@ module Reply = {
         ~report: string,
         m: CompositionGo.made,
       )
-      : AgentToolResult.tool_result => {
-    tool_call,
-    success: true,
-    skipped: false,
-    expanded: false,
-    diff:
-      Option.map(
-        ((old_text, new_text)) =>
-          AgentToolResult.{
-            old_text,
-            new_text,
-          },
-        CompositionGo.diff(~root, m),
-      ),
-    before_text: Some(text_of(m.before)),
-    after_text: Some(text_of(m.change.program)),
-    content: tool_call.name ++ ": " ++ report,
-    content_is_payload: true,
-    steps: CompositionGo.step_records(~root, m),
-  };
+      : AgentToolResult.tool_result =>
+    AgentToolResult.mk(
+      tool_call,
+      ~success=true,
+      ~payload=true,
+      ~diff=
+        Option.map(
+          ((old_text, new_text)) =>
+            AgentToolResult.{
+              old_text,
+              new_text,
+            },
+          CompositionGo.diff(~root, m),
+        ),
+      ~before=Some(AgentToolResult.snapshot_text(m.before)),
+      ~after=Some(AgentToolResult.snapshot_text(m.change.program)),
+      ~steps=CompositionGo.step_records(~root, m),
+      tool_call.name ++ ": " ++ report,
+    );
 
-  let failed =
-      (~tool_call: OpenRouter.Reply.Model.tool_call, ~before, content: string)
-      : AgentToolResult.tool_result => {
-    tool_call,
-    success: false,
-    skipped: false,
-    expanded: false,
-    diff: None,
-    before_text: before,
-    after_text: None,
-    content,
-    content_is_payload: false,
-    steps: [],
-  };
+  let failed = (tool_call, content: string): AgentToolResult.tool_result =>
+    AgentToolResult.mk(tool_call, ~success=false, content);
 
   type slot =
     /* a structural call, its result at the reply's end */
@@ -771,14 +650,14 @@ module Reply = {
           | (Edit(tc), Some((f, message))) =>
             Message.Utils.mk_tool_result_message(
               f == i
-                ? failed(~tool_call=tc, ~before=None, message ++ undone(f))
-                : rolled_back(f, failed(~tool_call=tc, ~before=None, "")),
+                ? failed(tc, message ++ undone(f))
+                : rolled_back(f, failed(tc, "")),
             )
           | (Edit(tc), None) =>
             Message.Utils.mk_tool_result_message(
               Option.value(
                 List.assoc_opt(i, results),
-                ~default=failed(~tool_call=tc, ~before=None, "No result."),
+                ~default=failed(tc, "No result."),
               ),
             )
           /* an overlay's change goes with the reply's edits */

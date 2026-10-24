@@ -119,18 +119,38 @@ let tool_result_of_sexp = sexp =>
     ),
   );
 
-let mk_skipped = (tool_call: OpenRouter.Reply.Model.tool_call): tool_result => {
+let mk =
+    (
+      tool_call: OpenRouter.Reply.Model.tool_call,
+      ~success: bool,
+      ~skipped=false,
+      ~payload=false,
+      ~diff=None,
+      ~before=None,
+      ~after=None,
+      ~steps=[],
+      content: string,
+    )
+    : tool_result => {
   tool_call,
-  success: false,
-  skipped: true,
+  success,
+  skipped,
   expanded: false,
-  diff: None,
-  before_text: None,
-  after_text: None,
-  content: skipped_due_to_prior_failure_message,
-  content_is_payload: false,
-  steps: [],
+  diff,
+  before_text: before,
+  after_text: after,
+  content,
+  content_is_payload: payload,
+  steps,
 };
+
+let mk_skipped = (tool_call: OpenRouter.Reply.Model.tool_call): tool_result =>
+  mk(
+    tool_call,
+    ~success=false,
+    ~skipped=true,
+    skipped_due_to_prior_failure_message,
+  );
 
 /* a snapshot back into syntax (timeline navigation) */
 let segment_of_text = (text: string): Segment.t =>

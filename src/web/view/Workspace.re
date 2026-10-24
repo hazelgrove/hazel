@@ -315,30 +315,33 @@ let item_ctx =
   };
 };
 
-/* a divided program's whole-program result taking [ra] */
-let divided_result =
-    (~settings: Settings.t, ra, program: Program.t): Updated.t(Program.t) =>
-  switch (program) {
-  | Divided(d) =>
-    Updated.(
-      {
-        let* result =
-          EvalResult.Update.update(
-            ~settings={
-              ...settings,
-              core: {
-                ...settings.core,
-                assist: false,
-              },
+/* a cell action on a whole program; while divided only its
+   whole-program result takes actions */
+let program_action =
+    (~settings: Settings.t, a: CellEditor.Update.t, program: Program.t)
+    : Updated.t(Program.t) =>
+  Updated.(
+    switch (program, a) {
+    | (Whole(editor), _) =>
+      let* editor = CellEditor.Update.update(~settings, a, editor);
+      Program.Whole(editor);
+    | (Divided(d), ResultAction(ra)) =>
+      let* result =
+        EvalResult.Update.update(
+          ~settings={
+            ...settings,
+            core: {
+              ...settings.core,
+              assist: false,
             },
-            ra,
-            Divided.result(d),
-          );
-        Program.Divided(Divided.with_result(result, d));
-      }
-    )
-  | Whole(_) => Updated.return_quiet(program)
-  };
+          },
+          ra,
+          Divided.result(d),
+        );
+      Program.Divided(Divided.with_result(result, d));
+    | (Divided(_), MainEditor(_)) => return_quiet(program)
+    }
+  );
 
 let update_code =
     (
@@ -564,36 +567,17 @@ let update_code =
     };
   | Stack(id, side, a) => cell_update(id, side, a)
   | CellAction(a) =>
-    switch (code.program) {
-    | Whole(editor) =>
-      let* editor = CellEditor.Update.update(~settings, a, editor);
-      {
+    let* program = program_action(~settings, a, code.program);
+    program === code.program
+      ? code
+      : {
         ...code,
-        program: Whole(editor),
+        program,
       };
-    | Divided(_) =>
-      /* while divided only the whole-program result takes actions */
-      switch (a) {
-      | ResultAction(ra) =>
-        let* program = divided_result(~settings, ra, code.program);
-        {
-          ...code,
-          program,
-        };
-      | MainEditor(_) => code |> return_quiet
-      }
-    }
   | LensResult(ra) =>
     switch (code.lens) {
     | Some(l) =>
-      let* program =
-        switch (l.program) {
-        | Whole(editor) =>
-          let* editor =
-            CellEditor.Update.update(~settings, ResultAction(ra), editor);
-          Program.Whole(editor);
-        | Divided(_) => divided_result(~settings, ra, l.program)
-        };
+      let* program = program_action(~settings, ResultAction(ra), l.program);
       {
         ...code,
         lens:
