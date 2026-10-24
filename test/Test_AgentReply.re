@@ -494,8 +494,93 @@ let moves = [
   ),
 ];
 
+/* [ce] evaluated, synchronously */
+let evaluated = (ce: CellEditor.Model.t): CellEditor.Model.t =>
+  CellEditor.Update.calculate(
+    ~settings=Language.CoreSettings.on,
+    ~is_edited=true,
+    ~statics_mode=Force,
+    ~queue_worker=None,
+    ~stitch=x => x,
+    ce,
+  );
+
+let test_results = [
+  test_case(
+    "a reply's last edit result takes the tests' change",
+    `Quick,
+    () => {
+      let settings = Settings.Model.init;
+      let agent = Agent.Utils.init();
+      let chat_id = agent.chat_system.current;
+      let ce =
+        evaluated(
+          CellEditor.Model.mk(
+            Editor.Model.mk(
+              mk_zipper(
+                "let double = fun x -> 3 * x in\ntest double(1) == 2 end;\nhint \"zero\" test double(0) == 0 end;\ndouble(5)",
+              ),
+              ~root=Exp,
+            ),
+          ),
+        );
+      let (agent', ce') =
+        Agent.Update.update(
+          Agent.Update.Action.HandleLLMResponse(
+            {
+              content: "",
+              tool_calls: [
+                call(
+                  0,
+                  "update_definition",
+                  [("path", "double"), ("code", "fun x -> 2 * x")],
+                ),
+              ],
+              usage: None,
+              reasoning: None,
+            },
+            chat_id,
+            agent.main_llm_seq,
+            0,
+          ),
+          agent,
+          ce,
+          settings,
+          _ =>
+          ()
+        );
+      check(bool, "pending", true, AgentToolExec.Tests.pending^ != None);
+      let after = evaluated(ce'.model);
+      let chat_system =
+        AgentToolExec.Tests.report(
+          ~chat_id,
+          EvalResult.Model.test_results(after.result),
+          agent'.chat_system,
+        );
+      check(bool, "taken", true, AgentToolExec.Tests.pending^ == None);
+      let result =
+        Chat.Utils.linearize(
+          ChatSystem.Utils.find_chat(chat_id, chat_system),
+        )
+        |> List.filter_map((m: Message.Model.t) =>
+             switch (m.role) {
+             | ToolResult(tr) => Some(tr.content)
+             | _ => None
+             }
+           )
+        |> List.hd;
+      mentions(
+        "result",
+        "Tests changed: test#1 failing → passing.",
+        result,
+      );
+    },
+  ),
+];
+
 let tests = [
   ("AgentReply.Transactions", transactions),
+  ("AgentReply.TestResults", test_results),
   ("AgentReply.DeletesAndRenames", deletes_and_renames),
   ("AgentReply.TestsByHint", tests_by_hint),
   ("AgentReply.Move", moves),

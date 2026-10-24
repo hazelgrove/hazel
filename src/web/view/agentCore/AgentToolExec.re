@@ -510,3 +510,136 @@ module Edits = {
     steps: [],
   };
 };
+
+/* What a reply's edits did to the tests: evaluation runs after the reply,
+   so its last edit's result takes the line once the follow-up request
+   finds the evaluation settled (AgentSend.handle_dispatch_send) */
+module Tests = {
+  type pending = {
+    chat_id: Id.t,
+    /* the reply's last edit's result message */
+    message: Id.t,
+    root: Sort.t,
+    before_program: Segment.t,
+    before: option(Language.TestResults.t),
+    after_program: Segment.t,
+  };
+  let pending: ref(option(pending)) = ref(None);
+
+  let status = (s: Language.TestStatus.t): string =>
+    switch (s) {
+    | Pass => "passing"
+    | Fail => "failing"
+    | Indet => "indeterminate"
+    };
+
+  /* each test by path, its status; [r]'s tests in [seg] */
+  let by_path =
+      (~root, seg: Segment.t, r: Language.TestResults.t)
+      : list((Id.t, string, Language.TestStatus.t)) =>
+    List.map2(
+      ((id, _), s) =>
+        (
+          id,
+          Option.value(
+            CompositionGo.where_is(~root, seg, id),
+            ~default="a test",
+          ),
+          s,
+        ),
+      r.test_map,
+      r.statuses,
+    );
+
+  /* the tests whose status changed, by path; a test is matched by id,
+     else by path */
+  let changed =
+      (
+        ~root,
+        ~before_program,
+        ~after_program,
+        before: option(Language.TestResults.t),
+        after: Language.TestResults.t,
+      )
+      : string => {
+    let was =
+      Option.fold(~none=[], ~some=by_path(~root, before_program), before);
+    let lines =
+      List.filter_map(
+        ((id, path, s)) => {
+          let prev =
+            switch (List.find_opt(((id', _, _)) => id' == id, was)) {
+            | Some((_, _, s')) => Some(s')
+            | None =>
+              Option.map(
+                ((_, _, s')) => s',
+                List.find_opt(((_, p, _)) => p == path, was),
+              )
+            };
+          switch (prev) {
+          | Some(s') when s' == s => None
+          | Some(s') =>
+            Some(path ++ " " ++ status(s') ++ " → " ++ status(s))
+          | None => Some(path ++ " new, " ++ status(s))
+          };
+        },
+        by_path(~root, after_program, after),
+      );
+    switch (lines, after.total) {
+    | (_, 0) => "Tests: none."
+    | ([], n) =>
+      "Tests: no change ("
+      ++ string_of_int(after.passing)
+      ++ " of "
+      ++ string_of_int(n)
+      ++ " passing)."
+    | (lines, _) => "Tests changed: " ++ String.concat("; ", lines) ++ "."
+    };
+  };
+
+  /* the pending reply's result, given the line, once its chat's program
+     has settled results */
+  let report =
+      (
+        ~chat_id: Id.t,
+        results: option(Language.TestResults.t),
+        chat_system: ChatSystem.Model.t,
+      )
+      : ChatSystem.Model.t =>
+    switch (pending^, results) {
+    | (Some(p), Some(after)) when p.chat_id == chat_id =>
+      pending := None;
+      let chat = ChatSystem.Utils.find_chat(chat_id, chat_system);
+      switch (Chat.Utils.find_message_opt(p.message, chat)) {
+      | Some({role: ToolResult(tr), _} as msg) =>
+        let line =
+          changed(
+            ~root=p.root,
+            ~before_program=p.before_program,
+            ~after_program=p.after_program,
+            p.before,
+            after,
+          );
+        let made =
+          Message.Utils.mk_tool_result_message({
+            ...tr,
+            content: tr.content ++ " " ++ line,
+          });
+        ChatSystem.Utils.update_chat(
+          Chat.Utils.update_message(
+            {
+              ...made,
+              id: msg.id,
+              timestamp: msg.timestamp,
+              children: msg.children,
+              current_child: msg.current_child,
+            },
+            chat,
+          ),
+          chat_system,
+        );
+      | _ => chat_system
+      };
+    | _ => chat_system
+    };
+};

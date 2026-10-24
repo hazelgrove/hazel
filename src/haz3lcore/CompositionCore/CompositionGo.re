@@ -199,6 +199,13 @@ let elsewhere = (p: program, el: string): string =>
 
 let resolve = (p: program, path: string): result(P.found, string) =>
   switch (P.resolve_string(~root=p.root, p.seg, path)) {
+  | Ok({part: Some(part), _}) =>
+    Error(
+      "\""
+      ++ path
+      ++ "\": the tool picks the part itself; name the entry, without :"
+      ++ P.part_word(part),
+    )
   | Ok(f) => Ok(f)
   | Error(Unknown(_, el, _) as e) =>
     Error(P.message(e) ++ elsewhere(p, el))
@@ -360,6 +367,24 @@ let rec past_tests = (lv: S.level, k: int): int =>
   k + 1 < Array.length(lv.spans) && P.entry(lv, k + 1).kind == Test
     ? past_tests(lv, k + 1) : k;
 
+/* the place [where] names relative to the entry at [path]; an empty path
+   is the program's top level */
+let place_at =
+    (p: program, where: Action.Structural.insert_target, path: string)
+    : result(K.place, string) =>
+  switch (where, path) {
+  | (Before | FirstIn, "") => Ok(FirstIn(Top))
+  | (After | LastIn, "") => Ok(at_end(p))
+  | _ =>
+    let* f = resolve(p, path);
+    switch (where) {
+    | Before => Ok(K.Before(f.id))
+    | After => Ok(K.After(f.id))
+    | FirstIn => Result.map(~f=b => K.FirstIn(b), block_of(path, f))
+    | LastIn => Result.map(~f=b => K.LastIn(b), block_of(path, f))
+    };
+  };
+
 let rec plan_call = (p: program, call: call): result(plan, string) => {
   let text = code => K.Text(Unicode.nfc_outside_strings(code));
   switch (call) {
@@ -501,19 +526,8 @@ let rec plan_call = (p: program, call: call): result(plan, string) => {
   | Delete(Body, path) => plan_call(p, Update(Body, path, "?"))
   | Delete(Definition | Pattern, _) =>
     Error("Deleting a definition or pattern alone is not supported.")
-  | Insert(Before | FirstIn, "", code) =>
-    Ok(plan(Added, [Insert(FirstIn(Top), text(code))]))
-  | Insert(After | LastIn, "", code) =>
-    Ok(plan(Added, [Insert(at_end(p), text(code))]))
   | Insert(where, path, code) =>
-    let* f = resolve(p, path);
-    let* place =
-      switch (where) {
-      | Before => Ok(K.Before(f.id))
-      | After => Ok(K.After(f.id))
-      | FirstIn => Result.map(~f=b => K.FirstIn(b), block_of(path, f))
-      | LastIn => Result.map(~f=b => K.LastIn(b), block_of(path, f))
-      };
+    let* place = place_at(p, where, path);
     Ok(plan(Added, [Insert(place, text(code))]));
   | InsertTest(None, code) =>
     Ok(plan(Added, [Insert(at_end(p), text(test_text(code)))]))
@@ -522,43 +536,14 @@ let rec plan_call = (p: program, call: call): result(plan, string) => {
     let (lv, k) = level_of(f);
     let after = lv.spans[past_tests(lv, k)].anchor;
     Ok(plan(Added, [Insert(After(after), text(test_text(code)))]));
+  | Move(_, Before | After, "") =>
+    Error("move needs an entry to go before or after")
   | Move(path, where, dest) =>
     let* f = resolve(p, path);
-    let* place =
-      switch (where, dest) {
-      | (FirstIn, "") => Ok(K.FirstIn(Top))
-      | (LastIn, "") =>
-        switch (at_end(p)) {
-        | Before(t) when t == f.id => Ok(K.LastIn(Top))
-        | place => Ok(place)
-        }
-      | (_, "") => Error("move needs a target entry to go before or after")
-      | _ =>
-        let* d = resolve(p, dest);
-        switch (where) {
-        | Before => Ok(K.Before(d.id))
-        | After => Ok(K.After(d.id))
-        | FirstIn => Result.map(~f=b => K.FirstIn(b), block_of(dest, d))
-        | LastIn => Result.map(~f=b => K.LastIn(b), block_of(dest, d))
-        };
-      };
+    let* place = place_at(p, where, dest);
     Ok(plan(~target=f.id, Moved, [Move(f.id, place)]));
   };
 };
-
-let tool_name = (call: call): string =>
-  switch (call) {
-  | Update(Definition, _, _) => "update_definition"
-  | Update(Body, _, _) => "update_body"
-  | Update(Pattern, _, _) => "update_pattern"
-  | Update(BindingClause, _, _) => "update_binding_clause"
-  | Delete(BindingClause, _) => "delete_binding_clause"
-  | Delete(_, _) => "delete_body"
-  | Insert(Before | FirstIn, _, _) => "insert_before"
-  | Insert(After | LastIn, _, _) => "insert_after"
-  | InsertTest(_) => "insert_test"
-  | Move(_) => "move"
-  };
 
 let code_of = (call: call): option(string) =>
   switch (call) {
@@ -842,6 +827,12 @@ module Reply = {
     };
   };
 
+  /* the entries holding pieces [ids], by path */
+  let where_all = (r: t, ids: list(Id.t)): string =>
+    List.filter_map(where_is(~root=r.root, program(r)), ids)
+    |> List.sort_uniq(compare)
+    |> String.concat(", ");
+
   /* a delete's uses still in the program, now unbound */
   let dangling = (r: t, final: CachedStatics.t): option(failure) => {
     let seg = program(r);
@@ -874,23 +865,7 @@ module Reply = {
               "Not deleted: it would leave uses dangling. Delete or change them first, in the same reply:"
               ++ lines(
                    List.map(
-                     ((x, left)) =>
-                       x
-                       ++ ", used at "
-                       ++ String.concat(
-                            ", ",
-                            List.sort_uniq(
-                              compare,
-                              List.map(
-                                id =>
-                                  Option.value(
-                                    where_is(~root=r.root, seg, id),
-                                    ~default="?",
-                                  ),
-                                left,
-                              ),
-                            ),
-                          ),
+                     ((x, left)) => x ++ ", used at " ++ where_all(r, left),
                      found,
                    ),
                  ),
@@ -935,13 +910,7 @@ module Reply = {
                   "Not renamed to "
                   ++ name
                   ++ ": names would change what they refer to, at "
-                  ++ String.concat(
-                       ", ",
-                       List.sort_uniq(
-                         compare,
-                         List.filter_map(where_is(~root=r.root, seg), ids),
-                       ),
-                     )
+                  ++ where_all(r, ids)
                   ++ ". Choose a name not in use there.",
               })
             };

@@ -409,6 +409,17 @@ let handle_dispatch_send =
     let model = {
       ...model,
       pending_dispatch_send: None,
+      chat_system:
+        eval_settled(editor.result)
+          ? AgentToolExec.Tests.report(
+              ~chat_id,
+              EvalResult.Model.test_results(editor.result),
+              model.chat_system,
+            )
+          : {
+            AgentToolExec.Tests.pending := None;
+            model.chat_system;
+          },
     };
     let model =
       Utils.update_context(

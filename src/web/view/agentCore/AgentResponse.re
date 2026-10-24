@@ -365,6 +365,32 @@ let handle_llm_response =
             List.rev(tool_msgs_rev),
           );
         let tool_msgs = List.rev(tool_msgs_rev);
+        /* the applied edits' last result takes the tests' change once
+           evaluation settles */
+        switch (
+          edits,
+          failure,
+          List.find_opt(
+            (msg: Message.Model.t) =>
+              switch (msg.role) {
+              | ToolResult(tr) => tr.success && is_edit(tr)
+              | _ => false
+              },
+            tool_msgs_rev,
+          ),
+        ) {
+        | (Some(e), None, Some(msg)) =>
+          AgentToolExec.Tests.pending :=
+            Some({
+              chat_id,
+              message: msg.id,
+              root: e.reply.root,
+              before_program: e.reply.start,
+              before: EvalResult.Model.test_results(cell_editor.result),
+              after_program: CompositionGo.Reply.program(e.reply),
+            })
+        | _ => ()
+        };
         let model_with_tool_msgs =
           List.fold_left(
             (m, msg) => Utils.append_message(~chat_id, msg, m),
