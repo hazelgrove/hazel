@@ -69,20 +69,19 @@ let apply_overlay_action =
   /* the editor's statics when they describe this program, else per item
      (DefStatics), as the edit check computes them */
   let info_map =
-    switch (
-      CachedStatics.for_zipper(~settings=settings.core, z, editor.statics)
-    ) {
-    | Some(st) when st.info_map != Id.Map.empty => st.info_map
-    | _ =>
-      CompositionGo.statics_of(
-        ~settings=settings.core,
-        ~root,
-        ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
-        ~shared=editor.editor.syntax.t_cache,
-        seg,
-      ).
-        info_map
-    };
+    CompositionGo.statics_for(
+      ~settings=settings.core,
+      ~statics_of=
+        CompositionGo.statics_of(
+          ~settings=settings.core,
+          ~root,
+          ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+          ~shared=editor.editor.syntax.t_cache,
+        ),
+      z,
+      editor.statics,
+    ).
+      info_map;
 
   /* the editor's syntax when it describes [z], else made with its
      incremental caches */
@@ -148,13 +147,7 @@ let apply_overlay_action =
       List.filter_map(
         path =>
           switch (Outline.resolve(outline, path)) {
-          | Ok(e) =>
-            Some(
-              {
-                id: e.id,
-                path: Outline.path_string(e),
-              }: AgentContext.Model.entry,
-            )
+          | Ok(e) => Some(AgentContext.Model.of_outline(e))
           | Error(_) => None
           },
         List.rev(paths_to_expand),

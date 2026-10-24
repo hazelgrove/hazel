@@ -124,13 +124,7 @@ let span_test = (lv: S.level, k: int): option(Id.t) => {
    a Mod root's top level included, a final `;`-less test does too, but an
    expression block's tail is its value and never does */
 let in_run = (lv: S.level, k: int): bool => {
-  let members =
-    switch (lv.owner) {
-    | Top => lv.sort == Sort.Mod
-    | Members(_)
-    | Chain(_)
-    | Block(_) => is_members(lv)
-    };
+  let members = lv.sort == Sort.Mod;
   span_test(lv, k) != None
   && (
     switch (lv.spans[k].kind) {

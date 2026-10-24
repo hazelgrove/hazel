@@ -391,40 +391,18 @@ let changes_editor = (tr: AgentToolResult.tool_result): bool =>
    began with, and every result says which call failed */
 module Reply = {
   let start =
-      (~settings: Settings.t, ce: CellEditor.Model.t): CompositionGo.Reply.t => {
-    let z = ce.editor.editor.state.zipper;
-    let root = ce.editor.editor.root;
-    let statics_of =
-      CompositionGo.statics_of(
-        ~settings=settings.core,
-        ~root,
-        ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
-        ~shared=ce.editor.editor.syntax.t_cache,
-      );
-    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
-    CompositionGo.Reply.start(
+      (~settings: Settings.t, ce: CellEditor.Model.t): CompositionGo.Reply.t =>
+    CompositionGo.Reply.of_zipper(
       ~checks={
         no_new_errors: settings.agent_globals.check_no_new_errors,
         dangling_uses: settings.agent_globals.check_dangling_uses,
       },
-      ~root,
-      ~statics=
-        lazy(
-          switch (
-            CachedStatics.for_zipper(
-              ~settings=settings.core,
-              z,
-              ce.editor.statics,
-            )
-          ) {
-          | Some(st) when st.info_map != Id.Map.empty => st
-          | _ => statics_of(seg)
-          }
-        ),
-      ~statics_of,
-      seg,
+      ~settings=settings.core,
+      ~root=ce.editor.editor.root,
+      ~shared=ce.editor.editor.syntax.t_cache,
+      ce.editor.editor.state.zipper,
+      ce.editor.statics,
     );
-  };
 
   /* [ce] showing [seg], its caret and probes kept */
   let showing = (ce: CellEditor.Model.t, seg: Segment.t): CellEditor.Model.t => {

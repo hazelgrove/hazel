@@ -12,6 +12,11 @@ module Model = {
     path: string,
   };
 
+  let of_outline = (x: Outline.entry): entry => {
+    id: x.id,
+    path: Outline.path_string(x),
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type current = {opened: list(entry)};
 
@@ -70,10 +75,7 @@ module Utils = {
         (acc, e) =>
           switch (found(e)) {
           | Some(x) when !List.exists((y: Model.entry) => y.id == x.id, acc) => [
-              {
-                Model.id: x.id,
-                path: Outline.path_string(x),
-              },
+              Model.of_outline(x),
               ...acc,
             ]
           | _ => acc
@@ -125,15 +127,14 @@ module Update = {
       | errors => Error(String.concat("\n", errors))
       };
     };
-    let as_model = (x: Outline.entry): Model.entry => {
-      id: x.id,
-      path: Outline.path_string(x),
-    };
     switch (action) {
     | Expand([])
     | Collapse([]) => Error("Give at least one path.")
     | Expand(paths) =>
-      Stdlib.Result.map(xs => Open(List.map(as_model, xs)), entries(paths))
+      Stdlib.Result.map(
+        xs => Open(List.map(Model.of_outline, xs)),
+        entries(paths),
+      )
     | Collapse(paths) =>
       Stdlib.Result.map(
         xs => Close(List.map((x: Outline.entry) => x.id, xs)),
