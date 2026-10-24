@@ -84,21 +84,6 @@ module Utils = {
     {opened: List.rev(opened)};
   };
 
-  let add = (xs: list(Outline.entry), m: Model.t): Model.t => {
-    opened:
-      m.opened
-      @ List.filter_map(
-          (x: Outline.entry) =>
-            List.exists((e: Model.entry) => e.id == x.id, m.opened)
-              ? None
-              : Some({
-                  Model.id: x.id,
-                  path: Outline.path_string(x),
-                }),
-          xs,
-        ),
-  };
-
   let remove = (ids: list(Id.t), m: Model.t): Model.t => {
     opened: List.filter((e: Model.entry) => !List.mem(e.id, ids), m.opened),
   };
