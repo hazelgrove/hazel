@@ -301,10 +301,12 @@ let binder_of =
       }
     | Error(_) => None
     };
-  switch (named, binders, f.kind) {
-  | (Some(b), _, _)
-  | (None, [b], _) => Ok(b)
-  | (None, _, Def | Type | Module) =>
+  switch (f.kind, named, binders) {
+  | (Def | Type | Module, Some(b), _)
+  | (Def | Type | Module, None, [b]) => Ok(b)
+  | (Def | Type | Module, None, []) =>
+    Error("\"" ++ path ++ "\" binds no name; replace its :pattern")
+  | (Def | Type | Module, None, _) =>
     Error(
       "\""
       ++ path
@@ -312,7 +314,7 @@ let binder_of =
       ++ String.concat(", ", List.map(fst, binders))
       ++ ": name the one to rename",
     )
-  | (None, _, kind) =>
+  | (kind, _, _) =>
     Error(
       "\""
       ++ path

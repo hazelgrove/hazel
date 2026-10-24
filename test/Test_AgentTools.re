@@ -3667,6 +3667,30 @@ let rename_and_path_safety_tests = (
   "AgentTools.RenameAndPathSafety",
   [
     test_case(
+      "rename refuses what has no name, and a non-name",
+      `Quick,
+      () => {
+        expect_failure_mentioning(
+          "let a = 1 in test a == 1 end; a",
+          Rename("test#1", "b"),
+          ["is a test", "only a definition, type or module"],
+          "rename_test",
+        );
+        expect_failure_mentioning(
+          "let ? = 5 in 3",
+          Rename("let#1", "x"),
+          ["binds no name"],
+          "rename_binderless",
+        );
+        expect_failure_mentioning(
+          "let a = 1 in a",
+          Rename("a", "B"),
+          ["is not a value's name"],
+          "rename_non_name",
+        );
+      },
+    ),
+    test_case(
       "sanity: normal rename still works",
       `Quick,
       () => {
