@@ -530,6 +530,16 @@ module Update = {
               ? Some(Status.of_statics(~names?, cell.statics)) : model.status,
           edited: changed ? Some(text) : model.edited,
           edits: changed ? model.edits + 1 : model.edits,
+          /* (Matthew 2026-10-23: "goto Thing didn't work here") a goto
+             answered in this cell moves the caret where the frame cannot
+             scroll to it, the page sizing the frame to its code: the caret's
+             place told, as after a reveal, for the page to scroll there */
+          reveals:
+            switch (action) {
+            | Perform(Move(Goal(BindingSiteOfIndicatedVar))) =>
+              model.reveals + 1
+            | _ => model.reveals
+            },
         };
       /* A goto definition with its binding site outside this cell (a
          type of the program's start, a member of another module): the
