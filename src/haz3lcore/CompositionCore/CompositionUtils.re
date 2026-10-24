@@ -101,6 +101,15 @@ module Local = {
       try(
         {
           open API.Json.Parsers;
+          /* without a path, at the program's start or end */
+          let insert = where =>
+            EditorAction(
+              Insert(
+                where,
+                Option.value(get_optional_string(args, "path"), ~default=""),
+                get_string(args, "code"),
+              ),
+            );
           let action =
             switch (tool_name) {
             | "expand" =>
@@ -173,29 +182,8 @@ module Local = {
                   get_string(args, "code"),
                 ),
               )
-            /* without a path, at the program's start or end */
-            | "insert_after" =>
-              EditorAction(
-                Insert(
-                  After,
-                  Option.value(
-                    get_optional_string(args, "path"),
-                    ~default="",
-                  ),
-                  get_string(args, "code"),
-                ),
-              )
-            | "insert_before" =>
-              EditorAction(
-                Insert(
-                  Before,
-                  Option.value(
-                    get_optional_string(args, "path"),
-                    ~default="",
-                  ),
-                  get_string(args, "code"),
-                ),
-              )
+            | "insert_after" => insert(After)
+            | "insert_before" => insert(Before)
             | "insert_test" =>
               EditorAction(
                 InsertTest(

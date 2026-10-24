@@ -434,6 +434,30 @@ let only_content_seg = (seg: Segment.t): option((int, Piece.t)) => {
   go(0, seg, None);
 };
 
+/* the piece of the segment holding site [s], and its index there, with
+   [members] in its module literal's brace (at [m]) */
+let with_members =
+    (s: site, (m, brace): (int, Tile.t), members: Segment.t)
+    : (int, Piece.t) => {
+  let brace' =
+    Piece.Tile({
+      ...brace,
+      children: [members],
+    });
+  switch (s) {
+  | Kid(h, t) =>
+    let (init, kid) = ListUtil.split_last(t.children);
+    (
+      h,
+      Piece.Tile({
+        ...t,
+        children: init @ [ListUtil.put_nth(m, brace', kid)],
+      }),
+    );
+  | Run(_) => (m, brace')
+  };
+};
+
 /* a module literal's brace, and its index in the segment holding it: the
    head's last child, or the member level */
 let brace_of = (arr: array(Piece.t), s: site): option((int, Tile.t)) =>
@@ -826,20 +850,34 @@ let outer = (lv: level): option(int) =>
   | Block(_) => Some(lv.indent)
   };
 
-/* span [k]'s definition body, if it is a definition */
-let site_of = (lv: level, k: int): option(site) => {
+/* span [k]'s head tile and its index, when it is a definition or a
+   directive */
+let head = (lv: level, k: int): option((int, Tile.t)) => {
   let sp = lv.spans[k];
   let (c0, c1) = sp.core;
-  let rec head = i =>
+  let rec go = i =>
     i >= c1
-      ? None : Piece.id(lv.pieces[i]) == sp.anchor ? Some(i) : head(i + 1);
+      ? None
+      : (
+        switch (lv.pieces[i]) {
+        | Tile(t) when t.id == sp.anchor => Some((i, t))
+        | _ => go(i + 1)
+        }
+      );
   switch (sp.kind) {
-  | Def => Option.bind(head(c0), h => site_at(lv.pieces, h, c1))
-  | Use
+  | Def
+  | Use => go(c0)
   | Stmt
   | Tail => None
   };
 };
+
+/* span [k]'s definition body, if it is a definition */
+let site_of = (lv: level, k: int): option(site) =>
+  switch (lv.spans[k].kind, head(lv, k)) {
+  | (Def, Some((h, _))) => site_at(lv.pieces, h, snd(lv.spans[k].core))
+  | _ => None
+  };
 
 /* the member level of a module literal's members, in a level starting at
    [line] whose site [s] holds the brace at [m]: its `{`'s line's level, a
@@ -1020,6 +1058,12 @@ let slice = (lv: level, k: int): Segment.t => {
   Array.to_list(Array.sub(lv.pieces, sp.lo, sp.hi - sp.lo));
 };
 
+/* span [k]'s core: the item without edge whitespace or its `;` */
+let core = (lv: level, k: int): Segment.t => {
+  let (c0, c1) = lv.spans[k].core;
+  Array.to_list(Array.sub(lv.pieces, c0, c1 - c0));
+};
+
 /* span [k] of a member level is an unfinished member whose open form
    takes the members after its member line: Read cuts it there */
 let runs_past_line = (lv: level, k: int): bool =>
@@ -1090,24 +1134,8 @@ let module_item =
               List.hd(brace.children),
             );
           let put = (seg: Segment.t): Segment.t => {
-            let brace' =
-              Piece.Tile({
-                ...brace,
-                children: [seg],
-              });
-            switch (s) {
-            | Kid(h, t) =>
-              let (init, kid) = ListUtil.split_last(t.children);
-              ListUtil.put_nth(
-                h,
-                Piece.Tile({
-                  ...t,
-                  children: init @ [ListUtil.put_nth(m, brace', kid)],
-                }),
-                item,
-              );
-            | Run(_) => ListUtil.put_nth(m, brace', item)
-            };
+            let (i, p) = with_members(s, (m, brace), seg);
+            ListUtil.put_nth(i, p, item);
           };
           (
             slices(members),

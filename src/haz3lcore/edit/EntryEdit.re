@@ -534,19 +534,14 @@ let root_id = (ps: Segment.t): option(Id.t) =>
     }
   };
 
-/* parts of a definition, for planners and path resolvers: its head, its
-   pattern's node, its definition's, and its body's: the definition past
-   its `fun` heads */
-[@deriving (show({with_path: false}), eq)]
-type part =
-  | Head
-  | Pattern
-  | Definition
-  | Body;
+/* parts of a definition, as paths name them: its head, its pattern's
+   node, its definition's, and its body's: the definition past its `fun`
+   heads */
+type part = EntryPath.part = | Pattern | Definition | Body | Head;
 
 let rec past_fun_heads = (ps: Segment.t): Segment.t =>
   switch (ps) {
-  | [p, ...rest] when Piece.is_secondary(p) || L.is_fun_head(p) =>
+  | [p, ...rest] when Piece.is_secondary(p) || ItemSpans.is_fun_head(p) =>
     past_fun_heads(rest)
   | _ => ps
   };
@@ -595,17 +590,7 @@ let done_ =
 /* the program's top level as a block, and the program around it */
 let top_block = (c: ctx, seg: Segment.t): (L.block, Segment.t => Segment.t) => {
   let lv = ItemSpans.top(~root=c.root, seg);
-  (
-    L.block(~in_module=c.mod_root, lv),
-    L.rebuild(~seg, [Nav.step(~from=Top, lv, 0)]),
-  );
-};
-
-/* the last entry's slot, or above the result */
-let last_slot = (b: L.block): (bool, int) => {
-  let n = Array.length(b.sl);
-  !b.in_module && n > 0 && !L.movable(b, n - 1)
-    ? (false, n - 1) : (true, n - 1);
+  (L.block(lv), L.rebuild(~seg, [Nav.step(~from=Top, lv, 0)]));
 };
 
 /* a head holding members, checked: a module's, or a signature's */
@@ -676,6 +661,44 @@ let is_first = (place: place): bool =>
   | LastIn(_) => false
   };
 
+/* [item] (in [blk]'s form) first or last in [blk], coming as [arrival] */
+let into =
+    (
+      c: ctx,
+      blk: block,
+      ~first: bool,
+      ~arrival: L.arrival,
+      ~stmt: bool,
+      item: Segment.t,
+      seg: Segment.t,
+    )
+    : option(Segment.t) => {
+  let mod_root = c.mod_root;
+  switch (blk, arrival) {
+  | (Members(m), Fresh(src_indent) | Moved(_, src_indent)) =>
+    switch (L.into_members(~mod_root, ~first, ~arrival, m, item, seg)) {
+    | Some(_) as r => r
+    | None => L.into_empty(~mod_root, ~src_indent?, m, item, seg)
+    }
+  | (Body(d), _) =>
+    L.body_last(~mod_root, ~first, ~arrival, ~stmt, d, item, seg)
+  | (Top, _) =>
+    let (b, rebuild) = top_block(c, seg);
+    switch (arrival) {
+    | Fresh(_) when Array.length(b.sl) == 0 => Some(item @ seg)
+    | _ => Option.map(rebuild, L.at_edge(b, ~first, ~arrival, item))
+    };
+  };
+};
+
+/* entries of [blk] are in member form */
+let member_form = (c: ctx, blk: block): bool =>
+  switch (blk) {
+  | Members(_) => true
+  | Body(_) => false
+  | Top => c.mod_root
+  };
+
 let insert = (c: ctx, op, place: place, src: source, seg: Segment.t): step => {
   let mod_root = c.mod_root;
   let lands = (~member, f) => {
@@ -708,57 +731,31 @@ let insert = (c: ctx, op, place: place, src: source, seg: Segment.t): step => {
         |> Option.map(e.rebuild);
       },
     );
-  | FirstIn(Members(m))
-  | LastIn(Members(m)) =>
-    module_head(c, m, seg);
-    lands(~member=true, (item, _, src_indent) =>
-      switch (
-        L.into_members(
-          ~mod_root,
-          ~first=is_first(place),
-          ~arrival=Fresh(src_indent),
-          m,
-          item,
-          seg,
-        )
-      ) {
-      | Some(_) as r => r
-      | None => L.into_empty(~mod_root, ~src_indent?, m, item, seg)
-      }
-    );
-  | FirstIn(Body(d))
-  | LastIn(Body(d)) =>
+  | FirstIn(blk)
+  | LastIn(blk) =>
+    switch (blk) {
+    | Members(m) => module_head(c, m, seg)
+    | Body(_)
+    | Top => ()
+    };
     lands(
-      ~member=false,
+      ~member=member_form(c, blk),
       (item, stmt, src_indent) => {
-        value_head(c, ~stmt, d, seg);
-        L.body_last(
-          ~mod_root,
+        switch (blk) {
+        | Body(d) => value_head(c, ~stmt, d, seg)
+        | Members(_)
+        | Top => ()
+        };
+        into(
+          c,
+          blk,
           ~first=is_first(place),
           ~arrival=Fresh(src_indent),
           ~stmt,
-          d,
           item,
           seg,
         );
       },
-    )
-  | FirstIn(Top)
-  | LastIn(Top) =>
-    let (b, rebuild) = top_block(c, seg);
-    lands(~member=b.in_module, (item, _, src_indent) =>
-      if (Array.length(b.sl) == 0) {
-        Some(item @ seg);
-      } else {
-        let pos =
-          switch (place, last_slot(b)) {
-          | (FirstIn(_), _) => L.Before(0)
-          | (_, (true, k)) => After(k)
-          | (_, (false, k)) => Before(k)
-          };
-        L.insert(b, ~pos, ~member=b.in_module, ~src_indent?, item)
-        |> Option.map(rebuild);
-      }
     );
   };
 };
@@ -836,73 +833,26 @@ let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
         )
       );
     };
-  | FirstIn(Members(m))
-  | LastIn(Members(m)) =>
-    if (m == x || inside(m)) {
-      refuse(~id=m, IntoItself);
+  | FirstIn(blk)
+  | LastIn(blk) =>
+    switch (blk) {
+    | Members(h)
+    | Body(h) when h == x || inside(h) => refuse(~id=h, IntoItself)
+    | Members(m) => module_head(c, m, seg)
+    | Body(d) => value_head(c, ~stmt, d, seg)
+    | Top => ()
     };
-    module_head(c, m, seg);
-    carry(~member=true, (tk, item, src_indent) =>
-      switch (
-        L.into_members(
-          ~mod_root,
-          ~first=is_first(place),
-          ~arrival=Moved(tk.origin, src_indent),
-          m,
-          item,
-          tk.rest,
-        )
-      ) {
-      | Some(_) as r => r
-      | None => L.into_empty(~mod_root, ~src_indent?, m, item, tk.rest)
-      }
-    );
-  | FirstIn(Body(d))
-  | LastIn(Body(d)) =>
-    if (d == x || inside(d)) {
-      refuse(~id=d, IntoItself);
-    };
-    value_head(c, ~stmt, d, seg);
-    carry(~member=false, (tk, item, src_indent) =>
-      L.body_last(
-        ~mod_root,
+    carry(~member=member_form(c, blk), (tk, item, src_indent) =>
+      into(
+        c,
+        blk,
         ~first=is_first(place),
         ~arrival=Moved(tk.origin, src_indent),
         ~stmt,
-        d,
         item,
         tk.rest,
       )
     );
-  | FirstIn(Top)
-  | LastIn(Top) =>
-    carry(
-      ~member=c.mod_root,
-      (tk, item, src_indent) => {
-        let (b, rebuild) = top_block(c, tk.rest);
-        let n = Array.length(b.sl);
-        let at =
-          switch (place, last_slot(b)) {
-          | _ when n == 0 => L.Above(0)
-          | (FirstIn(_), _) => Above(0)
-          | (_, (true, _)) => Above(n)
-          | (_, (false, k)) => Above(k)
-          };
-        Some(
-          rebuild(
-            L.put(
-              b,
-              ~at,
-              ~gap=Option.value(tk.origin.gap, ~default=[L.linebreak()]),
-              ~offset=tk.origin.offset,
-              ~src_indent,
-              ~member=b.in_module,
-              item,
-            ),
-          ),
-        );
-      },
-    )
   };
 };
 
@@ -986,15 +936,7 @@ let token = (c: ctx, op, x: Id.t, txt: string, seg: Segment.t): step => {
   let (up, level, i) = Nav.home(~seg, path);
   let level' =
     switch (List.nth(level, i)) {
-    | Tile({form: Tok(_), _} as t) =>
-      ListUtil.put_nth(
-        i,
-        Piece.Tile({
-          ...t,
-          form: Tok(txt),
-        }),
-        level,
-      )
+    /* a plain token's text is a token run's (transaction) */
     | Tile(t)
         when Nav.is_def_head(t) && List.mem(txt, ["let", "type", "module"]) =>
       need(~id=x, Unreadable, rekind(txt, level, i, t))
@@ -1011,16 +953,14 @@ let token = (c: ctx, op, x: Id.t, txt: string, seg: Segment.t): step => {
 /* an entry named by its anchor or first tile, rather than a node in it */
 let names_entry = (c: ctx, x: Id.t, seg: Segment.t): option(entry) =>
   switch (L.locate(~mod_root=c.mod_root, x, seg)) {
-  | Some((b, j, rebuild)) =>
-    let sp = b.lv.spans[j];
-    sp.anchor == x || sp.first == Some(x)
-      ? Some({
-          b,
-          j,
-          rebuild,
-        })
-      : None;
-  | None => None
+  | Some((b, j, rebuild))
+      when b.lv.spans[j].anchor == x || b.lv.spans[j].first == Some(x) =>
+    Some({
+      b,
+      j,
+      rebuild,
+    })
+  | _ => None
   };
 
 let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step =>
@@ -1144,38 +1084,11 @@ let relabel = (run: list((Id.t, string, list(Nav.step))), seg: Segment.t) => {
       Id.Set.empty,
       run,
     );
-  let rec walk = (ps: Segment.t) => Nav.map_sharing(piece, ps)
-  and piece = (p: Piece.t) =>
-    switch (p) {
-    | Tile(t) when Id.Set.mem(t.id, on_path) =>
-      let children = Nav.map_sharing(walk, t.children);
-      switch (t.form, Id.Map.find_opt(t.id, texts)) {
-      | (Tok(_), Some(txt)) =>
-        Piece.Tile({
-          ...t,
-          form: Tok(txt),
-          children,
-        })
-      | _ =>
-        children === t.children
-          ? p
-          : Piece.Tile({
-              ...t,
-              children,
-            })
-      };
-    | Projector(pr) when Id.Set.mem(pr.id, on_path) =>
-      switch (walk([pr.syntax])) {
-      | [syntax] when syntax !== pr.syntax =>
-        Piece.Projector({
-          ...pr,
-          syntax,
-        })
-      | _ => p
-      }
-    | _ => p
-    };
-  walk(seg);
+  Rename.relabel_by(
+    ~within=id => Id.Set.mem(id, on_path),
+    id => Id.Map.find_opt(id, texts),
+    seg,
+  );
 };
 
 /* [ops] in order on the program [seg] (at [root]), each on the one before
@@ -1202,7 +1115,7 @@ let transaction =
       })
     | [op, ...rest] =>
       switch (token_run(c, seg, ops)) {
-      | ([_, _, ..._] as run, rest) =>
+      | ([_, ..._] as run, rest) =>
         let program = relabel(run, seg);
         let made =
           List.map(

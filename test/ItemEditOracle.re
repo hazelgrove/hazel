@@ -658,7 +658,7 @@ let into_empty =
       : None;
   };
 
-let is_fun_head = EntryLayout.is_fun_head;
+let is_fun_head = ItemSpans.is_fun_head;
 let wrapped_fun = EntryLayout.wrapped_fun;
 
 /* [item] (in let-in form) as value [d]'s last local definition: just

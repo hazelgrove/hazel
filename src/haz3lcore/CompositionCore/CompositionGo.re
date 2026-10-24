@@ -69,6 +69,21 @@ let statics_of =
   );
 };
 
+/* [z]'s program's statics: the editor's [statics] when they describe it,
+   else [statics_of] it */
+let statics_for =
+    (
+      ~settings: CoreSettings.t,
+      ~statics_of: Segment.t => CachedStatics.t,
+      z: Zipper.t,
+      statics: CachedStatics.t,
+    )
+    : CachedStatics.t =>
+  switch (CachedStatics.for_zipper(~settings, z, statics)) {
+  | Some(st) when st.info_map != Id.Map.empty => st
+  | _ => statics_of(Zipper.unselect_and_zip(~erase_buffer=true, z))
+  };
+
 /* ---- the code a call brings ---- */
 
 /* form delimiters that lex like names: as a binder, the code misreads */
@@ -218,15 +233,6 @@ let resolve = (p: program, path: string): result(P.found, string) =>
 
 let level_of = (f: P.found): (S.level, int) => ListUtil.last(f.steps);
 
-/* a level of module members: a module body's, or a Mod root's top */
-let members_level = (p: program, lv: S.level): bool =>
-  switch (lv.owner) {
-  | Members(_) => true
-  | Top => p.root == Sort.Mod
-  | Chain(_)
-  | Block(_) => false
-  };
-
 let kind_name = (k: P.kind): string =>
   switch (k) {
   | Tail => "result"
@@ -234,20 +240,12 @@ let kind_name = (k: P.kind): string =>
   | k => P.kind_word(k)
   };
 
-let kernel_part = (part: P.part): K.part =>
-  switch (part) {
-  | Pattern => Pattern
-  | Definition => Definition
-  | Body => Body
-  | Head => Head
-  };
-
 let part = (p: program, path: string, f: P.found, part: P.part) =>
   switch (f.kind) {
   | Def
   | Type
   | Module =>
-    switch (K.part(~root=p.root, f.id, kernel_part(part), p.seg)) {
+    switch (K.part(~root=p.root, f.id, part, p.seg)) {
     | Some(id) => Ok(id)
     | None =>
       Error("\"" ++ path ++ "\" has no " ++ P.part_word(part) ++ " to edit")
@@ -306,9 +304,12 @@ let is_name = (kind: P.kind, s: string): bool =>
     }
   );
 
+/* [binder]'s uses in [seg] by [info_map]: tokens of [seg] */
+let uses_in = (~root, ~info_map, seg: Segment.t, binder: Id.t): list(Id.t) =>
+  Rename.references(~info_map, binder)
+  |> List.filter(id => K.is_token(~root, id, seg));
 let uses = (p: program, binder: Id.t): list(Id.t) =>
-  Rename.references(~info_map=Lazy.force(p.info_map), binder)
-  |> List.filter(id => K.is_token(~root=p.root, id, p.seg));
+  uses_in(~root=p.root, ~info_map=Lazy.force(p.info_map), p.seg, binder);
 
 /* a pattern's tokens in order, a name's with its id */
 let rec tokens = (seg: Segment.t): list((string, option(Id.t))) =>
@@ -408,7 +409,8 @@ let rec plan_call = (p: program, call: call): result(plan, string) => {
   | Update(Body, path, code) =>
     let* f = resolve(p, path);
     let (lv, k) = level_of(f);
-    if (members_level(p, lv)) {
+    /* module members: a module body's, or a Mod root's top */
+    if (lv.sort == Sort.Mod) {
       let* body = part(p, path, f, Body);
       Ok(
         plan(
@@ -700,7 +702,7 @@ let text_at = (~root, seg: Segment.t, id: Id.t): option(string) => {
   switch (P.find(~root, seg, id)) {
   | Some(steps) =>
     let (lv, k) = ListUtil.last(steps);
-    Some(print(Nav.core(lv, k)));
+    Some(print(S.core(lv, k)));
   | None =>
     switch (K.node(~root, id, seg)) {
     | n => Some(print(K.node_pieces(n)))
@@ -778,6 +780,34 @@ module Reply = {
     made: [],
     statics,
     statics_of,
+  };
+
+  /* a reply on [z]'s program, the editor's [statics] standing in for its
+     own when they describe it */
+  let of_zipper =
+      (
+        ~checks=?,
+        ~settings: CoreSettings.t,
+        ~root: Sort.t,
+        ~shared=?,
+        z: Zipper.t,
+        statics: CachedStatics.t,
+      )
+      : t => {
+    let statics_of =
+      statics_of(
+        ~settings,
+        ~root,
+        ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+        ~shared?,
+      );
+    start(
+      ~checks?,
+      ~root,
+      ~statics=lazy(statics_for(~settings, ~statics_of, z, statics)),
+      ~statics_of,
+      Zipper.unselect_and_zip(~erase_buffer=true, z),
+    );
   };
 
   let program = (r: t): Segment.t =>
@@ -916,8 +946,7 @@ module Reply = {
         List.find_map(
           ((binder, name, refs)) => {
             let now =
-              Rename.references(~info_map=final.info_map, binder)
-              |> List.filter(id => K.is_token(~root=r.root, id, seg));
+              uses_in(~root=r.root, ~info_map=final.info_map, seg, binder);
             let lost =
               List.filter(
                 id =>
@@ -1124,28 +1153,14 @@ module Public = {
         call: call,
       )
       : result(Zipper.t, Action.Failure.t) => {
-    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
     let root = root == Sort.Mod ? Sort.Mod : Sort.Exp;
-    let statics_of =
-      statics_of(
-        ~settings,
-        ~root,
-        ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
-      );
-    let start =
-      lazy(
-        switch (CachedStatics.for_zipper(~settings, z, statics)) {
-        | Some(st) when st.info_map != Id.Map.empty => st
-        | _ => statics_of(seg)
-        }
-      );
-    let r = Reply.start(~root, ~statics=start, ~statics_of, seg);
+    let r = Reply.of_zipper(~settings, ~root, z, statics);
     switch (Reply.add(r, ~index=0, call)) {
     | Error(msg) => Error(Composition_action_failure(msg))
     | Ok(r) =>
       switch (Reply.finish(r)) {
       | Error(f) => Error(Composition_action_failure(f.message))
-      | Ok(o) => Ok(o.program === seg ? z : rezip(z, o.program))
+      | Ok(o) => Ok(o.program === r.start ? z : rezip(z, o.program))
       }
     };
   };

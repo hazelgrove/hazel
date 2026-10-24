@@ -114,24 +114,10 @@ let parts = (lv: S.level, k: int): option((Segment.t, Segment.t)) =>
   };
 
 /* span [k]'s head tile: a definition's or directive's */
-let head = (lv: S.level, k: int): option(Tile.t) => {
-  let (c0, c1) = lv.spans[k].core;
-  let rec go = i =>
-    i >= c1
-      ? None
-      : (
-        switch (lv.pieces[i]) {
-        | Tile(t) when t.id == lv.spans[k].anchor => Some(t)
-        | _ => go(i + 1)
-        }
-      );
-  go(c0);
-};
+let head = (lv: S.level, k: int): option(Tile.t) =>
+  Option.map(snd, S.head(lv, k));
 
-let core = (lv: S.level, k: int): Segment.t => {
-  let (c0, c1) = lv.spans[k].core;
-  Array.to_list(Array.sub(lv.pieces, c0, c1 - c0));
-};
+let core = S.core;
 
 let test_tile = (lv: S.level, k: int): option(Id.t) => {
   let (c0, c1) = lv.spans[k].core;
