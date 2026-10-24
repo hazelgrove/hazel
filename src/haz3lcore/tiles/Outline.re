@@ -162,17 +162,25 @@ let entry_at =
 
 /* each level's entries as last built, kept while ItemSpans keeps the
    level: an entry whose path and children are the same is the same
-   object, so readers memoized on entries (the sidebar's rows) hit */
-let levels: Swept.t(P.key, (S.level, array(entry), list(entry))) =
+   object, so readers memoized on entries (the sidebar's rows) hit. Below
+   an entry named by its level alone at every step ([own]), now and when
+   it was built, nothing outside its pieces bears on the paths: with the
+   same path it's kept whole, unvisited */
+let levels: Swept.t(P.key, (S.level, bool, array(entry), list(entry))) =
   Swept.mk();
 
 let rec level =
-        (top: S.level, rev_steps: list((S.level, int)), lv: S.level)
+        (
+          ~own: bool,
+          top: S.level,
+          rev_steps: list((S.level, int)),
+          lv: S.level,
+        )
         : list(entry) => {
   let key = P.key_of(lv);
   let prev =
     switch (Swept.find_opt(levels, key)) {
-    | Some((lv', es, l)) when lv' === lv => Some((es, l))
+    | Some((lv', own', es, l)) when lv' === lv => Some((own', es, l))
     | _ => None
     };
   let es =
@@ -181,27 +189,32 @@ let rec level =
       k => {
         let steps = [(lv, k), ...rev_steps];
         let path = P.path_of(top, List.rev(steps));
-        let children =
+        let own_k = own && P.unshared(lv, k);
+        let children = () =>
           switch (P.sub(lv, k)) {
-          | Some(below) => level(top, steps, below)
+          | Some(below) => level(~own=own_k, top, steps, below)
           | None => []
           };
         switch (prev) {
-        | Some((es, _)) when es[k].children === children && es[k].path == path => es[k]
-        | Some((es, _)) => {
-            ...es[k],
-            path,
-            children,
-          }
-        | None => entry_at(lv, k, ~path, ~children)
+        | Some((true, es, _)) when own_k && es[k].path == path => es[k]
+        | Some((_, es, _)) =>
+          let children = children();
+          es[k].children === children && es[k].path == path
+            ? es[k]
+            : {
+              ...es[k],
+              path,
+              children,
+            };
+        | None => entry_at(lv, k, ~path, ~children=children())
         };
       },
     );
   switch (prev) {
-  | Some((es', l)) when Array.for_all2((===), es, es') => l
+  | Some((own', es', l)) when own' == own && Array.for_all2((===), es, es') => l
   | _ =>
     let l = Array.to_list(es);
-    Swept.replace(levels, key, (lv, es, l));
+    Swept.replace(levels, key, (lv, own, es, l));
     l;
   };
 };
@@ -215,7 +228,7 @@ let build = (~root: Sort.t, seg: Segment.t): t => {
   {
     root,
     seg,
-    entries: level(top, [], top),
+    entries: level(~own=true, top, [], top),
   };
 };
 

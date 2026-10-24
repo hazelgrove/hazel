@@ -400,6 +400,57 @@ let outline_kept = () => {
   );
 };
 
+/* entries kept across an edit have the paths a fresh build gives:
+   removing the second `M` drops the first one's `#1` below it */
+let kept_paths = () => {
+  let seg =
+    CorpusUtil.seg_of(
+      "module M = {\n  module X = {\n    let y = 1\n  };\n  let w = 2\n} in\nmodule M = {\n  module X = {\n    let z = 1\n  }\n} in\n1",
+    );
+  let rec copy = (seg: Segment.t): Segment.t =>
+    List.map(
+      fun
+      | Piece.Tile(t) =>
+        Piece.Tile({
+          ...t,
+          children: List.map(copy, t.children),
+        })
+      | p => p,
+      seg,
+    );
+  let paths = (seg: Segment.t) =>
+    List.map(
+      (e: Outline.entry) => Outline.path_string(e),
+      Outline.all(Outline.of_program(~root=Exp, seg)),
+    );
+  let without_second =
+    switch (seg) {
+    | [m1, ...rest] =>
+      let rec drop = (ps: Segment.t) =>
+        switch (ps) {
+        | [Piece.Tile(t), ...rest] when Tile.token(t, 0) == "module" => rest
+        | [_, ...rest] => drop(rest)
+        | [] => []
+        };
+      [m1, ...drop(rest)];
+    | [] => fail("empty")
+    };
+  ignore(paths(seg));
+  check(
+    list(string),
+    "the second M removed",
+    paths(copy(without_second)),
+    paths(without_second),
+  );
+  check(
+    bool,
+    "M/X loses its #1",
+    true,
+    List.mem("M/X", paths(without_second)),
+  );
+  check(list(string), "and back", paths(copy(seg)), paths(seg));
+};
+
 /* where a saved name leaves text mode's caret: where the keys put it
    (↑ while renaming), in row mode on the renamed row (Esc), on a new line
    below a new definition (Enter, its keyword leaving); a refused save
@@ -1250,6 +1301,11 @@ let tests = [
         "a caret move keeps the outline, an edit its untouched entries",
         `Quick,
         outline_kept,
+      ),
+      test_case(
+        "kept entries have a fresh build's paths",
+        `Quick,
+        kept_paths,
       ),
     ],
   ),

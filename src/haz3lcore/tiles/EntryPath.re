@@ -432,6 +432,17 @@ let explicit = (ix: index, k: int): elem => {
   };
 };
 
+/* span [k] is the only entry of its level its element picks: no `#k` */
+let unshared = (lv: S.level, k: int): bool =>
+  switch (explicit(index(lv), k)) {
+  | Name(_, Some(_))
+  | Hint(_, Some(_)) => false
+  | Name(_, None)
+  | Hint(_, None)
+  | Nth(_)
+  | Tail => true
+  };
+
 /* every element that picks an entry of the level, in program order: an
    entry's explicit element, then its other names */
 let candidates = (ix: index): list(string) =>
