@@ -773,9 +773,10 @@ module Reply = {
   let made = (r: t): list(made) => List.rev(r.made);
 
   /* [call], the reply's [index]th tool call, on the program as the calls
-     before it left it */
-  let add = (r: t, ~index: int, call: call): result(t, string) => {
-    let seg = program(r);
+     before it left it, or as [seg] when the reply's other tools changed
+     it since */
+  let add =
+      (r: t, ~index: int, ~seg=program(r), call: call): result(t, string) => {
     let p = {
       root: r.root,
       seg,
