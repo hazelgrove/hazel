@@ -3147,8 +3147,8 @@ let tool_json_tests = (
       `Quick,
       () => {
         let tools = CompositionUtils.Public.tools;
-        /* 37 while DocPacks is empty (read_docs is not offered) */
-        check(int, "tool count", 37, List.length(tools));
+        /* 38 while DocPacks is empty (read_docs is not offered) */
+        check(int, "tool count", 38, List.length(tools));
       },
     ),
     test_case(
@@ -3362,6 +3362,7 @@ let tool_json_tests = (
             "insert_after",
             "insert_before",
             "insert_test",
+            "move",
           ],
           ToolUtils.edit_tool_names,
         );
@@ -4703,9 +4704,11 @@ let whitespace_normalization_tests = (
           true,
           trailing_newlines(rendered) <= 1,
         );
+        /* the kernel lays each new entry out like its neighbours: on
+           this one-line chain, inline */
         check_rendered_exact(
           "chained insert_after spacing",
-          "let a = 1 in\n\nlet b = 2 in\n\nlet c = 3 in\n\nlet d = 4 in\n?",
+          "let a = 1 in let b = 2 in let c = 3 in let d = 4 in ?",
           rendered,
         );
       },
@@ -4721,16 +4724,27 @@ let whitespace_normalization_tests = (
       }
     }),
     test_case(
-      "one blank line between consecutive top-level bindings", `Quick, () => {
-      check_rendered_exact(
-        "inter-binding blank line",
-        "let a = 1 in let b = 2 in\n\nlet c = 3 in\na + b",
-        apply_and_render(
-          "let a = 1 in let b = 2 in a + b",
-          Insert(After, "b", "let c = 3 in"),
-        ),
-      )
-    }),
+      "a new binding takes its neighbours' spacing",
+      `Quick,
+      () => {
+        check_rendered_exact(
+          "inline chain",
+          "let a = 1 in let b = 2 in let c = 3 in a + b",
+          apply_and_render(
+            "let a = 1 in let b = 2 in a + b",
+            Insert(After, "b", "let c = 3 in"),
+          ),
+        );
+        check_rendered_exact(
+          "blank lines between",
+          "let a = 1 in\n\nlet b = 2 in\n\nlet c = 3 in\n\na + b",
+          apply_and_render(
+            "let a = 1 in\n\nlet b = 2 in\n\na + b",
+            Insert(After, "b", "let c = 3 in"),
+          ),
+        );
+      },
+    ),
     test_case(
       "normalization is idempotent across edits",
       `Quick,
