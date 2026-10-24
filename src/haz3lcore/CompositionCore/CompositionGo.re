@@ -626,6 +626,94 @@ type made = {
   change: K.change,
 };
 
+/* the text of what [id] names in [seg]: an entry, or a node */
+let text_at = (~root, seg: Segment.t, id: Id.t): option(string) =>
+  switch (pieces_at(~root, seg, id)) {
+  | [] => None
+  | ps => Some(String.trim(Printer.of_segment(~holes="?", ps)))
+  };
+
+/* the call's edited region before and after it, as text */
+let diff = (~root, m: made): option((string, option(string))) =>
+  switch (m.change.steps) {
+  | [] => None
+  | [first, ..._] =>
+    let row = ListUtil.hd_opt(first.added);
+    switch (m.plan.what, m.plan.target) {
+    | (Added, _) =>
+      Some((
+        "",
+        Option.bind(
+          ListUtil.hd_opt(first.added),
+          text_at(~root, m.change.program),
+        ),
+      ))
+    | (Deleted, Some(t)) =>
+      Option.map(old => (old, None), text_at(~root, m.before, t))
+    | (_, Some(t)) =>
+      let after = Option.value(row, ~default=t);
+      Option.map(
+        old => (old, text_at(~root, m.change.program, after)),
+        text_at(~root, m.before, t),
+      );
+    | (_, None) => None
+    };
+  };
+
+/* the lines of [old] that [now] doesn't keep, in order, indentation
+   aside: those off a longest common subsequence; None past a size where
+   that costs too much to find */
+let removed_lines = (old: string, now: string): option(list(string)) => {
+  let lines = s =>
+    String.split_on_char('\n', s)
+    |> List.map(String.trim)
+    |> List.filter(l => l != "")
+    |> Array.of_list;
+  let (a, b) = (lines(old), lines(now));
+  let (n, m) = (Array.length(a), Array.length(b));
+  if (n * m > 250000) {
+    None;
+  } else {
+    /* lcs[i][j]: of a's lines from i and b's from j */
+    let lcs = Array.make_matrix(n + 1, m + 1, 0);
+    for (i in n - 1 downto 0) {
+      for (j in m - 1 downto 0) {
+        lcs[i][j] =
+          a[i] == b[j]
+            ? lcs[i + 1][j + 1] + 1 : max(lcs[i + 1][j], lcs[i][j + 1]);
+      };
+    };
+    let rec go = (i, j) =>
+      if (i == n) {
+        [];
+      } else if (j < m && a[i] == b[j]) {
+        go(i + 1, j + 1);
+      } else if (j < m && lcs[i][j + 1] >= lcs[i + 1][j]) {
+        go(i, j + 1);
+      } else {
+        [a[i], ...go(i + 1, j)];
+      };
+    Some(go(0, 0));
+  };
+};
+
+/* a replace's removed lines, for its result: a few, else how many */
+let removal = (~root, m: made): string =>
+  switch (diff(~root, m)) {
+  | Some((old, Some(now))) =>
+    switch (removed_lines(old, now)) {
+    | Some([]) => ""
+    | Some(ls) when List.length(ls) <= 10 =>
+      String.concat("", List.map(l => "\n- " ++ l, ls))
+    | Some(ls) => " " ++ string_of_int(List.length(ls)) ++ " lines replaced."
+    | None =>
+      " "
+      ++ string_of_int(List.length(String.split_on_char('\n', old)))
+      ++ " lines replaced."
+    }
+  | _ => ""
+  };
+
 let report = (~root, m: made): string => {
   let after = m.change.program;
   let was =
@@ -659,9 +747,16 @@ let report = (~root, m: made): string => {
       | _ => ""
       }
     )
-    ++ ".";
+    ++ "."
+    ++ removal(~root, m);
   | Replaced(Some(part)) =>
-    "Replaced " ++ was ++ ":" ++ P.part_word(part) ++ now_target() ++ "."
+    "Replaced "
+    ++ was
+    ++ ":"
+    ++ P.part_word(part)
+    ++ now_target()
+    ++ "."
+    ++ removal(~root, m)
   | Renamed(old, name, n) =>
     let uses =
       switch (n) {
@@ -677,41 +772,6 @@ let report = (~root, m: made): string => {
   | Moved(whereto) => "Moved " ++ was ++ " " ++ whereto ++ now_target() ++ "."
   };
 };
-
-/* the text of what [id] names in [seg]: an entry, or a node */
-let text_at = (~root, seg: Segment.t, id: Id.t): option(string) =>
-  switch (pieces_at(~root, seg, id)) {
-  | [] => None
-  | ps => Some(String.trim(Printer.of_segment(~holes="?", ps)))
-  };
-
-/* the call's edited region before and after it, as text */
-let diff = (~root, m: made): option((string, option(string))) =>
-  switch (m.change.steps) {
-  | [] => None
-  | [first, ..._] as steps =>
-    let last = ListUtil.last(steps);
-    let row = ListUtil.hd_opt(last.added);
-    switch (m.plan.what, m.plan.target) {
-    | (Added, _) =>
-      Some((
-        "",
-        Option.bind(
-          ListUtil.hd_opt(first.added),
-          text_at(~root, m.change.program),
-        ),
-      ))
-    | (Deleted, Some(t)) =>
-      Option.map(old => (old, None), text_at(~root, m.before, t))
-    | (_, Some(t)) =>
-      let after = Option.value(row, ~default=t);
-      Option.map(
-        old => (old, text_at(~root, m.change.program, after)),
-        text_at(~root, m.before, t),
-      );
-    | (_, None) => None
-    };
-  };
 
 /* ---- a reply ---- */
 
@@ -1179,12 +1239,11 @@ module Reply = {
         statics: final,
         reports:
           List.map(
-            (m: made) =>
-              (
-                m.index,
-                report(~root=r.root, m)
-                ++ (m.index == last.index ? " " ++ errors : ""),
-              ),
+            (m: made) => {
+              let said = report(~root=r.root, m);
+              let sep = String.contains(said, '\n') ? "\n" : " ";
+              (m.index, said ++ (m.index == last.index ? sep ++ errors : ""));
+            },
             made(r),
           ),
       });
