@@ -12,17 +12,36 @@ open Language;
 module O = Outline;
 module S = ItemSpans;
 
+/* what the view shows; each can be switched off for ablation */
 type settings = {
   /* modules list their members this many levels down; deeper ones show
      as `{ ⋯ }` */
   module_depth: int,
   /* type definitions in full in the map, else spliced as other bodies */
   types_in_full: bool,
+  /* the map's annotations: a definition's uses, an entry's errors (with
+     the first's message), a test's status, the program's value */
+  uses: bool,
+  errors: bool,
+  test_status: bool,
+  value: bool,
+  /* the open entries': errors marked under their terms, probe values,
+     tests' marks */
+  carets: bool,
+  probes: bool,
+  test_marks: bool,
 };
 
 let default_settings = {
   module_depth: 2,
   types_in_full: true,
+  uses: true,
+  errors: true,
+  test_status: true,
+  value: true,
+  carets: true,
+  probes: true,
+  test_marks: true,
 };
 
 /* what the overlays read; any may be missing */
@@ -34,6 +53,8 @@ type facts = {
   refractors: Refractors.RefractorList.t,
   /* the program's value, shown on its result */
   value: option(Exp.t),
+  /* the terms' extents, for underlining errors */
+  term_data: TermData.t,
 };
 
 let no_facts = {
@@ -43,6 +64,7 @@ let no_facts = {
   probes: Sample.Map.empty,
   refractors: [],
   value: None,
+  term_data: Id.Map.empty,
 };
 
 let elided = {js|⋯|js};
@@ -185,13 +207,6 @@ type ctx = {
   uses: Id.Map.t(int),
 };
 
-let rec subtree_errors = (ctx: ctx, e: O.entry): int =>
-  List.length(Option.value(Id.Map.find_opt(e.id, ctx.errors), ~default=[]))
-  + List.fold_left((n, c) => n + subtree_errors(ctx, c), 0, e.children);
-
-let own_errors = (ctx: ctx, e: O.entry): int =>
-  List.length(Option.value(Id.Map.find_opt(e.id, ctx.errors), ~default=[]));
-
 let uses_of = (ctx: ctx, e: O.entry): option(int) =>
   switch (e.kind, e.names) {
   | (Def, [(_, tok), ..._]) =>
@@ -199,11 +214,36 @@ let uses_of = (ctx: ctx, e: O.entry): option(int) =>
   | _ => None
   };
 
-/* the parts every map line carries for its entry: open, errors */
-let common_parts = (ctx: ctx, e: O.entry, ~errors: int): list(string) => [
-  Id.Map.mem(e.id, ctx.opened) ? "open below" : "",
-  errors > 0 ? plural(errors, "error", "errors") : "",
-];
+/* the first message of [errs], shortened for a map line */
+let first_message = (ctx: ctx, errs: list(Id.t)): string =>
+  switch (errs) {
+  | [err, ..._] =>
+    let msg = error_message(ctx.facts, err);
+    Unicode.Width.columns_of_string(msg) > 60
+      ? ProbeText.prefix_within_columns(59, msg) ++ {js|…|js} : msg;
+  | [] => ""
+  };
+
+let rec subtree_error_ids = (ctx: ctx, e: O.entry): list(Id.t) =>
+  Option.value(Id.Map.find_opt(e.id, ctx.errors), ~default=[])
+  @ List.concat_map(subtree_error_ids(ctx), e.children);
+
+/* the parts every map line carries for its entry: open, and its errors
+   ([own]: only those not on a member line of its own) */
+let common_parts = (~own=false, ctx: ctx, e: O.entry): list(string) => {
+  let errs =
+    own
+      ? Option.value(Id.Map.find_opt(e.id, ctx.errors), ~default=[])
+      : subtree_error_ids(ctx, e);
+  [
+    Id.Map.mem(e.id, ctx.opened) ? "open below" : "",
+    ctx.settings.errors && errs != []
+      ? plural(List.length(errs), "error", "errors")
+        ++ ": "
+        ++ first_message(ctx, errs)
+      : "",
+  ];
+};
 
 let first_content = (seg: Segment.t): option(Id.t) =>
   switch (O.content(seg)) {
@@ -258,29 +298,14 @@ let rec map_level =
         let mark = elide_def();
         let uses =
           switch (uses_of(ctx, e)) {
-          | Some(n) when n > 0 => plural(n, "use", "uses")
+          | Some(n) when n > 0 && ctx.settings.uses =>
+            plural(n, "use", "uses")
           | _ => ""
           };
-        Option.iter(
-          at =>
-            note(
-              at,
-              common_parts(ctx, e, ~errors=subtree_errors(ctx, e)) @ [uses],
-            ),
-          mark,
-        );
+        Option.iter(at => note(at, common_parts(ctx, e) @ [uses]), mark);
       | Type when !ctx.settings.types_in_full =>
-        Option.iter(
-          at =>
-            note(at, common_parts(ctx, e, ~errors=subtree_errors(ctx, e))),
-          elide_def(),
-        )
-      | Type =>
-        Option.iter(
-          at =>
-            note(at, common_parts(ctx, e, ~errors=subtree_errors(ctx, e))),
-          head,
-        )
+        Option.iter(at => note(at, common_parts(ctx, e)), elide_def())
+      | Type => Option.iter(at => note(at, common_parts(ctx, e)), head)
       | Module when e.literal && depth < ctx.settings.module_depth =>
         /* its members, one level down */
         switch (S.members(lv, k), S.site_of(lv, k)) {
@@ -290,8 +315,7 @@ let rec map_level =
           notes := below @ notes^;
           replace_brace(arr, lv, site, members);
           Option.iter(
-            at =>
-              note(at, common_parts(ctx, e, ~errors=own_errors(ctx, e))),
+            at => note(at, common_parts(~own=true, ctx, e)),
             head,
           );
         | _ => ()
@@ -303,23 +327,18 @@ let rec map_level =
           replace_brace(arr, lv, site, kid);
           note(
             mark,
-            common_parts(ctx, e, ~errors=subtree_errors(ctx, e))
+            common_parts(ctx, e)
             @ [plural(List.length(e.children), "member", "members")],
           );
         | None => ()
         }
-      | Module =>
-        Option.iter(
-          at =>
-            note(at, common_parts(ctx, e, ~errors=subtree_errors(ctx, e))),
-          head,
-        )
+      | Module => Option.iter(at => note(at, common_parts(ctx, e)), head)
       | Test =>
         /* `test ⋯ end`: the test tile's body */
         let status =
           switch (Option.bind(e.test, test_status(ctx.facts))) {
-          | Some(s) => status_mark(s)
-          | None => ""
+          | Some(s) when ctx.settings.test_status => status_mark(s)
+          | _ => ""
           };
         switch (S.only_content(lv.pieces, c0, c1)) {
         | Some(i) =>
@@ -330,11 +349,7 @@ let rec map_level =
               let (kid, _) = elide_kid();
               arr[i] = Tile(with_last_kid(t, kid));
             };
-            note(
-              t.id,
-              common_parts(ctx, e, ~errors=subtree_errors(ctx, e))
-              @ [status],
-            );
+            note(t.id, common_parts(ctx, e) @ [status]);
           | _ => ()
           }
         | None => ()
@@ -342,28 +357,18 @@ let rec map_level =
       | Tail =>
         let value =
           switch (ctx.facts.value) {
-          | Some(v) when lv.owner == Top =>
+          | Some(v) when lv.owner == Top && ctx.settings.value =>
             {js|⇒ |js} ++ comment_safe(ProbeText.format_value(v))
           | _ => ""
           };
         Option.iter(
-          at =>
-            note(
-              ~last=true,
-              at,
-              common_parts(ctx, e, ~errors=subtree_errors(ctx, e)) @ [value],
-            ),
+          at => note(~last=true, at, common_parts(ctx, e) @ [value]),
           tail_end,
         );
       | Stmt
       | Use =>
         Option.iter(
-          at =>
-            note(
-              ~last=true,
-              at,
-              common_parts(ctx, e, ~errors=subtree_errors(ctx, e)),
-            ),
+          at => note(~last=true, at, common_parts(ctx, e)),
           tail_end,
         )
       };
@@ -476,8 +481,9 @@ let probe_rows =
     IntMap.empty,
   );
 
-let with_probes = (facts, find, lines: array(string)): array(string) => {
-  let rows = probe_rows(facts, find);
+let with_probes = (ctx, find, lines: array(string)): array(string) => {
+  let facts = ctx.facts;
+  let rows = ctx.settings.probes ? probe_rows(facts, find) : IntMap.empty;
   Array.mapi(
     (row, line) =>
       switch (IntMap.find_opt(row, rows)) {
@@ -501,7 +507,7 @@ let summary = (ctx: ctx): string => {
   let errors = List.length(ctx.facts.error_ids);
   let tests =
     switch (ctx.facts.tests) {
-    | Some(tr) when tr.total > 0 =>
+    | Some(tr) when tr.total > 0 && ctx.settings.test_status =>
       Printf.sprintf(
         "tests: %d of %d pass%s",
         tr.passing,
@@ -512,16 +518,22 @@ let summary = (ctx: ctx): string => {
     };
   comment([
     "map",
-    errors > 0 ? plural(errors, "error", "errors") : "no errors",
+    !ctx.settings.errors
+      ? "" : errors > 0 ? plural(errors, "error", "errors") : "no errors",
     tests,
   ]);
 };
 
+/* the probes the view shows, with their values */
+let shown_refractors = (ctx: ctx) =>
+  ctx.settings.probes ? ctx.facts.refractors : [];
+
 let map_text = (ctx: ctx, o: O.t): string => {
   let top = S.top(~ends=Rows, ~root=o.root, o.seg);
   let (seg, notes) = map_level(ctx, ~depth=0, top, o.entries);
-  let (lines, find) = print_measured(~refractors=ctx.facts.refractors, seg);
-  let lines = annotate(lines, find, notes) |> with_probes(ctx.facts, find);
+  let (lines, find) =
+    print_measured(~refractors=shown_refractors(ctx), seg);
+  let lines = annotate(lines, find, notes) |> with_probes(ctx, find);
   String.concat(
     "\n",
     [summary(ctx), ...strip_trailing_blank(Array.to_list(lines))],
@@ -536,7 +548,8 @@ let map_text = (ctx: ctx, o: O.t): string => {
 let entry_text = (ctx: ctx, e: O.entry): string => {
   let base = e.lv.spans[e.k].base_col;
   let seg = O.core(e.lv, e.k);
-  let (lines, find) = print_measured(~refractors=ctx.facts.refractors, seg);
+  let (lines, find) =
+    print_measured(~refractors=shown_refractors(ctx), seg);
   let dedent = (row, line) =>
     row == 0
       ? line
@@ -569,33 +582,61 @@ let entry_text = (ctx: ctx, e: O.entry): string => {
     )
     @ List.concat_map(tests, e.children);
   let lines =
-    annotate(lines, find, tests(e)) |> with_probes(ctx.facts, find);
+    annotate(lines, find, ctx.settings.test_marks ? tests(e) : [])
+    |> with_probes(ctx, find);
   let rec errs = (e: O.entry) =>
     Option.value(Id.Map.find_opt(e.id, ctx.errors), ~default=[])
     @ List.concat_map(errs, e.children);
-  /* caret lines under each row, left to right */
+  /* each error's line under its term's row: underlined from its first
+     token, through its last when it ends on that row */
   let carets = Hashtbl.create(4);
-  let at = err =>
-    switch (find(err)) {
-    | Some(m) => (m.origin.row, max(0, m.origin.col - shift(m.origin.row)))
-    | None => (0, 0)
-    };
-  List.iter(
-    err => {
-      let msg = error_message(ctx.facts, err);
-      let (row, col) = at(err);
-      let line =
-        col <= 0
-          ? "#^ " ++ msg ++ " #"
-          : "#" ++ String.make(col - 1, ' ') ++ "^ " ++ msg ++ " #";
-      Hashtbl.replace(
-        carets,
-        row,
-        Option.value(Hashtbl.find_opt(carets, row), ~default=[]) @ [line],
+  let span = err => {
+    let (l, r) =
+      Option.value(
+        TermData.extreme_ids(err, ctx.facts.term_data),
+        ~default=(err, err),
       );
-    },
-    List.stable_sort((a, b) => compare(at(a), at(b)), errs(e)),
-  );
+    switch (find(l), find(r)) {
+    | (Some(a), Some(b)) when a.origin.row == b.last.row => (
+        a.origin.row,
+        max(0, a.origin.col - shift(a.origin.row)),
+        max(1, b.last.col - a.origin.col),
+      )
+    | (Some(a), _) => (
+        a.origin.row,
+        max(0, a.origin.col - shift(a.origin.row)),
+        1,
+      )
+    | (None, _) =>
+      switch (find(err)) {
+      | Some(m) => (
+          m.origin.row,
+          max(0, m.origin.col - shift(m.origin.row)),
+          1,
+        )
+      | None => (0, 0, 1)
+      }
+    };
+  };
+  if (ctx.settings.carets) {
+    List.iter(
+      err => {
+        let msg = error_message(ctx.facts, err);
+        let (row, col, width) = span(err);
+        let marks = String.concat("", List.init(width, _ => "^"));
+        let line =
+          col <= 0
+            ? "#" ++ marks ++ " " ++ msg ++ " #"
+            : "#" ++ String.make(col - 1, ' ') ++ marks ++ " " ++ msg ++ " #";
+        Hashtbl.replace(
+          carets,
+          row,
+          Option.value(Hashtbl.find_opt(carets, row), ~default=[]) @ [line],
+        );
+      },
+      List.stable_sort((a, b) => compare(span(a), span(b)), errs(e)),
+    );
+  };
   Array.to_list(lines)
   |> List.mapi((row, line) =>
        [

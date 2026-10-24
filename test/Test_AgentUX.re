@@ -1063,7 +1063,7 @@ let context_llm_snapshot_tests = [
       let eval_result = EvalResult.Model.init;
       let (prog, _, _) =
         Agent.Utils.agent_view_of(
-          ~module_depth=2,
+          ~view=CompositionView.default_settings,
           ~test_results=EvalResult.Model.test_results(eval_result),
           ~value=EvalResult.Model.get_value(eval_result),
           cws,
@@ -1083,7 +1083,7 @@ let context_llm_snapshot_tests = [
       let actual =
         Agent.Utils.llm_context_snapshot_text(
           ~session_mode=Web.AgentGlobals.Model.Edit,
-          ~module_depth=2,
+          ~view=CompositionView.default_settings,
           ~cell_result=eval_result,
           cws,
           chat,

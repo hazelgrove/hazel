@@ -56,7 +56,13 @@ let ids_of = (o: Outline.t, paths: list(string)): list(Id.t) =>
   );
 
 let render =
-    (~root=Sort.Exp, ~opened=[], ~evaluate=false, ~module_depth=2, src) => {
+    (
+      ~root=Sort.Exp,
+      ~opened=[],
+      ~evaluate=false,
+      ~settings=CompositionView.default_settings,
+      src,
+    ) => {
   let (seg, z, st) = program(~root, src);
   let o = Outline.build(~root, seg);
   let (tests, value, probes) =
@@ -67,10 +73,7 @@ let render =
       }
       : (None, None, Sample.Map.empty);
   CompositionView.render(
-    ~settings={
-      ...CompositionView.default_settings,
-      module_depth,
-    },
+    ~settings,
     ~facts={
       info_map: st.info_map,
       error_ids: st.error_ids,
@@ -78,6 +81,7 @@ let render =
       probes,
       refractors: z.refractors.manuals,
       value,
+      term_data: CachedSyntax.init(~root, z).term_data,
     },
     o,
     ~opened=ids_of(o, opened),
@@ -135,7 +139,7 @@ let format_tests = [
       {|# map · 1 error #
 type Shape = Circle(Float) + Rect(Float, Float) in
 let area(s: Shape): Float = ⋯ in  # 1 use #
-let total(xs: [Shape]): Float = ⋯ in  # 1 error · 3 uses #
+let total(xs: [Shape]): Float = ⋯ in  # 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
 module Geo = {
   let perimeter(s: Shape): Float = ⋯;
   let scale(k: Float, s: Shape): Shape = ⋯;
@@ -152,7 +156,7 @@ total([Rect(2., 3.)])|},
       {|# map · 1 error #
 type Shape = Circle(Float) + Rect(Float, Float) in
 let area(s: Shape): Float = ⋯ in  # 1 use #
-let total(xs: [Shape]): Float = ⋯ in  # open below · 1 error · 3 uses #
+let total(xs: [Shape]): Float = ⋯ in  # open below · 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
 module Geo = {
   let perimeter(s: Shape): Float = ⋯;
   let scale(k: Float, s: Shape): Shape = ⋯;
@@ -166,7 +170,7 @@ let total(xs: [Shape]): Float =
   case xs
   | [] => 0.
   | s :: rest => area(s) +. total(rest) +. true
-#                                          ^ Expecting type Float but got inconsistent type Bool #
+#                                          ^^^^ Expecting type Float but got inconsistent type Bool #
   end
 in|},
       render(~opened=["total"], example),
@@ -178,7 +182,7 @@ in|},
       {|# map · 1 error #
 type Shape = Circle(Float) + Rect(Float, Float) in
 let area(s: Shape): Float = ⋯ in  # 1 use #
-let total(xs: [Shape]): Float = ⋯ in  # 1 error · 3 uses #
+let total(xs: [Shape]): Float = ⋯ in  # 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
 module Geo = {
   let perimeter(s: Shape): Float = ⋯;
   let scale(k: Float, s: Shape): Shape = ⋯;
@@ -186,7 +190,13 @@ module Geo = {
 } in
 hint "total of one circle" test total([Circle(1.)]) == 3.14 end;
 total([Rect(2., 3.)])|},
-      render(~module_depth=1, example),
+      render(
+        ~settings={
+          ...CompositionView.default_settings,
+          module_depth: 1,
+        },
+        example,
+      ),
     )
   ),
   test_case("test results, the value, probes", `Quick, () =>
@@ -224,14 +234,14 @@ double(5)|},
       "mod root",
       {|# map · 1 error #
 let a = ⋯;  # 3 uses #
-module N = { let b = ⋯; test b == 3 end; let c = ⋯ };  # b: 2 uses · c: 1 error · N: open below #
+module N = { let b = ⋯; test b == 3 end; let c = ⋯ };  # b: 2 uses · c: 1 error: Expecting type Int but got inconsistent type Bool · N: open below #
 test a == 1 end;  # open below #
 print(a);
 a + 1
 
 # open: N #
 module N = { let b = 2; test b == 3 end; let c = b + true }
-#                                                    ^ Expecting type Int but got inconsistent type Bool #
+#                                                    ^^^^ Expecting type Int but got inconsistent type Bool #
 
 # open: test#1 #
 test a == 1 end|},
@@ -620,7 +630,11 @@ let slide = (~opened: list(string)) => {
       Zipper.unselect_and_zip(cws.editor.state.zipper),
     );
   let agent =
-    switch (AgentContext.Update.resolve(o, Expand(opened))) {
+    switch (
+      opened == []
+        ? Ok(AgentContext.Update.CloseAll)
+        : AgentContext.Update.resolve(o, Expand(opened))
+    ) {
     | Ok(r) => {
         ...agent,
         chat_system:
@@ -684,6 +698,26 @@ let lens_tests = [
       };
       check(bool, "program untouched", true, code'.program === code.program);
       check(bool, "view untouched", true, code'.view === code.view);
+    },
+  ),
+  test_case(
+    "nothing open: the map, no cells",
+    `Quick,
+    () => {
+      let (code, chat_id) = slide(~opened=[]);
+      let code' = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
+      switch (code'.lens) {
+      | Some({program: Whole(_), map, _}) =>
+        check(
+          bool,
+          "the map, as sent",
+          true,
+          String.starts_with(~prefix="# map", map)
+          && Util.StringUtil.plain_search({js|let a = ⋯ in|js}, map, 0) >= 0,
+        )
+      | Some(_) => fail("cells")
+      | None => fail("no lens")
+      };
     },
   ),
   test_case(
@@ -767,7 +801,153 @@ let lens_tests = [
   ),
 ];
 
+/* each of the view's switches, off, takes its mark out of the view: what
+   a request sends, so ablations reproduce and View as agent shows them */
+let ablated = {|type T = Int in
+let f(x) =
+  let y = ^^probe(x + 1) in
+  test y == x + 1 end;
+  y
+in
+let g = 1 + true in
+test f(1) == 2 end;
+module M = { module N = { let z = 1 } } in
+f(1)|};
+
+let toggle_case = (name, off: CompositionView.settings, mark) =>
+  test_case(
+    name,
+    `Quick,
+    () => {
+      let shown = settings =>
+        render(~evaluate=true, ~opened=["f", "g"], ~settings, ablated);
+      let has = (s, m) => Util.StringUtil.plain_search(m, s, 0) >= 0;
+      check(
+        bool,
+        name ++ ": on",
+        true,
+        has(shown(CompositionView.default_settings), mark),
+      );
+      check(bool, name ++ ": off", false, has(shown(off), mark));
+    },
+  );
+
+let d = CompositionView.default_settings;
+
+let toggle_tests = [
+  toggle_case(
+    "use counts",
+    {
+      ...d,
+      uses: false,
+    },
+    "2 uses",
+  ),
+  toggle_case(
+    "errors on the map",
+    {
+      ...d,
+      errors: false,
+    },
+    "1 error: Expecting type Int but got inconsistent type Bool",
+  ),
+  toggle_case(
+    "test status",
+    {
+      ...d,
+      test_status: false,
+    },
+    "== 2 end;  # ✓ #",
+  ),
+  toggle_case(
+    "the program's value",
+    {
+      ...d,
+      value: false,
+    },
+    {js|# ⇒ 2 #|js},
+  ),
+  toggle_case(
+    "error marks",
+    {
+      ...d,
+      carets: false,
+    },
+    "#           ^^^^ Expecting type Int",
+  ),
+  toggle_case(
+    "probe values",
+    {
+      ...d,
+      probes: false,
+    },
+    {js|≡ 2|js},
+  ),
+  toggle_case(
+    "test marks",
+    {
+      ...d,
+      test_marks: false,
+    },
+    "x + 1 end;  # ✓ #",
+  ),
+  toggle_case(
+    "module depth",
+    {
+      ...d,
+      module_depth: 1,
+    },
+    "let z = ⋯",
+  ),
+  toggle_case(
+    "types in full",
+    {
+      ...d,
+      types_in_full: false,
+    },
+    "type T = Int",
+  ),
+  test_case(
+    "a setting reaches what a request sends",
+    `Quick,
+    () => {
+      let g = W.AgentGlobals.init();
+      let agent = W.Agent.Utils.init();
+      let chat_id = agent.chat_system.current;
+      let cws = cws_of("let a = 1 in\nlet b = a + a in\nb");
+      let sent = (g: W.AgentGlobals.Model.t) => {
+        let agent =
+          W.AgentUtils.update_context(
+            ~session_mode=Edit,
+            ~view=W.AgentGlobals.view_settings(g),
+            agent,
+            cws,
+            chat_id,
+          );
+        let (agent, _) = W.AgentSend.main_request(chat_id, agent);
+        Option.get(
+          Util.ListUtil.last_opt(
+            W.ChatSystem.Utils.find_chat(chat_id, agent.chat_system).sent,
+          ),
+        ).
+          view;
+      };
+      let has = (s, m) => Util.StringUtil.plain_search(m, s, 0) >= 0;
+      check(bool, "uses on", true, has(sent(g), "# 2 uses #"));
+      check(
+        bool,
+        "uses off",
+        false,
+        has(
+          sent(W.AgentGlobals.Update.update(ToggleView(Uses), g, _ => ())),
+          "# 2 uses #",
+        ),
+      );
+    },
+  ),
+];
+
 let tests = (
   "AgentView",
-  format_tests @ open_set_tests @ record_tests @ lens_tests,
+  format_tests @ open_set_tests @ record_tests @ lens_tests @ toggle_tests,
 );

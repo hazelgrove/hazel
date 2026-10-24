@@ -62,7 +62,7 @@ let clear_pending_assistant_stream = (model: Model.t): Model.t => {
    this program, and what the view was made from */
 let agent_view_of =
     (
-      ~module_depth: int,
+      ~view: CompositionView.settings,
       ~test_results: option(Language.TestResults.t),
       ~value: option(Language.Exp.t),
       cws: CodeWithStatics.Model.t,
@@ -80,13 +80,11 @@ let agent_view_of =
     probes: cws.dynamics,
     refractors: z.refractors.manuals,
     value,
+    term_data: cws.editor.syntax.term_data,
   };
   let view =
     CompositionView.Public.render(
-      ~settings={
-        ...CompositionView.default_settings,
-        module_depth,
-      },
+      ~settings=view,
       ~facts,
       outline,
       ~opened=AgentContext.Utils.ids(opened),
@@ -109,7 +107,7 @@ let agent_view_of =
 let llm_context_snapshot_text =
     (
       ~session_mode: AgentGlobals.Model.session_mode,
-      ~module_depth: int,
+      ~view: CompositionView.settings,
       ~cell_result: EvalResult.Model.t,
       cws: CodeWithStatics.Model.t,
       chat: Chat.Model.t,
@@ -117,7 +115,7 @@ let llm_context_snapshot_text =
     : string => {
   let (view, _, _) =
     agent_view_of(
-      ~module_depth,
+      ~view,
       ~test_results=EvalResult.Model.test_results(cell_result),
       ~value=EvalResult.Model.get_value(cell_result),
       cws,
@@ -141,7 +139,7 @@ type memo = {
   m_tests: option(Language.TestResults.t),
   m_value: option(Language.Exp.t),
   m_view: AgentContext.Model.t,
-  m_depth: int,
+  m_view_settings: CompositionView.settings,
   m_out: (string, AgentContext.Model.t, SentView.basis),
 };
 let context_memo: ref(option(memo)) = ref(None);
@@ -149,7 +147,7 @@ let context_memo: ref(option(memo)) = ref(None);
 let update_context =
     (
       ~session_mode: AgentGlobals.Model.session_mode,
-      ~module_depth: int=CompositionView.default_settings.module_depth,
+      ~view: CompositionView.settings=CompositionView.default_settings,
       ~test_results: option(Language.TestResults.t)=?,
       ~value: option(Language.Exp.t)=?,
       model: Model.t,
@@ -168,17 +166,11 @@ let update_context =
           && m.m_tests === test_results
           && m.m_value === value
           && m.m_view == curr_chat.agent_view
-          && m.m_depth == module_depth =>
+          && m.m_view_settings == view =>
       m.m_out
     | _ =>
       let out =
-        agent_view_of(
-          ~module_depth,
-          ~test_results,
-          ~value,
-          editor,
-          curr_chat,
-        );
+        agent_view_of(~view, ~test_results, ~value, editor, curr_chat);
       context_memo :=
         Some({
           m_zipper: editor.editor.state.zipper,
@@ -187,7 +179,7 @@ let update_context =
           m_tests: test_results,
           m_value: value,
           m_view: curr_chat.agent_view,
-          m_depth: module_depth,
+          m_view_settings: view,
           m_out: out,
         });
       out;

@@ -440,7 +440,7 @@ let handle_dispatch_send =
     let model =
       Utils.update_context(
         ~session_mode=settings.agent_globals.session_mode,
-        ~module_depth=settings.agent_globals.map_module_depth,
+        ~view=AgentGlobals.view_settings(settings.agent_globals),
         ~test_results=?EvalResult.Model.test_results(editor.result),
         ~value=?EvalResult.Model.get_value(editor.result),
         model,
@@ -695,7 +695,7 @@ let do_retry_api_send =
   let model =
     Utils.update_context(
       ~session_mode=settings.agent_globals.session_mode,
-      ~module_depth=settings.agent_globals.map_module_depth,
+      ~view=AgentGlobals.view_settings(settings.agent_globals),
       ~test_results=?EvalResult.Model.test_results(editor.result),
       ~value=?EvalResult.Model.get_value(editor.result),
       model,

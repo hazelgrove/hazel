@@ -1019,6 +1019,23 @@ module View = {
           ];
         };
         switch (program) {
+        /* a request with nothing open: its map */
+        | Whole(_) when Option.is_some(lens) =>
+          banner
+          @ [
+            div(
+              ~attrs=[Attr.classes(["agent-lens-map"])],
+              [
+                text(
+                  Option.fold(
+                    ~none="",
+                    ~some=(l: AgentLens.t) => l.map,
+                    lens,
+                  ),
+                ),
+              ],
+            ),
+          ]
         | Divided(d) =>
           banner
           @ (SlideContent.get_content(current.name) |> Option.to_list)

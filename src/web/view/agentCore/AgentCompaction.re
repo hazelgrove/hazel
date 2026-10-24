@@ -26,7 +26,7 @@ let abort_compaction_stream_handle = (): unit =>
 let compaction_context_snapshot_message =
     (
       ~session_mode: AgentGlobals.Model.session_mode,
-      ~module_depth: int,
+      ~view: CompositionView.settings,
       model: Model.t,
       cell_editor: CellEditor.Model.t,
       chat_id: Id.t,
@@ -36,7 +36,7 @@ let compaction_context_snapshot_message =
   Message.Utils.mk_context_system_message(
     Utils.llm_context_snapshot_text(
       ~session_mode,
-      ~module_depth,
+      ~view,
       ~cell_result=cell_editor.result,
       cell_editor.editor,
       curr_chat,
@@ -158,7 +158,7 @@ let maybe_start_compaction =
       let context_msg =
         compaction_context_snapshot_message(
           ~session_mode=settings.agent_globals.session_mode,
-          ~module_depth=settings.agent_globals.map_module_depth,
+          ~view=AgentGlobals.view_settings(settings.agent_globals),
           model,
           cell_editor,
           chat_id,

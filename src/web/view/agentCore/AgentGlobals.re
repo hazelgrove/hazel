@@ -34,9 +34,29 @@ module Model = {
     session_mode,
     [@yojson.default false] [@sexp.default false]
     collapse_top_bar: bool,
-    /* how many levels of modules the agent's map lists members for */
+    /* what the agent's view shows (CompositionView.settings), each
+       switchable for ablation. The map: */
+    [@yojson.default true] [@sexp.default true]
+    view_uses: bool,
+    [@yojson.default true] [@sexp.default true]
+    view_errors: bool,
+    [@yojson.default true] [@sexp.default true]
+    view_test_status: bool,
+    [@yojson.default true] [@sexp.default true]
+    view_value: bool,
+    /* the open entries: */
+    [@yojson.default true] [@sexp.default true]
+    view_carets: bool,
+    [@yojson.default true] [@sexp.default true]
+    view_probes: bool,
+    [@yojson.default true] [@sexp.default true]
+    view_test_marks: bool,
+    /* the map's shape: how many levels of modules list their members,
+       and type definitions in full */
     [@yojson.default 2] [@sexp.default 2]
     map_module_depth: int,
+    [@yojson.default true] [@sexp.default true]
+    map_types_in_full: bool,
     /* the checks on a reply's edits, switchable for ablation: no new
        static errors; no uses left dangling by a delete */
     [@yojson.default true] [@sexp.default true]
@@ -71,9 +91,30 @@ let init = (): Model.t => {
   show_thinking: true,
   session_mode: Edit,
   collapse_top_bar: false,
+  view_uses: true,
+  view_errors: true,
+  view_test_status: true,
+  view_value: true,
+  view_carets: true,
+  view_probes: true,
+  view_test_marks: true,
   map_module_depth: 2,
+  map_types_in_full: true,
   check_no_new_errors: true,
   check_dangling_uses: true,
+};
+
+/* the agent's view as these settings have it */
+let view_settings = (m: Model.t): Haz3lcore.CompositionView.settings => {
+  module_depth: m.map_module_depth,
+  types_in_full: m.map_types_in_full,
+  uses: m.view_uses,
+  errors: m.view_errors,
+  test_status: m.view_test_status,
+  value: m.view_value,
+  carets: m.view_carets,
+  probes: m.view_probes,
+  test_marks: m.view_test_marks,
 };
 
 let get_active_llm_id = (model: Model.t): option(string) => {
@@ -143,6 +184,18 @@ let active_supports_reasoning = (model: Model.t): bool => {
 };
 
 module Update = {
+  /* the agent's view's switches */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type view_option =
+    | Uses
+    | Errors
+    | TestStatus
+    | Value
+    | Carets
+    | Probes
+    | TestMarks
+    | TypesInFull;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | SetApiKey(string)
@@ -155,6 +208,8 @@ module Update = {
     | ToggleCollapseTopBar
     | ToggleCheckNoNewErrors
     | ToggleCheckDanglingUses
+    | ToggleView(view_option)
+    | SetMapModuleDepth(int)
     | CycleSessionMode
     | SwitchInterface(Model.screen);
 
@@ -218,6 +273,42 @@ module Update = {
     | ToggleCheckDanglingUses => {
         ...model,
         check_dangling_uses: !model.check_dangling_uses,
+      }
+    | ToggleView(Uses) => {
+        ...model,
+        view_uses: !model.view_uses,
+      }
+    | ToggleView(Errors) => {
+        ...model,
+        view_errors: !model.view_errors,
+      }
+    | ToggleView(TestStatus) => {
+        ...model,
+        view_test_status: !model.view_test_status,
+      }
+    | ToggleView(Value) => {
+        ...model,
+        view_value: !model.view_value,
+      }
+    | ToggleView(Carets) => {
+        ...model,
+        view_carets: !model.view_carets,
+      }
+    | ToggleView(Probes) => {
+        ...model,
+        view_probes: !model.view_probes,
+      }
+    | ToggleView(TestMarks) => {
+        ...model,
+        view_test_marks: !model.view_test_marks,
+      }
+    | ToggleView(TypesInFull) => {
+        ...model,
+        map_types_in_full: !model.map_types_in_full,
+      }
+    | SetMapModuleDepth(map_module_depth) => {
+        ...model,
+        map_module_depth,
       }
     | CycleSessionMode => {
         ...model,

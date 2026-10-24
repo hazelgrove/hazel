@@ -3061,3 +3061,11 @@
   background-color: var(--surface-accent);
   color: var(--text-inverse);
 }
+
+/* a request with nothing open shows its map, as sent */
+#main .agent-lens-map {
+  font-family: var(--code-font);
+  white-space: pre;
+  padding: 0.75em 1em;
+  color: var(--text-default);
+}
