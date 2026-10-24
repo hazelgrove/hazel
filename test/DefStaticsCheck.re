@@ -6,6 +6,17 @@ open Language;
 let sorted = xs => List.sort_uniq(compare, xs);
 let runtime = co =>
   sorted(List.filter(IncrEval.is_runtime_dependency, CoCtx.names(co)));
+/* probe targets as a set: their witness's shape follows how each
+   analysis built it, which may differ (MerkleSet's false negatives) */
+let probe_set = (t: SubexpProbeTargets.t): list(Id.t) => {
+  let rec go = (s: Util.MerkleSet.t(Id.t)) =>
+    switch (s.node) {
+    | Empty => []
+    | Leaf(x) => [x]
+    | Branch(a, b) => go(a) @ go(b)
+    };
+  sorted(go(t.probe_ids));
+};
 let differ = (~types, a: Info.t, b: Info.t): option(string) =>
   switch (a, b) {
   | (InfoExp(a), InfoExp(b)) =>
@@ -31,7 +42,7 @@ let differ = (~types, a: Info.t, b: Info.t): option(string) =>
         ++ names(b.co_ctx)
         ++ "}",
       );
-    } else if (!SubexpProbeTargets.equal(a.probe_targets, b.probe_targets)) {
+    } else if (probe_set(a.probe_targets) != probe_set(b.probe_targets)) {
       Some("probe targets");
     } else {
       None;
