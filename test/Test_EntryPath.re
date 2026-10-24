@@ -73,6 +73,7 @@ let grammar = () => {
       ("M/\"a.b/c#d\"", "M/\"a.b/c#d\""),
       ("M/test#2", "M/test#2"),
       ("f/stmt#1", "f/stmt#1"),
+      ("f/let#2", "f/let#2"),
       ("f/=>", "f/=>"),
       ("f/⇒", "f/=>"),
       ("parse#2", "parse#2"),
@@ -84,6 +85,7 @@ let grammar = () => {
       (" M . parse ", "M/parse"),
       /* a kind word without `#k` is a name */
       ("stmt", "stmt"),
+      ("def#1", "def#1"),
     ],
   );
   List.iter(
@@ -183,6 +185,13 @@ let errors = () => {
   has("there are only 3", error(seg, "M/test#4"));
   has("has no entries of its own", error(seg, "M/parse/x"));
   has("is a test, which has no pattern", error(seg, "M/test#2:pattern"));
+  has("is a type, which has no body", error(seg, "M/t:body"));
+  check(
+    bool,
+    "a let's body",
+    true,
+    resolve(seg, "f:body").part == Some(Body),
+  );
   has("at 2", error(seg, "M/"));
   let seg = seg_of("let x = 1 in\nlet x = 2 in\nlet y = x in\nx + y");
   let e = error(seg, "x");
@@ -227,6 +236,12 @@ let shared_prefix = () => {
   has("\"M\" is ambiguous", error(seg, "M"));
   has("Pick one: M#1, M#2", error(seg, "M/z"));
   has("No entry \"w\" in \"M#1\"", error(seg, "M/w"));
+  /* described by the shortest path that resolves */
+  let path = s =>
+    Option.map(P.to_string, P.describe(~root=Exp, seg, resolve(seg, s).id));
+  check(option(string), "M#2/y", Some("M/y"), path("M#2/y"));
+  check(option(string), "M#2/z", Some("M#2/z"), path("M#2/z"));
+  check(option(string), "M#1", Some("M#1"), path("M#1"));
 };
 
 /* a Mod root: its top level is a module body, its last `;`-less
@@ -284,9 +299,9 @@ let names = () => {
   );
   check(
     bool,
-    "def#6: a nameless def",
+    "let#6: a nameless def",
     true,
-    starts("let _", text("def#6")),
+    starts("let _", text("let#6")),
   );
   check(bool, "g", true, starts("let g(v, w)", text("g")));
   check(
@@ -378,8 +393,8 @@ let corpus_round_trips = () =>
   );
 
 /* every binding the agent's node map addresses: reached by a path with
-   the same names to the same id, and by the node map's own path when it
-   takes one without `#k`. It reaches further than blocks (lets inside
+   the same names to the same id, and by the node map's own path, which is
+   then its description, when that takes no `#k`. It reaches further than blocks (lets inside
    parens, case rules, branches), which paths leave to ids; its parent is
    then reached. Printed: those, and the entries only paths reach */
 let parity_of = (~root, name, seg) => {
@@ -426,7 +441,8 @@ let parity_of = (~root, name, seg) => {
             && List.for_all(is_ident, names)) {
           incr(own);
           switch (P.resolve_string(~root, seg, shown)) {
-          | Ok(f) when f.id == id => ()
+          | Ok(f) when f.id == id && s == shown => ()
+          | Ok(f) when f.id == id => fail(shown ++ " is described as " ++ s)
           | Ok(_) => fail(shown ++ " resolves elsewhere")
           | Error(e) => fail(shown ++ ": " ++ P.message(e))
           };

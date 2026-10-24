@@ -7,16 +7,20 @@ open Util;
 
      M.parse ≡ M/parse   a def, type or module by any name it binds
      M/"parses ints"     a hinted test
-     M/test#2, f/stmt#1  the k-th of a kind in its block (1-based): def,
-                         type, module, test, stmt, use
+     M/test#2, f/let#1   the k-th of a kind in its block (1-based): let
+                         (a let or theorem), type, module, test, use,
+                         stmt
      f/=>  (or ⇒)        an expression block's final value; a Mod root's
                          final `;`-less expression
      parse#2             the 2nd of the block's entries named parse
      f:body              a part, after the last element: pattern,
                          definition, body, head
 
-   A name wins over a kind word (`stmt#1` names a `let stmt` when the
-   block has one). Pure: pieces only, no parse, no statics. */
+   A name wins over `stmt#k` (it names a `let stmt` when the block has
+   one); the other kind words are keywords. A shared name short of the
+   last element needs no `#k` when only one of its entries has the rest.
+   Canonical paths are the shortest that resolve. Pure: pieces only, no
+   parse, no statics. */
 
 module S = ItemSpans;
 module SM = Maps.StringMap;
@@ -38,7 +42,9 @@ type kind =
    has it, and the kernel finds it */
 type part =
   | Pattern
+  /* the whole definition, `fun` heads included */
   | Definition
+  /* a let's definition past its `fun` heads: ItemSpans' block */
   | Body
   | Head;
 
@@ -56,7 +62,7 @@ type t = {
 };
 
 let kind_words = [
-  ("def", Def),
+  ("let", Def),
   ("type", Type),
   ("module", Module),
   ("test", Test),
@@ -420,8 +426,8 @@ let occurrence = (k: int, l: list(int)): option(int) =>
   };
 
 /* the element naming span [k] of a level: its first name, its hint, else
-   its place among its kind */
-let canonical = (ix: index, k: int): elem => {
+   its place among its kind; with `#k` when it shares its name or hint */
+let explicit = (ix: index, k: int): elem => {
   let e = ix.entries[k];
   switch (e.kind, e.hint, e.binders) {
   | (Tail, _, _) => Tail
@@ -434,11 +440,11 @@ let canonical = (ix: index, k: int): elem => {
 };
 
 /* every element that picks an entry of the level, in program order: an
-   entry's canonical element, then its other names */
+   entry's explicit element, then its other names */
 let candidates = (ix: index): list(string) =>
   Array.to_list(ix.entries)
   |> List.mapi((k, e) => {
-       let own = elem_to_string(canonical(ix, k));
+       let own = elem_to_string(explicit(ix, k));
        let names =
          List.map(
            ((x, _)) =>
@@ -546,9 +552,9 @@ let pick =
   | Name(x, k) => by_name(x, k)
   | Hint(h, k) =>
     among(k => Hint(h, k), of_list(SM.find_opt(h, ix.hints)), k)
-  /* `def` and `stmt` can be names; a name wins */
-  | Nth((Def | Stmt) as kind, k) when SM.mem(kind_word(kind), ix.names) =>
-    by_name(kind_word(kind), Some(k))
+  /* `stmt` can be a name; a name wins */
+  | Nth(Stmt, k) when SM.mem(kind_word(Stmt), ix.names) =>
+    by_name(kind_word(Stmt), Some(k))
   | Nth(kind, k) =>
     let ks = kinds_of(ix, kind);
     if (Array.length(ks) == 0) {
@@ -644,9 +650,47 @@ let resolve_string =
 
 /* ---- describing ---- */
 
-let path_of = (steps: list((S.level, int))): t => {
-  elems: List.map(((lv, k)) => canonical(index(lv), k), steps),
-  part: None,
+/* the shortest path to the entry [steps] reach from [top]: each element
+   explicit, then outermost first without its `#k` wherever the path
+   still resolves to the entry */
+let path_of = (top: S.level, steps: list((S.level, int))): t => {
+  let id = {
+    let (lv, k) = ListUtil.last(steps);
+    lv.spans[k].anchor;
+  };
+  let resolves = elems =>
+    switch (
+      resolve_in(
+        top,
+        {
+          elems,
+          part: None,
+        },
+      )
+    ) {
+    | Ok(f) => f.id == id
+    | Error(_) => false
+    };
+  let rec drop = (before, after) =>
+    switch (after) {
+    | [] => List.rev(before)
+    | [el, ...after] =>
+      let bare =
+        switch (el) {
+        | Name(x, Some(_)) => Some(Name(x, None))
+        | Hint(h, Some(_)) => Some(Hint(h, None))
+        | _ => None
+        };
+      switch (bare) {
+      | Some(el') when resolves(List.rev_append(before, [el', ...after])) =>
+        drop([el', ...before], after)
+      | _ => drop([el, ...before], after)
+      };
+    };
+  {
+    elems: drop([], List.map(((lv, k)) => explicit(index(lv), k), steps)),
+    part: None,
+  };
 };
 
 /* [lv]'s descendants' anchors and first tiles, to the span holding them */
@@ -699,29 +743,22 @@ let find = (~root: Sort.t, seg: Segment.t, id: Id.t) => {
 };
 
 /* the canonical path of the entry anchored at [id] */
-let describe = (~root: Sort.t, seg: Segment.t, id: Id.t): option(t) =>
-  Option.map(path_of, find(~root, seg, id));
+let describe = (~root: Sort.t, seg: Segment.t, id: Id.t): option(t) => {
+  Swept.next_pass(cache);
+  let top = S.top(~root, seg);
+  Option.map(path_of(top), find_in(top, id));
+};
 
 /* every entry with its canonical path, depth first, in program order */
 let entries = (~root: Sort.t, seg: Segment.t): list((Id.t, t)) => {
   Swept.next_pass(cache);
-  let rec go = (rev_elems, lv: S.level, acc) => {
-    let ix = index(lv);
+  let top = S.top(~root, seg);
+  let rec go = (rev_steps, lv: S.level, acc) => {
     let acc = ref(acc);
     Array.iteri(
       (k, sp: S.span) => {
-        let here = [canonical(ix, k), ...rev_elems];
-        acc :=
-          [
-            (
-              sp.anchor,
-              {
-                elems: List.rev(here),
-                part: None,
-              },
-            ),
-            ...acc^,
-          ];
+        let here = [(lv, k), ...rev_steps];
+        acc := [(sp.anchor, path_of(top, List.rev(here))), ...acc^];
         switch (sub(lv, k)) {
         | Some(below) => acc := go(here, below, acc^)
         | None => ()
@@ -731,5 +768,5 @@ let entries = (~root: Sort.t, seg: Segment.t): list((Id.t, t)) => {
     );
     acc^;
   };
-  List.rev(go([], S.top(~root, seg), []));
+  List.rev(go([], top, []));
 };
