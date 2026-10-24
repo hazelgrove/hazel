@@ -1,0 +1,34 @@
+; The Hazel-source standard library, baked at build time (plans/stdlib.md).
+; Its sources are hazel-programs/world's top-level files, in that folder's
+; order (dependency order: later modules may use earlier ones).
+
+(rule
+ (targets stdlib.blob stdlib.hz)
+ (deps
+  (glob_files ../../hazel-programs/world/*.hz)
+  ../../hazel-programs/world/order)
+ (action
+  (run
+   node
+   --stack-size=8192
+   %{dep:bake/bake.bc.js}
+   stdlib.blob
+   stdlib.hz
+   ../../hazel-programs/world)))
+
+(library
+ (name stdlibBaked)
+ (modules StdlibBaked)
+ (libraries language)
+ (js_of_ocaml)
+ (preprocess
+  (pps ppx_blob js_of_ocaml-ppx))
+ (preprocessor_deps stdlib.blob))
+
+(library
+ (name stdlibServed)
+ (modules StdlibServed)
+ (libraries language)
+ (js_of_ocaml)
+ (preprocess
+  (pps js_of_ocaml-ppx)))

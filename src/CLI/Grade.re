@@ -73,7 +73,7 @@ let gen_code_grading_report = (exercise): report => {
           |> ((x: CachedStatics.t) => x.elaborated)
           |> Evaluator.evaluate_and_limit(
                ~step_limit=1000000,
-               ~env=Builtins.env_init,
+               ~env=Builtins.env_init(),
              );
         switch (evaluated) {
         | StepLimitExceeded => None

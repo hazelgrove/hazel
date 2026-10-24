@@ -1,0 +1,19 @@
+# Nat: natural numbers #
+module Nat = {
+  let mod = $prim.nat_mod;
+  let monus = $prim.monus;
+  let compare = $prim.nat_compare;
+  let plus = $prim.nat_plus;
+  let times = $prim.nat_times;
+  let power = $prim.nat_power;
+  let divide = $prim.nat_divide;
+  let lt = $prim.nat_lt;
+  let lte = $prim.nat_lte;
+  let gt = $prim.nat_gt;
+  let gte = $prim.nat_gte;
+  let of_int = $prim.nat_of_int;
+  let of_sint = $prim.nat_of_sint;
+  let of_float = $prim.nat_of_float;
+  let of_bool = $prim.nat_of_bool;
+  let of_string = $prim.nat_of_string
+}

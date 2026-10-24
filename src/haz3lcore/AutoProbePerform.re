@@ -339,14 +339,36 @@ let top_level_rest = (e: Exp.t): option(Exp.t) =>
   | _ => None
   };
 
-/* the program's last expression (the outline's ⇒ row) */
+/* the program's last expression (the outline's ⇒ row); at a module root
+   (a world slide's members), its last item, if that is an expression */
 let tail_id = (syntax: CachedSyntax.t): option(Id.t) => {
   let rec tail_of = (e: Exp.t): Exp.t =>
     switch (top_level_rest(e)) {
     | Some(body) => tail_of(body)
     | None => e
     };
-  Option.map(e => Exp.rep_id(tail_of(e)), program_exp(syntax));
+  let exp_at = id =>
+    switch (Id.Map.find_opt(id, syntax.terms)) {
+    | Some(Mod({term: ModExp(e), _})) => Some(e)
+    | _ => None
+    };
+  /* the last item, unless a `;` ends it */
+  let last_member = () => {
+    let lv = ItemSpans.top(~root=Mod, syntax.segment);
+    switch (Util.ListUtil.last_opt(Array.to_list(lv.spans))) {
+    | Some({kind: Stmt | Tail, sep: None, core: (a, b), _}) when b > a =>
+      let item = Array.to_list(Array.sub(lv.pieces, a, b - a));
+      switch (Segment.root_id(Segment.skel(item), item)) {
+      | id => exp_at(id)
+      | exception _ => None
+      };
+    | _ => None
+    };
+  };
+  switch (program_exp(syntax)) {
+  | Some(e) => Some(Exp.rep_id(tail_of(e)))
+  | None => Option.map(e => Exp.rep_id(tail_of(e)), last_member())
+  };
 };
 
 /* the ⇓ toggle: one probe on the last expression, an open drawer with no

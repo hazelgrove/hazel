@@ -70,7 +70,8 @@ type pat = {
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
-  label_sort: bool /* When in the position of a label */
+  label_sort: bool, /* When in the position of a label */
+  dot_labels: list(string) /* a module's constructors, after `M.` */
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -543,7 +544,14 @@ let projector_kind_of = (info: t): option(ProjectorKind.t) =>
    exists in the context, return the id where the binding occurs */
 let get_binding_site = (info: t): option(Id.t) => {
   switch (info) {
-  | InfoExp({user_term: {term: Var(name), _}, ctx, _}) =>
+  | InfoExp({user_term: {term: Var(name), _}, ctx, _})
+  /* the module path of a pattern's `M.A` */
+  | InfoPat({
+      user_term: {term: Var(name) | Constructor(name, _), _},
+      cls: Exp(Var),
+      ctx,
+      _,
+    }) =>
     let* entry = Ctx.lookup_var(ctx, name);
     entry.id == Id.invalid ? None : Some(entry.id);
   | InfoExp({user_term: {term: Constructor(name, _), _}, ctx, _})
@@ -713,6 +721,24 @@ let rec typ_binder =
   | _ => None
   };
 
+/* the binder a pattern's module path [p] reads: `M`, or `M.N` in
+   `M.N.A` */
+let rec pat_binder =
+        (~info_map: Id.Map.t(t), ~fuel=member_fuel, p: Pat.t): option(Id.t) =>
+  switch (p.term) {
+  | _ when fuel <= 0 => None
+  | Var(_)
+  | Constructor(_) =>
+    let* info = Id.Map.find_opt(Pat.rep_id(p), info_map);
+    get_binding_site(info);
+  | Parens(p) => pat_binder(~info_map, ~fuel, p)
+  | Dot(base, {term: Label(name), _}) =>
+    let* b = pat_binder(~info_map, ~fuel=fuel - 1, base);
+    let* items = binder_items(~info_map, ~fuel=fuel - 1, b);
+    member_binder(~typ=false, items, name);
+  | _ => None
+  };
+
 /* a member access, by its label: the access (a Dot or ProdProjection),
    the items of the module its left side denotes, the label */
 type member_access = {
@@ -733,6 +759,26 @@ let member_access = (~info_map: Id.Map.t(t), info: t): option(member_access) =>
     | Some(InfoExp({user_term: {term: Dot(base, label), _}, _}) as access)
         when Exp.rep_id(label) == Exp.rep_id(l) =>
       let+ items = module_items(~info_map, base);
+      {
+        access,
+        items,
+        name,
+        in_typ: false,
+      };
+    | _ => None
+    }
+  /* a pattern's module path (`M.N.A`, Modules II): its labels name
+     modules */
+  | InfoPat({
+      user_term: {term: Label(name), _} as l,
+      ancestors: [a, ..._],
+      _,
+    }) =>
+    switch (Id.Map.find_opt(a, info_map)) {
+    | Some(InfoPat({user_term: {term: Dot(base, label), _}, _}) as access)
+        when Pat.rep_id(label) == Pat.rep_id(l) =>
+      let* b = pat_binder(~info_map, base);
+      let+ items = binder_items(~info_map, b);
       {
         access,
         items,

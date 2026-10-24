@@ -17,19 +17,9 @@ type fn = {
 };
 
 [@deriving (show({with_path: false}), sexp)]
-type hazel_fn = {
-  name: string,
-  arg: Typ.term,
-  ret: Typ.term,
-  str: string,
-  imp: Exp.t,
-};
-
-[@deriving (show({with_path: false}), sexp)]
 type builtin =
   | Const(const)
-  | Fn(fn)
-  | HazelFn(hazel_fn);
+  | Fn(fn);
 
 [@deriving (show({with_path: false}), sexp)]
 type forms = VarMap.t_(DHExp.t => option(DHExp.t));
@@ -38,50 +28,45 @@ module Fresh = IdTagged.FreshGrammar;
 
 let fn_builtin = x => Fn(x);
 let const_builtin = x => Const(x);
-let hazel_fn_builtin = x => HazelFn(x);
 
-let ctx_entry_of_builtin: builtin => Ctx.entry =
+let typ_of_builtin: builtin => Typ.t =
   fun
-  | Const({name, typ, _}) =>
+  | Const({typ, _}) => typ |> Typ.fresh
+  | Fn({arg, ret, _}) => Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret));
+
+let ctx_entry_of_builtin = (b: builtin): Ctx.entry =>
+  switch (b) {
+  | Const({name, _}) =>
     Ctx.VarEntry({
       name,
-      typ: typ |> Typ.fresh,
+      typ: typ_of_builtin(b),
       id: Id.invalid,
       custom_statics: None,
     })
-  | Fn({name, arg, ret, custom_statics, _}) =>
+  | Fn({name, custom_statics, _}) =>
     Ctx.VarEntry({
       name,
-      typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
+      typ: typ_of_builtin(b),
       id: Id.invalid,
       custom_statics,
     })
-  | HazelFn({name, arg, ret, _}) =>
-    Ctx.VarEntry({
-      name,
-      typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
-      id: Id.invalid,
-      custom_statics: None,
-    });
+  };
 
 let form_of_builtin:
   builtin => option((string, TermBase.exp_t => option(TermBase.exp_t))) =
   fun
   | Const(_) => None
-  | Fn({name, imp, _}) => Some((name, imp))
-  | HazelFn(_) => None;
+  | Fn({name, imp, _}) => Some((name, imp));
 
 let imp_of_builtin: builtin => (string, TermBase.exp_t) =
   fun
   | Const({name, imp, _}) => (name, imp)
-  | HazelFn({name, imp, _}) => (name, imp)
   | Fn({name, _}) => (name, Fresh.Exp.builtin_fun(name));
 
 let name_of_builtin: builtin => string =
   fun
   | Const({name, _})
-  | Fn({name, _})
-  | HazelFn({name, _}) => name;
+  | Fn({name, _}) => name;
 
 exception BuiltinAlreadyDefined(Var.t);
 

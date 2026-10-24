@@ -124,6 +124,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Label(l) => rewrap(Label(l))
   | ExplicitNonlabel => rewrap(ExplicitNonlabel)
   | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
+  | Dot(path, l) => rewrap(Dot(pat_to_exp(path), pat_to_exp(l)))
   };
 };
 
@@ -199,7 +200,10 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       let* l =
         List.map(dhp => {dhpat_var_entry(dhp, t)}, l) |> OptUtil.sequence;
       Some(List.concat(l));
-    | Ap({term: Constructor(name, _), _}, dhp) =>
+    | Ap(
+        {term: Constructor(name, _) | Dot(_, {term: Label(name), _}), _},
+        dhp,
+      ) =>
       let* ctrs = Typ.get_sum_constructors(ctx, ty);
       let* typ = ConstructorMap.get_entry(name, ctrs);
       let* typ' = typ;
@@ -213,7 +217,8 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Projector(_, dhp) => dhpat_var_entry(dhp, ty)
     | Atom(c) =>
       Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
-    | Constructor(_) => Some([]) // TODO: make this stricter
+    | Constructor(_)
+    | Dot(_) => Some([]) // TODO: make this stricter
     | Asc(dhp, ty1) => dhpat_var_entry(dhp, ty1)
     };
   };
@@ -236,7 +241,8 @@ let rec get_inductive_hypotheses = (m, t, pat) => {
   | Atom(_) => []
   | ListLit(xs) =>
     List.concat(List.map(get_inductive_hypotheses_inner(m, t, _), xs))
-  | Constructor(_) => []
+  | Constructor(_)
+  | Dot(_) => []
   | Cons(e1, e2) =>
     get_inductive_hypotheses_inner(m, t, e1)
     @ get_inductive_hypotheses_inner(m, t, e2)

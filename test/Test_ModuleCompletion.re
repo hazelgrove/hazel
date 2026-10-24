@@ -1078,8 +1078,10 @@ let corpus_sweep = () =>
   if (Sys.getenv_opt("HAZEL_COMPLETION_SWEEP") == Some("1")) {
     let slide =
       switch (
-        CorpusUtil.read_file("hazel-programs/docs/reference/modules.hz"),
-        CorpusUtil.read_file("../hazel-programs/docs/reference/modules.hz"),
+        CorpusUtil.read_file("hazel-programs/world/documentation/modules.hz"),
+        CorpusUtil.read_file(
+          "../hazel-programs/world/documentation/modules.hz",
+        ),
       ) {
       | (Some(s), _)
       | (None, Some(s)) => s
@@ -1108,7 +1110,7 @@ let corpus_sweep = () =>
           Sort.Mod,
           CorpusUtil.mega_seg(~root=Mod, "mega-mod-1k.hz"),
         ),
-        ("modules slide", Sort.Exp, CorpusUtil.seg_of(slide)),
+        ("modules slide", Sort.Mod, CorpusUtil.seg_of(~root=Mod, slide)),
         ("mega-1k", Sort.Exp, CorpusUtil.mega_seg("mega-1k.hz")),
       ],
     );

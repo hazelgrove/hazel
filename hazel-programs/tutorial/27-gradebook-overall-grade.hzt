@@ -43,7 +43,7 @@ reference to the right provides functions and operations we think may
 be helpful for this task.
 
 @hint
-Use `map` to transform each row. Use tuple extension (`...`) to add the
+Use `List.map` to transform each row. Use tuple extension (`...`) to add the
 overall_grade field to each entry. Remember: quiz_pct = sum of 4 quizzes
 divided by 40 times 100
 
@@ -69,20 +69,20 @@ pet ... (age=8, breed="Pug")
 ```
 
 
-### map
+### List.map
 ```hazelnostatics
-map : ([T], T -> U) -> [U]
+List.map : ([T], T -> U) -> [U]
 ```
 Apply a function to each element:
 ```hazel
-map([1, 2, 3], fun x -> x + 1)
+List.map([1, 2, 3], fun x -> x + 1)
 ```
 
 
 ### Type Conversions
-- `int_of_string : String -> Int`
-- `float_of_string : String -> Float`
-- `float_of_int : Int -> Float`
+- `Int.of_string : String -> Int`
+- `Float.of_string : String -> Float`
+- `Float.of_int : Int -> Float`
 
 ### Float Arithmetic
 - `2.0 +. 3.0` — addition
@@ -96,7 +96,7 @@ Float literals need a decimal point: `0.`, `1.0`, `3.14`
 Use `_` to defer arguments:
 ```hazel
 let double =
-  map(_, fun x -> x * 2)
+  List.map(_, fun x -> x * 2)
 in
 double([1, 2, 3])
 ```
@@ -131,12 +131,12 @@ clean_and_add_overall_grade(gradebook)
 let cleaned = clean_and_add_overall_grade(gradebook) in
 let our_cleaned =
   gradebook
-  |> map(_, fun (r) -> r ... (student_id=int_of_string(r.student_id),
-    quiz1=float_of_string(r.quiz1),
-    quiz2=float_of_string(r.quiz2),
-    midterm=float_of_string(r.midterm),
-    final=float_of_string(r.final)))
-  |> map(_, fun r -> r... (overall_grade=(r.midterm +. r.final +. (r.quiz1 +. r.quiz2) *. 5) /. 3))
+  |> List.map(_, fun (r) -> r ... (student_id=Int.of_string(r.student_id),
+    quiz1=Float.of_string(r.quiz1),
+    quiz2=Float.of_string(r.quiz2),
+    midterm=Float.of_string(r.midterm),
+    final=Float.of_string(r.final)))
+  |> List.map(_, fun r -> r... (overall_grade=(r.midterm +. r.final +. (r.quiz1 +. r.quiz2) *. 5) /. 3))
 in
 test cleaned.student_id == our_cleaned.student_id end;
 test cleaned.quiz1 == our_cleaned.quiz1 end;
@@ -144,4 +144,4 @@ test cleaned.quiz2 == our_cleaned.quiz2 end;
 test cleaned.midterm == our_cleaned.midterm end;
 test cleaned.final == our_cleaned.final end;
 test cleaned.overall_grade == our_cleaned.overall_grade end;
-test to_lvs(head(cleaned)).label == ["student_id", "term", "quiz1", "quiz2", "midterm", "final", "overall_grade"] end
+test to_lvs(List.head(cleaned)).label == ["student_id", "term", "quiz1", "quiz2", "midterm", "final", "overall_grade"] end

@@ -64,14 +64,20 @@ let runtime_co_ctx = (co_ctx: CoCtx.t): CoCtx.t =>
   List.for_all(((name, _)) => is_runtime_dependency(name), co_ctx)
     ? co_ctx : CoCtx.filter_names(is_runtime_dependency, co_ctx);
 
-/* what an entry's witness reads besides its own probe targets */
+/* what an entry's witness reads besides its own probe targets.
+   [external_ids]: probed ids outside the program (the standard
+   library's, reached through its closures): in every entry's witness, so
+   changing them retakes samples rather than replaying cached ones */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type witnessing = {
   probe_all: bool,
-  full: list(Id.t) /* full-capture probes */
+  full: list(Id.t) /* full-capture probes */,
+  external_ids: list(Id.t),
 };
 
-let witnessing = (~probe_all: bool, ~targets: Sample.targets): witnessing => {
+let witnessing =
+    (~probe_all: bool, ~external_ids: list(Id.t), ~targets: Sample.targets)
+    : witnessing => {
   probe_all,
   full:
     Id.Map.fold(
@@ -79,6 +85,31 @@ let witnessing = (~probe_all: bool, ~targets: Sample.targets): witnessing => {
       targets,
       [],
     ),
+  external_ids,
+};
+
+/* the external probes as targets, for the last witnessing asked */
+let outside: list(Id.t) => SubexpProbeTargets.t = {
+  let last = ref(([], SubexpProbeTargets.empty));
+  external_ids =>
+    if (fst(last^) === external_ids) {
+      snd(last^);
+    } else {
+      let o =
+        SubexpProbeTargets.union_all(
+          List.map(
+            id =>
+              SubexpProbeTargets.add_self(
+                ~is_probed=true,
+                id,
+                SubexpProbeTargets.empty,
+              ),
+            external_ids,
+          ),
+        );
+      last := (external_ids, o);
+      o;
+    };
 };
 
 /* an expression's entry; None for other infos */
@@ -97,6 +128,10 @@ let entry_of_info = (w: witnessing, info: Info.t): option(entry) =>
               w.full,
             )) {
           ProbeTargets(SubexpProbeTargets.mark_full(probe_targets));
+        } else if (w.external_ids != []) {
+          ProbeTargets(
+            SubexpProbeTargets.union(probe_targets, outside(w.external_ids)),
+          );
         } else {
           w.probe_all ? ProbeAll : ProbeTargets(probe_targets);
         },
@@ -105,9 +140,14 @@ let entry_of_info = (w: witnessing, info: Info.t): option(entry) =>
   };
 
 let of_info_map =
-    (~probe_all: bool, ~targets: Sample.targets, info_map: StaticsBase.Map.t)
+    (
+      ~probe_all: bool,
+      ~external_ids: list(Id.t)=[],
+      ~targets: Sample.targets,
+      info_map: StaticsBase.Map.t,
+    )
     : t => {
-  let w = witnessing(~probe_all, ~targets);
+  let w = witnessing(~probe_all, ~external_ids, ~targets);
   {
     statics:
       Id.Map.filter_map((_id, info) => entry_of_info(w, info), info_map),

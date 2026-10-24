@@ -117,6 +117,28 @@ let signed_module = () =>
     "type S = {\n  let x : Int\n} in\nmodule N : S = {\n  let x = 1\n} in\nN.x",
   );
 
+/* a pattern's `M.A` names the module too (Test_ModuleCtors) */
+let pattern_paths = () => {
+  renamed(
+    "module M = {\n  type t = A + B\n} in\ncase M.A\n| M.A => 1\n| M.B => 2\nend",
+    "M",
+    "N",
+    "module N = {\n  type t = A + B\n} in\ncase N.A\n| N.A => 1\n| N.B => 2\nend",
+  );
+  renamed(
+    "let m = {\n  type t = A + B\n} in\ncase m.A\n| m.A => 1\n| _ => 2\nend",
+    "m",
+    "n",
+    "let n = {\n  type t = A + B\n} in\ncase n.A\n| n.A => 1\n| _ => 2\nend",
+  );
+  renamed(
+    "module M = {\n  module N = {\n    type u = C + D\n  }\n} in\ncase M.N.C\n| M.N.C => 1\n| _ => 2\nend",
+    "N",
+    "O",
+    "module M = {\n  module O = {\n    type u = C + D\n  }\n} in\ncase M.O.C\n| M.O.C => 1\n| _ => 2\nend",
+  );
+};
+
 let mod_root = () =>
   renamed(
     ~root=Mod,
@@ -415,6 +437,7 @@ let tests = (
     test_case("module members and M.x", `Quick, members),
     test_case("types", `Quick, types),
     test_case("modules", `Quick, modules),
+    test_case("a module named in a pattern", `Quick, pattern_paths),
     test_case("a module with a signature", `Quick, signed_module),
     test_case("module-rooted program", `Quick, mod_root),
     test_case("capture is refused", `Quick, capture),

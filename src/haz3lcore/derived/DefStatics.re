@@ -98,6 +98,8 @@ and sur = {
 type t = {
   items: list(item),
   term: Exp.t, /* the whole term these items were computed from */
+  /* the context it starts from: the builtins and the standard library */
+  ctx_in: Ctx.t,
   probe_ids: Id.Map.t(unit),
   merged: Statics.Map.t, /* union of the items' maps, kept incrementally */
   /* each item's elab grafted into its predecessor's body hole: recursion
@@ -378,6 +380,19 @@ let export_delta =
   let vars =
     List.concat_map(e => is_type_entry(e) ? [] : [entry_name(e)], changed);
   let tnames = List.concat_map(tnames_of_entry, changed);
+  /* an unchanged constructor of a changed sum means something else now
+     (`A : Int -> t` names t), and a use mentions the constructor only */
+  let tnames =
+    tnames
+    @ List.concat_map(
+        fun
+        | Ctx.ConstructorEntry({name, typ, _})
+            when List.exists(v => List.mem(v, tnames), Typ.free_vars(typ)) => [
+            ctor_key(name),
+          ]
+        | _ => [],
+        old @ new_,
+      );
   vars == [] && tnames == []
     ? Unchanged
     : Changed({
@@ -1290,8 +1305,8 @@ and calc_plain_item =
 
 /* member granularity for a module literal bound to a name, plain or
    ascribed with a signature whose members it defines (and against whose
-   items the members are analyzed, as the monolithic lowering does). one
-   missing or extra is reported on the module and on its items, as the
+   items the members are analyzed, as the monolithic lowering does). a
+   missing one is reported on the module and on its items, as the
    monolithic check does: such an item is analyzed whole */
 and module_literal_members =
     (~ctx: Ctx.t, node: Exp.t)
@@ -1856,7 +1871,10 @@ and calc_chain =
 
 /* the seed ctx must be PHYSICALLY stable across calc calls: reuse
    gating chains on pointer identity in the clean case */
-let ctx0: Ctx.t = Builtins.ctx_init(Some(Operators.default_mode));
+/* the seed ctx must be PHYSICALLY stable across calc calls: reuse
+   gating chains on pointer identity in the clean case (ctx_init's memo
+   holds it until the library changes) */
+let ctx0 = (): Ctx.t => Builtins.ctx_init(Some(Operators.default_mode));
 
 /* [chain], except a Module root itemizes via the lowering (chain never
    descends into defs, so only a root Module is seen here): its nodes,
@@ -1877,9 +1895,23 @@ let chain_root = (~prev: option(lowering), e: Exp.t) => {
    sets) is reused; its map may keep stale ctx entries for dirty names it
    doesn't use, sound for typing though its Γ display can lag */
 let calc =
-    (~settings, ~prev: option(t)=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+    (
+      ~settings,
+      ~ctx_in: Ctx.t=ctx0(),
+      ~prev: option(t)=?,
+      ~probe_ids=Id.Map.empty,
+      whole: Exp.t,
+    )
+    : t => {
   last_analyzed := 0;
   summed := 0;
+  /* a new starting context (the library changed) dirties every item;
+     library edits are rare enough that this beats diffing its exports */
+  let prev =
+    switch (prev) {
+    | Some(p) when p.ctx_in === ctx_in => Some(p)
+    | _ => None
+    };
   let (nodes, root) =
     chain_root(~prev=Option.bind(prev, (p: t) => p.lowering), whole);
   /* probe ids are an analysis input (witness stamping): only items whose
@@ -1911,7 +1943,7 @@ let calc =
       ~prevs=Option.fold(~none=[], ~some=(p: t) => p.items, prev),
       ~dirty_vars=[],
       ~dirty_tnames=[],
-      ~ctx_in=ctx0,
+      ~ctx_in,
       nodes,
     );
   /* a Module root's items read as module items, as monolithically. the
@@ -1933,6 +1965,7 @@ let calc =
   {
     items,
     term: whole,
+    ctx_in,
     probe_ids,
     merged,
     elab,
@@ -1981,11 +2014,12 @@ let after_calc: ref(option((CoreSettings.t, t) => unit)) = ref(None);
 let slots: ref(list((Id.t, t))) = ref([]);
 let slots_cap = 8;
 
-let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
+let calc_auto =
+    (~settings, ~ctx_in=?, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   /* a probe change keeps the slot: calc re-analyzes just the affected items */
   let key = Exp.rep_id(whole);
   let prev = List.assoc_opt(key, slots^);
-  let t = calc(~settings, ~prev?, ~probe_ids, whole);
+  let t = calc(~settings, ~ctx_in?, ~prev?, ~probe_ids, whole);
   slots :=
     [
       (key, t),
@@ -1995,6 +2029,10 @@ let calc_auto = (~settings, ~probe_ids=Id.Map.empty, whole: Exp.t): t => {
   t;
 };
 
-/* the last calc of [whole]'s document, if still cached */
-let cached = (whole: Exp.t): option(t) =>
-  List.assoc_opt(Exp.rep_id(whole), slots^);
+/* the last calc of [whole]'s document, if still cached and against the
+   current library */
+let cached = (~ctx_in=ctx0(), whole: Exp.t): option(t) =>
+  switch (List.assoc_opt(Exp.rep_id(whole), slots^)) {
+  | Some(t) when t.ctx_in === ctx_in => Some(t)
+  | _ => None
+  };

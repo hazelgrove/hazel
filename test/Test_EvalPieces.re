@@ -134,6 +134,7 @@ let post =
     )
   ) {
   | Evaluate(posted) => posted
+  | InstallLibrary(_) => Alcotest.fail("a library install")
   };
 };
 
@@ -654,7 +655,7 @@ let protocol = () => {
 /* evaluation reads the same from the composed program as from the
    whole: the value (the ⇓ probe's), the tests and every probe's samples */
 let evaluate = ((expr, eval_info): (Exp.t, EvalInfo.t)) =>
-  switch (Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, expr)) {
+  switch (Evaluator.evaluate(~eval_info, ~env=Builtins.env_init(), expr)) {
   | (value, state) => Ok((value, state))
   | exception exn => Error(Printexc.to_string(exn))
   };
@@ -666,7 +667,11 @@ let shipped = TermPrune.prune_closure_envs;
 /* the projection as the base made it: every use, "$hole" ones too */
 let with_holes = (st: CachedStatics.t): (Exp.t, EvalInfo.t) => {
   let w =
-    EvalInfo.witnessing(~probe_all=settings.probe_all, ~targets=st.targets);
+    EvalInfo.witnessing(
+      ~probe_all=settings.probe_all,
+      ~external_ids=[],
+      ~targets=st.targets,
+    );
   (
     st.elaborated,
     {
@@ -759,12 +764,12 @@ let same_results = (name, st: CachedStatics.t) => {
 let results = () => {
   let n = ref(0);
   List.iter(
-    ((path, src)) =>
-      switch (CorpusUtil.parse(src)) {
+    ((path, root, src)) =>
+      switch (CorpusUtil.parse(~root, src)) {
       | Some(seg) =>
         same_results(
           path,
-          statics_of(MakeTerm.Incr.term_of_root(~root=Exp, seg)),
+          statics_of(MakeTerm.Incr.term_of_root(~root, seg)),
         );
         incr(n);
       | None => ()
@@ -792,11 +797,198 @@ let results = () => {
   );
 };
 
+let world_src = "let a = 1;
+module Documentation = {
+  let helper = a + 1;
+  let unused = 0;
+  module Holes : {} = {
+    test false end;
+    1
+  };
+  module Intro : {} = {
+    let y = helper;
+    test y == 2 end;
+    Holes;
+    y
+  }
+};
+module Scratch = {
+  let z = 0
+}";
+
+/* the ids of the modules on [path] (names from the top level down) in a
+   world's elaboration */
+let id_in = (path, e: Exp.t) => {
+  let items = (e: Exp.t) =>
+    switch (e.term) {
+    | Module(items) => items
+    | _ => fail("not a module")
+    };
+  List.fold_left(
+    ((ids, e), name) => {
+      let i = List.find(i => List.mem(name, WorldTree.binds(i)), items(e));
+      ([Mod.rep_id(i), ...ids], Option.get(WorldTree.def_of(i)));
+    },
+    ([], e),
+    path,
+  )
+  |> fst
+  |> List.rev;
+};
+
+/* [seg]'s world run zoomed to [zoom]: its statics as cut, and its request
+   in pieces as the worker composes it */
+let world_run = (~zoom, seg) => {
+  let st = statics_of(MakeTerm.Incr.term_of_root(~root=Mod, seg));
+  let (rs, cut) =
+    Web.WorldSlide.run_statics(~zoom=id_in(zoom, st.elaborated), st);
+  check(bool, "cut", true, Option.is_some(cut));
+  let request: WorkerServer.Request.t = {
+    request_id: 1,
+    batch: [
+      (
+        "",
+        {
+          program:
+            Split.program(
+              ~probe_all=settings.probe_all,
+              ~targets=rs.targets,
+              ~run=?cut,
+              rs,
+            ),
+          prev: UseResident,
+          stream: Full,
+        },
+      ),
+    ],
+  };
+  let encoded = Split.encoded^;
+  (st, rs, encoded, composed(WorkerServer.receive(post(request))));
+};
+
+/* a world's run (WorldSlide.run_statics), its request cut alike: the
+   worker composes what runs, with the eval info a whole request of it
+   carries, and what doesn't run is never encoded */
+let world = () => {
+  fresh_worker();
+  let run = (name, ~zoom, seg) => {
+    let (st, rs, encoded, v) = world_run(~zoom, seg);
+    let {same} = same_graph();
+    check(option(string), name ++ ": in pieces", None, Split.went_whole^);
+    check(bool, name ++ ": what runs", true, same(rs.elaborated, v.expr));
+    let (_, info) = whole(rs);
+    check(
+      list(string),
+      name ++ ": the run's eval info",
+      [],
+      Id.Map.fold(
+        (id, e, acc) =>
+          switch (Id.Map.find_opt(id, v.eval_info_map.statics)) {
+          | Some(e') when same(e, e') => acc
+          | _ => [Id.show(id), ...acc]
+          },
+        info.statics,
+        [],
+      ),
+    );
+    (st, encoded);
+  };
+  let item_key = (st: CachedStatics.t, path): EvalPieces.key =>
+    Item(List.nth(id_in(path, st.elaborated), List.length(path) - 1));
+  let has = (key, encoded) => List.mem(key, encoded);
+  let seg = CorpusUtil.seg_of(~root=Mod, world_src);
+  let intro = ["Documentation", "Intro"];
+  let (st, encoded) = run("the slide", ~zoom=intro, seg);
+  let holes = List.nth(id_in(["Documentation", "Holes"], st.elaborated), 1);
+  check(
+    bool,
+    "the sealed one, empty",
+    true,
+    has(Empty(holes): EvalPieces.key, encoded),
+  );
+  check(
+    bool,
+    "what nothing mentions, unencoded",
+    false,
+    has(item_key(st, ["Documentation", "unused"]), encoded),
+  );
+  let seg =
+    Parity.token(~at=`First, ~keep_id=true, "2", "3").edit(~root=Mod, seg);
+  let (st, encoded) = run("the slide edited", ~zoom=intro, seg);
+  check(
+    bool,
+    "what it mentions, kept",
+    false,
+    has(item_key(st, ["Documentation", "helper"]), encoded),
+  );
+  let seg =
+    Parity.token(~at=`First, ~keep_id=true, "0", "5").edit(~root=Mod, seg);
+  let (st, encoded) = run("what doesn't run, edited", ~zoom=intro, seg);
+  check(
+    bool,
+    "still unencoded",
+    false,
+    has(item_key(st, ["Documentation", "unused"]), encoded),
+  );
+  let (_, encoded) = run("the folder", ~zoom=["Documentation"], seg);
+  check(
+    bool,
+    "the sealed one, whole",
+    true,
+    has(Item(holes): EvalPieces.key, encoded),
+  );
+  ignore(run("the whole program", ~zoom=[], seg));
+};
+
+/* zoomed into a slide, then out to its folder, the worker's results kept
+   between: the folder's are a cold run's, a module the first run cut or
+   emptied not reused (the evaluator reuses a result while its entry's
+   elab_term is the same), whether the request went in pieces or whole */
+let world_zoom_out = () => {
+  let seg = CorpusUtil.seg_of(~root=Mod, world_src);
+  let evaluate = (~prev=?, (expr, info)) => {
+    let (_, state) =
+      Evaluator.evaluate(
+        ~prev?,
+        ~eval_info=info,
+        ~env=Builtins.env_init(),
+        expr,
+      );
+    (Parity.tests_of(state), state.incr_eval);
+  };
+  fresh_worker();
+  let (_, slide, _, slide_v) =
+    world_run(~zoom=["Documentation", "Intro"], seg);
+  let (_, folder, _, folder_v) = world_run(~zoom=["Documentation"], seg);
+  let (cold, _) = evaluate(whole(folder));
+  check(int, "the folder's tests", 2, List.length(cold));
+  let (_, prev) = evaluate((slide_v.expr, slide_v.eval_info_map));
+  check(
+    list(pair(string, string)),
+    "in pieces",
+    cold,
+    fst(evaluate(~prev, (folder_v.expr, folder_v.eval_info_map))),
+  );
+  let (_, prev) = evaluate(whole(slide));
+  check(
+    list(pair(string, string)),
+    "whole",
+    cold,
+    fst(evaluate(~prev, whole(folder))),
+  );
+};
+
 let tests = (
   "EvalPieces",
   exact_tests
   @ encoding_tests
   @ [
+    test_case("a world's run, cut alike", `Quick, world),
+    test_case(
+      "a world zoomed out reuses nothing it cut",
+      `Quick,
+      world_zoom_out,
+    ),
     test_case(
       "missing, restarted, dropped, out of order, mismatched",
       `Quick,

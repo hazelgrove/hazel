@@ -245,6 +245,7 @@ module Namer = {
     | Ap(pat1, _) => mk_name_from_pat(pat1)
     | TupLabel(pat1, pat2) =>
       "(" ++ mk_name_from_pat(pat1) ++ " : " ++ mk_name_from_pat(pat2) ++ ")"
+    | Dot(path, l) => mk_name_from_pat(path) ++ "." ++ mk_name_from_pat(l)
     | Atom(_) => "{atom}"
     | ExplicitNonlabel => "{explicit nonlabel}"
     | Invalid(_) => "{invalid}"
@@ -516,7 +517,10 @@ let rec build_children =
       List.fold_left(
         (node_map, item: Mod.t) =>
           switch (item.term, Id.Map.find_opt(Mod.rep_id(item), info_map)) {
-          | (ModLet(_) | ModType(_) | ModuleMod(_), Some(wrapper)) =>
+          | (
+              ModLet(_) | ModType(_) | ModuleMod(_) | ModVal(_),
+              Some(wrapper),
+            ) =>
             build_binding(wrapper, path, node_map, info_map)
           | _ => node_map
           },

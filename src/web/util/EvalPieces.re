@@ -12,6 +12,7 @@ open Language;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type key =
   | Item(Id.t) /* a definition, by its rep id */
+  | Empty(Id.t) /* a module run empty, by its definition's rep id */
   | Roots(Id.t) /* the root entries of the members of the item with this id */
   | TopRoots(Id.t) /* a program's top-level root entries, by its term's id */
   | Targets(Id.t) /* a program's probe targets, by its term's id */
@@ -265,7 +266,8 @@ let assemble =
           };
           let id =
             switch (n.slot.key) {
-            | Item(id) => id
+            | Item(id)
+            | Empty(id) => id
             | _ => raise(Malformed("an item's key is no item's"))
             };
           (

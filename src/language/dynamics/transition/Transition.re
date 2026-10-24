@@ -1512,10 +1512,20 @@ module Transition = (EV: EV_MODE) => {
               })
             };
           };
-        | ModVal(_, _)
+        /* a hole or unparsed item is passed over, as `?; e` is at an
+           expression level: the members after it still run */
         | Invalid(_)
         | EmptyHole
         | MultiHole(_) =>
+          let. _ = otherwise(env, d);
+          Step({
+            expr: Module(prefix @ suffix) |> rewrap,
+            side_effects: [],
+            kind: ModuleDiscardExp,
+            is_value: suffix == [],
+            at: Some(Mod.rep_id(item)),
+          });
+        | ModVal(_, _) =>
           let. _ = otherwise(env, d);
           Indet;
         };

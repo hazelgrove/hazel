@@ -690,12 +690,12 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t =>
     };
   }
 /* The signature items a module path denotes, if any. A path is a variable
-   naming a module (looked up in the value namespace once it is not a type
-   alias) or a projection of a value member out of another path. A type
-   alias whose expansion is a signature also counts, so `S.T` resolves on
-   `type S = { type T = Int }`. Never uses Ctx.lookup_alias: it returns an
-   invalid-hole type for unbound names, which would shadow the value
-   namespace. */
+   naming a module (looked up in the value namespace unless a type alias of
+   the name is a signature) or a projection of a value member out of
+   another path. A type alias whose expansion is a signature also counts,
+   so `S.T` resolves on `type S = { type T = Int }`. Never uses
+   Ctx.lookup_alias: it returns an invalid-hole type for unbound names,
+   which would shadow the value namespace. */
 and path_sig = (~rec_counter=0, ctx: Ctx.t, t: t): option(list(Sig.t)) =>
   if (rec_counter > 1000) {
     None;
@@ -704,15 +704,22 @@ and path_sig = (~rec_counter=0, ctx: Ctx.t, t: t): option(list(Sig.t)) =>
     | Parens(t)
     | Projector(_, t) => path_sig(~rec_counter=rec_counter + 1, ctx, t)
     | Var(n) =>
-      switch (Ctx.lookup_tvar(ctx, n)) {
-      | Some(Singleton(alias)) => as_sig(~rec_counter, ctx, alias)
-      | Some(Abstract) => None
+      let alias_sig =
+        switch (Ctx.lookup_tvar(ctx, n)) {
+        | Some(Singleton(alias)) => as_sig(~rec_counter, ctx, alias)
+        | Some(Abstract)
+        | None => None
+        };
+      /* a type of the name that is no signature leaves the module of
+         that name visible: `Option.t` beside the builtin `Option` */
+      switch (alias_sig) {
+      | Some(_) => alias_sig
       | None =>
         switch (Ctx.lookup_var(ctx, n)) {
         | Some({typ, _}) => as_sig(~rec_counter, ctx, typ)
         | None => None
         }
-      }
+      };
     | ProdProjection(p, {term: Label(l), _}) =>
       switch (path_sig(~rec_counter=rec_counter + 1, ctx, p)) {
       | Some(items) =>
@@ -1095,7 +1102,7 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   | (Sig(xs), Sig(ys)) =>
     /* Exact consistency: the same value-member names and the same
        type-member names (order-insensitive), members pairwise consistent.
-       Subtyping between signatures lives in ana_meet, not here. */
+       Sealing between signatures lives in `coercion`, not here. */
     let xs = Sig.dedup_last_items(xs);
     let mx = Sig.members(xs);
     let my = Sig.members(ys) |> Sig.dedup_last;
@@ -1131,6 +1138,85 @@ let rec meet = (ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     };
   | (Sig(_), _) => None
   };
+};
+
+/* Coercive subtyping `from ≲ to_`, checked only at coercion sites: an
+   ascription, an annotated binder, an application argument. Consistency, or,
+   structurally through tuple components, a signature with more members than
+   `to_` declares; the runtime coercion is the sealing cast in Ascriptions.re.
+   Returns the coerced expression's type: the meet, or the sealed signature.
+   Everywhere else the relation is `meet`. */
+let rec coercion = (ctx: Ctx.t, ~from: t, ~to_: t): option(t) =>
+  switch (meet(ctx, to_, from)) {
+  | Some(_) as r => r
+  | None =>
+    switch (
+      term_of(weak_head_normalize(ctx, from)),
+      term_of(weak_head_normalize(ctx, to_)),
+    ) {
+    | (Parens(f), _) => coercion(ctx, ~from=f, ~to_)
+    | (_, Parens(t)) => coercion(ctx, ~from, ~to_=t)
+    | (TupLabel({term: ExplicitNonlabel, _}, f), _) =>
+      coercion(ctx, ~from=f, ~to_)
+    | (_, TupLabel({term: ExplicitNonlabel, _}, t)) =>
+      coercion(ctx, ~from, ~to_=t)
+    | (Sig(f), Sig(t)) => sig_sub(ctx, ~from=f, ~to_=t) ? Some(to_) : None
+    | (Prod(fs), Prod(ts)) when List.length(fs) == List.length(ts) =>
+      let+ tys =
+        List.map2((f, t) => coercion(ctx, ~from=f, ~to_=t), fs, ts)
+        |> OptUtil.sequence;
+      Prod(tys) |> temp;
+    | (TupLabel(lf, f), TupLabel(lt, t)) =>
+      let* l = meet(ctx, lt, lf);
+      let+ t = coercion(ctx, ~from=f, ~to_=t);
+      TupLabel(l, t) |> temp;
+    | _ => None
+    }
+  }
+/* `from <: to_` for signatures: every member `to_` declares is provided by
+   `from` with a type that coerces to it; extra `from` members are ignored. */
+and sig_sub = (ctx: Ctx.t, ~from: list(Sig.t), ~to_: list(Sig.t)): bool => {
+  let from_members = Sig.members(from) |> Sig.dedup_last;
+  /* Open `from`: its type members get fresh names so they cannot collide
+     with `to_`'s; references inside its member types follow the renaming. */
+  let (ctx, sigma) =
+    List.fold_left(
+      ((ctx, sigma), m: Sig.member) =>
+        switch (m) {
+        | TypeManifest(name, def) =>
+          let f = fresh_var(name);
+          (
+            Ctx.extend_alias(ctx, f, Id.invalid, apply_sig_subst(sigma, def)),
+            [(name, Var(f) |> temp), ...sigma],
+          );
+        | Val(_) => (ctx, sigma)
+        },
+      (ctx, []),
+      from_members,
+    );
+  let from_value = x =>
+    Sig.find_value(from_members, x) |> Option.map(apply_sig_subst(sigma));
+  let from_type = t =>
+    Sig.find_type_def(from_members, t) |> Option.map(apply_sig_subst(sigma));
+  let rec go = (ctx, ms: list(Sig.member)) =>
+    switch (ms) {
+    | [] => true
+    | [Sig.Val(x, t_to), ...ms] =>
+      switch (from_value(x)) {
+      | Some(t_from) =>
+        Option.is_some(coercion(ctx, ~from=t_from, ~to_=t_to))
+        && go(ctx, ms)
+      | None => false
+      }
+    | [Sig.TypeManifest(t, d_to), ...ms] =>
+      switch (from_type(t)) {
+      | Some(d_from) =>
+        Option.is_some(meet(ctx, d_to, d_from))
+        && go(Ctx.extend_alias(ctx, t, Id.invalid, d_to), ms)
+      | None => false
+      }
+    };
+  go(ctx, Sig.members(to_) |> Sig.dedup_last);
 };
 
 /* REQUIRES NORMALIZED TYPES
@@ -1234,6 +1320,52 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   | _ => None
   };
 };
+
+/* The constructors a signature exports: those of each type member whose
+   definition is a sum, typed as outside the module, where the member's
+   closed definition stands for its name. Only the last declaration of a
+   type counts, and a later type's constructor shadows an earlier one's. */
+let sig_ctors = (ctx: Ctx.t, items: list(Sig.t)): list((Constructor.t, t)) => {
+  let defs =
+    List.fold_left(
+      (acc, (m: Sig.member, def)) =>
+        switch (m) {
+        | TypeManifest(name, _) =>
+          List.remove_assoc(name, acc) @ [(name, def)]
+        | Val(_) => acc
+        },
+      [],
+      sig_members_closed(items),
+    );
+  List.fold_left(
+    (acc, (_, def)) =>
+      switch (get_sum_constructors(ctx, def)) {
+      | None => acc
+      | Some(sm) =>
+        let ctrs =
+          List.filter_map(
+            fun
+            | ConstructorMap.Variant(c, _, arg) =>
+              Some((
+                c,
+                switch (arg) {
+                | None => def
+                | Some(arg) => Arrow(arg, def) |> temp
+                },
+              ))
+            | ConstructorMap.BadEntry(_) => None,
+            sm,
+          );
+        List.filter(((c, _)) => !List.mem_assoc(c, ctrs), acc) @ ctrs;
+      },
+    [],
+    defs,
+  );
+};
+
+let sig_project_ctor =
+    (ctx: Ctx.t, items: list(Sig.t), name: Constructor.t): option(t) =>
+  List.assoc_opt(name, sig_ctors(ctx, items));
 
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {

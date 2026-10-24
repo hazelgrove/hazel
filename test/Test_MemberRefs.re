@@ -195,6 +195,39 @@ let nested = () =>
     both,
   );
 
+/* a module sealed with a signature (Modules II): its members resolve to
+   the implementation's, through the per-member analysis of an ascribed
+   module, and `M` in `M.T` is the module's value binding */
+let sealed_src = "module M : { let a : Int; type T = Int } = {\n  let a = 1;\n  let hidden = 2;\n  type T = Int\n};\nlet d : M.T = M.a;\nd";
+
+let sealed = () => {
+  let root = Sort.Mod;
+  check(
+    string,
+    "F12 on M.a's a",
+    "1:6 let a = 1;",
+    f12(~off=2, ~root, sealed_src, "M.a"),
+  );
+  check(
+    string,
+    "F12 on M.T's T",
+    "3:7 type T = Int",
+    f12(~off=2, ~root, sealed_src, "M.T"),
+  );
+  List.iter(
+    ((what, mk)) => {
+      let z = at(~off=2, ~root, sealed_src, "M.a");
+      check(
+        string,
+        what ++ ": M.a's a",
+        "1:6 let a = 1;",
+        names(~info_map=mk(~root, z), ~root, sealed_src, z),
+      );
+    },
+    both,
+  );
+};
+
 /* what `.x` names: through aliases, value-bound modules, the last member
    so named, a function member; not a labeled tuple's label */
 let resolution = () => {
@@ -332,6 +365,7 @@ let tests = (
   [
     test_case("F12 on M.a and M.T", `Quick, go_to_definition),
     test_case("nested modules", `Quick, nested),
+    test_case("a sealed module's members", `Quick, sealed),
     test_case("what a dot's label names", `Quick, resolution),
     test_case("the inspector's reading", `Quick, inspector),
     test_case("highlights", `Quick, highlights),

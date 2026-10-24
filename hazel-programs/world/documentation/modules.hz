@@ -1,0 +1,108 @@
+# MODULES #
+
+# Modules use curly-brace syntax with semicolon-separated items. #
+# The `module` keyword supports capitalized module names. #
+# Modules are first-class values; their types are signatures. #
+
+
+# A. MODULE CONSTRUCTION AND ACCESS #
+
+# 1. Defining and accessing a module #
+module Geometry = {
+  type Point = (Int, Int);
+  type Distance = Int;
+  let origin : Point = (0, 0);
+  let manhattan =
+    fun (x, y) : Point -> x + y
+};
+
+let pt : Geometry.Point = (3, 4);
+let dist : Geometry.Distance = Geometry.manhattan(pt);
+
+# 2. Empty module #
+module Empty = {};
+
+# 3. Lowercase `let` works too #
+let colors = {
+  let red = 1;
+  let green = 2;
+  let blue = 3
+};
+let r = colors.red;
+
+# 4. Later bindings can reference earlier ones #
+module Counter = {
+  let start = 0;
+  let next = start + 1;
+  let after = next + 1
+};
+
+# 5. Shadowing: last binding wins #
+module M = {
+  let x = 1;
+  let x = "hello"
+};
+
+# 6. Test assertion inside a module #
+module M = {
+  test 1 + 1 == 2 end;
+  let result = 99
+};
+
+
+# B. QUALIFIED TYPE ACCESS #
+
+# 7. Type aliases are accessible via dot notation in types #
+module Units = {
+  type Meters = Int;
+  type Seconds = Int
+};
+let height : Units.Meters = 170;
+let duration : Units.Seconds = 60;
+
+# 8. Nested modules and nested type access #
+module Outer = {
+  module Inner = {
+    type T = Bool;
+    let value = true
+  }
+};
+let b : Outer.Inner.T = Outer.Inner.value;
+
+# 9. Module aliasing propagates type exports #
+module Base = {
+  type Id = Int
+};
+module App = {
+  module Db = Base;
+  type UserId = Db.Id
+};
+let uid : App.Db.Id = 42;
+let uid2 : App.UserId = uid;
+
+# 10. Variable aliasing propagates type exports too #
+module M = {
+  type T = Int
+};
+let n = M;
+let x : n.T = 5;
+
+# 11. Error: nonexistent type member #
+module M = {
+  type Real = Int
+};
+let bad : M.Fake = 1;
+
+# 11a. Error: a type member is not a value #
+let bad2 = M.Real;
+
+# 11b. Error: this module has no type members #
+let bad3 : Empty.T = 1;
+
+# 11c. Error: only modules and tuples have members #
+let n = 1;
+let bad4 = n.x;
+
+# 11d. Error: a value that is not a module cannot start a type path #
+let bad5 : n.T = 1;
+¿

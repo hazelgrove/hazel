@@ -30,7 +30,10 @@ let tests = (
       parse_and_evaluate_test({|0|}, {|-5 + 5|})
     ),
     test_case("Negation of parenthesized float expression", `Quick, () =>
-      parse_and_evaluate_test({|true|}, {|atan(0. -. 1.) ==. -(atan(1.))|})
+      parse_and_evaluate_test(
+        {|true|},
+        {|Float.atan(0. -. 1.) ==. -(Float.atan(1.))|},
+      )
     ),
     /* Under a `use` mode, a definitively-Int operand re-kinds negation
        back to Int (was a float op stuck on the Int operand). The `let`

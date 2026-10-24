@@ -38,8 +38,21 @@ module Model = {
   };
 
   let unpersist_with =
-      (~settings as _=?, ~zipper, {editor, result}: persistent): t => {
-    editor: CodeEditable.Model.unpersist_with(~zipper, editor),
+      (
+        ~settings as _=?,
+        ~t_cache=?,
+        ~m_cache=?,
+        ~zipper,
+        {editor, result}: persistent,
+      )
+      : t => {
+    editor:
+      CodeEditable.Model.unpersist_with(
+        ~t_cache?,
+        ~m_cache?,
+        ~zipper,
+        editor,
+      ),
     result: EvalResult.Model.unpersist(result),
   };
 
@@ -204,6 +217,14 @@ module Update = {
         ~ctx=?,
         ~projected: option(Haz3lcore.CachedStatics.t)=?,
         ~extra_dynamics: option(Language.Dynamics.Map.t)=?,
+        /* probes outside the program, in code it runs (the library's) */
+        ~extra_targets: option(Language.Sample.targets)=?,
+        /* the statics the run reads, and how they were cut from these
+           (a world's: what its view needs) */
+        ~run:
+           Haz3lcore.CachedStatics.t =>
+           (Haz3lcore.CachedStatics.t, option(Haz3lcore.WorldTree.run))=s =>
+                                                                    (s, None),
         ~show_value=?,
         ~queue_worker,
         ~stitch,
@@ -235,6 +256,7 @@ module Update = {
     /* Save probe results reference before result calculation */
     let probes_before = EvalResult.Model.probe_results(result);
     /* Calculate result (may produce new dynamics from worker) */
+    let (run_statics, run) = run(editor |> CodeEditable.Model.get_statics);
     let result =
       EvalResult.Update.calculate(
         ~settings={
@@ -245,7 +267,9 @@ module Update = {
         ~show_value?,
         ~is_edited,
         ~stepping=stepping(editor),
-        editor |> CodeEditable.Model.get_statics,
+        ~extra_targets?,
+        ~run?,
+        run_statics,
         result,
       );
     let (cell, steps_resized) =

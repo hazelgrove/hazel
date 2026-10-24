@@ -250,6 +250,7 @@ let rec var_binders_of_pat = (pat: Pat.t): list((string, Id.t)) => {
   | Wild
   | Atom(_)
   | Constructor(_, _)
+  | Dot(_)
   | Label(_)
   | Projector(_, _)
   | ExplicitNonlabel => []

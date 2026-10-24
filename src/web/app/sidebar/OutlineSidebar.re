@@ -13,14 +13,24 @@ let clss = cs => Attr.classes(cs);
 module TestStatus = Language.TestStatus;
 module E = OutlineEdit;
 
+/* the level above in trouble: its crumb becomes an alarm pill holding,
+   past a divider, the chip's way out; why, and that way out's glyph and
+   title */
+type alarm = {
+  al_why: string,
+  al_act: string,
+  al_act_title: string,
+};
+
 /* a level above the slide, whose outline is another document's, for
    navigating only: its crumb's label, the crumb's title from the slide
-   and at the level, and a chip shown at it (label, title) */
+   and at the level, a chip shown at it (label, title), and an alarm */
 type above = {
   a_label: string,
   a_out: string,
   a_here: string,
   a_chip: option((string, string)),
+  a_alarm: option(alarm),
 };
 
 /* where the outline is: a slide's, with a level above to zoom out to;
@@ -632,9 +642,18 @@ let level_crumbs = (level: level): list((string, string, level_go)) =>
     ]
   };
 
+let level_alarm = (level: level): option(alarm) =>
+  switch (level) {
+  | InSlide(a)
+  | Enclosing(a, _) => a.a_alarm
+  | Plain => None
+  };
+
+/* an alarm's pill holds the way out the chip would */
 let level_chip = (level: level): option((string, string)) =>
   switch (level) {
-  | Enclosing(a, _) => a.a_chip
+  | Enclosing({a_alarm: None, _} as a, _) => a.a_chip
+  | Enclosing(_)
   | Plain
   | InSlide(_) => None
   };
@@ -1362,7 +1381,8 @@ and rows_view =
   let fresh = fresh_id(on);
   List.concat_map(
     ((n: OutlineTree.node, seg)) =>
-      n.o_id != None && n.o_id == fresh
+      /* a bare statement (`e;`) is no definition: no row */
+      n.o_id != None && n.o_id == fresh || n.o_kind == KStmt
         ? []
         : [node_view(~props, ~on, ~tm, ~path, ~seg, n)]
           @ new_row_after(~props, ~tm, n),
@@ -2001,8 +2021,12 @@ let keys =
    crumb zooms out to it; the last one shows its level's whole */
 let header_view =
     (~on: handlers, ~typing: bool, header: header): list(Node.t) => {
+  /* no program crumb: the level above's crumb is the program (a world) */
   let crumbs =
-    [(Option.none, short_name(header.h_program))]
+    (
+      header.h_program == ""
+        ? [] : [(Option.none, short_name(header.h_program))]
+    )
     @ List.map(((id, l)) => (Option.some(id), l), header.h_trail);
   let n = List.length(crumbs);
   let sep =
@@ -2041,18 +2065,44 @@ let header_view =
     );
   /* a level above: its crumb leads, or at it its crumbs and chip are all */
   let level_nodes =
-    List.map(
-      ((label, title, go)) =>
-        span(
-          ~attrs=[
-            clss(
-              ["outline-crumb"] @ (go == Here ? ["outline-crumb-here"] : []),
-            ),
-            Attr.title(title),
-            Attr.on_click(_ => stop(level_effect(on, go))),
-          ],
-          [text(label)],
-        ),
+    List.mapi(
+      (i, (label, title, go)) => {
+        let here = go == Here ? ["outline-crumb-here"] : [];
+        switch (level_alarm(header.h_level)) {
+        /* the level's own crumb, alarmed: the pill */
+        | Some(al) when i == 0 =>
+          span(
+            ~attrs=[clss(["outline-crumb", "outline-crumb-alarm"] @ here)],
+            [
+              span(
+                ~attrs=[
+                  clss(["outline-alarm-go"]),
+                  Attr.title(al.al_why),
+                  Attr.on_click(_ => stop(level_effect(on, go))),
+                ],
+                [text({js|⚠ |js} ++ label)],
+              ),
+              span(
+                ~attrs=[
+                  clss(["outline-alarm-act"]),
+                  Attr.title(al.al_act_title),
+                  Attr.on_click(_ => stop(level_effect(on, Chip))),
+                ],
+                [text(al.al_act)],
+              ),
+            ],
+          )
+        | _ =>
+          span(
+            ~attrs=[
+              clss(["outline-crumb"] @ here),
+              Attr.title(title),
+              Attr.on_click(_ => stop(level_effect(on, go))),
+            ],
+            [text(label)],
+          )
+        };
+      },
       level_crumbs(header.h_level),
     );
   let chip =
@@ -2149,7 +2199,8 @@ let visible_rows =
   let rec walk = (parent, prefix, ns: list(OutlineTree.node)) =>
     List.concat_map(
       ((n: OutlineTree.node, seg)) =>
-        n.o_id != None && n.o_id == skip
+        /* a bare statement (`e;`) is no definition: no row */
+        n.o_id != None && n.o_id == skip || n.o_kind == KStmt
           ? []
           : {
             let path = prefix @ [seg];

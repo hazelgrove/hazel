@@ -52,7 +52,7 @@ let eval_incr =
       info_map,
     );
   let (result, state) =
-    Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   (result, state, state.incr_eval);
 };
 
@@ -131,7 +131,7 @@ let reuse_plan =
     : EvaluatorState.incr_eval => {
   let (info_map, elab) = statics_and_elab(exp);
   let eval_info = eval_info_of_statics(info_map);
-  ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
 };
 
 let has_reuse = (ack_incr: EvaluatorState.incr_eval): bool =>
@@ -200,7 +200,7 @@ let test_streaming_plan_reuses_root_without_descending = () => {
   let (info_map, elab) = statics_and_elab(exp);
   let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   let root_id = Exp.rep_id(elab);
   check(
     bool,
@@ -224,7 +224,7 @@ let test_streaming_plan_omits_misses_and_keeps_children = () => {
   let (info_map, elab) = statics_and_elab(exp2);
   let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   let root_id = Exp.rep_id(elab);
   check(
     bool,
@@ -247,7 +247,7 @@ let test_materialize_stream_state_marks_reused_entries = () => {
   let (info_map, elab) = statics_and_elab(exp);
   let eval_info = eval_info_of_statics(info_map);
   let stream =
-    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+    ReusePass.reuse_pass(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
   let state =
     StreamCollector.collect_stream_state(
       IncrEval.outbox_of_completed(stream),
@@ -277,7 +277,7 @@ let eval_with_targets =
       ~targets,
       info_map,
     );
-  Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init, elab);
+  Evaluator.evaluate(~prev, ~eval_info, ~env=Builtins.env_init(), elab);
 };
 
 let replace_first_u_plus_one = (exp: Exp.t): Exp.t => {
@@ -793,8 +793,8 @@ let test_tuple_destructuring_edit_updates = () => {
 /* List literal: same idea — editing one element shouldn't break the result.
  * We sum via a cons-accumulator-style expression to exercise Cons + fold. */
 let test_list_literal_element_edit_updates = () => {
-  /* Use length so the test is independent of fold syntax variations. */
-  let src = "length([7, 8, 9])";
+  /* Use List.length so the test is independent of fold syntax variations. */
+  let src = "List.length([7, 8, 9])";
   let exp1 = parse_exp(src);
   let exp2 = replace_int_lit(~from=8, ~to_=88, exp1);
   let (r1, _, incr1) = eval_incr(exp1);
@@ -872,7 +872,7 @@ let test_probe_replay_on_reuse = () => {
     Evaluator.evaluate(
       ~prev=IncrEval.empty,
       ~eval_info,
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elab,
     );
   /* Second run: same elaboration, same (empty) targets. Just confirm the
@@ -881,7 +881,7 @@ let test_probe_replay_on_reuse = () => {
     Evaluator.evaluate(
       ~prev=state1.incr_eval,
       ~eval_info,
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       elab,
     );
   check(
@@ -1630,21 +1630,21 @@ let test_toplevel_cast_edit = () => {
 
 /* Regression test: builtins must participate in reuse.
  *
- * A subexpression that references a builtin (e.g. `string_length`) has that
- * builtin's name in its co_ctx. The builtin is bound in `Builtins.env_init`,
+ * A subexpression that references a builtin (e.g. `String.length`) has that
+ * builtin's name in its co_ctx. The builtin is bound in `Builtins.env_init()`,
  * never via a let/pattern, so its name has no provenance entry unless the
  * reuse_map is seeded from the environment. Before that seeding,
  * `reuse_map_for_co_ctx` returned None for any co_ctx containing a builtin,
  * so the subexpression could NEVER be reused — and neither could anything
  * downstream of it.
  *
- *   Run 1: n = string_length("hello"), _ = 55, n   -> 5
+ *   Run 1: n = String.length("hello"), _ = 55, n   -> 5
  *   Run 2: edit the unrelated `_ = 55` literal to 77.
  *
- * The `string_length("hello")` Ap is unrelated to the edited binding, so it
+ * The `String.length("hello")` Ap is unrelated to the edited binding, so it
  * must be reused on run 2. */
 let test_builtin_call_reuses_after_unrelated_edit = () => {
-  let src = {|let n = string_length("hello") in
+  let src = {|let n = String.length("hello") in
 let _ = 55 in
 n|};
   let exp1 = parse_exp(src);
@@ -1655,7 +1655,7 @@ n|};
     true,
     !Exp.fast_equal(exp1, exp2),
   );
-  /* Locate the `string_length("hello")` Ap by its string-literal argument. */
+  /* Locate the `String.length("hello")` Ap by its string-literal argument. */
   let builtin_ap_id = {
     let found = ref(None);
     let f_exp = (continue, e: Exp.t): Exp.t => {
@@ -1672,14 +1672,14 @@ n|};
     let _ = TermBase.Exp.map_term(~f_exp, exp1);
     switch (found^) {
     | Some(id) => id
-    | None => failwith("could not locate `string_length(\"hello\")` Ap node")
+    | None => failwith("could not locate `String.length(\"hello\")` Ap node")
     };
   };
   let (r1, _, incr1) = eval_incr(exp1);
   let (r2, _, _, plan2) = eval_incr_with_plan(~prev=incr1, exp2);
   check(
     dhexp_typ,
-    "Run 1: string_length(\"hello\") = 5",
+    "Run 1: String.length(\"hello\") = 5",
     parse_exp("5"),
     r1,
   );
@@ -1688,7 +1688,7 @@ n|};
    * builtin name in the Ap's co_ctx forces a permanent cache miss here. */
   check(
     bool,
-    "string_length(\"hello\") Ap is reused on run 2",
+    "String.length(\"hello\") Ap is reused on run 2",
     true,
     directly_reused(builtin_ap_id, plan2),
   );
@@ -1825,6 +1825,59 @@ let test_module_member_moved_above_dependency = () => {
   incremental_matches_fresh(
     ~before,
     ~after=TermBase.Exp.map_term(~f_exp=reorder, before),
+  );
+};
+
+/* Drop the value member [name] from every signature type in [exp],
+ * preserving every other id. Simulates editing a `module M : { ... }`
+ * annotation in place. */
+let drop_sig_member = (~name: string, exp: Exp.t): Exp.t => {
+  let f_typ = (continue, t: Typ.t): Typ.t =>
+    switch (t.term) {
+    | Sig(items) =>
+      let items =
+        List.filter(
+          (item: Sig.t) =>
+            switch (Sig.member_of_item(item)) {
+            | Some(Val(x, _)) => x != name
+            | _ => true
+            },
+          items,
+        );
+      {
+        ...t,
+        term: (Sig(items): Typ.term),
+      };
+    | _ => continue(t)
+    };
+  TermBase.Exp.map_term(~f_typ, exp);
+};
+
+/* Sealing is part of a binding's value: the same module definition bound
+ * under a narrower signature no longer has the member. Removing `default`
+ * from Stack's signature must invalidate the cached `Stack.default`, which
+ * previously reused the value computed under the wider signature. */
+let test_sig_edit_invalidates_sealed_member = () => {
+  let src = {|module Stack : { let default : Int; let x : Int } = {
+  let default = 0;
+  let x = 1
+} in Stack.default|};
+  let exp1 = parse_exp(src);
+  let exp2 = drop_sig_member(~name="default", exp1);
+  check(
+    bool,
+    "drop_sig_member actually changed the expression",
+    true,
+    !Exp.fast_equal(exp1, exp2),
+  );
+  let (r_fresh, _, _) = eval_incr(exp2);
+  let (_, _, incr_prev) = eval_incr(exp1);
+  let (r_incr, _, _) = eval_incr(~prev=incr_prev, exp2);
+  check(
+    dhexp_typ,
+    "Incremental eval of edited matches fresh eval of edited",
+    r_fresh,
+    r_incr,
   );
 };
 
@@ -2046,6 +2099,11 @@ let tests = (
       "MODULE: a member moved above its dependency doesn't reuse its value",
       `Quick,
       test_module_member_moved_above_dependency,
+    ),
+    test_case(
+      "SEALING: dropping a member from a module's signature invalidates its use",
+      `Quick,
+      test_sig_edit_invalidates_sealed_member,
     ),
   ],
 );

@@ -22,8 +22,22 @@ let text = (syntax: CachedSyntax.t, id: Id.t): string =>
   | None => "<no segment>"
   };
 
-let tail_text = (src: string): string => {
-  let (_, syntax) = analysed(zipper(src));
+let tail_text = (~root=Sort.Exp, src: string): string => {
+  let (_, syntax) =
+    switch (root) {
+    | Exp => analysed(zipper(src))
+    | _ =>
+      let z = CorpusUtil.typed_zipper(~root, src);
+      (
+        Id.Map.empty,
+        CachedSyntax.mk(
+          ~root,
+          ~info_map=Id.Map.empty,
+          ~dyn_map=Id.Map.empty,
+          z,
+        ),
+      );
+    };
   switch (AutoProbePerform.tail_id(syntax)) {
   | Some(id) => text(syntax, id)
   | None => "<none>"
@@ -98,6 +112,20 @@ let finds_tail = () => {
     tail_text(
       "type t = Int in\nlet a = 1 in\ntest a == 1 end;\nlet b = 2 in\n(a, b)",
     ),
+  );
+  /* a module root's: its last item, if an expression (a world slide's
+     members) */
+  check(
+    string,
+    "the last member",
+    "x + 1",
+    tail_text(~root=Mod, "let x = 1;\ntest x == 1 end;\nx + 1"),
+  );
+  check(
+    string,
+    "none after a definition",
+    "<none>",
+    tail_text(~root=Mod, "let x = 1;\nlet y = x"),
   );
 };
 

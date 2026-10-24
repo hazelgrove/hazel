@@ -71,6 +71,31 @@ let with_folds = (folds: OutlineTree.folds, side: side): side => {
   };
 };
 
+/* a world slide's module, by outline path (WorldSlide): what the side
+   stores is the slide's own, its paths below this one */
+let world_roots: Hashtbl.t(string, OutlineTree.path) = Hashtbl.create(8);
+
+/* [path] as the slide's own: None when it's outside the slide */
+let out_of_world =
+    (root: OutlineTree.path, path: OutlineTree.path)
+    : option(OutlineTree.path) => {
+  let n = List.length(root);
+  List.length(path) >= n
+  && List.for_all2((==), root, Util.ListUtil.take(n, path))
+    ? Some(snd(Util.ListUtil.split_n(n, path))) : None;
+};
+
+/* the live folds as stored: a world slide's, its own */
+let stored_folds = (ck: string, folds: OutlineTree.folds): OutlineTree.folds =>
+  switch (Hashtbl.find_opt(world_roots, ck)) {
+  | Some(root) =>
+    List.filter_map(
+      ((path, f)) => Option.map(p => (p, f), out_of_world(root, path)),
+      folds,
+    )
+  | None => folds
+  };
+
 let side_key = (prefix: string, name: string): string =>
   content_key(prefix, name) ++ ":side";
 
@@ -195,7 +220,36 @@ let resolve_view = (saved: side, term: Language.Exp.t): SlideView.t => {
 };
 
 let write_folds = (prefix: string, name: string): unit =>
-  write_side(prefix, name, with_folds(folds(prefix, name)));
+  write_side(
+    prefix,
+    name,
+    with_folds(
+      stored_folds(content_key(prefix, name), folds(prefix, name)),
+    ),
+  );
+
+/* a world slide's staged view in the world's paths, under [root] (the
+   slide's module) and zoomed to it at least: the side stores the slide's
+   own. Its folds go there too, once */
+let into_world = (ck: string, root: OutlineTree.path, side: side): side => {
+  if (!Hashtbl.mem(world_roots, ck)) {
+    Hashtbl.replace(world_roots, ck, root);
+    switch (Hashtbl.find_opt(slide_folds, ck)) {
+    | Some(folds) =>
+      Hashtbl.replace(
+        slide_folds,
+        ck,
+        List.map(((p, f)) => (root @ p, f), folds),
+      )
+    | None => ()
+    };
+  };
+  {
+    ...side,
+    pins: List.map(((p, run)) => (root @ p, run), side.pins),
+    zoom: Some(root @ Option.value(side.zoom, ~default=[])),
+  };
+};
 
 let save_meta = (prefix: string, m: slide_meta): unit =>
   HazelDB.kv_save_sexp(meta_key(prefix), sexp_of_slide_meta, m);
@@ -371,7 +425,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
   let sp = List.nth(model.scratchpads, model.current);
   switch (sp.dormant, sp.kind) {
   | (true, _) => () /* never write a placeholder over the stored slide */
-  | (false, Code({program, agent, view})) =>
+  | (false, Code({program, agent, view, world, _})) =>
     let stamp =
       switch (program) {
       | Divided(d) => Stacked(d)
@@ -383,23 +437,67 @@ let save_current' = (prefix: string, model: Model.t): unit => {
       | Some(prev) => stamp_equal(prev, stamp)
       | None => false
       };
-    if (!content_unchanged) {
+    let term = Program.statics(program).term;
+    /* a world slide's module, as the outline paths it */
+    let root =
+      Option.bind(world, slide => OutlineTree.label_path(slide, term));
+    Option.iter(Hashtbl.replace(world_roots, ck), root);
+    let own = path =>
+      switch (root) {
+      | Some(root) => out_of_world(root, path)
+      | None => Some(path)
+      };
+    /* what is stored: the program, or a world's slide members with
+       their probes (None: the slide's module is gone) */
+    let stored =
+      switch (world) {
+      | None =>
+        Some((
+          switch (program) {
+          | Whole(editor) => editor.editor.editor.state.zipper
+          | Divided(d) =>
+            Divided.document(d)
+            |> Zipper.unzip
+            |> ZipperBase.update_refractors(_, r =>
+                 Refractors.{
+                   ...r,
+                   manuals: Divided.probes(d),
+                 }
+               )
+          },
+          Program.root(program),
+        ))
+      | Some(slide) =>
+        (
+          switch (WorldTree.body(~slide, Program.document(program))) {
+          | Loaded(members) => Some(members)
+          | Unloaded
+          | Gone => None
+          }
+        )
+        |> Option.map(members => {
+             let ids = Segment.ids(members);
+             (
+               Zipper.unzip(members)
+               |> ZipperBase.update_refractors(_, r =>
+                    Refractors.{
+                      ...r,
+                      manuals:
+                        List.filter(
+                          ((id, _)) => List.mem(id, ids),
+                          Program.probes(program),
+                        ),
+                    }
+                  ),
+               Sort.Mod,
+             );
+           })
+      };
+    switch (stored) {
+    | Some((z, stored_root)) when !content_unchanged =>
       Hashtbl.replace(last_saved_content, ck, stamp);
       /* text, without a live editor (syntax init and zipper sexps are
-         slow); a divided program saves its document */
-      let z =
-        switch (program) {
-        | Whole(editor) => editor.editor.editor.state.zipper
-        | Divided(d) =>
-          Divided.document(d)
-          |> Zipper.unzip
-          |> ZipperBase.update_refractors(_, r =>
-               Refractors.{
-                 ...r,
-                 manuals: Divided.probes(d),
-               }
-             )
-        };
+         slow) */
       save_items(prefix, sp.name, z);
       /* the slide blob carries the editor only; the conversation lives
          solely under the :agent key */
@@ -417,7 +515,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
                     ),
                     /* the editor's own root: a Mod-rooted slide saved as
                        Exp reloads as an expression and wedges */
-                    ~root=Program.root(program),
+                    ~root=stored_root,
                   ),
                 result: EvalResult.Model.persist(Program.result(program)),
               },
@@ -425,17 +523,17 @@ let save_current' = (prefix: string, model: Model.t): unit => {
           agent: Agent.Persistent.persist(Agent.Utils.init()),
         }),
       );
+    | Some(_) => ()
+    | None => print_endline("scratch: " ++ sp.name ++ " lost its module")
     };
-    let term = Program.statics(program).term;
     /* the folds carry over: they're written as they change */
     write_side(prefix, sp.name, side =>
       {
         ...side,
         caret:
-          switch (program) {
-          /* text saves lose it, so it's restored after hydration; a
-             divided program's is in a cell anyway */
-          | Whole(editor) when !content_unchanged =>
+          switch (world, program) {
+          /* text saves lose it, so it's restored after hydration */
+          | (None, Whole(editor)) when !content_unchanged =>
             try(
               Some(
                 Zipper.Caret.point(
@@ -446,20 +544,46 @@ let save_current' = (prefix: string, model: Model.t): unit => {
             ) {
             | _ => side.caret
             }
+          /* a world slide's is in its members' cell */
+          | (Some(slide), Divided(d)) =>
+            switch (Divided.active(d), Divided.cell(slide, d)) {
+            | (Some((id, Body)), Some(e)) when id == slide =>
+              try(
+                Some(
+                  Zipper.Caret.point(
+                    e.e_body.editor.editor.syntax.measured,
+                    e.e_body.editor.editor.state.zipper,
+                  ),
+                )
+              ) {
+              | _ => side.caret
+              }
+            | _ => side.caret
+            }
           | _ => side.caret
           },
-        probes: content_unchanged ? side.probes : Program.probes(program),
+        probes:
+          switch (stored) {
+          | Some((z, _)) when !content_unchanged => z.refractors.manuals
+          | _ => side.probes
+          },
         /* the view can change without the text (a parked pin dropped) */
         pins:
           List.filter_map(
             (p: SlideView.pin) =>
-              OutlineTree.label_path(p.p_id, term)
+              Option.bind(OutlineTree.label_path(p.p_id, term), own)
               |> Option.map(path => (path, p.p_run)),
             view.pins,
           ),
         zoom:
           Option.bind(SlideView.zoom_root(view), m =>
-            OutlineTree.label_path(m, term)
+            Option.bind(OutlineTree.label_path(m, term), own)
+          )
+          /* zoomed to the slide's module: its whole */
+          |> (
+            fun
+            | Some([]) => None
+            | z => z
           ),
         parked: view.parked,
       }
@@ -509,8 +633,105 @@ let save_current' = (prefix: string, model: Model.t): unit => {
 let save_current = (prefix: string, model: Model.t): unit =>
   HazelDB.kv_batch(() => save_current'(prefix, model));
 
+/* the stored slide [name]'s editor over [seg] (at [root]): in the
+   library's world when it has a member form (WorldSlide), its view staged
+   under the slide's module, else as it is */
+let open_slide =
+    (
+      ~settings,
+      ~prefix,
+      ~name,
+      ~root,
+      ~probes,
+      persisted: CellEditor.Model.persistent,
+      seg: Segment.t,
+    )
+    : (CellEditor.Model.t, option(Id.t)) => {
+  let zipper = (seg, root) =>
+    Zipper.unzip(~direction=Left, seg)
+    |> Zipper.remold_regrout(Right, ~root)
+    |> ZipperBase.update_refractors(_, r =>
+         Refractors.{
+           ...r,
+           manuals: probes,
+         }
+       );
+  switch (WorldSlide.enter(~name, ~root, seg)) {
+  | Some((doc, slide)) =>
+    /* its view restores once its outline is known, zoomed to its module
+       at least (into_world) */
+    Hashtbl.replace(
+      pending_pins,
+      content_key(prefix, name),
+      read_side(prefix, name),
+    );
+    (
+      CellEditor.Model.unpersist_with(
+        ~settings,
+        ~t_cache=WorldSlide.parse_cache,
+        ~m_cache=WorldSlide.layout_cache,
+        ~zipper=zipper(doc, Mod),
+        {
+          ...persisted,
+          editor: {
+            ...persisted.editor,
+            root: Mod,
+          },
+        },
+      ),
+      Some(slide),
+    );
+  | None => (
+      CellEditor.Model.unpersist_with(
+        ~settings,
+        ~zipper=zipper(seg, root),
+        persisted,
+      ),
+      None,
+    )
+  };
+};
+
+/* the slide [name]'s program as stored (its segment, root and probes),
+   without an editor; None when nothing is stored */
+let stored =
+    (prefix: string, name: string)
+    : option((Segment.t, Sort.t, Refractors.RefractorList.t)) =>
+  switch (load_slide_kind(prefix, name)) {
+  | Some(CodePersist({editor: Some(e), _})) =>
+    let root = e.editor.root;
+    switch (ItemPersist.load(~store=item_store(prefix, name))) {
+    | Some(seg) => Some((seg, root, read_probes(prefix, name, seg)))
+    | None =>
+      let z = PersistentZipper.unpersist(e.editor.zipper, ~root);
+      Some((
+        Zipper.unselect_and_zip(~erase_buffer=true, z),
+        root,
+        z.refractors.manuals,
+      ));
+    };
+  | _ => None
+  };
+
+/* [open_slide] over a stored text */
+let open_text =
+    (~settings, ~prefix, ~name, persisted: CellEditor.Model.persistent) => {
+  let root = persisted.editor.root;
+  let z = PersistentZipper.unpersist(persisted.editor.zipper, ~root);
+  open_slide(
+    ~settings,
+    ~prefix,
+    ~name,
+    ~root,
+    ~probes=z.refractors.manuals,
+    persisted,
+    Zipper.unselect_and_zip(~erase_buffer=true, z),
+  );
+};
+
 let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t => {
   stage_side(prefix, name);
+  Hashtbl.remove(world_roots, content_key(prefix, name));
   switch (load_slide_kind(prefix, name)) {
   | Some(CodePersist({editor: e, agent})) =>
     let persisted =
@@ -518,43 +739,41 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
       | Some(e) => e
       | None => Init.default_documentation_slide_name(name)
       };
+    /* per-item restore, else the whole-doc text */
+    let (editor, world) =
+      switch (ItemPersist.load(~store=item_store(prefix, name))) {
+      | Some(seg) =>
+        /* prime the dirty cache: the first autosave tick after a load
+           should rewrite nothing */
+        Hashtbl.replace(
+          last_item_saves,
+          content_key(prefix, name),
+          ItemPersist.items_of(seg),
+        );
+        open_slide(
+          ~settings,
+          ~prefix,
+          ~name,
+          ~root=persisted.editor.root,
+          ~probes=read_probes(prefix, name, seg),
+          persisted,
+          seg,
+        );
+      | None =>
+        /* the text copy re-mints ids, so no stored item slice can be
+           reused: drop them rather than leave them */
+        let ns = items_ns(prefix, name);
+        HazelDB.kv_remove_where(k => String.starts_with(~prefix=ns, k));
+        open_text(~settings, ~prefix, ~name, persisted);
+      };
     Scratchpad.mk_code(
       ~name,
       ~agent=
         Agent.Persistent.unpersist(
           Option.value(load_agent(prefix, name), ~default=agent),
         ),
-      /* per-item restore, else the whole-doc text */
-      ~editor=
-        switch (ItemPersist.load(~store=item_store(prefix, name))) {
-        | Some(seg) =>
-          let root = persisted.editor.root;
-          let z =
-            Zipper.unzip(~direction=Left, seg)
-            |> Zipper.remold_regrout(Right, ~root)
-            |> ZipperBase.update_refractors(_, r =>
-                 Refractors.{
-                   ...r,
-                   manuals: read_probes(prefix, name, seg),
-                 }
-               );
-          /* prime the dirty cache: the first autosave tick after a load
-             should rewrite nothing */
-          Hashtbl.replace(
-            last_item_saves,
-            content_key(prefix, name),
-            ItemPersist.items_of(
-              Zipper.unselect_and_zip(~erase_buffer=true, z),
-            ),
-          );
-          CellEditor.Model.unpersist_with(~settings, ~zipper=z, persisted);
-        | None =>
-          /* the text copy re-mints ids, so no stored item slice can be
-             reused: drop them rather than leave them */
-          let ns = items_ns(prefix, name);
-          HazelDB.kv_remove_where(k => String.starts_with(~prefix=ns, k));
-          CellEditor.Model.unpersist(~settings, persisted);
-        },
+      ~editor,
+      ~world?,
       (),
     );
   | Some(DrvPersist(p)) =>
@@ -591,15 +810,21 @@ let load_scratchpad = (~settings, prefix: string, name: string): Scratchpad.t =>
         dormant: false,
       }
     | None =>
+      let (editor, world) =
+        open_text(
+          ~settings,
+          ~prefix,
+          ~name,
+          Init.default_documentation_slide_name(name),
+        );
       Scratchpad.mk_code(
         ~name,
-        ~editor=
-          Init.default_documentation_slide_name(name)
-          |> CellEditor.Model.unpersist(~settings),
+        ~editor,
         ~agent=?
           Option.map(Agent.Persistent.unpersist, load_agent(prefix, name)),
+        ~world?,
         (),
-      )
+      );
     }
   };
 };

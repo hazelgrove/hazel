@@ -52,7 +52,7 @@ fact(5);
 
 type Plant = (name = String, water = Int) in
 let bed_labels(bed: [Plant]): [String] =
-  map(bed, fun p -> p.name ++ ": " ++ string_of_int(p.water) ++ "ml")
+  List.map(bed, fun p -> p.name ++ ": " ++ String.of_int(p.water) ++ "ml")
 in
 let fern: Plant = (name = "fern", water = 250) in
 let orchid: Plant = (name = "orchid", water = 180) in

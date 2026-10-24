@@ -109,18 +109,22 @@ let apply =
       updated.model,
     );
 
-  if (updated.is_edit) {
+  switch (action) {
+  /* background work: it neither edits nor postpones the next save (a
+     summary a tick would snooze it for as long as summaries run) */
+  | Summarize => ()
+  | _ when updated.is_edit =>
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SetAlarm(
         Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
       ),
-    );
-  } else {
+    )
+  | _ =>
     schedule_autosave(
       BonsaiUtil.Alarm.Action.SnoozeAlarm(
         Core.Time_ns.add(Core.Time_ns.now(), Core.Time_ns.Span.of_sec(1.0)),
       ),
-    );
+    )
   };
   if (updated.scroll_active) {
     scroll_to_caret := true;
@@ -186,6 +190,25 @@ let start = default_model => {
       ~when_to_start_next_effect=`Wait_period_after_previous_effect_finishes_blocking,
       Core.Time_ns.Span.of_sec(0.1),
       replay_effect,
+    );
+
+  /* the World's unloaded slides summarized while the editor is idle (no
+     update at all otherwise, so typing pays nothing for it) */
+  let summarize_effect = {
+    let%map app_inject = app_inject;
+    Bonsai.Effect.of_sync_fun(
+      () =>
+        if (WorldSummaries.due() && WorldSummaries.idle()) {
+          Ui_effect.Expert.handle(app_inject(Page.Update.Summarize));
+        },
+      (),
+    );
+  };
+  let%sub () =
+    Bonsai.Clock.every(
+      ~when_to_start_next_effect=`Wait_period_after_previous_effect_finishes_blocking,
+      Core.Time_ns.Span.of_sec(0.25),
+      summarize_effect,
     );
 
   // Update font metrics on resize
@@ -374,17 +397,40 @@ let start = default_model => {
   };
 };
 
+/* the worker now, so its load overlaps this thread's boot rather than
+   delaying the first result */
+ignore(WorkerClient.get_worker());
+
+/* the standard library's files and IndexedDB load side by side; nothing
+   computes statics before both are in */
+let when_loaded = (k: unit => unit): unit => {
+  let pending = ref(2);
+  let ready = () => {
+    decr(pending);
+    if (pending^ == 0) {
+      k();
+    };
+  };
+  StdlibServed.load(text => {
+    LibraryDoc.ship(text);
+    ready();
+  });
+  HazelDB.kv_load_all(_pairs => ready());
+};
+
 switch (JsUtil.Fragment.get_current()) {
-| Some("debug") => DebugMode.go()
+| Some("debug") => when_loaded(DebugMode.go)
 | _ =>
-  /* Load all IndexedDB data, then construct model and start Bonsai.
-     The hazelnut loading spinner (in index.html) stays visible until
-     Bonsai renders its first frame. */
-  HazelDB.kv_load_all(_pairs => {
+  /* Then construct the model and start Bonsai. The hazelnut loading
+     spinner (in index.html) stays visible until Bonsai renders its first
+     frame. */
+  when_loaded(() => {
     /* The user's theme, before the first frame and whatever mode they are
        in. The inline script in index.html has already themed the loading
        screen from the same cache; this validates it and fills a miss. */
     ConfigurationMode.apply_theme_at_startup();
+    /* a library edited in an earlier session, over the shipped one */
+    LibraryDoc.restore();
     let model = CrashHandling.Model.load();
     let default_model =
       CrashHandling.Update.calculate(

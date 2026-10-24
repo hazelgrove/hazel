@@ -897,8 +897,8 @@ let read_any = (paths: list(string)): option(string) =>
    branches), else the audit's copies */
 let stdlib = (name: string): option(string) =>
   read_any([
-    "hazel-programs/stdlib/" ++ name,
-    "../hazel-programs/stdlib/" ++ name,
+    "hazel-programs/world/" ++ name,
+    "../hazel-programs/world/" ++ name,
     "test/modaudit/" ++ name,
     "../test/modaudit/" ++ name,
   ]);
@@ -983,14 +983,14 @@ let deletions = () =>
     if (selected("slide")) {
       switch (
         read_any([
-          "hazel-programs/docs/reference/modules.hz",
-          "../hazel-programs/docs/reference/modules.hz",
+          "hazel-programs/world/documentation/modules.hz",
+          "../hazel-programs/world/documentation/modules.hz",
         ])
       ) {
       | Some(src) =>
         report(
           "Modules slide",
-          sweep_deletions(~root=Exp, ~sample, "Modules slide", src),
+          sweep_deletions(~root=Mod, ~sample, "Modules slide", src),
         )
       | None => print_endline("modules.hz: missing")
       };

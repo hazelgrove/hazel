@@ -1,0 +1,4 @@
+# Top-level names: pairs and printing #
+let fst = $prim.fst;
+let snd = $prim.snd;
+let print = $prim.print

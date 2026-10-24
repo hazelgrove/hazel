@@ -1,8 +1,20 @@
 open Haz3lcore;
 open Util;
 
-/* what a mode's saved slides are keyed under */
-let prefix = (~is_documentation) => is_documentation ? "doc" : "scratch";
+/* the slide decks: Scratch, Documentation, and the world tree's, which
+   holds both as one program (WorldDeck) */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type deck =
+  | Scratch
+  | Documentation
+  | World;
+
+/* what a deck's saved slides are keyed under */
+let prefix =
+  fun
+  | Scratch => "scratch"
+  | Documentation => "doc"
+  | World => "world";
 
 module Scratchpad = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -11,6 +23,15 @@ module Scratchpad = {
     /* what the slide shows of it: pins, zoom, parked */
     view: SlideView.t,
     agent: Agent.Model.t,
+    /* the program level, while shown: the standard library's document in
+       the slide's place (LibraryDoc); not saved */
+    lib: option(CellEditor.Model.t),
+    /* the library generation this slide was last checked and run against
+       (LibraryDoc.generation) */
+    lib_gen: int,
+    /* in the library's world (WorldSlide): the slide's module, whose
+       members are what the slide stores */
+    world: option(Id.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,13 +68,16 @@ module Scratchpad = {
     kind: kind_persistent,
   };
 
-  let mk_code = (~name, ~editor, ~agent=Agent.Utils.init(), ()): t => {
+  let mk_code = (~name, ~editor, ~agent=Agent.Utils.init(), ~world=?, ()): t => {
     name,
     kind:
       Code({
         program: Whole(editor),
         view: SlideView.init,
         agent,
+        lib: None,
+        lib_gen: 0,
+        world,
       }),
     dormant: false,
   };

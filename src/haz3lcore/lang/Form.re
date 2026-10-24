@@ -161,6 +161,8 @@ let rows_of: family => list(row) =
     ]
   | Dot => [
       mk_infix(Exp, P.dot),
+      /* `M.A`: a constructor a module exports */
+      mk_infix(Pat, P.dot),
       mk_infix(Typ, P.dot),
       /* deliberately duplicated Typ row: `.` is offered twice as a
        * remold candidate at Typ (two historically distinct forms

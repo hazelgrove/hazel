@@ -84,7 +84,7 @@ let evaluate = (~prev=IncrEval.empty, info_map, elab) =>
         ~targets=Id.Map.empty,
         info_map,
       ),
-    ~env=Builtins.env_init,
+    ~env=Builtins.env_init(),
     elab,
   );
 
@@ -152,7 +152,7 @@ let script =
       );
       if (i == 0) {
         let (mono_map, mono_elab) =
-          Statics.mk_unmemoized(settings, DefStatics.ctx0, ds.term);
+          Statics.mk_unmemoized(settings, DefStatics.ctx0(), ds.term);
         check(
           bool,
           "the graft evaluates as the monolithic elaboration",
@@ -206,8 +206,8 @@ let mega = (~root, ~eval=true, ~delta=false, file, steps, ()) =>
 let corpus_through_calc_auto = () => {
   let checked = ref(0);
   List.iter(
-    ((path, src)) =>
-      switch (CorpusUtil.parse(src)) {
+    ((path, root, src)) =>
+      switch (CorpusUtil.parse(~root, src)) {
       | None => ()
       | Some(seg) =>
         let calc = seg =>
@@ -215,7 +215,7 @@ let corpus_through_calc_auto = () => {
             ignore(
               DefStatics.calc_auto(
                 ~settings=CoreSettings.on,
-                MakeTerm.Incr.term_of(seg),
+                MakeTerm.Incr.term_of_root(~root, seg),
               ),
             )
           ) {
@@ -335,10 +335,10 @@ let items_leave_binders_unflagged = () => {
     ),
   );
   List.iter(
-    ((path, src)) =>
+    ((path, root, src)) =>
       Option.iter(
-        seg => check_calc(path, MakeTerm.Incr.term_of(seg)),
-        CorpusUtil.parse(src),
+        seg => check_calc(path, MakeTerm.Incr.term_of_root(~root, seg)),
+        CorpusUtil.parse(~root, src),
       ),
     CorpusUtil.slide_corpus(),
   );
@@ -407,7 +407,7 @@ let probe_capture_parity = (): unit => {
       CorpusUtil.seg_of("let f = fun q -> q + 1 in\nlet z = f(5) in\nz"),
     ).
       term;
-  let (map0, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, term);
+  let (map0, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0(), term);
   let q_id =
     switch (
       Id.Map.fold(
@@ -431,11 +431,11 @@ let probe_capture_parity = (): unit => {
     let eval_info =
       EvalInfo.of_info_map(~probe_all=false, ~targets, info_map);
     let (_, state) =
-      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, elab);
+      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init(), elab);
     Id.Map.cardinal(EvaluatorState.get_probes(state));
   };
   let (map_m, elab_m) =
-    Statics.mk_unmemoized(~probe_ids, settings, DefStatics.ctx0, term);
+    Statics.mk_unmemoized(~probe_ids, settings, DefStatics.ctx0(), term);
   let ds0 = DefStatics.calc(~settings, term);
   let ds = DefStatics.calc(~settings, ~prev=ds0, ~probe_ids, term);
   check(
@@ -537,11 +537,11 @@ let modexp_probe_parity = (): unit => {
     let eval_info =
       EvalInfo.of_info_map(~probe_all=false, ~targets, info_map);
     let (_, state) =
-      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init, elab);
+      Evaluator.evaluate(~eval_info, ~env=Builtins.env_init(), elab);
     Id.Map.cardinal(EvaluatorState.get_probes(state));
   };
   let (map_m, elab_m) =
-    Statics.mk_unmemoized(~probe_ids, settings, DefStatics.ctx0, term);
+    Statics.mk_unmemoized(~probe_ids, settings, DefStatics.ctx0(), term);
   let mono = samples(map_m, elab_m);
   check(bool, "the probe samples", true, mono > 0);
   check(int, "samples as monolithic", mono, samples(ds.merged, graft(ds)));
@@ -952,7 +952,7 @@ let module_roots = [
 let keys_as_monolithic = (src, ()) => {
   let term = MakeTerm.Incr.term_of_root(~root=Exp, CorpusUtil.seg_of(src));
   let ds = DefStatics.calc(~settings, term);
-  let (mono, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, term);
+  let (mono, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0(), term);
   let cls = (m, id) =>
     switch (Id.Map.find_opt(id, m)) {
     | Some(i) => Cls.show(Info.cls_of(i)) ++ " " ++ Id.str8(id)
@@ -970,9 +970,9 @@ let keys_as_monolithic = (src, ()) => {
 
 /* a module ascribed with a signature keeps member granularity: its members
    are analyzed against the signature, as the monolithic lowering does. a
-   signature the members don't meet (a member missing or extra, as part 1's
-   signatures are precise, or a type member defined otherwise) is reported
-   on the module, which is then analyzed whole */
+   signature the members don't meet (a member missing, or a type member
+   defined otherwise) is reported on the module, which is then analyzed
+   whole. an extra member is sealed away */
 let sealed = (~root=?, ~eval=?, src, steps) =>
   script(~root?, ~eval?, ~delta=true, src, steps);
 let sealed_modules = [
@@ -984,6 +984,9 @@ let sealed_modules = [
         /* a member missing, a type member defined otherwise */
         "module M : {type T = Int; let x : (T, T); let y : Int} = {\n  let x = (1, 2)\n} in\nM.x",
         "module M : {type T = Int; let x : T} = {\n  type T = Bool;\n  let x = 1\n} in\nM.x",
+        /* extra members, sealed away */
+        "module M : {let y : Int} = {\n  let x = 1;\n  let y = x\n} in\nM.y",
+        "module M : {} = {\n  let x = 1\n} in\n()",
       ],
     )
   ),
@@ -1091,13 +1094,29 @@ let sealed_modules = [
       ],
     ),
   ),
-  /* unmet by name: the item whole */
   test_case(
-    "a member the signature requires and the module lacks",
+    "a member edit in a module sealed to {}",
     `Quick,
     sealed(
-      "module M : {let x : Int; let z : Int} = {\n  let x = 180\n} in\nM.z",
-      [token("180", "181") |> analyzed(1)],
+      "module M : {} = {\n  let x = 180;\n  let a = 1;\n  let y = x + 1\n} in\n()",
+      [token("180", "181") |> analyzed(2), noop |> analyzed(0)],
+    ),
+  ),
+  test_case(
+    "a slide sealed to {} at a module root",
+    `Quick,
+    sealed(
+      ~root=Mod,
+      "module Holes : {} = {\n  let target = 42;\n  let other = 180;\n  target == 20 + 22\n};\n()",
+      [token("180", "181") |> analyzed(2)],
+    ),
+  ),
+  test_case(
+    "a signature's member over an extra one",
+    `Quick,
+    sealed(
+      "module M : {let y : Int} = {\n  let x = 180;\n  let y = x + 1\n} in\nM.y",
+      [token("180", "181") |> changes_value |> analyzed(2)],
     ),
   ),
   test_case(
@@ -1105,6 +1124,16 @@ let sealed_modules = [
     `Quick,
     sealed(
       "module M : {let x : Int} = {\n  let x = 1;\n  let y = 180\n} in\nM.x",
+      /* the module and `y`, sealed away */
+      [token("180", "181") |> analyzed(2)],
+    ),
+  ),
+  /* unmet by name: the item whole */
+  test_case(
+    "a member the signature requires and the module lacks",
+    `Quick,
+    sealed(
+      "module M : {let x : Int; let z : Int} = {\n  let x = 180\n} in\nM.z",
       [token("180", "181") |> analyzed(1)],
     ),
   ),
@@ -1280,6 +1309,52 @@ let corpus = [
   ),
 ];
 
+/* a module exports its sum types' constructors (Test_ModuleCtors) */
+let module_ctors = [
+  test_case(
+    "a member using a constructor whose sum changes",
+    `Quick,
+    script(
+      "module M = {\n  type t = A(Int) + B;\n  let v = A(1)\n} in\nM.v",
+      [token(~at=`First, "B", "C")],
+    ),
+  ),
+  test_case(
+    "constructors used outside their module",
+    `Quick,
+    script(
+      "module M = {\n  type t = A(Int) + B;\n  let v = A(1)\n} in\nlet w = M.A(2) in\ncase w\n| M.A(x) => x\n| M.B => 0\nend",
+      [
+        token("2", "5") |> changes_value,
+        /* the pattern's M.B is gone, then back as M.C */
+        token(~at=`First, "B", "C"),
+        token(~at=`Last, "B", "C"),
+        token(~at=`First, "Int", "Bool"),
+      ],
+    ),
+  ),
+  test_case(
+    "a module only a pattern mentions",
+    `Quick,
+    script(
+      "let m = {\n  type t = A + B\n} in\nlet f = fun v -> case v\n| m.A => 1\n| _ => 2\nend in\nlet k = 3 in\nk",
+      /* m (and its type member) and f, whose only mention of m is its
+         pattern (lowercase: no constructor of its name to track); k and
+         the tail stay clean */
+      [token(~at=`First, "A", "C") |> analyzed(3)],
+    ),
+  ),
+  test_case(
+    "a module's constructors in a module root",
+    `Quick,
+    script(
+      ~root=Mod,
+      "module M = {\n  type t = A(Int) + B\n};\nlet f = fun v -> case v\n| M.A(x) => x\n| M.B => 0\nend;\nf(M.A(4))",
+      [token(~at=`First, "Int", "Bool"), token("4", "true")],
+    ),
+  ),
+];
+
 let tests = (
   "DefStaticsParity",
   [
@@ -1315,5 +1390,6 @@ let tests = (
   @ module_roots
   @ sealed_modules
   @ modexp_chains
-  @ corpus,
+  @ corpus
+  @ module_ctors,
 );

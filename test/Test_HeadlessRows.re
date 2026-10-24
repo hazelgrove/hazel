@@ -508,7 +508,7 @@ let shape_rows = () => {
 let corpus = () => {
   let programs =
     List.map(
-      ((path, src)) => (path, Sort.Exp, 1, src),
+      ((path, root, src)) => (path, root, 1, src),
       CorpusUtil.slide_corpus(),
     )
     @ List.map(

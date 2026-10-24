@@ -249,7 +249,8 @@ let pat_provenance = (~source_id: Id.t, ~flag: flag, pat: Pat.t): reuse_map => {
     | Atom(_)
     | Label(_)
     | ExplicitNonlabel
-    | Constructor(_) => []
+    | Constructor(_)
+    | Dot(_) => []
     | Var(name) => [
         (
           name,

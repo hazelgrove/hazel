@@ -84,7 +84,7 @@ let sample = (m: History.Model.t, ap: Id.t): Sample.t => {
             }: Sample.capture_spec,
           ),
         ),
-      ~env=Builtins.env_init,
+      ~env=Builtins.env_init(),
       statics.elaborated,
     );
   switch (Id.Map.find_opt(ap, EvaluatorState.get_probes(state))) {

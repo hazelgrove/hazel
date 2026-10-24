@@ -1,0 +1,103 @@
+# MODULE SIGNATURES #
+
+# Continues the Modules slide: signature types and their errors. #
+
+
+# C. MODULE SIGNATURES #
+
+# Signatures use curly-brace syntax in type position: #
+# { let name : Type; type T = Type; module Name : Signature } #
+
+# 12. Module matching its signature #
+module M : {let x : Int} = {let x = 42};
+
+# 13. Empty signature #
+module M : {} = {};
+
+# 14. Type members in a signature are checked #
+module M : {
+  type T = Int;
+  let x : T
+} = {
+  type T = Int;
+  let x = 4
+};
+
+# 15. Nested module declared in a signature #
+module Outer : {
+  module Inner : {let x : Int};
+  let y : Int
+} = {
+  module Inner = {let x = 1};
+  let y = 2
+};
+let v = Outer.Inner.x + Outer.y;
+
+# 16. Lowercase nested module in a signature #
+let outer : {let inner : {let x : Int}} = {let inner = {let x = 1}};
+
+# 17. Signature bound to a type alias #
+type MT = {let x : Int};
+let m : MT = {let x = 4};
+
+
+# D. SIGNATURE ERRORS #
+
+# 18. Error: member type doesn't match signature #
+module M : {let x : Int} = {let x = true};
+
+# 19. Error: one matching, one non-matching member #
+module M : {
+  let x : Int;
+  let y : Bool
+} = {
+  let x = 1;
+  let y = 2
+};
+
+# 20. Error: module is missing a required member #
+module M : {
+  let x : Int;
+  let y : Bool;
+  let z : String
+} = {
+  let x = 1;
+  let y = true
+};
+
+# 20a. Error: a nested module missing a member #
+module Outer : {module Inner : {let x : Int; let y : Int}} = {
+  module Inner = {let x = 1}
+};
+
+# 20b. Error: a destructured member with the wrong type #
+module P : {let a : Int; let b : Int} = {let (a, b) = (1, "s")};
+
+# 20c. A hole binder may still bind the missing member: nothing is reported #
+module M : {let x : Int; let y : Int} = {let x = 1; let ? = 2};
+
+# 21. Error: empty module missing all members #
+module M : {
+  let x : Int;
+  let y : Bool
+} = {};
+
+# 22. Error: type member differs from the signature's #
+module M : {
+  type T = Int;
+  let x : T
+} = {
+  type T = Bool;
+  let x = true
+};
+
+# 23. Error: a hole-typed member is still required #
+let m : {let x : ?} = {let y = 1};
+
+# 26. Error: a type variable passed into a signature that declares a type member #
+# of the same name would be captured by it; rename the type variable. #
+# (An alias of that name is fine: it is expanded first.) #
+let f : poly a -> {type X = Int; let v : a -> Int} =
+  typfun a -> {type X = Int; let v = fun x -> 1};
+let g = typfun X -> f@<X>;
+¿

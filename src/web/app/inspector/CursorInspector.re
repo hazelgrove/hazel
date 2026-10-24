@@ -125,6 +125,27 @@ let view_type = (~globals, typ: Typ.t) =>
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
 
+let module_member_not_found_view = (~name, ~members, ~type_member) =>
+  if (type_member) {
+    [
+      code(name),
+      text(
+        " is a type member of the module, not a value; use it in a type position",
+      ),
+    ];
+  } else {
+    [text("Module has no member "), code(name)]
+    @ (
+      switch (members) {
+      | [] => [text("; it has no members")]
+      | _ => [
+          text("; its members are "),
+          ...ListUtil.join(text(", "), List.map(code, members)),
+        ]
+      }
+    );
+  };
+
 let core_mark_err_view =
     (
       ~globals,
@@ -146,6 +167,14 @@ let core_mark_err_view =
         code(syn_l),
         text("but expected label"),
         code(an_label),
+      ]
+    | _ when Option.is_some(Typ.coercion(ctx, ~from=syn, ~to_=ana)) =>
+      colon_prefix(show_type_colon)
+      @ [
+        view_type(syn) |> code_box_container,
+        text("is wider than expected type"),
+        view_type(ana) |> code_box_container,
+        text("; an ascription seals the extra members"),
       ]
     | _ =>
       colon_prefix(show_type_colon)
@@ -250,7 +279,16 @@ let core_mark_err_view =
         }
       };
     | ExplicitNonlabel => [text("Type error")]
-    | Free(_)
+    /* a pattern's module path (`M.A`) */
+    | Free(name) => [code(name), text("not found")]
+    | ModuleMemberNotFound({name, members, type_member}) =>
+      module_member_not_found_view(~name, ~members, ~type_member)
+    | TypWantModule({name, typ}) => [
+        code(name),
+        text("is a value of type"),
+        view_type(typ),
+        text(", not a module"),
+      ]
     | InexhaustiveMatch(_)
     | IsDeferral(_)
     | IsBadPartialAp(_)
@@ -262,8 +300,6 @@ let core_mark_err_view =
     | TupleExtensionRequiresTuples
     | LabelNotFound(_)
     | ModuleMissingMembers(_)
-    | ModuleExtraMembers(_)
-    | ModuleMemberNotFound(_)
     | ModuleTypeMemberMismatch(_)
     | TypeMemberCapture(_)
     | BadOperator(_)
@@ -278,7 +314,6 @@ let core_mark_err_view =
     | TypWantLabel
     | TypWantProduct(_)
     | ModuleTypeMemberNotFound(_)
-    | TypWantModule(_)
     | TypWantConstructorFoundType(_)
     | TypWantConstructorFoundAp
     | TypParseFailure
@@ -792,32 +827,7 @@ let exp_mark_err_view =
       ...ListUtil.join(text(", "), List.map(code, names)),
     ])
   | ModuleMemberNotFound({name, members, type_member}) =>
-    if (type_member) {
-      div_err([
-        code(name),
-        text(
-          " is a type member of the module, not a value; use it in a type position",
-        ),
-      ]);
-    } else {
-      div_err(
-        [text("Module has no member "), code(name)]
-        @ (
-          switch (members) {
-          | [] => [text("; it has no members")]
-          | _ => [
-              text("; its members are "),
-              ...ListUtil.join(text(", "), List.map(code, members)),
-            ]
-          }
-        ),
-      );
-    }
-  | ModuleExtraMembers(names) =>
-    div_err([
-      text("Module has members its signature does not declare: "),
-      ...ListUtil.join(text(", "), List.map(code, names)),
-    ])
+    div_err(module_member_not_found_view(~name, ~members, ~type_member))
   | ModuleTypeMemberMismatch({name, expected, actual}) =>
     div_err(type_member_mismatch_view(~view_type, name, ~expected, ~actual))
   | TypeMemberCapture(names) => div_err(type_member_capture_view(names))
