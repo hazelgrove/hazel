@@ -245,20 +245,11 @@ let unterminated = (txt: string): string => {
    statement. A definition spanning lines puts its `in` on a line of its
    own when [alone] (its neighbours' layout) */
 let entry_text =
-    (~member: bool, ~alone=() => true, txt: string)
-    : option((Segment.t, bool)) => {
+    (~member: bool, ~alone, txt: string): option((Segment.t, bool)) => {
   let t = unterminated(txt);
   let def = takes_in(t);
   let letin = () =>
-    switch (L.letin_core(t ++ " in")) {
-    | Some(ps) =>
-      switch (List.find_map(Piece.is_tile, ps)) {
-      | Some(h) when L.in_alone_at(h) == Some(false) && alone() =>
-        L.letin_core(t ++ "\nin")
-      | _ => Some(ps)
-      }
-    | None => None
-    };
+    Option.map(L.lay_in(~alone, ~indent=0), L.letin_core(t ++ " in"));
   /* several entries take the last one's terminator, which the first word
      doesn't tell */
   let as_def = () => Option.map(ps => (ps, false), letin());
@@ -385,29 +376,32 @@ let reformed =
 };
 
 /* [ps] (entry [k] of [b]'s bare pieces) in a block's form: as it is, or
-   converted. A form [reformed] doesn't know goes through text, fresh
-   ids, as it did before the kernel */
-let in_form = (~member: bool, b: L.block, k: int, ps: Segment.t): Segment.t =>
+   converted, an `in` laid out as [alone] says. A form [reformed] doesn't
+   know goes through text, fresh ids, as it did before the kernel */
+let in_form =
+    (~member: bool, ~alone, b: L.block, k: int, ps: Segment.t): Segment.t =>
   if (member == b.in_module) {
     ps;
   } else {
     let kind = b.lv.spans[k].kind;
-    switch (reformed(~member, ~kind, ps)) {
-    | Some(ps) => ps
-    | None =>
-      let via_text =
-        member
-          ? L.member_core(L.drop_suffix("in", L.text_of(ps)))
-          : {
-            let def =
-              switch (List.find_map(Piece.is_tile, ps)) {
-              | Some(t) => Nav.is_def_head(t)
-              | None => false
-              };
-            L.letin_core(L.text_of(ps) ++ (def ? " in" : ";"));
-          };
-      need(~id=anchor(b, k), member ? NoMemberForm : NoPlace, via_text);
-    };
+    let ps =
+      switch (reformed(~member, ~kind, ps)) {
+      | Some(ps) => ps
+      | None =>
+        let via_text =
+          member
+            ? L.member_core(L.drop_suffix("in", L.text_of(ps)))
+            : {
+              let def =
+                switch (List.find_map(Piece.is_tile, ps)) {
+                | Some(t) => Nav.is_def_head(t)
+                | None => false
+                };
+              L.letin_core(L.text_of(ps) ++ (def ? " in" : ";"));
+            };
+        need(~id=anchor(b, k), member ? NoMemberForm : NoPlace, via_text);
+      };
+    member ? ps : L.lay_in(~alone, ~indent=L.item_indent(b, k), ps);
   };
 
 /* ---- nodes ---- */
@@ -703,15 +697,15 @@ let value_head = (c: ctx, ~stmt: bool, d: Id.t, seg: Segment.t) =>
 /* a source as an entry in a block's form: its pieces, whether it is a
    statement, and the indentation its lines were written at */
 let entry_of =
-    (c: ctx, ~member: bool, ~alone=?, src: source, seg: Segment.t)
+    (c: ctx, ~member: bool, ~alone, src: source, seg: Segment.t)
     : (Segment.t, bool, option(int)) =>
   switch (src) {
   | Text(txt) =>
-    let (ps, stmt) = need(Unreadable, entry_text(~member, ~alone?, txt));
+    let (ps, stmt) = need(Unreadable, entry_text(~member, ~alone, txt));
     (ps, stmt, Some(0));
   | Template(t) =>
     let (ps, stmt) =
-      need(Unreadable, entry_text(~member, template_text(t)));
+      need(Unreadable, entry_text(~member, ~alone, template_text(t)));
     (unnamed(t) ? holed(ps) : ps, stmt, Some(0));
   | Copy(y) =>
     let e = entry(~mod_root=c.mod_root, y, seg);
@@ -719,7 +713,7 @@ let entry_of =
     let bare = L.bare(e.b, e.j);
     /* read again from its text, as the outline's duplicate always was:
        fresh ids, and what doesn't read refuses */
-    let txt = L.text_of(in_form(~member, e.b, e.j, bare));
+    let txt = L.text_of(in_form(~member, ~alone, e.b, e.j, bare));
     (
       need(
         ~id=y,
@@ -803,13 +797,16 @@ let chain_at =
   | LastIn(Members(_)) => None
   };
 
+/* an `in` at [place] has a line of its own (L.lay_in) */
+let alone_at = (c: ctx, place: place, seg: Segment.t, ()): bool =>
+  Option.fold(~none=true, ~some=L.in_alone, chain_at(c, place, seg));
+
 let insert =
     (c: ctx, op, place: place, src: source, seg: Segment.t): list(step) => {
   let mod_root = c.mod_root;
   let lands = (~member, f) => {
-    let alone = () =>
-      Option.fold(~none=true, ~some=L.in_alone, chain_at(c, place, seg));
-    let (item, stmt, src_indent) = entry_of(c, ~member, ~alone, src, seg);
+    let (item, stmt, src_indent) =
+      entry_of(c, ~member, ~alone=alone_at(c, place, seg), src, seg);
     let program = need(NoPlace, f(item, stmt, src_indent));
     let row = L.row_id(item);
     entrywise(
@@ -889,7 +886,8 @@ let move = (c: ctx, op, x: Id.t, place: place, seg: Segment.t): step => {
   let inside = id => Nav.seg_contains_id(id, bare);
   /* out of its block, into another place: the item in its new form */
   let carry = (~member, f) => {
-    let item = in_form(~member, e.b, e.j, bare);
+    let item =
+      in_form(~member, ~alone=alone_at(c, place, seg), e.b, e.j, bare);
     let tk = need(~id=x, NoPlace, L.take_out(~mod_root, x, seg));
     let src_indent = L.start_indent(~mod_root, bare, seg);
     moved(~focus=L.row_id(item), need(NoPlace, f(tk, item, src_indent)));
