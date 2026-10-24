@@ -578,7 +578,64 @@ let test_results = [
   ),
 ];
 
+/* the prompt's few-shot example (Eg_RecFib, map_fib) runs as written */
+let prompt_example = [
+  test_case(
+    "map_fib: after fib's tests, its own tests after it",
+    `Quick,
+    () => {
+      let fib = "let fib(n: Int): Int =\n  if n <= 0 then 0 else if n == 1 then 1 else fib(n - 1) + fib(n - 2)\nin\n";
+      let fib_tests = "test fib(0) == 0 end;\ntest fib(1) == 1 end;\ntest fib(5) == 5 end;\ntest fib(10) == 55 end;\n";
+      let map_fib = "let map_fib(ns: [Int]): [Int] =\n  case ns\n  | [] => []\n  | hd :: tl => fib(hd) :: map_fib(tl)\n  end\nin";
+      let (after2, _) =
+        reply(
+          fib ++ fib_tests ++ "fib(10)",
+          [("insert_before", [("path", "=>"), ("code", map_fib)])],
+        );
+      let (after3, results) =
+        reply(
+          after2,
+          [
+            (
+              "insert_test",
+              [("path", "map_fib"), ("code", "map_fib([]) == []")],
+            ),
+            (
+              "insert_test",
+              [
+                ("path", "map_fib"),
+                ("code", "map_fib([0, 1, 5]) == [0, 1, 5]"),
+              ],
+            ),
+            (
+              "update_binding_clause",
+              [("path", "=>"), ("code", "map_fib([1, 2, 3, 4, 5])")],
+            ),
+          ],
+        );
+      check(
+        bool,
+        "applied",
+        true,
+        List.for_all(
+          (tr: AgentToolResult.tool_result) => tr.success,
+          results,
+        ),
+      );
+      same_text(
+        "program",
+        fib
+        ++ fib_tests
+        ++ map_fib
+        ++ "\ntest map_fib([]) == [] end;\ntest map_fib([0, 1, 5]) == [0, 1, 5] end;\nmap_fib([1, 2, 3, 4, 5])",
+        after3,
+      );
+    },
+  ),
+];
+
 let tests = [
+  ("AgentReply.PromptExample", prompt_example),
   ("AgentReply.Transactions", transactions),
   ("AgentReply.TestResults", test_results),
   ("AgentReply.DeletesAndRenames", deletes_and_renames),

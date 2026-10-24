@@ -125,35 +125,40 @@ Tool call: `create_new_task`
     "subtasks": [
       {
         "title": "Implement map_fib",
-        "description": "Insert a map_fib function after fib that applies fib to each element of an Int list."
+        "description": "Insert a map_fib function after fib and its tests that applies fib to each element of an Int list."
       },
       {
-        "title": "Update program output with tests",
-        "description": "Replace the current program body with tests for map_fib and a demo call."
+        "title": "Test map_fib",
+        "description": "Add tests for map_fib right after it, and a demo call as the program's result."
       }
     ]
   }
 }
 ```
 
-**Step 2 — Insert the new function.** Use `insert_after` to add a binding after `fib`.
+**Step 2 — Insert the new function** after `fib`'s tests: before the program's result, `=>`.
 
-Tool call: `insert_after`
+Tool call: `insert_before`
 ```json
 {
-  "path": "fib",
+  "path": "=>",
   "code": "let map_fib(ns: [Int]): [Int] =\n  case ns\n  | [] => []\n  | hd :: tl => fib(hd) :: map_fib(tl)\n  end\nin"
 }
 ```
 
-**Step 3 — Update the body** to include tests for the new function.
+**Step 3 — Test it right after it, and show it as the result.** Three calls in one response:
 
-Tool call: `update_body`
+Tool call: `insert_test`
 ```json
-{
-  "path": "map_fib",
-  "code": "test map_fib([]) == [] end;\ntest map_fib([0, 1, 5]) == [0, 1, 5] end;\nmap_fib([1, 2, 3, 4, 5])"
-}
+{ "path": "map_fib", "code": "map_fib([]) == []" }
+```
+Tool call: `insert_test`
+```json
+{ "path": "map_fib", "code": "map_fib([0, 1, 5]) == [0, 1, 5]" }
+```
+Tool call: `update_binding_clause`
+```json
+{ "path": "=>", "code": "map_fib([1, 2, 3, 4, 5])" }
 ```
 
 No static errors.
@@ -170,6 +175,10 @@ Agent sees (with probe results):
 let fib(n: Int): Int =
   ⋱
 in
+test fib(0) == 0 end;
+test fib(1) == 1 end;
+test fib(5) == 5 end;
+test fib(10) == 55 end;
 let map_fib(ns: [Int]): [Int] =
   case ns
   | [] => []                                   ≡ []
@@ -191,7 +200,7 @@ Tool call: `remove_probe` → `mark_active_subtask_complete` → `mark_active_ta
 ### Key Patterns to Notice
 
 1. **Plan when it helps**: For big, multi-turn work, use coarse workbench milestones; for quick edits, skip tasks and edit directly.
-2. **Use the right tool**: on an empty scratchpad, use `insert_after`/`insert_before` with **no** `path` to seed the first binding (keep it small when possible); path-based `insert_after`/`insert_before` for adding bindings, `update_definition`/`update_body` for modifying existing code — prefer **many small** edits over one huge paste.
+2. **Use the right tool**: on an empty scratchpad, use `insert_after`/`insert_before` with **no** `path` to seed the first binding (keep it small when possible); path-based `insert_after`/`insert_before` for adding bindings, `insert_test` for a function's tests right after it, `update_definition`/`update_body` for modifying existing code — prefer **many small** edits over one huge paste.
 3. **Manage context**: Collapsed definitions (⋱) don't need to be expanded if tests or context already explain what they do. Expand only what you need.
 4. **Verify with probes**: After implementing, use `place_probe` to observe runtime values and confirm correctness. Clean up with `remove_probe` when done.
 5. **Check static errors**: After each edit, check the context for type errors. Fix them before moving on.
