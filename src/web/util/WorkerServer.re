@@ -18,11 +18,21 @@ module Request = {
   type stream_interest =
     | Full
     | Effects;
-  /* a cell's evaluation as the main thread queues it: its program in
-     pieces (EvalPieces), each posted once */
+  /* W2b, behind __w2flip: the worker-resident program (synced via
+     SyncProgram), which the worker elaborates from its OWN statics, so
+     nothing of the program ships */
+  [@deriving (show, sexp, yojson)]
+  type resident = {probe_all: bool};
+  /* a cell's program: in pieces (EvalPieces), each posted once (the
+     default), or the resident one */
+  [@deriving (show, sexp, yojson)]
+  type program =
+    | Pieces(EvalPieces.program)
+    | Resident(resident);
+  /* a cell's evaluation as the main thread queues it */
   [@deriving (show, sexp, yojson)]
   type value = {
-    program: EvalPieces.program,
+    program,
     prev: prev_source,
     stream: stream_interest,
   };
@@ -36,11 +46,22 @@ module Request = {
 };
 
 /* a request as posted: every program's layout (each piece's key and
-   hash), and the pieces the worker doesn't hold */
+   hash) or resident reference, and the pieces the worker doesn't hold */
 module Posted = {
+  /* the resident program as of the last sync posted ahead of this
+     request, which postMessage FIFO delivers first */
+  [@deriving (show, sexp, yojson)]
+  type resident = {
+    generation: int,
+    probe_all: bool,
+  };
+  [@deriving (show, sexp, yojson)]
+  type program =
+    | Pieces(EvalPieces.layout)
+    | Resident(resident);
   [@deriving (show, sexp, yojson)]
   type value = {
-    layout: EvalPieces.layout,
+    program,
     prev: Request.prev_source,
     stream: Request.stream_interest,
   };
@@ -67,6 +88,9 @@ module Evaluation = {
   type t = {
     request_id: int,
     batch,
+    /* items answered with an error, not evaluated: a resident program
+       the worker doesn't have */
+    refused: list((key, string)),
   };
 };
 
@@ -84,10 +108,43 @@ module Response = {
     Util.StructureShareSexp.structure_share_in(sexp_of_t, t_of_sexp);
 };
 
+/* ===== W2a segment residency (plans/w2-worker-residency.md) =====
+   Main is authoritative; it syncs SEGMENTS here and this side derives
+   term + per-item statics (Haz3lcore.ResidentProgram) and answers
+   with a summary. Version-stamped: any schema change bumps this and
+   mismatched builds demand resync instead of mis-decoding. Separate
+   from the pieces an Evaluate carries: those compose one request's
+   program; this is a program the worker keeps across requests. */
+let w2_protocol_version = 1;
+
+module SyncProgram = {
+  [@deriving (show, sexp, yojson)]
+  type payload =
+    /* full resync: root + analysis settings + the whole segment */
+    | Full(Haz3lcore.Sort.t, Language.CoreSettings.t, Haz3lcore.Segment.t)
+    /* per-item delta: changed slices + the complete post-change
+       (item id, fingerprint) roster for drift detection */
+    | Items(
+        list((Util.Id.t, Haz3lcore.Segment.t, int)),
+        list((Util.Id.t, int)),
+      );
+  [@deriving (show, sexp, yojson)]
+  type t = {
+    version: int,
+    key,
+    generation: int,
+    /* current probe set — analysis + sample-target input, rides every
+       sync (probe toggles can change with no segment change) */
+    probe_ids: list(Util.Id.t),
+    payload,
+  };
+};
+
 module ClientMessage = {
   [@deriving (show, sexp, yojson)]
   type t =
-    | Evaluate(Posted.t);
+    | Evaluate(Posted.t)
+    | Sync(SyncProgram.t);
 };
 
 module ServerMessage = {
@@ -135,13 +192,30 @@ module ServerMessage = {
   [@deriving (show, sexp, yojson)]
   type resend = {request_id: int};
 
+  /* W2a: worker's answer to a SyncProgram — the per-item statics
+     summary, or a demand for full resync (drift, missing state, or
+     protocol-version skew) */
+  [@deriving (show, sexp, yojson)]
+  type sync_verdict =
+    | SyncOk(Haz3lcore.ResidentProgram.Summary.t)
+    | NeedResync(string);
+
+  [@deriving (show, sexp, yojson)]
+  type summary_msg = {
+    version: int,
+    key,
+    generation: int,
+    verdict: sync_verdict,
+  };
+
   [@deriving (show, sexp, yojson)]
   type t =
     | Ack(ack)
     | ReusePlan(reuse_plan)
     | Stream(stream)
     | Result(result)
-    | Resend(resend);
+    | Resend(resend)
+    | Summary(summary_msg);
 };
 
 /* Candidate encodings for the worker payloads; `Marshal` is active (see
@@ -704,8 +778,17 @@ and begin_latest_batch = model =>
       ...model,
       runtime: Idle,
     }
-  | Some({request_id, batch}) =>
-    evaluate_next_batch_item(model, request_id, [], batch)
+  | Some({request_id, batch, refused}) =>
+    evaluate_next_batch_item(
+      model,
+      request_id,
+      List.map(
+        ((key, why)) =>
+          (key, Error(Language.ProgramResult.UnknownException(why))),
+        refused,
+      ),
+      batch,
+    )
   }
 and finish_current_item = (model, running, response) =>
   evaluate_next_batch_item(
@@ -782,6 +865,128 @@ and run_scheduled_slice = model => {
   };
 };
 
+/* ===== W2a residency ===== */
+
+/* one resident program (the current slide); a sync for a different
+   key evicts (plan §4.8) */
+type resident =
+  option((key, Language.CoreSettings.t, Haz3lcore.ResidentProgram.t));
+
+let resident_slot: ref(resident) = ref(None);
+
+/* a Resident item's program, GENERATION included: a rejected sync
+   (roster mismatch, unknown item) retains the old resident, and
+   Sync(g)/Evaluate(Resident(g)) are FIFO — without the generation
+   gate the eval right after a rejected Sync(g) would run the previous
+   program and label its result generation g. A miss is the item's
+   error; the client's recovery resync makes the next attempt
+   servable. */
+let resolve_resident =
+    (~key: key, r: Posted.resident)
+    : result((Language.Exp.t, Language.EvalInfo.t), string) =>
+  switch (resident_slot^) {
+  | Some((k, _, rp)) when k == key && rp.generation != r.generation =>
+    Error(
+      Printf.sprintf(
+        "resident generation mismatch: have %d, want %d",
+        rp.generation,
+        r.generation,
+      ),
+    )
+  | Some((k, settings, rp)) when k == key =>
+    switch (Haz3lcore.DefStatics.whole_elab(rp.statics)) {
+    | None => Error("resident elaboration gap")
+    | Some(expr) =>
+      let info_map = rp.statics.merged;
+      let targets =
+        Haz3lcore.CachedStatics.compute_targets(
+          ~settings,
+          ~info_map,
+          ~probe_ids=rp.probe_ids,
+          (),
+        );
+      Ok((
+        expr,
+        Language.EvalInfo.of_info_map(
+          ~probe_all=r.probe_all,
+          ~targets,
+          info_map,
+        ),
+      ));
+    }
+  | _ => Error("no resident program for key " ++ key)
+  };
+
+/* Pure over the slot — the loopback tests drive this directly. Runs
+   synchronously in onmessage: statics are per-item incremental and the
+   eval loop yields between slices, so summaries preempt eval work
+   rather than queueing behind it (plan §4.2). */
+let handle_sync =
+    (resident: resident, sync: SyncProgram.t): (resident, ServerMessage.t) => {
+  let answer = verdict =>
+    ServerMessage.Summary({
+      version: w2_protocol_version,
+      key: sync.key,
+      generation: sync.generation,
+      verdict,
+    });
+  if (sync.version != w2_protocol_version) {
+    (resident, answer(NeedResync("protocol-version-skew")));
+  } else {
+    switch (sync.payload) {
+    | Full(root, settings, seg) =>
+      let prev =
+        switch (resident) {
+        | Some((k, _, rp)) when k == sync.key => Some(rp)
+        | _ => None
+        };
+      let rp =
+        Haz3lcore.ResidentProgram.sync_full(
+          ~settings,
+          ~generation=sync.generation,
+          ~root,
+          ~probe_ids=sync.probe_ids,
+          seg,
+          prev,
+        );
+      (
+        Some((sync.key, settings, rp)),
+        answer(SyncOk(Haz3lcore.ResidentProgram.summarize(rp))),
+      );
+    | Items(changed, roster) =>
+      switch (resident) {
+      | Some((k, settings, rp)) when k == sync.key =>
+        switch (
+          Haz3lcore.ResidentProgram.sync_items(
+            ~settings,
+            ~generation=sync.generation,
+            ~probe_ids=sync.probe_ids,
+            ~changed,
+            ~roster,
+            rp,
+          )
+        ) {
+        | Ok(rp') => (
+            Some((sync.key, settings, rp')),
+            answer(SyncOk(Haz3lcore.ResidentProgram.summarize(rp'))),
+          )
+        | Error(RosterMismatch) => (
+            resident,
+            answer(NeedResync("roster-mismatch")),
+          )
+        | Error(UnknownItem(_)) => (
+            resident,
+            answer(NeedResync("unknown-item")),
+          )
+        }
+      | _ => (resident, answer(NeedResync("no-resident-program")))
+      }
+    };
+  };
+};
+
+/* ===== the per-piece request ===== */
+
 /* the pieces of the last request received, by hash: what the client
    counts on the worker holding */
 let held: Hashtbl.t(EvalPieces.hash, EvalPieces.content) =
@@ -792,9 +997,17 @@ type received =
   | Missing(list(EvalPieces.key))
   | Malformed(string);
 
-/* [posted]'s programs, from the pieces it carries and those held. a
-   piece whose bytes don't hash to its listed hash isn't taken. the
-   pieces it lists are held next, whatever it composes to */
+/* one item composed: its program, the pieces it lacks, or why the
+   worker refuses it */
+type composition =
+  | Program(Language.Exp.t, Language.EvalInfo.t)
+  | Lacks(list(EvalPieces.key))
+  | Refused(string);
+
+/* [posted]'s programs, from the pieces it carries and those held (a
+   Resident item's from the resident slot). a piece whose bytes don't
+   hash to its listed hash isn't taken. the pieces it lists are held
+   next, whatever it composes to */
 let receive = (posted: Posted.t): received => {
   let fresh = Hashtbl.create(16);
   List.iter(
@@ -807,9 +1020,18 @@ let receive = (posted: Posted.t): received => {
       },
     posted.pieces,
   );
+  let layouts =
+    List.filter_map(
+      ((_, v: Posted.value)) =>
+        switch (v.program) {
+        | Pieces(layout) => Some(layout)
+        | Resident(_) => None
+        },
+      posted.batch,
+    );
   let next = Hashtbl.create(Hashtbl.length(held) + 16);
   List.iter(
-    ((_, v: Posted.value)) =>
+    layout =>
       List.iter(
         (s: EvalPieces.slot) =>
           switch (
@@ -820,17 +1042,30 @@ let receive = (posted: Posted.t): received => {
           | (None, Some(c)) => Hashtbl.replace(next, s.hash, c)
           | (None, None) => ()
           },
-        EvalPieces.slots(v.layout),
+        EvalPieces.slots(layout),
       ),
-    posted.batch,
+    layouts,
   );
   Hashtbl.reset(held);
   Hashtbl.iter(Hashtbl.replace(held), next);
   let piece = Hashtbl.find_opt(held);
+  let compose = (key, v: Posted.value): composition =>
+    switch (v.program) {
+    | Pieces(layout) =>
+      switch (EvalPieces.assemble(~piece, layout)) {
+      | Ok((expr, eval_info_map)) => Program(expr, eval_info_map)
+      | Error(keys) => Lacks(keys)
+      }
+    | Resident(r) =>
+      switch (resolve_resident(~key, r)) {
+      | Ok((expr, eval_info_map)) => Program(expr, eval_info_map)
+      | Error(why) => Refused(why)
+      | exception exn => Refused(Printexc.to_string(exn))
+      }
+    };
   switch (
     List.map(
-      ((key, v: Posted.value)) =>
-        (key, v, EvalPieces.assemble(~piece, v.layout)),
+      ((key, v: Posted.value)) => (key, v, compose(key, v)),
       posted.batch,
     )
   ) {
@@ -838,10 +1073,11 @@ let receive = (posted: Posted.t): received => {
   | composed =>
     let missing =
       List.concat_map(
-        ((_, _, r)) =>
-          switch (r) {
-          | Error(keys) => keys
-          | Ok(_) => []
+        ((_, _, c)) =>
+          switch (c) {
+          | Lacks(keys) => keys
+          | Program(_)
+          | Refused(_) => []
           },
         composed,
       );
@@ -851,19 +1087,31 @@ let receive = (posted: Posted.t): received => {
           request_id: posted.request_id,
           batch:
             List.filter_map(
-              ((key, v: Posted.value, r)) =>
-                Stdlib.Result.to_option(r)
-                |> Option.map(((expr, eval_info_map)) =>
-                     (
-                       key,
-                       Evaluation.{
-                         expr,
-                         eval_info_map,
-                         prev: v.prev,
-                         stream: v.stream,
-                       },
-                     )
-                   ),
+              ((key, v: Posted.value, c)) =>
+                switch (c) {
+                | Program(expr, eval_info_map) =>
+                  Some((
+                    key,
+                    Evaluation.{
+                      expr,
+                      eval_info_map,
+                      prev: v.prev,
+                      stream: v.stream,
+                    },
+                  ))
+                | Lacks(_)
+                | Refused(_) => None
+                },
+              composed,
+            ),
+          refused:
+            List.filter_map(
+              ((key, _, c)) =>
+                switch (c) {
+                | Refused(why) => Some((key, why))
+                | Program(_)
+                | Lacks(_) => None
+                },
               composed,
             ),
         });
@@ -893,8 +1141,7 @@ let install_message_handler = () => {
     };
   };
 
-  let on_request = (req: Active.request): unit => {
-    let ClientMessage.Evaluate(posted) = Active.decode_request(req);
+  let on_evaluate = (posted: Posted.t): unit => {
     post_ack(posted.request_id);
     switch (receive(posted)) {
     | Composed(request) =>
@@ -938,6 +1185,15 @@ let install_message_handler = () => {
       });
     };
   };
+
+  let on_request = (req: Active.request): unit =>
+    switch (Active.decode_request(req)) {
+    | ClientMessage.Evaluate(posted) => on_evaluate(posted)
+    | ClientMessage.Sync(sync) =>
+      let (resident, msg) = handle_sync(resident_slot^, sync);
+      resident_slot := resident;
+      post_message(msg);
+    };
 
   Js_of_ocaml.Worker.set_onmessage(on_request);
 };

@@ -58,6 +58,13 @@ let with_latest = (request_id, f) =>
    as it keeps exactly those. a new worker holds none */
 let held: Hashtbl.t(EvalPieces.hash, unit) = Hashtbl.create(256);
 
+/* a cell's pieces; a resident program has none */
+let pieces_of = (v: Request.value): list((EvalPieces.hash, string)) =>
+  switch (v.program) {
+  | Pieces(p) => p.pieces
+  | Resident(_) => []
+  };
+
 /* what the worker holds once it receives [request] */
 let hold = (request: Request.t): unit => {
   Hashtbl.reset(held);
@@ -65,11 +72,16 @@ let hold = (request: Request.t): unit => {
     ((_, v: Request.value)) =>
       List.iter(
         ((hash, _)) => Hashtbl.replace(held, hash, ()),
-        v.program.pieces,
+        pieces_of(v),
       ),
     request.batch,
   );
 };
+
+/* W2: the generation of the last residency sync posted. a Resident item
+   names it as it posts: FIFO delivers that sync first, and a cell queues
+   its request before its frame's sync goes out */
+let synced_generation: ref(int) = ref(0);
 
 /* [request] as posted: its programs' layouts, and the pieces the worker
    doesn't hold ([full]: all of them) */
@@ -83,7 +95,15 @@ let posted_of = (~full: bool, request: Request.t): Posted.t => {
           (
             key,
             Posted.{
-              layout: v.program.layout,
+              program:
+                switch (v.program) {
+                | Pieces(p) => Pieces(p.layout)
+                | Resident({probe_all}) =>
+                  Resident({
+                    generation: synced_generation^,
+                    probe_all,
+                  })
+                },
               prev: v.prev,
               stream: v.stream,
             },
@@ -101,7 +121,7 @@ let posted_of = (~full: bool, request: Request.t): Posted.t => {
                 Hashtbl.replace(seen, hash, ());
                 true;
               },
-            v.program.pieces,
+            pieces_of(v),
           ),
         request.batch,
       ),
@@ -125,6 +145,14 @@ let post_evaluate = (~full=false, ~metrics=false, worker, request: Request.t) =>
   EvalMetrics.record_sent(~request, ~encoded);
   worker##postMessage(encoded);
   hold(request);
+};
+
+/* W2a: segment-residency sync (fire-and-forget; the answer arrives as
+   ServerMessage.Summary through on_summary) */
+let on_summary: ref(ServerMessage.summary_msg => unit) = ref(_ => ());
+let post_sync = (worker, sync: WorkerServer.SyncProgram.t) => {
+  synced_generation := sync.generation;
+  worker##postMessage(Active.encode_request(ClientMessage.Sync(sync)));
 };
 
 let fail_latest = latest => {
@@ -178,6 +206,10 @@ let setup_worker_message_handler = worker => {
             EvalMetrics.record_done(~now, ~encoded=evt##.data, result);
           },
         )
+      | ServerMessage.Summary(summary) =>
+        /* W2a: not tied to an eval request — routed unconditionally
+           (generation tracking lives with the shadow-mode consumer) */
+        on_summary^(summary)
       };
       Js._true;
     });
@@ -205,6 +237,17 @@ let get_worker = () =>
     w;
   };
 
+/* W2a: fire-and-forget segment sync (answer arrives via on_summary) */
+let sync = (s: WorkerServer.SyncProgram.t): unit =>
+  post_sync(get_worker(), s);
+
+/* a restart births a BLANK worker: all residency is gone, but the
+   client-side mirror still believes it's synced. The residency owner
+   (ShadowResidency) registers here to invalidate its mirror and
+   Full-sync the new worker BEFORE any retried eval posts (the hook
+   runs synchronously, so its sync wins the FIFO race). */
+let on_restart: ref(unit => unit) = ref(() => ());
+
 let restart_worker = (): unit => {
   EvalMetrics.incr_restarts();
   switch (worker_ref.contents) {
@@ -213,6 +256,7 @@ let restart_worker = (): unit => {
   };
   Hashtbl.reset(held);
   worker_ref.contents = Some(init_worker());
+  on_restart^();
 };
 
 /* Wall-clock cap for the whole request (including ACK wait). On expiry the

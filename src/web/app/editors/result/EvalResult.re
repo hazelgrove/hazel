@@ -390,12 +390,20 @@ module Update = {
              would dominate the payload. the program goes in pieces, so
              only definitions that changed are encoded and posted */
           queue_worker({
+            /* W2b flip: the worker elaborates from its resident
+               program (synced by ShadowResidency; the request names
+               the last sync's generation as it posts), so nothing
+               ships */
             program:
-              EvalSplit.program(
-                ~probe_all=settings.probe_all,
-                ~targets=Calc.get_value(targets),
-                statics,
-              ),
+              ShadowResidency.flip_enabled^
+                ? Resident({probe_all: settings.probe_all})
+                : Pieces(
+                    EvalSplit.program(
+                      ~probe_all=settings.probe_all,
+                      ~targets=Calc.get_value(targets),
+                      statics,
+                    ),
+                  ),
             prev: UseResident,
             /* highlight off: stream only effect-bearing entries (tests,
                probes); each streamed chunk costs a main-thread render */

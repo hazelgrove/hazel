@@ -75,7 +75,7 @@ let post_pieces = (st: CachedStatics.t) => {
       (
         "",
         {
-          program,
+          program: Pieces(program),
           prev: UseResident,
           stream: Full,
         },
@@ -97,6 +97,7 @@ let receive_pieces = (encoded: WorkerServer.Active.request): unit =>
     WorkerServer.receive(
       switch (WorkerServer.Active.decode_request(encoded)) {
       | Evaluate(p) => p
+      | Sync(_) => fail("a sync, not an eval request")
       },
     )
   ) {

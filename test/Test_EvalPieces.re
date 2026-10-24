@@ -105,10 +105,12 @@ let request_of = (st: CachedStatics.t): WorkerServer.Request.t => {
       "",
       {
         program:
-          Split.program(
-            ~probe_all=settings.probe_all,
-            ~targets=st.targets,
-            st,
+          Pieces(
+            Split.program(
+              ~probe_all=settings.probe_all,
+              ~targets=st.targets,
+              st,
+            ),
           ),
         prev: UseResident,
         stream: Full,
@@ -134,6 +136,7 @@ let post =
     )
   ) {
   | Evaluate(posted) => posted
+  | Sync(_) => fail("a sync, not an eval request")
   };
 };
 

@@ -5,6 +5,20 @@ open Bonsai.Let_syntax;
 
 let scroll_to_caret = ref(true);
 
+/* W2a: route worker statics summaries to the shadow comparator */
+let () = WorkerClient.on_summary := ShadowResidency.on_summary;
+
+/* console: window.__staticsProf(true) — per-phase statics-tick timings */
+let () =
+  Js_of_ocaml.Js.Unsafe.set(
+    Js_of_ocaml.Js.Unsafe.global,
+    "__staticsProf",
+    Js_of_ocaml.Js.wrap_callback(b => {
+      Haz3lcore.CachedStatics.prof := Js_of_ocaml.Js.to_bool(b);
+      Haz3lcore.DefStatics.prof := Js_of_ocaml.Js.to_bool(b);
+    }),
+  );
+
 /* Per-slide scroll memory for tutorial mode. Each slide remembers where the
    user last left it; revisiting a slide restores that scroll position, while
    a slide that's never been scrolled opens at the top. */
@@ -224,6 +238,16 @@ let start = default_model => {
 
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
+    /* worker summary grafts need a real recalculate pass to become
+       visible (they mutate the DefStatics caches, which nothing
+       re-reads until an action runs) */
+    ShadowResidency.schedule_recalc :=
+      (
+        () =>
+          schedule_action(
+            Page.Update.Editors(Scratch(ScratchMode.Update.RefreshStatics)),
+          )
+      );
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),

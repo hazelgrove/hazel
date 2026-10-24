@@ -674,13 +674,39 @@ let calculate =
             | Some(p) => p.items
             | None => []
             };
+          let clamped = Haz3lcore.DefStatics.clamp^;
           let ds =
-            Haz3lcore.DefStatics.calc_auto(~settings, ~probe_ids, term);
+            Haz3lcore.DefStatics.calc_auto(
+              ~settings,
+              ~propagate=!clamped,
+              ~probe_ids,
+              term,
+            );
+          /* W2 divided-mode sync: ship the assembled document (this is
+             the coherent segment/statics moment while divided; the
+             whole-program case ships before the eval batch below) */
+          switch (Divided.root(d)) {
+          | Exp
+          | Mod =>
+            ShadowResidency.on_master_statics(
+              ~key=ShadowResidency.master_key,
+              ~root=Divided.root(d),
+              ~settings,
+              spliced,
+              ds,
+            )
+          | _ => ()
+          };
           let statics = {
             ...
               Haz3lcore.CachedStatics.of_def_statics(
                 ~settings,
                 ~probe_ids,
+                /* worker-resident dynamics: the sentinel keeps the
+                   eval-request cadence (see CachedStatics) */
+                ~elaborated=?
+                  clamped
+                    ? Some(Haz3lcore.CachedStatics.resident_sentinel()) : None,
                 term,
                 ds,
               ),
@@ -922,6 +948,30 @@ let calculate =
       );
       Program.Divided(d);
     };
+  /* W2 whole-program sync: MUST ship before the eval batch posts — a
+     Resident eval references the worker's resident program, and
+     postMessage order is the only thing keeping it current (the divided
+     case ships at its statics site above) */
+  switch (program) {
+  | Whole(editor) =>
+    switch (editor.editor.editor.root) {
+    | Exp
+    | Mod =>
+      switch (Haz3lcore.DefStatics.cached(editor.editor.statics.term)) {
+      | Some(ds) =>
+        ShadowResidency.on_master_statics(
+          ~key=ShadowResidency.master_key,
+          ~root=editor.editor.editor.root,
+          ~settings,
+          editor.editor.editor.syntax.segment,
+          ds,
+        )
+      | None => ()
+      }
+    | _ => ()
+    }
+  | Divided(_) => ()
+  };
   let dispatch = (_key, action) =>
     schedule_action(CellAction(ResultAction(action)));
   EvalRequest.request(

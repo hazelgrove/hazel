@@ -166,7 +166,12 @@ let rec flatten_sig = (s: TermBase.Sig.t): list(TermBase.Sig.t) =>
     |> List.map(
          fun
          | (Grammar.Sig(s): TermBase.Any.t) => flatten_sig(s)
-         | other => [Sig.fresh(MultiHole([other]))],
+         | other => [
+             IdTagged.mk_internal(
+               [Id.derive(~salt="sig-other", Any.rep_id(other))],
+               MultiHole([other]): TermBase.Sig.term,
+             ),
+           ],
        )
     |> List.flatten
   | SigLet(_)
@@ -2064,7 +2069,9 @@ let go =
 /* a Mod-rooted editor's Module wrapper: statics/elab reuse and DefStatics'
    per-document slot key on its id, so it is derived from the first item's
    (stable per document, distinct across documents) */
-let empty_mod_wrap_id: Id.t = Id.mk();
+/* name-derived, never Id.mk(): DefStatics derives ids from this one, and
+   the worker's ResidentProgram must derive the same ids in its own bundle */
+let empty_mod_wrap_id: Id.t = Id.mk_str("mod-root-wrap");
 let wrap_module = (items: list(Mod.t)): Exp.t => {
   let id =
     switch (items) {
