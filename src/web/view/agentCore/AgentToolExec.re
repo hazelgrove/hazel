@@ -477,7 +477,9 @@ module Edits = {
           (CellEditor.Model.t, list((int, AgentToolResult.tool_result))),
           CompositionGo.Reply.failure,
         ) =>
-    switch (CompositionGo.Reply.finish(t.reply)) {
+    switch (
+      PerfTimer.time("tool/check", () => CompositionGo.Reply.finish(t.reply))
+    ) {
     | Error(f) => Error(f)
     | Ok(outcome) =>
       let ce = editor(t);
@@ -487,7 +489,10 @@ module Edits = {
         outcome.statics,
       );
       CodeWithStatics.StaticsDebounce.force_on_next := true;
-      Ok((ce, results(~tool_call, t, outcome)));
+      Ok((
+        ce,
+        PerfTimer.time("tool/results", () => results(~tool_call, t, outcome)),
+      ));
     };
 
   let failed =

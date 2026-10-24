@@ -4,28 +4,40 @@ open Web;
 
 /* wall time of a reply's structural tool on Mega 4k, as the assistant
    runs it (Agent.Update), the editor's statics in hand. Runs only with
-   AGENT_PERF set: `AGENT_PERF=1 bash test/run_node.sh test AgentPerf`,
-   on a release build for the numbers that matter */
+   AGENT_PERF set: `AGENT_PERF=1 bash test/run_node.sh test AgentPerf`
+   (AGENT_PERF=whole: the editor's statics whole-program), on a release
+   build for the numbers that matter */
 
-let reply_ms = (~root=Sort.Exp, ~file, name: string, args: Yojson.Safe.t) => {
+/* [warm]: the editor's statics as the editor makes them, per item, so
+   their caches are warm; else whole-program statics */
+let reply_ms =
+    (~root=Sort.Exp, ~warm, ~file, name: string, args: Yojson.Safe.t) => {
   let settings = Settings.Model.init;
   let z = Zipper.unzip(CorpusUtil.mega_seg(~root, file));
   let t_st = PerfTimer.now();
   let statics =
-    CachedStatics.init(
-      ~settings=settings.core,
-      ~is_dynamic_term=false,
-      ~stitch=x => x,
-      ~root,
-      z,
-    );
+    warm
+      ? CachedStatics.init_compositional(
+          ~settings=settings.core,
+          ~stitch=x => x,
+          ~root,
+          z,
+        )
+      : CachedStatics.init(
+          ~settings=settings.core,
+          ~is_dynamic_term=false,
+          ~stitch=x => x,
+          ~root,
+          z,
+        );
   let cell_editor: CellEditor.Model.t = {
     editor: CodeWithStatics.Model.mk(~statics, Editor.Model.mk(z, ~root)),
     result: EvalResult.Model.init,
   };
   Printf.printf(
-    "AgentPerf %s: editor statics %.0f ms\n%!",
+    "AgentPerf %s (%s): editor statics %.0f ms\n%!",
     file,
+    warm ? "per item" : "whole",
     PerfTimer.now() -. t_st,
   );
   let agent = Agent.Utils.init();
@@ -89,8 +101,10 @@ let run = () =>
   switch (Sys.getenv_opt("AGENT_PERF")) {
   | None
   | Some("") => ()
-  | Some(_) =>
+  | Some(mode) =>
+    let warm = mode != "whole";
     reply_ms(
+      ~warm,
       ~file="mega-4k.hz",
       "update_definition",
       `Assoc([
@@ -102,11 +116,13 @@ let run = () =>
       ]),
     );
     reply_ms(
+      ~warm,
       ~file="mega-4k.hz",
       "insert_after",
       `Assoc([s("path", "Text"), s("code", "let extra = 1 in")]),
     );
     reply_ms(
+      ~warm,
       ~file="mega-4k.hz",
       "update_pattern",
       `Assoc([s("path", "Text/int_to_text"), s("code", "int_text")]),

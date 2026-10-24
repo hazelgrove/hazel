@@ -28,7 +28,7 @@ Note: Only the definition changes. The pattern, body, and surrounding bindings a
 
 Syntax projectors (livelits): to keep a widget when overwriting the definition, include projector concrete syntax in `code`: `^^kind(expression)`. Examples: `^^slider(60)`, `^^sliderf(3.14)`, `^^check(true)`, `^^text("hello")`, `^^csv([])` (empty list only; import CSV in the UI), `^^card((Hearts, Ace))` (playing-card tuple or list of tuples—not records). Without `^^`, the term is usually a plain literal and the projector is not preserved—then use `place_syntax_projector` if needed (same term-shape rules as the editor menu).
 
-Module members: paths descend into module literals — `M/helper` (including type members: `M/Model`). Edit ONE member this way instead of re-emitting the whole module. Members end at their `;`, so they have no body: update_definition / update_pattern / update_binding_clause / delete_binding_clause / insert_before / insert_after all work at member paths, but update_body / delete_body error.
+Module members: paths descend into module literals — `M/helper` (including type members: `M/Model`). Edit ONE member this way instead of re-emitting the whole module; every edit tool works at member paths.
 |};
 
 let update_definition: API.Json.t =
@@ -81,7 +81,7 @@ let update_body_description = {|
 Replaces the body (everything after `in`) of the binding at the given path.
 The body is the rest of the program that follows this binding.
 Works for both let bindings and module bindings (e.g. path "M" for module M = { ... }).
-Module MEMBERS (paths like "M/helper") have no body and are rejected — target the member's definition instead.
+A module MEMBER (path "M/helper") ends at its `;`: there, the body is the member's definition past any `fun x ->` heads.
 
 Parameters:
 path: string — slash-delimited path to the binding whose body to replace. Nested defs need ancestors (e.g. "wrap/is_odd"). Duplicate sibling names are ambiguous — disambiguate with "name#k" (k-th occurrence in program order, 1-based).
@@ -151,37 +151,31 @@ let update_body: API.Json.t =
   ]);
 
 let update_pattern_description = {|
-Renames or changes the pattern (left-hand side of `=`) of the binding at the given path.
-Automatically updates all use sites of the variable throughout the program.
-Works at module MEMBER paths ("M/helper") — use sites inside the module are rewritten; a rename that would break references OUTSIDE the module (`M.member`) is rejected instead of applied.
+Renames, or changes the pattern (left-hand side of `=`) of, the binding at the given path.
+- `code` a single new name renames: the binder the path names, and every use of it, `M.member` uses included. A type annotation stays.
+- `code` the old pattern with only names changed renames each of them: for `let f(x, y) = ...` (path "f"), "g(x, y)" renames f, "f(x, z)" renames the parameter y.
+- Any other `code` replaces the pattern as written, uses untouched; if that leaves uses unbound, the static-error check refuses it.
+A rename is refused if it would change what some name refers to (capture).
 
 Parameters:
-path: string — slash-delimited path to the binding to rename. Nested defs: use outer/inner. Duplicate sibling names are ambiguous — disambiguate with "name#k" (k-th occurrence in program order, 1-based).
-code: string — the new pattern (may include type annotation)
-
-For a function-definition binding `let f(x, y) = ...` the path is just "f" but the pattern is the whole head: rename with code "g(x, y)" (or rename a param with "f(x, z)"); call sites and param uses update automatically.
-
-The rename is rejected (with an explanatory error) if:
-- the new name already occurs as a binder or variable reference within this binding's scope (it could capture existing references), or
-- the number of bound names changes (e.g. tuple pattern (x, y) → (a, b, c)), since old→new use-site mapping would be ambiguous, or
-- rewriting the use sites would introduce new static errors.
+path: string — slash-delimited path to the binding. Nested defs: use outer/inner. Duplicate sibling names are ambiguous — disambiguate with "name#k" (k-th occurrence in program order, 1-based).
+code: string — the new name, or the new pattern
 
 Example:
 Given the program:
 ```
 let a = ⋱ in
-let b = "hello" in
+let b : String = "hello" in
 let c = b ++ " world" in
 c
 ```
-Calling update_pattern(path="b", code="greeting : String") produces:
+Calling update_pattern(path="b", code="greeting") produces:
 ```
 let a = ⋱ in
 let greeting : String = "hello" in
 let c = greeting ++ " world" in
 c
 ```
-Note: All references to "b" in the body are automatically renamed to "greeting".
 |};
 
 let update_pattern: API.Json.t =
@@ -315,8 +309,8 @@ let update_binding_clause: API.Json.t =
 let delete_binding_clause_description = {|
 Removes the entire binding (let...=...in, type...=...in, or module...=...in) at the given path.
 The body that followed the binding is preserved and moves up.
-Works for let, type, and module bindings (e.g. path "M" for module M = { ... }).
-Also removes a single module MEMBER at a member path (e.g. "M/helper"), separator included.
+Works for let, type, and module bindings (e.g. path "M" for module M = { ... }), a single module MEMBER (e.g. "M/helper"), and a test (by its hint string, or "test#k").
+Refused while its names are still used: the error lists where. Delete or change those uses in the same response.
 
 Parameters:
 path: string — slash-delimited path to the binding to remove
@@ -376,7 +370,7 @@ let delete_binding_clause: API.Json.t =
 
 let delete_body_description = {|
 Clears the body (everything after `in`) of the binding at the given path, replacing it with a hole (`?`).
-Module MEMBERS (paths like "M/helper") have no body and are rejected.
+At a module MEMBER path, clears the member's body (its definition past any `fun x ->` heads).
 
 Parameters:
 path: string — slash-delimited path to the binding whose body to clear
@@ -604,10 +598,12 @@ let insert_test_description = {|
 Adds a test, `test <code> end`, after the binding at the given path and after any tests that already directly follow it, so repeated calls keep source order and the tests stay together.
 If `path` is omitted, the test goes after the program's last binding or test, before its final expression.
 At a module MEMBER path (e.g. "M/helper"), the test is added as a member of that module.
+A function's unit tests go right after it (path = the function); tests of several functions together go at the end (no path).
+`code` may be a whole test, hint included: `hint "empty list" test sum([]) == 0 end`. A hinted test's path is its hint in quotes ("\"empty list\""), any test's "test#k".
 
 Parameters:
 path: string (optional) — slash-delimited path to the binding the test follows. Omit to add it after the program's last item.
-code: string — the test's boolean expression only; `test` and `end` are added
+code: string — the test's boolean expression (`test` and `end` are added), or a whole test
 
 Example:
 Given the program:
