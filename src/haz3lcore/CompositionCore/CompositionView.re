@@ -305,21 +305,18 @@ let rec map_level =
           Some(Piece.id(e));
         | _ => None
         };
+      let uses = () =>
+        switch (uses_of(ctx, e)) {
+        | Some(n) when n > 0 && ctx.settings.uses => plural(n, "use", "uses")
+        | _ => ""
+        };
+      /* a definition's own uses; a module's are its members' */
+      let own_uses = () => e.kind == Def ? [uses()] : [];
       switch (e.kind) {
-      | Def =>
-        let mark = elide_def();
-        let uses =
-          switch (uses_of(ctx, e)) {
-          | Some(n) when n > 0 && ctx.settings.uses =>
-            plural(n, "use", "uses")
-          | _ => ""
-          };
-        Option.iter(at => note(at, common_parts(ctx, e) @ [uses]), mark);
-      | Type when !ctx.settings.types_in_full =>
-        Option.iter(at => note(at, common_parts(ctx, e)), elide_def())
-      | Type => Option.iter(at => note(at, common_parts(ctx, e)), head)
-      | Module when e.literal && depth < ctx.settings.module_depth =>
-        /* its members, one level down */
+      /* a module literal, or a definition that is one (`let ^pct = {…}`):
+         its members, one level down */
+      | Module
+      | Def when e.literal && depth < ctx.settings.module_depth =>
         switch (S.members(lv, k), S.site_of(lv, k)) {
         | (Some(m), Some(site)) =>
           let (members, below) =
@@ -327,12 +324,13 @@ let rec map_level =
           notes := below @ notes^;
           replace_brace(arr, lv, site, members);
           Option.iter(
-            at => note(at, common_parts(~own=true, ctx, e)),
+            at => note(at, common_parts(~own=true, ctx, e) @ own_uses()),
             head,
           );
         | _ => ()
         }
-      | Module when e.literal =>
+      | Module
+      | Def when e.literal =>
         switch (S.site_of(lv, k)) {
         | Some(site) =>
           let (kid, mark) = elide_kid();
@@ -340,10 +338,19 @@ let rec map_level =
           note(
             mark,
             common_parts(ctx, e)
-            @ [plural(List.length(e.children), "member", "members")],
+            @ [plural(List.length(e.children), "member", "members")]
+            @ own_uses(),
           );
         | None => ()
         }
+      | Def =>
+        Option.iter(
+          at => note(at, common_parts(ctx, e) @ [uses()]),
+          elide_def(),
+        )
+      | Type when !ctx.settings.types_in_full =>
+        Option.iter(at => note(at, common_parts(ctx, e)), elide_def())
+      | Type => Option.iter(at => note(at, common_parts(ctx, e)), head)
       | Module => Option.iter(at => note(at, common_parts(ctx, e)), head)
       | Test =>
         /* `test ⋯ end`: the test tile's body */

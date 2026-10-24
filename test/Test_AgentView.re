@@ -305,12 +305,18 @@ f(1)|},
   ),
   /* a livelit opens by its members' paths; the map lists a let-bound
      literal's members no more than other definitions' */
-  test_case("a livelit definition's members open by path", `Quick, () =>
+  test_case(
+    "a livelit definition's members: listed in the map, open by path",
+    `Quick,
+    () =>
     golden(
       "livelit",
       {|# map · 1 error #
-let ^pct = ⋯ in  # 1 error: "^pct" isn't a valid token #
-let m = ⋯ in  # 1 use #
+let ^pct = {  # 1 error: "^pct" isn't a valid token #
+  type T = Int;
+  let init = ⋯  # open below #
+} in
+let m = { let a = ⋯; let b = ⋯ } in  # a: 1 use · m: 1 use #
 m.a
 
 # open: ^pct/init #
