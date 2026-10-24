@@ -136,10 +136,10 @@ let format_tests = [
   test_case("the map: headers, ⋯ bodies, annotations", `Quick, () =>
     golden(
       "example",
-      {|# map · 1 error #
+      {|#› map · 1 error #
 type Shape = Circle(Float) + Rect(Float, Float) in
-let area(s: Shape): Float = ⋯ in  # 1 use #
-let total(xs: [Shape]): Float = ⋯ in  # 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
+let area(s: Shape): Float = ⋯ in  #› 1 use #
+let total(xs: [Shape]): Float = ⋯ in  #› 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
 module Geo = {
   let perimeter(s: Shape): Float = ⋯;
   let scale(k: Float, s: Shape): Shape = ⋯;
@@ -153,10 +153,10 @@ total([Rect(2., 3.)])|},
   test_case("an open entry follows the map, its error marked", `Quick, () =>
     golden(
       "total open",
-      {|# map · 1 error #
+      {|#› map · 1 error #
 type Shape = Circle(Float) + Rect(Float, Float) in
-let area(s: Shape): Float = ⋯ in  # 1 use #
-let total(xs: [Shape]): Float = ⋯ in  # open below · 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
+let area(s: Shape): Float = ⋯ in  #› 1 use #
+let total(xs: [Shape]): Float = ⋯ in  #› open below · 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
 module Geo = {
   let perimeter(s: Shape): Float = ⋯;
   let scale(k: Float, s: Shape): Shape = ⋯;
@@ -165,12 +165,12 @@ module Geo = {
 hint "total of one circle" test total([Circle(1.)]) == 3.14 end;
 total([Rect(2., 3.)])
 
-# open: total #
+#› open: total #
 let total(xs: [Shape]): Float =
   case xs
   | [] => 0.
   | s :: rest => area(s) +. total(rest) +. true
-#                                          ^^^^ Expecting type Float but got inconsistent type Bool #
+#›                                         ^^^^ Expecting type Float but got inconsistent type Bool #
   end
 in|},
       render(~opened=["total"], example),
@@ -179,14 +179,14 @@ in|},
   test_case("module depth is a setting", `Quick, () =>
     golden(
       "depth 1",
-      {|# map · 1 error #
+      {|#› map · 1 error #
 type Shape = Circle(Float) + Rect(Float, Float) in
-let area(s: Shape): Float = ⋯ in  # 1 use #
-let total(xs: [Shape]): Float = ⋯ in  # 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
+let area(s: Shape): Float = ⋯ in  #› 1 use #
+let total(xs: [Shape]): Float = ⋯ in  #› 1 error: Expecting type Float but got inconsistent type Bool · 3 uses #
 module Geo = {
   let perimeter(s: Shape): Float = ⋯;
   let scale(k: Float, s: Shape): Shape = ⋯;
-  module Units = { ⋯ }  # 3 members #
+  module Units = { ⋯ }  #› 3 members #
 } in
 hint "total of one circle" test total([Circle(1.)]) == 3.14 end;
 total([Rect(2., 3.)])|},
@@ -202,15 +202,15 @@ total([Rect(2., 3.)])|},
   test_case("test results, the value, probes", `Quick, () =>
     golden(
       "run",
-      {|# map · no errors · tests: 1 of 2 pass, 1 fail #
-let double(x) = ⋯ in  # open below · 3 uses #
-test double(2) == 4 end;  # ✓ #
-test ⋯ end;  # ✗ #
-double(5)  # ⇒ 10 #
+      {|#› map · no errors · tests: 1 of 2 pass, 1 fail #
+let double(x) = ⋯ in  #› open below · 3 uses #
+test double(2) == 4 end;  #› ✓ #
+test ⋯ end;  #› ✗ #
+double(5)  #› ⇒ 10 #
 
-# open: double #
+#› open: double #
 let double(x) =
-  let y = ⟦x + x⟧ in     ≡ 4
+  let y = ⟦x + x⟧ in  #› ≡ 4 #
   y
 in|},
       render(
@@ -229,11 +229,26 @@ double(5)|},
       ),
     )
   ),
+  test_case(
+    "an error at column 0: its marks right after the marker", `Quick, () =>
+    golden(
+      "column 0",
+      {|#› map · 1 error #
+let g = ⋯ in  #› open below · 1 error: Expecting type Int but got inconsistent type Bool · 1 use #
+g
+
+#› open: g #
+let g =
+true + 1 in
+#›^^^^ Expecting type Int but got inconsistent type Bool #|},
+      render(~opened=["g"], "let g =\ntrue + 1 in\ng"),
+    )
+  ),
   test_case("the map keeps a `fun` definition's parameters", `Quick, () =>
     golden(
       "fun heads",
-      {|# map · no errors #
-let pad = fun (n: Int) -> ⋯ in  # 1 use #
+      {|#› map · no errors #
+let pad = fun (n: Int) -> ⋯ in  #› 1 use #
 module M = {
   let twice = fun f -> fun x -> ⋯;
   let k = ⋯
@@ -254,18 +269,18 @@ pad(1)|},
   test_case("a module-rooted program; entries sharing a line", `Quick, () =>
     golden(
       "mod root",
-      {|# map · 1 error #
-let a = ⋯;  # 3 uses #
-module N = { let b = ⋯; test b == 3 end; let c = ⋯ };  # b: 2 uses · c: 1 error: Expecting type Int but got inconsistent type Bool · N: open below #
-test a == 1 end;  # open below #
+      {|#› map · 1 error #
+let a = ⋯;  #› 3 uses #
+module N = { let b = ⋯; test b == 3 end; let c = ⋯ };  #› b: 2 uses · c: 1 error: Expecting type Int but got inconsistent type Bool · N: open below #
+test a == 1 end;  #› open below #
 print(a);
 a + 1
 
-# open: N #
+#› open: N #
 module N = { let b = 2; test b == 3 end; let c = b + true }
-#                                                    ^^^^ Expecting type Int but got inconsistent type Bool #
+#›                                                   ^^^^ Expecting type Int but got inconsistent type Bool #
 
-# open: test#1 #
+#› open: test#1 #
 test a == 1 end|},
       render(
         ~root=Mod,
@@ -281,15 +296,15 @@ a + 1|},
   test_case("nested entries open by path", `Quick, () =>
     golden(
       "nested",
-      {|# map · no errors #
-let f(x) = ⋯ in  # 1 use #
-module Geo = { module Units = { let cm = ⋯; let m = ⋯ } } in  # Units: open below #
+      {|#› map · no errors #
+let f(x) = ⋯ in  #› 1 use #
+module Geo = { module Units = { let cm = ⋯; let m = ⋯ } } in  #› Units: open below #
 f(1)
 
-# open: f/y #
+#› open: f/y #
 let y = x + 1 in
 
-# open: Geo/Units #
+#› open: Geo/Units #
 module Units = { let cm = 1; let m = 100 }|},
       render(
         ~opened=["f/y", "Geo/Units"],
@@ -311,15 +326,15 @@ f(1)|},
     () =>
     golden(
       "livelit",
-      {|# map · 1 error #
-let ^pct = {  # 1 error: "^pct" isn't a valid token #
+      {|#› map · 1 error #
+let ^pct = {  #› 1 error: "^pct" isn't a valid token #
   type T = Int;
-  let init = ⋯  # open below #
+  let init = ⋯  #› open below #
 } in
-let m = { let a = ⋯; let b = ⋯ } in  # a: 1 use · m: 1 use #
+let m = { let a = ⋯; let b = ⋯ } in  #› a: 1 use · m: 1 use #
 m.a
 
-# open: ^pct/init #
+#› open: ^pct/init #
 let init = 50|},
       render(
         ~opened=["^pct/init"],
@@ -598,7 +613,7 @@ let record_tests = [
         bool,
         "the view shows it",
         true,
-        Util.StringUtil.plain_search("# open: b #", r.view, 0) >= 0,
+        Util.StringUtil.plain_search({js|#› open: b #|js}, r.view, 0) >= 0,
       );
     },
   ),
@@ -763,7 +778,7 @@ let lens_tests = [
           bool,
           "the map, as sent",
           true,
-          String.starts_with(~prefix="# map", map)
+          String.starts_with(~prefix={js|#› map|js}, map)
           && Util.StringUtil.plain_search({js|let a = ⋯ in|js}, map, 0) >= 0,
         )
       | Some(_) => fail("cells")
@@ -908,7 +923,7 @@ let toggle_tests = [
       ...d,
       test_status: false,
     },
-    "== 2 end;  # ✓ #",
+    {js|== 2 end;  #› ✓ #|js},
   ),
   toggle_case(
     "the program's value",
@@ -916,7 +931,7 @@ let toggle_tests = [
       ...d,
       value: false,
     },
-    {js|# ⇒ 2 #|js},
+    {js|#› ⇒ 2 #|js},
   ),
   toggle_case(
     "error marks",
@@ -924,7 +939,7 @@ let toggle_tests = [
       ...d,
       carets: false,
     },
-    "#           ^^^^ Expecting type Int",
+    {js|#›          ^^^^ Expecting type Int|js},
   ),
   toggle_case(
     "probe values",
@@ -932,7 +947,7 @@ let toggle_tests = [
       ...d,
       probes: false,
     },
-    {js|≡ 2|js},
+    {js|#› ≡ 2 #|js},
   ),
   toggle_case(
     "test marks",
@@ -940,7 +955,7 @@ let toggle_tests = [
       ...d,
       test_marks: false,
     },
-    "x + 1 end;  # ✓ #",
+    {js|x + 1 end;  #› ✓ #|js},
   ),
   toggle_case(
     "module depth",
@@ -984,14 +999,14 @@ let toggle_tests = [
           view;
       };
       let has = (s, m) => Util.StringUtil.plain_search(m, s, 0) >= 0;
-      check(bool, "uses on", true, has(sent(g), "# 2 uses #"));
+      check(bool, "uses on", true, has(sent(g), {js|#› 2 uses #|js}));
       check(
         bool,
         "uses off",
         false,
         has(
           sent(W.AgentGlobals.Update.update(ToggleView(Uses), g, _ => ())),
-          "# 2 uses #",
+          {js|#› 2 uses #|js},
         ),
       );
     },
