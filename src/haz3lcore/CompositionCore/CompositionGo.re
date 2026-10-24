@@ -158,7 +158,8 @@ type what =
   /* each name: old, new, its uses */
   | Renamed(list((string, string, int)))
   | Deleted
-  | Moved;
+  /* where to, as the call put it */
+  | Moved(string);
 
 type plan = {
   ops: list(K.op),
@@ -541,7 +542,16 @@ let rec plan_call = (p: program, call: call): result(plan, string) => {
   | Move(path, where, dest) =>
     let* f = resolve(p, path);
     let* place = place_at(p, where, dest);
-    Ok(plan(~target=f.id, Moved, [Move(f.id, place)]));
+    let whereto =
+      switch (where, dest) {
+      | (Before, d) => "before " ++ d
+      | (After, d) => "after " ++ d
+      | (FirstIn, "") => "first in the program"
+      | (LastIn, "") => "last in the program"
+      | (FirstIn, d) => "first in " ++ d
+      | (LastIn, d) => "last in " ++ d
+      };
+    Ok(plan(~target=f.id, Moved(whereto), [Move(f.id, place)]));
   };
 };
 
@@ -659,21 +669,25 @@ let report = (~root, m: made): string => {
   | Rest => "Replaced what follows " ++ was ++ "."
   | Renamed(names) =>
     let uses = n => n == 1 ? "1 use" : string_of_int(n) ++ " uses";
-    "Renamed "
-    ++ String.concat(
-         "; ",
-         List.map(
-           ((old, name, n)) =>
-             old ++ " to " ++ name ++ " (" ++ uses(n) ++ ")",
-           names,
-         ),
-       )
-    ++ ", in "
-    ++ was
-    ++ now_target()
-    ++ ".";
+    switch (names, Option.bind(m.plan.target, now)) {
+    | ([(_, _, n)], Some(p)) when p != was =>
+      "Renamed " ++ was ++ " to " ++ p ++ ", and its " ++ uses(n) ++ "."
+    | _ =>
+      "Renamed "
+      ++ String.concat(
+           "; ",
+           List.map(
+             ((old, name, n)) =>
+               old ++ " to " ++ name ++ " (" ++ uses(n) ++ ")",
+             names,
+           ),
+         )
+      ++ ", in "
+      ++ was
+      ++ "."
+    };
   | Deleted => "Deleted " ++ was ++ "."
-  | Moved => "Moved " ++ was ++ now_target() ++ "."
+  | Moved(whereto) => "Moved " ++ was ++ " " ++ whereto ++ now_target() ++ "."
   };
 };
 

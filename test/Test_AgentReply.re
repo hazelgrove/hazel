@@ -402,7 +402,7 @@ let moves = [
       );
       mentions(
         "result",
-        "Moved area (now Geo/area).",
+        "Moved area last in Geo (now Geo/area).",
         List.hd(results).content,
       );
     },

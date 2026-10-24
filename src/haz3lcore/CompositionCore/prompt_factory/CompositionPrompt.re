@@ -195,7 +195,7 @@ let toolkit = [
   "This is a structure editor — every edit maintains a valid AST.",
   "The tools operate on the program's tree structure using paths to target specific bindings.",
   "**Multiple tools per turn:** You may emit **several** tool calls in one assistant response; Hazel runs them **sequentially**, each on the program as the earlier calls left it (a call may edit what an earlier one added). A response's edits are **all or nothing**: if any call fails, or the finished edits would add static errors, none of them are applied, later calls are skipped, and the results say which call failed and why. So a change that breaks uses (a new signature) and the fixes to those uses go in **one** response.",
-  "Edit results name what changed by path (`Added Geo/scale.`, `Renamed total to sum_all (3 uses), in sum_all.`), then the static errors after the response.",
+  "Edit results name what changed by path (`Added Geo/scale.`, `Renamed total to sum_all, and its 3 uses.`), then the static errors after the response.",
   "Each turn, an automated context message provides the current program state and any static (type) errors.",
   "",
   "The toolkit has three categories:",
