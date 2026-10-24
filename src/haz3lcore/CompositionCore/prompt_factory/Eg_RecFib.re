@@ -56,6 +56,11 @@ let fib = {|let fib(n: Int): Int =
       then 1
       else fib(n - 1) + fib(n - 2)|};
 
+let fib_tests = {|hint "zero" test fib(0) == 0 end;
+hint "one" test fib(1) == 1 end;
+hint "five" test fib(5) == 5 end;
+hint "ten" test fib(10) == 55 end|};
+
 let map_fib = {|let map_fib(ns: [Int]): [Int] =
   case ns
   | [] => []
@@ -96,18 +101,9 @@ let fib_example = {
       sees: None,
     },
     {
-      says: "**Step 3 — Test it, right after it** (one insert may hold several entries), and make its value the result:",
+      says: "**Step 3 — Test it, right after it**, and make its value the result:",
       calls: [
-        call(
-          "insert",
-          [
-            ("after", "fib"),
-            (
-              "code",
-              "test fib(0) == 0 end;\ntest fib(1) == 1 end;\ntest fib(5) == 5 end;\ntest fib(10) == 55 end",
-            ),
-          ],
-        ),
+        call("insert", [("after", "fib"), ("code", fib_tests)]),
         call("replace", [("target", "=>"), ("code", "fib(10)")]),
         call(
           "mark_active_subtask_complete",
@@ -118,17 +114,8 @@ let fib_example = {
           [("summary", "fib, with 4 passing tests.")],
         ),
       ],
-      sees:
-        Some((
-          {|# map · no errors · tests: 4 of 4 pass #
-let fib(n: Int): Int = ⋯ in  # 7 uses #
-test fib(0) == 0 end;  # ✓ #
-test fib(1) == 1 end;  # ✓ #
-test fib(5) == 5 end;  # ✓ #
-test fib(10) == 55 end;  # ✓ #
-fib(10)  # ⇒ 55 #|},
-          [],
-        )),
+      /* the next example starts from its view */
+      sees: None,
     },
   ],
   final: "`fib` is implemented and its 4 tests pass: the base cases 0 and 1, and fib(5), fib(10).",
@@ -136,17 +123,15 @@ fib(10)  # ⇒ 55 #|},
 
 let map_fib_example = {
   asks: "Add a helper that computes fib for a list of numbers",
-  program:
-    fib
-    ++ "\nin\ntest fib(0) == 0 end;\ntest fib(1) == 1 end;\ntest fib(5) == 5 end;\ntest fib(10) == 55 end;\nfib(10)",
+  program: fib ++ "\nin\n" ++ fib_tests ++ ";\nfib(10)",
   start:
     Some(
       {|# map · no errors · tests: 4 of 4 pass #
 let fib(n: Int): Int = ⋯ in  # 7 uses #
-test fib(0) == 0 end;  # ✓ #
-test fib(1) == 1 end;  # ✓ #
-test fib(5) == 5 end;  # ✓ #
-test fib(10) == 55 end;  # ✓ #
+hint "zero" test fib(0) == 0 end;  # ✓ #
+hint "one" test fib(1) == 1 end;  # ✓ #
+hint "five" test fib(5) == 5 end;  # ✓ #
+hint "ten" test fib(10) == 55 end;  # ✓ #
 fib(10)  # ⇒ 55 #|},
     ),
   steps: [
@@ -160,7 +145,7 @@ fib(10)  # ⇒ 55 #|},
             ("after", "map_fib"),
             (
               "code",
-              "test map_fib([]) == [] end;\ntest map_fib([0, 1, 5]) == [0, 1, 5] end",
+              "hint \"empty list\" test map_fib([]) == [] end;\nhint \"three values\" test map_fib([0, 1, 5]) == [0, 1, 5] end",
             ),
           ],
         ),
@@ -173,13 +158,13 @@ fib(10)  # ⇒ 55 #|},
         Some((
           {|# map · no errors · tests: 6 of 6 pass #
 let fib(n: Int): Int = ⋯ in  # 7 uses #
-test fib(0) == 0 end;  # ✓ #
-test fib(1) == 1 end;  # ✓ #
-test fib(5) == 5 end;  # ✓ #
-test fib(10) == 55 end;  # ✓ #
+hint "zero" test fib(0) == 0 end;  # ✓ #
+hint "one" test fib(1) == 1 end;  # ✓ #
+hint "five" test fib(5) == 5 end;  # ✓ #
+hint "ten" test fib(10) == 55 end;  # ✓ #
 let map_fib(ns: [Int]): [Int] = ⋯ in  # 4 uses #
-test map_fib([]) == [] end;  # ✓ #
-test map_fib([0, 1, 5]) == [0, 1, 5] end;  # ✓ #
+hint "empty list" test map_fib([]) == [] end;  # ✓ #
+hint "three values" test map_fib([0, 1, 5]) == [0, 1, 5] end;  # ✓ #
 map_fib([1, 2, 3, 4, 5])  # ⇒ [1, 1, 2, 3, 5] #|},
           [],
         )),
@@ -253,7 +238,7 @@ let self =
 ### Key patterns
 
 1. **Plan when it helps**: coarse workbench milestones for multi-turn work; none for quick edits.
-2. **Small edits**: insert one definition at a time, its tests right after it; replace a part (`f:body`) rather than a whole entry when only a part changes.
+2. **Edit the smallest part**: replace `f:body` rather than the whole entry when only the body changes; tests go right after their function.
 3. **One reply, one change**: calls that belong together go in one reply; they apply together or not at all.
 4. **Open only what you need**: signatures, tests and the map's annotations often say enough.
 5. **Rename and move with their tools**: `rename` updates every use; `move` keeps code, probes and identity. Don't delete and re-insert.

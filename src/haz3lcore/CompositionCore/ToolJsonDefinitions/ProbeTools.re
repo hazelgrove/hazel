@@ -20,7 +20,7 @@ result
 ```
 Calling place_probe(paths=["result"]) shows:
 ```
-let double = ⋯ in
+let double(x) = ⋯ in
 let result = double(5) in     ≡ 10
 result
 ```

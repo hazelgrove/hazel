@@ -150,7 +150,7 @@ let transactions = [
         );
       mentions(
         "program",
-        "  | Rect(_, _) => false\n  end\nin\ntest area",
+        "  | Rect(_, _) => false\n  end\nin\nhint \"rect area\" test area",
         program,
       );
     },

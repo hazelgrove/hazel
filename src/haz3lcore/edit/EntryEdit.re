@@ -62,8 +62,9 @@ type op =
   /* ids kept, converting `;` ⇄ `in` between member and let-chain forms */
   | Move(Id.t, place);
 
-/* one op's effect, by id; [program] is the program after it, so a replay
-   can show the steps one at a time */
+/* one op's effect, by id, or one entry's of an op landing several;
+   [program] is the program after it, so a replay can show the steps one at
+   a time */
 type step = {
   op,
   /* the entry it made: its row */
@@ -258,10 +259,18 @@ let entry_text =
       }
     | None => None
     };
-  Option.map(
-    ps => (ps, !def),
-    member ? L.member_core(t) : def ? letin() : L.letin_core(t ++ ";"),
-  );
+  /* several entries take the last one's terminator, which the first word
+     doesn't tell */
+  let as_def = () => Option.map(ps => (ps, false), letin());
+  let as_stmt = () => Option.map(ps => (ps, true), L.letin_core(t ++ ";"));
+  let either = (a, b) =>
+    switch (a()) {
+    | None => b()
+    | found => found
+    };
+  member
+    ? Option.map(ps => (ps, !def), L.member_core(t))
+    : def ? either(as_def, as_stmt) : either(as_stmt, as_def);
 };
 
 let template_text = (t: template): string =>
@@ -600,6 +609,70 @@ let done_ =
   program,
 };
 
+/* [s], the op's step landing the entries of [item] (in its block's form),
+   as a step per entry: each carries the program with the entries after it
+   not yet in, so a replay brings them in one at a time. The first keeps
+   what [s] removed, the last [s]'s program and focus */
+let entrywise = (c: ctx, item: Segment.t, s: step): list(step) => {
+  let mine = List.map(Piece.id, item);
+  let at =
+    Option.bind(ListUtil.hd_opt(s.added), row =>
+      L.locate(~mod_root=c.mod_root, row, s.program)
+    );
+  let anchors =
+    switch (at) {
+    | Some((b, _, _)) =>
+      List.init(Array.length(b.sl), k => (anchor(b, k), k))
+      |> List.filter(((a, _)) => List.mem(a, mine))
+    | None => []
+    };
+  switch (at, anchors) {
+  | (None, _)
+  | (_, [] | [_]) => [s]
+  | (Some((b, _, _)), _) =>
+    let row = k => L.row_id(L.bare(b, k) @ L.term(b, k));
+    /* the program before each later entry, latest first */
+    let rec back = (prog, later) =>
+      switch (later) {
+      | [] => Some([])
+      | [a, ...later] =>
+        /* a replay's record only: what it can't take apart, it keeps
+           whole */
+        switch (L.locate(~mod_root=c.mod_root, a, prog)) {
+        | Some((b, j, rebuild)) =>
+          switch (rebuild(L.remove(b, j))) {
+          | prog => Option.map(ps => [prog, ...ps], back(prog, later))
+          | exception _ => None
+          }
+        | None => None
+        }
+      };
+    switch (back(s.program, List.rev_map(fst, List.tl(anchors)))) {
+    | None => [s]
+    | Some(before) =>
+      let n = List.length(anchors);
+      List.mapi(
+        (i, ((_, k), program)) => {
+          let made = row(k);
+          {
+            ...s,
+            added: Option.to_list(made),
+            removed: i == 0 ? s.removed : [],
+            replaced:
+              List.map(
+                ((x, _)) => (x, Option.value(made, ~default=x)),
+                s.replaced,
+              ),
+            focus: i == n - 1 ? s.focus : made,
+            program,
+          };
+        },
+        List.combine(anchors, List.rev(before) @ [s.program]),
+      );
+    };
+  };
+};
+
 /* the program's top level as a block, and the program around it */
 let top_block = (c: ctx, seg: Segment.t): (L.block, Segment.t => Segment.t) => {
   let lv = ItemSpans.top(~root=c.root, seg);
@@ -730,7 +803,8 @@ let chain_at =
   | LastIn(Members(_)) => None
   };
 
-let insert = (c: ctx, op, place: place, src: source, seg: Segment.t): step => {
+let insert =
+    (c: ctx, op, place: place, src: source, seg: Segment.t): list(step) => {
   let mod_root = c.mod_root;
   let lands = (~member, f) => {
     let alone = () =>
@@ -738,7 +812,11 @@ let insert = (c: ctx, op, place: place, src: source, seg: Segment.t): step => {
     let (item, stmt, src_indent) = entry_of(c, ~member, ~alone, src, seg);
     let program = need(NoPlace, f(item, stmt, src_indent));
     let row = L.row_id(item);
-    done_(~added=Option.to_list(row), ~focus=row, op, program);
+    entrywise(
+      c,
+      item,
+      done_(~added=Option.to_list(row), ~focus=row, op, program),
+    );
   };
   switch (place) {
   | Before(y)
@@ -996,9 +1074,9 @@ let names_entry = (c: ctx, x: Id.t, seg: Segment.t): option(entry) =>
   | _ => None
   };
 
-let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step =>
+let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) =>
   switch (src, names_entry(c, x, seg)) {
-  | (Token(txt), _) => token(c, op, x, txt, seg)
+  | (Token(txt), _) => [token(c, op, x, txt, seg)]
   | (_, Some(e)) =>
     let tail = !e.b.in_module && !L.movable(e.b, e.j);
     let (item, src_indent) =
@@ -1038,14 +1116,16 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step =>
     );
     let level = pre @ L.unfused(pre, L.shift_by(shift, item), post) @ post;
     let row = L.row_id(item);
-    done_(
-      ~replaced=[(x, Option.value(row, ~default=x))],
-      ~added=Option.to_list(row),
-      ~removed=[x],
-      ~focus=row,
-      op,
-      e.rebuild(level),
-    );
+    let step =
+      done_(
+        ~replaced=[(x, Option.value(row, ~default=x))],
+        ~added=Option.to_list(row),
+        ~removed=[x],
+        ~focus=row,
+        op,
+        e.rebuild(level),
+      );
+    tail ? [step] : entrywise(c, item, step);
   | (_, None) =>
     let n = node(~root=c.root, x, seg);
     let txt =
@@ -1064,20 +1144,23 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step =>
     );
     let level = pre @ L.unfused(pre, L.shift_by(indent, ps), post) @ post;
     let made = Option.value(root_id(ps), ~default=x);
-    done_(
-      ~replaced=[(x, made)],
-      ~focus=Some(made),
-      op,
-      Nav.rebuild(~seg, n.up, level),
-    );
+    [
+      done_(
+        ~replaced=[(x, made)],
+        ~focus=Some(made),
+        op,
+        Nav.rebuild(~seg, n.up, level),
+      ),
+    ];
   };
 
-let run = (c: ctx, seg: Segment.t, op: op): step =>
+/* an op's steps: one per entry it lands */
+let run = (c: ctx, seg: Segment.t, op: op): list(step) =>
   switch (op) {
   | Insert(place, src) => insert(c, op, place, src, seg)
   | Replace(x, src) => replace(c, op, x, src, seg)
-  | Delete(x) => delete(c, op, x, seg)
-  | Move(x, place) => move(c, op, x, place, seg)
+  | Delete(x) => [delete(c, op, x, seg)]
+  | Move(x, place) => [move(c, op, x, place, seg)]
   };
 
 /* the plain tokens among [ops]' leading Token replacements, by id, and the
@@ -1175,7 +1258,13 @@ let transaction =
         );
       | _ =>
         switch (run(c, seg, op)) {
-        | step => go(k + 1, step.program, [step, ...steps], rest)
+        | made =>
+          go(
+            k + 1,
+            ListUtil.last(made).program,
+            List.rev_append(made, steps),
+            rest,
+          )
         | exception (Refused(reason, id)) =>
           Error({
             reason,

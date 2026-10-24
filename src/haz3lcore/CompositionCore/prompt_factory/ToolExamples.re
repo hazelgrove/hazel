@@ -16,8 +16,8 @@ type example = {
   program: string,
   /* one reply's calls */
   calls: list(call),
-  /* what each call's result says, as the tool reports it; None for the
-     view tools, whose results say only that they ran */
+  /* what each call's result says, as the tool reports it (its start);
+     None for the view tools, whose results say only that they ran */
   results: option(list(string)),
   /* its calls also go in their tools' descriptions */
   in_tool: bool,
@@ -38,11 +38,12 @@ let area(s: Shape): Int =
   | Rect(w, h) => w * h
   end
 in
-test area(Rect(2, 3)) == 6 end;
+hint "rect area" test area(Rect(2, 3)) == 6 end;
 let perimeter(s: Shape): Int =
+  let double(n: Int): Int = 2 * n in
   case s
-  | Circle(r) => 6 * r
-  | Rect(w, h) => 2 * (w + h)
+  | Circle(r) => double(3 * r)
+  | Rect(w, h) => double(w + h)
   end
 in
 module Geo = {
@@ -89,17 +90,20 @@ let all: list(example) = [
     Some(["Added is_round."]),
   ),
   on_shapes(
-    "Add a unit test right after its function's last test, here test#1",
+    "Add a unit test right after its function's last test; a short hint names it",
     [
       call(
         "insert",
-        [("after", "test#1"), ("code", "test area(Circle(1)) == 3 end")],
+        [
+          ("after", "\"rect area\""),
+          ("code", "hint \"circle area\" test area(Circle(1)) == 3 end"),
+        ],
       ),
     ],
-    Some(["Added test#2."]),
+    Some(["Added \"circle area\"."]),
   ),
   on_shapes(
-    "Add an integration test at the end, above the result; a hint names it",
+    "Add an integration test at the end, above the result",
     [
       call(
         "insert",
@@ -139,7 +143,17 @@ let all: list(example) = [
         ],
       ),
     ],
-    Some(["Replaced area:body."]),
+    Some(["Replaced area:body.\n- | Circle(r) => 3 * r * r"]),
+  ),
+  on_shapes(
+    "Replace part of a definition inside a definition",
+    [
+      call(
+        "replace",
+        [("target", "perimeter/double:body"), ("code", "n + n")],
+      ),
+    ],
+    Some(["Replaced perimeter/double:body."]),
   ),
   on_shapes(
     "Replace a whole entry, here to annotate a member",
@@ -189,15 +203,15 @@ let all: list(example) = [
   },
   on_shapes(
     ~in_tool=true,
-    "Delete an unhinted test by test#k",
-    [call("delete", [("target", "test#1")])],
-    Some(["Deleted test#1."]),
+    "Delete a test by its hint",
+    [call("delete", [("target", "\"rect area\"")])],
+    Some(["Deleted \"rect area\"."]),
   ),
   on_shapes(
     "A delete that would leave uses unbound is refused, naming them",
     [call("delete", [("target", "area")])],
     Some([
-      "Not deleted: it would leave uses dangling. Delete or change them first, in the same reply:\n- area, used at test#1, total",
+      "Not deleted: it would leave uses dangling. Delete or change them first, in the same reply:\n- area, used at \"rect area\", total",
     ]),
   ),
   on_shapes(
