@@ -118,7 +118,7 @@ let at = (o: Js.Unsafe.any, path: list(string)): string =>
   json(List.fold_left((o, k) => Js.Unsafe.get(o, k), o, path));
 
 let outline_spec = {|{"preamble": "type Side = + L + R in type Pair = (Int, Int) in",
-  "modules": [{"name": "M", "text": "type T = + A + B(Int) + C;\nlet flip = fun s : Side -> case s | L => R | R => L end;\nlet k = 3;"}],
+  "modules": [{"name": "M", "text": "type T = + A + B(Int) + C;\nlet flip = fun s : Side -> case s | L => R | R => L end;\nlet k = 3"}],
   "tail": "M.k"}|};
 
 let tests = (
