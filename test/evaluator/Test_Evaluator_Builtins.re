@@ -52,16 +52,25 @@ let tests = (
       )
     ),
     test_case("string literal decodes escaped backslash", `Quick, () =>
-      evaluation_test("string literal decodes escaped backslash",
-      string("\\hello"), parse_exp({|"\\hello"|})),
+      evaluation_test(
+        "string literal decodes escaped backslash",
+        string("\\hello"),
+        parse_exp({|"\\hello"|}),
+      )
     ),
     test_case("string_escaped_tab", `Quick, () =>
-      evaluation_test("string literal decodes escaped tab",
-      string("\t"), parse_exp({|"\t"|})),
+      evaluation_test(
+        "string literal decodes escaped tab",
+        string("\t"),
+        parse_exp({|"\t"|}),
+      )
     ),
     test_case("string_unescaped_newline", `Quick, () =>
-      evaluation_test("string literal decodes unescaped newline",
-      string("\n"), parse_exp({|"\n"|})),
+      evaluation_test(
+        "string literal decodes unescaped newline",
+        string("\n"),
+        parse_exp({|"\n"|}),
+      )
     ),
     test_case("escaped string comparison", `Quick, () =>
       parse_and_evaluate_test({|"A"|}, {|"\x41"|})
@@ -69,7 +78,8 @@ let tests = (
     test_case("escaped string comparison to raw string", `Quick, () =>
       parse_and_evaluate_test("false", {|"\x41"==r"\x41"|})
     ),
-    test_case("escaped string comparison to raw string of the same value", `Quick, () =>
+    test_case(
+      "escaped string comparison to raw string of the same value", `Quick, () =>
       parse_and_evaluate_test({|r"A"|}, {|"\x41"|})
     ),
     test_case("string_uppercase", `Quick, () =>
