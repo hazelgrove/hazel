@@ -428,6 +428,103 @@ let locality = () => {
   );
 };
 
+/* an op landing several entries makes a step per entry, each with its
+   program, the last the op's own */
+let entrywise = () => {
+  let texts = (c: K.change) =>
+    List.map((s: K.step) => text_of(s.program), c.steps);
+  let counts = (c: K.change) =>
+    List.map((s: K.step) => List.length(s.added), c.steps);
+  let seg = seg_of(chain);
+  let c =
+    run(
+      seg,
+      [
+        Insert(
+          After(head("a", seg)),
+          Text("let c = 3 in\ntest c == 3 end;\nlet d = c + 1"),
+        ),
+      ],
+    );
+  check(
+    list(string),
+    "an insert's entries, one at a time",
+    [
+      "let a = 1 in\nlet c = 3 in\nlet b = a + 1 in\nb",
+      "let a = 1 in\nlet c = 3 in\ntest c == 3 end;\nlet b = a + 1 in\nb",
+      "let a = 1 in\nlet c = 3 in\ntest c == 3 end;\nlet d = c + 1 in\nlet b = a + 1 in\nb",
+    ],
+    texts(c),
+  );
+  check(list(int), "a row each", [1, 1, 1], counts(c));
+  let seg = seg_of(members);
+  let c =
+    run(
+      seg,
+      [
+        Insert(
+          LastIn(Members(head("M", seg))),
+          Text("let z = 3;\nlet w = 4"),
+        ),
+      ],
+    );
+  check(
+    list(string),
+    "members, one at a time",
+    [
+      "module M = {\n  let x = 1;\n  let y = 2;\n  let z = 3\n} in\nM.y",
+      "module M = {\n  let x = 1;\n  let y = 2;\n  let z = 3;\n  let w = 4\n} in\nM.y",
+    ],
+    texts(c),
+  );
+  let seg = seg_of(chain);
+  let b = head("b", seg);
+  let c = run(seg, [Replace(b, Text("let b = a + 1 in\nlet e = b"))]);
+  check(
+    list(string),
+    "a replace's entries, one at a time",
+    [
+      "let a = 1 in\nlet b = a + 1 in\nb",
+      "let a = 1 in\nlet b = a + 1 in\nlet e = b in\nb",
+    ],
+    texts(c),
+  );
+  check(
+    list(int),
+    "the first removes what it replaced",
+    [1, 0],
+    List.map((s: K.step) => List.length(s.removed), c.steps),
+  );
+  let seg = seg_of(chain);
+  check(
+    list(string),
+    "a definition, then a statement",
+    [
+      "let a = 1 in\nlet c = 3 in\nlet b = a + 1 in\nb",
+      "let a = 1 in\nlet c = 3 in\ntest c == 3 end;\nlet b = a + 1 in\nb",
+    ],
+    texts(
+      run(
+        seg,
+        [
+          Insert(
+            After(head("a", seg)),
+            Text("let c = 3 in\ntest c == 3 end"),
+          ),
+        ],
+      ),
+    ),
+  );
+  check(
+    int,
+    "one entry, one step",
+    1,
+    List.length(
+      run(seg, [Insert(After(head("a", seg)), Text("let c = 3"))]).steps,
+    ),
+  );
+};
+
 let tests = (
   "EntryEdit",
   [
@@ -439,5 +536,6 @@ let tests = (
     test_case("move", `Quick, move),
     test_case("transaction", `Quick, transaction),
     test_case("locality", `Quick, locality),
+    test_case("a step per entry", `Quick, entrywise),
   ],
 );
