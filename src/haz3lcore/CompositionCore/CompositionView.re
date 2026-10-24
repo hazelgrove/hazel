@@ -393,21 +393,13 @@ let rec map_level =
 and replace_brace =
     (arr: array(Piece.t), lv: S.level, site: S.site, members: Segment.t)
     : unit =>
-  switch (S.brace_of(lv.pieces, site)) {
-  | Some((m, brace)) =>
-    let brace' =
-      Piece.Tile({
-        ...brace,
-        children: [members],
-      });
-    switch (site) {
-    | Kid(h, t) =>
-      let kid = ListUtil.last(t.children);
-      arr[h] = Tile(with_last_kid(t, ListUtil.put_nth(m, brace', kid)));
-    | Run(_) => arr[m] = brace'
-    };
-  | None => ()
-  };
+  Option.iter(
+    brace => {
+      let (i, p) = S.with_members(site, brace, members);
+      arr[i] = p;
+    },
+    S.brace_of(lv.pieces, site),
+  );
 
 /* [lines] with each note's parts at the end of its line */
 let annotate =
@@ -584,9 +576,6 @@ let entry_text = (ctx: ctx, e: O.entry): string => {
   let lines =
     annotate(lines, find, ctx.settings.test_marks ? tests(e) : [])
     |> with_probes(ctx, find);
-  let rec errs = (e: O.entry) =>
-    Option.value(Id.Map.find_opt(e.id, ctx.errors), ~default=[])
-    @ List.concat_map(errs, e.children);
   /* each error's line under its term's row: underlined from its first
      token, through its last when it ends on that row */
   let carets = Hashtbl.create(4);
@@ -634,7 +623,10 @@ let entry_text = (ctx: ctx, e: O.entry): string => {
           Option.value(Hashtbl.find_opt(carets, row), ~default=[]) @ [line],
         );
       },
-      List.stable_sort((a, b) => compare(span(a), span(b)), errs(e)),
+      List.stable_sort(
+        (a, b) => compare(span(a), span(b)),
+        subtree_error_ids(ctx, e),
+      ),
     );
   };
   Array.to_list(lines)

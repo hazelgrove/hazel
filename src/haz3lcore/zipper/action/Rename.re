@@ -22,17 +22,6 @@ let references = (~info_map: Statics.Map.t, binder: Id.t): list(Id.t) =>
     () => find_references(~info_map, binder),
   );
 
-/* the `M.x` / `M.T` labels among [refs] */
-let qualified = (~info_map: Statics.Map.t, refs: list(Id.t)): list(Id.t) =>
-  List.filter(
-    id =>
-      switch (Id.Map.find_opt(id, info_map)) {
-      | Some(info) => Info.member_access(~info_map, info) != None
-      | None => false
-      },
-    refs,
-  );
-
 /* another member of [items], the module member [binder] is in, named
    [name] (a type's when [typ]): renamed to it, [binder] and that member
    would compete for `M.name` */
@@ -48,16 +37,19 @@ let map_sharing = (f: 'a => 'a, xs: list('a)): list('a) => {
   List.for_all2((===), xs, ys) ? xs : ys;
 };
 
-/* each tile in [ids] now reads [name]; untouched subtrees stay the same
-   values (the parse caches compare by identity) */
-let rec relabel = (ids: list(Id.t), name: string, seg: Segment.t): Segment.t =>
-  map_sharing(relabel_piece(ids, name), seg)
-and relabel_piece = (ids: list(Id.t), name: string, p: Piece.t): Piece.t =>
+/* each token [name_of] names now reads that name, the walk only into the
+   pieces [within]; untouched subtrees stay the same values (the parse
+   caches compare by identity) */
+let rec relabel_by =
+        (~within=_ => true, name_of: Id.t => option(string), seg: Segment.t)
+        : Segment.t =>
+  map_sharing(relabel_piece_by(~within, name_of), seg)
+and relabel_piece_by = (~within, name_of, p: Piece.t): Piece.t =>
   switch (p) {
-  | Tile(t) =>
-    let children = map_sharing(relabel(ids, name), t.children);
-    switch (t.form) {
-    | Tok(_) when List.mem(t.id, ids) =>
+  | Tile(t) when within(t.id) =>
+    let children = map_sharing(relabel_by(~within, name_of), t.children);
+    switch (t.form, name_of(t.id)) {
+    | (Tok(_), Some(name)) =>
       Piece.Tile({
         ...t,
         form: Tok(name),
@@ -71,8 +63,8 @@ and relabel_piece = (ids: list(Id.t), name: string, p: Piece.t): Piece.t =>
             children,
           })
     };
-  | Projector(pr) =>
-    switch (relabel(ids, name, [pr.syntax])) {
+  | Projector(pr) when within(pr.id) =>
+    switch (relabel_by(~within, name_of, [pr.syntax])) {
     | [syntax] when syntax !== pr.syntax =>
       Piece.Projector({
         ...pr,
@@ -82,6 +74,14 @@ and relabel_piece = (ids: list(Id.t), name: string, p: Piece.t): Piece.t =>
     }
   | p => p
   };
+
+/* each tile in [ids] now reads [name] */
+let name_in = (ids: list(Id.t), name: string, id: Id.t): option(string) =>
+  List.mem(id, ids) ? Some(name) : None;
+let relabel = (ids: list(Id.t), name: string, seg: Segment.t): Segment.t =>
+  relabel_by(name_in(ids, name), seg);
+let relabel_piece = (ids: list(Id.t), name: string, p: Piece.t): Piece.t =>
+  relabel_piece_by(~within=_ => true, name_in(ids, name), p);
 
 /* [relabel] throughout [z], the caret kept (MapPiece descends into
    tiles, not into a projector's syntax) */

@@ -274,19 +274,10 @@ let entry_of = (lv: S.level, k: int): entry => {
     binders,
     hint,
   };
-  let rec head = i =>
-    i >= c1
-      ? None
-      : (
-        switch (lv.pieces[i]) {
-        | Tile(t) when t.id == sp.anchor => Some(t)
-        | _ => head(i + 1)
-        }
-      );
   switch (sp.kind) {
   | Def =>
-    switch (head(c0)) {
-    | Some(t) =>
+    switch (S.head(lv, k)) {
+    | Some((_, t)) =>
       let pat = Option.value(List.nth_opt(t.children, 0), ~default=[]);
       switch (Tile.token(t, 0)) {
       | "type" => mk(~binders=head_name(~ok=Token.is_typ_var, pat), Type)
