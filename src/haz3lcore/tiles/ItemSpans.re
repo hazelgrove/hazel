@@ -742,7 +742,8 @@ let index = (lv: level): Id.Map.t(int) =>
 type key =
   | KTop(ends, Sort.t, Id.t)
   | KMembers(ends, Id.t)
-  | KChain(ends, Id.t);
+  | KChain(ends, Id.t)
+  | KBlock(Id.t);
 
 let cache: Swept.t(key, level) = Swept.mk();
 /* levels built, cumulative: observability for tests */
@@ -751,6 +752,7 @@ let built = ref(0);
 let memo =
     (
       key: key,
+      ~offset=0,
       ~indent: option(int),
       ~line: option(int),
       ~bol: bool,
@@ -763,6 +765,7 @@ let memo =
   | Some(lv)
       when
         Segment.ptr_eq(lv.seg, seg)
+        && lv.offset == offset
         && Option.fold(~none=true, ~some=n => lv.indent == n, indent)
         && lv.line == line
         && lv.bol == bol
@@ -910,7 +913,15 @@ let chain = (lv: level, k: int): option(level) => {
     let seg = Array.to_list(Array.sub(arr, c0, c1 - c0));
     let line = Some(MemberLines.level_at(~line=lv.line, arr, c0));
     Some(
-      memo(KChain(lv.ends, sp.anchor), ~indent, ~line, ~bol, ~eol, seg, () =>
+      memo(
+        KChain(lv.ends, sp.anchor),
+        ~offset=c0,
+        ~indent,
+        ~line,
+        ~bol,
+        ~eol,
+        seg,
+        () =>
         build(
           ~ends=lv.ends,
           ~line,
@@ -938,22 +949,35 @@ let children = (lv: level, k: int): option(level) =>
   };
 
 /* span [k]'s body as a level of its own items (a function body, a let
-   chain), if it has any: for the outline and cells, built on demand. Not
-   for module literals (they have members) or type definitions */
+   chain), if it has any: for the outline, cells and paths, built on
+   demand. Not for module literals (they have members) or type
+   definitions */
 let block = (lv: level, k: int): option(level) => {
   let sp = lv.spans[k];
   let mk = (~indent, ~line, ~offset, seg) => {
+    let line = Some(line);
+    let indent = Some(indent);
     let b =
-      build(
-        ~line=Some(line),
-        ~sort=Sort.Exp,
-        ~owner=Block(sp.anchor),
-        ~nested=true,
+      memo(
+        KBlock(sp.anchor),
+        ~offset,
+        ~indent,
+        ~line,
         ~bol=false,
         ~eol=false,
-        ~indent=Some(indent),
-        ~offset,
         seg,
+        () =>
+        build(
+          ~line,
+          ~sort=Sort.Exp,
+          ~owner=Block(sp.anchor),
+          ~nested=true,
+          ~bol=false,
+          ~eol=false,
+          ~indent,
+          ~offset,
+          seg,
+        )
       );
     Array.length(b.spans) > 0 ? Some(b) : None;
   };
