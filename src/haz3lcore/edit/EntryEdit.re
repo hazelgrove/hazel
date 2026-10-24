@@ -936,15 +936,7 @@ let token = (c: ctx, op, x: Id.t, txt: string, seg: Segment.t): step => {
   let (up, level, i) = Nav.home(~seg, path);
   let level' =
     switch (List.nth(level, i)) {
-    | Tile({form: Tok(_), _} as t) =>
-      ListUtil.put_nth(
-        i,
-        Piece.Tile({
-          ...t,
-          form: Tok(txt),
-        }),
-        level,
-      )
+    /* a plain token's text is a token run's (transaction) */
     | Tile(t)
         when Nav.is_def_head(t) && List.mem(txt, ["let", "type", "module"]) =>
       need(~id=x, Unreadable, rekind(txt, level, i, t))
@@ -1123,7 +1115,7 @@ let transaction =
       })
     | [op, ...rest] =>
       switch (token_run(c, seg, ops)) {
-      | ([_, _, ..._] as run, rest) =>
+      | ([_, ..._] as run, rest) =>
         let program = relabel(run, seg);
         let made =
           List.map(

@@ -22,17 +22,6 @@ let references = (~info_map: Statics.Map.t, binder: Id.t): list(Id.t) =>
     () => find_references(~info_map, binder),
   );
 
-/* the `M.x` / `M.T` labels among [refs] */
-let qualified = (~info_map: Statics.Map.t, refs: list(Id.t)): list(Id.t) =>
-  List.filter(
-    id =>
-      switch (Id.Map.find_opt(id, info_map)) {
-      | Some(info) => Info.member_access(~info_map, info) != None
-      | None => false
-      },
-    refs,
-  );
-
 /* another member of [items], the module member [binder] is in, named
    [name] (a type's when [typ]): renamed to it, [binder] and that member
    would compete for `M.name` */
