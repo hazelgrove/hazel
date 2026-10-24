@@ -634,8 +634,15 @@ let entry_of =
     let e = entry(~mod_root=c.mod_root, y, seg);
     whole(~id=y, e.b, e.j);
     let bare = L.bare(e.b, e.j);
+    /* read again from its text, as the outline's duplicate always was:
+       fresh ids, and what doesn't read refuses */
+    let txt = L.text_of(in_form(~member, e.b, e.j, bare));
     (
-      Segment.IDs.replace(in_form(~member, e.b, e.j, bare)),
+      need(
+        ~id=y,
+        Unreadable,
+        member ? L.member_core(txt) : L.letin_core(txt),
+      ),
       is_stmt(e.b, e.j),
       L.start_indent(~mod_root=c.mod_root, bare, seg),
     );
