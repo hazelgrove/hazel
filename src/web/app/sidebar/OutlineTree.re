@@ -265,7 +265,7 @@ and row_of = (~top: bool, e: O.entry): list(node) => {
   switch (e.kind) {
   | Def =>
     switch (O.parts(e.lv, e.k)) {
-    | None => []
+    | None => Option.to_list(unfinished(e))
     | Some((pat, def)) =>
       switch (lead_var(pat)) {
       | None => []
@@ -330,6 +330,48 @@ and row_of = (~top: bool, e: O.entry): list(node) => {
     }
   };
 }
+
+/* a definition being typed, its `in` not yet there (`let b =`): its row,
+   as the term walk read it once completed */
+and unfinished = (e: O.entry): option(node) =>
+  switch (O.head(e.lv, e.k)) {
+  | Some({children: [pat, ...rest], _} as t) when !Tile.is_complete(t) =>
+    let def = Option.value(Util.ListUtil.last_opt(rest), ~default=[]);
+    let id = t.id;
+    switch (Tile.token(t, 0)) {
+    | "let" =>
+      Option.map(
+        ((label, tok)) =>
+          row(
+            ~id,
+            ~label,
+            ~binder=(tok, Sort.Pat),
+            O.sugared(pat) || O.is_fun(def) ? KFn : KConst,
+          ),
+        lead_var(pat),
+      )
+    | "type" =>
+      switch (O.content(pat)) {
+      | [Tile(v), ..._] =>
+        Option.map(
+          x => row(~id, ~label=x, ~binder=(v.id, Sort.TPat), KType),
+          Tile.single_token(v),
+        )
+      | _ => None
+      }
+    | "module" =>
+      switch (O.content(pat)) {
+      | [Tile(v), ..._] =>
+        Option.map(
+          x => row(~id, ~label=x, ~binder=(v.id, Sort.MPat), KModule),
+          Tile.single_token(v),
+        )
+      | _ => None
+      }
+    | _ => None
+    };
+  | _ => None
+  }
 
 /* a definition that is a type abstraction (not over one function) */
 and starts_abstraction = (def: Haz3lcore.Segment.t): bool =>
@@ -458,8 +500,21 @@ let number_tests = (ns: list(node)): list(node) => {
 };
 
 /* the rows of a program's outline */
-let of_outline = (o: O.t): list(node) =>
-  rows_of(~top=true, o.entries) |> group_tests |> number_tests;
+let of_outline = (o: O.t): list(node) => {
+  let rows = rows_of(~top=true, o.entries);
+  /* an expression program always shows its result's row: while its last
+     definition is being typed, the piece it will follow */
+  let rows =
+    switch (O.content(List.rev(o.seg))) {
+    | [last, ..._]
+        when
+          o.root != Sort.Mod
+          && !List.exists((n: node) => n.o_kind == KTrail, rows) =>
+      rows @ [row(~id=Piece.id(last), KTrail)]
+    | _ => rows
+    };
+  rows |> group_tests |> number_tests;
+};
 
 /* memoized on the term's physical identity, which statics keeps until
    the program changes */

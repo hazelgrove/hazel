@@ -24,6 +24,10 @@ let id_s = (o: option(Id.t)) =>
   | None => "-"
   };
 
+/* a result row's id can't match a hole the term walk's completion made */
+let loose = ref(false);
+let row_id_s = (~kind, o) => loose^ && kind == OT.KTrail ? "-" : id_s(o);
+
 let rec show = (~indent="", ns: list(OT.node)): list(string) =>
   List.concat_map(
     (n: OT.node) =>
@@ -33,7 +37,7 @@ let rec show = (~indent="", ns: list(OT.node)): list(string) =>
           indent,
           kind_s(n.o_kind),
           n.o_label,
-          id_s(n.o_id),
+          row_id_s(~kind=n.o_kind, n.o_id),
           id_s(n.o_test),
           id_s(Option.map(fst, n.o_binder)),
         ),
@@ -78,7 +82,7 @@ let tests = (
                   seg => ("typed " ++ n, Sort.Exp, seg),
                   CorpusUtil.typed_seg(src),
                 ),
-              CorpusUtil.edge_programs,
+              CorpusUtil.edge_programs @ CorpusUtil.incomplete_programs,
             )
           @ List.filter_map(
               ((path, src)) =>
@@ -98,7 +102,14 @@ let tests = (
           ];
         let diffs =
           List.filter_map(
-            ((name, root, seg)) => parity(~root, name, seg),
+            ((name, root, seg)) => {
+              loose :=
+                List.exists(
+                  ((n, _)) => name == "typed " ++ n,
+                  CorpusUtil.incomplete_programs,
+                );
+              parity(~root, name, seg);
+            },
             progs,
           );
         List.iter(print_endline, diffs);
