@@ -1593,6 +1593,57 @@ let offsets = () => {
   );
 };
 
+/* a statement opening a let chain, moved after an earlier member's edit
+   shifted it: the chain's level is reused at its new place */
+let shifted_chain = () => {
+  let root = Sort.Mod;
+  let seg =
+    seg_of(
+      ~root,
+      "let a = 1;\nlet x = 1 in\nlet y = x in\ny;\nlet b = 2;\nb",
+    );
+  let stmt = (seg: Segment.t) =>
+    Web.OutlineTree.(
+      flatten(of_term(MakeTerm.Incr.term_of_root(~root, seg)))
+    )
+    |> List.find_map((n: Web.OutlineTree.node) =>
+         n.o_kind == KStmt ? n.o_id : None
+       )
+    |> Option.get;
+  let move = seg => {
+    let term = MakeTerm.Incr.term_of_root(~root, seg);
+    let ctx: R.ctx = {
+      mod_root: true,
+      term,
+      info_map: lazy(Language.Statics.Map.empty),
+      is_open: _ => true,
+    };
+    Option.map(
+      ((s, _)) => text_of(s),
+      Result.to_option(R.edit(ctx, op(MoveDown, stmt(seg)), seg)),
+    );
+  };
+  /* the outline finds the row before the edit */
+  ignore(Web.ScratchFocus.find_path(~root, stmt(seg), seg));
+  /* a space typed into `let a = 1;`, the rest of the program kept */
+  let space =
+    switch (List.find(Piece.is_space, seg)) {
+    | Secondary(w) =>
+      Piece.Secondary({
+        ...w,
+        id: Id.mk(),
+      })
+    | _ => fail("no space")
+    };
+  let typed = [List.hd(seg), space, ...List.tl(seg)];
+  check(
+    option(string),
+    "as on a program read afresh",
+    move(seg_of(~root, text_of(typed))),
+    move(typed),
+  );
+};
+
 /* a `;` statement doesn't go into a member's body, where its `;` would
    end the member: Tab refuses it, and no new test goes there. A let-in
    definition's body takes one */
@@ -1750,6 +1801,7 @@ let tests = (
     test_case("ops and their inverses keep blank lines", `Quick, gaps),
     test_case("a doc comment goes in and out whole", `Quick, doc_comments),
     test_case("an item keeps its indentation's offset", `Quick, offsets),
+    test_case("a let chain moved by an earlier edit", `Quick, shifted_chain),
     test_case("no statement into a member's body", `Quick, member_statements),
     test_case("comments set apart stay on their side", `Quick, set_apart),
   ],
