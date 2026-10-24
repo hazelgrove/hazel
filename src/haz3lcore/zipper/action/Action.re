@@ -13,6 +13,9 @@ type chunkiness =
 type goal =
   | Hole(Direction.t)
   | NextProblem(Direction.t)
+  /* Jump to the next (Right) or previous (Left) place where the
+   * variable under the caret is used. See Move.re. */
+  | NextUsage(Direction.t)
   | TileId([@equal (_, _) => true] Id.t)
   | BindingSiteOfIndicatedVar;
 

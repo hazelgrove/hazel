@@ -478,6 +478,12 @@ let move_dispatch =
   | Point(goal, _) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
   | Goal(NextProblem(d)) => to_next_problem(~measured, ~problem_ids, d, z)
+  | Goal(NextUsage(d)) =>
+    /* Same "next in document order, wrapping" search as NextProblem,
+     * but over the uses of the variable under the caret. */
+    let* ci = Indicated.ci_of(z, statics);
+    let ids = Language.Statics.Map.usage_ids(statics, ci);
+    to_next_problem(~measured, ~problem_ids=List.to_seq(ids), d, z);
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
   | Goal(BindingSiteOfIndicatedVar) =>
     let* ci = Indicated.ci_of(z, statics);
