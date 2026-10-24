@@ -852,7 +852,7 @@ let decide =
       | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
       | Atom(Float(f)) => get_message(TerminalExp.float_exps(f))
       | Atom(String(s)) =>
-        get_message(TerminalExp.string_exps(String.escaped(s)))
+        get_message(TerminalExp.string_exps(Util.HazelString.escaped(s)))
       | Atom(Nat(i)) => get_message(TerminalExp.nat_exps(i))
       | ListLit(terms) =>
         get_message(ListExp.listlits(~n=List.length(terms)))

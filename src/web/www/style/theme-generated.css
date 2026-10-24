@@ -265,6 +265,7 @@
   --token-secondary: oklch(94% 0.025 90);
   --token-sig: oklch(60% 0.2 300);
   --token-string-lit: oklch(71% 0.2 95);
+  --token-escape: oklch(60.1% 0.1005 150);
   --token-tpat: oklch(60% 0.2 225);
   --token-typ: oklch(60% 0.2 300);
   --ui-bkg: oklch(97% 0.025 90);
