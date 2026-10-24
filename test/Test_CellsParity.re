@@ -260,13 +260,14 @@ let check_program =
     ) => {
   t.programs = t.programs + 1;
   let term = MakeTerm.Incr.term_of_root(~root, seg);
+  let outline = CorpusUtil.outline_of(~root, seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   let before = Id.Map.of_list(List.map(id => (id, ()), ids(seg)));
   let mod_root = root == Sort.Mod;
   let rows =
     List.filteri(
       (i, _) => i mod sample == 0,
-      List.filter_map((n: O.node) => n.o_id, O.flatten(O.of_term(term))),
+      List.filter_map((n: O.node) => n.o_id, O.flatten(O.rows(outline))),
     );
   let all = pieces(seg);
   let tiles =
@@ -326,7 +327,7 @@ let check_program =
     };
   let same = (~at=?, ~id=?, ~design=?, what, a, b, key) =>
     same(t, ~name, ~why=why(id), ~design?, ~at?, what, a, b, key);
-  let row_ids = O.row_ids(term);
+  let row_ids = O.row_ids(outline);
   same(
     "refusals",
     () => F0.refusals(~want=id => Id.Map.mem(id, row_ids), seg),
@@ -504,9 +505,9 @@ let check_program =
   if (edits) {
     let ctx: IE.ctx = {
       mod_root,
-      term,
+      outline,
       info_map: lazy(info_map),
-      is_open: id => O.expanded(~folds=[], id, term),
+      is_open: id => O.expanded(~folds=[], id, outline),
     };
     let made = r =>
       switch (r) {
@@ -526,7 +527,7 @@ let check_program =
       && row_key(~before, ra) == row_key(~before, rb)
         ? Some(trivia_rule) : None;
     let stmt_row = id =>
-      switch (O.kind_of(id, term)) {
+      switch (O.kind_of(id, outline)) {
       | Some(KTest | KStmt) => true
       | _ => false
       };
@@ -925,10 +926,10 @@ let mega_4k = () =>
 let by_design = () => {
   let op = (~root=Sort.Exp, o, src, pick) => {
     let seg = CorpusUtil.seg_of(~root, src);
-    let term = MakeTerm.Incr.term_of_root(~root, seg);
+    let outline = CorpusUtil.outline_of(~root, seg);
     Option.map(
       ((s, _)) => text_of(s),
-      IE.apply(~mod_root=root == Sort.Mod, o, pick(term, seg), seg),
+      IE.apply(~mod_root=root == Sort.Mod, o, pick(outline, seg), seg),
     );
   };
   let row = (label, term, _) => CorpusUtil.row_by_label(term, label);
@@ -1018,10 +1019,10 @@ let by_design = () => {
   );
   /* Alt-arrows too */
   let seg = CorpusUtil.seg_of(unfinished_before_others);
-  let term = MakeTerm.Incr.term_of_root(~root=Exp, seg);
+  let outline = CorpusUtil.outline_of(~root=Exp, seg);
   let ctx: IE.ctx = {
     mod_root: false,
-    term,
+    outline,
     info_map: lazy(Statics.Map.empty),
     is_open: _ => true,
   };

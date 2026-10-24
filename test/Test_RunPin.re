@@ -69,8 +69,8 @@ let cases = [
     `Quick,
     () => {
       let seg = Option.get(CorpusUtil.typed_seg(src));
-      let term = MakeTerm.go(seg).term;
-      switch (containers(OutlineTree.of_term(term))) {
+      let outline = CorpusUtil.outline_of(seg);
+      switch (containers(OutlineTree.rows(outline))) {
       | [c] => check_run_pin("top", seg, c)
       | cs =>
         fail(
@@ -87,10 +87,13 @@ let cases = [
     `Quick,
     () => {
       let seg = Option.get(CorpusUtil.typed_seg(src));
-      let term = MakeTerm.go(seg).term;
+      let outline = CorpusUtil.outline_of(seg);
       let m =
         Option.get(
-          OutlineTree.node_of(CorpusUtil.row_by_label(term, "m"), term),
+          OutlineTree.node_of(
+            CorpusUtil.row_by_label(outline, "m"),
+            outline,
+          ),
         );
       switch (containers(m.o_children)) {
       | [c] => check_run_pin("module", seg, c)
@@ -116,9 +119,10 @@ let last_member_jump = () => {
       ),
     );
   let term = MakeTerm.go(seg).term;
+  let outline = CorpusUtil.outline_of(seg);
   let info_map = DefStatics.calc(~settings, term).merged;
   let ids =
-    switch (containers(OutlineTree.of_term(term))) {
+    switch (containers(OutlineTree.rows(outline))) {
     | [c, ..._] => kid_ids(c)
     | [] => fail("no tests container")
     };
@@ -132,7 +136,7 @@ let last_member_jump = () => {
     switch (
       Web.Divided.open_run(
         ~info_map,
-        ~term,
+        ~outline,
         first,
         Web.Divided.of_whole(editor),
       )

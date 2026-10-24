@@ -1,9 +1,8 @@
 open Alcotest;
 open Haz3lcore;
 
-/* EntryPath: the path grammar, resolving and describing both ways, its
-   per-level index, and parity with the agent's HighLevelNodeMap on the
-   corpora */
+/* EntryPath: the path grammar, resolving and describing both ways, and
+   its per-level index */
 
 module P = EntryPath;
 module S = ItemSpans;
@@ -392,104 +391,6 @@ let corpus_round_trips = () =>
     corpora(),
   );
 
-/* every binding the agent's node map addresses: reached by a path with
-   the same names to the same id, and by the node map's own path, which is
-   then its description, when that takes no `#k`. It reaches further than blocks (lets inside
-   parens, case rules, branches), which paths leave to ids; its parent is
-   then reached. Printed: those, and the entries only paths reach */
-let parity_of = (~root, name, seg) => {
-  let z = Zipper.unzip(seg);
-  let info_map = CompositionGo.Public.mk_statics(~root, z);
-  let nm = Option.get(HighLevelNodeMap.build(z, info_map));
-  let names_of = (node: HighLevelNodeMap.node) =>
-    List.map(HighLevelNodeMap.id_to_name(nm), node.path);
-  let is_ident = n => Token.is_var(n) || Token.is_typ_var(n);
-  /* the node map names a pattern by its shape: `(a, b)`, `{wild}` */
-  let same_name = (n: string, el: P.elem) =>
-    switch (el) {
-    | Name(x, _) => n == x || !is_ident(n) && CorpusUtil.contains(x, n)
-    | Nth(Def, _) => !is_ident(n)
-    | _ => false
-    };
-  let fail = msg => Alcotest.fail(name ++ ": " ++ msg);
-  let reached = ref(0);
-  let own = ref(0);
-  let missed = ref([]);
-  Util.Id.Map.iter(
-    (id, node: HighLevelNodeMap.node) => {
-      let names = names_of(node);
-      let shown = String.concat("/", names);
-      switch (P.describe(~root, seg, id)) {
-      | None =>
-        switch (HighLevelNodeMap.parent_id_of(node)) {
-        | Some(parent) when P.describe(~root, seg, parent) == None =>
-          fail(shown ++ ": neither it nor its parent is reached")
-        | _ => missed := [shown, ...missed^]
-        }
-      | Some(p) =>
-        incr(reached);
-        let s = P.to_string(p);
-        if (List.length(p.elems) != List.length(names)
-            || !List.for_all2(same_name, names, p.elems)) {
-          fail(shown ++ " is described as " ++ s);
-        };
-        switch (P.resolve(~root, seg, p)) {
-        | Ok(f) when f.id == id => ()
-        | _ => fail(s ++ " does not resolve to " ++ shown)
-        };
-        if (HighLevelNodeMap.path_to_id_opt(nm, shown) == Some(id)
-            && List.for_all(is_ident, names)) {
-          incr(own);
-          switch (P.resolve_string(~root, seg, shown)) {
-          | Ok(f) when f.id == id && s == shown => ()
-          | Ok(f) when f.id == id => fail(shown ++ " is described as " ++ s)
-          | Ok(_) => fail(shown ++ " resolves elsewhere")
-          | Error(e) => fail(shown ++ ": " ++ P.message(e))
-          };
-        };
-      };
-    },
-    nm,
-  );
-  let only =
-    P.entries(~root, seg)
-    |> List.filter(((id, _)) => !Util.Id.Map.mem(id, nm))
-    |> List.map(((_, p)) => p);
-  let kinds = (ps: list(P.t)) => {
-    let kind_of = p =>
-      switch (P.resolve(~root, seg, p)) {
-      | Ok(f) => P.kind_word(f.kind)
-      | Error(_) => "?"
-      };
-    List.sort_uniq(compare, List.map(kind_of, ps))
-    |> List.map(k =>
-         Printf.sprintf(
-           "%d %s",
-           List.length(List.filter(p => kind_of(p) == k, ps)),
-           k,
-         )
-       )
-    |> String.concat(", ");
-  };
-  Printf.printf(
-    "%s: node map %d: %d reached (%d by its own path), %d not (inside a parent's non-block body); paths only: %d (%s)\n",
-    name,
-    Util.Id.Map.cardinal(nm),
-    reached^,
-    own^,
-    List.length(missed^),
-    List.length(only),
-    kinds(only),
-  );
-  List.iter(
-    s => Printf.printf("  node map only: %s\n", s),
-    List.sort_uniq(compare, missed^),
-  );
-};
-
-let parity = () =>
-  List.iter(((name, root, seg)) => parity_of(~root, name, seg), corpora());
-
 /* ItemSpans keeps a member's let chain and a definition's body run while
    their pieces are, but not where they sit: an earlier member's edit moves
    them */
@@ -554,8 +455,7 @@ let index_reuse = () => {
   check(bool, "the edited path's levels only", true, rebuilt <= 3);
 };
 
-/* resolving every entry's path at 4k, and describing every entry; and the
-   node map's lookups for comparison when benchmarking */
+/* resolving every entry's path at 4k, and describing every entry */
 let cost = () => {
   let root = Sort.Exp;
   let seg = CorpusUtil.mega_seg(~root, "mega-4k.hz");
@@ -599,36 +499,6 @@ let cost = () => {
     resolve_after,
     describe_after,
   );
-  if (CorpusUtil.bench_enabled) {
-    let z = Zipper.unzip(seg);
-    let info_map = CompositionGo.Public.mk_statics(~root, z);
-    let nm = Option.get(HighLevelNodeMap.build(z, info_map));
-    let paths =
-      Util.Id.Map.bindings(nm)
-      |> List.map(((_, node: HighLevelNodeMap.node)) =>
-           String.concat(
-             "/",
-             List.map(HighLevelNodeMap.id_to_name(nm), node.path),
-           )
-         );
-    let ((), t) =
-      time(() =>
-        List.iter(
-          p => ignore(HighLevelNodeMap.path_to_id_opt(nm, p)),
-          paths,
-        )
-      );
-    let ((), mine) =
-      time(() =>
-        List.iter(p => ignore(P.resolve_string(~root, seg, p)), paths)
-      );
-    Printf.printf(
-      "mega-4k, the node map's %d paths: node map %.4f ms each, EntryPath %.4f ms each\n",
-      List.length(paths),
-      t /. float_of_int(List.length(paths)),
-      mine /. float_of_int(List.length(paths)),
-    );
-  };
 };
 
 let tests = (
@@ -644,7 +514,6 @@ let tests = (
     test_case("round trips", `Quick, small_round_trips),
     test_case("sub-level offsets", `Quick, sub_offsets),
     test_case("corpus round trips", `Slow, corpus_round_trips),
-    test_case("node map parity", `Slow, parity),
     test_case("indexes reused", `Slow, index_reuse),
     test_case("cost at 4k", `Slow, cost),
   ],

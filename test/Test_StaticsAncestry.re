@@ -271,6 +271,7 @@ let consumers = ((name, root, src), ()) => {
   let z = Zipper.unzip(seg);
   let both = statics(~root, z);
   let (editor, whole) = both;
+  let outline = CorpusUtil.outline_of(~root, seg);
   same(
     name ++ ": parents",
     per_id(both, (st, id) =>
@@ -286,15 +287,15 @@ let consumers = ((name, root, src), ()) => {
   same(
     name ++ ": outline rows",
     per_id(both, (st, id) =>
-      Web.OutlineTree.enclosing_row(~info_map=st.info_map, id, st.term)
+      Web.OutlineTree.enclosing_row(~info_map=st.info_map, id, outline)
     ),
   );
   /* the row search climbs no further than it must: the row the item's
      whole ancestry gives, on either statics */
   let row = (st: CachedStatics.t, id) =>
-    Web.OutlineTree.enclosing_row(~info_map=st.info_map, id, st.term);
+    Web.OutlineTree.enclosing_row(~info_map=st.info_map, id, outline);
   let row_of_item = (st: CachedStatics.t, id) => {
-    let rows = Web.OutlineTree.row_ids(st.term);
+    let rows = Web.OutlineTree.row_ids(outline);
     switch (Id.Map.find_opt(id, st.info_map)) {
     | Some(info) =>
       List.find_opt(
@@ -320,55 +321,6 @@ let consumers = ((name, root, src), ()) => {
     name ++ ": pending evaluation",
     pending(whole),
     pending(editor),
-  );
-  /* the assistant's node map, from a caret at each line's first token */
-  let nodes = (st: CachedStatics.t, z) =>
-    switch (HighLevelNodeMap.build(z, st.info_map)) {
-    | Some(nm) =>
-      Id.Map.bindings(nm)
-      |> List.map(((_, n: HighLevelNodeMap.node)) =>
-           n.name ++ "@" ++ string_of_int(List.length(n.path))
-         )
-      |> List.sort(compare)
-      |> String.concat(" ")
-    | None => "none"
-    | exception e => "raised " ++ Printexc.to_string(e)
-    };
-  List.iteri(
-    (row, line) => {
-      let rec col = i =>
-        i < String.length(line) && line.[i] == ' ' ? col(i + 1) : i;
-      let col = col(0);
-      switch (
-        perform(
-          ~root,
-          ~statics=editor,
-          z,
-          Move(
-            Point(
-              {
-                row,
-                col,
-              }: Point.t,
-              None,
-            ),
-          ),
-        )
-      ) {
-      | Some(z) when String.trim(line) != "" =>
-        let at = name ++ ": node map at line " ++ string_of_int(row);
-        let got = nodes(editor, z);
-        check(
-          bool,
-          at ++ " builds",
-          false,
-          String.starts_with(~prefix="raised", got),
-        );
-        check(string, at, nodes(whole, z), got);
-      | _ => ()
-      };
-    },
-    String.split_on_char('\n', src),
   );
 };
 
@@ -403,11 +355,13 @@ let member_autoprobe = () =>
    modules included, but not into the items before it */
 let error_rollup = (~root, src, ~own, ~rolls, ~not_rolls, ()) => {
   module O = Web.OutlineTree;
-  let z = Zipper.unzip(CorpusUtil.seg_of(~root, src));
+  let seg = CorpusUtil.seg_of(~root, src);
+  let z = Zipper.unzip(seg);
+  let outline = CorpusUtil.outline_of(~root, seg);
   let (editor, whole) = statics(~root, z);
   List.iter(
     ((what, st: CachedStatics.t)) => {
-      let nodes = O.flatten(O.of_term(st.term));
+      let nodes = O.flatten(O.rows(outline));
       let id_of = label =>
         switch (List.find_opt((n: O.node) => n.o_label == label, nodes)) {
         | Some({o_id: Some(id), _}) => id
@@ -416,7 +370,7 @@ let error_rollup = (~root, src, ~own, ~rolls, ~not_rolls, ()) => {
       let (direct, roll) =
         O.error_rows(
           ~info_map=st.info_map,
-          ~rows=O.collect(O.of_term(st.term)),
+          ~rows=O.collect(O.rows(outline)),
           st.error_ids,
         );
       check(

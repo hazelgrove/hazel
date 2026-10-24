@@ -141,29 +141,44 @@ let apply_overlay_action =
     let new_cws =
       CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
 
-    if (List.length(paths_to_expand) > 0) {
-      let expand_action = AgentContext.Update.Expand(paths_to_expand);
-      let chat_system =
-        ChatSystem.Update.update(
-          ChatSystem.Update.Action.ChatAction(
-            Chat.Update.Action.AgentContextAction(expand_action),
-            chat_id,
-          ),
-          agent.chat_system,
-        );
-      switch (chat_system) {
-      | Ok(updated_chat_system) =>
-        Ok((
-          {
-            ...agent,
-            chat_system: updated_chat_system,
+    /* placed overlays open their entries; a path the agent's view
+       doesn't name stays closed */
+    let outline = Outline.of_program(~root, Zipper.unselect_and_zip(new_z));
+    let opened =
+      List.filter_map(
+        path =>
+          switch (Outline.resolve(outline, path)) {
+          | Ok(e) =>
+            Some(
+              {
+                id: e.id,
+                path: Outline.path_string(e),
+              }: AgentContext.Model.entry,
+            )
+          | Error(_) => None
           },
-          new_cws,
-        ))
-      | Error(_) => Ok((agent, new_cws))
-      };
-    } else {
-      Ok((agent, new_cws));
+        List.rev(paths_to_expand),
+      );
+    switch (
+      opened == []
+        ? Ok(agent.chat_system)
+        : ChatSystem.Update.update(
+            ChatSystem.Update.Action.ChatAction(
+              Chat.Update.Action.AgentContextAction(Open(opened)),
+              chat_id,
+            ),
+            agent.chat_system,
+          )
+    ) {
+    | Ok(chat_system) =>
+      Ok((
+        {
+          ...agent,
+          chat_system,
+        },
+        new_cws,
+      ))
+    | Error(_) => Ok((agent, new_cws))
     };
   };
 };
@@ -237,15 +252,23 @@ let update =
     | Error(error) => Error(error)
     };
   | AgentContextAction(agent_context_action) =>
-    let action = agent_context_action;
-    let chat_system =
-      ChatSystem.Update.update(
-        ChatSystem.Update.Action.ChatAction(
-          Chat.Update.Action.AgentContextAction(action),
-          chat_id,
-        ),
-        agent.chat_system,
+    let outline =
+      Outline.of_program(
+        ~root=editor.editor.root,
+        Zipper.unselect_and_zip(editor.editor.state.zipper),
       );
+    let chat_system =
+      switch (AgentContext.Update.resolve(outline, agent_context_action)) {
+      | Error(msg) => Error(Failure.Info(msg))
+      | Ok(action) =>
+        ChatSystem.Update.update(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.AgentContextAction(action),
+            chat_id,
+          ),
+          agent.chat_system,
+        )
+      };
     switch (chat_system) {
     | Ok(updated_chat_system) =>
       Ok((

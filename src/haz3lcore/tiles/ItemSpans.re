@@ -58,7 +58,10 @@ type span = {
    level holding an unfinished member */
 type ends =
   | Written
-  | Read;
+  | Read
+  /* as Read, and where a missing `;`'s grout ends a member, as the parsed
+     term reads it: the outline's rows */
+  | Rows;
 
 type owner =
   | Top
@@ -472,10 +475,10 @@ let index_of = (spans: array(span)): Id.Map.t(int) => {
    ends an unfinished member (its units), each part divided as written;
    and whether a member line cut one */
 let read_raws =
-    (~nested: bool, ~line: option(int), arr: array(Piece.t))
+    (~grout: bool, ~nested: bool, ~line: option(int), arr: array(Piece.t))
     : (list(raw), bool) => {
   let len = Array.length(arr);
-  let written = Array.of_list(raw_spans(~sort=Mod, ~nested, arr));
+  let written = Array.of_list(raw_spans(~sort=Mod, ~nested, ~grout, arr));
   let n = Array.length(written);
   let cut = ref(false);
   let parts =
@@ -518,7 +521,8 @@ let read_raws =
     |> List.concat;
   (
     List.concat_map(
-      ((from, until)) => raw_spans(~sort=Mod, ~nested, ~from, ~until, arr),
+      ((from, until)) =>
+        raw_spans(~sort=Mod, ~nested, ~grout, ~from, ~until, arr),
       parts,
     ),
     cut^,
@@ -554,8 +558,8 @@ let build =
   let arr = Array.of_list(seg);
   let len = Array.length(arr);
   let (raws, cut) =
-    ends == Read && sort == Sort.Mod
-      ? read_raws(~nested, ~line, arr)
+    ends != Written && sort == Sort.Mod
+      ? read_raws(~grout=ends == Rows, ~nested, ~line, arr)
       : (raw_spans(~sort, ~nested, arr), false);
   let raws = Array.of_list(raws);
   let first_content = (r: raw) => {
@@ -613,7 +617,11 @@ let build =
           i > c0 && is_ws(arr[i - 1]) ? back_ws(i - 1) : i;
         let c1 = {
           let e = back_ws(r.r_stop);
-          back_ws(e > c0 && Piece.is_semi(arr[e - 1]) ? e - 1 : e);
+          /* its separator: a `;`, or a missing one's grout */
+          back_ws(
+            e > c0 && (Piece.is_semi(arr[e - 1]) || r.r_semi == Some(e - 1))
+              ? e - 1 : e,
+          );
         };
         let f = first_content(r);
         let rec first_tile = i =>

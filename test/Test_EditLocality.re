@@ -156,11 +156,10 @@ let undo = () => {
 /* deep in the program, so the tiles passed on the way down count */
 let restructure = () => {
   let seg = Zipper.unselect_and_zip(Lazy.force(dew));
-  let term = MakeTerm.Incr.term_of(seg);
   switch (
     Web.ItemEdit.apply(
       MoveDown,
-      CorpusUtil.row(term, ["MetaRunner", "init"]),
+      CorpusUtil.row(CorpusUtil.outline_of(seg), ["MetaRunner", "init"]),
       seg,
     )
   ) {

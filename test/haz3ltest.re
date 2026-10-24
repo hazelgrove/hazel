@@ -69,6 +69,7 @@ let (suite, exit_with_test_status) =
       Test_MakeTermIncr.tests,
       Test_ItemSpans.tests,
       Test_EntryPath.tests,
+      Test_AgentView.tests,
       Test_CellsParity.tests,
       Test_EditLocality.tests,
       Test_DefStaticsParity.tests,
