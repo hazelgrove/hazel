@@ -2437,18 +2437,18 @@ let probes = (): list(probe) => [
     expect: "module M = { ⏎ let a = 1; ⏎ let b = a + 1; ⏎ test b == 2 end; ⏎ type T = Int; ⏎ let c : T = b ⏎ } in ⏎ let a = 5 in ⏎ let d : M.T = M.a + a in ⏎ d",
   },
   {
-    what: "agent delete M/b",
+    what: "agent delete M/b (still used: refused)",
     root: Mod,
     src: m_src,
     run: agent(Delete(BindingClause, "M/b")),
-    expect: "module M = { ⏎ let a = 1; ⏎ type T = Int; ⏎ let c : T = b ⏎ }; ⏎ let a = 5; ⏎ let d : M.T = M.a + a; ⏎ d",
+    expect: "(Composition_action_failure\n   \"Not deleted: it would leave uses dangling. Delete or change them first, in the same reply:\\n- b, used at M/c\")",
   },
   {
-    what: "agent delete M/b",
+    what: "agent delete M/b (still used: refused)",
     root: Exp,
     src: e_src,
     run: agent(Delete(BindingClause, "M/b")),
-    expect: "module M = { ⏎ let a = 1; ⏎ type T = Int; ⏎ let c : T = b ⏎ } in ⏎ let a = 5 in ⏎ let d : M.T = M.a + a in ⏎ d",
+    expect: "(Composition_action_failure\n   \"Not deleted: it would leave uses dangling. Delete or change them first, in the same reply:\\n- b, used at M/c\")",
   },
   {
     what: "agent update_pattern M/a renames M.a",

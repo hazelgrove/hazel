@@ -588,6 +588,7 @@ let prompt_caching_tests = [
           after_text: None,
           content: "GUIDE_BODY_MARKER",
           content_is_payload,
+          steps: [],
         };
         switch (Message.Utils.mk_tool_result_message(tr).api_message) {
         | Some(m) => or_msg_json(m)
@@ -1018,16 +1019,9 @@ let toolcall_handler_tests = [
         let unknown = "Unknown error occured when trying to apply tool request to editor";
         check_bool("not the old opaque message", false, msg == unknown);
         check_bool(
-          "includes Action.Failure.show text (Cant_derive or similar)",
+          "names the missing entry: " ++ msg,
           true,
-          StringUtil.plain_search("Cant_derive", msg, 0) >= 0
-          || StringUtil.plain_search("Cant_move", msg, 0) >= 0
-          || StringUtil.plain_search("Cant_select", msg, 0) >= 0,
-        );
-        check_bool(
-          "suffix explains tool context",
-          true,
-          StringUtil.plain_search("structural editor tool", msg, 0) >= 0,
+          StringUtil.plain_search("No entry \"a\"", msg, 0) >= 0,
         );
       };
     },
