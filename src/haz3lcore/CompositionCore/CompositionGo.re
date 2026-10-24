@@ -1,2102 +1,1129 @@
 open Util;
-open HighLevelNodeMap.Public;
 open Language;
-open OptUtil.Syntax;
 
-/* phase timers for the journal's perf lines */
-let build = (z, info_map) =>
-  PerfTimer.time("node-map", () => build(z, info_map));
+/* The assistant's structural tools on the editing kernel (plans/
+   editing-in-the-large.html, phase 4). Each tool is an adapter: it
+   resolves its path (EntryPath) against the program as the reply's
+   earlier calls left it and emits kernel ops. A reply's calls are all or
+   nothing. The finished change is checked against per-item statics: no
+   uses left dangling by a delete, no rename capture, no new errors. What
+   changed is reported by canonical path */
 
-type node_map = HighLevelNodeMap.t;
-type node = HighLevelNodeMap.node;
+module K = EntryEdit;
+module L = EntryLayout;
+module Nav = SpineNav;
+module P = EntryPath;
+module S = ItemSpans;
 
-module Local = {
-  type inner_term =
-    | Pat
-    | Def
-    | Body;
+type call = Action.Structural.t;
 
-  module Utils = {
-    let get_inner_term_id = (inner_term: inner_term, node: node): Id.t => {
-      /*
-       Returns the specified "inner_term" from the "curr_node_info"
+let ( let* ) = (r, f) =>
+  switch (r) {
+  | Ok(x) => f(x)
+  | Error(_) as e => e
+  };
 
-       E.g. If current node is "x" in a program "let x : Int = 2 + 3 in 100 + 200",
-       calling get_inner_term_id(curr_node_info, Pat) will return the id of the pattern "x : Int",
-       calling get_inner_term_id(curr_node_info, Def) will return the id of the definition "2 + 3",
-       calling get_inner_term_id(curr_node_info, Body) will return the id of the body "100 + 200".
-       */
-      switch (node.info) {
-      | InfoExp({user_term: term, _}) =>
-        switch (Exp.term_of(term)) {
-        | Let(pat, def, body) =>
-          switch (inner_term) {
-          | Pat => Pat.rep_id(pat)
-          | Def => Exp.rep_id(def)
-          | Body => Exp.rep_id(body)
-          }
-        | TyAlias(tpat, tdef, body) =>
-          switch (inner_term) {
-          | Pat => TPat.rep_id(tpat)
-          | Def => Typ.rep_id(tdef)
-          | Body => Exp.rep_id(body)
-          }
-        | ModuleExp(mp, def, body) =>
-          switch (inner_term) {
-          | Pat => MPat.rep_id(mp)
-          | Def => Exp.rep_id(def)
-          | Body => Exp.rep_id(body)
-          }
-        | _ =>
-          raise(
-            Failure(
-              "UNIMPLEMENTED_NODE_TYPE: Only let, type alias, and module expressions are currently supported as nodes",
-            ),
-          )
-        }
-      | _ =>
-        raise(
-          Failure(
-            "Current node is not a let or type alias expression, so no pattern to update",
-          ),
-        )
-      };
+/* ---- statics ---- */
+
+/* the whole program's statics, monolithically: kept for the views that
+   read the node map */
+let mk_statics_with =
+    (~root=Sort.Exp, settings: CoreSettings.t, z: Zipper.t): StaticsBase.Map.t => {
+  let term =
+    if (root == Sort.Mod) {
+      let (seg, masks) =
+        MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
+      MakeTerm.Incr.term_of_root(~masks, ~root, seg);
+    } else {
+      MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
     };
+  fst(
+    Statics.mk(
+      settings,
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      term,
+    ),
+  );
+};
+let mk_statics = (~root=Sort.Exp, z: Zipper.t): StaticsBase.Map.t =>
+  mk_statics_with(~root, CoreSettings.on, z);
 
-    /* Module members are nodes whose info is the statics expansion's
-       Let/TyAlias wrapper, reclassified to a Mod cls. Their pat/def ids are
-       real syntax; their "body" is the expansion continuation (the REST of
-       the members), which must never be an edit target. */
-    let is_module_member = (node: node): bool =>
-      switch (node.info) {
-      | InfoExp({cls: Mod(_), _}) => true
-      | _ => false
-      };
+/* per-item statics (DefStatics): an edit re-analyzes the items it changed
+   and those that depend on them */
+let statics_of =
+    (
+      ~settings: CoreSettings.t,
+      ~root: Sort.t,
+      ~probe_ids: Id.Map.t(unit),
+      seg: Segment.t,
+    )
+    : CachedStatics.t =>
+  PerfTimer.time("statics", () =>
+    CachedStatics.init_compositional_term(
+      ~settings,
+      ~probe_ids,
+      MakeTerm.semantic_term(~root, seg),
+    )
+  );
 
-    /* the items of the module literal member [node] is in, its parent
-       binding's: none at a Mod root's top level, which no `M.x` names */
-    let member_items =
-        (~info_map: Id.Map.t(Info.t), node_map: node_map, node: node)
-        : option(list(Mod.t)) =>
-      if (!is_module_member(node)) {
-        None;
-      } else {
-        let* parent = HighLevelNodeMap.parent_of(node_map, node);
-        switch (parent.info) {
-        | InfoExp({
-            user_term: {term: Let(_, def, _) | ModuleExp(_, def, _), _},
-            _,
-          }) =>
-          Info.module_items(~info_map, def)
-        | _ => None
-        };
-      };
+/* ---- the code a call brings ---- */
 
-    let member_body_error = (what: string) =>
-      Error(
-        Action.Failure.Composition_action_failure(
-          "Cannot "
-          ++ what
-          ++ " of a module member: members end at their `;` and have no body. Target the member's definition (update_definition), the whole member (update_binding_clause / delete_binding_clause), or the enclosing module binding.",
-        ),
-      );
+/* form delimiters that lex like names: as a binder, the code misreads */
+let reserved_words: list(Token.t) = List.filter(Token.is_var, Form.delims);
 
-    /* a test, through the wrappers the outline looks through */
-    let rec is_test = (e: Exp.t): bool =>
-      switch (e.term) {
-      | Parens(e)
-      | Projector(_, e)
-      | Filter(_, e) => is_test(e)
-      | Test(_)
-      | HintedTest(_) => true
-      | _ => false
-      };
-
-    /* the piece a new test follows in a let-in chain: [node]'s binding
-       tile, past the test statements opening its body (to the last one's
-       `;`, a Seq's id) */
-    let past_tests = (node: node): Id.t => {
-      let rec past = (after, body: Exp.t) =>
-        switch (body.term) {
-        | Seq(e, rest) when is_test(e) => past(Exp.rep_id(body), rest)
-        | _ => after
-        };
-      switch (node.info) {
-      | InfoExp({user_term, _}) =>
-        switch (user_term.term) {
-        | Let(_, _, body)
-        | TyAlias(_, _, body)
-        | ModuleExp(_, _, body) => past(id_of(node), body)
-        | _ => id_of(node)
-        }
-      | _ => id_of(node)
-      };
+let reserved_binder = (code: string): option(string) => {
+  let word = c =>
+    c >= 'a'
+    && c <= 'z'
+    || c >= 'A'
+    && c <= 'Z'
+    || c >= '0'
+    && c <= '9'
+    || c == '_'
+    || c == '\'';
+  let (rev, last) =
+    String.fold_left(
+      ((ws, w), c) =>
+        word(c)
+          ? (ws, w ++ String.make(1, c))
+          : w == "" ? (ws, "") : ([w, ...ws], ""),
+      ([], ""),
+      code,
+    );
+  let words = List.rev(last == "" ? rev : [last, ...rev]);
+  let rec scan = words =>
+    switch (words) {
+    | [intro, w, ..._]
+        when
+          List.mem(intro, ["let", "fun", "type"])
+          && List.mem(w, reserved_words) =>
+      Some(w)
+    | [_, ...rest] => scan(rest)
+    | [] => None
     };
+  List.mem(String.trim(code), reserved_words)
+    ? Some(String.trim(code)) : scan(words);
+};
 
-    /* the member a new test follows: [node], past the test members
-       directly after it in its module (the nearest Module among its
-       statics ancestors) */
-    let past_test_members = (~info_map: Id.Map.t(Info.t), node: node): Id.t => {
-      let id = id_of(node);
-      let items =
-        List.find_map(
-          a =>
-            switch (Id.Map.find_opt(a, info_map)) {
-            | Some(InfoExp({user_term: {term: Module(items), _}, _})) =>
-              Some(items)
+/* why code didn't read: the batch parser's note, a reserved binder */
+let unreadable = (code: string): string =>
+  "The code does not parse."
+  ++ (
+    switch (FastParse.bail_note^) {
+    | Some(n) => " Parser: " ++ n ++ "."
+    | None => ""
+    }
+  )
+  ++ (
+    switch (reserved_binder(code)) {
+    | Some(w) =>
+      " Note: `"
+      ++ w
+      ++ "` is a reserved keyword in Hazel and cannot be used as a variable name."
+    | None => ""
+    }
+  );
+
+/* `test code end`, from the test's expression; code that already opens
+   with `test` or `hint` is taken as the whole test */
+let test_text = (code: string): string => {
+  let code = String.trim(code);
+  let code =
+    String.ends_with(~suffix=";", code)
+      ? String.trim(String.sub(code, 0, String.length(code) - 1)) : code;
+  let opens = kw =>
+    String.starts_with(~prefix=kw, code)
+    && (
+      String.length(code) == String.length(kw)
+      || String.contains(" \n\t\"", code.[String.length(kw)])
+    );
+  opens("test") || opens("hint") ? code : "test " ++ code ++ " end";
+};
+
+/* ---- one call ---- */
+
+/* the program a call runs on: its statics only when a planner asks */
+type program = {
+  root: Sort.t,
+  seg: Segment.t,
+  info_map: Lazy.t(Statics.Map.t),
+};
+
+/* what a call did, for its report */
+type what =
+  | Added
+  | Replaced(option(P.part))
+  /* the entries after the target and its block's result: `update_body` */
+  | Rest
+  /* each name: old, new, its uses */
+  | Renamed(list((string, string, int)))
+  | Deleted
+  /* where to, as the call put it */
+  | Moved(string);
+
+type plan = {
+  ops: list(K.op),
+  /* the entry the call names, by its anchor before the call */
+  target: option(Id.t),
+  what,
+  /* the names a delete removes, each with its binder and uses then */
+  removes: list((string, Id.t, list(Id.t))),
+  /* a rename's binder, its new name and its uses then */
+  renames: list((Id.t, string, list(Id.t))),
+};
+
+let plan = (~target=?, what, ops) => {
+  ops,
+  target,
+  what,
+  removes: [],
+  renames: [],
+};
+
+/* entries elsewhere named [el]: what a path missing its outer names
+   meant */
+let elsewhere = (p: program, el: string): string =>
+  switch (
+    P.entries(~root=p.root, p.seg)
+    |> List.filter_map(((_, path: P.t)) =>
+         switch (List.rev(path.elems)) {
+         | [last, _, ..._] when P.elem_to_string(last) == el =>
+           Some(P.to_string(path))
+         | _ => None
+         }
+       )
+  ) {
+  | [] => ""
+  | paths =>
+    " Did you mean " ++ String.concat(" or ", ListUtil.take(3, paths)) ++ "?"
+  };
+
+let resolve = (p: program, path: string): result(P.found, string) =>
+  switch (P.resolve_string(~root=p.root, p.seg, path)) {
+  | Ok({part: Some(part), _}) =>
+    Error(
+      "\""
+      ++ path
+      ++ "\": the tool picks the part itself; name the entry, without :"
+      ++ P.part_word(part),
+    )
+  | Ok(f) => Ok(f)
+  | Error(Unknown(_, el, _) as e) =>
+    Error(P.message(e) ++ elsewhere(p, el))
+  | Error(e) => Error(P.message(e))
+  };
+
+let level_of = (f: P.found): (S.level, int) => ListUtil.last(f.steps);
+
+/* a level of module members: a module body's, or a Mod root's top */
+let members_level = (p: program, lv: S.level): bool =>
+  switch (lv.owner) {
+  | Members(_) => true
+  | Top => p.root == Sort.Mod
+  | Chain(_)
+  | Block(_) => false
+  };
+
+let kind_name = (k: P.kind): string =>
+  switch (k) {
+  | Tail => "result"
+  | Stmt => "statement"
+  | k => P.kind_word(k)
+  };
+
+let kernel_part = (part: P.part): K.part =>
+  switch (part) {
+  | Pattern => Pattern
+  | Definition => Definition
+  | Body => Body
+  | Head => Head
+  };
+
+let part = (p: program, path: string, f: P.found, part: P.part) =>
+  switch (f.kind) {
+  | Def
+  | Type
+  | Module =>
+    switch (K.part(~root=p.root, f.id, kernel_part(part), p.seg)) {
+    | Some(id) => Ok(id)
+    | None =>
+      Error("\"" ++ path ++ "\" has no " ++ P.part_word(part) ++ " to edit")
+    }
+  | kind =>
+    Error(
+      "\""
+      ++ path
+      ++ "\" is a "
+      ++ kind_name(kind)
+      ++ ", which has no "
+      ++ P.part_word(part)
+      ++ ": replace it whole with update_binding_clause",
+    )
+  };
+
+/* the block an entry holds: a module's members, a value's body */
+let block_of = (path: string, f: P.found): result(K.block, string) =>
+  switch (f.kind) {
+  | Module => Ok(Members(f.id))
+  | Def => Ok(Body(f.id))
+  | kind =>
+    Error(
+      "\""
+      ++ path
+      ++ "\" is a "
+      ++ kind_name(kind)
+      ++ ": only a module or a value holds entries",
+    )
+  };
+
+let tail_index = (lv: S.level): option(int) => {
+  let n = Array.length(lv.spans);
+  n > 0 && P.entry(lv, n - 1).kind == Tail ? Some(n - 1) : None;
+};
+
+/* the program's end: above its result, if it has one */
+let at_end = (p: program): K.place => {
+  let top = S.top(~root=p.root, p.seg);
+  switch (tail_index(top)) {
+  | Some(t) => Before(top.spans[t].anchor)
+  | None => LastIn(Top)
+  };
+};
+
+/* a name the entry's kind takes: a rename's, not a pattern's */
+let is_name = (kind: P.kind, s: string): bool =>
+  !Token.is_keyword(s)
+  && !List.mem(s, Form.delims)
+  && (
+    switch (kind) {
+    | Def => Token.is_var(s)
+    | Type => Token.is_typ_var(s)
+    | Module => Token.is_ctr(s)
+    | _ => false
+    }
+  );
+
+let uses = (p: program, binder: Id.t): list(Id.t) =>
+  Rename.references(~info_map=Lazy.force(p.info_map), binder)
+  |> List.filter(id => K.is_token(~root=p.root, id, p.seg));
+
+/* a pattern's tokens in order, a name's with its id */
+let rec tokens = (seg: Segment.t): list((string, option(Id.t))) =>
+  List.concat_map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile({form: Tok(s), id, _}) => [(s, Some(id))]
+      | Tile(t) =>
+        Aba.mk(t.shards, t.children)
+        |> Aba.join(i => [(List.nth(Tile.label(t), i), None)], tokens)
+        |> List.concat
+      | Grout(_) => [("?", None)]
+      | Projector(pr) => tokens([pr.syntax])
+      | Secondary(_) => []
+      },
+    seg,
+  );
+
+/* [code], a pattern for entry [f], as its old pattern with only names
+   changed: each changed name's token and its new name */
+let renamed_names =
+    (p: program, f: P.found, code: string)
+    : option(list((Id.t, string, string))) => {
+  let sort: Sort.t =
+    switch (f.kind) {
+    | Type => TPat
+    | Module => MPat
+    | _ => Pat
+    };
+  switch (
+    Nav.tile_ctx(~root=p.root, f.id, p.seg),
+    K.parse_at(sort, Unicode.nfc_outside_strings(code)),
+  ) {
+  | (Some((_, _, t)), Some(pat)) =>
+    let (was, now) = (tokens(Nav.pat_of(t)), tokens(pat));
+    List.length(was) == List.length(now)
+      ? List.fold_left2(
+          (acc, (a, id), (b, _)) =>
+            switch (acc, id) {
+            | (None, _) => None
+            | (Some(_), _) when a == b => acc
+            | (Some(l), Some(id))
+                when is_name(f.kind, a) && is_name(f.kind, b) =>
+              Some([(id, a, b), ...l])
             | _ => None
             },
-          Info.ancestors(~info_map, node.info),
-        );
-      let rec past = (after, items: list(Mod.t)) =>
-        switch (items) {
-        | [{term: ModExp(e), _} as m, ...rest] when is_test(e) =>
-          past(Mod.rep_id(m), rest)
-        | _ => after
-        };
-      let rec find = (items: list(Mod.t)) =>
-        switch (items) {
-        | [m, ...rest] when Mod.rep_id(m) == id => past(id, rest)
-        | [_, ...rest] => find(rest)
-        | [] => id
-        };
-      find(Option.value(items, ~default=[]));
-    };
-
-    /* the piece ending the program's last item (a binding's tile or a
-       statement's `;`), before its trailing expression */
-    let last_item = (program: Exp.t): option(Id.t) => {
-      let rec go = (last, e: Exp.t) =>
-        switch (e.term) {
-        | Let(_, _, body)
-        | TyAlias(_, _, body)
-        | ModuleExp(_, _, body)
-        | Seq(_, body) => go(Some(Exp.rep_id(e)), body)
-        | _ => last
-        };
-      go(None, program);
-    };
-
-    /* a Mod root's last item before its trailing expression, which a test
-       with no path follows: the root's items through any node's
-       outermost ancestor */
-    let last_member =
-        (~info_map: Id.Map.t(Info.t), node_map: node_map): option(Id.t) => {
-      let* (_, node) = Id.Map.min_binding_opt(node_map);
-      let* root = ListUtil.last_opt(Info.ancestors(~info_map, node.info));
-      let* items =
-        switch (Id.Map.find_opt(root, info_map)) {
-        | Some(InfoExp({user_term: {term: Module(items), _}, _})) =>
-          Some(items)
-        | _ => None
-        };
-      let rec go = (last, items: list(Mod.t)) =>
-        switch (items) {
-        | [] => last
-        | [{term: ModExp(e), _}] when !is_test(e) => last
-        | [{term: EmptyHole | Invalid(_) | MultiHole(_), _}, ...rest] =>
-          go(last, rest)
-        | [m, ...rest] => go(Some(Mod.rep_id(m)), rest)
-        };
-      go(None, items);
-    };
-  };
-
-  let segment_of_term =
-      (zipper: Zipper.t, target_id: option(Id.t), syntax: CachedSyntax.t)
-      : option(Segment.t) => {
-    switch (target_id) {
-    | Some(target_id) =>
-      let* zipper =
-        Select.term(
-          ~defs_exclude_bodies=true,
-          ~case_rules=false,
-          syntax.term_data,
-          target_id,
-          zipper,
-        );
-      Some(zipper.selection.content);
-    | _ =>
-      let zipper = Select.all(zipper);
-      Some(zipper.selection.content);
-    };
-  };
-
-  /* each side is selected against ITS OWN syntax: term data of the old
-     program does not describe the new one, and Select.term on a stale
-     table fell to its slow extremes search (1.3 s of a 1.9 s
-     update_definition at 170 lines) */
-  let get_diff =
-      (
-        old_zipper: Zipper.t,
-        new_zipper: Zipper.t,
-        action: Action.Structural.t,
-        mk_statics: Zipper.t => StaticsBase.Map.t,
-        ~old_syntax: CachedSyntax.t,
-        ~new_syntax: CachedSyntax.t,
-      )
-      : option((Segment.t, option(Segment.t))) => {
-    switch (action) {
-    | Insert(_, _, _)
-    | InsertTest(_, _) =>
-      let* old_segment =
-        PerfTimer.time("diff/segment", () =>
-          segment_of_term(old_zipper, None, old_syntax)
-        );
-      let new_segment =
-        PerfTimer.time("diff/segment", () =>
-          segment_of_term(new_zipper, None, new_syntax)
-        );
-      Some((old_segment, new_segment));
-    | Update(_, path, _)
-    | Delete(_, path) =>
-      /* Delete (especially BindingClause) removes the target from the new
-         program; Delete(Pattern) replaces the naming pat with a hole so the
-         path no longer resolves by name. Resolve the new-side target with
-         [[path_to_id_opt]] and treat non-resolution as "no replacement
-         segment" — the diff becomes "old segment deleted" instead of
-         raising. Historical bug: using [[path_to_id]] here raised
-         "Path X not found in node map" after every successful delete,
-         surfacing to the agent as a spurious tool-call failure. */
-      let old_statics =
-        PerfTimer.time("diff/statics", () => mk_statics(old_zipper));
-      let* old_node_map =
-        PerfTimer.time("diff/node-map", () =>
-          HighLevelNodeMap.build(old_zipper, old_statics)
-        );
-      let new_statics =
-        PerfTimer.time("diff/statics", () => mk_statics(new_zipper));
-      let* new_node_map =
-        PerfTimer.time("diff/node-map", () =>
-          HighLevelNodeMap.build(new_zipper, new_statics)
-        );
-      let old_target_id =
-        PerfTimer.time("diff/path", () => path_to_id(old_node_map, path));
-      let* old_segment =
-        PerfTimer.time("diff/segment", () =>
-          segment_of_term(old_zipper, Some(old_target_id), old_syntax)
-        );
-      let new_segment =
-        switch (
-          PerfTimer.time("diff/path", () =>
-            path_to_id_opt(new_node_map, path)
-          )
-        ) {
-        | Some(new_target_id) =>
-          PerfTimer.time("diff/segment", () =>
-            segment_of_term(new_zipper, Some(new_target_id), new_syntax)
-          )
-        | None => None
-        };
-      Some((old_segment, new_segment));
-    };
-  };
-
-  module PerformUtils = {
-    let edit_action_to_static_error_scrutiny =
-        (~edit_action: Action.Structural.t): (bool, bool, bool) => {
-      // Returns (of_pat, of_def, of_body), i.e. which parts of the program to check for static errors.
-      switch (edit_action) {
-      | Update(Definition, _, _) => (true, true, false)
-      | Update(Body, _, _) => (true, true, true)
-      | Update(Pattern, _, _) => (true, false, false)
-      | Update(BindingClause, _, _) => (false, true, false)
-      | Insert(_, _, _)
-      | InsertTest(_, _) => (false, false, false)
-      | Delete(BindingClause, _) => (false, true, false)
-      | Delete(Body, _) => (false, false, true)
-      | Delete(Definition | Pattern, _) => (false, false, false)
-      };
-    };
-
-    let static_error_check =
-        (
-          ~edit_action: Action.Structural.t,
-          ~initial_node: option(node),
-          ~initial_info_map: Id.Map.t(Info.t),
-          ~new_node: node,
-          ~new_info_map: Id.Map.t(Info.t),
+          Some([]),
+          was,
+          now,
         )
-        : option(string) => {
-      /*
-       A localized static error check to ensure that newly inserted segments do not introduce any errors.
+        |> Option.map(List.rev)
+      : None;
+  | _ => None
+  };
+};
 
-       This is a localized check, as obligations occuring elsewhere in the program are inevitable for
-       many types of edits.
+/* entry [k] of [lv] and the entries after it, past the tests directly
+   following it: where a test of it goes */
+let rec past_tests = (lv: S.level, k: int): int =>
+  k + 1 < Array.length(lv.spans) && P.entry(lv, k + 1).kind == Test
+    ? past_tests(lv, k + 1) : k;
 
-       of_pat, of_def, and of_body are used to specify which parts of the program to check for errors.
-       */
-      let (of_pat, of_def, of_body) =
-        edit_action_to_static_error_scrutiny(~edit_action);
-      let initial_errors =
-        switch (initial_node) {
-        | None => []
-        | Some(initial_node) =>
-          let initial_subtree =
-            GeneralTreeUtils.subtree_of(
-              ~info=initial_node.info,
-              ~orig_info_map=initial_info_map,
-              ~of_pat,
-              ~of_def,
-              ~of_body,
-            );
-          PerfTimer.time("errors", () => ErrorPrint.all(initial_subtree));
-        };
-      let new_subtree =
-        GeneralTreeUtils.subtree_of(
-          ~info=new_node.info,
-          ~orig_info_map=new_info_map,
-          ~of_pat,
-          ~of_def,
-          ~of_body,
+/* the place [where] names relative to the entry at [path]; an empty path
+   is the program's top level */
+let place_at =
+    (p: program, where: Action.Structural.insert_target, path: string)
+    : result(K.place, string) =>
+  switch (where, path) {
+  | (Before | FirstIn, "") => Ok(FirstIn(Top))
+  | (After | LastIn, "") => Ok(at_end(p))
+  | _ =>
+    let* f = resolve(p, path);
+    switch (where) {
+    | Before => Ok(K.Before(f.id))
+    | After => Ok(K.After(f.id))
+    | FirstIn => Result.map(~f=b => K.FirstIn(b), block_of(path, f))
+    | LastIn => Result.map(~f=b => K.LastIn(b), block_of(path, f))
+    };
+  };
+
+let rec plan_call = (p: program, call: call): result(plan, string) => {
+  let text = code => K.Text(Unicode.nfc_outside_strings(code));
+  switch (call) {
+  | Update(Definition, path, code) =>
+    let* f = resolve(p, path);
+    let* def = part(p, path, f, Definition);
+    Ok(
+      plan(
+        ~target=f.id,
+        Replaced(Some(Definition)),
+        [Replace(def, text(code))],
+      ),
+    );
+  /* the old meaning, kept: what follows the entry after its `in`, the
+     entries after it in its block and the block's result. A member has
+     no `in`: its body is its definition past its `fun` heads */
+  | Update(Body, path, code) =>
+    let* f = resolve(p, path);
+    let (lv, k) = level_of(f);
+    if (members_level(p, lv)) {
+      let* body = part(p, path, f, Body);
+      Ok(
+        plan(
+          ~target=f.id,
+          Replaced(Some(Body)),
+          [Replace(body, text(code))],
+        ),
+      );
+    } else {
+      switch (f.kind, tail_index(lv)) {
+      | (Tail, _) => Error("\"" ++ path ++ "\" is a result: it has no body")
+      | (_, Some(t)) =>
+        let after =
+          List.init(t - k - 1, j => K.Delete(lv.spans[k + 1 + j].anchor));
+        Ok(
+          plan(
+            ~target=f.id,
+            Rest,
+            after @ [Replace(lv.spans[t].anchor, text(code))],
+          ),
         );
-      let new_errors =
-        PerfTimer.time("errors", () => ErrorPrint.all(new_subtree));
-      if (List.length(new_errors) > List.length(initial_errors)) {
-        Some(
-          "Not applying the action you requested as it would have the following static error(s): "
-          ++ String.concat(", ", new_errors),
-        );
-      } else {
-        None;
+      | (_, None) =>
+        Error("\"" ++ path ++ "\" is last in its block: it has no body")
       };
     };
-
-    /* [[Zipper.insert_segment]] replaces the selection with the segment,
-       so a token bordering the selection can end up flush against the
-       segment's edge token. If the two would lex as one token the result
-       renders (and reparses) fused, e.g. overwriting the bare hole body of
-       `let x = 1 in` — a grout directly abutting `in`, carrying no
-       whitespace — with `let e = ...` yields `inlet e = ...`. Pad the
-       segment with a space on any side where its edge token would fuse
-       with the piece outside the selection. */
-    let pad_fusing_edges = (z: Zipper.t, seg: Segment.t): Segment.t => {
-      let edge_token = (d: Direction.t, p: Piece.t): option(Token.t) =>
-        switch (p) {
-        | Secondary({content: Whitespace(s) | Comment(s), _}) => Some(s)
-        | Grout(_)
-        | Projector(_) => None
-        | Tile(t) =>
-          let* shard =
-            d == Left
-              ? ListUtil.hd_opt(t.shards) : ListUtil.last_opt(t.shards);
-          List.nth_opt(Tile.label(t), shard);
-        };
-      let outer_token = (d: Direction.t): option(Token.t) => {
-        let (l_sibs, r_sibs) = z.relatives.siblings;
-        switch (
-          d == Left ? ListUtil.last_opt(l_sibs) : ListUtil.hd_opt(r_sibs)
-        ) {
-        | Some(p) => edge_token(Direction.toggle(d), p)
-        | None =>
-          let* a = Ancestors.parent(z.relatives.ancestors);
-          let* shard =
-            d == Left
-              ? ListUtil.last_opt(fst(a.shards))
-              : ListUtil.hd_opt(snd(a.shards));
-          List.nth_opt(Ancestor.label(a), shard);
-        };
+  | Update(Pattern, path, code) =>
+    let* f = resolve(p, path);
+    let (lv, k) = level_of(f);
+    let binders = P.entry(lv, k).binders;
+    let named =
+      switch (P.parse(path)) {
+      | Ok({elems, _}) =>
+        switch (ListUtil.last_opt(elems)) {
+        | Some(Name(x, _)) => List.find_opt(((y, _)) => x == y, binders)
+        | _ => None
+        }
+      | Error(_) => None
       };
-      let fuses = (l: option(Token.t), r: option(Token.t)): bool =>
-        switch (l, r) {
-        | (Some(l), Some(r)) => Token.is_potential_token(Token.append(l, r))
-        | _ => false
-        };
-      let space = () =>
-        Piece.Secondary({
-          id: Id.mk(),
-          content: Secondary.Whitespace(Token.space),
-        });
-      let seg_edge = (d: Direction.t, seg: Segment.t) => {
-        let* p = d == Left ? ListUtil.hd_opt(seg) : ListUtil.last_opt(seg);
-        edge_token(d, p);
+    let binder =
+      switch (named, binders) {
+      | (Some(b), _)
+      | (None, [b]) => Some(b)
+      | _ => None
       };
-      let seg =
-        fuses(outer_token(Left), seg_edge(Left, seg))
-          ? [space(), ...seg] : seg;
-      fuses(seg_edge(Right, seg), outer_token(Right))
-        ? seg @ [space()] : seg;
-    };
-
-    /* Local boundary hygiene after a structural splice. Existing whitespace
-       is part of the document: preserve it when its neighbours survive.
-       New joins collapse the edit's padding to one blank line between
-       bindings, one newline elsewhere, and none at program start. Reuse
-       the run's linebreak ids and allocate only missing pieces. */
-    let is_linebreak = (p: Piece.t): bool =>
-      switch (p) {
-      | Secondary({content: Whitespace(s), _}) => s == Token.linebreak
-      | _ => false
+    let name = String.trim(code);
+    /* a single name renames the binder the path names, or its only one;
+       a pattern that differs from its old one only in names renames
+       each; else the pattern is replaced, and the error check judges */
+    let renames =
+      switch (binder) {
+      | Some((old, _)) when old == name && is_name(f.kind, name) => Some([])
+      | Some((old, binder)) when is_name(f.kind, name) =>
+        Some([(binder, old, name)])
+      | _ => renamed_names(p, f, code)
       };
-    let is_binding_tile = (p: Piece.t): bool =>
-      switch (p) {
-      | Tile(t) => Tile.ends_with_in(t)
-      | _ => false
-      };
-    let linebreak = () =>
-      Piece.Secondary({
-        id: Id.mk(),
-        content: Secondary.Whitespace(Token.linebreak),
+    switch (renames) {
+    | Some(renames) =>
+      let renames =
+        List.map(
+          ((binder, old, name)) => (binder, old, name, uses(p, binder)),
+          renames,
+        );
+      Ok({
+        ...
+          plan(
+            ~target=f.id,
+            Renamed(
+              List.map(
+                ((_, old, name, refs)) => (old, name, List.length(refs)),
+                renames,
+              ),
+            ),
+            List.concat_map(
+              ((binder, _, name, refs)) =>
+                List.map(
+                  id => K.Replace(id, Token(name)),
+                  [binder, ...refs],
+                ),
+              renames,
+            ),
+          ),
+        renames:
+          List.map(
+            ((binder, _, name, refs)) => (binder, name, refs),
+            renames,
+          ),
       });
-    /* Preserve an existing whitespace run when its two neighbours survive.
-       Newly inserted runs and newly joined boundaries receive the local
-       spacing policy; pre-existing formatting elsewhere is not our scope. */
-    let normalize_runs = (~before=[], ~module_body=false, seg: Segment.t) => {
-      let rec runs = (prev, member, ps) =>
-        switch (ps) {
-        | [] => []
-        | [p, ..._] when is_linebreak(p) =>
-          let rec take = (acc, ps) =>
-            switch (ps) {
-            | [p, ...rest]
-                when
-                  is_linebreak(p)
-                  || module_body
-                  && (
-                    switch (p) {
-                    | Secondary({content: Whitespace(_), _}) => true
-                    | _ => false
-                    }
-                  ) =>
-              take([p, ...acc], rest)
-            | _ => (List.rev(acc), ps)
-            };
-          let (run, rest) = take([], ps);
-          let witness =
-            switch (prev) {
-            | Some(Piece.Tile(t)) when Tile.is_semi(t) =>
-              Option.to_list(member)
-            | _ => Option.to_list(Option.map(Piece.id, prev))
-            };
-          [
-            `Run((prev, run, List.nth_opt(rest, 0), witness)),
-            ...runs(prev, member, rest),
-          ];
-        | [p, ...rest] =>
-          let member =
-            switch (p) {
-            | Piece.Tile(t) =>
-              switch (Tile.label(t)) {
-              | ["let" | "type" | "module", ..._] => Some(t.id)
-              | _ => member
-              }
-            | _ => member
-            };
-          [`Tok(p), ...runs(Some(p), member, rest)];
-        };
-      let id = Option.map(Piece.id);
-      let old_runs =
-        runs(None, None, before)
-        |> List.filter_map(
-             fun
-             | `Run(_, [p, ..._] as run, r, witness) =>
-               Some((Piece.id(p), (witness, run, id(r))))
-             | _ => None,
+    | None =>
+      let* pat = part(p, path, f, Pattern);
+      Ok(
+        plan(
+          ~target=f.id,
+          Replaced(Some(Pattern)),
+          [Replace(pat, text(code))],
+        ),
+      );
+    };
+  | Update(BindingClause, path, code) =>
+    let* f = resolve(p, path);
+    Ok(plan(~target=f.id, Replaced(None), [Replace(f.id, text(code))]));
+  | Delete(BindingClause, path) =>
+    let* f = resolve(p, path);
+    let (lv, k) = level_of(f);
+    let removes =
+      switch (f.kind) {
+      | Def
+      | Type
+      | Module =>
+        List.map(
+          ((x, binder)) => (x, binder, uses(p, binder)),
+          P.entry(lv, k).binders,
+        )
+      | _ => []
+      };
+    Ok({
+      ...plan(~target=f.id, Deleted, [Delete(f.id)]),
+      removes,
+    });
+  | Delete(Body, path) => plan_call(p, Update(Body, path, "?"))
+  | Delete(Definition | Pattern, _) =>
+    Error("Deleting a definition or pattern alone is not supported.")
+  | Insert(where, path, code) =>
+    let* place = place_at(p, where, path);
+    Ok(plan(Added, [Insert(place, text(code))]));
+  | InsertTest(None, code) =>
+    Ok(plan(Added, [Insert(at_end(p), text(test_text(code)))]))
+  | InsertTest(Some(path), code) =>
+    let* f = resolve(p, path);
+    let (lv, k) = level_of(f);
+    let after = lv.spans[past_tests(lv, k)].anchor;
+    Ok(plan(Added, [Insert(After(after), text(test_text(code)))]));
+  | Move(_, Before | After, "") =>
+    Error("move needs an entry to go before or after")
+  | Move(path, where, dest) =>
+    let* f = resolve(p, path);
+    let* place = place_at(p, where, dest);
+    let whereto =
+      switch (where, dest) {
+      | (Before, d) => "before " ++ d
+      | (After, d) => "after " ++ d
+      | (FirstIn, "") => "first in the program"
+      | (LastIn, "") => "last in the program"
+      | (FirstIn, d) => "first in " ++ d
+      | (LastIn, d) => "last in " ++ d
+      };
+    Ok(plan(~target=f.id, Moved(whereto), [Move(f.id, place)]));
+  };
+};
+
+let code_of = (call: call): option(string) =>
+  switch (call) {
+  | Update(_, _, code)
+  | Insert(_, _, code)
+  | InsertTest(_, code) => Some(code)
+  | Delete(_)
+  | Move(_) => None
+  };
+
+let path_string = (~root, seg: Segment.t, id: Id.t): option(string) =>
+  Option.map(P.to_string, P.describe(~root, seg, id));
+
+/* the entry holding piece [id], by path */
+let where_is = (~root, seg: Segment.t, id: Id.t): option(string) =>
+  switch (L.locate(~mod_root=root == Sort.Mod, id, seg)) {
+  | Some((b, j, _)) => path_string(~root, seg, b.lv.spans[j].anchor)
+  | None => None
+  };
+
+let refusal_message =
+    (p: program, call: call, r: K.refusal, ops: list(K.op)): string => {
+  let about =
+    switch (Option.bind(r.id, id => where_is(~root=p.root, p.seg, id))) {
+    | Some(path) when List.length(ops) > 1 => " (at " ++ path ++ ")"
+    | _ => ""
+    };
+  switch (r.reason, code_of(call)) {
+  | (Unreadable, Some(code)) => unreadable(code)
+  | (reason, _) => "Refused: " ++ K.describe(reason) ++ about ++ "."
+  };
+};
+
+/* a call run on [p]: its plan, and the kernel's change */
+let run_call = (p: program, call: call): result((plan, K.change), string) => {
+  let* pl = plan_call(p, call);
+  switch (
+    PerfTimer.time("kernel", () => K.transaction(~root=p.root, p.seg, pl.ops))
+  ) {
+  | Ok(change) => Ok((pl, change))
+  | Error(r) => Error(refusal_message(p, call, r, pl.ops))
+  };
+};
+
+/* ---- what a call did ---- */
+
+/* the entries the change made that [before] didn't have, by path: those
+   new in the level of each row it added */
+let added_paths = (~root, before: Segment.t, after: Segment.t, rows) =>
+  List.concat_map(
+    row =>
+      switch (P.find(~root, after, row)) {
+      | Some(steps) =>
+        let (lv, _) = ListUtil.last(steps);
+        Array.to_list(lv.spans)
+        |> List.filter((sp: S.span) =>
+             P.find(~root, before, sp.anchor) == None
            )
-        |> List.to_seq
-        |> Id.Map.of_seq;
-      runs(None, None, seg)
-      |> List.concat_map(
-           fun
-           | `Tok(p) => [p]
-           | `Run(left, run, right, witness) => {
-               let preserved =
-                 switch (Id.Map.find_opt(Piece.id(List.hd(run)), old_runs)) {
-                 | Some((l, old, r)) =>
-                   l == witness && r == id(right) && old == run
-                 | None => false
-                 };
-               if (preserved) {
-                 run;
-               } else {
-                 let n =
-                   module_body
-                     ? switch (left) {
-                       | Some(Piece.Tile(t)) when Tile.is_semi(t) => 2
-                       | _ => 1
-                       }
-                     : (
-                       switch (left, right) {
-                       | (None, _) => 0
-                       | (Some(l), Some(r))
-                           when is_binding_tile(l) && is_binding_tile(r) => 2
-                       | _ => 1
-                       }
-                     );
-                 if (module_body) {
-                   /* A retained newline keeps its indent pieces too. The
-                      region reindenter only visits newly allocated lines. */
-                   let rec lines = ps =>
-                     switch (ps) {
-                     | [] => []
-                     | [lb, ...rest] =>
-                       let rec spaces = (acc, ps) =>
-                         switch (ps) {
-                         | [p, ...rest] when !is_linebreak(p) =>
-                           spaces([p, ...acc], rest)
-                         | _ => (List.rev(acc), ps)
-                         };
-                       let (indent, rest) = spaces([], rest);
-                       [(lb, indent), ...lines(rest)];
-                     };
-                   let existing = lines(run);
-                   let last_indent = snd(List.hd(List.rev(existing)));
-                   List.init(n, i =>
-                     switch (List.nth_opt(existing, i)) {
-                     | Some((lb, indent)) => [
-                         lb,
-                         ...i == n - 1 ? last_indent : indent,
-                       ]
-                     | None => [linebreak()]
-                     }
-                   )
-                   |> List.concat;
-                 } else {
-                   let kept = List.filteri((i, _) => i < n, run);
-                   kept
-                   @ List.init(max(0, n - List.length(kept)), _ =>
-                       linebreak()
-                     );
-                 };
-               };
-             },
-         );
-    };
-    let normalize_top_level_whitespace =
-        (~before=[], seg: Segment.t): Segment.t =>
-      normalize_runs(~before, seg);
+        |> List.filter_map((sp: S.span) =>
+             path_string(~root, after, sp.anchor)
+           );
+      | None => []
+      },
+    rows,
+  )
+  |> List.sort_uniq(compare);
 
-    /* Module-body hygiene, applied recursively wherever a module literal
-       appears. Two passes over a ModBody child segment:
-       - separators: drop dangling member `;` (leading after `{`, trailing
-         before `}`, or doubled after a member delete);
-       - vertical whitespace: linebreak runs that FOLLOW a member `;`
-         normalize to one blank line (mirroring the top-level policy);
-         every other run to a single linebreak. Runs-only, like the
-         top-level pass: single-line modules are never exploded. */
-    let is_semi = (p: Piece.t): bool =>
-      switch (p) {
-      | Tile(t) => Tile.is_semi(t)
-      | _ => false
-      };
-    let is_space = (p: Piece.t): bool =>
-      switch (p) {
-      | Secondary({content: Whitespace(w), _}) => w != Token.linebreak
-      | _ => false
-      };
-    let is_mod_body = (t: Tile.t): bool =>
-      t.form == Form.Compound(ModBody) && Tile.mold(t).in_ == [Sort.Mod];
-    let clean_member_separators = (~before=[], seg: Segment.t): Segment.t => {
-      let rec next_tok = ps =>
-        switch (ps) {
-        | [] => None
-        | [Piece.Secondary(_), ...rest] => next_tok(rest)
-        | [p, ..._] => Some(p)
-        };
-      /* Cleanup is confined to new joins. Even an incomplete old member or
-         hand-spaced separator elsewhere in this module is outside the edit. */
-      let id = Option.map(Piece.id);
-      let rec boundaries = (prev, ps, acc) =>
-        switch (ps) {
-        | [] => acc
-        | [p, ...rest] =>
-          let acc =
-            Id.Map.add(Piece.id(p), (id(prev), id(next_tok(rest))), acc);
-          let prev =
-            switch (p) {
-            | Piece.Secondary(_) => prev
-            | _ => Some(p)
-            };
-          boundaries(prev, rest, acc);
-        };
-      let old_boundaries = boundaries(None, before, Id.Map.empty);
-      let unchanged = (prev, p, rest) =>
-        Id.Map.find_opt(Piece.id(p), old_boundaries)
-        == Some((id(prev), id(next_tok(rest))));
-      /* Deleting a member leaves a convex grout in its slot (destruct
-         replaces, it does not remove); a hole standing alone between
-         separators/edges is that leftover, and goes together with the
-         separator collapse below. Holes INSIDE a member (e.g. `let x = ?`)
-         have a non-separator neighbor and are kept. */
-      let is_member_boundary = (tok: option(Piece.t)): bool =>
-        switch (tok) {
-        | None => true
-        | Some(t) => is_semi(t)
-        };
-      let rec drop_hole_members = (prev_tok: option(Piece.t), ps) =>
-        switch (ps) {
-        | [] => []
-        | [Piece.Grout(_) as g, ...rest] =>
-          !unchanged(prev_tok, g, rest)
-          && is_member_boundary(prev_tok)
-          && is_member_boundary(next_tok(rest))
-            ? drop_hole_members(prev_tok, rest)
-            : [g, ...drop_hole_members(Some(g), rest)]
-        | [Piece.Secondary(_) as p, ...rest] => [
-            p,
-            ...drop_hole_members(prev_tok, rest),
-          ]
-        | [p, ...rest] => [p, ...drop_hole_members(Some(p), rest)]
-        };
-      let rec go = (prev_tok: option(Piece.t), ps: list(Piece.t)) =>
-        switch (ps) {
-        | [] => []
-        | [p, ...rest] when is_semi(p) =>
-          let dangling =
-            switch (prev_tok, next_tok(rest)) {
-            | (None, _) => true /* leading */
-            | (_, None) => true /* trailing */
-            /* doubled: the second goes, so the first stays on its member */
-            | (Some(l), _) => is_semi(l)
-            };
-          dangling && !unchanged(prev_tok, p, rest)
-            ? go(prev_tok, rest) : [p, ...go(Some(p), rest)];
-        | [Piece.Secondary(_) as p, ...rest] => [p, ...go(prev_tok, rest)]
-        | [p, ...rest] => [p, ...go(Some(p), rest)]
-        };
-      /* Canonical `x;` — drop space runs that sit directly before a
-         member separator (deletes leave one behind). */
-      let rec trim_space_before_semi = (prev, ps: list(Piece.t)) =>
-        switch (ps) {
-        | [] => []
-        | [p, ...rest] when is_space(p) =>
-          let rec upcoming = qs =>
-            switch (qs) {
-            | [q, ...more] when is_space(q) => upcoming(more)
-            | [q, ..._] when is_semi(q) => true
-            | _ => false
-            };
-          upcoming(rest) && !unchanged(prev, p, rest)
-            ? trim_space_before_semi(prev, rest)
-            : [p, ...trim_space_before_semi(prev, rest)];
-        | [Piece.Secondary(_) as p, ...rest] => [
-            p,
-            ...trim_space_before_semi(prev, rest),
-          ]
-        | [p, ...rest] => [p, ...trim_space_before_semi(Some(p), rest)]
-        };
-      seg
-      |> drop_hole_members(None, _)
-      |> go(None, _)
-      |> trim_space_before_semi(None, _);
-    };
-    let normalize_member_whitespace = (~before=[], seg: Segment.t): Segment.t =>
-      normalize_runs(~before, ~module_body=true, seg);
+type made = {
+  call,
+  /* its index among the reply's tool calls */
+  index: int,
+  before: Segment.t,
+  plan,
+  change: K.change,
+};
 
-    let normalize_module_bodies = (~before=[], seg: Segment.t): Segment.t => {
-      let originals = EditIdentity.index(before);
-      let rec walk = ps => {
-        let next = List.map(piece, ps);
-        Segment.ptr_eq(next, ps) ? ps : next;
+let report = (~root, m: made): string => {
+  let after = m.change.program;
+  let was =
+    Option.value(
+      Option.bind(m.plan.target, path_string(~root, m.before)),
+      ~default="the program",
+    );
+  let now = id => path_string(~root, after, id);
+  let now_target = () =>
+    switch (Option.bind(m.plan.target, now)) {
+    | Some(p) when p != was => " (now " ++ p ++ ")"
+    | _ => ""
+    };
+  switch (m.plan.what) {
+  | _ when m.change.steps == [] => "No change: it was so already."
+  | Added =>
+    let rows = List.concat_map((s: K.step) => s.added, m.change.steps);
+    switch (added_paths(~root, m.before, after, rows)) {
+    | [] => "Added code."
+    | paths => "Added " ++ String.concat(", ", paths) ++ "."
+    };
+  | Replaced(None) =>
+    let made =
+      List.concat_map((s: K.step) => s.added, m.change.steps)
+      |> List.filter_map(now);
+    "Replaced "
+    ++ was
+    ++ (
+      switch (made) {
+      | [p] when p != was => " (now " ++ p ++ ")"
+      | _ => ""
       }
-      and piece = (p: Piece.t) =>
-        switch (Id.Map.find_opt(Piece.id(p), originals)) {
-        | Some(old) when old === p || compare(old, p) == 0 => old
-        | previous =>
-          switch (p) {
-          | Tile(t) =>
-            let old_children =
-              switch (previous) {
-              | Some(Tile(old))
-                  when List.length(old.children) == List.length(t.children) =>
-                old.children
-              | _ => List.map(_ => [], t.children)
-              };
-            let children =
-              List.map2(
-                (old, child) => {
-                  let child = walk(child);
-                  is_mod_body(t)
-                    ? normalize_member_whitespace(
-                        ~before=old,
-                        clean_member_separators(~before=old, child),
-                      )
-                    : child;
-                },
-                old_children,
-                t.children,
-              );
-            List.for_all2(
-              (a, b) => Segment.ptr_eq(a, b),
-              children,
-              t.children,
-            )
-              ? p
-              : Piece.Tile({
-                  ...t,
-                  children,
-                });
-          | _ => p
-          }
-        };
-      walk(seg);
+    )
+    ++ ".";
+  | Replaced(Some(part)) =>
+    "Replaced " ++ was ++ ":" ++ P.part_word(part) ++ now_target() ++ "."
+  | Rest => "Replaced what follows " ++ was ++ "."
+  | Renamed(names) =>
+    let uses = n => n == 1 ? "1 use" : string_of_int(n) ++ " uses";
+    switch (names, Option.bind(m.plan.target, now)) {
+    | ([(_, _, n)], Some(p)) when p != was =>
+      "Renamed " ++ was ++ " to " ++ p ++ ", and its " ++ uses(n) ++ "."
+    | _ =>
+      "Renamed "
+      ++ String.concat(
+           "; ",
+           List.map(
+             ((old, name, n)) =>
+               old ++ " to " ++ name ++ " (" ++ uses(n) ++ ")",
+             names,
+           ),
+         )
+      ++ ", in "
+      ++ was
+      ++ "."
+    };
+  | Deleted => "Deleted " ++ was ++ "."
+  | Moved(whereto) => "Moved " ++ was ++ " " ++ whereto ++ now_target() ++ "."
+  };
+};
+
+/* the text of what [id] names in [seg]: an entry, or a node */
+let text_at = (~root, seg: Segment.t, id: Id.t): option(string) => {
+  let print = ps => String.trim(Printer.of_segment(~holes="?", ps));
+  switch (P.find(~root, seg, id)) {
+  | Some(steps) =>
+    let (lv, k) = ListUtil.last(steps);
+    Some(print(Nav.core(lv, k)));
+  | None =>
+    switch (K.node(~root, id, seg)) {
+    | n => Some(print(K.node_pieces(n)))
+    | exception (K.Refused(_)) => None
+    }
+  };
+};
+
+/* the call's edited region before and after it, as text */
+let diff = (~root, m: made): option((string, option(string))) =>
+  switch (m.change.steps) {
+  | [] => None
+  | [first, ..._] as steps =>
+    let last = ListUtil.last(steps);
+    let row = ListUtil.hd_opt(last.added);
+    switch (m.plan.what, m.plan.target) {
+    | (Added, _) =>
+      Some((
+        "",
+        Option.bind(
+          ListUtil.hd_opt(first.added),
+          text_at(~root, m.change.program),
+        ),
+      ))
+    | (Deleted, Some(t)) =>
+      Option.map(old => (old, None), text_at(~root, m.before, t))
+    | (_, Some(t)) =>
+      let after = Option.value(row, ~default=t);
+      Option.map(
+        old => (old, text_at(~root, m.change.program, after)),
+        text_at(~root, m.before, t),
+      );
+    | (_, None) => None
+    };
+  };
+
+/* ---- a reply ---- */
+
+module Reply = {
+  /* the checks a reply's finished change gets; rename capture always */
+  type checks = {
+    no_new_errors: bool,
+    dangling_uses: bool,
+  };
+  let all_checks = {
+    no_new_errors: true,
+    dangling_uses: true,
+  };
+
+  type t = {
+    checks,
+    root: Sort.t,
+    start: Segment.t,
+    start_statics: Lazy.t(CachedStatics.t),
+    /* latest first */
+    made: list(made),
+    /* the latest program's statics */
+    statics: Lazy.t(CachedStatics.t),
+    statics_of: Segment.t => CachedStatics.t,
+  };
+
+  let start =
+      (
+        ~checks=all_checks,
+        ~root: Sort.t,
+        ~statics: Lazy.t(CachedStatics.t),
+        ~statics_of: Segment.t => CachedStatics.t,
+        seg: Segment.t,
+      )
+      : t => {
+    checks,
+    root: root == Sort.Mod ? Sort.Mod : Sort.Exp,
+    start: seg,
+    start_statics: statics,
+    made: [],
+    statics,
+    statics_of,
+  };
+
+  let program = (r: t): Segment.t =>
+    switch (r.made) {
+    | [m, ..._] => m.change.program
+    | [] => r.start
     };
 
-    /* The edit's old program supplies boundary witnesses and sharing.
-       Unchanged subtrees are skipped; only new joins receive formatting.
-       Unchanged results avoid reconstruction; rebuilt results retain overlays.
-       A Mod root's top level is a module body, and is cleaned as one. */
-    let normalize_top_level =
-        (~root=Sort.Exp, ~before=?, z: Zipper.t): Zipper.t => {
-      let after = Zipper.unselect_and_zip(z);
-      let old =
-        Option.map(Zipper.unselect_and_zip, before)
-        |> Option.value(~default=[]);
-      let top = seg =>
-        root == Sort.Mod
-          ? normalize_member_whitespace(
-              ~before=old,
-              clean_member_separators(~before=old, seg),
-            )
-          : normalize_top_level_whitespace(~before=old, seg);
-      let next =
-        after
-        |> top
-        |> normalize_module_bodies(~before=old)
-        |> EditIdentity.restore(before == None ? after : old, _);
-      Segment.ptr_eq(next, after)
-        ? z
-        : {
-          ...Zipper.unzip(next),
-          refractors: z.refractors,
-        };
+  let made = (r: t): list(made) => List.rev(r.made);
+
+  /* [call], the reply's [index]th tool call, on the program as the calls
+     before it left it, or as [seg] when the reply's other tools changed
+     it since */
+  let add =
+      (r: t, ~index: int, ~seg=program(r), call: call): result(t, string) => {
+    let p = {
+      root: r.root,
+      seg,
+      info_map: lazy(Lazy.force(r.statics).info_map),
     };
+    let* (plan, change) = run_call(p, call);
+    Ok({
+      ...r,
+      made: [
+        {
+          call,
+          index,
+          before: seg,
+          plan,
+          change,
+        },
+        ...r.made,
+      ],
+      statics:
+        change.steps == [] ? r.statics : (lazy(r.statics_of(change.program))),
+    });
+  };
 
-    /* Form delimiters that lex like identifiers; using one as a variable
-       name makes the surrounding code misparse. */
-    let reserved_words: list(Token.t) =
-      List.filter(Token.is_var, Form.delims);
+  type failure = {
+    /* the tool call it concerns */
+    index: int,
+    message: string,
+  };
 
-    let identifier_words = (s: string): list(string) => {
-      let is_id_char = c =>
-        c >= 'a'
-        && c <= 'z'
-        || c >= 'A'
-        && c <= 'Z'
-        || c >= '0'
-        && c <= '9'
-        || c == '_'
-        || c == '\'';
-      let (words, last) =
-        String.fold_left(
-          ((words, cur), c) =>
-            is_id_char(c)
-              ? (words, cur ++ String.make(1, c))
-              : cur == "" ? (words, "") : ([cur, ...words], ""),
-          ([], ""),
-          s,
-        );
-      List.rev(last == "" ? words : [last, ...words]);
-    };
-
-    /* Reserved word in binder position (after let/fun/type), or as the
-       entire code string: the misuse behind most agent paste failures,
-       e.g. `let eval = ...` where `eval` opens a filter form. */
-    let find_reserved_binder = (code: string): option(string) => {
-      let reserved = w => List.mem(w, reserved_words);
-      let trimmed = String.trim(code);
-      if (reserved(trimmed)) {
-        Some(trimmed);
-      } else {
-        let rec scan = words =>
-          switch (words) {
-          | [intro, w, ..._]
-              when List.mem(intro, ["let", "fun", "type"]) && reserved(w) =>
-            Some(w)
-          | [_, ...rest] => scan(rest)
-          | [] => None
-          };
-        scan(identifier_words(code));
-      };
-    };
-
-    let reserved_word_note = (code: string): string =>
-      switch (find_reserved_binder(code)) {
-      | Some(w) =>
-        " Note: `"
-        ++ w
-        ++ "` is a reserved keyword in Hazel and cannot be used as a variable name."
+  let error_line = (~root, seg, info_map, id: Id.t): string => {
+    let at =
+      switch (where_is(~root, seg, id)) {
+      | Some(p) => p ++ ": "
       | None => ""
       };
-
-    /* Every agent-supplied code string funnels through here. Strip
-       per-line leading whitespace (models emit indented code; Hazel
-       re-indents structurally on render), then parse to a segment and
-       paste it. Safe: Hazel strings and comments are single-line, so
-       no token can span a linebreak. */
-    /* Text-to-segment parsing simulates typing (Insert.go per char with a
-       full remold/regrout each), so cost is quadratic in chunk size:
-       ~0.3s at 500 chars, ~0.8s at 1000, ~8s at 3700 (measured on the
-       graph-livelit module). It runs on the UI thread, so an oversized
-       chunk reads as a hung editor. Only menhir-refused chunks land here
-       (the fast path is uncapped), so the cap trades a rare multi-second
-       stall against refusing the edit outright; 3000 chars is a ~5s
-       worst case. */
-    let max_chunk_chars = 3000;
-    /* When the batch parser rejected the chunk, its position-bearing
-       message is far more useful than term-level static-error soup;
-       attach it to rejections. */
-    let parse_hint = (): string =>
-      switch (FastParse.bail_note^) {
-      | Some(n)
-          when String.length(n) >= 7 && String.sub(n, 0, 7) == "menhir:" =>
-        "\nSyntax hint (batch parser): "
-        ++ n
-        ++ " — if the code was meant to be complete, start there."
-      | _ => ""
-      };
-    /* Agent structural edits try the linear Menhir zip first (FastParse).
-       Incomplete syntax falls back to the size-limited typing parser. */
-    /* Edge whitespace (the insert flow's baked-in separator newlines)
-       must survive the fast path's trim: re-attach it as Secondary. */
-    let ws_secondaries = (ws: string): Segment.t =>
-      ws
-      |> String.to_seq
-      |> Seq.filter_map(c =>
-           switch (c) {
-           | ' '
-           | '\t' =>
-             Some(
-               Piece.Secondary({
-                 id: Id.mk(),
-                 content: Secondary.Whitespace(Token.space),
-               }),
-             )
-           | '\n' =>
-             Some(
-               Piece.Secondary({
-                 id: Id.mk(),
-                 content: Secondary.Whitespace(Token.linebreak),
-               }),
-             )
-           | _ => None
-           }
-         )
-      |> List.of_seq;
-    let edge_ws = (code: string): (string, string) => {
-      let trimmed = String.trim(code);
-      switch (Util.StringUtil.plain_search(trimmed, code, 0)) {
-      | i when i >= 0 => (
-          String.sub(code, 0, i),
-          String.sub(
-            code,
-            i + String.length(trimmed),
-            String.length(code) - i - String.length(trimmed),
-          ),
-        )
-      | _ => ("", "")
-      };
+    switch (Id.Map.find_opt(id, info_map)) {
+    | Some(info) =>
+      at
+      ++ ErrorPrint.string_of_marks(info, Info.marks_of(info))
+      ++ " (in `"
+      ++ ErrorPrint.term_string_of(info)
+      ++ "`)"
+    | None => at ++ "a static error"
     };
-    /* ~root: the sort the CODE is parsed at (Mod for module members, so
-       their `;` is the member separator). ~splice_root: the sort of the
-       program the result is spliced into — the whole zipper is remolded at
-       that root after the splice, and a scratch program's root is Exp
-       whatever the code's own root. Remolding the program at Mod re-derived
-       every mold from the wrong root: case rules inside a spliced member
-       came out with Any/Exp-sorted patterns (dungeon runs: `nth`). */
-    /* one leading and/or one trailing `;` of a module-member chunk, with
-       the whitespace between it and the member: (lead, core, trail) */
-    let split_separators =
-        (code: string): (option(string), string, option(string)) => {
-      let is_ws = c => c == ' ' || c == '\t' || c == '\n' || c == '\r';
-      let t = String.trim(code);
-      let n = String.length(t);
-      let (lead, t) =
-        if (n > 0 && t.[0] == ';') {
-          let rest = String.sub(t, 1, n - 1);
-          let k = ref(0);
-          while (k^ < String.length(rest) && is_ws(rest.[k^])) {
-            incr(k);
-          };
-          (
-            Some(String.sub(rest, 0, k^)),
-            String.sub(rest, k^, String.length(rest) - k^),
-          );
-        } else {
-          (None, t);
-        };
-      let n = String.length(t);
-      let (trail, t) =
-        if (n > 0 && t.[n - 1] == ';') {
-          let rest = String.sub(t, 0, n - 1);
-          let k = ref(String.length(rest));
-          while (k^ > 0 && is_ws(rest.[k^ - 1])) {
-            decr(k);
-          };
-          (
-            Some(String.sub(rest, k^, String.length(rest) - k^)),
-            String.sub(rest, 0, k^),
-          );
-        } else {
-          (None, t);
-        };
-      (lead, t, trail);
+  };
+
+  let lines = (ls: list(string)): string =>
+    String.concat("", List.map(l => "\n- " ++ l, ls));
+
+  /* the call that wrote piece [id]: the first it appears after; else the
+     last, whose change the error is in */
+  let author = (r: t, id: Id.t): made => {
+    let has = (seg: Segment.t) =>
+      Nav.find_path(~root=r.root, id, seg) != None;
+    switch (
+      List.find_opt(
+        (m: made) => !has(m.before) && has(m.change.program),
+        made(r),
+      )
+    ) {
+    | Some(m) => m
+    | None => List.hd(r.made)
     };
-    /* Backup molds keep the parser total, so a reserved binder no
-       longer guarantees parse failure; the rejection can't key on
-       to_segment returning None. Two-part gate: the text scan names
-       the misuse (reserved word in binder position) AND the segment
-       shows the word molded as a form-opener tile, not a variable.
-       Completeness is no signal: the stray form can steal delimiters
-       from the enclosing form. A reserved word inside a string
-       literal never produces a tile. */
-    let reserved_binder_garbage = (code: string, segment): option(string) =>
-      switch (find_reserved_binder(code)) {
-      | None => None
-      | Some(w) =>
-        let rec has_opener = (sg: Segment.t): bool =>
-          sg
-          |> List.exists((p: Piece.t) =>
-               switch (p) {
-               | Tile(t) =>
-                 (
-                   switch (Tile.label(t), t.shards) {
-                   | ([tok, ..._], [0, ..._]) => tok == w
-                   | _ => false
-                   }
-                 )
-                 || List.exists(has_opener, t.children)
-               | _ => false
-               }
-             );
-        has_opener(segment) ? Some(w) : None;
-      };
+  };
 
-    let rec introduce =
-            (
-              ~root=Sort.Exp,
-              ~splice_root=Sort.Exp,
-              ~fast=false,
-              ~keep_edge_ws=false,
-              z: Zipper.t,
-              code: string,
-            )
-            : result(Zipper.t, Action.Failure.t) => {
-      let code = StringUtil.trim_leading(code) |> Unicode.nfc_outside_strings;
-      /* module-member chunks carry their `;` separator (insert_member:
-         `;\n` ++ m / m ++ `;\n`); the wrap parse cannot take a bare
-         separator, so it is split off here and spliced back as a tile
-         (molded at splice time like everything else) — else every
-         member insert fell to the quadratic parser */
-      let (lead_sep, core, trail_sep) =
-        root == Sort.Mod ? split_separators(code) : (None, code, None);
-      switch (
-        fast
-          ? PerfTimer.time("fast-parse", () =>
-              FastParse.of_text(
-                ~materialize=Triggers.invoked_projector,
-                ~collect_refractors=false,
-                ~root,
-                String.trim(core),
-              )
-            )
-          : None
-      ) {
-      | Some(segment) when reserved_binder_garbage(code, segment) != None =>
-        Error(
-          Action.Failure.Composition_action_failure(
-            "Inserted code does not parse as intended."
-            ++ reserved_word_note(code),
-          ),
-        )
-      | Some(segment) =>
-        /* Source tokens + formatting verbatim, molds from ExpToSegment +
-           splice-time remold. No size cap needed on this path. */
-        let sep_tile = (): Piece.t =>
-          Tile({
-            id: Id.mk(),
-            form: Form.Compound(CellJoin),
-            sort: Sort.Mod,
-            shards: [0],
-            children: [],
-          });
-        let segment =
-          switch (lead_sep) {
-          | Some(ws) => [sep_tile(), ...ws_secondaries(ws)] @ segment
-          | None => segment
-          };
-        let segment =
-          switch (trail_sep) {
-          | Some(ws) => segment @ ws_secondaries(ws) @ [sep_tile()]
-          | None => segment
-          };
-        let segment =
-          if (keep_edge_ws) {
-            let (lead, trail) = edge_ws(code);
-            ws_secondaries(lead) @ segment @ ws_secondaries(trail);
-          } else {
-            segment;
-          };
-        let z' =
-          PerfTimer.time("splice", ()
-            /* Keep a generated terminal hole after the inserted separator
-               newline, matching the typing parser's fragment insertion. */
-            =>
-              Zipper.replace_selection(
-                Right,
-                pad_fusing_edges(
-                  z,
-                  EditIdentity.reuse(z.selection.content, segment),
-                ),
-                z,
-              )
-              |> Zipper.unselect
-              |> Zipper.remold_regrout(
-                   keep_edge_ws ? Left : Right,
-                   ~root=splice_root,
-                 )
-            );
-        Ok(z');
-      | None =>
-        if (fast) {
-          /* console-visible fallback telemetry (dev): which construct
-             pushed us onto the quadratic path, and roughly how bad */
-          print_endline(
-            "FastParse fallback ("
-            ++ string_of_int(String.length(code))
-            ++ " chars): "
-            ++ Option.value(FastParse.bail_note^, ~default="no note"),
-          );
-        };
-        introduce_slow(~root, ~splice_root, z, code);
-      };
-    }
-    and introduce_slow =
-        (~root, ~splice_root=Sort.Exp, z: Zipper.t, code: string)
-        : result(Zipper.t, Action.Failure.t) =>
-      if (String.length(code) > max_chunk_chars) {
-        Error(
-          Action.Failure.Composition_action_failure(
-            "Code chunk too large for error recovery ("
-            ++ string_of_int(String.length(code))
-            ++ " chars; limit "
-            ++ string_of_int(max_chunk_chars)
-            ++ "): it failed the batch parse, and chunks this size stall the editor in the recovering parser."
-            ++ parse_hint()
-            ++ " Fix the syntax if the code was meant to be complete, or split the edit: insert a skeleton whose complex parts are holes (?), then fill each part with its own update_definition call — nested paths (\"f/helper\") and module member paths (\"M/view\") address the parts directly.",
-          ),
-        );
-      } else {
-        switch (
-          PerfTimer.time("typing-parse", () => Parser.to_segment(code, ~root))
-        ) {
-        | Some(segment) when reserved_binder_garbage(code, segment) != None =>
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Inserted code does not parse as intended."
-              ++ reserved_word_note(code),
-            ),
-          )
-        | Some(segment) =>
-          Ok(
-            PerfTimer.time("splice", () =>
-              Zipper.insert_segment(
-                z,
-                pad_fusing_edges(
-                  z,
-                  EditIdentity.reuse(z.selection.content, segment),
-                ),
-                ~root=splice_root,
-              )
-            ),
-          )
-        | None =>
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Inserted code failed to parse."
-              ++ reserved_word_note(code)
-              ++ parse_hint(),
-            ),
-          )
-        };
-      };
+  /* the entries holding pieces [ids], by path */
+  let where_all = (r: t, ids: list(Id.t)): string =>
+    List.filter_map(where_is(~root=r.root, program(r)), ids)
+    |> List.sort_uniq(compare)
+    |> String.concat(", ");
 
-    let destruct =
-        (
-          ~root=Sort.Exp,
-          ~defs_exclude_bodies: bool,
-          z: Zipper.t,
-          target_id: Id.t,
-          syntax: CachedSyntax.t,
-        ) => {
-      switch (
-        Select.term(
-          ~defs_exclude_bodies,
-          ~case_rules=false,
-          syntax.term_data,
-          target_id,
-          z,
-        )
-      ) {
-      | Some(z') =>
-        switch (Destruct.go(Local(Left, ByChar), z', ~root)) {
-        | None => Error(Action.Failure.Cant_destruct)
-        | Some(z'') => Ok(z'')
+  /* a delete's uses still in the program, now unbound */
+  let dangling = (r: t, final: CachedStatics.t): option(failure) => {
+    let seg = program(r);
+    let unbound = id =>
+      K.is_token(~root=r.root, id, seg)
+      && (
+        switch (Id.Map.find_opt(id, final.info_map)) {
+        | Some(info) =>
+          Info.binding_site(~info_map=final.info_map, info) == None
+        | None => false
         }
-      | None => Error(Action.Failure.Cant_select)
-      };
-    };
-
-    let overwrite_term =
-        (
-          ~root=Sort.Exp,
-          ~splice_root=Sort.Exp,
-          z: Zipper.t,
-          target_id: Id.t,
-          code: string,
-          defs_exclude_bodies: bool,
-          syntax: CachedSyntax.t,
-        ) => {
-      // Select the respective term (in this case the definition term)
-      switch (
-        Select.term(
-          ~defs_exclude_bodies,
-          ~case_rules=false,
-          syntax.term_data, // todo: not sure about this arg
-          target_id,
-          z,
-        )
-      ) {
-      | Some(z') =>
-        // Paste the code over the selected tile
-        introduce(~root, ~splice_root, ~fast=true, z', code)
-      | None => Error(Action.Failure.Cant_select)
-      };
-    };
-    /* Insert a new module member adjacent to an existing one. Collapse the
-       member's span to the near edge, then let the separator anchor the
-       splice: after → ";\n" ++ code (the member's original following `;` —
-       or `}` for the last member — ends the new code), before → code ++
-       ";\n". `introduce` trims leading whitespace, so the `;` must lead. */
-    /* Member boundaries: `;` at bracket depth 0, outside strings and
-       single-line #...# comments. */
-    let split_members = (code: string): list(string) => {
-      let n = String.length(code);
-      let parts = ref([])
-      and start = ref(0)
-      and depth = ref(0)
-      and in_str = ref(false)
-      and in_comment = ref(false);
-      let i = ref(0);
-      while (i^ < n) {
-        let c = code.[i^];
-        if (in_comment^) {
-          if (c == '#' || c == '\n') {
-            in_comment := false;
-          };
-        } else if (in_str^) {
-          if (c == '\\') {
-            incr(i);
-          } else if (c == '"') {
-            in_str := false;
-          };
-        } else {
-          switch (c) {
-          | '#' => in_comment := true
-          | '"' => in_str := true
-          | '('
-          | '['
-          | '{' => incr(depth)
-          | ')'
-          | ']'
-          | '}' => decr(depth)
-          | ';' when depth^ == 0 =>
-            parts := [String.sub(code, start^, i^ - start^), ...parts^];
-            start := i^ + 1;
-          | _ => ()
-          };
-        };
-        incr(i);
-      };
-      let last = String.sub(code, start^, n - start^);
-      List.rev([last, ...parts^])
-      |> List.map(String.trim)
-      |> List.filter(m => m != "");
-    };
-
-    let insert_member =
-        (
-          ~root=Sort.Mod,
-          ~splice_root=Sort.Exp,
-          ~fast=true,
-          z: Zipper.t,
-          target_id: Id.t,
-          code: string,
-          d: Direction.t,
-          syntax: CachedSyntax.t,
-        ) => {
-      switch (
-        Select.term(
-          ~defs_exclude_bodies=true,
-          ~case_rules=false,
-          syntax.term_data,
-          target_id,
-          z,
-        )
-      ) {
-      | None => Error(Action.Failure.Cant_select)
-      | Some(z_sel) =>
-        let z_caret = Zipper.directional_unselect(d, z_sel);
-        /* Mod root so the member `;` molds as the member separator, not
-           the Exp sequence operator. */
-        /* one member at a time: a chunk of several members parsed together
-           at Mod root tripped the incremental molding of the later members
-           (their case-rule patterns came out Exp — dungeon runs, `nth`);
-           each member alone parses reliably, and the caret lands after each
-           splice exactly where the next one goes */
-        let members =
-          switch (split_members(code)) {
-          | [] => [code]
-          | ms => ms
-          };
-        List.fold_left(
-          (acc, m) =>
-            switch (acc) {
-            | Error(e) => Error(e)
-            | Ok(z) =>
-              introduce(
-                ~root,
-                ~splice_root,
-                ~fast,
-                ~keep_edge_ws=true,
-                z,
-                d == Left ? m ++ ";\n" : ";\n" ++ m,
-              )
-            },
-          Ok(z_caret),
-          members,
-        );
-      };
-    };
-
-    /* [code]'s members, each with its `;` on a line of its own, first in
-       a Mod-rooted program, one at a time as insert_member splices them */
-    let insert_members_first = (z: Zipper.t, code: string) =>
-      List.fold_left(
-        (acc, m) =>
-          switch (acc) {
-          | Error(e) => Error(e)
-          | Ok(z) =>
-            introduce(
-              ~root=Sort.Mod,
-              ~splice_root=Sort.Mod,
-              ~fast=true,
-              ~keep_edge_ws=true,
-              z,
-              m ++ ";\n",
-            )
-          },
-        Ok(Move.to_start(z)),
-        switch (split_members(code)) {
-        | [] => [code]
-        | ms => ms
+      );
+    List.find_map(
+      (m: made) =>
+        switch (
+          List.filter_map(
+            ((x, _, refs)) =>
+              switch (List.filter(unbound, refs)) {
+              | [] => None
+              | left => Some((x, left))
+              },
+            m.plan.removes,
+          )
+        ) {
+        | [] => None
+        | found =>
+          Some({
+            index: m.index,
+            message:
+              "Not deleted: it would leave uses dangling. Delete or change them first, in the same reply:"
+              ++ lines(
+                   List.map(
+                     ((x, left)) => x ++ ", used at " ++ where_all(r, left),
+                     found,
+                   ),
+                 ),
+          })
         },
-      );
-
-    let insert_term =
-        (
-          ~splice_root=Sort.Exp,
-          z: Zipper.t,
-          target_id: Id.t,
-          code: string,
-          d: Direction.t,
-          syntax: CachedSyntax.t,
-        ) => {
-      switch (
-        // ' let a = 0 in'
-        Select.term(
-          ~defs_exclude_bodies=true,
-          ~case_rules=false,
-          syntax.term_data, // todo: not sure about this arg, is it right?
-          target_id,
-          z,
-        )
-      ) {
-      | Some(z') =>
-        switch (Move.by_token(d, z')) {
-        | Some(z'') =>
-          introduce(~splice_root, ~fast=true, ~keep_edge_ws=true, z'', code)
-        | None => Error(Action.Failure.Cant_move)
-        }
-      | None => Error(Action.Failure.Cant_select)
-      };
-    };
-
-    /* `test code end`, from the test's expression; code that already
-       opens with `test` is taken as the whole test */
-    let test_text = (code: string): string => {
-      let code = String.trim(code);
-      let code =
-        String.ends_with(~suffix=";", code)
-          ? String.trim(String.sub(code, 0, String.length(code) - 1)) : code;
-      String.starts_with(~prefix="test", code)
-      && ListUtil.hd_opt(identifier_words(code)) == Some("test")
-        ? code : "test " ++ code ++ " end";
-    };
-
-    /* [code] on its own line just after the piece [after], or first in
-       the program. The line is closed only where the old one ran on:
-       below the top level no pass collapses a doubled linebreak */
-    let insert_after_piece =
-        (
-          ~root=Sort.Exp,
-          ~splice_root=Sort.Exp,
-          z: Zipper.t,
-          after: option(Id.t),
-          code: string,
-        ) =>
-      switch (after) {
-      | None =>
-        introduce(
-          ~root,
-          ~splice_root,
-          ~fast=true,
-          ~keep_edge_ws=true,
-          Move.to_start(z),
-          code ++ "\n",
-        )
-      | Some(id) =>
-        switch (Move.jump_to_side_of_id(Right, z, id)) {
-        | Some(z) =>
-          let rec breaks = (ps: Segment.t) =>
-            switch (ps) {
-            | [p, ...rest] when Piece.is_space(p) => breaks(rest)
-            | [p, ..._] => Piece.is_linebreak(p)
-            | [] => true
-            };
-          let close = breaks(snd(z.relatives.siblings)) ? "" : "\n";
-          introduce(
-            ~root,
-            ~splice_root,
-            ~fast=true,
-            ~keep_edge_ws=true,
-            z,
-            "\n" ++ code ++ close,
-          );
-        | None => Error(Action.Failure.Cant_move)
-        }
-      };
+      made(r),
+    );
   };
 
-  let edit_dispatch =
-      (
-        ~root: Sort.t,
-        ~e: Action.Structural.t,
-        ~initial_z: Zipper.t,
-        ~initial_node_map: node_map,
-        ~initial_info_map: Id.Map.t(Info.t),
-        ~syntax: CachedSyntax.t,
-        ~mk_statics: Zipper.t => StaticsBase.Map.t,
-      ) => {
-    /* an insert's program, unless it adds static errors */
-    let no_new_errors = (~code, inserted: result(Zipper.t, Action.Failure.t)) =>
-      switch (inserted) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        let old_errors =
-          PerfTimer.time("errors", () => ErrorPrint.all(initial_info_map));
-        let new_errors =
-          PerfTimer.time("errors", () => ErrorPrint.all(new_info_map));
-        if (List.length(new_errors) > List.length(old_errors)) {
-          Error(
-            Action.Failure.Composition_action_failure(
-              "Not applying the action you requested as it would introduce new static error(s): "
-              ++ String.concat(", ", new_errors)
-              ++ PerformUtils.reserved_word_note(code),
-            ),
-          );
-        } else {
-          Ok(new_z);
-        };
-      };
-    switch (e) {
-    | Update(Definition, path, code) =>
-      let initial_node = path_to_node(initial_node_map, path);
-      let target_id = Utils.get_inner_term_id(Def, initial_node);
-      switch (
-        PerfTimer.time("overwrite", () =>
-          PerformUtils.overwrite_term(
-            ~splice_root=root,
-            initial_z,
-            target_id,
-            code,
-            false,
-            syntax,
-          )
-        )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
-        | Some(new_node_map) =>
-          switch (
-            PerformUtils.static_error_check(
-              ~edit_action=e,
-              ~initial_node=Some(initial_node),
-              ~initial_info_map,
-              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
-              ~new_info_map,
-            )
-          ) {
-          | Some(e) =>
-            Error(
-              Action.Failure.Composition_action_failure(
-                e
-                ++ PerformUtils.reserved_word_note(code)
-                ++ PerformUtils.parse_hint(),
-              ),
-            )
-          | None =>
-            let z_after_projectors =
-              try({
-                let fresh_syn = CachedSyntax.init(~root, new_z);
-                let binding_node = path_to_node(new_node_map, path);
-                let def_id = Utils.get_inner_term_id(Def, binding_node);
-                switch (
-                  Select.term(
-                    ~defs_exclude_bodies=false,
-                    ~case_rules=false,
-                    fresh_syn.term_data,
-                    def_id,
-                    new_z,
-                  )
-                ) {
-                | None => new_z
-                | Some(z_sel) =>
-                  let seg = z_sel.selection.content;
-                  let focus = z_sel.selection.focus;
-                  let (z_sel', new_seg, did_change) =
-                    ProjectorPerform.revalidate_projectors_in_segment(
-                      z_sel,
-                      seg,
-                    );
-                  did_change
-                    ? Zipper.replace_selection(focus, new_seg, z_sel') : new_z;
-                };
-              }) {
-              | Failure(_) => new_z
-              };
-            Ok(z_after_projectors);
-          }
-        };
-      };
-    | Update(Body, path, code)
-        when Utils.is_module_member(path_to_node(initial_node_map, path)) =>
-      ignore(code);
-      Utils.member_body_error("update the body");
-    | Update(Body, path, code) =>
-      let initial_node = path_to_node(initial_node_map, path);
-      let target_id = Utils.get_inner_term_id(Body, initial_node);
-      switch (
-        PerfTimer.time("overwrite", () =>
-          PerformUtils.overwrite_term(
-            ~splice_root=root,
-            initial_z,
-            target_id,
-            code,
-            false,
-            syntax,
-          )
-        )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
-        | Some(new_node_map) =>
-          switch (
-            PerformUtils.static_error_check(
-              ~edit_action=e,
-              ~initial_node=Some(initial_node),
-              ~initial_info_map,
-              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
-              ~new_info_map,
-            )
-          ) {
-          | Some(e) =>
-            Error(
-              Action.Failure.Composition_action_failure(
-                e
-                ++ PerformUtils.reserved_word_note(code)
-                ++ PerformUtils.parse_hint(),
-              ),
-            )
-          | None => Ok(new_z)
-          }
-        };
-      };
-    | Update(Pattern, path, code) =>
-      let initial_node = path_to_node(initial_node_map, path);
-      let target_id = Utils.get_inner_term_id(Pat, initial_node);
-      let old_pat =
-        StaticsBase.Map.lookup(target_id, initial_info_map)
-        |> OptUtil.get_or_fail(
-             "Failed trying to rename all occurences of the pattern. Could not find the old pattern in the statics map.",
-           );
-      switch (
-        PerfTimer.time("overwrite", () =>
-          PerformUtils.overwrite_term(
-            ~splice_root=root,
-            initial_z,
-            target_id,
-            code,
-            false,
-            syntax,
-          )
-        )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
-        | Some(new_node_map) =>
-          let new_node = node_of_cursor(new_node_map, new_z, new_info_map);
-          switch (
-            PerformUtils.static_error_check(
-              ~edit_action=e,
-              ~initial_info_map,
-              ~initial_node=Some(initial_node),
-              ~new_info_map,
-              ~new_node,
-            )
-          ) {
-          | Some(e) =>
-            Error(
-              Action.Failure.Composition_action_failure(
-                e
-                ++ PerformUtils.reserved_word_note(code)
-                ++ PerformUtils.parse_hint(),
-              ),
-            )
-          | None =>
-            let new_target_id = Utils.get_inner_term_id(Pat, new_node);
-            let new_pat =
-              StaticsBase.Map.lookup(new_target_id, new_info_map)
-              |> OptUtil.get_or_fail(
-                   "Failed trying to rename all occurences of the pattern. Could not find the new pattern in the statics map.",
-                 );
-            let old_names = GeneralTreeUtils.get_var_names_from_pat(old_pat);
-            let new_names = GeneralTreeUtils.get_var_names_from_pat(new_pat);
-            /* Old pattern binding no names (hole/wild) has no use sites to
-               rewrite; any other bound-name count change makes old→new use
-               site mapping ambiguous, so reject rather than silently leaving
-               stale references. */
-            if (old_names != []
-                && List.length(old_names) != List.length(new_names)) {
-              Error(
-                Action.Failure.Composition_action_failure(
-                  "Cannot rewrite use sites: the old pattern binds "
-                  ++ string_of_int(List.length(old_names))
-                  ++ " name(s) ("
-                  ++ String.concat(", ", old_names)
-                  ++ ") but the new pattern binds "
-                  ++ string_of_int(List.length(new_names))
-                  ++ " ("
-                  ++ String.concat(", ", new_names)
-                  ++ "). Keep the same number of bound names, or update the definition and body references explicitly.",
-                ),
+  /* a rename's uses that now read another binder, and names that now
+     read it and didn't */
+  let capture = (r: t, final: CachedStatics.t): option(failure) => {
+    let seg = program(r);
+    let start_map = Lazy.force(r.start_statics).info_map;
+    List.find_map(
+      (m: made) =>
+        List.find_map(
+          ((binder, name, refs)) => {
+            let now =
+              Rename.references(~info_map=final.info_map, binder)
+              |> List.filter(id => K.is_token(~root=r.root, id, seg));
+            let lost =
+              List.filter(
+                id =>
+                  K.is_token(~root=r.root, id, seg) && !List.mem(id, now),
+                refs,
               );
-            } else {
-              /* Capture pre-check: statics won't flag capture (the reference
-                 still resolves), so reject genuinely-new names that already
-                 occur anywhere in this binding's scope. Conservative:
-                 over-rejects some shadow-safe cases. */
-              let added_names =
-                List.filter(n => !List.mem(n, old_names), new_names);
-              let scope_root = id_of(initial_node);
-              /* each old binder and its new name (counts match above) */
-              let renamed =
-                old_names == []
-                  ? []
-                  : List.combine(
-                      List.map(
-                        snd,
-                        GeneralTreeUtils.var_binders_of_info(old_pat),
-                      ),
-                      new_names,
-                    );
-              /* another member so named: `M.name` would read one of the two */
-              let member_clash =
-                switch (
-                  Utils.member_items(
-                    ~info_map=initial_info_map,
-                    initial_node_map,
-                    initial_node,
-                  )
-                ) {
-                | Some(items) =>
-                  List.find_map(
-                    ((binder, name)) =>
-                      List.mem(name, added_names)
-                      && Rename.member_clash(~typ=false, items, binder, name)
-                        ? Some(name) : None,
-                    renamed,
-                  )
-                | None => None
-                };
-              let taken_name =
-                List.find_opt(
-                  GeneralTreeUtils.name_occurs_within(
-                    ~root_id=scope_root,
-                    ~info_map=initial_info_map,
-                  ),
-                  added_names,
-                );
-              switch (member_clash, taken_name) {
-              | (Some(name), _) =>
-                Error(
-                  Action.Failure.Composition_action_failure(
-                    "Not renaming to \""
-                    ++ name
-                    ++ "\": the module already has a member of that name, so qualified uses (M."
-                    ++ name
-                    ++ ") would read only one of the two. Choose a name no other member of this module has.",
-                  ),
-                )
-              | (None, Some(name)) =>
-                Error(
-                  Action.Failure.Composition_action_failure(
-                    "Not renaming to \""
-                    ++ name
-                    ++ "\": that name already occurs as a binder or variable reference within this binding's scope, so the rename could silently change which binding existing references point to. Choose a name that is unused in this scope.",
-                  ),
-                )
-              | (None, None) =>
-                /* Hybrid refs: pre-edit [[co_ctx]] for the filter, post-edit
-                   term + [[new_info_map]] for the body, so renames see stale
-                   spellings but paths stay consistent after follow-up edits
-                   (see [[GeneralTreeUtils.get_refs_to_after_pattern_edit]]). */
-                let final_z =
-                  old_names == []
-                    ? new_z
-                    : GeneralTreeUtils.update_use_sites_of_pat(
-                        ~root,
-                        ~z=new_z,
-                        ~co_ctx=
-                          GeneralTreeUtils.get_refs_to_after_pattern_edit(
-                            ~pre_edit_let_info=initial_node.info,
-                            ~post_edit_let_info=new_node.info,
-                            new_info_map,
-                          ),
-                        ~old_names,
-                        ~new_names,
-                      );
-                /* a member's `M.x` labels: they resolve to it in the old
-                   program, and keep their ids through the edit */
-                let final_z =
-                  List.fold_left(
-                    (z, (binder, name)) =>
-                      Rename.relabel_zipper(
-                        Rename.qualified(
-                          ~info_map=initial_info_map,
-                          Rename.references(
-                            ~info_map=initial_info_map,
-                            binder,
-                          ),
-                        ),
-                        name,
-                        z,
-                      ),
-                    final_z,
-                    renamed,
-                  );
-                /* Belt-and-suspenders: re-validate after the use-site rewrite;
-                   anything the pre-checks missed must not grow the error count. */
-                let initial_errors =
-                  PerfTimer.time("errors", () =>
-                    ErrorPrint.all(initial_info_map)
-                  );
-                let final_errors =
-                  PerfTimer.time("errors", () =>
-                    ErrorPrint.all(mk_statics(final_z))
-                  );
-                if (List.length(final_errors) > List.length(initial_errors)) {
-                  Error(
-                    Action.Failure.Composition_action_failure(
-                      "Not applying the rename: rewriting the use sites would introduce new static error(s): "
-                      ++ String.concat(", ", final_errors),
-                    ),
-                  );
-                } else {
-                  Ok(final_z);
-                };
-              };
+            let taken =
+              List.filter(
+                id =>
+                  id != binder
+                  && !List.mem(id, refs)
+                  && Id.Map.mem(id, start_map),
+                now,
+              );
+            switch (lost @ taken) {
+            | [] => None
+            | ids =>
+              Some({
+                index: m.index,
+                message:
+                  "Not renamed to "
+                  ++ name
+                  ++ ": names would change what they refer to, at "
+                  ++ where_all(r, ids)
+                  ++ ". Choose a name not in use there.",
+              })
             };
-          };
-        };
-      };
-    | Update(BindingClause, path, code) =>
-      let initial_node = path_to_node(initial_node_map, path);
-      let target_id = path_to_id(initial_node_map, path);
-      let code_root =
-        Utils.is_module_member(initial_node) ? Sort.Mod : Sort.Exp;
-      switch (
-        PerformUtils.overwrite_term(
-          ~root=code_root,
-          ~splice_root=root,
-          initial_z,
-          target_id,
-          code,
-          true,
-          syntax,
-        )
-      ) {
-      | Error(e) => Error(e)
-      | Ok(new_z) =>
-        let new_info_map = mk_statics(new_z);
-        switch (build(new_z, new_info_map)) {
-        | None => Error(Action.Failure.Cant_derive_local_AST_information)
-        | Some(new_node_map) =>
-          switch (
-            PerformUtils.static_error_check(
-              ~edit_action=e,
-              ~initial_info_map,
-              ~initial_node=Some(initial_node),
-              ~new_info_map,
-              ~new_node=node_of_cursor(new_node_map, new_z, new_info_map),
-            )
-          ) {
-          | Some(e) =>
-            Error(
-              Action.Failure.Composition_action_failure(
-                e
-                ++ PerformUtils.reserved_word_note(code)
-                ++ PerformUtils.parse_hint(),
-              ),
-            )
-          | None => Ok(new_z)
-          }
-        };
-      };
-    | Insert(Before, path, code) =>
-      // todo: figure out a better method than magic space
-      let target_id = path_to_id(initial_node_map, path);
-      let is_member =
-        Utils.is_module_member(path_to_node(initial_node_map, path));
-      (
-        is_member
-          ? PerformUtils.insert_member(
-              ~splice_root=root,
-              initial_z,
-              target_id,
-              code,
-              Direction.Left,
-              syntax,
-            )
-          : PerformUtils.insert_term(
-              ~splice_root=root,
-              initial_z,
-              target_id,
-              "\n" ++ code ++ "\n",
-              Direction.Left,
-              syntax,
-            )
-      )
-      |> no_new_errors(~code);
-    | Insert(After, path, code) =>
-      // todo: figure out a better method than magic space
-      let target_id = path_to_id(initial_node_map, path);
-      let is_member =
-        Utils.is_module_member(path_to_node(initial_node_map, path));
-      (
-        is_member
-          ? PerformUtils.insert_member(
-              ~splice_root=root,
-              initial_z,
-              target_id,
-              code,
-              Direction.Right,
-              syntax,
-            )
-          : PerformUtils.insert_term(
-              ~splice_root=root,
-              initial_z,
-              target_id,
-              "\n" ++ code ++ "\n",
-              Direction.Right,
-              syntax,
-            )
-      )
-      |> no_new_errors(~code);
-    | InsertTest(path, code) =>
-      /* a member takes the test as a member (its `;` comes with the
-         insert); elsewhere it is a `…;` statement */
-      let test = PerformUtils.test_text(code);
-      (
-        switch (Option.map(path_to_node(initial_node_map), path)) {
-        | Some(node) when Utils.is_module_member(node) =>
-          PerformUtils.insert_member(
-            ~splice_root=root,
-            initial_z,
-            Utils.past_test_members(~info_map=initial_info_map, node),
-            test,
-            Direction.Right,
-            syntax,
-          )
-        | Some(node) =>
-          PerformUtils.insert_after_piece(
-            ~splice_root=root,
-            initial_z,
-            Some(Utils.past_tests(node)),
-            test ++ ";",
-          )
-        | None when root == Sort.Mod =>
-          switch (
-            Utils.last_member(~info_map=initial_info_map, initial_node_map)
-          ) {
-          | Some(item) =>
-            PerformUtils.insert_member(
-              ~splice_root=root,
-              initial_z,
-              item,
-              test,
-              Direction.Right,
-              syntax,
-            )
-          | None =>
-            PerformUtils.insert_after_piece(
-              ~root,
-              ~splice_root=root,
-              initial_z,
-              None,
-              test ++ ";",
-            )
-          }
-        | None =>
-          PerformUtils.insert_after_piece(
-            initial_z,
-            Utils.last_item(
-              MakeTerm.from_zip_for_sem(initial_z, ~root=Exp).term,
-            ),
-            test ++ ";",
-          )
-        }
-      )
-      |> no_new_errors(~code);
-    | Delete(BindingClause, path) =>
-      let target_id = path_to_id(initial_node_map, path);
-      PerformUtils.destruct(
-        ~root,
-        ~defs_exclude_bodies=true,
-        initial_z,
-        target_id,
-        syntax,
-      );
-    | Delete(Body, path)
-        when Utils.is_module_member(path_to_node(initial_node_map, path)) =>
-      Utils.member_body_error("delete the body")
-    | Delete(Body, path) =>
-      let node = path_to_node(initial_node_map, path);
-      let target_id = Utils.get_inner_term_id(Body, node);
-      PerformUtils.destruct(
-        ~root,
-        ~defs_exclude_bodies=false,
-        initial_z,
-        target_id,
-        syntax,
-      );
-    | Delete(Definition | Pattern, _) =>
-      Error(
-        Action.Failure.Composition_action_failure(
-          "Deleting a definition or pattern is not yet implemented.",
+          },
+          m.plan.renames,
         ),
-      )
-    };
+      made(r),
+    );
   };
 
-  let composition_dispatch =
-      (
-        ~root: Sort.t,
-        ~initial_info_map: option(StaticsBase.Map.t)=None,
-        a: Action.Structural.t,
-        syntax: CachedSyntax.t,
-        z: Zipper.t,
-        mk_statics: Zipper.t => StaticsBase.Map.t,
-      ) => {
-    /* the editor's map for this very zipper when the caller has one
-       (saves a full statics pass per tool); else compute */
-    let initial_info_map =
-      switch (initial_info_map) {
-      | Some(m) => m
-      | None => mk_statics(z)
-      };
-    let dispatch = initial_node_map =>
-      edit_dispatch(
-        ~root,
-        ~e=a,
-        ~initial_z=z,
-        ~initial_node_map,
-        ~initial_info_map,
-        ~syntax,
-        ~mk_statics,
+  type outcome = {
+    program: Segment.t,
+    statics: CachedStatics.t,
+    /* per call index: what it did, then the reply's errors */
+    reports: list((int, string)),
+  };
+
+  /* the reply's checks over its finished change, and its reports */
+  let finish = (r: t): result(outcome, failure) =>
+    switch (r.made) {
+    | [] =>
+      Ok({
+        program: r.start,
+        statics: Lazy.force(r.start_statics),
+        reports: [],
+      })
+    | [last, ..._] =>
+      let seg = program(r);
+      let final = Lazy.force(r.statics);
+      let before = Lazy.force(r.start_statics);
+      let had = Id.Set.of_list(before.error_ids);
+      let fresh = List.filter(id => !Id.Set.mem(id, had), final.error_ids);
+      let (n0, n1) = (
+        List.length(before.error_ids),
+        List.length(final.error_ids),
       );
-    /* a program without bindings has no node map: only a test without a
-       path, which addresses none, goes ahead */
-    switch (build(z, initial_info_map), a) {
-    | (Some(initial_node_map), _) => dispatch(initial_node_map)
-    | (None, InsertTest(None, _)) => dispatch(Id.Map.empty)
-    | (None, _) => Error(Action.Failure.Cant_derive_local_AST_information)
+      let line = id => error_line(~root=r.root, seg, final.info_map, id);
+      let checked =
+        switch (r.checks.dangling_uses ? dangling(r, final) : None) {
+        | Some(f) => Error(f)
+        | None =>
+          switch (capture(r, final)) {
+          | Some(f) => Error(f)
+          | None when r.checks.no_new_errors && n1 > n0 =>
+            Error({
+              index: author(r, List.hd(fresh @ final.error_ids)).index,
+              message:
+                "Not applied: it would add static errors ("
+                ++ string_of_int(n0)
+                ++ " before, "
+                ++ string_of_int(n1)
+                ++ " after):"
+                ++ lines(List.map(line, fresh)),
+            })
+          | None => Ok()
+          }
+        };
+      let* () = checked;
+      let errors =
+        switch (n1, fresh) {
+        | (0, _) => "Static errors: none."
+        | (_, []) =>
+          "Static errors: "
+          ++ string_of_int(n1)
+          ++ " ("
+          ++ string_of_int(n0)
+          ++ " before), none new."
+        | (_, fresh) =>
+          "Static errors: "
+          ++ string_of_int(n1)
+          ++ " ("
+          ++ string_of_int(n0)
+          ++ " before). New:"
+          ++ lines(List.map(line, fresh))
+        };
+      Ok({
+        program: seg,
+        statics: final,
+        reports:
+          List.map(
+            (m: made) =>
+              (
+                m.index,
+                report(~root=r.root, m)
+                ++ (m.index == last.index ? " " ++ errors : ""),
+              ),
+            made(r),
+          ),
+      });
     };
+};
+
+/* ---- the editor's single action ---- */
+
+/* [seg] as the program of [z]: its probes and its caret's neighbour */
+let rezip = (z: Zipper.t, seg: Segment.t): Zipper.t => {
+  let z' = {
+    ...Zipper.unzip(~direction=Left, seg),
+    refractors: z.refractors,
   };
-
-  /* [root]: the program's, Perform's */
-  let go =
-      (
-        ~root: Sort.t,
-        ~mk_statics: Zipper.t => StaticsBase.Map.t,
-        ~initial_info_map: option(StaticsBase.Map.t),
-        ~syntax: CachedSyntax.t,
-        ~z: Zipper.t,
-        ~a: Action.Structural.t,
-      )
-      : result(Zipper.t, Action.Failure.t) => {
-    let res =
-      try(
-        switch (
-          composition_dispatch(
-            ~root,
-            ~initial_info_map,
-            a,
-            syntax,
-            z,
-            mk_statics,
-          )
-        ) {
-        | Ok(new_z) =>
-          Ok(
-            PerfTimer.time("normalize", () =>
-              PerformUtils.normalize_top_level(
-                ~root,
-                ~before=z,
-                Materialize.all(new_z, ~root),
-              )
-            ),
-          )
-        | Error(e) => Error(e)
-        }
-      ) {
-      | Failure(e) =>
-        /* an exception out of a structural action is OUR bug: dump the
-           pre-action program and the action so it can be replayed in a test */
-        Js_of_ocaml.(
-          Firebug.console##error_3(
-            Js.string("[structural action] Failure: " ++ e),
-            Js.string(Action.Structural.show(a)),
-            Js.string(Printer.of_zipper(~holes="?", z)),
-          )
-        );
-        Error(Action.Failure.Composition_action_failure(e));
-      };
-
-    res;
+  let anchor =
+    switch (Siblings.neighbors(z.relatives.siblings)) {
+    | (_, Some(p)) => Some((Direction.Left, Piece.id(p)))
+    | (Some(p), None) => Some((Direction.Right, Piece.id(p)))
+    | (None, None) => None
+    };
+  switch (anchor) {
+  | Some((side, id)) =>
+    Option.value(Move.jump_to_side_of_id(side, z', id), ~default=z')
+  | None => z'
   };
 };
 
 module Public = {
-  /* the program's statics, read at its editor's root, analyzed whole so
-     the node map can walk a Mod root's chain of members. A Mod root's term
-     comes from Incr, which keeps it physically stable: from_zip_for_sem
-     reads the same term but builds it anew per call, so Statics.mk (memoized
-     on the term) reruns and its module lowering mints fresh ids for the
-     members' synthesized tail, and two calls' maps disagree */
-  let mk_statics_with =
-      (~root=Sort.Exp, settings: Language.CoreSettings.t, z: Zipper.t) => {
-    let term =
-      if (root == Sort.Mod) {
-        let (seg, masks) =
-          MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
-        MakeTerm.Incr.term_of_root(~masks, ~root, seg);
-      } else {
-        MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-      };
-    Language.(
-      fst(
-        Statics.mk(
-          settings,
-          Builtins.ctx_init(Some(Operators.default_mode)),
-          term,
-        ),
-      )
-    );
-  };
-  let mk_statics = (~root=Sort.Exp, z: Zipper.t): Language.StaticsBase.Map.t =>
-    mk_statics_with(~root, Language.CoreSettings.on, z);
-  /* a no-path insert_before / insert_after: [code] at the program's start
-     or end. A Mod root's top level is a module body, so there [code]'s
-     members go in as members, each with its `;`: first, or after the last
-     member, before the trailing expression, as insert_test places a test */
-  let insert_at_boundary =
+  let mk_statics_with = mk_statics_with;
+  let mk_statics = mk_statics;
+
+  /* one structural call as a reply of its own (Perform's Structural):
+     [statics] stands in for the program's when they describe it */
+  let go =
       (
+        ~settings: CoreSettings.t,
         ~root: Sort.t,
-        ~info_map: Language.StaticsBase.Map.t,
-        d: Action.Structural.insert_target,
+        ~statics: CachedStatics.t,
         z: Zipper.t,
-        code: string,
+        call: call,
       )
-      : result(Zipper.t, Action.Failure.t) =>
-    switch (root, d) {
-    | (Mod, After) =>
-      switch (
-        Option.bind(build(z, info_map), Local.Utils.last_member(~info_map))
-      ) {
-      | Some(item) =>
-        Local.PerformUtils.insert_member(
-          ~splice_root=root,
-          z,
-          item,
-          code,
-          Direction.Right,
-          CachedSyntax.init(~root, z),
-        )
-      | None => Local.PerformUtils.insert_members_first(z, code)
-      }
-    | (Mod, Before) => Local.PerformUtils.insert_members_first(z, code)
-    | _ =>
-      Local.PerformUtils.introduce(
+      : result(Zipper.t, Action.Failure.t) => {
+    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+    let root = root == Sort.Mod ? Sort.Mod : Sort.Exp;
+    let statics_of =
+      statics_of(
+        ~settings,
         ~root,
-        ~splice_root=root,
-        ~fast=true,
-        ~keep_edge_ws=true,
-        d == Before ? Move.to_start(z) : Move.to_end(z),
-        "\n" ++ code ++ "\n",
-      )
+        ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+      );
+    let start =
+      lazy(
+        switch (CachedStatics.for_zipper(~settings, z, statics)) {
+        | Some(st) when st.info_map != Id.Map.empty => st
+        | _ => statics_of(seg)
+        }
+      );
+    let r = Reply.start(~root, ~statics=start, ~statics_of, seg);
+    switch (Reply.add(r, ~index=0, call)) {
+    | Error(msg) => Error(Composition_action_failure(msg))
+    | Ok(r) =>
+      switch (Reply.finish(r)) {
+      | Error(f) => Error(Composition_action_failure(f.message))
+      | Ok(o) => Ok(o.program === seg ? z : rezip(z, o.program))
+      }
     };
-  let go = (~root: Sort.t) =>
-    Local.go(
-      ~root,
-      ~mk_statics=z => PerfTimer.time("statics", () => mk_statics(~root, z)),
-      ~initial_info_map=None,
-    );
-  /* With the editor's statics for this zipper in hand (CachedStatics.
-     for_zipper), both maps of the error check are computed the editor's
-     way — same settings — so the comparison stays fair while the initial
-     pass is skipped. */
-  let go_with_editor_statics =
-      (~settings: Language.CoreSettings.t, ~initial: CachedStatics.t) =>
-    Local.go(
-      ~root=Sort.Exp,
-      ~mk_statics=
-        z =>
-          PerfTimer.time("statics", () => {
-            /* The full record, computed with the editor's settings and
-               offered: the editor's recompute for this program takes it
-               instead of running statics again */
-            let full =
-              CachedStatics.init(
-                ~settings,
-                ~is_dynamic_term=false,
-                ~stitch=x => x,
-                ~root=Sort.Exp,
-                z,
-              );
-            CachedStatics.offer(~settings, z, full);
-            full.info_map;
-          }),
-      ~initial_info_map=Some(initial.info_map),
-    );
+  };
+};
+
+/* a call's kernel steps, for a replay (AgentToolResult.step) */
+let step_records = (~root, m: made): list(AgentToolResult.step) => {
+  let path = (seg, id) => path_string(~root, seg, id);
+  let record = (before, s: K.step): AgentToolResult.step => {
+    let made = ListUtil.hd_opt(s.added);
+    let (op, from, into) =
+      switch (s.op) {
+      | Insert(_) => ("insert", None, Option.bind(made, path(s.program)))
+      | Replace(x, _) => (
+          "replace",
+          path(before, x),
+          path(s.program, Option.value(made, ~default=x)),
+        )
+      | Delete(x) => ("delete", path(before, x), None)
+      | Move(x, _) => ("move", path(before, x), path(s.program, x))
+      };
+    {
+      op,
+      from,
+      into,
+      added: s.added,
+      removed: s.removed,
+      moved: List.map(((x, _, _)) => x, s.moved),
+      replaced: s.replaced,
+    };
+  };
+  let rec go = (before, steps: list(K.step)) =>
+    switch (steps) {
+    | [] => []
+    | [s, ...rest] => [record(before, s), ...go(s.program, rest)]
+    };
+  go(m.before, m.change.steps);
 };

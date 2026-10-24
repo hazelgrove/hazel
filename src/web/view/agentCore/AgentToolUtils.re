@@ -89,6 +89,7 @@ let registry: list((string, entry)) = {
         "insert_after",
         "insert_before",
         "insert_test",
+        "move",
       ],
     )
   @ entries(

@@ -110,6 +110,8 @@ let (suite, exit_with_test_status) =
     @ Test_AgentTools.tests
     @ Test_AgentMultiTool.tests
     @ Test_AgentControlFlow.tests
+    @ Test_AgentPerf.tests
+    @ Test_AgentReply.tests
     @ [Test_AgentUX.tests]
     @ Test_ExpToSegment.all
     @ Test_Typ.tests
