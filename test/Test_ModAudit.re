@@ -2454,14 +2454,14 @@ let probes = (): list(probe) => [
     what: "agent update_pattern M/a renames M.a",
     root: Mod,
     src: m_src,
-    run: agent(Rename("M/a", "aa")),
+    run: agent(Rename("M/a", None, "aa")),
     expect: "module M = { ⏎ let aa = 1; ⏎ let b = aa + 1; ⏎ type T = Int; ⏎ let c : T = b ⏎ }; ⏎ let a = 5; ⏎ let d : M.T = M.aa + a; ⏎ d",
   },
   {
     what: "agent update_pattern M/a renames M.a",
     root: Exp,
     src: e_src,
-    run: agent(Rename("M/a", "aa")),
+    run: agent(Rename("M/a", None, "aa")),
     expect: "module M = { ⏎ let aa = 1; ⏎ let b = aa + 1; ⏎ type T = Int; ⏎ let c : T = b ⏎ } in ⏎ let a = 5 in ⏎ let d : M.T = M.aa + a in ⏎ d",
   },
   {

@@ -274,7 +274,7 @@ let edit_action_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = a + 1 in b + a",
-            Rename("a", "x"),
+            Rename("a", None, "x"),
           );
         check_rendered(
           "update_pattern",
@@ -288,7 +288,10 @@ let edit_action_tests = (
       `Quick,
       () => {
         let result =
-          apply_and_render("let x = 3 in let y = x in y", Rename("x", "z"));
+          apply_and_render(
+            "let x = 3 in let y = x in y",
+            Rename("x", None, "z"),
+          );
         check_rendered(
           "update_pattern_let_def",
           "let z = 3 in let y = z in y",
@@ -682,7 +685,7 @@ let rename_tests = (
         let result =
           apply_and_render(
             "let f(x: Int): Int = x + 1 in f(2) + f(3)",
-            Rename("f", "g"),
+            Rename("f", None, "g"),
           );
         check_rendered(
           "update_pat_funlet_rename",
@@ -700,7 +703,7 @@ let rename_tests = (
         let result =
           apply_and_render(
             "let m = {\n  let helper(x) = x + 1;\n  let g(y) = helper(y)\n} in m.g(2)",
-            Rename("m/helper", "aux"),
+            Rename("m/helper", None, "aux"),
           );
         check_rendered(
           "update_pat_funlet_member_rename",
@@ -716,7 +719,7 @@ let rename_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = a in let c = a + b in c + a",
-            Rename("a", "x"),
+            Rename("a", None, "x"),
           );
         check_rendered(
           "update_pat_multi_uses",
@@ -732,7 +735,7 @@ let rename_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = a in let c = b in c",
-            Rename("b", "m"),
+            Rename("b", None, "m"),
           );
         check_rendered(
           "update_pat_middle",
@@ -748,7 +751,7 @@ let rename_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = 2 in let c = a + b in c * 2",
-            Rename("c", "result"),
+            Rename("c", None, "result"),
           );
         check_rendered(
           "update_pat_last",
@@ -765,7 +768,7 @@ let rename_tests = (
           apply_chain_render(
             "let speed = 50 in speed",
             [
-              Rename("speed", "velocity"),
+              Rename("speed", None, "velocity"),
               Replace("velocity:definition", "99"),
             ],
           );
@@ -1222,7 +1225,7 @@ let nested_definition_tests = (
         let result =
           apply_and_render(
             "let a = let b = 1 in b + 1 in a",
-            Rename("a/b", "c"),
+            Rename("a/b", None, "c"),
           );
         check_rendered(
           "update_pat_nested",
@@ -1692,7 +1695,7 @@ let composition_utils_tests = (
         );
         is(
           "rename",
-          Rename("x", "y"),
+          Rename("x", None, "y"),
           parse("rename", [("target", "x"), ("to", "y")]),
         );
         check(
@@ -2390,7 +2393,7 @@ let blast_amount(i: Item): Int =
       () => {
         let code = "let a = 1 in let b = a in b";
         let z =
-          switch (run_agent_action(code, Rename("a", "x"))) {
+          switch (run_agent_action(code, Rename("a", None, "x"))) {
           | Ok(z) => z
           | Error(err) =>
             Alcotest.fail("Rename failed: " ++ Action.Failure.show(err))
@@ -3672,19 +3675,19 @@ let rename_and_path_safety_tests = (
       () => {
         expect_failure_mentioning(
           "let a = 1 in test a == 1 end; a",
-          Rename("test#1", "b"),
+          Rename("test#1", None, "b"),
           ["is a test", "only a definition, type or module"],
           "rename_test",
         );
         expect_failure_mentioning(
           "let ? = 5 in 3",
-          Rename("let#1", "x"),
+          Rename("let#1", None, "x"),
           ["binds no name"],
           "rename_binderless",
         );
         expect_failure_mentioning(
           "let a = 1 in a",
-          Rename("a", "B"),
+          Rename("a", None, "B"),
           ["is not a value's name"],
           "rename_non_name",
         );
@@ -3697,7 +3700,7 @@ let rename_and_path_safety_tests = (
         let result =
           apply_and_render(
             "let a = 1 in let b = a + 1 in b + a",
-            Rename("a", "q"),
+            Rename("a", None, "q"),
           );
         check_rendered(
           "rename_sanity",
@@ -3713,7 +3716,7 @@ let rename_and_path_safety_tests = (
       =>
         expect_failure_mentioning(
           "let x = 1 in let y = 2 in x + y",
-          Rename("x", "y"),
+          Rename("x", None, "y"),
           ["Not renamed to y", "change what they refer to"],
           "rename_to_shadowing_name",
         )
@@ -3725,7 +3728,7 @@ let rename_and_path_safety_tests = (
       =>
         expect_failure_mentioning(
           "let a = 1 in let b = 2 in a + b",
-          Rename("b", "a"),
+          Rename("b", None, "a"),
           ["Not renamed to a", "change what they refer to"],
           "rename_captures_outer_reference",
         )
@@ -3878,7 +3881,7 @@ let paste_funnel_tests = (
       check_rendered_exact(
         "update_pattern_indented",
         "let b = 1 in b",
-        apply_and_render("let a = 1 in a", Rename("a", "  b")),
+        apply_and_render("let a = 1 in a", Rename("a", None, "  b")),
       )
     }),
     test_case("replace strips then re-indents canonically", `Quick, () => {
@@ -4151,7 +4154,7 @@ let fn_sugar_tests = (
         let result =
           apply_and_render(
             "let inc(x) = x + 1 in inc(3) + inc(4)",
-            Rename("inc", "bump"),
+            Rename("inc", None, "bump"),
           );
         check_rendered(
           "fn_sugar_rename_fn",
@@ -4167,7 +4170,7 @@ let fn_sugar_tests = (
         let result =
           apply_and_render(
             "let fact(n) = if n < 2 then 1 else n * fact(n - 1) in fact(4)",
-            Rename("fact", "f"),
+            Rename("fact", None, "f"),
           );
         check_rendered(
           "fn_sugar_rename_recursive",
@@ -4545,7 +4548,7 @@ let module_member_tests = (
         let result =
           apply_and_render(
             "let m = { let x = 1; let y = x + 2 } in m",
-            Rename("m/x", "base"),
+            Rename("m/x", None, "base"),
           );
         check_rendered(
           "member_rename",
@@ -4600,7 +4603,7 @@ let module_member_tests = (
         let result =
           apply_and_render(
             "module M = { let x = 1; let y = 2 } in M.x",
-            Rename("M/x", "z"),
+            Rename("M/x", None, "z"),
           );
         check_rendered(
           "member_rename_external",
@@ -4883,7 +4886,7 @@ let mod_root_tests = (
            )
         |> StringUtil.replace(StringUtil.regexp("= a [+] 1"), _, "= aa + 1")
         |> StringUtil.replace(StringUtil.regexp("M[.]a"), _, "M.aa"),
-        apply_at_mod_root(Rename("M/a", "aa")),
+        apply_at_mod_root(Rename("M/a", None, "aa")),
       )
     ),
     test_case("rename on a top-level binding leaves M.a", `Quick, () =>
@@ -4891,7 +4894,7 @@ let mod_root_tests = (
         "mod_root_rename_top",
         mod_root_with("let a = 5;", ["let z = 5;"])
         |> StringUtil.replace(StringUtil.regexp("M[.]a [+] a"), _, "M.a + z"),
-        apply_at_mod_root(Rename("a", "z")),
+        apply_at_mod_root(Rename("a", None, "z")),
       )
     ),
   ],
@@ -4908,7 +4911,7 @@ let member_rename_tests = (
         "module Outer = { module Inner = { let y = 1 }; let w = 1 } in Outer.Inner.y",
         apply_and_render(
           "module Outer = { module Inner = { let x = 1 }; let w = 1 } in Outer.Inner.x",
-          Rename("Outer/Inner/x", "y"),
+          Rename("Outer/Inner/x", None, "y"),
         ),
       )
     ),
@@ -4918,7 +4921,7 @@ let member_rename_tests = (
         "let m = { let z = 1; let y = 2 } in m.z + m.y",
         apply_and_render(
           "let m = { let x = 1; let y = 2 } in m.x + m.y",
-          Rename("m/x", "z"),
+          Rename("m/x", None, "z"),
         ),
       )
     ),
@@ -4928,7 +4931,7 @@ let member_rename_tests = (
         "module M = { let g(n) = n + 1 } in M.g(2)",
         apply_and_render(
           "module M = { let f(n) = n + 1 } in M.f(2)",
-          Rename("M/f", "g"),
+          Rename("M/f", None, "g"),
         ),
       )
     ),
@@ -4936,7 +4939,7 @@ let member_rename_tests = (
       switch (
         run_agent_action(
           "module M = { let x = 1; let y = 2 } in M.x + M.y",
-          Rename("M/y", "x"),
+          Rename("M/y", None, "x"),
         )
       ) {
       | Error(Action.Failure.Composition_action_failure(msg)) =>

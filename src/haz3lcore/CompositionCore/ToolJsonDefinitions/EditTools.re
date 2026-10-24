@@ -83,7 +83,7 @@ let replace: API.Json.t =
     ~name="replace",
     ~description=
       {|
-Replaces the entry at `target` with `code`, or one part of it: `target:definition` (after `=`), `target:body` (a function's body, past its parameters), `target:pattern` (before `=`; to rename, use rename). A whole entry is written without its trailing `in` or `;`.|}
+Replaces the entry at `target` with `code`, or one part of it: `target:definition` (after `=`), `target:body` (a function's body, past its parameters), `target:pattern` (before `=`; to rename, use rename). A whole entry is written without its trailing `in` or `;`. Refused if a use outside the new code would then refer to another binder.|}
       ++ example("replace"),
     ~properties=
       strings([
@@ -127,13 +127,17 @@ let rename: API.Json.t =
     ~name="rename",
     ~description=
       {|
-Renames the definition, type or module at `target`, and every use of it, `M.member` uses included. Refused if a use would then refer to something else.|}
+Renames the definition, type or module at `target`, and every use of it, `M.member` uses included. With `name`, renames that variable bound in the entry's pattern instead: a function's parameter, a destructured name. Refused if a use would then refer to something else.|}
       ++ example("rename"),
     ~properties=
       strings([
         (
           "target",
           "Path of the entry; for a pattern binding several names, the name's path.",
+        ),
+        (
+          "name",
+          "Optional: a variable bound in the entry's pattern, such as a parameter, to rename instead of the entry's own name.",
         ),
         ("to", "The new name."),
       ]),

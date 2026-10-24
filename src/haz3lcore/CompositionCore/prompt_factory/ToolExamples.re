@@ -214,6 +214,14 @@ let all: list(example) = [
   ),
   on_shapes(
     ~in_tool=true,
+    "Rename a function's parameter, with name: its uses follow",
+    [
+      call("rename", [("target", "area"), ("name", "s"), ("to", "shape")]),
+    ],
+    Some(["Renamed s to shape in area, and its 1 use."]),
+  ),
+  on_shapes(
+    ~in_tool=true,
     "Open entries to read them in full",
     [
       {

@@ -487,6 +487,37 @@ type origin = {
 /* a gap of whitespace holds a linebreak */
 let has_lb = (gap: Segment.t): bool => List.exists(Piece.is_linebreak, gap);
 
+/* a let-chain head whose definition spans lines (not a module's braces):
+   whether its `in` has a line of its own */
+let in_alone_at = (t: Tile.t): option(bool) =>
+  switch (Tile.ends_with_in(t), ListUtil.last_opt(t.children)) {
+  | (true, Some(def)) when !module_def(def) =>
+    let (pre, core, suf) = Nav.trim_ws(def);
+    spans_lines(pre @ core) ? Some(has_lb(suf)) : None;
+  | _ => None
+  };
+
+/* a definition spanning lines puts its `in` on a line of its own as
+   [lv]'s others do (one of them is enough); with none, when its entries
+   each start a line */
+let in_alone = (lv: S.level): bool => {
+  let n = Array.length(lv.spans);
+  switch (
+    List.init(n, k =>
+      Option.bind(S.head(lv, k), ((_, t)) => in_alone_at(t))
+    )
+    |> List.filter_map(Fun.id)
+  ) {
+  | [] =>
+    let b = block(lv);
+    List.for_all(
+      k => starts_line(b, k + 1),
+      List.init(max(0, n - 1), k => k),
+    );
+  | ways => List.mem(true, ways)
+  };
+};
+
 /* a copy of [b]'s gap above item [k]'s place, fresh pieces */
 let gap_copy = (b: block, k: int): option(Segment.t) =>
   Option.map(
