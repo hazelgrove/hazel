@@ -1179,8 +1179,47 @@ let grout_indent_tests = [
   ),
 ];
 
+/* Enter on the last line of a block whose closer is already on the
+   line below: the new line belongs to the block. (Probes › Task - Crop
+   Plotter: Enter after `+ PlantRow(Row)` once the TODO comment under it
+   is gone landed at column 0.) */
+let block_end_enter = (~name, ~init, ~typed, ~expected) =>
+  test_case(name, `Quick, () =>
+    check(
+      string,
+      name,
+      expected,
+      string_to_ltr_actions("\n" ++ typed)
+      |> perform(parse_with_caret(init))
+      |> Zipper.unselect_and_zip
+      |> Printer.of_segment(~holes="?", ~refractors=[]),
+    )
+  );
+
+let block_end_enter_tests = [
+  block_end_enter(
+    ~name="sum type: new line above `in` gets the summand level",
+    ~init="type A =\n  + X\n  + Y¦\nin\n1",
+    ~typed="+ Z",
+    ~expected="type A =\n  + X\n  + Y\n  + Z\nin\n1",
+  ),
+  block_end_enter(
+    ~name="let definition: new line above `in` gets definition level",
+    ~init="let x =\n  1¦\nin\nx",
+    ~typed="+ 2",
+    ~expected="let x =\n  1\n  + 2\nin\nx",
+  ),
+  block_end_enter(
+    ~name="nested: new line keeps the deeper level of the line above",
+    ~init="let f =\n  fun y ->\n    y¦\nin\nf",
+    ~typed="+ 1",
+    ~expected="let f =\n  fun y ->\n    y\n    + 1\nin\nf",
+  ),
+];
+
 let tests = [
   ("Editing.Indentation", indentation_tests),
+  ("Editing.Indentation.BlockEndEnter", block_end_enter_tests),
   ("Editing.IndentationUX", indent_ux_tests),
   ("Editing.GroutIndent", grout_indent_tests),
   ("Editing.SelectiveReindent", selective_reindent_tests),
