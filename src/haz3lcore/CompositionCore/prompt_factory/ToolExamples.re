@@ -28,8 +28,32 @@ let call = (tool, args) => {
   args: List.map(((k, v)) => (k, `String(v)), args),
 };
 
-let call_line = (c: call): string =>
-  c.tool ++ " " ++ Yojson.Safe.to_string(`Assoc(c.args));
+/* a call as the prompt shows it: its other arguments inline, then its
+   code in a fence, line breaks and quotes as written: shown as a JSON
+   string, its escapes get copied into calls */
+let call_text = (c: call): string => {
+  let (code, rest) =
+    List.partition(
+      ((k, v)) =>
+        switch (v) {
+        | `String(_) => k == "code"
+        | _ => false
+        },
+      c.args,
+    );
+  let inline =
+    c.tool
+    ++ " {"
+    ++ String.concat(
+         ", ",
+         List.map(((k, v)) => k ++ ": " ++ Yojson.Safe.to_string(v), rest),
+       )
+    ++ "}";
+  switch (code) {
+  | [(_, `String(code))] => inline ++ ", code:\n```\n" ++ code ++ "\n```"
+  | _ => inline
+  };
+};
 
 let shapes = {|type Shape = + Circle(Int) + Rect(Int, Int) in
 let area(s: Shape): Int =
@@ -130,12 +154,12 @@ let all: list(example) = [
   ),
   on_shapes(
     ~in_tool=true,
-    "Replace a function's body, past its parameters",
+    "Replace a function's body: for `let f(x) = …`, its definition",
     [
       call(
         "replace",
         [
-          ("target", "area:body"),
+          ("target", "area:definition"),
           (
             "code",
             "case s\n| Circle(r) => 314 * r * r / 100\n| Rect(w, h) => w * h\nend",
@@ -143,17 +167,34 @@ let all: list(example) = [
         ],
       ),
     ],
-    Some(["Replaced area:body.\n- | Circle(r) => 3 * r * r"]),
+    Some(["Replaced area:definition.\n- | Circle(r) => 3 * r * r"]),
   ),
   on_shapes(
-    "Replace part of a definition inside a definition",
+    ~in_tool=true,
+    "Replace a function's result, past its local definitions, which stay",
     [
       call(
         "replace",
-        [("target", "perimeter/double:body"), ("code", "n + n")],
+        [
+          ("target", "perimeter/=>"),
+          (
+            "code",
+            "case s\n| Circle(r) => double(314 * r / 100)\n| Rect(w, h) => double(w + h)\nend",
+          ),
+        ],
       ),
     ],
-    Some(["Replaced perimeter/double:body."]),
+    Some(["Replaced perimeter/=>.\n- | Circle(r) => double(3 * r)"]),
+  ),
+  on_shapes(
+    "Replace a definition inside a definition",
+    [
+      call(
+        "replace",
+        [("target", "perimeter/double:definition"), ("code", "n + n")],
+      ),
+    ],
+    Some(["Replaced perimeter/double:definition."]),
   ),
   on_shapes(
     "Replace a whole entry, here to annotate a member",
@@ -182,7 +223,6 @@ let all: list(example) = [
     Some(["Replaced \"total of two\"."]),
   ),
   on_shapes(
-    ~in_tool=true,
     "Replace the program's result, `=>`",
     [
       call(
@@ -276,7 +316,7 @@ let prompt_text: string = {
     ++ (
       e.program == shapes
         ? ""
-        : "  on `"
+        : "on `"
           ++ String.concat(" ", String.split_on_char('\n', e.program))
           ++ "`\n"
     )
@@ -284,15 +324,14 @@ let prompt_text: string = {
          "",
          List.mapi(
            (i, c) =>
-             "  "
-             ++ call_line(c)
+             call_text(c)
              ++ "\n"
              ++ (
                switch (e.results) {
                | Some(rs) =>
-                 "  → "
+                 "→ "
                  ++ String.concat(
-                      "\n    ",
+                      "\n  ",
                       String.split_on_char('\n', List.nth(rs, i)),
                     )
                  ++ "\n"

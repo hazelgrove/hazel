@@ -576,28 +576,19 @@ let replace_definition_tests = (
 );
 
 /* ============================================================
-   4. PARTS — :body and the result =>
+   4. PARTS — :definition and the result =>
    ============================================================ */
 
 let body_part_tests = (
   "AgentTools.Parts",
   [
-    test_case(
-      "named function edits still reject real type errors",
-      `Quick,
-      () => {
-        expect_any_failure(
-          "let f(x: Int) = x in 0",
-          Replace("f:definition", "true + 1"),
-          "invalid function definition",
-        );
-        expect_any_failure(
-          "let f(x: Int) = x in 0",
-          Replace("f:body", "true + 1"),
-          "invalid function continuation",
-        );
-      },
-    ),
+    test_case("named function edits still reject real type errors", `Quick, () => {
+      expect_any_failure(
+        "let f(x: Int) = x in 0",
+        Replace("f:definition", "true + 1"),
+        "invalid function definition",
+      )
+    }),
     test_case(
       "named function added after an annotated constant",
       `Quick,
@@ -618,38 +609,45 @@ let body_part_tests = (
         );
       },
     ),
-    test_case(":body is a function's body, past its parameters", `Quick, () =>
+    test_case(":definition of a sugared function is its body", `Quick, () =>
       check_rendered(
-        "sugared_body",
+        "sugared_definition",
         "let f(x) = x * 2 in f(2)",
         apply_and_render(
           "let f(x) = x + 1 in f(2)",
-          Replace("f:body", "x * 2"),
+          Replace("f:definition", "x * 2"),
         ),
       )
     ),
-    test_case(":body of a fun literal is past its fun", `Quick, () =>
-      check_rendered(
-        "fun_body",
-        "let f = fun x -> x * 2 in f(2)",
-        apply_and_render(
+    test_case(
+      ":body isn't a part: the refusal names :definition and /=>", `Quick, () =>
+      switch (
+        run_agent_action(
           "let f = fun x -> x + 1 in f(2)",
           Replace("f:body", "x * 2"),
-        ),
-      )
+        )
+      ) {
+      | Error(Action.Failure.Composition_action_failure(msg)) =>
+        check(
+          string,
+          "refusal",
+          "`:body` isn't a part. Use `f:definition` (for `let f(x) = e` that is `e`), or `f/=>` for the result of a block of definitions.",
+          msg,
+        )
+      | _ => Alcotest.fail("expected a refusal")
+      }
     ),
-    test_case(":body of a value is its definition", `Quick, () =>
+    test_case(
+      "/=> replaces a definition's result, its local definitions kept",
+      `Quick,
+      () =>
       check_rendered(
-        "value_body",
-        "let a = 2 in a",
-        apply_and_render("let a = 1 in a", Replace("a:body", "2")),
-      )
-    ),
-    test_case("a test has no :body", `Quick, () =>
-      expect_composition_failure(
-        "let a = 1 in test a == 1 end; a",
-        Replace("test#1:body", "a == 2"),
-        "test_body",
+        "local_result",
+        "let f(x) = let y = x + 1 in y * 3 in f(2)",
+        apply_and_render(
+          "let f(x) = let y = x + 1 in y * 2 in f(2)",
+          Replace("f/=>", "y * 3"),
+        ),
       )
     ),
   ],
@@ -1107,13 +1105,13 @@ let delete_tests = (
       },
     ),
     test_case(
-      "replace :body with ? clears a function's body",
+      "replace :definition with ? clears a sugared function's body",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let f(x) = x + 1 in let b = 2 in f(b)",
-            Replace("f:body", "?"),
+            Replace("f:definition", "?"),
           );
         check_rendered(
           "clear_body",
@@ -1299,10 +1297,10 @@ let invalid_path_tests = (
         "nonexistent_path_def",
       )
     }),
-    test_case("replace :body with nonexistent path fails", `Quick, () => {
+    test_case("replace :pattern with nonexistent path fails", `Quick, () => {
       expect_any_failure(
         "let a = 1 in a",
-        Replace("nonexistent:body", "2"),
+        Replace("nonexistent:pattern", "2"),
         "nonexistent_path_body",
       )
     }),
@@ -1334,7 +1332,7 @@ let invalid_path_tests = (
         let long_path = String.concat("/", List.init(40, _ => "a"));
         expect_any_failure(
           "let a = 1 in a",
-          Replace(long_path ++ ":body", "2"),
+          Replace(long_path ++ ":definition", "2"),
           "long_repeated_path_segments",
         );
       },
@@ -2182,15 +2180,15 @@ let sequential_operations_tests = (
       },
     ),
     test_case(
-      "replace :body introduces nested recursive helper (regression: agent bug 1 / tools)",
+      "replace :definition introduces nested recursive helper (regression: agent bug 1 / tools)",
       `Quick,
       () => {
         let result =
           apply_and_render(
             "let f = fun x -> x in f(3)",
             Replace(
-              "f:body",
-              "let g = fun y -> if y == 0 then 0 else 1 + g(y - 1) in g(3)",
+              "f:definition",
+              "fun x -> let g = fun y -> if y == 0 then 0 else 1 + g(y - 1) in g(3)",
             ),
           );
         check(
@@ -4606,7 +4604,7 @@ let module_member_tests = (
       },
     ),
     test_case(
-      "replace :body on a member: past its fun heads",
+      "replace :definition on a member",
       `Quick,
       () => {
         check_rendered(
@@ -4614,7 +4612,7 @@ let module_member_tests = (
           "let m = { let x = 3; let y = 2 } in m",
           apply_and_render(
             "let m = { let x = 1; let y = 2 } in m",
-            Replace("m/x:body", "3"),
+            Replace("m/x:definition", "3"),
           ),
         );
         check_rendered(
@@ -4622,7 +4620,7 @@ let module_member_tests = (
           "let m = { let f = fun n -> n * 2; let y = 2 } in m",
           apply_and_render(
             "let m = { let f = fun n -> n + 1; let y = 2 } in m",
-            Replace("m/f:body", "n * 2"),
+            Replace("m/f:definition", "fun n -> n * 2"),
           ),
         );
       },
@@ -4796,11 +4794,11 @@ let mod_root_tests = (
         apply_at_mod_root(Replace("M/c", "let c : T = 7")),
       )
     ),
-    test_case("replace :body on a top-level binding", `Quick, () =>
+    test_case("replace :definition on a top-level binding", `Quick, () =>
       check_rendered(
         "mod_root_body",
         mod_root_with("let a = 5;", ["let a = 1;"]),
-        apply_at_mod_root(Replace("a:body", "1")),
+        apply_at_mod_root(Replace("a:definition", "1")),
       )
     ),
     test_case(

@@ -128,14 +128,37 @@ let handle_llm_response =
             model_after_tools,
             tool_msgs,
           );
-        (
-          AgentSend.defer_follow_up_llm(
-            model_with_tool_msgs,
+        let chat =
+          ChatSystem.Utils.find_chat(
             chat_id,
-            schedule_action,
-          ),
-          cell_editor_updated,
-        );
+            model_with_tool_msgs.chat_system,
+          );
+        /* the same refused reply again and again: end the turn */
+        AgentToolExec.Repeats.in_a_row(chat) >= AgentToolExec.Repeats.limit
+          ? (
+            {
+              ...
+                Utils.append_message(
+                  ~chat_id,
+                  Message.Utils.mk_agent_message(
+                    AgentToolExec.Repeats.stopped(chat),
+                    None,
+                  ),
+                  model_with_tool_msgs,
+                ),
+              awaiting_response: None,
+              last_active_task_nudge_attempt: None,
+            },
+            cell_editor_updated,
+          )
+          : (
+            AgentSend.defer_follow_up_llm(
+              model_with_tool_msgs,
+              chat_id,
+              schedule_action,
+            ),
+            cell_editor_updated,
+          );
       };
     };
   };

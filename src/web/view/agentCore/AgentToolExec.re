@@ -256,8 +256,8 @@ module Tests = {
       r.statuses,
     );
 
-  /* the tests whose status changed, by path; a test is matched by id,
-     else by path */
+  /* the tests whose status changed, by path, then the failing ones,
+     newly failing first; a test is matched by id, else by path */
   let changed =
       (
         ~root,
@@ -269,8 +269,8 @@ module Tests = {
       : string => {
     let was =
       Option.fold(~none=[], ~some=by_path(~root, before_program), before);
-    let lines =
-      List.filter_map(
+    let now =
+      List.map(
         ((id, path, s)) => {
           let prev =
             switch (List.find_opt(((id', _, _)) => id' == id, was)) {
@@ -281,15 +281,39 @@ module Tests = {
                 List.find_opt(((_, p, _)) => p == path, was),
               )
             };
+          (path, prev, s);
+        },
+        by_path(~root, after_program, after),
+      );
+    let lines =
+      List.filter_map(
+        ((path, prev, s)) =>
           switch (prev) {
           | Some(s') when s' == s => None
           | Some(s') =>
             Some(path ++ " " ++ status(s') ++ " → " ++ status(s))
           | None => Some(path ++ " new, " ++ status(s))
-          };
-        },
-        by_path(~root, after_program, after),
+          },
+        now,
       );
+    let (newly, still) =
+      List.filter(((_, _, s)) => s == Language.TestStatus.Fail, now)
+      |> List.partition(((_, prev, _)) =>
+           prev != Some(Language.TestStatus.Fail)
+         );
+    let failing =
+      List.map(((path, _, _)) => path ++ " (newly)", newly)
+      @ List.map(((path, _, _)) => path, still);
+    let failing =
+      switch (failing) {
+      | [] => ""
+      | names =>
+        let n = List.length(names);
+        " Failing: "
+        ++ String.concat(", ", ListUtil.take(5, names))
+        ++ (n > 5 ? ", and " ++ string_of_int(n - 5) ++ " more" : "")
+        ++ ".";
+      };
     switch (lines, after.total) {
     | (_, 0) => "Tests: none."
     | ([], n) =>
@@ -298,7 +322,9 @@ module Tests = {
       ++ " of "
       ++ string_of_int(n)
       ++ " passing)."
-    | (lines, _) => "Tests changed: " ++ String.concat("; ", lines) ++ "."
+      ++ failing
+    | (lines, _) =>
+      "Tests changed: " ++ String.concat("; ", lines) ++ "." ++ failing
     };
   };
 
@@ -347,6 +373,99 @@ module Tests = {
       };
     | _ => chat_system
     };
+};
+
+/* A refused reply is rolled back and the history keeps it, so a model
+   can send it again and again: say so when it does, and end the turn
+   after [limit] in a row */
+module Repeats = {
+  let notice = "Same calls as your last reply, which was refused the same way; change the approach. ";
+  let limit = 5;
+
+  let failed = (tr: AgentToolResult.tool_result) =>
+    !tr.success && !tr.skipped;
+
+  let without_notice = (content: string): string =>
+    String.starts_with(~prefix=notice, content)
+      ? String.sub(
+          content,
+          String.length(notice),
+          String.length(content) - String.length(notice),
+        )
+      : content;
+
+  /* a reply by its results: its calls, and its refusal if it was */
+  let reply =
+      (trs: list(AgentToolResult.tool_result))
+      : (list((string, API.Json.t)), option(string)) => (
+    List.map(
+      (tr: AgentToolResult.tool_result) =>
+        (tr.tool_call.name, tr.tool_call.args),
+      trs,
+    ),
+    List.exists(failed, trs)
+      ? Some(
+          List.filter(failed, trs)
+          |> List.map((tr: AgentToolResult.tool_result) =>
+               without_notice(tr.content)
+             )
+          |> String.concat("\n"),
+        )
+      : None,
+  );
+
+  /* the chat's replies since the user's last message, latest first */
+  let replies = (chat: Chat.Model.t) => {
+    let close = (run, acc) =>
+      run == [] ? acc : [reply(List.rev(run)), ...acc];
+    let (run, acc) =
+      List.fold_left(
+        ((run, acc), m: Message.Model.t) =>
+          switch (m.role) {
+          | ToolResult(tr) => ([tr, ...run], acc)
+          | User => ([], [])
+          | _ => ([], close(run, acc))
+          },
+        ([], []),
+        Chat.Utils.linearize(chat),
+      );
+    close(run, acc);
+  };
+
+  /* a refused reply with the same calls and refusal as the chat's last */
+  let again = (chat: Chat.Model.t, trs: list(AgentToolResult.tool_result)) =>
+    switch (reply(trs), replies(chat)) {
+    | ((calls, Some(r)), [(calls', Some(r')), ..._]) =>
+      calls == calls' && r == r'
+    | _ => false
+    };
+
+  /* how many of the chat's latest replies are the same refused one */
+  let in_a_row = (chat: Chat.Model.t): int =>
+    switch (replies(chat)) {
+    | [(_, Some(_)) as last, ...rest] =>
+      let rec count = rs =>
+        switch (rs) {
+        | [r, ...rs] when r == last => 1 + count(rs)
+        | _ => 0
+        };
+      1 + count(rest);
+    | _ => 0
+    };
+
+  /* the user's note when the turn ends on it */
+  let stopped = (chat: Chat.Model.t): string =>
+    "(Stopped: the agent sent the same calls "
+    ++ string_of_int(limit)
+    ++ " times in a row, refused each time"
+    ++ (
+      switch (replies(chat)) {
+      | [(_, Some(r)), ..._] =>
+        ": " ++ List.hd(String.split_on_char('\n', r))
+      | _ => "."
+      }
+    )
+    ++ " Send a message to continue.)";
 };
 
 /* a tool whose change is the editor's: a reply's rollback undoes it */
@@ -623,6 +742,36 @@ module Reply = {
           },
         slots,
       );
+    /* the same refusal as the last reply's: say so on the failed call */
+    let messages =
+      switch (failure) {
+      | Some((f, _))
+          when
+            Repeats.again(
+              ChatSystem.Utils.find_chat(chat_id, model.chat_system),
+              List.filter_map(
+                (msg: Message.Model.t) =>
+                  switch (msg.role) {
+                  | ToolResult(tr) => Some(tr)
+                  | _ => None
+                  },
+                messages,
+              ),
+            ) =>
+        List.mapi(
+          (i, msg: Message.Model.t) =>
+            switch (msg.role) {
+            | ToolResult(tr) when i == f =>
+              Message.Utils.mk_tool_result_message({
+                ...tr,
+                content: Repeats.notice ++ tr.content,
+              })
+            | _ => msg
+            },
+          messages,
+        )
+      | _ => messages
+      };
     let model =
       List.fold_left(
         (model, i) =>

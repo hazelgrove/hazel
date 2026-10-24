@@ -32,17 +32,18 @@ let tool_results = (agent: Agent.Model.t): list(AgentToolResult.tool_result) =>
      );
 
 /* [replies] in turn on [code], one assistant reply each: the program
-   after each, and each reply's tool results in order */
-let replies =
+   after each and each reply's tool results in order, and the agent after
+   them all */
+let run =
     (
       ~settings=Settings.Model.init,
       code: string,
       replies: list(list(OpenRouter.Reply.Model.tool_call)),
     )
-    : list((string, list(AgentToolResult.tool_result))) => {
+    : (list((string, list(AgentToolResult.tool_result))), Agent.Model.t) => {
   let rec go = (agent: Agent.Model.t, ce: CellEditor.Model.t, replies) =>
     switch (replies) {
-    | [] => []
+    | [] => ([], agent)
     | [calls, ...rest] =>
       let before = List.length(tool_results(agent));
       let (agent', ce') =
@@ -64,13 +65,17 @@ let replies =
           _ =>
           ()
         );
-      [
-        (
-          text(ce'.model.editor.editor.state.zipper),
-          ListUtil.remove_first_n(before, tool_results(agent')),
-        ),
-        ...go(agent', ce'.model, rest),
-      ];
+      let (later, last) = go(agent', ce'.model, rest);
+      (
+        [
+          (
+            text(ce'.model.editor.editor.state.zipper),
+            ListUtil.remove_first_n(before, tool_results(agent')),
+          ),
+          ...later,
+        ],
+        last,
+      );
     };
   go(
     Agent.Utils.init(),
@@ -78,6 +83,9 @@ let replies =
     replies,
   );
 };
+
+let replies = (~settings=?, code, replies) =>
+  fst(run(~settings?, code, replies));
 
 /* [calls] as one assistant reply on [code]: the program after, and the
    tool results in order */
@@ -631,7 +639,7 @@ let rebinding = [
           "let x = 1 in let f(x) = x + 1 in f(x)",
           [
             ("replace", [("target", "f:pattern"), ("code", "f(z)")]),
-            ("replace", [("target", "f:body"), ("code", "z + 1")]),
+            ("replace", [("target", "f:definition"), ("code", "z + 1")]),
           ],
         );
       same_text("program", "let x = 1 in let f(z) = z + 1 in f(x)", program);
@@ -903,6 +911,221 @@ let test_results = [
   ),
 ];
 
+/* what a refused or mistaken call is told */
+let feedback = [
+  test_case(
+    "code with `\\n` written as two characters is refused, saying so",
+    `Quick,
+    () => {
+      let (_, results) =
+        reply(
+          "let a = 1 in a",
+          [
+            (
+              "insert",
+              [("after", "a"), ("code", "let b = 2 in\\nlet c = 3")],
+            ),
+          ],
+        );
+      mentions(
+        "result",
+        "`code` contains `\\n` as two characters; write real line breaks (and plain quotes).",
+        List.hd(results).content,
+      );
+      check(
+        list(bool),
+        "escapes outside strings only",
+        [true, true, false, false],
+        List.map(
+          CompositionGo.escaped,
+          [
+            "let b = 2 in\\nb",
+            "hint \\\"x\\\" test true end",
+            "let s = \"a\\nb\" in s",
+            "let s = \"a\\\"b\" in s",
+          ],
+        ),
+      );
+    },
+  ),
+  test_case(
+    "a whole-entry replace keeps the comment above it",
+    `Quick,
+    () => {
+      let code = "module W = {\n  # two digits #\n  let pad(n: Int): Int = n;\n  let z = 1\n} in\nW.pad(1)";
+      let (program, results) =
+        reply(
+          code,
+          [
+            (
+              "replace",
+              [
+                ("target", "W/pad"),
+                ("code", "let pad(n: Int): Int = n + 1"),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "program",
+        "  # two digits #\n  let pad(n: Int): Int = n + 1;",
+        program,
+      );
+      mentions(
+        "result",
+        "Replaced W/pad, kept the comment above it.",
+        List.hd(results).content,
+      );
+      let (program, _) =
+        reply(
+          code,
+          [
+            (
+              "replace",
+              [
+                ("target", "W/pad"),
+                ("code", "# pads #\nlet pad(n: Int): Int = n + 1"),
+              ],
+            ),
+          ],
+        );
+      check(
+        bool,
+        "the old comment replaced",
+        false,
+        has("two digits", program),
+      );
+      mentions(
+        "program",
+        "  # pads #\n  let pad(n: Int): Int = n + 1;",
+        program,
+      );
+    },
+  ),
+  test_case(
+    "the same refused reply again is told so; five in a row end the turn",
+    `Quick,
+    () => {
+      let bad = [
+        call(0, "insert", [("after", "a"), ("code", "let b = in")]),
+      ];
+      let other = [
+        call(0, "insert", [("after", "a"), ("code", "let b = 1 +")]),
+      ];
+      let first = ((_, trs)) =>
+        (List.hd(trs): AgentToolResult.tool_result).content;
+      let last_agent = (agent: Agent.Model.t) =>
+        Chat.Utils.linearize(
+          ChatSystem.Utils.find_chat(
+            agent.chat_system.current,
+            agent.chat_system,
+          ),
+        )
+        |> List.filter_map((m: Message.Model.t) =>
+             switch (m.role) {
+             | Agent(_) => Some(m.content)
+             | _ => None
+             }
+           )
+        |> ListUtil.last_opt;
+      let notice = AgentToolExec.Repeats.notice;
+      let (rs, agent) = run("let a = 1 in a", [bad, bad, other, bad, bad]);
+      check(
+        list(bool),
+        "noticed: only the same as the last",
+        [false, true, false, false, true],
+        List.map(r => String.starts_with(~prefix=notice, first(r)), rs),
+      );
+      check(
+        bool,
+        "not stopped",
+        false,
+        Option.fold(~none=false, ~some=has("Stopped"), last_agent(agent)),
+      );
+      let (_, agent) =
+        run(
+          "let a = 1 in a",
+          List.init(AgentToolExec.Repeats.limit, _ => bad),
+        );
+      mentions(
+        "the note to the user",
+        "Stopped: the agent sent the same calls 5 times in a row",
+        Option.value(last_agent(agent), ~default=""),
+      );
+      check(bool, "turn ended", true, agent.awaiting_response == None);
+    },
+  ),
+  test_case(
+    "the tests' line names the failing tests, newly failing first",
+    `Quick,
+    () => {
+      let agent = Agent.Utils.init();
+      let chat_id = agent.chat_system.current;
+      let ce =
+        evaluated(
+          CellEditor.Model.mk(
+            Editor.Model.mk(
+              mk_zipper(
+                "let double = fun x -> 2 * x in\ntest double(1) == 3 end;\nhint \"zero\" test double(0) == 0 end;\ndouble(5)",
+              ),
+              ~root=Exp,
+            ),
+          ),
+        );
+      let (agent', ce') =
+        Agent.Update.update(
+          Agent.Update.Action.HandleLLMResponse(
+            {
+              content: "",
+              tool_calls: [
+                call(
+                  0,
+                  "replace",
+                  [
+                    ("target", "double:definition"),
+                    ("code", "fun x -> 3 * x + 1"),
+                  ],
+                ),
+              ],
+              usage: None,
+              reasoning: None,
+            },
+            chat_id,
+            agent.main_llm_seq,
+            0,
+          ),
+          agent,
+          ce,
+          Settings.Model.init,
+          _ =>
+          ()
+        );
+      let chat_system =
+        AgentToolExec.Tests.report(
+          ~chat_id,
+          EvalResult.Model.test_results(evaluated(ce'.model).result),
+          agent'.chat_system,
+        );
+      let result =
+        Chat.Utils.linearize(
+          ChatSystem.Utils.find_chat(chat_id, chat_system),
+        )
+        |> List.filter_map((m: Message.Model.t) =>
+             switch (m.role) {
+             | ToolResult(tr) => Some(tr.content)
+             | _ => None
+             }
+           )
+        |> List.hd;
+      mentions(
+        "result",
+        "Tests changed: \"zero\" passing → failing. Failing: \"zero\" (newly), test#1.",
+        result,
+      );
+    },
+  ),
+];
+
 /* the prompt's few-shot example (Eg_RecFib, map_fib) runs as written */
 /* the system prompt's examples and the few-shot example run as written */
 let prompt_examples = [
@@ -991,6 +1214,7 @@ let tests = [
   ("AgentReply.PromptExamples", prompt_examples),
   ("AgentReply.Transactions", transactions),
   ("AgentReply.TestResults", test_results),
+  ("AgentReply.Feedback", feedback),
   ("AgentReply.DeletesAndRenames", deletes_and_renames),
   ("AgentReply.BoundRenames", bound_renames),
   ("AgentReply.Rebinding", rebinding),
