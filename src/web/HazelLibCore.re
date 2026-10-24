@@ -298,6 +298,9 @@ type program_analysis = {
   incomplete: list((string, int)),
   program_incomplete: int,
   elab: Exp.t,
+  /* the program read, and its statics, for an outline (^ticket(587)) */
+  program: ModuleProgram.t,
+  map: Statics.Map.t,
 };
 
 /* The parts the last program was read from, so a page that calls again
@@ -322,6 +325,8 @@ let analyze_program_spec = (spec: program_spec): program_analysis => {
     incomplete,
     program_incomplete,
     elab,
+    program,
+    map,
   };
 };
 
@@ -419,4 +424,231 @@ let run_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
   let a = analyze_program_spec(program_spec_of_js(spec));
   let value = to_js(evaluate(a.elab));
   js_object(program_fields(a, ~ms=now() -. t0) @ [("value", value)]);
+};
+
+/* (^ticket(587), Matthew 2026-10-23: "maybe we need to re-architect the JS
+   library to expose more of modular editors?") A program's outline, from
+   Hazel rather than from matching its text: the types its start declares,
+   and each module's types and members in order, each member with the type
+   Hazel infers for it, each type with its kind (a sum and how many cases, a
+   product and how many fields, or another type) and its text. Read from the
+   same spec as analyzeProgram:
+     outlineProgram(spec) -> { ok, types: [type], modules: [{ name, types:
+       [type], members: [{ name, kind, type }] }] }
+   a type: { name, kind ("sum" | "product" | "alias"), cases, text }; a
+   member's kind: "function", "value" or "module"; its type the inferred
+   one's text, or null where Hazel has none. */
+let rec outline_pat_name = (p: Pat.t): option(string) =>
+  switch (p.term) {
+  | Var(x) => Some(x)
+  | Parens(p)
+  | Asc(p, _) => outline_pat_name(p)
+  | _ => None
+  };
+
+let rec outline_typ_head = (t: Typ.t): Typ.t =>
+  switch (t.term) {
+  | Parens(t) => outline_typ_head(t)
+  | _ => t
+  };
+
+let rec outline_exp_head = (e: Exp.t): Exp.t =>
+  switch (e.term) {
+  | Parens(e)
+  | Asc(e, _) => outline_exp_head(e)
+  | _ => e
+  };
+
+let outline_type = (tp: TPat.t, t: Typ.t): option(Js.Unsafe.any) =>
+  switch (tp.term) {
+  | Var(name) =>
+    let (kind, cases) =
+      switch (outline_typ_head(t).term) {
+      | Sum(variants) => ("sum", List.length(variants))
+      | Prod(fields) => ("product", List.length(fields))
+      | _ => ("alias", 0)
+      };
+    Some(
+      js_object([
+        ("name", js_string(name)),
+        ("kind", js_string(kind)),
+        ("cases", int_js(cases)),
+        ("text", js_string(Typ.pretty_print(t))),
+      ]),
+    );
+  | _ => None
+  };
+
+/* A type as the program writes it: each sum or product the context names
+   folded back to its name (Hazel infers them unfolded: rec Cmd -> + Done +
+   ..., where the program says Cmd), and a function's tuple of arguments in
+   one pair of brackets */
+/* (the program's own: Hazel's built-in aliases, Option among them, would
+   fold a None + Some(?) of the program's into a bare Option) */
+let outline_builtin_types: Lazy.t(list(string)) =
+  lazy(
+    List.filter_map(
+      (entry: Ctx.entry) =>
+        switch (entry) {
+        | TVarEntry({name, _}) => Some(name)
+        | _ => None
+        },
+      ctx().entries,
+    )
+  );
+
+let outline_aliases = (ctx: Ctx.t): list((string, Typ.t)) =>
+  List.filter_map(
+    (entry: Ctx.entry) =>
+      switch (entry) {
+      | TVarEntry({name, kind: Singleton(ty), _})
+          when !List.mem(name, Lazy.force(outline_builtin_types)) =>
+        switch (outline_typ_head(ty).term) {
+        | Sum(_)
+        | Prod(_)
+        | Rec(_) => Some((name, ty))
+        | _ => None
+        }
+      | _ => None
+      },
+    ctx.entries,
+  );
+
+let outline_typ_text = (ctx: Ctx.t, t: Typ.t): string => {
+  let aliases = outline_aliases(ctx);
+  let folded =
+    Typ.map_term(
+      ~f_typ=
+        (continue, t: Typ.t) =>
+          switch (List.find_opt(((_, d)) => Typ.fast_equal(t, d), aliases)) {
+          | Some((name, _)) => Typ.temp(Var(name))
+          | None =>
+            switch (t.term) {
+            /* a recursive sum, inferred: rec Cmd -> ..., bound by the
+               alias's own name */
+            | Rec({term: Var(n), _}, _)
+                when List.exists(((name, _)) => name == n, aliases) =>
+              Typ.temp(Var(n))
+            | _ => continue(t)
+            }
+          },
+      t,
+    );
+  switch (folded.term) {
+  | Arrow(a, b) =>
+    let a_text =
+      switch (outline_typ_head(a).term) {
+      | Arrow(_) => "(" ++ Typ.pretty_print(a) ++ ")"
+      | _ => Typ.pretty_print(a)
+      };
+    a_text ++ " -> " ++ Typ.pretty_print(b);
+  | _ => Typ.pretty_print(folded)
+  };
+};
+
+let outline_member =
+    (map: Statics.Map.t, ~kind: string, p: Pat.t): option(Js.Unsafe.any) =>
+  switch (outline_pat_name(p)) {
+  | Some(name) =>
+    let ty =
+      switch (Statics.Map.lookup(Pat.rep_id(p), map)) {
+      | Some(InfoPat({ty, ctx, _})) => js_string(outline_typ_text(ctx, ty))
+      | _ => Js.Unsafe.inject(Js.null)
+      };
+    Some(
+      js_object([
+        ("name", js_string(name)),
+        ("kind", js_string(kind)),
+        ("type", ty),
+      ]),
+    );
+  | None => None
+  };
+
+let outline_module = (map: Statics.Map.t, name: string, def: Exp.t) => {
+  let items =
+    switch (outline_exp_head(def).term) {
+    | Module(items) => items
+    | _ => []
+    };
+  let types =
+    List.filter_map(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModType(tp, t) => outline_type(tp, t)
+        | _ => None
+        },
+      items,
+    );
+  let members =
+    List.filter_map(
+      (item: Mod.t) =>
+        switch (item.term) {
+        | ModLet(p, e) =>
+          let kind =
+            switch (outline_exp_head(e).term) {
+            | Fun(_) => "function"
+            | _ => "value"
+            };
+          outline_member(map, ~kind, p);
+        | ModuleMod(mp, _) =>
+          switch (ModuleProgram.name_of_module_pat(mp)) {
+          | Some(n) =>
+            Some(
+              js_object([
+                ("name", js_string(n)),
+                ("kind", js_string("module")),
+                ("type", Js.Unsafe.inject(Js.null)),
+              ]),
+            )
+          | None => None
+          }
+        | _ => None
+        },
+      items,
+    );
+  js_object([
+    ("name", js_string(name)),
+    ("types", js_array(types)),
+    ("members", js_array(members)),
+  ]);
+};
+
+let outline_program = (spec: Js.Unsafe.any): Js.Unsafe.any => {
+  let t0 = now();
+  let a = analyze_program_spec(program_spec_of_js(spec));
+  /* along the program's chain of definitions: the start's types, then each
+     module, as ModuleProgram.of_term walks it */
+  let rec chain = (e: Exp.t, types, modules) =>
+    switch (e.term) {
+    | TyAlias(tp, t, rest) =>
+      chain(
+        rest,
+        switch (outline_type(tp, t)) {
+        | Some(j) => [j, ...types]
+        | None => types
+        },
+        modules,
+      )
+    | Let(_, _, rest)
+    | Theorem(_, _, rest)
+    | Use(_, rest)
+    | Filter(_, rest)
+    | Seq(_, rest) => chain(rest, types, modules)
+    | ModuleExp(mp, def, rest) =>
+      chain(
+        rest,
+        types,
+        switch (ModuleProgram.name_of_module_pat(mp)) {
+        | Some(name) => [outline_module(a.map, name, def), ...modules]
+        | None => modules
+        },
+      )
+    | _ => (List.rev(types), List.rev(modules))
+    };
+  let (types, modules) = chain(a.program.term, [], []);
+  js_object(
+    program_fields(a, ~ms=now() -. t0)
+    @ [("types", js_array(types)), ("modules", js_array(modules))],
+  );
 };

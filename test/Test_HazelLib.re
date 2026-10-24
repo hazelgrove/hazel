@@ -113,9 +113,81 @@ let error_modules = (r: Js.Unsafe.any): list(string) =>
          ? "(program)" : Js.to_string(Js.Unsafe.coerce(m));
      });
 
+/* (^ticket(587)) a field along a path of an outline's JS value, as JSON */
+let at = (o: Js.Unsafe.any, path: list(string)): string =>
+  json(List.fold_left((o, k) => Js.Unsafe.get(o, k), o, path));
+
+let outline_spec = {|{"preamble": "type Side = + L + R in type Pair = (Int, Int) in",
+  "modules": [{"name": "M", "text": "type T = + A + B(Int) + C;\nlet flip = fun s : Side -> case s | L => R | R => L end;\nlet k = 3;"}],
+  "tail": "M.k"}|};
+
 let tests = (
   "HazelLib",
   [
+    test_case(
+      "an outline from Hazel: the start's types, each module's types and members, with their types",
+      `Quick,
+      () => {
+        let o = HazelLibCore.outline_program(as_js(outline_spec));
+        check(string, "ok", "true", at(o, ["ok"]));
+        check(
+          string,
+          "the start's first type",
+          "\"Side\"",
+          at(o, ["types", "0", "name"]),
+        );
+        check(string, "a sum", "\"sum\"", at(o, ["types", "0", "kind"]));
+        check(string, "of two cases", "2", at(o, ["types", "0", "cases"]));
+        check(
+          string,
+          "a product",
+          "\"product\"",
+          at(o, ["types", "1", "kind"]),
+        );
+        check(
+          string,
+          "the module",
+          "\"M\"",
+          at(o, ["modules", "0", "name"]),
+        );
+        check(
+          string,
+          "its type",
+          "3",
+          at(o, ["modules", "0", "types", "0", "cases"]),
+        );
+        check(
+          string,
+          "its first member",
+          "\"flip\"",
+          at(o, ["modules", "0", "members", "0", "name"]),
+        );
+        check(
+          string,
+          "a function",
+          "\"function\"",
+          at(o, ["modules", "0", "members", "0", "kind"]),
+        );
+        check(
+          string,
+          "of the type Hazel infers",
+          "\"Side -> Side\"",
+          at(o, ["modules", "0", "members", "0", "type"]),
+        );
+        check(
+          string,
+          "a value",
+          "\"value\"",
+          at(o, ["modules", "0", "members", "1", "kind"]),
+        );
+        check(
+          string,
+          "an Int",
+          "\"Int\"",
+          at(o, ["modules", "0", "members", "1", "type"]),
+        );
+      },
+    ),
     is("a number", "3", "1 + 2"),
     is("a list of booleans", "[true,false]", "[true, false]"),
     is("a string", "\"ab\"", "\"a\" ++ \"b\""),

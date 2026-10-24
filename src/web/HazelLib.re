@@ -23,5 +23,9 @@ let () =
         Js.Unsafe.inject(Js.wrap_callback(analyze_program)),
       ),
       ("runProgram", Js.Unsafe.inject(Js.wrap_callback(run_program))),
+      (
+        "outlineProgram",
+        Js.Unsafe.inject(Js.wrap_callback(outline_program)),
+      ),
     |]),
   );
