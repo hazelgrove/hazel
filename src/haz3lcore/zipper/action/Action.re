@@ -120,8 +120,10 @@ module Structural = {
     | Replace(path, code)
     | Delete(path)
     | Move(path, place)
-    /* the binder the path names, and its uses */
-    | Rename(path, string);
+    /* the binder the path names, or the variable named in its entry's
+       pattern (a parameter, a destructured name), and its uses: to the
+       name given */
+    | Rename(path, option(string), string);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

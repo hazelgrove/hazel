@@ -147,6 +147,8 @@ type plan = {
   removes: list((string, Id.t, list(Id.t))),
   /* a rename's binder, its new name and its uses then */
   renames: list((Id.t, string, list(Id.t))),
+  /* a replace's binders then, each by name, and their uses outside it */
+  rebinds: option((list((string, Id.t)), list((Id.t, Id.t)))),
 };
 
 let plan = (~target=?, what, ops) => {
@@ -155,6 +157,7 @@ let plan = (~target=?, what, ops) => {
   what,
   removes: [],
   renames: [],
+  rebinds: None,
 };
 
 /* entries elsewhere named [el]: what a path missing its outer names
@@ -259,6 +262,71 @@ let uses_in = (~root, ~info_map, seg: Segment.t, binder: Id.t): list(Id.t) =>
 let uses = (p: program, binder: Id.t): list(Id.t) =>
   uses_in(~root=p.root, ~info_map=Lazy.force(p.info_map), p.seg, binder);
 
+/* what [id] names in [seg]: an entry's pieces, or a node's */
+let pieces_at = (~root, seg: Segment.t, id: Id.t): Segment.t =>
+  switch (P.find(~root, seg, id)) {
+  | Some(steps) =>
+    let (lv, k) = ListUtil.last(steps);
+    S.core(lv, k);
+  | None =>
+    switch (K.node(~root, id, seg)) {
+    | n => K.node_pieces(n)
+    | exception (K.Refused(_)) => []
+    }
+  };
+
+/* the tokens of [ps] that bind, each by its name */
+let binders_in =
+    (~info_map: Statics.Map.t, ps: Segment.t): list((string, Id.t)) => {
+  let rec go = (acc, ps: Segment.t) =>
+    List.fold_left(
+      (acc, p: Piece.t) =>
+        switch (p) {
+        | Tile(t) =>
+          let acc = List.fold_left(go, acc, t.children);
+          switch (
+            Tile.single_token(t),
+            Option.bind(Id.Map.find_opt(t.id, info_map), Info.binder_name),
+          ) {
+          | (Some(x), Some(_)) => [(x, t.id), ...acc]
+          | _ => acc
+          };
+        | _ => acc
+        },
+      acc,
+      ps,
+    );
+  List.rev(go([], ps));
+};
+
+/* the uses in [seg] of [binders], each with its binder: one pass over
+   [info_map] (Rename.references' rule, for several binders) */
+let uses_of =
+    (~root, ~info_map, seg: Segment.t, binders: list((string, Id.t)))
+    : list((Id.t, Id.t)) => {
+  let names =
+    List.fold_left(
+      (m, (x, b)) => Id.Map.add(b, x, m),
+      Id.Map.empty,
+      binders,
+    );
+  Id.Map.fold(
+    (id, info, acc) =>
+      switch (Info.binding_site(~info_map, info)) {
+      | Some(b) when b != id && Id.Map.mem(b, names) =>
+        let named =
+          switch (Info.label_name(info)) {
+          | Some(l) => Id.Map.find_opt(b, names) == Some(l)
+          | None => true
+          };
+        named && K.is_token(~root, id, seg) ? [(id, b), ...acc] : acc;
+      | _ => acc
+      },
+    info_map,
+    [],
+  );
+};
+
 /* the place a call's place names; an empty path is the top level */
 let place_at =
     (p: program, place: Action.Structural.place): result(K.place, string) =>
@@ -325,6 +393,60 @@ let binder_of =
   };
 };
 
+/* the variable [x] bound in the pattern of the entry [path] names, a
+   function definition's parameters included (`f(x)`, `fun x ->`) */
+let bound_in =
+    (p: program, path: string, f: P.found, x: string)
+    : result((string, Id.t), string) => {
+  let (lv, k) = level_of(f);
+  let pieces =
+    switch (f.kind, S.head(lv, k)) {
+    | (Def | Type | Module, Some((i, t))) =>
+      let rec heads = (ps: Segment.t) =>
+        switch (ps) {
+        | [p, ...rest] when Piece.is_secondary(p) => heads(rest)
+        | [p, ...rest] when S.is_fun_head(p) => [p, ...heads(rest)]
+        | _ => []
+        };
+      Some(
+        Nav.pat_of(t)
+        @ heads(Option.value(Nav.def_at((lv.seg, i, t)), ~default=[])),
+      );
+    | _ => None
+    };
+  switch (pieces) {
+  | None =>
+    Error(
+      "\""
+      ++ path
+      ++ "\" is a "
+      ++ kind_name(f.kind)
+      ++ ": only a definition, type or module has a pattern to rename in",
+    )
+  | Some(ps) =>
+    let binders = binders_in(~info_map=Lazy.force(p.info_map), ps);
+    switch (List.filter(((y, _)) => x == y, binders)) {
+    | [b] => Ok(b)
+    | [_, ..._] =>
+      Error("\"" ++ path ++ "\" binds " ++ x ++ " more than once")
+    | [] =>
+      Error(
+        "\""
+        ++ path
+        ++ "\" binds no "
+        ++ x
+        ++ (
+          switch (binders) {
+          | [] => ""
+          | bs =>
+            "; its pattern binds " ++ String.concat(", ", List.map(fst, bs))
+          }
+        ),
+      )
+    };
+  };
+};
+
 let plan_call = (p: program, call: call): result(plan, string) => {
   let text = code => K.Text(Unicode.nfc_outside_strings(code));
   switch (call) {
@@ -333,18 +455,31 @@ let plan_call = (p: program, call: call): result(plan, string) => {
     Ok(plan(Added, [Insert(place, text(code))]));
   | Replace(path, code) =>
     let* f = resolve(~parts=true, p, path);
+    let* id =
+      switch (f.part) {
+      | None => Ok(f.id)
+      | Some(pt) => part(p, path, f, pt)
+      };
+    let pl =
+      plan(~target=f.id, Replaced(f.part), [Replace(id, text(code))]);
+    /* a body's binders are seen only inside it */
     switch (f.part) {
-    | None =>
-      Ok(plan(~target=f.id, Replaced(None), [Replace(f.id, text(code))]))
-    | Some(pt) =>
-      let* id = part(p, path, f, pt);
-      Ok(
-        plan(
-          ~target=f.id,
-          Replaced(Some(pt)),
-          [Replace(id, text(code))],
-        ),
-      );
+    | Some(Body) => Ok(pl)
+    | None
+    | Some(Pattern | Head | Definition) =>
+      let info_map = Lazy.force(p.info_map);
+      let binders =
+        binders_in(~info_map, pieces_at(~root=p.root, p.seg, id));
+      Ok({
+        ...pl,
+        rebinds:
+          binders == []
+            ? None
+            : Some((
+                binders,
+                uses_of(~root=p.root, ~info_map, p.seg, binders),
+              )),
+      });
     };
   | Delete(path) =>
     let* f = resolve(p, path);
@@ -372,10 +507,14 @@ let plan_call = (p: program, call: call): result(plan, string) => {
     Ok(
       plan(~target=f.id, Moved(place_words(place)), [Move(f.id, dest)]),
     );
-  | Rename(path, name) =>
+  | Rename(path, bound, name) =>
     let* f = resolve(p, path);
     let (lv, k) = level_of(f);
-    let* (old, binder) = binder_of(path, f, P.entry(lv, k).binders);
+    let* (old, binder) =
+      switch (bound) {
+      | Some(x) => bound_in(p, path, f, String.trim(x))
+      | None => binder_of(path, f, P.entry(lv, k).binders)
+      };
     let name = String.trim(name);
     if (!is_name(f.kind, name)) {
       Error(
@@ -534,19 +673,11 @@ let report = (~root, m: made): string => {
 };
 
 /* the text of what [id] names in [seg]: an entry, or a node */
-let text_at = (~root, seg: Segment.t, id: Id.t): option(string) => {
-  let print = ps => String.trim(Printer.of_segment(~holes="?", ps));
-  switch (P.find(~root, seg, id)) {
-  | Some(steps) =>
-    let (lv, k) = ListUtil.last(steps);
-    Some(print(S.core(lv, k)));
-  | None =>
-    switch (K.node(~root, id, seg)) {
-    | n => Some(print(K.node_pieces(n)))
-    | exception (K.Refused(_)) => None
-    }
+let text_at = (~root, seg: Segment.t, id: Id.t): option(string) =>
+  switch (pieces_at(~root, seg, id)) {
+  | [] => None
+  | ps => Some(String.trim(Printer.of_segment(~holes="?", ps)))
   };
-};
 
 /* the call's edited region before and after it, as text */
 let diff = (~root, m: made): option((string, option(string))) =>
@@ -818,6 +949,104 @@ module Reply = {
     );
   };
 
+  /* a replace's uses outside its code that now read another binder. A use
+     of a binder it replaced may read the new code's binder of that name,
+     or none (the error check's); any other use, none of the new code's */
+  let rebinding = (r: t, final: CachedStatics.t): option(failure) => {
+    let seg = program(r);
+    let start_map = Lazy.force(r.start_statics).info_map;
+    let binder = (info_map, id) =>
+      Option.bind(
+        Id.Map.find_opt(id, info_map),
+        Info.binding_site(~info_map),
+      );
+    List.find_map(
+      (m: made) =>
+        switch (m.plan.rebinds) {
+        | None => None
+        | Some((old, refs)) =>
+          /* the new code's binders, named as it wrote them */
+          let made =
+            List.concat_map(
+              (s: K.step) => List.map(snd, s.replaced),
+              m.change.steps,
+            )
+            |> List.concat_map(id =>
+                 binders_in(
+                   ~info_map=final.info_map,
+                   pieces_at(~root=r.root, m.change.program, id),
+                 )
+               );
+          let name_of = (bs, b) =>
+            Option.map(fst, List.find_opt(((_, b')) => b' == b, bs));
+          let moved = ((ref, was)) =>
+            switch (binder(final.info_map, ref)) {
+            | Some(now)
+                when
+                  now != was
+                  && K.is_token(~root=r.root, ref, seg)
+                  && (
+                    switch (name_of(made, now)) {
+                    | Some(x) => Some(x) != name_of(old, was)
+                    | None => true
+                    }
+                  ) =>
+              Some((ref, was, now))
+            | _ => None
+            };
+          let lost = List.filter_map(moved, refs);
+          let taken =
+            made == []
+              ? []
+              : uses_of(~root=r.root, ~info_map=final.info_map, seg, made)
+                |> List.filter_map(((ref, now)) =>
+                     switch (binder(start_map, ref)) {
+                     | Some(was) when !List.mem_assoc(ref, refs) =>
+                       Some((ref, was, now))
+                     | _ => None
+                     }
+                   );
+          let at = (seg', id) =>
+            Option.value(
+              where_is(~root=r.root, seg', id),
+              ~default="the top level",
+            );
+          let before = id =>
+            switch (where_is(~root=r.root, m.before, id)) {
+            | Some(p) => p
+            | None => at(r.start, id)
+            };
+          switch (lost @ taken) {
+          | [] => None
+          | found =>
+            Some({
+              index: m.index,
+              message:
+                "Not replaced: uses outside it would change what they refer to. To rename a binder with its uses, use rename (with name for a parameter):"
+                ++ lines(
+                     List.map(
+                       ((ref, was, now)) =>
+                         Option.value(
+                           text_at(~root=r.root, seg, ref),
+                           ~default="a use",
+                         )
+                         ++ " at "
+                         ++ at(seg, ref)
+                         ++ ": bound at "
+                         ++ before(was)
+                         ++ " before, at "
+                         ++ at(seg, now)
+                         ++ " after",
+                       found,
+                     ),
+                   ),
+            })
+          };
+        },
+      made(r),
+    );
+  };
+
   /* an error's kind: its marks', by rank */
   let error_kind = (info_map, id: Id.t): string =>
     switch (Id.Map.find_opt(id, info_map)) {
@@ -903,7 +1132,9 @@ module Reply = {
         switch (r.checks.dangling_uses ? dangling(r, final) : None) {
         | Some(f) => Error(f)
         | None =>
-          switch (capture(r, final)) {
+          switch (
+            List.find_map(check => check(r, final), [capture, rebinding])
+          ) {
           | Some(f) => Error(f)
           | None when r.checks.no_new_errors && fresh != [] =>
             Error({

@@ -161,7 +161,11 @@ let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
               EditorAction(Move(get_string(args, "target"), place()))
             | "rename" =>
               EditorAction(
-                Rename(get_string(args, "target"), get_string(args, "to")),
+                Rename(
+                  get_string(args, "target"),
+                  Option.map(String.trim, get_optional_string(args, "name")),
+                  get_string(args, "to"),
+                ),
               )
             | "create_new_task" =>
               WorkbenchAction(

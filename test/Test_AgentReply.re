@@ -129,6 +129,33 @@ let geo = "let area = fun s -> s * s in\nlet total = fun xs -> 0 in\nmodule Geo 
 
 let transactions = [
   test_case(
+    "a definition spanning lines lands with its `in` laid out as its neighbours'",
+    `Quick,
+    () => {
+      let (program, _) =
+        reply(
+          ToolExamples.shapes,
+          [
+            (
+              "insert",
+              [
+                ("after", "area"),
+                (
+                  "code",
+                  "let is_round(s: Shape): Bool =\n  case s\n  | Circle(_) => true\n  | Rect(_, _) => false\n  end",
+                ),
+              ],
+            ),
+          ],
+        );
+      mentions(
+        "program",
+        "  | Rect(_, _) => false\n  end\nin\ntest area",
+        program,
+      );
+    },
+  ),
+  test_case(
     "a later call edits what an earlier one made",
     `Quick,
     () => {
@@ -412,7 +439,7 @@ let deletes_and_renames = [
           ~root=Exp,
           ~statics=CachedStatics.empty,
           z,
-          Rename("total", "sum"),
+          Rename("total", None, "sum"),
         )
       ) {
       | Ok(z') =>
@@ -449,6 +476,165 @@ let deletes_and_renames = [
           [("rename", [("target", "M/x"), ("to", "y")])],
         );
       same_text("program", "module M = { let y = 1 } in M.y + M.y", program);
+    },
+  ),
+];
+
+/* a reply of one call on [code]: the program after and its result */
+let one = (code, tool, args) => {
+  let (program, results) = reply(code, [(tool, args)]);
+  (program, List.hd(results));
+};
+
+let bound_renames = [
+  test_case(
+    "a parameter renames with its uses",
+    `Quick,
+    () => {
+      let (program, r) =
+        one(
+          "let f(x) = x + 1 in f(2)",
+          "rename",
+          [("target", "f"), ("name", "x"), ("to", "z")],
+        );
+      same_text("program", "let f(z) = z + 1 in f(2)", program);
+      mentions("result", "Renamed x to z in f, and its 1 use.", r.content);
+    },
+  ),
+  test_case(
+    "a destructured name, and a `fun` head's parameter",
+    `Quick,
+    () => {
+      let (program, _) =
+        one(
+          "let (a, b) = (1, 2) in a + b",
+          "rename",
+          [("target", "a"), ("name", "b"), ("to", "c")],
+        );
+      same_text("destructured", "let (a, c) = (1, 2) in a + c", program);
+      let (program, _) =
+        one(
+          "let g = fun y -> y * 2 in g(1)",
+          "rename",
+          [("target", "g"), ("name", "y"), ("to", "w")],
+        );
+      same_text("fun head", "let g = fun w -> w * 2 in g(1)", program);
+    },
+  ),
+  test_case(
+    "a name the pattern doesn't bind is refused",
+    `Quick,
+    () => {
+      let code = "let f(x) = let q = x in q in f(1)";
+      let (program, r) =
+        one(
+          code,
+          "rename",
+          [("target", "f"), ("name", "q"), ("to", "z")],
+        );
+      same_text("program unchanged", code, program);
+      check(bool, "refused", false, r.success);
+      mentions(
+        "result",
+        "\"f\" binds no q; its pattern binds f, x",
+        r.content,
+      );
+    },
+  ),
+  test_case(
+    "a parameter's rename that would capture is refused",
+    `Quick,
+    () => {
+      let code = "let y = 1 in let f(x) = x + y in f(y)";
+      let (program, r) =
+        one(
+          code,
+          "rename",
+          [("target", "f"), ("name", "x"), ("to", "y")],
+        );
+      same_text("program unchanged", code, program);
+      mentions("result", "Not renamed to y", r.content);
+    },
+  ),
+];
+
+let rebinding = [
+  test_case(
+    "a pattern replaced so a use reads an outer binder is refused",
+    `Quick,
+    () => {
+      let code = "let x = 1 in let f(x) = x + 1 in f(x)";
+      let (program, r) =
+        one(code, "replace", [("target", "f:pattern"), ("code", "f(z)")]);
+      same_text("program unchanged", code, program);
+      check(bool, "refused", false, r.success);
+      mentions("result", "x at f: bound at f before, at x after", r.content);
+    },
+  ),
+  test_case(
+    "a pattern replaced so its new binder takes a use is refused",
+    `Quick,
+    () => {
+      let code = "let x = 1 in let f(y) = x + 1 in f(x)";
+      let (program, r) =
+        one(code, "replace", [("target", "f:pattern"), ("code", "f(x)")]);
+      same_text("program unchanged", code, program);
+      mentions("result", "x at f: bound at x before, at f after", r.content);
+    },
+  ),
+  test_case(
+    "a whole entry replaced so a use reads an outer binder is refused",
+    `Quick,
+    () => {
+      let code = "let x = 0 in let x = 1 in x";
+      let (program, r) =
+        one(code, "replace", [("target", "x#2"), ("code", "let y = 1")]);
+      same_text("program unchanged", code, program);
+      mentions("result", "uses outside it would change", r.content);
+    },
+  ),
+  test_case(
+    "shadowing that changes no use is fine",
+    `Quick,
+    () => {
+      let (program, r) =
+        one(
+          "let x = 1 in let f(y) = y + 1 in f(x)",
+          "replace",
+          [("target", "f"), ("code", "let f(x) = x + 1")],
+        );
+      check(bool, "applied: " ++ r.content, true, r.success);
+      same_text("program", "let x = 1 in let f(x) = x + 1 in f(x)", program);
+      let (program, r) =
+        one(
+          "let f(x) = x + 1 in f(2)",
+          "replace",
+          [("target", "f:pattern"), ("code", "f(x: Int)")],
+        );
+      check(bool, "annotated: " ++ r.content, true, r.success);
+      let (_, r) =
+        one(
+          "let f(y) = x + 1 in f(2)",
+          "replace",
+          [("target", "f:pattern"), ("code", "f(x)")],
+        );
+      check(bool, "an unbound use bound: " ++ r.content, true, r.success);
+      same_text("annotated", "let f(x: Int) = x + 1 in f(2)", program);
+    },
+  ),
+  test_case(
+    "a use replaced in the same reply is the new code's",
+    `Quick,
+    () => {
+      let (program, _) =
+        reply(
+          "let x = 1 in let f(x) = x + 1 in f(x)",
+          [
+            ("replace", [("target", "f:pattern"), ("code", "f(z)")]),
+            ("replace", [("target", "f:body"), ("code", "z + 1")]),
+          ],
+        );
+      same_text("program", "let x = 1 in let f(z) = z + 1 in f(x)", program);
     },
   ),
 ];
@@ -795,6 +981,8 @@ let tests = [
   ("AgentReply.Transactions", transactions),
   ("AgentReply.TestResults", test_results),
   ("AgentReply.DeletesAndRenames", deletes_and_renames),
+  ("AgentReply.BoundRenames", bound_renames),
+  ("AgentReply.Rebinding", rebinding),
   ("AgentReply.TestsByHint", tests_by_hint),
   ("AgentReply.Move", moves),
 ];
