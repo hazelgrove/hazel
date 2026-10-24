@@ -304,7 +304,7 @@ let arrows_redraw = () => {
         "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)",
       ),
     );
-  let view = arrows =>
+  let view = (~statics=statics, arrows) =>
     Web.OutlineControl.view(
       ~arrows,
       ~deck=None,
@@ -324,7 +324,131 @@ let arrows_redraw = () => {
     true,
     view(false) === off,
   );
+  /* a frame's statics are a new record over the same analysis */
+  check(
+    bool,
+    "the same analysis reuses it",
+    true,
+    view(
+      ~statics={
+        ...statics,
+        warning_ids: [],
+      },
+      false,
+    )
+    === off,
+  );
   check(bool, "arrows on: a new outline", false, view(true) === off);
+};
+
+/* the outline is kept across a caret move, which re-zips the tiles
+   above the caret as new objects, and an edit keeps the entries below
+   the definitions it didn't touch */
+let outline_kept = () => {
+  let seg =
+    CorpusUtil.seg_of(
+      "let a = 1 in\nlet b = fun x ->\n  let y = x in\n  y\nin\nb(a)",
+    );
+  let o = Outline.of_program(~root=Exp, seg);
+  let rezip =
+    List.map(
+      fun
+      | Piece.Tile(t) =>
+        Piece.Tile({
+          ...t,
+          children: List.map(List.map(Fun.id), t.children),
+        })
+      | p => p,
+      seg,
+    );
+  check(bool, "re-zipped: new objects", false, Segment.ptr_eq(rezip, seg));
+  check(
+    bool,
+    "re-zipped: the same outline",
+    true,
+    Outline.of_program(~root=Exp, rezip) === o,
+  );
+  /* [a]'s definition gets a new token */
+  let fresh =
+    fun
+    | Piece.Tile(t) =>
+      Piece.Tile({
+        ...t,
+        id: Id.mk(),
+      })
+    | p => p;
+  let edited =
+    switch (seg) {
+    | [Tile({children: [pat, def], _} as t), ...rest] => [
+        Piece.Tile({
+          ...t,
+          children: [pat, List.map(fresh, def)],
+        }),
+        ...rest,
+      ]
+    | _ => fail("expected `let a` first")
+    };
+  let o' = Outline.of_program(~root=Exp, edited);
+  check(bool, "edited: a new outline", false, o' === o);
+  let b = (o: Outline.t) => List.nth(o.entries, 1);
+  check(bool, "b has a body", true, b(o).children != []);
+  check(
+    bool,
+    "edited: b's body entries are the same objects",
+    true,
+    b(o').children === b(o).children,
+  );
+};
+
+/* entries kept across an edit have the paths a fresh build gives:
+   removing the second `M` drops the first one's `#1` below it */
+let kept_paths = () => {
+  let seg =
+    CorpusUtil.seg_of(
+      "module M = {\n  module X = {\n    let y = 1\n  };\n  let w = 2\n} in\nmodule M = {\n  module X = {\n    let z = 1\n  }\n} in\n1",
+    );
+  let rec copy = (seg: Segment.t): Segment.t =>
+    List.map(
+      fun
+      | Piece.Tile(t) =>
+        Piece.Tile({
+          ...t,
+          children: List.map(copy, t.children),
+        })
+      | p => p,
+      seg,
+    );
+  let paths = (seg: Segment.t) =>
+    List.map(
+      (e: Outline.entry) => Outline.path_string(e),
+      Outline.all(Outline.of_program(~root=Exp, seg)),
+    );
+  let without_second =
+    switch (seg) {
+    | [m1, ...rest] =>
+      let rec drop = (ps: Segment.t) =>
+        switch (ps) {
+        | [Piece.Tile(t), ...rest] when Tile.token(t, 0) == "module" => rest
+        | [_, ...rest] => drop(rest)
+        | [] => []
+        };
+      [m1, ...drop(rest)];
+    | [] => fail("empty")
+    };
+  ignore(paths(seg));
+  check(
+    list(string),
+    "the second M removed",
+    paths(copy(without_second)),
+    paths(without_second),
+  );
+  check(
+    bool,
+    "M/X loses its #1",
+    true,
+    List.mem("M/X", paths(without_second)),
+  );
+  check(list(string), "and back", paths(copy(seg)), paths(seg));
 };
 
 /* where a saved name leaves text mode's caret: where the keys put it
@@ -1173,6 +1297,16 @@ let tests = [
       test_case("a run's tally", `Quick, tallies),
       test_case("a hinted test joins its run", `Quick, hinted_run),
       test_case("the caret's mark in a folded run", `Quick, mark_in_runs),
+      test_case(
+        "a caret move keeps the outline, an edit its untouched entries",
+        `Quick,
+        outline_kept,
+      ),
+      test_case(
+        "kept entries have a fresh build's paths",
+        `Quick,
+        kept_paths,
+      ),
     ],
   ),
 ];

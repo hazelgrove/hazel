@@ -367,13 +367,15 @@ let cache: Swept.t(key, (S.level, index)) = Swept.mk();
 /* indexes built, cumulative: observability for tests */
 let built = ref(0);
 
+let key_of = (lv: S.level): key => (
+  lv.ends,
+  lv.sort,
+  lv.owner,
+  Array.length(lv.pieces) > 0 ? Piece.id(lv.pieces[0]) : Id.invalid,
+);
+
 let index = (lv: S.level): index => {
-  let key = (
-    lv.ends,
-    lv.sort,
-    lv.owner,
-    Array.length(lv.pieces) > 0 ? Piece.id(lv.pieces[0]) : Id.invalid,
-  );
+  let key = key_of(lv);
   switch (Swept.find_opt(cache, key)) {
   | Some((lv', ix)) when lv' === lv => ix
   | _ =>
@@ -429,6 +431,17 @@ let explicit = (ix: index, k: int): elem => {
   | (kind, _, _) => Nth(kind, place(k, Array.to_list(kinds_of(ix, kind))))
   };
 };
+
+/* span [k] is the only entry of its level its element picks: no `#k` */
+let unshared = (lv: S.level, k: int): bool =>
+  switch (explicit(index(lv), k)) {
+  | Name(_, Some(_))
+  | Hint(_, Some(_)) => false
+  | Name(_, None)
+  | Hint(_, None)
+  | Nth(_)
+  | Tail => true
+  };
 
 /* every element that picks an entry of the level, in program order: an
    entry's explicit element, then its other names */

@@ -1076,17 +1076,18 @@ let key_path = (k: E.key, outline): option(OutlineTree.path) =>
 /* single-slot vdom memo: building the outline is O(program), but its
    inputs change on edits, statics frames and outline use, not per caret
    move.
-   statics, the outline and test results compare by identity, the rest by
-   value */
+   the statics' info map (the record is new every frame), the outline and
+   test results compare by identity, the rest by value */
 let memo = Util.Slot.mk();
 /* the cell code's refusals of the rows: per program, not per frame */
 let refusals = Util.Slot.mk();
 let same =
     (
-      ((statics, outline), results, rest),
-      ((statics', outline'), results', rest'),
+      (((info_map, error_ids), outline), results, rest),
+      (((info_map', error_ids'), outline'), results', rest'),
     ) =>
-  statics === statics'
+  info_map === info_map'
+  && error_ids == error_ids'
   && outline === outline'
   && Option.equal((===), results, results')
   && rest == rest';
@@ -1198,7 +1199,7 @@ let view =
     | None => Outline.of_program(~root=Sort.Exp, segment)
     };
   let key = (
-    (statics, outline),
+    ((statics.info_map, statics.error_ids), outline),
     results,
     (
       arrows,

@@ -1478,6 +1478,36 @@ let ptr_eq = (a: t, b: t): bool => {
   a === b || go(a, b);
 };
 
+/* the same program, ids included: [ptr_eq] but through the tiles above a
+   caret, which every move re-zips as new objects. Walks only where the
+   two don't share objects */
+let rec same_program = (a: t, b: t): bool =>
+  a === b
+  || (
+    switch (a, b) {
+    | ([], []) => true
+    | ([x, ...xs], [y, ...ys]) =>
+      same_program_piece(x, y) && same_program(xs, ys)
+    | _ => false
+    }
+  )
+and same_program_piece = (x: Piece.t, y: Piece.t): bool =>
+  x === y
+  || (
+    switch (x, y) {
+    | (Tile(s), Tile(t)) =>
+      s.id == t.id
+      && s.form == t.form
+      && s.sort == t.sort
+      && s.shards == t.shards
+      && List.length(s.children) == List.length(t.children)
+      && List.for_all2(same_program, s.children, t.children)
+    | (Grout(g), Grout(h)) => g == h
+    | (Secondary(w), Secondary(v)) => w == v
+    | _ => false
+    }
+  );
+
 /* Apply a segment-level transform top-down, recursing into the tile
    children of the transformed result. What [f] leaves alone comes back
    as the same objects, so identity-keyed caches still hit */
