@@ -27,28 +27,6 @@ type node = {
   o_children: list(node),
 };
 
-let rec strip_exp = (e: Exp.t): Exp.t =>
-  switch (e.term) {
-  | Parens(e)
-  | Projector(_, e)
-  | Filter(_, e) => strip_exp(e)
-  | _ => e
-  };
-
-/* the binding's name and its token: the first Var through wrappers,
-   incl. the funlet head */
-let rec pat_var = (p: Pat.t): option((string, Id.t)) =>
-  switch (p.term) {
-  | Var(x) => Some((x, Pat.rep_id(p)))
-  | Parens(p)
-  | Asc(p, _)
-  | Projector(_, p)
-  | TupLabel(_, p) => pat_var(p)
-  | Ap(f, _) => pat_var(f)
-  | Tuple([p, ..._]) => pat_var(p)
-  | _ => None
-  };
-
 let row = (~id=?, ~label="", ~test=?, ~binder=?, ~kids=[], kind: kind): node => {
   o_label: label,
   o_kind: kind,
@@ -57,141 +35,6 @@ let row = (~id=?, ~label="", ~test=?, ~binder=?, ~kids=[], kind: kind): node => 
   o_binder: binder,
   o_children: kids,
 };
-
-let type_row = (id: Id.t, tp: TPat.t): list(node) =>
-  switch (tp.term) {
-  | Var(name) => [
-      row(~id, ~label=name, ~binder=(TPat.rep_id(tp), Sort.TPat), KType),
-    ]
-  | _ => []
-  };
-
-/* a `…;` statement: a test, or any other */
-let stmt_row = (id: Id.t, e: Exp.t): list(node) => {
-  let h = strip_exp(e);
-  switch (h.term) {
-  | Test(_)
-  | HintedTest(_) => [row(~id, ~test=Exp.rep_id(h), KTest)]
-  | _ => [row(~id, KStmt)]
-  };
-};
-
-let use_row = (id: Id.t, typ: Typ.t): node =>
-  row(~id, ~label="use " ++ Typ.pretty_print(typ), KUse);
-
-/* a block (the program, a function body) is an item chain: defs, `use`s,
-   `…;` statements and the trailing body. a nested block shows its ⇒ row
-   only beside other items; the top level always does (it anchors the
-   result) */
-let rec of_exp = (~top=false, e: Exp.t): list(node) => {
-  let e = strip_exp(e);
-  switch (e.term) {
-  | Let(pat, def, body) =>
-    let_row(Exp.rep_id(e), pat, def) @ of_exp(~top, body)
-  | TyAlias(tpat, _, body) =>
-    type_row(Exp.rep_id(e), tpat) @ of_exp(~top, body)
-  | ModuleExp(mpat, def, body) =>
-    module_row(Exp.rep_id(e), mpat, def) @ of_exp(~top, body)
-  | Use(typ, body) => [use_row(Exp.rep_id(e), typ), ...of_exp(~top, body)]
-  | Seq(e1, body) => stmt_row(Exp.rep_id(e), e1) @ of_exp(~top, body)
-  /* a Module root: its items are the program's top level, with no
-     wrapper row */
-  | Module(items) when top => of_mod(items)
-  | _ when top => [row(~id=Exp.rep_id(e), KTrail)]
-  | _ => []
-  };
-}
-
-/* a function body's items, plus its trailing body as a ⇒ row if any */
-and of_block = (fbody: Exp.t): list(node) => {
-  let items = of_exp(fbody);
-  switch (items) {
-  | [] => []
-  | _ =>
-    let rec tail_of = (e: Exp.t): Exp.t => {
-      let e = strip_exp(e);
-      switch (e.term) {
-      | Let(_, _, body)
-      | TyAlias(_, _, body)
-      | ModuleExp(_, _, body)
-      | Use(_, body)
-      | Seq(_, body) => tail_of(body)
-      | _ => e
-      };
-    };
-    items @ [row(~id=Exp.rep_id(tail_of(fbody)), KTrail)];
-  };
-}
-
-and mk_def =
-    (~id: Id.t, ~binder: (Id.t, Sort.t), name: string, def: Exp.t): node => {
-  let def = strip_exp(def);
-  let (kind, kids) =
-    switch (def.term) {
-    | Module(items) => (KModule, of_mod(items))
-    | Fun(_, fbody, _, _)
-    | TypFun(_, {term: Fun(_, fbody, _, _), _}, _) => (
-        KFn,
-        of_block(fbody),
-      )
-    | _ => (KConst, of_exp(def))
-    };
-  row(~id, ~label=name, ~binder, ~kids, kind);
-}
-
-and let_row = (id: Id.t, pat: Pat.t, def: Exp.t): list(node) =>
-  switch (pat_var(pat)) {
-  /* `let f(x) = …` keeps its parameters in the pattern: [def] is the
-     function's body, as `fun x -> …`'s is */
-  | Some((name, binder)) when Option.is_some(FunctionSugar.detect(pat)) => [
-      row(
-        ~id,
-        ~label=name,
-        ~binder=(binder, Sort.Pat),
-        ~kids=of_block(def),
-        KFn,
-      ),
-    ]
-  | Some((name, binder)) => [
-      mk_def(~id, ~binder=(binder, Sort.Pat), name, def),
-    ]
-  | None => []
-  }
-
-/* `module M = …`, or `module M : S = …`: the name under its signature.
-   A module whatever its definition, an alias (`module Db = Base`) too */
-and module_row = (id: Id.t, mpat: MPat.t, def: Exp.t): list(node) =>
-  switch (mpat.term) {
-  | Var(name) => [
-      {
-        ...mk_def(~id, ~binder=(MPat.rep_id(mpat), Sort.MPat), name, def),
-        o_kind: KModule,
-      },
-    ]
-  | Asc(inner, _) => module_row(id, inner, def)
-  | _ => []
-  }
-
-and of_mod = (items: list(Mod.t)): list(node) =>
-  List.concat_map(
-    (m: Mod.t) =>
-      switch (m.term) {
-      | ModLet(pat, def) => let_row(Mod.rep_id(m), pat, def)
-      | ModType(tpat, _) => type_row(Mod.rep_id(m), tpat)
-      | ModuleMod(mpat, def) => module_row(Mod.rep_id(m), mpat, def)
-      | ModExp(e) =>
-        switch (strip_exp(e).term) {
-        | EmptyHole => []
-        | _ => stmt_row(Mod.rep_id(m), e)
-        }
-      /* an evaluated binding: a module value, never source */
-      | ModVal(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_) => []
-      },
-    items,
-  );
 
 /* ---- rows from the program's outline (Haz3lcore.Outline) ---- */
 
@@ -229,9 +72,8 @@ let rec lead_var = (pat: Haz3lcore.Segment.t): option((string, Id.t)) => {
   };
 };
 
-/* the rows of a block's entries; the term walk stopped at a form that
-   isn't a binding (a theorem) or a let under a function head, which it
-   read as the block's result */
+/* the rows of a block's entries; a form that isn't a binding (a theorem)
+   or a let under a function head ends the block, as its result */
 let rec rows_of = (~top: bool, ~heads=false, es: list(O.entry)): list(node) =>
   switch (es) {
   | [] => []
@@ -265,7 +107,7 @@ and row_of = (~top: bool, e: O.entry): list(node) => {
   switch (e.kind) {
   | Def =>
     switch (O.parts(e.lv, e.k)) {
-    | None => Option.to_list(unfinished(e))
+    | None => []
     | Some((pat, def)) =>
       switch (lead_var(pat)) {
       | None => []
@@ -331,48 +173,6 @@ and row_of = (~top: bool, e: O.entry): list(node) => {
   };
 }
 
-/* a definition being typed, its `in` not yet there (`let b =`): its row,
-   as the term walk read it once completed */
-and unfinished = (e: O.entry): option(node) =>
-  switch (O.head(e.lv, e.k)) {
-  | Some({children: [pat, ...rest], _} as t) when !Tile.is_complete(t) =>
-    let def = Option.value(Util.ListUtil.last_opt(rest), ~default=[]);
-    let id = t.id;
-    switch (Tile.token(t, 0)) {
-    | "let" =>
-      Option.map(
-        ((label, tok)) =>
-          row(
-            ~id,
-            ~label,
-            ~binder=(tok, Sort.Pat),
-            O.sugared(pat) || O.is_fun(def) ? KFn : KConst,
-          ),
-        lead_var(pat),
-      )
-    | "type" =>
-      switch (O.content(pat)) {
-      | [Tile(v), ..._] =>
-        Option.map(
-          x => row(~id, ~label=x, ~binder=(v.id, Sort.TPat), KType),
-          Tile.single_token(v),
-        )
-      | _ => None
-      }
-    | "module" =>
-      switch (O.content(pat)) {
-      | [Tile(v), ..._] =>
-        Option.map(
-          x => row(~id, ~label=x, ~binder=(v.id, Sort.MPat), KModule),
-          Tile.single_token(v),
-        )
-      | _ => None
-      }
-    | _ => None
-    };
-  | _ => None
-  }
-
 /* a definition that is a type abstraction (not over one function) */
 and starts_abstraction = (def: Haz3lcore.Segment.t): bool =>
   switch (O.content(Option.value(wrapped(def), ~default=def))) {
@@ -381,7 +181,7 @@ and starts_abstraction = (def: Haz3lcore.Segment.t): bool =>
   }
 
 /* a definition's or result's expression inside parentheses or a
-   projector (a fold), which the spine doesn't open: the term walk read
+   projector (a fold), which the spine doesn't open: the rows read
    through them */
 and wrapped = (seg: Haz3lcore.Segment.t): option(Haz3lcore.Segment.t) => {
   let rec strip = (seg: Haz3lcore.Segment.t) =>
@@ -400,7 +200,7 @@ and wrapped = (seg: Haz3lcore.Segment.t): option(Haz3lcore.Segment.t) => {
   };
 }
 
-/* an entry's children as the term walk saw them */
+/* an entry's children as rows */
 and below = (e: O.entry, def: Haz3lcore.Segment.t): list(O.entry) =>
   switch (wrapped(def)) {
   | Some(inner) => O.build(~root=Sort.Exp, inner).entries
@@ -500,30 +300,23 @@ let number_tests = (ns: list(node)): list(node) => {
 };
 
 /* the rows of a program's outline */
-let of_outline = (o: O.t): list(node) => {
-  let rows = rows_of(~top=true, o.entries);
-  /* an expression program always shows its result's row: while its last
-     definition is being typed, the piece it will follow */
-  let rows =
-    switch (O.content(List.rev(o.seg))) {
-    | [last, ..._]
-        when
-          o.root != Sort.Mod
-          && !List.exists((n: node) => n.o_kind == KTrail, rows) =>
-      rows @ [row(~id=Piece.id(last), KTrail)]
-    | _ => rows
-    };
-  rows |> group_tests |> number_tests;
-};
+let build = (o: O.t): list(node) =>
+  rows_of(~top=true, o.entries) |> group_tests |> number_tests;
 
-/* memoized on the term's physical identity, which statics keeps until
-   the program changes */
-let cache: Util.Slot.t(Exp.t, list(node)) = Util.Slot.mk();
+/* the outline the rows are of: a program's (Program.outline) */
+type t = O.t;
 
-let of_term = (e: Exp.t): list(node) =>
-  Util.Slot.get(cache, e, () =>
-    of_exp(~top=true, e) |> group_tests |> number_tests
-  );
+/* memoized on the outline, which is kept while the program's pieces are;
+   a few, as programs take turns */
+let cache: ref(list((t, list(node)))) = ref([]);
+let rows = (o: t): list(node) =>
+  switch (List.find_opt(((o', _)) => o' === o, cache^)) {
+  | Some((_, r)) => r
+  | None =>
+    let r = build(o);
+    cache := [(o, r), ...Util.ListUtil.take(3, cache^)];
+    r;
+  };
 
 /* every row of [ns], each before its children */
 let rec flatten = (ns: list(node)): list(node) =>
@@ -565,7 +358,7 @@ let error_rows =
 };
 
 /* the row with id [fid], and the rows above it outermost first */
-let find = (fid: Id.t, e: Exp.t): option((list(node), node)) => {
+let find = (fid: Id.t, o: t): option((list(node), node)) => {
   let rec go = (above, ns: list(node)) =>
     List.find_map(
       n =>
@@ -573,49 +366,49 @@ let find = (fid: Id.t, e: Exp.t): option((list(node), node)) => {
           ? Some((List.rev(above), n)) : go([n, ...above], n.o_children),
       ns,
     );
-  go([], of_term(e));
+  go([], rows(o));
 };
 
-let node_of = (fid: Id.t, e: Exp.t): option(node) =>
-  Option.map(snd, find(fid, e));
+let node_of = (fid: Id.t, o: t): option(node) =>
+  Option.map(snd, find(fid, o));
 
-let kind_of = (fid: Id.t, e: Exp.t): option(kind) =>
-  Option.map(n => n.o_kind, node_of(fid, e));
+let kind_of = (fid: Id.t, o: t): option(kind) =>
+  Option.map(n => n.o_kind, node_of(fid, o));
 
 /* ancestor labels of the node with id [fid], outermost first, for the
    stacked header's qualifier chip (["Geo"] for a member of module Geo) */
-let path_of = (fid: Id.t, e: Exp.t): list(string) =>
-  switch (find(fid, e)) {
+let path_of = (fid: Id.t, o: t): list(string) =>
+  switch (find(fid, o)) {
   | Some((above, _)) => List.map(n => n.o_label, above)
   | None => []
   };
 
 /* ids of the rows from the top level down to [fid], inclusive; rows
    without ids (test containers) are skipped */
-let trail_of = (fid: Id.t, e: Exp.t): option(list(Id.t)) =>
+let trail_of = (fid: Id.t, o: t): option(list(Id.t)) =>
   Option.map(
     ((above, n)) => List.filter_map(n => n.o_id, above @ [n]),
-    find(fid, e),
+    find(fid, o),
   );
 
 /* ids below [fid] (not fid itself): pinning a parent unpins its pinned
    descendants */
-let descendant_ids = (fid: Id.t, e: Exp.t): list(Id.t) =>
-  switch (node_of(fid, e)) {
+let descendant_ids = (fid: Id.t, o: t): list(Id.t) =>
+  switch (node_of(fid, o)) {
   | Some(n) => collect(n.o_children)
   | None => []
   };
 
 /* the row that takes [fid]'s place once it's deleted: the next sibling,
    else the one before, else its parent */
-let successor = (fid: Id.t, e: Exp.t): option(Id.t) =>
+let successor = (fid: Id.t, o: t): option(Id.t) =>
   Option.bind(
-    find(fid, e),
+    find(fid, o),
     ((above, _)) => {
       let siblings =
         switch (Util.ListUtil.last_opt(above)) {
         | Some(parent) => parent.o_children
-        | None => of_term(e)
+        | None => rows(o)
         };
       let rec split = (before, xs: list(node)) =>
         switch (xs) {
@@ -683,26 +476,26 @@ let segs = (ns: list(node)): list((node, path_seg)) => {
 
 /* [fid]'s row and the rows above it, outermost first, each with its
    path segment */
-let find_path = (fid: Id.t, e: Exp.t): option(list((node, path_seg))) =>
+let find_path = (fid: Id.t, o: t): option(list((node, path_seg))) =>
   Option.map(
     ((above, n)) =>
       snd(
         List.fold_left_map(
           (siblings, m) =>
             (m.o_children, (m, List.assq(m, segs(siblings)))),
-          of_term(e),
+          rows(o),
           above @ [n],
         ),
       ),
-    find(fid, e),
+    find(fid, o),
   );
 
-let label_path = (fid: Id.t, e: Exp.t): option(path) =>
-  Option.map(List.map(snd), find_path(fid, e));
+let label_path = (fid: Id.t, o: t): option(path) =>
+  Option.map(List.map(snd), find_path(fid, o));
 
 /* the run of tests holding row [fid], by path */
-let run_of = (fid: Id.t, e: Exp.t): option(path) =>
-  switch (Option.map(List.rev, find_path(fid, e))) {
+let run_of = (fid: Id.t, o: t): option(path) =>
+  switch (Option.map(List.rev, find_path(fid, o))) {
   | Some([_, ({o_kind: KTests, _}, _), ..._] as up) =>
     Some(List.rev_map(snd, List.tl(up)))
   | _ => None
@@ -729,8 +522,8 @@ let choose = (path: path, f: bool, folds: folds): folds => [
 ];
 
 /* row [fid] shows its children: it is a row, and not folded */
-let expanded = (~folds: folds, fid: Id.t, e: Exp.t): bool =>
-  switch (find_path(fid, e)) {
+let expanded = (~folds: folds, fid: Id.t, o: t): bool =>
+  switch (find_path(fid, o)) {
   | Some(chain) =>
     let (n, _) = ListUtil.last(chain);
     !folded(~folds, List.map(snd, chain), n.o_kind);
@@ -738,7 +531,7 @@ let expanded = (~folds: folds, fid: Id.t, e: Exp.t): bool =>
   };
 
 /* the row at [path], if it's there still */
-let node_at = (path: path, e: Exp.t): option(node) => {
+let node_at = (path: path, o: t): option(node) => {
   let find = (seg: path_seg, ns: list(node)): option(node) =>
     segs(ns) |> List.find_opt(((_, s)) => s == seg) |> Option.map(fst);
   let rec go = (path, ns: list(node)) =>
@@ -748,21 +541,21 @@ let node_at = (path: path, e: Exp.t): option(node) => {
     | [hd, ...rest] =>
       Option.bind(find(hd, ns), n => go(rest, n.o_children))
     };
-  go(path, of_term(e));
+  go(path, rows(o));
 };
 
-let resolve_path = (path: path, e: Exp.t): option(Id.t) =>
-  Option.bind(node_at(path, e), n => n.o_id);
+let resolve_path = (path: path, o: t): option(Id.t) =>
+  Option.bind(node_at(path, o), n => n.o_id);
 
 /* row [path]'s fold as [e] shows it, flipped; none once it's gone */
-let flipped = (~folds: folds, path: path, e: Exp.t): option(bool) =>
+let flipped = (~folds: folds, path: path, o: t): option(bool) =>
   Option.map(
     (n: node) => !folded(~folds, path, n.o_kind),
-    node_at(path, e),
+    node_at(path, o),
   );
 
 /* the headerless rows' ids (⇒ and `;`) */
-let headless_row_ids = (e: Exp.t): Id.Map.t(unit) =>
+let headless_row_ids = (o: t): Id.Map.t(unit) =>
   List.fold_left(
     (acc, n) =>
       switch (n.o_id) {
@@ -771,26 +564,25 @@ let headless_row_ids = (e: Exp.t): Id.Map.t(unit) =>
       | _ => acc
       },
     Id.Map.empty,
-    flatten(of_term(e)),
+    flatten(rows(o)),
   );
 
-/* every row id, memoized on the term like [of_term] */
-let row_ids_cache: Slot.t(Exp.t, Id.Map.t(unit)) = Slot.mk();
-let row_ids = (e: Exp.t): Id.Map.t(unit) =>
-  Slot.get(row_ids_cache, e, () =>
+/* every row id, memoized on the outline like [rows] */
+let row_ids_cache: Slot.t(t, Id.Map.t(unit)) = Slot.mk();
+let row_ids = (o: t): Id.Map.t(unit) =>
+  Slot.get(row_ids_cache, o, () =>
     List.fold_left(
       (acc, id) => Id.Map.add(id, (), acc),
       Id.Map.empty,
-      collect(of_term(e)),
+      collect(rows(o)),
     )
   );
 
 /* the row holding [id]: its own, else its nearest ancestor's in its item */
-let enclosing_row =
-    (~info_map: Statics.Map.t, id: Id.t, e: Exp.t): option(Id.t) =>
+let enclosing_row = (~info_map: Statics.Map.t, id: Id.t, o: t): option(Id.t) =>
   switch (Id.Map.find_opt(id, info_map)) {
   | Some(info) =>
-    let rows = row_ids(e);
+    let rows = row_ids(o);
     Id.Map.mem(id, rows)
       ? Some(id)
       : Info.find_within_item(~info_map, info, x => Id.Map.mem(x, rows));

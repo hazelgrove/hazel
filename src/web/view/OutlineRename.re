@@ -18,8 +18,8 @@ type item = {
 };
 
 /* the item whose outline row is [row] */
-let find_item = (row: Id.t, term: Exp.t): option(item) =>
-  switch (OutlineTree.find(row, term)) {
+let find_item = (row: Id.t, outline: OutlineTree.t): option(item) =>
+  switch (OutlineTree.find(row, outline)) {
   | Some((above, {o_binder: Some((binder, sort)), o_label: old, _})) =>
     Some({
       binder,
@@ -157,9 +157,9 @@ let prepare =
 };
 
 let rename =
-    (~info_map, ~term, row: Id.t, name: string, seg: Segment.t)
+    (~info_map, ~outline, row: Id.t, name: string, seg: Segment.t)
     : result(Segment.t, string) =>
-  switch (find_item(row, term)) {
+  switch (find_item(row, outline)) {
   | None => Error("this row has no name to change")
   | Some(it) =>
     switch (prepare(~info_map=Lazy.from_val(info_map), it, name)) {

@@ -2181,17 +2181,20 @@ let visible_rows =
   Array.of_list(walk(None, root_path, roots));
 };
 
-let view = (~props: props, ~on: handlers, term: Language.Exp.t): Node.t => {
+let view = (~props: props, ~on: handlers, outline: OutlineTree.t): Node.t => {
   /* zoomed, the module's members are the top level; collapse paths
      stay rooted at the program */
   let (roots, root_path) =
     switch (props.zoom_root) {
     | Some(m) =>
-      switch (OutlineTree.node_of(m, term), OutlineTree.label_path(m, term)) {
+      switch (
+        OutlineTree.node_of(m, outline),
+        OutlineTree.label_path(m, outline),
+      ) {
       | (Some(n), Some(path)) => (n.o_children, path)
-      | _ => (OutlineTree.of_term(term), [])
+      | _ => (OutlineTree.rows(outline), [])
       }
-    | None => (OutlineTree.of_term(term), [])
+    | None => (OutlineTree.rows(outline), [])
     };
   /* a new member typed first or last inside a module shows it open */
   let opened =

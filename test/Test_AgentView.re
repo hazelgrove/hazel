@@ -752,15 +752,11 @@ let lens_tests = [
     `Quick,
     () => {
       let term =
-        MakeTerm.from_zip_for_sem(
-          Zipper.unzip(
-            CorpusUtil.seg_of(
-              "module M = { let f(x) = let y = x in y; module N = { let z = 1 } } in\nM.f(1)",
-            ),
+        CorpusUtil.outline_of(
+          CorpusUtil.seg_of(
+            "module M = { let f(x) = let y = x in y; module N = { let z = 1 } } in\nM.f(1)",
           ),
-          ~root=Exp,
-        ).
-          term;
+        );
       check(
         list(bool),
         "M open; f and N closed",

@@ -518,7 +518,7 @@ let summary = (ctx: ctx): string => {
 };
 
 let map_text = (ctx: ctx, o: O.t): string => {
-  let top = S.top(~root=o.root, o.seg);
+  let top = S.top(~ends=Rows, ~root=o.root, o.seg);
   let (seg, notes) = map_level(ctx, ~depth=0, top, o.entries);
   let (lines, find) = print_measured(~refractors=ctx.facts.refractors, seg);
   let lines = annotate(lines, find, notes) |> with_probes(ctx.facts, find);

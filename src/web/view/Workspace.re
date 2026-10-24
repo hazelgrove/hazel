@@ -10,21 +10,28 @@ module Persist = ScratchPersist;
 
 type code = Scratchpad.code;
 
-/* whether [term]'s outline names anything: a hydrating slide's
-   placeholder statics show only an unnamed ⇒ row */
-let named_outline = (term: Language.Exp.t): bool =>
+/* whether [program]'s statics are its own: a hydrating slide's are a
+   placeholder's, which know none of its named rows */
+let statics_ready = (program: Program.t): bool => {
+  let info_map = Program.statics(program).info_map;
   List.exists(
-    (n: OutlineTree.node) => n.o_label != "",
-    OutlineTree.of_term(term),
+    (n: OutlineTree.node) =>
+      n.o_label != ""
+      && (
+        switch (n.o_id) {
+        | Some(id) => Id.Map.mem(id, info_map)
+        | None => false
+        }
+      ),
+    OutlineTree.flatten(OutlineTree.rows(Program.outline(program))),
   );
+};
 
 /* a loaded slide's saved view, once statics can resolve it: against the
    placeholder, resolving drops pins */
 let saved_view = (~slide_key, code: code): option(Persist.side) =>
   switch (Hashtbl.find_opt(Persist.pending_pins, slide_key), code.program) {
-  | (Some(saved), Whole(editor))
-      when named_outline(editor.editor.statics.term) =>
-    Some(saved)
+  | (Some(saved), Whole(_)) when statics_ready(code.program) => Some(saved)
   | _ => None
   };
 
@@ -125,8 +132,14 @@ let item_of =
   );
 
 /* [code] showing [v]: its cells opened and closed to match */
-let realize = (~info_map, ~term, v: SlideView.t, code: code): code => {
-  let (view, program) = SlideView.realize(~info_map, ~term, v, code.program);
+let realize = (~info_map, v: SlideView.t, code: code): code => {
+  let (view, program) =
+    SlideView.realize(
+      ~info_map,
+      ~outline=Program.outline(code.program),
+      v,
+      code.program,
+    );
   {
     ...code,
     program,
@@ -137,17 +150,14 @@ let realize = (~info_map, ~term, v: SlideView.t, code: code): code => {
 /* change what the slide shows, then open and close cells to match;
    view changes are not undo steps */
 let view =
-    (f: (Language.Exp.t, Program.t, SlideView.t) => SlideView.t, code: code)
-    : Updated.t(code) => {
-  let statics = Program.statics(code.program);
+    (f: (OutlineTree.t, Program.t, SlideView.t) => SlideView.t, code: code)
+    : Updated.t(code) =>
   realize(
-    ~info_map=statics.info_map,
-    ~term=statics.term,
-    f(statics.term, code.program, code.view),
+    ~info_map=Program.statics(code.program).info_map,
+    f(Program.outline(code.program), code.program, code.view),
     code,
   )
   |> Updated.return(~historic=false);
-};
 
 /* a view change from the outline: the keys go to the cell the stack
    focuses, which a close can move. The vdom gives a closed cell's element
@@ -161,10 +171,8 @@ let outline_view = (f, code: code): Updated.t(code) => {
 /* after an edit to the whole program (agent, outline menu): the same
    view again, pins to vanished items dropped */
 let resync = (code: Scratchpad.code, program: Program.t): Scratchpad.code => {
-  let statics = Program.statics(program);
   realize(
-    ~info_map=statics.info_map,
-    ~term=statics.term,
+    ~info_map=Program.statics(program).info_map,
     code.view,
     {
       ...code,
@@ -268,7 +276,7 @@ let with_segment =
       switch (
         Divided.resplit(
           ~info_map=statics.info_map,
-          ~term=statics.term,
+          ~outline=Program.outline(Whole(editor)),
           editor,
           d,
         )
@@ -298,12 +306,12 @@ let with_segment =
    document, which the statics may lag */
 let item_ctx =
     (~settings: Settings.t, ~folds, program: Program.t): ItemEdit.ctx => {
-  let term = fresh_term(program);
+  let outline = Program.outline(program);
   {
     mod_root: Program.root(program) == Haz3lcore.Sort.Mod,
-    term,
-    info_map: lazy(fresh_info_map(~settings, program, term)),
-    is_open: id => OutlineTree.expanded(~folds, id, term),
+    outline,
+    info_map: lazy(fresh_info_map(~settings, program, fresh_term(program))),
+    is_open: id => OutlineTree.expanded(~folds, id, outline),
   };
 };
 
@@ -411,7 +419,7 @@ let update_code =
         Program.of_close(
           Divided.resplit(
             ~info_map=new_ed.editor.statics.info_map,
-            ~term=new_ed.editor.statics.term,
+            ~outline=Program.outline(Whole(new_ed)),
             new_ed,
             d,
           ),
@@ -420,7 +428,7 @@ let update_code =
     };
   | FocusToggle(fid) =>
     outline_view(
-      (term, program, v) =>
+      (outline, program, v) =>
         if (List.mem(
               SlideView.{
                 p_id: fid,
@@ -448,7 +456,7 @@ let update_code =
             }
           ) {
           | Some(run) => SlideView.unpin(run.e_id, v)
-          | None => SlideView.pin(~term, fid, v)
+          | None => SlideView.pin(~outline, fid, v)
           };
         },
       code,
@@ -458,7 +466,7 @@ let update_code =
     /* the tests container: one cell for the run, or close it (or its
        members open one by one) */
     outline_view(
-      (term, program, v) => {
+      (outline, program, v) => {
         let (members, size) =
           switch (
             Focus.test_run_deep(
@@ -490,26 +498,29 @@ let update_code =
               singles,
             );
           Some(List.length(singles)) == size
-            ? v : SlideView.pin(~term, ~run=true, fid, v);
+            ? v : SlideView.pin(~outline, ~run=true, fid, v);
         };
       },
       code,
     )
   | FocusEnsure(fid) =>
     outline_view(
-      (term, program, v) =>
+      (outline, program, v) =>
         switch (program) {
         | Divided(d) when Divided.owner(fid, d) == None =>
-          SlideView.pin(~term, fid, v)
+          SlideView.pin(~outline, fid, v)
         | _ => v
         },
       code,
     )
     |> focusing(fid)
   | UnfocusDef =>
-    outline_view((term, _, v) => SlideView.discard(~term, v), code)
+    outline_view((outline, _, v) => SlideView.discard(~outline, v), code)
   | ZoomIn(fid) =>
-    outline_view((term, _, v) => SlideView.zoom_in(~term, fid, v), code)
+    outline_view(
+      (outline, _, v) => SlideView.zoom_in(~outline, fid, v),
+      code,
+    )
   | ZoomOut => outline_view((_, _, v) => SlideView.zoom_out(v), code)
   | ZoomTo(m) => outline_view((_, _, v) => SlideView.zoom_to(m, v), code)
   | ShowWhole(parked) =>
@@ -519,21 +530,18 @@ let update_code =
        live program's, Page.carry_over), as view changes read them while
        typing; a snapshot nothing was carried into has none */
     let statics = Program.statics(code.program);
-    let (term, info_map) =
+    let info_map =
       Id.Map.is_empty(statics.info_map)
-        ? {
-          let term = fresh_term(code.program);
-          (term, fresh_info_map(~settings, code.program, term));
-        }
-        : (statics.term, statics.info_map);
-    realize(~info_map, ~term, code.view, code) |> return(~historic=false);
+        ? fresh_info_map(~settings, code.program, fresh_term(code.program))
+        : statics.info_map;
+    realize(~info_map, code.view, code) |> return(~historic=false);
   | RestorePins =>
     /* each slide's saved view waits under its own key, so another
        slide hydrating first can't drop it */
     switch (saved_view(~slide_key, code)) {
     | Some(saved) =>
       Hashtbl.remove(Persist.pending_pins, slide_key);
-      view((term, _, _) => Persist.resolve_view(saved, term), code);
+      view((outline, _, _) => Persist.resolve_view(saved, outline), code);
     | None => code |> return_quiet /* statics not ready: retry */
     }
   | RestoreCaret(p) =>

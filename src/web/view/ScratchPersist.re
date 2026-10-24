@@ -171,18 +171,19 @@ let stage_side = (prefix: string, name: string): unit => {
 };
 
 /* the saved view against the loaded program's outline */
-let resolve_view = (saved: side, term: Language.Exp.t): SlideView.t => {
+let resolve_view = (saved: side, outline: OutlineTree.t): SlideView.t => {
   zoom:
     switch (
-      Option.bind(saved.zoom, path => OutlineTree.resolve_path(path, term))
+      Option.bind(saved.zoom, path => OutlineTree.resolve_path(path, outline))
     ) {
-    | Some(m) => OutlineTree.trail_of(m, term) |> Option.value(~default=[])
+    | Some(m) =>
+      OutlineTree.trail_of(m, outline) |> Option.value(~default=[])
     | None => []
     },
   pins:
     List.filter_map(
       ((path, run)) =>
-        OutlineTree.resolve_path(path, term)
+        OutlineTree.resolve_path(path, outline)
         |> Option.map(id =>
              SlideView.{
                p_id: id,
@@ -426,7 +427,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         }),
       );
     };
-    let term = Program.statics(program).term;
+    let outline = Program.outline(program);
     /* the folds carry over: they're written as they change */
     write_side(prefix, sp.name, side =>
       {
@@ -453,13 +454,13 @@ let save_current' = (prefix: string, model: Model.t): unit => {
         pins:
           List.filter_map(
             (p: SlideView.pin) =>
-              OutlineTree.label_path(p.p_id, term)
+              OutlineTree.label_path(p.p_id, outline)
               |> Option.map(path => (path, p.p_run)),
             view.pins,
           ),
         zoom:
           Option.bind(SlideView.zoom_root(view), m =>
-            OutlineTree.label_path(m, term)
+            OutlineTree.label_path(m, outline)
           ),
         parked: view.parked,
       }

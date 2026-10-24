@@ -47,7 +47,7 @@ let op = (op: Web.OutlineEdit.def_op, path) =>
       Web.ItemEdit.apply(
         ~mod_root=root == Sort.Mod,
         op,
-        CorpusUtil.row(MakeTerm.Incr.term_of_root(~root, seg), path),
+        CorpusUtil.row(CorpusUtil.outline_of(~root, seg), path),
         seg,
       )
     ) {
@@ -60,14 +60,16 @@ let op = (op: Web.OutlineEdit.def_op, path) =>
    member across a module edge, Tab and ⇧Tab move it across levels */
 let edit_op = (op: Web.OutlineEdit.def_op, path) =>
   step((~root, seg) => {
-    let term = MakeTerm.Incr.term_of_root(~root, seg);
+    let outline = CorpusUtil.outline_of(~root, seg);
     let ctx: Web.ItemEdit.ctx = {
       mod_root: root == Sort.Mod,
-      term,
+      outline,
       info_map: lazy(Statics.Map.empty),
       is_open: _ => true,
     };
-    switch (Web.ItemEdit.edit(ctx, Op(op, CorpusUtil.row(term, path)), seg)) {
+    switch (
+      Web.ItemEdit.edit(ctx, Op(op, CorpusUtil.row(outline, path)), seg)
+    ) {
     | Ok((seg, _)) => seg
     | Error(why) =>
       fail("op failed at " ++ String.concat("/", path) ++ ": " ++ why)

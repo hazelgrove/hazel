@@ -16,11 +16,34 @@ type t = {
   program: Program.t,
   view: SlideView.t,
   folds: OutlineTree.folds,
+  /* the request's map, shown when it had nothing open */
+  map: string,
+};
+
+/* the map in a context as sent: its view up to the open entries */
+let map_of_view = (view: string): string => {
+  let after = (s, mark) =>
+    switch (StringUtil.plain_search(mark, s, 0)) {
+    | i when i >= 0 =>
+      let j = i + String.length(mark);
+      String.sub(s, j, String.length(s) - j);
+    | _ => s
+    };
+  let before = (s, mark) =>
+    switch (StringUtil.plain_search(mark, s, 0)) {
+    | i when i >= 0 => String.sub(s, 0, i)
+    | _ => s
+    };
+  before(
+    before(after(view, "<agentEditorView>\n```\n"), "\n```"),
+    "\n\n# open: ",
+  );
 };
 
 /* the outline folded as the map shows the program: modules open
    [module_depth] levels down, every other row with rows below closed */
-let map_folds = (~module_depth: int, term: Language.Exp.t): OutlineTree.folds => {
+let map_folds =
+    (~module_depth: int, outline: OutlineTree.t): OutlineTree.folds => {
   let rec go = (~depth, prefix, ns: list(OutlineTree.node)) =>
     List.concat_map(
       ((n: OutlineTree.node, seg)) => {
@@ -34,7 +57,7 @@ let map_folds = (~module_depth: int, term: Language.Exp.t): OutlineTree.folds =>
       },
       OutlineTree.segs(ns),
     );
-  go(~depth=0, [], OutlineTree.of_term(term));
+  go(~depth=0, [], OutlineTree.rows(outline));
 };
 
 /* the record [seq] of [chat] (None: its latest) */
@@ -75,13 +98,12 @@ let build =
           },
         };
         /* the open entries by their paths then: this text's ids are new */
-        let outline = Outline.of_program(~root, Zipper.unselect_and_zip(z));
-        let term = statics.term;
+        let outline = Program.outline(Whole(editor));
         let view =
           List.fold_left(
             (v, e: AgentContext.Model.entry) =>
               switch (Outline.resolve(outline, e.path)) {
-              | Ok(x) => SlideView.pin(~term, x.id, v)
+              | Ok(x) => SlideView.pin(~outline, x.id, v)
               | Error(_) => v
               },
             SlideView.init,
@@ -90,7 +112,7 @@ let build =
         let (view, program) =
           SlideView.realize(
             ~info_map=statics.info_map,
-            ~term,
+            ~outline,
             view,
             Whole(editor),
           );
@@ -101,7 +123,8 @@ let build =
           count: List.length(chat.sent),
           program,
           view,
-          folds: map_folds(~module_depth, term),
+          folds: map_folds(~module_depth, outline),
+          map: map_of_view(r.view),
         };
       },
       Chat.Utils.sent_text(chat, r),

@@ -286,7 +286,7 @@ module Selection = {
           OutlineTree.enclosing_row(
             ~info_map=statics.info_map,
             target_id,
-            statics.term,
+            Program.outline(Divided(d)),
           );
         /* the cell that holds [fid] once it's ensured */
         let j =
@@ -643,9 +643,9 @@ module View = {
           };
         let stack_views = (d: Divided.t) => {
           let cells = Divided.cells(d);
-          let term = Divided.statics(d).term;
+          let outline = Program.outline(Divided(d));
           /* the zoomed module as one cell: the breadcrumb names it */
-          let zoom_cell = SlideView.showing_zoom_cell(~term, view);
+          let zoom_cell = SlideView.showing_zoom_cell(~outline, view);
           let tests = EvalResult.Model.test_results(Divided.result(d));
           let focus =
             switch (selected, Divided.focused(d)) {
@@ -700,7 +700,7 @@ module View = {
                   )
                 | _ =>
                   let qualifier =
-                    switch (OutlineTree.path_of(e.e_id, term)) {
+                    switch (OutlineTree.path_of(e.e_id, outline)) {
                     | [] => []
                     | path => [
                         span(
@@ -766,7 +766,9 @@ module View = {
                   let qual_cols = idx =>
                     switch (List.nth_opt(cells, idx)) {
                     | Some(e) =>
-                      switch (OutlineTree.path_of(e.ScratchCell.e_id, term)) {
+                      switch (
+                        OutlineTree.path_of(e.ScratchCell.e_id, outline)
+                      ) {
                       | [] => 0
                       | path => String.length(String.concat(".", path)) + 1
                       }

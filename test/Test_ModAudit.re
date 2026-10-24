@@ -128,13 +128,14 @@ let snapshot = (~root: Sort.t, z: Zipper.t): snap => {
       term,
     );
   let info_map = st.info_map;
-  let nodes = O.flatten(O.of_term(term));
+  let outline = CorpusUtil.outline_of(~root, completed);
+  let nodes = O.flatten(O.rows(outline));
   let ids =
     List.filter_map(
       (n: O.node) =>
         switch (n.o_id) {
         | Some(id) =>
-          Option.map(p => (key_of(p), id), O.label_path(id, term))
+          Option.map(p => (key_of(p), id), O.label_path(id, outline))
         | None => None
         },
       nodes,
@@ -145,7 +146,7 @@ let snapshot = (~root: Sort.t, z: Zipper.t): snap => {
   List.iter(
     eid => {
       let k =
-        switch (O.enclosing_row(~info_map, eid, term)) {
+        switch (O.enclosing_row(~info_map, eid, outline)) {
         | Some(r) => Option.value(key_of_id(r), ~default="<?>")
         | None => "<top>"
         };
@@ -1547,9 +1548,10 @@ module IE = Web.ItemEdit;
 
 let edit_ctx = (~root: Sort.t, seg: Segment.t): IE.ctx => {
   let term = MakeTerm.Incr.term_of_root(~root, seg);
+  let outline = CorpusUtil.outline_of(~root, seg);
   {
     mod_root: root == Sort.Mod,
-    term,
+    outline,
     info_map: lazy(DefStatics.calc(~settings=CoreSettings.on, term).merged),
     is_open: _ => true,
   };
@@ -1569,19 +1571,19 @@ let op_name: Web.OutlineEdit.def_op => string =
   | Outdent => "⇧Tab"
   | Delete => "delete";
 
-let labels = (term: Exp.t): list(string) =>
-  O.flatten(O.of_term(term))
+let labels = (outline: O.t): list(string) =>
+  O.flatten(O.rows(outline))
   |> List.filter_map((n: O.node) =>
        n.o_id == None || n.o_kind == KTrail ? None : Some(n.o_label)
      )
   |> List.sort(compare);
 
-let rows_of = (term: Exp.t): list((string, Id.t)) =>
-  O.flatten(O.of_term(term))
+let rows_of = (outline: O.t): list((string, Id.t)) =>
+  O.flatten(O.rows(outline))
   |> List.filter_map((n: O.node) =>
        switch (n.o_id) {
        | Some(id) when n.o_kind != KTrail && n.o_kind != KTests =>
-         Option.map(p => (key_of(p), id), O.label_path(id, term))
+         Option.map(p => (key_of(p), id), O.label_path(id, outline))
        | _ => None
        }
      );
@@ -1621,7 +1623,7 @@ let op_laws =
     (~root: Sort.t, seg: Segment.t, (k: string, fid: Id.t))
     : list((string, string)) => {
   let text0 = CorpusUtil.text_of(seg);
-  let term0 = MakeTerm.Incr.term_of_root(~root, seg);
+  let term0 = CorpusUtil.outline_of(~root, seg);
   let n0 = List.length(labels(term0));
   let reads_back = (seg': Segment.t): list(string) => {
     let txt = CorpusUtil.text_of(seg');
@@ -1656,7 +1658,7 @@ let op_laws =
       | Error(_) => []
       | Ok((seg1, target)) =>
         let laws = reads_back(seg1);
-        let term1 = MakeTerm.Incr.term_of_root(~root, seg1);
+        let term1 = CorpusUtil.outline_of(~root, seg1);
         let laws =
           laws
           @ (
@@ -1704,7 +1706,7 @@ let op_laws =
     switch (op(~root, o, fid, seg)) {
     | Error(_) => []
     | Ok((seg1, _)) =>
-      let term1 = MakeTerm.Incr.term_of_root(~root, seg1);
+      let term1 = CorpusUtil.outline_of(~root, seg1);
       let n1 = List.length(labels(term1));
       reads_back(seg1)
       @ (delta(n1 - n0) ? [] : [Printf.sprintf("rows %d -> %d", n0, n1)])
@@ -1721,8 +1723,8 @@ let op_laws =
 
 let ops_sweep = (~root: Sort.t, ~sample=1, name: string, src: string) => {
   let seg = CorpusUtil.seg_of(~root, src);
-  let term = MakeTerm.Incr.term_of_root(~root, seg);
-  let rows = rows_of(term) |> List.filteri((i, _) => i mod sample == 0);
+  let outline = CorpusUtil.outline_of(~root, seg);
+  let rows = rows_of(outline) |> List.filteri((i, _) => i mod sample == 0);
   let bad =
     List.concat_map(
       ((k, _) as row) =>
@@ -2091,8 +2093,7 @@ let grow = (~n, ~k=0, ~off=1, needle, root, src) =>
 
 /* outline row [label]'s kind */
 let row_kind = (label, root, src) => {
-  let term =
-    MakeTerm.Incr.term_of_root(~root, CorpusUtil.seg_of(~root, src));
+  let term = CorpusUtil.outline_of(~root, CorpusUtil.seg_of(~root, src));
   switch (O.kind_of(CorpusUtil.row_by_label(term, label), term)) {
   | Some(k) => kind_name(k)
   | None => "no row"
@@ -2102,8 +2103,8 @@ let row_kind = (label, root, src) => {
 /* an outline op on row [label]'s result, whole */
 let outline_op = (o: Web.OutlineEdit.def_op, label: string, root, src) => {
   let seg = CorpusUtil.seg_of(~root, src);
-  let term = MakeTerm.Incr.term_of_root(~root, seg);
-  switch (op(~root, o, CorpusUtil.row_by_label(term, label), seg)) {
+  let outline = CorpusUtil.outline_of(~root, seg);
+  switch (op(~root, o, CorpusUtil.row_by_label(outline, label), seg)) {
   | Error(why) => why
   | Ok((seg1, _)) =>
     show_lines(String.split_on_char('\n', CorpusUtil.text_of(seg1)))
@@ -2981,7 +2982,7 @@ let paste_timing = (n: int) => {
         | Ok(z) =>
           let rows =
             rows_of(
-              MakeTerm.Incr.term_of_root(~root, Zipper.unselect_and_zip(z)),
+              CorpusUtil.outline_of(~root, Zipper.unselect_and_zip(z)),
             );
           string_of_int(List.length(rows))
           ++ " rows after"

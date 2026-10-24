@@ -89,7 +89,10 @@ let sugared = (pat: Segment.t): bool =>
   switch (content(pat)) {
   | [Tile(f), Tile(ap), ..._] =>
     Option.map(Token.is_var, Tile.single_token(f)) == Some(true)
-    && ap.form == Form.Compound(Ap)
+    && (
+      ap.form == Form.Compound(Ap)
+      || List.mem(Tile.label(ap), [["(", ")"], ["()"]])
+    )
   | _ => false
   };
 
@@ -182,7 +185,9 @@ let rec level =
 
 let build = (~root: Sort.t, seg: Segment.t): t => {
   Swept.next_pass(P.cache);
-  let top = S.top(~root, seg);
+  /* members end as the parsed term reads them, so the members after an
+     unfinished one keep their rows */
+  let top = S.top(~ends=Rows, ~root, seg);
   {
     root,
     seg,
@@ -190,15 +195,30 @@ let build = (~root: Sort.t, seg: Segment.t): t => {
   };
 };
 
-/* the last program's outline, while its pieces are the same */
-let memo: Slot.t((Sort.t, Segment.t), t) = Slot.mk();
+/* the last few programs' outlines, each while its pieces are the same:
+   a user's program and the one View as agent shows take turns */
+let recent: ref(list((Sort.t, Segment.t, t))) = ref([]);
 let of_program = (~root: Sort.t, seg: Segment.t): t =>
-  Slot.get(
-    ~same=((r, s), (r', s')) => r == r' && s === s',
-    memo,
-    (root, seg),
-    () => build(~root, seg),
-  );
+  switch (List.find_opt(((r, s, _)) => r == root && s === seg, recent^)) {
+  | Some((_, _, o)) => o
+  | None =>
+    let o = build(~root, seg);
+    recent := [(root, seg, o), ...ListUtil.take(3, recent^)];
+    o;
+  };
+
+/* the outline of a program as typed: of its completion, as semantics
+   reads it (an unfinished definition gets its `=`, `in` or `;` and holes,
+   keeping its ids), so its rows stand while it's being typed */
+let sources: ref(list((Sort.t, Segment.t, t))) = ref([]);
+let of_source = (~root: Sort.t, source: Segment.t): t =>
+  switch (List.find_opt(((r, s, _)) => r == root && s === source, sources^)) {
+  | Some((_, _, o)) => o
+  | None =>
+    let o = build(~root, fst(MakeTerm.semantic_segment(~root, source)));
+    sources := [(root, source, o), ...ListUtil.take(3, sources^)];
+    o;
+  };
 
 /* every entry, each before its children */
 let rec flatten = (es: list(entry)): list(entry) =>
