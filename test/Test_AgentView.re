@@ -605,4 +605,173 @@ let record_tests = [
   ),
 ];
 
-let tests = ("AgentView", format_tests @ open_set_tests @ record_tests);
+/* View as agent: the workspace shows a request's view, read-only, and
+   gives the user's program and view back untouched */
+let lens_src = "let a = 1 in\nlet b = a + 1 in\nlet c = b * 2 in\nc";
+
+/* a slide whose agent chat sent one request with [opened] open */
+let slide = (~opened: list(string)) => {
+  let cws = cws_of(lens_src);
+  let agent = W.Agent.Utils.init();
+  let chat_id = agent.chat_system.current;
+  let o =
+    Outline.of_program(
+      ~root=Exp,
+      Zipper.unselect_and_zip(cws.editor.state.zipper),
+    );
+  let agent =
+    switch (AgentContext.Update.resolve(o, Expand(opened))) {
+    | Ok(r) => {
+        ...agent,
+        chat_system:
+          W.ChatSystem.Update.update(
+            ChatAction(AgentContextAction(r), chat_id),
+            agent.chat_system,
+          )
+          |> W.ChatSystem.Update.get,
+      }
+    | Error(e) => fail(e)
+    };
+  let (agent, _, _) = send(agent, cws);
+  let editor: W.CellEditor.Model.t = {
+    ...W.CellEditor.Model.mk(cws.editor),
+    editor: cws,
+  };
+  let code: W.ScratchModel.Scratchpad.code = {
+    program: Whole(editor),
+    view: W.SlideView.init,
+    agent,
+    lens: None,
+  };
+  (code, chat_id);
+};
+
+let step = (a: W.Workspace.Action.t, code) =>
+  W.Workspace.update(
+    ~settings=W.Settings.Model.init,
+    ~schedule_action=_ => (),
+    ~slide_key="lens-test",
+    a,
+    code,
+  ).
+    model;
+
+let lens_tests = [
+  test_case(
+    "view as agent shows the request's open entries",
+    `Quick,
+    () => {
+      let (code, chat_id) = slide(~opened=["b", "c"]);
+      let code' = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
+      switch (code'.lens) {
+      | Some(l) =>
+        check(int, "the request", 1, l.seq);
+        check(bool, "not live", false, l.live);
+        switch (l.program) {
+        | Divided(d) =>
+          check(
+            list(string),
+            "cells for b and c",
+            ["b", "c"],
+            List.filter_map(
+              (e: W.ScratchCell.t) => W.ScratchCell.header_name(e),
+              W.Divided.cells(d),
+            ),
+          )
+        | Whole(_) => fail("no cells")
+        };
+      | None => fail("no lens")
+      };
+      check(bool, "program untouched", true, code'.program === code.program);
+      check(bool, "view untouched", true, code'.view === code.view);
+    },
+  ),
+  test_case(
+    "the shown request is read-only",
+    `Quick,
+    () => {
+      let (code, chat_id) = slide(~opened=["b"]);
+      let code' = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
+      let a =
+        switch (
+          Outline.resolve(
+            Outline.of_program(~root=Exp, W.Program.document(code.program)),
+            "a",
+          )
+        ) {
+        | Ok(e) => e.id
+        | Error(e) => fail(e)
+        };
+      let code'' = step(FocusToggle(a), code');
+      check(bool, "program untouched", true, code''.program === code.program);
+      check(bool, "view untouched", true, code''.view === code.view);
+    },
+  ),
+  test_case(
+    "leaving gives the user's view back",
+    `Quick,
+    () => {
+      let (code, chat_id) = slide(~opened=["b"]);
+      let code' =
+        code
+        |> step(AgentAction(ViewAsAgent(chat_id, Some(1))))
+        |> step(AgentAction(LeaveAgentView));
+      check(bool, "no lens", true, Option.is_none(code'.lens));
+      check(bool, "program untouched", true, code'.program === code.program);
+    },
+  ),
+  test_case(
+    "live follows the next request",
+    `Quick,
+    () => {
+      let (code, chat_id) = slide(~opened=["b"]);
+      let code = step(AgentAction(ViewAsAgent(chat_id, None)), code);
+      check(
+        option(bool),
+        "live",
+        Some(true),
+        Option.map((l: W.AgentLens.t) => l.live, code.lens),
+      );
+      /* the agent sends again */
+      let (agent, _, _) = send(code.agent, cws_of(lens_src));
+      let code = {
+        ...code,
+        agent,
+      };
+      let code = step(AgentAction(SetActiveTimelineNode(None)), code);
+      check(
+        option(int),
+        "the second request",
+        Some(2),
+        Option.map((l: W.AgentLens.t) => l.seq, code.lens),
+      );
+    },
+  ),
+  test_case(
+    "the map's folds: modules open, bodies closed",
+    `Quick,
+    () => {
+      let term =
+        MakeTerm.from_zip_for_sem(
+          Zipper.unzip(
+            CorpusUtil.seg_of(
+              "module M = { let f(x) = let y = x in y; module N = { let z = 1 } } in\nM.f(1)",
+            ),
+          ),
+          ~root=Exp,
+        ).
+          term;
+      check(
+        list(bool),
+        "M open; f and N closed",
+        [false, true, true],
+        List.map(snd, W.AgentLens.map_folds(~module_depth=1, term)),
+      );
+    },
+  ),
+];
+
+let tests = (
+  "AgentView",
+  format_tests @ open_set_tests @ record_tests @ lens_tests,
+);

@@ -90,16 +90,19 @@ let slide_name = (deck: deck): string =>
   | None => ""
   };
 
+/* the program the slide shows: View as agent's request, else its own */
 let program_of = (deck: option(deck)): option(Program.t) =>
   switch (Option.bind(deck, current)) {
+  | Some({kind: Code({lens: Some(l), _}), _}) => Some(l.program)
   | Some({kind: Code({program, _}), _}) => Some(program)
   | _ => None
   };
 
 let folds = (deck: option(deck)): OutlineTree.folds =>
-  switch (deck) {
-  | Some((prefix, _) as d) => Persist.folds(prefix, slide_name(d))
-  | None => []
+  switch (deck, Option.bind(deck, current)) {
+  | (_, Some({kind: Code({lens: Some(l), _}), _})) => l.folds
+  | (Some((prefix, _) as d), _) => Persist.folds(prefix, slide_name(d))
+  | (None, _) => []
   };
 
 /* the program's term as the outline draws it: statics compacted by undo
@@ -643,6 +646,8 @@ let update =
     : Updated.t(Scratchpad.code) =>
   switch (action) {
   | Redraw => code |> Updated.return_quiet
+  /* View as agent is read-only, and leaves the user's folds alone */
+  | _ when Option.is_some(code.lens) => code |> Updated.return_quiet
   /* the row's fold as shown, flipped: by hand, else its kind's default */
   | Collapse(path) =>
     Option.iter(

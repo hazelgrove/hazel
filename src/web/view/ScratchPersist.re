@@ -371,7 +371,7 @@ let save_current' = (prefix: string, model: Model.t): unit => {
   let sp = List.nth(model.scratchpads, model.current);
   switch (sp.dormant, sp.kind) {
   | (true, _) => () /* never write a placeholder over the stored slide */
-  | (false, Code({program, agent, view})) =>
+  | (false, Code({program, agent, view, _})) =>
     let stamp =
       switch (program) {
       | Divided(d) => Stacked(d)

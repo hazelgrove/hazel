@@ -54,7 +54,9 @@ module Action = {
     /* a loaded slide's saved view and caret, restored once ready */
     | RestorePins
     | RestoreCaret(Point.t)
-    | AgentAction(Agent.Update.Action.t);
+    | AgentAction(Agent.Update.Action.t)
+    /* the run of the program View as agent shows */
+    | LensResult(EvalResult.Update.t);
 };
 
 open Action;
@@ -305,7 +307,32 @@ let item_ctx =
   };
 };
 
-let update =
+/* a divided program's whole-program result taking [ra] */
+let divided_result =
+    (~settings: Settings.t, ra, program: Program.t): Updated.t(Program.t) =>
+  switch (program) {
+  | Divided(d) =>
+    Updated.(
+      {
+        let* result =
+          EvalResult.Update.update(
+            ~settings={
+              ...settings,
+              core: {
+                ...settings.core,
+                assist: false,
+              },
+            },
+            ra,
+            Divided.result(d),
+          );
+        Program.Divided(Divided.with_result(result, d));
+      }
+    )
+  | Whole(_) => Updated.return_quiet(program)
+  };
+
+let update_code =
     (
       ~settings: Settings.t,
       ~schedule_action: Action.t => unit,
@@ -536,29 +563,123 @@ let update =
         ...code,
         program: Whole(editor),
       };
-    | Divided(d) =>
+    | Divided(_) =>
       /* while divided only the whole-program result takes actions */
       switch (a) {
       | ResultAction(ra) =>
-        let* result =
-          EvalResult.Update.update(
-            ~settings={
-              ...settings,
-              core: {
-                ...settings.core,
-                assist: false,
-              },
-            },
-            ra,
-            Divided.result(d),
-          );
+        let* program = divided_result(~settings, ra, code.program);
         {
           ...code,
-          program: Divided(Divided.with_result(result, d)),
+          program,
         };
       | MainEditor(_) => code |> return_quiet
       }
     }
+  | LensResult(ra) =>
+    switch (code.lens) {
+    | Some(l) =>
+      let* program =
+        switch (l.program) {
+        | Whole(editor) =>
+          let* editor =
+            CellEditor.Update.update(~settings, ResultAction(ra), editor);
+          Program.Whole(editor);
+        | Divided(_) => divided_result(~settings, ra, l.program)
+        };
+      {
+        ...code,
+        lens:
+          Some({
+            ...l,
+            program,
+          }),
+      };
+    | None => code |> return_quiet
+    }
+  };
+};
+
+/* View as agent shows a request instead of the program: the program and
+   its view are the user's, untouched, and the agent keeps working on
+   them; what the user does to the shown request is dropped */
+let update =
+    (
+      ~settings: Settings.t,
+      ~schedule_action: Action.t => unit,
+      ~slide_key: string,
+      action: Action.t,
+      code: code,
+    )
+    : Updated.t(code) => {
+  let lens_of = (chat_id, seq) =>
+    switch (Id.Map.find_opt(chat_id, code.agent.chat_system.chat_map)) {
+    | Some(chat) =>
+      AgentLens.build(
+        ~settings=settings.core,
+        ~module_depth=settings.agent_globals.map_module_depth,
+        ~live=seq == None,
+        chat,
+        seq,
+      )
+    | None => None
+    };
+  let update_code =
+    update_code(~settings, ~schedule_action, ~slide_key, action);
+  switch (action, code.lens) {
+  | (AgentAction(ViewAsAgent(chat_id, seq)), _) =>
+    switch (lens_of(chat_id, seq)) {
+    | Some(_) as lens =>
+      Updated.return(
+        ~is_edit=false,
+        ~historic=false,
+        {
+          ...code,
+          lens,
+        },
+      )
+    | None => Updated.return_quiet(code)
+    }
+  | (AgentAction(LeaveAgentView), _) =>
+    Updated.return(
+      ~is_edit=false,
+      ~historic=false,
+      {
+        ...code,
+        lens: None,
+      },
+    )
+  | (AgentAction(_), Some(l)) =>
+    let updated = update_code(code);
+    let after = updated.model;
+    let followed =
+      Option.bind(
+        Id.Map.find_opt(l.chat, after.agent.chat_system.chat_map), chat =>
+        AgentLens.follow(
+          ~settings=settings.core,
+          ~module_depth=settings.agent_globals.map_module_depth,
+          chat,
+          l,
+        )
+      );
+    switch (followed) {
+    | Some(_) as lens => {
+        ...updated,
+        model: {
+          ...after,
+          lens,
+        },
+        recalculate: true,
+      }
+    | None => updated
+    };
+  /* the program's own run, and its restores, still land */
+  | (
+      CellAction(ResultAction(_)) | RestorePins | RestoreCaret(_) |
+      LensResult(_),
+      _,
+    )
+  | (_, None) => update_code(code)
+  | (_, Some(_)) => Updated.return_quiet(code)
   };
 };
 
@@ -577,30 +698,22 @@ let calc_entry_memo:
   ) =
   Hashtbl.create(8);
 
-let calculate =
+/* a program's statics and run; its results come back through
+   [dispatch] */
+let calculate_program =
     (
       ~settings,
       ~autoprobe_mode,
       /* the ⇓ toggle: the whole program's last expression, or the ⇒
          cell's, probed as an open drawer */
       ~tail_probe,
-      ~schedule_action: Action.t => unit,
       ~is_edited,
       ~statics_mode,
-      ~slide_key: string,
-      code: code,
+      ~calc_entry_memo,
+      ~dispatch: EvalResult.Update.t => unit,
+      program: Program.t,
     )
-    : code => {
-  let program = code.program;
-  /* restore a loaded slide's saved caret: the Move runs as its own
-     follow-up action, after this calculate builds measured */
-  switch (Hashtbl.find_opt(Persist.pending_caret, slide_key)) {
-  | Some(p) => schedule_action(RestoreCaret(p))
-  | None => ()
-  };
-  if (Option.is_some(saved_view(~slide_key, code))) {
-    schedule_action(RestorePins);
-  };
+    : Program.t => {
   let worker_request = ref([]);
   let queue_worker =
     Some(
@@ -922,8 +1035,7 @@ let calculate =
       );
       Program.Divided(d);
     };
-  let dispatch = (_key, action) =>
-    schedule_action(CellAction(ResultAction(action)));
+  let dispatch = (_key, action) => dispatch(action);
   EvalRequest.request(
     worker_request^,
     ~pos_of_key=key => key,
@@ -933,8 +1045,59 @@ let calculate =
         dispatch(key, UpdateResult(ResultFail(Timeout)))
       ),
   );
+  program;
+};
+
+/* the lens's cells, memoized apart from the program's */
+let lens_entry_memo = Hashtbl.create(8);
+
+let calculate =
+    (
+      ~settings,
+      ~autoprobe_mode,
+      ~tail_probe,
+      ~schedule_action: Action.t => unit,
+      ~is_edited,
+      ~statics_mode,
+      ~slide_key: string,
+      code: code,
+    )
+    : code => {
+  /* restore a loaded slide's saved caret: the Move runs as its own
+     follow-up action, after this calculate builds measured */
+  switch (Hashtbl.find_opt(Persist.pending_caret, slide_key)) {
+  | Some(p) => schedule_action(RestoreCaret(p))
+  | None => ()
+  };
+  if (Option.is_some(saved_view(~slide_key, code))) {
+    schedule_action(RestorePins);
+  };
+  let calc = calculate_program(~settings, ~autoprobe_mode, ~tail_probe);
   {
     ...code,
-    program,
+    program:
+      calc(
+        ~is_edited,
+        ~statics_mode,
+        ~calc_entry_memo,
+        ~dispatch=a => schedule_action(CellAction(ResultAction(a))),
+        code.program,
+      ),
+    lens:
+      Option.map(
+        (l: AgentLens.t) =>
+          {
+            ...l,
+            program:
+              calc(
+                ~is_edited=false,
+                ~statics_mode,
+                ~calc_entry_memo=lens_entry_memo,
+                ~dispatch=a => schedule_action(LensResult(a)),
+                l.program,
+              ),
+          },
+        code.lens,
+      ),
   };
 };

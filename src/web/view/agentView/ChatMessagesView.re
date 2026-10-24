@@ -1266,10 +1266,33 @@ let view =
                 } else {
                   None;
                 };
+              /* the request this turn answers, as the agent saw it */
+              let lens_node: option(Node.t) =
+                Chat.Utils.sent_for(current_chat, msg.id)
+                |> Option.map((r: SentView.t) =>
+                     div(
+                       ~attrs=[
+                         clss(["agent-view-as"]),
+                         Attr.title("Show this request's view in the editor"),
+                         Attr.on_click(_ =>
+                           Effect.Many([
+                             agent_inject(
+                               Agent.Update.Action.ViewAsAgent(
+                                 current_chat_id,
+                                 Some(r.seq),
+                               ),
+                             ),
+                             Effect.Stop_propagation,
+                           ])
+                         ),
+                       ],
+                       [Icons.agent_view, text("View as agent")],
+                     )
+                   );
               let nodes =
                 List.filter_map(
                   x => x,
-                  [reasoning_node, content_node, metadata_node],
+                  [reasoning_node, content_node, metadata_node, lens_node],
                 );
               switch (nodes) {
               | [] => (acc, [])

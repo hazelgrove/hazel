@@ -2997,3 +2997,67 @@
   opacity: 1;
 }
 
+
+/* View as agent: the action on a turn, and the banner over the editor
+   while the editor shows a request's view */
+.agent-view-as {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  margin: 0.15em 0 0.5em;
+  font-size: 0.72em;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.agent-view-as:hover {
+  color: var(--text-default);
+}
+
+.agent-view-as svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+}
+
+#main .agent-lens-banner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  padding: 0.35em 0.75em;
+  font-size: 0.8em;
+  color: var(--text-default);
+  background-color: var(--surface-highlight);
+}
+
+#main .agent-lens-banner .lens-title {
+  font-weight: 600;
+}
+
+#main .agent-lens-banner .lens-which {
+  color: var(--text-muted);
+  margin-right: auto;
+}
+
+#main .agent-lens-banner .lens-button {
+  font: inherit;
+  padding: 0.1em 0.6em;
+  border: 0.6px solid var(--border-strong);
+  border-radius: 4px;
+  background-color: var(--surface-default);
+  color: var(--text-default);
+  cursor: pointer;
+}
+
+#main .agent-lens-banner .lens-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+#main .agent-lens-banner .lens-button.on {
+  background-color: var(--surface-accent);
+  color: var(--text-inverse);
+}
