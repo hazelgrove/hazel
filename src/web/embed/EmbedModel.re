@@ -188,20 +188,24 @@ module Update = {
          ~is_dynamic_term=false,
        );
 
-  /* Leading spaces are dropped from each line, as for a slide's source:
-     Hazel lays out indentation itself, and draws written spaces on top
-     of it. */
+  /* Leading spaces are dropped from each line, as for a slide's source,
+     and the indentation written again as Hazel's Format(Indent) writes it
+     (Matthew 2026-10-23: "indentation on RHS (hazel tiles) is missing
+     too?": indentation is written spaces now, not laid out) */
   let zipper_of_text = (text: string): Zipper.t =>
-    switch (
-      PersistentZipper.parse_text(
-        ~source="embed",
-        ~root=Sort.Exp,
-        StringUtil.trim_leading(text),
-      )
-    ) {
-    | Some(z) => z
-    | None => Zipper.init()
-    };
+    Perform.reindent_zipper @@
+    (
+      switch (
+        PersistentZipper.parse_text(
+          ~source="embed",
+          ~root=Sort.Exp,
+          StringUtil.trim_leading(text),
+        )
+      ) {
+      | Some(z) => z
+      | None => Zipper.init()
+      }
+    );
 
   /* The program as one zipper, and the bodies read for it. A text is
      read whole, by the path a saved editor loads by. A program's parts
@@ -330,7 +334,8 @@ module Update = {
      body's context now. */
   let set = (~fresh: bool, program: Program.t, model: Model.t): Model.t => {
     let (zipper, bodies) = read(~bodies=model.bodies, program);
-    let full = cell_of_zipper(zipper);
+    /* (its indentation written, as for a text: the whole-program cell) */
+    let full = cell_of_zipper(Perform.reindent_zipper(zipper));
     let status =
       Some(Status.of_statics(~names=?Program.names(program), full.statics));
     switch (model.focus) {
@@ -341,7 +346,10 @@ module Update = {
       let cell =
         same
           ? mod_cell(~ctx, model.cell.editor)
-          : mod_cell(~ctx, Editor.Model.mk(body, ~root=Sort.Mod));
+          : mod_cell(
+              ~ctx,
+              Editor.Model.mk(Perform.reindent_zipper(body), ~root=Sort.Mod),
+            );
       {
         ...model,
         program: Some(program),
@@ -651,6 +659,9 @@ module View = {
                   focus: model.active ? Some() : None,
                 }),
               ~dynamics=Language.Dynamics.Map.empty,
+              /* (Matthew 2026-10-23: "no line numbers, still") the view draws
+                 Hazel's numbers only when asked here as well as in settings */
+              ~lines=true,
               model.cell,
             )
           : CodeSelectable.View.view(
@@ -666,6 +677,9 @@ module View = {
                   focus: model.active ? Some() : None,
                 }),
               ~dynamics=Language.Dynamics.Map.empty,
+              /* (Matthew 2026-10-23: "no line numbers, still") the view draws
+                 Hazel's numbers only when asked here as well as in settings */
+              ~lines=true,
               model.cell,
             ),
       ],

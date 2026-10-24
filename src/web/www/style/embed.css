@@ -7,6 +7,12 @@ html.hazel-embed body {
   margin: 0;
 }
 
+/* (Matthew 2026-10-23: "white bar below code?") a frame taller than its
+   code shows the theme's background below it, not the page's white */
+html.hazel-embed body {
+  background-color: var(--main-bkg);
+}
+
 /* In a frame, the page sizes the frame to the height posted, so the frame
    never scrolls itself: no scrollbar of its own to take width from long
    lines, which scroll sideways in #main */
