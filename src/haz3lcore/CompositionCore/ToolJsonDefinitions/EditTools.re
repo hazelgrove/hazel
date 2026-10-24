@@ -48,11 +48,11 @@ let place_properties = [
   ("after", "Path of the entry it goes after."),
   (
     "first_in",
-    "Path of the module or definition it goes first in; \"\" for the top level.",
+    "Path of the module or definition it goes first in; \"/\" for the top level.",
   ),
   (
     "last_in",
-    "Path of the module or definition it goes last in; \"\" for the top level (above the program's result).",
+    "Path of the module or definition it goes last in; \"/\" for the top level (above the program's result).",
   ),
 ];
 

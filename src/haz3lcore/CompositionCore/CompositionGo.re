@@ -327,14 +327,20 @@ let uses_of =
   );
 };
 
-/* the place a call's place names; an empty path is the top level */
+/* "/" (or "") names the top level */
+let is_top = (path: string): bool => {
+  let s = String.trim(path);
+  s == "" || s == "/";
+};
+
+/* the place a call's place names */
 let place_at =
     (p: program, place: Action.Structural.place): result(K.place, string) =>
   switch (place) {
-  | Before("")
-  | FirstIn("") => Ok(FirstIn(Top))
-  | After("")
-  | LastIn("") => Ok(at_end(p))
+  | Before(s)
+  | FirstIn(s) when is_top(s) => Ok(FirstIn(Top))
+  | After(s)
+  | LastIn(s) when is_top(s) => Ok(at_end(p))
   | Before(path) => Result.map(~f=f => K.Before(f.P.id), resolve(p, path))
   | After(path) => Result.map(~f=f => K.After(f.P.id), resolve(p, path))
   | FirstIn(path) =>
@@ -349,8 +355,8 @@ let place_words = (place: Action.Structural.place): string =>
   switch (place) {
   | Before(d) => "before " ++ d
   | After(d) => "after " ++ d
-  | FirstIn("") => "first in the program"
-  | LastIn("") => "last in the program"
+  | FirstIn(d) when is_top(d) => "first in the program"
+  | LastIn(d) when is_top(d) => "last in the program"
   | FirstIn(d) => "first in " ++ d
   | LastIn(d) => "last in " ++ d
   };
@@ -499,7 +505,7 @@ let plan_call = (p: program, call: call): result(plan, string) => {
       ...plan(~target=f.id, Deleted, [Delete(f.id)]),
       removes,
     });
-  | Move(_, Before("") | After("")) =>
+  | Move(_, Before(s) | After(s)) when is_top(s) =>
     Error("move needs an entry to go before or after")
   | Move(path, place) =>
     let* f = resolve(p, path);

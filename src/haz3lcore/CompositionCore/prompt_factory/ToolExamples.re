@@ -104,7 +104,7 @@ let all: list(example) = [
       call(
         "insert",
         [
-          ("last_in", ""),
+          ("last_in", "/"),
           (
             "code",
             "hint \"scaled total\" test total([Geo.scale(2, Geo.unit)]) == 4 end",

@@ -87,7 +87,7 @@ let fib_example = {
     {
       says: "**Step 2 — Implement.** The program is empty, so the function goes first in the top level:",
       calls: [
-        call("insert", [("first_in", ""), ("code", fib)]),
+        call("insert", [("first_in", "/"), ("code", fib)]),
         call(
           "mark_active_subtask_complete",
           [("summary", "Implemented recursive fib.")],

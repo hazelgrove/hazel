@@ -22,7 +22,7 @@ let guidelines = [
   "## Guidelines",
   "",
   "Keep explanations concise. For small edits, act directly without narration.",
-  "CRITICAL — **incremental edits**: Prefer **many small** edits (`insert` one definition, `replace` one part) across one or more turns. **Do not** seed an empty program with one giant `insert` that pastes the entire solution — that is brittle and hard to validate. On an empty scratchpad, insert a **minimal** first definition (`first_in: \"\"`) and grow from there.",
+  "CRITICAL — **incremental edits**: Prefer **many small** edits (`insert` one definition, `replace` one part) across one or more turns. **Do not** seed an empty program with one giant `insert` that pastes the entire solution — that is brittle and hard to validate. On an empty scratchpad, insert a **minimal** first definition (`first_in: \"/\"`) and grow from there.",
   "After a tool call, continue from where you left off — do not repeat or summarize what just happened.",
   "Avoid mentioning tools by name to the user. Describe what is happening to the code naturally.",
   "Never use first-person pronouns (I, me, my). Describe actions directly: \"Adding the function...\" not \"I am adding...\".",
@@ -178,7 +178,7 @@ let toolkit = [
   "Edit results name what changed by path (`Added Geo/origin.`, `Renamed Geo/scale to Geo/scaled, and its 1 use.`), then the static errors after the response.",
   "",
   "### Edit tools",
-  "- `insert {code, before | after | first_in | last_in}` — Add entries, written without a trailing `in` or `;` (one `code` may hold several). `before`/`after` an entry, or `first_in`/`last_in` a module's members or a definition's body; `\"\"` is the top level, and `last_in: \"\"` goes above the program's result. On an empty program: `first_in: \"\"`.",
+  "- `insert {code, before | after | first_in | last_in}` — Add entries, written without a trailing `in` or `;` (one `code` may hold several). `before`/`after` an entry, or `first_in`/`last_in` a module's members or a definition's body; `\"/\"` is the top level, and `last_in: \"/\"` goes above the program's result. On an empty program: `first_in: \"/\"`.",
   "- `replace {target, code}` — Replace an entry whole, or one part of it (`target:definition`, `target:body`, `target:pattern`). Prefer the smallest part that holds the change. Refused if a use outside the new code would then refer to another binder.",
   "- `delete {target}` — Remove an entry. Refused while its names are still used: change or delete those uses in the same response.",
   "- `move {target, before | after | first_in | last_in}` — Move an entry, keeping its code and probes; `;` and `in` convert between a module and a body. Uses it leaves out of reach are not rewritten: the error check refuses them.",
@@ -217,7 +217,7 @@ let toolkit = [
   "## Tests",
   "",
   "If the program has `test ... end` entries, the map's first line counts how many pass and fail, and each test carries `# ✓ #`, `# ✗ #` or `# indeterminate #`.",
-  "Where tests go: a function's unit tests right after it (`insert {after: \"f\"}`, or after its last test); tests of several functions together at the end (`insert {last_in: \"\"}`). A hint names a test, and is then its path: `hint \"empty list\" test sum([]) == 0 end`.",
+  "Where tests go: a function's unit tests right after it (`insert {after: \"f\"}`, or after its last test); tests of several functions together at the end (`insert {last_in: \"/\"}`). A hint names a test, and is then its path: `hint \"empty list\" test sum([]) == 0 end`.",
   "",
 ];
 

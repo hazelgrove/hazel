@@ -787,6 +787,17 @@ let moves = [
     },
   ),
   test_case(
+    "\"/\" names the top level, as \"\" does",
+    `Quick,
+    () => {
+      let moved = top =>
+        fst(
+          reply(geo, [("move", [("target", "area"), ("last_in", top)])]),
+        );
+      check(string, "same program", moved(""), moved("/"));
+    },
+  ),
+  test_case(
     "move takes exactly one place",
     `Quick,
     () => {
