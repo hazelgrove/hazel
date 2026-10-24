@@ -195,13 +195,6 @@ map_fib([1, 2, 3, 4, 5])  #› ⇒ [1, 1, 2, 3, 5] #|},
 
 let examples = [fib_example, map_fib_example];
 
-let json_block = (c: call): string =>
-  "Tool call: `"
-  ++ c.tool
-  ++ "`\n```json\n"
-  ++ Yojson.Safe.pretty_to_string(`Assoc(c.args))
-  ++ "\n```";
-
 let example_text = (e: example): string =>
   "### Example: User asks \""
   ++ e.asks
@@ -214,7 +207,7 @@ let example_text = (e: example): string =>
          s =>
            s.says
            ++ "\n\n"
-           ++ String.concat("\n", List.map(json_block, s.calls))
+           ++ String.concat("\n", List.map(call_text, s.calls))
            ++ (
              switch (s.sees) {
              | Some((view, _)) =>
@@ -238,7 +231,7 @@ let self =
 ### Key patterns
 
 1. **Plan when it helps**: coarse workbench milestones for multi-turn work; none for quick edits.
-2. **Edit the smallest part**: replace `f:body` rather than the whole entry when only the body changes; tests go right after their function.
+2. **Edit the smallest part**: replace `f:definition`, or `f/=>` past f's local definitions, rather than the whole entry; tests go right after their function.
 3. **One reply, one change**: calls that belong together go in one reply; they apply together or not at all.
 4. **Open only what you need**: signatures, tests and the map's annotations often say enough.
 5. **Rename and move with their tools**: `rename` updates every use; `move` keeps code, probes and identity. Don't delete and re-insert.

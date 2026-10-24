@@ -1182,18 +1182,18 @@ let tool_call_summary_tests = [
     "an edit: signifier and jump_paths from its target",
     `Quick,
     () => {
-      let args = `Assoc([("target", `String("fib:body"))]);
+      let args = `Assoc([("target", `String("fib:definition"))]);
       let s = get_summary(mk_tc(~name="replace", ~args));
       check_signifier(
         "replace",
-        Some("fib:body"),
+        Some("fib:definition"),
         mk_tc(~name="replace", ~args),
       );
       check_bool("persists=true", true, s.persists);
       check_bool(
-        "jump_paths=[fib:body]",
+        "jump_paths=[fib:definition]",
         true,
-        s.jump_paths == ["fib:body"],
+        s.jump_paths == ["fib:definition"],
       );
     },
   ),

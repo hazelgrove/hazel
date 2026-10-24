@@ -63,7 +63,7 @@ let example = (name: string): string =>
     "\n\nExample"
     ++ (List.length(calls) > 1 ? "s" : "")
     ++ ":\n"
-    ++ String.concat("\n", List.map(ToolExamples.call_line, calls))
+    ++ String.concat("\n", List.map(ToolExamples.call_text, calls))
   };
 
 let insert: API.Json.t =
@@ -83,13 +83,13 @@ let replace: API.Json.t =
     ~name="replace",
     ~description=
       {|
-Replaces the entry at `target` with `code`, or one part of it: `target:definition` (after `=`), `target:body` (a function's body, past its parameters), `target:pattern` (before `=`; to rename, use rename). A whole entry is written without its trailing `in` or `;`. Refused if a use outside the new code would then refer to another binder.|}
+Replaces the entry at `target` with `code`, or one part of it: `target:definition` (after `=`; for `let f(x) = …`, f's body), `target:pattern` (before `=`; to rename, use rename). `target/=>` is the result of a definition's body, past its local definitions. A whole entry is written without its trailing `in` or `;`. Refused if a use outside the new code would then refer to another binder.|}
       ++ example("replace"),
     ~properties=
       strings([
         (
           "target",
-          "Path of the entry, optionally with :definition, :body, :pattern or :head.",
+          "Path of the entry, optionally with :definition, :pattern or :head.",
         ),
         ("code", "The new code."),
       ]),

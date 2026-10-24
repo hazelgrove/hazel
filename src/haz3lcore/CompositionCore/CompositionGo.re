@@ -100,24 +100,45 @@ let reserved_binder = (code: string): option(string) => {
     ? Some(String.trim(code)) : scan(words);
 };
 
-/* why code didn't read: the batch parser's note, a reserved binder */
+/* a backslash escape outside string literals: code written as a JSON
+   string's text */
+let escaped = (code: string): bool => {
+  let n = String.length(code);
+  let rec go = (i, in_string) =>
+    i < n
+    - 1
+    && (
+      switch (code.[i]) {
+      | '"' => go(i + 1, !in_string)
+      | '\\' when in_string => go(i + 2, in_string)
+      | '\\' when List.mem(code.[i + 1], ['n', 't', '"']) => true
+      | _ => go(i + 1, in_string)
+      }
+    );
+  go(0, false);
+};
+
+/* why code didn't read: escapes, the batch parser's note, a reserved
+   binder */
 let unreadable = (code: string): string =>
-  "The code does not parse."
-  ++ (
-    switch (FastParse.bail_note^) {
-    | Some(n) => " Parser: " ++ n ++ "."
-    | None => ""
-    }
-  )
-  ++ (
-    switch (reserved_binder(code)) {
-    | Some(w) =>
-      " Note: `"
-      ++ w
-      ++ "` is a reserved keyword in Hazel and cannot be used as a variable name."
-    | None => ""
-    }
-  );
+  escaped(code)
+    ? {|`code` contains `\n` as two characters; write real line breaks (and plain quotes).|}
+    : "The code does not parse."
+      ++ (
+        switch (FastParse.bail_note^) {
+        | Some(n) => " Parser: " ++ n ++ "."
+        | None => ""
+        }
+      )
+      ++ (
+        switch (reserved_binder(code)) {
+        | Some(w) =>
+          " Note: `"
+          ++ w
+          ++ "` is a reserved keyword in Hazel and cannot be used as a variable name."
+        | None => ""
+        }
+      );
 
 /* a comment only the view adds, `#› … #`, copied into code */
 let view_comment = StringUtil.regexp(CompositionView.marker ++ "[^#\n]*#");
@@ -154,6 +175,8 @@ type plan = {
   renames: list((Id.t, string, list(Id.t))),
   /* a replace's binders then, each by name, and their uses outside it */
   rebinds: option((list((string, Id.t)), list((Id.t, Id.t)))),
+  /* a whole-entry replace kept the entry's doc comment */
+  kept_comment: bool,
 };
 
 let plan = (~target=?, what, ops) => {
@@ -163,6 +186,7 @@ let plan = (~target=?, what, ops) => {
   removes: [],
   renames: [],
   rebinds: None,
+  kept_comment: false,
 };
 
 /* entries elsewhere named [el]: what a path missing its outer names
@@ -183,10 +207,24 @@ let elsewhere = (p: program, el: string): string =>
     " Did you mean " ++ String.concat(" or ", ListUtil.take(3, paths)) ++ "?"
   };
 
+let path_string = (~root, seg: Segment.t, id: Id.t): option(string) =>
+  Option.map(P.to_string, P.describe(~root, seg, id));
+
 /* the entry [path] names; a part only where [~parts] */
 let resolve =
     (~parts=false, p: program, path: string): result(P.found, string) =>
   switch (P.resolve_string(~root=p.root, p.seg, path)) {
+  /* the agent's parts: a definition's whole, not past its `fun` heads */
+  | Ok({part: Some(Body), _} as f) =>
+    let x =
+      Option.value(path_string(~root=p.root, p.seg, f.id), ~default="X");
+    Error(
+      "`:body` isn't a part. Use `"
+      ++ x
+      ++ ":definition` (for `let f(x) = e` that is `e`), or `"
+      ++ x
+      ++ "/=>` for the result of a block of definitions.",
+    );
   | Ok({part: Some(part), _}) when !parts =>
     Error(
       "\""
@@ -404,6 +442,25 @@ let binder_of =
   };
 };
 
+/* the comment lines an entry's pieces start with, one per line */
+let leading_comment = (ps: Segment.t): option(string) => {
+  let rec lead = (ps: Segment.t) =>
+    switch (ps) {
+    | [p, ...rest] when Piece.is_secondary(p) => [p, ...lead(rest)]
+    | _ => []
+    };
+  let lead = lead(ps);
+  List.exists(S.is_comment, lead)
+    ? Some(
+        Printer.of_segment(~holes="?", lead)
+        |> String.split_on_char('\n')
+        |> List.map(String.trim)
+        |> List.filter(l => l != "")
+        |> String.concat("\n"),
+      )
+    : None;
+};
+
 /* the variable [x] bound in the pattern of the entry [path] names, a
    function definition's parameters included (`f(x)`, `fun x ->`) */
 let bound_in =
@@ -474,27 +531,28 @@ let plan_call = (p: program, call: call): result(plan, string) => {
       | None => Ok(f.id)
       | Some(pt) => part(p, path, f, pt)
       };
-    let pl =
-      plan(~target=f.id, Replaced(f.part), [Replace(id, text(code))]);
-    /* a body's binders are seen only inside it */
-    switch (f.part) {
-    | Some(Body) => Ok(pl)
-    | None
-    | Some(Pattern | Head | Definition) =>
-      let info_map = Lazy.force(p.info_map);
-      let binders =
-        binders_in(~info_map, pieces_at(~root=p.root, p.seg, id));
-      Ok({
-        ...pl,
-        rebinds:
-          binders == []
-            ? None
-            : Some((
-                binders,
-                uses_of(~root=p.root, ~info_map, p.seg, binders),
-              )),
-      });
+    /* new code without a comment keeps the entry's */
+    let comment =
+      f.part == None && !String.starts_with(~prefix="#", String.trim(code))
+        ? leading_comment(pieces_at(~root=p.root, p.seg, f.id)) : None;
+    let code =
+      switch (comment) {
+      | Some(c) => c ++ "\n" ++ code
+      | None => code
+      };
+    let pl = {
+      ...plan(~target=f.id, Replaced(f.part), [Replace(id, text(code))]),
+      kept_comment: comment != None,
     };
+    let info_map = Lazy.force(p.info_map);
+    let binders = binders_in(~info_map, pieces_at(~root=p.root, p.seg, id));
+    Ok({
+      ...pl,
+      rebinds:
+        binders == []
+          ? None
+          : Some((binders, uses_of(~root=p.root, ~info_map, p.seg, binders))),
+    });
   | Delete(path) =>
     let* f = resolve(p, path);
     let (lv, k) = level_of(f);
@@ -567,9 +625,6 @@ let code_of = (call: call): option(string) =>
   | Move(_)
   | Rename(_) => None
   };
-
-let path_string = (~root, seg: Segment.t, id: Id.t): option(string) =>
-  Option.map(P.to_string, P.describe(~root, seg, id));
 
 /* the entry holding piece [id], by path */
 let where_is = (~root, seg: Segment.t, id: Id.t): option(string) =>
@@ -755,6 +810,7 @@ let report = (~root, m: made): string => {
       | _ => ""
       }
     )
+    ++ (m.plan.kept_comment ? ", kept the comment above it" : "")
     ++ "."
     ++ removal(~root, m);
   | Replaced(Some(part)) =>
