@@ -1466,20 +1466,39 @@ let rec find_ctx = (seg: t, id: Id.t): option((t, int, Piece.t)) => {
   go(0, seg);
 };
 
+/* pointer-elementwise equality: caret moves rebuild the top-level list
+   but reuse its pieces, so this cheaply tells moved from edited */
+let ptr_eq = (a: t, b: t): bool => {
+  let rec go = (xs, ys) =>
+    switch (xs, ys) {
+    | ([], []) => true
+    | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
+    | _ => false
+    };
+  a === b || go(a, b);
+};
+
 /* Apply a segment-level transform top-down, recursing into the tile
-   children of the transformed result */
-let rec map_deep = (f: t => t, seg: t): t =>
-  f(seg)
-  |> List.map((p: Piece.t) =>
-       switch (p) {
-       | Tile(t) =>
-         Piece.Tile({
-           ...t,
-           children: List.map(map_deep(f), t.children),
-         })
-       | p => p
-       }
-     );
+   children of the transformed result. What [f] leaves alone comes back
+   as the same objects, so identity-keyed caches still hit */
+let rec map_deep = (f: t => t, seg: t): t => {
+  let next = List.map(map_deep_piece(f), f(seg));
+  ptr_eq(seg, next) ? seg : next;
+}
+and map_deep_piece = (f: t => t, p: Piece.t): Piece.t =>
+  switch (p) {
+  | Tile(t) =>
+    let children = List.map(map_deep(f), t.children);
+    List.for_all2((===), t.children, children)
+      ? p
+      : Piece.Tile({
+          ...t,
+          children,
+        });
+  | Grout(_)
+  | Secondary(_)
+  | Projector(_) => p
+  };
 
 /* what a positional scan may step over — the choice is load-bearing */
 let skip_space = (p: Piece.t): bool => Piece.is_space(p);
@@ -1614,18 +1633,6 @@ let top_items = (seg: t): list(t) => {
   walk(0, 0, []);
 };
 
-/* pointer-elementwise equality: caret moves rebuild the top-level list
-   but reuse its pieces, so this cheaply tells moved from edited */
-let ptr_eq = (a: t, b: t): bool => {
-  let rec go = (xs, ys) =>
-    switch (xs, ys) {
-    | ([], []) => true
-    | ([x, ...xs], [y, ...ys]) => x === y && go(xs, ys)
-    | _ => false
-    };
-  a === b || go(a, b);
-};
-
 /* [ptr_eq], but a secondary may be a new record equal to the old: the
    editor rewraps the whitespace an open tile reaches on every key */
 let same_pieces = (a: t, b: t): bool => {
@@ -1663,69 +1670,6 @@ let restore_identity_dirty = (old: t, neu: t): (t, Id.Set.t) =>
         neu,
       );
     (restored, dirty^);
-  };
-
-/* every piece of [segs] by id, at every level: [restore_deep]'s index */
-let index_deep = (segs: list(t)): Hashtbl.t(Id.t, Piece.t) => {
-  let tbl = Hashtbl.create(4096);
-  let rec go = (seg: t) =>
-    List.iter(
-      (p: Piece.t) => {
-        Hashtbl.replace(tbl, Piece.id(p), p);
-        switch (p) {
-        | Tile(t) => List.iter(go, t.children)
-        | Grout(_)
-        | Secondary(_)
-        | Projector(_) => ()
-        };
-      },
-      seg,
-    );
-  List.iter(go, segs);
-  tbl;
-};
-
-/* [restore_identity_dirty] at every level, deepest first: a piece equal to
-   [old]'s same-id piece becomes that object, and a changed tile keeps its
-   unchanged descendants. A segment all of whose pieces come back is
-   returned as is */
-let rec restore_deep = (old: Hashtbl.t(Id.t, Piece.t), seg: t): t => {
-  let restored = List.map(restore_piece_deep(old), seg);
-  ptr_eq(restored, seg) ? seg : restored;
-}
-and restore_piece_deep = (old, p: Piece.t): Piece.t =>
-  switch (Hashtbl.find_opt(old, Piece.id(p)), p) {
-  | (Some(o), _) when o === p => p
-  | (o, Tile(t)) =>
-    let children = List.map(restore_deep(old), t.children);
-    let same_fields = (o: Tile.t) =>
-      compare(
-        {
-          ...o,
-          children: [],
-        },
-        {
-          ...t,
-          children: [],
-        },
-      )
-      == 0;
-    switch (o) {
-    | Some(Tile(ot) as o)
-        when
-          same_fields(ot)
-          && List.length(ot.children) == List.length(children)
-          && List.for_all2(ptr_eq, ot.children, children) => o
-    | _ =>
-      List.for_all2((===), children, t.children)
-        ? p
-        : Piece.Tile({
-            ...t,
-            children,
-          })
-    };
-  | (Some(o), Grout(_) | Secondary(_) | Projector(_)) when compare(o, p) == 0 => o
-  | (_, Grout(_) | Secondary(_) | Projector(_)) => p
   };
 
 /* Secondary collection for outer secondary model.

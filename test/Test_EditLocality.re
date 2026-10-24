@@ -16,7 +16,8 @@ let statics_of = (z: Zipper.t): CachedStatics.t =>
     MakeTerm.from_zip_for_sem(z, ~root=Exp).term,
   );
 
-let perform = (~statics, z: Zipper.t, a: Action.t): Zipper.t =>
+let perform =
+    (~settings=settings, ~statics, z: Zipper.t, a: Action.t): Zipper.t =>
   switch (
     Perform.go(
       ~settings,
@@ -119,9 +120,9 @@ type edit = {
   fallbacks: int,
 };
 
-let edit = (~statics, z: Zipper.t, a: Action.t): edit => {
+let edit = (~settings=?, ~statics, z: Zipper.t, a: Action.t): edit => {
   let f0 = Zipper.sparse_fallbacks^;
-  let z' = perform(~statics, z, a);
+  let z' = perform(~settings?, ~statics, z, a);
   {
     before: Zipper.unselect_and_zip(z),
     after: Zipper.unselect_and_zip(z'),
@@ -172,14 +173,61 @@ let restructure = () => {
   };
 };
 
-let agent = () =>
+/* as the editor runs agent edits: new lines are re-indented */
+let structural = a =>
   edit(
+    ~settings={
+      ...settings,
+      auto_reindent: true,
+    },
     ~statics=Lazy.force(dew_statics),
     Lazy.force(dew),
-    Structural(
-      Update(Definition, "final", "let r = MetaRunner.run_all(()) in r"),
-    ),
+    Structural(a),
   );
+
+let agent = () =>
+  structural(
+    Update(Definition, "final", "let r = MetaRunner.run_all(()) in r"),
+  );
+
+/* new lines: the region re-indent maps the whole program */
+let agent_lines = () =>
+  structural(
+    Update(Definition, "final", "let r =\n  MetaRunner.run_all(())\nin\nr"),
+  );
+let agent_insert = () =>
+  structural(
+    Insert(After, "final", "let extra =\n  final.ok\n  + 1\n  + 2\nin"),
+  );
+
+/* `M.x` labels are relabeled program-wide: Text and WateringTimer
+   change, with their members that use it */
+let agent_rename = () =>
+  structural(Update(Pattern, "Text/int_to_text", "render_int"));
+
+/* relabeling maps every piece: [final]'s binder and use */
+let relabel = () => {
+  let z = Lazy.force(dew);
+  let rec toks = (seg: Segment.t) =>
+    List.concat_map(
+      (p: Piece.t) =>
+        switch (p) {
+        | Tile({form: Tok("final"), id, _}) => [id]
+        | Tile(t) => List.concat_map(toks, t.children)
+        | _ => []
+        },
+      seg,
+    );
+  let before = Zipper.unselect_and_zip(z);
+  {
+    before,
+    after:
+      Zipper.unselect_and_zip(
+        Rename.relabel_zipper(toks(before), "outcome", z),
+      ),
+    fallbacks: 0,
+  };
+};
 
 /* a space at [row]: Mega 2k's rows 100 and 900 are these lines too */
 let mega_insert = (row, ()) => {
@@ -226,7 +274,17 @@ let tests = (
     case("undo", undo),
     /* the two members swapped, and their module's shell */
     case("restructure", ~items=3, ~analyzed=8, restructure),
+    case("relabel", relabel),
     case("agent update", ~speed=`Slow, agent),
+    case("agent update, new lines", ~speed=`Slow, agent_lines),
+    /* the new let and the line breaks around it */
+    case(
+      "agent insert_after, new lines",
+      ~speed=`Slow,
+      ~fresh=4,
+      agent_insert,
+    ),
+    case("agent rename", ~speed=`Slow, ~items=6, ~analyzed=10, agent_rename),
     case("mega-1k row 900", ~typing=true, mega_insert(900)),
     case("mega-1k row 100", ~typing=true, mega_insert(100)),
   ],
