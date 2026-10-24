@@ -205,6 +205,10 @@ type entry = {
 let content = (seg: Segment.t): list(Piece.t) =>
   List.filter(p => !Piece.is_secondary(p), seg);
 
+/* a name a pattern binds: a var, or a livelit's `^name` */
+let is_binder = (x: Token.t): bool =>
+  Token.is_var(x) || Token.is_livelit(x);
+
 /* the names a pattern binds: its vars, but not a function definition's
    parameters (`f(x)`), a label (`x = p`) or past an ascription's `:` */
 let rec pat_binders = (seg: Segment.t): list((string, Id.t)) => {
@@ -216,7 +220,7 @@ let rec pat_binders = (seg: Segment.t): list((string, Id.t)) => {
       | _ when Tile.is_comma(t) => go(rest, ~asc=false, acc)
       | _ when asc => go(rest, ~asc, acc)
       | _ when t.form == Form.Compound(TypeAsc) => go(rest, ~asc=true, acc)
-      | Some(x) when Token.is_var(x) =>
+      | Some(x) when is_binder(x) =>
         switch (rest) {
         | [Tile(lab), ...rest] when Tile.is_tuple_label_eq(lab) =>
           go(rest, ~asc, acc)

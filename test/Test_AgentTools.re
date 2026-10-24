@@ -4378,9 +4378,30 @@ let whitespace_normalization_tests = (
    ("m/x"). The node map chains through the statics expansion
    (wrapper Let/TyAlias keyed by Mod item ids), so the same eight tools
    work at member granularity. */
+/* a livelit definition: its `^name` binds, its literal's members are
+   paths as a module's */
+let livelit_src = "let ^pct = {\n  type T = Int;\n  let init = 50\n} in\n^pct(1)";
+
 let module_member_tests = (
   "AgentTools.ModuleMembers",
   [
+    test_case("a livelit's member: replace :definition", `Quick, () =>
+      check_rendered_exact(
+        "livelit_member_def",
+        "let ^pct = {\n  type T = Int;\n  let init = 75\n} in\n^pct(1)",
+        apply_and_render(livelit_src, Replace("^pct/init:definition", "75")),
+      )
+    ),
+    test_case("a livelit's members: insert last_in", `Quick, () =>
+      check_rendered_exact(
+        "livelit_member_insert",
+        "let ^pct = {\n  type T = Int;\n  let init = 50;\n  let step = 5\n} in\n^pct(1)",
+        apply_and_render(
+          livelit_src,
+          Insert(LastIn("^pct"), "let step = 5"),
+        ),
+      )
+    ),
     test_case(
       "replace :definition on a member",
       `Quick,
@@ -4905,6 +4926,21 @@ let mod_root_tests = (
 let member_rename_tests = (
   "AgentTools.MemberRename",
   [
+    test_case("a livelit's member", `Quick, () =>
+      check_rendered_exact(
+        "livelit_member_rename",
+        "let ^pct = {\n  type T = Int;\n  let start = 50\n} in\n^pct(1)",
+        apply_and_render(livelit_src, Rename("^pct/init", None, "start")),
+      )
+    ),
+    /* statics reads no binding in `let ^pct`, so its uses are unknown */
+    test_case("the livelit itself is refused", `Quick, () =>
+      switch (run_agent_action(livelit_src, Rename("^pct", None, "^pc"))) {
+      | Error(Action.Failure.Composition_action_failure(_)) => ()
+      | Ok(z) => Alcotest.fail("renamed: " ++ render_zipper(z))
+      | Error(e) => Alcotest.fail("unexpected: " ++ Action.Failure.show(e))
+      }
+    ),
     test_case("a nested member's Outer.Inner.x", `Quick, () =>
       check_rendered(
         "nested_member_rename",

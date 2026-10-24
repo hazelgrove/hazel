@@ -311,6 +311,38 @@ let names = () => {
   );
 };
 
+/* a livelit's `^name` binds; a definition that is a module literal has
+   members, as a module does */
+let livelit_src = "let ^pct = {\n  type T = Int;\n  let init = 50\n} in\nlet m = { let a = 1 } in\n^pct(m.a)";
+let livelits = () => {
+  let seg = seg_of(livelit_src);
+  check(
+    list(string),
+    "paths",
+    ["^pct", "^pct/T", "^pct/init", "m", "m/a", "=>"],
+    List.map(((_, p)) => P.to_string(p), P.entries(~root=Exp, seg)),
+  );
+  check(
+    bool,
+    "^pct",
+    true,
+    starts("let ^pct", core_text(resolve(seg, "^pct"))),
+  );
+  check(bool, "^pct/T", true, resolve(seg, "^pct/T").kind == Type);
+  check(
+    string,
+    "^pct/init",
+    "let init = 50",
+    core_text(resolve(seg, "^pct/init")),
+  );
+  check(
+    list(string),
+    "^pct's binder",
+    ["^pct"],
+    List.map(fst, P.entry(S.top(~root=Exp, seg), 0).binders),
+  );
+};
+
 /* every entry: its canonical path resolves to it, describing it gives
    that path, and the text reads back */
 let round_trip = (~root, name, seg) => {
@@ -343,6 +375,7 @@ let round_trip = (~root, name, seg) => {
 
 let small_round_trips = () => {
   ignore(round_trip(~root=Exp, "example", seg_of(example)));
+  ignore(round_trip(~root=Exp, "livelits", seg_of(livelit_src)));
   ignore(round_trip(~root=Mod, "Mod root", seg_of(~root=Mod, mod_src)));
   List.iter(
     ((name, src)) =>
@@ -511,6 +544,7 @@ let tests = (
     test_case("a shared name's rest", `Quick, shared_prefix),
     test_case("Mod root", `Quick, mod_root),
     test_case("names", `Quick, names),
+    test_case("livelits", `Quick, livelits),
     test_case("round trips", `Quick, small_round_trips),
     test_case("sub-level offsets", `Quick, sub_offsets),
     test_case("corpus round trips", `Slow, corpus_round_trips),
