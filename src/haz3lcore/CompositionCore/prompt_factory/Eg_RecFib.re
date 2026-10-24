@@ -1,209 +1,261 @@
-let self = {|
-The following demonstrates the ideal workflow pattern for implementing a user request.
-Study this example carefully — it shows HOW to think, plan, and act.
+/* The few-shot example, as data: its replies' tool calls and the views
+   between them print here, and Test_AgentReply replays the replies in
+   order, checking each view as shown */
 
----
+open ToolExamples;
 
-### Example: User asks "Implement a fibonacci function and test it"
+type step = {
+  /* what the step does, before its calls */
+  says: string,
+  /* one reply's calls */
+  calls: list(call),
+  /* the agent's view after the reply, and the entries it has open */
+  sees: option((string, list(string))),
+};
 
-**Starting program state:**
-```
-?
-```
+type example = {
+  asks: string,
+  program: string,
+  /* the agent's view of it, when shown in place of its text */
+  start: option(string),
+  steps: list(step),
+  /* the final message to the user */
+  final: string,
+};
 
-**Step 1 — Plan.** (Illustrates the workbench on a **multi-step feature**; skip this entirely for small/trivial edits.) Create a task with meaningful milestones (not micro-steps).
+let task = (title, description, subtasks) => {
+  tool: "create_new_task",
+  args: [
+    (
+      "task",
+      `Assoc([
+        ("title", `String(title)),
+        ("description", `String(description)),
+        (
+          "subtasks",
+          `List(
+            List.map(
+              ((t, d)) =>
+                `Assoc([
+                  ("title", `String(t)),
+                  ("description", `String(d)),
+                ]),
+              subtasks,
+            ),
+          ),
+        ),
+      ]),
+    ),
+  ],
+};
 
-Tool call: `create_new_task`
-```json
-{
-  "task": {
-    "title": "Implement fibonacci with tests",
-    "description": "Implement a recursive fibonacci function and add test cases to verify correctness.",
-    "subtasks": [
-      {
-        "title": "Implement fibonacci function",
-        "description": "Define a recursive fib function: fib(0)=0, fib(1)=1, fib(n)=fib(n-1)+fib(n-2)."
-      },
-      {
-        "title": "Add test cases",
-        "description": "Add tests for base cases and a few recursive cases."
-      }
-    ]
-  }
-}
-```
-
-**Step 2 — Implement.** The program is empty (`?`), so use `insert_before` (or `insert_after`) with **no** `path` to seed the first binding. In real tasks, prefer a **minimal** first insert and then `insert_*` / `update_*` for the rest; this walkthrough uses one larger insert only to keep the transcript short.
-
-Tool call: `insert_before`
-```json
-{
-  "code": "let fib(n: Int): Int =\n  if n <= 0\n    then 0\n    else if n == 1\n      then 1\n      else fib(n - 1) + fib(n - 2)\nin"
-}
-```
-
-Agent sees the updated program (via context):
-```
-let fib(n: Int): Int =
+let fib = {|let fib(n: Int): Int =
   if n <= 0
     then 0
     else if n == 1
       then 1
-      else fib(n - 1) + fib(n - 2)
-in
-?
-```
-No static errors. Mark first subtask complete:
-Tool call: `mark_active_subtask_complete`
-```json
-{ "summary": "Implemented recursive fibonacci: fib(0)=0, fib(1)=1, fib(n)=fib(n-1)+fib(n-2)." }
-```
+      else fib(n - 1) + fib(n - 2)|};
 
-**Step 3 — Add tests.** Update the body of `fib` (the `?` after `in`) with test expressions.
+let map_fib = {|let map_fib(ns: [Int]): [Int] =
+  case ns
+  | [] => []
+  | hd :: tl => fib(hd) :: map_fib(tl)
+  end|};
 
-Tool call: `update_body`
-```json
-{
-  "path": "fib",
-  "code": "test fib(0) == 0 end;\ntest fib(1) == 1 end;\ntest fib(5) == 5 end;\ntest fib(10) == 55 end;\nfib(10)"
-}
-```
-
-Agent sees:
-```
-let fib(n: Int): Int =
-  if n <= 0
-    then 0
-    else if n == 1
-      then 1
-      else fib(n - 1) + fib(n - 2)
-in
-test fib(0) == 0 end;
-test fib(1) == 1 end;
-test fib(5) == 5 end;
-test fib(10) == 55 end;
-fib(10)
-```
-No static errors. All tests pass. Mark subtask and task complete:
-Tool call: `mark_active_subtask_complete`
-```json
-{ "summary": "Added 4 test cases covering base cases (0, 1) and recursive cases (5, 10)." }
-```
-Tool call: `mark_active_task_complete`
-```json
-{ "summary": "Implemented recursive fibonacci function with type annotation and 4 passing test cases." }
-```
-
-**Final message to user:** "The `fib` function is implemented and all 4 test cases pass. It handles base cases (0 and 1) and recursively computes fib(n) = fib(n-1) + fib(n-2) for larger values."
-
----
-
-### Example: User asks "Add a helper function that computes fib for a list of numbers"
-
-**Starting program state:**
-```
-# map · no errors · tests: 4 of 4 pass #
-let fib(n: Int): Int = ⋯ in  # 4 uses #
+let fib_example = {
+  asks: "Implement a fibonacci function and test it",
+  program: "?",
+  start: None,
+  steps: [
+    {
+      says: "**Step 1 — Plan.** (The workbench suits a multi-step feature; skip it for small edits.) Coarse milestones, not micro-steps:",
+      calls: [
+        task(
+          "Implement fibonacci with tests",
+          "A recursive fibonacci function with tests.",
+          [
+            (
+              "Implement fibonacci function",
+              "fib(0)=0, fib(1)=1, fib(n)=fib(n-1)+fib(n-2).",
+            ),
+            ("Add test cases", "Base cases and a few recursive ones."),
+          ],
+        ),
+      ],
+      sees: None,
+    },
+    {
+      says: "**Step 2 — Implement.** The program is empty, so the function goes first in the top level:",
+      calls: [
+        call("insert", [("first_in", ""), ("code", fib)]),
+        call(
+          "mark_active_subtask_complete",
+          [("summary", "Implemented recursive fib.")],
+        ),
+      ],
+      sees: None,
+    },
+    {
+      says: "**Step 3 — Test it, right after it** (one insert may hold several entries), and make its value the result:",
+      calls: [
+        call(
+          "insert",
+          [
+            ("after", "fib"),
+            (
+              "code",
+              "test fib(0) == 0 end;\ntest fib(1) == 1 end;\ntest fib(5) == 5 end;\ntest fib(10) == 55 end",
+            ),
+          ],
+        ),
+        call("replace", [("target", "=>"), ("code", "fib(10)")]),
+        call(
+          "mark_active_subtask_complete",
+          [("summary", "4 tests: base cases and fib(5), fib(10).")],
+        ),
+        call(
+          "mark_active_task_complete",
+          [("summary", "fib, with 4 passing tests.")],
+        ),
+      ],
+      sees:
+        Some((
+          {|# map · no errors · tests: 4 of 4 pass #
+let fib(n: Int): Int = ⋯ in  # 7 uses #
 test fib(0) == 0 end;  # ✓ #
 test fib(1) == 1 end;  # ✓ #
 test fib(5) == 5 end;  # ✓ #
 test fib(10) == 55 end;  # ✓ #
-fib(10)  # ⇒ 55 #
-```
+fib(10)  # ⇒ 55 #|},
+          [],
+        )),
+    },
+  ],
+  final: "`fib` is implemented and its 4 tests pass: the base cases 0 and 1, and fib(5), fib(10).",
+};
 
-Note: `fib` is not open. The agent needs to understand what `fib` does but doesn't need to see its implementation — its signature and the tests provide enough context.
-
-**Step 1 — Plan.**
-
-Tool call: `create_new_task`
-```json
-{
-  "task": {
-    "title": "Add map_fib helper",
-    "description": "Add a function that maps fib over a list of integers, plus test cases.",
-    "subtasks": [
-      {
-        "title": "Implement map_fib",
-        "description": "Insert a map_fib function after fib and its tests that applies fib to each element of an Int list."
-      },
-      {
-        "title": "Test map_fib",
-        "description": "Add tests for map_fib right after it, and a demo call as the program's result."
-      }
-    ]
-  }
-}
-```
-
-**Step 2 — Insert the new function** after `fib`'s tests: before the program's result, `=>`.
-
-Tool call: `insert_before`
-```json
-{
-  "path": "=>",
-  "code": "let map_fib(ns: [Int]): [Int] =\n  case ns\n  | [] => []\n  | hd :: tl => fib(hd) :: map_fib(tl)\n  end\nin"
-}
-```
-
-**Step 3 — Test it right after it, and show it as the result.** Three calls in one response:
-
-Tool call: `insert_test`
-```json
-{ "path": "map_fib", "code": "map_fib([]) == []" }
-```
-Tool call: `insert_test`
-```json
-{ "path": "map_fib", "code": "map_fib([0, 1, 5]) == [0, 1, 5]" }
-```
-Tool call: `update_binding_clause`
-```json
-{ "path": "=>", "code": "map_fib([1, 2, 3, 4, 5])" }
-```
-
-No static errors.
-
-**Step 4 — Verify with probes.** Use probes to confirm the output is correct.
-
-Tool call: `place_probe`
-```json
-{ "paths": ["map_fib"] }
-```
-
-Agent sees (the probe opened `map_fib`):
-```
-# map · no errors · tests: 6 of 6 pass #
-let fib(n: Int): Int = ⋯ in  # 5 uses #
+let map_fib_example = {
+  asks: "Add a helper that computes fib for a list of numbers",
+  program:
+    fib
+    ++ "\nin\ntest fib(0) == 0 end;\ntest fib(1) == 1 end;\ntest fib(5) == 5 end;\ntest fib(10) == 55 end;\nfib(10)",
+  start:
+    Some(
+      {|# map · no errors · tests: 4 of 4 pass #
+let fib(n: Int): Int = ⋯ in  # 7 uses #
 test fib(0) == 0 end;  # ✓ #
 test fib(1) == 1 end;  # ✓ #
 test fib(5) == 5 end;  # ✓ #
 test fib(10) == 55 end;  # ✓ #
-let map_fib(ns: [Int]): [Int] = ⋯ in  # open below · 3 uses #
+fib(10)  # ⇒ 55 #|},
+    ),
+  steps: [
+    {
+      says: "`fib` is not open: its signature and tests say enough. **Add the helper** after fib's tests, before the result `=>`; its tests right after it; then make it the result. One reply:",
+      calls: [
+        call("insert", [("before", "=>"), ("code", map_fib)]),
+        call(
+          "insert",
+          [
+            ("after", "map_fib"),
+            (
+              "code",
+              "test map_fib([]) == [] end;\ntest map_fib([0, 1, 5]) == [0, 1, 5] end",
+            ),
+          ],
+        ),
+        call(
+          "replace",
+          [("target", "=>"), ("code", "map_fib([1, 2, 3, 4, 5])")],
+        ),
+      ],
+      sees:
+        Some((
+          {|# map · no errors · tests: 6 of 6 pass #
+let fib(n: Int): Int = ⋯ in  # 7 uses #
+test fib(0) == 0 end;  # ✓ #
+test fib(1) == 1 end;  # ✓ #
+test fib(5) == 5 end;  # ✓ #
+test fib(10) == 55 end;  # ✓ #
+let map_fib(ns: [Int]): [Int] = ⋯ in  # 4 uses #
 test map_fib([]) == [] end;  # ✓ #
 test map_fib([0, 1, 5]) == [0, 1, 5] end;  # ✓ #
-map_fib([1, 2, 3, 4, 5])  # ⇒ [1, 1, 2, 3, 5] #
+map_fib([1, 2, 3, 4, 5])  # ⇒ [1, 1, 2, 3, 5] #|},
+          [],
+        )),
+    },
+    {
+      says: "**Verify with a probe.** Placing it opens `map_fib`, with each probed expression's value after `≡`:",
+      calls: [
+        {
+          tool: "place_probe",
+          args: [("paths", `List([`String("map_fib")]))],
+        },
+      ],
+      sees: None,
+    },
+    {
+      says: "The values check out. **Clean up:**",
+      calls: [
+        {
+          tool: "remove_probe",
+          args: [("paths", `List([`String("map_fib")]))],
+        },
+      ],
+      sees: None,
+    },
+  ],
+  final: "Added `map_fib`, which maps fib over a list; its 2 tests pass and the probe confirms [1, 1, 2, 3, 5].",
+};
 
-# open: map_fib #
-let map_fib(ns: [Int]): [Int] =
-  case ns
-  | [] => []                                   ≡ []
-  | hd :: tl => fib(hd) :: map_fib(tl)        ≡ [1, 1, 2, 3, 5]
-  end
-in
-```
+let examples = [fib_example, map_fib_example];
 
-The `≡` values confirm `map_fib` works correctly. Clean up the probe and mark complete:
-Tool call: `remove_probe` → `mark_active_subtask_complete` → `mark_active_task_complete`
+let json_block = (c: call): string =>
+  "Tool call: `"
+  ++ c.tool
+  ++ "`\n```json\n"
+  ++ Yojson.Safe.pretty_to_string(`Assoc(c.args))
+  ++ "\n```";
 
-**Final message to user:** "Added `map_fib` which maps the fibonacci function over a list. Verified with probes and 2 test cases."
+let example_text = (e: example): string =>
+  "### Example: User asks \""
+  ++ e.asks
+  ++ "\"\n\n**Starting program:**\n```\n"
+  ++ Option.value(e.start, ~default=e.program)
+  ++ "\n```\n\n"
+  ++ String.concat(
+       "\n\n",
+       List.map(
+         s =>
+           s.says
+           ++ "\n\n"
+           ++ String.concat("\n", List.map(json_block, s.calls))
+           ++ (
+             switch (s.sees) {
+             | Some((view, _)) =>
+               "\n\nThe agent then sees:\n```\n" ++ view ++ "\n```"
+             | None => ""
+             }
+           ),
+         e.steps,
+       ),
+     )
+  ++ "\n\n**Final message to user:** \""
+  ++ e.final
+  ++ "\"";
+
+let self =
+  String.concat("\n\n---\n\n", List.map(example_text, examples))
+  ++ {|
 
 ---
 
-### Key Patterns to Notice
+### Key patterns
 
-1. **Plan when it helps**: For big, multi-turn work, use coarse workbench milestones; for quick edits, skip tasks and edit directly.
-2. **Use the right tool**: on an empty scratchpad, use `insert_after`/`insert_before` with **no** `path` to seed the first binding (keep it small when possible); path-based `insert_after`/`insert_before` for adding bindings, `insert_test` for a function's tests right after it, `update_definition`/`update_body` for modifying existing code — prefer **many small** edits over one huge paste.
-3. **Manage context**: Entries need not be opened when their signatures, tests or context already explain what they do. Open only what you need.
-4. **Verify with probes**: After implementing, use `place_probe` to observe runtime values and confirm correctness. Clean up with `remove_probe` when done.
-5. **Check static errors**: After each edit, check the context for type errors. Fix them before moving on.
-6. **Communicate clearly**: Tell the user what was done and why, without referencing tool internals.
-|};
+1. **Plan when it helps**: coarse workbench milestones for multi-turn work; none for quick edits.
+2. **Small edits**: insert one definition at a time, its tests right after it; replace a part (`f:body`) rather than a whole entry when only a part changes.
+3. **One reply, one change**: calls that belong together go in one reply; they apply together or not at all.
+4. **Open only what you need**: signatures, tests and the map's annotations often say enough.
+5. **Rename and move with their tools**: `rename` updates every use; `move` keeps code, probes and identity. Don't delete and re-insert.
+6. **Verify**: tests and probes; check the errors and test results after each reply.
+7. **Communicate**: tell the user what was done, without naming tools.|};

@@ -193,9 +193,9 @@ module ViewComponents = {
         ~chat_id: Id.t,
       )
       : Node.t => {
-    /* Use [[CompositionUtils.Public.tools]], not [[prompting.tools]]: the latter is
+    /* Use [[CompositionUtils.tools]], not [[prompting.tools]]: the latter is
        persisted with the scratchpad and can lag behind the in-code registry. */
-    let tools = CompositionUtils.Public.tools;
+    let tools = CompositionUtils.tools;
     let disabled = agent_model.prompting.disabled_tool_names;
     let expanded = agent_model.tools_view_expanded;
 
@@ -1505,11 +1505,7 @@ let view =
                 ),
                 span(
                   ~attrs=[clss(["summary-tool-link-name"])],
-                  [
-                    text(
-                      ToolCallSummary.display_name_for(tool_result.tool_call),
-                    ),
-                  ],
+                  [text(tool_result.tool_call.name)],
                 ),
                 signifier_node,
                 span(

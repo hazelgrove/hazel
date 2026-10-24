@@ -25,29 +25,6 @@ let ( let* ) = (r, f) =>
 
 /* ---- statics ---- */
 
-/* the whole program's statics, monolithically: for the overlay tools'
-   probe and statics placement */
-let mk_statics_with =
-    (~root=Sort.Exp, settings: CoreSettings.t, z: Zipper.t): StaticsBase.Map.t => {
-  let term =
-    if (root == Sort.Mod) {
-      let (seg, masks) =
-        MakeTerm.semantic_segment(~root, MakeTerm.semantic_source(z));
-      MakeTerm.Incr.term_of_root(~masks, ~root, seg);
-    } else {
-      MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-    };
-  fst(
-    Statics.mk(
-      settings,
-      Builtins.ctx_init(Some(Operators.default_mode)),
-      term,
-    ),
-  );
-};
-let mk_statics = (~root=Sort.Exp, z: Zipper.t): StaticsBase.Map.t =>
-  mk_statics_with(~root, CoreSettings.on, z);
-
 /* per-item statics (DefStatics): an edit re-analyzes the items it changed
    and those that depend on them. [shared]: the editor's parse cache, whose
    item parses stand in for parsing the same pieces again */
@@ -142,22 +119,6 @@ let unreadable = (code: string): string =>
     }
   );
 
-/* `test code end`, from the test's expression; code that already opens
-   with `test` or `hint` is taken as the whole test */
-let test_text = (code: string): string => {
-  let code = String.trim(code);
-  let code =
-    String.ends_with(~suffix=";", code)
-      ? String.trim(String.sub(code, 0, String.length(code) - 1)) : code;
-  let opens = kw =>
-    String.starts_with(~prefix=kw, code)
-    && (
-      String.length(code) == String.length(kw)
-      || String.contains(" \n\t\"", code.[String.length(kw)])
-    );
-  opens("test") || opens("hint") ? code : "test " ++ code ++ " end";
-};
-
 /* ---- one call ---- */
 
 /* the program a call runs on: its statics only when a planner asks */
@@ -171,10 +132,8 @@ type program = {
 type what =
   | Added
   | Replaced(option(P.part))
-  /* the entries after the target and its block's result: `update_body` */
-  | Rest
-  /* each name: old, new, its uses */
-  | Renamed(list((string, string, int)))
+  /* the name before, after, and how many uses it had */
+  | Renamed(string, string, int)
   | Deleted
   /* where to, as the call put it */
   | Moved(string);
@@ -216,13 +175,15 @@ let elsewhere = (p: program, el: string): string =>
     " Did you mean " ++ String.concat(" or ", ListUtil.take(3, paths)) ++ "?"
   };
 
-let resolve = (p: program, path: string): result(P.found, string) =>
+/* the entry [path] names; a part only where [~parts] */
+let resolve =
+    (~parts=false, p: program, path: string): result(P.found, string) =>
   switch (P.resolve_string(~root=p.root, p.seg, path)) {
-  | Ok({part: Some(part), _}) =>
+  | Ok({part: Some(part), _}) when !parts =>
     Error(
       "\""
       ++ path
-      ++ "\": the tool picks the part itself; name the entry, without :"
+      ++ "\": only replace takes a part; name the entry, without :"
       ++ P.part_word(part),
     )
   | Ok(f) => Ok(f)
@@ -241,32 +202,19 @@ let kind_name = (k: P.kind): string =>
   };
 
 let part = (p: program, path: string, f: P.found, part: P.part) =>
-  switch (f.kind) {
-  | Def
-  | Type
-  | Module =>
-    switch (K.part(~root=p.root, f.id, part, p.seg)) {
-    | Some(id) => Ok(id)
-    | None =>
-      Error("\"" ++ path ++ "\" has no " ++ P.part_word(part) ++ " to edit")
-    }
-  | kind =>
-    Error(
-      "\""
-      ++ path
-      ++ "\" is a "
-      ++ kind_name(kind)
-      ++ ", which has no "
-      ++ P.part_word(part)
-      ++ ": replace it whole with update_binding_clause",
-    )
+  switch (K.part(~root=p.root, f.id, part, p.seg)) {
+  | Some(id) => Ok(id)
+  | None =>
+    Error("\"" ++ path ++ "\" has no " ++ P.part_word(part) ++ " to replace")
   };
 
 /* the block an entry holds: a module's members, a value's body */
 let block_of = (path: string, f: P.found): result(K.block, string) =>
   switch (f.kind) {
   | Module => Ok(Members(f.id))
-  | Def => Ok(Body(f.id))
+  | Def =>
+    let (lv, k) = level_of(f);
+    Ok(S.members(lv, k) == None ? Body(f.id) : Members(f.id));
   | kind =>
     Error(
       "\""
@@ -311,207 +259,94 @@ let uses_in = (~root, ~info_map, seg: Segment.t, binder: Id.t): list(Id.t) =>
 let uses = (p: program, binder: Id.t): list(Id.t) =>
   uses_in(~root=p.root, ~info_map=Lazy.force(p.info_map), p.seg, binder);
 
-/* a pattern's tokens in order, a name's with its id */
-let rec tokens = (seg: Segment.t): list((string, option(Id.t))) =>
-  List.concat_map(
-    (p: Piece.t) =>
-      switch (p) {
-      | Tile({form: Tok(s), id, _}) => [(s, Some(id))]
-      | Tile(t) =>
-        Aba.mk(t.shards, t.children)
-        |> Aba.join(i => [(List.nth(Tile.label(t), i), None)], tokens)
-        |> List.concat
-      | Grout(_) => [("?", None)]
-      | Projector(pr) => tokens([pr.syntax])
-      | Secondary(_) => []
-      },
-    seg,
-  );
+/* the place a call's place names; an empty path is the top level */
+let place_at =
+    (p: program, place: Action.Structural.place): result(K.place, string) =>
+  switch (place) {
+  | Before("")
+  | FirstIn("") => Ok(FirstIn(Top))
+  | After("")
+  | LastIn("") => Ok(at_end(p))
+  | Before(path) => Result.map(~f=f => K.Before(f.P.id), resolve(p, path))
+  | After(path) => Result.map(~f=f => K.After(f.P.id), resolve(p, path))
+  | FirstIn(path) =>
+    let* f = resolve(p, path);
+    Result.map(~f=b => K.FirstIn(b), block_of(path, f));
+  | LastIn(path) =>
+    let* f = resolve(p, path);
+    Result.map(~f=b => K.LastIn(b), block_of(path, f));
+  };
 
-/* [code], a pattern for entry [f], as its old pattern with only names
-   changed: each changed name's token and its new name */
-let renamed_names =
-    (p: program, f: P.found, code: string)
-    : option(list((Id.t, string, string))) => {
-  let sort: Sort.t =
-    switch (f.kind) {
-    | Type => TPat
-    | Module => MPat
-    | _ => Pat
+let place_words = (place: Action.Structural.place): string =>
+  switch (place) {
+  | Before(d) => "before " ++ d
+  | After(d) => "after " ++ d
+  | FirstIn("") => "first in the program"
+  | LastIn("") => "last in the program"
+  | FirstIn(d) => "first in " ++ d
+  | LastIn(d) => "last in " ++ d
+  };
+
+/* the binder a rename's path names: its last name, else the entry's only
+   one */
+let binder_of =
+    (path: string, f: P.found, binders: list((string, Id.t)))
+    : result((string, Id.t), string) => {
+  let named =
+    switch (P.parse(path)) {
+    | Ok({elems, _}) =>
+      switch (ListUtil.last_opt(elems)) {
+      | Some(Name(x, _)) => List.find_opt(((y, _)) => x == y, binders)
+      | _ => None
+      }
+    | Error(_) => None
     };
-  switch (
-    Nav.tile_ctx(~root=p.root, f.id, p.seg),
-    K.parse_at(sort, Unicode.nfc_outside_strings(code)),
-  ) {
-  | (Some((_, _, t)), Some(pat)) =>
-    let (was, now) = (tokens(Nav.pat_of(t)), tokens(pat));
-    List.length(was) == List.length(now)
-      ? List.fold_left2(
-          (acc, (a, id), (b, _)) =>
-            switch (acc, id) {
-            | (None, _) => None
-            | (Some(_), _) when a == b => acc
-            | (Some(l), Some(id))
-                when is_name(f.kind, a) && is_name(f.kind, b) =>
-              Some([(id, a, b), ...l])
-            | _ => None
-            },
-          Some([]),
-          was,
-          now,
-        )
-        |> Option.map(List.rev)
-      : None;
-  | _ => None
+  switch (f.kind, named, binders) {
+  | (Def | Type | Module, Some(b), _)
+  | (Def | Type | Module, None, [b]) => Ok(b)
+  | (Def | Type | Module, None, []) =>
+    Error("\"" ++ path ++ "\" binds no name; replace its :pattern")
+  | (Def | Type | Module, None, _) =>
+    Error(
+      "\""
+      ++ path
+      ++ "\" binds "
+      ++ String.concat(", ", List.map(fst, binders))
+      ++ ": name the one to rename",
+    )
+  | (kind, _, _) =>
+    Error(
+      "\""
+      ++ path
+      ++ "\" is a "
+      ++ kind_name(kind)
+      ++ ": only a definition, type or module has a name to rename",
+    )
   };
 };
 
-/* entry [k] of [lv] and the entries after it, past the tests directly
-   following it: where a test of it goes */
-let rec past_tests = (lv: S.level, k: int): int =>
-  k + 1 < Array.length(lv.spans) && P.entry(lv, k + 1).kind == Test
-    ? past_tests(lv, k + 1) : k;
-
-/* the place [where] names relative to the entry at [path]; an empty path
-   is the program's top level */
-let place_at =
-    (p: program, where: Action.Structural.insert_target, path: string)
-    : result(K.place, string) =>
-  switch (where, path) {
-  | (Before | FirstIn, "") => Ok(FirstIn(Top))
-  | (After | LastIn, "") => Ok(at_end(p))
-  | _ =>
-    let* f = resolve(p, path);
-    switch (where) {
-    | Before => Ok(K.Before(f.id))
-    | After => Ok(K.After(f.id))
-    | FirstIn => Result.map(~f=b => K.FirstIn(b), block_of(path, f))
-    | LastIn => Result.map(~f=b => K.LastIn(b), block_of(path, f))
-    };
-  };
-
-let rec plan_call = (p: program, call: call): result(plan, string) => {
+let plan_call = (p: program, call: call): result(plan, string) => {
   let text = code => K.Text(Unicode.nfc_outside_strings(code));
   switch (call) {
-  | Update(Definition, path, code) =>
-    let* f = resolve(p, path);
-    let* def = part(p, path, f, Definition);
-    Ok(
-      plan(
-        ~target=f.id,
-        Replaced(Some(Definition)),
-        [Replace(def, text(code))],
-      ),
-    );
-  /* the old meaning, kept: what follows the entry after its `in`, the
-     entries after it in its block and the block's result. A member has
-     no `in`: its body is its definition past its `fun` heads */
-  | Update(Body, path, code) =>
-    let* f = resolve(p, path);
-    let (lv, k) = level_of(f);
-    /* module members: a module body's, or a Mod root's top */
-    if (lv.sort == Sort.Mod) {
-      let* body = part(p, path, f, Body);
-      Ok(
-        plan(
-          ~target=f.id,
-          Replaced(Some(Body)),
-          [Replace(body, text(code))],
-        ),
-      );
-    } else {
-      switch (f.kind, tail_index(lv)) {
-      | (Tail, _) => Error("\"" ++ path ++ "\" is a result: it has no body")
-      | (_, Some(t)) =>
-        let after =
-          List.init(t - k - 1, j => K.Delete(lv.spans[k + 1 + j].anchor));
-        Ok(
-          plan(
-            ~target=f.id,
-            Rest,
-            after @ [Replace(lv.spans[t].anchor, text(code))],
-          ),
-        );
-      | (_, None) =>
-        Error("\"" ++ path ++ "\" is last in its block: it has no body")
-      };
-    };
-  | Update(Pattern, path, code) =>
-    let* f = resolve(p, path);
-    let (lv, k) = level_of(f);
-    let binders = P.entry(lv, k).binders;
-    let named =
-      switch (P.parse(path)) {
-      | Ok({elems, _}) =>
-        switch (ListUtil.last_opt(elems)) {
-        | Some(Name(x, _)) => List.find_opt(((y, _)) => x == y, binders)
-        | _ => None
-        }
-      | Error(_) => None
-      };
-    let binder =
-      switch (named, binders) {
-      | (Some(b), _)
-      | (None, [b]) => Some(b)
-      | _ => None
-      };
-    let name = String.trim(code);
-    /* a single name renames the binder the path names, or its only one;
-       a pattern that differs from its old one only in names renames
-       each; else the pattern is replaced, and the error check judges */
-    let renames =
-      switch (binder) {
-      | Some((old, _)) when old == name && is_name(f.kind, name) => Some([])
-      | Some((old, binder)) when is_name(f.kind, name) =>
-        Some([(binder, old, name)])
-      | _ => renamed_names(p, f, code)
-      };
-    switch (renames) {
-    | Some(renames) =>
-      let renames =
-        List.map(
-          ((binder, old, name)) => (binder, old, name, uses(p, binder)),
-          renames,
-        );
-      Ok({
-        ...
-          plan(
-            ~target=f.id,
-            Renamed(
-              List.map(
-                ((_, old, name, refs)) => (old, name, List.length(refs)),
-                renames,
-              ),
-            ),
-            List.concat_map(
-              ((binder, _, name, refs)) =>
-                List.map(
-                  id => K.Replace(id, Token(name)),
-                  [binder, ...refs],
-                ),
-              renames,
-            ),
-          ),
-        renames:
-          List.map(
-            ((binder, _, name, refs)) => (binder, name, refs),
-            renames,
-          ),
-      });
+  | Insert(place, code) =>
+    let* place = place_at(p, place);
+    Ok(plan(Added, [Insert(place, text(code))]));
+  | Replace(path, code) =>
+    let* f = resolve(~parts=true, p, path);
+    switch (f.part) {
     | None =>
-      let* pat = part(p, path, f, Pattern);
+      Ok(plan(~target=f.id, Replaced(None), [Replace(f.id, text(code))]))
+    | Some(pt) =>
+      let* id = part(p, path, f, pt);
       Ok(
         plan(
           ~target=f.id,
-          Replaced(Some(Pattern)),
-          [Replace(pat, text(code))],
+          Replaced(Some(pt)),
+          [Replace(id, text(code))],
         ),
       );
     };
-  | Update(BindingClause, path, code) =>
-    let* f = resolve(p, path);
-    Ok(plan(~target=f.id, Replaced(None), [Replace(f.id, text(code))]));
-  | Delete(BindingClause, path) =>
+  | Delete(path) =>
     let* f = resolve(p, path);
     let (lv, k) = level_of(f);
     let removes =
@@ -529,44 +364,55 @@ let rec plan_call = (p: program, call: call): result(plan, string) => {
       ...plan(~target=f.id, Deleted, [Delete(f.id)]),
       removes,
     });
-  | Delete(Body, path) => plan_call(p, Update(Body, path, "?"))
-  | Delete(Definition | Pattern, _) =>
-    Error("Deleting a definition or pattern alone is not supported.")
-  | Insert(where, path, code) =>
-    let* place = place_at(p, where, path);
-    Ok(plan(Added, [Insert(place, text(code))]));
-  | InsertTest(None, code) =>
-    Ok(plan(Added, [Insert(at_end(p), text(test_text(code)))]))
-  | InsertTest(Some(path), code) =>
+  | Move(_, Before("") | After("")) =>
+    Error("move needs an entry to go before or after")
+  | Move(path, place) =>
+    let* f = resolve(p, path);
+    let* dest = place_at(p, place);
+    Ok(
+      plan(~target=f.id, Moved(place_words(place)), [Move(f.id, dest)]),
+    );
+  | Rename(path, name) =>
     let* f = resolve(p, path);
     let (lv, k) = level_of(f);
-    let after = lv.spans[past_tests(lv, k)].anchor;
-    Ok(plan(Added, [Insert(After(after), text(test_text(code)))]));
-  | Move(_, Before | After, "") =>
-    Error("move needs an entry to go before or after")
-  | Move(path, where, dest) =>
-    let* f = resolve(p, path);
-    let* place = place_at(p, where, dest);
-    let whereto =
-      switch (where, dest) {
-      | (Before, d) => "before " ++ d
-      | (After, d) => "after " ++ d
-      | (FirstIn, "") => "first in the program"
-      | (LastIn, "") => "last in the program"
-      | (FirstIn, d) => "first in " ++ d
-      | (LastIn, d) => "last in " ++ d
-      };
-    Ok(plan(~target=f.id, Moved(whereto), [Move(f.id, place)]));
+    let* (old, binder) = binder_of(path, f, P.entry(lv, k).binders);
+    let name = String.trim(name);
+    if (!is_name(f.kind, name)) {
+      Error(
+        "\""
+        ++ name
+        ++ "\" is not a "
+        ++ (
+          switch (f.kind) {
+          | Def => "value's name: lowercase, not a keyword"
+          | _ => "type's or module's name: capitalized"
+          }
+        ),
+      );
+    } else if (name == old) {
+      Ok(plan(~target=f.id, Renamed(old, name, 0), []));
+    } else {
+      let refs = uses(p, binder);
+      Ok({
+        ...
+          plan(
+            ~target=f.id,
+            Renamed(old, name, List.length(refs)),
+            List.map(id => K.Replace(id, Token(name)), [binder, ...refs]),
+          ),
+        renames: [(binder, name, refs)],
+      });
+    };
   };
 };
 
 let code_of = (call: call): option(string) =>
   switch (call) {
-  | Update(_, _, code)
-  | Insert(_, _, code)
-  | InsertTest(_, code) => Some(code)
+  | Insert(_, code)
+  | Replace(_, code) => Some(code)
   | Delete(_)
-  | Move(_) => None
+  | Move(_)
+  | Rename(_) => None
   };
 
 let path_string = (~root, seg: Segment.t, id: Id.t): option(string) =>
@@ -671,25 +517,16 @@ let report = (~root, m: made): string => {
     ++ ".";
   | Replaced(Some(part)) =>
     "Replaced " ++ was ++ ":" ++ P.part_word(part) ++ now_target() ++ "."
-  | Rest => "Replaced what follows " ++ was ++ "."
-  | Renamed(names) =>
-    let uses = n => n == 1 ? "1 use" : string_of_int(n) ++ " uses";
-    switch (names, Option.bind(m.plan.target, now)) {
-    | ([(_, _, n)], Some(p)) when p != was =>
-      "Renamed " ++ was ++ " to " ++ p ++ ", and its " ++ uses(n) ++ "."
-    | _ =>
-      "Renamed "
-      ++ String.concat(
-           "; ",
-           List.map(
-             ((old, name, n)) =>
-               old ++ " to " ++ name ++ " (" ++ uses(n) ++ ")",
-             names,
-           ),
-         )
-      ++ ", in "
-      ++ was
-      ++ "."
+  | Renamed(old, name, n) =>
+    let uses =
+      switch (n) {
+      | 0 => ""
+      | 1 => ", and its 1 use"
+      | n => ", and its " ++ string_of_int(n) ++ " uses"
+      };
+    switch (Option.bind(m.plan.target, now)) {
+    | Some(p) when p != was => "Renamed " ++ was ++ " to " ++ p ++ uses ++ "."
+    | _ => "Renamed " ++ old ++ " to " ++ name ++ " in " ++ was ++ uses ++ "."
     };
   | Deleted => "Deleted " ++ was ++ "."
   | Moved(whereto) => "Moved " ++ was ++ " " ++ whereto ++ now_target() ++ "."
@@ -1138,31 +975,26 @@ let rezip = (z: Zipper.t, seg: Segment.t): Zipper.t => {
   };
 };
 
-module Public = {
-  let mk_statics_with = mk_statics_with;
-  let mk_statics = mk_statics;
-
-  /* one structural call as a reply of its own (Perform's Structural):
-     [statics] stands in for the program's when they describe it */
-  let go =
-      (
-        ~settings: CoreSettings.t,
-        ~root: Sort.t,
-        ~statics: CachedStatics.t,
-        z: Zipper.t,
-        call: call,
-      )
-      : result(Zipper.t, Action.Failure.t) => {
-    let root = root == Sort.Mod ? Sort.Mod : Sort.Exp;
-    let r = Reply.of_zipper(~settings, ~root, z, statics);
-    switch (Reply.add(r, ~index=0, call)) {
-    | Error(msg) => Error(Composition_action_failure(msg))
-    | Ok(r) =>
-      switch (Reply.finish(r)) {
-      | Error(f) => Error(Composition_action_failure(f.message))
-      | Ok(o) => Ok(o.program === r.start ? z : rezip(z, o.program))
-      }
-    };
+/* one structural call as a reply of its own (Perform's Structural):
+   [statics] stands in for the program's when they describe it */
+let go =
+    (
+      ~settings: CoreSettings.t,
+      ~root: Sort.t,
+      ~statics: CachedStatics.t,
+      z: Zipper.t,
+      call: call,
+    )
+    : result(Zipper.t, Action.Failure.t) => {
+  let root = root == Sort.Mod ? Sort.Mod : Sort.Exp;
+  let r = Reply.of_zipper(~settings, ~root, z, statics);
+  switch (Reply.add(r, ~index=0, call)) {
+  | Error(msg) => Error(Composition_action_failure(msg))
+  | Ok(r) =>
+    switch (Reply.finish(r)) {
+    | Error(f) => Error(Composition_action_failure(f.message))
+    | Ok(o) => Ok(o.program === r.start ? z : rezip(z, o.program))
+    }
   };
 };
 

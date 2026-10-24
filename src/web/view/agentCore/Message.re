@@ -284,7 +284,7 @@ module Utils = {
     };
   };
   /** Exact [content] string embedded in the context system message on the
-      API (tags + footer). The view is [[CompositionView.Public.render]]:
+      API (tags + footer). The view is [[CompositionView.render]]:
       the map and the open entries, with errors and test results on their
       entries. */
   let context_snapshot_body_for_llm =

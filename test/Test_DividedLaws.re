@@ -366,7 +366,7 @@ let agent_edit = () => {
         ~statics=CachedStatics.empty,
         ~syntax=CachedSyntax.init(z),
         ~root=Exp,
-        Structural(Update(Definition, "a", "5")),
+        Structural(Replace("a:definition", "5")),
         {
           zipper: z,
           col_target: None,

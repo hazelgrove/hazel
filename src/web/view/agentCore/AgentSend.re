@@ -64,7 +64,7 @@ let max_empty_retries = 2;
 
 /** True iff [name] is allowed in [mode]. Edit allows everything; Plan
     blocks edit tools; Converse blocks edit + workbench + overlay tools
-    (only ViewTools like expand/collapse remain). The name lists derive
+    (only the view tools open and close remain). The name lists derive
     from [[AgentToolUtils.registry]]. */
 let tool_allowed_in_mode =
     (mode: AgentGlobals.Model.session_mode, name: string): bool =>
@@ -88,7 +88,7 @@ let enabled_tools =
         && tool_allowed_in_mode(mode, name)
       | None => true
       },
-    CompositionUtils.Public.tools,
+    CompositionUtils.tools,
   );
 // Exponential backoff
 let backoff_ms = (attempt: int): float => 1000.0 *. 2.0 ** float(attempt);

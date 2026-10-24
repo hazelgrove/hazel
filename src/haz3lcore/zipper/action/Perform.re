@@ -670,6 +670,6 @@ let rec go =
     |> return(Cant_destruct)
   | Structural(a) =>
     /* the editing kernel's: formatting is local, so no re-indent after */
-    CompositionGo.Public.go(~settings, ~root, ~statics, z, a)
+    CompositionGo.go(~settings, ~root, ~statics, z, a)
   };
 };

@@ -71,18 +71,17 @@ let elided = {js|⋯|js};
 
 /* ---- printing ---- */
 
-let projector_to_segment = Triggers.projector_to_invoke;
-
 /* [seg] with projectors as their invocations, so lines and columns
    measure as they print */
 let invoked = (seg: Segment.t): Segment.t =>
   ZipperBase.MapPiece.of_segment(Printer.remove_projector, seg);
 
 let print_segment = (segment: Segment.t): string =>
-  Printer.of_segment(~holes="?", ~projector_to_segment, segment);
-
-let print_zipper = (z: Zipper.t): string =>
-  Printer.of_zipper(~holes="?", ~concave_holes="~", ~projector_to_segment, z);
+  Printer.of_segment(
+    ~holes="?",
+    ~projector_to_segment=Triggers.projector_to_invoke,
+    segment,
+  );
 
 /* text and a row per id, of a segment printed with probed terms
    bracketed */
@@ -683,10 +682,4 @@ let render =
          ),
     ],
   );
-};
-
-module Public = {
-  let print_segment = print_segment;
-  let print_zipper = print_zipper;
-  let render = render;
 };

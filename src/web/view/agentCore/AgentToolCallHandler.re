@@ -1,15 +1,6 @@
-open Util;
 open Haz3lcore;
 open AgentResult;
 open AgentModel;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type action = CompositionActions.action;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type result =
-  | Success(Model.t, Updated.t(CellEditor.Model.t))
-  | Failure(string);
 
 /** The elaborated form cached alongside [syntax], for projectors that key their
     init off elaboration ([[ProjectorInit]]'s [elaborate_syntax] kinds, e.g.
@@ -24,7 +15,7 @@ let elaborated_of_syntax = (syntax: CachedSyntax.t): Language.Exp.t =>
 /** Shared dispatch for path-indexed overlay tools (probes, statics, syntax
     projectors). Each such tool takes a list of paths (EntryPath) and runs a
     per-path operation; afterwards any paths that were actually placed are
-    auto-expanded via an AgentContext.Expand on the chat system.
+    opened in the agent's view.
 
     [resolve_path] maps a path to an id: probes and statics take the
     entry's, syntax projectors its definition's.
@@ -179,7 +170,7 @@ let apply_overlay_action =
 let update =
     (
       ~settings: Settings.t,
-      action: action,
+      action: CompositionActions.action,
       agent: Model.t,
       editor: CodeWithStatics.Model.t,
       chat_id: Id.t,
@@ -231,8 +222,6 @@ let update =
         )
       }
     };
-  | LanguageServerAction(_) =>
-    Error(Failure.Info("LanguageServerAction is not implemented yet"))
   | WorkbenchAction(workbench_action) =>
     let action = AgentWorkbench.Update.Action.BackendAction(workbench_action);
     let chat_system =

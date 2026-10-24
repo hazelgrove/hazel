@@ -31,41 +31,19 @@ The ≡ 10 shows that `result` evaluates to 10.
   ++ ProjectorCatalog.probe_tools_crossref;
 
 let place_probe: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("place_probe")),
-        ("description", `String(place_probe_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String(
-                        "The paths to the bindings to probe for runtime values.",
-                      ),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("paths")])),
-          ]),
+  EditTools.tool(
+    ~name="place_probe",
+    ~description=place_probe_description,
+    ~properties=[
+      (
+        "paths",
+        EditTools.paths_param(
+          "The paths to the bindings to probe for runtime values.",
         ),
-      ]),
-    ),
-  ]);
+      ),
+    ],
+    ~required=["paths"],
+  );
 
 let remove_probe_description =
   {|
@@ -84,47 +62,25 @@ and the view no longer shows evaluated values for that binding.
   ++ ProjectorCatalog.probe_tools_crossref;
 
 let remove_probe: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("remove_probe")),
-        ("description", `String(remove_probe_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String(
-                        "The paths to the bindings to remove probes from.",
-                      ),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("paths")])),
-          ]),
+  EditTools.tool(
+    ~name="remove_probe",
+    ~description=remove_probe_description,
+    ~properties=[
+      (
+        "paths",
+        EditTools.paths_param(
+          "The paths to the bindings to remove probes from.",
         ),
-      ]),
-    ),
-  ]);
+      ),
+    ],
+    ~required=["paths"],
+  );
 
 let toggle_probe_description =
   {|
 Toggles probes on or off for the bindings at the given paths.
 If a probe is already placed, it is removed. If no probe exists, one is placed.
-Collapsed definitions are auto-expanded when a probe is placed.
+Placing a probe opens its entry.
 
 Parameters:
 paths: list(string) — paths to the bindings to toggle probes on
@@ -138,38 +94,16 @@ Calling toggle_probe(paths=["result"]) again removes it.
   ++ ProjectorCatalog.probe_tools_crossref;
 
 let toggle_probe: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("toggle_probe")),
-        ("description", `String(toggle_probe_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String(
-                        "The paths to the bindings to toggle probes on.",
-                      ),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("paths")])),
-          ]),
+  EditTools.tool(
+    ~name="toggle_probe",
+    ~description=toggle_probe_description,
+    ~properties=[
+      (
+        "paths",
+        EditTools.paths_param(
+          "The paths to the bindings to toggle probes on.",
         ),
-      ]),
-    ),
-  ]);
+      ),
+    ],
+    ~required=["paths"],
+  );

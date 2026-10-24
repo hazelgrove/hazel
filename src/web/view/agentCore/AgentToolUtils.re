@@ -22,7 +22,7 @@ let get_description = (tool: API.Json.t): option(string) => {
   };
 };
 
-/** How a tool is gated by session mode (see [[AgentUpdate.tool_allowed_in_mode]]):
+/** How a tool is gated by session mode (see [[AgentSend.tool_allowed_in_mode]]):
     EditGated tools are blocked in Plan and Converse; WorkbenchGated and
     OverlayGated tools are blocked in Converse; Ungated tools run anywhere. */
 type gating =
@@ -37,7 +37,7 @@ type entry = {
 };
 
 /** Single source of truth mapping every declared tool
-    ([[CompositionUtils.Public.tools]]) to its settings-panel category and its
+    ([[CompositionUtils.tools]]) to its settings-panel category and its
     session-mode gating; [[category_of_tool]] and the mode lists below derive
     from it. Overlay tools group under "View" in settings but gate separately.
     A completeness test in [[Test_AgentTools]] keeps this in sync with the
@@ -55,8 +55,8 @@ let registry: list((string, entry)) = {
         ),
       names,
     );
-  entries("View", Ungated, ["expand", "collapse"])
-  /* mirrors the conditional offer in CompositionUtils.Local.tools */
+  entries("View", Ungated, ["open", "close"])
+  /* mirrors the conditional offer in CompositionUtils.tools */
   @ (
     Haz3lcore.DocPacks.all == []
       ? [] : entries("Docs", Ungated, ["read_docs"])
@@ -79,18 +79,7 @@ let registry: list((string, entry)) = {
   @ entries(
       "Edit",
       EditGated,
-      [
-        "update_definition",
-        "update_body",
-        "update_pattern",
-        "update_binding_clause",
-        "delete_binding_clause",
-        "delete_body",
-        "insert_after",
-        "insert_before",
-        "insert_test",
-        "move",
-      ],
+      ["insert", "replace", "delete", "move", "rename"],
     )
   @ entries(
       "Workbench",
