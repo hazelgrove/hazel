@@ -256,5 +256,6 @@ let self =
 2. **Small edits**: insert one definition at a time, its tests right after it; replace a part (`f:body`) rather than a whole entry when only a part changes.
 3. **One reply, one change**: calls that belong together go in one reply; they apply together or not at all.
 4. **Open only what you need**: signatures, tests and the map's annotations often say enough.
-5. **Verify**: tests and probes; check the errors and test results after each reply.
-6. **Communicate**: tell the user what was done, without naming tools.|};
+5. **Rename and move with their tools**: `rename` updates every use; `move` keeps code, probes and identity. Don't delete and re-insert.
+6. **Verify**: tests and probes; check the errors and test results after each reply.
+7. **Communicate**: tell the user what was done, without naming tools.|};
