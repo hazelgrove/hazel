@@ -218,12 +218,6 @@ type block = {
   sl: array(slot),
 };
 
-let is_hole = (p: Piece.t): bool =>
-  switch (p) {
-  | Grout({shape: Convex, _}) => true
-  | _ => false
-  };
-
 /* [lv]'s items as places: ItemSpans' slots, with where each item and
    what shares its last line end. A member block by default when [lv] is
    a member level (a signature's members are read as expressions) */
@@ -250,7 +244,7 @@ let block = (~in_module=?, ~stmts=true, lv: S.level): block => {
           k == n
           - 1
           && term > f
-          && is_hole(arr[term - 1])
+          && Indentation.is_convex_grout(arr[term - 1])
           && semi_before(f, back(term - 1))
             ? back(term - 1) : term;
         let rec same_line = i =>

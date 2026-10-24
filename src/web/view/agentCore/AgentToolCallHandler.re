@@ -185,6 +185,16 @@ let update =
       chat_id: Id.t,
     )
     : Result.t((Model.t, CodeWithStatics.Model.t)) => {
+  let with_chat_system =
+    Stdlib.Result.map(chat_system =>
+      (
+        {
+          ...agent,
+          chat_system,
+        },
+        editor,
+      )
+    );
   switch (action) {
   | EditorAction(agent_editor_action) =>
     let action = Action.Structural(agent_editor_action);
@@ -233,17 +243,7 @@ let update =
         ),
         agent.chat_system,
       );
-    switch (chat_system) {
-    | Ok(updated_chat_system) =>
-      Ok((
-        {
-          ...agent,
-          chat_system: updated_chat_system,
-        },
-        editor,
-      ))
-    | Error(error) => Error(error)
-    };
+    with_chat_system(chat_system);
   | AgentContextAction(agent_context_action) =>
     let outline =
       Outline.of_program(
@@ -262,17 +262,7 @@ let update =
           agent.chat_system,
         )
       };
-    switch (chat_system) {
-    | Ok(updated_chat_system) =>
-      Ok((
-        {
-          ...agent,
-          chat_system: updated_chat_system,
-        },
-        editor,
-      ))
-    | Error(error) => Error(error)
-    };
+    with_chat_system(chat_system);
   | ProbeAction(probe_action) =>
     let paths =
       switch (probe_action) {
@@ -317,29 +307,27 @@ let update =
       ~resolve_path=entry_id,
       ~perform=
         (~info_map, ~syntax, z, id) => {
-          let (z, should_expand) =
+          let z =
             switch (statics_action) {
             | PlaceStatics(_) =>
-              let z = ProbePerform.place_statics_at(~syntax, id, info_map, z);
-              let expand =
-                switch (ProbeTargets.probe_status(id, info_map, z.refractors)) {
-                | Statics(_) => true
-                | _ => false
-                };
-              (z, expand);
+              ProbePerform.place_statics_at(~syntax, id, info_map, z)
             | RemoveStatics(_) =>
-              let z = ProbePerform.remove_statics_at(id, info_map, z);
-              (z, false);
+              ProbePerform.remove_statics_at(id, info_map, z)
             | ToggleStatics(_) =>
-              let z = ProbePerform.toggle_statics(~syntax, id, info_map, z);
-              let expand =
-                switch (ProbeTargets.probe_status(id, info_map, z.refractors)) {
-                | Statics(_) => true
-                | _ => false
-                };
-              (z, expand);
+              ProbePerform.toggle_statics(~syntax, id, info_map, z)
             };
-          Some((z, should_expand));
+          /* its entry opens when it shows statics */
+          let expand =
+            switch (statics_action) {
+            | RemoveStatics(_) => false
+            | PlaceStatics(_)
+            | ToggleStatics(_) =>
+              switch (ProbeTargets.probe_status(id, info_map, z.refractors)) {
+              | Statics(_) => true
+              | _ => false
+              }
+            };
+          Some((z, expand));
         },
       ~paths,
       ~agent,

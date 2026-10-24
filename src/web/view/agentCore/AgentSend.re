@@ -127,6 +127,25 @@ let request_chat_name =
   OpenRouter.Utils.start_chat(~key=api_key, ~payload, ~handler);
 };
 
+/* the chat's context as the settings and the editor's run have it */
+let refresh_context =
+    (
+      settings: Settings.t,
+      editor: CellEditor.Model.t,
+      model: Model.t,
+      chat_id: Id.t,
+    )
+    : Model.t =>
+  Utils.update_context(
+    ~session_mode=settings.agent_globals.session_mode,
+    ~view=AgentGlobals.view_settings(settings.agent_globals),
+    ~test_results=?EvalResult.Model.test_results(editor.result),
+    ~value=?EvalResult.Model.get_value(editor.result),
+    model,
+    editor.editor,
+    chat_id,
+  );
+
 /* the main request's messages, the request recorded on its chat
    (SentView): what the payload carries is what the record holds */
 let main_request =
@@ -437,16 +456,7 @@ let handle_dispatch_send =
             model.chat_system;
           },
     };
-    let model =
-      Utils.update_context(
-        ~session_mode=settings.agent_globals.session_mode,
-        ~view=AgentGlobals.view_settings(settings.agent_globals),
-        ~test_results=?EvalResult.Model.test_results(editor.result),
-        ~value=?EvalResult.Model.get_value(editor.result),
-        model,
-        editor.editor,
-        chat_id,
-      );
+    let model = refresh_context(settings, editor, model, chat_id);
     (
       dispatch_send(
         ~api_key=settings.agent_globals.api_key,
@@ -692,16 +702,7 @@ let do_retry_api_send =
       schedule_action: Action.t => unit,
     )
     : (Model.t, Updated.t(CellEditor.Model.t)) => {
-  let model =
-    Utils.update_context(
-      ~session_mode=settings.agent_globals.session_mode,
-      ~view=AgentGlobals.view_settings(settings.agent_globals),
-      ~test_results=?EvalResult.Model.test_results(editor.result),
-      ~value=?EvalResult.Model.get_value(editor.result),
-      model,
-      editor.editor,
-      chat_id,
-    );
+  let model = refresh_context(settings, editor, model, chat_id);
   if (Option.is_some(model.pending_ignore_main_reply_seq)) {
     (
       {

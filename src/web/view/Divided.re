@@ -736,29 +736,41 @@ let compact = (f: CellEditor.Model.t => CellEditor.Model.t, d: t): t => {
   statics: None,
 };
 
-/* [d]'s editors with the caches of [from]'s in the same place
-   (CellEditor.Model.with_caches_of): the shell's, and each open cell's
-   panes from [from]'s cell of the same item */
-let with_caches_of = (~from: t, d: t): t => {
-  let carry = (from, c) => CellEditor.Model.with_caches_of(~from, c);
-  {
-    ...d,
-    shell: carry(from.shell, d.shell),
-    cells:
-      List.map(
-        (e: Cell.t) =>
-          switch (cell(e.e_id, from)) {
-          | Some(c) => {
-              ...e,
-              e_header: carry(c.e_header, e.e_header),
-              e_body: carry(c.e_body, e.e_body),
-            }
-          | None => e
-          },
-        d.cells,
-      ),
-  };
+/* [d] with [carry] from each of [from]'s editors into [d]'s in the same
+   place: the shell's, and each open cell's panes from [from]'s cell of
+   the same item */
+let carry_from =
+    (
+      carry: (CellEditor.Model.t, CellEditor.Model.t) => CellEditor.Model.t,
+      from: t,
+      d: t,
+    )
+    : t => {
+  ...d,
+  shell: carry(from.shell, d.shell),
+  cells:
+    List.map(
+      (e: Cell.t) =>
+        switch (cell(e.e_id, from)) {
+        | Some(c) => {
+            ...e,
+            e_header: carry(c.e_header, e.e_header),
+            e_body: carry(c.e_body, e.e_body),
+          }
+        | None => e
+        },
+      d.cells,
+    ),
 };
+
+/* [d]'s editors with the caches of [from]'s
+   (CellEditor.Model.with_caches_of) */
+let with_caches_of = (~from: t, d: t): t =>
+  carry_from(
+    (from, c) => CellEditor.Model.with_caches_of(~from, c),
+    from,
+    d,
+  );
 
 /* the shell is the whole editor [d] was cut from: its caches to and from
    a whole editor */
@@ -770,28 +782,15 @@ let shell_caches_into = (d: t, e: CellEditor.Model.t): CellEditor.Model.t =>
   CellEditor.Model.with_caches_of(~from=d.shell, e);
 
 /* [d] showing [from]'s statics and run until it's analyzed
-   (CellEditor.Model.with_statics_of): the program's, and each open
-   cell's panes from [from]'s cell of the same item */
+   (CellEditor.Model.with_statics_of), editor by editor */
 let with_statics_of = (~from: t, d: t): t => {
-  let carry = (from, c) => CellEditor.Model.with_statics_of(~from, c);
-  {
-    ...d,
-    shell: carry(from.shell, d.shell),
-    cells:
-      List.map(
-        (e: Cell.t) =>
-          switch (cell(e.e_id, from)) {
-          | Some(c) => {
-              ...e,
-              e_header: carry(c.e_header, e.e_header),
-              e_body: carry(c.e_body, e.e_body),
-            }
-          | None => e
-          },
-        d.cells,
-      ),
-    statics: from.statics,
-  };
+  ...
+    carry_from(
+      (from, c) => CellEditor.Model.with_statics_of(~from, c),
+      from,
+      d,
+    ),
+  statics: from.statics,
 };
 
 /* the same, from and into a whole editor: its statics are the program's */
