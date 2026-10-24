@@ -3694,6 +3694,33 @@ let rename_and_path_safety_tests = (
       },
     ),
     test_case(
+      "code that copies the view's `#› … #` comments is refused",
+      `Quick,
+      () => {
+        let why = {js|`#› … #` comments are added by Hazel|js};
+        expect_failure_mentioning(
+          "let a = 1 in a",
+          Insert(After("a"), {js|let b = a + 1  #› 1 use #|js}),
+          [why],
+          "insert_view_comment",
+        );
+        expect_failure_mentioning(
+          "let a = 1 in a",
+          Replace("a:definition", {js|2  #› ≡ 2 #|js}),
+          [why],
+          "replace_view_comment",
+        );
+        check_rendered(
+          "a program comment still goes in",
+          "let a = # one # 1 in a",
+          apply_and_render(
+            "let a = 1 in a",
+            Replace("a:definition", "# one # 1"),
+          ),
+        );
+      },
+    ),
+    test_case(
       "sanity: normal rename still works",
       `Quick,
       () => {

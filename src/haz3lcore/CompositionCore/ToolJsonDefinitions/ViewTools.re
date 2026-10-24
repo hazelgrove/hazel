@@ -14,7 +14,7 @@ let open_: API.Json.t =
     ~name="open",
     ~description=
       {|
-Opens entries: each shows in full below the map, under `# open: path #`, with its errors marked at their lines and probe values inline. It stays open, following renames, until closed.|}
+Opens entries: each shows in full below the map, under `#› open: path #`, with its errors marked at their lines and probe values at line ends. It stays open, following renames, until closed.|}
       ++ EditTools.example("open"),
     ~properties=[targets_param("Paths of the entries to open.")],
     ~required=["targets"],

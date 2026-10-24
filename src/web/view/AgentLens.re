@@ -36,7 +36,7 @@ let map_of_view = (view: string): string => {
     };
   before(
     before(after(view, "<agentEditorView>\n```\n"), "\n```"),
-    "\n\n# open: ",
+    "\n\n" ++ CompositionView.marker ++ " open: ",
   );
 };
 

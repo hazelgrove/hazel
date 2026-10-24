@@ -3,7 +3,7 @@ open Util;
 let place_probe_description =
   {|
 Places probes on the bindings at the given paths to observe their runtime values.
-When a probe is active, the agent view shows evaluated values inline (e.g., `expr ≡ value`).
+When a probe is active, the agent view shows evaluated values at line ends (e.g., `expr  #› ≡ value #`).
 This is a powerful debugging and verification tool — use it to check whether code behaves as expected.
 Placing a probe opens its entry, so the results show.
 Values come from the evaluator; the next context refresh waits for evaluation to finish, so probe values are normally present immediately. A `∅` means the probed expression was never reached during evaluation (e.g. a branch not taken or a function never called) — that itself is useful evidence.
@@ -20,11 +20,15 @@ result
 ```
 Calling place_probe(paths=["result"]) shows:
 ```
-let double(x) = ⋯ in
-let result = double(5) in     ≡ 10
-result
+#› map · no errors #
+let double(x) = ⋯ in  #› 1 use #
+let result = ⋯ in  #› open below · 1 use #
+result  #› ⇒ 10 #
+
+#› open: result #
+let result = ⟦double(5)⟧ in  #› ≡ 10 #
 ```
-The ≡ 10 shows that `result` evaluates to 10.
+The ≡ 10 shows that `result`'s probed expression, in ⟦ ⟧, evaluates to 10.
 
 |}
   ++ "\n\n"

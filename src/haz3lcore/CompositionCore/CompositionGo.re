@@ -119,6 +119,11 @@ let unreadable = (code: string): string =>
     }
   );
 
+/* a comment only the view adds, `#› … #`, copied into code */
+let view_comment = StringUtil.regexp(CompositionView.marker ++ "[^#\n]*#");
+let copies_view_comment = (code: string): bool =>
+  StringUtil.search(view_comment, code, 0) != None;
+
 /* ---- one call ---- */
 
 /* the program a call runs on: its statics only when a planner asks */
@@ -456,6 +461,9 @@ let bound_in =
 let plan_call = (p: program, call: call): result(plan, string) => {
   let text = code => K.Text(Unicode.nfc_outside_strings(code));
   switch (call) {
+  | Insert(_, code)
+  | Replace(_, code) when copies_view_comment(code) =>
+    Error({js|`#› … #` comments are added by Hazel; leave them out|js})
   | Insert(place, code) =>
     let* place = place_at(p, place);
     Ok(plan(Added, [Insert(place, text(code))]));

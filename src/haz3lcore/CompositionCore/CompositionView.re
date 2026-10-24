@@ -121,10 +121,13 @@ let comment_safe = (s: string): string =>
   |> String.map(c => c == '\n' ? ' ' : c)
   |> StringUtil.replace(StringUtil.regexp("#"), _, {js|♯|js});
 
+/* opens every comment the view adds, so none reads as the program's */
+let marker = {js|#›|js};
+
 let comment = (parts: list(string)): string =>
   switch (List.filter(p => p != "", parts)) {
   | [] => ""
-  | parts => "# " ++ String.concat({js| · |js}, parts) ++ " #"
+  | parts => marker ++ " " ++ String.concat({js| · |js}, parts) ++ " #"
   };
 
 /* a path's last element */
@@ -158,8 +161,18 @@ let error_message = (facts: facts, id: Id.t): string =>
   | None => "error"
   };
 
+/* `#› ≡ v #`, or "" */
 let probe_values = (facts: facts, ids: list(Id.t)): string =>
-  ProbeText.format_probe_values(~window=Single, ~probe_map=facts.probes, ids);
+  switch (
+    ProbeText.probe_values(~window=Single, ~probe_map=facts.probes, ids)
+  ) {
+  | [] => ""
+  | vs =>
+    comment([
+      {js|≡ |js}
+      ++ comment_safe(String.concat(ProbeText.value_separator, vs)),
+    ])
+  };
 
 /* ---- the map ---- */
 
@@ -498,7 +511,11 @@ let with_probes = (ctx, find, lines: array(string)): array(string) => {
   Array.mapi(
     (row, line) =>
       switch (IntMap.find_opt(row, rows)) {
-      | Some(ids) => line ++ probe_values(facts, ids)
+      | Some(ids) =>
+        switch (probe_values(facts, ids)) {
+        | "" => line
+        | values => line ++ "  " ++ values
+        }
       | None => line
       },
     lines,
@@ -632,10 +649,10 @@ let entry_text = (ctx: ctx, e: O.entry): string => {
         let msg = error_message(ctx.facts, err);
         let (row, col, width) = span(err);
         let marks = String.concat("", List.init(width, _ => "^"));
-        let line =
-          col <= 0
-            ? "#" ++ marks ++ " " ++ msg ++ " #"
-            : "#" ++ String.make(col - 1, ' ') ++ marks ++ " " ++ msg ++ " #";
+        /* the marks under the term, or right after the marker when it
+           doesn't fit before them */
+        let pad = String.make(max(0, col - 2), ' ');
+        let line = marker ++ pad ++ marks ++ " " ++ msg ++ " #";
         Hashtbl.replace(
           carets,
           row,

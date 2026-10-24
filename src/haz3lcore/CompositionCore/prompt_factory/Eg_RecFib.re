@@ -126,13 +126,13 @@ let map_fib_example = {
   program: fib ++ "\nin\n" ++ fib_tests ++ ";\nfib(10)",
   start:
     Some(
-      {|# map · no errors · tests: 4 of 4 pass #
-let fib(n: Int): Int = ⋯ in  # 7 uses #
-hint "zero" test fib(0) == 0 end;  # ✓ #
-hint "one" test fib(1) == 1 end;  # ✓ #
-hint "five" test fib(5) == 5 end;  # ✓ #
-hint "ten" test fib(10) == 55 end;  # ✓ #
-fib(10)  # ⇒ 55 #|},
+      {|#› map · no errors · tests: 4 of 4 pass #
+let fib(n: Int): Int = ⋯ in  #› 7 uses #
+hint "zero" test fib(0) == 0 end;  #› ✓ #
+hint "one" test fib(1) == 1 end;  #› ✓ #
+hint "five" test fib(5) == 5 end;  #› ✓ #
+hint "ten" test fib(10) == 55 end;  #› ✓ #
+fib(10)  #› ⇒ 55 #|},
     ),
   steps: [
     {
@@ -156,16 +156,16 @@ fib(10)  # ⇒ 55 #|},
       ],
       sees:
         Some((
-          {|# map · no errors · tests: 6 of 6 pass #
-let fib(n: Int): Int = ⋯ in  # 7 uses #
-hint "zero" test fib(0) == 0 end;  # ✓ #
-hint "one" test fib(1) == 1 end;  # ✓ #
-hint "five" test fib(5) == 5 end;  # ✓ #
-hint "ten" test fib(10) == 55 end;  # ✓ #
-let map_fib(ns: [Int]): [Int] = ⋯ in  # 4 uses #
-hint "empty list" test map_fib([]) == [] end;  # ✓ #
-hint "three values" test map_fib([0, 1, 5]) == [0, 1, 5] end;  # ✓ #
-map_fib([1, 2, 3, 4, 5])  # ⇒ [1, 1, 2, 3, 5] #|},
+          {|#› map · no errors · tests: 6 of 6 pass #
+let fib(n: Int): Int = ⋯ in  #› 7 uses #
+hint "zero" test fib(0) == 0 end;  #› ✓ #
+hint "one" test fib(1) == 1 end;  #› ✓ #
+hint "five" test fib(5) == 5 end;  #› ✓ #
+hint "ten" test fib(10) == 55 end;  #› ✓ #
+let map_fib(ns: [Int]): [Int] = ⋯ in  #› 4 uses #
+hint "empty list" test map_fib([]) == [] end;  #› ✓ #
+hint "three values" test map_fib([0, 1, 5]) == [0, 1, 5] end;  #› ✓ #
+map_fib([1, 2, 3, 4, 5])  #› ⇒ [1, 1, 2, 3, 5] #|},
           [],
         )),
     },

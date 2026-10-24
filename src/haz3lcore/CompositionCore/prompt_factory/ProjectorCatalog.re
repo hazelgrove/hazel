@@ -4,7 +4,7 @@ open Language;
 
 let probe_tools_crossref =
   "Runtime probes are **refractors** (GUI overlays on bindings), not livelit projectors. "
-  ++ "When probes are active, the agent view shows evaluated values inline as `≡`. "
+  ++ "When probes are active, the agent view shows evaluated values at line ends, as `#› ≡ value #`. "
   ++ "See the system prompt **Projectors and the agent view** for folds, statics overlays, "
   ++ "and livelit kinds (checkbox, slider, csv, …).";
 
@@ -85,7 +85,7 @@ let blurb_for_composition_prompt: list(string) = {
     "Your own view is the map and open entries (see **The view** above).",
     "",
     "### Runtime probe refractor",
-    "The **probe** refractor attaches to a binding and shows evaluated values in the agent view (e.g. `expr ≡ value`).",
+    "The **probe** refractor attaches to a binding and shows evaluated values in the agent view (e.g. `expr  #› ≡ value #`).",
     "Tools: `place_probe`, `remove_probe`, `toggle_probe`.",
     "",
     "### Statics refractor (type overlay)",
