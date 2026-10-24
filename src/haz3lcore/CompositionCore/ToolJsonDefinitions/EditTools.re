@@ -83,7 +83,7 @@ let replace: API.Json.t =
     ~name="replace",
     ~description=
       {|
-Replaces the entry at `target` with `code`, or one part of it: `target:definition` (after `=`; for `let f(x) = …`, f's body), `target:pattern` (before `=`; to rename, use rename). `target/=>` is the result of a definition's body, past its local definitions. A whole entry is written without its trailing `in` or `;`. Refused if a use outside the new code would then refer to another binder.|}
+Replaces the entry at `target` with `code`, or one part of it: `target:definition` (between `=` and its `in` or `;`, which you never write; for `let f(x) = …`, f's body), `target:pattern` (between `let` and `=`; to rename, use rename). `target/=>` is the result of a definition's body, past its local definitions. A whole entry is written without its trailing `in` or `;`. Refused if a use outside the new code would then refer to another binder.|}
       ++ example("replace"),
     ~properties=
       strings([
