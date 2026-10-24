@@ -219,9 +219,28 @@ let report = (~link, model: EmbedModel.Model.t): unit =>
   | Some(page) =>
     let rect: Js.Unsafe.any =
       Js.Unsafe.meth_call(page, "getBoundingClientRect", [||]);
+    /* (an open menu below the code: its bottom too, for the page to
+       grow the frame to, so the menu is not cut off) */
+    let menu_bottom =
+      switch (
+        Js.Opt.to_option(
+          Dom_html.document##querySelector(Js.string(".context-menu")),
+        )
+      ) {
+      | Some(m) =>
+        let r: Js.Unsafe.any =
+          Js.Unsafe.meth_call(m, "getBoundingClientRect", [||]);
+        Js.float_of_number(Js.Unsafe.get(r, "bottom")) +. 8.;
+      | None => 0.
+      };
     let height =
       int_of_float(
-        Float.ceil(Js.float_of_number(Js.Unsafe.get(rect, "height"))),
+        Float.ceil(
+          Float.max(
+            Js.float_of_number(Js.Unsafe.get(rect, "height")),
+            menu_bottom,
+          ),
+        ),
       );
     /* (^ticket(587)) the caret's top, for the page to scroll to after a
        reveal */

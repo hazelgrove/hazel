@@ -37,3 +37,9 @@ html.hazel-embed.framed {
   padding: 1em;
   color: var(--text-muted);
 }
+
+/* an open right-click menu reaches past the code: not clipped by #main
+   (the frame grown to it, EmbedMain.report) */
+#page.embed > #main:has(.context-menu) {
+  overflow: visible;
+}
