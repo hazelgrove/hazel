@@ -574,7 +574,7 @@ let pick =
 
 /* A shared name or hint short of the last element is ambiguous only if
    more than one of its entries has the rest of the path (`m/x` when one
-   `m` has an `x`), as the node map reads paths. [done_]: the elements
+   `m` has an `x`). [done_]: the elements
    so far, innermost first */
 let resolve_in = (top: S.level, p: t): result(found, error) => {
   let prefix = (done_: list(elem)) =>

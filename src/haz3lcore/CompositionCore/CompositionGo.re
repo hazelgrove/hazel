@@ -25,8 +25,8 @@ let ( let* ) = (r, f) =>
 
 /* ---- statics ---- */
 
-/* the whole program's statics, monolithically: kept for the views that
-   read the node map */
+/* the whole program's statics, monolithically: for the overlay tools'
+   probe and statics placement */
 let mk_statics_with =
     (~root=Sort.Exp, settings: CoreSettings.t, z: Zipper.t): StaticsBase.Map.t => {
   let term =

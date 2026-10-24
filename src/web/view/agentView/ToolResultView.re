@@ -102,16 +102,19 @@ let category_icon = (c: ToolCallSummary.category): Node.t =>
   | Workbench => cat_workbench
   };
 
-/** Returns [[Some(id)]] for the first path in [[jump_paths]] that resolves in
-    [[node_map]]; [[None]] otherwise (including when [[node_map]] is [[None]]). */
+/** The entry the first of [[jump_paths]] that names one in [[outline]]
+    names. */
 let first_resolving_id =
-    (~node_map: option(HighLevelNodeMap.t), jump_paths: list(string))
-    : option(Id.t) =>
-  switch (node_map) {
+    (~outline: option(Outline.t), jump_paths: list(string)): option(Id.t) =>
+  switch (outline) {
   | None => None
-  | Some(nm) =>
+  | Some(o) =>
     List.find_map(
-      (p: string) => HighLevelNodeMap.Public.path_to_id_opt(nm, p),
+      (p: string) =>
+        switch (Outline.resolve(o, p)) {
+        | Ok(e) => Some(e.id)
+        | Error(_) => None
+        },
       jump_paths,
     )
   };
@@ -119,7 +122,7 @@ let first_resolving_id =
 let view =
     (
       ~globals: Globals.t,
-      ~node_map: option(HighLevelNodeMap.t)=?,
+      ~outline: option(Outline.t)=?,
       ~tool_result: AgentToolResult.tool_result,
       ~toggle_expanded: 'a => Effect.t(unit),
       (),
@@ -137,13 +140,13 @@ let view =
   let resolved_id: option(Id.t) =
     switch (summary_opt) {
     | Some(s) when s.jump_paths != [] =>
-      first_resolving_id(~node_map, s.jump_paths)
+      first_resolving_id(~outline, s.jump_paths)
     | _ => None
     };
   let is_stale: bool =
     switch (summary_opt) {
     | Some(s) when s.persists && s.jump_paths != [] =>
-      resolved_id == None && node_map != None
+      resolved_id == None && Option.is_some(outline)
     | _ => false
     };
   let category_node: Node.t =

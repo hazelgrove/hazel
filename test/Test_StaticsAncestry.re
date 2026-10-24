@@ -322,55 +322,6 @@ let consumers = ((name, root, src), ()) => {
     pending(whole),
     pending(editor),
   );
-  /* the assistant's node map, from a caret at each line's first token */
-  let nodes = (st: CachedStatics.t, z) =>
-    switch (HighLevelNodeMap.build(z, st.info_map)) {
-    | Some(nm) =>
-      Id.Map.bindings(nm)
-      |> List.map(((_, n: HighLevelNodeMap.node)) =>
-           n.name ++ "@" ++ string_of_int(List.length(n.path))
-         )
-      |> List.sort(compare)
-      |> String.concat(" ")
-    | None => "none"
-    | exception e => "raised " ++ Printexc.to_string(e)
-    };
-  List.iteri(
-    (row, line) => {
-      let rec col = i =>
-        i < String.length(line) && line.[i] == ' ' ? col(i + 1) : i;
-      let col = col(0);
-      switch (
-        perform(
-          ~root,
-          ~statics=editor,
-          z,
-          Move(
-            Point(
-              {
-                row,
-                col,
-              }: Point.t,
-              None,
-            ),
-          ),
-        )
-      ) {
-      | Some(z) when String.trim(line) != "" =>
-        let at = name ++ ": node map at line " ++ string_of_int(row);
-        let got = nodes(editor, z);
-        check(
-          bool,
-          at ++ " builds",
-          false,
-          String.starts_with(~prefix="raised", got),
-        );
-        check(string, at, nodes(whole, z), got);
-      | _ => ()
-      };
-    },
-    String.split_on_char('\n', src),
-  );
 };
 
 /* a member's autoprobe target is its definition, as a top-level one is */
