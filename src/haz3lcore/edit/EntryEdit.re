@@ -241,13 +241,26 @@ let unterminated = (txt: string): string => {
 };
 
 /* an entry's pieces from text, in a block's form, and whether it is a
-   statement */
-let entry_text = (~member: bool, txt: string): option((Segment.t, bool)) => {
+   statement. A definition spanning lines puts its `in` on a line of its
+   own when [alone] (its neighbours' layout) */
+let entry_text =
+    (~member: bool, ~alone=() => true, txt: string)
+    : option((Segment.t, bool)) => {
   let t = unterminated(txt);
   let def = takes_in(t);
+  let letin = () =>
+    switch (L.letin_core(t ++ " in")) {
+    | Some(ps) =>
+      switch (List.find_map(Piece.is_tile, ps)) {
+      | Some(h) when L.in_alone_at(h) == Some(false) && alone() =>
+        L.letin_core(t ++ "\nin")
+      | _ => Some(ps)
+      }
+    | None => None
+    };
   Option.map(
     ps => (ps, !def),
-    member ? L.member_core(t) : L.letin_core(t ++ (def ? " in" : ";")),
+    member ? L.member_core(t) : def ? letin() : L.letin_core(t ++ ";"),
   );
 };
 
@@ -617,11 +630,11 @@ let value_head = (c: ctx, ~stmt: bool, d: Id.t, seg: Segment.t) =>
 /* a source as an entry in a block's form: its pieces, whether it is a
    statement, and the indentation its lines were written at */
 let entry_of =
-    (c: ctx, ~member: bool, src: source, seg: Segment.t)
+    (c: ctx, ~member: bool, ~alone=?, src: source, seg: Segment.t)
     : (Segment.t, bool, option(int)) =>
   switch (src) {
   | Text(txt) =>
-    let (ps, stmt) = need(Unreadable, entry_text(~member, txt));
+    let (ps, stmt) = need(Unreadable, entry_text(~member, ~alone?, txt));
     (ps, stmt, Some(0));
   | Template(t) =>
     let (ps, stmt) =
@@ -699,10 +712,30 @@ let member_form = (c: ctx, blk: block): bool =>
   | Top => c.mod_root
   };
 
+/* the let chain whose entries an entry at [place] goes among, for their
+   layout: a body's own, else its definition's. None for members, which
+   take no `in` */
+let chain_at =
+    (c: ctx, place: place, seg: Segment.t): option(ItemSpans.level) =>
+  switch (place) {
+  | Before(y)
+  | After(y) => Some(entry(~mod_root=c.mod_root, y, seg).b.lv)
+  | FirstIn(Body(d))
+  | LastIn(Body(d)) =>
+    let e = entry(~mod_root=c.mod_root, d, seg);
+    Some(Option.value(ItemSpans.block(e.b.lv, e.j), ~default=e.b.lv));
+  | FirstIn(Top)
+  | LastIn(Top) => Some(ItemSpans.top(~root=c.root, seg))
+  | FirstIn(Members(_))
+  | LastIn(Members(_)) => None
+  };
+
 let insert = (c: ctx, op, place: place, src: source, seg: Segment.t): step => {
   let mod_root = c.mod_root;
   let lands = (~member, f) => {
-    let (item, stmt, src_indent) = entry_of(c, ~member, src, seg);
+    let alone = () =>
+      Option.fold(~none=true, ~some=L.in_alone, chain_at(c, place, seg));
+    let (item, stmt, src_indent) = entry_of(c, ~member, ~alone, src, seg);
     let program = need(NoPlace, f(item, stmt, src_indent));
     let row = L.row_id(item);
     done_(~added=Option.to_list(row), ~focus=row, op, program);
@@ -980,7 +1013,13 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step =>
         (need(Unreadable, parse_at(Exp, txt)), Some(0));
       } else {
         let (item, stmt, src_indent) =
-          entry_of(c, ~member=e.b.in_module, src, seg);
+          entry_of(
+            c,
+            ~member=e.b.in_module,
+            ~alone=() => L.in_alone(e.b.lv),
+            src,
+            seg,
+          );
         if (stmt && !e.b.stmts) {
           refuse(~id=x, NoStatement);
         };

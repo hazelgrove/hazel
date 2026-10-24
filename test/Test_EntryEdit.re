@@ -109,6 +109,33 @@ b|js},
       [Insert(FirstIn(Members(head("M", m))), Text("let w =\n  0"))],
     ),
   );
+  let lined = seg_of("let a(x) =\n  x + 1\nin\nlet b = 2 in\nb");
+  expect(
+    "a definition spanning lines: `in` on a line of its own, as its neighbours have it",
+    "let a(x) =\n  x + 1\nin\nlet c(y) =\n  y * 2\nin\nlet b = 2 in\nb",
+    run(
+      lined,
+      [Insert(After(head("a", lined)), Text("let c(y) =\n  y * 2"))],
+    ),
+  );
+  let ended = seg_of("let a(x) =\n  x + 1 in\nlet b = 2 in\nb");
+  expect(
+    "or ending its last line, as they have it",
+    "let a(x) =\n  x + 1 in\nlet c(y) =\n  y * 2 in\nlet b = 2 in\nb",
+    run(
+      ended,
+      [Insert(After(head("a", ended)), Text("let c(y) =\n  y * 2\nin"))],
+    ),
+  );
+  let body = seg_of("let f(x) =\n  let a = x in\n  a\nin\nf(1)");
+  expect(
+    "in a body: its indentation",
+    "let f(x) =\n  let g(y) =\n    y\n  in\n  let a = x in\n  a\nin\nf(1)",
+    run(
+      body,
+      [Insert(FirstIn(Body(head("f", body))), Text("let g(y) =\n  y"))],
+    ),
+  );
   let f = seg_of("let f = fun x -> x in f(1)");
   expect(
     "into a value's body, above its result",
