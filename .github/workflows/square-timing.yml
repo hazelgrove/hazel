@@ -1,0 +1,57 @@
+# MEASURING ONLY (ticket 540): the Square rule with a square's things held in two maps (Square.held: by place, the trap doors
+# by uid), against the rule as shipped (Square.on_event, the things passed with every pull), on GitHub's machines, never the
+# laptop. An orphan branch: only this workflow runs. The driver and the rule texts are kids-choice-games' square-map-540
+# (tools/square540.mjs checks the two rules agree first); the library is trial/r25-553 (tickets 547, 548, 551), as for ticket 553.
+name: Square timing (ticket 540)
+
+on:
+  push:
+    branches:
+      - "timing/540-square"
+
+env:
+  BUILD: 6fb368aeca7b5c86f7ec96b5cfe7d27f8652a677
+  KCG: 095143f84080c7fc0db1f2b842b1af371877c636
+  SIZES: "4,8,16,32,64,128,256,512,1024"
+
+jobs:
+  square:
+    name: Square (${{ matrix.job }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        job: [r1, r2, r3, r4]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: hazelgrove/build
+          ref: ${{ env.BUILD }}
+          path: b
+          sparse-checkout: trial/r25-553
+      - uses: actions/checkout@v4
+        with:
+          repository: matthewhammer/kids-choice-games
+          ref: ${{ env.KCG }}
+          path: kcg
+          sparse-checkout: |
+            dress-up/js
+            tools
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: The runner
+        run: |
+          mkdir -p out
+          { echo "${{ matrix.job }}:"; lscpu | grep -E 'Model name'; node --version; } | tee out/runner.txt
+      - name: Check, then time, twice
+        run: |
+          set -euo pipefail
+          for round in 1 2; do
+            node --stack-size=8000 kcg/tools/square540.mjs b/trial/r25-553/hazel-lib.js kcg/dress-up/js/25-scripting.js "$SIZES" out/square-${{ matrix.job }}-$round.json
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: square-${{ matrix.job }}
+          path: out
