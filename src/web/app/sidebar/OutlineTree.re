@@ -72,6 +72,11 @@ let rec lead_var = (pat: Haz3lcore.Segment.t): option((string, Id.t)) => {
   };
 };
 
+/* each entry's rows, while it's the same entry (Outline keeps an
+   unchanged entry's object) */
+let entry_memo: Util.Swept.t((Id.t, bool), (O.entry, list(node))) =
+  Util.Swept.mk();
+
 /* the rows of a block's entries; a form that isn't a binding (a theorem)
    or a let under a function head ends the block, as its result */
 let rec rows_of = (~top: bool, ~heads=false, es: list(O.entry)): list(node) =>
@@ -101,7 +106,16 @@ and opaque = (~heads, e: O.entry): option(Id.t) =>
   | _ => None
   }
 
-and row_of = (~top: bool, e: O.entry): list(node) => {
+and row_of = (~top: bool, e: O.entry): list(node) =>
+  switch (Util.Swept.find_opt(entry_memo, (e.anchor, top))) {
+  | Some((e', rows)) when e' === e => rows
+  | _ =>
+    let rows = entry_rows(~top, e);
+    Util.Swept.replace(entry_memo, (e.anchor, top), (e, rows));
+    rows;
+  }
+
+and entry_rows = (~top: bool, e: O.entry): list(node) => {
   let id = e.id;
   let at_mod = e.lv.sort == Sort.Mod;
   switch (e.kind) {
@@ -300,8 +314,10 @@ let number_tests = (ns: list(node)): list(node) => {
 };
 
 /* the rows of a program's outline */
-let build = (o: O.t): list(node) =>
+let build = (o: O.t): list(node) => {
+  Util.Swept.next_pass(entry_memo);
   rows_of(~top=true, o.entries) |> group_tests |> number_tests;
+};
 
 /* the outline the rows are of: a program's (Program.outline) */
 type t = O.t;

@@ -141,50 +141,88 @@ let test_tile = (lv: S.level, k: int): option(Id.t) => {
   );
 };
 
+/* span [k]'s entry, as its level alone says */
+let entry_at =
+    (lv: S.level, k: int, ~path: P.t, ~children: list(entry)): entry => {
+  let sp = lv.spans[k];
+  let e = P.entry(lv, k);
+  let parts = e.kind == Def ? parts(lv, k) : None;
+  let id =
+    switch (e.kind) {
+    | Tail => root_of(core(lv, k))
+    | Stmt
+    | Test when lv.sort == Sort.Mod => root_of(core(lv, k))
+    | _ => None
+    };
+  {
+    id: Option.value(id, ~default=sp.anchor),
+    anchor: sp.anchor,
+    kind: e.kind,
+    fn:
+      switch (parts) {
+      | Some((pat, def)) => sugared(pat) || is_fun(def)
+      | None => false
+      },
+    literal: sp.body != None,
+    names: e.binders,
+    hint: e.hint,
+    test: e.kind == Test ? test_tile(lv, k) : None,
+    path,
+    lv,
+    k,
+    children,
+  };
+};
+
+/* each level's entries as last built, kept while ItemSpans keeps the
+   level: an entry whose path and children are the same is the same
+   object, so readers memoized on entries (the sidebar's rows) hit */
+let levels: Swept.t(P.key, (S.level, array(entry), list(entry))) =
+  Swept.mk();
+
 let rec level =
         (top: S.level, rev_steps: list((S.level, int)), lv: S.level)
-        : list(entry) =>
-  List.init(
-    Array.length(lv.spans),
-    k => {
-      let sp = lv.spans[k];
-      let e = P.entry(lv, k);
-      let steps = [(lv, k), ...rev_steps];
-      let parts = e.kind == Def ? parts(lv, k) : None;
-      let id =
-        switch (e.kind) {
-        | Tail => root_of(core(lv, k))
-        | Stmt
-        | Test when lv.sort == Sort.Mod => root_of(core(lv, k))
-        | _ => None
-        };
-      {
-        id: Option.value(id, ~default=sp.anchor),
-        anchor: sp.anchor,
-        kind: e.kind,
-        fn:
-          switch (parts) {
-          | Some((pat, def)) => sugared(pat) || is_fun(def)
-          | None => false
-          },
-        literal: sp.body != None,
-        names: e.binders,
-        hint: e.hint,
-        test: e.kind == Test ? test_tile(lv, k) : None,
-        path: P.path_of(top, List.rev(steps)),
-        lv,
-        k,
-        children:
+        : list(entry) => {
+  let key = P.key_of(lv);
+  let prev =
+    switch (Swept.find_opt(levels, key)) {
+    | Some((lv', es, l)) when lv' === lv => Some((es, l))
+    | _ => None
+    };
+  let es =
+    Array.init(
+      Array.length(lv.spans),
+      k => {
+        let steps = [(lv, k), ...rev_steps];
+        let path = P.path_of(top, List.rev(steps));
+        let children =
           switch (P.sub(lv, k)) {
           | Some(below) => level(top, steps, below)
           | None => []
-          },
-      };
-    },
-  );
+          };
+        switch (prev) {
+        | Some((es, _)) when es[k].children === children && es[k].path == path => es[k]
+        | Some((es, _)) => {
+            ...es[k],
+            path,
+            children,
+          }
+        | None => entry_at(lv, k, ~path, ~children)
+        };
+      },
+    );
+  switch (prev) {
+  | Some((es', l)) when Array.for_all2((===), es, es') => l
+  | _ =>
+    let l = Array.to_list(es);
+    Swept.replace(levels, key, (lv, es, l));
+    l;
+  };
+};
 
 let build = (~root: Sort.t, seg: Segment.t): t => {
   Swept.next_pass(P.cache);
+  Swept.next_pass(levels);
   /* members end as the parsed term reads them, so the members after an
      unfinished one keep their rows */
   let top = S.top(~ends=Rows, ~root, seg);
@@ -195,30 +233,46 @@ let build = (~root: Sort.t, seg: Segment.t): t => {
   };
 };
 
-/* the last few programs' outlines, each while its pieces are the same:
-   a user's program and the one View as agent shows take turns */
-let recent: ref(list((Sort.t, Segment.t, t))) = ref([]);
-let of_program = (~root: Sort.t, seg: Segment.t): t =>
-  switch (List.find_opt(((r, s, _)) => r == root && s === seg, recent^)) {
+/* the last few programs' outlines, each while its program is the same
+   (Segment.same_program: a caret move re-zips the tiles above it). A user's
+   program and the one View as agent shows take turns */
+let recall =
+    (
+      cache: ref(list((Sort.t, Segment.t, t))),
+      ~root: Sort.t,
+      seg: Segment.t,
+      mk: unit => t,
+    )
+    : t =>
+  switch (List.find_opt(((r, s, _)) => r == root && s === seg, cache^)) {
   | Some((_, _, o)) => o
   | None =>
-    let o = build(~root, seg);
-    recent := [(root, seg, o), ...ListUtil.take(3, recent^)];
+    let (o, rest) =
+      switch (
+        List.partition(
+          ((r, s, _)) => r == root && Segment.same_program(s, seg),
+          cache^,
+        )
+      ) {
+      | ([(_, _, o), ..._], rest) => (o, rest)
+      | ([], rest) => (mk(), rest)
+      };
+    cache := [(root, seg, o), ...ListUtil.take(3, rest)];
     o;
   };
+
+let recent: ref(list((Sort.t, Segment.t, t))) = ref([]);
+let of_program = (~root: Sort.t, seg: Segment.t): t =>
+  recall(recent, ~root, seg, () => build(~root, seg));
 
 /* the outline of a program as typed: of its completion, as semantics
    reads it (an unfinished definition gets its `=`, `in` or `;` and holes,
    keeping its ids), so its rows stand while it's being typed */
 let sources: ref(list((Sort.t, Segment.t, t))) = ref([]);
 let of_source = (~root: Sort.t, source: Segment.t): t =>
-  switch (List.find_opt(((r, s, _)) => r == root && s === source, sources^)) {
-  | Some((_, _, o)) => o
-  | None =>
-    let o = build(~root, fst(MakeTerm.semantic_segment(~root, source)));
-    sources := [(root, source, o), ...ListUtil.take(3, sources^)];
-    o;
-  };
+  recall(sources, ~root, source, () =>
+    build(~root, fst(MakeTerm.semantic_segment(~root, source)))
+  );
 
 /* every entry, each before its children */
 let rec flatten = (es: list(entry)): list(entry) =>

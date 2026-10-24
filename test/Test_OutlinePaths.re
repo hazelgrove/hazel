@@ -304,7 +304,7 @@ let arrows_redraw = () => {
         "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)",
       ),
     );
-  let view = arrows =>
+  let view = (~statics=statics, arrows) =>
     Web.OutlineControl.view(
       ~arrows,
       ~deck=None,
@@ -324,7 +324,80 @@ let arrows_redraw = () => {
     true,
     view(false) === off,
   );
+  /* a frame's statics are a new record over the same analysis */
+  check(
+    bool,
+    "the same analysis reuses it",
+    true,
+    view(
+      ~statics={
+        ...statics,
+        warning_ids: [],
+      },
+      false,
+    )
+    === off,
+  );
   check(bool, "arrows on: a new outline", false, view(true) === off);
+};
+
+/* the outline is kept across a caret move, which re-zips the tiles
+   above the caret as new objects, and an edit keeps the entries below
+   the definitions it didn't touch */
+let outline_kept = () => {
+  let seg =
+    CorpusUtil.seg_of(
+      "let a = 1 in\nlet b = fun x ->\n  let y = x in\n  y\nin\nb(a)",
+    );
+  let o = Outline.of_program(~root=Exp, seg);
+  let rezip =
+    List.map(
+      fun
+      | Piece.Tile(t) =>
+        Piece.Tile({
+          ...t,
+          children: List.map(List.map(Fun.id), t.children),
+        })
+      | p => p,
+      seg,
+    );
+  check(bool, "re-zipped: new objects", false, Segment.ptr_eq(rezip, seg));
+  check(
+    bool,
+    "re-zipped: the same outline",
+    true,
+    Outline.of_program(~root=Exp, rezip) === o,
+  );
+  /* [a]'s definition gets a new token */
+  let fresh =
+    fun
+    | Piece.Tile(t) =>
+      Piece.Tile({
+        ...t,
+        id: Id.mk(),
+      })
+    | p => p;
+  let edited =
+    switch (seg) {
+    | [Tile({children: [pat, def], _} as t), ...rest] => [
+        Piece.Tile({
+          ...t,
+          children: [pat, List.map(fresh, def)],
+        }),
+        ...rest,
+      ]
+    | _ => fail("expected `let a` first")
+    };
+  let o' = Outline.of_program(~root=Exp, edited);
+  check(bool, "edited: a new outline", false, o' === o);
+  let b = (o: Outline.t) => List.nth(o.entries, 1);
+  check(bool, "b has a body", true, b(o).children != []);
+  check(
+    bool,
+    "edited: b's body entries are the same objects",
+    true,
+    b(o').children === b(o).children,
+  );
 };
 
 /* where a saved name leaves text mode's caret: where the keys put it
@@ -1173,6 +1246,11 @@ let tests = [
       test_case("a run's tally", `Quick, tallies),
       test_case("a hinted test joins its run", `Quick, hinted_run),
       test_case("the caret's mark in a folded run", `Quick, mark_in_runs),
+      test_case(
+        "a caret move keeps the outline, an edit its untouched entries",
+        `Quick,
+        outline_kept,
+      ),
     ],
   ),
 ];

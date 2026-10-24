@@ -376,13 +376,15 @@ let cache: Swept.t(key, (S.level, index)) = Swept.mk();
 /* indexes built, cumulative: observability for tests */
 let built = ref(0);
 
+let key_of = (lv: S.level): key => (
+  lv.ends,
+  lv.sort,
+  lv.owner,
+  Array.length(lv.pieces) > 0 ? Piece.id(lv.pieces[0]) : Id.invalid,
+);
+
 let index = (lv: S.level): index => {
-  let key = (
-    lv.ends,
-    lv.sort,
-    lv.owner,
-    Array.length(lv.pieces) > 0 ? Piece.id(lv.pieces[0]) : Id.invalid,
-  );
+  let key = key_of(lv);
   switch (Swept.find_opt(cache, key)) {
   | Some((lv', ix)) when lv' === lv => ix
   | _ =>
