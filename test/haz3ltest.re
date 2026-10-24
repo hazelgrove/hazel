@@ -61,6 +61,7 @@ let (suite, exit_with_test_status) =
       Test_PatRootEditor.tests,
       Test_StackFocus.tests,
       Test_Restructure.tests,
+      Test_EntryEdit.tests,
       Test_StreamCollector.tests,
       Test_MegaCorpus.tests,
       Test_MeasuredChunks.tests,

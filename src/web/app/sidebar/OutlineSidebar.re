@@ -119,6 +119,8 @@ type props = {
   created: option((Language.Id.t, string)),
   /* refusals flashed on text mode's line: each new one replays it */
   flash: int,
+  /* row mode: a row op refused, the row and why */
+  refused: option((Language.Id.t, string)),
   /* every pin, shown or not: a hidden one gets a quiet mark */
   pinned: list(Language.Id.t),
   focused_entries: list((Language.Id.t, option(string))),
@@ -323,14 +325,14 @@ module HintPlace =
   });
 
 /* why the line's name can't be saved, in a bubble once a save has tried
-   it. Set before the name, its own place is where the line's text starts;
-   there all the while the line is typed on, so the field keeps its place
-   among the row's nodes */
-let edit_hint = (t: E.t): Node.t =>
+   it, or why a row op was refused. Set before the name, its own place is
+   where the line's text starts; there all the while the line is typed on,
+   so the field keeps its place among the row's nodes */
+let hint = (error: option(string)): Node.t =>
   span(
     ~attrs=[
       clss(
-        ["outline-edit-hint"] @ (t.error == None ? [] : ["outline-hint-on"]),
+        ["outline-edit-hint"] @ (error == None ? [] : ["outline-hint-on"]),
       ),
       Attr.create_hook("outline-hint-place", HintPlace.create()),
       /* its text is selectable: a press there is its own, not the line's
@@ -352,8 +354,9 @@ let edit_hint = (t: E.t): Node.t =>
         Effect.Ignore;
       }),
     ],
-    [text(Option.value(t.error, ~default=""))],
+    [text(Option.value(error, ~default=""))],
   );
+let edit_hint = (t: E.t): Node.t => hint(t.error);
 
 /* [t] as typed: a refusal shown follows it, gone once the name will do */
 let rechecked = (~check: E.t => option(string), t: E.t): E.t => {
@@ -1167,6 +1170,14 @@ let rec node_view =
           ],
         ),
       ]
+      @ (
+        switch (tm, props.refused) {
+        | (None, Some((id, why))) when n.o_id == Some(id) => [
+            hint(Some(why)),
+          ]
+        | _ => []
+        }
+      )
       @ (
         switch (caret, props.created) {
         | (Some(d), _) when nameable(n) =>

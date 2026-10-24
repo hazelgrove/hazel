@@ -23,6 +23,9 @@ let cursor: ref(option(OutlineTree.path)) = ref(None);
 let text: ref(option(E.t)) = ref(None);
 let drawn: ref(option(int)) = ref(None);
 let flash: ref(int) = ref(0);
+/* row mode: the row op last refused, the row and why, shown till the
+   cursor moves or the outline acts again */
+let refused: ref(option((Id.t, string))) = ref(None);
 /* the caret's placements, so a field still shown moves its own caret */
 let seq: ref(int) = ref(0);
 let next_seq = () => {
@@ -119,7 +122,7 @@ let blank_body = (program: Program.t, id: Id.t): bool =>
       Program.document(program),
     )
   ) {
-  | Some(def) => ItemEdit.blank_def(def)
+  | Some(def) => EntryLayout.blank_def(def)
   | None => false
   };
 
@@ -640,7 +643,11 @@ let update =
       action: Action.t,
       code: Scratchpad.code,
     )
-    : Updated.t(Scratchpad.code) =>
+    : Updated.t(Scratchpad.code) => {
+  switch (action) {
+  | Redraw => ()
+  | _ => refused := None
+  };
   switch (action) {
   | Redraw => code |> Updated.return_quiet
   /* the row's fold as shown, flipped: by hand, else its kind's default */
@@ -675,9 +682,10 @@ let update =
     let successor =
       op == Delete ? OutlineTree.successor(fid, ctx.term) : None;
     switch (ItemEdit.edit(ctx, Op(op, fid), Program.document(program))) {
-    | Error(_) =>
-      if (typing) {
-        incr(flash);
+    | Error(why) =>
+      incr(flash);
+      if (!typing) {
+        refused := Some((fid, why));
       };
       code |> Updated.return_quiet;
     | Ok((new_seg, target)) =>
@@ -785,8 +793,8 @@ let update =
         refuse("renaming needs statics on")
       | Ok(Some(rn)) =>
         switch (ItemEdit.apply_rename(~mod_root=ctx.mod_root, rn, row, seg)) {
-        | None => refuse("it can't be renamed")
-        | Some(new_seg) =>
+        | Error(why) => refuse(EntryEdit.describe(why))
+        | Ok(new_seg) =>
           let code = Workspace.with_segment(~settings, code, new_seg);
           landed(code, row);
           /* a kind's keyword leaves as a new definition's does */
@@ -845,7 +853,7 @@ let update =
     let name =
       switch (
         Option.map(
-          pat => String.trim(ItemEdit.text(pat)),
+          pat => String.trim(EntryLayout.text(pat)),
           ScratchFocus.find_pat(
             ~root=Program.root(program),
             f.f_id,
@@ -984,6 +992,7 @@ let update =
     JsUtil.focus_outline();
     code |> Updated.return_quiet;
   };
+};
 
 /* where row [r] shows in [term]'s outline: itself, or the outermost row
    above it that's folded (a run of tests by its label) */
@@ -1183,6 +1192,7 @@ let view =
       cursor^,
       text^,
       flash^,
+      refused^,
       created^,
       live,
       statics_on,
@@ -1265,6 +1275,7 @@ let view =
         cursor: cursor^,
         created: created^,
         flash: flash^,
+        refused: refused^,
         pinned:
           switch (slide_view) {
           | Some(v) => List.map((p: SlideView.pin) => p.p_id, v.pins)
@@ -1391,6 +1402,7 @@ let view =
           cursor := c;
           created := None;
           flash := 0;
+          refused := None;
           redraw;
         },
         /* the outline starts at the row holding the caret */

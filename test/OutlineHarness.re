@@ -152,6 +152,7 @@ let props =
   cursor,
   created: None,
   flash: 0,
+  refused: None,
   pinned: [],
   focused_entries: [],
   error_items: [],
