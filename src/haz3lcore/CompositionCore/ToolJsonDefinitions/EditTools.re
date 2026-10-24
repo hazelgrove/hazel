@@ -33,6 +33,13 @@ let tool =
 let string_param = (desc: string): API.Json.t =>
   `Assoc([("type", `String("string")), ("description", `String(desc))]);
 
+let paths_param = (desc: string): API.Json.t =>
+  `Assoc([
+    ("type", `String("array")),
+    ("description", `String(desc)),
+    ("items", `Assoc([("type", `String("string"))])),
+  ]);
+
 /* string parameters, by name and description */
 let strings = List.map(((key, desc)) => (key, string_param(desc)));
 

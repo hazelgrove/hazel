@@ -27,53 +27,25 @@ Parameters:
   ++ catalog_crossref;
 
 let place_syntax_projector: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("place_syntax_projector")),
-        ("description", `String(place_syntax_projector_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "kind",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String(
-                        "Syntax projector kind: fold, slider, sliderf, check, text, card, table, csv, or livelit.",
-                      ),
-                    ),
-                  ]),
-                ),
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String(
-                        "Paths to terms to wrap with the given projector (e.g. binding whose body is a literal).",
-                      ),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("kind"), `String("paths")])),
-          ]),
+  EditTools.tool(
+    ~name="place_syntax_projector",
+    ~description=place_syntax_projector_description,
+    ~properties=[
+      (
+        "kind",
+        EditTools.string_param(
+          "Syntax projector kind: fold, slider, sliderf, check, text, card, table, csv, or livelit.",
         ),
-      ]),
-    ),
-  ]);
+      ),
+      (
+        "paths",
+        EditTools.paths_param(
+          "Paths to terms to wrap with the given projector (e.g. binding whose body is a literal).",
+        ),
+      ),
+    ],
+    ~required=["kind", "paths"],
+  );
 
 let remove_syntax_projector_description =
   {|
@@ -87,41 +59,19 @@ paths: list(string) — paths to nodes where a projector should be removed
   ++ catalog_crossref;
 
 let remove_syntax_projector: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("remove_syntax_projector")),
-        ("description", `String(remove_syntax_projector_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String(
-                        "Paths where a syntax projector should be removed (unproject).",
-                      ),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("paths")])),
-          ]),
+  EditTools.tool(
+    ~name="remove_syntax_projector",
+    ~description=remove_syntax_projector_description,
+    ~properties=[
+      (
+        "paths",
+        EditTools.paths_param(
+          "Paths where a syntax projector should be removed (unproject).",
         ),
-      ]),
-    ),
-  ]);
+      ),
+    ],
+    ~required=["paths"],
+  );
 
 let toggle_syntax_projector_description =
   {|
@@ -137,48 +87,20 @@ Parameters:
   ++ catalog_crossref;
 
 let toggle_syntax_projector: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("toggle_syntax_projector")),
-        ("description", `String(toggle_syntax_projector_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "kind",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String(
-                        "Syntax projector kind: fold, slider, sliderf, check, text, card, table, csv, or livelit.",
-                      ),
-                    ),
-                  ]),
-                ),
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String("Paths to terms to toggle projection on."),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("kind"), `String("paths")])),
-          ]),
+  EditTools.tool(
+    ~name="toggle_syntax_projector",
+    ~description=toggle_syntax_projector_description,
+    ~properties=[
+      (
+        "kind",
+        EditTools.string_param(
+          "Syntax projector kind: fold, slider, sliderf, check, text, card, table, csv, or livelit.",
         ),
-      ]),
-    ),
-  ]);
+      ),
+      (
+        "paths",
+        EditTools.paths_param("Paths to terms to toggle projection on."),
+      ),
+    ],
+    ~required=["kind", "paths"],
+  );

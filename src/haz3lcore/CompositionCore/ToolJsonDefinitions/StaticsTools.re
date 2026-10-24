@@ -12,41 +12,19 @@ See the system prompt **Projectors and the agent view** for how statics relate t
 |};
 
 let place_statics: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("place_statics")),
-        ("description", `String(place_statics_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String(
-                        "Paths to bindings where the statics (type overlay) refractor should be shown.",
-                      ),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("paths")])),
-          ]),
+  EditTools.tool(
+    ~name="place_statics",
+    ~description=place_statics_description,
+    ~properties=[
+      (
+        "paths",
+        EditTools.paths_param(
+          "Paths to bindings where the statics (type overlay) refractor should be shown.",
         ),
-      ]),
-    ),
-  ]);
+      ),
+    ],
+    ~required=["paths"],
+  );
 
 let remove_statics_description = {|
 Removes **only** the statics refractor from the bindings at the given paths.
@@ -57,41 +35,19 @@ paths: list(string) — paths to the bindings to clear statics overlays from
 |};
 
 let remove_statics: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("remove_statics")),
-        ("description", `String(remove_statics_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String(
-                        "Paths to bindings to remove statics overlays from.",
-                      ),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("paths")])),
-          ]),
+  EditTools.tool(
+    ~name="remove_statics",
+    ~description=remove_statics_description,
+    ~properties=[
+      (
+        "paths",
+        EditTools.paths_param(
+          "Paths to bindings to remove statics overlays from.",
         ),
-      ]),
-    ),
-  ]);
+      ),
+    ],
+    ~required=["paths"],
+  );
 
 let toggle_statics_description = {|
 Toggles the statics refractor on or off for the bindings at the given paths (same behavior as the editor statics toggle).
@@ -102,38 +58,16 @@ paths: list(string) — paths to the bindings to toggle
 |};
 
 let toggle_statics: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("toggle_statics")),
-        ("description", `String(toggle_statics_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String(
-                        "Paths to bindings to toggle statics overlays on.",
-                      ),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("paths")])),
-          ]),
+  EditTools.tool(
+    ~name="toggle_statics",
+    ~description=toggle_statics_description,
+    ~properties=[
+      (
+        "paths",
+        EditTools.paths_param(
+          "Paths to bindings to toggle statics overlays on.",
         ),
-      ]),
-    ),
-  ]);
+      ),
+    ],
+    ~required=["paths"],
+  );
