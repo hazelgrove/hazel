@@ -1451,18 +1451,19 @@ let invalid_path_tests = (
 );
 
 /* ============================================================
-   12. PATHS — the agent's paths, now EntryPath's (the node map keeps
-   only what the views read: build, path_to_id_opt)
+   12. PATHS — the agent's paths, EntryPath's
    ============================================================ */
 
-let build_node_map = (code: string) => {
-  let z = mk_zipper(code);
-  let info_map = mk_statics(z);
-  switch (HighLevelNodeMap.build(z, info_map)) {
-  | Some(node_map) => node_map
-  | None => Alcotest.fail("Failed to build HighLevelNodeMap")
+/* a program's outline: what its paths name */
+let outline_of = (z: Zipper.t): Outline.t =>
+  Outline.of_program(~root=Exp, Zipper.unselect_and_zip(z));
+let build_node_map = (code: string): Outline.t =>
+  outline_of(mk_zipper(code));
+let path_id = (o: Outline.t, path: string): option(Id.t) =>
+  switch (Outline.resolve(o, path)) {
+  | Ok(e) => Some(e.id)
+  | Error(_) => None
   };
-};
 
 /* what [path] names in [code]: its entry's first name, else its path */
 let resolved = (code: string, path: string): option(string) => {
@@ -1499,7 +1500,7 @@ let path_error = (code: string, path: string): string =>
   };
 
 let high_level_node_map_tests = (
-  "HighLevelNodeMap",
+  "AgentTools.Paths",
   [
     test_case("a let chain's entries", `Quick, () =>
       check(
@@ -1643,36 +1644,6 @@ let high_level_node_map_tests = (
     test_case("a program without bindings has just its result", `Quick, () =>
       check(list(string), "paths", ["=>"], paths_of("1 + 2"))
     ),
-    test_case(
-      "the views' node map: top level, children, parent",
-      `Quick,
-      () => {
-        let node_map =
-          build_node_map("type T = Int in let a = let b = 1 in b in a");
-        let names = ids =>
-          List.map(HighLevelNodeMap.id_to_name(node_map), ids)
-          |> List.sort(String.compare);
-        check(
-          list(string),
-          "top level",
-          ["T", "a"],
-          names(HighLevelNodeMap.gather_top_level(node_map)),
-        );
-        switch (HighLevelNodeMap.path_to_id_opt(node_map, "a/b")) {
-        | Some(b) =>
-          switch (
-            HighLevelNodeMap.parent_of(
-              node_map,
-              HighLevelNodeMap.find(node_map, b),
-            )
-          ) {
-          | Some(parent) => check(string, "parent", "a", parent.name)
-          | None => Alcotest.fail("a/b has no parent")
-          }
-        | None => Alcotest.fail("a/b not in the node map")
-        };
-      },
-    ),
   ],
 );
 
@@ -1690,10 +1661,10 @@ let composition_view_print_tests = (
         "let a = 1 in " |> mk_zipper |> CompositionView.Public.print_zipper,
       )
     ),
-    test_case("fold renders as folded, not as invocation", `Quick, () =>
+    test_case("a fold prints as its invocation", `Quick, () =>
       check_rendered(
-        "fold as ellipsis",
-        {|let a = ⋱ in a|},
+        "fold as invocation",
+        {|let a = ^^fold(1) in a|},
         "let a = ^^fold(1) in a"
         |> mk_zipper
         |> CompositionView.Public.print_zipper,
@@ -2881,119 +2852,19 @@ let complex_program_tests = (
 );
 
 /* ============================================================
-   18. AGENT CONTEXT — expand/collapse path management
+   18. AGENT CONTEXT — node-map paths the view relies on
    ============================================================ */
 
 let agent_context_tests = (
   "AgentContext",
   [
     test_case(
-      "init has empty expanded_paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        check(list(string), "init paths", [], ctx.expanded_paths);
-      },
-    ),
-    test_case(
-      "add_paths appends paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["a", "b"], ctx);
-        check(
-          int,
-          "paths count after add",
-          2,
-          List.length(ctx.expanded_paths),
-        );
-        check(bool, "contains a", true, List.mem("a", ctx.expanded_paths));
-        check(bool, "contains b", true, List.mem("b", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "remove_paths removes specified paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["a", "b", "c"], ctx);
-        let ctx = AgentContext.Utils.remove_paths(["b"], ctx);
-        check(
-          int,
-          "paths count after remove",
-          2,
-          List.length(ctx.expanded_paths),
-        );
-        check(
-          bool,
-          "still contains a",
-          true,
-          List.mem("a", ctx.expanded_paths),
-        );
-        check(bool, "b removed", false, List.mem("b", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "expand action adds paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Update.update(Expand(["x", "y"]), ctx);
-        check(int, "expanded count", 2, List.length(ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "collapse action removes paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Update.update(Expand(["x", "y", "z"]), ctx);
-        let ctx = AgentContext.Update.update(Collapse(["y"]), ctx);
-        check(int, "after collapse", 2, List.length(ctx.expanded_paths));
-        check(bool, "y removed", false, List.mem("y", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "freshen_paths removes stale paths",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["a", "nonexistent"], ctx);
-        let node_map = build_node_map("let a = 1 in a");
-        let ctx = AgentContext.Utils.freshen_paths(ctx, node_map);
-        check(
-          int,
-          "freshen removes stale",
-          1,
-          List.length(ctx.expanded_paths),
-        );
-        check(bool, "a remains", true, List.mem("a", ctx.expanded_paths));
-      },
-    ),
-    test_case(
-      "freshen_paths keeps valid module path M",
-      `Quick,
-      () => {
-        let ctx = AgentContext.Utils.init();
-        let ctx = AgentContext.Utils.add_paths(["M", "nonexistent"], ctx);
-        let node_map = build_node_map("module M = { let x = 1 } in M.x");
-        let ctx = AgentContext.Utils.freshen_paths(ctx, node_map);
-        check(int, "freshen keeps M", 1, List.length(ctx.expanded_paths));
-        check(bool, "M remains", true, List.mem("M", ctx.expanded_paths));
-      },
-    ),
-    test_case(
       "path M resolves for capitalized module",
       `Quick,
       () => {
         let node_map =
           build_node_map("module M = { let x = 1; let y = 2 } in M.x + M.y");
-        check(
-          bool,
-          "path M resolves",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "M") != None,
-        );
+        check(bool, "path M resolves", true, path_id(node_map, "M") != None);
       },
     ),
   ],
@@ -3421,10 +3292,10 @@ let statics_refractor_tests = (
         let code = "let x = 1 in x";
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None => Alcotest.fail("expected high-level node map")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "x")) {
+          switch (path_id(nm, "x")) {
           | None => Alcotest.fail("expected path x")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -3453,10 +3324,10 @@ let statics_refractor_tests = (
         let code = "let x = 1 in x";
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None => Alcotest.fail("expected high-level node map")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "x")) {
+          switch (path_id(nm, "x")) {
           | None => Alcotest.fail("expected path x")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -3549,10 +3420,10 @@ let agent_tools_with_projectors_tests = (
         let code = {|let v = ^^slider(42) in v|};
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None => Alcotest.fail("expected high-level node map")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "v")) {
+          switch (path_id(nm, "v")) {
           | None => Alcotest.fail("expected path v")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -3575,10 +3446,10 @@ let agent_tools_with_projectors_tests = (
         let code = {|let rows = ^^csv([]) in rows|};
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None => Alcotest.fail("expected high-level node map")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "rows")) {
+          switch (path_id(nm, "rows")) {
           | None => Alcotest.fail("expected path rows")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -3616,12 +3487,7 @@ let ascribed_binding_tests = (
       `Quick,
       () => {
         let node_map = build_node_map("let x : Int = 1 in x");
-        check(
-          bool,
-          "x present",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "x") != None,
-        );
+        check(bool, "x present", true, path_id(node_map, "x") != None);
       },
     ),
     test_case(
@@ -3629,18 +3495,8 @@ let ascribed_binding_tests = (
       `Quick,
       () => {
         let node_map = build_node_map("type T = Int in let x : T = 1 in x");
-        check(
-          bool,
-          "x present",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "x") != None,
-        );
-        check(
-          bool,
-          "T present",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "T") != None,
-        );
+        check(bool, "x present", true, path_id(node_map, "x") != None);
+        check(bool, "T present", true, path_id(node_map, "T") != None);
       },
     ),
     test_case(
@@ -3655,7 +3511,7 @@ let ascribed_binding_tests = (
           bool,
           "x present at end of type chain",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "x") != None,
+          path_id(node_map, "x") != None,
         );
       },
     ),
@@ -3669,13 +3525,13 @@ let ascribed_binding_tests = (
           bool,
           "outer/inner present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "outer/inner") != None,
+          path_id(node_map, "outer/inner") != None,
         );
         check(
           bool,
           "bare inner not ambiguously at top level",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "inner") == None,
+          path_id(node_map, "inner") == None,
         );
       },
     ),
@@ -3854,37 +3710,37 @@ let ascribed_binding_tests = (
           bool,
           "Color present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "Color") != None,
+          path_id(node_map, "Color") != None,
         );
         check(
           bool,
           "PieceType present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "PieceType") != None,
+          path_id(node_map, "PieceType") != None,
         );
         check(
           bool,
           "Piece present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "Piece") != None,
+          path_id(node_map, "Piece") != None,
         );
         check(
           bool,
           "Square present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "Square") != None,
+          path_id(node_map, "Square") != None,
         );
         check(
           bool,
           "Board present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "Board") != None,
+          path_id(node_map, "Board") != None,
         );
         check(
           bool,
           "initial_board present",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "initial_board") != None,
+          path_id(node_map, "initial_board") != None,
         );
       },
     ),
@@ -3981,11 +3837,11 @@ test fib(10) == 55 end;
 fib(10)|};
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None =>
           Alcotest.fail("expected high-level node map for fib program")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "fib")) {
+          switch (path_id(nm, "fib")) {
           | None => Alcotest.fail("expected path fib to resolve")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);
@@ -3997,7 +3853,7 @@ fib(10)|};
               true,
               Id.Map.cardinal(info_map2) > 0,
             );
-            switch (HighLevelNodeMap.build(z2, info_map2)) {
+            switch (Some(outline_of(z2))) {
             | None =>
               Alcotest.fail("node_map rebuild returned None after probe")
             | Some(_) => ()
@@ -4150,34 +4006,29 @@ let rename_and_path_safety_tests = (
           bool,
           "bare shadowed path is None",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "x") == None,
+          path_id(node_map, "x") == None,
         );
-        let id1 = HighLevelNodeMap.path_to_id_opt(node_map, "x#1");
-        let id2 = HighLevelNodeMap.path_to_id_opt(node_map, "x#2");
+        let id1 = path_id(node_map, "x#1");
+        let id2 = path_id(node_map, "x#2");
         check(bool, "x#1 resolves", true, id1 != None);
         check(bool, "x#2 resolves", true, id2 != None);
         check(bool, "x#1 and x#2 differ", true, id1 != id2);
-        switch (id1, id2) {
-        | (Some(id1), Some(id2)) =>
-          check(
-            int,
-            "x#1 is earliest (sibling_idx 0)",
-            0,
-            HighLevelNodeMap.find(node_map, id1).sibling_idx,
+        let order =
+          List.map(
+            (e: Outline.entry) => Some(e.id),
+            Outline.all(node_map),
           );
-          check(
-            int,
-            "x#2 is second (sibling_idx 1)",
-            1,
-            HighLevelNodeMap.find(node_map, id2).sibling_idx,
-          );
-        | _ => ()
-        };
+        check(
+          list(option(testable(Fmt.of_to_string(Id.str3), Id.equal))),
+          "x#1, then x#2, in program order",
+          [id1, id2],
+          List.filter(id => id == id1 || id == id2, order),
+        );
         check(
           bool,
           "out-of-range occurrence is None",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "x#3") == None,
+          path_id(node_map, "x#3") == None,
         );
       },
     ),
@@ -4207,7 +4058,7 @@ let rename_and_path_safety_tests = (
           bool,
           "unique path resolves",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "b") != None,
+          path_id(node_map, "b") != None,
         );
       },
     ),
@@ -4401,8 +4252,7 @@ let fn_sugar_tests = (
           bool,
           "full rendered pattern is not a path",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "contains((xs, y))")
-          == None,
+          path_id(node_map, "contains((xs, y))") == None,
         );
       },
     ),
@@ -4411,25 +4261,15 @@ let fn_sugar_tests = (
       `Quick,
       () => {
         let nm1 = build_node_map("let inc(x) = x + 1 in inc(1)");
-        check(
-          bool,
-          "one-param path",
-          true,
-          HighLevelNodeMap.path_to_id_opt(nm1, "inc") != None,
-        );
+        check(bool, "one-param path", true, path_id(nm1, "inc") != None);
         let nm0 = build_node_map("let f() = 3 in f()");
-        check(
-          bool,
-          "zero-param path",
-          true,
-          HighLevelNodeMap.path_to_id_opt(nm0, "f") != None,
-        );
+        check(bool, "zero-param path", true, path_id(nm0, "f") != None);
         let nm_asc = build_node_map("let g(x): Int = x in g(1)");
         check(
           bool,
           "return-annotated path",
           true,
-          HighLevelNodeMap.path_to_id_opt(nm_asc, "g") != None,
+          path_id(nm_asc, "g") != None,
         );
       },
     ),
@@ -4442,20 +4282,10 @@ let fn_sugar_tests = (
           bool,
           "bare shared name is None",
           true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "f") == None,
+          path_id(node_map, "f") == None,
         );
-        check(
-          bool,
-          "f#1 resolves",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "f#1") != None,
-        );
-        check(
-          bool,
-          "f#2 resolves",
-          true,
-          HighLevelNodeMap.path_to_id_opt(node_map, "f#2") != None,
-        );
+        check(bool, "f#1 resolves", true, path_id(node_map, "f#1") != None);
+        check(bool, "f#2 resolves", true, path_id(node_map, "f#2") != None);
         expect_failure_mentioning(
           "let f(x) = x in let f = 1 in f",
           Update(Definition, "f", "9"),
@@ -4625,10 +4455,10 @@ let fn_sugar_tests = (
         let code = "let f(x) = x + 1 in f(2)";
         let z = mk_zipper(code);
         let info_map = mk_statics(z);
-        switch (HighLevelNodeMap.build(z, info_map)) {
+        switch (Some(outline_of(z))) {
         | None => Alcotest.fail("expected high-level node map")
         | Some(nm) =>
-          switch (HighLevelNodeMap.Public.path_to_id_opt(nm, "f")) {
+          switch (path_id(nm, "f")) {
           | None => Alcotest.fail("expected path f")
           | Some(id) =>
             let syntax = CachedSyntax.init(z);

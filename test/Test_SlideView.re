@@ -20,9 +20,10 @@ b";
 
 let seg = seg_of(src);
 let term = MakeTerm.Incr.term_of(seg);
+let outline = CorpusUtil.outline_of(seg);
 let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
 
-let row = row_by_label(term);
+let row = row_by_label(outline);
 
 let whole = (): Web.Program.t => Whole(Focus.cell_of_seg(seg));
 
@@ -34,7 +35,7 @@ let pinned = (id: Id.t, v: V.t): bool =>
 let run = (steps: list(V.t => V.t)): (V.t, Web.Program.t) =>
   List.fold_left(
     ((v, p), f) => {
-      let (v, p) = V.realize(~info_map, ~term, f(v), p);
+      let (v, p) = V.realize(~info_map, ~outline, f(v), p);
       check(
         string,
         "program unchanged",
@@ -62,18 +63,23 @@ let body = (p: Web.Program.t): option(Web.CellEditor.Model.t) =>
   };
 
 let pin_unpin = () => {
-  let (_, p) = run([V.pin(~term, row("a"))]);
+  let (_, p) = run([V.pin(~outline, row("a"))]);
   check(bool, "a open", true, open_ids(p) == [row("a")]);
-  let (v, p) = run([V.pin(~term, row("a")), V.unpin(row("a"))]);
+  let (v, p) = run([V.pin(~outline, row("a")), V.unpin(row("a"))]);
   check(bool, "whole again", true, open_ids(p) == []);
   check(int, "no pins", 0, List.length(v.pins));
 };
 
 let zoom = () => {
   let m = row("M");
-  let (v, p) = run([V.zoom_in(~term, m)]);
+  let (v, p) = run([V.zoom_in(~outline, m)]);
   check(bool, "the module as one cell", true, open_ids(p) == [m]);
-  check(bool, "shown as the zoom cell", true, V.showing_zoom_cell(~term, v));
+  check(
+    bool,
+    "shown as the zoom cell",
+    true,
+    V.showing_zoom_cell(~outline, v),
+  );
   /* as a pinned module opens it (its edits: module_row) */
   check(
     option(string),
@@ -81,33 +87,35 @@ let zoom = () => {
     Some("let x = a + 1;\nlet y = x * 2"),
     Option.map(e => text_of(Focus.zip_of_cell(e)), body(p)),
   );
-  let (_, p) = run([V.zoom_in(~term, m), V.zoom_out]);
+  let (_, p) = run([V.zoom_in(~outline, m), V.zoom_out]);
   check(bool, "whole after zoom out", true, open_ids(p) == []);
 };
 
 let pins_outside_zoom = () => {
   let (a, m) = (row("a"), row("M"));
-  let (v, p) = run([V.pin(~term, a), V.zoom_in(~term, m)]);
+  let (v, p) = run([V.pin(~outline, a), V.zoom_in(~outline, m)]);
   check(bool, "a hidden inside M", true, open_ids(p) == [m]);
   check(bool, "a still pinned", true, pinned(a, v));
-  let (_, p) = run([V.pin(~term, a), V.zoom_in(~term, m), V.zoom_out]);
+  let (_, p) =
+    run([V.pin(~outline, a), V.zoom_in(~outline, m), V.zoom_out]);
   check(bool, "a back on zoom out", true, open_ids(p) == [a]);
 };
 
 let pins_inside_zoom = () => {
   let (m, x) = (row("M"), row("x"));
-  let (_, p) = run([V.zoom_in(~term, m), V.pin(~term, x)]);
+  let (_, p) = run([V.zoom_in(~outline, m), V.pin(~outline, x)]);
   check(bool, "member replaces the module cell", true, open_ids(p) == [x]);
-  let (_, p) = run([V.zoom_in(~term, m), V.pin(~term, x), V.unpin(x)]);
+  let (_, p) =
+    run([V.zoom_in(~outline, m), V.pin(~outline, x), V.unpin(x)]);
   check(bool, "module cell again", true, open_ids(p) == [m]);
 };
 
 let park = () => {
   let a = row("a");
-  let (v, p) = run([V.pin(~term, a), V.park(true)]);
+  let (v, p) = run([V.pin(~outline, a), V.park(true)]);
   check(bool, "whole while parked", true, open_ids(p) == []);
   check(bool, "pin kept", true, pinned(a, v));
-  let (_, p) = run([V.pin(~term, a), V.park(true), V.park(false)]);
+  let (_, p) = run([V.pin(~outline, a), V.park(true), V.park(false)]);
   check(bool, "cells again", true, open_ids(p) == [a]);
 };
 
@@ -128,8 +136,8 @@ let caret_travels = () => {
   let (_, p) =
     V.realize(
       ~info_map,
-      ~term,
-      V.pin(~term, y, V.pin(~term, x, V.init)),
+      ~outline,
+      V.pin(~outline, y, V.pin(~outline, x, V.init)),
       p,
     );
   switch (p) {
@@ -160,11 +168,11 @@ let close_keeps_caret = () => {
   let (v, p) =
     V.realize(
       ~info_map,
-      ~term,
-      V.pin(~term, row("y"), V.pin(~term, row("x"), V.init)),
+      ~outline,
+      V.pin(~outline, row("y"), V.pin(~outline, row("x"), V.init)),
       p,
     );
-  switch (V.realize(~info_map, ~term, V.discard(~term, v), p)) {
+  switch (V.realize(~info_map, ~outline, V.discard(~outline, v), p)) {
   | (_, Divided(_)) => fail("still divided")
   | (_, Whole(e)) =>
     switch (
@@ -188,7 +196,7 @@ let vanished = () => {
     ],
     zoom: [Id.mk()],
   };
-  let (v, p) = V.realize(~info_map, ~term, v, whole());
+  let (v, p) = V.realize(~info_map, ~outline, v, whole());
   check(int, "vanished pin dropped", 0, List.length(v.pins));
   check(int, "vanished zoom dropped", 0, List.length(v.zoom));
   check(bool, "whole", true, open_ids(p) == []);
@@ -198,10 +206,10 @@ let discard = () => {
   let (a, m, x) = (row("a"), row("M"), row("x"));
   let (v, _) =
     run([
-      V.pin(~term, a),
-      V.zoom_in(~term, m),
-      V.pin(~term, x),
-      V.discard(~term),
+      V.pin(~outline, a),
+      V.zoom_in(~outline, m),
+      V.pin(~outline, x),
+      V.discard(~outline),
     ]);
   check(bool, "x dropped", false, pinned(x, v));
   check(bool, "a kept", true, pinned(a, v));
@@ -213,15 +221,16 @@ let tail_follows = () => {
   let src = "let f = fun x -> x in\nf(1)";
   let seg = seg_of(src);
   /* "": the ⇒ row */
-  let trail = term => row_by_label(term, "");
+  let trail = outline => row_by_label(outline, "");
   let term = MakeTerm.Incr.term_of(seg);
+  let outline = CorpusUtil.outline_of(seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
-  let t0 = trail(term);
+  let t0 = trail(outline);
   let (v, p) =
     V.realize(
       ~info_map,
-      ~term,
-      V.pin(~term, t0, V.init),
+      ~outline,
+      V.pin(~outline, t0, V.init),
       Whole(Focus.cell_of_seg(seg)),
     );
   let d =
@@ -262,11 +271,13 @@ let tail_follows = () => {
     );
   let seg = Divided.document(d);
   let term = MakeTerm.Incr.term_of(seg);
+  let outline = CorpusUtil.outline_of(seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
-  let t1 = trail(term);
+  let t1 = trail(outline);
   check(bool, "the ⇒ row has a new root", true, t1 != t0);
-  let f = row_by_label(term, "f");
-  let (v, p) = V.realize(~info_map, ~term, V.pin(~term, f, v), Divided(d));
+  let f = row_by_label(outline, "f");
+  let (v, p) =
+    V.realize(~info_map, ~outline, V.pin(~outline, f, v), Divided(d));
   check(bool, "the ⇒ pin follows", true, pinned(t1, v));
   check(bool, "the ⇒ cell stays open", true, List.mem(t1, open_ids(p)));
   check(bool, "f opens beside it", true, List.mem(f, open_ids(p)));
@@ -276,9 +287,9 @@ let tail_follows = () => {
    name; zooming in and out keeps that cell */
 let module_row = () => {
   let (m, x) = (row("M"), row("x"));
-  let (v, p) = run([V.pin(~term, x), V.pin(~term, m)]);
+  let (v, p) = run([V.pin(~outline, x), V.pin(~outline, m)]);
   check(bool, "one cell, the member folded in", true, open_ids(p) == [m]);
-  check(bool, "not the zoom cell", false, V.showing_zoom_cell(~term, v));
+  check(bool, "not the zoom cell", false, V.showing_zoom_cell(~outline, v));
   switch (p) {
   | Whole(_) => fail("not divided")
   | Divided(d) =>
@@ -334,13 +345,14 @@ let module_row = () => {
       text_of(Divided.document(d)),
     );
   };
-  let (v, p) = run([V.pin(~term, m)]);
-  let (v, p') = V.realize(~info_map, ~term, V.zoom_in(~term, m, v), p);
+  let (v, p) = run([V.pin(~outline, m)]);
+  let (v, p') =
+    V.realize(~info_map, ~outline, V.zoom_in(~outline, m, v), p);
   check(
     bool,
     "zoomed in: the zoom cell",
     true,
-    V.showing_zoom_cell(~term, v),
+    V.showing_zoom_cell(~outline, v),
   );
   check(
     bool,
@@ -351,12 +363,12 @@ let module_row = () => {
     | _ => false
     },
   );
-  let (v, p'') = V.realize(~info_map, ~term, V.zoom_out(v), p');
+  let (v, p'') = V.realize(~info_map, ~outline, V.zoom_out(v), p');
   check(
     bool,
     "zoomed out: its name again",
     false,
-    V.showing_zoom_cell(~term, v),
+    V.showing_zoom_cell(~outline, v),
   );
   check(
     bool,
@@ -373,19 +385,20 @@ let module_row = () => {
 let empty_module_row = () => {
   let seg = seg_of("module E = {} in\n1");
   let term = MakeTerm.Incr.term_of(seg);
+  let outline = CorpusUtil.outline_of(seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
-  let e = row_by_label(term, "E");
+  let e = row_by_label(outline, "E");
   check(
     bool,
     "a module row",
     true,
-    Web.OutlineTree.kind_of(e, term) == Some(Web.OutlineTree.KModule),
+    Web.OutlineTree.kind_of(e, outline) == Some(Web.OutlineTree.KModule),
   );
   switch (
     V.realize(
       ~info_map,
-      ~term,
-      V.pin(~term, e, V.init),
+      ~outline,
+      V.pin(~outline, e, V.init),
       Whole(Focus.cell_of_seg(seg)),
     )
   ) {
@@ -416,7 +429,7 @@ let focus_stays = () => {
     | Whole(_) => None
     };
   let (a, b, m) = (row("a"), row("b"), row("M"));
-  let (v, p) = run([V.pin(~term, a), V.pin(~term, b)]);
+  let (v, p) = run([V.pin(~outline, a), V.pin(~outline, b)]);
   check(
     bool,
     "opening b leaves it with a",
@@ -424,11 +437,11 @@ let focus_stays = () => {
     focus(p) == Some((a, Body)),
   );
   let (_, p') =
-    V.realize(~info_map, ~term, V.pin(~term, m, V.unpin(a, v)), p);
+    V.realize(~info_map, ~outline, V.pin(~outline, m, V.unpin(a, v)), p);
   check(bool, "M opens as a closes", true, focus(p') == Some((m, Body)));
-  let (v, p) = V.realize(~info_map, ~term, V.unpin(a, v), p);
+  let (v, p) = V.realize(~info_map, ~outline, V.unpin(a, v), p);
   check(bool, "a closes alone", true, focus(p) == Some((b, Body)));
-  let (_, p) = V.realize(~info_map, ~term, V.pin(~term, m, v), p);
+  let (_, p) = V.realize(~info_map, ~outline, V.pin(~outline, m, v), p);
   check(bool, "and keeps it as M opens", true, focus(p) == Some((b, Body)));
 };
 

@@ -330,11 +330,11 @@ let parses_for =
 };
 
 /* the first outline row labeled [label], depth first */
-let row_by_label = (term: Language.Exp.t, label: string): Id.t =>
+let row_by_label = (outline: Web.OutlineTree.t, label: string): Id.t =>
   switch (
     List.find_map(
       (n: Web.OutlineTree.node) => n.o_label == label ? n.o_id : None,
-      Web.OutlineTree.(flatten(of_term(term))),
+      Web.OutlineTree.(flatten(rows(outline))),
     )
   ) {
   | Some(id) => id
@@ -342,7 +342,7 @@ let row_by_label = (term: Language.Exp.t, label: string): Id.t =>
   };
 
 /* the outline row at [path] (labels from the top) */
-let row = (term: Language.Exp.t, path: list(string)): Id.t => {
+let row = (outline: Web.OutlineTree.t, path: list(string)): Id.t => {
   let rec go = (nodes: list(Web.OutlineTree.node), path) =>
     switch (path) {
     | [] => None
@@ -353,7 +353,7 @@ let row = (term: Language.Exp.t, path: list(string)): Id.t => {
          )
       |> Option.join
     };
-  switch (go(Web.OutlineTree.of_term(term), path)) {
+  switch (go(Web.OutlineTree.rows(outline), path)) {
   | Some(id) => id
   | None => Alcotest.fail("no row " ++ String.concat("/", path))
   };
@@ -369,3 +369,14 @@ let contains = (needle: string, hay: string): bool => {
 /* mega-scale slides skip the super-linear gates (typing parse, roundtrip);
    substring match, as names carry folder prefixes ("Perf / Mega 1k") */
 let mega_scale = (name: string): bool => contains("Mega", name);
+
+/* a program's outline as the sidebar reads it */
+let outline_of = (~root: Sort.t=Exp, seg: Segment.t): Outline.t =>
+  Outline.of_source(~root, seg);
+
+/* the outline of [text] as typed */
+let outline_of_text = (~root: Sort.t=Exp, text: string): Outline.t =>
+  switch (MarkerParse.of_text(~root, text)) {
+  | Some(z) => outline_of(~root, Zipper.unselect_and_zip(z))
+  | None => failwith("parse failed: " ++ text)
+  };

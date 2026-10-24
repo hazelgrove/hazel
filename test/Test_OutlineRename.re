@@ -12,8 +12,8 @@ let rename = (~root=Sort.Exp, src, label, name) => {
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   Web.OutlineRename.rename(
     ~info_map,
-    ~term,
-    row_by_label(term, label),
+    ~outline=CorpusUtil.outline_of(~root, seg),
+    row_by_label(CorpusUtil.outline_of(~root, seg), label),
     name,
     seg,
   )
@@ -43,15 +43,16 @@ let refused = (~root=Sort.Exp, src, label, name) =>
 let typed = (~root=Sort.Exp, src, label, typed) => {
   let seg = seg_of(~root, src);
   let term = MakeTerm.Incr.term_of_root(~root, seg);
+  let outline = CorpusUtil.outline_of(~root, seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   Web.ItemEdit.edit(
     {
       mod_root: root == Sort.Mod,
-      term,
+      outline,
       info_map: Lazy.from_val(info_map),
       is_open: _ => true,
     },
-    Rename(row_by_label(term, label), typed),
+    Rename(row_by_label(outline, label), typed),
     seg,
   )
   |> Result.map(((seg, _)) => text_of(seg));
@@ -256,10 +257,11 @@ a|js},
 let kind_ids = () => {
   let seg = seg_of("let m = {\n  let x = 1\n} in\nm.x");
   let term = MakeTerm.Incr.term_of(seg);
+  let outline = CorpusUtil.outline_of(seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
-  let (m, x) = (row_by_label(term, "m"), row_by_label(term, "x"));
+  let (m, x) = (row_by_label(outline, "m"), row_by_label(outline, "x"));
   let binder =
-    switch (Web.OutlineTree.node_of(m, term)) {
+    switch (Web.OutlineTree.node_of(m, outline)) {
     | Some({o_binder: Some((b, _)), _}) => b
     | _ => fail("no binder")
     };
@@ -267,7 +269,7 @@ let kind_ids = () => {
     Web.ItemEdit.edit(
       {
         mod_root: false,
-        term,
+        outline,
         info_map: Lazy.from_val(info_map),
         is_open: _ => true,
       },
@@ -276,14 +278,14 @@ let kind_ids = () => {
     )
   ) {
   | Ok((seg, _)) =>
-    let term = MakeTerm.Incr.term_of(seg);
-    check(bool, "the row's", true, row_by_label(term, "M") == m);
-    check(bool, "a member's", true, row_by_label(term, "x") == x);
+    let outline = CorpusUtil.outline_of(seg);
+    check(bool, "the row's", true, row_by_label(outline, "M") == m);
+    check(bool, "a member's", true, row_by_label(outline, "x") == x);
     check(
       bool,
       "the binding token's",
       true,
-      switch (Web.OutlineTree.node_of(m, term)) {
+      switch (Web.OutlineTree.node_of(m, outline)) {
       | Some({o_binder: Some((b, _)), _}) => b == binder
       | _ => false
       },
@@ -383,6 +385,7 @@ let folded = () => {
     );
   let seg = fold(seg);
   let term = MakeTerm.Incr.term_of(seg);
+  let outline = CorpusUtil.outline_of(seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   let rec inside = (seg: Segment.t): list(string) =>
     List.concat_map(
@@ -397,8 +400,8 @@ let folded = () => {
   switch (
     Web.OutlineRename.rename(
       ~info_map,
-      ~term,
-      row_by_label(term, "foo"),
+      ~outline,
+      row_by_label(outline, "foo"),
       "baz",
       seg,
     )

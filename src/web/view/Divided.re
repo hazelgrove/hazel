@@ -76,8 +76,8 @@ let owner = (id: Id.t, d: t): option(Cell.t) =>
 let cell = (id: Id.t, d: t): option(Cell.t) =>
   List.find_opt((e: Cell.t) => e.e_id == id, d.cells);
 
-let insert = (~term, entry: Cell.t, cells: list(Cell.t)): list(Cell.t) => {
-  let order = OutlineTree.collect(OutlineTree.of_term(term));
+let insert = (~outline, entry: Cell.t, cells: list(Cell.t)): list(Cell.t) => {
+  let order = OutlineTree.collect(OutlineTree.rows(outline));
   let rank = id =>
     Option.value(List.find_index(x => x == id, order), ~default=max_int);
   let r = rank(entry.e_id);
@@ -368,7 +368,7 @@ let close = (id: Id.t, d: t): after_close =>
 /* [mk]'s cell, cut from the base with [closing] folded back in, opens
    among [keeping] and becomes active */
 let open_among =
-    (~term, mk: Segment.t => option(Cell.t), closing, keeping, d: t)
+    (~outline, mk: Segment.t => option(Cell.t), closing, keeping, d: t)
     : option(t) => {
   let base = spliced(~root=root(d), d.base, closing);
   mk(base)
@@ -378,7 +378,7 @@ let open_among =
          {
            ...d,
            base,
-           cells: insert(~term, entry, keeping),
+           cells: insert(~outline, entry, keeping),
            active: Some((entry.e_id, Body)),
          },
        )
@@ -388,16 +388,23 @@ let open_among =
 /* opening a parent folds its open descendants back into it; an id inside
    an open cell opens nothing (the caller moves the caret there instead) */
 let open_ =
-    (~info_map, ~term, ~sym: option(string)=?, ~inner=false, id: Id.t, d: t)
+    (
+      ~info_map,
+      ~outline,
+      ~sym: option(string)=?,
+      ~inner=false,
+      id: Id.t,
+      d: t,
+    )
     : option(t) =>
   switch (owner(id, d)) {
   | Some(_) => None
   | None =>
-    let desc = OutlineTree.descendant_ids(id, term);
+    let desc = OutlineTree.descendant_ids(id, outline);
     let (closing, keeping) =
       List.partition((e: Cell.t) => List.mem(e.e_id, desc), d.cells);
     open_among(
-      ~term,
+      ~outline,
       entry(~root=root(d), ~info_map, ~sym?, ~inner, id),
       closing,
       keeping,
@@ -407,7 +414,7 @@ let open_ =
 
 /* [fid]'s test run as one cell, folding in members open alone; None if
    another open cell holds it */
-let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
+let open_run = (~info_map, ~outline, fid: Id.t, d: t): option(t) => {
   let members =
     switch (Focus.test_run_deep(~root=root(d), fid, d.base)) {
     | Some((_, ms, _)) => ms
@@ -421,7 +428,7 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
   List.exists(owns(fid), keeping)
     ? None
     : open_among(
-        ~term,
+        ~outline,
         Focus.mk_run_entry(~root=root(d), ~info_map, fid),
         alone,
         keeping,
@@ -432,7 +439,7 @@ let open_run = (~info_map, ~term, fid: Id.t, d: t): option(t) => {
 /* after an edit to the joined program (agent, outline menu): the same
    cells, cut from the edited program; cells whose item is gone close */
 let resplit =
-    (~info_map, ~term, editor: CellEditor.Model.t, d: t): after_close => {
+    (~info_map, ~outline, editor: CellEditor.Model.t, d: t): after_close => {
   let base = Focus.zip_of_cell(editor);
   let root = root(d);
   /* a cell the edit didn't touch keeps its editor (caret, selection); a
@@ -509,7 +516,7 @@ let resplit =
         {
           shell: editor,
           cells:
-            List.fold_left((acc, e) => insert(~term, e, acc), [], cells),
+            List.fold_left((acc, e) => insert(~outline, e, acc), [], cells),
           base,
           /* a cell the edit removed is no longer where the caret is */
           active:

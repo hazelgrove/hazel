@@ -425,21 +425,23 @@ let missing_semi = ((root: Sort.t, src, semi, keys), ()) => {
     let r = MakeTerm.Incr.go_incr(~ends=Read, ~root, ~cache, seg);
     let parsed = MakeTerm.Incr.full_analyzed^ - a0;
     let (completed, masks) = MakeTerm.semantic_segment(~root, seg);
-    let term =
+    /* semantics' read, as the editor's frame makes it */
+    ignore(
       MakeTerm.Incr.term_of_root(
         ~masks,
         ~ends=Read,
         ~root,
         ~shared=cache,
         completed,
-      );
+      ),
+    );
     check(int, "no fallback", fb, MakeTerm.Incr.fell_back^);
     if (root == Sort.Mod) {
       check_parity(seg, r);
     } else {
       Test_MakeTermIncr.records_agree("go", MakeTerm.go(seg), r);
     };
-    (seg, parsed, MA.rows_of(term));
+    (seg, parsed, MA.rows_of(CorpusUtil.outline_of(~root, seg)));
   };
   let (seg, _, rows) = read(z);
   let rec grouted = (seg: Segment.t) =>

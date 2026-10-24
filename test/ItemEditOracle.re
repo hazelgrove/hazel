@@ -1116,7 +1116,7 @@ type renaming = {
 let plan_rename =
     (
       ~info_map: Lazy.t(Language.Statics.Map.t),
-      ~term: Language.Exp.t,
+      ~outline: Web.OutlineTree.t,
       ~seg: Lazy.t(Segment.t),
       row: Id.t,
       typed: string,
@@ -1124,7 +1124,7 @@ let plan_rename =
     : result(option(renaming), string) => {
   let (kw, rest) = OutlineEdit.split_typed(typed);
   let name = String.trim(rest);
-  switch (OutlineRename.find_item(row, term)) {
+  switch (OutlineRename.find_item(row, outline)) {
   | None => Error("this row has no name to change")
   | Some(it) =>
     let kind =
@@ -1180,7 +1180,7 @@ let apply_rename =
 type ctx =
   Web.ItemEdit.ctx = {
     mod_root: bool,
-    term: Language.Exp.t,
+    outline: Web.OutlineTree.t,
     info_map: Lazy.t(Language.Statics.Map.t),
     /* whether a module row is expanded: moves step over collapsed ones,
        and over modules the outline doesn't show (`let _ = {…}`) */
@@ -1189,10 +1189,11 @@ type ctx =
 
 /* row [fid]'s parent row in [term]'s outline, and its kind */
 let parent_row =
-    (term: Language.Exp.t, fid: Id.t): option((Id.t, OutlineTree.kind)) =>
-  switch (Option.map(List.rev, OutlineTree.trail_of(fid, term))) {
+    (outline: Web.OutlineTree.t, fid: Id.t)
+    : option((Id.t, OutlineTree.kind)) =>
+  switch (Option.map(List.rev, OutlineTree.trail_of(fid, outline))) {
   | Some([_, parent, ..._]) =>
-    Option.map(k => (parent, k), OutlineTree.kind_of(parent, term))
+    Option.map(k => (parent, k), OutlineTree.kind_of(parent, outline))
   | _ => None
   };
 
@@ -1203,7 +1204,7 @@ let edit =
   switch (e) {
   | Op((MoveUp | MoveDown) as op, fid) =>
     let owner =
-      switch (parent_row(ctx.term, fid)) {
+      switch (parent_row(ctx.outline, fid)) {
       | Some((parent, KModule)) => Some(parent)
       | _ => None
       };
@@ -1219,14 +1220,14 @@ let edit =
   | Op(Indent, fid) =>
     indent(
       ~mod_root=ctx.mod_root,
-      ~shown=id => OutlineTree.node_of(id, ctx.term) != None,
+      ~shown=id => OutlineTree.node_of(id, ctx.outline) != None,
       fid,
       seg,
     )
     |> Option.to_result(~none="it can't go in there")
   | Op(Outdent, fid) =>
     (
-      switch (parent_row(ctx.term, fid)) {
+      switch (parent_row(ctx.outline, fid)) {
       | Some((owner, KModule | KFn | KConst)) =>
         outdent(~mod_root=ctx.mod_root, ~owner, fid, seg)
       | _ => None
@@ -1240,7 +1241,7 @@ let edit =
     switch (
       plan_rename(
         ~info_map=ctx.info_map,
-        ~term=ctx.term,
+        ~outline=ctx.outline,
         ~seg=Lazy.from_val(seg),
         row,
         typed,

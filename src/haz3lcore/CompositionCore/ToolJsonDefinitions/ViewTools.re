@@ -1,121 +1,70 @@
 open Util;
 
 let expand_description = {|
-Reveals the definitions of collapsed bindings so their code is visible.
-Use this to inspect code before editing. Expand only what you need to keep context manageable.
-Works for both let bindings and module bindings (e.g. module M = { ... }).
+Opens entries: each shows in full below the map, under `# open: path #`, with its errors marked at their lines and probe values inline. It stays open, following renames, until you collapse it.
 
 Parameters:
-paths: list(string) — paths to the bindings to expand (e.g. "a", "M", "outer/inner")
-
-Example:
-Given:
-```
-let a = ⋱ in
-let b = ⋱ in
-?
-```
-Calling expand(paths=["a", "b"]) reveals:
-```
-let a = 4 + 5 in
-let b = "hello" in
-?
-```
+paths: list(string) — entry paths as the map's annotations and errors name them (e.g. "total", "Geo/scale", "M/\"parses ints\"", "f/test#1")
 |};
 
-let expand: API.Json.t =
+let paths_param = (what: string) =>
+  `Assoc([
+    ("type", `String("array")),
+    ("description", `String(what)),
+    ("items", `Assoc([("type", `String("string"))])),
+  ]);
+
+let tool = (~name, ~description, ~properties, ~required) =>
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("expand")),
-        ("description", `String(expand_description)),
+        ("name", `String(name)),
+        ("description", `String(description)),
         (
           "parameters",
           `Assoc([
             ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String(
-                        "The paths to the bindings to expand (let or module).",
-                      ),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("paths")])),
+            ("properties", `Assoc(properties)),
+            ("required", `List(List.map(r => `String(r), required))),
           ]),
         ),
       ]),
     ),
   ]);
 
+let expand: API.Json.t =
+  tool(
+    ~name="expand",
+    ~description=expand_description,
+    ~properties=[
+      ("paths", paths_param("The paths of the entries to open.")),
+    ],
+    ~required=["paths"],
+  );
+
 let collapse_description = {|
-Hides the definitions of expanded bindings, showing ⋱ instead.
-Use this after editing to reduce clutter and keep context focused.
-Works for both let bindings and module bindings (e.g. module M = { ... }).
+Closes open entries: they no longer show below the map. `all: true` closes every open entry.
 
 Parameters:
-paths: list(string) — paths to the bindings to collapse (e.g. "a", "M")
-
-Example:
-Given:
-```
-let a = 4 + 5 in
-let b = "hello" in
-?
-```
-Calling collapse(paths=["a", "b"]) hides them:
-```
-let a = ⋱ in
-let b = ⋱ in
-?
-```
+paths: list(string) — paths of open entries
+all: bool — close all of them (paths may then be omitted)
 |};
 
 let collapse: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("collapse")),
-        ("description", `String(collapse_description)),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "paths",
-                  `Assoc([
-                    ("type", `String("array")),
-                    (
-                      "description",
-                      `String(
-                        "The paths to the bindings to collapse (let or module).",
-                      ),
-                    ),
-                    ("items", `Assoc([("type", `String("string"))])),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("paths")])),
-          ]),
-        ),
-      ]),
-    ),
-  ]);
+  tool(
+    ~name="collapse",
+    ~description=collapse_description,
+    ~properties=[
+      ("paths", paths_param("The paths of the entries to close.")),
+      (
+        "all",
+        `Assoc([
+          ("type", `String("boolean")),
+          ("description", `String("Close every open entry.")),
+        ]),
+      ),
+    ],
+    ~required=[],
+  );

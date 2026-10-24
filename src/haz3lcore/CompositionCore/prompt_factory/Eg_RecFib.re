@@ -102,17 +102,16 @@ Tool call: `mark_active_task_complete`
 
 **Starting program state:**
 ```
-let fib(n: Int): Int =
-  ⋱
-in
-test fib(0) == 0 end;
-test fib(1) == 1 end;
-test fib(5) == 5 end;
-test fib(10) == 55 end;
-fib(10)
+# map · no errors · tests: 4 of 4 pass #
+let fib(n: Int): Int = ⋯ in  # 4 uses #
+test fib(0) == 0 end;  # ✓ #
+test fib(1) == 1 end;  # ✓ #
+test fib(5) == 5 end;  # ✓ #
+test fib(10) == 55 end;  # ✓ #
+fib(10)  # ⇒ 55 #
 ```
 
-Note: `fib` is collapsed (⋱). The agent needs to understand what `fib` does but doesn't need to see its implementation — the tests provide enough context.
+Note: `fib` is not open. The agent needs to understand what `fib` does but doesn't need to see its implementation — its signature and the tests provide enough context.
 
 **Step 1 — Plan.**
 
@@ -170,24 +169,26 @@ Tool call: `place_probe`
 { "paths": ["map_fib"] }
 ```
 
-Agent sees (with probe results):
+Agent sees (the probe opened `map_fib`):
 ```
-let fib(n: Int): Int =
-  ⋱
-in
-test fib(0) == 0 end;
-test fib(1) == 1 end;
-test fib(5) == 5 end;
-test fib(10) == 55 end;
+# map · no errors · tests: 6 of 6 pass #
+let fib(n: Int): Int = ⋯ in  # 5 uses #
+test fib(0) == 0 end;  # ✓ #
+test fib(1) == 1 end;  # ✓ #
+test fib(5) == 5 end;  # ✓ #
+test fib(10) == 55 end;  # ✓ #
+let map_fib(ns: [Int]): [Int] = ⋯ in  # open below · 3 uses #
+test map_fib([]) == [] end;  # ✓ #
+test map_fib([0, 1, 5]) == [0, 1, 5] end;  # ✓ #
+map_fib([1, 2, 3, 4, 5])  # ⇒ [1, 1, 2, 3, 5] #
+
+# open: map_fib #
 let map_fib(ns: [Int]): [Int] =
   case ns
   | [] => []                                   ≡ []
   | hd :: tl => fib(hd) :: map_fib(tl)        ≡ [1, 1, 2, 3, 5]
   end
 in
-test map_fib([]) == [] end;
-test map_fib([0, 1, 5]) == [0, 1, 5] end;
-map_fib([1, 2, 3, 4, 5])                      ≡ [1, 1, 2, 3, 5]
 ```
 
 The `≡` values confirm `map_fib` works correctly. Clean up the probe and mark complete:
@@ -201,7 +202,7 @@ Tool call: `remove_probe` → `mark_active_subtask_complete` → `mark_active_ta
 
 1. **Plan when it helps**: For big, multi-turn work, use coarse workbench milestones; for quick edits, skip tasks and edit directly.
 2. **Use the right tool**: on an empty scratchpad, use `insert_after`/`insert_before` with **no** `path` to seed the first binding (keep it small when possible); path-based `insert_after`/`insert_before` for adding bindings, `insert_test` for a function's tests right after it, `update_definition`/`update_body` for modifying existing code — prefer **many small** edits over one huge paste.
-3. **Manage context**: Collapsed definitions (⋱) don't need to be expanded if tests or context already explain what they do. Expand only what you need.
+3. **Manage context**: Entries need not be opened when their signatures, tests or context already explain what they do. Open only what you need.
 4. **Verify with probes**: After implementing, use `place_probe` to observe runtime values and confirm correctness. Clean up with `remove_probe` when done.
 5. **Check static errors**: After each edit, check the context for type errors. Fix them before moving on.
 6. **Communicate clearly**: Tell the user what was done and why, without referencing tool internals.

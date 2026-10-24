@@ -292,6 +292,9 @@ let update =
       }
       |> Updated.return,
     );
+  /* the workspace's (AgentLens) */
+  | ViewAsAgent(_)
+  | LeaveAgentView => (model, editor |> Updated.return_quiet)
   | SetActiveTimelineNode(node_index) => (
       {
         ...model,

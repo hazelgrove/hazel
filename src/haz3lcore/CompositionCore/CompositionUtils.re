@@ -106,7 +106,11 @@ module Local = {
             | "expand" =>
               AgentContextAction(Expand(get_string_list(args, "paths")))
             | "collapse" =>
-              AgentContextAction(Collapse(get_string_list(args, "paths")))
+              switch (API.Json.dot("all", args)) {
+              | Some(`Bool(true)) => AgentContextAction(CollapseAll)
+              | _ =>
+                AgentContextAction(Collapse(get_string_list(args, "paths")))
+              }
             | "place_probe" =>
               ProbeAction(PlaceProbe(get_string_list(args, "paths")))
             | "remove_probe" =>

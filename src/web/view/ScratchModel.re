@@ -11,6 +11,9 @@ module Scratchpad = {
     /* what the slide shows of it: pins, zoom, parked */
     view: SlideView.t,
     agent: Agent.Model.t,
+    /* the main editor shows a request as the agent saw it */
+    [@sexp.default None] [@yojson.default None]
+    lens: option(AgentLens.t),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -54,6 +57,7 @@ module Scratchpad = {
         program: Whole(editor),
         view: SlideView.init,
         agent,
+        lens: None,
       }),
     dormant: false,
   };

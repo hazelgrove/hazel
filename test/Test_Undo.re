@@ -125,7 +125,7 @@ module Cells = {
     };
 
   let row = (m: History.Model.t, label: string): Haz3lcore.Id.t =>
-    CorpusUtil.row_by_label(Program.statics(program(m)).term, label);
+    CorpusUtil.row_by_label(Program.outline(program(m)), label);
 
   let workspace = (a: Workspace.Action.t): Page.Update.t =>
     Editors(Scratch(Workspace(a)));

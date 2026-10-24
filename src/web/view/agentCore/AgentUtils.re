@@ -58,23 +58,47 @@ let clear_pending_assistant_stream = (model: Model.t): Model.t => {
   pending_assistant_reasoning: "",
 };
 
-let test_results_for_context =
-    (test_results: option(Language.TestResults.t)): string => {
-  switch (test_results) {
-  | None => "No test results available (evaluator may still be running)."
-  | Some(results) when results.total == 0 => "No tests in program."
-  | Some(results) =>
-    let summary = Language.TestResults.test_summary_str(results);
-    let details =
-      List.mapi(
-        (i, status: Language.TestStatus.t) => {
-          let status_str = Language.TestStatus.to_string(status);
-          "Test " ++ string_of_int(i + 1) ++ ": " ++ status_str;
-        },
-        results.statuses,
-      );
-    summary ++ "\n" ++ String.concat("\n", details);
+/* the agent's view of [cws] for [chat]: the text, the open set against
+   this program, and what the view was made from */
+let agent_view_of =
+    (
+      ~view: CompositionView.settings,
+      ~test_results: option(Language.TestResults.t),
+      ~value: option(Language.Exp.t),
+      cws: CodeWithStatics.Model.t,
+      chat: Chat.Model.t,
+    )
+    : (string, AgentContext.Model.t, SentView.basis) => {
+  let z = cws.editor.state.zipper;
+  let root = cws.editor.root;
+  let outline = Outline.of_program(~root, Zipper.unselect_and_zip(z));
+  let opened = AgentContext.Utils.refresh(outline, chat.agent_view);
+  let facts: CompositionView.facts = {
+    info_map: cws.statics.info_map,
+    error_ids: cws.statics.error_ids,
+    tests: test_results,
+    probes: cws.dynamics,
+    refractors: z.refractors.manuals,
+    value,
+    term_data: cws.editor.syntax.term_data,
   };
+  let view =
+    CompositionView.Public.render(
+      ~settings=view,
+      ~facts,
+      outline,
+      ~opened=AgentContext.Utils.ids(opened),
+    );
+  (
+    view,
+    opened,
+    {
+      b_root: root,
+      b_text: SentView.text_of_zipper(z),
+      b_opened: opened.opened,
+      b_probes: List.length(z.refractors.manuals),
+    },
+  );
 };
 
 /** Exact context snapshot string the API uses ([[Message.Utils.context_snapshot_body_for_llm]]),
@@ -83,110 +107,91 @@ let test_results_for_context =
 let llm_context_snapshot_text =
     (
       ~session_mode: AgentGlobals.Model.session_mode,
+      ~view: CompositionView.settings,
       ~cell_result: EvalResult.Model.t,
       cws: CodeWithStatics.Model.t,
       chat: Chat.Model.t,
     )
     : string => {
-  let agent_editor_view_string =
-    CompositionView.Public.print(
-      ~probe_map=cws.dynamics,
-      cws.editor,
-      chat.agent_view,
+  let (view, _, _) =
+    agent_view_of(
+      ~view,
+      ~test_results=EvalResult.Model.test_results(cell_result),
+      ~value=EvalResult.Model.get_value(cell_result),
+      cws,
+      chat,
     );
-  let static_errors_info_string =
-    ErrorPrint.all(
-      CompositionGo.Public.mk_statics(
-        ~root=cws.editor.root,
-        cws.editor.state.zipper,
-      ),
-    )
-    |> String.concat("\n");
-  let test_results_info_string =
-    test_results_for_context(EvalResult.Model.test_results(cell_result));
   Message.Utils.context_snapshot_body_for_llm(
     ~session_mode,
-    agent_editor_view_string,
-    static_errors_info_string,
-    test_results_info_string,
+    view,
     AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
       chat.agent_workbench,
     ),
   );
 };
 
-/* (zipper, statics, dynamics, agent view) -> (printed program, error list) */
-let context_memo:
-  ref(
-    option(
-      (
-        Zipper.t,
-        Language.Statics.Map.t,
-        Language.Dynamics.Map.t,
-        AgentContext.Model.t,
-        string,
-        string,
-      ),
-    ),
-  ) =
-  ref(None);
+/* the last view's inputs and outputs: a reply's tools followed by its
+   send ask several times for one program */
+type memo = {
+  m_zipper: Zipper.t,
+  m_info: Language.Statics.Map.t,
+  m_dynamics: Language.Dynamics.Map.t,
+  m_tests: option(Language.TestResults.t),
+  m_value: option(Language.Exp.t),
+  m_view: AgentContext.Model.t,
+  m_view_settings: CompositionView.settings,
+  m_out: (string, AgentContext.Model.t, SentView.basis),
+};
+let context_memo: ref(option(memo)) = ref(None);
 
 let update_context =
     (
       ~session_mode: AgentGlobals.Model.session_mode,
+      ~view: CompositionView.settings=CompositionView.default_settings,
       ~test_results: option(Language.TestResults.t)=?,
+      ~value: option(Language.Exp.t)=?,
       model: Model.t,
       editor: CodeWithStatics.Model.t,
       chat_id: Id.t,
     )
     : Model.t => {
   let curr_chat = ChatSystem.Utils.find_chat(chat_id, model.chat_system);
-  /* the printed program and its error list depend only on the zipper, the
-     statics, probe values and the agent's collapse state: the same (physically
-     identical) inputs give the same strings, and a reply's tools followed
-     by its send ask several times for one program */
-  let (agent_editor_view_string, static_errors_info_string) =
+  let (view, agent_view, basis) =
     switch (context_memo^) {
-    | Some((z, info, dyn, view, printed, errs))
+    | Some(m)
         when
-          z === editor.editor.state.zipper
-          && info === editor.statics.info_map
-          && dyn === editor.dynamics
-          && view == curr_chat.agent_view => (
-        printed,
-        errs,
-      )
+          m.m_zipper === editor.editor.state.zipper
+          && m.m_info === editor.statics.info_map
+          && m.m_dynamics === editor.dynamics
+          && m.m_tests === test_results
+          && m.m_value === value
+          && m.m_view == curr_chat.agent_view
+          && m.m_view_settings == view =>
+      m.m_out
     | _ =>
-      /* the statics the editor already computed for this program */
-      let info_map = editor.statics.info_map;
-      let printed =
-        CompositionView.Public.print(
-          ~probe_map=editor.dynamics,
-          ~info_map,
-          editor.editor,
-          curr_chat.agent_view,
-        );
-      let errs = ErrorPrint.all(info_map) |> String.concat("\n");
+      let out =
+        agent_view_of(~view, ~test_results, ~value, editor, curr_chat);
       context_memo :=
-        Some((
-          editor.editor.state.zipper,
-          editor.statics.info_map,
-          editor.dynamics,
-          curr_chat.agent_view,
-          printed,
-          errs,
-        ));
-      (printed, errs);
+        Some({
+          m_zipper: editor.editor.state.zipper,
+          m_info: editor.statics.info_map,
+          m_dynamics: editor.dynamics,
+          m_tests: test_results,
+          m_value: value,
+          m_view: curr_chat.agent_view,
+          m_view_settings: view,
+          m_out: out,
+        });
+      out;
     };
-  let test_results_info_string = test_results_for_context(test_results);
   let chat_system =
     ChatSystem.Update.update(
       ChatSystem.Update.Action.ChatAction(
         Chat.Update.Action.UpdateContext(
           session_mode,
-          agent_editor_view_string,
-          static_errors_info_string,
-          test_results_info_string,
+          agent_view,
+          Some(basis),
+          view,
         ),
         chat_id,
       ),
