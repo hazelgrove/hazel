@@ -3066,6 +3066,7 @@
 #main .agent-lens-map {
   font-family: var(--code-font);
   white-space: pre;
+  overflow-x: auto;
   padding: 0.75em 1em;
   color: var(--text-default);
 }
