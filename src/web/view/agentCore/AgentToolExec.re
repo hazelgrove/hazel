@@ -78,8 +78,10 @@ let mk_diff =
   | SyntaxProjectorAction(_)
   | ProbeAction(_)
   | StaticsAction(_) =>
-    let old_segment = Select.all(old_editor.state.zipper).selection.content;
-    let new_segment = Select.all(new_editor.state.zipper).selection.content;
+    let old_segment =
+      Zipper.unselect_and_zip(~erase_buffer=true, old_editor.state.zipper);
+    let new_segment =
+      Zipper.unselect_and_zip(~erase_buffer=true, new_editor.state.zipper);
     let old_s = CompositionView.Public.print_segment(old_segment);
     let new_s = CompositionView.Public.print_segment(new_segment);
     if (old_s == new_s) {
@@ -502,6 +504,7 @@ module Reply = {
         ~settings=settings.core,
         ~root,
         ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+        ~shared=ce.editor.editor.syntax.t_cache,
       );
     let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
     CompositionGo.Reply.start(

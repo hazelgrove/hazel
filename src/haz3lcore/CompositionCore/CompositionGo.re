@@ -49,22 +49,25 @@ let mk_statics = (~root=Sort.Exp, z: Zipper.t): StaticsBase.Map.t =>
   mk_statics_with(~root, CoreSettings.on, z);
 
 /* per-item statics (DefStatics): an edit re-analyzes the items it changed
-   and those that depend on them */
+   and those that depend on them. [shared]: the editor's parse cache, whose
+   item parses stand in for parsing the same pieces again */
 let statics_of =
     (
       ~settings: CoreSettings.t,
       ~root: Sort.t,
       ~probe_ids: Id.Map.t(unit),
+      ~shared=?,
       seg: Segment.t,
     )
-    : CachedStatics.t =>
+    : CachedStatics.t => {
+  let term =
+    PerfTimer.time("statics/parse", () =>
+      MakeTerm.semantic_term(~root, ~shared?, seg)
+    );
   PerfTimer.time("statics", () =>
-    CachedStatics.init_compositional_term(
-      ~settings,
-      ~probe_ids,
-      MakeTerm.semantic_term(~root, seg),
-    )
+    CachedStatics.init_compositional_term(~settings, ~probe_ids, term)
   );
+};
 
 /* ---- the code a call brings ---- */
 
