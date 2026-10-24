@@ -5,6 +5,27 @@ open AgentModel;
 module Utils = AgentUtils;
 module Action = AgentAction;
 
+let tool_action = (tr: AgentToolResult.tool_result) =>
+  CompositionUtils.Public.action_of(
+    ~tool_name=tr.tool_call.name,
+    ~args=tr.tool_call.args,
+  );
+
+/* a structural edit's result */
+let is_edit = (tr: AgentToolResult.tool_result): bool =>
+  switch (tool_action(tr)) {
+  | Action(EditorAction(_)) => true
+  | _ => false
+  };
+
+/* a tool whose change is the editor's: a reply's rollback undoes it */
+let changes_editor = (tr: AgentToolResult.tool_result): bool =>
+  switch (tool_action(tr)) {
+  | Action(ProbeAction(_) | StaticsAction(_) | SyntaxProjectorAction(_)) =>
+    true
+  | _ => false
+  };
+
 let handle_llm_response =
     (
       reply: OpenRouter.Reply.Model.t,
@@ -131,43 +152,217 @@ let handle_llm_response =
           (model_idle, cell_editor |> Updated.return_quiet);
         };
       | tool_calls =>
-        let (model_after_tools, _, tool_msgs_rev, cell_editor_updated, _) =
+        /* a reply's structural calls run as one transaction
+           (AgentToolExec.Edits): their results wait for its end, and a
+           failure anywhere in a reply with edits restores the editor it
+           began with */
+        let calls = Array.of_list(tool_calls);
+        let (
+          model_after_tools,
+          slots_rev,
+          cell_editor_updated,
+          edits,
+          failure,
+        ) =
           List.fold_left(
-            ((m, ce_model, msgs, ce_updated, prior_failed), tc) =>
-              if (prior_failed) {
-                let skipped = AgentToolResult.mk_skipped(tc);
-                let msg = Message.Utils.mk_tool_result_message(skipped);
-                (m, ce_model, [msg, ...msgs], ce_updated, true);
-              } else {
-                let (m2, step_u, msg) =
-                  AgentToolExec.execute_one_tool_call(
-                    ~tool_call=tc,
-                    ~model=m,
-                    ~cell_editor=ce_model,
-                    ~settings,
-                    ~chat_id,
-                  );
-                let failed =
-                  switch (msg.role) {
-                  | ToolResult(tr) => !tr.skipped && !tr.success
-                  | _ => false
-                  };
-                (
-                  m2,
-                  step_u.model,
-                  [msg, ...msgs],
-                  merge_cell_editor_updates(ce_updated, step_u),
-                  failed,
-                );
-              },
             (
-              model,
-              cell_editor,
-              [],
+              (
+                m,
+                slots,
+                ce_updated: Updated.t(CellEditor.Model.t),
+                edits,
+                failure,
+              ),
+              (i, tc),
+            ) =>
+              if (failure != None) {
+                (m, [`Skipped(tc), ...slots], ce_updated, edits, failure);
+              } else {
+                switch (
+                  CompositionUtils.Public.action_of(
+                    ~tool_name=tc.OpenRouter.Reply.Model.name,
+                    ~args=tc.args,
+                  )
+                ) {
+                | Action(EditorAction(call)) =>
+                  let e =
+                    switch (edits) {
+                    | Some(e) => e
+                    | None =>
+                      AgentToolExec.Edits.begin_(~settings, ce_updated.model)
+                    };
+                  switch (
+                    try(AgentToolExec.Edits.add(e, ~index=i, call)) {
+                    | exn =>
+                      AgentToolExec.report_tool_exn(tc.name, exn);
+                      Error(Printexc.to_string(exn));
+                    }
+                  ) {
+                  | Ok(e) =>
+                    let step =
+                      AgentToolExec.Edits.editor(e) |> Updated.return;
+                    (
+                      m,
+                      [`Edit(tc), ...slots],
+                      merge_cell_editor_updates(ce_updated, step),
+                      Some(e),
+                      None,
+                    );
+                  | Error(message) => (
+                      m,
+                      [`Edit(tc), ...slots],
+                      ce_updated,
+                      Some(e),
+                      Some((i, message)),
+                    )
+                  };
+                | _ =>
+                  let (m2, step_u, msg) =
+                    AgentToolExec.execute_one_tool_call(
+                      ~tool_call=tc,
+                      ~model=m,
+                      ~cell_editor=ce_updated.model,
+                      ~settings,
+                      ~chat_id,
+                    );
+                  let failed =
+                    switch (msg.role) {
+                    | ToolResult(tr) => !tr.skipped && !tr.success
+                    | _ => false
+                    };
+                  (
+                    m2,
+                    [`Done(msg), ...slots],
+                    merge_cell_editor_updates(ce_updated, step_u),
+                    edits,
+                    failed ? Some((i, "")) : None,
+                  );
+                };
+              },
+            (model, [], cell_editor |> Updated.return_quiet, None, None),
+            List.mapi((i, tc) => (i, tc), tool_calls),
+          );
+        let tool_call = i => calls[i];
+        /* the reply's edits, checked: the editor and the edits' results,
+           or the call that failed and why */
+        let (cell_editor_updated, results, failure) =
+          switch (edits, failure) {
+          | (None, _) => (cell_editor_updated, [], failure)
+          | (Some(_), Some(_)) => (
               cell_editor |> Updated.return_quiet,
-              false,
-            ),
-            tool_calls,
+              [],
+              failure,
+            )
+          | (Some(e), None) =>
+            switch (
+              try(AgentToolExec.Edits.finish(~settings, ~tool_call, e)) {
+              | exn =>
+                AgentToolExec.report_tool_exn("reply", exn);
+                Error({
+                  index: 0,
+                  message: Printexc.to_string(exn),
+                });
+              }
+            ) {
+            | Ok((ce, results)) => (
+                merge_cell_editor_updates(
+                  cell_editor_updated,
+                  ce |> Updated.return,
+                ),
+                results,
+                None,
+              )
+            | Error(f) => (
+                cell_editor |> Updated.return_quiet,
+                [],
+                Some((f.index, f.message)),
+              )
+            }
+          };
+        let rolled_back = edits != None && failure != None;
+        let undone = (failed: int) =>
+          " None of this reply's edits were applied: call "
+          ++ string_of_int(failed + 1)
+          ++ " ("
+          ++ tool_call(failed).name
+          ++ ") failed.";
+        let tool_msgs_rev =
+          List.mapi(
+            (k, slot) => {
+              let i = List.length(slots_rev) - 1 - k;
+              let before = e =>
+                Some(
+                  AgentToolExec.Edits.text_of(
+                    CompositionGo.Reply.program(
+                      (e: AgentToolExec.Edits.t).reply,
+                    ),
+                  ),
+                );
+              switch (slot, failure) {
+              | (`Skipped(tc), _) =>
+                Message.Utils.mk_tool_result_message(
+                  AgentToolResult.mk_skipped(tc),
+                )
+              | (`Edit(tc), Some((f, message))) when f == i =>
+                Message.Utils.mk_tool_result_message(
+                  AgentToolExec.Edits.failed(
+                    ~tool_call=tc,
+                    ~before=Option.bind(edits, before),
+                    message ++ undone(f),
+                  ),
+                )
+              | (`Edit(tc), Some((f, _))) =>
+                Message.Utils.mk_tool_result_message(
+                  AgentToolExec.Edits.failed(
+                    ~tool_call=tc,
+                    ~before=None,
+                    "Rolled back." ++ undone(f),
+                  ),
+                )
+              | (`Edit(tc), None) =>
+                Message.Utils.mk_tool_result_message(
+                  switch (List.assoc_opt(i, results)) {
+                  | Some(tr) => tr
+                  | None =>
+                    AgentToolExec.Edits.failed(
+                      ~tool_call=tc,
+                      ~before=None,
+                      "No result.",
+                    )
+                  },
+                )
+              | (`Done(msg: Message.Model.t), Some((f, _)))
+                  when rolled_back && f != i =>
+                switch (msg.role) {
+                | ToolResult(tr) when tr.success && changes_editor(tr) =>
+                  Message.Utils.mk_tool_result_message({
+                    ...tr,
+                    success: false,
+                    content: "Rolled back." ++ undone(f),
+                    content_is_payload: false,
+                  })
+                | _ => msg
+                }
+              | (`Done(msg), _) => msg
+              };
+            },
+            slots_rev,
+          );
+        let model_after_tools =
+          List.fold_left(
+            (m, msg: Message.Model.t) =>
+              switch (msg.role) {
+              | ToolResult(tr) when is_edit(tr) =>
+                AgentToolExec.add_tool_result_to_active_subtask(
+                  ~tool_result=tr,
+                  ~action=EditorAction(Delete(BindingClause, "")),
+                  ~model=m,
+                  ~chat_id,
+                )
+              | _ => m
+              },
+            model_after_tools,
+            List.rev(tool_msgs_rev),
           );
         let tool_msgs = List.rev(tool_msgs_rev);
         let model_with_tool_msgs =

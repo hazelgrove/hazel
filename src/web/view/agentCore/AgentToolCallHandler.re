@@ -22,13 +22,12 @@ let elaborated_of_syntax = (syntax: CachedSyntax.t): Language.Exp.t =>
   };
 
 /** Shared dispatch for path-indexed overlay tools (probes, statics, syntax
-    projectors). Each such tool takes a list of HighLevelNodeMap paths and
-    runs a per-path operation; afterwards any paths that were actually
-    placed are auto-expanded via an AgentContext.Expand on the chat system.
+    projectors). Each such tool takes a list of paths (EntryPath) and runs a
+    per-path operation; afterwards any paths that were actually placed are
+    auto-expanded via an AgentContext.Expand on the chat system.
 
-    [resolve_path] maps a path string to an Id using the node map. Probes and
-    statics use [HighLevelNodeMap.Public.path_to_id_opt]; syntax projectors
-    use [path_to_syntax_projector_target_id_opt].
+    [resolve_path] maps a path to an id: probes and statics take the
+    entry's, syntax projectors its definition's.
 
     [perform] applies the action to one resolved id. [Some((z', should_expand))]
     means the operation changed state; [None] means resolved-but-noop (e.g.
@@ -37,10 +36,23 @@ let elaborated_of_syntax = (syntax: CachedSyntax.t): Language.Exp.t =>
     If every input path either failed to resolve or was a resolved-noop, we
     return an Error so the agent gets a concrete failure signal instead of a
     silent-success tool message. */
+/* the entry [path] names: its anchor, the binding's term */
+let entry_id = (~root, seg, path: string): option(Id.t) =>
+  switch (EntryPath.resolve_string(~root, seg, path)) {
+  | Ok(f) => Some(f.id)
+  | Error(_) => None
+  };
+
+/* its definition's, where a syntax projector goes */
+let definition_id = (~root, seg, path: string): option(Id.t) =>
+  Option.bind(entry_id(~root, seg, path), head =>
+    EntryEdit.part(~root, head, Definition, seg)
+  );
+
 let apply_overlay_action =
     (
       ~tool_label: string,
-      ~resolve_path: (HighLevelNodeMap.t, string) => option(Id.t),
+      ~resolve_path: (~root: Sort.t, Segment.t, string) => option(Id.t),
       ~perform:
          (~info_map: _, ~syntax: CachedSyntax.t, Zipper.t, Id.t) =>
          option((Zipper.t, bool)),
@@ -53,76 +65,69 @@ let apply_overlay_action =
   let z = editor.editor.state.zipper;
   let root = editor.editor.root;
   let info_map = CompositionGo.Public.mk_statics(~root, z);
-  switch (HighLevelNodeMap.build(z, info_map)) {
-  | None =>
+  let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+
+  let syntax = CachedSyntax.init(~root, z);
+  let (new_z, paths_to_expand, n_changed, unresolved) =
+    List.fold_left(
+      ((z, expanded, n_changed, unresolved), path) =>
+        switch (resolve_path(~root, seg, path)) {
+        | Some(id) =>
+          switch (perform(~info_map, ~syntax, z, id)) {
+          | Some((z', should_expand)) =>
+            let expanded = should_expand ? [path, ...expanded] : expanded;
+            (z', expanded, n_changed + 1, unresolved);
+          | None => (z, expanded, n_changed, unresolved)
+          }
+        | None => (z, expanded, n_changed, [path, ...unresolved])
+        },
+      (z, [], 0, []),
+      paths,
+    );
+  if (List.length(paths) > 0 && n_changed == 0) {
+    let unresolved_sfx =
+      switch (unresolved) {
+      | [] => ""
+      | ps =>
+        " Unresolved path(s): " ++ String.concat(", ", List.rev(ps)) ++ "."
+      };
     Error(
       Failure.Info(
-        "No bindings in the program. Add let/type bindings first.",
+        tool_label
+        ++ " tool did not update the program: no path produced a change."
+        ++ unresolved_sfx
+        ++ " Paths name entries (e.g. \"map\", \"outer/inner\" for nested lets, \"M/helper\" for module members, \"name#k\" for duplicates).",
       ),
-    )
-  | Some(node_map) =>
-    let syntax = CachedSyntax.init(~root, z);
-    let (new_z, paths_to_expand, n_changed, unresolved) =
-      List.fold_left(
-        ((z, expanded, n_changed, unresolved), path) =>
-          switch (resolve_path(node_map, path)) {
-          | Some(id) =>
-            switch (perform(~info_map, ~syntax, z, id)) {
-            | Some((z', should_expand)) =>
-              let expanded = should_expand ? [path, ...expanded] : expanded;
-              (z', expanded, n_changed + 1, unresolved);
-            | None => (z, expanded, n_changed, unresolved)
-            }
-          | None => (z, expanded, n_changed, [path, ...unresolved])
-          },
-        (z, [], 0, []),
-        paths,
-      );
-    if (List.length(paths) > 0 && n_changed == 0) {
-      let unresolved_sfx =
-        switch (unresolved) {
-        | [] => ""
-        | ps =>
-          " Unresolved path(s): " ++ String.concat(", ", List.rev(ps)) ++ "."
-        };
-      Error(
-        Failure.Info(
-          tool_label
-          ++ " tool did not update the program: no path produced a change."
-          ++ unresolved_sfx
-          ++ " Paths must be **HighLevelNodeMap binding paths** (e.g. \"map\", \"outer/inner\" for nested lets, \"M/helper\" for module members, \"name#k\" for duplicates).",
-        ),
-      );
-    } else {
-      let new_z = Materialize.all(new_z, ~root);
-      let new_editor_model = Editor.Model.mk(new_z, ~root);
-      let new_cws =
-        CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
+    );
+  } else {
+    let new_z = Materialize.all(new_z, ~root);
+    let new_editor_model = Editor.Model.mk(new_z, ~root);
+    let new_cws =
+      CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
 
-      if (List.length(paths_to_expand) > 0) {
-        let expand_action = AgentContext.Update.Expand(paths_to_expand);
-        let chat_system =
-          ChatSystem.Update.update(
-            ChatSystem.Update.Action.ChatAction(
-              Chat.Update.Action.AgentContextAction(expand_action),
-              chat_id,
-            ),
-            agent.chat_system,
-          );
-        switch (chat_system) {
-        | Ok(updated_chat_system) =>
-          Ok((
-            {
-              ...agent,
-              chat_system: updated_chat_system,
-            },
-            new_cws,
-          ))
-        | Error(_) => Ok((agent, new_cws))
-        };
-      } else {
-        Ok((agent, new_cws));
+    if (List.length(paths_to_expand) > 0) {
+      let expand_action = AgentContext.Update.Expand(paths_to_expand);
+      let chat_system =
+        ChatSystem.Update.update(
+          ChatSystem.Update.Action.ChatAction(
+            Chat.Update.Action.AgentContextAction(expand_action),
+            chat_id,
+          ),
+          agent.chat_system,
+        );
+      switch (chat_system) {
+      | Ok(updated_chat_system) =>
+        Ok((
+          {
+            ...agent,
+            chat_system: updated_chat_system,
+          },
+          new_cws,
+        ))
+      | Error(_) => Ok((agent, new_cws))
       };
+    } else {
+      Ok((agent, new_cws));
     };
   };
 };
@@ -174,90 +179,6 @@ let update =
     };
   | LanguageServerAction(_) =>
     Error(Failure.Info("LanguageServerAction is not implemented yet"))
-  | InsertAtProgramBoundary(direction, code) =>
-    /* No-path variant of insert_before/insert_after: the code at the
-       program's start (Before) or end (After), at a Mod root as members
-       (CompositionGo.Public.insert_at_boundary). For an empty program
-       (just `?`), either boundary effectively seeds the program with the
-       provided code. */
-    let z = editor.editor.state.zipper;
-    let root = editor.editor.root;
-    /* the editor's statics for this program when it has them; the new
-       program's statics computed once, the editor's way, and offered to it.
-       None is offered at a Mod root: its editor computes its own */
-    let full_statics = (z: Zipper.t): CachedStatics.t =>
-      Util.PerfTimer.time("statics", () =>
-        CachedStatics.init(
-          ~settings=settings.core,
-          ~is_dynamic_term=false,
-          ~stitch=x => x,
-          ~root=Exp,
-          z,
-        )
-      );
-    let statics_of = (~offer, z: Zipper.t): Language.Statics.Map.t =>
-      if (root == Sort.Mod) {
-        Util.PerfTimer.time("statics", () =>
-          CompositionGo.Public.mk_statics_with(~root, settings.core, z)
-        );
-      } else {
-        let full = full_statics(z);
-        if (offer) {
-          CachedStatics.offer(~settings=settings.core, z, full);
-        };
-        full.info_map;
-      };
-    let initial_info_map =
-      switch (
-        CachedStatics.for_zipper(~settings=settings.core, z, editor.statics)
-      ) {
-      | Some(st) when st.info_map != Id.Map.empty => st.info_map
-      | _ => statics_of(~offer=false, z)
-      };
-    /* inserted code arrives indentation-stripped; re-indent its new
-       lines like user Paste */
-    let before_pieces =
-      LocalReformat.snapshot_pieces(~enabled=settings.core.auto_reindent, z);
-    switch (
-      CompositionGo.Public.insert_at_boundary(
-        ~root,
-        ~info_map=initial_info_map,
-        direction,
-        z,
-        code,
-      )
-    ) {
-    | Error(Action.Failure.Composition_action_failure(msg)) =>
-      Error(Failure.Info(msg))
-    | Error(_) =>
-      Error(Failure.Info("Failed to insert code at program boundary"))
-    | Ok(new_z) =>
-      let new_statics = statics_of(~offer=true, new_z);
-      let old_errors = ErrorPrint.all(initial_info_map);
-      let new_errors = ErrorPrint.all(new_statics);
-      if (List.length(new_errors) > List.length(old_errors)) {
-        Error(
-          Failure.Info(
-            "Not applying the action you requested as it would introduce new static error(s): "
-            ++ String.concat(", ", new_errors)
-            ++ CompositionGo.Local.PerformUtils.reserved_word_note(code),
-          ),
-        );
-      } else {
-        let final_z =
-          CompositionGo.Local.PerformUtils.normalize_top_level(
-            ~root,
-            ~before=z,
-            Materialize.all(new_z, ~root),
-          )
-          |> LocalReformat.go_region(~before_pieces);
-        let new_editor_model = Editor.Model.mk(final_z, ~root);
-        let new_code_with_statics =
-          CodeWithStatics.Model.mk(new_editor_model);
-        CodeWithStatics.StaticsDebounce.force_on_next := true;
-        Ok((agent, new_code_with_statics));
-      };
-    };
   | WorkbenchAction(workbench_action) =>
     let action = AgentWorkbench.Update.Action.BackendAction(workbench_action);
     let chat_system =
@@ -309,7 +230,7 @@ let update =
       };
     apply_overlay_action(
       ~tool_label="Probe",
-      ~resolve_path=HighLevelNodeMap.Public.path_to_id_opt,
+      ~resolve_path=entry_id,
       ~perform=
         (~info_map, ~syntax, z, id) =>
           switch (probe_action) {
@@ -339,7 +260,7 @@ let update =
       };
     apply_overlay_action(
       ~tool_label="Statics",
-      ~resolve_path=HighLevelNodeMap.Public.path_to_id_opt,
+      ~resolve_path=entry_id,
       ~perform=
         (~info_map, ~syntax, z, id) => {
           let (z, should_expand) =
@@ -380,7 +301,7 @@ let update =
       };
     apply_overlay_action(
       ~tool_label="Syntax projector",
-      ~resolve_path=HighLevelNodeMap.Public.path_to_syntax_projector_target_id_opt,
+      ~resolve_path=definition_id,
       ~perform=
         (~info_map as _, ~syntax, z, id) => {
           let z_opt =

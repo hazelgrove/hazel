@@ -59,53 +59,15 @@ let add_tool_result_to_active_subtask =
   };
 };
 
+/* an overlay tool's change: the whole program before and after */
 let mk_diff =
     (
-      ~settings: Language.CoreSettings.t,
       ~old_editor: Editor.t,
-      ~old_statics: CachedStatics.t,
       ~new_editor: Editor.t,
       action: CompositionActions.action,
     )
     : option(AgentToolResult.diff) => {
   switch (action) {
-  | EditorAction(edit_action) =>
-    /* the diff of an Update/Delete resolves its path in both programs'
-       node maps, which want statics: the editor already has the old
-       program's, the tool path offered the new program's — a fresh pass
-       here was ~2 s of a 2.8 s update_definition */
-    let mk_statics = (z: Zipper.t) =>
-      switch (CachedStatics.offered_for(~settings, z)) {
-      | Some(st) => st.info_map
-      | None =>
-        switch (CachedStatics.for_zipper(~settings, z, old_statics)) {
-        | Some(st) when st.info_map != Id.Map.empty => st.info_map
-        | _ =>
-          Util.PerfTimer.time("diff-statics", () =>
-            CompositionGo.Public.mk_statics(~root=old_editor.root, z)
-          )
-        }
-      };
-    switch (
-      CompositionGo.Local.get_diff(
-        old_editor.state.zipper,
-        new_editor.state.zipper,
-        edit_action,
-        mk_statics,
-        ~old_syntax=old_editor.syntax,
-        ~new_syntax=new_editor.syntax,
-      )
-    ) {
-    | Some((old_segment, new_segment)) =>
-      Some(
-        AgentToolResult.{
-          old_text: CompositionView.Public.print_segment(old_segment),
-          new_text:
-            Option.map(CompositionView.Public.print_segment, new_segment),
-        },
-      )
-    | None => None
-    };
   | SyntaxProjectorAction(_)
   | ProbeAction(_)
   | StaticsAction(_) =>
@@ -136,7 +98,6 @@ let mk_segment_snapshots =
     : (option(string), option(string)) => {
   switch (action) {
   | EditorAction(_)
-  | InsertAtProgramBoundary(_)
   | ProbeAction(_)
   | StaticsAction(_)
   | SyntaxProjectorAction(_) =>
@@ -207,9 +168,7 @@ let execute_one_tool_call =
           Ok(
             Util.PerfTimer.time("tool/diff", () =>
               mk_diff(
-                ~settings=settings.core,
                 ~old_editor=cell_editor.editor.editor,
-                ~old_statics=cell_editor.editor.statics,
                 ~new_editor=editor.editor,
                 action,
               )
@@ -238,6 +197,7 @@ let execute_one_tool_call =
           after_text: None,
           content: msg,
           content_is_payload: false,
+          steps: [],
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -262,6 +222,7 @@ let execute_one_tool_call =
           after_text,
           content: success_message,
           content_is_payload: false,
+          steps: [],
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -304,6 +265,7 @@ let execute_one_tool_call =
           after_text: None,
           content: msg,
           content_is_payload: false,
+          steps: [],
         };
         let model =
           add_tool_result_to_active_subtask(
@@ -342,6 +304,7 @@ let execute_one_tool_call =
       after_text: None,
       content,
       content_is_payload: true,
+      steps: [],
     };
     (
       model,
@@ -359,6 +322,7 @@ let execute_one_tool_call =
       after_text: None,
       content: msg,
       content_is_payload: false,
+      steps: [],
     };
     // Do not add unparseable tool calls to subtask tool results for now
     (
@@ -366,5 +330,178 @@ let execute_one_tool_call =
       cell_editor |> Updated.return_quiet,
       Message.Utils.mk_tool_result_message(tool_result),
     );
+  };
+};
+
+/* A reply's structural calls, as one transaction (CompositionGo.Reply):
+   each runs on the program the calls before it left, which the editor
+   shows to the reply's other tools; the reply's end checks the finished
+   change, and a failure anywhere restores the editor the reply began
+   with */
+module Edits = {
+  type t = {
+    /* the editor before the reply */
+    start: CellEditor.Model.t,
+    reply: CompositionGo.Reply.t,
+  };
+
+  let editor_root = (ce: CellEditor.Model.t) => ce.editor.editor.root;
+
+  let begin_ = (~settings: Settings.t, ce: CellEditor.Model.t): t => {
+    let z = ce.editor.editor.state.zipper;
+    let root = editor_root(ce);
+    let statics_of =
+      CompositionGo.statics_of(
+        ~settings=settings.core,
+        ~root,
+        ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+      );
+    let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+    {
+      start: ce,
+      reply:
+        CompositionGo.Reply.start(
+          ~root,
+          ~statics=
+            lazy(
+              switch (
+                CachedStatics.for_zipper(
+                  ~settings=settings.core,
+                  z,
+                  ce.editor.statics,
+                )
+              ) {
+              | Some(st) when st.info_map != Id.Map.empty => st
+              | _ => statics_of(seg)
+              }
+            ),
+          ~statics_of,
+          seg,
+        ),
+    };
+  };
+
+  /* [ce] showing [seg], its caret and probes kept */
+  let showing = (ce: CellEditor.Model.t, seg: Segment.t): CellEditor.Model.t => {
+    let ed = ce.editor.editor;
+    {
+      ...ce,
+      editor: {
+        ...ce.editor,
+        editor: {
+          ...ed,
+          state: {
+            zipper: CompositionGo.rezip(ed.state.zipper, seg),
+            col_target: None,
+          },
+        },
+      },
+    };
+  };
+
+  let add = (t: t, ~index: int, call: CompositionGo.call): result(t, string) =>
+    switch (CompositionGo.Reply.add(t.reply, ~index, call)) {
+    | Ok(reply) =>
+      Ok({
+        ...t,
+        reply,
+      })
+    | Error(msg) => Error(msg)
+    };
+
+  let editor = (t: t): CellEditor.Model.t =>
+    switch (t.reply.made) {
+    | [] => t.start
+    | _ => showing(t.start, CompositionGo.Reply.program(t.reply))
+    };
+
+  let text_of = (seg: Segment.t): string =>
+    PersistentZipper.to_string(Zipper.unzip(seg)) ++ "\n";
+
+  /* the reply's tool results for its structural calls, by call index */
+  let results =
+      (
+        ~tool_call: int => OpenRouter.Reply.Model.tool_call,
+        t: t,
+        outcome: CompositionGo.Reply.outcome,
+      )
+      : list((int, AgentToolResult.tool_result)) => {
+    let root = t.reply.root;
+    List.map(
+      (m: CompositionGo.made) => {
+        let tc = tool_call(m.index);
+        let diff =
+          Option.map(
+            ((old_text, new_text)) =>
+              AgentToolResult.{
+                old_text,
+                new_text,
+              },
+            CompositionGo.diff(~root, m),
+          );
+        (
+          m.index,
+          AgentToolResult.{
+            tool_call: tc,
+            success: true,
+            skipped: false,
+            expanded: false,
+            diff,
+            before_text: Some(text_of(m.before)),
+            after_text: Some(text_of(m.change.program)),
+            content:
+              tc.name
+              ++ ": "
+              ++ Option.value(
+                   List.assoc_opt(m.index, outcome.reports),
+                   ~default="Applied.",
+                 ),
+            content_is_payload: true,
+            steps: CompositionGo.step_records(~root, m),
+          },
+        );
+      },
+      CompositionGo.Reply.made(t.reply),
+    );
+  };
+
+  /* the reply's end: its editor and its structural calls' results, or
+     its failure */
+  let finish =
+      (
+        ~settings: Settings.t,
+        ~tool_call: int => OpenRouter.Reply.Model.tool_call,
+        t: t,
+      )
+      : result(
+          (CellEditor.Model.t, list((int, AgentToolResult.tool_result))),
+          CompositionGo.Reply.failure,
+        ) =>
+    switch (CompositionGo.Reply.finish(t.reply)) {
+    | Error(f) => Error(f)
+    | Ok(outcome) =>
+      let ce = editor(t);
+      CachedStatics.offer(
+        ~settings=settings.core,
+        ce.editor.editor.state.zipper,
+        outcome.statics,
+      );
+      CodeWithStatics.StaticsDebounce.force_on_next := true;
+      Ok((ce, results(~tool_call, t, outcome)));
+    };
+
+  let failed =
+      (~tool_call: OpenRouter.Reply.Model.tool_call, ~before, content: string)
+      : AgentToolResult.tool_result => {
+    tool_call,
+    success: false,
+    skipped: false,
+    expanded: false,
+    diff: None,
+    before_text: before,
+    after_text: None,
+    content,
+    content_is_payload: false,
+    steps: [],
   };
 };

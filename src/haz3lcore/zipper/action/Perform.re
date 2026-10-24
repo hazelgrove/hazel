@@ -669,29 +669,7 @@ let rec go =
     )
     |> return(Cant_destruct)
   | Structural(a) =>
-    /* the editor's statics stand in for the tool's initial pass when they
-       describe this very program (CachedStatics.for_zipper); the new
-       program's statics are computed once and offered to the editor */
-    let run =
-      switch (CachedStatics.for_zipper(~settings, z, statics)) {
-      | Some(initial)
-          when initial.info_map != Language.Id.Map.empty && root == Sort.Exp =>
-        CompositionGo.Public.go_with_editor_statics(~settings, ~initial)
-      | _ => CompositionGo.Public.go(~root)
-      };
-    /* agent edits funnel pasted code through introduce with indentation
-       stripped; re-indent new lines like user Paste */
-    let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
-    let before_pieces =
-      LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
-    switch (run(~syntax, ~z, ~a)) {
-    | Ok(z) =>
-      Ok(
-        z
-        |> LocalReformat.go(~before)
-        |> LocalReformat.go_region(~before_pieces),
-      )
-    | Error(_) as e => e
-    };
+    /* the editing kernel's: formatting is local, so no re-indent after */
+    CompositionGo.Public.go(~settings, ~root, ~statics, z, a)
   };
 };

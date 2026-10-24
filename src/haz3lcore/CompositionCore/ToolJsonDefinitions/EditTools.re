@@ -672,3 +672,65 @@ let insert_test: API.Json.t =
       ]),
     ),
   ]);
+
+let move_description = {|
+Moves the entry at `target` to a new place, keeping its code, probes and identity. Give exactly one of `before`, `after`, `first_in`, `last_in`.
+`before` / `after`: next to the entry at that path. `first_in` / `last_in`: first or last among the entries a module holds (its members) or a value holds (the local definitions in its body); an empty string is the program's top level.
+Moving between a module and a let chain converts `;` and `in`.
+
+Example:
+```
+let area = fun s -> ⋱ in
+let total = fun xs -> ⋱ in
+module Geo = { let perimeter = ⋱; } in
+?
+```
+move(target="area", last_in="Geo") produces:
+```
+let total = fun xs -> ⋱ in
+module Geo = { let perimeter = ⋱; let area = fun s -> ⋱; } in
+?
+```
+|};
+
+let move: API.Json.t = {
+  let path = desc =>
+    `Assoc([("type", `String("string")), ("description", `String(desc))]);
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("move")),
+        ("description", `String(move_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                ("target", path("Path of the entry to move.")),
+                ("before", path("Path of the entry it goes before.")),
+                ("after", path("Path of the entry it goes after.")),
+                (
+                  "first_in",
+                  path(
+                    "Path of the module or value it goes first in; \"\" for the top level.",
+                  ),
+                ),
+                (
+                  "last_in",
+                  path(
+                    "Path of the module or value it goes last in; \"\" for the top level.",
+                  ),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("target")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+};

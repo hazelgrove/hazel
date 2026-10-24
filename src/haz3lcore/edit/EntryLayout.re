@@ -143,6 +143,40 @@ let space = (): Piece.t => Piece.Secondary(Secondary.mk_space(Id.mk()));
 let linebreak = (): Piece.t =>
   Piece.Secondary(Secondary.mk_newline(Id.mk()));
 
+/* pieces [l] then [r] would read as one token: new code beside them
+   takes a space */
+let fuse = (l: Piece.t, r: Piece.t): bool => {
+  let edge = (~first, p: Piece.t) =>
+    switch (p) {
+    | Tile(t) =>
+      Option.bind(
+        first ? ListUtil.hd_opt(t.shards) : ListUtil.last_opt(t.shards),
+        List.nth_opt(Tile.label(t)),
+      )
+    | Grout(_)
+    | Projector(_)
+    | Secondary(_) => None
+    };
+  switch (edge(~first=false, l), edge(~first=true, r)) {
+  | (Some(a), Some(b)) => Token.is_potential_token(Token.append(a, b))
+  | _ => false
+  };
+};
+
+/* [ps] put between [pre] and [post], a space at either side where it
+   would fuse with its neighbour */
+let unfused = (pre: Segment.t, ps: Segment.t, post: Segment.t): Segment.t => {
+  let ps =
+    switch (ListUtil.last_opt(pre), ListUtil.hd_opt(ps)) {
+    | (Some(l), Some(r)) when fuse(l, r) => [space(), ...ps]
+    | _ => ps
+    };
+  switch (ListUtil.last_opt(ps), ListUtil.hd_opt(post)) {
+  | (Some(l), Some(r)) when fuse(l, r) => ps @ [space()]
+  | _ => ps
+  };
+};
+
 /* the spacing after an item, for a new one beside it: as many
    linebreaks, or one space between items on a line */
 let spacing = (trail: Segment.t): Segment.t =>
@@ -767,13 +801,19 @@ let insert =
     | None => item
     };
   /* at [at], laid out like item [like], then [after] */
-  let splice = (at, like, after) =>
-    ListUtil.truncate(at, b.seg)
-    @ spaces(like)
-    @ item(like)
-    @ (member ? [fresh_semi()] : [])
-    @ after
-    @ ListUtil.remove_first_n(at, b.seg);
+  let splice = (at, like, after) => {
+    let (pre, post) = (
+      ListUtil.truncate(at, b.seg),
+      ListUtil.remove_first_n(at, b.seg),
+    );
+    pre
+    @ unfused(
+        pre,
+        spaces(like) @ item(like) @ (member ? [fresh_semi()] : []) @ after,
+        post,
+      )
+    @ post;
+  };
   switch (pos) {
   | After(k) when k == n - 1 =>
     /* the new last member: it takes the old last's terminator, which

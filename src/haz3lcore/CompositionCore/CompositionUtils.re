@@ -36,6 +36,7 @@ module Local = {
       EditTools.insert_after,
       EditTools.insert_before,
       EditTools.insert_test,
+      EditTools.move,
       WorkbenchTools.create_new_task,
       WorkbenchTools.set_active_task,
       WorkbenchTools.unset_active_task,
@@ -168,20 +169,29 @@ module Local = {
                   get_string(args, "code"),
                 ),
               )
+            /* without a path, at the program's start or end */
             | "insert_after" =>
-              /* Per-line leading-whitespace trim happens at the paste
-                 funnel, [[CompositionGo.PerformUtils.introduce]] */
-              let code = get_string(args, "code");
-              switch (get_optional_string(args, "path")) {
-              | Some(path) => EditorAction(Insert(After, path, code))
-              | None => InsertAtProgramBoundary(After, code)
-              };
+              EditorAction(
+                Insert(
+                  After,
+                  Option.value(
+                    get_optional_string(args, "path"),
+                    ~default="",
+                  ),
+                  get_string(args, "code"),
+                ),
+              )
             | "insert_before" =>
-              let code = get_string(args, "code");
-              switch (get_optional_string(args, "path")) {
-              | Some(path) => EditorAction(Insert(Before, path, code))
-              | None => InsertAtProgramBoundary(Before, code)
-              };
+              EditorAction(
+                Insert(
+                  Before,
+                  Option.value(
+                    get_optional_string(args, "path"),
+                    ~default="",
+                  ),
+                  get_string(args, "code"),
+                ),
+              )
             | "insert_test" =>
               EditorAction(
                 InsertTest(
@@ -189,6 +199,33 @@ module Local = {
                   get_string(args, "code"),
                 ),
               )
+            | "move" =>
+              /* exactly one place; an empty first_in / last_in is the
+                 program's top level */
+              let places =
+                List.filter_map(
+                  ((key, where): (string, Action.Structural.insert_target)) =>
+                    switch (API.Json.dot(key, args)) {
+                    | Some(`String(s)) => Some((where, String.trim(s)))
+                    | _ => None
+                    },
+                  [
+                    ("before", Before),
+                    ("after", After),
+                    ("first_in", FirstIn),
+                    ("last_in", LastIn),
+                  ],
+                );
+              switch (places) {
+              | [(where, dest)] =>
+                EditorAction(Move(get_string(args, "target"), where, dest))
+              | _ =>
+                raise(
+                  Failure(
+                    "move takes exactly one of before, after, first_in, last_in",
+                  ),
+                )
+              };
             | "delete_binding_clause" =>
               EditorAction(Delete(BindingClause, get_string(args, "path")))
             | "delete_body" =>

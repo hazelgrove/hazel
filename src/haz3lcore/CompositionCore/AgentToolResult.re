@@ -60,6 +60,27 @@ let diff_of_sexp = sexp =>
     ),
   );
 
+/* one kernel step of a reply's structural call (EntryEdit.step), for a
+   replay to step through: the entry by canonical path before and after
+   the step, and the ids it touched, valid in the session that made them
+   (the snapshots are text, which keeps no ids) */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type step = {
+  op: string,
+  [@yojson.default None] [@sexp.default None]
+  from: option(string),
+  [@yojson.default None] [@sexp.default None]
+  into: option(string),
+  [@yojson.default []] [@sexp.default []]
+  added: list(Id.t),
+  [@yojson.default []] [@sexp.default []]
+  removed: list(Id.t),
+  [@yojson.default []] [@sexp.default []]
+  moved: list(Id.t),
+  [@yojson.default []] [@sexp.default []]
+  replaced: list((Id.t, Id.t)),
+};
+
 let skipped_due_to_prior_failure_message = "This tool was not executed because an earlier tool call in the same assistant turn failed.";
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -82,6 +103,9 @@ type tool_result = {
      it verbatim instead of the generic success acknowledgment. */
   [@yojson.default false] [@sexp.default false]
   content_is_payload: bool,
+  /* a structural call's kernel steps, in order */
+  [@yojson.default []] [@sexp.default []]
+  steps: list(step),
 };
 
 let tool_result_of_sexp = sexp =>
@@ -105,6 +129,7 @@ let mk_skipped = (tool_call: OpenRouter.Reply.Model.tool_call): tool_result => {
   after_text: None,
   content: skipped_due_to_prior_failure_message,
   content_is_payload: false,
+  steps: [],
 };
 
 /* a snapshot back into syntax (timeline navigation) */

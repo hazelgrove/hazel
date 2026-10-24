@@ -535,12 +535,21 @@ let root_id = (ps: Segment.t): option(Id.t) =>
   };
 
 /* parts of a definition, for planners and path resolvers: its head, its
-   pattern's node and its definition's */
+   pattern's node, its definition's, and its body's: the definition past
+   its `fun` heads */
 [@deriving (show({with_path: false}), eq)]
 type part =
   | Head
   | Pattern
-  | Definition;
+  | Definition
+  | Body;
+
+let rec past_fun_heads = (ps: Segment.t): Segment.t =>
+  switch (ps) {
+  | [p, ...rest] when Piece.is_secondary(p) || L.is_fun_head(p) =>
+    past_fun_heads(rest)
+  | _ => ps
+  };
 
 let part =
     (~root: Sort.t, head: Id.t, part: part, seg: Segment.t): option(Id.t) =>
@@ -550,6 +559,8 @@ let part =
     | Head => Some(t.id)
     | Pattern => root_id(Nav.pat_of(t))
     | Definition => Option.bind(Nav.def_at(at), root_id)
+    | Body =>
+      Option.bind(Nav.def_at(at), def => root_id(past_fun_heads(def)))
     }
   | _ => None
   };
@@ -1042,10 +1053,11 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step =>
         ~some=src => L.item_indent(e.b, e.j) - src,
         src_indent,
       );
-    let level =
-      ListUtil.truncate(at, e.b.seg)
-      @ L.shift_by(shift, item)
-      @ ListUtil.remove_first_n(e.b.sl[e.j].core, e.b.seg);
+    let (pre, post) = (
+      ListUtil.truncate(at, e.b.seg),
+      ListUtil.remove_first_n(e.b.sl[e.j].core, e.b.seg),
+    );
+    let level = pre @ L.unfused(pre, L.shift_by(shift, item), post) @ post;
     let row = L.row_id(item);
     done_(
       ~replaced=[(x, Option.value(row, ~default=x))],
@@ -1067,10 +1079,11 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): step =>
     let ps = need(~id=x, Unreadable, parse_at(n.sort, txt));
     let indent =
       Option.value(Nav.line_indent(~root=c.root, x, seg), ~default=0);
-    let level =
-      ListUtil.truncate(n.lo, n.level)
-      @ L.shift_by(indent, ps)
-      @ ListUtil.remove_first_n(n.hi + 1, n.level);
+    let (pre, post) = (
+      ListUtil.truncate(n.lo, n.level),
+      ListUtil.remove_first_n(n.hi + 1, n.level),
+    );
+    let level = pre @ L.unfused(pre, L.shift_by(indent, ps), post) @ post;
     let made = Option.value(root_id(ps), ~default=x);
     done_(
       ~replaced=[(x, made)],
@@ -1088,8 +1101,87 @@ let run = (c: ctx, seg: Segment.t, op: op): step =>
   | Move(x, place) => move(c, op, x, place, seg)
   };
 
+/* the plain tokens among [ops]' leading Token replacements, by id, and the
+   ops after them: a rename's run, relabeled in one walk */
+let token_run =
+    (c: ctx, seg: Segment.t, ops: list(op))
+    : (list((Id.t, string, list(Nav.step))), list(op)) => {
+  let rec go = (acc, ops) =>
+    switch (ops) {
+    | [Replace(x, Token(txt)), ...rest] =>
+      switch (Nav.find_path(~root=c.root, x, seg)) {
+      | Some(path) =>
+        let st = ListUtil.last(path);
+        switch (st.lv.pieces[st.i]) {
+        | Tile({form: Tok(_), id, _}) when id == x =>
+          go([(x, txt, path), ...acc], rest)
+        | _ => (List.rev(acc), ops)
+        };
+      | None => (List.rev(acc), ops)
+      }
+    | _ => (List.rev(acc), ops)
+    };
+  go([], ops);
+};
+
+/* [seg] with each token of [run] given its text, ids kept: one walk down
+   the paths to them, so only the pieces on those paths are re-made */
+let relabel = (run: list((Id.t, string, list(Nav.step))), seg: Segment.t) => {
+  let texts =
+    List.fold_left(
+      (m, (x, txt, _)) => Id.Map.add(x, txt, m),
+      Id.Map.empty,
+      run,
+    );
+  let on_path =
+    List.fold_left(
+      (s, (_, _, path)) =>
+        List.fold_left(
+          (s, st: Nav.step) => Id.Set.add(Piece.id(st.lv.pieces[st.i]), s),
+          s,
+          path,
+        ),
+      Id.Set.empty,
+      run,
+    );
+  let rec walk = (ps: Segment.t) => Nav.map_sharing(piece, ps)
+  and piece = (p: Piece.t) =>
+    switch (p) {
+    | Tile(t) when Id.Set.mem(t.id, on_path) =>
+      let children = Nav.map_sharing(walk, t.children);
+      switch (t.form, Id.Map.find_opt(t.id, texts)) {
+      | (Tok(_), Some(txt)) =>
+        Piece.Tile({
+          ...t,
+          form: Tok(txt),
+          children,
+        })
+      | _ =>
+        children === t.children
+          ? p
+          : Piece.Tile({
+              ...t,
+              children,
+            })
+      };
+    | Projector(pr) when Id.Set.mem(pr.id, on_path) =>
+      switch (walk([pr.syntax])) {
+      | [syntax] when syntax !== pr.syntax =>
+        Piece.Projector({
+          ...pr,
+          syntax,
+        })
+      | _ => p
+      }
+    | _ => p
+    };
+  walk(seg);
+};
+
 /* [ops] in order on the program [seg] (at [root]), each on the one before
-   it left: all of them, or the first refusal and nothing */
+   it left: all of them, or the first refusal and nothing. A run of plain
+   token replacements is one walk, its steps all carrying the program
+   after the run */
 let transaction =
     (~root: Sort.t, seg: Segment.t, ops: list(op)): result(change, refusal) => {
   let c = {
@@ -1109,14 +1201,36 @@ let transaction =
           },
       })
     | [op, ...rest] =>
-      switch (run(c, seg, op)) {
-      | step => go(k + 1, step.program, [step, ...steps], rest)
-      | exception (Refused(reason, id)) =>
-        Error({
-          reason,
-          id,
-          op: k,
-        })
+      switch (token_run(c, seg, ops)) {
+      | ([_, _, ..._] as run, rest) =>
+        let program = relabel(run, seg);
+        let made =
+          List.map(
+            ((x, txt, _)) =>
+              done_(
+                ~replaced=[(x, x)],
+                ~focus=Some(x),
+                Replace(x, Token(txt)),
+                program,
+              ),
+            run,
+          );
+        go(
+          k + List.length(run),
+          program,
+          List.rev_append(made, steps),
+          rest,
+        );
+      | _ =>
+        switch (run(c, seg, op)) {
+        | step => go(k + 1, step.program, [step, ...steps], rest)
+        | exception (Refused(reason, id)) =>
+          Error({
+            reason,
+            id,
+            op: k,
+          })
+        }
       }
     };
   go(0, seg, [], ops);

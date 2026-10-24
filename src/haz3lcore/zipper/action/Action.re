@@ -94,38 +94,43 @@ type buffer =
 type paste = string;
 
 module Structural = {
-  /* A path identifies a let/type-alias binding by name, using `/` to
-     address nested bindings (e.g. "a", "a/inner"). Resolved against
-     the HighLevelNodeMap. */
+  /* A path names an entry (EntryPath): a binding by name, `/` (or `.`)
+     descending into a module's members or a definition's body ("a",
+     "a/inner", "M/helper"), a test by its hint string, `test#k`. */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type path = string;
 
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type code = string;
 
-  /* Which sub-expression of a binding to target */
+  /* Which part of a binding to target */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type target =
-    | Definition /* RHS of `=`, before `in` */
-    | Body /* expression after `in` */
-    | Pattern /* LHS of `=`, after `let`/`type`; updates also rename use sites */
-    | BindingClause; /* entire `let ... = ... in` / `type ... = ... in` */
+    | Definition /* RHS of `=` */
+    | Body /* what follows the binding after its `in` */
+    | Pattern /* LHS of `=`; a single new name renames the binder and its uses */
+    | BindingClause; /* the whole entry */
 
-  /* Where to insert relative to the target binding */
+  /* Where, relative to an entry: beside it, or first or last among the
+     entries it holds (a module's members, a value's body). With an empty
+     path, the program's start or end */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type insert_target =
-    | After /* insert within body (after target binding) */
-    | Before; /* insert before target binding (wrapping around it) */
+    | After
+    | Before
+    | FirstIn
+    | LastIn;
 
-  /* Targeted structural edits on bindings identified by path */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Update(target, path, code)
     | Delete(target, path)
     | Insert(insert_target, path, code)
     /* `test code end` after the binding at path and the tests directly
-       following it; with no path, after the program's last item */
-    | InsertTest(option(path), code);
+       following it; with no path, at the program's end */
+    | InsertTest(option(path), code)
+    /* the entry at the first path to the place the second names */
+    | Move(path, insert_target, path);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
