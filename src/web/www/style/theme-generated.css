@@ -252,6 +252,7 @@
   --token-buffer: oklch(85% 0.07 90);
   --token-comment: oklch(80% 0.05 150);
   --token-drv: oklch(60.1% 0.1005 150);
+  --token-escape: oklch(60.1% 0.1005 150);
   --token-exp: oklch(52% 0.03 220);
   --token-explicit-hole: oklch(88% 0.2 95);
   --token-explicit-hole-shadow: oklch(0% 0 0);
@@ -265,7 +266,6 @@
   --token-secondary: oklch(94% 0.025 90);
   --token-sig: oklch(60% 0.2 300);
   --token-string-lit: oklch(71% 0.2 95);
-  --token-escape: oklch(60.1% 0.1005 150);
   --token-tpat: oklch(60% 0.2 225);
   --token-typ: oklch(60% 0.2 300);
   --ui-bkg: oklch(97% 0.025 90);

@@ -323,6 +323,7 @@ let aliases: list(((string, string), list(string))) = [
   (("palette", "textarea-rule"), ["textarea-h-stripe"]),
   (("palette", "textarea-rule-selected"), ["textarea-h-strip-selected"]),
   (("editor", "string"), ["token-string-lit", "token-incomplete"]),
+  (("editor", "string-escape"), ["token-escape"]),
   (("editor", "comment"), ["token-comment"]),
   (("editor", "selection"), ["shard-selected"]),
   (
