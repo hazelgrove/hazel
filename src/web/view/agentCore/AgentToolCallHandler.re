@@ -51,6 +51,7 @@ let definition_id = (~root, seg, path: string): option(Id.t) =>
 
 let apply_overlay_action =
     (
+      ~settings: Settings.t,
       ~tool_label: string,
       ~resolve_path: (~root: Sort.t, Segment.t, string) => option(Id.t),
       ~perform:
@@ -64,10 +65,36 @@ let apply_overlay_action =
     : Result.t((Model.t, CodeWithStatics.Model.t)) => {
   let z = editor.editor.state.zipper;
   let root = editor.editor.root;
-  let info_map = CompositionGo.Public.mk_statics(~root, z);
   let seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
+  /* the editor's statics when they describe this program, else per item
+     (DefStatics), as the edit check computes them */
+  let info_map =
+    switch (
+      CachedStatics.for_zipper(~settings=settings.core, z, editor.statics)
+    ) {
+    | Some(st) when st.info_map != Id.Map.empty => st.info_map
+    | _ =>
+      CompositionGo.statics_of(
+        ~settings=settings.core,
+        ~root,
+        ~probe_ids=CachedStatics.probe_ids_of_zipper(z),
+        ~shared=editor.editor.syntax.t_cache,
+        seg,
+      ).
+        info_map
+    };
 
-  let syntax = CachedSyntax.init(~root, z);
+  /* the editor's syntax when it describes [z], else made with its
+     incremental caches */
+  let syntax = {
+    let s = editor.editor.syntax;
+    let (relatives, selection, _) = s.zipped;
+    !s.old && relatives === z.relatives && selection === z.selection
+      ? s
+      : Util.PerfTimer.time("syntax", () =>
+          CachedSyntax.init(~root, ~m_cache=s.m_cache, ~t_cache=s.t_cache, z)
+        );
+  };
   let (new_z, paths_to_expand, n_changed, unresolved) =
     List.fold_left(
       ((z, expanded, n_changed, unresolved), path) =>
@@ -101,7 +128,16 @@ let apply_overlay_action =
     );
   } else {
     let new_z = Materialize.all(new_z, ~root);
-    let new_editor_model = Editor.Model.mk(new_z, ~root);
+    /* the editor's syntax, marked for its recalculation, keeps its
+       caches */
+    let new_editor_model = {
+      ...editor.editor,
+      state: {
+        zipper: new_z,
+        col_target: None,
+      },
+      syntax: CachedSyntax.mark_old(editor.editor.syntax),
+    };
     let new_cws =
       CodeWithStatics.Model.mk(~dynamics=editor.dynamics, new_editor_model);
 
@@ -252,6 +288,7 @@ let update =
       | ToggleProbe(p) => p
       };
     apply_overlay_action(
+      ~settings,
       ~tool_label="Probe",
       ~resolve_path=entry_id,
       ~perform=
@@ -282,6 +319,7 @@ let update =
       | ToggleStatics(p) => p
       };
     apply_overlay_action(
+      ~settings,
       ~tool_label="Statics",
       ~resolve_path=entry_id,
       ~perform=
@@ -323,6 +361,7 @@ let update =
       | RemoveSyntaxProjector(p) => p
       };
     apply_overlay_action(
+      ~settings,
       ~tool_label="Syntax projector",
       ~resolve_path=definition_id,
       ~perform=

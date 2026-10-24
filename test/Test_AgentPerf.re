@@ -10,90 +10,99 @@ open Web;
 
 /* [warm]: the editor's statics as the editor makes them, per item, so
    their caches are warm; else whole-program statics */
+/* AGENT_PERF_ONLY=a,b: just those tools */
+let wanted = (name: string): bool =>
+  switch (Sys.getenv_opt("AGENT_PERF_ONLY")) {
+  | Some(only) when only != "" =>
+    List.mem(name, String.split_on_char(',', only))
+  | _ => true
+  };
+
 let reply_ms =
-    (~root=Sort.Exp, ~warm, ~file, name: string, args: Yojson.Safe.t) => {
-  let settings = Settings.Model.init;
-  let z = Zipper.unzip(CorpusUtil.mega_seg(~root, file));
-  let t_st = PerfTimer.now();
-  let statics =
-    warm
-      ? CachedStatics.init_compositional(
-          ~settings=settings.core,
-          ~stitch=x => x,
-          ~root,
-          z,
-        )
-      : CachedStatics.init(
-          ~settings=settings.core,
-          ~is_dynamic_term=false,
-          ~stitch=x => x,
-          ~root,
-          z,
-        );
-  let cell_editor: CellEditor.Model.t = {
-    editor: CodeWithStatics.Model.mk(~statics, Editor.Model.mk(z, ~root)),
-    result: EvalResult.Model.init,
-  };
-  Printf.printf(
-    "AgentPerf %s (%s): editor statics %.0f ms\n%!",
-    file,
-    warm ? "per item" : "whole",
-    PerfTimer.now() -. t_st,
-  );
-  let agent = Agent.Utils.init();
-  let reply: OpenRouter.Reply.Model.t = {
-    content: "",
-    tool_calls: [
-      {
-        id: "perf",
-        name,
-        args,
-      },
-    ],
-    usage: None,
-    reasoning: None,
-  };
-  PerfTimer.reset();
-  let t0 = PerfTimer.now();
-  let (agent', _) =
-    Agent.Update.update(
-      Agent.Update.Action.HandleLLMResponse(
-        reply,
-        agent.chat_system.current,
-        agent.main_llm_seq,
-        0,
-      ),
-      agent,
-      cell_editor,
-      settings,
-      _ =>
-      ()
+    (~root=Sort.Exp, ~warm, ~file, name: string, args: Yojson.Safe.t) =>
+  if (wanted(name)) {
+    let settings = Settings.Model.init;
+    let z = Zipper.unzip(CorpusUtil.mega_seg(~root, file));
+    let t_st = PerfTimer.now();
+    let statics =
+      warm
+        ? CachedStatics.init_compositional(
+            ~settings=settings.core,
+            ~stitch=x => x,
+            ~root,
+            z,
+          )
+        : CachedStatics.init(
+            ~settings=settings.core,
+            ~is_dynamic_term=false,
+            ~stitch=x => x,
+            ~root,
+            z,
+          );
+    let cell_editor: CellEditor.Model.t = {
+      editor: CodeWithStatics.Model.mk(~statics, Editor.Model.mk(z, ~root)),
+      result: EvalResult.Model.init,
+    };
+    Printf.printf(
+      "AgentPerf %s (%s): editor statics %.0f ms\n%!",
+      file,
+      warm ? "per item" : "whole",
+      PerfTimer.now() -. t_st,
     );
-  let ms = PerfTimer.now() -. t0;
-  let phases = PerfTimer.take_summary();
-  let chat =
-    ChatSystem.Utils.find_chat(
-      agent'.chat_system.current,
-      agent'.chat_system,
-    );
-  let ok =
-    List.exists(
-      (m: Message.Model.t) =>
-        switch (m.role) {
-        | ToolResult(tr) => tr.success
-        | _ => false
+    let agent = Agent.Utils.init();
+    let reply: OpenRouter.Reply.Model.t = {
+      content: "",
+      tool_calls: [
+        {
+          id: "perf",
+          name,
+          args,
         },
-      Chat.Utils.linearize(chat),
+      ],
+      usage: None,
+      reasoning: None,
+    };
+    PerfTimer.reset();
+    let t0 = PerfTimer.now();
+    let (agent', _) =
+      Agent.Update.update(
+        Agent.Update.Action.HandleLLMResponse(
+          reply,
+          agent.chat_system.current,
+          agent.main_llm_seq,
+          0,
+        ),
+        agent,
+        cell_editor,
+        settings,
+        _ =>
+        ()
+      );
+    let ms = PerfTimer.now() -. t0;
+    let phases = PerfTimer.take_summary();
+    let chat =
+      ChatSystem.Utils.find_chat(
+        agent'.chat_system.current,
+        agent'.chat_system,
+      );
+    let ok =
+      List.exists(
+        (m: Message.Model.t) =>
+          switch (m.role) {
+          | ToolResult(tr) => tr.success
+          | _ => false
+          },
+        Chat.Utils.linearize(chat),
+      );
+    Printf.printf(
+      "AgentPerf %s %s: %.0f ms%s\n  %s\n%!",
+      file,
+      name,
+      ms,
+      ok ? "" : " (FAILED)",
+      phases,
     );
-  Printf.printf(
-    "AgentPerf %s %s: %.0f ms%s\n  %s\n%!",
-    file,
-    name,
-    ms,
-    ok ? "" : " (FAILED)",
-    phases,
-  );
-};
+  };
 
 let s = (k, v) => (k, `String(v));
 
@@ -127,6 +136,9 @@ let run = () =>
       "update_pattern",
       `Assoc([s("path", "Text/int_to_text"), s("code", "int_text")]),
     );
+    let paths = `Assoc([("paths", `List([`String("Text/int_to_text")]))]);
+    reply_ms(~warm, ~file="mega-4k.hz", "place_probe", paths);
+    reply_ms(~warm, ~file="mega-4k.hz", "place_statics", paths);
   };
 
 let tests = [

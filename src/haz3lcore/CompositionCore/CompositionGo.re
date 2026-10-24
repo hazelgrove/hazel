@@ -49,22 +49,25 @@ let mk_statics = (~root=Sort.Exp, z: Zipper.t): StaticsBase.Map.t =>
   mk_statics_with(~root, CoreSettings.on, z);
 
 /* per-item statics (DefStatics): an edit re-analyzes the items it changed
-   and those that depend on them */
+   and those that depend on them. [shared]: the editor's parse cache, whose
+   item parses stand in for parsing the same pieces again */
 let statics_of =
     (
       ~settings: CoreSettings.t,
       ~root: Sort.t,
       ~probe_ids: Id.Map.t(unit),
+      ~shared=?,
       seg: Segment.t,
     )
-    : CachedStatics.t =>
+    : CachedStatics.t => {
+  let term =
+    PerfTimer.time("statics/parse", () =>
+      MakeTerm.semantic_term(~root, ~shared?, seg)
+    );
   PerfTimer.time("statics", () =>
-    CachedStatics.init_compositional_term(
-      ~settings,
-      ~probe_ids,
-      MakeTerm.semantic_term(~root, seg),
-    )
+    CachedStatics.init_compositional_term(~settings, ~probe_ids, term)
   );
+};
 
 /* ---- the code a call brings ---- */
 
@@ -949,6 +952,60 @@ module Reply = {
     );
   };
 
+  /* an error's kind: its marks', by rank */
+  let error_kind = (info_map, id: Id.t): string =>
+    switch (Id.Map.find_opt(id, info_map)) {
+    | Some(Info.InfoDrv(_)) => "drv"
+    | Some(info) =>
+      Info.marks_of(info)
+      |> List.map(m => string_of_int(Mark.Variants.to_rank(m)))
+      |> List.sort_uniq(compare)
+      |> String.concat(",")
+    | None => "?"
+    };
+
+  /* the errors of [final] that [before] didn't have: by the erring term's
+     id and kind, or, for a term the reply replaced (its id gone), by its
+     entry's path and kind, one before for each after */
+  let new_errors =
+      (r: t, ~before: CachedStatics.t, ~final: CachedStatics.t): list(Id.t) => {
+    let kind_before = error_kind(before.info_map);
+    let kind_after = error_kind(final.info_map);
+    let had =
+      List.map(id => (id, kind_before(id)), before.error_ids)
+      |> List.to_seq
+      |> Hashtbl.of_seq;
+    let by_path = Hashtbl.create(16);
+    List.iter(
+      id =>
+        Hashtbl.add(
+          by_path,
+          (where_is(~root=r.root, r.start, id), kind_before(id)),
+          (),
+        ),
+      before.error_ids,
+    );
+    let seg = program(r);
+    List.filter(
+      id => {
+        let kind = kind_after(id);
+        switch (Hashtbl.find_opt(had, id)) {
+        | Some(k) when k == kind => false
+        | _ when Id.Map.mem(id, before.info_map) => true
+        | _ =>
+          let key = (where_is(~root=r.root, seg, id), kind);
+          Hashtbl.mem(by_path, key)
+            ? {
+              Hashtbl.remove(by_path, key);
+              false;
+            }
+            : true;
+        };
+      },
+      final.error_ids,
+    );
+  };
+
   type outcome = {
     program: Segment.t,
     statics: CachedStatics.t,
@@ -969,8 +1026,8 @@ module Reply = {
       let seg = program(r);
       let final = Lazy.force(r.statics);
       let before = Lazy.force(r.start_statics);
-      let had = Id.Set.of_list(before.error_ids);
-      let fresh = List.filter(id => !Id.Set.mem(id, had), final.error_ids);
+      let fresh =
+        PerfTimer.time("new errors", () => new_errors(r, ~before, ~final));
       let (n0, n1) = (
         List.length(before.error_ids),
         List.length(final.error_ids),
@@ -982,9 +1039,9 @@ module Reply = {
         | None =>
           switch (capture(r, final)) {
           | Some(f) => Error(f)
-          | None when r.checks.no_new_errors && n1 > n0 =>
+          | None when r.checks.no_new_errors && fresh != [] =>
             Error({
-              index: author(r, List.hd(fresh @ final.error_ids)).index,
+              index: author(r, List.hd(fresh)).index,
               message:
                 "Not applied: it would add static errors ("
                 ++ string_of_int(n0)

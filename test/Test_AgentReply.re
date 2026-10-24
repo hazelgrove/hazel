@@ -177,6 +177,43 @@ let transactions = [
     },
   ),
   test_case(
+    "fixing one error doesn't pay for another",
+    `Quick,
+    () => {
+      let code = "let a = true + 1 in let b = 2 in b";
+      let (program, results) =
+        reply(
+          code,
+          [
+            ("update_definition", [("path", "a"), ("code", "1")]),
+            ("update_definition", [("path", "b"), ("code", "false + 2")]),
+          ],
+        );
+      same_text("program unchanged", code, program);
+      let second = List.nth(results, 1);
+      check(bool, "the call adding it failed", false, second.success);
+      mentions("its result", "1 before, 1 after", second.content);
+      mentions("its result", "- b:", second.content);
+    },
+  ),
+  test_case(
+    "an error restated where it was is not new",
+    `Quick,
+    () => {
+      let (program, results) =
+        reply(
+          "let a = true + 1 in a",
+          [("update_definition", [("path", "a"), ("code", "true + 2")])],
+        );
+      same_text("applied", "let a = true + 2 in a", program);
+      mentions(
+        "result",
+        "Static errors: 1 (1 before), none new.",
+        List.hd(results).content,
+      );
+    },
+  ),
+  test_case(
     "the checks switch off, for ablation",
     `Quick,
     () => {
