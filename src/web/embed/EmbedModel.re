@@ -188,6 +188,43 @@ module Update = {
          ~is_dynamic_term=false,
        );
 
+  /* A module's body shown alone, its indentation written as it would be
+     inside the module's braces, less those braces' step: Hazel puts a line
+     after a member's `;` one step inside the braces, and the first member,
+     before any `;`, at the body's own level, so each member after the first
+     stood two spaces in from it (Matthew 2026-10-23: "on_event should not
+     be indented this much") */
+  let reindent_body = (z: Zipper.t): Zipper.t => {
+    let seg = Zipper.unselect_and_zip(z);
+    let rec breaks = (seg: Segment.t): list(Id.t) =>
+      List.concat_map(
+        (p: Piece.t) =>
+          switch (p) {
+          | Secondary(w) when Secondary.is_linebreak(w) => [w.id]
+          | Tile(t) => List.concat_map(breaks, t.children)
+          | _ => []
+          },
+        seg,
+      );
+    let (_, after) =
+      List.fold_left(
+        ((past, ids), p: Piece.t) =>
+          (
+            past || Indentation.is_module_semi(p),
+            past ? breaks([p]) @ ids : ids,
+          ),
+        (false, []),
+        seg,
+      );
+    let map =
+      List.fold_left(
+        (map, id) => Id.Map.update(id, Option.map(n => max(0, n - 2)), map),
+        Indentation.level_map(seg),
+        after,
+      );
+    ZipperBase.MapSegment.go(Indentation.fix_indentation_in_segment(map), z);
+  };
+
   /* Leading spaces are dropped from each line, as for a slide's source,
      and the indentation written again as Hazel's Format(Indent) writes it
      (Matthew 2026-10-23: "indentation on RHS (hazel tiles) is missing
@@ -348,7 +385,7 @@ module Update = {
           ? mod_cell(~ctx, model.cell.editor)
           : mod_cell(
               ~ctx,
-              Editor.Model.mk(Perform.reindent_zipper(body), ~root=Sort.Mod),
+              Editor.Model.mk(reindent_body(body), ~root=Sort.Mod),
             );
       {
         ...model,
