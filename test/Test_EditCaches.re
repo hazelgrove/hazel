@@ -3,7 +3,7 @@ open Web;
 open Haz3lcore;
 
 /* An outline op builds a new editor for its program, and a paste
-   rebuilds every tile when it re-indents its lines. The editor takes the
+   re-indents its lines by mapping the whole program. The editor takes the
    live one's caches, and the pieces the edit didn't change stay the live
    program's objects, so the parse, the measure and the analysis redo only
    what it changed, and so does the undo of a paste (UndoCaches) */
@@ -203,10 +203,9 @@ let paste_undo = (~root: Sort.t, ()) => {
   );
 };
 
-/* the restore only gives back objects: an editor's program with every tile
-   rebuilt (as re-indenting a paste's lines rebuilds them) comes back as
-   its own pieces, the same program */
-let restore_content = () => {
+/* a map that changes nothing (as re-indenting a paste's lines leaves
+   the rest of the program) gives back the program's own objects */
+let map_keeps = () => {
   let src = OM.src(~root=Mod);
   let m = Cells.run(OM.mk(~root=Mod, src), Refresh);
   let m =
@@ -215,30 +214,13 @@ let restore_content = () => {
       Globals(ActiveEditor(Move(Point(OM.after(src, "    end;"), None)))),
     );
   let z = UC.editor(m).editor.editor.state.zipper;
-  let rebuilt = ZipperBase.MapSegment.go(seg => seg, z);
-  check(
-    bool,
-    "rebuilt",
-    false,
-    Segment.ptr_eq(
-      fst(rebuilt.relatives.siblings),
-      fst(z.relatives.siblings),
-    ),
-  );
-  let restored = Zipper.restore_identity(~old=z, rebuilt);
-  check(bool, "the same zipper", true, compare(restored, z) == 0);
+  let mapped = ZipperBase.MapSegment.go(seg => seg, z);
   check(
     bool,
     "its own pieces",
     true,
-    Segment.ptr_eq(
-      fst(restored.relatives.siblings),
-      fst(z.relatives.siblings),
-    )
-    && Segment.ptr_eq(
-         snd(restored.relatives.siblings),
-         snd(z.relatives.siblings),
-       ),
+    fst(mapped.relatives.siblings) === fst(z.relatives.siblings)
+    && snd(mapped.relatives.siblings) === snd(z.relatives.siblings),
   );
 };
 
@@ -271,9 +253,9 @@ let tests = (
     ),
     test_case("the same at an Exp root", `Quick, paste_undo(~root=Exp)),
     test_case(
-      "restoring identity keeps the program",
+      "a map that changes nothing keeps the program",
       `Quick,
-      restore_content,
+      map_keeps,
     ),
   ],
 );

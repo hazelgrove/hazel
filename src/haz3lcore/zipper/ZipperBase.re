@@ -123,22 +123,29 @@ let sibs_with_sel =
 module MapPiece = {
   type updater = Piece.t => Segment.t;
 
+  /* what [f] leaves alone comes back as the same objects */
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
+    let next = seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
+    Segment.ptr_eq(seg, next) ? seg : next;
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
-    | Tile(t) => Tile(of_tile(f, t))
+    | Tile(t) =>
+      let next = of_tile(f, t);
+      next === t ? piece : Tile(next);
     | Grout(_)
     | Projector(_)
     | Secondary(_) => piece
     };
   }
   and of_tile = (f: updater, t: Tile.t): Tile.t => {
-    {
-      ...t,
-      children: List.map(of_segment(f), t.children),
-    };
+    let children = List.map(of_segment(f), t.children);
+    List.for_all2((===), t.children, children)
+      ? t
+      : {
+        ...t,
+        children,
+      };
   };
 
   let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
