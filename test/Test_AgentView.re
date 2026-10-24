@@ -423,4 +423,186 @@ let open_set_tests = [
   ),
 ];
 
-let tests = ("AgentView", format_tests @ open_set_tests);
+/* what a request records is what its payload carries */
+module W = Web;
+
+let cws_of = (src: string): W.CodeWithStatics.Model.t => {
+  let (_, z, st) = program(src);
+  {
+    ...W.CodeWithStatics.Model.mk(Editor.Model.mk(z, ~root=Exp)),
+    statics: st,
+  };
+};
+
+/* the context refreshed from [cws] and a request sent */
+let send = (agent: W.Agent.Model.t, cws: W.CodeWithStatics.Model.t) => {
+  let chat_id = agent.chat_system.current;
+  let agent =
+    W.AgentUtils.update_context(
+      ~session_mode=W.AgentGlobals.Model.Edit,
+      agent,
+      cws,
+      chat_id,
+    );
+  let (agent, messages) = W.AgentSend.main_request(chat_id, agent);
+  (
+    agent,
+    messages,
+    W.ChatSystem.Utils.find_chat(chat_id, agent.chat_system),
+  );
+};
+
+let content = (m: Util.OpenRouter.Message.Model.t): string => m.content;
+
+let record_tests = [
+  test_case(
+    "the record holds the context as sent",
+    `Quick,
+    () => {
+      let agent = W.Agent.Utils.init();
+      let cws = cws_of("let a = 1 in\nlet b = a + 1 in\nb");
+      let (_, messages, chat) = send(agent, cws);
+      let r = Option.get(Util.ListUtil.last_opt(chat.sent));
+      check(
+        string,
+        "view = the payload's context",
+        content(Util.ListUtil.last(messages)),
+        r.view,
+      );
+      check(
+        option(string),
+        "the program",
+        Some(W.SentView.text_of_zipper(cws.editor.state.zipper)),
+        W.Chat.Utils.sent_text(chat, r),
+      );
+    },
+  ),
+  test_case(
+    "an unchanged program is stored once",
+    `Quick,
+    () => {
+      let agent = W.Agent.Utils.init();
+      let cws = cws_of("let a = 1 in\na");
+      let (agent, _, _) = send(agent, cws);
+      let (_, _, chat) = send(agent, cws);
+      switch (chat.sent) {
+      | [first, second] =>
+        check(bool, "first holds text", true, first.program != Unchanged);
+        check(bool, "second refers back", true, second.program == Unchanged);
+        check(
+          option(string),
+          "second reads the text",
+          W.Chat.Utils.sent_text(chat, first),
+          W.Chat.Utils.sent_text(chat, second),
+        );
+      | rs => fail(Printf.sprintf("%d records", List.length(rs)))
+      };
+    },
+  ),
+  test_case(
+    "the open set is recorded with its paths",
+    `Quick,
+    () => {
+      let agent = W.Agent.Utils.init();
+      let chat_id = agent.chat_system.current;
+      let cws = cws_of("let a = 1 in\nlet b = 2 in\na");
+      let o =
+        Outline.of_program(
+          ~root=Exp,
+          Zipper.unselect_and_zip(cws.editor.state.zipper),
+        );
+      let opened =
+        switch (AgentContext.Update.resolve(o, Expand(["b"]))) {
+        | Ok(r) => r
+        | Error(e) => fail(e)
+        };
+      let agent = {
+        ...agent,
+        chat_system:
+          W.ChatSystem.Update.update(
+            ChatAction(AgentContextAction(opened), chat_id),
+            agent.chat_system,
+          )
+          |> W.ChatSystem.Update.get,
+      };
+      let (_, _, chat) = send(agent, cws);
+      let r = Option.get(Util.ListUtil.last_opt(chat.sent));
+      check(
+        list(string),
+        "opened",
+        ["b"],
+        List.map((e: AgentContext.Model.entry) => e.path, r.opened),
+      );
+      check(
+        bool,
+        "the view shows it",
+        true,
+        Util.StringUtil.plain_search("# open: b #", r.view, 0) >= 0,
+      );
+    },
+  ),
+  test_case(
+    "records persist with the chat",
+    `Quick,
+    () => {
+      let agent = W.Agent.Utils.init();
+      let (_, _, chat) = send(agent, cws_of("let a = 1 in\na"));
+      let back = W.Chat.Model.t_of_sexp(W.Chat.Model.sexp_of_t(chat));
+      check(int, "records", 1, List.length(back.sent));
+      check(
+        string,
+        "view",
+        List.hd(chat.sent).view,
+        List.hd(back.sent).view,
+      );
+    },
+  ),
+  test_case(
+    "old records drop past the bound",
+    `Quick,
+    () => {
+      let b: W.SentView.basis = {
+        b_root: Exp,
+        b_text: "x",
+        b_opened: [],
+        b_probes: 0,
+      };
+      let r = (seq): W.SentView.t => {
+        seq,
+        time: 0.,
+        after: Id.invalid,
+        view: "v",
+        opened: [],
+        root: Exp,
+        program: Dropped,
+        probes: 0,
+      };
+      let rs =
+        List.fold_left(
+          (rs, i) =>
+            W.SentView.add(
+              ~after_text=_ => None,
+              ~last_tool=None,
+              rs,
+              {
+                ...b,
+                b_text: string_of_int(i / 10),
+              },
+              r(i),
+            ),
+          [],
+          List.init(W.SentView.max_records + 50, i => i),
+        );
+      check(int, "kept", W.SentView.max_records, List.length(rs));
+      let first = List.hd(rs);
+      check(
+        option(string),
+        "the oldest kept has its text",
+        Some(string_of_int(first.seq / 10)),
+        W.SentView.text(~after_text=_ => None, ~earlier=[], first),
+      );
+    },
+  ),
+];
+
+let tests = ("AgentView", format_tests @ open_set_tests @ record_tests);
