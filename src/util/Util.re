@@ -21,6 +21,7 @@ module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
 module WebUtil = WebUtil;
 module JsUtil = JsUtil;
+module AfterLayout = AfterLayout;
 module FloatingElement = FloatingElement;
 module SampleAnchor = SampleAnchor;
 module Menu = Menu;
@@ -44,7 +45,11 @@ module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
 module SafeTriangle = SafeTriangle;
+module CaretReveal = CaretReveal;
 module SvgUtil = SvgUtil;
+module Slot = Slot;
+module Expiring = Expiring;
+module Swept = Swept;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

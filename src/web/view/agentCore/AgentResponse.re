@@ -96,6 +96,8 @@ let handle_llm_response =
           scroll_active: acc.scroll_active || step.scroll_active,
           logged: acc.logged || step.logged,
           historic: acc.historic || step.historic,
+          tentative: acc.tentative || step.tentative,
+          retract: acc.retract || step.retract,
         };
       };
       switch (reply.tool_calls) {

@@ -50,6 +50,7 @@
   --top-bar-z: 31;
   --explainthis-expander-z: 31;
   --top-bar-hover-z: 33;
+  --outline-menu-z: 41; /* its backdrop, one below, covers the bars */
 
   /* HACKS */
   --modal-back-z: 100;

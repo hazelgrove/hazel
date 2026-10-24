@@ -22,10 +22,11 @@ let chips_of = (input: string): list((int, int, string)) => {
   let engine_seg = Zipper.unselect_and_zip(~erase_buffer=true, z);
   let caret = Zipper.Caret.point(syntax.measured, z);
   QuiverDec.bubbles(
+    ~root=Exp,
     ~measured=syntax.measured,
     ~font_metrics,
     ~caret_pos=Some((caret.row, caret.col)),
-    ~owned=CompletionQuery.chips_at_caret(~seg=engine_seg, z),
+    ~owned=CompletionQuery.chips_at_caret(~root=Exp, ~seg=engine_seg, z),
     engine_seg,
   )
   |> List.map((c: QuiverDec.positioned_insertion) =>

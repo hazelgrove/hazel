@@ -252,8 +252,8 @@ let rec go =
     let before = LocalReformat.snapshot(~enabled=settings.auto_reindent, z);
     let before_pieces =
       LocalReformat.snapshot_pieces(~enabled=settings.auto_reindent, z);
-    let finish = z =>
-      z
+    let finish = pasted =>
+      pasted
       |> maybe_reassoc_thorough
       |> LocalReformat.go(~before)
       |> LocalReformat.go_region(~before_pieces);
@@ -359,7 +359,13 @@ let rec go =
     /* accepting a TyDi suggestion inserts delimiter text like typing
        it, but via a separate path from the Insert arm */
     LocalReformat.around_res(~enabled=settings.auto_reindent, z, z =>
-      Buffer.go(~ci=Indicated.ci_for_completion(z, statics.info_map), a, z)
+      Buffer.go(
+        ~root,
+        ~seg=?CachedSyntax.semantic_source(z, syntax),
+        ~ci=Indicated.ci_for_completion(z, statics.info_map),
+        a,
+        z,
+      )
     )
   | Project(a) =>
     let refractor_list =
@@ -568,8 +574,9 @@ let rec go =
     )
     |> return(Cant_insert)
   | ApplyCompletion(Next) =>
+    let seg = CachedSyntax.semantic_source(z, syntax);
     switch (
-      CompletionQuery.chip_at_caret(z)
+      CompletionQuery.chip_at_caret(~root, ~seg?, z)
       |> Option.bind(_, CompletionQuery.tab_text(z))
     ) {
     | None => Error(Cant_put_down)
@@ -594,7 +601,7 @@ let rec go =
         );
       /* Preserve the positions of existing operand holes and their spaces
          on both sides of the caret while the parser reassembles the tile. */
-      let protect_right = CompletionQuery.accepts_right_hole(z);
+      let protect_right = CompletionQuery.accepts_right_hole(~root, ~seg?, z);
       let protect =
         List.map(
           fun
@@ -640,7 +647,7 @@ let rec go =
         },
       )
       |> return(Cant_put_down);
-    }
+    };
   | ApplyCompletion(All) => Ok(Materialize.all(z, ~root))
   | ApplyCompletion(One(id)) =>
     Materialize.one(z, ~root, id)
@@ -667,9 +674,10 @@ let rec go =
        program's statics are computed once and offered to the editor */
     let run =
       switch (CachedStatics.for_zipper(~settings, z, statics)) {
-      | Some(initial) when initial.info_map != Language.Id.Map.empty =>
+      | Some(initial)
+          when initial.info_map != Language.Id.Map.empty && root == Sort.Exp =>
         CompositionGo.Public.go_with_editor_statics(~settings, ~initial)
-      | _ => CompositionGo.Public.go
+      | _ => CompositionGo.Public.go(~root)
       };
     /* agent edits funnel pasted code through introduce with indentation
        stripped; re-indent new lines like user Paste */

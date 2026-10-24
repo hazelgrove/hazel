@@ -52,9 +52,9 @@ module EvaluatorEVMode: {
   let (let.) = (t1, s) => {
     let.trampoline (x, c) = t1;
     switch (s(x)) {
-    | Step({expr, side_effects, kind, is_value: true}) =>
+    | Step({expr, side_effects, kind, is_value: true, _}) =>
       Trampoline.return((Final, side_effects, Some(kind), expr))
-    | Step({expr, side_effects, kind, is_value: false}) =>
+    | Step({expr, side_effects, kind, is_value: false, _}) =>
       Trampoline.return((Uneval, side_effects, Some(kind), expr))
     | Constructor
     | Value
@@ -440,6 +440,7 @@ let rec evaluate =
           prev_probe_targets,
           value: final_value,
           state: replay_state(state^),
+          seq: EvaluatorState.get_step_count(state^),
         };
 
         switch (outbox) {
