@@ -224,92 +224,43 @@ let is_hole = (p: Piece.t): bool =>
   | _ => false
   };
 
-/* [lv]'s items as places, each slot by the line rule of ItemSpans'
-   [lines] (which keeps whole lines only) */
-let block = (~in_module: bool, ~stmts=true, lv: S.level): block => {
+/* [lv]'s items as places: ItemSpans' slots, with where each item and
+   what shares its last line end. A member block by default when [lv] is
+   a member level (a signature's members are read as expressions) */
+let block = (~in_module=?, ~stmts=true, lv: S.level): block => {
+  let in_module = Option.value(in_module, ~default=lv.sort == Sort.Mod);
   let arr = lv.pieces;
   let len = Array.length(arr);
   let n = Array.length(lv.spans);
   let is_sec = i => Piece.is_secondary(arr[i]);
-  let comment = i =>
-    switch (arr[i]) {
-    | Piece.Secondary(w) => Secondary.is_comment(w)
-    | _ => false
-    };
-  let space = i => Piece.is_space(arr[i]);
-  let lb = i => Piece.is_linebreak(arr[i]);
-  let line_start = i => i == 0 ? lv.bol : lb(i - 1);
-  let floor = ref(0);
+  let semi_before = (f, e) =>
+    in_module && e > f && Piece.is_semi(arr[e - 1]);
   let sl =
     Array.init(
       n,
       k => {
         let sp = lv.spans[k];
-        let stop = k == n - 1 ? len : sp.hi;
-        /* its first piece of content, and its content's end */
-        let rec first = i => i < stop && is_sec(i) ? first(i + 1) : i;
+        let (lo, term, hi) = sp.slot;
+        let rec first = i => i < term && is_sec(i) ? first(i + 1) : i;
         let f = first(fst(sp.core));
         let rec back = i => i > f && is_sec(i - 1) ? back(i - 1) : i;
-        let e = back(stop);
         /* a module's last member: the hole the parser leaves after its `;`
-           ends its terminator */
-        let (ce, hole) =
-          if (in_module && k == n - 1 && e > f && is_hole(arr[e - 1])) {
-            let e' = back(e - 1);
-            e' > f && Piece.is_semi(arr[e' - 1])
-              ? (e', Some(e - 1)) : (e, None);
-          } else {
-            (e, None);
-          };
-        let rec back_spaces = i =>
-          i > floor^ && space(i - 1) ? back_spaces(i - 1) : i;
-        let i = back_spaces(f);
-        /* [lo] starts a line: take the line above if it holds only
-           comments */
-        let rec attach = lo =>
-          if (lo <= floor^) {
-            lo;
-          } else {
-            let rec back = (j, seen) =>
-              j > floor^ && (space(j - 1) || comment(j - 1))
-                ? back(j - 1, seen || comment(j - 1)) : (j, seen);
-            let (j, seen) = back(lo - 1, false);
-            seen && line_start(j) ? attach(j) : lo;
-          };
-        let lo = line_start(i) ? attach(i) : f;
-        let (core, term) =
-          if (in_module && ce > f && Piece.is_semi(arr[ce - 1])) {
-            (
-              ce - 1,
-              switch (hole) {
-              | Some(g) => g + 1
-              | None => ce
-              },
-            );
-          } else {
-            (ce, ce);
-          };
-        /* same-line spaces and comments, then whitespace through its
-           last linebreak (the next line's indentation is the next
-           item's) */
+           ends its terminator, not the member */
+        let ce =
+          k == n
+          - 1
+          && term > f
+          && is_hole(arr[term - 1])
+          && semi_before(f, back(term - 1))
+            ? back(term - 1) : term;
         let rec same_line = i =>
-          i < len && (space(i) || comment(i)) ? same_line(i + 1) : i;
-        let s = same_line(term);
-        let hi =
-          if (s < len && lb(s)) {
-            let rec last = (i, at) =>
-              i < len && Nav.is_edge_ws(arr[i])
-                ? last(i + 1, lb(i) ? i + 1 : at) : at;
-            last(s, s + 1);
-          } else {
-            s;
-          };
-        floor := hi;
+          i < len && (Piece.is_space(arr[i]) || S.is_comment(arr[i]))
+            ? same_line(i + 1) : i;
         {
           lo,
-          core,
+          core: semi_before(f, ce) ? ce - 1 : ce,
           term,
-          eol: s,
+          eol: same_line(term),
           hi,
         };
       },
@@ -325,7 +276,6 @@ let block = (~in_module: bool, ~stmts=true, lv: S.level): block => {
     sl,
   };
 };
-
 /* items that ops may move or remove: not the trailing expression, which
    a module body hasn't */
 let movable = (b: block, k: int): bool =>
@@ -356,32 +306,10 @@ let runs_on = (b: block, k: int): bool => {
   go(c0) || S.runs_past_line(b.lv, k);
 };
 
-/* item [k]'s head, when it is a definition (or a directive): its index
-   and tile */
-let head = (b: block, k: int): option((int, Tile.t)) => {
-  let sp = b.lv.spans[k];
-  let (c0, c1) = sp.core;
-  let rec go = i =>
-    i >= c1
-      ? None
-      : (
-        switch (b.arr[i]) {
-        | Tile(t) when t.id == sp.anchor => Some((i, t))
-        | _ => go(i + 1)
-        }
-      );
-  switch (sp.kind) {
-  | Def
-  | Use => go(c0)
-  | Stmt
-  | Tail => None
-  };
-};
-
 /* item [k]'s head, when it defines a module: its definition is a module
    body alone, whatever binds it */
 let module_at = (b: block, k: int): option(Id.t) =>
-  switch (head(b, k)) {
+  switch (S.head(b.lv, k)) {
   | Some((h, t)) =>
     switch (
       Option.map(
@@ -445,12 +373,6 @@ let swap = (b: block, k: int): Segment.t =>
    an item lands on its own side of them, and goes into its neighbour
    only with none between. */
 
-let is_comment_at = (b: block, i: int): bool =>
-  switch (b.arr[i]) {
-  | Secondary(w) => Secondary.is_comment(w)
-  | _ => false
-  };
-
 /* the linebreaks among [b]'s pieces [i, j) */
 let breaks = (b: block, i: int, j: int): int => {
   let rec go = (x, n) =>
@@ -483,7 +405,7 @@ let line_start = (b: block, lo: int, i: int): int => {
    head opens the block: it is no content */
 let above = (b: block, k: int): option(int) => {
   let w = ws_back(b, b.sl[k].lo);
-  k > 0 || w > 0 && is_comment_at(b, w - 1) ? Some(w) : None;
+  k > 0 || w > 0 && S.is_comment(b.arr[w - 1]) ? Some(w) : None;
 };
 
 /* item [k]'s place is right below the item above, no comment between */
@@ -543,18 +465,6 @@ let shift_by = (delta: int, seg: Segment.t): Segment.t =>
         seg,
       );
 
-/* a function's head: `fun … ->` or `typfun … ->` */
-let is_fun_head = (p: Piece.t): bool =>
-  switch (p) {
-  | Tile(t) =>
-    switch (Tile.label(t)) {
-    | ["fun", "->"]
-    | ["typfun", "->"] => true
-    | _ => false
-    }
-  | _ => false
-  };
-
 /* a value's body: a definition's level, not a member list or chain */
 let is_body = (b: block): bool =>
   switch (b.lv.owner) {
@@ -567,7 +477,7 @@ let is_body = (b: block): bool =>
 /* a function's body: a function's head opens it */
 let fn_body = (b: block): bool =>
   Array.length(b.sl) > 0
-  && Array.exists(is_fun_head, Array.sub(b.arr, 0, b.sl[0].lo));
+  && Array.exists(S.is_fun_head, Array.sub(b.arr, 0, b.sl[0].lo));
 
 /* where an item was in its block: the gap it takes along, and its
    indentation's offset */
@@ -889,13 +799,6 @@ let locate =
       | [st, ...outer] =>
         switch (Nav.item_at(st.lv, st.i)) {
         | Some(j) =>
-          let in_module =
-            switch (st.from) {
-            | Top => mod_root
-            | Kid(_)
-            | Sub
-            | Syntax => Nav.is_members(st.lv)
-            };
           let stmts =
             switch (st.from) {
             | Sub => false
@@ -903,11 +806,7 @@ let locate =
             | Kid(_)
             | Syntax => true
             };
-          Some((
-            block(~in_module, ~stmts, st.lv),
-            j,
-            rebuild(~seg, List.rev(rev)),
-          ));
+          Some((block(~stmts, st.lv), j, rebuild(~seg, List.rev(rev))));
         | None => up(outer)
         }
       };
@@ -953,6 +852,38 @@ type arrival =
   | Fresh(option(int))
   | Moved(origin, option(int));
 
+/* [item] (in the block's form) first in [b], or last (above its
+   result, which stays last), coming as [arrival]; new only into an
+   item's side */
+let at_edge =
+    (b: block, ~first: bool, ~arrival: arrival, item: Segment.t)
+    : option(Segment.t) => {
+  let n = Array.length(b.sl);
+  let result = !b.in_module && n > 0 && !movable(b, n - 1);
+  switch (arrival) {
+  | Fresh(src_indent) =>
+    insert(
+      b,
+      ~pos=first ? Before(0) : result ? Before(n - 1) : After(n - 1),
+      ~member=b.in_module,
+      ~src_indent?,
+      item,
+    )
+  | Moved(origin, src_indent) =>
+    Some(
+      put(
+        b,
+        ~at=Above(first ? 0 : result ? n - 1 : n),
+        ~gap=Option.value(origin.gap, ~default=[linebreak()]),
+        ~offset=origin.offset,
+        ~src_indent,
+        ~member=b.in_module,
+        item,
+      ),
+    )
+  };
+};
+
 /* [item] (member form) into module [m]'s members: after the last, or
    ([first]) before the first */
 let into_members =
@@ -966,38 +897,8 @@ let into_members =
     )
     : option(Segment.t) =>
   switch (members_of(~mod_root, m, seg)) {
-  | None => None
-  | Some((def_seg, members)) =>
-    let b = block(~in_module=true, members);
-    let n = Array.length(b.sl);
-    (
-      n == 0
-        ? None
-        : (
-          switch (arrival) {
-          | Fresh(src_indent) =>
-            insert(
-              b,
-              ~pos=first ? Before(0) : After(n - 1),
-              ~member=true,
-              ~src_indent?,
-              item,
-            )
-          | Moved(origin, src_indent) =>
-            Some(
-              put(
-                b,
-                ~at=Above(first ? 0 : n),
-                ~gap=Option.value(origin.gap, ~default=[linebreak()]),
-                ~offset=origin.offset,
-                ~src_indent,
-                ~member=true,
-                item,
-              ),
-            )
-          }
-        )
-    )
+  | Some((def_seg, members)) when Array.length(members.spans) > 0 =>
+    at_edge(block(~in_module=true, members), ~first, ~arrival, item)
     |> Option.map(members =>
          Nav.splice_def(
            ~root=root_of(mod_root),
@@ -1005,7 +906,8 @@ let into_members =
            Nav.with_brace_child(def_seg, members),
            seg,
          )
-       );
+       )
+  | _ => None
   };
 
 /* [item] (member form) as the only member of module [m], whose body is
@@ -1062,14 +964,14 @@ let wrapped_fun = (def: Segment.t): bool => {
   let solid = seg => List.filter(p => !Piece.is_secondary(p), seg);
   let rec within = (seg: Segment.t) =>
     switch (solid(seg)) {
-    | [p, ..._] when is_fun_head(p) => true
+    | [p, ..._] when S.is_fun_head(p) => true
     | [Tile({children: [kid], _} as t)] when Tile.label(t) == ["(", ")"] =>
       within(kid)
     | [Projector(pr)] => within([pr.syntax])
     | _ => false
     };
   switch (solid(def)) {
-  | [p, ..._] when is_fun_head(p) => false
+  | [p, ..._] when S.is_fun_head(p) => false
   | _ => within(def)
   };
 };
@@ -1126,27 +1028,22 @@ let body_last =
           ~offset=kid ? 0 : i + 1,
           body,
         );
-      let b = block(~in_module=false, ~stmts=kid, body_lv);
+      let b = block(~stmts=kid, body_lv);
       let n = Array.length(b.sl);
       let g = n - 1;
       let placed =
         switch (arrival) {
         | _ when n == 0 || !Nav.is_tail(body_lv, g) || stmt && !b.stmts =>
           None
-        | Fresh(src_indent) =>
-          insert(
-            b,
-            ~pos=Before(first ? 0 : g),
-            ~member=false,
-            ~src_indent?,
-            item,
-          )
-        | Moved(origin, src_indent) when first && g > 0 =>
+        | Fresh(_) => at_edge(b, ~first, ~arrival, item)
+        | Moved(_) when g > 0 || starts_line(b, g) =>
+          at_edge(b, ~first, ~arrival, item)
+        | Moved(origin, src_indent) when !spans_lines(item) =>
           Some(
             put(
               b,
-              ~at=Above(0),
-              ~gap=Option.value(origin.gap, ~default=[linebreak()]),
+              ~at=Above(g),
+              ~gap=[],
               ~offset=origin.offset,
               ~src_indent,
               ~member=false,
@@ -1154,46 +1051,28 @@ let body_last =
             ),
           )
         | Moved(origin, src_indent) =>
-          let put = (~gap) =>
-            Some(
-              put(
-                b,
-                ~at=Above(g),
-                ~gap,
-                ~offset=origin.offset,
-                ~src_indent,
-                ~member=false,
+          let r = b.sl[g];
+          let head = item_indent(b, g);
+          let lead = ind => [
+            linebreak(),
+            ...List.init(max(0, ind), _ => space()),
+          ];
+          let ind = head + 2 + origin.offset;
+          Some(
+            ListUtil.truncate(ws_back(b, r.lo), b.seg)
+            @ lead(ind)
+            @ shift_by(
+                Option.fold(~none=0, ~some=src => ind - src, src_indent),
                 item,
-              ),
-            );
-          if (g > 0 || starts_line(b, g)) {
-            put(~gap=Option.value(origin.gap, ~default=[linebreak()]));
-          } else if (!spans_lines(item)) {
-            put(~gap=[]);
-          } else {
-            let r = b.sl[g];
-            let head = item_indent(b, g);
-            let lead = ind => [
-              linebreak(),
-              ...List.init(max(0, ind), _ => space()),
-            ];
-            let ind = head + 2 + origin.offset;
-            Some(
-              ListUtil.truncate(ws_back(b, r.lo), b.seg)
-              @ lead(ind)
-              @ shift_by(
-                  Option.fold(~none=0, ~some=src => ind - src, src_indent),
-                  item,
-                )
-              @ (
-                fn_body(b)
-                  ? [space(), ...ListUtil.remove_first_n(r.lo, b.seg)]
-                  : lead(head + 2)
-                    @ shift_by(2, ListUtil.slice(r.lo, r.eol - r.lo, b.seg))
-                    @ ListUtil.remove_first_n(r.eol, b.seg)
-              ),
-            );
-          };
+              )
+            @ (
+              fn_body(b)
+                ? [space(), ...ListUtil.remove_first_n(r.lo, b.seg)]
+                : lead(head + 2)
+                  @ shift_by(2, ListUtil.slice(r.lo, r.eol - r.lo, b.seg))
+                  @ ListUtil.remove_first_n(r.eol, b.seg)
+            ),
+          );
         };
       Option.map(body => Nav.splice_def(~root, d, body, seg), placed);
     }
@@ -1203,7 +1082,7 @@ let body_last =
 
 /* item [k]'s head, when it's a `let` of a value */
 let value_at = (b: block, k: int): option(Id.t) =>
-  switch (head(b, k)) {
+  switch (S.head(b.lv, k)) {
   | Some((h, t)) when value_def((b.seg, h, t)) => Some(t.id)
   | _ => None
   };

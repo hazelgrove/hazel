@@ -234,20 +234,12 @@ let kind_name = (k: P.kind): string =>
   | k => P.kind_word(k)
   };
 
-let kernel_part = (part: P.part): K.part =>
-  switch (part) {
-  | Pattern => Pattern
-  | Definition => Definition
-  | Body => Body
-  | Head => Head
-  };
-
 let part = (p: program, path: string, f: P.found, part: P.part) =>
   switch (f.kind) {
   | Def
   | Type
   | Module =>
-    switch (K.part(~root=p.root, f.id, kernel_part(part), p.seg)) {
+    switch (K.part(~root=p.root, f.id, part, p.seg)) {
     | Some(id) => Ok(id)
     | None =>
       Error("\"" ++ path ++ "\" has no " ++ P.part_word(part) ++ " to edit")
@@ -700,7 +692,7 @@ let text_at = (~root, seg: Segment.t, id: Id.t): option(string) => {
   switch (P.find(~root, seg, id)) {
   | Some(steps) =>
     let (lv, k) = ListUtil.last(steps);
-    Some(print(Nav.core(lv, k)));
+    Some(print(S.core(lv, k)));
   | None =>
     switch (K.node(~root, id, seg)) {
     | n => Some(print(K.node_pieces(n)))

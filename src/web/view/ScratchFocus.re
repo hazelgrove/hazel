@@ -74,7 +74,7 @@ let headless_content_deep =
   locate_headless(~root, fid, seg)
   |> Option.map(((path, k)) => {
        let lv = ListUtil.last(path).lv;
-       (core(lv, k), span_sym(lv, k));
+       (S.core(lv, k), span_sym(lv, k));
      });
 
 /* [seg] with [repl] in place of the headless row [fid]'s span, inside its
@@ -570,7 +570,7 @@ let mk_entry =
           ~master,
           ~kind=Headless(Option.value(sym, ~default=span_sym(lv, k))),
           fid,
-          core(lv, k),
+          S.core(lv, k),
         ),
       );
     | None => mk_def_entry(~root, ~info_map, ~master, path)

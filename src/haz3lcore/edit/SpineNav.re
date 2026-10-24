@@ -9,11 +9,7 @@ module S = ItemSpans;
 /* cells hold slices without edge whitespace (stray in an isolated
    cell); splicing re-wraps them in the program's own padding, so it
    round-trips unstored. Comments are content, not padding. */
-let is_edge_ws = (p: Piece.t): bool =>
-  switch (p) {
-  | Secondary({content: Whitespace(_), _}) => true
-  | _ => false
-  };
+let is_edge_ws = S.is_ws;
 
 let trim_ws = (seg: Segment.t): (Segment.t, Segment.t, Segment.t) => {
   let rec take = ps =>
@@ -74,10 +70,7 @@ let holds_members = (m: Mold.t): bool => List.mem(Sort.Mod, m.in_);
 /* identity-preserving map: [xs] itself when [f] changed nothing, so
    splices re-mint only the spine above the replacement and pointer-keyed
    caches downstream (incremental parse, outline memo) still hit */
-let map_sharing = (f: 'a => 'a, xs: list('a)): list('a) => {
-  let ys = List.map(f, xs);
-  List.for_all2((===), xs, ys) ? xs : ys;
-};
+let map_sharing = Rename.map_sharing;
 
 /* the original piece on no change: rebuilding even the variant wrapper
    (Piece.Tile(t)) breaks pointer equality upstream */
@@ -598,12 +591,6 @@ let splice_range =
     @ suf
     @ ListUtil.remove_first_n(b, pieces),
   );
-};
-
-/* span [k]'s core: the item without edge whitespace or its `;` */
-let core = (lv: S.level, k: int): Segment.t => {
-  let (c0, c1) = lv.spans[k].core;
-  Array.to_list(Array.sub(lv.pieces, c0, c1 - c0));
 };
 
 /* the indentation of the line the piece [id] is on */

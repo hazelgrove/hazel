@@ -826,20 +826,34 @@ let outer = (lv: level): option(int) =>
   | Block(_) => Some(lv.indent)
   };
 
-/* span [k]'s definition body, if it is a definition */
-let site_of = (lv: level, k: int): option(site) => {
+/* span [k]'s head tile and its index, when it is a definition or a
+   directive */
+let head = (lv: level, k: int): option((int, Tile.t)) => {
   let sp = lv.spans[k];
   let (c0, c1) = sp.core;
-  let rec head = i =>
+  let rec go = i =>
     i >= c1
-      ? None : Piece.id(lv.pieces[i]) == sp.anchor ? Some(i) : head(i + 1);
+      ? None
+      : (
+        switch (lv.pieces[i]) {
+        | Tile(t) when t.id == sp.anchor => Some((i, t))
+        | _ => go(i + 1)
+        }
+      );
   switch (sp.kind) {
-  | Def => Option.bind(head(c0), h => site_at(lv.pieces, h, c1))
-  | Use
+  | Def
+  | Use => go(c0)
   | Stmt
   | Tail => None
   };
 };
+
+/* span [k]'s definition body, if it is a definition */
+let site_of = (lv: level, k: int): option(site) =>
+  switch (lv.spans[k].kind, head(lv, k)) {
+  | (Def, Some((h, _))) => site_at(lv.pieces, h, snd(lv.spans[k].core))
+  | _ => None
+  };
 
 /* the member level of a module literal's members, in a level starting at
    [line] whose site [s] holds the brace at [m]: its `{`'s line's level, a
@@ -1018,6 +1032,12 @@ let block = (lv: level, k: int): option(level) => {
 let slice = (lv: level, k: int): Segment.t => {
   let sp = lv.spans[k];
   Array.to_list(Array.sub(lv.pieces, sp.lo, sp.hi - sp.lo));
+};
+
+/* span [k]'s core: the item without edge whitespace or its `;` */
+let core = (lv: level, k: int): Segment.t => {
+  let (c0, c1) = lv.spans[k].core;
+  Array.to_list(Array.sub(lv.pieces, c0, c1 - c0));
 };
 
 /* span [k] of a member level is an unfinished member whose open form
