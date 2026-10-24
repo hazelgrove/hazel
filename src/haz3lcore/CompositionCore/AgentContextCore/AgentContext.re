@@ -95,9 +95,9 @@ module Update = {
   /* as the tools ask: by path */
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
-    | Expand(list(string))
-    | Collapse(list(string))
-    | CollapseAll;
+    | OpenPaths(list(string))
+    | ClosePaths(list(string))
+    | CloseAllPaths;
 
   /* resolved against the program */
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -128,19 +128,19 @@ module Update = {
       };
     };
     switch (action) {
-    | Expand([])
-    | Collapse([]) => Error("Give at least one path.")
-    | Expand(paths) =>
+    | OpenPaths([])
+    | ClosePaths([]) => Error("Give at least one path.")
+    | OpenPaths(paths) =>
       Stdlib.Result.map(
         xs => Open(List.map(Model.of_outline, xs)),
         entries(paths),
       )
-    | Collapse(paths) =>
+    | ClosePaths(paths) =>
       Stdlib.Result.map(
         xs => Close(List.map((x: Outline.entry) => x.id, xs)),
         entries(paths),
       )
-    | CollapseAll => Ok(CloseAll)
+    | CloseAllPaths => Ok(CloseAll)
     };
   };
 

@@ -124,7 +124,7 @@ let toggle_probe_description =
   {|
 Toggles probes on or off for the bindings at the given paths.
 If a probe is already placed, it is removed. If no probe exists, one is placed.
-Collapsed definitions are auto-expanded when a probe is placed.
+Placing a probe opens its entry.
 
 Parameters:
 paths: list(string) — paths to the bindings to toggle probes on

@@ -3,7 +3,7 @@ open Language;
 /* Renaming a binder in place, ids kept: the tokens naming it, its uses
    and, for a module member, its `M.x` / `M.T` labels (Info.binding_site
    resolves both). Shared by the outline's rename and the assistant's
-   update_pattern. */
+   rename. */
 
 /* every token naming [binder] but its own */
 let find_references = (~info_map: Statics.Map.t, binder: Id.t): list(Id.t) =>

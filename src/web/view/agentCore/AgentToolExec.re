@@ -20,9 +20,6 @@ let report_tool_exn = (tool: string, exn: exn): unit =>
     }
   );
 
-module Utils = AgentUtils;
-module ToolCallHandler = AgentToolCallHandler;
-
 let add_to_active_subtask =
     (
       ~tool_result: AgentToolResult.tool_result,
@@ -48,24 +45,6 @@ let add_to_active_subtask =
     |> ChatSystem.Update.get,
 };
 
-let add_tool_result_to_active_subtask =
-    (
-      ~tool_result: AgentToolResult.tool_result,
-      ~action: CompositionActions.action,
-      ~model: Model.t,
-      ~chat_id: Id.t,
-    )
-    : Model.t => {
-  switch (action) {
-  // Only add editor and context tools to subtask tool results for now
-  // i.e. don't include workbench tool calls in the workbench view lol
-  | EditorAction(_)
-  | AgentContextAction(_) =>
-    add_to_active_subtask(~tool_result, ~model, ~chat_id)
-  | _ => model
-  };
-};
-
 /* an overlay tool's change: the program's text before and after, and
    their diff when it changed */
 let overlay_change =
@@ -82,7 +61,7 @@ let overlay_change =
     let text = (ed: Editor.t) =>
       PersistentZipper.to_string(ed.state.zipper) ++ "\n";
     let print = (ed: Editor.t) =>
-      CompositionView.Public.print_segment(
+      CompositionView.print_segment(
         Zipper.unselect_and_zip(~erase_buffer=true, ed.state.zipper),
       );
     let (old_s, new_s) = (print(old_editor), print(new_editor));
@@ -115,23 +94,23 @@ let execute_one_tool_call =
   let result = AgentToolResult.mk(tool_call);
   let message = Message.Utils.mk_tool_result_message;
   switch (
-    CompositionUtils.Public.action_of(
+    CompositionUtils.action_of(
       ~tool_name=tool_call.name,
       ~args=tool_call.args,
     )
   ) {
   | Action(action) =>
+    /* a view tool's result goes on the active subtask, as edits' do */
     let to_subtask = (model, tool_result) =>
-      add_tool_result_to_active_subtask(
-        ~tool_result,
-        ~action,
-        ~model,
-        ~chat_id,
-      );
+      switch (action) {
+      | AgentContextAction(_) =>
+        add_to_active_subtask(~tool_result, ~model, ~chat_id)
+      | _ => model
+      };
     switch (
       try(
         Util.PerfTimer.time("tool/handler", () =>
-          ToolCallHandler.update(
+          AgentToolCallHandler.update(
             ~settings,
             action,
             model,
@@ -373,7 +352,7 @@ module Tests = {
 /* a tool whose change is the editor's: a reply's rollback undoes it */
 let changes_editor = (tr: AgentToolResult.tool_result): bool =>
   switch (
-    CompositionUtils.Public.action_of(
+    CompositionUtils.action_of(
       ~tool_name=tr.tool_call.name,
       ~args=tr.tool_call.args,
     )
@@ -488,9 +467,7 @@ module Reply = {
         (m, ce, edits, List.rev(slots), None);
       } else {
         let tc = calls[i];
-        switch (
-          CompositionUtils.Public.action_of(~tool_name=tc.name, ~args=tc.args)
-        ) {
+        switch (CompositionUtils.action_of(~tool_name=tc.name, ~args=tc.args)) {
         | Action(EditorAction(call)) =>
           let r = Option.value(edits, ~default=start(~settings, ce.model));
           let seg =

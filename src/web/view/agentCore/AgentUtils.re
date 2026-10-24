@@ -12,7 +12,7 @@ let init = (): Model.t => {
     prompting: {
       system_prompt,
       dev_notes,
-      tools: CompositionUtils.Public.tools,
+      tools: CompositionUtils.tools,
       disabled_tool_names: [],
     },
     active_timeline_node: None,
@@ -83,7 +83,7 @@ let agent_view_of =
     term_data: cws.editor.syntax.term_data,
   };
   let view =
-    CompositionView.Public.render(
+    CompositionView.render(
       ~settings=view,
       ~facts,
       outline,

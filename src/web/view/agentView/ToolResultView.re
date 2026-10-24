@@ -94,7 +94,6 @@ let render_pretty_args = (args: API.Json.t): Node.t => {
 let category_icon = (c: ToolCallSummary.category): Node.t =>
   switch (c) {
   | Edit => cat_edit
-  | Read => cat_read
   | View => cat_view
   | Projector => cat_projector
   | Probe => cat_probe
@@ -195,7 +194,7 @@ let view =
           category_node,
           div(
             ~attrs=[clss(["tool-call-name"])],
-            [text(ToolCallSummary.display_name_for(tool_result.tool_call))],
+            [text(tool_result.tool_call.name)],
           ),
           signifier_node,
           div(

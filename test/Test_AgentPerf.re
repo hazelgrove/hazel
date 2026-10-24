@@ -115,9 +115,9 @@ let run = () =>
     reply_ms(
       ~warm,
       ~file="mega-4k.hz",
-      "update_definition",
+      "replace",
       `Assoc([
-        s("path", "Text/int_to_text"),
+        s("target", "Text/int_to_text:definition"),
         s(
           "code",
           "fun n -> if n < 0 then \"-\" ++ go_render(0 - n) else go_render(n + 0)",
@@ -127,14 +127,14 @@ let run = () =>
     reply_ms(
       ~warm,
       ~file="mega-4k.hz",
-      "insert_after",
-      `Assoc([s("path", "Text"), s("code", "let extra = 1 in")]),
+      "insert",
+      `Assoc([s("after", "Text"), s("code", "let extra = 1")]),
     );
     reply_ms(
       ~warm,
       ~file="mega-4k.hz",
-      "update_pattern",
-      `Assoc([s("path", "Text/int_to_text"), s("code", "int_text")]),
+      "rename",
+      `Assoc([s("target", "Text/int_to_text"), s("to", "int_text")]),
     );
     let paths = `Assoc([("paths", `List([`String("Text/int_to_text")]))]);
     reply_ms(~warm, ~file="mega-4k.hz", "place_probe", paths);

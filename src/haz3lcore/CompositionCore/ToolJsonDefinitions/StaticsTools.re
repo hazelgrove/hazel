@@ -3,7 +3,7 @@ open Util;
 let place_statics_description = {|
 Places the **statics** refractor on the bindings at the given paths: a GUI type-ascription overlay (offside type cell) for human-readable types on expressions.
 This does not change program text. If a runtime probe is on the same binding, it is replaced by statics (same transition as the editor’s statics toggle).
-Collapsed definitions are auto-expanded when statics are placed so overlays are visible.
+Placing statics opens its entry.
 
 Parameters:
 paths: list(string) — paths to the bindings
@@ -95,7 +95,7 @@ let remove_statics: API.Json.t =
 
 let toggle_statics_description = {|
 Toggles the statics refractor on or off for the bindings at the given paths (same behavior as the editor statics toggle).
-Collapsed definitions are auto-expanded when statics end up enabled.
+Its entry opens when statics end up enabled.
 
 Parameters:
 paths: list(string) — paths to the bindings to toggle

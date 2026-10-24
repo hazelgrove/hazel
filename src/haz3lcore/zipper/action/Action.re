@@ -96,41 +96,32 @@ type paste = string;
 module Structural = {
   /* A path names an entry (EntryPath): a binding by name, `/` (or `.`)
      descending into a module's members or a definition's body ("a",
-     "a/inner", "M/helper"), a test by its hint string, `test#k`. */
+     "a/inner", "M/helper"), a test by its hint string, `test#k`, a
+     block's result `=>`; after the last element, `:part` names a part */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type path = string;
 
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type code = string;
 
-  /* Which part of a binding to target */
+  /* beside the entry at a path, or first or last among the entries it
+     holds (a module's members, a value's body); "" is the top level */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type target =
-    | Definition /* RHS of `=` */
-    | Body /* what follows the binding after its `in` */
-    | Pattern /* LHS of `=`; a single new name renames the binder and its uses */
-    | BindingClause; /* the whole entry */
-
-  /* Where, relative to an entry: beside it, or first or last among the
-     entries it holds (a module's members, a value's body). With an empty
-     path, the program's start or end */
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type insert_target =
-    | After
-    | Before
-    | FirstIn
-    | LastIn;
+  type place =
+    | Before(path)
+    | After(path)
+    | FirstIn(path)
+    | LastIn(path);
 
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
-    | Update(target, path, code)
-    | Delete(target, path)
-    | Insert(insert_target, path, code)
-    /* `test code end` after the binding at path and the tests directly
-       following it; with no path, at the program's end */
-    | InsertTest(option(path), code)
-    /* the entry at the first path to the place the second names */
-    | Move(path, insert_target, path);
+    | Insert(place, code)
+    /* the entry, or the part its path names */
+    | Replace(path, code)
+    | Delete(path)
+    | Move(path, place)
+    /* the binder the path names, and its uses */
+    | Rename(path, string);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

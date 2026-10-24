@@ -305,7 +305,7 @@ let open_set_tests = [
         switch (
           AgentContext.Update.resolve(
             o,
-            AgentContext.Update.Expand(["total"]),
+            AgentContext.Update.OpenPaths(["total"]),
           )
         ) {
         | Ok(r) => AgentContext.Update.update(r, AgentContext.Utils.init())
@@ -344,7 +344,7 @@ let open_set_tests = [
         switch (
           AgentContext.Update.resolve(
             Outline.build(~root=Exp, seg),
-            Expand(["M/g"]),
+            OpenPaths(["M/g"]),
           )
         ) {
         | Ok(r) => AgentContext.Update.update(r, AgentContext.Utils.init())
@@ -371,7 +371,7 @@ let open_set_tests = [
       switch (
         AgentContext.Update.resolve(
           Outline.build(~root=Exp, seg),
-          Expand(["c"]),
+          OpenPaths(["c"]),
         )
       ) {
       | Ok(_) => Alcotest.fail("resolved")
@@ -386,7 +386,7 @@ let open_set_tests = [
     },
   ),
   test_case(
-    "collapse all closes every entry",
+    "close all closes every entry",
     `Quick,
     () => {
       let (seg, _, _) = program("let a = 1 in\nlet b = 2 in\na");
@@ -396,23 +396,23 @@ let open_set_tests = [
         | Ok(r) => AgentContext.Update.update(r, m)
         | Error(e) => Alcotest.fail(e)
         };
-      let m = step(AgentContext.Utils.init(), Expand(["a", "b"]));
+      let m = step(AgentContext.Utils.init(), OpenPaths(["a", "b"]));
       check(int, "two open", 2, List.length(m.opened));
-      let m = step(m, Collapse(["a"]));
+      let m = step(m, ClosePaths(["a"]));
       check(int, "one open", 1, List.length(m.opened));
-      let m = step(m, CollapseAll);
+      let m = step(m, CloseAllPaths);
       check(int, "none open", 0, List.length(m.opened));
     },
   ),
-  test_case("the collapse tool's all flag", `Quick, () =>
+  test_case("the close tool's all flag", `Quick, () =>
     switch (
-      CompositionUtils.Public.action_of(
-        ~tool_name="collapse",
+      CompositionUtils.action_of(
+        ~tool_name="close",
         ~args=`Assoc([("all", `Bool(true))]),
       )
     ) {
-    | Action(AgentContextAction(CollapseAll)) => ()
-    | _ => Alcotest.fail("not CollapseAll")
+    | Action(AgentContextAction(CloseAllPaths)) => ()
+    | _ => Alcotest.fail("not CloseAllPaths")
     }
   ),
   test_case(
@@ -522,7 +522,7 @@ let record_tests = [
           Zipper.unselect_and_zip(cws.editor.state.zipper),
         );
       let opened =
-        switch (AgentContext.Update.resolve(o, Expand(["b"]))) {
+        switch (AgentContext.Update.resolve(o, OpenPaths(["b"]))) {
         | Ok(r) => r
         | Error(e) => fail(e)
         };
@@ -633,7 +633,7 @@ let slide = (~opened: list(string)) => {
     switch (
       opened == []
         ? Ok(AgentContext.Update.CloseAll)
-        : AgentContext.Update.resolve(o, Expand(opened))
+        : AgentContext.Update.resolve(o, OpenPaths(opened))
     ) {
     | Ok(r) => {
         ...agent,

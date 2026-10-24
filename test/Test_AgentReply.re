@@ -20,53 +20,93 @@ let call = (i, name, args): OpenRouter.Reply.Model.tool_call => {
   args: `Assoc(List.map(((k, v)) => (k, `String(v)), args)),
 };
 
+let tool_results = (agent: Agent.Model.t): list(AgentToolResult.tool_result) =>
+  Chat.Utils.linearize(
+    ChatSystem.Utils.find_chat(agent.chat_system.current, agent.chat_system),
+  )
+  |> List.filter_map((m: Message.Model.t) =>
+       switch (m.role) {
+       | ToolResult(tr) => Some(tr)
+       | _ => None
+       }
+     );
+
+/* [replies] in turn on [code], one assistant reply each: the program
+   after each, and each reply's tool results in order */
+let replies =
+    (
+      ~settings=Settings.Model.init,
+      code: string,
+      replies: list(list(OpenRouter.Reply.Model.tool_call)),
+    )
+    : list((string, list(AgentToolResult.tool_result))) => {
+  let rec go = (agent: Agent.Model.t, ce: CellEditor.Model.t, replies) =>
+    switch (replies) {
+    | [] => []
+    | [calls, ...rest] =>
+      let before = List.length(tool_results(agent));
+      let (agent', ce') =
+        Agent.Update.update(
+          Agent.Update.Action.HandleLLMResponse(
+            {
+              content: "",
+              tool_calls: calls,
+              usage: None,
+              reasoning: None,
+            },
+            agent.chat_system.current,
+            agent.main_llm_seq,
+            0,
+          ),
+          agent,
+          ce,
+          settings,
+          _ =>
+          ()
+        );
+      [
+        (
+          text(ce'.model.editor.editor.state.zipper),
+          ListUtil.remove_first_n(before, tool_results(agent')),
+        ),
+        ...go(agent', ce'.model, rest),
+      ];
+    };
+  go(
+    Agent.Utils.init(),
+    CellEditor.Model.mk(Editor.Model.mk(mk_zipper(code), ~root=Exp)),
+    replies,
+  );
+};
+
 /* [calls] as one assistant reply on [code]: the program after, and the
    tool results in order */
 let reply =
     (
-      ~settings=Settings.Model.init,
+      ~settings=?,
       code: string,
       calls: list((string, list((string, string)))),
     )
-    : (string, list(AgentToolResult.tool_result)) => {
-  let agent = Agent.Utils.init();
-  let cell_editor =
-    CellEditor.Model.mk(Editor.Model.mk(mk_zipper(code), ~root=Exp));
-  let (agent', ce) =
-    Agent.Update.update(
-      Agent.Update.Action.HandleLLMResponse(
-        {
-          content: "",
-          tool_calls: List.mapi((i, (n, a)) => call(i, n, a), calls),
-          usage: None,
-          reasoning: None,
-        },
-        agent.chat_system.current,
-        agent.main_llm_seq,
-        0,
-      ),
-      agent,
-      cell_editor,
-      settings,
-      _ =>
-      ()
-    );
-  let chat =
-    ChatSystem.Utils.find_chat(
-      agent'.chat_system.current,
-      agent'.chat_system,
-    );
-  (
-    text(ce.model.editor.editor.state.zipper),
-    Chat.Utils.linearize(chat)
-    |> List.filter_map((m: Message.Model.t) =>
-         switch (m.role) {
-         | ToolResult(tr) => Some(tr)
-         | _ => None
-         }
-       ),
+    : (string, list(AgentToolResult.tool_result)) =>
+  List.hd(
+    replies(
+      ~settings?,
+      code,
+      [List.mapi((i, (n, a)) => call(i, n, a), calls)],
+    ),
   );
-};
+
+/* an example's calls as a reply's */
+let example_calls = (calls: list(ToolExamples.call)) =>
+  List.mapi(
+    (i, c: ToolExamples.call): OpenRouter.Reply.Model.tool_call =>
+      {
+        id: "call-" ++ string_of_int(i),
+        name: c.tool,
+        args: `Assoc(c.args),
+      },
+    calls,
+  );
 
 let has = (needle, s) => StringUtil.plain_search(needle, s, 0) >= 0;
 let mentions = (what, needle, s) =>
@@ -98,9 +138,9 @@ let transactions = [
         reply(
           "let a = 1 in a",
           [
-            ("insert_after", [("path", "a"), ("code", "let b = a + 1 in")]),
-            ("update_definition", [("path", "b"), ("code", "a + 2")]),
-            ("update_body", [("path", "b"), ("code", "b")]),
+            ("insert", [("after", "a"), ("code", "let b = a + 1 in")]),
+            ("replace", [("target", "b:definition"), ("code", "a + 2")]),
+            ("replace", [("target", "=>"), ("code", "b")]),
           ],
         );
       same_text("program", "let a = 1 in let b = a + 2 in b", program);
@@ -132,9 +172,9 @@ let transactions = [
         reply(
           code,
           [
-            ("insert_after", [("path", "a"), ("code", "let b = 2 in")]),
-            ("update_definition", [("path", "nope"), ("code", "3")]),
-            ("insert_after", [("path", "a"), ("code", "let c = 3 in")]),
+            ("insert", [("after", "a"), ("code", "let b = 2 in")]),
+            ("replace", [("target", "nope:definition"), ("code", "3")]),
+            ("insert", [("after", "a"), ("code", "let c = 3 in")]),
           ],
         );
       same_text("program unchanged", code, program);
@@ -142,7 +182,7 @@ let transactions = [
       | [first, second, third] =>
         check(bool, "first not applied", false, first.success);
         mentions("first", "Rolled back.", first.content);
-        mentions("first", "call 2 (update_definition) failed", first.content);
+        mentions("first", "call 2 (replace) failed", first.content);
         check(bool, "second failed", false, second.success);
         mentions("second", "No entry \"nope\"", second.content);
         mentions(
@@ -164,8 +204,11 @@ let transactions = [
         reply(
           code,
           [
-            ("insert_after", [("path", "a"), ("code", "let b = 2 in")]),
-            ("update_definition", [("path", "a"), ("code", "true + 1")]),
+            ("insert", [("after", "a"), ("code", "let b = 2 in")]),
+            (
+              "replace",
+              [("target", "a:definition"), ("code", "true + 1")],
+            ),
           ],
         );
       same_text("program unchanged", code, program);
@@ -185,8 +228,11 @@ let transactions = [
         reply(
           code,
           [
-            ("update_definition", [("path", "a"), ("code", "1")]),
-            ("update_definition", [("path", "b"), ("code", "false + 2")]),
+            ("replace", [("target", "a:definition"), ("code", "1")]),
+            (
+              "replace",
+              [("target", "b:definition"), ("code", "false + 2")],
+            ),
           ],
         );
       same_text("program unchanged", code, program);
@@ -203,7 +249,9 @@ let transactions = [
       let (program, results) =
         reply(
           "let a = true + 1 in a",
-          [("update_definition", [("path", "a"), ("code", "true + 2")])],
+          [
+            ("replace", [("target", "a:definition"), ("code", "true + 2")]),
+          ],
         );
       same_text("applied", "let a = true + 2 in a", program);
       mentions(
@@ -234,7 +282,9 @@ let transactions = [
               }
             ),
           "let a = 1 in a",
-          [("update_definition", [("path", "a"), ("code", "true + 1")])],
+          [
+            ("replace", [("target", "a:definition"), ("code", "true + 1")]),
+          ],
         );
       same_text("applied with its error", "let a = true + 1 in a", program);
       mentions("result", "New:", List.hd(results).content);
@@ -249,7 +299,7 @@ let transactions = [
               }
             ),
           "let a = 1 in let b = a in b",
-          [("delete_binding_clause", [("path", "a")])],
+          [("delete", [("target", "a")])],
         );
       same_text("deleted, its use left", "let b = a in b", program);
     },
@@ -263,12 +313,12 @@ let transactions = [
           "let f = fun x -> x + 1 in f(1)",
           [
             (
-              "update_definition",
-              [("path", "f"), ("code", "fun x -> x > 1")],
+              "replace",
+              [("target", "f:definition"), ("code", "fun x -> x > 1")],
             ),
             (
-              "update_body",
-              [("path", "f"), ("code", "if f(1) then 1 else 0")],
+              "replace",
+              [("target", "=>"), ("code", "if f(1) then 1 else 0")],
             ),
           ],
         );
@@ -295,7 +345,7 @@ let transactions = [
       let (_, results) =
         reply(
           "let a = 1 in a",
-          [("insert_after", [("path", "a"), ("code", "let b = 2 in")])],
+          [("insert", [("after", "a"), ("code", "let b = 2 in")])],
         );
       switch (List.hd(results).steps) {
       | [step] =>
@@ -315,7 +365,7 @@ let deletes_and_renames = [
     () => {
       let code = "let a = 1 in let b = a + 1 in let c = a * 2 in b + c";
       let (program, results) =
-        reply(code, [("delete_binding_clause", [("path", "a")])]);
+        reply(code, [("delete", [("target", "a")])]);
       same_text("program unchanged", code, program);
       let r = List.hd(results);
       check(bool, "refused", false, r.success);
@@ -330,8 +380,8 @@ let deletes_and_renames = [
         reply(
           "let a = 1 in let b = a + 1 in b",
           [
-            ("delete_binding_clause", [("path", "a")]),
-            ("update_definition", [("path", "b"), ("code", "1")]),
+            ("delete", [("target", "a")]),
+            ("replace", [("target", "b:definition"), ("code", "1")]),
           ],
         );
       same_text("program", "let b = 1 in b", program);
@@ -357,12 +407,12 @@ let deletes_and_renames = [
         toks(seg) |> List.filter(((_, s)) => s == name) |> List.map(fst);
       let before = ids_of(seg, "total");
       switch (
-        CompositionGo.Public.go(
+        CompositionGo.go(
           ~settings=Language.CoreSettings.on,
           ~root=Exp,
           ~statics=CachedStatics.empty,
           z,
-          Update(Pattern, "total", "sum"),
+          Rename("total", "sum"),
         )
       ) {
       | Ok(z') =>
@@ -384,10 +434,7 @@ let deletes_and_renames = [
     () => {
       let code = "let a = 1 in let b = 2 in a + b";
       let (program, results) =
-        reply(
-          code,
-          [("update_pattern", [("path", "b"), ("code", "a")])],
-        );
+        reply(code, [("rename", [("target", "b"), ("to", "a")])]);
       same_text("program unchanged", code, program);
       mentions("result", "Not renamed to a", List.hd(results).content);
     },
@@ -399,7 +446,7 @@ let deletes_and_renames = [
       let (program, _) =
         reply(
           "module M = { let x = 1 } in M.x + M.x",
-          [("update_pattern", [("path", "M/x"), ("code", "y")])],
+          [("rename", [("target", "M/x"), ("to", "y")])],
         );
       same_text("program", "module M = { let y = 1 } in M.y + M.y", program);
     },
@@ -416,9 +463,9 @@ let tests_by_hint = [
           "let double = fun x -> 2 * x in\nhint \"doubles\" test double(1) == 3 end;\ndouble(5)",
           [
             (
-              "update_binding_clause",
+              "replace",
               [
-                ("path", "\"doubles\""),
+                ("target", "\"doubles\""),
                 ("code", "hint \"doubles\" test double(1) == 2 end"),
               ],
             ),
@@ -436,10 +483,7 @@ let tests_by_hint = [
         reply(
           "let a = 1 in\ntest a == 2 end;\ntest a == 1 end;\na",
           [
-            (
-              "update_binding_clause",
-              [("path", "test#1"), ("code", "test a > 0 end")],
-            ),
+            ("replace", [("target", "test#1"), ("code", "test a > 0 end")]),
           ],
         );
       same_text(
@@ -450,13 +494,13 @@ let tests_by_hint = [
     },
   ),
   test_case(
-    "insert_test's result names the test",
+    "an inserted test is reported by its path",
     `Quick,
     () => {
       let (_, results) =
         reply(
           "let a = 1 in a",
-          [("insert_test", [("path", "a"), ("code", "a == 1")])],
+          [("insert", [("after", "a"), ("code", "test a == 1 end")])],
         );
       mentions("result", "Added test#1.", List.hd(results).content);
     },
@@ -524,12 +568,12 @@ let moves = [
           }
         };
       switch (
-        CompositionGo.Public.go(
+        CompositionGo.go(
           ~settings=Language.CoreSettings.on,
           ~root=Exp,
           ~statics=CachedStatics.empty,
           z,
-          Move("area", FirstIn, "Geo"),
+          Move("area", FirstIn("Geo")),
         )
       ) {
       | Ok(z') =>
@@ -613,8 +657,11 @@ let test_results = [
               tool_calls: [
                 call(
                   0,
-                  "update_definition",
-                  [("path", "double"), ("code", "fun x -> 2 * x")],
+                  "replace",
+                  [
+                    ("target", "double:definition"),
+                    ("code", "fun x -> 2 * x"),
+                  ],
                 ),
               ],
               usage: None,
@@ -660,63 +707,91 @@ let test_results = [
 ];
 
 /* the prompt's few-shot example (Eg_RecFib, map_fib) runs as written */
-let prompt_example = [
-  test_case(
-    "map_fib: after fib's tests, its own tests after it",
-    `Quick,
-    () => {
-      let fib = "let fib(n: Int): Int =\n  if n <= 0 then 0 else if n == 1 then 1 else fib(n - 1) + fib(n - 2)\nin\n";
-      let fib_tests = "test fib(0) == 0 end;\ntest fib(1) == 1 end;\ntest fib(5) == 5 end;\ntest fib(10) == 55 end;\n";
-      let map_fib = "let map_fib(ns: [Int]): [Int] =\n  case ns\n  | [] => []\n  | hd :: tl => fib(hd) :: map_fib(tl)\n  end\nin";
-      let (after2, _) =
-        reply(
-          fib ++ fib_tests ++ "fib(10)",
-          [("insert_before", [("path", "=>"), ("code", map_fib)])],
-        );
-      let (after3, results) =
-        reply(
-          after2,
-          [
-            (
-              "insert_test",
-              [("path", "map_fib"), ("code", "map_fib([]) == []")],
-            ),
-            (
-              "insert_test",
-              [
-                ("path", "map_fib"),
-                ("code", "map_fib([0, 1, 5]) == [0, 1, 5]"),
-              ],
-            ),
-            (
-              "update_binding_clause",
-              [("path", "=>"), ("code", "map_fib([1, 2, 3, 4, 5])")],
-            ),
-          ],
-        );
-      check(
-        bool,
-        "applied",
-        true,
-        List.for_all(
-          (tr: AgentToolResult.tool_result) => tr.success,
+/* the system prompt's examples and the few-shot example run as written */
+let prompt_examples = [
+  test_case("the tool examples", `Quick, () =>
+    List.iter(
+      (e: ToolExamples.example) => {
+        let (_, results) =
+          List.hd(replies(e.program, [example_calls(e.calls)]));
+        List.iteri(
+          (i, tr: AgentToolResult.tool_result) => {
+            let c = List.nth(e.calls, i);
+            switch (e.results) {
+            | Some(rs) =>
+              let want = List.nth(rs, i);
+              tr.success
+                ? mentions(e.intent, c.tool ++ ": " ++ want, tr.content)
+                : mentions(e.intent, want, tr.content);
+            | None =>
+              check(bool, e.intent ++ ": " ++ tr.content, true, tr.success)
+            };
+          },
           results,
-        ),
-      );
-      same_text(
-        "program",
-        fib
-        ++ fib_tests
-        ++ map_fib
-        ++ "\ntest map_fib([]) == [] end;\ntest map_fib([0, 1, 5]) == [0, 1, 5] end;\nmap_fib([1, 2, 3, 4, 5])",
-        after3,
-      );
-    },
+        );
+        check(
+          int,
+          e.intent ++ ": all ran",
+          List.length(e.calls),
+          List.length(results),
+        );
+      },
+      ToolExamples.all,
+    )
+  ),
+  test_case("the few-shot example", `Quick, () =>
+    List.iter(
+      (e: Eg_RecFib.example) => {
+        Option.iter(
+          view =>
+            Test_AgentView.golden(
+              e.asks ++ ": the start",
+              view,
+              Test_AgentView.render(~evaluate=true, e.program),
+            ),
+          e.start,
+        );
+        let steps =
+          replies(
+            e.program,
+            List.map(
+              (s: Eg_RecFib.step) => example_calls(s.calls),
+              e.steps,
+            ),
+          );
+        List.iter2(
+          (s: Eg_RecFib.step, (program, results)) => {
+            List.iter(
+              (tr: AgentToolResult.tool_result) =>
+                check(
+                  bool,
+                  e.asks ++ ": " ++ tr.tool_call.name ++ ": " ++ tr.content,
+                  true,
+                  tr.success,
+                ),
+              results,
+            );
+            switch (s.sees) {
+            | Some((view, opened)) =>
+              Test_AgentView.golden(
+                e.asks,
+                view,
+                Test_AgentView.render(~evaluate=true, ~opened, program),
+              )
+            | None => ()
+            };
+          },
+          e.steps,
+          steps,
+        );
+      },
+      Eg_RecFib.examples,
+    )
   ),
 ];
 
 let tests = [
-  ("AgentReply.PromptExample", prompt_example),
+  ("AgentReply.PromptExamples", prompt_examples),
   ("AgentReply.Transactions", transactions),
   ("AgentReply.TestResults", test_results),
   ("AgentReply.DeletesAndRenames", deletes_and_renames),

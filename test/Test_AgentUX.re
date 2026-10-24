@@ -1006,7 +1006,7 @@ let toolcall_handler_tests = [
         CodeWithStatics.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp));
       let action =
         CompositionActions.EditorAction(
-          Action.Structural.Update(Action.Structural.Definition, "a", "1"),
+          Action.Structural.Replace("a:definition", "1"),
         );
       switch (
         Agent.ToolCallHandler.update(~settings, action, agent, cws, chat_id)
@@ -1126,44 +1126,10 @@ let tool_call_summary_tests = [
     "category mapping: edit tools -> Edit",
     `Quick,
     () => {
-      let args = `Assoc([("path", `String("fib"))]);
-      check_category(
-        "update_definition",
-        Edit,
-        mk_tc(~name="update_definition", ~args),
-      );
-      check_category("update_body", Edit, mk_tc(~name="update_body", ~args));
-      check_category(
-        "delete_binding_clause",
-        Edit,
-        mk_tc(~name="delete_binding_clause", ~args),
-      );
-      check_category(
-        "insert_before",
-        Edit,
-        mk_tc(~name="insert_before", ~args),
-      );
-    },
-  ),
-  test_case(
-    "category mapping: read tools -> Read",
-    `Quick,
-    () => {
-      let args = `Assoc([]);
-      check_category(
-        "view_entire_definition",
-        Read,
-        mk_tc(~name="view_entire_definition", ~args),
-      );
-      check_category(
-        "view_context",
-        Read,
-        mk_tc(~name="view_context", ~args),
-      );
-      check_category(
-        "show_references",
-        Read,
-        mk_tc(~name="show_references", ~args),
+      let args = `Assoc([("target", `String("fib"))]);
+      List.iter(
+        name => check_category(name, Edit, mk_tc(~name, ~args)),
+        ["insert", "replace", "delete", "move", "rename"],
       );
     },
   ),
@@ -1173,7 +1139,14 @@ let tool_call_summary_tests = [
     () => {
       let empty = `Assoc([]);
       let paths = `Assoc([("paths", `List([`String("x")]))]);
-      check_category("expand", View, mk_tc(~name="expand", ~args=paths));
+      check_category(
+        "open",
+        View,
+        mk_tc(
+          ~name="open",
+          ~args=`Assoc([("targets", `List([`String("x")]))]),
+        ),
+      );
       check_category(
         "place_syntax_projector",
         Projector,
@@ -1206,81 +1179,43 @@ let tool_call_summary_tests = [
     },
   ),
   test_case(
-    "single-path edit: signifier and jump_paths from `path` string",
+    "an edit: signifier and jump_paths from its target",
     `Quick,
     () => {
-      let args = `Assoc([("path", `String("fib"))]);
-      let s = get_summary(mk_tc(~name="update_definition", ~args));
+      let args = `Assoc([("target", `String("fib:body"))]);
+      let s = get_summary(mk_tc(~name="replace", ~args));
       check_signifier(
-        "update_definition",
-        Some("fib"),
-        mk_tc(~name="update_definition", ~args),
+        "replace",
+        Some("fib:body"),
+        mk_tc(~name="replace", ~args),
       );
       check_bool("persists=true", true, s.persists);
-      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
+      check_bool(
+        "jump_paths=[fib:body]",
+        true,
+        s.jump_paths == ["fib:body"],
+      );
     },
   ),
   test_case(
-    "delete tools: persists=false",
+    "delete: persists=false",
     `Quick,
     () => {
-      let args = `Assoc([("path", `String("fib"))]);
-      let s = get_summary(mk_tc(~name="delete_body", ~args));
+      let args = `Assoc([("target", `String("fib"))]);
+      let s = get_summary(mk_tc(~name="delete", ~args));
       check_bool("persists=false", false, s.persists);
     },
   ),
   test_case(
-    "insert_before with no path: signifier=None and display_name='insert'",
-    `Quick,
-    () => {
-      let tc = mk_tc(~name="insert_before", ~args=`Assoc([]));
-      let s = get_summary(tc);
-      check_signifier("no signifier when path absent", None, tc);
-      check_bool("no jump_paths when path absent", true, s.jump_paths == []);
-      check_bool(
-        "display_name='insert'",
-        true,
-        ToolCallSummary.display_name_for(tc) == "insert",
-      );
-    },
-  ),
-  test_case(
-    "insert_test: an edit at its path, or none without one",
-    `Quick,
-    () => {
-      let at =
-        mk_tc(
-          ~name="insert_test",
-          ~args=`Assoc([("path", `String("fib"))]),
-        );
-      let s = get_summary(at);
-      check_category("insert_test", Edit, at);
-      check_signifier("insert_test", Some("fib"), at);
-      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
-      check_bool("persists=true", true, s.persists);
-      let bare = mk_tc(~name="insert_test", ~args=`Assoc([]));
-      check_signifier("no path", None, bare);
-      check_bool(
-        "display_name keeps the tool name",
-        true,
-        ToolCallSummary.display_name_for(bare) == "insert_test",
-      );
-    },
-  ),
-  test_case(
-    "insert_before with path: display_name preserves tool name",
+    "insert: signifier from its place",
     `Quick,
     () => {
       let tc =
-        mk_tc(
-          ~name="insert_before",
-          ~args=`Assoc([("path", `String("fib"))]),
-        );
-      check_bool(
-        "display_name unchanged when path present",
-        true,
-        ToolCallSummary.display_name_for(tc) == "insert_before",
-      );
+        mk_tc(~name="insert", ~args=`Assoc([("after", `String("fib"))]));
+      let s = get_summary(tc);
+      check_signifier("after fib", Some("fib"), tc);
+      check_bool("jump_paths=[fib]", true, s.jump_paths == ["fib"]);
+      check_bool("persists=true", true, s.persists);
     },
   ),
   test_case(
@@ -1288,7 +1223,11 @@ let tool_call_summary_tests = [
     `Quick,
     () => {
       let args = `Assoc([("paths", `List([`String("a"), `String("b")]))]);
-      check_signifier("a, b", Some("a, b"), mk_tc(~name="expand", ~args));
+      check_signifier(
+        "a, b",
+        Some("a, b"),
+        mk_tc(~name="place_probe", ~args),
+      );
     },
   ),
   test_case(
@@ -1311,7 +1250,7 @@ let tool_call_summary_tests = [
       check_signifier(
         "a, b +3",
         Some("a, b +3"),
-        mk_tc(~name="expand", ~args),
+        mk_tc(~name="place_probe", ~args),
       );
     },
   ),
@@ -1414,19 +1353,6 @@ let tool_call_summary_tests = [
       );
     },
   ),
-  test_case(
-    "read tools: signifier=None, jump_paths=[], persists=false",
-    `Quick,
-    () => {
-      let s =
-        get_summary(
-          mk_tc(~name="view_entire_definition", ~args=`Assoc([])),
-        );
-      check_bool("signifier=None", true, s.signifier == None);
-      check_bool("jump_paths=[]", true, s.jump_paths == []);
-      check_bool("persists=false", false, s.persists);
-    },
-  ),
 ];
 
 let api_error_format_tests = [
@@ -1435,7 +1361,7 @@ let api_error_format_tests = [
     `Quick,
     () => {
       let s =
-        Agent.Update.format_api_error_content(
+        AgentSend.format_api_error_content(
           ~code=429,
           ~message="rate limited",
         );
