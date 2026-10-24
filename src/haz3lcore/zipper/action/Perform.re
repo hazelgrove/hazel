@@ -256,11 +256,7 @@ let rec go =
       pasted
       |> maybe_reassoc_thorough
       |> LocalReformat.go(~before)
-      |> LocalReformat.go_region(~before_pieces)
-      /* re-indenting the pasted lines rebuilds every tile: what the paste
-         didn't change keeps its objects, which the parse, measure and
-         analysis caches key on, for the paste and its undo */
-      |> Zipper.restore_identity(~old=z);
+      |> LocalReformat.go_region(~before_pieces);
     switch (Parser.try_segment_paste(clipboard, z, ~root)) {
     | Some(z) => Ok(finish(z))
     | None =>
