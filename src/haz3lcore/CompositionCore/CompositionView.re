@@ -173,6 +173,17 @@ let elide_kid = (): (Segment.t, Id.t) => {
   ([space(), e, space()], Piece.id(e));
 };
 
+/* a definition's leading `fun x ->` heads: its parameters, which stay in
+   the map */
+let rec fun_heads = (ps: Segment.t): list(Piece.t) =>
+  switch (ps) {
+  | [p, ...rest] when Piece.is_secondary(p) => fun_heads(rest)
+  | [p, ...rest] when S.is_fun_head(p) => [p, ...fun_heads(rest)]
+  | _ => []
+  };
+let headed = (heads: list(Piece.t)): Segment.t =>
+  List.concat_map(h => [space(), h], heads);
+
 let rec spans_lines = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) => List.exists(List.exists(spans_lines), t.children)
@@ -284,11 +295,13 @@ let rec map_level =
         switch (S.site_of(lv, k)) {
         | Some(Kid(h, t)) =>
           let (kid, mark) = elide_kid();
-          arr[h] = Tile(with_last_kid(t, kid));
+          let heads = fun_heads(ListUtil.last(t.children));
+          arr[h] = Tile(with_last_kid(t, headed(heads) @ kid));
           Some(mark);
         | Some(Run(_, a, b)) when a < b =>
           let e = elision();
-          runs := [(a, b, [space(), e]), ...runs^];
+          let heads = fun_heads(Array.to_list(Array.sub(arr, a, b - a)));
+          runs := [(a, b, headed(heads) @ [space(), e]), ...runs^];
           Some(Piece.id(e));
         | _ => None
         };

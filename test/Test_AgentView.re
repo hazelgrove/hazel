@@ -229,6 +229,28 @@ double(5)|},
       ),
     )
   ),
+  test_case("the map keeps a `fun` definition's parameters", `Quick, () =>
+    golden(
+      "fun heads",
+      {|# map · no errors #
+let pad = fun (n: Int) -> ⋯ in  # 1 use #
+module M = {
+  let twice = fun f -> fun x -> ⋯;
+  let k = ⋯
+} in
+pad(1)|},
+      render(
+        {|let pad = fun (n: Int) ->
+  if n < 10 then "0" else ""
+in
+module M = {
+  let twice = fun f -> fun x -> f(f(x));
+  let k = 3
+} in
+pad(1)|},
+      ),
+    )
+  ),
   test_case("a module-rooted program; entries sharing a line", `Quick, () =>
     golden(
       "mod root",
