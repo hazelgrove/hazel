@@ -47,7 +47,8 @@ type source =
   /* another entry or node, fresh ids */
   | Copy(Id.t)
   /* one token's new text, its id kept. A definition's keyword (`let`,
-     `type`, `module`) re-reads its head as that kind */
+     `type`, `module`) re-reads its head as that kind; a blank definition
+     becomes the kind's blank */
   | Token(string);
 
 /* Replace takes any node: an entry by its anchor (or first tile), else
@@ -917,26 +918,54 @@ let rec with_first_id = (id: Id.t, pat: Segment.t): Segment.t =>
   | _ => pat
   };
 
-/* definition head [t] re-read as [kw]'s: its tile and its pattern's name
-   keep their ids, its pattern's edge whitespace and its definition stay */
-let rekind = (~member: bool, kw: string, t: Tile.t): option(Piece.t) => {
+/* definition head [t], piece [i] of [level], re-read as [kw]'s: its tile
+   and its pattern's name keep their ids, its pattern's edge whitespace
+   stays. Its definition stays, or if blank (only holes) is remade as the
+   kind's blank, its pattern then its name alone */
+let rekind =
+    (kw: string, level: Segment.t, i: int, t: Tile.t): option(Segment.t) => {
+  let member = !Tile.ends_with_in(t);
   let pat = Nav.pat_of(t);
-  let head = kw ++ " " ++ String.trim(L.text(pat)) ++ " = {}";
+  let def = Option.value(Nav.def_at((level, i, t)), ~default=[]);
+  let blank = L.blank_def(def);
+  let name = List.find_opt(p => !Piece.is_secondary(p), pat);
+  let pat_text =
+    switch (name) {
+    | Some(n) when blank => L.piece_text(n)
+    | _ => L.text(pat)
+    };
+  let head =
+    kw
+    ++ " "
+    ++ String.trim(pat_text)
+    ++ " = "
+    ++ (kw == "module" || !blank ? "{}" : {js|¿|js});
   switch (member ? L.member_core(head) : L.letin_core(head ++ " in")) {
-  | Some([Tile(h), ..._]) =>
+  | Some([Tile(h), ...rest]) =>
     let pat' =
-      switch (List.find_opt(p => !Piece.is_secondary(p), pat)) {
-      | Some(name) =>
-        respace(pat, with_first_id(Piece.id(name), Nav.pat_of(h)))
+      switch (name) {
+      | Some(n) => respace(pat, with_first_id(Piece.id(n), Nav.pat_of(h)))
       | None => respace(pat, Nav.pat_of(h))
       };
-    Some(
+    let made = children =>
       Piece.Tile({
         ...h,
         id: t.id,
-        children: member ? [pat'] : [pat', ListUtil.last(t.children)],
-      }),
-    );
+        children,
+      });
+    if (member) {
+      let (def, after) =
+        Nav.split_at_semi(ListUtil.remove_first_n(i + 1, level));
+      Some(
+        ListUtil.truncate(i, level)
+        @ [made([pat'])]
+        @ (blank ? respace(def, rest) : def)
+        @ after,
+      );
+    } else {
+      let def' = blank ? respace(def, ListUtil.last(h.children)) : def;
+      Some(ListUtil.put_nth(i, made([pat', def']), level));
+    };
   | _ => None
   };
 };
@@ -944,23 +973,27 @@ let rekind = (~member: bool, kw: string, t: Tile.t): option(Piece.t) => {
 let token = (c: ctx, op, x: Id.t, txt: string, seg: Segment.t): step => {
   let path = need(~id=x, Missing, Nav.find_path(~root=c.root, x, seg));
   let (up, level, i) = Nav.home(~seg, path);
-  let made =
+  let level' =
     switch (List.nth(level, i)) {
     | Tile({form: Tok(_), _} as t) =>
-      Piece.Tile({
-        ...t,
-        form: Tok(txt),
-      })
+      ListUtil.put_nth(
+        i,
+        Piece.Tile({
+          ...t,
+          form: Tok(txt),
+        }),
+        level,
+      )
     | Tile(t)
         when Nav.is_def_head(t) && List.mem(txt, ["let", "type", "module"]) =>
-      need(~id=x, Unreadable, rekind(~member=!Tile.ends_with_in(t), txt, t))
+      need(~id=x, Unreadable, rekind(txt, level, i, t))
     | _ => refuse(~id=x, NotAToken)
     };
   done_(
     ~replaced=[(x, x)],
     ~focus=Some(x),
     op,
-    Nav.rebuild(~seg, up, ListUtil.put_nth(i, made, level)),
+    Nav.rebuild(~seg, up, level'),
   );
 };
 

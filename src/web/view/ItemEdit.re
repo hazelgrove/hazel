@@ -10,15 +10,13 @@ module Nav = SpineNav;
 
 let root_of = L.root_of;
 
-/* a kind's keyword, and its blank definition */
+/* a kind's keyword */
 let kind_kw = (kind: OutlineRename.kind): string =>
   switch (kind) {
   | KType => "type"
   | KModule => "module"
   | KValue => "let"
   };
-let blank_text = (kind: OutlineRename.kind): string =>
-  kind == KModule ? "{}" : {js|¿|js};
 
 /* a new definition of [kind], named, or with a hole for its name */
 let template = (kind: OutlineRename.kind, name: option(string)): K.template =>
@@ -497,18 +495,9 @@ let apply_rename =
   let rekind =
     switch (rn.rn_kind) {
     | None => []
-    | Some((kind, keep)) =>
-      [K.Replace(row, Token(kind_kw(kind)))]
-      @ (
-        keep
-          ? []
-          : (
-            switch (K.part(~root, row, Definition, seg)) {
-            | Some(def) => [K.Replace(def, Text(blank_text(kind)))]
-            | None => []
-            }
-          )
-      )
+    /* the kernel remakes a blank definition as the kind's blank, as
+       [refit] expects */
+    | Some((kind, _)) => [K.Replace(row, Token(kind_kw(kind)))]
     };
   run(~mod_root, seg, tokens @ rekind) |> Result.map(~f=fst);
 };

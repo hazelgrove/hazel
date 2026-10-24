@@ -33,7 +33,8 @@ let drop_suffix = EntryLayout.drop_suffix;
 let member_core = EntryLayout.member_core;
 let letin_core = EntryLayout.letin_core;
 let kind_kw = Web.ItemEdit.kind_kw;
-let blank_text = Web.ItemEdit.blank_text;
+let blank_text = (kind: OutlineRename.kind): string =>
+  kind == KModule ? "{}" : {js|¿|js};
 /* a new definition's text */
 let template = (kind: OutlineRename.kind, name: string): string =>
   kind_kw(kind) ++ " " ++ name ++ " = " ++ blank_text(kind);
