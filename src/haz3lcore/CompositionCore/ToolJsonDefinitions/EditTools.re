@@ -7,7 +7,7 @@ let tool =
     (
       ~name: string,
       ~description: string,
-      ~properties: list((string, string)),
+      ~properties: list((string, API.Json.t)),
       ~required: list(string),
     )
     : API.Json.t =>
@@ -22,28 +22,19 @@ let tool =
           "parameters",
           `Assoc([
             ("type", `String("object")),
-            (
-              "properties",
-              `Assoc(
-                List.map(
-                  ((key, desc)) =>
-                    (
-                      key,
-                      `Assoc([
-                        ("type", `String("string")),
-                        ("description", `String(desc)),
-                      ]),
-                    ),
-                  properties,
-                ),
-              ),
-            ),
+            ("properties", `Assoc(properties)),
             ("required", `List(List.map(r => `String(r), required))),
           ]),
         ),
       ]),
     ),
   ]);
+
+let string_param = (desc: string): API.Json.t =>
+  `Assoc([("type", `String("string")), ("description", `String(desc))]);
+
+/* string parameters, by name and description */
+let strings = List.map(((key, desc)) => (key, string_param(desc)));
 
 let place_properties = [
   ("before", "Path of the entry it goes before."),
@@ -73,9 +64,10 @@ let insert: API.Json.t =
     ~name="insert",
     ~description=
       {|
-Adds one entry (a definition, type, module, test or statement), written without its trailing `in` or `;`. Give exactly one place: `before` or `after` an entry, or `first_in` / `last_in` a module's members or a definition's body.|}
+Adds entries (definitions, types, modules, tests, statements), written without a trailing `in` or `;`. Give exactly one place: `before` or `after` an entry, or `first_in` / `last_in` a module's members or a definition's body.|}
       ++ example("insert"),
-    ~properties=[("code", "The entry's code."), ...place_properties],
+    ~properties=
+      strings([("code", "The entries' code."), ...place_properties]),
     ~required=["code"],
   );
 
@@ -86,13 +78,14 @@ let replace: API.Json.t =
       {|
 Replaces the entry at `target` with `code`, or one part of it: `target:definition` (after `=`), `target:body` (a function's body, past its parameters), `target:pattern` (before `=`; to rename, use rename). A whole entry is written without its trailing `in` or `;`.|}
       ++ example("replace"),
-    ~properties=[
-      (
-        "target",
-        "Path of the entry, optionally with :definition, :body, :pattern or :head.",
-      ),
-      ("code", "The new code."),
-    ],
+    ~properties=
+      strings([
+        (
+          "target",
+          "Path of the entry, optionally with :definition, :body, :pattern or :head.",
+        ),
+        ("code", "The new code."),
+      ]),
     ~required=["target", "code"],
   );
 
@@ -103,7 +96,7 @@ let delete: API.Json.t =
       {|
 Removes the entry at `target`. Refused while its names are still used: the result lists the uses; change or delete them in the same reply.|}
       ++ example("delete"),
-    ~properties=[("target", "Path of the entry.")],
+    ~properties=strings([("target", "Path of the entry.")]),
     ~required=["target"],
   );
 
@@ -114,10 +107,11 @@ let move: API.Json.t =
       {|
 Moves the entry at `target` to a place, as for insert, keeping its code and probes. Moving between a module and a definition's body converts `;` and `in`; uses that no longer reach it are not rewritten.|}
       ++ example("move"),
-    ~properties=[
-      ("target", "Path of the entry to move."),
-      ...place_properties,
-    ],
+    ~properties=
+      strings([
+        ("target", "Path of the entry to move."),
+        ...place_properties,
+      ]),
     ~required=["target"],
   );
 
@@ -128,12 +122,13 @@ let rename: API.Json.t =
       {|
 Renames the definition, type or module at `target`, and every use of it, `M.member` uses included. Refused if a use would then refer to something else.|}
       ++ example("rename"),
-    ~properties=[
-      (
-        "target",
-        "Path of the entry; for a pattern binding several names, the name's path.",
-      ),
-      ("to", "The new name."),
-    ],
+    ~properties=
+      strings([
+        (
+          "target",
+          "Path of the entry; for a pattern binding several names, the name's path.",
+        ),
+        ("to", "The new name."),
+      ]),
     ~required=["target", "to"],
   );

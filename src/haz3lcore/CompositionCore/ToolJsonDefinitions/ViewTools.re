@@ -9,28 +9,8 @@ let targets_param = (what: string): (string, API.Json.t) => (
   ]),
 );
 
-let tool = (~name, ~description, ~properties, ~required) =>
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String(name)),
-        ("description", `String(String.trim(description))),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            ("properties", `Assoc(properties)),
-            ("required", `List(List.map(r => `String(r), required))),
-          ]),
-        ),
-      ]),
-    ),
-  ]);
-
 let open_: API.Json.t =
-  tool(
+  EditTools.tool(
     ~name="open",
     ~description=
       {|
@@ -41,7 +21,7 @@ Opens entries: each shows in full below the map, under `# open: path #`, with it
   );
 
 let close: API.Json.t =
-  tool(
+  EditTools.tool(
     ~name="close",
     ~description=
       {|
