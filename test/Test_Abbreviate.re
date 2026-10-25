@@ -613,6 +613,29 @@ let module_abbreviation_tests = [
       );
     },
   ),
+  test_case(
+    "module value abbreviation counts member names against the budget",
+    `Quick,
+    (): unit => {
+      open IdTagged.FreshGrammar;
+      let member = x => Language.Mod.fresh(ModVal(x, Exp.int(1)));
+      let original: Exp.t =
+        Exp.module_([
+          member("a_rather_long_member_name"),
+          member("another_long_member_name"),
+        ]);
+      let budget = 30;
+      check(
+        Alcotest.bool,
+        "within budget",
+        true,
+        Util.Unicode.length(
+          render_exp(run_abbreviation(~available=budget, original)),
+        )
+        <= budget,
+      );
+    },
+  ),
   /* ===== MODULE EXPRESSION (ModuleExp) ABBREVIATION TESTS ===== */
   test_case(
     "ModuleExp abbreviates def and body",

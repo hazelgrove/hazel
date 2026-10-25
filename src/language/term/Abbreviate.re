@@ -1248,7 +1248,8 @@ and abbreviate_mod_item = (item: Mod.t): Mod.t => {
         Invalid(flat_ellipses);
       } else {
         available := available^ - 6; // "let " " = "
-        ModVal(x, abbreviate_exp(e));
+        let x' = abbreviate_str(available^, x);
+        ModVal(x', abbreviate_exp(e));
       }
     };
   rewrap(term);
