@@ -162,7 +162,11 @@ let stopped_at = (code: string, stop: MenhirParser.Interface.stop): string => {
     let l = lines[stop.line - 1];
     let n = String.length(l);
     let c = max(0, min(n, stop.column - 1));
-    let (lo, hi) = (max(0, c - 14), min(n, c + 20));
+    /* not inside a UTF-8 character */
+    let inside = i => i < n && Char.code(l.[i]) land 0xC0 == 0x80;
+    let rec back = i => inside(i) ? back(i - 1) : i;
+    let rec on = i => inside(i) ? on(i + 1) : i;
+    let (lo, hi) = (back(max(0, c - 14)), on(min(n, c + 20)));
     " at line "
     ++ string_of_int(stop.line)
     ++ ", column "
@@ -1821,6 +1825,7 @@ module Reply = {
           },
         fresh,
       );
+    let text = h => String.trim(Printer.of_segment(~holes="?", [h]));
     let rec leading = (ps: Segment.t) =>
       switch (ps) {
       | [p, ...rest] when S.is_fun_head(p) => [p, ...leading(rest)]
@@ -1848,24 +1853,13 @@ module Reply = {
                 )
                 |> List.exists(((x, _)) => List.mem(x, free))
                   ? Some(
-                      Option.value(
-                        Option.map(
-                          CompositionView.last_elem,
-                          path_string(~root=r.root, m.before, head),
-                        ),
-                        ~default="the",
+                      Option.fold(
+                        ~none="The definition",
+                        ~some=p => "`" ++ p ++ ":definition`",
+                        path_string(~root=r.root, m.before, head),
                       )
-                      ++ "'s definition starts with `"
-                      ++ String.concat(
-                           " ",
-                           List.map(
-                             h =>
-                               String.trim(
-                                 Printer.of_segment(~holes="?", [h]),
-                               ),
-                             old,
-                           ),
-                         )
+                      ++ " starts with `"
+                      ++ String.concat(" ", List.map(text, old))
                       ++ "`; the new code dropped it.",
                     )
                   : None

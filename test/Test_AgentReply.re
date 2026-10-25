@@ -2027,7 +2027,7 @@ let messages = [
         );
       mentions(
         "the hint",
-        "\nupdate's definition starts with `fun (m: Int, action: Int) ->`; the new code dropped it.\n",
+        "\n`update:definition` starts with `fun (m: Int, action: Int) ->`; the new code dropped it.\n",
         List.hd(results).content,
       );
       let (_, results) =
