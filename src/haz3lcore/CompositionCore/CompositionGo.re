@@ -1410,8 +1410,8 @@ module Reply = {
   };
 
   type failure = {
-    /* the tool call it concerns */
-    index: int,
+    /* the tool call it concerns; None: the reply's edits together */
+    index: option(int),
     message: string,
   };
 
@@ -1435,21 +1435,31 @@ module Reply = {
   let lines = (ls: list(string)): string =>
     String.concat("", List.map(l => "\n- " ++ l, ls));
 
-  /* the call that wrote piece [id]: the first it appears after; else the
-     last, whose change the error is in */
-  let author = (r: t, id: Id.t): made => {
+  /* the call that wrote piece [id]: the first it appears after */
+  let author = (r: t, id: Id.t): option(int) => {
     let has = (seg: Segment.t) =>
       Nav.find_path(~root=r.root, id, seg) != None;
-    switch (
-      List.find_opt(
-        (m: made) => !has(m.before) && has(m.change.program),
-        made(r),
-      )
-    ) {
-    | Some(m) => m
-    | None => List.hd(r.made)
-    };
+    List.find_map(
+      (m: made) =>
+        !has(m.before) && has(m.change.program) ? Some(m.index) : None,
+      made(r),
+    );
   };
+
+  /* the one call errors [ids] concern: the reply's only call, or the one
+     that wrote them all. Errors in code no call wrote (uses a type change
+     broke) are the reply's */
+  let concerns = (r: t, ids: list(Id.t)): option(int) =>
+    switch (r.made, ids) {
+    | ([m], _) => Some(m.index)
+    | (_, [id, ...rest]) =>
+      switch (author(r, id)) {
+      | Some(i) when List.for_all(id => author(r, id) == Some(i), rest) =>
+        Some(i)
+      | _ => None
+      }
+    | (_, []) => None
+    };
 
   /* the entries holding pieces [ids], by path */
   let where_all = (r: t, ids: list(Id.t)): string =>
@@ -1484,7 +1494,7 @@ module Reply = {
         | [] => None
         | found =>
           Some({
-            index: m.index,
+            index: Some(m.index),
             message:
               "Not deleted: it would leave uses dangling. Delete or change them first, in the same reply:"
               ++ lines(
@@ -1528,7 +1538,7 @@ module Reply = {
             | [] => None
             | ids =>
               Some({
-                index: m.index,
+                index: Some(m.index),
                 message:
                   "Not renamed to "
                   ++ name
@@ -1619,7 +1629,7 @@ module Reply = {
           | [] => None
           | found =>
             Some({
-              index: m.index,
+              index: Some(m.index),
               message:
                 "Not replaced: uses outside it would change what they refer to. To rename a binder with its uses, use rename (with name for a parameter):"
                 ++ lines(
@@ -1740,10 +1750,31 @@ module Reply = {
   /* errors listed in full, past which they are counted */
   let shown_errors = 10;
 
-  /* a refusal for errors [fresh]: how many, by top-level entry, what a
-     type change breaks, then the first few */
+  /* the top-level entries the reply's calls changed, by path */
+  let changed_entries = (r: t): list(string) =>
+    List.concat_map(
+      (m: made) =>
+        List.map(
+          t => snd(top_entry(r, m.before, t)),
+          Option.to_list(m.plan.target),
+        )
+        @ List.concat_map(
+            (s: K.step) =>
+              List.map(
+                id => snd(top_entry(r, s.program, id)),
+                s.added @ List.map(snd, s.replaced),
+              ),
+            m.change.steps,
+          ),
+      made(r),
+    );
+
+  /* a refusal for errors [fresh], the reply's edits together's when
+     [whole]: how many, by top-level entry, what a type change breaks, then
+     the first few */
   let new_errors_message =
-      (r: t, ~line: Id.t => string, ~n0, ~n1, fresh: list(Id.t)): string => {
+      (r: t, ~whole, ~line: Id.t => string, ~n0, ~n1, fresh: list(Id.t))
+      : string => {
     let seg = program(r);
     let groups =
       List.fold_left(
@@ -1760,8 +1791,17 @@ module Reply = {
       |> List.map((((_, path), n)) => (path, n));
     let count = List.length(fresh);
     let types = changed_types(r);
-    let broken = List.filter(((g, _)) => !List.mem(g, types), groups);
-    "Not applied: it would add "
+    let changed = changed_entries(r);
+    let (redone, broken) =
+      List.filter(((g, _)) => !List.mem(g, types), groups)
+      |> List.map(fst)
+      |> List.partition(g => List.mem(g, changed));
+    let names = String.concat(", ");
+    (
+      whole
+        ? "Not applied: this reply's edits together would add "
+        : "Not applied: it would add "
+    )
     ++ string_of_int(count)
     ++ (count == 1 ? " static error" : " static errors")
     ++ " ("
@@ -1783,8 +1823,16 @@ module Reply = {
         : "\nChanging "
           ++ String.concat(" and ", types)
           ++ " breaks uses in: "
-          ++ String.concat(", ", List.map(fst, broken))
+          ++ names(broken)
           ++ "; change them in the same reply."
+    )
+    ++ (
+      types == [] || redone == []
+        ? ""
+        : "\nUses in "
+          ++ names(redone)
+          ++ " are still broken after this reply's changes to "
+          ++ (List.length(redone) == 1 ? "it." : "them.")
     )
     ++ lines(List.map(line, ListUtil.take(shown_errors, fresh)))
     ++ (
@@ -1838,10 +1886,19 @@ module Reply = {
           ) {
           | Some(f) => Error(f)
           | None when r.checks.no_new_errors && fresh != [] =>
+            let index = concerns(r, fresh);
             Error({
-              index: author(r, List.hd(fresh)).index,
-              message: new_errors_message(r, ~line, ~n0, ~n1, fresh),
-            })
+              index,
+              message:
+                new_errors_message(
+                  r,
+                  ~whole=index == None,
+                  ~line,
+                  ~n0,
+                  ~n1,
+                  fresh,
+                ),
+            });
           | None => Ok()
           }
         };

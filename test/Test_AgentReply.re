@@ -1860,6 +1860,111 @@ let messages = [
     },
   ),
   test_case(
+    "errors no one call wrote are the reply's, not its last call's",
+    `Quick,
+    () => {
+      /* V Sonnet: the Shape replace broke area; the refusal sat on the
+         insert after it */
+      let (outs, _) =
+        run(
+          shapes_v,
+          [
+            [
+              call(
+                0,
+                "replace",
+                [
+                  ("target", "Shape"),
+                  (
+                    "code",
+                    "type Shape = + Circle(Int, Bool) + Rect(Int, Int)",
+                  ),
+                ],
+              ),
+              call(
+                1,
+                "insert",
+                [("before", "area"), ("code", "let two = 2")],
+              ),
+            ],
+          ],
+        );
+      let results = snd(List.hd(outs));
+      let content = i => List.nth(results, i).AgentToolResult.content;
+      mentions(
+        "the refusal",
+        "Not applied: this reply's edits together would add 3 static errors",
+        content(1),
+      );
+      mentions(
+        "no one call blamed",
+        "None of this reply's edits were applied: they are checked as one change.",
+        content(1),
+      );
+      mentions(
+        "the other call",
+        "Rolled back. None of this reply's edits were applied: they are checked as one change (see call 2's result).",
+        content(0),
+      );
+      check(
+        bool,
+        "no call named as failed",
+        false,
+        has("failed", content(1)),
+      );
+    },
+  ),
+  test_case(
+    "uses the reply changed and still broken are said so",
+    `Quick,
+    () => {
+      /* V Flash: told to change uses in the same reply, which it had */
+      let (outs, _) =
+        run(
+          shapes_v,
+          [
+            [
+              call(
+                0,
+                "replace",
+                [
+                  ("target", "Shape"),
+                  (
+                    "code",
+                    "type Shape = + Circle(Int, Bool) + Rect(Int, Int)",
+                  ),
+                ],
+              ),
+              call(
+                1,
+                "replace",
+                [
+                  ("target", "area:definition"),
+                  (
+                    "code",
+                    "case s\n| Circle(r) => 3 * r * r\n| Rect(w, h) => w * h\nend",
+                  ),
+                ],
+              ),
+            ],
+          ],
+        );
+      let content =
+        String.concat(
+          "\n",
+          List.map(
+            (tr: AgentToolResult.tool_result) => tr.content,
+            snd(List.hd(outs)),
+          ),
+        );
+      mentions(
+        "the still-broken uses",
+        "Changing Shape breaks uses in: \"circle area\"; change them in the same reply.\nUses in area are still broken after this reply's changes to it.",
+        content,
+      );
+    },
+  ),
+  test_case(
     "an edit leaving the program's result empty says so",
     `Quick,
     () => {
