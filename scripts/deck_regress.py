@@ -1184,11 +1184,14 @@ def deck_slides():
 
 
 SWEEP_STATE = """
-  // (the toggle sits in the projectors' overlay layer, the GUI in the base layer: the GUI is the use nearest the toggle)
-  const near = t => { const tr = t.getBoundingClientRect(); let best = null, bd = 1e9;
-    for (const u of document.querySelectorAll('.user-livelit')) { const r = u.getBoundingClientRect();
-      const dd = Math.abs(r.top - tr.top) + Math.abs(r.left - tr.left); if (dd < bd) { bd = dd; best = u; } }
-    return best && (best.closest('.projector') || best); };
+  // (the toggle sits in the projectors' overlay layer, the GUI in the base layer: the GUI is the base projector whose box is
+  // the toggle's own projector's box. Run 40228694578 matched the use nearest the toggle instead, and where uses sit one
+  // to a line (the Playground's sliders) their toggles stack 10 px apart, so most toggles found another use's GUI)
+  const near = t => { const op = (t.closest('.projector') || t).getBoundingClientRect(); let best = null, bd = 1e9;
+    for (const u of document.querySelectorAll('.user-livelit')) { const p = u.closest('.projector') || u; if (p.contains(t)) continue;
+      const r = p.getBoundingClientRect(), dd = Math.abs(r.left - op.left) + Math.abs(r.top - op.top) + Math.abs(r.width - op.width);
+      if (dd < bd) { bd = dd; best = p; } }
+    return best; };
   const t = document.querySelectorAll('.livelit-syntax-toggle')[arguments[0]];
   if (!t) return null;
   const pj = near(t);
@@ -1205,11 +1208,14 @@ SWEEP_STATE = """
 """
 
 SWEEP_CONTROL = """
-  // (the toggle sits in the projectors' overlay layer, the GUI in the base layer: the GUI is the use nearest the toggle)
-  const near = t => { const tr = t.getBoundingClientRect(); let best = null, bd = 1e9;
-    for (const u of document.querySelectorAll('.user-livelit')) { const r = u.getBoundingClientRect();
-      const dd = Math.abs(r.top - tr.top) + Math.abs(r.left - tr.left); if (dd < bd) { bd = dd; best = u; } }
-    return best && (best.closest('.projector') || best); };
+  // (the toggle sits in the projectors' overlay layer, the GUI in the base layer: the GUI is the base projector whose box is
+  // the toggle's own projector's box. Run 40228694578 matched the use nearest the toggle instead, and where uses sit one
+  // to a line (the Playground's sliders) their toggles stack 10 px apart, so most toggles found another use's GUI)
+  const near = t => { const op = (t.closest('.projector') || t).getBoundingClientRect(); let best = null, bd = 1e9;
+    for (const u of document.querySelectorAll('.user-livelit')) { const p = u.closest('.projector') || u; if (p.contains(t)) continue;
+      const r = p.getBoundingClientRect(), dd = Math.abs(r.left - op.left) + Math.abs(r.top - op.top) + Math.abs(r.width - op.width);
+      if (dd < bd) { bd = dd; best = p; } }
+    return best; };
   const t = document.querySelectorAll('.livelit-syntax-toggle')[arguments[0]];
   const pj = t && near(t);
   if (!pj) return null;
