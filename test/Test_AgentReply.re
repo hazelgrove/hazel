@@ -137,7 +137,7 @@ let geo = "let area = fun s -> s * s in\nlet total = fun xs -> 0 in\nmodule Geo 
 
 let transactions = [
   test_case(
-    "a definition spanning lines lands with its `in` laid out as its neighbours'",
+    "a definition spanning lines lands with its `in` on a line of its own",
     `Quick,
     () => {
       let (program, _) =
@@ -158,7 +158,7 @@ let transactions = [
         );
       mentions(
         "program",
-        "  | Rect(_, _) => false\n  end\nin\nhint \"rect area\" test area",
+        "  | Rect(_, _) => false\n  end\nin\nhint \"rect area\" test\n  area",
         program,
       );
     },
@@ -734,14 +734,14 @@ let moves = [
         reply(geo, [("move", [("target", "area"), ("after", "total")])]);
       mentions(
         "after",
-        "let total = fun xs -> 0 in\nlet area = fun s -> s * s in",
+        "let total = fun xs -> 0 in\n\nlet area = fun s -> s * s in",
         program,
       );
       let (program, _) =
         reply(geo, [("move", [("target", "Geo"), ("before", "area")])]);
       mentions(
         "before",
-        "module Geo = { let perimeter = 4 } in\nlet area",
+        "module Geo = { let perimeter = 4 } in\n\nlet area",
         program,
       );
     },
@@ -789,7 +789,7 @@ let moves = [
         reply(geo, [("move", [("target", "area"), ("last_in", "")])]);
       mentions(
         "program",
-        "module Geo = { let perimeter = 4 } in\nlet area = fun s -> s * s in\n?",
+        "module Geo = { let perimeter = 4 } in\n\nlet area = fun s -> s * s in\n\n?",
         program,
       );
     },
@@ -1210,6 +1210,117 @@ let prompt_examples = [
   ),
 ];
 
+/* a replayed session from an empty program: the layout around the
+   agent's code is house style, comments don't pile up, and entries
+   without separators get a message that says so */
+let repro = [
+  test_case(
+    "a session from an empty program",
+    `Quick,
+    () => {
+      let insert = (place, code) => ("insert", [place, ("code", code)]);
+      let reply = calls => List.mapi((i, (n, a)) => call(i, n, a), calls);
+      let redoc =
+        reply([
+          (
+            "replace",
+            [
+              ("target", "area:definition"),
+              (
+                "code",
+                "# approximate area, pi taken as 3; lines have none #\ncase s\n| Circle(_, r) => 3 * r * r\n| Rect(_, _) => 2\n| Line(_, _) => 0\nend",
+              ),
+            ],
+          ),
+        ]);
+      let steps =
+        replies(
+          "?",
+          [
+            reply([
+              insert(
+                ("first_in", "/"),
+                "type Point = (Int, Int)\ntype Style = (Int, Bool)",
+              ),
+            ]),
+            reply([
+              insert(
+                ("first_in", "/"),
+                "type Point = (Int, Int) in\ntype Style = (Int, Bool) in\ntype Shape =\n  + Circle(Point, Int)\n  + Rect(Point, Point)\n  + Line(Point, Point)",
+              ),
+            ]),
+            reply([
+              insert(
+                ("after", "Shape"),
+                "let area(s: Shape): Int =\n  # approximate area, pi taken as 3 #\n  case s\n  | Circle(_, r) => 3 * r * r\n  | Rect(_, _) => 1\n  | Line(_, _) => 0\n  end",
+              ),
+              insert(
+                ("after", "area"),
+                "hint \"circle area\" test area(Circle((0, 0), 2)) == 12 end",
+              ),
+            ]),
+            redoc,
+            redoc,
+            reply([
+              insert(
+                ("after", "\"circle area\""),
+                "let double(n: Int): Int =\n  # twice n #\n  2 * n",
+              ),
+            ]),
+          ],
+        );
+      let result = (k, i) =>
+        List.nth(snd(List.nth(steps, k)), i).AgentToolResult.content;
+      mentions(
+        "entries without `in`",
+        "Entries in one `code` need `in` between them (`;` in a module); leave it off the last.",
+        result(0, 0),
+      );
+      mentions(
+        "the first replace",
+        "- # approximate area, pi taken as 3 #",
+        result(3, 0),
+      );
+      mentions(
+        "the second replace",
+        "Replaced area:definition. Static",
+        result(4, 0),
+      );
+      check(
+        string,
+        "the program",
+        {|type Point = (Int, Int) in
+
+type Style = (Int, Bool) in
+
+type Shape =
+  + Circle(Point, Int)
+  + Rect(Point, Point)
+  + Line(Point, Point)
+in
+
+let area(s: Shape): Int =
+  # approximate area, pi taken as 3; lines have none #
+  case s
+  | Circle(_, r) => 3 * r * r
+  | Rect(_, _) => 2
+  | Line(_, _) => 0
+  end
+in
+hint "circle area" test area(Circle((0, 0), 2)) == 12 end;
+
+let double(n: Int): Int =
+  # twice n #
+  2 * n
+in
+
+?|},
+        fst(ListUtil.last(steps)),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("AgentReply.PromptExamples", prompt_examples),
   ("AgentReply.Transactions", transactions),
@@ -1220,4 +1331,5 @@ let tests = [
   ("AgentReply.Rebinding", rebinding),
   ("AgentReply.TestsByHint", tests_by_hint),
   ("AgentReply.Move", moves),
+  ("AgentReply.Repro", repro),
 ];

@@ -113,6 +113,16 @@ let parts = (lv: S.level, k: int): option((Segment.t, Segment.t)) =>
   | None => None
   };
 
+/* span [k] is a let whose definition is a function */
+let fn_at = (lv: S.level, k: int): bool =>
+  P.entry(lv, k).kind == Def
+  && (
+    switch (parts(lv, k)) {
+    | Some((pat, def)) => sugared(pat) || is_fun(def)
+    | None => false
+    }
+  );
+
 /* span [k]'s head tile: a definition's or directive's */
 let head = (lv: S.level, k: int): option(Tile.t) =>
   Option.map(snd, S.head(lv, k));
@@ -132,7 +142,6 @@ let entry_at =
     (lv: S.level, k: int, ~path: P.t, ~children: list(entry)): entry => {
   let sp = lv.spans[k];
   let e = P.entry(lv, k);
-  let parts = e.kind == Def ? parts(lv, k) : None;
   let id =
     switch (e.kind) {
     | Tail => root_of(core(lv, k))
@@ -144,11 +153,7 @@ let entry_at =
     id: Option.value(id, ~default=sp.anchor),
     anchor: sp.anchor,
     kind: e.kind,
-    fn:
-      switch (parts) {
-      | Some((pat, def)) => sugared(pat) || is_fun(def)
-      | None => false
-      },
+    fn: fn_at(lv, k),
     literal: sp.body != None,
     names: e.binders,
     hint: e.hint,

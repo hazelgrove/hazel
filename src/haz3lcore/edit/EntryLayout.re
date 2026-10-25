@@ -177,14 +177,6 @@ let unfused = (pre: Segment.t, ps: Segment.t, post: Segment.t): Segment.t => {
   };
 };
 
-/* the spacing after an item, for a new one beside it: as many
-   linebreaks, or one space between items on a line */
-let spacing = (trail: Segment.t): Segment.t =>
-  switch (List.filter(Piece.is_linebreak, trail)) {
-  | [] => trail == [] ? [] : [space()]
-  | lbs => List.map(_ => linebreak(), lbs)
-  };
-
 /* an item's place in its block, by line. It owns its first line's
    indentation, the comment lines directly above it (no blank line
    between), and what follows it through its last linebreak. In a member
@@ -357,15 +349,14 @@ let swap = (b: block, k: int): Segment.t =>
 /* ---- taking an item out and putting it in elsewhere ----
 
    The trivia rule. An item's doc comment (the comment lines directly
-   above it) is part of it. Spacing belongs to the gaps between items: a
-   swap leaves it in place. An item taken out of its block takes one gap
+   above it) is part of it. An item taken out of its block takes one gap
    along: the one above it when it sits right below an item (or nothing
-   follows it), else the one below; where it lands it puts that gap on
-   the same side, keeping the gap that was there on the other. Its first
-   line keeps its indentation's offset from that side's item. Comments
-   set apart from the items (by a blank line) stay put and stay apart:
-   an item lands on its own side of them, and goes into its neighbour
-   only with none between. */
+   follows it), else the one below. Its first line keeps its
+   indentation's offset from that side's item. Comments set apart from
+   the items (by a blank line) stay put and stay apart: an item lands on
+   its own side of them, and goes into its neighbour only with none
+   between. How many lines the gaps an op makes or closes take is house
+   style (settle), not what was there. */
 
 /* the linebreaks among [b]'s pieces [i, j) */
 let breaks = (b: block, i: int, j: int): int => {
@@ -473,95 +464,125 @@ let fn_body = (b: block): bool =>
   Array.length(b.sl) > 0
   && Array.exists(S.is_fun_head, Array.sub(b.arr, 0, b.sl[0].lo));
 
-/* where an item was in its block: the gap it takes along, and its
-   indentation's offset */
-type origin = {
-  /* the whitespace between it and its neighbour, through the last
-     linebreak (none: they shared a line). None when it has none to take:
-     it was alone, or opened a body before the result, whose spacing a
-     move sets */
-  gap: option(Segment.t),
-  offset: int,
-};
+/* where an item was in its block: its indentation's offset */
+type origin = {offset: int};
 
 /* a gap of whitespace holds a linebreak */
 let has_lb = (gap: Segment.t): bool => List.exists(Piece.is_linebreak, gap);
 
-/* a let-chain head whose definition spans lines (not a module's braces):
-   whether its `in` has a line of its own */
-let in_alone_at = (t: Tile.t): option(bool) =>
-  switch (Tile.ends_with_in(t), ListUtil.last_opt(t.children)) {
-  | (true, Some(def)) when !module_def(def) =>
-    let (pre, core, suf) = Nav.trim_ws(def);
-    spans_lines(pre @ core) ? Some(has_lb(suf)) : None;
-  | _ => None
-  };
-
-/* a definition spanning lines puts its `in` on a line of its own as
-   [lv]'s others do (one of them is enough); with none, when its entries
-   each start a line */
-let in_alone = (lv: S.level): bool => {
-  let n = Array.length(lv.spans);
-  switch (
-    List.init(n, k =>
-      Option.bind(S.head(lv, k), ((_, t)) => in_alone_at(t))
-    )
-    |> List.filter_map(Fun.id)
-  ) {
-  | [] =>
-    let b = block(lv);
-    List.for_all(
-      k => starts_line(b, k + 1),
-      List.init(max(0, n - 1), k => k),
-    );
-  | ways => List.mem(true, ways)
-  };
-};
-
-/* entry [ps] in let-chain form, its head's `in` laid out as [alone]
-   says (asked only of a definition spanning lines): on a line of its own
-   at the head's indentation [indent], or ending the definition's last
-   line. Every entry that takes an `in` goes through here */
-let lay_in = (~alone: unit => bool, ~indent: int, ps: Segment.t): Segment.t => {
-  let rec go = (ps: Segment.t) =>
-    switch (ps) {
-    | [p, ...rest] when Piece.is_secondary(p) => [p, ...go(rest)]
-    | [Tile(t), ...rest] =>
-      switch (in_alone_at(t), ListUtil.split_last_opt(t.children)) {
-      | (Some(was), Some((init, def))) =>
-        let want = alone();
-        if (was == want) {
-          ps;
-        } else {
-          let (pre, core, _) = Nav.trim_ws(def);
-          let suf =
-            want
-              ? [linebreak(), ...List.init(indent, _ => space())] : [space()];
-          [
-            Tile({
-              ...t,
-              children: init @ [pre @ core @ suf],
-            }),
-            ...rest,
-          ];
-        };
-      | _ => ps
-      }
-    | _ => ps
-    };
-  go(ps);
-};
-
-/* a copy of [b]'s gap above item [k]'s place, fresh pieces */
-let gap_copy = (b: block, k: int): option(Segment.t) =>
-  Option.map(
-    w =>
-      List.map(
-        p => Piece.is_linebreak(p) ? linebreak() : space(),
-        ListUtil.slice(w, b.sl[k].lo - w, b.seg),
-      ),
-    above(b, k),
+/* entry [ps]'s heads in let-chain form, each `in` laid out by house
+   style: after a definition spanning lines on a line of its own at
+   [indent], else ending the definition's line. A module's braces keep
+   theirs (`} in`). Every entry that takes an `in` goes through here */
+let lay_in = (~indent: int, ps: Segment.t): Segment.t =>
+  List.map(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile(t) when Tile.ends_with_in(t) =>
+        switch (ListUtil.split_last_opt(t.children)) {
+        | Some((init, def)) when !module_def(def) =>
+          let (pre, core, suf) = Nav.trim_ws(def);
+          let alone = spans_lines(pre @ core);
+          alone == has_lb(suf)
+            ? p
+            : Tile({
+                ...t,
+                children:
+                  init
+                  @ [
+                    pre
+                    @ core
+                    @ (
+                      alone
+                        ? [linebreak(), ...List.init(indent, _ => space())]
+                        : [space()]
+                    ),
+                  ],
+              });
+        | _ => p
+        }
+      | _ => p
+      },
+    ps,
   );
+
+/* ---- house style: the lines between entries ----
+
+   The gaps an op makes or closes are laid out by kind, never by what
+   was there. In a program's top level and a module's members, one blank
+   line between entries, but a function's tests go right under it, and
+   right under each other. A test landing at the program's end starts a
+   block of its own, unless it joins one there. A body's entries take one
+   line each. A gap on one line stays a space */
+
+let is_test = (lv: S.level, k: int): bool =>
+  switch (EntryPath.entry(lv, k).kind) {
+  | Test
+  | Stmt => true
+  | _ => false
+  };
+
+/* the linebreaks between entries [j] and [j + 1]. [ends]: the lower one
+   lands at the program's end */
+let house = (~ends: bool, b: block, j: int): int => {
+  let lv = b.lv;
+  let blank = i => breaks(b, b.sl[i].eol, b.sl[i + 1].lo) > 1;
+  /* test [i] is among tests set apart, not right under a function */
+  let rec apart = i =>
+    i == 0
+    || blank(i - 1)
+    || (is_test(lv, i - 1) ? apart(i - 1) : !Outline.fn_at(lv, i - 1));
+  let glued =
+    is_test(lv, j + 1)
+    && (
+      ends
+        ? is_test(lv, j) && apart(j)
+        : is_test(lv, j) || Outline.fn_at(lv, j)
+    )
+    || EntryPath.entry(lv, j).kind == Use
+    && EntryPath.entry(lv, j + 1).kind == Use;
+  switch (lv.owner) {
+  | Top
+  | Members(_) => glued ? 1 : 2
+  | Chain(_)
+  | Block(_) => 1
+  };
+};
+
+/* [b]'s pieces with the gaps after entries [js] laid out by house style
+   (only whitespace across lines; comments set apart stay as they are).
+   [ends]: the gap after entry [ends] is above one landing at the
+   program's end. [b]'s own pieces when none changes */
+let settle = (~ends: option(int)=?, b: block, js: list(int)): Segment.t => {
+  let n = Array.length(b.sl);
+  let edits =
+    List.sort_uniq(compare, js)
+    |> List.filter_map(j =>
+         if (j < 0 || j + 1 >= n) {
+           None;
+         } else {
+           let (i, e) = (b.sl[j].eol, b.sl[j + 1].lo);
+           let rec all = (f, x) => x >= e || f(b.arr[x]) && all(f, x + 1);
+           let m = house(~ends=ends == Some(j), b, j);
+           let laid = e - i == m && all(Piece.is_linebreak, i);
+           all(Nav.is_edge_ws, i) && breaks(b, i, e) > 0 && !laid
+             ? Some((i, e, m)) : None;
+         }
+       );
+  let rec go = (x, edits) =>
+    switch (edits) {
+    | [] => ListUtil.remove_first_n(x, b.seg)
+    | [(i, e, m), ...rest] =>
+      /* the linebreaks there, kept as far as they go */
+      let lbs =
+        List.filter(Piece.is_linebreak, ListUtil.slice(i, e - i, b.seg));
+      ListUtil.slice(x, i - x, b.seg)
+      @ ListUtil.take(m, lbs)
+      @ List.init(max(0, m - List.length(lbs)), _ => linebreak())
+      @ go(e, rest);
+    };
+  edits == [] ? b.seg : go(0, edits);
+};
 
 /* item [k] taken out of [b]: the block's pieces without it, and its
    place. A member block's last member hands its terminator to the one
@@ -586,13 +607,7 @@ let take = (b: block, k: int): (Segment.t, origin) => {
           @ ListUtil.slice(b.sl[k - 1].term, w - b.sl[k - 1].term, b.seg)
           @ ListUtil.remove_first_n(e, b.seg)
         : ListUtil.truncate(w, b.seg) @ ListUtil.remove_first_n(e, b.seg);
-    (
-      seg,
-      {
-        gap: Some(ListUtil.slice(w, sl.lo - w, b.seg)),
-        offset: k > 0 ? offset(k - 1) : 0,
-      },
-    );
+    (seg, {offset: k > 0 ? offset(k - 1) : 0});
   | content =>
     /* the gap below goes with it, the next content takes its place */
     let lbs = breaks(b, sl.eol, x);
@@ -634,19 +649,6 @@ let take = (b: block, k: int): (Segment.t, origin) => {
     (
       seg,
       {
-        /* before the result, only a gap on a line of its own was the
-           item's: on the head's line, or where the result had to move
-           onto a line of its own, the item had none */
-        gap:
-          next == None || result && (lbs == 0 || to_head)
-            ? None
-            : Some(
-                ListUtil.slice(
-                  sl.eol,
-                  line_start(b, sl.eol, x) - sl.eol,
-                  b.seg,
-                ),
-              ),
         /* a result on its last line: past the head's, as it was put */
         offset:
           rejoin && lbs == 0
@@ -668,17 +670,28 @@ type landing =
   /* just below item [k], before any comments set apart below it */
   | Below(int);
 
-/* [item] (bare, in the block's form) moved into [b] [at]. [gap] (a
-   space where it has no linebreak) parts it from the item above when it
-   lands right below one, else from the item below; its first line is
-   indented [offset] past that item's, its other lines shifted to match
-   from [src_indent]. In a member block it takes `;`, or the last
-   member's terminator when it lands last */
+/* the block is on lines where an item lands [at]: the item beside it
+   starts a line */
+let lines_at = (b: block, at: landing): bool => {
+  let n = Array.length(b.sl);
+  switch (at) {
+  | Above(g) when g < n => starts_line(b, g)
+  | Above(_) => n == 0 || starts_line(b, n - 1)
+  | Below(j) => starts_line(b, j + 1 < n ? j + 1 : j)
+  };
+};
+
+/* [item] (bare, in the block's form) moved into [b] [at]. A linebreak
+   ([lines], else a space) parts it from the item above when it lands
+   right below one, else from the item below; its first line is indented
+   [offset] past that item's, its other lines shifted to match from
+   [src_indent]. In a member block it takes `;`, or the last member's
+   terminator when it lands last */
 let put =
     (
       b: block,
       ~at: landing,
-      ~gap: Segment.t,
+      ~lines: bool,
       ~offset: int,
       ~src_indent: option(int),
       ~member: bool,
@@ -686,7 +699,7 @@ let put =
     )
     : Segment.t => {
   let n = Array.length(b.sl);
-  let lines = has_lb(gap);
+  let gap = [linebreak()];
   let spaces = k => List.init(max(0, k), _ => space());
   let moved = line =>
     shift_by(
@@ -732,27 +745,21 @@ let put =
   };
 };
 
-/* the gap for an item that takes none along, landing beside item [j]
-   (just above it, or [below]), as a new item is spaced: a copy of the
-   gap it lands in, or, before the result or at the end, of the gap
-   above [j] */
-let gap_at = (b: block, ~below: bool, j: int): Segment.t => {
-  let next = j + 1;
-  let landing =
-    below && next < Array.length(b.sl) && movable(b, next)
-      ? gap_copy(b, next) : gap_copy(b, j);
-  Option.value(landing, ~default=[linebreak()]);
-};
-
 type pos =
   | Before(int)
   | After(int);
 
-/* [item] (bare, in the block's form) as a new item at [pos], laid out
-   like its neighbours: the indentation where it lands, then the spacing
-   that follows its neighbour. In a member block it takes `;`, or the
-   last member's terminator when it lands last. Lines after its first
-   move with it from [src_indent], the indentation they were written at */
+/* what parts a new item from item [k]: a linebreak when [k] starts a
+   line, else a space (settle sets how many lines) */
+let parting = (b: block, k: int): Segment.t => [
+  starts_line(b, k) ? linebreak() : space(),
+];
+
+/* [item] (bare, in the block's form) as a new item at [pos]: the
+   indentation where it lands, parted from its neighbours (settle lays
+   out the gaps). In a member block it takes `;`, or the last member's
+   terminator when it lands last. Lines after its first move with it from
+   [src_indent], the indentation they were written at */
 let insert =
     (
       b: block,
@@ -789,30 +796,28 @@ let insert =
        takes `;` */
     member && b.in_module
       ? {
-        let sep = trail(b, k) == [] ? [space()] : trail(b, k);
+        let tr = trail(b, k);
+        /* the old last's trail is the gap to the new one (settle lays it
+           out); the block's end, after the new one, keeps its lines */
+        let block_end =
+          switch (List.filter(Piece.is_linebreak, tr)) {
+          | [] => tr == [] ? [] : [space()]
+          | lbs => List.map(_ => linebreak(), lbs)
+          };
         Some(
           ListUtil.truncate(b.sl[k].core, b.seg)
           @ [fresh_semi()]
-          @ sep
+          @ (tr == [] ? [space()] : tr)
           @ spaces(k)
           @ item(k)
           @ term(b, k)
-          @ spacing(trail(b, k))
+          @ block_end
           @ ListUtil.remove_first_n(b.sl[k].hi, b.seg),
         );
       }
       : None
-  | After(k) => Some(splice(b.sl[k].hi, k + 1, spacing(trail(b, k))))
-  | Before(p) =>
-    Some(
-      splice(
-        b.sl[p].lo,
-        p,
-        p > 0
-          ? spacing(trail(b, p - 1))
-          : [starts_line(b, p) ? linebreak() : space()],
-      ),
-    )
+  | After(k) => Some(splice(b.sl[k].hi, k + 1, parting(b, k + 1)))
+  | Before(p) => Some(splice(b.sl[p].lo, p, parting(b, p)))
   };
 };
 
@@ -929,17 +934,18 @@ let at_edge =
       item,
     )
   | Moved(origin, src_indent) =>
+    let at = Above(first ? 0 : result ? n - 1 : n);
     Some(
       put(
         b,
-        ~at=Above(first ? 0 : result ? n - 1 : n),
-        ~gap=Option.value(origin.gap, ~default=[linebreak()]),
+        ~at,
+        ~lines=lines_at(b, at),
         ~offset=origin.offset,
         ~src_indent,
         ~member=b.in_module,
         item,
       ),
-    )
+    );
   };
 };
 
@@ -1102,7 +1108,7 @@ let body_last =
             put(
               b,
               ~at=Above(g),
-              ~gap=[],
+              ~lines=false,
               ~offset=origin.offset,
               ~src_indent,
               ~member=false,
@@ -1165,7 +1171,13 @@ type taken = {
      it can go into that item and come back to where it was */
   near_above: bool,
   near_below: bool,
+  /* the entry it was right below, whose gap below closes */
+  above: option(Id.t),
 };
+
+/* the anchor of the entry above entry [k] */
+let above_anchor = (b: block, k: int): option(Id.t) =>
+  k > 0 ? Some(b.lv.spans[k - 1].anchor) : None;
 
 /* None for an item a delete refuses */
 let take_out = (~mod_root, fid: Id.t, seg: Segment.t): option(taken) =>
@@ -1179,6 +1191,7 @@ let take_out = (~mod_root, fid: Id.t, seg: Segment.t): option(taken) =>
           stmt: b.lv.spans[j].kind == Stmt,
           near_above: under_item(b, j),
           near_below: j + 1 < Array.length(b.sl) && under_item(b, j + 1),
+          above: above_anchor(b, j),
         });
       }
       : None

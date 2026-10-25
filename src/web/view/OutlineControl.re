@@ -450,6 +450,9 @@ let with_fresh =
    in it: unless the caret has moved on from the line meanwhile. One undo
    step, with the name typed after it; a tentative one, taken back if the
    name is left blank */
+/* the new definition the outline made last, and the program before it */
+let blank_from: ref(option((Id.t, Segment.t))) = ref(None);
+
 let create =
     (~settings: Settings.t, line: E.line, kw: string, code: Scratchpad.code)
     : Updated.t(Scratchpad.code) =>
@@ -466,6 +469,7 @@ let create =
       )
     ) {
     | Ok((seg, Some(d))) =>
+      blank_from := Some((d, Program.document(program)));
       let code = with_fresh(~settings, d, seg, code);
       text :=
         Some({
@@ -626,6 +630,19 @@ let drop =
   let ctx = Workspace.item_ctx(~settings, ~folds=[], program);
   switch (ItemEdit.edit(ctx, Op(Delete, d), Program.document(program))) {
   | Ok((seg, _)) =>
+    /* as if it had never been made: the program from before it, when
+       only it changed since (its gaps were laid out for it) */
+    let solid = seg =>
+      Printer.of_segment(~holes="?", seg)
+      |> String.to_seq
+      |> Seq.filter(c => c != ' ' && c != '\n')
+      |> String.of_seq;
+    let seg =
+      switch (blank_from^) {
+      | Some((id, before)) when id == d && solid(before) == solid(seg) => before
+      | _ => seg
+      };
+    blank_from := None;
     let caret =
       switch (line) {
       | New(anchor, _) => Some((Direction.Right, anchor))

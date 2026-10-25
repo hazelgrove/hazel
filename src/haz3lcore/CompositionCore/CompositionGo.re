@@ -118,27 +118,63 @@ let escaped = (code: string): bool => {
   go(0, false);
 };
 
-/* why code didn't read: escapes, the batch parser's note, a reserved
-   binder */
+/* code of several entries, two with no separator between: a line at the
+   code's base indentation starts an entry, and the line before it ends in
+   neither `in` nor `;` */
+let unseparated = (code: string): bool => {
+  let lines =
+    String.split_on_char('\n', code)
+    |> List.filter(l => String.trim(l) != "");
+  let indent = l => {
+    let rec go = i => i < String.length(l) && l.[i] == ' ' ? go(i + 1) : i;
+    go(0);
+  };
+  let base = List.fold_left((m, l) => min(m, indent(l)), max_int, lines);
+  let starts_entry = l =>
+    indent(l) == base
+    && (
+      switch (String.split_on_char(' ', String.trim(l))) {
+      | ["let" | "type" | "module" | "test" | "hint" | "use", ..._] => true
+      | _ => false
+      }
+    );
+  let separated = l => {
+    let t = String.trim(l);
+    String.ends_with(~suffix=";", t)
+    || ListUtil.last_opt(String.split_on_char(' ', t)) == Some("in");
+  };
+  let rec go = ls =>
+    switch (ls) {
+    | [prev, l, ...rest] =>
+      starts_entry(l) && !separated(prev) || go([l, ...rest])
+    | _ => false
+    };
+  go(lines);
+};
+
+/* why code didn't read: escapes, entries without separators, the batch
+   parser's note, a reserved binder */
 let unreadable = (code: string): string =>
   escaped(code)
     ? {|`code` contains `\n` as two characters; write real line breaks (and plain quotes).|}
-    : "The code does not parse."
-      ++ (
-        switch (FastParse.bail_note^) {
-        | Some(n) => " Parser: " ++ n ++ "."
-        | None => ""
-        }
-      )
-      ++ (
-        switch (reserved_binder(code)) {
-        | Some(w) =>
-          " Note: `"
-          ++ w
-          ++ "` is a reserved keyword in Hazel and cannot be used as a variable name."
-        | None => ""
-        }
-      );
+    : unseparated(code)
+        ? "Entries in one `code` need `in` between them (`;` in a module); leave it off the last."
+        : "The code does not parse."
+          ++ (
+            switch (FastParse.bail_note^) {
+            | Some(n) => " Parser: " ++ n ++ "."
+            | None => ""
+            }
+          )
+          ++ (
+            switch (reserved_binder(code)) {
+            | Some(w) =>
+              " Note: `"
+              ++ w
+              ++ "` is a reserved keyword in Hazel and cannot be used as a variable name."
+            | None => ""
+            }
+          );
 
 /* a comment only the view adds, `#› … #`, copied into code */
 let view_comment = StringUtil.regexp(CompositionView.marker ++ "[^#\n]*#");

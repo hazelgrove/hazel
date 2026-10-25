@@ -55,14 +55,21 @@ let call_text = (c: call): string => {
   };
 };
 
-let shapes = {|type Shape = + Circle(Int) + Rect(Int, Int) in
+let shapes = {|type Shape =
+  + Circle(Int)
+  + Rect(Int, Int)
+in
+
 let area(s: Shape): Int =
   case s
   | Circle(r) => 3 * r * r
   | Rect(w, h) => w * h
   end
 in
-hint "rect area" test area(Rect(2, 3)) == 6 end;
+hint "rect area" test
+  area(Rect(2, 3)) == 6
+end;
+
 let perimeter(s: Shape): Int =
   let double(n: Int): Int = 2 * n in
   case s
@@ -70,21 +77,27 @@ let perimeter(s: Shape): Int =
   | Rect(w, h) => double(w + h)
   end
 in
+
 module Geo = {
   let scale(k: Int, s: Shape): Shape =
     case s
     | Circle(r) => Circle(k * r)
     | Rect(w, h) => Rect(k * w, k * h)
     end;
+
   let unit = Rect(1, 1)
 } in
+
 let total(xs: [Shape]): Int =
   case xs
   | [] => 0
   | x :: rest => area(x) + total(rest)
   end
 in
-hint "total of two" test total([Circle(1), Geo.unit]) == 4 end;
+hint "total of two" test
+  total([Circle(1), Geo.unit]) == 4
+end;
+
 total([Geo.scale(2, Geo.unit)])|};
 
 let on_shapes = (~in_tool=false, intent, calls, results) => {
@@ -98,20 +111,20 @@ let on_shapes = (~in_tool=false, intent, calls, results) => {
 let all: list(example) = [
   on_shapes(
     ~in_tool=true,
-    "Add a definition after another, its doc comment inside it, after its header",
+    "Add a function and its test in one call, after another's tests: `in` between them, none after the last; its doc comment inside it, after its header",
     [
       call(
         "insert",
         [
-          ("after", "area"),
+          ("after", "\"rect area\""),
           (
             "code",
-            "let is_round(s: Shape): Bool =\n  # whether s is a circle #\n  case s\n  | Circle(_) => true\n  | Rect(_, _) => false\n  end",
+            "let fits(s: Shape, box_w: Int, box_h: Int): Bool =\n  # whether s fits in a box_w by box_h box, turned if need be #\n  case s\n  | Circle(r) => 2 * r <= box_w && 2 * r <= box_h\n  | Rect(w, h) =>\n    w <= box_w && h <= box_h || h <= box_w && w <= box_h\n  end\nin\nhint \"turned to fit\" test\n  fits(Rect(3, 1), 1, 3)\nend",
           ),
         ],
       ),
     ],
-    Some(["Added is_round."]),
+    Some(["Added \"turned to fit\", fits."]),
   ),
   on_shapes(
     "Add a unit test right after its function's last test; a short hint names it",
@@ -120,7 +133,7 @@ let all: list(example) = [
         "insert",
         [
           ("after", "\"rect area\""),
-          ("code", "hint \"circle area\" test area(Circle(1)) == 3 end"),
+          ("code", "hint \"circle area\" test\n  area(Circle(1)) == 3\nend"),
         ],
       ),
     ],
@@ -135,7 +148,7 @@ let all: list(example) = [
           ("last_in", "/"),
           (
             "code",
-            "hint \"scaled total\" test total([Geo.scale(2, Geo.unit)]) == 4 end",
+            "hint \"scaled total\" test\n  total([Geo.scale(2, Geo.unit)]) == 4\nend",
           ),
         ],
       ),
@@ -215,7 +228,7 @@ let all: list(example) = [
           ("target", "\"total of two\""),
           (
             "code",
-            "hint \"total of two\" test total([Circle(1), Rect(1, 2)]) == 5 end",
+            "hint \"total of two\" test\n  total([Circle(1), Rect(1, 2)]) == 5\nend",
           ),
         ],
       ),
