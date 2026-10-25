@@ -191,6 +191,12 @@ let replace = () => {
     "let a = 1 in\nlet c = 2 in\nb",
     run(seg, [Replace(b, Text("let c = 2"))]),
   );
+  let lined = seg_of("let a(x) =\n  x + 1\nin\nlet b = 2 in\nb");
+  expect(
+    "spanning lines: `in` as its neighbours have it",
+    "let a(x) =\n  x + 1\nin\nlet c(y) =\n  y\nin\nb",
+    run(lined, [Replace(head("b", lined), Text("let c(y) =\n  y in"))]),
+  );
   let def = Option.get(K.part(~root=Exp, b, Definition, seg));
   expect(
     "a definition",
@@ -355,6 +361,47 @@ let move = () => {
     );
   expect("and back in: `in` to `;`", members, back);
   check(bool, "and back keeps them", true, keeps(x_pieces, back.program));
+  /* a member spanning lines takes its `in` as the chain's others do */
+  let moves_out = a_ends =>
+    "let a(x) =\n  x + 1"
+    ++ a_ends
+    ++ "module M = {\n  let f(y) =\n    y * 2;\n  let z = 1\n} in\nM.z";
+  let lined = seg_of(moves_out("\nin\n"));
+  let f = head("f", lined);
+  let f_pieces = entry_pieces(~mod_root=false, f, lined);
+  let out = run(lined, [Move(f, After(head("a", lined)))]);
+  expect(
+    "a member spanning lines out: `in` on a line of its own, as its neighbours have it",
+    "let a(x) =\n  x + 1\nin\nlet f(y) =\n  y * 2\nin\nmodule M = {\n  let z = 1\n} in\nM.z",
+    out,
+  );
+  check(bool, "it keeps its ids", true, keeps(f_pieces, out.program));
+  let back =
+    run(
+      out.program,
+      [Move(f, FirstIn(Members(head("M", out.program))))],
+    );
+  expect("and back in: its `in` line goes", moves_out("\nin\n"), back);
+  check(bool, "and back keeps them", true, keeps(f_pieces, back.program));
+  let ended = seg_of(moves_out(" in\n"));
+  expect(
+    "or ending its last line, as they have it",
+    "let a(x) =\n  x + 1 in\nlet f(y) =\n  y * 2 in\nmodule M = {\n  let z = 1\n} in\nM.z",
+    run(ended, [Move(head("f", ended), After(head("a", ended)))]),
+  );
+  expect(
+    "a copy out likewise",
+    "let f(y) =\n  y * 2\nin\n" ++ moves_out("\nin\n"),
+    run(lined, [Insert(Before(head("a", lined)), Copy(f))]),
+  );
+  let body =
+    seg_of("let g(x) =\n  let a = x in\n  a\nin\n" ++ moves_out("\nin\n"));
+  expect(
+    "into a body: `in` at its head's indentation",
+    "let g(x) =\n  let f(y) =\n    y * 2\n  in\n  let a = x in\n  a\nin\n"
+    ++ "let a(x) =\n  x + 1\nin\nmodule M = {\n  let z = 1\n} in\nM.z",
+    run(body, [Move(head("f", body), FirstIn(Body(head("g", body))))]),
+  );
   let t = seg_of("module M = {\n  let y = 2;\n  test y == 2 end\n} in\nM.y");
   let test = CorpusUtil.tile("==", t);
   let tc = run(t, [Move(test, After(head("M", t)))]);

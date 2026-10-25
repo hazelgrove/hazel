@@ -518,6 +518,40 @@ let in_alone = (lv: S.level): bool => {
   };
 };
 
+/* entry [ps] in let-chain form, its head's `in` laid out as [alone]
+   says (asked only of a definition spanning lines): on a line of its own
+   at the head's indentation [indent], or ending the definition's last
+   line. Every entry that takes an `in` goes through here */
+let lay_in = (~alone: unit => bool, ~indent: int, ps: Segment.t): Segment.t => {
+  let rec go = (ps: Segment.t) =>
+    switch (ps) {
+    | [p, ...rest] when Piece.is_secondary(p) => [p, ...go(rest)]
+    | [Tile(t), ...rest] =>
+      switch (in_alone_at(t), ListUtil.split_last_opt(t.children)) {
+      | (Some(was), Some((init, def))) =>
+        let want = alone();
+        if (was == want) {
+          ps;
+        } else {
+          let (pre, core, _) = Nav.trim_ws(def);
+          let suf =
+            want
+              ? [linebreak(), ...List.init(indent, _ => space())] : [space()];
+          [
+            Tile({
+              ...t,
+              children: init @ [pre @ core @ suf],
+            }),
+            ...rest,
+          ];
+        };
+      | _ => ps
+      }
+    | _ => ps
+    };
+  go(ps);
+};
+
 /* a copy of [b]'s gap above item [k]'s place, fresh pieces */
 let gap_copy = (b: block, k: int): option(Segment.t) =>
   Option.map(
