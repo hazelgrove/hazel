@@ -1157,8 +1157,10 @@ def c_deck(d, log):
 #   STUCK     the GUI changed and the revealed model did not: a failure
 #   no-op     neither changed: the control does nothing from that state
 #             (a button already pressed), so nothing is learned; listed
+#   IGNORED   nothing changed with the eye open, and the same input with the eye shut does change the GUI: a GUI
+#             that stops working while revealed (Overview's ^flag, found in run 40224910033)
 #   ERROR     the eye opened no pane, or a livelit error appeared
-# The case fails on STUCK and ERROR. Each slide is loaded fresh.
+# The case fails on STUCK, IGNORED and ERROR. Each slide is loaded fresh.
 
 def deck_slides():
     """Every slide of the Livelits and Livelit Playground decks, as (name, deep-link id), from Slides.re."""
@@ -1191,9 +1193,12 @@ SWEEP_STATE = """
   if (!t) return null;
   const pj = near(t);
   const pane = document.querySelector('.livelit-syntax');
-  const gui = pj ? [...pj.querySelectorAll('svg, input, button, .livelit-splice, [style]')]
-      .filter(e => !e.closest('.livelit-syntax') && !e.classList.contains('livelit-syntax-toggle'))
-      .map(e => e.tagName + (e.value !== undefined ? '=' + e.value : '') + ':' + (e.getAttribute('d') || e.getAttribute('fill') || e.getAttribute('transform') || e.textContent || '').slice(0, 40)).join('|') : '';
+  // (what the GUI shows, not how it is styled: hover and focus restyle it without its state changing)
+  const geo = ['d', 'cx', 'cy', 'r', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'width', 'height', 'points', 'transform', 'fill'];
+  const gui = pj ? [...pj.querySelectorAll('input, select, textarea, svg *')]
+      .filter(e => !e.closest('.livelit-syntax') && !e.closest('.livelit-syntax-toggle'))
+      .map(e => e.tagName + (e.value !== undefined ? '=' + e.value : '') + ':' + geo.map(a => e.getAttribute(a) || '').join(',')).join('|')
+      + '#' + [...pj.querySelectorAll('.user-livelit')].map(u => [...u.childNodes].filter(n => !(n.closest && n.closest('.livelit-syntax'))).map(n => n.textContent).join(' ')).join('|') : '';
   let h = 0; for (let i = 0; i < gui.length; i++) h = (h * 31 + gui.charCodeAt(i)) | 0;
   return { pane: pane ? pane.innerText.replace(/\\s+/g, ' ').trim() : null, gui: h,
            errors: document.querySelectorAll('.livelit-user-error').length };
@@ -1247,12 +1252,46 @@ def sweep_use(d, i):
                        {"type": "pointerMove", "x": x + int(w * 0.8), "y": y, "duration": 250}, {"type": "pointerUp", "button": 0}])
         else:
             click_at(d, x + w // 2, y)
-        time.sleep(4)
-        after = d.js(SWEEP_STATE, [i])
+        # (up to 12 s for the revealed model to follow: GitHub's computers are slow on the Playground's big slides)
+        after = None
+        for _ in range(24):
+            time.sleep(0.5)
+            after = d.js(SWEEP_STATE, [i])
+            if after["pane"] is None or after["pane"] != before["pane"]:
+                break
         gui, pane = after["gui"] != before["gui"], after["pane"] != before["pane"]
-        verdict = {"control": c["kind"], "verdict": "ERROR" if after["pane"] is None or after["errors"] > before["errors"]
-                   else "follows" if pane else "STUCK" if gui else "no-op",
-                   "why": "the pane closed" if after["pane"] is None else "a livelit error appeared" if after["errors"] > before["errors"] else ""}
+        if after["pane"] is None or after["errors"] > before["errors"]:
+            verdict = {"control": c["kind"], "verdict": "ERROR", "why": "the pane closed" if after["pane"] is None else "a livelit error appeared"}
+        elif pane:
+            verdict = {"control": c["kind"], "verdict": "follows", "why": ""}
+        elif gui:
+            verdict = {"control": c["kind"], "verdict": "STUCK", "why": "the GUI changed and the revealed model did not"}
+        else:
+            # (nothing changed with the eye open: the same once more with it shut tells a control that does nothing from
+            # here from a GUI that ignores its input while revealed)
+            at2 = d.js(TOGGLE_AT, [i])
+            if at2:
+                click_at(d, *at2)
+                wait_for(d, "return !document.querySelector('.livelit-syntax')", 10)
+                time.sleep(1)
+            shut0 = d.js(SWEEP_STATE, [i])
+            c2 = d.js(SWEEP_CONTROL, [i]); time.sleep(0.6); c2 = d.js(SWEEP_CONTROL, [i])
+            if c2 and c2["kind"] == c["kind"]:
+                x, y, w, h = c2["x"], c2["y"], c2["w"], c2["h"]
+                if c2["kind"] == "slider":
+                    d.pointer([{"type": "pointerMove", "x": x + int(w * 0.2), "y": y}, {"type": "pointerDown", "button": 0},
+                               {"type": "pointerMove", "x": x + int(w * 0.8), "y": y, "duration": 250}, {"type": "pointerUp", "button": 0}])
+                else:
+                    click_at(d, x + w // 2, y)
+            shut1 = None
+            for _ in range(16):
+                time.sleep(0.5)
+                shut1 = d.js(SWEEP_STATE, [i])
+                if shut1["gui"] != shut0["gui"]:
+                    break
+            ignored = shut1 is not None and shut1["gui"] != shut0["gui"]
+            return {"control": c["kind"], "verdict": "IGNORED" if ignored else "no-op",
+                    "why": "with the eye shut the same input changes the GUI; revealed, nothing" if ignored else ""}
     at = d.js(TOGGLE_AT, [i])
     if at:
         click_at(d, *at)
@@ -1274,7 +1313,7 @@ def c_eye_every_slide(d, log):
             v = sweep_use(d, i)
             row = (name, i, v["verdict"] + (" (" + v.get("control", "") + ")" if v.get("control") else "") + (": " + v["why"] if v.get("why") else ""))
             rows.append(row); print(f"          {row[0]} #{row[1]}: {row[2]}", flush=True)
-            if v["verdict"] in ("STUCK", "ERROR"):
+            if v["verdict"] in ("STUCK", "IGNORED", "ERROR"):
                 bad.append(row)
     log({"uses": len([r for r in rows if r[1] != "-"]), "bad": bad})
     assert not bad, f"{len(bad)} uses whose GUI or revealed model failed: " + "; ".join(f"{r[0]} #{r[1]} {r[2]}" for r in bad)
