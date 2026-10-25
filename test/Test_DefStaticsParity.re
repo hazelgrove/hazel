@@ -401,6 +401,40 @@ let spine_elab_is_whole_suffix = () => {
   );
 };
 
+/* probe targets equal monolithic statics' as sets: several probes per
+   item, which DefStatics gathers flat and monolithic statics by subterm */
+let probe_targets_as_sets = (): unit => {
+  let term =
+    MakeTerm.go(
+      CorpusUtil.seg_of(
+        "let a = 1 + 2 in\nlet b = (a * 3) + (a - 1) in\nlet c = b in\nb + a + c",
+      ),
+    ).
+      term;
+  let (map0, _) = Statics.mk_unmemoized(settings, DefStatics.ctx0, term);
+  let probe_ids =
+    Id.Map.fold(
+      (id, info, acc) =>
+        switch (info) {
+        | Info.InfoExp({user_term: {term: Var(_) | Atom(Int(_)), _}, _}) =>
+          Id.Map.add(id, (), acc)
+        | _ => acc
+        },
+      map0,
+      Id.Map.empty,
+    );
+  check(bool, "probes to place", true, Id.Map.cardinal(probe_ids) >= 8);
+  check(
+    list(string),
+    "parity",
+    [],
+    DefStaticsCheck.divergences(
+      ~settings,
+      DefStatics.calc(~settings, ~probe_ids, term),
+    ),
+  );
+};
+
 /* a probe in a fn body called only from a later item samples under
    compositional statics as under monolithic (fresh evaluations) */
 let probe_capture_parity = (): unit => {
@@ -1334,6 +1368,7 @@ let tests = (
       spine_elab_is_whole_suffix,
     ),
     test_case("probe capture parity", `Quick, probe_capture_parity),
+    test_case("probe targets as sets", `Quick, probe_targets_as_sets),
     test_case("probe parity in a ModExp chain", `Quick, modexp_probe_parity),
     test_case("a ModExp chain moved", `Quick, modexp_chain_moved),
   ]
