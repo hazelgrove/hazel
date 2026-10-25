@@ -1144,6 +1144,132 @@ def c_deck(d, log):
     return {"slides": len(DECK)}
 
 
+# --- the GUI while revealed, on every slide ----------------------------------
+# docs/livelits.md, "The GUI while revealed": "Still to do: cover the GUI with
+# the syntax revealed on every deck slide, not only Kids' Choice and Color."
+# Cyrus's design (2026-10-03): the GUI keeps working while the syntax is
+# revealed, and the revealed model follows each change. So for every livelit
+# use on every slide of both decks: open its eye, use its GUI once as a
+# person would (drag its first slider, else press its first button, else
+# click its picture), and look at both the GUI and the revealed model.
+#   follows   the GUI changed and so did the revealed model: as designed
+#   STUCK     the GUI changed and the revealed model did not: a failure
+#   no-op     neither changed: the control does nothing from that state
+#             (a button already pressed), so nothing is learned; listed
+#   ERROR     the eye opened no pane, or a livelit error appeared
+# The case fails on STUCK and ERROR. Each slide is loaded fresh.
+
+def deck_slides():
+    """Every slide of the Livelits and Livelit Playground decks, as (name, deep-link id), from Slides.re."""
+    import re
+    src = open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "src", "livelitdemos", "Slides.re")).read()
+    def slug(t):
+        out = ""
+        for ch in t.lower():
+            if ch.isascii() and ch.isalnum():
+                out += ch
+            elif out and out[-1] != "-":
+                out += "-"
+        return out.strip("-")
+    pg = src.index("let playground_slides")
+    out = []
+    for prefix, part in (("Livelits / ", src[:pg]), ("Livelit Playground / ", src[pg:])):
+        for m in re.finditer(r'\(\s*"([^"]+)",\s*\[%blob', part):
+            name = prefix + m.group(1)
+            out.append((name, slug(name)))
+    return out
+
+
+SWEEP_STATE = """
+  const t = document.querySelectorAll('.livelit-syntax-toggle')[arguments[0]];
+  if (!t) return null;
+  const pj = t.closest('.projector') || t.parentElement;
+  const pane = document.querySelector('.livelit-syntax');
+  const gui = pj ? [...pj.querySelectorAll('svg, input, button, .livelit-splice, [style]')]
+      .filter(e => !e.closest('.livelit-syntax') && !e.classList.contains('livelit-syntax-toggle'))
+      .map(e => e.tagName + (e.value !== undefined ? '=' + e.value : '') + ':' + (e.getAttribute('d') || e.getAttribute('fill') || e.getAttribute('transform') || e.textContent || '').slice(0, 40)).join('|') : '';
+  let h = 0; for (let i = 0; i < gui.length; i++) h = (h * 31 + gui.charCodeAt(i)) | 0;
+  return { pane: pane ? pane.innerText.replace(/\\s+/g, ' ').trim() : null, gui: h,
+           errors: document.querySelectorAll('.livelit-user-error').length };
+"""
+
+SWEEP_CONTROL = """
+  const t = document.querySelectorAll('.livelit-syntax-toggle')[arguments[0]];
+  const pj = t && (t.closest('.projector') || t.parentElement);
+  if (!pj) return null;
+  const outside = e => !e.closest('.livelit-syntax') && !e.classList.contains('livelit-syntax-toggle');
+  const at = (e, kind) => { e.scrollIntoView({block: 'center'}); const r = e.getBoundingClientRect();
+    return { kind, x: Math.round(r.left), y: Math.round(r.top + r.height / 2), w: Math.round(r.width), h: Math.round(r.height) }; };
+  const range = [...pj.querySelectorAll('input[type=range]')].find(outside);
+  if (range) return at(range, 'slider');
+  const btn = [...pj.querySelectorAll('button')].find(e => outside(e) && !e.disabled && e.offsetWidth);
+  if (btn) return at(btn, 'button');
+  const svg = [...pj.querySelectorAll('svg')].find(e => outside(e) && e.getBoundingClientRect().width > 20);
+  if (svg) return at(svg, 'picture');
+  return { kind: 'none' };
+"""
+
+TOGGLE_AT = """
+  const t = document.querySelectorAll('.livelit-syntax-toggle')[arguments[0]];
+  if (!t) return null; t.scrollIntoView({block: 'center'});
+  const r = t.getBoundingClientRect(); return [Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2)];
+"""
+
+
+def sweep_use(d, i):
+    """Open use [i]'s eye, use its GUI once, close the eye: what happened."""
+    at = d.js(TOGGLE_AT, [i]); time.sleep(0.6); at = d.js(TOGGLE_AT, [i])
+    if not at:
+        return {"verdict": "ERROR", "why": "no toggle"}
+    click_at(d, *at)
+    if not wait_for(d, "return !!document.querySelector('.livelit-syntax')", 15):
+        return {"verdict": "ERROR", "why": "the eye opened no pane"}
+    time.sleep(1.5)
+    before = d.js(SWEEP_STATE, [i])
+    c = d.js(SWEEP_CONTROL, [i]); time.sleep(0.6); c = d.js(SWEEP_CONTROL, [i])
+    if not c or c["kind"] == "none":
+        verdict = {"verdict": "no-op", "why": "no slider, button or picture in its GUI"}
+    else:
+        x, y, w, h = c["x"], c["y"], c["w"], c["h"]
+        if c["kind"] == "slider":
+            d.pointer([{"type": "pointerMove", "x": x + int(w * 0.2), "y": y}, {"type": "pointerDown", "button": 0},
+                       {"type": "pointerMove", "x": x + int(w * 0.8), "y": y, "duration": 250}, {"type": "pointerUp", "button": 0}])
+        else:
+            click_at(d, x + w // 2, y)
+        time.sleep(4)
+        after = d.js(SWEEP_STATE, [i])
+        gui, pane = after["gui"] != before["gui"], after["pane"] != before["pane"]
+        verdict = {"control": c["kind"], "verdict": "ERROR" if after["pane"] is None or after["errors"] > before["errors"]
+                   else "follows" if pane else "STUCK" if gui else "no-op",
+                   "why": "the pane closed" if after["pane"] is None else "a livelit error appeared" if after["errors"] > before["errors"] else ""}
+    at = d.js(TOGGLE_AT, [i])
+    if at:
+        click_at(d, *at)
+        wait_for(d, "return !document.querySelector('.livelit-syntax')", 10)
+        time.sleep(1)
+    return verdict
+
+
+@case("eye: on every slide, each livelit's GUI works while revealed and its model follows")
+def c_eye_every_slide(d, log):
+    rows, bad = [], []
+    for name, sid in deck_slides():
+        d.goto(f"/fresh?slide={sid}&panel=none")
+        n = wait_for(d, "const n = document.querySelectorAll('.livelit-syntax-toggle').length; return n || null;", 45)
+        if not n:
+            rows.append((name, "-", "no user livelit")); continue
+        time.sleep(3)
+        for i in range(min(n, 8)):
+            v = sweep_use(d, i)
+            row = (name, i, v["verdict"] + (" (" + v.get("control", "") + ")" if v.get("control") else "") + (": " + v["why"] if v.get("why") else ""))
+            rows.append(row); print(f"          {row[0]} #{row[1]}: {row[2]}", flush=True)
+            if v["verdict"] in ("STUCK", "ERROR"):
+                bad.append(row)
+    log({"uses": len([r for r in rows if r[1] != "-"]), "bad": bad})
+    assert not bad, f"{len(bad)} uses whose GUI or revealed model failed: " + "; ".join(f"{r[0]} #{r[1]} {r[2]}" for r in bad)
+    return {}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=8011,
