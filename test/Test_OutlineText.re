@@ -2495,6 +2495,52 @@ let new_test_opens_run = () => {
   reset();
 };
 
+/* a lone test is a run of one: moved or duplicated from its row, its
+   run opens and the cursor lands on it */
+let lone_test_ops = () => {
+  /* the items' order, not the gaps the kernel lays out */
+  let squeezed = code =>
+    String.split_on_char('\n', text_of(code))
+    |> List.filter(l => String.trim(l) != "")
+    |> String.concat("\n");
+  let folded = path =>
+    O.folded(~folds=Web.ScratchPersist.folds("scratch", "t"), path, KTests);
+  let code = code_of("let a = 1 in\nlet b = 2 in\ntest a == 1 end;\nb");
+  let term = Web.Program.outline(code.program);
+  let lone = CorpusUtil.row_by_label(term, "1");
+  check(
+    bool,
+    "its run starts folded",
+    true,
+    folded(Option.get(O.run_of(lone, term))),
+  );
+  let moved = run(DefOp(MoveUp, lone), code);
+  check(
+    string,
+    "moved up",
+    "let a = 1 in\ntest a == 1 end;\nlet b = 2 in\nb",
+    squeezed(moved),
+  );
+  let term' = Web.Program.outline(moved.program);
+  let path = Option.get(O.run_of(lone, term'));
+  check(bool, "its run opened", false, folded(path));
+  check(
+    bool,
+    "the cursor on it",
+    true,
+    C.cursor^ == O.label_path(lone, term'),
+  );
+  reset();
+  let copied = run(DefOp(Duplicate, lone), code);
+  check(
+    string,
+    "duplicated: a run of two",
+    "let a = 1 in\nlet b = 2 in\ntest a == 1 end;\ntest a == 1 end;\nb",
+    squeezed(copied),
+  );
+  reset();
+};
+
 /* a test's menu and a tests label's offer a new test: below the test,
    first of an expanded run, after a folded one */
 let test_menus = () => {
@@ -2821,6 +2867,7 @@ let tests = (
     test_case("a folded run's keys", `Quick, run_fold_keys),
     test_case("a folded run in text mode", `Quick, run_text),
     test_case("a new test opens its run", `Quick, new_test_opens_run),
+    test_case("a lone test's moves and copies", `Quick, lone_test_ops),
     test_case("menus offer a new test", `Quick, test_menus),
     test_case("a keyword typed first in a rename", `Quick, rename_keywords),
     test_case("Esc leaves in one press", `Quick, esc_leaves),
