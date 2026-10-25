@@ -157,7 +157,13 @@ let status_mark = (s: TestStatus.t): string =>
 let error_message = (facts: facts, id: Id.t): string =>
   switch (Id.Map.find_opt(id, facts.info_map)) {
   | Some(info) =>
-    comment_safe(ErrorPrint.string_of_marks(info, Info.marks_of(info)))
+    comment_safe(
+      ErrorPrint.string_of_marks(
+        ~info_map=facts.info_map,
+        info,
+        Info.marks_of(info),
+      ),
+    )
   | None => "error"
   };
 

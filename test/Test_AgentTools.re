@@ -2660,9 +2660,70 @@ let agent_context_tests = (
    19. ERROR PRINT — static error reporting
    ============================================================ */
 
+/* a module naming itself in its own body: the free constructor and the
+   Dot on it say why, under either analysis */
+let self_reference_errors = () => {
+  let want = "`RunningSums` isn't in scope inside its own body; use `running_max` directly";
+  let mentions = (needle, e) => CorpusUtil.contains(needle, e);
+  let body = "module RunningSums = {\n  let running_max = 3;\n  let twice = RunningSums.running_max * 2\n}";
+  List.iter(
+    ((root: Sort.t, code)) => {
+      let term =
+        switch (Parser.to_zipper(~root, code)) {
+        | Some(z) => MakeTerm.from_zip_for_sem(z, ~root).term
+        | None => fail("Failed to parse: " ++ code)
+        };
+      List.iter(
+        ((what, info_map)) => {
+          let what = Sort.show(root) ++ " " ++ what;
+          let errors = ErrorPrint.all(info_map);
+          check(
+            bool,
+            what ++ ": says why",
+            true,
+            List.exists(mentions(want), errors),
+          );
+          check(
+            list(string),
+            what ++ ": nothing else",
+            [],
+            List.filter(e => !mentions(want, e), errors),
+          );
+        },
+        [
+          (
+            "monolithic",
+            fst(Statics.mk(CoreSettings.on, DefStatics.ctx0, term)),
+          ),
+          (
+            "DefStatics",
+            DefStatics.calc(~settings=CoreSettings.on, term).merged,
+          ),
+        ],
+      );
+    },
+    [
+      (Exp, body ++ " in\nRunningSums.twice"),
+      (Mod, body ++ ";\nRunningSums.twice"),
+    ],
+  );
+  let errors = ErrorPrint.all(mk_statics(mk_zipper("let y = Nope.x in y")));
+  check(
+    bool,
+    "another module's name stays undefined",
+    true,
+    List.exists(mentions("Constructor is not defined"), errors),
+  );
+};
+
 let error_print_tests = (
   "ErrorPrint",
   [
+    test_case(
+      "a module naming itself in its own body",
+      `Quick,
+      self_reference_errors,
+    ),
     test_case(
       "well-typed program has no errors",
       `Quick,
