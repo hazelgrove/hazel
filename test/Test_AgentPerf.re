@@ -70,7 +70,7 @@ let reply_ms =
           reply,
           agent.chat_system.current,
           agent.main_llm_seq,
-          0,
+          None,
         ),
         agent,
         cell_editor,

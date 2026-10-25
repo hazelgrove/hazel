@@ -1289,12 +1289,14 @@ let api_settings = {
 
 /* a chat driven through [W.Agent.Update.update]: each [turns] entry a
    user message then the replies it gets, each reply a tool call list
-   (text when empty); the bodies sent, in order, and the agent after */
+   (text when empty, or [text] of its turn and place); the bodies sent, in
+   order, and the agent after */
 let drive =
     (
       ~src=lens_src,
       ~reasoning=?,
       ~usage=?,
+      ~text=(_, _, calls) => calls == [] ? "Done." : "",
       turns: list((string, list(list((string, Yojson.Safe.t))))),
     )
     : (list(string), W.Agent.Model.t) => {
@@ -1359,7 +1361,7 @@ let drive =
       List.iteri(
         (i, calls) => {
           let reply: Util.OpenRouter.Reply.Model.t = {
-            content: calls == [] ? "Done." : "",
+            content: text(t, i, calls),
             tool_calls:
               List.mapi(
                 (j, (name, args)): Util.OpenRouter.Reply.Model.tool_call =>
@@ -1373,7 +1375,14 @@ let drive =
             usage,
             reasoning,
           };
-          step(HandleLLMResponse(reply, chat_id, agent^.main_llm_seq, 6000));
+          step(
+            HandleLLMResponse(
+              reply,
+              chat_id,
+              agent^.main_llm_seq,
+              Some(6000),
+            ),
+          );
           drain();
         },
         replies,
@@ -1938,6 +1947,184 @@ let trajectory_tests = [
   ),
 ];
 
+let usage_of = (n): Util.OpenRouter.Reply.Model.usage => {
+  prompt_tokens: n,
+  completion_tokens: 10,
+  total_tokens: n + 10,
+  cache_read_input_tokens: None,
+  cache_creation_input_tokens: None,
+  cost: None,
+  upstream_inference_cost: None,
+  cache_write_tokens: None,
+  model_id: None,
+};
+
+/* a reply's thinking time is its reasoning's, not the request's; a
+   reply set aside for a retry keeps its usage and thinking */
+let thinking_tests = [
+  test_case(
+    "thinking time: first reasoning to first other output",
+    `Quick,
+    () => {
+      module Th = W.AgentSend.Thinking;
+      let run = (deltas, finished) =>
+        Th.ms(
+          ~finished,
+          List.fold_left(
+            (t, (now, reasoning, other)) =>
+              Th.observe(~now, ~reasoning, ~other, t),
+            Th.init,
+            deltas,
+          ),
+        );
+      check(
+        option(int),
+        "to the first text",
+        Some(3000),
+        run(
+          [
+            (500., false, false),
+            (1000., true, false),
+            (2500., true, false),
+            (4000., false, true),
+            (6000., true, true),
+          ],
+          9000.,
+        ),
+      );
+      check(
+        option(int),
+        "to the end",
+        Some(4000),
+        run([(1000., true, false), (3000., true, false)], 5000.),
+      );
+      check(
+        option(int),
+        "reasoning first comes with text: not told",
+        None,
+        run([(1000., true, true), (3000., false, true)], 5000.),
+      );
+      check(
+        option(int),
+        "no reasoning",
+        None,
+        run([(1000., false, true)], 5000.),
+      );
+    },
+  ),
+  test_case(
+    "thinking time, as streamed",
+    `Quick,
+    () => {
+      let saved = (W.AgentSend.stream_chat^, W.AgentSend.clock^);
+      let now = ref(0.);
+      W.AgentSend.clock := (() => now^);
+      let chunk = s => Yojson.Safe.from_string(s);
+      W.AgentSend.stream_chat :=
+        (
+          (~payload as _, ~key as _, ~on_chunk, ~on_done) => {
+            List.iter(
+              ((t, c)) => {
+                now := t;
+                on_chunk(chunk(c));
+              },
+              [
+                (100., {|{"choices":[{"delta":{"role":"assistant"}}]}|}),
+                (200., {|{"choices":[{"delta":{"reasoning":"Open b"}}]}|}),
+                (900., {|{"choices":[{"delta":{"reasoning":" first."}}]}|}),
+                (
+                  2200.,
+                  {|{"choices":[{"delta":{"tool_calls":[{"index":0,"id":"c1","function":{"name":"open","arguments":"{}"}}]}}]}|},
+                ),
+              ],
+            );
+            now := 8000.;
+            on_done();
+            {abort: () => ()};
+          }
+        );
+      let got = ref(None);
+      W.AgentSend.send_llm_request(
+        ~api_key="k",
+        ~payload=
+          Util.OpenRouter.Payload.Utils.mk_default(
+            ~model_id=llm.id,
+            ~messages=[],
+            ~tools=[],
+            (),
+          ),
+        ~schedule_action=
+          fun
+          | HandleLLMResponse(_, _, _, ms) => got := Some(ms)
+          | _ => (),
+        ~chat_id=Id.mk(),
+        ~retry_attempt=0,
+        ~main_flight_seq=1,
+      );
+      let (sc, c) = saved;
+      W.AgentSend.stream_chat := sc;
+      W.AgentSend.clock := c;
+      check(
+        option(option(int)),
+        "to the tool call",
+        Some(Some(2000)),
+        got^,
+      );
+    },
+  ),
+  test_case(
+    "an empty reply's usage and thinking stay",
+    `Quick,
+    () => {
+      let thought = "Nothing to add, it seems.";
+      let (bodies, agent) =
+        drive(
+          ~reasoning=thought,
+          ~usage=usage_of(1000),
+          ~text=(_, i, _) => i == 0 ? "  " : "Done.",
+          [("hi", [[], []])],
+        );
+      let chat = chat_of(agent);
+      check(int, "a retry went out", 2, List.length(bodies));
+      check(
+        pair(int, int),
+        "both attempts count",
+        (2000, 20),
+        W.AgentSlashFormat.chat_usage_totals(chat),
+      );
+      check(
+        bool,
+        "the retry carries no assistant message",
+        false,
+        List.exists(
+          m =>
+            Util.StringUtil.plain_search({|"role":"assistant"|}, m, 0) >= 0,
+          messages_of(List.nth(bodies, 1)),
+        ),
+      );
+      let t = Option.get(T.build(chat, 2));
+      check(
+        list(list(kind)),
+        "the first round keeps the attempt's thinking and usage",
+        [
+          [Context, Thinking, Note, Usage, System],
+          [Context, Thinking, Assistant, Usage],
+        ],
+        List.map(
+          (r: T.section) => List.map((s: T.section) => s.kind, r.children),
+          of_kind(Round, t.sections),
+        ),
+      );
+      check(
+        string,
+        "as received",
+        thought,
+        List.hd(of_kind(Thinking, t.sections)).text,
+      );
+    },
+  ),
+];
+
 let tests = (
   "AgentView",
   format_tests
@@ -1946,5 +2133,6 @@ let tests = (
   @ lens_tests
   @ map_tests
   @ toggle_tests
-  @ trajectory_tests,
+  @ trajectory_tests
+  @ thinking_tests,
 );

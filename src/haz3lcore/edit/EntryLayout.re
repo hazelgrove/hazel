@@ -558,11 +558,9 @@ let lay_def = (~indent: int, ~at: int, ~in_: bool, pre, core, suf): Segment.t =>
 
    The gaps an op makes or closes are laid out by kind, never by what
    was there. In a program's top level and a module's members, one blank
-   line between entries, but a definition's tests go right under it, and
-   right under each other, unless set apart by a blank line in the code
-   that brought them (an integration test). A test landing at the
-   program's end starts a block of its own, unless it joins one there. A
-   body's entries take one line each. A gap on one line stays a space */
+   line between entries, but consecutive tests sit together, unless set
+   apart by a blank line in the code that brought them. A body's entries
+   take one line each. A gap on one line stays a space */
 
 let is_test = (lv: S.level, k: int): bool =>
   switch (EntryPath.entry(lv, k).kind) {
@@ -571,23 +569,17 @@ let is_test = (lv: S.level, k: int): bool =>
   | _ => false
   };
 
-/* the linebreaks between entries [j] and [j + 1]. [ends]: the lower one
-   lands at the program's end. [apart]: its code set it apart */
-let house = (~ends: bool, ~apart as set_apart=false, b: block, j: int): int => {
+/* the linebreaks between entries [j] and [j + 1]. [apart]: the lower
+   one's code set it apart */
+let house = (~apart=false, b: block, j: int): int => {
   let lv = b.lv;
-  let blank = i => breaks(b, b.sl[i].eol, b.sl[i + 1].lo) > 1;
-  let is_def = i => EntryPath.entry(lv, i).kind == Def;
-  /* test [i] is among tests set apart, not right under a definition */
-  let rec apart = i =>
-    i == 0
-    || blank(i - 1)
-    || (is_test(lv, i - 1) ? apart(i - 1) : !is_def(i - 1));
+  let kind = i => EntryPath.entry(lv, i).kind;
   let glued =
-    is_test(lv, j + 1)
-    && !set_apart
-    && (ends ? is_test(lv, j) && apart(j) : is_test(lv, j) || is_def(j))
-    || EntryPath.entry(lv, j).kind == Use
-    && EntryPath.entry(lv, j + 1).kind == Use;
+    is_test(lv, j)
+    && is_test(lv, j + 1)
+    && !apart
+    || kind(j) == Use
+    && kind(j + 1) == Use;
   switch (lv.owner) {
   | Top
   | Members(_) => glued ? 1 : 2
@@ -598,11 +590,9 @@ let house = (~ends: bool, ~apart as set_apart=false, b: block, j: int): int => {
 
 /* [b]'s pieces with the gaps after entries [js] laid out by house style
    (only whitespace across lines; comments set apart stay as they are).
-   [ends]: the gap after entry [ends] is above one landing at the
-   program's end. [apart]: gaps the code set apart, above a test. [b]'s
-   own pieces when none changes */
-let settle =
-    (~ends: option(int)=?, ~apart=[], b: block, js: list(int)): Segment.t => {
+   [apart]: gaps the code set apart, above a test. [b]'s own pieces when
+   none changes */
+let settle = (~apart=[], b: block, js: list(int)): Segment.t => {
   let n = Array.length(b.sl);
   let edits =
     List.sort_uniq(compare, js)
@@ -612,8 +602,7 @@ let settle =
          } else {
            let (i, e) = (b.sl[j].eol, b.sl[j + 1].lo);
            let rec all = (f, x) => x >= e || f(b.arr[x]) && all(f, x + 1);
-           let m =
-             house(~ends=ends == Some(j), ~apart=List.mem(j, apart), b, j);
+           let m = house(~apart=List.mem(j, apart), b, j);
            let laid = e - i == m && all(Piece.is_linebreak, i);
            all(Nav.is_edge_ws, i) && breaks(b, i, e) > 0 && !laid
              ? Some((i, e, m)) : None;
