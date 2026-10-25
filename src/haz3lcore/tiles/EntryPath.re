@@ -778,3 +778,106 @@ let entries = (~root: Sort.t, seg: Segment.t): list((Id.t, t)) => {
   };
   List.rev(go([], top, []));
 };
+
+/* ---- near misses ---- */
+
+let edit_distance = (a: string, b: string): int => {
+  let (n, m) = (String.length(a), String.length(b));
+  let row = Array.init(m + 1, j => j);
+  for (i in 1 to n) {
+    let diag = ref(row[0]);
+    row[0] = i;
+    for (j in 1 to m) {
+      let up = row[j];
+      row[j] =
+        min(
+          min(row[j] + 1, row[j - 1] + 1),
+          diag^ + (a.[i - 1] == b.[j - 1] ? 0 : 1),
+        );
+      diag := up;
+    };
+  };
+  row[m];
+};
+
+/* up to [n] paths near [s], which doesn't resolve: a kind word with a
+   `#k` (`test … end#98`) read as `test#98`; else the entries whose path
+   or last element is nearest by edit distance, or is a prefix of it, or
+   it of them. A part's word, completed, stays on */
+let nearest = (~n=3, ~root: Sort.t, seg: Segment.t, s: string): list(string) => {
+  let s = String.trim(s);
+  let len = String.length(s);
+  let resolves = c => Result.is_ok(resolve_string(~root, seg, c));
+  /* the last `:` outside hint quotes */
+  let rec colon = (i, quoted, last) =>
+    i >= len
+      ? last
+      : (
+        switch (s.[i]) {
+        | '"' => colon(i + 1, !quoted, last)
+        | ':' when !quoted => colon(i + 1, quoted, Some(i))
+        | _ => colon(i + 1, quoted, last)
+        }
+      );
+  let (base, part) =
+    switch (colon(0, false, None)) {
+    | Some(i) => (
+        String.trim(String.sub(s, 0, i)),
+        {
+          let w = String.trim(String.sub(s, i + 1, len - i - 1));
+          List.find_opt(
+            ((pw, _)) =>
+              String.starts_with(~prefix=pw, w)
+              || w != ""
+              && String.starts_with(~prefix=w, pw),
+            part_words,
+          );
+        },
+      )
+    | None => (s, None)
+    };
+  let with_part = c =>
+    switch (part) {
+    | Some((pw, _)) when resolves(c ++ ":" ++ pw) => c ++ ":" ++ pw
+    | _ => c
+    };
+  let numbered =
+    switch (String.index_opt(base, ' '), String.rindex_opt(base, '#')) {
+    | (Some(i), Some(h)) when h > i =>
+      let k = String.sub(base, h + 1, String.length(base) - h - 1);
+      let c = String.sub(base, 0, i) ++ "#" ++ k;
+      List.mem_assoc(String.sub(base, 0, i), kind_words)
+      && int_of_string_opt(k) != None
+      && resolves(c)
+        ? [c] : [];
+    | _ => []
+    };
+  let score = key =>
+    String.length(key) >= 2
+    && (
+      String.starts_with(~prefix=key, base)
+      || String.starts_with(~prefix=base, key)
+    )
+      ? 0 : edit_distance(base, key);
+  let cutoff = max(2, String.length(base) / 3);
+  let near =
+    entries(~root, seg)
+    |> List.filter_map(((_, p: t)) => {
+         let path = to_string(p);
+         let last =
+           switch (ListUtil.last_opt(p.elems)) {
+           | Some(e) => elem_to_string(e)
+           | None => path
+           };
+         let d = min(score(path), score(last));
+         d <= cutoff ? Some((d, String.length(path), path)) : None;
+       })
+    |> List.sort(compare)
+    |> List.map(((_, _, path)) => path);
+  List.fold_left(
+    (acc, c) => List.mem(c, acc) ? acc : acc @ [c],
+    [],
+    numbered @ List.map(with_part, ListUtil.take(n, near)),
+  )
+  |> ListUtil.take(n);
+};

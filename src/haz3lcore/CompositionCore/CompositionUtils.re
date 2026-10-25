@@ -71,6 +71,26 @@ let syntax_projector_kind_of_string = (s: string): ProjectorKind.t => {
   k;
 };
 
+/* a path as the agent may write it, copied from its view: a trailing
+   `#› … #` note off, its quotes unescaped */
+let clean_path = (path: string): string => {
+  let path =
+    switch (StringUtil.plain_search(CompositionView.marker, path, 0)) {
+    | i when i >= 0 => String.sub(path, 0, i)
+    | _ => path
+    };
+  let n = String.length(path);
+  let b = Stdlib.Buffer.create(n);
+  let rec go = i =>
+    if (i < n) {
+      let escaped = path.[i] == '\\' && i + 1 < n && path.[i + 1] == '"';
+      Stdlib.Buffer.add_char(b, escaped ? '"' : path.[i]);
+      go(escaped ? i + 2 : i + 1);
+    };
+  go(0);
+  String.trim(Stdlib.Buffer.contents(b));
+};
+
 let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
   try(
     {
@@ -81,7 +101,7 @@ let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
           List.filter_map(
             ((key, mk)) =>
               switch (API.Json.dot(key, args)) {
-              | Some(`String(s)) => Some(mk(String.trim(s)))
+              | Some(`String(s)) => Some(mk(clean_path(s)))
               | _ => None
               },
             [
@@ -107,44 +127,74 @@ let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
             switch (tool_name) {
             | "open" =>
               AgentContextAction(
-                OpenPaths(get_string_list(args, "targets")),
+                OpenPaths(
+                  List.map(clean_path, get_string_list(args, "targets")),
+                ),
               )
             | "close" =>
               switch (API.Json.dot("all", args)) {
               | Some(`Bool(true)) => AgentContextAction(CloseAllPaths)
               | _ =>
                 AgentContextAction(
-                  ClosePaths(get_string_list(args, "targets")),
+                  ClosePaths(
+                    List.map(clean_path, get_string_list(args, "targets")),
+                  ),
                 )
               }
             | "place_probe" =>
-              ProbeAction(PlaceProbe(get_string_list(args, "paths")))
+              ProbeAction(
+                PlaceProbe(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "remove_probe" =>
-              ProbeAction(RemoveProbe(get_string_list(args, "paths")))
+              ProbeAction(
+                RemoveProbe(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "toggle_probe" =>
-              ProbeAction(ToggleProbe(get_string_list(args, "paths")))
+              ProbeAction(
+                ToggleProbe(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "place_statics" =>
-              StaticsAction(PlaceStatics(get_string_list(args, "paths")))
+              StaticsAction(
+                PlaceStatics(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "remove_statics" =>
-              StaticsAction(RemoveStatics(get_string_list(args, "paths")))
+              StaticsAction(
+                RemoveStatics(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "toggle_statics" =>
-              StaticsAction(ToggleStatics(get_string_list(args, "paths")))
+              StaticsAction(
+                ToggleStatics(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
+              )
             | "place_syntax_projector" =>
               SyntaxProjectorAction(
                 PlaceSyntaxProjector(
                   syntax_projector_kind_of_string(get_string(args, "kind")),
-                  get_string_list(args, "paths"),
+                  List.map(clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "remove_syntax_projector" =>
               SyntaxProjectorAction(
-                RemoveSyntaxProjector(get_string_list(args, "paths")),
+                RemoveSyntaxProjector(
+                  List.map(clean_path, get_string_list(args, "paths")),
+                ),
               )
             | "toggle_syntax_projector" =>
               SyntaxProjectorAction(
                 ToggleSyntaxProjector(
                   syntax_projector_kind_of_string(get_string(args, "kind")),
-                  get_string_list(args, "paths"),
+                  List.map(clean_path, get_string_list(args, "paths")),
                 ),
               )
             | "insert" =>
@@ -152,17 +202,20 @@ let action_of = (~tool_name: string, ~args: API.Json.t): action_wrapper =>
             | "replace" =>
               EditorAction(
                 Replace(
-                  get_string(args, "target"),
+                  clean_path(get_string(args, "target")),
                   get_string(args, "code"),
                 ),
               )
-            | "delete" => EditorAction(Delete(get_string(args, "target")))
+            | "delete" =>
+              EditorAction(Delete(clean_path(get_string(args, "target"))))
             | "move" =>
-              EditorAction(Move(get_string(args, "target"), place()))
+              EditorAction(
+                Move(clean_path(get_string(args, "target")), place()),
+              )
             | "rename" =>
               EditorAction(
                 Rename(
-                  get_string(args, "target"),
+                  clean_path(get_string(args, "target")),
                   Option.map(String.trim, get_optional_string(args, "name")),
                   get_string(args, "to"),
                 ),

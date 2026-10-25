@@ -110,11 +110,19 @@ module Update = {
   let resolve = (o: Outline.t, action: action): result(resolved, string) => {
     let entries = paths => {
       let results = List.map(p => (p, Outline.resolve(o, p)), paths);
+      let near = p =>
+        switch (EntryPath.nearest(~root=o.root, o.seg, p)) {
+        | [] => ""
+        | cs =>
+          " Did you mean "
+          ++ String.concat(", ", List.map(c => "`" ++ c ++ "`", cs))
+          ++ "?"
+        };
       switch (
         List.filter_map(
-          ((_, r)) =>
+          ((p, r)) =>
             switch (r) {
-            | Error(e) => Some(e)
+            | Error(e) => Some(e ++ near(p))
             | Ok(_) => None
             },
           results,

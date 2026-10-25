@@ -1604,7 +1604,7 @@ let high_level_node_map_tests = (
           bool,
           "suggests double/t: " ++ msg,
           true,
-          StringUtil.plain_search("Did you mean double/t?", msg, 0) >= 0,
+          StringUtil.plain_search("Did you mean `double/t`", msg, 0) >= 0,
         );
       },
     ),

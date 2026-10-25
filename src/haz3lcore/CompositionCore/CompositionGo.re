@@ -236,20 +236,33 @@ let plan = (~target=?, what, ops) => {
 
 /* entries elsewhere named [el]: what a path missing its outer names
    meant */
-let elsewhere = (p: program, el: string): string =>
+let elsewhere = (p: program, el: string): list(string) =>
+  P.entries(~root=p.root, p.seg)
+  |> List.filter_map(((_, path: P.t)) =>
+       switch (List.rev(path.elems)) {
+       | [last, _, ..._] when P.elem_to_string(last) == el =>
+         Some(P.to_string(path))
+       | _ => None
+       }
+     );
+
+/* " Did you mean `a`, `b`?" for [paths], up to 3 */
+let did_you_mean = (paths: list(string)): string =>
   switch (
-    P.entries(~root=p.root, p.seg)
-    |> List.filter_map(((_, path: P.t)) =>
-         switch (List.rev(path.elems)) {
-         | [last, _, ..._] when P.elem_to_string(last) == el =>
-           Some(P.to_string(path))
-         | _ => None
-         }
-       )
+    List.fold_left(
+      (acc, c) => List.mem(c, acc) ? acc : acc @ [c],
+      [],
+      paths,
+    )
   ) {
   | [] => ""
   | paths =>
-    " Did you mean " ++ String.concat(" or ", ListUtil.take(3, paths)) ++ "?"
+    " Did you mean "
+    ++ String.concat(
+         ", ",
+         List.map(c => "`" ++ c ++ "`", ListUtil.take(3, paths)),
+       )
+    ++ "?"
   };
 
 let path_string = (~root, seg: Segment.t, id: Id.t): option(string) =>
@@ -303,9 +316,20 @@ let resolve =
       ++ P.part_word(part),
     )
   | Ok(f) => Ok(f)
-  | Error(Unknown(_, el, _) as e) =>
-    Error(code_hint(path, P.message(e) ++ elsewhere(p, el)))
-  | Error(e) => Error(code_hint(path, P.message(e)))
+  | Error(Ambiguous(_) as e) => Error(code_hint(path, P.message(e)))
+  | Error(e) =>
+    let others =
+      switch (e) {
+      | Unknown(_, el, _) => elsewhere(p, el)
+      | _ => []
+      };
+    Error(
+      code_hint(
+        path,
+        P.message(e)
+        ++ did_you_mean(others @ P.nearest(~root=p.root, p.seg, path)),
+      ),
+    );
   };
 
 let level_of = (f: P.found): (S.level, int) => ListUtil.last(f.steps);
@@ -512,14 +536,21 @@ let binder_of =
   };
 };
 
-/* the comment lines an entry's pieces start with, one per line */
+/* an entry's doc comment, one line per line: the comment lines its
+   pieces start with, past the last blank line (comments set apart above
+   it stay where they are) */
 let leading_comment = (ps: Segment.t): option(string) => {
-  let rec lead = (ps: Segment.t) =>
+  let rec lead = (acc, ps: Segment.t) =>
     switch (ps) {
-    | [p, ...rest] when Piece.is_secondary(p) => [p, ...lead(rest)]
-    | _ => []
+    | [p, ...rest] when Piece.is_linebreak(p) =>
+      switch (Segment.split_space_run(rest)) {
+      | (_, [q, ..._]) when Piece.is_linebreak(q) => lead([], rest)
+      | _ => lead([p, ...acc], rest)
+      }
+    | [p, ...rest] when Piece.is_secondary(p) => lead([p, ...acc], rest)
+    | _ => List.rev(acc)
     };
-  let lead = lead(ps);
+  let lead = lead([], ps);
   List.exists(S.is_comment, lead)
     ? Some(
         Printer.of_segment(~holes="?", lead)
@@ -956,40 +987,98 @@ let diff = (~root, m: made): option((string, option(string))) =>
     };
   };
 
-/* the lines of [old] that [now] doesn't keep, in order, indentation
-   aside: those off a longest common subsequence; None past a size where
-   that costs too much to find */
+/* [s]'s tokens, whitespace aside, each with its line: a word, a string
+   literal, else one character */
+let tokens = (s: string): array((string, int)) => {
+  let word = c =>
+    c >= 'a'
+    && c <= 'z'
+    || c >= 'A'
+    && c <= 'Z'
+    || c >= '0'
+    && c <= '9'
+    || c == '_'
+    || c == '\''
+    || Char.code(c) >= 128;
+  let n = String.length(s);
+  let acc = ref([]);
+  let rec go = (i, line) =>
+    if (i < n) {
+      let c = s.[i];
+      let span = j => {
+        acc := [(String.sub(s, i, j - i), line), ...acc^];
+        go(j, line);
+      };
+      if (c == '\n') {
+        go(i + 1, line + 1);
+      } else if (c == ' ' || c == '\t' || c == '\r') {
+        go(i + 1, line);
+      } else if (c == '"') {
+        let rec close = j =>
+          j >= n || s.[j] == '\n'
+            ? j
+            : s.[j] == '\\'
+                ? close(j + 2) : s.[j] == '"' ? j + 1 : close(j + 1);
+        span(min(n, close(i + 1)));
+      } else if (word(c)) {
+        let rec stop = j => j < n && word(s.[j]) ? stop(j + 1) : j;
+        span(stop(i));
+      } else {
+        span(i + 1);
+      };
+    };
+  go(0, 0);
+  Array.of_list(List.rev(acc^));
+};
+
+/* the lines of [old] that [now] changes, in order, their whitespace
+   collapsed: those losing a token or gaining one inside, off a longest
+   common subsequence of the tokens, so re-indenting or reflowing changes
+   none; None past a size where that costs too much to find */
 let removed_lines = (old: string, now: string): option(list(string)) => {
-  let lines = s =>
-    String.split_on_char('\n', s)
-    |> List.map(String.trim)
-    |> List.filter(l => l != "")
-    |> Array.of_list;
-  let (a, b) = (lines(old), lines(now));
+  let (a, b) = (tokens(old), tokens(now));
   let (n, m) = (Array.length(a), Array.length(b));
-  if (n * m > 250000) {
+  let same = (i, j) => fst(a[i]) == fst(b[j]);
+  /* the common ends cost nothing */
+  let rec head = k => k < n && k < m && same(k, k) ? head(k + 1) : k;
+  let lo = head(0);
+  let rec tail = k =>
+    lo + k < n && lo + k < m && same(n - 1 - k, m - 1 - k) ? tail(k + 1) : k;
+  let hi = tail(0);
+  let (n', m') = (n - lo - hi, m - lo - hi);
+  if (n' * m' > 1000000) {
     None;
   } else {
-    /* lcs[i][j]: of a's lines from i and b's from j */
-    let lcs = Array.make_matrix(n + 1, m + 1, 0);
-    for (i in n - 1 downto 0) {
-      for (j in m - 1 downto 0) {
+    /* lcs[i][j]: of a's middle from i and b's from j */
+    let lcs = Array.make_matrix(n' + 1, m' + 1, 0);
+    for (i in n' - 1 downto 0) {
+      for (j in m' - 1 downto 0) {
         lcs[i][j] =
-          a[i] == b[j]
+          same(lo + i, lo + j)
             ? lcs[i + 1][j + 1] + 1 : max(lcs[i + 1][j], lcs[i][j + 1]);
       };
     };
+    let line = i => snd(a[i]);
+    /* code inserted before a's token [i], within its line */
+    let within = i => i > 0 && i < n && line(i - 1) == line(i);
     let rec go = (i, j) =>
-      if (i == n) {
+      if (i == n' && j == m') {
         [];
-      } else if (j < m && a[i] == b[j]) {
+      } else if (i < n' && j < m' && same(lo + i, lo + j)) {
         go(i + 1, j + 1);
-      } else if (j < m && lcs[i][j + 1] >= lcs[i + 1][j]) {
-        go(i, j + 1);
+      } else if (j < m' && (i == n' || lcs[i][j + 1] >= lcs[i + 1][j])) {
+        within(lo + i) ? [line(lo + i), ...go(i, j + 1)] : go(i, j + 1);
       } else {
-        [a[i], ...go(i + 1, j)];
+        [line(lo + i), ...go(i + 1, j)];
       };
-    Some(go(0, 0));
+    let lines = Array.of_list(String.split_on_char('\n', old));
+    let squash = l =>
+      String.split_on_char(' ', String.trim(l))
+      |> List.filter(w => w != "")
+      |> String.concat(" ");
+    Some(
+      List.map(k => squash(lines[k]), List.sort_uniq(compare, go(0, 0))),
+    );
   };
 };
 
@@ -999,7 +1088,7 @@ let removal = (~root, m: made): string =>
   | Some((old, Some(now))) =>
     switch (removed_lines(old, now)) {
     | Some([]) => ""
-    | Some(ls) when List.length(ls) <= 10 =>
+    | Some(ls) when List.length(ls) <= 30 =>
       String.concat("", List.map(l => "\n- " ++ l, ls))
     | Some(ls) => " " ++ string_of_int(List.length(ls)) ++ " lines replaced."
     | None =>
@@ -1010,7 +1099,91 @@ let removal = (~root, m: made): string =>
   | _ => ""
   };
 
-let report = (~root, m: made): string => {
+/* names and hints the calls' entries now share with others in their
+   block, each said once: "There are now 2 entries named x in …" */
+let duplicates = (~root, m: made): list(string) => {
+  let after = m.change.program;
+  let keys = (e: P.entry) =>
+    List.map(((x, _)) => P.Name(x, None), e.binders)
+    @ Option.to_list(Option.map(h => P.Hint(h, None), e.hint));
+  /* entry [anchor] had [key] before the call */
+  let had = (anchor, key) =>
+    switch (P.find(~root, m.before, anchor)) {
+    | Some(steps) =>
+      let (lv, k) = ListUtil.last(steps);
+      List.mem(key, keys(P.entry(lv, k)));
+    | None => false
+    };
+  let rows =
+    List.concat_map(
+      (s: K.step) => s.added @ List.map(((x, _, _)) => x, s.moved),
+      m.change.steps,
+    )
+    @ Option.to_list(m.plan.target);
+  List.concat_map(
+    row =>
+      switch (P.find(~root, after, row)) {
+      | Some(steps) =>
+        let (lv, k) = ListUtil.last(steps);
+        let ix = P.index(lv);
+        let block =
+          switch (List.rev(steps)) {
+          | [_, (olv, ok), ..._] =>
+            Option.value(
+              path_string(~root, after, olv.spans[ok].anchor),
+              ~default="",
+            )
+          | _ => ""
+          };
+        List.filter_map(
+          (key: P.elem) => {
+            let ks =
+              P.of_list(
+                switch (key) {
+                | Name(x, _) => P.SM.find_opt(x, ix.names)
+                | Hint(h, _) => P.SM.find_opt(h, ix.hints)
+                | _ => None
+                },
+              );
+            let n = List.length(ks);
+            let anchors = List.map(k => lv.spans[k].anchor, ks);
+            n > 1 && List.length(List.filter(a => had(a, key), anchors)) < n
+              ? Some(
+                  "There are now "
+                  ++ string_of_int(n)
+                  ++ " entries named "
+                  ++ P.elem_to_string(key)
+                  ++ " in "
+                  ++ P.where(block)
+                  ++ ": "
+                  ++ String.concat(
+                       ", ",
+                       List.mapi(
+                         (i, _) =>
+                           P.elem_to_string(
+                             switch (key) {
+                             | Name(x, _) => Name(x, Some(i + 1))
+                             | Hint(h, _) => Hint(h, Some(i + 1))
+                             | key => key
+                             },
+                           ),
+                         ks,
+                       ),
+                     )
+                  ++ ".",
+                )
+              : None;
+          },
+          keys(P.entry(lv, k)),
+        );
+      | None => []
+      },
+    rows,
+  )
+  |> List.sort_uniq(compare);
+};
+
+let said = (~root, m: made): string => {
   let after = m.change.program;
   let was =
     Option.value(
@@ -1109,6 +1282,13 @@ let report = (~root, m: made): string => {
   | Moved(whereto) => "Moved " ++ was ++ " " ++ whereto ++ now_target() ++ "."
   };
 };
+
+let report = (~root, m: made): string =>
+  List.fold_left(
+    (said, d) => said ++ (String.contains(said, '\n') ? "\n" : " ") ++ d,
+    said(~root, m),
+    duplicates(~root, m),
+  );
 
 /* ---- a reply ---- */
 
@@ -1504,6 +1684,108 @@ module Reply = {
     );
   };
 
+  /* the top-level entry holding piece [id]: its place there and path */
+  let top_entry = (r: t, seg: Segment.t, id: Id.t): (int, string) =>
+    switch (
+      Option.bind(
+        L.locate(~mod_root=r.root == Sort.Mod, id, seg), ((b, j, _)) =>
+        P.find(~root=r.root, seg, b.lv.spans[j].anchor)
+      )
+    ) {
+    | Some([(lv, k), ..._]) => (
+        k,
+        Option.value(
+          path_string(~root=r.root, seg, lv.spans[k].anchor),
+          ~default="=>",
+        ),
+      )
+    | _ => ((-1), "the top level")
+    };
+
+  /* the types the reply's calls replaced (or their definitions), by path */
+  let changed_types = (r: t): list(string) =>
+    List.filter_map(
+      (m: made) =>
+        switch (m.plan.what, m.plan.target) {
+        | (Replaced(None | Some(Definition)), Some(t)) =>
+          switch (P.find(~root=r.root, m.before, t)) {
+          | Some(steps) =>
+            let (lv, k) = ListUtil.last(steps);
+            P.entry(lv, k).kind == Type
+              ? path_string(~root=r.root, m.before, t) : None;
+          | None => None
+          }
+        | _ => None
+        },
+      made(r),
+    )
+    |> List.fold_left((acc, x) => List.mem(x, acc) ? acc : acc @ [x], []);
+
+  /* errors listed in full, past which they are counted */
+  let shown_errors = 10;
+
+  /* a refusal for errors [fresh]: how many, by top-level entry, what a
+     type change breaks, then the first few */
+  let new_errors_message =
+      (r: t, ~line: Id.t => string, ~n0, ~n1, fresh: list(Id.t)): string => {
+    let seg = program(r);
+    let groups =
+      List.fold_left(
+        (acc, id) => {
+          let key = top_entry(r, seg, id);
+          List.mem_assoc(key, acc)
+            ? List.map(((k, m)) => (k, k == key ? m + 1 : m), acc)
+            : acc @ [(key, 1)];
+        },
+        [],
+        fresh,
+      )
+      |> List.sort(((a, _), (b, _)) => compare(a, b))
+      |> List.map((((_, path), n)) => (path, n));
+    let count = List.length(fresh);
+    let types = changed_types(r);
+    let broken = List.filter(((g, _)) => !List.mem(g, types), groups);
+    "Not applied: it would add "
+    ++ string_of_int(count)
+    ++ (count == 1 ? " static error" : " static errors")
+    ++ " ("
+    ++ string_of_int(n0)
+    ++ " before, "
+    ++ string_of_int(n1)
+    ++ " after), in: "
+    ++ String.concat(
+         ", ",
+         List.map(
+           ((g, n)) => g ++ " (" ++ string_of_int(n) ++ ")",
+           groups,
+         ),
+       )
+    ++ "."
+    ++ (
+      types == [] || broken == []
+        ? ""
+        : "\nChanging "
+          ++ String.concat(" and ", types)
+          ++ " breaks uses in: "
+          ++ String.concat(", ", List.map(fst, broken))
+          ++ "; change them in the same reply."
+    )
+    ++ lines(List.map(line, ListUtil.take(shown_errors, fresh)))
+    ++ (
+      count > shown_errors
+        ? "\n- and " ++ string_of_int(count - shown_errors) ++ " more" : ""
+    );
+  };
+
+  /* the program's result is an empty hole */
+  let result_empty = (r: t): bool => {
+    let top = S.top(~root=r.root, program(r));
+    switch (tail_index(top)) {
+    | Some(t) => is_hole(S.core(top, t))
+    | None => false
+    };
+  };
+
   type outcome = {
     program: Segment.t,
     statics: CachedStatics.t,
@@ -1542,13 +1824,7 @@ module Reply = {
           | None when r.checks.no_new_errors && fresh != [] =>
             Error({
               index: author(r, List.hd(fresh)).index,
-              message:
-                "Not applied: it would add static errors ("
-                ++ string_of_int(n0)
-                ++ " before, "
-                ++ string_of_int(n1)
-                ++ " after):"
-                ++ lines(List.map(line, fresh)),
+              message: new_errors_message(r, ~line, ~n0, ~n1, fresh),
             })
           | None => Ok()
           }
@@ -1571,6 +1847,12 @@ module Reply = {
           ++ " before). New:"
           ++ lines(List.map(line, fresh))
         };
+      let errors =
+        result_empty(r)
+          ? errors
+            ++ (String.contains(errors, '\n') ? "\n" : " ")
+            ++ "The program's result is empty (`?`)."
+          : errors;
       Ok({
         program: seg,
         statics: final,

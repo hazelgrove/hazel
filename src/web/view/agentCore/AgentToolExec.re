@@ -702,7 +702,7 @@ module Reply = {
         }
       };
     let undone = f =>
-      " None of this reply's edits were applied: call "
+      "None of this reply's edits were applied: call "
       ++ string_of_int(f + 1)
       ++ " ("
       ++ calls[f].name
@@ -710,7 +710,7 @@ module Reply = {
     let rolled_back = (f, tr: AgentToolResult.tool_result) => {
       ...tr,
       success: false,
-      content: "Rolled back." ++ undone(f),
+      content: "Rolled back. " ++ undone(f),
       content_is_payload: false,
     };
     let messages =
@@ -724,7 +724,13 @@ module Reply = {
           | (Edit(tc), Some((f, message))) =>
             Message.Utils.mk_tool_result_message(
               f == i
-                ? failed(tc, message ++ undone(f))
+                ? failed(
+                    tc,
+                    /* after a list, on a line of its own */
+                    message
+                    ++ (String.contains(message, '\n') ? "\n" : " ")
+                    ++ undone(f),
+                  )
                 : rolled_back(f, failed(tc, "")),
             )
           | (Edit(tc), None) =>
