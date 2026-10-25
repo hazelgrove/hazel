@@ -1769,6 +1769,83 @@ module Reply = {
       made(r),
     );
 
+  /* a `:definition` replace whose code dropped the definition's `fun`
+     heads, leaving their parameters unbound among [fresh]: which */
+  let dropped_heads = (r: t, fresh: list(Id.t)): list(string) => {
+    let final = Lazy.force(r.statics).info_map;
+    let free =
+      List.concat_map(
+        id =>
+          switch (Id.Map.find_opt(id, final)) {
+          | Some(info) =>
+            List.filter_map(
+              (m: Mark.t) =>
+                switch (m) {
+                | Free(x) => Some(x)
+                | _ => None
+                },
+              Info.marks_of(info),
+            )
+          | None => []
+          },
+        fresh,
+      );
+    let rec leading = (ps: Segment.t) =>
+      switch (ps) {
+      | [p, ...rest] when S.is_fun_head(p) => [p, ...leading(rest)]
+      | _ => []
+      };
+    let heads = (seg, head) =>
+      Option.map(
+        id =>
+          node_pieces_at(~root=r.root, seg, id)
+          |> List.filter(p => !Piece.is_secondary(p))
+          |> leading,
+        K.part(~root=r.root, head, Definition, seg),
+      );
+    free == []
+      ? []
+      : List.filter_map(
+          (m: made) =>
+            switch (m.plan.what, m.plan.target) {
+            | (Replaced(Some(Definition)), Some(head)) =>
+              switch (heads(m.before, head), heads(m.change.program, head)) {
+              | (Some([_, ..._] as old), Some([])) =>
+                binders_in(
+                  ~info_map=Lazy.force(r.start_statics).info_map,
+                  old,
+                )
+                |> List.exists(((x, _)) => List.mem(x, free))
+                  ? Some(
+                      Option.value(
+                        Option.map(
+                          CompositionView.last_elem,
+                          path_string(~root=r.root, m.before, head),
+                        ),
+                        ~default="the",
+                      )
+                      ++ "'s definition starts with `"
+                      ++ String.concat(
+                           " ",
+                           List.map(
+                             h =>
+                               String.trim(
+                                 Printer.of_segment(~holes="?", [h]),
+                               ),
+                             old,
+                           ),
+                         )
+                      ++ "`; the new code dropped it.",
+                    )
+                  : None
+              | _ => None
+              }
+            | _ => None
+            },
+          made(r),
+        );
+  };
+
   /* a refusal for errors [fresh], the reply's edits together's when
      [whole]: how many, by top-level entry, what a type change breaks, then
      the first few */
@@ -1834,6 +1911,7 @@ module Reply = {
           ++ " are still broken after this reply's changes to "
           ++ (List.length(redone) == 1 ? "it." : "them.")
     )
+    ++ String.concat("", List.map(h => "\n" ++ h, dropped_heads(r, fresh)))
     ++ lines(List.map(line, ListUtil.take(shown_errors, fresh)))
     ++ (
       count > shown_errors

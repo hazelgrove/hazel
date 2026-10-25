@@ -1965,6 +1965,47 @@ let messages = [
     },
   ),
   test_case(
+    "a definition's code dropping its `fun` head is told so",
+    `Quick,
+    () => {
+      /* E1 Flash: `update:definition` sent without `fun (m, action) ->` */
+      let (_, results) =
+        reply(
+          "let update = fun (m: Int, action: Int) ->\n  m + action\nin\nupdate(1, 2)",
+          [
+            (
+              "replace",
+              [("target", "update:definition"), ("code", "m * action")],
+            ),
+          ],
+        );
+      mentions(
+        "the hint",
+        "\nupdate's definition starts with `fun (m: Int, action: Int) ->`; the new code dropped it.\n",
+        List.hd(results).content,
+      );
+      let (_, results) =
+        reply(
+          "let update = fun (m: Int, action: Int) ->\n  m + action\nin\nupdate(1, 2)",
+          [
+            (
+              "replace",
+              [
+                ("target", "update:definition"),
+                ("code", "fun (m: Int, b: Int) -> m * action"),
+              ],
+            ),
+          ],
+        );
+      check(
+        bool,
+        "not when the code has one",
+        false,
+        has("dropped", List.hd(results).content),
+      );
+    },
+  ),
+  test_case(
     "an edit leaving the program's result empty says so",
     `Quick,
     () => {
