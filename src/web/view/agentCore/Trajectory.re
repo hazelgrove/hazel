@@ -32,6 +32,9 @@ type section = {
   /* exactly as sent: the section's JSON in the body */
   raw: string,
   folded: bool,
+  /* false: shown for reading, but not in the selected request's body (an
+     earlier request's context, a message compacted away since) */
+  in_request: bool,
   children: list(section),
 };
 
@@ -178,13 +181,24 @@ let pretty_args = (args: string): string =>
   };
 
 let section =
-    (~folded=false, ~children=[], ~shown=?, kind, label, text, json): section => {
+    (
+      ~folded=false,
+      ~in_request=true,
+      ~children=[],
+      ~shown=?,
+      kind,
+      label,
+      text,
+      json,
+    )
+    : section => {
   kind,
   label,
   shown: Option.value(shown, ~default=text),
   text,
   raw: API.Json.to_string(json),
   folded,
+  in_request,
   children,
 };
 
@@ -196,10 +210,28 @@ let content = (json: API.Json.t): string =>
   | _ => ""
   };
 
+/* [until]: the last request that sent [m], when before the selected one */
 let message_section =
-    (m: Message.Model.t, json: API.Json.t, ~note: string): section => {
+    (m: Message.Model.t, json: API.Json.t, ~until: option(int)): section => {
+  let note =
+    switch (until) {
+    | Some(last) =>
+      Printf.sprintf(
+        {js| · sent until request %d · not in this request|js},
+        last,
+      )
+    | None => ""
+    };
   let s = (~folded=false, ~children=[], kind, label) =>
-    section(~folded, ~children, kind, label ++ note, content(json), json);
+    section(
+      ~folded,
+      ~in_request=until == None,
+      ~children,
+      kind,
+      label ++ note,
+      content(json),
+      json,
+    );
   switch (m.role) {
   | System(Prompt) => s(~folded=true, System, "System prompt")
   | System(DeveloperNotes) => s(Developer, "Developer notes")
@@ -262,15 +294,18 @@ let tidy = (s: string): string => {
   |> String.concat("\n");
 };
 
+/* a request carries only its own context; the earlier ones show where
+   they were sent, for reading */
 let context_section = (~selected: bool, seq: int, json: API.Json.t) =>
   section(
     ~folded=!selected,
+    ~in_request=selected,
     ~shown=tidy(content(json)),
     Context,
     Printf.sprintf(
-      "Context · request %d%s",
+      {js|Context · sent with request %d · %s|js},
       seq,
-      selected ? {js| · this request|js} : "",
+      selected ? "in this request" : "not in this request",
     ),
     content(json),
     json,
@@ -392,13 +427,7 @@ let build = (chat: Chat.Model.t, seq: int): option(t) => {
                   message_section(
                     m,
                     json,
-                    ~note=
-                      last < seq
-                        ? Printf.sprintf(
-                            {js| · sent until request %d|js},
-                            last,
-                          )
-                        : "",
+                    ~until=last < seq ? Some(last) : None,
                   ),
                 ]
               | None => []

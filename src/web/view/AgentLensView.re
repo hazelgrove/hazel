@@ -6,9 +6,28 @@ open Util;
    text reads tidied (JSON indented, sections folded); every copy button
    gives the bytes as sent, and each section can show itself raw. */
 
-let size = (s: string): string => {
+module Js = Js_of_ocaml.Js;
+module Dom_html = Js_of_ocaml.Dom_html;
+
+/* a size in tokens, at 4 characters each; the characters on hover */
+let size = (~cls=[], s: string): Node.t => {
   let n = Trajectory.chars(s);
-  Printf.sprintf({js|%d chars · ~%d tokens|js}, n, (n + 3) / 4);
+  let tokens = (n + 3) / 4;
+  span(
+    ~attrs=[
+      Attr.classes(cls),
+      Attr.title(
+        Haz3lcore.CompositionView.plural(n, "character", "characters"),
+      ),
+    ],
+    [
+      text(
+        tokens < 1000
+          ? Haz3lcore.CompositionView.plural(tokens, "token", "tokens")
+          : Printf.sprintf("%.1fk tokens", float_of_int(tokens) /. 1000.),
+      ),
+    ],
+  );
 };
 
 /* a section's first words, on one line */
@@ -21,18 +40,67 @@ let first_words = (s: string): string => {
   String.length(line) > 80 ? String.sub(line, 0, 80) ++ {js|…|js} : line;
 };
 
-let copy_button = (~cls=[], ~title, s: string): Node.t =>
+/* stroked in the text colour: two rounded squares, the back one showing
+   past the front; once copied, a check */
+let stroked_icon = (cls: string, ds: list(string)): Node.t =>
+  create_svg(
+    "svg",
+    ~attrs=[
+      Attr.classes([cls]),
+      Attr.create("viewBox", "0 0 16 16"),
+      Attr.create("aria-hidden", "true"),
+    ],
+    List.map(
+      d => create_svg("path", ~attrs=[Attr.create("d", d)], []),
+      ds,
+    ),
+  );
+
+let copy_icon =
+  stroked_icon(
+    "lens-copy-icon",
+    [
+      "M3.5 5.5h5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2z",
+      "M5.5 4v-.5a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H12",
+    ],
+  );
+
+let copied_icon =
+  stroked_icon("lens-copied-icon", ["M3 8.5l3.2 3.2L13 4.8"]);
+
+/* a copy button's icon turns to a check for a second; on the element, as
+   copying changes nothing in the model */
+let flash_copied = (evt: Js.t(Dom_html.mouseEvent)): unit =>
+  switch (Js.Opt.to_option(evt##.currentTarget)) {
+  | Some(el) =>
+    el##.classList##add(Js.string("copied"));
+    ignore(
+      Dom_html.window##setTimeout(
+        Js.wrap_callback(() => el##.classList##remove(Js.string("copied"))),
+        1000.0,
+      ),
+    );
+  | None => ()
+  };
+
+let copy_button = (~cls=[], ~label=?, ~title, s: string): Node.t =>
   button(
     ~attrs=[
-      Attr.classes(["lens-button", ...cls]),
+      Attr.classes(["lens-copy", ...cls]),
       Attr.title(title),
-      Attr.on_click(_ => {
+      Attr.on_click(evt => {
         JsUtil.copy_text(s);
-        JsUtil.show_copy_toast();
+        flash_copied(evt);
         Effect.Stop_propagation;
       }),
     ],
-    [text("Copy")],
+    [copy_icon, copied_icon]
+    @ (
+      switch (label) {
+      | Some(l) => [text(l)]
+      | None => []
+      }
+    ),
   );
 
 let banner =
@@ -145,11 +213,10 @@ let nothing_open: Node.t =
     ],
   );
 
-let panel_head = (label: string, actions: list(Node.t)): Node.t =>
+let panel_head = (title: list(Node.t), actions: list(Node.t)): Node.t =>
   div(
     ~attrs=[Attr.classes(["lens-panel-head"])],
-    [span(~attrs=[Attr.classes(["lens-panel-title"])], [text(label)])]
-    @ actions,
+    [span(~attrs=[Attr.classes(["lens-panel-title"])], title)] @ actions,
   );
 
 let sent = (l: AgentLens.t): Node.t =>
@@ -157,12 +224,11 @@ let sent = (l: AgentLens.t): Node.t =>
     ~attrs=[Attr.classes(["agent-lens-panel"])],
     [
       panel_head(
-        Printf.sprintf(
-          {js|The view request %d sent · %s|js},
-          l.seq,
+        [
+          text(Printf.sprintf({js|The view request %d sent · |js}, l.seq)),
           size(l.sent),
-        ),
-        [copy_button(~title="Copy the view, exactly as sent", l.sent)],
+        ],
+        [copy_button(~title="Copy the view, exact bytes", l.sent)],
       ),
       create("pre", ~attrs=[Attr.classes(["lens-text"])], [text(l.sent)]),
     ],
@@ -187,7 +253,8 @@ let kind_class = (k: Trajectory.kind): string =>
   );
 
 /* a section folds under its summary line: what it is, its size, its
-   first words, and (open) its raw toggle and copy */
+   first words, and its raw toggle and copy, shown while open (copy also on
+   hover) but always holding their place, so the line keeps its height */
 let rec section = (s: Trajectory.section): Node.t => {
   let controls =
     span(
@@ -211,12 +278,12 @@ let rec section = (s: Trajectory.section): Node.t => {
         ),
         copy_button(
           ~cls=["traj-copy-text"],
-          ~title="Copy exactly as sent",
+          ~title="Copy exact bytes",
           s.text,
         ),
         copy_button(
           ~cls=["traj-copy-raw"],
-          ~title="Copy this section's JSON, exactly as sent",
+          ~title="Copy this section's JSON, exact bytes",
           s.raw,
         ),
       ],
@@ -226,7 +293,12 @@ let rec section = (s: Trajectory.section): Node.t => {
   create(
     "details",
     ~attrs=
-      [Attr.classes(["traj-section", kind_class(s.kind)])]
+      [
+        Attr.classes(
+          ["traj-section", kind_class(s.kind)]
+          @ (s.in_request ? [] : ["traj-elsewhere"]),
+        ),
+      ]
       @ (s.folded ? [] : [Attr.create("open", "")]),
     [
       create(
@@ -234,10 +306,7 @@ let rec section = (s: Trajectory.section): Node.t => {
         ~attrs=[Attr.classes(["traj-summary"])],
         [
           span(~attrs=[Attr.classes(["traj-label"])], [text(s.label)]),
-          span(
-            ~attrs=[Attr.classes(["traj-size"])],
-            [text(size(s.raw))],
-          ),
+          size(~cls=["traj-size"], s.raw),
           span(
             ~attrs=[Attr.classes(["traj-first"])],
             [text(first_words(s.text))],
@@ -261,29 +330,31 @@ let trajectory = (l: AgentLens.t): Node.t =>
     switch (l.trajectory) {
     | Some(t) => [
         panel_head(
-          Printf.sprintf(
-            {js|Sent over the API up to request %d · this request %s|js},
-            t.seq,
+          [
+            text(
+              Printf.sprintf(
+                {js|Sent over the API up to request %d · this request |js},
+                t.seq,
+              ),
+            ),
             size(t.body),
-          ),
+          ],
           [
             copy_button(
-              ~title=
-                "Copy every section's JSON, exactly as sent, one per line",
+              ~title="Copy every section's JSON, exact bytes, one per line",
               Trajectory.to_lines(t),
             ),
-            button(
-              ~attrs=[
-                Attr.classes(["lens-button"]),
-                Attr.title("Copy this request's body, exactly as sent"),
-                Attr.on_click(_ => {
-                  JsUtil.copy_text(t.body);
-                  JsUtil.show_copy_toast();
-                  Effect.Ignore;
-                }),
-              ],
-              [text("Copy body")],
+            copy_button(
+              ~label="body",
+              ~title="Copy this request's body, exact bytes",
+              t.body,
             ),
+          ],
+        ),
+        div(
+          ~attrs=[Attr.classes(["lens-panel-note"])],
+          [
+            text("A request carries every message and only its own context."),
           ],
         ),
         div(

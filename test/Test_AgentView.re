@@ -1282,6 +1282,15 @@ let trajectory_tests = [
           t.sections,
         ),
       );
+      check(
+        list(bool),
+        "only this request's context is in it",
+        [false, false, true],
+        List.filter_map(
+          (s: T.section) => s.kind == Context ? Some(s.in_request) : None,
+          t.sections,
+        ),
+      );
     },
   ),
   test_case(

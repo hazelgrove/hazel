@@ -3067,6 +3067,52 @@
   color: var(--text-inverse);
 }
 
+/* copy: an icon, borderless, tinted on hover; a check for a second once
+   copied */
+#main .lens-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  margin: 0;
+  padding: 1px 2px;
+  border: 0;
+  border-radius: 3px;
+  font: inherit;
+  line-height: 1;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+#main .lens-copy:hover {
+  background-color: color-mix(in srgb, var(--surface-shard) 35%, transparent);
+  color: var(--text-default);
+}
+
+#main .lens-copy svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+#main .lens-copy .lens-copied-icon,
+#main .lens-copy.copied .lens-copy-icon {
+  display: none;
+}
+
+#main .lens-copy.copied .lens-copied-icon {
+  display: block;
+}
+
+#main .lens-copy.copied {
+  color: var(--text-success);
+}
+
 /* the controls keep together, to the right */
 #main .agent-lens-banner .lens-controls {
   margin-left: auto;
@@ -3128,6 +3174,13 @@
 #main .lens-panel-head .lens-panel-title {
   color: var(--text-muted);
   margin-right: auto;
+}
+
+#main .lens-panel-note {
+  margin-top: -0.25em;
+  padding-bottom: 0.5em;
+  font-size: 0.8em;
+  color: var(--text-muted);
 }
 
 #main .agent-lens-panel pre {
@@ -3210,19 +3263,27 @@
   margin-top: 0.2em;
 }
 
-/* raw and copy, at the line's end while the section is open */
+/* raw and copy, at the line's end: shown while the section is open, copy
+   also on hover, always holding their place so opening moves nothing */
 #main .traj-controls {
-  display: none;
+  display: flex;
+  align-self: center;
   align-items: center;
   gap: 0.5em;
   margin-left: auto;
   padding-left: 0.5em;
   font-size: 0.9em;
   color: var(--text-muted);
+  visibility: hidden;
 }
 
-#main .traj-section[open] > .traj-summary > .traj-controls {
-  display: flex;
+#main .traj-section[open] > .traj-summary > .traj-controls,
+#main .traj-summary:hover > .traj-controls {
+  visibility: visible;
+}
+
+#main .traj-section:not([open]) > .traj-summary .traj-raw-label {
+  visibility: hidden;
 }
 
 #main .traj-raw-label {
@@ -3230,6 +3291,15 @@
   align-items: center;
   gap: 0.25em;
   cursor: pointer;
+}
+
+#main .traj-raw-toggle {
+  margin: 0;
+}
+
+/* shown for reading, not in this request: dimmed */
+#main .traj-elsewhere > .traj-summary {
+  opacity: 0.55;
 }
 
 #main .traj-shown,
@@ -3248,9 +3318,12 @@
 
 #main .traj-section:has(> .traj-summary .traj-raw-toggle:checked)
   > .traj-body
-  > .traj-raw,
-#main .traj-controls:has(.traj-raw-toggle:checked) > .traj-copy-raw {
+  > .traj-raw {
   display: block;
+}
+
+#main .traj-controls:has(.traj-raw-toggle:checked) > .traj-copy-raw {
+  display: inline-flex;
 }
 
 #main .traj-section:has(> .traj-summary .traj-raw-toggle:checked)
