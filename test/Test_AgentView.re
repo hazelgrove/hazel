@@ -1295,6 +1295,8 @@ let drive =
     (
       ~src=lens_src,
       ~reasoning=?,
+      /* the reply's thinking, by turn and place */
+      ~think=(_, _) => reasoning,
       ~usage=?,
       ~text=(_, _, calls) => calls == [] ? "Done." : "",
       turns: list((string, list(list((string, Yojson.Safe.t))))),
@@ -1373,7 +1375,7 @@ let drive =
                 calls,
               ),
             usage,
-            reasoning,
+            reasoning: think(t, i),
           };
           step(
             HandleLLMResponse(
@@ -1538,9 +1540,23 @@ let trajectory_tests = [
           let t = Option.get(T.window(chat, i + 1));
           let messages =
             List.filter(
-              (s: T.section) => s.kind != Tools && s.kind != Request,
+              (s: T.section) =>
+                s.kind != Tools && s.kind != Request && s.kind != Response,
               t.sections,
             );
+          check(
+            list(kind),
+            "then exactly one response",
+            [Response],
+            List.map(
+              (s: T.section) => s.kind,
+              List.filter(
+                (s: T.section) => s.kind == Response,
+                flatten(t.sections),
+              ),
+            ),
+          );
+          check(kind, "last", Response, Util.ListUtil.last(t.sections).kind);
           check(string, "the body", body, t.body);
           check(
             list(string),
@@ -1558,9 +1574,17 @@ let trajectory_tests = [
             bool,
             "all in the request",
             true,
-            List.for_all(
-              (s: T.section) => s.in_request,
-              flatten(t.sections),
+            List.for_all((s: T.section) => s.in_request, flatten(messages)),
+          );
+          check(
+            list(string),
+            "copied as sent: the body's messages only",
+            messages_of(body),
+            sent_lines(
+              List.filter(
+                (s: T.section) => s.kind != Tools && s.kind != Request,
+                t.sections,
+              ),
             ),
           );
         },
@@ -1741,12 +1765,142 @@ let trajectory_tests = [
         false,
         Util.StringUtil.plain_search(thought, T.to_lines(t), 0) >= 0,
       );
+      let w = Option.get(T.window(chat, 2));
       check(
         bool,
-        "nor in the exact window",
+        "in the exact window, only in its response",
         true,
-        of_kind(Thinking, Option.get(T.window(chat, 2)).sections) == [],
+        List.for_all(
+          (s: T.section) =>
+            s.kind == Response || of_kind(Thinking, [s]) == [],
+          w.sections,
+        ),
       );
+    },
+  ),
+  test_case(
+    "the exact window ends with its response: its thinking, then its reply",
+    `Quick,
+    () => {
+      let thought = (t, i) => Printf.sprintf("Thought %d.%d", t, i);
+      let (_, agent) =
+        drive(
+          ~think=(t, i) => Some(thought(t, i)),
+          [
+            (
+              "open b then c",
+              [
+                [("open", targets(["b"]))],
+                [("open", targets(["c"]))],
+                [],
+              ],
+            ),
+          ],
+        );
+      let chat = chat_of(agent);
+      let w = Option.get(T.window(chat, 2));
+      let response = Util.ListUtil.last(w.sections);
+      check(
+        string,
+        "labelled",
+        {js|Response 2 · generated in this window|js},
+        response.label,
+      );
+      check(
+        bool,
+        "not in the body, never sent as such",
+        true,
+        !response.in_request && !response.sent,
+      );
+      check(
+        list(kind),
+        "its thinking, then its reply",
+        [Thinking, Assistant],
+        List.map((s: T.section) => s.kind, response.children),
+      );
+      let thinking = List.hd(response.children);
+      check(string, "this reply's thinking", thought(0, 1), thinking.text);
+      check(
+        string,
+        "what the thinking was",
+        {js|Thinking · 6s · in the model's context while it wrote this reply; not kept for the next request|js},
+        thinking.label,
+      );
+      check(bool, "open", false, thinking.folded);
+      let reply = List.nth(response.children, 1);
+      check(
+        string,
+        "the reply, kept",
+        {js|Assistant · 1 tool call · sent back in later requests|js},
+        reply.label,
+      );
+      check(
+        list(string),
+        "its call",
+        [{js|open · c|js}],
+        List.map((s: T.section) => s.label, reply.children),
+      );
+      check(
+        list(string),
+        "no other thinking",
+        [thought(0, 1)],
+        List.map((s: T.section) => s.text, of_kind(Thinking, w.sections)),
+      );
+      check(
+        bool,
+        "the context: replaced next request",
+        true,
+        String.ends_with(
+          ~suffix="replaced by the next request's snapshot",
+          List.hd(of_kind(Context, w.sections)).label,
+        ),
+      );
+      check(bool, "replied", true, w.replied);
+    },
+  ),
+  test_case(
+    "the exact window, its reply not in: the body, then a note",
+    `Quick,
+    () => {
+      /* request 2 goes out after the call; nothing answers it */
+      let (bodies, agent) =
+        drive(
+          ~reasoning="Open b.",
+          [("open b", [[("open", targets(["b"]))]])],
+        );
+      let chat = chat_of(agent);
+      check(int, "requests", 2, List.length(bodies));
+      let w = Option.get(T.window(chat, 2));
+      check(bool, "not replied", false, w.replied);
+      let last = Util.ListUtil.last(w.sections);
+      check(
+        pair(kind, string),
+        "a note",
+        (Note, {js|Response 2 · not back yet|js}),
+        (last.kind, last.label),
+      );
+      check(
+        list(kind),
+        "no response, no thinking",
+        [],
+        List.map(
+          (s: T.section) => s.kind,
+          of_kind(Response, w.sections) @ of_kind(Thinking, w.sections),
+        ),
+      );
+      check(
+        list(string),
+        "the body's messages",
+        messages_of(List.nth(bodies, 1)),
+        sent_lines(
+          List.filter(
+            (s: T.section) => s.kind != Tools && s.kind != Request,
+            w.sections,
+          ),
+        ),
+      );
+      check(bool, "replied: no", false, T.replied(chat, 2));
+      check(bool, "request 1: yes", true, T.replied(chat, 1));
     },
   ),
   test_case(

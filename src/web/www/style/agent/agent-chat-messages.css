@@ -3390,6 +3390,16 @@
   opacity: 0.55;
 }
 
+/* Window's response: not in the body, so tinted, but what the model
+   wrote, so read at full strength */
+#main .traj-k-response .traj-summary {
+  opacity: 1;
+}
+
+#main .traj-k-response > .traj-summary .traj-label {
+  color: var(--text-accent);
+}
+
 #main .traj-shown,
 #main .traj-raw {
   padding: 0.4em 0.6em;

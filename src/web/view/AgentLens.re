@@ -194,10 +194,23 @@ let build =
     )
   );
 
-/* live: the chat's latest request, when there is a newer one */
+/* live: the chat's latest request, when there is a newer one; any
+   mode: the trajectory again, once its reply is in */
 let follow = (~settings, ~view, chat: Chat.Model.t, lens: t): option(t) =>
-  switch (ListUtil.last_opt(chat.sent)) {
-  | Some(r) when lens.live && r.seq != lens.seq =>
+  switch (ListUtil.last_opt(chat.sent), lens.trajectory) {
+  | (Some(r), _) when lens.live && r.seq != lens.seq =>
     build(~settings, ~view, ~live=true, chat, None)
+  /* the reply came in since the trajectory was built */
+  | (_, Some(t)) when !t.replied && Trajectory.replied(chat, lens.seq) =>
+    Some(
+      with_mode(
+        chat,
+        lens.mode,
+        {
+          ...lens,
+          trajectory: None,
+        },
+      ),
+    )
   | _ => None
   };
