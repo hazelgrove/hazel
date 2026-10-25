@@ -1477,6 +1477,176 @@ in
   ),
 ];
 
+/* V Flash: `translate:definition` on a body of local definitions */
+let translate = {|let translate(sc: [Int], d: Int): [Int] =
+  let move(x: Int): Int = x + d in
+  let map(f, xs) =
+    case xs
+    | [] => []
+    | hd :: tl => f(hd) :: map(f, tl)
+    end
+  in
+  map(move, sc)
+in
+translate([1], 1)|};
+
+let definitions = [
+  test_case(
+    "`:definition` replaces a body of local definitions whole",
+    `Quick,
+    () => {
+      let (program, results) =
+        reply(
+          translate,
+          [
+            (
+              "replace",
+              [
+                ("target", "translate:definition"),
+                (
+                  "code",
+                  "let move(x: Int): Int = x - d in\nlet map(f, xs) =\n  case xs\n  | [] => []\n  | hd :: tl => f(hd) :: map(f, tl)\n  end\nin\nmap(move, sc)",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        {|let translate(sc: [Int], d: Int): [Int] =
+  let move(x: Int): Int = x - d in
+  let map(f, xs) =
+    case xs
+    | [] => []
+    | hd :: tl => f(hd) :: map(f, tl)
+    end
+  in
+  map(move, sc)
+in
+translate([1], 1)|},
+        program,
+      );
+      mentions(
+        "result",
+        "Replaced translate:definition.",
+        List.hd(results).content,
+      );
+      let (program, _) =
+        reply(
+          translate,
+          [
+            (
+              "replace",
+              [("target", "translate:definition"), ("code", "sc")],
+            ),
+          ],
+        );
+      check(
+        string,
+        "to one line",
+        "let translate(sc: [Int], d: Int): [Int] = sc in\ntranslate([1], 1)",
+        program,
+      );
+    },
+  ),
+  test_case(
+    "parts within the body still name what they did",
+    `Quick,
+    () => {
+      let (program, _) =
+        reply(
+          translate,
+          [
+            (
+              "replace",
+              [("target", "translate/move:definition"), ("code", "x * d")],
+            ),
+            (
+              "replace",
+              [("target", "translate/move:pattern"), ("code", "move(x)")],
+            ),
+            (
+              "replace",
+              [("target", "translate/=>"), ("code", "map(move, [])")],
+            ),
+          ],
+        );
+      mentions("program", "  let move(x) = x * d in\n", program);
+      mentions("the result", "  map(move, [])\nin", program);
+    },
+  ),
+];
+
+/* code bringing several entries, laid out as an insert of them would be */
+let layout = [
+  test_case(
+    "a result's code with definitions: a blank line between entries",
+    `Quick,
+    () => {
+      /* N2 Flash: two `type … in` lines; S Flash: no blank line before
+         the result */
+      let (program, _) =
+        reply(
+          "let a = 1 in\n\n?",
+          [
+            (
+              "replace",
+              [
+                ("target", "=>"),
+                (
+                  "code",
+                  "type T = Int in\ntype U = [T] in\nlet b(x: T): U = [x]\nin\n\nhint \"b\" test b(1) == [1] end;\nlet c = b(a) in\nc",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        "let a = 1 in\n\ntype T = Int in\n\ntype U = [T] in\n\nlet b(x: T): U = [x] in\n\nhint \"b\" test b(1) == [1] end;\n\nlet c = b(a) in\n\nc",
+        program,
+      );
+      let (program, _) =
+        reply(
+          "let a = 1 in\n?",
+          [("replace", [("target", "=>"), ("code", "a +\n1")])],
+        );
+      check(string, "an expression alone", "let a = 1 in\na +\n1", program);
+    },
+  ),
+  test_case(
+    "a one-line definition ends with ` in`, wherever it lands",
+    `Quick,
+    () => {
+      /* N2 Opus: `type Task = (String, Bool)` then `in` */
+      let (program, _) =
+        reply(
+          "?",
+          [
+            (
+              "insert",
+              [
+                ("first_in", "/"),
+                (
+                  "code",
+                  "type Task = (String, Bool)\nin\nlet f(t: Task): Task = t\nin\nhint \"f\" test f((\"a\", true)) == (\"a\", true) end",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        "type Task = (String, Bool) in\n\nlet f(t: Task): Task = t in\n\nhint \"f\" test f((\"a\", true)) == (\"a\", true) end;\n\n?",
+        program,
+      );
+    },
+  ),
+];
+
 let endings = [
   test_case(
     "a trailing expression fills the program's empty result",
@@ -1856,6 +2026,8 @@ let tests = [
   ("AgentReply.TestsByHint", tests_by_hint),
   ("AgentReply.Move", moves),
   ("AgentReply.Repro", repro),
+  ("AgentReply.Definitions", definitions),
+  ("AgentReply.Layout", layout),
   ("AgentReply.Endings", endings),
   ("AgentReply.Messages", messages),
 ];

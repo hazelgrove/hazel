@@ -399,17 +399,19 @@ let uses_in = (~root, ~info_map, seg: Segment.t, binder: Id.t): list(Id.t) =>
 let uses = (p: program, binder: Id.t): list(Id.t) =>
   uses_in(~root=p.root, ~info_map=Lazy.force(p.info_map), p.seg, binder);
 
+let node_pieces_at = (~root, seg: Segment.t, id: Id.t): Segment.t =>
+  switch (K.node(~root, id, seg)) {
+  | n => K.node_pieces(n)
+  | exception (K.Refused(_)) => []
+  };
+
 /* what [id] names in [seg]: an entry's pieces, or a node's */
 let pieces_at = (~root, seg: Segment.t, id: Id.t): Segment.t =>
   switch (P.find(~root, seg, id)) {
   | Some(steps) =>
     let (lv, k) = ListUtil.last(steps);
     S.core(lv, k);
-  | None =>
-    switch (K.node(~root, id, seg)) {
-    | n => K.node_pieces(n)
-    | exception (K.Refused(_)) => []
-    }
+  | None => node_pieces_at(~root, seg, id)
   };
 
 /* the tokens of [ps] that bind, each by its name */
@@ -792,12 +794,22 @@ let plan_call = (p: program, call: call): result(plan, string) => {
       | Some(c) => c ++ "\n" ++ code
       | None => code
       };
+    let op =
+      switch (f.part) {
+      | None => K.Replace(id, text(code))
+      | Some(pt) => ReplacePart(f.id, pt, text(code))
+      };
     let pl = {
-      ...plan(~target=f.id, Replaced(f.part), [Replace(id, text(code))]),
+      ...plan(~target=f.id, Replaced(f.part), [op]),
       kept_comment: comment != None,
     };
     let info_map = Lazy.force(p.info_map);
-    let binders = binders_in(~info_map, pieces_at(~root=p.root, p.seg, id));
+    /* a part is a node, though its root may head an entry */
+    let replaced =
+      f.part == None
+        ? pieces_at(~root=p.root, p.seg, id)
+        : node_pieces_at(~root=p.root, p.seg, id);
+    let binders = binders_in(~info_map, replaced);
     Ok({
       ...pl,
       rebinds:
@@ -1557,7 +1569,11 @@ module Reply = {
             |> List.concat_map(id =>
                  binders_in(
                    ~info_map=final.info_map,
-                   pieces_at(~root=r.root, m.change.program, id),
+                   switch (m.plan.what) {
+                   | Replaced(Some(_)) =>
+                     node_pieces_at(~root=r.root, m.change.program, id)
+                   | _ => pieces_at(~root=r.root, m.change.program, id)
+                   },
                  )
                );
           let name_of = (bs, b) =>
@@ -1921,7 +1937,8 @@ let step_records = (~root, m: made): list(AgentToolResult.step) => {
     let (op, from, into) =
       switch (s.op) {
       | Insert(_) => ("insert", None, Option.bind(made, path(s.program)))
-      | Replace(x, _) => (
+      | Replace(x, _)
+      | ReplacePart(x, _, _) => (
           "replace",
           path(before, x),
           path(s.program, Option.value(made, ~default=x)),
