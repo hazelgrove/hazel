@@ -540,11 +540,16 @@ let confine_pre =
      optimistically while nothing outside it ever changes, because
      confine_pre answered None and PerformConfined discards that without
      a word. */
+  /* ToggleSyntax too (the eye on a livelit's GUI): it carries its index as
+     the others do, and without it the eye of a livelit nested inside
+     another's splice did nothing, its press dropped here (the deck's
+     every-slide sweep, run 40220403418, Editable Parameters). */
   let names_its_target =
     switch (action) {
     | Action.Project(
         SetSyntax(_) | SetTerm(_) | Unproject(_) | SetModel(_) |
-        SetModelQuiet(_),
+        SetModelQuiet(_) |
+        ToggleSyntax(_),
       ) =>
       true
     | _ => false
