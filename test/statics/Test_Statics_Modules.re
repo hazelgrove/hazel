@@ -1469,6 +1469,15 @@ let test_member_before_type_member_mismatch =
     | _ => false,
   );
 
+let test_sig_closing_capture_is_marked =
+  has_mark_test(
+    "A signature whose closing captures a type variable is marked",
+    {|type U = Bool in let g = fun (m : { type T = U; let f : { type U = Int; let y : T } }) -> (m.f.y : Int) in g|},
+    fun
+    | Language.Mark.TypeMemberCapture(["U"]) => true
+    | _ => false,
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1623,5 +1632,6 @@ let tests = (
     test_later_module_shadows_alias_in_path,
     test_member_before_type_member_means_outer,
     test_member_before_type_member_mismatch,
+    test_sig_closing_capture_is_marked,
   ],
 );

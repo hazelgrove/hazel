@@ -523,37 +523,47 @@ let rec unroll_to_non_rec = (ty: t): option(t) =>
   | _ => Some(ty)
   };
 
-/* Substitute each [(name, def)] for [name], latest binder first. */
-let apply_sig_subst = (sigma: list((Var.t, t)), ty: t): t =>
+/* Substitute each [(name, def)] for [name], latest binder first, with the
+   type members that captured a definition (see [subst_captures]). */
+let apply_sig_subst = (sigma: list((Var.t, t)), ty: t): (t, list(Var.t)) =>
   List.fold_left(
-    (ty, (name, def)) => subst(def, Var(name) |> TPat.fresh, ty),
-    ty,
+    ((ty, captured), (name, def)) => {
+      let (ty, c) = subst_captures(def, Var(name) |> TPat.fresh, ty);
+      (ty, captured @ c);
+    },
+    (ty, []),
     sigma,
   );
 
 /* The well-formed members, each with the type members declared before it
-   substituted into its type, except those [keep_local] names. */
-let sig_members_closed =
-    (~keep_local=_ => false, items: list(Sig.t)): list(Sig.member) => {
-  let (_, rev) =
+   substituted into its type, except those [keep_local] names; with the
+   type members that captured a substituted definition, where `?` replaced
+   it. */
+let sig_members_closed_captures =
+    (~keep_local=_ => false, items: list(Sig.t))
+    : (list(Sig.member), list(Var.t)) => {
+  let (_, rev, captured) =
     List.fold_left(
-      ((sigma, acc), item) =>
+      ((sigma, acc, captured), item) =>
         switch (sig_member_of_item(item)) {
-        | Some(Val(x, ty)) => (
-            sigma,
-            [Sig.Val(x, apply_sig_subst(sigma, ty)), ...acc],
-          )
+        | Some(Val(x, ty)) =>
+          let (ty, c) = apply_sig_subst(sigma, ty);
+          (sigma, [Sig.Val(x, ty), ...acc], captured @ c);
         | Some(TypeManifest(name, def)) =>
-          let def = apply_sig_subst(sigma, def);
+          let (def, c) = apply_sig_subst(sigma, def);
           let sigma = keep_local(name) ? sigma : [(name, def), ...sigma];
-          (sigma, [Sig.TypeManifest(name, def), ...acc]);
-        | None => (sigma, acc)
+          (sigma, [Sig.TypeManifest(name, def), ...acc], captured @ c);
+        | None => (sigma, acc, captured)
         },
-      ([], []),
+      ([], [], []),
       items,
     );
-  List.rev(rev);
+  (List.rev(rev), captured);
 };
+
+let sig_members_closed =
+    (~keep_local=?, items: list(Sig.t)): list(Sig.member) =>
+  fst(sig_members_closed_captures(~keep_local?, items));
 
 /* The type of value member [name], closed as by [sig_members_closed]. */
 let sig_project_value = (items: list(Sig.t), name: Var.t): option(t) =>

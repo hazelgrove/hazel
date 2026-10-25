@@ -3947,6 +3947,11 @@ and utyp_to_info_map =
     | (ConstructorExpected(_), _)
     | (VariantExpected(_), _) => err(TypWantConstructorFoundType(utyp))
     | (_, Parens(t)) => status_for_node(~expects, t)
+    | (TypeExpected, Sig(items)) =>
+      switch (snd(Typ.sig_members_closed_captures(items))) {
+      | [] => ok(Message.Type(utyp))
+      | names => err(TypeMemberCapture(names))
+      }
     | (TypeExpected, _) => ok(Message.Type(utyp))
     };
   };
