@@ -565,13 +565,53 @@ let sig_members_closed =
     (~keep_local=?, items: list(Sig.t)): list(Sig.member) =>
   fst(sig_members_closed_captures(~keep_local?, items));
 
+/* The type carried by the last member [select] picks, closed as by
+   [sig_members_closed]. Of the other members, only the type definitions
+   before it are closed. */
+let sig_project =
+    (select: Sig.member => option(t), items: list(Sig.t)): option(t) => {
+  let (_, found) =
+    List.fold_left(
+      ((sigma, found), item) =>
+        switch (sig_member_of_item(item)) {
+        | Some(m) =>
+          let found =
+            switch (select(m)) {
+            | Some(ty) => Some((sigma, ty))
+            | None => found
+            };
+          switch (m) {
+          | TypeManifest(name, def) => (
+              [(name, fst(apply_sig_subst(sigma, def))), ...sigma],
+              found,
+            )
+          | Val(_) => (sigma, found)
+          };
+        | None => (sigma, found)
+        },
+      ([], None),
+      items,
+    );
+  Option.map(((sigma, ty)) => fst(apply_sig_subst(sigma, ty)), found);
+};
+
 /* The type of value member [name], closed as by [sig_members_closed]. */
 let sig_project_value = (items: list(Sig.t), name: Var.t): option(t) =>
-  Sig.find_value(sig_members_closed(items), name);
+  sig_project(
+    fun
+    | Val(x, ty) when String.equal(x, name) => Some(ty)
+    | _ => None,
+    items,
+  );
 
 /* The definition of type member [name], closed as by [sig_members_closed]. */
 let sig_project_type = (items: list(Sig.t), name: Var.t): option(t) =>
-  Sig.find_type_def(sig_members_closed(items), name);
+  sig_project(
+    fun
+    | TypeManifest(x, def) when String.equal(x, name) => Some(def)
+    | _ => None,
+    items,
+  );
 
 /* Type Equality: This coincides with alpha equivalence for normalized types.
    Other types may be equivalent but this will not detect so if they are not normalized. */
