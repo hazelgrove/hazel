@@ -265,9 +265,18 @@ let entry_text = (~member: bool, txt: string): option((Segment.t, bool)) => {
     );
   let as_def = () => read(" in", false);
   let as_stmt = () => read(";", true);
+  /* the first reading's bail note, the telling one */
   let either = (a, b) =>
     switch (a()) {
-    | None => b()
+    | None =>
+      let (note, at) = FastParse.(bail_note^, bail_at^);
+      switch (b()) {
+      | None =>
+        FastParse.bail_note := note;
+        FastParse.bail_at := at;
+        None;
+      | found => found
+      };
     | found => found
     };
   member

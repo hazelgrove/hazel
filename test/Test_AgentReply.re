@@ -1060,6 +1060,52 @@ let feedback = [
     },
   ),
   test_case(
+    "a parse error says where, with the text near it",
+    `Quick,
+    () => {
+      /* N2 Flash: record syntax got a raw `menhir: Failure(…)` */
+      let (_, results) =
+        reply(
+          "let a = 1 in a",
+          [
+            (
+              "insert",
+              [
+                ("after", "a"),
+                (
+                  "code",
+                  "type Task = { title: String, done: Bool } in\nlet t = 1",
+                ),
+              ],
+            ),
+          ],
+        );
+      let content = List.hd(results).content;
+      mentions(
+        "result",
+        "The code does not parse at line 1, column 15, near `type Task = { title: String, done:`.",
+        content,
+      );
+      mentions(
+        "the record hint",
+        "Hazel has no records: use a labeled tuple, `(title = String, done = Bool)`.",
+        content,
+      );
+      check(bool, "no raw parser text", false, has("Failure", content));
+      let (_, results) =
+        reply(
+          "let a = 1 in a",
+          [("insert", [("after", "a"), ("code", "let b = 1 +\n  (2 *")])],
+        );
+      check(
+        bool,
+        "no record hint elsewhere",
+        false,
+        has("records", List.hd(results).content),
+      );
+    },
+  ),
+  test_case(
     "a whole-entry replace keeps the comment above it",
     `Quick,
     () => {

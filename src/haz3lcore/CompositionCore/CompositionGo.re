@@ -152,19 +152,50 @@ let unseparated = (code: string): bool => {
   go(lines);
 };
 
-/* why code didn't read: escapes, entries without separators, the batch
-   parser's note, a reserved binder */
+/* where the parser stopped in [code], and the text near it on its line:
+   the parsed text is the code trimmed, perhaps with its terminator */
+let stopped_at = (code: string, stop: MenhirParser.Interface.stop): string => {
+  let lines = Array.of_list(String.split_on_char('\n', String.trim(code)));
+  if (stop.line > Array.length(lines)) {
+    " at its end";
+  } else {
+    let l = lines[stop.line - 1];
+    let n = String.length(l);
+    let c = max(0, min(n, stop.column - 1));
+    let (lo, hi) = (max(0, c - 14), min(n, c + 20));
+    " at line "
+    ++ string_of_int(stop.line)
+    ++ ", column "
+    ++ string_of_int(stop.column)
+    ++ ", near `"
+    ++ String.trim(String.sub(l, lo, hi - lo))
+    ++ "`";
+  };
+};
+
+/* braces holding `name: …,`: record syntax, which Hazel hasn't */
+let record_braces =
+  StringUtil.regexp("\\{[ \n]*[a-z_][A-Za-z0-9_']*[ ]*:[^;{}]*,");
+
+/* why code didn't read: escapes, entries without separators, where the
+   parser stopped (else the batch parser's note), a reserved binder */
 let unreadable = (code: string): string =>
   escaped(code)
     ? {|`code` contains `\n` as two characters; write real line breaks (and plain quotes).|}
     : unseparated(code)
         ? "Entries in one `code` need `in` between them (`;` in a module); leave it off the last."
-        : "The code does not parse."
+        : "The code does not parse"
           ++ (
-            switch (FastParse.bail_note^) {
-            | Some(n) => " Parser: " ++ n ++ "."
-            | None => ""
+            switch (FastParse.bail_at^, FastParse.bail_note^) {
+            | (Some(stop), _) => stopped_at(code, stop) ++ "."
+            | (None, Some(n)) => ". Parser: " ++ n ++ "."
+            | (None, None) => "."
             }
+          )
+          ++ (
+            StringUtil.search(record_braces, code, 0) == None
+              ? ""
+              : " Hazel has no records: use a labeled tuple, `(title = String, done = Bool)`."
           )
           ++ (
             switch (reserved_binder(code)) {

@@ -28,6 +28,8 @@ exception Mismatch;
 
 /* Why the last of_text call bailed — fallback telemetry and debugging. */
 let bail_note: ref(option(string)) = ref(None);
+/* where the menhir parse of the bailed attempt's text stopped */
+let bail_at: ref(option(MenhirParser.Interface.stop)) = ref(None);
 let note = msg => bail_note := Some(msg);
 
 type tok = {
@@ -474,11 +476,20 @@ let attempt =
   switch (lex_with_gaps(text)) {
   | None => None
   | Some((tokens, trailing_gap)) =>
-    switch (MenhirParser.Interface.parse_program(text)) {
+    switch (MenhirParser.Interface.program_or_stop(text)) {
     | exception e =>
       note("menhir: " ++ Printexc.to_string(e));
       None;
-    | ast =>
+    | Error(stop) =>
+      bail_at := Some(stop);
+      note(
+        "menhir: syntax error at line "
+        ++ string_of_int(stop.line)
+        ++ ", column "
+        ++ string_of_int(stop.column),
+      );
+      None;
+    | Ok(ast) =>
       let term =
         Language.Grammar.map_exp_annotation(
           _ => Language.IdTagged.IdTag.fresh(),
@@ -534,6 +545,7 @@ let parsed_of_text =
     )
     : result(parsed, string) => {
   bail_note := None;
+  bail_at := None;
   let attempt = attempt(~collect_refractors);
   let fail = (): result(parsed, string) =>
     Error(Option.value(bail_note^, ~default="no note"));
@@ -559,7 +571,7 @@ let parsed_of_text =
     switch (unbraced("{" ++ body ++ "}")) {
     | Some(p) => Ok(p)
     | None =>
-      let first_note = bail_note^;
+      let first_note = (bail_note^, bail_at^);
       switch (
         chunk
           ? Option.bind(unbraced("{" ++ body ++ " ?}"), p =>
@@ -578,7 +590,8 @@ let parsed_of_text =
       | None =>
         /* keep the attempt's own note when it bailed; the generic wrap
            message only describes a successful parse of the wrong shape */
-        bail_note := first_note;
+        bail_note := fst(first_note);
+        bail_at := snd(first_note);
         if (bail_note^ == None) {
           note("mod-root wrap did not yield a single module body");
         };
@@ -594,7 +607,7 @@ let parsed_of_text =
     | None =>
       /* keep the first attempt's bail note: the retry's failure mode
          (usually "menhir: parse error on text + ?") is less telling */
-      let first_note = bail_note^;
+      let first_note = (bail_note^, bail_at^);
       switch (attempt(~materialize, text ++ " ?")) {
       | Some(p) =>
         switch (strip_appended_hole(p.segment)) {
@@ -604,11 +617,13 @@ let parsed_of_text =
             segment,
           })
         | None =>
-          bail_note := first_note;
+          bail_note := fst(first_note);
+          bail_at := snd(first_note);
           fail();
         }
       | None =>
-        bail_note := first_note;
+        bail_note := fst(first_note);
+        bail_at := snd(first_note);
         fail();
       };
     };
