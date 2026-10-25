@@ -1450,6 +1450,25 @@ let test_later_module_shadows_alias_in_path =
     {|type Point = (x = Int) in module Point = { type T = Int } in let p : Point.T = 1 in p|},
   );
 
+let test_member_before_type_member_means_outer =
+  no_marks_test(
+    "A member declared before the signature's type member means the outer one",
+    {|type T = Bool in module M : { let x : T; type T = Int } = { type T = Int; let x = true } in M.x|},
+  );
+
+let test_member_before_type_member_mismatch =
+  single_mark_test(
+    "A member declared before the signature's type member is checked against the outer one",
+    {|type T = Bool in module M : { let x : T; type T = Int } = { type T = Int; let x = 1 } in M.x|},
+    fun
+    | ExpectationMismatch({ana, syn}) =>
+      switch (Language.Typ.term_of(ana), Language.Typ.term_of(syn)) {
+      | (Atom(Bool), Atom(Int)) => true
+      | _ => false
+      }
+    | _ => false,
+  );
+
 let tests = (
   "Statics.Modules",
   [
@@ -1602,5 +1621,7 @@ let tests = (
     test_recursive_sig_type_member,
     test_alias_cycle_through_path,
     test_later_module_shadows_alias_in_path,
+    test_member_before_type_member_means_outer,
+    test_member_before_type_member_mismatch,
   ],
 );

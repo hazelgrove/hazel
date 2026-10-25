@@ -137,17 +137,36 @@ let type_declared_later = (name: Var.t, later: list(Mod.t)): bool =>
 /* Expected types for the module's value members when it is analyzed
    against a signature: each member's declared type with the signature's own
    manifest type members substituted away, so `{ type T = Int; let x : T }`
-   expects `x : Int`. */
+   expects `x : Int`. A member declared before the signature's `T` means the
+   outer `T`; where the module has [defined] its own `T`, that is expanded in
+   [ctx] so the module's does not capture it. */
 let ana_value_types =
-    (~defined: list(Var.t), ana_items: option(list(Sig.t)))
+    (~ctx: Ctx.t, ~defined: list(Var.t), ana_items: option(list(Sig.t)))
     : list((Var.t, Typ.t)) =>
   switch (ana_items) {
   | None => []
   | Some(items) =>
-    Typ.sig_members_closed(
-      ~keep_local=name => List.mem(name, defined),
-      items,
-    )
+    let is_defined = name => List.exists(String.equal(name), defined);
+    let (_, rev) =
+      List.fold_left(
+        ((declared, acc), m: Sig.member) =>
+          switch (m) {
+          | TypeManifest(name, _) => ([name, ...declared], acc)
+          | Val(name, ty) =>
+            let outer = n =>
+              is_defined(n) && !List.exists(String.equal(n), declared);
+            (
+              declared,
+              [
+                Sig.Val(name, Typ.normalize(~expand=outer, ctx, ty)),
+                ...acc,
+              ],
+            );
+          },
+        ([], []),
+        Typ.sig_members_closed(~keep_local=is_defined, items),
+      );
+    List.rev(rev)
     |> Sig.dedup_last
     |> List.filter_map((m: Sig.member) =>
          switch (m) {
@@ -158,7 +177,7 @@ let ana_value_types =
            ))
          | TypeManifest(_) => None
          }
-       )
+       );
   };
 
 /* Ascribe each bare variable binder its expected type from [ana_labels], so
@@ -245,7 +264,9 @@ let wrap_item =
    expectation: a shadowed definition is synthesized. A type member the module
    defines stays a name in that expectation only after its exported
    definition; before it, the name is unbound or means an earlier one. */
-let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
+let lower =
+    (~ctx: Ctx.t, ~ana_items: option(list(Sig.t)), items: list(Mod.t))
+    : Exp.t => {
   let rec with_exports = (items: list(Mod.t)) =>
     switch (items) {
     | [] => []
@@ -286,7 +307,7 @@ let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
           let defined = [n, ...defined];
           go(
             ~defined,
-            ~ana_labels=ana_value_types(~defined, ana_items),
+            ~ana_labels=ana_value_types(~ctx, ~defined, ana_items),
             rest,
           );
         | None => go(~defined, ~ana_labels, rest)
@@ -295,7 +316,7 @@ let lower = (~ana_items: option(list(Sig.t)), items: list(Mod.t)): Exp.t => {
     };
   go(
     ~defined=[],
-    ~ana_labels=ana_value_types(~defined=[], ana_items),
+    ~ana_labels=ana_value_types(~ctx, ~defined=[], ana_items),
     exports,
   );
 };

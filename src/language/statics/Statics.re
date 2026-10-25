@@ -2703,7 +2703,7 @@ and uexp_to_info_map =
         | Sig(items) => Some(items)
         | _ => None
         };
-      let expanded = ModuleHelpers.lower(~ana_items, items);
+      let expanded = ModuleHelpers.lower(~ctx, ~ana_items, items);
       let (expanded_info, expanded_elab, m) = go(expanded, m);
       let m = ModuleHelpers.reclassify_expanded_module_items(items, m);
       let have = ModuleHelpers.module_sig_type(~ctx, items, m);
