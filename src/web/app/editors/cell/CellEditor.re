@@ -356,6 +356,8 @@ module View = {
            option((Haz3lcore.Action.vertical, int) => Ui_effect.t(unit))=None,
         /* opt out for cells that are not the viewport-culling scope */
         ~cull=true,
+        /* drawn over the code, beside its result's */
+        ~overlays: list(Node.t)=[],
         model: Model.t,
       ) => {
     let (result, result_inject) =
@@ -363,7 +365,7 @@ module View = {
       | Some(m) => m
       | None => (model.result, (a => inject(ResultAction(a))))
       };
-    let (footer, overlays) =
+    let (footer, result_overlays) =
       EvalResult.View.view(
         ~globals={
           ...globals,
@@ -489,7 +491,7 @@ module View = {
                   take_focus: _ => Ui_effect.Ignore,
                   focus: selected == Some(MainEditor) ? Some() : None,
                 }),
-          ~overlays=overlays(model.editor.editor),
+          ~overlays=result_overlays(model.editor.editor) @ overlays,
           ~lines,
           ~cull,
           ~dynamics=
