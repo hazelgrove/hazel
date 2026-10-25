@@ -2614,6 +2614,211 @@ let test_menus = () => {
   );
 };
 
+/* a run of one's row, folded, acts on its test: ⌥↑/⌥↓, ⌘D and delete
+   from row mode's keys, text mode's and the menu; the row keeps the
+   cursor and its fold. A longer run's row does none of these */
+let lone_run_row_ops = () => {
+  let src = "let a = 1 in\nlet b = 2 in\ntest a == 1 end;\nlet c = 3 in\ntest c == 3 end;\ntest c > 0 end;\nc";
+  let code = code_of(src);
+  let term = Web.Program.outline(code.program);
+  let row = CorpusUtil.row_by_label(term);
+  let lone = row("1");
+  let lone_run = Option.get(O.run_of(lone, term));
+  let pair_run = Option.get(O.run_of(row("2"), term));
+  let ops =
+    testable(
+      Fmt.list(Fmt.of_to_string(((o, _)) => E.show_def_op(o))),
+      (==),
+    );
+  /* row mode: the key on [run]'s row, the ops it asks for */
+  let row_key = (run, key) => {
+    let asked = ref([]);
+    let on =
+      H.handlers(
+        ~cursor=ref(Some(run)),
+        ~def_op=
+          (o, id) => {
+            asked := [(o, id), ...asked^];
+            H.ignore;
+          },
+        (),
+      );
+    ignore(
+      Web.OutlineSidebar.keys(
+        ~props=H.props(),
+        ~on,
+        ~visible=H.visible(~folds=[], term),
+        key,
+      ),
+    );
+    asked^;
+  };
+  let keys = [
+    (E.MoveUp, H.keydown(~alt=true, "ArrowUp")),
+    (MoveDown, H.keydown(~alt=true, "ArrowDown")),
+    (Duplicate, H.keydown(~meta=true, ~code="KeyD", "d")),
+    (Delete, H.keydown("Delete")),
+  ];
+  List.iter(
+    ((o, key)) => {
+      check(
+        ops,
+        "row mode: " ++ E.show_def_op(o),
+        [(o, lone)],
+        row_key(lone_run, key),
+      );
+      check(ops, "a longer run's row: none", [], row_key(pair_run, key));
+    },
+    keys,
+  );
+  /* text mode: the key on [run]'s ghost line */
+  let line = (run, first) => E.Row(run, Some(Run(first)));
+  let text_keys = [
+    (E.MoveUp, k(~alt=true, "ArrowUp")),
+    (MoveDown, k(~alt=true, "ArrowDown")),
+    (Duplicate, k(~meta=true, ~code="KeyD", "d")),
+    (Delete, k(~meta=true, "Backspace")),
+  ];
+  List.iter(
+    ((o, key)) => {
+      check(
+        outcome,
+        "text mode: " ++ E.show_def_op(o),
+        Op(o, lone),
+        press(~of_=term, ~folds=[], ~on=line(lone_run, lone), "", key),
+      );
+      check(
+        outcome,
+        "a longer run's line: a flash",
+        Flash,
+        press(~of_=term, ~folds=[], ~on=line(pair_run, row("2")), "", key),
+      );
+    },
+    text_keys,
+  );
+  /* the menu */
+  let asked = ref([]);
+  let on = H.handlers(~ops=asked, ());
+  let menu = Web.OutlineSidebar.menu_rows(~on, On_run(lone, lone, false));
+  List.iter(
+    label =>
+      List.iter(
+        (r: Web.OutlineSidebar.menu_row) =>
+          switch (r) {
+          | Item(l, _, act) when l == label => ignore(act())
+          | _ => ()
+          },
+        menu,
+      ),
+    ["Move up", "Move down", "Duplicate", "Delete"],
+  );
+  check(
+    ops,
+    "the menu's",
+    [(Delete, lone), (Duplicate, lone), (MoveDown, lone), (MoveUp, lone)],
+    asked^,
+  );
+  check(
+    bool,
+    "a longer run's menu: no item ops",
+    false,
+    List.exists(
+      (r: Web.OutlineSidebar.menu_row) =>
+        switch (r) {
+        | Item("Duplicate", _, _) => true
+        | _ => false
+        },
+      Web.OutlineSidebar.menu_rows(~on, On_run(row("2"), row("3"), false)),
+    ),
+  );
+  /* the ops applied: the row keeps the cursor, folded */
+  let squeezed = code =>
+    String.split_on_char('\n', text_of(code))
+    |> List.filter(l => String.trim(l) != "")
+    |> String.concat("\n");
+  let folded = path =>
+    O.folded(~folds=Web.ScratchPersist.folds("scratch", "t"), path, KTests);
+  let after = (o, code') => {
+    let term' =
+      Web.Program.outline(code'.Web.ScratchModel.Scratchpad.program);
+    let run = O.run_of(lone, term');
+    check(
+      bool,
+      E.show_def_op(o) ++ ": the cursor on its run",
+      true,
+      run != None && C.cursor^ == run,
+    );
+    check(
+      bool,
+      E.show_def_op(o) ++ ": still folded",
+      true,
+      folded(Option.get(run)),
+    );
+  };
+  C.cursor := Some(lone_run);
+  let moved = run(DefOp(MoveUp, lone), code);
+  check(
+    string,
+    "moved up",
+    "let a = 1 in\ntest a == 1 end;\nlet b = 2 in\nlet c = 3 in\ntest c == 3 end;\ntest c > 0 end;\nc",
+    squeezed(moved),
+  );
+  after(MoveUp, moved);
+  reset();
+  C.cursor := Some(lone_run);
+  let down = run(DefOp(MoveDown, lone), code);
+  check(
+    string,
+    "moved down",
+    "let a = 1 in\nlet b = 2 in\nlet c = 3 in\ntest a == 1 end;\ntest c == 3 end;\ntest c > 0 end;\nc",
+    squeezed(down),
+  );
+  after(MoveDown, down);
+  reset();
+  /* from the menu, in text mode */
+  C.text := Some(E.at(line(lone_run, lone)));
+  C.menu := Some((On_run(lone, lone, false), 0., 0.));
+  let copied = run(DefOp(Duplicate, lone), code);
+  check(
+    string,
+    "duplicated",
+    "let a = 1 in\nlet b = 2 in\ntest a == 1 end;\ntest a == 1 end;\nlet c = 3 in\ntest c == 3 end;\ntest c > 0 end;\nc",
+    squeezed(copied),
+  );
+  let term' = Web.Program.outline(copied.program);
+  let run' = Option.get(O.run_of(lone, term'));
+  check(
+    bool,
+    "duplicated: the caret on its run, now of two",
+    true,
+    switch (C.text^) {
+    | Some({line: Row(p, Some(Run(a))), _}) => p == run' && a == lone
+    | _ => false
+    },
+  );
+  check(bool, "duplicated: still folded", true, folded(run'));
+  reset();
+  C.cursor := Some(lone_run);
+  let deleted = run(DefOp(Delete, lone), code);
+  check(
+    string,
+    "deleted",
+    "let a = 1 in\nlet b = 2 in\nlet c = 3 in\ntest c == 3 end;\ntest c > 0 end;\nc",
+    squeezed(deleted),
+  );
+  check(
+    bool,
+    "deleted: the cursor on the row after",
+    true,
+    C.cursor^
+    == O.label_path(
+         CorpusUtil.row_by_label(Web.Program.outline(deleted.program), "c"),
+         Web.Program.outline(deleted.program),
+       ),
+  );
+  reset();
+};
+
 /* Esc leaves in one press: a name that will do is saved; one that won't
    is dropped, the program as it was, its row flashing; a new
    definition's that won't goes with its definition */
@@ -2868,6 +3073,11 @@ let tests = (
     test_case("a folded run in text mode", `Quick, run_text),
     test_case("a new test opens its run", `Quick, new_test_opens_run),
     test_case("a lone test's moves and copies", `Quick, lone_test_ops),
+    test_case(
+      "a run of one's row acts on its test",
+      `Quick,
+      lone_run_row_ops,
+    ),
     test_case("menus offer a new test", `Quick, test_menus),
     test_case("a keyword typed first in a rename", `Quick, rename_keywords),
     test_case("Esc leaves in one press", `Quick, esc_leaves),

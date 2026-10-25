@@ -1426,13 +1426,25 @@ let menu_rows = (~on: handlers, at: E.menu_at): list(menu_row) => {
     );
   let test = (op, id) =>
     Item("New test below", None, () => on.text.op(op, id));
-  switch (at) {
-  | On_run(first, last, expanded) => [
-      expanded ? test(NewTestAbove, first) : test(NewTestBelow, last),
-    ]
-  | On_item(id, kind) =>
+  /* an item's own ops */
+  let ops = id => {
     let op = (~keys=?, o, label) =>
       Item(label, keys, () => on.text.op(o, id));
+    [
+      Divider,
+      op(~keys=mac ? {js|⌘D|js} : "Ctrl+D", Duplicate, "Duplicate"),
+      op(~keys=mac ? {js|⌥↑|js} : {js|Alt+↑|js}, MoveUp, "Move up"),
+      op(~keys=mac ? {js|⌥↓|js} : {js|Alt+↓|js}, MoveDown, "Move down"),
+      Divider,
+      op(~keys=mac ? {js|⌘⌫|js} : "Del", Delete, "Delete"),
+    ];
+  };
+  switch (at) {
+  /* a run of one's label acts on its test */
+  | On_run(first, last, expanded) =>
+    [expanded ? test(NewTestAbove, first) : test(NewTestBelow, last)]
+    @ (first == last ? ops(first) : [])
+  | On_item(id, kind) =>
     (
       kind == KModule
         ? [
@@ -1452,14 +1464,7 @@ let menu_rows = (~on: handlers, at: E.menu_at): list(menu_row) => {
       new_row(id, "New module below", "module "),
     ]
     @ (kind == KTest ? [test(NewTestBelow, id)] : [])
-    @ [
-      Divider,
-      op(~keys=mac ? {js|⌘D|js} : "Ctrl+D", Duplicate, "Duplicate"),
-      op(~keys=mac ? {js|⌥↑|js} : {js|Alt+↑|js}, MoveUp, "Move up"),
-      op(~keys=mac ? {js|⌥↓|js} : {js|Alt+↓|js}, MoveDown, "Move down"),
-      Divider,
-      op(~keys=mac ? {js|⌘⌫|js} : "Del", Delete, "Delete"),
-    ];
+    @ ops(id)
   };
 };
 
@@ -1645,6 +1650,8 @@ let keys =
   let list_selection = () =>
     !is_field(target) && Util.JsUtil.selection_within(rows);
   let id_of = (r: visible_row) => r.r_node.o_id;
+  /* what the ops act on: a run of one's row, its test */
+  let item_of = (r: visible_row) => OutlineTree.item_of(r.r_node);
   let is_module = (r: visible_row) => r.r_node.o_kind == OutlineTree.KModule;
   /* the context menu at a row, as the editor opens its own */
   let open_menu = (r: visible_row) => {
@@ -1727,9 +1734,9 @@ let keys =
         },
       )
     | ("ArrowUp", true, false, Some(r)) =>
-      Option.map(id => on.def_op(MoveUp, id), id_of(r))
+      Option.map(id => on.def_op(MoveUp, id), item_of(r))
     | ("ArrowDown", true, false, Some(r)) =>
-      Option.map(id => on.def_op(MoveDown, id), id_of(r))
+      Option.map(id => on.def_op(MoveDown, id), item_of(r))
     | ("ArrowRight", true, false, Some(r)) when is_module(r) =>
       Option.map(on.zoom_in, id_of(r))
     /* out of the slide's top: the level above, if any */
@@ -1738,11 +1745,11 @@ let keys =
       Some(on.go_above(true))
     | ("ArrowLeft", true, false, _) => Some(on.zoom_out)
     | (_, false, true, Some(r)) when code == "KeyD" =>
-      Option.map(id => on.def_op(Duplicate, id), id_of(r))
+      Option.map(id => on.def_op(Duplicate, id), item_of(r))
     /* the cursor moves only once the delete lands (DefOp) */
     | ("Backspace", false, true, Some(r))
     | ("Delete", false, false, Some(r)) =>
-      Option.map(id => on.def_op(Delete, id), id_of(r))
+      Option.map(id => on.def_op(Delete, id), item_of(r))
     | _ => None
     };
   /* the level above navigates only: no menus, opens, moves or deletes,

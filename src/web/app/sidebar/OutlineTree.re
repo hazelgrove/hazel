@@ -330,6 +330,13 @@ let name_tests = (ns: list(node)): list(node) => {
   go(ns);
 };
 
+/* the item a row's outline ops act on: its own, or a run of one's test */
+let item_of = (n: node): option(Id.t) =>
+  switch (n.o_id, n.o_kind, n.o_children) {
+  | (None, KTests, [t]) => t.o_id
+  | (id, _, _) => id
+  };
+
 /* the rows of a program's outline */
 let build = (o: O.t): list(node) => {
   Util.Swept.next_pass(entry_memo);
