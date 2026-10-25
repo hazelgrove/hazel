@@ -156,11 +156,10 @@ let undo = () => {
 /* deep in the program, so the tiles passed on the way down count */
 let restructure = () => {
   let seg = Zipper.unselect_and_zip(Lazy.force(dew));
-  let term = MakeTerm.Incr.term_of(seg);
   switch (
     Web.ItemEdit.apply(
       MoveDown,
-      CorpusUtil.row(term, ["MetaRunner", "init"]),
+      CorpusUtil.row(CorpusUtil.outline_of(seg), ["MetaRunner", "init"]),
       seg,
     )
   ) {
@@ -187,23 +186,23 @@ let structural = a =>
 
 let agent = () =>
   structural(
-    Update(Definition, "final", "let r = MetaRunner.run_all(()) in r"),
+    Replace("final:definition", "let r = MetaRunner.run_all(()) in r"),
   );
 
 /* new lines: the region re-indent maps the whole program */
 let agent_lines = () =>
   structural(
-    Update(Definition, "final", "let r =\n  MetaRunner.run_all(())\nin\nr"),
+    Replace("final:definition", "let r =\n  MetaRunner.run_all(())\nin\nr"),
   );
 let agent_insert = () =>
   structural(
-    Insert(After, "final", "let extra =\n  final.ok\n  + 1\n  + 2\nin"),
+    Insert(After("final"), "let extra =\n  final.ok\n  + 1\n  + 2\nin"),
   );
 
 /* `M.x` labels are relabeled program-wide: Text and WateringTimer
    change, with their members that use it */
 let agent_rename = () =>
-  structural(Update(Pattern, "Text/int_to_text", "render_int"));
+  structural(Rename("Text/int_to_text", None, "render_int"));
 
 /* relabeling maps every piece: [final]'s binder and use */
 let relabel = () => {

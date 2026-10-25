@@ -3,7 +3,6 @@ open Util;
 [@deriving (show({with_path: false}), sexp)]
 type category =
   | Edit
-  | Read
   | View
   | Projector
   | Probe
@@ -21,7 +20,6 @@ type t = {
 let category_class = (c: category): string =>
   switch (c) {
   | Edit => "tool-cat-edit"
-  | Read => "tool-cat-read"
   | View => "tool-cat-view"
   | Projector => "tool-cat-projector"
   | Probe => "tool-cat-probe"
@@ -99,26 +97,16 @@ let jump_paths_of_opt = (path: option(string)): list(string) =>
   | None => []
   };
 
-/** UI-facing name for a tool_call. Overrides [tc.name] for cases where the raw
-    tool name plus a placeholder signifier would mislead — e.g. [insert_before]
-    with no [path] would otherwise render as "insert_before cursor", which reads
-    like a variable named [cursor]. Display as plain "insert" instead. */
-let display_name_for = (tc: OpenRouter.Reply.Model.tool_call): string =>
-  switch (tc.name) {
-  | "insert_after"
-  | "insert_before" =>
-    switch (get_string_field(tc.args, "path")) {
-    | None => "insert"
-    | Some(_) => tc.name
-    }
-  | _ => tc.name
-  };
-
 /** Builds a [[t]] for a given tool_call, or [[None]] if the tool name is unknown. */
 let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
   let args = tc.args;
-  let single_path_edit = (~persists: bool) => {
-    let path = get_string_field(args, "path");
+  /* an edit names its target, else its place */
+  let edit = (~persists: bool) => {
+    let path =
+      List.find_map(
+        key => get_string_field(args, key),
+        ["target", "before", "after", "first_in", "last_in"],
+      );
     Some({
       category: Edit,
       signifier: path,
@@ -126,9 +114,9 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
       persists,
     });
   };
-  let paths_tool = (~category: category, ~persists: bool) => {
+  let paths_tool = (~key="paths", ~category: category, persists: bool) => {
     let paths =
-      get_string_list_field(args, "paths") |> Option.value(~default=[]);
+      get_string_list_field(args, key) |> Option.value(~default=[]);
     Some({
       category,
       signifier: paths_signifier(paths),
@@ -154,45 +142,24 @@ let of_tool_call = (tc: OpenRouter.Reply.Model.tool_call): option(t) => {
       persists: false,
     });
   switch (tc.name) {
-  | "update_definition"
-  | "update_body"
-  | "update_pattern"
-  | "update_binding_clause" => single_path_edit(~persists=true)
-  | "delete_binding_clause"
-  | "delete_body" => single_path_edit(~persists=false)
-  | "insert_after"
-  | "insert_before"
-  | "insert_test" =>
-    let path = get_string_field(args, "path");
-    Some({
-      category: Edit,
-      signifier: path,
-      jump_paths: jump_paths_of_opt(path),
-      persists: true,
-    });
-  | "view_entire_definition"
-  | "view_context"
-  | "show_references" =>
-    Some({
-      category: Read,
-      signifier: None,
-      jump_paths: [],
-      persists: false,
-    })
-  | "expand"
-  | "collapse" => paths_tool(~category=View, ~persists=true)
+  | "insert"
+  | "replace"
+  | "move"
+  | "rename" => edit(~persists=true)
+  | "delete" => edit(~persists=false)
+  | "open"
+  | "close" => paths_tool(~key="targets", ~category=View, true)
   | "place_syntax_projector" =>
     paths_tool_with_kind(~category=Projector, ~persists=true)
   | "toggle_syntax_projector" =>
     paths_tool_with_kind(~category=Projector, ~persists=true)
-  | "remove_syntax_projector" =>
-    paths_tool(~category=Projector, ~persists=false)
+  | "remove_syntax_projector" => paths_tool(~category=Projector, false)
   | "place_probe"
-  | "toggle_probe" => paths_tool(~category=Probe, ~persists=true)
-  | "remove_probe" => paths_tool(~category=Probe, ~persists=false)
+  | "toggle_probe" => paths_tool(~category=Probe, true)
+  | "remove_probe" => paths_tool(~category=Probe, false)
   | "place_statics"
-  | "toggle_statics" => paths_tool(~category=Statics, ~persists=true)
-  | "remove_statics" => paths_tool(~category=Statics, ~persists=false)
+  | "toggle_statics" => paths_tool(~category=Statics, true)
+  | "remove_statics" => paths_tool(~category=Statics, false)
   | "create_new_task" =>
     let title =
       switch (get_field(args, "task")) {

@@ -94,38 +94,36 @@ type buffer =
 type paste = string;
 
 module Structural = {
-  /* A path identifies a let/type-alias binding by name, using `/` to
-     address nested bindings (e.g. "a", "a/inner"). Resolved against
-     the HighLevelNodeMap. */
+  /* A path names an entry (EntryPath): a binding by name, `/` (or `.`)
+     descending into a module's members or a definition's body ("a",
+     "a/inner", "M/helper"), a test by its hint string, `test#k`, a
+     block's result `=>`; after the last element, `:part` names a part */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type path = string;
 
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type code = string;
 
-  /* Which sub-expression of a binding to target */
+  /* beside the entry at a path, or first or last among the entries it
+     holds (a module's members, a value's body); "" is the top level */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type target =
-    | Definition /* RHS of `=`, before `in` */
-    | Body /* expression after `in` */
-    | Pattern /* LHS of `=`, after `let`/`type`; updates also rename use sites */
-    | BindingClause; /* entire `let ... = ... in` / `type ... = ... in` */
+  type place =
+    | Before(path)
+    | After(path)
+    | FirstIn(path)
+    | LastIn(path);
 
-  /* Where to insert relative to the target binding */
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type insert_target =
-    | After /* insert within body (after target binding) */
-    | Before; /* insert before target binding (wrapping around it) */
-
-  /* Targeted structural edits on bindings identified by path */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
-    | Update(target, path, code)
-    | Delete(target, path)
-    | Insert(insert_target, path, code)
-    /* `test code end` after the binding at path and the tests directly
-       following it; with no path, after the program's last item */
-    | InsertTest(option(path), code);
+    | Insert(place, code)
+    /* the entry, or the part its path names */
+    | Replace(path, code)
+    | Delete(path)
+    | Move(path, place)
+    /* the binder the path names, or the variable named in its entry's
+       pattern (a parameter, a destructured name), and its uses: to the
+       name given */
+    | Rename(path, option(string), string);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

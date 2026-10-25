@@ -58,7 +58,10 @@ type span = {
    level holding an unfinished member */
 type ends =
   | Written
-  | Read;
+  | Read
+  /* as Read, and where a missing `;`'s grout ends a member, as the parsed
+     term reads it: the outline's rows */
+  | Rows;
 
 type owner =
   | Top
@@ -431,6 +434,30 @@ let only_content_seg = (seg: Segment.t): option((int, Piece.t)) => {
   go(0, seg, None);
 };
 
+/* the piece of the segment holding site [s], and its index there, with
+   [members] in its module literal's brace (at [m]) */
+let with_members =
+    (s: site, (m, brace): (int, Tile.t), members: Segment.t)
+    : (int, Piece.t) => {
+  let brace' =
+    Piece.Tile({
+      ...brace,
+      children: [members],
+    });
+  switch (s) {
+  | Kid(h, t) =>
+    let (init, kid) = ListUtil.split_last(t.children);
+    (
+      h,
+      Piece.Tile({
+        ...t,
+        children: init @ [ListUtil.put_nth(m, brace', kid)],
+      }),
+    );
+  | Run(_) => (m, brace')
+  };
+};
+
 /* a module literal's brace, and its index in the segment holding it: the
    head's last child, or the member level */
 let brace_of = (arr: array(Piece.t), s: site): option((int, Tile.t)) =>
@@ -472,10 +499,10 @@ let index_of = (spans: array(span)): Id.Map.t(int) => {
    ends an unfinished member (its units), each part divided as written;
    and whether a member line cut one */
 let read_raws =
-    (~nested: bool, ~line: option(int), arr: array(Piece.t))
+    (~grout: bool, ~nested: bool, ~line: option(int), arr: array(Piece.t))
     : (list(raw), bool) => {
   let len = Array.length(arr);
-  let written = Array.of_list(raw_spans(~sort=Mod, ~nested, arr));
+  let written = Array.of_list(raw_spans(~sort=Mod, ~nested, ~grout, arr));
   let n = Array.length(written);
   let cut = ref(false);
   let parts =
@@ -518,7 +545,8 @@ let read_raws =
     |> List.concat;
   (
     List.concat_map(
-      ((from, until)) => raw_spans(~sort=Mod, ~nested, ~from, ~until, arr),
+      ((from, until)) =>
+        raw_spans(~sort=Mod, ~nested, ~grout, ~from, ~until, arr),
       parts,
     ),
     cut^,
@@ -554,8 +582,8 @@ let build =
   let arr = Array.of_list(seg);
   let len = Array.length(arr);
   let (raws, cut) =
-    ends == Read && sort == Sort.Mod
-      ? read_raws(~nested, ~line, arr)
+    ends != Written && sort == Sort.Mod
+      ? read_raws(~grout=ends == Rows, ~nested, ~line, arr)
       : (raw_spans(~sort, ~nested, arr), false);
   let raws = Array.of_list(raws);
   let first_content = (r: raw) => {
@@ -613,7 +641,11 @@ let build =
           i > c0 && is_ws(arr[i - 1]) ? back_ws(i - 1) : i;
         let c1 = {
           let e = back_ws(r.r_stop);
-          back_ws(e > c0 && Piece.is_semi(arr[e - 1]) ? e - 1 : e);
+          /* its separator: a `;`, or a missing one's grout */
+          back_ws(
+            e > c0 && (Piece.is_semi(arr[e - 1]) || r.r_semi == Some(e - 1))
+              ? e - 1 : e,
+          );
         };
         let f = first_content(r);
         let rec first_tile = i =>
@@ -742,7 +774,8 @@ let index = (lv: level): Id.Map.t(int) =>
 type key =
   | KTop(ends, Sort.t, Id.t)
   | KMembers(ends, Id.t)
-  | KChain(ends, Id.t);
+  | KChain(ends, Id.t)
+  | KBlock(Id.t);
 
 let cache: Swept.t(key, level) = Swept.mk();
 /* levels built, cumulative: observability for tests */
@@ -817,20 +850,34 @@ let outer = (lv: level): option(int) =>
   | Block(_) => Some(lv.indent)
   };
 
-/* span [k]'s definition body, if it is a definition */
-let site_of = (lv: level, k: int): option(site) => {
+/* span [k]'s head tile and its index, when it is a definition or a
+   directive */
+let head = (lv: level, k: int): option((int, Tile.t)) => {
   let sp = lv.spans[k];
   let (c0, c1) = sp.core;
-  let rec head = i =>
+  let rec go = i =>
     i >= c1
-      ? None : Piece.id(lv.pieces[i]) == sp.anchor ? Some(i) : head(i + 1);
+      ? None
+      : (
+        switch (lv.pieces[i]) {
+        | Tile(t) when t.id == sp.anchor => Some((i, t))
+        | _ => go(i + 1)
+        }
+      );
   switch (sp.kind) {
-  | Def => Option.bind(head(c0), h => site_at(lv.pieces, h, c1))
-  | Use
+  | Def
+  | Use => go(c0)
   | Stmt
   | Tail => None
   };
 };
+
+/* span [k]'s definition body, if it is a definition */
+let site_of = (lv: level, k: int): option(site) =>
+  switch (lv.spans[k].kind, head(lv, k)) {
+  | (Def, Some((h, _))) => site_at(lv.pieces, h, snd(lv.spans[k].core))
+  | _ => None
+  };
 
 /* the member level of a module literal's members, in a level starting at
    [line] whose site [s] holds the brace at [m]: its `{`'s line's level, a
@@ -948,22 +995,35 @@ let children = (lv: level, k: int): option(level) =>
   };
 
 /* span [k]'s body as a level of its own items (a function body, a let
-   chain), if it has any: for the outline and cells, built on demand. Not
-   for module literals (they have members) or type definitions */
+   chain), if it has any: for the outline, cells and paths, built on
+   demand. Not for module literals (they have members) or type
+   definitions */
 let block = (lv: level, k: int): option(level) => {
   let sp = lv.spans[k];
   let mk = (~indent, ~line, ~offset, seg) => {
+    let line = Some(line);
+    let indent = Some(indent);
     let b =
-      build(
-        ~line=Some(line),
-        ~sort=Sort.Exp,
-        ~owner=Block(sp.anchor),
-        ~nested=true,
+      memo(
+        KBlock(sp.anchor),
+        ~offset,
+        ~indent,
+        ~line,
         ~bol=false,
         ~eol=false,
-        ~indent=Some(indent),
-        ~offset,
         seg,
+        () =>
+        build(
+          ~line,
+          ~sort=Sort.Exp,
+          ~owner=Block(sp.anchor),
+          ~nested=true,
+          ~bol=false,
+          ~eol=false,
+          ~indent,
+          ~offset,
+          seg,
+        )
       );
     Array.length(b.spans) > 0 ? Some(b) : None;
   };
@@ -996,6 +1056,12 @@ let block = (lv: level, k: int): option(level) => {
 let slice = (lv: level, k: int): Segment.t => {
   let sp = lv.spans[k];
   Array.to_list(Array.sub(lv.pieces, sp.lo, sp.hi - sp.lo));
+};
+
+/* span [k]'s core: the item without edge whitespace or its `;` */
+let core = (lv: level, k: int): Segment.t => {
+  let (c0, c1) = lv.spans[k].core;
+  Array.to_list(Array.sub(lv.pieces, c0, c1 - c0));
 };
 
 /* span [k] of a member level is an unfinished member whose open form
@@ -1068,24 +1134,8 @@ let module_item =
               List.hd(brace.children),
             );
           let put = (seg: Segment.t): Segment.t => {
-            let brace' =
-              Piece.Tile({
-                ...brace,
-                children: [seg],
-              });
-            switch (s) {
-            | Kid(h, t) =>
-              let (init, kid) = ListUtil.split_last(t.children);
-              ListUtil.put_nth(
-                h,
-                Piece.Tile({
-                  ...t,
-                  children: init @ [ListUtil.put_nth(m, brace', kid)],
-                }),
-                item,
-              );
-            | Run(_) => ListUtil.put_nth(m, brace', item)
-            };
+            let (i, p) = with_members(s, (m, brace), seg);
+            ListUtil.put_nth(i, p, item);
           };
           (
             slices(members),

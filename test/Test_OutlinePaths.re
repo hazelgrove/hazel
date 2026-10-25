@@ -7,14 +7,8 @@ module ScratchPersist = Web.ScratchPersist;
 /* outline paths are occurrence-qualified: every row's label_path resolves
    back to its own id, even among same-labeled rows */
 
-let term_of_text = (text: string): Exp.t => {
-  let z =
-    switch (MarkerParse.of_text(~root=Sort.Exp, text)) {
-    | Some(z) => z
-    | None => failwith("parse failed: " ++ text)
-    };
-  MakeTerm.from_zip_for_sem(z, ~root=Exp).term;
-};
+let term_of_text = (text: string): OutlineTree.t =>
+  CorpusUtil.outline_of_text(text);
 
 /* all (id, path) pairs of the outline, depth-first */
 let rec walk =
@@ -35,8 +29,8 @@ let rec walk =
     ns,
   );
 
-let all_rows = (e: Exp.t): list((Id.t, OutlineTree.path)) =>
-  walk([], OutlineTree.segs(OutlineTree.of_term(e)));
+let all_rows = (e: OutlineTree.t): list((Id.t, OutlineTree.path)) =>
+  walk([], OutlineTree.segs(OutlineTree.rows(e)));
 
 let check_self_resolution = (label: string, text: string): unit => {
   let e = term_of_text(text);
@@ -70,14 +64,14 @@ let test_elsewhere = () => {
   let e0 = term_of_text(before);
   let e1 = term_of_text(after);
   /* the program's last test: its number moves from 3 to 4, its path doesn't */
-  let last = (e: Exp.t) => {
+  let last = (e: OutlineTree.t) => {
     let rec tests = (ns: list(OutlineTree.node)) =>
       List.concat_map(
         (n: OutlineTree.node) =>
           n.o_kind == KTest ? [n] : tests(n.o_children),
         ns,
       );
-    switch (List.rev(tests(OutlineTree.of_term(e)))) {
+    switch (List.rev(tests(OutlineTree.rows(e)))) {
     | [n, ..._] => n.o_id
     | [] => None
     };
@@ -99,10 +93,10 @@ let test_elsewhere = () => {
 let use_above_test = () => {
   let before = term_of_text("let b = 1 in\ntest b == 1 end;\nb");
   let after = term_of_text("let b = 1 in\nuse Nat in\ntest b == 1 end;\nb");
-  let test = (e: Exp.t) =>
+  let test = (e: OutlineTree.t) =>
     List.find_map(
       (n: OutlineTree.node) => n.o_kind == KTest ? n.o_id : None,
-      OutlineTree.flatten(OutlineTree.of_term(e)),
+      OutlineTree.flatten(OutlineTree.rows(e)),
     );
   switch (test(before), test(after)) {
   | (Some(t0), Some(t1)) =>
@@ -144,7 +138,7 @@ let rec kinds = (ns: list(OutlineTree.node)): string =>
   |> String.concat(", ");
 
 let kinds_of = (text: string): string =>
-  kinds(OutlineTree.of_term(term_of_text(text)));
+  kinds(OutlineTree.rows(term_of_text(text)));
 
 /* `let f(x) = …` keeps its parameters in its pattern */
 let sugar_kinds = () => {
@@ -176,6 +170,17 @@ let alias_kinds = () =>
     ),
   );
 
+/* a livelit's `^name` is a row; a literal's members are below it */
+let livelit_kinds = () =>
+  check(
+    string,
+    "a livelit is a module",
+    "module ^pct [type T, const init], module m [const a], trail",
+    kinds_of(
+      "let ^pct = {\n  type T = Int;\n  let init = 50\n} in\nlet m = { let a = 1 } in\n^pct(m.a)",
+    ),
+  );
+
 let cases = [
   test_case(
     "a test added elsewhere leaves a test's path",
@@ -183,6 +188,15 @@ let cases = [
     test_elsewhere,
   ),
   test_case("a module alias's row is a module", `Quick, alias_kinds),
+  test_case("a livelit definition's row and members", `Quick, livelit_kinds),
+  test_case("a definition being typed at the end has its row", `Quick, () =>
+    check(
+      string,
+      "`let b =` at the end",
+      "const a, const b, trail",
+      kinds_of("let a = 1 in\nlet b ="),
+    )
+  ),
   test_case("a sugared function's row is a function", `Quick, sugar_kinds),
   test_case("a use above a test leaves its path", `Quick, use_above_test),
   test_case("use rows and a module with a signature", `Quick, () =>
@@ -255,7 +269,7 @@ let cases = [
 let successors = () => {
   let ids = ns => List.filter_map((n: OutlineTree.node) => n.o_id, ns);
   let e = term_of_text("let x = 1 in\nlet y = 2 in\nlet x = 3 in\nx + y");
-  switch (ids(OutlineTree.of_term(e))) {
+  switch (ids(OutlineTree.rows(e))) {
   | [x0, y, _, ..._] =>
     check(
       bool,
@@ -266,7 +280,7 @@ let successors = () => {
   | _ => fail("expected rows x, y, x")
   };
   let e = term_of_text("module M = {\n  let a = 1;\n  let b = 2\n} in\nM.a");
-  switch (OutlineTree.of_term(e)) {
+  switch (OutlineTree.rows(e)) {
   | [{o_id: Some(_), o_children, _}, ..._] =>
     switch (ids(o_children)) {
     | [a, b] =>
@@ -279,7 +293,7 @@ let successors = () => {
     | _ => fail("expected members a, b")
     };
     let e = term_of_text("module M = {\n  let a = 1\n} in\nM.a");
-    switch (OutlineTree.of_term(e)) {
+    switch (OutlineTree.rows(e)) {
     | [{o_id: Some(m'), o_children: [{o_id: Some(a), _}], _}, ..._] =>
       check(
         bool,
@@ -295,17 +309,19 @@ let successors = () => {
 
 /* flipping Outline Arrows redraws the outline, all else unchanged */
 let arrows_redraw = () => {
-  let statics = {
-    ...CachedStatics.empty,
-    term:
-      term_of_text("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)"),
-  };
-  let view = arrows =>
+  let statics = CachedStatics.empty;
+  let segment =
+    Option.get(
+      CorpusUtil.typed_seg(
+        "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)",
+      ),
+    );
+  let view = (~statics=statics, arrows) =>
     Web.OutlineControl.view(
       ~arrows,
       ~deck=None,
       ~statics,
-      ~segment=[],
+      ~segment,
       ~inject=_ => Virtual_dom.Vdom.Effect.Ignore,
       ~inject_workspace=_ => Virtual_dom.Vdom.Effect.Ignore,
       ~jump=_ => Virtual_dom.Vdom.Effect.Ignore,
@@ -320,7 +336,131 @@ let arrows_redraw = () => {
     true,
     view(false) === off,
   );
+  /* a frame's statics are a new record over the same analysis */
+  check(
+    bool,
+    "the same analysis reuses it",
+    true,
+    view(
+      ~statics={
+        ...statics,
+        warning_ids: [],
+      },
+      false,
+    )
+    === off,
+  );
   check(bool, "arrows on: a new outline", false, view(true) === off);
+};
+
+/* the outline is kept across a caret move, which re-zips the tiles
+   above the caret as new objects, and an edit keeps the entries below
+   the definitions it didn't touch */
+let outline_kept = () => {
+  let seg =
+    CorpusUtil.seg_of(
+      "let a = 1 in\nlet b = fun x ->\n  let y = x in\n  y\nin\nb(a)",
+    );
+  let o = Outline.of_program(~root=Exp, seg);
+  let rezip =
+    List.map(
+      fun
+      | Piece.Tile(t) =>
+        Piece.Tile({
+          ...t,
+          children: List.map(List.map(Fun.id), t.children),
+        })
+      | p => p,
+      seg,
+    );
+  check(bool, "re-zipped: new objects", false, Segment.ptr_eq(rezip, seg));
+  check(
+    bool,
+    "re-zipped: the same outline",
+    true,
+    Outline.of_program(~root=Exp, rezip) === o,
+  );
+  /* [a]'s definition gets a new token */
+  let fresh =
+    fun
+    | Piece.Tile(t) =>
+      Piece.Tile({
+        ...t,
+        id: Id.mk(),
+      })
+    | p => p;
+  let edited =
+    switch (seg) {
+    | [Tile({children: [pat, def], _} as t), ...rest] => [
+        Piece.Tile({
+          ...t,
+          children: [pat, List.map(fresh, def)],
+        }),
+        ...rest,
+      ]
+    | _ => fail("expected `let a` first")
+    };
+  let o' = Outline.of_program(~root=Exp, edited);
+  check(bool, "edited: a new outline", false, o' === o);
+  let b = (o: Outline.t) => List.nth(o.entries, 1);
+  check(bool, "b has a body", true, b(o).children != []);
+  check(
+    bool,
+    "edited: b's body entries are the same objects",
+    true,
+    b(o').children === b(o).children,
+  );
+};
+
+/* entries kept across an edit have the paths a fresh build gives:
+   removing the second `M` drops the first one's `#1` below it */
+let kept_paths = () => {
+  let seg =
+    CorpusUtil.seg_of(
+      "module M = {\n  module X = {\n    let y = 1\n  };\n  let w = 2\n} in\nmodule M = {\n  module X = {\n    let z = 1\n  }\n} in\n1",
+    );
+  let rec copy = (seg: Segment.t): Segment.t =>
+    List.map(
+      fun
+      | Piece.Tile(t) =>
+        Piece.Tile({
+          ...t,
+          children: List.map(copy, t.children),
+        })
+      | p => p,
+      seg,
+    );
+  let paths = (seg: Segment.t) =>
+    List.map(
+      (e: Outline.entry) => Outline.path_string(e),
+      Outline.all(Outline.of_program(~root=Exp, seg)),
+    );
+  let without_second =
+    switch (seg) {
+    | [m1, ...rest] =>
+      let rec drop = (ps: Segment.t) =>
+        switch (ps) {
+        | [Piece.Tile(t), ...rest] when Tile.token(t, 0) == "module" => rest
+        | [_, ...rest] => drop(rest)
+        | [] => []
+        };
+      [m1, ...drop(rest)];
+    | [] => fail("empty")
+    };
+  ignore(paths(seg));
+  check(
+    list(string),
+    "the second M removed",
+    paths(copy(without_second)),
+    paths(without_second),
+  );
+  check(
+    bool,
+    "M/X loses its #1",
+    true,
+    List.mem("M/X", paths(without_second)),
+  );
+  check(list(string), "and back", paths(copy(seg)), paths(seg));
 };
 
 /* where a saved name leaves text mode's caret: where the keys put it
@@ -344,7 +484,7 @@ let save_caret = () => {
     | Code(code) => code
     | Drv(_) => fail("not a code slide")
     };
-  let term = MakeTerm.Incr.term_of(seg);
+  let term = CorpusUtil.outline_of(seg);
   let row = CorpusUtil.row_by_label(term);
   let save = (sv, after) =>
     C.update(
@@ -372,7 +512,7 @@ let save_caret = () => {
   check(bool, "↑ renaming: the caret stays up", true, C.text^ == Some(up));
   C.text := None;
   let renamed = save(rename_b, Leave);
-  let term' = Web.Program.statics(renamed.program).term;
+  let term' = Web.Program.outline(renamed.program);
   check(
     bool,
     "Esc: row mode, the cursor on the renamed row",
@@ -460,7 +600,7 @@ let save_caret = () => {
 let sidebar = (src: string) => {
   module S = Web.OutlineSidebar;
   let seg = CorpusUtil.seg_of(src);
-  let term = MakeTerm.Incr.term_of(seg);
+  let term = CorpusUtil.outline_of(seg);
   let refused = Web.ScratchFocus.refusals(~root=Exp, ~want=_ => true, seg);
   let visible = OutlineHarness.visible(term);
   let cursor = ref(None);
@@ -532,7 +672,7 @@ let start_text = () => {
 let runs = "let a = 1 in\nmodule M = {\n  let x = 1;\n  test x == 1 end;\n  test x == 2 end\n} in\ntest a == 1 end;\ntest a == 2 end;\nlet b = 2 in\ntest b == 2 end;\nb";
 
 /* the rows a slide with [folds] shows, by label (the ⇒ has none) */
-let shown = (~folds, e: Exp.t): list(string) =>
+let shown = (~folds, e: OutlineTree.t): list(string) =>
   List.map(
     (r: Web.OutlineSidebar.visible_row) => r.r_node.o_label,
     Array.to_list(OutlineHarness.visible(~folds, e)),
@@ -583,7 +723,7 @@ let opened_run_kept = () => {
   module C = Web.OutlineControl;
   let (prefix, name) = ("foldtest", "t");
   let code = code_of(runs);
-  let e = Web.Workspace.fresh_term(code.program);
+  let e = Web.Program.outline(code.program);
   let top =
     Option.get(OutlineTree.run_of(CorpusUtil.row_by_label(e, "3"), e));
   let flip = () =>
@@ -631,7 +771,9 @@ let opened_run_kept = () => {
 let tallies = () => {
   module S = Web.OutlineSidebar;
   let tally_of = (src: string) => {
-    let term = MakeTerm.go(CorpusUtil.seg_of(src)).term;
+    let seg = CorpusUtil.seg_of(src);
+    let term = MakeTerm.go(seg).term;
+    let outline = CorpusUtil.outline_of(seg);
     let (_, elab) =
       Statics.mk(
         CoreSettings.on,
@@ -645,7 +787,7 @@ let tallies = () => {
     switch (
       List.find_opt(
         (n: OutlineTree.node) => n.o_kind == KTests,
-        OutlineTree.flatten(OutlineTree.of_term(term)),
+        OutlineTree.flatten(OutlineTree.rows(outline)),
       )
     ) {
     | Some(run) => S.run_tally(S.run_statuses(~test_status, run))
@@ -811,7 +953,7 @@ let at_level = (~trail=[], level: Web.OutlineSidebar.level) => {
     CorpusUtil.seg_of(
       "module M = {\n  let a = 1\n} in\nlet b = 2 in\ntest b == 2 end;\nb",
     );
-  let term = MakeTerm.Incr.term_of(seg);
+  let term = CorpusUtil.outline_of(seg);
   let visible = OutlineHarness.visible(term);
   let cursor = ref(None);
   let toggled = ref([]);
@@ -1080,19 +1222,21 @@ let enclosing_level = () => {
    and outline are untouched */
 let above_folds = () => {
   module C = Web.OutlineControl;
-  let term =
-    term_of_text("let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)");
-  let statics = {
-    ...CachedStatics.empty,
-    term,
-  };
+  let segment =
+    Option.get(
+      CorpusUtil.typed_seg(
+        "let f = fun x ->\n  let y = x + 1 in\n  y * 2\nin\nf(1)",
+      ),
+    );
+  let term = CorpusUtil.outline_of(segment);
+  let statics = CachedStatics.empty;
   let deck = slide_deck();
   let view = shown =>
     C.view(
       ~arrows=true,
       ~deck=Some(deck),
       ~statics,
-      ~segment=[],
+      ~segment,
       ~inject=_ => Virtual_dom.Vdom.Effect.Ignore,
       ~inject_workspace=_ => Virtual_dom.Vdom.Effect.Ignore,
       ~jump=_ => Virtual_dom.Vdom.Effect.Ignore,
@@ -1165,6 +1309,16 @@ let tests = [
       test_case("a run's tally", `Quick, tallies),
       test_case("a hinted test joins its run", `Quick, hinted_run),
       test_case("the caret's mark in a folded run", `Quick, mark_in_runs),
+      test_case(
+        "a caret move keeps the outline, an edit its untouched entries",
+        `Quick,
+        outline_kept,
+      ),
+      test_case(
+        "kept entries have a fresh build's paths",
+        `Quick,
+        kept_paths,
+      ),
     ],
   ),
 ];

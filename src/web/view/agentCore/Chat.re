@@ -28,6 +28,12 @@ module Model = {
     agent_view: AgentContext.Model.t,
     agent_workbench: AgentWorkbench.Model.t, // The agent's todo lists/workbench associated with this chat
     context: option(Message.Model.t),
+    /* what [context] was made from, recorded when it is sent */
+    [@yojson.default None] [@sexp.default None]
+    context_basis: option(SentView.basis),
+    /* each request's view, oldest first */
+    [@yojson.default []] [@sexp.default []]
+    sent: list(SentView.t),
     created_at: float,
     current_view,
     [@yojson.default []]
@@ -171,26 +177,113 @@ module Utils = {
   let update_context =
       (
         ~session_mode: AgentGlobals.Model.session_mode,
+        ~agent_view: AgentContext.Model.t,
+        ~basis: option(SentView.basis),
         agent_editor_view: string,
-        static_errors_info: string,
-        test_results_info: string,
         chat: Model.t,
       )
       : Model.t => {
-    let workbench =
+    let context =
       Message.Utils.mk_context_message(
         ~session_mode,
         agent_editor_view,
-        static_errors_info,
-        test_results_info,
         AgentWorkbench.Utils.MainUtils.active_task_to_pretty_string(
           chat.agent_workbench,
         ),
       );
     {
       ...chat,
-      context: Some(workbench),
+      agent_view,
+      context: Some(context),
+      context_basis: basis,
     };
+  };
+
+  /* a tool result message's after_text */
+  let after_text = (chat: Model.t, id: Id.t): option(string) =>
+    switch (find_message_opt(id, chat)) {
+    | Some({role: ToolResult(r), _}) => r.after_text
+    | _ => None
+    };
+
+  /* [chat] with a record of the request about to be sent: its context as
+     the payload carries it */
+  let record_sent = (chat: Model.t): Model.t =>
+    switch (chat.context, chat.context_basis) {
+    | (Some(context), Some(b)) =>
+      let linear = linearize(chat);
+      let last_tool =
+        List.fold_left(
+          (acc, m: Message.Model.t) =>
+            switch (m.role) {
+            | ToolResult({after_text: Some(_), _}) => Some(m.id)
+            | _ => acc
+            },
+          None,
+          linear,
+        );
+      let r: SentView.t = {
+        seq:
+          switch (ListUtil.last_opt(chat.sent)) {
+          | Some(r) => r.seq + 1
+          | None => 1
+          },
+        time: JsUtil.timestamp(),
+        after: ListUtil.last(linear).id,
+        view: context.content,
+        opened: b.b_opened,
+        root: b.b_root,
+        program: Dropped,
+        probes: b.b_probes,
+      };
+      {
+        ...chat,
+        sent:
+          SentView.add(
+            ~after_text=after_text(chat),
+            ~last_tool,
+            chat.sent,
+            b,
+            r,
+          ),
+      };
+    | _ => chat
+    };
+
+  /* the request a message belongs to: the one an agent message answers,
+     else the one sent after it */
+  let sent_for = (chat: Model.t, id: Id.t): option(SentView.t) => {
+    let after = x =>
+      List.find_opt((r: SentView.t) => r.after == x, chat.sent);
+    switch (find_message_opt(id, chat)) {
+    | Some({role: Agent(_), _}) =>
+      switch (
+        List.find_opt(
+          (m: Message.Model.t) => List.mem(id, m.children),
+          linearize(chat),
+        )
+      ) {
+      | Some(parent) => after(parent.id)
+      | None => None
+      }
+    | Some(_) => after(id)
+    | None => None
+    };
+  };
+
+  /* a record's program text */
+  let sent_text = (chat: Model.t, r: SentView.t): option(string) => {
+    let rec earlier = (acc, rs: list(SentView.t)) =>
+      switch (rs) {
+      | [x, ..._] when x.seq == r.seq => acc
+      | [x, ...rest] => earlier([x, ...acc], rest)
+      | [] => acc
+      };
+    SentView.text(
+      ~after_text=after_text(chat),
+      ~earlier=earlier([], chat.sent),
+      r,
+    );
   };
 
   let append_to_message_content =
@@ -342,6 +435,8 @@ module Utils = {
       agent_view: AgentContext.Utils.init(),
       agent_workbench: AgentWorkbench.Utils.MainUtils.init(),
       context: None,
+      context_basis: None,
+      sent: [],
       created_at: JsUtil.timestamp(),
       current_view: Messages,
       pending_send_queue: [],
@@ -359,9 +454,14 @@ module Update = {
       | AppendMessage(Message.Model.t)
       | SwitchBranch(Id.t, Id.t)
       | BranchOff(Id.t)
-      | AgentContextAction(AgentContext.Update.action)
+      | AgentContextAction(AgentContext.Update.resolved)
       | WorkbenchAction(AgentWorkbench.Update.Action.action)
-      | UpdateContext(AgentGlobals.Model.session_mode, string, string, string)
+      | UpdateContext(
+          AgentGlobals.Model.session_mode,
+          AgentContext.Model.t,
+          option(SentView.basis),
+          string,
+        )
       | AppendToMessageContent(Id.t, string)
       | OverwriteMessage(Id.t, Message.Model.t)
       | SwitchView(Model.current_view)
@@ -402,18 +502,13 @@ module Update = {
         })
       | Failure(error) => Error(Failure.Info(error))
       };
-    | UpdateContext(
-        session_mode,
-        agent_editor_view,
-        static_errors_info,
-        test_results_info,
-      ) =>
+    | UpdateContext(session_mode, agent_view, basis, agent_editor_view) =>
       Ok(
         Utils.update_context(
           ~session_mode,
+          ~agent_view,
+          ~basis,
           agent_editor_view,
-          static_errors_info,
-          test_results_info,
           model,
         ),
       )

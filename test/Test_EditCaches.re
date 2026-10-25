@@ -32,7 +32,7 @@ let rows = (m, name: string): list(string) =>
   switch (
     List.find_opt(
       (n: OutlineTree.node) => n.o_label == name,
-      OutlineTree.of_term(OM.term(m)),
+      OutlineTree.rows(OM.term(m)),
     )
   ) {
   | Some(n) => List.map((n: OutlineTree.node) => n.o_label, n.o_children)

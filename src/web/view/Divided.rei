@@ -63,7 +63,7 @@ let outside_editor: t => CodeEditable.Model.t;
 let open_:
   (
     ~info_map: Language.Statics.Map.t,
-    ~term: Language.Exp.t,
+    ~outline: OutlineTree.t,
     ~sym: string=?,
     ~inner: bool=?,
     Id.t,
@@ -71,7 +71,7 @@ let open_:
   ) =>
   option(t);
 let open_run:
-  (~info_map: Language.Statics.Map.t, ~term: Language.Exp.t, Id.t, t) =>
+  (~info_map: Language.Statics.Map.t, ~outline: OutlineTree.t, Id.t, t) =>
   option(t);
 let close: (Id.t, t) => after_close;
 let anchor_of: Zipper.t => option((Direction.t, Id.t));
@@ -79,7 +79,7 @@ let place_caret: ((Direction.t, Id.t), t) => t;
 let resplit:
   (
     ~info_map: Language.Statics.Map.t,
-    ~term: Language.Exp.t,
+    ~outline: OutlineTree.t,
     CellEditor.Model.t,
     t
   ) =>

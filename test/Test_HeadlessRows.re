@@ -39,11 +39,30 @@ type want =
   /* no cell: a `use` */
   | Shut;
 
-/* OutlineTree's walk, with each row's terms */
+/* a let's name: the first Var through wrappers, as rows are named */
+let rec pat_var = (p: Pat.t): option(string) =>
+  switch (p.term) {
+  | Var(x) => Some(x)
+  | Parens(p)
+  | Asc(p, _)
+  | Projector(_, p)
+  | TupLabel(_, p) => pat_var(p)
+  | Ap(f, _) => pat_var(f)
+  | Tuple([p, ..._]) => pat_var(p)
+  | _ => None
+  };
+
+/* the outline's rows, read from the term, with each row's terms */
 let wants = (term: Exp.t): Id.Map.t(want) => {
   let out = ref(Id.Map.empty);
   let add = (id, w) => out := Id.Map.add(id, w, out^);
-  let strip = O.strip_exp;
+  let rec strip = (e: Exp.t): Exp.t =>
+    switch (e.term) {
+    | Parens(e)
+    | Projector(_, e)
+    | Filter(_, e) => strip(e)
+    | _ => e
+    };
   /* a block's ⇒: a theorem's cell holds its statement */
   let tail = (e: Exp.t) =>
     switch (strip(e).term) {
@@ -106,7 +125,7 @@ let wants = (term: Exp.t): Id.Map.t(want) => {
     | _ => ignore(of_exp(~top=false, strip(def)))
     }
   and let_row = (id, pat: Pat.t, def: Exp.t): int =>
-    switch (O.pat_var(pat)) {
+    switch (pat_var(pat)) {
     | Some(_) =>
       def_row(id, Pat.rep_id(pat), def);
       /* `let f(x) = …`: [def] is the function's body */
@@ -226,6 +245,7 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
     | None => Option.get(CorpusUtil.typed_seg(~root, src))
     };
   let term = MakeTerm.Incr.term_of_root(~root, seg);
+  let outline = CorpusUtil.outline_of(~root, seg);
   let info_map = DefStatics.calc(~settings=CoreSettings.on, term).merged;
   let data =
     (root == Sort.Mod ? MakeTerm.go_mod_root(seg) : MakeTerm.go(seg)).
@@ -258,7 +278,11 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
   let broken = ref([]);
   /* the outline's verdict, from the cell code in one walk */
   let refused =
-    Focus.refusals(~root, ~want=id => Id.Map.mem(id, O.row_ids(term)), seg);
+    Focus.refusals(
+      ~root,
+      ~want=id => Id.Map.mem(id, O.row_ids(outline)),
+      seg,
+    );
   let note = (row, whys) =>
     if (whys != []) {
       broken :=
@@ -280,7 +304,7 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
     if (Id.Map.find_opt(id, refused) != Some(Focus.Directive)) {
       fail("not refused as a use");
     };
-    switch (V.realize(~info_map, ~term, pin, Whole(whole))) {
+    switch (V.realize(~info_map, ~outline, pin, Whole(whole))) {
     | exception e => fail("raised " ++ Printexc.to_string(e))
     | (v, Whole(_)) when v.pins == [] => ()
     | _ => fail("opened")
@@ -301,7 +325,7 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
     | (Some(Directive), _) => fail("refused as a use")
     | (None, true) => fail("not refused under a projector")
     };
-    switch (V.realize(~info_map, ~term, pin, Whole(whole))) {
+    switch (V.realize(~info_map, ~outline, pin, Whole(whole))) {
     | exception e => fail("raised " ++ Printexc.to_string(e))
     | (v, Whole(_)) when under && v.pins == [] => incr(n_projected)
     | (_, Whole(_)) => fail("didn't open")
@@ -346,7 +370,7 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
       switch (n.o_id, n.o_kind) {
       | (Some(id), kind) =>
         let row = n.o_label ++ " " ++ kind_name(kind);
-        let pin = V.pin(~term, id, V.init);
+        let pin = V.pin(~outline, id, V.init);
         switch (Id.Map.find_opt(id, wants)) {
         | None => failwith(name ++ ": no term for " ++ row)
         | Some(Shut) => check_shut(~row, ~id, ~pin)
@@ -405,7 +429,7 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
         check_row(
           ~row="tests",
           ~id=List.hd(kids),
-          ~pin=V.pin(~term, ~run=true, List.hd(kids), V.init),
+          ~pin=V.pin(~outline, ~run=true, List.hd(kids), V.init),
           ~expect=
             e =>
               switch (e.e_kind) {
@@ -419,10 +443,10 @@ let survey = (~root=Sort.Exp, ~sample=1, ~name: string, src: string): survey => 
         );
       | (None, _) => ()
       },
-    List.filteri((i, _) => i mod sample == 0, O.flatten(O.of_term(term))),
+    List.filteri((i, _) => i mod sample == 0, O.flatten(O.rows(outline))),
   );
   /* and every item the walk expects has its row */
-  let shown = O.row_ids(term);
+  let shown = O.row_ids(outline);
   Id.Map.iter(
     (id, _) =>
       if (!Id.Map.mem(id, shown)) {
