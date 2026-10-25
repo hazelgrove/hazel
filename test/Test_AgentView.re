@@ -719,8 +719,8 @@ let record_tests = [
 let lens_src = "let a = 1 in\nlet b = a + 1 in\nlet c = b * 2 in\nc";
 
 /* a slide whose agent chat sent one request with [opened] open */
-let slide = (~opened: list(string)) => {
-  let cws = cws_of(lens_src);
+let slide = (~src=lens_src, ~opened: list(string), ()) => {
+  let cws = cws_of(src);
   let agent = W.Agent.Utils.init();
   let chat_id = agent.chat_system.current;
   let o =
@@ -774,7 +774,7 @@ let lens_tests = [
     "view as agent shows the request's open entries",
     `Quick,
     () => {
-      let (code, chat_id) = slide(~opened=["b", "c"]);
+      let (code, chat_id) = slide(~opened=["b", "c"], ());
       let code' = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
       switch (code'.lens) {
       | Some(l) =>
@@ -803,7 +803,7 @@ let lens_tests = [
     "nothing open: the map, no cells",
     `Quick,
     () => {
-      let (code, chat_id) = slide(~opened=[]);
+      let (code, chat_id) = slide(~opened=[], ());
       let code' = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
       switch (code'.lens) {
       | Some({program: Whole(_), sent, summary, _}) =>
@@ -825,7 +825,7 @@ let lens_tests = [
     "the shown request is read-only",
     `Quick,
     () => {
-      let (code, chat_id) = slide(~opened=["b"]);
+      let (code, chat_id) = slide(~opened=["b"], ());
       let code' = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
       let a =
         switch (
@@ -846,7 +846,7 @@ let lens_tests = [
     "leaving gives the user's view back",
     `Quick,
     () => {
-      let (code, chat_id) = slide(~opened=["b"]);
+      let (code, chat_id) = slide(~opened=["b"], ());
       let code' =
         code
         |> step(AgentAction(ViewAsAgent(chat_id, Some(1))))
@@ -859,7 +859,7 @@ let lens_tests = [
     "live follows the next request",
     `Quick,
     () => {
-      let (code, chat_id) = slide(~opened=["b"]);
+      let (code, chat_id) = slide(~opened=["b"], ());
       let code = step(AgentAction(ViewAsAgent(chat_id, None)), code);
       check(
         option(bool),
@@ -897,6 +897,220 @@ let lens_tests = [
         "M open; f and N closed",
         [false, true, true],
         List.map(snd, W.AgentLens.map_folds(~module_depth=1, term)),
+      );
+    },
+  ),
+];
+
+/* Stacked's map: the request's map as a read-only editor, drawn with the
+   request program's statics and run */
+let map_src = {|let sq(x: Int): Int = x * x in
+let total(xs: [Int]): Int =
+  case xs
+  | [] => 0
+  | x :: rest => sq(x) + total(rest) + true
+  end
+in
+module Geo = { let one = 1; module Units = { module Si = { let m = 1 } } } in
+test
+  sq(3) == 9
+end;
+test sq(2) == 4 + true end;
+total([1, 2])|};
+
+/* the lens on [map_src]'s one request, sq open, its map calculated */
+let map_lens = () => {
+  let (code, chat_id) = slide(~src=map_src, ~opened=["sq"], ());
+  let code = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
+  let l = Option.get(code.lens);
+  let l = {
+    ...l,
+    map:
+      W.AgentLensMap.calculate(
+        ~settings=W.Settings.Model.init.core,
+        l.program,
+        l.map,
+      ),
+  };
+  (
+    {
+      ...code,
+      lens: Some(l),
+    },
+    l,
+  );
+};
+
+let without_notes = (text: string): string =>
+  String.split_on_char('\n', text)
+  |> List.map(line =>
+       switch (Util.StringUtil.plain_search({js|  #›|js}, line, 0)) {
+       | i when i >= 0 => String.sub(line, 0, i)
+       | _ => line
+       }
+     )
+  |> String.concat("\n");
+
+let has = (s, m) => Util.StringUtil.plain_search(m, s, 0) >= 0;
+
+let map_tests = [
+  test_case(
+    "the map panel: the map as sent, less the notes it draws",
+    `Quick,
+    () => {
+      let (_, l) = map_lens();
+      /* the map as sent: below its two heading lines, above the entries */
+      let sent =
+        switch (
+          Util.StringUtil.plain_search(
+            "\n\n" ++ CompositionView.open_divider,
+            l.sent,
+            0,
+          )
+        ) {
+        | i when i >= 0 => String.sub(l.sent, 0, i)
+        | _ => l.sent
+        };
+      let sent =
+        String.split_on_char('\n', sent)
+        |> List.tl
+        |> List.tl
+        |> String.concat("\n");
+      let shown = W.AgentLensMap.text(l.map);
+      check(string, "the code", without_notes(sent), without_notes(shown));
+      check(bool, "the agent saw use counts", true, has(sent, "3 uses"));
+      golden(
+        "the panel",
+        {|let sq(x: Int): Int = ⋯ in  #› open below #
+let total(xs: [Int]): Int = ⋯ in  #› 1 error: Expecting type Int but got inconsistent type Bool #
+module Geo = { let one = ⋯; module Units = { module Si = { ⋯ } } } in  #› Si: 1 member #
+test ⋯ end;  #› test#1 #
+test sq(2) == 4 + true end;  #› test#2 #
+total([1, 2])|},
+        shown,
+      );
+    },
+  ),
+  test_case(
+    "the map panel: a folded test keeps its mark",
+    `Quick,
+    () => {
+      let (_, l) = map_lens();
+      let whole = W.Program.whole(l.program);
+      let (results, _, _) =
+        run(whole.editor.editor.state.zipper, W.Program.statics(l.program));
+      let o = Outline.of_program(~root=Exp, W.Program.document(l.program));
+      let folded =
+        List.find_map(
+          (e: Outline.entry) => e.kind == Test ? e.test : None,
+          o.entries,
+        )
+        |> Option.get;
+      check(
+        option(bool),
+        "it passed",
+        Some(true),
+        Option.map(
+          s => s == TestStatus.Pass,
+          TestMap.lookup(folded, results.test_map)
+          |> Option.map(TestMap.joint_status),
+        ),
+      );
+      check(
+        bool,
+        "folded",
+        true,
+        has(W.AgentLensMap.text(l.map), {js|test ⋯ end;|js}),
+      );
+      /* where the test layer draws a mark */
+      check(
+        bool,
+        "its mark has a place",
+        true,
+        Option.is_some(
+          Measured.find_shards_by_id(
+            folded,
+            l.map.editor.editor.editor.syntax.measured,
+          ),
+        ),
+      );
+    },
+  ),
+  test_case(
+    "the map panel: errors on shown terms, none from ⋯",
+    `Quick,
+    () => {
+      let (_, l) = map_lens();
+      let st = W.Program.statics(l.program);
+      let map = l.map.editor.editor;
+      let held =
+        Segment.ids(W.AgentLensMap.segment(l.map))
+        |> List.map(id => (id, ()))
+        |> Id.Map.of_list;
+      check(int, "the program's errors", 2, List.length(st.error_ids));
+      check(int, "one shown", 1, List.length(map.statics.error_ids));
+      List.iter(
+        id => {
+          check(bool, "on the map", true, Id.Map.mem(id, held));
+          check(
+            bool,
+            "drawn there",
+            true,
+            Option.is_some(
+              TermData.root_tile(id, map.editor.syntax.term_data),
+            ),
+          );
+        },
+        map.statics.error_ids,
+      );
+      /* the other, in a folded body, is its entry's note */
+      check(
+        bool,
+        "the folded one's note",
+        true,
+        has(W.AgentLensMap.text(l.map), "1 error: Expecting type Int"),
+      );
+    },
+  ),
+  test_case(
+    "the map panel is read-only: the caret moves, edits drop",
+    `Quick,
+    () => {
+      let (code, l) = map_lens();
+      let caret = (code: W.ScratchModel.Scratchpad.code) =>
+        Option.get(code.lens).map.editor.editor.editor.state.zipper.caret;
+      let text = (code: W.ScratchModel.Scratchpad.code) =>
+        W.AgentLensMap.text(Option.get(code.lens).map);
+      let edit = step(LensMap(MainEditor(Perform(Insert("x")))), code);
+      check(
+        bool,
+        "an insert drops",
+        true,
+        Option.get(edit.lens).map === l.map,
+      );
+      let cut =
+        step(
+          LensMap(MainEditor(Perform(Destruct(Local(Left, ByChar))))),
+          code,
+        );
+      check(
+        bool,
+        "a delete drops",
+        true,
+        Option.get(cut.lens).map === l.map,
+      );
+      let moved =
+        step(
+          LensMap(MainEditor(Perform(Move(Local(Right, ByChar))))),
+          code,
+        );
+      check(bool, "a move lands", false, caret(moved) == caret(code));
+      check(string, "the text stays", text(code), text(moved));
+      check(
+        bool,
+        "the program untouched",
+        true,
+        moved.program === code.program,
       );
     },
   ),
@@ -1341,7 +1555,7 @@ let trajectory_tests = [
     "the mode is kept for the session",
     `Quick,
     () => {
-      let (code, chat_id) = slide(~opened=["b"]);
+      let (code, chat_id) = slide(~opened=["b"], ());
       let code = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
       let code = step(LensMode(Trajectory), code);
       check(
@@ -1375,7 +1589,7 @@ let trajectory_tests = [
     "Sent view: the agentEditorView, byte for byte",
     `Quick,
     () => {
-      let (code, chat_id) = slide(~opened=["b"]);
+      let (code, chat_id) = slide(~opened=["b"], ());
       let code = step(AgentAction(ViewAsAgent(chat_id, Some(1))), code);
       let r = Option.get(Util.ListUtil.last_opt(chat_of(code.agent).sent));
       let l = Option.get(code.lens);
@@ -1460,6 +1674,7 @@ let tests = (
   @ open_set_tests
   @ record_tests
   @ lens_tests
+  @ map_tests
   @ toggle_tests
   @ trajectory_tests,
 );

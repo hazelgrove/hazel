@@ -223,6 +223,7 @@ let with_last_kid = (t: Tile.t, kid: Segment.t): Tile.t => {
 };
 
 /* an annotation: a line, found by an id's measurement, and its parts */
+[@deriving (show({with_path: false}), sexp, yojson)]
 type note = {
   /* the entry's name, when several notes share a line */
   label: string,
@@ -605,9 +606,17 @@ let open_divider = comment(["open entries, in full"]);
 let shown_refractors = (ctx: ctx) =>
   ctx.settings.probes ? ctx.facts.refractors : [];
 
+/* the map's pieces, and the notes for their lines */
+let map_of = (ctx: ctx, o: O.t): (Segment.t, list(note)) =>
+  map_level(
+    ctx,
+    ~depth=0,
+    S.top(~ends=Rows, ~root=o.root, o.seg),
+    o.entries,
+  );
+
 let map_text = (ctx: ctx, o: O.t): string => {
-  let top = S.top(~ends=Rows, ~root=o.root, o.seg);
-  let (seg, notes) = map_level(ctx, ~depth=0, top, o.entries);
+  let (seg, notes) = map_of(ctx, o);
   let (lines, find) =
     print_measured(~refractors=shown_refractors(ctx), seg);
   let lines = annotate(lines, find, notes) |> with_probes(ctx, find);

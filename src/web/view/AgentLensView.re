@@ -232,12 +232,109 @@ let banner =
 let nothing_open: Node.t =
   div(
     ~attrs=[Attr.classes(["agent-lens-note"])],
-    [
-      text(
-        "Nothing was open in this request; the agent saw only the map (the outline at left).",
-      ),
-    ],
+    [text("Nothing was open in this request; the agent saw only the map.")],
   );
+
+/* Stacked: the map the request sent, a read-only editor with the
+   program's statics and run, its notes at line ends; folds away */
+let map_panel =
+    (
+      ~globals: Globals.t,
+      ~go: Workspace.Action.t => Effect.t(unit),
+      ~signal: CellEditor.View.event => Effect.t(unit),
+      ~selected: option(CellEditor.Selection.t),
+      l: AgentLens.t,
+    )
+    : Node.t => {
+  let result = Program.result(l.program);
+  let head =
+    button(
+      ~attrs=[
+        Attr.classes(["lens-map-head"]),
+        Attr.title(l.map_shown ? "Fold the map" : "Show the map"),
+        Attr.on_click(_ => go(LensMapShown(!l.map_shown))),
+      ],
+      [
+        span(
+          ~attrs=[Attr.classes(["lens-map-chevron"])],
+          [text(l.map_shown ? {js|▾|js} : {js|▸|js})],
+        ),
+        span(
+          ~attrs=[Attr.classes(["lens-map-title"])],
+          [text("The map")],
+        ),
+        span(
+          ~attrs=[Attr.classes(["lens-map-hint"])],
+          [
+            text(
+              Printf.sprintf(
+                {js|as request %d showed the program: bodies folded to ⋯|js},
+                l.seq,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  let notes = () => {
+    let measured = l.map.editor.editor.editor.syntax.measured;
+    let fm = globals.font_metrics;
+    AgentLensMap.comments(
+      ~rows=measured.total_rows,
+      id => Haz3lcore.Measured.find_by_id(id, measured),
+      AgentLensMap.notes(~value=EvalResult.Model.get_value(result), l.map),
+    )
+    |> Array.to_list
+    |> List.mapi((row, c) => (row, c))
+    |> List.filter(((_, c)) => c != "")
+    |> List.map(((row, c)) => {
+         let col =
+           switch (Haz3lcore.Measured.row_shape(row, measured)) {
+           | Some(r) => r.content_end
+           | None => 0
+           };
+         span(
+           ~attrs=[
+             Attr.classes(["lens-map-note"]),
+             Attr.create(
+               "style",
+               Printf.sprintf(
+                 "left: %fpx; top: %fpx; line-height: %fpx;",
+                 float_of_int(col + 2) *. fm.col_width,
+                 float_of_int(row) *. fm.row_height,
+                 fm.row_height,
+               ),
+             ),
+           ],
+           [text(c)],
+         );
+       });
+  };
+  div(
+    ~attrs=[Attr.classes(["agent-lens-map"])],
+    [head]
+    @ (
+      l.map_shown
+        ? [
+          CellEditor.View.view(
+            ~globals,
+            ~signal,
+            ~inject=a => go(LensMap(a)),
+            ~selected,
+            ~result_kind=`TestSigilsOnly,
+            ~lines=true,
+            ~master=(result, _ => Effect.Ignore),
+            ~cull=false,
+            ~overlays=[
+              div(~attrs=[Attr.classes(["lens-map-notes"])], notes()),
+            ],
+            l.map.editor,
+          ),
+        ]
+        : []
+    ),
+  );
+};
 
 let panel_head = (title: list(Node.t), actions: list(Node.t)): Node.t =>
   div(

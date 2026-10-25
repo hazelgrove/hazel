@@ -2,10 +2,10 @@ open Haz3lcore;
 open Util;
 
 /* View as agent: the main editor shows a request's view, read-only.
-   Stacked: that request's program, exactly the agent's open entries as
-   cells, the outline folded to its map. Sent: the view's text as sent.
-   Trajectory: everything sent over the API up to it, or (Window) exactly
-   what it carried. The user's program,
+   Stacked: that request's program, its map (AgentLensMap) above exactly
+   the agent's open entries as cells, the outline folded to the map.
+   Sent: the view's text as sent. Trajectory: everything sent over the API
+   up to it, or (Window) exactly what it carried. The user's program,
    view and folds stay as they are; leaving drops this. Live, it follows
    each new request. */
 
@@ -19,6 +19,8 @@ type mode =
 
 /* the mode last chosen, for the session */
 let last_mode = ref(Stacked);
+/* Stacked's map panel shown, for the session */
+let map_shown = ref(true);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -37,6 +39,9 @@ type t = {
   summary: string,
   /* in Trajectory mode */
   trajectory: option(Trajectory.t),
+  /* Stacked: the map, above the cells */
+  map: AgentLensMap.t,
+  map_shown: bool,
 };
 
 /* the summary on a view's first line, after the map's name */
@@ -105,7 +110,7 @@ let with_mode = (chat: Chat.Model.t, mode: mode, l: t): t => {
 let build =
     (
       ~settings: Language.CoreSettings.t,
-      ~module_depth: int,
+      ~view as view_settings: CompositionView.settings,
       ~live: bool,
       chat: Chat.Model.t,
       seq: option(int),
@@ -134,15 +139,20 @@ let build =
         };
         /* the open entries by their paths then: this text's ids are new */
         let outline = Program.outline(Whole(editor));
+        let opened =
+          List.filter_map(
+            (e: AgentContext.Model.entry) =>
+              switch (Outline.resolve(outline, e.path)) {
+              | Ok(x) => Some(x.id)
+              | Error(_) => None
+              },
+            r.opened,
+          );
         let view =
           List.fold_left(
-            (v, e: AgentContext.Model.entry) =>
-              switch (Outline.resolve(outline, e.path)) {
-              | Ok(x) => SlideView.pin(~outline, x.id, v)
-              | Error(_) => v
-              },
+            (v, id) => SlideView.pin(~outline, id, v),
             SlideView.init,
-            r.opened,
+            opened,
           );
         let (view, program) =
           SlideView.realize(
@@ -162,11 +172,21 @@ let build =
             count: List.length(chat.sent),
             program,
             view,
-            folds: map_folds(~module_depth, outline),
+            folds:
+              map_folds(~module_depth=view_settings.module_depth, outline),
             mode: Stacked,
             sent,
             summary: summary_of_view(sent),
             trajectory: None,
+            map:
+              AgentLensMap.build(
+                ~view=view_settings,
+                ~root,
+                ~statics,
+                ~opened,
+                z,
+              ),
+            map_shown: map_shown^,
           },
         );
       },
@@ -175,10 +195,9 @@ let build =
   );
 
 /* live: the chat's latest request, when there is a newer one */
-let follow =
-    (~settings, ~module_depth, chat: Chat.Model.t, lens: t): option(t) =>
+let follow = (~settings, ~view, chat: Chat.Model.t, lens: t): option(t) =>
   switch (ListUtil.last_opt(chat.sent)) {
   | Some(r) when lens.live && r.seq != lens.seq =>
-    build(~settings, ~module_depth, ~live=true, chat, None)
+    build(~settings, ~view, ~live=true, chat, None)
   | _ => None
   };

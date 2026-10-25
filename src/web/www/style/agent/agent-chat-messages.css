@@ -3157,6 +3157,67 @@
   font-style: italic;
 }
 
+/* Stacked: the map the request sent, above the cells, a rule under it;
+   its head folds it */
+#main .agent-lens-map {
+  border-bottom: 1px solid var(--border-soft);
+}
+
+#main .lens-map-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5em;
+  width: 100%;
+  margin: 0;
+  padding: 0.35em 1em;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: 0.8em;
+  color: var(--text-muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+#main .lens-map-head:hover {
+  background-color: color-mix(in srgb, var(--surface-shard) 27%, transparent);
+}
+
+#main .lens-map-head .lens-map-chevron {
+  width: 0.8em;
+}
+
+#main .lens-map-head .lens-map-title {
+  color: var(--text-default);
+  font-weight: 600;
+}
+
+#main .agent-lens-map > .cell {
+  padding-bottom: 0.5em;
+}
+
+/* the map's notes: comments past their lines' ends, dimmed */
+#main .lens-map-notes {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+}
+
+#main .lens-map-note {
+  position: absolute;
+  white-space: pre;
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--token-comment);
+  opacity: 0.75;
+}
+
+/* ⋯, a folded body: no sort, and nothing wrong with it */
+#main .agent-lens-map .token.Any {
+  color: var(--text-muted);
+}
+
 /* Sent view and Trajectory: monospace text, its copy buttons in a head */
 #main .agent-lens-panel {
   padding: 0.5em 1em 4em;

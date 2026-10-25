@@ -64,7 +64,10 @@ module Action = {
     | AgentAction(Agent.Update.Action.t)
     /* the run of the program View as agent shows */
     | LensResult(EvalResult.Update.t)
-    | LensMode(AgentLens.mode);
+    | LensMode(AgentLens.mode)
+    /* the lens's map: its caret; edits are dropped */
+    | LensMap(CellEditor.Update.t)
+    | LensMapShown(bool);
 };
 
 open Action;
@@ -590,7 +593,9 @@ let update_code =
     | None => code |> return_quiet
     }
   /* handled in [update] */
-  | LensMode(_) => code |> return_quiet
+  | LensMode(_)
+  | LensMap(_)
+  | LensMapShown(_) => code |> return_quiet
   };
 };
 
@@ -611,7 +616,7 @@ let update =
     | Some(chat) =>
       AgentLens.build(
         ~settings=settings.core,
-        ~module_depth=settings.agent_globals.map_module_depth,
+        ~view=AgentGlobals.view_settings(settings.agent_globals),
         ~live=seq == None,
         chat,
         seq,
@@ -634,6 +639,37 @@ let update =
       )
     | None => Updated.return_quiet(code)
     }
+  | (LensMap(a), Some(l)) =>
+    switch (AgentLensMap.update(~settings, a, l.map)) {
+    | Some(u) => {
+        ...u,
+        is_edit: false,
+        historic: false,
+        model: {
+          ...code,
+          lens:
+            Some({
+              ...l,
+              map: u.model,
+            }),
+        },
+      }
+    | None => Updated.return_quiet(code)
+    }
+  | (LensMapShown(shown), Some(l)) =>
+    AgentLens.map_shown := shown;
+    Updated.return(
+      ~is_edit=false,
+      ~historic=false,
+      {
+        ...code,
+        lens:
+          Some({
+            ...l,
+            map_shown: shown,
+          }),
+      },
+    );
   | (LensMode(mode), Some(l)) =>
     AgentLens.last_mode := mode;
     switch (Id.Map.find_opt(l.chat, code.agent.chat_system.chat_map)) {
@@ -665,7 +701,7 @@ let update =
         Id.Map.find_opt(l.chat, after.agent.chat_system.chat_map), chat =>
         AgentLens.follow(
           ~settings=settings.core,
-          ~module_depth=settings.agent_globals.map_module_depth,
+          ~view=AgentGlobals.view_settings(settings.agent_globals),
           chat,
           l,
         )
@@ -1094,18 +1130,21 @@ let calculate =
       ),
     lens:
       Option.map(
-        (l: AgentLens.t) =>
+        (l: AgentLens.t) => {
+          let program =
+            calc(
+              ~is_edited=false,
+              ~statics_mode,
+              ~calc_entry_memo=lens_entry_memo,
+              ~dispatch=a => schedule_action(LensResult(a)),
+              l.program,
+            );
           {
             ...l,
-            program:
-              calc(
-                ~is_edited=false,
-                ~statics_mode,
-                ~calc_entry_memo=lens_entry_memo,
-                ~dispatch=a => schedule_action(LensResult(a)),
-                l.program,
-              ),
-          },
+            program,
+            map: AgentLensMap.calculate(~settings, program, l.map),
+          };
+        },
         code.lens,
       ),
   };

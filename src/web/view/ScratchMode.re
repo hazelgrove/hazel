@@ -143,6 +143,8 @@ module Selection = {
     /* the open cells: the one Divided.active names has the focus */
     | Stack(CellEditor.Selection.t)
     | Drv(DerivationExerciseMode.Selection.t)
+    /* View as agent's map */
+    | LensMap(CellEditor.Selection.t)
     | TextBox;
 
   let get_cursor_info =
@@ -171,6 +173,14 @@ module Selection = {
           Update.Workspace(Stack(e.e_id, side, a));
         | None => empty
         }
+      | (LensMap(selection), Code({lens: Some(l), _})) =>
+        let+ a =
+          CellEditor.Selection.get_cursor_info(
+            ~inject=a => inject(Workspace(LensMap(a))),
+            ~selection,
+            l.map.editor,
+          );
+        Update.Workspace(LensMap(a));
       | (Drv(selection), Drv(m)) =>
         let+ a =
           DerivationExerciseMode.Selection.get_cursor_info(
@@ -184,6 +194,7 @@ module Selection = {
       | (Stack(_), Code({program: Whole(_), _}))
       | (Stack(_), Drv(_))
       | (Drv(_), Code(_))
+      | (LensMap(_), _)
       | (TextBox, _) => empty
       };
     cursor
@@ -463,9 +474,15 @@ module Selection = {
   /* after an update, the selection follows the program between one
      editor and open cells */
   let follow = (selection: t, after: Model.t): t =>
-    switch (selection, Model.current_program(after)) {
-    | (Stack(_), Some(Whole(_))) => Cell(MainEditor)
-    | (Cell(MainEditor), Some(Divided(_))) => Stack(MainEditor)
+    switch (selection, Model.current_code(after)) {
+    | (Stack(_), Some({program: Whole(_), _})) => Cell(MainEditor)
+    | (Cell(MainEditor), Some({program: Divided(_), _})) =>
+      Stack(MainEditor)
+    /* the map left with the lens */
+    | (LensMap(_), Some({lens: None, program: Whole(_), _})) =>
+      Cell(MainEditor)
+    | (LensMap(_), Some({lens: None, program: Divided(_), _})) =>
+      Stack(MainEditor)
     | _ => selection
     };
 
@@ -957,15 +974,32 @@ module View = {
             div(~attrs=[Attr.classes(["stack-slack"])], []),
           ];
         };
+        /* Stacked: the map the request sent, above its cells */
+        let map = (l: AgentLens.t) =>
+          AgentLensView.map_panel(
+            ~globals,
+            ~go=a => inject(Workspace(a)),
+            ~signal=
+              fun
+              | MakeActive(s) => signal(MakeActive(LensMap(s))),
+            ~selected=
+              switch (selected) {
+              | Some(Selection.LensMap(s)) => Some(s)
+              | _ => None
+              },
+            l,
+          );
         switch (program, lens) {
         | (_, Some({mode: Sent, _} as l)) =>
           banner @ [AgentLensView.sent(l)]
         | (_, Some({mode: Trajectory | Window, _} as l)) =>
           banner @ [AgentLensView.trajectory(l)]
         /* a request with nothing open */
-        | (Whole(_), Some(_)) => banner @ [AgentLensView.nothing_open]
+        | (Whole(_), Some(l)) =>
+          banner @ [map(l), AgentLensView.nothing_open]
         | (Divided(d), _) =>
           banner
+          @ (Option.map(map, lens) |> Option.to_list)
           @ (SlideContent.get_content(current.name) |> Option.to_list)
           @ stack_views(d)
         | (Whole(editor), None) =>
