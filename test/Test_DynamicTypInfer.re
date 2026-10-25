@@ -170,7 +170,7 @@ in f(1)|},
     /* Defensive parenthesization brackets the sum body of a rec: it shares
        low precedence with the `->` trailing delimiter (see the settings notes
        in Test_ExpToSegment). Non-recursive sums above stay unparenthesized. */
-    Some("rec T -> (+ Leaf(Int) + Node((T, T)))"),
+    Some("rec T -> (+ Leaf(Int) + Node(T, T))"),
   ),
   dynamic_typ_test(
     "User-defined type alias in context",

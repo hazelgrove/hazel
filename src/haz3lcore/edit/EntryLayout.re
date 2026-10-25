@@ -470,10 +470,21 @@ type origin = {offset: int};
 /* a gap of whitespace holds a linebreak */
 let has_lb = (gap: Segment.t): bool => List.exists(Piece.is_linebreak, gap);
 
+/* a line of its own at [indent] */
+let lead = (indent: int): Segment.t => [
+  linebreak(),
+  ...List.init(max(0, indent), _ => space()),
+];
+
+/* the gap before a head's `in` (at [indent]), after its definition
+   [def]: house style puts it on a line of its own after a definition
+   spanning lines, else ends the definition's line */
+let in_gap = (~indent: int, def: Segment.t): Segment.t =>
+  spans_lines(def) ? lead(indent) : [space()];
+
 /* entry [ps]'s heads in let-chain form, each `in` laid out by house
-   style: after a definition spanning lines on a line of its own at
-   [indent], else ending the definition's line. A module's braces keep
-   theirs (`} in`). Every entry that takes an `in` goes through here */
+   style (in_gap). A module's braces keep theirs (`} in`). Every entry
+   that takes an `in` goes through here */
 let lay_in = (~indent: int, ps: Segment.t): Segment.t =>
   List.map(
     (p: Piece.t) =>
@@ -487,17 +498,7 @@ let lay_in = (~indent: int, ps: Segment.t): Segment.t =>
             ? p
             : Tile({
                 ...t,
-                children:
-                  init
-                  @ [
-                    pre
-                    @ core
-                    @ (
-                      alone
-                        ? [linebreak(), ...List.init(indent, _ => space())]
-                        : [space()]
-                    ),
-                  ],
+                children: init @ [pre @ core @ in_gap(~indent, pre @ core)],
               });
         | _ => p
         }
@@ -505,6 +506,53 @@ let lay_in = (~indent: int, ps: Segment.t): Segment.t =>
       },
     ps,
   );
+
+/* new code [core] as the definition of a head on a line at [indent],
+   between the gaps it lands in: [pre] past the `=`, [suf] up to the
+   `in` (when [in_]), `;` or the block's end. House style puts code
+   spanning lines on lines of its own one level in (a function's `fun`
+   heads staying on the head's line), else on the head's line, then
+   lays out the `in` (in_gap). A gap holding a comment stays, the
+   code's lines then at [at], where the comment leaves them */
+let lay_def = (~indent: int, ~at: int, ~in_: bool, pre, core, suf): Segment.t => {
+  let ws = List.for_all(Nav.is_edge_ws);
+  let (pre, core) =
+    if (!ws(pre)) {
+      (pre, shift_by(at, core));
+    } else if (spans_lines(core)) {
+      /* its `fun` heads, the gap after them, and the code past them */
+      let arr = Array.of_list(core);
+      let n = Array.length(arr);
+      let rec run = (i, h) =>
+        if (i < n && S.is_fun_head(arr[i])) {
+          run(i + 1, i + 1);
+        } else if (i < n && Nav.is_edge_ws(arr[i])) {
+          run(i + 1, h);
+        } else {
+          (h, i);
+        };
+      let (h, r) = run(0, 0);
+      let gap = ListUtil.slice(h, r - h, core);
+      let rest = ListUtil.remove_first_n(r, core);
+      /* the column the code past them was written at */
+      let col =
+        List.exists(Piece.is_linebreak, gap)
+          ? List.fold_left(
+              (c, p) => Piece.is_linebreak(p) ? 0 : c + 1,
+              0,
+              gap,
+            )
+          : 0;
+      let code = shift_by(indent + 2 - col, rest);
+      h == 0
+        ? (lead(indent + 2), code)
+        : ([space()], ListUtil.truncate(h, core) @ lead(indent + 2) @ code);
+    } else {
+      ([space()], core);
+    };
+  let suf = in_ && ws(suf) ? in_gap(~indent, pre @ core) : suf;
+  pre @ unfused(pre, core, suf) @ suf;
+};
 
 /* ---- house style: the lines between entries ----
 
@@ -1120,10 +1168,6 @@ let body_last =
         | Moved(origin, src_indent) =>
           let r = b.sl[g];
           let head = item_indent(b, g);
-          let lead = ind => [
-            linebreak(),
-            ...List.init(max(0, ind), _ => space()),
-          ];
           let ind = head + 2 + origin.offset;
           Some(
             ListUtil.truncate(ws_back(b, r.lo), b.seg)

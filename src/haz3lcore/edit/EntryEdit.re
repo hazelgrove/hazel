@@ -533,6 +533,56 @@ let node = (~root: Sort.t, id: Id.t, seg: Segment.t): node => {
   };
 };
 
+/* the head whose whole definition node [n] is, comments aside, and
+   the gaps around it in [n.level]: from [a] (past the head's `=`) to
+   [b] (its `in`, `;` or the level's end) */
+type def_gaps = {
+  head: Id.t,
+  a: int,
+  b: int,
+  in_: bool,
+};
+
+let def_gaps = (n: node): option(def_gaps) => {
+  let arr = Array.of_list(n.level);
+  let len = Array.length(arr);
+  let rec back = i =>
+    i > 0 && Piece.is_secondary(arr[i - 1]) ? back(i - 1) : i;
+  let rec on = i => i < len && Piece.is_secondary(arr[i]) ? on(i + 1) : i;
+  let (a, b) = (back(n.lo), on(n.hi + 1));
+  switch (ListUtil.last_opt(n.up)) {
+  | Some({from: Kid(t, c), _})
+      when
+        Nav.is_def_head(t)
+        && Tile.ends_with_in(t)
+        && c == List.length(t.children)
+        - 1 =>
+    a == 0 && b == len
+      ? Some({
+          head: t.id,
+          a,
+          b,
+          in_: true,
+        })
+      : None
+  | _ =>
+    switch (a > 0 ? Some(arr[a - 1]) : None) {
+    | Some(Tile(t))
+        when
+          Nav.is_def_head(t)
+          && !Tile.ends_with_in(t)
+          && (b == len || Piece.is_semi(arr[b])) =>
+      Some({
+        head: t.id,
+        a,
+        b,
+        in_: false,
+      })
+    | _ => None
+    }
+  };
+};
+
 let node_pieces = (n: node): Segment.t =>
   ListUtil.slice(n.lo, n.hi + 1 - n.lo, n.level);
 
@@ -1262,11 +1312,33 @@ let replace = (c: ctx, op, x: Id.t, src: source, seg: Segment.t): list(step) =>
       | [p, ..._] when ItemSpans.is_comment(p) => doc_start(n.level, n.lo)
       | _ => n.lo
       };
-    let (pre, post) = (
-      ListUtil.truncate(lo, n.level),
-      ListUtil.remove_first_n(n.hi + 1, n.level),
-    );
-    let level = pre @ L.unfused(pre, L.shift_by(indent, ps), post) @ post;
+    let slice = (i, j) => ListUtil.slice(i, j - i, n.level);
+    let level =
+      switch (def_gaps(n)) {
+      /* a definition's code, laid out as one */
+      | Some(g) when !L.module_def(ps) =>
+        let head =
+          Option.value(
+            Nav.line_indent(~root=c.root, g.head, seg),
+            ~default=0,
+          );
+        slice(0, g.a)
+        @ L.lay_def(
+            ~indent=head,
+            ~at=indent,
+            ~in_=g.in_,
+            slice(g.a, lo),
+            ps,
+            slice(n.hi + 1, g.b),
+          )
+        @ ListUtil.remove_first_n(g.b, n.level);
+      | _ =>
+        let (pre, post) = (
+          ListUtil.truncate(lo, n.level),
+          ListUtil.remove_first_n(n.hi + 1, n.level),
+        );
+        pre @ L.unfused(pre, L.shift_by(indent, ps), post) @ post;
+      };
     let made = Option.value(root_id(ps), ~default=x);
     [
       done_(
