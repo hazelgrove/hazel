@@ -960,7 +960,7 @@ module View = {
         switch (program, lens) {
         | (_, Some({mode: Sent, _} as l)) =>
           banner @ [AgentLensView.sent(l)]
-        | (_, Some({mode: Trajectory, _} as l)) =>
+        | (_, Some({mode: Trajectory | Window, _} as l)) =>
           banner @ [AgentLensView.trajectory(l)]
         /* a request with nothing open */
         | (Whole(_), Some(_)) => banner @ [AgentLensView.nothing_open]

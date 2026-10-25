@@ -3297,7 +3297,13 @@
   margin: 0;
 }
 
-/* shown for reading, not in this request: dimmed */
+/* shown for reading, not in this request: on a tint, its line dimmed */
+#main .traj-sections > .traj-elsewhere {
+  margin: 0 -0.5em;
+  padding: 0 0.5em;
+  background-color: color-mix(in srgb, var(--surface-shard) 16%, transparent);
+}
+
 #main .traj-elsewhere > .traj-summary {
   opacity: 0.55;
 }

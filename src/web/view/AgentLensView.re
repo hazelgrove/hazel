@@ -117,12 +117,20 @@ let banner =
         @ (enabled ? [] : [Attr.disabled]),
       [text(label)],
     );
+  let trajectory = l.mode == Trajectory || l.mode == Window;
   let segment = (mode: AgentLens.mode, label, title) =>
     Node.button(
       ~attrs=[
-        Attr.classes(["lens-segment", ...l.mode == mode ? ["active"] : []]),
+        Attr.classes([
+          "lens-segment",
+          ...l.mode == mode || mode == Trajectory && trajectory
+               ? ["active"] : [],
+        ]),
         Attr.title(title),
-        Attr.on_click(_ => go(LensMode(mode))),
+        /* Trajectory, chosen again, keeps its exact-window toggle */
+        Attr.on_click(_ =>
+          go(LensMode(mode == Trajectory && trajectory ? l.mode : mode))
+        ),
       ],
       [text(label)],
     );
@@ -172,6 +180,24 @@ let banner =
               ),
             ],
           ),
+        ]
+        @ (
+          trajectory
+            ? [
+              button(
+                ~cls=l.mode == Window ? ["on"] : [],
+                ~title=
+                  Printf.sprintf(
+                    "The model's window for request %d: exactly the messages its body carried",
+                    l.seq,
+                  ),
+                "Exact window",
+                go(LensMode(l.mode == Window ? Trajectory : Window)),
+              ),
+            ]
+            : []
+        )
+        @ [
           button(
             ~title="The request before",
             ~enabled=l.seq > 1,
@@ -332,10 +358,15 @@ let trajectory = (l: AgentLens.t): Node.t =>
         panel_head(
           [
             text(
-              Printf.sprintf(
-                {js|Sent over the API up to request %d · this request |js},
-                t.seq,
-              ),
+              l.mode == Window
+                ? Printf.sprintf(
+                    {js|The model's window for request %d · |js},
+                    t.seq,
+                  )
+                : Printf.sprintf(
+                    {js|Sent over the API up to request %d · this request |js},
+                    t.seq,
+                  ),
             ),
             size(t.body),
           ],
@@ -354,7 +385,11 @@ let trajectory = (l: AgentLens.t): Node.t =>
         div(
           ~attrs=[Attr.classes(["lens-panel-note"])],
           [
-            text("A request carries every message and only its own context."),
+            text(
+              l.mode == Window
+                ? "Exactly this request's body: its messages in order, its own context last."
+                : "A request carries every message and only its own context.",
+            ),
           ],
         ),
         div(

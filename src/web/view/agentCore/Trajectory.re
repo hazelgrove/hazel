@@ -367,6 +367,60 @@ let head_sections = (seq: int, body: API.Json.t): list(section) => {
   ];
 };
 
+/* the system prompt, the tools and the request's fields, then the rest */
+let assemble = (seq: int, body: API.Json.t, messages: list(section)): t => {
+  seq,
+  body: API.Json.to_string(body),
+  sections:
+    switch (messages) {
+    | [{kind: System, _} as prompt, ...rest] =>
+      [prompt, ...head_sections(seq, body)] @ rest
+    | _ => head_sections(seq, body) @ messages
+    },
+};
+
+/* a message with no transcript message to name it: by its role */
+let role_section = (json: API.Json.t): section => {
+  let role = string_field("role", json);
+  section(
+    switch (role) {
+    | "user" => User
+    | "assistant" => Assistant
+    | "tool" => Result
+    | _ => System
+    },
+    "Message · " ++ role,
+    content(json),
+    json,
+  );
+};
+
+/* request [seq]'s window: exactly the messages its body carried, in
+   order, each section's JSON the body's own; its context last */
+let window = (chat: Chat.Model.t, seq: int): option(t) =>
+  Option.bind(List.find_opt((r: SentView.t) => r.seq == seq, chat.sent), r =>
+    Option.map(
+      ((body, parts)) => {
+        let last = List.length(parts) - 1;
+        assemble(
+          seq,
+          body,
+          List.mapi(
+            (i, (m: option(Message.Model.t), json)) =>
+              switch (m) {
+              | Some(m) => message_section(m, json, ~until=None)
+              | None when i == last =>
+                context_section(~selected=true, seq, json)
+              | None => role_section(json)
+              },
+            parts,
+          ),
+        );
+      },
+      rebuild(chat, r),
+    )
+  );
+
 /* request [seq]'s trajectory: the branch it was sent on, each message as
    the latest request on it up to [seq] sent it (one compacted away later
    still shows), and each request's context after the message it followed */
@@ -442,17 +496,7 @@ let build = (chat: Chat.Model.t, seq: int): option(t) => {
               ),
           path,
         );
-      Some({
-        seq,
-        body: API.Json.to_string(body),
-        /* the system prompt, the tools, then the rest */
-        sections:
-          switch (messages) {
-          | [{kind: System, _} as prompt, ...rest] =>
-            [prompt, ...head_sections(seq, body)] @ rest
-          | _ => head_sections(seq, body) @ messages
-          },
-      });
+      Some(assemble(seq, body, messages));
     | _ => None
     }
   };
