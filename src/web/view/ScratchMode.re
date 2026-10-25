@@ -521,69 +521,6 @@ module View = {
   let stack_cache_lookup = (id: Haz3lcore.Id.t): option(cached_cell) =>
     List.assoc_opt(id, stack_cache^);
 
-  /* View as agent's banner: which request, stepping through them, live,
-     and the way back */
-  let lens_banner = (~inject: Update.t => 'a, l: AgentLens.t): Node.t => {
-    let go = a => inject(Workspace(AgentAction(a)));
-    let button = (~cls=[], ~title, ~enabled=true, label, a) =>
-      button(
-        ~attrs=
-          [
-            Attr.classes(["lens-button", ...cls]),
-            Attr.title(title),
-            Attr.on_click(_ => go(a)),
-          ]
-          @ (enabled ? [] : [Attr.disabled]),
-        [text(label)],
-      );
-    div(
-      ~attrs=[Attr.classes(["agent-lens-banner"])],
-      [
-        span(
-          ~attrs=[Attr.classes(["lens-title"])],
-          [text("Viewing as the agent")],
-        ),
-        span(
-          ~attrs=[Attr.classes(["lens-which"])],
-          [
-            text(
-              Printf.sprintf(
-                "request %d of %d%s",
-                l.seq,
-                l.count,
-                l.live ? {js| · live|js} : "",
-              ),
-            ),
-          ],
-        ),
-        button(
-          ~title="The request before",
-          ~enabled=l.seq > 1,
-          {js|‹|js},
-          ViewAsAgent(l.chat, Some(l.seq - 1)),
-        ),
-        button(
-          ~title="The request after",
-          ~enabled=l.seq < l.count,
-          {js|›|js},
-          ViewAsAgent(l.chat, Some(l.seq + 1)),
-        ),
-        button(
-          ~cls=l.live ? ["on"] : [],
-          ~title="Follow each new request",
-          "Live",
-          ViewAsAgent(l.chat, l.live ? Some(l.seq) : None),
-        ),
-        button(
-          ~cls=["leave"],
-          ~title="Back to your own view",
-          "Leave",
-          LeaveAgentView,
-        ),
-      ],
-    );
-  };
-
   let view =
       (
         ~globals,
@@ -638,7 +575,9 @@ module View = {
           };
         let banner =
           switch (lens) {
-          | Some(l) => [lens_banner(~inject, l)]
+          | Some(l) => [
+              AgentLensView.banner(~go=a => inject(Workspace(a)), l),
+            ]
           | None => []
           };
         let stack_views = (d: Divided.t) => {
@@ -1018,29 +957,18 @@ module View = {
             div(~attrs=[Attr.classes(["stack-slack"])], []),
           ];
         };
-        switch (program) {
-        /* a request with nothing open: its map */
-        | Whole(_) when Option.is_some(lens) =>
-          banner
-          @ [
-            div(
-              ~attrs=[Attr.classes(["agent-lens-map"])],
-              [
-                text(
-                  Option.fold(
-                    ~none="",
-                    ~some=(l: AgentLens.t) => l.map,
-                    lens,
-                  ),
-                ),
-              ],
-            ),
-          ]
-        | Divided(d) =>
+        switch (program, lens) {
+        | (_, Some({mode: Sent, _} as l)) =>
+          banner @ [AgentLensView.sent(l)]
+        | (_, Some({mode: Trajectory, _} as l)) =>
+          banner @ [AgentLensView.trajectory(l)]
+        /* a request with nothing open */
+        | (Whole(_), Some(_)) => banner @ [AgentLensView.nothing_open]
+        | (Divided(d), _) =>
           banner
           @ (SlideContent.get_content(current.name) |> Option.to_list)
           @ stack_views(d)
-        | Whole(editor) =>
+        | (Whole(editor), None) =>
           banner
           @ (SlideContent.get_content(current.name) |> Option.to_list)
           @ [

@@ -3,7 +3,9 @@ open Haz3lcore;
 
 /* What each request showed the agent: the context message exactly as
    sent, the open set, and the program it was made from (probes are in
-   its text), so a past turn can be viewed as the agent saw it. */
+   its text), so a past turn can be viewed as the agent saw it; and what
+   its payload was made from besides the transcript, so the payload can
+   be rebuilt (Trajectory). */
 
 /* the program a request was made from: its text, or the text another
    record or a tool result already holds */
@@ -26,6 +28,16 @@ type basis = {
   b_probes: int,
 };
 
+/* the payload's inputs besides the messages: the tools are those the
+   mode allows less the disabled */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type request = {
+  model_id: string,
+  reasoning: option(OpenRouter.Payload.Model.reasoning),
+  mode: AgentGlobals.Model.session_mode,
+  disabled_tools: list(string),
+};
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   seq: int,
@@ -38,6 +50,23 @@ type t = {
   root: Sort.t,
   program,
   probes: int,
+  /* None: recorded before payloads were rebuildable */
+  [@yojson.default None] [@sexp.default None]
+  request: option(request),
+};
+
+/* the agentEditorView a context carries, byte for byte */
+let editor_view = (view: string): string => {
+  let opening = "<agentEditorView>\n```\n";
+  switch (StringUtil.plain_search(opening, view, 0)) {
+  | i when i >= 0 =>
+    let j = i + String.length(opening);
+    switch (StringUtil.plain_search("\n```\n</agentEditorView>", view, j)) {
+    | k when k >= 0 => String.sub(view, j, k - j)
+    | _ => String.sub(view, j, String.length(view) - j)
+    };
+  | _ => view
+  };
 };
 
 /* the program's text, as the editor's lossless format */

@@ -1,10 +1,21 @@
 open Haz3lcore;
 open Util;
 
-/* View as agent: the main editor shows a request's view, read-only: that
-   request's program, exactly the agent's open entries as cells, the
-   outline folded to its map. The user's program, view and folds stay as
-   they are; leaving drops this. Live, it follows each new request. */
+/* View as agent: the main editor shows a request's view, read-only.
+   Stacked: that request's program, exactly the agent's open entries as
+   cells, the outline folded to its map. Sent: the view's text as sent.
+   Trajectory: everything sent over the API up to it. The user's program,
+   view and folds stay as they are; leaving drops this. Live, it follows
+   each new request. */
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type mode =
+  | Stacked
+  | Sent
+  | Trajectory;
+
+/* the mode last chosen, for the session */
+let last_mode = ref(Stacked);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
@@ -16,28 +27,36 @@ type t = {
   program: Program.t,
   view: SlideView.t,
   folds: OutlineTree.folds,
-  /* the request's map, shown when it had nothing open */
-  map: string,
+  mode,
+  /* the request's agentEditorView, as sent */
+  sent: string,
+  /* its map's summary: errors, tests */
+  summary: string,
+  /* in Trajectory mode */
+  trajectory: option(Trajectory.t),
 };
 
-/* the map in a context as sent: its view up to the open entries */
-let map_of_view = (view: string): string => {
-  let after = (s, mark) =>
-    switch (StringUtil.plain_search(mark, s, 0)) {
-    | i when i >= 0 =>
-      let j = i + String.length(mark);
-      String.sub(s, j, String.length(s) - j);
-    | _ => s
+/* the summary on a view's first line, after the map's name */
+let summary_of_view = (view: string): string => {
+  let first =
+    switch (String.index_opt(view, '\n')) {
+    | Some(i) => String.sub(view, 0, i)
+    | None => view
     };
-  let before = (s, mark) =>
-    switch (StringUtil.plain_search(mark, s, 0)) {
-    | i when i >= 0 => String.sub(s, 0, i)
-    | _ => s
-    };
-  before(
-    before(after(view, "<agentEditorView>\n```\n"), "\n```"),
-    "\n\n" ++ CompositionView.marker ++ " open: ",
-  );
+  let opening = CompositionView.marker ++ " ";
+  let inner =
+    String.starts_with(~prefix=opening, first)
+    && String.ends_with(~suffix=" #", first)
+      ? String.sub(
+          first,
+          String.length(opening),
+          String.length(first) - String.length(opening) - 2,
+        )
+      : "";
+  switch (StringUtil.plain_split(inner, {js| · |js})) {
+  | [_name, ...parts] => String.concat({js| · |js}, parts)
+  | [] => ""
+  };
 };
 
 /* the outline folded as the map shows the program: modules open
@@ -66,6 +85,18 @@ let record = (chat: Chat.Model.t, seq: option(int)): option(SentView.t) =>
   | Some(k) => List.find_opt((r: SentView.t) => r.seq == k, chat.sent)
   | None => ListUtil.last_opt(chat.sent)
   };
+
+/* [l] in [mode], its trajectory built when shown */
+let with_mode = (chat: Chat.Model.t, mode: mode, l: t): t => {
+  ...l,
+  mode,
+  trajectory:
+    switch (mode, l.trajectory) {
+    | (Trajectory, Some(_)) => l.trajectory
+    | (Trajectory, None) => Trajectory.build(chat, l.seq)
+    | (Stacked | Sent, _) => None
+    },
+};
 
 let build =
     (
@@ -116,16 +147,24 @@ let build =
             view,
             Whole(editor),
           );
-        {
-          chat: chat.id,
-          seq: r.seq,
-          live,
-          count: List.length(chat.sent),
-          program,
-          view,
-          folds: map_folds(~module_depth, outline),
-          map: map_of_view(r.view),
-        };
+        let sent = SentView.editor_view(r.view);
+        with_mode(
+          chat,
+          last_mode^,
+          {
+            chat: chat.id,
+            seq: r.seq,
+            live,
+            count: List.length(chat.sent),
+            program,
+            view,
+            folds: map_folds(~module_depth, outline),
+            mode: Stacked,
+            sent,
+            summary: summary_of_view(sent),
+            trajectory: None,
+          },
+        );
       },
       Chat.Utils.sent_text(chat, r),
     )

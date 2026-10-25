@@ -128,7 +128,9 @@ let map_fib_example = {
   program: fib ++ "\nin\n" ++ fib_tests ++ ";\n\nfib(10)",
   start:
     Some(
-      {|#› map · no errors · tests: 2 of 2 pass #
+      "#› program map · no errors · 2 of 2 tests pass #\n"
+      ++ CompositionView.legend
+      ++ {|
 let fib(n: Int): Int = ⋯ in  #› 7 uses #
 hint "base cases" test ⋯ end;  #› ✓ #
 hint "recursive cases" test ⋯ end;  #› ✓ #
@@ -157,7 +159,9 @@ fib(10)  #› ⇒ 55 #|},
       ],
       sees:
         Some((
-          {|#› map · no errors · tests: 4 of 4 pass #
+          "#› program map · no errors · 4 of 4 tests pass #\n"
+          ++ CompositionView.legend
+          ++ {|
 let fib(n: Int): Int = ⋯ in  #› 7 uses #
 hint "base cases" test ⋯ end;  #› ✓ #
 hint "recursive cases" test ⋯ end;  #› ✓ #
