@@ -1321,6 +1321,151 @@ in
   ),
 ];
 
+let endings = [
+  test_case(
+    "a trailing expression fills the program's empty result",
+    `Quick,
+    () => {
+      let (program, results) =
+        reply(
+          "?",
+          [
+            (
+              "insert",
+              [
+                ("first_in", "/"),
+                (
+                  "code",
+                  "let celsius = 0 in\nlet f(c: Int): Int = 32 + 9 * c / 5 in\nf(celsius)",
+                ),
+              ],
+            ),
+          ],
+        );
+      check(
+        string,
+        "program",
+        "let celsius = 0 in\n\nlet f(c: Int): Int = 32 + 9 * c / 5 in\n\nf(celsius)",
+        program,
+      );
+      mentions(
+        "its result",
+        "Added celsius, f. The last line became the result (`=>`).",
+        List.hd(results).content,
+      );
+      let (program, _) =
+        reply(
+          "let a = 1 in\n?",
+          [
+            ("insert", [("last_in", "/"), ("code", "let b = a in\nb + 1")]),
+          ],
+        );
+      check(
+        string,
+        "last in",
+        "let a = 1 in\n\nlet b = a in\n\nb + 1",
+        program,
+      );
+      let (program, _) =
+        reply(
+          "?",
+          [("insert", [("first_in", "/"), ("code", "test 1 == 1 end")])],
+        );
+      check(string, "a test stays a test", "test 1 == 1 end;\n\n?", program);
+    },
+  ),
+  test_case(
+    "a trailing expression fills a block's empty result",
+    `Quick,
+    () => {
+      let (program, results) =
+        reply(
+          "let f(x: Int): Int = ? in f(1)",
+          [("insert", [("last_in", "f"), ("code", "x + 1")])],
+        );
+      same_text("program", "let f(x: Int): Int = x + 1 in f(1)", program);
+      mentions(
+        "its result",
+        "The code became the result (`f:definition`).",
+        List.hd(results).content,
+      );
+      let (program, results) =
+        reply(
+          "let f(x: Int): Int = ? in f(1)",
+          [
+            (
+              "insert",
+              [("last_in", "f"), ("code", "let y = x + 1 in\ny * 2")],
+            ),
+          ],
+        );
+      same_text(
+        "program",
+        "let f(x: Int): Int = let y = x + 1 in y * 2 in f(1)",
+        program,
+      );
+      mentions(
+        "its result",
+        "Added f/y. The last line became the result (`f/=>`).",
+        List.hd(results).content,
+      );
+    },
+  ),
+  test_case(
+    "a trailing expression beside a real result is a statement, said plainly",
+    `Quick,
+    () => {
+      let (program, results) =
+        reply(
+          "let a = 1 in a",
+          [("insert", [("after", "a"), ("code", "let b = 2 in\nb + 1")])],
+        );
+      mentions("program", "b + 1;", program);
+      mentions(
+        "its result",
+        "Added b, stmt#1. The last line became a statement (stmt#1); to change the result, replace `=>`.",
+        List.hd(results).content,
+      );
+      let (_, results) =
+        reply(
+          "let f(x: Int): Int =\n  x\nin\nf(1)",
+          [
+            (
+              "insert",
+              [("last_in", "f"), ("code", "let y = x + 1 in\ny * 2")],
+            ),
+          ],
+        );
+      mentions(
+        "inside a block",
+        "(f/stmt#1); to change the result, replace `f/=>`.",
+        List.hd(results).content,
+      );
+    },
+  ),
+  test_case(
+    "a path written as code is told what a path is",
+    `Quick,
+    () => {
+      let hint = "A path names an entry; an unnamed test is `test#k` (its path is shown on its line in the map).";
+      let code = "let a = 1 in\ntest a == 1 end;\na";
+      let first = calls => List.hd(snd(reply(code, calls))).content;
+      mentions("a call", hint, first([("delete", [("target", "a(1)")])]));
+      mentions(
+        "a test's code",
+        hint,
+        first([("delete", [("target", "test a == 1 end")])]),
+      );
+      check(
+        bool,
+        "not for a plain name",
+        false,
+        has(hint, first([("delete", [("target", "nope")])])),
+      );
+    },
+  ),
+];
+
 let tests = [
   ("AgentReply.PromptExamples", prompt_examples),
   ("AgentReply.Transactions", transactions),
@@ -1332,4 +1477,5 @@ let tests = [
   ("AgentReply.TestsByHint", tests_by_hint),
   ("AgentReply.Move", moves),
   ("AgentReply.Repro", repro),
+  ("AgentReply.Endings", endings),
 ];

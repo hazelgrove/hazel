@@ -200,6 +200,13 @@ type what =
   /* where to, as the call put it */
   | Moved(string);
 
+/* an insert's code ending in a bare expression, by its block's result:
+   the expression filled it (an empty hole), or went in beside it as a
+   statement */
+type ending =
+  | Filled
+  | Beside(Id.t);
+
 type plan = {
   ops: list(K.op),
   /* the entry the call names, by its anchor before the call */
@@ -213,6 +220,7 @@ type plan = {
   rebinds: option((list((string, Id.t)), list((Id.t, Id.t)))),
   /* a whole-entry replace kept the entry's doc comment */
   kept_comment: bool,
+  ending: option(ending),
 };
 
 let plan = (~target=?, what, ops) => {
@@ -223,6 +231,7 @@ let plan = (~target=?, what, ops) => {
   renames: [],
   rebinds: None,
   kept_comment: false,
+  ending: None,
 };
 
 /* entries elsewhere named [el]: what a path missing its outer names
@@ -245,6 +254,31 @@ let elsewhere = (p: program, el: string): string =>
 
 let path_string = (~root, seg: Segment.t, id: Id.t): option(string) =>
   Option.map(P.to_string, P.describe(~root, seg, id));
+
+/* [msg] for [path] written as code, `f(x)` or `test f(x) end` (a paren
+   or a space outside its hints' quotes), with what a path is */
+let code_hint = (path: string, msg: string): string => {
+  let path = String.trim(path);
+  let rec go = (i, quoted) =>
+    i < String.length(path)
+    && (
+      switch (path.[i]) {
+      | '"' => go(i + 1, !quoted)
+      | '('
+      | ' ' when !quoted => true
+      | _ => go(i + 1, quoted)
+      }
+    );
+  go(0, false)
+    ? msg
+      ++ (
+        String.ends_with(~suffix=".", msg)
+        || String.ends_with(~suffix="?", msg)
+          ? " " : ". "
+      )
+      ++ "A path names an entry; an unnamed test is `test#k` (its path is shown on its line in the map)."
+    : msg;
+};
 
 /* the entry [path] names; a part only where [~parts] */
 let resolve =
@@ -270,8 +304,8 @@ let resolve =
     )
   | Ok(f) => Ok(f)
   | Error(Unknown(_, el, _) as e) =>
-    Error(P.message(e) ++ elsewhere(p, el))
-  | Error(e) => Error(P.message(e))
+    Error(code_hint(path, P.message(e) ++ elsewhere(p, el)))
+  | Error(e) => Error(code_hint(path, P.message(e)))
   };
 
 let level_of = (f: P.found): (S.level, int) => ListUtil.last(f.steps);
@@ -551,6 +585,138 @@ let bound_in =
   };
 };
 
+let is_hole = (ps: Segment.t): bool =>
+  switch (P.content(ps)) {
+  | [Grout(_)] => true
+  | [Tile(t)] => Tile.is_explicit_hole(t)
+  | _ => false
+  };
+
+/* the result of the block [place] lands in: its first piece, and whether
+   it is an empty hole. A body that is one expression has no level of its
+   own: that expression. A module's members have none */
+let result_at = (p: program, place: K.place): option((Id.t, bool)) => {
+  let found = id =>
+    Option.map(ListUtil.last, P.find(~root=p.root, p.seg, id));
+  let of_level = (lv: S.level) =>
+    Option.map(
+      t => (lv.spans[t].anchor, is_hole(S.core(lv, t))),
+      tail_index(lv),
+    );
+  switch (place) {
+  | FirstIn(Top)
+  | LastIn(Top) => of_level(S.top(~root=p.root, p.seg))
+  | Before(id)
+  | After(id) => Option.bind(found(id), ((lv, _)) => of_level(lv))
+  | FirstIn(Body(d))
+  | LastIn(Body(d)) =>
+    switch (Option.bind(found(d), ((lv, k)) => P.sub(lv, k))) {
+    | Some(lv) => of_level(lv)
+    | None =>
+      Option.bind(K.part(~root=p.root, d, Body, p.seg), id =>
+        switch (pieces_at(~root=p.root, p.seg, id)) {
+        | [] => None
+        | ps => Some((id, is_hole(ps)))
+        }
+      )
+    }
+  | FirstIn(Members(_))
+  | LastIn(Members(_)) => None
+  };
+};
+
+/* code ending in a bare expression, without a `;`: the text of the
+   entries before it ("" if none) and of the expression; not a test */
+let trailing_expression = (code: string): option((string, string)) => {
+  let code = String.trim(code);
+  switch (String.ends_with(~suffix=";", code) ? None : L.parse(code)) {
+  | None => None
+  | Some(seg) =>
+    let lv = S.top(~root=Exp, seg);
+    switch (tail_index(lv)) {
+    | Some(k) =>
+      let (c0, c1) = lv.spans[k].core;
+      let core = S.core(lv, k);
+      let text = ps => String.trim(Printer.of_segment(~holes="?", ps));
+      P.content(core) == []
+      || is_hole(core)
+      || P.test_of(lv, c0, c1) != None
+        ? None
+        : Some((
+            text(Array.to_list(Array.sub(lv.pieces, 0, lv.spans[k].lo))),
+            text(S.slice(lv, k)),
+          ));
+    | None => None
+    };
+  };
+};
+
+/* `X:definition` code starting `let X` again (`type`, `module`): the
+   part is what follows `=` */
+let repeats_binder =
+    (p: program, f: P.found, code: string): result(unit, string) => {
+  let word =
+    switch (f.part, f.kind) {
+    | (Some(Definition), Def) => Some("let")
+    | (Some(Definition), Type) => Some("type")
+    | (Some(Definition), Module) => Some("module")
+    | _ => None
+    };
+  let words =
+    String.map(c => c == '\n' || c == '\t' ? ' ' : c, code)
+    |> String.split_on_char(' ')
+    |> List.filter(w => w != "");
+  /* a word's leading name: `joined` of `joined:` */
+  let name_of = w => {
+    let named = c =>
+      'a' <= c
+      && c <= 'z'
+      || 'A' <= c
+      && c <= 'Z'
+      || '0' <= c
+      && c <= '9'
+      || c == '_'
+      || c == '\'';
+    let n = String.length(w);
+    let rec go = i => i < n && named(w.[i]) ? go(i + 1) : i;
+    String.sub(w, 0, go(0));
+  };
+  let (lv, k) = level_of(f);
+  switch (word, words) {
+  | (Some(word), [w, x, ..._])
+      when w == word && List.mem_assoc(name_of(x), P.entry(lv, k).binders) =>
+    let path =
+      Option.value(path_string(~root=p.root, p.seg, f.id), ~default="X");
+    let outer =
+      switch (List.rev(f.steps)) {
+      | [_, (olv, ok), ..._] when P.entry(olv, ok).kind == Def =>
+        switch (path_string(~root=p.root, p.seg, olv.spans[ok].anchor)) {
+        | Some(o)
+            when
+              Result.is_ok(P.resolve_string(~root=p.root, p.seg, o ++ "/=>")) =>
+          " To change only "
+          ++ CompositionView.last_elem(o)
+          ++ "'s final expression, replace `"
+          ++ o
+          ++ "/=>`."
+        | _ => ""
+        }
+      | _ => ""
+      };
+    Error(
+      "`"
+      ++ path
+      ++ ":definition` is what follows `=`; your code starts with `"
+      ++ word
+      ++ " "
+      ++ name_of(x)
+      ++ " =` again."
+      ++ outer,
+    );
+  | _ => Ok()
+  };
+};
+
 let plan_call = (p: program, call: call): result(plan, string) => {
   let text = code => K.Text(Unicode.nfc_outside_strings(code));
   switch (call) {
@@ -559,9 +725,28 @@ let plan_call = (p: program, call: call): result(plan, string) => {
     Error({js|`#› … #` comments are added by Hazel; leave them out|js})
   | Insert(place, code) =>
     let* place = place_at(p, place);
-    Ok(plan(Added, [Insert(place, text(code))]));
+    let insert = K.Insert(place, text(code));
+    switch (result_at(p, place), trailing_expression(code)) {
+    | (Some((hole, true)), Some((before, last))) =>
+      let fill = K.Replace(hole, text(last));
+      Ok({
+        ...
+          plan(
+            Added,
+            before == "" ? [fill] : [Insert(place, text(before)), fill],
+          ),
+        ending: Some(Filled),
+      });
+    | (Some((result, false)), Some(_)) =>
+      Ok({
+        ...plan(Added, [insert]),
+        ending: Some(Beside(result)),
+      })
+    | _ => Ok(plan(Added, [insert]))
+    };
   | Replace(path, code) =>
     let* f = resolve(~parts=true, p, path);
+    let* () = repeats_binder(p, f, code);
     let* id =
       switch (f.part) {
       | None => Ok(f.id)
@@ -666,6 +851,18 @@ let code_of = (call: call): option(string) =>
 let where_is = (~root, seg: Segment.t, id: Id.t): option(string) =>
   switch (L.locate(~mod_root=root == Sort.Mod, id, seg)) {
   | Some((b, j, _)) => path_string(~root, seg, b.lv.spans[j].anchor)
+  | None => None
+  };
+
+/* the result holding piece [id], by path: a block's `=>`, or the
+   definition of a value whose body is one expression */
+let result_path = (~root, seg: Segment.t, id: Id.t): option(string) =>
+  switch (L.locate(~mod_root=root == Sort.Mod, id, seg)) {
+  | Some((b, j, _)) =>
+    Option.map(
+      path => P.entry(b.lv, j).kind == Tail ? path : path ++ ":definition",
+      path_string(~root, seg, b.lv.spans[j].anchor),
+    )
   | None => None
   };
 
@@ -830,9 +1027,49 @@ let report = (~root, m: made): string => {
   | _ when m.change.steps == [] => "No change: it was so already."
   | Added =>
     let rows = List.concat_map((s: K.step) => s.added, m.change.steps);
-    switch (added_paths(~root, m.before, after, rows)) {
-    | [] => "Added code."
-    | paths => "Added " ++ String.concat(", ", paths) ++ "."
+    let added = paths =>
+      switch (paths) {
+      | [] => "Added code."
+      | paths => "Added " ++ String.concat(", ", paths) ++ "."
+      };
+    let paths = added_paths(~root, m.before, after, rows);
+    switch (m.plan.ending) {
+    | None => added(paths)
+    | Some(Filled) =>
+      let result =
+        List.concat_map((s: K.step) => s.replaced, m.change.steps)
+        |> ListUtil.last_opt
+        |> Option.map(snd)
+        |> Option.bind(_, result_path(~root, after))
+        |> Option.value(~default="=>");
+      switch (List.filter(p => p != result, paths)) {
+      | [] => "The code became the result (`" ++ result ++ "`)."
+      | paths =>
+        added(paths)
+        ++ " The last line became the result (`"
+        ++ result
+        ++ "`)."
+      };
+    | Some(Beside(result)) =>
+      let stmt =
+        Option.bind(ListUtil.last_opt(rows), row =>
+          switch (P.find(~root, after, row)) {
+          | Some(steps) =>
+            let (lv, k) = ListUtil.last(steps);
+            P.entry(lv, k).kind == Stmt ? now(row) : None;
+          | None => None
+          }
+        );
+      switch (stmt, result_path(~root, after, result)) {
+      | (Some(s), Some(r)) =>
+        added(paths)
+        ++ " The last line became a statement ("
+        ++ s
+        ++ "); to change the result, replace `"
+        ++ r
+        ++ "`."
+      | _ => added(paths)
+      };
     };
   | Replaced(None) =>
     let made =

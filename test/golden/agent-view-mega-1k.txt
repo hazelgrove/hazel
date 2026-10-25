@@ -46,11 +46,11 @@ module GroveNames = {
   let grove_name = fun (path: String) -> ⋯;  #› open below · 3 uses #
 
 
-  test ⋯ end;
+  test ⋯ end;  #› GroveNames/test#1 #
 
-  test ⋯ end;
+  test ⋯ end;  #› GroveNames/test#2 #
 
-  test ⋯ end;
+  test ⋯ end;  #› GroveNames/test#3 #
 
     let selfcheck : () -> Bool = fun _ -> ⋯  #› 2 uses #
 } in
@@ -78,13 +78,13 @@ module RunningSums = {
   let running_sum = fun (nums: [Int]) -> ⋯;  #› 4 uses #
 
 
-  test ⋯ end;
+  test ⋯ end;  #› RunningSums/test#1 #
 
-  test ⋯ end;
+  test ⋯ end;  #› RunningSums/test#2 #
 
-  test ⋯ end;
+  test ⋯ end;  #› RunningSums/test#3 #
 
-  test ⋯ end;
+  test ⋯ end;  #› RunningSums/test#4 #
 
     let selfcheck : () -> Bool = fun _ -> ⋯  #› 2 uses #
 } in
@@ -93,13 +93,13 @@ module LogCleaner = {
   let clean_entry = fun (entry: String) -> ⋯;  #› 4 uses #
 
 
-  test ⋯ end;
+  test ⋯ end;  #› LogCleaner/test#1 #
 
-  test ⋯ end;
+  test ⋯ end;  #› LogCleaner/test#2 #
 
-  test ⋯ end;
+  test ⋯ end;  #› LogCleaner/test#3 #
 
-  test ⋯ end;
+  test ⋯ end;  #› LogCleaner/test#4 #
 
     let selfcheck : () -> Bool = fun _ -> ⋯  #› 2 uses #
 } in
@@ -364,16 +364,16 @@ module MetaRunner = {
   let selfcheck : () -> Bool = fun _ -> ⋯  #› 1 use #
 } in
 
-test Text.selfcheck(()) end;
-test DewLedger.selfcheck(()) end;
-test GroveNames.selfcheck(()) end;
-test WateringTimer.selfcheck(()) end;
-test RunningSums.selfcheck(()) end;
-test LogCleaner.selfcheck(()) end;
-test CropPlotter.selfcheck(()) end;
-test HarvestLedger.selfcheck(()) end;
-test FieldPlotter.selfcheck(()) end;
-test MetaRunner.selfcheck(()) end;
+test Text.selfcheck(()) end;  #› test#1 #
+test DewLedger.selfcheck(()) end;  #› test#2 #
+test GroveNames.selfcheck(()) end;  #› test#3 #
+test WateringTimer.selfcheck(()) end;  #› test#4 #
+test RunningSums.selfcheck(()) end;  #› test#5 #
+test LogCleaner.selfcheck(()) end;  #› test#6 #
+test CropPlotter.selfcheck(()) end;  #› test#7 #
+test HarvestLedger.selfcheck(()) end;  #› test#8 #
+test FieldPlotter.selfcheck(()) end;  #› test#9 #
+test MetaRunner.selfcheck(()) end;  #› test#10 #
 
 let final = ⋯ in  #› 1 use #
 final.ok == 9

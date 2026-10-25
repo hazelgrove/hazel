@@ -154,6 +154,10 @@ let status_mark = (s: TestStatus.t): string =>
   | Indet => "indeterminate"
   };
 
+/* an unhinted test's path, which only a note shows */
+let unnamed_path = (e: O.entry): option(string) =>
+  e.kind == Test && e.hint == None ? Some(O.path_string(e)) : None;
+
 let error_message = (facts: facts, id: Id.t): string =>
   switch (Id.Map.find_opt(id, facts.info_map)) {
   | Some(info) =>
@@ -222,6 +226,9 @@ let with_last_kid = (t: Tile.t, kid: Segment.t): Tile.t => {
 type note = {
   /* the entry's name, when several notes share a line */
   label: string,
+  /* its first part is its path (an unhinted test's, a statement's), which
+     names it there instead */
+  named: bool,
   at: Id.t,
   /* at the measurement's last row, else its first */
   last: bool,
@@ -291,11 +298,12 @@ let rec map_level =
   /* replaced runs of the level's pieces: [a, b) by a segment */
   let runs = ref([]);
   let notes = ref([]);
-  let note = (~last=false, ~label="", at, parts) =>
+  let note = (~last=false, ~named=false, ~label="", at, parts) =>
     notes :=
       [
         {
           label,
+          named,
           at,
           last,
           parts,
@@ -387,7 +395,12 @@ let rec map_level =
               let (kid, _) = elide_kid();
               arr[i] = Tile(with_last_kid(t, kid));
             };
-            note(t.id, common_parts(ctx, e) @ [status]);
+            let path = unnamed_path(e);
+            note(
+              ~named=path != None,
+              t.id,
+              Option.to_list(path) @ common_parts(ctx, e) @ [status],
+            );
           | _ => ()
           }
         | None => ()
@@ -403,7 +416,17 @@ let rec map_level =
           at => note(~last=true, at, common_parts(ctx, e) @ [value]),
           tail_end,
         );
-      | Stmt
+      | Stmt =>
+        Option.iter(
+          at =>
+            note(
+              ~last=true,
+              ~named=true,
+              at,
+              [O.path_string(e), ...common_parts(ctx, e)],
+            ),
+          tail_end,
+        )
       | Use =>
         Option.iter(
           at => note(~last=true, at, common_parts(ctx, e)),
@@ -458,7 +481,7 @@ let annotate =
           by_row,
           row,
           Option.value(Hashtbl.find_opt(by_row, row), ~default=[])
-          @ [(n.label, parts)],
+          @ [(n.label, n.named, parts)],
         );
       },
     List.rev(notes),
@@ -467,14 +490,20 @@ let annotate =
   Array.mapi(
     (row, line) =>
       switch (Hashtbl.find_opt(by_row, row)) {
-      | Some([(_, parts)]) when parts != [] =>
+      | Some([(_, _, parts)]) when parts != [] =>
         line ++ "  " ++ comment(parts)
       | Some([_, _, ..._] as several) =>
         switch (
           List.filter_map(
-            ((label, parts)) =>
-              parts == []
-                ? None : Some(label ++ ": " ++ String.concat(", ", parts)),
+            ((label, named, parts)) =>
+              switch (named, parts) {
+              | (true, [path]) => Some(path)
+              | (true, [path, ...rest]) =>
+                Some(path ++ ": " ++ String.concat(", ", rest))
+              | (_, []) => None
+              | (false, parts) =>
+                Some(label ++ ": " ++ String.concat(", ", parts))
+              },
             several,
           )
         ) {
@@ -609,29 +638,35 @@ let entry_text = (ctx: ctx, e: O.entry): string => {
         String.sub(line, k, n - k);
       };
   let shift = row => row == 0 ? 0 : base;
-  /* the tests below, at their lines */
-  let rec tests = (e: O.entry) =>
+  /* the tests in it at their lines: their marks, and the paths of those
+     below it without a hint */
+  let rec tests = (~below, e: O.entry) =>
     (
       switch (e.test) {
       | Some(t) =>
-        switch (test_status(ctx.facts, t)) {
-        | Some(s) => [
+        let path = below ? unnamed_path(e) : None;
+        let status =
+          ctx.settings.test_marks ? test_status(ctx.facts, t) : None;
+        switch (path, status) {
+        | (None, None) => []
+        | (path, s) => [
             {
               label: "",
+              named: path != None,
               at: t,
               last: true,
-              parts: [status_mark(s)],
+              parts:
+                Option.to_list(path)
+                @ Option.to_list(Option.map(status_mark, s)),
             },
           ]
-        | None => []
-        }
+        };
       | None => []
       }
     )
-    @ List.concat_map(tests, e.children);
+    @ List.concat_map(tests(~below=true), e.children);
   let lines =
-    annotate(lines, find, ctx.settings.test_marks ? tests(e) : [])
-    |> with_probes(ctx, find);
+    annotate(lines, find, tests(~below=false, e)) |> with_probes(ctx, find);
   /* each error's line under its term's row: underlined from its first
      token, through its last when it ends on that row */
   let carets = Hashtbl.create(4);
